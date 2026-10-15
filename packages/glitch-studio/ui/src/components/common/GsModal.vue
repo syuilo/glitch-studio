@@ -361,6 +361,8 @@ onUnmounted(() => {
 
 defineExpose({
 	close,
+	// 背景も含むモーダル全体へイベントを登録する際、Transitionの$elには依存しない。
+	getRootElement: () => modalRootEl.value,
 });
 </script>
 

@@ -16,15 +16,21 @@ const bundle = await build({ absWorkingDir: directory,
 		export { default as Divider } from './src/components/GsWorkspaceDivider.vue';
 		export { default as Asset } from './src/components/GsAsset.vue';
 		export { default as VisualModuleEditor } from './src/components/GsVisualModuleEditor.vue';
+		export { default as AssetSelectDialog } from './src/components/GsAssetSelectDialog.vue';
+		export { default as DashboardDialog } from './src/components/GsDashboardDialog.vue';
+		export { workspaceControllerKey } from './src/WorkspaceController.ts';
+		export { assetImportTest } from '@/utility/import-assets.ts';
 		export { preferences } from '@/preferences.ts';
 		export { getActiveDragData, getDragSessionData } from './src/utility/drag-and-drop.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
+	define: { _VERSION_: '"test"', __ELECTRON__: 'false' },
 	plugins: [{ name: 'drag-session-components', setup(build) {
 		build.onResolve({ filter: /^@\/(preferences|workspace|app|ui)\.ts$/ }, ({ path }) => ({ path: path.slice(2), namespace: 'test' }));
 		build.onResolve({ filter: /open-media-file\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
+		build.onResolve({ filter: /import-assets\.ts$/ }, () => ({ path: 'asset-import', namespace: 'test' }));
 		build.onResolve({ filter: /visual-module-wires\.ts$/ }, () => ({ path: 'wires', namespace: 'test' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => {
-			if (/Gs(?:Draggable|WorkspacePanel|WorkspaceDivider|Asset|VisualModuleEditor)\.vue$/.test(path)) return;
+			if (/Gs(?:Draggable|WorkspacePanel|WorkspaceDivider|Asset|VisualModuleEditor|AssetSelectDialog|DashboardDialog)\.vue$/.test(path)) return;
 			return { path: basename(path, '.vue'), namespace: 'control' };
 		});
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
@@ -32,12 +38,22 @@ const bundle = await build({ absWorkingDir: directory,
 				get s() { return { workspaceDefinition: this.r.workspaceDefinition.value }; },
 				commit(key, value) { this.commits.push(value); this.r[key].value = value; } };`,
 			'workspace.ts': `export const workspacePanelDefinitions = { assets: { icon: '', label: 'Assets', component: 'div' } }; export function getElementMenu() { return []; }`,
-			'app.ts': `export const appContext = { projectContext: { stateManager: { commit() {} } } };`,
+			'app.ts': `export const appContext = { projectContext: { hasProject: true, stateManager: { commit() {} } } };
+				export async function newProject() {} export async function newProjectFromImageOrVideo() { return true; }
+				export async function openProject() { return true; }`,
 			'ui.ts': 'export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {}',
 			media: 'export async function openMediaFile() {}',
+			'asset-import': `export const assetImportTest = { calls: [], read: null };
+				export async function importAssets(context, files) { assetImportTest.calls.push({ context, files });
+					return assetImportTest.read == null ? ['asset'] : assetImportTest.read(); }`,
 			wires: 'export function provideVisualModuleWires() {}',
 		}[path] }));
-		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: `
+		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: path === 'GsModal' ? `
+			import { h, useTemplateRef } from 'vue'; export default { setup(_, { attrs, slots, expose }) {
+				const root = useTemplateRef('root'); expose({ getRootElement: () => root.value, close() {} });
+				return () => h('div', { ...attrs, ref: 'root' }, [h('div', { 'data-test-modal-background': '' }),
+					...Object.values(slots).flatMap(slot => slot())]);
+			} };` : `
 			import { h } from 'vue'; export default { setup(_, { attrs, slots }) { return () => h(${JSON.stringify(path)}, attrs,
 				Object.values(slots).flatMap(slot => slot())); } };` }));
 		build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
@@ -53,11 +69,23 @@ const bundle = await build({ absWorkingDir: directory,
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Draggable, Panel, Divider, Asset, VisualModuleEditor, preferences, getActiveDragData, getDragSessionData } = module.exports;
+const { Draggable, Panel, Divider, Asset, VisualModuleEditor, AssetSelectDialog, DashboardDialog, workspaceControllerKey, assetImportTest,
+	preferences, getActiveDragData, getDragSessionData } = module.exports;
 
-function fixture(t, render) {
+function fixture(t, render, provide = () => {}) {
 	const windowTarget = new EventTarget();
-	const element = tag => ({ tag, parent: null, children: [], props: {}, text: '', ownerDocument: { defaultView: windowTarget } });
+	const body = { hasAttribute: () => false };
+	const element = tag => Object.assign(new EventTarget(), { tag, parent: null, children: [], props: {}, text: '',
+		ownerDocument: { defaultView: windowTarget, body }, contains(node) { return node === this || (node?.parent != null && this.contains(node.parent)); },
+		dispatchEvent(event) {
+			let stopped = false;
+			const previousStop = event.stopPropagation;
+			event.stopPropagation = () => { stopped = true; previousStop.call(event); };
+			const result = EventTarget.prototype.dispatchEvent.call(this, event);
+			event.stopPropagation = previousStop;
+			if (event.bubbles && !stopped && this.parent != null) return this.parent.dispatchEvent(event);
+			return result;
+		} });
 	const renderer = createRenderer({ createElement: element, createText: text => ({ ...element('text'), text }), createComment: () => element('comment'),
 		setText: (node, text) => { node.text = text; }, setElementText: (node, text) => { node.text = text; }, patchProp: (node, key, _old, value) => { node.props[key] = value; },
 		insert(node, parent, anchor = null) {
@@ -70,12 +98,13 @@ function fixture(t, render) {
 	});
 	const root = element('root');
 	const app = renderer.createApp({ setup: () => render });
+	provide(app);
 	app.component('TestTransitionGroup', { setup(_, { attrs, slots }) { return () => h('div', attrs, slots.default()); } });
 	app.mount(root);
 	t.after(() => app.unmount());
 	const descendants = node => [node, ...node.children.flatMap(descendants)];
 	const find = (attribute, value, target = root) => descendants(target).find(node => attribute in node.props && (value == null || node.props[attribute] === value));
-	return { root, find, windowTarget };
+	return { root, find, windowTarget, body, app };
 }
 
 function transfer() {
@@ -84,7 +113,7 @@ function transfer() {
 }
 
 function event(type, dataTransfer, node) {
-	const value = new Event(type, { cancelable: true });
+	const value = new Event(type, { cancelable: true, bubbles: true });
 	value.dataTransfer = dataTransfer;
 	Object.defineProperty(value, 'currentTarget', { value: node });
 	Object.defineProperty(value, 'target', { value: node });
@@ -94,6 +123,89 @@ function event(type, dataTransfer, node) {
 const settle = async () => { await new Promise(resolve => setTimeout(resolve, 20)); await nextTick(); };
 const list = (model, group, key) => h(Draggable, { modelValue: model.value, group, direction: 'vertical', 'data-test-list': key,
 	'onUpdate:modelValue': value => { model.value = value; } }, { default: ({ item }) => h('span', item.name ?? item.id) });
+
+// 【背景を含むAsset選択モーダル全体で複数ファイルを取り込み、選択の確定はユーザーの操作に残す】
+// popupはAppの全体ドロップ受付へ届かないため、実SFCに受付を接続して確認する。
+// 選択一覧だけへリスナーを登録すると背景へのドロップがブラウザへ渡るため、背景から伝播させる。
+// 単一選択・MIME絞り込みのダイアログでも任意ファイルの取り込みを許可し、取り込み中の
+// 二重ドロップ・操作ロック中の受付・破棄後のリスナー残留を防ぐ。
+test('imports file batches in the asset picker without confirming the selection and cleans up handlers', async t => {
+	assetImportTest.calls = [];
+	const gate = Promise.withResolvers();
+	assetImportTest.read = () => gate.promise;
+	t.after(() => { assetImportTest.read = null; });
+	const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+	const reveals = [], confirmations = [];
+	const f = fixture(t, () => h(AssetSelectDialog, { multiple: false, mimeType: 'image/*', onDone: value => confirmations.push(value) }),
+		app => app.provide(workspaceControllerKey, { revealPanel: value => reveals.push(value) }));
+	globalThis.window = { document: { body: f.body } };
+	t.after(() => {
+		if (previousWindow == null) delete globalThis.window;
+		else Object.defineProperty(globalThis, 'window', previousWindow);
+	});
+	const target = f.find('data-test-asset-select-file-drop');
+	const background = f.find('data-test-modal-background');
+	const content = f.find('data-test-asset-select-content');
+	const files = [new File(['image'], 'image.png', { type: 'image/png' }), new File(['text'], 'notes.txt', { type: 'text/plain' })];
+	const transfer = { types: ['Files'], files, dropEffect: 'move' };
+	const over = event('dragover', transfer, background);
+	background.dispatchEvent(over);
+	await nextTick();
+	assert.equal(over.defaultPrevented, true);
+	assert.equal(transfer.dropEffect, 'copy');
+	assert.ok(f.find('data-test-asset-select-drop-overlay'));
+	const leave = event('dragleave', transfer, background);
+	leave.relatedTarget = content;
+	background.dispatchEvent(leave);
+	await nextTick();
+	assert.ok(f.find('data-test-asset-select-drop-overlay'), 'Moving from the background to the dialog content remains inside the drop target');
+	background.dispatchEvent(event('drop', transfer, background));
+	transfer.files = [];
+	content.dispatchEvent(event('drop', { types: ['Files'], files }, content));
+	assert.deepEqual(assetImportTest.calls[0].files, files);
+	assert.equal(assetImportTest.calls.length, 1);
+	gate.resolve(['image', 'text']);
+	await new Promise(resolve => setImmediate(resolve));
+	await nextTick();
+	assert.equal(f.find('data-test-asset-select-drop-overlay'), undefined);
+	assert.deepEqual(reveals, [{ contentType: 'assets', sourcePanelId: null }]);
+	assert.deepEqual(confirmations, []);
+	f.body.hasAttribute = () => true;
+	background.dispatchEvent(event('drop', { types: ['Files'], files }, background));
+	assert.equal(assetImportTest.calls.length, 1);
+	f.body.hasAttribute = () => false;
+	f.app.unmount();
+	const dropped = event('drop', { types: ['Files'], files }, target);
+	target.dispatchEvent(dropped);
+	assert.equal(dropped.defaultPrevented, false);
+	assert.equal(assetImportTest.calls.length, 1);
+});
+
+// 【Dashboardのモーダル全体へ共通ドロップ受付を登録し、破棄時に解除する】
+// ファイルの分岐だけをテストすると、SFCのマウント時に受付を接続し忘れても検出できない。
+// 背景への実イベントから汎用ファイルを取り込み、閉じたモーダルでは再取り込みしない。
+test('connects dashboard background drops to the utility and removes handlers on unmount', async t => {
+	assetImportTest.calls = [];
+	const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+	const reveals = [];
+	const f = fixture(t, () => h(DashboardDialog), app => app.provide(workspaceControllerKey, { revealPanel: value => reveals.push(value) }));
+	globalThis.window = { document: { body: f.body } };
+	t.after(() => {
+		if (previousWindow == null) delete globalThis.window;
+		else Object.defineProperty(globalThis, 'window', previousWindow);
+	});
+	const background = f.find('data-test-modal-background');
+	const files = [new File(['text'], 'notes.txt', { type: 'text/plain' })];
+	const dropped = event('drop', { types: ['Files'], files }, background);
+	background.dispatchEvent(dropped);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(dropped.defaultPrevented, true);
+	assert.deepEqual(assetImportTest.calls[0].files, files);
+	assert.deepEqual(reveals, [{ contentType: 'assets', sourcePanelId: null }]);
+	f.app.unmount();
+	background.dispatchEvent(event('drop', { types: ['Files'], files }, background));
+	assert.equal(assetImportTest.calls.length, 1);
+});
 
 // 【共通セッションで通常の並び替えを行い、現在の要素への編集を維持する】
 // dragstart時のスナップショットで同じ一覧の最新の値を上書きせず、drop後にドラッグ表示を残さない。

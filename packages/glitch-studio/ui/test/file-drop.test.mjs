@@ -230,7 +230,7 @@ test('does not open project files through the global asset drop handler', async 
 const dashboardSource = await readFile(new URL('../src/components/GsDashboardDialog.vue', import.meta.url), 'utf8');
 const dashboardAst = createSourceFile('GsDashboardDialog.ts', parse(dashboardSource).descriptor.scriptSetup.content, ScriptTarget.Latest);
 const dashboardHandlers = dashboardAst.statements.filter(statement => isFunctionDeclaration(statement)
-	&& ['onDrop', 'onDragover', '_newProjectFromImageOrVideo'].includes(statement.name?.text));
+	&& ['onFileDrop', '_newProjectFromImageOrVideo'].includes(statement.name?.text));
 const { code: dashboardCode } = await transform(dashboardHandlers.map(handler => handler.getText(dashboardAst)).join('\n'), { loader: 'ts' });
 
 function dashboardFixture({ ids = ['asset'], opened = true, hasProject = false } = {}) {
@@ -244,15 +244,28 @@ function dashboardFixture({ ids = ['asset'], opened = true, hasProject = false }
 			events.push(['assets', files.map(file => file.name)]);
 			return ids;
 		},
-		openProject: async (file, handle) => { events.push(['project', file.name, handle]); return opened; },
+		projectAction: null,
+		openProject: async (file, handle) => {
+			if (context.projectAction != null) return context.projectAction(file, handle);
+			events.push(['project', file.name, handle]); return opened;
+		},
 		workspaceController: { revealPanel: request => events.push(['reveal', request]) },
 		modal: { value: { close: () => events.push('close') } },
 		window: { document: { body: { hasAttribute: () => false } } },
 		ui: { alert: async options => events.push(['error', options.text]) },
 	};
 	const handlers = new Function('context', `const { ${Object.keys(context).join(', ')} } = context;
-		let importing = false; ${dashboardCode}; return { onDrop, onDragover, openMedia: _newProjectFromImageOrVideo };`)(context);
-	return { events, ...handlers };
+		${dashboardCode}; return { onFileDrop, openMedia: _newProjectFromImageOrVideo };`)(context);
+	const target = new TestElement();
+	target.ownerDocument = { body: context.window.document.body, defaultView: new EventTarget() };
+	let finished = Promise.resolve();
+	const dispose = installFileDropHandlers(target, (files, event) => {
+		const pending = handlers.onFileDrop(files, event);
+		finished = pending.then(() => {}, () => {});
+		return pending;
+	}, error => { void context.ui.alert({ text: error instanceof Error ? error.message : String(error) }); });
+	return { events, context, target, dispose, openMedia: handlers.openMedia,
+		async onDrop(event) { target.dispatchEvent(event); await finished; await new Promise(resolve => setImmediate(resolve)); } };
 }
 
 function dashboardEvent(files, items = []) {
@@ -274,6 +287,8 @@ test('opens project files in the dashboard and requests handles synchronously', 
 		const pending = f.onDrop(event);
 		assert.equal(requested, true);
 		assert.equal(event.defaultPrevented, true);
+		event.dataTransfer.files = [];
+		event.dataTransfer.items = [];
 		await pending;
 		assert.deepEqual(f.events[0], ['project', 'project.GSPROJ', handle]);
 		assert.equal(f.events.includes('close'), opened);
@@ -321,4 +336,27 @@ test('keeps single non-media drops on the asset import path', async () => {
 		await f.onDrop(dashboardEvent([file]));
 		assert.deepEqual(f.events, ['newProject', ['assets', [file.name]], ['reveal', { contentType: 'assets', sourcePanelId: null }], 'close']);
 	}
+});
+
+// 【Dashboardの専用処理も共通受付の操作ロックと二重ドロップ防止に従う】
+// プロジェクトを開く入口だけ独自のbusy管理へ戻ると、読み込み中に別のドロップが競合する。
+// 失敗後は共通のエラー通知でDashboardを残し、次のドロップを受け付けられるようにする。
+test('blocks dashboard drops while busy or inert and permits retry after a project opening failure', async () => {
+	const f = dashboardFixture();
+	const gate = Promise.withResolvers();
+	f.context.projectAction = async () => gate.promise;
+	const first = f.onDrop(dashboardEvent([new File(['project'], 'first.gsproj')]));
+	const second = f.onDrop(dashboardEvent([new File(['project'], 'second.gsproj')]));
+	await Promise.resolve();
+	gate.reject(new Error('Invalid project'));
+	await Promise.all([first, second]);
+	assert.deepEqual(f.events, [['error', 'Invalid project']]);
+	f.context.window.document.body.hasAttribute = () => true;
+	await f.onDrop(dashboardEvent([new File(['project'], 'blocked.gsproj')]));
+	assert.equal(f.events.length, 1);
+	f.context.window.document.body.hasAttribute = () => false;
+	f.context.projectAction = async file => { f.events.push(['project', file.name]); return true; };
+	await f.onDrop(dashboardEvent([new File(['project'], 'retry.gsproj')]));
+	assert.deepEqual(f.events.slice(-2), [['project', 'retry.gsproj'], 'close']);
+	f.dispose();
 });
