@@ -70,7 +70,6 @@ export default implementEffect<typeof definition>({
 			layout: compositeLayout,
 			entries: [uniformEntry, samplerEntry, { binding: 2, resource: fine }, { binding: 3, resource: coarse }],
 		});
-		// 無効・Amount=0では内部画像を確保せず、shaderの早期returnで入力をそのまま返す。
 		const fallbackView = fallbackTexture.createView();
 		const fallbackGroup = createCompositeGroup(fallbackView, fallbackView);
 		const createResources = (fineSize: number, coarseSize: number) => {
@@ -141,7 +140,6 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
-				const amount = unit(params.amount, 1);
 				const probability = unit(params.probability, 0.4);
 				const colorCorruption = unit(params.colorCorruption, 0.25);
 				const fineShift = displacement(params.fineShift);
@@ -153,7 +151,7 @@ export default implementEffect<typeof definition>({
 					bandAmount(params.mediumEnabled, params.mediumAmount, mediumShift),
 					bandAmount(params.coarseEnabled, params.coarseAmount, coarseShift),
 				];
-				const active = amount > 0 && probability > 0 && bandAmounts.some(value => value > 0);
+				const active = probability > 0 && bandAmounts.some(value => value > 0);
 				// ScaleはGaussianのsigmaを短辺の百分率で指定する。CoarseがFineより小さい場合は
 				// 同じ半径まで戻し、中間帯域を0にする。描画解像度で帯域の大きさを変えない。
 				const fineRadius = Math.max(0.0001, nonNegative(params.fineScale, 0.5) / 100);
@@ -182,7 +180,7 @@ export default implementEffect<typeof definition>({
 				}
 				seedValue[0] = params.seed;
 				uniformValues.set({
-					aspect, fineRadius, coarseRadius, amount, probability, colorCorruption,
+					aspect, fineRadius, coarseRadius, probability, colorCorruption,
 					seed: (seedWords[0] ^ seedWords[1]) >>> 0,
 					blockShape: params.blockShape.map((value, index) => Math.max(0.01, nonNegative(value, index === 0 ? 4 : 1))),
 					fineShift, mediumShift, coarseShift, bandAmounts, captureGrid, captureStep,

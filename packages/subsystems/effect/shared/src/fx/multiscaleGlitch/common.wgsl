@@ -2,7 +2,6 @@ struct Uniforms {
 	aspect: vec2f,
 	fineRadius: f32,
 	coarseRadius: f32,
-	amount: f32,
 	probability: f32,
 	colorCorruption: f32,
 	seed: u32,

@@ -67,9 +67,8 @@ fn corrupt_bits(value: u32, mask: u32, randomBits: u32) -> u32 {
 @fragment
 fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	let original = read_input(fragment.uv);
-	let amount = clamp(read_amount(fragment.uv), 0.0, 1.0);
 	let probability = clamp(read_probability(fragment.uv), 0.0, 1.0);
-	if (amount <= 0.0 || probability <= 0.0 || uniforms.channels == 0u) { return original; }
+	if (probability <= 0.0 || uniforms.channels == 0u) { return original; }
 	if (original.a <= 0.0) { return vec4f(0.0); }
 
 	let region = cell_hash(fragment.uv);
@@ -92,5 +91,5 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 		if (damaged != value) { corrupted[channel] = f32(damaged) / f32(maximum) * original.a; }
 	}
 	// 乗算済みRGBを補間し、alphaは元の値をそのまま返す。無変更の成分は差が0となる。
-	return vec4f(original.rgb + (corrupted - original.rgb) * amount, original.a);
+	return vec4f(original.rgb + (corrupted - original.rgb), original.a);
 }

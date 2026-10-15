@@ -26,7 +26,7 @@ export default implementEffect<typeof definition>({
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
 			device, vertex: defaultVertexShaderModule, code,
-			schema: { input: 'color', amount: 'scalar', probability: 'scalar', density: 'vector' },
+			schema: { input: 'color', probability: 'scalar', density: 'vector' },
 			targets: [{ format: intermediateTextureFormat }],
 			internalLayouts: [layout],
 			// 透明画素や無加工の領域は早期returnするため、入力参照のLODを明示する。
@@ -55,7 +55,7 @@ export default implementEffect<typeof definition>({
 					seed: (seedWords[0] ^ seedWords[1]) >>> 0,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const variant = pipelines.update({ input: params.input, amount: params.amount, probability: params.probability, density: params.density }, ctx.outputDataMap.output.texture);
+				const variant = pipelines.update({ input: params.input, probability: params.probability, density: params.density }, ctx.outputDataMap.output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, bindGroup);

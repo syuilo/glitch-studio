@@ -12,7 +12,6 @@ export default defineEffect({
 	tags: ['glitch', 'distortion', 'color', 'stylized', 'experimental'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
 		probability: { dataType: { kind: 'scalar' }, ui: { label: 'Corruption Probability', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.4 } },
 		fineScale: { dataType: { kind: 'scalar' }, ui: { label: 'Fine Scale (% of Short Side)', control: { controlType: 'range', min: 0.1, max: 5, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },
 		coarseScale: { dataType: { kind: 'scalar' }, ui: { label: 'Coarse Scale (% of Short Side)', control: { controlType: 'range', min: 1, max: 25, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 8 } },

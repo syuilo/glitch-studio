@@ -12,7 +12,6 @@ export default defineEffect({
 	tags: ['color', 'glitch', 'pixel', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
 		mode: {
 			dataType: { kind: 'enum', options: ['invert', 'clear', 'set', 'swap', 'randomize'] },
 			ui: { label: 'Mode', control: { labels: { invert: 'Invert', clear: 'Force 0', set: 'Force 1', swap: 'Swap First / Last Bit', randomize: 'Randomize' } } },

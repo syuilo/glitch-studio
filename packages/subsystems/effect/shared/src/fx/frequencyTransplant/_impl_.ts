@@ -1,13 +1,13 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, inputUvScale, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
-import type { ShaderInput, ShaderInputValues } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import commonCode from './common.wgsl?raw';
 import transplantCode from './transplant.wgsl?raw';
 import outputCode from './output.wgsl?raw';
+import type { ShaderInput, ShaderInputValues } from '@gs/shared/gpu/shader-input.ts';
 import type definition from './_def_.ts';
 
-const inputSchema = { input: 'color', donor: 'color', amount: 'scalar' } as const;
+const inputSchema = { input: 'color', donor: 'color' } as const;
 const componentModes = { all: 0, luminance: 1, chroma: 2 };
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 

@@ -29,15 +29,13 @@ fn sample_reconstruction(position: vec2f) -> ReconstructedSample {
 @fragment
 fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	let original = read_input(fragment.uv);
-	let amount = clamp(read_amount(fragment.uv), 0.0, 1.0);
-	if (amount == 0.0) { return original; }
 	if (original.a <= 0.0) { return vec4f(0.0); }
 	let reconstruction = sample_reconstruction(fragment.uv * vec2f(0.5, -0.5) + 0.5);
 	let originalRgb = original.rgb / original.a;
 	var baseRgb = components_to_rgb(reconstruction.base.rgb);
 	if (uniforms.preserveDetails != 0u) { baseRgb = originalRgb; }
 	let transplanted = baseRgb + components_to_rgb(reconstruction.difference.rgb);
-	let rgb = clamp(mix(originalRgb, transplanted, amount), vec3f(0.0), vec3f(1.0));
+	let rgb = clamp(transplanted, vec3f(0.0), vec3f(1.0));
 	// 入力の透明度と形を保持し、未乗算での加工が終わってから一度だけpremultiplyする。
 	return vec4f(rgb * original.a, original.a);
 }
