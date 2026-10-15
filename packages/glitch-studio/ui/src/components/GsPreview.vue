@@ -8,7 +8,9 @@
 			</div>
 		</div>
 		<div :class="$style.topCenter">
-			<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">{{ previewTargetName }} <i class="ti ti-chevron-down"></i></button>
+			<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
+				<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'live'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
+			</button>
 			<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s" role="alert">
 				<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
 				<div>{{ renderEngine.errorMessage.value }}</div>
