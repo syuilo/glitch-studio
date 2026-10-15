@@ -1,5 +1,6 @@
 struct Uniforms {
 	aspect: vec2f,
+	gridOrigin: vec2f,
 	rootSize: f32,
 	threshold: f32,
 	maxDepth: u32,
@@ -43,7 +44,11 @@ fn hash32(value: u32) -> u32 {
 }
 
 fn block_random(cell: vec2u, level: u32, salt: u32) -> f32 {
-	let identity = (cell.x * 0x9e3779b9u) ^ (cell.y * 0x85ebca6bu) ^ (level * 0xc2b2ae35u);
+	// 統計バッファの添字ではなく、中央の最大ブロックからの相対位置を識別子にする。
+	// 画面を覆う列・行が増減しても、中央付近の破損パターンを入れ替えないため。
+	let rootCenter = uniforms.levels[0].yz / 2u;
+	let centeredCell = vec2i(cell) - vec2i(rootCenter) * i32(1u << level);
+	let identity = (bitcast<u32>(centeredCell.x) * 0x9e3779b9u) ^ (bitcast<u32>(centeredCell.y) * 0x85ebca6bu) ^ (level * 0xc2b2ae35u);
 	return f32(hash32(identity ^ uniforms.seed ^ (salt * 0x27d4eb2du)) >> 8u) / 16777216.0;
 }
 

@@ -5,7 +5,7 @@ fn analyze(@builtin(global_invocation_id) invocation: vec3u) {
 	let level = uniforms.levels[uniforms.maxDepth];
 	if (invocation.x >= level.y || invocation.y >= level.z) { return; }
 	let size = uniforms.rootSize / f32(1u << uniforms.maxDepth);
-	let origin = vec2f(invocation.xy) * size;
+	let origin = uniforms.gridOrigin + vec2f(invocation.xy) * size;
 	var mean = vec4f(0.0);
 	var varianceSum = vec4f(0.0);
 	var count = 0.0;

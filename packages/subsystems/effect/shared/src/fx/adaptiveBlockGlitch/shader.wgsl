@@ -19,7 +19,7 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	var cell = vec2u(0u);
 	loop {
 		let info = uniforms.levels[level];
-		cell = min(vec2u(floor(position / size)), info.yz - vec2u(1u));
+		cell = min(vec2u(floor((position - uniforms.gridOrigin) / size)), info.yz - vec2u(1u));
 		let block = statistics[info.x + cell.y * info.y + cell.x];
 		// 同じ領域の全画素が同じ統計と閾値を使い、互いに重ならない四分木の葉を選ぶ。
 		// RGBの平均分散にalphaの分散を足す。平方根を省き、UIの閾値の二乗と比較する。
@@ -28,7 +28,7 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 		level += 1u;
 		size *= 0.5;
 	}
-	let origin = vec2f(cell) * size;
+	let origin = uniforms.gridOrigin + vec2f(cell) * size;
 	var result = original;
 	if (uniforms.strength > 0.0 && block_random(cell, level, 0u) < uniforms.amount) {
 		var offset = block_random_vector(cell, level, 1u) * uniforms.displacement;
@@ -37,7 +37,7 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 		var sourcePosition = position;
 		if (uniforms.flattenBlocks != 0u) {
 			// 画像の端で一部しか見えない葉は、見えている範囲の中央を代表色として読む。
-			sourcePosition = (origin + min(origin + size, uniforms.aspect)) * 0.5;
+			sourcePosition = (max(origin, vec2f(0.0)) + min(origin + size, uniforms.aspect)) * 0.5;
 		}
 		sourcePosition += offset * size;
 		let source = read_input(input_position(sourcePosition));

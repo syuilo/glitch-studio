@@ -85,8 +85,11 @@ export default implementEffect<typeof definition>({
 			}
 			const rootSize = maxBlockSize / 100;
 			const maxDepth = clamp(Math.round(subdivisions), 0, maxSubdivisionLevels);
-			const rootColumns = Math.max(1, Math.ceil(aspect[0] / rootSize));
-			const rootRows = Math.max(1, Math.ceil(aspect[1] / rootSize));
+			// 最大ブロックの1個を画像中央へ置き、必要な列・行を左右・上下へ同数ずつ足す。
+			// 単純なceilで個数を決めると偶奇が変わるたびに半ブロックずれるため、常に奇数にする。
+			const rootColumns = Math.max(1, 2 * Math.ceil((aspect[0] / rootSize - 1) / 2) + 1);
+			const rootRows = Math.max(1, 2 * Math.ceil((aspect[1] / rootSize - 1) / 2) + 1);
+			const gridOrigin = [(aspect[0] - rootColumns * rootSize) / 2, (aspect[1] - rootRows * rootSize) / 2];
 			const levels: { offset: number; width: number; height: number }[] = [];
 			let count = 0;
 			for (let level = 0; level <= maxDepth; level++) {
@@ -105,7 +108,7 @@ export default implementEffect<typeof definition>({
 			}
 			const levelValues = new Uint32Array((maxSubdivisionLevels + 1) * 4);
 			for (const [index, level] of levels.entries()) levelValues.set([level.offset, level.width, level.height, 0], index * 4);
-			return { rootSize, rootColumns, rootRows, maxDepth, levels, levelValues, byteLength };
+			return { rootSize, rootColumns, rootRows, gridOrigin, maxDepth, levels, levelValues, byteLength };
 		};
 		const createResources = (geometry: ReturnType<typeof getGeometry>) => {
 			const statistics = device.createBuffer({ size: geometry.byteLength, usage: GPUBufferUsage.STORAGE });
@@ -143,6 +146,7 @@ export default implementEffect<typeof definition>({
 				seedValue[0] = params.seed;
 				uniformValues.set({
 					aspect,
+					gridOrigin: geometry.gridOrigin,
 					rootSize: geometry.rootSize,
 					threshold: Math.max(0, params.threshold),
 					maxDepth: geometry.maxDepth,
