@@ -13,6 +13,11 @@ export default defineEffect({
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		blockSize: { dataType: { kind: 'scalar' }, ui: { label: 'Block size (% of short side)', control: { controlType: 'range', min: 0.5, max: 10, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 2 } },
+		blockOrigin: {
+			dataType: { kind: 'enum', options: ['topLeft', 'center'] },
+			ui: { label: 'Block origin', control: { labels: { topLeft: 'Top left', center: 'Center' } } },
+			defaultValue: { inputSource: 'literal', value: 'center' },
+		},
 		preserveDetails: { dataType: { kind: 'bool' }, ui: { label: 'Preserve input detail', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		inverseTransform: {
 			dataType: { kind: 'enum', options: ['dct', 'hadamard'] },

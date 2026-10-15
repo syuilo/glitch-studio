@@ -29,6 +29,7 @@ struct Uniforms {
 	segmentLength: u32,
 	preserveDetails: u32,
 	inverseTransform: u32,
+	originAtCenter: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -90,14 +91,16 @@ fn mcu_size() -> u32 {
 	return select(8u, 16u, uniforms.subsample != 0u);
 }
 
-// 画像の仮想寸法と、MCU単位の計算領域を分けて扱う。両方の中心を重ねることで、
-// ブロックサイズを変えても画像中央を拡縮の原点に保つ。入力・出力・細部保持は
-// 必ずこの相互変換を使い、端のパディングによって格子や参照元が食い違うことを防ぐ。
+// 画像の仮想寸法と、MCU単位の計算領域を分けて扱う。中央原点では両方の中心を重ね、
+// 左上原点では先頭を揃える。入力・出力・細部保持は必ずこの相互変換を使い、
+// 原点の切り替えや端のパディングによって格子と参照元が食い違うことを防ぐ。
 fn image_to_grid(imagePosition: vec2f) -> vec2f {
+	if (uniforms.originAtCenter == 0u) { return imagePosition * uniforms.virtualSize; }
 	return (imagePosition - 0.5) * uniforms.virtualSize + vec2f(uniforms.gridSize) * 0.5;
 }
 
 fn grid_to_image(gridPosition: vec2f) -> vec2f {
+	if (uniforms.originAtCenter == 0u) { return gridPosition / uniforms.virtualSize; }
 	return (gridPosition - vec2f(uniforms.gridSize) * 0.5) / uniforms.virtualSize + 0.5;
 }
 

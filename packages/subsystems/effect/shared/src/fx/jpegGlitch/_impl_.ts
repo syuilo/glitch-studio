@@ -88,7 +88,7 @@ export default implementEffect<typeof definition>({
 			return variant;
 		};
 
-		const getGeometry = (blockSize: number, subsample: boolean) => {
+		const getGeometry = (blockSize: number, subsample: boolean, originAtCenter: boolean) => {
 			if (!Number.isFinite(blockSize) || blockSize <= 0) throw new Error('JPEG glitch: block size must be a positive finite number.');
 			// Block sizeは輝度ブロックの一辺を画面短辺に対する百分率で指定する。
 			// 仮想寸法を整数に丸めないことで、解像度の変更によるブロックの伸縮と縦横の歪みを避ける。
@@ -99,8 +99,13 @@ export default implementEffect<typeof definition>({
 			// 中央MCUの中心を画像中央へ固定し、画像を覆うまで両側にMCUを追加する。
 			// 単純にceilした個数で中央寄せすると、偶数・奇数の切り替わりで格子が半MCUずれる。
 			// 常に奇数個なら、個数が変わっても同じ格子を整数MCUずつ外側へ広げるだけになる。
-			const mcuColumns = 2 * Math.ceil(Math.max(0, virtualSize[0] / mcuSize - 1) / 2) + 1;
-			const mcuRows = 2 * Math.ceil(Math.max(0, virtualSize[1] / mcuSize - 1) / 2) + 1;
+			// 左上原点では元の格子と走査順を再現するため、右端・下端の不足分だけ切り上げる。
+			const mcuColumns = originAtCenter
+				? 2 * Math.ceil(Math.max(0, virtualSize[0] / mcuSize - 1) / 2) + 1
+				: Math.max(1, Math.ceil(virtualSize[0] / mcuSize));
+			const mcuRows = originAtCenter
+				? 2 * Math.ceil(Math.max(0, virtualSize[1] / mcuSize - 1) / 2) + 1
+				: Math.max(1, Math.ceil(virtualSize[1] / mcuSize));
 			const gridSize = [mcuColumns * mcuSize, mcuRows * mcuSize];
 			const mcuCount = mcuColumns * mcuRows;
 			const blocksPerMcu = subsample ? 6 : 3;
@@ -158,7 +163,8 @@ export default implementEffect<typeof definition>({
 			render: ctx => {
 				const params = ctx.params;
 				const subsample = params.chromaSubsampling === '420';
-				const geometry = getGeometry(params.blockSize, subsample);
+				const originAtCenter = params.blockOrigin === 'center';
+				const geometry = getGeometry(params.blockSize, subsample, originAtCenter);
 				if (resources == null || resources.mcuColumns !== geometry.mcuColumns || resources.mcuRows !== geometry.mcuRows
 					|| resources.blocksPerMcu !== geometry.blocksPerMcu || resources.preserveDetails !== params.preserveDetails) {
 					const next = createResources(geometry, params.preserveDetails);
@@ -180,6 +186,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					virtualSize: geometry.virtualSize,
 					gridSize: geometry.gridSize,
+					originAtCenter: Number(originAtCenter),
 					samplingGrid,
 					mcuColumns: geometry.mcuColumns,
 					mcuCount: geometry.mcuCount,

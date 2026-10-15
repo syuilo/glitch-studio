@@ -8,9 +8,10 @@ struct FragmentIn {
 
 fn component_sample(pixel: vec2i, component: u32) -> vec2f {
 	let stride = select(1u, 2u, uniforms.subsample != 0u && component != 0u);
-	// 中央寄せでは画像の四辺にパディングがあり、画像座標とバッファの先頭は一致しない。
-	// サンプル位置はパディングを含む計算領域で制限し、対応するMCUを正しく読む。
-	let size = vec2i(uniforms.gridSize / stride);
+	// 左上原点では従来どおり画像のサンプル数で制限する。中央原点では四辺に
+	// パディングがあり、画像とバッファの先頭が異なるため、計算領域全体を使う。
+	var size = vec2i(ceil(uniforms.virtualSize / f32(stride)));
+	if (uniforms.originAtCenter != 0u) { size = vec2i(uniforms.gridSize / stride); }
 	let point = vec2u(clamp(pixel, vec2i(0), size - 1));
 	let blockPosition = point / 8u;
 	var mcu = blockPosition;
