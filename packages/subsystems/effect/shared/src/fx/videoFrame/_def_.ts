@@ -16,7 +16,7 @@ export default defineEffect({
 		fit: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
 		outOfRange: {
 			dataType: { kind: 'enum', options: ['clamp', 'loop', 'transparent'] },
-			ui: { label: 'Out of range', control: { labels: { 'clamp': 'Clamp', 'loop': 'Loop', 'transparent': 'Transparent' } } },
+			ui: { label: 'Out of Range', control: { labels: { 'clamp': 'Clamp', 'loop': 'Loop', 'transparent': 'Transparent' } } },
 			defaultValue: { inputSource: 'literal', value: 'clamp' },
 		},
 	},

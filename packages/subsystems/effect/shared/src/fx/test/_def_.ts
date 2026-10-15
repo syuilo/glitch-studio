@@ -2,7 +2,7 @@ import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
 	id: 'test',
-	displayName: 'test',
+	displayName: 'Test',
 	description: {
 		'ja-JP': '描画の動作確認用に、座標に応じた色のグラデーションを出力します。',
 		'en-US': 'Outputs a coordinate-based color gradient for testing rendering.',

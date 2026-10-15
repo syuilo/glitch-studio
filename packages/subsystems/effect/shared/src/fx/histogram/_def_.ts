@@ -14,7 +14,7 @@ export default defineEffect({
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		resolution: {
 			dataType: { kind: 'enum', options: ['1', '2', '4', '8', '16'] },
-			ui: { label: 'Sampling resolution', control: { labels: { '1': '1/1', '2': '1/2', '4': '1/4', '8': '1/8', '16': '1/16' } } },
+			ui: { label: 'Sampling Resolution', control: { labels: { '1': '1/1', '2': '1/2', '4': '1/4', '8': '1/8', '16': '1/16' } } },
 			defaultValue: { inputSource: 'literal', value: '1' },
 		},
 		mode: { dataType: { kind: 'enum', options: ['rgb', 'luminance'] }, ui: { label: 'Mode', control: { labels: { 'rgb': 'RGB', 'luminance': 'Luminance' } } }, defaultValue: { inputSource: 'literal', value: 'rgb' } },

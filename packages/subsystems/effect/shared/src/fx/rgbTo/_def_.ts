@@ -2,7 +2,7 @@ import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
 	id: 'rgbTo',
-	displayName: 'RGB To',
+	displayName: 'RGB to',
 	description: {
 		'ja-JP': 'RGBの色を、明るさや輝度を表すスカラー値に変換します。',
 		'en-US': 'Converts RGB colors into scalar intensity or luminance values.',

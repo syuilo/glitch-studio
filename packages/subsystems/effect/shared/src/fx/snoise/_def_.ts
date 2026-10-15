@@ -2,7 +2,7 @@ import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
 	id: 'snoise',
-	displayName: 'snoise',
+	displayName: 'Snoise',
 	description: {
 		'ja-JP': 'なめらかに変化するノイズをスカラー場として生成します。',
 		'en-US': 'Generates smoothly varying noise as a scalar field.',

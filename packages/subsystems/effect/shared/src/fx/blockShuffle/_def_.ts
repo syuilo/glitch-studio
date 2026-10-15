@@ -2,7 +2,7 @@ import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
 	id: 'blockShuffle',
-	displayName: 'Block shuffle',
+	displayName: 'Block Shuffle',
 	description: {
 		'ja-JP': '入力画像をブロックごとにランダムにずらします。',
 		'en-US': 'Randomly shifts blocks of the input image.',
@@ -20,10 +20,10 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: [20, 20] },
 		},
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
-		randomSwap: { dataType: { kind: 'bool' }, ui: { label: 'Random swap', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
-		randomRotation: { dataType: { kind: 'bool' }, ui: { label: 'Random rotation', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
-		randomFlipX: { dataType: { kind: 'bool' }, ui: { label: 'Random flip X', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
-		randomFlipY: { dataType: { kind: 'bool' }, ui: { label: 'Random flip Y', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		randomSwap: { dataType: { kind: 'bool' }, ui: { label: 'Random Swap', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		randomRotation: { dataType: { kind: 'bool' }, ui: { label: 'Random Rotation', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		randomFlipX: { dataType: { kind: 'bool' }, ui: { label: 'Random Flip X', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		randomFlipY: { dataType: { kind: 'bool' }, ui: { label: 'Random Flip Y', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	primaryInputParameter: 'input',

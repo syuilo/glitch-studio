@@ -2,7 +2,7 @@ import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
 	id: 'rainDropsOnWindow1',
-	displayName: 'Rain Drops On Window (Type 1)',
+	displayName: 'Rain Drops on Window (Type 1)',
 	description: {
 		'ja-JP': '入力画像に、窓ガラスの雨粒による歪みや曇りを加えます。',
 		'en-US': 'Adds distortion and fog to the input image like raindrops on a window.',
