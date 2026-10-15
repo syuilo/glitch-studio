@@ -74,9 +74,9 @@ Scene一覧の重複ID・参照先の欠落・循環参照などの診断は、�
 
 ## カメラと空間
 
-Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`にXY・Z・縦画角のBindingを持ち、通常のレイヤーとしてAutomation Graphと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならカメラを返さず、Zによる拡縮・近接面での非表示を行わない2D合成となる。カメラレイヤーの初期値はXY=0、Z=cot(22.5°)、縦画角45°で、Z=0の2D配置を維持する。Zの単位はSceneの半高で、正がカメラ方向。視点と平面の距離が0.001未満なら非表示。
+Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`にXY・Z・roll・縦画角のBindingを持ち、通常のレイヤーとしてAutomation Graphと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならカメラを返さず、Zによる拡縮・近接面での非表示を行わない2D合成となる。カメラレイヤーの初期値はXY=0、Z=cot(22.5°)、roll=0、縦画角45°で、Z=0の2D配置を維持する。Zの単位はSceneの半高で、正がカメラ方向。視点と平面の距離が0.001未満なら非表示。rollの1は時計回り180度で、投影では視点の位置を引いてから逆回転する。回転の縦横比補正には描画先のScene寸法を渡す。
 
-`affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。映像レイヤーの`coordinateSpace`は`world`または`screen`の静的な属性で、新規作成時は`screen`とする。`compositingParamValues`には含めず、式・キーフレームで評価しない。`screen`は現在の合成先のGroupの変形・カメラを適用しない。TransformのXYは`screenParent`として別に蓄積し、画面配置にも反映する。
+`affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。映像レイヤーの`coordinateSpace`は`world`または`screen`の静的な属性で、新規作成時は`screen`とする。`compositingParamValues`には含めず、式・キーフレームで評価しない。`screen`は現在の合成先のGroupの変形・カメラを適用しない。TransformのXY移動・拡縮・回転は`screenParent`として別に蓄積し、画面配置にも反映する。
 
 カメラのキー・式はScene時刻で評価し、クリップの内容オフセットは使用しない。カメラは音声・画素・合成パラメータを持たない。合成設定を持つレイヤーは`isTimelineVisualLayer`、子の描画走査を行うTransformも含めた対象は`isTimelineRenderLayer`で区別する。
 
@@ -84,7 +84,7 @@ Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`
 
 ## Transformレイヤー
 
-`TimelineTransformLayer`は`layers`とXYZ移動のBinding、Automation Graph、`forceDisableMotionBlur`を所有する。Groupと合わせて`TimelineContainerLayer`とし、木の走査・時間移動・範囲計算を共有する。自身のクリップ・画像・合成設定・音量は持たない。`layers/transform`が定義と評価器、`transform-space.ts`が親空間への移動の累積を担当する。
+`TimelineTransformLayer`は`layers`とXYZ移動・XY scale・rotationのBinding、Automation Graph、`forceDisableMotionBlur`を所有する。Groupと合わせて`TimelineContainerLayer`とし、木の走査・時間移動・範囲計算を共有する。自身のクリップ・画像・合成設定・音量は持たない。`layers/transform`が定義と評価器、`transform-space.ts`がローカル原点で拡縮→回転→移動した行列の累積を担当する。非等方scaleと子の回転によるせん断を行列のまま保持し、Zは加算だけを行う。カメラ位置にも同じ行列を使うが、rollには祖先のrotationだけを加算し、scale・反転・せん断を向きや画角へ継承しない。
 
 カメラ選択はTransformだけを再帰し、無効な枝を除いた表示順で行う。カメラ配下の計算ではなく、Scene側で選択したカメラの祖先を評価するため循環しない。祖先Transformのブラー無効は子のクリップ選択とカット計画にも引き継ぐ。カメラ自身だけを固定した場合は祖先のサンプル時刻を維持する。
 

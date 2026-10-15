@@ -11,9 +11,13 @@ export class TimelineTransformParameters {
 		const read = (key: keyof typeof timelineTransformParamDefs): unknown => this.evaluator.evaluate(values[key], scope, timelineTransformParamDefs[key].defaultValue.value);
 		const position = read('position');
 		const z = read('z');
+		const scale = read('scale');
+		const rotation = read('rotation');
 		return {
 			position: [0, 1].map(index => Array.isArray(position) && Number.isFinite(position[index]) ? position[index] : 0) as [number, number],
 			z: typeof z === 'number' && Number.isFinite(z) ? z : 0,
+			scale: [0, 1].map(index => Array.isArray(scale) && Number.isFinite(scale[index]) ? scale[index] : 1) as [number, number],
+			rotation: typeof rotation === 'number' && Number.isFinite(rotation) ? rotation : 0,
 		};
 	}
 }

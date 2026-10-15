@@ -127,7 +127,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private pendingTransformPreview: TimelineTransformPreview | null = null;
 	private lastTransformPreview: TimelineTransformPreview | null = null;
 	private transformPreviewParameters = new TimelineCompositingParameters();
-	private transformPreviewTranslationParameters = new TimelineTransformParameters();
+	private transformPreviewContainerParameters = new TimelineTransformParameters();
 
 	private readonly staticOptions: TimelineRendererManagerStaticOptions;
 	private dynamicOptions: TimelineRendererManagerDynamicOptions = {
@@ -194,7 +194,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.timelineRenderer = new TimelineRenderer<TimelineImage, TimelineLayer>({
 			getRenderSpace: (time, isExport, referenceTime) => ({
 				parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME,
-				camera: camera.evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === this.dynamicOptions.sceneId)?.layers ?? [], time, isExport, referenceTime?.timeMs) }),
+				camera: camera.evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === this.dynamicOptions.sceneId)?.layers ?? [], time, isExport,
+					scaleResolution(this.sceneBaseResolution, this.dynamicOptions.resolutionScale), referenceTime?.timeMs) }),
 			fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
 			createLayer: (entry, clipId) => this.createTimelineLayer(entry, clipId, [entry.id], this.sceneBaseResolution),
 			getLayerVersion: (entry, clipId) => this.getLayerVersion(this.dynamicOptions.sceneId!, entry, clipId),
@@ -430,9 +431,9 @@ export class TimelineRendererManager extends EventEmitter<{
 			const evaluate = (entry: Extract<TimelineLayer, { compositingParamValues: unknown }>) => this.transformPreviewParameters.evaluate({
 				time: preview.time, isExport: false, coordinateSpace: entry.coordinateSpace, paramValues: entry.compositingParamValues, automationGraphs: entry.automationGraphs });
 			const settings = evaluate(layer);
-			const camera = new TimelineSceneCamera().evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false);
+			const camera = new TimelineSceneCamera().evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false, sceneSize);
 			const parent = getTimelinePreviewParent(location.ancestors.map(parent => parent.layerType === 'transform'
-				? { translation: this.transformPreviewTranslationParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false) }
+				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
 				{ parent: TIMELINE_IDENTITY, depth: 0, camera, viewport: TIMELINE_FRAME });
 			preview.geometry = parent && invertTimelineAffine(parent) ? { sourceSize: timelineImageFrame(source, sceneSize), sceneSize, transform: settings } : null;
@@ -486,6 +487,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (current?.layerType !== 'transform') throw new Error('Transform not found');
 				return current;
 			}, {
+				resolution: renderResolution,
 				fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] } as TimelineImage,
 				createLayer: (entry, childClipId) => this.createTimelineLayer(entry, childClipId, [...layerPath.slice(0, -1), entry.id], sceneBaseResolution, sceneId),
 				getLayerVersion: (entry, childClipId) => this.getLayerVersion(sceneId, entry, childClipId),

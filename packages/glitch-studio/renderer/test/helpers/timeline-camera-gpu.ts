@@ -59,7 +59,7 @@ export async function run() {
 	};
 	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<TimelineImage> => {
 		switch (layer.layerType) {
-			case 'transform': return createTransformTimelineLayer(() => layer, { fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] } as TimelineImage, createLayer });
+			case 'transform': return createTransformTimelineLayer(() => layer, { resolution: frame, fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] } as TimelineImage, createLayer });
 			case 'group': return createGroupTimelineLayer(() => layer, { ...options, createLayer, getLayerVersion: () => 0 });
 			case 'shape': return createShapeTimelineLayer(layer, options);
 			case 'image': {
@@ -82,13 +82,14 @@ export async function run() {
 		}
 	};
 	const renderer = new TimelineRenderer<TimelineImage, TimelineLayer>({ fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] }, createLayer,
-		getRenderSpace: (time, isExport) => ({ parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME, camera: cameraParameters.evaluate(sceneLayers, time, isExport) }) });
+		getRenderSpace: (time, isExport) => ({ parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME, camera: cameraParameters.evaluate(sceneLayers, time, isExport, frame) }) });
 	const readback = device.createBuffer({ size: 128 * 8 * 64, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 	// 出力はCOPY_SRCを持たないため、Scene出力から読み出し用の描画先へ転写する。
 	const copy = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex, entryPoint: 'vs' }, fragment: {
 		module: device.createShaderModule({ code: '@group(0) @binding(0) var tex: texture_2d<f32>; @fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f { return textureLoad(tex, vec2i(p.xy), 0); }' }), entryPoint: 'fs', targets: [{ format: 'rgba16float' }] } });
 	const target = device.createTexture({ size: frame, format: 'rgba16float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 	const completed: string[] = [];
+
 	async function render(layers: TimelineLayer[], settings?: TimelineCameraLayer, time = 100) {
 		renderer.clear();
 		sceneLayers = settings ? [settings, ...layers] : layers;
@@ -108,11 +109,13 @@ export async function run() {
 		readback.unmap();
 		return values;
 	}
+
 	function same(name: string, actual: number[], expected: number[], tolerance = 0.03) {
 		const difference = Math.max(...actual.map((value, index) => Math.abs(value - expected[index])));
 		if (difference > tolerance) throw new Error(`${name}: maximum pixel error ${difference}`);
 		completed.push(name);
 	}
+
 	const view = (values: Record<string, any>): TimelineCameraLayer => ({ ...base, id: 'camera' + nextId++, name: 'Camera', layerType: 'camera',
 		cameraParamValues: { ...createTimelineCameraParameterValues(), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } });
 	try {
@@ -124,12 +127,13 @@ export async function run() {
 		if (!textBaseline.some((value, i) => i % 4 === 3 && value > 0.5)) throw new Error('Baseline text was not drawn');
 		same('text ink outside the frame survives parent translation', await render([group([text(2)], 'flat', { position: [-2, 0] })]), textBaseline, 0.06);
 		const twice = await render([shape(undefined, {}, { scale: [2, 2] })]);
-		same('positive Z magnifies a plane', await render([shape(undefined, {}, { depth: DEFAULT_CAMERA_DISTANCE / 2 })]), twice);
+		same('positive Z magnifies a plane', await render([shape(undefined, {}, { depth: DEFAULT_CAMERA_DISTANCE / 2 })], view({})), twice);
 		same('camera Z magnifies every world plane', await render([shape()], view({ z: DEFAULT_CAMERA_DISTANCE / 2 })), twice);
-		same('flat group ignores child depth', await render([group([shape(undefined, {}, { depth: 100 })])]), baseline);
-		same('nested flat groups ignore all inner depth', await render([group([group([shape(undefined, {}, { depth: 100 })], 'preserveDepth', { depth: 200 })])]), baseline);
-		same('preserved group carries child depth', await render([group([shape(undefined, {}, { depth: DEFAULT_CAMERA_DISTANCE / 2 })], 'preserveDepth')]), twice);
-		same('group and child depth add before projection', await render([group([shape(undefined, {}, { depth: DEFAULT_CAMERA_DISTANCE / 4 })], 'preserveDepth', { depth: DEFAULT_CAMERA_DISTANCE / 4 })]), twice);
+		// カメラなしではZに関係なく2D合成となるため、投影を検証するケースには明示的にカメラを置く。
+		same('flat group ignores child depth', await render([group([shape(undefined, {}, { depth: 100 })])], view({})), baseline);
+		same('nested flat groups ignore all inner depth', await render([group([group([shape(undefined, {}, { depth: 100 })], 'preserveDepth', { depth: 200 })])], view({})), baseline);
+		same('preserved group carries child depth', await render([group([shape(undefined, {}, { depth: DEFAULT_CAMERA_DISTANCE / 2 })], 'preserveDepth')], view({})), twice);
+		same('group and child depth add before projection', await render([group([shape(undefined, {}, { depth: DEFAULT_CAMERA_DISTANCE / 4 })], 'preserveDepth', { depth: DEFAULT_CAMERA_DISTANCE / 4 })], view({})), twice);
 		// 【有効な最上段カメラをクリップで切り替え、映像の上下関係には依存させない】
 		// Scene設定のまま評価していたり、カメラを描画順に適用すると、この比較が一致しない。
 		const upperCamera = view({ z: DEFAULT_CAMERA_DISTANCE / 2 });
@@ -152,9 +156,9 @@ export async function run() {
 		same('expanded flat groups preserve background texture sampling', await render([group([constant('transparent', { position: [2, 0] }), stripedBackground])]), await render([stripedBackground]));
 		same('uniform backgrounds stay bounded when flat group bounds expand', await render([group([constant('transparent', { position: [2, 0] }), constant('red', { blendMode: 'replace' })], 'flat', { position: [-2, 0] })]), new Array(baseline.length).fill(0));
 		const blue = shape([0, 0, 1, 1]);
-		same('timeline order wins over Z', await render([shape(undefined, {}, { depth: -1 }), blue]), await render([shape(undefined, {}, { scale: [DEFAULT_CAMERA_DISTANCE / (DEFAULT_CAMERA_DISTANCE + 1), DEFAULT_CAMERA_DISTANCE / (DEFAULT_CAMERA_DISTANCE + 1)] }), shape([0, 0, 1, 1])]));
+		same('timeline order wins over Z', await render([shape(undefined, {}, { depth: -1 }), blue], view({})), await render([shape(undefined, {}, { scale: [DEFAULT_CAMERA_DISTANCE / (DEFAULT_CAMERA_DISTANCE + 1), DEFAULT_CAMERA_DISTANCE / (DEFAULT_CAMERA_DISTANCE + 1)] }), shape([0, 0, 1, 1])]));
 		same('group opacity is applied once after overlapping projected children', await render([group([shape(), shape()], 'preserveDepth', { opacity: 0.5 })]), await render([shape(undefined, {}, { opacity: 0.5 })]));
-		same('a plane behind the camera does not erase the background with replace', await render([shape(undefined, {}, { depth: 10, blendMode: 'replace' }), blue]), await render([blue]));
+		same('a plane behind the camera does not erase the background with replace', await render([shape(undefined, {}, { depth: 10, blendMode: 'replace' }), blue], view({})), await render([blue]));
 		same('explicit clipping restores the old frame crop', await render([group([shape(undefined, { position: [2, 0] })], 'flat', { position: [-2, 0], clipToFrame: true })]), new Array(baseline.length).fill(0));
 		childScene = { id: 'child', name: 'child', resolution: { mode: 'project' }, layers: [view({ z: DEFAULT_CAMERA_DISTANCE / 2 }), shape()] };
 		const nested: TimelineLayer = { ...base, id: 'scene', name: 'scene', layerType: 'scene', coordinateSpace: 'world', clips: [{ ...base.clips[0], sceneId: 'child' }], compositingParamValues: composite(), audioParamValues: { volume: literal(1) } };
@@ -162,14 +166,33 @@ export async function run() {
 		// 【Transformは子の深度と合成を保ち、カメラにも同じ親移動を与える】
 		// ピクセル比較により、早すぎる切り取り、二重投影、Group化による背景分離を検出する。
 		same('transform recovers offscreen text', await render([transform([text(2)], { position: [-2, 0] })]), textBaseline, 0.06);
-		same('nested transforms add depth before projection', await render([transform([transform([shape()], { z: DEFAULT_CAMERA_DISTANCE / 4 })], { z: DEFAULT_CAMERA_DISTANCE / 4 })]), twice);
+		same('nested transforms add depth before projection', await render([transform([transform([shape()], { z: DEFAULT_CAMERA_DISTANCE / 4 })], { z: DEFAULT_CAMERA_DISTANCE / 4 })], view({})), twice);
 		same('transform shares translation with its camera', await render([transform([view({}), shape()], { position: [0.75, -0.25], z: 0.5 })]), baseline);
 		same('parented camera moves world in the opposite direction', await render([transform([view({})], { position: [0.4, -0.2] }), shape()]), await render([shape(undefined, {}, { position: [-0.4, 0.2] })]));
 		same('disabled transform does not supply a camera', await render([{ ...transform([view({ z: DEFAULT_CAMERA_DISTANCE / 2 })]), isDisabled: true }, shape()]), baseline);
 		same('screen children inherit transform XY without camera or depth', await render([transform([shape(undefined, {}, {}, 'screen')], { position: [0.25, 0], z: 100 })], view({ position: [5, 5], z: 0 })), await render([shape(undefined, {}, { position: [0.25, 0] })]));
-		same('flat group ignores transform depth inside it', await render([group([transform([shape()], { z: 100 })])]), baseline);
-		same('transform outside flat group sets plane depth once', await render([transform([group([transform([shape()], { z: 100 })])], { z: DEFAULT_CAMERA_DISTANCE / 2 })]), twice);
-		same('transform and preserved group share depth', await render([transform([group([shape()], 'preserveDepth', { depth: DEFAULT_CAMERA_DISTANCE / 4 })], { z: DEFAULT_CAMERA_DISTANCE / 4 })]), twice);
+		same('flat group ignores transform depth inside it', await render([group([transform([shape()], { z: 100 })])], view({})), baseline);
+		same('transform outside flat group sets plane depth once', await render([transform([group([transform([shape()], { z: 100 })])], { z: DEFAULT_CAMERA_DISTANCE / 2 })], view({})), twice);
+		same('transform and preserved group share depth', await render([transform([group([shape()], 'preserveDepth', { depth: DEFAULT_CAMERA_DISTANCE / 4 })], { z: DEFAULT_CAMERA_DISTANCE / 4 })], view({})), twice);
+		// 【親子の拡縮・回転とカメラのロールを、行列だけでなく実画素で検証する】
+		// 非等方scaleを含む入れ子は既存の奥行き維持Groupと比較し、せん断とサンプリングを確認する。
+		// カメラへscaleまで逆適用したり、On screenへロールが漏れる退行も検出する。
+		const transformed = { position: [0.1, -0.1], scale: [1.5, 0.75], rotation: 0.2 };
+		same('transform preserves shear from a rotated child',
+			await render([transform([transform([shape()], { rotation: 0.25 })], transformed)]),
+			await render([group([group([shape()], 'preserveDepth', { rotation: 0.25 })], 'preserveDepth', transformed)]));
+		same('camera roll applies inverse rotation', await render([shape()], view({ roll: 0.25 })), await render([shape(undefined, {}, { rotation: -0.25 })]));
+		same('camera and world share parent rotation', await render([transform([view({}), shape()], { position: [0.3, -0.2], rotation: 0.25 })]), baseline);
+		same('camera inherits parent scale only for position',
+			await render([transform([view({ position: [0.1, 0.2] })], { scale: [2, 0.5] }), shape()]),
+			await render([shape()], view({ position: [0.2, 0.1] })));
+		same('parent scale does not cancel world magnification through its camera', await render([transform([view({}), shape()], { scale: [2, 2] })]), twice);
+		same('screen children inherit scale and rotation without camera roll',
+			await render([transform([shape(undefined, {}, {}, 'screen')], transformed)], view({ position: [5, 5], z: 0, roll: 0.3 })),
+			await render([shape(undefined, {}, transformed)]));
+		same('zero transform scale removes the foreground', await render([transform([shape()], { scale: [0, 1] }), blue]), await render([blue]));
+		same('negative transform scale mirrors children', await render([transform([shape(undefined, {}, { position: [0.2, 0.1] })], { scale: [-1, 1] })]),
+			await render([shape(undefined, {}, { position: [-0.2, 0.1], scale: [-1, 1] })]));
 		const translucent = shape([1, 0, 0, 1], {}, { opacity: 0.5, blendMode: 'multiply' });
 		same('transform preserves blending against the outside background', await render([transform([translucent]), blue]), await render([translucent, blue]));
 		const partial = shape(undefined, {}, { opacity: 0.5 });
@@ -177,6 +200,8 @@ export async function run() {
 		same('transform does not merge overlapping child opacity', await render([transform([partial, otherPartial]), blue]), await render([partial, otherPartial, blue]));
 		childScene.layers = [transform([view({ z: DEFAULT_CAMERA_DISTANCE / 2 })]), shape()];
 		same('child scene resolves its own transform-parented camera', await render([nested]), twice);
+		childScene.layers = [transform([view({ roll: 0.1 }), shape(undefined, {}, { rotation: 0.1 })], { rotation: 0.2 })];
+		same('child scene applies its own camera roll and parent rotation', await render([nested]), baseline);
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;

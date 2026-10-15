@@ -32,9 +32,9 @@ test('selects the topmost active camera and disables projection during gaps', ()
 	assert.equal(getActiveTimelineCamera([upper, lower], 100).layer.id, 'upper');
 	assert.equal(getActiveTimelineCamera([upper, lower], 300).layer.id, 'lower');
 	assert.equal(getActiveTimelineCamera([upper, lower], 500), null);
-	assert.equal(sceneCamera.evaluate([lower, upper], 150, false).z, 8);
-	assert.equal(sceneCamera.evaluate([{ ...upper, isDisabled: true }, lower], 150, false).z, 8);
-	assert.equal(sceneCamera.evaluate([upper, lower], 500, false), null);
+	assert.equal(sceneCamera.evaluate([lower, upper], 150, false, frame).z, 8);
+	assert.equal(sceneCamera.evaluate([{ ...upper, isDisabled: true }, lower], 150, false, frame).z, 8);
+	assert.equal(sceneCamera.evaluate([upper, lower], 500, false, frame), null);
 });
 
 // 【有効なカメラがない区間ではZを変えても2D配置とプレビューを維持する】
@@ -46,15 +46,15 @@ test('preserves 2D geometry at every depth without an active camera', () => {
 	const matrix = [2, 0, 0, 3, 0.2, -0.3];
 	for (const isExport of [false, true]) {
 		for (const [layers, time] of [[[], 150], [[entry], 99], [[entry], 200], [[{ ...entry, isDisabled: true }], 150]]) {
-			const view = sceneCamera.evaluate(layers, time, isExport);
+			const view = sceneCamera.evaluate(layers, time, isExport, frame);
 			assert.equal(view, null);
 			for (const depth of [-100, 0, 1, 100]) {
-				assert.deepEqual(projectTimelineMatrix(matrix, depth, view), matrix);
+				assert.deepEqual(projectTimelineMatrix(matrix, depth, frame, view), matrix);
 				assert.deepEqual(getTimelinePreviewParent([], { ...settings, depth }, frame,
 					{ parent: matrix, depth: 10, camera: view }), matrix);
 			}
 		}
-		assert.notDeepEqual(projectTimelineMatrix(matrix, 1, sceneCamera.evaluate([entry], 100, isExport)), matrix);
+		assert.notDeepEqual(projectTimelineMatrix(matrix, 1, frame, sceneCamera.evaluate([entry], 100, isExport, frame)), matrix);
 	}
 });
 
@@ -63,8 +63,8 @@ test('preserves 2D geometry at every depth without an active camera', () => {
 test('evaluates camera animation in scene time with an independent motion blur override', () => {
 	const animated = cameraLayer('animated', 100, 1000, { position: { inputSource: 'expression', expression: '[TIME, 0]' } });
 	const sceneCamera = new TimelineSceneCamera();
-	assert.deepEqual(sceneCamera.evaluate([animated], 500, true, 400).position, [0.5, 0]);
-	assert.deepEqual(sceneCamera.evaluate([{ ...animated, forceDisableMotionBlur: true }], 500, true, 400).position, [0.4, 0]);
+	assert.deepEqual(sceneCamera.evaluate([animated], 500, true, frame, 400).position, [0.5, 0]);
+	assert.deepEqual(sceneCamera.evaluate([{ ...animated, forceDisableMotionBlur: true }], 500, true, frame, 400).position, [0.4, 0]);
 	assert.equal(getActiveTimelineCamera([{ ...animated, forceDisableMotionBlur: true }], 99, 100).layer.id, animated.id);
 	assert.equal(getActiveTimelineCamera([{ ...animated, forceDisableMotionBlur: true }], 100, 99), null);
 });
@@ -80,10 +80,6 @@ test('clips motion blur at camera cuts', () => {
 	const samples = getTimelineSampleTimes(100, 60, { enabled: true, shutterAngle: 360, samples: 8 }, boundaries, [], cameras);
 	assert.ok(samples.every(time => time >= 100));
 });
-
-
-
-
 
 // 【上段に隠れたカメラの開始・終了で映像全体のブラーを短くしない】
 // 未採用のカメラを追加しただけで露光が変わる退行を防ぐ。切り替えがない区間では
@@ -157,17 +153,17 @@ test('maps child camera cuts through placement offsets and skips frozen or disab
 // 【基準カメラはZ=0の従来の配置を維持する】
 // 解像度・横長比率や支点を含む既存の2D変形に、暗黙の拡大や平行移動を加えない。
 test('keeps the reference plane unchanged and projects positive depth toward the camera', () => {
-	near(projectTimelineMatrix(TIMELINE_IDENTITY, 0, camera), TIMELINE_IDENTITY);
-	near(projectTimelineMatrix(TIMELINE_IDENTITY, DEFAULT_CAMERA_DISTANCE / 2, camera), [2, 0, 0, 2, 0, 0]);
+	near(projectTimelineMatrix(TIMELINE_IDENTITY, 0, frame, camera), TIMELINE_IDENTITY);
+	near(projectTimelineMatrix(TIMELINE_IDENTITY, DEFAULT_CAMERA_DISTANCE / 2, frame, camera), [2, 0, 0, 2, 0, 0]);
 	const matrix = timelineGeometryMatrix({ sourceSize: { width: 1000, height: 1000 }, sceneSize: frame, transform: { ...settings, position: [0.3, -0.2], origin: [1, 0], scale: [-2, 0.4], rotation: 0.2 } });
-	near(projectTimelineMatrix(matrix, 0, camera), matrix);
+	near(projectTimelineMatrix(matrix, 0, frame, camera), matrix);
 	near(transformTimelinePoint(invertTimelineAffine(matrix), transformTimelinePoint(matrix, [0.2, 0.4])), [0.2, 0.4]);
 });
 
 // 【カメラと重なった平面や背後の平面を投影しない】
 // 距離0による無限大テクスチャや、背後の左右反転像を発生させない。
 test('excludes planes at the near limit and behind the camera', () => {
-	for (const depth of [camera.z, camera.z + 1, camera.z - 0.0001]) assert.equal(projectTimelineMatrix(TIMELINE_IDENTITY, depth, camera), null);
+	for (const depth of [camera.z, camera.z + 1, camera.z - 0.0001]) assert.equal(projectTimelineMatrix(TIMELINE_IDENTITY, depth, frame, camera), null);
 });
 
 // 【式とキーは所属Sceneの時計・書き出し状態で評価する】
@@ -183,7 +179,7 @@ test('evaluates camera expressions and keyframes at scene sample time', () => {
 			],
 		} },
 	} }, 500, true);
-	assert.deepEqual(result, { position: [0.5, 0.5], z: 0.5, fieldOfView: 50 });
+	assert.deepEqual(result, { position: [0.5, 0.5], z: 0.5, roll: 0, fieldOfView: 50 });
 });
 
 // 【カメラにも通常レイヤーと共通の式スコープを渡す】
@@ -195,7 +191,7 @@ test('uses the shared layer variables for camera expressions and environment bin
 		z: { inputSource: 'envVariable', variable: 'TEST_SAME_NAME' },
 		fieldOfView: { inputSource: 'expression', expression: 'if TEST_ONLY_LAYER && IS_EXPORT { 60 } else { 45 }' },
 	} };
-	assert.deepEqual(evaluator.evaluate(camera, 250, true), { position: [0.25, 250], z: 2, fieldOfView: 60 });
+	assert.deepEqual(evaluator.evaluate(camera, 250, true), { position: [0.25, 250], z: 2, roll: 0, fieldOfView: 60 });
 	assert.equal(evaluator.evaluate(camera, 250, false).fieldOfView, 45);
 });
 
@@ -205,9 +201,9 @@ test('matches preview coordinates across flat and preserved depth boundaries', (
 	const outer = { compositingMode: 'preserveDepth', settings: { ...settings, position: [0.2, 0], depth: 0.5 } };
 	const flat = { compositingMode: 'flat', settings: { ...settings, position: [-0.2, 0.4], depth: 0.5 } };
 	const inner = { compositingMode: 'preserveDepth', settings: { ...settings, position: [0.5, 0], depth: 100 } };
-	const expected = multiplyTimelineAffine(projectTimelineMatrix([1, 0, 0, 1, 0, 0.4], 1, camera), [1, 0, 0, 1, 0.5, 0]);
+	const expected = multiplyTimelineAffine(projectTimelineMatrix([1, 0, 0, 1, 0, 0.4], 1, frame, camera), [1, 0, 0, 1, 0.5, 0]);
 	near(parent([outer, flat, inner], { ...settings, depth: 200 }), expected);
-	near(parent([outer], { ...settings, depth: 0.5 }), projectTimelineMatrix([1, 0, 0, 1, 0.2, 0], 1, camera));
+	near(parent([outer], { ...settings, depth: 0.5 }), projectTimelineMatrix([1, 0, 0, 1, 0.2, 0], 1, frame, camera));
 });
 
 // 【画面配置は投影済みの親変形を二重に受けない】
@@ -215,5 +211,37 @@ test('matches preview coordinates across flat and preserved depth boundaries', (
 test('resets preserved transforms for screen placement inside the current flat boundary', () => {
 	const outer = { compositingMode: 'preserveDepth', settings: { ...settings, depth: 1, position: [0.3, 0.5] } };
 	near(parent([outer], { ...settings, coordinateSpace: 'screen' }), TIMELINE_IDENTITY);
-	near(parent([{ ...outer, compositingMode: 'flat' }], { ...settings, coordinateSpace: 'screen' }), projectTimelineMatrix([1, 0, 0, 1, 0.3, 0.5], 1, camera));
+	near(parent([{ ...outer, compositingMode: 'flat' }], { ...settings, coordinateSpace: 'screen' }), projectTimelineMatrix([1, 0, 0, 1, 0.3, 0.5], 1, frame, camera));
+});
+
+// 【カメラのロールは視点を中心とした逆回転で、Sceneの縦横比によって歪まない】
+// 原点の周りで回すとカメラ位置までずれ、正規化座標をそのまま回すと横長・縦長で
+// 形が変わる。実画面上の長さを保ち、映像の回転とカメラのロールが相殺することを確認する。
+test('projects camera roll as an inverse rotation around its position at every aspect ratio', () => {
+	const position = [0.3, -0.2];
+	for (const size of [{ width: 200, height: 100 }, { width: 100, height: 200 }, { width: 100, height: 100 }]) {
+		const view = { ...camera, position, roll: 0.5 };
+		const projection = projectTimelineMatrix(TIMELINE_IDENTITY, 0, size, view);
+		near(transformTimelinePoint(projection, position), [0, 0]);
+		near(transformTimelinePoint(projection, [position[0] + 0.5, position[1]]), [0, 0.5 * size.width / size.height]);
+		const placement = timelineGeometryMatrix({ sourceSize: size, sceneSize: size,
+			transform: { ...settings, fitMode: 'stretch', position, rotation: 0.5 } });
+		near(projectTimelineMatrix(placement, 0, size, view), TIMELINE_IDENTITY);
+	}
+});
+
+// 【ロールもScene時刻のキー・式で評価し、非有限値は無回転へ戻す】
+// 角度を一周以内へ制限すると複数周のアニメーションが失われる。既存の角度入力と同じ
+// 単位を維持し、式の失敗が投影行列全体をNaNにしないようにする。
+test('evaluates roll keyframes and expressions without clamping complete turns', () => {
+	const binding = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', trimmedDurationMs: null, wrapMode: 'clamp', keyframesTimeline: {
+		dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
+			{ id: 'a', x: 0, value: 0, interpolation: { type: 'linear' } },
+			{ id: 'b', x: 1000, value: 4, interpolation: { type: 'linear' } },
+		],
+	} };
+	const evaluate = roll => evaluator.evaluate({ automationGraphs: [], paramValues: { roll } }, 750, true).roll;
+	assert.equal(evaluate(binding), 3);
+	assert.equal(evaluate({ inputSource: 'expression', expression: 'TIME * 4' }), 3);
+	assert.equal(evaluate({ inputSource: 'literal', value: NaN }), 0);
 });

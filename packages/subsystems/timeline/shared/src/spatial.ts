@@ -4,6 +4,7 @@ import type { EvaluatedTimelineCamera } from './layers/camera/camera.ts';
 import { timelineSourceToScene } from './layer-transform.ts';
 import type { TimelineLayerGeometry, TimelinePoint } from './layer-transform.ts';
 import type { TimelineAffine } from './affine.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 export { transformTimelinePoint, multiplyTimelineAffine, invertTimelineAffine } from './affine.ts';
 export type { TimelineAffine } from './affine.ts';
 
@@ -32,7 +33,7 @@ export function intersectTimelineBounds(a: TimelineBounds, b: TimelineBounds): T
 }
 export type TimelineRenderSpace = {
 	parent: TimelineAffine;
-	/** On screenにもTransformのXY移動は反映する。カメラ・Groupの変形とは分けて蓄積する。 */
+	/** On screenにもTransformのXY変換は反映する。カメラ・Groupの変形とは分けて蓄積する。 */
 	screenParent?: TimelineAffine;
 	depth: number;
 	/** 平面化境界ではcameraを外し、その内側のZを使わない。 */
@@ -40,12 +41,16 @@ export type TimelineRenderSpace = {
 	/** 出力が確定する画面。平面化の内部では省略して画面外を保持する。 */
 	viewport?: TimelineBounds;
 };
-export function projectTimelineMatrix(matrix: TimelineAffine, depth: number, camera?: EvaluatedTimelineCamera | null): TimelineAffine | null {
-	if (!camera) return matrix;
+export function projectTimelineMatrix(matrix: TimelineAffine, depth: number, frame: Resolution, camera?: EvaluatedTimelineCamera | null): TimelineAffine | null {
+	if (camera == null) return matrix;
 	const distance = camera.z - depth;
 	if (distance < CAMERA_NEAR_DISTANCE) return null;
 	// 縦の半画角と距離から、画面の半高を1とした倍率を求める。平面を傾けないため
 	// 平面内の全点で距離が等しく、透視投影も1枚につき1つの2D変換として扱える。
 	const scale = 1 / (Math.tan(camera.fieldOfView * Math.PI / 360) * distance);
-	return multiplyTimelineAffine([scale, 0, 0, scale, -camera.position[0] * scale, -camera.position[1] * scale], matrix);
+	// カメラ位置を引いてからロールの逆回転を適用する。映像と同じ縦横比補正を使い、
+	// 横長のSceneでもロールで映像が歪まないようにする。親のscaleは視点の位置にのみ反映済み。
+	const view = timelineGeometryMatrix({ sourceSize: frame, sceneSize: frame,
+		transform: { position: [0, 0], origin: camera.position, scale: [scale, scale], rotation: -camera.roll, fitMode: 'stretch' } });
+	return multiplyTimelineAffine(view, matrix);
 }

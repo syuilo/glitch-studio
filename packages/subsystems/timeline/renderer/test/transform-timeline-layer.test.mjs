@@ -6,10 +6,11 @@ import { loadSource } from './helpers/load-source.mjs';
 const load = path => loadSource(fileURLToPath(new URL('../src/' + path, import.meta.url)));
 const { TimelineRenderer } = await load('timeline-renderer.ts');
 const { createTransformTimelineLayer } = await load('layers/transform/transform-timeline-layer.ts');
+const frame = { width: 1920, height: 1080 };
 const literal = value => ({ inputSource: 'literal', value });
 const leaf = id => ({ id, layerType: 'image', isDisabled: false, forceDisableMotionBlur: false, clips: [{ id: 'clip', startMs: 100, durationMs: 1000, contentOffsetMs: 0 }] });
 const transform = (id, layers, position = [0, 0], z = 0) => ({ id, layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
-	transformParamValues: { position: literal(position), z: literal(z) }, layers });
+	transformParamValues: { position: literal(position), z: literal(z), scale: literal([1, 1]), rotation: literal(0) }, layers });
 
 function fixture(layers) {
 	const calls = [];
@@ -24,7 +25,7 @@ function fixture(layers) {
 	};
 	const createLayer = entry => {
 		created.push(entry.id);
-		if (entry.layerType === 'transform') return createTransformTimelineLayer(() => find(layers, entry.id), { fallbackOutput: [], createLayer });
+		if (entry.layerType === 'transform') return createTransformTimelineLayer(() => find(layers, entry.id), { resolution: frame, fallbackOutput: [], createLayer });
 		return {
 			async evaluate(context) {
 				calls.push({ id: entry.id, ...context });
@@ -97,5 +98,29 @@ test('inherits frozen clocks without freezing motion from higher ancestors', asy
 		assert.equal(f.calls.at(-1).renderSpace.parent[4], 0.8);
 		assert.equal(f.calls.at(-1).timeDelta, 16);
 		assert.equal((await f.render(101, { timeMs: 99, timeDelta: 16 })).hasOutput, false);
+	} finally { f.renderer.clear(); }
+});
+
+// 【描画側もTransformの拡縮と回転を、子の再生成や追加合成なしに継承する】
+// 純粋な行列計算だけでは、レンダラーから解像度や設定が渡っていない退行を検出できない。
+// 更新後も同じ子を使い、On screen用の行列にもせん断を残すことを確認する。
+test('passes composed scale and rotation to existing children without additional compositing', async () => {
+	const inner = transform('inner', [leaf('child')], [0.1, 0.2]);
+	inner.transformParamValues.rotation = literal(0.25);
+	const outer = transform('outer', [inner]);
+	outer.transformParamValues.scale = literal([2, 1]);
+	const f = fixture([outer]);
+	try {
+		await f.render(500);
+		const c = Math.SQRT1_2;
+		const near = (actual, expected) => actual.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-9));
+		near(f.calls.at(-1).renderSpace.parent, [2 * c, -c * 16 / 9, c * 9 / 8, c, 0.2, 0.2]);
+		near(f.calls.at(-1).renderSpace.screenParent, f.calls.at(-1).renderSpace.parent);
+		outer.transformParamValues.scale = literal([0, -1]);
+		const result = await f.render(600);
+		near(f.calls.at(-1).renderSpace.parent, [0, c * 16 / 9, 0, -c, 0, -0.2]);
+		assert.deepEqual(f.created, ['outer', 'inner', 'child']);
+		assert.deepEqual(result.output, ['child']);
+		assert.equal(result.gpuTime, 2);
 	} finally { f.renderer.clear(); }
 });

@@ -16,7 +16,7 @@ const rows = (matrix: TimelineAffine) => ({ x: [matrix[0], matrix[2], matrix[4],
 
 export function getTimelinePlacement(source: TimelineImage, resolution: { width: number; height: number }, settings: TimelineCompositingSettings, space?: TimelineRenderSpace) {
 	const local = timelineGeometryMatrix({ sourceSize: timelineImageFrame(source, resolution), sceneSize: resolution, transform: settings });
-	return settings.coordinateSpace === 'screen' ? multiplyTimelineAffine(space?.screenParent ?? TIMELINE_IDENTITY, local) : projectTimelineMatrix(multiplyTimelineAffine(space?.parent ?? TIMELINE_IDENTITY, local), (space?.depth ?? 0) + settings.depth, space?.camera);
+	return settings.coordinateSpace === 'screen' ? multiplyTimelineAffine(space?.screenParent ?? TIMELINE_IDENTITY, local) : projectTimelineMatrix(multiplyTimelineAffine(space?.parent ?? TIMELINE_IDENTITY, local), (space?.depth ?? 0) + settings.depth, resolution, space?.camera);
 }
 
 // 合成先の画素範囲は可変でも、fit・origin・位置の基準となるScene寸法は変えない。

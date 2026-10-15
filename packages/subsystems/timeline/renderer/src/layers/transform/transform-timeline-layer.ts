@@ -4,9 +4,11 @@ import { getTimelineTransformSpace } from '@gs/subsystems_timeline_shared/transf
 import { TimelineRenderer } from '../../timeline-renderer.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 import type { TimelineLayer, TimelineTransformLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 
 /** 子の合成結果をそのまま返す。Groupのような中間画像や追加の合成パスは作らない。 */
 export function createTransformTimelineLayer<Output>(getTransform: () => TimelineTransformLayer, options: {
+	resolution: Resolution;
 	fallbackOutput: Output;
 	createLayer: (layer: TimelineLayer, clipId: string | null) => TimelineLayerRenderer<Output>;
 	getLayerVersion?: (layer: TimelineLayer, clipId: string | null) => string | number;
@@ -16,12 +18,12 @@ export function createTransformTimelineLayer<Output>(getTransform: () => Timelin
 	return {
 		async evaluate(context, signal) {
 			const layer = getTransform();
-			const translation = parameters.evaluate(layer.transformParamValues, layer.automationGraphs, context.sceneTimeMs, context.isExport);
+			const transform = parameters.evaluate(layer.transformParamValues, layer.automationGraphs, context.sceneTimeMs, context.isExport);
 			const referenceTime = context.referenceTime && { timeMs: context.referenceTime.sceneTimeMs, timeDelta: context.referenceTime.timeDelta };
 			// 親の背景を初期入力にすることで、Transform内のEffectも外側の下層を参照する。
 			// 子が返す透明画像（replaceも可能）と、有効な子がない状態は区別する。
 			const result = await renderer.evaluateAt(context.sceneTimeMs, layer.layers.filter(isTimelineRenderLayer), context.timeDelta, context.isExport, signal, referenceTime,
-				getTimelineTransformSpace(translation, context.renderSpace), context.input);
+				getTimelineTransformSpace(transform, options.resolution, context.renderSpace), context.input);
 			if (!result || signal.aborted) return { gpuTime: 0 };
 			return { output: result.hasOutput ? result.output : null, gpuTime: result.gpuTime };
 		},

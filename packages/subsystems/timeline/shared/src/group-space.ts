@@ -23,20 +23,20 @@ export function getTimelineGroupSpace(group: GroupPlacement, frame: Resolution, 
  * 編集対象のローカル座標から画面への親変換。平面化された外側では一度だけ投影し、
  * 内側のZは無視する。描画と同じ境界を辿ることで、ドラッグの逆変換も一致させる。
  */
-export function getTimelinePreviewParent(ancestors: readonly (GroupPlacement | { translation: EvaluatedTimelineTransform })[], settings: SpatialSettings, frame: Resolution, root: TimelineRenderSpace): TimelineAffine | null {
+export function getTimelinePreviewParent(ancestors: readonly (GroupPlacement | { transform: EvaluatedTimelineTransform })[], settings: SpatialSettings, frame: Resolution, root: TimelineRenderSpace): TimelineAffine | null {
 	let boundary = TIMELINE_IDENTITY;
 	let space = root;
 	for (const group of ancestors) {
-		if ('translation' in group) { space = getTimelineTransformSpace(group.translation, space); continue; }
+		if ('transform' in group) { space = getTimelineTransformSpace(group.transform, frame, space); continue; }
 		if (group.compositingMode !== 'preserveDepth') {
 			const local = timelineGeometryMatrix({ sourceSize: frame, sceneSize: frame, transform: group.settings });
 			const plane = group.settings.coordinateSpace === 'screen' ? multiplyTimelineAffine(space.screenParent ?? TIMELINE_IDENTITY, local)
-				: projectTimelineMatrix(multiplyTimelineAffine(space.parent, local), space.depth + group.settings.depth, space.camera);
+				: projectTimelineMatrix(multiplyTimelineAffine(space.parent, local), space.depth + group.settings.depth, frame, space.camera);
 			if (!plane) return null;
 			boundary = multiplyTimelineAffine(boundary, plane);
 		}
 		space = getTimelineGroupSpace(group, frame, space);
 	}
-	const parent = settings.coordinateSpace === 'screen' ? space.screenParent ?? TIMELINE_IDENTITY : projectTimelineMatrix(space.parent, space.depth + settings.depth, space.camera);
+	const parent = settings.coordinateSpace === 'screen' ? space.screenParent ?? TIMELINE_IDENTITY : projectTimelineMatrix(space.parent, space.depth + settings.depth, frame, space.camera);
 	return parent ? multiplyTimelineAffine(boundary, parent) : null;
 }

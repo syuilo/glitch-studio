@@ -2,6 +2,10 @@ import { getTimelineClipEnd, isTimelineClipActive } from './timing.ts';
 import { TimelineCameraParameters } from './layers/camera/camera-parameters.ts';
 import { TimelineTransformParameters } from './layers/transform/transform-parameters.ts';
 import type { TimelineLayer, TimelineCameraLayer, TimelineTransformLayer } from './types.ts';
+import { getTimelineTransformSpace } from './transform-space.ts';
+import { TIMELINE_IDENTITY, transformTimelinePoint } from './spatial.ts';
+import type { TimelineRenderSpace } from './spatial.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 
 type CameraCandidate = { layer: TimelineCameraLayer; ancestors: TimelineTransformLayer[]; frozen: boolean };
 
@@ -72,22 +76,26 @@ export class TimelineSceneCamera {
 	private parameters = new TimelineCameraParameters();
 	private transforms = new TimelineTransformParameters();
 
-	evaluate(layers: readonly TimelineLayer[], time: number, isExport: boolean, referenceTime = time) {
+	evaluate(layers: readonly TimelineLayer[], time: number, isExport: boolean, frame: Resolution, referenceTime = time) {
 		const active = getActiveTimelineCamera(layers, time, referenceTime);
 		// 有効なカメラがない区間は2D合成とし、Zによる拡縮・近接面での非表示を行わない。
 		if (!active) return null;
 		const settings = { paramValues: active.layer.cameraParamValues, automationGraphs: active.layer.automationGraphs };
 		const camera = this.parameters.evaluate(settings, active.time, isExport);
 		let ancestorTime = time;
+		let space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0 };
 		for (const parent of active.ancestors) {
 			// 子カメラだけのブラー無効では親の揺れを止めない。親を固定した場合は
 			// そこから下の時計を固定し、映像のTransform走査と同じ継承規則にする。
 			if (parent.forceDisableMotionBlur) ancestorTime = referenceTime;
-			const translation = this.transforms.evaluate(parent.transformParamValues, parent.automationGraphs, ancestorTime, isExport);
-			camera.position[0] += translation.position[0];
-			camera.position[1] += translation.position[1];
-			camera.z += translation.z;
+			const transform = this.transforms.evaluate(parent.transformParamValues, parent.automationGraphs, ancestorTime, isExport);
+			space = getTimelineTransformSpace(transform, frame, space);
+			// 非等方scale・反転・せん断はカメラの向きや画角へ継承しない。
+			// 行列から角度を抽出せず、親のrotationだけを独立して積み重ねる。
+			camera.roll += transform.rotation;
 		}
+		camera.position = transformTimelinePoint(space.parent, camera.position);
+		camera.z += space.depth;
 		return camera;
 	}
 }

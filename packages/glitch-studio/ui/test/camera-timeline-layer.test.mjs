@@ -120,6 +120,7 @@ test('allows camera nesting through group, move, and paste commands with undo an
 test('round-trips camera layers and duplicates independent camera settings', async t => {
 	const f = fixture(t);
 	f.edit('z', { kind: 'expression', value: '3 + TIME' });
+	f.edit('roll', { kind: 'expression', value: 'TIME * 0.25' });
 	f.edit('fieldOfView', { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
 	const copy = structuredClone(f.layer);
 	copy.id = 'copy';
@@ -212,7 +213,8 @@ test('preserves Transform descendants through renderer patches, duplication and 
 	const renderer = { timelineScenes: [structuredClone(f.scene)], visualModules: [] };
 	const settings = getRendererLayerState(original);
 	assert.equal('layers' in settings, false);
-	settings.transformParamValues = { ...settings.transformParamValues, position: { inputSource: 'expression', expression: '[TIME, 0]' } };
+	settings.transformParamValues = { ...settings.transformParamValues, position: { inputSource: 'expression', expression: '[TIME, 0]' },
+		scale: literal([-2, 0.5]), rotation: { inputSource: 'expression', expression: 'TIME' } };
 	const patched = applyRendererProjectChanges(renderer, [{ type: 'layer', sceneId: 'scene', layerId: original.id, layer: settings, changes: [{ type: 'parameter', target: 'transform', kind: 'value' }] }]);
 	assert.equal(patched.timelineScenes[0].layers[0].layers, renderer.timelineScenes[0].layers[0].layers);
 	const [copy] = duplicateTimelineLayers([original]);
@@ -220,10 +222,50 @@ test('preserves Transform descendants through renderer patches, duplication and 
 	assert.notEqual(copy.layers[0].id, original.layers[0].id);
 	assert.notEqual(copy.layers[0].clips[0].id, original.layers[0].clips[0].id);
 	copy.transformParamValues.z.value = 5;
+	copy.transformParamValues.scale.value[0] = -3;
 	assert.equal(original.transformParamValues.z.value, 0);
+	assert.deepEqual(original.transformParamValues.scale.value, [1, 1]);
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Transforms', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: patched.timelineScenes };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
+});
+
+// 【Transformのscale・rotationとカメラのrollを通常のCommandとキーレーンで編集する】
+// パラメータ定義を追加するだけでなく、Undo/Redo・キー編集・Workerへの保存値が
+// 既存の入口で扱えることを確認する。scaleの負数や0も編集段階で失わせない。
+test('edits Transform scale and rotation and camera roll with undo and keyframe lanes', t => {
+	const f = fixture(t);
+	const cameraId = f.layer.id;
+	assert.deepEqual(f.layer.cameraParamValues.roll, literal(0));
+	const transform = createTransformTimelineLayer();
+	assert.deepEqual(transform.transformParamValues.scale, literal([1, 1]));
+	assert.deepEqual(transform.transformParamValues.rotation, literal(0));
+	f.history.commit('transformTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], transform });
+	const parent = () => findTimelineLayer(f.scene.layers, transform.id);
+	const child = () => findTimelineLayer(f.scene.layers, cameraId);
+	const target = { sceneId: 'scene', layerId: transform.id, target: 'transform' };
+	f.history.commit('editTimelineLayerParam', { ...target, paramPath: ['scale'], edit: { kind: 'literal', value: [-2, 0] } });
+	assert.deepEqual(parent().transformParamValues.scale, literal([-2, 0]));
+	f.history.undo();
+	assert.deepEqual(parent().transformParamValues.scale, literal([1, 1]));
+	f.history.redo();
+	assert.deepEqual(parent().transformParamValues.scale, literal([-2, 0]));
+	for (const [layerTarget, key, getLayer, property] of [
+		[target, 'rotation', parent, 'transformParamValues'],
+		[f.target, 'roll', child, 'cameraParamValues'],
+	]) {
+		f.history.commit('editTimelineLayerParam', { ...layerTarget, paramPath: [key], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+		const binding = getLayer()[property][key];
+		f.history.commit('editTimelineLayerParam', { ...layerTarget, paramPath: [key], edit: { kind: 'keyframesTimelineInline', value: {
+			...binding, keyframesTimeline: { ...binding.keyframesTimeline, keyframes: [{ id: key, x: 500, value: 0.5, interpolation: { type: 'linear' } }] },
+		} } });
+		assert.deepEqual(getLayerKeyframeParameters(f.state, getLayer()).map(lane => [lane.target, lane.paramPath]), [[layerTarget.target, [key]]]);
+		f.history.undo();
+		assert.deepEqual(getLayer()[property][key], binding);
+		f.history.redo();
+		assert.equal(getLayer()[property][key].keyframesTimeline.keyframes[0].value, 0.5);
+		assert.deepEqual(getRendererLayerState(getLayer())[property][key], getLayer()[property][key]);
+	}
 });
 
