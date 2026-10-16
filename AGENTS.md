@@ -23,7 +23,7 @@
 - Tech Stack: TypeScript, Vite, Vue 3, WebGPU, WGSL, WebAudio, WebWorker, CSS Modules
 - Keywords: moduler, routing, signals, wiring, nodes, graph, chain, pipeline, compositor, playground, visualization, interactive performance
 
-各機能についての詳細については、docsディレクトリ内の各ドキュメントを必要に応じて参照してください。
+各機能についての詳細については、各パッケージ内のREADME.mdや、docsディレクトリ内の各ドキュメントを必要に応じて参照してください。
 
 ## Directory Structure
 
@@ -53,25 +53,15 @@
 
 サブシステム間の依存は一方向で、TimelineはVisual ModuleやEffectに依存し、Visual ModuleはEffectに依存します。その逆の依存を作ってはならない。
 
-各種レンダラー実装は、WebWorkers上で動作し、オフスクリーンでレンダリングを行える必要があるため、DOMに依存してはならない。
-
-各エフェクト実装は独立させ、他のエフェクトを参照したりしないでください。
+各エフェクト実装は独立させ、他のエフェクトを参照したりしない。
 
 各種レイヤー固有の処理はsubsystems/timeline/sharedのlayersディレクトリ内の各エフェクトのディレクトリ内に置く。各種レイヤーの実装は分離・独立させ、あるレイヤーの実装が他のレイヤーに依存・参照したりしてはらない。
 
 各パッケージの依存方向を守ってください。例えば、subsystemがglitch-studio層に依存してはならない。
 
-## ドメインと型の依存方向
-
 型は、その概念を所有するドメインに置きます。構造的に親となる型が子の型を組み合わせ、子は親の存在や利用場所を知らずに定義できることを原則とします。`import type` であっても設計上の依存であることに変わりはありません。
 
-例えば、パラメータ定義に「所属エフェクトの主入力か」を持たせず、`EffectDefinition.primaryInputParameter` で主入力のキーを指定します。同様に、Visual Moduleの主入力は `VisualModule.primaryInputId` で公開カスタムパラメータのIDを指定し、主入力の役割をパラメータ定義には含めません。主入力は0個または1個で、指定先は `canNode: true` のcolorパラメータに限ります。Visual Moduleは、レイヤーとして使われるかliveで使われるかにかかわらず、同じ入出力契約で動作します。
-
-型を追加・変更するときは、次の方針を守ってください。
-
-- 親固有のID・参照名・役割などは、親ドメイン側で子の型に付加します。子の定義を親の `Parent['children'][number]` から逆算して作らないでください。子だけを扱う処理のために型を切り出す場合も、親がその型を参照する方向にします。
-- `NodeOutputReference` はVisual Module内の接続情報、`UniformOrTexture` は生成元によらない定数またはテクスチャの値、`ShaderInput` は受け取り側のサンプリング設定を付けたシェーダー入力です。GPU共通基盤は `packages/shared/src/gpu` に置き、ノードやVisual Moduleの型を要求せず、必要なサンプリング設定やリソースだけを渡します。
-- 共通化は責務が一致する範囲で行います。型を共有するためだけに、子のドメインへ親固有のフィールドを追加したり、あらゆる利用場所を含む巨大な型を作ったりしないでください。
+型の共通化は責務が一致する範囲で行います。型を共有するためだけに、子のドメインへ親固有のフィールドを追加したり、あらゆる利用場所を含む巨大な型を作ったりしないでください。
 
 ## Design
 
