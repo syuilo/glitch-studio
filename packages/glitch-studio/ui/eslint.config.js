@@ -39,6 +39,8 @@ export default [
 			},
 		},
 		rules: {
+			// TypeScriptのグローバル型を未定義変数と誤検知するため、未定義名の検出は型チェックに任せる。
+			'no-undef': 'off',
 			'@typescript-eslint/no-empty-interface': ['error', {
 				allowSingleExtends: true,
 			}],
