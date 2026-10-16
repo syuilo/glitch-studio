@@ -295,4 +295,4 @@ function loadLocale(lang: string): Promise<ILocale> {
 	}
 }
 
-export const i18n = markRaw(new I18n<ILocale>(await loadLocale(lang), _DEV_));
+export const i18n = markRaw(new I18n<ILocale>(await loadLocale(lang), import.meta.env.DEV));

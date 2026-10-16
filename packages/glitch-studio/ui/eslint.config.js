@@ -24,7 +24,6 @@ export default [
 				require: false,
 				__dirname: false,
 
-				_DEV_: false,
 				_VERSION_: false,
 				__ELECTRON__: false,
 				_ENV_: false,
