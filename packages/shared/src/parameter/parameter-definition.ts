@@ -21,7 +21,7 @@ type ParameterDefaultValueMap = {
 	blendMode: BlendMode;
 	fitMode: FitMode;
 	wrapMode: WrapMode;
-	assetReference: string | null;
+	imageAssetTextureReference: string | null;
 	videoAssetReference: string | null;
 	fontAssetReference: string | null;
 	lutAssetReference: string | null;
@@ -104,7 +104,7 @@ export type ParameterDefinition_BlendMode = ParameterDefinition<{ kind: 'blendMo
 export type ParameterDefinition_FitMode = ParameterDefinition<{ kind: 'fitMode' }>;
 export type ParameterDefinition_WrapMode = ParameterDefinition<{ kind: 'wrapMode' }>;
 export type ParameterDefinition_Enum<Options extends readonly string[] = readonly string[]> = ParameterDefinition<{ kind: 'enum'; options: Options }>;
-export type ParameterDefinition_AssetReference = ParameterDefinition<{ kind: 'assetReference' }>;
+export type ParameterDefinition_AssetReference = ParameterDefinition<{ kind: 'imageAssetTextureReference' }>;
 export type ParameterDefinition_VideoAssetReference = ParameterDefinition<{ kind: 'videoAssetReference' }>;
 export type ParameterDefinition_FontAssetReference = ParameterDefinition<{ kind: 'fontAssetReference' }>;
 export type ParameterDefinition_LutAssetReference = ParameterDefinition<{ kind: 'lutAssetReference' }>;

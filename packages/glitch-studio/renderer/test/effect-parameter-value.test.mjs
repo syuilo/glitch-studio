@@ -11,7 +11,7 @@ test('borrows matching asset resources and returns null for missing or incompati
 	const font = { id: 'font', fileDataType: 'font/woff2' };
 	const lut = { id: 'lut', fileDataType: 'application/x-cube-lut' };
 	const resources = { assets: [video, font, lut], assetTextures: new Map([['image', texture]]) };
-	for (const [kind, id, expected] of [['assetReference', 'image', texture], ['videoAssetReference', 'video', video], ['fontAssetReference', 'font', font], ['lutAssetReference', 'lut', lut]]) {
+	for (const [kind, id, expected] of [['imageAssetTextureReference', 'image', texture], ['videoAssetReference', 'video', video], ['fontAssetReference', 'font', font], ['lutAssetReference', 'lut', lut]]) {
 		const def = { dataType: { kind } };
 		assert.equal(resolveEffectParameterValue(def, id, resources), expected);
 		assert.equal(resolveEffectParameterValue(def, 'missing', resources), null);

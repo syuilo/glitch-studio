@@ -12,7 +12,7 @@ export function resolveEffectParameterValue(definition: Pick<ParameterDefinition
 	assetTextures: ReadonlyMap<string, GPUTexture>;
 }): any {
 	switch (definition.dataType.kind) {
-		case 'assetReference': return resources.assetTextures.get(value) ?? null;
+		case 'imageAssetTextureReference': return resources.assetTextures.get(value) ?? null;
 		case 'videoAssetReference': return resources.assets.find(asset => asset.id === value && asset.fileDataType.startsWith('video/')) ?? null;
 		case 'fontAssetReference': return resources.assets.find(asset => asset.id === value && asset.fileDataType.startsWith('font/')) ?? null;
 		case 'lutAssetReference': return resources.assets.find(asset => asset.id === value && asset.fileDataType === LUT_ASSET_MIME_TYPE) ?? null;

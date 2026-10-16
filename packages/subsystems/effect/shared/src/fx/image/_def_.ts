@@ -11,7 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['media'],
 	paramDefs: {
-		image: { dataType: { kind: 'assetReference' }, ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+		image: { dataType: { kind: 'imageAssetTextureReference' }, ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		fit: {
 			dataType: { kind: 'fitMode' },
 			ui: { label: 'Fit', control: {} },

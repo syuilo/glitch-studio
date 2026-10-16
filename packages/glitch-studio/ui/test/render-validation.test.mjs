@@ -66,7 +66,7 @@ test('revalidates LUT selection and asset replacement', () => {
 
 function nestedParameterDefinition() {
 	return {
-		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { asset: { kind: 'assetReference' } } } },
+		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { asset: { kind: 'imageAssetTextureReference' } } } },
 		ui: { label: 'Inputs', control: { element: { fields: { asset: { label: 'Asset', control: {} } } } } },
 		element: { fields: { asset: { defaultValue: literal(null), canNode: false } }, defaultValue: literal({ asset: literal(null) }) },
 		defaultValue: literal([]),
@@ -87,7 +87,7 @@ test('inspects nested timeline bindings once while collecting references', () =>
 		resolution: { mode: 'context' }, effectParamValues: { inputs: literal(elements) } };
 	const references = [];
 	inspectTimelineLayer(layer, undefined, effect, (def, binding) => {
-		assert.equal(def.dataType.kind, 'assetReference');
+		assert.equal(def.dataType.kind, 'imageAssetTextureReference');
 		references.push(binding.value);
 	});
 	assert.deepEqual(reads, ['first', 'first/asset', 'second', 'second/asset']);

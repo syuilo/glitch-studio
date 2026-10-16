@@ -317,7 +317,7 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 test('uses shared scalar types for node inputs and module outputs', async () => {
 	const { getNodeOutputs } = await loadSource('@gs/subsystems_visual-module_shared/node-outputs.ts');
 	const defs = [
-		{ ...paramDef('amount'), canNode: true }, paramDef('flag', true, 'bool'), paramDef('image', null, 'assetReference'),
+		{ ...paramDef('amount'), canNode: true }, paramDef('flag', true, 'bool'), paramDef('image', null, 'imageAssetTextureReference'),
 		{ ...paramDef('vector', [0, 0], 'vector'), canNode: true }, { ...paramDef('color', [0, 0, 0, 1], 'color'), canNode: true },
 		paramDef('player', null, 'playerReference'), { ...paramDef('disabled'), canNode: false },
 	];

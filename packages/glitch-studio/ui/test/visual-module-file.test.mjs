@@ -39,14 +39,14 @@ function asset(id, type = 'image/png') {
 }
 function fixture() {
 	const nested = {
-		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { image: { kind: 'assetReference' }, font: { kind: 'fontAssetReference' } } } },
+		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { image: { kind: 'imageAssetTextureReference' }, font: { kind: 'fontAssetReference' } } } },
 		ui: { label: 'Nested', control: { element: { fields: { image: { label: 'Image', control: {} }, font: { label: 'Font', control: {} } } } } },
 		defaultValue: literal([]),
 		element: { defaultValue: literal({ image: literal(null), font: literal(null) }),
 			fields: { image: { defaultValue: literal(null) }, font: { defaultValue: literal(null) } } },
 	};
 	const definitions = { resources: { paramDefs: {
-		image: parameter('assetReference'), video: parameter('videoAssetReference'), player: parameter('playerReference'),
+		image: parameter('imageAssetTextureReference'), video: parameter('videoAssetReference'), player: parameter('playerReference'),
 		audio: parameter('audioSource'), nested, amount: parameter('scalar', 1), input: { ...parameter('color', [0, 0, 0, 0]), canNode: true },
 	} } };
 	const template = structuredClone(nested);
@@ -65,7 +65,7 @@ function fixture() {
 			{ id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: 'effect', outputPort: 'output' } },
 			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'relay', outputPort: 'output' } } },
 		],
-		paramDefs: [{ ...parameter('assetReference', 'default-image'), id: 'image', nameForReference: 'image', canNode: false }, template,
+		paramDefs: [{ ...parameter('imageAssetTextureReference', 'default-image'), id: 'image', nameForReference: 'image', canNode: false }, template,
 			{ ...parameter('color', [0, 0, 0, 0]), id: 'input', nameForReference: 'input', canNode: true },
 			{ ...parameter('audioSource'), id: 'audio', nameForReference: 'audio', canNode: false }],
 		outputDefs: [{ id: 'output', name: 'output', label: 'Output', dataType: { kind: 'color' } }],
@@ -327,7 +327,7 @@ test('reports asset read errors before creating a download', async t => {
 	const broken = asset('broken');
 	broken.fileData = new class extends Blob { async arrayBuffer() { throw new Error('Unreadable'); } }();
 	context.stateManager.state.assets.value = [broken];
-	await exportVisualModuleFile(context, { nodes: [], paramDefs: [{ ...parameter('assetReference', 'broken'), id: 'image', nameForReference: 'image', canNode: false }],
+	await exportVisualModuleFile(context, { nodes: [], paramDefs: [{ ...parameter('imageAssetTextureReference', 'broken'), id: 'image', nameForReference: 'image', canNode: false }],
 		outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }, 'Broken');
 	assert.equal(links.length, 0);
 	assert.equal(alerts.length, 1);

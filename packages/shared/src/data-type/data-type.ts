@@ -9,7 +9,7 @@ export type DataType =
 	| { kind: 'fitMode' }
 	| { kind: 'wrapMode' }
 	| { kind: 'enum'; options: readonly string[] }
-	| { kind: 'assetReference' }
+	| { kind: 'imageAssetTextureReference' }
 	| { kind: 'videoAssetReference' }
 	| { kind: 'fontAssetReference' }
 	| { kind: 'lutAssetReference' }

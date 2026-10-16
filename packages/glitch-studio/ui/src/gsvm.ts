@@ -35,7 +35,7 @@ type ResourceReference = { kind: 'asset' | 'player'; id: string };
 
 function getResourceReference(def: ParameterDefinition, binding: VisualModuleParameterBinding): ResourceReference | null {
 	const kind = def.dataType.kind;
-	if (!['assetReference', 'videoAssetReference', 'fontAssetReference', 'lutAssetReference', 'playerReference', 'audioSource'].includes(kind)) return null;
+	if (!['imageAssetTextureReference', 'videoAssetReference', 'fontAssetReference', 'lutAssetReference', 'playerReference', 'audioSource'].includes(kind)) return null;
 	if (binding.inputSource === 'externalCustomParameterInput') return null;
 	// 式の実行結果や文字列内のIDからは、必要な素材を列挙したり参照を安全に書き換えたりできない。
 	// 動的な参照を黙って失うより、公開パラメータ経由の静的な指定へ変更してもらう。

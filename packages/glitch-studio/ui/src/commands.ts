@@ -653,7 +653,7 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 					for (const node of visualModule.nodes) {
 						if (node.type !== 'effect') continue;
 						for (const { path, def, value } of walkNodeParams(node)) {
-							if ((def.dataType.kind === 'assetReference' || def.dataType.kind === 'videoAssetReference' || def.dataType.kind === 'fontAssetReference' || def.dataType.kind === 'lutAssetReference') && value.inputSource === 'literal' && value.value === payload.assetId) {
+							if ((def.dataType.kind === 'imageAssetTextureReference' || def.dataType.kind === 'videoAssetReference' || def.dataType.kind === 'fontAssetReference' || def.dataType.kind === 'lutAssetReference') && value.inputSource === 'literal' && value.value === payload.assetId) {
 								resolveNodeParam(node, path).setValue({ inputSource: 'literal', value: null });
 							}
 						}

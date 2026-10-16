@@ -56,7 +56,7 @@ const textureType: TextureDataType = scalarOutput.dataType;
 // @ts-expect-error 旧numberデータ型は使用しない
 const oldNumber: DataType = 'number';
 // @ts-expect-error 参照IDはテクスチャ出力のデータ型ではない
-const referenceOutput: EffectOutputDefinitions[string] = { dataType: { kind: 'assetReference' } };
+const referenceOutput: EffectOutputDefinitions[string] = { dataType: { kind: 'imageAssetTextureReference' } };
 
 const number = { dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Value' }, defaultValue: { inputSource: 'literal', value: 0.5 } } as const;
 const color = { dataType: { kind: 'color' }, ui: { control: {}, label: 'Color' }, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } } as const satisfies ParameterDefinition;
@@ -95,7 +95,7 @@ const schemas = {
  angle: { ...number, ui: { control: { controlType: 'angle' }, label: 'Angle' } },
  color,
  mode: { dataType: { kind: 'enum', options: ['a', 'b'] }, ui: { control: { labels: { a: 'A', b: 'B' } }, label: 'Mode' }, defaultValue: { inputSource: 'literal', value: 'a' } },
- asset: { dataType: { kind: 'assetReference' }, ui: { control: {}, label: 'Asset' }, defaultValue: { inputSource: 'literal', value: null } },
+ asset: { dataType: { kind: 'imageAssetTextureReference' }, ui: { control: {}, label: 'Asset' }, defaultValue: { inputSource: 'literal', value: null } },
  player: { dataType: { kind: 'playerReference' }, ui: { control: {}, label: 'Player' }, defaultValue: { inputSource: 'literal', value: null } },
  input: { ...number, canNode: true },
  group: { dataType: { kind: 'struct', fields: { input: number.dataType } }, ui: { label: 'Group', control: { fields: { input: number.ui } } }, fields: { input: { defaultValue: number.defaultValue, canNode: true } }, defaultValue: { inputSource: 'literal', value: { input: number.defaultValue } } },

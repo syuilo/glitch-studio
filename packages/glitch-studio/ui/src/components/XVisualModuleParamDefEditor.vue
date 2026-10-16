@@ -20,7 +20,7 @@
 				{ label: i18n.ts._CustomParameterInput._Types.Color, value: 'color' },
 				{ label: i18n.ts._CustomParameterInput._Types.Vector, value: 'vector' },
 				{ label: i18n.ts._CustomParameterInput._Types.Enum, value: 'enum' },
-				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'assetReference' },
+				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'imageAssetTextureReference' },
 				{ label: 'Video asset', value: 'videoAssetReference' },
 				{ label: 'Font asset', value: 'fontAssetReference' },
 				{ label: 'LUT Asset', value: 'lutAssetReference' },
@@ -146,7 +146,7 @@ function updateEnumOptions(options: string[], labels: Record<string, string>, de
 function updateType(dataType: ParamDef['dataType']['kind']) {
 	if (dataType === props.def.dataType.kind) return;
 	defaultValueMergeKey = null;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference' && dataType !== 'lutAssetReference' && dataType !== 'audioSource') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'imageAssetTextureReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference' && dataType !== 'lutAssetReference' && dataType !== 'audioSource') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
@@ -155,7 +155,7 @@ function updateType(dataType: ParamDef['dataType']['kind']) {
 		color: { dataType: { kind: 'color' }, ui: { label: props.def.ui.label, control: {} } },
 		vector: { dataType: { kind: 'vector' }, ui: { label: props.def.ui.label, control: { controlType: 'vector' } } },
 		enum: { dataType: { kind: 'enum', options: ['option1', 'option2'] }, ui: { label: props.def.ui.label, control: { labels: { option1: 'Option 1', option2: 'Option 2' } } } },
-		assetReference: { dataType: { kind: 'assetReference' }, ui: { label: props.def.ui.label, control: {} } },
+		imageAssetTextureReference: { dataType: { kind: 'imageAssetTextureReference' }, ui: { label: props.def.ui.label, control: {} } },
 		videoAssetReference: { dataType: { kind: 'videoAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
 		audioSource: { dataType: { kind: 'audioSource' }, ui: { label: props.def.ui.label, control: {} } },
 		fontAssetReference: { dataType: { kind: 'fontAssetReference' }, ui: { label: props.def.ui.label, control: {} } },

@@ -163,7 +163,7 @@ export class ProjectRenderValidation {
 	private value(definition: ParameterDefinition, binding: any, dependencies: Set<string>) {
 		if (binding.inputSource !== 'literal' || binding.value == null) return;
 		const kind = definition.dataType.kind;
-		if (kind === 'assetReference' || kind === 'videoAssetReference' || kind === 'fontAssetReference') this.asset(binding.value, dependencies, kind === 'videoAssetReference' ? 'video' : kind === 'fontAssetReference' ? 'font' : null);
+		if (kind === 'imageAssetTextureReference' || kind === 'videoAssetReference' || kind === 'fontAssetReference') this.asset(binding.value, dependencies, kind === 'videoAssetReference' ? 'video' : kind === 'fontAssetReference' ? 'font' : null);
 		if (kind === 'lutAssetReference') {
 			this.asset(binding.value, dependencies);
 			if (this.assets.get(binding.value) !== LUT_ASSET_MIME_TYPE) throw new Error('Incompatible LUT Asset: ' + binding.value);
