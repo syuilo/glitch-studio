@@ -1,41 +1,193 @@
-:root {
-	--THEME-accent: #ff8400;
-	--THEME-accentSecondary: #c2fe0c;
-	--THEME-fgOnAccent: #000;
-	--THEME-accentedBg: color(from var(--THEME-accent) srgb r g b / 0.2);
-	--THEME-globalBg: #000;
-	--THEME-bg: #060606;
-	--THEME-fg: #e7e7e7;
-	--THEME-panel: #111;
-	--THEME-workspacePanelBody: #111;
-	--THEME-workspacePanelHeader: #111;
-	--THEME-dialog: #000;
-	--THEME-buttonBg: #222;
-	--THEME-buttonHoverBg: #333;
-	--THEME-nodeBg: #181818;
-	--THEME-input: #222;
-	--THEME-success: #86b300;
-	--THEME-error: #ec4137;
-	--THEME-warn: #ecb637;
-	--THEME-shadow: #0006;
-	--THEME-modalBg: #0006;
-	--THEME-folderHeaderBg: rgba(255, 255, 255, 0.05);
-	--THEME-folderHeaderHoverBg: rgba(255, 255, 255, 0.1);
-	--THEME-dataType-color: var(--THEME-accent);
-	--THEME-dataType-scalar: #86c94a;
-	--THEME-dataType-vector: #b780ff;
-	--THEME-dataType-any: var(--THEME-fg);
-	--THEME-layer-effect: #00aaff;
-	--THEME-layer-audio: #d522ff;
-	--THEME-layer-image: #00ed77;
-	--THEME-layer-video: #ff1717;
-	--THEME-layer-text: #f3f3f3;
-	--THEME-layer-voicevox: #86C591;
-	--THEME-layer-group: #888;
+// ビルド時のCSS分割で読み込み順が変わっても、コンポーネント固有のスタイルを優先する。
+// 基礎スタイルには!importantを使わず、明示的な効果を付けるユーティリティはレイヤー外に置く。
+@layer base {
+	:root {
+		--THEME-accent: #ff8400;
+		--THEME-accentSecondary: #c2fe0c;
+		--THEME-fgOnAccent: #000;
+		--THEME-accentedBg: color(from var(--THEME-accent) srgb r g b / 0.2);
+		--THEME-globalBg: #000;
+		--THEME-bg: #060606;
+		--THEME-fg: #e7e7e7;
+		--THEME-panel: #111;
+		--THEME-workspacePanelBody: #111;
+		--THEME-workspacePanelHeader: #111;
+		--THEME-dialog: #000;
+		--THEME-buttonBg: #222;
+		--THEME-buttonHoverBg: #333;
+		--THEME-nodeBg: #181818;
+		--THEME-input: #222;
+		--THEME-success: #86b300;
+		--THEME-error: #ec4137;
+		--THEME-warn: #ecb637;
+		--THEME-shadow: #0006;
+		--THEME-modalBg: #0006;
+		--THEME-folderHeaderBg: rgba(255, 255, 255, 0.05);
+		--THEME-folderHeaderHoverBg: rgba(255, 255, 255, 0.1);
+		--THEME-dataType-color: var(--THEME-accent);
+		--THEME-dataType-scalar: #86c94a;
+		--THEME-dataType-vector: #b780ff;
+		--THEME-dataType-any: var(--THEME-fg);
+		--THEME-layer-effect: #00aaff;
+		--THEME-layer-audio: #d522ff;
+		--THEME-layer-image: #00ed77;
+		--THEME-layer-video: #ff1717;
+		--THEME-layer-text: #f3f3f3;
+		--THEME-layer-voicevox: #86C591;
+		--THEME-layer-group: #888;
 
-	--control-height: 25px;
+		--control-height: 25px;
 
-	color-scheme: dark;
+		color-scheme: dark;
+	}
+
+	html, body, #app {
+		margin: 0;
+		padding: 0;
+		width: 100%;
+		height: 100%;
+		overscroll-behavior: none;
+		background: var(--THEME-globalBg);
+	}
+
+	html {
+		//font-family: 'Chakra Petch', 'Avenir', Helvetica, Arial, sans-serif;
+		font-family: "Segoe WPC", "Segoe UI", sans-serif;
+		font-size: 13px;
+		font-variant-numeric: tabular-nums;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		text-size-adjust: 100%;
+		tab-size: 2;
+		-webkit-text-size-adjust: 100%;
+		touch-action: manipulation;
+		scroll-behavior: smooth;
+		color: var(--THEME-fg);
+		accent-color: var(--THEME-accent);
+		user-select: none;
+		-webkit-user-select: none;
+
+
+		&, * {
+			scrollbar-width: thin;
+
+			&::-webkit-scrollbar {
+				width: 6px;
+				height: 6px;
+			}
+		}
+	}
+
+	body {
+		/* NOTE: htmlにも overflow: clip を設定したいところだが、設定すると何故か少なくともChromeで html が main thread scrolling になりパフォーマンスが(多分)落ちる */
+		overflow: clip;
+	}
+
+	a {
+		text-decoration: none;
+		cursor: pointer;
+		color: inherit;
+		tap-highlight-color: transparent;
+		-webkit-tap-highlight-color: transparent;
+		-webkit-touch-callout: none;
+
+		&:focus-visible {
+			outline-offset: 2px;
+		}
+
+		&[target="_blank"] {
+			-webkit-touch-callout: default;
+		}
+	}
+
+	textarea, input {
+		tap-highlight-color: transparent;
+		-webkit-tap-highlight-color: transparent;
+		user-select: text;
+		-webkit-user-select: text;
+	}
+
+	optgroup, option {
+		background: var(--THEME-input);
+		color: var(--THEME-fg);
+	}
+
+	code {
+		font-family: 'Chakra Petch', monospace;
+	}
+
+	hr {
+		margin: 0;
+		border: none;
+		border-radius: 999px;
+		height: 1px;
+		background: #fff2;
+	}
+
+	:focus-visible {
+		outline: var(--THEME-focus) solid 2px;
+		outline-offset: -2px;
+
+		&:hover {
+			text-decoration: none;
+		}
+	}
+
+	._noSelect {
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
+	}
+
+	._button {
+		@extend ._noSelect;
+		appearance: none;
+		display: inline-block;
+		padding: 0;
+		margin: 0; // for Safari
+		background: none;
+		border: none;
+		cursor: pointer;
+		color: inherit;
+		touch-action: manipulation;
+		tap-highlight-color: transparent;
+		-webkit-tap-highlight-color: transparent;
+		font-size: 1em;
+		font-family: inherit;
+		line-height: inherit;
+		max-width: 100%;
+
+		&:disabled {
+			cursor: default;
+		}
+	}
+
+	._buttonPrimary {
+		@extend ._button;
+		color: var(--THEME-fgOnAccent);
+		background: var(--THEME-accent);
+
+		&:not(:disabled):hover {
+			background: hsl(from var(--THEME-accent) h s calc(l + 5));
+		}
+
+		&:not(:disabled):active {
+			background: hsl(from var(--THEME-accent) h s calc(l - 5));
+		}
+	}
+
+	._textButton {
+		@extend ._button;
+		color: var(--THEME-accent);
+
+		&:focus-visible {
+			outline-offset: 2px;
+		}
+
+		&:not(:disabled):hover {
+			text-decoration: underline;
+		}
+	}
 }
 
 [data-wire-drop-target] {
@@ -44,98 +196,6 @@
 
 [data-wire-drop-target='mismatch'] {
 	background-color: color(from var(--THEME-error) srgb r g b / 0.2);
-}
-
-html, body, #app {
-	margin: 0;
-	padding: 0;
-	width: 100%;
-	height: 100%;
-	overscroll-behavior: none;
-	background: var(--THEME-globalBg);
-}
-
-html {
-	//font-family: 'Chakra Petch', 'Avenir', Helvetica, Arial, sans-serif;
-	font-family: "Segoe WPC", "Segoe UI", sans-serif;
-	font-size: 13px;
-	font-variant-numeric: tabular-nums;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-	text-size-adjust: 100%;
-	tab-size: 2;
-	-webkit-text-size-adjust: 100%;
-	touch-action: manipulation;
-	scroll-behavior: smooth;
-	color: var(--THEME-fg);
-	accent-color: var(--THEME-accent);
-	user-select: none;
-	-webkit-user-select: none;
-
-
-	&, * {
-		scrollbar-width: thin;
-
-		&::-webkit-scrollbar {
-			width: 6px;
-			height: 6px;
-		}
-	}
-}
-
-body {
-	/* NOTE: htmlにも overflow: clip を設定したいところだが、設定すると何故か少なくともChromeで html が main thread scrolling になりパフォーマンスが(多分)落ちる */
-	overflow: clip;
-}
-
-a {
-	text-decoration: none;
-	cursor: pointer;
-	color: inherit;
-	tap-highlight-color: transparent;
-	-webkit-tap-highlight-color: transparent;
-	-webkit-touch-callout: none;
-
-	&:focus-visible {
-		outline-offset: 2px;
-	}
-
-	&[target="_blank"] {
-		-webkit-touch-callout: default;
-	}
-}
-
-textarea, input {
-	tap-highlight-color: transparent;
-	-webkit-tap-highlight-color: transparent;
-	user-select: text;
-	-webkit-user-select: text;
-}
-
-optgroup, option {
-	background: var(--THEME-input);
-	color: var(--THEME-fg);
-}
-
-code {
-	font-family: 'Chakra Petch', monospace;
-}
-
-hr {
-	margin: 0;
-	border: none;
-	border-radius: 999px;
-	height: 1px;
-	background: #fff2;
-}
-
-:focus-visible {
-	outline: var(--THEME-focus) solid 2px;
-	outline-offset: -2px;
-
-	&:hover {
-		text-decoration: none;
-	}
 }
 
 .ti {
@@ -172,12 +232,6 @@ hr {
 	-webkit-user-select: all;
 }
 
-._noSelect {
-	user-select: none;
-	-webkit-user-select: none;
-	-webkit-touch-callout: none;
-}
-
 ._nowrap {
 	white-space: pre !important;
 	word-wrap: normal !important; // https://codeday.me/jp/qa/20190424/690106.html
@@ -204,59 +258,9 @@ hr {
 	box-shadow: 0px 4px 32px var(--THEME-shadow) !important;
 }
 
-._button {
-	@extend ._noSelect;
-	appearance: none;
-	display: inline-block;
-	padding: 0;
-	margin: 0; // for Safari
-	background: none;
-	border: none;
-	cursor: pointer;
-	color: inherit;
-	touch-action: manipulation;
-	tap-highlight-color: transparent;
-	-webkit-tap-highlight-color: transparent;
-	font-size: 1em;
-	font-family: inherit;
-	line-height: inherit;
-	max-width: 100%;
-
-	&:disabled {
-		cursor: default;
-	}
-}
-
-._buttonPrimary {
-	@extend ._button;
-	color: var(--THEME-fgOnAccent);
-	background: var(--THEME-accent);
-
-	&:not(:disabled):hover {
-		background: hsl(from var(--THEME-accent) h s calc(l + 5));
-	}
-
-	&:not(:disabled):active {
-		background: hsl(from var(--THEME-accent) h s calc(l - 5));
-	}
-}
-
 ._help {
 	color: var(--THEME-accent);
 	cursor: help;
-}
-
-._textButton {
-	@extend ._button;
-	color: var(--THEME-accent);
-
-	&:focus-visible {
-		outline-offset: 2px;
-	}
-
-	&:not(:disabled):hover {
-		text-decoration: underline;
-	}
 }
 
 ._panel {
