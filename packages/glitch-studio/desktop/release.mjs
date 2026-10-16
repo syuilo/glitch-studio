@@ -1,0 +1,154 @@
+import * as fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import semver from 'semver';
+import yaml from 'js-yaml';
+import asar from '@electron/asar';
+
+const executeFile = promisify(execFile);
+const rootDirectory = path.resolve(import.meta.dirname, '../../..');
+
+async function command(executable, args) {
+	const { stdout } = await executeFile(executable, args, { cwd: rootDirectory, windowsHide: true, maxBuffer: 8 * 1024 * 1024 });
+	return stdout.trim();
+}
+async function exists(executable, args) {
+	try { return await command(executable, args); }
+	catch (error) { if (error.code === 1 || error.code === 128) return null; throw error; }
+}
+
+export function validateReleaseVersion(version) {
+	// +buildはSemVerの大小関係に含まれず、同じ更新バージョンの別配布物になってしまう。
+	if (typeof version !== 'string' || semver.valid(version) !== version || version.includes('+')) {
+		throw new Error('Specify a canonical SemVer without a v prefix or build metadata (for example 2.0.0-alpha.2).');
+	}
+	return version;
+}
+
+export async function verifyReleaseArtifacts(directory, version) {
+	validateReleaseVersion(version);
+	const installerName = `Glitch-Studio-${version}-x64-Setup.exe`;
+	const files = [installerName, `${installerName}.blockmap`, 'latest.yml'];
+	const metadata = yaml.load(await fs.readFile(path.join(directory, 'latest.yml'), 'utf8'));
+	if (metadata?.version !== version || metadata.files?.length !== 1) throw new Error('Unexpected update metadata version or files');
+	const installer = await fs.readFile(path.join(directory, installerName));
+	const digest = createHash('sha512').update(installer).digest('base64');
+	if (metadata.files[0].url !== installerName || metadata.files[0].sha512 !== digest || metadata.path !== installerName || metadata.sha512 !== digest) {
+		throw new Error('The installer does not match its update metadata');
+	}
+	if (installer.length === 0 || (await fs.stat(path.join(directory, files[1]))).size === 0) throw new Error('Empty release artifact');
+	return files;
+}
+
+export function verifyPackagedApplication(archive) {
+	const files = new Set(asar.listPackage(archive).map(file => file.replaceAll('\\', '/').replace(/^\//, '')));
+	const metadata = file => JSON.parse(asar.extractFile(archive, path.normalize(file)).toString());
+	const checked = new Set();
+	const checkDependencies = packageFile => {
+		if (checked.has(packageFile)) return;
+		checked.add(packageFile);
+		const manifest = metadata(packageFile);
+		for (const name of Object.keys(manifest.dependencies ?? {})) {
+			let directory = path.posix.dirname(packageFile);
+			let dependencyFile = null;
+			while (true) {
+				const candidate = path.posix.join(directory, 'node_modules', name, 'package.json');
+				if (files.has(candidate)) { dependencyFile = candidate; break; }
+				if (directory === '.') break;
+				directory = path.posix.dirname(directory);
+			}
+			if (dependencyFile == null) throw new Error(`Missing packaged runtime dependency: ${name} (required by ${packageFile})`);
+			checkDependencies(dependencyFile);
+		}
+	};
+	checkDependencies('package.json');
+}
+
+async function getRelease(tag) {
+	const value = await exists('gh', ['release', 'view', tag, '--json', 'isDraft,tagName']);
+	return value == null ? null : JSON.parse(value);
+}
+
+async function prepareRelease() {
+	if (process.env.GITHUB_REF !== 'refs/heads/master') throw new Error('Run this workflow on master.');
+	const version = validateReleaseVersion(process.env.RELEASE_VERSION);
+	const sourceSha = process.env.GITHUB_SHA;
+	if (!/^[a-f0-9]{40}$/.test(sourceSha ?? '')) throw new Error('Missing source commit');
+	const tag = `v${version}`;
+	const release = await getRelease(tag);
+	if (release != null && !release.isDraft) throw new Error('This version has already been published. Use a new version.');
+	const existingSha = await exists('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`]);
+	if (existingSha != null) {
+		// 公開前の再実行だけを許可する。別のソースを同名タグへ付け替えない。
+		const parentSha = await command('git', ['rev-parse', `${existingSha}^`]);
+		if (existingSha !== sourceSha && parentSha !== sourceSha) throw new Error('The existing release tag belongs to a different source commit.');
+		await command('git', ['checkout', '--detach', existingSha]);
+		const committed = JSON.parse(await fs.readFile(path.join(rootDirectory, 'package.json'), 'utf8'));
+		if (committed.version !== version) throw new Error('The existing release tag has a different version.');
+	} else {
+		const filePath = path.join(rootDirectory, 'package.json');
+		const source = await fs.readFile(filePath, 'utf8');
+		const metadata = JSON.parse(source);
+		if (semver.lt(version, metadata.version)) throw new Error('The release must not be older than the version in master.');
+		metadata.version = version;
+		await fs.writeFile(filePath, `${JSON.stringify(metadata, null, '\t')}\n`);
+		await command('git', ['config', 'user.name', 'github-actions[bot]']);
+		await command('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+		await command('git', ['add', 'package.json']);
+		await command('git', ['commit', '--allow-empty', '-m', `chore: release ${version}`]);
+	}
+	const releaseSha = await command('git', ['rev-parse', 'HEAD']);
+	await fs.appendFile(process.env.GITHUB_OUTPUT, `version=${version}\ntag=${tag}\nsource_sha=${sourceSha}\nrelease_sha=${releaseSha}\n`);
+}
+
+async function publishRelease() {
+	const version = validateReleaseVersion(process.env.RELEASE_VERSION);
+	const tag = `v${version}`;
+	const sourceSha = process.env.RELEASE_SOURCE_SHA;
+	const releaseSha = process.env.RELEASE_COMMIT_SHA;
+	if (await command('git', ['rev-parse', 'HEAD']) !== releaseSha) throw new Error('The checkout does not match the built release commit.');
+	const directory = path.join(rootDirectory, 'release');
+	const files = await verifyReleaseArtifacts(directory, version);
+	const release = await getRelease(tag);
+	if (release != null && !release.isDraft) throw new Error('This release has already been published.');
+	const remoteTag = await command('git', ['ls-remote', 'origin', `refs/tags/${tag}`]);
+	if (remoteTag === '') {
+		await command('git', ['fetch', 'origin', 'master']);
+		if (await command('git', ['rev-parse', 'FETCH_HEAD']) !== sourceSha) throw new Error('master changed during the build. Run the workflow again.');
+		await command('git', ['tag', tag, releaseSha]);
+		// masterだけ進んだりタグだけ作られたりしないよう、同時に公開する。force pushは使わない。
+		await command('git', ['push', '--atomic', 'origin', `${releaseSha}:refs/heads/master`, `refs/tags/${tag}`]);
+	} else if (remoteTag.split(/\s/)[0] !== releaseSha) {
+		throw new Error('The remote tag does not match the built commit.');
+	}
+	const prerelease = semver.prerelease(version) != null;
+	if (release == null) {
+		await command('gh', ['release', 'create', tag, '--verify-tag', '--draft', '--title', `Glitch Studio ${version}`, '--generate-notes', ...(prerelease ? ['--prerelease'] : [])]);
+	}
+	await command('gh', ['release', 'upload', tag, ...files.map(name => path.join(directory, name)), '--clobber']);
+	const uploadedDirectory = await fs.mkdtemp(path.join(directory, 'uploaded-'));
+	try {
+		await command('gh', ['release', 'download', tag, '--dir', uploadedDirectory, ...files.flatMap(name => ['--pattern', name])]);
+		await verifyReleaseArtifacts(uploadedDirectory, version);
+		for (const name of files) {
+			if (!(await fs.readFile(path.join(directory, name))).equals(await fs.readFile(path.join(uploadedDirectory, name)))) {
+				throw new Error(`The uploaded artifact differs from the build: ${name}`);
+			}
+		}
+	} finally {
+		// mkdtempがrelease配下に作った一時ディレクトリだけを削除する。
+		if (path.dirname(uploadedDirectory) !== directory || !path.basename(uploadedDirectory).startsWith('uploaded-')) throw new Error('Unexpected upload verification directory');
+		await fs.rm(uploadedDirectory, { recursive: true, force: true });
+	}
+	await command('gh', ['release', 'edit', tag, '--draft=false', `--prerelease=${prerelease}`, `--latest=${!prerelease}`]);
+}
+
+if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+	const actions = { prepare: prepareRelease, publish: publishRelease };
+	const action = actions[process.argv[2]];
+	if (action == null) throw new Error('Expected prepare or publish');
+	await action();
+}

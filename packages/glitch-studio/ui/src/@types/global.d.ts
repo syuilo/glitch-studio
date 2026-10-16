@@ -6,6 +6,12 @@ declare const __ELECTRON__: boolean;
 
 interface Window {
 	desktop?: {
+		getUpdateState(): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
+		checkForUpdates(): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
+		prepareUpdate(version: string): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
+		startUpdate(): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
+		abortUpdatePreparation(): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
+		onUpdateStateChanged(listener: (state: import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState) => void): () => void;
 		voicevoxConnect(endpoint: string): Promise<{ version: string; speakers: import('@gs/glitch-studio_shared/voicevox.ts').VoicevoxSpeaker[] }>;
 		voicevoxSynthesize(request: import('@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts').VoicevoxRequest): Promise<{ data: Uint8Array; engineVersion: string; audioQuery: Record<string, unknown> }>;
 		takeStartupProjectFile(): Promise<{ id: string; name: string } | null>;

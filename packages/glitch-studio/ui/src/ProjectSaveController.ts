@@ -43,6 +43,8 @@ function backupSettings() { return preferences.s.projectBackups ?? DEFAULT_PROJE
 
 /** 保存先の選択・権限・保存処理とバックアップをまとめ、プレビューの実装に依存させない。 */
 export class ProjectSaveController {
+	private pausedForUpdate = false;
+	private updatePreparationError: unknown = null;
 	private projectGeneration = 0;
 	private projectReady = ref(false);
 	private projectSaveSession: ProjectSaveSession;
@@ -126,6 +128,7 @@ export class ProjectSaveController {
 	}
 
 	public async saveProject(saveAs = false): Promise<void> {
+		if (this.pausedForUpdate) return;
 		const project = this.projectReady.value ? this.getSnapshot() : null;
 		if (!project) return;
 		const generation = this.projectGeneration;
@@ -182,8 +185,28 @@ export class ProjectSaveController {
 				}
 			} catch (error) {
 				console.error(error);
+				// 更新用モーダルの背後の確認待ちで保存キューを止めない。
+				// 待機中の保存失敗は更新開始元へ返し、編集を続けられる状態へ戻す。
+				if (this.pausedForUpdate) { this.updatePreparationError = error; return; }
 				await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 			}
 		});
+	}
+
+	public async pauseForUpdate(): Promise<() => void> {
+		this.pausedForUpdate = true;
+		this.updatePreparationError = null;
+		this.projectBackupController.setPaused(true);
+		const resume = () => {
+			this.pausedForUpdate = false;
+			this.projectBackupController.setPaused(false);
+		};
+		// 既に受け付けた手動保存とバックアップは、削除・整理も含めて完了を待つ。
+		await this.projectSaveSession.whenIdle();
+		if (this.updatePreparationError != null) {
+			resume();
+			throw this.updatePreparationError;
+		}
+		return resume;
 	}
 }

@@ -1,6 +1,7 @@
 import { i18n } from '@/i18n.ts';
 import * as api from '../api.ts';
 import { progress } from '../ui.ts';
+import { applicationActivity } from '../application-activity.ts';
 import type { OpenedMediaFile, OpenMediaFileOptions } from '../api.ts';
 
 type ImportMediaFilesOptions = OpenMediaFileOptions & {
@@ -10,6 +11,7 @@ type ImportMediaFilesOptions = OpenMediaFileOptions & {
 
 export async function importMediaFiles(files: readonly File[], options: ImportMediaFilesOptions = {}): Promise<OpenedMediaFile[]> {
 	if (files.length === 0) return [];
+	const releaseActivity = applicationActivity.acquire();
 	const dialog = progress({ text: i18n.ts._Assets.Importing });
 	try {
 		const results = await api.openMediaFile({ ...options, files, multiple: true, onReadProgress: value => {
@@ -36,6 +38,7 @@ export async function importMediaFiles(files: readonly File[], options: ImportMe
 	} finally {
 		// 成否によらず終了し、ファイル読み込みからプロジェクト反映まで操作を止める。
 		dialog.done();
+		releaseActivity();
 	}
 }
 

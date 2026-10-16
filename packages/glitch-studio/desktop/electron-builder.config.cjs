@@ -3,15 +3,20 @@ const { version } = require('../../../package.json');
 module.exports = {
 	appId: 'io.github.syuilo.glitch-studio',
 	productName: 'Glitch Studio',
+	publish: [{ provider: 'github', owner: 'syuilo', repo: 'glitch-studio', channel: 'latest' }],
+	afterPack: async context => {
+		// pnpmのworkspace探索で別パッケージが選ばれても、起動不能な配布物を公開しない。
+		const { verifyPackagedApplication } = await import('./release.mjs');
+		verifyPackagedApplication(require('node:path').join(context.appOutDir, 'resources', 'app.asar'));
+	},
 	directories: { output: '../../../release' },
 	extraMetadata: {
-		name: 'glitch-studio',
 		version,
 		description: 'Node-based image, video and audio editor',
 		author: 'syuilo',
 	},
-	// 開発用スクリプトや依存パッケージを配布物に含めない。
-	files: ['main.mjs', 'voicevox.mjs', 'preload.cjs', 'protocol-path.mjs', 'project-files.mjs', 'project-file-ipc.mjs', 'recent-projects.mjs', 'startup-project.mjs', 'export-files.mjs', 'export-file-ipc.mjs', '!node_modules/**/*'],
+	// エントリと実装だけを列挙する。実行時依存はelectron-builderに収集させ、開発依存は含めない。
+	files: ['main.mjs', 'voicevox.mjs', 'preload.cjs', 'protocol-path.mjs', 'project-files.mjs', 'project-file-ipc.mjs', 'recent-projects.mjs', 'startup-project.mjs', 'export-files.mjs', 'export-file-ipc.mjs', 'desktop-update.mjs', 'desktop-instances.mjs', 'github-updates.mjs'],
 	extraResources: [
 		{ from: '../ui/dist-electron', to: 'ui' },
 		// OSがタスクバー用のアイコンを直接読み取れるよう、asarの外に配置する。

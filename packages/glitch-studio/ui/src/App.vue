@@ -16,6 +16,7 @@
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
+			<button v-if="desktopUpdates?.state.value.version != null" class="_button" :class="[$style.headerMenuItem, $style.updateNotification]" data-test-desktop-update-notification @click="requestDesktopUpdate">{{ i18n.ts._DesktopUpdate.Available }}</button>
 		</div>
 		<div :class="$style.headerCenter">
 			{{ projectName }}
@@ -74,6 +75,9 @@ import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
 import { preferences } from './preferences.ts';
 import { WorkspaceController, workspaceControllerKey } from './WorkspaceController.ts';
 import { desktopProjectFile } from './gsproj.ts';
+import { DesktopUpdates } from './desktop-updates.ts';
+import { applicationActivity } from './application-activity.ts';
+import GsDesktopUpdateDialog from './components/GsDesktopUpdateDialog.vue';
 import { importVisualModuleFile } from './utility/visual-module-file.ts';
 import { importAssets } from './utility/import-assets.ts';
 import { fileDropTargetInstallerKey, installFileDropHandlers } from './utility/file-drop.ts';
@@ -120,6 +124,57 @@ const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendere
 const { stateManager } = appContext.projectContext;
 const { name: projectName } = appContext.projectContext.stateManager.state;
 const { projectFileName, hasUnsavedChanges } = appContext;
+
+const desktopUpdates = __ELECTRON__ && window.desktop != null ? new DesktopUpdates(window.desktop, {
+	reserve() {
+		const release = applicationActivity.beginUpdate();
+		if (release == null) throw new Error(i18n.ts._DesktopUpdate.ApplicationBusy);
+		return release;
+	},
+	async pause() {
+		return appContext.pauseForDesktopUpdate();
+	},
+}) : null;
+let confirmingDesktopUpdate = false;
+let disposeDesktopUpdateDialog: (() => void) | null = null;
+const desktopUpdateWorking = computed(() => desktopUpdates?.running.value === true || ['preparing', 'downloading', 'installing'].includes(desktopUpdates?.state.value.phase ?? 'disabled'));
+
+function showDesktopUpdateDialog() {
+	if (desktopUpdates == null || disposeDesktopUpdateDialog != null) return;
+	const { dispose } = ui.popup(GsDesktopUpdateDialog, { state: desktopUpdates.state, working: desktopUpdateWorking, localError: desktopUpdates.localError }, {
+		closed: () => { dispose(); disposeDesktopUpdateDialog = null; },
+		retry: () => { void requestDesktopUpdate(); },
+	});
+	disposeDesktopUpdateDialog = dispose;
+}
+
+watch(desktopUpdateWorking, working => { if (working) showDesktopUpdateDialog(); });
+onMounted(() => { void desktopUpdates?.connect().catch(console.error); });
+onBeforeUnmount(() => { desktopUpdates?.dispose(); disposeDesktopUpdateDialog?.(); });
+
+async function requestDesktopUpdate() {
+	const version = desktopUpdates?.state.value.version;
+	if (desktopUpdates == null || version == null || desktopUpdates.running.value || confirmingDesktopUpdate) return;
+	confirmingDesktopUpdate = true;
+	disposeDesktopUpdateDialog?.();
+	disposeDesktopUpdateDialog = null;
+	try {
+		const { canceled } = await ui.confirm({ type: 'warning', title: i18n.tsx._DesktopUpdate.ConfirmTitle({ version }),
+			text: i18n.ts._DesktopUpdate.ConfirmText, okText: i18n.ts._DesktopUpdate.UpdateAndRestart });
+		if (canceled) return;
+		showDesktopUpdateDialog();
+		void desktopUpdates.start(version);
+	} finally { confirmingDesktopUpdate = false; }
+}
+
+async function checkDesktopUpdates() {
+	if (desktopUpdates == null) return;
+	try {
+		const state = await desktopUpdates.check();
+		if (state.phase === 'not-available') await ui.alert({ type: 'info', text: i18n.ts._DesktopUpdate.UpToDate });
+		else if (state.phase === 'error') await ui.alert({ type: 'error', text: `${i18n.ts._DesktopUpdate.CheckFailed}\n${state.error?.message ?? ''}` });
+	} catch (error) { await ui.alert({ type: 'error', text: String(error) }); }
+}
 
 const releaseOutputCapture = audioOutput.retainOutputCapture();
 onBeforeUnmount(releaseOutputCapture);
@@ -409,6 +464,11 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 			window.open('https://syuilo.dev/glitch-studio/docs/', '_blank');
 		},
 	}, ...(__ELECTRON__ ? [{
+		text: desktopUpdates?.state.value.version != null ? i18n.ts._DesktopUpdate.Available : i18n.ts._DesktopUpdate.Check,
+		icon: 'ti ti-download',
+		disabled: desktopUpdates == null || ['disabled', 'checking', 'preparing', 'downloading', 'installing'].includes(desktopUpdates.state.value.phase),
+		action: () => { void (desktopUpdates?.state.value.version != null ? requestDesktopUpdate() : checkDesktopUpdates()); },
+	}, {
 		text: i18n.ts._App.ToggleDeveloperTools,
 		action: () => { void toggleDevTools(); },
 	}] : [])], ev.currentTarget ?? ev.target);
@@ -430,6 +490,7 @@ onMounted(async () => {
 </script>
 
 <style module lang="scss">
+.updateNotification { color: var(--THEME-accent); }
 .root {
 	position: absolute;
 	display: flex;

@@ -16,6 +16,7 @@ import { DEFAULT_PROJECT_NAME, loadProjectFile } from './gsproj.ts';
 import { recentProjects } from './recent-projects.ts';
 import { makeHotkey } from './utility/hotkey.ts';
 import { AppContext } from './AppContext.ts';
+import { applicationActivity } from './application-activity.ts';
 import { ProjectContext } from './Project.ts';
 import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
 import { configureLocale, isLocaleUnconfigured } from './i18n.ts';
@@ -62,6 +63,7 @@ export const rendererEnv = {
 };
 
 export async function openProject(file?: File | null, fileHandle?: ProjectFileHandle | null): Promise<boolean> {
+	const releaseActivity = applicationActivity.acquire();
 	try {
 		const result = await loadProjectFile(file, fileHandle);
 		if (result == null) return false;
@@ -72,7 +74,7 @@ export async function openProject(file?: File | null, fileHandle?: ProjectFileHa
 		console.error(error);
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		return false;
-	}
+	} finally { releaseActivity(); }
 }
 
 export async function newProject() {
@@ -155,6 +157,10 @@ export async function newProject() {
 }
 
 export async function newProjectFromImageOrVideo(file?: File) {
+	return applicationActivity.run(() => loadMediaProject(file));
+}
+
+async function loadMediaProject(file?: File) {
 	const result = await openMediaFile({ file });
 	if (result == null) return false;
 

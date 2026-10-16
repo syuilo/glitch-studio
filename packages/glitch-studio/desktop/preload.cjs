@@ -2,6 +2,16 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // 汎用的なIPC送信口ではなく、UIに必要な操作だけを公開する。
 contextBridge.exposeInMainWorld('desktop', {
+	getUpdateState: () => ipcRenderer.invoke('desktop:get-update-state'),
+	checkForUpdates: () => ipcRenderer.invoke('desktop:check-for-updates'),
+	prepareUpdate: version => ipcRenderer.invoke('desktop:prepare-update', version),
+	startUpdate: () => ipcRenderer.invoke('desktop:start-update'),
+	abortUpdatePreparation: () => ipcRenderer.invoke('desktop:abort-update-preparation'),
+	onUpdateStateChanged: listener => {
+		const handler = (_event, state) => listener(state);
+		ipcRenderer.on('desktop:update-state-changed', handler);
+		return () => ipcRenderer.removeListener('desktop:update-state-changed', handler);
+	},
 	voicevoxConnect: endpoint => ipcRenderer.invoke('desktop:voicevox-connect', endpoint),
 	voicevoxSynthesize: request => ipcRenderer.invoke('desktop:voicevox-synthesize', request),
 	takeStartupProjectFile: () => ipcRenderer.invoke('desktop:take-startup-project-file'),

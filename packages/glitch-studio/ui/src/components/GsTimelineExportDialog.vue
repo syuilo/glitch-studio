@@ -58,6 +58,7 @@ import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
 import { preferences } from '@/preferences.ts';
 import { appContext } from '@/app.ts';
+import { applicationActivity } from '@/application-activity.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
@@ -160,6 +161,7 @@ function setTaskbarProgress(value: number | null) {
 
 async function doExport() {
 	if (exporting.value || validationError.value) return;
+	const releaseActivity = applicationActivity.acquire();
 	// 無効化するEXPORTボタンからフォーカスを移し、背後の編集ショートカットへイベントを流さない。
 	dialogContent.value?.focus();
 	exporting.value = true;
@@ -263,6 +265,7 @@ async function doExport() {
 		}
 		exporting.value = false;
 		abortController = null;
+		releaseActivity();
 	}
 }
 

@@ -22,6 +22,7 @@ import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
 import { ProjectRenderValidation } from './ProjectRenderValidation.ts';
 import { PreviewRenderEngine } from './PreviewRenderEngine.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
+import { applicationActivity } from './application-activity.ts';
 import { getRendererAssets } from './utility/renderer-assets.ts';
 import { timelineClipboard, getTimelineEditorState, getSelectedTimelineLayerId } from './utility/timeline-editor-state.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
@@ -278,7 +279,19 @@ export class AppContext {
 		await this.renderEngine.resume();
 	}
 
+	public async pauseForDesktopUpdate(): Promise<() => Promise<void>> {
+		const resumeSaving = await this.projectSaveController.pauseForUpdate();
+		try { await this.suspendPreview(); } catch (error) { resumeSaving(); throw error; }
+		return async () => {
+			try { if (this.projectContext.hasProject) await this.resumePreview(); } finally { resumeSaving(); }
+		};
+	}
+
 	public async ready(project: Project, fileName: string | null = null, fileHandle: ProjectFileHandle | null = null) {
+		return applicationActivity.run(() => this.loadProject(project, fileName, fileHandle));
+	}
+
+	private async loadProject(project: Project, fileName: string | null, fileHandle: ProjectFileHandle | null) {
 		const waiting = ui.waiting({ text: i18n.ts._App.InitializingProject });
 
 		this.renderEngine.suspend();

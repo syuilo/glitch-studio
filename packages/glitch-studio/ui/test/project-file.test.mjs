@@ -1755,6 +1755,69 @@ test('retains the Chrome save folder and starts backups only after the first sav
 	assert.equal(appContext.projectBackupAccess.value, 'unsaved');
 });
 
+// 【更新準備は受付済みの保存を完了させ、新規保存・バックアップは復帰するまで受け付けない】
+// 未保存の変更の破棄に同意していても、書込み途中のファイルを残して終了してはならない。
+// 既に待機中のSaveも完了させ、更新失敗後には現在の内容を再び保存できることを確認する。
+test('drains queued saves before preparing an update and resumes saving afterwards', async t => {
+	const window = setup(t);
+	const { appContext } = evaluate(appBundle);
+	const handle = fileHandle('update.gsproj');
+	await appContext.ready(project({ name: 'first' }), handle.name, handle);
+	const started = Promise.withResolvers();
+	const finish = Promise.withResolvers();
+	const createWritable = handle.createWritable;
+	handle.createWritable = async () => {
+		const stream = await createWritable();
+		return { ...stream, async close() { started.resolve(); await finish.promise; await stream.close(); } };
+	};
+	const firstSave = appContext.saveProject();
+	await started.promise;
+	appContext.projectContext.stateManager.state.name.value = 'second';
+	const queuedSave = appContext.saveProject();
+	let readyToUpdate = false;
+	const preparing = appContext.pauseForDesktopUpdate().then(resume => { readyToUpdate = true; return resume; });
+	appContext.projectContext.stateManager.state.name.value = 'third';
+	await appContext.saveProject();
+	await appContext.projectBackupController.tick();
+	assert.equal(readyToUpdate, false);
+	finish.resolve();
+	await Promise.all([firstSave, queuedSave]);
+	const resume = await preparing;
+	assert.equal(decodeProjectFile(handle.bytes).name, 'second');
+	assert.equal(handle.calls.filter(([action]) => action === 'write').length, 2);
+	await resume();
+	await appContext.saveProject();
+	assert.equal(decodeProjectFile(handle.bytes).name, 'third');
+	assert.deepEqual(globalThis.projectAlerts, []);
+});
+
+// 【更新待ちの保存が失敗した場合は、背後のダイアログ待ちにならず更新を中止する】
+// 保存失敗を握りつぶして再起動したり、閉じられない更新画面の背後で確認を待つ状態を防ぐ。
+test('rejects update preparation after an in-flight save fails and restores save acceptance', async t => {
+	setup(t);
+	t.mock.method(console, 'error', () => {});
+	const { appContext } = evaluate(appBundle);
+	const handle = fileHandle('failed-update.gsproj');
+	await appContext.ready(project(), handle.name, handle);
+	const started = Promise.withResolvers();
+	const finish = Promise.withResolvers();
+	const createWritable = handle.createWritable;
+	handle.createWritable = async () => {
+		const stream = await createWritable();
+		return { ...stream, async close() { started.resolve(); await finish.promise; throw new Error('write failed'); } };
+	};
+	const saving = appContext.saveProject();
+	await started.promise;
+	const preparing = appContext.pauseForDesktopUpdate();
+	const rejected = assert.rejects(preparing, /write failed/);
+	finish.resolve();
+	await Promise.all([saving, rejected]);
+	assert.deepEqual(globalThis.projectAlerts, []);
+	handle.createWritable = createWritable;
+	await appContext.saveProject();
+	assert.equal(decodeProjectFile(handle.bytes).name, 'Example');
+});
+
 // 【カメラとグループの奥行きモードをプロジェクトへ保存する】
 // 画面上では動いてもファイルの取り出し・読み込みで設定が落ちると、書き出しや
 // 再開後の画面が変わる。式Bindingを含むScene全体を実際のMessagePack経由で確認する。

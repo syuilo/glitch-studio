@@ -9,6 +9,10 @@ import { RecentProjects, registerRecentProjectsIpc } from './recent-projects.mjs
 import { getStartupProjectPath } from './startup-project.mjs';
 import { ExportFiles } from './export-files.mjs';
 import { registerExportFileIpc } from './export-file-ipc.mjs';
+import electronUpdater from 'electron-updater';
+import { DesktopInstances } from './desktop-instances.mjs';
+import { DesktopUpdateController, registerDesktopUpdateIpc } from './desktop-update.mjs';
+import { findGitHubUpdate } from './github-updates.mjs';
 
 const projectFiles = new ProjectFiles();
 const exportFiles = new ExportFiles();
@@ -36,6 +40,8 @@ const windowsAppUserModelId = app.isPackaged
 	? 'io.github.syuilo.glitch-studio'
 	: 'io.github.syuilo.glitch-studio.development';
 let mainWindow;
+let desktopInstances = null;
+let desktopUpdateController = null;
 // 通知をGCで失わないよう、次のエクスポートが完了するまで最新の通知を保持する。
 let exportCompleteNotification = null;
 
@@ -81,9 +87,20 @@ function createWindow() {
 	// 通常サイズのウィンドウが一瞬表示されないよう、最大化してから表示する。
 	mainWindow.maximize();
 	mainWindow.show();
-	mainWindow.webContents.on('will-navigate', (event, url) => {
-		if (!isAppUrl(url)) event.preventDefault();
+	mainWindow.on('close', event => {
+		if (desktopUpdateController?.shouldBlockQuit === true) event.preventDefault();
 	});
+	mainWindow.webContents.on('will-navigate', (event, url) => {
+		if (!isAppUrl(url) || desktopUpdateController?.busy === true) event.preventDefault();
+	});
+	mainWindow.webContents.on('will-prevent-unload', event => {
+		if (desktopUpdateController?.allowQuit === true) event.preventDefault();
+	});
+	mainWindow.webContents.on('before-input-event', (event, input) => {
+		if (desktopUpdateController?.busy === true && (input.key === 'F5' || ((input.control || input.meta) && input.key.toLowerCase() === 'r'))) event.preventDefault();
+	});
+	mainWindow.webContents.on('did-start-loading', () => { void desktopUpdateController?.abortPreparation().catch(console.error); });
+	mainWindow.webContents.on('render-process-gone', () => { void desktopUpdateController?.abortPreparation().catch(console.error); });
 	mainWindow.webContents.setWindowOpenHandler(({ url }) => {
 		// 既存の切り離しプレビューはabout:blankを開き、親からDOMを構築する。
 		if (url === 'about:blank') return { action: 'allow' };
@@ -99,7 +116,26 @@ function createWindow() {
 	});
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+	const updatesEnabled = app.isPackaged && process.platform === 'win32';
+	if (updatesEnabled) {
+		desktopInstances = new DesktopInstances({ executablePath: app.getPath('exe'), userDataPath: app.getPath('userData'), version: app.getVersion() });
+		if (!await desktopInstances.register()) {
+			await dialog.showMessageBox({ type: 'info', title: 'Glitch Studio', message: 'Glitch Studio is being updated. Please try again after the update finishes.', buttons: ['OK'] });
+			await desktopInstances.dispose();
+			app.quit();
+			return;
+		}
+	}
+	desktopUpdateController = new DesktopUpdateController({ updater: electronUpdater.autoUpdater, instances: desktopInstances,
+		currentVersion: app.getVersion(), enabled: updatesEnabled, findUpdate: version => findGitHubUpdate(version, net.fetch.bind(net)) });
+	desktopUpdateController.on('state', state => {
+		if (mainWindow == null || mainWindow.isDestroyed()) return;
+		mainWindow.webContents.send('desktop:update-state-changed', state);
+		mainWindow.setProgressBar(state.phase === 'downloading' && state.progress != null ? state.progress.percent / 100
+			: desktopUpdateController.busy ? 2 : -1);
+	});
+	registerDesktopUpdateIpc(ipcMain, desktopUpdateController, getTrustedMainWindow);
 	Menu.setApplicationMenu(null);
 	if (process.platform === 'win32') app.setAppUserModelId(windowsAppUserModelId);
 	if (process.platform === 'darwin') app.dock.setIcon(iconPath);
@@ -200,6 +236,7 @@ app.whenReady().then(() => {
 	registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMainWindow);
 
 	createWindow();
+	if (updatesEnabled) void desktopUpdateController.checkForUpdates();
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow();
 	});
@@ -211,3 +248,9 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
 	if (process.platform !== 'darwin') app.quit();
 });
+
+app.on('before-quit', event => {
+	if (desktopUpdateController?.shouldBlockQuit === true) event.preventDefault();
+});
+// パイプはOSが異常終了時にも解放する。登録ファイルは次回の生存確認で整理する。
+app.on('will-quit', () => { void desktopInstances?.dispose().catch(console.error); });

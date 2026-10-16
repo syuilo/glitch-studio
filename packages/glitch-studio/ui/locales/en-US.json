@@ -1,4 +1,22 @@
 {
+	"_DesktopUpdate": {
+		"Title": "Updating Glitch Studio",
+		"Available": "Update available",
+		"Check": "Check for updates",
+		"UpToDate": "Glitch Studio is up to date.",
+		"CheckFailed": "Could not check for updates. Please try again later.",
+		"ConfirmTitle": "Update to version {version}?",
+		"ConfirmText": "Once the update starts, it cannot be canceled. Glitch Studio will restart and unsaved changes to the current project will be lost. Save anything you need before continuing.",
+		"UpdateAndRestart": "Update and restart",
+		"Preparing": "Waiting for saves and backups to finish…",
+		"Downloading": "Downloading and verifying the update…",
+		"Installing": "Closing Glitch Studio to install the update…",
+		"DoNotClose": "Please wait. Glitch Studio will restart after the update.",
+		"Failed": "The update failed. You can close this dialog and continue editing, or try again.",
+		"OtherInstances": "Close other Glitch Studio instances before updating, then try again.",
+		"ApplicationBusy": "Wait for project loading or exporting to finish before updating.",
+		"Retry": "Try again"
+	},
 	"_EffectPicker": {
 		"Search": "Search effects",
 		"Close": "Close",

@@ -102,6 +102,7 @@ type BackupControllerOptions = {
 };
 
 export class ProjectBackupController {
+	private paused = false;
 	private target: ProjectBackupTarget | null = null;
 	private generation = 0;
 	private lastFingerprint: string | null = null;
@@ -112,6 +113,11 @@ export class ProjectBackupController {
 	private status: ProjectBackupStatus = { lastAutoBackup: null, lastSaveBackup: null, error: null };
 
 	constructor(private options: BackupControllerOptions) {}
+
+	setPaused(paused: boolean): void {
+		this.paused = paused;
+		this.refreshSchedule();
+	}
 
 	setTarget(target: ProjectBackupTarget | null): void {
 		this.target = target;
@@ -142,7 +148,7 @@ export class ProjectBackupController {
 		this.options.cancel(this.timer);
 		this.timer = null;
 		const settings = this.options.settings();
-		if (!this.target || (!settings.autoEnabled && !settings.saveEnabled)) return;
+		if (this.paused || !this.target || (!settings.autoEnabled && !settings.saveEnabled)) return;
 		try { validateProjectBackupSettings(settings); } catch (error) { this.reportError(error); return; }
 		// 長い間隔でも期限の整理は行う。復帰時は現在の状態を1回だけ保存し、休止中の回数を積まない。
 		this.timer = this.options.schedule(() => { void this.tick().finally(() => this.schedule()); },
@@ -150,6 +156,7 @@ export class ProjectBackupController {
 	}
 
 	async tick(): Promise<void> {
+		if (this.paused) return;
 		const target = this.target;
 		const generation = this.generation;
 		await this.options.runExclusive(async () => {

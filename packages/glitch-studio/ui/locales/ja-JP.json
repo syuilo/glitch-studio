@@ -1,4 +1,22 @@
 {
+	"_DesktopUpdate": {
+		"Title": "Glitch Studioを更新",
+		"Available": "アップデートがあります",
+		"Check": "アップデートを確認",
+		"UpToDate": "Glitch Studioは最新です。",
+		"CheckFailed": "アップデートを確認できませんでした。時間をおいて再度お試しください。",
+		"ConfirmTitle": "バージョン{version}に更新しますか？",
+		"ConfirmText": "アップデートを開始するとキャンセルできません。更新後にGlitch Studioが再起動し、現在のプロジェクトの未保存の変更は失われます。必要な内容を保存してから実行してください。",
+		"UpdateAndRestart": "更新して再起動",
+		"Preparing": "保存とバックアップの完了を待っています…",
+		"Downloading": "アップデートをダウンロード・検証しています…",
+		"Installing": "インストールのためGlitch Studioを終了しています…",
+		"DoNotClose": "そのままお待ちください。更新後にGlitch Studioが再起動します。",
+		"Failed": "アップデートに失敗しました。閉じて編集を続けるか、再試行できます。",
+		"OtherInstances": "ほかのGlitch Studioを閉じてから、再度アップデートしてください。",
+		"ApplicationBusy": "プロジェクトの読み込みや書き出しが完了してからアップデートしてください。",
+		"Retry": "再試行"
+	},
 	"_EffectPicker": {
 		"Search": "エフェクトを検索",
 		"Close": "閉じる",

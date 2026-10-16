@@ -1,5 +1,11 @@
 # Glitch Studio UI
 
+## Electronの更新UI
+
+`DesktopUpdates`がmainから更新状態を取得・購読します。状態のrevisionを比較し、遅れて返った初期snapshotで新しい通知を巻き戻しません。`App.vue`のヘッダとHelpメニューから確認を行い、`GsDesktopUpdateDialog`が処理中の操作を抑止し、失敗後に閉じる・再試行を表示します。
+
+`ApplicationActivity`は読込・素材取込・書き出しとアプリ更新の受付を調整します。`ProjectSaveController.pauseForUpdate()`は新規保存とバックアップを止め、受付済みの保存キューの完了を待ちます。`AppContext.pauseForDesktopUpdate()`がその後にプレビューを停止し、失敗時には保存とプレビューを復帰させます。更新はProjectやUndo/Redoの状態に含めません。配布とリリース手順は[desktopのREADME](../desktop/README.md)を参照してください。
+
 ## UIの翻訳
 
 画面の固定文言は`locales/en-US.json`と`locales/ja-JP.json`に定義し、`src/i18n.ts`の`i18n.ts`から参照する。画面・機能固有のキーは`_Timeline`など`_`で始まるオブジェクトにまとめる。件数や名前を含む文は`{count}`などのプレースホルダーを使い、`i18n.tsx`で補間する。翻訳ごとに語順を変えられるよう、文章を断片に分割して連結しない。

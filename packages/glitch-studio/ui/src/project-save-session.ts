@@ -17,6 +17,7 @@ export class ProjectSaveSession {
 	constructor(private onTargetChange: (target: ProjectSaveTarget | null, previous: ProjectSaveTarget | null) => void) {}
 
 	get target(): ProjectSaveTarget | null { return this.currentTarget; }
+	async whenIdle(): Promise<void> { await this.queue; }
 
 	setTarget(target: ProjectSaveTarget | null): void {
 		const previous = this.currentTarget;
