@@ -1,3 +1,4 @@
+import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
 import { generateVideoThumbnails } from './utility/video-thumbnails.ts';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 
@@ -78,7 +79,8 @@ export function openMediaFile(options: OpenMediaFileOptions): Promise<OpenedMedi
 export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise<OpenedMediaFile | OpenedMediaFile[] | null> {
 	const loadFile = async (file: File, onThumbnailProgress: (value: number) => void): Promise<OpenedMediaFile> => {
 		const fontType = options.includeFonts === true || options.allowAnyFile === true ? getFontFileType(file) : null;
-		const type = fontType ?? (file.type === '' ? 'application/octet-stream' : file.type);
+		const lutType = file.name.toLowerCase().endsWith('.cube') ? LUT_ASSET_MIME_TYPE : null;
+		const type = lutType ?? fontType ?? (file.type === '' ? 'application/octet-stream' : file.type);
 		const isMedia = /^(image|audio|video)\//.test(type);
 		if (options.allowAnyFile !== true && fontType == null && !isMedia) throw new Error('Unsupported media type');
 		// パスは元のFileからだけ取得できる。ブラウザのfakepathや相対パスは原本の場所を示さない。

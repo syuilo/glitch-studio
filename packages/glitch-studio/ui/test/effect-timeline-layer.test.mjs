@@ -239,6 +239,36 @@ function fixture(effectId = 'testStructArray') {
 	return { layer, state, target, edit, read: path => resolveLayerParameter(state, layer, 'effect', path).value };
 }
 
+// 【LUT選択・差し替え・削除をCommandで戻せる】
+// ノードの参照解除とUndoによる復元を確認する。タイムラインの参照切れは既存のAssetと同様に
+// IDを保持して検証側で通知し、Undoしたときに同じ素材へ戻れるようにする。
+test('edits and restores LUT assets and references through commands', async () => {
+	const f = fixture('applyLut');
+	const original = { id: 'lut', name: 'Look', width: 0, height: 0, fileDataType: 'application/x-cube-lut',
+		fileData: new Blob(['LUT_1D_SIZE 2\n0 0 0\n1 1 1']), sourceFilePath: null, thumbnailSequence: null };
+	f.state.assets.value.push(original);
+	const selection = f.edit(['lut'], { kind: 'literal', value: 'lut' });
+	assert.deepEqual(f.read(['lut']), literal('lut'));
+	selection.undo(f.state);
+	assert.deepEqual(f.read(['lut']), literal(null));
+	selection.execute(f.state);
+	const replacement = COMMAND_DEFS.replaceAsset.create({ ...original, assetId: 'lut', fileData: new Blob(['replacement']) });
+	replacement.execute(f.state);
+	assert.equal(await f.state.assets.value[0].fileData.text(), 'replacement');
+	replacement.undo(f.state);
+	assert.equal(await f.state.assets.value[0].fileData.text(), 'LUT_1D_SIZE 2\n0 0 0\n1 1 1');
+	f.state.visualModules.value.push({ id: 'visual', nodes: [{ id: 'lut-node', type: 'effect', effectId: 'applyLut',
+		params: { input: literal([0, 0, 0, 0]), lut: literal('lut') } }] });
+	const removal = COMMAND_DEFS.removeAsset.create({ assetId: 'lut' });
+	removal.execute(f.state);
+	assert.equal(f.state.assets.value.length, 0);
+	assert.deepEqual(f.state.visualModules.value[0].nodes[0].params.lut, literal(null));
+	assert.deepEqual(f.read(['lut']), literal('lut'));
+	removal.undo(f.state);
+	assert.deepEqual(f.state.visualModules.value[0].nodes[0].params.lut, literal('lut'));
+	assert.equal(f.state.assets.value[0].id, 'lut');
+});
+
 // 【キーの行名は所有者を区別し、配列の並び替え後も同じIDを指す】
 // エフェクトと合成設定が同じ表示名を持っても、どちらを編集する行か分かるようにする。
 // 配列のindexは表示だけに使い、並び替えで選択キーや参照先のIDを変更しない。

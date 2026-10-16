@@ -23,7 +23,7 @@ type RuntimeEffectOptionValue<D extends DataType, S> =
 	D extends { kind: 'enum'; options: readonly string[] } ? D['options'][number] :
 	D extends { kind: 'assetReference' } ? GPUTexture | null :
 	D extends { kind: 'videoAssetReference' } ? Pick<Asset, 'id' | 'fileData' | 'width' | 'height'> | null :
-	D extends { kind: 'fontAssetReference' } ? Pick<Asset, 'id' | 'fileData'> | null :
+	D extends { kind: 'fontAssetReference' | 'lutAssetReference' } ? Pick<Asset, 'id' | 'fileData'> | null :
 	D extends { kind: 'playerReference' } ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
 	D extends { kind: 'audioSource' } ? AudioInput | null :
 	D extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }

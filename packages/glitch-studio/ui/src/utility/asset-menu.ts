@@ -1,3 +1,4 @@
+import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
 import GsDialog from '@/components/common/GsDialog.vue';
 import type { ProjectAsset } from '@/Project.ts';
 import type { MenuItem } from '@/types/menu.ts';
@@ -20,7 +21,7 @@ export function getAssetMenu(asset: ProjectAsset): MenuItem[] {
 	}
 
 	async function replace() {
-		const result = await openMediaFile({ includeFonts: true });
+		const result = await openMediaFile({ includeFonts: true, allowAnyFile: asset.fileDataType === LUT_ASSET_MIME_TYPE });
 		if (result == null) return;
 		stateManager.commit('replaceAsset', {
 			id: asset.id,

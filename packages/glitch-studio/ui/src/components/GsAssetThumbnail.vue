@@ -14,6 +14,7 @@
 	<i v-else-if="is === 'textfile'" class="ti ti-file-text" :class="$style.icon"></i>
 	<i v-else-if="is === 'archive'" class="ti ti-file-zip" :class="$style.icon"></i>
 	<i v-else-if="is === 'font'" class="ti ti-typography" :class="$style.icon"></i>
+	<i v-else-if="is === 'lut'" class="ti ti-color-swatch" :class="$style.icon"></i>
 	<i v-else class="ti ti-file" :class="$style.icon"></i>
 
 	<i v-if="imageUrl != null && is === 'video'" class="ti ti-video" :class="$style.iconSub"></i>
@@ -22,6 +23,7 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
 import type { ProjectAsset } from '@/Project.ts';
 
 const props = defineProps<{
@@ -31,6 +33,7 @@ const props = defineProps<{
 }>();
 
 const is = computed(() => {
+	if (props.asset.fileDataType === LUT_ASSET_MIME_TYPE) return 'lut';
 	if (props.asset.fileDataType.startsWith('image/')) return 'image';
 	if (props.asset.fileDataType.startsWith('video/')) return 'video';
 	if (props.asset.fileDataType === 'audio/midi') return 'midi';

@@ -41,7 +41,7 @@ export function staticParameterShape(definition: ParameterDefinition | null | un
 			return ['struct', Object.entries(binding.value).map(([key, value]) => [key, staticParameterShape(fields[key], value)])];
 		}
 		const kind = definition?.dataType.kind;
-		return ['literal', kind && ['assetReference', 'videoAssetReference', 'fontAssetReference', 'playerReference', 'audioSource', 'array', 'struct'].includes(kind) ? binding.value : null];
+		return ['literal', kind && ['assetReference', 'videoAssetReference', 'fontAssetReference', 'lutAssetReference', 'playerReference', 'audioSource', 'array', 'struct'].includes(kind) ? binding.value : null];
 	}
 	if (binding.inputSource === 'expression') return ['expression'];
 	if (binding.inputSource === 'automationGraphInline') {

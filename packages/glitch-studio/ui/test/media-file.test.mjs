@@ -69,6 +69,28 @@ const mediaTypes = [
 	{ name: 'font.ttf', type: '', expectedType: 'font/ttf', width: 0, height: 0 },
 ];
 
+// 【LUTをOSのMIME判定によらず識別し、改名・保存後も原本と種類を保つ】
+// .cubeが空MIMEやtext/plainでも選択候補に入り、表示名を変えても再判定で失われない。
+// 不正な内容の検証は使用時に行うので、取り込みでは画像デコードしない。
+test('imports cube assets with stable types and round trips their original contents', async t => {
+	const { decodedSources } = setupMedia(t);
+	for (const type of ['', 'text/plain', 'application/octet-stream']) {
+		const text = 'TITLE "Example"\nLUT_1D_SIZE 2\n0 0 0\n1 1 1';
+		const source = await openMediaFile({ file: new File([text], 'Example.CUBE', { type }), allowAnyFile: true });
+		assert.equal(source.type, 'application/x-cube-lut');
+		assert.equal(source.width, 0);
+		assert.equal(source.height, 0);
+		const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
+			timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
+			assets: [{ ...source, id: 'lut', name: 'Renamed', fileDataType: source.type }] });
+		const restored = decodeProjectFile(encoded).assets[0];
+		assert.equal(restored.name, 'Renamed');
+		assert.equal(restored.fileDataType, 'application/x-cube-lut');
+		assert.equal(await restored.fileData.text(), text);
+	}
+	assert.equal(decodedSources.length, 0);
+});
+
 // 【複数選択で取り込むすべての素材に、それぞれの原本パスを記録する】
 // フォントや音声だけメタデータが欠落したり、選択した先頭のパスを使い回したりしない。
 // Blobへのコピー前のFileをデスクトップAPIへ渡し、プロジェクトの保存・再読込でもパスを保つ。

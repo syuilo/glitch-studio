@@ -59,6 +59,14 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 // モックでは検出できないシェーダーとbindingの不整合を検出する。CIではChromeのパスを明示する。
 test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20));
 
+// 【LUTの実シェーダーで恒等変換・半透明・入力範囲・複合変換を確認する】
+// CPUパーサーのテストだけではbinding・半精度転送・3D補間のずれを検出できない。
+// 同じAsset IDの差し替えと、定数／テクスチャ入力の両方を16bit・対応GPUでは32bitで検証する。
+test('renders cube LUTs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, async t => {
+	const checks = await runGpuTest('./helpers/apply-lut-gpu.ts', 10);
+	t.diagnostic(`${checks.length} checks: ${checks.join(', ')}`);
+});
+
 // 【分離したエフェクト・モジュール・エフェクトレイヤーの描画を実GPUで検証する】
 // 複数出力・履歴交換・バイパス・リサイズに加え、レイヤーの下層入力・キー・合成後の画素を確認する。
 test('renders extracted effects, visual modules and timeline effects on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/effect-renderer-gpu.ts', 14));

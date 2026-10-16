@@ -24,6 +24,7 @@ type ParameterDefaultValueMap = {
 	assetReference: string | null;
 	videoAssetReference: string | null;
 	fontAssetReference: string | null;
+	lutAssetReference: string | null;
 	playerReference: null;
 	audioSource: null;
 	any: [number, number, number, number] | null;
@@ -106,6 +107,7 @@ export type ParameterDefinition_Enum<Options extends readonly string[] = readonl
 export type ParameterDefinition_AssetReference = ParameterDefinition<{ kind: 'assetReference' }>;
 export type ParameterDefinition_VideoAssetReference = ParameterDefinition<{ kind: 'videoAssetReference' }>;
 export type ParameterDefinition_FontAssetReference = ParameterDefinition<{ kind: 'fontAssetReference' }>;
+export type ParameterDefinition_LutAssetReference = ParameterDefinition<{ kind: 'lutAssetReference' }>;
 export type ParameterDefinition_PlayerReference = ParameterDefinition<{ kind: 'playerReference' }>;
 export type ParameterDefinition_Struct<Fields extends Record<string, DataType> = Record<string, DataType>> = ParameterDefinition<{ kind: 'struct'; fields: Fields }>;
 export type ParameterDefinition_Array<Element extends DataType = DataType> = ParameterDefinition<{ kind: 'array'; elementType: Element }>;

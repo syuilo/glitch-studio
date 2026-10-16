@@ -40,6 +40,30 @@ function fixture(visualModules = [], timelineScenes = []) {
 }
 const nodeChange = nodeId => [{ type: 'node', target: { visualModuleId: 'visualModule' }, nodeId, changes: [{ type: 'parameter', kind: 'value' }] }];
 
+// 【LUTの参照先変更と同じIDの種類変更を再検証する】
+// 通常値の変更を省略する静的shapeにLUT IDを含めないと、別Assetへの切替を見落とす。
+// Asset差し替えの依存通知でも再検証し、誤った種類を描画へ渡さない。
+test('revalidates LUT selection and asset replacement', () => {
+	const selected = node('lut', literal('first'));
+	const { state } = fixture([visualModule([selected])]);
+	state.assets.value.push({ id: 'first', fileDataType: 'application/x-cube-lut' }, { id: 'second', fileDataType: 'font/ttf' });
+	const lutDefinitions = { effect: { ...definitions.effect, primaryInputParameter: null, paramDefs: {
+		amount: { dataType: { kind: 'lutAssetReference' }, ui: { label: 'LUT', control: {} }, defaultValue: literal(null) },
+	} } };
+	const validation = new ProjectRenderValidation(state, lutDefinitions);
+	validation.reset();
+	assert.equal(validation.errorMessage.value, null);
+	selected.params.amount = literal('second');
+	validation.update(nodeChange('lut'));
+	assert.match(validation.errorMessage.value, /Incompatible LUT/);
+	state.assets.value[1].fileDataType = 'application/x-cube-lut';
+	validation.update([{ type: 'asset', assetId: 'second' }]);
+	assert.equal(validation.errorMessage.value, null);
+	selected.params.amount = literal(null);
+	validation.update(nodeChange('lut'));
+	assert.equal(validation.errorMessage.value, null);
+});
+
 function nestedParameterDefinition() {
 	return {
 		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { asset: { kind: 'assetReference' } } } },

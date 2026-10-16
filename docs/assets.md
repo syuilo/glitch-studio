@@ -38,6 +38,14 @@ App.vueの全体受付でも、ファイルのホバー中は「Drop here」を�
 
 ファイルの読み込み・サムネイル生成からノード反映まで同じprogressダイアログを維持します。`importAssets`の配置準備コールバックへ読み込んだAsset・Player・ダイアログを渡し、`AssetImportPlacement`でTimelineまたはVisual Moduleへの配置を指定します。Asset・Player・ノードを一つのCommandで反映し、参照の検証が失敗した場合は部分追加しません。既存Assetは進捗ダイアログを表示せず、`addVisualModuleAssetNodes`で不足するPlayerとノードだけを追加します。ノードに対応しないファイルはAssetsへ取り込んでパネルを開き、同じ種類の既存Assetは無視します。
 
+## LUT Asset
+
+`.cube`は取り込み時に`application/x-cube-lut`へ正規化し、原本のBlobを保存します。表示名の拡張子を再判定しないため、改名後も種類は維持されます。Playerは作りません。内容の解析・検証はエフェクトが使用する際に行い、取り込み時にはデコードしません。
+
+`lutAssetReference`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。カスタムパラメータへの公開、Asset差し替え、Visual Module内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gsvm`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの引数などに残った参照切れは描画前の検証で通知します。
+
+LUTの解析・GPU処理はEffect subsystemの`fx/applyLut`が所有し、UIやプロジェクトに依存しません。詳しくは[Apply LUT](../packages/subsystems/effect/shared/src/fx/applyLut/README.md)を参照してください。
+
 ## 動画サムネイル
 
 動画の取り込み・差し替え時には、主映像トラックの0%から100%まで10%間隔でサムネイルを生成します。100%は最後のフレームです。長辺を320px以下に縮小し、小さな動画は拡大しません。同じtimestampに対応する地点は重複保存しません。

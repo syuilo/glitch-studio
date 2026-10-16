@@ -12,6 +12,7 @@ export type DataType =
 	| { kind: 'assetReference' }
 	| { kind: 'videoAssetReference' }
 	| { kind: 'fontAssetReference' }
+	| { kind: 'lutAssetReference' }
 	| { kind: 'playerReference' }
 	| { kind: 'audioSource' }
 	| { kind: 'struct'; fields: Record<string, DataType> }

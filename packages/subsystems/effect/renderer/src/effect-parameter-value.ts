@@ -1,3 +1,4 @@
+import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Asset } from '@gs/shared/types.ts';
@@ -14,6 +15,7 @@ export function resolveEffectParameterValue(definition: Pick<ParameterDefinition
 		case 'assetReference': return resources.assetTextures.get(value) ?? null;
 		case 'videoAssetReference': return resources.assets.find(asset => asset.id === value && asset.fileDataType.startsWith('video/')) ?? null;
 		case 'fontAssetReference': return resources.assets.find(asset => asset.id === value && asset.fileDataType.startsWith('font/')) ?? null;
+		case 'lutAssetReference': return resources.assets.find(asset => asset.id === value && asset.fileDataType === LUT_ASSET_MIME_TYPE) ?? null;
 		default: return definition.canNode ? constantShaderInput(definition.dataType.kind, value) : value;
 	}
 }

@@ -9,8 +9,9 @@ test('borrows matching asset resources and returns null for missing or incompati
 	const texture = { width: 640, height: 360 };
 	const video = { id: 'video', fileDataType: 'video/mp4' };
 	const font = { id: 'font', fileDataType: 'font/woff2' };
-	const resources = { assets: [video, font], assetTextures: new Map([['image', texture]]) };
-	for (const [kind, id, expected] of [['assetReference', 'image', texture], ['videoAssetReference', 'video', video], ['fontAssetReference', 'font', font]]) {
+	const lut = { id: 'lut', fileDataType: 'application/x-cube-lut' };
+	const resources = { assets: [video, font, lut], assetTextures: new Map([['image', texture]]) };
+	for (const [kind, id, expected] of [['assetReference', 'image', texture], ['videoAssetReference', 'video', video], ['fontAssetReference', 'font', font], ['lutAssetReference', 'lut', lut]]) {
 		const def = { dataType: { kind } };
 		assert.equal(resolveEffectParameterValue(def, id, resources), expected);
 		assert.equal(resolveEffectParameterValue(def, 'missing', resources), null);
@@ -18,6 +19,7 @@ test('borrows matching asset resources and returns null for missing or incompati
 	}
 	assert.equal(resolveEffectParameterValue({ dataType: { kind: 'videoAssetReference' } }, 'font', resources), null);
 	assert.equal(resolveEffectParameterValue({ dataType: { kind: 'fontAssetReference' } }, 'video', resources), null);
+	assert.equal(resolveEffectParameterValue({ dataType: { kind: 'lutAssetReference' } }, 'font', resources), null);
 });
 
 // 【接続可能な定数だけをShaderInputへ変換し、色の乗算境界を揃える】

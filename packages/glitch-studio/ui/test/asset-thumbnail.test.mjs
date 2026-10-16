@@ -12,7 +12,7 @@ const source = await readFile(path, 'utf8');
 const descriptor = parse(source, { filename: path }).descriptor;
 const script = compileScript(descriptor, { id: 'thumbnail-test', inlineTemplate: true, genDefaultAs: 'component' }).content;
 const bundle = await build({ stdin: { contents: `${script}
-	component.__cssModules = { $style: {} }; export default component;`, loader: 'ts' },
+	component.__cssModules = { $style: {} }; export default component;`, loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'] });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);

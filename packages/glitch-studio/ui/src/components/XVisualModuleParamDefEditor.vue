@@ -23,6 +23,7 @@
 				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'assetReference' },
 				{ label: 'Video asset', value: 'videoAssetReference' },
 				{ label: 'Font asset', value: 'fontAssetReference' },
+				{ label: 'LUT Asset', value: 'lutAssetReference' },
 				{ label: 'Audio', value: 'audioSource' },
 			]"
 			@update:modelValue="updateType"
@@ -145,7 +146,7 @@ function updateEnumOptions(options: string[], labels: Record<string, string>, de
 function updateType(dataType: ParamDef['dataType']['kind']) {
 	if (dataType === props.def.dataType.kind) return;
 	defaultValueMergeKey = null;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference' && dataType !== 'audioSource') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference' && dataType !== 'lutAssetReference' && dataType !== 'audioSource') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
@@ -158,6 +159,7 @@ function updateType(dataType: ParamDef['dataType']['kind']) {
 		videoAssetReference: { dataType: { kind: 'videoAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
 		audioSource: { dataType: { kind: 'audioSource' }, ui: { label: props.def.ui.label, control: {} } },
 		fontAssetReference: { dataType: { kind: 'fontAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
+		lutAssetReference: { dataType: { kind: 'lutAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
 	} as const;
 
 	const schema = schemas[dataType];

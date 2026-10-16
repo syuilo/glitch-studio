@@ -1,3 +1,4 @@
+import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
 import { computed, shallowRef } from 'vue';
 import { inspectStaticParameter, staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
@@ -163,6 +164,10 @@ export class ProjectRenderValidation {
 		if (binding.inputSource !== 'literal' || binding.value == null) return;
 		const kind = definition.dataType.kind;
 		if (kind === 'assetReference' || kind === 'videoAssetReference' || kind === 'fontAssetReference') this.asset(binding.value, dependencies, kind === 'videoAssetReference' ? 'video' : kind === 'fontAssetReference' ? 'font' : null);
+		if (kind === 'lutAssetReference') {
+			this.asset(binding.value, dependencies);
+			if (this.assets.get(binding.value) !== LUT_ASSET_MIME_TYPE) throw new Error('Incompatible LUT Asset: ' + binding.value);
+		}
 		if (kind === 'playerReference' || kind === 'audioSource') {
 			if (kind === 'audioSource') validatePlayerAudioSourceSelection(binding.value);
 			const id = kind === 'audioSource' ? binding.value.playerId : binding.value;

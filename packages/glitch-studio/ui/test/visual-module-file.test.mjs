@@ -80,6 +80,25 @@ function fixture() {
 }
 function ids(prefix) { let index = 0; return () => `${prefix}-${++index}`; }
 
+// 【LUTの直接参照と公開パラメータの既定値を同梱し、読み込み時にIDを書き換える】
+// .gsprojだけ動いてもVisual Module単体の配布でLUTが欠落すると見た目を再現できない。
+// 同じLUTを複数箇所で使っていても、一つの原本と新しい共通IDにまとめる。
+test('packages LUT references and remaps them on Visual Module import', async () => {
+	const f = fixture();
+	f.definitions.resources.paramDefs.lut = parameter('lutAssetReference');
+	f.visualModule.nodes[1].params.lut = literal('lut');
+	f.visualModule.paramDefs.push({ ...parameter('lutAssetReference', 'lut'), id: 'look', nameForReference: 'look', canNode: false });
+	f.input.assets.push(asset('lut', 'application/x-cube-lut'));
+	const decoded = decodeVisualModuleFile(await encodeVisualModuleFile(f.file()), f.input.gsVersion);
+	assert.equal(decoded.assets.filter(item => item.id === 'lut').length, 1);
+	const imported = prepareVisualModuleImport(decoded, f.definitions, ids('lut-import'));
+	const lut = imported.assets.find(item => item.fileDataType === 'application/x-cube-lut');
+	assert.notEqual(lut.id, 'lut');
+	assert.equal(imported.visualModule.nodes[1].params.lut.value, lut.id);
+	assert.equal(imported.visualModule.paramDefs.find(def => def.nameForReference === 'look').defaultValue.value, lut.id);
+	assert.deepEqual([...new Uint8Array(await lut.fileData.arrayBuffer())], [1, 2, 3, 4]);
+});
+
 // 【参照された原本と公開パラメータの既定値だけを持ち運べる】
 // ノードが公開パラメータ経由で画像を読む場合や、空配列の要素追加用の初期値も見落としてはいけない。
 // 同じ動画をノードとPlayerが参照しても一度だけ同梱し、無関係な素材や元PCのパスを含めない。
