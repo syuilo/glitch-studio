@@ -240,7 +240,6 @@
 		"DesktopVersion": "デスクトップ版"
 	},
 	"_About": {
-		"WebVersion": " (Web版)",
 		"MisskeyCredit": "UIなど一部の実装はMisskeyから移植しています"
 	},
 	"_Dialog": {

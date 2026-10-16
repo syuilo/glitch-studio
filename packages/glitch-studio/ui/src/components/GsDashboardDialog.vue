@@ -5,7 +5,7 @@
 			<div style="display: flex; align-items: center; gap: 16px;">
 				<img src="/gs.svg" style="display: block; width: 64px; height: 64px;">
 				<div>
-					<div><b>Glitch Studio{{ isElectron ? '' : i18n.ts._About.WebVersion }}</b></div>
+					<div><b>Glitch Studio{{ isElectron ? '' : ' (for Web)' }}</b></div>
 					<div>{{ version }}</div>
 				</div>
 			</div>
@@ -49,13 +49,13 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { inject, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsModal from './common/GsModal.vue';
 import GsAboutDialog from './GsAboutDialog.vue';
 import GsFolder from './common/GsFolder.vue';
 import GsTime from './common/GsTime.vue';
+import { i18n } from '@/i18n.ts';
 import { recentProjects } from '@/recent-projects.ts';
 import { appContext, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';

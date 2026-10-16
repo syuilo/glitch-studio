@@ -240,7 +240,6 @@
 		"DesktopVersion": "Desktop version"
 	},
 	"_About": {
-		"WebVersion": " (for Web)",
 		"MisskeyCredit": "Parts of the implementation, including the UI, were ported from Misskey."
 	},
 	"_Dialog": {

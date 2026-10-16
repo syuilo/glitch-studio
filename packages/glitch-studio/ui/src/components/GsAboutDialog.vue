@@ -3,7 +3,7 @@
 	<div :class="$style.root" class="_gaps_m">
 		<div style="font-size: 110%;">
 			<img src="/gs.svg" style="display: block; margin: 0 auto 8px auto; width: 64px; height: 64px;">
-			<div><b>Glitch Studio{{ isElectron ? '' : i18n.ts._About.WebVersion }}</b></div>
+			<div><b>Glitch Studio{{ isElectron ? '' : ' (for Web)' }}</b></div>
 			<div>{{ version }}</div>
 		</div>
 		<div style="font-size: 110%;">
@@ -25,10 +25,10 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
+import { i18n } from '@/i18n.ts';
 
 const version = _VERSION_;
 const isElectron = __ELECTRON__;
