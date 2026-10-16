@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { selectMediaFiles } from '../api.ts';
 import { importMediaFiles } from './open-media-file.ts';
@@ -39,9 +40,9 @@ export async function importAssets(context: ProjectContext, files?: readonly Fil
 			},
 		});
 	} catch (error) {
-		await alert({ type: 'error', title: 'Import assets', text: error instanceof Error ? error.message : String(error) });
+		await alert({ type: 'error', title: i18n.ts._Assets.Import, text: error instanceof Error ? error.message : String(error) });
 		return [];
 	}
-	if (errors.length > 0) await alert({ type: 'error', title: 'Some files could not be imported', text: errors.join('\n') });
+	if (errors.length > 0) await alert({ type: 'error', title: i18n.ts._Assets.ImportFailed, text: errors.join('\n') });
 	return assets.map(asset => asset.id);
 }

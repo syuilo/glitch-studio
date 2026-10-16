@@ -18,12 +18,12 @@
 		<span :class="$style.layerName">{{ selectedTimelineLayer?.name }}</span>
 		<span
 			v-if="outputResolution != null"
-			v-tooltip="'Layer output resolution at the current preview resolution scale'"
+			v-tooltip="i18n.ts._Preview.LayerResolutionHint"
 			:class="$style.outputResolution"
 		>{{ outputResolution.width }} × {{ outputResolution.height }} px</span>
 
 		<GsButton
-			v-tooltip="geometry.parents.length ? 'Snap frame to group canvas edges' : 'Snap frame to canvas edges'" :primary="snap"
+			v-tooltip="geometry.parents.length ? i18n.ts._Preview.SnapToGroup : i18n.ts._Preview.SnapToCanvas" :primary="snap"
 			style="margin-left: auto;"
 			iconOnly
 			small
@@ -31,12 +31,13 @@
 		>
 			<i class="ti ti-magnet"></i>
 		</GsButton>
-		<GsButton v-if="zeroScale && editable.scale" small @click="resetScale">Reset scale</GsButton>
+		<GsButton v-if="zeroScale && editable.scale" small @click="resetScale">{{ i18n.ts._Preview.ResetScale }}</GsButton>
 	</div>
 </template>
 </template>
 
 <script setup lang="ts">
+import { i18n } from '@/i18n.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';

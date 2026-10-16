@@ -103,10 +103,10 @@
 			</template>
 
 			<div :class="$style.infoBar" class="_monospace">
-				<div><b>TL Offset</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
-				<div><b>Cursor</b>{{ cursorValueX.toFixed(2) }}, {{ cursorValueY }}</div>
-				<div><b>Current</b>{{ currentValueX.toFixed(2) }}, {{ currentValue.toFixed(2) }}</div>
-				<div><b>Min/Max</b>{{ minMaxValuesInTheAutomationGraph.min.toFixed(2) }}, {{ minMaxValuesInTheAutomationGraph.max.toFixed(2) }}</div>
+				<div><b>{{ i18n.ts._AutomationGraph.TimelineOffset }}</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
+				<div><b>{{ i18n.ts._AutomationGraph.Cursor }}</b>{{ cursorValueX.toFixed(2) }}, {{ cursorValueY }}</div>
+				<div><b>{{ i18n.ts._AutomationGraph.Current }}</b>{{ currentValueX.toFixed(2) }}, {{ currentValue.toFixed(2) }}</div>
+				<div><b>{{ i18n.ts._ParameterEditor.MinMax }}</b>{{ minMaxValuesInTheAutomationGraph.min.toFixed(2) }}, {{ minMaxValuesInTheAutomationGraph.max.toFixed(2) }}</div>
 			</div>
 		</div>
 		<div v-if="selectedPoint" :class="$style.rightSidePanel">
@@ -119,6 +119,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { evalAutomationGraphValue } from '@gs/shared/automation-graph/automation-graph-evaluator.ts';
 import { insertIntermediateNumbers, nearlyEqual, niceScale, niceNormalizedScale } from '@gs/shared/utility/misc.js';

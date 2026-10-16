@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView title="Histogram">
+<GsDetachableView :title="i18n.ts._Workspace.Histogram">
 <div :class="$style.root">
 	<div ref="canvasContainer" :class="$style.canvas"></div>
 </div>
@@ -7,6 +7,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { useTemplateRef } from 'vue';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';

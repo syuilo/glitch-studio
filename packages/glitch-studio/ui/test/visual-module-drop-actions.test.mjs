@@ -1,3 +1,4 @@
+import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -10,7 +11,7 @@ const bundle = await build({ stdin: { loader: 'ts', resolveDir: fileURLToPath(ne
 	export { createVisualModuleAssetNode } from './utility/visual-module-asset-node.ts';
 	export { COMMAND_DEFS } from './commands.ts'; export { UndoRedo } from './utility/undo-redo.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
-	plugins: [{ name: 'visual-module-drop-dependencies', setup(build) {
+	plugins: [i18nPlugin, { name: 'visual-module-drop-dependencies', setup(build) {
 		build.onResolve({ filter: /\/api\.ts$|ui\.ts$|preferences\.ts$|effect-definitions\.[jt]s$/ }, ({ path }) => ({ path, external: true }));
 	} }],
 });

@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView :title="direction === 'horizontal' ? 'Waveform (X)' : 'Waveform (Y)'">
+<GsDetachableView :title="direction === 'horizontal' ? i18n.ts._Workspace.WaveformX : i18n.ts._Workspace.WaveformY">
 	<div :class="$style.root">
 		<div :class="$style.scope">
 			<div ref="canvasContainer" :class="$style.canvas"></div>
@@ -13,6 +13,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { useTemplateRef } from 'vue';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';

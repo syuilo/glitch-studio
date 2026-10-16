@@ -1,15 +1,15 @@
 <template>
 <GsFolder defaultOpen asSection :withSpacer="false">
 	<template #icon><i class="ti ti-stack-middle"></i></template>
-	<template #label>Layer: {{ layer.name }}</template>
+	<template #label>{{ i18n.ts._TimelineLayer.Title }} {{ layer.name }}</template>
 
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer">
-			<GsInput small :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>Layer Name</template></GsInput>
+			<GsInput small :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
 		</div>
 		<div v-if="layer.layerType === 'group'" class="_spacer">
 			<GsSelect :modelValue="layer.compositingMode ?? 'flat'" :items="groupModes" @update:modelValue="mode => stateManager.commit('changeTimelineGroupMode', { sceneId, layerId: layer.id, mode })">
-				<template #label>Group compositing</template>
+				<template #label>{{ i18n.ts._TimelineLayer.GroupCompositing }}</template>
 			</GsSelect>
 		</div>
 		<GsTimelineEffectSettings
@@ -57,7 +57,7 @@
 		/>
 		<GsFolder v-if="layer.layerType === 'inlineVisualModule'" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-chart-dots-3"></i></template>
-			<template #label>Visual Module</template>
+			<template #label>{{ i18n.ts.VisualModule }}</template>
 			<div>
 				<GsVisualModuleEditor
 					:key="layer.id"
@@ -76,14 +76,14 @@
 		</GsFolder>
 		<GsFolder v-if="visualModule != null" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
-			<template #label>Module Parameters</template>
+			<template #label>{{ i18n.ts._TimelineLayer.VisualModuleParameters }}</template>
 			<div style="padding: 8px 0;">
 				<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
 				<template
 					v-for="paramDef of visualModule?.paramDefs.filter(paramDef => paramDef.id !== visualModule?.primaryInputId) ?? []"
 					:key="`${layer.id}:${paramDef.id}`"
 				>
-					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
 					<GsVisualParam
 						v-else
 						keyframesEnabled
@@ -101,18 +101,18 @@
 		</GsFolder>
 		<GsFolder v-if="isTimelineVisualLayer(layer)" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-layers-selected"></i></template>
-			<template #label>Compositing</template>
+			<template #label>{{ i18n.ts._TimelineLayer.Compositing }}</template>
 			<div class="_spacer">
 				<GsSwitch data-test-timeline-mask-enabled :modelValue="layer.mask != null" @update:modelValue="enabled => setMask(enabled ? { channel: 'alpha', inverted: false } : null)">
-					<template #label>Use as mask</template>
+					<template #label>{{ i18n.ts._TimelineLayer.UseAsMask }}</template>
 				</GsSwitch>
 			</div>
 			<div v-if="layer.mask != null" class="_spacer _gaps_m">
 				<GsSelect data-test-timeline-mask-channel :modelValue="layer.mask.channel" :items="maskChannels" @update:modelValue="channel => updateMask({ channel })">
-					<template #label>Mask channel</template>
+					<template #label>{{ i18n.ts._TimelineLayer.MaskChannel }}</template>
 				</GsSelect>
 				<GsSwitch data-test-timeline-mask-inverted :modelValue="layer.mask.inverted" @update:modelValue="inverted => updateMask({ inverted })">
-					<template #label>Invert mask</template>
+					<template #label>{{ i18n.ts._TimelineLayer.InvertMask }}</template>
 				</GsSwitch>
 			</div>
 			<div style="padding: 8px 0;">
@@ -133,18 +133,18 @@
 			</div>
 			<div class="_spacer">
 				<GsSelect :modelValue="layer.coordinateSpace" :items="coordinateSpaces" @update:modelValue="coordinateSpace => stateManager.commit('setTimelineLayerCoordinateSpace', { sceneId, layerId: layer.id, coordinateSpace })">
-					<template #label>Coordinate space</template>
+					<template #label>{{ i18n.ts._TimelineLayer.CoordinateSpace }}</template>
 				</GsSelect>
 			</div>
 			<div class="_spacer">
 				<GsSwitch :modelValue="layer.forceDisableMotionBlur" @update:modelValue="forceDisableMotionBlur => stateManager.commit('setTimelineLayerMotionBlurDisabled', { sceneId, layerId: layer.id, forceDisableMotionBlur })">
-					<template #label>Disable Motion Blur</template>
+					<template #label>{{ i18n.ts._TimelineLayer.DisableMotionBlur }}</template>
 				</GsSwitch>
 			</div>
 		</GsFolder>
 		<GsFolder v-if="isTimelineAudioOutputLayer(layer)" :asSection="true" defaultOpen>
 			<template #icon><i class="ti ti-music"></i></template>
-			<template #label>Audio</template>
+			<template #label>{{ i18n.ts.Audio }}</template>
 			<div class="_gaps_m">
 				<GsVisualParam
 					:key="layer.id"
@@ -160,9 +160,9 @@
 			</div>
 		</GsFolder>
 		<GsFolder :asSection="true" defaultOpen>
-			<template #label>Other</template>
+			<template #label>{{ i18n.ts.Other }}</template>
 			<div class="_gaps_m">
-				<GsButton danger small @click="stateManager.commit('removeTimelineLayer', { sceneId: scene.id, layerId: layer.id })"><i class="ti ti-trash"></i> Remove Layer</GsButton>
+				<GsButton danger small @click="stateManager.commit('removeTimelineLayer', { sceneId: scene.id, layerId: layer.id })"><i class="ti ti-trash"></i> {{ i18n.ts._TimelineLayer.Remove }}</GsButton>
 			</div>
 		</GsFolder>
 	</div>
@@ -170,6 +170,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, ref, onBeforeUnmount } from 'vue';
 import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
@@ -208,9 +209,9 @@ import { createVisualModuleDropActions } from '@/utility/visual-module-drop-acti
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
 const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection]; expandRequested: [layerId: string]; requestAddInlineEffectNode: [layerId: string]; revealAssets: [] }>();
 const { previewPlayback, timelineRendererManagerController } = appContext;
-const groupModes = [{ value: 'flat' as const, label: 'Single plane (2D contents)' }, { value: 'preserveDepth' as const, label: 'Preserve child depth' }];
-const coordinateSpaces = [{ value: 'screen' as const, label: 'On screen' }, { value: 'world' as const, label: 'In space' }];
-const maskChannels = [{ value: 'alpha' as const, label: 'Alpha' }, { value: 'luminance' as const, label: 'Luminance' }];
+const groupModes = [{ value: 'flat' as const, label: i18n.ts._TimelineLayer.SinglePlane }, { value: 'preserveDepth' as const, label: i18n.ts._TimelineLayer.PreserveDepth }];
+const coordinateSpaces = [{ value: 'screen' as const, label: i18n.ts._TimelineLayer.ScreenSpace }, { value: 'world' as const, label: i18n.ts._TimelineLayer.WorldSpace }];
+const maskChannels = [{ value: 'alpha' as const, label: i18n.ts._TimelineLayer.Alpha }, { value: 'luminance' as const, label: i18n.ts._TimelineLayer.Luminance }];
 const { stateManager } = appContext.projectContext;
 let disposed = false;
 onBeforeUnmount(() => { disposed = true; });

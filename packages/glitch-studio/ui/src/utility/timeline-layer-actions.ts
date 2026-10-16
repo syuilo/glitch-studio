@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import { findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { Ref } from 'vue';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
@@ -32,10 +33,10 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 		if (selection.value.kind !== 'layers' || !selection.value.ids.includes(layer.id)) selectLayer(layer);
 		if (selection.value.kind !== 'layers') return;
 		const ids = [...selection.value.ids];
-		const menu: MenuItem[] = [{ text: 'Wrap in Transform', icon: 'ti ti-gizmo', disabled: !canWrap(), action: transformSelection }, { text: 'Group', icon: 'ti ti-folder-symlink', disabled: !canWrap(), action: groupSelection }];
-		if (ids.length === 1) menu.push({ text: 'Rename', icon: 'ti ti-edit', action: () => rename(ids[0]) });
-		menu.push({ text: 'Duplicate', icon: 'ti ti-copy', action: () => duplicate(ids) }, {
-			text: 'Delete', icon: 'ti ti-trash', danger: true, action: () => remove(ids),
+		const menu: MenuItem[] = [{ text: i18n.ts._TimelineLayer.WrapInTransform, icon: 'ti ti-gizmo', disabled: !canWrap(), action: transformSelection }, { text: i18n.ts.Group, icon: 'ti ti-folder-symlink', disabled: !canWrap(), action: groupSelection }];
+		if (ids.length === 1) menu.push({ text: i18n.ts.Rename, icon: 'ti ti-edit', action: () => rename(ids[0]) });
+		menu.push({ text: i18n.ts.Duplicate, icon: 'ti ti-copy', action: () => duplicate(ids) }, {
+			text: i18n.ts.Delete, icon: 'ti ti-trash', danger: true, action: () => remove(ids),
 		});
 		ui.contextMenu(menu, event);
 	}
@@ -43,7 +44,7 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 	async function rename(layerId: string) {
 		const layer = findTimelineLayerLocation(scene.layers, layerId)?.layer;
 		if (!isActive() || !layer) return;
-		const { canceled, result: name } = await ui.inputText({ title: 'Rename Layer', default: layer.name, placeholder: layer.name });
+		const { canceled, result: name } = await ui.inputText({ title: i18n.ts._TimelineLayer.Rename, default: layer.name, placeholder: layer.name });
 		if (canceled || name == null || !isActive() || !findTimelineLayerLocation(scene.layers, layerId)) return;
 		stateManager.commit('renameTimelineLayer', { sceneId: scene.id, layerId, name });
 	}

@@ -15,10 +15,10 @@
 					<span :class="$style.layerHeaderTitle">
 						<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
 					</span>
-					<i v-if="isTimelineVisualLayer(layer) && layer.mask != null" class="ti ti-mask" data-test-timeline-mask-indicator :title="(layer.mask.inverted ? 'Inverted ' : '') + (layer.mask.channel === 'alpha' ? 'alpha mask' : 'luminance mask')"></i>
+					<i v-if="isTimelineVisualLayer(layer) && layer.mask != null" class="ti ti-mask" data-test-timeline-mask-indicator :title="layer.mask.channel === 'alpha' ? (layer.mask.inverted ? i18n.ts._TimelineLayer.InvertedAlphaMask : i18n.ts._TimelineLayer.AlphaMask) : (layer.mask.inverted ? i18n.ts._TimelineLayer.InvertedLuminanceMask : i18n.ts._TimelineLayer.LuminanceMask)"></i>
 					<button
 						v-if="isTimelineVisualLayer(layer)"
-						v-tooltip="'Coordinate space: ' + (layer.coordinateSpace === 'world' ? 'In space' : 'On screen')"
+						v-tooltip="i18n.tsx._TimelineLayer.CoordinateSpaceHint({ space: layer.coordinateSpace === 'world' ? i18n.ts._TimelineLayer.WorldSpace : i18n.ts._TimelineLayer.ScreenSpace })"
 						type="button"
 						class="_button"
 						:class="[$style.layerSwitch, { [$style.active]: layer.coordinateSpace === 'world' }]"
@@ -62,7 +62,7 @@
 		<div :class="$style.side">
 			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
 			<div :class="$style.sideBody">
-				<div :class="[$style.localTicksLabel]">Local Time</div>
+				<div :class="[$style.localTicksLabel]">{{ i18n.ts._Timeline.LocalTime }}</div>
 			</div>
 		</div>
 		<div :class="[$style.tl, $style.localTicks]">
@@ -76,7 +76,7 @@
 		<div :class="$style.side">
 			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
 			<div :class="$style.sideBody">
-				<div>Speech</div>
+				<div>{{ i18n.ts._TimelineLayer.Speech }}</div>
 			</div>
 		</div>
 		<VoicevoxKeys
@@ -115,6 +115,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { computed } from 'vue';
@@ -232,11 +233,11 @@ function toggleCoordinateSpace() {
 }
 
 function clipLabel(clip: Clip): string {
-	if ('assetId' in clip) return stateManager.state.assets.value.find(asset => asset.id === clip.assetId)?.name ?? 'Missing media';
-	if ('sceneId' in clip) return stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? 'Missing scene';
+	if ('assetId' in clip) return stateManager.state.assets.value.find(asset => asset.id === clip.assetId)?.name ?? i18n.ts._TimelineClip.MissingMedia;
+	if ('sceneId' in clip) return stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? i18n.ts._TimelineClip.MissingScene;
 	const layer = props.layer;
-	if (layer.layerType === 'visualModule') return stateManager.state.visualModules.value.find(module => module.id === layer.visualModuleId)?.name ?? 'Missing module';
-	return layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : layer.layerType === 'effect' ? effectDefinitions[layer.effectId].displayName : layer.name;
+	if (layer.layerType === 'visualModule') return stateManager.state.visualModules.value.find(module => module.id === layer.visualModuleId)?.name ?? i18n.ts._TimelineClip.MissingVisualModule;
+	return layer.layerType === 'inlineVisualModule' ? i18n.ts._TimelineClip.InlineVisualModule : layer.layerType === 'effect' ? effectDefinitions[layer.effectId].displayName : layer.name;
 }
 
 function sourceDuration(clip: Clip): number | null {

@@ -6,7 +6,7 @@
 		<template #prefix>X:</template>
 	</GsInput>
 
-	<GsButton v-tooltip="'Lock X:Y ratio'" :class="$style.lock" iconOnly small :primary="lockedRatio != null" @click="lockedRatio != null ? disableRatioLock() : enableRatioLock()"><i class="ti ti-link"></i></GsButton>
+	<GsButton v-tooltip="i18n.ts._Xy.LockRatio" :class="$style.lock" iconOnly small :primary="lockedRatio != null" @click="lockedRatio != null ? disableRatioLock() : enableRatioLock()"><i class="ti ti-link"></i></GsButton>
 
 	<GsInput :class="$style.input" small type="number" :modelValue="value[1]" :min="min" :max="max" :step="step" @update:modelValue="setValue(value[0], Number($event), 'y')">
 		<template #prefix>Y:</template>
@@ -32,6 +32,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import GsButton from './GsButton.vue';
 import GsInput from './GsInput.vue';

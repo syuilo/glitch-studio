@@ -61,6 +61,7 @@ const { getTimelineKeyframeLanes, getTimelineKeyframeEntries, insertVoicevoxUtte
 
 // Vueの実ハンドラーを実行し、DOM・描画機器を起動せず選択とScene時刻の結び付きを確認する。
 async function loadHandler(name, context, component = 'GsTimeline.vue') {
+	context = { i18n, ...context };
 	const source = await readFile(new URL(`../src/components/${component}`, import.meta.url), 'utf8');
 	const script = parse(source).descriptor.scriptSetup.content;
 	const ast = createSourceFile(component, script, ScriptTarget.Latest);
@@ -70,6 +71,7 @@ async function loadHandler(name, context, component = 'GsTimeline.vue') {
 	return new Function('context', `const { ${Object.keys(context).join(', ')} } = context; ${code}; return ${name};`)(context);
 }
 async function loadComputed(name, context, component) {
+	context = { i18n, ...context };
 	const source = await readFile(new URL(`../src/components/${component}`, import.meta.url), 'utf8');
 	const ast = createSourceFile(component, parse(source).descriptor.scriptSetup.content, ScriptTarget.Latest);
 	const declaration = ast.statements.filter(isVariableStatement).flatMap(statement => [...statement.declarationList.declarations])
@@ -999,3 +1001,4 @@ test('decodes generated WAV through the existing audio export path', async () =>
 	assert.ok(Math.abs(chunks[0][0][100] - 0.125) < 1e-6);
 	assert.ok(Math.abs(chunks[0][1][100] - 0.125) < 1e-6);
 });
+import { i18n } from './helpers/i18n.mjs';

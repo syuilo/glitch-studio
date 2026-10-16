@@ -1,53 +1,54 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')" @esc="modal?.close()">
 	<div :class="$style.root" class="_gaps_m" @keydown.stop>
-		<b>Preferences</b>
+		<b>{{ i18n.ts._Settings.Title }}</b>
 		<section class="_gaps_m">
-			<b>Rendering</b>
+			<b>{{ i18n.ts._Settings.Rendering }}</b>
 			<GsSwitch v-model="enable32bitDataTextures">
-				Use 32-bit data textures
-				<template #caption>Stores data and internal calculations in 32-bit float textures instead of 16-bit float textures.</template>
+				{{ i18n.ts._Settings.Use32bitDataTextures }}
+				<template #caption>{{ i18n.ts._Settings.DataTexturesHint }}</template>
 			</GsSwitch>
 			<GsSelect v-model="intermediateTextureFormat" :items="[
-				{ value: null, label: 'Auto (preferred canvas format)' },
+				{ value: null, label: i18n.ts._Settings.AutoTextureFormat },
 				{ value: 'rgba8unorm', label: 'rgba8unorm' },
 				{ value: 'bgra8unorm', label: 'bgra8unorm' },
 				{ value: 'rgba16float', label: 'rgba16float' },
 			] as const">
-				<template #label>Intermediate image texture format</template>
-				<template #caption>Controls image output precision and range independently of data texture precision. 16-bit float preserves values outside the 0–1 range and uses more memory than 8-bit formats.</template>
+				<template #label>{{ i18n.ts._Settings.IntermediateTextureFormat }}</template>
+				<template #caption>{{ i18n.ts._Settings.IntermediateTextureFormatHint }}</template>
 			</GsSelect>
 		</section>
-		<b>Project backups</b>
-		<div>Backups are stored beside the project after its first save. Each backup includes all media.</div>
+		<b>{{ i18n.ts._ProjectBackups.Title }}</b>
+		<div>{{ i18n.ts._ProjectBackups.Description }}</div>
 		<section class="_gaps_m">
-			<GsSwitch v-model="settings.autoEnabled">Automatic backups</GsSwitch>
+			<GsSwitch v-model="settings.autoEnabled">{{ i18n.ts._ProjectBackups.Automatic }}</GsSwitch>
 			<div class="_gaps_m" :inert="!settings.autoEnabled">
-				<GsInput v-model="settings.autoIntervalMinutes" type="number" :min="1" :step="1"><template #label>Interval</template><template #suffix>minutes</template><template #caption>Creates a backup only when the project has changed since its previous automatic backup.</template></GsInput>
-				<GsInput v-model="settings.autoRetentionDays" type="number" :min="1" :step="1"><template #label>Keep automatic backups for</template><template #suffix>days</template></GsInput>
+				<GsInput v-model="settings.autoIntervalMinutes" type="number" :min="1" :step="1"><template #label>{{ i18n.ts._ProjectBackups.Interval }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Minutes }}</template><template #caption>{{ i18n.ts._ProjectBackups.AutomaticHint }}</template></GsInput>
+				<GsInput v-model="settings.autoRetentionDays" type="number" :min="1" :step="1"><template #label>{{ i18n.ts._ProjectBackups.AutoRetention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template></GsInput>
 			</div>
-			<div>Last automatic backup: {{ formatTime(projectBackupStatus.lastAutoBackup) }}</div>
+			<div>{{ i18n.ts._ProjectBackups.LastAutomatic }} {{ formatTime(projectBackupStatus.lastAutoBackup) }}</div>
 		</section>
 		<section class="_gaps_m">
-			<GsSwitch v-model="settings.saveEnabled">Back up before overwriting</GsSwitch>
-			<GsInput v-model="settings.saveRetentionDays" type="number" :min="1" :step="1" :disabled="!settings.saveEnabled"><template #label>Keep save backups for</template><template #suffix>days</template><template #caption>Preserves the existing file before Save or Save as replaces it. If the backup fails, the project is not overwritten.</template></GsInput>
-			<div>Last save backup: {{ formatTime(projectBackupStatus.lastSaveBackup) }}</div>
+			<GsSwitch v-model="settings.saveEnabled">{{ i18n.ts._ProjectBackups.BeforeOverwrite }}</GsSwitch>
+			<GsInput v-model="settings.saveRetentionDays" type="number" :min="1" :step="1" :disabled="!settings.saveEnabled"><template #label>{{ i18n.ts._ProjectBackups.SaveRetention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template><template #caption>{{ i18n.ts._ProjectBackups.SaveHint }}</template></GsInput>
+			<div>{{ i18n.ts._ProjectBackups.LastSave }} {{ formatTime(projectBackupStatus.lastSaveBackup) }}</div>
 		</section>
-		<div v-if="projectBackupAccess === 'unsaved'">Save the project once to start backups.</div>
-		<GsButton v-else-if="projectBackupAccess === 'folder-required' || projectBackupStatus.error" @click="appContext.grantProjectBackupAccess()">Allow access to project folder</GsButton>
-		<div v-else>Backup folder is ready.</div>
+		<div v-if="projectBackupAccess === 'unsaved'">{{ i18n.ts._ProjectBackups.SaveFirst }}</div>
+		<GsButton v-else-if="projectBackupAccess === 'folder-required' || projectBackupStatus.error" @click="appContext.grantProjectBackupAccess()">{{ i18n.ts._ProjectBackups.AllowAccess }}</GsButton>
+		<div v-else>{{ i18n.ts._ProjectBackups.Ready }}</div>
 		<div v-if="projectBackupStatus.error" role="alert">{{ projectBackupStatus.error }}</div>
-		<div>Expired backups are removed while this project is open and the corresponding feature is enabled. The latest successful automatic backup is kept until a newer one succeeds, even after its retention period. Closing or suspending the app pauses backups.</div>
+		<div>{{ i18n.ts._ProjectBackups.RetentionHint }}</div>
 		<div v-if="validationError" role="alert">{{ validationError }}</div>
 		<div :class="$style.actions">
-			<GsButton inline @click="modal?.close()">Cancel</GsButton>
-			<GsButton inline primary :disabled="validationError != null" @click="apply">Apply</GsButton>
+			<GsButton inline @click="modal?.close()">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton inline primary :disabled="validationError != null" @click="apply">{{ i18n.ts.Apply }}</GsButton>
 		</div>
 	</div>
 </GsModal>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
@@ -68,7 +69,7 @@ const validationError = computed(() => {
 	try { validateProjectBackupSettings(settings.value); return null; } catch (error) { return error instanceof Error ? error.message : String(error); }
 });
 
-function formatTime(value: number | null) { return value == null ? 'None this session' : new Date(value).toLocaleString(); }
+function formatTime(value: number | null) { return value == null ? i18n.ts._ProjectBackups.NoneThisSession : new Date(value).toLocaleString(); }
 
 function apply() {
 	if (validationError.value) return;

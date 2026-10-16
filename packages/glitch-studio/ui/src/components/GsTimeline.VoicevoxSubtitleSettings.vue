@@ -1,7 +1,7 @@
 <template>
 <GsFolder asSection defaultOpen :withSpacer="false">
 	<template #icon><i class="ti ti-typography"></i></template>
-	<template #label>Subtitle</template>
+	<template #label>{{ i18n.ts.Subtitle }}</template>
 	<div style="padding: 8px 0;">
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(voicevoxSubtitleParamDefs)"
@@ -20,6 +20,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed } from 'vue';
 import { voicevoxSubtitleParamDefs } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';

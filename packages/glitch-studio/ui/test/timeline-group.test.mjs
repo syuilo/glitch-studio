@@ -1,3 +1,4 @@
+import { i18nPlugin } from './helpers/i18n.mjs';
 import { createDragActionsFixture } from './helpers/timeline-drag-actions.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -30,7 +31,7 @@ const bundled = await build({
 		export { default as arrayDefinition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
-	plugins: [{ name: 'clip-move-dependencies', setup(build) {
+	plugins: [i18nPlugin, { name: 'clip-move-dependencies', setup(build) {
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: uiDirectory,

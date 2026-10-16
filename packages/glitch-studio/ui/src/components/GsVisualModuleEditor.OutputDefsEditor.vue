@@ -4,9 +4,9 @@
 		<template #label>{{ def.label }}</template>
 
 		<div class="_gaps_s _spacer">
-			<span>Label</span>
+			<span>{{ i18n.ts.Label }}</span>
 			<GsInput :modelValue="def.label" @update:modelValue="update(def.id, { label: $event })"/>
-			<span>Name</span>
+			<span>{{ i18n.ts.Name }}</span>
 			<GsInput :modelValue="def.name" @update:modelValue="update(def.id, { name: $event })"/>
 			<GsSelect :modelValue="def.dataType.kind" :items="dataTypes" @update:modelValue="update(def.id, { dataType: { kind: $event } })"/>
 			<GsSwitch
@@ -15,16 +15,17 @@
 				:disabled="visualModule.primaryOutputId != null && visualModule.primaryOutputId !== def.id"
 				@update:modelValue="emit('setPrimaryOutput', $event ? def.id : null)"
 			>
-				Primary output
+				{{ i18n.ts._VisualModule.PrimaryOutput }}
 			</GsSwitch>
-			<GsButton small danger @click="emit('remove', def.id)">Remove output</GsButton>
+			<GsButton small danger @click="emit('remove', def.id)">{{ i18n.ts._VisualModule.RemoveOutput }}</GsButton>
 		</div>
 	</GsFolder>
-	<GsButton style="width: 100%;" @click="add"><i class="ti ti-plus"></i> Add Output</GsButton>
+	<GsButton style="width: 100%;" @click="add"><i class="ti ti-plus"></i> {{ i18n.ts._VisualModule.AddOutput }}</GsButton>
 </div>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { genId } from '@gs/shared/utility/id.js';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -42,10 +43,10 @@ const emit = defineEmits<{
 	setPrimaryOutput: [outputId: string | null];
 }>();
 const dataTypes: { label: string; value: OutputDef['dataType']['kind'] }[] = [
-	{ label: 'Color', value: 'color' },
-	{ label: 'Scalar', value: 'scalar' },
-	{ label: 'Vector', value: 'vector' },
-	{ label: 'Any', value: 'any' },
+	{ label: i18n.ts.Color, value: 'color' },
+	{ label: i18n.ts._EffectPicker._DataTypes.scalar, value: 'scalar' },
+	{ label: i18n.ts._EffectPicker._DataTypes.vector, value: 'vector' },
+	{ label: i18n.ts._EffectPicker._DataTypes.any, value: 'any' },
 ];
 
 function update(defId: string, changes: Partial<Omit<OutputDef, 'id'>>) {

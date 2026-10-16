@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 // DOM型定義に未収録の環境でも、このAPIを使う箇所だけで型を補う。
 export type LocalFont = {
 	family: string;
@@ -18,7 +19,7 @@ export function supportsLocalFonts(): boolean {
 export async function queryLocalFonts(): Promise<LocalFont[]> {
 	const fontWindow = window as LocalFontWindow;
 	if (!supportsLocalFonts() || !fontWindow.queryLocalFonts) {
-		throw new Error('Local fonts are unavailable. Import a font file using Add asset.');
+		throw new Error(i18n.ts._LocalFonts.Unavailable);
 	}
 	// 許可要求にユーザー操作が必要なため、ボタンのクリックから直接呼び出す。
 	const fonts = await fontWindow.queryLocalFonts();
@@ -29,7 +30,7 @@ export async function queryLocalFonts(): Promise<LocalFont[]> {
 
 export function localFontErrorMessage(error: unknown): string {
 	if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) {
-		return 'Local font access was not allowed. Allow font access in the browser site settings, or import a font file using Add asset.';
+		return i18n.ts._LocalFonts.AccessDenied;
 	}
 	return error instanceof Error ? error.message : String(error);
 }

@@ -1,3 +1,4 @@
+import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -15,7 +16,7 @@ const result = await build({
 	absWorkingDir: directory,
 	stdin: { contents: "export { default as Layer } from './src/components/GsTimeline.Layer.vue'; export * from 'test:metrics'; export * from '@/app.ts'; export * from './src/utility/timeline-coordinates.ts'; export * from './src/utility/timeline-ticks.ts';", resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
-	plugins: [{ name: 'timeline-sfc', setup(build) {
+	plugins: [i18nPlugin, { name: 'timeline-sfc', setup(build) {
 		build.onResolve({ filter: /^test:metrics$/ }, () => ({ path: 'metrics', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/app\.ts$/ }, () => ({ path: 'app', namespace: 'test' }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));

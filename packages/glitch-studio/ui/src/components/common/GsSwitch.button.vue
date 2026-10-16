@@ -1,6 +1,6 @@
 <template>
 <span
-	v-tooltip="checked ? 'it\'s ON' : 'it\'s OFF'"
+	v-tooltip="checked ? i18n.ts._Switch.On : i18n.ts._Switch.Off"
 	:class="{
 		[$style.button]: true,
 		[$style.buttonChecked]: checked,
@@ -14,6 +14,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { toRefs } from 'vue';
 import type { Ref } from 'vue';
 

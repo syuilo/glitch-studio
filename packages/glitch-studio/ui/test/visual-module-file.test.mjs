@@ -1,3 +1,4 @@
+import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +18,7 @@ const bundle = await build({
 	` },
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
 	define: { _VERSION_: '"2.0.0-alpha.1"' },
-	plugins: [{ name: 'visual-module-file-platform', setup(build) {
+	plugins: [i18nPlugin, { name: 'visual-module-file-platform', setup(build) {
 		build.onResolve({ filter: /effect-definitions\.[jt]s$|preferences\.ts$|(?:\/|\\)ui\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts',
 			contents: path.endsWith('preferences.ts') ? 'export const preferences = { s: { forceTypeSafety: false } };'

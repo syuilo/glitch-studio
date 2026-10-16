@@ -12,14 +12,14 @@
 		<div :class="$style.headerLeft">
 			<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
 			<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
-			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">File</button>
-			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">Edit</button>
-			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">View</button>
-			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">Help</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
 		</div>
 		<div :class="$style.headerCenter">
 			{{ projectName }}
-			<span v-if="hasUnsavedChanges" v-tooltip="'Unsaved changes'">*</span>
+			<span v-if="hasUnsavedChanges" v-tooltip="i18n.ts._App.UnsavedChanges">*</span>
 			<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
 		</div>
 		<div :class="$style.headerRight">
@@ -32,18 +32,18 @@
 	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">
 			<div :class="$style.footerSection">
-				<div :class="$style.footerSectionTitle">Project:</div>
+				<div :class="$style.footerSectionTitle">{{ i18n.ts._App.Project }}</div>
 				<div :class="$style.footerSectionContents">
 					<button :class="$style.footerItem" class="_button" @click="openProjectSettings">sRGB / {{ stateManager.state.resolution.value.width }} x {{ stateManager.state.resolution.value.height }} px / {{ stateManager.state.timelineFps.value }}fps</button>
 				</div>
 			</div>
 			<div :class="$style.footerSection">
-				<div :class="$style.footerSectionTitle">Preview:</div>
+				<div :class="$style.footerSectionTitle">{{ i18n.ts._App.Preview }}</div>
 				<div :class="$style.footerSectionContents">
 					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
-					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" title="Preview motion blur samples. Requires motion blur to be enabled in Project Settings." @click="openMotionBlurSamplesMenu">Motion blur: {{ timelinePreviewMotionBlurSamples === 0 ? 'Off' : `${timelinePreviewMotionBlurSamples} samples` }}</button>
+					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" :title="i18n.ts._App.MotionBlurSamplesHint" @click="openMotionBlurSamplesMenu">{{ i18n.ts._App.MotionBlur }} {{ timelinePreviewMotionBlurSamples === 0 ? i18n.ts.Off : `${timelinePreviewMotionBlurSamples} samples` }}</button>
 					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
-					<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
+					<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }} {{ liveTimeFactor }}x</button>
 					<div :class="[$style.footerItem, $style.previewVolume]">
 						<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 						<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
@@ -53,7 +53,7 @@
 			</div>
 		</div>
 		<div :class="$style.footerRight">
-			<button v-if="preferences.r.projectBackups.value.autoEnabled || preferences.r.projectBackups.value.saveEnabled" class="_button" :class="$style.footerItem" :title="projectBackupStatus.error ?? 'Project backup preferences and status'" @click="openPreferences">{{ projectBackupStatus.error ? 'Backup error' : projectBackupAccess === 'ready' ? 'Backups' : projectBackupAccess === 'unsaved' ? 'Backups: save project first' : 'Backups: folder access required' }}</button>
+			<button v-if="preferences.r.projectBackups.value.autoEnabled || preferences.r.projectBackups.value.saveEnabled" class="_button" :class="$style.footerItem" :title="projectBackupStatus.error ?? i18n.ts._App.BackupHint" @click="openPreferences">{{ projectBackupStatus.error ? i18n.ts._App.BackupError : projectBackupAccess === 'ready' ? i18n.ts._App.Backups : projectBackupAccess === 'unsaved' ? i18n.ts._App.BackupsUnsaved : i18n.ts._App.BackupsFolderRequired }}</button>
 			<div v-if="activePreviewRenderer.errorMessage.value != null" v-tooltip="activePreviewRenderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ activePreviewRenderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
 				<div v-if="previewPlayback.state.value.mode === 'live' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
@@ -272,7 +272,7 @@ function openResolutionFactorMenu(ev: PointerEvent) {
 function openMotionBlurSamplesMenu(ev: PointerEvent) {
 	ui.popupMenu(TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS.map(samples => ({
 		type: 'radioOption' as const,
-		text: samples === 0 ? 'Off' : String(samples),
+		text: samples === 0 ? i18n.ts.Off : String(samples),
 		active: computed(() => timelinePreviewMotionBlurSamples.value === samples),
 		action: () => { timelinePreviewMotionBlurSamples.value = samples; },
 	})), ev.currentTarget ?? ev.target);
@@ -290,27 +290,27 @@ function openFpsMenu(ev: PointerEvent) {
 	}
 	ui.popupMenu([{
 		type: 'radioOption',
-		text: 'LIVE: Unlimited',
+		text: i18n.ts._App.UnlimitedLive,
 		active: computed(() => liveFpsLimit.value === null),
 		action: () => liveFpsLimit.value = null,
 	}, {
 		type: 'radioOption',
-		text: 'LIVE: 120fps',
+		text: i18n.ts._App.Live120fps,
 		active: computed(() => liveFpsLimit.value === 120),
 		action: () => liveFpsLimit.value = 120,
 	}, {
 		type: 'radioOption',
-		text: 'LIVE: 60fps',
+		text: i18n.ts._App.Live60fps,
 		active: computed(() => liveFpsLimit.value === 60),
 		action: () => liveFpsLimit.value = 60,
 	}, {
 		type: 'radioOption',
-		text: 'LIVE: 30fps',
+		text: i18n.ts._App.Live30fps,
 		active: computed(() => liveFpsLimit.value === 30),
 		action: () => liveFpsLimit.value = 30,
 	}, {
 		type: 'radioOption',
-		text: 'LIVE: 15fps',
+		text: i18n.ts._App.Live15fps,
 		active: computed(() => liveFpsLimit.value === 15),
 		action: () => liveFpsLimit.value = 15,
 	}], ev.currentTarget ?? ev.target);
@@ -318,36 +318,36 @@ function openFpsMenu(ev: PointerEvent) {
 
 function openHeaderFileMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Open...',
+		text: i18n.ts._App.Open,
 		icon: 'ti ti-folder-open',
 		action: () => { void openProject(); },
 	}, {
-		text: 'Save',
+		text: i18n.ts.Save,
 		icon: 'ti ti-device-floppy',
 		action: () => { void appContext.saveProject(); },
 	}, {
-		text: 'Save as...',
+		text: i18n.ts._App.SaveAs,
 		icon: 'ti ti-device-floppy',
 		action: () => { void appContext.saveProject(true); },
 	}, {
 		type: 'divider',
 	}, {
 		type: 'parent',
-		text: 'Import',
+		text: i18n.ts.Import,
 		icon: 'ti ti-upload',
 		children: [{
-			text: 'Visual Module (.gsvm)',
+			text: i18n.ts._App.ImportVisualModule,
 			icon: 'ti ti-box-multiple',
 			action: () => { void importVisualModuleFile(appContext.projectContext); },
 		}],
 	}, {
-		text: 'Save Preview Snapshot...',
+		text: i18n.ts._App.SavePreviewSnapshot,
 		icon: 'ti ti-photo',
 		action: () => {
 			savePreviewSnapshot();
 		},
 	}, {
-		text: 'Export Scene...',
+		text: i18n.ts._App.ExportScene,
 		icon: 'ti ti-movie',
 		action: () => {
 			const { dispose } = ui.popup(GsTimelineExportDialog, {}, { closed: () => dispose() });
@@ -357,11 +357,11 @@ function openHeaderFileMenu(ev: PointerEvent) {
 
 function openHeaderEditMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Project Settings...',
+		text: i18n.ts._App.ProjectSettings,
 		icon: 'ti ti-file-settings',
 		action: openProjectSettings,
 	}, {
-		text: 'Preferences...',
+		text: i18n.ts._App.Preferences,
 		icon: 'ti ti-settings',
 		action: openPreferences,
 	}], ev.currentTarget ?? ev.target);
@@ -379,11 +379,11 @@ async function changeZoom(direction: 'in' | 'out') {
 
 function openHeaderViewMenu(ev: PointerEvent) {
 	ui.popupMenu(__ELECTRON__ ? [{
-		text: 'Zoom In',
+		text: i18n.ts._App.ZoomIn,
 		icon: 'ti ti-zoom-in',
 		action: () => { void changeZoom('in'); },
 	}, {
-		text: 'Zoom Out',
+		text: i18n.ts._App.ZoomOut,
 		icon: 'ti ti-zoom-out',
 		action: () => { void changeZoom('out'); },
 	}] : [], ev.currentTarget ?? ev.target);
@@ -397,19 +397,19 @@ async function toggleDevTools() {
 
 function openHeaderHelpMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'About',
+		text: i18n.ts._App.About,
 		icon: 'ti ti-info-circle',
 		action: () => {
 			showAbout();
 		},
 	}, {
-		text: 'User Guide',
+		text: i18n.ts.UserGuide,
 		icon: 'ti ti-help-circle',
 		action: () => {
 			window.open('https://syuilo.dev/glitch-studio/docs/', '_blank');
 		},
 	}, ...(__ELECTRON__ ? [{
-		text: 'Toggle Developer Tools',
+		text: i18n.ts._App.ToggleDeveloperTools,
 		action: () => { void toggleDevTools(); },
 	}] : [])], ev.currentTarget ?? ev.target);
 }

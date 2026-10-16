@@ -1,3 +1,5 @@
+import { lang } from '@/i18n.ts';
+
 let _dateTimeFormat: Intl.DateTimeFormat;
 try {
 	_dateTimeFormat = new Intl.DateTimeFormat(lang, {

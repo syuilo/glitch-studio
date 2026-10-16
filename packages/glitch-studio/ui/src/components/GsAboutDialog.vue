@@ -3,7 +3,7 @@
 	<div :class="$style.root" class="_gaps_m">
 		<div style="font-size: 110%;">
 			<img src="/gs.svg" style="display: block; margin: 0 auto 8px auto; width: 64px; height: 64px;">
-			<div><b>Glitch Studio{{ isElectron ? '' : ' (for Web)' }}</b></div>
+			<div><b>Glitch Studio{{ isElectron ? '' : i18n.ts._About.WebVersion }}</b></div>
 			<div>{{ version }}</div>
 		</div>
 		<div style="font-size: 110%;">
@@ -14,17 +14,18 @@
 		</div>
 		<div style="font-size: 110%;">
 			<small style="display: block;">
-				<div>UIなど一部の実装はMisskeyから移植しています</div>
+				<div>{{ i18n.ts._About.MisskeyCredit }}</div>
 				<a class="_gs-link" href="https://github.com/misskey-dev/misskey" target="_blank">https://github.com/misskey-dev/misskey</a>
 			</small>
 		</div>
-		<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/" target="_blank">User Guide</a>
-		<GsButton inline @click="ok">OK</GsButton>
+		<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/" target="_blank">{{ i18n.ts.UserGuide }}</a>
+		<GsButton inline @click="ok">{{ i18n.ts.OK }}</GsButton>
 	</div>
 </GsModal>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';

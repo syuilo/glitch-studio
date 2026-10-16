@@ -1,3 +1,4 @@
+import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -11,7 +12,7 @@ const bundle = await build({
 		export { COMMAND_DEFS } from './commands.ts'; export { UndoRedo } from './utility/undo-redo.ts';`,
 		resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
-	plugins: [{ name: 'timeline-drop-dependencies', setup(build) {
+	plugins: [i18nPlugin, { name: 'timeline-drop-dependencies', setup(build) {
 		build.onResolve({ filter: /\/api\.ts$/ }, () => ({ path: 'test-api', external: true }));
 		build.onResolve({ filter: /ui\.ts$/ }, () => ({ path: 'test-ui', external: true }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'test-preferences', external: true }));

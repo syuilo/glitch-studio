@@ -9,7 +9,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { dateTimeFormat } from '@@/js/intl-const.js';
+import { dateTimeFormat } from '@/utility/intl-const.ts';
 import { i18n } from '@/i18n.js';
 import { useLowresTime } from '@/composables/useLowresTime.js';
 

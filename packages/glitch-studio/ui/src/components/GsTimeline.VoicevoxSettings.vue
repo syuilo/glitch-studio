@@ -6,25 +6,26 @@
 		<template v-if="desktop">
 			<div style="display: flex; align-items: center; gap: 8px;">
 				<GsInput v-model="endpoint" small type="text" style="flex: 1; min-width: 0;">
-					<template #label>Engine URL</template>
-					<template v-if="version != null && version !== ''" #caption><span style="color: var(--THEME-success);"><i class="ti ti-check"></i> Connected: Engine {{ version }}</span></template>
+					<template #label>{{ i18n.ts._Voicevox.EngineUrl }}</template>
+					<template v-if="version != null && version !== ''" #caption><span style="color: var(--THEME-success);"><i class="ti ti-check"></i> {{ i18n.ts._Voicevox.Connected }} {{ version }}</span></template>
 				</GsInput>
-				<GsButton small primary :disabled="connecting" @click="connect">Connect</GsButton>
+				<GsButton small primary :disabled="connecting" @click="connect">{{ i18n.ts._Voicevox.Connect }}</GsButton>
 			</div>
 		</template>
-		<div v-else>Generation requires the Electron app. Saved audio can be played here.</div>
+		<div v-else>{{ i18n.ts._Voicevox.DesktopGenerationHint }}</div>
 		<GsInput small type="number" :min="0.5" :max="2" :step="0.05" :debounce="400" :modelValue="layer.voicevox.speedScale" @update:modelValue="speedScale => changeSettings({ speedScale })">
-			<template #label>Speech speed</template>
+			<template #label>{{ i18n.ts._Voicevox.SpeechSpeed }}</template>
 		</GsInput>
 		<hr>
-		<GsButton primary small @click="add"><i class="ti ti-plus"></i> Add Speech Key at Playhead</GsButton>
-		<GsButton v-if="layer.clips.length > 0" small @click="fitLastClip">Fit Last Clip to Speech</GsButton>
+		<GsButton primary small @click="add"><i class="ti ti-plus"></i> {{ i18n.ts._Voicevox.AddSpeechKey }}</GsButton>
+		<GsButton v-if="layer.clips.length > 0" small @click="fitLastClip">{{ i18n.ts._Voicevox.FitLastClip }}</GsButton>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsFolder>
 </template>
 
 <script setup lang="ts">
+import { i18n } from '@/i18n.ts';
 import { ref } from 'vue';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { assignPreparedSpeech, getVoicevoxUtteranceIntervals } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
@@ -89,7 +90,7 @@ function fitLastClip() {
 		for (const interval of getVoicevoxUtteranceIntervals(props.layer.voicevox, props.layer.utterances)) {
 			if (interval.endMs <= clip.startMs) continue;
 			const speech = resolveSpeech(interval.request);
-			if (!speech) throw new Error('Generate the speech before fitting the clip.');
+			if (!speech) throw new Error(i18n.ts._Voicevox.GenerateBeforeFit);
 			const ready = assignPreparedSpeech(interval, speech);
 			if (ready) endMs = Math.max(endMs, ready.endMs);
 		}

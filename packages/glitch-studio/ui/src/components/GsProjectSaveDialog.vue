@@ -1,22 +1,23 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')" @esc="dismiss" @click="dismiss">
 	<div :class="$style.root" class="_gaps_m" @keydown.stop @keydown.esc.prevent="dismiss">
-		<div :class="$style.title">Save project as</div>
+		<div :class="$style.title">{{ i18n.ts._Project.SaveAs }}</div>
 		<GsInput v-model="fileName" autofocus :disabled="busy" @keydown.enter.prevent="selectFile">
-			<template #label>File name</template>
+			<template #label>{{ i18n.ts._Project.FileName }}</template>
 		</GsInput>
-		<div :class="$style.folder">{{ directory?.name ?? 'No folder selected' }}</div>
-		<GsButton :disabled="busy" @click="chooseFolder"><i class="ti ti-folder"></i> Choose folder</GsButton>
+		<div :class="$style.folder">{{ directory?.name ?? i18n.ts._Project.NoFolder }}</div>
+		<GsButton :disabled="busy" @click="chooseFolder"><i class="ti ti-folder"></i> {{ i18n.ts._Project.ChooseFolder }}</GsButton>
 		<div v-if="error" role="alert">{{ error }}</div>
 		<div :class="$style.actions">
-			<GsButton inline :disabled="busy" @click="dismiss">Cancel</GsButton>
-			<GsButton inline primary :disabled="!directory || !fileName?.trim() || busy" :wait="busy" @click="selectFile">Save</GsButton>
+			<GsButton inline :disabled="busy" @click="dismiss">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton inline primary :disabled="!directory || !fileName?.trim() || busy" :wait="busy" @click="selectFile">{{ i18n.ts.Save }}</GsButton>
 		</div>
 	</div>
 </GsModal>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { ref, shallowRef, useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
@@ -61,7 +62,7 @@ async function selectFile() {
 	error.value = null;
 	try {
 		const handle = await getProjectSaveFileHandle(directory.value, fileName.value, async name => {
-			const result = await confirm({ type: 'question', title: 'Replace existing project?', text: `"${name}" already exists in this folder.`, okText: 'Replace' });
+			const result = await confirm({ type: 'question', title: i18n.ts._Project.ReplaceExisting, text: `"${name}" already exists in this folder.`, okText: i18n.ts.Replace });
 			return !result.canceled;
 		});
 		if (handle == null) return;

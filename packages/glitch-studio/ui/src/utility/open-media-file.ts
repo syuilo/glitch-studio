@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import * as api from '../api.ts';
 import { progress } from '../ui.ts';
 import type { OpenedMediaFile, OpenMediaFileOptions } from '../api.ts';
@@ -9,7 +10,7 @@ type ImportMediaFilesOptions = OpenMediaFileOptions & {
 
 export async function importMediaFiles(files: readonly File[], options: ImportMediaFilesOptions = {}): Promise<OpenedMediaFile[]> {
 	if (files.length === 0) return [];
-	const dialog = progress({ text: 'Importing files' });
+	const dialog = progress({ text: i18n.ts._Assets.Importing });
 	try {
 		const results = await api.openMediaFile({ ...options, files, multiple: true, onReadProgress: value => {
 			const { file, fileIndex, completedFiles, totalFiles, fileProgress } = value;
@@ -20,13 +21,13 @@ export async function importMediaFiles(files: readonly File[], options: ImportMe
 			} else {
 				dialog.setProgress(fileProgress);
 			}
-			const stage = completedFiles > fileIndex ? 'Processed' : fileProgress == null ? 'Reading' : 'Generating thumbnails';
+			const stage = completedFiles > fileIndex ? i18n.ts._Assets.Processed : fileProgress == null ? i18n.ts._Assets.Reading : i18n.ts._Assets.GeneratingThumbnails;
 			dialog.setText(`${stage}: ${file.name} (${fileIndex + 1}/${totalFiles})`);
 			options.onReadProgress?.(value);
 		} });
 		const imported = results ?? [];
 		if (options.onImported != null) {
-			dialog.setText('Adding assets');
+			dialog.setText(i18n.ts._Assets.Adding);
 			if (files.length > 1) dialog.setSubProgress(null);
 			else dialog.setProgress(null);
 			await options.onImported(imported, dialog);

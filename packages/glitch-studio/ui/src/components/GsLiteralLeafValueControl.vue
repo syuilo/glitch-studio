@@ -35,7 +35,7 @@
 		<GsInput small type="number" :modelValue="value" :min="scalarControl.min" :max="scalarControl.max" @focusin="onBeginChanging" @update:modelValue="changeContinuous(Number($event))" @focusout="onFinishChanging"/>
 	</div>
 	<div v-else-if="dataType.kind === 'bool'">
-		<GsButton small :primary="value" @click="changeValue(!value)">{{ value ? 'On' : 'Off' }}</GsButton>
+		<GsButton small :primary="value" @click="changeValue(!value)">{{ value ? i18n.ts.On : i18n.ts.Off }}</GsButton>
 	</div>
 	<div v-else-if="dataType.kind === 'string'">
 		<GsTextarea
@@ -56,9 +56,9 @@
 			small
 			:modelValue="value"
 			:items="[
-				{ label: 'Stretch', value: 'stretch' },
-				{ label: 'Cover', value: 'cover' },
-				{ label: 'Contain', value: 'contain' },
+				{ label: i18n.ts._FitModes.stretch, value: 'stretch' },
+				{ label: i18n.ts._FitModes.cover, value: 'cover' },
+				{ label: i18n.ts._FitModes.contain, value: 'contain' },
 			]"
 			@update:modelValue="v => changeValue(v)"
 		/>
@@ -68,10 +68,10 @@
 			small
 			:modelValue="value"
 			:items="[
-				{ label: 'Transparent', value: 'transparent' },
-				{ label: 'Clamp', value: 'clamp' },
-				{ label: 'Repeat', value: 'repeat' },
-				{ label: 'Repeat (Mirrored)', value: 'repeatMirrored' },
+				{ label: i18n.ts._WrapModes.transparent, value: 'transparent' },
+				{ label: i18n.ts._WrapModes.clamp, value: 'clamp' },
+				{ label: i18n.ts._WrapModes.repeat, value: 'repeat' },
+				{ label: i18n.ts._WrapModes.repeatMirrored, value: 'repeatMirrored' },
 			]"
 			@update:modelValue="v => changeValue(v)"
 		/>
@@ -170,7 +170,7 @@
 		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
 	</div>
 	<div v-else-if="dataType.kind === 'imageAssetTextureReference' || dataType.kind === 'videoAssetReference' || dataType.kind === 'fontAssetReference' || dataType.kind === 'lutAssetReference'" :class="$style.assetControl">
-		<GsButton small :class="$style.assetButton" @click="chooseAsset">{{ selectedAsset?.name ?? (value == null ? 'Select Asset...' : 'Missing Asset') }}</GsButton>
+		<GsButton small :class="$style.assetButton" @click="chooseAsset">{{ selectedAsset?.name ?? (value == null ? i18n.ts._Assets.SelectButton : i18n.ts._Assets.Missing) }}</GsButton>
 		<GsButton v-if="value != null" small iconOnly :title="i18n.ts.None" @click="changeValue(null)"><i class="ti ti-x"></i></GsButton>
 	</div>
 	<div v-else-if="dataType.kind === 'audioSource'">
@@ -184,7 +184,7 @@
 				{ label: i18n.ts.None, value: null },
 				...(stateManager.state.players.value.length > 0 ? [{
 					type: 'group' as const,
-					label: 'Players',
+					label: i18n.ts.Players,
 					items: stateManager.state.players.value.map(player => ({ label: player.name, value: player.id })),
 				}] : []),
 			]"

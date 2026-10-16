@@ -1,24 +1,25 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @opened="dialogContent?.focus()" @closed="emit('closed')" @esc="closeDialog" @click="closeDialog">
 	<div ref="dialogContent" class="_gaps_m" :class="$style.root" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
-		<div>Scene resolution — {{ scene?.name }}</div>
-		<GsSelect v-model="mode" :items="modes"><template #label>Resolution</template></GsSelect>
+		<div>{{ i18n.tsx._Timeline.SceneResolutionTitle({ name: scene?.name ?? '' }) }}</div>
+		<GsSelect v-model="mode" :items="modes"><template #label>{{ i18n.ts.Resolution }}</template></GsSelect>
 		<div v-if="mode === 'customAbsolute'" :class="$style.row">
-			<GsInput v-model="width" style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>Width</template><template #suffix>px</template></GsInput>
-			<GsInput v-model="height" style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>Height</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="width" style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="height" style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 		<div v-else>{{ projectResolution.width }} × {{ projectResolution.height }} px</div>
-		<div>Base size. Preview and export resolution scales also apply to custom sizes.</div>
+		<div>{{ i18n.ts._Project.CustomResolutionHint }}</div>
 		<div v-if="error">{{ error }}</div>
 		<div :class="$style.actions">
-			<GsButton inline @click="closeDialog">Cancel</GsButton>
-			<GsButton inline primary :disabled="error != null || scene == null" @click="apply">Apply</GsButton>
+			<GsButton inline @click="closeDialog">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton inline primary :disabled="error != null || scene == null" @click="apply">{{ i18n.ts.Apply }}</GsButton>
 		</div>
 	</div>
 </GsModal>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import { getSceneBaseResolution, validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import GsModal from './common/GsModal.vue';
@@ -41,7 +42,7 @@ const initialSize = getSceneBaseResolution(initialSetting, projectResolution.val
 const mode = ref(initialSetting.mode);
 const width = ref<number | null>(initialSize.width);
 const height = ref<number | null>(initialSize.height);
-const modes = [{ value: 'project', label: 'Project resolution' }, { value: 'customAbsolute', label: 'Custom (Absolute)' }];
+const modes = [{ value: 'project', label: i18n.ts._Project.Resolution }, { value: 'customAbsolute', label: i18n.ts._Node.CustomResolution }];
 const setting = computed<TimelineSceneResolution>(() => mode.value === 'project' ? { mode: 'project' }
 	: { mode: 'customAbsolute', width: width.value ?? 0, height: height.value ?? 0 });
 const error = computed(() => {
@@ -49,7 +50,7 @@ const error = computed(() => {
 		validateSceneResolution(setting.value);
 		return null;
 	} catch {
-		return 'Width and height must be positive integers.';
+		return i18n.ts._Project.InvalidResolution;
 	}
 });
 

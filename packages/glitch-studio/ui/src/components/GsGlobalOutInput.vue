@@ -2,7 +2,7 @@
 <div ref="inputRow" :class="$style.inputRow" data-wire-input-row>
 	<GsNodePort :dataType="def.dataType" @update:element="inputPortEl = $event"/>
 	<span>{{ def.label }}</span>
-	<i v-if="hasNodeInputTypeMismatch(nodes, connection, def.dataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+	<i v-if="hasNodeInputTypeMismatch(nodes, connection, def.dataType, paramDefs)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 	<GsSelect
 		small
 		:modelValue="nodeOutputKey(connection)"

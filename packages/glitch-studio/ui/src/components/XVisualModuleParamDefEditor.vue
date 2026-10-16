@@ -2,10 +2,10 @@
 <div :class="$style.root" class="_gaps_m">
 	<div :class="$style.fields">
 		<GsInput style="flex: 1" :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ ui: { ...def.ui, label: value } })">
-			<template #label>UI Label</template>
+			<template #label>{{ i18n.ts._ParameterEditor.UiLabel }}</template>
 		</GsInput>
 		<GsInput style="flex: 1" monospace :class="$style.field" type="text" :modelValue="def.nameForReference" @update:modelValue="value => update({ nameForReference: visualModuleCustomParameterName(value) })">
-			<template #label>Reference Name</template>
+			<template #label>{{ i18n.ts._ParameterEditor.ReferenceName }}</template>
 		</GsInput>
 	</div>
 	<div :class="$style.fields">
@@ -21,34 +21,34 @@
 				{ label: i18n.ts._CustomParameterInput._Types.Vector, value: 'vector' },
 				{ label: i18n.ts._CustomParameterInput._Types.Enum, value: 'enum' },
 				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'imageAssetTextureReference' },
-				{ label: 'Video asset', value: 'videoAssetReference' },
-				{ label: 'Font asset', value: 'fontAssetReference' },
-				{ label: 'LUT Asset', value: 'lutAssetReference' },
-				{ label: 'Audio', value: 'audioSource' },
+				{ label: i18n.ts._ParameterEditor.VideoAsset, value: 'videoAssetReference' },
+				{ label: i18n.ts._ParameterEditor.FontAsset, value: 'fontAssetReference' },
+				{ label: i18n.ts._ParameterEditor.LutAsset, value: 'lutAssetReference' },
+				{ label: i18n.ts.Audio, value: 'audioSource' },
 			]"
 			@update:modelValue="updateType"
 		>
-			<template #label>Data Type</template>
+			<template #label>{{ i18n.ts._ParameterEditor.DataType }}</template>
 		</GsSelect>
 		<GsSelect
 			v-if="isParameterType(def, 'scalar')" :class="$style.field" :modelValue="def.ui.control.controlType"
 			style="flex: 1"
-			:items="[{ label: 'Number', value: 'number' }, { label: 'Range', value: 'range' }, { label: 'Angle', value: 'angle' }, { label: 'Seed', value: 'seed' }]"
+			:items="[{ label: i18n.ts._ParameterEditor.Number, value: 'number' }, { label: i18n.ts._ParameterEditor.Range, value: 'range' }, { label: i18n.ts._ParameterEditor.Angle, value: 'angle' }, { label: i18n.ts._ParameterEditor.Seed, value: 'seed' }]"
 			@update:modelValue="updateControl"
 		>
-			<template #label>Control</template>
+			<template #label>{{ i18n.ts._ParameterEditor.Control }}</template>
 		</GsSelect>
 	</div>
 
 	<div v-if="isParameterType(def, 'scalar') && (def.ui.control.controlType === 'number' || def.ui.control.controlType === 'range')" :class="$style.option">
-		<label :class="$style.optionLabel">Min/Max</label>
+		<label :class="$style.optionLabel">{{ i18n.ts._ParameterEditor.MinMax }}</label>
 		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.ui.control.controlType === 'range' }]">
 			<GsInput type="number" :modelValue="def.ui.control.min ?? null" @update:modelValue="updateUiOption('min', Number($event))"/>
 			<GsInput type="number" :modelValue="def.ui.control.max ?? null" @update:modelValue="updateUiOption('max', Number($event))"/>
 		</div>
 	</div>
 	<div v-if="isParameterType(def, 'scalar') && (def.ui.control.controlType === 'number' || def.ui.control.controlType === 'range')" :class="$style.option">
-		<label :class="$style.optionLabel">Step</label>
+		<label :class="$style.optionLabel">{{ i18n.ts._ParameterEditor.Step }}</label>
 		<div :class="$style.optionControl">
 			<GsInput type="number" :modelValue="def.ui.control.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
 		</div>
@@ -73,20 +73,20 @@
 		/>
 	</div>
 	<div v-if="isTextureDataType(def.dataType) && def.dataType.kind !== 'any'" :class="$style.option">
-		<GsSwitch :modelValue="def.canNode" @update:modelValue="updateCanNode">Allow node input</GsSwitch>
+		<GsSwitch :modelValue="def.canNode" @update:modelValue="updateCanNode">{{ i18n.ts._ParameterEditor.AllowNodeInput }}</GsSwitch>
 	</div>
 	<div v-if="def.canNode && def.dataType.kind === 'color'" :class="$style.option">
 		<GsSwitch
 			:modelValue="primaryInputId === def.id"
 			@update:modelValue="emit('setPrimaryInput', $event ? def.id : null)"
 		>
-			Primary input
+			{{ i18n.ts._ParameterEditor.PrimaryInput }}
 		</GsSwitch>
 	</div>
 	<div v-if="def.dataType.kind === 'audioSource'" :class="$style.option">
-		<GsSwitch :modelValue="primaryAudioInputId === def.id" @update:modelValue="emit('setPrimaryAudioInput', $event ? def.id : null)">Primary audio input</GsSwitch>
+		<GsSwitch :modelValue="primaryAudioInputId === def.id" @update:modelValue="emit('setPrimaryAudioInput', $event ? def.id : null)">{{ i18n.ts._ParameterEditor.PrimaryAudioInput }}</GsSwitch>
 	</div>
-	<GsButton small danger @click="remove">Remove parameter</GsButton>
+	<GsButton small danger @click="remove">{{ i18n.ts._ParameterEditor.Remove }}</GsButton>
 </div>
 </template>
 

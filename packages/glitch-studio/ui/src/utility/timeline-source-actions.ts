@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { createTimelineClipTiming, getTimelineClipInsertionDuration } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
@@ -61,7 +62,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 	async function chooseClipSource(layerType: 'image' | 'video' | 'audio' | 'scene'): Promise<ClipSource | null> {
 		const initialLayers = sceneLayers.value;
 		if (layerType === 'scene') {
-			const { canceled, result: id } = await ui.select({ title: 'Select Scene', items: availableScenes().map(scene => ({ label: scene.name, value: scene.id })) });
+			const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectScene, items: availableScenes().map(scene => ({ label: scene.name, value: scene.id })) });
 			const selected = availableScenes().find(scene => scene.id === id);
 			return canceled || !selected || !isActive() || sceneLayers.value !== initialLayers ? null : { kind: 'scene', scene: selected };
 		}
@@ -75,7 +76,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			const media = layerType === 'image' ? null : await inspectMedia(asset);
 			if (!isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return null;
 			if (media?.audioError) {
-				const result = await ui.confirm({ type: 'warning', title: asset.name, text: media.audioError, okText: 'Add without audio' });
+				const result = await ui.confirm({ type: 'warning', title: asset.name, text: media.audioError, okText: i18n.ts._Timeline.AddWithoutAudio });
 				if (result.canceled || !isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return null;
 			}
 			return { kind: 'asset', asset, media };
@@ -134,7 +135,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if (layer.layerType !== 'audio' && layer.layerType !== 'video') return null;
 		const sources = layer.clips.map(clip => {
 			const asset = stateManager.state.assets.value.find(asset => asset.id === clip.assetId);
-			if (!asset) throw new Error('Missing media');
+			if (!asset) throw new Error(i18n.ts._TimelineClip.MissingMedia);
 			return { clipId: clip.id, asset, blob: asset.fileData };
 		});
 		const durations = await Promise.all(sources.map(async ({ clipId, asset }) => [clipId, (await inspectMedia(asset)).durationMs] as const));
@@ -172,7 +173,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 
 	async function addReferencedVisualModuleLayer() {
 		const initialLayers = sceneLayers.value;
-		const { canceled, result: id } = await ui.select({ title: 'Select Visual Module', items: stateManager.state.visualModules.value.map(visualModule => ({ label: visualModule.name, value: visualModule.id })) });
+		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectVisualModule, items: stateManager.state.visualModules.value.map(visualModule => ({ label: visualModule.name, value: visualModule.id })) });
 		const visualModule = stateManager.state.visualModules.value.find(visualModule => visualModule.id === id);
 		if (canceled || !visualModule || !isActive() || sceneLayers.value !== initialLayers) return;
 		const layer: TimelineLayer = {
@@ -202,11 +203,11 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 
 	function showAddLayerMenu(ev: PointerEvent) {
 		ui.popupMenu([{
-			text: 'Effect',
+			text: i18n.ts.Effect,
 			icon: 'ti ti-sparkles',
 			action: showAddEffectLayerMenu,
 		}, {
-			text: 'Text',
+			text: i18n.ts.Text,
 			icon: 'ti ti-typography',
 			action: () => {
 				const layer = createTextTimelineLayer(Math.max(0, time.value));
@@ -216,7 +217,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			},
 		}, {
 			type: 'parent',
-			text: 'Shape',
+			text: i18n.ts.Shape,
 			icon: 'ti ti-shape',
 			children: (Object.keys(shapeDefinitions) as ShapeType[]).map(type => ({
 				text: shapeDefinitions[type].label,
@@ -229,19 +230,19 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 				},
 			})),
 		}, {
-			text: 'Image',
+			text: i18n.ts.Image,
 			icon: 'ti ti-photo',
 			action: () => addMediaLayer('image'),
 		}, {
-			text: 'Video',
+			text: i18n.ts.Video,
 			icon: 'ti ti-video',
 			action: () => addMediaLayer('video'),
 		}, {
-			text: 'Audio',
+			text: i18n.ts.Audio,
 			icon: 'ti ti-music',
 			action: () => addMediaLayer('audio'),
 		}, {
-			text: 'Visual Module (Inline)',
+			text: i18n.ts._Timeline.InlineVisualModule,
 			icon: 'ti ti-chart-dots-3',
 			action: () => {
 				const layer = createInlineVisualModuleLayer(Math.max(0, time.value));
@@ -250,15 +251,15 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 				seek(layer.clips[0].startMs);
 			},
 		}, {
-			text: 'Visual Module (Reference)',
+			text: i18n.ts._Timeline.ReferenceVisualModule,
 			icon: 'ti ti-chart-dots-3',
 			action: addReferencedVisualModuleLayer,
 		}, {
-			text: desktopAvailable() ? 'VOICEVOX' : 'VOICEVOX (使用不可)',
+			text: desktopAvailable() ? 'VOICEVOX' : i18n.ts._Timeline.VoicevoxUnavailable,
 			icon: 'ti ti-microphone',
 			action: () => {
 				if (!desktopAvailable()) {
-					ui.alert({ type: 'error', text: 'VOICEVOXレイヤーの追加はWeb版では対応していません。Electron版を使用する必要があります。' });
+					ui.alert({ type: 'error', text: i18n.ts._Timeline.VoicevoxDesktopOnly });
 					return;
 				}
 				const layer = createVoicevoxTimelineLayer(Math.max(0, time.value));
@@ -268,15 +269,15 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		}, {
 			type: 'divider',
 		}, {
-			text: 'Scene',
+			text: i18n.ts.Scene,
 			icon: 'ti ti-memory',
 			action: () => addMediaLayer('scene'),
 		}, {
-			text: 'Group',
+			text: i18n.ts.Group,
 			icon: 'ti ti-folder',
 			action: addEmptyGroup,
 		}, {
-			text: 'Transform',
+			text: i18n.ts.Transform,
 			icon: 'ti ti-gizmo',
 			action: () => {
 				const layer = createTransformTimelineLayer();
@@ -284,7 +285,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 				selectLayer(layer);
 			},
 		}, {
-			text: 'Camera',
+			text: i18n.ts.Camera,
 			icon: 'ti ti-camera',
 			action: () => {
 				const layer = createCameraTimelineLayer(Math.max(0, time.value));

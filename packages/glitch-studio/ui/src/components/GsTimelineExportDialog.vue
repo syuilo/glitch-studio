@@ -1,31 +1,31 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @opened="dialogContent?.focus()" @closed="emit('closed')" @esc="closeDialog" @click="closeDialog" @dragover.prevent.stop @drop.prevent.stop>
 	<div ref="dialogContent" :class="$style.root" class="_gaps_m" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
-		<div :class="$style.title">Export scene</div>
-		<GsSelect v-model="sceneId" :items="sceneItems" :disabled="exporting"><template #label>Scene</template></GsSelect>
+		<div :class="$style.title">{{ i18n.ts._Export.Title }}</div>
+		<GsSelect v-model="sceneId" :items="sceneItems" :disabled="exporting"><template #label>{{ i18n.ts.Scene }}</template></GsSelect>
 		<div :inert="exporting">
-			<GsTabs v-model="mode" :def="[{ id: 'video', label: 'Video' }, { id: 'still', label: 'Still image' }]"/>
+			<GsTabs v-model="mode" :def="[{ id: 'video', label: i18n.ts.Video }, { id: 'still', label: i18n.ts._Export.StillImage }]"/>
 		</div>
 		<GsSelect v-if="mode === 'video'" v-model="videoFormat" :items="[{ value: 'mp4', label: 'MP4 (H.264)' }]" :disabled="exporting">
-			<template #label>File format</template>
+			<template #label>{{ i18n.ts._Export.FileFormat }}</template>
 		</GsSelect>
 		<GsSelect v-else v-model="stillFormat" :items="[{ value: 'webp', label: 'WebP' }]" :disabled="exporting">
-			<template #label>File format</template>
+			<template #label>{{ i18n.ts._Export.FileFormat }}</template>
 		</GsSelect>
 		<GsSelect v-model="quality" :items="qualityOptions" :disabled="exporting">
-			<template #label>Quality</template>
+			<template #label>{{ i18n.ts._Export.Quality }}</template>
 		</GsSelect>
 		<GsSelect v-model="resolutionScale" :items="resolutionOptions" :disabled="exporting">
-			<template #label>Resolution</template>
+			<template #label>{{ i18n.ts.Resolution }}</template>
 			<template #caption>{{ resolution.width }} × {{ resolution.height }} px</template>
 		</GsSelect>
-		<GsInput v-if="mode === 'video'" v-model="fps" type="number" :min="1" :max="120" :step="'any'" :disabled="exporting"><template #label>Frame rate (fps)</template></GsInput>
+		<GsInput v-if="mode === 'video'" v-model="fps" type="number" :min="1" :max="120" :step="'any'" :disabled="exporting"><template #label>{{ i18n.ts._Export.FrameRate }}</template></GsInput>
 		<div :class="$style.row">
-			<GsInput v-model="startTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ mode === 'video' ? 'Start' : 'Time' }} (HH:MM:SS.mmm)</template></GsInput>
-			<GsInput v-if="mode === 'video'" v-model="endTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>End (HH:MM:SS.mmm)</template></GsInput>
+			<GsInput v-model="startTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ mode === 'video' ? i18n.ts._Export.StartTime : i18n.ts._Export.StillTime }}</template></GsInput>
+			<GsInput v-if="mode === 'video'" v-model="endTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ i18n.ts._Export.EndTime }}</template></GsInput>
 		</div>
-		<GsButton inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">Use current playhead</GsButton>
-		<div>Estimated size: {{ estimatedSize }}</div>
+		<GsButton inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">{{ i18n.ts._Export.UseCurrentPlayhead }}</GsButton>
+		<div>{{ i18n.ts._Export.EstimatedSize }} {{ estimatedSize }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting && !choosingSaveFile" class="_gaps_m">
 			<div :class="$style.progress"><div :class="$style.progressFill" :style="{ width: `${progressPercent}%` }"></div></div>
@@ -33,16 +33,17 @@
 		</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 		<div v-if="status">{{ status }}</div>
-		<a v-if="downloadUrl && !exporting" :href="downloadUrl" :download="downloadName">Download {{ downloadName }}</a>
+		<a v-if="downloadUrl && !exporting" :href="downloadUrl" :download="downloadName">{{ i18n.tsx._Export.DownloadFile({ name: downloadName }) }}</a>
 		<div :class="$style.actions">
-			<GsButton inline :disabled="choosingSaveFile || savingFile" @click="cancel">{{ exporting ? 'Cancel export' : 'Close' }}</GsButton>
-			<GsButton inline primary :disabled="exporting || validationError != null" @click="doExport">EXPORT</GsButton>
+			<GsButton inline :disabled="choosingSaveFile || savingFile" @click="cancel">{{ exporting ? i18n.ts._Export.Cancel : i18n.ts.Close }}</GsButton>
+			<GsButton inline primary :disabled="exporting || validationError != null" @click="doExport">{{ i18n.ts._Export.Export }}</GsButton>
 		</div>
 	</div>
 </GsModal>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, onBeforeUnmount, ref, watch, useTemplateRef } from 'vue';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
@@ -76,7 +77,7 @@ const emit = defineEmits<{
 }>();
 
 const sceneId = ref(previewPlayback.state.value.mode === 'timeline' ? (appContext.activeScene.value?.id ?? '') : '');
-const sceneItems = computed(() => [{ label: 'Choose scene', value: '' }, ...stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
+const sceneItems = computed(() => [{ label: i18n.ts._Export.ChooseScene, value: '' }, ...stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
 const scene = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
 const mode = ref('video');
 const videoFormat = ref<'mp4'>('mp4');
@@ -91,11 +92,11 @@ const quality = computed({
 	},
 });
 const qualityOptions = computed(() => [
-	{ value: 'low', label: 'Low' },
-	{ value: 'medium', label: 'Medium' },
-	{ value: 'high', label: 'High' },
-	{ value: 'very-high', label: 'Very high' },
-	...(mode.value === 'still' ? [{ value: 'lossless', label: 'Lossless' }] : []),
+	{ value: 'low', label: i18n.ts._Export.Low },
+	{ value: 'medium', label: i18n.ts._Export.Medium },
+	{ value: 'high', label: i18n.ts._Export.High },
+	{ value: 'very-high', label: i18n.ts._Export.VeryHigh },
+	...(mode.value === 'still' ? [{ value: 'lossless', label: i18n.ts._Export.Lossless }] : []),
 ]);
 const resolutionScale = ref(1);
 const resolutionOptions = [0.25, 0.5, 1, 2, 4].map(value => ({ value, label: `${value}x` }));
@@ -122,9 +123,9 @@ const settings = computed<TimelineExportSettings>(() => {
 });
 const validationError = computed(() => {
 	if (appContext.renderValidation.errorMessage.value) return appContext.renderValidation.errorMessage.value;
-	if (scene.value == null) return 'Choose a scene to export.';
-	if (getSceneDuration(scene.value) <= 0) return 'Cannot export an empty scene.';
-	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return 'Enter a valid end time (HH:MM:SS.mmm).';
+	if (scene.value == null) return i18n.ts._Export.NoScene;
+	if (getSceneDuration(scene.value) <= 0) return i18n.ts._Export.EmptyScene;
+	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return i18n.ts._Export.InvalidEndTime;
 	return validateExportSettings(settings.value);
 });
 const includesAudio = computed(() => !appContext.renderValidation.errorMessage.value && scene.value != null && hasExportAudio(stateManager.state.timelineScenes.value, sceneId.value, settings.value, stateManager.state.generatedSpeech.value));
@@ -137,10 +138,10 @@ const estimatedSize = computed(() => {
 });
 const progressPercent = computed(() => progress.value.totalFrames === 0 ? 0 : Math.min(99, progress.value.completedFrames / progress.value.totalFrames * 100));
 const progressText = computed(() => {
-	if (savingFile.value) return 'Saving file…';
-	if (progress.value.phase === 'preparing') return 'Preparing…';
-	if (progress.value.phase === 'finalizing') return mode.value === 'still' ? 'Encoding WebP…' : 'Finalizing MP4…';
-	return `Rendering ${progress.value.completedFrames} / ${progress.value.totalFrames} frames (${Math.floor(progressPercent.value)}%)`;
+	if (savingFile.value) return i18n.ts._Export.Saving;
+	if (progress.value.phase === 'preparing') return i18n.ts._Export.Preparing;
+	if (progress.value.phase === 'finalizing') return mode.value === 'still' ? i18n.ts._Export.EncodingWebp : i18n.ts._Export.FinalizingMp4;
+	return i18n.tsx._Export.RenderingFrames({ completed: progress.value.completedFrames, total: progress.value.totalFrames, percent: Math.floor(progressPercent.value) });
 });
 
 function closeDialog() {
@@ -199,7 +200,7 @@ async function doExport() {
 			sceneId: exportSceneId,
 		});
 		if (exportSettings.format === 'mp4') {
-			status.value = 'Preparing VOICEVOX audio…';
+			status.value = i18n.ts._Export.PreparingVoicevox;
 			const requests = getRequiredVoicevoxRequestsForRendering(exportProject.timelineScenes, exportProject.sceneId, exportSettings.positionMs, exportSettings.endTimeMs);
 			const preparedSpeech = await appContext.voicevoxGeneration.prepare(requests, signal);
 			// 描画用の音声参照でも使えるよう、開始時点の生成済み音声を残して準備結果を加える。
@@ -242,11 +243,11 @@ async function doExport() {
 			link.download = downloadName.value;
 			link.click();
 		}
-		status.value = 'Export complete.';
+		status.value = i18n.ts._Export.Complete;
 		// Electron版では保存の成功後に通知し、通知の失敗をエクスポート失敗として扱わない。
 		void desktop?.notifyExportComplete(downloadName.value).catch(console.error);
 	} catch (cause) {
-		if (signal.aborted) status.value = 'Export canceled.';
+		if (signal.aborted) status.value = i18n.ts._Export.Canceled;
 		else error.value = cause instanceof Error ? cause.message : String(cause);
 	} finally {
 		if (exportSaveFile != null) void desktop?.releaseExportFile(exportSaveFile.id).catch(console.error);
@@ -258,7 +259,7 @@ async function doExport() {
 			if (previewDisposed) await appContext.resumePreview();
 		} catch (cause) {
 			const message = cause instanceof Error ? cause.message : String(cause);
-			error.value = [error.value, `Preview restart failed: ${message}`].filter(Boolean).join('\n');
+			error.value = [error.value, i18n.tsx._Export.PreviewRestartFailed({ message })].filter(Boolean).join('\n');
 		}
 		exporting.value = false;
 		abortController = null;

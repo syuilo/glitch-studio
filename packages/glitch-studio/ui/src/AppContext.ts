@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -275,7 +276,7 @@ export class AppContext {
 	}
 
 	public async ready(project: Project, fileName: string | null = null, fileHandle: ProjectFileHandle | null = null) {
-		const waiting = ui.waiting({ text: 'Initializing project' });
+		const waiting = ui.waiting({ text: i18n.ts._App.InitializingProject });
 
 		this.renderEngine.suspend();
 		timelineClipboard.value = null;
@@ -419,7 +420,7 @@ export class AppContext {
 		this.previewPlayback.seekTimeline(0);
 		if (project.visualModules[0] != null) this.previewPlayback.startLive(project.visualModules[0].id);
 
-		waiting.setText('Initializing renderer');
+		waiting.setText(i18n.ts._App.InitializingRenderer);
 		await this.renderEngine.enable();
 		await this.renderEngine.resume();
 

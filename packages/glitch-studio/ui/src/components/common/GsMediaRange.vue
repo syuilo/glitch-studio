@@ -1,12 +1,13 @@
 <!-- Media系専用のinput range -->
 <template>
 <div :class="$style.controlsSeekbar">
-	<progress v-if="buffer !== undefined" :class="$style.buffer" :value="isNaN(buffer) ? 0 : buffer" min="0" max="1">{{ Math.round(buffer * 100) }}% buffered</progress>
+	<progress v-if="buffer !== undefined" :class="$style.buffer" :value="isNaN(buffer) ? 0 : buffer" min="0" max="1">{{ i18n.tsx._VideoControls.Buffered({ percent: Math.round(buffer * 100) }) }}</progress>
 	<input v-model="model" :class="$style.seek" :style="`--value: ${modelValue * 100}%;`" type="range" min="0" max="1" step="any" @change="emit('dragEnded', modelValue)"/>
 </div>
 </template>
 
 <script setup lang="ts">
+import { i18n } from '@/i18n.ts';
 import { computed } from 'vue';
 
 withDefaults(defineProps<{

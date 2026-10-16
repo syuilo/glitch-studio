@@ -39,7 +39,7 @@
 						/>
 					</template>
 					<template #footer>
-						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="emit('requestAddEffectNode')"><i class="ti ti-plus"></i> Add Effect Node...</GsButton>
+						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="emit('requestAddEffectNode')"><i class="ti ti-plus"></i> {{ i18n.ts._VisualModule.AddEffectNode }}</GsButton>
 					</template>
 				</GsDraggable>
 
@@ -76,8 +76,8 @@
 		</div>
 
 		<div v-else-if="tab === 'other'" class="_spacer _gaps_m" style="height: 100%; overflow: auto;">
-			<GsInput :modelValue="visualModuleName" :debounce="400" @update:modelValue="name => emit('rename', name)"><template #label>Name</template></GsInput>
-			<GsButton :disabled="exporting" :wait="exporting" @click="emit('requestExport')"><i class="ti ti-download"></i> Export Visual Module…</GsButton>
+			<GsInput :modelValue="visualModuleName" :debounce="400" @update:modelValue="name => emit('rename', name)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
+			<GsButton :disabled="exporting" :wait="exporting" @click="emit('requestExport')"><i class="ti ti-download"></i> {{ i18n.ts._VisualModule.Export }}</GsButton>
 		</div>
 	</div>
 	<GsDropOverlay v-if="assetDrop.hovering.value" data-test-visual-module-drop-overlay/>
@@ -85,6 +85,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
@@ -126,13 +127,13 @@ const assetDrop = useAssetDrop({
 	target: useTemplateRef<HTMLElement>('root'), enabled: () => props.assetDropActions != null,
 	dropFiles: async files => { if (await props.assetDropActions?.dropFiles(files) === true) tab.value = 'nodes'; },
 	dropAsset: async assetId => { if (await props.assetDropActions?.dropAsset(assetId) === true) tab.value = 'nodes'; },
-	reportError: error => { void ui.alert({ type: 'error', title: 'Visual Module drop', text: error instanceof Error ? error.message : String(error) }); },
+	reportError: error => { void ui.alert({ type: 'error', title: i18n.ts._VisualModule.Drop, text: error instanceof Error ? error.message : String(error) }); },
 });
 const tabs = [
-	{ id: 'nodes', label: 'Nodes' },
-	{ id: 'inputs', label: 'Input Defs' },
-	{ id: 'outputs', label: 'Output Defs' },
-	{ id: 'other', label: 'Other' },
+	{ id: 'nodes', label: i18n.ts._VisualModule.Nodes },
+	{ id: 'inputs', label: i18n.ts._VisualModule.InputDefs },
+	{ id: 'outputs', label: i18n.ts._VisualModule.OutputDefs },
+	{ id: 'other', label: i18n.ts.Other },
 ];
 
 const globalInNode = computed(() => props.visualModule.nodes.find((node): node is VisualModuleGlobalInNode => node.type === 'globalIn'));

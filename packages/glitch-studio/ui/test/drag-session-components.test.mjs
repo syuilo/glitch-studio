@@ -1,3 +1,4 @@
+import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { build } from 'esbuild';
@@ -24,7 +25,7 @@ const bundle = await build({ absWorkingDir: directory,
 		export { getActiveDragData, getDragSessionData } from './src/utility/drag-and-drop.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	define: { _VERSION_: '"test"', __ELECTRON__: 'false' },
-	plugins: [{ name: 'drag-session-components', setup(build) {
+	plugins: [i18nPlugin, { name: 'drag-session-components', setup(build) {
 		build.onResolve({ filter: /^@\/(preferences|workspace|app|ui)\.ts$/ }, ({ path }) => ({ path: path.slice(2), namespace: 'test' }));
 		build.onResolve({ filter: /open-media-file\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
 		build.onResolve({ filter: /import-assets\.ts$/ }, () => ({ path: 'asset-import', namespace: 'test' }));

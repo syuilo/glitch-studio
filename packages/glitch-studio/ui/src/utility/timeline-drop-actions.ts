@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import { importAssets } from './import-assets.ts';
 import { createTimelineAssetLayer, getTimelineAssetLayerType } from './timeline-asset-layer.ts';
 import { alert, progress } from '../ui.ts';
@@ -23,7 +24,7 @@ export function createTimelineDropActions(options: TimelineDropActionsOptions) {
 		const placement: TimelineAssetPlacement = { sceneId, layers: [], sourceDurationsMs: {} };
 		for (const [index, asset] of assets.entries()) {
 			if (!isActive()) break;
-			dialog.setText(`Preparing timeline layer: ${asset.name} (${index + 1}/${assets.length})`);
+			dialog.setText(i18n.tsx._Assets.PreparingTimelineLayerProgress({ name: asset.name, current: index + 1, total: assets.length }));
 			dialog.setProgress(assets.length > 1 ? index / assets.length : null);
 			dialog.setSubProgress(assets.length > 1 ? null : undefined);
 			const type = getTimelineAssetLayerType(asset);
@@ -40,14 +41,14 @@ export function createTimelineDropActions(options: TimelineDropActionsOptions) {
 				messages.push(`${asset.name}: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		}
-		dialog.setText('Adding timeline layers');
+		dialog.setText(i18n.ts._Assets.AddingTimelineLayers);
 		dialog.setProgress(null);
 		dialog.setSubProgress(undefined);
 		return isActive() ? placement : null;
 	}
 
 	async function report(messages: string[]) {
-		if (messages.length > 0) await alert({ type: 'warning', title: 'Timeline drop', text: messages.join('\n') });
+		if (messages.length > 0) await alert({ type: 'warning', title: i18n.ts._Timeline.Drop, text: messages.join('\n') });
 	}
 
 	async function dropFiles(files: readonly File[]) {
@@ -69,7 +70,7 @@ export function createTimelineDropActions(options: TimelineDropActionsOptions) {
 		const startMs = currentTime();
 		const blob = asset.fileData;
 		const messages: string[] = [];
-		const dialog = progress({ text: `Preparing timeline layer: ${asset.name}` });
+		const dialog = progress({ text: i18n.tsx._Assets.PreparingTimelineLayer({ name: asset.name }) });
 		try {
 			const placement = await prepare([asset], startMs, dialog, messages);
 			if (placement != null && placement.layers.length > 0 && context.stateManager.state.assets.value.includes(asset) && asset.fileData === blob) {

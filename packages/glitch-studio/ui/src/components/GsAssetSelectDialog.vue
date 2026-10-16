@@ -4,11 +4,11 @@
 		<div :class="$style.header">
 			<button :class="$style.headerButton" class="_button" data-testid="modal-window-close" @click="cancel()"><i class="ti ti-x"></i></button>
 			<span :class="$style.title">
-				{{ multiple ? 'Select Assets' : 'Select Asset' }}
+				{{ multiple ? i18n.ts._Assets.SelectMultiple : i18n.ts._Assets.Select }}
 				<span v-if="selected.length > 0" style="margin-left: 8px; opacity: 0.5;">({{ selected.length }})</span>
 			</span>
 			<div style="padding: 0 16px; place-content: center;">
-				<GsButton primary small rounded :disabled="selected.length === 0" @click="ok()">Done <i class="ti ti-check"></i></GsButton>
+				<GsButton primary small rounded :disabled="selected.length === 0" @click="ok()">{{ i18n.ts.Done }} <i class="ti ti-check"></i></GsButton>
 			</div>
 		</div>
 		<div :class="$style.body">
@@ -26,6 +26,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { inject, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import GsAssets from './GsAssets.vue';

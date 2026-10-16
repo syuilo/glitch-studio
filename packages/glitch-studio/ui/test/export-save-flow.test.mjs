@@ -1,3 +1,4 @@
+import { i18n } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -34,6 +35,7 @@ function fixture({ browser = false, choose = null, save = null, renderError = nu
 		async notifyExportComplete(name) { events.push(['notify', name]); },
 	};
 	const context = {
+		i18n,
 		dialogContent: ref(null), exporting: ref(false), choosingSaveFile: ref(false), savingFile: ref(false),
 		validationError: ref(null), error: ref(''), status: ref(''), progress: ref(null),
 		downloadUrl: ref('previous'), downloadName: ref('previous.mp4'),

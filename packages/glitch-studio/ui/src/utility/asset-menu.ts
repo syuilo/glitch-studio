@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
 import GsDialog from '@/components/common/GsDialog.vue';
 import type { ProjectAsset } from '@/Project.ts';
@@ -38,17 +39,17 @@ export function getAssetMenu(asset: ProjectAsset): MenuItem[] {
 	}
 
 	return [{
-		text: 'Rename',
+		text: i18n.ts.Rename,
 		icon: 'ti ti-cursor-text',
 		action: rename,
 	}, {
-		text: 'Replace',
+		text: i18n.ts.Replace,
 		icon: 'ti ti-replace',
 		action: replace,
 	}, {
 		type: 'divider',
 	}, {
-		text: 'Remove',
+		text: i18n.ts.Remove,
 		icon: 'ti ti-trash',
 		danger: true,
 		action: () => stateManager.commit('removeAsset', { assetId: asset.id }),

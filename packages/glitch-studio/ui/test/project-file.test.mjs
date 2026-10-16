@@ -1,3 +1,4 @@
+import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -29,7 +30,7 @@ const appBundle = await build({
 		export * from './src/app.ts';
 		export { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './src/AppContext.ts';
 	` },
-	plugins: [{
+	plugins: [i18nPlugin, {
 		name: 'project-test-platform',
 		setup(build) {
 			// 音声Worker/WorkletもGPUと同じブラウザ境界。保存テストでは再生機器を起動しない。

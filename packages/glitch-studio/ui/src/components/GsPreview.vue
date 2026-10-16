@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView title="Preview" @changeWindow="onPreviewWindowChanged">
+<GsDetachableView :title="i18n.ts.Preview" @changeWindow="onPreviewWindowChanged">
 	<div :class="$style.root">
 		<div :class="$style.topLeft">
 			<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">
@@ -14,11 +14,11 @@
 			<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s" role="alert">
 				<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
 				<div>{{ renderEngine.errorMessage.value }}</div>
-				<button type="button" class="_button" :disabled="renderValidation.errorMessage.value != null" @click="renderEngine.retry()">Retry rendering</button>
+				<button type="button" class="_button" :disabled="renderValidation.errorMessage.value != null" @click="renderEngine.retry()">{{ i18n.ts._Preview.Retry }}</button>
 			</div>
 		</div>
 		<div :class="$style.topRight">
-			<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
+			<div :class="$style.zoom">{{ i18n.ts._Preview.Zoom }} {{ Math.round(zoom * 100) }}%</div>
 			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
 		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
@@ -38,6 +38,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { scaleResolution } from '@gs/shared/resolution.js';
@@ -232,7 +233,7 @@ const showTransformInPreview = preferences.model('showTransformInPreview');
 function showPreviewTargetMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'parent',
-		text: 'Scene',
+		text: i18n.ts.Scene,
 		icon: 'ti ti-memory',
 		children: () => stateManager.state.timelineScenes.value.map(scene => ({
 			text: scene.name,
@@ -244,7 +245,7 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 		})),
 	}, {
 		type: 'parent',
-		text: 'Visual Module',
+		text: i18n.ts.VisualModule,
 		icon: 'ti ti-box-multiple',
 		children: () => stateManager.state.visualModules.value.map(visualModule => ({
 			text: visualModule.name,
@@ -259,32 +260,32 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 
 function showMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Highlight Clipping',
+		text: i18n.ts._Preview.HighlightClipping,
 		icon: 'ti ti-alert-triangle',
 		type: 'switch',
 		ref: highlightClipping,
 	}, {
-		text: 'Animated Background',
+		text: i18n.ts._Preview.AnimatedBackground,
 		icon: 'ti ti-background',
 		type: 'switch',
 		ref: animatedBgInPreview,
 	}, {
-		text: 'Show Timecode',
+		text: i18n.ts._Preview.ShowTimecode,
 		icon: 'ti ti-clock',
 		type: 'switch',
 		ref: showTimecodeInPreview,
 	}, {
-		text: 'Show Grid',
+		text: i18n.ts._Preview.ShowGrid,
 		icon: 'ti ti-grid-3x3',
 		type: 'switch',
 		ref: showGridInPreview,
 	}, {
-		text: 'Show Layer Transform',
+		text: i18n.ts._Preview.ShowLayerTransform,
 		icon: 'ti ti-transform',
 		type: 'switch',
 		ref: showTransformInPreview,
 	}, {
-		text: 'Center View',
+		text: i18n.ts._Preview.CenterView,
 		icon: 'ti ti-focus-centered',
 		action: () => { pan.value = [0, 0]; },
 	}], ev.currentTarget ?? ev.target);

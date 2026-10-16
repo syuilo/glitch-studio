@@ -50,7 +50,7 @@ async function rename() {
 
 function showMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Webcam',
+		text: i18n.ts._Webcam.Title,
 		icon: 'ti ti-camera',
 		active: props.player.sourceType === 'webcam',
 		action: () => {

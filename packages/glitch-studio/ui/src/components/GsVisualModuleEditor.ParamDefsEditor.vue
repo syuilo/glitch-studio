@@ -3,12 +3,12 @@
 	<GsFolder v-for="def in visualModule.paramDefs" :key="def.id" defaultOpen>
 		<template #label>{{ def.ui.label }}</template>
 		<template #suffix>
-			<template v-if="visualModule.primaryInputId === def.id">Primary</template>
+			<template v-if="visualModule.primaryInputId === def.id">{{ i18n.ts._VisualModule.Primary }}</template>
 		</template>
 
 		<div>
 			<!-- TODO: struct / array / anyのカスタムパラメータ定義編集UI。共通の型定義からは除外しない。 -->
-			<div v-if="def.dataType.kind === 'struct' || def.dataType.kind === 'array' || def.dataType.kind === 'any'">{{ def.ui.label }}: Editing is not yet supported.</div>
+			<div v-if="def.dataType.kind === 'struct' || def.dataType.kind === 'array' || def.dataType.kind === 'any'">{{ def.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
 			<XVisualModuleParamDefEditor
 				v-else
 				:primaryInputId="visualModule.primaryInputId"
@@ -21,11 +21,12 @@
 			/>
 		</div>
 	</GsFolder>
-	<GsButton style="width: 100%;" @click="add"><i class="ti ti-plus"></i> Add Parameter</GsButton>
+	<GsButton style="width: 100%;" @click="add"><i class="ti ti-plus"></i> {{ i18n.ts._VisualModule.AddParameter }}</GsButton>
 </div>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 import { genId } from '@gs/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';

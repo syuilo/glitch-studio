@@ -1,9 +1,9 @@
 <template>
 <GsFolder asSection defaultOpen :withSpacer="false">
 	<template #icon><i class="ti ti-camera"></i></template>
-	<template #label>Camera</template>
+	<template #label>{{ i18n.ts.Camera }}</template>
 	<div class="_spacer" style="font-size: 0.85em; opacity: 0.7;">
-		The topmost enabled camera with an active clip controls this scene. Without an active camera, the default view is used.
+		{{ i18n.ts._TimelineLayer.CameraHint }}
 	</div>
 	<div style="padding: 8px 0;">
 		<GsVisualParam
@@ -21,14 +21,15 @@
 	</div>
 	<div class="_spacer">
 		<GsSwitch :modelValue="layer.forceDisableMotionBlur" @update:modelValue="emit('motionBlur', $event)">
-			Disable camera motion blur
-			<template #caption>Evaluates this camera at the frame time. Layers can still blur from their own motion.</template>
+			{{ i18n.ts._TimelineLayer.DisableCameraMotionBlur }}
+			<template #caption>{{ i18n.ts._TimelineLayer.CameraMotionBlurHint }}</template>
 		</GsSwitch>
 	</div>
 </GsFolder>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import GsFolder from './common/GsFolder.vue';

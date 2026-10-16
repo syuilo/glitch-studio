@@ -4,7 +4,7 @@
 		<div :class="$style.headerLeft">
 			<GsNodePort v-show="!expanded" :class="$style.allInPort" :dataType="{ kind: 'any' }" @update:element="allInPortEl = $event"/>
 			<div :class="$style.effectName">{{ name }}</div>
-			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly title="Loading…"><i class="ti ti-loader-2" :class="$style.loading"></i></div>
+			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly :title="i18n.ts.Loading"><i class="ti ti-loader-2" :class="$style.loading"></i></div>
 			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :title="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>
 		</div>
 		<div :class="$style.headerRight">
@@ -12,8 +12,8 @@
 			<div :class="$style.headerButtons">
 				<GsButton transparent :class="[$style.headerButton]" inline small iconOnly @click="expanded = !expanded"><i class="ti" :class="expanded ? 'ti-chevron-up' : 'ti-chevron-down'"></i></GsButton>
 				<GsButton :transparent="!showSettings" :class="[$style.headerButton]" inline small iconOnly :primary="showSettings" @click="showSettings = !showSettings"><i class="ti ti-settings"></i></GsButton>
-				<GsButton :transparent="node.isBypass" :class="[$style.headerButton]" inline small iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts.ClickToEnable : i18n.ts.ClickToDisable" @click="toggleBypass()"><i class="ti" :class="node.isBypass ? 'ti-eye-off' : 'ti-eye'"></i></GsButton>
-				<GsButton transparent :class="[$style.headerButton]" inline small iconOnly :title="i18n.ts.RemoveEffect" @click="remove()"><i class="ti ti-x"></i></GsButton>
+				<GsButton :transparent="node.isBypass" :class="[$style.headerButton]" inline small iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts._Node.ClickToEnable : i18n.ts._Node.ClickToDisable" @click="toggleBypass()"><i class="ti" :class="node.isBypass ? 'ti-eye-off' : 'ti-eye'"></i></GsButton>
+				<GsButton transparent :class="[$style.headerButton]" inline small iconOnly :title="i18n.ts._Node.RemoveEffect" @click="remove()"><i class="ti ti-x"></i></GsButton>
 			</div>
 		</div>
 	</div>
@@ -21,17 +21,17 @@
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
 		<div v-if="showSettings" class="_spacer">
 			<GsFolder defaultOpen>
-				<template #label>Settings</template>
+				<template #label>{{ i18n.ts.Settings }}</template>
 
 				<div class="_gaps_s">
-					<GsInput :modelValue="node.displayName" :debounce="400" @update:modelValue="emit('setDisplayName', $event)"><template #label>Name</template></GsInput>
+					<GsInput :modelValue="node.displayName" :debounce="400" @update:modelValue="emit('setDisplayName', $event)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
 					<GsSelect :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
-						<template #label>Resolution</template>
-						<template v-if="node.resolution.mode === 'context'" #caption>Uses the project size in LIVE and the containing scene size in the timeline.</template>
+						<template #label>{{ i18n.ts.Resolution }}</template>
+						<template v-if="node.resolution.mode === 'context'" #caption>{{ i18n.ts._Node.ResolutionHint }}</template>
 					</GsSelect>
 					<div v-if="node.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
-						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>Width</template><template #suffix>px</template></GsInput>
-						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>Height</template><template #suffix>px</template></GsInput>
+						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 					</div>
 				</div>
 			</GsFolder>
@@ -103,9 +103,9 @@ const allInPortEl = shallowRef<HTMLElement | null>(null);
 const effectStatus = computed(() => props.effectState?.status);
 
 const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
-	{ value: 'context', label: 'Context resolution' },
-	{ value: 'auto', label: 'Auto' },
-	{ value: 'customAbsolute', label: 'Custom (Absolute)' },
+	{ value: 'context', label: i18n.ts._Node.ContextResolution },
+	{ value: 'auto', label: i18n.ts.Auto },
+	{ value: 'customAbsolute', label: i18n.ts._Node.CustomResolution },
 ];
 
 function setResolutionMode(mode: EffectResolution['mode']) {

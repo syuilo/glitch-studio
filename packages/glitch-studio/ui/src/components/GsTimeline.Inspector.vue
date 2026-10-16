@@ -5,8 +5,8 @@
 	@selected="keyframeId => emit('selectKeyframe', { layerId: selectedUtterance!.layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
 />
 <GsFolder v-else-if="selection.kind === 'keyframes' && selection.keyframes.length > 1" defaultOpen asSection>
-	<template #label>{{ selection.keyframes.length }} keyframes selected</template>
-	<GsButton danger small @click="emit('removeKeyframes')"><i class="ti ti-trash"></i> Remove Keyframes</GsButton>
+	<template #label>{{ i18n.tsx._TimelineKeyframe.SelectedCount({ count: selection.keyframes.length }) }}</template>
+	<GsButton danger small @click="emit('removeKeyframes')"><i class="ti ti-trash"></i> {{ i18n.ts._TimelineKeyframe.RemoveMultiple }}</GsButton>
 </GsFolder>
 <GsTimelineInspectorKeyframe
 	v-else-if="selectedLayer && selectedKeyframeSelection && selectedKeyframeSelection.target !== 'utterance'" :key="'Keyframe:'+ keyframeEditorKey"
@@ -26,6 +26,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { computed } from 'vue';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';

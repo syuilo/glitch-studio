@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { collectVisualModuleFile, encodeVisualModuleFile, decodeVisualModuleFile, prepareVisualModuleImport } from '../gsvm.ts';
 import * as ui from '../ui.ts';
@@ -27,14 +28,14 @@ export async function exportVisualModuleFile(context: ProjectContext, visualModu
 		const url = URL.createObjectURL(new Blob([new Uint8Array(data)], { type: 'application/octet-stream' }));
 		const link = window.document.createElement('a');
 		link.href = url;
-		link.download = `${name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim() || 'Visual Module'}.gsvm`;
+		link.download = `${name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim() || i18n.ts.VisualModule}.gsvm`;
 		try { link.click(); } finally {
 			// ダウンロードがURLを取得する前に解放しない。画面に履歴として保持する必要はない。
 			window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 		}
 	} catch (error) {
 		console.error(error);
-		await ui.alert({ type: 'error', title: 'Export Visual Module', text: error instanceof Error ? error.message : String(error) });
+		await ui.alert({ type: 'error', title: i18n.ts._VisualModule.ExportTitle, text: error instanceof Error ? error.message : String(error) });
 	}
 }
 
@@ -51,14 +52,14 @@ export async function importVisualModuleFile(context: ProjectContext): Promise<s
 		if (prepared.unassignedPlayerNames.length > 0) {
 			ui.alert({
 				type: 'info',
-				title: 'Visual Module imported',
-				text: `External inputs were left unassigned: ${prepared.unassignedPlayerNames.join(', ')}. Camera inputs can be selected from the Player menu. Microphone and live stream inputs are not yet supported.`,
+				title: i18n.ts._VisualModule.Imported,
+				text: i18n.tsx._VisualModule.UnassignedInputs({ names: prepared.unassignedPlayerNames.join(', ') }),
 			});
 		}
 		return prepared.visualModule.id;
 	} catch (error) {
 		console.error(error);
-		await ui.alert({ type: 'error', title: 'Import Visual Module', text: error instanceof Error ? error.message : String(error) });
+		await ui.alert({ type: 'error', title: i18n.ts._VisualModule.ImportTitle, text: error instanceof Error ? error.message : String(error) });
 		return null;
 	}
 }

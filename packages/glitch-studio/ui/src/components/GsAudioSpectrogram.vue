@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView title="Audio Spectrogram" @changeWindow="changeWindow">
+<GsDetachableView :title="i18n.ts._Workspace.AudioSpectrogram" @changeWindow="changeWindow">
 	<div :class="$style.root">
 		<canvas ref="canvas" :class="$style.canvas"></canvas>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
@@ -8,6 +8,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import type { SpectrogramSettings } from '@gs/subsystems_effect_shared/audio-spectrogram/audio-spectrogram.ts';

@@ -1,16 +1,17 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')">
 	<div class="_gaps_m" :class="$style.root" @keydown.stop>
-		<b>Allow project backups</b>
-		<div>Select the folder containing {{ handle.name }}. Backups will be created and expired backups removed in this folder.</div>
+		<b>{{ i18n.ts._ProjectBackups.Allow }}</b>
+		<div>{{ i18n.tsx._ProjectBackups.SelectFolderDescription({ name: handle.name }) }}</div>
 		<div v-if="error" role="alert">{{ error }}</div>
-		<GsButton :disabled="busy" @click="chooseFolder">Choose project folder</GsButton>
-		<GsButton :disabled="busy" @click="modal?.close()">Cancel</GsButton>
+		<GsButton :disabled="busy" @click="chooseFolder">{{ i18n.ts._ProjectBackups.ChooseFolder }}</GsButton>
+		<GsButton :disabled="busy" @click="modal?.close()">{{ i18n.ts.Cancel }}</GsButton>
 	</div>
 </GsModal>
 </template>
 
 <script setup lang="ts">
+import { i18n } from '@/i18n.ts';
 import { ref, useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';

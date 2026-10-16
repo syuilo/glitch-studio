@@ -4,11 +4,12 @@
 		<GsButton small @click="showSceneSelectMenu">{{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
 		<GsButton small iconOnly @click="showSceneMenu"><i class="ti ti-dots"></i></GsButton>
 	</GsTimeline>
-	<div v-else>Create a scene to start editing.</div>
+	<div v-else>{{ i18n.ts._Timeline.CreateScene }}</div>
 </div>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { computed, ref, watch, inject } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -69,7 +70,7 @@ async function renameScene() {
 	if (scene == null) return;
 
 	const { canceled, result: name } = await ui.inputText({
-		title: 'Rename Scene',
+		title: i18n.ts._Timeline.RenameScene,
 		placeholder: scene.name,
 		default: scene.name,
 	});
@@ -92,7 +93,7 @@ function showSceneSelectMenu(ev: PointerEvent) {
 	ui.popupMenu([...menuItems, {
 		type: 'divider',
 	}, {
-		text: 'New Scene',
+		text: i18n.ts._Timeline.NewScene,
 		icon: 'ti ti-plus',
 		action: createScene,
 	}], ev.currentTarget ?? ev.target);
@@ -100,22 +101,22 @@ function showSceneSelectMenu(ev: PointerEvent) {
 
 function showSceneMenu(ev: PointerEvent) {
 	const menuItems: MenuItem[] = [{
-		text: 'Scene resolution',
+		text: i18n.ts._Timeline.SceneResolution,
 		icon: 'ti ti-dimensions',
 		action: () => {
 			if (activeSceneId.value == null) return;
 			const { dispose } = ui.popup(GsSceneResolutionDialog, { sceneId: activeSceneId.value }, { closed: () => dispose() });
 		},
 	}, {
-		text: 'Rename Scene',
+		text: i18n.ts._Timeline.RenameScene,
 		icon: 'ti ti-edit',
 		action: renameScene,
 	}, {
-		text: 'Duplicate Scene',
+		text: i18n.ts._Timeline.DuplicateScene,
 		icon: 'ti ti-copy',
 		action: duplicateScene,
 	}, {
-		text: 'Remove Scene',
+		text: i18n.ts._Timeline.RemoveScene,
 		icon: 'ti ti-trash',
 		disabled: references.value.length > 0,
 		danger: true,

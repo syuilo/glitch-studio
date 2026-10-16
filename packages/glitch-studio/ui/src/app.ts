@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
@@ -170,7 +171,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	const videoMedia = result.type.startsWith('video/') ? await inspectTimelineClipMedia(asset) : null;
 	if (videoMedia != null) {
 		if (videoMedia.durationMs < 1) {
-			await ui.alert({ type: 'error', text: 'Media is shorter than 1 ms.' });
+			await ui.alert({ type: 'error', text: i18n.ts._Assets.MediaTooShort });
 			return false;
 		}
 		if (videoMedia.audioError != null) {

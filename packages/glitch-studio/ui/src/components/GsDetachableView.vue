@@ -1,8 +1,8 @@
 <template>
 <div :class="$style.root">
 	<div v-if="viewWindow" :class="$style.placeholder">
-		<span>{{ title }} is open in {{ windowMode === 'pip' ? 'PiP' : 'another window' }}</span>
-		<button class="_button" @click="closeView">Return {{ title.toLowerCase() }}</button>
+		<span>{{ windowMode === 'pip' ? i18n.tsx._DetachableView.OpenInPip({ title }) : i18n.tsx._DetachableView.OpenInWindow({ title }) }}</span>
+		<button class="_button" @click="closeView">{{ i18n.tsx._DetachableView.Return({ title }) }}</button>
 	</div>
 	<div v-show="!viewWindow" ref="home" :class="$style.root">
 		<div ref="view" :class="$style.root" @contextmenu.prevent.stop="onContextmenu">
@@ -13,6 +13,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { inject, useTemplateRef, ref, shallowRef, onBeforeUnmount } from 'vue';
 import { fileDropTargetInstallerKey } from '@/utility/file-drop.ts';
 import type { MenuItem } from '@/types/menu.ts';
@@ -43,7 +44,7 @@ async function toggleFullscreen() {
 		if (doc.fullscreenElement) await doc.exitFullscreen();
 		else await doc.documentElement.requestFullscreen();
 	} catch (error) {
-		ui.alert({ type: 'error', title: 'Could not change fullscreen', text: String(error) });
+		ui.alert({ type: 'error', title: i18n.ts._DetachableView.FullscreenFailed, text: String(error) });
 	}
 }
 
@@ -90,7 +91,7 @@ async function openView(mode: 'pip' | 'window') {
 		} else {
 			// Open synchronously within the menu click's user activation.
 			pip = window.open('', '_blank', `popup,width=${size.width},height=${size.height}`) ?? null;
-			if (!pip) throw new Error('The popup was blocked. Please allow popups for this site and try again.');
+			if (!pip) throw new Error(i18n.ts._DetachableView.PopupBlocked);
 		}
 		if (disposed || pip.closed) {
 			pip.close();
@@ -110,7 +111,7 @@ async function openView(mode: 'pip' | 'window') {
 	} catch (error) {
 		restoreView();
 		pip?.close();
-		if (!disposed) ui.alert({ type: 'error', title: `Could not open ${props.title.toLowerCase()}`, text: String(error) });
+		if (!disposed) ui.alert({ type: 'error', title: i18n.tsx._DetachableView.OpenFailed({ title: props.title }), text: String(error) });
 	} finally {
 		openingView = false;
 	}
@@ -128,10 +129,10 @@ function onContextmenu(ev: PointerEvent) {
 	// Shared context menus render in the main document; detached views have buttons.
 	if (viewWindow.value) return;
 	const menuItems: MenuItem[] = pipApi ? [{
-		text: 'Start PiP',
+		text: i18n.ts._DetachableView.StartPip,
 		action: () => openView('pip'),
-	}] : [{ type: 'label', text: 'PiP is not supported in this browser' }];
-	menuItems.unshift({ text: 'Open in new window', action: () => openView('window') });
+	}] : [{ type: 'label', text: i18n.ts._DetachableView.PipUnsupported }];
+	menuItems.unshift({ text: i18n.ts._DetachableView.OpenWindow, action: () => openView('window') });
 	ui.contextMenu(menuItems, ev);
 }
 

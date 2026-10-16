@@ -1,6 +1,10 @@
 <template>
-<div :class="$style.root">Drop here</div>
+<div :class="$style.root">{{ i18n.ts._Dialog.DropHere }}</div>
 </template>
+
+<script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
+</script>
 
 <style module lang="scss">
 .root {

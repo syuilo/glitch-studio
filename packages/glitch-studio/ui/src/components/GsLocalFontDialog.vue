@@ -1,8 +1,8 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')" @esc="close" @click="close">
 	<div :class="$style.root" class="_gaps_m" @keydown.stop @keydown.esc.prevent="close">
-		<div :class="$style.title">Import local font</div>
-		<GsInput v-model="search" autofocus placeholder="Search fonts" :disabled="importing"/>
+		<div :class="$style.title">{{ i18n.ts._Assets.ImportLocalFont }}</div>
+		<GsInput v-model="search" autofocus :placeholder="i18n.ts._LocalFonts.Search" :disabled="importing"/>
 		<div :class="$style.fonts">
 			<GsButton
 				v-for="font in filteredFonts" :key="font.postscriptName"
@@ -12,18 +12,19 @@
 				<div :class="$style.fontName">{{ font.fullName }}</div>
 				<div :class="$style.detail">{{ font.family }} · {{ font.style }}</div>
 			</GsButton>
-			<div v-if="filteredFonts.length === 0">{{ fonts.length === 0 ? 'No local fonts are available.' : 'No matching fonts.' }}</div>
+			<div v-if="filteredFonts.length === 0">{{ fonts.length === 0 ? i18n.ts._LocalFonts.Empty : i18n.ts._LocalFonts.NoResults }}</div>
 		</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 		<div :class="$style.actions">
-			<GsButton inline :disabled="importing" @click="close">Cancel</GsButton>
-			<GsButton inline primary :disabled="!selectedFont || importing" :wait="importing" @click="importFont">Import</GsButton>
+			<GsButton inline :disabled="importing" @click="close">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton inline primary :disabled="!selectedFont || importing" :wait="importing" @click="importFont">{{ i18n.ts.Import }}</GsButton>
 		</div>
 	</div>
 </GsModal>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { computed, onBeforeUnmount, ref, useTemplateRef } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -66,7 +67,7 @@ async function importFont() {
 		// blob()はSFNTを返す。MIMEが空でもfontAssetReferenceから参照できるよう統一する。
 		const blob = await font.blob();
 		if (disposed) return;
-		if (blob.size === 0) throw new Error('The selected font contains no data.');
+		if (blob.size === 0) throw new Error(i18n.ts._LocalFonts.EmptyFont);
 		stateManager.commit('addAsset', {
 			id: genId(),
 			name: font.fullName,

@@ -2,14 +2,14 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ prettyId(visualModule?.id ?? '') }}]</button>
-		<GsButton v-if="visualModule != null" style="margin-left: auto;" small :primary="previewParamsShowing" @click="previewParamsShowing = !previewParamsShowing"><i class="ti ti-adjustments-horizontal"></i> Preview Params</GsButton>
+		<GsButton v-if="visualModule != null" style="margin-left: auto;" small :primary="previewParamsShowing" @click="previewParamsShowing = !previewParamsShowing"><i class="ti ti-adjustments-horizontal"></i> {{ i18n.ts._VisualModule.PreviewParameters }}</GsButton>
 		<GsButton v-if="visualModule != null" style="margin-left: 0;" small :primary="previewPlayback.liveVisualModuleId.value === visualModule.id" @click="previewLive"><i v-if="previewPlayback.liveVisualModuleId.value === visualModule.id" class="ti ti-player-pause"></i><i v-else class="ti ti-player-play"></i> LIVE</GsButton>
 	</div>
 
 	<div v-if="visualModule && previewParamsShowing" :key="visualModule.id" :class="$style.previewParams">
 		<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義の制約ではなく、現在のUIの対応範囲。 -->
 		<template v-for="paramDef of visualModule.paramDefs" :key="paramDef.id">
-			<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+			<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
 			<GsVisualParam
 				v-else
 				:availableVariables="LIVE_VAR_DEFS"
@@ -40,6 +40,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { computed, ref, watch, onBeforeUnmount, inject } from 'vue';
@@ -192,11 +193,11 @@ function previewLive() {
 
 function showSwitchMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Import Visual Module…',
+		text: i18n.ts._VisualModule.Import,
 		icon: 'ti ti-upload',
 		action: importVisualModule,
 	}, {
-		text: 'New',
+		text: i18n.ts.New,
 		icon: 'ti ti-plus',
 		action: () => {
 

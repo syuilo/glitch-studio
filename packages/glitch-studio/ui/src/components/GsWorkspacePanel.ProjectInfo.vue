@@ -1,18 +1,19 @@
 <template>
 <div :class="$style.root" class="_gaps">
 	<GsInput v-model="projectName">
-		<template #label>Project name</template>
+		<template #label>{{ i18n.ts._Project.Name }}</template>
 	</GsInput>
 	<GsTextarea v-model="projectDescription">
-		<template #label>Description</template>
+		<template #label>{{ i18n.ts._Project.Description }}</template>
 	</GsTextarea>
 	<GsInput v-model="projectAuthor">
-		<template #label>Author</template>
+		<template #label>{{ i18n.ts._Project.Author }}</template>
 	</GsInput>
 </div>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import GsInput from './common/GsInput.vue';
 import GsTextarea from './common/GsTextarea.vue';

@@ -1,34 +1,35 @@
 <template>
 <GsFolder defaultOpen asSection :withSpacer="false">
 	<template #icon><i class="ti ti-keyframe"></i></template>
-	<template #label>Speech Key</template>
+	<template #label>{{ i18n.ts._Voicevox.SpeechKey }}</template>
 	<div class="_spacer _gaps_m">
 		<GsInput small type="number" :min="bounds?.min ?? 0" :max="bounds?.max" :modelValue="utterance.timeMs" @update:modelValue="editTime">
-			<template #label>Time</template><template #suffix>ms</template>
+			<template #label>{{ i18n.ts.Time }}</template><template #suffix>ms</template>
 		</GsInput>
 		<GsSelect small :modelValue="utterance.styleId" :items="voiceStyleItems" @update:modelValue="styleId => edit({ styleId })">
-			<template #label>Voice / style</template>
+			<template #label>{{ i18n.ts._Voicevox.VoiceStyle }}</template>
 		</GsSelect>
-		<GsTextarea :modelValue="utterance.text" @update:modelValue="text => edit({ text })"><template #label>Subtitle</template></GsTextarea>
+		<GsTextarea :modelValue="utterance.text" @update:modelValue="text => edit({ text })"><template #label>{{ i18n.ts.Subtitle }}</template></GsTextarea>
 		<GsSelect small :modelValue="utterance.subtitleDuration.mode" :items="subtitleDurationModes" @update:modelValue="changeSubtitleDurationMode">
-			<template #label>Subtitle duration</template>
+			<template #label>{{ i18n.ts._Voicevox.SubtitleDuration }}</template>
 		</GsSelect>
 		<GsInput v-if="utterance.subtitleDuration.mode === 'specified'" small type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDuration.durationMs" @update:modelValue="editSubtitleDuration">
-			<template #label>Display length (0 hides subtitle)</template><template #suffix>ms</template>
+			<template #label>{{ i18n.ts._Voicevox.DisplayLength }}</template><template #suffix>ms</template>
 		</GsInput>
 		<GsInput v-if="utterance.subtitleDuration.mode === 'speech'" small type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDuration.extensionMs" @update:modelValue="editSubtitleExtension">
-			<template #label>Extend after speech</template><template #suffix>ms</template>
+			<template #label>{{ i18n.ts._Voicevox.ExtendAfterSpeech }}</template><template #suffix>ms</template>
 		</GsInput>
-		<GsTextarea :modelValue="utterance.reading ?? ''" placeholder="Use subtitle text" @update:modelValue="reading => edit({ reading: reading.trim() || null })"><template #label>Reading (optional)</template></GsTextarea>
+		<GsTextarea :modelValue="utterance.reading ?? ''" :placeholder="i18n.ts._Voicevox.UseSubtitleText" @update:modelValue="reading => edit({ reading: reading.trim() || null })"><template #label>{{ i18n.ts._Voicevox.Reading }}</template></GsTextarea>
 		<div>{{ status }}</div>
-		<GsButton v-if="desktop && utterance.text" small :disabled="generating" @click="regenerate">Regenerate</GsButton>
-		<GsButton danger small @click="remove"><i class="ti ti-trash"></i> Remove Speech Key</GsButton>
+		<GsButton v-if="desktop && utterance.text" small :disabled="generating" @click="regenerate">{{ i18n.ts._Voicevox.Regenerate }}</GsButton>
+		<GsButton danger small @click="remove"><i class="ti ti-trash"></i> {{ i18n.ts._Voicevox.RemoveSpeechKey }}</GsButton>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsFolder>
 </template>
 
 <script setup lang="ts">
+import { i18n } from '@/i18n.ts';
 import { computed, ref } from 'vue';
 import { getVoicevoxRequest, getVoicevoxRequestKey } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import GsFolder from './common/GsFolder.vue';
@@ -52,15 +53,15 @@ const voiceStyleItems = computed(() => {
 	// 接続前やエンジンにない声も保存したIDを表示し、別の声へ暗黙に差し替えない。
 	if (!items.some(item => item.value === props.utterance.styleId)) items.unshift({
 		value: props.utterance.styleId,
-		label: `Style ${props.utterance.styleId} (${speakers.value.length ? 'unavailable' : 'connect to load voices'})`,
+		label: i18n.tsx._Voicevox.MissingStyle({ id: props.utterance.styleId, status: speakers.value.length > 0 ? i18n.ts._Voicevox.Unavailable : i18n.ts._Voicevox.ConnectToLoadVoices }),
 	});
 	return items;
 });
 const error = ref('');
 const subtitleDurationModes = [
-	{ value: 'fill', label: 'Fill (until next speech key)' },
-	{ value: 'specified', label: 'Specified' },
-	{ value: 'speech', label: 'Match speech duration' },
+	{ value: 'fill', label: i18n.ts._Voicevox.Fill },
+	{ value: 'specified', label: i18n.ts._Voicevox.Specified },
+	{ value: 'speech', label: i18n.ts._Voicevox.MatchSpeechDuration },
 ];
 const bounds = computed(() => getVoicevoxUtteranceTimeBounds(props.layer.utterances, props.utterance.id));
 const request = computed(() => getVoicevoxRequest(props.layer.voicevox, props.utterance));
@@ -68,11 +69,11 @@ const key = computed(() => getVoicevoxRequestKey(request.value));
 const generation = computed(() => appContext.voicevoxGeneration.statuses.value[key.value]);
 const generating = computed(() => generation.value?.state === 'generating');
 const status = computed(() => {
-	if (!props.utterance.text) return 'Clear subtitle / stop speech';
-	if (generating.value) return 'Generating…';
+	if (!props.utterance.text) return i18n.ts._Voicevox.ClearSubtitle;
+	if (generating.value) return i18n.ts._Voicevox.Generating;
 	if (generation.value?.state === 'error') return generation.value.message;
 	const speech = stateManager.state.generatedSpeech.value.find(item => item.key === key.value);
-	return speech ? `Ready · ${(speech.durationMs / 1000).toFixed(2)} s` : 'Not generated';
+	return speech ? i18n.tsx._Voicevox.Ready({ seconds: (speech.durationMs / 1000).toFixed(2) }) : i18n.ts._Voicevox.NotGenerated;
 });
 
 function commit(utterances: VoicevoxUtterance[]) {

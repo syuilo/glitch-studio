@@ -1,15 +1,15 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.actions">
-		<GsButton primary @click="addAsset"><i class="ti ti-plus"></i> Add Asset...</GsButton>
-		<GsButton :disabled="!localFontsSupported || loadingLocalFonts" :wait="loadingLocalFonts" @click="addLocalFont">Import local font</GsButton>
-		<GsInput v-model="query" type="search" placeholder="Search by filename" :class="$style.searchInput" @keydown.enter.stop.prevent="chooseFirstResult">
+		<GsButton primary @click="addAsset"><i class="ti ti-plus"></i> {{ i18n.ts._Assets.Add }}</GsButton>
+		<GsButton :disabled="!localFontsSupported || loadingLocalFonts" :wait="loadingLocalFonts" @click="addLocalFont">{{ i18n.ts._Assets.ImportLocalFont }}</GsButton>
+		<GsInput v-model="query" type="search" :placeholder="i18n.ts._Assets.Search" :class="$style.searchInput" @keydown.enter.stop.prevent="chooseFirstResult">
 			<template #prefix>
 				<i class="ti ti-search"></i>
 			</template>
 		</GsInput>
 	</div>
-	<div v-if="!localFontsSupported">Local fonts are unavailable. Use Add asset to import a font file.</div>
+	<div v-if="!localFontsSupported">{{ i18n.ts._Assets.LocalFontsUnavailable }}</div>
 	<div v-if="localFontError">{{ localFontError }}</div>
 	<div :class="$style.assets">
 		<GsAsset
@@ -25,6 +25,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsAsset from './GsAsset.vue';

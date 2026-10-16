@@ -5,24 +5,24 @@
 			<div style="display: flex; align-items: center; gap: 16px;">
 				<img src="/gs.svg" style="display: block; width: 64px; height: 64px;">
 				<div>
-					<div><b>Glitch Studio{{ isElectron ? '' : ' (for Web)' }}</b></div>
+					<div><b>Glitch Studio{{ isElectron ? '' : i18n.ts._About.WebVersion }}</b></div>
 					<div>{{ version }}</div>
 				</div>
 			</div>
 			<div style="font-size: 90%;">
-				<div v-if="!isElectron">Web版には一部制限があります。<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/guide/download" target="_blank">デスクトップ版</a></div>
+				<div v-if="!isElectron">{{ i18n.ts._Dashboard.WebLimitations }}<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/guide/download" target="_blank">{{ i18n.ts._Dashboard.DesktopVersion }}</a></div>
 			</div>
 			<div class="_gaps_m">
-				<GsButton full style="text-align: left;" @click="_newProject"><i class="ti ti-plus" style="margin-right: 1em;"></i>New Project</GsButton>
-				<GsButton full style="text-align: left;" @click="_newProjectFromImageOrVideo"><i class="ti ti-photo-video" style="margin-right: 1em;"></i>Open Media...</GsButton>
-				<GsButton full style="text-align: left;" @click="_openProject"><i class="ti ti-folder-open" style="margin-right: 1em;"></i>Open Project...</GsButton>
+				<GsButton full style="text-align: left;" @click="_newProject"><i class="ti ti-plus" style="margin-right: 1em;"></i>{{ i18n.ts._Dashboard.NewProject }}</GsButton>
+				<GsButton full style="text-align: left;" @click="_newProjectFromImageOrVideo"><i class="ti ti-photo-video" style="margin-right: 1em;"></i>{{ i18n.ts._Dashboard.OpenMedia }}</GsButton>
+				<GsButton full style="text-align: left;" @click="_openProject"><i class="ti ti-folder-open" style="margin-right: 1em;"></i>{{ i18n.ts._Dashboard.OpenProject }}</GsButton>
 			</div>
-			<button class="_textButton" style="margin-top: auto;" @click="showAbout()">About</button>
+			<button class="_textButton" style="margin-top: auto;" @click="showAbout()">{{ i18n.ts._App.About }}</button>
 		</div>
 		<div :class="$style.side">
 			<GsFolder defaultOpen asSection>
 				<template #icon><i class="ti ti-clock"></i></template>
-				<template #label>Recent Projects</template>
+				<template #label>{{ i18n.ts._Dashboard.RecentProjects }}</template>
 				<div></div>
 			</GsFolder>
 		</div>
@@ -31,6 +31,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { inject, onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsModal from './common/GsModal.vue';

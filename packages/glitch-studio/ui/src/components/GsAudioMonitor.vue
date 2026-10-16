@@ -1,7 +1,7 @@
 <template>
-<GsDetachableView :title="mode === 'spectrum' ? 'Audio Spectrum' : 'Audio Waveform'" @changeWindow="changeWindow">
+<GsDetachableView :title="mode === 'spectrum' ? i18n.ts._Workspace.AudioSpectrum : i18n.ts._Workspace.AudioWaveform" @changeWindow="changeWindow">
 	<template #controls>
-		<label :class="$style.option"><input v-model="overlay" type="checkbox"> Overlay L/R</label>
+		<label :class="$style.option"><input v-model="overlay" type="checkbox"> {{ i18n.ts._AudioMonitor.Overlay }}</label>
 	</template>
 	<div :class="$style.root" @wheel="onWheel">
 		<div :class="$style.plot">
@@ -27,6 +27,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import { useAudioPreview } from '@/use-audio-preview.ts';

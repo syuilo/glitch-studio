@@ -10,7 +10,7 @@ import { i18n } from '@/i18n.ts';
 export function getNodeInputSamplingMenuItems<T extends ShaderInputSampling>(connectionRef: Ref<T>, update: (connection: T) => void): MenuItem[] {
 	return [{
 		type: 'radio',
-		text: 'Fit Mode',
+		text: i18n.ts._Sampling.FitMode,
 		caption: computed(() => i18n.t(`_FitModes.${connectionRef.value.fitMode}`)),
 		ref: computed({
 			get: () => connectionRef.value.fitMode,
@@ -21,7 +21,7 @@ export function getNodeInputSamplingMenuItems<T extends ShaderInputSampling>(con
 		options: [{ label: i18n.t('_FitModes.stretch'), value: 'stretch' }, { label: i18n.t('_FitModes.cover'), value: 'cover' }, { label: i18n.t('_FitModes.contain'), value: 'contain' }],
 	}, {
 		type: 'radio',
-		text: 'Wrap Mode',
+		text: i18n.ts._Sampling.WrapMode,
 		caption: computed(() => i18n.t(`_WrapModes.${connectionRef.value.wrapMode}`)),
 		ref: computed({
 			get: () => connectionRef.value.wrapMode,
@@ -32,7 +32,7 @@ export function getNodeInputSamplingMenuItems<T extends ShaderInputSampling>(con
 		options: [{ label: i18n.t('_WrapModes.clamp'), value: 'clamp' }, { label: i18n.t('_WrapModes.repeat'), value: 'repeat' }, { label: i18n.t('_WrapModes.repeatMirrored'), value: 'repeatMirrored' }, { label: i18n.t('_WrapModes.transparent'), value: 'transparent' }],
 	}, {
 		type: 'radio',
-		text: 'Filter Mode',
+		text: i18n.ts._Sampling.FilterMode,
 		caption: computed(() => i18n.t(`_FilterModes.${connectionRef.value.filterMode}`)),
 		ref: computed({
 			get: () => connectionRef.value.filterMode,

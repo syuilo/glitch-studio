@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<div v-if="previewPlayback.state.value.mode !== 'live'">Rendering statistics are available in LIVE mode.</div>
+	<div v-if="previewPlayback.state.value.mode !== 'live'">{{ i18n.ts._Stats.LiveOnly }}</div>
 	<div v-show="previewPlayback.state.value.mode === 'live'" :class="$style.legend">
 		<div v-for="item in series" :key="item.key" :class="$style.legendItem">
 			<span style="width: 8px; height: 2px;" :style="{ backgroundColor: item.color }"></span>
@@ -60,9 +60,9 @@ const plotWidth = computed(() => chartWidth.value - plotLeft - plotRight);
 const plotHeight = computed(() => chartHeight.value - plotTop - plotBottom);
 
 const series = [
-	{ key: 'fast', label: 'fast', color: '#c2fe0c', strokeWidth: 1 },
-	{ key: 'medium', label: 'medium', color: '#55c8ff', strokeWidth: 1.5 },
-	{ key: 'slow', label: 'slow', color: '#c98cff', strokeWidth: 2 },
+	{ key: 'fast', label: i18n.ts._Stats.Fast, color: '#c2fe0c', strokeWidth: 1 },
+	{ key: 'medium', label: i18n.ts._Stats.Medium, color: '#55c8ff', strokeWidth: 1.5 },
+	{ key: 'slow', label: i18n.ts._Stats.Slow, color: '#c98cff', strokeWidth: 2 },
 ] as const;
 
 const samples = ref<Sample[]>([]);

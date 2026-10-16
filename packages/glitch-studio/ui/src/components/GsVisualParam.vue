@@ -10,28 +10,28 @@
 				<GsCondensedLine>{{ label ?? paramDef.ui.label }}</GsCondensedLine>
 			</div>
 			<div style="height: 100%; place-content: center;">
-				<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="'Environment Variable'" class="ti ti-variable" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="'Expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'externalCustomParameterInput'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'layerInput'" v-tooltip="'Layers below'" class="ti ti-stack-2" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'lowerLayerAudio'" v-tooltip="'Audio from layers below'" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'layerAudio'" v-tooltip="'Audio from layer'" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="'Keyframes'" class="ti ti-timeline" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" v-tooltip="'AutomationGraph'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+				<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="i18n.ts._Parameter.EnvironmentVariable" class="ti ti-variable" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="i18n.ts._Parameter.Expression" class="ti ti-math-function" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'externalCustomParameterInput'" v-tooltip="i18n.ts._Parameter.Title" class="ti ti-wifi" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="i18n.ts._Parameter.Node" class="ti ti-plug" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'layerInput'" v-tooltip="i18n.ts._Parameter.LowerLayers" class="ti ti-stack-2" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'lowerLayerAudio'" v-tooltip="i18n.ts._Parameter.LowerLayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'layerAudio'" v-tooltip="i18n.ts._Parameter.LayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="i18n.ts._Parameter.Keyframes" class="ti ti-timeline" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" v-tooltip="i18n.ts._Parameter.AutomationGraph" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 			</div>
 		</div>
 		<div :class="$style.paramBody">
 			<template v-if="paramDef.dataType.kind === 'array'">
 				<span :class="$style.count">{{ arrayValues.length }}</span>
-				<GsButton small iconOnly title="Add element" @click="addElement"><i class="ti ti-plus"></i></GsButton>
+				<GsButton small iconOnly :title="i18n.ts._Parameter.AddElement" @click="addElement"><i class="ti ti-plus"></i></GsButton>
 			</template>
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
-				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || (paramValue.inputSource === 'layerInput' && !layerInputTypeCompatible)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || (paramValue.inputSource === 'layerInput' && !layerInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsInput v-if="paramValue.inputSource === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
 						<template #caption>
-							<div v-if="isExpressionSyntaxError" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
+							<div v-if="isExpressionSyntaxError" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> {{ i18n.ts._Parameter.SyntaxError }}</div>
 						</template>
 					</GsInput>
 					<GsSelect
@@ -43,22 +43,22 @@
 					/>
 					<div v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" style="display: grid; gap: 6px;">
 						<GsButton v-if="paramValue.inputSource === 'automationGraphReference'" small @click="selectAutomationGraph">{{ selectedAutomationGraph?.name ?? i18n.ts.None }}</GsButton>
-						<GsButton v-else small @click="inlineGraphEditorOpen = true">Edit graph</GsButton>
+						<GsButton v-else small @click="inlineGraphEditorOpen = true">{{ i18n.ts._Parameter.EditGraph }}</GsButton>
 						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" small :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
-							<template #label>Time axis</template>
+							<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
 						</GsSelect>
 						<GsInput v-if="selectedAutomationGraph?.isNormalized" type="number" small :min="1" :modelValue="paramValue.trimmedDurationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
-							<template #label>Duration (ms)</template>
+							<template #label>{{ i18n.ts._Parameter.DurationMs }}</template>
 						</GsInput>
 						<GsSelect small :modelValue="paramValue.wrapMode" :items="graphWrapModeItems" @update:modelValue="wrapMode => updateAutomationGraphOptions({ wrapMode })">
-							<template #label>Wrap mode</template>
+							<template #label>{{ i18n.ts._Parameter.WrapMode }}</template>
 						</GsSelect>
 						<GsSelect v-if="automationGraphEndEnabled !== false" small :modelValue="paramValue.offsetMode" :items="graphOffsetModeItems" @update:modelValue="offsetMode => updateAutomationGraphOptions({ offsetMode })">
-							<template #label>Offset</template>
+							<template #label>{{ i18n.ts._Parameter.Offset }}</template>
 						</GsSelect>
 					</div>
 					<div v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" style="display: grid; gap: 6px;">
-						{{ paramValue.keyframesTimeline.keyframes.length }} keyframes
+						{{ paramValue.keyframesTimeline.keyframes.length }} {{ i18n.ts._Parameter.InlineKeyframes }}
 					</div>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'externalCustomParameterInput'"
@@ -78,10 +78,10 @@
 						<button class="_button" style="padding: 4px; flex-shrink: 0;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<div v-else-if="paramValue.inputSource === 'layerInput'" style="display: flex; gap: 4px; align-items: center;">
-						<span style="flex: 1; min-width: 0;">Layers below</span>
+						<span style="flex: 1; min-width: 0;">{{ i18n.ts._Parameter.LowerLayers }}</span>
 						<button class="_button" style="padding: 4px; flex-shrink: 0;" @click="showLayerInputSamplingMenu"><i class="ti ti-dots"></i></button>
 					</div>
-					<span v-else-if="paramValue.inputSource === 'lowerLayerAudio'">Audio from layers below</span>
+					<span v-else-if="paramValue.inputSource === 'lowerLayerAudio'">{{ i18n.ts._Parameter.LowerLayerAudio }}</span>
 					<GsSelect v-else-if="paramValue.inputSource === 'layerAudio'" small :modelValue="paramValue.layerId" :items="audioLayerItems" @update:modelValue="updateAudioLayer"/>
 					<GsSelect v-else-if="paramValue.inputSource === 'literal' && paramDef.dataType.kind === 'audioSource' && audioLayerOptions != null" small :modelValue="null" :items="[{ label: i18n.ts.None, value: null }]" @update:modelValue="updateParamAsLiteral(null)"/>
 					<GsLiteralLeafValueControl
@@ -133,7 +133,7 @@
 			@edit="emit('edit', $event)"
 		>
 			<template #actions>
-				<GsButton small iconOnly danger title="Remove element" @click="removeElement(element.id)"><i class="ti ti-x"></i></GsButton>
+				<GsButton small iconOnly danger :title="i18n.ts._Parameter.RemoveElement" @click="removeElement(element.id)"><i class="ti ti-x"></i></GsButton>
 			</template>
 		</GsVisualParam>
 	</div>
@@ -242,7 +242,7 @@ const layerInputConnection = computed(() => props.paramValue.inputSource === 'la
 const audioLayerItems = computed(() => {
 	const items: { value: string | null; label: string }[] = [{ value: null, label: i18n.ts.None }, ...props.audioLayerOptions ?? []];
 	const id = props.paramValue.inputSource === 'layerAudio' ? props.paramValue.layerId : null;
-	if (id != null && !items.some(item => item.value === id)) items.push({ value: id, label: `Missing layer (${id})` });
+	if (id != null && !items.some(item => item.value === id)) items.push({ value: id, label: i18n.tsx._Parameter.MissingLayer({ id }) });
 	return items;
 });
 
@@ -255,23 +255,28 @@ const nodes = computed(() => props.visualModule?.nodes ?? []);
 
 const selectedAutomationGraph = computed(() => {
 	const value = props.paramValue;
-	return value.inputSource === 'automationGraphInline' ? { ...value.automationGraph, name: 'Inline graph' }
+	return value.inputSource === 'automationGraphInline' ? { ...value.automationGraph, name: i18n.ts._AutomationGraph.InlineGraph }
 		: value.inputSource === 'automationGraphReference' ? props.automationGraphs.find(graph => graph.id === value.automationGraphId) : null;
 });
 const graphTimeAxisItems = [
-	{ label: 'Normalized (0–1)', value: 'normalized' },
-	{ label: 'Milliseconds', value: 'milliseconds' },
+	{ label: i18n.ts._Parameter.NormalizedTime, value: 'normalized' },
+	{ label: i18n.ts._Parameter.Milliseconds, value: 'milliseconds' },
 ];
 const graphWrapModeItems = [
-	{ label: 'Clamp', value: 'clamp' },
-	{ label: 'Repeat', value: 'repeat' },
-	{ label: 'Repeat mirrored', value: 'repeatMirrored' },
+	{ label: i18n.ts._WrapModes.clamp, value: 'clamp' },
+	{ label: i18n.ts._WrapModes.repeat, value: 'repeat' },
+	{ label: i18n.ts._WrapModes.repeatMirrored, value: 'repeatMirrored' },
 ] satisfies { label: string; value: AutomationGraphPlaybackOptions['wrapMode'] }[];
 const graphOffsetModeItems = [
-	{ label: 'Start', value: 'start' },
-	{ label: 'End', value: 'end' },
+	{ label: i18n.ts.Start, value: 'start' },
+	{ label: i18n.ts.End, value: 'end' },
 ] satisfies { label: string; value: AutomationGraphPlaybackOptions['offsetMode'] }[];
-const envVariableItems = computed(() => props.availableVariables.map(variable => ({ label: variable.startsWith('TEST_') ? variable : `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
+const envVariableItems = computed(() => props.availableVariables.map(variable => {
+	const label = Object.hasOwn(i18n.ts._EnvVariables, variable)
+		? `${i18n.ts._EnvVariables[variable as keyof typeof i18n.ts._EnvVariables]} (${variable})`
+		: variable;
+	return { label, value: variable };
+}));
 const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : paramDefs.value)
 	.filter(def => !def.canNode && (def.dataType.kind === 'audioSource') === (props.paramDef.dataType.kind === 'audioSource'))
 	.map(def => ({ label: `${def.ui.label} (${def.nameForReference})`, value: def.id })));
@@ -350,7 +355,7 @@ function updateAutomationGraphDuration(trimmedDurationMs: number) {
 
 function selectAutomationGraph(ev: PointerEvent) {
 	ui.popupMenu([
-		{ text: '(none)', action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: null }) },
+		{ text: i18n.ts.None, action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: null }) },
 		...props.automationGraphs.map(a => ({
 			text: a.name,
 			action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: a.id }),
@@ -360,11 +365,11 @@ function selectAutomationGraph(ev: PointerEvent) {
 
 function getMenu() {
 	const menuItems: MenuItem[] = [{
-		text: 'Direct Edit',
+		text: i18n.ts._Parameter.DirectEdit,
 		icon: 'ti ti-forms',
 		action: () => controlComponent.value?.directEdit?.(),
 	}, {
-		text: 'Reset',
+		text: i18n.ts.Reset,
 		icon: 'ti ti-refresh',
 		danger: true,
 		action: () => emit('edit', { kind: 'reset', ...target() }),
@@ -372,26 +377,26 @@ function getMenu() {
 
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
 	if (props.paramDef.dataType.kind !== 'array' && props.paramDef.dataType.kind !== 'struct') {
-		menuItems.push({ type: 'label', text: 'Input source' });
+		menuItems.push({ type: 'label', text: i18n.ts._Parameter.InputSource });
 		const types: { text: string; inputSource: EditableParameterBinding['inputSource']; icon: string }[] = [
-			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
-			{ text: 'Environment Variable', inputSource: 'envVariable', icon: 'ti ti-variable' },
-			{ text: 'Expression', inputSource: 'expression', icon: 'ti ti-math-function' },
-			{ text: 'Keyframes', inputSource: 'keyframesTimelineInline', icon: 'ti ti-timeline' },
-			{ text: 'Automation Graph (Reference)', inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
-			{ text: 'Automation Graph (Inline)', inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: i18n.ts._Parameter.Literal, inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
+			{ text: i18n.ts._Parameter.EnvironmentVariable, inputSource: 'envVariable', icon: 'ti ti-variable' },
+			{ text: i18n.ts._Parameter.Expression, inputSource: 'expression', icon: 'ti ti-math-function' },
+			{ text: i18n.ts._Parameter.Keyframes, inputSource: 'keyframesTimelineInline', icon: 'ti ti-timeline' },
+			{ text: i18n.ts._Parameter.AutomationGraphReference, inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: i18n.ts._Parameter.AutomationGraphInline, inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },
 		];
 		if (props.paramDef.dataType.kind === 'audioSource') {
 			types.splice(1);
 			if (props.audioLayerOptions != null) types.push(
-				{ text: 'Audio from layers below', inputSource: 'lowerLayerAudio', icon: 'ti ti-wave-sine' },
-				{ text: 'Audio from layer', inputSource: 'layerAudio', icon: 'ti ti-wave-sine' },
+				{ text: i18n.ts._Parameter.LowerLayerAudio, inputSource: 'lowerLayerAudio', icon: 'ti ti-wave-sine' },
+				{ text: i18n.ts._Parameter.LayerAudio, inputSource: 'layerAudio', icon: 'ti ti-wave-sine' },
 			);
 		}
-		if (props.node != null) types.push({ text: 'Custom Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
-		if (canNode.value && props.node != null) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
+		if (props.node != null) types.push({ text: i18n.ts._Parameter.CustomParameter, inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
+		if (canNode.value && props.node != null) types.push({ text: i18n.ts._Parameter.Node, inputSource: 'node', icon: 'ti ti-plug' });
 		if (props.layerInputEnabled && canNode.value && canConnectNodeDataTypes({ kind: 'color' }, inputDataType.value)) {
-			types.push({ text: 'Layers below', inputSource: 'layerInput', icon: 'ti ti-stack-2' });
+			types.push({ text: i18n.ts._Parameter.LowerLayers, inputSource: 'layerInput', icon: 'ti ti-stack-2' });
 		}
 		for (const { text, inputSource, icon } of types) {
 			if (inputSource === 'keyframesTimelineInline' && (!props.keyframesEnabled || !isKeyframesDataType(props.paramDef.dataType))) continue;
@@ -414,7 +419,7 @@ function showNodeInputMenu(ev: PointerEvent) {
 	const abortController = new AbortController();
 
 	const menuItems: MenuItem[] = [{
-		text: 'Disconnect',
+		text: i18n.ts._Parameter.Disconnect,
 		danger: true,
 		action: () => {
 			abortController.abort();
@@ -424,7 +429,7 @@ function showNodeInputMenu(ev: PointerEvent) {
 		type: 'divider',
 	}, {
 		type: 'label',
-		text: 'Sampling',
+		text: i18n.ts._Parameter.Sampling,
 	}];
 
 	if (nodeConnection.value != null) {

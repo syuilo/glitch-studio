@@ -1,3 +1,4 @@
+import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -16,7 +17,7 @@ const bundle = await build({
 		resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['mediabunny'],
 	define: { _VERSION_: '"2.0.0-alpha"' },
-	plugins: [{ name: 'thumbnail-test-dependencies', setup(build) {
+	plugins: [i18nPlugin, { name: 'thumbnail-test-dependencies', setup(build) {
 		build.onResolve({ filter: /ui\.ts$/ }, () => ({ path: 'test-ui', external: true }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'test-preferences', external: true }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'test-effects', external: true }));

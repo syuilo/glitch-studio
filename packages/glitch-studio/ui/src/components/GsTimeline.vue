@@ -9,25 +9,25 @@
 	<div :class="$style.header">
 		<div :class="$style.headerLeft">
 			<slot></slot>
-			<GsButton style="margin-left: 15px;" small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
+			<GsButton style="margin-left: 15px;" small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">{{ i18n.ts.Preview }}</GsButton>
 			<span :class="$style.headerMajorDivider"></span>
 		</div>
 		<div :class="$style.headerCenter" style="gap: 20px;">
-			<GsButton v-tooltip="'CUE [C]'" small :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent>CUE</GsButton>
+			<GsButton v-tooltip="i18n.ts._Timeline.CueShortcut" small :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent>{{ i18n.ts._Timeline.Cue }}</GsButton>
 			<div style="display: flex; gap: 4px;">
-				<GsButton v-tooltip="'Go to Start'" small iconOnly @click="seek(0)"><i class="ti ti-player-skip-back"></i></GsButton>
+				<GsButton v-tooltip="i18n.ts._Timeline.GoToStart" small iconOnly @click="seek(0)"><i class="ti ti-player-skip-back"></i></GsButton>
 				<!--<GsButton v-tooltip="'Back 10 Seconds'" small iconOnly @click="seek(time - 10000)"><i class="ti ti-rewind-backward-10"></i></GsButton>-->
-				<GsButton v-tooltip="'Back 5 Seconds'" small iconOnly @click="seek(time - 5000)"><i class="ti ti-rewind-backward-5"></i></GsButton>
-				<GsButton v-if="previewPlayback.isTimelinePlaying.value" v-tooltip="'PAUSE [SPACE]'" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
-				<GsButton v-else v-tooltip="'PLAY [SPACE]'" small @click="play"><i class="ti ti-player-play"></i></GsButton>
-				<GsButton v-tooltip="'Forward 5 Seconds'" small iconOnly @click="seek(time + 5000)"><i class="ti ti-rewind-forward-5"></i></GsButton>
+				<GsButton v-tooltip="i18n.ts._Timeline.Back5Seconds" small iconOnly @click="seek(time - 5000)"><i class="ti ti-rewind-backward-5"></i></GsButton>
+				<GsButton v-if="previewPlayback.isTimelinePlaying.value" v-tooltip="i18n.ts._Timeline.PauseShortcut" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
+				<GsButton v-else v-tooltip="i18n.ts._Timeline.PlayShortcut" small @click="play"><i class="ti ti-player-play"></i></GsButton>
+				<GsButton v-tooltip="i18n.ts._Timeline.Forward5Seconds" small iconOnly @click="seek(time + 5000)"><i class="ti ti-rewind-forward-5"></i></GsButton>
 				<!--<GsButton v-tooltip="'Forward 10 Seconds'" small iconOnly @click="seek(time + 10000)"><i class="ti ti-rewind-forward-10"></i></GsButton>-->
 			</div>
 			<div style="display: flex; gap: 4px;">
-				<GsButton v-tooltip="'Prev Frame'" small iconOnly @click="stepFrame(-1)"><i class="ti ti-chevron-left"></i></GsButton>
-				<GsButton v-tooltip="'Next Frame'" small iconOnly @click="stepFrame(1)"><i class="ti ti-chevron-right"></i></GsButton>
-				<GsButton v-tooltip="'Prev Keyframe'" small iconOnly @click="seekToKeyframe(getPreviousKeyframeTime())"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
-				<GsButton v-tooltip="'Next Keyframe'" small iconOnly @click="seekToKeyframe(getNextKeyframeTime())"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
+				<GsButton v-tooltip="i18n.ts._Timeline.PreviousFrame" small iconOnly @click="stepFrame(-1)"><i class="ti ti-chevron-left"></i></GsButton>
+				<GsButton v-tooltip="i18n.ts._Timeline.NextFrame" small iconOnly @click="stepFrame(1)"><i class="ti ti-chevron-right"></i></GsButton>
+				<GsButton v-tooltip="i18n.ts._Timeline.PreviousKeyframe" small iconOnly @click="seekToKeyframe(getPreviousKeyframeTime())"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
+				<GsButton v-tooltip="i18n.ts._Timeline.NextKeyframe" small iconOnly @click="seekToKeyframe(getNextKeyframeTime())"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
 			</div>
 		</div>
 		<div :class="$style.headerCenter">
@@ -40,9 +40,9 @@
 			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
 			<span :class="$style.headerMinorDivider"></span>
-			<GsButton v-tooltip="'Follow Playhead'" small iconOnly :primary="followPlayhead" @click="followPlayhead = !followPlayhead"><i class="ti ti-arrow-narrow-right-dashed"></i></GsButton>
-			<GsButton v-tooltip="'Timeline Tick Settings...'" small iconOnly @click="showTickMenu"><i class="ti ti-ruler-2"></i></GsButton>
-			<GsButton v-tooltip="'Snap Settings...'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
+			<GsButton v-tooltip="i18n.ts._Timeline.FollowPlayhead" small iconOnly :primary="followPlayhead" @click="followPlayhead = !followPlayhead"><i class="ti ti-arrow-narrow-right-dashed"></i></GsButton>
+			<GsButton v-tooltip="i18n.ts._Timeline.TickSettings" small iconOnly @click="showTickMenu"><i class="ti ti-ruler-2"></i></GsButton>
+			<GsButton v-tooltip="i18n.ts._Timeline.SnapSettings" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
 	<div :class="$style.body" @contextmenu.stop.prevent @pointerdown.capture="onBackgroundPointerDown" @pointermove.capture="onTimelinePointerMove" @pointerleave="clearTimelineCursor" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
@@ -59,7 +59,7 @@
 					<span class="_monospace">{{ formatFullTimecode(time) }}</span>
 				</div>
 				<div :class="$style.layersActions">
-					<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
+					<GsButton v-tooltip="i18n.ts._Timeline.AddLayer" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
 				</div>
 			</div>
 			<GsVirtualScroll
@@ -146,6 +146,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
@@ -215,13 +216,13 @@ const clipSnapSettings = computed(() => ({ start: snapClipStart.value, end: snap
 
 function showTickMenu(event: PointerEvent) {
 	ui.popupMenu([{
-		type: 'label', text: 'Timeline ticks',
+		type: 'label', text: i18n.ts._Timeline.Ticks,
 	}, {
-		type: 'radioOption', text: 'Original',
+		type: 'radioOption', text: i18n.ts._Timeline.Original,
 		active: computed(() => tickMode.value === 'legacy'),
 		action: () => { tickMode.value = 'legacy'; },
 	}, {
-		type: 'radioOption', text: 'Binary (1, 0.5, 0.25, …)',
+		type: 'radioOption', text: i18n.ts._Timeline.Binary,
 		active: computed(() => tickMode.value === 'binary'),
 		action: () => { tickMode.value = 'binary'; },
 	}, {
@@ -231,39 +232,39 @@ function showTickMenu(event: PointerEvent) {
 	}, {
 		type: 'divider',
 	}, {
-		type: 'label', text: 'Subdivisions (display and snap)',
+		type: 'label', text: i18n.ts._Timeline.Subdivisions,
 	}, {
-		text: 'Midpoints (1/2)', type: 'switch', ref: halfTicks,
+		text: i18n.ts._Timeline.Midpoints, type: 'switch', ref: halfTicks,
 	}, {
-		text: 'Thirds (1/3, 2/3)', type: 'switch', ref: thirdTicks,
+		text: i18n.ts._Timeline.Thirds, type: 'switch', ref: thirdTicks,
 	}], event.currentTarget ?? event.target);
 }
 
 function showSnapMenu(event: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Enable Snapping', type: 'switch', ref: snapEnabled,
+		text: i18n.ts._Timeline.EnableSnapping, type: 'switch', ref: snapEnabled,
 	}, {
 		type: 'divider',
 	}, {
-		type: 'label', text: 'What Snaps',
+		type: 'label', text: i18n.ts._Timeline.WhatSnaps,
 	}, {
-		text: 'Clip Start', type: 'switch', ref: snapClipStart, disabled: computed(() => !snapEnabled.value),
+		text: i18n.ts._Timeline.ClipStart, type: 'switch', ref: snapClipStart, disabled: computed(() => !snapEnabled.value),
 	}, {
-		text: 'Clip End', type: 'switch', ref: snapClipEnd, disabled: computed(() => !snapEnabled.value),
-	}, {
-		type: 'divider',
-	}, {
-		type: 'label', text: 'Snap to',
-	}, {
-		text: 'Global Ticks', type: 'switch', ref: snapGlobalTicks, disabled: computed(() => !snapEnabled.value),
-	}, {
-		text: 'Clip Local Ticks', type: 'switch', ref: snapLocalTicks, disabled: computed(() => !snapEnabled.value),
-	}, {
-		text: 'Seekbar', type: 'switch', ref: snapToSeekBar, disabled: computed(() => !snapEnabled.value),
+		text: i18n.ts._Timeline.ClipEnd, type: 'switch', ref: snapClipEnd, disabled: computed(() => !snapEnabled.value),
 	}, {
 		type: 'divider',
 	}, {
-		text: 'Snap Seekbar to Global Ticks', type: 'switch', ref: snapSeekBar, disabled: computed(() => !snapEnabled.value),
+		type: 'label', text: i18n.ts._Timeline.SnapTo,
+	}, {
+		text: i18n.ts._Timeline.GlobalTicks, type: 'switch', ref: snapGlobalTicks, disabled: computed(() => !snapEnabled.value),
+	}, {
+		text: i18n.ts._Timeline.ClipLocalTicks, type: 'switch', ref: snapLocalTicks, disabled: computed(() => !snapEnabled.value),
+	}, {
+		text: i18n.ts._Timeline.Seekbar, type: 'switch', ref: snapToSeekBar, disabled: computed(() => !snapEnabled.value),
+	}, {
+		type: 'divider',
+	}, {
+		text: i18n.ts._Timeline.SnapSeekbar, type: 'switch', ref: snapSeekBar, disabled: computed(() => !snapEnabled.value),
 	}], event.currentTarget ?? event.target);
 }
 
@@ -590,7 +591,7 @@ const assetDrop = useAssetDrop({
 	target: useTemplateRef<HTMLElement>('root'),
 	...createTimelineDropActions({ context: appContext.projectContext, sceneId: editedScene.id, currentTime: () => time.value,
 																																isActive: isTimelineActive, inspectMedia: inspectTimelineClipMedia, revealAssets: () => emit('revealAssets') }),
-	reportError: error => { void ui.alert({ type: 'error', title: 'Timeline drop', text: error instanceof Error ? error.message : String(error) }); },
+	reportError: error => { void ui.alert({ type: 'error', title: i18n.ts._Timeline.Drop, text: error instanceof Error ? error.message : String(error) }); },
 });
 
 const { addClip, changeClipSource, showAddLayerMenu, readLayerMediaDurations } = createTimelineSourceActions({
@@ -700,7 +701,7 @@ function showClipMenu(event: PointerEvent, target: TimelineClipSelection) {
 	// 選択済みのクリップでは複数選択を保持し、修飾キーによる選択解除は行わない。
 	if (selection.value.kind !== 'clips' || !selection.value.clips.some(clip => clipSelectionKey(clip) === clipSelectionKey(target))) selectClip(target);
 	ui.contextMenu([{
-		text: 'Delete', icon: 'ti ti-trash', danger: true, action: removeSelectedClips,
+		text: i18n.ts.Delete, icon: 'ti ti-trash', danger: true, action: removeSelectedClips,
 	}], event);
 }
 

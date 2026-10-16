@@ -1,46 +1,47 @@
 <template>
 <GsFolder v-if="selectedClipEntry != null" defaultOpen asSection :withSpacer="false">
 	<template #icon><i class="ti ti-ticket"></i></template>
-	<template #label>Clip: {{ selectedClipLabel }}</template>
+	<template #label>{{ i18n.ts._TimelineClip.Title }} {{ selectedClipLabel }}</template>
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer _gaps_m">
-			<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>Start</template><template #suffix>ms</template></GsInput>
-			<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>Trim start</template><template #suffix>ms</template></GsInput>
-			<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedMediaClip ? getTimelineMediaSingleDuration(selectedMediaClip) : selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>{{ selectedMediaClip ? 'Trimmed duration' : 'Duration' }}</template><template #suffix>ms</template></GsInput>
-			<div v-if="'contentOffsetMs' in selectedClipEntry.clip">Content offset: {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
-			<div v-if="selectedClipMedia">Source duration: {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
+			<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>{{ i18n.ts.Start }}</template><template #suffix>ms</template></GsInput>
+			<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>{{ i18n.ts._TimelineClip.TrimStart }}</template><template #suffix>ms</template></GsInput>
+			<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedMediaClip ? getTimelineMediaSingleDuration(selectedMediaClip) : selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>{{ selectedMediaClip ? i18n.ts._TimelineClip.TrimmedDuration : i18n.ts.Duration }}</template><template #suffix>ms</template></GsInput>
+			<div v-if="'contentOffsetMs' in selectedClipEntry.clip">{{ i18n.ts._TimelineClip.ContentOffset }} {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
+			<div v-if="selectedClipMedia">{{ i18n.ts._TimelineClip.SourceDuration }} {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
 			<template v-if="selectedMediaClip != null">
-				<div>Source range: {{ formatMsToTimecode(selectedMediaClip.sourceInMs) }} – {{ formatMsToTimecode(selectedMediaClip.sourceOutMs) }}</div>
-				<GsInput small type="number" :min="timelineMediaMinPlaybackSpeed * 100" :max="timelineMediaMaxPlaybackSpeed * 100" :modelValue="speedPercent" @update:modelValue="value => speedPercent = Number(value)"><template #label>Speed</template><template #suffix>%</template></GsInput>
-				<GsSwitch v-model="reversePlayback">Reverse playback</GsSwitch>
-				<div v-if="speedChange.timing">Duration at this speed: {{ formatMsToTimecode(speedChange.timing.durationMs) }}</div>
+				<div>{{ i18n.ts._TimelineClip.SourceRange }} {{ formatMsToTimecode(selectedMediaClip.sourceInMs) }} – {{ formatMsToTimecode(selectedMediaClip.sourceOutMs) }}</div>
+				<GsInput small type="number" :min="timelineMediaMinPlaybackSpeed * 100" :max="timelineMediaMaxPlaybackSpeed * 100" :modelValue="speedPercent" @update:modelValue="value => speedPercent = Number(value)"><template #label>{{ i18n.ts._TimelineClip.Speed }}</template><template #suffix>%</template></GsInput>
+				<GsSwitch v-model="reversePlayback">{{ i18n.ts._TimelineClip.Reverse }}</GsSwitch>
+				<div v-if="speedChange.timing">{{ i18n.ts._TimelineClip.DurationAtSpeed }} {{ formatMsToTimecode(speedChange.timing.durationMs) }}</div>
 				<div v-if="speedChange.error || speedError" role="alert">{{ speedChange.error || speedError }}</div>
-				<GsButton small :disabled="!selectedClipMedia || !!speedChange.error || speedChange.timing?.playbackRate === selectedMediaClip.playbackRate" @click="editSelectedClipSpeed">Apply speed</GsButton>
-				<div>Preserves the source range. Audio pitch follows the speed; reverse playback also reverses audio.</div>
-				<GsInput small type="number" :min="getTimelineMediaSingleDuration(selectedMediaClip)" :disabled="!selectedClipMedia" :modelValue="selectedMediaClip.durationMs" @update:modelValue="editSelectedClipLoop"><template #label>Total duration</template><template #suffix>ms</template></GsInput>
-				<div>Extend Total duration to repeat the trimmed range.</div>
-				<GsButton v-if="selectedMediaClip.loop" small :disabled="!selectedClipMedia" @click="editSelectedClipLoop(getTimelineMediaSingleDuration(selectedMediaClip))">Remove loop</GsButton>
+				<GsButton small :disabled="!selectedClipMedia || !!speedChange.error || speedChange.timing?.playbackRate === selectedMediaClip.playbackRate" @click="editSelectedClipSpeed">{{ i18n.ts._TimelineClip.ApplySpeed }}</GsButton>
+				<div>{{ i18n.ts._TimelineClip.SpeedHint }}</div>
+				<GsInput small type="number" :min="getTimelineMediaSingleDuration(selectedMediaClip)" :disabled="!selectedClipMedia" :modelValue="selectedMediaClip.durationMs" @update:modelValue="editSelectedClipLoop"><template #label>{{ i18n.ts._TimelineClip.TotalDuration }}</template><template #suffix>ms</template></GsInput>
+				<div>{{ i18n.ts._TimelineClip.LoopHint }}</div>
+				<GsButton v-if="selectedMediaClip.loop" small :disabled="!selectedClipMedia" @click="editSelectedClipLoop(getTimelineMediaSingleDuration(selectedMediaClip))">{{ i18n.ts._TimelineClip.RemoveLoop }}</GsButton>
 			</template>
 			<template v-if="selectedVideoClip != null">
-				<GsButton v-if="!('sourceTimeMs' in selectedVideoClip)" small :disabled="!canHoldCurrentFrame || holdingFrame" @click="holdCurrentFrame">Hold current frame</GsButton>
+				<GsButton v-if="!('sourceTimeMs' in selectedVideoClip)" small :disabled="!canHoldCurrentFrame || holdingFrame" @click="holdCurrentFrame">{{ i18n.ts._TimelineClip.HoldCurrentFrame }}</GsButton>
 				<template v-if="'sourceTimeMs' in selectedVideoClip">
-					<GsInput small manualSave type="number" step="any" :min="0" :disabled="holdingFrame || selectedClipMedia == null" :modelValue="selectedVideoClip.sourceTimeMs" @update:modelValue="editHoldSourceTime"><template #label>Hold source time</template><template #suffix>ms</template></GsInput>
-					<div>Holds the source frame while transforms and opacity continue. Audio is silent.</div>
+					<GsInput small manualSave type="number" step="any" :min="0" :disabled="holdingFrame || selectedClipMedia == null" :modelValue="selectedVideoClip.sourceTimeMs" @update:modelValue="editHoldSourceTime"><template #label>{{ i18n.ts._TimelineClip.HoldSourceTime }}</template><template #suffix>ms</template></GsInput>
+					<div>{{ i18n.ts._TimelineClip.HoldHint }}</div>
 				</template>
-				<div v-else>Seek within this clip, then hold its current frame. Start and duration are preserved.</div>
+				<div v-else>{{ i18n.ts._TimelineClip.SeekToHoldHint }}</div>
 				<div v-if="holdError" role="alert">{{ holdError }}</div>
-				<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="'sourceTimeMs' in selectedVideoClip || (!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable)" @update:modelValue="editSelectedClipAudio">Audio enabled</GsSwitch>
+				<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="'sourceTimeMs' in selectedVideoClip || (!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable)" @update:modelValue="editSelectedClipAudio">{{ i18n.ts._TimelineClip.AudioEnabled }}</GsSwitch>
 				<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
 			</template>
-			<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" small @click="emit('changeSource', selectedClipEntry.target)">Change source</GsButton>
-			<GsButton v-if="selectedSceneClip != null" small @click="activeSceneId = selectedSceneClip.sceneId">Open scene</GsButton>
-			<GsButton danger small @click="emit('remove')"><i class="ti ti-trash"></i> Remove Clip</GsButton>
+			<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" small @click="emit('changeSource', selectedClipEntry.target)">{{ i18n.ts._TimelineClip.ChangeSource }}</GsButton>
+			<GsButton v-if="selectedSceneClip != null" small @click="activeSceneId = selectedSceneClip.sceneId">{{ i18n.ts._TimelineClip.OpenScene }}</GsButton>
+			<GsButton danger small @click="emit('remove')"><i class="ti ti-trash"></i> {{ i18n.ts._TimelineClip.Remove }}</GsButton>
 		</div>
 	</div>
 </GsFolder>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { changeTimelineMediaPlaybackRate, getTimelineMediaSourceTime, getTimelineMediaSingleDuration, timelineMediaMinPlaybackSpeed, timelineMediaMaxPlaybackSpeed } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { isTimelineClipActive, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
@@ -105,7 +106,7 @@ const speedChange = computed((): { timing: TimelineMediaClipTiming | null; error
 	if (!clip) return { timing: null, error: '' };
 	let timing: (typeof clip) | null = null;
 	try {
-		if (!Number.isFinite(speedPercent.value) || speedPercent.value <= 0) throw new Error('Speed must be greater than zero.');
+		if (!Number.isFinite(speedPercent.value) || speedPercent.value <= 0) throw new Error(i18n.ts._TimelineClip.InvalidSpeed);
 		timing = changeTimelineMediaPlaybackRate(clip, speedPercent.value / 100 * (reversePlayback.value ? -1 : 1));
 		validateTimelineClips(props.layer.clips.map(entry => entry.id === clip.id ? timing! : entry));
 		return { timing, error: '' };
@@ -118,13 +119,13 @@ const selectedSceneClip = computed(() => {
 const selectedClipLabel = computed(() => {
 	const entry = selectedClipEntry.value;
 	if (!entry) return '';
-	if ('assetId' in entry.clip) { const id = entry.clip.assetId; return stateManager.state.assets.value.find(asset => asset.id === id)?.name ?? 'Missing media'; }
-	if ('sceneId' in entry.clip) { const id = entry.clip.sceneId; return stateManager.state.timelineScenes.value.find(scene => scene.id === id)?.name ?? 'Missing scene'; }
-	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return stateManager.state.visualModules.value.find(visualModule => visualModule.id === id)?.name ?? 'Missing module'; }
-	if (entry.layer.layerType === 'inlineVisualModule') return 'Inline Visual Module';
-	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? 'Missing effect'; }
+	if ('assetId' in entry.clip) { const id = entry.clip.assetId; return stateManager.state.assets.value.find(asset => asset.id === id)?.name ?? i18n.ts._TimelineClip.MissingMedia; }
+	if ('sceneId' in entry.clip) { const id = entry.clip.sceneId; return stateManager.state.timelineScenes.value.find(scene => scene.id === id)?.name ?? i18n.ts._TimelineClip.MissingScene; }
+	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return stateManager.state.visualModules.value.find(visualModule => visualModule.id === id)?.name ?? i18n.ts._TimelineClip.MissingVisualModule; }
+	if (entry.layer.layerType === 'inlineVisualModule') return i18n.ts._TimelineClip.InlineVisualModule;
+	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? i18n.ts._TimelineClip.MissingEffect; }
 	if (entry.layer.layerType === 'voicevox') return 'VOICEVOX';
-	if (entry.layer.layerType === 'text') return 'Text';
+	if (entry.layer.layerType === 'text') return i18n.ts.Text;
 	if (entry.layer.layerType === 'shape') return shapeDefinitions[entry.layer.shape.type].label;
 	return '?';
 });

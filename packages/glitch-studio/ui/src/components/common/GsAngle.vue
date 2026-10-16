@@ -43,8 +43,8 @@
 				</div>
 				<div :class="$style.control">
 					<div :class="$style.value">{{ formatAngle(value) }}</div>
-					<GsButton small :primary="snapEnabled" title="Snap to step (hold Shift to disable)" @click="snapEnabled = !snapEnabled">
-						Snap {{ snapEnabled ? 'On' : 'Off' }}
+					<GsButton small :primary="snapEnabled" :title="i18n.ts._AutomationGraph.SnapHint" @click="snapEnabled = !snapEnabled">
+						{{ i18n.ts._AutomationGraph.Snap }} {{ snapEnabled ? i18n.ts.On : i18n.ts.Off }}
 					</GsButton>
 				</div>
 			</div>
@@ -54,6 +54,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import GsButton from './GsButton.vue';
 import GsModal from './GsModal.vue';

@@ -1,5 +1,4 @@
 import { markRaw } from 'vue';
-import * as ui from './ui.ts';
 
 declare const kParameters: unique symbol;
 export type ParameterizedString<T extends string = string> = string & {
@@ -8,6 +7,13 @@ export type ParameterizedString<T extends string = string> = string & {
 export interface ILocale {
 	[_: string]: string | ParameterizedString | ILocale;
 }
+
+// JSONからは補間パラメータ名の型を取得できないため、各文字列で補間を許容する。
+// キーの構造は英語辞書から取得し、未定義のキーやスコープの参照を型チェックで検出する。
+type LocaleSchema<T> = {
+	readonly [K in keyof T]: T[K] extends string ? ParameterizedString : LocaleSchema<T[K]>;
+};
+type Locale = LocaleSchema<typeof import('../locales/en-US.json')>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type TODO = any;
@@ -264,6 +270,7 @@ export const SUPPORTED_LOCALES = {
 export const isLocaleUnconfigured = localStorage.getItem('locale') == null;
 
 export async function configureLocale() {
+	const ui = await import('./ui.ts');
 	const { canceled, result } = await ui.select({
 		title: 'Select Language / 言語を選択',
 		items: Object.entries(SUPPORTED_LOCALES).map(([value, label]) => ({ label, value })),
@@ -284,15 +291,15 @@ export async function configureLocale() {
 	}
 }
 
-export const lang = localStorage.getItem('lang') ?? 'en-US';
+export const lang = localStorage.getItem('locale') ?? 'en-US';
 
-function loadLocale(lang: string): Promise<ILocale> {
+async function loadLocale(lang: string): Promise<Locale> {
 	switch (lang) {
 		case 'ja-JP':
-			return import('../locales/ja-JP.json');
+			return (await import('../locales/ja-JP.json')).default as Locale;
 		default:
-			return import('../locales/en-US.json');
+			return (await import('../locales/en-US.json')).default as Locale;
 	}
 }
 
-export const i18n = markRaw(new I18n<ILocale>(await loadLocale(lang), import.meta.env.DEV));
+export const i18n = markRaw(new I18n(await loadLocale(lang), import.meta.env.DEV));

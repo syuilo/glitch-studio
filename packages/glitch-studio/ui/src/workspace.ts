@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n.ts';
 import { genId } from '@gs/shared/utility/id.js';
 import { markRaw } from 'vue';
 import { findWorkspaceElement, removeWorkspaceElement, replaceWorkspaceElement, splitAndAddWorkspacePanel } from './utility/workspace.ts';
@@ -20,22 +21,22 @@ import XProjectInfo from '@/components/GsWorkspacePanel.ProjectInfo.vue';
 import XTimelineSubPanel from '@/components/GsWorkspacePanel.TimelineSubPanel.vue';
 
 const panelDefinitions = {
-	blank: { label: 'Blank', icon: '', component: XBlank },
-	audioSpectrum: { label: 'Audio Spectrum', icon: 'ti ti-chart-column', component: XAudioSpectrum },
-	audioSpectrogram: { label: 'Audio Spectrogram', icon: 'ti ti-chart-area', component: XAudioSpectrogram },
-	audioWaveform: { label: 'Audio Waveform', icon: 'ti ti-wave-sine', component: XAudioWaveform },
-	histogram: { label: 'Histogram', icon: 'ti ti-chart-column', component: XHistogram },
-	waveformHorizontal: { label: 'Waveform (X)', icon: 'ti ti-chart-column', component: XWaveform },
-	waveformVertical: { label: 'Waveform (Y)', icon: 'ti ti-chart-column', component: XWaveform },
-	preview: { label: 'Preview', icon: 'ti ti-device-desktop', component: XPreview },
-	players: { label: 'Players', icon: 'ti ti-player-play', component: XPlayers },
-	visualModuleEditor: { label: 'Visual Module Editor', icon: 'ti ti-chart-dots-3', component: XVisualModuleEditor },
-	stats: { label: 'Stats', icon: 'ti ti-activity', component: XStats },
-	commandLog: { label: 'Command Log', icon: 'ti ti-logs', component: XCommandLog },
-	timeline: { label: 'Timeline', icon: 'ti ti-timeline', component: XTimeline },
-	assets: { label: 'Assets', icon: 'ti ti-folder-open', component: XAssets },
-	projectInfo: { label: 'Project Info', icon: 'ti ti-file-description', component: XProjectInfo },
-	timelineSubPanel: { label: 'Timeline Sub Panel', icon: 'ti ti-layout-sidebar-right', component: XTimelineSubPanel },
+	blank: { label: i18n.ts._Workspace.Blank, icon: '', component: XBlank },
+	audioSpectrum: { label: i18n.ts._Workspace.AudioSpectrum, icon: 'ti ti-chart-column', component: XAudioSpectrum },
+	audioSpectrogram: { label: i18n.ts._Workspace.AudioSpectrogram, icon: 'ti ti-chart-area', component: XAudioSpectrogram },
+	audioWaveform: { label: i18n.ts._Workspace.AudioWaveform, icon: 'ti ti-wave-sine', component: XAudioWaveform },
+	histogram: { label: i18n.ts._Workspace.Histogram, icon: 'ti ti-chart-column', component: XHistogram },
+	waveformHorizontal: { label: i18n.ts._Workspace.WaveformX, icon: 'ti ti-chart-column', component: XWaveform },
+	waveformVertical: { label: i18n.ts._Workspace.WaveformY, icon: 'ti ti-chart-column', component: XWaveform },
+	preview: { label: i18n.ts.Preview, icon: 'ti ti-device-desktop', component: XPreview },
+	players: { label: i18n.ts.Players, icon: 'ti ti-player-play', component: XPlayers },
+	visualModuleEditor: { label: i18n.ts._Workspace.VisualModuleEditor, icon: 'ti ti-chart-dots-3', component: XVisualModuleEditor },
+	stats: { label: i18n.ts._Workspace.Stats, icon: 'ti ti-activity', component: XStats },
+	commandLog: { label: i18n.ts._Workspace.CommandLog, icon: 'ti ti-logs', component: XCommandLog },
+	timeline: { label: i18n.ts._Workspace.Timeline, icon: 'ti ti-timeline', component: XTimeline },
+	assets: { label: i18n.ts.Assets, icon: 'ti ti-folder-open', component: XAssets },
+	projectInfo: { label: i18n.ts._Workspace.ProjectInfo, icon: 'ti ti-file-description', component: XProjectInfo },
+	timelineSubPanel: { label: i18n.ts._Workspace.TimelineSubPanel, icon: 'ti ti-layout-sidebar-right', component: XTimelineSubPanel },
 } as const;
 
 export const workspacePanelDefinitions: typeof panelDefinitions = markRaw(panelDefinitions);
@@ -79,7 +80,7 @@ export function getElementMenu(element: WorkspaceElement) {
 
 	menuItems.push({
 		type: 'parent',
-		text: 'Switch type to',
+		text: i18n.ts._Workspace.SwitchType,
 		children: workspacePanelChoices.map(({ type, ...info }) => ({
 			text: info.label,
 			action: () => {
@@ -94,7 +95,7 @@ export function getElementMenu(element: WorkspaceElement) {
 		})),
 	}, {
 		icon: 'ti ti-layout-navbar',
-		text: 'Group in tabs',
+		text: i18n.ts._Workspace.GroupInTabs,
 		action: () => {
 			const target = findWorkspaceElement(preferences.s.workspaceDefinition, element.id);
 			if (!target) return;
@@ -111,29 +112,29 @@ export function getElementMenu(element: WorkspaceElement) {
 		},
 	}, { type: 'divider' }, {
 		icon: 'ti ti-box-align-top',
-		text: 'Add panel to above',
+		text: i18n.ts._Workspace.AddAbove,
 		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'above')),
 	}, {
 		icon: 'ti ti-box-align-bottom',
-		text: 'Add panel to below',
+		text: i18n.ts._Workspace.AddBelow,
 		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'below')),
 	}, {
 		icon: 'ti ti-box-align-left',
-		text: 'Add panel to left',
+		text: i18n.ts._Workspace.AddLeft,
 		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'left')),
 	}, {
 		icon: 'ti ti-box-align-right',
-		text: 'Add panel to right',
+		text: i18n.ts._Workspace.AddRight,
 		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'right')),
 	});
 
 	if (element.type === 'tabs' || element.type === 'panel') {
 		menuItems.push({
 			type: 'parent',
-			text: element.type === 'tabs' ? 'Tab direction' : 'Header direction',
+			text: element.type === 'tabs' ? i18n.ts._Workspace.TabDirection : i18n.ts._Workspace.HeaderDirection,
 			children: (['horizontal', 'vertical'] as const).map(direction => ({
 				type: 'radioOption',
-				text: direction === 'horizontal' ? 'Horizontal' : 'Vertical',
+				text: direction === 'horizontal' ? i18n.ts._Workspace.Horizontal : i18n.ts._Workspace.Vertical,
 				active: element.direction === direction,
 				action: () => {
 					const target = findWorkspaceElement(preferences.s.workspaceDefinition, element.id);
@@ -146,7 +147,7 @@ export function getElementMenu(element: WorkspaceElement) {
 
 	menuItems.push({ type: 'divider' }, {
 		icon: 'ti ti-x',
-		text: 'Close',
+		text: i18n.ts.Close,
 		danger: true,
 		action: () => preferences.commit('workspaceDefinition', removeWorkspaceElement(preferences.s.workspaceDefinition, element)),
 	});

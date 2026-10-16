@@ -11,10 +11,10 @@
 >
 	<div :class="$style.root" class="_shadow _popup" tabindex="-1" @keydown.stop="onKeydown">
 		<div :class="$style.header">
-			<b>{{ title ?? 'Color' }}</b>
+			<b>{{ title ?? i18n.ts.Color }}</b>
 			<div :class="$style.actions">
-				<div v-if="EyeDropper" :class="[$style.button, { [$style.busy]: picking }]" title="画面から色を取得" tabindex="0" @click="pickFromScreen" @keydown.enter.prevent="pickFromScreen"><i class="ti ti-color-picker"></i></div>
-				<div :class="$style.button" title="閉じる" tabindex="0" @click="close" @keydown.enter.prevent="close"><i class="ti ti-x"></i></div>
+				<div v-if="EyeDropper" :class="[$style.button, { [$style.busy]: picking }]" :title="i18n.ts._ColorPicker.PickFromScreen" tabindex="0" @click="pickFromScreen" @keydown.enter.prevent="pickFromScreen"><i class="ti ti-color-picker"></i></div>
+				<div :class="$style.button" :title="i18n.ts.Close" tabindex="0" @click="close" @keydown.enter.prevent="close"><i class="ti ti-x"></i></div>
 			</div>
 		</div>
 		<div :class="$style.body">
@@ -52,18 +52,19 @@
 				<div v-if="error" :class="$style.error">{{ error }}</div>
 			</div>
 		</div>
-		<div :class="$style.recentTitle">Recent colors</div>
+		<div :class="$style.recentTitle">{{ i18n.ts._ColorPicker.RecentColors }}</div>
 		<div :class="$style.recent">
 			<div v-for="(recentColor, index) in recent" :key="index" :class="[$style.swatch, $style.checker]" :title="colorHex(recentColor)" tabindex="0" @click="setColor(recentColor)" @keydown.enter.prevent="setColor(recentColor)">
 				<div :class="$style.fill" :style="{ background: colorCss(recentColor) }"></div>
 			</div>
-			<span v-if="recent.length === 0" :class="$style.empty">まだありません</span>
+			<span v-if="recent.length === 0" :class="$style.empty">{{ i18n.ts._ColorPicker.NoRecentColors }}</span>
 		</div>
 	</div>
 </GsModal>
 </template>
 
 <script setup lang="ts">
+import { i18n } from '@/i18n.ts';
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import type { RgbaColor } from '@/utility/color-input.ts';
 import { clampColorValue, colorCss, colorHex, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv } from '@/utility/color-input.ts';

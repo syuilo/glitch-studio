@@ -1,7 +1,7 @@
 <template>
 <GsFolder asSection defaultOpen :withSpacer="false">
 	<template #icon><i class="ti ti-typography"></i></template>
-	<template #label>Text</template>
+	<template #label>{{ i18n.ts.Text }}</template>
 	<div style="padding: 8px 0;">
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(textParamDefs)"
@@ -20,6 +20,7 @@
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed } from 'vue';
 import { textParamDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';

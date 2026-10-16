@@ -168,7 +168,7 @@
 		</template>
 
 		<span v-if="items2 == null || items2.length === 0" tabindex="-1" :class="[$style.none, $style.item]">
-			<span>None</span>
+			<span>{{ i18n.ts.None }}</span>
 		</span>
 
 		<div
@@ -207,6 +207,7 @@ const childrenCache = new WeakMap<MenuParent, MenuItem[]>();
 </script>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import XChild from './GsMenu.child.vue';
 
 const props = defineProps<{

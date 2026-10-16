@@ -1,14 +1,14 @@
 <template>
 <GsFolder v-if="selectedKeyframe != null" defaultOpen asSection :withSpacer="false">
 	<template #icon><i class="ti ti-keyframe"></i></template>
-	<template #label>Keyframe: {{ selectedKeyframe.def.ui.label }}</template>
+	<template #label>{{ i18n.ts._TimelineKeyframe.Title }} {{ selectedKeyframe.def.ui.label }}</template>
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer _gaps_m">
 			<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
-				<template #label>Time</template>
+				<template #label>{{ i18n.ts.Time }}</template>
 				<template #suffix>ms</template>
 			</GsInput>
-			<div>Value</div>
+			<div>{{ i18n.ts.Value }}</div>
 			<GsLiteralLeafValueControl
 				:dataType="selectedKeyframe.def.dataType"
 				:control="selectedKeyframe.def.ui.control"
@@ -25,16 +25,17 @@
 					<template #label>{{ editor.label }}</template>
 				</GsSelect>
 				<GsSelect v-if="editor.direction != null" small :modelValue="editor.direction" :items="easingDirectionItems" @update:modelValue="direction => updateKeyframeEasingDirection(editor.keyframe.id, direction)">
-					<template #label>Easing direction</template>
+					<template #label>{{ i18n.ts._TimelineKeyframe.EasingDirection }}</template>
 				</GsSelect>
 			</template>
-			<GsButton danger small @click="emit('remove')"><i class="ti ti-trash"></i> Remove Keyframe</GsButton>
+			<GsButton danger small @click="emit('remove')"><i class="ti ti-trash"></i> {{ i18n.ts._TimelineKeyframe.Remove }}</GsButton>
 		</div>
 	</div>
 </GsFolder>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, ref, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
@@ -60,8 +61,8 @@ const keyframeValueMergeKey = ref<string | null>(null);
 watch(() => props.selection, () => { keyframeValueMergeKey.value = null; });
 
 const keyframeInterpolationItems: GsSelectItem<KeyframeInterpolation['type']>[] = [
-	{ label: 'Hold', value: 'hold' },
-	{ label: 'Linear', value: 'linear' },
+	{ label: i18n.ts._TimelineKeyframe.Hold, value: 'hold' },
+	{ label: i18n.ts._FilterModes.linear, value: 'linear' },
 	{ label: 'Sine', value: 'ease:sine' },
 	{ label: 'Quad', value: 'ease:quad' },
 	{ label: 'Cubic', value: 'ease:cubic' },
@@ -81,10 +82,10 @@ const easingDirectionItems: GsSelectItem<EasingDirection>[] = [
 const keyframeInterpolationEditors = computed(() => {
 	const selected = selectedKeyframe.value;
 	if (selected == null || !supportsKeyframeInterpolation(selected.def.dataType)) return [];
-	const editors = [{ keyframe: selected.keyframe, label: 'Interpolation to next keyframe' }];
+	const editors = [{ keyframe: selected.keyframe, label: i18n.ts._TimelineKeyframe.InterpolationToNext }];
 	// このキーまでの補間は直前のキーが所有する。選択は維持し、編集先のIDだけを切り替える。
 	if (selected.previousKeyframe != null) {
-		editors.unshift({ keyframe: selected.previousKeyframe, label: 'Interpolation from previous keyframe' });
+		editors.unshift({ keyframe: selected.previousKeyframe, label: i18n.ts._TimelineKeyframe.InterpolationFromPrevious });
 	}
 	return editors.map(editor => ({
 		...editor,

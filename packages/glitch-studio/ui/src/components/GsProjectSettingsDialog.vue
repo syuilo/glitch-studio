@@ -1,40 +1,41 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @opened="dialogContent?.focus()" @closed="emit('closed')" @esc="closeDialog" @click="closeDialog">
 	<div ref="dialogContent" :class="$style.root" class="_gaps_m" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
-		<div>Project settings</div>
-		<div>Base Resolution</div>
+		<div>{{ i18n.ts._Project.Settings }}</div>
+		<div>{{ i18n.ts._Project.BaseResolution }}</div>
 		<div style="display: flex; gap: 12px;">
-			<GsInput style="flex: 1; min-width: 0;" :modelValue="width" type="number" :min="1" :step="1" @update:modelValue="updateWidth"><template #label>Width</template><template #suffix>px</template></GsInput>
+			<GsInput style="flex: 1; min-width: 0;" :modelValue="width" type="number" :min="1" :step="1" @update:modelValue="updateWidth"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
 			<GsButton small iconOnly :primary="lockedAspectRatio != null" @click="toggleAspectRatioLock"><i class="ti ti-link"></i></GsButton>
-			<GsInput style="flex: 1; min-width: 0;" :modelValue="height" type="number" :min="1" :step="1" @update:modelValue="updateHeight"><template #label>Height</template><template #suffix>px</template></GsInput>
+			<GsInput style="flex: 1; min-width: 0;" :modelValue="height" type="number" :min="1" :step="1" @update:modelValue="updateHeight"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
-		<div v-if="!isResolutionValid">Width and height must be positive integers.</div>
-		<GsInput v-model="timelineFps" type="number" :min="1" :max="120" :step="'any'"><template #label>Base Timeline FPS</template><template #suffix>fps</template></GsInput>
+		<div v-if="!isResolutionValid">{{ i18n.ts._Project.InvalidResolution }}</div>
+		<GsInput v-model="timelineFps" type="number" :min="1" :max="120" :step="'any'"><template #label>{{ i18n.ts._Project.BaseTimelineFps }}</template><template #suffix>fps</template></GsInput>
 		<GsFolder>
 			<template #icon><i class="ti ti-reduce-motion"></i></template>
-			<template #label>Timeline Motion Blur</template>
-			<template #suffix>{{ timelineMotionBlur.enabled ? 'Enabled' : 'Disabled' }}</template>
+			<template #label>{{ i18n.ts._Project.MotionBlur }}</template>
+			<template #suffix>{{ timelineMotionBlur.enabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</template>
 			<div class="_gaps_l">
-				<GsSwitch v-model="timelineMotionBlur.enabled">Enable</GsSwitch>
+				<GsSwitch v-model="timelineMotionBlur.enabled">{{ i18n.ts.Enable }}</GsSwitch>
 				<div class="_gaps_m" :inert="!timelineMotionBlur.enabled">
-					<GsInput v-model="timelineMotionBlur.shutterAngle" type="number" :min="0" :max="360" :step="'any'"><template #label>Shutter angle</template><template #suffix>°</template></GsInput>
-					<GsInput v-model="timelineMotionBlur.samples" type="number" :min="0" :max="MAX_MOTION_BLUR_SAMPLES" :step="1"><template #label>Export samples</template></GsInput>
+					<GsInput v-model="timelineMotionBlur.shutterAngle" type="number" :min="0" :max="360" :step="'any'"><template #label>{{ i18n.ts._Project.ShutterAngle }}</template><template #suffix>°</template></GsInput>
+					<GsInput v-model="timelineMotionBlur.samples" type="number" :min="0" :max="MAX_MOTION_BLUR_SAMPLES" :step="1"><template #label>{{ i18n.ts._Project.ExportSamples }}</template></GsInput>
 				</div>
 				<div v-if="timelineMotionBlur.enabled && historyEffects.length" :class="$style.warning">
-					<i class="ti ti-alert-triangle" style="color: var(--THEME-warn);"></i> Motion blur does not support effects that depend on render history: {{ historyEffects.join(', ') }}.
+					<i class="ti ti-alert-triangle" style="color: var(--THEME-warn);"></i> {{ i18n.ts._Project.MotionBlurUnsupported }} {{ historyEffects.join(', ') }}.
 				</div>
 			</div>
 		</GsFolder>
 		<div v-if="renderSettingsError">{{ renderSettingsError }}</div>
 		<div :class="$style.actions">
-			<GsButton inline @click="closeDialog">Cancel</GsButton>
-			<GsButton inline primary :disabled="!isResolutionValid || renderSettingsError != null" @click="apply">OK</GsButton>
+			<GsButton inline @click="closeDialog">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton inline primary :disabled="!isResolutionValid || renderSettingsError != null" @click="apply">{{ i18n.ts.OK }}</GsButton>
 		</div>
 	</div>
 </GsModal>
 </template>
 
 <script lang="ts" setup>
+import { i18n } from '@/i18n.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
