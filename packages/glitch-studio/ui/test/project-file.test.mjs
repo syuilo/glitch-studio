@@ -28,6 +28,7 @@ const appBundle = await build({
 	...buildOptions,
 	stdin: { resolveDir: buildOptions.absWorkingDir, loader: 'ts', contents: `
 		export * from './src/app.ts';
+		export { recentProjects } from './src/recent-projects.ts';
 		export { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './src/AppContext.ts';
 	` },
 	plugins: [i18nPlugin, {
@@ -659,10 +660,14 @@ test('resolves queued Save against the destination committed by Save as', async 
 	await Promise.all([saveAs, save]);
 	assert.deepEqual(first.bytes, original);
 	assert.equal(decodeProjectFile(second.bytes).name, 'Queued Save snapshot');
+	const savedId = decodeProjectFile(second.bytes).id;
+	assert.notEqual(savedId, 'project-id');
+	assert.equal(appContext.projectContext.snapshot().id, savedId);
 	appContext.projectContext.stateManager.state.name.value = 'Next Save';
 	await appContext.saveProject();
 	assert.deepEqual(first.bytes, original);
 	assert.equal(decodeProjectFile(second.bytes).name, 'Next Save');
+	assert.equal(decodeProjectFile(second.bytes).id, savedId);
 	assert.deepEqual(globalThis.projectAlerts, []);
 });
 
@@ -1158,7 +1163,7 @@ test('saves editable project information, updates the title and preserves undo h
 	assert.deepEqual(globalThis.projectAlerts, []);
 });
 
-// Save asが成功したときだけ次のSave先を切り替える。
+// 【Save asが成功したときだけ保存先とプロジェクトIDを切り替える】
 // キャンセルやディスク書込失敗で保存先が変わると、以後意図しないファイルを上書きしてしまう。
 test('changes the Save target only after a successful Save as', async t => {
 	const window = setup(t);
@@ -1169,9 +1174,11 @@ test('changes the Save target only after a successful Save as', async t => {
 	const copy = fileHandle('copy.gsproj');
 	window.selectProjectSaveFile = async () => original;
 	await appContext.saveProject();
+	const originalId = appContext.projectContext.snapshot().id;
 	window.selectProjectSaveFile = async () => null;
 	appContext.projectContext.stateManager.state.name.value = 'Before cancellation';
 	await appContext.saveProject(true);
+	assert.equal(appContext.projectContext.snapshot().id, originalId);
 	assert.equal(appContext.hasUnsavedChanges.value, true);
 	appContext.projectContext.stateManager.state.name.value = 'After cancellation';
 	await appContext.saveProject();
@@ -1181,6 +1188,7 @@ test('changes the Save target only after a successful Save as', async t => {
 	window.selectProjectSaveFile = async () => failed;
 	appContext.projectContext.stateManager.state.name.value = 'Before failure';
 	await appContext.saveProject(true);
+	assert.equal(appContext.projectContext.snapshot().id, originalId);
 	assert.equal(appContext.hasUnsavedChanges.value, true);
 	appContext.projectContext.stateManager.state.name.value = 'After failure';
 	await appContext.saveProject();
@@ -1188,12 +1196,109 @@ test('changes the Save target only after a successful Save as', async t => {
 	assert.deepEqual(globalThis.projectAlerts, ['write failed']);
 	window.selectProjectSaveFile = async () => copy;
 	await appContext.saveProject(true);
+	const copyId = appContext.projectContext.snapshot().id;
+	assert.notEqual(copyId, originalId);
+	assert.equal(decodeProjectFile(copy.bytes).id, copyId);
+	assert.equal(decodeProjectFile(original.bytes).id, originalId);
 	assert.equal(appContext.hasUnsavedChanges.value, false);
 	window.selectProjectSaveFile = () => assert.fail('Save should reuse the new target');
 	appContext.projectContext.stateManager.state.name.value = 'After Save as';
 	await appContext.saveProject();
 	assert.equal(decodeProjectFile(copy.bytes).name, 'After Save as');
+	assert.equal(decodeProjectFile(copy.bytes).id, copyId);
 	assert.equal(decodeProjectFile(original.bytes).name, 'After failure');
+});
+
+// 【別名保存中の編集を残し、Undo/RedoでプロジェクトIDを巻き戻さない】
+// 保存成功時に再読込すると保存中の編集と履歴が消える。新IDだけを採用し、
+// 保存したスナップショットと異なる編集は未保存として残ることを確認する。
+test('adopts the saved identity while preserving concurrent edits and undo history', async t => {
+	const window = setup(t);
+	const { appContext } = evaluate(appBundle);
+	const original = fileHandle('original.gsproj');
+	const copy = fileHandle('copy.gsproj');
+	await appContext.ready(project(), original.name, original);
+	const manager = appContext.projectContext.stateManager;
+	manager.commit('changeProjectResolution', { width: 800, height: 600 });
+	const started = Promise.withResolvers();
+	const finish = Promise.withResolvers();
+	const createWritable = copy.createWritable;
+	copy.createWritable = async () => {
+		const stream = await createWritable();
+		return { ...stream, async close() { started.resolve(); await finish.promise; await stream.close(); } };
+	};
+	window.selectProjectSaveFile = async () => copy;
+	const saveAs = appContext.saveProject(true);
+	await started.promise;
+	manager.commit('changeProjectResolution', { width: 1024, height: 768 });
+	finish.resolve();
+	await saveAs;
+	const savedId = decodeProjectFile(copy.bytes).id;
+	assert.notEqual(savedId, 'project-id');
+	assert.equal(appContext.projectContext.snapshot().id, savedId);
+	assert.deepEqual(manager.state.resolution.value, { width: 1024, height: 768 });
+	assert.deepEqual(decodeProjectFile(copy.bytes).resolution, { width: 800, height: 600 });
+	assert.equal(appContext.hasUnsavedChanges.value, true);
+	manager.undo();
+	assert.deepEqual(manager.state.resolution.value, { width: 800, height: 600 });
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	manager.undo();
+	assert.equal(appContext.projectContext.snapshot().id, savedId);
+	manager.redo();
+	manager.redo();
+	assert.deepEqual(manager.state.resolution.value, { width: 1024, height: 768 });
+	assert.equal(appContext.projectContext.snapshot().id, savedId);
+});
+
+// 【成功したOpen/Saveだけを履歴へ記録し、履歴保存の失敗で本体の結果を変えない】
+// 新規作成・読込失敗・書込失敗は利用実績にしない。永続化の容量不足などが起きても、
+// 実際に読み込めた作品や書き込めたファイルを失敗扱いにして再操作を誘発しない。
+test('records only successful file operations and isolates recent project storage failures', async t => {
+	const window = setup(t);
+	let bytes = await encodeProjectFile(project());
+	const recorded = [];
+	let failHistory = false;
+	let failWrite = false;
+	window.desktop = {
+		async chooseProjectFile() { return { id: 'native', name: 'native.gsproj' }; },
+		async chooseProjectSaveFile() { return { id: 'native', name: 'native.gsproj' }; },
+		async registerProjectFile() { return null; },
+		async readProjectFile() { return bytes; },
+		async writeProjectFile(_id, data) { if (failWrite) throw new Error('Write failed'); bytes = data; },
+		async listRecentProjects() { return []; },
+		async rememberRecentProject(id, name) {
+			if (failHistory) throw new Error('History storage full');
+			recorded.push({ id, name });
+		},
+	};
+	const app = evaluate(appBundle);
+	await app.newProject();
+	await app.recentProjects.refresh();
+	assert.deepEqual(recorded, []);
+	assert.equal(await app.openProject(), true);
+	assert.deepEqual(recorded, [{ id: 'native', name: 'Example' }]);
+	await app.appContext.saveProject();
+	await app.recentProjects.refresh();
+	assert.equal(recorded.length, 2);
+	failWrite = true;
+	await app.appContext.saveProject();
+	await app.recentProjects.refresh();
+	assert.equal(recorded.length, 2);
+	failWrite = false;
+	failHistory = true;
+	assert.equal(await app.openProject(), true);
+	assert.equal(app.recentProjects.error.value, 'History storage full');
+	app.appContext.projectContext.stateManager.state.name.value = 'Saved despite history failure';
+	await app.appContext.saveProject();
+	await setImmediate();
+	assert.equal(app.appContext.hasUnsavedChanges.value, false);
+	assert.equal(decodeProjectFile(bytes).name, 'Saved despite history failure');
+	assert.equal(app.recentProjects.error.value, 'History storage full');
+	assert.deepEqual(globalThis.projectAlerts, ['Write failed']);
+	const beforeFailure = recorded.length;
+	bytes = new Uint8Array([0xc1]);
+	assert.equal(await app.openProject(), false);
+	assert.equal(recorded.length, beforeFailure);
 });
 
 // 新規作成後は以前のファイルハンドルを使わない。

@@ -231,6 +231,11 @@
 		"OpenMedia": "メディアを開く…",
 		"OpenProject": "プロジェクトを開く…",
 		"RecentProjects": "最近のプロジェクト",
+		"NoRecentProjects": "最近のプロジェクトはありません",
+		"RetryRecentProjects": "再試行",
+		"RemoveRecentProject": "履歴から削除",
+		"ClearRecentProjects": "履歴を消去",
+		"ConfirmClearRecentProjects": "最近のプロジェクトの履歴を消去しますか？ プロジェクトファイルは削除されません。",
 		"WebLimitations": "Web版には一部制限があります。",
 		"DesktopVersion": "デスクトップ版"
 	},

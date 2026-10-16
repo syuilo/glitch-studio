@@ -23,7 +23,25 @@
 			<GsFolder defaultOpen asSection>
 				<template #icon><i class="ti ti-clock"></i></template>
 				<template #label>{{ i18n.ts._Dashboard.RecentProjects }}</template>
-				<div></div>
+				<div :class="$style.recentProjects" data-test-recent-projects>
+					<div v-if="recentProjects.error.value != null" :class="$style.recentError" data-test-recent-projects-error>
+						{{ recentProjects.error.value }}
+						<button class="_textButton" :disabled="recentProjectsBusy" @click="refreshRecentProjects">{{ i18n.ts._Dashboard.RetryRecentProjects }}</button>
+					</div>
+					<div v-if="recentProjectsLoading" data-test-recent-projects-loading>{{ i18n.ts.Loading }}</div>
+					<template v-else>
+						<div v-if="recentProjects.entries.value.length === 0 && recentProjects.error.value == null" :class="$style.recentEmpty" data-test-recent-projects-empty>{{ i18n.ts._Dashboard.NoRecentProjects }}</div>
+						<div v-for="entry in recentProjects.entries.value" :key="entry.id" :class="$style.recentProject" data-test-recent-project>
+							<button class="_button" :class="$style.recentOpen" :disabled="recentProjectsBusy" data-test-open-recent-project @click="openRecentProject(entry.id)">
+								<span :class="$style.recentName">{{ entry.name }}</span>
+								<span :class="$style.recentFileName">{{ entry.fileName }}</span>
+								<GsTime :key="entry.lastUsedAt" :time="entry.lastUsedAt" :class="$style.recentTime" data-test-recent-project-time/>
+							</button>
+							<button v-tooltip="i18n.ts._Dashboard.RemoveRecentProject" class="_button" :class="$style.recentRemove" :disabled="recentProjectsBusy" data-test-remove-recent-project @click="removeRecentProject(entry.id)"><i class="ti ti-x"></i></button>
+						</div>
+						<button v-if="recentProjects.entries.value.length > 0" class="_textButton" :disabled="recentProjectsBusy" data-test-clear-recent-projects @click="clearRecentProjects">{{ i18n.ts._Dashboard.ClearRecentProjects }}</button>
+					</template>
+				</div>
 			</GsFolder>
 		</div>
 	</div>
@@ -32,11 +50,13 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/i18n.ts';
-import { inject, onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
+import { inject, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsModal from './common/GsModal.vue';
 import GsAboutDialog from './GsAboutDialog.vue';
 import GsFolder from './common/GsFolder.vue';
+import GsTime from './common/GsTime.vue';
+import { recentProjects } from '@/recent-projects.ts';
 import { appContext, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { importAssets } from '@/utility/import-assets.ts';
@@ -49,8 +69,43 @@ const isElectron = __ELECTRON__;
 const modal = useTemplateRef('modal');
 const workspaceController = inject(workspaceControllerKey)!;
 let disposeFileDrops: (() => void) | null = null;
+const recentProjectsLoading = ref(true);
+const recentProjectsBusy = ref(false);
+
+async function refreshRecentProjects() {
+	recentProjectsLoading.value = true;
+	await recentProjects.refresh();
+	recentProjectsLoading.value = false;
+}
+
+async function openRecentProject(id: string) {
+	if (recentProjectsBusy.value) return;
+	recentProjectsBusy.value = true;
+	try {
+		const handle = await recentProjects.resolve(id);
+		if (await openProject(null, handle)) modal.value?.close();
+	} catch (error) {
+		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+	} finally {
+		recentProjectsBusy.value = false;
+	}
+}
+
+async function removeRecentProject(id: string) {
+	recentProjectsBusy.value = true;
+	await recentProjects.remove(id);
+	recentProjectsBusy.value = false;
+}
+
+async function clearRecentProjects() {
+	recentProjectsBusy.value = true;
+	const { canceled } = await ui.confirm({ type: 'question', text: i18n.ts._Dashboard.ConfirmClearRecentProjects });
+	if (!canceled) await recentProjects.clear();
+	recentProjectsBusy.value = false;
+}
 
 onMounted(() => {
+	void refreshRecentProjects();
 	const target = modal.value?.getRootElement();
 	if (target == null) return;
 	disposeFileDrops = installFileDropHandlers(target, onFileDrop,
@@ -128,5 +183,58 @@ function showAbout() {
 
 .side {
 	flex: 1;
+	min-width: 0;
+	overflow-y: auto;
+}
+
+.recentProjects {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.recentProject {
+	display: flex;
+	align-items: center;
+	border-radius: 6px;
+
+	&:hover, &:focus-within {
+		background: var(--THEME-buttonHoverBg);
+	}
+}
+
+.recentOpen {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	flex-direction: column;
+	gap: 4px;
+	padding: 10px;
+	text-align: left;
+}
+
+.recentName, .recentFileName {
+	max-width: 100%;
+	overflow: clip;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.recentName {
+	font-weight: bold;
+}
+
+.recentFileName, .recentTime, .recentEmpty {
+	font-size: 90%;
+	opacity: 0.7;
+}
+
+.recentRemove {
+	flex-shrink: 0;
+	padding: 10px;
+}
+
+.recentError {
+	overflow-wrap: anywhere;
 }
 </style>

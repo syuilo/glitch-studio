@@ -22,6 +22,8 @@ const bundle = await build({ absWorkingDir: directory,
 		export { workspaceControllerKey } from './src/WorkspaceController.ts';
 		export { assetImportTest } from '@/utility/import-assets.ts';
 		export { preferences } from '@/preferences.ts';
+		export { recentProjects } from './src/recent-projects.ts';
+		export { dashboardTest } from '@/app.ts';
 		export { getActiveDragData, getDragSessionData } from './src/utility/drag-and-drop.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	define: { _VERSION_: '"test"', __ELECTRON__: 'false' },
@@ -40,9 +42,10 @@ const bundle = await build({ absWorkingDir: directory,
 				commit(key, value) { this.commits.push(value); this.r[key].value = value; } };`,
 			'workspace.ts': `export const workspacePanelDefinitions = { assets: { icon: '', label: 'Assets', component: 'div' } }; export function getElementMenu() { return []; }`,
 			'app.ts': `export const appContext = { projectContext: { hasProject: true, stateManager: { commit() {} } } };
+				export const dashboardTest = { opened: [], success: true };
 				export async function newProject() {} export async function newProjectFromImageOrVideo() { return true; }
-				export async function openProject() { return true; }`,
-			'ui.ts': 'export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {}',
+				export async function openProject(file, handle) { dashboardTest.opened.push({ file, handle }); return dashboardTest.success; }`,
+			'ui.ts': 'export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {} export async function confirm() { return { canceled: false }; }',
 			media: 'export async function openMediaFile() {}',
 			'asset-import': `export const assetImportTest = { calls: [], read: null };
 				export async function importAssets(context, files) { assetImportTest.calls.push({ context, files });
@@ -51,7 +54,7 @@ const bundle = await build({ absWorkingDir: directory,
 		}[path] }));
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: path === 'GsModal' ? `
 			import { h, useTemplateRef } from 'vue'; export default { setup(_, { attrs, slots, expose }) {
-				const root = useTemplateRef('root'); expose({ getRootElement: () => root.value, close() {} });
+				const root = useTemplateRef('root'); expose({ getRootElement: () => root.value, close() { root.value.props['data-test-modal-closed'] = true; } });
 				return () => h('div', { ...attrs, ref: 'root' }, [h('div', { 'data-test-modal-background': '' }),
 					...Object.values(slots).flatMap(slot => slot())]);
 			} };` : `
@@ -71,7 +74,7 @@ const bundle = await build({ absWorkingDir: directory,
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Draggable, Panel, Divider, Asset, VisualModuleEditor, AssetSelectDialog, DashboardDialog, workspaceControllerKey, assetImportTest,
-	preferences, getActiveDragData, getDragSessionData } = module.exports;
+	preferences, getActiveDragData, getDragSessionData, recentProjects, dashboardTest } = module.exports;
 
 function fixture(t, render, provide = () => {}) {
 	const windowTarget = new EventTarget();
@@ -99,6 +102,7 @@ function fixture(t, render, provide = () => {}) {
 	});
 	const root = element('root');
 	const app = renderer.createApp({ setup: () => render });
+	app.directive('tooltip', {});
 	provide(app);
 	app.component('TestTransitionGroup', { setup(_, { attrs, slots }) { return () => h('div', attrs, slots.default()); } });
 	app.mount(root);
@@ -124,6 +128,48 @@ function event(type, dataTransfer, node) {
 const settle = async () => { await new Promise(resolve => setTimeout(resolve, 20)); await nextTick(); };
 const list = (model, group, key) => h(Draggable, { modelValue: model.value, group, direction: 'vertical', 'data-test-list': key,
 	'onUpdate:modelValue': value => { model.value = value; } }, { default: ({ item }) => h('span', item.name ?? item.id) });
+
+// 【履歴を表示し、GsTimeへ日時を渡し、開けたときだけダッシュボードを閉じる】
+// 一覧だけ表示できても実際の再オープンに接続されていなければ利用できない。
+// 履歴の削除・全消去後の空表示も、実SFCのイベントとリアクティブな更新で検証する。
+test('renders recent projects with GsTime and connects reopening, removal and clearing', async t => {
+	const previousStore = recentProjects.store;
+	const previousEntries = recentProjects.entries.value;
+	let entries = [
+		{ id: 'first', name: 'First project', fileName: 'same.gsproj', lastUsedAt: 1000 },
+		{ id: 'second', name: 'Second project', fileName: 'same.gsproj', lastUsedAt: 2000 },
+	];
+	const resolved = { kind: 'file', name: 'same.gsproj' };
+	recentProjects.store = {
+		async list() { return [...entries]; }, async resolve() { return resolved; },
+		async remove(id) { entries = entries.filter(entry => entry.id !== id); }, async clear() { entries = []; },
+	};
+	dashboardTest.opened = [];
+	dashboardTest.success = false;
+	t.after(() => {
+		recentProjects.store = previousStore;
+		recentProjects.entries.value = previousEntries;
+		dashboardTest.success = true;
+	});
+	const f = fixture(t, () => h(DashboardDialog), app => app.provide(workspaceControllerKey, { revealPanel() {} }));
+	assert.ok(f.find('data-test-recent-projects-loading'));
+	await settle();
+	assert.equal(f.find('data-test-recent-projects-loading'), undefined);
+	assert.equal(f.find('data-test-recent-project-time').tag, 'GsTime');
+	assert.equal(f.find('data-test-recent-project-time').props.time, 1000);
+	await f.find('data-test-open-recent-project').props.onClick();
+	assert.deepEqual(dashboardTest.opened, [{ file: null, handle: resolved }]);
+	assert.equal(f.find('data-test-modal-closed'), undefined);
+	dashboardTest.success = true;
+	await f.find('data-test-open-recent-project').props.onClick();
+	assert.ok(f.find('data-test-modal-closed'));
+	await f.find('data-test-remove-recent-project').props.onClick();
+	await nextTick();
+	assert.equal(recentProjects.entries.value.length, 1);
+	await f.find('data-test-clear-recent-projects').props.onClick();
+	await nextTick();
+	assert.ok(f.find('data-test-recent-projects-empty'));
+});
 
 // 【背景を含むAsset選択モーダル全体で複数ファイルを取り込み、選択の確定はユーザーの操作に残す】
 // popupはAppの全体ドロップ受付へ届かないため、実SFCに受付を接続して確認する。

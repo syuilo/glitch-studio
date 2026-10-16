@@ -61,10 +61,10 @@ export type AppStateChange = ProjectContentChange
 	| { type: 'sceneName'; sceneId: string };
 
 export class ProjectContext {
-	private projectId: Project['id'] | null = null;
+	private projectId = ref<Project['id'] | null>(null);
 	private loadGeneration = 0;
 	public get generation() { return this.loadGeneration; }
-	public get hasProject() { return this.projectId != null; }
+	public get hasProject() { return this.projectId.value != null; }
 	public readonly stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;
 
 	constructor() {
@@ -99,16 +99,22 @@ export class ProjectContext {
 		this.stateManager.state.timelineScenes.value = project.timelineScenes;
 		this.stateManager.undoStack.value = [];
 		this.stateManager.redoStack.value = [];
-		this.projectId = project.id;
+		this.projectId.value = project.id;
+	}
+
+	// 別名保存の成功後にファイルの同一性だけを切り替える。再読込やCommandによる変更にすると、
+	// 編集履歴が失われたり、Undoで旧ファイルのIDへ戻ってしまう。
+	public adoptSavedProjectId(id: Project['id']): void {
+		this.projectId.value = id;
 	}
 
 	public snapshot(): Project | null {
-		if (this.projectId == null) return null;
+		if (this.projectId.value == null) return null;
 		const state = this.stateManager.state;
 		// 保存・バックアップで同じ完全な状態を使う。非同期のエンコードや保存先選択の間に
 		// 編集されても、取得済みのスナップショットへ変更が混入しないよう切り離す。
 		return deepClone({
-			id: this.projectId,
+			id: this.projectId.value,
 			gsVersion: _VERSION_,
 			name: state.name.value,
 			description: state.description.value,

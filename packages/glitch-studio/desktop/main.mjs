@@ -5,6 +5,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, net, Notification, protocol,
 import { resolveAppPath } from './protocol-path.mjs';
 import { ProjectFiles } from './project-files.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
+import { RecentProjects, registerRecentProjectsIpc } from './recent-projects.mjs';
 import { getStartupProjectPath } from './startup-project.mjs';
 import { ExportFiles } from './export-files.mjs';
 import { registerExportFileIpc } from './export-file-ipc.mjs';
@@ -195,6 +196,7 @@ app.whenReady().then(() => {
 
 	registerVoicevoxIpc(ipcMain, getTrustedMainWindow);
 	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, startupProjectPath);
+	registerRecentProjectsIpc(ipcMain, new RecentProjects(path.join(app.getPath('userData'), 'recent-projects')), projectFiles, getTrustedMainWindow);
 	registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMainWindow);
 
 	createWindow();

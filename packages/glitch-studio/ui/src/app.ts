@@ -13,6 +13,7 @@ import videoEffectDef from '@gs/subsystems_effect_shared/fx/video/_def_.ts';
 import audioWaveformEffectDef from '@gs/subsystems_effect_shared/fx/audioWaveform/_def_.ts';
 import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile } from './gsproj.ts';
+import { recentProjects } from './recent-projects.ts';
 import { makeHotkey } from './utility/hotkey.ts';
 import { AppContext } from './AppContext.ts';
 import { ProjectContext } from './Project.ts';
@@ -65,6 +66,7 @@ export async function openProject(file?: File | null, fileHandle?: ProjectFileHa
 		const result = await loadProjectFile(file, fileHandle);
 		if (result == null) return false;
 		await appContext.ready(result.project, result.name, result.handle);
+		if (result.handle != null) await recentProjects.remember(result.handle, result.project.name);
 		return true;
 	} catch (error) {
 		console.error(error);

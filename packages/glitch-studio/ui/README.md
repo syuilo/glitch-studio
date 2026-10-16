@@ -113,3 +113,11 @@ Controllerは失敗を通知し、破棄の調整は`PreviewRenderEngine`に集�
 Controllerの初回起動と破棄後の再生成は`relaunchManager()`を使い、保持した最新設定と新しいCanvasから生成する。レンダラーの`renderError`は失敗のみを通知し、Controllerのエラー表示は新しいManagerの初期化完了で解除する。Timelineの状態ストアは描画失敗を保持せず、Managerの破棄時に全状態を解除する。
 
 書き出しは編集時の検証結果を使用し、開始時のプロジェクト全体の再検証は行わない。書き出し専用の出力設定と、実素材・GPU・エンコーダーの検証は別途行う。
+
+## 最近のプロジェクトと別名保存
+
+`recent-projects.ts`の`RecentProjectsController`がファイルの利用履歴を管理する。プロジェクトの読み込み成功と手動保存成功で更新し、最終利用日時順に最大20件を表示する。日時表示は`GsTime`を使う。未保存プロジェクト・再オープン可能な参照のないFile・自動バックアップは登録しない。履歴の削除は実ファイルを変更しない。
+
+Web版はIndexedDBに`FileSystemFileHandle`を保存し、`isSameEntry()`で同一ファイルを判定する。一覧取得時にハンドルを保持し、クリック直後に読み取り権限を要求してから既存の`openProject()`へ渡す。Electron版はmainの`recent-projects.mjs`がuserData内にファイルパスと表示情報を保存する。ファイルごとの履歴を個別に置換し、別プロセスで登録した他の作品を古い一覧で上書きしない。rendererには実パスを返さず、再オープン時に履歴IDからセッション内のファイル参照を再発行する。どちらも履歴の永続化失敗を本体のOpen/Saveの失敗にしない。
+
+Save asは保存データに新しいプロジェクトIDを発行し、本体の書き込み成功後だけ`ProjectContext`へ反映する。キャンセル・失敗では元のIDを維持し、Undo/Redoの内容は保持する。待機中の通常Saveは、内容には要求時のスナップショットを使い、保存先とIDには先行するSave asの成功結果を使う。

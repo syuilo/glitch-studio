@@ -1,4 +1,6 @@
 import { computed, ref, watch } from 'vue';
+import { genId } from '@gs/shared/utility/id.ts';
+import { recentProjects } from './recent-projects.ts';
 import { preferences } from './preferences.ts';
 import { projectSaveBackupWriter, ProjectSaveSession } from './project-save-session.ts';
 import { createProjectBackupFingerprint, DEFAULT_PROJECT_BACKUP_SETTINGS, ProjectBackupController } from './project-backups.ts';
@@ -57,7 +59,7 @@ export class ProjectSaveController {
 	public projectBackupStatus = ref<ProjectBackupStatus>({ lastAutoBackup: null, lastSaveBackup: null, error: null });
 	public projectBackupController: ProjectBackupController;
 
-	constructor(private getSnapshot: () => Project | null) {
+	constructor(private getSnapshot: () => Project | null, private adoptSavedProjectId: (id: Project['id']) => void) {
 		this.projectSaveSession = new ProjectSaveSession((target, previous) => {
 			this.projectFileName.value = target?.handle.name ?? null;
 			this.projectBackupAccess.value = target?.backup ? 'ready' : target ? 'folder-required' : 'unsaved';
@@ -126,7 +128,6 @@ export class ProjectSaveController {
 	public async saveProject(saveAs = false): Promise<void> {
 		const project = this.projectReady.value ? this.getSnapshot() : null;
 		if (!project) return;
-		const fingerprint = this.backupFingerprint(project);
 		const generation = this.projectGeneration;
 		const requestedHandle = saveAs ? null : this.projectSaveSession.target?.handle;
 		// 待ち行列やエンコードより前に権限要求を始め、クリックの有効期間を失わない。
@@ -135,6 +136,10 @@ export class ProjectSaveController {
 		await this.projectSaveSession.runExclusive(async savedTarget => {
 			try {
 				if (generation !== this.projectGeneration) return;
+				// 内容は要求時のスナップショットを使い、IDだけ実行時に決める。
+				// 先行するSave asが成功していたら、待機中のSaveもその新しいIDを引き継ぐ。
+				project.id = saveAs ? genId() : this.getSnapshot()!.id;
+				const fingerprint = this.backupFingerprint(project);
 				let handle = saveAs ? null : savedTarget?.handle ?? null;
 				let directory = saveAs ? null : savedTarget?.directory ?? null;
 				let target = saveAs ? null : savedTarget?.backup ?? null;
@@ -167,10 +172,12 @@ export class ProjectSaveController {
 				if (generation !== this.projectGeneration) return;
 				await saveProjectFile(data, handle);
 				if (generation === this.projectGeneration) {
+					this.adoptSavedProjectId(project.id);
 					// 保存中の編集を保存済みにしないよう、書き込んだスナップショットを基準にする。
 					// バックアップ整理の成否ではなく、本体の書き込み成功時点で更新する。
 					this.savedFingerprint.value = fingerprint;
 					this.projectSaveSession.setTarget({ handle, directory, backup: target });
+					void recentProjects.remember(handle, project.name);
 					if (target) await this.projectBackupController.afterSave(target, saveBackupTime);
 				}
 			} catch (error) {

@@ -19,6 +19,7 @@ export class ProjectFiles {
 	}
 
 	clear() { this.#projects.clear(); }
+	getPath(id) { return this.#project(id); }
 
 	describe(id) { return { id, name: path.basename(this.#project(id)) }; }
 

@@ -248,7 +248,10 @@ export class AppContext {
 			this.renderEngine.requestRetry();
 		});
 
-		this.projectSaveController = new ProjectSaveController(() => this.projectContext.snapshot());
+		this.projectSaveController = new ProjectSaveController(
+			() => this.projectContext.snapshot(),
+			id => { this.projectContext.adoptSavedProjectId(id); },
+		);
 	}
 
 	private async updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {

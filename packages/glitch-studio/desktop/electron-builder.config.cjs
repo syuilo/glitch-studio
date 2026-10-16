@@ -11,7 +11,7 @@ module.exports = {
 		author: 'syuilo',
 	},
 	// 開発用スクリプトや依存パッケージを配布物に含めない。
-	files: ['main.mjs', 'voicevox.mjs', 'preload.cjs', 'protocol-path.mjs', 'project-files.mjs', 'project-file-ipc.mjs', 'startup-project.mjs', 'export-files.mjs', 'export-file-ipc.mjs', '!node_modules/**/*'],
+	files: ['main.mjs', 'voicevox.mjs', 'preload.cjs', 'protocol-path.mjs', 'project-files.mjs', 'project-file-ipc.mjs', 'recent-projects.mjs', 'startup-project.mjs', 'export-files.mjs', 'export-file-ipc.mjs', '!node_modules/**/*'],
 	extraResources: [
 		{ from: '../ui/dist-electron', to: 'ui' },
 		// OSがタスクバー用のアイコンを直接読み取れるよう、asarの外に配置する。

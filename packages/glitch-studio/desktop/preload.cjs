@@ -12,6 +12,11 @@ contextBridge.exposeInMainWorld('desktop', {
 		return filePath ? ipcRenderer.invoke('desktop:register-project-file', filePath) : Promise.resolve(null);
 	},
 	chooseProjectFile: () => ipcRenderer.invoke('desktop:choose-project-file'),
+	listRecentProjects: () => ipcRenderer.invoke('desktop:list-recent-projects'),
+	rememberRecentProject: (id, name) => ipcRenderer.invoke('desktop:remember-recent-project', id, name),
+	resolveRecentProject: (id) => ipcRenderer.invoke('desktop:resolve-recent-project', id),
+	removeRecentProject: (id) => ipcRenderer.invoke('desktop:remove-recent-project', id),
+	clearRecentProjects: () => ipcRenderer.invoke('desktop:clear-recent-projects'),
 	chooseProjectSaveFile: (name) => ipcRenderer.invoke('desktop:choose-project-save-file', name),
 	readProjectFile: (id) => ipcRenderer.invoke('desktop:read-project-file', id),
 	writeProjectFile: (id, data) => ipcRenderer.invoke('desktop:write-project-file', id, data),

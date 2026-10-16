@@ -12,6 +12,11 @@ interface Window {
 		getPathForFile(file: File): string;
 		registerProjectFile(file: File): Promise<{ id: string; name: string } | null>;
 		chooseProjectFile(): Promise<{ id: string; name: string } | null>;
+		listRecentProjects(): Promise<import('../recent-projects.ts').RecentProjectEntry[]>;
+		rememberRecentProject(id: string, name: string): Promise<void>;
+		resolveRecentProject(id: string): Promise<{ id: string; name: string }>;
+		removeRecentProject(id: string): Promise<void>;
+		clearRecentProjects(): Promise<void>;
 		chooseProjectSaveFile(name: string): Promise<{ id: string; name: string } | null>;
 		readProjectFile(id: string): Promise<Uint8Array | null>;
 		writeProjectFile(id: string, data: Uint8Array): Promise<void>;

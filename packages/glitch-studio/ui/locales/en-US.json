@@ -231,6 +231,11 @@
 		"OpenMedia": "Open Media...",
 		"OpenProject": "Open Project...",
 		"RecentProjects": "Recent Projects",
+		"NoRecentProjects": "No recent projects",
+		"RetryRecentProjects": "Retry",
+		"RemoveRecentProject": "Remove from recent projects",
+		"ClearRecentProjects": "Clear recent projects",
+		"ConfirmClearRecentProjects": "Clear recent projects? Project files will be kept.",
 		"WebLimitations": "The web version has some limitations.",
 		"DesktopVersion": "Desktop version"
 	},
