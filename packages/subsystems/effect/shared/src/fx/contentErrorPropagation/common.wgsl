@@ -12,7 +12,6 @@ struct Uniforms {
 	following: f32,
 	boundaryThreshold: f32,
 	boundaryStrength: f32,
-	strength: f32,
 	flowMode: u32,
 	errorMode: u32,
 	seed: u32,

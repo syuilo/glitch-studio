@@ -12,7 +12,6 @@ export default defineEffect({
 	tags: ['glitch', 'color', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		strength: { dataType: { kind: 'scalar' }, ui: { label: 'Error Strength', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },
 		sourceProbability: { dataType: { kind: 'scalar' }, ui: { label: 'Source Probability', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.12 } },
 		sourceSpacing: { dataType: { kind: 'scalar' }, ui: { label: 'Source Spacing (% of Short Side)', control: { controlType: 'range', min: 0.5, max: 20, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 4 } },
 		sourceSize: { dataType: { kind: 'scalar' }, ui: { label: 'Source Size / Spacing', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.2 } },

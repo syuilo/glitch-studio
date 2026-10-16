@@ -131,7 +131,6 @@ export default implementEffect<typeof definition>({
 				const steps = clamp(Math.round(params.steps), 1, 256);
 				const propagationLength = Math.max(0, params.propagationLength) / 100;
 				const retention = clamp(params.retention, 0, 1);
-				const strength = Math.max(0, params.strength);
 				const sourceProbability = clamp(params.sourceProbability, 0, 1);
 				const sourceSize = clamp(params.sourceSize, 0, 1);
 				const angle = params.angle * Math.PI;
@@ -151,7 +150,6 @@ export default implementEffect<typeof definition>({
 					following: clamp(params.following, 0, 1),
 					boundaryThreshold: Math.max(0.000001, params.boundaryThreshold),
 					boundaryStrength: clamp(params.boundaryStrength, 0, 1),
-					strength,
 					flowMode: flowModes[params.flowMode],
 					errorMode: errorModes[params.errorMode],
 					seed: (seedWords[0] ^ seedWords[1]) >>> 0,
@@ -159,7 +157,7 @@ export default implementEffect<typeof definition>({
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const outputTexture = ctx.outputDataMap.output.texture;
 				let current = 0;
-				if (strength > 0 && sourceProbability > 0 && sourceSize > 0) {
+				if (sourceProbability > 0 && sourceSize > 0) {
 					// fitは最終出力の寸法を基準とし、解析用テクスチャの切り上げには影響させない。
 					const capture = capturePipelines.update({ input: params.input }, outputTexture);
 					const attachment = (view: GPUTextureView): GPURenderPassDescriptor => ({
