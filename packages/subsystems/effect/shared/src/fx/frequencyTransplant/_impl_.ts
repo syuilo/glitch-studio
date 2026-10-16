@@ -32,7 +32,7 @@ export default implementEffect<typeof definition>({
 			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
 		] });
 		const createVariant = (inputs: ShaderInputValues<typeof inputSchema>) => {
-			// computeでの面積サンプリングと、fragmentでの元画像・Amountの取得に同じ入力設定を使う。
+			// computeでの面積サンプリングと、fragmentでの元画像の取得に同じ入力設定を使う。
 			const generated = generateShaderInputs(inputSchema, inputs, 1, 'level0');
 			const bindings = createShaderInputBindings(device, generated);
 			try {
@@ -53,7 +53,7 @@ export default implementEffect<typeof definition>({
 				throw error;
 			}
 		};
-		// 入力3個の定数／テクスチャの組合せは最大8通り。値やfit/wrap/filterだけの変更では再生成しない。
+		// 入力2個の定数／テクスチャの組合せは最大4通り。値やfit/wrap/filterだけの変更では再生成しない。
 		const variants = new Map<string, ReturnType<typeof createVariant>>();
 		const getVariant = (inputs: ShaderInputValues<typeof inputSchema>) => {
 			const key = shaderInputVariantKey(inputSchema, inputs);
@@ -132,7 +132,7 @@ export default implementEffect<typeof definition>({
 					preserveDetails: Number(params.preserveDetails),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const inputs = { input: params.input, donor: params.donor, amount: params.amount };
+				const inputs = { input: params.input, donor: params.donor };
 				const variant = getVariant(inputs);
 				const inputGroup = variant.bindings.update(inputs, ctx.outputDataMap.output.texture);
 				const compute = ctx.createComputePassEncoder(ctx.commandEncoder);
