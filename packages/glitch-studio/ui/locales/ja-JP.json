@@ -51,73 +51,8 @@
 		"Seek": "再生位置",
 		"Volume": "音量"
 	},
-	"Menu": {
-		"File": "ファイル",
-		"Edit": "編集",
-		"View": "表示",
-		"Presets": "プリセット",
-		"Help": "ヘルプ",
-		"_File": {
-			"OpenImage": "画像を開く",
-			"SaveImage": "画像を保存",
-			"SavePreset": "プリセットを保存",
-			"ExportPreset": "プリセットをエクスポート",
-			"ImportPreset": "プリセットをインポート",
-			"RemovePreset": "プリセットを削除",
-			"Preferences": "設定",
-			"Exit": "終了"
-		},
-		"_Edit": {
-			"Undo": "元に戻す",
-			"Redo": "やり直す",
-			"RandomizeAll": "全てランダマイズ",
-			"RandomFx": "ランダムエフェクト",
-			"Init": "初期化"
-		},
-		"_View": {
-			"ShowAllParams": "全てのパラメータを表示",
-			"ShowHistogram": "ヒストグラムを表示",
-			"CollapseAllFx": "全てのエフェクトを折りたたむ",
-			"ExpandAllFx": "全てのエフェクトを展開",
-			"ZoomIn": "拡大",
-			"ZoomOut": "縮小",
-			"ResetZoom": "ズームリセット",
-			"ToggleFullscreen": "フルスクリーン切り替え"
-		},
-		"_Help": {
-			"OpenDataFolder": "データフォルダを開く",
-			"ToggleDeveloperTools": "開発者ツール切り替え",
-			"ReportIssue": "問題を報告",
-			"FeatureRequest": "機能を要望",
-			"SupportUsOnPatreon": "Patreonで開発者をサポート",
-			"About": "このソフトについて"
-		}
-	},
-	"Project": "プロジェクト",
-	"NoPresets": "プリセットなし",
-	"NoEffects": "エフェクトなし",
-	"NoCustomParameterInputs": "マクロなし",
-	"NoAssets": "アセットなし",
-	"Fx": "FX",
-	"CustomParameterInput": "マクロ",
+	"Assets": "アセット",
 	"Asset": "アセット",
-	"Stats": "統計",
-	"Monitors": "モニター",
-	"Waveform": "ウェーブフォーム",
-	"RgbWaveform": "RGBウェーブフォーム",
-	"Now": "現在",
-	"FrameRenderTimesLast30Seconds": "直近30秒間のフレーム描画時間",
-	"AddEffect": "エフェクトを追加",
-	"AddCustomParameterInput": "マクロを追加",
-	"AddAsset": "アセットを追加",
-	"ClickToDisable": "クリックして無効化",
-	"ClickToEnable": "クリックして有効化",
-	"RemoveEffect": "エフェクトを削除",
-	"Randomize": "ランダマイズ",
-	"Language": "言語",
-	"ReplaceAsset": "アセットを置き換え",
-	"RenameAsset": "名前を変更",
-	"RemoveAsset": "アセットを削除",
 	"_BlendModes": {
 		"_Categories": {
 			"Basic": "基本",
@@ -186,10 +121,25 @@
 		"HEIGHT": "レンダリングの縦幅",
 		"IS_EXPORT": "エクスポート用レンダリングかどうか"
 	},
-	"GpuMemoryEstimate": "Estimated GPU resource memory\nTextures: {textures} MiB\nBuffers: {buffers} MiB",
+	"_FitModes": {
+		"stretch": "引き伸ばす",
+		"cover": "覆う",
+		"contain": "収める"
+	},
+	"_WrapModes": {
+		"clamp": "伸ばす",
+		"repeat": "繰り返し",
+		"repeatMirrored": "繰り返し (反転)",
+		"transparent": "透明"
+	},
+	"_FilterModes": {
+		"linear": "リニア",
+		"nearest": "ニアレスト"
+	},
+	"GpuMemoryEstimate": "推定GPUメモリ使用量\nテクスチャ: {textures} MiB\nバッファ: {buffers} MiB",
 	"None": "なし",
 	"Random": "ランダム",
-	"PresetVersionWarn": "このプリセットはお使いのGlitch Studioのバージョン({current})よりも新しいバージョン({newer})で作られているためインポートできません。\nこのプリセットをインポートするには、お使いのGlitch Studioを最新バージョンに更新してください。",
+	"PresetVersionWarn": "このプリセットはお使いのGlitch Studioのバージョン({current})よりも新しいバージョン({newer})で作られているためインポートできません。\nこのプリセットをインポートするには最新バージョンに更新してください。",
 	"SelectLanguage": "言語を選択",
 	"LocaleChangedTitle": "言語が変更されました",
 	"LocaleChangedDescription": "変更を反映させるにはアプリケーションを再起動してください。"
