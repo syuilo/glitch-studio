@@ -1,8 +1,8 @@
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
-	id: 'mirror',
-	displayName: 'Mirror',
+	id: 'lineSymmetryMirror',
+	displayName: 'Line Symmetry Mirror',
 	description: {
 		'ja-JP': '入力画像の片側を反対側へ鏡映し、左右・上下に対称な画像を作ります。',
 		'en-US': 'Mirrors one half of the input image onto the other horizontally and vertically.',
