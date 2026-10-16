@@ -26,7 +26,7 @@ export default defineConfig({
 		],
 		sidebar: [
 			{
-				text: '基本ガイド',
+				text: 'User Guide',
 				items: [
 					{ text: 'Glitch Studioとは？', link: '/guide/getting-started' },
 					{ text: 'タイムライン', link: '/guide/timeline' },
