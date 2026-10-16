@@ -52,24 +52,27 @@ export function resizePreviewLayer(geometry: TimelineLayerGeometry, handle: Time
 /** 移動では回転後の枠の外接矩形を所属キャンバス端へ吸着させる。許容距離はCSS pxで一定。 */
 export function snapPreviewLayerMove(geometry: TimelineLayerGeometry, rect: PreviewCanvasRect,
 	parentGeometries: readonly TimelineLayerGeometry[] = [], threshold = 6): TimelineLayerTransform {
-	const corners = getTimelineLayerCorners(geometry);
+	// 現在位置に「端との差分」を足すと、相殺時の誤差がpositionに残る。
+	// 移動を除いた枠から吸着先の位置を直接求め、ポインターが吸着範囲内を
+	// 動いても同じ値を保存する。特に中央へ吸着したときは厳密に0にする。
+	const corners = getTimelineLayerCorners({ ...geometry, transform: { ...geometry.transform, position: [0, 0] } });
 	const position: TimelinePoint = [...geometry.transform.position];
 	const currentPosition = sceneToPreview(geometry.transform.position, rect, parentGeometries);
 	for (const axis of [0, 1] as const) {
 		let best = threshold;
-		let correction = 0;
+		let snappedPosition = position[axis];
 		for (const bound of [Math.min(...corners.map(point => point[axis])), Math.max(...corners.map(point => point[axis]))]) {
 			for (const edge of [-1, 1]) {
 				const candidate: TimelinePoint = [...geometry.transform.position];
-				candidate[axis] += edge - bound;
+				candidate[axis] = edge - bound;
 				// 親の非等方拡縮・回転を合成すると、子の軸方向と画面の軸方向は一致しない。
 				// 補正による画面上の移動距離を測り、祖先の倍率で吸着範囲が伸縮するのを防ぐ。
 				const candidatePosition = sceneToPreview(candidate, rect, parentGeometries);
 				const distance = Math.hypot(candidatePosition[0] - currentPosition[0], candidatePosition[1] - currentPosition[1]);
-				if (distance < best) { best = distance; correction = edge - bound; }
+				if (distance < best) { best = distance; snappedPosition = candidate[axis]; }
 			}
 		}
-		position[axis] += correction;
+		position[axis] = snappedPosition;
 	}
 	return { ...geometry.transform, position };
 }

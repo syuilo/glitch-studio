@@ -87,6 +87,31 @@ test('snaps frame edges with a screen pixel threshold and keeps the resize ancho
 	near(timelineSourceToScene([1, 1], { ...start, transform: result }), [1, 1]);
 });
 
+// 【スナップ中はポインター位置に依存しない同じpositionを保存する】
+// 現在位置へ補正量を足すと桁落ちが残り、中央で止まっている画像に対して
+// Inspectorの値だけが変わり続ける。中央は厳密な0、端への配置も一定値にする。
+test('keeps snapped positions exact and independent of pointer movement', t => {
+	const { layer, history, update } = fixture(t);
+	const rect = { left: 100, top: 80, width: 800, height: 450 };
+	const prepared = prepareTimelineTransformBindings(layer.compositingParamValues, ['position'], 0);
+	const session = history.beginEdit('editTimelineLayerTransform');
+	for (const x of [0.001, 0.002, -0.003, 0.007, -0.01]) {
+		const snapped = snapPreviewLayerMove(geometry({ fitMode: 'stretch', position: [x, x] }), rect);
+		session.update(update(updateTimelineTransformBindings(prepared, snapped, 0)));
+		assert.deepEqual(layer.compositingParamValues.position.value, [0, 0]);
+	}
+	for (const x of [0.431, 0.434, 0.44, 0.445]) {
+		const snapped = snapPreviewLayerMove(geometry({ position: [x, 0], scale: [1, 0.5] }), rect);
+		session.update(update(updateTimelineTransformBindings(prepared, snapped, 0)));
+		assert.deepEqual(layer.compositingParamValues.position.value, [0.4375, 0]);
+	}
+	session.finish();
+	history.undo();
+	assert.deepEqual(layer.compositingParamValues.position.value, [0, 0]);
+	history.redo();
+	assert.deepEqual(layer.compositingParamValues.position.value, [0.4375, 0]);
+});
+
 // 【表示移動やズームを含む画面座標とScene座標を対応させる】
 // 中ボタンでの表示移動を、レイヤーのpositionへ混入させない。
 test('maps preview coordinates independently of pan and unwraps rotations across the branch cut', () => {
