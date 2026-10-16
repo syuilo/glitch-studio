@@ -90,20 +90,47 @@ test('deduplicates checks, rejects stale consent, and disables development updat
 	assert.deepEqual(development.calls, []);
 });
 
-// 【インストーラーの起動失敗でも終了を取り消し、通常終了で再インストールしない】
-// NSISの起動失敗はdownloadUpdateのPromiseではなくerrorイベントで通知される。
-test('blocks quitting again when the installer fails to launch', async () => {
+// 【インストーラーの起動失敗後は、確認や準備のIPCを呼び直しても再起動前に再試行できない】
+// 非同期の起動失敗ではelectron-updater内部のインストール済みフラグが残る。
+// 画面の再試行ボタンを隠すだけでなく、mainも再起動が必要な状態を維持しなければならない。
+test('requires a restart after an asynchronous installer launch failure', async () => {
 	const f = fixture();
 	await f.controller.checkForUpdates();
 	await f.controller.prepareUpdate('2.0.0-beta.1');
-	f.updater.quitAndInstall = () => { f.updater.emit('error', new Error('cannot spawn')); };
+	f.updater.quitAndInstall = () => { queueMicrotask(() => f.updater.emit('error', new Error('cannot spawn'))); };
 	f.controller.startUpdate();
 	f.updater.emit('update-downloaded');
-	const failed = new Promise(resolve => f.controller.on('state', state => { if (state.phase === 'error') resolve(); }));
+	const failed = new Promise(resolve => f.controller.on('state', state => { if (state.phase === 'restart-required') resolve(); }));
 	f.download.resolve(['installer.exe']);
 	await failed;
 	assert.equal(f.controller.state.error.code, 'install-failed');
 	assert.equal(f.controller.allowQuit, false);
+	assert.equal(f.controller.busy, false);
+	assert.deepEqual(f.calls.at(-1), ['release']);
+	f.controller.findUpdate = async () => assert.fail('must not check again before restarting');
+	assert.equal((await f.controller.checkForUpdates()).phase, 'restart-required');
+	assert.equal((await f.controller.abortPreparation()).phase, 'restart-required');
+	await assert.rejects(f.controller.prepareUpdate('2.0.0-beta.1'), /Restart Glitch Studio/);
+	assert.throws(() => f.controller.startUpdate(), /not prepared/);
+});
+
+// 【インストーラーを呼ぶ前の引き継ぎ情報の保存失敗は、同じプロセスで再試行できる】
+// installingという表示段階だけでは、ライブラリの内部状態が変更済みかは判断できない。
+// 実際のインストール呼出し前の失敗まで再起動必須にしないよう区別する。
+test('allows another preparation when the installer has not been invoked', async () => {
+	const f = fixture();
+	await f.controller.checkForUpdates();
+	await f.controller.prepareUpdate('2.0.0-beta.1');
+	f.instances.handoff = async () => { throw new Error('handoff failed'); };
+	const failed = new Promise(resolve => f.controller.on('state', state => { if (state.phase === 'error') resolve(); }));
+	f.controller.startUpdate();
+	f.updater.emit('update-downloaded');
+	f.download.resolve(['installer.exe']);
+	await failed;
+	assert.equal(f.controller.state.error.code, 'install-failed');
+	assert.equal(f.calls.some(([name]) => name === 'install'), false);
+	assert.equal((await f.controller.prepareUpdate('2.0.0-beta.1')).phase, 'preparing');
+	await f.controller.abortPreparation();
 });
 
 // 【正式版は正式版だけ、開発版は開発段階を問わずより新しい版へ進む】

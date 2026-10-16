@@ -1,11 +1,5 @@
 # Glitch Studio UI
 
-## Electronの更新UI
-
-`DesktopUpdates`がmainから更新状態を取得・購読します。状態のrevisionを比較し、遅れて返った初期snapshotで新しい通知を巻き戻しません。`App.vue`のヘッダとHelpメニューから確認を行い、`GsDesktopUpdateDialog`が処理中の操作を抑止し、失敗後に閉じる・再試行を表示します。
-
-`ApplicationActivity`は読込・素材取込・書き出しとアプリ更新の受付を調整します。`ProjectSaveController.pauseForUpdate()`は新規保存とバックアップを止め、受付済みの保存キューの完了を待ちます。`AppContext.pauseForDesktopUpdate()`がその後にプレビューを停止し、失敗時には保存とプレビューを復帰させます。更新はProjectやUndo/Redoの状態に含めません。配布とリリース手順は[desktopのREADME](../desktop/README.md)を参照してください。
-
 ## UIの翻訳
 
 画面の固定文言は`locales/en-US.json`と`locales/ja-JP.json`に定義し、`src/i18n.ts`の`i18n.ts`から参照する。画面・機能固有のキーは`_Timeline`など`_`で始まるオブジェクトにまとめる。件数や名前を含む文は`{count}`などのプレースホルダーを使い、`i18n.tsx`で補間する。翻訳ごとに語順を変えられるよう、文章を断片に分割して連結しない。
@@ -129,3 +123,11 @@ Controllerの初回起動と破棄後の再生成は`relaunchManager()`を使い
 Web版はIndexedDBに`FileSystemFileHandle`を保存し、`isSameEntry()`で同一ファイルを判定する。一覧取得時にハンドルを保持し、クリック直後に読み取り権限を要求してから既存の`openProject()`へ渡す。Electron版はmainの`recent-projects.mjs`がuserData内にファイルパスと表示情報を保存する。ファイルごとの履歴を個別に置換し、別プロセスで登録した他の作品を古い一覧で上書きしない。rendererには実パスを返さず、再オープン時に履歴IDからセッション内のファイル参照を再発行する。どちらも履歴の永続化失敗を本体のOpen/Saveの失敗にしない。
 
 Save asは保存データに新しいプロジェクトIDを発行し、本体の書き込み成功後だけ`ProjectContext`へ反映する。キャンセル・失敗では元のIDを維持し、Undo/Redoの内容は保持する。待機中の通常Saveは、内容には要求時のスナップショットを使い、保存先とIDには先行するSave asの成功結果を使う。
+
+## Electronの更新UI
+
+`DesktopUpdates`がmainから更新状態を取得・購読します。状態のrevisionを比較し、遅れて返った初期snapshotで新しい通知を巻き戻しません。`App.vue`のヘッダとHelpメニューから確認を行い、`GsDesktopUpdateDialog`が処理中の操作を抑止し、失敗後に閉じる・再試行を表示します。インストーラーの起動を試みた後の失敗は`restart-required`として扱い、再試行を隠してアプリの再起動を案内します。保存とプレビューはこの場合も復帰します。
+
+`GsModal`は通常のclose時とアンマウント前にフォーカス制御を解除します。popupを直接破棄して別の確認へ移る場合にも背景の`inert`を残さず、破棄時には新しいモーダルのフォーカスを移動しません。
+
+`ApplicationActivity`は読込・素材取込・書き出しとアプリ更新の受付を調整します。`ProjectSaveController.pauseForUpdate()`は新規保存とバックアップを止め、受付済みの保存キューの完了を待ちます。`AppContext.pauseForDesktopUpdate()`がその後にプレビューを停止し、失敗時には保存とプレビューを復帰させます。更新はProjectやUndo/Redoの状態に含めません。配布とリリース手順は[desktopのREADME](../desktop/README.md)を参照してください。

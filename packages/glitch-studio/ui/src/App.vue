@@ -155,6 +155,7 @@ onBeforeUnmount(() => { desktopUpdates?.dispose(); disposeDesktopUpdateDialog?.(
 async function requestDesktopUpdate() {
 	const version = desktopUpdates?.state.value.version;
 	if (desktopUpdates == null || version == null || desktopUpdates.running.value || confirmingDesktopUpdate) return;
+	if (desktopUpdates.state.value.phase === 'restart-required') { showDesktopUpdateDialog(); return; }
 	confirmingDesktopUpdate = true;
 	disposeDesktopUpdateDialog?.();
 	disposeDesktopUpdateDialog = null;
@@ -172,6 +173,7 @@ async function checkDesktopUpdates() {
 	try {
 		const state = await desktopUpdates.check();
 		if (state.phase === 'not-available') await ui.alert({ type: 'info', text: i18n.ts._DesktopUpdate.UpToDate });
+		else if (state.phase === 'restart-required') showDesktopUpdateDialog();
 		else if (state.phase === 'error') await ui.alert({ type: 'error', text: `${i18n.ts._DesktopUpdate.CheckFailed}\n${state.error?.message ?? ''}` });
 	} catch (error) { await ui.alert({ type: 'error', text: String(error) }); }
 }
@@ -464,7 +466,8 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 			window.open('https://syuilo.dev/glitch-studio/docs/', '_blank');
 		},
 	}, ...(__ELECTRON__ ? [{
-		text: desktopUpdates?.state.value.version != null ? i18n.ts._DesktopUpdate.Available : i18n.ts._DesktopUpdate.Check,
+		text: desktopUpdates?.state.value.phase === 'restart-required' ? i18n.ts._DesktopUpdate.RestartRequired
+			: desktopUpdates?.state.value.version != null ? i18n.ts._DesktopUpdate.Available : i18n.ts._DesktopUpdate.Check,
 		icon: 'ti ti-download',
 		disabled: desktopUpdates == null || ['disabled', 'checking', 'preparing', 'downloading', 'installing'].includes(desktopUpdates.state.value.phase),
 		action: () => { void (desktopUpdates?.state.value.version != null ? requestDesktopUpdate() : checkDesktopUpdates()); },

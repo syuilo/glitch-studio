@@ -34,7 +34,7 @@ export class DesktopUpdates {
 	}
 
 	async start(version: string): Promise<void> {
-		if (this.running.value) return;
+		if (this.running.value || this.state.value.phase === 'restart-required') return;
 		this.running.value = true;
 		this.localError.value = null;
 		let releaseActivity: (() => void) | null = null;
@@ -46,7 +46,7 @@ export class DesktopUpdates {
 			if (this.state.value.phase !== 'preparing') return;
 			resumeApplication = await this.preparation.pause();
 			const failed = new Promise<void>(resolve => {
-				stopWaiting = watch(this.state, state => { if (state.phase === 'error') resolve(); }, { flush: 'sync' });
+				stopWaiting = watch(this.state, state => { if (state.phase === 'error' || state.phase === 'restart-required') resolve(); }, { flush: 'sync' });
 			});
 			this.accept(await this.api.startUpdate());
 			// 正常完了ではプロセスが終了する。失敗時だけ受付・保存・プレビューを復帰させる。

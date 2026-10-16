@@ -47,7 +47,7 @@
 </template>
 
 <script lang="ts" setup>
-import { nextTick, normalizeClass, onMounted, onUnmounted, provide, watch, ref, useTemplateRef, computed } from 'vue';
+import { nextTick, normalizeClass, onMounted, onBeforeUnmount, onUnmounted, provide, watch, ref, useTemplateRef, computed } from 'vue';
 import GsAnimBg from './GsAnimBg.vue';
 import type { Keymap } from '@/utility/hotkey.ts';
 import * as ui from '@/ui.ts';
@@ -151,6 +151,11 @@ const transitionDuration = computed((() =>
 
 let releaseFocusTrap: (() => void) | null = null;
 let contentClicking = false;
+
+function releaseModalFocusTrap() {
+	releaseFocusTrap?.();
+	releaseFocusTrap = null;
+}
 
 function close(opts: { useSendAnimation?: boolean } = {}) {
 	if (opts.useSendAnimation) {
@@ -345,7 +350,7 @@ onMounted(() => {
 				modalRootEl.value.focus();
 			}
 		} else {
-			releaseFocusTrap?.();
+			releaseModalFocusTrap();
 			focusParent(props.returnFocusTo ?? props.anchorElement, true, false);
 		}
 	}, { immediate: true });
@@ -354,6 +359,10 @@ onMounted(() => {
 		alignObserver.observe(content.value!);
 	});
 });
+
+// popupの直接破棄ではshowingが変化しない。親・兄弟のDOMが残る間にinertを解除する。
+// 新しいモーダルへ移ったフォーカスを奪わないよう、破棄時にはフォーカスを移動しない。
+onBeforeUnmount(releaseModalFocusTrap);
 
 onUnmounted(() => {
 	alignObserver.disconnect();

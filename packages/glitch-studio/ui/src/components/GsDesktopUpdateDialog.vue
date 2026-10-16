@@ -14,7 +14,7 @@
 			<div role="alert" data-test-desktop-update-error>{{ errorMessage }}</div>
 			<div :class="$style.actions">
 				<GsButton inline data-test-desktop-update-close @click="close">{{ i18n.ts.Close }}</GsButton>
-				<GsButton v-if="state.version != null" inline primary data-test-desktop-update-retry @click="emit('retry')">{{ i18n.ts._DesktopUpdate.Retry }}</GsButton>
+				<GsButton v-if="state.version != null && state.phase !== 'restart-required'" inline primary data-test-desktop-update-retry @click="emit('retry')">{{ i18n.ts._DesktopUpdate.Retry }}</GsButton>
 			</div>
 		</template>
 	</div>
@@ -33,8 +33,13 @@ const props = defineProps<{ state: DesktopUpdateState; working: boolean; localEr
 const emit = defineEmits<{ (event: 'closed'): void; (event: 'retry'): void }>();
 const modal = useTemplateRef('modal');
 const content = useTemplateRef('content');
-const errorMessage = computed(() => props.localError ?? (props.state.error?.code === 'other-instances'
-	? i18n.ts._DesktopUpdate.OtherInstances : `${i18n.ts._DesktopUpdate.Failed}\n${props.state.error?.message ?? ''}`));
+const errorMessage = computed(() => {
+	if (props.state.phase === 'restart-required') {
+		return `${i18n.ts._DesktopUpdate.RestartRequiredDetails}\n${props.localError ?? props.state.error?.message ?? ''}`;
+	}
+	return props.localError ?? (props.state.error?.code === 'other-instances'
+		? i18n.ts._DesktopUpdate.OtherInstances : `${i18n.ts._DesktopUpdate.Failed}\n${props.state.error?.message ?? ''}`);
+});
 
 function close() { if (!props.working) modal.value?.close(); }
 </script>

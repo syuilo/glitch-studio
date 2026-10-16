@@ -12,6 +12,7 @@ export class DesktopUpdateController extends EventEmitter {
 		this.state = { revision: 0, phase: enabled ? 'idle' : 'disabled', version: null, progress: null, error: null };
 		this.checking = null;
 		this.allowQuit = false;
+		this.installationAttempted = false;
 		this.downloadFinished = false;
 		this.updateLease = false;
 		this.preparationId = 0;
@@ -48,7 +49,7 @@ export class DesktopUpdateController extends EventEmitter {
 
 	checkForUpdates() {
 		if (this.checking != null) return this.checking;
-		if (this.state.phase === 'disabled' || this.busy) return Promise.resolve(this.getState());
+		if (['disabled', 'restart-required'].includes(this.state.phase) || this.busy) return Promise.resolve(this.getState());
 		this.setState({ phase: 'checking', version: null, error: null, progress: null });
 		this.checking = (async () => {
 			try {
@@ -68,6 +69,7 @@ export class DesktopUpdateController extends EventEmitter {
 	}
 
 	async prepareUpdate(expectedVersion) {
+		if (this.installationAttempted) throw new Error('Restart Glitch Studio before trying to update again.');
 		if (this.busy || this.checking != null || this.state.version !== expectedVersion || expectedVersion == null || this.state.phase === 'disabled') {
 			throw new Error('The update is no longer available. Check for updates again.');
 		}
@@ -102,6 +104,9 @@ export class DesktopUpdateController extends EventEmitter {
 			await this.instances.handoff(files[0]);
 			// quitAndInstallはbefore-quitより先にウィンドウを閉じるため、ここで先に終了を許可する。
 			this.allowQuit = true;
+			// 起動失敗でもelectron-updater内部のインストール済みフラグは戻らない。
+			// 非公開の内部状態を変更せず、次の試行はアプリ再起動後に限定する。
+			this.installationAttempted = true;
 			this.updater.quitAndInstall(true, true);
 		} catch (error) {
 			await this.fail(this.state.phase === 'installing' ? 'install-failed' : 'download-failed', error);
@@ -120,7 +125,8 @@ export class DesktopUpdateController extends EventEmitter {
 			await this.instances.releaseUpdate().catch(console.error);
 			this.updateLease = false;
 		}
-		this.setState({ phase: 'error', progress: null, error: { code, message: error instanceof Error ? error.message : String(error) } });
+		this.setState({ phase: this.installationAttempted ? 'restart-required' : 'error', progress: null,
+			error: { code, message: error instanceof Error ? error.message : String(error) } });
 	}
 }
 

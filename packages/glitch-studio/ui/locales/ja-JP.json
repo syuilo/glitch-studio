@@ -13,6 +13,8 @@
 		"Installing": "インストールのためGlitch Studioを終了しています…",
 		"DoNotClose": "そのままお待ちください。更新後にGlitch Studioが再起動します。",
 		"Failed": "アップデートに失敗しました。閉じて編集を続けるか、再試行できます。",
+		"RestartRequired": "アップデートの再試行には再起動が必要です",
+		"RestartRequiredDetails": "インストーラーを起動できませんでした。このダイアログを閉じて編集を続けられます。アップデートを再試行するには、必要な内容を保存し、Glitch Studioを終了して起動し直してください。",
 		"OtherInstances": "ほかのGlitch Studioを閉じてから、再度アップデートしてください。",
 		"ApplicationBusy": "プロジェクトの読み込みや書き出しが完了してからアップデートしてください。",
 		"Retry": "再試行"

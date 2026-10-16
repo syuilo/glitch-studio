@@ -75,6 +75,24 @@ test('waits for application preparation and restores it before releasing the upd
 	assert.deepEqual(f.events, ['reserve', 'prepare', 'pause', 'start', 'resume', 'release']);
 });
 
+// 【再起動が必要な失敗でも保存とプレビューを復帰し、同じプロセスでの再試行は送信しない】
+// mainの終了待ちを続けると失敗画面を閉じられず、復帰後に再送するとインストールが停止する。
+test('restores application work but does not retry an installer launch failure', async () => {
+	const f = fixture();
+	const downloading = Promise.withResolvers();
+	f.api.startUpdate = async () => { f.events.push('start'); downloading.resolve(); return f.push('downloading'); };
+	await f.updates.connect();
+	const job = f.updates.start('2.0.0-beta.1');
+	await downloading.promise;
+	f.push('restart-required');
+	await job;
+	assert.equal(f.updates.running.value, false);
+	assert.deepEqual(f.events.slice(-2), ['resume', 'release']);
+	const completedEvents = [...f.events];
+	await f.updates.start('2.0.0-beta.1');
+	assert.deepEqual(f.events, completedEvents);
+});
+
 // 【保存準備の失敗や別プロセスの検出では更新開始を中止して受付を戻す】
 // UIの準備に失敗した状態から、そのままインストールへ進まない。
 test('aborts failed preparation and never downloads after rejected reservation', async () => {

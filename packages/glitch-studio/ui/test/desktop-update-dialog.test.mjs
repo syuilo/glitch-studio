@@ -38,7 +38,7 @@ const { Dialog, modalTest } = bundled.exports;
 test('keeps the update dialog open while working and exposes recovery only after failure', async t => {
 	const element = tag => ({ tag, props: {}, children: [], parent: null });
 	const renderer = createRenderer({ createElement: element, createText: () => element('text'), createComment: () => element('comment'),
-		setText() {}, setElementText() {}, patchProp: (node, key, _old, value) => { node.props[key] = value; },
+		setText() {}, setElementText(node, value) { node.text = value; }, patchProp: (node, key, _old, value) => { node.props[key] = value; },
 		insert(node, parent, anchor = null) {
 			if (node.parent != null) node.parent.children.splice(node.parent.children.indexOf(node), 1);
 			parent.children.splice(anchor == null ? parent.children.length : parent.children.indexOf(anchor), 0, node); node.parent = parent;
@@ -64,6 +64,10 @@ test('keeps the update dialog open while working and exposes recovery only after
 	assert.notEqual(find(root, 'data-test-desktop-update-error'), null);
 	find(root, 'data-test-desktop-update-retry').props.onClick();
 	assert.equal(retries, 1);
+	props.state = { ...props.state, phase: 'restart-required', error: { code: 'install-failed', message: 'cannot spawn' } };
+	await nextTick();
+	assert.equal(find(root, 'data-test-desktop-update-retry'), null);
+	assert.match(find(root, 'data-test-desktop-update-error').text, /quit Glitch Studio, and open it again/);
 	find(root, 'data-test-desktop-update-close').props.onClick();
 	assert.equal(modalTest.closes, 1);
 });
