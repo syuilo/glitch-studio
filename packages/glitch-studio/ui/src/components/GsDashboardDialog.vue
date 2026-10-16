@@ -14,7 +14,7 @@
 			</div>
 			<div class="_gaps_m">
 				<GsButton full style="text-align: left;" @click="_newProject"><i class="ti ti-plus" style="margin-right: 1em;"></i>New Project</GsButton>
-				<GsButton full style="text-align: left;" @click="_newProjectFromImageOrVideo"><i class="ti ti-photo-video" style="margin-right: 1em;"></i>Open image/video/audio...</GsButton>
+				<GsButton full style="text-align: left;" @click="_newProjectFromImageOrVideo"><i class="ti ti-photo-video" style="margin-right: 1em;"></i>Open Media...</GsButton>
 				<GsButton full style="text-align: left;" @click="_openProject"><i class="ti ti-folder-open" style="margin-right: 1em;"></i>Open Project...</GsButton>
 			</div>
 			<button class="_textButton" style="margin-top: auto;" @click="showAbout()">About</button>

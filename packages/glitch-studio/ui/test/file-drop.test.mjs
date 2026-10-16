@@ -8,8 +8,8 @@ import { parse } from 'vue/compiler-sfc';
 import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
 
 const bundle = await build({ stdin: { loader: 'ts', resolveDir: fileURLToPath(new URL('../src/utility/', import.meta.url)),
-	contents: "export { installFileDropHandlers } from './file-drop.ts'; export { createDropTargetHandlers } from './drop-target.ts';" },
-	bundle: true, platform: 'node', format: 'cjs', write: false });
+																																						contents: 'export { installFileDropHandlers } from \'./file-drop.ts\'; export { createDropTargetHandlers } from \'./drop-target.ts\';' },
+																													bundle: true, platform: 'node', format: 'cjs', write: false });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { installFileDropHandlers, createDropTargetHandlers } = module.exports;
@@ -36,9 +36,9 @@ function handlerFixture(t, onDrop) {
 	const errors = [];
 	root.ownerDocument = { body: { hasAttribute: () => blocked }, defaultView: windowTarget };
 	const handlers = createDropTargetHandlers({ target: () => root, enabled: () => enabled,
-		accepts: event => event.dataTransfer?.types.includes('asset') === true,
-		readDropData: event => event.dataTransfer.assetId,
-		onDrop, onError: error => errors.push(error), onHoverChange: value => { hovering = value; } });
+																																													accepts: event => event.dataTransfer?.types.includes('asset') === true,
+																																													readDropData: event => event.dataTransfer.assetId,
+																																													onDrop, onError: error => errors.push(error), onHoverChange: value => { hovering = value; } });
 	handlers.observeWindow();
 	t.after(handlers.dispose);
 	const event = (type, relatedTarget = null) => {
@@ -48,7 +48,7 @@ function handlerFixture(t, onDrop) {
 		return result;
 	};
 	return { root, windowTarget, handlers, event, errors, block: value => { blocked = value; }, enable: value => { enabled = value; },
-		get hovering() { return hovering; } };
+										get hovering() { return hovering; } };
 }
 
 // 【共通の受付処理で種類に依存せず操作ロック・二重処理防止・有効状態を扱う】
@@ -385,7 +385,7 @@ function dashboardFixture({ ids = ['asset'], opened = true, hasProject = false }
 		return pending;
 	}, error => { void context.ui.alert({ text: error instanceof Error ? error.message : String(error) }); });
 	return { events, context, target, dispose, openMedia: handlers.openMedia,
-		async onDrop(event) { target.dispatchEvent(event); await finished; await new Promise(resolve => setImmediate(resolve)); } };
+										async onDrop(event) { target.dispatchEvent(event); await finished; await new Promise(resolve => setImmediate(resolve)); } };
 }
 
 function dashboardEvent(files, items = []) {
@@ -430,7 +430,7 @@ test('imports multiple assets in the dashboard and closes it only after successf
 	assert.deepEqual(failed.events, [['assets', ['bad.bin']]]);
 });
 
-// 【Dashboardへの単一メディアドロップはOpen image/video/audioと同じ新規作成を使う】
+// 【Dashboardへの単一メディアドロップはOpen Mediaと同じ新規作成を使う】
 // 汎用のアセット取り込みでは、素材に合わせたノード・レイヤー・解像度の初期設定が行われない。
 // 画像・動画・音声すべてで同じ入口を呼び、既存プロジェクトの有無によって挙動を変えない。
 // 作成に失敗した場合も、ファイル選択と同様にDashboardを閉じない。
@@ -449,7 +449,7 @@ test('opens single dropped media through the same project factory as the file pi
 });
 
 // 【単一の汎用ファイルやフォントはメディア新規作成へ渡さずアセットとして取り込む】
-// Open image/video/audioで使えないファイルでも、取り込み成功後はAssetsを開いてDashboardを閉じる。
+// Open Mediaで使えないファイルでも、取り込み成功後はAssetsを開いてDashboardを閉じる。
 test('keeps single non-media drops on the asset import path', async () => {
 	for (const file of [new File(['font'], 'font.ttf', { type: 'font/ttf' }), new File(['archive'], 'archive.zip', { type: 'application/zip' }), new File(['unknown'], 'unknown')]) {
 		const f = dashboardFixture();

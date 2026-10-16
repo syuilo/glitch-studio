@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 
 const bundled = await build({
-	stdin: { contents: "export { openMediaFile } from './src/api.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';",
-		resolveDir: fileURLToPath(new URL('../', import.meta.url)), loader: 'ts' },
+	stdin: { contents: 'export { openMediaFile } from \'./src/api.ts\'; export { encodeProjectFile, decodeProjectFile } from \'./src/gsproj.ts\';',
+										resolveDir: fileURLToPath(new URL('../', import.meta.url)), loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	define: { _VERSION_: '"2.0.0-alpha"' },
 });
@@ -81,8 +81,8 @@ test('imports cube assets with stable types and round trips their original conte
 		assert.equal(source.width, 0);
 		assert.equal(source.height, 0);
 		const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
-			timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
-			assets: [{ ...source, id: 'lut', name: 'Renamed', fileDataType: source.type }] });
+																																												timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
+																																												assets: [{ ...source, id: 'lut', name: 'Renamed', fileDataType: source.type }] });
 		const restored = decodeProjectFile(encoded).assets[0];
 		assert.equal(restored.name, 'Renamed');
 		assert.equal(restored.fileDataType, 'application/x-cube-lut');
@@ -111,8 +111,8 @@ test('retains each source path when selecting multiple desktop media files', asy
 	assert.deepEqual(requestedFiles, files);
 	assert.deepEqual(imported.map(source => source.sourceFilePath), paths);
 	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
-		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
-		assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
+																																											timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
+																																											assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
 	const restored = decodeProjectFile(encoded).assets;
 	assert.deepEqual(restored.map(asset => asset.sourceFilePath), paths);
 	for (let index = 0; index < files.length; index++) {
@@ -180,8 +180,8 @@ for (const media of mediaTypes) {
 			assert.equal(platform.activeUrls.size, 0);
 			assert.equal(platform.closedBitmaps, media.type.startsWith('image/') ? 1 : 0);
 			const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
-				timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
-				assets: [{ id: 'asset', ...imported, fileDataType: imported.type }] });
+																																													timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
+																																													assets: [{ id: 'asset', ...imported, fileDataType: imported.type }] });
 			assert.equal(await decodeProjectFile(encoded).assets[0].fileData.text(), original);
 		});
 	}
@@ -204,8 +204,8 @@ test('rejects unreadable sources before decoding and identifies the file', async
 test('imports arbitrary files without decoding and retains their contents through project serialization', async t => {
 	const platform = setupMedia(t);
 	const files = [new File(['text'], 'notes.txt', { type: 'text/plain' }),
-		new File([new Uint8Array([0, 255, 128])], 'archive.zip', { type: 'application/zip' }),
-		new File(['unknown'], 'unknown'), new File(['font'], 'font.woff2')];
+																new File([new Uint8Array([0, 255, 128])], 'archive.zip', { type: 'application/zip' }),
+																new File(['unknown'], 'unknown'), new File(['font'], 'font.woff2')];
 	const pending = openMediaFile({ multiple: true, allowAnyFile: true });
 	assert.equal(platform.input.accept, '');
 	platform.input.files = files;
@@ -216,8 +216,8 @@ test('imports arbitrary files without decoding and retains their contents throug
 	assert.deepEqual(platform.decodedSources, []);
 	assert.ok(imported.every(source => source.width === 0 && source.height === 0 && source.thumbnailSequence === null));
 	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
-		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
-		assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
+																																											timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
+																																											assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
 	const restored = decodeProjectFile(encoded).assets;
 	assert.deepEqual(restored.map(asset => asset.fileDataType), types);
 	for (let index = 0; index < files.length; index++) {
@@ -227,7 +227,7 @@ test('imports arbitrary files without decoding and retains their contents throug
 });
 
 // 【メディア専用の入口は引き続き任意ファイルを拒否する】
-// Open image/video/audioは素材に対応したプロジェクトを作るため、汎用ファイルを渡さない。
+// Open Mediaは素材に対応したプロジェクトを作るため、汎用ファイルを渡さない。
 test('keeps media-only imports restricted when arbitrary file support is not requested', async t => {
 	const platform = setupMedia(t);
 	await assert.rejects(openMediaFile({ file: new File(['text'], 'notes.txt', { type: 'text/plain' }) }), /Unsupported media type/);
