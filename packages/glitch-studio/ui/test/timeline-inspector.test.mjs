@@ -386,12 +386,12 @@ async function fixture(t, component = Inspector) {
 	appContext.projectContext.stateManager = history;
 	const scene = state.timelineScenes.value[0];
 	const props = reactive({ scene, sceneId: scene.id, selection: { kind: 'keyframes', keyframes: [keySelection('a', 'key-1')] },
-																										mediaInfo: new Map(), subPanelTarget: null });
+																										mediaInfo: new Map(), inspectorPanelTarget: null });
 	const events = [];
 	const root = element();
 	const app = renderer.createApp({ setup: () => () => h(component, {
 		...(component === Timeline ? {
-			sceneId: props.sceneId, subPanelTarget: props.subPanelTarget,
+			sceneId: props.sceneId, inspectorPanelTarget: props.inspectorPanelTarget,
 			onRevealDetails: () => events.push(['revealDetails']),
 		} : {
 			scene: props.scene, selection: props.selection, mediaInfo: props.mediaInfo,
@@ -621,14 +621,14 @@ test('preserves selection across inspector visibility changes and routes removal
 	const editor = getTimelineEditorState(f.scene);
 	editor.selection = { kind: 'keyframes', keyframes: [keySelection('a', 'key-1')] };
 	const target = markRaw(element());
-	f.props.subPanelTarget = target;
+	f.props.inspectorPanelTarget = target;
 	await nextTick();
 	assert.ok(descendants(target).some(node => node.tag === 'GsLiteralLeafValueControl'));
-	f.props.subPanelTarget = null;
+	f.props.inspectorPanelTarget = null;
 	await nextTick();
 	assert.deepEqual(editor.selection, { kind: 'keyframes', keyframes: [keySelection('a', 'key-1')] });
 	assert.ok(!descendants(target).some(node => node.tag === 'GsLiteralLeafValueControl'));
-	f.props.subPanelTarget = target;
+	f.props.inspectorPanelTarget = target;
 	await nextTick();
 	const remove = descendants(target).find(node => node.tag === 'GsButton' && textContent(node).includes('Remove Keyframe'));
 	remove.props.onClick();

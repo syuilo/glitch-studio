@@ -128,7 +128,7 @@
 			</div>
 		</div>
 
-		<Teleport v-if="props.subPanelTarget" defer :to="props.subPanelTarget">
+		<Teleport v-if="props.inspectorPanelTarget" defer :to="props.inspectorPanelTarget">
 			<GsTimelineInspector
 				:scene="editedScene" :selection="selection" :mediaInfo="mediaInfo"
 				@selectKeyframe="onKeyframeSelected" @removeKeyframes="removeSelectedKeyframes" @removeClips="removeSelectedClips"
@@ -191,7 +191,7 @@ import { useDragSession } from '@/composables/useDragSession.ts';
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
 
-const props = defineProps<{ sceneId: string; subPanelTarget?: HTMLElement | null }>();
+const props = defineProps<{ sceneId: string; inspectorPanelTarget?: HTMLElement | null }>();
 const emit = defineEmits<{ revealDetails: []; revealAssets: [] }>();
 
 // 選択を保持している間は監視しない。手動で閉じた詳細を、値の編集や再描画で開き直さないため。

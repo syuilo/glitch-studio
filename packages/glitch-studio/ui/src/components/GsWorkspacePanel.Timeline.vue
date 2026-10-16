@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id" :subPanelTarget="subPanelTarget" @revealDetails="revealDetails" @revealAssets="revealAssets">
+	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id" :inspectorPanelTarget="inspectorPanelTarget" @revealDetails="revealDetails" @revealAssets="revealAssets">
 		<GsButton small @click="showSceneSelectMenu">{{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
 		<GsButton small iconOnly @click="showSceneMenu"><i class="ti ti-dots"></i></GsButton>
 	</GsTimeline>
@@ -9,7 +9,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { computed, ref, watch, inject } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -18,6 +17,7 @@ import GsButton from './common/GsButton.vue';
 import GsSceneResolutionDialog from './GsSceneResolutionDialog.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { MenuItem } from '@/types/menu.ts';
+import { i18n } from '@/i18n.ts';
 import { duplicateTimelineLayers } from '@/utility/timeline-container.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { appContext } from '@/app.ts';
@@ -32,8 +32,8 @@ const props = defineProps<{
 }>();
 
 const workspaceController = inject(workspaceControllerKey)!;
-const revealRequest = () => ({ contentType: 'timelineSubPanel' as const, sourcePanelId: props.panel.id });
-const subPanelTarget = computed(() => {
+const revealRequest = () => ({ contentType: 'timelineInspectorPanel' as const, sourcePanelId: props.panel.id });
+const inspectorPanelTarget = computed(() => {
 	const id = workspaceController.findVisiblePanel(revealRequest());
 	return id == null ? null : workspaceController.panelTargets.get(id) ?? null;
 });

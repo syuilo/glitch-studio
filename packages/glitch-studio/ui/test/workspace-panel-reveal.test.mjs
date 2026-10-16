@@ -15,18 +15,18 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { findWorkspacePanelRevealPlan, WorkspaceController, shallowRef, effectScope } = module.exports;
-const panel = (id, contentType = 'timelineSubPanel', collapsed = false) => ({ id, type: 'panel', direction: 'horizontal', contentType, collapsed });
+const panel = (id, contentType = 'timelineInspectorPanel', collapsed = false) => ({ id, type: 'panel', direction: 'horizontal', contentType, collapsed });
 const tabs = (id, children, collapsed = false) => ({ id, type: 'tabs', direction: 'horizontal', children: children.map(element => ({ name: element.id, element })), collapsed });
 const divider = (id, children) => ({ id, type: 'divider', direction: 'horizontal', children: children.map(element => ({ ratio: 1 / children.length, element })) });
 const source = () => panel('source', 'timeline');
-const request = { contentType: 'timelineSubPanel', sourcePanelId: 'source' };
+const request = { contentType: 'timelineInspectorPanel', sourcePanelId: 'source' };
 const find = (root, selections = new Map(), override = request) => findWorkspacePanelRevealPlan(root, selections, override);
 
 // 【祖先タブで操作元を隠す候補を除外する】
 // 直近の親が分割でも、共通祖先の別タブを開くとタイムラインが消える。
 // 同じタブ内の分割にある候補なら安全に開けることも確認する。
 test('excludes conflicting ancestor tabs but allows a split in the same tab', () => {
-	const root = tabs('outer', [divider('work', [source(), panel('safe', 'timelineSubPanel', true)]), divider('other', [panel('unsafe')])]);
+	const root = tabs('outer', [divider('work', [source(), panel('safe', 'timelineInspectorPanel', true)]), divider('other', [panel('unsafe')])]);
 	assert.deepEqual(find(root), { panelId: 'safe', tabSelections: [], expandIds: ['safe'] });
 	assert.equal(find(tabs('outer', [divider('work', [source()]), panel('unsafe')])), null);
 });
@@ -34,11 +34,11 @@ test('excludes conflicting ancestor tabs but allows a split in the same tab', ()
 // 【表示中・変更数・ツリー順の順に候補を選ぶ】
 // 自動展開で不要なタブ切り替えが起きないようにし、同点の結果も安定させる。
 test('ranks candidates by visibility then change count with stable ties', () => {
-	const root = divider('root', [source(), tabs('hidden', [panel('blank', 'blank'), panel('costly')], true), panel('cheap', 'timelineSubPanel', true), panel('visible')]);
+	const root = divider('root', [source(), tabs('hidden', [panel('blank', 'blank'), panel('costly')], true), panel('cheap', 'timelineInspectorPanel', true), panel('visible')]);
 	assert.equal(find(root).panelId, 'visible');
 	root.children.pop();
 	assert.equal(find(root).panelId, 'cheap');
-	root.children.push({ ratio: 1, element: panel('alsoCheap', 'timelineSubPanel', true) });
+	root.children.push({ ratio: 1, element: panel('alsoCheap', 'timelineInspectorPanel', true) });
 	assert.equal(find(root).panelId, 'cheap');
 });
 
@@ -46,7 +46,7 @@ test('ranks candidates by visibility then change count with stable ties', () => 
 // DOMやコンポーネントが存在しない候補でも、祖先の選択と折りたたみ解除が必要になる。
 // 探索によって保存定義や選択状態を書き換えてはいけない。
 test('plans nested selections and expansion without mutating inputs', () => {
-	const root = divider('root', [source(), tabs('outer', [panel('blank', 'blank'), divider('branch', [tabs('inner', [panel('blank2', 'blank'), divider('leaf', [panel('target', 'timelineSubPanel', true)])], true)])], true)]);
+	const root = divider('root', [source(), tabs('outer', [panel('blank', 'blank'), divider('branch', [tabs('inner', [panel('blank2', 'blank'), divider('leaf', [panel('target', 'timelineInspectorPanel', true)])], true)])], true)]);
 	const before = structuredClone(root);
 	const selections = new Map();
 	assert.deepEqual(find(root, selections), {
@@ -81,7 +81,7 @@ test('reveals assets across tabs for global requests without relaxing panel-spec
 // 【折りたたみ不能な位置のフラグを表示コストに含めない】
 // 移動前のcollapsedが残っていても、実際のコンポーネントと同じ表示判定にする。
 test('ignores collapse flags outside divider children', () => {
-	const root = tabs('outer', [divider('split', [source(), tabs('inner', [panel('target', 'timelineSubPanel', true)])])], true);
+	const root = tabs('outer', [divider('split', [source(), tabs('inner', [panel('target', 'timelineInspectorPanel', true)])])], true);
 	assert.deepEqual(find(root), { panelId: 'target', tabSelections: [], expandIds: [] });
 });
 

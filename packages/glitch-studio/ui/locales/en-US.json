@@ -304,7 +304,7 @@
 		"CommandLog": "Command Log",
 		"Timeline": "Timeline",
 		"ProjectInfo": "Project Info",
-		"TimelineSubPanel": "Timeline Sub Panel",
+		"TimelineInspectorPanel": "Timeline Inspector Panel",
 		"SwitchType": "Switch type to",
 		"GroupInTabs": "Group in tabs",
 		"AddAbove": "Add panel to above",

@@ -18,7 +18,7 @@ import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import XAssets from '@/components/GsWorkspacePanel.Assets.vue';
 import XProjectInfo from '@/components/GsWorkspacePanel.ProjectInfo.vue';
-import XTimelineSubPanel from '@/components/GsWorkspacePanel.TimelineSubPanel.vue';
+import XTimelineInspectorPanel from '@/components/GsWorkspacePanel.TimelineInspectorPanel.vue';
 
 const panelDefinitions = {
 	blank: { label: i18n.ts._Workspace.Blank, icon: '', component: XBlank },
@@ -36,7 +36,7 @@ const panelDefinitions = {
 	timeline: { label: i18n.ts._Workspace.Timeline, icon: 'ti ti-timeline', component: XTimeline },
 	assets: { label: i18n.ts.Assets, icon: 'ti ti-folder-open', component: XAssets },
 	projectInfo: { label: i18n.ts._Workspace.ProjectInfo, icon: 'ti ti-file-description', component: XProjectInfo },
-	timelineSubPanel: { label: i18n.ts._Workspace.TimelineSubPanel, icon: 'ti ti-layout-sidebar-right', component: XTimelineSubPanel },
+	timelineInspectorPanel: { label: i18n.ts._Workspace.TimelineInspectorPanel, icon: 'ti ti-layout-sidebar-right', component: XTimelineInspectorPanel },
 } as const;
 
 export const workspacePanelDefinitions: typeof panelDefinitions = markRaw(panelDefinitions);
