@@ -12,7 +12,6 @@ export const PREF_DEF = definePreferences({
 	projectBackups: { default: () => ({ ...DEFAULT_PROJECT_BACKUP_SETTINGS }) },
 	animation: { default: () => true },
 	menuStyle: { default: () => 'auto' },
-	locale: { default: () => 'en' },
 	animatedBgInPreview: { default: () => false },
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },

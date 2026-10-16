@@ -189,5 +189,8 @@
 	"GpuMemoryEstimate": "Estimated GPU resource memory\nTextures: {textures} MiB\nBuffers: {buffers} MiB",
 	"None": "なし",
 	"Random": "ランダム",
-	"PresetVersionWarn": "このプリセットはお使いのGlitch Studioのバージョン({current})よりも新しいバージョン({newer})で作られているためインポートできません。\nこのプリセットをインポートするには、お使いのGlitch Studioを最新バージョンに更新してください。"
+	"PresetVersionWarn": "このプリセットはお使いのGlitch Studioのバージョン({current})よりも新しいバージョン({newer})で作られているためインポートできません。\nこのプリセットをインポートするには、お使いのGlitch Studioを最新バージョンに更新してください。",
+	"SelectLanguage": "言語を選択",
+	"LocaleChangedTitle": "言語が変更されました",
+	"LocaleChangedDescription": "変更を反映させるにはアプリケーションを再起動してください。"
 }

@@ -16,6 +16,7 @@ import { makeHotkey } from './utility/hotkey.ts';
 import { AppContext } from './AppContext.ts';
 import { ProjectContext } from './Project.ts';
 import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
+import { configureLocale, isLocaleUnconfigured } from './i18n.ts';
 import type { ProjectAsset } from './Project.ts';
 import type { Keymap } from './utility/hotkey.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
@@ -24,6 +25,10 @@ import type { Player } from '@gs/shared/types.ts';
 import type { ProjectFileHandle } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import { openMediaFile } from '@/utility/open-media-file.ts';
+
+if (isLocaleUnconfigured) {
+	configureLocale();
+}
 
 export const appContext = new AppContext(new ProjectContext());
 

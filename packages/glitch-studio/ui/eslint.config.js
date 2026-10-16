@@ -25,7 +25,6 @@ export default [
 				__dirname: false,
 
 				_DEV_: false,
-				_LANGS_: false,
 				_VERSION_: false,
 				__ELECTRON__: false,
 				_ENV_: false,
