@@ -164,7 +164,7 @@ async function requestDesktopUpdate() {
 	disposeDesktopUpdateDialog = null;
 	try {
 		const { canceled } = await ui.confirm({ type: 'warning', title: i18n.tsx._DesktopUpdate.ConfirmTitle({ version }),
-			text: i18n.ts._DesktopUpdate.ConfirmText, okText: i18n.ts._DesktopUpdate.UpdateAndRestart });
+																																										text: i18n.ts._DesktopUpdate.ConfirmText, okText: i18n.ts._DesktopUpdate.UpdateAndRestart });
 		if (canceled) return;
 		showDesktopUpdateDialog();
 		void desktopUpdates.start(version);
@@ -470,7 +470,7 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 		},
 	}, ...(__ELECTRON__ ? [{
 		text: desktopUpdates?.state.value.phase === 'restart-required' ? i18n.ts._DesktopUpdate.RestartRequired
-			: desktopUpdates?.state.value.version != null ? i18n.ts._DesktopUpdate.Available : i18n.ts._DesktopUpdate.Check,
+		: desktopUpdates?.state.value.version != null ? i18n.ts._DesktopUpdate.Available : i18n.ts._DesktopUpdate.Check,
 		icon: 'ti ti-download',
 		disabled: desktopUpdates == null || ['disabled', 'checking', 'preparing', 'downloading', 'installing'].includes(desktopUpdates.state.value.phase),
 		action: () => { void (desktopUpdates?.state.value.version != null ? requestDesktopUpdate() : checkDesktopUpdates()); },
@@ -496,7 +496,6 @@ onMounted(async () => {
 </script>
 
 <style module lang="scss">
-.updateNotification { color: var(--THEME-accent); }
 .root {
 	position: absolute;
 	display: flex;
@@ -505,6 +504,7 @@ onMounted(async () => {
 	height: 100%;
 	width: 100%;
 	overflow: clip;
+	gap: 4px;
 }
 
 .header {
@@ -516,6 +516,8 @@ onMounted(async () => {
 	padding-left: env(titlebar-area-x, 0);
 	width: env(titlebar-area-width, 100%);
 	app-region: drag;
+
+	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
 }
 
 .headerLeft {
@@ -541,11 +543,15 @@ onMounted(async () => {
 
 .projectFileName {
 	margin-left: 0.5em;
-	color: color-mix(in srgb, var(--THEME-fg), var(--THEME-bg) 30%);
+	color: color-mix(in srgb, var(--THEME-fg), transparent 30%);
 }
 
 .projectSaving {
 	margin-right: 1em;
+	color: var(--THEME-accent);
+}
+
+.updateNotification {
 	color: var(--THEME-accent);
 }
 
@@ -554,8 +560,7 @@ onMounted(async () => {
 	app-region: no-drag;
 
 	&:disabled {
-		// opacityはブラウザにとって高コストなので
-		color: color-mix(in srgb, var(--THEME-fg), var(--THEME-bg) 50%);
+		color: color-mix(in srgb, var(--THEME-fg), transparent 50%);
 	}
 }
 
@@ -578,6 +583,7 @@ onMounted(async () => {
 	line-height: 28px;
 	font-size: 90%;
 	padding: 0 12px;
+	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
 }
 
 .footerLeft {

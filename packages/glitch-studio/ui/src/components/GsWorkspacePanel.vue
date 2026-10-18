@@ -241,7 +241,7 @@ function popout() {
 		width: var(--headerHeight);
 		height: 100%;
 		padding: 14px 0 0;
-		background: linear-gradient(-90deg, var(--THEME-workspacePanelHeader), hsl(from var(--THEME-workspacePanelHeader) h s calc(l + 5)));
+		background: linear-gradient(-90deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
 
 		> .tabShape {
 			display: none;
@@ -302,8 +302,8 @@ function popout() {
 	height: var(--headerHeight);
 	padding: 0 16px 0 30px;
 	font-size: 85%;
-	background: linear-gradient(0deg, var(--THEME-workspacePanelHeader), hsl(from var(--THEME-workspacePanelHeader) h s calc(l + 5)));
-	//background: var(--THEME-workspacePanelHeader);
+	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
+	//background: var(--THEME-panel);
 	user-select: none;
 }
 
@@ -379,7 +379,7 @@ function popout() {
 	contain: strict;
 	box-sizing: border-box;
 	container-type: size;
-	background-color: var(--THEME-workspacePanelBody);
+	background-color: var(--THEME-panel);
 }
 
 .dropAreaTop, .dropAreaBottom, .dropAreaLeft, .dropAreaRight, .dropAreaCenter {
