@@ -26,8 +26,8 @@
 			<div style="display: flex; gap: 4px;">
 				<GsButton v-tooltip="i18n.ts._Timeline.PreviousFrame" iconOnly icon="ti ti-chevron-left" @click="stepFrame(-1)"/>
 				<GsButton v-tooltip="i18n.ts._Timeline.NextFrame" iconOnly icon="ti ti-chevron-right" @click="stepFrame(1)"/>
-				<GsButton v-tooltip="i18n.ts._Timeline.PreviousKeyframe" iconOnly :icon="['ti ti-keyframe', 'ti ti-chevron-left']" @click="seekToKeyframe(getPreviousKeyframeTime())"/>
-				<GsButton v-tooltip="i18n.ts._Timeline.NextKeyframe" iconOnly :icon="['ti ti-chevron-right', 'ti ti-keyframe']" @click="seekToKeyframe(getNextKeyframeTime())"/>
+				<GsButton v-tooltip="i18n.ts._Timeline.PreviousKeyframe" fit icon="ti ti-keyframe" @click="seekToKeyframe(getPreviousKeyframeTime())">PR</GsButton>
+				<GsButton v-tooltip="i18n.ts._Timeline.NextKeyframe" fit icon="ti ti-keyframe" @click="seekToKeyframe(getNextKeyframeTime())">NX</GsButton>
 			</div>
 		</div>
 		<div :class="$style.headerCenter">

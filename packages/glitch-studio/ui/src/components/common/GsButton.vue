@@ -3,7 +3,7 @@
 	:is="component"
 	ref="el"
 	class="_button"
-	:class="[$style.root, { [$style.inline]: inline, [$style.primary]: primary, [$style.danger]: danger, [$style.rounded]: rounded, [$style.full]: full, [$style.small]: small, [$style.large]: large, [$style.transparent]: transparent, [$style.iconOnly]: iconOnly, [$style.wait]: wait, [$style.active]: active }]"
+	:class="[$style.root, { [$style.inline]: inline, [$style.fit]: fit, [$style.primary]: primary, [$style.danger]: danger, [$style.rounded]: rounded, [$style.full]: full, [$style.small]: small, [$style.large]: large, [$style.transparent]: transparent, [$style.iconOnly]: iconOnly, [$style.wait]: wait, [$style.active]: active }]"
 	v-bind="cProps"
 	@click="emit('click', $event)"
 >
@@ -32,6 +32,7 @@ const props = defineProps<{
 	transparent?: boolean;
 	iconOnly?: boolean;
 	active?: boolean;
+	fit?: boolean;
 
 	// for type=button
 	name?: string;
@@ -79,7 +80,6 @@ onMounted(() => {
 
 	position: relative;
 	display: block;
-	min-width: 80px;
 	width: max-content;
 	height: var(--height);
 	line-height: var(--height);
@@ -104,6 +104,10 @@ onMounted(() => {
 
 	&:not(:disabled):active {
 		background: var(--THEME-buttonHoverBg);
+	}
+
+	&:not(.fit) {
+		min-width: 80px;
 	}
 
 	&.small {
