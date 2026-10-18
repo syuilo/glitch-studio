@@ -88,16 +88,21 @@ const emit = defineEmits<{
 
 const projectGeneration = appContext.projectContext.generation;
 const savedSettings = stateManager.state.exportSettings.value;
-const initialSceneId = previewPlayback.state.value.mode === 'timeline' ? (appContext.activeScene.value?.id ?? '') : '';
-const initialScene = stateManager.state.timelineScenes.value.find(scene => scene.id === initialSceneId);
+const firstScene = stateManager.state.timelineScenes.value[0] ?? null;
+const initialScene = (previewPlayback.state.value.mode === 'timeline'
+	? stateManager.state.timelineScenes.value.find(scene => scene.id === appContext.activeScene.value?.id)
+	: null) ?? firstScene;
+const initialSceneId = initialScene?.id ?? '';
 const dialogSettings = reactive(deepClone(savedSettings ?? createDefaultExportDialogSettings(initialSceneId,
 	getSceneBaseResolution(initialScene?.resolution ?? { mode: 'project' }, stateManager.state.resolution.value),
 	stateManager.state.timelineFps.value, initialScene == null ? 0 : getSceneDuration(initialScene))));
-// 前回のSceneが削除されている場合は、存在しない参照とその時間範囲を引き継がない。
-if (dialogSettings.sceneId !== '' && !stateManager.state.timelineScenes.value.some(scene => scene.id === dialogSettings.sceneId)) {
-	dialogSettings.sceneId = initialSceneId;
+// 未選択なら先頭のSceneを使い、削除済みの参照は現在のSceneへ戻す。
+// どちらも以前の時間範囲を流用せず、選択したSceneの全範囲から始める。
+if (!stateManager.state.timelineScenes.value.some(scene => scene.id === dialogSettings.sceneId)) {
+	const fallbackScene = dialogSettings.sceneId === '' ? firstScene : initialScene;
+	dialogSettings.sceneId = fallbackScene?.id ?? '';
 	dialogSettings.startTime = formatExportTime(0);
-	dialogSettings.endTime = formatExportTime(initialScene == null ? 0 : getSceneDuration(initialScene));
+	dialogSettings.endTime = formatExportTime(fallbackScene == null ? 0 : getSceneDuration(fallbackScene));
 }
 const { sceneId, mode, videoFormat, stillFormat, videoQuality, stillQuality, resolutionScale, customResolution,
 	fpsScale, customFps, startTime, endTime } = toRefs(dialogSettings);

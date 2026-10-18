@@ -42,6 +42,8 @@ const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove
 function fixture(t, savedSettings = null) {
 	const stateManager = context.projectContext.stateManager;
 	context.projectContext.generation = 1;
+	context.previewPlayback.state.value = { mode: 'timeline' };
+	context.activeScene.value = { id: 'scene' };
 	stateManager.commits.length = 0;
 	stateManager.state = Object.fromEntries(Object.entries({
 		exportSettings: savedSettings, name: 'Project', resolution: { width: 1920, height: 1080 }, timelineFps: 24,
@@ -125,6 +127,40 @@ test('resets the range when selecting a different or replacing a missing scene',
 	assert.equal(reopened.input.sceneId, 'scene');
 	assert.equal(reopened.input.startTime, '00:00:00.000');
 	assert.equal(reopened.input.endTime, '00:00:10.000');
+});
+
+// 【書き出しSceneが未選択なら先頭のSceneとその全範囲を選ぶ】
+// LIVEから初めて開く場合や未選択の設定を復元する場合にも、毎回選び直す必要をなくす。
+// 保存済みの有効な選択は優先し、Sceneが一つもない場合だけ未選択を維持する。
+test('selects the first scene when no export scene is selected', t => {
+	const f = fixture(t);
+	f.close();
+	f.stateManager.state.exportSettings.value = null;
+	context.previewPlayback.state.value = { mode: 'live' };
+	context.activeScene.value = { id: 'other' };
+	const initial = f.open();
+	assert.equal(initial.input.sceneId, 'scene');
+	assert.equal(initial.input.endTime, '00:00:10.000');
+	initial.close();
+
+	Object.assign(f.stateManager.state.exportSettings.value, { sceneId: '', startTime: '00:00:01.000', endTime: '00:00:05.000' });
+	context.previewPlayback.state.value = { mode: 'timeline' };
+	const restored = f.open();
+	assert.equal(restored.input.sceneId, 'scene');
+	assert.equal(restored.input.startTime, '00:00:00.000');
+	assert.equal(restored.input.endTime, '00:00:10.000');
+	restored.close();
+
+	f.stateManager.state.exportSettings.value.sceneId = 'other';
+	const selected = f.open();
+	assert.equal(selected.input.sceneId, 'other');
+	selected.close();
+
+	f.stateManager.state.exportSettings.value = null;
+	f.stateManager.state.timelineScenes.value = [];
+	const empty = f.open();
+	assert.equal(empty.input.sceneId, '');
+	assert.equal(empty.input.endTime, '00:00:00.000');
 });
 
 // 【プロジェクト切替後のアンマウントでは旧ダイアログの設定を保存しない】
