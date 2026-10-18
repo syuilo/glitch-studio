@@ -228,7 +228,7 @@ export const PREF_DEF = definePreferences({
 								type: 'divider',
 								direction: 'vertical',
 								children: [{
-									ratio: 0.7,
+									ratio: 0.6,
 									element: {
 										id: '03cbfd2fe87943dab2dd716d2505c630',
 										type: 'divider',
@@ -308,7 +308,7 @@ export const PREF_DEF = definePreferences({
 										}],
 									},
 								}, {
-									ratio: 0.3,
+									ratio: 0.4,
 									element: {
 										id: 'f5a1c961595149e4a84f61ccf8908977',
 										type: 'panel',
