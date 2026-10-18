@@ -11,7 +11,7 @@ hero:
     height: 224
   actions:
     - theme: brand
-      text: Glitch Studioについて知る
+      text: Glitch Studioについて
       link: /guide/getting-started
     - theme: alt
       text: ダウンロード
