@@ -136,7 +136,13 @@ Save asは保存データに新しいプロジェクトIDを発行し、本体�
 
 ## Electronの更新UI
 
-`DesktopUpdates`がmainから更新状態を取得・購読します。状態のrevisionを比較し、遅れて返った初期snapshotで新しい通知を巻き戻しません。`App.vue`のヘッダとHelpメニューから確認を行い、`GsDesktopUpdateDialog`が処理中の操作を抑止し、失敗後に閉じる・再試行を表示します。インストーラーの起動を試みた後の失敗は`restart-required`として扱い、再試行を隠してアプリの再起動を案内します。保存とプレビューはこの場合も復帰します。
+`desktop-update-ui.ts`がアプリ全体で共有する`desktopUpdateUi`を生成し、`main.ts`がルートUIのマウント後に初期化します。画面のマウント・アンマウントでは購読や更新UIを開始・破棄しません。Web版ではサービスを生成しません。
+
+`DesktopUpdates`がmainから更新状態を取得・購読し、更新前の保存・プレビュー停止と失敗時の復帰を調整します。状態のrevisionを比較し、遅れて返った初期snapshotで新しい通知を巻き戻しません。`DesktopUpdateUiController`が確認・進捗ダイアログと再試行を管理し、複数の通知から操作しても確認や進捗ダイアログを重複表示しません。`App.vue`は共有状態を参照し、ヘッダとHelpメニューの操作をサービスへ渡します。
+
+`GsDashboardDialog`も`desktopUpdateUi`を直接参照し、Electron版で更新が見つかると対象バージョンと通知ボタンを表示します。選択時はサービスの`requestUpdate()`を呼び、確認をキャンセルしてもDashboardを残します。App.vueによる状態・操作の中継はなく、Dashboard自身は追加の更新確認やIPC購読を行いません。
+
+`GsDesktopUpdateDialog`が処理中の操作を抑止し、失敗後に閉じる・再試行を表示します。インストーラーの起動を試みた後の失敗は`restart-required`として扱い、再試行を隠してアプリの再起動を案内します。保存とプレビューはこの場合も復帰します。
 
 `GsModal`は通常のclose時とアンマウント前にフォーカス制御を解除します。popupを直接破棄して別の確認へ移る場合にも背景の`inert`を残さず、破棄時には新しいモーダルのフォーカスを移動しません。
 

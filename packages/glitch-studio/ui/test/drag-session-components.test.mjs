@@ -28,7 +28,7 @@ const bundle = await build({ absWorkingDir: directory,
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	define: { _VERSION_: '"test"', __ELECTRON__: 'false' },
 	plugins: [i18nPlugin, { name: 'drag-session-components', setup(build) {
-		build.onResolve({ filter: /^@\/(preferences|workspace|app|ui)\.ts$/ }, ({ path }) => ({ path: path.slice(2), namespace: 'test' }));
+		build.onResolve({ filter: /^@\/(preferences|workspace|app|ui|desktop-update-ui)\.ts$/ }, ({ path }) => ({ path: path.slice(2), namespace: 'test' }));
 		build.onResolve({ filter: /open-media-file\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
 		build.onResolve({ filter: /import-assets\.ts$/ }, () => ({ path: 'asset-import', namespace: 'test' }));
 		build.onResolve({ filter: /visual-module-wires\.ts$/ }, () => ({ path: 'wires', namespace: 'test' }));
@@ -46,6 +46,7 @@ const bundle = await build({ absWorkingDir: directory,
 				export async function newProject() {} export async function newProjectFromImageOrVideo() { return true; }
 				export async function openProject(file, handle) { dashboardTest.opened.push({ file, handle }); return dashboardTest.success; }`,
 			'ui.ts': 'export function progress() { return { done() {} }; } export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {} export async function confirm() { return { canceled: false }; }',
+			'desktop-update-ui.ts': 'export const desktopUpdateUi = null;',
 			media: 'export async function openMediaFile() {}',
 			'asset-import': `export const assetImportTest = { calls: [], read: null };
 				export async function importAssets(context, files) { assetImportTest.calls.push({ context, files });

@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import '@/style.scss';
 import App from '@/App.vue';
 import directives from '@/directives/index.ts';
+import { desktopUpdateUi } from './desktop-update-ui.ts';
 
 const onVisibilityChange = () => window.document.addEventListener('visibilitychange', () => {
 	if (window.document.visibilityState === 'visible') {
@@ -25,3 +26,6 @@ const app = createApp(App);
 directives(app);
 
 app.mount('#app');
+
+// ダイアログの表示先ができてから、画面のライフサイクルに依存しない更新サービスを開始する。
+void desktopUpdateUi?.initialize().catch(console.error);
