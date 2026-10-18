@@ -234,7 +234,8 @@ app.whenReady().then(async () => {
 	registerVoicevoxIpc(ipcMain, getTrustedMainWindow);
 	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, startupProjectPath,
 		path.join(app.getPath('userData'), 'project-open-directory'));
-	registerRecentProjectsIpc(ipcMain, new RecentProjects(path.join(app.getPath('userData'), 'recent-projects')), projectFiles, getTrustedMainWindow);
+	registerRecentProjectsIpc(ipcMain, new RecentProjects(path.join(app.getPath('userData'), 'recent-projects')), projectFiles,
+		getTrustedMainWindow, process.platform === 'win32' ? app : null);
 	registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMainWindow);
 
 	createWindow();

@@ -6,7 +6,7 @@ import os from 'node:os';
 import { RecentProjects, registerRecentProjectsIpc } from '../recent-projects.mjs';
 import { ProjectFiles } from '../project-files.mjs';
 
-async function fixture(t) {
+async function fixture(t, recentDocuments = null) {
 	const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'glitch-studio-recent-projects-'));
 	t.after(() => fs.rm(directory, { recursive: true, force: true }));
 	const historyDirectory = path.join(directory, 'history');
@@ -16,7 +16,7 @@ async function fixture(t) {
 	const trusted = {};
 	registerRecentProjectsIpc({ handle: (name, action) => handlers.set(name, action) }, recentProjects, projectFiles, event => {
 		if (event !== trusted) throw new Error('Untrusted');
-	});
+	}, recentDocuments);
 	return { directory, historyDirectory, recentProjects, projectFiles, handlers,
 		invoke: (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args) };
 }
@@ -80,4 +80,72 @@ test('rejects untrusted requests, unknown file references and invalid recent pro
 	await assert.rejects(h.invoke('remember-recent-project', 'unknown', 'Name'), /Unknown project/);
 	await assert.rejects(h.invoke('resolve-recent-project', '../outside'), /Invalid recent project ID/);
 	await assert.rejects(h.invoke('remove-recent-project', '../outside'), /Invalid recent project ID/);
+});
+
+// 【記録したプロジェクトの実パスをOSへ渡し、全履歴消去時にはOSの履歴も消去する】
+// rendererが持つ一時的なIDでは、ジャンプリストから再起動した時にファイルを開けない。
+// 一覧表示や個別削除ではOSの履歴を再構築せず、Windows側でのピン留め・削除を尊重する。
+test('adds project paths to OS recent documents and clears them only when all history is cleared', async t => {
+	const addedPaths = [];
+	let clearCount = 0;
+	const h = await fixture(t, {
+		addRecentDocument: filePath => { addedPaths.push(filePath); },
+		clearRecentDocuments: () => { clearCount++; },
+	});
+	const firstProjectPath = path.join(h.directory, '作品 フォルダ', '試作.GSPROJ');
+	const secondProjectPath = path.join(h.directory, 'second.gsproj');
+	const firstProjectId = h.projectFiles.register(firstProjectPath);
+	await h.invoke('remember-recent-project', firstProjectId, 'First');
+	await h.invoke('remember-recent-project', h.projectFiles.register(secondProjectPath), 'Second');
+	await h.invoke('remember-recent-project', firstProjectId, 'First again');
+	assert.deepEqual(addedPaths, [firstProjectPath, secondProjectPath, firstProjectPath]);
+	const entries = await h.invoke('list-recent-projects');
+	assert.equal(entries.length, 2);
+	assert.equal(entries.every(entry => !('filePath' in entry)), true);
+	const firstEntry = entries.find(entry => entry.name === 'First again');
+	await h.invoke('resolve-recent-project', firstEntry.id);
+	await h.invoke('remove-recent-project', firstEntry.id);
+	assert.deepEqual(addedPaths, [firstProjectPath, secondProjectPath, firstProjectPath]);
+	assert.equal(clearCount, 0);
+	await h.invoke('clear-recent-projects');
+	assert.equal(clearCount, 1);
+	assert.deepEqual(await h.invoke('list-recent-projects'), []);
+});
+
+// 【信頼できない要求や永続化に失敗した要求をOSの履歴へ反映しない】
+// 呼び出し元とファイルIDの検証を通っただけでは、履歴の記録に成功したとは限らない。
+// 履歴ディレクトリへの書き込みに失敗した場合も含め、確定前のOS操作がないことを確認する。
+test('does not update OS recent documents for rejected requests or failed history writes', async t => {
+	const recentDocuments = {
+		addRecentDocument: t.mock.fn(),
+		clearRecentDocuments: t.mock.fn(),
+	};
+	const h = await fixture(t, recentDocuments);
+	for (const handler of h.handlers.values()) await assert.rejects(async () => handler({}, 'unknown'), /Untrusted/);
+	await assert.rejects(h.invoke('remember-recent-project', 'unknown', 'Name'), /Unknown project/);
+	const projectId = h.projectFiles.register(path.join(h.directory, 'project.gsproj'));
+	await assert.rejects(h.invoke('remember-recent-project', projectId, null), /Invalid project name/);
+	// 履歴ディレクトリをファイルで塞ぎ、実際の永続化失敗を発生させる。
+	await fs.writeFile(h.historyDirectory, 'not a directory');
+	await assert.rejects(h.invoke('remember-recent-project', projectId, 'Name'));
+	await assert.rejects(h.invoke('clear-recent-projects'));
+	assert.equal(recentDocuments.addRecentDocument.mock.callCount(), 0);
+	assert.equal(recentDocuments.clearRecentDocuments.mock.callCount(), 0);
+});
+
+// 【OSとの連携が失敗してもアプリ内の履歴記録と全消去を完了できる】
+// ジャンプリストは補助機能なので、その失敗を履歴操作全体の失敗としてUIへ返さない。
+// 失敗はログに残し、ユーザーがアプリ内の履歴を利用できることを保証する。
+test('keeps local history usable when OS recent document operations fail', async t => {
+	const loggedErrors = t.mock.method(console, 'error', () => {});
+	const h = await fixture(t, {
+		addRecentDocument: () => { throw new Error('OS registration failed'); },
+		clearRecentDocuments: () => { throw new Error('OS clearing failed'); },
+	});
+	const projectId = h.projectFiles.register(path.join(h.directory, 'project.gsproj'));
+	await h.invoke('remember-recent-project', projectId, 'Project');
+	assert.equal((await h.invoke('list-recent-projects')).length, 1);
+	await h.invoke('clear-recent-projects');
+	assert.deepEqual(await h.invoke('list-recent-projects'), []);
+	assert.equal(loggedErrors.mock.callCount(), 2);
 });

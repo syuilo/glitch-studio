@@ -58,7 +58,7 @@ export class RecentProjects {
 	}
 }
 
-export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles, getTrustedMainWindow) {
+export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles, getTrustedMainWindow, recentDocuments = null) {
 	ipcMain.handle('desktop:list-recent-projects', async event => {
 		getTrustedMainWindow(event);
 		return (await recentProjects.list()).slice(0, 20).map(({ filePath: _filePath, ...entry }) => entry);
@@ -66,7 +66,15 @@ export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles,
 	ipcMain.handle('desktop:remember-recent-project', async (event, id, name) => {
 		getTrustedMainWindow(event);
 		if (typeof name !== 'string') throw new Error('Invalid project name');
-		await recentProjects.remember(projectFiles.getPath(id), name);
+		const filePath = projectFiles.getPath(id);
+		await recentProjects.remember(filePath, name);
+		try {
+			// 開く・保存する処理が成功して履歴が確定した時だけ、Windowsのジャンプリストへ登録する。
+			// OS側の失敗でアプリ内の履歴まで利用できなくならないよう、別に扱う。
+			recentDocuments?.addRecentDocument(filePath);
+		} catch (error) {
+			console.error('Failed to add a recent project to the OS recent documents:', error);
+		}
 	});
 	ipcMain.handle('desktop:resolve-recent-project', async (event, id) => {
 		getTrustedMainWindow(event);
@@ -80,5 +88,10 @@ export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles,
 	ipcMain.handle('desktop:clear-recent-projects', async event => {
 		getTrustedMainWindow(event);
 		await recentProjects.clear();
+		try {
+			recentDocuments?.clearRecentDocuments();
+		} catch (error) {
+			console.error('Failed to clear the OS recent documents:', error);
+		}
 	});
 }
