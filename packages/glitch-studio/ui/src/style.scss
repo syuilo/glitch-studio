@@ -34,7 +34,9 @@
 		--THEME-layer-voicevox: #86C591;
 		--THEME-layer-group: #888;
 
-		--control-height: 25px;
+		--GS-CONTROL-HEIGHT: 24px;
+		--GS-CONTROL-HEIGHT-SMALL: 22px;
+		--GS-CONTROL-HEIGHT-LARGE: 28px;
 
 		color-scheme: dark;
 	}
@@ -51,7 +53,7 @@
 	html {
 		//font-family: 'Chakra Petch', 'Avenir', Helvetica, Arial, sans-serif;
 		font-family: "Segoe WPC", "Segoe UI", sans-serif;
-		font-size: 13px;
+		font-size: 12px;
 		font-variant-numeric: tabular-nums;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;

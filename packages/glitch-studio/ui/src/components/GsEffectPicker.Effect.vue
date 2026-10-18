@@ -70,9 +70,9 @@ const outputPorts = computed(() => getEffectOutputPorts(props.effect));
 }
 
 .description {
-	font-size: 85%;
 	line-height: 1.5;
-	opacity: 0.7;
+	font-size: 90%;
+	color: color-mix(in srgb, var(--THEME-fg), transparent 75%);
 }
 
 .footer {

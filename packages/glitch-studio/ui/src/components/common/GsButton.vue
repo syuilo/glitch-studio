@@ -8,6 +8,7 @@
 	@click="emit('click', $event)"
 >
 	<div :class="$style.content">
+		<slot name="icon" :class="$style.icon"></slot>
 		<slot></slot>
 	</div>
 </component>
@@ -77,10 +78,11 @@ onMounted(() => {
 	display: block;
 	min-width: 80px;
 	width: max-content;
-	padding: 6px 12px;
+	height: var(--GS-CONTROL-HEIGHT);
+	line-height: var(--GS-CONTROL-HEIGHT);
+	padding: 0 12px;
 	text-align: center;
 	font-weight: normal;
-	font-size: 95%;
 	box-shadow: none;
 	text-decoration: none;
 	background: var(--THEME-buttonBg);
@@ -104,16 +106,18 @@ onMounted(() => {
 	&.iconOnly {
 		padding: 7px;
 		min-width: auto !important;
+
+		.icon {
+			margin-right: 0;
+		}
 	}
 
 	&.small {
-		font-size: 90%;
-		padding: 4px 8px;
+		padding: 0 8px;
 	}
 
 	&.large {
-		font-size: 100%;
-		padding: 8px 16px;
+		padding: 0 16px;
 	}
 
 	&.full {
@@ -186,5 +190,11 @@ onMounted(() => {
 	position: relative;
 	z-index: 1;
 	pointer-events: none;
+}
+
+.icon {
+	display: inline-block;
+	line-height: var(--GS-CONTROL-HEIGHT);
+	margin-right: 0.5em;
 }
 </style>

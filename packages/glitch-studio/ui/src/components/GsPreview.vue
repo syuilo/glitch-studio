@@ -38,7 +38,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { scaleResolution } from '@gs/shared/resolution.js';
@@ -47,6 +46,7 @@ import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
 import type { CSSProperties } from 'vue';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
+import { i18n } from '@/i18n.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { formatRenderFailureOrigin } from '@/utility/render-failure.ts';
@@ -396,7 +396,6 @@ function showMenu(ev: PointerEvent) {
 }
 
 .menuButton {
-	font-size: 90%;
 }
 
 .bottomLeft {

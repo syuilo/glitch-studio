@@ -205,7 +205,7 @@ function popout() {
 
 <style lang="scss" module>
 .root {
-	--headerHeight: 30px;
+	--headerHeight: 28px;
 
 	position: relative;
 	height: 100%;
@@ -301,7 +301,6 @@ function popout() {
 	line-height: var(--headerHeight);
 	height: var(--headerHeight);
 	padding: 0 16px 0 30px;
-	font-size: 85%;
 	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
 	//background: var(--THEME-panel);
 	user-select: none;

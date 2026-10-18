@@ -24,14 +24,14 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
 import { computed, onBeforeUnmount, ref, useTemplateRef } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import type { LocalFont } from '@/utility/local-fonts.ts';
+import { appContext } from '@/app.ts';
+import { i18n } from '@/i18n.ts';
 import { localFontErrorMessage } from '@/utility/local-fonts.ts';
 
 const { stateManager } = appContext.projectContext;
@@ -116,7 +116,6 @@ async function importFont() {
 }
 
 .detail {
-	font-size: 85%;
 	opacity: 0.7;
 }
 

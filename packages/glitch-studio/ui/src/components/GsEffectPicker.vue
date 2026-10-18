@@ -250,7 +250,7 @@ function choose(key: string, effect: typeof effectDefinitions[keyof typeof effec
 
 .typeFilterLabel {
 	margin-bottom: 6px;
-	font-size: 85%;
+	font-size: 90%;
 }
 
 .typePort {
@@ -273,7 +273,6 @@ function choose(key: string, effect: typeof effectDefinitions[keyof typeof effec
 	overflow-wrap: anywhere;
 	background: var(--THEME-buttonBg);
 	border-radius: 6px;
-	font-size: 90%;
 
 	&:hover {
 		background: var(--THEME-buttonHoverBg);

@@ -13,13 +13,13 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { computed } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsVideoControls from './common/GsVideoControls.vue';
 import GsAudioLevelMeter from './common/GsAudioLevelMeter.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import type { Player } from '@gs/shared/types.ts';
+import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import * as api from '@/api.ts';
 import * as ui from '@/ui.ts';
@@ -80,7 +80,6 @@ function showMenu(ev: PointerEvent) {
 	text-overflow: ellipsis;
 	font-weight: bold;
 	line-height: 32px;
-	font-size: 95%;
 }
 
 .menuButton {
@@ -89,7 +88,6 @@ function showMenu(ev: PointerEvent) {
 	right: 4px;
 	width: 28px;
 	height: 28px;
-	font-size: 90%;
 }
 
 .body {

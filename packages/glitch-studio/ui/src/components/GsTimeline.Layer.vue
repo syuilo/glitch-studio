@@ -115,7 +115,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { computed } from 'vue';
@@ -132,6 +131,7 @@ import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility
 import type { TimelineTickMode, TimelineTickSubdivisions } from '@/utility/timeline-ticks.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { i18n } from '@/i18n.ts';
 import { timelineTimeToX, timelinePointerTime } from '@/utility/timeline-coordinates.ts';
 import { appContext } from '@/app.ts';
 import { formatTimelineTimecode, getTimelineVisibleClipTicks, getTimelineTickCount } from '@/utility/timeline-ticks.ts';
@@ -411,7 +411,6 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	overflow: clip;
 	user-select: none;
 	cursor: grab;
-	font-size: 90%;
 }
 
 .grabber {

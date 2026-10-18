@@ -2,10 +2,6 @@
 <GsFolder asSection defaultOpen :withSpacer="false">
 	<template #icon><i class="ti ti-shape"></i></template>
 	<template #label>{{ i18n.ts._TimelineLayer.Shape }} {{ shapeDefinitions[layer.shape.type].label }}</template>
-	<div class="_spacer" style="font-size: 0.85em; opacity: 0.7;">
-		<div>{{ i18n.ts._TimelineLayer.ShapeSizeHint }}</div>
-		<div>{{ i18n.ts._TimelineLayer.StrokeStartHint }}</div>
-	</div>
 	<div style="padding: 8px 0;">
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(definitions)"
@@ -24,7 +20,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed } from 'vue';
 import { getShapeParameterDefinitions, shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
@@ -33,6 +28,7 @@ import GsVisualParam from './GsVisualParam.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineShapeLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{ layer: TimelineShapeLayer }>();
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();

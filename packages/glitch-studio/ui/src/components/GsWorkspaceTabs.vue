@@ -129,7 +129,6 @@ function toggleCollapse() {
 
 .tab {
 	position: relative;
-	font-size: 90%;
 
 	&::after {
 		content: '';
@@ -167,16 +166,13 @@ function toggleCollapse() {
 }
 
 .addTabButton {
-	font-size: 90%;
 }
 
 .menuButton {
-	font-size: 90%;
 	margin-left: auto;
 }
 
 .toggleCollapse {
-	font-size: 90%;
 }
 
 .tabContent {

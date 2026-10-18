@@ -119,7 +119,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { evalAutomationGraphValue } from '@gs/shared/automation-graph/automation-graph-evaluator.ts';
 import { insertIntermediateNumbers, nearlyEqual, niceScale, niceNormalizedScale } from '@gs/shared/utility/misc.js';
@@ -127,6 +126,7 @@ import { genId } from '@gs/shared/utility/id.js';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import GsButton from './common/GsButton.vue';
 import type { AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';
+import { i18n } from '@/i18n.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 // TODO: dom座標としてのx/yとpointの値としてのx/yは同じ数値ではあるが意味が異なるので、Phantom Typeなどで区別する
@@ -989,7 +989,6 @@ onMounted(() => {
 	position: absolute;
 	left: 0;
 	width: 100%;
-	font-size: 12px;
 	padding: 4px 8px 0 0;
 	box-sizing: border-box;
 	border-top: solid 1px #fff1;
@@ -1016,7 +1015,6 @@ onMounted(() => {
 	top: 0;
 	height: 100%;
 	line-height: var(--xTicksHeight);
-	font-size: 12px;
 	padding: 0 0 0 8px;
 	border-left: solid 1px #fff3;
 }
@@ -1273,7 +1271,6 @@ onMounted(() => {
 	background: #0005;
 	color: #fff;
 	padding: 6px 10px;
-	font-size: 85%;
 	pointer-events: none;
 }
 
@@ -1281,7 +1278,6 @@ onMounted(() => {
 	position: absolute;
 	background: #0005;
 	color: #fff;
-	font-size: 13px;
 
 	> div {
 		display: flex;
@@ -1360,7 +1356,6 @@ onMounted(() => {
 	width: calc(100% - var(--yTicksWidth));
 	height: 22px;
 	line-height: 22px;
-	font-size: 13px;
 	background: #0008;
 	color: #fff;
 	overflow: clip;

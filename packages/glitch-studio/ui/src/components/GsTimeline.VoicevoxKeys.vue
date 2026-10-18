@@ -147,7 +147,6 @@ function add(event: MouseEvent) {
 	left: calc(var(--key-size) / 2 + 4px);
 	right: 4px;
 	line-height: var(--key-size);
-	font-size: 95%;
 	white-space: nowrap;
 	overflow: clip;
 	text-overflow: ellipsis;

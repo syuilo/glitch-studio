@@ -938,7 +938,6 @@ function formatFullTimecode(timeMs: number): string {
 	top: 0;
 	height: 100%;
 	line-height: var(--xTicksHeight);
-	font-size: 12px;
 	padding: 0 0 0 8px;
 	border-left: solid 1px #fff3;
 }
@@ -1186,7 +1185,6 @@ function formatFullTimecode(timeMs: number): string {
 	background: #0005;
 	color: #fff;
 	padding: 6px 10px;
-	font-size: 13px;
 }
 
 .layerSettings {

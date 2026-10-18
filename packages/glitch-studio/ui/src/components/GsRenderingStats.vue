@@ -36,8 +36,8 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
+import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 
 const { visualModuleRendererManagerController, previewPlayback } = appContext;
@@ -144,7 +144,7 @@ onBeforeUnmount(() => {
 	flex-wrap: wrap;
 	gap: 10px 10px;
 	padding: 0 0 8px 2px;
-	font-size: 80%;
+	font-size: 90%;
 }
 
 .legendItem {
@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
 	text {
 		fill: rgba(255, 255, 255, 0.45);
 		font-family: inherit;
-		font-size: 80%;
+		font-size: 90%;
 	}
 }
 </style>

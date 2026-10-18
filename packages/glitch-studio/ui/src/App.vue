@@ -589,7 +589,7 @@ onMounted(async () => {
 	height: 28px;
 	box-sizing: border-box;
 	line-height: 28px;
-	font-size: 90%;
+	font-size: 95%;
 	padding: 0 12px;
 	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
 }

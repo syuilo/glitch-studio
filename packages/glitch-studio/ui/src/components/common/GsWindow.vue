@@ -532,7 +532,6 @@ defineExpose({
 	-webkit-backdrop-filter: blur(15px);
 	backdrop-filter: blur(15px);
 	//border-bottom: solid 1px var(--THEME-divider);
-	font-size: 90%;
 	font-weight: bold;
 
 	&.mini {
@@ -543,7 +542,6 @@ defineExpose({
 .headerButton {
 	height: var(--height);
 	width: var(--height);
-	font-size: 90%;
 
 	&:hover {
 		color: var(--THEME-fgHighlighted);

@@ -109,7 +109,6 @@ const keyframeSegments = computed(() => {
 	top: 0;
 	// キーの右端から4px離し、ラベルでキーの選択・ドラッグを遮らない。
 	margin-left: calc(var(--knobSize) / 2 + 4px);
-	font-size: 90%;
 	text-align: left;
 	white-space: nowrap;
 	overflow: clip;

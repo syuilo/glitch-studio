@@ -525,7 +525,6 @@ function onReset() {
 	box-sizing: border-box;
 	padding-right: 12px;
 	flex-shrink: 0;
-	font-size: 95%;
 
 	&.isDyamic {
 	}

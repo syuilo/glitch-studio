@@ -226,7 +226,6 @@ onBeforeUnmount(() => {
 	padding: 4px 12px;
 	white-space: nowrap;
 	overflow: clip;
-	font-size: 0.9em;
 	cursor: default;
 	user-select: none;
 	overflow: clip;

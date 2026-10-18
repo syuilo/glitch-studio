@@ -74,18 +74,12 @@ onUnmounted(() => {
 
 .dataType {
 	margin-left: 6px;
-	font-size: 0.85em;
-	opacity: 0.6;
+	font-size: 90%;
 }
 
 .resolution {
 	margin-left: 6px;
-	font-size: 0.85em;
-	opacity: 0.7;
-}
-
-.nodeId {
-	padding-left: 8px;
-	opacity: 0.5;
+	color: color-mix(in srgb, var(--THEME-fg), transparent 50%);
+	font-size: 90%;
 }
 </style>

@@ -92,7 +92,7 @@ async function apply() {
 	grid-template-columns: 1fr 1fr;
 	padding-right: 108px;
 	gap: 6px;
-	font-size: 0.85em;
+	font-size: 90%;
 	opacity: 0.7;
 }
 

@@ -169,7 +169,6 @@ watchEffect(onCleanup => {
 	overflow: clip;
 	height: 32px;
 	text-overflow: ellipsis;
-	font-size: 95%;
 	cursor: move;
 	background: linear-gradient(0deg, var(--THEME-nodeBg), hsl(from var(--THEME-nodeBg) h s calc(l + 5)));
 	//background: var(--THEME-nodeBg);
@@ -208,7 +207,6 @@ watchEffect(onCleanup => {
 	display: inline-block;
 	width: 23px;
 	height: 23px;
-	font-size: 90%;
 	padding-left: 0;
 	padding-right: 0;
 

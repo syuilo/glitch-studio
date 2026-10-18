@@ -2,14 +2,14 @@
 <GsModal ref="modal" data-test-dashboard-file-drop animatedBg preferType="dialog" @closed="emit('closed')">
 	<div :class="$style.root">
 		<div :class="$style.main" class="_gaps_l">
-			<div style="display: flex; align-items: center; gap: 16px;">
-				<img src="/gs.svg" draggable="false" style="display: block; width: 64px; height: 64px;">
+			<div style="display: flex; align-items: center; gap: 16px; font-size: 110%;">
+				<img src="/gs.svg" draggable="false" style="display: block; width: 55px; height: 55px;">
 				<div>
 					<div><b>Glitch Studio{{ isElectron ? '' : ' (for Web)' }}</b></div>
 					<div>{{ version }}</div>
 				</div>
 			</div>
-			<div style="font-size: 90%;">
+			<div>
 				<div v-if="!isElectron">{{ i18n.ts._Dashboard.WebLimitations }}<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/guide/download" target="_blank">{{ i18n.ts._Dashboard.DesktopVersion }}</a></div>
 			</div>
 			<div class="_gaps_m">
@@ -174,6 +174,7 @@ function showAbout() {
 	display: flex;
 	background: var(--THEME-dialog);
 	border-radius: 10px;
+	overflow: clip;
 }
 
 .main {
@@ -225,7 +226,6 @@ function showAbout() {
 }
 
 .recentFileName, .recentTime, .recentEmpty {
-	font-size: 90%;
 	opacity: 0.7;
 }
 

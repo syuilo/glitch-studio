@@ -550,7 +550,6 @@ function guardMouseMove(ev: MouseEvent) {
 
 			> .item {
 				padding: 6px 20px;
-				font-size: 0.95em;
 				line-height: 24px;
 			}
 		}
@@ -568,7 +567,6 @@ function guardMouseMove(ev: MouseEvent) {
 			border-bottom-left-radius: 0;
 
 			> .item {
-				font-size: 1em;
 				padding: 12px 24px;
 
 				&::before {
@@ -612,7 +610,6 @@ function guardMouseMove(ev: MouseEvent) {
 	width: 100%;
 	box-sizing: border-box;
 	white-space: nowrap;
-	font-size: 0.9em;
 	line-height: 20px;
 	text-align: left;
 	overflow: clip;
@@ -722,7 +719,7 @@ function guardMouseMove(ev: MouseEvent) {
 
 .item_content_text_caption {
 	text-wrap: auto;
-	font-size: 85%;
+	font-size: 90%;
 	opacity: 0.7;
 }
 
@@ -750,7 +747,6 @@ function guardMouseMove(ev: MouseEvent) {
 	display: flex;
 	align-items: center;
 	color: var(--THEME-indicator);
-	font-size: 12px;
 }
 
 .label {
@@ -758,7 +754,7 @@ function guardMouseMove(ev: MouseEvent) {
 	padding: 6px 16px;
 	box-sizing: border-box;
 	white-space: nowrap;
-	font-size: 0.7em;
+	font-size: 90%;
 	text-align: left;
 	overflow: clip;
 	text-overflow: ellipsis;

@@ -19,7 +19,7 @@ const verticalPosition = computed(() => props.panel.contentType === 'waveformVer
 <style module lang="scss">
 .root {
 	height: 100%;
-	padding: 2px 10px 10px 10px;
+	padding: 2px 8px 8px 8px;
 	box-sizing: border-box;
 }
 </style>

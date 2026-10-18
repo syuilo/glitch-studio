@@ -57,5 +57,6 @@ watchPostEffect(() => {
 }
 
 .text {
+	font-size: 110%;
 }
 </style>

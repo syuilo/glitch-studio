@@ -151,7 +151,7 @@ function onDragend() {
 	display: block;
 	margin: 8px 0 0 0;
 	padding: 0 2px;
-	font-size: 82%;
+	font-size: 90%;
 	text-align: center;
 	word-break: break-all;
 	color: var(--THEME-fg);

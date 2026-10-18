@@ -64,9 +64,9 @@
 </template>
 
 <script setup lang="ts">
-import { i18n } from '@/i18n.ts';
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import type { RgbaColor } from '@/utility/color-input.ts';
+import { i18n } from '@/i18n.ts';
 import { clampColorValue, colorCss, colorHex, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv } from '@/utility/color-input.ts';
 import GsModal from '@/components/common/GsModal.vue';
 import * as ui from '@/ui.ts';
@@ -304,7 +304,6 @@ function close() {
 	overflow: auto;
 	padding: 14px;
 	border-radius: 10px;
-	font-size: 12px;
 	outline: none;
 }
 .header, .actions, .sliderRow {
@@ -399,7 +398,6 @@ function close() {
 .format {
 	width: 30px;
 	flex-shrink: 0;
-	font-size: 11px;
 }
 .field {
 	flex: 1;
@@ -407,7 +405,6 @@ function close() {
 }
 .label {
 	display: block;
-	font-size: 10px;
 	opacity: 0.6;
 	margin-bottom: 3px;
 }

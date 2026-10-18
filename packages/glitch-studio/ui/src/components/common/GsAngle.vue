@@ -54,11 +54,11 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import GsButton from './GsButton.vue';
 import GsModal from './GsModal.vue';
 import GsRange from './GsRange.vue';
+import { i18n } from '@/i18n.ts';
 
 const props = withDefaults(defineProps<{
 	modelValue: number;
@@ -244,7 +244,6 @@ function formatAngle(value: number): string {
 }
 
 .value {
-	font-size: 0.85em;
 	font-variant-numeric: tabular-nums;
 	opacity: 0.7;
 }

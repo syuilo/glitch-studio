@@ -144,7 +144,6 @@ watch(opened, (isOpened) => {
 	width: 100%;
 	box-sizing: border-box;
 	padding: 5px 10px 5px 10px;
-	font-size: 95%;
 	background: var(--THEME-folderHeaderBg);
 	-webkit-backdrop-filter: blur(15px);
 	backdrop-filter: blur(15px);
@@ -177,8 +176,8 @@ watch(opened, (isOpened) => {
 
 .headerLower {
 	color: color(from var(--THEME-fg) srgb r g b / 0.75);
-	font-size: .85em;
 	padding-left: 4px;
+	font-size: 90%;
 }
 
 .headerIcon {
@@ -211,7 +210,7 @@ watch(opened, (isOpened) => {
 
 .headerTextSub {
 	color: color(from var(--THEME-fg) srgb r g b / 0.75);
-	font-size: .85em;
+	font-size: 90%;
 }
 
 .headerRight {

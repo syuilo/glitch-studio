@@ -14,10 +14,12 @@
 		</div>
 		<div :class="$style.axis">
 			<template v-if="mode === 'spectrum'">
-				<span v-for="(tick, index) in frequencyTicks" :key="tick.value" :style="{
-					left: `${tick.position * 100}%`,
-					transform: index === 0 ? 'none' : index === frequencyTicks.length - 1 && tick.position === 1 ? 'translateX(-100%)' : 'translateX(-50%)',
-				}">{{ tick.value >= 1000 ? `${tick.value / 1000}k` : tick.value }}</span>
+				<span
+					v-for="(tick, index) in frequencyTicks" :key="tick.value" :style="{
+						left: `${tick.position * 100}%`,
+						transform: index === 0 ? 'none' : index === frequencyTicks.length - 1 && tick.position === 1 ? 'translateX(-100%)' : 'translateX(-50%)',
+					}"
+				>{{ tick.value >= 1000 ? `${tick.value / 1000}k` : tick.value }}</span>
 			</template>
 			<template v-else><span style="left: 0">−{{ (displaySeconds * 1000).toFixed(1) }} ms</span><span style="right: 0">0</span></template>
 		</div>
@@ -27,18 +29,18 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
-import { useAudioPreview } from '@/use-audio-preview.ts';
 import type { PreviewOptions } from '@/audio/audio-preview-types.ts';
+import { useAudioPreview } from '@/use-audio-preview.ts';
+import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{ mode: 'spectrum' | 'waveform' }>();
 const overlay = defineModel<boolean>('overlay', { default: false });
 const canvas = useTemplateRef('canvas');
 const waveformSeconds = ref(0.04);
 const options = computed<PreviewOptions>(() => ({ mode: props.mode,
-	settings: { overlay: overlay.value, waveformSeconds: waveformSeconds.value } }));
+																																																		settings: { overlay: overlay.value, waveformSeconds: waveformSeconds.value } }));
 const { changeWindow, error, sampleRate } = useAudioPreview(canvas, options);
 const displaySeconds = computed(() => Math.max(2, Math.min(32768, Math.round(sampleRate.value * waveformSeconds.value))) / sampleRate.value);
 const frequencyTicks = computed(() => {
@@ -129,6 +131,5 @@ function onWheel(event: WheelEvent) {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 11px;
 }
 </style>
