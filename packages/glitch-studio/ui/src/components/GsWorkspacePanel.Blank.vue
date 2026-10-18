@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<GsButton v-for="choice in choices" :key="choice.type" small @click="switchType(choice.type)">{{ choice.label }}</GsButton>
+	<GsButton v-for="choice in choices" :key="choice.type" @click="switchType(choice.type)">{{ choice.label }}</GsButton>
 </div>
 </template>
 

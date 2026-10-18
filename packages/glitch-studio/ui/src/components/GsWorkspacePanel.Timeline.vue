@@ -1,8 +1,8 @@
 <template>
 <div :class="$style.root">
 	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id" :inspectorPanelTarget="inspectorPanelTarget" @revealDetails="revealDetails" @revealAssets="revealAssets">
-		<GsButton small @click="showSceneSelectMenu">{{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
-		<GsButton small iconOnly @click="showSceneMenu"><i class="ti ti-dots"></i></GsButton>
+		<GsButton icon="ti ti-chevron-down" @click="showSceneSelectMenu">{{ activeScene.name }}</GsButton>
+		<GsButton iconOnly icon="ti ti-dots" @click="showSceneMenu"/>
 	</GsTimeline>
 	<div v-else>{{ i18n.ts._Timeline.CreateScene }}</div>
 </div>

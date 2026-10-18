@@ -111,8 +111,8 @@
 		</div>
 		<div v-if="selectedPoint" :class="$style.rightSidePanel">
 			<div>Bezier</div>
-			<GsButton :primary="!isBezierAZero" @click="toggleBezierA">A</GsButton>
-			<GsButton :primary="!isBezierBZero" @click="toggleBezierB">B</GsButton>
+			<GsButton large :primary="!isBezierAZero" @click="toggleBezierA">A</GsButton>
+			<GsButton large :primary="!isBezierBZero" @click="toggleBezierB">B</GsButton>
 		</div>
 	</div>
 </div>

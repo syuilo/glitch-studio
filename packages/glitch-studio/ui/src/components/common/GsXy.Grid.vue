@@ -26,9 +26,9 @@
 			<div :class="$style.point" :style="{ left: xPosition, top: yPosition }"></div>
 		</div>
 		<div :class="$style.side">
-			<GsButton style="flex: 1; min-width: 0;" small :primary="axisLock === 'x'" @click="toggleAxisLock('x')"><i class="ti ti-arrows-horizontal"></i></GsButton>
-			<GsButton style="flex: 1; min-width: 0;" small :primary="axisLock === 'y'" @click="toggleAxisLock('y')"><i class="ti ti-arrows-vertical"></i></GsButton>
-			<GsButton style="flex: 1; min-width: 0;" small :primary="lockedRatio != null" @click="lockedRatio != null ? emit('disableRatioLock') : emit('enableRatioLock')"><i class="ti ti-link"></i></GsButton>
+			<GsButton style="flex: 1; min-width: 0;" :primary="axisLock === 'x'" icon="ti ti-arrows-horizontal" @click="toggleAxisLock('x')"/>
+			<GsButton style="flex: 1; min-width: 0;" :primary="axisLock === 'y'" icon="ti ti-arrows-vertical" @click="toggleAxisLock('y')"/>
+			<GsButton style="flex: 1; min-width: 0;" :primary="lockedRatio != null" icon="ti ti-link" @click="lockedRatio != null ? emit('disableRatioLock') : emit('enableRatioLock')"/>
 		</div>
 	</div>
 </GsModal>

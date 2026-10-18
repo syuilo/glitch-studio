@@ -13,9 +13,9 @@
 				<div v-if="!isElectron">{{ i18n.ts._Dashboard.WebLimitations }}<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/guide/download" target="_blank">{{ i18n.ts._Dashboard.DesktopVersion }}</a></div>
 			</div>
 			<div class="_gaps_m">
-				<GsButton full style="text-align: left;" @click="_newProject"><i class="ti ti-plus" style="margin-right: 1em;"></i>{{ i18n.ts._Dashboard.NewProject }}</GsButton>
-				<GsButton full style="text-align: left;" @click="_newProjectFromImageOrVideo"><i class="ti ti-photo-video" style="margin-right: 1em;"></i>{{ i18n.ts._Dashboard.OpenMedia }}</GsButton>
-				<GsButton full style="text-align: left;" @click="_openProject"><i class="ti ti-folder-open" style="margin-right: 1em;"></i>{{ i18n.ts._Dashboard.OpenProject }}</GsButton>
+				<GsButton large full style="text-align: left;" icon="ti ti-plus" @click="_newProject">{{ i18n.ts._Dashboard.NewProject }}</GsButton>
+				<GsButton large full style="text-align: left;" icon="ti ti-photo-video" @click="_newProjectFromImageOrVideo">{{ i18n.ts._Dashboard.OpenMedia }}</GsButton>
+				<GsButton large full style="text-align: left;" icon="ti ti-folder-open" @click="_openProject">{{ i18n.ts._Dashboard.OpenProject }}</GsButton>
 			</div>
 			<button class="_textButton" style="margin-top: auto;" @click="showAbout()">{{ i18n.ts._App.About }}</button>
 		</div>

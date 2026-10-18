@@ -28,7 +28,7 @@
 					<template #label>{{ i18n.ts._TimelineKeyframe.EasingDirection }}</template>
 				</GsSelect>
 			</template>
-			<GsButton danger small @click="emit('remove')"><i class="ti ti-trash"></i> {{ i18n.ts._TimelineKeyframe.Remove }}</GsButton>
+			<GsButton danger icon="ti ti-trash" @click="emit('remove')">{{ i18n.ts._TimelineKeyframe.Remove }}</GsButton>
 		</div>
 	</div>
 </GsFolder>

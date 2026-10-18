@@ -15,14 +15,14 @@
 				<GsSwitch v-model="reversePlayback">{{ i18n.ts._TimelineClip.Reverse }}</GsSwitch>
 				<div v-if="speedChange.timing">{{ i18n.ts._TimelineClip.DurationAtSpeed }} {{ formatMsToTimecode(speedChange.timing.durationMs) }}</div>
 				<div v-if="speedChange.error || speedError" role="alert">{{ speedChange.error || speedError }}</div>
-				<GsButton small :disabled="!selectedClipMedia || !!speedChange.error || speedChange.timing?.playbackRate === selectedMediaClip.playbackRate" @click="editSelectedClipSpeed">{{ i18n.ts._TimelineClip.ApplySpeed }}</GsButton>
+				<GsButton :disabled="!selectedClipMedia || !!speedChange.error || speedChange.timing?.playbackRate === selectedMediaClip.playbackRate" @click="editSelectedClipSpeed">{{ i18n.ts._TimelineClip.ApplySpeed }}</GsButton>
 				<div>{{ i18n.ts._TimelineClip.SpeedHint }}</div>
 				<GsInput small type="number" :min="getTimelineMediaSingleDuration(selectedMediaClip)" :disabled="!selectedClipMedia" :modelValue="selectedMediaClip.durationMs" @update:modelValue="editSelectedClipLoop"><template #label>{{ i18n.ts._TimelineClip.TotalDuration }}</template><template #suffix>ms</template></GsInput>
 				<div>{{ i18n.ts._TimelineClip.LoopHint }}</div>
-				<GsButton v-if="selectedMediaClip.loop" small :disabled="!selectedClipMedia" @click="editSelectedClipLoop(getTimelineMediaSingleDuration(selectedMediaClip))">{{ i18n.ts._TimelineClip.RemoveLoop }}</GsButton>
+				<GsButton v-if="selectedMediaClip.loop" :disabled="!selectedClipMedia" @click="editSelectedClipLoop(getTimelineMediaSingleDuration(selectedMediaClip))">{{ i18n.ts._TimelineClip.RemoveLoop }}</GsButton>
 			</template>
 			<template v-if="selectedVideoClip != null">
-				<GsButton v-if="!('sourceTimeMs' in selectedVideoClip)" small :disabled="!canHoldCurrentFrame || holdingFrame" @click="holdCurrentFrame">{{ i18n.ts._TimelineClip.HoldCurrentFrame }}</GsButton>
+				<GsButton v-if="!('sourceTimeMs' in selectedVideoClip)" :disabled="!canHoldCurrentFrame || holdingFrame" @click="holdCurrentFrame">{{ i18n.ts._TimelineClip.HoldCurrentFrame }}</GsButton>
 				<template v-if="'sourceTimeMs' in selectedVideoClip">
 					<GsInput small manualSave type="number" step="any" :min="0" :disabled="holdingFrame || selectedClipMedia == null" :modelValue="selectedVideoClip.sourceTimeMs" @update:modelValue="editHoldSourceTime"><template #label>{{ i18n.ts._TimelineClip.HoldSourceTime }}</template><template #suffix>ms</template></GsInput>
 					<div>{{ i18n.ts._TimelineClip.HoldHint }}</div>
@@ -32,9 +32,9 @@
 				<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="'sourceTimeMs' in selectedVideoClip || (!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable)" @update:modelValue="editSelectedClipAudio">{{ i18n.ts._TimelineClip.AudioEnabled }}</GsSwitch>
 				<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
 			</template>
-			<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" small @click="emit('changeSource', selectedClipEntry.target)">{{ i18n.ts._TimelineClip.ChangeSource }}</GsButton>
-			<GsButton v-if="selectedSceneClip != null" small @click="activeSceneId = selectedSceneClip.sceneId">{{ i18n.ts._TimelineClip.OpenScene }}</GsButton>
-			<GsButton danger small @click="emit('remove')"><i class="ti ti-trash"></i> {{ i18n.ts._TimelineClip.Remove }}</GsButton>
+			<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" @click="emit('changeSource', selectedClipEntry.target)">{{ i18n.ts._TimelineClip.ChangeSource }}</GsButton>
+			<GsButton v-if="selectedSceneClip != null" @click="activeSceneId = selectedSceneClip.sceneId">{{ i18n.ts._TimelineClip.OpenScene }}</GsButton>
+			<GsButton danger icon="ti ti-trash" @click="emit('remove')">{{ i18n.ts._TimelineClip.Remove }}</GsButton>
 		</div>
 	</div>
 </GsFolder>

@@ -1,12 +1,8 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.buttons">
-		<GsButton iconOnly primary :disabled="!ready" :title="paused ? i18n.ts._VideoControls.Play : i18n.ts._VideoControls.Pause" @click="togglePlayback">
-			<i :class="paused ? 'ti ti-player-play' : 'ti ti-player-pause'"></i>
-		</GsButton>
-		<GsButton iconOnly :disabled="!ready" :title="i18n.ts._VideoControls.Stop" @click="stop">
-			<i class="ti ti-player-stop"></i>
-		</GsButton>
+		<GsButton large iconOnly primary :disabled="!ready" :title="paused ? i18n.ts._VideoControls.Play : i18n.ts._VideoControls.Pause" :icon="paused ? 'ti ti-player-play' : 'ti ti-player-pause'" @click="togglePlayback"/>
+		<GsButton large iconOnly :disabled="!ready" :title="i18n.ts._VideoControls.Stop" icon="ti ti-player-stop" @click="stop"/>
 	</div>
 	<div>
 		<div :class="$style.time" class="_monospace" style="display: flex;">

@@ -1,5 +1,5 @@
 <template>
-<div class="_selectable">
+<div class="_selectable" :class="[$style.root, { [$style.small]: small, [$style.large]: large }]">
 	<div :class="$style.label" @click="focus"><slot name="label"></slot></div>
 	<div :class="[$style.input, { [$style.inline]: inline, [$style.disabled]: disabled, [$style.focused]: focused }]">
 		<div ref="prefixEl" :class="$style.prefix"><slot name="prefix"></slot></div>
@@ -33,7 +33,7 @@
 	</div>
 	<div :class="$style.caption"><slot name="caption"></slot></div>
 
-	<GsButton v-if="manualSave && changed" primary :class="$style.save" @click="updated"><i class="ti ti-check"></i></GsButton>
+	<GsButton v-if="manualSave && changed" large primary :class="$style.save" icon="ti ti-check" @click="updated"/>
 </div>
 </template>
 
@@ -99,10 +99,6 @@ const filled = computed(() => v.value !== '' && v.value != null);
 const inputEl = useTemplateRef('inputEl');
 const prefixEl = useTemplateRef('prefixEl');
 const suffixEl = useTemplateRef('suffixEl');
-const height =
-	props.small ? 26 :
-	props.large ? 30 :
-	28;
 let autocompleteWorker: Autocomplete | null = null;
 
 const focus = () => inputEl.value?.focus();
@@ -208,6 +204,18 @@ defineExpose({
 </script>
 
 <style lang="scss" module>
+.root {
+	--height: var(--GS-CONTROL-HEIGHT);
+
+	&.small {
+		--height: var(--GS-CONTROL-HEIGHT-SMALL);
+	}
+
+	&.large {
+		--height: var(--GS-CONTROL-HEIGHT-LARGE);
+	}
+}
+
 .label {
 	font-size: 0.85em;
 	padding: 0 0 4px 0;
@@ -257,7 +265,7 @@ defineExpose({
 	appearance: none;
 	-webkit-appearance: none;
 	display: block;
-	height: v-bind("height + 'px'");
+	height: var(--height);
 	width: 100%;
 	margin: 0;
 	padding: 0 10px;
@@ -287,7 +295,7 @@ defineExpose({
 	top: 0;
 	padding: 0 12px;
 	font-size: 1em;
-	height: v-bind("height + 'px'");
+	height: var(--height);
 	min-width: 16px;
 	max-width: 150px;
 	overflow: clip;

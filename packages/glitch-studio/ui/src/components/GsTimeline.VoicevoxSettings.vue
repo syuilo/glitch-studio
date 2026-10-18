@@ -9,7 +9,7 @@
 					<template #label>{{ i18n.ts._Voicevox.EngineUrl }}</template>
 					<template v-if="version != null && version !== ''" #caption><span style="color: var(--THEME-success);"><i class="ti ti-check"></i> {{ i18n.ts._Voicevox.Connected }} {{ version }}</span></template>
 				</GsInput>
-				<GsButton small primary :disabled="connecting" @click="connect">{{ i18n.ts._Voicevox.Connect }}</GsButton>
+				<GsButton primary :disabled="connecting" @click="connect">{{ i18n.ts._Voicevox.Connect }}</GsButton>
 			</div>
 		</template>
 		<div v-else>{{ i18n.ts._Voicevox.DesktopGenerationHint }}</div>
@@ -17,8 +17,8 @@
 			<template #label>{{ i18n.ts._Voicevox.SpeechSpeed }}</template>
 		</GsInput>
 		<hr>
-		<GsButton primary small @click="add"><i class="ti ti-plus"></i> {{ i18n.ts._Voicevox.AddSpeechKey }}</GsButton>
-		<GsButton v-if="layer.clips.length > 0" small @click="fitLastClip">{{ i18n.ts._Voicevox.FitLastClip }}</GsButton>
+		<GsButton primary icon="ti ti-plus" @click="add">{{ i18n.ts._Voicevox.AddSpeechKey }}</GsButton>
+		<GsButton v-if="layer.clips.length > 0" @click="fitLastClip">{{ i18n.ts._Voicevox.FitLastClip }}</GsButton>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsFolder>

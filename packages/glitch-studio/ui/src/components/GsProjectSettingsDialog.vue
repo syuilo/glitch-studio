@@ -5,7 +5,7 @@
 		<div>{{ i18n.ts._Project.BaseResolution }}</div>
 		<div style="display: flex; gap: 12px;">
 			<GsInput style="flex: 1; min-width: 0;" :modelValue="width" type="number" :min="1" :step="1" @update:modelValue="updateWidth"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-			<GsButton small iconOnly :primary="lockedAspectRatio != null" @click="toggleAspectRatioLock"><i class="ti ti-link"></i></GsButton>
+			<GsButton iconOnly :primary="lockedAspectRatio != null" icon="ti ti-link" @click="toggleAspectRatioLock"/>
 			<GsInput style="flex: 1; min-width: 0;" :modelValue="height" type="number" :min="1" :step="1" @update:modelValue="updateHeight"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 		<div v-if="!isResolutionValid">{{ i18n.ts._Project.InvalidResolution }}</div>
@@ -27,8 +27,8 @@
 		</GsFolder>
 		<div v-if="renderSettingsError">{{ renderSettingsError }}</div>
 		<div :class="$style.actions">
-			<GsButton inline @click="closeDialog">{{ i18n.ts.Cancel }}</GsButton>
-			<GsButton inline primary :disabled="!isResolutionValid || renderSettingsError != null" @click="apply">{{ i18n.ts.OK }}</GsButton>
+			<GsButton large inline @click="closeDialog">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton large inline primary :disabled="!isResolutionValid || renderSettingsError != null" @click="apply">{{ i18n.ts.OK }}</GsButton>
 		</div>
 	</div>
 </GsModal>

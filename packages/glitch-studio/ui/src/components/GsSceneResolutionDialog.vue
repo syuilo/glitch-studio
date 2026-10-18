@@ -11,8 +11,8 @@
 		<div>{{ i18n.ts._Project.CustomResolutionHint }}</div>
 		<div v-if="error">{{ error }}</div>
 		<div :class="$style.actions">
-			<GsButton inline @click="closeDialog">{{ i18n.ts.Cancel }}</GsButton>
-			<GsButton inline primary :disabled="error != null || scene == null" @click="apply">{{ i18n.ts.Apply }}</GsButton>
+			<GsButton large inline @click="closeDialog">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton large inline primary :disabled="error != null || scene == null" @click="apply">{{ i18n.ts.Apply }}</GsButton>
 		</div>
 	</div>
 </GsModal>

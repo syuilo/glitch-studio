@@ -39,7 +39,7 @@
 						/>
 					</template>
 					<template #footer>
-						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="emit('requestAddEffectNode')"><i class="ti ti-plus"></i> {{ i18n.ts._VisualModule.AddEffectNode }}</GsButton>
+						<GsButton large :class="$style.addButton" full style="margin-top: 8px;" icon="ti ti-plus" @click="emit('requestAddEffectNode')">{{ i18n.ts._VisualModule.AddEffectNode }}</GsButton>
 					</template>
 				</GsDraggable>
 
@@ -77,7 +77,7 @@
 
 		<div v-else-if="tab === 'other'" class="_spacer _gaps_m" style="height: 100%; overflow: auto;">
 			<GsInput :modelValue="visualModuleName" :debounce="400" @update:modelValue="name => emit('rename', name)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
-			<GsButton :disabled="exporting" :wait="exporting" @click="emit('requestExport')"><i class="ti ti-download"></i> {{ i18n.ts._VisualModule.Export }}</GsButton>
+			<GsButton large :disabled="exporting" :wait="exporting" icon="ti ti-download" @click="emit('requestExport')">{{ i18n.ts._VisualModule.Export }}</GsButton>
 		</div>
 	</div>
 	<GsDropOverlay v-if="assetDrop.hovering.value" data-test-visual-module-drop-overlay/>

@@ -17,10 +17,10 @@
 			>
 				{{ i18n.ts._VisualModule.PrimaryOutput }}
 			</GsSwitch>
-			<GsButton small danger @click="emit('remove', def.id)">{{ i18n.ts._VisualModule.RemoveOutput }}</GsButton>
+			<GsButton danger @click="emit('remove', def.id)">{{ i18n.ts._VisualModule.RemoveOutput }}</GsButton>
 		</div>
 	</GsFolder>
-	<GsButton style="width: 100%;" @click="add"><i class="ti ti-plus"></i> {{ i18n.ts._VisualModule.AddOutput }}</GsButton>
+	<GsButton large style="width: 100%;" icon="ti ti-plus" @click="add">{{ i18n.ts._VisualModule.AddOutput }}</GsButton>
 </div>
 </template>
 

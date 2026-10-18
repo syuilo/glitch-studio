@@ -13,8 +13,8 @@
 		<template v-else>
 			<div role="alert" data-test-desktop-update-error>{{ errorMessage }}</div>
 			<div :class="$style.actions">
-				<GsButton inline data-test-desktop-update-close @click="close">{{ i18n.ts.Close }}</GsButton>
-				<GsButton v-if="state.version != null && state.phase !== 'restart-required'" inline primary data-test-desktop-update-retry @click="emit('retry')">{{ i18n.ts._DesktopUpdate.Retry }}</GsButton>
+				<GsButton large inline data-test-desktop-update-close @click="close">{{ i18n.ts.Close }}</GsButton>
+				<GsButton v-if="state.version != null && state.phase !== 'restart-required'" large inline primary data-test-desktop-update-retry @click="emit('retry')">{{ i18n.ts._DesktopUpdate.Retry }}</GsButton>
 			</div>
 		</template>
 	</div>

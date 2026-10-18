@@ -21,7 +21,7 @@
 	</div>
 	<div :class="$style.caption"><slot name="caption"></slot></div>
 
-	<GsButton v-if="manualSave && changed" primary :class="$style.save" @click="updated"><i class="ti ti-check"></i></GsButton>
+	<GsButton v-if="manualSave && changed" large primary :class="$style.save" icon="ti ti-check" @click="updated"/>
 </div>
 </template>
 

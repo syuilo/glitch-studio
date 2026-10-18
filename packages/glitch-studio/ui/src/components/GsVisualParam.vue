@@ -24,7 +24,7 @@
 		<div :class="$style.paramBody">
 			<template v-if="paramDef.dataType.kind === 'array'">
 				<span :class="$style.count">{{ arrayValues.length }}</span>
-				<GsButton small iconOnly :title="i18n.ts._Parameter.AddElement" @click="addElement"><i class="ti ti-plus"></i></GsButton>
+				<GsButton iconOnly :title="i18n.ts._Parameter.AddElement" icon="ti ti-plus" @click="addElement"/>
 			</template>
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || (paramValue.inputSource === 'layerInput' && !layerInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
@@ -42,8 +42,8 @@
 						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" style="display: grid; gap: 6px;">
-						<GsButton v-if="paramValue.inputSource === 'automationGraphReference'" small @click="selectAutomationGraph">{{ selectedAutomationGraph?.name ?? i18n.ts.None }}</GsButton>
-						<GsButton v-else small @click="inlineGraphEditorOpen = true">{{ i18n.ts._Parameter.EditGraph }}</GsButton>
+						<GsButton v-if="paramValue.inputSource === 'automationGraphReference'" @click="selectAutomationGraph">{{ selectedAutomationGraph?.name ?? i18n.ts.None }}</GsButton>
+						<GsButton v-else @click="inlineGraphEditorOpen = true">{{ i18n.ts._Parameter.EditGraph }}</GsButton>
 						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" small :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
 							<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
 						</GsSelect>
@@ -133,7 +133,7 @@
 			@edit="emit('edit', $event)"
 		>
 			<template #actions>
-				<GsButton small iconOnly danger :title="i18n.ts._Parameter.RemoveElement" @click="removeElement(element.id)"><i class="ti ti-x"></i></GsButton>
+				<GsButton iconOnly danger :title="i18n.ts._Parameter.RemoveElement" icon="ti ti-x" @click="removeElement(element.id)"/>
 			</template>
 		</GsVisualParam>
 	</div>

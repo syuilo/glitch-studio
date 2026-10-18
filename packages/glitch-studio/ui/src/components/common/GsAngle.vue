@@ -1,6 +1,6 @@
 <template>
 <div ref="rootEl" :class="$style.root">
-	<GsButton :class="$style.open" :primary="anglePadOpened" iconOnly small @click="openAnglePad"><i class="ti ti-angle"></i></GsButton>
+	<GsButton :class="$style.open" :primary="anglePadOpened" iconOnly icon="ti ti-angle" @click="openAnglePad"/>
 	<GsRange
 		:class="$style.slider"
 		:modelValue="value"
@@ -43,7 +43,7 @@
 				</div>
 				<div :class="$style.control">
 					<div :class="$style.value">{{ formatAngle(value) }}</div>
-					<GsButton small :primary="snapEnabled" :title="i18n.ts._AutomationGraph.SnapHint" @click="snapEnabled = !snapEnabled">
+					<GsButton :primary="snapEnabled" :title="i18n.ts._AutomationGraph.SnapHint" @click="snapEnabled = !snapEnabled">
 						{{ i18n.ts._AutomationGraph.Snap }} {{ snapEnabled ? i18n.ts.On : i18n.ts.Off }}
 					</GsButton>
 				</div>

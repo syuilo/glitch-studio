@@ -2,8 +2,8 @@
 <div :class="$style.root">
 	<div v-if="directEditMode" :class="$style.directEditForm">
 		<GsInput v-model="tempValueForDirectEdit" small :class="$style.directEditFormInput" @enter="finishDirectEdit"/>
-		<GsButton small iconOnly primary @click="finishDirectEdit"><i class="ti ti-check"></i></GsButton>
-		<GsButton small iconOnly @click="directEditMode = false"><i class="ti ti-x"></i></GsButton>
+		<GsButton iconOnly primary icon="ti ti-check" @click="finishDirectEdit"/>
+		<GsButton iconOnly icon="ti ti-x" @click="directEditMode = false"/>
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'range'">
 		<GsRange
@@ -35,7 +35,7 @@
 		<GsInput small type="number" :modelValue="value" :min="scalarControl.min" :max="scalarControl.max" @focusin="onBeginChanging" @update:modelValue="changeContinuous(Number($event))" @focusout="onFinishChanging"/>
 	</div>
 	<div v-else-if="dataType.kind === 'bool'">
-		<GsButton small :primary="value" @click="changeValue(!value)">{{ value ? i18n.ts.On : i18n.ts.Off }}</GsButton>
+		<GsButton :primary="value" @click="changeValue(!value)">{{ value ? i18n.ts.On : i18n.ts.Off }}</GsButton>
 	</div>
 	<div v-else-if="dataType.kind === 'string'">
 		<GsTextarea
@@ -167,11 +167,11 @@
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'seed'" style="display: flex;">
 		<GsInput style="flex: 1;" type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(parseInt(String($event), 10))" @focusout="onFinishChanging"/>
-		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
+		<GsButton iconOnly :title="i18n.ts.Random" icon="ti ti-dice-5" @click="() => changeValue(Math.floor(Math.random() * 16384))"/>
 	</div>
 	<div v-else-if="dataType.kind === 'imageAssetTextureReference' || dataType.kind === 'videoAssetReference' || dataType.kind === 'fontAssetReference' || dataType.kind === 'lutAssetReference'" :class="$style.assetControl">
-		<GsButton small :class="$style.assetButton" @click="chooseAsset">{{ selectedAsset?.name ?? (value == null ? i18n.ts._Assets.SelectButton : i18n.ts._Assets.Missing) }}</GsButton>
-		<GsButton v-if="value != null" small iconOnly :title="i18n.ts.None" @click="changeValue(null)"><i class="ti ti-x"></i></GsButton>
+		<GsButton :class="$style.assetButton" @click="chooseAsset">{{ selectedAsset?.name ?? (value == null ? i18n.ts._Assets.SelectButton : i18n.ts._Assets.Missing) }}</GsButton>
+		<GsButton v-if="value != null" iconOnly :title="i18n.ts.None" icon="ti ti-x" @click="changeValue(null)"/>
 	</div>
 	<div v-else-if="dataType.kind === 'audioSource'">
 		<GsSelect small :modelValue="value?.playerId ?? null" :items="[{ label: i18n.ts.None, value: null }, ...stateManager.state.players.value.map(player => ({ label: player.name, value: player.id }))]" @update:modelValue="v => changeValue(v == null ? null : { type: 'player', playerId: v })"/>

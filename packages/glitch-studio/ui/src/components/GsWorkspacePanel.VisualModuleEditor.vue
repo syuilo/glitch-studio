@@ -2,8 +2,8 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ prettyId(visualModule?.id ?? '') }}]</button>
-		<GsButton v-if="visualModule != null" style="margin-left: auto;" small :primary="previewParamsShowing" @click="previewParamsShowing = !previewParamsShowing"><i class="ti ti-adjustments-horizontal"></i> {{ i18n.ts._VisualModule.PreviewParameters }}</GsButton>
-		<GsButton v-if="visualModule != null" style="margin-left: 0;" small :primary="previewPlayback.liveVisualModuleId.value === visualModule.id" @click="previewLive"><i v-if="previewPlayback.liveVisualModuleId.value === visualModule.id" class="ti ti-player-pause"></i><i v-else class="ti ti-player-play"></i> LIVE</GsButton>
+		<GsButton v-if="visualModule != null" style="margin-left: auto;" :primary="previewParamsShowing" icon="ti ti-adjustments-horizontal" @click="previewParamsShowing = !previewParamsShowing">{{ i18n.ts._VisualModule.PreviewParameters }}</GsButton>
+		<GsButton v-if="visualModule != null" style="margin-left: 0;" :primary="previewPlayback.liveVisualModuleId.value === visualModule.id" :icon="previewPlayback.liveVisualModuleId.value === visualModule.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewLive">LIVE</GsButton>
 	</div>
 
 	<div v-if="visualModule && previewParamsShowing" :key="visualModule.id" :class="$style.previewParams">

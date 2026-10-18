@@ -4,8 +4,8 @@
 		<div :class="$style.title">{{ i18n.ts._Assets.ImportLocalFont }}</div>
 		<GsInput v-model="search" autofocus :placeholder="i18n.ts._LocalFonts.Search" :disabled="importing"/>
 		<div :class="$style.fonts">
-			<GsButton
-				v-for="font in filteredFonts" :key="font.postscriptName"
+			<GsButton v-for="font in filteredFonts"
+				:key="font.postscriptName" large
 				:active="selectedName === font.postscriptName" :disabled="importing"
 				@click="selectedName = font.postscriptName"
 			>
@@ -16,8 +16,8 @@
 		</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 		<div :class="$style.actions">
-			<GsButton inline :disabled="importing" @click="close">{{ i18n.ts.Cancel }}</GsButton>
-			<GsButton inline primary :disabled="!selectedFont || importing" :wait="importing" @click="importFont">{{ i18n.ts.Import }}</GsButton>
+			<GsButton large inline :disabled="importing" @click="close">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton large inline primary :disabled="!selectedFont || importing" :wait="importing" @click="importFont">{{ i18n.ts.Import }}</GsButton>
 		</div>
 	</div>
 </GsModal>

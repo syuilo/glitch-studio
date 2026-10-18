@@ -8,7 +8,7 @@
 				<span v-if="selected.length > 0" style="margin-left: 8px; opacity: 0.5;">({{ selected.length }})</span>
 			</span>
 			<div style="padding: 0 16px; place-content: center;">
-				<GsButton primary small rounded :disabled="selected.length === 0" @click="ok()">{{ i18n.ts.Done }} <i class="ti ti-check"></i></GsButton>
+				<GsButton primary rounded :disabled="selected.length === 0" icon="ti ti-check" @click="ok()">{{ i18n.ts.Done }}</GsButton>
 			</div>
 		</div>
 		<div :class="$style.body">

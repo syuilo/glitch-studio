@@ -10,10 +10,10 @@
 		<div :class="$style.headerRight">
 			<div :class="$style.nodeId" class="_monospace">{{ prettyId(node.id) }}</div>
 			<div :class="$style.headerButtons">
-				<GsButton transparent :class="[$style.headerButton]" inline small iconOnly @click="expanded = !expanded"><i class="ti" :class="expanded ? 'ti-chevron-up' : 'ti-chevron-down'"></i></GsButton>
-				<GsButton :transparent="!showSettings" :class="[$style.headerButton]" inline small iconOnly :primary="showSettings" @click="showSettings = !showSettings"><i class="ti ti-settings"></i></GsButton>
-				<GsButton :transparent="node.isBypass" :class="[$style.headerButton]" inline small iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts._Node.ClickToEnable : i18n.ts._Node.ClickToDisable" @click="toggleBypass()"><i class="ti" :class="node.isBypass ? 'ti-eye-off' : 'ti-eye'"></i></GsButton>
-				<GsButton transparent :class="[$style.headerButton]" inline small iconOnly :title="i18n.ts._Node.RemoveEffect" @click="remove()"><i class="ti ti-x"></i></GsButton>
+				<GsButton transparent :class="[$style.headerButton]" inline iconOnly :icon="'ti ' + (expanded ? 'ti-chevron-up' : 'ti-chevron-down')" @click="expanded = !expanded"/>
+				<GsButton :transparent="!showSettings" :class="[$style.headerButton]" inline iconOnly :primary="showSettings" icon="ti ti-settings" @click="showSettings = !showSettings"/>
+				<GsButton :transparent="node.isBypass" :class="[$style.headerButton]" inline iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts._Node.ClickToEnable : i18n.ts._Node.ClickToDisable" :icon="'ti ' + (node.isBypass ? 'ti-eye-off' : 'ti-eye')" @click="toggleBypass()"/>
+				<GsButton transparent :class="[$style.headerButton]" inline iconOnly :title="i18n.ts._Node.RemoveEffect" icon="ti ti-x" @click="remove()"/>
 			</div>
 		</div>
 	</div>

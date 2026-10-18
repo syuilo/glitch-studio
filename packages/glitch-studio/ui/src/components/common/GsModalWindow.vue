@@ -7,7 +7,7 @@
 				<slot name="header"></slot>
 			</span>
 			<div v-if="withOkButton" style="padding: 0 16px; place-content: center;">
-				<GsButton primary small rounded :disabled="okButtonDisabled" @click="emit('ok')">{{ i18n.ts.Done }} <i class="ti ti-check"></i></GsButton>
+				<GsButton primary rounded :disabled="okButtonDisabled" icon="ti ti-check" @click="emit('ok')">{{ i18n.ts.Done }}</GsButton>
 			</div>
 		</div>
 		<div :class="$style.body">

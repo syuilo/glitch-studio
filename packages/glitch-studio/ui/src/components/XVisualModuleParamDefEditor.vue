@@ -86,7 +86,7 @@
 	<div v-if="def.dataType.kind === 'audioSource'" :class="$style.option">
 		<GsSwitch :modelValue="primaryAudioInputId === def.id" @update:modelValue="emit('setPrimaryAudioInput', $event ? def.id : null)">{{ i18n.ts._ParameterEditor.PrimaryAudioInput }}</GsSwitch>
 	</div>
-	<GsButton small danger @click="remove">{{ i18n.ts._ParameterEditor.Remove }}</GsButton>
+	<GsButton danger @click="remove">{{ i18n.ts._ParameterEditor.Remove }}</GsButton>
 </div>
 </template>
 

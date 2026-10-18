@@ -34,14 +34,14 @@
 			<div>{{ i18n.ts._ProjectBackups.LastSave }} {{ formatTime(projectBackupStatus.lastSaveBackup) }}</div>
 		</section>
 		<div v-if="projectBackupAccess === 'unsaved'">{{ i18n.ts._ProjectBackups.SaveFirst }}</div>
-		<GsButton v-else-if="projectBackupAccess === 'folder-required' || projectBackupStatus.error" @click="appContext.grantProjectBackupAccess()">{{ i18n.ts._ProjectBackups.AllowAccess }}</GsButton>
+		<GsButton v-else-if="projectBackupAccess === 'folder-required' || projectBackupStatus.error" large @click="appContext.grantProjectBackupAccess()">{{ i18n.ts._ProjectBackups.AllowAccess }}</GsButton>
 		<div v-else>{{ i18n.ts._ProjectBackups.Ready }}</div>
 		<div v-if="projectBackupStatus.error" role="alert">{{ projectBackupStatus.error }}</div>
 		<div>{{ i18n.ts._ProjectBackups.RetentionHint }}</div>
 		<div v-if="validationError" role="alert">{{ validationError }}</div>
 		<div :class="$style.actions">
-			<GsButton inline @click="modal?.close()">{{ i18n.ts.Cancel }}</GsButton>
-			<GsButton inline primary :disabled="validationError != null" @click="apply">{{ i18n.ts.Apply }}</GsButton>
+			<GsButton large inline @click="modal?.close()">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton large inline primary :disabled="validationError != null" @click="apply">{{ i18n.ts.Apply }}</GsButton>
 		</div>
 	</div>
 </GsModal>

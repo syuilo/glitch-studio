@@ -32,7 +32,7 @@
 			<GsInput v-model="startTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ mode === 'video' ? i18n.ts._Export.StartTime : i18n.ts._Export.StillTime }}</template></GsInput>
 			<GsInput v-if="mode === 'video'" v-model="endTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ i18n.ts._Export.EndTime }}</template></GsInput>
 		</div>
-		<GsButton inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">{{ i18n.ts._Export.UseCurrentPlayhead }}</GsButton>
+		<GsButton large inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">{{ i18n.ts._Export.UseCurrentPlayhead }}</GsButton>
 		<div>{{ i18n.ts._Export.EstimatedSize }} {{ estimatedSize }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting && !choosingSaveFile" class="_gaps_m">
@@ -43,8 +43,8 @@
 		<div v-if="status">{{ status }}</div>
 		<a v-if="downloadUrl && !exporting" :href="downloadUrl" :download="downloadName">{{ i18n.tsx._Export.DownloadFile({ name: downloadName }) }}</a>
 		<div :class="$style.actions">
-			<GsButton inline :disabled="choosingSaveFile || savingFile" @click="cancel">{{ exporting ? i18n.ts._Export.Cancel : i18n.ts.Close }}</GsButton>
-			<GsButton inline primary :disabled="exporting || validationError != null" @click="doExport">{{ i18n.ts._Export.Export }}</GsButton>
+			<GsButton large inline :disabled="choosingSaveFile || savingFile" @click="cancel">{{ exporting ? i18n.ts._Export.Cancel : i18n.ts.Close }}</GsButton>
+			<GsButton large inline primary :disabled="exporting || validationError != null" @click="doExport">{{ i18n.ts._Export.Export }}</GsButton>
 		</div>
 	</div>
 </GsModal>

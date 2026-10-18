@@ -8,7 +8,7 @@
 	@click="emit('click', $event)"
 >
 	<div :class="$style.content">
-		<slot name="icon" :class="$style.icon"></slot>
+		<i :class="[$style.icon, icon]"></i>
 		<slot></slot>
 	</div>
 </component>
@@ -19,6 +19,7 @@ import { nextTick, computed, onMounted, useTemplateRef } from 'vue';
 
 const props = defineProps<{
 	type?: 'button' | 'submit' | 'reset' | 'a';
+	icon?: string;
 	primary?: boolean;
 	rounded?: boolean;
 	inline?: boolean;
@@ -74,12 +75,14 @@ onMounted(() => {
 
 <style lang="scss" module>
 .root {
+	--height: var(--GS-CONTROL-HEIGHT);
+
 	position: relative;
 	display: block;
 	min-width: 80px;
 	width: max-content;
-	height: var(--GS-CONTROL-HEIGHT);
-	line-height: var(--GS-CONTROL-HEIGHT);
+	height: var(--height);
+	line-height: var(--height);
 	padding: 0 12px;
 	text-align: center;
 	font-weight: normal;
@@ -103,25 +106,27 @@ onMounted(() => {
 		background: var(--THEME-buttonHoverBg);
 	}
 
-	&.iconOnly {
-		padding: 7px;
-		min-width: auto !important;
-
-		.icon {
-			margin-right: 0;
-		}
-	}
-
 	&.small {
+		--height: var(--GS-CONTROL-HEIGHT-SMALL);
 		padding: 0 8px;
 	}
 
 	&.large {
+		--height: var(--GS-CONTROL-HEIGHT-LARGE);
 		padding: 0 16px;
 	}
 
 	&.full {
 		width: 100%;
+	}
+
+	&.iconOnly {
+		padding: 0 6px !important;
+		min-width: var(--height) !important;
+
+		.icon {
+			margin-right: 0
+		}
 	}
 
 	&.rounded {
@@ -182,7 +187,6 @@ onMounted(() => {
 
 	&.inline {
 		display: inline-block;
-		width: auto;
 	}
 }
 
@@ -193,8 +197,6 @@ onMounted(() => {
 }
 
 .icon {
-	display: inline-block;
-	line-height: var(--GS-CONTROL-HEIGHT);
 	margin-right: 0.5em;
 }
 </style>

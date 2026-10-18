@@ -1,8 +1,8 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.actions">
-		<GsButton primary @click="addAsset"><i class="ti ti-plus"></i> {{ i18n.ts._Assets.Add }}</GsButton>
-		<GsButton :disabled="!localFontsSupported || loadingLocalFonts" :wait="loadingLocalFonts" @click="addLocalFont">{{ i18n.ts._Assets.ImportLocalFont }}</GsButton>
+		<GsButton large primary icon="ti ti-plus" @click="addAsset">{{ i18n.ts._Assets.Add }}</GsButton>
+		<GsButton large :disabled="!localFontsSupported || loadingLocalFonts" :wait="loadingLocalFonts" @click="addLocalFont">{{ i18n.ts._Assets.ImportLocalFont }}</GsButton>
 		<GsInput v-model="query" type="search" :placeholder="i18n.ts._Assets.Search" :class="$style.searchInput" @keydown.enter.stop.prevent="chooseFirstResult">
 			<template #prefix>
 				<i class="ti ti-search"></i>

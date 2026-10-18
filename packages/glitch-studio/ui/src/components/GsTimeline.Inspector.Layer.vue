@@ -162,7 +162,7 @@
 		<GsFolder :asSection="true" defaultOpen>
 			<template #label>{{ i18n.ts.Other }}</template>
 			<div class="_gaps_m">
-				<GsButton danger small @click="stateManager.commit('removeTimelineLayer', { sceneId: scene.id, layerId: layer.id })"><i class="ti ti-trash"></i> {{ i18n.ts._TimelineLayer.Remove }}</GsButton>
+				<GsButton danger icon="ti ti-trash" @click="stateManager.commit('removeTimelineLayer', { sceneId: scene.id, layerId: layer.id })">{{ i18n.ts._TimelineLayer.Remove }}</GsButton>
 			</div>
 		</GsFolder>
 	</div>

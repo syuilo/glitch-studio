@@ -21,8 +21,8 @@
 		</GsInput>
 		<GsTextarea :modelValue="utterance.reading ?? ''" :placeholder="i18n.ts._Voicevox.UseSubtitleText" @update:modelValue="reading => edit({ reading: reading.trim() || null })"><template #label>{{ i18n.ts._Voicevox.Reading }}</template></GsTextarea>
 		<div>{{ status }}</div>
-		<GsButton v-if="desktop && utterance.text" small :disabled="generating" @click="regenerate">{{ i18n.ts._Voicevox.Regenerate }}</GsButton>
-		<GsButton danger small @click="remove"><i class="ti ti-trash"></i> {{ i18n.ts._Voicevox.RemoveSpeechKey }}</GsButton>
+		<GsButton v-if="desktop && utterance.text" :disabled="generating" @click="regenerate">{{ i18n.ts._Voicevox.Regenerate }}</GsButton>
+		<GsButton danger icon="ti ti-trash" @click="remove">{{ i18n.ts._Voicevox.RemoveSpeechKey }}</GsButton>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsFolder>

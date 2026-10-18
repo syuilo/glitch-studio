@@ -1,5 +1,5 @@
 <template>
-<div>
+<div :class="[$style.root, { [$style.small]: small, [$style.large]: large }]">
 	<div :class="$style.label" @click="focus"><slot name="label"></slot></div>
 	<div
 		ref="container"
@@ -101,10 +101,6 @@ const inputEl = useTemplateRef('inputEl');
 const prefixEl = useTemplateRef('prefixEl');
 const suffixEl = useTemplateRef('suffixEl');
 const container = useTemplateRef('container');
-const height =
-	props.small ? 26 :
-	props.large ? 30 :
-	28;
 
 const focus = () => container.value?.focus();
 
@@ -219,6 +215,18 @@ function show() {
 </script>
 
 <style lang="scss" module>
+.root {
+	--height: var(--GS-CONTROL-HEIGHT);
+
+	&.small {
+		--height: var(--GS-CONTROL-HEIGHT-SMALL);
+	}
+
+	&.large {
+		--height: var(--GS-CONTROL-HEIGHT-LARGE);
+	}
+}
+
 .label {
 	font-size: 0.85em;
 	padding: 0 0 4px 0;
@@ -280,7 +288,7 @@ function show() {
 	-webkit-appearance: none;
 	display: flex;
 	align-items: center;
-	height: v-bind("height + 'px'");
+	height: var(--height);
 	width: 100%;
 	margin: 0;
 	padding: 0 10px;
@@ -309,7 +317,7 @@ function show() {
 	top: 0;
 	padding: 0 12px;
 	font-size: 1em;
-	height: v-bind("height + 'px'");
+	height: var(--height);
 	min-width: 16px;
 	max-width: 150px;
 	overflow: clip;

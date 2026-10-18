@@ -7,7 +7,7 @@
 	<div v-for="(option, index) in draft" :key="option.id" :class="$style.row">
 		<GsInput v-model="option.value" small :class="$style.field" type="text"/>
 		<GsInput v-model="option.label" small :class="$style.field" type="text"/>
-		<GsButton small iconOnly danger :disabled="draft.length === 1" :title="i18n.ts._CustomParameterInput.RemoveOption" @click="draft.splice(index, 1)"><i class="ti ti-trash"></i></GsButton>
+		<GsButton iconOnly danger :disabled="draft.length === 1" :title="i18n.ts._CustomParameterInput.RemoveOption" icon="ti ti-trash" @click="draft.splice(index, 1)"/>
 	</div>
 	<div v-if="invalid" :class="$style.error">{{ i18n.ts._CustomParameterInput.InvalidOptions }}</div>
 	<GsSelect v-model="draftDefaultValue" :items="draft.map(option => ({ value: option.value, label: option.label || option.value }))" :disabled="invalid">
@@ -15,9 +15,9 @@
 	</GsSelect>
 	<div v-if="invalidDefault" :class="$style.error">{{ i18n.ts._CustomParameterInput.SelectValidDefault }}</div>
 	<div :class="$style.actions">
-		<GsButton small @click="add">{{ i18n.ts._CustomParameterInput.AddOption }}</GsButton>
-		<GsButton small primary :disabled="!changed || invalid || invalidDefault" @click="apply">{{ i18n.ts._CustomParameterInput.ApplyOptions }}</GsButton>
-		<GsButton v-if="changed" small @click="reset">{{ i18n.ts._CustomParameterInput.DiscardOptions }}</GsButton>
+		<GsButton @click="add">{{ i18n.ts._CustomParameterInput.AddOption }}</GsButton>
+		<GsButton primary :disabled="!changed || invalid || invalidDefault" @click="apply">{{ i18n.ts._CustomParameterInput.ApplyOptions }}</GsButton>
+		<GsButton v-if="changed" @click="reset">{{ i18n.ts._CustomParameterInput.DiscardOptions }}</GsButton>
 	</div>
 </div>
 </template>

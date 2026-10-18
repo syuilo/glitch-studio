@@ -26,12 +26,9 @@
 			v-tooltip="geometry.parents.length ? i18n.ts._Preview.SnapToGroup : i18n.ts._Preview.SnapToCanvas" :primary="snap"
 			style="margin-left: auto;"
 			iconOnly
-			small
-			@click="snap = !snap"
-		>
-			<i class="ti ti-magnet"></i>
-		</GsButton>
-		<GsButton v-if="zeroScale && editable.scale" small @click="resetScale">{{ i18n.ts._Preview.ResetScale }}</GsButton>
+			icon="ti ti-magnet"
+		 @click="snap = !snap"/>
+		<GsButton v-if="zeroScale && editable.scale" @click="resetScale">{{ i18n.ts._Preview.ResetScale }}</GsButton>
 	</div>
 </template>
 </template>

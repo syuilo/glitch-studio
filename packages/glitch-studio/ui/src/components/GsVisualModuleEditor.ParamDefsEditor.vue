@@ -21,7 +21,7 @@
 			/>
 		</div>
 	</GsFolder>
-	<GsButton style="width: 100%;" @click="add"><i class="ti ti-plus"></i> {{ i18n.ts._VisualModule.AddParameter }}</GsButton>
+	<GsButton large style="width: 100%;" icon="ti ti-plus" @click="add">{{ i18n.ts._VisualModule.AddParameter }}</GsButton>
 </div>
 </template>
 

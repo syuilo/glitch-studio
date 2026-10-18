@@ -9,25 +9,25 @@
 	<div :class="$style.header">
 		<div :class="$style.headerLeft">
 			<slot></slot>
-			<GsButton style="margin-left: 15px;" small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">{{ i18n.ts.Preview }}</GsButton>
+			<GsButton style="margin-left: 15px;" :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">{{ i18n.ts.Preview }}</GsButton>
 			<span :class="$style.headerMajorDivider"></span>
 		</div>
 		<div :class="$style.headerCenter" style="gap: 20px;">
-			<GsButton v-tooltip="i18n.ts._Timeline.CueShortcut" small :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent>{{ i18n.ts._Timeline.Cue }}</GsButton>
+			<GsButton v-tooltip="i18n.ts._Timeline.CueShortcut" :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent>{{ i18n.ts._Timeline.Cue }}</GsButton>
 			<div style="display: flex; gap: 4px;">
-				<GsButton v-tooltip="i18n.ts._Timeline.GoToStart" small iconOnly @click="seek(0)"><i class="ti ti-player-skip-back"></i></GsButton>
-				<!--<GsButton v-tooltip="'Back 10 Seconds'" small iconOnly @click="seek(time - 10000)"><i class="ti ti-rewind-backward-10"></i></GsButton>-->
-				<GsButton v-tooltip="i18n.ts._Timeline.Back5Seconds" small iconOnly @click="seek(time - 5000)"><i class="ti ti-rewind-backward-5"></i></GsButton>
-				<GsButton v-if="previewPlayback.isTimelinePlaying.value" v-tooltip="i18n.ts._Timeline.PauseShortcut" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
-				<GsButton v-else v-tooltip="i18n.ts._Timeline.PlayShortcut" small @click="play"><i class="ti ti-player-play"></i></GsButton>
-				<GsButton v-tooltip="i18n.ts._Timeline.Forward5Seconds" small iconOnly @click="seek(time + 5000)"><i class="ti ti-rewind-forward-5"></i></GsButton>
-				<!--<GsButton v-tooltip="'Forward 10 Seconds'" small iconOnly @click="seek(time + 10000)"><i class="ti ti-rewind-forward-10"></i></GsButton>-->
+				<GsButton v-tooltip="i18n.ts._Timeline.GoToStart" iconOnly icon="ti ti-player-skip-back" @click="seek(0)"/>
+				<!--<GsButton v-tooltip="'Back 10 Seconds'" iconOnly @click="seek(time - 10000)" icon="ti ti-rewind-backward-10"/>-->
+				<GsButton v-tooltip="i18n.ts._Timeline.Back5Seconds" iconOnly icon="ti ti-rewind-backward-5" @click="seek(time - 5000)"/>
+				<GsButton v-if="previewPlayback.isTimelinePlaying.value" v-tooltip="i18n.ts._Timeline.PauseShortcut" primary icon="ti ti-player-pause" @click="pause"/>
+				<GsButton v-else v-tooltip="i18n.ts._Timeline.PlayShortcut" icon="ti ti-player-play" @click="play"/>
+				<GsButton v-tooltip="i18n.ts._Timeline.Forward5Seconds" iconOnly icon="ti ti-rewind-forward-5" @click="seek(time + 5000)"/>
+				<!--<GsButton v-tooltip="'Forward 10 Seconds'" iconOnly @click="seek(time + 10000)" icon="ti ti-rewind-forward-10"/>-->
 			</div>
 			<div style="display: flex; gap: 4px;">
-				<GsButton v-tooltip="i18n.ts._Timeline.PreviousFrame" small iconOnly @click="stepFrame(-1)"><i class="ti ti-chevron-left"></i></GsButton>
-				<GsButton v-tooltip="i18n.ts._Timeline.NextFrame" small iconOnly @click="stepFrame(1)"><i class="ti ti-chevron-right"></i></GsButton>
-				<GsButton v-tooltip="i18n.ts._Timeline.PreviousKeyframe" small iconOnly @click="seekToKeyframe(getPreviousKeyframeTime())"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
-				<GsButton v-tooltip="i18n.ts._Timeline.NextKeyframe" small iconOnly @click="seekToKeyframe(getNextKeyframeTime())"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
+				<GsButton v-tooltip="i18n.ts._Timeline.PreviousFrame" iconOnly icon="ti ti-chevron-left" @click="stepFrame(-1)"/>
+				<GsButton v-tooltip="i18n.ts._Timeline.NextFrame" iconOnly icon="ti ti-chevron-right" @click="stepFrame(1)"/>
+				<GsButton v-tooltip="i18n.ts._Timeline.PreviousKeyframe" iconOnly :icon="['ti ti-keyframe', 'ti ti-chevron-left']" @click="seekToKeyframe(getPreviousKeyframeTime())"/>
+				<GsButton v-tooltip="i18n.ts._Timeline.NextKeyframe" iconOnly :icon="['ti ti-chevron-right', 'ti ti-keyframe']" @click="seekToKeyframe(getNextKeyframeTime())"/>
 			</div>
 		</div>
 		<div :class="$style.headerCenter">
@@ -36,13 +36,13 @@
 		</div>
 		<div :class="$style.headerRight">
 			<span :class="$style.headerMajorDivider"></span>
-			<GsButton small iconOnly><i class="ti ti-pointer"></i></GsButton>
-			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
-			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
+			<GsButton iconOnly icon="ti ti-pointer"/>
+			<GsButton iconOnly icon="ti ti-select-all"/>
+			<GsButton iconOnly icon="ti ti-cut"/>
 			<span :class="$style.headerMinorDivider"></span>
-			<GsButton v-tooltip="i18n.ts._Timeline.FollowPlayhead" small iconOnly :primary="followPlayhead" @click="followPlayhead = !followPlayhead"><i class="ti ti-arrow-narrow-right-dashed"></i></GsButton>
-			<GsButton v-tooltip="i18n.ts._Timeline.TickSettings" small iconOnly @click="showTickMenu"><i class="ti ti-ruler-2"></i></GsButton>
-			<GsButton v-tooltip="i18n.ts._Timeline.SnapSettings" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
+			<GsButton v-tooltip="i18n.ts._Timeline.FollowPlayhead" iconOnly :primary="followPlayhead" icon="ti ti-arrow-narrow-right-dashed" @click="followPlayhead = !followPlayhead"/>
+			<GsButton v-tooltip="i18n.ts._Timeline.TickSettings" iconOnly icon="ti ti-ruler-2" @click="showTickMenu"/>
+			<GsButton v-tooltip="i18n.ts._Timeline.SnapSettings" iconOnly :primary="snapEnabled" icon="ti ti-magnet" @click="showSnapMenu"/>
 		</div>
 	</div>
 	<div :class="$style.body" @contextmenu.stop.prevent @pointerdown.capture="onBackgroundPointerDown" @pointermove.capture="onTimelinePointerMove" @pointerleave="clearTimelineCursor" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
@@ -59,7 +59,7 @@
 			</div>
 			<div style="direction: ltr;">
 				<div :class="$style.layersActions">
-					<GsButton v-tooltip="i18n.ts._Timeline.AddLayer" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
+					<GsButton v-tooltip="i18n.ts._Timeline.AddLayer" iconOnly icon="ti ti-plus" @click="showAddLayerMenu"/>
 				</div>
 			</div>
 			<GsVirtualScroll

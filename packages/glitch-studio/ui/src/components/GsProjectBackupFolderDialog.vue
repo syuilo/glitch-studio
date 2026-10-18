@@ -4,8 +4,8 @@
 		<b>{{ i18n.ts._ProjectBackups.Allow }}</b>
 		<div>{{ i18n.tsx._ProjectBackups.SelectFolderDescription({ name: handle.name }) }}</div>
 		<div v-if="error" role="alert">{{ error }}</div>
-		<GsButton :disabled="busy" @click="chooseFolder">{{ i18n.ts._ProjectBackups.ChooseFolder }}</GsButton>
-		<GsButton :disabled="busy" @click="modal?.close()">{{ i18n.ts.Cancel }}</GsButton>
+		<GsButton large :disabled="busy" @click="chooseFolder">{{ i18n.ts._ProjectBackups.ChooseFolder }}</GsButton>
+		<GsButton large :disabled="busy" @click="modal?.close()">{{ i18n.ts.Cancel }}</GsButton>
 	</div>
 </GsModal>
 </template>

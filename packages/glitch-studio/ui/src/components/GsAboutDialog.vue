@@ -19,7 +19,7 @@
 			</small>
 		</div>
 		<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/" target="_blank">{{ i18n.ts.UserGuide }}</a>
-		<GsButton inline @click="ok">{{ i18n.ts.OK }}</GsButton>
+		<GsButton large inline @click="ok">{{ i18n.ts.OK }}</GsButton>
 	</div>
 </GsModal>
 </template>
