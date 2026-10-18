@@ -1,10 +1,11 @@
 <template>
-<div ref="root" :class="$style.root" data-visual-module-editor data-test-visual-module-editor
+<div
+	ref="root" :class="$style.root" data-visual-module-editor data-test-visual-module-editor
 	@dragenter.capture="assetDrop.onDragenter" @dragover.capture="assetDrop.onDragover"
 	@dragleave.capture="assetDrop.onDragleave" @drop.capture="assetDrop.onDrop"
 >
 	<div :class="$style.header">
-		<div style="padding: 8px;">
+		<div style="padding: 0 8px;">
 			<GsTabs v-model="tab" :def="tabs" data-test-visual-module-tabs/>
 		</div>
 	</div>
@@ -85,7 +86,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
@@ -101,6 +101,7 @@ import GsTabs from './common/GsTabs.vue';
 import type { VisualModule, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode, NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { VisualModuleEdit, VisualModuleAssetDropActions } from '@/types/visual-module-editor.ts';
+import { i18n } from '@/i18n.ts';
 import { provideVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { useAssetDrop } from '@/composables/useAssetDrop.ts';
 import * as ui from '@/ui.ts';
