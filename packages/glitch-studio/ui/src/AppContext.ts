@@ -78,6 +78,7 @@ export class AppContext {
 	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'live' ? this.visualModuleRendererManagerController : this.timelineRendererManagerController);
 	public get projectFileName() { return this.projectSaveController.projectFileName; }
 	public get hasUnsavedChanges() { return this.projectSaveController.hasUnsavedChanges; }
+	public get isProjectSaving() { return this.projectSaveController.isProjectSaving; }
 	public get projectBackupAccess() { return this.projectSaveController.projectBackupAccess; }
 	public get projectBackupStatus() { return this.projectSaveController.projectBackupStatus; }
 	public get projectBackupController() { return this.projectSaveController.projectBackupController; }

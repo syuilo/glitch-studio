@@ -124,6 +124,8 @@ Web版はIndexedDBに`FileSystemFileHandle`を保存し、`isSameEntry()`で同�
 
 Save asは保存データに新しいプロジェクトIDを発行し、本体の書き込み成功後だけ`ProjectContext`へ反映する。キャンセル・失敗では元のIDを維持し、Undo/Redoの内容は保持する。待機中の通常Saveは、内容には要求時のスナップショットを使い、保存先とIDには先行するSave asの成功結果を使う。
 
+`ProjectSaveController.isProjectSaving`は受付済みの手動保存を数え、待機・権限確認・エンコード・保存先選択・バックアップ・本体書き込み・バックアップ整理が終わるまでtrueになる。失敗・キャンセル・プロジェクト読込による要求の失効でも解除し、失敗ダイアログの確認待ちと自動バックアップ単独の実行は含めない。`App.vue`のヘッダーに保存中のメッセージを表示し、`project-save-close-guard.ts`が保存中だけ`beforeunload`を監視する。Electron版は終了を取り消して再操作を案内するダイアログを表示し、完了後も自動では閉じない。Web版はブラウザー標準の終了確認を表示するが、文言の変更や終了の強制禁止はできない。
+
 ## Electronの更新UI
 
 `DesktopUpdates`がmainから更新状態を取得・購読します。状態のrevisionを比較し、遅れて返った初期snapshotで新しい通知を巻き戻しません。`App.vue`のヘッダとHelpメニューから確認を行い、`GsDesktopUpdateDialog`が処理中の操作を抑止し、失敗後に閉じる・再試行を表示します。インストーラーの起動を試みた後の失敗は`restart-required`として扱い、再試行を隠してアプリの再起動を案内します。保存とプレビューはこの場合も復帰します。

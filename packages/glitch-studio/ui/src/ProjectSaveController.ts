@@ -50,6 +50,9 @@ export class ProjectSaveController {
 	private projectSaveSession: ProjectSaveSession;
 	private backupFingerprint = createProjectBackupFingerprint();
 	private savedFingerprint = ref<string | null>(null);
+	private pendingManualSaveCount = ref(0);
+	// 実行中の保存が終わっても、後続の保存が待機中なら終了を許可しない。
+	public isProjectSaving = computed(() => this.pendingManualSaveCount.value > 0);
 	// 履歴の件数では、Undo・直接編集されるプロジェクト情報・生成音声の変更を判定できない。
 	// 保存対象そのものを比較し、不変なBlobはバックアップと同じ同一性で扱う。
 	public hasUnsavedChanges = computed(() => {
@@ -133,64 +136,76 @@ export class ProjectSaveController {
 		if (!project) return;
 		const generation = this.projectGeneration;
 		const requestedHandle = saveAs ? null : this.projectSaveSession.target?.handle;
-		// 待ち行列やエンコードより前に権限要求を始め、クリックの有効期間を失わない。
-		// 待機中の拒否は値として受け、未処理のPromise rejectionにしない。
-		const permission = requestedHandle?.requestPermission({ mode: 'readwrite' }).catch((error: unknown) => error);
-		await this.projectSaveSession.runExclusive(async savedTarget => {
-			try {
-				if (generation !== this.projectGeneration) return;
-				// 内容は要求時のスナップショットを使い、IDだけ実行時に決める。
-				// 先行するSave asが成功していたら、待機中のSaveもその新しいIDを引き継ぐ。
-				project.id = saveAs ? genId() : this.getSnapshot()!.id;
-				const fingerprint = this.backupFingerprint(project);
-				let handle = saveAs ? null : savedTarget?.handle ?? null;
-				let directory = saveAs ? null : savedTarget?.directory ?? null;
-				let target = saveAs ? null : savedTarget?.backup ?? null;
-				// 待機中にSave asが成功した場合、その保存先は選択時に許可済み。
-				// 旧ハンドルの権限結果を流用せず確認し、ユーザー操作のないキュー内で新たな権限要求はしない。
-				const granted = handle === requestedHandle ? await permission
-					: handle?.kind === 'file' ? await handle.queryPermission({ mode: 'readwrite' }) : 'granted';
-				if (handle && granted !== 'granted') throw new Error('Write permission was not granted. Use Save as... to choose another file.');
-				const data = await encodeProjectFile(project);
-				if (generation !== this.projectGeneration) return;
-				if (!handle) {
-					const selected = await selectProjectSaveFile(this.projectSaveSession.suggestedName);
-					if (!selected) return;
-					({ handle, directory } = selected);
+		this.pendingManualSaveCount.value++;
+		let saveFailure: { error: unknown } | null = null;
+		try {
+			// 待ち行列やエンコードより前に権限要求を始め、クリックの有効期間を失わない。
+			// 待機中の拒否は値として受け、未処理のPromise rejectionにしない。
+			const permission = requestedHandle?.requestPermission({ mode: 'readwrite' }).catch((error: unknown) => error);
+			saveFailure = await this.projectSaveSession.runExclusive(async savedTarget => {
+				try {
+					if (generation !== this.projectGeneration) return null;
+					// 内容は要求時のスナップショットを使い、IDだけ実行時に決める。
+					// 先行するSave asが成功していたら、待機中のSaveもその新しいIDを引き継ぐ。
+					project.id = saveAs ? genId() : this.getSnapshot()!.id;
+					const fingerprint = this.backupFingerprint(project);
+					let handle = saveAs ? null : savedTarget?.handle ?? null;
+					let directory = saveAs ? null : savedTarget?.directory ?? null;
+					let target = saveAs ? null : savedTarget?.backup ?? null;
+					// 待機中にSave asが成功した場合、その保存先は選択時に許可済み。
+					// 旧ハンドルの権限結果を流用せず確認し、ユーザー操作のないキュー内で新たな権限要求はしない。
+					const granted = handle === requestedHandle ? await permission
+						: handle?.kind === 'file' ? await handle.queryPermission({ mode: 'readwrite' }) : 'granted';
+					if (handle && granted !== 'granted') throw new Error('Write permission was not granted. Use Save as... to choose another file.');
+					const data = await encodeProjectFile(project);
+					if (generation !== this.projectGeneration) return null;
+					if (!handle) {
+						const selected = await selectProjectSaveFile(this.projectSaveSession.suggestedName);
+						if (!selected) return null;
+						({ handle, directory } = selected);
+					}
+					if (generation !== this.projectGeneration) return null;
+					target ??= resolveBackupTarget(handle, directory);
+					if (backupSettings().saveEnabled && (!target || !await target.directory.hasPermission())) {
+						if (handle.kind === 'desktop-project-file') throw new Error('The project backup folder is unavailable.');
+						directory = await requestBackupDirectory(handle);
+						if (!directory) return null;
+						target = { name: handle.name, directory: browserProjectBackupDirectory(directory) };
+					}
+					if (generation !== this.projectGeneration) return null;
+					let saveBackupTime: number | null = null;
+					if (target && backupSettings().saveEnabled) {
+						// 上書き前の実ファイルのバックアップが確定してから、本体を変更する。
+						saveBackupTime = await this.projectBackupController.beforeSave(target, projectSaveBackupWriter(handle, target.directory));
+					}
+					if (generation !== this.projectGeneration) return null;
+					await saveProjectFile(data, handle);
+					if (generation === this.projectGeneration) {
+						this.adoptSavedProjectId(project.id);
+						// 保存中の編集を保存済みにしないよう、書き込んだスナップショットを基準にする。
+						// バックアップ整理の成否ではなく、本体の書き込み成功時点で更新する。
+						this.savedFingerprint.value = fingerprint;
+						this.projectSaveSession.setTarget({ handle, directory, backup: target });
+						void recentProjects.remember(handle, project.name);
+						if (target) await this.projectBackupController.afterSave(target, saveBackupTime);
+					}
+				} catch (error) {
+					console.error(error);
+					// 更新用モーダルの背後の確認待ちで保存キューを止めない。
+					// 待機中の保存失敗は更新開始元へ返し、編集を続けられる状態へ戻す。
+					if (this.pausedForUpdate) { this.updatePreparationError = error; return null; }
+					return { error };
 				}
-				if (generation !== this.projectGeneration) return;
-				target ??= resolveBackupTarget(handle, directory);
-				if (backupSettings().saveEnabled && (!target || !await target.directory.hasPermission())) {
-					if (handle.kind === 'desktop-project-file') throw new Error('The project backup folder is unavailable.');
-					directory = await requestBackupDirectory(handle);
-					if (!directory) return;
-					target = { name: handle.name, directory: browserProjectBackupDirectory(directory) };
-				}
-				if (generation !== this.projectGeneration) return;
-				let saveBackupTime: number | null = null;
-				if (target && backupSettings().saveEnabled) {
-					// 上書き前の実ファイルのバックアップが確定してから、本体を変更する。
-					saveBackupTime = await this.projectBackupController.beforeSave(target, projectSaveBackupWriter(handle, target.directory));
-				}
-				if (generation !== this.projectGeneration) return;
-				await saveProjectFile(data, handle);
-				if (generation === this.projectGeneration) {
-					this.adoptSavedProjectId(project.id);
-					// 保存中の編集を保存済みにしないよう、書き込んだスナップショットを基準にする。
-					// バックアップ整理の成否ではなく、本体の書き込み成功時点で更新する。
-					this.savedFingerprint.value = fingerprint;
-					this.projectSaveSession.setTarget({ handle, directory, backup: target });
-					void recentProjects.remember(handle, project.name);
-					if (target) await this.projectBackupController.afterSave(target, saveBackupTime);
-				}
-			} catch (error) {
-				console.error(error);
-				// 更新用モーダルの背後の確認待ちで保存キューを止めない。
-				// 待機中の保存失敗は更新開始元へ返し、編集を続けられる状態へ戻す。
-				if (this.pausedForUpdate) { this.updatePreparationError = error; return; }
-				await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
-			}
-		});
+				return null;
+			});
+		} finally {
+			this.pendingManualSaveCount.value--;
+		}
+		// エラーの確認待ちは保存処理ではないため、保存中の表示と終了防止を先に解除する。
+		if (saveFailure != null) {
+			const { error } = saveFailure;
+			await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+		}
 	}
 
 	public async pauseForUpdate(): Promise<() => void> {

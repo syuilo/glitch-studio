@@ -24,6 +24,7 @@
 			<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
 		</div>
 		<div :class="$style.headerRight">
+			<span v-if="isProjectSaving" :class="$style.projectSaving" role="status" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}</span>
 			Glitch Studio
 		</div>
 	</div>
@@ -77,6 +78,7 @@ import { WorkspaceController, workspaceControllerKey } from './WorkspaceControll
 import { desktopProjectFile } from './gsproj.ts';
 import { DesktopUpdates } from './desktop-updates.ts';
 import { applicationActivity } from './application-activity.ts';
+import { installProjectSaveCloseGuard } from './project-save-close-guard.ts';
 import GsDesktopUpdateDialog from './components/GsDesktopUpdateDialog.vue';
 import { importVisualModuleFile } from './utility/visual-module-file.ts';
 import { importAssets } from './utility/import-assets.ts';
@@ -123,7 +125,8 @@ onBeforeUnmount(() => { disposeFileDrops?.(); });
 const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, liveTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
 const { stateManager } = appContext.projectContext;
 const { name: projectName } = appContext.projectContext.stateManager.state;
-const { projectFileName, hasUnsavedChanges } = appContext;
+const { projectFileName, hasUnsavedChanges, isProjectSaving } = appContext;
+onBeforeUnmount(installProjectSaveCloseGuard(isProjectSaving));
 
 const desktopUpdates = __ELECTRON__ && window.desktop != null ? new DesktopUpdates(window.desktop, {
 	reserve() {
@@ -539,6 +542,11 @@ onMounted(async () => {
 .projectFileName {
 	margin-left: 0.5em;
 	color: color-mix(in srgb, var(--THEME-fg), var(--THEME-bg) 30%);
+}
+
+.projectSaving {
+	margin-right: 1em;
+	color: var(--THEME-accent);
 }
 
 .undoRedo {

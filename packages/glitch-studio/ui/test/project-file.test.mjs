@@ -111,7 +111,7 @@ const appBundle = await build({
 					}
 					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
-					export async function alert(options) { globalThis.projectAlerts.push(options.text); }
+					export async function alert(options) { globalThis.projectAlerts.push(options.text); await window.acknowledgeProjectAlert?.(); }
 					export function progress() { return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
 					export function waiting() { return { setText() {}, done() {} }; }
 						export function popup(component, props, events) {
@@ -1033,6 +1033,126 @@ test('rejects empty save data without opening a writable', async () => {
 	await assert.rejects(saveProjectFile(new Uint8Array(), handle), /no save data/);
 	assert.deepEqual(handle.calls, []);
 	assert.deepEqual(handle.bytes, new Uint8Array([42]));
+});
+
+// 【権限確認の開始から後続の手動保存の完了まで保存中を維持する】
+// 書き込み中だけのフラグや単純なbooleanでは、権限待ち・キュー待ちの保存を見落とし、
+// 先行保存が終わった瞬間にウィンドウを閉じられてしまう。closeの完了まで保護する。
+test('tracks manual saves from permission requests until every queued write has committed', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	const handle = fileHandle('saving.gsproj');
+	await appContext.ready(project(), handle.name, handle);
+	const permission = Promise.withResolvers();
+	handle.requestPermission = () => permission.promise;
+	const writes = [0, 1].map(() => ({ started: Promise.withResolvers(), finish: Promise.withResolvers() }));
+	const createWritable = handle.createWritable;
+	let writeIndex = 0;
+	handle.createWritable = async () => {
+		const stream = await createWritable();
+		const write = writes[writeIndex++];
+		return { ...stream, async close() { write.started.resolve(); await write.finish.promise; await stream.close(); } };
+	};
+	assert.equal(appContext.isProjectSaving.value, false);
+	const firstSave = appContext.saveProject();
+	assert.equal(appContext.isProjectSaving.value, true);
+	permission.resolve('granted');
+	await writes[0].started.promise;
+	const secondSave = appContext.saveProject();
+	writes[0].finish.resolve();
+	await firstSave;
+	assert.equal(appContext.isProjectSaving.value, true);
+	await writes[1].started.promise;
+	assert.equal(appContext.isProjectSaving.value, true);
+	writes[1].finish.resolve();
+	await secondSave;
+	assert.equal(appContext.isProjectSaving.value, false);
+});
+
+// 【エンコード中の保存も保護し、プロジェクト切替による失効で保存中状態を残さない】
+// 大きな素材の読み出しは書き込み前にも待機する。読み込み世代が変わった場合は
+// 古い要求が書き込みを行わずに完了し、表示と終了防止を解除する必要がある。
+test('tracks encoding and releases a save invalidated by a project reload', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	const encodingStarted = Promise.withResolvers();
+	const finishEncoding = Promise.withResolvers();
+	class DelayedBlob extends Blob {
+		async arrayBuffer() { encodingStarted.resolve(); await finishEncoding.promise; return super.arrayBuffer(); }
+	}
+	const handle = fileHandle('encoding.gsproj');
+	await appContext.ready(project({ assets: [{ id: 'asset', name: 'image.png', fileData: new DelayedBlob(['image']) }] }), handle.name, handle);
+	const saving = appContext.saveProject();
+	await encodingStarted.promise;
+	assert.equal(appContext.isProjectSaving.value, true);
+	await appContext.ready(project({ name: 'Another project' }));
+	assert.equal(appContext.isProjectSaving.value, true);
+	finishEncoding.resolve();
+	await saving;
+	assert.equal(appContext.isProjectSaving.value, false);
+	assert.equal(handle.calls.some(([action]) => action === 'create'), false);
+});
+
+// 【保存先のキャンセルと保存失敗で保存中状態を解除する】
+// 早期returnや例外でカウンターが残ると、その後ずっと終了できなくなる。
+// 失敗ダイアログの確認待ち中にも「保存中」と表示し続けないことを確認する。
+test('releases manual saving after cancellation and before acknowledging a write failure', async t => {
+	const window = setup(t);
+	t.mock.method(console, 'error', () => {});
+	const app = evaluate(appBundle);
+	const { appContext } = app;
+	await app.newProject();
+	const selectionStarted = Promise.withResolvers();
+	const selection = Promise.withResolvers();
+	window.selectProjectSaveFile = () => { selectionStarted.resolve(); return selection.promise; };
+	const canceledSave = appContext.saveProject();
+	await selectionStarted.promise;
+	assert.equal(appContext.isProjectSaving.value, true);
+	selection.resolve(null);
+	await canceledSave;
+	assert.equal(appContext.isProjectSaving.value, false);
+	const handle = fileHandle('failure.gsproj', { fail: 'write' });
+	window.selectProjectSaveFile = async () => handle;
+	const alertShown = Promise.withResolvers();
+	const acknowledged = Promise.withResolvers();
+	window.acknowledgeProjectAlert = () => { alertShown.resolve(); return acknowledged.promise; };
+	const failedSave = appContext.saveProject();
+	await alertShown.promise;
+	assert.deepEqual(globalThis.projectAlerts, ['write failed']);
+	assert.equal(appContext.isProjectSaving.value, false);
+	acknowledged.resolve();
+	await failedSave;
+	assert.equal(appContext.isProjectSaving.value, false);
+});
+
+// 【自動バックアップ単独では手動保存中とせず、そこに待機する手動保存は保護する】
+// 共通キュー全体を保存中として扱うと、定期バックアップで突然終了できなくなる。
+// 一方、バックアップの後ろで待つ手動保存は、受付時点から保護する必要がある。
+test('distinguishes automatic backups from manual saves queued behind them', async t => {
+	const window = setup(t);
+	const { appContext } = evaluate(appBundle);
+	const handle = fileHandle('automatic.gsproj');
+	await appContext.ready(project(), handle.name, handle);
+	window.testPreferences.projectBackups.autoEnabled = true;
+	await nextTick();
+	const backupStarted = Promise.withResolvers();
+	const finishBackup = Promise.withResolvers();
+	appContext.projectBackupController.setTarget({ name: handle.name, directory: {
+		async hasPermission() { return true; },
+		async list() { return []; },
+		async create() { backupStarted.resolve(); await finishBackup.promise; return true; },
+		async remove() {},
+	} });
+	const now = Date.now();
+	t.mock.method(Date, 'now', () => now + 60001);
+	const backingUp = appContext.projectBackupController.tick();
+	await backupStarted.promise;
+	assert.equal(appContext.isProjectSaving.value, false);
+	const saving = appContext.saveProject();
+	assert.equal(appContext.isProjectSaving.value, true);
+	finishBackup.resolve();
+	await Promise.all([backingUp, saving]);
+	assert.equal(appContext.isProjectSaving.value, false);
 });
 
 // 【手動保存した内容と比較し、履歴操作と履歴外の変更を反映する】
