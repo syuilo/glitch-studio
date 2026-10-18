@@ -125,8 +125,8 @@ onMounted(() => {
 	}
 
 	&.iconOnly {
-		padding: 0 6px !important;
-		min-width: var(--height) !important;
+		padding: 0 !important;
+		min-width: calc(var(--height) + 6px) !important;
 
 		.icon {
 			margin-right: 0

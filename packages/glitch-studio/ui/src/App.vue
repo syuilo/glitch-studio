@@ -612,7 +612,6 @@ onMounted(async () => {
 
 .footerSectionTitle {
 	font-weight: bold;
-	margin-bottom: 0.5em;
 }
 
 .footerSectionContents {

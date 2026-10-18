@@ -146,19 +146,19 @@
 		display: inline-grid;
 		align-items: center;
 		justify-items: center;
-		vertical-align: -30%;
+		vertical-align: -35%;
 		//background: #fff;
-    //color: #000;
+		//color: #000;
 
 		&::before {
 			position: absolute;
-			font-size: 125%;
+			font-size: 120%;
 		}
 	}
 
 	.ti-fw {
-		display: inline-block;
-		text-align: center;
+		//display: inline-grid;
+		//text-align: center;
 	}
 
 	._noSelect {
