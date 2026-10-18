@@ -246,7 +246,8 @@
 		"BackupsUnsaved": "バックアップ: 先にプロジェクトを保存してください",
 		"BackupsFolderRequired": "バックアップ: フォルダーへのアクセスが必要です",
 		"InitializingProject": "プロジェクトを初期化中",
-		"InitializingRenderer": "レンダラーを初期化中"
+		"InitializingRenderer": "レンダラーを初期化中",
+		"LoadingProjectFile": "プロジェクトファイルを読み込み中"
 	},
 	"_Dashboard": {
 		"NewProject": "新規プロジェクト",

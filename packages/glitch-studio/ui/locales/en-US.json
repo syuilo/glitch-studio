@@ -246,7 +246,8 @@
 		"BackupsUnsaved": "Backups: save project first",
 		"BackupsFolderRequired": "Backups: folder access required",
 		"InitializingProject": "Initializing project",
-		"InitializingRenderer": "Initializing renderer"
+		"InitializingRenderer": "Initializing renderer",
+		"LoadingProjectFile": "Loading project file"
 	},
 	"_Dashboard": {
 		"NewProject": "New Project",

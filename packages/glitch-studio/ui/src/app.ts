@@ -1,4 +1,3 @@
-import { i18n } from '@/i18n.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
@@ -26,6 +25,7 @@ import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types
 import type { EffectNodeOf } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { ProjectFileHandle } from './gsproj.ts';
+import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 import { openMediaFile } from '@/utility/open-media-file.ts';
 
@@ -64,14 +64,17 @@ export const rendererEnv = {
 
 export async function openProject(file?: File | null, fileHandle?: ProjectFileHandle | null): Promise<boolean> {
 	const releaseActivity = applicationActivity.acquire();
+	const waiting = ui.waiting({ text: i18n.ts._App.LoadingProjectFile });
 	try {
 		const result = await loadProjectFile(file, fileHandle);
+		waiting.done();
 		if (result == null) return false;
 		await appContext.ready(result.project, result.name, result.handle);
 		if (result.handle != null) await recentProjects.remember(result.handle, result.project.name);
 		return true;
 	} catch (error) {
 		console.error(error);
+		waiting.done();
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		return false;
 	} finally { releaseActivity(); }
