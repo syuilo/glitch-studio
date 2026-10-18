@@ -2005,7 +2005,7 @@ test('reloads without undo and preserves modes paths and embedded bytes through 
 	const manager = appContext.projectContext.stateManager;
 	const current = () => manager.state.assets.value[0];
 	const action = text => getAssetMenu(current()).find(item => item.text === text).action();
-	await action('Select external reference…');
+	await action('Select external reference...');
 	await setImmediate();
 	assert.equal(chosenDefault, 'C:/original/source.bin');
 	assert.equal(current().isExternalReference, true);
