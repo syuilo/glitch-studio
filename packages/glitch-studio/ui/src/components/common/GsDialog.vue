@@ -172,7 +172,7 @@ function onInputKeydown(evt: KeyboardEvent) {
 .title {
 	margin: 0 0 8px 0;
 	font-weight: bold;
-	font-size: 1.1em;
+	font-size: 120%;
 
 	& + .text {
 		margin-top: 8px;
@@ -181,6 +181,7 @@ function onInputKeydown(evt: KeyboardEvent) {
 
 .text {
 	margin: 16px 0 0 0;
+	font-size: 110%;
 }
 
 .buttons {
