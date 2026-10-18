@@ -283,6 +283,8 @@
 	},
 	"_Assets": {
 		"DefaultExternalReference": "Import files as external references by default",
+		"LargeAssetExternalReference": "Always import files of 30 MB or more as external references",
+		"LargeAssetExternalReferenceHint": "Applies only to new imports. Replacing an asset preserves its existing mode.",
 		"Reload": "Reload",
 		"Relink": "Relink",
 		"Embed": "Embed in project",

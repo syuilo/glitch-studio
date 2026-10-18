@@ -283,6 +283,8 @@
 	},
 	"_Assets": {
 		"DefaultExternalReference": "ファイルを外部参照として取り込む",
+		"LargeAssetExternalReference": "30MB以上のファイルを常に外部参照として取り込む",
+		"LargeAssetExternalReferenceHint": "新規取り込みのみに適用します。置き換え時は既存のモードを維持します。",
 		"Reload": "リロード",
 		"Relink": "参照先を変更",
 		"Embed": "プロジェクトに埋め込む",

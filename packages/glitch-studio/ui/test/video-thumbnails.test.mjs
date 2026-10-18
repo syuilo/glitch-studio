@@ -65,7 +65,9 @@ function setup(t, overrides = {}) {
 		},
 	};
 	const require = createRequire(import.meta.url);
-	const mocks = { mediabunny, 'test-preferences': { preferences: { s: { forceTypeSafety: false } } },
+	const preferences = { forceTypeSafety: false, importAssetsAsExternalReferences: false,
+		importLargeAssetsAsExternalReferences: false, ...options.preferences };
+	const mocks = { mediabunny, 'test-preferences': { preferences: { s: preferences } },
 		'test-effects': { effectDefinitions: {} }, 'test-ui': { alert: async options => { calls.alerts.push(options); }, progress() {
 			calls.dialogs++;
 			return { setProgress: value => calls.progress.push(value), setSubProgress: value => calls.subProgress.push(value),
@@ -73,8 +75,70 @@ function setup(t, overrides = {}) {
 		} } };
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(name => mocks[name] ?? require(name), module, module.exports);
-	return { ...module.exports, calls, options };
+	return { ...module.exports, calls, options, preferences };
 }
+
+// 【30MB以上の新規ファイルだけを、原本を全量読み込む前に外部参照へ切り替える】
+// 複数選択を一括で判定すると、小さな素材まで外部参照になったり大きな素材を埋め込んだりする。
+// しきい値ちょうどを含む境界と、外部参照ではarrayBufferを呼ばないことを確認する。
+test('imports each file of at least 30 MB as an external reference without reading its bytes', async t => {
+	const f = setup(t, { preferences: { importLargeAssetsAsExternalReferences: true } });
+	const previousWindow = globalThis.window;
+	const resolved = [];
+	globalThis.window = { desktop: {
+		getPathForFile: file => `C:/assets/${file.name}`,
+		resolveExternalAsset: async path => {
+			resolved.push(path);
+			return { url: `app://external-assets/${resolved.length}`, size: 30_000_000, error: null };
+		},
+	} };
+	t.after(() => { globalThis.window = previousWindow; });
+	const files = [29_999_999, 30_000_000, 30_000_001].map((size, index) => {
+		const file = new File(['original'], `asset-${index}.bin`);
+		// 実際に大きなメモリを確保せず、Fileのサイズ情報だけで判定されることを検証する。
+		Object.defineProperty(file, 'size', { value: size });
+		if (size >= 30_000_000) t.mock.method(file, 'arrayBuffer', () => assert.fail('External imports must not read the entire file'));
+		return file;
+	});
+	const results = await f.openWithProgress({ files, multiple: true, allowAnyFile: true });
+	assert.deepEqual(results.map(result => result.isExternalReference), [false, true, true]);
+	assert.equal(await results[0].fileData.text(), 'original');
+	assert.deepEqual(resolved, files.slice(1).map(file => `C:/assets/${file.name}`));
+});
+
+// 【サイズによる設定は切り替え可能で、Replace・Web・パスのない素材は埋め込みを維持する】
+// 設定を無条件に優先すると既存のモード維持や埋め込み変換ができなくなり、Webでは解決不能な
+// 参照を作ってしまう。通常のデフォルト設定も引き続き独立して利用できることを確認する。
+test('keeps explicit import modes and embeds files without desktop paths', async t => {
+	const f = setup(t, { preferences: { importLargeAssetsAsExternalReferences: true } });
+	const previousWindow = globalThis.window;
+	let resolutions = 0;
+	const desktop = {
+		getPathForFile: file => `C:/assets/${file.name}`,
+		resolveExternalAsset: async () => {
+			resolutions++;
+			return { url: 'app://external-assets/file', size: 30_000_000, error: null };
+		},
+	};
+	globalThis.window = { desktop };
+	t.after(() => { globalThis.window = previousWindow; });
+	const file = new File(['original'], 'asset.bin');
+	Object.defineProperty(file, 'size', { value: 30_000_000 });
+	const read = options => f.openWithProgress({ file, allowAnyFile: true, ...options });
+	assert.equal((await read({ isExternalReference: false })).isExternalReference, false);
+	f.preferences.importLargeAssetsAsExternalReferences = false;
+	assert.equal((await read()).isExternalReference, false);
+	f.preferences.importAssetsAsExternalReferences = true;
+	assert.equal((await read()).isExternalReference, true);
+	assert.equal(resolutions, 1);
+	f.preferences.importAssetsAsExternalReferences = false;
+	f.preferences.importLargeAssetsAsExternalReferences = true;
+	desktop.getPathForFile = () => '';
+	assert.equal((await read()).isExternalReference, false);
+	globalThis.window = {};
+	assert.equal((await read()).isExternalReference, false);
+	assert.equal(resolutions, 1);
+});
 
 // 【映像の有効範囲を11地点で抽出し、縮小・圧縮完了後にCanvasを再利用する】
 // 先頭が0でない動画でも音声の範囲を混ぜず、100%は最後のフレームにする。

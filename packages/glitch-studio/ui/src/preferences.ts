@@ -10,6 +10,7 @@ import type { TimelineTickMode } from './utility/timeline-ticks.ts';
 
 export const PREF_DEF = definePreferences({
 	importAssetsAsExternalReferences: { default: () => false },
+	importLargeAssetsAsExternalReferences: { default: () => true },
 	projectBackups: { default: () => ({ ...DEFAULT_PROJECT_BACKUP_SETTINGS }) },
 	animation: { default: () => true },
 	menuStyle: { default: () => 'auto' },

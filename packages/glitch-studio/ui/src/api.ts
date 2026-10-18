@@ -49,6 +49,8 @@ export type MediaFileReadProgress = {
 
 export type OpenMediaFileOptions = {
 	isExternalReference?: boolean;
+	/** 指定されたサイズ以上のファイルを外部参照にする。単位はバイト。未指定時はサイズで切り替えない。 */
+	externalReferenceThresholdBytes?: number | null;
 	sourceFilePath?: string;
 	multiple?: boolean;
 	file?: File;
@@ -90,7 +92,11 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 		// パスは元のFileからだけ取得できる。ブラウザのfakepathや相対パスは原本の場所を示さない。
 		// ElectronでもJSで生成したFileにはパスがないため、空文字列は未取得として扱う。
 		const sourceFilePath = options.sourceFilePath ?? (window.desktop?.getPathForFile(file) || null);
-		const isExternalReference = options.isExternalReference === true && window.desktop?.resolveExternalAsset != null && sourceFilePath != null;
+		// File.sizeは原本のバイト列を読まずに取得できる。複数選択でも各ファイルを判定し、
+		// 埋め込み用のarrayBufferを作る前に外部参照へ切り替える。
+		const useExternalReference = options.isExternalReference === true
+			|| (options.externalReferenceThresholdBytes != null && file.size >= options.externalReferenceThresholdBytes);
+		const isExternalReference = useExternalReference && window.desktop?.resolveExternalAsset != null && sourceFilePath != null;
 		// 埋め込みは取り込み時の原本をコピーして外部変更から独立させる。
 		// 外部参照だけはコピーせず、Electronが発行した範囲読み取り用URLを保持する。
 		let fileData: FileSource;

@@ -5,6 +5,8 @@ import { applicationActivity } from '../application-activity.ts';
 import { preferences } from '../preferences.ts';
 import type { OpenedMediaFile, OpenMediaFileOptions } from '../api.ts';
 
+const LARGE_ASSET_EXTERNAL_REFERENCE_THRESHOLD_BYTES = 30_000_000;
+
 type ImportMediaFilesOptions = OpenMediaFileOptions & {
 	/** 素材のプロジェクト反映までダイアログを維持する。 */
 	onImported?: (files: OpenedMediaFile[], dialog: ReturnType<typeof progress>) => void | Promise<void>;
@@ -15,7 +17,11 @@ export async function importMediaFiles(files: readonly File[], options: ImportMe
 	const releaseActivity = applicationActivity.acquire();
 	const dialog = progress({ text: i18n.ts._Assets.Importing });
 	try {
-		const results = await api.openMediaFile({ isExternalReference: preferences.s.importAssetsAsExternalReferences, ...options, files, multiple: true, onReadProgress: value => {
+		// サイズによる設定は新規取り込みにだけ適用する。Replaceなどでモードが
+		// 明示された場合は、既存の保存方法やユーザーが選んだ変換先を維持する。
+		const externalReferenceThresholdBytes = options.isExternalReference == null && preferences.s.importLargeAssetsAsExternalReferences === true
+			? LARGE_ASSET_EXTERNAL_REFERENCE_THRESHOLD_BYTES : null;
+		const results = await api.openMediaFile({ isExternalReference: preferences.s.importAssetsAsExternalReferences, externalReferenceThresholdBytes, ...options, files, multiple: true, onReadProgress: value => {
 			const { file, fileIndex, completedFiles, totalFiles, fileProgress } = value;
 			if (totalFiles > 1) {
 				// 全体は完了件数で測る。読み込み時間を予測できない段階も割合を偽らない。
