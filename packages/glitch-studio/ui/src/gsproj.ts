@@ -115,7 +115,8 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 }
 
 const projectFilePickerOptions = {
-	id: 'glitch-studio-project',
+	// 保存先のフォルダ選択とは別のIDにし、プロジェクトを開く場所だけを記憶する。
+	id: 'glitch-studio-open-project',
 	types: [{ description: 'Glitch Studio project', accept: { 'application/octet-stream': ['.gsproj'] } }],
 	excludeAcceptAllOption: true,
 };

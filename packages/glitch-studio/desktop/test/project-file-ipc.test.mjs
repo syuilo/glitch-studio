@@ -10,6 +10,7 @@ async function fixture(t, { startup = false } = {}) {
 	const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'glitch-studio-project-ipc-'));
 	t.after(() => fs.rm(directory, { recursive: true, force: true }));
 	const file = path.join(directory, 'project.gsproj');
+	const projectOpenDirectoryFilePath = path.join(directory, 'user-data', 'project-open-directory');
 	await fs.writeFile(file, new Uint8Array([1, 2, 3]));
 	const handlers = new Map();
 	const calls = [];
@@ -20,11 +21,15 @@ async function fixture(t, { startup = false } = {}) {
 		async showSaveDialog(window, options) { assert.equal(window, parent); calls.push(options); return { canceled: false, filePath: file }; },
 		async showMessageBox() { return { response: 0 }; },
 	};
-	registerProjectFileIpc({ handle: (name, action) => handlers.set(name, action) }, dialogs, new ProjectFiles(), event => {
-		if (event !== trusted) throw new Error('Untrusted');
-		return parent;
-	}, startup ? file : null);
-	return { file, handlers, calls, dialogs, trusted, invoke: (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args) };
+	function registerHandlers() {
+		registerProjectFileIpc({ handle: (name, action) => handlers.set(name, action) }, dialogs, new ProjectFiles(), event => {
+			if (event !== trusted) throw new Error('Untrusted');
+			return parent;
+		}, startup ? file : null, projectOpenDirectoryFilePath);
+	}
+	registerHandlers();
+	return { file, projectOpenDirectoryFilePath, handlers, calls, dialogs, trusted, restart: registerHandlers,
+		invoke: (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args) };
 }
 
 // 【起動ファイルはUIの準備後に一度だけ渡し、保存先としても使える】
@@ -65,6 +70,70 @@ test('selects native project targets without truncating them or requesting a fol
 	await h.invoke('write-project-file', selected.id, new Uint8Array([4]));
 	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([4]));
 	assert.deepEqual(new Uint8Array(await fs.readFile(path.join(path.dirname(h.file), backup))), new Uint8Array([1, 2, 3]));
+});
+
+// 【プロジェクト選択のディレクトリを再起動後も使い、別プロセスの選択も反映する】
+// OS任せでは保存ダイアログなどに開始位置を変えられるため、Open専用の記録を使う。
+// メモリ上のキャッシュだけで成功するテストにせず、ハンドラーを作り直して永続化も確認する。
+test('remembers the project open directory across restarts and reads other processes changes', async t => {
+	const h = await fixture(t);
+	const originalDirectory = path.dirname(h.file);
+	await h.invoke('choose-project-file');
+	assert.equal(h.calls[0].defaultPath, undefined);
+	assert.equal(await fs.readFile(h.projectOpenDirectoryFilePath, 'utf8'), originalDirectory);
+
+	h.restart();
+	const nextDirectory = path.join(originalDirectory, '別の作品 フォルダ');
+	h.dialogs.showOpenDialog = async (_window, options) => {
+		h.calls.push(options);
+		return { canceled: false, filePaths: [path.join(nextDirectory, 'next.gsproj')] };
+	};
+	const opened = await h.invoke('choose-project-file');
+	assert.equal(h.calls[1].defaultPath, originalDirectory);
+	assert.equal(opened.name, 'next.gsproj');
+	await h.invoke('choose-project-file');
+	assert.equal(h.calls[2].defaultPath, nextDirectory);
+
+	const otherProcessDirectory = path.join(originalDirectory, 'other-process');
+	await fs.writeFile(h.projectOpenDirectoryFilePath, otherProcessDirectory);
+	await h.invoke('choose-project-file');
+	assert.equal(h.calls[3].defaultPath, otherProcessDirectory);
+});
+
+// 【キャンセルや別名保存はプロジェクト選択の記録を上書きしない】
+// プロジェクトを開く場所と保存する場所が違っていても、次のOpenを元の場所から始められる。
+// キャンセルしたダイアログでは確定したファイルがないため、それ以前の選択を維持する。
+test('keeps the project open directory when cancelling or choosing a save target', async t => {
+	const h = await fixture(t);
+	await h.invoke('choose-project-file');
+	const originalDirectory = path.dirname(h.file);
+	const otherFile = path.join(originalDirectory, 'other', 'saved.gsproj');
+	h.dialogs.showSaveDialog = async () => ({ canceled: false, filePath: otherFile });
+	await h.invoke('choose-project-save-file', 'saved.gsproj');
+	h.dialogs.showOpenDialog = async () => ({ canceled: true, filePaths: [otherFile] });
+	assert.equal(await h.invoke('choose-project-file'), null);
+	assert.equal(await fs.readFile(h.projectOpenDirectoryFilePath, 'utf8'), originalDirectory);
+
+	h.restart();
+	h.dialogs.showOpenDialog = async (_window, options) => {
+		assert.equal(options.defaultPath, originalDirectory);
+		return { canceled: true, filePaths: [] };
+	};
+	assert.equal(await h.invoke('choose-project-file'), null);
+});
+
+// 【ディレクトリ記録の読み書きに失敗してもプロジェクトを開ける】
+// 設定領域の障害は作品そのものの読込失敗にしない。記録できない間も同じプロセス内では
+// 最後に選択した場所を保持して、次のファイル選択に利用する。
+test('continues opening projects when directory preference storage is unavailable', async t => {
+	const h = await fixture(t);
+	t.mock.method(console, 'error', () => {});
+	await fs.writeFile(path.dirname(h.projectOpenDirectoryFilePath), 'storage is unavailable');
+	const opened = await h.invoke('choose-project-file');
+	assert.equal(opened.name, 'project.gsproj');
+	assert.deepEqual(new Uint8Array(await h.invoke('read-project-file', opened.id)), new Uint8Array([1, 2, 3]));
+	await h.invoke('choose-project-file');
+	assert.equal(h.calls[1].defaultPath, path.dirname(h.file));
 });
 
 // 【保存のキャンセルや、拡張子補完後の上書き拒否では対象を変更しない】
