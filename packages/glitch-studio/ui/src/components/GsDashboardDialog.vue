@@ -14,8 +14,8 @@
 			</div>
 			<div class="_gaps_m">
 				<GsButton large full style="text-align: left;" icon="ti ti-plus" @click="_newProject">{{ i18n.ts._Dashboard.NewProject }}</GsButton>
-				<GsButton large full style="text-align: left;" icon="ti ti-photo-video" @click="_newProjectFromImageOrVideo">{{ i18n.ts._Dashboard.OpenMedia }}</GsButton>
-				<GsButton large full style="text-align: left;" icon="ti ti-folder-open" @click="_openProject">{{ i18n.ts._Dashboard.OpenProject }}</GsButton>
+				<GsButton large full style="text-align: left;" icon="ti ti-photo-video" @click="_newProjectFromImageOrVideo">{{ `${i18n.ts._Dashboard.OpenMedia}...` }}</GsButton>
+				<GsButton large full style="text-align: left;" icon="ti ti-folder-open" @click="_openProject">{{ `${i18n.ts._Dashboard.OpenProject}...` }}</GsButton>
 			</div>
 			<button class="_textButton" style="margin-top: auto;" @click="showAbout()">{{ i18n.ts._App.About }}</button>
 		</div>
@@ -28,7 +28,7 @@
 						{{ recentProjects.error.value }}
 						<button class="_textButton" :disabled="recentProjectsBusy" @click="refreshRecentProjects">{{ i18n.ts._Dashboard.RetryRecentProjects }}</button>
 					</div>
-					<div v-if="recentProjectsLoading" data-test-recent-projects-loading>{{ i18n.ts.Loading }}</div>
+					<div v-if="recentProjectsLoading" data-test-recent-projects-loading>{{ i18n.ts.Loading }}<GsEllipsis/></div>
 					<template v-else>
 						<div v-if="recentProjects.entries.value.length === 0 && recentProjects.error.value == null" :class="$style.recentEmpty" data-test-recent-projects-empty>{{ i18n.ts._Dashboard.NoRecentProjects }}</div>
 						<div v-for="entry in recentProjects.entries.value" :key="entry.id" :class="$style.recentProject" data-test-recent-project>
@@ -55,6 +55,7 @@ import GsModal from './common/GsModal.vue';
 import GsAboutDialog from './GsAboutDialog.vue';
 import GsFolder from './common/GsFolder.vue';
 import GsTime from './common/GsTime.vue';
+import GsEllipsis from './common/GsEllipsis.vue';
 import { i18n } from '@/i18n.ts';
 import { recentProjects } from '@/recent-projects.ts';
 import { appContext, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';

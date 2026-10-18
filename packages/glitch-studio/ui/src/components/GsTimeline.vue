@@ -41,8 +41,8 @@
 			<GsButton iconOnly icon="ti ti-cut"/>
 			<span :class="$style.headerMinorDivider"></span>
 			<GsButton v-tooltip="i18n.ts._Timeline.FollowPlayhead" iconOnly :primary="followPlayhead" icon="ti ti-arrow-narrow-right-dashed" @click="followPlayhead = !followPlayhead"/>
-			<GsButton v-tooltip="i18n.ts._Timeline.TickSettings" iconOnly icon="ti ti-ruler-2" @click="showTickMenu"/>
-			<GsButton v-tooltip="i18n.ts._Timeline.SnapSettings" iconOnly :primary="snapEnabled" icon="ti ti-magnet" @click="showSnapMenu"/>
+			<GsButton v-tooltip="`${i18n.ts._Timeline.TickSettings}...`" iconOnly icon="ti ti-ruler-2" @click="showTickMenu"/>
+			<GsButton v-tooltip="`${i18n.ts._Timeline.SnapSettings}...`" iconOnly :primary="snapEnabled" icon="ti ti-magnet" @click="showSnapMenu"/>
 		</div>
 	</div>
 	<div :class="$style.body" @contextmenu.stop.prevent @pointerdown.capture="onBackgroundPointerDown" @pointermove.capture="onTimelinePointerMove" @pointerleave="clearTimelineCursor" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">

@@ -123,11 +123,11 @@ export function getAssetMenu(asset: ProjectAsset): MenuItem[] {
 		disabled: asset.isExternalReference && window.desktop == null,
 	}, ...(asset.isExternalReference ? [
 		{ text: i18n.ts._Assets.Reload, icon: 'ti ti-refresh', disabled: window.desktop == null, action: reload },
-		{ text: i18n.ts._Assets.Relink, icon: 'ti ti-link', disabled: window.desktop == null, action: chooseReference },
+		{ text: `${i18n.ts._Assets.Relink}...`, icon: 'ti ti-link', disabled: window.desktop == null, action: chooseReference },
 		{ text: i18n.ts._Assets.Embed, icon: 'ti ti-package', disabled: window.desktop == null, action: embed },
 	] : [
-		{ text: i18n.ts._Assets.ConvertToExternalReference, icon: 'ti ti-link', disabled: window.desktop == null, action: chooseReference },
-		{ text: i18n.ts._Assets.ExportOriginal, icon: 'ti ti-download', disabled: window.desktop == null, action: exportFile },
+		{ text: `${i18n.ts._Assets.ConvertToExternalReference}...`, icon: 'ti ti-link', disabled: window.desktop == null, action: chooseReference },
+		{ text: `${i18n.ts._Assets.ExportOriginal}...`, icon: 'ti ti-download', disabled: window.desktop == null, action: exportFile },
 	]), {
 		type: 'divider',
 	}, {

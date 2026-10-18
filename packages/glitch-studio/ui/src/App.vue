@@ -26,8 +26,7 @@
 				<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
 			</div>
 			<div :class="$style.headerRight">
-				<span v-if="isProjectSaving" :class="$style.projectSaving" role="status" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}</span>
-				Glitch Studio
+				<span v-if="isProjectSaving" :class="$style.projectSaving" role="status" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}<GsEllipsis/></span>
 			</div>
 		</div>
 	</div>
@@ -88,6 +87,7 @@ import { importAssets } from './utility/import-assets.ts';
 import { fileDropTargetInstallerKey, installFileDropHandlers } from './utility/file-drop.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsDropOverlay from './components/common/GsDropOverlay.vue';
+import GsEllipsis from './components/common/GsEllipsis.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
 import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
@@ -381,7 +381,7 @@ function openFpsMenu(ev: PointerEvent) {
 
 function openHeaderFileMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: i18n.ts._App.Open,
+		text: `${i18n.ts._App.Open}...`,
 		icon: 'ti ti-folder-open',
 		action: () => { void openProject(); },
 	}, {
@@ -389,7 +389,7 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		icon: 'ti ti-device-floppy',
 		action: () => { void appContext.saveProject(); },
 	}, {
-		text: i18n.ts._App.SaveAs,
+		text: `${i18n.ts._App.SaveAs}...`,
 		icon: 'ti ti-device-floppy',
 		action: () => { void appContext.saveProject(true); },
 	}, {
@@ -404,13 +404,13 @@ function openHeaderFileMenu(ev: PointerEvent) {
 			action: () => { void importVisualModuleFile(appContext.projectContext); },
 		}],
 	}, {
-		text: i18n.ts._App.SavePreviewSnapshot,
+		text: `${i18n.ts._App.SavePreviewSnapshot}...`,
 		icon: 'ti ti-photo',
 		action: () => {
 			savePreviewSnapshot();
 		},
 	}, {
-		text: i18n.ts._App.ExportScene,
+		text: `${i18n.ts._App.ExportScene}...`,
 		icon: 'ti ti-movie',
 		action: () => {
 			const { dispose } = ui.popup(GsTimelineExportDialog, {}, { closed: () => dispose() });
@@ -420,11 +420,11 @@ function openHeaderFileMenu(ev: PointerEvent) {
 
 function openHeaderEditMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: i18n.ts._App.ProjectSettings,
+		text: `${i18n.ts._App.ProjectSettings}...`,
 		icon: 'ti ti-file-settings',
 		action: openProjectSettings,
 	}, {
-		text: i18n.ts._App.Preferences,
+		text: `${i18n.ts._App.Preferences}...`,
 		icon: 'ti ti-settings',
 		action: openPreferences,
 	}], ev.currentTarget ?? ev.target);

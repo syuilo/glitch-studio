@@ -3,7 +3,7 @@
 	<div ref="content" :class="$style.root" class="_gaps_m" role="dialog" aria-modal="true" :aria-label="i18n.ts._DesktopUpdate.Title" tabindex="-1" data-test-desktop-update-dialog @keydown.stop>
 		<strong>{{ i18n.ts._DesktopUpdate.Title }}</strong>
 		<div v-if="working" role="status" aria-live="polite" data-test-desktop-update-status>
-			{{ state.phase === 'downloading' ? i18n.ts._DesktopUpdate.Downloading : state.phase === 'installing' ? i18n.ts._DesktopUpdate.Installing : i18n.ts._DesktopUpdate.Preparing }}
+			{{ state.phase === 'downloading' ? i18n.ts._DesktopUpdate.Downloading : state.phase === 'installing' ? i18n.ts._DesktopUpdate.Installing : i18n.ts._DesktopUpdate.Preparing }}<GsEllipsis/>
 		</div>
 		<template v-if="working">
 			<GsProgressBar :progress="state.phase === 'downloading' && state.progress != null ? state.progress.percent / 100 : null"/>
@@ -23,11 +23,12 @@
 
 <script lang="ts" setup>
 import { computed, useTemplateRef } from 'vue';
-import type { DesktopUpdateState } from '@gs/glitch-studio_shared/desktop-update.ts';
-import { i18n } from '@/i18n.ts';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsProgressBar from './common/GsProgressBar.vue';
+import GsEllipsis from './common/GsEllipsis.vue';
+import type { DesktopUpdateState } from '@gs/glitch-studio_shared/desktop-update.ts';
+import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{ state: DesktopUpdateState; working: boolean; localError: string | null }>();
 const emit = defineEmits<{ (event: 'closed'): void; (event: 'retry'): void }>();

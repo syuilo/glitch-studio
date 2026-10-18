@@ -8,14 +8,14 @@ import { i18n, i18nPlugin } from './helpers/i18n.mjs';
 
 async function buildCloseGuard(electron) {
 	const bundle = await build({ absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
-		entryPoints: ['./src/project-save-close-guard.ts'], bundle: true, platform: 'node', format: 'cjs',
-		external: ['vue'], write: false, define: { __ELECTRON__: String(electron) },
-		plugins: [i18nPlugin, { name: 'close-guard-dialog', setup(build) {
-			build.onResolve({ filter: /(?:^|\/)ui\.ts$/ }, () => ({ path: 'ui', namespace: 'close-guard-dialog' }));
-			build.onLoad({ filter: /.*/, namespace: 'close-guard-dialog' }, () => ({ contents: `
+																														entryPoints: ['./src/project-save-close-guard.ts'], bundle: true, platform: 'node', format: 'cjs',
+																														external: ['vue'], write: false, define: { __ELECTRON__: String(electron) },
+																														plugins: [i18nPlugin, { name: 'close-guard-dialog', setup(build) {
+																															build.onResolve({ filter: /(?:^|\/)ui\.ts$/ }, () => ({ path: 'ui', namespace: 'close-guard-dialog' }));
+																															build.onLoad({ filter: /.*/, namespace: 'close-guard-dialog' }, () => ({ contents: `
 				export function alert(options) { window.saveCloseNotices.push(options); return window.dismissCloseNotice.promise; }
 			` }));
-		} }],
+																														} }],
 	});
 	const bundled = { exports: {} };
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports);

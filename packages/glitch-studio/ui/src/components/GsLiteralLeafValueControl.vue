@@ -167,7 +167,7 @@
 		<GsButton iconOnly :title="i18n.ts.Random" icon="ti ti-dice-5" @click="() => changeValue(Math.floor(Math.random() * 16384))"/>
 	</div>
 	<div v-else-if="dataType.kind === 'imageAssetTextureReference' || dataType.kind === 'videoAssetReference' || dataType.kind === 'fontAssetReference' || dataType.kind === 'lutAssetReference'" :class="$style.assetControl">
-		<GsButton :class="$style.assetButton" @click="chooseAsset">{{ selectedAsset?.name ?? (value == null ? i18n.ts._Assets.SelectButton : i18n.ts._Assets.Missing) }}</GsButton>
+		<GsButton :class="$style.assetButton" @click="chooseAsset">{{ selectedAsset?.name ?? (value == null ? `${i18n.ts._Assets.SelectButton}...` : i18n.ts._Assets.Missing) }}</GsButton>
 		<GsButton v-if="value != null" iconOnly :title="i18n.ts.None" icon="ti ti-x" @click="changeValue(null)"/>
 	</div>
 	<div v-else-if="dataType.kind === 'audioSource'">

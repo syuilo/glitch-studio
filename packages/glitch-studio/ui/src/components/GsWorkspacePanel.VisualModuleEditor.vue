@@ -193,7 +193,7 @@ function previewLive() {
 
 function showSwitchMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: i18n.ts._VisualModule.Import,
+		text: `${i18n.ts._VisualModule.Import}...`,
 		icon: 'ti ti-upload',
 		action: importVisualModule,
 	}, {

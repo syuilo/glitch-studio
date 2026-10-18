@@ -4,8 +4,8 @@
 		<div :class="$style.headerLeft">
 			<GsNodePort v-show="!expanded" :class="$style.allInPort" :dataType="{ kind: 'any' }" @update:element="allInPortEl = $event"/>
 			<div :class="$style.effectName">{{ name }}</div>
-			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly :title="i18n.ts.Loading"><i class="ti ti-loader-2" :class="$style.loading"></i></div>
-			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :title="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>
+			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly><i class="ti ti-loader-2" :class="$style.loading"></i></div>
+			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :v-tooltip="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>
 		</div>
 		<div :class="$style.headerRight">
 			<div :class="$style.nodeId" class="_monospace">{{ prettyId(node.id) }}</div>

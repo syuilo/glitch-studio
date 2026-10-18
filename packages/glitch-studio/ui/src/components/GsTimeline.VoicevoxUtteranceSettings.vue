@@ -70,7 +70,7 @@ const generation = computed(() => appContext.voicevoxGeneration.statuses.value[k
 const generating = computed(() => generation.value?.state === 'generating');
 const status = computed(() => {
 	if (!props.utterance.text) return i18n.ts._Voicevox.ClearSubtitle;
-	if (generating.value) return i18n.ts._Voicevox.Generating;
+	if (generating.value) return `${i18n.ts._Voicevox.Generating}...`;
 	if (generation.value?.state === 'error') return generation.value.message;
 	const speech = stateManager.state.generatedSpeech.value.find(item => item.key === key.value);
 	return speech ? i18n.tsx._Voicevox.Ready({ seconds: (speech.durationMs / 1000).toFixed(2) }) : i18n.ts._Voicevox.NotGenerated;

@@ -37,7 +37,7 @@
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting && !choosingSaveFile" class="_gaps_m">
 			<div :class="$style.progress"><div :class="$style.progressFill" :style="{ width: `${progressPercent}%` }"></div></div>
-			<div>{{ progressText }}</div>
+			<div>{{ progressText }}<GsEllipsis/></div>
 		</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 		<div v-if="status">{{ status }}</div>
@@ -51,19 +51,19 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, onBeforeUnmount, reactive, ref, toRefs, watch, useTemplateRef } from 'vue';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
-import { getRendererAssets } from '../utility/renderer-assets.ts';
 import { getRequiredVoicevoxRequestsForRendering } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
+import { getRendererAssets } from '../utility/renderer-assets.ts';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
+import GsEllipsis from './common/GsEllipsis.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
 import { preferences } from '@/preferences.ts';
 import { appContext } from '@/app.ts';
@@ -72,6 +72,7 @@ import { exportTimeline } from '@/export/client.ts';
 import { validateExportSettings } from '@/export/timeline-export.ts';
 import { adjustExportResolution, createDefaultExportDialogSettings, estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
 import { hasExportAudio, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
+import { i18n } from '@/i18n.ts';
 
 const { activeSceneId, previewPlayback } = appContext;
 const { stateManager } = appContext.projectContext;
@@ -105,7 +106,7 @@ if (!stateManager.state.timelineScenes.value.some(scene => scene.id === dialogSe
 	dialogSettings.endTime = formatExportTime(fallbackScene == null ? 0 : getSceneDuration(fallbackScene));
 }
 const { sceneId, mode, videoFormat, stillFormat, videoQuality, stillQuality, resolutionScale, customResolution,
-	fpsScale, customFps, startTime, endTime } = toRefs(dialogSettings);
+								fpsScale, customFps, startTime, endTime } = toRefs(dialogSettings);
 const sceneItems = computed(() => [{ label: i18n.ts._Export.ChooseScene, value: '' }, ...stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
 const scene = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
 const quality = computed({
@@ -235,7 +236,7 @@ async function doExport() {
 			sceneId: exportSceneId,
 		});
 		if (exportSettings.format === 'mp4') {
-			status.value = i18n.ts._Export.PreparingVoicevox;
+			status.value = `${i18n.ts._Export.PreparingVoicevox}...`;
 			const requests = getRequiredVoicevoxRequestsForRendering(exportProject.timelineScenes, exportProject.sceneId, exportSettings.positionMs, exportSettings.endTimeMs);
 			const preparedSpeech = await appContext.voicevoxGeneration.prepare(requests, signal);
 			// 描画用の音声参照でも使えるよう、開始時点の生成済み音声を残して準備結果を加える。

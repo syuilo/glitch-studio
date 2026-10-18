@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.actions">
-		<GsButton large primary icon="ti ti-plus" @click="addAsset">{{ i18n.ts._Assets.Add }}</GsButton>
+		<GsButton large primary icon="ti ti-plus" @click="addAsset">{{ `${i18n.ts._Assets.Add}...` }}</GsButton>
 		<GsButton large :disabled="!localFontsSupported || loadingLocalFonts" :wait="loadingLocalFonts" @click="addLocalFont">{{ i18n.ts._Assets.ImportLocalFont }}</GsButton>
 		<GsInput v-model="query" large type="search" :placeholder="i18n.ts._Assets.Search" :class="$style.searchInput" @keydown.enter.stop.prevent="chooseFirstResult">
 			<template #prefix>

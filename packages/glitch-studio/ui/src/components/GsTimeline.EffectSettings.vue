@@ -3,7 +3,7 @@
 	<template #icon><i class="ti ti-sparkles"></i></template>
 	<template #label>{{ i18n.ts._TimelineLayer.Effect }} {{ definition.displayName }}</template>
 	<template #suffix>
-		<span v-if="effectState?.status.type === 'loading'"><i class="ti ti-loader-2"></i> {{ i18n.ts.Loading }}</span>
+		<span v-if="effectState?.status.type === 'loading'"><i class="ti ti-loader-2"></i> {{ i18n.ts.Loading }}<GsEllipsis/></span>
 		<span v-else-if="effectState?.status.type === 'error'" :class="$style.error" :title="effectState.status.message"><i class="ti ti-alert-triangle"></i> {{ i18n.ts.Error }}</span>
 		<span v-else-if="outputResolution">{{ outputResolution.width }} × {{ outputResolution.height }}</span>
 	</template>
@@ -40,7 +40,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed } from 'vue';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
@@ -49,11 +48,13 @@ import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsVisualParam from './GsVisualParam.vue';
+import GsEllipsis from './common/GsEllipsis.vue';
 import type { AudioLayerOption, ParamEdit } from './GsVisualParam.vue';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; audioLayerOptions: readonly AudioLayerOption[] }>();
 const emit = defineEmits<{ edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
