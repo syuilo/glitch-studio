@@ -2,7 +2,7 @@
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')">
 	<div :class="$style.root" class="_gaps_m">
 		<div style="font-size: 110%;">
-			<img src="/gs.svg" style="display: block; margin: 0 auto 8px auto; width: 64px; height: 64px;">
+			<img src="/gs.svg" draggable="false" style="display: block; margin: 0 auto 8px auto; width: 64px; height: 64px;">
 			<div><b>Glitch Studio{{ isElectron ? '' : ' (for Web)' }}</b></div>
 			<div>{{ version }}</div>
 		</div>

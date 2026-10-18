@@ -3,7 +3,7 @@
 	<div :class="$style.root">
 		<div :class="$style.main" class="_gaps_l">
 			<div style="display: flex; align-items: center; gap: 16px;">
-				<img src="/gs.svg" style="display: block; width: 64px; height: 64px;">
+				<img src="/gs.svg" draggable="false" style="display: block; width: 64px; height: 64px;">
 				<div>
 					<div><b>Glitch Studio{{ isElectron ? '' : ' (for Web)' }}</b></div>
 					<div>{{ version }}</div>

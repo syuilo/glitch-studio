@@ -11,6 +11,7 @@
 	<div :class="$style.header">
 		<div :class="$style.headerInner">
 			<div :class="$style.headerLeft">
+				<img src="/gs.svg" draggable="false" style="display: block; width: 20px; height: 20px; margin: 0 4px 0 8px;">
 				<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
 				<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
@@ -529,6 +530,7 @@ onMounted(async () => {
 .headerLeft {
 	display: flex;
 	flex-shrink: 0;
+	align-items: center;
 }
 
 .headerCenter {
