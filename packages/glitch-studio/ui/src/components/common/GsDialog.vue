@@ -8,11 +8,11 @@
 			v-else-if="!input && !select"
 			:class="[$style.icon]"
 		>
-			<GsSystemIcon v-if="type === 'success'" :class="$style.iconInner" style="width: 45px;" type="success"/>
-			<GsSystemIcon v-else-if="type === 'error'" :class="$style.iconInner" style="width: 45px;" type="error"/>
-			<GsSystemIcon v-else-if="type === 'warning'" :class="$style.iconInner" style="width: 45px;" type="warn"/>
-			<GsSystemIcon v-else-if="type === 'info'" :class="$style.iconInner" style="width: 45px;" type="info"/>
-			<GsSystemIcon v-else-if="type === 'question'" :class="$style.iconInner" style="width: 45px;" type="question"/>
+			<GsSystemIcon v-if="type === 'success'" :class="$style.iconInner" style="width: 42px;" type="success"/>
+			<GsSystemIcon v-else-if="type === 'error'" :class="$style.iconInner" style="width: 42px;" type="error"/>
+			<GsSystemIcon v-else-if="type === 'warning'" :class="$style.iconInner" style="width: 42px;" type="warn"/>
+			<GsSystemIcon v-else-if="type === 'info'" :class="$style.iconInner" style="width: 42px;" type="info"/>
+			<GsSystemIcon v-else-if="type === 'question'" :class="$style.iconInner" style="width: 42px;" type="question"/>
 			<GsLoading v-else-if="type === 'waiting'" :class="$style.iconInner" :em="true"/>
 		</div>
 		<header v-if="title" :class="$style.title" class="_selectable">{{ title }}</header>
@@ -22,11 +22,11 @@
 		</GsInput>
 		<GsSelect v-if="select" v-model="selectedValue" large :items="selectDef" autofocus></GsSelect>
 		<div v-if="(showOkButton || showCancelButton) && !actions" :class="$style.buttons">
-			<GsButton v-if="showOkButton" large data-testid="modal-dialog-ok" inline primary rounded :autofocus="!input && !select" @click="ok">{{ okText ?? ((showCancelButton || input || select) ? 'OK' : i18n.ts._Dialog.GotIt) }}</GsButton>
-			<GsButton v-if="showCancelButton || input || select" large data-testid="modal-dialog-cancel" inline rounded @click="cancel">{{ cancelText ?? i18n.ts.Cancel }}</GsButton>
+			<GsButton v-if="showOkButton" large data-testid="modal-dialog-ok" inline primary :autofocus="!input && !select" @click="ok">{{ okText ?? ((showCancelButton || input || select) ? 'OK' : i18n.ts._Dialog.GotIt) }}</GsButton>
+			<GsButton v-if="showCancelButton || input || select" large data-testid="modal-dialog-cancel" inline @click="cancel">{{ cancelText ?? i18n.ts.Cancel }}</GsButton>
 		</div>
 		<div v-if="actions" :class="$style.buttons">
-			<GsButton v-for="action in actions" :key="action.text" large inline rounded :primary="action.primary" :danger="action.danger" @click="() => { action.callback(); modal?.close(); }">{{ action.text }}</GsButton>
+			<GsButton v-for="action in actions" :key="action.text" large inline :primary="action.primary" :danger="action.danger" @click="() => { action.callback(); modal?.close(); }">{{ action.text }}</GsButton>
 		</div>
 	</div>
 </GsModal>
@@ -147,13 +147,13 @@ function onInputKeydown(evt: KeyboardEvent) {
 .root {
 	position: relative;
 	margin: auto;
-	padding: 32px;
+	padding: 28px;
 	min-width: 320px;
 	max-width: 480px;
 	box-sizing: border-box;
 	text-align: center;
 	background: var(--THEME-panel);
-	border-radius: 12px;
+	border-radius: 10px;
 }
 
 .icon {
@@ -180,12 +180,12 @@ function onInputKeydown(evt: KeyboardEvent) {
 }
 
 .text {
-	margin: 16px 0 0 0;
+	margin: 8px 0 0 0;
 	font-size: 110%;
 }
 
 .buttons {
-	margin-top: 16px;
+	margin-top: 12px;
 	display: flex;
 	gap: 8px;
 	flex-wrap: wrap;
