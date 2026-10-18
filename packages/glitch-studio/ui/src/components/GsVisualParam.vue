@@ -29,14 +29,13 @@
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || (paramValue.inputSource === 'layerInput' && !layerInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
-					<GsInput v-if="paramValue.inputSource === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
+					<GsInput v-if="paramValue.inputSource === 'expression'" large type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
 						<template #caption>
 							<div v-if="isExpressionSyntaxError" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> {{ i18n.ts._Parameter.SyntaxError }}</div>
 						</template>
 					</GsInput>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'envVariable'"
-						small
 						:modelValue="paramValue.variable"
 						:items="[{ label: i18n.ts.None, value: '' }, ...envVariableItems]"
 						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
@@ -44,16 +43,16 @@
 					<div v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" style="display: grid; gap: 6px;">
 						<GsButton v-if="paramValue.inputSource === 'automationGraphReference'" @click="selectAutomationGraph">{{ selectedAutomationGraph?.name ?? i18n.ts.None }}</GsButton>
 						<GsButton v-else @click="inlineGraphEditorOpen = true">{{ i18n.ts._Parameter.EditGraph }}</GsButton>
-						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" small :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
+						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
 							<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
 						</GsSelect>
-						<GsInput v-if="selectedAutomationGraph?.isNormalized" type="number" small :min="1" :modelValue="paramValue.trimmedDurationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
+						<GsInput v-if="selectedAutomationGraph?.isNormalized" type="number" :min="1" :modelValue="paramValue.trimmedDurationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
 							<template #label>{{ i18n.ts._Parameter.DurationMs }}</template>
 						</GsInput>
-						<GsSelect small :modelValue="paramValue.wrapMode" :items="graphWrapModeItems" @update:modelValue="wrapMode => updateAutomationGraphOptions({ wrapMode })">
+						<GsSelect :modelValue="paramValue.wrapMode" :items="graphWrapModeItems" @update:modelValue="wrapMode => updateAutomationGraphOptions({ wrapMode })">
 							<template #label>{{ i18n.ts._Parameter.WrapMode }}</template>
 						</GsSelect>
-						<GsSelect v-if="automationGraphEndEnabled !== false" small :modelValue="paramValue.offsetMode" :items="graphOffsetModeItems" @update:modelValue="offsetMode => updateAutomationGraphOptions({ offsetMode })">
+						<GsSelect v-if="automationGraphEndEnabled !== false" :modelValue="paramValue.offsetMode" :items="graphOffsetModeItems" @update:modelValue="offsetMode => updateAutomationGraphOptions({ offsetMode })">
 							<template #label>{{ i18n.ts._Parameter.Offset }}</template>
 						</GsSelect>
 					</div>
@@ -62,7 +61,6 @@
 					</div>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'externalCustomParameterInput'"
-						small
 						:modelValue="paramValue.parameterId"
 						:items="[{ label: i18n.ts.None, value: visualModuleCustomParameterId('') }, ...externalCustomParameterInputItems]"
 						@update:modelValue="value => emit('edit', { kind: 'externalCustomParameterInput', ...target(), value })"
@@ -70,7 +68,6 @@
 					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
 						<GsSelect
 							style="flex: 1; min-width: 0;"
-							small
 							:modelValue="nodeOutputKey(nodeConnection)"
 							:items="[{ label: i18n.ts.None, value: null }, ...nodeOutputItems]"
 							@update:modelValue="updateParamAsNode"
@@ -82,8 +79,8 @@
 						<button class="_button" style="padding: 4px; flex-shrink: 0;" @click="showLayerInputSamplingMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<span v-else-if="paramValue.inputSource === 'lowerLayerAudio'">{{ i18n.ts._Parameter.LowerLayerAudio }}</span>
-					<GsSelect v-else-if="paramValue.inputSource === 'layerAudio'" small :modelValue="paramValue.layerId" :items="audioLayerItems" @update:modelValue="updateAudioLayer"/>
-					<GsSelect v-else-if="paramValue.inputSource === 'literal' && paramDef.dataType.kind === 'audioSource' && audioLayerOptions != null" small :modelValue="null" :items="[{ label: i18n.ts.None, value: null }]" @update:modelValue="updateParamAsLiteral(null)"/>
+					<GsSelect v-else-if="paramValue.inputSource === 'layerAudio'" :modelValue="paramValue.layerId" :items="audioLayerItems" @update:modelValue="updateAudioLayer"/>
+					<GsSelect v-else-if="paramValue.inputSource === 'literal' && paramDef.dataType.kind === 'audioSource' && audioLayerOptions != null" :modelValue="null" :items="[{ label: i18n.ts.None, value: null }]" @update:modelValue="updateParamAsLiteral(null)"/>
 					<GsLiteralLeafValueControl
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"

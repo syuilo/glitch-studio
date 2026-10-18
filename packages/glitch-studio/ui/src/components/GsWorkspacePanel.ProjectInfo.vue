@@ -1,12 +1,12 @@
 <template>
 <div :class="$style.root" class="_gaps">
-	<GsInput v-model="projectName">
+	<GsInput v-model="projectName" large>
 		<template #label>{{ i18n.ts._Project.Name }}</template>
 	</GsInput>
 	<GsTextarea v-model="projectDescription">
 		<template #label>{{ i18n.ts._Project.Description }}</template>
 	</GsTextarea>
-	<GsInput v-model="projectAuthor">
+	<GsInput v-model="projectAuthor" large>
 		<template #label>{{ i18n.ts._Project.Author }}</template>
 	</GsInput>
 </div>

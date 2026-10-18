@@ -24,14 +24,14 @@
 				<template #label>{{ i18n.ts.Settings }}</template>
 
 				<div class="_gaps_s">
-					<GsInput :modelValue="node.displayName" :debounce="400" @update:modelValue="emit('setDisplayName', $event)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
-					<GsSelect :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
+					<GsInput large :modelValue="node.displayName" :debounce="400" @update:modelValue="emit('setDisplayName', $event)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
+					<GsSelect large :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
 						<template #label>{{ i18n.ts.Resolution }}</template>
 						<template v-if="node.resolution.mode === 'context'" #caption>{{ i18n.ts._Node.ResolutionHint }}</template>
 					</GsSelect>
 					<div v-if="node.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
-						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+						<GsInput large style="flex: 1" type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+						<GsInput large style="flex: 1" type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 					</div>
 				</div>
 			</GsFolder>

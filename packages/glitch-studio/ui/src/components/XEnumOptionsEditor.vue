@@ -5,12 +5,12 @@
 		<span>{{ i18n.ts._CustomParameterInput.Label }}</span>
 	</div>
 	<div v-for="(option, index) in draft" :key="option.id" :class="$style.row">
-		<GsInput v-model="option.value" small :class="$style.field" type="text"/>
-		<GsInput v-model="option.label" small :class="$style.field" type="text"/>
+		<GsInput v-model="option.value" :class="$style.field" type="text"/>
+		<GsInput v-model="option.label" :class="$style.field" type="text"/>
 		<GsButton iconOnly danger :disabled="draft.length === 1" :title="i18n.ts._CustomParameterInput.RemoveOption" icon="ti ti-trash" @click="draft.splice(index, 1)"/>
 	</div>
 	<div v-if="invalid" :class="$style.error">{{ i18n.ts._CustomParameterInput.InvalidOptions }}</div>
-	<GsSelect v-model="draftDefaultValue" :items="draft.map(option => ({ value: option.value, label: option.label || option.value }))" :disabled="invalid">
+	<GsSelect v-model="draftDefaultValue" large :items="draft.map(option => ({ value: option.value, label: option.label || option.value }))" :disabled="invalid">
 		<template #label>{{ i18n.ts._CustomParameterInput.DefaultValue }}</template>
 	</GsSelect>
 	<div v-if="invalidDefault" :class="$style.error">{{ i18n.ts._CustomParameterInput.SelectValidDefault }}</div>

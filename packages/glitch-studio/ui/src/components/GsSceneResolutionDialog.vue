@@ -2,10 +2,10 @@
 <GsModal ref="modal" preferType="dialog" @opened="dialogContent?.focus()" @closed="emit('closed')" @esc="closeDialog" @click="closeDialog">
 	<div ref="dialogContent" class="_gaps_m" :class="$style.root" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
 		<div>{{ i18n.tsx._Timeline.SceneResolutionTitle({ name: scene?.name ?? '' }) }}</div>
-		<GsSelect v-model="mode" :items="modes"><template #label>{{ i18n.ts.Resolution }}</template></GsSelect>
+		<GsSelect v-model="mode" large :items="modes"><template #label>{{ i18n.ts.Resolution }}</template></GsSelect>
 		<div v-if="mode === 'customAbsolute'" :class="$style.row">
-			<GsInput v-model="width" style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-			<GsInput v-model="height" style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="width" large style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="height" large style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 		<div v-else>{{ projectResolution.width }} × {{ projectResolution.height }} px</div>
 		<div>{{ i18n.ts._Project.CustomResolutionHint }}</div>

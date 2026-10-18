@@ -1,15 +1,15 @@
 <template>
 <div :class="$style.root" class="_gaps_m">
 	<div :class="$style.fields">
-		<GsInput style="flex: 1" :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ ui: { ...def.ui, label: value } })">
+		<GsInput large style="flex: 1" :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ ui: { ...def.ui, label: value } })">
 			<template #label>{{ i18n.ts._ParameterEditor.UiLabel }}</template>
 		</GsInput>
-		<GsInput style="flex: 1" monospace :class="$style.field" type="text" :modelValue="def.nameForReference" @update:modelValue="value => update({ nameForReference: visualModuleCustomParameterName(value) })">
+		<GsInput large style="flex: 1" monospace :class="$style.field" type="text" :modelValue="def.nameForReference" @update:modelValue="value => update({ nameForReference: visualModuleCustomParameterName(value) })">
 			<template #label>{{ i18n.ts._ParameterEditor.ReferenceName }}</template>
 		</GsInput>
 	</div>
 	<div :class="$style.fields">
-		<GsSelect
+		<GsSelect large
 			style="flex: 1"
 			:class="$style.field"
 			:modelValue="def.dataType.kind"
@@ -30,8 +30,8 @@
 		>
 			<template #label>{{ i18n.ts._ParameterEditor.DataType }}</template>
 		</GsSelect>
-		<GsSelect
-			v-if="isParameterType(def, 'scalar')" :class="$style.field" :modelValue="def.ui.control.controlType"
+		<GsSelect v-if="isParameterType(def, 'scalar')"
+			large :class="$style.field" :modelValue="def.ui.control.controlType"
 			style="flex: 1"
 			:items="[{ label: i18n.ts._ParameterEditor.Number, value: 'number' }, { label: i18n.ts._ParameterEditor.Range, value: 'range' }, { label: i18n.ts._ParameterEditor.Angle, value: 'angle' }, { label: i18n.ts._ParameterEditor.Seed, value: 'seed' }]"
 			@update:modelValue="updateControl"
@@ -43,14 +43,14 @@
 	<div v-if="isParameterType(def, 'scalar') && (def.ui.control.controlType === 'number' || def.ui.control.controlType === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">{{ i18n.ts._ParameterEditor.MinMax }}</label>
 		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.ui.control.controlType === 'range' }]">
-			<GsInput type="number" :modelValue="def.ui.control.min ?? null" @update:modelValue="updateUiOption('min', Number($event))"/>
-			<GsInput type="number" :modelValue="def.ui.control.max ?? null" @update:modelValue="updateUiOption('max', Number($event))"/>
+			<GsInput large type="number" :modelValue="def.ui.control.min ?? null" @update:modelValue="updateUiOption('min', Number($event))"/>
+			<GsInput large type="number" :modelValue="def.ui.control.max ?? null" @update:modelValue="updateUiOption('max', Number($event))"/>
 		</div>
 	</div>
 	<div v-if="isParameterType(def, 'scalar') && (def.ui.control.controlType === 'number' || def.ui.control.controlType === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">{{ i18n.ts._ParameterEditor.Step }}</label>
 		<div :class="$style.optionControl">
-			<GsInput type="number" :modelValue="def.ui.control.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
+			<GsInput large type="number" :modelValue="def.ui.control.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
 		</div>
 	</div>
 	<div v-if="isParameterType(def, 'enum')" :class="$style.option">

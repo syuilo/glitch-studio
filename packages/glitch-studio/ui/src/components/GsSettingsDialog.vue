@@ -8,7 +8,7 @@
 				{{ i18n.ts._Settings.Use32bitDataTextures }}
 				<template #caption>{{ i18n.ts._Settings.DataTexturesHint }}</template>
 			</GsSwitch>
-			<GsSelect v-model="intermediateTextureFormat" :items="[
+			<GsSelect v-model="intermediateTextureFormat" large :items="[
 				{ value: null, label: i18n.ts._Settings.AutoTextureFormat },
 				{ value: 'rgba8unorm', label: 'rgba8unorm' },
 				{ value: 'bgra8unorm', label: 'bgra8unorm' },
@@ -23,14 +23,14 @@
 		<section class="_gaps_m">
 			<GsSwitch v-model="settings.autoEnabled">{{ i18n.ts._ProjectBackups.Automatic }}</GsSwitch>
 			<div class="_gaps_m" :inert="!settings.autoEnabled">
-				<GsInput v-model="settings.autoIntervalMinutes" type="number" :min="1" :step="1"><template #label>{{ i18n.ts._ProjectBackups.Interval }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Minutes }}</template><template #caption>{{ i18n.ts._ProjectBackups.AutomaticHint }}</template></GsInput>
-				<GsInput v-model="settings.autoRetentionDays" type="number" :min="1" :step="1"><template #label>{{ i18n.ts._ProjectBackups.AutoRetention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template></GsInput>
+				<GsInput v-model="settings.autoIntervalMinutes" large type="number" :min="1" :step="1"><template #label>{{ i18n.ts._ProjectBackups.Interval }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Minutes }}</template><template #caption>{{ i18n.ts._ProjectBackups.AutomaticHint }}</template></GsInput>
+				<GsInput v-model="settings.autoRetentionDays" large type="number" :min="1" :step="1"><template #label>{{ i18n.ts._ProjectBackups.AutoRetention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template></GsInput>
 			</div>
 			<div>{{ i18n.ts._ProjectBackups.LastAutomatic }} {{ formatTime(projectBackupStatus.lastAutoBackup) }}</div>
 		</section>
 		<section class="_gaps_m">
 			<GsSwitch v-model="settings.saveEnabled">{{ i18n.ts._ProjectBackups.BeforeOverwrite }}</GsSwitch>
-			<GsInput v-model="settings.saveRetentionDays" type="number" :min="1" :step="1" :disabled="!settings.saveEnabled"><template #label>{{ i18n.ts._ProjectBackups.SaveRetention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template><template #caption>{{ i18n.ts._ProjectBackups.SaveHint }}</template></GsInput>
+			<GsInput v-model="settings.saveRetentionDays" large type="number" :min="1" :step="1" :disabled="!settings.saveEnabled"><template #label>{{ i18n.ts._ProjectBackups.SaveRetention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template><template #caption>{{ i18n.ts._ProjectBackups.SaveHint }}</template></GsInput>
 			<div>{{ i18n.ts._ProjectBackups.LastSave }} {{ formatTime(projectBackupStatus.lastSaveBackup) }}</div>
 		</section>
 		<div v-if="projectBackupAccess === 'unsaved'">{{ i18n.ts._ProjectBackups.SaveFirst }}</div>

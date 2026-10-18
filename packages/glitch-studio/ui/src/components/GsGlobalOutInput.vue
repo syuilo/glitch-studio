@@ -4,7 +4,6 @@
 	<span>{{ def.label }}</span>
 	<i v-if="hasNodeInputTypeMismatch(nodes, connection, def.dataType, paramDefs)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 	<GsSelect
-		small
 		:modelValue="nodeOutputKey(connection)"
 		:items="[{ label: i18n.ts.None, value: null }, ...outputItems]"
 		@update:modelValue="selectInput"

@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div v-if="directEditMode" :class="$style.directEditForm">
-		<GsInput v-model="tempValueForDirectEdit" small :class="$style.directEditFormInput" @enter="finishDirectEdit"/>
+		<GsInput v-model="tempValueForDirectEdit" :class="$style.directEditFormInput" @enter="finishDirectEdit"/>
 		<GsButton iconOnly primary icon="ti ti-check" @click="finishDirectEdit"/>
 		<GsButton iconOnly icon="ti ti-x" @click="directEditMode = false"/>
 	</div>
@@ -20,7 +20,7 @@
 			@changeFinished="onFinishChanging"
 			@thumbDoubleClicked="reset"
 		/>
-		<GsInput v-else small type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(Number($event))" @focusout="onFinishChanging"/>
+		<GsInput v-else type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(Number($event))" @focusout="onFinishChanging"/>
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'angle'">
 		<GsAngle
@@ -32,7 +32,7 @@
 		/>
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'number'">
-		<GsInput small type="number" :modelValue="value" :min="scalarControl.min" :max="scalarControl.max" @focusin="onBeginChanging" @update:modelValue="changeContinuous(Number($event))" @focusout="onFinishChanging"/>
+		<GsInput type="number" :modelValue="value" :min="scalarControl.min" :max="scalarControl.max" @focusin="onBeginChanging" @update:modelValue="changeContinuous(Number($event))" @focusout="onFinishChanging"/>
 	</div>
 	<div v-else-if="dataType.kind === 'bool'">
 		<GsButton :primary="value" @click="changeValue(!value)">{{ value ? i18n.ts.On : i18n.ts.Off }}</GsButton>
@@ -46,14 +46,13 @@
 		/>
 	</div>
 	<div v-else-if="dataType.kind === 'enum'">
-		<GsSelect small :modelValue="value" :items="enumItems" @update:modelValue="v => changeValue(v)"/>
+		<GsSelect :modelValue="value" :items="enumItems" @update:modelValue="v => changeValue(v)"/>
 		<div v-if="typeof value !== 'string' || !dataType.options.includes(value)" :class="$style.enumError">
 			{{ i18n.t('_CustomParameterInput.InvalidEnumValue', { value: JSON.stringify(value) ?? String(value) }) }}
 		</div>
 	</div>
 	<div v-else-if="dataType.kind === 'fitMode'">
 		<GsSelect
-			small
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts._FitModes.stretch, value: 'stretch' },
@@ -65,7 +64,6 @@
 	</div>
 	<div v-else-if="dataType.kind === 'wrapMode'">
 		<GsSelect
-			small
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts._WrapModes.transparent, value: 'transparent' },
@@ -78,7 +76,6 @@
 	</div>
 	<div v-else-if="dataType.kind === 'blendMode'">
 		<GsSelect
-			small
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts._BlendModes.None, value: 'none' },
@@ -166,7 +163,7 @@
 		/>
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'seed'" style="display: flex;">
-		<GsInput style="flex: 1;" type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(parseInt(String($event), 10))" @focusout="onFinishChanging"/>
+		<GsInput large style="flex: 1;" type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(parseInt(String($event), 10))" @focusout="onFinishChanging"/>
 		<GsButton iconOnly :title="i18n.ts.Random" icon="ti ti-dice-5" @click="() => changeValue(Math.floor(Math.random() * 16384))"/>
 	</div>
 	<div v-else-if="dataType.kind === 'imageAssetTextureReference' || dataType.kind === 'videoAssetReference' || dataType.kind === 'fontAssetReference' || dataType.kind === 'lutAssetReference'" :class="$style.assetControl">
@@ -174,11 +171,10 @@
 		<GsButton v-if="value != null" iconOnly :title="i18n.ts.None" icon="ti ti-x" @click="changeValue(null)"/>
 	</div>
 	<div v-else-if="dataType.kind === 'audioSource'">
-		<GsSelect small :modelValue="value?.playerId ?? null" :items="[{ label: i18n.ts.None, value: null }, ...stateManager.state.players.value.map(player => ({ label: player.name, value: player.id }))]" @update:modelValue="v => changeValue(v == null ? null : { type: 'player', playerId: v })"/>
+		<GsSelect :modelValue="value?.playerId ?? null" :items="[{ label: i18n.ts.None, value: null }, ...stateManager.state.players.value.map(player => ({ label: player.name, value: player.id }))]" @update:modelValue="v => changeValue(v == null ? null : { type: 'player', playerId: v })"/>
 	</div>
 	<div v-else-if="dataType.kind === 'playerReference'">
 		<GsSelect
-			small
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts.None, value: null },

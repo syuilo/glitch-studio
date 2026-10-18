@@ -2,35 +2,35 @@
 <GsModal ref="modal" preferType="dialog" @opened="dialogContent?.focus()" @closed="emit('closed')" @esc="closeDialog" @click="closeDialog" @dragover.prevent.stop @drop.prevent.stop>
 	<div ref="dialogContent" :class="$style.root" class="_gaps_m" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
 		<div :class="$style.title">{{ i18n.ts._Export.Title }}</div>
-		<GsSelect v-model="sceneId" :items="sceneItems" :disabled="exporting"><template #label>{{ i18n.ts.Scene }}</template></GsSelect>
+		<GsSelect v-model="sceneId" large :items="sceneItems" :disabled="exporting"><template #label>{{ i18n.ts.Scene }}</template></GsSelect>
 		<div :inert="exporting">
 			<GsTabs v-model="mode" :def="[{ id: 'video', label: i18n.ts.Video }, { id: 'still', label: i18n.ts._Export.StillImage }]"/>
 		</div>
-		<GsSelect v-if="mode === 'video'" v-model="videoFormat" :items="[{ value: 'mp4', label: 'MP4 (H.264)' }]" :disabled="exporting">
+		<GsSelect v-if="mode === 'video'" v-model="videoFormat" large :items="[{ value: 'mp4', label: 'MP4 (H.264)' }]" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.FileFormat }}</template>
 		</GsSelect>
-		<GsSelect v-else v-model="stillFormat" :items="[{ value: 'webp', label: 'WebP' }]" :disabled="exporting">
+		<GsSelect v-else v-model="stillFormat" large :items="[{ value: 'webp', label: 'WebP' }]" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.FileFormat }}</template>
 		</GsSelect>
-		<GsSelect v-model="quality" :items="qualityOptions" :disabled="exporting">
+		<GsSelect v-model="quality" large :items="qualityOptions" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.Quality }}</template>
 		</GsSelect>
-		<GsSelect v-model="resolutionScale" :items="scaleOptions" :disabled="exporting">
+		<GsSelect v-model="resolutionScale" large :items="scaleOptions" :disabled="exporting">
 			<template #label>{{ i18n.ts.Resolution }}</template>
 			<template #caption>{{ resolution.width }} × {{ resolution.height }} px</template>
 		</GsSelect>
 		<div v-if="resolutionScale === 'custom'" :class="$style.row">
-			<GsInput v-model="customResolution.width" type="number" :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-			<GsInput v-model="customResolution.height" type="number" :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="customResolution.width" large type="number" :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="customResolution.height" large type="number" :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
-		<GsSelect v-if="mode === 'video'" v-model="fpsScale" :items="scaleOptions" :disabled="exporting">
+		<GsSelect v-if="mode === 'video'" v-model="fpsScale" large :items="scaleOptions" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.FrameRate }}</template>
 			<template #caption>{{ fps }} fps</template>
 		</GsSelect>
-		<GsInput v-if="mode === 'video' && fpsScale === 'custom'" v-model="customFps" type="number" :min="1" :max="120" :step="'any'" :disabled="exporting"><template #label>{{ i18n.ts._Export.FrameRate }}</template><template #suffix>fps</template></GsInput>
+		<GsInput v-if="mode === 'video' && fpsScale === 'custom'" v-model="customFps" large type="number" :min="1" :max="120" :step="'any'" :disabled="exporting"><template #label>{{ i18n.ts._Export.FrameRate }}</template><template #suffix>fps</template></GsInput>
 		<div :class="$style.row">
-			<GsInput v-model="startTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ mode === 'video' ? i18n.ts._Export.StartTime : i18n.ts._Export.StillTime }}</template></GsInput>
-			<GsInput v-if="mode === 'video'" v-model="endTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ i18n.ts._Export.EndTime }}</template></GsInput>
+			<GsInput v-model="startTime" large placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ mode === 'video' ? i18n.ts._Export.StartTime : i18n.ts._Export.StillTime }}</template></GsInput>
+			<GsInput v-if="mode === 'video'" v-model="endTime" large placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ i18n.ts._Export.EndTime }}</template></GsInput>
 		</div>
 		<GsButton large inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">{{ i18n.ts._Export.UseCurrentPlayhead }}</GsButton>
 		<div>{{ i18n.ts._Export.EstimatedSize }} {{ estimatedSize }}</div>

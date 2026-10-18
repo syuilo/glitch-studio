@@ -17,10 +17,10 @@
 		</div>
 		<header v-if="title" :class="$style.title" class="_selectable">{{ title }}</header>
 		<div v-if="text" :class="$style.text" class="_selectable">{{ text }}</div>
-		<GsInput v-if="input" v-model="inputValue" autofocus :type="input.type || 'text'" :placeholder="input.placeholder || undefined" :autocomplete="input.autocomplete" @keydown="onInputKeydown">
+		<GsInput v-if="input" v-model="inputValue" large autofocus :type="input.type || 'text'" :placeholder="input.placeholder || undefined" :autocomplete="input.autocomplete" @keydown="onInputKeydown">
 			<template v-if="input.type === 'password'" #prefix><i class="ti ti-lock"></i></template>
 		</GsInput>
-		<GsSelect v-if="select" v-model="selectedValue" :items="selectDef" autofocus></GsSelect>
+		<GsSelect v-if="select" v-model="selectedValue" large :items="selectDef" autofocus></GsSelect>
 		<div v-if="(showOkButton || showCancelButton) && !actions" :class="$style.buttons">
 			<GsButton v-if="showOkButton" large data-testid="modal-dialog-ok" inline primary rounded :autofocus="!input && !select" @click="ok">{{ okText ?? ((showCancelButton || input || select) ? 'OK' : i18n.ts._Dialog.GotIt) }}</GsButton>
 			<GsButton v-if="showCancelButton || input || select" large data-testid="modal-dialog-cancel" inline rounded @click="cancel">{{ cancelText ?? i18n.ts.Cancel }}</GsButton>

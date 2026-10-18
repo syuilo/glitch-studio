@@ -4,12 +4,12 @@
 		<div>{{ i18n.ts._Project.Settings }}</div>
 		<div>{{ i18n.ts._Project.BaseResolution }}</div>
 		<div style="display: flex; gap: 12px;">
-			<GsInput style="flex: 1; min-width: 0;" :modelValue="width" type="number" :min="1" :step="1" @update:modelValue="updateWidth"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput large style="flex: 1; min-width: 0;" :modelValue="width" type="number" :min="1" :step="1" @update:modelValue="updateWidth"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
 			<GsButton iconOnly :primary="lockedAspectRatio != null" icon="ti ti-link" @click="toggleAspectRatioLock"/>
-			<GsInput style="flex: 1; min-width: 0;" :modelValue="height" type="number" :min="1" :step="1" @update:modelValue="updateHeight"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+			<GsInput large style="flex: 1; min-width: 0;" :modelValue="height" type="number" :min="1" :step="1" @update:modelValue="updateHeight"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 		<div v-if="!isResolutionValid">{{ i18n.ts._Project.InvalidResolution }}</div>
-		<GsInput v-model="timelineFps" type="number" :min="1" :max="120" :step="'any'"><template #label>{{ i18n.ts._Project.BaseTimelineFps }}</template><template #suffix>fps</template></GsInput>
+		<GsInput v-model="timelineFps" large type="number" :min="1" :max="120" :step="'any'"><template #label>{{ i18n.ts._Project.BaseTimelineFps }}</template><template #suffix>fps</template></GsInput>
 		<GsFolder>
 			<template #icon><i class="ti ti-reduce-motion"></i></template>
 			<template #label>{{ i18n.ts._Project.MotionBlur }}</template>
@@ -17,8 +17,8 @@
 			<div class="_gaps_l">
 				<GsSwitch v-model="timelineMotionBlur.enabled">{{ i18n.ts.Enable }}</GsSwitch>
 				<div class="_gaps_m" :inert="!timelineMotionBlur.enabled">
-					<GsInput v-model="timelineMotionBlur.shutterAngle" type="number" :min="0" :max="360" :step="'any'"><template #label>{{ i18n.ts._Project.ShutterAngle }}</template><template #suffix>°</template></GsInput>
-					<GsInput v-model="timelineMotionBlur.samples" type="number" :min="0" :max="MAX_MOTION_BLUR_SAMPLES" :step="1"><template #label>{{ i18n.ts._Project.ExportSamples }}</template></GsInput>
+					<GsInput v-model="timelineMotionBlur.shutterAngle" large type="number" :min="0" :max="360" :step="'any'"><template #label>{{ i18n.ts._Project.ShutterAngle }}</template><template #suffix>°</template></GsInput>
+					<GsInput v-model="timelineMotionBlur.samples" large type="number" :min="0" :max="MAX_MOTION_BLUR_SAMPLES" :step="1"><template #label>{{ i18n.ts._Project.ExportSamples }}</template></GsInput>
 				</div>
 				<div v-if="timelineMotionBlur.enabled && historyEffects.length" :class="$style.warning">
 					<i class="ti ti-alert-triangle" style="color: var(--THEME-warn);"></i> {{ i18n.ts._Project.MotionBlurUnsupported }} {{ historyEffects.join(', ') }}.

@@ -4,27 +4,27 @@
 	<template #label>{{ i18n.ts._TimelineClip.Title }} {{ selectedClipLabel }}</template>
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer _gaps_m">
-			<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>{{ i18n.ts.Start }}</template><template #suffix>ms</template></GsInput>
-			<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>{{ i18n.ts._TimelineClip.TrimStart }}</template><template #suffix>ms</template></GsInput>
-			<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedMediaClip ? getTimelineMediaSingleDuration(selectedMediaClip) : selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>{{ selectedMediaClip ? i18n.ts._TimelineClip.TrimmedDuration : i18n.ts.Duration }}</template><template #suffix>ms</template></GsInput>
+			<GsInput type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>{{ i18n.ts.Start }}</template><template #suffix>ms</template></GsInput>
+			<GsInput type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>{{ i18n.ts._TimelineClip.TrimStart }}</template><template #suffix>ms</template></GsInput>
+			<GsInput type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedMediaClip ? getTimelineMediaSingleDuration(selectedMediaClip) : selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>{{ selectedMediaClip ? i18n.ts._TimelineClip.TrimmedDuration : i18n.ts.Duration }}</template><template #suffix>ms</template></GsInput>
 			<div v-if="'contentOffsetMs' in selectedClipEntry.clip">{{ i18n.ts._TimelineClip.ContentOffset }} {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
 			<div v-if="selectedClipMedia">{{ i18n.ts._TimelineClip.SourceDuration }} {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
 			<template v-if="selectedMediaClip != null">
 				<div>{{ i18n.ts._TimelineClip.SourceRange }} {{ formatMsToTimecode(selectedMediaClip.sourceInMs) }} – {{ formatMsToTimecode(selectedMediaClip.sourceOutMs) }}</div>
-				<GsInput small type="number" :min="timelineMediaMinPlaybackSpeed * 100" :max="timelineMediaMaxPlaybackSpeed * 100" :modelValue="speedPercent" @update:modelValue="value => speedPercent = Number(value)"><template #label>{{ i18n.ts._TimelineClip.Speed }}</template><template #suffix>%</template></GsInput>
+				<GsInput type="number" :min="timelineMediaMinPlaybackSpeed * 100" :max="timelineMediaMaxPlaybackSpeed * 100" :modelValue="speedPercent" @update:modelValue="value => speedPercent = Number(value)"><template #label>{{ i18n.ts._TimelineClip.Speed }}</template><template #suffix>%</template></GsInput>
 				<GsSwitch v-model="reversePlayback">{{ i18n.ts._TimelineClip.Reverse }}</GsSwitch>
 				<div v-if="speedChange.timing">{{ i18n.ts._TimelineClip.DurationAtSpeed }} {{ formatMsToTimecode(speedChange.timing.durationMs) }}</div>
 				<div v-if="speedChange.error || speedError" role="alert">{{ speedChange.error || speedError }}</div>
 				<GsButton :disabled="!selectedClipMedia || !!speedChange.error || speedChange.timing?.playbackRate === selectedMediaClip.playbackRate" @click="editSelectedClipSpeed">{{ i18n.ts._TimelineClip.ApplySpeed }}</GsButton>
 				<div>{{ i18n.ts._TimelineClip.SpeedHint }}</div>
-				<GsInput small type="number" :min="getTimelineMediaSingleDuration(selectedMediaClip)" :disabled="!selectedClipMedia" :modelValue="selectedMediaClip.durationMs" @update:modelValue="editSelectedClipLoop"><template #label>{{ i18n.ts._TimelineClip.TotalDuration }}</template><template #suffix>ms</template></GsInput>
+				<GsInput type="number" :min="getTimelineMediaSingleDuration(selectedMediaClip)" :disabled="!selectedClipMedia" :modelValue="selectedMediaClip.durationMs" @update:modelValue="editSelectedClipLoop"><template #label>{{ i18n.ts._TimelineClip.TotalDuration }}</template><template #suffix>ms</template></GsInput>
 				<div>{{ i18n.ts._TimelineClip.LoopHint }}</div>
 				<GsButton v-if="selectedMediaClip.loop" :disabled="!selectedClipMedia" @click="editSelectedClipLoop(getTimelineMediaSingleDuration(selectedMediaClip))">{{ i18n.ts._TimelineClip.RemoveLoop }}</GsButton>
 			</template>
 			<template v-if="selectedVideoClip != null">
 				<GsButton v-if="!('sourceTimeMs' in selectedVideoClip)" :disabled="!canHoldCurrentFrame || holdingFrame" @click="holdCurrentFrame">{{ i18n.ts._TimelineClip.HoldCurrentFrame }}</GsButton>
 				<template v-if="'sourceTimeMs' in selectedVideoClip">
-					<GsInput small manualSave type="number" step="any" :min="0" :disabled="holdingFrame || selectedClipMedia == null" :modelValue="selectedVideoClip.sourceTimeMs" @update:modelValue="editHoldSourceTime"><template #label>{{ i18n.ts._TimelineClip.HoldSourceTime }}</template><template #suffix>ms</template></GsInput>
+					<GsInput manualSave type="number" step="any" :min="0" :disabled="holdingFrame || selectedClipMedia == null" :modelValue="selectedVideoClip.sourceTimeMs" @update:modelValue="editHoldSourceTime"><template #label>{{ i18n.ts._TimelineClip.HoldSourceTime }}</template><template #suffix>ms</template></GsInput>
 					<div>{{ i18n.ts._TimelineClip.HoldHint }}</div>
 				</template>
 				<div v-else>{{ i18n.ts._TimelineClip.SeekToHoldHint }}</div>

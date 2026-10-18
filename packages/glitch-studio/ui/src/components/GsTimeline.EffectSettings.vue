@@ -27,13 +27,13 @@
 		/>
 	</div>
 	<div class="_spacer">
-		<GsSelect :modelValue="layer.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
+		<GsSelect large :modelValue="layer.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
 			<template #label>{{ i18n.ts.Resolution }}</template>
 			<template v-if="layer.resolution.mode === 'context'" #caption>{{ i18n.ts._TimelineLayer.ResolutionHint }}</template>
 		</GsSelect>
 		<div v-if="layer.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
-			<GsInput style="flex: 1;" type="number" :modelValue="layer.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-			<GsInput style="flex: 1;" type="number" :modelValue="layer.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+			<GsInput large style="flex: 1;" type="number" :modelValue="layer.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput large style="flex: 1;" type="number" :modelValue="layer.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 	</div>
 </GsFolder>

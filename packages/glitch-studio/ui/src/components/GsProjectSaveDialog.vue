@@ -2,7 +2,7 @@
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')" @esc="dismiss" @click="dismiss">
 	<div :class="$style.root" class="_gaps_m" @keydown.stop @keydown.esc.prevent="dismiss">
 		<div :class="$style.title">{{ i18n.ts._Project.SaveAs }}</div>
-		<GsInput v-model="fileName" autofocus :disabled="busy" @keydown.enter.prevent="selectFile">
+		<GsInput v-model="fileName" large autofocus :disabled="busy" @keydown.enter.prevent="selectFile">
 			<template #label>{{ i18n.ts._Project.FileName }}</template>
 		</GsInput>
 		<div :class="$style.folder">{{ directory?.name ?? i18n.ts._Project.NoFolder }}</div>

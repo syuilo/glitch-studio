@@ -4,7 +4,7 @@
 	<template #label>{{ i18n.ts._TimelineKeyframe.Title }} {{ selectedKeyframe.def.ui.label }}</template>
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer _gaps_m">
-			<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
+			<GsInput type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
 				<template #label>{{ i18n.ts.Time }}</template>
 				<template #suffix>ms</template>
 			</GsInput>
@@ -21,10 +21,10 @@
 				@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
 			/>
 			<template v-for="editor in keyframeInterpolationEditors" :key="editor.keyframe.id">
-				<GsSelect small :modelValue="editor.keyframe.interpolation.type" :items="keyframeInterpolationItems" @update:modelValue="type => updateKeyframeInterpolationType(editor.keyframe.id, type)">
+				<GsSelect :modelValue="editor.keyframe.interpolation.type" :items="keyframeInterpolationItems" @update:modelValue="type => updateKeyframeInterpolationType(editor.keyframe.id, type)">
 					<template #label>{{ editor.label }}</template>
 				</GsSelect>
-				<GsSelect v-if="editor.direction != null" small :modelValue="editor.direction" :items="easingDirectionItems" @update:modelValue="direction => updateKeyframeEasingDirection(editor.keyframe.id, direction)">
+				<GsSelect v-if="editor.direction != null" :modelValue="editor.direction" :items="easingDirectionItems" @update:modelValue="direction => updateKeyframeEasingDirection(editor.keyframe.id, direction)">
 					<template #label>{{ i18n.ts._TimelineKeyframe.EasingDirection }}</template>
 				</GsSelect>
 			</template>

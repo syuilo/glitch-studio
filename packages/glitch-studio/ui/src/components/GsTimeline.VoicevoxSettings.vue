@@ -5,7 +5,7 @@
 	<div class="_spacer _gaps_m">
 		<template v-if="desktop">
 			<div style="display: flex; align-items: center; gap: 8px;">
-				<GsInput v-model="endpoint" small type="text" style="flex: 1; min-width: 0;">
+				<GsInput v-model="endpoint" type="text" style="flex: 1; min-width: 0;">
 					<template #label>{{ i18n.ts._Voicevox.EngineUrl }}</template>
 					<template v-if="version != null && version !== ''" #caption><span style="color: var(--THEME-success);"><i class="ti ti-check"></i> {{ i18n.ts._Voicevox.Connected }} {{ version }}</span></template>
 				</GsInput>
@@ -13,7 +13,7 @@
 			</div>
 		</template>
 		<div v-else>{{ i18n.ts._Voicevox.DesktopGenerationHint }}</div>
-		<GsInput small type="number" :min="0.5" :max="2" :step="0.05" :debounce="400" :modelValue="layer.voicevox.speedScale" @update:modelValue="speedScale => changeSettings({ speedScale })">
+		<GsInput type="number" :min="0.5" :max="2" :step="0.05" :debounce="400" :modelValue="layer.voicevox.speedScale" @update:modelValue="speedScale => changeSettings({ speedScale })">
 			<template #label>{{ i18n.ts._Voicevox.SpeechSpeed }}</template>
 		</GsInput>
 		<hr>

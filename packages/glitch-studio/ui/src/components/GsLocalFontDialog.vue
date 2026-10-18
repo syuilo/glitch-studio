@@ -2,7 +2,7 @@
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')" @esc="close" @click="close">
 	<div :class="$style.root" class="_gaps_m" @keydown.stop @keydown.esc.prevent="close">
 		<div :class="$style.title">{{ i18n.ts._Assets.ImportLocalFont }}</div>
-		<GsInput v-model="search" autofocus :placeholder="i18n.ts._LocalFonts.Search" :disabled="importing"/>
+		<GsInput v-model="search" large autofocus :placeholder="i18n.ts._LocalFonts.Search" :disabled="importing"/>
 		<div :class="$style.fonts">
 			<GsButton v-for="font in filteredFonts"
 				:key="font.postscriptName" large

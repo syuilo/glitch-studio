@@ -3,20 +3,20 @@
 	<template #icon><i class="ti ti-keyframe"></i></template>
 	<template #label>{{ i18n.ts._Voicevox.SpeechKey }}</template>
 	<div class="_spacer _gaps_m">
-		<GsInput small type="number" :min="bounds?.min ?? 0" :max="bounds?.max" :modelValue="utterance.timeMs" @update:modelValue="editTime">
+		<GsInput type="number" :min="bounds?.min ?? 0" :max="bounds?.max" :modelValue="utterance.timeMs" @update:modelValue="editTime">
 			<template #label>{{ i18n.ts.Time }}</template><template #suffix>ms</template>
 		</GsInput>
-		<GsSelect small :modelValue="utterance.styleId" :items="voiceStyleItems" @update:modelValue="styleId => edit({ styleId })">
+		<GsSelect :modelValue="utterance.styleId" :items="voiceStyleItems" @update:modelValue="styleId => edit({ styleId })">
 			<template #label>{{ i18n.ts._Voicevox.VoiceStyle }}</template>
 		</GsSelect>
 		<GsTextarea :modelValue="utterance.text" @update:modelValue="text => edit({ text })"><template #label>{{ i18n.ts.Subtitle }}</template></GsTextarea>
-		<GsSelect small :modelValue="utterance.subtitleDuration.mode" :items="subtitleDurationModes" @update:modelValue="changeSubtitleDurationMode">
+		<GsSelect :modelValue="utterance.subtitleDuration.mode" :items="subtitleDurationModes" @update:modelValue="changeSubtitleDurationMode">
 			<template #label>{{ i18n.ts._Voicevox.SubtitleDuration }}</template>
 		</GsSelect>
-		<GsInput v-if="utterance.subtitleDuration.mode === 'specified'" small type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDuration.durationMs" @update:modelValue="editSubtitleDuration">
+		<GsInput v-if="utterance.subtitleDuration.mode === 'specified'" type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDuration.durationMs" @update:modelValue="editSubtitleDuration">
 			<template #label>{{ i18n.ts._Voicevox.DisplayLength }}</template><template #suffix>ms</template>
 		</GsInput>
-		<GsInput v-if="utterance.subtitleDuration.mode === 'speech'" small type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDuration.extensionMs" @update:modelValue="editSubtitleExtension">
+		<GsInput v-if="utterance.subtitleDuration.mode === 'speech'" type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDuration.extensionMs" @update:modelValue="editSubtitleExtension">
 			<template #label>{{ i18n.ts._Voicevox.ExtendAfterSpeech }}</template><template #suffix>ms</template>
 		</GsInput>
 		<GsTextarea :modelValue="utterance.reading ?? ''" :placeholder="i18n.ts._Voicevox.UseSubtitleText" @update:modelValue="reading => edit({ reading: reading.trim() || null })"><template #label>{{ i18n.ts._Voicevox.Reading }}</template></GsTextarea>

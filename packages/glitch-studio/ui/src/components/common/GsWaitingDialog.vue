@@ -78,5 +78,6 @@ watchPostEffect(() => {
 
 .text {
 	margin-top: 16px;
+	font-size: 110%;
 }
 </style>

@@ -5,10 +5,10 @@
 
 		<div class="_gaps_s _spacer">
 			<span>{{ i18n.ts.Label }}</span>
-			<GsInput :modelValue="def.label" @update:modelValue="update(def.id, { label: $event })"/>
+			<GsInput large :modelValue="def.label" @update:modelValue="update(def.id, { label: $event })"/>
 			<span>{{ i18n.ts.Name }}</span>
-			<GsInput :modelValue="def.name" @update:modelValue="update(def.id, { name: $event })"/>
-			<GsSelect :modelValue="def.dataType.kind" :items="dataTypes" @update:modelValue="update(def.id, { dataType: { kind: $event } })"/>
+			<GsInput large :modelValue="def.name" @update:modelValue="update(def.id, { name: $event })"/>
+			<GsSelect large :modelValue="def.dataType.kind" :items="dataTypes" @update:modelValue="update(def.id, { dataType: { kind: $event } })"/>
 			<GsSwitch
 				v-if="def.dataType.kind === 'color'"
 				:modelValue="visualModule.primaryOutputId === def.id"

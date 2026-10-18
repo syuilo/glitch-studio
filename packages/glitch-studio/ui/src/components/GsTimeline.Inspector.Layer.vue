@@ -5,10 +5,10 @@
 
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer">
-			<GsInput small :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
+			<GsInput :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
 		</div>
 		<div v-if="layer.layerType === 'group'" class="_spacer">
-			<GsSelect :modelValue="layer.compositingMode ?? 'flat'" :items="groupModes" @update:modelValue="mode => stateManager.commit('changeTimelineGroupMode', { sceneId, layerId: layer.id, mode })">
+			<GsSelect large :modelValue="layer.compositingMode ?? 'flat'" :items="groupModes" @update:modelValue="mode => stateManager.commit('changeTimelineGroupMode', { sceneId, layerId: layer.id, mode })">
 				<template #label>{{ i18n.ts._TimelineLayer.GroupCompositing }}</template>
 			</GsSelect>
 		</div>
@@ -108,7 +108,7 @@
 				</GsSwitch>
 			</div>
 			<div v-if="layer.mask != null" class="_spacer _gaps_m">
-				<GsSelect data-test-timeline-mask-channel :modelValue="layer.mask.channel" :items="maskChannels" @update:modelValue="channel => updateMask({ channel })">
+				<GsSelect large data-test-timeline-mask-channel :modelValue="layer.mask.channel" :items="maskChannels" @update:modelValue="channel => updateMask({ channel })">
 					<template #label>{{ i18n.ts._TimelineLayer.MaskChannel }}</template>
 				</GsSelect>
 				<GsSwitch data-test-timeline-mask-inverted :modelValue="layer.mask.inverted" @update:modelValue="inverted => updateMask({ inverted })">
@@ -132,7 +132,7 @@
 				</template>
 			</div>
 			<div class="_spacer">
-				<GsSelect :modelValue="layer.coordinateSpace" :items="coordinateSpaces" @update:modelValue="coordinateSpace => stateManager.commit('setTimelineLayerCoordinateSpace', { sceneId, layerId: layer.id, coordinateSpace })">
+				<GsSelect large :modelValue="layer.coordinateSpace" :items="coordinateSpaces" @update:modelValue="coordinateSpace => stateManager.commit('setTimelineLayerCoordinateSpace', { sceneId, layerId: layer.id, coordinateSpace })">
 					<template #label>{{ i18n.ts._TimelineLayer.CoordinateSpace }}</template>
 				</GsSelect>
 			</div>

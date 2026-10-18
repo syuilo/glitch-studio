@@ -291,7 +291,7 @@ function onPointerdown(ev: PointerEvent) {
 	position: relative;
 
 	> .label {
-		font-size: 0.85em;
+		font-size: 90%;
 		padding: 0 0 8px 0;
 		user-select: none;
 
@@ -301,7 +301,7 @@ function onPointerdown(ev: PointerEvent) {
 	}
 
 	> .caption {
-		font-size: 0.85em;
+		font-size: 90%;
 		padding: 8px 0 0 0;
 		color: color(from var(--THEME-fg) srgb r g b / 0.75);
 
