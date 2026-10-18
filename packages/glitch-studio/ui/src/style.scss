@@ -1,3 +1,9 @@
+// 後に宣言したレイヤーほど優先する。
+// レイヤーなしのコンポーネントスタイルは、これらより優先される。
+@layer external, base;
+
+@import url("@tabler/icons-webfont/dist/tabler-icons.css") layer(external);
+
 // ビルド時のCSS分割で読み込み順が変わっても、コンポーネント固有のスタイルを優先する。
 // 基礎スタイルには!importantを使わず、明示的な効果を付けるユーティリティはレイヤー外に置く。
 @layer base {
@@ -134,11 +140,19 @@
 	}
 
 	.ti {
-		width: 1.28em;
+		position: relative;
+		width: 1.5em;
+		height: 1.5em;
+		display: inline-grid;
+		align-items: center;
+		justify-items: center;
+		vertical-align: -30%;
+		//background: #fff;
+    //color: #000;
 
 		&::before {
-			font-size: 128%;
-			vertical-align: -10%;
+			position: absolute;
+			font-size: 125%;
 		}
 	}
 

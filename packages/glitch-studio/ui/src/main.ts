@@ -2,7 +2,6 @@ import { createApp } from 'vue';
 import '@/style.scss';
 import App from '@/App.vue';
 import directives from '@/directives/index.ts';
-import '@tabler/icons-webfont/dist/tabler-icons.scss';
 
 const onVisibilityChange = () => window.document.addEventListener('visibilitychange', () => {
 	if (window.document.visibilityState === 'visible') {

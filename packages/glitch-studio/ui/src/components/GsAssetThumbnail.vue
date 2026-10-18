@@ -138,26 +138,26 @@ watch(() => [props.asset.fileData, props.asset.fileDataType, props.asset.thumbna
 
 .iconSub {
 	position: absolute;
-	display: block;
 	width: 30px;
 	height: 30px;
 	margin: 0;
 	left: 0;
 	top: 0;
-	line-height: 30px;
 	background: var(--THEME-panel);
+	border-radius: 0 0 6px 0;
+	corner-shape: bevel;
 }
 
 .externalIcon {
 	position: absolute;
-	display: block;
 	width: 30px;
 	height: 30px;
 	margin: 0;
 	right: 0;
 	bottom: 0;
-	line-height: 30px;
 	background: var(--THEME-panel);
+	border-radius: 6px 0 0 0;
+	corner-shape: bevel;
 }
 
 .icon {
