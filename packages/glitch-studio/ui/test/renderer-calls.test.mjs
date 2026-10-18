@@ -14,7 +14,7 @@ async function bundle(path) {
 		plugins: [{
 			name: 'renderer-call-dependencies',
 			setup(build) {
-				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@gs/subsystems_timeline_shared/layer-tree.ts' || args.path === '@gs/subsystems_timeline_shared/types.ts' || args.path === './types.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/shared/file-source.ts' || args.path === '@gs/glitch-studio_shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
+				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@gs/subsystems_timeline_shared/layer-tree.ts' || args.path === '@gs/subsystems_timeline_shared/types.ts' || args.path === './types.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/shared/file-source.ts' || args.path === '@gs/shared/utility/deep-clone.ts' || args.path === '@gs/shared/utility/deep-equal.ts' || args.path === '@gs/glitch-studio_shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: `
 					export const ref = value => ({ value });
 					export const shallowReactive = value => value;
@@ -128,6 +128,47 @@ async function fixture(t, options = {}) {
 	if (options.initialize !== false) await controller.relaunchManager();
 	return { controller, workers, pending, instances, notifications };
 }
+
+// 【外部参照の同期用コピーでは再生を維持し、原本のリロードや参照切れだけを反映する】
+// アセット名などの変更でも読み取り口は複製されるため、オブジェクト参照で比較すると
+// 無関係な編集で再生が停止する。一方、URLや可用性の変化では古いPlayerを使い続けない。
+test('preserves external players across asset copies and replaces them when the source changes', async t => {
+	class MediaElement extends EventTarget {
+		currentTime = 0;
+		paused = true;
+		get src() { return this.source; }
+		set src(value) { this.source = value; queueMicrotask(() => this.dispatchEvent(new Event('loadeddata'))); }
+		async play() { this.paused = false; }
+		pause() { this.paused = true; }
+		load() {}
+		removeAttribute() { this.source = ''; }
+	}
+	const { controller } = await fixture(t, { mediaElement: MediaElement });
+	const asset = { id: 'asset', name: 'Audio', fileDataType: 'audio/wav',
+		fileData: { url: 'app://external-assets/original', size: 100, error: null } };
+	await controller.updateDynamicOptions({ assets: [asset] });
+	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: asset.id }]);
+	const originalMedia = controller.getMediaElement('player');
+	originalMedia.currentTime = 3;
+	await originalMedia.play();
+	await controller.updateDynamicOptions({ assets: [{ ...asset, name: 'Renamed', fileData: { ...asset.fileData } }] });
+	assert.equal(controller.getMediaElement('player'), originalMedia);
+	assert.equal(originalMedia.paused, false);
+	assert.equal(originalMedia.currentTime, 3);
+
+	const reloaded = { ...asset, fileData: { ...asset.fileData, url: 'app://external-assets/reloaded' } };
+	await controller.updateDynamicOptions({ assets: [reloaded] });
+	const reloadedMedia = controller.getMediaElement('player');
+	assert.notEqual(reloadedMedia, originalMedia);
+	assert.equal(originalMedia.paused, true);
+	assert.equal(reloadedMedia.src, reloaded.fileData.url);
+
+	await controller.updateDynamicOptions({ assets: [{ ...reloaded, fileData: { ...reloaded.fileData, error: 'missing' } }] });
+	assert.equal(controller.getMediaElement('player'), null);
+	await controller.updateDynamicOptions({ assets: [reloaded] });
+	assert.notEqual(controller.getMediaElement('player'), reloadedMedia);
+	assert.equal(controller.getMediaElement('player').src, reloaded.fileData.url);
+});
 
 // 【初回の読み込み後のPlayerの読み取り失敗も使用側へ伝える】
 // loadeddataで待機リスナーを解除した後も、原本の削除やシーク中のI/O失敗を見逃さない。

@@ -4,6 +4,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
 import { COMMAND_DEFS } from './commands.ts';
 import { UndoRedo } from './utility/undo-redo.ts';
+import { ExternalAssetMetadataStore } from './ExternalAssetMetadataStore.ts';
 import { DEFAULT_PROJECT_NAME } from './gsproj.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { Project } from './gsproj.ts';
@@ -69,6 +70,7 @@ export class ProjectContext {
 	public get generation() { return this.loadGeneration; }
 	public get hasProject() { return this.projectId.value != null; }
 	public readonly stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;
+	public readonly externalAssetMetadata = new ExternalAssetMetadataStore();
 
 	constructor() {
 		this.stateManager = new UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>({
@@ -85,11 +87,17 @@ export class ProjectContext {
 			visualModules: ref<ProjectVisualModule[]>([]),
 			timelineScenes: ref<TimelineScene[]>([]),
 		}, COMMAND_DEFS);
+		// AppContextの検証・レンダラー同期より先に登録し、履歴が復元した古い
+		// 外部参照のメタデータをほかの購読側や保存スナップショットへ渡さない。
+		this.stateManager.onChange(changes => {
+			if (changes.some(change => change.type === 'asset')) this.externalAssetMetadata.apply(this.stateManager.state.assets.value);
+		});
 	}
 
 	public load(project: Project) {
 		this.loadGeneration++;
 		this.stateManager.cancelEdit();
+		this.externalAssetMetadata.reset(project.assets);
 		this.stateManager.state.exportSettings.value = deepClone(project.exportSettings);
 		this.stateManager.state.name.value = project.name;
 		this.stateManager.state.description.value = project.description;

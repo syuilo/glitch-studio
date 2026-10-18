@@ -640,13 +640,16 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 																															...listVisualModules(state).map(({ target }) => ({ type: 'visualModule' as const, target }))],
 	create: payload => {
 		let before: {
-			assets: ProjectAsset[];
+			asset: ProjectAsset | null;
+			assetIndex: number;
 			visualModules: { target: VisualModuleTarget; nodes: VisualModuleNode[] }[];
 		};
 		return {
 			execute(state) {
+				const assetIndex = state.assets.value.findIndex(asset => asset.id === payload.assetId);
 				before = {
-					assets: deepClone(state.assets.value),
+					asset: assetIndex < 0 ? null : deepClone(state.assets.value[assetIndex]),
+					assetIndex,
 					visualModules: listVisualModules(state).map(({ target, visualModule }) => ({ target, nodes: deepClone(visualModule.nodes) })),
 				};
 				state.assets.value = state.assets.value.filter(asset => asset.id !== payload.assetId);
@@ -663,7 +666,9 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 				}
 			},
 			undo(state) {
-				state.assets.value = deepClone(before.assets);
+				// 削除対象だけを元の位置へ戻す。配列全体を復元すると、削除後に行った
+				// 別アセットのUndo対象外のリロードまで過去の状態に戻ってしまう。
+				if (before.asset != null) state.assets.value.splice(before.assetIndex, 0, deepClone(before.asset));
 				for (const visualModule of before.visualModules) {
 					stateUtility.getVisualModule(state, visualModule.target).nodes = deepClone(visualModule.nodes);
 				}

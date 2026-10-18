@@ -41,6 +41,9 @@ export function getAssetMenu(asset: ProjectAsset): MenuItem[] {
 			thumbnailSequence: result.thumbnailSequence,
 			hash: result.hash,
 		};
+		// 同じパスの再選択でも取り込み結果を最新とする。Commandの変更通知で
+		// 古いメタデータが再適用されないよう、履歴へ反映する前に記録する。
+		appContext.projectContext.externalAssetMetadata.record(replacement);
 		if (undoable) stateManager.commit('replaceAsset', replacement);
 		else {
 			const { assetId: _assetId, ...updated } = replacement;

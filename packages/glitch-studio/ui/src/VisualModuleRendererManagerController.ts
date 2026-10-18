@@ -20,6 +20,14 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 import * as ui from '@/ui.ts';
 
+function isSamePlayerAssetFile(previous: FileSource | null | undefined, next: FileSource | null | undefined): boolean {
+	if (previous === next) return true;
+	if (previous == null || next == null || previous instanceof Blob || next instanceof Blob) return false;
+	// URL入力は同期のdeepCloneで別オブジェクトになる。リロード時には新しいURLが
+	// 発行されるため、URLと可用性で比較すれば無関係な編集で再生を止めずに済む。
+	return previous.url === next.url && previous.error === next.error;
+}
+
 export class VisualModuleRendererManagerController extends RendererManagerControllerBase<VisualModuleRendererManager> {
 	public onAssetReadFailure: (() => void) | null = null;
 	public readonly canvasRevision = ref(0);
@@ -241,7 +249,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			const newPlayer = players.find(player => player.id === id);
 			const asset = newPlayer?.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === newPlayer.assetId) : null;
 			if (!newPlayer || oldPlayer?.sourceType !== newPlayer.sourceType || !deepEqual(oldPlayer?.assetId, newPlayer.assetId)
-				|| (newPlayer.sourceType === 'asset' && this.playerAssetFiles.get(id) !== asset?.fileData)) {
+				|| (newPlayer.sourceType === 'asset' && !isSamePlayerAssetFile(this.playerAssetFiles.get(id), asset?.fileData))) {
 				this.audioInputs.removePlayer(id);
 				const callbackId = this.videoFrameCallbacks.get(id);
 				if (callbackId != null && video instanceof HTMLVideoElement) video.cancelVideoFrameCallback(callbackId);
