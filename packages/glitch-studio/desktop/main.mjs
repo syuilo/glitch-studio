@@ -8,6 +8,7 @@ import { ProjectFiles } from './project-files.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
 import { RecentProjects, registerRecentProjectsIpc } from './recent-projects.mjs';
 import { getStartupProjectPath } from './startup-project.mjs';
+import { ProjectLaunchController, launchProjectProcess } from './project-launch.mjs';
 import { ExportFiles } from './export-files.mjs';
 import { registerExportFileIpc } from './export-file-ipc.mjs';
 import { DesktopInstances } from './desktop-instances.mjs';
@@ -16,7 +17,6 @@ import { findGitHubUpdate } from './github-updates.mjs';
 
 const projectFiles = new ProjectFiles();
 const exportFiles = new ExportFiles();
-const startupProjectPath = getStartupProjectPath(process.argv, { defaultApp: process.defaultApp });
 
 // Windowsのファイル関連付けからの起動はプロセスごとに別ウィンドウを開く。
 // 編集中のプロジェクトを維持するため、単一インスタンスへ転送して置き換えない。
@@ -44,6 +44,24 @@ let desktopInstances = null;
 let desktopUpdateController = null;
 // 通知をGCで失わないよう、次のエクスポートが完了するまで最新の通知を保持する。
 let exportCompleteNotification = null;
+
+const projectLaunchController = new ProjectLaunchController({
+	startupProjectPath: getStartupProjectPath(process.argv, { defaultApp: process.defaultApp }),
+	createWindow,
+	hasMainWindow: () => mainWindow != null,
+	openProjectInNewProcess: filePath => {
+		void launchProjectProcess(filePath, { applicationPath: process.defaultApp === true ? app.getAppPath() : null }).catch(error => {
+			console.error('Failed to launch the project:', error);
+			dialog.showErrorBox('Could not open the project', error.message);
+		});
+	},
+});
+if (process.platform === 'darwin') {
+	// 起動を伴う要求を取りこぼさないよう、whenReadyより前に購読する。
+	app.on('open-file', (event, filePath) => {
+		if (projectLaunchController.requestProject(filePath)) event.preventDefault();
+	});
+}
 
 // WorkerやWebGPUを通常のWebページと同じオリジン・secure contextで動かす。
 protocol.registerSchemesAsPrivileged([{
@@ -232,16 +250,16 @@ app.whenReady().then(async () => {
 	});
 
 	registerVoicevoxIpc(ipcMain, getTrustedMainWindow);
-	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, startupProjectPath,
+	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, () => projectLaunchController.takeStartupProjectPath(),
 		path.join(app.getPath('userData'), 'project-open-directory'));
 	registerRecentProjectsIpc(ipcMain, new RecentProjects(path.join(app.getPath('userData'), 'recent-projects')), projectFiles,
-		getTrustedMainWindow, process.platform === 'win32' ? app : null);
+		getTrustedMainWindow, process.platform === 'win32' || process.platform === 'darwin' ? app : null);
 	registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMainWindow);
 
-	createWindow();
+	projectLaunchController.start();
 	if (updatesEnabled) void desktopUpdateController.checkForUpdates();
 	app.on('activate', () => {
-		if (BrowserWindow.getAllWindows().length === 0) createWindow();
+		projectLaunchController.activate();
 	});
 }).catch(error => {
 	console.error(error);

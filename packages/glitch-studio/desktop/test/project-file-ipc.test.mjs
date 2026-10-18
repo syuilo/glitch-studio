@@ -22,10 +22,15 @@ async function fixture(t, { startup = false } = {}) {
 		async showMessageBox() { return { response: 0 }; },
 	};
 	function registerHandlers() {
+		let startupProjectPath = startup ? file : null;
 		registerProjectFileIpc({ handle: (name, action) => handlers.set(name, action) }, dialogs, new ProjectFiles(), event => {
 			if (event !== trusted) throw new Error('Untrusted');
 			return parent;
-		}, startup ? file : null, projectOpenDirectoryFilePath);
+		}, () => {
+			const filePath = startupProjectPath;
+			startupProjectPath = null;
+			return filePath;
+		}, projectOpenDirectoryFilePath);
 	}
 	registerHandlers();
 	return { file, projectOpenDirectoryFilePath, handlers, calls, dialogs, trusted, restart: registerHandlers,

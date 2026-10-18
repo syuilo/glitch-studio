@@ -69,7 +69,7 @@ export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles,
 		const filePath = projectFiles.getPath(id);
 		await recentProjects.remember(filePath, name);
 		try {
-			// 開く・保存する処理が成功して履歴が確定した時だけ、Windowsのジャンプリストへ登録する。
+			// 開く・保存する処理が成功して履歴が確定した時だけ、OSの最近使った書類へ登録する。
 			// OS側の失敗でアプリ内の履歴まで利用できなくならないよう、別に扱う。
 			recentDocuments?.addRecentDocument(filePath);
 		} catch (error) {
