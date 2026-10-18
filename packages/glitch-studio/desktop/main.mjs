@@ -1,7 +1,8 @@
-import { registerVoicevoxIpc } from './voicevox.mjs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, Notification, protocol, shell } from 'electron';
+import electronUpdater from 'electron-updater';
+import { registerVoicevoxIpc } from './voicevox.mjs';
 import { resolveAppPath } from './protocol-path.mjs';
 import { ProjectFiles } from './project-files.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
@@ -9,7 +10,6 @@ import { RecentProjects, registerRecentProjectsIpc } from './recent-projects.mjs
 import { getStartupProjectPath } from './startup-project.mjs';
 import { ExportFiles } from './export-files.mjs';
 import { registerExportFileIpc } from './export-file-ipc.mjs';
-import electronUpdater from 'electron-updater';
 import { DesktopInstances } from './desktop-instances.mjs';
 import { DesktopUpdateController, registerDesktopUpdateIpc } from './desktop-update.mjs';
 import { findGitHubUpdate } from './github-updates.mjs';
@@ -128,7 +128,7 @@ app.whenReady().then(async () => {
 		}
 	}
 	desktopUpdateController = new DesktopUpdateController({ updater: electronUpdater.autoUpdater, instances: desktopInstances,
-		currentVersion: app.getVersion(), enabled: updatesEnabled, findUpdate: version => findGitHubUpdate(version, net.fetch.bind(net)) });
+																																																									currentVersion: app.getVersion(), enabled: updatesEnabled, findUpdate: version => findGitHubUpdate(version, net.fetch.bind(net)) });
 	desktopUpdateController.on('state', state => {
 		if (mainWindow == null || mainWindow.isDestroyed()) return;
 		mainWindow.webContents.send('desktop:update-state-changed', state);
