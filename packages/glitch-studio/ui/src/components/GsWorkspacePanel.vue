@@ -286,7 +286,7 @@ function popout() {
 	overflow: clip;
 
 	&:focus-within {
-		box-shadow: 0 0 0 1px color(from var(--THEME-accent) srgb r g b / 0.25);
+		box-shadow: 0 0 0 1px color(from var(--THEME-accent) srgb r g b / 0.5);
 
 		.headerIndicator {
 			background: var(--THEME-accent);
