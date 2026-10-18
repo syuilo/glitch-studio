@@ -18,6 +18,7 @@
 	<i v-else class="ti ti-file" :class="$style.icon"></i>
 
 	<i v-if="imageUrl != null && is === 'video'" class="ti ti-video" :class="$style.iconSub"></i>
+	<i v-if="asset.isExternalReference" class="ti ti-arrow-narrow-down-dashed" :class="$style.externalIcon"></i>
 </div>
 </template>
 
@@ -130,17 +131,33 @@ watch(() => [props.asset.fileData, props.asset.fileDataType, props.asset.thumbna
 	position: relative;
 	display: flex;
 	background: var(--THEME-panel);
-	border-radius: 8px;
+	border-radius: 4px 14px 4px 4px;
+	corner-shape: bevel;
 	overflow: clip;
 }
 
 .iconSub {
 	position: absolute;
-	width: 30%;
-	height: auto;
+	display: block;
+	width: 30px;
+	height: 30px;
 	margin: 0;
-	right: 4%;
-	bottom: 4%;
+	left: 0;
+	top: 0;
+	line-height: 30px;
+	background: var(--THEME-panel);
+}
+
+.externalIcon {
+	position: absolute;
+	display: block;
+	width: 30px;
+	height: 30px;
+	margin: 0;
+	right: 0;
+	bottom: 0;
+	line-height: 30px;
+	background: var(--THEME-panel);
 }
 
 .icon {

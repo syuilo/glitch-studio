@@ -1,9 +1,9 @@
 <template>
 <div
 	:data-test-asset="asset.id"
-	:class="[$style.root, { [$style.isSelected]: isSelected }]"
+	:class="[$style.root, { [$style.isSelected]: isSelected, [$style.error]: externalError != null }]"
 	draggable="true"
-	:title="title"
+	:v-tooltip="title"
 	@contextmenu.stop="onContextmenu"
 	@dragstart="onDragstart"
 	@dragend="onDragend"
@@ -12,8 +12,7 @@
 		<GsAssetThumbnail :class="$style.thumbnail" :asset="asset" fit="contain"/>
 
 		<p :class="$style.name">
-			<i v-if="externalError != null" class="ti ti-alert-triangle" :title="externalError" data-test-asset-unavailable/>
-			<i v-else-if="asset.isExternalReference" class="ti ti-link" data-test-external-reference/>
+			<i v-if="externalError != null" class="ti ti-alert-triangle" :v-tooltip="externalError" style="margin-right: 0.5em;" data-test-asset-unavailable></i>
 			<span>{{ asset.name.lastIndexOf('.') != -1 ? asset.name.substring(0, asset.name.lastIndexOf('.')) : asset.name }}</span>
 			<span v-if="asset.name.lastIndexOf('.') != -1" style="opacity: 0.5;">{{ asset.name.substring(asset.name.lastIndexOf('.')) }}</span>
 		</p>
@@ -141,6 +140,14 @@ function onDragend() {
 
 		.thumbnail {
 			color: var(--THEME-fgOnAccent);
+		}
+	}
+
+	&.error {
+		color: var(--THEME-error) !important;
+
+		.name {
+			color: var(--THEME-error) !important;
 		}
 	}
 }

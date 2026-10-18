@@ -133,6 +133,20 @@
 		}
 	}
 
+	.ti {
+		width: 1.28em;
+
+		&::before {
+			font-size: 128%;
+			vertical-align: -10%;
+		}
+	}
+
+	.ti-fw {
+		display: inline-block;
+		text-align: center;
+	}
+
 	._noSelect {
 		user-select: none;
 		-webkit-user-select: none;
@@ -196,20 +210,6 @@
 
 [data-wire-drop-target='mismatch'] {
 	background-color: color(from var(--THEME-error) srgb r g b / 0.2);
-}
-
-.ti {
-	width: 1.28em;
-
-	&::before {
-		font-size: 128%;
-		vertical-align: -10%;
-	}
-}
-
-.ti-fw {
-	display: inline-block;
-	text-align: center;
 }
 
 ._gs-link {

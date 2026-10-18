@@ -25,13 +25,13 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsAsset from './GsAsset.vue';
 import GsInput from './common/GsInput.vue';
 import GsLocalFontDialog from './GsLocalFontDialog.vue';
 import type { ProjectAsset } from '@/Project.ts';
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { importAssets } from '@/utility/import-assets.ts';
 import { getAssetMenu } from '@/utility/asset-menu.ts';
@@ -152,6 +152,7 @@ function chooseFirstResult() {
 	flex-direction: column;
 	min-height: 0;
 	height: 100%;
+	background: var(--THEME-bg);
 }
 
 .actions {
