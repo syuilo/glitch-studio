@@ -596,6 +596,7 @@
 		"Ready": "Ready · {seconds} s"
 	},
 	"_Export": {
+		"Custom": "Custom",
 		"Title": "Export scene",
 		"ChooseScene": "Choose scene",
 		"StillImage": "Still image",

@@ -8,6 +8,7 @@ import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types
 import type { ProjectAsset } from './Project.ts';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
+import type { ExportDialogSettings } from './export/export-settings.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 
@@ -41,6 +42,7 @@ export type ProjectInfo = {
 };
 
 export type Project = ProjectInfo & {
+	exportSettings: ExportDialogSettings | null;
 	timelineFps: number;
 	timelineMotionBlur: TimelineMotionBlurSettings;
 	id: string;

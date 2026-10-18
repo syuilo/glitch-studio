@@ -1,5 +1,32 @@
-import type { TimelineExportSettings } from './timeline-export.ts';
 import { scaleResolution } from '@gs/shared/resolution.ts';
+import type { ExportQuality, TimelineExportSettings } from './timeline-export.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
+
+export type ExportScale = 0.25 | 0.5 | 1 | 2 | 4 | 'custom';
+
+/** 出力値だけでなく選択方式も保持し、プロジェクト設定の変更後も倍率指定を維持する。 */
+export type ExportDialogSettings = {
+	sceneId: string;
+	mode: 'video' | 'still';
+	videoFormat: 'mp4';
+	stillFormat: 'webp';
+	videoQuality: ExportQuality;
+	stillQuality: ExportQuality | 'lossless';
+	resolutionScale: ExportScale;
+	customResolution: Resolution;
+	fpsScale: ExportScale;
+	customFps: number;
+	startTime: string;
+	endTime: string;
+};
+
+export function createDefaultExportDialogSettings(sceneId: string, resolution: Resolution, fps: number, endTimeMs: number): ExportDialogSettings {
+	return {
+		sceneId, mode: 'video', videoFormat: 'mp4', stillFormat: 'webp', videoQuality: 'high', stillQuality: 'high',
+		resolutionScale: 1, customResolution: { ...resolution }, fpsScale: 1, customFps: fps,
+		startTime: formatExportTime(0), endTime: formatExportTime(endTimeMs),
+	};
+}
 
 export function parseExportTime(text: string): number {
 	const match = /^(\d{2,}):([0-5]\d):([0-5]\d)\.(\d{3})$/.exec(text.trim());

@@ -9,7 +9,8 @@ import type { Resolution } from '@gs/shared/resolution.ts';
 
 export type ExportRequest = {
 	settings: TimelineExportSettings;
-	resolutionScale: number;
+	/** nullは出力寸法をSceneの基準サイズに使うカスタム指定。 */
+	resolutionScale: number | null;
 	project: { timelineFps: number; timelineMotionBlur: TimelineMotionBlurSettings; assets: Asset[]; generatedSpeech: GeneratedSpeech[]; visualModules: ProjectVisualModule[]; timelineScenes: TimelineScene[]; sceneId: string; resolution: Resolution };
 	renderer: Pick<TimelineRendererManagerStaticOptions, 'enable32bitDataTextures' | 'intermediateTextureFormat'>;
 };

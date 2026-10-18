@@ -4,7 +4,7 @@ import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-ren
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { effectImplementations } from '@gs/subsystems_effect_shared/effect-implementations.ts';
 import { createMp4Writer } from './mp4-writer.ts';
-import { scaleExportResolution } from './export-settings.ts';
+import { adjustExportResolution, scaleExportResolution } from './export-settings.ts';
 import { encodeStillWebp } from './still-webp.ts';
 import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
 import { getExportAudioClips } from './audio-export-settings.ts';
@@ -29,7 +29,9 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = project;
 		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
 		const scene = getTimelineScene(project.timelineScenes, project.sceneId);
-		const settings = { ...requestedSettings, ...scaleExportResolution(getSceneBaseResolution(scene.resolution, project.resolution), resolutionScale, requestedSettings.format) };
+		const settings = { ...requestedSettings, ...(resolutionScale == null
+			? adjustExportResolution(requestedSettings, requestedSettings.format)
+			: scaleExportResolution(getSceneBaseResolution(scene.resolution, project.resolution), resolutionScale, requestedSettings.format)) };
 		if (getSceneDuration(scene) <= 0) throw new Error('Cannot export an empty scene.');
 		const validationError = validateExportSettings(settings);
 		if (validationError) throw new Error(validationError);
@@ -74,7 +76,12 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		// 倍率は独立して渡し、MP4の偶数寸法補正は最終Canvasだけに適用する。
 		await renderer.updateDynamicOptions({
 			...dynamicProjectOptions,
-			resolutionScale,
+			// カスタム指定では出力Sceneだけの基準サイズを差し替える。別比率の出力も
+			// 引き伸ばさずその画角で描画し、子Sceneやプロジェクトの基準サイズは保持する。
+			timelineScenes: resolutionScale == null ? project.timelineScenes.map(entry => entry.id === scene.id
+				? { ...entry, resolution: { mode: 'customAbsolute', width: settings.width, height: settings.height } }
+				: entry) : project.timelineScenes,
+			resolutionScale: resolutionScale ?? 1,
 			outputResolution: { width: settings.width, height: settings.height },
 			opaqueOutput: settings.format === 'mp4',
 		});

@@ -596,6 +596,7 @@
 		"Ready": "生成済み · {seconds}秒"
 	},
 	"_Export": {
+		"Custom": "カスタム",
 		"Title": "シーンを書き出す",
 		"ChooseScene": "シーンを選択",
 		"StillImage": "静止画",

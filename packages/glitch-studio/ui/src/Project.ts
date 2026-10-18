@@ -16,6 +16,7 @@ import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/
 import type { VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import type { ExportDialogSettings } from './export/export-settings.ts';
 
 // 取り込み元の記録はUIのプロジェクト状態が所有する。描画・保存のバイナリは常にfileDataを使い、
 // 原本の移動・削除や別PCでの読み込みによって素材の内容が変わらないようにする。
@@ -26,6 +27,7 @@ export type ProjectAsset = Asset & {
 };
 
 export type ProjectState = {
+	exportSettings: Ref<ExportDialogSettings | null>;
 	name: Ref<string>;
 	description: Ref<string>;
 	author: Ref<string>;
@@ -69,6 +71,7 @@ export class ProjectContext {
 
 	constructor() {
 		this.stateManager = new UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>({
+			exportSettings: ref<ExportDialogSettings | null>(null),
 			name: ref(DEFAULT_PROJECT_NAME),
 			description: ref(''),
 			author: ref(''),
@@ -86,6 +89,7 @@ export class ProjectContext {
 	public load(project: Project) {
 		this.loadGeneration++;
 		this.stateManager.cancelEdit();
+		this.stateManager.state.exportSettings.value = deepClone(project.exportSettings);
 		this.stateManager.state.name.value = project.name;
 		this.stateManager.state.description.value = project.description;
 		this.stateManager.state.author.value = project.author;
@@ -114,6 +118,7 @@ export class ProjectContext {
 		// 保存・バックアップで同じ完全な状態を使う。非同期のエンコードや保存先選択の間に
 		// 編集されても、取得済みのスナップショットへ変更が混入しないよう切り離す。
 		return deepClone({
+			exportSettings: state.exportSettings.value,
 			id: this.projectId.value,
 			gsVersion: _VERSION_,
 			name: state.name.value,

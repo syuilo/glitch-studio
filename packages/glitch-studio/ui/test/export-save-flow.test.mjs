@@ -35,6 +35,7 @@ function fixture({ browser = false, choose = null, save = null, renderError = nu
 		async notifyExportComplete(name) { events.push(['notify', name]); },
 	};
 	const context = {
+		saveExportSettings() {},
 		applicationActivity: { acquire: () => () => {} },
 		i18n,
 		dialogContent: ref(null), exporting: ref(false), choosingSaveFile: ref(false), savingFile: ref(false),

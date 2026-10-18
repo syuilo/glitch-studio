@@ -32,6 +32,12 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 動画の固定表示はInspectorのHold current frameから設定する。`utility/timeline-video-hold.ts`は通常描画と同じ素材リーダーでフレームのtimestampを確定し、逆再生境界・可変FPS・秒とmsの往復誤差を考慮する。非同期読取の間に選択・クリップ設定・Asset・Sceneが変わった結果は破棄する。`holdVideoClipFrame` Commandは表示区間を維持して素材時計を固定地点へ置き換え、旧時計をUndo/Redoでも残さない。固定地点の数値入力は明示保存し、素材変更（固定表示では同一Assetの再選択も含む）で通常再生へ戻す。
 
+## Timelineのエクスポート
+
+エクスポートダイアログの解像度はSceneの基準サイズ、フレームレートはプロジェクトのTimeline FPSに対し、0.25x / 0.5x / 1x / 2x / 4xから選ぶ。カスタムでは幅・高さとFPSを直接入力する。MP4では奇数の辺を1px増やして偶数にする。カスタム解像度は書き出し対象Sceneの基準サイズとして使い、その画角で描画する。プロジェクトや子Sceneの基準サイズは変更しない。
+
+Scene・動画／静止画・形式・品質・解像度・FPS・時間範囲と未選択のカスタム入力値を、書き出し開始時またはダイアログを閉じた時にCommandで保持する。プロジェクト保存・バックアップに`exportSettings`として含め、次回表示とファイル再読込後に復元する。倍率は確定した寸法やFPSに置き換えず、再表示時の基準設定から計算する。前回のSceneが削除されている場合は現在のSceneとその全時間範囲へ戻す。
+
 ## Visual Moduleのエクスポート・インポート
 
 `GsVisualModuleEditor`はファイル・Assetのドロップ受付と表示を担当し、親が渡す`VisualModuleAssetDropActions`で保存先へ反映する。登録済みとインラインの両方で`utility/visual-module-drop-actions.ts`を使い、画像・動画・音声からImage・Video・Audio Waveformノードを通常ノード一覧の末尾へ追加する。ノード生成は`visual-module-asset-node.ts`、Asset・Player・ノードの一括追加とUndo/RedoはCommandが担当する。既存の配線と出力接続は変更しない。

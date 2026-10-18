@@ -132,6 +132,7 @@ const appBundle = await build({
 
 function project(overrides = {}) {
 	return {
+		exportSettings: null,
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		id: 'project-id', gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
 		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
@@ -480,6 +481,39 @@ test('persists layer motion blur overrides and refreshes paused previews through
 	assert.equal(await app.openProject(), true);
 	assert.equal(manager.state.timelineScenes.value[0].layers[0].forceDisableMotionBlur, true);
 	assert.equal(timeline.options.timelineScenes[0].layers[0].forceDisableMotionBlur, true);
+});
+
+// 【エクスポート設定を保存・読込し、別プロジェクトには引き継がない】
+// 出力値だけでは倍率指定や未選択のカスタム入力を復元できないため、ダイアログ設定全体を保存する。
+// 保存状態はダイアログの作業コピーと切り離し、Undo/Redoと新規プロジェクトでも正しい値を保つ。
+test('round trips export dialog settings through project state and files', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	const { projectContext } = app.appContext;
+	const manager = projectContext.stateManager;
+	assert.equal(manager.state.exportSettings.value, null);
+	const settings = {
+		sceneId: manager.state.timelineScenes.value[0].id, mode: 'still', videoFormat: 'mp4', stillFormat: 'webp',
+		videoQuality: 'very-high', stillQuality: 'lossless', resolutionScale: 'custom', customResolution: { width: 513, height: 777 },
+		fpsScale: 0.5, customFps: 23.976, startTime: '00:00:01.250', endTime: '00:00:08.750',
+	};
+	manager.commit('changeExportSettings', settings);
+	settings.customResolution.width = 999;
+	assert.equal(manager.state.exportSettings.value.customResolution.width, 513);
+	manager.undo();
+	assert.equal(manager.state.exportSettings.value, null);
+	manager.redo();
+	const snapshot = projectContext.snapshot();
+	const restored = decodeProjectFile(await encodeProjectFile(snapshot));
+	assert.deepEqual(restored.exportSettings, snapshot.exportSettings);
+	await app.appContext.ready(restored);
+	assert.deepEqual(manager.state.exportSettings.value, snapshot.exportSettings);
+	manager.state.exportSettings.value.customResolution.width = 1000;
+	assert.equal(restored.exportSettings.customResolution.width, 513);
+	assert.equal(snapshot.exportSettings.customResolution.width, 513);
+	await app.newProject();
+	assert.equal(manager.state.exportSettings.value, null);
 });
 
 // 【初回生成からプロジェクトのfps・ブラー設定とプレビュー既定の0サンプルを使う】

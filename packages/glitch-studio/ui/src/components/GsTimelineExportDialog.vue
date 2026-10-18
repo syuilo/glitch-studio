@@ -15,11 +15,19 @@
 		<GsSelect v-model="quality" :items="qualityOptions" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.Quality }}</template>
 		</GsSelect>
-		<GsSelect v-model="resolutionScale" :items="resolutionOptions" :disabled="exporting">
+		<GsSelect v-model="resolutionScale" :items="scaleOptions" :disabled="exporting">
 			<template #label>{{ i18n.ts.Resolution }}</template>
 			<template #caption>{{ resolution.width }} × {{ resolution.height }} px</template>
 		</GsSelect>
-		<GsInput v-if="mode === 'video'" v-model="fps" type="number" :min="1" :max="120" :step="'any'" :disabled="exporting"><template #label>{{ i18n.ts._Export.FrameRate }}</template></GsInput>
+		<div v-if="resolutionScale === 'custom'" :class="$style.row">
+			<GsInput v-model="customResolution.width" type="number" :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="customResolution.height" type="number" :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+		</div>
+		<GsSelect v-if="mode === 'video'" v-model="fpsScale" :items="scaleOptions" :disabled="exporting">
+			<template #label>{{ i18n.ts._Export.FrameRate }}</template>
+			<template #caption>{{ fps }} fps</template>
+		</GsSelect>
+		<GsInput v-if="mode === 'video' && fpsScale === 'custom'" v-model="customFps" type="number" :min="1" :max="120" :step="'any'" :disabled="exporting"><template #label>{{ i18n.ts._Export.FrameRate }}</template><template #suffix>fps</template></GsInput>
 		<div :class="$style.row">
 			<GsInput v-model="startTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ mode === 'video' ? i18n.ts._Export.StartTime : i18n.ts._Export.StillTime }}</template></GsInput>
 			<GsInput v-if="mode === 'video'" v-model="endTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ i18n.ts._Export.EndTime }}</template></GsInput>
@@ -44,10 +52,11 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/i18n.ts';
-import { computed, onBeforeUnmount, ref, watch, useTemplateRef } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, toRefs, watch, useTemplateRef } from 'vue';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { getRendererAssets } from '../utility/renderer-assets.ts';
 import { getRequiredVoicevoxRequestsForRendering } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import GsModal from './common/GsModal.vue';
@@ -61,7 +70,7 @@ import { appContext } from '@/app.ts';
 import { applicationActivity } from '@/application-activity.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { validateExportSettings } from '@/export/timeline-export.ts';
-import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
+import { adjustExportResolution, createDefaultExportDialogSettings, estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
 import { hasExportAudio, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
 
 const { activeSceneId, previewPlayback } = appContext;
@@ -77,14 +86,23 @@ const emit = defineEmits<{
 	(ev: 'closed'): void;
 }>();
 
-const sceneId = ref(previewPlayback.state.value.mode === 'timeline' ? (appContext.activeScene.value?.id ?? '') : '');
+const projectGeneration = appContext.projectContext.generation;
+const savedSettings = stateManager.state.exportSettings.value;
+const initialSceneId = previewPlayback.state.value.mode === 'timeline' ? (appContext.activeScene.value?.id ?? '') : '';
+const initialScene = stateManager.state.timelineScenes.value.find(scene => scene.id === initialSceneId);
+const dialogSettings = reactive(deepClone(savedSettings ?? createDefaultExportDialogSettings(initialSceneId,
+	getSceneBaseResolution(initialScene?.resolution ?? { mode: 'project' }, stateManager.state.resolution.value),
+	stateManager.state.timelineFps.value, initialScene == null ? 0 : getSceneDuration(initialScene))));
+// 前回のSceneが削除されている場合は、存在しない参照とその時間範囲を引き継がない。
+if (dialogSettings.sceneId !== '' && !stateManager.state.timelineScenes.value.some(scene => scene.id === dialogSettings.sceneId)) {
+	dialogSettings.sceneId = initialSceneId;
+	dialogSettings.startTime = formatExportTime(0);
+	dialogSettings.endTime = formatExportTime(initialScene == null ? 0 : getSceneDuration(initialScene));
+}
+const { sceneId, mode, videoFormat, stillFormat, videoQuality, stillQuality, resolutionScale, customResolution,
+	fpsScale, customFps, startTime, endTime } = toRefs(dialogSettings);
 const sceneItems = computed(() => [{ label: i18n.ts._Export.ChooseScene, value: '' }, ...stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
 const scene = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
-const mode = ref('video');
-const videoFormat = ref<'mp4'>('mp4');
-const stillFormat = ref<'webp'>('webp');
-const videoQuality = ref<ExportQuality>('high');
-const stillQuality = ref<ExportQuality | 'lossless'>('high');
 const quality = computed({
 	get: () => mode.value === 'video' ? videoQuality.value : stillQuality.value,
 	set: (value: ExportQuality | 'lossless') => {
@@ -99,14 +117,13 @@ const qualityOptions = computed(() => [
 	{ value: 'very-high', label: i18n.ts._Export.VeryHigh },
 	...(mode.value === 'still' ? [{ value: 'lossless', label: i18n.ts._Export.Lossless }] : []),
 ]);
-const resolutionScale = ref(1);
-const resolutionOptions = [0.25, 0.5, 1, 2, 4].map(value => ({ value, label: `${value}x` }));
-const resolution = computed(() => scaleExportResolution(getSceneBaseResolution(scene.value?.resolution ?? { mode: 'project' },
-	stateManager.state.resolution.value), resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
-const fps = ref(stateManager.state.timelineFps.value);
-const startTime = ref('00:00:00.000');
-const endTime = ref(formatExportTime(0));
-watch(sceneId, () => { startTime.value = formatExportTime(0); endTime.value = formatExportTime(scene.value == null ? 0 : getSceneDuration(scene.value)); }, { immediate: true });
+const scaleOptions = [...[0.25, 0.5, 1, 2, 4].map(value => ({ value, label: `${value}x` })), { value: 'custom', label: i18n.ts._Export.Custom }];
+const resolution = computed(() => resolutionScale.value === 'custom'
+	? adjustExportResolution(customResolution.value, mode.value === 'video' ? 'mp4' : 'webp')
+	: scaleExportResolution(getSceneBaseResolution(scene.value?.resolution ?? { mode: 'project' },
+		stateManager.state.resolution.value), resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
+const fps = computed(() => fpsScale.value === 'custom' ? customFps.value : stateManager.state.timelineFps.value * fpsScale.value);
+watch(sceneId, () => { startTime.value = formatExportTime(0); endTime.value = formatExportTime(scene.value == null ? 0 : getSceneDuration(scene.value)); });
 const exporting = ref(false);
 const choosingSaveFile = ref(false);
 const savingFile = ref(false);
@@ -145,8 +162,18 @@ const progressText = computed(() => {
 	return i18n.tsx._Export.RenderingFrames({ completed: progress.value.completedFrames, total: progress.value.totalFrames, percent: Math.floor(progressPercent.value) });
 });
 
+function saveExportSettings() {
+	// 読込で別プロジェクトへ切り替わった後に、旧ダイアログの設定を保存しない。
+	if (appContext.projectContext.generation !== projectGeneration) return;
+	if (!deepEqual(dialogSettings, stateManager.state.exportSettings.value)) {
+		stateManager.commit('changeExportSettings', dialogSettings);
+	}
+}
+
 function closeDialog() {
-	if (!exporting.value) modal.value?.close();
+	if (exporting.value) return;
+	saveExportSettings();
+	modal.value?.close();
 }
 
 function cancel() {
@@ -161,6 +188,7 @@ function setTaskbarProgress(value: number | null) {
 
 async function doExport() {
 	if (exporting.value || validationError.value) return;
+	saveExportSettings();
 	const releaseActivity = applicationActivity.acquire();
 	// 無効化するEXPORTボタンからフォーカスを移し、背後の編集ショートカットへイベントを流さない。
 	dialogContent.value?.focus();
@@ -175,7 +203,7 @@ async function doExport() {
 	let previewDisposed = false;
 	try {
 		const exportSettings = { ...settings.value };
-		const exportResolutionScale = resolutionScale.value;
+		const exportResolutionScale = resolutionScale.value === 'custom' ? null : resolutionScale.value;
 		const exportSceneId = sceneId.value;
 		const suggestedName = `${projectName.value || 'project'}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
 		if (desktop != null) {
@@ -270,6 +298,7 @@ async function doExport() {
 }
 
 onBeforeUnmount(() => {
+	saveExportSettings();
 	abortController?.abort();
 	if (exporting.value) setTaskbarProgress(null);
 	if (downloadUrl.value) URL.revokeObjectURL(downloadUrl.value);
@@ -282,6 +311,9 @@ onBeforeUnmount(() => {
 	position: relative;
 	padding: 32px;
 	width: 480px;
+	max-width: 85vw;
+	max-height: 85vh;
+	overflow-y: auto;
 	box-sizing: border-box;
 	background: var(--THEME-dialog);
 	border-radius: 10px;

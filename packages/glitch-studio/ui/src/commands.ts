@@ -54,6 +54,7 @@ import type { ParameterChangeKind, ParameterDefinition } from '@gs/shared/parame
 import type { AppStateChange, ProjectState, ProjectAsset } from './Project.ts';
 import type { CommandDef as UndoRedoCommandDef } from './utility/undo-redo.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
+import type { ExportDialogSettings } from './export/export-settings.ts';
 import type { VisualModuleImport } from './gsvm.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
@@ -1901,6 +1902,22 @@ const addSceneCommandDef = defineCommand<TimelineScene>({
 	}),
 });
 
+const changeExportSettingsCommandDef = defineCommand<ExportDialogSettings>({
+	label: 'Change export settings',
+	// ダイアログの設定は保存対象だが、プレビューの描画内容を変更しない。
+	changes: () => [],
+	create: payload => {
+		let before: ExportDialogSettings | null;
+		return {
+			execute(state) {
+				before = deepClone(state.exportSettings.value);
+				state.exportSettings.value = deepClone(payload);
+			},
+			undo(state) { state.exportSettings.value = deepClone(before); },
+		};
+	},
+});
+
 const changeTimelineRenderSettingsCommandDef = defineCommand<{ timelineFps: number; timelineMotionBlur: TimelineMotionBlurSettings }>({
 	label: 'Change timeline render settings',
 	changes: () => [{ type: 'timelineRenderSettings' }],
@@ -2254,6 +2271,7 @@ export const COMMAND_DEFS = {
 	removeTimelineKeyframes: removeTimelineKeyframesCommandDef,
 	editVoicevoxLayer: editVoicevoxLayerCommandDef,
 	changeProjectResolution: changeProjectResolutionCommandDef,
+	changeExportSettings: changeExportSettingsCommandDef,
 	changeTimelineRenderSettings: changeTimelineRenderSettingsCommandDef,
 	changeEffectLayerResolution: changeEffectLayerResolutionCommandDef,
 	addTimelineLayer: addTimelineLayerCommandDef,

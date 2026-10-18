@@ -151,6 +151,7 @@ export async function newProject() {
 			name: 'Visual Module', clips: [{ id: genId(), ...createTimelineClipTiming(0, 1000 * 10) }],
 		}] }],
 		timelineFps: DEFAULT_TIMELINE_FPS,
+		exportSettings: null,
 		timelineMotionBlur: { ...DEFAULT_TIMELINE_MOTION_BLUR },
 		resolution: { width: 1024, height: 1024 },
 	});
@@ -313,6 +314,7 @@ async function loadMediaProject(file?: File) {
 			automationGraphs: [],
 		}] }],
 		timelineFps: DEFAULT_TIMELINE_FPS,
+		exportSettings: null,
 		timelineMotionBlur: { ...DEFAULT_TIMELINE_MOTION_BLUR },
 		resolution: { width: result.width || 1024, height: result.height || 1024 },
 	});

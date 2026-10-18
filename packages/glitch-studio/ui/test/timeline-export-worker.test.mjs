@@ -187,3 +187,37 @@ test('exports custom scene sizes with an explicit scale and unchanged project di
 	assert.deepEqual([f.encodings[0].canvas.width, f.encodings[0].canvas.height], [1026, 514]);
 	assert.equal(f.messages.at(-1).type, 'complete');
 });
+
+// 【カスタム解像度は出力Sceneの画角へ適用し、子Sceneや元のプロジェクトを変更しない】
+// 倍率からの再計算で入力値を失ったり、最終Canvasだけを変えて異なる比率へ引き伸ばしたりしない。
+// MP4の偶数補正もCanvas・描画Scene・エンコーダーの全てで一致させる。
+for (const format of ['mp4', 'webp']) {
+	test(`renders custom ${format} dimensions without changing child scenes`, { timeout: 2000 }, async () => {
+		const f = fixture();
+		const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 0 },
+			resolution: { width: 1920, height: 1080 }, assets: [], visualModules: [], sceneId: 'root', timelineScenes: [
+				{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [
+					{ id: 'nested', layerType: 'scene', audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
+						clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000, sceneId: 'child' }] },
+				] },
+				{ id: 'child', name: 'Child', resolution: { mode: 'customAbsolute', width: 640, height: 480 }, layers: [] },
+			] };
+		const job = f.run({ project, resolutionScale: null,
+			settings: { format, quality: 'high', width: 501, height: 777, positionMs: 0, ...(format === 'mp4' ? { fps: 30, endTimeMs: 10 } : {}) },
+			renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		});
+		await f.preparing.promise;
+		const resolution = format === 'mp4' ? { width: 502, height: 778 } : { width: 501, height: 777 };
+		const dynamicOptions = structuredClone(f.instance.dynamicOptions);
+		assert.deepEqual(dynamicOptions.resolution, project.resolution);
+		assert.equal(dynamicOptions.resolutionScale, 1);
+		assert.deepEqual(dynamicOptions.outputResolution, resolution);
+		assert.deepEqual(dynamicOptions.timelineScenes[0].resolution, { mode: 'customAbsolute', ...resolution });
+		assert.deepEqual(dynamicOptions.timelineScenes[1], project.timelineScenes[1]);
+		assert.deepEqual(project.timelineScenes[0].resolution, { mode: 'project' });
+		f.prepared.resolve();
+		await job;
+		assert.deepEqual([f.encodings[0].canvas.width, f.encodings[0].canvas.height], [resolution.width, resolution.height]);
+		assert.equal(f.messages.at(-1).type, 'complete');
+	});
+}
