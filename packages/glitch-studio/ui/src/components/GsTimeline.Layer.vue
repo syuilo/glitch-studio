@@ -483,7 +483,6 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	display: flex;
 	height: 20px;
 	line-height: 20px;
-	font-size: 12px;
 }
 
 .localTicksLabel {
