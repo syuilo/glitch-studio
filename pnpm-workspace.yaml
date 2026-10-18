@@ -27,6 +27,8 @@ minimumReleaseAgeExclude:
   - '@pnpm/exe.win32-arm64@12.3.4'
   - '@pnpm/exe.win32-x64@12.3.4'
   - pnpm@12.3.4
+  # Renovate security update: js-yaml@4.3.2
+  - js-yaml@4.3.2
 overrides:
   '@aiscript-dev/aiscript-languageserver': '-'
   '@tabler/icons-webfont>sharp': '-'
