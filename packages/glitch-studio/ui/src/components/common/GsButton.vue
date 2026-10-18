@@ -8,7 +8,7 @@
 	@click="emit('click', $event)"
 >
 	<div :class="$style.content">
-		<i :class="[$style.icon, icon]"></i>
+		<i v-if="icon != null && icon !== ''" :class="[$style.icon, icon]"></i>
 		<slot></slot>
 	</div>
 </component>
