@@ -45,7 +45,7 @@ const bundle = await build({ absWorkingDir: directory,
 				export const dashboardTest = { opened: [], success: true };
 				export async function newProject() {} export async function newProjectFromImageOrVideo() { return true; }
 				export async function openProject(file, handle) { dashboardTest.opened.push({ file, handle }); return dashboardTest.success; }`,
-			'ui.ts': 'export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {} export async function confirm() { return { canceled: false }; }',
+			'ui.ts': 'export function progress() { return { done() {} }; } export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {} export async function confirm() { return { canceled: false }; }',
 			media: 'export async function openMediaFile() {}',
 			'asset-import': `export const assetImportTest = { calls: [], read: null };
 				export async function importAssets(context, files) { assetImportTest.calls.push({ context, files });

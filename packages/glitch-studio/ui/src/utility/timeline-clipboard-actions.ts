@@ -64,11 +64,11 @@ export function createTimelineClipboardActions(options: TimelineClipboardActions
 				if (layer.layerType !== 'audio' && layer.layerType !== 'video') return [];
 				const asset = 'assetId' in clip ? stateManager.state.assets.value.find(asset => asset.id === clip.assetId) : null;
 				if (!asset) throw new Error('Missing media');
-				return [{ layerId, clipId: clip.id, asset, blob: asset.fileData }];
+				return [{ layerId, clipId: clip.id, asset, fileSource: asset.fileData }];
 			});
 			const durations = await Promise.all(sources.map(async ({ layerId, clipId, asset }) => ({ layerId, clipId, durationMs: (await inspectMedia(asset)).durationMs })));
 			if (!isActive()) return;
-			if (sources.some(({ asset, blob }) => !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob)) return;
+			if (sources.some(({ asset, fileSource }) => !stateManager.state.assets.value.includes(asset) || asset.fileData !== fileSource)) return;
 			// 読み込み待ちの間にクリップが追加・移動されても、重なる場合は履歴を作らず終了する。
 			if (!canPasteTimelineClips(scene, clips)) return;
 			const sourceDurationsMs: TimelineClipSourceDurations = Object.create(null);

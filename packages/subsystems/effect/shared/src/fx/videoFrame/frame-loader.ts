@@ -1,3 +1,4 @@
+import type { FileSource } from '@gs/shared/file-source.ts';
 import type { EffectStatus } from '../../effect-status.ts';
 
 export type OutOfRange = 'clamp' | 'loop' | 'transparent';
@@ -23,35 +24,35 @@ export type VideoFrameSource<Sample> = {
 
 // デコードとGPUアップロードを境界に分け、要求の競合・破棄をブラウザーなしでテストできるようにする。
 export function createVideoFrameLoader<Sample extends { close: () => void }>(options: {
-	open: (blob: Blob) => VideoFrameSource<Sample>;
+	open: (fileSource: FileSource) => VideoFrameSource<Sample>;
 	publish: (sample: Sample | null) => void;
 	reportStatus: (status: EffectStatus) => void;
 }) {
-	let desired: { blob: Blob | null; time: number | null } | null = null;
+	let desired: { fileSource: FileSource | null; time: number | null } | null = null;
 	let revision = 0;
 	let disposed = false;
 	let running = false;
 	let source: VideoFrameSource<Sample> | null = null;
-	let sourceBlob: Blob | null = null;
+	let openedFileSource: FileSource | null = null;
 
 	const releaseSource = () => {
 		source?.dispose();
 		source = null;
-		sourceBlob = null;
+		openedFileSource = null;
 	};
 
 	const drain = async () => {
 		running = true;
 		try {
-			while (!disposed && desired?.blob != null && desired.time != null) {
-				const request = { blob: desired.blob, time: desired.time };
+			while (!disposed && desired?.fileSource != null && desired.time != null) {
+				const request = { fileSource: desired.fileSource, time: desired.time };
 				const requestRevision = revision;
 				let sample: Sample | null = null;
 				try {
-					if (sourceBlob !== request.blob || source == null) {
+					if (openedFileSource !== request.fileSource || source == null) {
 						releaseSource();
-						source = options.open(request.blob);
-						sourceBlob = request.blob;
+						source = options.open(request.fileSource);
+						openedFileSource = request.fileSource;
 					}
 					sample = await source.getSample(request.time);
 					if (!disposed && requestRevision === revision) {
@@ -77,7 +78,7 @@ export function createVideoFrameLoader<Sample extends { close: () => void }>(opt
 	};
 
 	return {
-		prepare(blob: Blob | null, time: number, mode: OutOfRange) {
+		prepare(fileSource: FileSource | null, time: number, mode: OutOfRange) {
 			if (disposed) return;
 			let position: number | null;
 			try {
@@ -90,13 +91,13 @@ export function createVideoFrameLoader<Sample extends { close: () => void }>(opt
 				options.reportStatus({ type: 'error', message: (error as Error).message });
 				return;
 			}
-			if (desired?.blob === blob && desired.time === position) return;
-			desired = { blob, time: position };
+			if (desired?.fileSource === fileSource && desired.time === position) return;
+			desired = { fileSource, time: position };
 			++revision;
-			if (sourceBlob !== blob) releaseSource();
+			if (openedFileSource !== fileSource) releaseSource();
 			// ライブ描画でも異なる時刻のフレームを正しい結果として表示しない。
 			options.publish(null);
-			if (blob == null || position == null) {
+			if (fileSource == null || position == null) {
 				options.reportStatus({ type: 'ready' });
 				return;
 			}

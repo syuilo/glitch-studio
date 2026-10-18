@@ -76,7 +76,7 @@ export class ProjectSaveController {
 			settings: backupSettings,
 			snapshot: () => {
 				const project = this.projectReady.value ? this.getSnapshot() : null;
-				return project ? { fingerprint: this.backupFingerprint(project), encode: () => encodeProjectFile(project) } : null;
+				return project ? { fingerprint: this.backupFingerprint(project), encode: () => encodeProjectFile(project, this.projectSaveSession.target?.handle ?? null) } : null;
 			},
 			onStatus: status => { this.projectBackupStatus.value = status; },
 			now: () => Date.now(),
@@ -157,7 +157,9 @@ export class ProjectSaveController {
 					const granted = handle === requestedHandle ? await permission
 						: handle?.kind === 'file' ? await handle.queryPermission({ mode: 'readwrite' }) : 'granted';
 					if (handle && granted !== 'granted') throw new Error('Write permission was not granted. Use Save as... to choose another file.');
-					const data = await encodeProjectFile(project);
+					// 外部参照の相対化には保存先が必要だが、埋め込み原本の読込失敗で
+					// ブラウザの保存先を空にしない従来の順序は維持する。
+					let data = handle == null && window.desktop?.assetProjectPaths != null ? null : await encodeProjectFile(project, handle);
 					if (generation !== this.projectGeneration) return null;
 					if (!handle) {
 						const selected = await selectProjectSaveFile(this.projectSaveSession.suggestedName);
@@ -166,6 +168,7 @@ export class ProjectSaveController {
 					}
 					if (generation !== this.projectGeneration) return null;
 					target ??= resolveBackupTarget(handle, directory);
+					data ??= await encodeProjectFile(project, handle);
 					if (backupSettings().saveEnabled && (!target || !await target.directory.hasPermission())) {
 						if (handle.kind === 'desktop-project-file') throw new Error('The project backup folder is unavailable.');
 						directory = await requestBackupDirectory(handle);

@@ -1,4 +1,6 @@
-import { ALL_FORMATS, BlobSource, Input, VideoSampleSink } from 'mediabunny';
+import { VideoSampleSink } from 'mediabunny';
+import type { FileSource } from '../file-source.ts';
+import { createMediaInput } from './media-input.ts';
 import { VideoSampleReader } from './video-sample-reader.ts';
 
 /** 排他的な境界の直前。FPSではなく隣接する浮動小数点数を使い、可変FPSにも対応する。 */
@@ -11,8 +13,8 @@ function before(time: number): number {
 }
 
 /** コンテナの時刻をそのまま使う。映像だけの先頭を0へずらすと音声との同期が失われる。 */
-export function openVideoSource(blob: Blob) {
-	const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+export function openVideoSource(fileSource: FileSource) {
+	const input = createMediaInput(fileSource);
 	let disposed = false;
 	let reader: VideoSampleReader | null = null;
 	const initialize = async () => {

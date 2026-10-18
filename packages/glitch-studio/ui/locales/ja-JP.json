@@ -282,6 +282,13 @@
 		"LockRatio": "X:Yの比率を固定"
 	},
 	"_Assets": {
+		"DefaultExternalReference": "ファイルを外部参照として取り込む",
+		"Reload": "リロード",
+		"Relink": "参照先を変更…",
+		"Embed": "プロジェクトに埋め込む",
+		"ConvertToExternalReference": "外部参照するファイルを選択…",
+		"ExportOriginal": "埋め込みファイルを書き出す…",
+
 		"Add": "アセットを追加…",
 		"ImportLocalFont": "ローカルフォントをインポート",
 		"Search": "ファイル名で検索",

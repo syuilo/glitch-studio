@@ -68,16 +68,16 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		}
 		const [selectedAsset] = await ui.selectAsset({ multiple: false, mimeType: layerType + '/*' });
 		// ピッカーはAssetのコピーを返す。選択中のインポートも許容しつつ、
-		// 削除済みのAssetや古いBlobを使わないよう現在のプロジェクトから解決し直す。
+		// 削除済みのAssetや古いファイル入力を使わないよう現在のプロジェクトから解決し直す。
 		const asset = stateManager.state.assets.value.find(asset => asset.id === selectedAsset?.id);
 		if (asset == null || !asset.fileDataType.startsWith(layerType + '/') || !isActive() || sceneLayers.value !== initialLayers) return null;
-		const blob = asset.fileData;
+		const fileSource = asset.fileData;
 		try {
 			const media = layerType === 'image' ? null : await inspectMedia(asset);
-			if (!isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return null;
+			if (!isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== fileSource) return null;
 			if (media?.audioError) {
 				const result = await ui.confirm({ type: 'warning', title: asset.name, text: media.audioError, okText: i18n.ts._Timeline.AddWithoutAudio });
-				if (result.canceled || !isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return null;
+				if (result.canceled || !isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== fileSource) return null;
 			}
 			return { kind: 'asset', asset, media };
 		} catch (error) { reportError(error); return null; }
@@ -136,10 +136,10 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		const sources = layer.clips.map(clip => {
 			const asset = stateManager.state.assets.value.find(asset => asset.id === clip.assetId);
 			if (!asset) throw new Error(i18n.ts._TimelineClip.MissingMedia);
-			return { clipId: clip.id, asset, blob: asset.fileData };
+			return { clipId: clip.id, asset, fileSource: asset.fileData };
 		});
 		const durations = await Promise.all(sources.map(async ({ clipId, asset }) => [clipId, (await inspectMedia(asset)).durationMs] as const));
-		if (sources.some(({ asset, blob }) => !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob)) throw new Error('Media changed during loading');
+		if (sources.some(({ asset, fileSource }) => !stateManager.state.assets.value.includes(asset) || asset.fileData !== fileSource)) throw new Error('Media changed during loading');
 		return { [layer.id]: Object.fromEntries(durations) };
 	}
 

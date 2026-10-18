@@ -12,6 +12,8 @@
 		<GsAssetThumbnail :class="$style.thumbnail" :asset="asset" fit="contain"/>
 
 		<p :class="$style.name">
+			<i v-if="externalError != null" class="ti ti-alert-triangle" :title="externalError" data-test-asset-unavailable/>
+			<i v-else-if="asset.isExternalReference" class="ti ti-link" data-test-external-reference/>
 			<span>{{ asset.name.lastIndexOf('.') != -1 ? asset.name.substring(0, asset.name.lastIndexOf('.')) : asset.name }}</span>
 			<span v-if="asset.name.lastIndexOf('.') != -1" style="opacity: 0.5;">{{ asset.name.substring(asset.name.lastIndexOf('.')) }}</span>
 		</p>
@@ -21,6 +23,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
+import { getFileSourceError } from '@gs/shared/file-source.ts';
 import GsAssetThumbnail from './GsAssetThumbnail.vue';
 import type { ProjectAsset } from '@/Project.ts';
 import { getAssetMenu } from '@/utility/asset-menu.ts';
@@ -49,7 +52,8 @@ const bytes = (v: number | null, digits = 0) => {
 	return (isMinus ? '-' : '') + (v / Math.pow(1024, i)).toFixed(digits).replace(/(\.[1-9]*)0+$/, '$1').replace(/\.$/, '') + (sizes[i] ?? `e+${ i * 3 }B`);
 };
 
-const title = computed(() => `${props.asset.name}\n${props.asset.fileDataType} ${bytes(props.asset.fileData.size)}`);
+const externalError = computed(() => getFileSourceError(props.asset.fileData));
+const title = computed(() => `${props.asset.name}\n${props.asset.fileDataType} ${bytes(props.asset.fileData.size)}${props.asset.sourceFilePath == null ? '' : '\n' + props.asset.sourceFilePath}${externalError.value == null ? '' : '\n' + externalError.value}`);
 
 function onContextmenu(ev: PointerEvent) {
 	contextMenu(getAssetMenu(props.asset), ev);

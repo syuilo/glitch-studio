@@ -1,3 +1,4 @@
+import { readFileSource } from '@gs/shared/file-source.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -120,7 +121,9 @@ export function collectVisualModuleFile(input: {
 export async function encodeVisualModuleFile(file: VisualModuleFile): Promise<Uint8Array> {
 	const assets = await Promise.all(file.assets.map(async asset => {
 		try {
-			return { ...asset, fileData: new Uint8Array(await asset.fileData.arrayBuffer()) };
+			const { id, name, width, height, fileDataType, hash } = asset;
+			return { id, name, width, height, fileDataType, ...(hash == null ? {} : { hash }),
+				fileData: new Uint8Array(await (await readFileSource(asset.fileData)).arrayBuffer()) };
 		} catch (cause) {
 			throw new Error(`Could not read Asset "${asset.name}". Replace it with the source file and try exporting again.`, { cause });
 		}
@@ -167,7 +170,7 @@ export function prepareVisualModuleImport(file: VisualModuleFile, definitions: E
 	});
 	return {
 		visualModule: { ...collected.visualModule, id: createId(), name: collected.name },
-		assets: collected.assets.map(asset => ({ ...asset, id: assetIds.get(asset.id)!, sourceFilePath: null, thumbnailSequence: null })),
+		assets: collected.assets.map(asset => ({ ...asset, id: assetIds.get(asset.id)!, isExternalReference: false, sourceFilePath: null, thumbnailSequence: null })),
 		players, unassignedPlayerNames,
 	};
 }

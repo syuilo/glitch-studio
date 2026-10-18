@@ -73,6 +73,7 @@ async function importFont() {
 			name: font.fullName,
 			width: 0,
 			height: 0,
+			isExternalReference: false,
 			fileDataType: 'font/sfnt',
 			fileData: blob.slice(0, blob.size, 'font/sfnt'),
 			sourceFilePath: null,

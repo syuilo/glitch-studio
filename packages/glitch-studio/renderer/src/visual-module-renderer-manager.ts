@@ -85,6 +85,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private assetTextures: AssetTextures;
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
+	private videoFrameErrors = new Map<string, string>();
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private playerAudioInputs = new PlayerAudioInputs(this.audioSources);
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
@@ -227,7 +228,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		}
 	}
 
-	public updateVideoFrame(playerId: Player['id'], videoFrame: VideoFrame | null) {
+	public updateVideoFrame(playerId: Player['id'], videoFrame: VideoFrame | null, error: string | null = null) {
+		if (error == null) this.videoFrameErrors.delete(playerId); else this.videoFrameErrors.set(playerId, error);
 		// 同じtimestampでも別のフレームとして扱う。削除・再追加でも更新番号を戻さない。
 		this.videoFrameVersions.set(playerId, (this.videoFrameVersions.get(playerId) ?? 0) + 1);
 		this.videoFrames.get(playerId)?.close();
@@ -333,11 +335,18 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
+			videoFrameErrors: this.videoFrameErrors,
 			assets: this.dynamicOptions.assets,
 			visualModule,
 			assetTextures: this.assetTextures.textures,
 			audioSources: this.audioSources,
-			resolveAudioSource: selection => this.playerAudioInputs.resolve(selection),
+			resolveAudioSource: selection => {
+				if (selection != null && typeof selection === 'object' && 'playerId' in selection && typeof selection.playerId === 'string') {
+					const error = this.videoFrameErrors.get(selection.playerId);
+					if (error != null) throw new Error(error);
+				}
+				return this.playerAudioInputs.resolve(selection);
+			},
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
 		});
@@ -438,6 +447,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();
 		this.videoFrameVersions.clear();
+		this.videoFrameErrors.clear();
 		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();
 	}

@@ -622,6 +622,7 @@ const addAssetCommandDef = defineCommand<ProjectAsset>({
 					fileDataType: payload.fileDataType,
 					fileData: payload.fileData, // blobはimmutableなので多分deepCloneの必要なし
 					sourceFilePath: payload.sourceFilePath,
+					isExternalReference: payload.isExternalReference,
 					thumbnailSequence: deepClone(payload.thumbnailSequence),
 					hash: payload.hash,
 				});
@@ -702,6 +703,7 @@ const replaceAssetCommandDef = defineCommand<ProjectAsset & { assetId: string }>
 				asset.fileData = payload.fileData; // blobはimmutableなので多分deepCloneの必要なし
 				// 取得できない素材へ差し替えたときも、以前の原本のパスを残さない。
 				asset.sourceFilePath = payload.sourceFilePath;
+				asset.isExternalReference = payload.isExternalReference;
 				asset.thumbnailSequence = deepClone(payload.thumbnailSequence);
 				asset.hash = payload.hash;
 			},

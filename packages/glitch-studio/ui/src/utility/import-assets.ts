@@ -1,13 +1,13 @@
-import { i18n } from '@/i18n.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { selectMediaFiles } from '../api.ts';
-import { importMediaFiles } from './open-media-file.ts';
 import { alert } from '../ui.ts';
+import { importMediaFiles } from './open-media-file.ts';
 import type { progress } from '../ui.ts';
 import type { ProjectContext, ProjectAsset } from '../Project.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { TimelineAssetPlacement } from './timeline-asset-layer.ts';
 import type { VisualModuleAssetPlacement } from './visual-module-asset-node.ts';
+import { i18n } from '@/i18n.ts';
 
 export type AssetImportPlacement = { timeline?: TimelineAssetPlacement | null; visualModule?: VisualModuleAssetPlacement | null };
 
@@ -28,9 +28,18 @@ export async function importAssets(context: ProjectContext, files?: readonly Fil
 				const players: Player[] = [];
 				for (const result of imported) {
 					const id = genId();
-					assets.push({ id, name: result.name, width: result.width, height: result.height,
-						fileDataType: result.type, fileData: result.fileData, sourceFilePath: result.sourceFilePath,
-						thumbnailSequence: result.thumbnailSequence, hash: result.hash });
+					assets.push({
+						id,
+						name: result.name,
+						width: result.width,
+						height: result.height,
+						fileDataType: result.type,
+						fileData: result.fileData,
+						isExternalReference: result.isExternalReference,
+						sourceFilePath: result.sourceFilePath,
+						thumbnailSequence: result.thumbnailSequence,
+						hash: result.hash,
+					});
 					if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
 						players.push({ id: genId(), name: result.name, sourceType: 'asset', assetId: id });
 					}

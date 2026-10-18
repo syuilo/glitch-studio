@@ -24,6 +24,7 @@ import { PreviewRenderEngine } from './PreviewRenderEngine.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
 import { applicationActivity } from './application-activity.ts';
 import { getRendererAssets } from './utility/renderer-assets.ts';
+import { resolveExternalAssets } from './external-assets.ts';
 import { timelineClipboard, getTimelineEditorState, getSelectedTimelineLayerId } from './utility/timeline-editor-state.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
@@ -152,14 +153,28 @@ export class AppContext {
 			},
 		}));
 		for (const controller of [this.visualModuleRendererManagerController, this.timelineRendererManagerController]) {
-			controller.onRenderFailure = (error, origin) => this.renderEngine.fail(error, origin);
+			controller.onRenderFailure = (error, origin) => {
+				this.renderEngine.fail(error, origin);
+				void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
+			};
 		}
+		window.addEventListener?.('focus', () => {
+			void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
+		});
+		this.visualModuleRendererManagerController.onAssetReadFailure = () => {
+			void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
+		};
 		watch(this.previewPlayback.liveVisualModuleId, id => {
 			if (id != null) return;
 			this.renderValidation.setLiveInputs(null);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 		}, { flush: 'sync' });
-		watch(() => this.timelineAudioPreview.error.value, message => { if (message) this.renderEngine.fail(new Error(message)); });
+		watch(() => this.timelineAudioPreview.error.value, message => {
+			if (message != null) {
+				this.renderEngine.fail(new Error(message));
+				void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
+			}
+		});
 		projectContext.stateManager.onChange(changes => {
 			this.renderValidation.update(changes);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
@@ -325,6 +340,7 @@ export class AppContext {
 		this.resolutionFactor.value = initialResolutionFactor;
 
 		this.voicevoxGeneration.reset();
+		await resolveExternalAssets(project.assets);
 		this.projectContext.load(project);
 		this.renderValidation.reset();
 		this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
@@ -382,7 +398,9 @@ export class AppContext {
 
 		this.projectWatchers.push(watch(this.projectContext.stateManager.state.assets, async () => {
 			try {
+				await resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 				await this.updatePreviewOptions({ assets: deepClone(this.projectContext.stateManager.state.assets.value) });
+				this.renderEngine.requestRetry();
 				// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
 				this.previewPlayback.refresh();
 			} catch (error) {

@@ -14,7 +14,7 @@ async function bundle(path) {
 		plugins: [{
 			name: 'renderer-call-dependencies',
 			setup(build) {
-				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@gs/subsystems_timeline_shared/layer-tree.ts' || args.path === '@gs/subsystems_timeline_shared/types.ts' || args.path === './types.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/glitch-studio_shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
+				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@gs/subsystems_timeline_shared/layer-tree.ts' || args.path === '@gs/subsystems_timeline_shared/types.ts' || args.path === './types.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/shared/file-source.ts' || args.path === '@gs/glitch-studio_shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: `
 					export const ref = value => ({ value });
 					export const shallowReactive = value => value;
@@ -27,7 +27,7 @@ async function bundle(path) {
 					export const isVideoFrameAvailable = () => false;
 					export const playVideoAfterFirstFrameIsReady = () => {}, setupWebcam = () => {};
 					export const alert = () => {};
-					export class AudioInputs { dispose() {} reconnectRenderer() {} }
+					export class AudioInputs { dispose() {} reconnectRenderer() {} registerPlayer() {} removePlayer() {} }
 					export class LiveEffectStateStore { stop() {} }
 				` }));
 			},
@@ -68,6 +68,8 @@ async function fixture(t, options = {}) {
 		uncloneable() { return () => {}; }
 		pointerPositions = [];
 		updatePointerPosition(position) { this.pointerPositions.push(position); }
+		videoFrameUpdates = [];
+		updateVideoFrame(...args) { this.videoFrameUpdates.push(args); }
 	}
 	const workers = [];
 	const dependencies = {
@@ -75,8 +77,7 @@ async function fixture(t, options = {}) {
 		async createManager(settings) {
 			if (options.adapterError) throw options.adapterError;
 			const manager = new VisualModuleRendererManager({}, settings.staticOptions);
-			try { await manager.updateDynamicOptions(settings.dynamicOptions); }
-			catch (error) { manager.destroy(); throw error; }
+			try { await manager.updateDynamicOptions(settings.dynamicOptions); } catch (error) { manager.destroy(); throw error; }
 			return manager;
 		},
 		createWorker() {
@@ -113,9 +114,10 @@ async function fixture(t, options = {}) {
 		},
 	};
 	const context = {
-		dependencies, structuredClone, console, Error, module: { exports: {} },
+		dependencies, structuredClone, console, Error, Blob, URL, module: { exports: {} },
+		HTMLMediaElement: options.mediaElement ?? class {}, HTMLVideoElement: class {}, MediaStream: class {},
 		navigator: { gpu: { getPreferredCanvasFormat: () => 'rgba8unorm' } },
-		window: { document: { createElement: canvas } },
+		window: { document: { createElement: tag => tag === 'audio' && options.mediaElement != null ? new options.mediaElement() : canvas() } },
 	};
 	runInNewContext(controllerCode, context);
 	const controller = new context.module.exports.VisualModuleRendererManagerController({
@@ -126,6 +128,33 @@ async function fixture(t, options = {}) {
 	if (options.initialize !== false) await controller.relaunchManager();
 	return { controller, workers, pending, instances, notifications };
 }
+
+// 【初回の読み込み後のPlayerの読み取り失敗も使用側へ伝える】
+// loadeddataで待機リスナーを解除した後も、原本の削除やシーク中のI/O失敗を見逃さない。
+// 未使用のPlayerの障害で全描画を止めず、参照するノードが評価される際に失敗させる。
+test('reports player read failures after the initial media load has completed', async t => {
+	class MediaElement extends EventTarget {
+		error = null;
+		get src() { return this.source; }
+		set src(value) { this.source = value; queueMicrotask(() => this.dispatchEvent(new Event('loadeddata'))); }
+		pause() {}
+		load() {}
+		removeAttribute() { this.source = ''; }
+	}
+	t.mock.method(console, 'error', () => {});
+	const { controller, instances } = await fixture(t, { mediaElement: MediaElement });
+	let rechecks = 0;
+	controller.onAssetReadFailure = () => rechecks++;
+	await controller.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'audio/wav', fileData: { url: 'app://external-assets/audio', size: 100, error: null } }] });
+	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: 'asset' }]);
+	const media = controller.getMediaElement('player');
+	media.error = { message: 'Original file was removed' };
+	media.dispatchEvent(new Event('error'));
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(rechecks, 1);
+	assert.deepEqual(instances[0].videoFrameUpdates.at(-1), ['player', null, 'Original file was removed']);
+	assert.equal(controller.isReady.value, true);
+});
 
 // 【実行時失敗でWorkerを破棄し、編集した最新状態を再生成へ渡す】
 // エラー中の編集はControllerに保持し、破棄済みWorkerからの遅延通知ではエラーを変更しない。

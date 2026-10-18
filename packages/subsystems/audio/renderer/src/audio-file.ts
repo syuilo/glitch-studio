@@ -1,4 +1,6 @@
-import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
+import { AudioSampleSink } from 'mediabunny';
+import type { FileSource } from '@gs/shared/file-source.ts';
+import { createMediaInput } from '@gs/shared/media/media-input.ts';
 import { getAudioTrackError } from './audio-track-support.ts';
 import type { DecodedPcmBlock } from '@gs/subsystems_audio_shared/pcm.ts';
 
@@ -13,8 +15,8 @@ export type AudioFile = {
 };
 
 /** 成功時は呼び出し側がAudioFile.dispose()で解放する。失敗時はここで解放する。 */
-export async function openAudioFile(file: Blob): Promise<AudioFile> {
-	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+export async function openAudioFile(fileSource: FileSource): Promise<AudioFile> {
+	const input = createMediaInput(fileSource);
 	try {
 		const track = await input.getPrimaryAudioTrack();
 		if (!track) throw new Error('No audio track.');

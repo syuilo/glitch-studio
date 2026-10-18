@@ -1,3 +1,4 @@
+import { readFileSource, type FileSource } from '@gs/shared/file-source.ts';
 import type { EffectStatus } from '../../effect-status.ts';
 
 let nextFontId = 0;
@@ -6,7 +7,7 @@ export function createTextFontLoader(reportStatus: (status: EffectStatus) => voi
 	// 同じWorkerで複数のノードが別々のフォントを使っても衝突しない登録名。
 	const family = `GlitchTextFont${++nextFontId}`;
 	// undefinedは未要求、nullは標準フォントを要求済み。初回のprepare(null)でも準備と状態通知を行うため区別する。
-	let requestedBlob: Blob | null | undefined;
+	let requestedFileSource: FileSource | null | undefined;
 	let face: FontFace | null = null;
 	let fontSet: FontFaceSet | null = null;
 	let revision = 0;
@@ -19,9 +20,9 @@ export function createTextFontLoader(reportStatus: (status: EffectStatus) => voi
 		face = null;
 	}
 
-	async function load(blob: Blob, requestRevision: number) {
+	async function load(fileSource: FileSource, requestRevision: number) {
 		try {
-			const data = await blob.arrayBuffer();
+			const data = await ('url' in fileSource ? readFileSource(fileSource).then(file => file.arrayBuffer()) : fileSource.arrayBuffer());
 			if (disposed || revision !== requestRevision) return;
 			const loadedFace = await new FontFace(family, data).load();
 			// 選択変更・Asset置換・ノード破棄の前に開始した要求は公開しない。
@@ -45,25 +46,25 @@ export function createTextFontLoader(reportStatus: (status: EffectStatus) => voi
 		get ready() { return ready; },
 		get family() { return face == null ? 'sans-serif' : family; },
 		get cacheVersion() { return cacheVersion; },
-		prepare(blob: Blob | null) {
-			if (disposed || requestedBlob === blob) return;
-			requestedBlob = blob;
+		prepare(fileSource: FileSource | null) {
+			if (disposed || requestedFileSource === fileSource) return;
+			requestedFileSource = fileSource;
 			++revision;
 			++cacheVersion;
 			release();
-			ready = blob == null;
-			if (blob == null) {
+			ready = fileSource == null;
+			if (fileSource == null) {
 				reportStatus({ type: 'ready' });
 			} else {
 				reportStatus({ type: 'loading' });
-				void load(blob, revision);
+				void load(fileSource, revision);
 			}
 		},
 		dispose() {
 			disposed = true;
 			++revision;
 			release();
-			requestedBlob = undefined; // 未要求状態に戻す（nullは標準フォントの要求を表す）。
+			requestedFileSource = undefined; // 未要求状態に戻す（nullは標準フォントの要求を表す）。
 		},
 	};
 }

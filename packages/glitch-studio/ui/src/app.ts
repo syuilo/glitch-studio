@@ -175,6 +175,7 @@ async function loadMediaProject(file?: File) {
 		height: result.height,
 		fileDataType: result.type,
 		fileData: result.fileData,
+		isExternalReference: result.isExternalReference,
 		sourceFilePath: result.sourceFilePath,
 		thumbnailSequence: result.thumbnailSequence,
 		hash: result.hash,

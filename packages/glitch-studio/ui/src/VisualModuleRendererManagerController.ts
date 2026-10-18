@@ -1,4 +1,5 @@
 import { ref, shallowReactive } from 'vue';
+import { getFileSourceUrl, getFileSourceError, type FileSource } from '@gs/shared/file-source.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -20,6 +21,7 @@ import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOpti
 import * as ui from '@/ui.ts';
 
 export class VisualModuleRendererManagerController extends RendererManagerControllerBase<VisualModuleRendererManager> {
+	public onAssetReadFailure: (() => void) | null = null;
 	public readonly canvasRevision = ref(0);
 	public readonly outputResolution = ref<Resolution | null>(null);
 	public canvas: HTMLCanvasElement;
@@ -37,7 +39,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	};
 	private players: Player[] = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
-	private playerAssetFiles = new Map<Player['id'], Blob>();
+	private playerAssetFiles = new Map<Player['id'], FileSource>();
 	private audioInputs: AudioInputs;
 	private videoLoads = new Map<Player['id'], Promise<void>>();
 	private videoFrameCallbacks = new Map<Player['id'], number>();
@@ -124,6 +126,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				},
 			},
 			onCreated: () => {
+				for (const player of this.players) {
+					const asset = player.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
+					const error = asset == null ? null : getFileSourceError(asset.fileData);
+					if (error != null) this.call('updateVideoFrame', [player.id, null, error]);
+				}
 				this.audioInputs.reconnectRenderer();
 				// 一時停止中の動画には新しいフレーム通知が来ないため、現在のフレームも送り直す。
 				for (const [id, media] of this.videoElements) {
@@ -260,21 +267,31 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			if (!this.videoElements.has(player.id)) {
 				const asset = player.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
 				if (player.sourceType === 'asset' && !asset) continue;
+				if (asset != null && getFileSourceError(asset.fileData) != null) {
+					if (this.isReady.value) this.call('updateVideoFrame', [player.id, null, getFileSourceError(asset.fileData)]);
+					continue;
+				}
+				if (this.isReady.value) this.call('updateVideoFrame', [player.id, null]);
 				const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
 				video.loop = true;
 				video.preload = 'auto';
+				video.crossOrigin = 'anonymous';
 				video.volume = 1;
 				this.videoElements.set(player.id, video);
 				if (player.sourceType === 'asset') this.audioInputs.registerPlayer(player.id, video);
+				// loadeddata後も、再生・シーク中に原本を読めなくなる場合がある。
+				// 初回の読み込み待機とは別に監視し、使用中のPlayerへ障害を伝える。
+				video.addEventListener('error', () => {
+					if (video.error == null || this.videoElements.get(player.id) !== video) return;
+					if (this.isReady.value) this.call('updateVideoFrame', [player.id, null, video.error.message]);
+					this.onAssetReadFailure?.();
+					console.error(video.error);
+				});
 				this.videoLoads.set(player.id, new Promise<void>(resolve => {
 					const finish = () => {
 						video.removeEventListener('loadeddata', finish);
 						video.removeEventListener('error', finish);
 						video.removeEventListener('emptied', finish);
-						if (video.error && this.videoElements.get(player.id) === video) {
-							ui.alert({ type: 'error', text: video.error.message });
-							console.error(video.error);
-						}
 						resolve();
 					};
 					video.addEventListener('loadeddata', finish);
@@ -301,7 +318,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 				if (player.sourceType === 'asset') {
 					this.playerAssetFiles.set(player.id, asset!.fileData);
-					video.src = URL.createObjectURL(asset!.fileData);
+					video.src = getFileSourceUrl(asset!.fileData);
 				} else if (player.sourceType === 'webcam' && video instanceof HTMLVideoElement) {
 					this.videoLoads.set(player.id, setupWebcam().then(camera => {
 						video.srcObject = camera;

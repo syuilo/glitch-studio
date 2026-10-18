@@ -1,3 +1,4 @@
+import type { FileSource } from '@gs/shared/file-source.ts';
 import { openVideoSource } from '@gs/shared/media/video-source.ts';
 import { createVideoTexture } from '@gs/shared/media/video-texture.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
@@ -8,7 +9,7 @@ import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, options: {
+export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: FileSource, options: {
 	/** 方向の編集時はレンダラーを再生成する。素材時刻の変換はTimelineRendererが担当する。 */
 	reversePlayback: boolean;
 	device: GPUDevice;
@@ -18,7 +19,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 	format: IntermediateTextureFormat;
 	onCompositing?: TimelineCompositingObserver | null;
 }): TimelineLayerRenderer<TimelineImage> {
-	const source = openVideoSource(blob);
+	const source = openVideoSource(fileSource);
 	const texture = createVideoTexture(options.device, options.format);
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();

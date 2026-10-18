@@ -1,3 +1,4 @@
+import { readFileSource, type FileSource } from '@gs/shared/file-source.ts';
 import { MAX_CUBE_FILE_BYTES, parseCubeLut } from './cube.ts';
 import type { EffectStatus } from '../../effect-status.ts';
 import type { CubeLut } from './cube.ts';
@@ -7,16 +8,16 @@ export function createLutLoader<Resource extends { dispose: () => void }>(
 	createResource: (lut: CubeLut) => Resource,
 	reportStatus: (status: EffectStatus) => void,
 ) {
-	let requestedBlob: Blob | null = null;
+	let requestedFileSource: FileSource | null = null;
 	let resource: Resource | null = null;
 	let revision = 0;
 	let disposed = false;
 	let ready = true;
 
-	async function load(blob: Blob, generation: number) {
+	async function load(fileSource: FileSource, generation: number) {
 		try {
-			if (blob.size > MAX_CUBE_FILE_BYTES) throw new Error('Cube LUT exceeds the 128 MiB file limit.');
-			const text = await blob.text();
+			if (fileSource.size > MAX_CUBE_FILE_BYTES) throw new Error('Cube LUT exceeds the 128 MiB file limit.');
+			const text = await ('url' in fileSource ? readFileSource(fileSource).then(file => file.text()) : fileSource.text());
 			if (disposed || generation !== revision) return;
 			resource = createResource(parseCubeLut(text));
 			ready = true;
@@ -32,17 +33,17 @@ export function createLutLoader<Resource extends { dispose: () => void }>(
 		get resource() { return resource; },
 		get ready() { return ready; },
 		get cacheVersion() { return revision; },
-		prepare(blob: Blob | null) {
-			if (disposed || requestedBlob === blob) return;
-			requestedBlob = blob;
+		prepare(fileSource: FileSource | null) {
+			if (disposed || requestedFileSource === fileSource) return;
+			requestedFileSource = fileSource;
 			revision++;
 			resource?.dispose();
 			resource = null;
-			ready = blob == null;
-			if (blob == null) reportStatus({ type: 'ready' });
+			ready = fileSource == null;
+			if (fileSource == null) reportStatus({ type: 'ready' });
 			else {
 				reportStatus({ type: 'loading' });
-				void load(blob, revision);
+				void load(fileSource, revision);
 			}
 		},
 		dispose() {
@@ -50,7 +51,7 @@ export function createLutLoader<Resource extends { dispose: () => void }>(
 			revision++;
 			resource?.dispose();
 			resource = null;
-			requestedBlob = null;
+			requestedFileSource = null;
 		},
 	};
 }

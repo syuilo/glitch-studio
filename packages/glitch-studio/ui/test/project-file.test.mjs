@@ -8,6 +8,7 @@ import { setImmediate } from 'node:timers/promises';
 import { nextTick } from 'vue';
 
 const require = createRequire(import.meta.url);
+
 function evaluate(bundle) {
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(require, module, module.exports);
@@ -28,6 +29,7 @@ const appBundle = await build({
 	...buildOptions,
 	stdin: { resolveDir: buildOptions.absWorkingDir, loader: 'ts', contents: `
 		export * from './src/app.ts';
+		export { getAssetMenu } from './src/utility/asset-menu.ts';
 		export { recentProjects } from './src/recent-projects.ts';
 		export { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './src/AppContext.ts';
 	` },
@@ -1983,4 +1985,56 @@ test('round-trips camera layers and group compositing modes', async () => {
 	}] });
 	const decoded = decodeProjectFile(await encodeProjectFile(original));
 	assert.deepEqual(decoded.timelineScenes, original.timelineScenes);
+});
+
+// 【リロードを履歴に追加せず、再リンクとモード変換だけをUndo/Redoできる】
+// Undoで外部原本の古い内容へ戻さず、埋め込み側の原本とアセットID・表示名は維持する。
+test('reloads without undo and preserves modes paths and embedded bytes through conversion undo and redo', async t => {
+	const window = setup(t);
+	let version = 1;
+	let chosenDefault = null;
+	window.desktop = {
+		chooseAssetFile: async previous => { chosenDefault = previous; return 'C:/assets/selected.bin'; },
+		resolveExternalAsset: async path => ({ url: `app://external-assets/${version}/${encodeURIComponent(path)}`, size: 3, error: null }),
+	};
+	t.mock.method(globalThis, 'fetch', async () => new Response('new'));
+	const app = evaluate(appBundle);
+	const { appContext, getAssetMenu } = app;
+	await appContext.ready(project({ assets: [{ id: 'asset', name: 'Original display name', width: 0, height: 0,
+		fileDataType: 'application/octet-stream', isExternalReference: false, sourceFilePath: 'C:/original/source.bin', fileData: new Blob(['old']), thumbnailSequence: null }] }));
+	const manager = appContext.projectContext.stateManager;
+	const current = () => manager.state.assets.value[0];
+	const action = text => getAssetMenu(current()).find(item => item.text === text).action();
+	await action('Select external reference…');
+	await setImmediate();
+	assert.equal(chosenDefault, 'C:/original/source.bin');
+	assert.equal(current().isExternalReference, true);
+	assert.equal(current().sourceFilePath, 'C:/assets/selected.bin');
+	assert.equal(current().id, 'asset');
+	assert.equal(current().name, 'Original display name');
+	const historyLength = manager.undoStack.value.length;
+	version = 2;
+	await action('Reload');
+	await setImmediate();
+	assert.equal(manager.undoStack.value.length, historyLength);
+	assert.match(current().fileData.url, /external-assets\/2\//);
+	assert.equal('assetId' in current(), false);
+	manager.undo();
+	await setImmediate();
+	assert.equal(current().isExternalReference, false);
+	assert.equal(await current().fileData.text(), 'old');
+	manager.redo();
+	await setImmediate();
+	assert.equal(current().isExternalReference, true);
+	assert.match(current().fileData.url, /external-assets\/2\//);
+	await action('Embed in project');
+	await setImmediate();
+	assert.equal(current().isExternalReference, false);
+	assert.equal(await current().fileData.text(), 'new');
+	manager.undo();
+	await setImmediate();
+	assert.equal(current().isExternalReference, true);
+	manager.redo();
+	await setImmediate();
+	assert.equal(await current().fileData.text(), 'new');
 });

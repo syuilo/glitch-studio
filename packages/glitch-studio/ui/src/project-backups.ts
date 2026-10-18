@@ -85,6 +85,8 @@ export function createProjectBackupFingerprint(): (project: unknown) => string {
 	const blobs = new WeakMap<Blob, number>();
 	let nextId = 0;
 	return project => JSON.stringify(project, (_key, value: unknown) => {
+		// URL・可読性は再解決可能な実行時情報で、フォーカス復帰だけでは保存状態を変えない。
+		if (_key === 'fileData' && value != null && typeof value === 'object' && 'url' in value) return null;
 		if (!(value instanceof Blob)) return value;
 		if (!blobs.has(value)) blobs.set(value, ++nextId);
 		return { backupBlobId: blobs.get(value) };

@@ -1,8 +1,9 @@
 import { openVideoSource } from '@gs/shared/media/video-source.ts';
+import type { FileSource } from '@gs/shared/file-source.ts';
 
 /** 固定操作の時点で実フレームを確定する。可変FPSや逆再生の排他的な境界も描画と同じ規則で読む。 */
-export async function readTimelineVideoHoldFrame(blob: Blob, sourceTimeMs: number, reversePlayback = false): Promise<{ sourceTimeMs: number; sourceDurationMs: number }> {
-	const source = openVideoSource(blob);
+export async function readTimelineVideoHoldFrame(fileSource: FileSource, sourceTimeMs: number, reversePlayback = false): Promise<{ sourceTimeMs: number; sourceDurationMs: number }> {
+	const source = openVideoSource(fileSource);
 	try {
 		const { endTimestamp } = await source.prepare();
 		const sample = await source.getSample(sourceTimeMs / 1000, reversePlayback);

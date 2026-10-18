@@ -193,7 +193,7 @@ async function holdVideoFrame(sourceTimeMs: number, reversePlayback = false) {
 	if (entry == null || clip == null || holdingFrame.value) return;
 	const asset = stateManager.state.assets.value.find(asset => asset.id === clip.assetId);
 	if (asset == null) return;
-	const blob = asset.fileData;
+	const fileSource = asset.fileData;
 	const sceneId = props.sceneId;
 	const scene = stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId);
 	const snapshot = JSON.stringify(clip);
@@ -201,12 +201,12 @@ async function holdVideoFrame(sourceTimeMs: number, reversePlayback = false) {
 	holdingFrame.value = true;
 	holdError.value = '';
 	try {
-		const frame = await readTimelineVideoHoldFrame(blob, sourceTimeMs, reversePlayback);
+		const frame = await readTimelineVideoHoldFrame(fileSource, sourceTimeMs, reversePlayback);
 		// デコード待ちの間に選択・素材・プロジェクト・クリップ設定が変わったら適用しない。
 		// 再生ヘッドだけの移動は許可し、ボタンを押した瞬間のフレームを保存する。
 		if (generation !== holdGeneration || selectedVideoClip.value !== clip || JSON.stringify(clip) !== snapshot
 			|| stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId) !== scene
-			|| !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return;
+			|| !stateManager.state.assets.value.includes(asset) || asset.fileData !== fileSource) return;
 		stateManager.commit('holdVideoClipFrame', { sceneId, ...entry.target, ...frame });
 	} catch (error) {
 		if (generation === holdGeneration) holdError.value = error instanceof Error ? error.message : String(error);

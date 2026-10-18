@@ -9,6 +9,7 @@ import type { IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { TimelineTickMode } from './utility/timeline-ticks.ts';
 
 export const PREF_DEF = definePreferences({
+	importAssetsAsExternalReferences: { default: () => false },
 	projectBackups: { default: () => ({ ...DEFAULT_PROJECT_BACKUP_SETTINGS }) },
 	animation: { default: () => true },
 	menuStyle: { default: () => 'auto' },

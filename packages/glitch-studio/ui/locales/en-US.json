@@ -282,6 +282,13 @@
 		"LockRatio": "Lock X:Y ratio"
 	},
 	"_Assets": {
+		"DefaultExternalReference": "Import files as external references by default",
+		"Reload": "Reload",
+		"Relink": "Relink…",
+		"Embed": "Embed in project",
+		"ConvertToExternalReference": "Select external reference…",
+		"ExportOriginal": "Export embedded file…",
+
 		"Add": "Add Asset...",
 		"ImportLocalFont": "Import local font",
 		"Search": "Search by filename",

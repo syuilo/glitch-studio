@@ -1,4 +1,5 @@
 import type { Asset } from '@gs/shared/types.ts';
+import { getFileSourceError, readFileSource } from '@gs/shared/file-source.ts';
 
 type AssetTextureUpdate = {
 	completion: Promise<void>; finish: () => void; finished: boolean; failure: { error: unknown } | null;
@@ -62,7 +63,14 @@ export class AssetTextures {
 			// 大きな画像を同時にすべてデコードすると、一時メモリが膨らむため順番に処理する。
 			for (const asset of assets) {
 				if (!asset.fileDataType.startsWith('image/')) continue;
-				const bitmap = await createImageBitmap(asset.fileData);
+				if (getFileSourceError(asset.fileData) != null) continue;
+				let bitmap: ImageBitmap;
+				try { bitmap = await createImageBitmap(asset.fileData instanceof Blob ? asset.fileData : await readFileSource(asset.fileData)); } catch (error) {
+					// 未使用の外部画像の障害で、プロジェクト全体の準備を失敗させない。
+					// 使用時はテクスチャの欠落を描画エラーにする。
+					if (asset.fileData instanceof Blob) throw error;
+					continue;
+				}
 				try {
 					if (!isCurrent()) return false;
 					const texture = this.device.createTexture({

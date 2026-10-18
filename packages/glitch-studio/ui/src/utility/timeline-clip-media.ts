@@ -8,16 +8,16 @@ export type TimelineClipMediaInfo = { durationMs: number; audioAvailable: boolea
 export type TimelineClipSourceDurations = Record<string, Record<string, number>>;
 
 // 同じ素材を複数クリップに配置しても、メタデータを何度もデコードしない。
-// Blobの寿命に追従し、プロジェクトを閉じた後にファイルを保持し続けない。
-const metadataCache = new WeakMap<Blob, Promise<TimelineClipMediaInfo>>();
+// ファイル入力の寿命に追従し、プロジェクトを閉じた後にファイルを保持し続けない。
+const metadataCache = new WeakMap<object, Promise<TimelineClipMediaInfo>>();
 
 export function inspectTimelineClipMedia(asset: Asset): Promise<TimelineClipMediaInfo> {
-	const blob = asset.fileData;
-	const cached = metadataCache.get(blob);
+	const fileSource = asset.fileData;
+	const cached = metadataCache.get(fileSource);
 	if (cached) return cached;
 	const pending = (async () => {
 		if (asset.fileDataType.startsWith('video/')) {
-			const { metadata, audioError } = await inspectVideoLayerAsset(blob);
+			const { metadata, audioError } = await inspectVideoLayerAsset(fileSource);
 			return { durationMs: metadata.durationMs, audioAvailable: metadata.audio != null && !audioError, audioError };
 		}
 		const audio = await openAssetAudio(asset);
@@ -25,7 +25,7 @@ export function inspectTimelineClipMedia(asset: Asset): Promise<TimelineClipMedi
 			return { durationMs: audio.durationSeconds * 1000, audioAvailable: true, audioError: null };
 		} finally { audio.dispose(); }
 	})();
-	metadataCache.set(blob, pending);
-	void pending.catch(() => { metadataCache.delete(blob); });
+	metadataCache.set(fileSource, pending);
+	void pending.catch(() => { metadataCache.delete(fileSource); });
 	return pending;
 }

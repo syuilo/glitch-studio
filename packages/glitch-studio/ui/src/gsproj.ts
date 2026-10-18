@@ -9,6 +9,7 @@ import type { ProjectAsset } from './Project.ts';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ExportDialogSettings } from './export/export-settings.ts';
+import { readFileSource } from '@gs/shared/file-source.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 
@@ -62,16 +63,17 @@ type StoredThumbnailSequence = Omit<AssetThumbnailSequence, 'frames'> & {
 
 type StoredProject = Omit<Project, 'assets' | 'generatedSpeech'> & {
 	generatedSpeech: (Omit<GeneratedSpeech, 'fileData'> & { fileData: Uint8Array })[];
-	assets: (Omit<ProjectAsset, 'fileData' | 'thumbnailSequence'> & { fileData: Uint8Array; thumbnailSequence: StoredThumbnailSequence | null })[];
+	assets: (Omit<ProjectAsset, 'fileData' | 'thumbnailSequence'> & { fileData: Uint8Array | null; thumbnailSequence: StoredThumbnailSequence | null })[];
 };
 
-export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
+export async function encodeProjectFile(project: Project, handle: ProjectFileHandle | null = null): Promise<Uint8Array> {
+	project = await mapProjectAssetPaths(project, handle, true);
 	const assets = await Promise.all(project.assets.map(async asset => {
 		try {
 			const sequence = asset.thumbnailSequence;
 			return {
 				...asset,
-				fileData: new Uint8Array(await asset.fileData.arrayBuffer()),
+				fileData: asset.isExternalReference === true ? null : new Uint8Array(await (await readFileSource(asset.fileData)).arrayBuffer()),
 				thumbnailSequence: sequence == null ? null : {
 					...sequence,
 					frames: await Promise.all(sequence.frames.map(async frame => ({
@@ -101,7 +103,9 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 		generatedSpeech: project.generatedSpeech.map(speech => ({ ...speech, fileData: new Blob([new Uint8Array(speech.fileData)], { type: 'audio/wav' }) })),
 		assets: project.assets.map(asset => ({
 			...asset,
-			fileData: new Blob([new Uint8Array(asset.fileData)], { type: asset.fileDataType }),
+			fileData: asset.isExternalReference === true
+				? { url: null, size: 0, error: 'External reference is not resolved.' }
+				: new Blob([new Uint8Array(asset.fileData!)], { type: asset.fileDataType }),
 			thumbnailSequence: asset.thumbnailSequence == null ? null : {
 				width: asset.thumbnailSequence.width,
 				height: asset.thumbnailSequence.height,
@@ -112,6 +116,13 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 			},
 		})),
 	};
+}
+
+/** 実行中とUndo履歴は絶対パスのままにし、保存先ごとに独立したコピーだけを相対化する。 */
+export async function mapProjectAssetPaths(project: Project, handle: ProjectFileHandle | null, storing: boolean): Promise<Project> {
+	if (typeof window === 'undefined' || window.desktop?.assetProjectPaths == null || handle?.kind !== 'desktop-project-file') return project;
+	const paths = await window.desktop.assetProjectPaths(project.assets.map(asset => asset.sourceFilePath), handle.id, storing);
+	return { ...project, assets: project.assets.map((asset, index) => ({ ...asset, sourceFilePath: paths[index] })) };
 }
 
 const projectFilePickerOptions = {
@@ -174,7 +185,8 @@ export async function loadProjectFile(file?: File | null, handle?: ProjectFileHa
 			const descriptor = await window.desktop.registerProjectFile(file);
 			if (descriptor) handle = desktopProjectFile(descriptor);
 		}
-		return { project: decodeProjectFile(new Uint8Array(await file.arrayBuffer()), _VERSION_), name: file.name, handle };
+		const project = await mapProjectAssetPaths(decodeProjectFile(new Uint8Array(await file.arrayBuffer()), _VERSION_), handle ?? null, false);
+		return { project, name: file.name, handle };
 	}
 	if (window.desktop?.chooseProjectFile) {
 		const descriptor = await window.desktop.chooseProjectFile();

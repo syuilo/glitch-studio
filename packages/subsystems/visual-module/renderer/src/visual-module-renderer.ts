@@ -78,6 +78,7 @@ export class VisualModuleRenderer {
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private videoFrames: Map<string, VideoFrame>;
 	private videoFrameVersions: Map<string, number>;
+	private videoFrameErrors: ReadonlyMap<string, string>;
 	private assetTextures: Map<string, GPUTexture>;
 	private assets: Asset[];
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
@@ -100,6 +101,7 @@ export class VisualModuleRenderer {
 		intermediateTextureFormat: IntermediateTextureFormat;
 		videoFrames: Map<string, VideoFrame>;
 		videoFrameVersions: Map<string, number>;
+		videoFrameErrors?: ReadonlyMap<string, string>;
 		assets: Asset[];
 		visualModule: VisualModule;
 		assetTextures: Map<string, GPUTexture>;
@@ -120,6 +122,7 @@ export class VisualModuleRenderer {
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.videoFrames = options.videoFrames;
 		this.videoFrameVersions = options.videoFrameVersions;
+		this.videoFrameErrors = options.videoFrameErrors ?? new Map();
 		this.assetTextures = options.assetTextures;
 		this.assets = options.assets;
 		this.audioSources = options.audioSources;
@@ -277,10 +280,14 @@ export class VisualModuleRenderer {
 			resolvedParams[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param, path) => {
 				const v = getEvaluatedParameterValue(params, path);
 				if (def.dataType.kind === 'audioSource') return this.resolveAudioInput(node.id, path, param, v);
-				if (def.dataType.kind === 'playerReference') return v == null ? null : {
-					videoFrame: this.videoFrames.get(v) ?? null,
-					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
-				};
+				if (def.dataType.kind === 'playerReference') {
+					const error = v == null ? null : this.videoFrameErrors.get(v);
+					if (error != null) throw new Error(error);
+					return v == null ? null : {
+						videoFrame: this.videoFrames.get(v) ?? null,
+						audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
+					};
+				}
 				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
 					const output = this.getOutputValue(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
 					return output == null ? constantShaderInput(def.dataType.kind, null) : toShaderInput(output, param);

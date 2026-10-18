@@ -80,7 +80,7 @@ function single(t, options = {}) {
 	return { ...g, ...p, renderer, states, fallbackTexture, frame };
 }
 
-function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id, outputPort: 'output' } }) {
+function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id, outputPort: 'output' } }, rendererOptions = {}) {
 	const module = { paramDefs: [], primaryInputId: null, automationGraphs: [], outputDefs: Object.keys(outputs).map(id => ({ id })), primaryOutputId: 'out',
 		nodes: [...nodes, { id: 'out', type: 'globalOut', inputs: outputs }] };
 	const states = [];
@@ -91,6 +91,7 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 		effectDefinitions: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.definition])),
 		effectImplementations: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.implementation])), visualModule: module,
 		onEffectState: (id, state) => states.push({ id, state }),
+		...rendererOptions,
 	});
 	t.after(() => renderer.destroy());
 	const context = (options = {}) => ({ time: 1250, timeDelta: 20, endTime: 5000, isExport: false, evaluatedParamValues: new Map(),
@@ -98,6 +99,28 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 	return { renderer, module, states, context, render: (ctx = context()) => renderer.render(ctx, g.encoder),
 		prepare: (ctx = context(), signal = new AbortController().signal) => renderer.prepare(ctx, signal) };
 }
+
+// 【使用中のPlayerの原本が欠落した場合だけ、準備と描画の両方を失敗させる】
+// キャッシュ無効のエフェクトでも検出し、未接続のノードの参照切れで正常な出力を妨げない。
+// 書き出しの準備段階でも失敗させ、欠落フレームを含む動画を完成させない。
+test('fails preparation and rendering only for player sources used by the requested output', async t => {
+	for (const disableCache of [false, true]) {
+		const g = gpu();
+		const source = probe(g, { disableCache, paramDefs: { player: { dataType: { kind: 'playerReference' }, defaultValue: literal(null) } } });
+		const errors = new Map([['unused-player', 'Unused file is unavailable']]);
+		const f = graph(t, g, { source }, [node('unused', 'source', { player: literal('unused-player') }), node('used', 'source', { player: literal('used-player') })],
+			{ out: { nodeId: 'used', outputPort: 'output' } }, { videoFrameErrors: errors });
+		await f.prepare();
+		f.render();
+		assert.equal(source.renders.length, 1);
+		errors.set('used-player', 'Used file is unavailable');
+		await assert.rejects(f.prepare(f.context({ isExport: true })), /Used file is unavailable/);
+		assert.throws(() => f.render(), /Used file is unavailable/);
+		errors.delete('used-player');
+		await f.prepare();
+		f.render();
+	}
+});
 
 // 【解決済み入力と描画コンテキストを変更せず渡し、借用リソースを破棄しない】
 // ノードやSceneを用意せず利用でき、配列・構造体内のShaderInputもそのまま渡ることを保証する。

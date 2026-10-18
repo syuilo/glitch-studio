@@ -16,6 +16,12 @@ interface Window {
 		voicevoxSynthesize(request: import('@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts').VoicevoxRequest): Promise<{ data: Uint8Array; engineVersion: string; audioQuery: Record<string, unknown> }>;
 		takeStartupProjectFile(): Promise<{ id: string; name: string } | null>;
 		getPathForFile(file: File): string;
+		resolveExternalAsset(filePath: string, reload?: boolean): Promise<import('@gs/shared/file-source.ts').UrlFileSource>;
+		assetProjectPaths(paths: (string | null)[], projectId: string | null, storing: boolean): Promise<(string | null)[]>;
+		chooseAssetFile(previousPath: string | null): Promise<string | null>;
+		beginAssetExport(name: string): Promise<string | null>;
+		writeAssetExport(id: string, chunk: Uint8Array | null): Promise<void>;
+		abortAssetExport(id: string): Promise<void>;
 		registerProjectFile(file: File): Promise<{ id: string; name: string } | null>;
 		chooseProjectFile(): Promise<{ id: string; name: string } | null>;
 		listRecentProjects(): Promise<import('../recent-projects.ts').RecentProjectEntry[]>;

@@ -2,6 +2,7 @@ import { i18n } from '@/i18n.ts';
 import * as api from '../api.ts';
 import { progress } from '../ui.ts';
 import { applicationActivity } from '../application-activity.ts';
+import { preferences } from '../preferences.ts';
 import type { OpenedMediaFile, OpenMediaFileOptions } from '../api.ts';
 
 type ImportMediaFilesOptions = OpenMediaFileOptions & {
@@ -14,7 +15,7 @@ export async function importMediaFiles(files: readonly File[], options: ImportMe
 	const releaseActivity = applicationActivity.acquire();
 	const dialog = progress({ text: i18n.ts._Assets.Importing });
 	try {
-		const results = await api.openMediaFile({ ...options, files, multiple: true, onReadProgress: value => {
+		const results = await api.openMediaFile({ isExternalReference: preferences.s.importAssetsAsExternalReferences, ...options, files, multiple: true, onReadProgress: value => {
 			const { file, fileIndex, completedFiles, totalFiles, fileProgress } = value;
 			if (totalFiles > 1) {
 				// 全体は完了件数で測る。読み込み時間を予測できない段階も割合を偽らない。

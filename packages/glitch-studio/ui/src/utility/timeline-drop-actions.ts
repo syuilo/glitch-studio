@@ -68,12 +68,12 @@ export function createTimelineDropActions(options: TimelineDropActionsOptions) {
 		const asset = context.stateManager.state.assets.value.find(asset => asset.id === assetId);
 		if (asset == null || getTimelineAssetLayerType(asset) == null || !isActive()) return;
 		const startMs = currentTime();
-		const blob = asset.fileData;
+		const fileSource = asset.fileData;
 		const messages: string[] = [];
 		const dialog = progress({ text: i18n.tsx._Assets.PreparingTimelineLayer({ name: asset.name }) });
 		try {
 			const placement = await prepare([asset], startMs, dialog, messages);
-			if (placement != null && placement.layers.length > 0 && context.stateManager.state.assets.value.includes(asset) && asset.fileData === blob) {
+			if (placement != null && placement.layers.length > 0 && context.stateManager.state.assets.value.includes(asset) && asset.fileData === fileSource) {
 				context.stateManager.commit('addTimelineAssetLayers', placement);
 			}
 		} finally { dialog.done(); }

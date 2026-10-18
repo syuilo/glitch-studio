@@ -681,7 +681,7 @@ const mediaAssets = computed(() => {
 	const ids = new Set(sceneLayers.value.flatMap(layer => layer.layerType === 'video' || layer.layerType === 'audio' ? layer.clips.map(clip => clip.assetId) : []));
 	return stateManager.state.assets.value.filter(asset => ids.has(asset.id));
 });
-watch(() => mediaAssets.value.map(asset => ({ asset, blob: asset.fileData })), async (entries, _, onCleanup) => {
+watch(() => mediaAssets.value.map(asset => ({ asset, fileSource: asset.fileData })), async (entries, _, onCleanup) => {
 	let cancelled = false;
 	onCleanup(() => { cancelled = true; });
 	mediaInfo.value = new Map();

@@ -3,6 +3,7 @@ import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitio
 import { collectVisualModuleFile, encodeVisualModuleFile, decodeVisualModuleFile, prepareVisualModuleImport } from '../gsvm.ts';
 import * as ui from '../ui.ts';
 import { applicationActivity } from '../application-activity.ts';
+import { resolveExternalAssets } from '../external-assets.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ProjectContext } from '../Project.ts';
 
@@ -37,6 +38,7 @@ export async function exportVisualModuleFile(context: ProjectContext, visualModu
 		}
 	} catch (error) {
 		console.error(error);
+		await resolveExternalAssets(context.stateManager.state.assets.value);
 		await ui.alert({ type: 'error', title: i18n.ts._VisualModule.ExportTitle, text: error instanceof Error ? error.message : String(error) });
 	} finally { releaseActivity(); }
 }

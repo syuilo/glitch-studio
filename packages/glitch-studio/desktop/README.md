@@ -4,6 +4,12 @@ Windows x64向けのNSISインストーラーを配布します。開発起動�
 
 desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`でASAR内の実行時依存を再帰的に検査します。
 
+## 外部参照アセット
+
+`external-assets.mjs`は原本の可読性確認、パスの相対化・解決、原本書き出しを担当します。登録済みパスには推測不能なIDの`app://external-assets/` URLを発行し、RangeとHEADに対応したストリームで配信します。原本全体の`readFile()`や、実パスを直接指定するURLは使用しません。UIのIPC操作はメインウィンドウの送信元を検証します。モード・履歴・読み取り失敗の扱いは[アセット仕様](../../../docs/assets.md)を参照してください。
+
+通常のテストは範囲読み取り・再解決・パス・原本書き出しを検証します。`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/external-assets-electron.test.mjs`を実行すると、非表示のElectronウィンドウでPlayer再生とWorkerからの動画デコードも確認できます。
+
 ## 最近使用したプロジェクト
 
 WindowsとmacOSでは、プロジェクトを開く・保存する操作が成功してアプリ内の履歴へ記録した際に、`app.addRecentDocument()`でOSの履歴にも登録します。Windowsではタスクバーのジャンプリスト、macOSではDockアイコンの右クリックメニューから、最近の`.gsproj`を開けます。[Electronの仕様](https://www.electronjs.org/docs/latest/tutorial/recent-documents)も参照してください。

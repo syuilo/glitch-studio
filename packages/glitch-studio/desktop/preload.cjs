@@ -17,6 +17,12 @@ contextBridge.exposeInMainWorld('desktop', {
 	takeStartupProjectFile: () => ipcRenderer.invoke('desktop:take-startup-project-file'),
 	// FileをIPCへ送るとネイティブな情報が失われるため、preload内で元ファイルのパスを取得する。
 	getPathForFile: (file) => webUtils.getPathForFile(file),
+	resolveExternalAsset: (filePath, reload = false) => ipcRenderer.invoke('desktop:resolve-external-asset', filePath, reload),
+	assetProjectPaths: (paths, projectId, storing) => ipcRenderer.invoke('desktop:asset-project-paths', paths, projectId, storing),
+	chooseAssetFile: previousPath => ipcRenderer.invoke('desktop:choose-asset-file', previousPath),
+	beginAssetExport: name => ipcRenderer.invoke('desktop:begin-asset-export', name),
+	writeAssetExport: (id, chunk) => ipcRenderer.invoke('desktop:write-asset-export', id, chunk),
+	abortAssetExport: id => ipcRenderer.invoke('desktop:abort-asset-export', id),
 	registerProjectFile: (file) => {
 		const filePath = webUtils.getPathForFile(file);
 		return filePath ? ipcRenderer.invoke('desktop:register-project-file', filePath) : Promise.resolve(null);

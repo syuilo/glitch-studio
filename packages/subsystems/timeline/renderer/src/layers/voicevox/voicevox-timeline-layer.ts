@@ -1,3 +1,4 @@
+import type { FileSource } from '@gs/shared/file-source.ts';
 import { getVoicevoxSubtitle } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle-timing.ts';
 import { createTextRenderer } from '../../text-rendering/text-renderer.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
@@ -9,7 +10,7 @@ import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-export function createVoicevoxTimelineLayer(layer: TimelineVoicevoxLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => Blob | null; resolveSpeech: SpeechResolver; onCompositing?: TimelineCompositingObserver | null }): TimelineLayerRenderer<TimelineImage> {
+export function createVoicevoxTimelineLayer(layer: TimelineVoicevoxLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => FileSource | null; resolveSpeech: SpeechResolver; onCompositing?: TimelineCompositingObserver | null }): TimelineLayerRenderer<TimelineImage> {
 	const renderer = createTextRenderer(options);
 	const compositor = createTimelineCompositor(options);
 	const parameters = new VoicevoxSubtitleParameters();

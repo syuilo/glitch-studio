@@ -5,6 +5,7 @@ import electronUpdater from 'electron-updater';
 import { registerVoicevoxIpc } from './voicevox.mjs';
 import { resolveAppPath } from './protocol-path.mjs';
 import { ProjectFiles } from './project-files.mjs';
+import { ExternalAssetFiles, registerExternalAssetIpc } from './external-assets.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
 import { RecentProjects, registerRecentProjectsIpc } from './recent-projects.mjs';
 import { getStartupProjectPath } from './startup-project.mjs';
@@ -16,6 +17,7 @@ import { DesktopUpdateController, registerDesktopUpdateIpc } from './desktop-upd
 import { findGitHubUpdate } from './github-updates.mjs';
 
 const projectFiles = new ProjectFiles();
+const externalAssetFiles = new ExternalAssetFiles();
 const exportFiles = new ExportFiles();
 
 // Windowsのファイル関連付けからの起動はプロセスごとに別ウィンドウを開く。
@@ -174,6 +176,11 @@ app.whenReady().then(async () => {
 	});
 	protocol.handle('app', async request => {
 		try {
+			if (new URL(request.url).host === 'external-assets') {
+				// NodeのURL.originは独自schemeをnullにするため、登録済みのstandard originを組み立てる。
+				const entry = new URL(entryUrl);
+				return externalAssetFiles.respond(request, `${entry.protocol}//${entry.host}`);
+			}
 			const filePath = resolveAppPath(request.url, uiRoot);
 			if (!filePath) return new Response('Forbidden', { status: 403 });
 			return await net.fetch(pathToFileURL(filePath).href);
@@ -182,6 +189,7 @@ app.whenReady().then(async () => {
 		}
 	});
 
+	registerExternalAssetIpc(ipcMain, dialog, externalAssetFiles, projectFiles, getTrustedMainWindow);
 	ipcMain.handle('desktop:show-test-alert', async event => {
 		const parent = getTrustedMainWindow(event);
 		await dialog.showMessageBox(parent, {

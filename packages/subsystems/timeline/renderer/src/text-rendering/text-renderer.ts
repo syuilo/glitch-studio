@@ -1,3 +1,4 @@
+import type { FileSource } from '@gs/shared/file-source.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { timelineTextureSize } from '../timeline-image.ts';
@@ -177,7 +178,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 	let outputKey: string | null = null;
 	let result: TimelineImage;
 	return {
-		prepare: (blob: Blob | null, signal: AbortSignal) => font.prepare(blob, signal),
+		prepare: (fileSource: FileSource | null, signal: AbortSignal) => font.prepare(fileSource, signal),
 		render(encoder: GPUCommandEncoder, values: TextRenderValues): TimelineImage {
 			const key = JSON.stringify([font.cacheVersion, values]);
 			if (key === outputKey) return result;

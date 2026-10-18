@@ -2,6 +2,9 @@
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')" @esc="modal?.close()">
 	<div :class="$style.root" class="_gaps_m" @keydown.stop>
 		<b>{{ i18n.ts._Settings.Title }}</b>
+		<GsSwitch v-if="desktopAvailable" v-model="importAssetsAsExternalReferences" data-test-default-external-reference>
+			{{ i18n.ts._Assets.DefaultExternalReference }}
+		</GsSwitch>
 		<section class="_gaps_m">
 			<b>{{ i18n.ts._Settings.Rendering }}</b>
 			<GsSwitch v-model="enable32bitDataTextures">
@@ -63,6 +66,8 @@ const { projectBackupAccess, projectBackupStatus } = appContext;
 
 const modal = useTemplateRef('modal');
 const settings = ref({ ...preferences.s.projectBackups });
+const desktopAvailable = window.desktop != null;
+const importAssetsAsExternalReferences = ref(preferences.s.importAssetsAsExternalReferences);
 const enable32bitDataTextures = ref(preferences.s.enable32bitDataTextures);
 const intermediateTextureFormat = ref(preferences.s.intermediateTextureFormat);
 const validationError = computed(() => {
@@ -73,6 +78,7 @@ function formatTime(value: number | null) { return value == null ? i18n.ts._Proj
 
 function apply() {
 	if (validationError.value) return;
+	preferences.commit('importAssetsAsExternalReferences', importAssetsAsExternalReferences.value);
 	preferences.commit('projectBackups', { ...settings.value });
 	preferences.commit('enable32bitDataTextures', enable32bitDataTextures.value);
 	preferences.commit('intermediateTextureFormat', intermediateTextureFormat.value);

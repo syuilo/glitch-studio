@@ -1,4 +1,6 @@
-import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
+
+import type { FileSource } from '../file-source.ts';
+import { createMediaInput } from './media-input.ts';
 import type { InputTrack } from 'mediabunny';
 
 export type MediaTrackTiming = { firstTimestamp: number; endTimestamp: number };
@@ -8,14 +10,14 @@ export type MediaMetadata = {
 	audio: (MediaTrackTiming & { numberOfChannels: number }) | null;
 };
 
-const metadata = new WeakMap<Blob, Promise<MediaMetadata>>();
+const metadata = new WeakMap<FileSource, Promise<MediaMetadata>>();
 
 /** 素材の事実だけを取得する。デコード対応や利用側のチャンネル制限には依存しない。 */
-export function readMediaMetadata(blob: Blob): Promise<MediaMetadata> {
-	let pending = metadata.get(blob);
+export function readMediaMetadata(fileSource: FileSource): Promise<MediaMetadata> {
+	let pending = metadata.get(fileSource);
 	if (!pending) {
-		pending = inspectMedia(blob).catch(error => { metadata.delete(blob); throw error; });
-		metadata.set(blob, pending);
+		pending = inspectMedia(fileSource).catch(error => { metadata.delete(fileSource); throw error; });
+		metadata.set(fileSource, pending);
 	}
 	return pending;
 }
@@ -29,8 +31,8 @@ async function readTiming(track: InputTrack): Promise<MediaTrackTiming> {
 	return { firstTimestamp, endTimestamp };
 }
 
-async function inspectMedia(blob: Blob): Promise<MediaMetadata> {
-	const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+async function inspectMedia(fileSource: FileSource): Promise<MediaMetadata> {
+	const input = createMediaInput(fileSource);
 	try {
 		const videoTrack = await input.getPrimaryVideoTrack();
 		const audioTrack = await input.getPrimaryAudioTrack();

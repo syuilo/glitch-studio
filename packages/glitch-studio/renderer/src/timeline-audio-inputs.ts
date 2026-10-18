@@ -1,3 +1,4 @@
+import type { FileSource } from '@gs/shared/file-source.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { AudioFileReader } from '@gs/subsystems_audio_renderer/audio-file-reader.ts';
@@ -30,7 +31,7 @@ export class TimelineAudioInputs {
 		this.revision++;
 	}
 
-	constructor(private assets: readonly Asset[] = [], private openFile: (file: Blob) => Promise<AudioFile> = openAudioFile) {}
+	constructor(private assets: readonly Asset[] = [], private openFile: (fileSource: FileSource) => Promise<AudioFile> = openAudioFile) {}
 
 	setAssets(assets: readonly Asset[]) {
 		this.current?.dispose();

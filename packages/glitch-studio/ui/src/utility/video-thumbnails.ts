@@ -1,9 +1,11 @@
-import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
+import type { FileSource } from '@gs/shared/file-source.ts';
+import { createMediaInput } from '@gs/shared/media/media-input.ts';
+import { CanvasSink } from 'mediabunny';
 import type { AssetThumbnailSequence } from '../asset-thumbnail.ts';
 
 /** 素材の映像範囲を10等分する。音声の長さやタイムラインのFPSには依存しない。 */
-export async function generateVideoThumbnails(blob: Blob, onProgress: (value: number) => void = () => {}): Promise<AssetThumbnailSequence> {
-	const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+export async function generateVideoThumbnails(fileSource: FileSource, onProgress: (value: number) => void = () => {}): Promise<AssetThumbnailSequence> {
+	const input = createMediaInput(fileSource);
 	try {
 		onProgress(0);
 		const track = await input.getPrimaryVideoTrack();

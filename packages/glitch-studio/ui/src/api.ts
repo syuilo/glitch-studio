@@ -1,6 +1,7 @@
 import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
 import { generateVideoThumbnails } from './utility/video-thumbnails.ts';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
+import { getFileSourceUrl, getFileSourceError, releaseFileSourceUrl, readFileSource, type FileSource } from '@gs/shared/file-source.ts';
 
 // OSによってフォントのMIMEが空やapplication/*になるため、取り込み時に正規化する。
 // Asset名は後から変更できるので、取り込み後の判定には拡張子を使わない。
@@ -31,7 +32,8 @@ export type OpenedMediaFile = {
 	height: number;
 	name: string;
 	type: string;
-	fileData: Blob;
+	fileData: FileSource;
+	isExternalReference: boolean;
 	sourceFilePath: string | null;
 	thumbnailSequence: AssetThumbnailSequence | null;
 	hash?: string;
@@ -46,6 +48,8 @@ export type MediaFileReadProgress = {
 };
 
 export type OpenMediaFileOptions = {
+	isExternalReference?: boolean;
+	sourceFilePath?: string;
 	multiple?: boolean;
 	file?: File;
 	files?: readonly File[];
@@ -85,17 +89,20 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 		if (options.allowAnyFile !== true && fontType == null && !isMedia) throw new Error('Unsupported media type');
 		// パスは元のFileからだけ取得できる。ブラウザのfakepathや相対パスは原本の場所を示さない。
 		// ElectronでもJSで生成したFileにはパスがないため、空文字列は未取得として扱う。
-		const sourceFilePath = window.desktop?.getPathForFile(file) || null;
-		// Fileやそのsliceを保持しただけでは、元ファイルの変更・削除後に読み出せなくなる。
-		// 原本のバイト列を取り込み時にコピーし、寸法取得・プレビュー・保存で同じ内容を使う。
-		// new Blob([file])も元ファイルを参照するため、必ずarrayBufferを経由する。
-		let fileData: Blob;
+		const sourceFilePath = options.sourceFilePath ?? (window.desktop?.getPathForFile(file) || null);
+		const isExternalReference = options.isExternalReference === true && window.desktop?.resolveExternalAsset != null && sourceFilePath != null;
+		// 埋め込みは取り込み時の原本をコピーして外部変更から独立させる。
+		// 外部参照だけはコピーせず、Electronが発行した範囲読み取り用URLを保持する。
+		let fileData: FileSource;
 		try {
-			fileData = new Blob([await file.arrayBuffer()], { type });
+			fileData = isExternalReference ? await window.desktop!.resolveExternalAsset(sourceFilePath!, true)
+				: new Blob([await file.arrayBuffer()], { type });
 		} catch (cause) {
 			throw new Error(`Could not read "${file.name}". Select the source file again.`, { cause });
 		}
-		const source = { name: file.name, type, fileData, sourceFilePath, thumbnailSequence: null };
+		const fileError = getFileSourceError(fileData);
+		if (fileError != null) throw new Error(fileError);
+		const source = { name: file.name, type, fileData, sourceFilePath, isExternalReference, thumbnailSequence: null };
 		if (fontType != null || !isMedia) {
 			// 汎用ファイルはデコードの対象にせず、プロジェクトに原本を保存する。
 			// フォントもここではデコードせず、使用するエフェクトがFontFaceとして読み込む。
@@ -104,13 +111,14 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 		if (type.startsWith('audio/') || type.startsWith('video/')) {
 			const result = await new Promise<OpenedMediaFile>((resolve, reject) => {
 				const media = window.document.createElement(type.startsWith('audio/') ? 'audio' : 'video');
-				const url = URL.createObjectURL(fileData);
+				media.crossOrigin = 'anonymous';
+				const url = getFileSourceUrl(fileData);
 				const cleanup = () => {
 					media.onloadedmetadata = null;
 					media.onerror = null;
 					media.removeAttribute('src');
 					media.load();
-					URL.revokeObjectURL(url);
+					releaseFileSourceUrl(fileData, url);
 				};
 				media.preload = 'metadata';
 				media.onloadedmetadata = () => {
@@ -138,7 +146,7 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 		}
 		// デコード可能かと寸法だけを確認し、画素データは保持しない。
 		// レンダラーと同じデコード経路を使い、取り込めても描画できない画像を避ける。
-		const bitmap = await createImageBitmap(fileData);
+		const bitmap = await createImageBitmap(await readFileSource(fileData));
 		try {
 			return { ...source, width: bitmap.width, height: bitmap.height };
 		} finally {

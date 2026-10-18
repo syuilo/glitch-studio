@@ -18,10 +18,11 @@ import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.t
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { ExportDialogSettings } from './export/export-settings.ts';
 
-// 取り込み元の記録はUIのプロジェクト状態が所有する。描画・保存のバイナリは常にfileDataを使い、
-// 原本の移動・削除や別PCでの読み込みによって素材の内容が変わらないようにする。
+// 保存方法・原本パスはプロジェクトが所有し、subsystemにはBlob/URLの読み取り口だけを渡す。
 export type ProjectAsset = Asset & {
-	// Electronで取得できた元ファイルの絶対パス。ブラウザやディスクにない素材はnull。
+	isExternalReference: boolean;
+	// Electronでは解決済み絶対パス、保存時はプロジェクト配下だけ相対化する。
+	// Webでは保存された表記を保持する。実ファイル由来でない素材はnull。
 	sourceFilePath: string | null;
 	thumbnailSequence: AssetThumbnailSequence | null;
 };

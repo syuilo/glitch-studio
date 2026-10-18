@@ -1,10 +1,12 @@
+import type { FileSource } from './file-source.ts';
+
 export type Asset = {
 	id: string;
 	name: string;
 	width: number;
 	height: number;
 	fileDataType: string;
-	fileData: Blob;
+	fileData: FileSource;
 	hash?: string;
 };
 

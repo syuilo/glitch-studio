@@ -233,3 +233,23 @@ test('keeps media-only imports restricted when arbitrary file support is not req
 	await assert.rejects(openMediaFile({ file: new File(['text'], 'notes.txt', { type: 'text/plain' }) }), /Unsupported media type/);
 	assert.deepEqual(platform.decodedSources, []);
 });
+
+// 【外部参照は原本の全体読み込みを避け、実行時のURLとサイズだけを保持する】
+// パスを取得できるElectronのファイルだけを対象にし、パスを持たない生成素材は従来どおりコピーする。
+test('imports external references without reading the entire file and embeds pathless files', async t => {
+	setupMedia(t);
+	const file = new File(['encoded'], 'large.bin', { type: 'application/octet-stream' });
+	t.mock.method(file, 'arrayBuffer', () => assert.fail('External imports must not read the entire source'));
+	window.desktop = {
+		getPathForFile: () => 'C:\\assets\\large.bin',
+		resolveExternalAsset: async () => ({ url: 'app://external-assets/large', size: 1024 ** 4, error: null }),
+	};
+	const imported = await openMediaFile({ file, allowAnyFile: true, isExternalReference: true });
+	assert.equal(imported.isExternalReference, true);
+	assert.equal(imported.fileData.size, 1024 ** 4);
+	assert.equal(imported.fileData.url, 'app://external-assets/large');
+	window.desktop.getPathForFile = () => '';
+	const generated = await openMediaFile({ file: new File(['generated'], 'generated.bin'), allowAnyFile: true, isExternalReference: true });
+	assert.equal(generated.isExternalReference, false);
+	assert.equal(await generated.fileData.text(), 'generated');
+});

@@ -22,6 +22,7 @@
 </template>
 
 <script lang="ts" setup>
+import { getFileSourceUrl, getFileSourceError, releaseFileSourceUrl } from '@gs/shared/file-source.ts';
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
 import type { ProjectAsset } from '@/Project.ts';
@@ -82,10 +83,11 @@ watch(() => [props.asset.fileData, props.asset.fileDataType, props.asset.thumbna
 	([fileData, type, sequence, isVisible, isDocumentVisible], _previous, onCleanup) => {
 		imageUrl.value = null;
 		if (!isVisible || !isDocumentVisible) return;
+		if (getFileSourceError(fileData) != null) return;
 		const files = type.startsWith('image/') ? [fileData]
 			: type.startsWith('video/') ? sequence?.frames.map(frame => frame.fileData) ?? [] : [];
 		if (files.length === 0) return;
-		const urls = files.map(file => URL.createObjectURL(file));
+		const urls = files.map(file => getFileSourceUrl(file));
 		let active = true;
 		let timer: ReturnType<typeof window.setTimeout> | null = null;
 		let pendingImage: HTMLImageElement | null = null;
@@ -117,7 +119,7 @@ watch(() => [props.asset.fileData, props.asset.fileDataType, props.asset.thumbna
 			active = false;
 			if (timer != null) window.clearTimeout(timer);
 			pendingImage?.removeAttribute('src');
-			for (const url of urls) URL.revokeObjectURL(url);
+			for (const [index, url] of urls.entries()) releaseFileSourceUrl(files[index], url);
 		});
 		void display(0, prepare(0));
 	}, { immediate: true });
