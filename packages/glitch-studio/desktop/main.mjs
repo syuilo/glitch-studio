@@ -73,8 +73,9 @@ function createWindow() {
 		show: false,
 		title: 'Glitch Studio',
 		titleBarStyle: 'hidden',
+		backgroundColor: '#000',
 		...(process.platform !== 'darwin' ? { titleBarOverlay: {
-			color: '#000',
+			color: 'rgba(1, 0, 0, 0)',
 			symbolColor: '#fff',
 		} } : {}),
 		webPreferences: {

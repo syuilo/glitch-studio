@@ -9,23 +9,25 @@
 
 <div ref="root" :class="$style.root">
 	<div :class="$style.header">
-		<div :class="$style.headerLeft">
-			<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
-			<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
-			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
-			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
-			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
-			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
-			<button v-if="desktopUpdates?.state.value.version != null" class="_button" :class="[$style.headerMenuItem, $style.updateNotification]" data-test-desktop-update-notification @click="requestDesktopUpdate">{{ i18n.ts._DesktopUpdate.Available }}</button>
-		</div>
-		<div :class="$style.headerCenter">
-			{{ projectName }}
-			<span v-if="hasUnsavedChanges" v-tooltip="i18n.ts._App.UnsavedChanges">*</span>
-			<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
-		</div>
-		<div :class="$style.headerRight">
-			<span v-if="isProjectSaving" :class="$style.projectSaving" role="status" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}</span>
-			Glitch Studio
+		<div :class="$style.headerInner">
+			<div :class="$style.headerLeft">
+				<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
+				<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
+				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
+				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
+				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
+				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
+				<button v-if="desktopUpdates?.state.value.version != null" class="_button" :class="[$style.headerMenuItem, $style.updateNotification]" data-test-desktop-update-notification @click="requestDesktopUpdate">{{ i18n.ts._DesktopUpdate.Available }}</button>
+			</div>
+			<div :class="$style.headerCenter">
+				{{ projectName }}
+				<span v-if="hasUnsavedChanges" v-tooltip="i18n.ts._App.UnsavedChanges">*</span>
+				<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
+			</div>
+			<div :class="$style.headerRight">
+				<span v-if="isProjectSaving" :class="$style.projectSaving" role="status" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}</span>
+				Glitch Studio
+			</div>
 		</div>
 	</div>
 	<div :class="$style.body">
@@ -508,16 +510,20 @@ onMounted(async () => {
 }
 
 .header {
-	display: flex;
 	height: 32px;
 	line-height: 32px;
 	box-sizing: border-box;
 
-	padding-left: env(titlebar-area-x, 0);
-	width: env(titlebar-area-width, 100%);
 	app-region: drag;
 
 	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
+}
+
+.headerInner {
+	display: flex;
+	padding-left: env(titlebar-area-x, 0);
+	width: env(titlebar-area-width, 100%);
+	box-sizing: border-box;
 }
 
 .headerLeft {
