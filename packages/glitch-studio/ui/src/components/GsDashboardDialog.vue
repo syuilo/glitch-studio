@@ -179,6 +179,8 @@ function showAbout() {
 
 .main {
 	padding: 32px;
+	box-sizing: border-box;
+	width: 320px;
 	border-right: solid 1px #fff1;
 }
 
