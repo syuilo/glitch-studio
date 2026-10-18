@@ -54,10 +54,10 @@
 			</div>
 		</div>
 		<div ref="layersEl" :class="$style.layers" data-timeline-surface>
+			<div :class="$style.layersHeader">
+				<span class="_monospace">{{ formatFullTimecode(time) }}</span>
+			</div>
 			<div style="direction: ltr;">
-				<div :class="$style.layersHeader">
-					<span class="_monospace">{{ formatFullTimecode(time) }}</span>
-				</div>
 				<div :class="$style.layersActions">
 					<GsButton v-tooltip="i18n.ts._Timeline.AddLayer" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
 				</div>
@@ -146,7 +146,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
@@ -166,6 +165,7 @@ import type { TimelineContainerLayer, TimelineLayer } from '@gs/subsystems_timel
 import type { TimelineClipSelection, TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import { i18n } from '@/i18n.ts';
 import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
 import { useTimelineInteraction } from '@/composables/useTimelineInteraction.ts';
 import { useTimelineMarqueeSelection } from '@/composables/useTimelineMarqueeSelection.ts';
@@ -880,6 +880,11 @@ function formatFullTimecode(timeMs: number): string {
 }
 
 .layersHeader {
+	position: sticky;
+	top: 0;
+	left: 0;
+	z-index: 10;
+	align-self: flex-end;
 	flex-shrink: 0;
 	display: flex;
 	width: var(--sideWidth);
@@ -889,6 +894,7 @@ function formatFullTimecode(timeMs: number): string {
 	gap: 8px;
 	margin-bottom: 8px;
 	background: var(--THEME-bg);
+	direction: ltr;
 }
 
 .layersActions {
