@@ -205,7 +205,8 @@ test('snapshots layer values once for prepare and render', async () => {
 });
 
 // 【レイヤーからモジュールへの評価で既定値と主入力を区別する】
-// 呼び出し側の移行で既定値と主入力の扱いが失われないことを実際のレイヤー変換で確認する。
+// 公開主入力の保存値がない場合は下層入力を既定とし、CPU評価値へ混ぜずInノードへ渡す。
+// 明示Bindingを編集可能にしても、未編集のレイヤーの意味を維持する。
 test('keeps layer defaults and excludes primary inputs from evaluated values', async () => {
 	const definitions = [
 		{ ...def('input', [0, 0, 0, 0]), dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true },
@@ -215,7 +216,6 @@ test('keeps layer defaults and excludes primary inputs from evaluated values', a
 	let resolved;
 	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: 'input' }, {
 		automationGraphs: [], visualModuleParamValues: {
-			input: expression('invalid expression'),
 			missing: { inputSource: 'automationGraphReference', automationGraphId: 'absent', offsetMode: 'start', wrapMode: 'repeat', trimmedDurationMs: 1000 },
 			invalid: expression('UNKNOWN'), export: expression('IS_EXPORT'),
 		},

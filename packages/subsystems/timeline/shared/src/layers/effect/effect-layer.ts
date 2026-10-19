@@ -1,14 +1,10 @@
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
-import { validateTimelineParameterTree } from '../../parameter-binding.ts';
+import { createLayerInputBinding, validateTimelineParameterTree } from '../../parameter-binding.ts';
 import type { TimelineEffectParameterBinding } from '../../types.ts';
 import type { TimelineEffectLayer } from '../../types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
-import type { TimelineLayerInputBinding } from '../../parameter-binding.ts';
-
-export function createLayerInputBinding(): TimelineLayerInputBinding {
-	return { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
-}
+export { createLayerInputBinding } from '../../parameter-binding.ts';
 
 // エフェクト定義の既定値は変更しない。レイヤーとしての作成・リセットだけで上書きする。
 export function getEffectLayerParameterDefault(definition: EffectDefinition, key: string): TimelineEffectParameterBinding {
@@ -22,6 +18,8 @@ export function validateTimelineEffectLayer(layer: TimelineEffectLayer, definiti
 	if (definition == null) throw new Error(`Effect not found: ${layer.effectId}`);
 	validateEffectResolution(layer.resolution);
 	for (const [key, def] of Object.entries(definition.paramDefs)) {
-		validateTimelineParameterTree(def, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key), true);
+		validateTimelineParameterTree(def, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key), true, true, (_definition, binding) => {
+			if ((binding.inputSource === 'layerInput' || binding.inputSource === 'anotherLayerOutput') && !('fitMode' in binding)) throw new Error('Effect image input requires sampling');
+		});
 	}
 }

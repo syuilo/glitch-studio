@@ -305,6 +305,7 @@ test('ignores an older seek that finishes preparation after a newer seek', async
 	const f = fixture({ prepare: (id, context) => context.contentTimeMs === 10 ? oldPreparation.promise : undefined });
 	const timeline = [entry('a')];
 	const oldSeek = f.renderer.renderAt(10, timeline);
+	await new Promise(setImmediate);
 	await f.renderer.renderAt(20, timeline);
 	assert.equal(f.prepared[0].signal.aborted, true);
 	oldPreparation.resolve();
@@ -338,6 +339,7 @@ test('aborts pending preparation and releases layers when cleared', async () => 
 	const preparation = deferred();
 	const f = fixture({ prepare: () => preparation.promise });
 	const seek = f.renderer.renderAt(10, [entry('a')]);
+	await new Promise(setImmediate);
 	f.renderer.clear();
 	assert.equal(f.prepared[0].signal.aborted, true);
 	assert.deepEqual(f.destroyed, ['a']);
@@ -370,6 +372,7 @@ test('ignores stale failures without clearing the current layers', async () => {
 	const f = fixture({ prepare: (id, context) => context.contentTimeMs === 10 ? preparation.promise : undefined });
 	const timeline = [entry('a')];
 	const oldSeek = f.renderer.renderAt(10, timeline);
+	await new Promise(setImmediate);
 	await f.renderer.renderAt(20, timeline);
 	preparation.reject(new Error('stale failure'));
 	await oldSeek;
@@ -523,6 +526,7 @@ test('evaluates offscreen results and propagates parent cancellation', async () 
 	const f = fixture({ prepare: () => waiting.promise });
 	const controller = new AbortController();
 	const pending = f.renderer.evaluateAt(100, [entry('child')], 0, false, controller.signal);
+	await new Promise(setImmediate);
 	controller.abort();
 	assert.equal(f.prepared[0].signal.aborted, true);
 	waiting.resolve();
@@ -585,4 +589,42 @@ test('passes clip progress separately from module content time and scene argumen
 	await adapter.evaluate(context, new AbortController().signal);
 	await adapter.evaluate({ ...context, clipElapsedTimeMs: 400, clipDurationMs: 800 }, new AbortController().signal);
 	assert.deepEqual(contexts.map(ctx => [ctx.time, ctx.endTime, ctx.progress, ctx.evaluatedParamValues.get('time')]), [[600, 1000, 0.6, 700], [600, 1000, 0.5, 700]]);
+});
+
+// 【参照する側のブラー無効化で参照先の通常描画時刻を変えない】
+// 入力まで基準時刻へ固定するとlayerInputと振る舞いが食い違い、同じ素材を別時刻で
+// 二度生成する必要も生じる。取得先と祖先の通常の時計を使って一度だけ評価する。
+test('uses the targets normal sample time when the receiver disables motion blur', async () => {
+	const calls = [];
+	const renderer = new TimelineRenderer({ fallbackOutput: 'transparent', createLayer: layer => ({ lazyInput: true,
+		async evaluate(context) {
+			const referenced = layer.id === 'receiver' ? await context.getLayerOutput('source', 'source') : null;
+			calls.push([layer.id, context.sceneTimeMs, referenced]);
+			const source = layer.id + '@' + context.sceneTimeMs;
+			return { source, rendered: () => source, composite: () => source, gpuTime: 1 };
+		}, destroy() {},
+	}) });
+	try {
+		const result = await renderer.evaluateAt(110, [entry('source'), { ...entry('receiver'), forceDisableMotionBlur: true }], 10, false, undefined, { timeMs: 100, timeDelta: 16 });
+		assert.deepEqual(calls, [['source', 110, null], ['receiver', 100, 'source@110']]);
+		assert.equal(result.gpuTime, 2);
+	} finally { renderer.clear(); }
+});
+
+// 【静的検証を迂回した循環も、Promiseの自己待機で停止せず診断する】
+// 通常はUIが拒否するが、直接のRenderer利用でも無限待機やスタックオーバーフローを避ける。
+// エラー後に評価用リソースを解放し、次の正常な描画へ復旧できることも確認する。
+test('rejects recursive image dependencies at runtime without hanging', async () => {
+	let circular = true;
+	const renderer = new TimelineRenderer({ fallbackOutput: 'transparent', createLayer: layer => ({ lazyInput: true,
+		async evaluate(context) {
+			if (circular) await context.getLayerOutput(layer.id === 'a' ? 'b' : 'a', 'source');
+			return { source: layer.id, composite: () => layer.id, gpuTime: 0 };
+		}, destroy() {},
+	}) });
+	try {
+		await assert.rejects(renderer.evaluateAt(100, [entry('a'), entry('b')]), /Circular layer output reference/);
+		circular = false;
+		assert.equal((await renderer.evaluateAt(100, [entry('a'), entry('b')])).output, 'a');
+	} finally { renderer.clear(); }
 });

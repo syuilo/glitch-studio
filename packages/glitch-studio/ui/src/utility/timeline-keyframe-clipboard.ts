@@ -11,7 +11,7 @@ import { getLayerParameterDefinitions, getLayerParameterValues, resolveLayerPara
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { KeyframesDataType, KeyframesTimelineKeyframe } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import type { TimelineScene, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
-import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import type { ProjectState } from '../Project.ts';
 import type { TimelineKeyframeSelection } from './timeline-selection.ts';
 
@@ -38,8 +38,8 @@ type ParameterUpdate = {
 	layerId: string;
 	target: TimelineParameterTarget;
 	paramId: string;
-	before: TimelineEffectParameterBinding | null;
-	after: TimelineEffectParameterBinding;
+	before: EditableTimelineParameterBinding | null;
+	after: EditableTimelineParameterBinding;
 };
 type UtteranceUpdate = { layerId: string; target: 'utterance'; before: VoicevoxUtterance[]; after: VoicevoxUtterance[] };
 
@@ -110,7 +110,7 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 				updates.set(key, update);
 			}
 			const draft = { [paramId]: update.after };
-			const resolved = resolveParameter<TimelineEffectParameterBinding>(defs, draft, entry.paramPath);
+			const resolved = resolveParameter<EditableTimelineParameterBinding>(defs, draft, entry.paramPath);
 			if (resolved.value.inputSource !== 'keyframesTimelineInline') return null;
 			// enumの選択肢変更は追加する値を最新の定義で検証する。既存の古いキーは保持する。
 			if (!lane.every(point => (point.dataType.kind === 'enum' && resolved.def.dataType.kind === 'enum')
@@ -119,7 +119,7 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 			if (!next) return null;
 			resolved.setValue(next);
 			update.after = draft[paramId];
-			validateTimelineParameterTree(defs[paramId], update.after, entry.target === 'effect', entry.target === 'effect' || entry.target === 'module');
+			validateTimelineParameterTree(defs[paramId], update.after, entry.target === 'effect' || entry.target === 'module', entry.target === 'effect' || entry.target === 'module');
 		}
 	} catch { return null; }
 	// 配列・構造体の別レーンも同じルートへまとめ、順番に保存して上書きし合わないようにする。

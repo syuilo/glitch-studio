@@ -367,7 +367,9 @@ test('separates clip instances and cancels obsolete asynchronous preparation', a
 	const pending = fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
 	await pending.setup([entry]);
 	const oldSeek = pending.manager.renderTimelineFrame(100, 0);
+	await new Promise(setImmediate);
 	const currentSeek = pending.manager.renderTimelineFrame(200, 0);
+	await new Promise(setImmediate);
 	pending.calls.instances.at(-1).reportStatus({ type: 'ready' });
 	await Promise.all([oldSeek, currentSeek]);
 	assert.equal(pending.calls.renders.length, 1);
@@ -382,6 +384,7 @@ test('publishes effect layer states with clip identities and suppresses disposed
 	const f = fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
 	await f.setup([layer('effect', {}, { clips: [clip('first', 100, 100), clip('second', 200, 100)] })]);
 	const firstRender = f.manager.renderTimelineFrame(100, 0);
+	await new Promise(setImmediate);
 	const first = f.calls.states.at(-1);
 	assert.deepEqual(first.source, { type: 'timelineLayer', instanceId: first.source.instanceId,
 		rootSceneId: 'scene', layerId: 'effect', clipId: 'first', layerPath: ['effect'] });
@@ -391,6 +394,7 @@ test('publishes effect layer states with clip identities and suppresses disposed
 	await firstRender;
 	assert.deepEqual(f.calls.states.at(-1).status, { status: { type: 'ready' }, outputs: { output: { width: 320, height: 180 }, unused: null } });
 	const secondRender = f.manager.renderTimelineFrame(200, 0);
+	await new Promise(setImmediate);
 	const second = f.calls.states.at(-1);
 	assert.equal(second.source.clipId, 'second');
 	assert.notEqual(second.source.instanceId, first.source.instanceId);
@@ -444,4 +448,105 @@ test('reports grouped effect states at their owning scene layer address', async 
 	assert.equal(state.source.rootSceneId, 'scene');
 	assert.equal(state.source.layerId, 'effect');
 	assert.deepEqual(state.source.layerPath, ['effect']);
+});
+
+const imageReference = (layerId, outputStage = 'source') => ({ ...input, inputSource: 'anotherLayerOutput', layerId, outputStage });
+
+// 【上層の素材だけを先に評価し、参照と通常描画で同じ履歴・テクスチャを共有する】
+// 上層素材を得るために下層の合成まで要求すると、成立する配線を循環と誤認する。
+// 素材を再描画すると履歴依存エフェクトも二度進むため、描画回数と出力の同一性を確認する。
+test('references an upper source once while preserving timeline compositing', async t => {
+	const f = fixture(t);
+	await f.setup([layer('source', { amount: literal(11) }), layer('receiver', { amount: literal(22), input: imageReference('source') })]);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.deepEqual(f.calls.renders.map(call => call.params.amount), [11, 22]);
+	const [source, receiver] = f.calls.renders;
+	assert.equal(receiver.params.input.texture, source.outputDataMap.output.texture);
+	assert.equal(receiver.params.input.filterMode, 'nearest');
+	assert.equal(f.calls.outputs.at(-1).texture, source.outputDataMap.output.texture);
+});
+
+// 【同じ素材の三段階を同時参照しても、合成結果で素材や単独描画を上書きしない】
+// 各段階が同じ中間テクスチャを使うと、最後の合成で別入力の内容まで変化する。
+// 同じ段階への複数参照は共有し、素材生成自体は一度に保つ。
+test('keeps source rendered and composited outputs distinct and shares repeated references', async t => {
+	for (const key of ['secondImage', 'thirdImage', 'fourthImage']) definition.paramDefs[key] = color;
+	t.after(() => { for (const key of ['secondImage', 'thirdImage', 'fourthImage']) delete definition.paramDefs[key]; });
+	const f = fixture(t);
+	const source = layer('source', { amount: literal(11) });
+	source.compositingParamValues.position = literal([0.2, 0]);
+	source.compositingParamValues.opacity = literal(0.5);
+	await f.setup([layer('receiver', { amount: literal(22), input: imageReference('source'),
+		secondImage: imageReference('source', 'rendered'), thirdImage: imageReference('source', 'composited'), fourthImage: imageReference('source', 'rendered') }), source]);
+	await f.manager.renderTimelineFrame(350, 0);
+	const [generated, receiver] = f.calls.renders;
+	assert.equal(f.calls.renders.length, 2);
+	assert.equal(receiver.params.input.texture, generated.outputDataMap.output.texture);
+	assert.notEqual(receiver.params.secondImage.texture, receiver.params.input.texture);
+	assert.notEqual(receiver.params.thirdImage.texture, receiver.params.secondImage.texture);
+	assert.equal(receiver.params.fourthImage.texture, receiver.params.secondImage.texture);
+	assert.equal(receiver.params.secondImage.texture.width, 320);
+	assert.equal(receiver.params.thirdImage.texture.height, 180);
+});
+
+// 【別Group内の子を親の素材評価に依存せず参照し、無効化・区間外は透明にする】
+// 参照先Group全体の評価を待つ実装では、Group間で必要のない循環が生じる。
+// 祖先無効化時は子を直接参照しても描画せず、保存IDは復旧に備えて維持する。
+test('resolves nested source references across groups and skips unavailable targets', async t => {
+	const f = fixture(t);
+	const group = { id: 'group', name: 'Group', layerType: 'group', isDisabled: false, compositingMode: 'preserveDepth',
+		layers: [layer('source', { amount: literal(11) })], compositingParamValues: compositing(), audioParamValues: {}, automationGraphs: [] };
+	const receiver = layer('receiver', { amount: literal(22), input: imageReference('source') });
+	await f.setup([group, receiver]);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.deepEqual(f.calls.renders.map(call => call.params.amount), [11, 22]);
+	assert.equal(f.calls.renders[1].params.input.texture, f.calls.renders[0].outputDataMap.output.texture);
+	for (const target of ['source', 'missing', null]) {
+		await f.setup([{ ...group, isDisabled: true }, layer('receiver', { input: imageReference(target) })]);
+		await f.manager.renderTimelineFrame(350, 0);
+		assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
+	}
+	await f.setup([layer('receiver', { input: imageReference('source', 'composited') }), layer('source', {}, { clips: [] })]);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
+});
+
+// 【Visual Moduleの公開主入力を別レイヤーへ差し替えても元の画像をIn経由で渡す】
+// 主入力への下層自動割当が明示Bindingを上書きしたり、入口で不要な再サンプリングを
+// 行ったりしないことを、実際のVisualModuleRendererと後続エフェクトを通して検証する。
+test('routes an explicit public primary input through a Visual Module without resampling', async t => {
+	const f = fixture(t);
+	const visualModule = { id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'Image' }],
+		primaryInputId: 'image', primaryOutputId: 'output', automationGraphs: [],
+		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
+		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'image', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };
+	const visualModuleLayer = { id: 'visual-layer', name: 'Visual', layerType: 'visualModule', visualModuleId: 'visual',
+		clips: [clip('clip', 100, 1000)], isDisabled: false, automationGraphs: [], compositingParamValues: compositing(),
+		visualModuleParamValues: { image: { inputSource: 'anotherLayerOutput', layerId: 'source', outputStage: 'source' } } };
+	await f.setup([layer('receiver', { amount: literal(22), input: imageReference('visual-layer') }), visualModuleLayer,
+		layer('source', { amount: literal(11) }, { resolution: { mode: 'customAbsolute', width: 80, height: 45 } })], { visualModules: [visualModule] });
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.equal(f.calls.renders.length, 2);
+	const [source, receiver] = f.calls.renders;
+	assert.equal(receiver.params.input.texture, source.outputDataMap.output.texture);
+	assert.equal(receiver.params.input.texture.width, 80);
+});
+
+// 【不透明度0のGroupでも素材出力には子の合成画像を返す】
+// preserveDepthでは通常の投影済み中間画像を使い、flatでもGroup自身の外側への合成を
+// 素材と混同しない。透明背景へ消えた通常合成結果を読む退行を、実際のcompositor境界で検出する。
+test('references group source images before applying group opacity in both depth modes', async t => {
+	for (const compositingMode of ['flat', 'preserveDepth']) {
+		const f = fixture(t);
+		const observations = new Map();
+		f.manager.createCompositingObserver = (_sceneId, layerId) => source => observations.set(layerId, source);
+		const group = { id: 'group', name: 'Group', layerType: 'group', isDisabled: false, compositingMode,
+			layers: [layer('child', { amount: literal(11) })], automationGraphs: [], audioParamValues: {},
+			compositingParamValues: { ...compositing(), opacity: literal(0) } };
+		await f.setup([layer('receiver', { amount: literal(22), input: imageReference('group') }), group]);
+		await f.manager.renderTimelineFrame(350, 0);
+		assert.equal(f.calls.renders.length, 2);
+		assert.equal(f.calls.renders[1].params.input.texture, observations.get('group').texture);
+		assert.equal(f.calls.renders[1].params.input.kind, 'texture');
+	}
 });

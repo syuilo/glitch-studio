@@ -16,6 +16,8 @@
 			:key="key"
 			keyframesEnabled
 			layerInputEnabled
+			imageInputSamplingEnabled
+			:imageLayerOptions="imageLayerOptions"
 			:audioLayerOptions="audioLayerOptions"
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
@@ -56,7 +58,7 @@ import type { Resolution } from '@gs/shared/resolution.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import { i18n } from '@/i18n.ts';
 
-const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; audioLayerOptions: readonly AudioLayerOption[] }>();
+const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; imageLayerOptions: readonly AudioLayerOption[]; audioLayerOptions: readonly AudioLayerOption[] }>();
 const emit = defineEmits<{ edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
 const definition = computed(() => effectDefinitions[props.layer.effectId]);
 const outputResolution = computed(() => definition.value.primaryOutput == null ? null : props.effectState?.outputs[definition.value.primaryOutput]);

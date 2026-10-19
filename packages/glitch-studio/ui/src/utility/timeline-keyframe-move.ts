@@ -6,13 +6,13 @@ import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voi
 import { getLayerParameterDefinitions, getLayerParameterValues, resolveLayerParameter } from './timeline-scene.ts';
 import { keyframeSelectionKey } from './timeline-selection.ts';
 import type { TimelineKeyframePosition } from './timeline-selection.ts';
-import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import type { TimelineScene, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { ProjectState } from '../Project.ts';
 
 type ParameterUpdate = { layerId: string; target: TimelineParameterTarget; paramId: string;
-	before: TimelineEffectParameterBinding | null; after: TimelineEffectParameterBinding };
+	before: EditableTimelineParameterBinding | null; after: EditableTimelineParameterBinding };
 type UtteranceUpdate = { layerId: string; target: 'utterance'; before: VoicevoxUtterance[]; after: VoicevoxUtterance[] };
 export type TimelineKeyframeMoveUpdate = ParameterUpdate | UtteranceUpdate;
 
@@ -42,11 +42,11 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 		const definitions = getLayerParameterDefinitions(state, layer, position.target);
 		// 同じ配列・構造体の別レーンも一つの案にまとめる。未設定の引数は既定値の
 		// 独立したコピーへ書き込み、共有定義を変更せずUndoで未設定へ戻せるようにする。
-		const binding = resolveParameter<TimelineEffectParameterBinding>(definitions, { [paramId]: update.after }, position.paramPath).value;
+		const binding = resolveParameter<EditableTimelineParameterBinding>(definitions, { [paramId]: update.after }, position.paramPath).value;
 		const point = binding.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : null;
 		if (!point) throw new Error('Timeline keyframe not found');
 		point.x = Math.round(position.x);
-		validateTimelineParameterTree(definitions[paramId], update.after, position.target === 'effect', position.target === 'effect' || position.target === 'module');
+		validateTimelineParameterTree(definitions[paramId], update.after, position.target === 'effect' || position.target === 'module', position.target === 'effect' || position.target === 'module');
 		parameters.set(rootKey, update);
 	}
 	for (const update of speeches.values()) {

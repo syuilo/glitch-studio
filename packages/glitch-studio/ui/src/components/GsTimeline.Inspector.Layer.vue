@@ -25,6 +25,7 @@
 			:effectState="effectLayerState"
 			:contextResolution="getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value)"
 			:audioLayerOptions="audioLayerOptions"
+			:imageLayerOptions="imageLayerOptions"
 			@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 			@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: layer.id, resolution })"
 		/>
@@ -84,21 +85,24 @@
 			<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
 			<template #label>{{ i18n.ts._TimelineLayer.VisualModuleParameters }}</template>
 			<div style="padding: 8px 0;">
-				<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
+				<!-- TODO: struct / arrayのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
 				<template
-					v-for="paramDef of visualModule?.paramDefs.filter(paramDef => paramDef.id !== visualModule?.primaryInputId) ?? []"
+					v-for="paramDef of visualModule?.paramDefs ?? []"
 					:key="`${layer.id}:${paramDef.id}`"
 				>
-					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
+					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array'">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
 					<GsVisualParam
 						v-else
 						keyframesEnabled
 						:automationGraphEndEnabled="false"
 						:availableVariables="LAYER_VAR_DEFS"
 						:automationGraphs="layer.automationGraphs"
+						:data-test-visual-module-argument="paramDef.id"
 						:paramPath="[paramDef.id]"
-						:paramDef="{ ...paramDef, canNode: false }"
+						:paramDef="paramDef"
+						layerInputEnabled
 						:audioLayerOptions="audioLayerOptions"
+						:imageLayerOptions="imageLayerOptions"
 						:paramValue="getLayerParameterValues(layer, 'module')[paramDef.id] ?? getTimelineVisualModuleArgumentDefault(visualModule!, paramDef)"
 						@edit="event => onTimelineLayerParamEdit(event, 'module')"
 					/>
@@ -179,7 +183,6 @@
 import { computed, ref, onBeforeUnmount } from 'vue';
 import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { timelineAudioParamDefs, isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -251,6 +254,13 @@ const inlineAssetDropActions = computed(() => {
 });
 const sceneId = computed(() => props.scene.id);
 const sceneLayers = computed(() => flattenTimelineLayers(props.scene.layers));
+const imageLayerOptions = computed(() => {
+	const visit = (layers: readonly TimelineLayer[], parents: readonly string[]): { value: string; label: string }[] => layers.flatMap(layer => [
+		...layer.id !== props.layer.id && isTimelineVisualLayer(layer) ? [{ value: layer.id, label: [...parents, layer.name].join(' / ') }] : [],
+		...layer.layerType === 'group' || layer.layerType === 'transform' ? visit(layer.layers, [...parents, layer.name]) : [],
+	]);
+	return visit(props.scene.layers, []);
+});
 const audioLayerOptions = computed(() => sceneLayers.value
 	.filter(layer => layer.id !== props.layer.id && isTimelineAudioOutputLayer(layer))
 	.map(layer => ({ value: layer.id, label: layer.name })));
@@ -308,8 +318,8 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', { sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event }, mergeKey);
 		return;
 	}
-	if (event.kind === 'layerInput' || (event.kind === 'inputSource' && event.inputSource === 'layerInput')) {
-		if (target !== 'effect') return;
+	if (event.kind === 'layerInput' || event.kind === 'anotherLayerOutput' || (event.kind === 'inputSource' && (event.inputSource === 'layerInput' || event.inputSource === 'anotherLayerOutput'))) {
+		if (target !== 'effect' && target !== 'module') return;
 		stateManager.commit('editTimelineLayerParam', {
 			sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event,
 		}, mergeKey);

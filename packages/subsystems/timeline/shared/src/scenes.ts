@@ -5,7 +5,7 @@ import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolutio
 import { validateTimelineCamera } from './layers/camera/camera.ts';
 import { flattenTimelineLayers, getTimelineClipLayers } from './layer-tree.ts';
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
-import { validateTimelineParameterBinding } from './parameter-binding.ts';
+import { isTimelineImageInputBinding, validateTimelineParameterBinding } from './parameter-binding.ts';
 import { validateVoicevoxSubtitle } from './layers/voicevox/voicevox-subtitle-validation.ts';
 import { validateTimelineText } from './layers/text/text-layer.ts';
 import { validateTimelineShape } from './layers/shape/shape-layer.ts';
@@ -64,10 +64,13 @@ export function validateTimelineLayer(layer: TimelineLayer): void {
 	];
 	for (const values of parameterGroups) for (const binding of Object.values(values)) validateTimelineParameterBinding(binding);
 	if ('visualModuleParamValues' in layer) {
-		for (const binding of Object.values(layer.visualModuleParamValues)) validateTimelineParameterBinding(binding, false, true);
+		for (const binding of Object.values(layer.visualModuleParamValues)) validateTimelineParameterBinding(binding, true, true);
 	}
 	if (layer.layerType === 'effect') {
-		for (const binding of Object.values(layer.effectParamValues)) validateTimelineParameterBinding(binding, true);
+		for (const binding of Object.values(layer.effectParamValues)) {
+			validateTimelineParameterBinding(binding, true);
+			if (isTimelineImageInputBinding(binding) && !('fitMode' in binding)) throw new Error('Effect image input requires sampling');
+		}
 	}
 }
 

@@ -400,3 +400,53 @@ test('round trips effect layers and changes resolution and clips with undo', asy
 	assert.equal(f.layer.clips.length, 1);
 	assert.equal(f.read(['buzzs', 'first', 'image']).inputSource, 'layerInput');
 });
+
+// 【ネストした別レイヤー出力の段階とサンプリングをUndo/Redoで維持する】
+// 画像入力の新方式でもIDパスによる編集を使い、他Scene・自身・非映像レイヤーを
+// Commandから混入できないようにする。参照先削除後も保存したIDは復旧に備えて残す。
+test('edits nested image references and preserves their stages through undo and deletion', () => {
+	const f = fixture();
+	const root = f.state.timelineScenes.value[0];
+	const source = createEffectTimelineLayer(effectDefinitions.testStructArray, 100);
+	root.layers.push(source, audioLayer('audio'));
+	const path = ['buzzs', 'first', 'image'];
+	f.edit(path, { kind: 'inputSource', inputSource: 'anotherLayerOutput' });
+	assert.deepEqual(f.read(path), { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
+	const edit = f.edit(path, { kind: 'anotherLayerOutput', value: { ...f.read(path), layerId: source.id, outputStage: 'rendered', filterMode: 'nearest' } });
+	edit.undo(f.state);
+	assert.equal(f.read(path).layerId, null);
+	edit.execute(f.state);
+	assert.equal(f.read(path).filterMode, 'nearest');
+	for (const id of [f.layer.id, 'audio', 'another-scene-layer']) assert.throws(() => f.edit(path, { kind: 'anotherLayerOutput', value: { ...f.read(path), layerId: id } }));
+	const remove = COMMAND_DEFS.removeTimelineLayer.create({ sceneId: 'scene', layerId: source.id });
+	remove.execute(f.state);
+	assert.equal(f.read(path).layerId, source.id);
+	f.edit(path, { kind: 'anotherLayerOutput', value: { ...f.read(path), outputStage: 'composited' } });
+	assert.equal(f.read(path).outputStage, 'composited');
+	remove.undo(f.state);
+	assert.equal(root.layers.some(layer => layer.id === f.read(path).layerId), true);
+});
+
+// 【Visual Moduleの主入力を編集でき、リセットで下層へ戻し、公開側にはサンプリングを保存しない】
+// 従来の主入力専用の自動割当と編集禁止が残ると、明示Bindingを設定しても使えない。
+// 通常引数と同じCommand・Undo/Redoを使いつつ、共有Visual Moduleの定義は変更しない。
+test('edits public primary image inputs and resets them to lower layers', () => {
+	const f = fixture();
+	const visual = { id: 'visual', primaryInputId: 'image', primaryAudioInputId: null,
+		paramDefs: [{ id: 'image', nameForReference: 'Image', dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }] };
+	f.state.visualModules.value.push(visual);
+	const publicLayer = { id: 'public', layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {}, automationGraphs: [] };
+	f.state.timelineScenes.value[0].layers.push(publicLayer);
+	const read = () => resolveLayerParameter(f.state, publicLayer, 'module', ['image']).value;
+	const edit = value => { const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'public', target: 'module', paramPath: ['image'], edit: value }); command.execute(f.state); return command; };
+	assert.deepEqual(read(), { inputSource: 'layerInput' });
+	edit({ kind: 'inputSource', inputSource: 'anotherLayerOutput' });
+	const binding = { inputSource: 'anotherLayerOutput', layerId: f.layer.id, outputStage: 'source' };
+	edit({ kind: 'anotherLayerOutput', value: binding });
+	assert.deepEqual(read(), binding);
+	const reset = edit({ kind: 'reset' });
+	assert.deepEqual(read(), { inputSource: 'layerInput' });
+	reset.undo(f.state);
+	assert.deepEqual(read(), binding);
+	assert.equal(visual.paramDefs[0].defaultValue.inputSource, 'literal');
+});

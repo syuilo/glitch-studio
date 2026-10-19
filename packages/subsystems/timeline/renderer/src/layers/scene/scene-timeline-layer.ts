@@ -39,6 +39,7 @@ export function createSceneTimelineLayer(
 	const parameters = new TimelineCompositingParameters();
 	const sceneOutput = createSceneOutput({ ...options, resolution: options.sceneResolution });
 	return {
+		lazyInput: true,
 		evaluate: async (context, signal) => {
 			const scene = typeof sceneSource === 'function' ? sceneSource() : sceneSource;
 			// 参照先Sceneの時計へ両方の時刻を変換する。配置ごとの無効化は保存された子の設定を変更しない。
@@ -52,7 +53,7 @@ export function createSceneTimelineLayer(
 					time: context.sceneTimeMs, isExport: context.isExport,
 					coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
 				const source: TimelineImage = { kind: 'texture', texture: sceneOutput.render(encoder, result.output) };
-				return { output: compositor.render(encoder, context.input, source, settings, context.renderSpace), gpuTime: result.gpuTime };
+				return { ...compositor.evaluate(encoder, context, source, settings), gpuTime: result.gpuTime };
 			} finally {
 				options.device.queue.submit([encoder.finish()]);
 			}

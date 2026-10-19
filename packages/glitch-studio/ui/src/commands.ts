@@ -1,3 +1,6 @@
+import type { EditableTimelineParameterBinding } from './types/parameter-edit.ts';
+import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
+import type { TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -91,17 +94,21 @@ type NodeTarget = VisualModuleTarget & { nodeId: string };
 type NodeParamTarget = EffectNodeParamTarget & VisualModuleTarget;
 
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
-function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelineParameterTarget, rootKey: string, binding: TimelineEffectParameterBinding | null | undefined) {
+function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelineParameterTarget, rootKey: string, binding: EditableTimelineParameterBinding | null | undefined) {
 	if (target === 'effect') {
 		const values = getLayerParameterValues(layer, target);
 		if (binding == null) delete values[rootKey];
-		else values[rootKey] = deepClone(binding);
+		else {
+			if ((binding.inputSource === 'layerInput' || binding.inputSource === 'anotherLayerOutput') && !('fitMode' in binding)) throw new Error('Effect image input requires sampling');
+			values[rootKey] = deepClone(binding as TimelineEffectParameterBinding);
+		}
 	} else if (target === 'module') {
 		const values = getLayerParameterValues(layer, target);
 		if (binding == null) delete values[rootKey];
 		else {
-			if (binding.inputSource === 'layerInput') throw new Error('Image layer input is not a module argument');
-			values[rootKey] = deepClone(binding);
+			values[rootKey] = binding.inputSource === 'layerInput' ? { inputSource: 'layerInput' }
+				: binding.inputSource === 'anotherLayerOutput' ? { inputSource: 'anotherLayerOutput', layerId: binding.layerId, outputStage: binding.outputStage }
+				: deepClone(binding);
 		}
 	} else {
 		const values = getLayerParameterValues(layer, target);
@@ -172,7 +179,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 } & (
 	| { target?: TimelineParameterTarget; edit: ValueParameterEdit }
 	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'layerAudio' } | { kind: 'layerAudio'; value: string | null } }
-	| { target: 'effect'; edit: { kind: 'layerInput'; value: TimelineLayerInputBinding } | { kind: 'inputSource'; inputSource: 'layerInput' } }
+	| { target: 'effect' | 'module'; edit: { kind: 'layerInput'; value: TimelineLayerInputBinding } | { kind: 'inputSource'; inputSource: 'layerInput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
 )>({
 	label: 'Edit timeline layer param',
 	changes: (_state, payload) => {
@@ -183,6 +190,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			case 'reset': kind = 'reset'; break;
 			case 'inputSource': kind = 'inputSource'; break;
 			case 'layerInput':
+			case 'anotherLayerOutput':
 			case 'layerAudio': kind = 'connection'; break;
 			default: kind = 'value'; break;
 		}
@@ -190,8 +198,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 												changes: [{ type: 'parameter', target: payload.target ?? 'module', kind }] }];
 	},
 	create: payload => {
-		let before: TimelineEffectParameterBinding | null = null;
-		let after: TimelineEffectParameterBinding | null = null;
+		let before: EditableTimelineParameterBinding | null = null;
+		let after: EditableTimelineParameterBinding | null = null;
 		const target = payload.target ?? 'module';
 		const rootKey = payload.paramPath[0];
 		const getLayer = (state: ProjectState) => {
@@ -209,16 +217,15 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 				if (rootDef == null) throw new Error('Timeline parameter not found');
 				const module = target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')
 					? layer.layerType === 'inlineVisualModule' ? layer.visualModule : stateUtility.getVisualModule(state, layer) : null;
-				if (module?.primaryInputId === rootKey) throw new Error('Cannot edit the visual module primary input');
 				if (after == null) {
 					before = deepClone(values[rootKey] ?? null);
 					const defaultBinding = module ? getTimelineVisualModuleArgumentDefault(module, module.paramDefs.find(def => def.id === rootKey)!)
 						: target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(effectDefinitions[layer.effectId], rootKey) : rootDef.defaultValue;
 					const draft = { [rootKey]: deepClone(before ?? defaultBinding) };
-					const resolved = resolveParameter<TimelineEffectParameterBinding>(defs, draft, payload.paramPath);
+					const resolved = resolveParameter<EditableTimelineParameterBinding>(defs, draft, payload.paramPath);
 					const { def, value: current } = resolved;
 					const edit = payload.edit;
-					let next: TimelineEffectParameterBinding;
+					let next: EditableTimelineParameterBinding;
 					const container = def.dataType.kind === 'array' || def.dataType.kind === 'struct';
 					if (container && !['reset', 'addElement', 'removeElement'].includes(edit.kind)) throw new Error('Container parameters must be edited through their children');
 					switch (edit.kind) {
@@ -226,6 +233,14 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'automationGraphInline':
 						case 'keyframesTimelineInline':
 						case 'layerInput': next = deepClone(edit.value); break;
+						case 'anotherLayerOutput': {
+							const currentId = current.inputSource === 'anotherLayerOutput' ? current.layerId : null;
+							if (edit.value.layerId != null && edit.value.layerId !== currentId
+								&& resolveTimelineImageLayerReference(getScene(state, payload.sceneId).layers, layer.id, edit.value.layerId) == null) throw new Error('Image source must be another visual layer in the same scene');
+							next = target === 'effect' ? { ...createLayerInputBinding(), ...edit.value }
+								: { inputSource: 'anotherLayerOutput', layerId: edit.value.layerId, outputStage: edit.value.outputStage };
+							break;
+						}
 						case 'layerAudio': {
 							const source = resolveTimelineAudioLayerReference(getScene(state, payload.sceneId), layer.id, edit.value);
 							if (edit.value != null && source == null) throw new Error('Audio source must be an audio, video, or scene layer in the same scene');
@@ -239,7 +254,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							...(current.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: edit.value, ...edit.options,
 						}; break;
 						case 'reset':
-							if (payload.paramPath.length === 1 && def.dataType.kind === 'audioSource') { next = deepClone(defaultBinding); break; }
+							if (payload.paramPath.length === 1 && (def.dataType.kind === 'audioSource' || module?.primaryInputId === rootKey)) { next = deepClone(defaultBinding); break; }
 							next = target === 'effect' && layer.layerType === 'effect' && payload.paramPath.length === 1
 							&& effectDefinitions[layer.effectId].kind === 'modify' && effectDefinitions[layer.effectId].primaryInputParameter === rootKey
 								? createLayerInputBinding() : createResetParameterBinding(def); break;
@@ -261,7 +276,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								case 'automationGraphReference': next = { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 								case 'automationGraphInline': next = createInlineAutomationGraph(); break;
 								case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(def, current); break;
-								case 'layerInput': next = createLayerInputBinding(); break;
+								case 'layerInput': next = target === 'effect' ? createLayerInputBinding() : { inputSource: 'layerInput' }; break;
+								case 'anotherLayerOutput': next = { ...(target === 'effect' ? createLayerInputBinding() : {}), inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' }; break;
 								case 'lowerLayerAudio': next = { inputSource: 'lowerLayerAudio' }; break;
 								case 'layerAudio': next = { inputSource: 'layerAudio', layerId: null }; break;
 								default: throw new Error('Unsupported layer parameter input source');
@@ -269,7 +285,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							break;
 					}
 					resolved.setValue(next);
-					for (const { value } of walkParameters<TimelineEffectParameterBinding>({ [rootKey]: rootDef }, draft)) {
+					for (const { value } of walkParameters<EditableTimelineParameterBinding>({ [rootKey]: rootDef }, draft)) {
 						if (value.inputSource === 'keyframesTimelineInline') for (const point of value.keyframesTimeline.keyframes) point.x = Math.round(point.x);
 					}
 					// 静的な構造検証は変更通知を受けるProjectRenderValidationが担当する。
@@ -2122,7 +2138,7 @@ const removeTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfr
 						// レイヤー全体を確定する前の変更なので、後続の失敗時も元の未設定状態を保つ。
 						const rootKey = point.paramPath[0];
 						const draft = { [rootKey]: deepClone(resolveLayerParameter(state, layer, point.target, [rootKey]).value) };
-						const binding = resolveParameter<TimelineEffectParameterBinding>(getLayerParameterDefinitions(state, layer, point.target), draft, point.paramPath).value;
+						const binding = resolveParameter<EditableTimelineParameterBinding>(getLayerParameterDefinitions(state, layer, point.target), draft, point.paramPath).value;
 						if (binding.inputSource !== 'keyframesTimelineInline' || !binding.keyframesTimeline.keyframes.some(keyframe => keyframe.id === point.keyframeId)) throw new Error('Timeline keyframe not found');
 						binding.keyframesTimeline.keyframes.splice(binding.keyframesTimeline.keyframes.findIndex(keyframe => keyframe.id === point.keyframeId), 1);
 						setTimelineLayerParameterRoot(layer, point.target, rootKey, draft[rootKey]);

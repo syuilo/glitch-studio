@@ -10,6 +10,7 @@ import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.t
 import { resolveEffectParameterValue } from '@gs/subsystems_effect_renderer/effect-parameter-value.ts';
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect-node-resolution.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
+import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
 import { isTimelineAudioInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
 import { createSceneOutput } from '../../scene-output.ts';
@@ -53,6 +54,9 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 		device, vertex: options.wgpu.defaultVertexShaderModule, onCompositing: options.onCompositing,
 		resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
 	const inputFrame = createSceneOutput({ device, vertex: options.wgpu.defaultVertexShaderModule, resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
+	// 出力段階ごとに別の確定画像を保持する。同じ変換先を使うと、複数入力の最後の画像で
+	// 先に解決した入力まで上書きされてしまう。
+	const referenceFrames = new Map<string, ReturnType<typeof createSceneOutput>>();
 	const evaluator = new TimelineParameterBindingEvaluator();
 	const compositing = new TimelineCompositingParameters();
 	const usedOutputPorts = new Set([port]);
@@ -61,16 +65,36 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	}));
 	let disposed = false;
 	return {
+		lazyInput: true,
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const resolveAudioInput = createTimelineAudioInputResolver(options.getAudioInput, context.sceneTimeMs, context.isExport);
+			const references = new Map<string, TimelineImage>();
+			let lowerInput: TimelineImage | null = null;
+			for (const { param: binding } of walkParameterLeaves<TimelineEffectParameterBinding>(definition.paramDefs, Object.fromEntries(parameters.map(parameter => [parameter.key, parameter.binding])))) {
+				if (binding.inputSource === 'layerInput' && lowerInput == null) lowerInput = await context.getInput?.() ?? context.input;
+				if (binding.inputSource !== 'anotherLayerOutput') continue;
+				const key = JSON.stringify([binding.layerId, binding.outputStage]);
+				if (references.has(key)) continue;
+				let image = await context.getLayerOutput?.(binding.layerId, binding.outputStage) ?? { kind: 'uniform' as const, value: [0, 0, 0, 0] };
+				if (signal.aborted) return { gpuTime: 0 };
+				if (binding.outputStage !== 'source' || image.region != null) {
+					let frame = referenceFrames.get(key);
+					if (frame == null) { frame = createSceneOutput({ device, vertex: options.wgpu.defaultVertexShaderModule, resolution: options.resolution, format: options.wgpu.intermediateTextureFormat }); referenceFrames.set(key, frame); }
+					const encoder = device.createCommandEncoder();
+					image = frame.renderInput(encoder, image);
+					device.queue.submit([encoder.finish()]);
+				}
+				references.set(key, image);
+			}
+			if (signal.aborted) return { gpuTime: 0 };
 			// Effectの入力は有限のSceneフレーム。中間画像の可変範囲をノードへ漏らさない。
 			let input: TimelineImage | null = null;
 			const getInput = () => {
 				if (!input) {
 					const encoder = device.createCommandEncoder();
-					input = inputFrame.renderInput(encoder, context.input);
+					input = inputFrame.renderInput(encoder, lowerInput ?? context.input);
 					device.queue.submit([encoder.finish()]);
 				}
 				return input;
@@ -78,6 +102,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
 				return [key, mapParameterTree<TimelineEffectParameterBinding>(def, binding, [key], (leaf, value) => {
 					if (value.inputSource === 'layerInput') return toShaderInput(getInput(), value);
+					if (value.inputSource === 'anotherLayerOutput') return toShaderInput(references.get(JSON.stringify([value.layerId, value.outputStage]))!, value);
 					if (isTimelineAudioInputBinding(value)) return resolveAudioInput(value);
 					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')
 						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? null : genEmptyValue(leaf);
@@ -114,7 +139,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 				const settings = compositing.evaluate({
 					time: context.sceneTimeMs, isExport: context.isExport,
 					coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
-				return { output: compositor.render(encoder, context.input, { kind: 'texture', texture }, settings, context.renderSpace), gpuTime: 0 };
+				return { ...compositor.evaluate(encoder, context, { kind: 'texture', texture }, settings), gpuTime: 0 };
 			} finally {
 				// 次のフレームによる出力の再利用・破棄より先に、その出力を読む合成もsubmitする。
 				device.queue.submit([encoder.finish()]);
@@ -124,6 +149,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			disposed = true;
 			renderer.dispose();
 			inputFrame.dispose();
+			for (const frame of referenceFrames.values()) frame.dispose();
 			compositor.dispose();
 		},
 	};

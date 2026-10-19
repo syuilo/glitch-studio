@@ -9,6 +9,7 @@ import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
 import type { TimelineAffine, TimelineBounds, TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
 import type { TimelineImage } from './timeline-image.ts';
+import type { TimelineLayerContext, TimelineLayerEvaluation } from './timeline-renderer.ts';
 
 export type TimelineCompositingObserver = (source: TimelineImage, settings: TimelineCompositingSettings, space?: TimelineRenderSpace) => void;
 const boundsUniform = (bounds: TimelineBounds) => [(bounds.left + bounds.right) / 2, (bounds.bottom + bounds.top) / 2, (bounds.right - bounds.left) / 2, (bounds.top - bounds.bottom) / 2];
@@ -34,7 +35,26 @@ export function createTimelineCompositor(options: {
 		device, vertex: options.vertex, code: blendCode + code,
 		schema: { background: 'color', source: 'color' }, targets: [{ format: options.format }], internalLayouts: [layout], sampling: 'level0' });
 	let texture: GPUTexture | null = null;
+	let renderedCompositor: ReturnType<typeof createTimelineCompositor> | null = null;
 	return {
+		/** 素材のGPU処理は呼び出し側がsubmitし、合成は依存評価が確定してから実行する。 */
+		evaluate(encoder: GPUCommandEncoder, context: TimelineLayerContext<TimelineImage>, source: TimelineImage,
+			settings: TimelineCompositingSettings, projected = false): TimelineLayerEvaluation<TimelineImage> {
+			if (context.deferCompositing !== true) return { output: this.render(encoder, context.input, source, settings, context.renderSpace, projected), gpuTime: 0 };
+			const submit = (compositor: ReturnType<typeof createTimelineCompositor>, background: TimelineImage, values: TimelineCompositingSettings) => {
+				const commandEncoder = device.createCommandEncoder();
+				try { return compositor.render(commandEncoder, background, source, values, context.renderSpace, projected); } finally { device.queue.submit([commandEncoder.finish()]); }
+			};
+			return {
+				source, gpuTime: 0,
+				rendered: () => {
+					// 通常合成と別の出力を保持し、一方を参照中にもう一方で上書きしない。
+					renderedCompositor ??= createTimelineCompositor({ ...options, onCompositing: null });
+					return submit(renderedCompositor, { kind: 'uniform', value: [0, 0, 0, 0] }, { ...settings, blendMode: 0, mask: null });
+				},
+				composite: background => submit(this, background, settings),
+			};
+		},
 		render(encoder: GPUCommandEncoder, background: TimelineImage, source: TimelineImage, settings: TimelineCompositingSettings,
 			space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME }, projected = false, fixedBounds?: TimelineBounds): TimelineImage {
 			options.onCompositing?.(source, settings, space);
@@ -91,6 +111,6 @@ export function createTimelineCompositor(options: {
 			pass.end();
 			return { kind: 'texture', texture, region: { bounds: outputBounds, frameSize: resolution } };
 		},
-		dispose() { texture?.destroy(); buffer.destroy(); pipelines.dispose(); },
+		dispose() { renderedCompositor?.dispose(); texture?.destroy(); buffer.destroy(); pipelines.dispose(); },
 	};
 }

@@ -676,3 +676,31 @@ test('preserves selection across inspector visibility changes and routes removal
 	assert.deepEqual(editor.selection, { kind: 'layers', ids: ['a'] });
 	assert.deepEqual(f.events, []);
 });
+
+// 【Inspectorは公開主入力にも画像参照を提示し、同じCommandへ接続する】
+// 主入力の非表示やcanNodeの強制解除が残ると、レンダラーが対応してもUIから利用できない。
+// 識別用data属性で対象を選び、階層付き候補・サンプリング非公開・Undoまで確認する。
+test('exposes public primary image bindings and routes their edits through history', async t => {
+	const f = await fixture(t);
+	const layer = createInlineVisualModuleLayer(0);
+	layer.visualModule.paramDefs = [{ id: 'image', nameForReference: 'Image', dataType: { kind: 'color' }, canNode: true,
+		ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }];
+	layer.visualModule.primaryInputId = 'image';
+	const source = { id: 'source', name: 'Source', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
+	f.scene.layers.push(layer, source);
+	f.props.selection = { kind: 'layers', ids: [layer.id] };
+	await nextTick();
+	const control = () => f.controls('GsVisualParam').find(node => node.props['data-test-visual-module-argument'] === 'image');
+	assert.deepEqual(control().props.paramValue, { inputSource: 'layerInput' });
+	assert.equal(control().props.paramDef.canNode, true);
+	assert.equal(control().props.imageInputSamplingEnabled === true, false);
+	assert.deepEqual(control().props.imageLayerOptions, [{ value: 'source', label: 'Source' }]);
+	control().props.onEdit({ kind: 'inputSource', paramPath: ['image'], inputSource: 'anotherLayerOutput' });
+	await nextTick();
+	control().props.onEdit({ kind: 'anotherLayerOutput', paramPath: ['image'], value: { inputSource: 'anotherLayerOutput', layerId: 'source', outputStage: 'rendered' } });
+	assert.equal(layer.visualModuleParamValues.image.layerId, 'source');
+	f.history.undo();
+	assert.equal(layer.visualModuleParamValues.image.layerId, null);
+	f.history.undo();
+	assert.equal('image' in layer.visualModuleParamValues, false);
+});

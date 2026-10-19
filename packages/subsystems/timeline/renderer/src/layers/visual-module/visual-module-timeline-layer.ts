@@ -22,7 +22,7 @@ export function createVisualModuleTimelineLayer(
 	layerSource: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | (() => TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer),
 	renderer: {
 		getAudioInput?: TimelineAudioInputProvider;
-		getImageInput?: (input: TimelineImage) => TimelineImage;
+		getImageInput?: (input: TimelineImage, parameterId: VisualModuleCustomParameterId, sceneFrame: boolean) => TimelineImage;
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
 		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<TimelineImage>) => ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>;
 		destroy: () => void;
@@ -30,20 +30,26 @@ export function createVisualModuleTimelineLayer(
 ): TimelineLayerRenderer<TimelineImage> {
 	const evaluator = new TimelineParameterBindingEvaluator();
 	return {
+		lazyInput: true,
 		evaluate: async (context, signal) => {
 			if (signal.aborted) return { gpuTime: 0 };
 			const visualModule = typeof moduleSource === 'function' ? moduleSource() : moduleSource;
 			const layer = typeof layerSource === 'function' ? layerSource() : layerSource;
 			const paramInputs = new Map<VisualModuleCustomParameterId, TimelineImage>();
-			if (visualModule.primaryInputId != null) paramInputs.set(visualModule.primaryInputId, renderer.getImageInput?.(context.input) ?? context.input);
 			const evaluationContext = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			const audioParamInputs = new Map<VisualModuleCustomParameterId, AudioInput | null>();
 			const resolveAudioInput = createTimelineAudioInputResolver(renderer.getAudioInput, context.sceneTimeMs, context.isExport);
 			for (const def of visualModule.paramDefs) {
-				// 主入力はuniformでもCPU式には公開せず、Inノードからのみ読む。
-				if (paramInputs.has(def.id)) continue;
 				const value = layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def);
+				if (value.inputSource === 'layerInput' || value.inputSource === 'anotherLayerOutput') {
+					const image = value.inputSource === 'layerInput' ? await context.getInput?.() ?? context.input
+						: await context.getLayerOutput?.(value.layerId, value.outputStage) ?? { kind: 'uniform' as const, value: [0, 0, 0, 0] };
+					if (signal.aborted) return { gpuTime: 0 };
+					paramInputs.set(def.id, renderer.getImageInput?.(image, def.id,
+						value.inputSource === 'layerInput' || value.outputStage !== 'source' || image.region != null) ?? image);
+					continue;
+				}
 				if (def.dataType.kind === 'audioSource') {
 					audioParamInputs.set(def.id, isTimelineAudioInputBinding(value) ? resolveAudioInput(value) : null);
 					continue;

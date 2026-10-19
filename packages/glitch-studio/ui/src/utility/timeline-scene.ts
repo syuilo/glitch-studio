@@ -1,3 +1,4 @@
+import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import { timelineTransformParamDefs } from '@gs/subsystems_timeline_shared/layers/transform/transform.ts';
 import { timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -48,8 +49,8 @@ export function getLayerParameterTargets(layer: TimelineLayer): readonly Timelin
 export function getLayerParameterValues(layer: TimelineLayer, target: 'module'): Record<string, TimelineVisualModuleParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: 'effect'): Record<string, TimelineEffectParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: 'compositing' | 'audio' | 'camera' | 'transform' | 'shape' | 'text' | 'voicevoxSubtitle'): Record<string, TimelineParameterBinding>;
-export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, TimelineEffectParameterBinding>>;
-export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, TimelineEffectParameterBinding>> {
+export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, EditableTimelineParameterBinding>>;
+export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, EditableTimelineParameterBinding>> {
 	if (target === 'compositing' && 'compositingParamValues' in layer) return layer.compositingParamValues;
 	if (target === 'audio' && (layer.layerType === 'group' || layer.layerType === 'voicevox' || layer.layerType === 'scene' || layer.layerType === 'video' || layer.layerType === 'audio')) return layer.audioParamValues;
 	if (target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')) return layer.visualModuleParamValues;
@@ -92,7 +93,7 @@ export function resolveLayerParameter(state: Pick<ProjectState, 'visualModules'>
 		if (target === 'effect' && layer.layerType === 'effect') return { def: defs[path[0]], value: getEffectLayerParameterDefault(effectDefinitions[layer.effectId], path[0]) };
 		return { def: defs[path[0]], value: defs[path[0]].defaultValue };
 	}
-	const { def, value } = resolveParameter<TimelineEffectParameterBinding>(defs, values, path);
+	const { def, value } = resolveParameter<EditableTimelineParameterBinding>(defs, values, path);
 	return { def, value };
 }
 
@@ -105,7 +106,7 @@ export function getLayerKeyframeParameters(state: Pick<ProjectState, 'visualModu
 	return getLayerParameterTargets(layer).flatMap(target => {
 		const defs = getLayerParameterDefinitions(state, layer, target);
 		const values = getLayerParameterValues(layer, target);
-		return [...walkParameters<TimelineEffectParameterBinding>(defs, values)].flatMap(({ path, def, value }) => value.inputSource === 'keyframesTimelineInline'
+		return [...walkParameters<EditableTimelineParameterBinding>(defs, values)].flatMap(({ path, def, value }) => value.inputSource === 'keyframesTimelineInline'
 			? [{ key: JSON.stringify([target, path]), paramPath: path, target, def,
 				label: `${targetLabels[target]} / ${getParameterPathLabel(defs, values, path)}`, binding: value }] : []);
 	});

@@ -33,7 +33,7 @@ export function duplicateTimelineLayers(source: readonly TimelineLayer[]): Timel
 		if (!value || typeof value !== 'object') return;
 		if (Array.isArray(value)) { for (const item of value) remapReferences(item); return; }
 		const record = value as Record<string, unknown>;
-		if (record.inputSource === 'layerAudio' && typeof record.layerId === 'string' && ids.has(record.layerId)) record.layerId = ids.get(record.layerId)!;
+		if ((record.inputSource === 'layerAudio' || record.inputSource === 'anotherLayerOutput') && typeof record.layerId === 'string' && ids.has(record.layerId)) record.layerId = ids.get(record.layerId)!;
 		for (const item of Object.values(record)) remapReferences(item);
 	};
 	for (const layer of layers) {

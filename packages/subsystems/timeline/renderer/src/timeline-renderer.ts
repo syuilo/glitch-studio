@@ -1,5 +1,8 @@
 import { getTimelineClipContentTime, isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getTimelineMediaSourceTime } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import { TimelineEvaluationSession } from './timeline-evaluation.ts';
+import type { TimelineEvaluation, TimelineEvaluationResult } from './timeline-evaluation.ts';
+import type { TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import type { TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
 
@@ -23,12 +26,33 @@ export type TimelineLayerContext<Output> = {
 	contentEndTimeMs: number;
 	timeDelta: number;
 	input: Output;
+	/** 素材評価中は必要な場合だけ下層を要求し、独立した上層素材への参照を可能にする。 */
+	getInput?: () => Promise<Output>;
+	getLayerOutput?: (layerId: string | null, stage: TimelineLayerOutputStage) => Promise<Output>;
+	deferCompositing?: boolean;
+	childEvaluation?: TimelineEvaluation<Output>;
+};
+
+export type TimelineLayerEvaluation<Output> = {
+	output?: Output | null;
+	source?: Output | null;
+	rendered?: () => Output;
+	composite?: (background: Output) => Output;
+	gpuTime: number;
+};
+
+export type TimelineEvaluationOptions<Output> = {
+	time: number; timeDelta: number; isExport: boolean; signal: AbortSignal;
+	referenceTime?: TimelineFrameReferenceTime; renderSpace?: TimelineRenderSpace;
+	getInput: () => Promise<Output>; session: TimelineEvaluationSession<Output>;
 };
 
 export type TimelineLayerRenderer<Output> = {
 	// 準備・描画・GPUコマンドの送信・計測を含む。非同期待機後はsignalを確認し、
 	// 中断されていれば次の描画へ進まない。送信済みのGPU処理は取り消せない。
-	evaluate: (context: TimelineLayerContext<Output>, signal: AbortSignal) => Promise<{ output?: Output | null; gpuTime: number }>;
+	evaluate: (context: TimelineLayerContext<Output>, signal: AbortSignal) => Promise<TimelineLayerEvaluation<Output>>;
+	lazyInput?: boolean;
+	createChildren?: (context: TimelineLayerContext<Output>, options: TimelineEvaluationOptions<Output>) => TimelineEvaluation<Output>;
 	destroy: () => void;
 };
 
@@ -90,22 +114,13 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		const isCancelled = () => controller.signal.aborted;
 		try {
 			if (isCancelled()) return null;
-			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
-			// 終端を含めず、隣接するレイヤーを境界で重ねない。
-			const visibleEntries = timeline.flatMap<{ entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }>(entry => {
-				// 無効なレイヤーは区間外と同様に扱い、履歴・メディア・子Sceneのリソースも解放する。
-				if (entry.isDisabled) return [];
-				// 内容だけでなく表示クリップも固定し、露光が開始・終了を跨いでも残像を出さない。
-				const evaluationTime = entry.forceDisableMotionBlur && referenceTime ? referenceTime.timeMs : time;
-				if (!entry.clips) return [{ entry, clip: null, instanceKey: JSON.stringify([entry.id, null]), time: evaluationTime }];
-				const clip = entry.clips.find(clip => isTimelineClipActive(clip, evaluationTime));
-				return clip ? [{ entry, clip, instanceKey: JSON.stringify([entry.id, clip.id]), time: evaluationTime }] : [];
-			}).reverse();
-			// 現時点では表示するレイヤーだけを評価する。事前評価を追加するときは、
-			// 必要な下層も含む評価対象をここで決め、表示判定とは独立して寿命を管理する。
-			const evaluationEntries = visibleEntries;
-			this.releaseUnusedLayers(new Set(evaluationEntries.map(entry => entry.instanceKey)));
-			const result = await this.evaluateLayers(evaluationEntries, timeDelta, isExport, controller.signal, referenceTime, renderSpace ?? this.options.getRenderSpace?.(time, isExport, referenceTime), input);
+			const session = new TimelineEvaluationSession(this.options.fallbackOutput);
+			const evaluation = this.createEvaluation(timeline, {
+				time, timeDelta, isExport, signal: controller.signal, referenceTime,
+				renderSpace: renderSpace ?? this.options.getRenderSpace?.(time, isExport, referenceTime),
+				getInput: async () => input, session,
+			});
+			const result = await evaluation.evaluate();
 			if (result == null || isCancelled()) return null;
 			// レイヤーがない場合も透明な出力を表示し、前回の表示を残さない。
 			return result;
@@ -126,63 +141,91 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		}
 	}
 
-	/** 表示範囲の判定やpresentは行わず、指定された対象を内容時刻で評価・合成する。 */
-	private async evaluateLayers(entries: readonly { entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }[], timeDelta: number, isExport: boolean, signal: AbortSignal, referenceTime?: TimelineFrameReferenceTime, renderSpace?: TimelineRenderSpace, input = this.options.fallbackOutput) {
-		let output = input;
-		let gpuTime = 0;
-		let hasOutput = false;
-		for (const { entry, clip, instanceKey, time } of entries) {
-			// IDはレイヤー内だけで一意。同じモジュール・子Sceneの隣接クリップも別の履歴を持つ。
+	/**
+	 * 画像を生成する前に子孫まで登録する。子の参照解決が親Groupの素材評価を待たないため、
+	 * Groupをまたぐ参照にも、通常描画と同じ時計・親変換を使える。
+	 */
+	public createEvaluation(timeline: readonly Entry[], options: TimelineEvaluationOptions<Output>): TimelineEvaluation<Output> {
+		const { time, timeDelta, isExport, signal, referenceTime, renderSpace, session } = options;
+		const entries = timeline.flatMap<{ entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }>(entry => {
+			if (entry.isDisabled) return [];
+			const evaluationTime = entry.forceDisableMotionBlur && referenceTime != null ? referenceTime.timeMs : time;
+			if (entry.clips == null) return [{ entry, clip: null, instanceKey: JSON.stringify([entry.id, null]), time: evaluationTime }];
+			const clip = entry.clips.find(clip => isTimelineClipActive(clip, evaluationTime));
+			return clip != null ? [{ entry, clip, instanceKey: JSON.stringify([entry.id, clip.id]), time: evaluationTime }] : [];
+		}).reverse();
+		this.releaseUnusedLayers(new Set(entries.map(entry => entry.instanceKey)));
+		let previous: () => Promise<TimelineEvaluationResult<Output>> = async () => ({ output: await options.getInput(), hasOutput: false, gpuTime: 0 });
+		for (const { entry, clip, instanceKey, time: evaluationTime } of entries) {
 			let layer = this.layers.get(instanceKey) ?? null;
 			const version = this.options.getLayerVersion?.(entry, clip?.id ?? null) ?? null;
 			if (layer != null && layer.version !== version) {
-				layer.renderer.destroy();
-				this.layers.delete(instanceKey);
-				layer = null;
+				layer.renderer.destroy(); this.layers.delete(instanceKey); layer = null;
 			}
 			const isNewLayer = layer == null;
 			if (layer == null) {
 				layer = { renderer: this.options.createLayer(entry, clip?.id ?? null), version };
 				this.layers.set(instanceKey, layer);
 			}
-			let contentTimeMs = time;
-			let referenceContentTimeMs = referenceTime?.timeMs ?? time;
+			const renderer = layer.renderer;
+			let contentTimeMs = evaluationTime;
+			let referenceContentTimeMs = referenceTime?.timeMs ?? evaluationTime;
 			let contentEndTimeMs = 0;
-			if (clip) {
+			if (clip != null) {
 				if ('sourceTimeMs' in clip) {
-					contentTimeMs = clip.sourceTimeMs;
-					referenceContentTimeMs = clip.sourceTimeMs;
-					contentEndTimeMs = clip.sourceTimeMs;
+					contentTimeMs = clip.sourceTimeMs; referenceContentTimeMs = clip.sourceTimeMs; contentEndTimeMs = clip.sourceTimeMs;
 				} else if ('sourceInMs' in clip) {
-					contentTimeMs = getTimelineMediaSourceTime(clip, time);
+					contentTimeMs = getTimelineMediaSourceTime(clip, evaluationTime);
 					referenceContentTimeMs = getTimelineMediaSourceTime(clip, referenceContentTimeMs);
 					contentEndTimeMs = clip.playbackRate > 0 ? clip.sourceOutMs : clip.sourceInMs;
 				} else {
-					contentTimeMs = getTimelineClipContentTime(clip, time);
+					contentTimeMs = getTimelineClipContentTime(clip, evaluationTime);
 					referenceContentTimeMs = getTimelineClipContentTime(clip, referenceContentTimeMs);
 					contentEndTimeMs = clip.contentOffsetMs + clip.durationMs;
 				}
 			}
+			const getPrevious = previous;
 			const context: TimelineLayerContext<Output> = {
-				renderSpace,
-				isExport,
-				sceneTimeMs: time,
-				contentTimeMs,
-				referenceTime: referenceTime && { sceneTimeMs: referenceTime.timeMs, contentTimeMs: referenceContentTimeMs, timeDelta: referenceTime.timeDelta },
-				clipElapsedTimeMs: clip ? time - clip.startMs : 0,
-				clipDurationMs: clip?.durationMs ?? 0,
-				// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
-				timeDelta: isNewLayer ? 0 : entry.forceDisableMotionBlur && referenceTime ? referenceTime.timeDelta : timeDelta,
-				// 終端は内容の座標系、進行率は表示区間で定義する。TIME / END_TIMEでは求められない。
+				renderSpace, isExport,
+				sceneTimeMs: evaluationTime, contentTimeMs,
+				// 終端は素材の時計、進行率は表示区間を使う。トリムしてもScene上のキーは動かさない。
 				contentEndTimeMs,
-				input: output,
+				referenceTime: referenceTime != null ? { sceneTimeMs: referenceTime.timeMs, contentTimeMs: referenceContentTimeMs, timeDelta: referenceTime.timeDelta } : undefined,
+				clipElapsedTimeMs: clip != null ? evaluationTime - clip.startMs : 0, clipDurationMs: clip?.durationMs ?? 0,
+				// 新規配置の過去の履歴は再現しない。固定した内容の経過時間も一度だけ進める。
+				timeDelta: isNewLayer ? 0 : entry.forceDisableMotionBlur && referenceTime != null ? referenceTime.timeDelta : timeDelta,
+				input: this.options.fallbackOutput, getInput: async () => (await getPrevious()).output,
+				// 参照する側のブラー無効化では取得先の時計を変えず、登録済みの通常描画を読む。
+				getLayerOutput: (id, stage) => session.getLayerOutput(id, stage), deferCompositing: true,
 			};
-			const result = await layer.renderer.evaluate(context, signal);
-			// 準備・描画・計測の待機中に別のシークが開始された場合は表示しない。
-			if (signal.aborted) return;
-			gpuTime += result.gpuTime;
-			if (result.output != null) { output = result.output; hasOutput = true; }
+			context.childEvaluation = renderer.createChildren?.(context, options);
+			const prepare = () => session.memoize(entry.id, 'prepare', async () => {
+				signal.throwIfAborted();
+				if (renderer.lazyInput !== true) context.input = await context.getInput!();
+				signal.throwIfAborted();
+				const result = await renderer.evaluate(context, signal);
+				signal.throwIfAborted();
+				session.gpuTime += result.gpuTime;
+				return result;
+			});
+			const composite = () => session.memoize(entry.id, 'prefix', async () => {
+				const background = await getPrevious();
+				const result = await prepare();
+				signal.throwIfAborted();
+				const output = result.composite != null ? result.composite(background.output) : result.output;
+				return { output: output ?? background.output, hasOutput: background.hasOutput || output != null, gpuTime: 0 };
+			});
+			session.register(entry.id, stage => session.memoize(entry.id, stage, async () => {
+				const result = await prepare();
+				signal.throwIfAborted();
+				if (result.source == null && result.output == null) return session.fallbackOutput;
+				if (stage === 'composited') return (await composite()).output;
+				if (stage === 'rendered' && result.rendered != null) return result.rendered();
+				return result.source ?? result.output ?? session.fallbackOutput;
+			}));
+			previous = composite;
 		}
-		return { output, gpuTime, hasOutput };
+		const getResult = previous;
+		return { evaluate: async () => ({ ...await getResult(), gpuTime: session.gpuTime }) };
 	}
 }

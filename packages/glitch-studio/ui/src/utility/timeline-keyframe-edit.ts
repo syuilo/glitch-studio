@@ -1,6 +1,6 @@
 import type { ProjectState } from '../Project.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import type { TimelineKeyframeSelection } from './timeline-selection.ts';
 import { getLayerParameterDefinition, resolveLayerParameter } from './timeline-scene.ts';
 import { canEditKeyframesTimeline } from './keyframes-timeline.ts';
@@ -13,7 +13,7 @@ export function getTimelineKeyframeEditTarget(
 ) {
 	if (selection == null || selection.target === 'utterance') return null;
 	if (layer == null || layer.id !== selection.layerId) return null;
-	let binding: TimelineEffectParameterBinding;
+	let binding: EditableTimelineParameterBinding;
 	try { binding = resolveLayerParameter(state, layer, selection.target, selection.paramPath).value; } catch { return null; }
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
 	const def = getLayerParameterDefinition(state, layer, selection.target, selection.paramPath);

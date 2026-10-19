@@ -653,11 +653,16 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale), format: this.staticOptions.intermediateTextureFormat,
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
-		const inputFrame = createSceneOutput({
-			device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale), format: this.staticOptions.intermediateTextureFormat });
+		const inputFrames = new Map<string, ReturnType<typeof createSceneOutput>>();
 		const instance = createVisualModuleTimelineLayer(getModule, getLayer, {
-			getImageInput: input => {
+			getImageInput: (input, parameterId, sceneFrame) => {
+				if (!sceneFrame) return input;
+				let inputFrame = inputFrames.get(parameterId);
+				if (inputFrame == null) {
+					inputFrame = createSceneOutput({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
+						resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale), format: this.staticOptions.intermediateTextureFormat });
+					inputFrames.set(parameterId, inputFrame);
+				}
 				const encoder = this.gpuDevice.createCommandEncoder();
 				const result = inputFrame.renderInput(encoder, input);
 				this.gpuDevice.queue.submit([encoder.finish()]);
@@ -667,10 +672,10 @@ export class TimelineRendererManager extends EventEmitter<{
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				let output: TimelineImage | null = null;
+				let result: Awaited<ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>> = { gpuTime: 0 };
 				const gpuTime = 0;
 				try {
-					output = renderer.render(context, commandEncoder);
+					const output = renderer.render(context, commandEncoder);
 					if (output != null) {
 						const settings = compositingParameters.evaluate({
 							time: layerContext.sceneTimeMs,
@@ -679,21 +684,22 @@ export class TimelineRendererManager extends EventEmitter<{
 							paramValues: getLayer().compositingParamValues,
 							automationGraphs: getLayer().automationGraphs,
 						});
-						output = compositor.render(commandEncoder, layerContext.input, output, settings, layerContext.renderSpace);
+						result = compositor.evaluate(commandEncoder, layerContext, output, settings);
 					}
 				} finally {
 					// 描画途中の例外でもエンコーダーと計測を完了する。
 					this.gpuDevice.queue.submit([commandEncoder.finish()]);
 				}
-				return { output, gpuTime };
+				return { ...result, gpuTime };
 			},
 			destroy: () => {
 				compositor.dispose();
-				inputFrame.dispose();
+				for (const frame of inputFrames.values()) frame.dispose();
 				renderer.destroy();
 			},
 		});
 		return {
+			lazyInput: true,
 			evaluate: (context, signal) => {
 				const version = this.projectVersions.module(target);
 				if (version.revision !== moduleRevision) {

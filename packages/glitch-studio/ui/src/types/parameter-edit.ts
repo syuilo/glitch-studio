@@ -2,10 +2,11 @@ import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
-import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineEffectParameterBinding, TimelineVisualModuleParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 
 // 共用エディタだけが複数ドメインの方式を扱う。保存先の型は各ドメインのBindingを使う。
-export type EditableParameterBinding = VisualModuleParameterBinding | TimelineEffectParameterBinding;
+export type EditableTimelineParameterBinding = TimelineEffectParameterBinding | TimelineVisualModuleParameterBinding;
+export type EditableParameterBinding = VisualModuleParameterBinding | EditableTimelineParameterBinding;
 
 // 入力方式ごとのunionにし、UI側で方式を除外した結果をCommandにも渡せるようにする。
 export type ParameterInputSourceEdit<Source extends EditableParameterBinding['inputSource'] = EditableParameterBinding['inputSource']> = {

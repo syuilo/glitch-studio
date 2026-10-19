@@ -27,6 +27,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 	let pending: Promise<unknown> = Promise.resolve();
 	let cachedFrame: { contentTimeMs: number; foreground: TimelineImage } | null = null;
 	return {
+		lazyInput: true,
 		evaluate(context, signal) {
 			// 同じ配置の連続シークはデコーダーを直列に使う。待機中に不要になった要求は
 			// デコードせず、完了が遅れた旧フレームも新しいテクスチャへ書き込まない。
@@ -52,7 +53,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 				try {
 					// 前景が同じでも下層入力・Scene時刻は変わり得るため、設定の評価と合成は毎回行う。
 					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
-					return { output: compositor.render(encoder, context.input, cachedFrame.foreground, settings, context.renderSpace), gpuTime: 0 };
+					return { ...compositor.evaluate(encoder, context, cachedFrame.foreground, settings), gpuTime: 0 };
 				} finally { options.device.queue.submit([encoder.finish()]); }
 			};
 			const result = pending.then(render);

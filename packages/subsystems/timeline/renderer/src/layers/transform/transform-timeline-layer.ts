@@ -16,16 +16,27 @@ export function createTransformTimelineLayer<Output>(getTransform: () => Timelin
 	const renderer = new TimelineRenderer<Output, TimelineLayer>(options);
 	const parameters = new TimelineTransformParameters();
 	return {
+		lazyInput: true,
+		createChildren(context, evaluation) {
+			const layer = getTransform();
+			const transform = parameters.evaluate(layer.transformParamValues, layer.automationGraphs, context.sceneTimeMs, context.isExport);
+			return renderer.createEvaluation(layer.layers.filter(isTimelineRenderLayer), {
+				...evaluation, time: context.sceneTimeMs, timeDelta: context.timeDelta,
+				referenceTime: context.referenceTime != null ? { timeMs: context.referenceTime.sceneTimeMs, timeDelta: context.referenceTime.timeDelta } : undefined,
+				renderSpace: getTimelineTransformSpace(transform, options.resolution, context.renderSpace),
+				getInput: context.getInput ?? (async () => context.input),
+			});
+		},
 		async evaluate(context, signal) {
 			const layer = getTransform();
 			const transform = parameters.evaluate(layer.transformParamValues, layer.automationGraphs, context.sceneTimeMs, context.isExport);
 			const referenceTime = context.referenceTime && { timeMs: context.referenceTime.sceneTimeMs, timeDelta: context.referenceTime.timeDelta };
 			// 親の背景を初期入力にすることで、Transform内のEffectも外側の下層を参照する。
 			// 子が返す透明画像（replaceも可能）と、有効な子がない状態は区別する。
-			const result = await renderer.evaluateAt(context.sceneTimeMs, layer.layers.filter(isTimelineRenderLayer), context.timeDelta, context.isExport, signal, referenceTime,
+			const result = context.childEvaluation != null ? await context.childEvaluation.evaluate() : await renderer.evaluateAt(context.sceneTimeMs, layer.layers.filter(isTimelineRenderLayer), context.timeDelta, context.isExport, signal, referenceTime,
 				getTimelineTransformSpace(transform, options.resolution, context.renderSpace), context.input);
 			if (!result || signal.aborted) return { gpuTime: 0 };
-			return { output: result.hasOutput ? result.output : null, gpuTime: result.gpuTime };
+			return { output: result.hasOutput ? result.output : null, gpuTime: context.childEvaluation != null ? 0 : result.gpuTime };
 		},
 		destroy() { renderer.clear(); },
 	};

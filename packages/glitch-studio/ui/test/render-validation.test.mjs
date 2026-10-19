@@ -398,3 +398,81 @@ test('diagnoses invalid layer audio bindings before rendering', () => {
 	validation.update([{ type: 'layer', sceneId: 'scene', layerId: 'layer', changes: [{ type: 'parameter', target: 'effect', kind: 'inputSource' }] }]);
 	assert.equal(validation.errorMessage.value, null);
 });
+
+const outputReference = (layerId, outputStage = 'source') => ({ inputSource: 'anotherLayerOutput', layerId, outputStage, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
+const imageEffectLayer = (id, binding = literal(0)) => ({ id, name: id, layerType: 'effect', effectId: 'effect', resolution: { mode: 'context' },
+	clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], isDisabled: false, automationGraphs: [], compositingParamValues: {}, effectParamValues: { amount: binding } });
+const imageLayerChange = layerId => [{ type: 'layer', sceneId: 'scene', layerId, changes: [{ type: 'parameter', target: 'effect', kind: 'connection' }] }];
+
+// 【上層素材の参照と、下層合成を経由する循環を区別する】
+// 配列の順序をそのまま素材の依存にすると成立する配線を拒否する。一方、出力段階の
+// 切替やlayerInputを経由した循環も、描画前に静的診断へ反映する必要がある。
+test('revalidates output stages lower inputs and layer order for image cycles', () => {
+	const upper = imageEffectLayer('upper');
+	const lower = imageEffectLayer('lower', outputReference('upper'));
+	const f = fixture([], [scene('scene', [upper, lower])]);
+	assert.equal(f.validation.errorMessage.value, null);
+	lower.effectParamValues.amount = outputReference('upper', 'composited');
+	f.validation.update(imageLayerChange('lower'));
+	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	lower.effectParamValues.amount = outputReference('upper');
+	f.validation.update(imageLayerChange('lower'));
+	assert.equal(f.validation.errorMessage.value, null);
+	upper.effectParamValues.amount = { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
+	f.validation.update(imageLayerChange('upper'));
+	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	f.state.timelineScenes.value[0].layers.reverse();
+	f.validation.update([{ type: 'layerOrder', sceneId: 'scene' }]);
+	assert.equal(f.validation.errorMessage.value, null);
+});
+
+// 【Group出力と子の相互参照は、無効化やクリップの空白で隠さない】
+// 時刻や有効状態の変更で突然循環する構成を保存させず、同時表示されないクリップでも
+// 静的な配線全体を検査する。別Groupの独立した子の参照は許可する。
+test('detects ancestor and inactive image cycles across group boundaries', () => {
+	const child = imageEffectLayer('child', outputReference('group'));
+	const group = { ...groupLayer('group', [child]), isDisabled: true };
+	const f = fixture([], [scene('scene', [group])]);
+	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	child.effectParamValues.amount = literal(0);
+	f.validation.update(imageLayerChange('child'));
+	assert.equal(f.validation.errorMessage.value, null);
+	const other = imageEffectLayer('other', outputReference('child'));
+	f.state.timelineScenes.value[0].layers.push(groupLayer('other-group', [other]));
+	f.validation.update([{ type: 'layerTree', sceneId: 'scene' }]);
+	assert.equal(f.validation.errorMessage.value, null);
+	child.effectParamValues.amount = outputReference('other');
+	other.clips[0].startMs = 2000;
+	f.validation.update(imageLayerChange('child'));
+	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+});
+
+// 【公開主入力の既定の下層入力も画像依存に含め、明示的な未選択で解除できる】
+// 保存値のない主入力を見落とすと、Visual Module経由の循環がGPU評価で初めて発覚する。
+// 公開入力にはサンプリング設定がなくても有効であることも同時に確認する。
+test('includes default public primary inputs in the image dependency graph', () => {
+	const visual = visualModule([], 'visual');
+	visual.paramDefs = [{ id: 'image', nameForReference: 'Image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) }];
+	visual.primaryInputId = 'image';
+	const publicLayer = { ...imageEffectLayer('public'), layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {} };
+	const source = imageEffectLayer('source', outputReference('public'));
+	const f = fixture([visual], [scene('scene', [publicLayer, source])]);
+	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	publicLayer.visualModuleParamValues.image = { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' };
+	f.validation.update(imageLayerChange('public'));
+	assert.equal(f.validation.errorMessage.value, null);
+});
+
+// 【配列・構造体の内部のcanNodeを、Visual Moduleの公開画像ポートと混同しない】
+// Inノードが公開するのはルートの画像型だけで、内部BindingはCPU引数として評価される。
+// UIがまだ公開していない保存値でも、画像Bindingを受け入れて描画中に失敗させない。
+test('rejects image references in nonpublic nested Visual Module arguments', () => {
+	const visual = visualModule([], 'visual');
+	visual.paramDefs = [{ id: 'settings', nameForReference: 'Settings', canNode: false,
+		dataType: { kind: 'struct', fields: { image: { kind: 'color' } } }, ui: { label: 'Settings', control: { fields: { image: { label: 'Image', control: {} } } } },
+		fields: { image: { canNode: true, defaultValue: literal([0, 0, 0, 0]) } }, defaultValue: literal({ image: literal([0, 0, 0, 0]) }) }];
+	const layer = { ...imageEffectLayer('public'), layerType: 'visualModule', visualModuleId: 'visual',
+		visualModuleParamValues: { settings: literal({ image: { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' } }) } };
+	const f = fixture([visual], [scene('scene', [layer])]);
+	assert.match(f.validation.errorMessage.value, /Layer input is only available/);
+});

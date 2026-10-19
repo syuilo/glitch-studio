@@ -14,6 +14,7 @@ export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Par
 	const compositing = new TimelineCompositingParameters();
 	let disposed = false;
 	return {
+		lazyInput: true,
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = { time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs };
@@ -22,7 +23,7 @@ export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Par
 			const encoder = options.device.createCommandEncoder();
 			try {
 				const texture = renderer.render(encoder, shape);
-				return { output: compositor.render(encoder, context.input, texture, settings, context.renderSpace), gpuTime: 0 };
+				return { ...compositor.evaluate(encoder, context, texture, settings), gpuTime: 0 };
 			} finally {
 				// クリップごとの借用出力を、次の評価や破棄より前に読み終える順序を保証する。
 				options.device.queue.submit([encoder.finish()]);

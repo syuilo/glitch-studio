@@ -463,3 +463,25 @@ test('rejects coordinate space changes for nonvisual layers without modifying hi
 		assert.equal(f.history.undoStack.value.length, 0);
 	}
 });
+
+// 【Group・Sceneの複製範囲に含まれる画像参照だけを複製先へ付け替える】
+// 範囲外の素材まで新IDへ変えると参照切れになり、範囲内を元IDのままにすると複製後も
+// 元Groupの素材を読む。公開入力とネストしたEffect入力の両方で同じ規則を維持する。
+test('remaps internal image output references while preserving external image sources', () => {
+	const reference = (layerId, outputStage) => ({ inputSource: 'anotherLayerOutput', layerId, outputStage });
+	const source = group('source');
+	const effect = { id: 'effect', layerType: 'effect', clips: [], effectParamValues: { inputs: { inputSource: 'literal', value: [
+		{ id: 'first', binding: { ...reference('source', 'rendered'), fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } },
+		{ id: 'second', binding: { ...reference('outside', 'composited'), fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } },
+	] } } };
+	const publicLayer = { id: 'public', layerType: 'visualModule', clips: [], visualModuleParamValues: { image: reference('source', 'source') } };
+	const original = group('root', [source, effect, publicLayer]);
+	const [copy] = duplicateTimelineLayers([original]);
+	const [copiedSource, copiedEffect, copiedPublic] = copy.layers;
+	assert.notEqual(copiedSource.id, source.id);
+	assert.equal(copiedEffect.effectParamValues.inputs.value[0].binding.layerId, copiedSource.id);
+	assert.equal(copiedEffect.effectParamValues.inputs.value[1].binding.layerId, 'outside');
+	assert.equal(copiedPublic.visualModuleParamValues.image.layerId, copiedSource.id);
+	assert.equal(copiedEffect.effectParamValues.inputs.value[0].binding.outputStage, 'rendered');
+	assert.equal(original.layers[1].effectParamValues.inputs.value[0].binding.layerId, 'source');
+});

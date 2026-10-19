@@ -60,6 +60,14 @@ InspectorのHold current frameは、操作時のScene時刻を速度・逆方向
 - `TimelineEffectLayer` はエフェクトの種類・パラメータ・解像度を所有し、クリップは時間情報だけを所有します。作成後のエフェクト種別変更は扱いません。Visual Moduleを経由せず `EffectRenderer` をクリップごとに使用し、区間外では破棄します。
 - `EffectDefinition.kind` は `modify` / `generate` を明示します。作成時、modifyは主入力を `layerInput`、合成を `replace` にし、generateは定義の入力初期値と `normal` を使います。主入力がnullなら自動割当を行いません。modifyの主入力のリセットも `layerInput` に戻しますが、手動の入力・合成変更は互いに連動しません。
 - `layerInput` は同じ親の下層レイヤーの合成結果です。グループ内部から外側の背景は参照しません。下層がなければ透明黒です。配列・構造体内を含め `canNode: true` の末端にだけ指定でき、主入力以外にも指定できます。サンプリング設定の既定値は `cover` / `repeatMirrored` / `linear` です。入力型はcolorとして既存のノード互換性判定を使い、UIの型安全設定が有効なら不一致の接続を禁止、無効なら警告付きで許可します。
+- `anotherLayerOutput`は同じScene内の映像レイヤーをIDで参照します。Group・Transform配下も選べますが、Sceneレイヤーの参照先Scene内部には踏み込みません。音声・Camera・Transform自身は対象外です。エフェクトでは`layerInput`と同じ末端へ指定でき、Visual Moduleレイヤーでは`canNode: true`の公開画像入力へ指定できます。Visual Module内部のBindingには追加しません。
+- `outputStage`は`source`（素材出力・既定）、`rendered`（単独描画結果）、`composited`（下層との合成結果）です。通常の素材出力はレイヤー自身の配置・合成前。単独描画は配置・投影・opacity・clipToFrameを反映し、blendModeとマスクは適用しません。合成結果は参照先と同じ合成境界内で、そのレイヤーまで合成した画像です。Transformは境界を作りません。エフェクトとVisual Moduleはレイヤーとしてのprimary出力を使います。
+- `preserveDepth` Groupの素材出力は、通常描画と同じ空間で子のZ・Groupや祖先の変形・カメラを反映して合成した中間画像です。Group自身のopacity・blendMode・マスク・clipToFrameはまだ適用しません。2D画像として渡し、後段で変形・投影を二重適用しません。Groupの配置やカメラを変えると素材出力も変わります。
+- 配置を持つ出力は参照先の合成空間のScene基準枠で確定して画像入力へ渡し、位置と透明余白を維持します。画面外領域はこの境界で切り取ります。素材の寸法がそのまま利用できる画像・Effectなどは元の寸法を維持します。
+- 未選択・参照切れ・無効・祖先無効・クリップ区間外・映像出力なしは、どの段階でも入力として透明黒を渡します。参照IDは保持し、削除のUndoで復旧できます。Group・Sceneの複製では、複製範囲内への画像参照も新しいIDへ付け替えます。
+- 画像の依存は素材・単独描画・合成結果を区別し、`layerInput`・公開主入力・Groupの内部合成も含めて静的に循環を検出します。無効化やクリップ期間が重ならないことによる例外は設けません。配線・出力段階・並び順・階層・公開入力の変更時に再検証します。
+- 通常描画と画像参照は同じScene配置・サブサンプルの評価結果を共有し、素材の履歴を二重に進めません。参照する側だけがモーションブラー無効でも、取得先は自身と祖先の設定に従った通常描画の時刻・空間で評価します。参照する側の基準時刻で取得先を再評価しません。
+- Visual Moduleの公開主入力も編集でき、既定値とリセットは`layerInput`です。明示Bindingは自動割当より優先します。公開入力にはfit・wrap・filterを保存せず、サンプリングは内部接続で指定します。エフェクト側の画像Bindingは従来どおりこれらの設定を持ちます。
 - 直接のパラメータ編集・選択・キー操作は `['items', 'item-id', 'color']` のようなIDパスを使います。配列要素の削除で内部のキーも消え、UndoでIDごと復元します。キー・式の評価時刻とスコープは通常のレイヤー引数と同じです。`EffectRenderContext.time` だけはクリップの内容時刻を秒で渡します。
 - 出力は `primaryOutput` だけを使用し、nullの場合は合成をスキップします。タイムラインに不向きなエフェクトも候補から除外しません。Player入力、シーク前の履歴再現などは保証しません。
 - 解像度はノードと共通の `EffectResolution`（`auto` / `context` / `customAbsolute`）で、初期値はautoです。autoは素材固有寸法・解像度用入力のテクスチャ寸法・所属Sceneの順で解決し、倍率は一度だけ適用します。

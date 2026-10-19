@@ -5,6 +5,8 @@ import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-so
 import { findDependencyCycle } from '@gs/shared/utility/dependency-cycle.ts';
 import { inspectVisualModuleNode, validateVisualModuleInterface, visualModuleNodeStaticShape } from '@gs/subsystems_visual-module_shared/static-validation.ts';
 import { inspectTimelineLayer, timelineLayerStaticShape } from '@gs/subsystems_timeline_shared/static-validation.ts';
+import { getTimelineLayerOutputDependencyGraph } from '@gs/subsystems_timeline_shared/layer-output.ts';
+import type { TimelineImageInputReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
@@ -33,6 +35,7 @@ export class ProjectRenderValidation {
 	private visualModules = new Map<string, VisualModule>();
 	private nodeEdges = new Map<string, Map<string, readonly string[]>>();
 	private sceneEdges = new Map<string, Map<string, readonly string[]>>();
+	private imageInputs = new Map<string, Map<string, TimelineImageInputReference[]>>();
 	private locations = new Map<string, Map<string, LayerLocation>>();
 	private assets = new Map<string, string>();
 	private players = new Set<string>();
@@ -44,7 +47,7 @@ export class ProjectRenderValidation {
 
 	public reset(): void {
 		this.units.clear(); this.errors.clear(); this.dependents.clear();
-		this.visualModules.clear(); this.nodeEdges.clear(); this.sceneEdges.clear(); this.locations.clear();
+		this.visualModules.clear(); this.nodeEdges.clear(); this.sceneEdges.clear(); this.imageInputs.clear(); this.locations.clear();
 		this.visualModuleLivePreviewInputs = null;
 		this.assets = new Map(this.state.assets.value.map(asset => [asset.id, asset.fileDataType]));
 		this.players = new Set(this.state.players.value.map(player => player.id));
@@ -151,6 +154,7 @@ export class ProjectRenderValidation {
 			const unit = this.units.get(key)!;
 			this.check(key, JSON.parse(unit.shape), unit.check, unit.dependencies, true);
 			if (key.includes('/node:')) this.checkNodeGraph(key.slice(0, key.lastIndexOf('/node:')));
+			if (key.includes('/layer:')) this.checkLayerOutputGraph(key.slice('scene:'.length, key.lastIndexOf('/layer:')));
 		}
 	}
 
@@ -237,6 +241,7 @@ export class ProjectRenderValidation {
 			this.replaceVisualModule({ sceneId: id, inlineVisualModuleLayerId: layerId });
 		}
 		this.locations.delete(id); this.sceneEdges.delete(id); this.removeUnit('scene:' + id);
+		this.imageInputs.delete(id); this.removeUnit('scene:' + id + '/layer outputs');
 	}
 
 	private replaceScene(scene: TimelineScene) {
@@ -250,6 +255,7 @@ export class ProjectRenderValidation {
 		});
 		visit(scene.layers, [], false);
 		this.locations.set(scene.id, locations); this.sceneEdges.set(scene.id, new Map());
+		this.imageInputs.set(scene.id, new Map());
 		this.check('scene:' + scene.id, [scene.resolution, duplicate], () => {
 			validateSceneResolution(scene.resolution);
 			if (duplicate) throw new Error('Duplicate layer ID');
@@ -260,6 +266,7 @@ export class ProjectRenderValidation {
 			this.checkLayer(scene.id, id, false);
 		}
 		this.checkSceneGraph();
+		this.checkLayerOutputGraph(scene.id);
 	}
 
 	private checkLayer(sceneId: string, id: string, graph = true, force = false) {
@@ -275,6 +282,8 @@ export class ProjectRenderValidation {
 		let shape: unknown;
 		try { shape = timelineLayerStaticShape(layer, visualModule, effect); } catch { shape = layer; }
 		const changed = this.check('scene:' + sceneId + '/layer:' + id, shape, () => {
+			const inputs: TimelineImageInputReference[] = [];
+			this.imageInputs.get(sceneId)?.set(id, inputs);
 			if (layer.layerType === 'camera' && this.locations.get(sceneId)?.get(id)?.insideGroup) throw new Error('Camera is inside a Group');
 			if (layer.layerType === 'visualModule') dependencies.add('visualModule:' + layer.visualModuleId);
 			for (const scene of edges) {
@@ -283,11 +292,26 @@ export class ProjectRenderValidation {
 			}
 			if (layer.layerType === 'image' || layer.layerType === 'video' || layer.layerType === 'audio') for (const clip of layer.clips) this.asset(clip.assetId, dependencies);
 			const currentVisualModule = layer.layerType === 'visualModule' ? this.state.visualModules.value.find(visualModule => visualModule.id === layer.visualModuleId) : visualModule;
-			inspectTimelineLayer(layer, currentVisualModule, effect, (def, binding) => this.value(def, binding, dependencies));
+			inspectTimelineLayer(layer, currentVisualModule, effect, (def, binding) => {
+				this.value(def, binding, dependencies);
+				const input = binding as { inputSource: string };
+				if (input.inputSource === 'layerInput' || input.inputSource === 'anotherLayerOutput') inputs.push(binding as TimelineImageInputReference);
+			});
 		}, dependencies, force);
 		if (!changed) return;
 		this.sceneEdges.get(sceneId)?.set(id, edges);
 		if (graph && JSON.stringify(previous) !== JSON.stringify(edges)) this.checkSceneGraph();
+		if (graph) this.checkLayerOutputGraph(sceneId);
+	}
+
+	private checkLayerOutputGraph(sceneId: string) {
+		const scene = this.state.timelineScenes.value.find(scene => scene.id === sceneId);
+		if (scene == null) return;
+		const graph = getTimelineLayerOutputDependencyGraph(scene.layers, id => this.imageInputs.get(sceneId)?.get(id) ?? []);
+		this.check('scene:' + sceneId + '/layer outputs', [...graph], () => {
+			const cycle = findDependencyCycle(graph);
+			if (cycle != null) throw new Error('Circular layer output reference: ' + cycle.join(' → '));
+		});
 	}
 
 	private checkSceneGraph() {

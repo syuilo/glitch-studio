@@ -23,6 +23,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 	let scalingPipeline: ReturnType<typeof createShaderInputPipeline> | null = null;
 	let disposed = false;
 	return {
+		lazyInput: true,
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
@@ -49,7 +50,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 					pass.end();
 				}
 				const foreground: TimelineImage = { kind: 'texture', texture: scaledTexture ?? sourceTexture };
-				return { output: compositor.render(encoder, context.input, foreground, settings, context.renderSpace), gpuTime: 0 };
+				return { ...compositor.evaluate(encoder, context, foreground, settings), gpuTime: 0 };
 			} finally { options.device.queue.submit([encoder.finish()]); }
 		},
 		destroy() {
