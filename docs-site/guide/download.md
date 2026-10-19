@@ -4,6 +4,9 @@ description: デスクトップ版のダウンロード
 
 # ダウンロード
 
+現在のバージョン: v<!--[CURRENT_VERSION_MARKER]--><!--[/CURRENT_VERSION_MARKER]-->
+公開日: <!--[CURRENT_VERSION_RELEASE_DATE_MARKER]--><!--[/CURRENT_VERSION_RELEASE_DATE_MARKER]-->
+
 <table>
 	<thead>
 		<tr>

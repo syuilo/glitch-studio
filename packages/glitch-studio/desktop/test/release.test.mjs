@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import yaml from 'js-yaml';
 import asar from '@electron/asar';
-import { validateReleaseVersion, resolveReleaseVersion, updateReleaseDownloadLinks, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
+import { validateReleaseVersion, resolveReleaseVersion, formatReleasePublicationDate, updateReleaseDownloadLinks, updateReleaseDownloadPage, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
 
 const downloadPagePath = new URL('../../../../docs-site/guide/download.md', import.meta.url);
 
@@ -129,9 +129,55 @@ test('rejects malformed download sections and invalid release versions', async (
 		markdown.replace(windowsOpening, `text ${windowsOpening}`),
 	];
 	for (const invalidPage of invalidPages) {
-		assert.throws(() => updateReleaseDownloadLinks(invalidPage, '2.0.0'), /download link markers/);
+		assert.throws(() => updateReleaseDownloadLinks(invalidPage, '2.0.0'), /download page markers/);
 	}
 	assert.throws(() => updateReleaseDownloadLinks(markdown, '2.0.0" onclick="invalid'), /canonical SemVer/);
+});
+
+// 【公開日はGitHubの公開日時を日本時間の暦日に変換する】
+// ビルドや再実行の日付を使わず、UTCと日本時間の日付境界・年境界でも表示を正しく保つ。
+test('formats publication timestamps as Japanese calendar dates and rejects missing timestamps', () => {
+	assert.equal(formatReleasePublicationDate('2026-10-19T14:59:59Z'), '2026-10-19');
+	assert.equal(formatReleasePublicationDate('2026-10-19T15:00:00Z'), '2026-10-20');
+	assert.equal(formatReleasePublicationDate('2026-12-31T15:00:00Z'), '2027-01-01');
+	assert.equal(formatReleasePublicationDate('2026-10-20T00:30:00+09:00'), '2026-10-20');
+	for (const publishedAt of [null, '', 'invalid', 0]) {
+		assert.throws(() => formatReleasePublicationDate(publishedAt), /publication timestamp/);
+	}
+});
+
+// 【インラインのバージョンと公開日をリンクと一緒に更新し、公開前には古い日付を残さない】
+// v接頭辞は本文が所有する。再実行しても値や改行が増えず、公開後の取得日時が変わっても結果が同じになる。
+test('updates version and publication date inline and clears the date while preparing the next release', async () => {
+	const markdown = await fs.readFile(downloadPagePath, 'utf8');
+	for (const newline of ['\n', '\r\n']) {
+		const template = markdown.replace(/\r?\n/g, newline);
+		const published = updateReleaseDownloadPage(template, '2.0.0-alpha.42', '2026-10-19T15:30:00Z');
+		assert.ok(published.includes('現在のバージョン: v<!--[CURRENT_VERSION_MARKER]-->2.0.0-alpha.42<!--[/CURRENT_VERSION_MARKER]-->'));
+		assert.ok(published.includes('公開日: <!--[CURRENT_VERSION_RELEASE_DATE_MARKER]-->2026-10-20<!--[/CURRENT_VERSION_RELEASE_DATE_MARKER]-->'));
+		assert.ok(published.includes('/v2.0.0-alpha.42/Glitch-Studio-2.0.0-alpha.42-x64-Setup.exe'));
+		assert.equal(updateReleaseDownloadPage(published, '2.0.0-alpha.42', '2026-10-19T15:30:00Z'), published);
+		const preparing = updateReleaseDownloadPage(published, '2.0.0-alpha.43');
+		assert.ok(preparing.includes('<!--[CURRENT_VERSION_MARKER]-->2.0.0-alpha.43<!--[/CURRENT_VERSION_MARKER]-->'));
+		assert.ok(preparing.includes('<!--[CURRENT_VERSION_RELEASE_DATE_MARKER]--><!--[/CURRENT_VERSION_RELEASE_DATE_MARKER]-->'));
+		if (newline === '\r\n') assert.equal(published.replaceAll('\r\n', '').includes('\n'), false);
+		else assert.equal(published.includes('\r'), false);
+	}
+});
+
+// 【バージョン・公開日のマーカーも欠落や重複を許可しない】
+// 一部の表示だけが前リリースのまま残った状態でPagesへ公開することを防ぐ。
+test('rejects missing, duplicate and nested version or publication date markers', async () => {
+	const markdown = await fs.readFile(downloadPagePath, 'utf8');
+	for (const marker of ['CURRENT_VERSION_MARKER', 'CURRENT_VERSION_RELEASE_DATE_MARKER']) {
+		const opening = `<!--[${marker}]-->`;
+		const closing = `<!--[/${marker}]-->`;
+		for (const invalidPage of [markdown.replace(opening, ''), markdown.replace(closing, ''), markdown + opening, markdown + closing]) {
+			assert.throws(() => updateReleaseDownloadPage(invalidPage, '2.0.0', '2026-10-19T00:00:00Z'), /download page markers/);
+		}
+	}
+	const nested = markdown.replace('<!--[/CURRENT_VERSION_MARKER]-->', '').replace('<!--[CURRENT_VERSION_RELEASE_DATE_MARKER]-->', '<!--[CURRENT_VERSION_RELEASE_DATE_MARKER]--><!--[/CURRENT_VERSION_MARKER]-->');
+	assert.throws(() => updateReleaseDownloadPage(nested, '2.0.0', '2026-10-19T00:00:00Z'), /download page markers/);
 });
 
 // 【配布する最終インストーラーと更新メタデータのハッシュ・バージョン・名前を照合する】
