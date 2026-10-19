@@ -47,7 +47,7 @@
 					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
 					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" :title="i18n.ts._App.MotionBlurSamplesHint" @click="openMotionBlurSamplesMenu">{{ i18n.ts._App.MotionBlur }} {{ timelinePreviewMotionBlurSamples === 0 ? i18n.ts.Off : `${timelinePreviewMotionBlurSamples} samples` }}</button>
 					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'visualModuleLivePreview' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
-					<button v-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }} {{ livePreviewTimeFactor }}x</button>
+					<button v-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }} {{ visualModuleLivePreviewTimeFactor }}x</button>
 					<div :class="[$style.footerItem, $style.previewVolume]">
 						<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 						<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
@@ -123,7 +123,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => { disposeFileDrops?.(); });
 
-const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, livePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
+const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, visualModuleLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, visualModuleLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
 const { stateManager } = appContext.projectContext;
 const { name: projectName } = appContext.projectContext.stateManager.state;
 const { projectFileName, hasUnsavedChanges, isProjectSaving } = appContext;
@@ -215,28 +215,28 @@ function openTimeFactorMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'radioOption',
 		text: '-1x',
-		active: computed(() => livePreviewTimeFactor.value === -1),
-		action: () => livePreviewTimeFactor.value = -1,
+		active: computed(() => visualModuleLivePreviewTimeFactor.value === -1),
+		action: () => visualModuleLivePreviewTimeFactor.value = -1,
 	}, {
 		type: 'radioOption',
 		text: '0x',
-		active: computed(() => livePreviewTimeFactor.value === 0),
-		action: () => livePreviewTimeFactor.value = 0,
+		active: computed(() => visualModuleLivePreviewTimeFactor.value === 0),
+		action: () => visualModuleLivePreviewTimeFactor.value = 0,
 	}, {
 		type: 'radioOption',
 		text: '0.5x',
-		active: computed(() => livePreviewTimeFactor.value === 0.5),
-		action: () => livePreviewTimeFactor.value = 0.5,
+		active: computed(() => visualModuleLivePreviewTimeFactor.value === 0.5),
+		action: () => visualModuleLivePreviewTimeFactor.value = 0.5,
 	}, {
 		type: 'radioOption',
 		text: '1x',
-		active: computed(() => livePreviewTimeFactor.value === 1),
-		action: () => livePreviewTimeFactor.value = 1,
+		active: computed(() => visualModuleLivePreviewTimeFactor.value === 1),
+		action: () => visualModuleLivePreviewTimeFactor.value = 1,
 	}, {
 		type: 'radioOption',
 		text: '2x',
-		active: computed(() => livePreviewTimeFactor.value === 2),
-		action: () => livePreviewTimeFactor.value = 2,
+		active: computed(() => visualModuleLivePreviewTimeFactor.value === 2),
+		action: () => visualModuleLivePreviewTimeFactor.value = 2,
 	}], ev.currentTarget ?? ev.target);
 }
 
@@ -298,29 +298,29 @@ function openFpsMenu(ev: PointerEvent) {
 	}
 	ui.popupMenu([{
 		type: 'radioOption',
-		text: i18n.ts._App.UnlimitedLive,
-		active: computed(() => liveFpsLimit.value === null),
-		action: () => liveFpsLimit.value = null,
+		text: i18n.ts._App.UnlimitedVisualModuleLivePreview,
+		active: computed(() => visualModuleLivePreviewFpsLimit.value === null),
+		action: () => visualModuleLivePreviewFpsLimit.value = null,
 	}, {
 		type: 'radioOption',
-		text: i18n.ts._App.Live120fps,
-		active: computed(() => liveFpsLimit.value === 120),
-		action: () => liveFpsLimit.value = 120,
+		text: i18n.ts._App.VisualModuleLivePreview120fps,
+		active: computed(() => visualModuleLivePreviewFpsLimit.value === 120),
+		action: () => visualModuleLivePreviewFpsLimit.value = 120,
 	}, {
 		type: 'radioOption',
-		text: i18n.ts._App.Live60fps,
-		active: computed(() => liveFpsLimit.value === 60),
-		action: () => liveFpsLimit.value = 60,
+		text: i18n.ts._App.VisualModuleLivePreview60fps,
+		active: computed(() => visualModuleLivePreviewFpsLimit.value === 60),
+		action: () => visualModuleLivePreviewFpsLimit.value = 60,
 	}, {
 		type: 'radioOption',
-		text: i18n.ts._App.Live30fps,
-		active: computed(() => liveFpsLimit.value === 30),
-		action: () => liveFpsLimit.value = 30,
+		text: i18n.ts._App.VisualModuleLivePreview30fps,
+		active: computed(() => visualModuleLivePreviewFpsLimit.value === 30),
+		action: () => visualModuleLivePreviewFpsLimit.value = 30,
 	}, {
 		type: 'radioOption',
-		text: i18n.ts._App.Live15fps,
-		active: computed(() => liveFpsLimit.value === 15),
-		action: () => liveFpsLimit.value = 15,
+		text: i18n.ts._App.VisualModuleLivePreview15fps,
+		active: computed(() => visualModuleLivePreviewFpsLimit.value === 15),
+		action: () => visualModuleLivePreviewFpsLimit.value = 15,
 	}], ev.currentTarget ?? ev.target);
 }
 

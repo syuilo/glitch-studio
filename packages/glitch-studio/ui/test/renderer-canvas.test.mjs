@@ -36,9 +36,9 @@ function renderer() {
 // 【モード・波形方向・Workerの交換に応じてCanvasを切り替える】
 // Offscreen転送済みCanvasの複製や再転送をせず、非表示中に再生成した要素も表示できる必要がある。
 test('selects the current canvas after mode, orientation and worker changes', async () => {
-	const live = renderer();
+	const visualModuleLivePreview = renderer();
 	const timeline = renderer();
-	const selected = shallowRef(live);
+	const selected = shallowRef(visualModuleLivePreview);
 	const name = ref('waveformHorizontalCanvas');
 	const target = element();
 	const container = shallowRef(null);
@@ -48,10 +48,10 @@ test('selects the current canvas after mode, orientation and worker changes', as
 		await nextTick();
 		container.value = target;
 		await nextTick();
-		assert.deepEqual(target.children, [live.waveformHorizontalCanvas]);
+		assert.deepEqual(target.children, [visualModuleLivePreview.waveformHorizontalCanvas]);
 		selected.value = timeline;
 		await nextTick();
-		assert.equal(live.waveformHorizontalCanvas.parentNode, null);
+		assert.equal(visualModuleLivePreview.waveformHorizontalCanvas.parentNode, null);
 		assert.deepEqual(target.children, [timeline.waveformHorizontalCanvas]);
 		name.value = 'waveformVerticalCanvas';
 		await nextTick();
@@ -62,11 +62,11 @@ test('selects the current canvas after mode, orientation and worker changes', as
 		await nextTick();
 		assert.equal(previous.parentNode, null);
 		assert.deepEqual(target.children, [timeline.waveformVerticalCanvas]);
-		live.waveformVerticalCanvas = element();
-		live.canvasRevision.value++;
-		selected.value = live;
+		visualModuleLivePreview.waveformVerticalCanvas = element();
+		visualModuleLivePreview.canvasRevision.value++;
+		selected.value = visualModuleLivePreview;
 		await nextTick();
-		assert.deepEqual(target.children, [live.waveformVerticalCanvas]);
+		assert.deepEqual(target.children, [visualModuleLivePreview.waveformVerticalCanvas]);
 	} finally {
 		scope.stop();
 	}

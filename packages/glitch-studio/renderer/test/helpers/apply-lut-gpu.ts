@@ -68,28 +68,28 @@ export async function run() {
 				completed.push(`${name} (${use32bit ? 32 : 16} bit)`);
 			};
 			try {
-				// 【ライブ描画は準備を待たずに開始でき、読み込み完了後に更新される】
-				// 書き出しと違いライブプレビューはprepare/waitUntilReadyを呼ばない。
+				// 【Visual Module Live Previewの描画は準備を待たずに開始でき、読み込み完了後に更新される】
+				// 書き出しと違いVisual Module Live Previewはprepare/waitUntilReadyを呼ばない。
 				// 初回と差し替えの両方で、読み込み中の描画が例外にならず古い画素も残さないことを確認する。
-				for (const name of ['initial live load', 'live replacement']) {
+				for (const name of ['initial Visual Module Live Preview load', 'Visual Module Live Preview replacement']) {
 					let finishRead!: (text: string) => void;
 					const pendingText = new Promise<string>(resolve => { finishRead = resolve; });
 					class DelayedBlob extends Blob {
 						override text() { return pendingText; }
 					}
 					const params = { input: { kind: 'uniform' as const, value: [0.2, 0.6, 0.4, 1] }, lut: { id: 'same-asset', fileData: new DelayedBlob(['pending']) } };
-					const renderLive = () => {
+					const renderVisualModuleLivePreview = () => {
 						const encoder = device.createCommandEncoder();
 						renderer.render({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 } });
 						device.queue.submit([encoder.finish()]);
 					};
-					renderLive();
+					renderVisualModuleLivePreview();
 					const pendingVersion = renderer.cacheVersion;
 					if ((await read(renderer.getOutputTexture('output')!)).some(value => value !== 0)) throw new Error(`${name}: expected transparent output while loading`);
 					finishRead('LUT_1D_SIZE 2\n0 1 0\n1 0 2');
 					if (!await renderer.waitUntilReady(new AbortController().signal)) throw new Error(`${name}: cancelled`);
 					if (renderer.cacheVersion === pendingVersion) throw new Error(`${name}: loading output remained cached`);
-					renderLive();
+					renderVisualModuleLivePreview();
 					const actual = await read(renderer.getOutputTexture('output')!);
 					if (actual.some((value, index) => Math.abs(value - [0.2, 0.4, 0.8, 1][index]) > 0.004)) throw new Error(`${name}: ${actual}`);
 					completed.push(`${name} (${use32bit ? 32 : 16} bit)`);

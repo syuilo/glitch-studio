@@ -55,7 +55,7 @@ import { openMediaFile } from '@/utility/open-media-file.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, livePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
 const { stateManager } = appContext.projectContext;
 const renderFailureLocation = computed(() => {
 	const origin = renderEngine.runtimeDiagnostic.value?.origin;
@@ -74,8 +74,8 @@ const pan = ref<[number, number]>([0, 0]);
 const panning = ref(false);
 const previewCanvasRect = shallowRef<PreviewCanvasRect>({ left: 0, top: 0, width: 0, height: 0 });
 let stopPan: (() => void) | null = null;
-const liveTime = ref(0);
-const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : liveTime.value);
+const visualModuleLivePreviewTime = ref(0);
+const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : visualModuleLivePreviewTime.value);
 const currentFrameNumber = computed(() => {
 	if (previewPlayback.state.value.mode !== 'timeline') return null;
 	// プレビューの描画頻度を下げても、フレーム番号はタイムラインの設定FPSを基準にする。
@@ -104,7 +104,7 @@ let timecodeRaf = animationWindow.requestAnimationFrame(update);
 function update(t: number) {
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
-	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') liveTime.value += delta * livePreviewTimeFactor.value;
+	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') visualModuleLivePreviewTime.value += delta * visualModuleLivePreviewTimeFactor.value;
 	updateGridLines();
 	updatePreviewCanvasRect();
 	timecodeRaf = animationWindow.requestAnimationFrame(update);
@@ -252,7 +252,7 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 			active: previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id,
 			action: () => {
 				// 同じVisual Module Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
-				if (previewPlayback.visualModuleLivePreviewVisualModuleId.value !== visualModule.id) previewPlayback.startLive(visualModule.id);
+				if (previewPlayback.visualModuleLivePreviewVisualModuleId.value !== visualModule.id) previewPlayback.startVisualModuleLivePreview(visualModule.id);
 			},
 		})),
 	}], ev.currentTarget ?? ev.target);

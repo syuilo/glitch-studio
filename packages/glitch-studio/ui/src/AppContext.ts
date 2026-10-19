@@ -56,10 +56,10 @@ export class AppContext {
 		const layerId = getSelectedTimelineLayerId(getTimelineEditorState(scene).selection);
 		return (layerId == null ? null : findTimelineLayer(scene.layers, layerId)) ?? null;
 	});
-	public liveFpsLimit = ref<number | null>(60);
+	public visualModuleLivePreviewFpsLimit = ref<number | null>(60);
 	public timelinePreviewFpsFactor = ref(0.5);
 	public timelinePreviewMotionBlurSamples = ref<(typeof TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS)[number]>(DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES);
-	public livePreviewTimeFactor = ref(1);
+	public visualModuleLivePreviewTimeFactor = ref(1);
 	public resolutionFactor = ref(1);
 	public highlightClipping = ref(false);
 	public audioOutput = markRaw(new AudioOutput());
@@ -98,8 +98,8 @@ export class AppContext {
 			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 			enableStats: true,
 		}, {
-			fpsLimit: this.liveFpsLimit.value,
-			livePreviewTimeFactor: this.livePreviewTimeFactor.value,
+			fpsLimit: this.visualModuleLivePreviewFpsLimit.value,
+			visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value,
 			highlightClipping: this.highlightClipping.value,
 		}, this.audioOutput));
 
@@ -123,7 +123,7 @@ export class AppContext {
 			() => this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),
 			this.timelineAudioPreview,
 			(visualModuleId, params) => {
-				this.renderValidation.setLiveInputs(visualModuleId, params);
+				this.renderValidation.setVisualModuleLivePreviewInputs(visualModuleId, params);
 				this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 				this.renderEngine.requestRetry();
 			},
@@ -166,7 +166,7 @@ export class AppContext {
 		};
 		watch(this.previewPlayback.visualModuleLivePreviewVisualModuleId, id => {
 			if (id != null) return;
-			this.renderValidation.setLiveInputs(null);
+			this.renderValidation.setVisualModuleLivePreviewInputs(null);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 		}, { flush: 'sync' });
 		watch(() => this.timelineAudioPreview.error.value, message => {
@@ -233,13 +233,13 @@ export class AppContext {
 			this.previewPlayback.refresh();
 		});
 
-		watch(this.liveFpsLimit, async value => {
+		watch(this.visualModuleLivePreviewFpsLimit, async value => {
 			await this.visualModuleRendererManagerController.updateDynamicOptions({ fpsLimit: value });
 			this.renderEngine.requestRetry();
 		});
 
-		watch(this.livePreviewTimeFactor, async value => {
-			await this.visualModuleRendererManagerController.updateDynamicOptions({ livePreviewTimeFactor: value });
+		watch(this.visualModuleLivePreviewTimeFactor, async value => {
+			await this.visualModuleRendererManagerController.updateDynamicOptions({ visualModuleLivePreviewTimeFactor: value });
 			this.renderEngine.requestRetry();
 		});
 		watch(this.timelinePreviewFpsFactor, () => this.renderEngine.requestRetry());
@@ -415,9 +415,9 @@ export class AppContext {
 
 		// UndoでVisual Module Live Preview対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
 		this.projectWatchers.push(this.projectContext.stateManager.onChange(changes => {
-			const liveVisualModuleId = this.previewPlayback.visualModuleLivePreviewVisualModuleId.value;
-			if (liveVisualModuleId != null && changes.some(change => change.type === 'visualModuleRegistration' && change.visualModuleId === liveVisualModuleId)
-				&& this.projectContext.getVisualModuleById(liveVisualModuleId) == null) this.previewPlayback.showTimeline();
+			const visualModuleLivePreviewVisualModuleId = this.previewPlayback.visualModuleLivePreviewVisualModuleId.value;
+			if (visualModuleLivePreviewVisualModuleId != null && changes.some(change => change.type === 'visualModuleRegistration' && change.visualModuleId === visualModuleLivePreviewVisualModuleId)
+				&& this.projectContext.getVisualModuleById(visualModuleLivePreviewVisualModuleId) == null) this.previewPlayback.showTimeline();
 		}));
 
 		const rendererSync = new RendererProjectSynchronizer(this.projectContext.stateManager, {
@@ -453,7 +453,7 @@ export class AppContext {
 		}));
 
 		this.previewPlayback.seekTimeline(0);
-		if (project.visualModules[0] != null) this.previewPlayback.startLive(project.visualModules[0].id);
+		if (project.visualModules[0] != null) this.previewPlayback.startVisualModuleLivePreview(project.visualModules[0].id);
 
 		waiting.setText(i18n.ts._App.InitializingRenderer);
 		await this.renderEngine.enable();

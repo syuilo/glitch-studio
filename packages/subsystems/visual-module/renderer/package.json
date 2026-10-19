@@ -10,7 +10,7 @@
 	},
 	"exports": {
 		"./visual-module-renderer.ts": "./src/visual-module-renderer.ts",
-		"./live-preview-render-loop.ts": "./src/live-preview-render-loop.ts"
+		"./visual-module-live-preview-render-loop.ts": "./src/visual-module-live-preview-render-loop.ts"
 	},
 	"devDependencies": {
 		"@types/web": "0.0.352",

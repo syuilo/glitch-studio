@@ -105,7 +105,7 @@ export type VisualModule = {
 	automationGraphs: AutomationGraph[];
 };
 
-// レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
+// レイヤー・Visual Module Live Previewからは、モジュール内部のノードやパラメータを参照しない。
 export type VisualModuleArgumentBindings = Record<VisualModuleCustomParameterId, ValueParameterBinding>;
 
 export type EffectNodeOf<DEF extends Pick<EffectDefinition, 'id' | 'paramDefs'>> =

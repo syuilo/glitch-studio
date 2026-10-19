@@ -36,7 +36,7 @@ export class ProjectRenderValidation {
 	private locations = new Map<string, Map<string, LayerLocation>>();
 	private assets = new Map<string, string>();
 	private players = new Set<string>();
-	private liveInputs: { visualModuleId: string; bindings: VisualModuleArgumentBindings } | null = null;
+	private visualModuleLivePreviewInputs: { visualModuleId: string; bindings: VisualModuleArgumentBindings } | null = null;
 	public readonly diagnostics = shallowRef<readonly RenderValidationDiagnostic[]>([]);
 	public readonly errorMessage = computed(() => this.diagnostics.value[0]?.message ?? null);
 
@@ -45,7 +45,7 @@ export class ProjectRenderValidation {
 	public reset(): void {
 		this.units.clear(); this.errors.clear(); this.dependents.clear();
 		this.visualModules.clear(); this.nodeEdges.clear(); this.sceneEdges.clear(); this.locations.clear();
-		this.liveInputs = null;
+		this.visualModuleLivePreviewInputs = null;
 		this.assets = new Map(this.state.assets.value.map(asset => [asset.id, asset.fileDataType]));
 		this.players = new Set(this.state.players.value.map(player => player.id));
 		for (const visualModule of this.state.visualModules.value) this.replaceVisualModule({ visualModuleId: visualModule.id }, visualModule);
@@ -95,15 +95,15 @@ export class ProjectRenderValidation {
 				this.recheckDependents('player:' + change.playerId);
 			} else if (change.type === 'projectResolution' || change.type === 'timelineRenderSettings') this.checkSettings();
 		}
-		if (this.liveInputs && changes.some(change => change.type === 'visualModule' || change.type === 'visualModuleRegistration')) {
+		if (this.visualModuleLivePreviewInputs && changes.some(change => change.type === 'visualModule' || change.type === 'visualModuleRegistration')) {
 			this.removeUnit('Visual Module Live Preview inputs');
-			this.setLiveInputs(this.liveInputs.visualModuleId, this.liveInputs.bindings);
+			this.setVisualModuleLivePreviewInputs(this.visualModuleLivePreviewInputs.visualModuleId, this.visualModuleLivePreviewInputs.bindings);
 		}
 		this.publish();
 	}
 
-	public setLiveInputs(visualModuleId: string | null, bindings: VisualModuleArgumentBindings = {}) {
-		this.liveInputs = visualModuleId == null ? null : { visualModuleId, bindings };
+	public setVisualModuleLivePreviewInputs(visualModuleId: string | null, bindings: VisualModuleArgumentBindings = {}) {
+		this.visualModuleLivePreviewInputs = visualModuleId == null ? null : { visualModuleId, bindings };
 		if (visualModuleId == null) { this.removeUnit('Visual Module Live Preview inputs'); this.publish(); return; }
 		const visualModule = this.state.visualModules.value.find(visualModule => visualModule.id === visualModuleId);
 		if (!visualModule) { this.removeUnit('Visual Module Live Preview inputs'); this.publish(); return; }

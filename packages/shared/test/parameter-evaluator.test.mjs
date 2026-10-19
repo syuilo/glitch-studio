@@ -64,7 +64,7 @@ test('keyframes interpolate vector and straight color components without mutatin
 
 // 【キーフレームの時刻指定】
 // 正規化座標・ミリ秒座標・終端合わせで再生位置を正しく解決する。
-test('keyframes respect normalized duration, millisecond coordinates, end alignment and live time', () => {
+test('keyframes respect normalized duration, millisecond coordinates, end alignment and unbounded time', () => {
 	for (const isNormalized of [true, false]) {
 		const input = keyframesInput([keyframe(isNormalized ? 1.5 : 3000, 10), keyframe(isNormalized ? 0.5 : 1000, 0)]);
 		input.keyframesTimeline.isNormalized = isNormalized;
@@ -278,8 +278,8 @@ for (const source of ['automationGraphReference', 'automationGraphInline']) {
 		assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 4500 }), 7.5);
 	});
 
-	// liveは有限な終端を持たないためstart扱い。空・1点・無効なdurationでもNaNを返さない。
-	test(`handles live playback and degenerate graphs for ${source}`, () => {
+	// 有限な終端を持たないコンテキストではstart扱い。空・1点・無効なdurationでもNaNを返さない。
+	test(`handles unbounded playback and degenerate graphs for ${source}`, () => {
 		assertClose(evaluateGraphInput(source, rampGraph(), { offsetMode: 'end', endTime: Infinity }), 2.5);
 		for (const trimmedDurationMs of [null, 0, -1, Infinity, NaN]) {
 			assertClose(evaluateGraphInput(source, rampGraph(), { trimmedDurationMs }), 5);

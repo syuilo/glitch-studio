@@ -17,7 +17,7 @@
 - 次のmicrotaskで送信するまでに集まった変更は対象ごとにまとめ、送信時の最終状態を取得します。ただし、変更種別は途中のものも保持します。例えば、接続変更の後に値を変更しても、値だけの編集として扱ってはいけません。
 - Module全体の更新は内部ノードの更新を、Scene全体の更新は内部の更新を吸収します。レイヤーの追加・削除・置換も内部inline Moduleの更新を吸収しますが、レイヤーの引数編集とinline Module内部の編集では両方の変更種別を残します。レイヤーの追加・削除を反映してから最終的な順序を適用します。
 - 登録ModuleはModule ID、inline ModuleはScene IDとレイヤーIDで指定します。登録Moduleの編集は、その定義を使うVisual Module Live Previewと各タイムライン配置へ反映します。inline Moduleの編集対象は指定されたレイヤーの定義です。同じ定義を使っていても、実行状態は配置・クリップごとに独立させます。
-- 現在、タイムラインのModule引数編集もレイヤー全体を送るため、inline Moduleでは内部定義も転送されます。Visual Module Live Previewの引数更新は `updateLiveParamValues()` を使い、同じModuleの値調整でVisual Module Live Previewを開始し直しません。
+- 現在、タイムラインのModule引数編集もレイヤー全体を送るため、inline Moduleでは内部定義も転送されます。Visual Module Live Previewの引数更新は `updateVisualModuleLivePreviewParamValues()` を使い、同じModuleの値調整でVisual Module Live Previewを開始し直しません。
 
 ## 描画キャッシュと実行インスタンス
 

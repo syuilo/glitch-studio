@@ -36,7 +36,7 @@ export type VisualModuleRenderContext = {
 	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
 	time: number;
 	timeDelta: number;
-	endTime: number; // 終了時刻という概念がないコンテキスト(例: live mode)の場合はInfinityとすること。
+	endTime: number; // 終了時刻という概念がないコンテキスト(例: Visual Module Live Preview)の場合はInfinityとすること。
 	/** 内容時刻と独立した表示区間の進行率。タイムラインの呼び出し側で計算する。 */
 	progress?: number;
 	paramInputs?: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture>;

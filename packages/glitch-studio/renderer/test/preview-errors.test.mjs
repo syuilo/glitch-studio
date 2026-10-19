@@ -293,18 +293,18 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 // 【PartialなVisual Module Live Preview設定の省略は維持し、明示的なnullではFPS制限を解除する】
 // 解除を値の存在判定で除外すると、設定画面では無制限でも描画ループには制限が残る。
 // prototype上の値は差分ではないため、解像度や描画速度の更新を発生させない。
-test('preserves omitted live options and clears an explicit FPS limit', async t => {
+test('preserves omitted Visual Module Live Preview options and clears an explicit FPS limit', async t => {
 	const { renderer } = await fixture(t);
-	await renderer.updateDynamicOptions({ fpsLimit: 30, livePreviewTimeFactor: 2 });
+	await renderer.updateDynamicOptions({ fpsLimit: 30, visualModuleLivePreviewTimeFactor: 2 });
 	const resize = t.mock.method(renderer, 'updateCanvasResolution');
 	const assets = t.mock.method(renderer, 'updateAssets', async () => true);
-	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, fpsLimit: null, livePreviewTimeFactor: 9, assets: [] }));
-	assert.equal(renderer.liveRenderLoop.fpsLimit, 30);
-	assert.equal(renderer.liveRenderLoop.timeFactor, 2);
+	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, fpsLimit: null, visualModuleLivePreviewTimeFactor: 9, assets: [] }));
+	assert.equal(renderer.visualModuleLivePreviewRenderLoop.fpsLimit, 30);
+	assert.equal(renderer.visualModuleLivePreviewRenderLoop.timeFactor, 2);
 	assert.equal(resize.mock.calls.length, 0);
 	assert.equal(assets.mock.calls.length, 0);
 	await renderer.updateDynamicOptions({ fpsLimit: null });
-	assert.equal(renderer.liveRenderLoop.fpsLimit, null);
+	assert.equal(renderer.visualModuleLivePreviewRenderLoop.fpsLimit, null);
 	await renderer.updateDynamicOptions({ assets: [] });
 	assert.equal(assets.mock.calls.length, 1);
 });
@@ -335,13 +335,13 @@ test('renders a newly registered Visual Module and stops Visual Module Live Prev
 	const { renderer, errors, frames, frame } = await fixture(t);
 	const imported = { ...constantVisualModule(), id: 'imported', name: 'Imported Visual Module' };
 	renderer.applyProjectChanges([{ type: 'visualModuleRegistration', visualModuleId: imported.id, visualModule: imported }]);
-	renderer.startLiveRenderLoopFor(imported.id);
+	renderer.startVisualModuleLivePreviewRenderLoopFor(imported.id);
 	frame(16);
 	assert.deepEqual(errors, []);
 	assert.equal(frames.size, 1);
 	renderer.applyProjectChanges([{ type: 'visualModuleRegistration', visualModuleId: imported.id, visualModule: null }]);
-	assert.equal(renderer.liveVisualModuleId, null);
-	assert.equal(renderer.liveVisualModuleRenderer, null);
+	assert.equal(renderer.visualModuleLivePreviewVisualModuleId, null);
+	assert.equal(renderer.visualModuleLivePreviewVisualModuleRenderer, null);
 	assert.equal(frames.size, 0);
 	assert.ok(!renderer.dynamicOptions.visualModules.some(visualModule => visualModule.id === imported.id));
 });
@@ -485,7 +485,7 @@ test('ignores obsolete frame results after edits and renders the updated state',
 // 【Visual Module Live Preview描画の途中で例外が起きてもGPUコマンドと計測を終了する】
 // 循環参照のような描画前の失敗だけを確認すると、計測中の失敗でTimingHelperが
 // 前のencoderを保持し続け、原因を直しても描画できなくなる不具合を見逃す。
-test('finishes partial live frames before retrying', async t => {
+test('finishes partial Visual Module Live Preview frames before retrying', async t => {
 	const { renderer, errors, frame } = await fixture(t, { enableStats: true });
 	let submitted = 0;
 	let collected = 0;
@@ -495,9 +495,9 @@ test('finishes partial live frames before retrying', async t => {
 		collected++;
 		return 0;
 	};
-	renderer.startLiveRenderLoopFor('module');
+	renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 	let fail = true;
-	renderer.liveVisualModuleRenderer.render = () => {
+	renderer.visualModuleLivePreviewVisualModuleRenderer.render = () => {
 		if (fail) throw new Error('partial render failed');
 		return undefined;
 	};
@@ -551,12 +551,12 @@ test('commits only the latest assets and applies other options in call order', a
 
 // 解像度を汎用の更新APIで変えても、Canvasと描画先の解像度を一致させる。
 // 専用のresizeメッセージだけにCanvas更新を残すと、呼び出し経路で出力サイズが変わる。
-test('resizes the canvas and live renderer through dynamic options', async t => {
+test('resizes the canvas and Visual Module Live Preview renderer through dynamic options', async t => {
 	const { renderer } = await fixture(t);
-	renderer.startLiveRenderLoopFor('module');
+	renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 	const resolutions = [];
-	const resize = renderer.liveVisualModuleRenderer.resize.bind(renderer.liveVisualModuleRenderer);
-	renderer.liveVisualModuleRenderer.resize = resolution => { resolutions.push(resolution); resize(resolution); };
+	const resize = renderer.visualModuleLivePreviewVisualModuleRenderer.resize.bind(renderer.visualModuleLivePreviewVisualModuleRenderer);
+	renderer.visualModuleLivePreviewVisualModuleRenderer.resize = resolution => { resolutions.push(resolution); resize(resolution); };
 	await renderer.updateDynamicOptions({ resolution: { width: 320, height: 180 } });
 	assert.equal(renderer.gpuContext.canvas.width, 320);
 	assert.equal(renderer.gpuContext.canvas.height, 180);
@@ -567,7 +567,7 @@ test('resizes the canvas and live renderer through dynamic options', async t => 
 // 出力なしで描画をスキップすると、接続中の最後の映像がCanvasに残ってしまう。
 // 実際のIn/Outの配線を差分更新し、透明RGBAの転送と最終描画が行われること、
 // 未接続のままでも描画ループが継続し、再接続した次のフレームで色が戻ることを確認する。
-test('renders transparent live output after disconnecting Out and recovers on reconnection', async t => {
+test('renders transparent Visual Module Live Preview output after disconnecting Out and recovers on reconnection', async t => {
 	const { renderer, errors, frames, frame } = await fixture(t);
 	const out = { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } };
 	await renderer.updateDynamicOptions({
@@ -582,7 +582,7 @@ test('renders transparent live output after disconnecting Out and recovers on re
 	const writes = [];
 	t.mock.method(renderer.gpuDevice.queue, 'writeTexture', (destination, data) => writes.push(Array.from(data)));
 	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
-	renderer.startLiveRenderLoopFor('module');
+	renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 	frame(16);
 	assert.deepEqual(writes.at(-1), [0x3c00, 0, 0, 0x3c00]);
 	assert.equal(present.mock.callCount(), 1);
@@ -624,7 +624,7 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		}] });
 		const writes = [];
 		renderer.gpuDevice.queue.writeBuffer = (buffer, offset, data) => writes.push(Array.from(new Uint32Array(data.slice(0))));
-		if (Manager === VisualModuleRendererManager) renderer.startLiveRenderLoopFor('module');
+		if (Manager === VisualModuleRendererManager) renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 		let timestamp = 0;
 		const render = () => Manager === VisualModuleRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
 		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true });

@@ -1,13 +1,13 @@
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { DeepReadonly } from 'vue';
-import type { LivePreviewEffectStatusSource } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
+import type { VisualModuleLivePreviewEffectStatusSource } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 import type { TimelineLayerStatusSource } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { VisualModule, VisualModuleNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 
 export type RenderFailureOrigin =
-	| { source: LivePreviewEffectStatusSource; nodeId: string }
+	| { source: VisualModuleLivePreviewEffectStatusSource; nodeId: string }
 	| { source: TimelineLayerStatusSource; nodeId?: string };
 
 export type RenderFailureDiagnostic = { message: string; origin?: RenderFailureOrigin };
@@ -29,7 +29,7 @@ function nodeLabel(visualModule: VisualModule | null | undefined, nodeId: string
  */
 export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrigin>, visualModules: readonly ProjectVisualModule[], scenes: readonly TimelineScene[]): string {
 	const { source, nodeId } = origin;
-	if (source.type === 'livePreview') {
+	if (source.type === 'visualModuleLivePreview') {
 		const sourceVisualModule = visualModules.find(visualModule => visualModule.id === source.visualModuleId);
 		const parts = ['Visual Module Live Preview', label('Visual Module', source.visualModuleId, sourceVisualModule?.name)];
 		if (nodeId != null) parts.push(nodeLabel(sourceVisualModule, nodeId));

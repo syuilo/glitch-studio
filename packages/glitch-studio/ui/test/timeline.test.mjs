@@ -129,10 +129,10 @@ function setup(t, fpsLimit = null, audio, duration = Infinity) {
 		},
 		cancelAnimationFrame(id) { callbacks.delete(id); },
 	};
-	const liveRenderer = Object.fromEntries(['startLiveRenderLoopFor', 'updateLiveParamValues', 'stopRenderLoop']
+	const visualModuleLivePreviewRenderer = Object.fromEntries(['startVisualModuleLivePreviewRenderLoopFor', 'updateVisualModuleLivePreviewParamValues', 'stopRenderLoop']
 		.map(name => [name, (...args) => calls.push([name, ...args])]));
 	const timelineRenderer = { isReady: { value: true }, errorMessage: { value: null }, renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
-	const playback = new PreviewPlaybackController(liveRenderer, timelineRenderer, () => fpsLimit, () => duration, audio);
+	const playback = new PreviewPlaybackController(visualModuleLivePreviewRenderer, timelineRenderer, () => fpsLimit, () => duration, audio);
 	t.after(() => {
 		playback.dispose();
 		delete globalThis.window;
@@ -180,7 +180,7 @@ test('keeps audio time advancing during slow rendering and requests the paused p
 test('shows the paused timeline at its retained position', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.seekTimeline(1234);
-	playback.startLive('module');
+	playback.startVisualModuleLivePreview('module');
 	calls.length = 0;
 	playback.showTimeline();
 	assert.deepEqual(calls, [['stopRenderLoop'], ['renderTimelineAt', 1234]]);
@@ -219,16 +219,16 @@ test('suspends timeline rendering and resumes without advancing export time', t 
 // 呼び出し元のオブジェクトが変更されても、エクスポート後に別の設定で再開してはいけない。
 test('restores visualModuleLivePreview mode with a snapshot of the latest parameters', t => {
 	const { playback, calls } = setup(t);
-	playback.startLive('module');
+	playback.startVisualModuleLivePreview('module');
 	const params = { amount: { inputSource: 'literal', value: 3 } };
-	playback.updateLiveParamValues('module', params);
+	playback.updateVisualModuleLivePreviewParamValues('module', params);
 	params.amount.value = 99;
 	playback.suspend();
 	calls.length = 0;
 	playback.refresh();
 	assert.equal(playback.state.value.mode, 'visualModuleLivePreview');
 	playback.resume();
-	assert.deepEqual(calls, [['startLiveRenderLoopFor', 'module', { amount: { inputSource: 'literal', value: 3 } }]]);
+	assert.deepEqual(calls, [['startVisualModuleLivePreviewRenderLoopFor', 'module', { amount: { inputSource: 'literal', value: 3 } }]]);
 });
 
 // 【未準備のタイムラインへの描画を防ぎ、復帰時に最新のシーク位置を描く】
@@ -271,15 +271,15 @@ test('resumes timeline playback from the stopped position', t => {
 });
 
 // タイムライン再生はVisual Module Live Previewを即座に停止し、初回RAFを待たず現在位置を表示する。
-test('stops live before playing the timeline and ignores duplicate play', t => {
+test('stops Visual Module Live Preview before playing the timeline and ignores duplicate play', t => {
 	const { playback, callbacks, calls } = setup(t);
-	playback.startLive('module');
+	playback.startVisualModuleLivePreview('module');
 	calls.length = 0;
 	playback.playTimeline();
 	playback.playTimeline();
 	assert.deepEqual(calls, [['stopRenderLoop'], ['renderTimelineAt', 0]]);
 	assert.deepEqual(playback.state.value, { mode: 'timeline', playing: true });
-	assert.equal(playback.liveVisualModuleId.value, null);
+	assert.equal(playback.visualModuleLivePreviewVisualModuleId.value, null);
 	assert.equal(callbacks.size, 1);
 });
 
@@ -290,7 +290,7 @@ test('cancels timeline playback when starting visualModuleLivePreview', t => {
 	frame(1000);
 	frame(1017);
 	const staleCallback = callbacks.values().next().value;
-	playback.startLive('module');
+	playback.startVisualModuleLivePreview('module');
 	calls.length = 0;
 	staleCallback(1034);
 	playback.refresh();
@@ -304,7 +304,7 @@ test('cancels timeline playback when starting visualModuleLivePreview', t => {
 // 同じ時刻へのシークでもVisual Module Live Previewを停止する。時刻のwatchに依存するとこの操作を取りこぼす。
 test('seeking the current time switches visualModuleLivePreview to paused timeline', t => {
 	const { playback, calls, callbacks } = setup(t);
-	playback.startLive('module');
+	playback.startVisualModuleLivePreview('module');
 	calls.length = 0;
 	playback.seekTimeline(0);
 	assert.deepEqual(playback.state.value, { mode: 'timeline', playing: false });
@@ -339,14 +339,14 @@ test('advances by elapsed time with an fps limit', t => {
 });
 
 // Visual Module Live Previewパラメータ更新は同一モジュールのインスタンスを維持し、タイムラインからは排他的に切り替える。
-test('updates live parameters without restarting the current module', t => {
+test('updates Visual Module Live Preview parameters without restarting the current module', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.playTimeline();
-	playback.updateLiveParamValues('module', {});
+	playback.updateVisualModuleLivePreviewParamValues('module', {});
 	assert.equal(callbacks.size, 0);
 	calls.length = 0;
-	playback.updateLiveParamValues('module', {});
-	assert.deepEqual(calls, [['updateLiveParamValues', 'module', {}]]);
+	playback.updateVisualModuleLivePreviewParamValues('module', {});
+	assert.deepEqual(calls, [['updateVisualModuleLivePreviewParamValues', 'module', {}]]);
 });
 
 // 破棄時は動作中の処理を停止し、UIに再生中の状態を残さない。
@@ -356,7 +356,7 @@ test('disposes both playback modes', t => {
 	playback.dispose();
 	assert.equal(callbacks.size, 0);
 	assert.equal(playback.isTimelinePlaying.value, false);
-	playback.startLive('module');
+	playback.startVisualModuleLivePreview('module');
 	calls.length = 0;
 	playback.dispose();
 	assert.deepEqual(calls, [['stopRenderLoop']]);

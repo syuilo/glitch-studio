@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<div v-if="previewPlayback.state.value.mode !== 'visualModuleLivePreview'">{{ i18n.ts._Stats.LiveOnly }}</div>
+	<div v-if="previewPlayback.state.value.mode !== 'visualModuleLivePreview'">{{ i18n.ts._Stats.VisualModuleLivePreviewOnly }}</div>
 	<div v-show="previewPlayback.state.value.mode === 'visualModuleLivePreview'" :class="$style.legend">
 		<div v-for="item in series" :key="item.key" :class="$style.legendItem">
 			<span style="width: 8px; height: 2px;" :style="{ backgroundColor: item.color }"></span>

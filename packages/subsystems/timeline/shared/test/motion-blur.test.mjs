@@ -157,7 +157,7 @@ test('validates finite fps, angles and bounded integer sample counts', () => {
 // 履歴依存はノード自身の定義にあるため、直接レイヤーと内部ノードの両方を調べる必要がある。
 test('finds history effects in placed definitions only', () => {
 	const definitions = { feedback: { dependsOnRenderHistory: true }, flow: { dependsOnRenderHistory: true }, unused: { dependsOnRenderHistory: true }, fill: { dependsOnRenderHistory: false } };
-	const visualModules = new Map([['used', { nodes: [{ type: 'effect', effectId: 'flow' }] }], ['live', { nodes: [{ type: 'effect', effectId: 'unused' }] }]]);
+	const visualModules = new Map([['used', { nodes: [{ type: 'effect', effectId: 'flow' }] }], ['visualModuleLivePreview', { nodes: [{ type: 'effect', effectId: 'unused' }] }]]);
 	const scenes = [scene('root', [
 		{ layerType: 'effect', effectId: 'feedback', clips: [clip(0, 100)] },
 		{ layerType: 'effect', effectId: 'unused', clips: [] },

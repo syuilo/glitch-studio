@@ -100,7 +100,7 @@ const appBundle = await build({
 							const next = applyRendererProjectChanges({ visualModules: this.options.visualModules, timelineScenes: this.options.timelineScenes ?? [] }, patch);
 							Object.assign(this.options, this.timeline ? next : { visualModules: next.visualModules });
 						}
-						startLiveRenderLoopFor() { this.lifecycle.push('start'); }
+						startVisualModuleLivePreviewRenderLoopFor() { this.lifecycle.push('start'); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
 						renderTimelineAt(time) { this.renders.push(time); }
 						disposeManager() { this.lifecycle.push('dispose'); this.isReady.value = false; }
@@ -166,14 +166,14 @@ test('keeps invalid projects editable and recreates both previews after correcti
 // 【Visual Module Live Preview引数だけの静的エラーは、Timelineへ切り替えると診断解除と再生成を行う】
 // プレビュー対象の変更はProjectの編集通知を出さない。
 // エラー表示だけが消えてWorkerを持たない状態のままにならないよう、両エンジンの復帰を確認する。
-test('recreates previews after switching away from invalid live inputs', async t => {
+test('recreates previews after switching away from invalid visualModuleLivePreview inputs', async t => {
 	setup(t);
 	const { appContext } = evaluate(appBundle);
 	await appContext.ready(project({ visualModules: [{ id: 'visualModule', nodes: [], paramDefs: [{
 		id: 'audio', nameForReference: 'Audio', dataType: { kind: 'audioSource' }, canNode: false,
 		ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: { inputSource: 'literal', value: null },
 	}] }] }));
-	appContext.previewPlayback.updateLiveParamValues('visualModule', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
+	appContext.previewPlayback.updateVisualModuleLivePreviewParamValues('visualModule', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
 	assert.match(appContext.renderValidation.errorMessage.value, /Player not found/);
 	assert.equal(appContext.timelineRendererManagerController.isReady.value, false);
 	appContext.previewPlayback.showTimeline();
@@ -201,8 +201,8 @@ for (const [setting, change, inspect] of [
 		assert.equal(appContext.timelineRendererManagerController.initialStaticOptions.enable32bitDataTextures, true);
 	}],
 	['timeline preview fps', appContext => { appContext.timelinePreviewFpsFactor.value = 2; }],
-	['live fps limit', appContext => { appContext.liveFpsLimit.value = 24; }],
-	['live time factor', appContext => { appContext.livePreviewTimeFactor.value = 0.5; }],
+	['visualModuleLivePreview fps limit', appContext => { appContext.visualModuleLivePreviewFpsLimit.value = 24; }],
+	['visualModuleLivePreview time factor', appContext => { appContext.visualModuleLivePreviewTimeFactor.value = 0.5; }],
 	['clipping display', appContext => { appContext.highlightClipping.value = true; }],
 ]) test(`retries runtime failures after changing ${setting}`, async t => {
 	setup(t);
@@ -287,22 +287,22 @@ test('leaves Visual Module Live Preview when an imported Visual Module is undone
 		primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
 	manager.commit('importVisualModule', { visualModule, assets: [], players: [], unassignedPlayerNames: [] });
 	await setImmediate();
-	const live = appContext.visualModuleRendererManagerController;
+	const visualModuleLivePreview = appContext.visualModuleRendererManagerController;
 	const timeline = appContext.timelineRendererManagerController;
-	assert.ok(live.options.visualModules.some(entry => entry.id === 'imported'));
+	assert.ok(visualModuleLivePreview.options.visualModules.some(entry => entry.id === 'imported'));
 	assert.ok(timeline.options.visualModules.some(entry => entry.id === 'imported'));
-	appContext.previewPlayback.startLive('imported');
+	appContext.previewPlayback.startVisualModuleLivePreview('imported');
 	manager.undo();
-	assert.equal(appContext.previewPlayback.liveVisualModuleId.value, null);
+	assert.equal(appContext.previewPlayback.visualModuleLivePreviewVisualModuleId.value, null);
 	assert.equal(appContext.previewPlayback.state.value.mode, 'timeline');
 	await setImmediate();
-	assert.ok(!live.options.visualModules.some(entry => entry.id === 'imported'));
+	assert.ok(!visualModuleLivePreview.options.visualModules.some(entry => entry.id === 'imported'));
 	assert.ok(!timeline.options.visualModules.some(entry => entry.id === 'imported'));
 	manager.redo();
 	await setImmediate();
-	assert.ok(live.options.visualModules.some(entry => entry.id === 'imported'));
+	assert.ok(visualModuleLivePreview.options.visualModules.some(entry => entry.id === 'imported'));
 	assert.ok(timeline.options.visualModules.some(entry => entry.id === 'imported'));
-	assert.equal(appContext.previewPlayback.liveVisualModuleId.value, null);
+	assert.equal(appContext.previewPlayback.visualModuleLivePreviewVisualModuleId.value, null);
 });
 
 // 【描画設定を保存・復元し、Undo/Redoでもタイムラインだけへ同期する】
@@ -316,10 +316,10 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	const notifications = [];
 	manager.onChange(changes => notifications.push(changes));
 	const settings = { timelineFps: 29.97, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
-	const live = appContext.visualModuleRendererManagerController;
+	const visualModuleLivePreview = appContext.visualModuleRendererManagerController;
 	const timeline = appContext.timelineRendererManagerController;
-	live.updates.length = 0;
-	live.staticUpdates.length = 0;
+	visualModuleLivePreview.updates.length = 0;
+	visualModuleLivePreview.staticUpdates.length = 0;
 	timeline.staticUpdates.length = 0;
 	timeline.updates.length = 0;
 	manager.commit('changeTimelineRenderSettings', settings);
@@ -329,8 +329,8 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	assert.deepEqual(timeline.staticOptions.timelineMotionBlur, previewSettings.timelineMotionBlur);
 	assert.deepEqual(timeline.staticUpdates, [previewSettings]);
 	assert.equal(timeline.updates.length, 0);
-	assert.equal(live.updates.length, 0);
-	assert.equal(live.staticUpdates.length, 0);
+	assert.equal(visualModuleLivePreview.updates.length, 0);
+	assert.equal(visualModuleLivePreview.staticUpdates.length, 0);
 	manager.undo();
 	await nextTick();
 	assert.equal(timeline.staticOptions.timelineFps, 60);
@@ -547,8 +547,8 @@ test('keeps preview motion blur samples separate from project settings and saved
 	await nextTick();
 	const historyLength = manager.undoStack.value.length;
 	const timeline = appContext.timelineRendererManagerController;
-	const live = appContext.visualModuleRendererManagerController;
-	live.staticUpdates.length = 0;
+	const visualModuleLivePreview = appContext.visualModuleRendererManagerController;
+	visualModuleLivePreview.staticUpdates.length = 0;
 	assert.deepEqual([...app.TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS], [0, 2, 4, 8]);
 	for (const samples of [2, 4, 8, 0]) {
 		appContext.timelinePreviewMotionBlurSamples.value = samples;
@@ -557,7 +557,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 		assert.deepEqual(manager.state.timelineMotionBlur.value, settings.timelineMotionBlur);
 		assert.equal(manager.undoStack.value.length, historyLength);
 	}
-	assert.equal(live.staticUpdates.length, 0);
+	assert.equal(visualModuleLivePreview.staticUpdates.length, 0);
 	manager.undo();
 	await nextTick();
 	assert.equal(appContext.timelinePreviewMotionBlurSamples.value, 0);
@@ -597,11 +597,11 @@ test('applies timeline preview factors independently of the Visual Module Live P
 	await app.newProject();
 	t.after(() => appContext.previewPlayback.dispose());
 	appContext.timelineRendererManagerController.staticUpdates.length = 0;
-	const measure = (factor, liveFpsLimit) => {
+	const measure = (factor, visualModuleLivePreviewFpsLimit) => {
 		appContext.previewPlayback.pauseTimeline();
 		appContext.previewPlayback.seekTimeline(0);
 		appContext.timelinePreviewFpsFactor.value = factor;
-		appContext.liveFpsLimit.value = liveFpsLimit;
+		appContext.visualModuleLivePreviewFpsLimit.value = visualModuleLivePreviewFpsLimit;
 		appContext.previewPlayback.playTimeline();
 		const timeline = appContext.timelineRendererManagerController;
 		timeline.renders.length = 0;
@@ -1564,31 +1564,31 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	const { appContext } = app;
 	const first = project({ visualModules: [{ id: 'first', nodes: [], paramDefs: [] }] });
 	await appContext.ready(first);
-	const live = appContext.visualModuleRendererManagerController;
+	const visualModuleLivePreview = appContext.visualModuleRendererManagerController;
 	const timeline = appContext.timelineRendererManagerController;
-	assert.equal(appContext.activePreviewRenderer.value, live);
-	assert.deepEqual(live.options.visualModules, first.visualModules);
+	assert.equal(appContext.activePreviewRenderer.value, visualModuleLivePreview);
+	assert.deepEqual(visualModuleLivePreview.options.visualModules, first.visualModules);
 	assert.deepEqual(timeline.options.visualModules, first.visualModules);
-	assert.equal('timelineScenes' in live.options, false);
+	assert.equal('timelineScenes' in visualModuleLivePreview.options, false);
 	appContext.previewPlayback.seekTimeline(500);
 	assert.equal(appContext.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
 	appContext.projectContext.stateManager.commit('addTimelineLayer', { sceneId: 'scene', layer: { id: 'layer', layerType: 'visualModule', visualModuleId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] } });
 	await nextTick();
 	await setImmediate();
-	assert.equal('timelineScenes' in live.options, false);
+	assert.equal('timelineScenes' in visualModuleLivePreview.options, false);
 	assert.equal(timeline.options.timelineScenes[0].layers[0].id, 'layer');
 	assert.deepEqual(timeline.patches.at(-1).map(change => change.type), ['layer', 'layerOrder']);
-	assert.equal(live.patches.length, 0);
+	assert.equal(visualModuleLivePreview.patches.length, 0);
 	assert.deepEqual(timeline.renders, [500]);
 	appContext.highlightClipping.value = true;
 	await nextTick();
 	await setImmediate();
-	assert.equal(live.options.highlightClipping, true);
+	assert.equal(visualModuleLivePreview.options.highlightClipping, true);
 	assert.equal(timeline.options.highlightClipping, true);
 	assert.equal(timeline.renders.at(-1), 500);
 	await appContext.ready(project());
-	assert.deepEqual(live.options.visualModules, []);
+	assert.deepEqual(visualModuleLivePreview.options.visualModules, []);
 	assert.deepEqual(timeline.options.visualModules, []);
 	assert.deepEqual(timeline.options.timelineScenes[0].layers, []);
 });
@@ -1674,14 +1674,14 @@ test('waits for both preview workers before restoring the paused timeline', asyn
 	const { appContext } = app;
 	await appContext.ready(project());
 	appContext.previewPlayback.seekTimeline(123);
-	const live = appContext.visualModuleRendererManagerController;
+	const visualModuleLivePreview = appContext.visualModuleRendererManagerController;
 	const timeline = appContext.timelineRendererManagerController;
 	await appContext.suspendPreview();
-	assert.equal(live.isReady.value, false);
+	assert.equal(visualModuleLivePreview.isReady.value, false);
 	assert.equal(timeline.isReady.value, false);
 	timeline.renders.length = 0;
 	const gate = Promise.withResolvers();
-	live.relaunchManager = async () => { await gate.promise; live.isReady.value = true; };
+	visualModuleLivePreview.relaunchManager = async () => { await gate.promise; visualModuleLivePreview.isReady.value = true; };
 	const restarting = appContext.resumePreview();
 	await setImmediate();
 	assert.equal(timeline.isReady.value, true);

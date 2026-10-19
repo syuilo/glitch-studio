@@ -95,7 +95,7 @@ export function createVideoFrameLoader<Sample extends { close: () => void }>(opt
 			desired = { fileSource, time: position };
 			++revision;
 			if (openedFileSource !== fileSource) releaseSource();
-			// ライブ描画でも異なる時刻のフレームを正しい結果として表示しない。
+			// Visual Module Live Previewの描画でも異なる時刻のフレームを正しい結果として表示しない。
 			options.publish(null);
 			if (fileSource == null || position == null) {
 				options.reportStatus({ type: 'ready' });

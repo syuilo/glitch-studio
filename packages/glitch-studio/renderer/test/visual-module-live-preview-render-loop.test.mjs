@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { LivePreviewRenderLoop } from '@gs/subsystems_visual-module_renderer/live-preview-render-loop.ts';
+import { VisualModuleLivePreviewRenderLoop } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 
 function createFixture(options = {}) {
 	let now = 0;
@@ -9,7 +9,7 @@ function createFixture(options = {}) {
 	const callbacks = new Map();
 	const cancelled = [];
 	const frames = [];
-	const loop = new LivePreviewRenderLoop({
+	const loop = new VisualModuleLivePreviewRenderLoop({
 		fpsLimit: null,
 		timeFactor: 1,
 		onFrame: timing => frames.push(timing),

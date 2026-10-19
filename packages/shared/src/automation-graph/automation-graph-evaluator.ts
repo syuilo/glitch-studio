@@ -7,7 +7,7 @@ export function evaluateAutomationGraph(graph: AutomationGraphData, playback: Au
 		? (playback.trimmedDurationMs != null && Number.isFinite(playback.trimmedDurationMs) && playback.trimmedDurationMs > 0 ? playback.trimmedDurationMs : 1000)
 		: 1;
 	let x = time / scale;
-	// 終了時刻を持たないliveではstartと同じ扱いにし、InfinityによるNaNを避ける。
+	// 終了時刻を持たないコンテキストではstartと同じ扱いにし、InfinityによるNaNを避ける。
 	// pointsは編集順で保持されるため、配列末尾ではなく最大のXを終端とする。
 	if (playback.offsetMode === 'end' && Number.isFinite(endTime) && graph.points.length > 0) {
 		const lastX = graph.points.reduce((last, point) => Math.max(last, point.x), -Infinity);

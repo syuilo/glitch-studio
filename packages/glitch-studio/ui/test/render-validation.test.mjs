@@ -326,7 +326,7 @@ test('restarts after validation clears and coalesces retry requests', async () =
 	let created = 0;
 	const engine = new PreviewRenderEngine({ create: async () => { created++; }, dispose() {} });
 	await engine.enable();
-	engine.setValidationError('invalid live input');
+	engine.setValidationError('invalid Visual Module Live Preview input');
 	engine.setValidationError(null);
 	engine.requestRetry();
 	engine.requestRetry();

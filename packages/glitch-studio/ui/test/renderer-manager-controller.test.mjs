@@ -91,7 +91,7 @@ for (const [kind, event, nodeId] of [['VisualModule', 'effectState', 'node'], ['
 			diagnostic = { message: error.message, origin };
 			controller.disposeManager(error);
 		};
-		const source = kind === 'VisualModule' ? { type: 'live', instanceId: 'instance', visualModuleId: 'visualModule' }
+		const source = kind === 'VisualModule' ? { type: 'visualModuleLivePreview', instanceId: 'instance', visualModuleId: 'visualModule' }
 			: { type: 'timelineLayer', instanceId: 'instance', rootSceneId: 'root', layerId: 'layer',
 				clipId: 'clip', layerPath: ['sceneLayer', 'placement', 'layer'] };
 		const notify = message => worker.reply({ type: 'ev', ev: { type: event, ctx: {
@@ -102,7 +102,7 @@ for (const [kind, event, nodeId] of [['VisualModule', 'effectState', 'node'], ['
 		assert.equal(controller.isReady.value, false);
 		assert.deepEqual(structuredClone(diagnostic), { message: 'decode failed', origin: nodeId == null ? { source } : { source, nodeId } });
 		if (kind === 'Timeline') assert.equal(controller.getLayerEffectStates('root', 'layer'), null);
-		else assert.equal(controller.getLiveEffectState('visualModule', 'node'), null);
+		else assert.equal(controller.getVisualModuleLivePreviewEffectState('visualModule', 'node'), null);
 		notify('obsolete failure');
 		assert.equal(diagnostic.message, 'decode failed');
 	});
@@ -268,7 +268,7 @@ for (const kind of ['VisualModule', 'Timeline']) test(`${kind} synchronizes Visu
 	worker.returnValue(added);
 	await adding;
 	assert.equal(controller.dynamicOptions.visualModules[0].id, 'imported');
-	if (kind === 'VisualModule') controller.startLiveRenderLoopFor('imported');
+	if (kind === 'VisualModule') controller.startVisualModuleLivePreviewRenderLoopFor('imported');
 	const removal = { ...registration, visualModule: null };
 	const removing = controller.applyProjectChanges([removal]);
 	const removed = worker.calls('applyProjectChanges').at(-1);
@@ -276,7 +276,7 @@ for (const kind of ['VisualModule', 'Timeline']) test(`${kind} synchronizes Visu
 	worker.returnValue(removed);
 	await removing;
 	assert.equal(controller.dynamicOptions.visualModules.length, 0);
-	if (kind === 'VisualModule') assert.equal(controller.liveVisualModuleId.value, null);
+	if (kind === 'VisualModule') assert.equal(controller.visualModuleLivePreviewVisualModuleId.value, null);
 	const restarted = new FakeWorker();
 	controller.createWorker = () => restarted;
 	const reloading = controller.reload();
@@ -288,16 +288,16 @@ for (const kind of ['VisualModule', 'Timeline']) test(`${kind} synchronizes Visu
 
 // 【全量復旧の再開要求は応答待ちより前に送り、後続編集やモード切替で巻き戻さない】
 // 置換の応答中に編集が続いてもVisual Module Live Previewを停止したままにせず、停止後に遅れた再開もしない。
-test('orders live recovery before later edits and does not restart after a mode switch', async t => {
+test('orders Visual Module Live Preview recovery before later edits and does not restart after a mode switch', async t => {
 	const { controller, workers } = fixture(t);
 	const visualModule = { id: 'module', name: 'Module', nodes: [{ id: 'node', type: 'effect', effectId: 'fill', params: {} }] };
 	const state = { visualModules: [visualModule], timelineScenes: [] };
 	await controller.replaceProjectState(state);
 	const worker = await initialize(controller, workers);
-	controller.startLiveRenderLoopFor('module');
+	controller.startVisualModuleLivePreviewRenderLoopFor('module');
 	const replacing = controller.replaceProjectState(state);
 	const replacement = worker.calls('replaceProjectState').at(-1);
-	assert.equal(worker.messages.at(-1).fn, 'startLiveRenderLoopFor');
+	assert.equal(worker.messages.at(-1).fn, 'startVisualModuleLivePreviewRenderLoopFor');
 	const patching = controller.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, node: visualModule.nodes[0], changes: [{ type: 'parameter', kind: 'value' }] }]);
 	worker.returnValue(worker.calls('applyProjectChanges').at(-1));
 	await patching;
@@ -305,7 +305,7 @@ test('orders live recovery before later edits and does not restart after a mode 
 	worker.returnValue(replacement);
 	await replacing;
 	assert.equal(worker.messages.at(-1).fn, 'stopRenderLoop');
-	assert.equal(worker.calls('startLiveRenderLoopFor').length, 2);
+	assert.equal(worker.calls('startVisualModuleLivePreviewRenderLoopFor').length, 2);
 });
 
 // 【エフェクトレイヤーの状態をUIへ反映し、旧クリップと子Sceneの通知を分離する】
@@ -521,7 +521,7 @@ test('terminates a synchronously created worker when destroyed immediately', asy
 test('disposes after call errors and retains subsequent edits for recreation', async t => {
 	const { controller, workers } = fixture(t);
 	const worker = await initialize(controller, workers);
-	controller.startLiveRenderLoopFor('module');
+	controller.startVisualModuleLivePreviewRenderLoopFor('module');
 	worker.reply({ type: 'callError', message: 'Module creation failed' });
 	assert.equal(controller.errorMessage.value, 'Module creation failed');
 	assert.equal(controller.isReady.value, false);
@@ -630,14 +630,14 @@ for (const kind of ['VisualModule', 'Timeline']) {
 
 // 【再読み込み中にVisual Module Live Previewから離れた場合は復帰後も停止を維持する】
 // Worker不在中の停止を例外にしたり古い再生状態を復元すると、タイムラインと同時にVisual Module Live Previewが動く。
-test('does not restart live after switching away during reload', async t => {
+test('does not restart Visual Module Live Preview after switching away during reload', async t => {
 	const { controller, workers } = fixture(t);
 	await initialize(controller, workers);
-	controller.startLiveRenderLoopFor('module');
+	controller.startVisualModuleLivePreviewRenderLoopFor('module');
 	const ready = controller.reload();
 	controller.stopRenderLoop();
 	await workers[1].initialization.promise;
 	workers[1].reply({ type: 'inited' });
 	await ready;
-	assert.deepEqual(workers[1].calls('startLiveRenderLoopFor'), []);
+	assert.deepEqual(workers[1].calls('startVisualModuleLivePreviewRenderLoopFor'), []);
 });

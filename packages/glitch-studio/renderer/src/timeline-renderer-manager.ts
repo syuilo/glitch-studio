@@ -47,7 +47,7 @@ import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
-import type { FrameScheduler } from '@gs/subsystems_visual-module_renderer/live-preview-render-loop.ts';
+import type { FrameScheduler } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import type { TimelineLayerRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';

@@ -41,7 +41,7 @@ test('retains failure locations independently of disposed execution state and cl
 // 【Visual Module Live Previewの発生元をプレビューの現在の選択から独立して表示する】
 // 停止後に別のVisual Moduleを選択しても、元の失敗通知のIDから場所を表示する。
 test('describes the failing Visual Module Live Preview Visual Module and node by their own identities', () => {
-	const origin = { source: { type: 'live', instanceId: 'instance', visualModuleId: 'visualModule' }, nodeId: 'node' };
+	const origin = { source: { type: 'visualModuleLivePreview', instanceId: 'instance', visualModuleId: 'visualModule' }, nodeId: 'node' };
 	const visualModules = [{ id: 'visualModule', name: 'Source', nodes: [{ id: 'node', type: 'effect', displayName: 'Blur' }] }];
 	assert.equal(formatRenderFailureOrigin(origin, visualModules, []), 'Visual Module Live Preview / Visual Module "Source" (visualModule) / Node "Blur" (node)');
 });

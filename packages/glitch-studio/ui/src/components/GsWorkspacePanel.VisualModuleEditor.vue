@@ -3,7 +3,7 @@
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ prettyId(visualModule?.id ?? '') }}]</button>
 		<GsButton v-if="visualModule != null" style="margin-left: auto;" :primary="previewParamsShowing" icon="ti ti-adjustments-horizontal" @click="previewParamsShowing = !previewParamsShowing">{{ i18n.ts._VisualModule.PreviewParameters }}</GsButton>
-		<GsButton v-if="visualModule != null" style="margin-left: 0;" :primary="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id" :icon="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewLive">Visual Module Live Preview</GsButton>
+		<GsButton v-if="visualModule != null" style="margin-left: 0;" :primary="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id" :icon="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewVisualModuleLivePreview">Visual Module Live Preview</GsButton>
 	</div>
 
 	<div v-if="visualModule && previewParamsShowing" :key="visualModule.id" :class="$style.previewParams">
@@ -47,7 +47,7 @@ import { computed, ref, watch, onBeforeUnmount, inject } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId, prettyId } from '@gs/shared/utility/id.ts';
-import { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
+import { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/visual-module-live-preview-expression.js';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
@@ -101,7 +101,7 @@ const effectStates = computed(() => {
 	if (module == null) return states;
 	for (const node of module.nodes) {
 		if (node.type !== 'effect') continue;
-		const state = visualModuleRendererManagerController.getLivePreviewEffectState(module.id, node.id);
+		const state = visualModuleRendererManagerController.getVisualModuleLivePreviewEffectState(module.id, node.id);
 		if (state != null) states.set(node.id, state);
 	}
 	return states;
@@ -134,7 +134,7 @@ watch(visualModule, module => {
 	previewModuleId = module?.id;
 	previewParamTypes = new Map((module?.paramDefs ?? []).map(def => [def.id, def.dataType]));
 	if (module != null && previewPlayback.visualModuleLivePreviewVisualModuleId.value === module.id) {
-		previewPlayback.updateLiveParamValues(module.id, values);
+		previewPlayback.updateVisualModuleLivePreviewParamValues(module.id, values);
 	}
 }, { deep: true, immediate: true });
 
@@ -183,12 +183,12 @@ function onPreviewParamEdit(event: ParamEdit) {
 	}
 	if (event.kind === 'reset' || (event.kind === 'inputSource' && event.inputSource === 'literal')) editedPreviewParamIds.delete(id);
 	else editedPreviewParamIds.add(id);
-	if (visualModule.value != null) previewPlayback.updateLiveParamValues(visualModule.value.id, previewParamValues.value);
+	if (visualModule.value != null) previewPlayback.updateVisualModuleLivePreviewParamValues(visualModule.value.id, previewParamValues.value);
 }
 
-function previewLive() {
+function previewVisualModuleLivePreview() {
 	if (visualModule.value == null) return;
-	previewPlayback.startLive(visualModule.value.id, previewParamValues.value);
+	previewPlayback.startVisualModuleLivePreview(visualModule.value.id, previewParamValues.value);
 }
 
 function showSwitchMenu(ev: PointerEvent) {

@@ -1,5 +1,5 @@
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { LivePreviewEffectStatusSource } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
+import type { VisualModuleLivePreviewEffectStatusSource } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 
 export class VisualModuleLivePreviewEffectStateStore {
 	private current: { visualModuleId: string; instanceId: string } | null = null;
@@ -19,10 +19,10 @@ export class VisualModuleLivePreviewEffectStateStore {
 		this.statuses.clear();
 	}
 
-	public update(source: LivePreviewEffectStatusSource, nodeId: string, status: EffectInstanceState | null) {
+	public update(source: VisualModuleLivePreviewEffectStatusSource, nodeId: string, status: EffectInstanceState | null) {
 		// 同じノードIDでもタイムラインレイヤーや以前のVisual Module Live Previewインスタンスは別の状態を持つ。
 		const current = this.current;
-		if (current == null || source.type !== 'livePreview' || source.instanceId !== current.instanceId
+		if (current == null || source.type !== 'visualModuleLivePreview' || source.instanceId !== current.instanceId
 			|| source.visualModuleId !== current.visualModuleId) return;
 		if (status) this.statuses.set(nodeId, status);
 		else this.statuses.delete(nodeId);

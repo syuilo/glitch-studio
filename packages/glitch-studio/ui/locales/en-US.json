@@ -233,11 +233,11 @@
 		"MotionBlurSamplesHint": "Preview motion blur samples. Requires motion blur to be enabled in Project Settings.",
 		"MotionBlur": "Motion blur:",
 		"Time": "TIME:",
-		"UnlimitedLive": "Visual Module Live Preview: Unlimited",
-		"Live120fps": "Visual Module Live Preview: 120fps",
-		"Live60fps": "Visual Module Live Preview: 60fps",
-		"Live30fps": "Visual Module Live Preview: 30fps",
-		"Live15fps": "Visual Module Live Preview: 15fps",
+		"UnlimitedVisualModuleLivePreview": "Visual Module Live Preview: Unlimited",
+		"VisualModuleLivePreview120fps": "Visual Module Live Preview: 120fps",
+		"VisualModuleLivePreview60fps": "Visual Module Live Preview: 60fps",
+		"VisualModuleLivePreview30fps": "Visual Module Live Preview: 30fps",
+		"VisualModuleLivePreview15fps": "Visual Module Live Preview: 15fps",
 		"BackupHint": "Project backup preferences and status",
 		"BackupError": "Backup error",
 		"Backups": "Backups",
@@ -415,7 +415,7 @@
 		"SelectFolderDescription": "Select the folder containing {name}. Backups will be created and expired backups removed in this folder."
 	},
 	"_Stats": {
-		"LiveOnly": "Rendering statistics are available in Visual Module Live Preview mode."
+		"VisualModuleLivePreviewOnly": "Rendering statistics are available in Visual Module Live Preview mode."
 	},
 	"_Node": {
 		"ContextResolution": "Context resolution",

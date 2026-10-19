@@ -9,7 +9,7 @@ export type PreviewPlaybackState =
 	| { mode: 'visualModuleLivePreview'; visualModuleId: ProjectVisualModule['id'] }
 	| { mode: 'timeline'; playing: boolean };
 
-type VisualModuleLivePreviewRenderer = Pick<VisualModuleRendererManagerController, 'startLivePreviewRenderLoopFor' | 'updateLivePreviewParamValues' | 'stopRenderLoop'>;
+type VisualModuleLivePreviewRenderer = Pick<VisualModuleRendererManagerController, 'startVisualModuleLivePreviewRenderLoopFor' | 'updateVisualModuleLivePreviewParamValues' | 'stopRenderLoop'>;
 type TimelineAudio = {
 	start(time: number, duration: number): void;
 	stop(): void;
@@ -44,7 +44,7 @@ export class PreviewPlaybackController {
 		this.pauseTimeline();
 		this.visualModuleLivePreviewParams = deepClone(params);
 		this.onVisualModuleLivePreviewInputsChanged?.(visualModuleId, params);
-		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.startLivePreviewRenderLoopFor(visualModuleId, params);
+		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.startVisualModuleLivePreviewRenderLoopFor(visualModuleId, params);
 		this.playbackState.value = { mode: 'visualModuleLivePreview', visualModuleId };
 	}
 
@@ -55,7 +55,7 @@ export class PreviewPlaybackController {
 		}
 		this.visualModuleLivePreviewParams = deepClone(params);
 		this.onVisualModuleLivePreviewInputsChanged?.(visualModuleId, params);
-		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.updateLivePreviewParamValues(visualModuleId, params);
+		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.updateVisualModuleLivePreviewParamValues(visualModuleId, params);
 	}
 
 	public playTimeline() {
@@ -157,7 +157,7 @@ export class PreviewPlaybackController {
 		this.suspended.value = false;
 		const state = this.playbackState.value;
 		if (state.mode === 'visualModuleLivePreview') {
-			this.visualModuleLivePreviewRenderer.startLivePreviewRenderLoopFor(state.visualModuleId, this.visualModuleLivePreviewParams);
+			this.visualModuleLivePreviewRenderer.startVisualModuleLivePreviewRenderLoopFor(state.visualModuleId, this.visualModuleLivePreviewParams);
 		} else if (state.playing) {
 			this.playbackState.value = { mode: 'timeline', playing: false };
 			this.playTimeline();
