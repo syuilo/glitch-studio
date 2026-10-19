@@ -215,7 +215,7 @@ export function confirm(props: {
 	text?: string;
 	okText?: string;
 	cancelText?: string;
-	autofocus?: 'ok' | 'cancel';
+	autofocusAction?: 'ok' | 'cancel' | null;
 }): Promise<{ canceled: boolean }> {
 	return new Promise(resolve => {
 		const { dispose } = popup(GsDialog, {

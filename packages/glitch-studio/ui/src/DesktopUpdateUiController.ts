@@ -50,7 +50,7 @@ export class DesktopUpdateUiController {
 				title: i18n.tsx._DesktopUpdate.ConfirmTitle({ version }),
 				text: i18n.ts._DesktopUpdate.ConfirmText,
 				okText: i18n.ts._DesktopUpdate.UpdateAndRestart,
-				autofocus: 'cancel',
+				autofocusAction: null,
 			});
 			if (canceled) return;
 			this.showUpdateDialog();
