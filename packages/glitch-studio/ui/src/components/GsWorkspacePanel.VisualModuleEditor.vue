@@ -3,7 +3,7 @@
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ prettyId(visualModule?.id ?? '') }}]</button>
 		<GsButton v-if="visualModule != null" style="margin-left: auto;" :primary="previewParamsShowing" icon="ti ti-adjustments-horizontal" @click="previewParamsShowing = !previewParamsShowing">{{ i18n.ts._VisualModule.PreviewParameters }}</GsButton>
-		<GsButton v-if="visualModule != null" style="margin-left: 0;" :primary="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id" :icon="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewVisualModuleLivePreview">Visual Module Live Preview</GsButton>
+		<GsButton v-if="visualModule != null" style="margin-left: 0;" :primary="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id" :icon="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewVisualModuleLivePreview">{{ i18n.ts.Preview }}</GsButton>
 	</div>
 
 	<div v-if="visualModule && previewParamsShowing" :key="visualModule.id" :class="$style.previewParams">
@@ -40,7 +40,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { computed, ref, watch, onBeforeUnmount, inject } from 'vue';
@@ -59,6 +58,7 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import * as ui from '@/ui.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
@@ -85,9 +85,12 @@ const visualModule = computed(() => stateManager.state.visualModules.value.find(
 	?? stateManager.state.visualModules.value[0] ?? null);
 const assetDropActions = computed(() => {
 	const currentVisualModule = visualModule.value;
-	return currentVisualModule == null ? null : createVisualModuleDropActions({ context: appContext.projectContext,
-		target: { visualModuleId: currentVisualModule.id }, isActive: () => !disposed && visualModule.value === currentVisualModule,
-		revealAssets: () => workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: props.panel.id }) });
+	return currentVisualModule == null ? null : createVisualModuleDropActions({
+		context: appContext.projectContext,
+		target: { visualModuleId: currentVisualModule.id },
+		isActive: () => !disposed && visualModule.value === currentVisualModule,
+		revealAssets: () => workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: props.panel.id }),
+	});
 });
 
 // 選択した定義が削除・置換されても、常に現在のプロジェクトから対象を解決する。
