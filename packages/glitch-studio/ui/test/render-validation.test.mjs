@@ -48,14 +48,14 @@ test('revalidates LUT selection and asset replacement', () => {
 	const { state } = fixture([visualModule([selected])]);
 	state.assets.value.push({ id: 'first', fileDataType: 'application/x-cube-lut' }, { id: 'second', fileDataType: 'font/ttf' });
 	const lutDefinitions = { effect: { ...definitions.effect, primaryInputParameter: null, paramDefs: {
-		amount: { dataType: { kind: 'lutAssetReference' }, ui: { label: 'LUT', control: {} }, defaultValue: literal(null) },
+		amount: { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: 'LUT', control: {} }, defaultValue: literal(null) },
 	} } };
 	const validation = new ProjectRenderValidation(state, lutDefinitions);
 	validation.reset();
 	assert.equal(validation.errorMessage.value, null);
 	selected.params.amount = literal('second');
 	validation.update(nodeChange('lut'));
-	assert.match(validation.errorMessage.value, /Incompatible LUT/);
+	assert.match(validation.errorMessage.value, /Incompatible Asset/);
 	state.assets.value[1].fileDataType = 'application/x-cube-lut';
 	validation.update([{ type: 'asset', assetId: 'second' }]);
 	assert.equal(validation.errorMessage.value, null);

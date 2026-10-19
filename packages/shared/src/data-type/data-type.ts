@@ -1,3 +1,9 @@
+// Asset自体への参照。種類の制約は選択UIだけでなく、型の比較・実行時の検証にも使う。
+export type AssetReferenceDataType = {
+	kind: 'assetReference';
+	assetType: 'font' | 'lut' | 'video';
+};
+
 // アプリケーション共通のデータ型。UIの編集方法やGPU上の保存形式とは独立している。
 export type DataType =
 	| { kind: 'scalar' }
@@ -10,9 +16,7 @@ export type DataType =
 	| { kind: 'wrapMode' }
 	| { kind: 'enum'; options: readonly string[] }
 	| { kind: 'imageAssetTextureReference' }
-	| { kind: 'videoAssetReference' }
-	| { kind: 'fontAssetReference' }
-	| { kind: 'lutAssetReference' }
+	| AssetReferenceDataType
 	| { kind: 'playerReference' }
 	| { kind: 'audioSource' }
 	| { kind: 'struct'; fields: Record<string, DataType> }
@@ -32,6 +36,7 @@ export function isTextureDataType(dataType: DataType): dataType is TextureDataTy
 // オブジェクトの参照同一性ではなく値の型を比較する。フィールド・選択肢の並び順は型に影響しない。
 export function areDataTypesEqual(a: DataType, b: DataType): boolean {
 	if (a.kind !== b.kind) return false;
+	if (a.kind === 'assetReference' && b.kind === 'assetReference') return a.assetType === b.assetType;
 	if (a.kind === 'array' && b.kind === 'array') return areDataTypesEqual(a.elementType, b.elementType);
 	if (a.kind === 'struct' && b.kind === 'struct') {
 		return Object.keys(a.fields).length === Object.keys(b.fields).length

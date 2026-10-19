@@ -33,21 +33,22 @@ const { collectVisualModuleFile, encodeVisualModuleFile, decodeVisualModuleFile,
 	ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, importVisualModuleFile, exportVisualModuleFile } = loaded.exports;
 
 const literal = value => ({ inputSource: 'literal', value });
-const parameter = (kind, value = null) => ({ dataType: { kind }, ui: { label: kind, control: {} }, defaultValue: literal(value) });
+const parameter = (dataType, value = null) => ({ dataType: typeof dataType === 'string' ? { kind: dataType } : dataType,
+	ui: { label: typeof dataType === 'string' ? dataType : dataType.kind, control: {} }, defaultValue: literal(value) });
 function asset(id, type = 'image/png') {
 	return { id, name: id, width: 12, height: 8, fileDataType: type, fileData: new Blob([new Uint8Array([1, 2, 3, 4])], { type }),
 		sourceFilePath: 'C:/private/' + id, hash: 'hash-' + id };
 }
 function fixture() {
 	const nested = {
-		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { image: { kind: 'imageAssetTextureReference' }, font: { kind: 'fontAssetReference' } } } },
+		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { image: { kind: 'imageAssetTextureReference' }, font: { kind: 'assetReference', assetType: 'font' } } } },
 		ui: { label: 'Nested', control: { element: { fields: { image: { label: 'Image', control: {} }, font: { label: 'Font', control: {} } } } } },
 		defaultValue: literal([]),
 		element: { defaultValue: literal({ image: literal(null), font: literal(null) }),
 			fields: { image: { defaultValue: literal(null) }, font: { defaultValue: literal(null) } } },
 	};
 	const definitions = { resources: { paramDefs: {
-		image: parameter('imageAssetTextureReference'), video: parameter('videoAssetReference'), player: parameter('playerReference'),
+		image: parameter('imageAssetTextureReference'), video: parameter({ kind: 'assetReference', assetType: 'video' }), player: parameter('playerReference'),
 		audio: parameter('audioSource'), nested, amount: parameter('scalar', 1), input: { ...parameter('color', [0, 0, 0, 0]), canNode: true },
 	} } };
 	const template = structuredClone(nested);
@@ -86,9 +87,9 @@ function ids(prefix) { let index = 0; return () => `${prefix}-${++index}`; }
 // 同じLUTを複数箇所で使っていても、一つの原本と新しい共通IDにまとめる。
 test('packages LUT references and remaps them on Visual Module import', async () => {
 	const f = fixture();
-	f.definitions.resources.paramDefs.lut = parameter('lutAssetReference');
+	f.definitions.resources.paramDefs.lut = parameter({ kind: 'assetReference', assetType: 'lut' });
 	f.visualModule.nodes[1].params.lut = literal('lut');
-	f.visualModule.paramDefs.push({ ...parameter('lutAssetReference', 'lut'), id: 'look', nameForReference: 'look', canNode: false });
+	f.visualModule.paramDefs.push({ ...parameter({ kind: 'assetReference', assetType: 'lut' }, 'lut'), id: 'look', nameForReference: 'look', canNode: false });
 	f.input.assets.push(asset('lut', 'application/x-cube-lut'));
 	const decoded = decodeVisualModuleFile(await encodeVisualModuleFile(f.file()), f.input.gsVersion);
 	assert.equal(decoded.assets.filter(item => item.id === 'lut').length, 1);

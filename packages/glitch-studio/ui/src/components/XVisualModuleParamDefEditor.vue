@@ -12,7 +12,7 @@
 		<GsSelect large
 			style="flex: 1"
 			:class="$style.field"
-			:modelValue="def.dataType.kind"
+			:modelValue="parameterType"
 			:items="[
 				{ label: i18n.ts._CustomParameterInput._Types.Number, value: 'scalar' },
 				{ label: i18n.ts._CustomParameterInput._Types.Flag, value: 'bool' },
@@ -21,9 +21,9 @@
 				{ label: i18n.ts._CustomParameterInput._Types.Vector, value: 'vector' },
 				{ label: i18n.ts._CustomParameterInput._Types.Enum, value: 'enum' },
 				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'imageAssetTextureReference' },
-				{ label: i18n.ts._ParameterEditor.VideoAsset, value: 'videoAssetReference' },
-				{ label: i18n.ts._ParameterEditor.FontAsset, value: 'fontAssetReference' },
-				{ label: i18n.ts._ParameterEditor.LutAsset, value: 'lutAssetReference' },
+				{ label: i18n.ts._ParameterEditor.VideoAsset, value: 'assetReference:video' },
+				{ label: i18n.ts._ParameterEditor.FontAsset, value: 'assetReference:font' },
+				{ label: i18n.ts._ParameterEditor.LutAsset, value: 'assetReference:lut' },
 				{ label: i18n.ts.Audio, value: 'audioSource' },
 			]"
 			@update:modelValue="updateType"
@@ -60,7 +60,7 @@
 	<div v-if="def.dataType.kind !== 'array' && def.dataType.kind !== 'struct' && def.dataType.kind !== 'any' && def.dataType.kind !== 'enum' && def.dataType.kind !== 'audioSource'" :class="$style.option">
 		<label :class="$style.optionLabel">{{ i18n.ts._CustomParameterInput.DefaultValue }}</label>
 		<GsLiteralLeafValueControl
-			:key="def.dataType.kind"
+			:key="parameterType"
 			:class="$style.optionControl"
 			:dataType="def.dataType"
 			:control="def.ui.control"
@@ -91,10 +91,12 @@
 </template>
 
 <script lang="ts" setup>
+import { computed } from 'vue';
 import { visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
+import type { AssetReferenceDataType } from '@gs/shared/data-type/data-type.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
@@ -106,6 +108,7 @@ import type { VisualModuleCustomParameterId, VisualModuleParamDef } from '@gs/su
 import { i18n } from '@/i18n.ts';
 
 type ParamDef = VisualModuleParamDef;
+type EditableDataType = Exclude<ParamDef['dataType']['kind'], 'assetReference'> | `assetReference:${AssetReferenceDataType['assetType']}`;
 const props = defineProps<{
 	primaryInputId: VisualModuleCustomParameterId | null;
 	primaryAudioInputId?: VisualModuleCustomParameterId | null;
@@ -125,6 +128,11 @@ function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 
 let defaultValueMergeKey: string | null = null;
 
+// セレクトではAssetの種類も区別するが、保存するDataTypeは共通のassetReferenceとする。
+const parameterType = computed<EditableDataType>(() => props.def.dataType.kind === 'assetReference'
+	? `assetReference:${props.def.dataType.assetType}`
+	: props.def.dataType.kind);
+
 function beginDefaultValueChange() {
 	defaultValueMergeKey = genId();
 }
@@ -143,10 +151,10 @@ function updateEnumOptions(options: string[], labels: Record<string, string>, de
 	});
 }
 
-function updateType(dataType: ParamDef['dataType']['kind']) {
-	if (dataType === props.def.dataType.kind) return;
+function updateType(dataType: EditableDataType) {
+	if (dataType === parameterType.value) return;
 	defaultValueMergeKey = null;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'imageAssetTextureReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference' && dataType !== 'lutAssetReference' && dataType !== 'audioSource') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'imageAssetTextureReference' && dataType !== 'assetReference:video' && dataType !== 'assetReference:font' && dataType !== 'assetReference:lut' && dataType !== 'audioSource') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
@@ -156,10 +164,10 @@ function updateType(dataType: ParamDef['dataType']['kind']) {
 		vector: { dataType: { kind: 'vector' }, ui: { label: props.def.ui.label, control: { controlType: 'vector' } } },
 		enum: { dataType: { kind: 'enum', options: ['option1', 'option2'] }, ui: { label: props.def.ui.label, control: { labels: { option1: 'Option 1', option2: 'Option 2' } } } },
 		imageAssetTextureReference: { dataType: { kind: 'imageAssetTextureReference' }, ui: { label: props.def.ui.label, control: {} } },
-		videoAssetReference: { dataType: { kind: 'videoAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
+		'assetReference:video': { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: props.def.ui.label, control: {} } },
 		audioSource: { dataType: { kind: 'audioSource' }, ui: { label: props.def.ui.label, control: {} } },
-		fontAssetReference: { dataType: { kind: 'fontAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
-		lutAssetReference: { dataType: { kind: 'lutAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
+		'assetReference:font': { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: props.def.ui.label, control: {} } },
+		'assetReference:lut': { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: props.def.ui.label, control: {} } },
 	} as const;
 
 	const schema = schemas[dataType];

@@ -1,4 +1,4 @@
-import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
+import { matchesAssetReferenceMimeType } from '@gs/shared/data-type/asset-reference.ts';
 import { computed, shallowRef } from 'vue';
 import { inspectStaticParameter, staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
@@ -154,19 +154,20 @@ export class ProjectRenderValidation {
 		}
 	}
 
-	private asset(id: string, dependencies: Set<string>, kind?: string | null) {
+	private asset(id: string, dependencies: Set<string>): string {
 		dependencies.add('asset:' + id);
-		const type = this.assets.get(id);
-		if (!type || (kind && !type.startsWith(kind + '/'))) throw new Error('Asset not found or incompatible: ' + id);
+		const mimeType = this.assets.get(id);
+		if (mimeType == null || mimeType.length === 0) throw new Error('Asset not found or incompatible: ' + id);
+		return mimeType;
 	}
 
 	private value(definition: ParameterDefinition, binding: any, dependencies: Set<string>) {
 		if (binding.inputSource !== 'literal' || binding.value == null) return;
 		const kind = definition.dataType.kind;
-		if (kind === 'imageAssetTextureReference' || kind === 'videoAssetReference' || kind === 'fontAssetReference') this.asset(binding.value, dependencies, kind === 'videoAssetReference' ? 'video' : kind === 'fontAssetReference' ? 'font' : null);
-		if (kind === 'lutAssetReference') {
-			this.asset(binding.value, dependencies);
-			if (this.assets.get(binding.value) !== LUT_ASSET_MIME_TYPE) throw new Error('Incompatible LUT Asset: ' + binding.value);
+		if (kind === 'imageAssetTextureReference') this.asset(binding.value, dependencies);
+		if (definition.dataType.kind === 'assetReference') {
+			const mimeType = this.asset(binding.value, dependencies);
+			if (!matchesAssetReferenceMimeType(definition.dataType, mimeType)) throw new Error('Incompatible Asset: ' + binding.value);
 		}
 		if (kind === 'playerReference' || kind === 'audioSource') {
 			if (kind === 'audioSource') validatePlayerAudioSourceSelection(binding.value);

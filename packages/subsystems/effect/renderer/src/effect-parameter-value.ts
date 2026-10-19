@@ -1,4 +1,4 @@
-import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
+import { matchesAssetReferenceMimeType } from '@gs/shared/data-type/asset-reference.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Asset } from '@gs/shared/types.ts';
@@ -13,7 +13,7 @@ export function resolveEffectParameterValue(definition: Pick<ParameterDefinition
 	assetTextures: ReadonlyMap<string, GPUTexture>;
 }): any {
 	const kind = definition.dataType.kind;
-	if (value != null && ['imageAssetTextureReference', 'videoAssetReference', 'fontAssetReference', 'lutAssetReference'].includes(kind)) {
+	if (value != null && (kind === 'imageAssetTextureReference' || kind === 'assetReference')) {
 		const asset = resources.assets.find(asset => asset.id === value);
 		const error = asset == null ? null : getFileSourceError(asset.fileData);
 		if (error != null) throw new Error(error);
@@ -21,9 +21,10 @@ export function resolveEffectParameterValue(definition: Pick<ParameterDefinition
 	}
 	switch (definition.dataType.kind) {
 		case 'imageAssetTextureReference': return resources.assetTextures.get(value) ?? null;
-		case 'videoAssetReference': return resources.assets.find(asset => asset.id === value && asset.fileDataType.startsWith('video/')) ?? null;
-		case 'fontAssetReference': return resources.assets.find(asset => asset.id === value && asset.fileDataType.startsWith('font/')) ?? null;
-		case 'lutAssetReference': return resources.assets.find(asset => asset.id === value && asset.fileDataType === LUT_ASSET_MIME_TYPE) ?? null;
+		case 'assetReference': {
+			const dataType = definition.dataType;
+			return resources.assets.find(asset => asset.id === value && matchesAssetReferenceMimeType(dataType, asset.fileDataType)) ?? null;
+		}
 		default: return definition.canNode ? constantShaderInput(definition.dataType.kind, value) : value;
 	}
 }

@@ -65,7 +65,7 @@ async function importFont() {
 	error.value = null;
 	try {
 		// 一覧取得では名前だけを使い、選択したフォントの原本だけを取得・保存する。
-		// blob()はSFNTを返す。MIMEが空でもfontAssetReferenceから参照できるよう統一する。
+		// blob()はSFNTを返す。MIMEが空でもフォントのassetReferenceから参照できるよう統一する。
 		const blob = await font.blob();
 		if (disposed) return;
 		if (blob.size === 0) throw new Error(i18n.ts._LocalFonts.EmptyFont);

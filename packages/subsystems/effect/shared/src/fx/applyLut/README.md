@@ -1,6 +1,6 @@
 # Apply LUT
 
-`Input`（color / canNode）と`LUT`（lutAssetReference）を受け取り、未乗算RGBへ.cubeの数値表を適用して元のアルファを戻す。色空間変換・適用量は持たない。未選択では入力を通し、解析エラーでは既存のEffectStatusで描画を停止する。
+`Input`（color / canNode）と`LUT`（assetReference / assetType: lut）を受け取り、未乗算RGBへ.cubeの数値表を適用して元のアルファを戻す。色空間変換・適用量は持たない。未選択では入力を通し、解析エラーでは既存のEffectStatusで描画を停止する。
 
 `cube.ts`はDOM・GPU・Assetに依存しないパーサー。1D、3D、1D＋3Dに対応し、複合表は1Dの行を先に読む。3Dは赤が最速の並びをそのままX/Y/Zへ対応させる。TITLE・コメント・空行・BOM・改行差・指数表記に対応する。数値は有限f32、1Dは2〜65536点、3Dは1辺2〜128点、原本は128 MiBまで。
 

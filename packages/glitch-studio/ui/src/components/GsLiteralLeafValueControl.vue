@@ -166,7 +166,7 @@
 		<GsInput large style="flex: 1;" type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(parseInt(String($event), 10))" @focusout="onFinishChanging"/>
 		<GsButton iconOnly :title="i18n.ts.Random" icon="ti ti-dice-5" @click="() => changeValue(Math.floor(Math.random() * 16384))"/>
 	</div>
-	<div v-else-if="dataType.kind === 'imageAssetTextureReference' || dataType.kind === 'videoAssetReference' || dataType.kind === 'fontAssetReference' || dataType.kind === 'lutAssetReference'" :class="$style.assetControl">
+	<div v-else-if="dataType.kind === 'imageAssetTextureReference' || dataType.kind === 'assetReference'" :class="$style.assetControl">
 		<GsButton :class="$style.assetButton" @click="chooseAsset">{{ selectedAsset?.name ?? (value == null ? `${i18n.ts._Assets.SelectButton}...` : i18n.ts._Assets.Missing) }}</GsButton>
 		<GsButton v-if="value != null" iconOnly :title="i18n.ts.None" icon="ti ti-x" @click="changeValue(null)"/>
 	</div>
@@ -191,7 +191,8 @@
 </template>
 
 <script lang="ts" setup generic="T extends LeafDataType">
-import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
+import { getAssetReferenceMimeType } from '@gs/shared/data-type/asset-reference.ts';
+import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { computed, onBeforeUnmount, ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
@@ -250,11 +251,12 @@ let disposed = false;
 onBeforeUnmount(() => { disposed = true; });
 
 async function chooseAsset() {
-	const kind = props.dataType.kind;
-	if (kind !== 'imageAssetTextureReference' && kind !== 'videoAssetReference' && kind !== 'fontAssetReference' && kind !== 'lutAssetReference') return;
-	const mimeType = kind === 'lutAssetReference' ? LUT_ASSET_MIME_TYPE : kind === 'fontAssetReference' ? 'font/*' : kind === 'videoAssetReference' ? 'video/*' : 'image/*';
+	const dataType = props.dataType;
+	if (dataType.kind !== 'imageAssetTextureReference' && dataType.kind !== 'assetReference') return;
+	const mimeType = dataType.kind === 'assetReference' ? getAssetReferenceMimeType(dataType) : 'image/*';
 	const [selected] = await selectAsset({ multiple: false, mimeType });
-	if (disposed || selected == null || props.dataType.kind !== kind) return;
+	// ダイアログを開いている間に参照先の種類が変わった場合も、旧候補を反映しない。
+	if (disposed || selected == null || !areDataTypesEqual(props.dataType, dataType)) return;
 	const asset = stateManager.state.assets.value.find(asset => asset.id === selected.id);
 	if (asset != null) changeValue(asset.id);
 }

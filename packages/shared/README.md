@@ -16,6 +16,8 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `src/automation-graph`: グラフの定義・再生設定・補間。`GRAPH`への公開はパラメータ評価器が担当する。
 - `src/keyframes`: キーフレームの定義・再生設定・補間。TimelineのScene・レイヤー・クリップから独立し、再生設定はBindingから逆算しない。
 
+Asset自体への参照は`{ kind: 'assetReference', assetType: 'font' | 'lut' | 'video' }`で表す。`assetType`も型の同一性に含み、保存する初期値はIDまたはnullとする。`src/data-type/asset-reference.ts`が選択UI・検証・リソース解決で共通のMIME制約を提供する。画像をGPUTextureへ解決する`imageAssetTextureReference`とは区別する。
+
 `ParameterBindingEvaluator`が受け取る`ValueParameterBinding`は、literal・環境変数・式・グラフ参照・インライングラフ・キーフレームに限定する。時刻、終了時刻、グラフ一覧と式の環境は`ParameterEvaluationScope`で渡す。評価結果やスコープは保持しない。
 
 評価後、受け取り側のパラメータ定義が判明する境界で`coerceParameterValue()`を使う。scalarへ渡された文字列は`Number()`で有限な数値に変換し、空文字列・空白のみ・変換不能・非有限となる文字列はパラメータ名を含むエラーにする。enumの値やstring、保存済みのBindingは文字列のまま保持する。配列・構造体は既存のツリー走査で各scalar末端に適用する。数値以外の型やvector/colorの成分を暗黙変換する処理ではない。

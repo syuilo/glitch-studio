@@ -5,7 +5,7 @@ import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter
 // Textレイヤー固有の定義。Textエフェクトとは独立して変更できるようにする。
 export const textParamDefs = {
 	text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: { inputSource: 'literal', value: 'Hello, world!' } },
-	font: { dataType: { kind: 'fontAssetReference' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+	font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 	size: {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Size (height ratio)', control: { controlType: 'range', min: 0.0001, max: 1, step: 0.01, logarithmic: true } },

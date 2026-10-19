@@ -11,23 +11,30 @@ test('borrows matching asset resources and returns null for missing or incompati
 	const font = { id: 'font', fileDataType: 'font/woff2', fileData: new Blob() };
 	const lut = { id: 'lut', fileDataType: 'application/x-cube-lut', fileData: new Blob() };
 	const resources = { assets: [video, font, lut], assetTextures: new Map([['image', texture]]) };
-	for (const [kind, id, expected] of [['imageAssetTextureReference', 'image', texture], ['videoAssetReference', 'video', video], ['fontAssetReference', 'font', font], ['lutAssetReference', 'lut', lut]]) {
-		const def = { dataType: { kind } };
+	for (const [dataType, id, expected] of [
+		[{ kind: 'imageAssetTextureReference' }, 'image', texture],
+		[{ kind: 'assetReference', assetType: 'video' }, 'video', video],
+		[{ kind: 'assetReference', assetType: 'font' }, 'font', font],
+		[{ kind: 'assetReference', assetType: 'lut' }, 'lut', lut],
+	]) {
+		const def = { dataType };
 		assert.equal(resolveEffectParameterValue(def, id, resources), expected);
 		assert.equal(resolveEffectParameterValue(def, 'missing', resources), null);
 		assert.equal(resolveEffectParameterValue(def, null, resources), null);
 	}
-	assert.equal(resolveEffectParameterValue({ dataType: { kind: 'videoAssetReference' } }, 'font', resources), null);
-	assert.equal(resolveEffectParameterValue({ dataType: { kind: 'fontAssetReference' } }, 'video', resources), null);
-	assert.equal(resolveEffectParameterValue({ dataType: { kind: 'lutAssetReference' } }, 'font', resources), null);
+	for (const assetType of ['video', 'font', 'lut']) {
+		for (const asset of resources.assets.filter(asset => asset.id !== assetType)) {
+			assert.equal(resolveEffectParameterValue({ dataType: { kind: 'assetReference', assetType } }, asset.id, resources), null);
+		}
+	}
 });
 
 // 【使用する外部参照だけをパラメータ評価時に失敗させる】
 // 欠落を透明画像や未選択のフォント・LUTとして処理すると、成功したように異なる結果を出力してしまう。
 test('rejects unavailable references when an effect uses them and accepts unselected inputs', () => {
 	const resources = { assets: [{ id: 'asset', fileData: { url: null, size: 0, error: 'missing' } }], assetTextures: new Map() };
-	for (const kind of ['imageAssetTextureReference', 'videoAssetReference', 'fontAssetReference', 'lutAssetReference']) {
-		const definition = { dataType: { kind } };
+	for (const dataType of [{ kind: 'imageAssetTextureReference' }, ...['video', 'font', 'lut'].map(assetType => ({ kind: 'assetReference', assetType }))]) {
+		const definition = { dataType };
 		assert.equal(resolveEffectParameterValue(definition, null, resources), null);
 		assert.throws(() => resolveEffectParameterValue(definition, 'asset', resources), /missing/);
 	}

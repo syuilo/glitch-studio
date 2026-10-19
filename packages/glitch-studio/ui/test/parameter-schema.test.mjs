@@ -60,6 +60,25 @@ const referenceOutput: EffectOutputDefinitions[string] = { dataType: { kind: 'im
 
 const number = { dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Value' }, defaultValue: { inputSource: 'literal', value: 0.5 } } as const;
 const color = { dataType: { kind: 'color' }, ui: { control: {}, label: 'Color' }, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } } as const satisfies ParameterDefinition;
+const videoAsset = { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { control: {}, label: 'Video' }, defaultValue: { inputSource: 'literal', value: null } } as const satisfies ParameterDefinition;
+const fontAsset = { ...videoAsset, dataType: { kind: 'assetReference', assetType: 'font' } } as const satisfies ParameterDefinition;
+const lutAsset = { ...videoAsset, dataType: { kind: 'assetReference', assetType: 'lut' }, defaultValue: { inputSource: 'literal', value: 'lut-id' } } as const satisfies ParameterDefinition;
+// @ts-expect-error 直接参照はAssetの種類を明示する
+const missingAssetType: DataType = { kind: 'assetReference' };
+// @ts-expect-error 未対応のAssetの種類を指定できない
+const unknownAssetType: DataType = { kind: 'assetReference', assetType: 'unknown' };
+// @ts-expect-error Asset参照の保存値はIDまたはnullであり、Assetオブジェクトではない
+const invalidAssetDefault: ParameterDefinition = { ...videoAsset, defaultValue: { inputSource: 'literal', value: { id: 'video' } } };
+// @ts-expect-error Asset自体への参照にはテクスチャのノード接続を許可しない
+const assetNodeInput: ParameterDefinition = { ...fontAsset, canNode: true };
+type AssetValues = Parameters<EffectInstance<{ video: typeof videoAsset; font: typeof fontAsset; lut: typeof lutAsset }>['render']>[0]['params'];
+const runtimeVideoAsset: AssetValues['video'] = { id: 'video', fileData: new Blob(), width: 640, height: 360 };
+const runtimeFontAsset: AssetValues['font'] = { id: 'font', fileData: new Blob() };
+const runtimeLutAsset: AssetValues['lut'] = { id: 'lut', fileData: new Blob() };
+// @ts-expect-error 動画の実行時入力には原寸の情報が必要
+const videoWithoutDimensions: AssetValues['video'] = { id: 'video', fileData: new Blob() };
+// @ts-expect-error フォントの実行時入力はGPUTextureではなくAssetである
+const fontTexture: AssetValues['font'] = {} as GPUTexture;
 const blend = { dataType: { kind: 'blendMode' }, ui: { control: {}, label: 'Blend' }, defaultValue: { inputSource: 'literal', value: 'normal' } } as const satisfies ParameterDefinition;
 const blendValue: BlendMode = 'multiply';
 const blendNumber: number = colorBlendModes[blendValue];

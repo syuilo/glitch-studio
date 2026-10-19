@@ -12,7 +12,7 @@ export default defineEffect({
 	tags: ['color'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		lut: { dataType: { kind: 'lutAssetReference' }, ui: { label: 'LUT', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+		lut: { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: 'LUT', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameter: 'input',

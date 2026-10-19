@@ -11,7 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['media'],
 	paramDefs: {
-		asset: { dataType: { kind: 'videoAssetReference' }, ui: { label: 'Asset', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+		asset: { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Asset', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		fit: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
 		outOfRange: {

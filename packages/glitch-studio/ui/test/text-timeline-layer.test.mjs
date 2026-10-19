@@ -91,7 +91,7 @@ test('keeps scene-time text keyframes when the last clip is removed', t => {
 	assert.equal(getLayerKeyframeParameters(f.state, f.layer).length, 1);
 	f.history.undo();
 	assert.deepEqual(f.layer.clips, [clip]);
-	assert.equal(resolveLayerParameter(f.state, f.layer, 'text', ['font']).def.dataType.kind, 'fontAssetReference');
+	assert.deepEqual(resolveLayerParameter(f.state, f.layer, 'text', ['font']).def.dataType, { kind: 'assetReference', assetType: 'font' });
 });
 
 // 【本文・フォント・影・式を保存し、複製と読込後も保持する】

@@ -4,7 +4,7 @@ import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter
 
 // VOICEVOXの字幕専用。本文は発話キーが所有し、装飾の定義と既定値は他のレイヤーから独立させる。
 export const voicevoxSubtitleParamDefs = {
-	font: { dataType: { kind: 'fontAssetReference' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+	font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 	size: {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Size (height ratio)', control: { controlType: 'range', min: 0.0001, max: 1, step: 0.01, logarithmic: true } },
