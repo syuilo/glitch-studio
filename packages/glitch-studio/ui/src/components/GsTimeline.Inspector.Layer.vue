@@ -7,6 +7,12 @@
 		<div class="_spacer">
 			<GsInput data-test-layer-name :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
 		</div>
+		<div class="_spacer _gaps_m">
+			<GsSwitch data-test-layer-custom-color :modelValue="layer.color != null" @update:modelValue="enabled => setColor(enabled ? [0.5, 0.5, 0.5, 1] : null)">
+				<template #label>{{ i18n.ts._TimelineLayer.LayerColor }}</template>
+			</GsSwitch>
+			<GsColorInput v-if="layer.color != null" :key="layer.id" data-test-layer-color :modelValue="layer.color" :title="i18n.ts._TimelineLayer.LayerColor" @beginChanging="beginColorEdit" @update:modelValue="setColor" @changeFinished="finishColorEdit"/>
+		</div>
 		<div v-if="layer.layerType === 'group'" class="_spacer">
 			<GsSelect large :modelValue="layer.compositingMode ?? 'flat'" :items="groupModes" @update:modelValue="mode => stateManager.commit('changeTimelineGroupMode', { sceneId, layerId: layer.id, mode })">
 				<template #label>{{ i18n.ts._TimelineLayer.GroupCompositing }}</template>
@@ -170,7 +176,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, ref, onBeforeUnmount } from 'vue';
 import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
@@ -178,7 +183,6 @@ import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { timelineAudioParamDefs, isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import type { TimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import GsSelect from './common/GsSelect.vue';
@@ -186,6 +190,7 @@ import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
 import GsSwitch from './common/GsSwitch.vue';
+import GsColorInput from './common/GsColorInput.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
@@ -195,11 +200,13 @@ import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
 import GsTimelineTransformSettings from './GsTimeline.TransformSettings.vue';
 import GsTimelineCameraSettings from './GsTimeline.CameraSettings.vue';
+import type { TimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
@@ -213,13 +220,34 @@ const groupModes = [{ value: 'flat' as const, label: i18n.ts._TimelineLayer.Sing
 const coordinateSpaces = [{ value: 'screen' as const, label: i18n.ts._TimelineLayer.ScreenSpace }, { value: 'world' as const, label: i18n.ts._TimelineLayer.WorldSpace }];
 const maskChannels = [{ value: 'alpha' as const, label: i18n.ts._TimelineLayer.Alpha }, { value: 'luminance' as const, label: i18n.ts._TimelineLayer.Luminance }];
 const { stateManager } = appContext.projectContext;
+let colorEdit: ReturnType<typeof stateManager.beginEdit<'setTimelineLayerColor'>> | null = null;
+
+function beginColorEdit() {
+	colorEdit = stateManager.beginEdit('setTimelineLayerColor');
+}
+
+function finishColorEdit() {
+	colorEdit?.finish();
+	colorEdit = null;
+}
+
+function setColor(color: TimelineLayer['color']) {
+	const payload = { sceneId: props.scene.id, layerId: props.layer.id, color };
+	if (colorEdit?.active === true) colorEdit.update(payload);
+	else stateManager.commit('setTimelineLayerColor', payload);
+}
+
+onBeforeUnmount(finishColorEdit);
 let disposed = false;
 onBeforeUnmount(() => { disposed = true; });
 const inlineAssetDropActions = computed(() => {
 	const layer = props.layer;
-	return layer.layerType !== 'inlineVisualModule' ? null : createVisualModuleDropActions({ context: appContext.projectContext,
-		target: { sceneId: props.scene.id, inlineVisualModuleLayerId: layer.id }, isActive: () => !disposed && props.layer === layer,
-		revealAssets: () => emit('revealAssets') });
+	return layer.layerType !== 'inlineVisualModule' ? null : createVisualModuleDropActions({
+		context: appContext.projectContext,
+		target: { sceneId: props.scene.id, inlineVisualModuleLayerId: layer.id },
+		isActive: () => !disposed && props.layer === layer,
+		revealAssets: () => emit('revealAssets'),
+	});
 });
 const sceneId = computed(() => props.scene.id);
 const sceneLayers = computed(() => flattenTimelineLayers(props.scene.layers));

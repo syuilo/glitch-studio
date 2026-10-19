@@ -84,6 +84,7 @@
 						:selectedKeyframes="selectedTimelineKeyframes"
 						:class="[$style.layersLane, dropTarget?.layerId === layer.id ? $style['drop_' + dropTarget.position] : null]"
 						:depth="layerAncestors.get(layer.id)?.length ?? 0"
+						:ancestors="layerAncestors.get(layer.id)"
 						:nextLayerDepth="index + 1 < visibleLayers.length ? (layerAncestors.get(visibleLayers[index + 1].id)?.length ?? 0) : 0"
 						:ancestorDisabled="layerAncestors.get(layer.id)?.some(group => group.isDisabled) ?? false"
 						:collapsed="!expandedLayers.has(layer.id)"
@@ -433,7 +434,7 @@ function transformSelection() {
 function addEmptyGroup() {
 	const id = genId();
 	stateManager.commit('groupTimelineLayers', { sceneId: props.sceneId, layerIds: [], group: {
-		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
+		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, color: null, forceDisableMotionBlur: false, automationGraphs: [],
 		mask: null, coordinateSpace: 'screen', compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 	} });
 	selection.value = { kind: 'layers', ids: [id] };
@@ -443,7 +444,7 @@ function groupSelection() {
 	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
 	const id = genId();
 	stateManager.commit('groupTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], group: {
-		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
+		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, color: null, forceDisableMotionBlur: false, automationGraphs: [],
 		mask: null, coordinateSpace: 'screen', compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 	} });
 	selection.value = { kind: 'layers', ids: [id] };

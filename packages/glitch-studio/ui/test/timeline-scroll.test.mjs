@@ -89,7 +89,7 @@ test('routes source trim and loop handles separately through the layer component
 });
 
 async function fixture(t) {
-	const makeLayer = id => ({ id, layerType: 'audio', name: id, isDisabled: false,
+	const makeLayer = id => ({ id, layerType: 'audio', name: id, isDisabled: false, color: null,
 		clips: [100, 300, 600].map((startMs, index) => ({ id: 'clip-' + index, assetId: 'sound', startMs, durationMs: 100, sourceInMs: 30, sourceOutMs: 130, playbackRate: 1, loop: false })),
 		audioParamValues: { volume: { inputSource: 'keyframesTimelineInline', keyframesTimeline: {
 			dataType: { kind: 'scalar' }, isNormalized: false,
@@ -120,6 +120,31 @@ async function fixture(t) {
 	updates.clear(); mounts.clear(); commits.length = 0;
 	return { props, layers, visible, root, events };
 }
+
+// 【識別色を全レーンに反映し、未設定に戻すとテーマのデフォルト色を使う】
+// 子自身の色と祖先の色を区別し、グループ内の色バーが別のレイヤーの色にならないようにする。
+// nullに戻した後はインライン指定を外し、種別に応じたCSSの色へ戻す。
+test('applies custom layer and ancestor colors and removes overrides when cleared', async t => {
+	const f = await fixture(t);
+	const layerRoot = () => descendants(f.root).find(node => node.props['data-timeline-layer-id'] === 'a');
+	assert.equal(layerRoot().props.style['--LAYER_COLOR'], '');
+	f.props.depth = 1;
+	f.props.nextLayerDepth = 1;
+	f.props.ancestors = [{ color: [1, 0, 0, 1] }];
+	f.layers[0].color = [0, 1, 0, 1];
+	await nextTick();
+	assert.equal(layerRoot().props.style['--LAYER_COLOR'], 'rgb(0 255 0 / 1)');
+	const bars = () => descendants(layerRoot()).filter(node => 'data-test-timeline-color-bar' in node.props);
+	assert.ok(bars().length > 2);
+	for (const bar of bars()) {
+		assert.equal(bar.props.style.background, bar.props['data-test-timeline-color-bar'] === 0 ? 'rgb(255 0 0 / 1)' : 'rgb(0 255 0 / 1)');
+	}
+	f.layers[0].color = null;
+	f.props.ancestors[0].color = null;
+	await nextTick();
+	assert.equal(layerRoot().props.style['--LAYER_COLOR'], '');
+	assert.ok(bars().every(bar => bar.props.style.background === ''));
+});
 
 // 【通常レイヤーを折りたたんでもクリップを維持し、再展開でキーと目盛りを復元する】
 // キーを隠すだけの操作でデータや選択を失ったり、クリップまで再生成してはならない。

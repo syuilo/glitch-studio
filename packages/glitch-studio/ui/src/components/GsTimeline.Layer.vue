@@ -1,8 +1,8 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.groupExpanded]: isTimelineContainerLayer(layer) && !collapsed, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox', [$style.type_group]: isTimelineContainerLayer(layer) }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.groupExpanded]: isTimelineContainerLayer(layer) && !collapsed, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox', [$style.type_group]: isTimelineContainerLayer(layer) }]" :style="{ '--LAYER_COLOR': layer.color == null ? '' : colorCss(layer.color) }" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
-			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
+			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
 			<div :class="$style.sideBody">
 				<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @contextmenu.stop.prevent="emit('contextMenu', $event)" @dragstart.stop="emit('dragStart', $event)">
 					<div :class="$style.grabber">
@@ -60,7 +60,7 @@
 	</div>
 	<div v-if="!collapsed && !isTimelineContainerLayer(layer)" :class="$style.localTicksLane">
 		<div :class="$style.side">
-			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
+			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
 			<div :class="$style.sideBody">
 				<div :class="[$style.localTicksLabel]">{{ i18n.ts._Timeline.LocalTime }}</div>
 			</div>
@@ -74,7 +74,7 @@
 	</div>
 	<div v-if="!collapsed && layer.layerType === 'voicevox'" :class="$style.speechLane" data-parameter-target="utterance" :data-param-path="JSON.stringify(['utterances'])">
 		<div :class="$style.side">
-			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
+			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
 			<div :class="$style.sideBody">
 				<div>{{ i18n.ts._TimelineLayer.Speech }}</div>
 			</div>
@@ -89,7 +89,7 @@
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
 		<div :class="$style.side">
-			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
+			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
 			<div :class="$style.sideBody">
 				<div style="padding-right: 6px;">{{ param.label }}</div>
 			</div>
@@ -108,7 +108,7 @@
 	</div>
 	<div :class="$style.gapLane">
 		<div :class="$style.side">
-			<div v-for="i in depth + (nextLayerDepth < depth ? (nextLayerDepth - depth) : (isTimelineContainerLayer(layer) && !collapsed) ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
+			<div v-for="i in depth + (nextLayerDepth < depth ? (nextLayerDepth - depth) : (isTimelineContainerLayer(layer) && !collapsed) ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
 		</div>
 	</div>
 </div>
@@ -130,7 +130,8 @@ import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneC
 import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineTickMode, TimelineTickSubdivisions } from '@/utility/timeline-ticks.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
-import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineLayer, TimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { colorCss } from '@/utility/color-input.ts';
 import { i18n } from '@/i18n.ts';
 import { timelineTimeToX, timelinePointerTime } from '@/utility/timeline-coordinates.ts';
 import { appContext } from '@/app.ts';
@@ -145,6 +146,7 @@ const props = defineProps<{
 	sceneTimeMs: number;
 	layer: TimelineLayer;
 	depth: number;
+	ancestors?: TimelineContainerLayer[];
 	ancestorDisabled?: boolean;
 	collapsed?: boolean;
 	tlElWidth: number;
@@ -179,6 +181,7 @@ const emit = defineEmits<{
 }>();
 
 const layerIcon = computed(() => ({ group: 'ti-folder', transform: 'ti-gizmo', camera: 'ti-camera', voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
+const colorBarColors = computed(() => [...(props.ancestors ?? []), props.layer].map(layer => layer.color == null ? '' : colorCss(layer.color)));
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
 const pixelsPerMs = computed(() => props.tlElWidth / props.tlRangeX);
@@ -554,7 +557,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	box-sizing: border-box;
 	height: var(--MAIN_LANE_HEIGHT);
 	border-radius: 4px;
-	background: color-mix(in srgb, var(--THEME-accent) 20%, transparent);
+	background: color-mix(in srgb, var(--LAYER_COLOR) 20%, transparent);
 	color: var(--THEME-fg);
 	cursor: grab;
 	touch-action: none;
@@ -564,6 +567,6 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 }
 
 .groupClipSelected {
-	background: color-mix(in srgb, var(--THEME-accent) 40%, transparent);
+	background: color-mix(in srgb, var(--LAYER_COLOR) 40%, transparent);
 }
 </style>

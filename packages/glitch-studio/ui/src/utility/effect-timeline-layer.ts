@@ -8,13 +8,19 @@ import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.t
 
 export function createEffectTimelineLayer(definition: EffectDefinition, startMs: number): TimelineEffectLayer {
 	return {
-		id: genId(), name: definition.displayName, layerType: 'effect', effectId: definition.id,
+		id: genId(),
+		name: definition.displayName,
+		layerType: 'effect',
+		effectId: definition.id,
 		isDisabled: false,
+		color: null,
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
-		resolution: { mode: 'auto' }, automationGraphs: [],
+		resolution: { mode: 'auto' },
+		automationGraphs: [],
 		effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 		forceDisableMotionBlur: false,
-		mask: null, coordinateSpace: 'screen',
+		mask: null,
+		coordinateSpace: 'screen',
 		compositingParamValues: {
 			depth: { inputSource: 'literal', value: 0 },
 			clipToFrame: { inputSource: 'literal', value: false },

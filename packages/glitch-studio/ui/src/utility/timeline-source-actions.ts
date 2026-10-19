@@ -1,4 +1,3 @@
-import { i18n } from '@/i18n.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { createTimelineClipTiming, getTimelineClipInsertionDuration } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
@@ -26,6 +25,7 @@ import type { UndoRedo } from './undo-redo.ts';
 import type { TimelineClipSelection } from './timeline-selection.ts';
 import type { TimelineClipMediaInfo, TimelineClipSourceDurations } from './timeline-clip-media.ts';
 import type { Asset } from '@gs/shared/types.ts';
+import { i18n } from '@/i18n.ts';
 
 type TimelineSourceActionsOptions = {
 	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
@@ -46,8 +46,22 @@ type TimelineSourceActionsOptions = {
 
 /** 素材・Sceneの選択、クリップの追加・差し替え、レイヤー追加をCommandへつなぐ。DOMとピッカーの寿命は呼び出し側が所有する。 */
 export function createTimelineSourceActions(options: TimelineSourceActionsOptions) {
-	const { stateManager, scene, sceneLayers, currentTime: time, isActive, inspectMedia, ui, pickEffect,
-									desktopAvailable, selectLayer, selectClip, addEmptyGroup, seek, reportError } = options;
+	const {
+		stateManager,
+		scene,
+		sceneLayers,
+		currentTime: time,
+		isActive,
+		inspectMedia,
+		ui,
+		pickEffect,
+		desktopAvailable,
+		selectLayer,
+		selectClip,
+		addEmptyGroup,
+		seek,
+		reportError,
+	} = options;
 	const availableScenes = () => stateManager.state.timelineScenes.value.filter(candidate => canReferenceScene(stateManager.state.timelineScenes.value, scene.id, candidate.id));
 
 	type ClipSource = { kind: 'asset'; asset: Asset; media?: TimelineClipMediaInfo | null } | { kind: 'scene'; scene: TimelineScene };
@@ -156,14 +170,17 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 				const layer = createTimelineAssetLayer(source.asset, time.value, source.media ?? null);
 				if (layer == null) return;
 				const clip = layer.clips[0];
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer,
-					sourceDurationsMs: sourceDurationMs == null ? null : { [layer.id]: { [clip.id]: sourceDurationMs } } });
+				stateManager.commit('addTimelineLayer', {
+					sceneId: scene.id,
+					layer,
+					sourceDurationsMs: sourceDurationMs == null ? null : { [layer.id]: { [clip.id]: sourceDurationMs } },
+				});
 				selectClip({ layerId: layer.id, clipId: clip.id });
 			} catch (error) { reportError(error); }
 			return;
 		}
 		const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) };
-		const base = { id: genId(), name: source.scene.name, automationGraphs: [], isDisabled: false };
+		const base = { id: genId(), name: source.scene.name, automationGraphs: [], isDisabled: false, color: null };
 		const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
 		const compositingParamValues = initialCompositingParameters();
 		const layer: TimelineLayer = { ...base, layerType: 'scene', clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues, mask: null, coordinateSpace: 'screen', forceDisableMotionBlur: false };
@@ -177,14 +194,19 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		const visualModule = stateManager.state.visualModules.value.find(visualModule => visualModule.id === id);
 		if (canceled || !visualModule || !isActive() || sceneLayers.value !== initialLayers) return;
 		const layer: TimelineLayer = {
-			id: genId(), name: visualModule.name,
+			id: genId(),
+			name: visualModule.name,
 			layerType: 'visualModule',
-			mask: null, coordinateSpace: 'screen',
+			mask: null,
+			coordinateSpace: 'screen',
 			forceDisableMotionBlur: false,
 			isDisabled: false,
+			color: null,
 			visualModuleId: visualModule.id,
 			clips: [{ id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) }],
-			visualModuleParamValues: {}, compositingParamValues: initialCompositingParameters(), automationGraphs: [],
+			visualModuleParamValues: {},
+			compositingParamValues: initialCompositingParameters(),
+			automationGraphs: [],
 		};
 		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
 		selectLayer(layer);

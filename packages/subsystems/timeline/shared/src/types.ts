@@ -24,6 +24,8 @@ export type TimelineLayerChange =
 type TimelineLayerCommon = {
 	id: string;
 	name: string;
+	/** UI上の識別用RGBA（各成分0〜1）。nullはレイヤー種別のデフォルト色を使う。 */
+	color: [number, number, number, number] | null;
 	automationGraphs: AutomationGraph[];
 	/** 無効時は映像・音声とも評価せず、クリップの配置やSceneの長さは維持する。 */
 	isDisabled: boolean;

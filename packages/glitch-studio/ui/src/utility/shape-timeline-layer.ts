@@ -8,11 +8,17 @@ import type { TimelineShapeLayer } from '@gs/subsystems_timeline_shared/types.ts
 
 export function createShapeTimelineLayer(type: ShapeType, startMs: number): TimelineShapeLayer {
 	return {
-		id: genId(), name: shapeDefinitions[type].label, layerType: 'shape', shape: createShape(type),
-		isDisabled: false, automationGraphs: [],
+		id: genId(),
+		name: shapeDefinitions[type].label,
+		layerType: 'shape',
+		shape: createShape(type),
+		isDisabled: false,
+		color: null,
+		automationGraphs: [],
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		forceDisableMotionBlur: false,
-		mask: null, coordinateSpace: 'screen',
+		mask: null,
+		coordinateSpace: 'screen',
 		compositingParamValues: {
 			depth: { inputSource: 'literal', value: 0 },
 			clipToFrame: { inputSource: 'literal', value: false },

@@ -62,6 +62,7 @@ export type AppStateChange = ProjectContentChange
 	| { type: 'nodeName'; target: VisualModuleTarget; nodeId: string }
 	| { type: 'visualModuleName'; visualModuleId: string }
 	| { type: 'layerName'; sceneId: string; layerId: string }
+	| { type: 'layerColor'; sceneId: string; layerId: string }
 	| { type: 'sceneName'; sceneId: string };
 
 export class ProjectContext {

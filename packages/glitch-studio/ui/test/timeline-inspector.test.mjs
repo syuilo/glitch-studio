@@ -248,7 +248,7 @@ test('rejects unrelated drops and layer payloads that do not match the local dra
 });
 
 const keySelection = (layerId, keyframeId) => ({ layerId, target: 'audio', paramPath: ['volume'], keyframeId });
-const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, automationGraphs: [],
+const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, color: null, automationGraphs: [],
 																											clips: [{ id: 'clip', assetId: 'sound', startMs: 0, durationMs: 5000, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false }],
 																											audioParamValues: { volume: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: {
 																												dataType: { kind: 'scalar' }, isNormalized: false,
@@ -410,6 +410,45 @@ async function fixture(t, component = Inspector) {
 	const control = (tag, testId) => controls(tag).find(node => testId == null || Object.hasOwn(node.props, `data-test-${testId}`));
 	return { props, scene, history, events, root, controls, control };
 }
+
+// 【識別色は未設定から指定・解除でき、連続した色選択を一回のUndoで戻せる】
+// 色選択中に履歴を大量に増やさず、解除後はnullを復元して種別のデフォルト色に戻す。
+// UI専用の通知を使い、識別色の変更でレンダラーの内容を更新しないことも確認する。
+test('edits and clears layer identification colors with grouped undo and redo', async t => {
+	const f = await fixture(t);
+	f.props.selection = { kind: 'layers', ids: ['a'] };
+	await nextTick();
+	const layer = f.scene.layers[0];
+	const changes = [];
+	f.history.onChange(value => changes.push(...value));
+	assert.equal(createInlineVisualModuleLayer(0).color, null);
+	assert.equal(f.control('GsSwitch', 'layer-custom-color').props.modelValue, false);
+	assert.equal(f.control('GsColorInput', 'layer-color'), undefined);
+	f.control('GsSwitch', 'layer-custom-color').props['onUpdate:modelValue'](true);
+	await nextTick();
+	assert.deepEqual(layer.color, [0.5, 0.5, 0.5, 1]);
+	const input = f.control('GsColorInput', 'layer-color');
+	input.props.onBeginChanging();
+	input.props['onUpdate:modelValue']([1, 0, 0, 1]);
+	input.props['onUpdate:modelValue']([0, 1, 0, 1]);
+	input.props.onChangeFinished();
+	assert.equal(f.history.undoStack.value.length, 2);
+	assert.deepEqual(layer.color, [0, 1, 0, 1]);
+	f.history.undo();
+	assert.deepEqual(layer.color, [0.5, 0.5, 0.5, 1]);
+	f.history.redo();
+	assert.deepEqual(layer.color, [0, 1, 0, 1]);
+	f.control('GsSwitch', 'layer-custom-color').props['onUpdate:modelValue'](false);
+	await nextTick();
+	assert.equal(layer.color, null);
+	assert.equal(f.control('GsColorInput', 'layer-color'), undefined);
+	f.history.undo();
+	await nextTick();
+	assert.deepEqual(f.control('GsColorInput', 'layer-color').props.modelValue, [0, 1, 0, 1]);
+	f.history.redo();
+	assert.equal(layer.color, null);
+	assert.ok(changes.every(change => change.type === 'layerColor' && change.layerId === 'a' && change.sceneId === 'scene'));
+});
 
 // 【Inspectorで現在地点を固定し、地点と表示長を編集してUndoで通常再生へ戻せる】
 // 逆再生・ループからの素材時刻と方向をフレーム読取へ渡し、固定後は音声・速度・ループの

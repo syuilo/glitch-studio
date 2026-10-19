@@ -4,8 +4,14 @@ import type { TimelineTransformLayer } from '@gs/subsystems_timeline_shared/type
 
 export function createTransformTimelineLayer(): TimelineTransformLayer {
 	return {
-		id: genId(), name: 'Transform', layerType: 'transform', isDisabled: false,
-		automationGraphs: [], forceDisableMotionBlur: false,
-		transformParamValues: createTimelineTransformParameterValues(), layers: [],
+		id: genId(),
+		name: 'Transform',
+		layerType: 'transform',
+		isDisabled: false,
+		color: null,
+		automationGraphs: [],
+		forceDisableMotionBlur: false,
+		transformParamValues: createTimelineTransformParameterValues(),
+		layers: [],
 	};
 }

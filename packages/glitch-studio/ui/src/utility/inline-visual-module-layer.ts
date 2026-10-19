@@ -9,12 +9,17 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 	const inputId = visualModuleCustomParameterId(genId());
 	const outputId = genId();
 	return {
-		id: genId(), name: 'Visual Module', layerType: 'inlineVisualModule',
+		id: genId(),
+		name: 'Visual Module',
+		layerType: 'inlineVisualModule',
 		isDisabled: false,
+		color: null,
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
-		visualModuleParamValues: {}, automationGraphs: [],
+		visualModuleParamValues: {},
+		automationGraphs: [],
 		forceDisableMotionBlur: false,
-		mask: null, coordinateSpace: 'screen',
+		mask: null,
+		coordinateSpace: 'screen',
 		compositingParamValues: deepClone({
 			depth: timelineCompositingParamDefs.depth.defaultValue,
 			clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
@@ -28,8 +33,10 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 		}),
 		visualModule: {
 			paramDefs: [{
-				id: inputId, nameForReference: visualModuleCustomParameterName('input'),
-				dataType: { kind: 'color' }, ui: { label: 'Input', control: {} },
+				id: inputId,
+				nameForReference: visualModuleCustomParameterName('input'),
+				dataType: { kind: 'color' },
+				ui: { label: 'Input', control: {} },
 				defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 				canNode: true,
 			}],

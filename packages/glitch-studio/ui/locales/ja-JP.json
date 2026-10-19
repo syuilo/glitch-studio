@@ -480,6 +480,7 @@
 		"SceneResolutionTitle": "シーンの解像度 — {name}"
 	},
 	"_TimelineLayer": {
+		"LayerColor": "レイヤーカラー",
 		"Title": "レイヤー:",
 		"Name": "レイヤー名",
 		"GroupCompositing": "グループの合成方法",

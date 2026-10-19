@@ -117,8 +117,11 @@ test('allows camera nesting through group, move, and paste commands with undo an
 // 【カメラの式・キー・クリップを保存し、複製後は独立して編集できる】
 // 複製でBindingを共有すると、切り替え先の編集が元の視点を変えてしまう。
 // Group内へ置いた描画不能な状態も保存・読み込みでき、修正のための編集を再開できるようにする。
+// 識別色も複製・保存に含め、複製先で解除しても元レイヤーの指定色を保持する。
 test('round-trips camera layers and duplicates independent camera settings', async t => {
 	const f = fixture(t);
+	assert.equal(f.layer.color, null);
+	f.history.commit('setTimelineLayerColor', { sceneId: 'scene', layerId: f.layer.id, color: [0.2, 0.4, 0.8, 1] });
 	f.edit('z', { kind: 'expression', value: '3 + TIME' });
 	f.edit('roll', { kind: 'expression', value: 'TIME * 0.25' });
 	f.edit('fieldOfView', { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
@@ -126,10 +129,13 @@ test('round-trips camera layers and duplicates independent camera settings', asy
 	copy.id = 'copy';
 	copy.clips[0].id = 'copy-clip';
 	f.history.commit('pasteTimelineLayer', { sceneId: 'scene', sourceLayerId: f.layer.id, layer: copy });
+	assert.deepEqual(findTimelineLayer(f.scene.layers, copy.id).color, [0.2, 0.4, 0.8, 1]);
+	f.history.commit('setTimelineLayerColor', { sceneId: 'scene', layerId: copy.id, color: null });
+	assert.deepEqual(f.layer.color, [0.2, 0.4, 0.8, 1]);
 	f.history.commit('editTimelineLayerParam', { ...f.target, layerId: copy.id, paramPath: ['z'], edit: { kind: 'literal', value: 5 } });
 	assert.equal(f.layer.cameraParamValues.z.expression, '3 + TIME');
 	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [copy.id, f.layer.id], group: {
-		id: 'group', name: 'Group', layerType: 'group', layers: [], isDisabled: false,
+		id: 'group', name: 'Group', layerType: 'group', layers: [], isDisabled: false, color: null,
 		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {},
 	} });
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Cameras', description: '', author: '',

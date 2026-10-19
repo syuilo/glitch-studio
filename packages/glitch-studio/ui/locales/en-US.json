@@ -480,6 +480,7 @@
 		"SceneResolutionTitle": "Scene resolution — {name}"
 	},
 	"_TimelineLayer": {
+		"LayerColor": "Layer Color",
 		"Title": "Layer:",
 		"Name": "Layer Name",
 		"GroupCompositing": "Group compositing",

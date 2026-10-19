@@ -7,11 +7,17 @@ import type { TimelineTextLayer } from '@gs/subsystems_timeline_shared/types.ts'
 
 export function createTextTimelineLayer(startMs: number): TimelineTextLayer {
 	return {
-		id: genId(), name: 'Text', layerType: 'text', textParamValues: createTextParameterValues(),
-		isDisabled: false, automationGraphs: [],
+		id: genId(),
+		name: 'Text',
+		layerType: 'text',
+		textParamValues: createTextParameterValues(),
+		isDisabled: false,
+		color: null,
+		automationGraphs: [],
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		forceDisableMotionBlur: false,
-		mask: null, coordinateSpace: 'screen',
+		mask: null,
+		coordinateSpace: 'screen',
 		compositingParamValues: {
 			depth: { inputSource: 'literal', value: 0 },
 			clipToFrame: { inputSource: 'literal', value: false },

@@ -1427,6 +1427,22 @@ const renameTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: 
 	},
 });
 
+const setTimelineLayerColorCommandDef = defineCommand<{ sceneId: string; layerId: string; color: TimelineLayer['color'] }>({
+	label: 'Change timeline layer color',
+	changes: (_state, payload) => [{ type: 'layerColor', sceneId: payload.sceneId, layerId: payload.layerId }],
+	create: payload => {
+		let before: TimelineLayer['color'];
+		return {
+			execute(state) {
+				const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+				before = deepClone(layer.color);
+				layer.color = deepClone(payload.color);
+			},
+			undo(state) { getTimelineLayer(state, payload.sceneId, payload.layerId).color = deepClone(before); },
+		};
+	},
+});
+
 const setTimelineLayerDisabledCommandDef = defineCommand<{ sceneId: string; layerId: string; isDisabled: boolean }>({
 	label: 'Change timeline layer visibility',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'disabled' }] }],
@@ -2284,6 +2300,7 @@ export const COMMAND_DEFS = {
 	addTimelineLayer: addTimelineLayerCommandDef,
 	addTimelineAssetLayers: addTimelineAssetLayersCommandDef,
 	renameTimelineLayer: renameTimelineLayerCommandDef,
+	setTimelineLayerColor: setTimelineLayerColorCommandDef,
 	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
 	setTimelineLayerCoordinateSpace: setTimelineLayerCoordinateSpaceCommandDef,
 	setTimelineLayerMask: setTimelineLayerMaskCommandDef,

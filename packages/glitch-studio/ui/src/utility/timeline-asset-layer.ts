@@ -24,15 +24,54 @@ export function createTimelineAssetLayer(asset: Asset, startMs: number, media: T
 	if (layerType == null) return null;
 	const durationMs = layerType === 'image' ? 5000 : media?.durationMs;
 	if (durationMs == null || !Number.isFinite(durationMs) || durationMs < 1) throw new Error('Media has no usable duration.');
-	const base = { id: genId(), name: asset.name, automationGraphs: [], isDisabled: false };
-	const clip = { id: genId(), assetId: asset.id, ...createTimelineClipTiming(Math.max(0, startMs), durationMs) };
-	const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
-	if (layerType === 'audio') return { ...base, layerType,
-		clips: [{ id: clip.id, assetId: asset.id, ...createTimelineMediaClipTiming(clip.startMs, durationMs) }], audioParamValues };
-	const visual = { mask: null, coordinateSpace: 'screen' as const, forceDisableMotionBlur: false,
+	const base = {
+		id: genId(),
+		name: asset.name,
+		automationGraphs: [],
+		isDisabled: false,
+		color: null,
+	};
+	const clip = {
+		id: genId(),
+		assetId: asset.id,
+		...createTimelineClipTiming(Math.max(0, startMs), durationMs),
+	};
+	const audioParamValues = {
+		volume: deepClone(timelineAudioParamDefs.volume.defaultValue),
+	};
+	if (layerType === 'audio') return {
+		...base,
+		layerType,
+		clips: [{
+			id: clip.id,
+			assetId: asset.id,
+			...createTimelineMediaClipTiming(clip.startMs, durationMs),
+		}],
+		audioParamValues,
+	};
+	const visual = {
+		mask: null,
+		coordinateSpace: 'screen' as const,
+		forceDisableMotionBlur: false,
 		compositingParamValues: deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs)
-			.map(([key, def]) => [key, def.defaultValue]))) as TimelineImageLayer['compositingParamValues'] };
-	if (layerType === 'image') return { ...base, ...visual, layerType, clips: [clip] };
-	return { ...base, ...visual, layerType, audioParamValues,
-		clips: [{ id: clip.id, assetId: asset.id, ...createTimelineMediaClipTiming(clip.startMs, durationMs), audioEnabled: media?.audioAvailable === true }] };
+			.map(([key, def]) => [key, def.defaultValue]))) as TimelineImageLayer['compositingParamValues'],
+	};
+	if (layerType === 'image') return {
+		...base,
+		...visual,
+		layerType,
+		clips: [clip],
+	};
+	return {
+		...base,
+		...visual,
+		layerType,
+		audioParamValues,
+		clips: [{
+			id: clip.id,
+			assetId: asset.id,
+			...createTimelineMediaClipTiming(clip.startMs, durationMs),
+			audioEnabled: media?.audioAvailable === true,
+		}],
+	};
 }

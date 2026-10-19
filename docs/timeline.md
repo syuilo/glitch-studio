@@ -34,6 +34,10 @@ VOICEVOXの発話は`subtitleDuration`に字幕長のモードを保持する。
 - originは透明な余白を含む入力テクスチャ全体を基準とし、中央が[0, 0]、左下が[-1, -1]、右上が[1, 1]です。範囲外も許容します。Visual Moduleなども出力テクスチャの寸法を使い、uniform出力にはタイムラインの画面サイズを仮想的な素材寸法として与えます。originとpositionの初期値は[0, 0]です。無回転・等倍でもoriginを変えると配置が変わります。Transformエフェクトのtranslationは従来どおり移動量です。
 - 変形と合成はタイムライン専用の1パスで行い、VisualModuleRendererは合成設定を扱いません。無変形・opacity=1の置き換えは元のUniformOrTextureをそのまま受け渡します。
 
+## レイヤーの識別色
+
+レイヤーの識別色はInspectorで指定・解除できます。`color`は0〜1のRGBA配列または`null`で、初期値は`null`です。未設定時はレイヤー種別ごとのテーマ色を使用します。色バー・クリップ・グループの帯に反映され、子レイヤー行の祖先の色バーも各祖先の設定に従います。映像・音声の処理には影響せず、設定は保存・複製とUndo/Redoの対象です。
+
 ## マスク
 
 - 画像を出力するレイヤーは、静的な`mask: null | { channel: 'alpha' | 'luminance'; inverted: boolean }`を持つ。nullは通常描画。マスク時は自身の色を重ねず、同じ合成境界の下層の合成結果を切り抜く。Transformは境界を作らず、Group・Scene内部のマスクは外側へ作用しない。Group・Scene自身も内部の描画結果をマスク素材として使える。音声・Camera・Transform自身には設定を持たせず、音声出力も変更しない。

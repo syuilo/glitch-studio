@@ -178,7 +178,7 @@ export class AppContext {
 		projectContext.stateManager.onChange(changes => {
 			this.renderValidation.update(changes);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
-			if (changes.some(change => !['nodeName', 'visualModuleName', 'layerName', 'sceneName'].includes(change.type))) {
+			if (changes.some(change => !['nodeName', 'visualModuleName', 'layerName', 'layerColor', 'sceneName'].includes(change.type))) {
 				this.renderEngine.requestRetry();
 			}
 		});
