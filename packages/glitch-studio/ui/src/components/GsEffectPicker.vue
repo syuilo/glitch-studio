@@ -15,7 +15,7 @@
 			<div :class="$style.leftArea">
 				<GsFolder defaultOpen asSection>
 					<template #icon><i class="ti ti-filter"></i></template>
-					<template #label>{{ i18n.ts._EffectPicker.PortTypes }}</template>
+					<template #label>{{ i18n.ts._EffectPicker.DataType }}</template>
 					<div :class="$style.typeFilters">
 						<div>
 							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.InputType }}</div>
@@ -42,7 +42,7 @@
 					<template #label>{{ i18n.ts._EffectPicker.Tags }}</template>
 					<div :class="$style.tags">
 						<button type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.length === 0 }]" @click="selectedTags = []">
-							<span>{{ i18n.ts._EffectPicker.AllEffects }}</span>
+							<span>{{ i18n.ts._EffectPicker.All }}</span>
 							<span :class="$style.count">{{ effects.length }}</span>
 						</button>
 						<button v-for="{ tag, count } in tags" :key="tag" type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.includes(tag) }]" @click="toggleTag(tag)">

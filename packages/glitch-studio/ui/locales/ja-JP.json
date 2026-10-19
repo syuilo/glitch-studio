@@ -21,7 +21,7 @@
 	"_EffectPicker": {
 		"Search": "エフェクトを検索",
 		"Close": "閉じる",
-		"PortTypes": "入出力の型",
+		"DataType": "型",
 		"InputType": "入力の型",
 		"OutputType": "出力の型",
 		"NoTypeFilter": "指定なし",
@@ -33,7 +33,7 @@
 		},
 		"Tags": "タグ",
 		"TagFilterHint": "選択したタグをすべて含むエフェクトを表示",
-		"AllEffects": "すべてのエフェクト",
+		"All": "すべて",
 		"RecentEffects": "最近使ったエフェクト",
 		"NoRecentEffects": "最近使ったエフェクトはありません",
 		"NoResults": "条件に一致するエフェクトはありません"

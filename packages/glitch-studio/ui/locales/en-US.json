@@ -21,7 +21,7 @@
 	"_EffectPicker": {
 		"Search": "Search effects",
 		"Close": "Close",
-		"PortTypes": "Input / output types",
+		"DataType": "Data Type",
 		"InputType": "Input type",
 		"OutputType": "Output type",
 		"NoTypeFilter": "No filter",
@@ -33,7 +33,7 @@
 		},
 		"Tags": "Tags",
 		"TagFilterHint": "Matches all selected tags",
-		"AllEffects": "All effects",
+		"All": "All",
 		"RecentEffects": "Recently used effects",
 		"NoRecentEffects": "No recently used effects",
 		"NoResults": "No matching effects"
