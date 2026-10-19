@@ -93,7 +93,7 @@ const toggle = () => {
 }
 
 .caption {
-	margin: 8px 0 0 0;
+	margin: 0.25em 0 0 0;
 	color: color(from var(--THEME-fg) srgb r g b / 0.75);
 	font-size: 90%;
 

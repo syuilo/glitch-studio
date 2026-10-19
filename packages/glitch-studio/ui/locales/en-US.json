@@ -404,28 +404,18 @@
 		"Automatic": "Automatic backups",
 		"Interval": "Interval",
 		"Minutes": "minutes",
-		"AutomaticHint": "Creates a backup only when the project has changed since its previous automatic backup.",
-		"AutoRetention": "Keep automatic backups for",
+		"Retention": "Keep backups for",
 		"Days": "days",
-		"LastAutomatic": "Last automatic backup:",
 		"BeforeOverwrite": "Back up before overwriting",
-		"SaveRetention": "Keep save backups for",
 		"SaveHint": "Preserves the existing file before Save or Save as replaces it. If the backup fails, the project is not overwritten.",
-		"LastSave": "Last save backup:",
-		"SaveFirst": "Save the project once to start backups.",
 		"AllowAccess": "Allow access to project folder",
 		"Ready": "Backup folder is ready.",
-		"RetentionHint": "Expired backups are removed while this project is open and the corresponding feature is enabled. The latest successful automatic backup is kept until a newer one succeeds, even after its retention period. Closing or suspending the app pauses backups.",
-		"NoneThisSession": "None this session",
 		"Allow": "Allow project backups",
 		"ChooseFolder": "Choose project folder",
 		"SelectFolderDescription": "Select the folder containing {name}. Backups will be created and expired backups removed in this folder."
 	},
 	"_Stats": {
-		"LiveOnly": "Rendering statistics are available in LIVE mode.",
-		"Fast": "fast",
-		"Medium": "medium",
-		"Slow": "slow"
+		"LiveOnly": "Rendering statistics are available in LIVE mode."
 	},
 	"_Node": {
 		"ContextResolution": "Context resolution",

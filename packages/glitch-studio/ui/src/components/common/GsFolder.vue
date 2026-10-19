@@ -200,6 +200,7 @@ watch(opened, (isOpened) => {
 	text-overflow: ellipsis;
 	overflow: clip;
 	padding-right: 12px;
+	min-width: 0;
 }
 
 .headerTextMain,

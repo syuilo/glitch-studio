@@ -60,9 +60,9 @@ const plotWidth = computed(() => chartWidth.value - plotLeft - plotRight);
 const plotHeight = computed(() => chartHeight.value - plotTop - plotBottom);
 
 const series = [
-	{ key: 'fast', label: i18n.ts._Stats.Fast, color: '#c2fe0c', strokeWidth: 1 },
-	{ key: 'medium', label: i18n.ts._Stats.Medium, color: '#55c8ff', strokeWidth: 1.5 },
-	{ key: 'slow', label: i18n.ts._Stats.Slow, color: '#c98cff', strokeWidth: 2 },
+	{ key: 'fast', label: 'fast', color: '#c2fe0c', strokeWidth: 1 },
+	{ key: 'medium', label: 'medium', color: '#55c8ff', strokeWidth: 1.5 },
+	{ key: 'slow', label: 'slow', color: '#c98cff', strokeWidth: 2 },
 ] as const;
 
 const samples = ref<Sample[]>([]);
