@@ -59,9 +59,9 @@ pnpm docs:preview
 
 Release Workflowは`guide/download.md`内の`DOWNLOAD_LINK_MARKER: windows`と`DOWNLOAD_LINK_MARKER: macos`で囲まれた領域を、リリース対象のバージョンのダウンロードリンクに更新します。Windows x64のNSISインストーラーと、macOS arm64・x64のDMGが対象です。`CURRENT_VERSION_MARKER`には表示バージョン、`CURRENT_VERSION_RELEASE_DATE_MARKER`には公開日を設定します。開始・終了マーカーは各項目一組ずつ保持し、その外側の説明文は通常の記事と同様に編集できます。詳細は[デスクトップ版のリリース手順](../packages/glitch-studio/desktop/README.md#リリース)を参照してください。
 
-リンクと表示バージョンの更新はバージョン変更と同じコミットに含め、すべてのバイナリのビルド・検証後にmasterへ反映します。準備時点では公開日を空欄にし、Releaseの公開成功後にGitHubの`publishedAt`を日本時間（Asia/Tokyo）の`YYYY-MM-DD`へ変換して別コミットで記録します。再実行しても公開日は変わりません。
+リンク・表示バージョン・公開日の更新は、バージョン変更と同じ1コミットに含め、すべてのバイナリのビルド・検証後にmasterへ反映します。公開日は初回のWorkflow実行の作成日時（`createdAt`）を日本時間（Asia/Tokyo）の`YYYY-MM-DD`へ変換した日付です。実際のRelease公開が翌日になっても開始日のままとし、再実行や既存の未公開タグの再利用でも記録済みの日付を変えません。
 
-公開日の更新後は、`GITHUB_TOKEN`によるpushが通常のpush起点のWorkflowを開始しないことに対応するため、`workflow_dispatch`で既存のPages Workflowを明示的に起動します。公開日の記録には`contents: write`、デプロイ依頼には`actions: write`を使用し、サイトのデプロイは引き続きPages Workflowへ集約します。
+Release公開成功後は、`GITHUB_TOKEN`によるpushが通常のpush起点のWorkflowを開始しないことに対応するため、`workflow_dispatch`で既存のPages Workflowを明示的に起動します。実行日時の取得には`actions: read`、リリースコミットの反映には`contents: write`、デプロイ依頼には`actions: write`を使用し、サイトのデプロイは引き続きPages Workflowへ集約します。
 
 1. `pnpm build` でアプリをビルドします。
 2. `pnpm docs:build` でドキュメントをビルドします。

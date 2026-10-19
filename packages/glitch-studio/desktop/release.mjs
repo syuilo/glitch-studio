@@ -50,7 +50,7 @@ export function resolveReleaseVersion(currentVersion, mode, explicitVersion = nu
 	return validateReleaseVersion(version);
 }
 
-function replaceDownloadPageSection(markdown, marker, content) {
+function getDownloadPageSection(markdown, marker) {
 	const openingMarker = `<!--[${marker}]-->`;
 	const closingMarker = `<!--[/${marker}]-->`;
 	// マーカーが壊れたときに本文を巻き込んだり、一部の項目だけ古い値を残したりしない。
@@ -60,9 +60,15 @@ function replaceDownloadPageSection(markdown, marker, content) {
 	const openingIndex = markdown.indexOf(openingMarker);
 	const contentIndex = openingIndex + openingMarker.length;
 	const closingIndex = markdown.indexOf(closingMarker);
-	if (closingIndex < contentIndex || markdown.slice(contentIndex, closingIndex).includes('<!--[')) {
+	const content = markdown.slice(contentIndex, closingIndex);
+	if (closingIndex < contentIndex || content.includes('<!--[')) {
 		throw new Error(`Invalid download page markers for ${marker}.`);
 	}
+	return { openingIndex, contentIndex, closingIndex, content };
+}
+
+function replaceDownloadPageSection(markdown, marker, content) {
+	const { openingIndex, contentIndex, closingIndex } = getDownloadPageSection(markdown, marker);
 	if (Array.isArray(content)) {
 		const newline = markdown.includes('\r\n') ? '\r\n' : '\n';
 		const indentation = markdown.slice(markdown.lastIndexOf('\n', openingIndex) + 1, openingIndex);
@@ -72,9 +78,9 @@ function replaceDownloadPageSection(markdown, marker, content) {
 	return `${markdown.slice(0, contentIndex)}${content}${markdown.slice(closingIndex)}`;
 }
 
-export function formatReleasePublicationDate(publishedAt) {
-	const date = typeof publishedAt === 'string' ? new Date(publishedAt) : null;
-	if (date == null || Number.isNaN(date.getTime())) throw new Error('Missing or invalid release publication timestamp.');
+export function formatReleaseDate(releaseTimestamp) {
+	const date = typeof releaseTimestamp === 'string' ? new Date(releaseTimestamp) : null;
+	if (date == null || Number.isNaN(date.getTime())) throw new Error('Missing or invalid release timestamp.');
 	const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
 		timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
 	}).formatToParts(date).map(part => [part.type, part.value]));
@@ -97,12 +103,24 @@ export function updateReleaseDownloadLinks(markdown, version) {
 	return markdown;
 }
 
-export function updateReleaseDownloadPage(markdown, version, publishedAt = null) {
-	const publicationDate = publishedAt == null ? '' : formatReleasePublicationDate(publishedAt);
+export function updateReleaseDownloadPage(markdown, version, releaseTimestamp) {
+	const releaseDate = formatReleaseDate(releaseTimestamp);
 	markdown = updateReleaseDownloadLinks(markdown, version);
 	markdown = replaceDownloadPageSection(markdown, 'CURRENT_VERSION_MARKER', version);
-	// ビルド開始日を公開日として扱わない。公開前には前バージョンの日付も引き継がない。
-	return replaceDownloadPageSection(markdown, 'CURRENT_VERSION_RELEASE_DATE_MARKER', publicationDate);
+	return replaceDownloadPageSection(markdown, 'CURRENT_VERSION_RELEASE_DATE_MARKER', releaseDate);
+}
+
+export function verifyPreparedDownloadPage(markdown, version) {
+	const releaseDate = getDownloadPageSection(markdown, 'CURRENT_VERSION_RELEASE_DATE_MARKER').content;
+	const releaseTimestamp = `${releaseDate}T00:00:00+09:00`;
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(releaseDate) || formatReleaseDate(releaseTimestamp) !== releaseDate) {
+		throw new Error('The prepared download page has an invalid release date.');
+	}
+	// 未公開タグを再利用する場合は、最初のコミットに記録した日付を維持する。
+	if (updateReleaseDownloadPage(markdown, version, releaseTimestamp) !== markdown) {
+		throw new Error('The existing release tag has a different download page. Use a new version.');
+	}
+	return releaseDate;
 }
 
 export async function verifyReleaseArtifacts(directory, version, platform = 'all') {
@@ -155,7 +173,7 @@ export function verifyPackagedApplication(archive) {
 }
 
 async function getRelease(tag) {
-	const value = await exists('gh', ['release', 'view', tag, '--json', 'isDraft,tagName,publishedAt']);
+	const value = await exists('gh', ['release', 'view', tag, '--json', 'isDraft,tagName']);
 	return value == null ? null : JSON.parse(value);
 }
 
@@ -181,11 +199,16 @@ async function prepareRelease() {
 		const committed = JSON.parse(await fs.readFile(path.join(rootDirectory, 'package.json'), 'utf8'));
 		if (committed.version !== version) throw new Error('The existing release tag has a different version.');
 		const downloadPage = await fs.readFile(path.join(rootDirectory, 'docs-site/guide/download.md'), 'utf8');
-		if (updateReleaseDownloadPage(downloadPage, version) !== downloadPage) throw new Error('The existing release tag has a different download page. Use a new version.');
+		console.log(`Release date: ${verifyPreparedDownloadPage(downloadPage, version)}`);
 	} else {
+		const runId = process.env.GITHUB_RUN_ID;
+		if (!/^\d+$/.test(runId ?? '')) throw new Error('Missing workflow run ID.');
+		// createdAtは再実行でも変わらない。日をまたいだ再実行で別の日付にしない。
+		const releaseTimestamp = await command('gh', ['run', 'view', runId, '--json', 'createdAt', '--jq', '.createdAt']);
 		const downloadPagePath = path.join(rootDirectory, 'docs-site/guide/download.md');
 		const downloadPage = await fs.readFile(downloadPagePath, 'utf8');
-		const updatedDownloadPage = updateReleaseDownloadPage(downloadPage, version);
+		const updatedDownloadPage = updateReleaseDownloadPage(downloadPage, version, releaseTimestamp);
+		console.log(`Release date: ${formatReleaseDate(releaseTimestamp)}`);
 		metadata.version = version;
 		await fs.writeFile(filePath, `${JSON.stringify(metadata, null, '\t')}\n`);
 		// リンクも同じコミットに含め、失敗したビルドのためにmasterだけを先に更新しない。
@@ -241,36 +264,13 @@ async function publishRelease() {
 	await command('gh', ['release', 'edit', tag, '--draft=false', `--prerelease=${prerelease}`, `--latest=${!prerelease}`]);
 }
 
-async function updatePublishedDownloadPage() {
-	const version = validateReleaseVersion(process.env.RELEASE_VERSION);
-	const tag = `v${version}`;
-	const release = await getRelease(tag);
-	if (release?.isDraft !== false || release.tagName !== tag) throw new Error('Publish the release before updating its publication date.');
-	if (release.publishedAt == null) throw new Error('The published release has no publication timestamp.');
-	const metadata = JSON.parse(await fs.readFile(path.join(rootDirectory, 'package.json'), 'utf8'));
-	if (metadata.version !== version) throw new Error('master has a different version. Refusing to replace its download page with an older release.');
-	const downloadPagePath = path.join(rootDirectory, 'docs-site/guide/download.md');
-	const downloadPage = await fs.readFile(downloadPagePath, 'utf8');
-	const updatedDownloadPage = updateReleaseDownloadPage(downloadPage, version, release.publishedAt);
-	if (updatedDownloadPage === downloadPage) return;
-	// 公開後の実際の日付は別コミットにする。失敗時はこの処理だけを再実行できる。
-	await fs.writeFile(downloadPagePath, updatedDownloadPage);
-	await command('git', ['config', 'user.name', 'github-actions[bot]']);
-	await command('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
-	await command('git', ['add', 'docs-site/guide/download.md']);
-	await command('git', ['commit', '-m', `docs: update download page for ${version}`]);
-	// 通常のpushとし、チェックアウト後に進んだmasterを上書きしない。
-	await command('git', ['push', 'origin', 'HEAD:refs/heads/master']);
-}
-
 if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	const actions = {
 		prepare: prepareRelease,
 		publish: publishRelease,
-		'update-download-page': updatePublishedDownloadPage,
 		verify: () => verifyReleaseArtifacts(path.join(rootDirectory, 'release'), process.env.RELEASE_VERSION, process.argv[3] ?? 'all'),
 	};
 	const action = actions[process.argv[2]];
-	if (action == null) throw new Error('Expected prepare, verify, publish or update-download-page');
+	if (action == null) throw new Error('Expected prepare, verify or publish');
 	await action();
 }

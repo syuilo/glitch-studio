@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import yaml from 'js-yaml';
 import asar from '@electron/asar';
-import { validateReleaseVersion, resolveReleaseVersion, formatReleasePublicationDate, updateReleaseDownloadLinks, updateReleaseDownloadPage, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
+import { validateReleaseVersion, resolveReleaseVersion, formatReleaseDate, updateReleaseDownloadLinks, updateReleaseDownloadPage, verifyPreparedDownloadPage, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
 
 const downloadPagePath = new URL('../../../../docs-site/guide/download.md', import.meta.url);
 
@@ -134,21 +134,21 @@ test('rejects malformed download sections and invalid release versions', async (
 	assert.throws(() => updateReleaseDownloadLinks(markdown, '2.0.0" onclick="invalid'), /canonical SemVer/);
 });
 
-// 【公開日はGitHubの公開日時を日本時間の暦日に変換する】
-// ビルドや再実行の日付を使わず、UTCと日本時間の日付境界・年境界でも表示を正しく保つ。
-test('formats publication timestamps as Japanese calendar dates and rejects missing timestamps', () => {
-	assert.equal(formatReleasePublicationDate('2026-10-19T14:59:59Z'), '2026-10-19');
-	assert.equal(formatReleasePublicationDate('2026-10-19T15:00:00Z'), '2026-10-20');
-	assert.equal(formatReleasePublicationDate('2026-12-31T15:00:00Z'), '2027-01-01');
-	assert.equal(formatReleasePublicationDate('2026-10-20T00:30:00+09:00'), '2026-10-20');
-	for (const publishedAt of [null, '', 'invalid', 0]) {
-		assert.throws(() => formatReleasePublicationDate(publishedAt), /publication timestamp/);
+// 【Workflowの開始日時を日本時間の暦日に変換する】
+// UTCと日本時間の日付境界・年境界でも、最初のWorkflow開始日を正しく記録する。
+test('formats workflow timestamps as Japanese calendar dates and rejects missing timestamps', () => {
+	assert.equal(formatReleaseDate('2026-10-19T14:59:59Z'), '2026-10-19');
+	assert.equal(formatReleaseDate('2026-10-19T15:00:00Z'), '2026-10-20');
+	assert.equal(formatReleaseDate('2026-12-31T15:00:00Z'), '2027-01-01');
+	assert.equal(formatReleaseDate('2026-10-20T00:30:00+09:00'), '2026-10-20');
+	for (const releaseTimestamp of [null, '', 'invalid', 0]) {
+		assert.throws(() => formatReleaseDate(releaseTimestamp), /release timestamp/);
 	}
 });
 
-// 【インラインのバージョンと公開日をリンクと一緒に更新し、公開前には古い日付を残さない】
-// v接頭辞は本文が所有する。再実行しても値や改行が増えず、公開後の取得日時が変わっても結果が同じになる。
-test('updates version and publication date inline and clears the date while preparing the next release', async () => {
+// 【バージョン・公開日・リンクを準備段階でまとめて更新する】
+// v接頭辞は本文が所有する。日付を空欄にせず、1つのリリースコミットへすべての更新を含める。
+test('updates version, release date and links together while preparing the release', async () => {
 	const markdown = await fs.readFile(downloadPagePath, 'utf8');
 	for (const newline of ['\n', '\r\n']) {
 		const template = markdown.replace(/\r?\n/g, newline);
@@ -157,11 +157,26 @@ test('updates version and publication date inline and clears the date while prep
 		assert.ok(published.includes('公開日: <!--[CURRENT_VERSION_RELEASE_DATE_MARKER]-->2026-10-20<!--[/CURRENT_VERSION_RELEASE_DATE_MARKER]-->'));
 		assert.ok(published.includes('/v2.0.0-alpha.42/Glitch-Studio-2.0.0-alpha.42-x64-Setup.exe'));
 		assert.equal(updateReleaseDownloadPage(published, '2.0.0-alpha.42', '2026-10-19T15:30:00Z'), published);
-		const preparing = updateReleaseDownloadPage(published, '2.0.0-alpha.43');
+		const preparing = updateReleaseDownloadPage(published, '2.0.0-alpha.43', '2026-10-20T15:30:00Z');
 		assert.ok(preparing.includes('<!--[CURRENT_VERSION_MARKER]-->2.0.0-alpha.43<!--[/CURRENT_VERSION_MARKER]-->'));
-		assert.ok(preparing.includes('<!--[CURRENT_VERSION_RELEASE_DATE_MARKER]--><!--[/CURRENT_VERSION_RELEASE_DATE_MARKER]-->'));
+		assert.ok(preparing.includes('<!--[CURRENT_VERSION_RELEASE_DATE_MARKER]-->2026-10-21<!--[/CURRENT_VERSION_RELEASE_DATE_MARKER]-->'));
+		assert.throws(() => updateReleaseDownloadPage(template, '2.0.0-alpha.43'), /release timestamp/);
 		if (newline === '\r\n') assert.equal(published.replaceAll('\r\n', '').includes('\n'), false);
 		else assert.equal(published.includes('\r'), false);
+	}
+});
+
+// 【既存の未公開タグを再利用するときは、コミット済みの日付を変えない】
+// 新しい実行を別の日に開始しても、既存タグの書き換えや公開後の追加コミットを必要としない。
+// 日付やバージョンが壊れている既存ページは、そのままリリースせず検出する。
+test('verifies prepared pages using their committed dates and rejects invalid dates or versions', async () => {
+	const markdown = await fs.readFile(downloadPagePath, 'utf8');
+	const prepared = updateReleaseDownloadPage(markdown, '2.0.0-alpha.42', '2026-10-19T15:30:00Z');
+	assert.equal(verifyPreparedDownloadPage(prepared, '2.0.0-alpha.42'), '2026-10-20');
+	assert.throws(() => verifyPreparedDownloadPage(prepared, '2.0.0-alpha.43'), /different download page/);
+	for (const releaseDate of ['', '2026-2-1', '2026-02-30', 'invalid']) {
+		const invalid = prepared.replace('2026-10-20', releaseDate);
+		assert.throws(() => verifyPreparedDownloadPage(invalid, '2.0.0-alpha.42'), /invalid release date/);
 	}
 });
 
