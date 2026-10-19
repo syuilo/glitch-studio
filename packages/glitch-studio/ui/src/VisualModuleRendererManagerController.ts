@@ -1,5 +1,5 @@
 import { ref, shallowReactive } from 'vue';
-import { getFileSourceUrl, getFileSourceError, type FileSource } from '@gs/shared/file-source.ts';
+import { getFileSourceUrl, getFileSourceError } from '@gs/shared/file-source.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -10,6 +10,7 @@ import { LiveEffectStateStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
+import type { FileSource } from '@gs/shared/file-source.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
@@ -18,7 +19,6 @@ import type { Resolution } from '@gs/shared/resolution.ts';
 import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
-import * as ui from '@/ui.ts';
 
 function isSamePlayerAssetFile(previous: FileSource | null | undefined, next: FileSource | null | undefined): boolean {
 	if (previous === next) return true;

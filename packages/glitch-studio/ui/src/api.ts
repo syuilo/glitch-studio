@@ -1,7 +1,8 @@
 import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
+import { getFileSourceUrl, getFileSourceError, releaseFileSourceUrl, readFileSource } from '@gs/shared/file-source.ts';
 import { generateVideoThumbnails } from './utility/video-thumbnails.ts';
+import type { FileSource } from '@gs/shared/file-source.ts';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
-import { getFileSourceUrl, getFileSourceError, releaseFileSourceUrl, readFileSource, type FileSource } from '@gs/shared/file-source.ts';
 
 // OSによってフォントのMIMEが空やapplication/*になるため、取り込み時に正規化する。
 // Asset名は後から変更できるので、取り込み後の判定には拡張子を使わない。
@@ -133,10 +134,10 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 						width: media instanceof HTMLVideoElement ? media.videoWidth : 0,
 						height: media instanceof HTMLVideoElement ? media.videoHeight : 0,
 					});
-				cleanup();
-			};
-			media.onerror = () => { const error = media.error; cleanup(); reject(error ?? new Error('Could not decode media')); };
-			media.src = url;
+					cleanup();
+				};
+				media.onerror = () => { const error = media.error; cleanup(); reject(error ?? new Error('Could not decode media')); };
+				media.src = url;
 			});
 			if (type.startsWith('video/')) {
 				try {
