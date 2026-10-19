@@ -15,7 +15,7 @@
 			v-for="[key, def] in Object.entries(definition.paramDefs)"
 			:key="key"
 			keyframesEnabled
-			layerInputEnabled
+			imageInputEnabled
 			imageInputSamplingEnabled
 			:imageLayerOptions="imageLayerOptions"
 			:anotherLayerAudioOptions="anotherLayerAudioOptions"

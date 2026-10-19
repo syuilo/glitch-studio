@@ -665,7 +665,7 @@
 		"LayerSourceOutput": "Source Output",
 		"LayerRenderedOutput": "Rendered Layer",
 		"LayerCompositedOutput": "Composited Output",
-		"LowerLayers": "Layers Below",
+		"LowerLayerOutput": "Output From Layers Below",
 		"Disconnect": "Disconnect",
 		"Sampling": "Sampling",
 		"Title": "Parameter",

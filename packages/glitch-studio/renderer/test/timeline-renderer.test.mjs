@@ -592,7 +592,7 @@ test('passes clip progress separately from module content time and scene argumen
 });
 
 // 【参照する側のブラー無効化で参照先の通常描画時刻を変えない】
-// 入力まで基準時刻へ固定するとlayerInputと振る舞いが食い違い、同じ素材を別時刻で
+// 入力まで基準時刻へ固定するとlowerLayerOutputと振る舞いが食い違い、同じ素材を別時刻で
 // 二度生成する必要も生じる。取得先と祖先の通常の時計を使って一度だけ評価する。
 test('uses the targets normal sample time when the receiver disables motion blur', async () => {
 	const calls = [];

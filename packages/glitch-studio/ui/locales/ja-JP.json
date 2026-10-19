@@ -665,7 +665,7 @@
 		"LayerSourceOutput": "素材出力",
 		"LayerRenderedOutput": "単独描画結果",
 		"LayerCompositedOutput": "下層との合成結果",
-		"LowerLayers": "下のレイヤー",
+		"LowerLayerOutput": "下のレイヤーの出力",
 		"Disconnect": "接続を解除",
 		"Sampling": "サンプリング",
 		"Title": "パラメータ",

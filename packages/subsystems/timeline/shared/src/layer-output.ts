@@ -3,7 +3,7 @@ import { findTimelineLayer } from './layer-tree.ts';
 import type { TimelineLayer, TimelineVisualLayer } from './types.ts';
 import type { TimelineAnotherLayerOutputBinding } from './parameter-binding.ts';
 
-export type TimelineImageInputReference = { inputSource: 'layerInput' } | TimelineAnotherLayerOutputBinding;
+export type TimelineImageInputReference = { inputSource: 'lowerLayerOutput' } | TimelineAnotherLayerOutputBinding;
 
 export function resolveTimelineImageLayerReference(layers: readonly TimelineLayer[], ownerLayerId: string, layerId: string | null): TimelineVisualLayer | null {
 	if (layerId == null || layerId === ownerLayerId) return null;
@@ -34,7 +34,7 @@ export function getTimelineLayerOutputDependencyGraph(layers: readonly TimelineL
 				if (children != null) dependencies.push(children);
 			}
 			for (const input of getInputs(layer.id)) {
-				if (input.inputSource === 'layerInput') {
+				if (input.inputSource === 'lowerLayerOutput') {
 					if (lower != null) dependencies.push(lower);
 				} else if (input.layerId != null) {
 					const target = findTimelineLayer(layers, input.layerId);

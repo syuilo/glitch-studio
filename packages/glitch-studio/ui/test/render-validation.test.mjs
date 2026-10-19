@@ -118,8 +118,8 @@ for (const invalid of ['duplicate element', 'unknown field', 'missing field', 'c
 		if (invalid === 'duplicate element') { binding.value.push({ id: 'element', binding: literal(values) }); message = /Duplicate array element ID/; }
 		else if (invalid === 'unknown field') { values.other = literal(0); message = /Unknown struct field/; }
 		else if (invalid === 'missing field') { delete values.asset; message = /Missing parameter binding/; }
-		else if (invalid === 'container input') { binding.inputSource = 'layerInput'; message = /Container parameter must be literal/; }
-		else { values.asset = { inputSource: 'layerInput' }; message = /Layer input is only available/; }
+		else if (invalid === 'container input') { binding.inputSource = 'lowerLayerOutput'; message = /Container parameter must be literal/; }
+		else { values.asset = { inputSource: 'lowerLayerOutput' }; message = /Timeline image input is only available/; }
 		const effect = { ...definitions.effect, paramDefs: { inputs: nestedParameterDefinition() } };
 		const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect',
 			resolution: { mode: 'context' }, effectParamValues: { inputs: binding } };
@@ -406,7 +406,7 @@ const imageLayerChange = layerId => [{ type: 'layer', sceneId: 'scene', layerId,
 
 // 【上層素材の参照と、下層合成を経由する循環を区別する】
 // 配列の順序をそのまま素材の依存にすると成立する配線を拒否する。一方、出力段階の
-// 切替やlayerInputを経由した循環も、描画前に静的診断へ反映する必要がある。
+// 切替やlowerLayerOutputを経由した循環も、描画前に静的診断へ反映する必要がある。
 test('revalidates output stages lower inputs and layer order for image cycles', () => {
 	const upper = imageEffectLayer('upper');
 	const lower = imageEffectLayer('lower', outputReference('upper'));
@@ -418,7 +418,7 @@ test('revalidates output stages lower inputs and layer order for image cycles', 
 	lower.effectParamValues.amount = outputReference('upper');
 	f.validation.update(imageLayerChange('lower'));
 	assert.equal(f.validation.errorMessage.value, null);
-	upper.effectParamValues.amount = { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
+	upper.effectParamValues.amount = { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
 	f.validation.update(imageLayerChange('upper'));
 	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
 	f.state.timelineScenes.value[0].layers.reverse();
@@ -492,5 +492,5 @@ test('rejects image references in nonpublic nested Visual Module arguments', () 
 	const layer = { ...imageEffectLayer('public'), layerType: 'visualModule', visualModuleId: 'visual',
 		visualModuleParamValues: { settings: literal({ image: { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' } }) } };
 	const f = fixture([visual], [scene('scene', [layer])]);
-	assert.match(f.validation.errorMessage.value, /Layer input is only available/);
+	assert.match(f.validation.errorMessage.value, /Timeline image input is only available/);
 });

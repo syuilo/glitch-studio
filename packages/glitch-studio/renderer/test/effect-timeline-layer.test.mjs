@@ -27,7 +27,7 @@ const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_sha
 const { default: nested } = await load('@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const input = { inputSource: 'layerInput', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
+const input = { inputSource: 'lowerLayerOutput', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
 const color = { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) };
 const definition = {
@@ -543,7 +543,7 @@ test('releases deleted public input frames while preserving the placement and re
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'kept', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };
 	const publicLayer = { id: 'public', name: 'Public', layerType: 'visualModule', visualModuleId: 'visual', clips: [clip('clip', 100, 1000)],
-		isDisabled: false, automationGraphs: [], compositingParamValues: compositing(), visualModuleParamValues: { kept: { inputSource: 'layerInput' } } };
+		isDisabled: false, automationGraphs: [], compositingParamValues: compositing(), visualModuleParamValues: { kept: { inputSource: 'lowerLayerOutput' } } };
 	const background = layer('background');
 	background.compositingParamValues.position = literal([2, 0]);
 	let publicOutput;

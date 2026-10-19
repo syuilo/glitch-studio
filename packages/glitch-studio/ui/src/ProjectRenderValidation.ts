@@ -295,7 +295,7 @@ export class ProjectRenderValidation {
 			inspectTimelineLayer(layer, currentVisualModule, effect, (def, binding) => {
 				this.value(def, binding, dependencies);
 				const input = binding as { inputSource: string };
-				if (input.inputSource === 'layerInput' || input.inputSource === 'anotherLayerOutput') inputs.push(binding as TimelineImageInputReference);
+				if (input.inputSource === 'lowerLayerOutput' || input.inputSource === 'anotherLayerOutput') inputs.push(binding as TimelineImageInputReference);
 			});
 		}, dependencies, force);
 		if (!changed) return;

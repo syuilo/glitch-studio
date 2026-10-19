@@ -15,7 +15,7 @@
 				<i v-else-if="paramValue.inputSource === 'externalCustomParameterInput'" v-tooltip="i18n.ts._Parameter.Title" class="ti ti-wifi" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="i18n.ts._Parameter.Node" class="ti ti-plug" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'anotherLayerOutput'" v-tooltip="i18n.ts._Parameter.AnotherLayerOutput" class="ti ti-stack" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'layerInput'" v-tooltip="i18n.ts._Parameter.LowerLayers" class="ti ti-stack-2" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'lowerLayerOutput'" v-tooltip="i18n.ts._Parameter.LowerLayerOutput" class="ti ti-stack-2" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'lowerLayerAudio'" v-tooltip="i18n.ts._Parameter.LowerLayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'anotherLayerAudio'" v-tooltip="i18n.ts._Parameter.AnotherLayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="i18n.ts._Parameter.Keyframes" class="ti ti-timeline" :class="$style.typeIcon"></i>
@@ -28,7 +28,7 @@
 				<GsButton iconOnly :title="i18n.ts._Parameter.AddElement" icon="ti ti-plus" @click="addElement"/>
 			</template>
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
-				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || ((paramValue.inputSource === 'layerInput' || paramValue.inputSource === 'anotherLayerOutput') && !layerInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsInput v-if="paramValue.inputSource === 'expression'" large type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
 						<template #caption>
@@ -75,9 +75,9 @@
 						/>
 						<button class="_button" style="padding: 4px; flex-shrink: 0;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
 					</div>
-					<div v-else-if="paramValue.inputSource === 'layerInput'" style="display: flex; gap: 4px; align-items: center;">
-						<span style="flex: 1; min-width: 0;">{{ i18n.ts._Parameter.LowerLayers }}</span>
-						<button v-if="imageInputSamplingEnabled" class="_button" style="padding: 4px; flex-shrink: 0;" @click="showLayerInputSamplingMenu"><i class="ti ti-dots"></i></button>
+					<div v-else-if="paramValue.inputSource === 'lowerLayerOutput'" style="display: flex; gap: 4px; align-items: center;">
+						<span style="flex: 1; min-width: 0;">{{ i18n.ts._Parameter.LowerLayerOutput }}</span>
+						<button v-if="imageInputSamplingEnabled" class="_button" style="padding: 4px; flex-shrink: 0;" @click="showLowerLayerOutputSamplingMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<div v-else-if="paramValue.inputSource === 'anotherLayerOutput'" style="display: flex; gap: 4px; align-items: center;">
 						<GsSelect data-test-image-layer-reference :modelValue="paramValue.layerId" :items="imageLayerItems" @update:modelValue="value => updateAnotherLayerOutput({ layerId: value })"/>
@@ -125,7 +125,7 @@
 			:availableVariables="availableVariables"
 			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:keyframesEnabled="keyframesEnabled"
-			:layerInputEnabled="layerInputEnabled"
+			:imageInputEnabled="imageInputEnabled"
 			:imageLayerOptions="imageLayerOptions"
 			:imageInputSamplingEnabled="imageInputSamplingEnabled"
 			:anotherLayerAudioOptions="anotherLayerAudioOptions"
@@ -150,7 +150,7 @@
 			:availableVariables="availableVariables"
 			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:keyframesEnabled="keyframesEnabled"
-			:layerInputEnabled="layerInputEnabled"
+			:imageInputEnabled="imageInputEnabled"
 			:imageLayerOptions="imageLayerOptions"
 			:imageInputSamplingEnabled="imageInputSamplingEnabled"
 			:anotherLayerAudioOptions="anotherLayerAudioOptions"
@@ -167,7 +167,7 @@
 
 <script lang="ts">
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
-import type { TimelineLayerInputBinding, TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding, TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineLowerLayerOutputBinding, TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding, TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 
 export type AnotherLayerAudioOption = { value: string; label: string };
@@ -175,11 +175,11 @@ export type AnotherLayerAudioOption = { value: string; label: string };
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| ValueParameterEdit
 	| { kind: 'node'; value: NodeOutputReference | null; preserveSampling: boolean }
-	| { kind: 'layerInput'; value: TimelineLayerInputBinding }
+	| { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding }
 	| { kind: 'anotherLayerOutput'; value: Extract<EditableParameterBinding, { inputSource: 'anotherLayerOutput' }> }
 	| { kind: 'anotherLayerAudio'; value: string | null }
 	| { kind: 'externalCustomParameterInput'; value: VisualModuleCustomParameterId }
-	| ParameterInputSourceEdit<'node' | 'anotherLayerOutput' | 'layerInput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'externalCustomParameterInput'>
+	| ParameterInputSourceEdit<'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'externalCustomParameterInput'>
 );
 </script>
 
@@ -227,7 +227,7 @@ const props = defineProps<{
 	paramValue: EditableParameterBinding;
 	label?: string;
 	keyframesEnabled?: boolean;
-	layerInputEnabled?: boolean;
+	imageInputEnabled?: boolean;
 	imageInputSamplingEnabled?: boolean;
 	imageLayerOptions?: readonly { value: string; label: string }[];
 	/** 指定された場合、Timelineの音声入力を有効にする。候補は呼び出し元Sceneが所有する。 */
@@ -248,8 +248,8 @@ const visibleFields = computed(() => {
 });
 const canNode = computed(() => props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
-const layerInputTypeCompatible = computed(() => areNodeDataTypesCompatible({ kind: 'color' }, inputDataType.value));
-const layerInputConnection = computed<TimelineLayerInputBinding | null>(() => props.paramValue.inputSource === 'layerInput' && 'fitMode' in props.paramValue ? props.paramValue as TimelineLayerInputBinding : null);
+const imageInputTypeCompatible = computed(() => areNodeDataTypesCompatible({ kind: 'color' }, inputDataType.value));
+const lowerLayerOutputConnection = computed<TimelineLowerLayerOutputBinding | null>(() => props.paramValue.inputSource === 'lowerLayerOutput' && 'fitMode' in props.paramValue ? props.paramValue as TimelineLowerLayerOutputBinding : null);
 const anotherLayerOutputConnection = computed(() => props.paramValue.inputSource === 'anotherLayerOutput' && 'fitMode' in props.paramValue ? props.paramValue : null);
 const outputStageItems: { value: TimelineLayerOutputStage; label: string }[] = [
 	{ value: 'source', label: i18n.ts._Parameter.LayerSourceOutput },
@@ -424,8 +424,8 @@ function getMenu() {
 		}
 		if (props.node != null) types.push({ text: i18n.ts._Parameter.CustomParameter, inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value && props.node != null) types.push({ text: i18n.ts._Parameter.Node, inputSource: 'node', icon: 'ti ti-plug' });
-		if (props.layerInputEnabled && canNode.value && canConnectNodeDataTypes({ kind: 'color' }, inputDataType.value)) {
-			types.push({ text: i18n.ts._Parameter.LowerLayers, inputSource: 'layerInput', icon: 'ti ti-stack-2' });
+		if (props.imageInputEnabled && canNode.value && canConnectNodeDataTypes({ kind: 'color' }, inputDataType.value)) {
+			types.push({ text: i18n.ts._Parameter.LowerLayerOutput, inputSource: 'lowerLayerOutput', icon: 'ti ti-stack-2' });
 			if (props.imageLayerOptions != null) types.push({ text: i18n.ts._Parameter.AnotherLayerOutput, inputSource: 'anotherLayerOutput', icon: 'ti ti-stack' });
 		}
 		for (const { text, inputSource, icon } of types) {
@@ -478,10 +478,10 @@ function showAnotherLayerOutputSamplingMenu(ev: PointerEvent) {
 		value => emit('edit', { kind: 'anotherLayerOutput', ...target(), value })), ev.currentTarget ?? ev.target);
 }
 
-function showLayerInputSamplingMenu(ev: PointerEvent) {
-	if (layerInputConnection.value == null) return;
-	ui.popupMenu(getNodeInputSamplingMenuItems(layerInputConnection as Ref<TimelineLayerInputBinding>,
-		value => emit('edit', { kind: 'layerInput', ...target(), value })), ev.currentTarget ?? ev.target);
+function showLowerLayerOutputSamplingMenu(ev: PointerEvent) {
+	if (lowerLayerOutputConnection.value == null) return;
+	ui.popupMenu(getNodeInputSamplingMenuItems(lowerLayerOutputConnection as Ref<TimelineLowerLayerOutputBinding>,
+		value => emit('edit', { kind: 'lowerLayerOutput', ...target(), value })), ev.currentTarget ?? ev.target);
 }
 
 function onRowContextmenu(ev: PointerEvent) {

@@ -4,7 +4,7 @@ import type { TimelineVisualModuleParameterBinding } from '../../parameter-bindi
 
 /** Timelineでの初期割当とリセット。保存済みの明示的な「なし」は呼び出し側で優先する。 */
 export function getTimelineVisualModuleArgumentDefault(visualModule: Pick<VisualModule, 'primaryAudioInputId' | 'primaryInputId'>, def: VisualModuleParamDef): TimelineVisualModuleParameterBinding {
-	if (visualModule.primaryInputId === def.id) return { inputSource: 'layerInput' };
+	if (visualModule.primaryInputId === def.id) return { inputSource: 'lowerLayerOutput' };
 	return visualModule.primaryAudioInputId === def.id && def.dataType.kind === 'audioSource'
 		? { inputSource: 'lowerLayerAudio' } : deepClone(def.defaultValue);
 }

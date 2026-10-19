@@ -691,7 +691,7 @@ test('exposes public primary image bindings and routes their edits through histo
 	f.props.selection = { kind: 'layers', ids: [layer.id] };
 	await nextTick();
 	const control = () => f.controls('GsVisualParam').find(node => node.props['data-test-visual-module-argument'] === 'image');
-	assert.deepEqual(control().props.paramValue, { inputSource: 'layerInput' });
+	assert.deepEqual(control().props.paramValue, { inputSource: 'lowerLayerOutput' });
 	assert.equal(control().props.paramDef.canNode, true);
 	assert.equal(control().props.imageInputSamplingEnabled === true, false);
 	assert.deepEqual(control().props.imageLayerOptions, [{ value: 'source', label: 'Source' }]);

@@ -12,7 +12,7 @@ import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_s
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
-import { createLayerInputBinding, getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
+import { createLowerLayerOutputBinding, getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { canReferenceScene, validateTimelineLayer } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
@@ -61,7 +61,7 @@ import type { ExportDialogSettings } from './export/export-settings.ts';
 import type { VisualModuleImport } from './gsvm.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { TimelineEffectParameterBinding, TimelineLayerInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineEffectParameterBinding, TimelineLowerLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ValueParameterEdit } from '@/types/parameter-edit.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
@@ -99,14 +99,14 @@ function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelinePar
 		const values = getLayerParameterValues(layer, target);
 		if (binding == null) delete values[rootKey];
 		else {
-			if ((binding.inputSource === 'layerInput' || binding.inputSource === 'anotherLayerOutput') && !('fitMode' in binding)) throw new Error('Effect image input requires sampling');
+			if ((binding.inputSource === 'lowerLayerOutput' || binding.inputSource === 'anotherLayerOutput') && !('fitMode' in binding)) throw new Error('Effect image input requires sampling');
 			values[rootKey] = deepClone(binding as TimelineEffectParameterBinding);
 		}
 	} else if (target === 'module') {
 		const values = getLayerParameterValues(layer, target);
 		if (binding == null) delete values[rootKey];
 		else {
-			values[rootKey] = binding.inputSource === 'layerInput' ? { inputSource: 'layerInput' }
+			values[rootKey] = binding.inputSource === 'lowerLayerOutput' ? { inputSource: 'lowerLayerOutput' }
 				: binding.inputSource === 'anotherLayerOutput' ? { inputSource: 'anotherLayerOutput', layerId: binding.layerId, outputStage: binding.outputStage }
 				: deepClone(binding);
 		}
@@ -179,7 +179,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 } & (
 	| { target?: TimelineParameterTarget; edit: ValueParameterEdit }
 	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'anotherLayerAudio' } | { kind: 'anotherLayerAudio'; value: string | null } }
-	| { target: 'effect' | 'module'; edit: { kind: 'layerInput'; value: TimelineLayerInputBinding } | { kind: 'inputSource'; inputSource: 'layerInput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
+	| { target: 'effect' | 'module'; edit: { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding } | { kind: 'inputSource'; inputSource: 'lowerLayerOutput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
 )>({
 	label: 'Edit timeline layer param',
 	changes: (_state, payload) => {
@@ -189,7 +189,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			case 'removeElement': kind = 'arrayElements'; break;
 			case 'reset': kind = 'reset'; break;
 			case 'inputSource': kind = 'inputSource'; break;
-			case 'layerInput':
+			case 'lowerLayerOutput':
 			case 'anotherLayerOutput':
 			case 'anotherLayerAudio': kind = 'connection'; break;
 			default: kind = 'value'; break;
@@ -232,12 +232,12 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'literal': next = { inputSource: 'literal', value: deepClone(edit.value) }; break;
 						case 'automationGraphInline':
 						case 'keyframesTimelineInline':
-						case 'layerInput': next = deepClone(edit.value); break;
+						case 'lowerLayerOutput': next = deepClone(edit.value); break;
 						case 'anotherLayerOutput': {
 							const currentId = current.inputSource === 'anotherLayerOutput' ? current.layerId : null;
 							if (edit.value.layerId != null && edit.value.layerId !== currentId
 								&& resolveTimelineImageLayerReference(getScene(state, payload.sceneId).layers, layer.id, edit.value.layerId) == null) throw new Error('Image source must be another visual layer in the same scene');
-							next = target === 'effect' ? { ...createLayerInputBinding(), ...edit.value }
+							next = target === 'effect' ? { ...createLowerLayerOutputBinding(), ...edit.value }
 								: { inputSource: 'anotherLayerOutput', layerId: edit.value.layerId, outputStage: edit.value.outputStage };
 							break;
 						}
@@ -257,7 +257,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							if (payload.paramPath.length === 1 && (def.dataType.kind === 'audioSource' || module?.primaryInputId === rootKey)) { next = deepClone(defaultBinding); break; }
 							next = target === 'effect' && layer.layerType === 'effect' && payload.paramPath.length === 1
 							&& effectDefinitions[layer.effectId].kind === 'modify' && effectDefinitions[layer.effectId].primaryInputParameter === rootKey
-								? createLayerInputBinding() : createResetParameterBinding(def); break;
+								? createLowerLayerOutputBinding() : createResetParameterBinding(def); break;
 						case 'addElement':
 						case 'removeElement': {
 							if (def.dataType.kind !== 'array' || current.inputSource !== 'literal') throw new Error('Expected array parameter');
@@ -276,8 +276,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								case 'automationGraphReference': next = { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 								case 'automationGraphInline': next = createInlineAutomationGraph(); break;
 								case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(def, current); break;
-								case 'layerInput': next = target === 'effect' ? createLayerInputBinding() : { inputSource: 'layerInput' }; break;
-								case 'anotherLayerOutput': next = { ...(target === 'effect' ? createLayerInputBinding() : {}), inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' }; break;
+								case 'lowerLayerOutput': next = target === 'effect' ? createLowerLayerOutputBinding() : { inputSource: 'lowerLayerOutput' }; break;
+								case 'anotherLayerOutput': next = { ...(target === 'effect' ? createLowerLayerOutputBinding() : {}), inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' }; break;
 								case 'lowerLayerAudio': next = { inputSource: 'lowerLayerAudio' }; break;
 								case 'anotherLayerAudio': next = { inputSource: 'anotherLayerAudio', layerId: null }; break;
 								default: throw new Error('Unsupported layer parameter input source');

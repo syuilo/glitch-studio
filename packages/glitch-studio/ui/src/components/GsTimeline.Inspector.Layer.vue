@@ -100,7 +100,7 @@
 						:data-test-visual-module-argument="paramDef.id"
 						:paramPath="[paramDef.id]"
 						:paramDef="paramDef"
-						layerInputEnabled
+						imageInputEnabled
 						:anotherLayerAudioOptions="anotherLayerAudioOptions"
 						:imageLayerOptions="imageLayerOptions"
 						:paramValue="getLayerParameterValues(layer, 'module')[paramDef.id] ?? getTimelineVisualModuleArgumentDefault(visualModule!, paramDef)"
@@ -318,7 +318,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', { sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event }, mergeKey);
 		return;
 	}
-	if (event.kind === 'layerInput' || event.kind === 'anotherLayerOutput' || (event.kind === 'inputSource' && (event.inputSource === 'layerInput' || event.inputSource === 'anotherLayerOutput'))) {
+	if (event.kind === 'lowerLayerOutput' || event.kind === 'anotherLayerOutput' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerOutput' || event.inputSource === 'anotherLayerOutput'))) {
 		if (target !== 'effect' && target !== 'module') return;
 		stateManager.commit('editTimelineLayerParam', {
 			sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event,

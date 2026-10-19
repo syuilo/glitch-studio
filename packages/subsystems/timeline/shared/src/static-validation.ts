@@ -16,7 +16,7 @@ import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-defin
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineLayer } from './types.ts';
 
-type ParameterGroup = { name: string; definitions: Record<string, ParameterDefinition>; values: Record<string, ParameterBindingBase>; layerInput?: boolean; audioInput?: boolean };
+type ParameterGroup = { name: string; definitions: Record<string, ParameterDefinition>; values: Record<string, ParameterBindingBase>; imageInput?: boolean; audioInput?: boolean };
 
 function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule | null, effect?: EffectDefinition | null): ParameterGroup[] {
 	const groups: ParameterGroup[] = [];
@@ -29,10 +29,10 @@ function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule | nul
 	if (layer.layerType === 'transform') add('transformParamValues', timelineTransformParamDefs, layer.transformParamValues);
 	if (layer.layerType === 'shape') add('shape', getShapeParameterDefinitions(layer.shape.type), layer.shape.paramValues);
 	if (layer.layerType === 'effect' && effect) groups.push({ name: 'effectParamValues', definitions: effect.paramDefs,
-		values: Object.fromEntries(Object.keys(effect.paramDefs).map(key => [key, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(effect, key)])), layerInput: true, audioInput: true });
+		values: Object.fromEntries(Object.keys(effect.paramDefs).map(key => [key, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(effect, key)])), imageInput: true, audioInput: true });
 	if ('visualModuleParamValues' in layer && visualModule) groups.push({ name: 'visualModuleParamValues',
 		definitions: Object.fromEntries(visualModule.paramDefs.map(def => [def.id, def])),
-		values: Object.fromEntries(visualModule.paramDefs.map(def => [def.id, layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def)])), layerInput: true, audioInput: true });
+		values: Object.fromEntries(visualModule.paramDefs.map(def => [def.id, layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def)])), imageInput: true, audioInput: true });
 	return groups;
 }
 
@@ -61,9 +61,9 @@ export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualM
 			if (!definition) throw new Error('Unknown layer parameter: ' + key);
 			// Visual Moduleの画像入力はInノードの公開ポートだけ。struct/arrayの内部にある
 			// canNodeを公開ポートと誤認すると、CPU引数評価へ画像Bindingを渡してしまう。
-			const allowImageInput = (group.layerInput ?? false) && (group.name !== 'visualModuleParamValues' || definition.canNode === true);
+			const allowImageInput = (group.imageInput ?? false) && (group.name !== 'visualModuleParamValues' || definition.canNode === true);
 			validateTimelineParameterTree(definition, binding, allowImageInput, group.audioInput ?? false, (leaf, value) => {
-				if (group.name === 'effectParamValues' && (value.inputSource === 'layerInput' || value.inputSource === 'anotherLayerOutput') && !('fitMode' in value)) throw new Error('Effect image input requires sampling');
+				if (group.name === 'effectParamValues' && (value.inputSource === 'lowerLayerOutput' || value.inputSource === 'anotherLayerOutput') && !('fitMode' in value)) throw new Error('Effect image input requires sampling');
 				onValue(leaf, value);
 			});
 		}

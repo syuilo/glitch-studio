@@ -44,11 +44,11 @@ export function createVisualModuleTimelineLayer(
 			const resolveAudioInput = createTimelineAudioInputResolver(renderer.getAudioInput, context.sceneTimeMs, context.isExport);
 			for (const def of visualModule.paramDefs) {
 				const value = layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def);
-				if (value.inputSource === 'layerInput' || value.inputSource === 'anotherLayerOutput') {
-					const image = value.inputSource === 'layerInput' ? await context.getInput()
+				if (value.inputSource === 'lowerLayerOutput' || value.inputSource === 'anotherLayerOutput') {
+					const image = value.inputSource === 'lowerLayerOutput' ? await context.getInput()
 						: await context.getLayerOutput(value.layerId, value.outputStage);
 					if (signal.aborted) return { gpuTime: 0 };
-					const sceneFrame = value.inputSource === 'layerInput' || value.outputStage !== 'source' || image.region != null;
+					const sceneFrame = value.inputSource === 'lowerLayerOutput' || value.outputStage !== 'source' || image.region != null;
 					if (sceneFrame && renderer.getImageInput != null) {
 						const framedInput = framedImageInputs.get(image) ?? renderer.getImageInput(image, def.id);
 						framedImageInputs.set(image, framedInput);

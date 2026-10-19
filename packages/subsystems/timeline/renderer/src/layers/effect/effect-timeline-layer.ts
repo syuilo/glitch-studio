@@ -70,9 +70,9 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const resolveAudioInput = createTimelineAudioInputResolver(options.getAudioInput, context.sceneTimeMs, context.isExport);
 			const references = new Map<string, TimelineImage>();
-			let lowerInput: TimelineImage | null = null;
+			let lowerLayerOutput: TimelineImage | null = null;
 			for (const { param: binding } of walkParameterLeaves<TimelineEffectParameterBinding>(definition.paramDefs, Object.fromEntries(parameters.map(parameter => [parameter.key, parameter.binding])))) {
-				if (binding.inputSource === 'layerInput' && lowerInput == null) lowerInput = await context.getInput();
+				if (binding.inputSource === 'lowerLayerOutput' && lowerLayerOutput == null) lowerLayerOutput = await context.getInput();
 				if (binding.inputSource !== 'anotherLayerOutput') continue;
 				const key = JSON.stringify([binding.layerId, binding.outputStage]);
 				if (references.has(key)) continue;
@@ -93,14 +93,14 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			const getInput = () => {
 				if (!input) {
 					const encoder = device.createCommandEncoder();
-					input = inputFrame.renderInput(encoder, lowerInput!);
+					input = inputFrame.renderInput(encoder, lowerLayerOutput!);
 					device.queue.submit([encoder.finish()]);
 				}
 				return input;
 			};
 			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
 				return [key, mapParameterTree<TimelineEffectParameterBinding>(def, binding, [key], (leaf, value) => {
-					if (value.inputSource === 'layerInput') return toShaderInput(getInput(), value);
+					if (value.inputSource === 'lowerLayerOutput') return toShaderInput(getInput(), value);
 					if (value.inputSource === 'anotherLayerOutput') return toShaderInput(references.get(JSON.stringify([value.layerId, value.outputStage]))!, value);
 					if (isTimelineAudioInputBinding(value)) return resolveAudioInput(value);
 					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')

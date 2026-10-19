@@ -45,7 +45,7 @@ export function getLayerParameterTargets(layer: TimelineLayer): readonly Timelin
 }
 
 // 保存先が確定した場合だけ、そのドメインのBindingを書き込める。
-// 動的なtargetで取得する一覧は読み取り専用にし、音量や合成設定へのlayerInputの書き込みを防ぐ。
+// 動的なtargetで取得する一覧は読み取り専用にし、音量や合成設定へのlowerLayerOutputの書き込みを防ぐ。
 export function getLayerParameterValues(layer: TimelineLayer, target: 'module'): Record<string, TimelineVisualModuleParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: 'effect'): Record<string, TimelineEffectParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: 'compositing' | 'audio' | 'camera' | 'transform' | 'shape' | 'text' | 'voicevoxSubtitle'): Record<string, TimelineParameterBinding>;

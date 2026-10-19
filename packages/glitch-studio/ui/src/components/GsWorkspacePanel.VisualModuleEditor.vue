@@ -158,7 +158,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options }; break;
 		case 'node':
 		case 'anotherLayerOutput':
-		case 'layerInput':
+		case 'lowerLayerOutput':
 		case 'anotherLayerAudio':
 		case 'externalCustomParameterInput': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
@@ -175,7 +175,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 					break;
 				case 'externalCustomParameterInput':
 				case 'anotherLayerOutput':
-		case 'layerInput':
+		case 'lowerLayerOutput':
 				case 'lowerLayerAudio':
 				case 'anotherLayerAudio':
 				case 'node':

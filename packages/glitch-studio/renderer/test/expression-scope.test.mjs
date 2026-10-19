@@ -237,7 +237,7 @@ test('shares framed public image inputs only within the current evaluation', asy
 	const converted = [];
 	let resolved;
 	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: null }, {
-		automationGraphs: [], visualModuleParamValues: { left: reference('rendered'), right: reference('rendered'), background: { inputSource: 'layerInput' }, raw: reference('source') },
+		automationGraphs: [], visualModuleParamValues: { left: reference('rendered'), right: reference('rendered'), background: { inputSource: 'lowerLayerOutput' }, raw: reference('source') },
 	}, {
 		getImageInput(input) { assert.strictEqual(input, image); const framed = { kind: 'texture', texture: {} }; converted.push(framed); return framed; },
 		async prepare(context) { resolved = context.paramInputs; }, render() {}, destroy() {},

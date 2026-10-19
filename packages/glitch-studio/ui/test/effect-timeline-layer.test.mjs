@@ -299,7 +299,7 @@ test('labels keyframe rows by owner and current array order while preserving pat
 // 背景入力の存在だけでGridを加工系にすると背景を二重に合成してしまう。
 // リセットはレイヤーとしての初期入力に戻し、共有するエフェクト定義を変更しない。
 // 座標空間の初期値は生成系・加工系とも画面配置とし、パラメータBindingには含めない。
-test('initializes kinds independently of primary input presence and resets the layer input', () => {
+test('initializes kinds independently of primary input presence and resets the lowerLayerOutput binding', () => {
 	const generated = fixture('grid');
 	assert.deepEqual(generated.layer.effectParamValues.background, effectDefinitions.grid.paramDefs.background.defaultValue);
 	assert.deepEqual(generated.layer.compositingParamValues.blendMode, literal('normal'));
@@ -309,11 +309,11 @@ test('initializes kinds independently of primary input presence and resets the l
 		assert.equal('coordinateSpace' in layer.compositingParamValues, false);
 		assert.equal('placement' in layer.compositingParamValues, false);
 	}
-	assert.deepEqual(modified.read(['inputA']), { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
+	assert.deepEqual(modified.read(['inputA']), { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 	assert.deepEqual(modified.layer.compositingParamValues.blendMode, literal('replace'));
 	modified.edit(['inputA'], { kind: 'literal', value: [1, 0, 0, 1] });
 	const reset = modified.edit(['inputA'], { kind: 'reset' });
-	assert.equal(modified.read(['inputA']).inputSource, 'layerInput');
+	assert.equal(modified.read(['inputA']).inputSource, 'lowerLayerOutput');
 	reset.undo(modified.state);
 	assert.deepEqual(modified.read(['inputA']), literal([1, 0, 0, 1]));
 	reset.execute(modified.state);
@@ -364,13 +364,13 @@ test('edits nested scene-time keyframes and preserves identity through array ope
 // 【非主入力の配列要素にも下層入力を設定し、利用スコープと型互換性を分ける】
 // forceTypeSafetyを無効にした既存プロジェクトを開けるよう型不一致は許可しつつ、
 // canNodeでない末端・コンテナ・合成設定・モジュール内部には下層入力を流さない。
-test('supports secondary layer inputs and enforces their scope independently of type preferences', () => {
+test('supports secondary lowerLayerOutput bindings and enforces their scope independently of type preferences', () => {
 	const f = fixture();
 	const path = ['buzzs', 'first', 'image'];
-	f.edit(path, { kind: 'inputSource', inputSource: 'layerInput' });
-	f.edit(path, { kind: 'layerInput', value: { ...f.read(path), fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } });
+	f.edit(path, { kind: 'inputSource', inputSource: 'lowerLayerOutput' });
+	f.edit(path, { kind: 'lowerLayerOutput', value: { ...f.read(path), fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } });
 	assert.equal(f.read(path).filterMode, 'nearest');
-	assert.throws(() => COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'inputSource', inputSource: 'layerInput' } }).execute(f.state));
+	assert.throws(() => COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'inputSource', inputSource: 'lowerLayerOutput' } }).execute(f.state));
 	for (const inputSource of ['node', 'externalCustomParameterInput']) assert.throws(() => f.edit(path, { kind: 'inputSource', inputSource }));
 	const input = { kind: 'scalar' };
 	preferences.s.forceTypeSafety = false;
@@ -386,7 +386,7 @@ test('supports secondary layer inputs and enforces their scope independently of 
 // クリップ追加や解像度変更でもエフェクト種別とパラメータの所有者はレイヤーのままにする。
 test('round trips effect layers and changes resolution and clips with undo', async () => {
 	const f = fixture();
-	f.edit(['buzzs', 'first', 'image'], { kind: 'inputSource', inputSource: 'layerInput' });
+	f.edit(['buzzs', 'first', 'image'], { kind: 'inputSource', inputSource: 'lowerLayerOutput' });
 	const resolution = COMMAND_DEFS.changeEffectLayerResolution.create({ ...f.target, resolution: { mode: 'customAbsolute', width: 640, height: 360 } });
 	resolution.execute(f.state);
 	const add = COMMAND_DEFS.addTimelineClip.create({ ...f.target, clip: { id: 'second', startMs: 6000, durationMs: 1000, contentOffsetMs: 50.25 } });
@@ -398,7 +398,7 @@ test('round trips effect layers and changes resolution and clips with undo', asy
 	assert.deepEqual(f.layer.resolution, { mode: 'auto' });
 	add.undo(f.state);
 	assert.equal(f.layer.clips.length, 1);
-	assert.equal(f.read(['buzzs', 'first', 'image']).inputSource, 'layerInput');
+	assert.equal(f.read(['buzzs', 'first', 'image']).inputSource, 'lowerLayerOutput');
 });
 
 // 【ネストした別レイヤー出力の段階とサンプリングをUndo/Redoで維持する】
@@ -439,13 +439,13 @@ test('edits public primary image inputs and resets them to lower layers', () => 
 	f.state.timelineScenes.value[0].layers.push(publicLayer);
 	const read = () => resolveLayerParameter(f.state, publicLayer, 'module', ['image']).value;
 	const edit = value => { const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'public', target: 'module', paramPath: ['image'], edit: value }); command.execute(f.state); return command; };
-	assert.deepEqual(read(), { inputSource: 'layerInput' });
+	assert.deepEqual(read(), { inputSource: 'lowerLayerOutput' });
 	edit({ kind: 'inputSource', inputSource: 'anotherLayerOutput' });
 	const binding = { inputSource: 'anotherLayerOutput', layerId: f.layer.id, outputStage: 'source' };
 	edit({ kind: 'anotherLayerOutput', value: binding });
 	assert.deepEqual(read(), binding);
 	const reset = edit({ kind: 'reset' });
-	assert.deepEqual(read(), { inputSource: 'layerInput' });
+	assert.deepEqual(read(), { inputSource: 'lowerLayerOutput' });
 	reset.undo(f.state);
 	assert.deepEqual(read(), binding);
 	assert.equal(visual.paramDefs[0].defaultValue.inputSource, 'literal');

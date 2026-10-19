@@ -115,10 +115,10 @@ test('round-trips and duplicates text layers without sharing parameter values', 
 		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 	const invalid = structuredClone(project);
-	invalid.timelineScenes[0].layers[0].textParamValues.color = { inputSource: 'layerInput' };
+	invalid.timelineScenes[0].layers[0].textParamValues.color = { inputSource: 'lowerLayerOutput' };
 	const invalidFile = await encodeProjectFile(invalid);
 	// 読み込みは編集状態を保持する。描画可否はUIの静的検証で決める。
-	assert.equal(decodeProjectFile(invalidFile).timelineScenes[0].layers[0].textParamValues.color.inputSource, 'layerInput');
+	assert.equal(decodeProjectFile(invalidFile).timelineScenes[0].layers[0].textParamValues.color.inputSource, 'lowerLayerOutput');
 	f.history.undo();
 	assert.equal(f.scene.layers.length, 1);
 	f.history.redo();
@@ -130,12 +130,12 @@ test('round-trips and duplicates text layers without sharing parameter values', 
 test('rejects unsupported bindings without committing changes', t => {
 	const f = fixture(t);
 	const before = structuredClone(f.layer);
-	for (const inputSource of ['node', 'layerInput', 'lowerLayerAudio', 'anotherLayerAudio']) {
+	for (const inputSource of ['node', 'lowerLayerOutput', 'lowerLayerAudio', 'anotherLayerAudio']) {
 		assert.throws(() => f.edit('color', { kind: 'inputSource', inputSource }));
 		assert.deepEqual(f.layer, before);
 	}
 	const invalid = createTextTimelineLayer(0);
-	invalid.textParamValues.color = { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
-	assert.throws(() => f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: invalid }), /Layer input/);
+	invalid.textParamValues.color = { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
+	assert.throws(() => f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: invalid }), /Timeline image input/);
 });
 

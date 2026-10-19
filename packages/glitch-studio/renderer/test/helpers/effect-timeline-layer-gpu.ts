@@ -9,7 +9,7 @@ import mixDefinition from '@gs/subsystems_effect_shared/fx/colorMix/_def_.ts';
 import mix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
 import meshDefinition from '@gs/subsystems_effect_shared/fx/meshGradient/_def_.ts';
 import mesh from '@gs/subsystems_effect_shared/fx/meshGradient/_impl_.ts';
-import { createLayerInputBinding, getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
+import { createLowerLayerOutputBinding, getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
@@ -74,16 +74,16 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 		await check('modify layer with scene-time keyframes', [modifier, background], [64, 0, 64, 128]);
 		await check('missing lower layer is transparent', [modifier], [64, 0, 0, 64]);
 		modifier.effectParamValues.inputA = { inputSource: 'literal', value: [0, 1, 0, 0.5] };
-		modifier.effectParamValues.inputB = createLayerInputBinding();
-		await check('secondary layer input', [modifier, background], [0, 64, 64, 128]);
+		modifier.effectParamValues.inputB = createLowerLayerOutputBinding();
+		await check('secondary lowerLayerOutput', [modifier, background], [0, 64, 64, 128]);
 		modifier.effectParamValues.amount = { inputSource: 'literal', value: 0 };
 		modifier.compositingParamValues.opacity = { inputSource: 'literal', value: 0.5 };
 		await check('replace opacity blends both premultiplied images', [modifier, background], [0, 64, 64, 128]);
 		// 【配列要素の下層入力も生成系の通常合成を経由する】
 		// 配列ID・Bindingラッパーをシェーダーへ漏らさず、要素ごとの入力として解決する。
 		const meshLayer = createLayer('meshGradient');
-		meshLayer.effectParamValues.colors = { inputSource: 'literal', value: [{ id: 'color', binding: createLayerInputBinding() }] };
-		await check('array layer input with normal composition', [meshLayer, background], [0, 0, 192, 192]);
+		meshLayer.effectParamValues.colors = { inputSource: 'literal', value: [{ id: 'color', binding: createLowerLayerOutputBinding() }] };
+		await check('array lowerLayerOutput with normal composition', [meshLayer, background], [0, 0, 192, 192]);
 		return completed;
 	} finally {
 		timeline.clear();
