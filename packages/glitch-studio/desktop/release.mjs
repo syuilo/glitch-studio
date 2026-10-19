@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import semver from 'semver';
 import yaml from 'js-yaml';
 import asar from '@electron/asar';
+import { UPDATE_REPOSITORY } from './github-updates.mjs';
 
 const executeFile = promisify(execFile);
 const rootDirectory = path.resolve(import.meta.dirname, '../../..');
@@ -47,6 +48,38 @@ export function resolveReleaseVersion(currentVersion, mode, explicitVersion = nu
 	const version = semver.inc(currentVersion, mode);
 	if (version == null) throw new Error('Could not increment the current version.');
 	return validateReleaseVersion(version);
+}
+
+export function updateReleaseDownloadLinks(markdown, version) {
+	validateReleaseVersion(version);
+	const releaseUrl = `https://github.com/${UPDATE_REPOSITORY}/releases/download/v${version}/`;
+	const downloads = {
+		windows: [`<a href="${releaseUrl}Glitch-Studio-${version}-x64-Setup.exe">ダウンロード</a>`],
+		macos: [
+			`<a href="${releaseUrl}Glitch-Studio-${version}-mac-arm64.dmg">Apple Silicon（arm64）</a>`,
+			`<a href="${releaseUrl}Glitch-Studio-${version}-mac-x64.dmg">Intel（x64）</a>`,
+		],
+	};
+	const newline = markdown.includes('\r\n') ? '\r\n' : '\n';
+	for (const [platform, links] of Object.entries(downloads)) {
+		const openingMarker = `<!--[DOWNLOAD_LINK_MARKER: ${platform}]-->`;
+		const closingMarker = `<!--[/DOWNLOAD_LINK_MARKER: ${platform}]-->`;
+		// マーカーが壊れたときに本文を巻き込んだり、一部のOSだけ古いリンクを残したりしない。
+		if (markdown.split(openingMarker).length !== 2 || markdown.split(closingMarker).length !== 2) {
+			throw new Error(`Expected exactly one pair of download link markers for ${platform}.`);
+		}
+		const openingIndex = markdown.indexOf(openingMarker);
+		const contentIndex = openingIndex + openingMarker.length;
+		const closingIndex = markdown.indexOf(closingMarker);
+		const indentation = markdown.slice(markdown.lastIndexOf('\n', openingIndex) + 1, openingIndex);
+		if (closingIndex < contentIndex || !/^[\t ]*$/.test(indentation)
+			|| markdown.slice(contentIndex, closingIndex).includes('DOWNLOAD_LINK_MARKER:')) {
+			throw new Error(`Invalid download link markers for ${platform}.`);
+		}
+		const content = links.join(`<br>${newline}${indentation}`);
+		markdown = `${markdown.slice(0, contentIndex)}${newline}${indentation}${content}${newline}${indentation}${markdown.slice(closingIndex)}`;
+	}
+	return markdown;
 }
 
 export async function verifyReleaseArtifacts(directory, version, platform = 'all') {
@@ -124,12 +157,19 @@ async function prepareRelease() {
 		await command('git', ['checkout', '--detach', existingSha]);
 		const committed = JSON.parse(await fs.readFile(path.join(rootDirectory, 'package.json'), 'utf8'));
 		if (committed.version !== version) throw new Error('The existing release tag has a different version.');
+		const downloadPage = await fs.readFile(path.join(rootDirectory, 'docs-site/guide/download.md'), 'utf8');
+		if (updateReleaseDownloadLinks(downloadPage, version) !== downloadPage) throw new Error('The existing release tag has different download links. Use a new version.');
 	} else {
+		const downloadPagePath = path.join(rootDirectory, 'docs-site/guide/download.md');
+		const downloadPage = await fs.readFile(downloadPagePath, 'utf8');
+		const updatedDownloadPage = updateReleaseDownloadLinks(downloadPage, version);
 		metadata.version = version;
 		await fs.writeFile(filePath, `${JSON.stringify(metadata, null, '\t')}\n`);
+		// リンクも同じコミットに含め、失敗したビルドのためにmasterだけを先に更新しない。
+		await fs.writeFile(downloadPagePath, updatedDownloadPage);
 		await command('git', ['config', 'user.name', 'github-actions[bot]']);
 		await command('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
-		await command('git', ['add', 'package.json']);
+		await command('git', ['add', 'package.json', 'docs-site/guide/download.md']);
 		await command('git', ['commit', '--allow-empty', '-m', `chore: release ${version}`]);
 	}
 	const releaseSha = await command('git', ['rev-parse', 'HEAD']);

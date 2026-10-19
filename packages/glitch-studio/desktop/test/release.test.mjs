@@ -6,7 +6,9 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import yaml from 'js-yaml';
 import asar from '@electron/asar';
-import { validateReleaseVersion, resolveReleaseVersion, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
+import { validateReleaseVersion, resolveReleaseVersion, updateReleaseDownloadLinks, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
+
+const downloadPagePath = new URL('../../../../docs-site/guide/download.md', import.meta.url);
 
 // 【入力は表記の揃ったSemVerに限定し、同一バージョンの別配布物を作らない】
 // v接頭辞・空白・build metadataを受け付けると、タグやWindows版のバージョンが曖昧になる。
@@ -66,6 +68,70 @@ test('rejects conflicting inputs, unsupported modes and invalid increment bases'
 	assert.throws(() => resolveReleaseVersion('1.2.3', 'prerelease'), /requires a current development version/);
 	assert.throws(() => resolveReleaseVersion('invalid', 'patch'), /canonical SemVer/);
 	assert.throws(() => resolveReleaseVersion('9007199254740991.0.0', 'major'));
+});
+
+// 【ダウンロードページのマーカー内だけを、実際に配布する3種類のバイナリへのリンクに更新する】
+// 実ページを読み込むことで、マーカーの編集やファイル名の変更がリリース時に破綻しないか検出する。
+// frontmatter・説明・表の構造など、マーカー外の内容を自動更新が壊さないことも保証する。
+test('updates the real download page for Windows and both macOS architectures without changing other content', async () => {
+	const markdown = await fs.readFile(downloadPagePath, 'utf8');
+	const updated = updateReleaseDownloadLinks(markdown, '2.0.0-alpha.42');
+	const releaseUrl = 'https://github.com/syuilo/glitch-studio/releases/download/v2.0.0-alpha.42/';
+	const downloadUrls = [...updated.matchAll(/<a href="([^"]+)">/g)].map(match => match[1]).filter(url => url.startsWith(releaseUrl));
+	assert.deepEqual(downloadUrls, [
+		`${releaseUrl}Glitch-Studio-2.0.0-alpha.42-x64-Setup.exe`,
+		`${releaseUrl}Glitch-Studio-2.0.0-alpha.42-mac-arm64.dmg`,
+		`${releaseUrl}Glitch-Studio-2.0.0-alpha.42-mac-x64.dmg`,
+	]);
+	assert.ok(updated.includes('Apple Silicon（arm64）'));
+	assert.ok(updated.includes('Intel（x64）'));
+	const windowsOpening = '<!--[DOWNLOAD_LINK_MARKER: windows]-->';
+	const windowsClosing = '<!--[/DOWNLOAD_LINK_MARKER: windows]-->';
+	const macosOpening = '<!--[DOWNLOAD_LINK_MARKER: macos]-->';
+	const macosClosing = '<!--[/DOWNLOAD_LINK_MARKER: macos]-->';
+	assert.equal(updated.slice(0, updated.indexOf(windowsOpening)), markdown.slice(0, markdown.indexOf(windowsOpening)));
+	assert.equal(updated.slice(updated.indexOf(windowsClosing), updated.indexOf(macosOpening)), markdown.slice(markdown.indexOf(windowsClosing), markdown.indexOf(macosOpening)));
+	assert.equal(updated.slice(updated.indexOf(macosClosing)), markdown.slice(markdown.indexOf(macosClosing)));
+});
+
+// 【更新処理はLF・CRLFを保ち、再実行や次のリリースでも同じ結果になる】
+// Windowsランナーの改行変換や失敗後の再実行によって、無関係な差分や古いリンクを残さない。
+test('preserves line endings and replaces all links consistently on repeated updates', async () => {
+	const template = await fs.readFile(downloadPagePath, 'utf8');
+	for (const newline of ['\n', '\r\n']) {
+		const markdown = template.replace(/\r?\n/g, newline);
+		const updated = updateReleaseDownloadLinks(markdown, '2.0.0-alpha.42');
+		assert.equal(updateReleaseDownloadLinks(updated, '2.0.0-alpha.42'), updated);
+		assert.equal(updateReleaseDownloadLinks(updated, '2.0.0'), updateReleaseDownloadLinks(markdown, '2.0.0'));
+		if (newline === '\r\n') assert.equal(updated.replaceAll('\r\n', '').includes('\n'), false);
+		else assert.equal(updated.includes('\r'), false);
+	}
+});
+
+// 【欠落・重複・順序違い・入れ子のマーカーは、本文を書き換える前に拒否する】
+// マーカーが壊れたまま処理を続けると、ページの本文を消したり一部OSのリンクが欠落したりする。
+test('rejects malformed download sections and invalid release versions', async () => {
+	const markdown = await fs.readFile(downloadPagePath, 'utf8');
+	const windowsOpening = '<!--[DOWNLOAD_LINK_MARKER: windows]-->';
+	const windowsClosing = '<!--[/DOWNLOAD_LINK_MARKER: windows]-->';
+	const macosOpening = '<!--[DOWNLOAD_LINK_MARKER: macos]-->';
+	const macosClosing = '<!--[/DOWNLOAD_LINK_MARKER: macos]-->';
+	const invalidPages = [
+		markdown.replace(windowsOpening, ''),
+		markdown.replace(windowsClosing, ''),
+		markdown.replace(macosOpening, ''),
+		markdown.replace(macosClosing, ''),
+		markdown + windowsOpening,
+		markdown + macosClosing,
+		`${windowsClosing}\n${windowsOpening}\n${macosOpening}\n${macosClosing}`,
+		`${windowsOpening}\n${macosOpening}\n${macosClosing}\n${windowsClosing}`,
+		`${macosOpening}\n${windowsOpening}\n${windowsClosing}\n${macosClosing}`,
+		markdown.replace(windowsOpening, `text ${windowsOpening}`),
+	];
+	for (const invalidPage of invalidPages) {
+		assert.throws(() => updateReleaseDownloadLinks(invalidPage, '2.0.0'), /download link markers/);
+	}
+	assert.throws(() => updateReleaseDownloadLinks(markdown, '2.0.0" onclick="invalid'), /canonical SemVer/);
 });
 
 // 【配布する最終インストーラーと更新メタデータのハッシュ・バージョン・名前を照合する】

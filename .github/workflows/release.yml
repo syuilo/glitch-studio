@@ -55,7 +55,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Prepare the version commit
+      - name: Prepare the version commit and download links
         id: prepare
         run: node packages/glitch-studio/desktop/release.mjs prepare
       - name: Lint and typecheck
@@ -64,6 +64,8 @@ jobs:
         run: pnpm test
         env:
           CI: true
+      - name: Validate the documentation build
+        run: pnpm docs:build
       # まだpushしていない同一のリリースコミットを各OSへ渡す。
       # masterとタグの更新は、すべてのビルドが成功した後のpublishジョブだけで行う。
       - name: Bundle the prepared release commit
@@ -189,3 +191,18 @@ jobs:
           merge-multiple: true
       - name: Publish the verified release
         run: node packages/glitch-studio/desktop/release.mjs publish
+
+  deploy-pages:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # GITHUB_TOKENによるpushはPagesのpushトリガーを起動しない。
+      # Releaseの公開成功後に、アプリとドキュメントをまとめる既存Workflowへ依頼する。
+      - name: Deploy the updated download page through the Pages workflow
+        run: gh workflow run deploy.yml --ref master
