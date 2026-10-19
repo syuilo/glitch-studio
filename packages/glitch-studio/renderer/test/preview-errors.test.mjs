@@ -19,7 +19,7 @@ after(() => {
 	if (gpu) Object.defineProperty(navigator, 'gpu', gpu);
 	else delete navigator.gpu;
 });
-const { VisualModuleRendererManager, createManager: createLiveManager } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-renderer-manager.ts', import.meta.url)));
+const { VisualModuleRendererManager, createManager: createVisualModuleLivePreviewManager } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-renderer-manager.ts', import.meta.url)));
 const { TimelineRendererManager, createManager: createTimelineManager } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-renderer-manager.ts', import.meta.url)));
 
 function visualModule(circular) {
@@ -295,10 +295,10 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 // prototype上の値は差分ではないため、解像度や描画速度の更新を発生させない。
 test('preserves omitted live options and clears an explicit FPS limit', async t => {
 	const { renderer } = await fixture(t);
-	await renderer.updateDynamicOptions({ fpsLimit: 30, liveTimeFactor: 2 });
+	await renderer.updateDynamicOptions({ fpsLimit: 30, livePreviewTimeFactor: 2 });
 	const resize = t.mock.method(renderer, 'updateCanvasResolution');
 	const assets = t.mock.method(renderer, 'updateAssets', async () => true);
-	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, fpsLimit: null, liveTimeFactor: 9, assets: [] }));
+	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, fpsLimit: null, livePreviewTimeFactor: 9, assets: [] }));
 	assert.equal(renderer.liveRenderLoop.fpsLimit, 30);
 	assert.equal(renderer.liveRenderLoop.timeFactor, 2);
 	assert.equal(resize.mock.calls.length, 0);
@@ -639,7 +639,7 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 	});
 }
 
-for (const [name, createManager] of [['live', createLiveManager], ['timeline', createTimelineManager]]) {
+for (const [name, createManager] of [['visualModuleLivePreview', createVisualModuleLivePreviewManager], ['timeline', createTimelineManager]]) {
 	for (const failure of ['context', 'constructor', 'assets']) {
 		// 【初期化失敗時にデバイスと定期通知を回収する】
 		// factoryがrejectすると呼び出し元はmanagerを受け取れず、後始末を委ねられない。

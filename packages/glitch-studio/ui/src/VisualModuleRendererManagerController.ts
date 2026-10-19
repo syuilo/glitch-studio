@@ -6,7 +6,7 @@ import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/re
 import { genId } from '@gs/shared/utility/id.ts';
 import { createVisualModuleRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
-import { LiveEffectStateStore } from './utility/live-effect-status.ts';
+import { VisualModuleLivePreviewEffectStateStore } from './utility/visual-module-live-preview-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
@@ -38,8 +38,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public waveformVerticalCanvas: HTMLCanvasElement;
 	private renderLoopRunning = false;
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
-	private liveVisualModuleId = ref<ProjectVisualModule['id'] | null>(null);
-	private liveParamValues: VisualModuleArgumentBindings = {};
+	private livePreviewVisualModuleId = ref<ProjectVisualModule['id'] | null>(null);
+	private livePreviewParamValues: VisualModuleArgumentBindings = {};
 	private pointerPosition = { x: 0, y: 0 };
 	private staticOptions: VisualModuleRendererManagerStaticOptions;
 	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> & Pick<VisualModuleRendererManagerDynamicOptions, 'assets'> = {
@@ -60,11 +60,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public fpsDisplay = ref(0);
 	public gpuMemoryUsage = ref<Parameters<VisualModuleRendererManagerEvents['gpuMemory']>[0]['usage'] | null>(null);
 	public errorMessage = ref<string | null>(null);
-	private liveEffectStateStore = new LiveEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
+	private livePreviewEffectStateStore = new VisualModuleLivePreviewEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
 
-	public getLiveEffectState(visualModuleId: ProjectVisualModule['id'], nodeId: string): EffectInstanceState | null {
-		if (this.liveVisualModuleId.value !== visualModuleId) return null;
-		return this.liveEffectStateStore.get(visualModuleId, nodeId) ?? null;
+	public getLivePreviewEffectState(visualModuleId: ProjectVisualModule['id'], nodeId: string): EffectInstanceState | null {
+		if (this.livePreviewVisualModuleId.value !== visualModuleId) return null;
+		return this.livePreviewEffectStateStore.get(visualModuleId, nodeId) ?? null;
 	}
 
 	constructor(staticOptions: VisualModuleRendererManagerStaticOptions, dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>, audioOutput: AudioOutput) {
@@ -120,7 +120,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				effectState: (ctx) => {
 					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message), { source: ctx.source, nodeId: ctx.nodeId }); return; }
 					const { source, nodeId, status } = ctx;
-					this.liveEffectStateStore.update(source, nodeId, status);
+					this.livePreviewEffectStateStore.update(source, nodeId, status);
 				},
 				telemetry: (ctx) => {
 					this.fpsDisplay.value = ctx.fpsAverage;
@@ -148,14 +148,14 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.sendPendingVideoFrame(id);
 				}
 				this.call('updatePointerPosition', [this.pointerPosition]);
-				if (this.renderLoopRunning && this.liveVisualModuleId.value != null) this.startLiveRenderLoopFor(this.liveVisualModuleId.value, this.liveParamValues);
+				if (this.renderLoopRunning && this.livePreviewVisualModuleId.value != null) this.startLivePreviewRenderLoopFor(this.livePreviewVisualModuleId.value, this.livePreviewParamValues);
 			},
 			onDisposed: () => {
 				this.outputResolution.value = null;
 				this.inFlightVideoFrames.clear();
 				for (const frame of this.pendingVideoFrames.values()) frame.close();
 				this.pendingVideoFrames.clear();
-				this.liveEffectStateStore.stop();
+				this.livePreviewEffectStateStore.stop();
 				this.gpuMemoryUsage.value = null;
 				this.fpsDisplay.value = 0;
 				this.gpuAverageDisplayFast.value = 0;
@@ -210,33 +210,33 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.sendPendingVideoFrame(playerId);
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings = {}) {
+	public startLivePreviewRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings = {}) {
 		this.outputResolution.value = null;
-		this.liveParamValues = deepClone(paramValues);
+		this.livePreviewParamValues = deepClone(paramValues);
 		const statusInstanceId = genId();
 		// 再初期化中のモード変更はonCreatedで最新状態だけを復元し、古い開始要求をキューに残さない。
-		if (this.isReady.value) this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues, statusInstanceId]);
-		this.liveEffectStateStore.start(visualModuleId, statusInstanceId);
-		this.liveVisualModuleId.value = visualModuleId;
+		if (this.isReady.value) this.call('startLivePreviewRenderLoopFor', [visualModuleId, this.livePreviewParamValues, statusInstanceId]);
+		this.livePreviewEffectStateStore.start(visualModuleId, statusInstanceId);
+		this.livePreviewVisualModuleId.value = visualModuleId;
 		this.renderLoopRunning = true;
 	}
 
-	public updateLiveParamValues(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings) {
-		if (!this.renderLoopRunning || this.liveVisualModuleId.value !== visualModuleId) {
-			this.startLiveRenderLoopFor(visualModuleId, paramValues);
+	public updateLivePreviewParamValues(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings) {
+		if (!this.renderLoopRunning || this.livePreviewVisualModuleId.value !== visualModuleId) {
+			this.startLivePreviewRenderLoopFor(visualModuleId, paramValues);
 			return;
 		}
 		// 同じモジュールの操作ではインスタンスを維持し、履歴を初期化しない。
-		this.liveParamValues = deepClone(paramValues);
-		if (this.isReady.value) this.call('updateLiveParamValues', [this.liveParamValues]);
+		this.livePreviewParamValues = deepClone(paramValues);
+		if (this.isReady.value) this.call('updateLivePreviewParamValues', [this.livePreviewParamValues]);
 	}
 
 	public stopRenderLoop() {
 		if (this.isReady.value) this.call('stopRenderLoop', []);
 		this.renderLoopRunning = false;
 		this.outputResolution.value = null;
-		this.liveEffectStateStore.stop();
-		this.liveVisualModuleId.value = null;
+		this.livePreviewEffectStateStore.stop();
+		this.livePreviewVisualModuleId.value = null;
 	}
 
 	public async updatePlayers(newPlayers: Player[]) {
@@ -392,8 +392,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		const replacement = this.callAndWaitReturn('replaceProjectState', [snapshot]);
 		// 復旧用の再開も置換の直後に送る。応答待ちの後に送ると、その間の
 		// パラメータ編集で再開を取りこぼしたり、モード切替後に古いVisual Module Live Previewを開始したりする。
-		if (this.renderLoopRunning && this.liveVisualModuleId.value != null) {
-			this.startLiveRenderLoopFor(this.liveVisualModuleId.value, this.liveParamValues);
+		if (this.renderLoopRunning && this.livePreviewVisualModuleId.value != null) {
+			this.startLivePreviewRenderLoopFor(this.livePreviewVisualModuleId.value, this.livePreviewParamValues);
 		}
 		await replacement;
 	}
@@ -404,7 +404,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		if (patch.length === 0) return;
 		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: [] }, patch);
 		this.dynamicOptions = { ...this.dynamicOptions, visualModules: next.visualModules };
-		if (this.liveVisualModuleId.value != null && !next.visualModules.some(visualModule => visualModule.id === this.liveVisualModuleId.value)) this.stopRenderLoop();
+		if (this.livePreviewVisualModuleId.value != null && !next.visualModules.some(visualModule => visualModule.id === this.livePreviewVisualModuleId.value)) this.stopRenderLoop();
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;
 		await this.callAndWaitReturn('applyProjectChanges', [patch]);
@@ -421,8 +421,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		super.destroy();
 
 		this.renderLoopRunning = false;
-		this.liveVisualModuleId.value = null;
-		this.liveEffectStateStore.stop();
+		this.livePreviewVisualModuleId.value = null;
+		this.livePreviewEffectStateStore.stop();
 		this.audioInputs.dispose();
 		for (const [id, media] of this.videoElements) {
 			const callback = this.videoFrameCallbacks.get(id);

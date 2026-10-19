@@ -3,21 +3,21 @@ import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/re
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
-import { PlayerAudioInputs } from './player-audio-inputs.ts';
 import EventEmitter from 'eventemitter3';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
-import { browserFrameScheduler, LiveRenderLoop } from '@gs/subsystems_visual-module_renderer/live-render-loop.ts';
-import type { FrameScheduler, LiveFrameTiming } from '@gs/subsystems_visual-module_renderer/live-render-loop.ts';
+import { browserFrameScheduler, LivePreviewRenderLoop } from '@gs/subsystems_visual-module_renderer/live-preview-render-loop.ts';
+import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 import { canPreserveNodeOutputCache } from './project-change-policy.ts';
 import { AssetTextures } from './asset-textures.ts';
-import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
+import { PlayerAudioInputs } from './player-audio-inputs.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
+import type { FrameScheduler, LivePreviewFrameTiming } from '@gs/subsystems_visual-module_renderer/live-preview-render-loop.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { VisualModuleCustomParameterId, VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -27,7 +27,7 @@ import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capt
 import type { Asset, IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
-import type { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
+import type { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/live-preview-expression.js';
 
 /**
  * 初期化時に決まっている必要がある設定情報
@@ -50,18 +50,18 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	highlightClipping: boolean;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
-	liveTimeFactor: number;
+	livePreviewTimeFactor: number;
 	/** Visual ModuleのVisual Module Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
 	assets: Asset[];
 	visualModules: ProjectVisualModule[];
 };
 
-export type LiveEffectStatusSource = { type: 'live'; instanceId: string; visualModuleId: string };
+export type LivePreviewEffectStatusSource = { type: 'livePreview'; instanceId: string; visualModuleId: string };
 
 export type VisualModuleRendererManagerEvents = {
 	'outputResolution': (ctx: Resolution) => void;
-	'effectState': (ctx: { source: LiveEffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
+	'effectState': (ctx: { source: LivePreviewEffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
 	'renderError': (ctx: { message: string }) => void;
 	'telemetry': (ctx: { fpsAverage: number; gpuAverageFast: number; gpuAverageMedium: number; gpuAverageSlow: number; }) => void;
 	'gpuMemory': (ctx: { usage: { total: number; textures: number; buffers: number; } }) => void;
@@ -77,11 +77,11 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private fallbackTexture: GPUTexture;
 	private outputTextures: UniformOrTextureToTextureResolver;
 	private frameScheduler: FrameScheduler;
-	private liveRenderLoop: LiveRenderLoop;
-	private liveVisualModuleId: ProjectVisualModule['id'] | null = null;
-	private liveParamValues: VisualModuleArgumentBindings = {};
-	private liveParamEvaluator = new ParameterBindingEvaluator();
-	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
+	private livePreviewRenderLoop: LivePreviewRenderLoop;
+	private livePreviewVisualModuleId: ProjectVisualModule['id'] | null = null;
+	private livePreviewParamValues: VisualModuleArgumentBindings = {};
+	private livePreviewParamEvaluator = new ParameterBindingEvaluator();
+	private livePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private assetTextures: AssetTextures;
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
@@ -108,7 +108,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		resolution: { width: 1, height: 1 },
 		resolutionScale: 1,
 		highlightClipping: false,
-		liveTimeFactor: 1.0,
+		livePreviewTimeFactor: 1.0,
 		fpsLimit: null,
 		opaqueOutput: false,
 		assets: [],
@@ -130,18 +130,18 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.staticOptions = { ...staticOptions };
 
 		this.frameScheduler = coreConfig.frameScheduler ?? browserFrameScheduler;
-		this.liveRenderLoop = new LiveRenderLoop({
+		this.livePreviewRenderLoop = new LivePreviewRenderLoop({
 			scheduler: this.frameScheduler,
 			onFrame: timing => {
 				// 描画失敗は所有者へ通知する。エンジンの破棄と再生成は所有者が行う。
 				try {
-					this.renderLiveFrame(timing);
+					this.renderLivePreviewFrame(timing);
 				} catch (error) {
 					this.reportRenderError(error instanceof Error ? error.message : String(error));
 				}
 			},
 			fpsLimit: this.dynamicOptions.fpsLimit,
-			timeFactor: this.dynamicOptions.liveTimeFactor,
+			timeFactor: this.dynamicOptions.livePreviewTimeFactor,
 		});
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.assetTextures = new AssetTextures(this.gpuDevice);
@@ -257,20 +257,20 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
 		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale')) {
 			this.updateCanvasResolution(scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
-			this.liveVisualModuleRenderer?.resize(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
+			this.livePreviewVisualModuleRenderer?.resize(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
 		}
 		// nullはFPS制限の解除なので、値ではなく差分にプロパティが含まれるかで更新を判定する。
 		if (Object.hasOwn(newOptions, 'fpsLimit')) {
-			this.liveRenderLoop.fpsLimit = this.dynamicOptions.fpsLimit;
+			this.livePreviewRenderLoop.fpsLimit = this.dynamicOptions.fpsLimit;
 		}
-		if (Object.hasOwn(newOptions, 'liveTimeFactor')) {
-			this.liveRenderLoop.timeFactor = this.dynamicOptions.liveTimeFactor;
+		if (Object.hasOwn(newOptions, 'livePreviewTimeFactor')) {
+			this.livePreviewRenderLoop.timeFactor = this.dynamicOptions.livePreviewTimeFactor;
 		}
 		if (Object.hasOwn(newOptions, 'visualModules')) {
-			if (this.liveVisualModuleRenderer != null) {
-				const visualModule = this.dynamicOptions.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId);
+			if (this.livePreviewVisualModuleRenderer != null) {
+				const visualModule = this.dynamicOptions.visualModules.find(visualModule => visualModule.id === this.livePreviewVisualModuleId);
 				if (visualModule == null) this.stopRenderLoop();
-				else this.liveVisualModuleRenderer.updateVisualModule(visualModule);
+				else this.livePreviewVisualModuleRenderer.updateVisualModule(visualModule);
 			}
 		}
 
@@ -289,12 +289,12 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target);
 		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules, timelineScenes: [] }, relevant);
 		this.dynamicOptions.visualModules = next.visualModules;
-		const liveChanges = relevant.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.liveVisualModuleId
-			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.liveVisualModuleId);
-		if (liveChanges.length > 0 && this.liveVisualModuleRenderer != null) {
-			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId);
+		const liveChanges = relevant.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.livePreviewVisualModuleId
+			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.livePreviewVisualModuleId);
+		if (liveChanges.length > 0 && this.livePreviewVisualModuleRenderer != null) {
+			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.livePreviewVisualModuleId);
 			if (visualModule == null) this.stopRenderLoop();
-			else this.liveVisualModuleRenderer.updateVisualModule(visualModule, liveChanges.every(change => change.type === 'node' && canPreserveNodeOutputCache(change.changes)));
+			else this.livePreviewVisualModuleRenderer.updateVisualModule(visualModule, liveChanges.every(change => change.type === 'node' && canPreserveNodeOutputCache(change.changes)));
 		}
 	}
 
@@ -303,15 +303,15 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
 			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
 			this.dynamicOptions.assets = assets;
-			this.liveVisualModuleRenderer?.updateAssets(assets);
+			this.livePreviewVisualModuleRenderer?.updateAssets(assets);
 		});
 	}
 
-	public updateLiveParamValues(paramValues: VisualModuleArgumentBindings) {
-		this.liveParamValues = paramValues;
+	public updateLivePreviewParamValues(paramValues: VisualModuleArgumentBindings) {
+		this.livePreviewParamValues = paramValues;
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleArgumentBindings = {}, statusInstanceId = genId()) {
+	public startLivePreviewRenderLoopFor(visualModuleId: string, paramValues: VisualModuleArgumentBindings = {}, statusInstanceId = genId()) {
 		this.stopRenderLoop();
 		// 初期設定の通知は購読開始前に行われ得るため、最初の描画では同じ寸法でも通知する。
 		// 対象の切り替え時も、UIが前のVisual Moduleの寸法を使い続けないようにする。
@@ -320,10 +320,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		const visualModule = this.dynamicOptions.visualModules.find(g => g.id === visualModuleId);
 		if (visualModule == null) return;
 
-		this.liveVisualModuleId = visualModuleId;
-		this.liveParamValues = paramValues;
-		const statusSource: LiveEffectStatusSource = { type: 'live', instanceId: statusInstanceId, visualModuleId };
-		this.liveVisualModuleRenderer = new VisualModuleRenderer({
+		this.livePreviewVisualModuleId = visualModuleId;
+		this.livePreviewParamValues = paramValues;
+		const statusSource: LivePreviewEffectStatusSource = { type: 'livePreview', instanceId: statusInstanceId, visualModuleId };
+		this.livePreviewVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			fallbackTexture: this.fallbackTexture,
 			resolution: this.dynamicOptions.resolution,
@@ -351,30 +351,30 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			effectImplementations: this.effectImplementations,
 		});
 
-		this.liveRenderLoop.start();
+		this.livePreviewRenderLoop.start();
 	}
 
-	private renderLiveFrame(timing: LiveFrameTiming) {
-		if (this.liveVisualModuleRenderer == null) return;
+	private renderLivePreviewFrame(timing: LivePreviewFrameTiming) {
+		if (this.livePreviewVisualModuleRenderer == null) return;
 		const generation = ++this.previewRenderGeneration;
-		const visualModule = this.dynamicOptions.visualModules.find(module => module.id === this.liveVisualModuleId)!;
+		const visualModule = this.dynamicOptions.visualModules.find(module => module.id === this.livePreviewVisualModuleId)!;
 		const commandEncoder = this.gpuDevice.createCommandEncoder();
 
 		try {
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			for (const def of visualModule.paramDefs) {
 				if (def.dataType.kind === 'audioSource') {
-					const binding = this.liveParamValues[def.id] ?? def.defaultValue;
+					const binding = this.livePreviewParamValues[def.id] ?? def.defaultValue;
 					// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
 					// 注入したresolveAudioSourceで取得する。音声の指定はPARAMへ公開されない。
 					evaluatedParamValues.set(def.id, (binding as { value: unknown }).value);
 					continue;
 				}
-				if (this.liveParamValues[def.id] == null) {
+				if (this.livePreviewParamValues[def.id] == null) {
 					evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, def.defaultValue.value)));
 					continue;
 				}
-				evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
+				evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.livePreviewParamEvaluator.evaluate(this.livePreviewParamValues[def.id], {
 					variables: {
 						TIME: timing.time / 1000,
 						TIME_MS: timing.time,
@@ -386,7 +386,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			}
 
 			// Outが未接続でも透明な出力を描画し、前の映像や集計結果を残さない。
-			const nodeOutput = this.liveVisualModuleRenderer.render({
+			const nodeOutput = this.livePreviewVisualModuleRenderer.render({
 				evaluatedParamValues: evaluatedParamValues,
 				time: timing.time,
 				timeDelta: timing.timeDelta,
@@ -431,10 +431,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	public stopRenderLoop() {
 		this.previewRenderGeneration++;
-		this.liveRenderLoop.stop();
-		this.liveVisualModuleId = null;
-		this.liveVisualModuleRenderer?.destroy();
-		this.liveVisualModuleRenderer = null;
+		this.livePreviewRenderLoop.stop();
+		this.livePreviewVisualModuleId = null;
+		this.livePreviewVisualModuleRenderer?.destroy();
+		this.livePreviewVisualModuleRenderer = null;
 	}
 
 	public destroy() {

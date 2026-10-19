@@ -47,7 +47,7 @@ import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
-import type { FrameScheduler } from '@gs/subsystems_visual-module_renderer/live-render-loop.ts';
+import type { FrameScheduler } from '@gs/subsystems_visual-module_renderer/live-preview-render-loop.ts';
 import type { TimelineLayerRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';
@@ -436,7 +436,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			const parent = getTimelinePreviewParent(location.ancestors.map(parent => parent.layerType === 'transform'
 				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
-				{ parent: TIMELINE_IDENTITY, depth: 0, camera, viewport: TIMELINE_FRAME });
+			{ parent: TIMELINE_IDENTITY, depth: 0, camera, viewport: TIMELINE_FRAME });
 			preview.geometry = parent && invertTimelineAffine(parent) ? { sourceSize: timelineImageFrame(source, sceneSize), sceneSize, transform: settings } : null;
 			preview.parentGeometries = parent ? [{ sourceSize: sceneSize, sceneSize, transform: { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'stretch' }, matrix: parent }] : [];
 		};

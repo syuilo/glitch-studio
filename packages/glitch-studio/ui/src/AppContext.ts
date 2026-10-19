@@ -1,4 +1,3 @@
-import { i18n } from '@/i18n.ts';
 import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -34,6 +33,7 @@ import type { IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { ProjectContext } from './Project.ts';
 import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.js';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
+import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
 const DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES = 0;
@@ -59,7 +59,7 @@ export class AppContext {
 	public liveFpsLimit = ref<number | null>(60);
 	public timelinePreviewFpsFactor = ref(0.5);
 	public timelinePreviewMotionBlurSamples = ref<(typeof TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS)[number]>(DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES);
-	public liveTimeFactor = ref(1);
+	public livePreviewTimeFactor = ref(1);
 	public resolutionFactor = ref(1);
 	public highlightClipping = ref(false);
 	public audioOutput = markRaw(new AudioOutput());
@@ -76,7 +76,7 @@ export class AppContext {
 	public readonly renderEngine: PreviewRenderEngine;
 	private projectWatchers: WatchStopHandle[] = [];
 	private projectSaveController: ProjectSaveController;
-	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'live' ? this.visualModuleRendererManagerController : this.timelineRendererManagerController);
+	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'visualModuleLivePreview' ? this.visualModuleRendererManagerController : this.timelineRendererManagerController);
 	public get projectFileName() { return this.projectSaveController.projectFileName; }
 	public get hasUnsavedChanges() { return this.projectSaveController.hasUnsavedChanges; }
 	public get isProjectSaving() { return this.projectSaveController.isProjectSaving; }
@@ -99,7 +99,7 @@ export class AppContext {
 			enableStats: true,
 		}, {
 			fpsLimit: this.liveFpsLimit.value,
-			liveTimeFactor: this.liveTimeFactor.value,
+			livePreviewTimeFactor: this.livePreviewTimeFactor.value,
 			highlightClipping: this.highlightClipping.value,
 		}, this.audioOutput));
 
@@ -164,7 +164,7 @@ export class AppContext {
 		this.visualModuleRendererManagerController.onAssetReadFailure = () => {
 			void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 		};
-		watch(this.previewPlayback.liveVisualModuleId, id => {
+		watch(this.previewPlayback.visualModuleLivePreviewVisualModuleId, id => {
 			if (id != null) return;
 			this.renderValidation.setLiveInputs(null);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
@@ -238,8 +238,8 @@ export class AppContext {
 			this.renderEngine.requestRetry();
 		});
 
-		watch(this.liveTimeFactor, async value => {
-			await this.visualModuleRendererManagerController.updateDynamicOptions({ liveTimeFactor: value });
+		watch(this.livePreviewTimeFactor, async value => {
+			await this.visualModuleRendererManagerController.updateDynamicOptions({ livePreviewTimeFactor: value });
 			this.renderEngine.requestRetry();
 		});
 		watch(this.timelinePreviewFpsFactor, () => this.renderEngine.requestRetry());
@@ -415,7 +415,7 @@ export class AppContext {
 
 		// UndoでVisual Module Live Preview対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
 		this.projectWatchers.push(this.projectContext.stateManager.onChange(changes => {
-			const liveVisualModuleId = this.previewPlayback.liveVisualModuleId.value;
+			const liveVisualModuleId = this.previewPlayback.visualModuleLivePreviewVisualModuleId.value;
 			if (liveVisualModuleId != null && changes.some(change => change.type === 'visualModuleRegistration' && change.visualModuleId === liveVisualModuleId)
 				&& this.projectContext.getVisualModuleById(liveVisualModuleId) == null) this.previewPlayback.showTimeline();
 		}));

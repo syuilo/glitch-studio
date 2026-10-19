@@ -202,7 +202,7 @@ for (const [setting, change, inspect] of [
 	}],
 	['timeline preview fps', appContext => { appContext.timelinePreviewFpsFactor.value = 2; }],
 	['live fps limit', appContext => { appContext.liveFpsLimit.value = 24; }],
-	['live time factor', appContext => { appContext.liveTimeFactor.value = 0.5; }],
+	['live time factor', appContext => { appContext.livePreviewTimeFactor.value = 0.5; }],
 	['clipping display', appContext => { appContext.highlightClipping.value = true; }],
 ]) test(`retries runtime failures after changing ${setting}`, async t => {
 	setup(t);

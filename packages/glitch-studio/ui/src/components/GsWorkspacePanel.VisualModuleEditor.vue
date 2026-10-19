@@ -3,7 +3,7 @@
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ prettyId(visualModule?.id ?? '') }}]</button>
 		<GsButton v-if="visualModule != null" style="margin-left: auto;" :primary="previewParamsShowing" icon="ti ti-adjustments-horizontal" @click="previewParamsShowing = !previewParamsShowing">{{ i18n.ts._VisualModule.PreviewParameters }}</GsButton>
-		<GsButton v-if="visualModule != null" style="margin-left: 0;" :primary="previewPlayback.liveVisualModuleId.value === visualModule.id" :icon="previewPlayback.liveVisualModuleId.value === visualModule.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewLive">Visual Module Live Preview</GsButton>
+		<GsButton v-if="visualModule != null" style="margin-left: 0;" :primary="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id" :icon="previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewLive">Visual Module Live Preview</GsButton>
 	</div>
 
 	<div v-if="visualModule && previewParamsShowing" :key="visualModule.id" :class="$style.previewParams">
@@ -101,7 +101,7 @@ const effectStates = computed(() => {
 	if (module == null) return states;
 	for (const node of module.nodes) {
 		if (node.type !== 'effect') continue;
-		const state = visualModuleRendererManagerController.getLiveEffectState(module.id, node.id);
+		const state = visualModuleRendererManagerController.getLivePreviewEffectState(module.id, node.id);
 		if (state != null) states.set(node.id, state);
 	}
 	return states;
@@ -133,7 +133,7 @@ watch(visualModule, module => {
 	previewParamValues.value = values;
 	previewModuleId = module?.id;
 	previewParamTypes = new Map((module?.paramDefs ?? []).map(def => [def.id, def.dataType]));
-	if (module != null && previewPlayback.liveVisualModuleId.value === module.id) {
+	if (module != null && previewPlayback.visualModuleLivePreviewVisualModuleId.value === module.id) {
 		previewPlayback.updateLiveParamValues(module.id, values);
 	}
 }, { deep: true, immediate: true });

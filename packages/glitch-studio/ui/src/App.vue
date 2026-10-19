@@ -46,8 +46,8 @@
 				<div :class="$style.footerSectionContents">
 					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
 					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" :title="i18n.ts._App.MotionBlurSamplesHint" @click="openMotionBlurSamplesMenu">{{ i18n.ts._App.MotionBlur }} {{ timelinePreviewMotionBlurSamples === 0 ? i18n.ts.Off : `${timelinePreviewMotionBlurSamples} samples` }}</button>
-					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
-					<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }} {{ liveTimeFactor }}x</button>
+					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'visualModuleLivePreview' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
+					<button v-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }} {{ livePreviewTimeFactor }}x</button>
 					<div :class="[$style.footerItem, $style.previewVolume]">
 						<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 						<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
@@ -60,7 +60,7 @@
 			<button v-if="preferences.r.projectBackups.value.autoEnabled || preferences.r.projectBackups.value.saveEnabled" class="_button" :class="$style.footerItem" :title="projectBackupStatus.error ?? i18n.ts._App.BackupHint" @click="openPreferences">{{ projectBackupStatus.error ? i18n.ts._App.BackupError : projectBackupAccess === 'ready' ? i18n.ts._App.Backups : projectBackupAccess === 'unsaved' ? i18n.ts._App.BackupsUnsaved : i18n.ts._App.BackupsFolderRequired }}</button>
 			<div v-if="activePreviewRenderer.errorMessage.value != null" v-tooltip="activePreviewRenderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ activePreviewRenderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
-				<div v-if="previewPlayback.state.value.mode === 'live' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
+				<div v-if="previewPlayback.state.value.mode === 'visualModuleLivePreview' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
 			<div :class="$style.outputLevelMeter">
 				<GsAudioLevelMeter :levels="audioOutput.outputLevels"/>
@@ -123,7 +123,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => { disposeFileDrops?.(); });
 
-const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, liveTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
+const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, livePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
 const { stateManager } = appContext.projectContext;
 const { name: projectName } = appContext.projectContext.stateManager.state;
 const { projectFileName, hasUnsavedChanges, isProjectSaving } = appContext;
@@ -215,28 +215,28 @@ function openTimeFactorMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'radioOption',
 		text: '-1x',
-		active: computed(() => liveTimeFactor.value === -1),
-		action: () => liveTimeFactor.value = -1,
+		active: computed(() => livePreviewTimeFactor.value === -1),
+		action: () => livePreviewTimeFactor.value = -1,
 	}, {
 		type: 'radioOption',
 		text: '0x',
-		active: computed(() => liveTimeFactor.value === 0),
-		action: () => liveTimeFactor.value = 0,
+		active: computed(() => livePreviewTimeFactor.value === 0),
+		action: () => livePreviewTimeFactor.value = 0,
 	}, {
 		type: 'radioOption',
 		text: '0.5x',
-		active: computed(() => liveTimeFactor.value === 0.5),
-		action: () => liveTimeFactor.value = 0.5,
+		active: computed(() => livePreviewTimeFactor.value === 0.5),
+		action: () => livePreviewTimeFactor.value = 0.5,
 	}, {
 		type: 'radioOption',
 		text: '1x',
-		active: computed(() => liveTimeFactor.value === 1),
-		action: () => liveTimeFactor.value = 1,
+		active: computed(() => livePreviewTimeFactor.value === 1),
+		action: () => livePreviewTimeFactor.value = 1,
 	}, {
 		type: 'radioOption',
 		text: '2x',
-		active: computed(() => liveTimeFactor.value === 2),
-		action: () => liveTimeFactor.value = 2,
+		active: computed(() => livePreviewTimeFactor.value === 2),
+		action: () => livePreviewTimeFactor.value = 2,
 	}], ev.currentTarget ?? ev.target);
 }
 

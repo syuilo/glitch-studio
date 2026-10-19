@@ -1,14 +1,14 @@
 <template>
 <div :class="$style.root">
-	<div v-if="previewPlayback.state.value.mode !== 'live'">{{ i18n.ts._Stats.LiveOnly }}</div>
-	<div v-show="previewPlayback.state.value.mode === 'live'" :class="$style.legend">
+	<div v-if="previewPlayback.state.value.mode !== 'visualModuleLivePreview'">{{ i18n.ts._Stats.LiveOnly }}</div>
+	<div v-show="previewPlayback.state.value.mode === 'visualModuleLivePreview'" :class="$style.legend">
 		<div v-for="item in series" :key="item.key" :class="$style.legendItem">
 			<span style="width: 8px; height: 2px;" :style="{ backgroundColor: item.color }"></span>
 			<span style="opacity: 0.7;">{{ item.label }}</span>
 			<span>{{ formatMs(current[item.key]) }}</span>
 		</div>
 	</div>
-	<div v-show="previewPlayback.state.value.mode === 'live'" ref="chartEl" :class="$style.chart">
+	<div v-show="previewPlayback.state.value.mode === 'visualModuleLivePreview'" ref="chartEl" :class="$style.chart">
 		<svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" :class="$style.svg">
 			<g :class="$style.grid">
 				<template v-for="tick in yTicks" :key="tick.value">
@@ -83,7 +83,7 @@ let timer: number | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
 function recordSample() {
-	if (previewPlayback.state.value.mode !== 'live') {
+	if (previewPlayback.state.value.mode !== 'visualModuleLivePreview') {
 		samples.value = [];
 		return;
 	}

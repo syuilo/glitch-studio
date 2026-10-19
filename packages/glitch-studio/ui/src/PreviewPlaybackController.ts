@@ -1,15 +1,15 @@
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import { computed, readonly, ref, shallowRef } from 'vue';
-import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
 import type { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 
 export type PreviewPlaybackState =
-	| { mode: 'live'; visualModuleId: ProjectVisualModule['id'] }
+	| { mode: 'visualModuleLivePreview'; visualModuleId: ProjectVisualModule['id'] }
 	| { mode: 'timeline'; playing: boolean };
 
-type LiveRenderer = Pick<VisualModuleRendererManagerController, 'startLiveRenderLoopFor' | 'updateLiveParamValues' | 'stopRenderLoop'>;
+type VisualModuleLivePreviewRenderer = Pick<VisualModuleRendererManagerController, 'startLivePreviewRenderLoopFor' | 'updateLivePreviewParamValues' | 'stopRenderLoop'>;
 type TimelineAudio = {
 	start(time: number, duration: number): void;
 	stop(): void;
@@ -24,43 +24,43 @@ export class PreviewPlaybackController {
 	private readonly timelineTime = ref(0);
 	private timelineRafId: number | null = null;
 	private readonly suspended = ref(false);
-	private liveParams: VisualModuleArgumentBindings = {};
+	private visualModuleLivePreviewParams: VisualModuleArgumentBindings = {};
 
 	public readonly state = readonly(this.playbackState);
 	public readonly currentTimelineTime = readonly(this.timelineTime);
 	public readonly isTimelinePlaying = computed(() => !this.suspended.value && this.playbackState.value.mode === 'timeline' && this.playbackState.value.playing);
-	public readonly liveVisualModuleId = computed(() => this.playbackState.value.mode === 'live' ? this.playbackState.value.visualModuleId : null);
+	public readonly visualModuleLivePreviewVisualModuleId = computed(() => this.playbackState.value.mode === 'visualModuleLivePreview' ? this.playbackState.value.visualModuleId : null);
 
 	constructor(
-		private readonly liveRenderer: LiveRenderer,
+		private readonly visualModuleLivePreviewRenderer: VisualModuleLivePreviewRenderer,
 		private readonly timelineRenderer: TimelineRenderer,
 		private readonly getTimelinePreviewFps: () => number | null,
 		private readonly getDuration: () => number = () => Infinity,
 		private readonly audio?: TimelineAudio,
-		private readonly onLiveInputsChanged?: (visualModuleId: string, params: VisualModuleArgumentBindings) => void,
+		private readonly onVisualModuleLivePreviewInputsChanged?: (visualModuleId: string, params: VisualModuleArgumentBindings) => void,
 	) {}
 
-	public startLive(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings = {}) {
+	public startVisualModuleLivePreview(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings = {}) {
 		this.pauseTimeline();
-		this.liveParams = deepClone(params);
-		this.onLiveInputsChanged?.(visualModuleId, params);
-		if (!this.suspended.value) this.liveRenderer.startLiveRenderLoopFor(visualModuleId, params);
-		this.playbackState.value = { mode: 'live', visualModuleId };
+		this.visualModuleLivePreviewParams = deepClone(params);
+		this.onVisualModuleLivePreviewInputsChanged?.(visualModuleId, params);
+		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.startLivePreviewRenderLoopFor(visualModuleId, params);
+		this.playbackState.value = { mode: 'visualModuleLivePreview', visualModuleId };
 	}
 
-	public updateLiveParamValues(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings) {
-		if (this.liveVisualModuleId.value !== visualModuleId) {
-			this.startLive(visualModuleId, params);
+	public updateVisualModuleLivePreviewParamValues(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings) {
+		if (this.visualModuleLivePreviewVisualModuleId.value !== visualModuleId) {
+			this.startVisualModuleLivePreview(visualModuleId, params);
 			return;
 		}
-		this.liveParams = deepClone(params);
-		this.onLiveInputsChanged?.(visualModuleId, params);
-		if (!this.suspended.value) this.liveRenderer.updateLiveParamValues(visualModuleId, params);
+		this.visualModuleLivePreviewParams = deepClone(params);
+		this.onVisualModuleLivePreviewInputsChanged?.(visualModuleId, params);
+		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.updateLivePreviewParamValues(visualModuleId, params);
 	}
 
 	public playTimeline() {
 		if (this.isTimelinePlaying.value) return;
-		this.leaveLive();
+		this.leaveVisualModuleLivePreview();
 		// 同じエラー文は再通知されない。既に失敗している場合は描画の再試行だけを行い、
 		// 成功でエラーが解除されるまで音声時計を開始しない。
 		if (this.timelineRenderer.errorMessage.value) { this.refresh(); return; }
@@ -115,12 +115,12 @@ export class PreviewPlaybackController {
 	}
 
 	public showTimeline() {
-		this.leaveLive();
+		this.leaveVisualModuleLivePreview();
 		this.refresh();
 	}
 
 	public seekTimeline(time: number) {
-		this.leaveLive();
+		this.leaveVisualModuleLivePreview();
 		this.timelineTime.value = Math.max(0, time);
 		if (this.isTimelinePlaying.value) this.audio?.start(this.timelineTime.value, this.getDuration());
 		this.refresh();
@@ -148,7 +148,7 @@ export class PreviewPlaybackController {
 		this.audio?.stop();
 		if (this.timelineRafId != null) window.cancelAnimationFrame(this.timelineRafId);
 		this.timelineRafId = null;
-		if (this.playbackState.value.mode === 'live') this.liveRenderer.stopRenderLoop();
+		if (this.playbackState.value.mode === 'visualModuleLivePreview') this.visualModuleLivePreviewRenderer.stopRenderLoop();
 		this.suspended.value = true;
 	}
 
@@ -156,8 +156,8 @@ export class PreviewPlaybackController {
 		if (!this.suspended.value) return;
 		this.suspended.value = false;
 		const state = this.playbackState.value;
-		if (state.mode === 'live') {
-			this.liveRenderer.startLiveRenderLoopFor(state.visualModuleId, this.liveParams);
+		if (state.mode === 'visualModuleLivePreview') {
+			this.visualModuleLivePreviewRenderer.startLivePreviewRenderLoopFor(state.visualModuleId, this.visualModuleLivePreviewParams);
 		} else if (state.playing) {
 			this.playbackState.value = { mode: 'timeline', playing: false };
 			this.playTimeline();
@@ -168,13 +168,13 @@ export class PreviewPlaybackController {
 
 	public dispose() {
 		this.pauseTimeline();
-		this.leaveLive();
+		this.leaveVisualModuleLivePreview();
 		this.suspended.value = false;
 	}
 
-	private leaveLive() {
-		if (this.playbackState.value.mode !== 'live') return;
-		if (!this.suspended.value) this.liveRenderer.stopRenderLoop();
+	private leaveVisualModuleLivePreview() {
+		if (this.playbackState.value.mode !== 'visualModuleLivePreview') return;
+		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.stopRenderLoop();
 		this.playbackState.value = { mode: 'timeline', playing: false };
 	}
 }

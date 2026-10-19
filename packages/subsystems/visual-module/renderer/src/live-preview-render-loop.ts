@@ -11,17 +11,17 @@ export const browserFrameScheduler: FrameScheduler = {
 	cancelFrame: id => cancelAnimationFrame(id),
 };
 
-export type LiveFrameTiming = {
+export type LivePreviewFrameTiming = {
 	time: number;
 	timeDelta: number;
 	realTimeDelta: number;
 };
 
-export class LiveRenderLoop {
+export class LivePreviewRenderLoop {
 	public fpsLimit: number | null;
 	public timeFactor: number;
 	private scheduler: FrameScheduler;
-	private onFrame: (timing: LiveFrameTiming) => void;
+	private onFrame: (timing: LivePreviewFrameTiming) => void;
 	private frameId: number | null = null;
 	private running = false;
 	private generation = 0;
@@ -31,7 +31,7 @@ export class LiveRenderLoop {
 
 	constructor(options: {
 		scheduler: FrameScheduler;
-		onFrame: (timing: LiveFrameTiming) => void;
+		onFrame: (timing: LivePreviewFrameTiming) => void;
 		fpsLimit: number | null;
 		timeFactor: number;
 	}) {

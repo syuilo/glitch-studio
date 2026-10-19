@@ -9,7 +9,7 @@
 		</div>
 		<div :class="$style.topCenter">
 			<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
-				<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'live'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
+				<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
 			</button>
 			<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s" role="alert">
 				<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
@@ -55,7 +55,7 @@ import { openMediaFile } from '@/utility/open-media-file.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, livePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
 const { stateManager } = appContext.projectContext;
 const renderFailureLocation = computed(() => {
 	const origin = renderEngine.runtimeDiagnostic.value?.origin;
@@ -89,7 +89,7 @@ const previewTargetName = computed(() => {
 		: stateManager.state.visualModules.value.find(visualModule => visualModule.id === state.visualModuleId)?.name ?? null;
 });
 const previewResolution = computed(() => {
-	if (previewPlayback.state.value.mode === 'live') return visualModuleRendererManagerController.outputResolution.value;
+	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') return visualModuleRendererManagerController.outputResolution.value;
 	const scene = activeScene.value;
 	if (scene == null) return null;
 	return scaleResolution(getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value), resolutionFactor.value);
@@ -104,7 +104,7 @@ let timecodeRaf = animationWindow.requestAnimationFrame(update);
 function update(t: number) {
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
-	if (previewPlayback.state.value.mode === 'live') liveTime.value += delta * liveTimeFactor.value;
+	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') liveTime.value += delta * livePreviewTimeFactor.value;
 	updateGridLines();
 	updatePreviewCanvasRect();
 	timecodeRaf = animationWindow.requestAnimationFrame(update);
@@ -190,7 +190,7 @@ async function onViewClick() {
 }
 
 function onPointermove(ev: PointerEvent) {
-	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'live') return;
+	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'visualModuleLivePreview') return;
 	const rect = canvasContainer.value.getBoundingClientRect();
 	visualModuleRendererManagerController.updatePointerPosition({
 		x: (((ev.clientX - rect.left) / rect.width) - 0.5) * 2,
@@ -249,10 +249,10 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 		icon: 'ti ti-box-multiple',
 		children: () => stateManager.state.visualModules.value.map(visualModule => ({
 			text: visualModule.name,
-			active: previewPlayback.liveVisualModuleId.value === visualModule.id,
+			active: previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id,
 			action: () => {
 				// 同じVisual Module Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
-				if (previewPlayback.liveVisualModuleId.value !== visualModule.id) previewPlayback.startLive(visualModule.id);
+				if (previewPlayback.visualModuleLivePreviewVisualModuleId.value !== visualModule.id) previewPlayback.startLive(visualModule.id);
 			},
 		})),
 	}], ev.currentTarget ?? ev.target);
