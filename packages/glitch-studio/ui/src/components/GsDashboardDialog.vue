@@ -17,10 +17,13 @@
 				<GsButton large full style="text-align: left;" icon="ti ti-photo-video" @click="_newProjectFromImageOrVideo">{{ `${i18n.ts._Dashboard.OpenMedia}...` }}</GsButton>
 				<GsButton large full style="text-align: left;" icon="ti ti-folder-open" @click="_openProject">{{ `${i18n.ts._Dashboard.OpenProject}...` }}</GsButton>
 			</div>
-			<GsButton v-if="desktopUpdateUi?.state.value.version != null" primary full icon="ti ti-download" :disabled="desktopUpdateUi.working.value" data-test-dashboard-desktop-update-notification @click="desktopUpdateUi.requestUpdate()">
-				{{ desktopUpdateUi.state.value.phase === 'restart-required' ? i18n.ts._DesktopUpdate.RestartRequired : i18n.ts._DesktopUpdate.Available }}
+			<template v-if="desktopUpdateUi?.state.value.version != null">
+				<hr>
+				<GsButton large primary full icon="ti ti-download" :disabled="desktopUpdateUi.working.value" data-test-dashboard-desktop-update-notification @click="desktopUpdateUi.requestUpdate()">
+					{{ desktopUpdateUi.state.value.phase === 'restart-required' ? i18n.ts._DesktopUpdate.RestartRequired : i18n.ts._DesktopUpdate.Available }}
+				</GsButton>
 				<span>({{ desktopUpdateUi.state.value.version }})</span>
-			</GsButton>
+			</template>
 
 			<button class="_textButton" style="margin-top: auto;" @click="showAbout()">{{ i18n.ts._App.About }}</button>
 		</div>
