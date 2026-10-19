@@ -33,7 +33,7 @@
 			<GsInput v-if="mode === 'video'" v-model="endTime" large placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ i18n.ts._Export.EndTime }}</template></GsInput>
 		</div>
 		<GsButton large inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">{{ i18n.ts._Export.UseCurrentPlayhead }}</GsButton>
-		<div>{{ i18n.ts._Export.EstimatedSize }} {{ estimatedSize }}</div>
+		<div>{{ i18n.ts._Export.EstimatedSize }}: {{ estimatedSize }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting && !choosingSaveFile" class="_gaps_m">
 			<div :class="$style.progress"><div :class="$style.progressFill" :style="{ width: `${progressPercent}%` }"></div></div>

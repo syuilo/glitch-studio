@@ -1,7 +1,7 @@
 <template>
 <GsFolder defaultOpen asSection :withSpacer="false">
 	<template #icon><i class="ti ti-stack-middle"></i></template>
-	<template #label>{{ i18n.ts._TimelineLayer.Title }} {{ layer.name }}</template>
+	<template #label>{{ i18n.ts._TimelineLayer.Title }}: {{ layer.name }}</template>
 
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer">

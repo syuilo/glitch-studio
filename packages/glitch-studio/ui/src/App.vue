@@ -36,18 +36,18 @@
 	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">
 			<div :class="$style.footerSection">
-				<div :class="$style.footerSectionTitle">{{ i18n.ts._App.Project }}</div>
+				<div :class="$style.footerSectionTitle">{{ i18n.ts._App.Project }}:</div>
 				<div :class="$style.footerSectionContents">
 					<button :class="$style.footerItem" class="_button" @click="openProjectSettings">sRGB / {{ stateManager.state.resolution.value.width }} x {{ stateManager.state.resolution.value.height }} px / {{ stateManager.state.timelineFps.value }}fps</button>
 				</div>
 			</div>
 			<div :class="$style.footerSection">
-				<div :class="$style.footerSectionTitle">{{ i18n.ts._App.Preview }}</div>
+				<div :class="$style.footerSectionTitle">{{ i18n.ts._App.Preview }}:</div>
 				<div :class="$style.footerSectionContents">
 					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
-					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" :title="i18n.ts._App.MotionBlurSamplesHint" @click="openMotionBlurSamplesMenu">{{ i18n.ts._App.MotionBlur }} {{ timelinePreviewMotionBlurSamples === 0 ? i18n.ts.Off : `${timelinePreviewMotionBlurSamples} samples` }}</button>
+					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" :title="i18n.ts._App.MotionBlurSamplesHint" @click="openMotionBlurSamplesMenu">{{ i18n.ts._App.MotionBlur }}: {{ timelinePreviewMotionBlurSamples === 0 ? i18n.ts.Off : `${timelinePreviewMotionBlurSamples} samples` }}</button>
 					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'visualModuleLivePreview' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
-					<button v-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }} {{ visualModuleLivePreviewTimeFactor }}x</button>
+					<button v-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }}: {{ visualModuleLivePreviewTimeFactor }}x</button>
 					<div :class="[$style.footerItem, $style.previewVolume]">
 						<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 						<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>

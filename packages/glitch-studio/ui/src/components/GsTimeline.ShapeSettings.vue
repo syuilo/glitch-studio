@@ -1,7 +1,7 @@
 <template>
 <GsFolder asSection defaultOpen :withSpacer="false">
 	<template #icon><i class="ti ti-shape"></i></template>
-	<template #label>{{ i18n.ts._TimelineLayer.Shape }} {{ shapeDefinitions[layer.shape.type].label }}</template>
+	<template #label>{{ i18n.ts._TimelineLayer.Shape }}: {{ shapeDefinitions[layer.shape.type].label }}</template>
 	<div style="padding: 8px 0;">
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(definitions)"

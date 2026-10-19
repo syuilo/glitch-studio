@@ -1,7 +1,7 @@
 <template>
 <GsFolder v-if="selectedKeyframe != null" defaultOpen asSection :withSpacer="false">
 	<template #icon><i class="ti ti-keyframe"></i></template>
-	<template #label>{{ i18n.ts._TimelineKeyframe.Title }} {{ selectedKeyframe.def.ui.label }}</template>
+	<template #label>{{ i18n.ts._TimelineKeyframe.Title }}: {{ selectedKeyframe.def.ui.label }}</template>
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer _gaps_m">
 			<GsInput data-test-keyframe-time type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">

@@ -26,7 +26,7 @@
 	</label>
 	-->
 	<div>
-		<div :class="$style.time" class="_monospace">{{ i18n.ts.Total }} {{ formatTime(duration) }}</div>
+		<div :class="$style.time" class="_monospace">{{ i18n.ts.Total }}: {{ formatTime(duration) }}</div>
 	</div>
 	<div v-if="error" role="alert">{{ error }}</div>
 </div>

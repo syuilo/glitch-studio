@@ -21,7 +21,7 @@
 					<GsInput v-model="timelineMotionBlur.samples" large type="number" :min="0" :max="MAX_MOTION_BLUR_SAMPLES" :step="1"><template #label>{{ i18n.ts._Project.ExportSamples }}</template></GsInput>
 				</div>
 				<div v-if="timelineMotionBlur.enabled && historyEffects.length" :class="$style.warning">
-					<i class="ti ti-alert-triangle" style="color: var(--THEME-warn);"></i> {{ i18n.ts._Project.MotionBlurUnsupported }} {{ historyEffects.join(', ') }}.
+					<i class="ti ti-alert-triangle" style="color: var(--THEME-warn);"></i> {{ i18n.ts._Project.MotionBlurUnsupported }}: {{ historyEffects.join(', ') }}.
 				</div>
 			</div>
 		</GsFolder>

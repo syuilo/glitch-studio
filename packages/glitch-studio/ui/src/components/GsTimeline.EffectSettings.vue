@@ -1,7 +1,7 @@
 <template>
 <GsFolder :asSection="true" defaultOpen :withSpacer="false">
 	<template #icon><i class="ti ti-sparkles"></i></template>
-	<template #label>{{ i18n.ts._TimelineLayer.Effect }} {{ definition.displayName }}</template>
+	<template #label>{{ i18n.ts._TimelineLayer.Effect }}: {{ definition.displayName }}</template>
 	<template #suffix>
 		<span v-if="effectState?.status.type === 'loading'"><i class="ti ti-loader-2"></i> {{ i18n.ts.Loading }}<GsEllipsis/></span>
 		<span v-else-if="effectState?.status.type === 'error'" :class="$style.error" :title="effectState.status.message"><i class="ti ti-alert-triangle"></i> {{ i18n.ts.Error }}</span>

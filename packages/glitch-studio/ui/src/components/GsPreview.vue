@@ -18,7 +18,7 @@
 			</div>
 		</div>
 		<div :class="$style.topRight">
-			<div :class="$style.zoom">{{ i18n.ts._Preview.Zoom }} {{ Math.round(zoom * 100) }}%</div>
+			<div :class="$style.zoom">{{ i18n.ts._Preview.Zoom }}: {{ Math.round(zoom * 100) }}%</div>
 			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
 		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>

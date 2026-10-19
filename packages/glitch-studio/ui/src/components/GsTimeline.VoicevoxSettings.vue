@@ -7,7 +7,7 @@
 			<div style="display: flex; align-items: center; gap: 8px;">
 				<GsInput v-model="endpoint" type="text" style="flex: 1; min-width: 0;">
 					<template #label>{{ i18n.ts._Voicevox.EngineUrl }}</template>
-					<template v-if="version != null && version !== ''" #caption><span style="color: var(--THEME-success);"><i class="ti ti-check"></i> {{ i18n.ts._Voicevox.Connected }} {{ version }}</span></template>
+					<template v-if="version != null && version !== ''" #caption><span style="color: var(--THEME-success);"><i class="ti ti-check"></i> {{ i18n.ts._Voicevox.Connected }}: {{ version }}</span></template>
 				</GsInput>
 				<GsButton primary :disabled="connecting" @click="connect">{{ i18n.ts._Voicevox.Connect }}</GsButton>
 			</div>
