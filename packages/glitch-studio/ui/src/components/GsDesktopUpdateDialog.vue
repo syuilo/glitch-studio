@@ -47,13 +47,17 @@ function close() { if (!props.working) modal.value?.close(); }
 
 <style lang="scss" module>
 .root {
-	width: min(440px, calc(100vw - 48px));
+	margin: auto;
+	position: relative;
 	padding: 32px;
+	width: 480px;
+	max-width: 90vw;
+	max-height: 90vh;
+	overflow-y: auto;
 	box-sizing: border-box;
-	border-radius: 8px;
-	background: var(--THEME-panel);
-	white-space: pre-line;
-	overflow-wrap: anywhere;
+	background: var(--THEME-dialog);
+	border-radius: 10px;
 }
+
 .actions { display: flex; justify-content: flex-end; gap: 12px; }
 </style>
