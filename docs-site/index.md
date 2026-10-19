@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: Glitch Studio
-  tagline: フリーでオープンソースの画像・動画編集ソフト
+  tagline: フリーでオープンな画像・動画編集ソフト
   image:
     src: /gs.svg
     alt: Glitch Studio
@@ -24,9 +24,9 @@ features:
   - title: フリーでオープン
     details: "Glitch Studioは完全に無料のソフトウェアで、ソースコードが公開されています。"
   - title: クロスプラットフォーム
-    details: "Windows、MacOSに対応しています。"
+    details: "Windows、MacOSに対応。"
   - title: 高速
-    details: "全ての画像処理がGPU上で行われ、リアルタイムな画像・動画編集が可能です。\nインターフェイスについても、各社がしのぎを削って最適化を続けているプラットフォーム「Web」を使うことで軽量かつ柔軟な表示を実現しています。"
+    details: "全ての画像処理がGPU上で行われ、リアルタイムな画像・動画編集が可能。\nUIについても、各社がしのぎを削って最適化を続けているプラットフォーム「Web」を使うことで軽量かつ柔軟な表示を実現しています。"
   - title: 解像度非依存
     details: "Glitch Studioは、原則<b>Resolution-independent</b>な設計になっています。\nどのような解像度でレンダリングしたとしても見た目の比率が変わらず、後から解像度を変更したくなった時にプロジェクトを作り直したりする手間がありません。"
   - title: FPS非依存
