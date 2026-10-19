@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600">
+  <defs>
+    <linearGradient id="color" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ff9d33"/><stop offset=".5" stop-color="#ef629a"/><stop offset="1" stop-color="#8976d6"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="600" fill="#17171c"/>
+  <g fill="none" stroke="url(#color)" stroke-width="26">
+    <circle cx="810" cy="300" r="160"/>
+    <circle cx="810" cy="300" r="110"/>
+    <circle cx="810" cy="300" r="60"/>
+  </g>
+  <g font-family="sans-serif" fill="#f4f4f8">
+    <text x="80" y="220" fill="#ff9d33" font-size="18" letter-spacing="4">GLITCH STUDIO / 03</text>
+    <text x="80" y="290" font-size="46" font-weight="700">Realtime Effects</text>
+    <text x="80" y="338" font-size="23" fill="#b8b8c4">変化を見ながら、試して遊ぶ。</text>
+    <text x="80" y="530" font-size="16" fill="#8e8e9e">紹介スライド用の仮画像</text>
+  </g>
+</svg>

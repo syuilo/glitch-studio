@@ -11,6 +11,8 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"devDependencies": {
+		"@cssnr/vitepress-swiper": "0.3.1",
+		"swiper": "14.3.0",
 		"vitepress": "1.6.4",
 		"vue": "3.5.42"
 	}

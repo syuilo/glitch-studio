@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600">
+  <rect width="1200" height="600" fill="#17171c"/>
+  <rect x="570" y="160" width="470" height="300" rx="12" fill="#25252e"/>
+  <g stroke="#494954" stroke-width="2">
+    <path d="M590 210H1020M590 280H1020M590 350H1020M590 420H1020"/>
+  </g>
+  <rect x="600" y="225" width="250" height="40" rx="6" fill="#d97928"/>
+  <rect x="720" y="295" width="290" height="40" rx="6" fill="#8976d6"/>
+  <rect x="640" y="365" width="320" height="40" rx="6" fill="#438f89"/>
+  <path d="M790 180V440" stroke="#f4f4f8" stroke-width="3"/>
+  <path d="M780 180H800L790 193Z" fill="#f4f4f8"/>
+  <g font-family="sans-serif" fill="#f4f4f8">
+    <text x="80" y="220" fill="#ff9d33" font-size="18" letter-spacing="4">GLITCH STUDIO / 02</text>
+    <text x="80" y="290" font-size="46" font-weight="700">Timeline</text>
+    <text x="80" y="338" font-size="23" fill="#b8b8c4">映像と音を、自由に重ねる。</text>
+    <text x="80" y="530" font-size="16" fill="#8e8e9e">紹介スライド用の仮画像</text>
+  </g>
+</svg>
