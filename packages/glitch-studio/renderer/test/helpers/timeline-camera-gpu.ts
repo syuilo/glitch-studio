@@ -67,13 +67,10 @@ export async function run() {
 				const compositor = createTimelineCompositor(options);
 				const parameters = new TimelineCompositingParameters();
 				return { async evaluate(context) {
-					const encoder = device.createCommandEncoder();
 					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: [] });
 					const texture = imageSources.get(layer.clips[0].assetId);
 					const source: TimelineImage = texture ? { kind: 'texture', texture } : { kind: 'uniform', value: layer.name === 'red' ? [1, 0, 0, 1] : [0, 0, 0, 0] };
-					const result = compositor.render(encoder, context.input, source, settings, context.renderSpace);
-					device.queue.submit([encoder.finish()]);
-					return { output: result, gpuTime: 0 };
+					return compositor.evaluate(context, source, settings);
 				}, destroy() { compositor.dispose(); } };
 			}
 			case 'text': return createTextTimelineLayer(layer, { ...options, getFont: () => null });

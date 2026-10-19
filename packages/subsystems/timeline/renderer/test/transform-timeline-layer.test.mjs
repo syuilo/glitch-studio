@@ -28,8 +28,9 @@ function fixture(layers) {
 		if (entry.layerType === 'transform') return createTransformTimelineLayer(() => find(layers, entry.id), { resolution: frame, fallbackOutput: [], createLayer });
 		return {
 			async evaluate(context) {
-				calls.push({ id: entry.id, ...context });
-				return { output: [...context.input, entry.id], gpuTime: 2 };
+				const input = await context.getInput();
+				calls.push({ id: entry.id, ...context, input });
+				return { output: [...input, entry.id], gpuTime: 2 };
 			},
 			destroy() { destroyed.push(entry.id); },
 		};

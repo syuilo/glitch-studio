@@ -52,7 +52,7 @@ import type { TimelineLayerRenderer } from '@gs/subsystems_timeline_renderer/tim
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModule, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
 
@@ -653,10 +653,9 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale), format: this.staticOptions.intermediateTextureFormat,
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
-		const inputFrames = new Map<string, ReturnType<typeof createSceneOutput>>();
+		const inputFrames = new Map<VisualModuleCustomParameterId, ReturnType<typeof createSceneOutput>>();
 		const instance = createVisualModuleTimelineLayer(getModule, getLayer, {
-			getImageInput: (input, parameterId, sceneFrame) => {
-				if (!sceneFrame) return input;
+			getImageInput: (input, parameterId) => {
 				let inputFrame = inputFrames.get(parameterId);
 				if (inputFrame == null) {
 					inputFrame = createSceneOutput({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
@@ -684,7 +683,7 @@ export class TimelineRendererManager extends EventEmitter<{
 							paramValues: getLayer().compositingParamValues,
 							automationGraphs: getLayer().automationGraphs,
 						});
-						result = compositor.evaluate(commandEncoder, layerContext, output, settings);
+						result = compositor.evaluate(layerContext, output, settings);
 					}
 				} finally {
 					// 描画途中の例外でもエンコーダーと計測を完了する。
@@ -699,11 +698,18 @@ export class TimelineRendererManager extends EventEmitter<{
 			},
 		});
 		return {
-			lazyInput: true,
-			evaluate: (context, signal) => {
+				evaluate: (context, signal) => {
 				const version = this.projectVersions.module(target);
 				if (version.revision !== moduleRevision) {
-					renderer.updateVisualModule(getModule(), version.cacheResetRevision <= moduleRevision);
+					const currentVisualModule = getModule();
+					const parameterIds = new Set(currentVisualModule.paramDefs.map(definition => definition.id));
+					// 公開定義の編集では配置を維持するため、消えた入力のGPU資源をここで解放する。
+					for (const [parameterId, frame] of inputFrames) {
+						if (parameterIds.has(parameterId)) continue;
+						frame.dispose();
+						inputFrames.delete(parameterId);
+					}
+					renderer.updateVisualModule(currentVisualModule, version.cacheResetRevision <= moduleRevision);
 					moduleRevision = version.revision;
 				}
 				return instance.evaluate(context, signal);

@@ -60,8 +60,8 @@ Transformは`layers/transform/transform-timeline-layer.ts`が子の寿命を管�
 
 `TimelineRenderer.createEvaluation()`は描画前にGroup・Transformの子孫まで通常の時計と描画空間を登録する。`TimelineEvaluationSession`は同じScene配置・サブサンプル内の素材準備、単独描画、合成途中の画像を共有する。子Sceneは配置ごとに別セッションを使う。参照の要求は直列で、静的検証を迂回した循環も未完了Promiseへの再入として拒否する。
 
-各映像レイヤーは素材を生成してGPU処理をsubmitし、compositorの`evaluate()`が素材と遅延した単独描画・合成を返す。サンプリング入力が必要なレイヤーだけ`context.getInput()`で下層を要求するため、独立した上層素材への参照は下層合成に依存しない。通常の合成順は変わらない。直接のレイヤー評価では従来の即時合成も利用できる。
+各映像レイヤーは素材を生成してGPU処理をsubmitし、compositorの`evaluate()`が素材と遅延した単独描画・合成を返す。サンプリング入力が必要なレイヤーだけ必須の`context.getInput()`で下層を要求するため、独立した上層素材への参照は下層合成に依存しない。通常の合成順は変わらない。Group・Transformの子評価は`createChildren()`で同じセッションへ登録し、素材評価時には登録済みの結果を使う。
 
-単独描画と通常合成は別のcompositor出力を保持し、同じ画像を参照中に別段階で上書きしない。Effectの参照画像とVisual Moduleの公開画像入力は、必要な場合だけ入力ごとのScene枠確定器を持つ。素材・表示・複数入力で同じ元画像を使っても、素材生成は一度だけ行う。
+単独描画と通常合成は別のcompositor出力を保持し、同じ画像を参照中に別段階で上書きしない。Effectの参照画像とVisual Moduleの公開画像入力は、必要な場合だけ入力ごとのScene枠確定器を持つ。Visual Moduleの公開入力間では同じ評価内の同一画像の確定結果を共有し、削除された公開入力の確定器は定義更新時に解放する。素材・表示・複数入力で同じ元画像を使っても、素材生成は一度だけ行う。
 
 `preserveDepth` Groupの素材は子の投影済み合成結果を使い、Group自身のopacity・blendMode・マスク・clipToFrameの前で取り出す。`projected`を引き継ぎ、単独描画・通常合成で変形を再適用しない。参照する側がブラー無効でも、取得先の登録済みの通常評価を読む。

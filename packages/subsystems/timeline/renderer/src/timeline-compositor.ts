@@ -38,9 +38,8 @@ export function createTimelineCompositor(options: {
 	let renderedCompositor: ReturnType<typeof createTimelineCompositor> | null = null;
 	return {
 		/** 素材のGPU処理は呼び出し側がsubmitし、合成は依存評価が確定してから実行する。 */
-		evaluate(encoder: GPUCommandEncoder, context: TimelineLayerContext<TimelineImage>, source: TimelineImage,
+		evaluate(context: TimelineLayerContext<TimelineImage>, source: TimelineImage,
 			settings: TimelineCompositingSettings, projected = false): TimelineLayerEvaluation<TimelineImage> {
-			if (context.deferCompositing !== true) return { output: this.render(encoder, context.input, source, settings, context.renderSpace, projected), gpuTime: 0 };
 			const submit = (compositor: ReturnType<typeof createTimelineCompositor>, background: TimelineImage, values: TimelineCompositingSettings) => {
 				const commandEncoder = device.createCommandEncoder();
 				try { return compositor.render(commandEncoder, background, source, values, context.renderSpace, projected); } finally { device.queue.submit([commandEncoder.finish()]); }

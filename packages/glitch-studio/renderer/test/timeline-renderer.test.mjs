@@ -17,7 +17,7 @@ test('freezes clip selection and local time while consuming each sampled backgro
 		const calls = [];
 		const renderer = new TimelineRenderer({ fallbackOutput: 'transparent', createLayer: (layer, clipId) => ({
 			async evaluate(context) {
-				calls.push({ id: layer.id, clipId, ...context });
+				calls.push({ id: layer.id, clipId, ...context, input: await context.getInput() });
 				return { output: `${layer.id}@${context.sceneTimeMs}`, gpuTime: 0 };
 			}, destroy() {},
 		}) });
@@ -58,7 +58,7 @@ test('skips disabled layers and passes the remaining background through in previ
 		const hidden = { ...entry('hidden', 0, 1000, 'missing'), isDisabled: true };
 		await f.renderer.renderAt(100, [entry('top'), hidden, entry('bottom')], 0, isExport);
 		assert.deepEqual(f.created, ['bottom', 'top']);
-		assert.deepEqual(f.prepared.map(({ context }) => context.input), ['transparent', 'bottom']);
+		assert.deepEqual(f.prepared.map(({ input }) => input), ['transparent', 'bottom']);
 		assert.deepEqual(f.presented.at(-1), { output: 'top', gpuTime: 20 });
 		await f.renderer.renderAt(100, [hidden], 0, isExport);
 		assert.deepEqual(f.presented.at(-1), { output: 'transparent', gpuTime: 0 });
@@ -170,7 +170,7 @@ function fixture(overrides = {}) {
 			created.push(id);
 			return {
 				async evaluate(context, signal) {
-					prepared.push({ id, context, signal });
+					prepared.push({ id, context, signal, input: await context.getInput() });
 					await overrides.prepare?.(id, context, signal);
 					if (signal.aborted) return { gpuTime: 0 };
 					rendered.push({ id, context });
@@ -194,7 +194,7 @@ test('renders layers in order with local time, end time and chained outputs', as
 	assert.deepEqual(f.rendered.map(item => item.id), ['bottom', 'top']);
 	assert.deepEqual(f.prepared.map(item => item.context.contentTimeMs), [300, 200]);
 	assert.deepEqual(f.prepared.map(item => item.context.contentEndTimeMs), [800, 400]);
-	assert.deepEqual(f.prepared.map(item => item.context.input), ['transparent', 'bottom']);
+	assert.deepEqual(f.prepared.map(item => item.input), ['transparent', 'bottom']);
 	for (let i = 0; i < 2; i++) {
 		assert.strictEqual(f.prepared[i].context, f.rendered[i].context);
 		assert.equal(f.prepared[i].context.timeDelta, 0);
@@ -205,7 +205,7 @@ test('renders layers in order with local time, end time and chained outputs', as
 	// 並べ替え後も新しい表示順に従い、背景の受け渡しと最終出力を切り替える。
 	await f.renderer.renderAt(400, timeline.toReversed());
 	assert.deepEqual(f.rendered.slice(-2).map(item => item.id), ['top', 'bottom']);
-	assert.deepEqual(f.prepared.slice(-2).map(item => item.context.input), ['transparent', 'top']);
+	assert.deepEqual(f.prepared.slice(-2).map(item => item.input), ['transparent', 'top']);
 	assert.deepEqual(f.presented.at(-1), { output: 'bottom', gpuTime: 20 });
 	f.renderer.clear();
 });
@@ -408,7 +408,7 @@ test('chains different layer types without requiring visual module fields', asyn
 							prepared.push(context);
 							assert.equal(context.contentTimeMs, 300);
 							assert.equal(context.contentEndTimeMs, 800);
-							assert.strictEqual(context.input, fallback);
+							assert.strictEqual(await context.getInput(), fallback);
 							assert.equal('paramValues' in context, false);
 							assert.equal('paramInputs' in context, false);
 							return { output: inputFrame, gpuTime: 1 };
@@ -457,8 +457,8 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 		async render(context, layerContext) { rendered.push(context); layerContexts.push(layerContext); return { output: context.paramInputs.get('input'), gpuTime: 0 }; },
 		destroy() {},
 	});
-	const first = { sceneTimeMs: 5, contentTimeMs: 1, clipElapsedTimeMs: 1, clipDurationMs: 10, contentEndTimeMs: 10, timeDelta: 0, input: 'first' };
-	const second = { ...first, sceneTimeMs: 6, contentTimeMs: 2, contentEndTimeMs: 20, input: 'second' };
+	const first = { sceneTimeMs: 5, contentTimeMs: 1, clipElapsedTimeMs: 1, clipDurationMs: 10, contentEndTimeMs: 10, timeDelta: 0, getInput: async () => 'first' };
+	const second = { ...first, sceneTimeMs: 6, contentTimeMs: 2, contentEndTimeMs: 20, getInput: async () => 'second' };
 	const controller = new AbortController();
 	const oldEvaluation = layer.evaluate(first, controller.signal);
 	await layer.evaluate(second, controller.signal);
@@ -477,14 +477,14 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 // モジュール内部の入力とタイムライン合成の背景は別の責務なので、主入力の有無で背景を失わない。
 test('provides the background for compositing modules without a primary input', async () => {
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
-	const context = { sceneTimeMs: 800, contentTimeMs: 500, clipElapsedTimeMs: 500, clipDurationMs: 2000, contentEndTimeMs: 2000, timeDelta: 16, isExport: true, input: background };
+	const context = { sceneTimeMs: 800, contentTimeMs: 500, clipElapsedTimeMs: 500, clipDurationMs: 2000, contentEndTimeMs: 2000, timeDelta: 16, isExport: true, getInput: async () => background };
 	const graphs = [{ id: 'layer-graph', name: 'Layer', isNormalized: true, points: [] }];
 	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: graphs }, {
 		async prepare() {},
 		async render(moduleContext, layerContext) {
 			assert.deepEqual([...moduleContext.evaluatedParamValues], []);
 			assert.equal(moduleContext.paramInputs.size, 0);
-			assert.strictEqual(layerContext.input, background);
+			assert.strictEqual(await layerContext.getInput(), background);
 			assert.equal(moduleContext.time, 500);
 			assert.equal(moduleContext.isExport, true);
 			return { output: background, gpuTime: 0 };
@@ -596,7 +596,7 @@ test('passes clip progress separately from module content time and scene argumen
 // 二度生成する必要も生じる。取得先と祖先の通常の時計を使って一度だけ評価する。
 test('uses the targets normal sample time when the receiver disables motion blur', async () => {
 	const calls = [];
-	const renderer = new TimelineRenderer({ fallbackOutput: 'transparent', createLayer: layer => ({ lazyInput: true,
+	const renderer = new TimelineRenderer({ fallbackOutput: 'transparent', createLayer: layer => ({
 		async evaluate(context) {
 			const referenced = layer.id === 'receiver' ? await context.getLayerOutput('source', 'source') : null;
 			calls.push([layer.id, context.sceneTimeMs, referenced]);
@@ -616,7 +616,7 @@ test('uses the targets normal sample time when the receiver disables motion blur
 // エラー後に評価用リソースを解放し、次の正常な描画へ復旧できることも確認する。
 test('rejects recursive image dependencies at runtime without hanging', async () => {
 	let circular = true;
-	const renderer = new TimelineRenderer({ fallbackOutput: 'transparent', createLayer: layer => ({ lazyInput: true,
+	const renderer = new TimelineRenderer({ fallbackOutput: 'transparent', createLayer: layer => ({
 		async evaluate(context) {
 			if (circular) await context.getLayerOutput(layer.id === 'a' ? 'b' : 'a', 'source');
 			return { source: layer.id, composite: () => layer.id, gpuTime: 0 };

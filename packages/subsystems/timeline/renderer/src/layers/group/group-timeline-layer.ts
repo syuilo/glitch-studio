@@ -20,7 +20,6 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();
 	return {
-		lazyInput: true,
 		createChildren(context, evaluation) {
 			const group = getGroup();
 			const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport,
@@ -38,20 +37,12 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 				time: context.sceneTimeMs, isExport: context.isExport,
 				coordinateSpace: group.coordinateSpace, mask: group.mask, paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
 			const preserveDepth = group.compositingMode === 'preserveDepth';
-			const childSpace = getTimelineGroupSpace({ settings, compositingMode: group.compositingMode }, options.resolution, context.renderSpace);
-			// 親が固定した評価時刻を配下にも使い、子自身の無効化用には元の基準時刻を保持する。
-			const referenceTime = context.referenceTime && { timeMs: context.referenceTime.sceneTimeMs, timeDelta: context.referenceTime.timeDelta };
-			const result = context.childEvaluation != null ? await context.childEvaluation.evaluate()
-				: await renderer.evaluateAt(context.sceneTimeMs, group.layers.filter(isTimelineRenderLayer), context.timeDelta, context.isExport, signal, referenceTime, childSpace);
-			if (!result || signal.aborted) return { gpuTime: 0 };
+			const result = await context.childEvaluation!.evaluate();
+			if (signal.aborted) return { gpuTime: 0 };
 			// 空白区間と、有効な子が返す透明画像は異なる。後者ではreplaceも実行する。
-			const gpuTime = context.childEvaluation != null ? 0 : result.gpuTime;
-			if (!result.hasOutput) return { gpuTime };
-			const encoder = options.device.createCommandEncoder();
-			try {
-				// 奥行き維持では親変形・カメラは各子へ適用済み。ここでは合成だけを一度行う。
-				return { ...compositor.evaluate(encoder, context, result.output, settings, preserveDepth), gpuTime };
-			} finally { options.device.queue.submit([encoder.finish()]); }
+			if (!result.hasOutput) return { gpuTime: 0 };
+			// 子のGPU時間は共有セッションが集計する。投影も子へ適用済みなので重ねない。
+			return compositor.evaluate(context, result.output, settings, preserveDepth);
 		},
 		destroy() { renderer.clear(); compositor.dispose(); },
 	};

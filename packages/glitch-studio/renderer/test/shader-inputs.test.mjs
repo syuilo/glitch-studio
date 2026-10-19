@@ -109,25 +109,26 @@ test('scales image layer sources once and preserves borrowed asset textures', as
 		const renderer = createImageTimelineLayer(layer, source, {
 			device, vertex: {}, resolution: { width: 1920 * resolutionScale, height: 1080 * resolutionScale }, resolutionScale, format: 'rgba16float',
 		});
-		const context = { sceneTimeMs: 0, contentTimeMs: 0, contentEndTimeMs: 5000, clipElapsedTimeMs: 0, clipDurationMs: 5000, isExport: resolutionScale === 1, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
+		const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+		const context = { sceneTimeMs: 0, contentTimeMs: 0, contentEndTimeMs: 5000, clipElapsedTimeMs: 0, clipDurationMs: 5000, isExport: resolutionScale === 1 };
 		const signal = new AbortController().signal;
-		const first = await renderer.evaluate(context, signal);
-		const second = await renderer.evaluate({ ...context, sceneTimeMs: 1000, contentTimeMs: 1000, clipElapsedTimeMs: 1000 }, signal);
-		assert.equal(first.output.texture, second.output.texture);
-		assert.deepEqual([first.output.texture.width, first.output.texture.height], [3840 * resolutionScale, 2160 * resolutionScale]);
+		const first = (await renderer.evaluate(context, signal)).composite(background);
+		const second = (await renderer.evaluate({ ...context, sceneTimeMs: 1000, contentTimeMs: 1000, clipElapsedTimeMs: 1000 }, signal)).composite(background);
+		assert.equal(first.texture, second.texture);
+		assert.deepEqual([first.texture.width, first.texture.height], [3840 * resolutionScale, 2160 * resolutionScale]);
 		assert.equal(calls.draws, resolutionScale === 1 ? 0 : 1);
 		assert.equal(calls.textures.length, resolutionScale === 1 ? 1 : 2);
-		if (resolutionScale === 1) assert.equal(first.output.texture, source);
-		else assert.equal(first.output.texture.format, 'rgba16float');
-		assert.equal(submissions, 2);
+		if (resolutionScale === 1) assert.equal(first.texture, source);
+		else assert.equal(first.texture.format, 'rgba16float');
+		assert.equal(submissions, 4);
 		await renderer.evaluate(context, AbortSignal.abort());
-		assert.equal(submissions, 2);
+		assert.equal(submissions, 4);
 		renderer.destroy();
 		assert.equal(source.destroyed, false);
 		assert.ok(calls.textures.filter(texture => texture !== source).every(texture => texture.destroyed));
 		assert.ok(calls.buffers.every(buffer => buffer.destroyed));
 		await renderer.evaluate(context, signal);
-		assert.equal(submissions, 2);
+		assert.equal(submissions, 4);
 	}
 });
 

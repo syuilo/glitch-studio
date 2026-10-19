@@ -463,6 +463,24 @@ test('includes default public primary inputs in the image dependency graph', () 
 	assert.equal(f.validation.errorMessage.value, null);
 });
 
+// 【Inlineの主入力変更とUndoで、既定の下層入力による循環を再検証する】
+// 公開定義の再検証だけでは、追加・解除された画像依存がSceneの循環診断へ反映されない。
+// 下層から上層素材を読む有効な配線を使い、主入力指定による循環の導入と解消の両方を確認する。
+test('revalidates image cycles when an inline Visual Module primary input changes', () => {
+	const visual = visualModule([]);
+	visual.paramDefs = [{ id: 'image', nameForReference: 'Image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) }];
+	const inline = { ...imageEffectLayer('inline'), layerType: 'inlineVisualModule', visualModule: visual, visualModuleParamValues: {} };
+	const f = fixture([], [scene('scene', [inline, imageEffectLayer('lower', outputReference('inline'))])]);
+	const target = { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' };
+	assert.equal(f.validation.errorMessage.value, null);
+	for (const primaryInputId of ['image', null, 'image', null]) {
+		inline.visualModule.primaryInputId = primaryInputId;
+		f.validation.update([{ type: 'visualModule', target }]);
+		if (primaryInputId == null) assert.equal(f.validation.errorMessage.value, null);
+		else assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	}
+});
+
 // 【配列・構造体の内部のcanNodeを、Visual Moduleの公開画像ポートと混同しない】
 // Inノードが公開するのはルートの画像型だけで、内部BindingはCPU引数として評価される。
 // UIがまだ公開していない保存値でも、画像Bindingを受け入れて描画中に失敗させない。

@@ -65,7 +65,6 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	}));
 	let disposed = false;
 	return {
-		lazyInput: true,
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
@@ -73,11 +72,11 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			const references = new Map<string, TimelineImage>();
 			let lowerInput: TimelineImage | null = null;
 			for (const { param: binding } of walkParameterLeaves<TimelineEffectParameterBinding>(definition.paramDefs, Object.fromEntries(parameters.map(parameter => [parameter.key, parameter.binding])))) {
-				if (binding.inputSource === 'layerInput' && lowerInput == null) lowerInput = await context.getInput?.() ?? context.input;
+				if (binding.inputSource === 'layerInput' && lowerInput == null) lowerInput = await context.getInput();
 				if (binding.inputSource !== 'anotherLayerOutput') continue;
 				const key = JSON.stringify([binding.layerId, binding.outputStage]);
 				if (references.has(key)) continue;
-				let image = await context.getLayerOutput?.(binding.layerId, binding.outputStage) ?? { kind: 'uniform' as const, value: [0, 0, 0, 0] };
+				let image = await context.getLayerOutput(binding.layerId, binding.outputStage);
 				if (signal.aborted) return { gpuTime: 0 };
 				if (binding.outputStage !== 'source' || image.region != null) {
 					let frame = referenceFrames.get(key);
@@ -94,7 +93,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			const getInput = () => {
 				if (!input) {
 					const encoder = device.createCommandEncoder();
-					input = inputFrame.renderInput(encoder, lowerInput ?? context.input);
+					input = inputFrame.renderInput(encoder, lowerInput!);
 					device.queue.submit([encoder.finish()]);
 				}
 				return input;
@@ -139,7 +138,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 				const settings = compositing.evaluate({
 					time: context.sceneTimeMs, isExport: context.isExport,
 					coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
-				return { ...compositor.evaluate(encoder, context, { kind: 'texture', texture }, settings), gpuTime: 0 };
+				return { ...compositor.evaluate(context, { kind: 'texture', texture }, settings), gpuTime: 0 };
 			} finally {
 				// 次のフレームによる出力の再利用・破棄より先に、その出力を読む合成もsubmitする。
 				device.queue.submit([encoder.finish()]);

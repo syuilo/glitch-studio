@@ -72,7 +72,7 @@ export class ProjectRenderValidation {
 					else {
 						// 公開定義の型・canNodeの変更は、Bindingの形が同じでも引数の許可条件を変える。
 						// Inlineの利用先は所有レイヤー一つなので、参照索引を経由せず再検証する。
-						this.checkLayer(change.target.sceneId, change.target.inlineVisualModuleLayerId, false, true);
+						this.checkLayer(change.target.sceneId, change.target.inlineVisualModuleLayerId, true, true);
 					}
 				} else if (visualModule) {
 					this.visualModules.set(visualModuleTargetKey(change.target), visualModule);

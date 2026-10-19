@@ -317,7 +317,7 @@ test('borrows lower composites for secondary inputs and preserves premultiplied 
 	assert.equal(f.calls.passes.length, 0);
 	const direct = createEffectTimelineLayer(top, definition, f.implementation, f.directOptions);
 	t.after(() => direct.destroy());
-	await direct.evaluate({ sceneTimeMs: 350, contentTimeMs: 270.5, timeDelta: 0, isExport: false, input: { kind: 'uniform', value: [0.25, 0, 0, 0.5] } }, new AbortController().signal);
+	await direct.evaluate({ sceneTimeMs: 350, contentTimeMs: 270.5, timeDelta: 0, isExport: false, getInput: async () => ({ kind: 'uniform', value: [0.25, 0, 0, 0.5] }) }, new AbortController().signal);
 	assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0.25, 0, 0, 0.5] });
 });
 
@@ -530,6 +530,38 @@ test('routes an explicit public primary input through a Visual Module without re
 	const [source, receiver] = f.calls.renders;
 	assert.equal(receiver.params.input.texture, source.outputDataMap.output.texture);
 	assert.equal(receiver.params.input.texture.width, 80);
+});
+
+// 【公開入力の削除では、共有していた確定画像を解放して残る入力だけを再確保する】
+// 公開定義の編集は配置とその履歴を維持するため、配置のdestroyだけでは削除入力のGPU画像が残る。
+// flat Group内で画面外へ広がる下層を使い、実際にScene枠確定テクスチャが必要な経路を通す。
+// 未接続の主入力を削除しても、同じ画像を使う別の公開入力は新しいテクスチャで描画を続ける。
+test('releases deleted public input frames while preserving the placement and remaining inputs', async t => {
+	const f = fixture(t);
+	const visualModule = { id: 'visual', name: 'Visual', paramDefs: ['unused', 'kept'].map(id => ({ ...color, id, nameForReference: id })),
+		primaryInputId: 'unused', primaryOutputId: 'output', automationGraphs: [],
+		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
+		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'kept', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };
+	const publicLayer = { id: 'public', name: 'Public', layerType: 'visualModule', visualModuleId: 'visual', clips: [clip('clip', 100, 1000)],
+		isDisabled: false, automationGraphs: [], compositingParamValues: compositing(), visualModuleParamValues: { kept: { inputSource: 'layerInput' } } };
+	const background = layer('background');
+	background.compositingParamValues.position = literal([2, 0]);
+	let publicOutput;
+	f.manager.createCompositingObserver = (_sceneId, layerId) => source => { if (layerId === 'public') publicOutput = source; };
+	await f.setup([{ id: 'group', name: 'Group', layerType: 'group', layers: [publicLayer, background], isDisabled: false,
+		automationGraphs: [], compositingParamValues: compositing(), audioParamValues: {} }], { visualModules: [visualModule] });
+	await f.manager.renderTimelineFrame(350, 0);
+	const firstFrame = publicOutput.texture;
+	const backgroundInstance = f.calls.instances[0];
+	assert.equal(firstFrame.width, 320);
+	assert.equal(firstFrame.destroyed, false);
+	f.manager.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'visual' },
+		visualModule: { ...visualModule, primaryInputId: null, paramDefs: visualModule.paramDefs.filter(def => def.id === 'kept') } }]);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.equal(firstFrame.destroyed, true);
+	assert.notStrictEqual(publicOutput.texture, firstFrame);
+	assert.equal(publicOutput.texture.destroyed, false);
+	assert.equal(backgroundInstance.disposed, false);
 });
 
 // 【不透明度0のGroupでも素材出力には子の合成画像を返す】

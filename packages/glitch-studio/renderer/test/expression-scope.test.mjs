@@ -221,7 +221,33 @@ test('keeps layer defaults and excludes primary inputs from evaluated values', a
 		},
 	}, { async prepare(context) { resolved = context; }, render() {}, destroy() {} });
 	const input = { kind: 'uniform', value: [1, 0, 0, 1] };
-	await adapter.evaluate({ ...clipFrame, timeDelta: 0, input }, new AbortController().signal);
+	await adapter.evaluate({ ...clipFrame, timeDelta: 0, getInput: async () => input }, new AbortController().signal);
 	assert.deepEqual([...resolved.evaluatedParamValues], [['gain-id', 8], ['missing', 9], ['invalid', 0], ['export', true]]);
 	assert.strictEqual(resolved.paramInputs.get('input'), input);
+});
+
+// 【公開入力間で同じ画像のScene枠確定を共有し、次の評価では作り直す】
+// 元の画像が同じなら下層入力と別レイヤー参照でも同じ変換結果を使える。
+// 素材をそのまま渡す入力には変換を適用せず、同じGPUオブジェクトを再利用する次フレームへ
+// 変換結果を持ち越して画像の更新を失うことも防ぐ。
+test('shares framed public image inputs only within the current evaluation', async () => {
+	const image = { kind: 'texture', texture: {} };
+	const definitions = ['left', 'right', 'background', 'raw'].map(id => ({ ...def(id), dataType: { kind: 'color' }, canNode: true }));
+	const reference = outputStage => ({ inputSource: 'anotherLayerOutput', layerId: 'source', outputStage });
+	const converted = [];
+	let resolved;
+	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: null }, {
+		automationGraphs: [], visualModuleParamValues: { left: reference('rendered'), right: reference('rendered'), background: { inputSource: 'layerInput' }, raw: reference('source') },
+	}, {
+		getImageInput(input) { assert.strictEqual(input, image); const framed = { kind: 'texture', texture: {} }; converted.push(framed); return framed; },
+		async prepare(context) { resolved = context.paramInputs; }, render() {}, destroy() {},
+	});
+	const context = { ...clipFrame, timeDelta: 0, getInput: async () => image, getLayerOutput: async () => image };
+	for (let evaluation = 0; evaluation < 2; evaluation++) {
+		await adapter.evaluate(context, new AbortController().signal);
+		assert.equal(converted.length, evaluation + 1);
+		for (const id of ['left', 'right', 'background']) assert.strictEqual(resolved.get(id), converted[evaluation]);
+		assert.strictEqual(resolved.get('raw'), image);
+	}
+	assert.notStrictEqual(converted[0], converted[1]);
 });

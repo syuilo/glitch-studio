@@ -22,7 +22,7 @@ export function createVisualModuleTimelineLayer(
 	layerSource: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | (() => TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer),
 	renderer: {
 		getAudioInput?: TimelineAudioInputProvider;
-		getImageInput?: (input: TimelineImage, parameterId: VisualModuleCustomParameterId, sceneFrame: boolean) => TimelineImage;
+		getImageInput?: (input: TimelineImage, parameterId: VisualModuleCustomParameterId) => TimelineImage;
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
 		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<TimelineImage>) => ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>;
 		destroy: () => void;
@@ -30,12 +30,14 @@ export function createVisualModuleTimelineLayer(
 ): TimelineLayerRenderer<TimelineImage> {
 	const evaluator = new TimelineParameterBindingEvaluator();
 	return {
-		lazyInput: true,
 		evaluate: async (context, signal) => {
 			if (signal.aborted) return { gpuTime: 0 };
 			const visualModule = typeof moduleSource === 'function' ? moduleSource() : moduleSource;
 			const layer = typeof layerSource === 'function' ? layerSource() : layerSource;
 			const paramInputs = new Map<VisualModuleCustomParameterId, TimelineImage>();
+			// 同じ画像を複数ポートへ渡す場合も、Scene枠への確定は一度だけ行う。
+			// GPUTextureの内容は次のサンプルで変わるため、共有は今回の評価内に限る。
+			const framedImageInputs = new Map<TimelineImage, TimelineImage>();
 			const evaluationContext = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			const audioParamInputs = new Map<VisualModuleCustomParameterId, AudioInput | null>();
@@ -43,11 +45,15 @@ export function createVisualModuleTimelineLayer(
 			for (const def of visualModule.paramDefs) {
 				const value = layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def);
 				if (value.inputSource === 'layerInput' || value.inputSource === 'anotherLayerOutput') {
-					const image = value.inputSource === 'layerInput' ? await context.getInput?.() ?? context.input
-						: await context.getLayerOutput?.(value.layerId, value.outputStage) ?? { kind: 'uniform' as const, value: [0, 0, 0, 0] };
+					const image = value.inputSource === 'layerInput' ? await context.getInput()
+						: await context.getLayerOutput(value.layerId, value.outputStage);
 					if (signal.aborted) return { gpuTime: 0 };
-					paramInputs.set(def.id, renderer.getImageInput?.(image, def.id,
-						value.inputSource === 'layerInput' || value.outputStage !== 'source' || image.region != null) ?? image);
+					const sceneFrame = value.inputSource === 'layerInput' || value.outputStage !== 'source' || image.region != null;
+					if (sceneFrame && renderer.getImageInput != null) {
+						const framedInput = framedImageInputs.get(image) ?? renderer.getImageInput(image, def.id);
+						framedImageInputs.set(image, framedInput);
+						paramInputs.set(def.id, framedInput);
+					} else paramInputs.set(def.id, image);
 					continue;
 				}
 				if (def.dataType.kind === 'audioSource') {

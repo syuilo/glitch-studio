@@ -25,11 +25,10 @@ export type TimelineLayerContext<Output> = {
 	clipDurationMs: number;
 	contentEndTimeMs: number;
 	timeDelta: number;
-	input: Output;
 	/** 素材評価中は必要な場合だけ下層を要求し、独立した上層素材への参照を可能にする。 */
-	getInput?: () => Promise<Output>;
-	getLayerOutput?: (layerId: string | null, stage: TimelineLayerOutputStage) => Promise<Output>;
-	deferCompositing?: boolean;
+	getInput: () => Promise<Output>;
+	getLayerOutput: (layerId: string | null, stage: TimelineLayerOutputStage) => Promise<Output>;
+	/** コンテナではcreateChildrenの戻り値を素材評価前に設定する。 */
 	childEvaluation?: TimelineEvaluation<Output>;
 };
 
@@ -51,7 +50,6 @@ export type TimelineLayerRenderer<Output> = {
 	// 準備・描画・GPUコマンドの送信・計測を含む。非同期待機後はsignalを確認し、
 	// 中断されていれば次の描画へ進まない。送信済みのGPU処理は取り消せない。
 	evaluate: (context: TimelineLayerContext<Output>, signal: AbortSignal) => Promise<TimelineLayerEvaluation<Output>>;
-	lazyInput?: boolean;
 	createChildren?: (context: TimelineLayerContext<Output>, options: TimelineEvaluationOptions<Output>) => TimelineEvaluation<Output>;
 	destroy: () => void;
 };
@@ -194,14 +192,12 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				clipElapsedTimeMs: clip != null ? evaluationTime - clip.startMs : 0, clipDurationMs: clip?.durationMs ?? 0,
 				// 新規配置の過去の履歴は再現しない。固定した内容の経過時間も一度だけ進める。
 				timeDelta: isNewLayer ? 0 : entry.forceDisableMotionBlur && referenceTime != null ? referenceTime.timeDelta : timeDelta,
-				input: this.options.fallbackOutput, getInput: async () => (await getPrevious()).output,
+				getInput: async () => (await getPrevious()).output,
 				// 参照する側のブラー無効化では取得先の時計を変えず、登録済みの通常描画を読む。
-				getLayerOutput: (id, stage) => session.getLayerOutput(id, stage), deferCompositing: true,
+				getLayerOutput: (id, stage) => session.getLayerOutput(id, stage),
 			};
 			context.childEvaluation = renderer.createChildren?.(context, options);
 			const prepare = () => session.memoize(entry.id, 'prepare', async () => {
-				signal.throwIfAborted();
-				if (renderer.lazyInput !== true) context.input = await context.getInput!();
 				signal.throwIfAborted();
 				const result = await renderer.evaluate(context, signal);
 				signal.throwIfAborted();
