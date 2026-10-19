@@ -2004,8 +2004,13 @@ test('reloads without undo and preserves modes paths and embedded bytes through 
 		fileDataType: 'application/octet-stream', isExternalReference: false, sourceFilePath: 'C:/original/source.bin', fileData: new Blob(['old']), thumbnailSequence: null }] }));
 	const manager = appContext.projectContext.stateManager;
 	const current = () => manager.state.assets.value[0];
-	const action = text => getAssetMenu(current()).find(item => item.text === text).action();
-	await action('Select external reference...');
+	// 翻訳や省略記号の変更で操作の検証が壊れないよう、表示文言ではなくIDで選ぶ。
+	const action = id => {
+		const menuItem = getAssetMenu(current()).find(item => item.id === id);
+		assert.ok(menuItem != null, `Asset menu action not found: ${id}`);
+		return menuItem.action();
+	};
+	await action('convertToExternalReference');
 	await setImmediate();
 	assert.equal(chosenDefault, 'C:/original/source.bin');
 	assert.equal(current().isExternalReference, true);
@@ -2014,7 +2019,7 @@ test('reloads without undo and preserves modes paths and embedded bytes through 
 	assert.equal(current().name, 'Original display name');
 	const historyLength = manager.undoStack.value.length;
 	version = 2;
-	await action('Reload');
+	await action('reload');
 	await setImmediate();
 	assert.equal(manager.undoStack.value.length, historyLength);
 	assert.match(current().fileData.url, /external-assets\/2\//);
@@ -2027,7 +2032,7 @@ test('reloads without undo and preserves modes paths and embedded bytes through 
 	await setImmediate();
 	assert.equal(current().isExternalReference, true);
 	assert.match(current().fileData.url, /external-assets\/2\//);
-	await action('Embed in project');
+	await action('embed');
 	await setImmediate();
 	assert.equal(current().isExternalReference, false);
 	assert.equal(await current().fileData.text(), 'new');

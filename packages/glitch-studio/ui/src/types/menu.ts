@@ -10,6 +10,8 @@ export type MenuAction = (ev: PointerEvent) => void;
 
 export interface MenuButton {
 	type?: 'button';
+	/** 表示文言や並び順に依存せず操作を識別するためのID。 */
+	id?: string;
 	text: Text;
 	caption?: Text | null | ComputedRef<null>;
 	icon?: string | null;

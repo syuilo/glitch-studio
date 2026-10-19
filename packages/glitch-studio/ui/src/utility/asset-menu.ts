@@ -113,24 +113,27 @@ export function getAssetMenu(asset: ProjectAsset): MenuItem[] {
 	}
 
 	return [{
+		id: 'rename',
 		text: i18n.ts.Rename,
 		icon: 'ti ti-cursor-text',
 		action: rename,
 	}, {
+		id: 'replace',
 		text: i18n.ts.Replace,
 		icon: 'ti ti-replace',
 		action: replace,
 		disabled: asset.isExternalReference && window.desktop == null,
 	}, ...(asset.isExternalReference ? [
-		{ text: i18n.ts._Assets.Reload, icon: 'ti ti-refresh', disabled: window.desktop == null, action: reload },
-		{ text: `${i18n.ts._Assets.Relink}...`, icon: 'ti ti-link', disabled: window.desktop == null, action: chooseReference },
-		{ text: i18n.ts._Assets.Embed, icon: 'ti ti-package', disabled: window.desktop == null, action: embed },
+		{ id: 'reload', text: i18n.ts._Assets.Reload, icon: 'ti ti-refresh', disabled: window.desktop == null, action: reload },
+		{ id: 'relink', text: `${i18n.ts._Assets.Relink}...`, icon: 'ti ti-link', disabled: window.desktop == null, action: chooseReference },
+		{ id: 'embed', text: i18n.ts._Assets.Embed, icon: 'ti ti-package', disabled: window.desktop == null, action: embed },
 	] : [
-		{ text: `${i18n.ts._Assets.ConvertToExternalReference}...`, icon: 'ti ti-link', disabled: window.desktop == null, action: chooseReference },
-		{ text: `${i18n.ts._Assets.ExportOriginal}...`, icon: 'ti ti-download', disabled: window.desktop == null, action: exportFile },
+		{ id: 'convertToExternalReference', text: `${i18n.ts._Assets.ConvertToExternalReference}...`, icon: 'ti ti-link', disabled: window.desktop == null, action: chooseReference },
+		{ id: 'exportOriginal', text: `${i18n.ts._Assets.ExportOriginal}...`, icon: 'ti ti-download', disabled: window.desktop == null, action: exportFile },
 	]), {
 		type: 'divider',
 	}, {
+		id: 'remove',
 		text: i18n.ts.Remove,
 		icon: 'ti ti-trash',
 		danger: true,
