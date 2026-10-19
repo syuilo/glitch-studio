@@ -28,6 +28,27 @@ export function validateReleaseVersion(version) {
 	return version;
 }
 
+export function resolveReleaseVersion(currentVersion, mode, explicitVersion = null) {
+	validateReleaseVersion(currentVersion);
+	if (mode === 'explicit') {
+		const version = validateReleaseVersion(explicitVersion);
+		if (semver.lt(version, currentVersion)) throw new Error('The release must not be older than the version in master.');
+		return version;
+	}
+	if (!['prerelease', 'patch', 'minor', 'major'].includes(mode)) {
+		throw new Error('Select explicit, prerelease, patch, minor or major as the version mode.');
+	}
+	if (explicitVersion != null && explicitVersion !== '') throw new Error('Leave version empty when incrementing the current version.');
+	// 正式版から開発版を作る場合は、alpha/betaなどの識別子を明示指定してもらう。
+	// 自動では既存の開発段階だけを引き継ぎ、意図せず「次のpatch-0」を公開しない。
+	if (mode === 'prerelease' && semver.prerelease(currentVersion) == null) {
+		throw new Error('prerelease mode requires a current development version. Specify the first development version explicitly.');
+	}
+	const version = semver.inc(currentVersion, mode);
+	if (version == null) throw new Error('Could not increment the current version.');
+	return validateReleaseVersion(version);
+}
+
 export async function verifyReleaseArtifacts(directory, version, platform = 'all') {
 	validateReleaseVersion(version);
 	if (!['all', 'windows', 'macos'].includes(platform)) throw new Error('Expected all, windows or macos artifacts');
@@ -84,9 +105,14 @@ async function getRelease(tag) {
 
 async function prepareRelease() {
 	if (process.env.GITHUB_REF !== 'refs/heads/master') throw new Error('Run this workflow on master.');
-	const version = validateReleaseVersion(process.env.RELEASE_VERSION);
 	const sourceSha = process.env.GITHUB_SHA;
 	if (!/^[a-f0-9]{40}$/.test(sourceSha ?? '')) throw new Error('Missing source commit');
+	const filePath = path.join(rootDirectory, 'package.json');
+	// dispatch時のコミットから毎回計算する。タグ作成後の再実行でも二重に増分しない。
+	const source = await command('git', ['show', `${sourceSha}:package.json`]);
+	const metadata = JSON.parse(source);
+	const version = resolveReleaseVersion(metadata.version, process.env.RELEASE_VERSION_MODE ?? 'explicit', process.env.RELEASE_VERSION);
+	console.log(`Release version: ${metadata.version} -> ${version}`);
 	const tag = `v${version}`;
 	const release = await getRelease(tag);
 	if (release != null && !release.isDraft) throw new Error('This version has already been published. Use a new version.');
@@ -99,10 +125,6 @@ async function prepareRelease() {
 		const committed = JSON.parse(await fs.readFile(path.join(rootDirectory, 'package.json'), 'utf8'));
 		if (committed.version !== version) throw new Error('The existing release tag has a different version.');
 	} else {
-		const filePath = path.join(rootDirectory, 'package.json');
-		const source = await fs.readFile(filePath, 'utf8');
-		const metadata = JSON.parse(source);
-		if (semver.lt(version, metadata.version)) throw new Error('The release must not be older than the version in master.');
 		metadata.version = version;
 		await fs.writeFile(filePath, `${JSON.stringify(metadata, null, '\t')}\n`);
 		await command('git', ['config', 'user.name', 'github-actions[bot]']);

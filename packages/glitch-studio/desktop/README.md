@@ -53,12 +53,26 @@ macOSでは`open-file`イベントを`ready`より前から購読します。`Pr
 
 ## リリース
 
-GitHub Actionsの**Release**を選び、ブランチを`master`、`version`を例えば`2.0.0-alpha.2`として実行します。`v`接頭辞や`+build`メタデータは入力しません。開発版か正式版かはSemVerの開発版識別子から判断します。
+GitHub Actionsの**Release**を選び、ブランチを`master`として実行します。`version_mode`で明示指定または現在のバージョンのインクリメントを選びます。
+
+| version_mode | 動作 | 例 |
+| --- | --- | --- |
+| `explicit`（既定） | `version`へリリース番号を入力する | `2.0.0-beta.1`を入力 |
+| `prerelease` | 既存の開発段階を維持して開発版番号を増やす | `2.0.0-alpha.4` → `2.0.0-alpha.5` |
+| `patch` | node-semverのpatch増分 | `1.2.3` → `1.2.4` |
+| `minor` | node-semverのminor増分 | `1.2.3` → `1.3.0` |
+| `major` | node-semverのmajor増分 | `1.2.3` → `2.0.0` |
+
+`explicit`の場合だけ`version`を入力し、それ以外では空欄にします。`v`接頭辞や`+build`メタデータは使用できません。開発版か正式版かは確定したSemVerの開発版識別子から判断します。
+
+増分の起点は、dispatch時点で固定したコミットのルート`package.json`です。GitHub Releasesの公開順や実行待ちの間に進んだmasterは参照せず、元の実行を再実行しても二重に増分しません。確定したバージョンはprepareジョブの出力として各OSのビルドと公開ジョブへ渡します。
+
+`prerelease`は現在が開発版の場合だけ使用できます。正式版から開発版を始める場合やalphaからbetaなどへ段階を変える場合は、`explicit`で番号を指定してください。`patch`・`minor`・`major`は[node-semverの規則](https://github.com/npm/node-semver#functions)に従い、開発版を正式版へ昇格させる場合があります。例えば`2.0.0-alpha.4`では、いずれも`2.0.0`になります。
 
 Workflowは以下を実行します。
 
 1. dispatch時点の`github.sha`を固定する。実行待ちやビルド中の追加コミットは含めない。
-2. ルート`package.json`を指定バージョンへ変更し、リリース用コミットを作る。UIの表示バージョンとElectronのバージョンはこの値を使う。
+2. 選択した方法でバージョンを確定し、ルート`package.json`をその番号へ変更してリリース用コミットを作る。UIの表示バージョンとElectronのバージョンはこの値を使う。
 3. lint・型チェック・テストを実行する。未公開のリリースコミットをGit bundleで各ビルドジョブへ渡し、WindowsランナーでNSIS、macOSランナーでarm64・x64のDMGを生成する。ASARの依存、macOSアプリの署名とDMGの整合性も検証する。
 4. masterが元のコミットのままであることを確認し、リリース用コミットと`v<version>`タグをatomic pushする。force pushは使わない。
 5. Draft ReleaseへSetup.exe・`.blockmap`・`latest.yml`・`Glitch-Studio-<version>-mac-arm64.dmg`・`Glitch-Studio-<version>-mac-x64.dmg`をアップロードし、ダウンロードし直してローカルの成果物と比較する。すべてのOSの成果物を必須とする。

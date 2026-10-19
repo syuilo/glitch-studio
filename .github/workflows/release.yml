@@ -3,9 +3,20 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version without v (for example 2.0.0-alpha.2)'
+      version_mode:
+        description: 'Version selection (prerelease increments the current development version)'
         required: true
+        type: choice
+        default: explicit
+        options:
+          - explicit
+          - prerelease
+          - patch
+          - minor
+          - major
+      version:
+        description: 'Version for explicit mode only, without v (leave empty when incrementing)'
+        required: false
         type: string
 
 permissions:
@@ -15,9 +26,6 @@ concurrency:
   group: desktop-release
   cancel-in-progress: false
 
-env:
-  RELEASE_VERSION: ${{ inputs.version }}
-
 jobs:
   prepare:
     if: github.ref == 'refs/heads/master'
@@ -25,7 +33,10 @@ jobs:
     timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION_MODE: ${{ inputs.version_mode }}
+      RELEASE_VERSION: ${{ inputs.version }}
     outputs:
+      version: ${{ steps.prepare.outputs.version }}
       source_sha: ${{ steps.prepare.outputs.source_sha }}
       release_sha: ${{ steps.prepare.outputs.release_sha }}
     steps:
@@ -85,6 +96,7 @@ jobs:
             command: pnpm dist:desktop:mac
             artifacts: release/*-mac-*.dmg
     env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
       RELEASE_COMMIT_SHA: ${{ needs.prepare.outputs.release_sha }}
     steps:
       - name: Checkout the dispatch commit
@@ -141,6 +153,7 @@ jobs:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
       RELEASE_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
       RELEASE_COMMIT_SHA: ${{ needs.prepare.outputs.release_sha }}
     steps:

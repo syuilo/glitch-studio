@@ -6,13 +6,66 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import yaml from 'js-yaml';
 import asar from '@electron/asar';
-import { validateReleaseVersion, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
+import { validateReleaseVersion, resolveReleaseVersion, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
 
 // 【入力は表記の揃ったSemVerに限定し、同一バージョンの別配布物を作らない】
 // v接頭辞・空白・build metadataを受け付けると、タグやWindows版のバージョンが曖昧になる。
 test('accepts canonical versions and rejects ambiguous or executable input', () => {
 	for (const version of ['2.0.0', '2.0.0-alpha.2', '2.0.0-beta.1', '2.0.0-rc.1']) assert.equal(validateReleaseVersion(version), version);
 	for (const version of ['', 'v2.0.0', '2.0', '02.0.0', '2.0.0 ', '2.0.0+build.1', '2.0.0; echo bad', null]) assert.throws(() => validateReleaseVersion(version));
+});
+
+// 【明示指定では従来のバージョン検証とダウングレード禁止を維持する】
+// インクリメントの追加によって、不正なタグや古い配布物を作れるようにしない。
+// 現在と同じ番号は、まだ公開していないバージョンをリリースする既存の運用で使用する。
+test('resolves explicit versions and rejects missing, invalid or older versions', () => {
+	assert.equal(resolveReleaseVersion('2.0.0-alpha.4', 'explicit', '2.0.0-beta.1'), '2.0.0-beta.1');
+	assert.equal(resolveReleaseVersion('2.0.0', 'explicit', '2.0.0'), '2.0.0');
+	for (const version of ['', null, 'v2.0.0', '2.0.0+build.1']) {
+		assert.throws(() => resolveReleaseVersion('2.0.0-alpha.4', 'explicit', version), /canonical SemVer/);
+	}
+	assert.throws(() => resolveReleaseVersion('2.0.0', 'explicit', '2.0.0-alpha.4'), /must not be older/);
+});
+
+// 【正式版からpatch・minor・majorを選んで次のバージョンを生成する】
+// 上位の番号を増やすときは下位の番号をリセットし、手入力の計算ミスを避ける。
+test('increments stable patch, minor and major versions', () => {
+	assert.equal(resolveReleaseVersion('1.2.3', 'patch'), '1.2.4');
+	assert.equal(resolveReleaseVersion('1.2.3', 'minor', ''), '1.3.0');
+	assert.equal(resolveReleaseVersion('1.2.3', 'major'), '2.0.0');
+});
+
+// 【開発版番号のインクリメントは既存のalpha・beta・rcなどの段階を維持する】
+// 開発版を続けて公開するとき、意図せず正式版や別の開発段階へ切り替わらないようにする。
+test('increments prereleases while preserving their existing identifiers', () => {
+	for (const identifier of ['alpha', 'beta', 'rc']) {
+		assert.equal(resolveReleaseVersion(`2.0.0-${identifier}.4`, 'prerelease'), `2.0.0-${identifier}.5`);
+	}
+	assert.equal(resolveReleaseVersion('2.0.0-alpha', 'prerelease'), '2.0.0-alpha.0');
+	assert.equal(resolveReleaseVersion('2.0.0-4', 'prerelease'), '2.0.0-5');
+});
+
+// 【開発版からのpatch・minor・majorはnode-semverと同じ正式版への昇格規則を使う】
+// 例えば2.0.0-alpha.4のpatchは2.0.0になるため、配布時の意図に関わる挙動として固定する。
+test('promotes prereleases according to semver increment rules', () => {
+	for (const mode of ['patch', 'minor', 'major']) {
+		assert.equal(resolveReleaseVersion('2.0.0-alpha.4', mode), '2.0.0');
+	}
+	assert.equal(resolveReleaseVersion('2.1.3-beta.2', 'minor'), '2.2.0');
+	assert.equal(resolveReleaseVersion('2.1.3-beta.2', 'major'), '3.0.0');
+});
+
+// 【曖昧な入力と未指定の開発段階を、コミットやReleaseの作成前に拒否する】
+// 選択と手入力が競合した場合に一方を黙って無視せず、正式版から「次のpatch-0」も自動生成しない。
+// 基準バージョンや増分後の値がSemVerの範囲外になる場合も公開を止める。
+test('rejects conflicting inputs, unsupported modes and invalid increment bases', () => {
+	assert.throws(() => resolveReleaseVersion('1.2.3', 'patch', '1.2.4'), /Leave version empty/);
+	for (const mode of ['', null, 'premajor', 'unsupported']) {
+		assert.throws(() => resolveReleaseVersion('1.2.3', mode), /version mode/);
+	}
+	assert.throws(() => resolveReleaseVersion('1.2.3', 'prerelease'), /requires a current development version/);
+	assert.throws(() => resolveReleaseVersion('invalid', 'patch'), /canonical SemVer/);
+	assert.throws(() => resolveReleaseVersion('9007199254740991.0.0', 'major'));
 });
 
 // 【配布する最終インストーラーと更新メタデータのハッシュ・バージョン・名前を照合する】
