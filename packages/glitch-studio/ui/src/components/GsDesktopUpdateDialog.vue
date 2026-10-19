@@ -8,7 +8,6 @@
 		<template v-if="working">
 			<GsProgressBar :progress="state.phase === 'downloading' && state.progress != null ? state.progress.percent / 100 : null"/>
 			<div v-if="state.phase === 'downloading' && state.progress != null" class="_monospace">{{ Math.floor(state.progress.percent) }}% · {{ (state.progress.transferred / 1024 ** 2).toFixed(1) }} / {{ (state.progress.total / 1024 ** 2).toFixed(1) }} MiB</div>
-			<div>{{ i18n.ts._DesktopUpdate.DoNotClose }}</div>
 		</template>
 		<template v-else>
 			<div role="alert" data-test-desktop-update-error>{{ errorMessage }}</div>
