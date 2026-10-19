@@ -251,7 +251,7 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 			text: visualModule.name,
 			active: previewPlayback.liveVisualModuleId.value === visualModule.id,
 			action: () => {
-				// 同じLIVE対象の再選択では、Preview Paramsで設定した値を初期化しない。
+				// 同じVisual Module Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
 				if (previewPlayback.liveVisualModuleId.value !== visualModule.id) previewPlayback.startLive(visualModule.id);
 			},
 		})),

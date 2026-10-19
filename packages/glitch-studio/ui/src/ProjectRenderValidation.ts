@@ -96,7 +96,7 @@ export class ProjectRenderValidation {
 			} else if (change.type === 'projectResolution' || change.type === 'timelineRenderSettings') this.checkSettings();
 		}
 		if (this.liveInputs && changes.some(change => change.type === 'visualModule' || change.type === 'visualModuleRegistration')) {
-			this.removeUnit('LIVE inputs');
+			this.removeUnit('Visual Module Live Preview inputs');
 			this.setLiveInputs(this.liveInputs.visualModuleId, this.liveInputs.bindings);
 		}
 		this.publish();
@@ -104,12 +104,12 @@ export class ProjectRenderValidation {
 
 	public setLiveInputs(visualModuleId: string | null, bindings: VisualModuleArgumentBindings = {}) {
 		this.liveInputs = visualModuleId == null ? null : { visualModuleId, bindings };
-		if (visualModuleId == null) { this.removeUnit('LIVE inputs'); this.publish(); return; }
+		if (visualModuleId == null) { this.removeUnit('Visual Module Live Preview inputs'); this.publish(); return; }
 		const visualModule = this.state.visualModules.value.find(visualModule => visualModule.id === visualModuleId);
-		if (!visualModule) { this.removeUnit('LIVE inputs'); this.publish(); return; }
+		if (!visualModule) { this.removeUnit('Visual Module Live Preview inputs'); this.publish(); return; }
 		const values = visualModule.paramDefs.map(def => [def, bindings[def.id] ?? def.defaultValue] as const);
 		const dependencies = new Set<string>();
-		this.check('LIVE inputs', [visualModuleId, values.map(([def, value]) => staticParameterShape(def, value))], () => {
+		this.check('Visual Module Live Preview inputs', [visualModuleId, values.map(([def, value]) => staticParameterShape(def, value))], () => {
 			for (const [def, value] of values) inspectStaticParameter(def, value, (leaf, binding) => {
 				if (leaf.dataType.kind === 'audioSource') validateLiteralAudioSourceBinding(binding);
 				this.value(leaf, binding, dependencies);

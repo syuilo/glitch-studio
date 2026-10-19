@@ -153,7 +153,7 @@ test('validates finite fps, angles and bounded integer sample counts', () => {
 	}
 });
 
-// 【配置されたエフェクトとVisual Moduleを検査し、LIVE専用の定義を警告しない】
+// 【配置されたエフェクトとVisual Moduleを検査し、Visual Module Live Preview専用の定義を警告しない】
 // 履歴依存はノード自身の定義にあるため、直接レイヤーと内部ノードの両方を調べる必要がある。
 test('finds history effects in placed definitions only', () => {
 	const definitions = { feedback: { dependsOnRenderHistory: true }, flow: { dependsOnRenderHistory: true }, unused: { dependsOnRenderHistory: true }, fill: { dependsOnRenderHistory: false } };

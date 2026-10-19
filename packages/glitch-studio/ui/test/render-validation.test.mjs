@@ -320,7 +320,7 @@ test('latches runtime failures until an explicit retry', async () => {
 });
 
 // 【編集通知がなくても静的診断の解除後に一度だけ再生成する】
-// LIVEからTimelineへの切り替えはProjectの変更通知を出さない。
+// Visual Module Live PreviewからTimelineへの切り替えはProjectの変更通知を出さない。
 // その切り替えで診断が消えた場合にも、停止したエンジンを残してはいけない。
 test('restarts after validation clears and coalesces retry requests', async () => {
 	let created = 0;

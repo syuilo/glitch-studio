@@ -176,7 +176,7 @@ test('keeps audio time advancing during slow rendering and requests the paused p
 });
 
 // 【タイムラインの表示だけを切り替えても時刻や再生状態を変更しない】
-// LIVEから停止中のプレビューへ戻る際に、再生開始や先頭へのシークを強制しない。
+// Visual Module Live Previewから停止中のプレビューへ戻る際に、再生開始や先頭へのシークを強制しない。
 test('shows the paused timeline at its retained position', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.seekTimeline(1234);
@@ -215,7 +215,7 @@ test('suspends timeline rendering and resumes without advancing export time', t 
 	assert.equal(playback.currentTimelineTime.value, 117);
 });
 
-// 【LIVEの復帰では最後に設定した引数を復元する】
+// 【Visual Module Live Previewの復帰では最後に設定した引数を復元する】
 // 呼び出し元のオブジェクトが変更されても、エクスポート後に別の設定で再開してはいけない。
 test('restores live mode with a snapshot of the latest parameters', t => {
 	const { playback, calls } = setup(t);
@@ -270,7 +270,7 @@ test('resumes timeline playback from the stopped position', t => {
 	assert.equal(playback.currentTimelineTime.value, 34);
 });
 
-// タイムライン再生はLIVEを即座に停止し、初回RAFを待たず現在位置を表示する。
+// タイムライン再生はVisual Module Live Previewを即座に停止し、初回RAFを待たず現在位置を表示する。
 test('stops live before playing the timeline and ignores duplicate play', t => {
 	const { playback, callbacks, calls } = setup(t);
 	playback.startLive('module');
@@ -283,7 +283,7 @@ test('stops live before playing the timeline and ignores duplicate play', t => {
 	assert.equal(callbacks.size, 1);
 });
 
-// LIVE開始時に古いRAFを取り消し、遅れて呼ばれてもタイムラインを再描画しない。
+// Visual Module Live Preview開始時に古いRAFを取り消し、遅れて呼ばれてもタイムラインを再描画しない。
 test('cancels timeline playback when starting live', t => {
 	const { playback, callbacks, calls, frame } = setup(t);
 	playback.playTimeline();
@@ -301,7 +301,7 @@ test('cancels timeline playback when starting live', t => {
 	assert.deepEqual(calls, []);
 });
 
-// 同じ時刻へのシークでもLIVEを停止する。時刻のwatchに依存するとこの操作を取りこぼす。
+// 同じ時刻へのシークでもVisual Module Live Previewを停止する。時刻のwatchに依存するとこの操作を取りこぼす。
 test('seeking the current time switches live to paused timeline', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.startLive('module');
@@ -338,7 +338,7 @@ test('advances by elapsed time with an fps limit', t => {
 	assert.equal(playback.currentTimelineTime.value, 130);
 });
 
-// LIVEパラメータ更新は同一モジュールのインスタンスを維持し、タイムラインからは排他的に切り替える。
+// Visual Module Live Previewパラメータ更新は同一モジュールのインスタンスを維持し、タイムラインからは排他的に切り替える。
 test('updates live parameters without restarting the current module', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.playTimeline();

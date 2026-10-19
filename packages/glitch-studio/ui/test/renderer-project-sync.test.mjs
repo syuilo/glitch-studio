@@ -340,7 +340,7 @@ test('publishes state changes independently of renderer subscriptions', async t 
 });
 
 // 【Visual Moduleの名前変更は履歴に残し、ノードや描画インスタンスへ影響させない】
-// 表示名の変更を登録変更として送ると、名前を入力するだけでLIVEや履歴を持つエフェクトが再初期化される。
+// 表示名の変更を登録変更として送ると、名前を入力するだけでVisual Module Live Previewや履歴を持つエフェクトが再初期化される。
 // 登録済みはVisual Module自身、インラインはレイヤーの名前を変更し、Undo/Redoでも同じIDと構成を維持する。
 test('renames registered and inline Visual Modules through history without renderer patches', async t => {
 	const f = fixture(t);

@@ -18,7 +18,7 @@ type TimelineAudio = {
 };
 type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'isReady' | 'errorMessage'>;
 
-/** プレビューの切り替えと時刻更新を所有し、LIVEとタイムラインの同時再生を防ぐ。 */
+/** プレビューの切り替えと時刻更新を所有し、Visual Module Live Previewとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
 	private readonly playbackState = shallowRef<PreviewPlaybackState>({ mode: 'timeline', playing: false });
 	private readonly timelineTime = ref(0);
@@ -134,7 +134,7 @@ export class PreviewPlaybackController {
 		this.audio?.start(this.timelineTime.value, this.getDuration());
 	}
 
-	/** 編集による再描画では表示モードを切り替えない。LIVEはWorkerのループが描画する。 */
+	/** 編集による再描画では表示モードを切り替えない。Visual Module Live PreviewはWorkerのループが描画する。 */
 	public refresh() {
 		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
 			this.timelineRenderer.renderTimelineAt(this.timelineTime.value);

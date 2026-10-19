@@ -3,7 +3,7 @@
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ prettyId(visualModule?.id ?? '') }}]</button>
 		<GsButton v-if="visualModule != null" style="margin-left: auto;" :primary="previewParamsShowing" icon="ti ti-adjustments-horizontal" @click="previewParamsShowing = !previewParamsShowing">{{ i18n.ts._VisualModule.PreviewParameters }}</GsButton>
-		<GsButton v-if="visualModule != null" style="margin-left: 0;" :primary="previewPlayback.liveVisualModuleId.value === visualModule.id" :icon="previewPlayback.liveVisualModuleId.value === visualModule.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewLive">LIVE</GsButton>
+		<GsButton v-if="visualModule != null" style="margin-left: 0;" :primary="previewPlayback.liveVisualModuleId.value === visualModule.id" :icon="previewPlayback.liveVisualModuleId.value === visualModule.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewLive">Visual Module Live Preview</GsButton>
 	</div>
 
 	<div v-if="visualModule && previewParamsShowing" :key="visualModule.id" :class="$style.previewParams">
@@ -12,7 +12,7 @@
 			<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
 			<GsVisualParam
 				v-else
-				:availableVariables="LIVE_VAR_DEFS"
+				:availableVariables="VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS"
 				:paramPath="[paramDef.id]"
 				:automationGraphs="[]"
 				:paramDef="{ ...paramDef, canNode: false }"
@@ -47,7 +47,7 @@ import { computed, ref, watch, onBeforeUnmount, inject } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId, prettyId } from '@gs/shared/utility/id.ts';
-import { LIVE_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
+import { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';

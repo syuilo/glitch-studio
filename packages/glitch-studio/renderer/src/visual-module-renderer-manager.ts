@@ -27,7 +27,7 @@ import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capt
 import type { Asset, IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
-import type { LIVE_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
+import type { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
 
 /**
  * 初期化時に決まっている必要がある設定情報
@@ -51,7 +51,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
 	liveTimeFactor: number;
-	/** Visual ModuleのLIVE専用の描画頻度上限。タイムラインには適用しない。 */
+	/** Visual ModuleのVisual Module Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
 	assets: Asset[];
 	visualModules: ProjectVisualModule[];
@@ -378,7 +378,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					variables: {
 						TIME: timing.time / 1000,
 						TIME_MS: timing.time,
-					} satisfies Record<typeof LIVE_VAR_DEFS[number], unknown>,
+					} satisfies Record<typeof VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS[number], unknown>,
 					automationGraphs: [],
 					time: timing.time,
 					endTime: Infinity,

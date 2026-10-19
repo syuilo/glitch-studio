@@ -163,7 +163,7 @@ test('keeps invalid projects editable and recreates both previews after correcti
 	}
 });
 
-// 【LIVE引数だけの静的エラーは、Timelineへ切り替えると診断解除と再生成を行う】
+// 【Visual Module Live Preview引数だけの静的エラーは、Timelineへ切り替えると診断解除と再生成を行う】
 // プレビュー対象の変更はProjectの編集通知を出さない。
 // エラー表示だけが消えてWorkerを持たない状態のままにならないよう、両エンジンの復帰を確認する。
 test('recreates previews after switching away from invalid live inputs', async t => {
@@ -275,10 +275,10 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 	} finally { playback.dispose(); }
 });
 
-// 【取り込んだVisual ModuleのUndoではLIVE対象と両レンダラーの定義を解除する】
-// Workerだけを停止するとプレビューのモードがLIVEのまま残り、再起動時に削除済みの対象を再開してしまう。
+// 【取り込んだVisual ModuleのUndoではVisual Module Live Preview対象と両レンダラーの定義を解除する】
+// Workerだけを停止するとプレビューのモードがVisual Module Live Previewのまま残り、再起動時に削除済みの対象を再開してしまう。
 // AppContextの履歴購読まで実コードで通し、Redoでは意図せず自動再生しないことも確認する。
-test('leaves LIVE when an imported Visual Module is undone and restores its registration on redo', async t => {
+test('leaves Visual Module Live Preview when an imported Visual Module is undone and restores its registration on redo', async t => {
 	setup(t);
 	const { appContext } = evaluate(appBundle);
 	await appContext.ready(project());
@@ -306,8 +306,8 @@ test('leaves LIVE when an imported Visual Module is undone and restores its regi
 });
 
 // 【描画設定を保存・復元し、Undo/Redoでもタイムラインだけへ同期する】
-// プレビュー用の値だけが変わって保存から漏れたり、LIVE側のfps制限を書き換えたりしないことを保証する。
-test('persists timeline render settings and synchronizes undo and redo without changing LIVE', async t => {
+// プレビュー用の値だけが変わって保存から漏れたり、Visual Module Live Preview側のfps制限を書き換えたりしないことを保証する。
+test('persists timeline render settings and synchronizes undo and redo without changing Visual Module Live Preview', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
 	const { appContext } = app;
@@ -533,7 +533,7 @@ test('uses project render settings with motion blur sampling disabled for the in
 	assert.ok(timeline.updates.every(options => !('timelineFps' in options) && !('timelineMotionBlur' in options)));
 });
 
-// 【プレビューのブラー品質はUIだけで保持し、プロジェクト・Undo履歴・LIVEには反映しない】
+// 【プレビューのブラー品質はUIだけで保持し、プロジェクト・Undo履歴・Visual Module Live Previewには反映しない】
 // プレビューをオフにしても書き出し用サンプル数を失わず、プロジェクトの有効設定は維持する。
 // 読み込み時は保存された書き出し設定を復元し、プレビューは既定の0サンプルへ戻す。
 test('keeps preview motion blur samples separate from project settings and saved files', async t => {
@@ -584,9 +584,9 @@ test('keeps preview motion blur samples separate from project settings and saved
 	assert.equal(manager.state.timelineMotionBlur.value.samples, 32);
 });
 
-// 【倍率はタイムラインの描画頻度だけを変更し、LIVEのfps制限は干渉しない】
+// 【倍率はタイムラインの描画頻度だけを変更し、Visual Module Live Previewのfps制限は干渉しない】
 // appの実際の接続と再生スケジューラを使い、独立した設定が再び混線するのを防ぐ。
-test('applies timeline preview factors independently of the LIVE fps limit', async t => {
+test('applies timeline preview factors independently of the Visual Module Live Preview fps limit', async t => {
 	const window = setup(t);
 	const callbacks = new Map();
 	let nextId = 0;

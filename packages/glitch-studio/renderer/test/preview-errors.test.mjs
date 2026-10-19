@@ -290,7 +290,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	} };
 }
 
-// 【PartialなLIVE設定の省略は維持し、明示的なnullではFPS制限を解除する】
+// 【PartialなVisual Module Live Preview設定の省略は維持し、明示的なnullではFPS制限を解除する】
 // 解除を値の存在判定で除外すると、設定画面では無制限でも描画ループには制限が残る。
 // prototype上の値は差分ではないため、解像度や描画速度の更新を発生させない。
 test('preserves omitted live options and clears an explicit FPS limit', async t => {
@@ -328,10 +328,10 @@ test('preserves omitted timeline options and applies explicit null resets', asyn
 	assert.equal(renderer.dynamicOptions.sceneId, null);
 });
 
-// 【取り込んだVisual ModuleをLIVEで使い、登録削除で実行インスタンスを解放する】
+// 【取り込んだVisual ModuleをVisual Module Live Previewで使い、登録削除で実行インスタンスを解放する】
 // UIの登録一覧だけを変更してもWorkerが定義を持っていなければ描画できない。
 // Undoに相当する削除の後に古い描画ループやGPUインスタンスが残らないことを確認する。
-test('renders a newly registered Visual Module and stops LIVE when it is removed', async t => {
+test('renders a newly registered Visual Module and stops Visual Module Live Preview when it is removed', async t => {
 	const { renderer, errors, frames, frame } = await fixture(t);
 	const imported = { ...constantVisualModule(), id: 'imported', name: 'Imported Visual Module' };
 	renderer.applyProjectChanges([{ type: 'visualModuleRegistration', visualModuleId: imported.id, visualModule: imported }]);
@@ -482,7 +482,7 @@ test('ignores obsolete frame results after edits and renders the updated state',
 	assert.deepEqual(errors, expectedErrors);
 });
 
-// 【LIVE描画の途中で例外が起きてもGPUコマンドと計測を終了する】
+// 【Visual Module Live Preview描画の途中で例外が起きてもGPUコマンドと計測を終了する】
 // 循環参照のような描画前の失敗だけを確認すると、計測中の失敗でTimingHelperが
 // 前のencoderを保持し続け、原因を直しても描画できなくなる不具合を見逃す。
 test('finishes partial live frames before retrying', async t => {
@@ -563,7 +563,7 @@ test('resizes the canvas and live renderer through dynamic options', async t => 
 	assert.deepEqual(resolutions, [{ width: 320, height: 180 }]);
 });
 
-// 【LIVEのOutを切断したら透明な出力を描画し、再接続で復旧する】
+// 【Visual Module Live PreviewのOutを切断したら透明な出力を描画し、再接続で復旧する】
 // 出力なしで描画をスキップすると、接続中の最後の映像がCanvasに残ってしまう。
 // 実際のIn/Outの配線を差分更新し、透明RGBAの転送と最終描画が行われること、
 // 未接続のままでも描画ループが継続し、再接続した次のフレームで色が戻ることを確認する。

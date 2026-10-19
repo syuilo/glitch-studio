@@ -20,7 +20,7 @@ export class LiveEffectStateStore {
 	}
 
 	public update(source: LiveEffectStatusSource, nodeId: string, status: EffectInstanceState | null) {
-		// 同じノードIDでもタイムラインレイヤーや以前のLIVEインスタンスは別の状態を持つ。
+		// 同じノードIDでもタイムラインレイヤーや以前のVisual Module Live Previewインスタンスは別の状態を持つ。
 		const current = this.current;
 		if (current == null || source.type !== 'live' || source.instanceId !== current.instanceId
 			|| source.visualModuleId !== current.visualModuleId) return;

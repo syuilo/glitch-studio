@@ -56,7 +56,7 @@ export default implementEffect<typeof definition>({
 			prepare,
 			render(ctx) {
 				const { params } = ctx;
-				// LIVEでは同期取得、Timelineではprepareで待機した窓を使う。
+				// Visual Module Live Previewでは同期取得、Timelineではprepareで待機した窓を使う。
 				prepare(params);
 				const channel = audioChannel(params.channel);
 				if (request && loader.window) spectrum.update(request, loader.window, finiteNumber(params.smoothing, 0.15, 0, 2));

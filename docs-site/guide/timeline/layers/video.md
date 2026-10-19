@@ -90,4 +90,4 @@ Inspectorでは **Trimmed duration** が1周分の長さ、**Total duration** �
 
 上に[エフェクトレイヤー](./effect.md)を置けば、動画を含む下層映像を加工できます。音声は波形やスペクトラムなどの[音声入力](../../parameters.md#audio-input)にも使えます。
 
-タイムラインの動画クリップはPlayerの再生ボタンや再生位置には連動しません。LIVEのPlayer入力と区別して扱ってください。
+タイムラインの動画クリップはPlayerの再生ボタンや再生位置には連動しません。Visual Module Live PreviewのPlayer入力と区別して扱ってください。

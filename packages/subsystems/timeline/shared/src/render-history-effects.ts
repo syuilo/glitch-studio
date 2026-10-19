@@ -3,7 +3,7 @@ import type { TimelineScene } from './types.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 
-/** 配置された定義を検査する。未使用のVisual ModuleやLIVEだけの構成は対象にしない。 */
+/** 配置された定義を検査する。未使用のVisual ModuleやVisual Module Live Previewだけの構成は対象にしない。 */
 export function findTimelineHistoryEffects(scenes: readonly TimelineScene[], getVisualModule: (id: string) => VisualModule | null, definitions: Record<string, EffectDefinition>): string[] {
 	const result = new Set<string>();
 	const inspectEffect = (id: string) => {

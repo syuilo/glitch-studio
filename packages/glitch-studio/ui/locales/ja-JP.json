@@ -233,11 +233,11 @@
 		"MotionBlurSamplesHint": "プレビューのモーションブラーのサンプル数です。プロジェクト設定でモーションブラーを有効にする必要があります。",
 		"MotionBlur": "モーションブラー:",
 		"Time": "時刻:",
-		"UnlimitedLive": "LIVE: 無制限",
-		"Live120fps": "LIVE: 120fps",
-		"Live60fps": "LIVE: 60fps",
-		"Live30fps": "LIVE: 30fps",
-		"Live15fps": "LIVE: 15fps",
+		"UnlimitedLive": "Visual Module Live Preview: 無制限",
+		"Live120fps": "Visual Module Live Preview: 120fps",
+		"Live60fps": "Visual Module Live Preview: 60fps",
+		"Live30fps": "Visual Module Live Preview: 30fps",
+		"Live15fps": "Visual Module Live Preview: 15fps",
 		"BackupHint": "プロジェクトのバックアップ設定と状態",
 		"BackupError": "バックアップエラー",
 		"Backups": "バックアップ",
@@ -415,12 +415,12 @@
 		"SelectFolderDescription": "{name}を含むフォルダーを選択してください。このフォルダーでバックアップを作成し、保存期間を過ぎたバックアップを削除します。"
 	},
 	"_Stats": {
-		"LiveOnly": "レンダリング統計はLIVEモードで利用できます。"
+		"LiveOnly": "レンダリング統計はVisual Module Live Previewモードで利用できます。"
 	},
 	"_Node": {
 		"ContextResolution": "コンテキストの解像度",
 		"CustomResolution": "カスタム (絶対値)",
-		"ResolutionHint": "LIVEではプロジェクトのサイズ、タイムラインでは所属するシーンのサイズを使用します。",
+		"ResolutionHint": "Visual Module Live Previewではプロジェクトのサイズ、タイムラインでは所属するシーンのサイズを使用します。",
 		"TypeMismatch": "データ型が一致しません",
 		"ClickToEnable": "クリックして有効にする",
 		"ClickToDisable": "クリックして無効にする",

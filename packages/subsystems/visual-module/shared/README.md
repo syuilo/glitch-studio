@@ -6,4 +6,4 @@ Visual Moduleのノード・入出力・公開カスタムパラメータ・接�
 
 内部の`VisualModuleParameterBinding`は`ValueParameterBinding`にノード接続とカスタムパラメータ参照を加える。接続先の`NodeOutputReference`とブランド型の`VisualModuleCustomParameterId`もこのドメインが所有し、`layerInput`は含めない。
 
-レイヤーやLIVEから渡される`VisualModuleArgumentBindings`の値は`ValueParameterBinding`に限定する。内部のBindingとは参照スコープが異なるため、型名でも引数と区別する。`canNode: true`のカスタムパラメータはInノードで参照し、`PARAM`と直接参照の対象には含めない。
+レイヤーやVisual Module Live Previewから渡される`VisualModuleArgumentBindings`の値は`ValueParameterBinding`に限定する。内部のBindingとは参照スコープが異なるため、型名でも引数と区別する。`canNode: true`のカスタムパラメータはInノードで参照し、`PARAM`と直接参照の対象には含めない。

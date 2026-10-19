@@ -167,7 +167,7 @@ Outノードは内部の結果を外へ渡す出口です。上記のSamplingメ
 | **Primary input** | タイムラインで、下層の合成映像を受け取る主画像入力を指定する |
 | **Primary audio input** | タイムラインで、初期状態で下層音声を受け取る音声パラメータを指定する |
 | **Output Defs** | 外へ公開する出力を定義する |
-| **Primary output** | LIVEやタイムラインで映像として使う主出力を指定する |
+| **Primary output** | Visual Module Live Previewやタイムラインで映像として使う主出力を指定する |
 
 主画像入力にできるのは、Color型で **Allow node input** を有効にしたパラメータです。主出力もColor型です。主画像入力・主音声入力・主出力は、それぞれ最大一つ指定します。
 
@@ -208,13 +208,13 @@ Allow node inputを有効にしたパラメータは、Inノードから配線�
 
 Audio型の公開パラメータは、内部ノードの **Custom Parameter** から受け取ります。Inへの画像配線や`PARAM`式では扱いません。Primary audio inputに指定すると、タイムライン配置時の初期入力が下層音声になります。
 
-## LIVEで確認する
+## Visual Module Live Previewで確認する
 
-Visual Moduleエディターの上部で対象を選び、**LIVE** を押すとリアルタイムの出力を確認できます。**Preview Params** では、公開パラメータに渡すプレビュー用の値を変更できます。
+Visual Moduleエディターの上部で対象を選び、**Visual Module Live Preview** を押すとリアルタイムの出力を確認できます。**Preview Params** では、公開パラメータに渡すプレビュー用の値を変更できます。
 
-LIVEプレビューのヘッダーには、現在表示しているVisual Moduleの名前が表示されます。名前をクリックすると、**Visual Module** の一覧からLIVEの対象を切り替えられます。**Scene** の一覧から対象を選ぶと、タイムラインのプレビューに切り替わります。
+Visual Module Live Previewのヘッダーには、現在表示しているVisual Moduleの名前が表示されます。名前をクリックすると、**Visual Module** の一覧からVisual Module Live Previewの対象を切り替えられます。**Scene** の一覧から対象を選ぶと、タイムラインのプレビューに切り替わります。
 
-画像はAssetsの素材を直接使い、LIVEの動画・音声・カメラなどはPlayerを通して利用します。Playerはメディアの再生状態を持つもので、タイムライン上の動画・音声クリップとは別です。
+画像はAssetsの素材を直接使い、Visual Module Live Previewの動画・音声・カメラなどはPlayerを通して利用します。Playerはメディアの再生状態を持つもので、タイムライン上の動画・音声クリップとは別です。
 
 ::: info 現在の作成UI
 登録済みのVisual Moduleは上部のメニューから選択できますが、同メニューの **New** による新規作成は未実装です。新しいノード構成を作るには、タイムラインに[インラインVisual Moduleレイヤー](./timeline/layers/inline-visual-module.md)を追加できます。
@@ -230,9 +230,9 @@ Visual Moduleエディターの **Other → Export Visual Module…** から、�
 
 ノード構成・配線・公開パラメータとその既定値・入出力・Automation Graph・内部のキーや式を保存します。参照している画像・動画・フォントなどのAsset原本と、Playerの定義も同梱するため、元の素材ファイルを別途コピーする必要はありません。無関係なAssetやPlayerは含めません。
 
-LIVEのPreview Params、配置先レイヤーのパラメータ値・クリップ・合成設定は含めません。インラインVisual Moduleを書き出す場合、レイヤー名がファイル名と取り込み後の表示名になります。
+Visual Module Live PreviewのPreview Params、配置先レイヤーのパラメータ値・クリップ・合成設定は含めません。インラインVisual Moduleを書き出す場合、レイヤー名がファイル名と取り込み後の表示名になります。
 
-取り込むには、ナビゲーションメニューの **File → Import → Visual Module (.gsvm)**、またはVisual Moduleエディター上部の選択メニューの **Import Visual Module…** を選び、`.gsvm`ファイルを指定します。新しい登録済みVisual Moduleとして追加され、既存のVisual Moduleは上書きしません。素材・Playerも独立したコピーになり、取り込み全体を一回のUndo/Redoで戻したり復元したりできます。取り込んだVisual ModuleはLIVEや、タイムラインの[参照方式](./timeline/layers/visual-module.md)で利用できます。
+取り込むには、ナビゲーションメニューの **File → Import → Visual Module (.gsvm)**、またはVisual Moduleエディター上部の選択メニューの **Import Visual Module…** を選び、`.gsvm`ファイルを指定します。新しい登録済みVisual Moduleとして追加され、既存のVisual Moduleは上書きしません。素材・Playerも独立したコピーになり、取り込み全体を一回のUndo/Redoで戻したり復元したりできます。取り込んだVisual ModuleはVisual Module Live Previewや、タイムラインの[参照方式](./timeline/layers/visual-module.md)で利用できます。
 
 ファイル由来のPlayerは素材も一緒に復元します。カメラなどの外部入力は未指定で取り込み、再指定が必要なPlayer名を表示します。カメラを利用する場合は、Playersの該当Playerのメニューで **Webcam** を選んでください。マイク・ライブストリームを入力にするPlayerは現在未対応です。再生位置や再生中の状態は引き継ぎません。
 
@@ -260,7 +260,7 @@ AssetやPlayerのIDを式・環境変数などから動的に返す構成は、�
 | 選択肢 | 使うサイズ |
 | --- | --- |
 | **Auto** | 素材や、エフェクトが解像度の基準に使う入力画像のサイズを優先する。それらがなければ描画先のサイズ |
-| **Context resolution** | LIVEではプロジェクト、タイムラインでは所属シーンのサイズ |
+| **Context resolution** | Visual Module Live Previewではプロジェクト、タイムラインでは所属シーンのサイズ |
 | **Custom (Absolute)** | WidthとHeightに指定した幅と高さ |
 
 実際に描画するサイズには、プレビューや書き出しの解像度倍率も適用されます。処理状態を取得できている出力は、出力行で幅と高さを確認できます。

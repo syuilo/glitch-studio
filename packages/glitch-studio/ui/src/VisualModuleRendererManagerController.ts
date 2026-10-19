@@ -391,7 +391,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		if (!this.initialSnapshotTaken) return this.initializationReady;
 		const replacement = this.callAndWaitReturn('replaceProjectState', [snapshot]);
 		// 復旧用の再開も置換の直後に送る。応答待ちの後に送ると、その間の
-		// パラメータ編集で再開を取りこぼしたり、モード切替後に古いLIVEを開始したりする。
+		// パラメータ編集で再開を取りこぼしたり、モード切替後に古いVisual Module Live Previewを開始したりする。
 		if (this.renderLoopRunning && this.liveVisualModuleId.value != null) {
 			this.startLiveRenderLoopFor(this.liveVisualModuleId.value, this.liveParamValues);
 		}

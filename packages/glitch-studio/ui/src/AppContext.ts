@@ -413,7 +413,7 @@ export class AppContext {
 			this.visualModuleRendererManagerController.updatePlayers(deepClone(this.projectContext.stateManager.state.players.value));
 		}, { deep: true }));
 
-		// UndoでLIVE対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
+		// UndoでVisual Module Live Preview対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
 		this.projectWatchers.push(this.projectContext.stateManager.onChange(changes => {
 			const liveVisualModuleId = this.previewPlayback.liveVisualModuleId.value;
 			if (liveVisualModuleId != null && changes.some(change => change.type === 'visualModuleRegistration' && change.visualModuleId === liveVisualModuleId)

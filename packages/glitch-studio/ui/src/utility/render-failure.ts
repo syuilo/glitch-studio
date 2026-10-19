@@ -31,7 +31,7 @@ export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrig
 	const { source, nodeId } = origin;
 	if (source.type === 'live') {
 		const sourceVisualModule = visualModules.find(visualModule => visualModule.id === source.visualModuleId);
-		const parts = ['LIVE', label('Visual Module', source.visualModuleId, sourceVisualModule?.name)];
+		const parts = ['Visual Module Live Preview', label('Visual Module', source.visualModuleId, sourceVisualModule?.name)];
 		if (nodeId != null) parts.push(nodeLabel(sourceVisualModule, nodeId));
 		return parts.join(' / ');
 	}

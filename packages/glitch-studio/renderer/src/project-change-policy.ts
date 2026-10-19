@@ -1,7 +1,7 @@
 import type { VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.ts';
 
-// 通知は編集内容だけを伝える。キャッシュと履歴をどこまで残すかは、LIVEと
+// 通知は編集内容だけを伝える。キャッシュと履歴をどこまで残すかは、Visual Module Live Previewと
 // タイムラインが共通で使うレンダラー側の方針としてここに集約する。
 export function canPreserveNodeOutputCache(changes: readonly VisualModuleNodeChange[]): boolean {
 	// 値の編集は既存キーとの比較で依存先へ伝播する。それ以外はModule単位で

@@ -72,7 +72,7 @@ test('deduplicates ready windows and retries cancelled or failed requests', asyn
 	assert.deepEqual(statuses.at(-1), { type: 'ready' });
 });
 
-// 【LIVEのモノラルを両チャンネルへ複製し、取得後の履歴更新から独立させる】
+// 【Visual Module Live Previewのモノラルを両チャンネルへ複製し、取得後の履歴更新から独立させる】
 // 同じPlayerを使う複数ノードや非同期準備の途中で、波形が別の再生位置へ変わらないようにする。
 test('freezes player PCM, pads missing history, and duplicates mono channels', () => {
 	const history = new AudioHistory();

@@ -35,7 +35,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	public onRenderFailure?: (error: Error, origin?: RenderFailureOrigin) => void;
 
 	protected reportRenderFailure(error: Error, origin?: RenderFailureOrigin) {
-		// LIVE・Timelineの破棄は所有者がまとめて行う。ここでは同じManagerを重ねて破棄しない。
+		// Visual Module Live Preview・Timelineの破棄は所有者がまとめて行う。ここでは同じManagerを重ねて破棄しない。
 		this.onRenderFailure?.(error, origin);
 		this.onError(error);
 	}

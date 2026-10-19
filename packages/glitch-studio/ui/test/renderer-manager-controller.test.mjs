@@ -80,7 +80,7 @@ async function initialize(controller, workers) {
 }
 
 // 【発生元付きのエラーを所有者へ渡してから実行状態を破棄する】
-// LIVEノード・Timeline内ノード・Effectレイヤーの通知経路は異なる。
+// Visual Module Live Previewノード・Timeline内ノード・Effectレイヤーの通知経路は異なる。
 // 各経路で場所を落とさず、破棄済みWorkerの遅延通知でも診断を上書きしないことを確認する。
 for (const [kind, event, nodeId] of [['VisualModule', 'effectState', 'node'], ['Timeline', 'effectState', 'node'], ['Timeline', 'effectLayerState', undefined]]) {
 	test(`preserves failure location after disposal for ${kind} ${event}`, async t => {
@@ -253,7 +253,7 @@ for (const kind of ['VisualModule', 'Timeline']) test(`${kind} uses a snapshot b
 });
 
 // 【Visual Moduleの追加と削除を両ControllerからWorkerへ送り、再起動でも削除を維持する】
-// 既存定義の編集だけを送信するフィルタでは、取り込んだVisual ModuleをLIVEやTimelineから使えない。
+// 既存定義の編集だけを送信するフィルタでは、取り込んだVisual ModuleをVisual Module Live PreviewやTimelineから使えない。
 // 初期スナップショット・差分・再起動のどの境界でも、登録一覧が同じ最終状態になる必要がある。
 for (const kind of ['VisualModule', 'Timeline']) test(`${kind} synchronizes Visual Module registration and removal`, async t => {
 	const { controller, workers } = fixture(t, kind);
@@ -287,7 +287,7 @@ for (const kind of ['VisualModule', 'Timeline']) test(`${kind} synchronizes Visu
 });
 
 // 【全量復旧の再開要求は応答待ちより前に送り、後続編集やモード切替で巻き戻さない】
-// 置換の応答中に編集が続いてもLIVEを停止したままにせず、停止後に遅れた再開もしない。
+// 置換の応答中に編集が続いてもVisual Module Live Previewを停止したままにせず、停止後に遅れた再開もしない。
 test('orders live recovery before later edits and does not restart after a mode switch', async t => {
 	const { controller, workers } = fixture(t);
 	const visualModule = { id: 'module', name: 'Module', nodes: [{ id: 'node', type: 'effect', effectId: 'fill', params: {} }] };
@@ -628,8 +628,8 @@ for (const kind of ['VisualModule', 'Timeline']) {
 
 }
 
-// 【再読み込み中にLIVEから離れた場合は復帰後も停止を維持する】
-// Worker不在中の停止を例外にしたり古い再生状態を復元すると、タイムラインと同時にLIVEが動く。
+// 【再読み込み中にVisual Module Live Previewから離れた場合は復帰後も停止を維持する】
+// Worker不在中の停止を例外にしたり古い再生状態を復元すると、タイムラインと同時にVisual Module Live Previewが動く。
 test('does not restart live after switching away during reload', async t => {
 	const { controller, workers } = fixture(t);
 	await initialize(controller, workers);

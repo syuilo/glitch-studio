@@ -42,7 +42,7 @@ export default implementEffect<typeof definition>({
 			},
 			render(ctx) {
 				const { params } = ctx;
-				// LIVEのPlayer入力は固定済みPCMを同期で読める。Timelineではprepareで取得済み。
+				// Visual Module Live PreviewのPlayer入力は固定済みPCMを同期で読める。Timelineではprepareで取得済み。
 				loader.prepare(params.audio, finiteNumber(params.duration, 0.05, 0.005, 1));
 				const audioWindow = loader.window;
 				// Stereoも左右を混ぜた1本の波形にし、従来のMixと同じサンプルを使う。

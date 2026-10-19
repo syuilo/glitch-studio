@@ -130,7 +130,7 @@ test('resets the range when selecting a different or replacing a missing scene',
 });
 
 // 【書き出しSceneが未選択なら先頭のSceneとその全範囲を選ぶ】
-// LIVEから初めて開く場合や未選択の設定を復元する場合にも、毎回選び直す必要をなくす。
+// Visual Module Live Previewから初めて開く場合や未選択の設定を復元する場合にも、毎回選び直す必要をなくす。
 // 保存済みの有効な選択は優先し、Sceneが一つもない場合だけ未選択を維持する。
 test('selects the first scene when no export scene is selected', t => {
 	const f = fixture(t);
