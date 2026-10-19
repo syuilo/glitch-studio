@@ -1,4 +1,4 @@
-name: Release desktop app
+name: Release
 
 on:
   workflow_dispatch:
@@ -9,20 +9,25 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: desktop-release
   cancel-in-progress: false
 
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+
 jobs:
-  release:
+  prepare:
     if: github.ref == 'refs/heads/master'
     runs-on: windows-latest
     timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_VERSION: ${{ inputs.version }}
+    outputs:
+      source_sha: ${{ steps.prepare.outputs.source_sha }}
+      release_sha: ${{ steps.prepare.outputs.release_sha }}
     steps:
       - name: Checkout the dispatch commit
         uses: actions/checkout@v7
@@ -48,10 +53,126 @@ jobs:
         run: pnpm test
         env:
           CI: true
-      - name: Build the Windows NSIS installer
-        run: pnpm dist:desktop
+      # まだpushしていない同一のリリースコミットを各OSへ渡す。
+      # masterとタグの更新は、すべてのビルドが成功した後のpublishジョブだけで行う。
+      - name: Bundle the prepared release commit
+        run: git bundle create release-source.bundle HEAD --not 'HEAD^'
+      - name: Upload the prepared release commit
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-release-source
+          path: release-source.bundle
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-latest
+            command: pnpm dist:desktop:win
+            artifacts: |
+              release/*-Setup.exe
+              release/*-Setup.exe.blockmap
+              release/latest.yml
+          - platform: macos
+            runner: macos-latest
+            command: pnpm dist:desktop:mac
+            artifacts: release/*-mac-*.dmg
+    env:
+      RELEASE_COMMIT_SHA: ${{ needs.prepare.outputs.release_sha }}
+    steps:
+      - name: Checkout the dispatch commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Download the prepared release commit
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-release-source
+      - name: Checkout the prepared release commit
+        shell: bash
+        run: |
+          git fetch ./release-source.bundle HEAD
+          git checkout --detach "$RELEASE_COMMIT_SHA"
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build the installers
+        run: ${{ matrix.command }}
+      - name: Verify the macOS applications and disk images
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          codesign --verify --deep --strict "release/mac-arm64/Glitch Studio.app"
+          codesign --verify --deep --strict "release/mac/Glitch Studio.app"
+          for architecture in arm64 x64; do
+            hdiutil verify "release/Glitch-Studio-${RELEASE_VERSION}-mac-${architecture}.dmg"
+          done
+      - name: Verify the release artifacts
+        run: node packages/glitch-studio/desktop/release.mjs verify ${{ matrix.platform }}
+      - name: Upload the release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-artifacts-${{ matrix.platform }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    needs: [prepare, build]
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      RELEASE_COMMIT_SHA: ${{ needs.prepare.outputs.release_sha }}
+    steps:
+      - name: Checkout the dispatch commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Download the prepared release commit
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-release-source
+      - name: Checkout the prepared release commit
+        shell: bash
+        run: |
+          git fetch ./release-source.bundle HEAD
+          git checkout --detach "$RELEASE_COMMIT_SHA"
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-artifacts-*
+          path: release
+          merge-multiple: true
       - name: Publish the verified release
         run: node packages/glitch-studio/desktop/release.mjs publish
-        env:
-          RELEASE_SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
-          RELEASE_COMMIT_SHA: ${{ steps.prepare.outputs.release_sha }}

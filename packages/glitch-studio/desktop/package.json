@@ -8,7 +8,8 @@
 		"dev": "node dev.mjs",
 		"start": "electron .",
 		"test": "node --test test/*.test.mjs",
-		"dist": "electron-builder --config electron-builder.config.cjs --win nsis --x64 --publish never"
+		"dist:win": "electron-builder --config electron-builder.config.cjs --win nsis --x64 --publish never",
+		"dist:mac": "electron-builder --config electron-builder.config.cjs --mac dmg --arm64 --x64 --publish never"
 	},
 	"devDependencies": {
 		"@electron/asar": "3.4.1",

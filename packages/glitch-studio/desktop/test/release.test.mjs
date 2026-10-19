@@ -17,6 +17,7 @@ test('accepts canonical versions and rejects ambiguous or executable input', () 
 
 // 【配布する最終インストーラーと更新メタデータのハッシュ・バージョン・名前を照合する】
 // 異なるビルドのymlや署名前のハッシュを公開すると、利用者の更新が必ず失敗する。
+// 公開時の既定の検証ではmacOSの両アーキテクチャも必須とし、一部のOSだけを公開しない。
 test('verifies release artifacts and rejects altered installers or mismatched metadata', async t => {
 	const temporaryRoot = path.resolve(os.tmpdir());
 	const directory = await fs.mkdtemp(path.join(temporaryRoot, 'glitch-release-test-'));
@@ -33,10 +34,36 @@ test('verifies release artifacts and rejects altered installers or mismatched me
 	await fs.writeFile(path.join(directory, installerName), installer);
 	await fs.writeFile(path.join(directory, `${installerName}.blockmap`), 'blockmap');
 	await fs.writeFile(path.join(directory, 'latest.yml'), yaml.dump(metadata));
-	assert.deepEqual(await verifyReleaseArtifacts(directory, version), [installerName, `${installerName}.blockmap`, 'latest.yml']);
+	const windowsFiles = [installerName, `${installerName}.blockmap`, 'latest.yml'];
+	assert.deepEqual(await verifyReleaseArtifacts(directory, version, 'windows'), windowsFiles);
+	await assert.rejects(verifyReleaseArtifacts(directory, version), /mac-arm64\.dmg/);
+	const macosFiles = ['arm64', 'x64'].map(architecture => `Glitch-Studio-${version}-mac-${architecture}.dmg`);
+	for (const name of macosFiles) await fs.writeFile(path.join(directory, name), 'disk image');
+	assert.deepEqual(await verifyReleaseArtifacts(directory, version), [...windowsFiles, ...macosFiles]);
 	await assert.rejects(verifyReleaseArtifacts(directory, '2.0.0-alpha.3'), /version/);
 	await fs.writeFile(path.join(directory, installerName), 'altered');
 	await assert.rejects(verifyReleaseArtifacts(directory, version), /does not match/);
+});
+
+// 【macOS単独のビルドでも両アーキテクチャの空でないDMGを要求する】
+// Windowsの成果物を持たないmacOSジョブで検証でき、Intel版の欠落や空のDMGを公開前に検出する。
+test('verifies both macOS architectures independently of Windows artifacts', async t => {
+	const temporaryRoot = path.resolve(os.tmpdir());
+	const directory = await fs.mkdtemp(path.join(temporaryRoot, 'glitch-release-test-'));
+	t.after(async () => {
+		assert.equal(path.dirname(directory), temporaryRoot);
+		assert.ok(path.basename(directory).startsWith('glitch-release-test-'));
+		await fs.rm(directory, { recursive: true, force: true });
+	});
+	const version = '2.0.0-alpha.2';
+	const macosFiles = ['arm64', 'x64'].map(architecture => `Glitch-Studio-${version}-mac-${architecture}.dmg`);
+	await fs.writeFile(path.join(directory, macosFiles[0]), 'Apple Silicon disk image');
+	await assert.rejects(verifyReleaseArtifacts(directory, version, 'macos'), /mac-x64\.dmg/);
+	await fs.writeFile(path.join(directory, macosFiles[1]), '');
+	await assert.rejects(verifyReleaseArtifacts(directory, version, 'macos'), /Empty or invalid release artifact/);
+	await fs.writeFile(path.join(directory, macosFiles[1]), 'Intel disk image');
+	assert.deepEqual(await verifyReleaseArtifacts(directory, version, 'macos'), macosFiles);
+	await assert.rejects(verifyReleaseArtifacts(directory, version, 'unsupported'), /Expected all, windows or macos/);
 });
 
 // 【配布物の実際のASARから実行時依存の欠落を検出する】

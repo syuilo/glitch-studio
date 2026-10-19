@@ -9,7 +9,8 @@ VitePressのサイトは `docs-site/` で管理します。開発方法・記事
 - `pnpm dev:desktop`: ViteとElectronを起動します。UIの変更はHMRで反映されます。main/preloadの変更時は再起動してください。
 - `pnpm build:desktop`: Electron用UIを `packages/glitch-studio/ui/dist-electron` にビルドします。
 - `pnpm start:desktop`: ビルド済みUIをElectronで起動します。
-- `pnpm dist:desktop`: UIをビルドし、Windows x64向けNSISインストーラーを生成します。
+- `pnpm dist:desktop:win`: UIをビルドし、Windows x64向けNSISインストーラーを生成します。
+- `pnpm dist:desktop:mac`: macOS上でUIをビルドし、Apple Silicon（arm64）・Intel（x64）向けDMGを生成します。
 
 Windowsでは、このインストーラーでインストールすると `.gsproj` がGlitch Studioに関連付けられ、アプリのアイコンが表示されます。ファイルをダブルクリックすると、そのプロジェクトを新しいウィンドウで開きます。起動済みウィンドウの編集中のプロジェクトは維持します。別アプリが既定に設定されている場合は、Windowsの「プログラムから開く」でGlitch Studioを既定に選んでください。
 

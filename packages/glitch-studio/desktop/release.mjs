@@ -28,18 +28,28 @@ export function validateReleaseVersion(version) {
 	return version;
 }
 
-export async function verifyReleaseArtifacts(directory, version) {
+export async function verifyReleaseArtifacts(directory, version, platform = 'all') {
 	validateReleaseVersion(version);
-	const installerName = `Glitch-Studio-${version}-x64-Setup.exe`;
-	const files = [installerName, `${installerName}.blockmap`, 'latest.yml'];
-	const metadata = yaml.load(await fs.readFile(path.join(directory, 'latest.yml'), 'utf8'));
-	if (metadata?.version !== version || metadata.files?.length !== 1) throw new Error('Unexpected update metadata version or files');
-	const installer = await fs.readFile(path.join(directory, installerName));
-	const digest = createHash('sha512').update(installer).digest('base64');
-	if (metadata.files[0].url !== installerName || metadata.files[0].sha512 !== digest || metadata.path !== installerName || metadata.sha512 !== digest) {
-		throw new Error('The installer does not match its update metadata');
+	if (!['all', 'windows', 'macos'].includes(platform)) throw new Error('Expected all, windows or macos artifacts');
+	const files = [];
+	if (platform !== 'macos') {
+		const installerName = `Glitch-Studio-${version}-x64-Setup.exe`;
+		files.push(installerName, `${installerName}.blockmap`, 'latest.yml');
+		const metadata = yaml.load(await fs.readFile(path.join(directory, 'latest.yml'), 'utf8'));
+		if (metadata?.version !== version || metadata.files?.length !== 1) throw new Error('Unexpected update metadata version or files');
+		const installer = await fs.readFile(path.join(directory, installerName));
+		const digest = createHash('sha512').update(installer).digest('base64');
+		if (metadata.files[0].url !== installerName || metadata.files[0].sha512 !== digest || metadata.path !== installerName || metadata.sha512 !== digest) {
+			throw new Error('The installer does not match its update metadata');
+		}
 	}
-	if (installer.length === 0 || (await fs.stat(path.join(directory, files[1]))).size === 0) throw new Error('Empty release artifact');
+	if (platform !== 'windows') {
+		files.push(...['arm64', 'x64'].map(architecture => `Glitch-Studio-${version}-mac-${architecture}.dmg`));
+	}
+	for (const name of files) {
+		const artifact = await fs.stat(path.join(directory, name));
+		if (!artifact.isFile() || artifact.size === 0) throw new Error(`Empty or invalid release artifact: ${name}`);
+	}
 	return files;
 }
 
@@ -147,8 +157,12 @@ async function publishRelease() {
 }
 
 if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-	const actions = { prepare: prepareRelease, publish: publishRelease };
+	const actions = {
+		prepare: prepareRelease,
+		publish: publishRelease,
+		verify: () => verifyReleaseArtifacts(path.join(rootDirectory, 'release'), process.env.RELEASE_VERSION, process.argv[3] ?? 'all'),
+	};
 	const action = actions[process.argv[2]];
-	if (action == null) throw new Error('Expected prepare or publish');
+	if (action == null) throw new Error('Expected prepare, verify or publish');
 	await action();
 }

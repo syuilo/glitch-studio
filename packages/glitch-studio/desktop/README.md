@@ -1,6 +1,6 @@
 # Electron版
 
-Windows x64向けのNSISインストーラーを配布します。開発起動はルートで`pnpm dev:desktop`、公開しない配布ビルドは`pnpm dist:desktop`を実行します。出力先はルートの`release/`です。
+Windows x64向けのNSISインストーラーと、macOSのApple Silicon（arm64）・Intel（x64）向けのDMGを配布します。開発起動はルートで`pnpm dev:desktop`を実行します。公開しない配布ビルドは、Windows上では`pnpm dist:desktop:win`、macOS上では`pnpm dist:desktop:mac`を実行します。macOSのコマンドは両アーキテクチャを生成します。出力先はルートの`release/`です。
 
 desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`でASAR内の実行時依存を再帰的に検査します。
 
@@ -16,7 +16,7 @@ WindowsとmacOSでは、プロジェクトを開く・保存する操作が成�
 
 Windowsではファイルのパスを起動引数として受け取り、新しいプロセスの別ウィンドウへ読み込みます。ジャンプリストの表示には拡張子の関連付けが必要です。NSISインストーラーが`.gsproj`の関連付けを登録するため、表示と再オープンの確認はインストールした配布版で行ってください。開発版は配布版と異なるAppUserModelIDを使います。Windowsの履歴表示設定によっては項目が表示されません。
 
-macOSでは`open-file`イベントを`ready`より前から購読します。`ProjectLaunchController`が初期化前の要求を保持し、最初のファイルを起動ウィンドウへ一度だけ渡します。編集ウィンドウがある場合は、編集中の作品を保つためアプリの実行ファイルを直接起動して別プロセスで開きます。全ウィンドウを閉じた後の要求では、既存プロセスにウィンドウを作ります。IPCは現在のウィンドウに割り当てた起動ファイルを取得するため、再表示後にも使用できます。ファイル指定なしの再表示では以前の作品を自動で開きません。electron-builderの共通設定で`.gsproj`をmacOSの書類型にも登録します。現在の配布スクリプトはWindows向けのため、Dockの表示・Finderからの起動・複数ファイルのオープン・全ウィンドウを閉じた後の再オープンはmacOSでパッケージ化したアプリでも確認してください。
+macOSでは`open-file`イベントを`ready`より前から購読します。`ProjectLaunchController`が初期化前の要求を保持し、最初のファイルを起動ウィンドウへ一度だけ渡します。編集ウィンドウがある場合は、編集中の作品を保つためアプリの実行ファイルを直接起動して別プロセスで開きます。全ウィンドウを閉じた後の要求では、既存プロセスにウィンドウを作ります。IPCは現在のウィンドウに割り当てた起動ファイルを取得するため、再表示後にも使用できます。ファイル指定なしの再表示では以前の作品を自動で開きません。electron-builderの共通設定で`.gsproj`をmacOSの書類型にも登録します。Dockの表示・Finderからの起動・複数ファイルのオープン・全ウィンドウを閉じた後の再オープンはmacOSにインストールした配布版でも確認してください。
 
 アプリ内の履歴は最新20件を保持し、OSの履歴の表示件数・並び順などは各OSが管理します。アプリ内での個別削除はアプリ内の履歴だけに反映し、全履歴の消去時は`app.clearRecentDocuments()`も呼び出します。終了時には消去せず、次回起動時にも履歴を利用できます。OSへの登録・消去が失敗してもアプリ内の履歴操作は完了し、失敗をmainのログへ記録します。
 
@@ -53,15 +53,15 @@ macOSでは`open-file`イベントを`ready`より前から購読します。`Pr
 
 ## リリース
 
-GitHub Actionsの**Release desktop app**を選び、ブランチを`master`、`version`を例えば`2.0.0-alpha.2`として実行します。`v`接頭辞や`+build`メタデータは入力しません。開発版か正式版かはSemVerの開発版識別子から判断します。
+GitHub Actionsの**Release**を選び、ブランチを`master`、`version`を例えば`2.0.0-alpha.2`として実行します。`v`接頭辞や`+build`メタデータは入力しません。開発版か正式版かはSemVerの開発版識別子から判断します。
 
 Workflowは以下を実行します。
 
 1. dispatch時点の`github.sha`を固定する。実行待ちやビルド中の追加コミットは含めない。
 2. ルート`package.json`を指定バージョンへ変更し、リリース用コミットを作る。UIの表示バージョンとElectronのバージョンはこの値を使う。
-3. lint・型チェック・テスト・Windows NSISビルドを実行する。
+3. lint・型チェック・テストを実行する。未公開のリリースコミットをGit bundleで各ビルドジョブへ渡し、WindowsランナーでNSIS、macOSランナーでarm64・x64のDMGを生成する。ASARの依存、macOSアプリの署名とDMGの整合性も検証する。
 4. masterが元のコミットのままであることを確認し、リリース用コミットと`v<version>`タグをatomic pushする。force pushは使わない。
-5. Draft ReleaseへSetup.exe・`.blockmap`・`latest.yml`をアップロードし、ダウンロードし直してローカルの成果物と比較する。
+5. Draft ReleaseへSetup.exe・`.blockmap`・`latest.yml`・`Glitch-Studio-<version>-mac-arm64.dmg`・`Glitch-Studio-<version>-mac-x64.dmg`をアップロードし、ダウンロードし直してローカルの成果物と比較する。すべてのOSの成果物を必須とする。
 6. すべて成功した場合だけ公開する。開発版はpre-releaseとし、正式版だけGitHubのLatestへ指定する。
 
 masterが進んだ場合は公開せず失敗します。最新のmasterに対して新しくWorkflowを実行してください。タグ作成後に公開が失敗した場合は、元の実行を再実行すると同じリリースコミットを使い、未公開のDraftへ再アップロードできます。すでに公開済みのバージョンや異なるソースのタグは拒否します。公開済みの成果物を差し替える修正はせず、新しいバージョンとしてリリースしてください。
@@ -70,7 +70,11 @@ Actionsの`GITHUB_TOKEN`に`contents: write`が必要です。masterやタグの
 
 ## コード署名と検証
 
-現在は未署名です。更新のハッシュ検証は行いますが、署名による発行元の検証は行えません。WindowsのSmartScreen・Smart App Controlや組織のポリシーにより、警告や実行拒否が発生することがあります。
+Windows版は未署名です。更新のハッシュ検証は行いますが、署名による発行元の検証は行えません。WindowsのSmartScreen・Smart App Controlや組織のポリシーにより、警告や実行拒否が発生することがあります。
+
+macOS版はApple Developer証明書を使わず、`identity: '-'`でad-hoc署名を付けます。Hardened Runtimeと公証は無効です。ad-hoc署名はApple Siliconでの実行に必要なコードの整合性を保つもので、発行元の信頼性を証明しません。Gatekeeperにより起動が制限される場合は、信頼できる配布元であることを確認したうえでmacOSの「プライバシーとセキュリティ」から実行を許可します。組織のポリシーによっては実行できません。
+
+macOS版の更新はReleaseからDMGをダウンロードして手動で行います。macOSの自動更新にはDeveloper IDによる署名などの整備が必要なため、`latest-mac.yml`や更新用ZIPは生成せず、アプリ内の更新機能も無効のままです。
 
 署名を導入する場合はelectron-builder側へ署名方式を設定し、最終署名済み成果物からメタデータを生成します。発行元の検証と`forceCodeSigning`も有効にし、署名失敗を未署名配布へ切り替えないでください。
 

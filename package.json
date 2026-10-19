@@ -33,7 +33,8 @@
 		"dev:desktop": "pnpm --dir packages/glitch-studio/desktop dev",
 		"build:desktop": "cross-env BUILD_TARGET=electron pnpm --dir packages/glitch-studio/ui build",
 		"start:desktop": "pnpm --dir packages/glitch-studio/desktop start",
-		"dist:desktop": "pnpm build:desktop && pnpm --dir packages/glitch-studio/desktop dist"
+		"dist:desktop:win": "pnpm build:desktop && pnpm --dir packages/glitch-studio/desktop dist:win",
+		"dist:desktop:mac": "pnpm build:desktop && pnpm --dir packages/glitch-studio/desktop dist:mac"
 	},
 	"dependencies": {
 		"esbuild": "0.28.2"

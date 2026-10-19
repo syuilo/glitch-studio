@@ -9,7 +9,7 @@ module.exports = {
 	afterPack: async context => {
 		// pnpmのworkspace探索で別パッケージが選ばれても、起動不能な配布物を公開しない。
 		const { verifyPackagedApplication } = await import('./release.mjs');
-		verifyPackagedApplication(require('node:path').join(context.appOutDir, 'resources', 'app.asar'));
+		verifyPackagedApplication(require('node:path').join(context.packager.getResourcesDir(context.appOutDir), 'app.asar'));
 	},
 	directories: { output: '../../../release' },
 	extraMetadata: {
@@ -30,6 +30,24 @@ module.exports = {
 		target: [{ target: 'nsis', arch: ['x64'] }],
 		icon: 'resources/icon.ico',
 		artifactName: 'Glitch-Studio-${version}-${arch}-Setup.${ext}',
+	},
+	mac: {
+		target: [{ target: 'dmg', arch: ['arm64', 'x64'] }],
+		icon: '../ui/public/icon-512.png',
+		artifactName: 'Glitch-Studio-${version}-mac-${arch}.${ext}',
+		// Apple Developer証明書を使わず、Apple Siliconでも実行できるad-hoc署名を付ける。
+		// 発行元の証明や公証は行わないため、macOSの自動更新は引き続き無効とする。
+		identity: '-',
+		hardenedRuntime: false,
+		notarize: false,
+		publish: null,
+		extendInfo: {
+			NSCameraUsageDescription: 'Glitch Studio uses your camera as a live input.',
+			NSMicrophoneUsageDescription: 'Glitch Studio uses your microphone as a live audio input.',
+		},
+	},
+	dmg: {
+		writeUpdateInfo: false,
 	},
 	nsis: {
 		oneClick: false,
