@@ -19,20 +19,6 @@
 				<div class="_spacer _gaps_l">
 					<template v-if="tab === 'general'">
 						<GsFolder defaultOpen>
-							<template #label>{{ i18n.ts.Assets }}</template>
-
-							<div class="_gaps_l">
-								<GsSwitch v-model="importAssetsAsExternalReferences" :disabled="!desktopAvailable" data-test-default-external-reference>
-									{{ i18n.ts._Assets.DefaultExternalReference }}
-								</GsSwitch>
-								<GsSwitch v-model="importLargeAssetsAsExternalReferences" :disabled="!desktopAvailable" data-test-large-asset-external-reference>
-									{{ i18n.ts._Assets.LargeAssetExternalReference }}
-									<template #caption>{{ i18n.ts._Assets.LargeAssetExternalReferenceHint }}</template>
-								</GsSwitch>
-							</div>
-						</GsFolder>
-
-						<GsFolder defaultOpen>
 							<template #label>{{ i18n.ts._Settings.Rendering }}</template>
 
 							<div class="_gaps_l">
@@ -55,8 +41,21 @@
 						</GsFolder>
 
 						<GsFolder defaultOpen>
+							<template #label>{{ i18n.ts.Assets }}</template>
+
+							<div class="_gaps_l">
+								<GsSwitch v-model="importAssetsAsExternalReferences" :disabled="!desktopAvailable" data-test-default-external-reference>
+									{{ i18n.ts._Assets.DefaultExternalReference }}
+								</GsSwitch>
+								<GsSwitch v-model="importLargeAssetsAsExternalReferences" :disabled="!desktopAvailable" data-test-large-asset-external-reference>
+									{{ i18n.ts._Assets.LargeAssetExternalReference }}
+									<template #caption>{{ i18n.ts._Assets.LargeAssetExternalReferenceHint }}</template>
+								</GsSwitch>
+							</div>
+						</GsFolder>
+
+						<GsFolder defaultOpen>
 							<template #label>{{ i18n.ts._ProjectBackups.Title }}</template>
-							<template #caption>{{ i18n.ts._ProjectBackups.Description }}</template>
 
 							<div class="_gaps_l">
 								<GsSwitch v-model="settings.autoEnabled">{{ i18n.ts._ProjectBackups.Automatic }}</GsSwitch>
