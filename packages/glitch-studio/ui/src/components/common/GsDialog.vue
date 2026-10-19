@@ -22,8 +22,8 @@
 		</GsInput>
 		<GsSelect v-if="select" v-model="selectedValue" large :items="selectDef" autofocus></GsSelect>
 		<div v-if="(showOkButton || showCancelButton) && !actions" :class="$style.buttons">
-			<GsButton v-if="showOkButton" large data-testid="modal-dialog-ok" inline primary :autofocus="!input && !select" @click="ok">{{ okText ?? ((showCancelButton || input || select) ? 'OK' : i18n.ts._Dialog.GotIt) }}</GsButton>
-			<GsButton v-if="showCancelButton || input || select" large data-testid="modal-dialog-cancel" inline @click="cancel">{{ cancelText ?? i18n.ts.Cancel }}</GsButton>
+			<GsButton v-if="showOkButton" large data-testid="modal-dialog-ok" inline primary :autofocus="!input && !select && autofocus === 'ok'" @click="ok">{{ okText ?? ((showCancelButton || input || select) ? 'OK' : i18n.ts._Dialog.GotIt) }}</GsButton>
+			<GsButton v-if="showCancelButton || input || select" large data-testid="modal-dialog-cancel" inline :autofocus="autofocus === 'cancel'" @click="cancel">{{ cancelText ?? i18n.ts.Cancel }}</GsButton>
 		</div>
 		<div v-if="actions" :class="$style.buttons">
 			<GsButton v-for="action in actions" :key="action.text" large inline :primary="action.primary" :danger="action.danger" @click="() => { action.callback(); modal?.close(); }">{{ action.text }}</GsButton>
@@ -82,11 +82,13 @@ const props = withDefaults(defineProps<{
 	cancelableByBgClick?: boolean;
 	okText?: string;
 	cancelText?: string;
+	autofocus?: 'ok' | 'cancel';
 }>(), {
 	type: 'info',
 	showOkButton: true,
 	showCancelButton: false,
 	cancelableByBgClick: true,
+	autofocus: 'ok',
 });
 
 const emit = defineEmits<{

@@ -1,11 +1,11 @@
 {
 	"_DesktopUpdate": {
 		"Title": "Glitch Studioを更新",
-		"Available": "アップデートがあります",
+		"Available": "アップデートあり",
 		"Check": "アップデートを確認",
 		"UpToDate": "Glitch Studioは最新です。",
 		"CheckFailed": "アップデートを確認できませんでした。時間をおいて再度お試しください。",
-		"ConfirmTitle": "バージョン{version}に更新しますか？",
+		"ConfirmTitle": "v{version}に更新しますか？",
 		"ConfirmText": "アップデートを開始するとキャンセルできません。更新後にGlitch Studioが再起動し、現在のプロジェクトの未保存の変更は失われます。必要な内容を保存してから実行してください。",
 		"UpdateAndRestart": "更新して再起動",
 		"Preparing": "保存とバックアップの完了を待っています",
