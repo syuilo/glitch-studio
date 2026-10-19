@@ -21,7 +21,7 @@ export function isTimelineAudioOutputLayer(layer: TimelineLayer): layer is Timel
  * 無効・空のレイヤーも有効な参照先とする。解決できない場合の拒否や入力なしへの変換は
  * 呼び出し側で決め、削除後のUndoに必要な参照IDは書き換えない。
  */
-export function resolveTimelineAudioLayerReference(scene: TimelineScene, ownerLayerId: string, referencedLayerId: string | null): TimelineAudioLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | TimelineGroupLayer | null {
+export function resolveTimelineAnotherLayerAudioReference(scene: TimelineScene, ownerLayerId: string, referencedLayerId: string | null): TimelineAudioLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | TimelineGroupLayer | null {
 	if (referencedLayerId == null || referencedLayerId === ownerLayerId) return null;
 	const layer = findTimelineLayer(scene.layers, referencedLayerId);
 	return layer && isTimelineAudioOutputLayer(layer) ? layer : null;

@@ -33,7 +33,7 @@ import type { AssetImportPlacement } from './utility/import-assets.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
-import { resolveTimelineAudioLayerReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
+import { resolveTimelineAnotherLayerAudioReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { timelineCompositingParamDefs, validateTimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineLayerCoordinateSpace, TimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -178,7 +178,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 	paramPath: ParamPath;
 } & (
 	| { target?: TimelineParameterTarget; edit: ValueParameterEdit }
-	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'layerAudio' } | { kind: 'layerAudio'; value: string | null } }
+	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'anotherLayerAudio' } | { kind: 'anotherLayerAudio'; value: string | null } }
 	| { target: 'effect' | 'module'; edit: { kind: 'layerInput'; value: TimelineLayerInputBinding } | { kind: 'inputSource'; inputSource: 'layerInput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
 )>({
 	label: 'Edit timeline layer param',
@@ -191,7 +191,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			case 'inputSource': kind = 'inputSource'; break;
 			case 'layerInput':
 			case 'anotherLayerOutput':
-			case 'layerAudio': kind = 'connection'; break;
+			case 'anotherLayerAudio': kind = 'connection'; break;
 			default: kind = 'value'; break;
 		}
 		return [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId,
@@ -241,10 +241,10 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								: { inputSource: 'anotherLayerOutput', layerId: edit.value.layerId, outputStage: edit.value.outputStage };
 							break;
 						}
-						case 'layerAudio': {
-							const source = resolveTimelineAudioLayerReference(getScene(state, payload.sceneId), layer.id, edit.value);
+						case 'anotherLayerAudio': {
+							const source = resolveTimelineAnotherLayerAudioReference(getScene(state, payload.sceneId), layer.id, edit.value);
 							if (edit.value != null && source == null) throw new Error('Audio source must be an audio, video, or scene layer in the same scene');
-							next = { inputSource: 'layerAudio', layerId: edit.value };
+							next = { inputSource: 'anotherLayerAudio', layerId: edit.value };
 							break;
 						}
 						case 'envVariable': next = { inputSource: 'envVariable', variable: edit.value }; break;
@@ -279,7 +279,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								case 'layerInput': next = target === 'effect' ? createLayerInputBinding() : { inputSource: 'layerInput' }; break;
 								case 'anotherLayerOutput': next = { ...(target === 'effect' ? createLayerInputBinding() : {}), inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' }; break;
 								case 'lowerLayerAudio': next = { inputSource: 'lowerLayerAudio' }; break;
-								case 'layerAudio': next = { inputSource: 'layerAudio', layerId: null }; break;
+								case 'anotherLayerAudio': next = { inputSource: 'anotherLayerAudio', layerId: null }; break;
 								default: throw new Error('Unsupported layer parameter input source');
 							}
 							break;

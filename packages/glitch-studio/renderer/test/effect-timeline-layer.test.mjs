@@ -132,7 +132,7 @@ test('refreshes lower audio inputs after timeline edits without recreating the r
 // 【直接エフェクトと構造体内の音声入力を参照先ごとに解決する】
 // audioSourceは配列・構造体内にも置けるため、最初に取得した入力を全末端へ使い回してはいけない。
 // 未選択や欠落参照はnullにし、下層・異なるレイヤー・同じ参照の共有を実際の評価経路で確認する。
-test('resolves distinct layer audio inputs in nested effect parameters', async t => {
+test('resolves distinct anotherLayerAudio inputs in nested effect parameters', async t => {
 	const audioDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: literal(null) };
 	definition.paramDefs.audio = audioDef;
 	definition.paramDefs.sounds = { dataType: { kind: 'struct', fields: { first: audioDef.dataType, again: audioDef.dataType, second: audioDef.dataType, none: audioDef.dataType } },
@@ -146,7 +146,7 @@ test('resolves distinct layer audio inputs in nested effect parameters', async t
 		calls.push(args);
 		return { cacheKey: JSON.stringify(args[3]), readWindow: () => assert.fail('No PCM needed by the probe') };
 	};
-	const selected = id => ({ inputSource: 'layerAudio', layerId: id });
+	const selected = id => ({ inputSource: 'anotherLayerAudio', layerId: id });
 	await f.setup([layer('effect', { audio: { inputSource: 'lowerLayerAudio' }, sounds: literal({ first: selected('a'), again: selected('a'), second: selected('b'), none: selected(null) }) })]);
 	await f.manager.renderTimelineFrame(350.25, 0);
 	assert.deepEqual(calls.map(call => call.slice(1)), [

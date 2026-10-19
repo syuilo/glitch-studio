@@ -24,7 +24,7 @@
 			:layer="layer"
 			:effectState="effectLayerState"
 			:contextResolution="getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value)"
-			:audioLayerOptions="audioLayerOptions"
+			:anotherLayerAudioOptions="anotherLayerAudioOptions"
 			:imageLayerOptions="imageLayerOptions"
 			@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 			@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: layer.id, resolution })"
@@ -101,7 +101,7 @@
 						:paramPath="[paramDef.id]"
 						:paramDef="paramDef"
 						layerInputEnabled
-						:audioLayerOptions="audioLayerOptions"
+						:anotherLayerAudioOptions="anotherLayerAudioOptions"
 						:imageLayerOptions="imageLayerOptions"
 						:paramValue="getLayerParameterValues(layer, 'module')[paramDef.id] ?? getTimelineVisualModuleArgumentDefault(visualModule!, paramDef)"
 						@edit="event => onTimelineLayerParamEdit(event, 'module')"
@@ -261,7 +261,7 @@ const imageLayerOptions = computed(() => {
 	]);
 	return visit(props.scene.layers, []);
 });
-const audioLayerOptions = computed(() => sceneLayers.value
+const anotherLayerAudioOptions = computed(() => sceneLayers.value
 	.filter(layer => layer.id !== props.layer.id && isTimelineAudioOutputLayer(layer))
 	.map(layer => ({ value: layer.id, label: layer.name })));
 const visualModule = computed(() => {
@@ -314,7 +314,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;
-	if (event.kind === 'layerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'layerAudio'))) {
+	if (event.kind === 'anotherLayerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio'))) {
 		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', { sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event }, mergeKey);
 		return;
 	}

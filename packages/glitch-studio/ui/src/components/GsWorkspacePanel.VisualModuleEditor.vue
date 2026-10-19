@@ -159,7 +159,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'node':
 		case 'anotherLayerOutput':
 		case 'layerInput':
-		case 'layerAudio':
+		case 'anotherLayerAudio':
 		case 'externalCustomParameterInput': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
 		case 'inputSource':
@@ -177,7 +177,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				case 'anotherLayerOutput':
 		case 'layerInput':
 				case 'lowerLayerAudio':
-				case 'layerAudio':
+				case 'anotherLayerAudio':
 				case 'node':
 					return;
 			}

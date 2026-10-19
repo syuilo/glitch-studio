@@ -1,6 +1,6 @@
 ## 音声パラメータと波形・スペクトラム・スペクトログラム
 
-- `audioSource`は音声取得元の静的な指定です。`canNode: false`で、式・キー・automation・画像の配線には使いません。Visual Module Live Previewでは`literal`の`null`または`{ type: 'player', playerId }`、Timelineでは`literal: null`または専用Bindingの`lowerLayerAudio` / `{ inputSource: 'layerAudio', layerId: string | null }`を使います。
+- `audioSource`は音声取得元の静的な指定です。`canNode: false`で、式・キー・automation・画像の配線には使いません。Visual Module Live Previewでは`literal`の`null`または`{ type: 'player', playerId }`、Timelineでは`literal: null`または専用Bindingの`lowerLayerAudio` / `{ inputSource: 'anotherLayerAudio', layerId: string | null }`を使います。
 - 公開音声パラメータは`externalCustomParameterInput`経由で内部エフェクトへ渡し、`PARAM`には公開しません。`EffectDefinition.primaryAudioInputParameter` / `VisualModule.primaryAudioInputId`は主音声入力を指定し、Timelineでの初期割当・リセットを下層音声にします。画像の主入力・解像度・合成方法とは独立した役割です。
 - `AudioInput`は取得元に依存しない描画時の契約で、PCMは保存データに含めません。`audioWaveform`・`audioSpectrum`・`audioSpectrogram`はこの入力から音声窓を取得します。Timelineの窓は所属Scene時刻までの過去区間で48kHz固定、Visual Module Live PreviewはPlayerの保持PCMを使います。モノラルは左右へ複製します。
 - `AudioInput.sourceKey`は取得元・変更世代を、`cacheKey`は現在の窓も含めたスナップショットを識別します。通常の追記ではsourceKeyを維持します。`sampleRate`と半開区間の`startFrame`・`endFrame`を公開し、任意の過去を取得できる入力のstartFrameは-Infinityです。履歴の差し替えやPCMの編集ではsourceKeyを変更します。

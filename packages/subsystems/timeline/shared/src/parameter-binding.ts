@@ -29,13 +29,13 @@ export function createLayerInputBinding(): TimelineLayerInputBinding {
 
 export type TimelineParameterBinding = ValueParameterBinding;
 export type TimelineLowerLayerAudioBinding = { inputSource: 'lowerLayerAudio' };
-export type TimelineLayerAudioBinding = { inputSource: 'layerAudio'; layerId: string | null };
-export type TimelineAudioInputBinding = TimelineLowerLayerAudioBinding | TimelineLayerAudioBinding;
+export type TimelineAnotherLayerAudioBinding = { inputSource: 'anotherLayerAudio'; layerId: string | null };
+export type TimelineAudioInputBinding = TimelineLowerLayerAudioBinding | TimelineAnotherLayerAudioBinding;
 export type TimelineVisualModuleParameterBinding = TimelineParameterBinding | TimelineAudioInputBinding | TimelineVisualModuleLayerInputBinding | TimelineAnotherLayerOutputBinding;
 export type TimelineEffectParameterBinding = TimelineParameterBinding | TimelineAudioInputBinding | TimelineLayerInputBinding | TimelineEffectAnotherLayerOutputBinding;
 
 export function isTimelineAudioInputBinding(binding: ParameterBindingBase): binding is TimelineAudioInputBinding {
-	return binding.inputSource === 'lowerLayerAudio' || binding.inputSource === 'layerAudio';
+	return binding.inputSource === 'lowerLayerAudio' || binding.inputSource === 'anotherLayerAudio';
 }
 
 export function isTimelineImageInputBinding(binding: ParameterBindingBase): binding is TimelineVisualModuleLayerInputBinding | TimelineAnotherLayerOutputBinding {
@@ -49,7 +49,7 @@ export function validateTimelineParameterBinding(binding: ParameterBindingBase, 
 	if (isTimelineAudioInputBinding(binding)) {
 		if (!allowAudioInput) throw new Error('Layer audio is not available in this parameter');
 		// layerIdのnullは明示的な未選択。省略されたundefinedではBindingの必須フィールドを満たさない。
-		if (binding.inputSource === 'layerAudio' && binding.layerId !== null && (typeof binding.layerId !== 'string' || binding.layerId.length === 0)) throw new Error('Invalid audio layer reference');
+		if (binding.inputSource === 'anotherLayerAudio' && binding.layerId !== null && (typeof binding.layerId !== 'string' || binding.layerId.length === 0)) throw new Error('Invalid audio layer reference');
 		return;
 	}
 	if (isTimelineImageInputBinding(binding)) {

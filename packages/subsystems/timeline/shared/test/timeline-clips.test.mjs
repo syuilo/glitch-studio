@@ -6,9 +6,9 @@ import { validateTimelineParameterBinding } from '../src/parameter-binding.ts';
 // 【音声参照のnullは明示的な未選択として許可し、layerIdの欠落は拒否する】
 // 差分で選択を解除した状態と、不完全なBindingを同じ状態として扱うと、検証後の型が保証されない。
 test('distinguishes an unselected audio layer from a missing layer reference', () => {
-	validateTimelineParameterBinding({ inputSource: 'layerAudio', layerId: null }, false, true);
-	assert.throws(() => validateTimelineParameterBinding({ inputSource: 'layerAudio' }, false, true), /Invalid audio layer reference/);
-	assert.throws(() => validateTimelineParameterBinding({ inputSource: 'layerAudio', layerId: undefined }, false, true), /Invalid audio layer reference/);
+	validateTimelineParameterBinding({ inputSource: 'anotherLayerAudio', layerId: null }, false, true);
+	assert.throws(() => validateTimelineParameterBinding({ inputSource: 'anotherLayerAudio' }, false, true), /Invalid audio layer reference/);
+	assert.throws(() => validateTimelineParameterBinding({ inputSource: 'anotherLayerAudio', layerId: undefined }, false, true), /Invalid audio layer reference/);
 });
 
 const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, durationMs, contentOffsetMs });

@@ -8,8 +8,8 @@ export type TimelineAudioInputProvider = (binding: TimelineAudioInputBinding, sc
 export function createTimelineAudioInputResolver(provider: TimelineAudioInputProvider | null | undefined, sceneTimeMs: number, isExport: boolean) {
 	const inputs = new Map<string, AudioInput | null>();
 	return (binding: TimelineAudioInputBinding): AudioInput | null => {
-		if (binding.inputSource === 'layerAudio' && binding.layerId == null) return null;
-		const key = JSON.stringify([binding.inputSource, binding.inputSource === 'layerAudio' ? binding.layerId : null]);
+		if (binding.inputSource === 'anotherLayerAudio' && binding.layerId == null) return null;
+		const key = JSON.stringify([binding.inputSource, binding.inputSource === 'anotherLayerAudio' ? binding.layerId : null]);
 		if (!inputs.has(key)) {
 			if (!provider) throw new Error('Timeline audio input is unavailable');
 			inputs.set(key, provider(binding, sceneTimeMs, isExport));

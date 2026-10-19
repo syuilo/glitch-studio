@@ -8,7 +8,7 @@ import { createTimelineAudioInput } from '@gs/subsystems_timeline_audio-renderer
 import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 import type { SceneAudioClip, SceneAudioSelection } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 import type { TimelineAudioInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import { resolveTimelineAudioLayerReference } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
+import { resolveTimelineAnotherLayerAudioReference } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { Asset } from '@gs/shared/types.ts';
@@ -82,8 +82,8 @@ export class TimelineAudioInputs {
 			this.revision++;
 		}
 		let selection: SceneAudioSelection;
-		if (binding.inputSource === 'layerAudio') {
-			const source = resolveTimelineAudioLayerReference(getTimelineScene(scenes, sceneId), layerId, binding.layerId);
+		if (binding.inputSource === 'anotherLayerAudio') {
+			const source = resolveTimelineAnotherLayerAudioReference(getTimelineScene(scenes, sceneId), layerId, binding.layerId);
 			// 削除された参照は保存してUndoで復旧できるようにし、評価時は入力なしにする。
 			if (source == null) return null;
 			selection = { type: 'layer', layerId: source.id };

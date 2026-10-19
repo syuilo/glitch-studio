@@ -32,9 +32,9 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Visual Module内部の変数・カスタムパラメータ・グラフ一覧は継承しない。
 
-`parameter-binding.ts`は共通方式だけの`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `layerAudio`と画像入力用の`layerInput` / `anotherLayerOutput`を加えた`TimelineVisualModuleParameterBinding`、画像入力にサンプリングを組み合わせた`TimelineEffectParameterBinding`を定義する。合成設定・音量は共通方式だけを使う。音声入力Bindingは`audioSource`型だけで選択できる。`layerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
+`parameter-binding.ts`は共通方式だけの`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`layerInput` / `anotherLayerOutput`を加えた`TimelineVisualModuleParameterBinding`、画像入力にサンプリングを組み合わせた`TimelineEffectParameterBinding`を定義する。合成設定・音量は共通方式だけを使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
 
-`timeline-audio.ts`の`resolveTimelineAudioLayerReference()`は、所属Scene内のグループを含む探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
+`timeline-audio.ts`の`resolveTimelineAnotherLayerAudioReference()`は、所属Scene内のグループを含む探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
 
 `parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、`TimelineParameterBindingEvaluator`はCPU値として扱えるBindingだけを共通評価器へ渡す。`layerInput`はTimeline Renderer内のエフェクト・Visual Moduleレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
 
@@ -70,7 +70,7 @@ Scene一覧の重複ID・参照先の欠落・循環参照などの診断は、�
 
 `TimelineGroupLayer`は通常の合成設定・音量・キーを持ち、`clips`の代わりに`layers`を所有する。`layer-tree.ts`がScene参照を跨がない探索・更新・有効レイヤーの列挙を提供する。Sceneの長さ、Scene循環参照、履歴依存エフェクト、VOICEVOX要求、モーションブラーの検査にも同じ木構造を使う。
 
-`container-range.ts`が子孫クリップの最小開始〜最大終了を仮クリップの表示範囲として返す。この範囲を音声・映像の有効判定には使用しない。音声計画はグループの子へ同じScene時刻と音量の積を引き継ぐ。`layerAudio`の初期探索だけ祖先の音量を除外し、祖先の無効状態は引き続き適用する。
+`container-range.ts`が子孫クリップの最小開始〜最大終了を仮クリップの表示範囲として返す。この範囲を音声・映像の有効判定には使用しない。音声計画はグループの子へ同じScene時刻と音量の積を引き継ぐ。`anotherLayerAudio`の初期探索だけ祖先の音量を除外し、祖先の無効状態は引き続き適用する。
 
 動画・音声の倍率の絶対値は0.01〜16（1〜1600%）とし、負なら逆再生する。極端な早送りによるデコード・音声フィルターの負荷を制限するため、UI・Command・読み込み時に同じ範囲を検証する。0倍は許可しない。
 

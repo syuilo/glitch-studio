@@ -130,7 +130,7 @@ test('round-trips and duplicates text layers without sharing parameter values', 
 test('rejects unsupported bindings without committing changes', t => {
 	const f = fixture(t);
 	const before = structuredClone(f.layer);
-	for (const inputSource of ['node', 'layerInput', 'lowerLayerAudio', 'layerAudio']) {
+	for (const inputSource of ['node', 'layerInput', 'lowerLayerAudio', 'anotherLayerAudio']) {
 		assert.throws(() => f.edit('color', { kind: 'inputSource', inputSource }));
 		assert.deepEqual(f.layer, before);
 	}

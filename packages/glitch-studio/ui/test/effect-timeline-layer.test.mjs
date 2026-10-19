@@ -52,38 +52,38 @@ test('edits same-scene audio references with undo, reset, and command validation
 	const image = { ...audioLayer('image'), layerType: 'image', compositingParamValues: {} };
 	root.layers = [{ ...audioLayer('sound'), isDisabled: true }, f.layer, video, child, image];
 	f.state.timelineScenes.value.push({ ...root, id: 'other', layers: [audioLayer('outside')] });
-	f.edit(['audio'], { kind: 'inputSource', inputSource: 'layerAudio' });
-	assert.deepEqual(f.read(['audio']), { inputSource: 'layerAudio', layerId: null });
+	f.edit(['audio'], { kind: 'inputSource', inputSource: 'anotherLayerAudio' });
+	assert.deepEqual(f.read(['audio']), { inputSource: 'anotherLayerAudio', layerId: null });
 	for (const id of ['sound', 'video', 'child']) {
 		const before = structuredClone(f.read(['audio']));
-		const command = f.edit(['audio'], { kind: 'layerAudio', value: id });
-		assert.deepEqual(f.read(['audio']), { inputSource: 'layerAudio', layerId: id });
+		const command = f.edit(['audio'], { kind: 'anotherLayerAudio', value: id });
+		assert.deepEqual(f.read(['audio']), { inputSource: 'anotherLayerAudio', layerId: id });
 		command.undo(f.state);
 		assert.deepEqual(f.read(['audio']), before);
 		command.execute(f.state);
 		assert.equal(f.read(['audio']).layerId, id);
 	}
-	for (const id of ['outside', 'image', f.layer.id, 'missing']) assert.throws(() => f.edit(['audio'], { kind: 'layerAudio', value: id }), /same scene/);
+	for (const id of ['outside', 'image', f.layer.id, 'missing']) assert.throws(() => f.edit(['audio'], { kind: 'anotherLayerAudio', value: id }), /same scene/);
 	assert.equal(f.read(['audio']).layerId, 'child');
 	const reset = f.edit(['audio'], { kind: 'reset' });
 	assert.deepEqual(f.read(['audio']), { inputSource: 'lowerLayerAudio' });
 	reset.undo(f.state);
 	assert.equal(f.read(['audio']).layerId, 'child');
-	f.edit(['audio'], { kind: 'layerAudio', value: null });
+	f.edit(['audio'], { kind: 'anotherLayerAudio', value: null });
 	assert.equal(f.read(['audio']).layerId, null);
-	assert.equal(COMMAND_DEFS.editTimelineLayerParam.changes(f.state, { ...f.target, paramPath: ['audio'], edit: { kind: 'layerAudio', value: 'sound' } })[0].changes[0].kind, 'connection');
+	assert.equal(COMMAND_DEFS.editTimelineLayerParam.changes(f.state, { ...f.target, paramPath: ['audio'], edit: { kind: 'anotherLayerAudio', value: 'sound' } })[0].changes[0].kind, 'connection');
 });
 
 // 【音声参照の削除中もIDを保存し、Undoで同じ参照先へ復旧する】
 // 削除時に参照を消すと、Undoしても波形の配線を手作業で戻す必要がある。
 // 欠落した参照を持つプロジェクトも保存・再読込でき、別パラメータの編集を妨げない。
-test('preserves dangling layer audio references through deletion, saving, and undo', async () => {
+test('preserves dangling anotherLayerAudio references through deletion, saving, and undo', async () => {
 	const f = fixture('audioWaveform');
 	f.state.timelineScenes.value[0].layers.push(audioLayer('sound'));
-	f.edit(['audio'], { kind: 'layerAudio', value: 'sound' });
+	f.edit(['audio'], { kind: 'anotherLayerAudio', value: 'sound' });
 	const remove = COMMAND_DEFS.removeTimelineLayer.create({ sceneId: 'scene', layerId: 'sound' });
 	remove.execute(f.state);
-	assert.deepEqual(f.read(['audio']), { inputSource: 'layerAudio', layerId: 'sound' });
+	assert.deepEqual(f.read(['audio']), { inputSource: 'anotherLayerAudio', layerId: 'sound' });
 	f.edit(['amplitude'], { kind: 'literal', value: 2 });
 	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, id: 'project', gsVersion: '2.0.0-alpha', name: 'Audio', description: '', author: '', resolution: { width: 800, height: 600 },
 		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
@@ -157,13 +157,13 @@ test('validates and edits nested audio bindings using stable parameter paths', t
 	reset.undo(f.state);
 	assert.equal(f.read(path).inputSource, 'lowerLayerAudio');
 	f.state.timelineScenes.value[0].layers.push(audioLayer('sound'));
-	f.edit(path, { kind: 'layerAudio', value: 'sound' });
-	assert.deepEqual(f.read(path), { inputSource: 'layerAudio', layerId: 'sound' });
+	f.edit(path, { kind: 'anotherLayerAudio', value: 'sound' });
+	assert.deepEqual(f.read(path), { inputSource: 'anotherLayerAudio', layerId: 'sound' });
 	const remove = f.edit(['inputs'], { kind: 'removeElement', elementId: 'first' });
 	assert.deepEqual(f.read(['inputs']).value, []);
 	remove.undo(f.state);
-	assert.deepEqual(f.read(path), { inputSource: 'layerAudio', layerId: 'sound' });
-	assert.throws(() => f.edit(path, { kind: 'layerAudio', value: 'outside' }), /same scene/);
+	assert.deepEqual(f.read(path), { inputSource: 'anotherLayerAudio', layerId: 'sound' });
+	assert.throws(() => f.edit(path, { kind: 'anotherLayerAudio', value: 'outside' }), /same scene/);
 });
 
 // 【公開音声入力の指定と引数の既定値を保存し、定義編集とUndoで対応を維持する】
@@ -197,9 +197,9 @@ test('edits primary audio parameters and timeline arguments with independent und
 	none.undo(f.state);
 	assert.equal(Object.hasOwn(layer.visualModuleParamValues, 'sound'), false);
 	f.state.timelineScenes.value[0].layers.push(audioLayer('source'));
-	const selected = COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'layerAudio', value: 'source' } });
+	const selected = COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'anotherLayerAudio', value: 'source' } });
 	selected.execute(f.state);
-	assert.deepEqual(layer.visualModuleParamValues.sound, { inputSource: 'layerAudio', layerId: 'source' });
+	assert.deepEqual(layer.visualModuleParamValues.sound, { inputSource: 'anotherLayerAudio', layerId: 'source' });
 	assert.deepEqual(visualModule.paramDefs[0].defaultValue, literal(null));
 	selected.undo(f.state);
 	assert.equal(Object.hasOwn(layer.visualModuleParamValues, 'sound'), false);

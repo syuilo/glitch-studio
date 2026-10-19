@@ -658,7 +658,7 @@
 		"AutomationGraphReference": "Automation Graph (Reference)",
 		"AutomationGraphInline": "Automation Graph (Inline)",
 		"LowerLayerAudio": "Audio From Layers Below",
-		"LayerAudio": "Audio From Layer",
+		"AnotherLayerAudio": "Audio From Another Layer",
 		"CustomParameter": "Custom Parameter",
 		"Node": "Node",
 		"AnotherLayerOutput": "Another Layer Output",

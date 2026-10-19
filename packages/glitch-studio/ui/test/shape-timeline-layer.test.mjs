@@ -144,7 +144,7 @@ test('round-trips animated shapes and duplicates their independent settings', as
 test('rejects unsupported shape bindings and unknown geometry without committing changes', t => {
 	const f = fixture(t);
 	const before = structuredClone(f.layer);
-	for (const inputSource of ['node', 'layerInput', 'lowerLayerAudio', 'layerAudio']) {
+	for (const inputSource of ['node', 'layerInput', 'lowerLayerAudio', 'anotherLayerAudio']) {
 		assert.throws(() => f.edit('fillColor', { kind: 'inputSource', inputSource }));
 		assert.deepEqual(f.layer, before);
 	}

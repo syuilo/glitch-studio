@@ -248,10 +248,10 @@ test('anchors module audio to scene time while preserving content time and expli
 // 欠落参照のnullもキャッシュし、次のフレームでは再解決してUndoや編集を反映する。
 test('resolves independent public audio sources and shares only matching frame inputs', async () => {
 	const bindings = {
-		lower: { inputSource: 'lowerLayerAudio' }, first: { inputSource: 'layerAudio', layerId: 'a' },
-		again: { inputSource: 'layerAudio', layerId: 'a' }, second: { inputSource: 'layerAudio', layerId: 'b' },
-		missing: { inputSource: 'layerAudio', layerId: 'missing' }, missingAgain: { inputSource: 'layerAudio', layerId: 'missing' },
-		none: { inputSource: 'layerAudio', layerId: null },
+		lower: { inputSource: 'lowerLayerAudio' }, first: { inputSource: 'anotherLayerAudio', layerId: 'a' },
+		again: { inputSource: 'anotherLayerAudio', layerId: 'a' }, second: { inputSource: 'anotherLayerAudio', layerId: 'b' },
+		missing: { inputSource: 'anotherLayerAudio', layerId: 'missing' }, missingAgain: { inputSource: 'anotherLayerAudio', layerId: 'missing' },
+		none: { inputSource: 'anotherLayerAudio', layerId: null },
 	};
 	const visualModule = { primaryInputId: null, primaryAudioInputId: null,
 		paramDefs: Object.keys(bindings).map(id => ({ ...audioDef, id, nameForReference: id })) };

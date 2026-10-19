@@ -7,7 +7,7 @@ const load = name => loadSource(fileURLToPath(new URL('../src/' + name, import.m
 const { getSceneDuration, canReferenceScene } = await load('scenes.ts');
 const { getSceneAudioClips } = await load('scene-audio.ts');
 const { getTimelineMotionBlurBoundaries } = await load('motion-blur.ts');
-const { resolveTimelineAudioLayerReference } = await load('timeline-audio.ts');
+const { resolveTimelineAnotherLayerAudioReference } = await load('timeline-audio.ts');
 const { timelineSceneToSource, timelineSourceToScene } = await load('layer-transform.ts');
 const { getTimelineContainerRange } = await load('container-range.ts');
 const literal = value => ({ inputSource: 'literal', value });
@@ -24,7 +24,7 @@ test('references any layer in the scene without ancestor gains and honors ancest
 	const inner = group('inner', [child]);
 	const outer = group('outer', [inner]);
 	const root = scene('root', [outer]);
-	assert.equal(resolveTimelineAudioLayerReference(root, 'visual', child.id), child);
+	assert.equal(resolveTimelineAnotherLayerAudioReference(root, 'visual', child.id), child);
 	assert.deepEqual(getSceneAudioClips([root], 'root')[0].gains.map(gain => gain.volume.value), [0.5, 0.5, 0.8]);
 	assert.deepEqual(getSceneAudioClips([root], 'root', { type: 'layer', layerId: 'inner' })[0].gains.map(gain => gain.volume.value), [0.5, 0.8]);
 	const direct = () => getSceneAudioClips([root], 'root', { type: 'layer', layerId: 'sound' });

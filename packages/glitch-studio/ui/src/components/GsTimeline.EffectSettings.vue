@@ -18,7 +18,7 @@
 			layerInputEnabled
 			imageInputSamplingEnabled
 			:imageLayerOptions="imageLayerOptions"
-			:audioLayerOptions="audioLayerOptions"
+			:anotherLayerAudioOptions="anotherLayerAudioOptions"
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
@@ -51,14 +51,14 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
-import type { AudioLayerOption, ParamEdit } from './GsVisualParam.vue';
+import type { AnotherLayerAudioOption, ParamEdit } from './GsVisualParam.vue';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import { i18n } from '@/i18n.ts';
 
-const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; imageLayerOptions: readonly AudioLayerOption[]; audioLayerOptions: readonly AudioLayerOption[] }>();
+const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; imageLayerOptions: readonly { value: string; label: string }[]; anotherLayerAudioOptions: readonly AnotherLayerAudioOption[] }>();
 const emit = defineEmits<{ edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
 const definition = computed(() => effectDefinitions[props.layer.effectId]);
 const outputResolution = computed(() => definition.value.primaryOutput == null ? null : props.effectState?.outputs[definition.value.primaryOutput]);

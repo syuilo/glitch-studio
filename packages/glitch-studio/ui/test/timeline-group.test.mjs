@@ -172,7 +172,7 @@ test('keeps selected layers on right click and offers rename only for one layer'
 // 元の木を変更せずコピー側へ参照を付け替え、Redoで同じIDと配置を再現する。
 test('duplicates selected roots together above their sources with one undo', async t => {
 	const visual = { id: 'visual', name: 'Visual', layerType: 'visualModule', isDisabled: false, automationGraphs: [],
-		clips: [], compositingParamValues: {}, visualModuleId: 'shared', visualModuleParamValues: { audio: { inputSource: 'layerAudio', layerId: 'audio' } } };
+		clips: [], compositingParamValues: {}, visualModuleId: 'shared', visualModuleParamValues: { audio: { inputSource: 'anotherLayerAudio', layerId: 'audio' } } };
 	const f = fixture(t, [group('parent', [sound('audio')]), visual]);
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
 	const before = structuredClone(f.scene);
@@ -314,8 +314,8 @@ test('groups, reparents and ungroups atomically with stable child IDs', t => {
 test('remaps internal audio references while preserving external references when duplicating', () => {
 	const original = group('group', [sound('sound'), group('nested', [{ id: 'visual', name: 'Visual', layerType: 'visualModule',
 		isDisabled: false, automationGraphs: [], clips: [], compositingParamValues: {}, visualModuleId: 'shared',
-		visualModuleParamValues: { internal: { inputSource: 'layerAudio', layerId: 'sound' }, external: { inputSource: 'layerAudio', layerId: 'outside' },
-			items: { inputSource: 'array', items: [{ id: 'item', value: { inputSource: 'layerAudio', layerId: 'group' } }] } },
+		visualModuleParamValues: { internal: { inputSource: 'anotherLayerAudio', layerId: 'sound' }, external: { inputSource: 'anotherLayerAudio', layerId: 'outside' },
+			items: { inputSource: 'array', items: [{ id: 'item', value: { inputSource: 'anotherLayerAudio', layerId: 'group' } }] } },
 	}])]);
 	const before = structuredClone(original);
 	const [copy] = duplicateTimelineLayers([original]);

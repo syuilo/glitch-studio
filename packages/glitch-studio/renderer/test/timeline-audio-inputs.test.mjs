@@ -72,7 +72,7 @@ test('separates source plans and refreshes selected audio after edits and restor
 	const f = fixture();
 	f.release.resolve();
 	let current = structuredClone(scenes);
-	const binding = { inputSource: 'layerAudio', layerId: 'audio' };
+	const binding = { inputSource: 'anotherLayerAudio', layerId: 'audio' };
 	const input = (selection = binding) => f.inputs.getInput(current, 'scene', 'waveform', selection, 500, false);
 	const read = value => value.readWindow(0.01, new AbortController().signal);
 	try {
@@ -88,12 +88,12 @@ test('separates source plans and refreshes selected audio after edits and restor
 		assert.ok(Math.abs((await read(input())).sample(0, 'left') - 0.5) < 0.000001);
 		assert.ok(samples(await read(input({ inputSource: 'lowerLayerAudio' }))).every(value => value === 0));
 		// 名前や並び順は保存された参照IDを書き換えない。
-		assert.deepEqual(binding, { inputSource: 'layerAudio', layerId: 'audio' });
+		assert.deepEqual(binding, { inputSource: 'anotherLayerAudio', layerId: 'audio' });
 		const restored = structuredClone(current);
 		current = [{ ...current[0], layers: [current[0].layers[1]] }, { ...restored[0], id: 'other-scene', layers: [restored[0].layers[0]] }];
 		assert.equal(input(), null);
-		assert.equal(input({ inputSource: 'layerAudio', layerId: null }), null);
-		assert.equal(input({ inputSource: 'layerAudio', layerId: 'waveform' }), null);
+		assert.equal(input({ inputSource: 'anotherLayerAudio', layerId: null }), null);
+		assert.equal(input({ inputSource: 'anotherLayerAudio', layerId: 'waveform' }), null);
 		current = restored;
 		assert.ok(Math.abs(samples(await read(input()))[0] - 0.5) < 0.000001);
 		current = structuredClone(restored);

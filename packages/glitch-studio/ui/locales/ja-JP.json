@@ -658,7 +658,7 @@
 		"AutomationGraphReference": "Automation Graph (参照)",
 		"AutomationGraphInline": "Automation Graph (インライン)",
 		"LowerLayerAudio": "下のレイヤーの音声",
-		"LayerAudio": "レイヤーの音声",
+		"AnotherLayerAudio": "別のレイヤーの音声",
 		"CustomParameter": "カスタムパラメータ",
 		"Node": "ノード",
 		"AnotherLayerOutput": "別レイヤーの出力",
