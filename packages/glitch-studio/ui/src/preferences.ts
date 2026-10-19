@@ -42,7 +42,7 @@ export const PREF_DEF = definePreferences({
 				type: 'tabs',
 				direction: 'vertical',
 				children: [{
-					name: 'Visual Module Live Preview',
+					name: 'Visual Module',
 					element: {
 						id: '7e07309a8e0743ebaf4ddc9da4c4085f',
 						type: 'divider',
