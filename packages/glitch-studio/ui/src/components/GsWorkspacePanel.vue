@@ -248,8 +248,12 @@ function popout() {
 		}
 
 		> .headerIndicator {
-			width: calc(100% - 24px);
 			height: 3px;
+			width: 10px;
+			left: 0;
+			right: 0;
+			top: 12px;
+			bottom: auto;
 		}
 
 		> .title {
@@ -308,10 +312,12 @@ function popout() {
 
 .headerIndicator {
 	position: absolute;
-	top: 12px;
+	top: 0;
+	bottom: 0;
+	margin: auto;
 	left: 12px;
 	width: 3px;
-	height: calc(100% - 24px);
+	height: 10px;
 	background: #000;
 	border-radius: 999px;
 }
