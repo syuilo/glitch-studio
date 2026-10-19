@@ -44,7 +44,7 @@ features:
     link: /guide/timeline/layers/voicevox
     linkText: VOICEVOXレイヤー
   - title: ブラウザ上でも
-    details: "インストール不要でWebブラウザ上でも使用できます。ただし、一部対応しておらず、使用可能な機能に制限あり。"
+    details: "デスクトップ版に比べると制限はありますが、インストール不要でWebブラウザ上でも使用できます。"
     linkText: Web版を開く
     link: https://syuilo.dev/glitch-studio/
 ---
