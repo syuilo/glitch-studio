@@ -19,7 +19,6 @@
 		"Retry": "再試行"
 	},
 	"_EffectPicker": {
-		"Search": "エフェクトを検索",
 		"Close": "閉じる",
 		"DataType": "型",
 		"InputType": "入力の型",
@@ -311,7 +310,6 @@
 		"PreparingTimelineLayer": "タイムラインレイヤーを準備中: {name}"
 	},
 	"_LocalFonts": {
-		"Search": "フォントを検索",
 		"Empty": "利用できるローカルフォントはありません。",
 		"NoResults": "一致するフォントはありません。",
 		"EmptyFont": "選択したフォントにデータがありません。",
@@ -744,5 +742,6 @@
 	},
 	"Total": "合計:",
 	"Replace": "置き換え",
-	"Import": "インポート"
+	"Import": "インポート",
+	"Search": "検索"
 }

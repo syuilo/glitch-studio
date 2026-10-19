@@ -19,7 +19,6 @@
 		"Retry": "Try again"
 	},
 	"_EffectPicker": {
-		"Search": "Search effects",
 		"Close": "Close",
 		"DataType": "Data Type",
 		"InputType": "Input type",
@@ -311,7 +310,6 @@
 		"PreparingTimelineLayer": "Preparing timeline layer: {name}"
 	},
 	"_LocalFonts": {
-		"Search": "Search fonts",
 		"Empty": "No local fonts are available.",
 		"NoResults": "No matching fonts.",
 		"EmptyFont": "The selected font contains no data.",
@@ -744,5 +742,6 @@
 	},
 	"Total": "Total:",
 	"Replace": "Replace",
-	"Import": "Import"
+	"Import": "Import",
+	"Search": "Search"
 }
