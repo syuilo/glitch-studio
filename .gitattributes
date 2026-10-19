@@ -1,0 +1,2 @@
+# pnpm 12.3.4 は CRLF のパッチを解析できないため、Windows でも LF でチェックアウトする。
+patches/*.patch text eol=lf
