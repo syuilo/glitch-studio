@@ -1,5 +1,5 @@
-import { i18n } from '@/i18n.ts';
 import { findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { duplicateTimelineLayers } from './timeline-container.ts';
 import type { Ref } from 'vue';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ProjectState, AppStateChange } from '@/Project.ts';
@@ -8,7 +8,7 @@ import type { MenuItem } from '@/types/menu.ts';
 import type { UndoRedo } from './undo-redo.ts';
 import type { TimelineSelection } from './timeline-selection.ts';
 import type { TimelineClipSourceDurations } from './timeline-clip-media.ts';
-import { duplicateTimelineLayers } from './timeline-container.ts';
+import { i18n } from '@/i18n.ts';
 
 type TimelineLayerActionsOptions = {
 	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
@@ -33,10 +33,36 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 		if (selection.value.kind !== 'layers' || !selection.value.ids.includes(layer.id)) selectLayer(layer);
 		if (selection.value.kind !== 'layers') return;
 		const ids = [...selection.value.ids];
-		const menu: MenuItem[] = [{ text: i18n.ts._TimelineLayer.WrapInTransform, icon: 'ti ti-gizmo', disabled: !canWrap(), action: transformSelection }, { text: i18n.ts.Group, icon: 'ti ti-folder-symlink', disabled: !canWrap(), action: groupSelection }];
-		if (ids.length === 1) menu.push({ text: i18n.ts.Rename, icon: 'ti ti-edit', action: () => rename(ids[0]) });
-		menu.push({ text: i18n.ts.Duplicate, icon: 'ti ti-copy', action: () => duplicate(ids) }, {
-			text: i18n.ts.Delete, icon: 'ti ti-trash', danger: true, action: () => remove(ids),
+		const menu: MenuItem[] = [{
+			id: 'wrapInTransform',
+			text: i18n.ts._TimelineLayer.WrapInTransform,
+			icon: 'ti ti-gizmo',
+			disabled: !canWrap(),
+			action: transformSelection,
+		}, {
+			id: 'group',
+			text: i18n.ts.Group,
+			icon: 'ti ti-folder-symlink',
+			disabled: !canWrap(),
+			action: groupSelection,
+		}];
+		if (ids.length === 1) menu.push({
+			id: 'rename',
+			text: i18n.ts.Rename,
+			icon: 'ti ti-edit',
+			action: () => rename(ids[0]),
+		});
+		menu.push({
+			id: 'duplicate',
+			text: i18n.ts.Duplicate,
+			icon: 'ti ti-copy',
+			action: () => duplicate(ids),
+		}, {
+			id: 'delete',
+			text: i18n.ts.Delete,
+			icon: 'ti ti-trash',
+			danger: true,
+			action: () => remove(ids),
 		});
 		ui.contextMenu(menu, event);
 	}
@@ -63,8 +89,8 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 			// 素材読み込み中に階層が編集された場合は、古い所属・順序で複製を挿入しない。
 			if (!isActive() || scene.layers !== initialLayers) return;
 			stateManager.commit('duplicateTimelineLayers', { sceneId: scene.id,
-				layers: layers.map((layer, index) => ({ layer, sourceLayerId: sources[index].id })),
-				sourceDurationsMs: Object.assign(Object.create(null), ...durations),
+																																																				layers: layers.map((layer, index) => ({ layer, sourceLayerId: sources[index].id })),
+																																																				sourceDurationsMs: Object.assign(Object.create(null), ...durations),
 			});
 			selection.value = { kind: 'layers', ids: layers.map(layer => layer.id) };
 			focusTimeline();

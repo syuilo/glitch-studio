@@ -234,10 +234,12 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			icon: 'ti ti-photo',
 			action: () => addMediaLayer('image'),
 		}, {
+			id: 'video',
 			text: i18n.ts.Video,
 			icon: 'ti ti-video',
 			action: () => addMediaLayer('video'),
 		}, {
+			id: 'audio',
 			text: i18n.ts.Audio,
 			icon: 'ti ti-music',
 			action: () => addMediaLayer('audio'),
@@ -251,6 +253,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 				seek(layer.clips[0].startMs);
 			},
 		}, {
+			id: 'referenceVisualModule',
 			text: i18n.ts._Timeline.ReferenceVisualModule,
 			icon: 'ti ti-chart-dots-3',
 			action: addReferencedVisualModuleLayer,
@@ -285,6 +288,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 				selectLayer(layer);
 			},
 		}, {
+			id: 'camera',
 			text: i18n.ts.Camera,
 			icon: 'ti ti-camera',
 			action: () => {

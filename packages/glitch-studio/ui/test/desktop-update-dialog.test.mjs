@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, nextTick, reactive } from 'vue';
-import { i18nPlugin } from './helpers/i18n.mjs';
+import { i18n, i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({ absWorkingDir: directory,
@@ -67,7 +67,7 @@ test('keeps the update dialog open while working and exposes recovery only after
 	props.state = { ...props.state, phase: 'restart-required', error: { code: 'install-failed', message: 'cannot spawn' } };
 	await nextTick();
 	assert.equal(find(root, 'data-test-desktop-update-retry'), null);
-	assert.match(find(root, 'data-test-desktop-update-error').text, /quit Glitch Studio, and open it again/);
+	assert.equal(find(root, 'data-test-desktop-update-error').text, `${i18n.ts._DesktopUpdate.RestartRequiredDetails}\ncannot spawn`);
 	find(root, 'data-test-desktop-update-close').props.onClick();
 	assert.equal(modalTest.closes, 1);
 });

@@ -5,7 +5,7 @@
 
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer">
-			<GsInput :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
+			<GsInput data-test-layer-name :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
 		</div>
 		<div v-if="layer.layerType === 'group'" class="_spacer">
 			<GsSelect large :modelValue="layer.compositingMode ?? 'flat'" :items="groupModes" @update:modelValue="mode => stateManager.commit('changeTimelineGroupMode', { sceneId, layerId: layer.id, mode })">

@@ -318,13 +318,13 @@ test('edits video total duration independently of the trimmed range in the inspe
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
 	await nextTick();
-	f.control('GsInput', 'Total duration').props['onUpdate:modelValue'](13000);
+	f.control('GsInput', 'clip-total-duration').props['onUpdate:modelValue'](13000);
 	await nextTick();
 	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [13000, 5000]);
-	f.control('GsInput', 'Trimmed duration').props['onUpdate:modelValue'](3000);
+	f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](3000);
 	await nextTick();
 	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [13000, 3000]);
-	f.control('GsButton', 'Remove loop').props.onClick();
+	f.control('GsButton', 'clip-remove-loop').props.onClick();
 	await nextTick();
 	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [3000, null]);
 	f.history.undo();
@@ -343,15 +343,15 @@ test('applies speed and reverse controls and previews collision errors', async t
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
 	await nextTick();
-	f.control('GsInput', 'Speed').props['onUpdate:modelValue'](50);
+	f.control('GsInput', 'clip-speed').props['onUpdate:modelValue'](50);
 	await nextTick();
-	assert.equal(f.control('GsButton', 'Apply speed').props.disabled, false);
-	f.control('GsButton', 'Apply speed').props.onClick();
+	assert.equal(f.control('GsButton', 'clip-apply-speed').props.disabled, false);
+	f.control('GsButton', 'clip-apply-speed').props.onClick();
 	await nextTick();
 	assert.equal(clip.durationMs, 10000);
-	f.control('GsSwitch', 'Reverse playback').props['onUpdate:modelValue'](true);
+	f.control('GsSwitch', 'clip-reverse').props['onUpdate:modelValue'](true);
 	await nextTick();
-	f.control('GsButton', 'Apply speed').props.onClick();
+	f.control('GsButton', 'clip-apply-speed').props.onClick();
 	await nextTick();
 	assert.equal(clip.playbackRate, -0.5);
 	assert.deepEqual(layer.audioParamValues.volume.keyframesTimeline.keyframes.map(key => key.x), keyTimes);
@@ -360,10 +360,10 @@ test('applies speed and reverse controls and previews collision errors', async t
 	await nextTick();
 	assert.deepEqual({ ...clip }, original);
 	layer.clips.push({ ...clip, id: 'next', startMs: 6000 });
-	f.control('GsInput', 'Speed').props['onUpdate:modelValue'](50);
+	f.control('GsInput', 'clip-speed').props['onUpdate:modelValue'](50);
 	await nextTick();
-	assert.equal(f.control('GsButton', 'Apply speed').props.disabled, true);
-	assert.ok(textContent(f.root).includes('Overlapping clips'));
+	assert.equal(f.control('GsButton', 'clip-apply-speed').props.disabled, true);
+	assert.ok(textContent(f.control('div', 'clip-speed-error')).length > 0);
 });
 
 async function fixture(t, component = Inspector) {
@@ -406,7 +406,8 @@ async function fixture(t, component = Inspector) {
 	t.after(() => app.unmount());
 	await nextTick();
 	const controls = tag => descendants(root).filter(node => node.tag === tag);
-	const control = (tag, label) => controls(tag).find(node => label == null || textContent(node).includes(label));
+	// 表示名ではなく専用属性で選び、翻訳やラベルの部分一致に依存しない。
+	const control = (tag, testId) => controls(tag).find(node => testId == null || Object.hasOwn(node.props, `data-test-${testId}`));
 	return { props, scene, history, events, root, controls, control };
 }
 
@@ -425,20 +426,20 @@ test('holds the current source frame and edits hold time and duration in the ins
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
 	appContext.previewPlayback.currentTimelineTime.value = 2500;
 	await nextTick();
-	f.control('GsButton', 'Hold current frame').props.onClick();
+	f.control('GsButton', 'clip-hold-frame').props.onClick();
 	await nextTick();
 	await nextTick();
 	assert.deepEqual([videoHoldTest.calls[0].sourceTimeMs, videoHoldTest.calls[0].reverse], [1750, true]);
 	assert.equal(clip.sourceTimeMs, 1700);
 	assert.equal(clip.durationMs, 5000);
-	assert.equal(f.control('GsSwitch', 'Audio enabled').props.disabled, true);
-	assert.equal(f.control('GsInput', 'Speed'), undefined);
-	assert.equal(f.control('GsInput', 'Total duration'), undefined);
-	f.control('GsInput', 'Hold source time').props['onUpdate:modelValue'](2345);
+	assert.equal(f.control('GsSwitch', 'clip-audio-enabled').props.disabled, true);
+	assert.equal(f.control('GsInput', 'clip-speed'), undefined);
+	assert.equal(f.control('GsInput', 'clip-total-duration'), undefined);
+	f.control('GsInput', 'clip-hold-source-time').props['onUpdate:modelValue'](2345);
 	await nextTick();
 	await nextTick();
 	assert.equal(clip.sourceTimeMs, 2300);
-	f.control('GsInput', 'Duration').props['onUpdate:modelValue'](15000);
+	f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](15000);
 	await nextTick();
 	assert.equal(clip.durationMs, 15000);
 	assert.equal(clip.sourceTimeMs, 2300);
@@ -447,10 +448,10 @@ test('holds the current source frame and edits hold time and duration in the ins
 	f.history.undo();
 	await nextTick();
 	assert.deepEqual({ ...clip }, original);
-	assert.equal(f.control('GsButton', 'Hold current frame').props.disabled, false);
+	assert.equal(f.control('GsButton', 'clip-hold-frame').props.disabled, false);
 	appContext.previewPlayback.currentTimelineTime.value = 5000;
 	await nextTick();
-	assert.equal(f.control('GsButton', 'Hold current frame').props.disabled, true);
+	assert.equal(f.control('GsButton', 'clip-hold-frame').props.disabled, true);
 });
 
 // 【デコード待機中の古い固定操作を別クリップ・変更済み素材へ適用しない】
@@ -469,7 +470,7 @@ test('discards stale hold results and reports missing frames without changing hi
 		let resolve, reject;
 		videoHoldTest.read = () => new Promise((done, failed) => { resolve = done; reject = failed; });
 		await nextTick();
-		f.control('GsButton', 'Hold current frame').props.onClick();
+		f.control('GsButton', 'clip-hold-frame').props.onClick();
 		if (change === 'selection') f.props.selection = { kind: 'layers', ids: ['b'] };
 		if (change === 'timing') clip.durationMs = 3000;
 		if (change === 'asset') f.history.state.assets.value[0].fileData = new Blob(['replacement']);
@@ -480,7 +481,7 @@ test('discards stale hold results and reports missing frames without changing hi
 		await nextTick();
 		assert.equal('sourceTimeMs' in clip, false);
 		assert.equal(f.history.undoStack.value.length, 0);
-		if (change === 'error') assert.ok(textContent(f.root).includes('There is no video frame'));
+		if (change === 'error') assert.equal(textContent(f.control('div', 'clip-hold-error')), 'There is no video frame at this source time.');
 	}
 });
 
@@ -502,11 +503,11 @@ test('preserves keyframe edit history and edits interpolation owned by the previ
 	f.history.redo();
 	assert.equal(keys()[1].value, 3);
 	await nextTick();
-	f.control('GsSelect', 'Interpolation from previous keyframe').props['onUpdate:modelValue']('ease:sine');
+	f.controls('GsSelect').find(node => node.props['data-test-keyframe-interpolation'] === 'key-0').props['onUpdate:modelValue']('ease:sine');
 	assert.deepEqual(keys()[0].interpolation, { type: 'ease:sine', direction: 'inOut' });
 	assert.deepEqual(keys()[1].interpolation, { type: 'linear' });
 	await nextTick();
-	f.control('GsInput', 'Time').props['onUpdate:modelValue'](590);
+	f.control('GsInput', 'keyframe-time').props['onUpdate:modelValue'](590);
 	assert.equal(keys()[1].x, 500);
 });
 
@@ -523,8 +524,8 @@ test('routes selection-specific details and resets continuous edits when the sel
 	f.props.selection = { kind: 'keyframes', keyframes: [keySelection('a', 'key-0'), keySelection('b', 'key-1')] };
 	await nextTick();
 	assert.equal(f.controls('GsLiteralLeafValueControl').length, 0);
-	assert.equal(f.control('GsInput', 'Layer Name'), undefined);
-	f.control('GsButton', 'Remove Keyframes').props.onClick();
+	assert.equal(f.control('GsInput', 'layer-name'), undefined);
+	f.control('GsButton', 'remove-keyframes').props.onClick();
 	assert.deepEqual(f.events, [['removeKeyframes']]);
 	assert.equal(f.props.selection.keyframes.length, 2);
 });
@@ -535,17 +536,17 @@ test('waits for media metadata before trimming and forwards the clip identity', 
 	const f = await fixture(t);
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'b', clipId: 'clip' }] };
 	await nextTick();
-	assert.equal(f.control('GsInput', 'Trimmed duration').props.disabled, true);
-	f.control('GsInput', 'Trimmed duration').props['onUpdate:modelValue'](4000);
+	assert.equal(f.control('GsInput', 'clip-duration').props.disabled, true);
+	f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](4000);
 	assert.equal(f.history.undoStack.value.length, 0);
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
 	await nextTick();
-	assert.equal(f.control('GsInput', 'Trimmed duration').props.disabled, false);
-	f.control('GsInput', 'Trimmed duration').props['onUpdate:modelValue'](4000);
+	assert.equal(f.control('GsInput', 'clip-duration').props.disabled, false);
+	f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](4000);
 	assert.equal(f.scene.layers[1].clips[0].durationMs, 4000);
 	assert.equal(f.scene.layers[0].clips[0].durationMs, 5000);
-	f.control('GsButton', 'Change source').props.onClick();
-	f.control('GsButton', 'Remove Clip').props.onClick();
+	f.control('GsButton', 'clip-change-source').props.onClick();
+	f.control('GsButton', 'clip-remove').props.onClick();
 	assert.deepEqual(f.events, [['changeClipSource', { layerId: 'b', clipId: 'clip' }], ['removeClips']]);
 	f.history.undo();
 	assert.equal(f.scene.layers[1].clips[0].durationMs, 5000);
@@ -576,7 +577,7 @@ test('edits layer parameters through commands and identifies the inline Visual M
 	const f = await fixture(t);
 	f.props.selection = { kind: 'layers', ids: ['b'] };
 	await nextTick();
-	f.control('GsInput', 'Layer Name').props['onUpdate:modelValue']('Renamed');
+	f.control('GsInput', 'layer-name').props['onUpdate:modelValue']('Renamed');
 	f.control('GsVisualParam').props.onEdit({ kind: 'literal', paramPath: ['volume'], value: 0.5 });
 	assert.equal(f.scene.layers[1].name, 'Renamed');
 	assert.deepEqual(f.scene.layers[1].audioParamValues.volume, { inputSource: 'literal', value: 0.5 });
@@ -630,7 +631,7 @@ test('preserves selection across inspector visibility changes and routes removal
 	assert.ok(!descendants(target).some(node => node.tag === 'GsLiteralLeafValueControl'));
 	f.props.inspectorPanelTarget = target;
 	await nextTick();
-	const remove = descendants(target).find(node => node.tag === 'GsButton' && textContent(node).includes('Remove Keyframe'));
+	const remove = descendants(target).find(node => Object.hasOwn(node.props, 'data-test-remove-keyframe'));
 	remove.props.onClick();
 	assert.deepEqual(f.scene.layers[0].audioParamValues.volume.keyframesTimeline.keyframes.map(key => key.id), ['key-0', 'key-2']);
 	assert.deepEqual(editor.selection, { kind: 'layers', ids: ['a'] });

@@ -1,4 +1,4 @@
-import { i18nPlugin } from './helpers/i18n.mjs';
+import { i18n, i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -106,7 +106,7 @@ test('adds video and audio layers with the source duration and restores them on 
 			f.asset.fileDataType = layerType === 'video' ? 'video/mp4' : 'audio/wav';
 			f.options.inspectMedia = async () => ({ durationMs: sourceDurationMs, audioAvailable: true, audioError: null });
 			addLayerMenu(f.create());
-			await f.menu.find(item => item.text === (layerType === 'video' ? 'Video' : 'Audio')).action();
+			await f.menu.find(item => item.id === layerType).action();
 			const layer = f.scene.layers[0];
 			assert.equal(layer.layerType, layerType);
 			assert.deepEqual(layer.clips[0], {
@@ -155,7 +155,7 @@ test('adds camera layers at the playhead through the layer menu', t => {
 	const f = fixture(t, []);
 	const actions = f.create();
 	addLayerMenu(actions);
-	f.menu.find(item => item.text === 'Camera').action();
+	f.menu.find(item => item.id === 'camera').action();
 	const camera = f.scene.layers[0];
 	assert.equal(camera.layerType, 'camera');
 	assert.equal(camera.clips[0].startMs, 1000);
@@ -229,11 +229,11 @@ test('adds video layers without audio only after confirmation and honors cancell
 		f.asset.fileDataType = 'video/mp4';
 		f.options.inspectMedia = async () => ({ durationMs: 3000, audioAvailable: false, audioError: 'Unsupported audio' });
 		f.options.ui.confirm = async warning => {
-			assert.equal(warning.okText, 'Add without audio');
+			assert.equal(warning.okText, i18n.ts._Timeline.AddWithoutAudio);
 			return { canceled };
 		};
 		addLayerMenu(f.create());
-		await f.menu.find(item => item.text === 'Video').action();
+		await f.menu.find(item => item.id === 'video').action();
 		assert.equal(f.history.undoStack.value.length, canceled ? 0 : 1);
 		if (!canceled) {
 			const layer = f.scene.layers[0];
@@ -281,7 +281,7 @@ test('adds referenced visual module layers and rejects results after scene repla
 		const choice = deferred();
 		f.options.ui.select = () => choice.promise;
 		addLayerMenu(f.create());
-		const pending = f.menu.find(item => item.text === 'Visual Module (Reference)').action();
+		const pending = f.menu.find(item => item.id === 'referenceVisualModule').action();
 		if (reload) f.state.timelineScenes.value = [structuredClone(f.scene)];
 		choice.resolve({ canceled: false, result: 'visual-module' });
 		await pending;

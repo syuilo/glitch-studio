@@ -1,4 +1,4 @@
-import { i18nPlugin } from './helpers/i18n.mjs';
+import { i18n, i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -297,8 +297,8 @@ test('waits for multiple video sequences and closes a single progress dialog', a
 	assert.equal(f.calls.subProgress[0], null);
 	assert.equal(f.calls.subProgress.at(-1), 1);
 	assert.ok(f.calls.subProgress.includes(1 / 11));
-	assert.ok(f.calls.text.includes('Reading: a.mp4 (1/2)'));
-	assert.ok(f.calls.text.includes('Generating thumbnails: b.mp4 (2/2)'));
+	assert.ok(f.calls.text.includes(`${i18n.ts._Assets.Reading}: a.mp4 (1/2)`));
+	assert.ok(f.calls.text.includes(`${i18n.ts._Assets.GeneratingThumbnails}: b.mp4 (2/2)`));
 });
 
 // 【原本を読む前から待機ダイアログを表示し、単一ファイルはメイン進捗だけを使う】

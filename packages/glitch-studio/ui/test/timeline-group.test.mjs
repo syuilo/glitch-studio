@@ -158,9 +158,9 @@ function layerMenuFixture(f, ids, overrides = {}) {
 test('keeps selected layers on right click and offers rename only for one layer', t => {
 	const f = fixture(t, [group('a'), group('b'), group('c')]);
 	const controls = layerMenuFixture(f, ['a', 'b']);
-	assert.deepEqual(controls.open('b').map(item => item.text), ['Wrap in Transform', 'Group', 'Duplicate', 'Delete']);
+	assert.deepEqual(controls.open('b').map(item => item.id), ['wrapInTransform', 'group', 'duplicate', 'delete']);
 	assert.deepEqual(controls.selection.value.ids, ['a', 'b']);
-	assert.deepEqual(controls.open('c').map(item => item.text), ['Wrap in Transform', 'Group', 'Rename', 'Duplicate', 'Delete']);
+	assert.deepEqual(controls.open('c').map(item => item.id), ['wrapInTransform', 'group', 'rename', 'duplicate', 'delete']);
 	assert.deepEqual(controls.selection.value.ids, ['c']);
 	controls.selection.value = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	controls.open('a');
@@ -177,7 +177,7 @@ test('duplicates selected roots together above their sources with one undo', asy
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
 	const before = structuredClone(f.scene);
 	const controls = layerMenuFixture(f, ['audio', 'visual', 'parent']);
-	await controls.open('parent').find(item => item.text === 'Duplicate').action();
+	await controls.open('parent').find(item => item.id === 'duplicate').action();
 	const [parentCopy, parent, visualCopy, originalVisual] = f.scene.layers;
 	assert.equal(parent.id, 'parent');
 	assert.equal(originalVisual.id, 'visual');
@@ -198,7 +198,7 @@ test('deletes overlapping parent and child selections atomically', t => {
 	const f = fixture(t, [group('parent', [group('child')]), group('outside'), group('keep')]);
 	const before = structuredClone(f.scene);
 	const controls = layerMenuFixture(f, ['parent', 'child', 'outside']);
-	controls.open('child').find(item => item.text === 'Delete').action();
+	controls.open('child').find(item => item.id === 'delete').action();
 	assert.deepEqual(f.scene.layers.map(layer => layer.id), ['keep']);
 	assert.deepEqual(controls.selection.value.ids, []);
 	assert.equal(f.history.undoStack.value.length, 1);
@@ -211,10 +211,10 @@ test('deletes overlapping parent and child selections atomically', t => {
 test('renames through history and ignores results after the timeline closes', async t => {
 	const f = fixture(t, [group('a')]);
 	const controls = layerMenuFixture(f, ['a']);
-	await controls.open('a').find(item => item.text === 'Rename').action();
+	await controls.open('a').find(item => item.id === 'rename').action();
 	assert.equal(f.scene.layers[0].name, 'Renamed');
 	f.history.undo(); assert.equal(f.scene.layers[0].name, 'a');
-	const pending = controls.open('a').find(item => item.text === 'Rename').action();
+	const pending = controls.open('a').find(item => item.id === 'rename').action();
 	controls.deactivate();
 	await pending;
 	assert.equal(f.scene.layers[0].name, 'a');
@@ -227,12 +227,12 @@ test('leaves the tree and history unchanged when duplication fails or becomes st
 	const f = fixture(t, [group('a'), group('b')]);
 	const before = structuredClone(f.scene);
 	const failure = layerMenuFixture(f, ['a', 'b'], { readLayerMediaDurations: async () => { throw new Error('Missing media'); } });
-	await failure.open('a').find(item => item.text === 'Duplicate').action();
+	await failure.open('a').find(item => item.id === 'duplicate').action();
 	assert.deepEqual(f.scene, before);
 	assert.equal(f.history.undoStack.value.length, 0);
 	assert.equal(failure.alerts[0].text, 'Missing media');
 	const stale = layerMenuFixture(f, ['a', 'b']);
-	const pending = stale.open('a').find(item => item.text === 'Duplicate').action();
+	const pending = stale.open('a').find(item => item.id === 'duplicate').action();
 	f.scene.layers = [...f.scene.layers];
 	await pending;
 	assert.deepEqual(f.scene, before);
