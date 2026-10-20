@@ -79,6 +79,71 @@ async function initialize(controller, workers) {
 	return worker;
 }
 
+// 【最新のシーク要求と一致する完了通知でだけスピナーを消す】
+// 同時刻への再シークでも要求IDを更新し、古いScene・編集世代・要求の遅延通知を採用しない。
+// シーク中に編集するときは、再描画へ同じ要求IDを引き継ぎ、新しい設定での完了まで待つ。
+test('tracks manual seeks until the matching current frame completes', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	const notify = ctx => worker.reply({ type: 'ev', ev: { type: 'frameRendered', ctx } });
+	controller.renderTimelineAt(100);
+	assert.equal(controller.isSeeking.value, false);
+	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [100]);
+	controller.renderTimelineAt(100, true);
+	const firstRequestId = worker.calls('renderTimelineAt').at(-1).args[1];
+	controller.renderTimelineAt(100, true);
+	const requestId = worker.calls('renderTimelineAt').at(-1).args[1];
+	assert.notEqual(requestId, firstRequestId);
+	assert.equal(controller.isSeeking.value, true);
+	const current = { requestId, time: 100, sceneId: null, revision: 0 };
+	for (const stale of [{ ...current, requestId: firstRequestId }, { ...current, sceneId: 'old-scene' }, { ...current, time: 200 }]) {
+		notify(stale);
+		assert.equal(controller.isSeeking.value, true);
+	}
+	const update = controller.updateDynamicOptions({ highlightClipping: true });
+	const call = worker.calls('updateDynamicOptions').at(-1);
+	worker.returnValue(call, {});
+	await update;
+	notify(current);
+	assert.equal(controller.isSeeking.value, true);
+	controller.renderTimelineAt(100);
+	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [100, requestId]);
+	notify({ ...current, revision: call.args[0].previewRevision });
+	assert.equal(controller.isSeeking.value, false);
+	controller.renderTimelineAt(100);
+	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [100]);
+});
+
+// 【シーク待ちを再生開始・Scene切替・失敗・Worker破棄で解除する】
+// 取り消された要求には正常な完了通知が来ないことがある。表示を残さず、古いWorkerの
+// 通知も新しい要求の待機状態を解除できないことを確認する。
+test('clears seek indicators on cancellation, scene changes, failure and worker replacement', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	let worker = await initialize(controller, workers);
+	controller.renderTimelineAt(100, true);
+	controller.cancelSeek();
+	controller.renderTimelineAt(100);
+	assert.equal(controller.isSeeking.value, false);
+	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [100]);
+	controller.renderTimelineAt(100, true);
+	const update = controller.updateDynamicOptions({ sceneId: 'scene' });
+	assert.equal(controller.isSeeking.value, false);
+	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
+	await update;
+	controller.renderTimelineAt(100, true);
+	worker.reply({ type: 'ev', ev: { type: 'renderError', ctx: { message: 'GPU failed' } } });
+	assert.equal(controller.isSeeking.value, false);
+	const previousWorker = worker;
+	worker = await initialize(controller, workers);
+	controller.renderTimelineAt(100, true);
+	previousWorker.reply({ type: 'ev', ev: { type: 'frameRendered', ctx: {
+		requestId: worker.calls('renderTimelineAt').at(-1).args[1], time: 100, sceneId: 'scene', revision: 1,
+	} } });
+	assert.equal(controller.isSeeking.value, true);
+	controller.disposeManager();
+	assert.equal(controller.isSeeking.value, false);
+});
+
 // 【発生元付きのエラーを所有者へ渡してから実行状態を破棄する】
 // Visual Module Live Previewノード・Timeline内ノード・Effectレイヤーの通知経路は異なる。
 // 各経路で場所を落とさず、破棄済みWorkerの遅延通知でも診断を上書きしないことを確認する。

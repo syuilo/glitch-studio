@@ -16,13 +16,14 @@ type TimelineAudio = {
 	currentTime(): number;
 	error: { value: string | null };
 };
-type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'isReady' | 'errorMessage'>;
+type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'cancelSeek' | 'isReady' | 'errorMessage'>;
 
 /** プレビューの切り替えと時刻更新を所有し、Visual Module Live Previewとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
 	private readonly playbackState = shallowRef<PreviewPlaybackState>({ mode: 'timeline', playing: false });
 	private readonly timelineTime = ref(0);
 	private timelineRafId: number | null = null;
+	private pendingTimelineSeek = false;
 	private readonly suspended = ref(false);
 	private visualModuleLivePreviewParams: VisualModuleArgumentBindings = {};
 
@@ -41,6 +42,8 @@ export class PreviewPlaybackController {
 	) {}
 
 	public startVisualModuleLivePreview(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings = {}) {
+		this.pendingTimelineSeek = false;
+		this.timelineRenderer.cancelSeek();
 		this.pauseTimeline();
 		this.visualModuleLivePreviewParams = deepClone(params);
 		this.onVisualModuleLivePreviewInputsChanged?.(visualModuleId, params);
@@ -60,6 +63,8 @@ export class PreviewPlaybackController {
 
 	public playTimeline() {
 		if (this.isTimelinePlaying.value) return;
+		this.pendingTimelineSeek = false;
+		this.timelineRenderer.cancelSeek();
 		this.leaveVisualModuleLivePreview();
 		// 同じエラー文は再通知されない。既に失敗している場合は描画の再試行だけを行い、
 		// 成功でエラーが解除されるまで音声時計を開始しない。
@@ -119,9 +124,10 @@ export class PreviewPlaybackController {
 		this.refresh();
 	}
 
-	public seekTimeline(time: number) {
+	public seekTimeline(time: number, isManualSeek = true) {
 		this.leaveVisualModuleLivePreview();
 		this.timelineTime.value = Math.max(0, time);
+		this.pendingTimelineSeek = isManualSeek && !this.isTimelinePlaying.value;
 		if (this.isTimelinePlaying.value) this.audio?.start(this.timelineTime.value, this.getDuration());
 		this.refresh();
 	}
@@ -137,13 +143,17 @@ export class PreviewPlaybackController {
 	/** 編集による再描画では表示モードを切り替えない。Visual Module Live PreviewはWorkerのループが描画する。 */
 	public refresh() {
 		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
-			this.timelineRenderer.renderTimelineAt(this.timelineTime.value);
+			if (this.pendingTimelineSeek) {
+				this.pendingTimelineSeek = false;
+				this.timelineRenderer.renderTimelineAt(this.timelineTime.value, true);
+			} else this.timelineRenderer.renderTimelineAt(this.timelineTime.value);
 		}
 	}
 
 	/** Workerを解放する間も、表示モードと再開位置を保持する。 */
 	public suspend() {
 		if (this.suspended.value) return;
+		this.timelineRenderer.cancelSeek();
 		if (this.isTimelinePlaying.value && this.audio) this.timelineTime.value = this.audio.currentTime();
 		this.audio?.stop();
 		if (this.timelineRafId != null) window.cancelAnimationFrame(this.timelineRafId);
@@ -167,6 +177,8 @@ export class PreviewPlaybackController {
 	}
 
 	public dispose() {
+		this.pendingTimelineSeek = false;
+		this.timelineRenderer.cancelSeek();
 		this.pauseTimeline();
 		this.leaveVisualModuleLivePreview();
 		this.suspended.value = false;

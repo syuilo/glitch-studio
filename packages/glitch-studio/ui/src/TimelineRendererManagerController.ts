@@ -1,4 +1,4 @@
-import { ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef } from 'vue';
 import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
@@ -13,6 +13,9 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);
 	public readonly layerTransform = shallowRef<TimelineTransformPreview | null>(null);
+	private seekRequestId = 0;
+	private pendingSeek = shallowRef<{ requestId: number; time: number } | null>(null);
+	public readonly isSeeking = computed(() => this.pendingSeek.value != null);
 	private transformRequestId = 0;
 	private transformObservers = new Map<object, { sceneId: string; layerId: string }>();
 	public canvas: HTMLCanvasElement;
@@ -76,8 +79,14 @@ export class TimelineRendererManagerController extends RendererManagerController
 			},
 			onError: error => {
 				this.errorMessage.value = error?.message ?? null;
+				if (error != null) this.cancelSeek();
 			},
 			eventHandlers: {
+				frameRendered: ctx => {
+					const pending = this.pendingSeek.value;
+					if (this.isReady.value && pending != null && ctx.requestId === pending.requestId && ctx.time === pending.time
+						&& ctx.sceneId === (this.dynamicOptions.sceneId ?? null) && ctx.revision === this.dynamicOptions.previewRevision) this.cancelSeek();
+				},
 				layerTransform: ctx => {
 					if (this.isReady.value && ctx.request.requestId === this.dynamicOptions.transformObserver?.requestId
 						&& ctx.revision === this.dynamicOptions.previewRevision) this.layerTransform.value = ctx;
@@ -97,6 +106,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 			onCreated: () => {
 			},
 			onDisposed: () => {
+				this.cancelSeek();
 				this.layerTransform.value = null;
 				this.effectStates.clear();
 			},
@@ -125,6 +135,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
+		if (Object.hasOwn(options, 'sceneId') && options.sceneId !== this.dynamicOptions.sceneId) this.cancelSeek();
 		options.previewRevision = this.invalidateTransformPreview();
 		// Partialのresolution省略は変更なし。指定された場合だけ検証・正規化する。
 		if (Object.hasOwn(options, 'resolution')) {
@@ -141,6 +152,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 	}
 
 	public async replaceProjectState(state: RendererProjectState) {
+		this.cancelSeek();
 		const snapshot = deepClone(state);
 		const revision = this.invalidateTransformPreview();
 		this.dynamicOptions = { ...this.dynamicOptions, ...snapshot,
@@ -176,8 +188,18 @@ export class TimelineRendererManagerController extends RendererManagerController
 		}
 	}
 
-	public renderTimelineAt(time: number) {
-		if (this.isReady.value) this.call('renderTimelineAt', [time]);
+	public renderTimelineAt(time: number, isManualSeek = false) {
+		if (!this.isReady.value) return;
+		if (isManualSeek) this.pendingSeek.value = { requestId: ++this.seekRequestId, time };
+		else if (this.pendingSeek.value != null && this.pendingSeek.value.time !== time) this.cancelSeek();
+		// シーク中の編集・購読変更による同時刻の再描画にもIDを引き継ぐ。
+		// 古い状態の完了はrevisionで除外し、新しい状態の描画が終わるまで表示を続ける。
+		const requestId = this.pendingSeek.value?.requestId;
+		this.call('renderTimelineAt', requestId == null ? [time] : [time, requestId]);
+	}
+
+	public cancelSeek() {
+		this.pendingSeek.value = null;
 	}
 
 	private invalidateTransformPreview() {

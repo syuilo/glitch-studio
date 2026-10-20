@@ -103,6 +103,7 @@ const appBundle = await build({
 						startVisualModuleLivePreviewRenderLoopFor() { this.lifecycle.push('start'); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
 						renderTimelineAt(time) { this.renders.push(time); }
+						cancelSeek() {}
 						disposeManager() { this.lifecycle.push('dispose'); this.isReady.value = false; }
 						async relaunchManager() {
 							this.initialStaticOptions = deepClone(this.staticOptions);

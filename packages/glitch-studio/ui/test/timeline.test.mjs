@@ -131,7 +131,7 @@ function setup(t, fpsLimit = null, audio, duration = Infinity) {
 	};
 	const visualModuleLivePreviewRenderer = Object.fromEntries(['startVisualModuleLivePreviewRenderLoopFor', 'updateVisualModuleLivePreviewParamValues', 'stopRenderLoop']
 		.map(name => [name, (...args) => calls.push([name, ...args])]));
-	const timelineRenderer = { isReady: { value: true }, errorMessage: { value: null }, renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
+	const timelineRenderer = { isReady: { value: true }, errorMessage: { value: null }, cancelSeek() {}, renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
 	const playback = new PreviewPlaybackController(visualModuleLivePreviewRenderer, timelineRenderer, () => fpsLimit, () => duration, audio);
 	t.after(() => {
 		playback.dispose();
@@ -146,6 +146,57 @@ function setup(t, fpsLimit = null, audio, duration = Infinity) {
 		},
 	};
 }
+
+// 【手動シークだけに完了通知を要求し、再生や通常の再描画では要求しない】
+// 毎フレームのWorker通信を増やさず、フレーム送り・同時刻へのシークにも待機表示を出せるようにする。
+// 再生中にユーザーがシークした場合も、音声時計へ追従する通常の再生経路を維持する。
+test('requests completion only for manual seeks while paused', t => {
+	const { playback, timelineRenderer, frame } = setup(t);
+	const renders = [];
+	let cancellations = 0;
+	timelineRenderer.renderTimelineAt = (...args) => renders.push(args);
+	timelineRenderer.cancelSeek = () => { cancellations++; };
+	playback.refresh();
+	playback.seekTimeline(100);
+	playback.seekTimeline(100);
+	playback.refresh();
+	assert.deepEqual(renders, [[0], [100, true], [100, true], [100]]);
+	playback.seekTimeline(100, false);
+	assert.deepEqual(renders.at(-1), [100]);
+	playback.playTimeline();
+	frame(0);
+	frame(17);
+	playback.seekTimeline(200);
+	playback.pauseTimeline();
+	assert.deepEqual(renders.slice(5), [[100], [117], [200], [200]]);
+	assert.equal(cancellations, 1);
+});
+
+// 【未準備中の手動シークも、準備後の描画で完了通知を要求する】
+// 時刻だけを持ち越すと、Workerが使えるようになった後も古い画面と描画待ちを区別できない。
+// 一方、再生開始や別プレビューへの切り替え後に古いシークの通知要求を復活させない。
+test('retains unsent manual seek notifications and cancels them on playback or mode changes', t => {
+	const { playback, timelineRenderer } = setup(t);
+	const renders = [];
+	timelineRenderer.renderTimelineAt = (...args) => renders.push(args);
+	timelineRenderer.isReady.value = false;
+	playback.seekTimeline(100);
+	timelineRenderer.isReady.value = true;
+	playback.refresh();
+	assert.deepEqual(renders, [[100, true]]);
+	timelineRenderer.isReady.value = false;
+	playback.seekTimeline(200);
+	playback.startVisualModuleLivePreview('module');
+	timelineRenderer.isReady.value = true;
+	playback.showTimeline();
+	assert.deepEqual(renders.at(-1), [200]);
+	timelineRenderer.isReady.value = false;
+	playback.seekTimeline(300);
+	playback.playTimeline();
+	timelineRenderer.isReady.value = true;
+	playback.refresh();
+	assert.deepEqual(renders.at(-1), [300]);
+});
 
 // 【描画が遅くても音声時計に追従し、一時停止の位置を最後に要求する】
 // 描画完了をUIで待つと音声と再生時刻がずれる。要求の間引きはレンダラーに任せ、

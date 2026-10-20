@@ -27,6 +27,9 @@
 				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 			</div>
 			<GsPreviewTransform :canvasRect="previewCanvasRect"/>
+			<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" role="status" :aria-label="i18n.ts.Loading" data-test-timeline-seek-loading>
+				<GsLoading :colored="false" :mini="true"/>
+			</div>
 		</div>
 		<div :class="$style.bottomLeft">
 			<div :class="$style.resolution" class="_monospace">
@@ -44,6 +47,7 @@ import { scaleResolution } from '@gs/shared/resolution.js';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.js';
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
+import GsLoading from './common/GsLoading.vue';
 import type { CSSProperties } from 'vue';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import { i18n } from '@/i18n.ts';
@@ -55,7 +59,7 @@ import { openMediaFile } from '@/utility/open-media-file.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
 const { stateManager } = appContext.projectContext;
 const renderFailureLocation = computed(() => {
 	const origin = renderEngine.runtimeDiagnostic.value?.origin;
@@ -320,6 +324,17 @@ function showMenu(ev: PointerEvent) {
 		background-size: 64px 64px;
 		animation: bg 0.7s linear infinite;
 	}
+}
+
+.seekLoading {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	translate: -50% -50%;
+	border-radius: 50%;
+	background: #0008;
+	color: #fff;
+	pointer-events: none;
 }
 
 .canvasContainer,

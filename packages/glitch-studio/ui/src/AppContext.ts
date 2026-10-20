@@ -448,11 +448,11 @@ export class AppContext {
 			if (this.pendingSceneSeek != null) {
 				const time = this.pendingSceneSeek;
 				this.pendingSceneSeek = null;
-				this.previewPlayback.seekTimeline(time);
+				this.previewPlayback.seekTimeline(time, false);
 			} else this.previewPlayback.refresh();
 		}));
 
-		this.previewPlayback.seekTimeline(0);
+		this.previewPlayback.seekTimeline(0, false);
 		if (project.visualModules[0] != null) this.previewPlayback.startVisualModuleLivePreview(project.visualModules[0].id);
 
 		waiting.setText(i18n.ts._App.InitializingRenderer);

@@ -290,6 +290,79 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	} };
 }
 
+for (const motionBlur of [false, true]) {
+	// 【手動シークの完了は、最終表示とブラー全サンプルのGPU処理後にだけ通知する】
+	// CPU側の評価完了だけでスピナーを消すと、重いGPU処理では古い画像を最新結果と誤認する。
+	// 通常再生には通知を追加せず、同時刻の再シークは別の要求として通知する。
+	test(`publishes requested frame completion after GPU work with motion blur ${motionBlur}`, async t => {
+		const { renderer, errors } = await fixture(t, { timelineMotionBlur: { enabled: motionBlur, shutterAngle: 180, samples: 4 } }, TimelineRendererManager);
+		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewRevision: 7 });
+		const events = [];
+		renderer.on('ev', event => { if (event.type === 'frameRendered') events.push(event.ctx); });
+		await renderer.renderTimelineAt(100);
+		assert.deepEqual(events, []);
+		const gpuFinished = Promise.withResolvers();
+		const waitingForGpu = Promise.withResolvers();
+		t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', async () => { waitingForGpu.resolve(); await gpuFinished.promise; });
+		const pending = renderer.renderTimelineAt(100, 1);
+		await waitingForGpu.promise;
+		assert.deepEqual(events, []);
+		gpuFinished.resolve();
+		await pending;
+		assert.deepEqual(events, [{ requestId: 1, sceneId: 'scene', time: 100, revision: 7 }]);
+		await renderer.renderTimelineAt(100, 2);
+		assert.equal(events.at(-1).requestId, 2);
+		await renderer.renderTimelineAt(117);
+		assert.equal(events.length, 2);
+		assert.deepEqual(errors, []);
+	});
+}
+
+// 【連続シークでは間引かれた要求や古いフレームを完了として通知しない】
+// 遅いフレームのGPU完了を待つ間に複数シークが届いても、最新位置の完成でだけ待機表示を消す。
+// 同時刻への再シークも時刻比較だけで古い要求を採用しない。
+test('coalesces seek completion requests and only notifies the latest requested frame', async t => {
+	const { renderer } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
+	const events = [];
+	renderer.on('ev', event => { if (event.type === 'frameRendered') events.push(event.ctx); });
+	const gpuFinished = Promise.withResolvers();
+	const waitingForGpu = Promise.withResolvers();
+	t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', async () => { waitingForGpu.resolve(); await gpuFinished.promise; });
+	const pending = renderer.renderTimelineAt(100, 1);
+	await waitingForGpu.promise;
+	await renderer.renderTimelineAt(200, 2);
+	await renderer.renderTimelineAt(100, 3);
+	gpuFinished.resolve();
+	await pending;
+	assert.deepEqual(events, [{ requestId: 3, sceneId: 'scene', time: 100, revision: 0 }]);
+});
+
+for (const invalidation of ['playback', 'edit', 'scene change', 'destroy', 'error']) {
+	// 【再生・編集・Scene切替・破棄・描画失敗後に、古いシークの成功を通知しない】
+	// GPU完了が遅れても、無効な要求の通知でスピナーや表示状態が更新されないようにする。
+	// エラーは既存のrenderError経路だけへ流し、frameRenderedを成功通知として保つ。
+	test(`does not publish obsolete seek completion after ${invalidation}`, async t => {
+		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
+		const events = [];
+		renderer.on('ev', event => { if (event.type === 'frameRendered') events.push(event.ctx); });
+		const gpuFinished = Promise.withResolvers();
+		const waitingForGpu = Promise.withResolvers();
+		t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', async () => { waitingForGpu.resolve(); await gpuFinished.promise; });
+		const pending = renderer.renderTimelineAt(invalidation === 'error' ? NaN : 100, 1);
+		await waitingForGpu.promise;
+		if (invalidation === 'playback') await renderer.renderTimelineAt(117);
+		else if (invalidation === 'edit') renderer.applyProjectChanges([]);
+		else if (invalidation === 'scene change') await renderer.updateDynamicOptions({ sceneId: null });
+		else if (invalidation === 'destroy') renderer.destroy();
+		gpuFinished.resolve();
+		await pending;
+		assert.deepEqual(events, []);
+		assert.deepEqual(errors, invalidation === 'error' ? ['Timeline time must be finite'] : []);
+	});
+}
+
 // 【PartialなVisual Module Live Preview設定の省略は維持し、明示的なnullではFPS制限を解除する】
 // 解除を値の存在判定で除外すると、設定画面では無制限でも描画ループには制限が残る。
 // prototype上の値は差分ではないため、解像度や描画速度の更新を発生させない。

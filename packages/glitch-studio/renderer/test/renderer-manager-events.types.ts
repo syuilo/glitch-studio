@@ -19,7 +19,13 @@ visualModuleLivePreview.on('ev', event => {
 	}
 });
 timeline.on('ev', event => {
-	if (event.type === 'renderError') {
+	if (event.type === 'frameRendered') {
+		const requestId: number = event.ctx.requestId;
+		const time: number = event.ctx.time;
+		const sceneId: string | null = event.ctx.sceneId;
+		const revision: number = event.ctx.revision;
+		void [requestId, time, sceneId, revision];
+	} else if (event.type === 'renderError') {
 		const message: string = event.ctx.message;
 		void message;
 	} else if (event.type === 'effectState') {

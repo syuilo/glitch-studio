@@ -96,6 +96,8 @@ export type TimelineLayerStatusSource = {
 };
 
 export type TimelineRendererManagerEvents = {
+	/** 完了通知を要求した手動シークだけを、最終出力のGPU処理完了後に通知する。 */
+	'frameRendered': (ctx: { requestId: number; sceneId: string | null; time: number; revision: number }) => void;
 	'effectState': (ctx: { source: TimelineLayerStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
 	'effectLayerState': (ctx: { source: TimelineLayerStatusSource; status: EffectInstanceState | null }) => void;
 	'renderError': (ctx: { message: string }) => void;
@@ -107,6 +109,7 @@ export class TimelineRendererManager extends EventEmitter<{
 }> {
 	private timelineRenderer: TimelineRenderer<TimelineImage, TimelineLayer>;
 	private previewRenderGeneration = 0;
+	private frameRenderedRequestId: number | null = null;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | null = null;
 	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[]; cameras: TimelineMotionBlurCameraCuts[] } | null = null;
@@ -363,12 +366,19 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
-	public renderTimelineAt(time: number): Promise<void> {
+	public renderTimelineAt(time: number, frameRenderedRequestId: number | null = null): Promise<void> {
+		// Schedulerが最新の待機位置だけを保持するのに合わせ、通知対象も置き換える。
+		// 描画開始時にIDを取り出すため、間引かれた要求を完了として通知しない。
+		// 再生時はnullで通知を止め、フレームごとのWorker通信を追加しない。
+		this.frameRenderedRequestId = frameRenderedRequestId;
 		return this.previewScheduler.render(time);
 	}
 
 	private async renderPreviewFrame(time: number, timeDelta: number): Promise<boolean> {
 		const generation = ++this.previewRenderGeneration;
+		const frameRenderedRequestId = this.frameRenderedRequestId;
+		const sceneId = this.dynamicOptions.sceneId;
+		const revision = this.dynamicOptions.previewRevision;
 		const request = this.dynamicOptions.transformObserver;
 		const location = request?.sceneId === this.dynamicOptions.sceneId ? findTimelineLayerLocation(this.getSceneLayers(), request.layerId) : null;
 		const layer = location && !location.layer.isDisabled && !location.ancestors.some(group => group.isDisabled) && isTimelineVisualLayer(location.layer) ? location.layer : null;
@@ -399,6 +409,10 @@ export class TimelineRendererManager extends EventEmitter<{
 					preview.geometry.transform = { position, origin, scale, rotation, fitMode };
 				}
 				this.publishTransformPreview(preview);
+			}
+			if (generation === this.previewRenderGeneration && frameRenderedRequestId != null
+				&& frameRenderedRequestId === this.frameRenderedRequestId && revision === this.dynamicOptions.previewRevision) {
+				this.emit('ev', { type: 'frameRendered', ctx: { requestId: frameRenderedRequestId, sceneId, time, revision } });
 			}
 			return true;
 		} catch (error) {
