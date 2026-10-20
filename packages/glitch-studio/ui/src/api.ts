@@ -3,10 +3,13 @@ import { getFileSourceUrl, getFileSourceError, releaseFileSourceUrl, readFileSou
 import { generateVideoThumbnails } from './utility/video-thumbnails.ts';
 import type { FileSource } from '@gs/shared/file-source.ts';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
+import type { DesktopMediaFile } from '@gs/glitch-studio_shared/media-file.ts';
+
+export type SelectedMediaFile = File | DesktopMediaFile;
 
 // OSによってフォントのMIMEが空やapplication/*になるため、取り込み時に正規化する。
 // Asset名は後から変更できるので、取り込み後の判定には拡張子を使わない。
-function getFontFileType(file: File): string | null {
+function getFontFileType(file: SelectedMediaFile): string | null {
 	const mimeTypes: Record<string, string> = {
 		'font/ttf': 'font/ttf',
 		'font/otf': 'font/otf',
@@ -41,7 +44,7 @@ export type OpenedMediaFile = {
 };
 
 export type MediaFileReadProgress = {
-	file: File;
+	file: SelectedMediaFile;
 	fileIndex: number;
 	completedFiles: number;
 	totalFiles: number;
@@ -55,20 +58,23 @@ export type OpenMediaFileOptions = {
 	sourceFilePath?: string;
 	multiple?: boolean;
 	file?: File;
-	files?: readonly File[];
+	files?: readonly SelectedMediaFile[];
 	includeFonts?: boolean;
 	/** Assetsへの取り込みでは種類を制限せず、メディア以外は原本だけ保存する。 */
 	allowAnyFile?: boolean;
 	onThumbnailProgress?: (value: number) => void;
 	onReadProgress?: (progress: MediaFileReadProgress) => void;
 	/** 設定された場合は失敗を通知し、残りのファイルを続ける。未設定ではエラーを返す。 */
-	onFileError?: (file: File, error: unknown) => void;
+	onFileError?: (file: SelectedMediaFile, error: unknown) => void;
 };
 
 /** 選択と読み込みを分け、選択ダイアログが閉じてから取り込み中の操作を止める。 */
-export function selectMediaFiles(options: OpenMediaFileOptions = {}): Promise<File[] | null> {
+export function selectMediaFiles(options: OpenMediaFileOptions = {}): Promise<SelectedMediaFile[] | null> {
 	if (options.files != null) return Promise.resolve(Array.from(options.files));
 	if (options.file != null) return Promise.resolve([options.file]);
+	if (window.desktop?.chooseMediaFiles != null) return window.desktop.chooseMediaFiles({
+		multiple: options.multiple === true, includeFonts: options.includeFonts === true, allowAnyFile: options.allowAnyFile === true,
+	});
 	return new Promise(resolve => {
 		const input = window.document.createElement('input');
 		input.type = 'file';
@@ -84,15 +90,16 @@ export function openMediaFile(options: OpenMediaFileOptions & { multiple: true }
 export function openMediaFile(options?: OpenMediaFileOptions & { multiple?: false }): Promise<OpenedMediaFile | null>;
 export function openMediaFile(options: OpenMediaFileOptions): Promise<OpenedMediaFile | OpenedMediaFile[] | null>;
 export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise<OpenedMediaFile | OpenedMediaFile[] | null> {
-	const loadFile = async (file: File, onThumbnailProgress: (value: number) => void): Promise<OpenedMediaFile> => {
+	const loadFile = async (file: SelectedMediaFile, onThumbnailProgress: (value: number) => void): Promise<OpenedMediaFile> => {
+		if ('error' in file && file.error != null) throw new Error(file.error);
 		const fontType = options.includeFonts === true || options.allowAnyFile === true ? getFontFileType(file) : null;
 		const lutType = file.name.toLowerCase().endsWith('.cube') ? LUT_ASSET_MIME_TYPE : null;
 		const type = lutType ?? fontType ?? (file.type === '' ? 'application/octet-stream' : file.type);
 		const isMedia = /^(image|audio|video)\//.test(type);
 		if (options.allowAnyFile !== true && fontType == null && !isMedia) throw new Error('Unsupported media type');
-		// パスは元のFileからだけ取得できる。ブラウザのfakepathや相対パスは原本の場所を示さない。
-		// ElectronでもJSで生成したFileにはパスがないため、空文字列は未取得として扱う。
-		const sourceFilePath = options.sourceFilePath ?? (window.desktop?.getPathForFile(file) || null);
+		// ネイティブ選択はmainが返したパスを使う。ドロップなどのFileは元のオブジェクトから取得し、
+		// fakepathやJSで生成したFileの名前から原本の場所を推測しない。
+		const sourceFilePath = options.sourceFilePath ?? ('sourceFilePath' in file ? file.sourceFilePath : (window.desktop?.getPathForFile(file) || null));
 		// File.sizeは原本のバイト列を読まずに取得できる。複数選択でも各ファイルを判定し、
 		// 埋め込み用のarrayBufferを作る前に外部参照へ切り替える。
 		const useExternalReference = options.isExternalReference === true
@@ -102,8 +109,12 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 		// 外部参照だけはコピーせず、Electronが発行した範囲読み取り用URLを保持する。
 		let fileData: FileSource;
 		try {
-			fileData = isExternalReference ? await window.desktop!.resolveExternalAsset(sourceFilePath!, true)
-				: new Blob([await file.arrayBuffer()], { type });
+			if (isExternalReference || 'sourceFilePath' in file) {
+				const source = await window.desktop!.resolveExternalAsset(sourceFilePath!, true);
+				fileData = isExternalReference ? source : new Blob([await readFileSource(source)], { type });
+			} else {
+				fileData = new Blob([await file.arrayBuffer()], { type });
+			}
 		} catch (cause) {
 			throw new Error(`Could not read "${file.name}". Select the source file again.`, { cause });
 		}

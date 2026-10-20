@@ -69,6 +69,77 @@ const mediaTypes = [
 	{ name: 'font.ttf', type: '', expectedType: 'font/ttf', width: 0, height: 0 },
 ];
 
+// 【ネイティブ選択した複数素材も、個別の原本パスと埋め込みコピーを保つ】
+// ネイティブの選択結果はFileではないため、HTML入力用のパス取得へ渡さず、
+// 各原本の読み取り用URLから通常のMIME正規化・デコード処理へ接続する。
+test('imports native media selections without losing source paths or embedded contents', async t => {
+	setupMedia(t);
+	const selected = [
+		{ name: 'image.png', type: 'image/png', size: 5, sourceFilePath: 'C:\\素材\\image.png', error: null },
+		{ name: 'font.ttf', type: '', size: 4, sourceFilePath: 'C:\\素材\\font.ttf', error: null },
+	];
+	window.desktop = {
+		async chooseMediaFiles(options) {
+			assert.deepEqual(options, { multiple: true, includeFonts: true, allowAnyFile: false });
+			return selected;
+		},
+		getPathForFile() { assert.fail('Native descriptors already contain the source path'); },
+		async resolveExternalAsset(filePath) {
+			return { url: `data:application/octet-stream,${filePath.endsWith('.png') ? 'image' : 'font'}`, size: 5, error: null };
+		},
+	};
+	const imported = await openMediaFile({ multiple: true, includeFonts: true });
+	assert.deepEqual(imported.map(file => file.sourceFilePath), selected.map(file => file.sourceFilePath));
+	assert.deepEqual(imported.map(file => file.type), ['image/png', 'font/ttf']);
+	assert.deepEqual(await Promise.all(imported.map(file => file.fileData.text())), ['image', 'font']);
+	assert.ok(imported.every(file => file.isExternalReference === false));
+});
+
+// 【大きな原本はネイティブ選択のメタデータだけで外部参照へ切り替える】
+// 選択処理の変更で一度全体をコピーしてしまうと、サイズ閾値によるメモリ節約が失われる。
+// デコード不要の任意ファイルを使い、取り込みで原本のバイト列を取得しないことを確認する。
+test('keeps large native selections external without copying their bytes', async t => {
+	setupMedia(t);
+	t.mock.method(globalThis, 'fetch', () => assert.fail('External imports must not copy the original bytes'));
+	const selected = { name: 'large.zip', type: 'application/zip', size: 50_000_000, sourceFilePath: 'C:\\素材\\large.zip', error: null };
+	const source = { url: 'app://external-assets/large', size: selected.size, error: null };
+	window.desktop = {
+		async chooseMediaFiles() { return [selected]; },
+		async resolveExternalAsset(filePath) { assert.equal(filePath, selected.sourceFilePath); return source; },
+	};
+	const imported = await openMediaFile({ allowAnyFile: true, externalReferenceThresholdBytes: 30_000_000 });
+	assert.equal(imported.fileData, source);
+	assert.equal(imported.isExternalReference, true);
+	assert.equal(imported.sourceFilePath, selected.sourceFilePath);
+});
+
+// 【ネイティブ選択で原本の確認に失敗した素材だけを通知し、残りの取り込みを続ける】
+// MIMEが取れなかったという理由で、実際の読取エラーを「未対応の形式」に置き換えない。
+test('reports native metadata errors per file and continues importing the remaining selections', async t => {
+	setupMedia(t);
+	const errors = [];
+	window.desktop = {
+		async chooseMediaFiles() { return [
+			{ name: 'missing.png', type: '', size: 0, sourceFilePath: 'C:\\素材\\missing.png', error: 'The source file is missing' },
+			{ name: 'font.ttf', type: 'font/ttf', size: 4, sourceFilePath: 'C:\\素材\\font.ttf', error: null },
+		]; },
+		async resolveExternalAsset() { return { url: 'data:font/ttf,font', size: 4, error: null }; },
+	};
+	const imported = await openMediaFile({ multiple: true, includeFonts: true,
+		onFileError: (file, error) => errors.push({ name: file.name, message: error.message }) });
+	assert.deepEqual(imported.map(file => file.name), ['font.ttf']);
+	assert.deepEqual(errors, [{ name: 'missing.png', message: 'The source file is missing' }]);
+});
+
+// 【ネイティブ選択のキャンセルでは取り込みや別の選択ダイアログを始めない】
+// キャンセルを失敗としてHTML入力に戻すと、閉じた直後にもう一度ダイアログが開いてしまう。
+test('returns after cancelling native media selection without opening another picker', async t => {
+	const { input } = setupMedia(t);
+	input.click = () => assert.fail('Cancellation must not open another picker');
+	window.desktop = { async chooseMediaFiles() { return null; } };
+	assert.equal(await openMediaFile(), null);
+});
+
 // 【LUTをOSのMIME判定によらず識別し、改名・保存後も原本と種類を保つ】
 // .cubeが空MIMEやtext/plainでも選択候補に入り、表示名を変えても再判定で失われない。
 // 不正な内容の検証は使用時に行うので、取り込みでは画像デコードしない。

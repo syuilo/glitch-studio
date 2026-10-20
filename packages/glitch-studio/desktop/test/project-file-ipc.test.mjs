@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { ProjectFiles } from '../project-files.mjs';
 import { registerProjectFileIpc } from '../project-file-ipc.mjs';
+import { FileDialogDirectories } from '../file-dialog-directories.mjs';
 
 async function fixture(t, { startup = false } = {}) {
 	const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'glitch-studio-project-ipc-'));
@@ -30,7 +31,7 @@ async function fixture(t, { startup = false } = {}) {
 			const filePath = startupProjectPath;
 			startupProjectPath = null;
 			return filePath;
-		}, projectOpenDirectoryFilePath);
+		}, new FileDialogDirectories(path.dirname(projectOpenDirectoryFilePath), directory));
 	}
 	registerHandlers();
 	return { file, projectOpenDirectoryFilePath, handlers, calls, dialogs, trusted, restart: registerHandlers,
@@ -84,7 +85,7 @@ test('remembers the project open directory across restarts and reads other proce
 	const h = await fixture(t);
 	const originalDirectory = path.dirname(h.file);
 	await h.invoke('choose-project-file');
-	assert.equal(h.calls[0].defaultPath, undefined);
+	assert.equal(h.calls[0].defaultPath, originalDirectory);
 	assert.equal(await fs.readFile(h.projectOpenDirectoryFilePath, 'utf8'), originalDirectory);
 
 	h.restart();

@@ -7,6 +7,8 @@ import { resolveAppPath } from './protocol-path.mjs';
 import { ProjectFiles } from './project-files.mjs';
 import { ExternalAssetFiles, registerExternalAssetIpc } from './external-assets.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
+import { FileDialogDirectories } from './file-dialog-directories.mjs';
+import { registerMediaFileIpc } from './media-file-ipc.mjs';
 import { RecentProjects, registerRecentProjectsIpc } from './recent-projects.mjs';
 import { getStartupProjectPath } from './startup-project.mjs';
 import { ProjectLaunchController, launchProjectProcess } from './project-launch.mjs';
@@ -190,6 +192,8 @@ app.whenReady().then(async () => {
 	});
 
 	registerExternalAssetIpc(ipcMain, dialog, externalAssetFiles, projectFiles, getTrustedMainWindow);
+	const fileDialogDirectories = new FileDialogDirectories(app.getPath('userData'), app.getPath('documents'));
+	registerMediaFileIpc(ipcMain, dialog, fileDialogDirectories, getTrustedMainWindow, (url, options) => net.fetch(url, options));
 	ipcMain.handle('desktop:show-test-alert', async event => {
 		const parent = getTrustedMainWindow(event);
 		await dialog.showMessageBox(parent, {
@@ -259,7 +263,7 @@ app.whenReady().then(async () => {
 
 	registerVoicevoxIpc(ipcMain, getTrustedMainWindow);
 	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, () => projectLaunchController.takeStartupProjectPath(),
-		path.join(app.getPath('userData'), 'project-open-directory'));
+		fileDialogDirectories);
 	registerRecentProjectsIpc(ipcMain, new RecentProjects(path.join(app.getPath('userData'), 'recent-projects')), projectFiles,
 		getTrustedMainWindow, process.platform === 'win32' || process.platform === 'darwin' ? app : null);
 	registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMainWindow);

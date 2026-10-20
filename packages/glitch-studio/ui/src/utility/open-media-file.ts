@@ -3,7 +3,7 @@ import * as api from '../api.ts';
 import { progress } from '../ui.ts';
 import { applicationActivity } from '../application-activity.ts';
 import { preferences } from '../preferences.ts';
-import type { OpenedMediaFile, OpenMediaFileOptions } from '../api.ts';
+import type { OpenedMediaFile, OpenMediaFileOptions, SelectedMediaFile } from '../api.ts';
 
 const LARGE_ASSET_EXTERNAL_REFERENCE_THRESHOLD_BYTES = 30_000_000;
 
@@ -12,7 +12,7 @@ type ImportMediaFilesOptions = OpenMediaFileOptions & {
 	onImported?: (files: OpenedMediaFile[], dialog: ReturnType<typeof progress>) => void | Promise<void>;
 };
 
-export async function importMediaFiles(files: readonly File[], options: ImportMediaFilesOptions = {}): Promise<OpenedMediaFile[]> {
+export async function importMediaFiles(files: readonly SelectedMediaFile[], options: ImportMediaFilesOptions = {}): Promise<OpenedMediaFile[]> {
 	if (files.length === 0) return [];
 	const releaseActivity = applicationActivity.acquire();
 	const dialog = progress({ text: i18n.ts._Assets.Importing });

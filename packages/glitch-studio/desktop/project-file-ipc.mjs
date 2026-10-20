@@ -1,10 +1,7 @@
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
-import * as fs from 'node:fs/promises';
 
 // メインウィンドウの検証を全操作に適用し、UIへ汎用的なファイル操作を公開しない。
-export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, takeStartupProjectPath = () => null, projectOpenDirectoryFilePath = null) {
-	let projectOpenDirectory = null;
+export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, takeStartupProjectPath = () => null, directories = null) {
 	ipcMain.handle('desktop:take-startup-project-file', event => {
 		getTrustedMainWindow(event);
 		// macOSでは全ウィンドウを閉じた後のopen-fileでも、同じプロセスに新しい要求が届く。
@@ -19,44 +16,24 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 	});
 	ipcMain.handle('desktop:choose-project-file', async event => {
 		const parent = getTrustedMainWindow(event);
-		if (projectOpenDirectoryFilePath != null) {
-			try {
-				// 別プロセスで最後に選んだディレクトリも、次の選択時に反映する。
-				projectOpenDirectory = await fs.readFile(projectOpenDirectoryFilePath, 'utf8');
-			} catch (error) {
-				if (error.code !== 'ENOENT') console.error('Could not read the project open directory:', error);
-			}
-		}
+		const projectOpenDirectory = await directories?.get('project-open');
 		const result = await dialog.showOpenDialog(parent, {
 			...(projectOpenDirectory == null ? {} : { defaultPath: projectOpenDirectory }),
 			filters: [{ name: 'Glitch Studio project', extensions: ['gsproj'] }], properties: ['openFile'],
 		});
 		if (result.canceled || result.filePaths[0] == null) return null;
 		const filePath = result.filePaths[0];
-		const selectedDirectory = path.dirname(filePath);
-		projectOpenDirectory = selectedDirectory;
-		if (projectOpenDirectoryFilePath != null) {
-			const temporaryFilePath = `${projectOpenDirectoryFilePath}.${randomUUID()}.tmp`;
-			try {
-				await fs.mkdir(path.dirname(projectOpenDirectoryFilePath), { recursive: true });
-				// 他のプロセスが書きかけのパスを読まないよう、一時ファイルから置き換える。
-				await fs.writeFile(temporaryFilePath, selectedDirectory, { flag: 'wx' });
-				await fs.rename(temporaryFilePath, projectOpenDirectoryFilePath);
-			} catch (error) {
-				// 設定の保存に失敗しても、選択したプロジェクトは開けるようにする。
-				console.error('Could not save the project open directory:', error);
-			} finally {
-				await fs.unlink(temporaryFilePath).catch(() => {});
-			}
-		}
+		await directories?.remember('project-open', path.dirname(filePath));
 		return projectFiles.describe(projectFiles.register(filePath));
 	});
 	ipcMain.handle('desktop:choose-project-save-file', async (event, name) => {
 		const parent = getTrustedMainWindow(event);
 		if (typeof name !== 'string' || path.basename(name) !== name) throw new Error('Invalid project name');
+		const projectSaveDirectory = await directories?.get('project-save');
 		// Electronのダイアログはパスだけを返す。確定前の既存ファイルを変更しない。
 		const result = await dialog.showSaveDialog(parent, {
-			defaultPath: name, filters: [{ name: 'Glitch Studio project', extensions: ['gsproj'] }],
+			defaultPath: projectSaveDirectory == null ? name : path.join(projectSaveDirectory, name),
+			filters: [{ name: 'Glitch Studio project', extensions: ['gsproj'] }],
 			properties: ['showOverwriteConfirmation'],
 		});
 		if (result.canceled || !result.filePath) return null;
@@ -67,6 +44,7 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 			const confirmation = await dialog.showMessageBox(parent, { type: 'question', message: `Replace ${path.basename(filePath)}?`, buttons: ['Cancel', 'Replace'], defaultId: 0, cancelId: 0 });
 			if (confirmation.response !== 1) return null;
 		}
+		await directories?.remember('project-save', path.dirname(filePath));
 		return projectFiles.describe(id);
 	});
 	ipcMain.handle('desktop:read-project-file', (event, id) => {

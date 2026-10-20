@@ -16,6 +16,7 @@ interface Window {
 		voicevoxSynthesize(request: import('@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts').VoicevoxRequest): Promise<{ data: Uint8Array; engineVersion: string; audioQuery: Record<string, unknown> }>;
 		takeStartupProjectFile(): Promise<{ id: string; name: string } | null>;
 		getPathForFile(file: File): string;
+		chooseMediaFiles(options: { multiple: boolean; includeFonts: boolean; allowAnyFile: boolean }): Promise<import('@gs/glitch-studio_shared/media-file.ts').DesktopMediaFile[] | null>;
 		resolveExternalAsset(filePath: string, reload?: boolean): Promise<import('@gs/shared/file-source.ts').UrlFileSource>;
 		assetProjectPaths(paths: (string | null)[], projectId: string | null, storing: boolean): Promise<(string | null)[]>;
 		chooseAssetFile(previousPath: string | null): Promise<string | null>;
