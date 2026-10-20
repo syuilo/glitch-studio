@@ -5,7 +5,7 @@
 		[$style.large]: large,
 	}]"
 >
-	<img v-if="imageUrl != null" data-test-asset-thumbnail-image :src="imageUrl" :class="$style.thumbnail" :style="{ objectFit: fit }">
+	<img v-if="imageUrl != null" data-test-asset-thumbnail-image crossorigin="anonymous" :src="imageUrl" :class="$style.thumbnail" :style="{ objectFit: fit }">
 	<i v-else-if="is === 'image'" class="ti ti-photo" :class="$style.icon"></i>
 	<i v-else-if="is === 'video'" class="ti ti-video" :class="$style.icon"></i>
 	<i v-else-if="is === 'audio' || is === 'midi'" class="ti ti-music" :class="$style.icon"></i>
@@ -94,6 +94,8 @@ watch(() => [props.asset.fileData, props.asset.fileDataType, props.asset.thumbna
 		let pendingImage: HTMLImageElement | null = null;
 		const prepare = (index: number) => {
 			const image = new Image();
+			// 外部参照素材も既存のCORS許可を使って読み、COEP下の先読みと表示を同じ条件にする。
+			image.crossOrigin = 'anonymous';
 			image.src = urls[index];
 			pendingImage = image;
 			// 保持するデコード画像は表示中と次の1枚だけ。全素材の11枚を常時展開しない。

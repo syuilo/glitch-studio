@@ -4,6 +4,14 @@ Windows x64向けのNSISインストーラーと、macOSのApple Silicon（arm64
 
 desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`でASAR内の実行時依存を再帰的に検査します。
 
+## 計測精度
+
+`app-protocol.mjs`がアプリのHTMLとWorkerを含む静的ファイルへCOOP・COEPヘッダーを付け、`performance.now()`の丸めを緩和します。開発起動ではViteのヘッダー設定を使用します。`contextIsolation`とは別の仕組みで、sandboxとNode.jsの無効化は維持します。
+
+mainプロセスは`ready`より前に`enable-webgpu-developer-features`を指定し、GPU timestamp queryの量子化も解除します。このChromiumの開発者向け設定は、WebGPUの追加の開発者向け機能も公開します。計測の実際の分解能はGPU・ドライバーに依存します。
+
+Web版の公開先に必要な設定や素材の読み込み条件は[Web版の配信と計測精度](../../../docs/web-deployment.md)を参照してください。
+
 ## 未保存の変更の終了確認
 
 UIが終了・再読み込み時に未保存の変更を判定して`beforeunload`を取り消し、`project-close-guard.mjs`の`ProjectCloseController`が`will-prevent-unload`後にVueの確認を要求します。ウィンドウ終了・アプリ終了・再読み込みのどれだったかと要求IDをmainが保持し、連続した操作ではダイアログを重ねません。UIからの非同期IPCは送信元と要求IDを検証し、「保存せずに閉じる」を選んだ場合だけ元の操作を再開します。キャンセル・Esc・表示失敗・画面破棄で終了を許可せず、保存中は既存の終了防止を優先します。確認済みの自動更新による終了では重ねて確認せず、更新準備・ダウンロード中の終了防止も維持します。
@@ -14,7 +22,7 @@ UIが終了・再読み込み時に未保存の変更を判定して`beforeunloa
 
 `external-assets.mjs`は原本の可読性確認、パスの相対化・解決、原本書き出しを担当します。登録済みパスには推測不能なIDの`app://external-assets/` URLを発行し、RangeとHEADに対応したストリームで配信します。原本全体の`readFile()`や、実パスを直接指定するURLは使用しません。UIのIPC操作はメインウィンドウの送信元を検証します。モード・履歴・読み取り失敗の扱いは[アセット仕様](../../../docs/assets.md)を参照してください。
 
-通常のテストは範囲読み取り・再解決・パス・原本書き出しを検証します。`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/external-assets-electron.test.mjs`を実行すると、非表示のElectronウィンドウでPlayer再生とWorkerからの動画デコードも確認できます。
+通常のテストは範囲読み取り・再解決・パス・原本書き出しを検証します。`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/external-assets-electron.test.mjs`を実行すると、配布用`app://`・Vite開発・ViteプレビューでWindowとWorkerの隔離、動画再生とデコード、画像のCORS読み込み、別ウィンドウでの描画も確認できます。
 
 ## 最近使用したプロジェクト
 
