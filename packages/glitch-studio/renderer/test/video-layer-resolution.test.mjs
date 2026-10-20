@@ -23,15 +23,14 @@ const connection = nodeId => ({ inputSource: 'node', nodeId, outputPort: 'output
 const dimensions = value => [value.width, value.height];
 
 function gpuFixture(t) {
-	const calls = { uploads: [], draws: [], renders: [], outputs: [], errors: [], sampleTimes: [], sampleDirections: [], closedSampleTimestamps: [] };
+	const calls = { uploads: [], draws: [], renders: [], outputs: [], errors: [], sampleTimes: [], sampleDirections: [], closedSampleTimestamps: [], videoFrames: [], frameCopies: [] };
 	const globals = {
 		GPUQueue: class { submit() {} },
 		GPUTextureUsage: { RENDER_ATTACHMENT: 1, TEXTURE_BINDING: 2, COPY_DST: 4 },
 		GPUBufferUsage: { UNIFORM: 1, COPY_DST: 2 },
 		GPUShaderStage: { VERTEX: 1, FRAGMENT: 2, COMPUTE: 4 },
 		OffscreenCanvas: class {
-			constructor(width, height) { this.width = width; this.height = height; }
-			getContext() { return { clearRect() {} }; }
+			constructor() { assert.fail('video uploads must not use a canvas'); }
 		},
 	};
 	for (const [key, value] of Object.entries(globals)) {
@@ -55,18 +54,51 @@ function gpuFixture(t) {
 	const device = {
 		limits: { maxTextureDimension2D: 8192 }, destroy() {},
 		createTexture: texture, createBuffer: ({ size }) => ({ size, destroy() {} }),
-		createShaderModule: () => ({}), createSampler: () => ({}), createBindGroup: () => ({}),
+		createShaderModule: () => ({}), createSampler: () => ({}), createBindGroup: descriptor => descriptor,
 		createBindGroupLayout: () => ({}), createPipelineLayout: () => ({}),
-		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
-		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) }),
+		createRenderPipeline: descriptor => ({ ...descriptor, getBindGroupLayout: () => ({}) }),
+		importExternalTexture: ({ source }) => {
+			assert.equal(source.closed, false);
+			return { frame: source };
+		},
+		createCommandEncoder: () => {
+			let videoOutput = null;
+			const videoFrames = [];
+			return { finish: () => ({ videoOutput, videoFrames }), beginRenderPass: descriptor => {
+				let pipeline;
+				let bindGroup;
+				return { setPipeline(value) { pipeline = value; }, setBindGroup(_index, value) { bindGroup = value; }, end() {}, draw() {
+					if (pipeline.fragment?.entryPoint === 'renderExternalVideo') {
+						videoFrames.push(bindGroup.entries.find(entry => entry.binding === 0).resource.frame);
+						videoOutput = descriptor.colorAttachments[0].view.texture;
+					} else if (pipeline.fragment?.entryPoint === 'renderCopiedVideo') videoOutput = descriptor.colorAttachments[0].view.texture;
+				} };
+			} };
+		},
 		queue: {
-			submit() {}, async onSubmittedWorkDone() {}, writeTexture() {}, writeBuffer() {},
-			copyExternalImageToTexture(source, destination, size) { calls.uploads.push({ destination, size, canvasSize: dimensions(source.source) }); },
+			submit(commands) {
+				for (const command of commands) {
+					for (const frame of command.videoFrames ?? []) assert.equal(frame.closed, false, 'submit must precede VideoFrame.close');
+					if (command.videoOutput != null) {
+						calls.uploads.push({ destination: { texture: command.videoOutput } });
+						calls.draws.push(dimensions(command.videoOutput));
+					}
+				}
+			}, async onSubmittedWorkDone() {}, writeTexture() {}, writeBuffer() {},
+			copyExternalImageToTexture(source, destination) {
+				assert.equal(source.source.closed, false);
+				assert.equal(destination.premultipliedAlpha, true);
+				calls.frameCopies.push({ source: source.source, destination });
+			},
 		},
 	};
-	const sample = (width, height, timestamp = 0) => ({ displayWidth: width, displayHeight: height, timestamp,
+	const sample = (width, height, timestamp = 0, format = 'RGBX') => ({ displayWidth: width, displayHeight: height, timestamp, rotation: 0,
 		close() { calls.closedSampleTimestamps.push(timestamp); },
-		draw(context, x, y, width, height) { calls.draws.push([width, height]); },
+		toVideoFrame() {
+			const frame = { displayWidth: width, displayHeight: height, format, closed: false, close() { this.closed = true; } };
+			calls.videoFrames.push(frame);
+			return frame;
+		},
 	});
 	return { device, texture, sample, calls };
 }
@@ -129,6 +161,8 @@ for (const reversePlayback of [false, true]) {
 		assert.deepEqual(calls.sampleTimes, sourceTimesMs.map(time => time / 1000));
 		assert.ok(calls.sampleDirections.every(direction => direction === reversePlayback));
 		assert.deepEqual(calls.closedSampleTimestamps, [0, 0, 0.25, 0.25, 0.75, 0]);
+		assert.equal(calls.videoFrames.length, 4);
+		assert.ok(calls.videoFrames.every(frame => frame.closed));
 		assert.deepEqual(calls.compositing.map(call => call.settings.opacity), sceneTimesMs.map(time => time / 1000));
 		assert.deepEqual(calls.errors, []);
 	});
@@ -163,7 +197,7 @@ test('holds the same source frame across seeks and export while animating compos
 });
 
 // 【固定動画は露光内で一度だけ転送し、合成と次のフレームの更新は続ける】
-// 読み出し側のデコードキャッシュだけではCanvas描画とGPU転送がサンプル数倍残る。
+// 読み出し側のデコードキャッシュだけでは動画フレームの取り込みとGPU描画がサンプル数倍残る。
 // プレビューと書き出しの両方で前景を再利用し、合成自体を省略しないことを確認する。
 test('uploads frozen video once per source time while compositing every motion blur sample', async t => {
 	const { manager, calls } = timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
@@ -279,9 +313,7 @@ test('scales video sources once through replace composition and automatic proces
 		assert.deepEqual(calls.errors, []);
 		const expectedSource = [3840 * resolutionScale, 2160 * resolutionScale];
 		assert.deepEqual(calls.draws.at(-1), expectedSource);
-		assert.deepEqual(calls.uploads.at(-1).canvasSize, expectedSource);
 		assert.deepEqual(dimensions(calls.uploads.at(-1).destination.texture), expectedSource);
-		assert.equal(calls.uploads.at(-1).destination.premultipliedAlpha, true);
 		assert.deepEqual(calls.renders.slice(-2).map(ctx => dimensions(ctx.outputDataMap.output.texture)), [expectedOutput, expectedOutput]);
 		assert.deepEqual(dimensions(calls.outputs.at(-1).texture), expectedOutput);
 	}
@@ -302,4 +334,44 @@ test('preserves native uploads by default and reuses textures at the same scaled
 	assert.deepEqual(dimensions(original), [7, 1]);
 	assert.equal(small.destroyed, true);
 	assert.deepEqual(calls.draws, [[2, 1], [2, 1], [7, 1]]);
+	assert.ok(calls.videoFrames.every(frame => frame.closed));
 });
+
+for (const format of ['RGBA', null]) {
+	// 【alphaを持ち得る形式と形式非公開の動画は補間前に直接コピーし、不要な中間画像を解放する】
+	// 透明画素のある外部テクスチャへalphaを再乗算せず、形式が不明でも不透明と決めつけない。
+	// 原寸へ戻ると追加描画も不要になるため、前の縮小用テクスチャを保持し続けないことを確認する。
+	test(`copies ${format ?? 'undisclosed format'} frames before resizing and releases intermediate textures at native size`, t => {
+		const { device, sample, calls } = gpuFixture(t);
+		const uploader = createVideoTexture(device, 'rgba8unorm');
+		t.after(() => uploader.dispose());
+		const source = sample(16, 8, 0, format);
+		const resized = uploader.upload(source, 0.5);
+		const intermediate = calls.frameCopies[0].destination.texture;
+		assert.deepEqual(dimensions(resized), [8, 4]);
+		assert.deepEqual(dimensions(intermediate), [16, 8]);
+		assert.equal(calls.uploads.length, 1);
+		const native = uploader.upload(source);
+		assert.equal(calls.frameCopies[1].destination.texture, native);
+		assert.equal(calls.uploads.length, 1, 'native copy must not add a render pass');
+		assert.equal(intermediate.destroyed, true);
+		assert.ok(calls.videoFrames.every(frame => frame.closed));
+	});
+}
+
+for (const operation of ['import', 'copy']) {
+	// 【動画のGPU取り込みに失敗しても、変換用VideoFrameは解放して元サンプルの所有権を守る】
+	// 失敗のたびにデコーダーの出力面を保持すると次のフレーム取得が停止する可能性がある。
+	// sample自体は呼び出し側が管理するため、取り込み処理が先にcloseしてはいけない。
+	test(`closes conversion frames on GPU ${operation} failure without closing the source sample`, t => {
+		const { device, sample, calls } = gpuFixture(t);
+		const uploader = createVideoTexture(device, 'rgba8unorm');
+		t.after(() => uploader.dispose());
+		if (operation === 'import') device.importExternalTexture = () => { throw new Error('GPU upload failed'); };
+		else device.queue.copyExternalImageToTexture = () => { throw new Error('GPU upload failed'); };
+		assert.throws(() => uploader.upload(sample(16, 8, 0, operation === 'import' ? 'RGBX' : 'RGBA')), /GPU upload failed/);
+		assert.equal(calls.videoFrames.length, 1);
+		assert.equal(calls.videoFrames[0].closed, true);
+		assert.deepEqual(calls.closedSampleTimestamps, []);
+	});
+}

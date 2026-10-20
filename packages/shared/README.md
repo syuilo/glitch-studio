@@ -39,6 +39,8 @@ Asset自体への参照は`{ kind: 'assetReference', assetType: 'font' | 'lut' |
 
 ## 動画の読み出し
 
+`src/media/video-texture.ts`は`VideoSample`を`VideoFrame`へ変換し、Canvasを経由せず通常のGPUテクスチャへ転送する。不透明と判明するピクセル形式は`importExternalTexture()`から回転・サイズ変更を一度の描画で行う。alphaを持ち得る形式と形式非公開のフレームは、`copyExternalImageToTexture()`でpremultiplyを明示して原寸コピーし、その後に回転・サイズ変更を行う。回転もサイズ変更もなければ出力へ直接コピーする。ChromeのRGBA外部テクスチャではalphaの二重乗算が起き得るため、alphaなしと判明する形式だけを外部テクスチャで扱う。透明部分も補間前にpremultiplyし、輪郭へ透明画素の色を混ぜない。Mediabunnyの回転情報はシェーダーで適用し、表示寸法・切り抜き・色空間はVideoFrameとWebGPUに従う。変換用VideoFrameはコピー・submit後に閉じ、呼び出し側が所有する元サンプルと変換済みテクスチャの寿命を分離する。GPU完了待ちは追加せず、後段も同じqueueで出力を読む。
+
 `src/file-source.ts`の`FileSource`はBlobまたはURLでファイルの読み取り口を表します。プロジェクトの保存方法や実ファイルのパスを持ちません。`src/media/media-input.ts`は動画・音声の共通入力を作り、URL入力を原本全体のBlobに変換せず、Mediabunnyの範囲読み取りと8MiBのキャッシュ上限を使います。デコード済みのフレーム・PCMのキャッシュは、それぞれの読み取り側が管理します。
 
 `src/media/video-sample-reader.ts`は素材時刻から表示順のフレームを選ぶ。順方向は現在・次のフレームを保持し、逆方向は最大0.5秒の窓を64MiB・90枚まで保持する。コピー後の画素サイズとフレームのdurationから保持できる窓幅を見積もり、初回もコピー前に読み始めを絞る。見積もった幅は次の補充にも引き継ぐ。durationは窓幅だけに使い、フレームの選択とキャッシュの有効範囲は実際のtimestampで決める。可変FPSなどで見積もりを超える場合も容量制限を守り、単独で上限を超えるフレームは1枚だけ許可する。

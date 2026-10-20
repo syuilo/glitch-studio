@@ -40,7 +40,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 					try {
 						if (disposed || signal.aborted) return { gpuTime: 0 };
 						// 要求時刻が違っても、素材のFPSや可変フレーム間隔によっては同じフレームを使う。
-						// FPSから境界を推測せず、取得したtimestampでCanvas描画とGPU転送の重複を省く。
+						// FPSから境界を推測せず、取得したtimestampで動画フレームの取り込みとGPU描画の重複を省く。
 						const sampleTimestampSeconds = sample?.timestamp ?? null;
 						if (cachedFrame == null || cachedFrame.sampleTimestampSeconds !== sampleTimestampSeconds) {
 							// 転送中の失敗でテクスチャが変更・再確保されても、古い時刻のキャッシュを使わない。
