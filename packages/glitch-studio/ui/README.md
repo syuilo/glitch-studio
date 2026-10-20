@@ -42,6 +42,8 @@ Scene・動画／静止画・形式・品質・解像度・FPS・時間範囲と
 
 ## Visual Moduleのエクスポート・インポート
 
+環境設定のVisual Module Editorにある「追加したノードを自動接続する」で、エフェクトノード追加時の自動接続を切り替える。既定値は無効。有効時は現在の主出力の接続元（副出力ポートも含む）を追加ノードの主入力へ引き継ぎ、追加ノードの主出力をVisual Moduleの主出力へ接続する。それぞれ接続可能な場合だけ変更し、明示的に指定されたパラメータは優先する。登録済み・インラインの両方で適用し、Undo/Redoでは設定変更にかかわらず追加時の配線を復元する。素材ドロップによる追加は既存の配線を維持する。
+
 `GsVisualModuleEditor`はファイル・Assetのドロップ受付と表示を担当し、親が渡す`VisualModuleAssetDropActions`で保存先へ反映する。登録済みとインラインの両方で`utility/visual-module-drop-actions.ts`を使い、画像・動画・音声からImage・Video・Audio Waveformノードを通常ノード一覧の末尾へ追加する。ノード生成は`visual-module-asset-node.ts`、Asset・Player・ノードの一括追加とUndo/RedoはCommandが担当する。既存の配線と出力接続は変更しない。
 
 `gsvm.ts`は`.gsvm`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。元PCのパスや利用側のレイヤー／Visual Module Live Previewの状態は保存しない。

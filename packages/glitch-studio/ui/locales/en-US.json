@@ -395,6 +395,8 @@
 	},
 	"_Settings": {
 		"Title": "Preferences",
+		"VisualModuleAutoConnectOnNodeAdd": "Automatically connect added nodes",
+		"VisualModuleAutoConnectOnNodeAddHint": "Connects the current primary output source to the added node's primary input and switches the primary output to the added node, when connectable.",
 		"Rendering": "Rendering",
 		"Use32bitDataTextures": "Use 32-bit data textures",
 		"DataTexturesHint": "Stores data and internal calculations in 32-bit float textures instead of 16-bit float textures.",

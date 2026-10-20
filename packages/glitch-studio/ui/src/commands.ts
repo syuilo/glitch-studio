@@ -83,6 +83,7 @@ import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
+import { preferences } from '@/preferences.ts';
 
 export type CommandDef<Payload> = UndoRedoCommandDef<ProjectState, Payload, AppStateChange>;
 
@@ -371,30 +372,26 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let addedNode: VisualModuleEffectNode | null = null;
-		// ノード追加だけで既存の配線が変わらないよう、自動接続処理を無効化する。
-		/*
 		let outputConnection: {
 			nodeId: string;
 			outputId: string;
 			before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null } | null;
 			after: { nodeId: string; outputPort: string };
-		} | null;
-		*/
+		} | null = null;
 		return {
 			execute(state) {
 				const visualModule = stateUtility.getVisualModule(state, payload);
 				if (addedNode == null) {
 					const paramDefs = effectDefinitions[payload.effectId].paramDefs as Record<string, ParameterDefinition>;
-					/*
-					const globalOut = visualModule.nodes.find(node => node.type === 'globalOut');
+					// 初回実行時だけ設定を参照し、設定変更後のRedoでも追加時の配線を再現する。
+					const autoConnect = preferences.s.visualModuleAutoConnectOnNodeAdd;
+					const globalOut = autoConnect ? visualModule.nodes.find(node => node.type === 'globalOut') : null;
 					const primaryOutput = visualModule.outputDefs.find(def => def.id === visualModule.primaryOutputId);
 					const previousInput = primaryOutput == null ? null : globalOut?.inputs[primaryOutput.id];
 					const previous = previousInput?.nodeId == null ? null : visualModule.nodes.find(node => node.id === previousInput.nodeId);
-					*/
 					const params: VisualModuleEffectNode['params'] = {};
 					for (const [key, def] of Object.entries(paramDefs)) {
 						params[key] = deepClone(def.defaultValue);
-						/*
 						if (key === effectDefinitions[payload.effectId].primaryInputParameter && previousInput?.nodeId != null) {
 							// 元の接続が副出力でも、その出力ポートをそのまま引き継ぐ。
 							const output = getNodeOutputs(previous, visualModule.paramDefs)[previousInput.outputPort];
@@ -402,38 +399,32 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 								params[key] = { inputSource: 'node', ...deepClone(previousInput), fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 							}
 						}
-						*/
 					}
 					// ランダムな初期値もRedo時に変えない。
 					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, displayName: '', isBypass: false, resolution: { mode: 'auto' },
 																			params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
-					/*
 					const primaryPort = effectDefinitions[payload.effectId].primaryOutput;
 					const outputPort = primaryPort != null && canConnectNodeDataTypes(effectDefinitions[payload.effectId].outputDefs[primaryPort].dataType, { kind: 'color' }) ? primaryPort : null;
 					if (globalOut != null && primaryOutput != null && outputPort != null) {
 						outputConnection = {
 							nodeId: globalOut.id,
 							outputId: primaryOutput.id,
-							before: deepClone(previousInput),
+							before: deepClone(previousInput ?? null),
 							after: { nodeId: addedNode.id, outputPort },
 						};
 					}
-					*/
 				}
 				const outputIndex = visualModule.nodes.findIndex(node => node.type === 'globalOut');
 				visualModule.nodes.splice(outputIndex < 0 ? visualModule.nodes.length : outputIndex, 0, deepClone(addedNode));
-				/*
 				if (outputConnection != null) {
 					const connection = outputConnection;
 					const globalOut = visualModule.nodes.find(node => node.id === connection.nodeId);
 					if (globalOut?.type === 'globalOut') globalOut.inputs[outputConnection.outputId] = deepClone(outputConnection.after);
 				}
-				*/
 			},
 			undo(state) {
 				const visualModule = stateUtility.getVisualModule(state, payload);
 				visualModule.nodes = visualModule.nodes.filter(node => node.id !== payload.id);
-				/*
 				if (outputConnection != null) {
 					const connection = outputConnection;
 					const globalOut = visualModule.nodes.find(node => node.id === connection.nodeId);
@@ -442,7 +433,6 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 						else globalOut.inputs[outputConnection.outputId] = deepClone(outputConnection.before);
 					}
 				}
-				*/
 			},
 		};
 	},

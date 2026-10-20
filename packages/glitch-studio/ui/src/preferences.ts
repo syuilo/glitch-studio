@@ -17,6 +17,7 @@ export const PREF_DEF = definePreferences({
 	animatedBgInPreview: { default: () => false },
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },
+	visualModuleAutoConnectOnNodeAdd: { default: () => false },
 	showTimecodeInPreview: { default: () => true },
 	showGridInPreview: { default: () => false },
 	showTransformInPreview: { default: () => true },

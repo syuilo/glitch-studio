@@ -395,6 +395,8 @@
 	},
 	"_Settings": {
 		"Title": "環境設定",
+		"VisualModuleAutoConnectOnNodeAdd": "追加したノードを自動接続する",
+		"VisualModuleAutoConnectOnNodeAddHint": "接続可能な場合、現在の主出力の接続元を追加したノードの主入力につなぎ、主出力を追加したノードに切り替えます。",
 		"Rendering": "レンダリング",
 		"Use32bitDataTextures": "データ用テクスチャを高精度にする",
 		"DataTexturesHint": "データと内部計算を、16ビット浮動小数点テクスチャの代わりに32ビット浮動小数点テクスチャに格納します。これにより精度が向上しますが、パフォーマンスに影響する場合があります。",

@@ -19,6 +19,15 @@
 				<div class="_spacer _gaps_l">
 					<template v-if="tab === 'general'">
 						<GsFolder defaultOpen>
+							<template #label>{{ i18n.ts._Workspace.VisualModuleEditor }}</template>
+
+							<GsSwitch v-model="visualModuleAutoConnectOnNodeAdd" data-test-visual-module-auto-connect-on-node-add>
+								{{ i18n.ts._Settings.VisualModuleAutoConnectOnNodeAdd }}
+								<template #caption>{{ i18n.ts._Settings.VisualModuleAutoConnectOnNodeAddHint }}</template>
+							</GsSwitch>
+						</GsFolder>
+
+						<GsFolder defaultOpen>
 							<template #label>{{ i18n.ts._Settings.Rendering }}</template>
 
 							<div class="_gaps_l">
@@ -98,6 +107,7 @@ const importAssetsAsExternalReferences = ref(preferences.s.importAssetsAsExterna
 const importLargeAssetsAsExternalReferences = ref(preferences.s.importLargeAssetsAsExternalReferences);
 const enable32bitDataTextures = ref(preferences.s.enable32bitDataTextures);
 const intermediateTextureFormat = ref(preferences.s.intermediateTextureFormat);
+const visualModuleAutoConnectOnNodeAdd = ref(preferences.s.visualModuleAutoConnectOnNodeAdd);
 const validationError = computed(() => {
 	try { validateProjectBackupSettings(settings.value); return null; } catch (error) { return error instanceof Error ? error.message : String(error); }
 });
@@ -109,6 +119,7 @@ function apply() {
 	preferences.commit('projectBackups', { ...settings.value });
 	preferences.commit('enable32bitDataTextures', enable32bitDataTextures.value);
 	preferences.commit('intermediateTextureFormat', intermediateTextureFormat.value);
+	preferences.commit('visualModuleAutoConnectOnNodeAdd', visualModuleAutoConnectOnNodeAdd.value);
 	modal.value?.close();
 }
 
