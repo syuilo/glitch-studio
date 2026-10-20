@@ -89,7 +89,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private playerAudioInputs = new PlayerAudioInputs(this.audioSources);
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
-	private timingHelper: TimingHelper;
+	private timingHelper: TimingHelper | null;
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
@@ -98,9 +98,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private gpuAverageMedium = new NonNegativeRollingAverage(100);
 	private gpuAverageSlow = new NonNegativeRollingAverage(1000);
 	private fpsAverage = new NonNegativeRollingAverage(30);
-	private telemetryReportIntervalId: number;
-	private gpuMemory: GpuMemoryTracker;
-	private gpuMemoryReportIntervalId: number;
+	private telemetryReportIntervalId: ReturnType<typeof setInterval> | null = null;
+	private gpuMemoryReportIntervalId: ReturnType<typeof setInterval> | null = null;
 	private displayedResolution: Resolution | null = null;
 
 	private readonly staticOptions: VisualModuleRendererManagerStaticOptions;
@@ -150,8 +149,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.effectDefinitions = coreConfig.effectDefinitions;
 		this.effectImplementations = coreConfig.effectImplementations;
 
-		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
-		this.timingHelper = new TimingHelper(this.gpuDevice);
+		const gpuMemory = this.staticOptions.enableStats ? new GpuMemoryTracker(this.gpuDevice) : null;
+		this.timingHelper = this.staticOptions.enableStats ? new TimingHelper(this.gpuDevice) : null;
 
 		this.gpuContext.configure({
 			device: this.gpuDevice,
@@ -175,7 +174,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			waveformVerticalGpuContext: coreConfig.waveformVerticalGpuContext,
 		});
 
-		this.telemetryReportIntervalId = setInterval(() => {
+		if (this.staticOptions.enableStats) this.telemetryReportIntervalId = setInterval(() => {
 			this.emit('ev', { type: 'telemetry', ctx: {
 				fpsAverage: this.fpsAverage.get(),
 				gpuAverageFast: this.gpuAverageFast.get(),
@@ -184,8 +183,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			} });
 		}, 100);
 
-		this.gpuMemoryReportIntervalId = setInterval(() => {
-			this.emit('ev', { type: 'gpuMemory', ctx: { usage: this.gpuMemory.getUsage() } });
+		if (gpuMemory != null) this.gpuMemoryReportIntervalId = setInterval(() => {
+			this.emit('ev', { type: 'gpuMemory', ctx: { usage: gpuMemory.getUsage() } });
 		}, 1000);
 	}
 
@@ -403,12 +402,12 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 			this.pointerPositionPrev = { ...this.pointerPosition };
 
-			this.fpsAverage.addSample(1000 / timing.realTimeDelta);
+			if (this.staticOptions.enableStats) this.fpsAverage.addSample(1000 / timing.realTimeDelta);
 		} finally {
 			// 部分的に描画して失敗しても計測を完了する。未完了のencoderを残すと、
 			// 次のフレームでTimingHelperが別のencoderを受け付けず、修正後も復旧できない。
 			this.gpuDevice.queue.submit([commandEncoder.finish()]);
-			if (this.staticOptions.enableStats) {
+			if (this.timingHelper != null) {
 				this.timingHelper.getResult().then(gpuTime => {
 					this.gpuAverageFast.addSample(gpuTime / 1000);
 					this.gpuAverageMedium.addSample(gpuTime / 1000);
@@ -438,8 +437,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public destroy() {
-		clearInterval(this.telemetryReportIntervalId);
-		clearInterval(this.gpuMemoryReportIntervalId);
+		if (this.telemetryReportIntervalId != null) clearInterval(this.telemetryReportIntervalId);
+		if (this.gpuMemoryReportIntervalId != null) clearInterval(this.gpuMemoryReportIntervalId);
 		this.stopRenderLoop();
 		this.outputTextures.dispose();
 		this.assetTextures.dispose();

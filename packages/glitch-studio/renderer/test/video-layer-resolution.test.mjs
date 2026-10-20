@@ -103,7 +103,7 @@ function gpuFixture(t) {
 	return { device, texture, sample, calls };
 }
 
-function timelineFixture(t, { timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16 }, readSample } = {}) {
+function timelineFixture(t, { enableStats = false, timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16 }, readSample } = {}) {
 	const fixture = gpuFixture(t);
 	const { device, texture, sample, calls } = fixture;
 	const module = { exports: {} };
@@ -127,7 +127,7 @@ function timelineFixture(t, { timelineMotionBlur = { enabled: false, shutterAngl
 			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
 			init: () => ({ render: ctx => calls.renders.push(ctx), dispose() {} }),
 		} },
-	}, { timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	}, { enableStats, timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
 	calls.compositing = [];
 	manager.createCompositingObserver = (_sceneId, layerId) => (foreground, settings) => calls.compositing.push({ layerId, foreground, settings });
 	manager.on('ev', event => { if (event.type === 'renderError') calls.errors.push(event.ctx.message); });
@@ -136,11 +136,13 @@ function timelineFixture(t, { timelineMotionBlur = { enabled: false, shutterAngl
 	return { ...fixture, manager };
 }
 
-async function timingFixture(t, { videoLayers = 1, motionBlurSamples = 1, sourceTimestamp = time => time } = {}) {
+async function timingFixture(t, { enableStats = true, videoLayers = 1, motionBlurSamples = 1, sourceTimestamp = time => time } = {}) {
 	let elapsedMs = 0;
-	t.mock.method(performance, 'now', () => elapsedMs);
+	let clockReads = 0;
+	t.mock.method(performance, 'now', () => { clockReads++; return elapsedMs; });
 	const costs = { sampleMs: 7, uploadMs: 3, gpuWaitMs: 5, otherMs: 2, sampleError: null, sampleGate: null, sampleStarted: null };
 	const fixture = timelineFixture(t, {
+		enableStats,
 		timelineMotionBlur: { enabled: motionBlurSamples > 1, shutterAngle: 180, samples: motionBlurSamples },
 		readSample: async time => {
 			costs.sampleStarted?.();
@@ -168,8 +170,23 @@ async function timingFixture(t, { videoLayers = 1, motionBlurSamples = 1, source
 	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
 		resolution: { width: 16, height: 8 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: videos }] });
-	return { ...fixture, costs, statistics, get gpuWaits() { return gpuWaits; } };
+	return { ...fixture, costs, statistics, get gpuWaits() { return gpuWaits; }, get clockReads() { return clockReads; } };
 }
+
+// 【計測無効時も動画を描画するが、時計・集計・統計通知タイマーを使わない】
+// 通知だけを隠す実装ではパフォーマンス負荷が残る。描画の直列化に必要なGPU待ちは
+// 維持し、動画取得・転送・フレーム全体の時間計測自体が停止することを保証する。
+test('renders video with statistics disabled without clocks, batches or reporting timers', async t => {
+	const f = await timingFixture(t, { enableStats: false });
+	const previousClockReads = f.clockReads;
+	await f.manager.renderTimelineAt(100);
+	f.manager.reportPreviewStatistics();
+	assert.equal(f.clockReads, previousClockReads);
+	assert.equal(f.manager.telemetryReportIntervalId, null);
+	assert.deepEqual(f.statistics, []);
+	assert.equal(f.calls.uploads.length, 1);
+	assert.equal(f.gpuWaits, 1);
+});
 
 // 【動画の取得待ち・CPU取り込み・GPU完了待ちを分け、キャッシュで省略した処理は0にする】
 // 実時間のsleepでは検証が揺れるため、デコーダー・転送・表示・GPU待ちの境界で時計を進める。
@@ -195,7 +212,9 @@ test('separates preview waits and records zero time for cached retrieval and upl
 test('aggregates all video layers and blur samples without including export frames', async t => {
 	const f = await timingFixture(t, { videoLayers: 2, motionBlurSamples: 4 });
 	await f.manager.renderTimelineAt(100);
+	const clockReadsBeforeExport = f.clockReads;
 	await f.manager.renderTimelineFrame(150, 50);
+	assert.equal(f.clockReads, clockReadsBeforeExport, 'exports must not measure even when preview statistics are enabled');
 	f.costs.gpuWaitMs = 17;
 	await f.manager.renderTimelineAt(200);
 	f.manager.reportPreviewStatistics();

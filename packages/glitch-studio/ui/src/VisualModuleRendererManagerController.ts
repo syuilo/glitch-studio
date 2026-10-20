@@ -42,6 +42,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	private visualModuleLivePreviewParamValues: VisualModuleArgumentBindings = {};
 	private pointerPosition = { x: 0, y: 0 };
 	private staticOptions: VisualModuleRendererManagerStaticOptions;
+	private initializationStaticOptions: VisualModuleRendererManagerStaticOptions | null = null;
 	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> & Pick<VisualModuleRendererManagerDynamicOptions, 'assets'> = {
 		assets: [],
 	};
@@ -84,6 +85,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				const waveformVerticalOffscreen = this.waveformVerticalCanvas.transferControlToOffscreen();
 
 				this.initialSnapshotTaken = true;
+				this.initializationStaticOptions = this.staticOptions;
 				return {
 					options: {
 						canvas: offscreen,
@@ -410,11 +412,15 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		await this.callAndWaitReturn('applyProjectChanges', [patch]);
 	}
 
-	public updateStaticOptions(newStaticOptions: Partial<VisualModuleRendererManagerStaticOptions>): Promise<void> {
-		this.staticOptions = { ...this.staticOptions, ...newStaticOptions };
+	public async updateStaticOptions(newStaticOptions: Partial<VisualModuleRendererManagerStaticOptions>): Promise<void> {
+		this.staticOptions = { ...this.staticOptions, ...deepClone(newStaticOptions) };
 		// 解放中は設定のみ保持する。Worker障害時は再生成して復旧できるようにする。
-		if (!this.hasManager && !this.isInitializing) return Promise.resolve();
-		return this.reload();
+		if (!this.hasManager && !this.isInitializing) return;
+		// 計測を連続で切り替えても、起動時の古い設定を残さず最新値まで反映する。
+		if (this.isInitializing) await this.initializationReady;
+		while (this.hasManager && !deepEqual(this.initializationStaticOptions, this.staticOptions)) {
+			await this.reload();
+		}
 	}
 
 	public destroy() {

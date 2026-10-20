@@ -62,7 +62,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			gpuContext: context,
 			effectDefinitions,
 			effectImplementations,
-		}, { ...rendererSettings, timelineFps, timelineMotionBlur });
+		}, { ...rendererSettings, timelineFps, timelineMotionBlur, enableStats: false });
 		renderer.on('ev', event => {
 			if (event.type !== 'effectState' && event.type !== 'effectLayerState') return;
 			const status = event.ctx.status?.status;

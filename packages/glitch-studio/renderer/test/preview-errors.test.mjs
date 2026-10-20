@@ -266,6 +266,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	const frames = new Map();
 	let frameId = 0;
 	const { device, texture } = gpuFixture();
+	const originalGpuMethods = { createTexture: device.createTexture, createBuffer: device.createBuffer, submit: device.queue.submit };
 	const renderer = new Manager({
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
@@ -283,11 +284,34 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 		visualModules: [visualModule(true)],
 		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] }], sceneId: 'scene' } : {}),
 	});
-	return { renderer, errors, frames, frame(timestamp) {
+	return { renderer, errors, frames, originalGpuMethods, frame(timestamp) {
 		const [id, callback] = frames.entries().next().value;
 		frames.delete(id);
 		callback(timestamp);
 	} };
+}
+
+for (const enableStats of [false, true]) {
+	// 【Live Previewの計測無効時は描画を続けながらFPS・GPUメモリ追跡・通知を止める】
+	// GPUの計測パスだけでなく、リソース生成のラップやCPU側の移動平均も止める必要がある。
+	// 有効時との比較で、計測を止めるために通常の描画まで止めていないことも保証する。
+	test(`renders Live Preview while collecting statistics only when enabled: ${enableStats}`, async t => {
+		const f = await fixture(t, { enableStats });
+		await f.renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
+		const fpsSamples = t.mock.method(f.renderer.fpsAverage, 'addSample');
+		const presents = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
+		f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+		f.frame(16);
+		f.frame(32);
+		assert.equal(presents.mock.callCount(), 2);
+		assert.equal(fpsSamples.mock.callCount(), enableStats ? 2 : 0);
+		assert.equal(f.renderer.timingHelper != null, enableStats);
+		assert.equal(f.renderer.telemetryReportIntervalId != null, enableStats);
+		assert.equal(f.renderer.gpuMemoryReportIntervalId != null, enableStats);
+		assert.equal(f.renderer.gpuDevice.createTexture === f.originalGpuMethods.createTexture, !enableStats);
+		assert.equal(f.renderer.gpuDevice.createBuffer === f.originalGpuMethods.createBuffer, !enableStats);
+		assert.deepEqual(f.errors, []);
+	});
 }
 
 for (const motionBlur of [false, true]) {

@@ -64,6 +64,7 @@ export type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from './ti
  * 初期化時に決まっている必要がある設定情報
  */
 export type TimelineRendererManagerStaticOptions = {
+	enableStats: boolean;
 	timelineFps: number;
 	timelineMotionBlur: TimelineMotionBlurSettings;
 	enable32bitDataTextures: boolean;
@@ -116,7 +117,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private previewRenderGeneration = 0;
 	private previewFrameTiming: TimelinePreviewFrameTiming | null = null;
 	private previewStatistics = new TimelinePreviewStatisticsCollector();
-	private telemetryReportIntervalId: ReturnType<typeof setInterval>;
+	private telemetryReportIntervalId: ReturnType<typeof setInterval> | null = null;
 	private frameRenderedRequestId: number | null = null;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | null = null;
@@ -232,7 +233,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			},
 			present: output => this.presentOutput(output),
 		});
-		this.telemetryReportIntervalId = setInterval(() => this.reportPreviewStatistics(), 100);
+		if (this.staticOptions.enableStats) this.telemetryReportIntervalId = setInterval(() => this.reportPreviewStatistics(), 100);
 	}
 
 	private reportPreviewStatistics() {
@@ -395,9 +396,10 @@ export class TimelineRendererManager extends EventEmitter<{
 		const generation = ++this.previewRenderGeneration;
 		// SchedulerがGPU完了まで直列化するため、この集計は一つの出力フレームに属する。
 		// 子Scene・複数レイヤー・ブラーの全サンプルを足し、書き出しはここを経由しない。
-		const timing: TimelinePreviewFrameTiming = { frameDurationMs: 0, videoSampleWaitMs: 0, videoUploadCpuMs: 0, gpuWaitMs: 0 };
+		const timing: TimelinePreviewFrameTiming | null = this.staticOptions.enableStats
+			? { frameDurationMs: 0, videoSampleWaitMs: 0, videoUploadCpuMs: 0, gpuWaitMs: 0 } : null;
 		this.previewFrameTiming = timing;
-		const frameStartedAt = performance.now();
+		const frameStartedAt = timing != null ? performance.now() : 0;
 		const frameRenderedRequestId = this.frameRenderedRequestId;
 		const sceneId = this.dynamicOptions.sceneId;
 		const revision = this.dynamicOptions.previewRevision;
@@ -417,15 +419,15 @@ export class TimelineRendererManager extends EventEmitter<{
 				// submitはGPUへの実行予約であり、描画完了ではない。最終表示・ブラーの
 				// 全サンプルを含めて待ち、重いフレームの後ろにGPU処理を積み重ねない。
 				// 途中で失敗・編集による中断が起きても、送信済みの処理は待ち切る。
-				const gpuWaitStartedAt = performance.now();
+				const gpuWaitStartedAt = timing != null ? performance.now() : 0;
 				try {
 					await this.gpuDevice.queue.onSubmittedWorkDone();
 				} finally {
-					timing.gpuWaitMs = performance.now() - gpuWaitStartedAt;
+					if (timing != null) timing.gpuWaitMs = performance.now() - gpuWaitStartedAt;
 				}
 			}
-			timing.frameDurationMs = performance.now() - frameStartedAt;
-			if (generation === this.previewRenderGeneration && sceneId === this.dynamicOptions.sceneId && revision === this.dynamicOptions.previewRevision) {
+			if (timing != null) timing.frameDurationMs = performance.now() - frameStartedAt;
+			if (timing != null && generation === this.previewRenderGeneration && sceneId === this.dynamicOptions.sceneId && revision === this.dynamicOptions.previewRevision) {
 				this.previewStatistics.addFrame(sceneId, revision, timing);
 			}
 			// 編集や破棄で無効になったフレームの変形情報を、現在の表示へ反映しない。
@@ -624,11 +626,11 @@ export class TimelineRendererManager extends EventEmitter<{
 					videoEnabled: clip.videoEnabled,
 					reversePlayback: 'sourceInMs' in clip && clip.playbackRate < 0,
 					onCompositing,
-					onTiming: timing => {
+					onTiming: this.staticOptions.enableStats ? timing => {
 						if (this.previewFrameTiming == null) return;
 						this.previewFrameTiming.videoSampleWaitMs += timing.sampleWaitMs;
 						this.previewFrameTiming.videoUploadCpuMs += timing.uploadCpuMs;
-					},
+					} : null,
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
 					resolutionScale: this.dynamicOptions.resolutionScale,
@@ -771,7 +773,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public destroy() {
-		clearInterval(this.telemetryReportIntervalId);
+		if (this.telemetryReportIntervalId != null) clearInterval(this.telemetryReportIntervalId);
 		this.clearTimelineRenderers();
 		this.audioInputs.dispose();
 		this.assetTextures.dispose();

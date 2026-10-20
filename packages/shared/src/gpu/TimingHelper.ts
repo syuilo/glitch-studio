@@ -9,18 +9,9 @@ function assert(cond: unknown, msg = ''): asserts cond {
 // We track command buffers so we can generate an error if
 // we try to read the result before the command buffer has been executed.
 const s_unsubmittedCommandBuffer = new Set<GPUCommandBuffer>();
+const trackedQueues = new WeakSet<GPUQueue>();
 
 const PASSES_PER_QUERY_SET = 16;
-
-/* global GPUQueue */
-GPUQueue.prototype.submit = (function(origFn) {
-	return function(this: GPUQueue, commandBuffers: Iterable<GPUCommandBuffer>) {
-		// Snapshot single-use iterables before submit consumes them.
-		const buffers = Array.from(commandBuffers);
-		origFn.call(this, buffers);
-		buffers.forEach(cb => s_unsubmittedCommandBuffer.delete(cb));
-	};
-})(GPUQueue.prototype.submit);
 
 // See https://webgpufundamentals.org/webgpu/lessons/webgpu-timing.html
 export default class TimingHelper {
@@ -37,6 +28,18 @@ export default class TimingHelper {
 	constructor(device: GPUDevice) {
 		this.#device = device;
 		this.#canTimestamp = device.features.has('timestamp-query');
+		// importだけで全GPUQueueを書き換えると、計測しない描画や書き出しにも
+		// 配列化・追跡の負荷が残る。計測するデバイスのqueueだけを一度ラップする。
+		const queue = device.queue;
+		if (this.#canTimestamp && !trackedQueues.has(queue)) {
+			trackedQueues.add(queue);
+			const submit = queue.submit;
+			queue.submit = function(commandBuffers) {
+				const buffers = Array.from(commandBuffers);
+				submit.call(this, buffers);
+				for (const buffer of buffers) s_unsubmittedCommandBuffer.delete(buffer);
+			};
+		}
 	}
 
 	#withTimestampWrites<T extends GPURenderPassDescriptor | GPUComputePassDescriptor>(encoder: GPUCommandEncoder, descriptor: T): T {

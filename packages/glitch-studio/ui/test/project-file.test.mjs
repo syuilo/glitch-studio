@@ -133,6 +133,33 @@ const appBundle = await build({
 	}],
 });
 
+// 【計測は起動時に無効で、両プレビューへ反映しても保存データやUndo履歴には入れない】
+// 一時設定をプロジェクトへ混ぜると再起動後も負荷が残り、単なる計測切替が編集扱いになる。
+// 新規作成ではアプリ起動中の設定を保ち、新しいアプリでは無効から始まることも確認する。
+test('keeps rendering statistics disabled by default and transient across projects', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const context = app.appContext;
+	await context.ready(project());
+	const controllers = [context.visualModuleRendererManagerController, context.timelineRendererManagerController];
+	assert.equal(context.renderingStatsEnabled.value, false);
+	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === false));
+	const historyLength = context.projectContext.stateManager.undoStack.value.length;
+	context.renderingStatsEnabled.value = true;
+	await setImmediate();
+	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === true));
+	assert.equal(context.projectContext.stateManager.undoStack.value.length, historyLength);
+	const restored = decodeProjectFile(await encodeProjectFile(context.projectContext.snapshot()));
+	assert.equal('renderingStatsEnabled' in restored, false);
+	assert.equal('enableStats' in restored, false);
+	await app.newProject();
+	assert.equal(context.renderingStatsEnabled.value, true);
+	context.renderingStatsEnabled.value = false;
+	await setImmediate();
+	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === false));
+	assert.equal(evaluate(appBundle).appContext.renderingStatsEnabled.value, false);
+});
+
 function project(overrides = {}) {
 	return {
 		exportSettings: null,

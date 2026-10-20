@@ -419,6 +419,7 @@
 		"SelectFolderDescription": "{name}を含むフォルダーを選択してください。このフォルダーでバックアップを作成し、保存期間を過ぎたバックアップを削除します。"
 	},
 	"_Stats": {
+		"DisabledHint": "計測は無効です。フッターのStatsから有効にできます。",
 		"FrameDuration": "フレーム全体",
 		"FrameDurationDescription": "描画処理の開始からGPU完了待ちまでの経過時間です。描画要求が順番を待つ時間は含みません。",
 		"VideoSampleWait": "動画取得待ち",

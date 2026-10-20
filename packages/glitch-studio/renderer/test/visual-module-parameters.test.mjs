@@ -8,8 +8,6 @@ const loadSource = name => loadShaderSource(fileURLToPath(import.meta.resolve(na
 
 const { getNodeInputDataType, areNodeDataTypesCompatible } = await loadSource('@gs/shared/data-type/node-compatibility.ts');
 const { genEmptyValue } = await loadSource('@gs/shared/parameter/parameter-default.ts');
-// TimingHelperは読み込み時にGPUQueue.prototypeを参照するため、レンダラーより先に用意する。
-globalThis.GPUQueue = class { submit() {} };
 const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts')));
 
 // 外部値を単一値APIで用意し、内部ノードの列挙は実際のレンダラーで検証する。

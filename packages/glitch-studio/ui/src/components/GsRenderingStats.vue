@@ -1,15 +1,16 @@
 <template>
 <div :class="$style.root">
-	<div :class="$style.legend">
+	<div v-if="!renderingStatsEnabled" data-test-rendering-stats-disabled>{{ i18n.ts._Stats.DisabledHint }}</div>
+	<div v-show="renderingStatsEnabled" :class="$style.legend">
 		<div v-for="item in series" :key="item.key" :title="item.description" :data-test-rendering-stat="item.key" :class="$style.legendItem">
 			<span style="width: 8px; height: 2px;" :style="{ backgroundColor: item.color }"></span>
 			<span style="opacity: 0.7;">{{ item.label }}</span>
 			<span data-test-rendering-stat-average>{{ formatMs(current[item.key]) }}</span>
 			<span v-if="isTimeline" data-test-rendering-stat-maximum :class="$style.maximum">({{ formatMs(maximum[item.key]) }})</span>
 		</div>
+		<div v-if="renderingStatsEnabled && isTimeline" data-test-timeline-statistics-hint :title="i18n.ts._Stats.TimelineTimingHint" :class="$style.hint">{{ i18n.ts._Stats.TimelineTimingSummary }}</div>
 	</div>
-	<div v-if="isTimeline" data-test-timeline-statistics-hint :title="i18n.ts._Stats.TimelineTimingHint" :class="$style.hint">{{ i18n.ts._Stats.TimelineTimingSummary }}</div>
-	<div ref="chartEl" :class="$style.chart">
+	<div v-show="renderingStatsEnabled" ref="chartEl" :class="$style.chart">
 		<svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" :class="$style.svg">
 			<g :class="$style.grid">
 				<template v-for="tick in yTicks" :key="tick.value">
@@ -39,11 +40,11 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
+import type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
-import type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 
-const { visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback } = appContext;
+const { visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, renderingStatsEnabled } = appContext;
 
 type SeriesKey = 'fast' | 'medium' | 'slow' | keyof TimelinePreviewFrameTiming;
 type RenderTimes = Partial<Record<SeriesKey, number>>;
@@ -101,6 +102,7 @@ function clearSamples() {
 }
 
 function recordSample() {
+	if (!renderingStatsEnabled.value) return;
 	const timestamp = performance.now();
 	if (isTimeline.value) {
 		const statistics = timelineRendererManagerController.previewStatistics.value;
@@ -140,18 +142,25 @@ function toMs(value: number) {
 	return Number.isFinite(value) && value >= 0 ? value / 1000 : 0;
 }
 
-watch(() => previewPlayback.state.value.mode, () => {
+function updateSampling() {
+	if (timer != null) window.clearInterval(timer);
+	timer = null;
 	clearSamples();
+	if (!renderingStatsEnabled.value) return;
 	recordSample();
-});
+	// TimelineはWorkerからの通知時だけ更新する。Live Previewの移動平均を読む
+	// タイマーも、計測無効時には作らず、切替後に前回の履歴を持ち越さない。
+	if (!isTimeline.value) timer = window.setInterval(recordSample, sampleInterval);
+}
+
+watch([renderingStatsEnabled, () => previewPlayback.state.value.mode], updateSampling);
 
 watch(timelineRendererManagerController.previewStatistics, () => {
-	if (isTimeline.value) recordSample();
+	if (renderingStatsEnabled.value && isTimeline.value) recordSample();
 }, { flush: 'sync' });
 
 onMounted(() => {
-	recordSample();
-	timer = window.setInterval(recordSample, sampleInterval);
+	updateSampling();
 	resizeObserver = new ResizeObserver(([entry]) => {
 		chartWidth.value = entry.contentRect.width;
 		chartHeight.value = entry.contentRect.height;
@@ -176,9 +185,10 @@ onBeforeUnmount(() => {
 }
 
 .legend {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 10px 10px;
+	position: absolute;
+	top: 10px;
+	left: 70px;
+	z-index: 1;
 	padding: 0 0 8px 2px;
 	font-size: 90%;
 }

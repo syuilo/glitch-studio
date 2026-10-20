@@ -240,6 +240,29 @@ test('shares transform observation and rejects old state revisions', async t => 
 	assert.equal(controller.layerTransform.value, null);
 });
 
+for (const kind of ['VisualModule', 'Timeline']) {
+	// 【計測切替の再生成中に設定が変わっても両プレビューが最後の設定へ追従する】
+	// GPUの機能は初期化時に確定する。最初の再生成を待つだけでは、連続クリック後も
+	// 古い計測有効状態が残るため、スナップショット送信後の切り替えを再現する。
+	test(`applies the latest statistics setting across rapid ${kind} restarts`, async t => {
+		const { controller, workers } = fixture(t, kind);
+		await initialize(controller, workers);
+		const enabled = controller.updateStaticOptions({ enableStats: true });
+		const first = await workers[1].initialization.promise;
+		assert.equal(first.staticOptions.enableStats, true);
+		const disabled = controller.updateStaticOptions({ enableStats: false });
+		workers[1].reply({ type: 'inited' });
+		await setImmediate();
+		assert.equal(workers[1].terminated, true);
+		const latest = await workers[2].initialization.promise;
+		assert.equal(latest.staticOptions.enableStats, false);
+		workers[2].reply({ type: 'inited' });
+		await Promise.all([enabled, disabled]);
+		await controller.updateStaticOptions({ enableStats: false });
+		assert.equal(workers.length, 3, 'unchanged settings must not restart the worker');
+	});
+}
+
 // 【fpsとモーションブラーを一度の再生成で反映し、同値の適用では再生成しない】
 // 1回の設定適用やUndoでWorkerを二重生成せず、旧Workerの完了通知で表示を巻き戻さない。
 test('recreates the timeline once for combined render settings and ignores unchanged settings', async t => {

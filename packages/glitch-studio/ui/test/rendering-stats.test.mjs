@@ -20,10 +20,11 @@ const bundle = await build({ stdin: { contents: `${script}
 	} }],
 });
 
-async function fixture(t) {
+async function fixture(t, { enabled = true } = {}) {
+	const renderingStatsEnabled = shallowRef(enabled);
 	const statistics = shallowRef(null);
 	const state = shallowRef({ mode: 'timeline', playing: false });
-	const appContext = { previewPlayback: { state }, timelineRendererManagerController: { previewStatistics: statistics },
+	const appContext = { renderingStatsEnabled, previewPlayback: { state }, timelineRendererManagerController: { previewStatistics: statistics },
 		visualModuleRendererManagerController: { gpuAverageDisplayFast: shallowRef(1500), gpuAverageDisplayMedium: shallowRef(2500), gpuAverageDisplaySlow: shallowRef(3500) } };
 	let timestamp = 0;
 	let tick = null;
@@ -32,7 +33,7 @@ async function fixture(t) {
 		createRequire(import.meta.url), module, module.exports, { appContext },
 		{ setInterval(callback) { tick = callback; return 1; }, clearInterval() { tick = null; } },
 		class { observe() {} disconnect() {} }, { now: () => timestamp });
-	const element = tag => ({ tag, children: [], props: {}, text: '', parent: null });
+	const element = tag => ({ tag, children: [], props: {}, style: {}, text: '', parent: null });
 	const renderer = createRenderer({
 		createElement: element, createText: text => ({ ...element('text'), text }), createComment: () => element('comment'),
 		setText(node, text) { node.text = text; }, setElementText(node, text) { node.text = text; },
@@ -51,13 +52,34 @@ async function fixture(t) {
 	t.after(() => app.unmount());
 	await nextTick();
 	const descendants = node => [node, ...node.children.flatMap(descendants)];
-	return { statistics, state, app,
+	return { statistics, state, app, renderingStatsEnabled,
 		statistic: key => descendants(root).find(node => node.props['data-test-rendering-stat'] === key),
 		line: key => descendants(root).find(node => node.props['data-test-rendering-stat-line'] === key),
-		async sample() { timestamp += 100; tick(); await nextTick(); },
+		async sample() { timestamp += 100; tick?.(); await nextTick(); },
 		get timerActive() { return tick != null; },
 	};
 }
+
+// 【計測無効時はUIの定期サンプリングも止め、再開時に古い履歴を残さない】
+// Workerを無効にしてもパネルが周期的に時計とグラフを更新すると負荷が残る。
+// Timelineは通知、Live Previewは有効時だけのタイマーで更新することを確認する。
+test('stops sampling and clears displayed values when measurement is disabled', async t => {
+	const f = await fixture(t, { enabled: false });
+	assert.equal(f.timerActive, false);
+	f.state.value = { mode: 'visualModuleLivePreview', playing: true };
+	await nextTick();
+	assert.equal(f.timerActive, false);
+	assert.deepEqual(values(f.statistic('fast')), ['—']);
+	f.renderingStatsEnabled.value = true;
+	await nextTick();
+	assert.equal(f.timerActive, true);
+	assert.deepEqual(values(f.statistic('fast')), ['1.5ms']);
+	f.renderingStatsEnabled.value = false;
+	await nextTick();
+	assert.equal(f.timerActive, false);
+	assert.deepEqual(values(f.statistic('fast')), ['—']);
+	assert.equal(f.line('fast').props.points, '');
+});
 
 function values(node) {
 	return node.children.filter(child => 'data-test-rendering-stat-average' in child.props || 'data-test-rendering-stat-maximum' in child.props).map(child => child.text);

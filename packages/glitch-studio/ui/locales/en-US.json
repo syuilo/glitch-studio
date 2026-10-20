@@ -419,6 +419,7 @@
 		"SelectFolderDescription": "Select the folder containing {name}. Backups will be created and expired backups removed in this folder."
 	},
 	"_Stats": {
+		"DisabledHint": "Measurement is disabled. Click Stats in the footer to enable it.",
 		"FrameDuration": "Frame total",
 		"FrameDurationDescription": "Elapsed time from the start of rendering through GPU completion. Excludes time spent waiting for an earlier frame.",
 		"VideoSampleWait": "Video retrieval",
