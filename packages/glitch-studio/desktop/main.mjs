@@ -7,7 +7,7 @@ import { resolveAppPath } from './protocol-path.mjs';
 import { ProjectFiles } from './project-files.mjs';
 import { ExternalAssetFiles, registerExternalAssetIpc } from './external-assets.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
-import { registerProjectCloseIpc } from './project-close-guard.mjs';
+import { ProjectCloseController, registerProjectCloseIpc } from './project-close-guard.mjs';
 import { RecentProjects, registerRecentProjectsIpc } from './recent-projects.mjs';
 import { getStartupProjectPath } from './startup-project.mjs';
 import { ProjectLaunchController, launchProjectProcess } from './project-launch.mjs';
@@ -45,6 +45,7 @@ const windowsAppUserModelId = app.isPackaged
 let mainWindow;
 let desktopInstances = null;
 let desktopUpdateController = null;
+let projectCloseController = null;
 // 通知をGCで失わないよう、次のエクスポートが完了するまで最新の通知を保持する。
 let exportCompleteNotification = null;
 
@@ -115,9 +116,7 @@ function createWindow() {
 	mainWindow.webContents.on('will-navigate', (event, url) => {
 		if (!isAppUrl(url) || desktopUpdateController?.busy === true) event.preventDefault();
 	});
-	mainWindow.webContents.on('will-prevent-unload', event => {
-		if (desktopUpdateController?.allowQuit === true) event.preventDefault();
-	});
+	projectCloseController = new ProjectCloseController({ app, window: mainWindow, getUpdateController: () => desktopUpdateController });
 	mainWindow.webContents.on('before-input-event', (event, input) => {
 		if (desktopUpdateController?.busy === true && (input.key === 'F5' || ((input.control || input.meta) && input.key.toLowerCase() === 'r'))) event.preventDefault();
 	});
@@ -158,7 +157,7 @@ app.whenReady().then(async () => {
 			: desktopUpdateController.busy ? 2 : -1);
 	});
 	registerDesktopUpdateIpc(ipcMain, desktopUpdateController, getTrustedMainWindow);
-	registerProjectCloseIpc(ipcMain, dialog, getTrustedMainWindow, () => desktopUpdateController);
+	registerProjectCloseIpc(ipcMain, getTrustedMainWindow, () => projectCloseController);
 	Menu.setApplicationMenu(null);
 	if (process.platform === 'win32') app.setAppUserModelId(windowsAppUserModelId);
 	if (process.platform === 'darwin') app.dock.setIcon(iconPath);

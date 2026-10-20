@@ -6,8 +6,8 @@ declare const __ELECTRON__: boolean;
 
 interface Window {
 	desktop?: {
-		/** beforeunloadの終了判断に使うため同期的に確認結果を返す。 */
-		confirmProjectClose(labels: { message: string; detail: string; closeButtonLabel: string; cancelButtonLabel: string }): boolean;
+		onProjectCloseRequested(listener: (requestId: number) => void): () => void;
+		completeProjectClose(requestId: number, confirmed: boolean): Promise<boolean>;
 		getUpdateState(): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
 		checkForUpdates(): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
 		prepareUpdate(version: string): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
