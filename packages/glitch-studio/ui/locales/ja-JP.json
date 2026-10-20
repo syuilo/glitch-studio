@@ -419,7 +419,16 @@
 		"SelectFolderDescription": "{name}を含むフォルダーを選択してください。このフォルダーでバックアップを作成し、保存期間を過ぎたバックアップを削除します。"
 	},
 	"_Stats": {
-		"VisualModuleLivePreviewOnly": "レンダリング統計はVisual Module Live Previewモードで利用できます。"
+		"FrameDuration": "フレーム全体",
+		"FrameDurationDescription": "描画処理の開始からGPU完了待ちまでの経過時間です。描画要求が順番を待つ時間は含みません。",
+		"VideoSampleWait": "動画取得待ち",
+		"VideoSampleWaitDescription": "動画フレームの取得にかかった時間です。ファイル読み取り・初期化・デコード・キャッシュ待ちを含み、全動画レイヤー・子Scene・モーションブラーのサンプルを合計します。",
+		"VideoUploadCpu": "動画取り込み（CPU）",
+		"VideoUploadCpuDescription": "動画フレームの変換・GPU転送API・submitにかかったCPU側の経過時間の合計です。GPUでの処理完了までの時間ではありません。",
+		"GpuWait": "GPU完了待ち",
+		"GpuWaitDescription": "フレームの送信後、GPUキューの完了通知を待った時間です。GPU処理は送信中にも進むため、GPUの総実行時間ではありません。",
+		"TimelineTimingHint": "約100msごとの完了フレームの平均を表示します。括弧内は各項目の最大値です。全体の時間には各待ち時間が含まれます。",
+		"TimelineTimingSummary": "平均（最大）・約100msごと"
 	},
 	"_Node": {
 		"ContextResolution": "コンテキストの解像度",

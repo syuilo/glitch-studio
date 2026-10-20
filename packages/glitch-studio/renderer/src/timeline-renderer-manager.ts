@@ -38,6 +38,8 @@ import { CanvasRenderer } from './canvas-renderer.ts';
 import { ProjectStateVersions } from './project-state-versions.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { TimelineAudioInputs } from './timeline-audio-inputs.ts';
+import { TimelinePreviewStatisticsCollector } from './timeline-preview-statistics.ts';
+import type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from './timeline-preview-statistics.ts';
 import type { TimelineTransformObservation, TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import type { TimelineCompositingObserver } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
 import type { TimelineMotionBlurCameraCuts, TimelineMotionBlurLoop } from '@gs/subsystems_timeline_shared/motion-blur.ts';
@@ -55,6 +57,8 @@ import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineI
 import type { VisualModule, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
+
+export type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from './timeline-preview-statistics.ts';
 
 /**
  * 初期化時に決まっている必要がある設定情報
@@ -96,6 +100,7 @@ export type TimelineLayerStatusSource = {
 };
 
 export type TimelineRendererManagerEvents = {
+	'telemetry': (ctx: TimelinePreviewStatistics) => void;
 	/** 完了通知を要求した手動シークだけを、最終出力のGPU処理完了後に通知する。 */
 	'frameRendered': (ctx: { requestId: number; sceneId: string | null; time: number; revision: number }) => void;
 	'effectState': (ctx: { source: TimelineLayerStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
@@ -109,6 +114,9 @@ export class TimelineRendererManager extends EventEmitter<{
 }> {
 	private timelineRenderer: TimelineRenderer<TimelineImage, TimelineLayer>;
 	private previewRenderGeneration = 0;
+	private previewFrameTiming: TimelinePreviewFrameTiming | null = null;
+	private previewStatistics = new TimelinePreviewStatisticsCollector();
+	private telemetryReportIntervalId: ReturnType<typeof setInterval>;
 	private frameRenderedRequestId: number | null = null;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | null = null;
@@ -224,6 +232,14 @@ export class TimelineRendererManager extends EventEmitter<{
 			},
 			present: output => this.presentOutput(output),
 		});
+		this.telemetryReportIntervalId = setInterval(() => this.reportPreviewStatistics(), 100);
+	}
+
+	private reportPreviewStatistics() {
+		const statistics = this.previewStatistics.take();
+		if (statistics != null && statistics.sceneId === this.dynamicOptions.sceneId && statistics.revision === this.dynamicOptions.previewRevision) {
+			this.emit('ev', { type: 'telemetry', ctx: statistics });
+		}
 	}
 
 	private presentOutput(output: TimelineImage) {
@@ -243,6 +259,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private clearTimelineRenderers(preservePreviewRequests = false) {
+		this.previewStatistics.clear();
 		this.frameRenderer.clear();
 		this.motionBlurTiming = null;
 		this.motionBlurAccumulator?.dispose();
@@ -376,6 +393,11 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private async renderPreviewFrame(time: number, timeDelta: number): Promise<boolean> {
 		const generation = ++this.previewRenderGeneration;
+		// SchedulerがGPU完了まで直列化するため、この集計は一つの出力フレームに属する。
+		// 子Scene・複数レイヤー・ブラーの全サンプルを足し、書き出しはここを経由しない。
+		const timing: TimelinePreviewFrameTiming = { frameDurationMs: 0, videoSampleWaitMs: 0, videoUploadCpuMs: 0, gpuWaitMs: 0 };
+		this.previewFrameTiming = timing;
+		const frameStartedAt = performance.now();
 		const frameRenderedRequestId = this.frameRenderedRequestId;
 		const sceneId = this.dynamicOptions.sceneId;
 		const revision = this.dynamicOptions.previewRevision;
@@ -395,7 +417,16 @@ export class TimelineRendererManager extends EventEmitter<{
 				// submitはGPUへの実行予約であり、描画完了ではない。最終表示・ブラーの
 				// 全サンプルを含めて待ち、重いフレームの後ろにGPU処理を積み重ねない。
 				// 途中で失敗・編集による中断が起きても、送信済みの処理は待ち切る。
-				await this.gpuDevice.queue.onSubmittedWorkDone();
+				const gpuWaitStartedAt = performance.now();
+				try {
+					await this.gpuDevice.queue.onSubmittedWorkDone();
+				} finally {
+					timing.gpuWaitMs = performance.now() - gpuWaitStartedAt;
+				}
+			}
+			timing.frameDurationMs = performance.now() - frameStartedAt;
+			if (generation === this.previewRenderGeneration && sceneId === this.dynamicOptions.sceneId && revision === this.dynamicOptions.previewRevision) {
+				this.previewStatistics.addFrame(sceneId, revision, timing);
 			}
 			// 編集や破棄で無効になったフレームの変形情報を、現在の表示へ反映しない。
 			if (generation === this.previewRenderGeneration && preview && this.dynamicOptions.transformObserver === request) {
@@ -422,6 +453,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			}
 			return false;
 		} finally {
+			if (this.previewFrameTiming === timing) this.previewFrameTiming = null;
 			if (this.pendingTransformPreview === preview) this.pendingTransformPreview = null;
 		}
 	}
@@ -592,6 +624,11 @@ export class TimelineRendererManager extends EventEmitter<{
 					videoEnabled: clip.videoEnabled,
 					reversePlayback: 'sourceInMs' in clip && clip.playbackRate < 0,
 					onCompositing,
+					onTiming: timing => {
+						if (this.previewFrameTiming == null) return;
+						this.previewFrameTiming.videoSampleWaitMs += timing.sampleWaitMs;
+						this.previewFrameTiming.videoUploadCpuMs += timing.uploadCpuMs;
+					},
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
 					resolutionScale: this.dynamicOptions.resolutionScale,
@@ -734,6 +771,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public destroy() {
+		clearInterval(this.telemetryReportIntervalId);
 		this.clearTimelineRenderers();
 		this.audioInputs.dispose();
 		this.assetTextures.dispose();

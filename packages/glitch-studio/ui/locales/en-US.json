@@ -419,7 +419,16 @@
 		"SelectFolderDescription": "Select the folder containing {name}. Backups will be created and expired backups removed in this folder."
 	},
 	"_Stats": {
-		"VisualModuleLivePreviewOnly": "Rendering statistics are available in Visual Module Live Preview mode."
+		"FrameDuration": "Frame total",
+		"FrameDurationDescription": "Elapsed time from the start of rendering through GPU completion. Excludes time spent waiting for an earlier frame.",
+		"VideoSampleWait": "Video retrieval",
+		"VideoSampleWaitDescription": "Time spent retrieving video frames, including file reads, initialization, decoding and cache waits. Summed across video layers, child Scenes and motion blur samples.",
+		"VideoUploadCpu": "Video upload (CPU)",
+		"VideoUploadCpuDescription": "Total CPU-side elapsed time for video frame conversion, GPU upload API calls and submission. Does not measure GPU completion.",
+		"GpuWait": "GPU wait",
+		"GpuWaitDescription": "Time waiting for the GPU queue after submitting the frame. GPU work also runs during submission, so this is not total GPU execution time.",
+		"TimelineTimingHint": "Averages of completed frames, reported about every 100ms. Parentheses show each metric's maximum. Frame total includes the individual waits.",
+		"TimelineTimingSummary": "Average (max) · ~100ms"
 	},
 	"_Node": {
 		"ContextResolution": "Context resolution",

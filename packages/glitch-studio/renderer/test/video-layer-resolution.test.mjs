@@ -136,6 +136,107 @@ function timelineFixture(t, { timelineMotionBlur = { enabled: false, shutterAngl
 	return { ...fixture, manager };
 }
 
+async function timingFixture(t, { videoLayers = 1, motionBlurSamples = 1, sourceTimestamp = time => time } = {}) {
+	let elapsedMs = 0;
+	t.mock.method(performance, 'now', () => elapsedMs);
+	const costs = { sampleMs: 7, uploadMs: 3, gpuWaitMs: 5, otherMs: 2, sampleError: null, sampleGate: null, sampleStarted: null };
+	const fixture = timelineFixture(t, {
+		timelineMotionBlur: { enabled: motionBlurSamples > 1, shutterAngle: 180, samples: motionBlurSamples },
+		readSample: async time => {
+			costs.sampleStarted?.();
+			if (costs.sampleGate != null) await costs.sampleGate;
+			elapsedMs += costs.sampleMs;
+			if (costs.sampleError != null) throw costs.sampleError;
+			return fixture.sample(16, 8, sourceTimestamp(time));
+		},
+	});
+	const { manager, device } = fixture;
+	const importExternalTexture = device.importExternalTexture;
+	device.importExternalTexture = source => { elapsedMs += costs.uploadMs; return importExternalTexture(source); };
+	const presentOutput = manager.presentOutput;
+	manager.presentOutput = output => { elapsedMs += costs.otherMs; presentOutput(output); };
+	let gpuWaits = 0;
+	device.queue.onSubmittedWorkDone = async () => { gpuWaits++; elapsedMs += costs.gpuWaitMs; };
+	const statistics = [];
+	manager.on('ev', event => { if (event.type === 'telemetry') statistics.push(event.ctx); });
+	const videos = Array.from({ length: videoLayers }, (_, index) => ({
+		id: `video-${index}`, name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [],
+		compositingParamValues: {}, audioParamValues: { volume: literal(1) },
+		clips: [{ id: `clip-${index}`, startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000,
+			playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }],
+	}));
+	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+		resolution: { width: 16, height: 8 }, resolutionScale: 1, sceneId: 'scene',
+		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: videos }] });
+	return { ...fixture, costs, statistics, get gpuWaits() { return gpuWaits; } };
+}
+
+// 【動画の取得待ち・CPU取り込み・GPU完了待ちを分け、キャッシュで省略した処理は0にする】
+// 実時間のsleepでは検証が揺れるため、デコーダー・転送・表示・GPU待ちの境界で時計を進める。
+// 同じ実フレームなら転送だけ、同じ素材時刻なら取得も省かれることを実際のManager経路で保証する。
+test('separates preview waits and records zero time for cached retrieval and uploads', async t => {
+	const f = await timingFixture(t, { sourceTimestamp: () => 0 });
+	for (const time of [100, 200, 200]) {
+		await f.manager.renderTimelineAt(time);
+		f.manager.reportPreviewStatistics();
+	}
+	assert.deepEqual(f.statistics.map(statistics => statistics.average), [
+		{ frameDurationMs: 17, videoSampleWaitMs: 7, videoUploadCpuMs: 3, gpuWaitMs: 5 },
+		{ frameDurationMs: 14, videoSampleWaitMs: 7, videoUploadCpuMs: 0, gpuWaitMs: 5 },
+		{ frameDurationMs: 7, videoSampleWaitMs: 0, videoUploadCpuMs: 0, gpuWaitMs: 5 },
+	]);
+	assert.ok(f.statistics.every(statistics => statistics.frameCount === 1 && statistics.sceneId === 'scene' && statistics.revision === 0));
+	assert.equal(f.gpuWaits, 3, 'measurement must not add GPU synchronization');
+});
+
+// 【複数動画と露光サンプルを一つの出力フレームへ集計し、通知間の平均と最大を保持する】
+// 一つの動画やブラーの最後のサンプルだけを測ると待ち時間を過小評価する。
+// 通知はフレーム単位で増やさず全完了フレームを集計し、専用の書き出しは混ぜない。
+test('aggregates all video layers and blur samples without including export frames', async t => {
+	const f = await timingFixture(t, { videoLayers: 2, motionBlurSamples: 4 });
+	await f.manager.renderTimelineAt(100);
+	await f.manager.renderTimelineFrame(150, 50);
+	f.costs.gpuWaitMs = 17;
+	await f.manager.renderTimelineAt(200);
+	f.manager.reportPreviewStatistics();
+	assert.deepEqual(f.statistics, [{ sceneId: 'scene', revision: 0, frameCount: 2,
+		average: { frameDurationMs: 93, videoSampleWaitMs: 56, videoUploadCpuMs: 24, gpuWaitMs: 11 },
+		maximum: { frameDurationMs: 99, videoSampleWaitMs: 56, videoUploadCpuMs: 24, gpuWaitMs: 17 },
+	}]);
+	f.manager.reportPreviewStatistics();
+	assert.equal(f.statistics.length, 1, 'idle reporting must not repeat an old batch');
+	assert.equal(f.gpuWaits, 2);
+});
+
+// 【古い状態の通知・中断フレーム・失敗フレームを正常描画の統計に混ぜない】
+// デコード待ち中にも編集が届く。GPU完了を待つ既存の順序は守りつつ、編集前に始めた
+// フレームの結果やエラーまで現在のSceneの計測結果として表示しないことを確認する。
+test('discards stale, cancelled and failed preview measurements', async t => {
+	const f = await timingFixture(t);
+	await f.manager.renderTimelineAt(100);
+	await f.manager.updateDynamicOptions({ previewRevision: 1 });
+	f.manager.reportPreviewStatistics();
+	assert.deepEqual(f.statistics, []);
+	const started = Promise.withResolvers();
+	const gate = Promise.withResolvers();
+	f.costs.sampleStarted = started.resolve;
+	f.costs.sampleGate = gate.promise;
+	const pending = f.manager.renderTimelineAt(200);
+	await started.promise;
+	await f.manager.updateDynamicOptions({ sceneId: 'scene', previewRevision: 2 });
+	gate.resolve();
+	await pending;
+	f.manager.reportPreviewStatistics();
+	assert.deepEqual(f.statistics, []);
+	f.costs.sampleGate = null;
+	f.costs.sampleError = new Error('decode failed');
+	await f.manager.renderTimelineAt(300);
+	f.manager.reportPreviewStatistics();
+	assert.deepEqual(f.statistics, []);
+	assert.deepEqual(f.calls.errors, ['decode failed']);
+	assert.equal(f.gpuWaits, 3, 'discarded frames still wait for submitted GPU work');
+});
+
 // 【音声のみの動画は初回シーク・モーションブラー・書き出しでも映像資源を生成しない】
 // フレーム取得だけを止める実装ではデコーダーやGPU資源が残る。生成時点から映像を
 // 無効にした配置が動画ソースも合成処理も使わないことを確認する。

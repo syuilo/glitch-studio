@@ -52,6 +52,8 @@ Scene・動画／静止画・形式・品質・解像度・FPS・時間範囲と
 
 ## Workspaceのパネル表示
 
+Statsパネルは表示中のプレビューに追従する。Timelineではフレーム全体・動画取得待ち・動画取り込み（CPU）・GPU完了待ちをmsで表示し、約100msごとの完了フレームの平均をグラフにする。凡例の括弧内は各項目の最大値で、同一フレームの値とは限らない。全体には個別の待ち時間が含まれるため、四項目を足し合わせない。凡例のツールチップで各計測範囲を確認できる。Visual Module Live Previewは従来のGPU移動平均を表示し、表示モード切り替え時にグラフの履歴を分ける。TimelineのScene変更・Worker破棄時には古い統計を消す。
+
 アプリ内のHTML Drag and Dropは`composables/useDragSession.ts`を使う。`utility/drag-and-drop.ts`が型付きデータのスナップショット・開始元の識別・終了処理を所有し、dragoverでも同じセッションのデータを参照できる。GsTimeline、GsDraggable、GsWorkspacePanel、GsWorkspaceDivider、GsAssetはドラッグ状態をこの仕組みへ委ねる。操作ごとの移動条件や配置計算、Command・preferencesへの反映は各コンポーネントが所有する。APIと寿命の詳細は[UIのドラッグセッション](../../../docs/drag-and-drop.md)を参照。
 
 `WorkspaceController`をworkspaceの所有元で生成し、`workspaceControllerKey`でprovideする。タブ選択はコントローラーが実行時状態として保持し、非表示でアンマウントされたタブも選択できる。折りたたみ状態は従来どおりpreferencesのworkspace定義へ保存する。

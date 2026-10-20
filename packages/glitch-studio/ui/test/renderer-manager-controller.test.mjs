@@ -79,6 +79,35 @@ async function initialize(controller, workers) {
 	return worker;
 }
 
+// 【現在のScene・編集世代の計測結果だけを表示し、Scene変更とWorker破棄で消去する】
+// 通知は描画とは別の周期で届く。遅れた統計を採用すると、編集後や再起動後も
+// 古い動画の待ち時間が表示されるため、シーク完了通知と同じ状態の境界で確認する。
+test('accepts current timeline statistics and clears them across scene and worker changes', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	const statistics = { sceneId: null, revision: 0, frameCount: 2,
+		average: { frameDurationMs: 20, videoSampleWaitMs: 10, videoUploadCpuMs: 2, gpuWaitMs: 5 },
+		maximum: { frameDurationMs: 24, videoSampleWaitMs: 14, videoUploadCpuMs: 3, gpuWaitMs: 6 } };
+	const notify = ctx => worker.reply({ type: 'ev', ev: { type: 'telemetry', ctx } });
+	for (const stale of [{ ...statistics, sceneId: 'old-scene' }, { ...statistics, revision: -1 }]) notify(stale);
+	assert.equal(controller.previewStatistics.value, null);
+	notify(statistics);
+	assert.deepEqual(controller.previewStatistics.value, statistics);
+	const update = controller.updateDynamicOptions({ sceneId: 'new-scene' });
+	const call = worker.calls('updateDynamicOptions').at(-1);
+	worker.returnValue(call, {});
+	await update;
+	assert.equal(controller.previewStatistics.value, null);
+	notify(statistics);
+	assert.equal(controller.previewStatistics.value, null);
+	notify({ ...statistics, sceneId: 'new-scene', revision: call.args[0].previewRevision });
+	assert.equal(controller.previewStatistics.value.sceneId, 'new-scene');
+	controller.disposeManager();
+	assert.equal(controller.previewStatistics.value, null);
+	notify(statistics);
+	assert.equal(controller.previewStatistics.value, null);
+});
+
 // 【最新のシーク要求と一致する完了通知でだけスピナーを消す】
 // 同時刻への再シークでも要求IDを更新し、古いScene・編集世代・要求の遅延通知を採用しない。
 // シーク中に編集するときは、再描画へ同じ要求IDを引き継ぎ、新しい設定での完了まで待つ。

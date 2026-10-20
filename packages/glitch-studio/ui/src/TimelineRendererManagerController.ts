@@ -7,12 +7,13 @@ import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-stu
 import { createTimelineRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
-import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
+import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);
 	public readonly layerTransform = shallowRef<TimelineTransformPreview | null>(null);
+	public readonly previewStatistics = shallowRef<TimelinePreviewStatistics | null>(null);
 	private seekRequestId = 0;
 	private pendingSeek = shallowRef<{ requestId: number; time: number } | null>(null);
 	public readonly isSeeking = computed(() => this.pendingSeek.value != null);
@@ -82,6 +83,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 				if (error != null) this.cancelSeek();
 			},
 			eventHandlers: {
+				telemetry: ctx => {
+					if (this.isReady.value && ctx.sceneId === (this.dynamicOptions.sceneId ?? null) && ctx.revision === this.dynamicOptions.previewRevision) {
+						this.previewStatistics.value = ctx;
+					}
+				},
 				frameRendered: ctx => {
 					const pending = this.pendingSeek.value;
 					if (this.isReady.value && pending != null && ctx.requestId === pending.requestId && ctx.time === pending.time
@@ -106,6 +112,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 			onCreated: () => {
 			},
 			onDisposed: () => {
+				this.previewStatistics.value = null;
 				this.cancelSeek();
 				this.layerTransform.value = null;
 				this.effectStates.clear();
@@ -135,7 +142,10 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
-		if (Object.hasOwn(options, 'sceneId') && options.sceneId !== this.dynamicOptions.sceneId) this.cancelSeek();
+		if (Object.hasOwn(options, 'sceneId') && options.sceneId !== this.dynamicOptions.sceneId) {
+			this.cancelSeek();
+			this.previewStatistics.value = null;
+		}
 		options.previewRevision = this.invalidateTransformPreview();
 		// Partialのresolution省略は変更なし。指定された場合だけ検証・正規化する。
 		if (Object.hasOwn(options, 'resolution')) {

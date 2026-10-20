@@ -1,14 +1,15 @@
 <template>
 <div :class="$style.root">
-	<div v-if="previewPlayback.state.value.mode !== 'visualModuleLivePreview'">{{ i18n.ts._Stats.VisualModuleLivePreviewOnly }}</div>
-	<div v-show="previewPlayback.state.value.mode === 'visualModuleLivePreview'" :class="$style.legend">
-		<div v-for="item in series" :key="item.key" :class="$style.legendItem">
+	<div :class="$style.legend">
+		<div v-for="item in series" :key="item.key" :title="item.description" :data-test-rendering-stat="item.key" :class="$style.legendItem">
 			<span style="width: 8px; height: 2px;" :style="{ backgroundColor: item.color }"></span>
 			<span style="opacity: 0.7;">{{ item.label }}</span>
-			<span>{{ formatMs(current[item.key]) }}</span>
+			<span data-test-rendering-stat-average>{{ formatMs(current[item.key]) }}</span>
+			<span v-if="isTimeline" data-test-rendering-stat-maximum :class="$style.maximum">({{ formatMs(maximum[item.key]) }})</span>
 		</div>
 	</div>
-	<div v-show="previewPlayback.state.value.mode === 'visualModuleLivePreview'" ref="chartEl" :class="$style.chart">
+	<div v-if="isTimeline" data-test-timeline-statistics-hint :title="i18n.ts._Stats.TimelineTimingHint" :class="$style.hint">{{ i18n.ts._Stats.TimelineTimingSummary }}</div>
+	<div ref="chartEl" :class="$style.chart">
 		<svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" :class="$style.svg">
 			<g :class="$style.grid">
 				<template v-for="tick in yTicks" :key="tick.value">
@@ -23,6 +24,7 @@
 			<polyline
 				v-for="item in series"
 				:key="item.key"
+				:data-test-rendering-stat-line="item.key"
 				:points="polylinePoints(item.key)"
 				:stroke="item.color"
 				fill="none"
@@ -36,14 +38,15 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
+import type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 
-const { visualModuleRendererManagerController, previewPlayback } = appContext;
+const { visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback } = appContext;
 
-type SeriesKey = 'fast' | 'medium' | 'slow';
-type RenderTimes = Record<SeriesKey, number>;
+type SeriesKey = 'fast' | 'medium' | 'slow' | keyof TimelinePreviewFrameTiming;
+type RenderTimes = Partial<Record<SeriesKey, number>>;
 type Sample = RenderTimes & { timestamp: number };
 
 const sampleInterval = 100;
@@ -59,15 +62,22 @@ const plotBottom = 28;
 const plotWidth = computed(() => chartWidth.value - plotLeft - plotRight);
 const plotHeight = computed(() => chartHeight.value - plotTop - plotBottom);
 
-const series = [
-	{ key: 'fast', label: 'fast', color: '#c2fe0c', strokeWidth: 1 },
-	{ key: 'medium', label: 'medium', color: '#55c8ff', strokeWidth: 1.5 },
-	{ key: 'slow', label: 'slow', color: '#c98cff', strokeWidth: 2 },
-] as const;
+const isTimeline = computed(() => previewPlayback.state.value.mode === 'timeline');
+const series = computed(() => isTimeline.value ? [
+	{ key: 'frameDurationMs', label: i18n.ts._Stats.FrameDuration, description: i18n.ts._Stats.FrameDurationDescription, color: '#c2fe0c', strokeWidth: 2 },
+	{ key: 'videoSampleWaitMs', label: i18n.ts._Stats.VideoSampleWait, description: i18n.ts._Stats.VideoSampleWaitDescription, color: '#55c8ff', strokeWidth: 1.5 },
+	{ key: 'videoUploadCpuMs', label: i18n.ts._Stats.VideoUploadCpu, description: i18n.ts._Stats.VideoUploadCpuDescription, color: '#ffbd69', strokeWidth: 1.5 },
+	{ key: 'gpuWaitMs', label: i18n.ts._Stats.GpuWait, description: i18n.ts._Stats.GpuWaitDescription, color: '#c98cff', strokeWidth: 1.5 },
+] as const : [
+	{ key: 'fast', label: 'fast', description: '', color: '#c2fe0c', strokeWidth: 1 },
+	{ key: 'medium', label: 'medium', description: '', color: '#55c8ff', strokeWidth: 1.5 },
+	{ key: 'slow', label: 'slow', description: '', color: '#c98cff', strokeWidth: 2 },
+] as const);
 
 const samples = ref<Sample[]>([]);
-const current = ref<RenderTimes>({ fast: 0, medium: 0, slow: 0 });
-const maxMs = computed(() => Math.max(4, Math.ceil(Math.max(...samples.value.flatMap(sample => series.map(item => sample[item.key]))) / 4) * 4));
+const current = ref<RenderTimes>({});
+const maximum = ref<RenderTimes>({});
+const maxMs = computed(() => Math.max(4, Math.ceil(Math.max(...samples.value.flatMap(sample => series.value.map(item => sample[item.key] ?? 0))) / 4) * 4));
 const yTicks = computed(() => Array.from({ length: 5 }, (_, index) => {
 	const value = maxMs.value * (4 - index) / 4;
 	return { value, y: plotTop + (index / 4) * plotHeight.value };
@@ -81,18 +91,33 @@ const xTicks = computed(() => [
 
 let timer: number | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let previousStatistics: TimelinePreviewStatistics | null = null;
+
+function clearSamples() {
+	samples.value = [];
+	current.value = {};
+	maximum.value = {};
+	previousStatistics = null;
+}
 
 function recordSample() {
-	if (previewPlayback.state.value.mode !== 'visualModuleLivePreview') {
-		samples.value = [];
-		return;
-	}
 	const timestamp = performance.now();
-	current.value = {
-		fast: toMs(visualModuleRendererManagerController.gpuAverageDisplayFast.value),
-		medium: toMs(visualModuleRendererManagerController.gpuAverageDisplayMedium.value),
-		slow: toMs(visualModuleRendererManagerController.gpuAverageDisplaySlow.value),
-	};
+	if (isTimeline.value) {
+		const statistics = timelineRendererManagerController.previewStatistics.value;
+		if (statistics == null) { clearSamples(); return; }
+		// 一時停止中の同じ通知を新しいフレームとして記録しない。Workerは通知間の
+		// 全フレームを集約するため、UIのサンプリングで短いスパイクも捨てない。
+		if (statistics === previousStatistics) return;
+		previousStatistics = statistics;
+		current.value = statistics.average;
+		maximum.value = statistics.maximum;
+	} else {
+		current.value = {
+			fast: toMs(visualModuleRendererManagerController.gpuAverageDisplayFast.value),
+			medium: toMs(visualModuleRendererManagerController.gpuAverageDisplayMedium.value),
+			slow: toMs(visualModuleRendererManagerController.gpuAverageDisplaySlow.value),
+		};
+	}
 	samples.value.push({ ...current.value, timestamp });
 	while (samples.value[0]?.timestamp < timestamp - historyDuration || samples.value.length > sampleLimit) samples.value.shift();
 }
@@ -101,18 +126,28 @@ function polylinePoints(key: SeriesKey) {
 	const latestTimestamp = samples.value.at(-1)?.timestamp ?? 0;
 	return samples.value.map(sample => {
 		const x = plotLeft + (1 - (latestTimestamp - sample.timestamp) / historyDuration) * plotWidth.value;
-		const y = plotTop + (1 - sample[key] / maxMs.value) * plotHeight.value;
+		const y = plotTop + (1 - (sample[key] ?? 0) / maxMs.value) * plotHeight.value;
 		return `${x},${y}`;
 	}).join(' ');
 }
 
-function formatMs(value: number) {
+function formatMs(value: number | null | undefined) {
+	if (value == null) return '—';
 	return `${value.toFixed(1)}ms`;
 }
 
 function toMs(value: number) {
 	return Number.isFinite(value) && value >= 0 ? value / 1000 : 0;
 }
+
+watch(() => previewPlayback.state.value.mode, () => {
+	clearSamples();
+	recordSample();
+});
+
+watch(timelineRendererManagerController.previewStatistics, () => {
+	if (isTimeline.value) recordSample();
+}, { flush: 'sync' });
 
 onMounted(() => {
 	recordSample();
@@ -137,6 +172,7 @@ onBeforeUnmount(() => {
 	box-sizing: border-box;
 	height: 100%;
 	min-height: 0;
+	overflow: auto;
 }
 
 .legend {
@@ -149,13 +185,23 @@ onBeforeUnmount(() => {
 
 .legendItem {
 	display: grid;
-	grid-template-columns: 8px auto 4em;
+	grid-template-columns: 8px auto auto auto;
 	align-items: center;
 	gap: 6px;
 }
 
+.maximum {
+	opacity: 0.6;
+}
+
+.hint {
+	padding: 0 0 8px 2px;
+	font-size: 85%;
+	opacity: 0.7;
+}
+
 .chart {
-	flex: 1;
+	flex: 1 0 100px;
 	position: relative;
 	overflow: clip;
 	border-radius: 4px;
