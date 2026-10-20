@@ -13,13 +13,10 @@
 				<a class="_gs-link" href="https://github.com/syuilo/glitch-studio" target="_blank">https://github.com/syuilo/glitch-studio</a>
 			</small>
 		</div>
-		<div style="font-size: 120%;">
-			<small style="display: block;">
-				<div>{{ i18n.ts._About.MisskeyCredit }}</div>
-				<a class="_gs-link" href="https://github.com/misskey-dev/misskey" target="_blank">https://github.com/misskey-dev/misskey</a>
-			</small>
+
+		<div>
+			<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/" target="_blank">{{ i18n.ts.UserGuide }}</a>・<a class="_gs-link" href="https://syuilo.dev/" target="_blank">{{ i18n.ts.Donation }}</a>
 		</div>
-		<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/" target="_blank">{{ i18n.ts.UserGuide }}</a>
 		<hr>
 		<GsButton large style="align-self: center;" @click="ok">{{ i18n.ts.OK }}</GsButton>
 	</div>
