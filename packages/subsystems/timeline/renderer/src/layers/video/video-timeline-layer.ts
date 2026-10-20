@@ -25,7 +25,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 	const parameters = new TimelineCompositingParameters();
 	let disposed = false;
 	let pending: Promise<unknown> = Promise.resolve();
-	let cachedFrame: { contentTimeMs: number; foreground: TimelineImage } | null = null;
+	let cachedFrame: { contentTimeMs: number; sampleTimestampSeconds: number | null; foreground: TimelineImage } | null = null;
 	return {
 		evaluate(context, signal) {
 			// 同じ配置の連続シークはデコーダーを直列に使う。待機中に不要になった要求は
@@ -34,18 +34,25 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 				if (disposed || signal.aborted) return { gpuTime: 0 };
 				// 素材・再生方向・倍率はインスタンス内で不変。同じ素材時刻なら、固定された
 				// ブラーの各サンプルでも読み出しとGPU転送を繰り返さない。保持するのは直前の
-				// 前景だけで、時刻が変われば同じテクスチャを書き換えるため過去の結果は残さない。
+				// 前景だけで、別のフレームを転送すると上書きされるため過去の結果は残さない。
 				if (cachedFrame?.contentTimeMs !== context.contentTimeMs) {
 					const sample = await source.getSample(context.contentTimeMs / 1000, options.reversePlayback);
 					try {
 						if (disposed || signal.aborted) return { gpuTime: 0 };
-						// 転送中の失敗でテクスチャが変更・再確保されても、古い時刻のキャッシュを使わない。
-						cachedFrame = null;
-						// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
-						// 一度だけ適用する。後続モジュールの自動解像度は、この計算用寸法を継承する。
-						const foreground: TimelineImage = sample ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
-							: { kind: 'uniform', value: [0, 0, 0, 0] };
-						cachedFrame = { contentTimeMs: context.contentTimeMs, foreground };
+						// 要求時刻が違っても、素材のFPSや可変フレーム間隔によっては同じフレームを使う。
+						// FPSから境界を推測せず、取得したtimestampでCanvas描画とGPU転送の重複を省く。
+						const sampleTimestampSeconds = sample?.timestamp ?? null;
+						if (cachedFrame == null || cachedFrame.sampleTimestampSeconds !== sampleTimestampSeconds) {
+							// 転送中の失敗でテクスチャが変更・再確保されても、古い時刻のキャッシュを使わない。
+							cachedFrame = null;
+							// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
+							// 一度だけ適用する。後続モジュールの自動解像度は、この計算用寸法を継承する。
+							const foreground: TimelineImage = sample != null ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
+								: { kind: 'uniform', value: [0, 0, 0, 0] };
+							cachedFrame = { contentTimeMs: context.contentTimeMs, sampleTimestampSeconds, foreground };
+						} else {
+							cachedFrame.contentTimeMs = context.contentTimeMs;
+						}
 					} finally { sample?.close(); }
 				}
 				// 前景が同じでも下層入力・Scene時刻は変わり得るため、設定の評価と合成は毎回行う。

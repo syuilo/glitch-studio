@@ -23,7 +23,7 @@ const connection = nodeId => ({ inputSource: 'node', nodeId, outputPort: 'output
 const dimensions = value => [value.width, value.height];
 
 function gpuFixture(t) {
-	const calls = { uploads: [], draws: [], renders: [], outputs: [], errors: [], sampleTimes: [], sampleDirections: [] };
+	const calls = { uploads: [], draws: [], renders: [], outputs: [], errors: [], sampleTimes: [], sampleDirections: [], closedSampleTimestamps: [] };
 	const globals = {
 		GPUQueue: class { submit() {} },
 		GPUTextureUsage: { RENDER_ATTACHMENT: 1, TEXTURE_BINDING: 2, COPY_DST: 4 },
@@ -64,7 +64,8 @@ function gpuFixture(t) {
 			copyExternalImageToTexture(source, destination, size) { calls.uploads.push({ destination, size, canvasSize: dimensions(source.source) }); },
 		},
 	};
-	const sample = (width, height) => ({ displayWidth: width, displayHeight: height, close() {},
+	const sample = (width, height, timestamp = 0) => ({ displayWidth: width, displayHeight: height, timestamp,
+		close() { calls.closedSampleTimestamps.push(timestamp); },
 		draw(context, x, y, width, height) { calls.draws.push([width, height]); },
 	});
 	return { device, texture, sample, calls };
@@ -79,7 +80,7 @@ function timelineFixture(t, { timelineMotionBlur = { enabled: false, shutterAngl
 		? { openVideoSource: () => ({ getSample: async (time, reverse) => {
 			calls.sampleTimes.push(time);
 			calls.sampleDirections.push(reverse);
-			return readSample ? readSample(time, reverse) : sample(3840, 2160);
+			return readSample ? readSample(time, reverse) : sample(3840, 2160, time);
 		}, dispose() {} }) }
 		: require(name), module, module.exports);
 	const input = { dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
@@ -98,6 +99,39 @@ function timelineFixture(t, { timelineMotionBlur = { enabled: false, shutterAngl
 	manager.presentOutput = output => calls.outputs.push(output);
 	t.after(() => manager.destroy());
 	return { ...fixture, manager };
+}
+
+for (const reversePlayback of [false, true]) {
+	// 【要求時刻が異なっても同じ動画フレームの転送は省き、合成とフレームの解放は続ける】
+	// プレビュー・書き出しのFPSが素材より高い場合や可変FPS素材では、複数の時刻が同じ画素を使う。
+	// 素材時刻ではなく実際のtimestampで転送を省き、次フレームへの更新・戻りシークでは転送する。
+	// 逆再生でも同じ条件を守り、再利用のためにデコーダーのフレームを保持し続けないことも確認する。
+	test(`reuses uploaded frames across different source times during ${reversePlayback ? 'reverse' : 'forward'} playback`, async t => {
+		const { manager, calls, sample } = timelineFixture(t, {
+			readSample: time => sample(3840, 2160, time < 0.25 ? 0 : time < 0.75 ? 0.25 : 0.75),
+		});
+		const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false,
+			automationGraphs: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
+			clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: reversePlayback ? -1 : 1, loop: false, assetId: 'asset', audioEnabled: false }] };
+		await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+			resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
+			timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
+		const sourceTimesMs = [100, 200, 300, 600, 800, 100];
+		const sceneTimesMs = sourceTimesMs.map(time => reversePlayback ? 1000 - time : time);
+		const expectedUploads = [1, 1, 2, 2, 3, 4];
+		for (const [index, time] of sceneTimesMs.entries()) {
+			if (index % 2 === 0) await manager.renderTimelineAt(time);
+			else await manager.renderTimelineFrame(time, 0);
+			assert.deepEqual(calls.errors, []);
+			assert.equal(calls.uploads.length, expectedUploads[index]);
+			assert.equal(calls.draws.length, expectedUploads[index]);
+		}
+		assert.deepEqual(calls.sampleTimes, sourceTimesMs.map(time => time / 1000));
+		assert.ok(calls.sampleDirections.every(direction => direction === reversePlayback));
+		assert.deepEqual(calls.closedSampleTimestamps, [0, 0, 0.25, 0.25, 0.75, 0]);
+		assert.deepEqual(calls.compositing.map(call => call.settings.opacity), sceneTimesMs.map(time => time / 1000));
+		assert.deepEqual(calls.errors, []);
+	});
 }
 
 // 【固定地点は任意のシーク・露光・書き出しで同じ画像を使い、Scene時刻の合成を止めない】
