@@ -53,3 +53,9 @@ Visual Moduleを使用して合成を行うレイヤーも作成可能です。
 レイヤーのパラメータはキーフレームで制御でき、タイムラインに沿って内容を変化させることができます。
 
 TimelineはVisual Moduleの上位概念となりますが、Visual Module単体で動作(プレビュー)させることも可能です。
+
+## Credit
+
+UIなど一部の実装はMisskeyから移植しています
+
+https://github.com/misskey-dev/misskey
