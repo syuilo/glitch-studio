@@ -25,16 +25,20 @@ async function buildCloseGuard(electron) {
 const installBrowserGuard = await buildCloseGuard(false);
 const installDesktopGuard = await buildCloseGuard(true);
 
-function fixture(t, install, saving = false) {
+function fixture(t, install, saving = false, unsaved = false) {
 	const previousWindow = globalThis.window;
 	const target = new EventTarget();
 	target.saveCloseNotices = [];
 	target.dismissCloseNotice = Promise.withResolvers();
+	target.closeConfirmations = [];
+	target.confirmClose = false;
+	target.desktop = { confirmProjectClose(labels) { target.closeConfirmations.push(labels); return target.confirmClose; } };
 	globalThis.window = target;
 	const isProjectSaving = ref(saving);
-	const dispose = install(isProjectSaving);
+	const hasUnsavedChanges = ref(unsaved);
+	const dispose = install(isProjectSaving, hasUnsavedChanges);
 	t.after(() => { dispose(); globalThis.window = previousWindow; });
-	return { target, isProjectSaving, dispose, close() {
+	return { target, isProjectSaving, hasUnsavedChanges, dispose, close() {
 		const event = new Event('beforeunload', { cancelable: true });
 		// NodeのEvent.returnValueはDOMのBeforeUnloadEventとは別のプロパティなので置き換える。
 		Object.defineProperty(event, 'returnValue', { value: '', writable: true });
@@ -48,12 +52,14 @@ function fixture(t, install, saving = false) {
 // 保存前後の通常終了に警告が出続けたり、Web版で独自ダイアログを併用したりしない。
 test('requests browser confirmation synchronously only while saving and cleans up on disposal', t => {
 	const fixtureState = fixture(t, installBrowserGuard);
+	fixtureState.hasUnsavedChanges.value = true;
 	assert.equal(fixtureState.close().defaultPrevented, false);
 	fixtureState.isProjectSaving.value = true;
 	const blocked = fixtureState.close();
 	assert.equal(blocked.defaultPrevented, true);
 	assert.equal(blocked.returnValue, true);
 	assert.deepEqual(fixtureState.target.saveCloseNotices, []);
+	assert.deepEqual(fixtureState.target.closeConfirmations, []);
 	fixtureState.isProjectSaving.value = false;
 	assert.equal(fixtureState.close().defaultPrevented, false);
 	fixtureState.isProjectSaving.value = true;
@@ -68,7 +74,7 @@ test('requests browser confirmation synchronously only while saving and cleans u
 // 標準の終了確認が出ないElectronでは、操作が無反応に見えないよう案内する。
 // 表示中にも終了防止は続けるが、保存完了後の再操作は妨げない。
 test('cancels desktop closing and shows one notice until it is dismissed', async t => {
-	const fixtureState = fixture(t, installDesktopGuard, true);
+	const fixtureState = fixture(t, installDesktopGuard, true, true);
 	assert.equal(fixtureState.close().defaultPrevented, true);
 	assert.equal(fixtureState.close().defaultPrevented, true);
 	assert.deepEqual(fixtureState.target.saveCloseNotices, [{ type: 'info', title: i18n.ts._App.ProjectSaving, text: i18n.ts._App.CannotCloseWhileSaving }]);
@@ -76,6 +82,46 @@ test('cancels desktop closing and shows one notice until it is dismissed', async
 	await Promise.resolve();
 	assert.equal(fixtureState.close().defaultPrevented, true);
 	assert.equal(fixtureState.target.saveCloseNotices.length, 2);
+	assert.deepEqual(fixtureState.target.closeConfirmations, []);
+	fixtureState.hasUnsavedChanges.value = false;
 	fixtureState.isProjectSaving.value = false;
 	assert.equal(fixtureState.close().defaultPrevented, false);
+});
+
+// 【Electron版は未保存の変更を確認し、キャンセル後も次の終了要求を保護する】
+// 一度の確認結果を保持すると、キャンセル後や保存後の再編集で未保存の変更を失う。
+// 保存済み・初回未保存・保存後の再編集を同じ現在状態の判定で扱う。
+test('confirms unsaved desktop changes for each unload and permits only explicit approval', t => {
+	const fixtureState = fixture(t, installDesktopGuard);
+	assert.equal(fixtureState.close().defaultPrevented, false);
+	assert.equal(fixtureState.target.closeConfirmations.length, 0);
+	fixtureState.hasUnsavedChanges.value = true;
+	const canceled = fixtureState.close();
+	assert.equal(canceled.defaultPrevented, true);
+	assert.equal(canceled.returnValue, true);
+	assert.deepEqual(fixtureState.target.closeConfirmations, [{
+		message: i18n.ts._App.ConfirmCloseUnsavedProject,
+		detail: i18n.ts._App.UnsavedChangesWillBeLost,
+		closeButtonLabel: i18n.ts._App.CloseWithoutSaving,
+		cancelButtonLabel: i18n.ts.Cancel,
+	}]);
+	fixtureState.target.confirmClose = true;
+	assert.equal(fixtureState.close().defaultPrevented, false);
+	assert.equal(fixtureState.target.closeConfirmations.length, 2);
+	fixtureState.hasUnsavedChanges.value = false;
+	assert.equal(fixtureState.close().defaultPrevented, false);
+	assert.equal(fixtureState.target.closeConfirmations.length, 2);
+	fixtureState.hasUnsavedChanges.value = true;
+	fixtureState.target.confirmClose = false;
+	assert.equal(fixtureState.close().defaultPrevented, true);
+	fixtureState.dispose();
+	assert.equal(fixtureState.close().defaultPrevented, false);
+});
+
+// 【Electronの確認APIがない場合は未保存のまま終了させない】
+// preloadの初期化に問題があっても、確認を省略してデータを失わないようにする。
+test('blocks unsaved desktop closing when the desktop bridge is unavailable', t => {
+	const fixtureState = fixture(t, installDesktopGuard, false, true);
+	fixtureState.target.desktop = null;
+	assert.equal(fixtureState.close().defaultPrevented, true);
 });

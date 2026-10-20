@@ -4,6 +4,12 @@ Windows x64向けのNSISインストーラーと、macOSのApple Silicon（arm64
 
 desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`でASAR内の実行時依存を再帰的に検査します。
 
+## 未保存の変更の終了確認
+
+UIが終了・再読み込み時に未保存の変更を判定し、`project-close-guard.mjs`へ同期IPCで確認を要求します。mainは送信元を検証し、UIの言語でOSの確認ダイアログを表示します。「保存せずに閉じる」を選んだ場合だけ元の要求を続行し、キャンセル・Esc・ダイアログ表示の失敗では取り消します。保存中は既存の終了防止を優先します。確認済みの自動更新による終了では重ねて確認せず、更新準備・ダウンロード中の終了防止も維持します。
+
+`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/project-close-guard-electron.test.mjs`を実行すると、非表示のElectronウィンドウで終了の取消・許可、再読み込み、保存中の保護、更新時の確認省略、アプリ終了を検証します。OSダイアログの返答だけを置き換え、実際のpreloadとUI・main間の同期IPCを使います。
+
 ## 外部参照アセット
 
 `external-assets.mjs`は原本の可読性確認、パスの相対化・解決、原本書き出しを担当します。登録済みパスには推測不能なIDの`app://external-assets/` URLを発行し、RangeとHEADに対応したストリームで配信します。原本全体の`readFile()`や、実パスを直接指定するURLは使用しません。UIのIPC操作はメインウィンドウの送信元を検証します。モード・履歴・読み取り失敗の扱いは[アセット仕様](../../../docs/assets.md)を参照してください。

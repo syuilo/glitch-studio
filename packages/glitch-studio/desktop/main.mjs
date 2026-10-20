@@ -7,6 +7,7 @@ import { resolveAppPath } from './protocol-path.mjs';
 import { ProjectFiles } from './project-files.mjs';
 import { ExternalAssetFiles, registerExternalAssetIpc } from './external-assets.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
+import { registerProjectCloseIpc } from './project-close-guard.mjs';
 import { RecentProjects, registerRecentProjectsIpc } from './recent-projects.mjs';
 import { getStartupProjectPath } from './startup-project.mjs';
 import { ProjectLaunchController, launchProjectProcess } from './project-launch.mjs';
@@ -157,6 +158,7 @@ app.whenReady().then(async () => {
 			: desktopUpdateController.busy ? 2 : -1);
 	});
 	registerDesktopUpdateIpc(ipcMain, desktopUpdateController, getTrustedMainWindow);
+	registerProjectCloseIpc(ipcMain, dialog, getTrustedMainWindow, () => desktopUpdateController);
 	Menu.setApplicationMenu(null);
 	if (process.platform === 'win32') app.setAppUserModelId(windowsAppUserModelId);
 	if (process.platform === 'darwin') app.dock.setIcon(iconPath);

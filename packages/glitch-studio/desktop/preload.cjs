@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // 汎用的なIPC送信口ではなく、UIに必要な操作だけを公開する。
 contextBridge.exposeInMainWorld('desktop', {
+	confirmProjectClose: labels => ipcRenderer.sendSync('desktop:confirm-project-close', labels),
 	getUpdateState: () => ipcRenderer.invoke('desktop:get-update-state'),
 	checkForUpdates: () => ipcRenderer.invoke('desktop:check-for-updates'),
 	prepareUpdate: version => ipcRenderer.invoke('desktop:prepare-update', version),

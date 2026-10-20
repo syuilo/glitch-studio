@@ -127,7 +127,7 @@ const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendere
 const { stateManager } = appContext.projectContext;
 const { name: projectName } = appContext.projectContext.stateManager.state;
 const { projectFileName, hasUnsavedChanges, isProjectSaving } = appContext;
-onBeforeUnmount(installProjectSaveCloseGuard(isProjectSaving));
+onBeforeUnmount(installProjectSaveCloseGuard(isProjectSaving, hasUnsavedChanges));
 
 const releaseOutputCapture = audioOutput.retainOutputCapture();
 onBeforeUnmount(releaseOutputCapture);
