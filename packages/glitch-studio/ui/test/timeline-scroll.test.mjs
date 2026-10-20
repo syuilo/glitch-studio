@@ -75,7 +75,7 @@ test('routes source trim and loop handles separately through the layer component
 	assert.ok(descendants(f.root).some(node => node.props.class?.includes('loopEnd')));
 	f.layers[0].layerType = 'video';
 	f.layers[0].compositingParamValues = {};
-	for (const clip of f.layers[0].clips) Object.assign(clip, { audioEnabled: false });
+	for (const clip of f.layers[0].clips) Object.assign(clip, { audioEnabled: false, videoEnabled: true });
 	await nextTick();
 	const clip = descendants(f.root).find(node => node.props['data-timeline-clip-id'] === 'clip-0');
 	const handle = name => descendants(clip).find(node => node.props.class?.includes(name));

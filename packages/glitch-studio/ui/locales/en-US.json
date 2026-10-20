@@ -549,6 +549,7 @@
 		"HoldHint": "Holds the source frame while transforms and opacity continue. Audio is silent.",
 		"SeekToHoldHint": "Seek within this clip, then hold its current frame. Start and duration are preserved.",
 		"AudioEnabled": "Audio enabled",
+		"AudioOnly": "Use audio only",
 		"ChangeSource": "Change source",
 		"OpenScene": "Open scene",
 		"Remove": "Remove Clip",

@@ -5,8 +5,37 @@ import { loadSource } from './helpers/load-source.mjs';
 import { getTimelineMediaSourceTime, getTimelineMediaTrimBounds, getTimelineMediaLoopBounds, trimTimelineMediaClip, validateTimelineMediaClipTiming } from '../src/media-timing.ts';
 
 const { getSceneAudioClips } = await loadSource(fileURLToPath(new URL('../src/scene-audio.ts', import.meta.url)));
+const { getSceneDuration, validateTimelineLayerStructure } = await loadSource(fileURLToPath(new URL('../src/scenes.ts', import.meta.url)));
 const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurLoops, getTimelineSampleTimes } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
 const clip = () => ({ id: 'clip', startMs: 1000, durationMs: 8000, sourceInMs: 2000.25, sourceOutMs: 5000.25, playbackRate: 1, loop: true });
+
+// 【音声のみの動画は映像の露光境界から除外し、音声の時計とSceneの長さを維持する】
+// 子Sceneやグループ内でも映像を無効にした区間で他の映像の露光を切らず、逆再生・
+// ループ・指定レイヤー音声・下層音声は映像を有効にしていたときと同じ計画を使う。
+test('keeps audio-only video timing and audio selections while excluding visual blur boundaries', () => {
+	const volume = { volume: { inputSource: 'literal', value: 0.5 } };
+	const video = { id: 'video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
+		clips: [{ ...clip(), assetId: 'movie', playbackRate: -2, audioEnabled: true, videoEnabled: true }],
+		automationGraphs: [], compositingParamValues: {}, audioParamValues: volume };
+	const group = { id: 'group', layerType: 'group', layers: [video], automationGraphs: [], audioParamValues: volume };
+	const effect = { id: 'effect', layerType: 'effect', clips: [] };
+	const parent = { id: 'parent', layerType: 'scene', clips: [{ id: 'placement', sceneId: 'child', startMs: 0, durationMs: 10000, contentOffsetMs: 0 }],
+		automationGraphs: [], compositingParamValues: {}, audioParamValues: volume };
+	const scenes = [{ id: 'root', layers: [parent] }, { id: 'child', layers: [effect, group] }];
+	const selections = [{ type: 'all' }, { type: 'layer', layerId: 'video' }, { type: 'belowLayer', layerId: 'effect' }];
+	const audioPlans = selections.map(selection => getSceneAudioClips(scenes, 'child', selection));
+	const rootAudio = getSceneAudioClips(scenes, 'root');
+	assert.equal(getTimelineMotionBlurLoops(scenes, 'root').length, 1);
+	video.clips[0].videoEnabled = false;
+	validateTimelineLayerStructure(video);
+	assert.deepEqual(selections.map(selection => getSceneAudioClips(scenes, 'child', selection)), audioPlans);
+	assert.deepEqual(getSceneAudioClips(scenes, 'root'), rootAudio);
+	assert.equal(getSceneDuration(scenes[1]), 9000);
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 10000]);
+	assert.deepEqual(getTimelineMotionBlurLoops(scenes, 'root'), []);
+	video.clips[0].audioEnabled = false;
+	assert.deepEqual(getSceneAudioClips(scenes, 'root'), []);
+});
 
 // 【トリム範囲だけを繰り返し、境界は次の周の先頭に属する】
 // 途中シーク・小数時刻・逆順の評価でも再生履歴に依存せず、素材の未使用部分へ進まない。
@@ -36,7 +65,7 @@ test('separates source trim bounds from loop extension bounds', () => {
 // 親の表示開始を周期の原点にすると、同じ子Sceneの映像と音声が異なる位相になる。
 // 下層音声・指定レイヤー音声も同じ音声計画を使い、音声無効時は計画から除外する。
 test('preserves loop phase through nested scene clipping and audio selections', () => {
-	const video = { id: 'video', layerType: 'video', isDisabled: false, clips: [{ ...clip(), assetId: 'movie', audioEnabled: true }],
+	const video = { id: 'video', layerType: 'video', isDisabled: false, clips: [{ ...clip(), assetId: 'movie', audioEnabled: true, videoEnabled: true }],
 		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const parent = { id: 'parent', layerType: 'scene', isDisabled: false, clips: [{ id: 'placement', sceneId: 'child', startMs: 5000, durationMs: 4500, contentOffsetMs: 2500 }],
 		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
@@ -60,7 +89,7 @@ test('preserves loop phase through nested scene clipping and audio selections', 
 // 全周期の展開は編集時のメモリと応答性を損なうため、計画は一件、露光境界は前後だけにする。
 test('keeps long short-period loops compact', () => {
 	const video = { id: 'video', layerType: 'video', isDisabled: false,
-		clips: [{ ...clip(), durationMs: 3600000, sourceOutMs: 2001.25, assetId: 'movie', audioEnabled: true }],
+		clips: [{ ...clip(), durationMs: 3600000, sourceOutMs: 2001.25, assetId: 'movie', audioEnabled: true, videoEnabled: true }],
 		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const scenes = [{ id: 'scene', resolution: { mode: 'project' }, layers: [video] }];
 	assert.equal(getSceneAudioClips(scenes, 'scene').length, 1);

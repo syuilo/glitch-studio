@@ -314,7 +314,7 @@ test('edits video total duration independently of the trimmed range in the inspe
 	const layer = f.scene.layers[0];
 	layer.layerType = 'video';
 	layer.compositingParamValues = {};
-	Object.assign(layer.clips[0], { audioEnabled: false });
+	Object.assign(layer.clips[0], { audioEnabled: false, videoEnabled: true });
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
 	await nextTick();
@@ -459,7 +459,7 @@ test('holds the current source frame and edits hold time and duration in the ins
 	layer.layerType = 'video';
 	layer.compositingParamValues = {};
 	const clip = layer.clips[0];
-	Object.assign(clip, { audioEnabled: true, sourceInMs: 1000, sourceOutMs: 2000, playbackRate: -0.5, loop: true });
+	Object.assign(clip, { audioEnabled: true, videoEnabled: true, sourceInMs: 1000, sourceOutMs: 2000, playbackRate: -0.5, loop: true });
 	const original = { ...clip };
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
@@ -472,6 +472,7 @@ test('holds the current source frame and edits hold time and duration in the ins
 	assert.equal(clip.sourceTimeMs, 1700);
 	assert.equal(clip.durationMs, 5000);
 	assert.equal(f.control('GsSwitch', 'clip-audio-enabled').props.disabled, true);
+	assert.equal(f.control('GsSwitch', 'clip-audio-only').props.disabled, true);
 	assert.equal(f.control('GsInput', 'clip-speed'), undefined);
 	assert.equal(f.control('GsInput', 'clip-total-duration'), undefined);
 	f.control('GsInput', 'clip-hold-source-time').props['onUpdate:modelValue'](2345);
@@ -493,6 +494,40 @@ test('holds the current source frame and edits hold time and duration in the ins
 	assert.equal(f.control('GsButton', 'clip-hold-frame').props.disabled, true);
 });
 
+// 【音声のみの切り替えは音声設定を維持し、フレーム固定のデコードを開始しない】
+// 映像を消す操作でミュートを解除したり、固定ボタンから不要な動画フレームを読み出したり
+// しないことを確認する。Undo/Redo後にはスイッチと固定ボタンも保存状態に追従する。
+test('toggles audio-only video without changing audio or decoding a held frame', async t => {
+	const f = await fixture(t);
+	const layer = f.scene.layers[0];
+	layer.layerType = 'video';
+	layer.compositingParamValues = {};
+	const clip = layer.clips[0];
+	Object.assign(clip, { audioEnabled: false, videoEnabled: true });
+	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
+	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true }]]);
+	appContext.previewPlayback.currentTimelineTime.value = 1000;
+	await nextTick();
+	const switchControl = () => f.control('GsSwitch', 'clip-audio-only');
+	assert.equal(switchControl().props.modelValue, false);
+	switchControl().props['onUpdate:modelValue'](true);
+	await nextTick();
+	assert.equal(clip.videoEnabled, false);
+	assert.equal(clip.audioEnabled, false);
+	assert.equal(switchControl().props.modelValue, true);
+	assert.equal(f.control('GsButton', 'clip-hold-frame').props.disabled, true);
+	f.control('GsButton', 'clip-hold-frame').props.onClick();
+	assert.deepEqual(videoHoldTest.calls, []);
+	f.history.undo();
+	await nextTick();
+	assert.equal(switchControl().props.modelValue, false);
+	assert.equal(f.control('GsButton', 'clip-hold-frame').props.disabled, false);
+	f.history.redo();
+	await nextTick();
+	assert.equal(switchControl().props.modelValue, true);
+	assert.equal(f.control('GsButton', 'clip-hold-frame').props.disabled, true);
+});
+
 // 【デコード待機中の古い固定操作を別クリップ・変更済み素材へ適用しない】
 // 動画のデコードは非同期なので、選択変更やトリムの後に古い地点を保存する競合を防ぐ。
 // 対象フレームがない場合も設定・履歴を変更せず、Inspectorに理由を表示する。
@@ -504,6 +539,7 @@ test('discards stale hold results and reports missing frames without changing hi
 		layer.compositingParamValues = {};
 		const clip = layer.clips[0];
 		clip.audioEnabled = true;
+		clip.videoEnabled = true;
 		f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 		f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true }]]);
 		let resolve, reject;

@@ -113,7 +113,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			id: genId(),
 			...(type === 'audio' || type === 'video' ? createTimelineMediaClipTiming(startMs, durationMs) : createTimelineClipTiming(startMs, durationMs)),
 			...(source?.kind === 'scene' ? { sceneId: source.scene.id } : source?.kind === 'asset' ? { assetId: source.asset.id } : {}),
-			...(type === 'video' ? { audioEnabled: source?.kind === 'asset' && !!source.media?.audioAvailable } : {}),
+			...(type === 'video' ? { audioEnabled: source?.kind === 'asset' && !!source.media?.audioAvailable, videoEnabled: true } : {}),
 		};
 		try {
 			stateManager.commit('addTimelineClip', { sceneId: scene.id, layerId: layer.id, clip, sourceDurationMs });

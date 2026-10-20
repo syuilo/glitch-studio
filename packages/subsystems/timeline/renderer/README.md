@@ -1,5 +1,7 @@
 # Timeline Renderer
 
+動画クリップの`videoEnabled`がfalseなら、動画レイヤーは動画ソース・GPU資源を生成せず、映像出力なしを返す。透明画像の合成も行わず、Replace・マスク・グループの`hasOutput`に影響を与えない。音声計画は独立して動作する。
+
 各レイヤーのcompositorは任意の`onCompositing`で合成前の`TimelineImage`と評価済み設定を呼び出し側へ渡せる。opacity=0やreplaceの短絡経路でも通知する。通知の購読対象・Worker通信・プレビューのハンドルはGlitch Studio側が所有し、このパッケージはUIの選択状態を知らない。
 
 マスクも各レイヤー共通のcompositorで処理する。変形後の素材からAlphaまたは輝度を読み、必要なら反転し、下層のpremultiplied RGBA全体を減衰させる。opacityは適用強度、blendModeは無視する。描画範囲は下層のまま保ち、素材の領域を加えない。Group・Sceneも通常の描画結果を素材として渡すため、個別のマスク用レンダラーや別レイヤーへの参照は不要。区間外・無効・Groupの映像出力なしでは既存の評価規則でスキップする。

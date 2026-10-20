@@ -8,7 +8,7 @@ const { getSceneDuration, validateTimelineLayerStructure } = await loadSource(fi
 const { getSceneAudioClips } = await loadSource(fileURLToPath(new URL('../src/scene-audio.ts', import.meta.url)));
 const { getTimelineMotionBlurLoops } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
 
-const clip = { id: 'hold', startMs: 1000, durationMs: 9000, sourceTimeMs: 2000.25, assetId: 'movie', audioEnabled: false };
+const clip = { id: 'hold', startMs: 1000, durationMs: 9000, sourceTimeMs: 2000.25, assetId: 'movie', audioEnabled: false, videoEnabled: true };
 
 // 【固定地点だけを素材長で検証し、表示長は素材長から独立させる】
 // 通常再生と同じ検証を使うと長い静止表示が拒否される。二つの時計を同時に持つデータも拒否し、
@@ -38,11 +38,13 @@ test('extends either edge while preserving the hold point and neighboring clips'
 // 子Sceneやグループ内の配置でも静止表示がSceneの長さを維持することを確認する。
 test('keeps held video silent through nested scenes while planning normal playback', () => {
 	const normal = { id: 'normal', startMs: 10000, durationMs: 2000, sourceInMs: 0, sourceOutMs: 1000,
-		playbackRate: 1, loop: true, assetId: 'movie', audioEnabled: true };
+		playbackRate: 1, loop: true, assetId: 'movie', audioEnabled: true, videoEnabled: true };
 	const video = { id: 'video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
 		clips: [clip, normal], compositingParamValues: {}, automationGraphs: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	validateTimelineLayerStructure(video);
 	assert.throws(() => validateTimelineLayerStructure({ ...video, clips: [{ ...clip, audioEnabled: true }] }), /silent/);
+	assert.throws(() => validateTimelineLayerStructure({ ...video, clips: [{ ...clip, videoEnabled: false }] }), /video enabled/);
+	assert.throws(() => validateTimelineLayerStructure({ ...video, clips: [{ ...normal, videoEnabled: null }] }), /Invalid video clip/);
 	const child = { id: 'child', layers: [{ id: 'group', layerType: 'group', layers: [video],
 		automationGraphs: [], audioParamValues: video.audioParamValues }] };
 	const root = { id: 'root', layers: [{ id: 'scene-layer', layerType: 'scene', automationGraphs: [], audioParamValues: video.audioParamValues,

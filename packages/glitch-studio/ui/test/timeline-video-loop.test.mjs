@@ -33,7 +33,7 @@ const target = { sceneId: 'scene', layerId: 'video', clipId: 'clip' };
 
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
-	const clip = { id: 'clip', assetId: 'movie', audioEnabled: true, startMs: 1000, durationMs: 3000, sourceInMs: 2000.25, sourceOutMs: 5000.25, playbackRate: 1, loop: false };
+	const clip = { id: 'clip', assetId: 'movie', audioEnabled: true, videoEnabled: true, startMs: 1000, durationMs: 3000, sourceInMs: 2000.25, sourceOutMs: 5000.25, playbackRate: 1, loop: false };
 	const layer = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [],
 		clips: [clip, { ...clip, id: 'next', startMs: 12000 }], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] };
@@ -60,6 +60,37 @@ test('changes clip speed and reverse direction with atomic undo and loop retimin
 	f.history.commit('editMediaClipLoop', { ...target, deltaMs: 5000, sourceDurationMs: 6000.25 });
 	f.history.commit('editMediaClipPlaybackRate', { ...target, playbackRate: 2, sourceDurationMs: 6000.25 });
 	assert.deepEqual([f.clip.durationMs, f.clip.sourceInMs, f.clip.sourceOutMs, f.clip.loop], [4000, 2000.25, 5000.25, true]);
+});
+
+// 【音声のみの設定はクリップ単位でUndoでき、コピー・保存・素材変更でも保持する】
+// 映像を無効にしても音声・素材時計・隣のクリップを変更しない。素材変更は通常再生の
+// 時計を作り直すため、その際に映像の有効状態を既定値へ戻してしまう回帰も防ぐ。
+test('undoes and persists audio-only clip settings through clipboard and source replacement', async t => {
+	const f = fixture(t);
+	const original = structuredClone(f.clip);
+	const neighbor = structuredClone(f.layer.clips[1]);
+	f.history.commit('editVideoClipVideoEnabled', { ...target, videoEnabled: false });
+	assert.deepEqual(f.clip, { ...original, videoEnabled: false });
+	assert.deepEqual(f.layer.clips[1], neighbor);
+	f.history.undo();
+	assert.deepEqual(f.clip, original);
+	f.history.redo();
+	assert.equal(f.clip.videoEnabled, false);
+	assert.deepEqual(api.COMMAND_DEFS.editVideoClipVideoEnabled.changes(f.state, target),
+		[{ type: 'layer', sceneId: 'scene', layerId: 'video', changes: [{ type: 'clips' }] }]);
+	const clipboard = api.copyTimelineClips(f.scene, [target]);
+	const paste = api.prepareTimelineClipPaste(f.scene, clipboard, 16000);
+	f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips: paste,
+		sourceDurationsMs: { video: { [paste[0].clip.id]: 6000.25 } } });
+	assert.deepEqual(f.layer.clips.at(-1), { ...original, videoEnabled: false, id: paste[0].clip.id, startMs: 16000 });
+	const encoded = await api.encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
+		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
+	assert.deepEqual(api.decodeProjectFile(encoded).timelineScenes[0], f.scene);
+	f.history.commit('changeTimelineClipSource', { ...target, assetId: 'movie', sourceDurationMs: 4000 });
+	assert.equal(f.clip.videoEnabled, false);
+	assert.equal(f.clip.audioEnabled, true);
+	f.history.undo();
+	assert.deepEqual(f.clip, { ...original, videoEnabled: false });
 });
 
 // 【隣接クリップと衝突する速度変更は、素材範囲・配置・履歴を部分変更しない】
@@ -146,9 +177,10 @@ test('holds frames and resizes the placement with reversible timing model change
 	f.clip.playbackRate = -1;
 	const original = structuredClone(f.clip);
 	f.history.commit('holdVideoClipFrame', { ...target, sourceTimeMs: 2345.25, sourceDurationMs: 6000.25 });
-	const held = { id: 'clip', assetId: 'movie', startMs: 1000, durationMs: 3000, sourceTimeMs: 2345.25, audioEnabled: false };
+	const held = { id: 'clip', assetId: 'movie', startMs: 1000, durationMs: 3000, sourceTimeMs: 2345.25, audioEnabled: false, videoEnabled: true };
 	assert.deepEqual(f.clip, held);
 	assert.throws(() => f.history.commit('editVideoClipAudio', { ...target, audioEnabled: true }), /silent/);
+	assert.throws(() => f.history.commit('editVideoClipVideoEnabled', { ...target, videoEnabled: false }), /video enabled/);
 	assert.throws(() => f.history.commit('editMediaClipLoop', { ...target, deltaMs: 1000, sourceDurationMs: 6000.25 }), /Media clip not found/);
 	assert.throws(() => f.history.commit('holdVideoClipFrame', { ...target, sourceTimeMs: 6000.25, sourceDurationMs: 6000.25 }), /within/);
 	assert.deepEqual(f.clip, held);

@@ -1348,6 +1348,7 @@ function validateLayerClips(state: ProjectState, sceneId: string, layer: Timelin
 		if (layer.layerType === 'video' && 'sourceTimeMs' in clip) {
 			validateTimelineVideoHoldTiming(clip);
 			if (!('audioEnabled' in clip) || clip.audioEnabled !== false) throw new Error('Video hold must be silent');
+			if (!('videoEnabled' in clip) || clip.videoEnabled !== true) throw new Error('Video hold must have video enabled');
 		} else if (layer.layerType === 'video' || layer.layerType === 'audio') {
 			if (!('sourceInMs' in clip)) throw new Error('Invalid media clip');
 			validateTimelineMediaClipTiming(clip);
@@ -1357,6 +1358,7 @@ function validateLayerClips(state: ProjectState, sceneId: string, layer: Timelin
 				|| !state.assets.value.some(asset => asset.id === clip.assetId && asset.fileDataType.startsWith(layer.layerType + '/'))) throw new Error('Asset type does not match the layer');
 			if (layer.layerType === 'video') {
 				if (!('audioEnabled' in clip) || typeof clip.audioEnabled !== 'boolean') throw new Error('Invalid video clip');
+				if (!('videoEnabled' in clip) || typeof clip.videoEnabled !== 'boolean') throw new Error('Invalid video clip');
 			}
 			if (sourceDurationsMs && layer.layerType !== 'image') validateMediaClipTiming(clip, sourceDurationsMs[layer.id]?.[clip.id]);
 		} else if (layer.layerType === 'scene') {
@@ -1795,7 +1797,10 @@ const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { 
 				const next = { ...(media ? { id: clip.id, startMs: clip.startMs, durationMs: clip.durationMs } : clip),
 					...(media ? createTimelineMediaClipTiming(clip.startMs, getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, requireMediaDurationMs(payload.sourceDurationMs))) : { contentOffsetMs: 0 }),
 					...(layer.layerType === 'scene' ? { sceneId: payload.referencedSceneId } : { assetId: payload.assetId }),
-					...(layer.layerType === 'video' ? { audioEnabled: payload.audioEnabled ?? ('audioEnabled' in clip && clip.audioEnabled) } : {}),
+					...(layer.layerType === 'video' ? {
+						audioEnabled: payload.audioEnabled ?? ('audioEnabled' in clip && clip.audioEnabled),
+						videoEnabled: 'videoEnabled' in clip && clip.videoEnabled,
+					} : {}),
 				};
 				if (layer.layerType !== 'scene' && layer.layerType !== 'image' && !media) throw new Error('Layer has no clip source');
 				validateTimelineClips(layer.clips.map(entry => entry.id === clip.id ? next : entry));
@@ -1835,13 +1840,37 @@ const holdVideoClipFrameCommandDef = defineCommand<TimelineClipTarget & { sceneI
 				const clip = find(state);
 				if (after != null) { replaceTimelineClipData(clip, after); return; }
 				const next: TimelineVideoClip = { id: clip.id, assetId: clip.assetId, startMs: clip.startMs,
-					durationMs: clip.durationMs, sourceTimeMs: payload.sourceTimeMs, audioEnabled: false };
+					durationMs: clip.durationMs, sourceTimeMs: payload.sourceTimeMs, audioEnabled: false, videoEnabled: true };
 				validateTimelineVideoHoldTiming(next, requireMediaDurationMs(payload.sourceDurationMs));
 				before = deepClone(clip);
 				after = next;
 				replaceTimelineClipData(clip, next);
 			},
 			undo(state) { replaceTimelineClipData(find(state), before); },
+		};
+	},
+});
+
+const editVideoClipVideoEnabledCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; videoEnabled: boolean }>({
+	label: 'Edit video clip video output',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	create: payload => {
+		let before: boolean;
+		const find = (state: ProjectState) => {
+			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
+			if (layer.layerType !== 'video') throw new Error('Video layer not found');
+			const clip = layer.clips.find(clip => clip.id === payload.clipId);
+			if (clip == null) throw new Error('Video clip not found');
+			return clip;
+		};
+		return {
+			execute(state) {
+				const clip = find(state);
+				if ('sourceTimeMs' in clip && !payload.videoEnabled) throw new Error('Video hold must have video enabled');
+				before = clip.videoEnabled;
+				clip.videoEnabled = payload.videoEnabled;
+			},
+			undo(state) { find(state).videoEnabled = before; },
 		};
 	},
 });
@@ -2328,6 +2357,7 @@ export const COMMAND_DEFS = {
 	removeTimelineClips: removeTimelineClipsCommandDef,
 	changeTimelineClipSource: changeTimelineClipSourceCommandDef,
 	editVideoClipAudio: editVideoClipAudioCommandDef,
+	editVideoClipVideoEnabled: editVideoClipVideoEnabledCommandDef,
 	editMediaClipLoop: editMediaClipLoopCommandDef,
 	editMediaClipPlaybackRate: editMediaClipPlaybackRateCommandDef,
 	holdVideoClipFrame: holdVideoClipFrameCommandDef,

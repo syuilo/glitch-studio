@@ -72,6 +72,7 @@ export function createTimelineAssetLayer(asset: Asset, startMs: number, media: T
 			assetId: asset.id,
 			...createTimelineMediaClipTiming(clip.startMs, durationMs),
 			audioEnabled: media?.audioAvailable === true,
+			videoEnabled: true,
 		}],
 	};
 }

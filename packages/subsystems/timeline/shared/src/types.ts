@@ -102,7 +102,7 @@ export type TimelineImageLayer = TimelineLayerBase<TimelineAssetClip> & Timeline
 	layerType: 'image';
 };
 
-/** 通常再生では映像と音声の時計を共有し、固定表示では映像だけを出力する。Playerには依存しない。 */
+/** 通常再生は映像・音声を個別に有効化し、同じ時計を使う。固定表示は映像だけを出力する。 */
 export type TimelineVideoLayer = TimelineLayerBase<TimelineVideoClip> & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'video';
 };

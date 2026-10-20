@@ -7,8 +7,8 @@ export type TimelineContentClip = TimelineClipTiming & { id: string };
 export type TimelineMediaClip = TimelineMediaClipTiming & { id: string; assetId: string };
 export type TimelineClip = TimelineContentClip | ((TimelineMediaClipTiming | TimelineVideoHoldTiming) & { id: string });
 export type TimelineAssetClip = TimelineContentClip & { assetId: string };
-export type TimelineVideoPlaybackClip = TimelineMediaClip & { audioEnabled: boolean };
+export type TimelineVideoPlaybackClip = TimelineMediaClip & { audioEnabled: boolean; videoEnabled: boolean };
 /** sourceTimeMsとsourceInMsで時間モデルを区別する。固定表示は音声を出力しない。 */
-export type TimelineVideoHoldClip = TimelineVideoHoldTiming & { id: string; assetId: string; audioEnabled: false };
+export type TimelineVideoHoldClip = TimelineVideoHoldTiming & { id: string; assetId: string; audioEnabled: false; videoEnabled: true };
 export type TimelineVideoClip = TimelineVideoPlaybackClip | TimelineVideoHoldClip;
 export type TimelineSceneClip = TimelineContentClip & { sceneId: string };

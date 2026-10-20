@@ -20,7 +20,7 @@ const audio = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'c
 test('omits disabled audio video and scene layers without changing clip timing or scene duration', () => {
 	const sound = { ...structuredClone(audio), isDisabled: false };
 	const video = { ...structuredClone(audio), id: 'video', layerType: 'video', isDisabled: false,
-		clips: [{ ...audio.clips[0], assetId: 'movie', audioEnabled: true }], compositingParamValues: {} };
+		clips: [{ ...audio.clips[0], assetId: 'movie', audioEnabled: true, videoEnabled: true }], compositingParamValues: {} };
 	const placement = { ...nested('placement', 'child', 1000, 0, 500), isDisabled: false };
 	const child = scene('child', [sound, video]);
 	const root = scene('root', [placement]);
@@ -42,7 +42,7 @@ test('omits disabled audio video and scene layers without changing clip timing o
 // 音声へレイヤー全体を渡すとfitやopacityの編集でも先読みPCMを破棄してしまう。
 // 音声無効化は再生計画だけを変え、素材位置やSceneの長さには影響しない。
 test('collects video audio independently of visual settings and preserves scene trims', () => {
-	const video = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 120, sourceInMs: 20, sourceOutMs: 220, playbackRate: 1, loop: false, durationMs: 200, assetId: 'movie', audioEnabled: true }], audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
+	const video = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 120, sourceInMs: 20, sourceOutMs: 220, playbackRate: 1, loop: false, durationMs: 200, assetId: 'movie', audioEnabled: true, videoEnabled: true }], audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
 		compositingParamValues: { fitMode: { inputSource: 'literal', value: 'contain' } }, automationGraphs: [] };
 	const scenes = [scene('root', [nested('placement', 'child', 1000, 150, 100)]), scene('child', [video])];
 	const [clip] = getSceneAudioClips(scenes, 'root');

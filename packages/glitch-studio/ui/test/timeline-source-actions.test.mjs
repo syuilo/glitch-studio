@@ -86,11 +86,11 @@ test('returns held video to playback when selecting the same asset again', async
 	const layer = mediaLayer('video');
 	const f = fixture(t, [layer]);
 	f.asset.fileDataType = 'video/mp4';
-	const held = { id: 'clip', assetId: f.asset.id, startMs: 1000, durationMs: 15000, sourceTimeMs: 2500.25, audioEnabled: false };
+	const held = { id: 'clip', assetId: f.asset.id, startMs: 1000, durationMs: 15000, sourceTimeMs: 2500.25, audioEnabled: false, videoEnabled: true };
 	layer.clips = [{ ...held }];
 	await f.create().changeClipSource({ layerId: layer.id, clipId: 'clip' });
 	assert.deepEqual(layer.clips[0], { id: 'clip', assetId: f.asset.id, startMs: 1000, durationMs: 10000,
-		sourceInMs: 0, sourceOutMs: 10000, playbackRate: 1, loop: false, audioEnabled: false });
+		sourceInMs: 0, sourceOutMs: 10000, playbackRate: 1, loop: false, audioEnabled: false, videoEnabled: true });
 	f.history.undo();
 	assert.deepEqual(layer.clips[0], held);
 	assert.deepEqual(f.errors, []);
@@ -112,7 +112,7 @@ test('adds video and audio layers with the source duration and restores them on 
 			assert.deepEqual(layer.clips[0], {
 				id: layer.clips[0].id, assetId: f.asset.id, startMs: 1000, durationMs: Math.floor(sourceDurationMs),
 				sourceInMs: 0, sourceOutMs: Math.floor(sourceDurationMs), playbackRate: 1, loop: false,
-				...(layerType === 'video' ? { audioEnabled: true } : {}),
+				...(layerType === 'video' ? { audioEnabled: true, videoEnabled: true } : {}),
 			});
 			const added = structuredClone(f.scene);
 			f.history.undo();
@@ -135,7 +135,7 @@ test('adds media clips with the source duration limited by the next clip', async
 			const layer = f.scene.layers[0];
 			if (nextStartMs != null) layer.clips.push({ id: 'next', assetId: f.asset.id,
 				startMs: nextStartMs, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000,
-				playbackRate: 1, loop: false, ...(layerType === 'video' ? { audioEnabled: true } : {}),
+				playbackRate: 1, loop: false, ...(layerType === 'video' ? { audioEnabled: true, videoEnabled: true } : {}),
 			});
 			const before = structuredClone(f.scene);
 			await f.create().addClip(layer, 1000);

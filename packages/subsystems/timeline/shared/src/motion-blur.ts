@@ -45,6 +45,7 @@ export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[]
 		const boundaries = new Set<number>();
 		for (const layer of getMotionBlurLayers(scene.layers)) {
 			for (const clip of layer.clips) {
+				if ('videoEnabled' in clip && !clip.videoEnabled) continue;
 				boundaries.add(clip.startMs);
 				boundaries.add(getTimelineClipEnd(clip));
 			}
@@ -117,6 +118,7 @@ export function getTimelineMotionBlurLoops(scenes: readonly TimelineScene[], sce
 		for (const layer of getMotionBlurLayers(getTimelineScene(scenes, id).layers)) {
 			if (layer.layerType !== 'video' && layer.layerType !== 'scene') continue;
 			for (const clip of layer.clips) {
+				if ('videoEnabled' in clip && !clip.videoEnabled) continue;
 				const clipStartMs = sceneStartMs + clip.startMs;
 				const visibleStartMs = Math.max(startMs, clipStartMs);
 				const visibleEndMs = Math.min(endMs, sceneStartMs + getTimelineClipEnd(clip));

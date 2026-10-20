@@ -49,7 +49,7 @@ test('does not read an extra sample across a fractional scene loop boundary', as
 // プレビュー・書き出し・途中シークでも同じ配置計画から同じ値を得る。
 test('splits video audio at loop boundaries while preserving scene-time gain', async () => {
 	const video = layer({ layerType: 'video', compositingParamValues: {},
-		clips: [{ id: 'clip', startMs: 100, sourceInMs: 20, sourceOutMs: 50, playbackRate: 1, loop: true, durationMs: 85, assetId: 'movie', audioEnabled: true }],
+		clips: [{ id: 'clip', startMs: 100, sourceInMs: 20, sourceOutMs: 50, playbackRate: 1, loop: true, durationMs: 85, assetId: 'movie', audioEnabled: true, videoEnabled: true }],
 		audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 1000' } } });
 	for (const isExport of [false, true]) {
 		const calls = [];

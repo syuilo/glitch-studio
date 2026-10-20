@@ -31,10 +31,12 @@ export function validateTimelineLayerStructure(layer: TimelineLayer): void {
 	if (!isTimelineContainerLayer(layer)) validateTimelineClips(layer.clips);
 	if (layer.layerType === 'video' || layer.layerType === 'audio') {
 		for (const clip of layer.clips) {
+			if (layer.layerType === 'video' && (!('videoEnabled' in clip) || typeof clip.videoEnabled !== 'boolean')) throw new Error('Invalid video clip');
 			if ('sourceTimeMs' in clip) {
 				if (layer.layerType !== 'video') throw new Error('Only video clips can hold frames');
 				validateTimelineVideoHoldTiming(clip);
 				if (clip.audioEnabled !== false) throw new Error('Video hold must be silent');
+				if (clip.videoEnabled !== true) throw new Error('Video hold must have video enabled');
 			} else validateTimelineMediaClipTiming(clip);
 		}
 	} else if (!isTimelineContainerLayer(layer)) {

@@ -314,6 +314,7 @@ async function loadMediaProject(file?: File) {
 						...createTimelineMediaClipTiming(0, videoMedia.durationMs),
 						assetId: asset.id,
 						audioEnabled: videoMedia.audioAvailable,
+						videoEnabled: true,
 					}],
 					audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 				} : {

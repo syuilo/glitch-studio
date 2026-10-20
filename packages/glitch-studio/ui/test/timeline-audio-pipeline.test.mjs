@@ -51,7 +51,7 @@ function fixture() {
 		{ ...audioLayer('disabled', 0, 600, 0, literal(1)), isDisabled: true,
 			clips: [{ id: 'clip', assetId: 'missing', startMs: 0, durationMs: 600, sourceInMs: 0, sourceOutMs: 600, playbackRate: 1, loop: false }] },
 		{ ...audioLayer('silent-video', 0, 600, 0, literal(1)), layerType: 'video', compositingParamValues: {},
-			clips: [{ id: 'clip', assetId: 'missing-video', audioEnabled: false, startMs: 0, durationMs: 600, sourceInMs: 0, sourceOutMs: 600, playbackRate: 1, loop: false }] },
+			clips: [{ id: 'clip', assetId: 'missing-video', audioEnabled: false, videoEnabled: true, startMs: 0, durationMs: 600, sourceInMs: 0, sourceOutMs: 600, playbackRate: 1, loop: false }] },
 	] };
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' },
 		layers: [audioLayer('child-sound', 0, 500, 20, { inputSource: 'expression', expression: 'TIME_MS / 1000' })] };
@@ -110,7 +110,7 @@ test('matches retimed reverse loop audio through nested preview and export pipel
 		const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [{
 			id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [], compositingParamValues: {},
 			audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
-			clips: [{ id: 'clip', assetId: 'sound', audioEnabled: true, startMs: 10, durationMs: 800,
+			clips: [{ id: 'clip', assetId: 'sound', audioEnabled: true, videoEnabled: true, startMs: 10, durationMs: 800,
 				sourceInMs: 50.25, sourceOutMs: 250.25, playbackRate, loop: true }],
 		}] };
 		const root = { id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [{

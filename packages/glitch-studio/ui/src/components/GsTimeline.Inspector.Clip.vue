@@ -30,6 +30,7 @@
 				<div v-else>{{ i18n.ts._TimelineClip.SeekToHoldHint }}</div>
 				<div v-if="holdError" data-test-clip-hold-error role="alert">{{ holdError }}</div>
 				<GsSwitch data-test-clip-audio-enabled :modelValue="selectedVideoClip.audioEnabled" :disabled="'sourceTimeMs' in selectedVideoClip || (!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable)" @update:modelValue="editSelectedClipAudio">{{ i18n.ts._TimelineClip.AudioEnabled }}</GsSwitch>
+				<GsSwitch data-test-clip-audio-only :modelValue="!selectedVideoClip.videoEnabled" :disabled="'sourceTimeMs' in selectedVideoClip" @update:modelValue="editSelectedClipAudioOnly">{{ i18n.ts._TimelineClip.AudioOnly }}</GsSwitch>
 				<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
 			</template>
 			<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" data-test-clip-change-source @click="emit('changeSource', selectedClipEntry.target)">{{ i18n.ts._TimelineClip.ChangeSource }}</GsButton>
@@ -82,7 +83,7 @@ const selectedMediaClip = computed(() => {
 	const clip = selectedClipEntry.value?.clip;
 	return clip && 'sourceInMs' in clip ? clip : null;
 });
-const canHoldCurrentFrame = computed(() => selectedVideoClip.value != null && selectedClipMedia.value != null
+const canHoldCurrentFrame = computed(() => selectedVideoClip.value != null && selectedVideoClip.value.videoEnabled && selectedClipMedia.value != null
 	&& isTimelineClipActive(selectedVideoClip.value, currentTimelineTime.value));
 const holdingFrame = ref(false);
 const holdError = ref('');
@@ -174,6 +175,13 @@ function editSelectedClipAudio(audioEnabled: boolean) {
 	stateManager.commit('editVideoClipAudio', { sceneId: props.sceneId, ...entry.target, audioEnabled });
 }
 
+function editSelectedClipAudioOnly(audioOnly: boolean) {
+	const entry = selectedClipEntry.value;
+	const clip = selectedVideoClip.value;
+	if (entry == null || clip == null || 'sourceTimeMs' in clip) return;
+	stateManager.commit('editVideoClipVideoEnabled', { sceneId: props.sceneId, ...entry.target, videoEnabled: !audioOnly });
+}
+
 function holdCurrentFrame() {
 	const clip = selectedVideoClip.value;
 	if (clip == null || !canHoldCurrentFrame.value) return;
@@ -190,7 +198,7 @@ function editHoldSourceTime(value: string | number) {
 async function holdVideoFrame(sourceTimeMs: number, reversePlayback = false) {
 	const entry = selectedClipEntry.value;
 	const clip = selectedVideoClip.value;
-	if (entry == null || clip == null || holdingFrame.value) return;
+	if (entry == null || clip == null || !clip.videoEnabled || holdingFrame.value) return;
 	const asset = stateManager.state.assets.value.find(asset => asset.id === clip.assetId);
 	if (asset == null) return;
 	const fileSource = asset.fileData;

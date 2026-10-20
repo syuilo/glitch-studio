@@ -10,6 +10,7 @@ import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
 export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: FileSource, options: {
+	videoEnabled: boolean;
 	/** 方向の編集時はレンダラーを再生成する。素材時刻の変換はTimelineRendererが担当する。 */
 	reversePlayback: boolean;
 	device: GPUDevice;
@@ -19,6 +20,9 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 	format: IntermediateTextureFormat;
 	onCompositing?: TimelineCompositingObserver | null;
 }): TimelineLayerRenderer<TimelineImage> {
+	// 音声だけを使用する配置は動画ソースもGPU資源も作らない。透明画像を合成すると
+	// Replaceやマスクが下層を消すため、画像を返さず「映像出力なし」として扱う。
+	if (!options.videoEnabled) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };
 	const source = openVideoSource(fileSource);
 	const texture = createVideoTexture(options.device, options.format);
 	const compositor = createTimelineCompositor(options);
