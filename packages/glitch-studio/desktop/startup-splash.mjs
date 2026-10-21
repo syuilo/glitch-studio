@@ -13,6 +13,9 @@ export function createStartupSplash({ mainWindow, imagePath }) {
 			height: 280,
 			show: false,
 			frame: false,
+			// frame: falseだけでは残るWindowsの標準枠と表示アニメーションを無効化し、
+			// スプラッシュの画像が描画される前に標準ウィンドウが見えることを防ぐ。
+			thickFrame: false,
 			resizable: false,
 			minimizable: false,
 			maximizable: false,
