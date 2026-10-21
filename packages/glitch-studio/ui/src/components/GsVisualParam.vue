@@ -432,7 +432,8 @@ function selectAutomationGraph(ev: PointerEvent) {
 			{ graphs: props.projectAutomationGraphs ?? [], label: i18n.ts._AutomationGraph.ProjectGraphs },
 		]).flatMap<MenuItem>(({ graphs, label }) => graphs.length === 0 ? [] : [
 			{ type: 'label', text: label },
-			...graphs.map(automationGraph => ({ text: automationGraph.nameForReference,
+			...graphs.map(automationGraph => ({
+				text: automationGraph.nameForReference,
 				action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: automationGraph.id }),
 			})),
 		]),
@@ -485,6 +486,9 @@ function getMenu() {
 			});
 		}
 		if (expressionModifier.value == null && supportsParameterExpressionModifier(props.paramDef, props.paramValue)) {
+			menuItems.push({
+				type: 'divider',
+			});
 			menuItems.push({
 				text: i18n.ts._Parameter.AddExpressionModifier,
 				icon: 'ti ti-math-function',
