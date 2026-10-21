@@ -18,7 +18,7 @@ module.exports = {
 		author: 'syuilo',
 	},
 	// エントリと実装だけを列挙する。実行時依存はelectron-builderに収集させ、開発依存は含めない。
-	files: ['main.mjs', 'voicevox.mjs', 'preload.cjs', 'app-protocol.mjs', 'protocol-path.mjs', 'project-files.mjs', 'project-file-ipc.mjs', 'project-close-guard.mjs', 'external-assets.mjs', 'recent-projects.mjs', 'startup-project.mjs', 'project-launch.mjs', 'export-files.mjs', 'export-file-ipc.mjs', 'desktop-update.mjs', 'desktop-instances.mjs', 'github-updates.mjs'],
+	files: ['main.mjs', 'startup-splash.mjs', 'voicevox.mjs', 'preload.cjs', 'app-protocol.mjs', 'protocol-path.mjs', 'project-files.mjs', 'project-file-ipc.mjs', 'project-close-guard.mjs', 'external-assets.mjs', 'recent-projects.mjs', 'startup-project.mjs', 'project-launch.mjs', 'export-files.mjs', 'export-file-ipc.mjs', 'desktop-update.mjs', 'desktop-instances.mjs', 'github-updates.mjs'],
 	extraResources: [
 		{ from: '../ui/dist-electron', to: 'ui' },
 		// OSがタスクバー用のアイコンを直接読み取れるよう、asarの外に配置する。

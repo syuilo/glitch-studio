@@ -4,6 +4,12 @@ Windows x64向けのNSISインストーラーと、macOSのApple Silicon（arm64
 
 desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`でASAR内の実行時依存を再帰的に検査します。
 
+## 起動時の表示
+
+`startup-splash.mjs`が黒背景にロゴを表示するスプラッシュウィンドウを開きます。UIのJavaScriptや開発サーバーからの読み込みを必要としない、ローカルのHTMLと画像だけで描画します。メインウィンドウは`ready-to-show`まで非表示にし、準備ができたら最大化して表示すると同時にスプラッシュを閉じます。最低表示時間は設けず、メインウィンドウが先に準備できた場合はスプラッシュを表示しません。起動途中でメインウィンドウを閉じた場合もスプラッシュを破棄し、スプラッシュの読み込み失敗は通常の起動を妨げません。
+
+`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/startup-splash-electron.test.mjs`を実行すると、実ウィンドウを短時間表示して描画と切り替え・起動途中の終了・読み込み失敗を検証します。
+
 ## 計測精度
 
 `app-protocol.mjs`がアプリのHTMLとWorkerを含む静的ファイルへCOOP・COEPヘッダーを付け、`performance.now()`の丸めを緩和します。開発起動ではViteのヘッダー設定を使用します。`contextIsolation`とは別の仕組みで、sandboxとNode.jsの無効化は維持します。
