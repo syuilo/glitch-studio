@@ -1,8 +1,8 @@
 <template>
 <GsModal ref="modal" preferType="dialog" zPriority="high" @opened="content?.focus()" @click="close" @esc="close" @closed="emit('closed')" @dragover.prevent.stop @drop.prevent.stop>
-	<div ref="content" :class="$style.root" class="_gaps_m" role="dialog" aria-modal="true" :aria-label="i18n.ts._DesktopUpdate.Title" tabindex="-1" data-test-desktop-update-dialog @keydown.stop>
+	<div ref="content" :class="$style.root" class="_gaps_m" role="dialog" tabindex="-1" data-test-desktop-update-dialog @keydown.stop>
 		<strong>{{ i18n.ts._DesktopUpdate.Title }}</strong>
-		<div v-if="working" role="status" aria-live="polite" data-test-desktop-update-status>
+		<div v-if="working" role="status" data-test-desktop-update-status>
 			{{ state.phase === 'downloading' ? i18n.ts._DesktopUpdate.Downloading : state.phase === 'installing' ? i18n.ts._DesktopUpdate.Installing : i18n.ts._DesktopUpdate.Preparing }}<GsEllipsis/>
 		</div>
 		<template v-if="working">

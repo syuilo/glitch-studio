@@ -14,7 +14,7 @@ const slides = [
 </script>
 
 <template>
-	<section class="home-slideshow" aria-label="Glitch Studioの紹介スライド">
+	<section class="home-slideshow">
 		<div class="container">
 			<VPSwiper
 				:slides="slides"
@@ -22,7 +22,6 @@ const slides = [
 				:mousewheel="false"
 				:pagination="{ clickable: true }"
 				:no-fullscreen="true"
-				alt-text-prefix="Glitch Studioの紹介（仮画像）"
 				border-radius="16px"
 				height="100%"
 			/>

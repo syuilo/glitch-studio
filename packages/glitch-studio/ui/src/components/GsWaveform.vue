@@ -3,7 +3,7 @@
 	<div :class="$style.root">
 		<div :class="$style.scope">
 			<div ref="canvasContainer" :class="$style.canvas"></div>
-			<div :class="$style.grid" aria-hidden="true">
+			<div :class="$style.grid">
 				<div v-for="position in gridLinePositions" :key="`horizontal-${position}`" :class="$style.gridHorizontalLine" :style="{ top: `${position}%` }"></div>
 				<div v-for="position in gridLinePositions" :key="`vertical-${position}`" :class="$style.gridVerticalLine" :style="{ left: `${position}%` }"></div>
 			</div>
@@ -13,11 +13,11 @@
 </template>
 
 <script lang="ts" setup>
+import { useTemplateRef } from 'vue';
+import GsDetachableView from './GsDetachableView.vue';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
-import { useTemplateRef } from 'vue';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
-import GsDetachableView from './GsDetachableView.vue';
 
 const { activePreviewRenderer } = appContext;
 

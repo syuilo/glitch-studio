@@ -16,11 +16,13 @@
 				<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
 				<template v-if="isElectron">
 					<span :class="$style.headerDivider"></span>
-					<button v-tooltip="i18n.ts.Copy" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Copy" :disabled="!headerEditActions.canCopy.value" data-editor-command-button data-test-header-copy @pointerdown.prevent @click="headerEditActions.execute('copy')"><i class="ti ti-copy"></i></button>
-					<button v-tooltip="i18n.ts.Paste" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Paste" :disabled="!headerEditActions.canPaste.value" data-editor-command-button data-test-header-paste @pointerdown.prevent @click="headerEditActions.execute('paste')"><i class="ti ti-clipboard"></i></button>
-					<button v-tooltip="i18n.ts.Cut" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Cut" :disabled="!headerEditActions.canCut.value" data-editor-command-button data-test-header-cut @pointerdown.prevent @click="headerEditActions.execute('cut')"><i class="ti ti-cut"></i></button>
-					<button v-tooltip="i18n.ts.Delete" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Delete" :disabled="!headerEditActions.canDelete.value" data-editor-command-button data-test-header-delete @pointerdown.prevent @click="headerEditActions.execute('delete')"><i class="ti ti-trash"></i></button>
+					<button v-tooltip="i18n.ts.Copy" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canCopy.value" data-editor-command-button data-test-header-copy @pointerdown.prevent @click="headerEditActions.execute('copy')"><i class="ti ti-copy"></i></button>
+					<button v-tooltip="i18n.ts.Paste" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canPaste.value" data-editor-command-button data-test-header-paste @pointerdown.prevent @click="headerEditActions.execute('paste')"><i class="ti ti-clipboard"></i></button>
+					<button v-tooltip="i18n.ts.Cut" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canCut.value" data-editor-command-button data-test-header-cut @pointerdown.prevent @click="headerEditActions.execute('cut')"><i class="ti ti-cut"></i></button>
+					<button v-tooltip="i18n.ts.Delete" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canDelete.value" data-editor-command-button data-test-header-delete @pointerdown.prevent @click="headerEditActions.execute('delete')"><i class="ti ti-trash"></i></button>
 				</template>
+				<span :class="$style.headerDivider"></span>
+				<!-- TODO: save button -->
 				<span :class="$style.headerDivider"></span>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
@@ -68,8 +70,8 @@
 			<button v-if="preferences.r.projectBackups.value.autoEnabled || preferences.r.projectBackups.value.saveEnabled" class="_button" :class="$style.footerItem" :title="projectBackupStatus.error ?? i18n.ts._App.BackupHint" @click="openPreferences">{{ projectBackupStatus.error ? i18n.ts._App.BackupError : projectBackupAccess === 'ready' ? i18n.ts._App.Backups : projectBackupAccess === 'unsaved' ? i18n.ts._App.BackupsUnsaved : i18n.ts._App.BackupsFolderRequired }}</button>
 			<div v-if="activePreviewRenderer.errorMessage.value != null" v-tooltip="activePreviewRenderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ activePreviewRenderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
-				<button data-test-waveform-and-histogram-toggle :aria-pressed="waveformAndHistogramEnabled" :class="$style.footerItem" class="_button" @click="waveformAndHistogramEnabled = !waveformAndHistogramEnabled">{{ i18n.ts._App.Analyze }}: {{ waveformAndHistogramEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
-				<button data-test-rendering-stats-toggle :aria-pressed="renderingStatsEnabled" :class="$style.footerItem" class="_button" @click="renderingStatsEnabled = !renderingStatsEnabled">{{ i18n.ts._Workspace.Stats }}: {{ renderingStatsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
+				<button data-test-waveform-and-histogram-toggle :class="$style.footerItem" class="_button" @click="waveformAndHistogramEnabled = !waveformAndHistogramEnabled">{{ i18n.ts._App.Analyze }}: {{ waveformAndHistogramEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
+				<button data-test-rendering-stats-toggle :class="$style.footerItem" class="_button" @click="renderingStatsEnabled = !renderingStatsEnabled">{{ i18n.ts._Workspace.Stats }}: {{ renderingStatsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
 				<div v-if="renderingStatsEnabled && previewPlayback.state.value.mode === 'visualModuleLivePreview' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
 			<div :class="$style.outputLevelMeter">

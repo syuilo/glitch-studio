@@ -27,7 +27,7 @@
 				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 			</div>
 			<GsPreviewTransform :canvasRect="previewCanvasRect"/>
-			<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" role="status" :aria-label="i18n.ts.Loading" data-test-timeline-seek-loading>
+			<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" role="status" data-test-timeline-seek-loading>
 				<GsLoading :colored="false" :mini="true"/>
 			</div>
 		</div>
