@@ -14,13 +14,13 @@ export class ParameterBindingEvaluator {
 
 	private graphReader(scope: ParameterEvaluationScope): ExpressionFunction {
 		return (...args) => {
-			const [name, coordinate, wrapMode] = args;
-			if (args.length !== 3 || typeof name !== 'string' || typeof coordinate !== 'number' || !Number.isFinite(coordinate)
+			const [nameForReference, coordinate, wrapMode] = args;
+			if (args.length !== 3 || typeof nameForReference !== 'string' || typeof coordinate !== 'number' || !Number.isFinite(coordinate)
 				|| (wrapMode !== 'clamp' && wrapMode !== 'repeat' && wrapMode !== 'repeatMirrored')) {
-				throw new Error('GRAPH requires a graph name, finite coordinate and wrap mode');
+				throw new Error('GRAPH requires a nameForReference, finite coordinate and wrap mode');
 			}
-			const graph = scope.automationGraphs.find(graph => graph.name === name);
-			if (graph == null) throw new Error(`Unknown automation graph: ${name}`);
+			const graph = scope.automationGraphs.find(graph => graph.nameForReference === nameForReference);
+			if (graph == null) throw new Error(`Unknown automation graph nameForReference: ${nameForReference}`);
 			return evalAutomationGraphValue(graph, coordinate, wrapMode);
 		};
 	}

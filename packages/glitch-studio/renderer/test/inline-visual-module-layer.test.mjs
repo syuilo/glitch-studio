@@ -30,7 +30,7 @@ const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', no
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, canNode: false, defaultValue: literal(0) };
 const color = { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) };
 const probeParamDefs = { input: color, amount: scalar, local: scalar, caller: scalar, localTime: scalar, duration: scalar, exported: scalar, forbidden: scalar, directForbidden: scalar };
-const graph = value => ({ id: 'graph', name: 'Graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
+const graph = value => ({ id: 'graph', nameForReference: 'Graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 
 function visualModule({ primaryInput = false, params } = {}) {
 	return {

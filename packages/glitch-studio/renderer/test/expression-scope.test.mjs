@@ -156,10 +156,10 @@ test('does not retain PARAM functions or local declarations between expressions'
 	assert.equal(externalValues(evaluator, [def('value')], { value: expression('privateValue') }, layerScope).get('value'), 0);
 });
 
-// IDと名前が同じグラフでも所有者ごとに解決し、削除後は他スコープへフォールバックしない。
+// IDとnameForReferenceが同じグラフでも所有者ごとに解決し、削除後は他スコープへフォールバックしない。
 test('isolates graph references and GRAPH functions without inheriting graphs', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
-	const graph = value => ({ id: 'graph', name: 'Graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
+	const graph = value => ({ id: 'graph', nameForReference: 'Graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 	const params = { ref: { inputSource: 'automationGraphReference', automationGraphId: 'graph', trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' }, named: expression('GRAPH("Graph", 0, "clamp")') };
 	const defs = [def('ref'), def('named')];
 	const external = externalValues(evaluator, defs, params, { ...layerScope, automationGraphs: [graph(2)] });

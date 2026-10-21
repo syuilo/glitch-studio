@@ -391,7 +391,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	};
 	const input = createInlineAutomationGraph();
 	input.automationGraph.points[0].y = 0.25;
-	layer.automationGraphs.push({ id: 'graph', name: 'Layer graph', ...structuredClone(input.automationGraph) });
+	layer.automationGraphs.push({ id: 'graph', nameForReference: 'Layer graph', ...structuredClone(input.automationGraph) });
 	const inline = edit('opacity', { kind: 'automationGraphInline', value: input });
 	input.automationGraph.points[0].y = 99;
 	assert.equal(layer.compositingParamValues.opacity.automationGraph.points[0].y, 0.25);

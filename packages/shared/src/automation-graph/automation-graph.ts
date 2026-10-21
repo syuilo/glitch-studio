@@ -11,7 +11,7 @@ export type AutomationGraphData = {
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };
 
-export type AutomationGraph = AutomationGraphData & { id: string; name: string };
+export type AutomationGraph = AutomationGraphData & { id: string; nameForReference: string };
 
 export type AutomationGraphWrapMode = 'clamp' | 'repeat' | 'repeatMirrored';
 

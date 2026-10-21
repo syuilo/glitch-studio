@@ -57,7 +57,7 @@ test('evaluates expressions and environment variables in layer context', () => {
 });
 
 const point = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
-const graph = { id: 'ramp', name: 'Ramp', isNormalized: true, points: [point(0, 0), point(1, 1)] };
+const graph = { id: 'ramp', nameForReference: 'Ramp', isNormalized: true, points: [point(0, 0), point(1, 1)] };
 for (const inputSource of ['automationGraphInline', 'automationGraphReference']) {
 	// duration・Scene開始基準・wrapを含めて、位置や回転も既存グラフと同じ規約で動かす。
 	test(`evaluates timing and wrapping for ${inputSource}`, () => {
@@ -70,8 +70,9 @@ for (const inputSource of ['automationGraphInline', 'automationGraphReference'])
 	});
 }
 
-// GRAPH参照は呼び出し側が渡したレイヤーのグラフを使い、欠落参照はパラメータ既定値へ戻す。
-test('reads named graphs and falls back for missing graph references', () => {
+// 【グラフをnameForReferenceで参照し、欠落した参照は既定値へ戻す】
+// GRAPH参照は呼び出し側が渡したレイヤーのグラフを使い、他のスコープのグラフを参照しない。
+test('reads graphs by nameForReference and falls back for missing graph references', () => {
 	assert.ok(Math.abs(evaluate({ position: expression('[GRAPH("Ramp", 0.25, "clamp"), 0]') }, [graph]).position[0] - 0.25) < 0.00001);
 	assert.equal(evaluate({ scale: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } }).scale[0], 1);
 });

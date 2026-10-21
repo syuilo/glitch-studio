@@ -42,7 +42,7 @@
 						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" style="display: grid; gap: 6px;">
-						<GsButton v-if="paramValue.inputSource === 'automationGraphReference'" @click="selectAutomationGraph">{{ selectedAutomationGraph?.name ?? i18n.ts.None }}</GsButton>
+						<GsButton v-if="paramValue.inputSource === 'automationGraphReference'" @click="selectAutomationGraph">{{ selectedAutomationGraph?.nameForReference ?? i18n.ts.None }}</GsButton>
 						<GsButton v-else @click="inlineGraphEditorOpen = true">{{ i18n.ts._Parameter.EditGraph }}</GsButton>
 						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
 							<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
@@ -284,7 +284,7 @@ const nodes = computed(() => props.visualModule?.nodes ?? []);
 
 const selectedAutomationGraph = computed(() => {
 	const value = props.paramValue;
-	return value.inputSource === 'automationGraphInline' ? { ...value.automationGraph, name: i18n.ts._AutomationGraph.InlineGraph }
+	return value.inputSource === 'automationGraphInline' ? { ...value.automationGraph, nameForReference: i18n.ts._AutomationGraph.InlineGraph }
 		: value.inputSource === 'automationGraphReference' ? props.automationGraphs.find(graph => graph.id === value.automationGraphId) : null;
 });
 const graphTimeAxisItems = [
@@ -392,9 +392,9 @@ function updateAutomationGraphDuration(trimmedDurationMs: number) {
 function selectAutomationGraph(ev: PointerEvent) {
 	ui.popupMenu([
 		{ text: i18n.ts.None, action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: null }) },
-		...props.automationGraphs.map(a => ({
-			text: a.name,
-			action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: a.id }),
+		...props.automationGraphs.map(automationGraph => ({
+			text: automationGraph.nameForReference,
+			action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: automationGraph.id }),
 		})),
 	], ev.currentTarget ?? ev.target);
 }

@@ -478,7 +478,7 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 test('provides the background for compositing modules without a primary input', async () => {
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const context = { sceneTimeMs: 800, contentTimeMs: 500, clipElapsedTimeMs: 500, clipDurationMs: 2000, contentEndTimeMs: 2000, timeDelta: 16, isExport: true, getInput: async () => background };
-	const graphs = [{ id: 'layer-graph', name: 'Layer', isNormalized: true, points: [] }];
+	const graphs = [{ id: 'layer-graph', nameForReference: 'Layer', isNormalized: true, points: [] }];
 	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: graphs }, {
 		async prepare() {},
 		async render(moduleContext, layerContext) {

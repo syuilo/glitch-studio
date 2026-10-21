@@ -72,7 +72,7 @@ function fixture() {
 			{ ...parameter('audioSource'), id: 'audio', nameForReference: 'audio', canNode: false }],
 		outputDefs: [{ id: 'output', name: 'output', label: 'Output', dataType: { kind: 'color' } }],
 		primaryInputId: 'input', primaryAudioInputId: 'audio', primaryOutputId: 'output',
-		automationGraphs: [{ id: 'graph', name: 'Graph', isNormalized: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }],
+		automationGraphs: [{ id: 'graph', nameForReference: 'Graph', isNormalized: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }],
 	};
 	const assets = [asset('video', 'video/mp4'), asset('nested-image'), asset('font', 'font/ttf'), asset('default-image'), asset('template-image'), asset('template-font', 'font/otf'), asset('unused')];
 	const players = [{ id: 'file-player', name: 'Movie', sourceType: 'asset', assetId: 'video' },

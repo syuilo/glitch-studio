@@ -103,11 +103,11 @@ test('resolves PARAM names separately from external parameter IDs', () => {
 });
 
 const rampGraph = (isNormalized = true) => ({
-	id: 'ramp-id', name: 'Ramp', isNormalized,
+	id: 'ramp-id', nameForReference: 'Ramp', isNormalized,
 	// 配列順に依存せず終端を取得できることも確認する。
 	points: [graphPoint(isNormalized ? 1 : 2000, 10), graphPoint(0, 0)],
 });
-// 同じID・名前でも、外部パラメータと内部ノードはそれぞれの所有者のグラフを読む。
+// 同じID・nameForReferenceでも、外部パラメータと内部ノードはそれぞれの所有者のグラフを読む。
 test('isolates caller and module graphs for references and GRAPH expressions', () => {
 	const internal = { ...rampGraph(), points: [graphPoint(0, 9)] };
 	const external = { ...internal, points: [graphPoint(0, 3)] };
@@ -142,10 +142,11 @@ function assertClose(actual, expected) {
 	assert.ok(Math.abs(actual - expected) < 0.00001, `Expected ${actual} to be close to ${expected}`);
 }
 
-// GRAPHは名前で検索し、グラフ固有の座標を使ってモジュール・ノードの両方で評価する。
-test('evaluates GRAPH by name in module and node expressions', () => {
+// 【GRAPHをnameForReferenceで参照し、Visual Moduleとノードの式で評価する】
+// グラフ固有の座標を使い、IDによる参照と混同せずに両スコープから値を取得する。
+test('evaluates GRAPH by nameForReference in module and node expressions', () => {
 	const graph = rampGraph();
-	const msGraph = { ...rampGraph(false), id: 'ms-id', name: 'Milliseconds' };
+	const msGraph = { ...rampGraph(false), id: 'ms-id', nameForReference: 'Milliseconds' };
 	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ values: arrayParameter(number) }, {
 		values: arrayBinding([
 			expression('GRAPH("Ramp", 0.25, "clamp")'),
@@ -158,7 +159,7 @@ test('evaluates GRAPH by name in module and node expressions', () => {
 	result.nodeParams.get('node').values.forEach((value, index) => assertClose(value, [2.5, 2.5, 2.5, 7.5][index]));
 });
 
-// 不正な引数・未知の名前・IDによる検索・inlineグラフへの参照は式の既定値へ戻す。
+// 不正な引数・未知のnameForReference・IDによる検索・inlineグラフへの参照は式の既定値へ戻す。
 test('falls back for invalid GRAPH calls and does not expose inline graphs', () => {
 	const graph = rampGraph();
 	const invalid = [

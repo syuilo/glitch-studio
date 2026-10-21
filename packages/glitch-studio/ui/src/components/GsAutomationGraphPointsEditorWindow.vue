@@ -5,7 +5,7 @@
 	@close="windowEl?.close()"
 	@closed="emit('closed')"
 >
-	<template #header><i class="ti ti-ease-in-out-control-points"></i> {{ i18n.ts._AutomationGraph.Title }}: {{ title ?? props.automationGraph.name ?? i18n.ts._AutomationGraph.InlineGraph }}</template>
+	<template #header><i class="ti ti-ease-in-out-control-points"></i> {{ i18n.ts._AutomationGraph.Title }}: {{ title ?? props.automationGraph.nameForReference ?? i18n.ts._AutomationGraph.InlineGraph }}</template>
 
 	<div style="height: 100%;">
 		<GsAutomationGraphPointsEditor :key="String(props.automationGraph.isNormalized)" :points="props.automationGraph.points" :isNormalized="props.automationGraph.isNormalized" @change="(points, mergeKey) => emit('change', points, mergeKey)"/>
@@ -21,7 +21,7 @@ import GsAutomationGraphPointsEditor from './GsAutomationGraphPointsEditor.vue';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 
 const props = defineProps<{
-	automationGraph: Pick<AutomationGraph, 'points' | 'isNormalized'> & { name?: string };
+	automationGraph: Pick<AutomationGraph, 'points' | 'isNormalized'> & { nameForReference?: string };
 	title?: string;
 }>();
 

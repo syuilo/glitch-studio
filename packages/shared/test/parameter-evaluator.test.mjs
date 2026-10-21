@@ -211,7 +211,7 @@ test('applies normalized timing end alignment and wrapping to discrete keyframes
 });
 
 const rampGraph = (isNormalized = true) => ({
-	id: 'ramp-id', name: 'Ramp', isNormalized,
+	id: 'ramp-id', nameForReference: 'Ramp', isNormalized,
 	// 配列順に依存せず終端を取得できることも確認する。
 	points: [graphPoint(isNormalized ? 1 : 2000, 10), graphPoint(0, 0)],
 });
@@ -333,9 +333,9 @@ test('clones values read from variables', () => {
 	}
 });
 
-// 【GRAPHの名前解決とスコープの更新】
+// 【GRAPHのnameForReferenceによる参照とスコープの更新】
 // ASTを再利用しても、グラフは毎回渡されたスコープからのみ参照する。
-test('evaluates GRAPH by name and refreshes definitions between scopes', () => {
+test('evaluates GRAPH by nameForReference and refreshes definitions between scopes', () => {
 	const evaluator = new ParameterBindingEvaluator();
 	const binding = expression('GRAPH("Ramp", 0.5, "clamp")');
 	assertClose(evaluator.evaluate(binding, context({ automationGraphs: [rampGraph()] }), -1), 5);
