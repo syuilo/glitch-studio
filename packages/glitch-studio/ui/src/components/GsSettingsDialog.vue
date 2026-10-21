@@ -18,6 +18,11 @@
 			<div :class="$style.contents">
 				<div class="_spacer _gaps_l">
 					<template v-if="tab === 'general'">
+						<GsSelect v-model="selectedLocale" large :items="localeOptions" data-test-language>
+							<template #label>{{ i18n.ts._Settings.Language }}</template>
+							<template #caption>{{ i18n.ts.LocaleChangedDescription }}</template>
+						</GsSelect>
+
 						<GsFolder defaultOpen>
 							<template #label>{{ i18n.ts._Workspace.VisualModuleEditor }}</template>
 
@@ -94,13 +99,16 @@ import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsFolder from './common/GsFolder.vue';
 import { appContext } from '@/app.ts';
-import { i18n } from '@/i18n.ts';
+import { i18n, lang, SUPPORTED_LOCALES } from '@/i18n.ts';
+import { changeLocale } from '@/locale-settings-ui.ts';
 import { preferences } from '@/preferences.ts';
 import { validateProjectBackupSettings } from '@/project-backups.ts';
 
 const { projectBackupAccess, projectBackupStatus } = appContext;
 
 const modal = useTemplateRef('modal');
+const selectedLocale = ref(localStorage.getItem('locale') ?? lang);
+const localeOptions = Object.entries(SUPPORTED_LOCALES).map(([value, label]) => ({ value, label }));
 const settings = ref({ ...preferences.s.projectBackups });
 const desktopAvailable = window.desktop != null;
 const importAssetsAsExternalReferences = ref(preferences.s.importAssetsAsExternalReferences);
@@ -112,8 +120,8 @@ const validationError = computed(() => {
 	try { validateProjectBackupSettings(settings.value); return null; } catch (error) { return error instanceof Error ? error.message : String(error); }
 });
 
-function apply() {
-	if (validationError.value) return;
+async function apply() {
+	if (validationError.value != null) return;
 	preferences.commit('importAssetsAsExternalReferences', importAssetsAsExternalReferences.value);
 	preferences.commit('importLargeAssetsAsExternalReferences', importLargeAssetsAsExternalReferences.value);
 	preferences.commit('projectBackups', { ...settings.value });
@@ -121,6 +129,7 @@ function apply() {
 	preferences.commit('intermediateTextureFormat', intermediateTextureFormat.value);
 	preferences.commit('visualModuleAutoConnectOnNodeAdd', visualModuleAutoConnectOnNodeAdd.value);
 	modal.value?.close();
+	await changeLocale(selectedLocale.value);
 }
 
 const emit = defineEmits<{

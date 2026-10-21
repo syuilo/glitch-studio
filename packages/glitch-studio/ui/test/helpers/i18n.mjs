@@ -9,8 +9,7 @@ const locale = JSON.parse(await readFile(new URL('../../locales/en-US.json', imp
 const contents = `${source.slice(0, source.indexOf('export const SUPPORTED_LOCALES'))}
 export const i18n = new I18n(${JSON.stringify(locale)});
 export const lang = 'en-US';
-export const isLocaleUnconfigured = false;
-export async function configureLocale() {}`;
+export const isLocaleUnconfigured = false;`;
 const { code } = await transform(contents, { loader: 'ts', format: 'cjs' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', code)(createRequire(import.meta.url), module, module.exports);
@@ -19,6 +18,8 @@ export const { i18n } = module.exports;
 export const i18nPlugin = {
 	name: 'test-i18n',
 	setup(build) {
+		build.onResolve({ filter: /(?:^|\/)locale-settings-ui\.[jt]s$/ }, () => ({ path: 'locale-settings-ui', namespace: 'test-locale-settings-ui' }));
+		build.onLoad({ filter: /.*/, namespace: 'test-locale-settings-ui' }, () => ({ contents: 'export async function configureLocale() {} export async function changeLocale() {}' }));
 		build.onResolve({ filter: /(?:^|\/)i18n\.[jt]s$/ }, () => ({ path: 'i18n', namespace: 'test-i18n' }));
 		build.onLoad({ filter: /.*/, namespace: 'test-i18n' }, () => ({ loader: 'ts', contents }));
 	},

@@ -269,26 +269,14 @@ export const SUPPORTED_LOCALES = {
 
 export const isLocaleUnconfigured = localStorage.getItem('locale') == null;
 
-export async function configureLocale() {
-	const ui = await import('./ui.ts');
-	const { canceled, result } = await ui.select({
-		title: 'Select Language / 言語を選択',
-		items: Object.entries(SUPPORTED_LOCALES).map(([value, label]) => ({ label, value })),
-		default: Object.hasOwn(SUPPORTED_LOCALES, navigator.language) ? navigator.language : 'en-US',
-	});
+export async function saveLocale(locale: string): Promise<Locale | null> {
+	if (!Object.hasOwn(SUPPORTED_LOCALES, locale) || localStorage.getItem('locale') === locale) return null;
 
-	if (!canceled && Object.hasOwn(SUPPORTED_LOCALES, result)) {
-		localStorage.setItem('locale', result);
+	const newLocale = await loadLocale(locale);
+	localStorage.setItem('locale', locale);
 
-		const newLocale = await loadLocale(result);
-
-		i18n.locale = newLocale;
-
-		ui.alert({
-			title: i18n.ts.LocaleChangedTitle,
-			text: i18n.ts.LocaleChangedDescription,
-		});
-	}
+	// 各画面やIntlの表示は再起動時に揃えて切り替えるため、実行中の辞書は変更しない。
+	return newLocale;
 }
 
 export const lang = localStorage.getItem('locale') ?? 'en-US';

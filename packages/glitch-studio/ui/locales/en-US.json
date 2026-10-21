@@ -399,6 +399,7 @@
 	},
 	"_Settings": {
 		"Title": "Preferences",
+		"Language": "Language",
 		"VisualModuleAutoConnectOnNodeAdd": "Automatically connect added nodes",
 		"VisualModuleAutoConnectOnNodeAddHint": "Connects the current primary output source to the added node's primary input and switches the primary output to the added node, when connectable.",
 		"Rendering": "Rendering",

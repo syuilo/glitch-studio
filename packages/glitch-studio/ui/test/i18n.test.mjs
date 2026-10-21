@@ -7,21 +7,32 @@ import { build } from 'esbuild';
 const locales = Object.fromEntries(await Promise.all(['en-US', 'ja-JP'].map(async language => [language,
 	JSON.parse(await readFile(new URL(`../locales/${language}.json`, import.meta.url), 'utf8')),
 ])));
-const bundle = await build({
-	entryPoints: [fileURLToPath(new URL('../src/i18n.ts', import.meta.url))],
+const bundleOptions = {
 	bundle: true, platform: 'browser', format: 'esm', write: false,
 	define: { 'import.meta.env.DEV': 'true' },
+};
+// UIをスタブせずに単独でビルドし、翻訳の初期化がUIへ依存していないことも検証する。
+const bundle = await build({
+	...bundleOptions,
+	entryPoints: [fileURLToPath(new URL('../src/i18n.ts', import.meta.url))],
+});
+const settingsBundle = await build({
+	...bundleOptions,
+	stdin: { resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), contents: `
+		export * from './i18n.ts';
+		export * from './locale-settings-ui.ts';
+	` },
 	plugins: [{ name: 'locale-dialog', setup(build) {
 		build.onResolve({ filter: /^\.\/ui\.ts$/ }, () => ({ path: 'ui', namespace: 'locale-dialog' }));
 		build.onLoad({ filter: /.*/, namespace: 'locale-dialog' }, () => ({ contents: `
-			export async function select() { return { canceled: false, result: 'ja-JP' }; }
+			export async function select() { return globalThis.localeTestSelection ?? { canceled: false, result: 'ja-JP' }; }
 			export function alert(options) { globalThis.localeTestAlerts.push(options); }
 		` }));
 	} }],
 });
 let importGeneration = 0;
-async function loadI18n() {
-	return import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}#${importGeneration++}`);
+async function loadI18n(source = bundle) {
+	return import(`data:text/javascript;base64,${Buffer.from(source.outputFiles[0].text).toString('base64')}#${importGeneration++}`);
 }
 
 function configureStorage(t, language) {
@@ -72,11 +83,59 @@ test('preserves the selected language across initialization', async t => {
 	const storage = configureStorage(t, 'en-US');
 	globalThis.localeTestAlerts = [];
 	t.after(() => { delete globalThis.localeTestAlerts; });
-	const initial = await loadI18n();
+	const initial = await loadI18n(settingsBundle);
 	assert.equal(initial.i18n.ts._App.File, 'File');
 	await initial.configureLocale();
 	assert.equal(storage.get('locale'), 'ja-JP');
 	assert.equal(globalThis.localeTestAlerts[0].title, locales['ja-JP'].LocaleChangedTitle);
 	const reloaded = await loadI18n();
 	assert.equal(reloaded.i18n.ts._App.File, 'ファイル');
+});
+
+// 【環境設定で選んだ言語を保存し、実行中の表示は再起動まで維持する】
+// 辞書だけを即時変更すると、キャッシュ済みの補間文言やIntlと表示言語が混在する。
+// 再起動の案内は選択した言語で表示し、次回起動時に通常文言と補間文言を揃えて切り替える。
+test('saves a language change while keeping current translations until restart', async t => {
+	const storage = configureStorage(t, 'ja-JP');
+	globalThis.localeTestAlerts = [];
+	t.after(() => { delete globalThis.localeTestAlerts; });
+	const initial = await loadI18n(settingsBundle);
+	assert.equal(initial.i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }), '3個のキーフレームを選択中');
+	await initial.changeLocale('en-US');
+	assert.equal(storage.get('locale'), 'en-US');
+	assert.deepEqual(globalThis.localeTestAlerts, [{
+		title: locales['en-US'].LocaleChangedTitle,
+		text: locales['en-US'].LocaleChangedDescription,
+	}]);
+	assert.equal(initial.i18n.ts._App.File, 'ファイル');
+	assert.equal(initial.i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }), '3個のキーフレームを選択中');
+	const reloaded = await loadI18n();
+	assert.equal(reloaded.i18n.ts._App.File, 'File');
+	assert.equal(reloaded.i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }),
+		locales['en-US']._TimelineKeyframe.SelectedCount.replace('{count}', '3'));
+});
+
+// 【言語を変更せずに適用した場合は再起動の案内を表示しない】
+// 他の環境設定だけを変更したときに、不要な再起動を促さない。
+test('does not prompt for restart when the saved language is unchanged', async t => {
+	const storage = configureStorage(t, 'en-US');
+	globalThis.localeTestAlerts = [];
+	t.after(() => { delete globalThis.localeTestAlerts; });
+	const initial = await loadI18n(settingsBundle);
+	await initial.changeLocale('en-US');
+	assert.equal(storage.get('locale'), 'en-US');
+	assert.deepEqual(globalThis.localeTestAlerts, []);
+});
+
+// 【初回の言語選択をキャンセルした場合は設定も再起動案内も変更しない】
+// UIの処理を分離しても、選択のキャンセルを言語変更として保存してはならない。
+test('does not save or notify when language selection is canceled', async t => {
+	const storage = configureStorage(t, null);
+	globalThis.localeTestAlerts = [];
+	globalThis.localeTestSelection = { canceled: true };
+	t.after(() => { delete globalThis.localeTestAlerts; delete globalThis.localeTestSelection; });
+	const settings = await loadI18n(settingsBundle);
+	await settings.configureLocale();
+	assert.equal(storage.get('locale'), undefined);
+	assert.deepEqual(globalThis.localeTestAlerts, []);
 });
