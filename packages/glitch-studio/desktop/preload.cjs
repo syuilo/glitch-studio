@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('desktop', {
 	toggleDevTools: () => ipcRenderer.invoke('desktop:toggle-dev-tools'),
 	zoomIn: () => ipcRenderer.invoke('desktop:zoom-in'),
 	zoomOut: () => ipcRenderer.invoke('desktop:zoom-out'),
+	executeEditCommand: command => ipcRenderer.invoke('desktop:execute-edit-command', command),
 	setProgressBar: (progress) => ipcRenderer.invoke('desktop:set-progress-bar', progress),
 	notifyExportComplete: (fileName) => ipcRenderer.invoke('desktop:notify-export-complete', fileName),
 	chooseExportSaveFile: (name, format) => ipcRenderer.invoke('desktop:choose-export-save-file', name, format),

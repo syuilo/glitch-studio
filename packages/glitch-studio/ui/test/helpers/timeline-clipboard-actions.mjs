@@ -1,26 +1,14 @@
-import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { transform } from 'esbuild';
-import { parse } from 'vue/compiler-sfc';
-import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
+import { build } from 'esbuild';
+import { fileURLToPath } from 'node:url';
 
-// コピー・貼り付けの実装は直接importし、SFCからはキー入力の振り分けだけを取り出す。
-// Ctrl/Cmd・入力欄・リピートの扱いと、実際のCommandによる変更を同時に確認する。
-const source = await readFile(new URL('../../src/components/GsTimeline.vue', import.meta.url), 'utf8');
-const ast = createSourceFile('GsTimeline.ts', parse(source).descriptor.scriptSetup.content, ScriptTarget.Latest);
-const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onTlKeydown');
-assert.ok(handler);
-const transformed = await transform(handler.getText(ast), { loader: 'ts' });
-const createKeydown = new Function('context', `
-	const { HTMLElement, selection, clipboardActions, onCueKeyboardDown, removeSelectedKeyframes, removeSelectedClips } = context;
-	${transformed.code}
-	return onTlKeydown;
-`);
+// 実際のDOMイベント処理とCommandを接続し、入力欄の標準動作を奪わないことも確認する。
+const bundled = await build({ entryPoints: [fileURLToPath(new URL('../../src/utility/editor-edit-events.ts', import.meta.url))],
+	bundle: true, platform: 'node', format: 'cjs', write: false });
 
 export function createTimelineClipboardHandlers(api, context) {
 	let disposed = context.disposed ?? false;
 	const scene = context.editedScene;
-	const actions = api.createTimelineClipboardActions({
+	const actions = api.createTimelineSelectionEditActions({
 		stateManager: context.stateManager, scene,
 		sceneLayers: context.sceneLayers ?? { get value() { return api.flattenTimelineLayers(scene.layers); } },
 		selection: context.selection, selectedLayer: context.selectedLayer, clipboard: context.timelineClipboard,
@@ -35,9 +23,13 @@ export function createTimelineClipboardHandlers(api, context) {
 			context.ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		},
 	});
+	const module = { exports: {} };
+	new Function('module', 'exports', 'window', 'HTMLElement', bundled.outputFiles[0].text)(module, module.exports,
+		{ document: { getSelection: () => null } }, context.HTMLElement);
+	const events = module.exports.createEditorEditEventHandlers(actions);
 	return {
+		...events,
 		actions,
-		onTlKeydown: createKeydown({ ...context, clipboardActions: actions }),
 		pasteClips(content) { context.timelineClipboard.value = content; return actions.paste(); },
 		dispose: () => { disposed = true; },
 	};

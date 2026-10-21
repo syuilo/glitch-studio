@@ -9,7 +9,7 @@ const uiDirectory = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
-		export { createTimelineClipboardActions } from './src/utility/timeline-clipboard-actions.ts';
+		export { createTimelineSelectionEditActions } from './src/utility/timeline-selection-edit-actions.ts';
 		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/utility/timeline-clip-clipboard.ts';
 		export { duplicateTimelineLayers } from './src/utility/timeline-container.ts';
@@ -66,8 +66,8 @@ function fixture(t) {
 	};
 }
 
-function keyboard(key, overrides = {}) {
-	return { key, ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, repeat: false,
+function clipboardEvent(overrides = {}) {
+	return {
 		defaultPrevented: false, target: null, stopped: false,
 		preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; }, ...overrides,
 	};
@@ -175,28 +175,28 @@ test('preserves video settings and validates only pasted media against its curre
 	assert.deepEqual(f.layer.clips.at(-1), clips[0].clip);
 });
 
-// 【Ctrl/Cmd+C・Vでクリップをコピーし、選択が変わってもコピー元へ貼り付ける】
+// 【DOMのcopy・pasteでクリップをコピーし、選択が変わってもコピー元へ貼り付ける】
 // ペースト先は選択レイヤーではなくコピー元で、成功後は追加したクリップを選択する。
 // 押し続けによる繰り返しや入力欄の編集はタイムライン操作として処理しない。
-test('routes copy and paste shortcuts by clipboard content and selects pasted clips', async t => {
-	for (const modifiers of [{ ctrlKey: true }, { ctrlKey: false, metaKey: true }]) {
+test('routes copy and paste events by clipboard content and selects pasted clips', async t => {
+	{
 		const f = fixture(t);
 		const handlers = createHandlers(f.context);
-		const copy = keyboard('c', modifiers);
-		await handlers.onTlKeydown(copy);
+		const copy = clipboardEvent();
+		await handlers.onCopy(copy);
 		assert.ok(copy.defaultPrevented && copy.stopped);
 		f.selection.value = { kind: 'layers', ids: ['other'] };
-		await handlers.onTlKeydown(keyboard('v', { ...modifiers, repeat: true }));
+		await handlers.onPaste(clipboardEvent({ defaultPrevented: true }));
 		assert.equal(f.history.undoStack.value.length, 0);
-		await handlers.onTlKeydown(keyboard('v', modifiers));
+		await handlers.onPaste(clipboardEvent());
 		assert.equal(f.history.undoStack.value.length, 1);
 		assert.deepEqual(f.selection.value, { kind: 'clips', clips: f.layer.clips.slice(2).map(clip => ({ layerId: 'shape', clipId: clip.id })) });
-		await handlers.onTlKeydown(keyboard('v', modifiers));
+		await handlers.onPaste(clipboardEvent());
 		assert.equal(f.history.undoStack.value.length, 1);
 		const input = new f.context.HTMLElement();
 		input.closest = () => true;
-		const typing = keyboard('c', { target: input });
-		await handlers.onTlKeydown(typing);
+		const typing = clipboardEvent({ target: input });
+		await handlers.onCopy(typing);
 		assert.equal(typing.defaultPrevented, false);
 	}
 });
@@ -206,13 +206,13 @@ test('routes copy and paste shortcuts by clipboard content and selects pasted cl
 test('replaces clip clipboard contents when copying a layer and preserves layer paste behavior', async t => {
 	const f = fixture(t);
 	const handlers = createHandlers(f.context);
-	await handlers.onTlKeydown(keyboard('c'));
+	await handlers.onCopy(clipboardEvent());
 	assert.equal(f.timelineClipboard.value.kind, 'clips');
 	f.selection.value = { kind: 'layers', ids: [f.layer.id] };
-	await handlers.onTlKeydown(keyboard('c'));
+	await handlers.onCopy(clipboardEvent());
 	assert.equal(f.timelineClipboard.value.kind, 'layer');
 	const before = structuredClone(f.scene);
-	await handlers.onTlKeydown(keyboard('v'));
+	await handlers.onPaste(clipboardEvent());
 	assert.equal(f.scene.layers.length, 2);
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.notEqual(f.scene.layers[0].id, f.layer.id);
@@ -246,4 +246,64 @@ test('keeps the requested seek time and rechecks state after asynchronous media 
 		if (change === 'seek') assert.equal(f.layer.clips.at(-1).startMs, 1000);
 		assert.deepEqual(f.alerts, []);
 	}
+});
+
+// 【クリップの切り取りを一つの履歴にまとめ、メモリ上の内容を後から貼り付ける】
+// コピーしたスナップショットは削除で失われず、切り取りと貼り付けをそれぞれ一回のUndoで戻せる必要がある。
+test('cuts clips through DOM events with independent undoable cut and paste operations', async t => {
+	const f = fixture(t);
+	const handlers = createHandlers(f.context);
+	const before = structuredClone(f.scene);
+	handlers.onCut(clipboardEvent());
+	assert.equal(f.layer.clips.length, 0);
+	assert.equal(f.timelineClipboard.value.kind, 'clips');
+	assert.equal(f.timelineClipboard.value.scene, f.scene);
+	assert.equal(f.history.undoStack.value.length, 1);
+	await handlers.onPaste(clipboardEvent());
+	assert.deepEqual(f.layer.clips.map(clip => clip.startMs), [1000, 1300]);
+	assert.equal(f.history.undoStack.value.length, 2);
+	f.history.undo();
+	assert.equal(f.layer.clips.length, 0);
+	f.history.undo();
+	assert.deepEqual(f.scene, before);
+});
+
+// 【レイヤーを切り取った後も元レイヤー不在の状態へ貼り付けられる】
+// 貼り付けは元のレイヤーIDを位置決めに使うが、切り取りではそのレイヤー自体が消える。
+test('cuts and pastes a layer after its original layer has been removed', async t => {
+	const f = fixture(t);
+	f.selection.value = { kind: 'layers', ids: [f.layer.id] };
+	const handlers = createHandlers(f.context);
+	const before = structuredClone(f.scene);
+	handlers.onCut(clipboardEvent());
+	assert.equal(f.scene.layers.length, 0);
+	await handlers.onPaste(clipboardEvent());
+	assert.equal(f.scene.layers.length, 1);
+	assert.notEqual(f.scene.layers[0].id, f.layer.id);
+	assert.deepEqual(f.scene.layers[0].clips.map(clip => clip.startMs), [100, 400]);
+	f.history.undo(); f.history.undo();
+	assert.deepEqual(f.scene, before);
+});
+
+// 【Deleteはコピー内容を変更せず、空選択や失効した選択の切り取りは削除しない】
+// DeleteとCutの役割を区別し、コピーに失敗して古い内容だけが残る状態でデータを失わないようにする。
+test('deletes selections without changing clipboard contents and refuses unsuccessful cuts', t => {
+	const f = fixture(t);
+	const handlers = createHandlers(f.context);
+	handlers.onCopy(clipboardEvent());
+	const clipboard = f.timelineClipboard.value;
+	const before = structuredClone(f.scene);
+	handlers.onKeydown(clipboardEvent({ key: 'Delete' }));
+	assert.equal(f.layer.clips.length, 0);
+	assert.equal(f.timelineClipboard.value, clipboard);
+	f.history.undo();
+	assert.deepEqual(f.scene, before);
+	f.selection.value = { kind: 'clips', clips: [{ layerId: f.layer.id, clipId: 'missing' }] };
+	handlers.onCut(clipboardEvent());
+	assert.deepEqual(f.scene, before);
+	assert.equal(f.timelineClipboard.value, clipboard);
+	assert.equal(f.history.undoStack.value.length, 0);
+	f.selection.value = { kind: 'clips', clips: [] };
+	assert.equal(handlers.actions.canCopy(), false);
+	assert.equal(handlers.actions.canCut(), false);
 });

@@ -75,12 +75,13 @@ const result = await build({
 	} }],
 });
 const bundled = { exports: {} };
-new Function('require', 'module', 'exports', result.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports);
+new Function('require', 'module', 'exports', 'window', result.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports,
+	{ document: { getSelection: () => null } });
 const { Timeline, Inspector, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest, dropUiTest } = bundled.exports;
 const { startDragSession, finishDragSession } = bundled.exports;
 let dragWindow = null;
 
-function element(tag = 'div') { return { tag, parent: null, children: [], props: {}, text: '', offsetWidth: 1000, offsetHeight: 500, ownerDocument: { defaultView: dragWindow } }; }
+function element(tag = 'div') { return { tag, parent: null, children: [], props: {}, text: '', offsetWidth: 1000, offsetHeight: 500, ownerDocument: { defaultView: dragWindow }, focus() {} }; }
 
 const renderer = createRenderer({
 	createElement: element, createText: text => ({ ...element('text'), text }), createComment: () => element('comment'),

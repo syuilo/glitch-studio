@@ -14,6 +14,12 @@
 				<img src="/gs.svg" draggable="false" style="display: block; width: 20px; height: 20px; margin: 0 4px 0 8px;">
 				<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
 				<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
+				<template v-if="isElectron">
+					<button v-tooltip="i18n.ts.Copy" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Copy" :disabled="!headerEditActions.canCopy.value" data-editor-command-button data-test-header-copy @pointerdown.prevent @click="headerEditActions.execute('copy')"><i class="ti ti-copy"></i></button>
+					<button v-tooltip="i18n.ts.Paste" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Paste" :disabled="!headerEditActions.canPaste.value" data-editor-command-button data-test-header-paste @pointerdown.prevent @click="headerEditActions.execute('paste')"><i class="ti ti-clipboard"></i></button>
+					<button v-tooltip="i18n.ts.Cut" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Cut" :disabled="!headerEditActions.canCut.value" data-editor-command-button data-test-header-cut @pointerdown.prevent @click="headerEditActions.execute('cut')"><i class="ti ti-cut"></i></button>
+					<button v-tooltip="i18n.ts.Delete" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Delete" :disabled="!headerEditActions.canDelete.value" data-editor-command-button data-test-header-delete @pointerdown.prevent @click="headerEditActions.execute('delete')"><i class="ti ti-trash"></i></button>
+				</template>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
@@ -85,6 +91,9 @@ import { installProjectSaveCloseGuard } from './project-save-close-guard.ts';
 import { importVisualModuleFile } from './utility/visual-module-file.ts';
 import { importAssets } from './utility/import-assets.ts';
 import { fileDropTargetInstallerKey, installFileDropHandlers } from './utility/file-drop.ts';
+import { editorEditTargetKey } from './composables/useEditorEditActions.ts';
+import type { EditorEditTarget } from './composables/useEditorEditActions.ts';
+import { useHeaderEditActions } from './composables/useHeaderEditActions.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsDropOverlay from './components/common/GsDropOverlay.vue';
 import GsEllipsis from './components/common/GsEllipsis.vue';
@@ -102,6 +111,17 @@ import * as ui from '@/ui.ts';
 const workspaceController = new WorkspaceController(preferences.r.workspaceDefinition, root => preferences.commit('workspaceDefinition', root));
 provide(workspaceControllerKey, workspaceController);
 provide(fileDropTargetInstallerKey, installFileDrops);
+const isElectron = __ELECTRON__;
+const editorEditTarget = shallowRef<EditorEditTarget | null>(null);
+provide(editorEditTargetKey, editorEditTarget);
+const headerEditActions = useHeaderEditActions({
+	editorTarget: editorEditTarget,
+	executeNativeCommand: async command => {
+		if (!__ELECTRON__ || window.desktop == null) return;
+		await window.desktop.executeEditCommand(command);
+	},
+	reportError: error => { void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); },
+});
 
 async function onFileDrop(files: File[]) {
 	const ids = await importAssets(appContext.projectContext, files, async () => {

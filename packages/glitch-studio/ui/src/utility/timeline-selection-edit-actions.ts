@@ -13,8 +13,9 @@ import type { TimelineClipMediaInfo, TimelineClipSourceDurations } from './timel
 import { duplicateTimelineLayers } from './timeline-container.ts';
 import { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips } from './timeline-clip-clipboard.ts';
 import { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection } from './timeline-keyframe-clipboard.ts';
+import { getSelectedTimelineLayerId } from './timeline-editor-state.ts';
 
-type TimelineClipboardActionsOptions = {
+type TimelineSelectionEditActionsOptions = {
 	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
 	scene: TimelineScene;
 	sceneLayers: Readonly<Ref<TimelineLayer[]>>;
@@ -30,27 +31,60 @@ type TimelineClipboardActionsOptions = {
 	reportError: (error: unknown) => void;
 };
 
-/** コピー内容のスナップショットと貼り付けの準備・再確認・Command適用を担当する。キー入力は呼び出し側で扱う。 */
-export function createTimelineClipboardActions(options: TimelineClipboardActionsOptions) {
+/** 選択対象のコピー・切り取り・削除と、貼り付けの準備・再確認・Command適用を担当する。DOMイベントは呼び出し側で扱う。 */
+export function createTimelineSelectionEditActions(options: TimelineSelectionEditActionsOptions) {
 	const { stateManager, scene, sceneLayers, selection, selectedLayer, clipboard, currentTime,
 		isActive, inspectMedia, readLayerMediaDurations, selectLayer, focusTimeline, reportError } = options;
 
 	function canCopy() {
-		return selection.value.kind !== 'layers' || selectedLayer.value != null;
+		if (!isActive()) return false;
+		const current = selection.value;
+		return current.kind === 'keyframes' ? current.keyframes.length > 0 : current.kind === 'clips' ? current.clips.length > 0 : current.ids.length === 1 && selectedLayer.value != null;
 	}
 
 	function copySelection() {
+		if (!canCopy()) return false;
 		const current = selection.value;
-		if (current.kind === 'keyframes') clipboard.value = copyTimelineKeyframes(stateManager.state, scene, current.keyframes);
-		else if (current.kind === 'clips') clipboard.value = copyTimelineClips(scene, current.clips);
-		else if (selectedLayer.value != null) {
-			// コピー後の編集がクリップボードの内容に影響しないよう、ここでスナップショットを作る。
-			clipboard.value = { kind: 'layer', layer: deepClone(selectedLayer.value) };
-		}
+		// コピーに失敗した場合は以前の内容を維持し、切り取りでも削除へ進まない。
+		const content: TimelineClipboard | null = current.kind === 'keyframes' ? copyTimelineKeyframes(stateManager.state, scene, current.keyframes)
+			: current.kind === 'clips' ? copyTimelineClips(scene, current.clips)
+			: selectedLayer.value != null ? { kind: 'layer', layer: deepClone(selectedLayer.value) } : null;
+		if (content == null) return false;
+		clipboard.value = content;
+		return true;
 	}
 
 	function canPaste() {
-		return clipboard.value != null && (clipboard.value.kind !== 'layer' || selection.value.kind !== 'clips');
+		return isActive() && clipboard.value != null && (clipboard.value.kind !== 'layer' || selection.value.kind !== 'clips');
+	}
+
+	function canDelete() {
+		if (!isActive()) return false;
+		const current = selection.value;
+		return current.kind === 'keyframes' ? current.keyframes.length > 0 : current.kind === 'clips' ? current.clips.length > 0 : current.ids.length > 0;
+	}
+
+	function deleteSelection() {
+		if (!canDelete()) return;
+		const current = selection.value;
+		if (current.kind === 'keyframes') {
+			const layerId = getSelectedTimelineLayerId(current);
+			stateManager.commit('removeTimelineKeyframes', { sceneId: scene.id, keyframes: deepClone(current.keyframes) });
+			selection.value = { kind: 'layers', ids: layerId != null ? [layerId] : [] };
+		} else if (current.kind === 'clips') {
+			stateManager.commit('removeTimelineClips', { sceneId: scene.id, clips: deepClone(current.clips) });
+			selection.value = { kind: 'clips', clips: [] };
+		} else {
+			stateManager.commit('removeTimelineLayers', { sceneId: scene.id, layerIds: [...current.ids] });
+			selection.value = { kind: 'layers', ids: [] };
+		}
+		focusTimeline();
+	}
+
+	function canCut() { return canCopy() && canDelete(); }
+
+	function cutSelection() {
+		if (canCut() && copySelection()) deleteSelection();
 	}
 
 	async function pasteClips(content: TimelineClipClipboard) {
@@ -115,6 +149,10 @@ export function createTimelineClipboardActions(options: TimelineClipboardActions
 	}
 
 	return {
+		canCut,
+		cutSelection,
+		canDelete,
+		deleteSelection,
 		canCopy,
 		copySelection,
 		canPaste,

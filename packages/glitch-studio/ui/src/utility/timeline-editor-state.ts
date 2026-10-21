@@ -2,7 +2,7 @@ import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_share
 import type { TimelineSelection } from './timeline-selection.ts';
 import type { TimelineClipClipboard } from './timeline-clip-clipboard.ts';
 import type { TimelineKeyframeClipboard } from './timeline-keyframe-clipboard.ts';
-import { shallowReactive } from 'vue';
+import { shallowReactive, shallowRef } from 'vue';
 
 // 表示状態は保存・Undoの対象にせず、Sceneの定義が破棄されれば一緒に回収する。
 export const sceneEditorStates = new WeakMap<TimelineScene, {
@@ -35,4 +35,5 @@ export function getSelectedTimelineLayerId(selection: TimelineSelection): string
 
 export type TimelineClipboard = { kind: 'layer'; layer: TimelineLayer } | TimelineClipClipboard | TimelineKeyframeClipboard;
 
-export const timelineClipboard: { value: TimelineClipboard | null } = { value: null };
+// コピー元Sceneとの同一性を貼り付け時に比較するため、内容はproxy化しない。
+export const timelineClipboard = shallowRef<TimelineClipboard | null>(null);

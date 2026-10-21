@@ -9,7 +9,7 @@ const uiDirectory = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
-		export { createTimelineClipboardActions } from './src/utility/timeline-clipboard-actions.ts';
+		export { createTimelineSelectionEditActions } from './src/utility/timeline-selection-edit-actions.ts';
 		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/utility/timeline-keyframe-clipboard.ts';
 		export * from './src/utility/timeline-clip-clipboard.ts';
@@ -39,7 +39,7 @@ const { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKe
 	COMMAND_DEFS, UndoRedo, createShapeTimelineLayer, createInlineKeyframesTimeline, resolveLayerParameter,
 	getLayerParameterDefinitions, getLayerParameterValues, resolveParameter, arrayDefinition, genId } = module.exports;
 
-const createHandler = context => createTimelineClipboardHandlers(module.exports, context).onTlKeydown;
+const createHandler = context => createTimelineClipboardHandlers(module.exports, context);
 
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
@@ -253,10 +253,10 @@ test('removes default keys from independent root drafts and restores unset argum
 	}
 });
 
-// 【Ctrl/Cmd+C・Vでキーを操作し、貼り付け後の選択とクリップボードの種類を更新する】
-// 選択対象が変わってもコピー元レーンへ貼り付け、入力欄のコピーやキーリピートは奪わない。
-test('copies and pastes keyframes through shortcuts and switches clipboard kinds correctly', async t => {
-	for (const modifiers of [{ ctrlKey: true }, { ctrlKey: false, metaKey: true }]) {
+// 【DOMのcopy・pasteでキーを操作し、貼り付け後の選択とクリップボードの種類を更新する】
+// 選択対象が変わってもコピー元レーンへ貼り付け、入力欄や処理済みイベントは奪わない。
+test('copies and pastes keyframes through DOM events and switches clipboard kinds correctly', async t => {
+	{
 		const f = fixture(t);
 		const selection = { value: { kind: 'keyframes', keyframes: f.selection } };
 		const timelineClipboard = { value: null };
@@ -264,29 +264,50 @@ test('copies and pastes keyframes through shortcuts and switches clipboard kinds
 			selectedLayer: { value: f.layer }, props: { sceneId: 'scene' }, stateManager: f.history,
 			tlEl: { value: { focus() {} } }, time: { value: 1000.4 }, disposed: false,
 			copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection, copyTimelineClips };
-		const keydown = createHandler(context);
-		const keyboard = (key, overrides = {}) => ({ key, ctrlKey: true, metaKey: false, ...modifiers,
-			repeat: false, defaultPrevented: false, target: null, preventDefault() { this.defaultPrevented = true; }, stopPropagation() {}, ...overrides });
-		await keydown(keyboard('c'));
+		const handlers = createHandler(context);
+		const clipboardEvent = (overrides = {}) => ({ defaultPrevented: false, target: null, preventDefault() { this.defaultPrevented = true; }, stopPropagation() {}, ...overrides });
+		await handlers.onCopy(clipboardEvent());
 		assert.equal(timelineClipboard.value.kind, 'keyframes');
 		selection.value = { kind: 'layers', ids: [f.layer.id] };
-		await keydown(keyboard('v', { repeat: true }));
+		await handlers.onPaste(clipboardEvent({ defaultPrevented: true }));
 		assert.equal(f.history.undoStack.value.length, 0);
-		await keydown(keyboard('v'));
+		await handlers.onPaste(clipboardEvent());
 		assert.equal(selection.value.kind, 'keyframes');
 		assert.deepEqual(selection.value.keyframes.map(point => f.read(point).keyframesTimeline.keyframes.find(key => key.id === point.keyframeId).x), [1000, 1200]);
-		await keydown(keyboard('v'));
+		await handlers.onPaste(clipboardEvent());
 		assert.equal(f.history.undoStack.value.length, 1);
 		const input = new context.HTMLElement();
 		input.closest = () => true;
-		const typing = keyboard('c', { target: input });
-		await keydown(typing);
+		const typing = clipboardEvent({ target: input });
+		await handlers.onCopy(typing);
 		assert.equal(typing.defaultPrevented, false);
 		selection.value = { kind: 'clips', clips: [{ layerId: f.layer.id, clipId: f.layer.clips[0].id }] };
-		await keydown(keyboard('c'));
+		await handlers.onCopy(clipboardEvent());
 		assert.equal(timelineClipboard.value.kind, 'clips');
 		selection.value = { kind: 'layers', ids: [f.layer.id] };
-		await keydown(keyboard('c'));
+		await handlers.onCopy(clipboardEvent());
 		assert.equal(timelineClipboard.value.kind, 'layer');
 	}
+});
+
+// 【キーの切り取りを一つの削除Commandにまとめ、値と補間を保持して貼り付ける】
+// 切り取ったキーはSceneの同一性とレーン情報を保持し、コピー元が消えても元の相対時刻で貼り付けられる必要がある。
+test('cuts keyframes with one undo entry and preserves their values for paste', async t => {
+	const f = fixture(t);
+	const selection = { value: { kind: 'keyframes', keyframes: f.selection } };
+	const timelineClipboard = { value: null };
+	const handlers = createHandler({ HTMLElement: class {}, selection, editedScene: f.scene, timelineClipboard,
+		selectedLayer: { value: f.layer }, stateManager: f.history, tlEl: { value: { focus() {} } }, time: { value: 1000 } });
+	const event = () => ({ target: null, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopPropagation() {} });
+	const before = structuredClone(f.scene);
+	handlers.onCut(event());
+	assert.equal(f.history.undoStack.value.length, 1);
+	assert.equal(timelineClipboard.value.kind, 'keyframes');
+	assert.equal(timelineClipboard.value.scene, f.scene);
+	assert.deepEqual(timelineClipboard.value.keyframes.map(entry => entry.keyframe.x), [100, 300]);
+	await handlers.onPaste(event());
+	assert.equal(f.history.undoStack.value.length, 2);
+	assert.deepEqual(selection.value.keyframes.map(point => f.read(point).keyframesTimeline.keyframes.find(key => key.id === point.keyframeId).x), [1000, 1200]);
+	f.history.undo(); f.history.undo();
+	assert.deepEqual(f.scene, before);
 });

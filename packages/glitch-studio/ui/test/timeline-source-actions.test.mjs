@@ -10,7 +10,7 @@ const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { resolveDir: uiDirectory, loader: 'ts', contents: `
 		export { createTimelineSourceActions } from './src/utility/timeline-source-actions.ts';
-		export { createTimelineClipboardActions } from './src/utility/timeline-clipboard-actions.ts';
+		export { createTimelineSelectionEditActions } from './src/utility/timeline-selection-edit-actions.ts';
 		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
@@ -27,7 +27,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { createTimelineSourceActions, createTimelineClipboardActions, flattenTimelineLayers, COMMAND_DEFS, UndoRedo } = module.exports;
+const { createTimelineSourceActions, createTimelineSelectionEditActions, flattenTimelineLayers, COMMAND_DEFS, UndoRedo } = module.exports;
 
 function deferred() {
 	let resolve;
@@ -309,7 +309,7 @@ test('loads grouped media durations by layer and pastes the group through clipbo
 	const durations = await sources.readLayerMediaDurations(group);
 	assert.deepEqual({ ...durations }, { short: { clip: 100 }, long: { clip: 1000 } });
 	const clipboard = { value: { kind: 'layer', layer: structuredClone(group) } };
-	const actions = createTimelineClipboardActions({
+	const actions = createTimelineSelectionEditActions({
 		...f.options, clipboard, selection: f.selection, selectedLayer: { value: group },
 		readLayerMediaDurations: sources.readLayerMediaDurations, focusTimeline() {},
 	});

@@ -15,6 +15,7 @@ import { registerExportFileIpc } from './export-file-ipc.mjs';
 import { DesktopInstances } from './desktop-instances.mjs';
 import { DesktopUpdateController, registerDesktopUpdateIpc } from './desktop-update.mjs';
 import { findGitHubUpdate } from './github-updates.mjs';
+import { registerEditCommandIpc } from './edit-command-ipc.mjs';
 
 const projectFiles = new ProjectFiles();
 const externalAssetFiles = new ExternalAssetFiles();
@@ -161,6 +162,7 @@ app.whenReady().then(async () => {
 	});
 	registerDesktopUpdateIpc(ipcMain, desktopUpdateController, getTrustedMainWindow);
 	registerProjectCloseIpc(ipcMain, getTrustedMainWindow, () => projectCloseController);
+	registerEditCommandIpc(ipcMain, getTrustedMainWindow);
 	Menu.setApplicationMenu(null);
 	if (process.platform === 'win32') app.setAppUserModelId(windowsAppUserModelId);
 	if (process.platform === 'darwin') app.dock.setIcon(iconPath);

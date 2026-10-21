@@ -1,11 +1,11 @@
 <template>
-<div :class="$style.root">
+<div ref="root" :class="$style.root" tabindex="-1" @copy="editEvents.onCopy" @paste="editEvents.onPaste" @cut="editEvents.onCut" @keydown="editEvents.onKeydown" @focusin.capture="editEvents.activate" @pointerdown.capture="editEvents.activate">
 	<div :class="$style.header">
 	</div>
 	<div :class="$style.body">
 		<div :class="$style.side">
 		</div>
-		<div ref="tlEl" :class="$style.tl" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown" @keydown="onTlKeydown">
+		<div ref="tlEl" :class="$style.tl" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown">
 			<div :class="$style.yTicks" @wheel="onYTicksWheel">
 				<div v-for="valueY of yTicks" class="_monospace" :class="[$style.yTick, { [$style.yTickActive]: snappingY != null && nearlyEqual(snappingY, valueY) }]" :style="{ top: valueYToDomY(valueY) + 'px' }">{{ valueY.toFixed(2) }}</div>
 			</div>
@@ -128,6 +128,7 @@ import GsButton from './common/GsButton.vue';
 import type { AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';
 import { i18n } from '@/i18n.ts';
 import { dragListen } from '@/utility/drag.ts';
+import { useEditorEditActions } from '@/composables/useEditorEditActions.ts';
 
 // TODO: dom座標としてのx/yとpointの値としてのx/yは同じ数値ではあるが意味が異なるので、Phantom Typeなどで区別する
 
@@ -871,27 +872,43 @@ function deletePoint(point: BezierAnchorPoint) {
 	ppints.value.splice(index, 1);
 }
 
-let copyingPoints: BezierAnchorPoint[] | null = null;
+const copyingPoints = shallowRef<BezierAnchorPoint[] | null>(null);
 
-function onTlKeydown(ev: KeyboardEvent) {
-	console.log(ev.key, ev.ctrlKey);
-	if (ev.key === 'Backspace') {
-		const kfs = selectedPoints.value;
-		selectedPoints.value = [];
-		contextmenuPoint.value = null;
-		for (const kf of kfs) {
-			deletePoint(kf);
-		}
-	} else if (ev.ctrlKey && ev.key === 'c') {
-		copyingPoints = JSON.parse(JSON.stringify(selectedPoints.value));
-	} else if (ev.ctrlKey && ev.key === 'v') {
-		if (copyingPoints == null || copyingPoints.length === 0) return;
-		const baseTime = copyingPoints[0].x;
-		for (const kf of copyingPoints) {
-			addPoint(cursorValueX.value + (kf.x - baseTime), kf.y);
-		}
-	}
+function copySelection() {
+	copyingPoints.value = deepClone(selectedPoints.value);
 }
+
+function pastePoints() {
+	const points = copyingPoints.value;
+	if (points == null || points.length === 0) return;
+	const baseTime = points[0].x;
+	for (const point of points) {
+		addPoint(cursorValueX.value + (point.x - baseTime), point.y);
+	}
+	tlEl.value?.focus({ preventScroll: true });
+}
+
+function deleteSelection() {
+	const removable = selectedPoints.value.filter(point => !isFixedEndpoint(point));
+	for (const point of removable) deletePoint(point);
+	selectedPoints.value = selectedPoints.value.filter(point => ppints.value.includes(point));
+	contextmenuPoint.value = null;
+}
+
+const editEvents = useEditorEditActions(useTemplateRef('root'), {
+	canCopy: () => selectedPoints.value.length > 0,
+	copySelection,
+	canPaste: () => copyingPoints.value != null && copyingPoints.value.length > 0,
+	paste: pastePoints,
+	canCut: () => selectedPoints.value.some(point => !isFixedEndpoint(point)),
+	cutSelection() {
+		// 固定端点は削除できないため、切り取り内容にも含めない。
+		copyingPoints.value = deepClone(selectedPoints.value.filter(point => !isFixedEndpoint(point)));
+		deleteSelection();
+	},
+	canDelete: () => selectedPoints.value.some(point => !isFixedEndpoint(point)),
+	deleteSelection,
+});
 
 function toggleBezierA() {
 	if (selectedPoint.value == null) return;

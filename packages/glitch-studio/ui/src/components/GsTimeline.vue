@@ -1,8 +1,11 @@
 <template>
 <div
 	ref="root"
+	tabindex="-1"
 	:class="$style.root"
 	@keydown="onTlKeydown"
+	@copy="editEvents.onCopy" @paste="editEvents.onPaste" @cut="editEvents.onCut"
+	@focusin.capture="editEvents.activate" @pointerdown.capture="editEvents.activate"
 	@dragenter.capture="assetDrop.onDragenter" @dragover.capture="assetDrop.onDragover"
 	@dragleave.capture="assetDrop.onDragleave" @drop.capture="assetDrop.onDrop"
 >
@@ -183,7 +186,8 @@ import { appContext } from '@/app.ts';
 import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
 import { createTimelineSourceActions } from '@/utility/timeline-source-actions.ts';
-import { createTimelineClipboardActions } from '@/utility/timeline-clipboard-actions.ts';
+import { createTimelineSelectionEditActions } from '@/utility/timeline-selection-edit-actions.ts';
+import { useEditorEditActions } from '@/composables/useEditorEditActions.ts';
 import { createTimelineLayerActions } from '@/utility/timeline-layer-actions.ts';
 import { createTimelineDropActions } from '@/utility/timeline-drop-actions.ts';
 import { useAssetDrop } from '@/composables/useAssetDrop.ts';
@@ -585,8 +589,7 @@ watch(selectedKeyframe, value => {
 
 function removeSelectedKeyframes() {
 	if (selection.value.kind !== 'keyframes' || selection.value.keyframes.length === 0) return;
-	stateManager.commit('removeTimelineKeyframes', { sceneId: props.sceneId, keyframes: deepClone(selection.value.keyframes) });
-	selection.value = { kind: 'layers', ids: selectedLayerId.value ? [selectedLayerId.value] : [] };
+	selectionEditActions.deleteSelection();
 }
 
 function onKeyframeSelected(selection: TimelineKeyframeSelection) {
@@ -704,8 +707,9 @@ function isTimelineActive() {
 	return !disposed && props.sceneId === editedScene.id && stateManager.state.timelineScenes.value.find(scene => scene.id === editedScene.id) === editedScene;
 }
 
+const root = useTemplateRef<HTMLElement>('root');
 const assetDrop = useAssetDrop({
-	target: useTemplateRef<HTMLElement>('root'),
+	target: root,
 	...createTimelineDropActions({
 		context: appContext.projectContext,
 		sceneId: editedScene.id,
@@ -733,7 +737,7 @@ const { addClip, changeClipSource, showAddLayerMenu, readLayerMediaDurations } =
 	seek: timeMs => previewPlayback.seekTimeline(timeMs),
 	reportError: error => { audioError.value = error instanceof Error ? error.message : String(error); },
 });
-const clipboardActions = createTimelineClipboardActions({
+const selectionEditActions = createTimelineSelectionEditActions({
 	stateManager,
 	scene: editedScene,
 	sceneLayers,
@@ -752,6 +756,8 @@ const clipboardActions = createTimelineClipboardActions({
 	},
 });
 
+const editEvents = useEditorEditActions(root, selectionEditActions);
+
 const layerActions = createTimelineLayerActions({
 	stateManager,
 	scene: editedScene,
@@ -766,24 +772,13 @@ const layerActions = createTimelineLayerActions({
 	focusTimeline: () => tlEl.value?.focus({ preventScroll: true }),
 });
 
-async function onTlKeydown(ev: KeyboardEvent) {
+function onTlKeydown(ev: KeyboardEvent) {
+	editEvents.onKeydown(ev);
 	if (ev.defaultPrevented) return;
 	const target = ev.target;
 	if (target instanceof HTMLElement && (target.closest('input, textarea, select') || target.isContentEditable)) return;
 	const key = ev.key.toLowerCase();
 	if (key === 'c' && !(ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey)) { onCueKeyboardDown(ev); return; }
-	if ((key === 'delete' || key === 'backspace') && selection.value.kind === 'keyframes') { ev.preventDefault(); ev.stopPropagation(); removeSelectedKeyframes(); return; }
-	if ((key === 'delete' || key === 'backspace') && selection.value.kind === 'clips') { ev.preventDefault(); ev.stopPropagation(); removeSelectedClips(); return; }
-	if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
-	if (key === 'c' && clipboardActions.canCopy()) {
-		ev.preventDefault();
-		ev.stopPropagation();
-		if (!ev.repeat) clipboardActions.copySelection();
-	} else if (key === 'v' && clipboardActions.canPaste()) {
-		ev.preventDefault();
-		ev.stopPropagation();
-		if (!ev.repeat) await clipboardActions.paste();
-	}
 }
 
 function selectLayer(layer: TimelineLayer, event?: MouseEvent) {
@@ -850,7 +845,7 @@ watch(() => mediaAssets.value.map(asset => ({ asset, fileSource: asset.fileData 
 
 function removeSelectedClips() {
 	if (selection.value.kind !== 'clips' || selection.value.clips.length === 0) return;
-	stateManager.commit('removeTimelineClips', { sceneId: props.sceneId, clips: deepClone(selection.value.clips) });
+	selectionEditActions.deleteSelection();
 }
 
 function showClipMenu(event: PointerEvent, target: TimelineClipSelection) {

@@ -24,6 +24,10 @@ UIが終了・再読み込み時に未保存の変更を判定して`beforeunloa
 
 通常のテストは範囲読み取り・再解決・パス・原本書き出しを検証します。`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/external-assets-electron.test.mjs`を実行すると、配布用`app://`・Vite開発・ViteプレビューでWindowとWorkerの隔離、動画再生とデコード、画像のCORS読み込み、別ウィンドウでの描画も確認できます。
 
+## 編集コマンド
+
+`edit-command-ipc.mjs`は送信元のメインウィンドウを検証し、`copy`・`paste`・`cut`・`delete`だけを`webContents`の対応する編集メソッドへ渡します。preloadは`executeEditCommand`を公開します。文字列の読み書きやキーイベントの合成は行わず、入力欄の選択範囲・入力通知・Undo履歴はChromiumが管理します。タイムラインやグラフのcopy・paste・cutは、発生したDOMイベントをUI側で処理します。
+
 ## 最近使用したプロジェクト
 
 WindowsとmacOSでは、プロジェクトを開く・保存する操作が成功してアプリ内の履歴へ記録した際に、`app.addRecentDocument()`でOSの履歴にも登録します。Windowsではタスクバーのジャンプリスト、macOSではDockアイコンの右クリックメニューから、最近の`.gsproj`を開けます。[Electronの仕様](https://www.electronjs.org/docs/latest/tutorial/recent-documents)も参照してください。
