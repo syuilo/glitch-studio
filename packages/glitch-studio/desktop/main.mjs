@@ -111,9 +111,13 @@ function createWindow() {
 			sandbox: true,
 		},
 	});
-	// 通常サイズのウィンドウが一瞬表示されないよう、最大化してから表示する。
-	mainWindow.maximize();
-	mainWindow.show();
+	// 初回描画前に表示すると、背景色を黒にしていても白くちらつくことがある。
+	// maximize()自体もウィンドウを表示するため、最大化も描画の準備ができるまで待つ。
+	mainWindow.once('ready-to-show', () => {
+		// 通常サイズのウィンドウが一瞬表示されないよう、最大化してから表示する。
+		mainWindow.maximize();
+		mainWindow.show();
+	});
 	mainWindow.on('close', event => {
 		if (desktopUpdateController?.shouldBlockQuit === true) event.preventDefault();
 	});
