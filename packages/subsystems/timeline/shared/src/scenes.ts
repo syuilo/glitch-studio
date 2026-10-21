@@ -1,5 +1,5 @@
-import { isTimelineContainerLayer, isTimelineVisualLayer } from './types.ts';
-import { validateTimelineMask } from './timeline-compositing.ts';
+import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer } from './types.ts';
+import { validateTimelineMask, isTimelineLayerTransformTarget } from './timeline-compositing.ts';
 import { validateTimelineTransform } from './layers/transform/transform.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import { validateTimelineCamera } from './layers/camera/camera.ts';
@@ -28,6 +28,7 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 /** パラメータや子孫をたどらず、レイヤー自身の区間・解像度・固有設定だけを検証する。 */
 export function validateTimelineLayerStructure(layer: TimelineLayer): void {
 	if (isTimelineVisualLayer(layer)) validateTimelineMask(layer.mask);
+	if (isTimelineEffectOrVisualModuleLayer(layer) && layer.transformTarget != null && !isTimelineLayerTransformTarget(layer.transformTarget)) throw new Error('Invalid timeline layer transform target');
 	if (!isTimelineContainerLayer(layer)) validateTimelineClips(layer.clips);
 	if (layer.layerType === 'video' || layer.layerType === 'audio') {
 		for (const clip of layer.clips) {

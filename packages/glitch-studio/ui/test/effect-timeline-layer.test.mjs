@@ -301,9 +301,11 @@ test('labels keyframe rows by owner and current array order while preserving pat
 // 座標空間の初期値は生成系・加工系とも画面配置とし、パラメータBindingには含めない。
 test('initializes kinds independently of primary input presence and resets the lowerLayerOutput binding', () => {
 	const generated = fixture('grid');
+	assert.equal(generated.layer.transformTarget, 'image');
 	assert.deepEqual(generated.layer.effectParamValues.background, effectDefinitions.grid.paramDefs.background.defaultValue);
 	assert.deepEqual(generated.layer.compositingParamValues.blendMode, literal('normal'));
 	const modified = fixture('colorMix');
+	assert.equal(modified.layer.transformTarget, 'region');
 	for (const { layer } of [generated, modified]) {
 		assert.equal(layer.coordinateSpace, 'screen');
 		assert.equal('coordinateSpace' in layer.compositingParamValues, false);
@@ -312,6 +314,7 @@ test('initializes kinds independently of primary input presence and resets the l
 	assert.deepEqual(modified.read(['inputA']), { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 	assert.deepEqual(modified.layer.compositingParamValues.blendMode, literal('replace'));
 	modified.edit(['inputA'], { kind: 'literal', value: [1, 0, 0, 1] });
+	assert.equal(modified.layer.transformTarget, 'region');
 	const reset = modified.edit(['inputA'], { kind: 'reset' });
 	assert.equal(modified.read(['inputA']).inputSource, 'lowerLayerOutput');
 	reset.undo(modified.state);
@@ -321,6 +324,24 @@ test('initializes kinds independently of primary input presence and resets the l
 	assert.deepEqual(modified.layer.resolution, { mode: 'auto' });
 	const noPrimary = createEffectTimelineLayer({ ...effectDefinitions.grid, kind: 'modify', primaryInputParameter: null }, 0);
 	assert.equal(noPrimary.effectParamValues.background.inputSource, 'literal');
+});
+
+// 【変形対象は入力接続やFitから独立して切り替え、Undo/Redoで復元する】
+// 入力を変更してもモードを推測し直さず、範囲モードから戻したときに元の画像設定を利用できるようにする。
+test('changes the effect transform target without rewriting inputs or compositing bindings', () => {
+	const f = fixture('colorMix');
+	const bindings = structuredClone(f.layer.compositingParamValues);
+	const inputs = structuredClone(f.layer.effectParamValues);
+	const command = COMMAND_DEFS.setTimelineLayerTransformTarget.create({ sceneId: 'scene', layerId: f.layer.id, transformTarget: 'image' });
+	command.execute(f.state);
+	assert.equal(f.layer.transformTarget, 'image');
+	command.undo(f.state);
+	assert.equal(f.layer.transformTarget, 'region');
+	command.execute(f.state);
+	assert.equal(f.layer.transformTarget, 'image');
+	assert.deepEqual(f.layer.effectParamValues, inputs);
+	assert.deepEqual(f.layer.compositingParamValues, bindings);
+	assert.throws(() => COMMAND_DEFS.setTimelineLayerTransformTarget.create({ sceneId: 'scene', layerId: f.layer.id, transformTarget: 'invalid' }).execute(f.state), /Invalid timeline layer transform target/);
 });
 
 // 【要素の並べ替え・削除・Undo/Redo後もIDパスでキーを扱う】

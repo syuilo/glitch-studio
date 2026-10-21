@@ -11,6 +11,7 @@ export function createEffectTimelineLayer(definition: EffectDefinition, startMs:
 		id: genId(),
 		name: definition.displayName,
 		layerType: 'effect',
+		transformTarget: definition.kind === 'modify' ? 'region' : 'image',
 		effectId: definition.id,
 		isDisabled: false,
 		color: null,

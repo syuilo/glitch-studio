@@ -138,6 +138,7 @@ export async function newProject() {
 			layers: [{
 				id: genId(),
 				layerType: 'visualModule',
+				transformTarget: 'image',
 				isDisabled: false,
 				color: null,
 				visualModuleId: initialVisualModule.id,
@@ -319,6 +320,7 @@ async function loadMediaProject(file?: File) {
 					audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 				} : {
 					layerType: 'visualModule' as const,
+					transformTarget: 'image' as const,
 					name: 'Visual Module',
 					visualModuleId: initialVisualModule.id,
 					visualModuleParamValues: {},

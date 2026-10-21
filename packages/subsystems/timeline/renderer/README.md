@@ -1,5 +1,7 @@
 # Timeline Renderer
 
+エフェクトとVisual Moduleの`transformTarget: region`では、処理済み画像を現在の合成先の座標に固定し、Scene基準の矩形だけを変形する。ぼかし半径・方向や画像の模様をレイヤーの変形で動かさない。範囲の被覆率は出力alphaと分離し、Replaceは透明画素も範囲内だけ置換する。その他の合成・下層切り抜きマスクも範囲外を保持し、矩形の端は画素幅でアンチエイリアスする。Group内部の下層入力は従来どおり隔離される。素材参照の`source`は処理結果全体、`rendered`は範囲を適用した単独描画、`composited`は下層との合成結果を返す。
+
 動画クリップの`videoEnabled`がfalseなら、動画レイヤーは動画ソース・GPU資源を生成せず、映像出力なしを返す。透明画像の合成も行わず、Replace・マスク・グループの`hasOutput`に影響を与えない。音声計画は独立して動作する。
 
 各レイヤーのcompositorは任意の`onCompositing`で合成前の`TimelineImage`と評価済み設定を呼び出し側へ渡せる。opacity=0やreplaceの短絡経路でも通知する。通知の購読対象・Worker通信・プレビューのハンドルはGlitch Studio側が所有し、このパッケージはUIの選択状態を知らない。

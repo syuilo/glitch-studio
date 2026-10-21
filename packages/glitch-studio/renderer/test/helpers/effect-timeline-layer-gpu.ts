@@ -9,9 +9,64 @@ import mixDefinition from '@gs/subsystems_effect_shared/fx/colorMix/_def_.ts';
 import mix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
 import meshDefinition from '@gs/subsystems_effect_shared/fx/meshGradient/_def_.ts';
 import mesh from '@gs/subsystems_effect_shared/fx/meshGradient/_impl_.ts';
+import blurDefinition from '@gs/subsystems_effect_shared/fx/blur/_def_.ts';
+import blur from '@gs/subsystems_effect_shared/fx/blur/_impl_.ts';
 import { createLowerLayerOutputBinding, getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
+
+export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GPUShaderModule, read: (output: GPUTexture) => Promise<number[]>) {
+	const resolution = { width: 8, height: 4 };
+	const background = device.createTexture({ size: resolution, format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+	const backgroundPixels = Array.from({ length: 32 }, (_, index) => index % 8 < 4 ? [255, 0, 0, 255] : [0, 255, 0, 255]).flat();
+	device.queue.writeTexture({ texture: background }, new Uint8Array(backgroundPixels), { bytesPerRow: 32 }, resolution);
+	const image: TimelineImage = { kind: 'texture', texture: background };
+	const layer: TimelineEffectLayer = {
+		id: 'blur', name: 'Blur', layerType: 'effect', effectId: 'blur', transformTarget: 'region',
+		isDisabled: false, color: null, forceDisableMotionBlur: false, mask: null, coordinateSpace: 'screen',
+		clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], resolution: { mode: 'auto' }, automationGraphs: [],
+		effectParamValues: Object.fromEntries(Object.keys(blurDefinition.paramDefs).map(key => [key, getEffectLayerParameterDefault(blurDefinition, key)])),
+		compositingParamValues: {
+			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineEffectLayer['compositingParamValues'],
+			position: { inputSource: 'literal', value: [0.5, 0] }, scale: { inputSource: 'literal', value: [0.5, 1] }, blendMode: { inputSource: 'literal', value: 'replace' },
+		},
+	};
+	const renderer = createEffectTimelineLayer(layer, blurDefinition, blur, {
+		wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		fallbackTexture: background, resolution, resolutionScale: 1, assets: [], assetTextures: new Map(),
+	});
+	const context = { sceneTimeMs: 0, contentTimeMs: 0, timeDelta: 0, isExport: true, clipElapsedTimeMs: 0, clipDurationMs: 1000, contentEndTimeMs: 1000,
+		getInput: async () => image, getLayerOutput: async () => image };
+	const completed: string[] = [];
+	async function pixels(output: TimelineImage | null | undefined) {
+		if (output?.kind !== 'texture') throw new Error('Expected a rendered blur texture');
+		return read(output.texture);
+	}
+	function check(name: string, actual: number[], expected: number[]) {
+		if (actual.length !== expected.length || actual.some((value, index) => Math.abs(value - expected[index]) > 2)) throw new Error(`${name}: ${actual} != ${expected}`);
+		completed.push(name);
+	}
+	try {
+		// 【本物のBlurの素材・単独描画・合成結果を独立して読む】
+		// 合成が素材を上書きしたり、範囲の端で入力を切ってぼかしに必要な周囲を失う不具合を防ぐ。
+		const result = await renderer.evaluate(context, new AbortController().signal);
+		const source = await pixels(result.source);
+		const rendered = await pixels(result.rendered?.());
+		const composited = await pixels(result.composite?.(image));
+		check('blur region renders only the selected area on transparency', rendered, source.map((value, index) => Math.floor(index / 4) % 8 < 4 ? 0 : value));
+		check('blur region composites over the original fixed background', composited, source.map((value, index) => Math.floor(index / 4) % 8 < 4 ? backgroundPixels[index] : value));
+		check('blur source remains available after rendering and compositing', await pixels(result.source), source);
+		if (source[4 * 4] <= 0 || source[4 * 4 + 1] <= 0) throw new Error('Blur must sample colors outside the application region');
+		// 【範囲を移動してもBlur自身の計算結果・半径は変えない】
+		// positionを入力側へ混ぜるとノイズの位置やサンプル範囲まで動き、素材参照の結果も変わってしまう。
+		layer.compositingParamValues.position = { inputSource: 'literal', value: [-0.5, 0] };
+		const moved = await renderer.evaluate(context, new AbortController().signal);
+		check('blur source stays fixed when its application region moves', await pixels(moved.source), source);
+		check('blur region moves to the other half without moving the background', await pixels(moved.composite?.(image)), source.map((value, index) => Math.floor(index / 4) % 8 < 4 ? value : backgroundPixels[index]));
+		return completed;
+	} finally { renderer.destroy(); background.destroy(); }
+}
 
 export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUShaderModule, read: (output: GPUTexture) => Promise<number[]>) {
 	// 実際の登録一覧と同様、異なるパラメータ構造を持つ定義を共通の実行時契約へまとめる。

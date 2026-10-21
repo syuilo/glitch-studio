@@ -16,7 +16,11 @@ const boundsUniform = (bounds: TimelineBounds) => [(bounds.left + bounds.right) 
 const rows = (matrix: TimelineAffine) => ({ x: [matrix[0], matrix[2], matrix[4], 0], y: [matrix[1], matrix[3], matrix[5], 0] });
 
 export function getTimelinePlacement(source: TimelineImage, resolution: { width: number; height: number }, settings: TimelineCompositingSettings, space?: TimelineRenderSpace) {
-	const local = timelineGeometryMatrix({ sourceSize: timelineImageFrame(source, resolution), sceneSize: resolution, transform: settings });
+	const transformsRegion = settings.transformTarget === 'region';
+	const local = timelineGeometryMatrix({
+		sourceSize: transformsRegion ? resolution : timelineImageFrame(source, resolution), sceneSize: resolution,
+		transform: transformsRegion ? { ...settings, fitMode: 'stretch' } : settings,
+	});
 	return settings.coordinateSpace === 'screen' ? multiplyTimelineAffine(space?.screenParent ?? TIMELINE_IDENTITY, local) : projectTimelineMatrix(multiplyTimelineAffine(space?.parent ?? TIMELINE_IDENTITY, local), (space?.depth ?? 0) + settings.depth, resolution, space?.camera);
 }
 
@@ -59,14 +63,24 @@ export function createTimelineCompositor(options: {
 			options.onCompositing?.(source, settings, space);
 			if (settings.opacity === 0 || (settings.mask == null && settings.blendMode === 10)) return background;
 			const placement = getTimelinePlacement(source, resolution, settings, space);
+			const transformsRegion = settings.transformTarget === 'region';
 			// カメラの背後はレイヤーが存在しない扱い。Replaceでも背景を消さない。
 			if (!projected && !placement) return background;
 			const matrix = projected ? TIMELINE_IDENTITY : placement;
 			const inverse = matrix && invertTimelineAffine(matrix);
 			const clipInverse = placement && invertTimelineAffine(placement);
 			const sourceBounds = timelineImageBounds(source);
-			let foregroundBounds = matrix && inverse ? transformTimelineBounds(sourceBounds, matrix) : null;
-			if (settings.clipToFrame) foregroundBounds = foregroundBounds && placement && clipInverse ? intersectTimelineBounds(foregroundBounds, transformTimelineBounds(TIMELINE_FRAME, placement)) : null;
+			// 範囲モードの画像は合成先に固定されている。変形した枠と実際の画像範囲の
+			// 交差だけを描き、移動・拡大で存在しない画素まで描画範囲へ加えない。
+			let foregroundBounds: TimelineBounds | null = null;
+			if (matrix != null && inverse != null) {
+				foregroundBounds = transformsRegion
+					? intersectTimelineBounds(sourceBounds, transformTimelineBounds(TIMELINE_FRAME, matrix))
+					: transformTimelineBounds(sourceBounds, matrix);
+			}
+			if (!transformsRegion && settings.clipToFrame) foregroundBounds = foregroundBounds && placement && clipInverse ? intersectTimelineBounds(foregroundBounds, transformTimelineBounds(TIMELINE_FRAME, placement)) : null;
+			// 範囲が潰れた場合はReplaceや通常マスクでも下層を保持する。
+			if (transformsRegion && foregroundBounds == null) return background;
 			const backgroundBounds = timelineImageBounds(background);
 			// マスクは下層の被覆率だけを変える。素材の領域を合成範囲へ足すと、
 			// 大きなマスクを動かすだけで親Groupのfit・originや画素密度まで変わってしまう。
@@ -75,7 +89,7 @@ export function createTimelineCompositor(options: {
 			outputBounds = fixedBounds ?? outputBounds;
 			// 無変形のReplaceは素材を借用する。高解像度の動画・画像をここで縮小せず、
 			// 次のEffectが素材解像度を選べる既存の動作と余分なパスの省略を維持する。
-			if (settings.mask == null && !fixedBounds && settings.blendMode === 19 && settings.opacity === 1 && !settings.clipToFrame
+			if (!transformsRegion && settings.mask == null && !fixedBounds && settings.blendMode === 19 && settings.opacity === 1 && !settings.clipToFrame
 				&& matrix && matrix.every((value, index) => Math.abs(value - TIMELINE_IDENTITY[index]) < 1e-12)
 				&& Object.keys(sourceBounds).every(key => sourceBounds[key as keyof TimelineBounds] === outputBounds[key as keyof TimelineBounds])) {
 				// 画素を借用しても配置後の基準枠はSceneへ変わる。素材寸法のまま返すと、
@@ -93,6 +107,7 @@ export function createTimelineCompositor(options: {
 				inverseX: inverseRows.x, inverseY: inverseRows.y, clipX: clipRows.x, clipY: clipRows.y,
 				sourceBounds: boundsUniform(sourceBounds), backgroundBounds: boundsUniform(backgroundBounds), outputBounds: boundsUniform(outputBounds),
 				opacity: settings.opacity, blendMode: settings.blendMode, sourceVisible: Number(foregroundBounds != null), clipToFrame: Number(settings.clipToFrame),
+				transformTarget: Number(transformsRegion),
 				maskChannel: settings.mask == null ? 0 : settings.mask.channel === 'alpha' ? 1 : 2, maskInverted: Number(settings.mask?.inverted === true) });
 			device.queue.writeBuffer(buffer, 0, uniforms.arrayBuffer);
 			const variant = pipelines.update({

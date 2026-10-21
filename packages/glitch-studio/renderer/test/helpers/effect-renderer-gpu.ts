@@ -10,9 +10,25 @@ import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
-import { checkEffectTimelineLayers } from './effect-timeline-layer-gpu.ts';
+import { checkEffectTimelineLayers, checkBlurRegionTimelineLayer } from './effect-timeline-layer-gpu.ts';
+import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
 
 export async function run() {
+	return runGpuChecks(async (device, vertex, read) => {
+		const completed = await checkEffectRenderers(device, vertex, read);
+		completed.push(...await checkEffectTimelineLayers(device, vertex, read));
+		return completed;
+	});
+}
+
+export async function runTimelineCompositor() {
+	return runGpuChecks(async (device, vertex, read) => [
+		...await checkTimelineCompositor(device, vertex, read),
+		...await checkBlurRegionTimelineLayer(device, vertex, read),
+	]);
+}
+
+async function runGpuChecks(check: typeof checkTimelineCompositor) {
 	const adapter = await navigator.gpu.requestAdapter();
 	if (adapter == null) throw new Error('WebGPU adapter unavailable');
 	const device = await adapter.requestDevice();
@@ -54,8 +70,7 @@ export async function run() {
 		}
 	}
 	try {
-		const completed = await checkEffectRenderers(device, vertex, read);
-		completed.push(...await checkEffectTimelineLayers(device, vertex, read));
+		const completed = await check(device, vertex, read);
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;

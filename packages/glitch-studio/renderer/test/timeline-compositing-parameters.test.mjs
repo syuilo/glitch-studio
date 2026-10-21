@@ -40,7 +40,7 @@ test('keeps the layer coordinate space fixed across evaluation times', () => {
 // 【初期値は通常合成・不透明・contain・無変形として評価する】
 // 素材の比率が画面と異なっても、種類によらず全体を収める初期状態に揃える。
 test('defaults to normal compositing with an identity transform', () => {
-	assert.deepEqual(evaluate({}), { mask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 });
+	assert.deepEqual(evaluate({}), { transformTarget: 'image', mask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 });
 });
 
 // 合成設定にはレイヤーの変数だけを公開し、Scene時刻を明示し、モジュールの進行率や解像度は継承しない。
@@ -51,7 +51,7 @@ test('evaluates expressions and environment variables in layer context', () => {
 		rotation: expression('if IS_EXPORT { 0.5 } else { 0 }'),
 		opacity: expression('TEST_SAME_NAME / 4'), blendMode: expression('"replace"'),
 	}, [], { isExport: true });
-	assert.deepEqual(result, { mask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false, blendMode: 19, opacity: 0.5, fitMode: 'contain', position: [2, 0], origin: [0, 0], scale: [2, 0], rotation: 0.5 });
+	assert.deepEqual(result, { transformTarget: 'image', mask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false, blendMode: 19, opacity: 0.5, fitMode: 'contain', position: [2, 0], origin: [0, 0], scale: [2, 0], rotation: 0.5 });
 	assert.deepEqual(evaluate({ position: expression('[HEIGHT / WIDTH, 0]') }).position, [0, 0]);
 	assert.deepEqual(evaluate({ position: { inputSource: 'envVariable', variable: 'PROGRESS' } }).position, [0, 0]);
 });
@@ -79,7 +79,7 @@ test('reads named graphs and falls back for missing graph references', () => {
 // 不正な型・非有限値をGPUへ流さず、負の倍率は反転、0は透明化のために保持する。
 test('sanitizes invalid values while preserving flips and zero scales', () => {
 	const result = evaluate({ opacity: literal(2), position: literal([Infinity, 'bad']), scale: literal([-2, 0]), rotation: literal(NaN), blendMode: literal('constructor') });
-	assert.deepEqual(result, { mask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [-2, 0], rotation: 0 });
+	assert.deepEqual(result, { transformTarget: 'image', mask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [-2, 0], rotation: 0 });
 	assert.equal(evaluate({ opacity: literal(-1) }).opacity, 0);
 });
 
@@ -92,6 +92,21 @@ test('evaluates fit modes from literals and layer expressions', () => {
 	const fitMode = expression('if IS_EXPORT { "cover" } else { "contain" }');
 	assert.equal(evaluate({ fitMode }).fitMode, 'contain');
 	assert.equal(evaluate({ fitMode }, [], { isExport: true }).fitMode, 'cover');
+});
+
+// 【適用範囲モードはScene基準の枠を使い、画像モード用のFitを上書き保存しない】
+// 時刻・書き出しでモードが変わらず、画像モードへ戻したときに元のFitを再利用できることを確認する。
+test('keeps the region transform static and evaluates it independently of image fit', () => {
+	const values = { fitMode: literal('cover'), position: expression('[TIME_MS / 1000, 0]') };
+	assert.equal('transformTarget' in timelineCompositingParamDefs, false);
+	for (const isExport of [false, true]) {
+		const settings = evaluate(values, [], { transformTarget: 'region', time: 1000, isExport });
+		assert.equal(settings.transformTarget, 'region');
+		assert.equal(settings.fitMode, 'stretch');
+		assert.deepEqual(settings.position, [1, 0]);
+	}
+	assert.equal(evaluate(values, [], { transformTarget: 'image' }).fitMode, 'cover');
+	assert.equal(values.fitMode.value, 'cover');
 });
 
 // 【Fitの欠落・式の失敗・無効な値はcontainへ戻す】

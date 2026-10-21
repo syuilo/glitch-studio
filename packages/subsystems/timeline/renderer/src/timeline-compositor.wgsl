@@ -12,6 +12,7 @@ struct Uniforms {
 	clipToFrame: u32,
 	maskChannel: u32,
 	maskInverted: u32,
+	transformTarget: u32,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 fn mapBounds(point: vec2f, bounds: vec4f) -> vec2f {
@@ -37,7 +38,22 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// 下層の一様色が新しくできた余白まで無限に塗り広がらないようにする。
 	var background = vec4f(0.0);
 	if (all(abs(backgroundPosition) <= vec2f(1.0))) { background = read_background(backgroundPosition); }
-	let source = readTransformedSource(outputPosition);
+	var coverage = 1.0;
+	var source = vec4f(0.0);
+	if (uniforms.transformTarget == 1u) {
+		let homogeneous = vec3f(outputPosition, 1.0);
+		let local = vec2f(dot(uniforms.inverseX.xyz, homogeneous), dot(uniforms.inverseY.xyz, homogeneous));
+		// 範囲の被覆率は出力alphaから独立させる。透明な結果もReplaceでは置換対象となる。
+		// 変形後の1画素幅で端を補間し、回転・拡縮でも矩形の輪郭がギザギザにならないようにする。
+		let edge = clamp((vec2f(1.0) - abs(local)) / max(fwidth(local), vec2f(0.000001)) + vec2f(0.5), vec2f(0.0), vec2f(1.0));
+		coverage = edge.x * edge.y * f32(uniforms.sourceVisible);
+		// 枠だけを逆変換し、処理済み画像は元の合成先座標で読む。
+		let sourcePosition = mapBounds(outputPosition, uniforms.sourceBounds);
+		if (all(abs(sourcePosition) <= vec2f(1.0))) { source = read_source(sourcePosition); }
+		else { coverage = 0.0; }
+	} else {
+		source = readTransformedSource(outputPosition);
+	}
 	if (uniforms.maskChannel != 0u) {
 		// RGBは既にalpha乗算済みなので、輝度にも透明度が含まれている。
 		// ここでalphaを再乗算すると、半透明の白マスクの効きが二重に弱まる。
@@ -45,9 +61,9 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		if (uniforms.maskInverted != 0u) { mask = 1.0 - mask; }
 		// opacityは適用の強さ。0では下層を保ち、1では透明部分も切り抜く。
 		// premultiplied RGBAのRGBとalphaを同じ割合で減衰させる。
-		return background * mix(1.0, mask, uniforms.opacity);
+		return background * mix(1.0, mask, uniforms.opacity * coverage);
 	}
 	// Replaceは透明な画素も置き換える。範囲の最適化で背景を残してはいけない。
-	if (uniforms.blendMode == 19u) { return mix(background, source, uniforms.opacity); }
-	return blendColor(uniforms.blendMode, background, source * uniforms.opacity);
+	if (uniforms.blendMode == 19u) { return mix(background, source, uniforms.opacity * coverage); }
+	return mix(background, blendColor(uniforms.blendMode, background, source * uniforms.opacity), coverage);
 }

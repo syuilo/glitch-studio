@@ -112,6 +112,11 @@
 		<GsFolder v-if="isTimelineVisualLayer(layer)" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-layers-selected"></i></template>
 			<template #label>{{ i18n.ts._TimelineLayer.Compositing }}</template>
+			<div v-if="isTimelineEffectOrVisualModuleLayer(layer)" class="_spacer">
+				<GsSelect large data-test-timeline-transform-target :modelValue="layer.transformTarget ?? 'image'" :items="transformTargets" @update:modelValue="transformTarget => stateManager.commit('setTimelineLayerTransformTarget', { sceneId, layerId: layer.id, transformTarget })">
+					<template #label>{{ i18n.ts._TimelineLayer.TransformTarget }}</template>
+				</GsSelect>
+			</div>
 			<div class="_spacer">
 				<GsSwitch data-test-timeline-mask-enabled :modelValue="layer.mask != null" @update:modelValue="enabled => setMask(enabled ? { channel: 'alpha', inverted: false } : null)">
 					<template #label>{{ i18n.ts._TimelineLayer.UseAsMask }}</template>
@@ -128,7 +133,7 @@
 			<div style="padding: 8px 0;">
 				<template v-for="(paramDef, paramId) in getTimelineCompositingParameterDefinitions(layer.mask)" :key="paramId">
 					<GsVisualParam
-						v-if="paramId !== 'blendMode' || layer.mask == null"
+						v-if="(paramId !== 'blendMode' || layer.mask == null) && (getTimelineLayerTransformTarget(layer) !== 'region' || (paramId !== 'fitMode' && paramId !== 'clipToFrame'))"
 						:data-test-timeline-compositing-parameter="paramId"
 						keyframesEnabled
 						:automationGraphEndEnabled="false"
@@ -181,7 +186,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, onBeforeUnmount } from 'vue';
-import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { timelineAudioParamDefs, isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
@@ -222,6 +227,7 @@ const { previewPlayback, timelineRendererManagerController } = appContext;
 const groupModes = [{ value: 'flat' as const, label: i18n.ts._TimelineLayer.SinglePlane }, { value: 'preserveDepth' as const, label: i18n.ts._TimelineLayer.PreserveDepth }];
 const coordinateSpaces = [{ value: 'screen' as const, label: i18n.ts._TimelineLayer.ScreenSpace }, { value: 'world' as const, label: i18n.ts._TimelineLayer.WorldSpace }];
 const maskChannels = [{ value: 'alpha' as const, label: i18n.ts._TimelineLayer.Alpha }, { value: 'luminance' as const, label: i18n.ts._TimelineLayer.Luminance }];
+const transformTargets = [{ value: 'image' as const, label: i18n.ts._TimelineLayer.TransformImage }, { value: 'region' as const, label: i18n.ts._TimelineLayer.TransformRegion }];
 const { stateManager } = appContext.projectContext;
 let colorEdit: ReturnType<typeof stateManager.beginEdit<'setTimelineLayerColor'>> | null = null;
 

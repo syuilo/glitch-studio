@@ -96,6 +96,47 @@ function fixture(t, options = {}) {
 	} };
 }
 
+// 【適用範囲の操作枠はScene基準とし、処理結果の実寸は別に通知する】
+// カスタム解像度の縦横比でハンドルが変わったり、モード切り替え後も古い枠が残る不具合を防ぐ。
+test('publishes scene-based region handles while preserving the effect output resolution', async t => {
+	const f = fixture(t);
+	const previews = [];
+	f.manager.on('ev', event => { if (event.type === 'layerTransform') previews.push(structuredClone(event.ctx)); });
+	const effect = layer('effect', {}, { transformTarget: 'region', resolution: { mode: 'customAbsolute', width: 80, height: 20 } });
+	effect.compositingParamValues.fitMode = literal('cover');
+	await f.setup([effect], { transformObserver: { sceneId: 'scene', layerId: 'effect', requestId: 1 } });
+	await f.manager.renderTimelineAt(350);
+	assert.deepEqual(previews.at(-1).geometry.sourceSize, { width: 320, height: 180 });
+	assert.deepEqual(previews.at(-1).outputResolution, { width: 80, height: 20 });
+	assert.equal(previews.at(-1).geometry.transform.fitMode, 'stretch');
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'effect', layer: { ...effect, transformTarget: 'image' }, changes: [{ type: 'transformTarget' }] }]);
+	await f.manager.renderTimelineAt(350);
+	assert.deepEqual(previews.at(-1).geometry.sourceSize, { width: 80, height: 20 });
+	assert.equal(previews.at(-1).geometry.transform.fitMode, 'cover');
+});
+
+// 【Visual Moduleの適用範囲も共通のcompositorへ渡す】
+// エフェクトレイヤーだけの対応にならないよう、インラインと参照形式の両方を実際のManagerで描画する。
+test('routes region transforms through both Visual Module layer render paths', async t => {
+	const f = fixture(t);
+	const observations = [];
+	f.manager.createCompositingObserver = () => (_source, settings) => observations.push(settings);
+	const visualModule = { id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'color', nameForReference: 'color' }], primaryOutputId: 'output', automationGraphs: [],
+		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
+		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } }] };
+	for (const layerType of ['visualModule', 'inlineVisualModule']) {
+		const entry = { id: layerType, name: layerType, layerType, visualModuleId: visualModule.id, visualModule,
+			transformTarget: 'region', clips: [clip('clip', 100, 1000)], isDisabled: false, automationGraphs: [],
+			compositingParamValues: compositing(), visualModuleParamValues: {} };
+		await f.setup([entry], { visualModules: [visualModule] });
+		const count = observations.length;
+		await f.manager.renderTimelineFrame(350, 0);
+		assert.ok(observations.length > count);
+		assert.equal(observations.at(-1).transformTarget, 'region');
+		assert.equal(observations.at(-1).fitMode, 'stretch');
+	}
+});
+
 // 【直接エフェクトへ渡す音声は、最新Sceneの下層とScene時刻を参照する】
 // トリムしたエフェクトの内容時刻を使うと、見えている音声と波形の位置がずれる。
 // 音量編集・並び替えでは上位エフェクトを作り直さず、入力だけが最新の定義を使う必要がある。

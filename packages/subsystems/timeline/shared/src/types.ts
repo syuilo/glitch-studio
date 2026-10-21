@@ -1,4 +1,4 @@
-import type { timelineCompositingParamDefs, TimelineLayerCoordinateSpace, TimelineMask } from './timeline-compositing.ts';
+import type { timelineCompositingParamDefs, TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask } from './timeline-compositing.ts';
 import type { TimelineCameraParameterValues } from './layers/camera/camera.ts';
 import type { TimelineTransformParameterValues } from './layers/transform/transform.ts';
 import type { TimelineClip, TimelineContentClip, TimelineMediaClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
@@ -19,7 +19,7 @@ export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | '
 // 実行インスタンスの扱いは利用側へ委ねる。
 export type TimelineLayerChange =
 	| { type: 'parameter'; target: TimelineParameterTarget; kind: ParameterChangeKind }
-	| { type: 'definition' | 'clips' | 'resolution' | 'disabled' | 'motionBlur' | 'coordinateSpace' | 'mask' };
+	| { type: 'definition' | 'clips' | 'resolution' | 'disabled' | 'motionBlur' | 'coordinateSpace' | 'mask' | 'transformTarget' };
 
 type TimelineLayerCommon = {
 	id: string;
@@ -49,18 +49,22 @@ export type { TimelineParameterBinding, TimelineEffectParameterBinding } from '.
 
 export type TimelineVisualModuleLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'visualModule';
+	/** 未指定は画像を変形する。入力接続とは独立した静的な設定。 */
+	transformTarget?: TimelineLayerTransformTarget;
 	visualModuleId: string;
 	visualModuleParamValues: Record<string, TimelineVisualModuleParameterBinding>;
 };
 
 export type TimelineInlineVisualModuleLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'inlineVisualModule';
+	transformTarget?: TimelineLayerTransformTarget;
 	visualModule: VisualModule;
 	visualModuleParamValues: Record<string, TimelineVisualModuleParameterBinding>;
 };
 
 export type TimelineEffectLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'effect';
+	transformTarget?: TimelineLayerTransformTarget;
 	effectId: string;
 	effectParamValues: Record<string, TimelineEffectParameterBinding>;
 	resolution: EffectResolution;
@@ -131,6 +135,14 @@ export type TimelineTransformLayer = TimelineLayerCommon & {
 
 export type TimelineContainerLayer = TimelineGroupLayer | TimelineTransformLayer;
 export type TimelineLayer = TimelineClipLayer | TimelineContainerLayer;
+
+export function isTimelineEffectOrVisualModuleLayer(layer: TimelineLayer): layer is TimelineEffectLayer | TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer {
+	return layer.layerType === 'effect' || layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule';
+}
+
+export function getTimelineLayerTransformTarget(layer: TimelineLayer): TimelineLayerTransformTarget {
+	return isTimelineEffectOrVisualModuleLayer(layer) ? layer.transformTarget ?? 'image' : 'image';
+}
 
 export function isTimelineContainerLayer(layer: TimelineLayer): layer is TimelineContainerLayer {
 	return layer.layerType === 'group' || layer.layerType === 'transform';

@@ -6,6 +6,13 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
  */
 export type TimelineLayerCoordinateSpace = 'world' | 'screen';
 
+/** 画像そのものを配置するか、合成先に固定した画像の適用範囲だけを配置するか。 */
+export type TimelineLayerTransformTarget = 'image' | 'region';
+
+export function isTimelineLayerTransformTarget(value: unknown): value is TimelineLayerTransformTarget {
+	return value === 'image' || value === 'region';
+}
+
 /** 素材の色を重ねる代わりに、同じ合成境界の下層を切り抜く静的な設定。 */
 export type TimelineMask = {
 	channel: 'alpha' | 'luminance';

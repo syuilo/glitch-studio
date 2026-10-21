@@ -197,6 +197,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			id: genId(),
 			name: visualModule.name,
 			layerType: 'visualModule',
+			transformTarget: 'image',
 			mask: null,
 			coordinateSpace: 'screen',
 			forceDisableMotionBlur: false,

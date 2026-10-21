@@ -12,6 +12,7 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 		id: genId(),
 		name: 'Visual Module',
 		layerType: 'inlineVisualModule',
+		transformTarget: 'image',
 		isDisabled: false,
 		color: null,
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],

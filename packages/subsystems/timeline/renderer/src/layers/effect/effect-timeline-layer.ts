@@ -137,7 +137,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 				if (texture == null) return { gpuTime: 0 };
 				const settings = compositing.evaluate({
 					time: context.sceneTimeMs, isExport: context.isExport,
-					coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+					coordinateSpace: layer.coordinateSpace, mask: layer.mask, transformTarget: layer.transformTarget, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
 				return { ...compositor.evaluate(context, { kind: 'texture', texture }, settings), gpuTime: 0 };
 			} finally {
 				// 次のフレームによる出力の再利用・破棄より先に、その出力を読む合成もsubmitする。

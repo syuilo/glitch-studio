@@ -296,6 +296,44 @@ test('edits layer masks through the inspector without losing normal compositing 
 	assert.deepEqual(layer.mask, { channel: 'luminance', inverted: true });
 });
 
+// 【変形対象の切り替えはCommandを使い、画像用の設定を保持したまま表示を切り替える】
+// 範囲モードで無効なFit・Clipを表示したり、画像モードへ戻したときに保存値を失う不具合を防ぐ。
+// Visual Moduleの参照形式にかかわらず同じ設定を使えることも、実際のInspector経由で確認する。
+test('edits image and region transform targets for both Visual Module layer types', async t => {
+	const f = await fixture(t);
+	for (const layerType of ['inlineVisualModule', 'visualModule']) {
+		const layer = createInlineVisualModuleLayer(0);
+		layer.layerType = layerType;
+		if (layerType === 'visualModule') layer.visualModuleId = 'visual';
+		layer.compositingParamValues.fitMode = { inputSource: 'literal', value: 'cover' };
+		layer.compositingParamValues.clipToFrame = { inputSource: 'literal', value: true };
+		f.scene.layers.push(layer);
+		f.props.selection = { kind: 'layers', ids: [layer.id] };
+		await nextTick();
+		const control = () => descendants(f.root).find(node => 'data-test-timeline-transform-target' in node.props);
+		const parameter = id => descendants(f.root).find(node => node.props['data-test-timeline-compositing-parameter'] === id);
+		assert.equal(control().props.modelValue, 'image');
+		control().props['onUpdate:modelValue']('region');
+		await nextTick();
+		assert.equal(layer.transformTarget, 'region');
+		assert.equal(parameter('fitMode'), undefined);
+		assert.equal(parameter('clipToFrame'), undefined);
+		assert.ok(parameter('scale'));
+		f.history.undo();
+		await nextTick();
+		assert.equal(control().props.modelValue, 'image');
+		assert.equal(parameter('fitMode').props.paramValue.value, 'cover');
+		assert.equal(parameter('clipToFrame').props.paramValue.value, true);
+		f.history.redo();
+		await nextTick();
+		assert.equal(control().props.modelValue, 'region');
+	}
+	f.props.selection = { kind: 'layers', ids: ['a'] };
+	await nextTick();
+	assert.equal(descendants(f.root).some(node => 'data-test-timeline-transform-target' in node.props), false);
+	assert.throws(() => f.history.commit('setTimelineLayerTransformTarget', { sceneId: f.scene.id, layerId: 'a', transformTarget: 'region' }), /effect or Visual Module layer/);
+});
+
 // 【画像を持たないレイヤーにはマスク設定を出さず、Commandからも適用させない】
 // 共通の一覧に音声・Camera・Transformが含まれても、無意味なマスク設定を保存しない。
 test('does not expose or accept masks on nonvisual layers', async t => {

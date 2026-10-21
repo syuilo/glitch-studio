@@ -8,7 +8,7 @@ import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundleSource } from './helpers/load-shader-source.mjs';
 
-async function runGpuTest(entry, minimumChecks) {
+async function runGpuTest(entry, minimumChecks, exportName = 'run') {
 	const bundle = await bundleSource(fileURLToPath(new URL(entry, import.meta.url)), 'browser');
 	let resolveResult;
 	const result = new Promise(resolve => { resolveResult = resolve; });
@@ -23,7 +23,7 @@ async function runGpuTest(entry, minimumChecks) {
 		} else {
 			response.setHeader('Content-Type', 'text/html');
 			response.end(`<script type="module">
-try { const { run } = await import('/test.js'); await fetch('/result', { method: 'POST', body: JSON.stringify({ passed: await run() }) }); }
+try { const { ${exportName}: run } = await import('/test.js'); await fetch('/result', { method: 'POST', body: JSON.stringify({ passed: await run() }) }); }
 catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ error: error.stack }) }); }</script>`);
 		}
 	});
@@ -58,6 +58,13 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 // 【ChromeのWebGPUで生成WGSLの実画素を比較する】
 // モックでは検出できないシェーダーとbindingの不整合を検出する。CIではChromeのパスを明示する。
 test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20));
+
+// 【合成と適用範囲の実画素を、他のエフェクトのテスト素材に依存せず確認する】
+// 固定された画像座標と変形する枠、透明結果のReplace、マスク、祖先・カメラを実WGSLで検証する。
+test('renders timeline compositing and application regions on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, async t => {
+	const checks = await runGpuTest('./helpers/effect-renderer-gpu.ts', 50, 'runTimelineCompositor');
+	t.diagnostic(`${checks.length} pixel checks completed`);
+});
 
 // 【LUTの実シェーダーで恒等変換・半透明・入力範囲・複合変換を確認する】
 // CPUパーサーのテストだけではbinding・半精度転送・3D補間のずれを検出できない。

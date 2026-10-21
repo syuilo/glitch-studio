@@ -1,7 +1,7 @@
 import type { EditableTimelineParameterBinding } from './types/parameter-edit.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import type { TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
@@ -35,8 +35,8 @@ import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveTimelineAnotherLayerAudioReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { timelineCompositingParamDefs, validateTimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import type { TimelineLayerCoordinateSpace, TimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs, validateTimelineMask, isTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from './utility/timeline-container.ts';
@@ -1488,6 +1488,28 @@ const setTimelineLayerCoordinateSpaceCommandDef = defineCommand<{ sceneId: strin
 	},
 });
 
+const setTimelineLayerTransformTargetCommandDef = defineCommand<{ sceneId: string; layerId: string; transformTarget: TimelineLayerTransformTarget }>({
+	label: 'Change timeline layer transform target',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'transformTarget' }] }],
+	create: payload => {
+		let before: TimelineLayerTransformTarget;
+		const getLayer = (state: ProjectState) => {
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			if (!isTimelineEffectOrVisualModuleLayer(layer)) throw new Error('Transform target requires an effect or Visual Module layer');
+			return layer;
+		};
+		return {
+			execute(state) {
+				if (!isTimelineLayerTransformTarget(payload.transformTarget)) throw new Error('Invalid timeline layer transform target');
+				const layer = getLayer(state);
+				before = layer.transformTarget ?? 'image';
+				layer.transformTarget = payload.transformTarget;
+			},
+			undo(state) { getLayer(state).transformTarget = before; },
+		};
+	},
+});
+
 const setTimelineLayerMaskCommandDef = defineCommand<{ sceneId: string; layerId: string; mask: TimelineMask | null }>({
 	label: 'Change timeline layer mask',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'mask' }] }],
@@ -2338,6 +2360,7 @@ export const COMMAND_DEFS = {
 	setTimelineLayerColor: setTimelineLayerColorCommandDef,
 	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
 	setTimelineLayerCoordinateSpace: setTimelineLayerCoordinateSpaceCommandDef,
+	setTimelineLayerTransformTarget: setTimelineLayerTransformTargetCommandDef,
 	setTimelineLayerMask: setTimelineLayerMaskCommandDef,
 	setTimelineLayerMotionBlurDisabled: setTimelineLayerMotionBlurDisabledCommandDef,
 	addTimelineClip: addTimelineClipCommandDef,

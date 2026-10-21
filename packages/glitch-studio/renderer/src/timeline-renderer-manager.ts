@@ -28,7 +28,7 @@ import { isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createVideoTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/video/video-timeline-layer.ts';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { TimelineSceneCamera } from '@gs/subsystems_timeline_shared/scene-camera.ts';
-import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineVisualLayer, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelinePreviewParent } from '@gs/subsystems_timeline_shared/group-space.ts';
 import { timelineImageFrame } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
 import { invertTimelineAffine, TIMELINE_IDENTITY, TIMELINE_FRAME } from '@gs/subsystems_timeline_shared/spatial.ts';
@@ -437,7 +437,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				const blur = this.staticOptions.timelineMotionBlur;
 				if (preview.geometry && layer && blur.enabled && blur.shutterAngle > 0 && blur.samples > 1) {
 					const { position, origin, scale, rotation, fitMode } = this.transformPreviewParameters.evaluate({
-						time, isExport: false, coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs,
+						time, isExport: false, coordinateSpace: layer.coordinateSpace, mask: layer.mask, transformTarget: getTimelineLayerTransformTarget(layer), paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs,
 					});
 					preview.geometry.transform = { position, origin, scale, rotation, fitMode };
 				}
@@ -478,14 +478,15 @@ export class TimelineRendererManager extends EventEmitter<{
 			// 実テクスチャ寸法とは異なる。表示する解像度は実寸を既存の購読通知へ同梱する。
 			preview.outputResolution = source.kind === 'texture' ? { width: source.texture.width, height: source.texture.height } : null;
 			const evaluate = (entry: Extract<TimelineLayer, { compositingParamValues: unknown }>) => this.transformPreviewParameters.evaluate({
-				time: preview.time, isExport: false, coordinateSpace: entry.coordinateSpace, mask: entry.mask, paramValues: entry.compositingParamValues, automationGraphs: entry.automationGraphs });
+				time: preview.time, isExport: false, coordinateSpace: entry.coordinateSpace, mask: entry.mask, transformTarget: getTimelineLayerTransformTarget(entry), paramValues: entry.compositingParamValues, automationGraphs: entry.automationGraphs });
 			const settings = evaluate(layer);
 			const camera = new TimelineSceneCamera().evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false, sceneSize);
 			const parent = getTimelinePreviewParent(location.ancestors.map(parent => parent.layerType === 'transform'
 				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
 			{ parent: TIMELINE_IDENTITY, depth: 0, camera, viewport: TIMELINE_FRAME });
-			preview.geometry = parent && invertTimelineAffine(parent) ? { sourceSize: timelineImageFrame(source, sceneSize), sceneSize, transform: settings } : null;
+			// 範囲モードのハンドルは出力の物理解像度・比率に依存しないSceneの矩形を操作する。
+			preview.geometry = parent && invertTimelineAffine(parent) ? { sourceSize: settings.transformTarget === 'region' ? sceneSize : timelineImageFrame(source, sceneSize), sceneSize, transform: settings } : null;
 			preview.parentGeometries = parent ? [{ sourceSize: sceneSize, sceneSize, transform: { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'stretch' }, matrix: parent }] : [];
 		};
 	}
@@ -734,6 +735,7 @@ export class TimelineRendererManager extends EventEmitter<{
 							time: layerContext.sceneTimeMs,
 							isExport: context.isExport,
 							coordinateSpace: getLayer().coordinateSpace, mask: getLayer().mask,
+							transformTarget: getLayer().transformTarget,
 							paramValues: getLayer().compositingParamValues,
 							automationGraphs: getLayer().automationGraphs,
 						});
