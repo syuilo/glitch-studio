@@ -41,16 +41,16 @@ test('evaluates node references directly', () => {
 
 // 【PARAMの名前と直接参照のID】
 // 評価済みの値と名前の対応を直接渡し、Visual Moduleの生成やレンダラーに依存しない。
-test('resolves parameter names separately from IDs and falls back for unavailable values', () => {
+test('resolves parameter names separately from IDs and rejects invalid expressions', () => {
 	const evaluator = new VisualModuleParameterBindingEvaluator();
 	const scope = context({ evaluatedParamValues: new Map([['gain-id', 0]]), paramIdsByName: new Map([['gain', 'gain-id']]) });
 	assert.equal(evaluator.evaluate(expression('PARAM("gain")'), scope, -1), 0);
 	assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, scope, -1), 0);
 	for (const text of ['PARAM("gain-id")', 'PARAM("missing")', 'PARAM(1)', 'PARAM()', 'PARAM("gain", 1)', '1 +', '']) {
-		assert.equal(evaluator.evaluate(expression(text), scope, -1), -1);
+		assert.throws(() => evaluator.evaluate(expression(text), scope, -1), /Base expression/);
 	}
 	for (const empty of [context(), context({ evaluatedParamValues: new Map(), paramIdsByName: scope.paramIdsByName })]) {
-		assert.equal(evaluator.evaluate(expression('PARAM("gain")'), empty, -1), -1);
+		assert.throws(() => evaluator.evaluate(expression('PARAM("gain")'), empty, -1), /Unknown or unavailable parameter/);
 		assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, empty, -1), -1);
 	}
 });

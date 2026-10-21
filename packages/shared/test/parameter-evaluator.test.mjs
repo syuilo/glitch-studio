@@ -18,15 +18,79 @@ async function loadSource(name) {
 	return module.exports;
 }
 const { ParameterBindingEvaluator } = await loadSource('parameter/parameter-binding-evaluator');
+const { inspectStaticParameter, staticParameterShape } = await loadSource('parameter/static-parameter');
 
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
+const modified = (binding, code = 'VALUE', enabled = true) => ({ ...binding, expressionModifier: { enabled, code } });
+const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Amount' } };
 const context = (overrides = {}) => ({
 	variables: {}, automationGraphs: [], time: 500, endTime: 5000,
 	...overrides,
 });
 
 const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpolation: { type } });
+
+// 【基準式と加工式を独立した環境で順に評価する】
+// 基準式を入力方式として残し、加工式だけがVALUEを参照する。数値文字列も基準値の段階で型を揃え、
+// 同じ評価器で往復シークしても以前のVALUEや時刻が残らないことを確認する。
+test('evaluates base expressions before modifiers and isolates VALUE between evaluations', () => {
+	const evaluator = new ParameterBindingEvaluator();
+	assert.equal(evaluator.evaluate(modified(literal('0.5'), 'VALUE + 1'), context(), -1, scalarDefinition), 1.5);
+	const input = modified(expression('TIME * 2'), 'VALUE + TIME');
+	for (const time of [2, 0, -1, 2]) {
+		assert.equal(evaluator.evaluate(input, context({ variables: { TIME: time, VALUE: 99 } }), -1, scalarDefinition), time * 3);
+	}
+	assert.throws(() => evaluator.evaluate(expression('VALUE'), context({ variables: { VALUE: 99 } }), -1), /Base expression.*VALUE/);
+	assert.equal(evaluator.evaluate(expression('2'), context(), -1, scalarDefinition), 2);
+});
+
+// 【未入力・無効化・未設定を区別し、失敗時には後段を実行しない】
+// 基準式や有効な加工式の空文字を既定値へ置換すると、入力ミスが正常な描画に見えてしまう。
+// 無効な加工式は本文を残しても評価せず、基準式の失敗では加工式の副作用も起こさない。
+test('throws contextual expression errors and skips disabled or unreachable modifiers', () => {
+	const evaluator = new ParameterBindingEvaluator();
+	let calls = 0;
+	const scope = context({ functions: { PROBE: () => { calls++; return 1; } } });
+	for (const code of ['', ' \n\t', '// empty', '1 +', 'UNKNOWN']) {
+		assert.throws(() => evaluator.evaluate(modified(expression(code), 'PROBE()'), scope, 42, scalarDefinition), /Base expression for parameter "Amount"/);
+		assert.throws(() => evaluator.evaluate(modified(literal(2), code), scope, 42, scalarDefinition), /Modifier expression for parameter "Amount"/);
+		assert.equal(evaluator.evaluate(modified(literal(2), code, false), scope, 42, scalarDefinition), 2);
+	}
+	assert.equal(calls, 0);
+	assert.equal(evaluator.evaluate({ ...literal(2), expressionModifier: null }, scope, 42, scalarDefinition), 2);
+});
+
+// 【加工前と加工後の型を検証し、有限なovershootは保持する】
+// 不正な値を0や基準値へ戻すと書き出しでも設定ミスに気付けない。一方、式の前後でUI範囲へ
+// clampすると、基準アニメーションを使った倍率計算や揺れが変わるので型検証とは分ける。
+test('validates base and modifier types without clamping finite values', () => {
+	const evaluator = new ParameterBindingEvaluator();
+	for (const code of ['true', '[1, 2]', 'null', '"text"', '1 / 0']) {
+		assert.throws(() => evaluator.evaluate(modified(expression(code), '1'), context(), 0, scalarDefinition), /Base expression/);
+		assert.throws(() => evaluator.evaluate(modified(literal(1), code), context(), 0, scalarDefinition), /Modifier expression/);
+	}
+	assert.equal(evaluator.evaluate(modified(literal(2), 'VALUE * 3'), context(), 0, scalarDefinition), 6);
+	for (const [kind, base, code, expected] of [
+		['bool', true, '!VALUE', false], ['string', 'hello', '"changed"', 'changed'],
+		['vector', [1, 2], '[VALUE[0] + 1, VALUE[1]]', [2, 2]],
+		['color', [1, 0, 0, 0.5], '[VALUE[0], 1, 0, VALUE[3]]', [1, 1, 0, 0.5]],
+	]) {
+		const def = { dataType: { kind }, ui: { label: kind } };
+		assert.deepEqual(evaluator.evaluate(modified(literal(base), code), context(), null, def), expected);
+	}
+});
+
+// 【加工式から配列を変更しても保存値や後続の評価へ漏らさない】
+// VALUEは評価済みの値のコピーとし、式内の配列操作を固定値・キーの書き換えにしない。
+test('copies VALUE and preserves stored literal and keyframe data', () => {
+	const evaluator = new ParameterBindingEvaluator();
+	const definition = { dataType: { kind: 'vector' }, ui: { label: 'Position' } };
+	const input = modified(literal([1, 2]), 'VALUE[0] = 9\nVALUE');
+	const before = structuredClone(input);
+	assert.deepEqual(evaluator.evaluate(input, context(), null, definition), [9, 2]);
+	assert.deepEqual(input, before);
+});
 const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 	inputSource: 'keyframesTimelineInline',
 	keyframesTimeline: { dataType: typeof dataType === 'string' ? { kind: dataType } : dataType, isNormalized: true, keyframes },
@@ -313,7 +377,7 @@ test('reads only explicit scope variables and skips parsing for single variables
 	}
 	assert.equal(parse.mock.callCount(), 0);
 	for (const name of ['TIME', 'toString']) {
-		assert.equal(evaluator.evaluate(expression(name), context(), -1), -1);
+		assert.throws(() => evaluator.evaluate(expression(name), context(), -1), /Base expression/);
 		assert.equal(evaluator.evaluate({ inputSource: 'envVariable', variable: name }, context(), -1), -1);
 	}
 	assert.equal(evaluator.evaluate(expression('TIME + 1'), context({ variables: { TIME: 2 } }), -1), 3);
@@ -340,11 +404,48 @@ test('evaluates GRAPH by nameForReference and refreshes definitions between scop
 	const binding = expression('GRAPH("ramp", 0.5, "clamp")');
 	assertClose(evaluator.evaluate(binding, context({ automationGraphs: [rampGraph()] }), -1), 5);
 	assert.equal(evaluator.evaluate(binding, context({ automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }), -1), 20);
-	assert.equal(evaluator.evaluate(binding, context(), -1), -1);
+	assert.throws(() => evaluator.evaluate(binding, context(), -1), /Unknown automation graph/);
 	assert.equal(evaluator.evaluate(graphInput('automationGraphReference', rampGraph()), context(), 12), 12);
 	for (const text of ['GRAPH("ramp-id", 0.5, "clamp")', 'GRAPH("ramp", 0.5, "invalid")', 'GRAPH("ramp", "0.5", "clamp")', 'GRAPH(1, 0.5, "clamp")', 'GRAPH("ramp", 0.5)', 'GRAPH("ramp", 0.5, "clamp", 1)']) {
-		assert.equal(evaluator.evaluate(expression(text), context({ automationGraphs: [rampGraph()] }), -1), -1);
+		assert.throws(() => evaluator.evaluate(expression(text), context({ automationGraphs: [rampGraph()] }), -1), /Base expression/);
 	}
 	assertClose(evaluator.evaluate(graphInput('automationGraphInline', rampGraph()), context(), -1), 2.5);
-	assert.equal(evaluator.evaluate(binding, context(), -1), -1);
+	assert.throws(() => evaluator.evaluate(binding, context(), -1), /Unknown automation graph/);
+});
+
+// 【キー・グラフ・環境変数による基準値にも同じ加工段階を使う】
+// 基準式専用の機能にせず、再生設定やキーの時刻を変更しない。
+test('modifies keyframe graph and environment sources without changing their stored data', () => {
+	const evaluator = new ParameterBindingEvaluator();
+	const sources = [
+		[keyframesInput([keyframe(0, 0), keyframe(1, 10)]), 5],
+		[graphInput('automationGraphInline', rampGraph()), 2.5],
+		[{ inputSource: 'envVariable', variable: 'AMOUNT' }, 3],
+	];
+	for (const [source, base] of sources) {
+		const input = modified(source, 'VALUE * 2 + GRAPH("ramp", 0.5, "clamp")');
+		const before = structuredClone(input);
+		assert.equal(evaluator.evaluate(input, context({ variables: { AMOUNT: 3 }, automationGraphs: [rampGraph()] }), -1, scalarDefinition), base * 2 + 5);
+		assert.deepEqual(input, before);
+	}
+});
+
+// 【加工式の構造だけを静的検証し、適用できない接続・コンテナには付けない】
+// 本文の編集中は保存と編集を継続し、描画時に式のエラーを表示する。一方、型の壊れた
+// 設定やCPU値ではない入力への加工は、UI以外から保存された場合も拒否する。
+test('validates modifier shapes and rejects unsupported input kinds without parsing code', () => {
+	const inspect = (def, binding) => inspectStaticParameter(def, binding, () => {});
+	assert.doesNotThrow(() => inspect(scalarDefinition, modified(literal(1), '')));
+	assert.doesNotThrow(() => inspect(scalarDefinition, modified(literal(1), '1 +')));
+	for (const modifier of [{ enabled: 'yes', code: 'VALUE' }, { enabled: true, code: 1 }, []]) {
+		assert.throws(() => inspect(scalarDefinition, { ...literal(1), expressionModifier: modifier }), /Invalid expression modifier/);
+	}
+	for (const [def, binding] of [
+		[scalarDefinition, { inputSource: 'node', nodeId: null }],
+		[{ dataType: { kind: 'audioSource' } }, literal(null)],
+		[{ dataType: { kind: 'array' } }, literal([])],
+	]) assert.throws(() => inspect(def, modified(binding)), /CPU value leaf/);
+	const first = modified(literal(1), 'VALUE + 1');
+	assert.deepEqual(staticParameterShape(scalarDefinition, first), staticParameterShape(scalarDefinition, modified(literal(1), 'VALUE * 2', false)));
+	assert.notDeepEqual(staticParameterShape(scalarDefinition, first), staticParameterShape(scalarDefinition, { ...first, expressionModifier: { enabled: 1, code: 'VALUE' } }));
 });

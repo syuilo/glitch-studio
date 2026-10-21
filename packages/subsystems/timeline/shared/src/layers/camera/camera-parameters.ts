@@ -11,7 +11,7 @@ export class TimelineCameraParameters {
 		const read = (key: keyof typeof timelineCameraParamDefs): unknown => {
 			const fallback = timelineCameraParamDefs[key].defaultValue.value;
 			const binding = camera?.paramValues[key];
-			return binding == null ? fallback : this.evaluator.evaluate(binding, scope, fallback);
+			return binding == null ? fallback : this.evaluator.evaluate(binding, scope, fallback, timelineCameraParamDefs[key]);
 		};
 		const position = read('position');
 		const z = read('z');

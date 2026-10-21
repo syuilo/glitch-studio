@@ -392,7 +392,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					automationGraphs: this.dynamicOptions.automationGraphs,
 					time: timing.time,
 					endTime: Infinity,
-				}, def.dataType.kind === 'enum' ? null : genEmptyValue(def))))); // TODO: genEmptyValueを遅延評価したい
+				}, def.dataType.kind === 'enum' ? null : genEmptyValue(def), def)))); // TODO: genEmptyValueを遅延評価したい
 			}
 
 			// Outが未接続でも透明な出力を描画し、前の映像や集計結果を残さない。

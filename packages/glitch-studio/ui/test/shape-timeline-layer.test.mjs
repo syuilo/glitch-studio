@@ -45,6 +45,30 @@ function fixture(t, type = 'rectangle') {
 	};
 }
 
+// 【タイムラインの基準式・キー編集でも加工式を独立して保持する】
+// キーへの切替や編集中のキー追加で加工式を失わず、Undo/Redo・保存・複製にも同じBindingを使う。
+test('retains expression modifiers across timeline source changes and keyframe edits', t => {
+	const f = fixture(t);
+	const modifier = { enabled: true, code: '[VALUE[0] + 0.1, VALUE[1]]' };
+	f.edit('position', { kind: 'expressionModifier', value: modifier });
+	f.edit('position', { kind: 'literal', value: [0.2, 0.3] });
+	f.edit('position', { kind: 'inputSource', inputSource: 'expression' });
+	assert.equal(f.layer.shape.paramValues.position.inputSource, 'expression');
+	assert.deepEqual(f.layer.shape.paramValues.position.expressionModifier, modifier);
+	f.edit('position', { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
+	const input = structuredClone(f.layer.shape.paramValues.position);
+	input.keyframesTimeline.keyframes[0].value = [0.4, 0.5];
+	f.edit('position', { kind: 'keyframesTimelineInline', value: input });
+	assert.deepEqual(f.layer.shape.paramValues.position.expressionModifier, modifier);
+	f.edit('position', { kind: 'expressionModifier', value: { ...modifier, enabled: false } });
+	f.history.undo();
+	assert.equal(f.layer.shape.paramValues.position.expressionModifier.enabled, true);
+	f.history.redo();
+	assert.equal(f.layer.shape.paramValues.position.expressionModifier.enabled, false);
+	f.edit('position', { kind: 'reset' });
+	assert.ok(f.layer.shape.paramValues.position.expressionModifier == null);
+});
+
 // 【シェイプの連続編集を一つのUndoにまとめ、形状だけを差分同期する】
 // 将来の直接編集も同じCommandを使う。位置を変えても合成設定の位置を上書きせず、
 // Undo/Redoと通常編集が同じ変更通知を出すことを保証する。
@@ -104,6 +128,7 @@ test('edits scene-time shape keyframes independently of composition and clip lif
 test('round-trips animated shapes and duplicates their independent settings', async t => {
 	const f = fixture(t);
 	f.edit('cornerRadius', { kind: 'expression', value: 'TIME * 0.02' });
+	f.edit('cornerRadius', { kind: 'expressionModifier', value: { enabled: false, code: 'VALUE * 2' } });
 	f.edit('strokeEnabled', { kind: 'literal', value: true });
 	f.edit('strokeAlignment', { kind: 'literal', value: 'outside' });
 	f.edit('fillColor', { kind: 'literal', value: [0.2, 0.4, 0.8, 0.5] });

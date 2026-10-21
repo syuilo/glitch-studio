@@ -90,16 +90,17 @@ test('keyframes evaluate in nested node parameters and module arguments', () => 
 
 // IDと表示名が異なっても、PARAMは名前、外部入力参照はIDで同じ評価済み値を読む。
 test('resolves PARAM names separately from external parameter IDs', () => {
-	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ named: number, direct: number, invalid: number }, {
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
+	const result = evaluate(evaluator, context({ named: number, direct: number }, {
 		named: expression('PARAM("gain")'),
 		direct: { inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' },
-		invalid: expression('PARAM("gain-id")'),
 	}, {
 		paramDefs: [{ ...paramDef('gain-id'), nameForReference: 'gain' }],
 		paramValues: { 'gain-id': literal(23) },
 	}));
 	assert.deepEqual([...result.paramValues], [['gain-id', 23]]);
-	assert.deepEqual(result.nodeParams.get('node'), { named: 23, direct: 23, invalid: 0 });
+	assert.deepEqual(result.nodeParams.get('node'), { named: 23, direct: 23 });
+	assert.throws(() => evaluate(evaluator, context({ invalid: number }, { invalid: expression('PARAM("gain-id")') })), /Unknown or unavailable parameter/);
 });
 
 const rampGraph = (isNormalized = true) => ({
@@ -122,12 +123,8 @@ test('isolates caller and module graphs for references and GRAPH expressions', (
 	assert.deepEqual([...result.paramValues.values()], [3, 3]);
 	assert.deepEqual(result.nodeParams.get('node'), { reference: 9, named: 9 });
 	// 再評価で外部スコープが空になっても、内部や前回のグラフへフォールバックしない。
-	const noCaller = evaluate(evaluator, { ...input, callerGraphs: undefined });
-	assert.deepEqual([...noCaller.paramValues.values()], [7, 0]);
-	assert.deepEqual(noCaller.nodeParams.get('node'), { reference: 9, named: 9 });
-	const noModule = evaluate(evaluator, { ...input, automationGraphs: [] });
-	assert.deepEqual([...noModule.paramValues.values()], [3, 3]);
-	assert.deepEqual(noModule.nodeParams.get('node'), { reference: 0, named: 0 });
+	assert.throws(() => evaluate(evaluator, { ...input, callerGraphs: undefined }), /Unknown automation graph/);
+	assert.throws(() => evaluate(evaluator, { ...input, automationGraphs: [] }), /Unknown automation graph/);
 });
 
 const graphInput = (inputSource, graph, options = {}) => ({
@@ -159,8 +156,9 @@ test('evaluates GRAPH by nameForReference in module and node expressions', () =>
 	result.nodeParams.get('node').values.forEach((value, index) => assertClose(value, [2.5, 2.5, 2.5, 7.5][index]));
 });
 
-// 不正な引数・未知のnameForReference・IDによる検索・inlineグラフへの参照は式の既定値へ戻す。
-test('falls back for invalid GRAPH calls and does not expose inline graphs', () => {
+// 【不正なGRAPHの式は失敗とし、inlineグラフも名前参照へ公開しない】
+// 入力ミスを0へ置換せず、呼び出し元へ伝播してレンダリングを止める。
+test('rejects invalid GRAPH calls and does not expose inline graphs', () => {
 	const graph = rampGraph();
 	const invalid = [
 		'GRAPH("missing", 0.5, "clamp")', 'GRAPH("ramp-id", 0.5, "clamp")',
@@ -168,16 +166,12 @@ test('falls back for invalid GRAPH calls and does not expose inline graphs', () 
 		'GRAPH(1, 0.5, "clamp")', 'GRAPH("ramp", 0.5)', 'GRAPH("ramp", 0.5, "clamp", 1)',
 	];
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
-	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
-		values: arrayBinding(invalid.map(expression)),
-	}, { automationGraphs: [graph], paramDefs: [paramDef('invalid')], paramValues: { invalid: expression(invalid[0]) } }));
-	assert.deepEqual(result.nodeParams.get('node').values, invalid.map(() => 0));
-	assert.equal(result.paramValues.get('invalid'), 0);
-	const inline = evaluate(evaluator, context({ inline: number, expression: number }, {
-		inline: graphInput('automationGraphInline', graph), expression: expression('GRAPH("ramp", 0.5, "clamp")'),
+	for (const code of invalid) assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression(code) }, { automationGraphs: [graph] })), /Base expression/);
+	const inline = evaluate(evaluator, context({ inline: number }, {
+		inline: graphInput('automationGraphInline', graph),
 	}));
 	assertClose(inline.nodeParams.get('node').inline, 2.5);
-	assert.equal(inline.nodeParams.get('node').expression, 0);
+	assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression('GRAPH("ramp", 0.5, "clamp")') })), /Unknown automation graph/);
 });
 
 // ASTを再利用しても別モジュールや変更前のグラフを参照しない。
@@ -186,7 +180,7 @@ test('refreshes GRAPH definitions between evaluations', () => {
 	const input = context({ value: number }, { value: expression('GRAPH("ramp", 0.5, "clamp")') }, { automationGraphs: [rampGraph()] });
 	assertClose(evaluate(evaluator, input).nodeParams.get('node').value, 5);
 	assertClose(evaluate(evaluator, { ...input, automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }).nodeParams.get('node').value, 20);
-	assert.equal(evaluate(evaluator, { ...input, automationGraphs: [] }).nodeParams.get('node').value, 0);
+	assert.throws(() => evaluate(evaluator, { ...input, automationGraphs: [] }), /Unknown automation graph/);
 });
 
 // 単一の組み込み変数はモジュール・ネストしたノードのどちらでもパースも実行もしない
@@ -209,12 +203,13 @@ test('reads single scope variables without parsing or executing AiScript', t => 
 test('uses AiScript for complex expressions and unknown variables', t => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const parse = t.mock.method(evaluator.valueEvaluator.expressionEvaluator.parser, 'parse');
-	const expressions = ['TIME + 1', 'TIME // comment', 'PARAM("gain")', 'UNKNOWN', 'toString'];
+	const expressions = ['TIME + 1', 'TIME // comment', 'PARAM("gain")'];
 	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
 		values: arrayBinding(expressions.map(expression)),
 	}, { paramDefs: [paramDef('gain', 4)] }));
-	assert.deepEqual(result.nodeParams.get('node').values, [1.5, 0.5, 4, 0, 0]);
-	assert.equal(parse.mock.callCount(), expressions.length);
+	assert.deepEqual(result.nodeParams.get('node').values, [1.5, 0.5, 4]);
+	for (const code of ['UNKNOWN', 'toString']) assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression(code) })), /Base expression/);
+	assert.equal(parse.mock.callCount(), expressions.length + 2);
 });
 
 // 【ID付き配列内の値・式・接続参照を評価する】
@@ -251,8 +246,9 @@ test('reads caller evaluated values through externalCustomParameterInputs and PA
 	assert.equal(result.paramValues.get('offset'), 3);
 });
 
-// テクスチャのパラメータや不正な式は値として参照せずフォールバックする
-test('falls back for texture parameters, missing references and invalid expressions', () => {
+// 【未接続の直接参照と不正な式を区別する】
+// 直接参照の未設定は既定値を使い、式で参照できない値や構文の誤りはレンダリング失敗へ伝える。
+test('defaults unassigned direct references and rejects invalid expressions', () => {
 	const params = {
 		textureCustomParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'texture' },
 		textureExpression: expression('PARAM("texture")'),
@@ -262,12 +258,17 @@ test('falls back for texture parameters, missing references and invalid expressi
 		missingCustomParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'missing' },
 		missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' },
 	};
-	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
+	for (const binding of Object.values(params).filter(binding => binding.inputSource === 'expression')) {
+		assert.throws(() => evaluate(evaluator, context({ invalid: number }, { invalid: binding })), /Base expression/);
+	}
+	const references = Object.fromEntries(Object.entries(params).filter(([, binding]) => binding.inputSource !== 'expression'));
+	const result = evaluate(evaluator, context(Object.fromEntries(Object.keys(references).map(key => [key, number])), references, {
 		paramDefs: [paramDef('texture', 99), paramDef('missingAutomationGraph', 12, 'scalar', 'missing_automation_graph')],
 		paramValues: { missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } },
 		inputParamIds: new Set(['texture']),
 	}));
-	assert.deepEqual(result.nodeParams.get('node'), Object.fromEntries(Object.keys(params).map(key => [key, 0])));
+	assert.deepEqual(result.nodeParams.get('node'), Object.fromEntries(Object.keys(references).map(key => [key, 0])));
 	assert.equal(result.paramValues.has('texture'), false);
 	assert.equal(result.paramValues.get('missingAutomationGraph'), 12);
 });
@@ -302,12 +303,12 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 		const ui = { label: 'Value', control };
 		const def = { ...number, ui, canNode: true };
 		const external = { ...paramDef('amount'), ui };
-		const result = evaluate(evaluator, context({ amount: def, external: def, invalid: def }, {
+		const result = evaluate(evaluator, context({ amount: def, external: def }, {
 			amount: expression('TIME + 100'),
 			external: { inputSource: 'externalCustomParameterInput', parameterId: 'amount' },
-			invalid: expression('missing'),
 		}, { paramDefs: [external], paramValues: { amount: literal(-5.25) } }));
-		assert.deepEqual(result.nodeParams.get('node'), { amount: 100.5, external: -5.25, invalid: 0 });
+		assert.deepEqual(result.nodeParams.get('node'), { amount: 100.5, external: -5.25 });
+		assert.throws(() => evaluate(evaluator, context({ invalid: def }, { invalid: expression('missing') })), /Base expression/);
 		assert.deepEqual(getNodeInputDataType(def), { kind: 'scalar' });
 	}
 });

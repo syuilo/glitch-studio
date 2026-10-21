@@ -20,6 +20,8 @@ Asset自体への参照は`{ kind: 'assetReference', assetType: 'font' | 'lut' |
 
 `ParameterBindingEvaluator`が受け取る`ValueParameterBinding`は、literal・環境変数・式・グラフ参照・インライングラフ・キーフレームに限定する。時刻、終了時刻、グラフ一覧と式の環境は`ParameterEvaluationScope`で渡す。評価結果やスコープは保持しない。
 
+末端のCPU値Bindingには任意の`expressionModifier: { enabled, code } | null`を付けられる。基準値を評価した後、型定義が分かる場合は型を揃え、そのコピーを`VALUE`として加工式へ渡す。基準の`inputSource: 'expression'`は維持し、基準式には`VALUE`を公開しない。式の未入力・構文・実行・戻り値の型のエラーは例外として伝播し、既定値へ置換しない。エラーには基準式／加工式とパラメータ名を付加する。空キー・未設定グラフなど正常な未設定状態の既定値処理は維持する。
+
 共通の式関数`RANDOM(index, seed = 0)`と`NOISE(x, seed = 0)`は`src/expression/random-functions.ts`に定義し、`ParameterBindingEvaluator`から公開する。前者は0以上1未満の疑似乱数、後者は−1〜1の1次元Perlin Noiseを返す。引数だけで結果が決まり、時刻・レイヤー・評価順を暗黙に参照しない。式エンジン自体は関数を自動登録しない。引数・使い方は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#乱数とノイズの式関数)を参照。
 
 評価後、受け取り側のパラメータ定義が判明する境界で`coerceParameterValue()`を使う。scalarへ渡された文字列は`Number()`で有限な数値に変換し、空文字列・空白のみ・変換不能・非有限となる文字列はパラメータ名を含むエラーにする。enumの値やstring、保存済みのBindingは文字列のまま保持する。配列・構造体は既存のツリー走査で各scalar末端に適用する。数値以外の型やvector/colorの成分を暗黙変換する処理ではない。

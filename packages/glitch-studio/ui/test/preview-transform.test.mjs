@@ -37,6 +37,28 @@ const geometry = (transform = {}, sourceSize = { width: 400, height: 400 }) => (
 });
 const near = (actual, expected) => actual.forEach((value, i) => assert.ok(Math.abs(value - expected[i]) < 1e-9, `${actual} != ${expected}`));
 
+// 【加工済みの表示値を基準値へ焼き込まず、操作量だけをキーへ反映する】
+// 表示上の移動・回転の差分と拡縮率を、保存した基準値へ適用する。加工式そのものは保持し、
+// 同じ加工を次のフレームで二重適用することを防ぐ。キー挿入も加工前の補間値を使う。
+test('edits base transform values while retaining modifiers and unmodified inserted keys', () => {
+	const modifier = code => ({ enabled: true, code });
+	const position = createInlineKeyframesTimeline(timelineCompositingParamDefs.position);
+	position.keyframesTimeline.keyframes[0].value = [0.1, 0.2];
+	position.expressionModifier = modifier('[VALUE[0] + 0.5, VALUE[1] + 0.5]');
+	const prepared = prepareTimelineTransformBindings({ position,
+		rotation: { inputSource: 'literal', value: 0.25, expressionModifier: modifier('VALUE + 0.5') },
+		scale: { inputSource: 'literal', value: [1, 2], expressionModifier: modifier('[VALUE[0] * 2, VALUE[1] * 2]') },
+	}, ['position', 'rotation', 'scale'], 500);
+	assert.deepEqual(prepared.position.keyframesTimeline.keyframes.find(key => key.x === 500).value, [0.1, 0.2]);
+	const displayed = geometry({ position: [0.6, 0.7], rotation: 0.75, scale: [2, 4] }).transform;
+	const next = { ...displayed, position: [0.7, 0.9], rotation: 1, scale: [3, 6] };
+	const result = updateTimelineTransformBindings(prepared, next, 500, displayed);
+	near(result.position.keyframesTimeline.keyframes.find(key => key.x === 500).value, [0.2, 0.4]);
+	assert.equal(result.rotation.value, 0.5);
+	near(result.scale.value, [1.5, 3]);
+	for (const key of ['position', 'rotation', 'scale']) assert.deepEqual(result[key].expressionModifier, prepared[key].expressionModifier);
+});
+
 // 【非正方形Sceneのfitと回転は画素空間の距離を保つ】
 // 正規化座標をそのまま回すと、プレビューの枠だけが長方形Sceneで歪む。
 test('maps fitted source bounds and clockwise rotation on a rectangular scene', () => {

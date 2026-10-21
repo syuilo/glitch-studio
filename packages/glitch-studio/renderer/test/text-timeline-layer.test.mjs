@@ -148,7 +148,7 @@ test('renders subtitles through speech duration and extension using updated prep
 // 倍率の二重適用と内容オフセットによる時刻ずれを防ぎ、半透明色は一度だけpremultiplyする。
 test('renders text at scene resolution with scene-time expressions and premultiplied colors', async t => {
 	const f = fixture(t);
-	await f.setup([layer('text', { text: expression('TIME_MS'), color: literal([0.8, 0.4, 0.2, 0.5]),
+	await f.setup([layer('text', { text: expression('Core:to_str(TIME_MS)'), color: literal([0.8, 0.4, 0.2, 0.5]),
 		outlineWidth: literal(0.05), shadowEnabled: literal(true) })]);
 	await f.manager.renderTimelineFrame(350.25, 0);
 	const draw = f.textDraws()[0];
@@ -215,7 +215,7 @@ test('keeps transparent replace output and releases resources across clip gaps',
 test('uses child scene time and resolution when nested', async t => {
 	const f = fixture(t);
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'customAbsolute', width: 600, height: 400 },
-		layers: [layer('text', { text: expression('TIME_MS') })] };
+		layers: [layer('text', { text: expression('Core:to_str(TIME_MS)') })] };
 	const parent = { id: 'scene', name: 'Parent', resolution: { mode: 'project' }, layers: [{
 		id: 'nested', name: 'Nested', layerType: 'scene', clips: [{ ...clip('nested-clip', 100, 1000, 200), sceneId: 'child' }],
 		isDisabled: false, automationGraphs: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) },

@@ -43,6 +43,42 @@ function fixture() {
 	return { state, node, target: { visualModuleId: 'module', nodeId: node.id, paramPath: ['buzzs'] } };
 }
 
+// 【ネストしたパラメータの基準値編集でも加工式を保持し、加工式自体は独立してUndoする】
+// 通常の値編集や入力方式の切替がBindingを作り直しても、加工式を消してはいけない。
+// リセットだけは全体を既定値へ戻し、Undoで元の基準値と加工式を一緒に復元する。
+test('preserves modifiers through node source edits and independent undo and redo', () => {
+	const { state, node, target } = fixture();
+	target.paramPath = ['buzzs', 'first', 'x'];
+	const modifier = { enabled: true, code: 'VALUE + 1' };
+	const add = COMMAND_DEFS.updateParamExpressionModifier.create({ ...target, value: modifier });
+	add.execute(state);
+	const read = () => resolveNodeParam(node, target.paramPath).value;
+	assert.deepEqual(read().expressionModifier, modifier);
+	const edit = COMMAND_DEFS.updateParamAsLiteral.create({ ...target, value: 0.75 });
+	edit.execute(state);
+	assert.equal(read().value, 0.75);
+	assert.deepEqual(read().expressionModifier, modifier);
+	const source = COMMAND_DEFS.changeParamValueInputSource.create({ ...target, inputSource: 'expression' });
+	source.execute(state);
+	assert.equal(read().expression, '0.75');
+	assert.deepEqual(read().expressionModifier, modifier);
+	const disable = COMMAND_DEFS.updateParamExpressionModifier.create({ ...target, value: { ...modifier, enabled: false } });
+	disable.execute(state);
+	assert.equal(read().expressionModifier.enabled, false);
+	disable.undo(state);
+	assert.equal(read().expressionModifier.enabled, true);
+	const reset = COMMAND_DEFS.resetNodeParam.create(target);
+	reset.execute(state);
+	assert.deepEqual(read(), literal(0));
+	reset.undo(state);
+	assert.deepEqual(read().expressionModifier, modifier);
+	const remove = COMMAND_DEFS.updateParamExpressionModifier.create({ ...target, value: null });
+	remove.execute(state);
+	assert.equal(read().expressionModifier, null);
+	remove.undo(state);
+	assert.deepEqual(read().expressionModifier, modifier);
+});
+
 // 【挿入・並べ替えの後も、同じIDの要素を編集・削除する】
 // 編集開始時のindexが変わっても、その位置を占めた別要素に操作を適用してはいけない。
 // 別ノードの同じ既定IDとも衝突せず、配線の列挙も同じIDパスを使う必要がある。

@@ -7,6 +7,8 @@ import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voi
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import { preserveParameterExpressionModifier, validateParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
+import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
@@ -260,6 +262,12 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						}
 						case 'envVariable': next = { inputSource: 'envVariable', variable: edit.value }; break;
 						case 'expression': next = { inputSource: 'expression', expression: edit.value }; break;
+						case 'expressionModifier': {
+							if (!supportsParameterExpressionModifier(def, current)) throw new Error('Expression modifier is not available for this parameter');
+							next = { ...current, expressionModifier: deepClone(edit.value) };
+							validateParameterExpressionModifier(def, next);
+							break;
+						}
 						case 'automationGraphReference': next = {
 							inputSource: 'automationGraphReference',
 							trimmedDurationMs: 1000,
@@ -314,6 +322,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							}
 							break;
 					}
+					if (edit.kind !== 'reset' && edit.kind !== 'expressionModifier') next = preserveParameterExpressionModifier(current, next);
 					resolved.setValue(next);
 					for (const { value } of walkParameters<EditableTimelineParameterBinding>({ [rootKey]: rootDef }, draft)) {
 						if (value.inputSource === 'keyframesTimelineInline') for (const point of value.keyframesTimeline.keyframes) point.x = Math.round(point.x);
@@ -817,6 +826,7 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 	label: string,
 	update: (target: ReturnType<typeof resolveNodeParam>, payload: Payload) => VisualModuleParameterBinding,
 	kind: ParameterChangeKind = 'value',
+	options: { preserveExpressionModifier?: boolean } = {},
 ) {
 	return defineCommand<Payload>({
 		label,
@@ -837,9 +847,11 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 					if (after == null) {
 						before = deepClone(target.value);
 						// 追加・リセットで発行した要素IDも、Redoでは同じ状態に戻す。
-						after = deepClone(update(target, payload));
+						const updated = update(target, payload);
+						after = deepClone(kind === 'reset' || options.preserveExpressionModifier === false ? updated : preserveParameterExpressionModifier(target.value, updated));
 					}
 					mapParameterTree<VisualModuleParameterBinding>(target.def, after, [], (def, binding) => {
+						validateParameterExpressionModifier(def, binding);
 						validateVisualModuleAudioBinding(def, binding, stateUtility.getVisualModule(state, payload).paramDefs);
 						if (def.dataType.kind === 'audioSource' && binding.inputSource === 'literal') validatePlayerAudioSourceSelection(binding.value);
 					});
@@ -918,6 +930,16 @@ const updateParamAsExpressionCommandDef = defineNodeParamCommand<NodeParamTarget
 		assertLeafParam(target);
 		return { inputSource: 'expression', expression: payload.value };
 	},
+);
+
+const updateParamExpressionModifierCommandDef = defineNodeParamCommand<NodeParamTarget & { value: ParameterExpressionModifier | null }>(
+	'Update expression modifier',
+	(target, payload) => {
+		if (!supportsParameterExpressionModifier(target.def, target.value)) throw new Error('Expression modifier is not available for this parameter');
+		return { ...target.value, expressionModifier: deepClone(payload.value) };
+	},
+	'value',
+	{ preserveExpressionModifier: false },
 );
 
 const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }>(
@@ -2733,6 +2755,7 @@ export const COMMAND_DEFS = {
 	updateParamAsLiteral: updateParamAsLiteralCommandDef,
 	updateParamAsEnvVariable: updateParamAsEnvVariableCommandDef,
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
+	updateParamExpressionModifier: updateParamExpressionModifierCommandDef,
 	updateParamAsAutomationGraphReference: updateParamAsAutomationGraphReferenceCommandDef,
 	updateParamAsAutomationGraphInline: updateParamAsAutomationGraphInlineCommandDef,
 	updateParamAsKeyframesTimelineInline: updateParamAsKeyframesTimelineInlineCommandDef,

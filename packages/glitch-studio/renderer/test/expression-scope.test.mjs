@@ -111,9 +111,13 @@ test('exposes exactly the declared variables for each scope', async () => {
 	assert.deepEqual(moduleVariables, moduleScope.variables);
 	assert.deepEqual(Object.keys(layerScope.variables).sort(), [...LAYER_VAR_DEFS].sort());
 	// モジュール専用変数も照会し、レイヤーへ漏れていないことを確認する。
-	const names = [...new Set([...IN_VISUAL_MODULE_VAR_DEFS, ...LAYER_VAR_DEFS])];
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
+	for (const name of IN_VISUAL_MODULE_VAR_DEFS.filter(name => !LAYER_VAR_DEFS.includes(name))) {
+		assert.throws(() => externalValues(evaluator, [def(name)], { [name]: expression(name) }, layerScope), /Base expression/);
+	}
+	const names = [...LAYER_VAR_DEFS];
 	let layerValues;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: names.map(name => def(name)), primaryInputId: null }, {
+	const adapter = createVisualModuleTimelineLayer({ paramDefs: names.map(name => ({ ...def(name), dataType: { kind: typeof layerScope.variables[name] === 'boolean' ? 'bool' : 'scalar' } })), primaryInputId: null }, {
 		automationGraphs: [], visualModuleParamValues: Object.fromEntries(names.map(name => [name, expression(name)])),
 	}, {
 		async prepare(context) { layerValues = context.evaluatedParamValues; }, render() {}, destroy() {},
@@ -132,9 +136,13 @@ test('isolates variables across repeated layer and module evaluations', () => {
 		export: expression('IS_EXPORT == true'),
 	};
 	for (let i = 0; i < 3; i++) {
-		assert.deepEqual(nodes(evaluator, params), { vm: true, layer: 0, same: 1, compound: 11, time: 0.5, progress: 0.25, export: true });
-		const values = externalValues(evaluator, Object.keys(params).map(key => def(key)), params, layerScope);
-		assert.deepEqual(Object.fromEntries(values), { vm: 0, layer: true, same: 2, compound: 12, time: 0.5, progress: 0, export: true });
+		const { layer, ...moduleParams } = params;
+		assert.throws(() => nodes(evaluator, { layer }), /TEST_ONLY_LAYER/);
+		assert.deepEqual(nodes(evaluator, moduleParams), { vm: true, same: 1, compound: 11, time: 0.5, progress: 0.25, export: true });
+		const { vm, ...layerParams } = params;
+		assert.throws(() => externalValues(evaluator, [def('vm')], { vm }, layerScope), /TEST_ONLY_VM/);
+		const values = externalValues(evaluator, Object.keys(layerParams).map(key => def(key)), layerParams, layerScope);
+		assert.deepEqual(Object.fromEntries(values), { layer: true, same: 2, compound: 12, time: 0.5, progress: 0, export: true });
 	}
 });
 
@@ -150,10 +158,10 @@ test('passes evaluated values across the boundary without reinterpreting them', 
 test('does not retain PARAM functions or local declarations between expressions', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	assert.equal(nodes(evaluator, { value: expression('PARAM("amount")') }, moduleScope, new Map([['amount', 99]]), [def('amount')]).value, 99);
-	assert.equal(externalValues(evaluator, [def('amount')], { amount: expression('PARAM("amount")') }, layerScope).get('amount'), 0);
+	assert.throws(() => externalValues(evaluator, [def('amount')], { amount: expression('PARAM("amount")') }, layerScope), /PARAM/);
 	assert.equal(nodes(evaluator, { value: expression('let privateValue = 23\nprivateValue') }).value, 23);
-	assert.equal(nodes(evaluator, { value: expression('privateValue') }).value, 0);
-	assert.equal(externalValues(evaluator, [def('value')], { value: expression('privateValue') }, layerScope).get('value'), 0);
+	assert.throws(() => nodes(evaluator, { value: expression('privateValue') }), /privateValue/);
+	assert.throws(() => externalValues(evaluator, [def('value')], { value: expression('privateValue') }, layerScope), /privateValue/);
 });
 
 // IDとnameForReferenceが同じグラフでも所有者ごとに解決し、削除後は他スコープへフォールバックしない。
@@ -165,8 +173,8 @@ test('isolates graph references and GRAPH functions without inheriting graphs', 
 	const external = externalValues(evaluator, defs, params, { ...layerScope, automationGraphs: [graph(2)] });
 	assert.deepEqual([...external.values()], [2, 2]);
 	assert.deepEqual(nodes(evaluator, { ...params, external: expression('PARAM("ref")') }, { ...moduleScope, automationGraphs: [graph(1)] }, external, defs), { ref: 1, named: 1, external: 2 });
-	assert.deepEqual([...externalValues(evaluator, defs, params, layerScope).values()], [7, 0]);
-	assert.deepEqual(nodes(evaluator, params), { ref: 0, named: 0 });
+	assert.throws(() => externalValues(evaluator, defs, params, layerScope), /Unknown automation graph/);
+	assert.throws(() => nodes(evaluator, params), /Unknown automation graph/);
 });
 
 // 定数のノード入力もPARAMでは参照不可。入力種別で式の可否を変えない。
@@ -174,10 +182,10 @@ test('rejects input parameters and does not mutate external arrays', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const value = [1, 2];
 	const external = new Map([['array', value], ['input', 5]]);
-	const result = nodes(evaluator, { array: expression('PARAM("array")'), input: expression('PARAM("input")') }, moduleScope, external, [def('array'), def('input')], new Set(['input']));
+	assert.throws(() => nodes(evaluator, { input: expression('PARAM("input")') }, moduleScope, external, [def('input')], new Set(['input'])), /Unknown or unavailable parameter/);
+	const result = nodes(evaluator, { array: expression('PARAM("array")') }, moduleScope, external, [def('array')]);
 	result.array[0] = 99;
 	assert.deepEqual(value, [1, 2]);
-	assert.equal(result.input, 0);
 });
 
 // 【準備中に指定値を変更しても同じフレームの評価結果を保持する】
@@ -211,18 +219,18 @@ test('keeps layer defaults and excludes primary inputs from evaluated values', a
 	const definitions = [
 		{ ...def('input', [0, 0, 0, 0]), dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true },
 		{ ...def('gain-id', 8), nameForReference: 'gain' },
-		def('missing', 9), def('invalid', 10), def('export'),
+		def('missing', 9), { ...def('export'), dataType: { kind: 'bool' } },
 	];
 	let resolved;
 	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: 'input' }, {
 		automationGraphs: [], visualModuleParamValues: {
 			missing: { inputSource: 'automationGraphReference', automationGraphId: 'absent', offsetMode: 'start', wrapMode: 'repeat', trimmedDurationMs: 1000 },
-			invalid: expression('UNKNOWN'), export: expression('IS_EXPORT'),
+			export: expression('IS_EXPORT'),
 		},
 	}, { async prepare(context) { resolved = context; }, render() {}, destroy() {} });
 	const input = { kind: 'uniform', value: [1, 0, 0, 1] };
 	await adapter.evaluate({ ...clipFrame, timeDelta: 0, getInput: async () => input }, new AbortController().signal);
-	assert.deepEqual([...resolved.evaluatedParamValues], [['gain-id', 8], ['missing', 9], ['invalid', 0], ['export', true]]);
+	assert.deepEqual([...resolved.evaluatedParamValues], [['gain-id', 8], ['missing', 9], ['export', true]]);
 	assert.strictEqual(resolved.paramInputs.get('input'), input);
 });
 

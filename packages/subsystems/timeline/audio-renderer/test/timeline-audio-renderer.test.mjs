@@ -250,6 +250,6 @@ test('isolates scene gain variables and graphs from the audio layer scope', asyn
 	assert.equal((await renderer.renderClips([clip], 1500, 1, 1000, false))[0][0], 0);
 	for (const variable of ['END_TIME', 'END_TIME_MS', 'PROGRESS']) {
 		clip.gains[0].volume = expression(variable);
-		assert.equal((await renderer.renderClips([clip], 1500, 1, 1000, true))[0][0], 0);
+		await assert.rejects(renderer.renderClips([clip], 1500, 1, 1000, true), /Base expression/);
 	}
 });

@@ -315,7 +315,7 @@ test('cancels pending frames on edits without disposing an unchanged loading lay
 // 出力のないエフェクトでreplaceを実行すると下層が消えてしまうため、合成自体のスキップも確認する。
 test('evaluates nested bindings at scene time and renders primary output at content time', async t => {
 	const f = fixture(t);
-	const entry = layer('effect', { input, amount: expression('TIME_MS'), exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: expression('PROGRESS') });
+	const entry = layer('effect', { input, amount: expression('TIME_MS'), exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: { inputSource: 'envVariable', variable: 'PROGRESS' } });
 	entry.effectParamValues.buzzs.value[0].binding.value = {
 		image: input, x: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', keyframesTimeline: {
 			dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
@@ -340,6 +340,9 @@ test('evaluates nested bindings at scene time and renders primary output at cont
 	assert.equal(f.calls.outputs.at(-1).texture, rendered.outputDataMap.output.texture);
 	await f.manager.renderTimelineAt(400);
 	assert.equal(f.calls.renders.at(-1).params.exported, 0);
+	entry.effectParamValues.forbidden = expression('PROGRESS');
+	await f.setup([entry]);
+	await assert.rejects(f.manager.renderTimelineFrame(400, 0), /Base expression/);
 });
 
 // 【下層入力は同じSceneの合成結果を借用し、色を二重に乗算しない】

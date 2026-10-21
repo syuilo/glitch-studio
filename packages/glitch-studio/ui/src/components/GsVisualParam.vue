@@ -6,7 +6,7 @@
 			<GsNodePort v-else-if="canNode && node != null" :dataType="inputDataType" style="cursor: pointer;" @pointerdown.stop @click.stop="showNodeInputMenu" @update:element="portEl = $event"/>
 			<GsNodePort v-else placeholder :data-type="null"/>
 
-			<div :class="$style.paramLabel" @click="showMenu">
+			<div :class="$style.paramLabel" data-test-parameter-menu @click="showMenu">
 				<GsCondensedLine>{{ label ?? paramDef.ui.label }}</GsCondensedLine>
 			</div>
 			<div style="height: 100%; place-content: center;">
@@ -31,8 +31,9 @@
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsInput v-if="paramValue.inputSource === 'expression'" large type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
+						<template #label>{{ i18n.ts._Parameter.BaseExpression }}</template>
 						<template #caption>
-							<div v-if="isExpressionSyntaxError" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> {{ i18n.ts._Parameter.SyntaxError }}</div>
+							<div v-if="isExpressionSyntaxError" data-test-base-expression-error style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> {{ paramValue.expression.trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</div>
 						</template>
 					</GsInput>
 					<GsSelect
@@ -108,6 +109,21 @@
 			<button class="_button" :class="$style.menuButton" @click="showMenu"><i class="ti ti-dots"></i></button>
 			-->
 		</div>
+	</div>
+	<div v-if="expressionModifier != null" :class="$style.expressionModifier" data-test-expression-modifier>
+		<div :class="$style.modifierHeader">
+			<label>
+				<input data-test-expression-modifier-enabled type="checkbox" :checked="expressionModifier.enabled" @change="updateExpressionModifier({ enabled: ($event.target as HTMLInputElement).checked })">
+				{{ i18n.ts._Parameter.ExpressionModifier }}
+			</label>
+			<GsButton data-test-expression-modifier-remove iconOnly :title="i18n.ts._Parameter.RemoveExpressionModifier" icon="ti ti-x" @click="removeExpressionModifier"/>
+		</div>
+		<GsInput data-test-expression-modifier-code large type="text" class="_monospace" :modelValue="expressionModifier.code" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="code => updateExpressionModifier({ code })">
+			<template #caption>
+				<span v-if="isModifierSyntaxError" data-test-expression-modifier-error style="color: var(--THEME-error);">{{ expressionModifier.code.trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</span>
+				<span v-else>{{ i18n.ts._Parameter.ExpressionModifierHelp }}</span>
+			</template>
+		</GsInput>
 	</div>
 	<Teleport to="body">
 		<GsAutomationGraphPointsEditorWindow
@@ -196,6 +212,9 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 <script lang="ts" setup>
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
+import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
+import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -362,14 +381,16 @@ watchEffect(onCleanup => {
 });
 
 const aisParser = new AiScript.Parser();
+const expressionModifier = computed(() => isValueParameterBinding(props.paramValue) ? props.paramValue.expressionModifier ?? null : null);
+
+function hasExpressionSyntaxError(code: string): boolean {
+	try { return code.trim() === '' || aisParser.parse(code).length === 0; } catch { return true; }
+}
+
+const isModifierSyntaxError = computed(() => expressionModifier.value?.enabled === true && hasExpressionSyntaxError(expressionModifier.value.code));
 const isExpressionSyntaxError = computed(() => {
 	if (props.paramValue.inputSource !== 'expression') return false;
-	try {
-		aisParser.parse(props.paramValue.expression);
-		return false;
-	} catch {
-		return true;
-	}
+	return hasExpressionSyntaxError(props.paramValue.expression);
 });
 
 function updateInlineGraphNormalized(isNormalized: boolean) {
@@ -469,6 +490,13 @@ function getMenu() {
 				action: () => emit('edit', { kind: 'inputSource', ...target(), inputSource }),
 			});
 		}
+		if (expressionModifier.value == null && supportsParameterExpressionModifier(props.paramDef, props.paramValue)) {
+			menuItems.push({
+				text: i18n.ts._Parameter.AddExpressionModifier,
+				icon: 'ti ti-math-function',
+				action: () => emit('edit', { kind: 'expressionModifier', ...target(), value: { enabled: true, code: 'VALUE' } }),
+			});
+		}
 	}
 	return menuItems;
 }
@@ -548,6 +576,15 @@ function updateParamAsExpression(value: string) {
 		value,
 		mergeKey: commandMergeKey,
 	});
+}
+
+function updateExpressionModifier(changes: Partial<ParameterExpressionModifier>) {
+	if (!mounted || expressionModifier.value == null) return;
+	emit('edit', { kind: 'expressionModifier', ...target(), value: { ...expressionModifier.value, ...changes }, mergeKey: commandMergeKey });
+}
+
+function removeExpressionModifier() {
+	emit('edit', { kind: 'expressionModifier', ...target(), value: null });
 }
 
 function connectNode(value: NodeOutputReference | null, preserveSampling = true) {
@@ -646,6 +683,26 @@ function onReset() {
 
 	&:hover {
 		border-left: 1px solid #ffffff30;
+	}
+}
+
+.expressionModifier {
+	margin: 4px 10px 8px;
+	padding: 8px;
+	border-left: 2px solid var(--THEME-accent);
+	background: #ffffff05;
+}
+
+.modifierHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 6px;
+
+	label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
 }
 

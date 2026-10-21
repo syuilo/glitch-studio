@@ -32,10 +32,9 @@ export class TimelineCompositingParameters {
 		const values = new Map<string, any>();
 		for (const [key, def] of Object.entries(timelineCompositingParamDefs)) {
 			const value = context.paramValues[key];
-			// 未指定・欠落グラフは設定の既定値、式の失敗は型の空値に戻す。
-			// Fitの失敗ではstretchへ切り替えて素材を歪めず、既定のcontainへ戻す。
+			// 未指定・欠落グラフには設定の既定値を使う。式の失敗は例外として上位へ伝える。
 			values.set(key, coerceParameterValue(def, value == null ? def.defaultValue.value : this.evaluator.evaluate(value, evaluationContext,
-				value.inputSource === 'automationGraphReference' || key === 'fitMode' ? def.defaultValue.value : genEmptyValue(def))));
+				value.inputSource === 'automationGraphReference' || key === 'fitMode' ? def.defaultValue.value : genEmptyValue(def), def)));
 		}
 		// 不正な式の型や非有限値をGPUへ流さない。範囲外の有限な位置・倍率は制限しない。
 		const number = (id: string, fallback: number) => {

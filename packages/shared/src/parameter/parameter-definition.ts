@@ -4,7 +4,7 @@ import type { DataTypeUiDefinition } from '../data-type/data-type-ui.ts';
 import type { BlendMode } from '../color-blend.ts';
 import type { FitMode, WrapMode } from '../types.ts';
 import type { ParameterArrayElement } from './parameter-binding.ts';
-import type { ValueParameterBinding } from './value-parameter-binding.ts';
+import type { ValueParameterBinding, ParameterExpressionModifier } from './value-parameter-binding.ts';
 
 // 値には式・キー・automationの内容を含む。入力方式の切替、接続先の変更、
 // 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
@@ -32,6 +32,7 @@ type ParameterDefaultValueMap = {
 // キーフレームのリテラル値や、レンダラーが評価済みの値とは別の構造。
 export type ParameterDefaultValue<T extends DataType> = {
 	inputSource: 'literal';
+	expressionModifier?: ParameterExpressionModifier | null;
 	value: T extends { kind: 'array'; elementType: infer E extends DataType }
 		? ParameterArrayElement<ParameterDefaultBinding<E>>[]
 		: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }

@@ -12,7 +12,7 @@ const scope = { time: 1500, isExport: true, automationGraphs: [] };
 // クリップの内容オフセットに引きずられず、Textエフェクトの評価スコープも継承しない。
 test('evaluates text expressions, keyframes and export variables at scene time', () => {
 	const bindings = createTextParameterValues();
-	bindings.text = { inputSource: 'expression', expression: 'TIME_MS' };
+	bindings.text = { inputSource: 'expression', expression: 'Core:to_str(TIME_MS)' };
 	bindings.position = { inputSource: 'expression', expression: '[TIME, TIME_MS / 1000]' };
 	bindings.shadowEnabled = { inputSource: 'envVariable', variable: 'IS_EXPORT' };
 	bindings.size = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,

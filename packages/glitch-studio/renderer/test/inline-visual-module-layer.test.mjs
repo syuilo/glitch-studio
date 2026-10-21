@@ -581,7 +581,7 @@ test('isolates inline module scopes and passes local time and export context', a
 	const module = visualModule({ params: {
 		amount: expression('PARAM("amount")'), local: expression('GRAPH("graph", 0, "clamp")'),
 		caller: expression('TEST_SAME_NAME'), localTime: expression('TIME_MS'), duration: expression('END_TIME_MS'),
-		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: expression('PARAM("input")'),
+		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: literal(0),
 		directForbidden: { inputSource: 'externalCustomParameterInput', parameterId: 'input' },
 	} });
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
@@ -595,6 +595,9 @@ test('isolates inline module scopes and passes local time and export context', a
 	await manager.renderTimelineAt(400);
 	assert.equal(calls.renders.at(-1).params.exported, 0);
 	assert.equal(calls.renders.at(-1).params.localTime, 300);
+	module.nodes.find(node => node.type === 'effect').params.forbidden = expression('PARAM("input")');
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
+	await assert.rejects(manager.renderTimelineFrame(400, 0), /Unknown or unavailable parameter/);
 });
 
 // 【同じノードIDでもインラインレイヤーごとに履歴と寿命を分離する】

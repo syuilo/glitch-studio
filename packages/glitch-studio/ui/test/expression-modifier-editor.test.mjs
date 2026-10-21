@@ -1,0 +1,97 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { readFile } from 'node:fs/promises';
+import { basename, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
+import { compileScript, parse } from 'vue/compiler-sfc';
+import { createRenderer, h, nextTick, reactive } from 'vue';
+import { i18n, i18nPlugin } from './helpers/i18n.mjs';
+
+const directory = fileURLToPath(new URL('../', import.meta.url));
+const bundle = await build({ absWorkingDir: directory, external: ['vue'], bundle: true, platform: 'node', format: 'cjs', write: false,
+	stdin: { contents: "export { default as Parameter } from './src/components/GsVisualParam.vue'; export { modifierUiTest } from '@/ui.ts';", resolveDir: directory },
+	plugins: [i18nPlugin, { name: 'modifier-editor', setup(build) {
+		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'preferences' }));
+		build.onLoad({ filter: /.*/, namespace: 'preferences' }, () => ({ contents: 'export const preferences = { s: { forceTypeSafety: false } };', loader: 'ts' }));
+		build.onResolve({ filter: /^@\/(app|ui|utility\/visual-module-wires)\.ts$/ }, ({ path }) => ({ path, namespace: 'stub' }));
+		build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: path.endsWith('app.ts') ? 'export const appContext = {};'
+			: path.endsWith('ui.ts') ? 'export const modifierUiTest = { menu: [] }; export function popupMenu(menu) { modifierUiTest.menu = menu; } export function popup() {} export function contextMenu() {}'
+				: 'export function useVisualModuleWires() { return { in: {} }; }', loader: 'ts' }));
+		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'effects' }));
+		build.onLoad({ filter: /.*/, namespace: 'effects' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsVisualParam.vue') ? null : { path: basename(path), namespace: 'control' });
+		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ contents: `import { h } from 'vue';
+			export default { setup(_, { attrs, slots }) { return () => h('control', attrs, Object.values(slots).flatMap(slot => slot())); } };`, loader: 'ts' }));
+		build.onLoad({ filter: /GsVisualParam\.vue$/ }, async ({ path }) => {
+			const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
+			const script = compileScript(descriptor, { id: 'modifier-editor', inlineTemplate: true, genDefaultAs: 'component' }).content;
+			return { contents: `${script}; component.__cssModules = { $style: {} }; export default component;`, resolveDir: dirname(path), loader: 'ts' };
+		});
+	} }],
+});
+const module = { exports: {} };
+new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
+const { Parameter, modifierUiTest } = module.exports;
+
+function fixture(t) {
+	const element = tag => ({ tag, props: {}, children: [], parent: null });
+	const renderer = createRenderer({ createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => element('body'),
+		setText() {}, setElementText(node, text) { node.text = text; }, patchProp(node, key, _old, value) { node.props[key] = value; },
+		insert(node, parent, anchor = null) {
+			if (node.parent != null) node.parent.children.splice(node.parent.children.indexOf(node), 1);
+			parent.children.splice(anchor == null ? parent.children.length : parent.children.indexOf(anchor), 0, node); node.parent = parent;
+		}, remove(node) { node.parent.children.splice(node.parent.children.indexOf(node), 1); node.parent = null; },
+		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
+	});
+	const root = element('root');
+	const props = reactive({ automationGraphs: [], availableVariables: [], paramPath: ['amount'],
+		paramDef: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		paramValue: { inputSource: 'expression', expression: 'TIME', expressionModifier: { enabled: true, code: 'VALUE + 1' } },
+	});
+	const edits = [];
+	const app = renderer.createApp({ setup: () => () => h(Parameter, { ...props, onEdit: event => { edits.push(event); } }) });
+	app.directive('tooltip', {});
+	app.mount(root);
+	t.after(() => app.unmount());
+	const find = (node, attribute) => Object.hasOwn(node.props, attribute) ? node : node.children.map(child => find(child, attribute)).find(child => child != null) ?? null;
+	return { props, edits, find: attribute => find(root, attribute) };
+}
+
+// 【加工式の本文・無効化・削除を基準式とは独立した編集として通知する】
+// 基準式を上書きしたり、無効化で本文を消したりすると、基準と加工を組み合わせる意味を失う。
+// 実際のコンポーネントを通し、Commandへ渡す対象パスとイベント種別も確認する。
+test('edits modifier code enabled state and removal independently of the source expression', async t => {
+	const f = fixture(t);
+	f.find('data-test-expression-modifier-code').props['onUpdate:modelValue']('VALUE * 2');
+	assert.deepEqual(f.edits.at(-1).value, { enabled: true, code: 'VALUE * 2' });
+	assert.equal(f.edits.at(-1).kind, 'expressionModifier');
+	assert.deepEqual(f.edits.at(-1).paramPath, ['amount']);
+	f.find('data-test-expression-modifier-enabled').props.onChange({ target: { checked: false } });
+	assert.deepEqual(f.edits.at(-1).value, { enabled: false, code: 'VALUE + 1' });
+	assert.equal(f.props.paramValue.expression, 'TIME');
+	f.find('data-test-expression-modifier-remove').props.onClick();
+	assert.equal(f.edits.at(-1).value, null);
+	f.props.paramValue = { inputSource: 'literal', value: 2 };
+	await nextTick();
+	assert.equal(f.find('data-test-expression-modifier'), null);
+	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
+	modifierUiTest.menu.find(item => item.text === i18n.ts._Parameter.AddExpressionModifier).action();
+	assert.deepEqual(f.edits.at(-1).value, { enabled: true, code: 'VALUE' });
+});
+
+// 【空の有効な式は入力欄にエラーを表示し、加工式の無効化では本文を保持する】
+// 未入力と加工なしを区別し、レンダリング失敗の原因を編集画面で修正できるようにする。
+test('shows empty expression errors only for active stages', async t => {
+	const f = fixture(t);
+	f.props.paramValue.expression = ' ';
+	f.props.paramValue.expressionModifier.code = '';
+	await nextTick();
+	assert.notEqual(f.find('data-test-base-expression-error'), null);
+	assert.notEqual(f.find('data-test-expression-modifier-error'), null);
+	f.props.paramValue.expressionModifier.enabled = false;
+	await nextTick();
+	assert.equal(f.find('data-test-expression-modifier-error'), null);
+	assert.equal(f.find('data-test-expression-modifier-code').props.modelValue, '');
+});

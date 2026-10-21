@@ -18,7 +18,7 @@ export class ShapeParameters {
 		for (const [key, def] of Object.entries(definitions)) {
 			const binding = bindings[key] ?? def.defaultValue;
 			const fallback = binding.inputSource === 'automationGraphReference' || def.dataType.kind === 'enum' ? def.defaultValue.value : genEmptyValue(def);
-			values[key] = coerceParameterValue(def, this.evaluator.evaluate(binding, scope, fallback));
+			values[key] = coerceParameterValue(def, this.evaluator.evaluate(binding, scope, fallback, def));
 		}
 		// 式は任意の型を返せる。保存値は変更せず、GPUへ渡す境界で有限なf32だけを採用する。
 		const number = (value: unknown, fallback = 0) => typeof value === 'number' && Number.isFinite(Math.fround(value)) ? value : fallback;

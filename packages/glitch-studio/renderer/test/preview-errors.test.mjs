@@ -844,7 +844,25 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		assert.deepEqual(renderer.dynamicOptions.visualModules[0].automationGraphs, []);
 		renderer.applyProjectChanges([{ type: 'automationGraphs', automationGraphs: [] }]);
 		await render();
-		assert.deepEqual(Manager === TimelineRendererManager ? observedColors.at(-1) : writes.at(-1), Manager === TimelineRendererManager ? [0, 0, 0, 1] : [0, 0, 0, 0x3c00]);
-		assert.deepEqual(errors, []);
+		assert.match(errors.at(-1), /Unknown automation graph/);
+	});
+}
+
+for (const stage of ['base', 'modifier']) {
+	// 【式の失敗をプレビューと書き出しへ伝え、修正後は同じレンダラーで再評価する】
+	// 無効なフレームを成功扱いにせず、失敗時のGPUや評価状態による復旧不能も防ぐ。
+	test(`fails rendering for an empty ${stage} expression and recovers after editing`, async t => {
+		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+		const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
+		scene.layers[0].compositingParamValues.opacity = stage === 'base'
+			? { inputSource: 'expression', expression: '' }
+			: { inputSource: 'literal', value: 1, expressionModifier: { enabled: true, code: '' } };
+		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], timelineScenes: [scene] });
+		await renderer.renderTimelineAt(0);
+		assert.match(errors.at(-1), new RegExp(`${stage === 'base' ? 'Base' : 'Modifier'} expression.*empty`));
+		await assert.rejects(renderer.renderTimelineFrame(0, 0), /Expression is empty/);
+		scene.layers[0].compositingParamValues.opacity = { inputSource: 'literal', value: 1, expressionModifier: { enabled: true, code: 'VALUE * 0.5' } };
+		await renderer.updateDynamicOptions({ timelineScenes: [scene] });
+		await assert.doesNotReject(renderer.renderTimelineFrame(0, 0));
 	});
 }

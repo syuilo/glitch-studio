@@ -199,7 +199,7 @@ export class VisualModuleRenderer {
 				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
 					if (def.dataType.kind === 'audioSource' && param.inputSource === 'externalCustomParameterInput') return null;
 					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
-						def.dataType.kind === 'enum' ? null : genEmptyValue(def)))); // TODO: genEmptyValueを遅延評価したい
+						def.dataType.kind === 'enum' ? null : genEmptyValue(def), def))); // TODO: genEmptyValueを遅延評価したい
 				});
 			}
 			evaluated.set(node.id, evaluatedParamsPerNode);

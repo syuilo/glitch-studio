@@ -1,4 +1,4 @@
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import type { ValueParameterBinding, ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -19,6 +19,7 @@ export type ValueParameterEdit =
 	| { kind: 'keyframesTimelineInline'; value: Extract<ValueParameterBinding, { inputSource: 'keyframesTimelineInline' }> }
 	| { kind: 'envVariable'; value: ExpressionVariableName }
 	| { kind: 'expression'; value: string }
+	| { kind: 'expressionModifier'; value: ParameterExpressionModifier | null }
 	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 	| ParameterInputSourceEdit<ValueParameterBinding['inputSource']>
 	| { kind: 'reset' }

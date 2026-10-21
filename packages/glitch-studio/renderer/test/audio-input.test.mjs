@@ -191,6 +191,8 @@ test('resolves public audio inputs independently of PARAM and image parameters',
 	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'externalCustomParameterInput', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PARAM("sound")' } } };
 	Object.assign(renderer, { nodes: [node], paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef, amount: scalar } } } });
 	const context = { time: 50, endTime: 100, isExport: false, evaluatedParamValues: new Map([[publicAudio.id, 123]]), audioParamInputs: new Map([[publicAudio.id, source]]) };
+	assert.throws(() => renderer.evaluateParameters(context), /Unknown or unavailable parameter/);
+	node.params.amount = literal(0);
 	renderer.evaluateParameters(context);
 	const params = renderer.resolveParams(node, renderer.evaledNodeParams.get(node.id));
 	assert.equal(params.audio, source);

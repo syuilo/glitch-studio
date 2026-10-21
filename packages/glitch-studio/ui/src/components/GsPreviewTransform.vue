@@ -194,7 +194,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 		// ポインターを動かさないクリックではキーも履歴も作らない。
 		if (!changed && lastBindings == null) return;
 		draft.value = { ...initial, transform };
-		const bindings = updateTimelineTransformBindings(prepared, transform, time);
+		const bindings = updateTimelineTransformBindings(prepared, transform, time, initial.transform);
 		// origin固定など、結果が変わらない項目へはキーを追加しない。途中でAltを
 		// 切り替えても同じ項目集合をCommandへ渡し、Undoが開始時の全値を保持する。
 		for (const key of keys) if (deepEqual(initial.transform[key], transform[key])) bindings[key] = initialBindings[key];

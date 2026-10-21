@@ -46,6 +46,7 @@ import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { computed, ref, watch, onBeforeUnmount, inject } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { preserveParameterExpressionModifier, validateParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { genId, prettyId } from '@gs/shared/utility/id.ts';
 import { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/visual-module-live-preview-expression.js';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
@@ -156,6 +157,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'keyframesTimelineInline': previewParamValues.value[id] = deepClone(event.value); break;
 		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
+		case 'expressionModifier': previewParamValues.value[id] = { ...(current ?? reset()), expressionModifier: deepClone(event.value) }; break;
 		case 'automationGraphReference': previewParamValues.value[id] = {
 			inputSource: 'automationGraphReference',
 			trimmedDurationMs: 1000,
@@ -202,7 +204,11 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'removeElement':
 			return;
 	}
-	if (event.kind === 'reset' || (event.kind === 'inputSource' && event.inputSource === 'literal')) editedPreviewParamIds.delete(id);
+	if (current != null && event.kind !== 'reset' && event.kind !== 'expressionModifier') {
+		previewParamValues.value[id] = preserveParameterExpressionModifier(current, previewParamValues.value[id]);
+	}
+	validateParameterExpressionModifier(def, previewParamValues.value[id]);
+	if (event.kind === 'reset') editedPreviewParamIds.delete(id);
 	else editedPreviewParamIds.add(id);
 	if (visualModule.value != null) previewPlayback.updateVisualModuleLivePreviewParamValues(visualModule.value.id, previewParamValues.value);
 }

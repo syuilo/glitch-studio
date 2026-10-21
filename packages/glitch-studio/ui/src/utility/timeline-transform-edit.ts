@@ -1,4 +1,5 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { preserveParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { insertInlineKeyframe, updateInlineKeyframe, canEditKeyframesTimeline } from './keyframes-timeline.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -25,14 +26,26 @@ export function prepareTimelineTransformBindings(bindings: TimelineTransformBind
 	return result;
 }
 
-export function updateTimelineTransformBindings(prepared: TimelineTransformBindings, transform: TimelineLayerTransform, time: number): TimelineTransformBindings {
+export function updateTimelineTransformBindings(prepared: TimelineTransformBindings, transform: TimelineLayerTransform, time: number, displayedStart?: TimelineLayerTransform): TimelineTransformBindings {
 	const result: TimelineTransformBindings = {};
 	for (const key of Object.keys(prepared) as TimelineTransformKey[]) {
 		const binding = prepared[key]!;
+		let value = transform[key];
+		if (displayedStart != null && binding.expressionModifier?.enabled === true) {
+			// 任意の加工式を逆算せず、表示上の操作量だけを基準値へ反映する。
+			// 加工後の絶対値をキーへ保存すると、同じ加工が次の描画で二重に適用されてしまう。
+			const base = binding.inputSource === 'keyframesTimelineInline'
+				? binding.keyframesTimeline.keyframes.find(point => point.x === Math.round(time))!.value
+				: binding.inputSource === 'literal' ? binding.value : null;
+			if (key === 'rotation') value = (base as number) + transform.rotation - displayedStart.rotation;
+			else value = (base as [number, number]).map((component, index) => key === 'position'
+				? component + transform.position[index] - displayedStart.position[index]
+				: displayedStart.scale[index] === 0 ? component : component * transform.scale[index] / displayedStart.scale[index]) as [number, number];
+		}
 		if (binding.inputSource === 'keyframesTimelineInline') {
 			const keyframe = binding.keyframesTimeline.keyframes.find(point => point.x === Math.round(time))!;
-			result[key] = updateInlineKeyframe(binding, timelineCompositingParamDefs[key], keyframe.id, { value: transform[key] }) ?? deepClone(binding);
-		} else result[key] = { inputSource: 'literal', value: deepClone(transform[key]) };
+			result[key] = updateInlineKeyframe(binding, timelineCompositingParamDefs[key], keyframe.id, { value }) ?? deepClone(binding);
+		} else result[key] = preserveParameterExpressionModifier(binding, { inputSource: 'literal', value: deepClone(value) });
 	}
 	return result;
 }

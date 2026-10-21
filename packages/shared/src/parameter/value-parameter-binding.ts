@@ -3,7 +3,12 @@ import type { ExpressionVariableName } from '../expression/expression-environmen
 import type { KeyframesTimelineData, KeyframesTimelinePlaybackOptions } from '../keyframes/keyframes-timeline.ts';
 
 // CPUで値を評価できる入力方式。ノードやレイヤーの画像参照は各ドメインで解決する。
-export type ValueParameterBinding = {
+export type ParameterExpressionModifier = {
+	enabled: boolean;
+	code: string;
+};
+
+export type ValueParameterSource = {
 	inputSource: 'literal';
 	value: any;
 } | {
@@ -22,3 +27,9 @@ export type ValueParameterBinding = {
 	inputSource: 'keyframesTimelineInline';
 	keyframesTimeline: KeyframesTimelineData;
 } & KeyframesTimelinePlaybackOptions);
+
+// 未指定とnullは加工なし。定義の既定値や未編集のBindingにも不要な設定を追加しない。
+// コンテナ・音声入力・各ドメイン固有の接続は加工対象に含めない。
+export type ValueParameterBinding = ValueParameterSource & {
+	expressionModifier?: ParameterExpressionModifier | null;
+};

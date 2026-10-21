@@ -52,7 +52,7 @@ test('evaluates expressions and environment variables in layer context', () => {
 		opacity: expression('TEST_SAME_NAME / 4'), blendMode: expression('"replace"'),
 	}, [], { isExport: true });
 	assert.deepEqual(result, { transformTarget: 'image', mask: null, layerMask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false, blendMode: 19, opacity: 0.5, fitMode: 'contain', position: [2, 0], origin: [0, 0], scale: [2, 0], rotation: 0.5 });
-	assert.deepEqual(evaluate({ position: expression('[HEIGHT / WIDTH, 0]') }).position, [0, 0]);
+	assert.throws(() => evaluate({ position: expression('[HEIGHT / WIDTH, 0]') }), /Base expression/);
 	assert.deepEqual(evaluate({ position: { inputSource: 'envVariable', variable: 'PROGRESS' } }).position, [0, 0]);
 });
 
@@ -110,11 +110,11 @@ test('keeps the region transform static and evaluates it independently of image 
 	assert.equal(values.fitMode.value, 'cover');
 });
 
-// 【Fitの欠落・式の失敗・無効な値はcontainへ戻す】
-// 型の空値であるstretchへ切り替わると、式の編集途中に素材が歪んでしまう。
-test('falls back to contain for missing or invalid fit modes', () => {
+// 【Fitの未指定には既定値を使い、式の失敗はレンダリング失敗にする】
+// 未設定と不正な式を区別し、入力ミスを正常な画像として表示しない。
+test('defaults missing fit modes and rejects invalid expressions', () => {
 	assert.equal(evaluate({ fitMode: undefined }).fitMode, 'contain');
-	assert.equal(evaluate({ fitMode: expression('missing_fit_variable') }).fitMode, 'contain');
+	assert.throws(() => evaluate({ fitMode: expression('missing_fit_variable') }), /Base expression/);
 	for (const value of ['invalid', 1, null, ['cover']]) {
 		assert.equal(evaluate({ fitMode: literal(value) }).fitMode, 'contain');
 	}

@@ -121,10 +121,10 @@ test('registers stateless functions without using scope time or call order', () 
 		[RANDOM(7), RANDOM(7), NOISE(0.25), NOISE(0.25)]);
 });
 
-// 【不正な引数は暗黙変換せず既存の式フォールバックへ渡す】
+// 【不正な引数は暗黙変換せず式のエラーとして伝播する】
 // nullを省略seedとみなしたり、小数indexを丸めたりすると、式の誤りを見つけられない。
 // AiScriptとの境界も通し、非有限値・安全でない整数・配列・余分な引数を一貫して拒否する。
-test('uses the existing expression fallback for invalid arguments', () => {
+test('throws expression errors for invalid arguments', () => {
 	const evaluator = new ParameterBindingEvaluator();
 	const invalidExpressions = [
 		'RANDOM()', 'RANDOM(null)', 'RANDOM("1")', 'RANDOM(true)', 'RANDOM([1])', 'RANDOM(0.5)',
@@ -135,11 +135,11 @@ test('uses the existing expression fallback for invalid arguments', () => {
 	for (const value of [NaN, -Infinity, Infinity, Number.MAX_SAFE_INTEGER + 1, Number.MIN_SAFE_INTEGER - 1]) {
 		const context = { ...scope, variables: { INVALID: value } };
 		for (const text of ['RANDOM(INVALID)', 'RANDOM(1, INVALID)', 'NOISE(0.25, INVALID)']) {
-			assert.equal(evaluator.evaluate(expression(text), context, 'invalid'), 'invalid', `${text}: ${value}`);
+			assert.throws(() => evaluator.evaluate(expression(text), context, 'invalid'), /Base expression/, `${text}: ${value}`);
 		}
-		if (!Number.isFinite(value)) assert.equal(evaluator.evaluate(expression('NOISE(INVALID)'), context, 'invalid'), 'invalid');
+		if (!Number.isFinite(value)) assert.throws(() => evaluator.evaluate(expression('NOISE(INVALID)'), context, 'invalid'), /Base expression/);
 	}
 	for (const text of invalidExpressions) {
-		assert.equal(evaluator.evaluate(expression(text), scope, 'invalid'), 'invalid', text);
+		assert.throws(() => evaluator.evaluate(expression(text), scope, 'invalid'), /Base expression/, text);
 	}
 });

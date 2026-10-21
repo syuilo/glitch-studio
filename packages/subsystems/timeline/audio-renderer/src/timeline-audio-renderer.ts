@@ -77,7 +77,7 @@ export class TimelineAudioRenderer {
 	private createGain(binding: TimelineParameterBinding, getScope: (time: number) => ParameterEvaluationScope) {
 		const cache = new Map<number, number>();
 		const evaluate = (time: number) => {
-			const value = coerceParameterValue(timelineAudioParamDefs.volume, this.evaluator.evaluate(binding, getScope(time), 0));
+			const value = coerceParameterValue(timelineAudioParamDefs.volume, this.evaluator.evaluate(binding, getScope(time), 0, timelineAudioParamDefs.volume));
 			return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
 		};
 		const control = (index: number) => {

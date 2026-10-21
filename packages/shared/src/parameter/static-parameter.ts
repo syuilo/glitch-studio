@@ -1,4 +1,5 @@
 import { getArrayElementDefinition, getStructFieldDefinitions } from './parameter-definition.ts';
+import { validateParameterExpressionModifier } from './parameter-expression-modifier.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 import type { ParameterBindingBase, ParameterArrayElement } from './parameter-binding.ts';
 
@@ -6,6 +7,7 @@ import type { ParameterBindingBase, ParameterArrayElement } from './parameter-bi
 export function inspectStaticParameter<Binding extends ParameterBindingBase>(definition: ParameterDefinition, binding: Binding,
 	inspectLeaf: (definition: ParameterDefinition, binding: Binding) => void): void {
 	if (!binding) throw new Error('Missing parameter binding');
+	validateParameterExpressionModifier(definition, binding);
 	if (definition.dataType.kind !== 'array' && definition.dataType.kind !== 'struct') {
 		inspectLeaf(definition, binding);
 		return;
@@ -31,6 +33,15 @@ export function inspectStaticParameter<Binding extends ParameterBindingBase>(def
  */
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 export function staticParameterShape(definition: ParameterDefinition | null | undefined, binding: any): unknown {
+	const modifier = binding?.expressionModifier;
+	const source = binding == null ? binding : { ...binding };
+	if (source != null) delete source.expressionModifier;
+	// 本文と有効状態は参照構造を変えない。保存形式が壊れた場合だけ静的検証をやり直す。
+	const shape = staticParameterSourceShape(definition, source);
+	return modifier == null ? shape : ['expressionModifier', [typeof modifier, typeof modifier.enabled, typeof modifier.code], shape];
+}
+
+function staticParameterSourceShape(definition: ParameterDefinition | null | undefined, binding: any): unknown {
 	if (!binding) return null;
 	if (binding.inputSource === 'literal') {
 		if (definition?.dataType.kind === 'array' && Array.isArray(binding.value)) {

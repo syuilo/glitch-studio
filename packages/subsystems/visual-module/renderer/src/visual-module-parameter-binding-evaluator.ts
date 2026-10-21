@@ -4,6 +4,7 @@ import { visualModuleCustomParameterName } from '@gs/subsystems_visual-module_sh
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
+import type { ExpressionParameterDefinition } from '@gs/shared/parameter/expression-parameter-value.ts';
 import type { VisualModuleEvaluatedParameterValues } from '@gs/subsystems_visual-module_shared/parameter-evaluation.ts';
 import type { VisualModuleCustomParameterId, VisualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 
@@ -16,7 +17,7 @@ export type VisualModuleParameterEvaluationContext = ParameterEvaluationScope & 
 export class VisualModuleParameterBindingEvaluator {
 	private valueEvaluator = new ParameterBindingEvaluator();
 
-	evaluate(binding: VisualModuleParameterBinding, context: VisualModuleParameterEvaluationContext, fallback: any): any {
+	evaluate(binding: VisualModuleParameterBinding, context: VisualModuleParameterEvaluationContext, fallback: any, definition?: ExpressionParameterDefinition): any {
 		if (binding.inputSource === 'node') return binding.nodeId == null ? null : { nodeId: binding.nodeId, outputPort: binding.outputPort };
 		if (binding.inputSource === 'externalCustomParameterInput') {
 			return context.evaluatedParamValues.has(binding.parameterId) ? deepClone(context.evaluatedParamValues.get(binding.parameterId)) : fallback;
@@ -32,6 +33,6 @@ export class VisualModuleParameterBindingEvaluator {
 					return deepClone(context.evaluatedParamValues.get(id));
 				},
 			},
-		}, fallback);
+		}, fallback, definition);
 	}
 }

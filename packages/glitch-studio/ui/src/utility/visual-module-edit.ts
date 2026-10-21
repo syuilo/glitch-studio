@@ -84,6 +84,7 @@ function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualMod
 		case 'automationGraphInline': manager.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'envVariable': manager.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;
 		case 'expression': manager.commit('updateParamAsExpression', { ...target, value: event.value }, event.mergeKey); break;
+		case 'expressionModifier': manager.commit('updateParamExpressionModifier', { ...target, value: event.value }, event.mergeKey); break;
 		case 'automationGraphReference': manager.commit('updateParamAsAutomationGraphReference', { ...target, value: event.value, options: event.options }); break;
 		case 'keyframesTimelineInline': manager.commit('updateParamAsKeyframesTimelineInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'node': manager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;

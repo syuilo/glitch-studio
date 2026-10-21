@@ -63,7 +63,7 @@ export function createVisualModuleTimelineLayer(
 				// 空のenumキーフレームには有効な既定値が必要。保存済みの無効値は置換せず下で報告する。
 				const enumFallback = value?.inputSource === 'keyframesTimelineInline' ? def.defaultValue.value : null;
 				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value as TimelineParameterBinding, evaluationContext,
-					def.dataType.kind === 'enum' ? enumFallback : value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def));
+					def.dataType.kind === 'enum' ? enumFallback : value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def), def);
 				// prepare待機中にliteralの配列が編集されても、このフレームの値は変えない。
 				evaluatedParamValues.set(def.id, coerceParameterValue(def, deepClone(validateEnumParameterValue(def, evaluated))));
 			}
