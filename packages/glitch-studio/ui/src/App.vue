@@ -12,8 +12,8 @@
 		<div :class="$style.headerInner">
 			<div :class="$style.headerLeft">
 				<img src="/gs.svg" draggable="false" style="display: block; width: 20px; height: 20px; margin: 0 4px 0 8px;">
-				<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
-				<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
+				<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
+				<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
@@ -515,7 +515,7 @@ onMounted(async () => {
 	color: var(--THEME-accent);
 }
 
-.undoRedo {
+.headerQuickButton {
 	padding: 0 8px;
 	app-region: no-drag;
 
