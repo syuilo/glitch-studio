@@ -7,10 +7,10 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 // 【実Electronでスプラッシュを描画し、メイン画面への切替と起動途中の終了を確認する】
-// メイン画面の準備と画像の読み込みは独立して進むため、完了順が逆でも
-// スプラッシュだけが後から表示されたり、終了後に残ったりしてはいけない。
+// 表示のためにWebContentsを増やさず、HTMLの読み込みや初回描画を待たないことを確認する。
+// メイン画面が表示済み・終了済みの場合にスプラッシュが残ることも防ぐ。
 // GLITCH_ELECTRON_TEST=1で実ウィンドウを短時間表示する検証を有効にする。
-test('renders the startup splash and disposes it on main window show, early completion, close and load failure', { skip: process.env.GLITCH_ELECTRON_TEST !== '1', timeout: 30000 }, async t => {
+test('shows an image splash without WebContents and disposes it on main window show or close', { skip: process.env.GLITCH_ELECTRON_TEST !== '1', timeout: 30000 }, async t => {
 	const temporaryRoot = path.resolve(os.tmpdir());
 	const directory = await fs.mkdtemp(path.join(temporaryRoot, 'glitch-startup-splash-'));
 	t.after(async () => {
@@ -19,7 +19,7 @@ test('renders the startup splash and disposes it on main window show, early comp
 		await fs.rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	});
 	const startupSplashUrl = new URL('../startup-splash.mjs', import.meta.url).href;
-	const iconPath = new URL('../../ui/public/icon-512.png', import.meta.url);
+	const imagePath = new URL('../resources/startup-splash.png', import.meta.url);
 	const helper = path.join(directory, 'main.cjs');
 	await fs.writeFile(helper, `
 		const assert = require('node:assert/strict');
@@ -27,45 +27,56 @@ test('renders the startup splash and disposes it on main window show, early comp
 		const fs = require('node:fs/promises');
 		const path = require('node:path');
 		const { fileURLToPath } = require('node:url');
-		const { app, BrowserWindow } = require('electron');
+		const { app, BaseWindow, BrowserWindow, ImageView, nativeImage, webContents, desktopCapturer } = require('electron');
 		app.setPath('userData', path.join(__dirname, 'profile'));
 		app.on('window-all-closed', () => {});
 		app.whenReady().then(async () => {
 			const { createStartupSplash } = await import(${JSON.stringify(startupSplashUrl)});
-			const iconPath = fileURLToPath(${JSON.stringify(iconPath.href)});
-			function createWindows(splashIconPath = iconPath) {
-				const mainWindow = new BrowserWindow({ show: false, backgroundColor: '#000' });
-				const startupSplash = createStartupSplash({ mainWindow, iconPath: splashIconPath });
+			const imagePath = fileURLToPath(${JSON.stringify(imagePath.href)});
+			assert.deepEqual(nativeImage.createFromPath(imagePath).getSize(), { width: 400, height: 280 });
+			function createWindows() {
+				const mainWindow = new BaseWindow({ show: false, backgroundColor: '#000' });
+				const startupSplash = createStartupSplash({ mainWindow, imagePath });
 				return { mainWindow, startupSplash };
 			}
+			const initialWebContents = webContents.getAllWebContents().map(contents => contents.id);
 			const normal = createWindows();
-			await once(normal.startupSplash, 'show');
+			assert.ok(normal.startupSplash instanceof BaseWindow);
+			assert.equal(normal.startupSplash instanceof BrowserWindow, false);
+			assert.ok(normal.startupSplash.contentView instanceof ImageView);
+			if (!normal.startupSplash.isVisible()) await once(normal.startupSplash, 'show');
+			assert.equal(normal.startupSplash.isVisible(), true);
 			assert.equal(normal.mainWindow.isVisible(), false);
-			assert.equal(await normal.startupSplash.webContents.executeJavaScript(
-				"document.querySelector('img').naturalWidth > 0 && getComputedStyle(document.body).backgroundColor === 'rgb(0, 0, 0)'"
-			), true);
-			assert.equal((await normal.startupSplash.webContents.capturePage()).isEmpty(), false);
+			assert.deepEqual(webContents.getAllWebContents().map(contents => contents.id), initialWebContents);
+			assert.deepEqual(normal.startupSplash.contentView.getBounds(), { x: 0, y: 0, width: 400, height: 280 });
 			if (process.env.GLITCH_SPLASH_SCREENSHOT != null) {
-				await fs.writeFile(process.env.GLITCH_SPLASH_SCREENSHOT, (await normal.startupSplash.webContents.capturePage()).toPNG());
+				normal.startupSplash.setTitle('Glitch Studio Splash Test');
+				const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 400, height: 280 } });
+				const source = sources.find(source => source.name === 'Glitch Studio Splash Test');
+				assert.ok(source != null, 'Native splash was not available for capture');
+				assert.equal(source.thumbnail.isEmpty(), false);
+				await fs.writeFile(process.env.GLITCH_SPLASH_SCREENSHOT, source.thumbnail.toPNG());
 			}
+			const mainWindowShown = once(normal.mainWindow, 'show');
 			normal.mainWindow.show();
+			await mainWindowShown;
 			assert.equal(normal.startupSplash.isDestroyed(), true);
 			normal.mainWindow.destroy();
 
-			const early = createWindows();
-			early.startupSplash.once('show', () => { throw new Error('Splash appeared after the main window'); });
-			early.mainWindow.show();
-			assert.equal(early.startupSplash.isDestroyed(), true);
-			early.mainWindow.destroy();
+			const visibleMainWindow = new BaseWindow({ show: true });
+			if (!visibleMainWindow.isVisible()) await once(visibleMainWindow, 'show');
+			assert.equal(createStartupSplash({ mainWindow: visibleMainWindow, imagePath }), null);
+			visibleMainWindow.destroy();
+			assert.equal(createStartupSplash({ mainWindow: visibleMainWindow, imagePath }), null);
 
 			const canceled = createWindows();
 			canceled.mainWindow.destroy();
 			assert.equal(canceled.startupSplash.isDestroyed(), true);
 
-			const failed = createWindows(path.join(__dirname, 'missing-icon.png'));
-			await once(failed.startupSplash, 'closed');
-			assert.equal(failed.mainWindow.isDestroyed(), false);
-			failed.mainWindow.destroy();
+			const failedMainWindow = new BaseWindow({ show: false });
+			assert.equal(createStartupSplash({ mainWindow: failedMainWindow, imagePath: path.join(__dirname, 'missing-image.png') }), null);
+			assert.equal(failedMainWindow.isDestroyed(), false);
+			failedMainWindow.destroy();
 			console.log('STARTUP_SPLASH_OK');
 			app.exit(0);
 		}).catch(error => { console.error(error); app.exit(1); });
@@ -73,7 +84,9 @@ test('renders the startup splash and disposes it on main window show, early comp
 	const executable = createRequire(import.meta.url)('electron');
 	const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
 	const result = await new Promise((resolve, reject) => {
-		const child = spawn(executable, [helper], { windowsHide: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
+		// ネイティブウィンドウの実表示を検証する。windowsHideを指定すると、
+		// WindowsのSTARTUPINFOによって最初のshow()が非表示扱いになってしまう。
+		const child = spawn(executable, [helper], { windowsHide: false, env, stdio: ['ignore', 'pipe', 'pipe'] });
 		let output = '';
 		child.stdout.on('data', data => { output += data; });
 		child.stderr.on('data', data => { output += data; });

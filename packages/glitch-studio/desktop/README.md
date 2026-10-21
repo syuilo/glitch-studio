@@ -6,9 +6,11 @@ desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-buil
 
 ## 起動時の表示
 
-`startup-splash.mjs`が黒背景にロゴを表示するスプラッシュウィンドウを開きます。UIのJavaScriptや開発サーバーからの読み込みを必要としない、ローカルのHTMLと画像だけで描画します。メインウィンドウは`ready-to-show`まで非表示にし、準備ができたら最大化して表示すると同時にスプラッシュを閉じます。最低表示時間は設けず、メインウィンドウが先に準備できた場合はスプラッシュを表示しません。起動途中でメインウィンドウを閉じた場合もスプラッシュを破棄し、スプラッシュの読み込み失敗は通常の起動を妨げません。
+`startup-splash.mjs`が`BaseWindow`と`ImageView`を使い、`resources/startup-splash.png`を直接表示します。ロゴと文字は事前に画像化しており、スプラッシュ専用のレンダラープロセスやHTMLの読み込み・初回描画を待ちません。Electronの`app.ready`以降に表示でき、`ImageView`は実験的APIです。画像は`app.asar`内に同梱するため、開発版・配布版で同じものを使用します。
 
-`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/startup-splash-electron.test.mjs`を実行すると、実ウィンドウを短時間表示して描画と切り替え・起動途中の終了・読み込み失敗を検証します。
+メインウィンドウは`ready-to-show`まで非表示にし、準備ができたら最大化して表示すると同時にスプラッシュを閉じます。最低表示時間は設けず、メインウィンドウが表示済みの場合はスプラッシュを作成しません。起動途中でメインウィンドウを閉じた場合もスプラッシュを破棄し、画像の読み込み失敗は通常の起動を妨げません。
+
+`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/startup-splash-electron.test.mjs`を実行すると、実ウィンドウを短時間表示してレンダラープロセスを増やさない表示と切り替え・起動途中の終了・読み込み失敗を検証します。
 
 ## 計測精度
 

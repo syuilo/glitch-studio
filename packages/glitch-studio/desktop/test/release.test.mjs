@@ -277,10 +277,10 @@ test('rejects missing direct and transitive dependencies in a packaged applicati
 	assert.doesNotThrow(() => verifyPackagedApplication(archive));
 });
 
-// 【配布対象の実ソースをASARに詰め、起動時の相対importをすべて解決できることを確認する】
+// 【配布対象の実ソースと画像をASARに詰め、起動時に必要なファイルをすべて解決できることを確認する】
 // main.mjsに実装を追加しても配布対象への追加を忘れると、開発環境だけ起動できて配布版が起動不能になる。
 // 実際のelectron-builder設定とソースを使い、別の手書きファイル一覧との比較では見逃す追加漏れを検出する。
-test('packages every local module required by the actual application and preload', async t => {
+test('packages every local module and resource required by the actual application and preload', async t => {
 	const temporaryRoot = path.resolve(os.tmpdir());
 	const directory = await fs.mkdtemp(path.join(temporaryRoot, 'glitch-runtime-package-test-'));
 	t.after(async () => {
@@ -295,7 +295,11 @@ test('packages every local module required by the actual application and preload
 	await fs.mkdir(source);
 	// npmの依存収集は既存のテストで検証し、ここではアプリ自身のファイル選択を検証する。
 	await fs.writeFile(path.join(source, 'package.json'), JSON.stringify({ main: manifest.main }));
-	for (const file of configuration.files) await fs.copyFile(path.join(desktopDirectory, file), path.join(source, file));
+	for (const file of configuration.files) {
+		const destination = path.join(source, file);
+		await fs.mkdir(path.dirname(destination), { recursive: true });
+		await fs.copyFile(path.join(desktopDirectory, file), destination);
+	}
 	const archive = path.join(directory, 'app.asar');
 	await asar.createPackage(source, archive);
 	assert.doesNotThrow(() => verifyPackagedApplication(archive, configuration.files));

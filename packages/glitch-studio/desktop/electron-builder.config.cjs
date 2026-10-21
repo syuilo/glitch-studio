@@ -4,6 +4,7 @@ const { version } = require('../../../package.json');
 const applicationFiles = [
 	'main.mjs',
 	'startup-splash.mjs',
+	'resources/startup-splash.png',
 	'voicevox.mjs',
 	'preload.cjs',
 	'app-protocol.mjs',

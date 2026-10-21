@@ -112,7 +112,7 @@ function createWindow() {
 			sandbox: true,
 		},
 	});
-	createStartupSplash({ mainWindow, iconPath });
+	createStartupSplash({ mainWindow, imagePath: path.join(import.meta.dirname, 'resources/startup-splash.png') });
 	// 初回描画前に表示すると、背景色を黒にしていても白くちらつくことがある。
 	// maximize()自体もウィンドウを表示するため、最大化も描画の準備ができるまで待つ。
 	mainWindow.once('ready-to-show', () => {
