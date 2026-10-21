@@ -31,7 +31,6 @@
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsInput v-if="paramValue.inputSource === 'expression'" :key="paramPathKey(paramPath)" data-test-base-expression-code manualSave large type="text" class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
-						<template #label>{{ i18n.ts._Parameter.BaseExpression }}</template>
 						<template #caption="{ value }">
 							<div v-if="hasExpressionSyntaxError(value ?? '')" data-test-base-expression-error style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> {{ (value ?? '').trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</div>
 						</template>
