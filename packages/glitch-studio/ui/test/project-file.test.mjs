@@ -92,15 +92,15 @@ const appBundle = await build({
 						async replaceProjectState(state) {
 							const snapshot = deepClone(state);
 							this.snapshots.push(snapshot);
-							Object.assign(this.options, this.timeline ? snapshot : { visualModules: snapshot.visualModules });
+							Object.assign(this.options, this.timeline ? snapshot : { automationGraphs: snapshot.automationGraphs, visualModules: snapshot.visualModules });
 						}
 						async applyProjectChanges(changes) {
-							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'visualModuleRegistration'
+							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
 								|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
 							if (!patch.length) return;
 							this.patches.push(patch);
-							const next = applyRendererProjectChanges({ visualModules: this.options.visualModules, timelineScenes: this.options.timelineScenes ?? [] }, patch);
-							Object.assign(this.options, this.timeline ? next : { visualModules: next.visualModules });
+							const next = applyRendererProjectChanges({ automationGraphs: this.options.automationGraphs, visualModules: this.options.visualModules, timelineScenes: this.options.timelineScenes ?? [] }, patch);
+							Object.assign(this.options, this.timeline ? next : { automationGraphs: next.automationGraphs, visualModules: next.visualModules });
 						}
 						startVisualModuleLivePreviewRenderLoopFor() { this.lifecycle.push('start'); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
@@ -203,6 +203,7 @@ test('initializes both previews from saved rendering preferences', async t => {
 
 function project(overrides = {}) {
 	return {
+		automationGraphs: [],
 		exportSettings: null,
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		id: 'project-id', gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
@@ -2111,4 +2112,28 @@ test('reloads without undo and preserves modes paths and embedded bytes through 
 	manager.redo();
 	await setImmediate();
 	assert.equal(await current().fileData.text(), 'new');
+});
+
+// 【プロジェクト共通の定義は読み込み・保存・両プレビューの初期状態で一致する】
+// 編集差分だけを同期しても、読み込み直後やWorker再生成後の一覧を渡し忘れると参照が失われる。
+// 実際のProjectContextとAppContextを通し、スナップショットが曲線を保持することを確認する。
+test('loads snapshots and synchronizes project Automation Graph definitions to both previews', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	const automationGraph = { id: 'shared', nameForReference: 'Curve', isNormalized: false, points: [
+		{ id: 'point', x: 0, y: 0.5, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+	] };
+	await appContext.ready(project({ automationGraphs: [automationGraph] }));
+	const context = appContext.projectContext;
+	assert.deepEqual(context.snapshot().automationGraphs, [automationGraph]);
+	for (const renderer of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.deepEqual(renderer.options.automationGraphs, [automationGraph]);
+	}
+	context.stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...automationGraph, nameForReference: 'Renamed' } });
+	await nextTick();
+	await setImmediate();
+	for (const renderer of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(renderer.options.automationGraphs[0].nameForReference, 'Renamed');
+	}
+	assert.equal(context.snapshot().automationGraphs[0].id, automationGraph.id);
 });

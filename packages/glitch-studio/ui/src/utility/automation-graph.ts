@@ -1,5 +1,6 @@
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
 type InlineAutomationGraph = Extract<ValueParameterBinding, { inputSource: 'automationGraphInline' }>;
@@ -77,4 +78,12 @@ export function createInlineAutomationGraph(): Extract<ValueParameterBinding, { 
 		wrapMode: 'repeat',
 		offsetMode: 'start',
 	};
+}
+
+export function createProjectAutomationGraph(graphs: readonly AutomationGraph[], source?: AutomationGraph): AutomationGraph {
+	const baseName = source?.nameForReference ?? 'my_automation_graph';
+	let nameForReference = baseName;
+	for (let suffix = 2; graphs.some(graph => graph.nameForReference === nameForReference); suffix++) nameForReference = `${baseName}_${suffix}`;
+	const data = deepClone(source ?? createInlineAutomationGraph().automationGraph);
+	return { ...data, id: genId(), nameForReference, points: data.points.map(point => ({ ...point, id: genId() })) };
 }

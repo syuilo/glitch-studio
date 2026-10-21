@@ -1,5 +1,6 @@
 import { getReferencedGeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { ref } from 'vue';
+import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
 import { COMMAND_DEFS } from './commands.ts';
@@ -29,6 +30,7 @@ export type ProjectAsset = Asset & {
 };
 
 export type ProjectState = {
+	automationGraphs: Ref<AutomationGraph[]>;
 	exportSettings: Ref<ExportDialogSettings | null>;
 	name: Ref<string>;
 	description: Ref<string>;
@@ -46,6 +48,7 @@ export type ProjectState = {
 
 // 状態を所有する側の通知契約。通知先やキャッシュ・実行インスタンスの方針には依存しない。
 export type ProjectContentChange =
+	| { type: 'automationGraphs' }
 	| { type: 'node'; target: VisualModuleTarget; nodeId: string; changes: VisualModuleNodeChange[] }
 	| { type: 'visualModule'; target: VisualModuleTarget }
 	| { type: 'visualModuleRegistration'; visualModuleId: string }
@@ -75,6 +78,7 @@ export class ProjectContext {
 
 	constructor() {
 		this.stateManager = new UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>({
+			automationGraphs: ref<AutomationGraph[]>([]),
 			exportSettings: ref<ExportDialogSettings | null>(null),
 			name: ref(DEFAULT_PROJECT_NAME),
 			description: ref(''),
@@ -113,6 +117,7 @@ export class ProjectContext {
 		this.stateManager.state.timelineScenes.value = project.timelineScenes;
 		this.stateManager.undoStack.value = [];
 		this.stateManager.redoStack.value = [];
+		this.stateManager.state.automationGraphs.value = project.automationGraphs;
 		this.projectId.value = project.id;
 	}
 
@@ -128,6 +133,7 @@ export class ProjectContext {
 		// 保存・バックアップで同じ完全な状態を使う。非同期のエンコードや保存先選択の間に
 		// 編集されても、取得済みのスナップショットへ変更が混入しないよう切り離す。
 		return deepClone({
+			automationGraphs: state.automationGraphs.value,
 			exportSettings: state.exportSettings.value,
 			id: this.projectId.value,
 			gsVersion: _VERSION_,

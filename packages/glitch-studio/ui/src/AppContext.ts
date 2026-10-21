@@ -4,6 +4,7 @@ import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_time
 import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 
+import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { computed, ref, shallowRef, markRaw, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.js';
@@ -49,6 +50,9 @@ export const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const
 export class AppContext {
 	public readonly projectContext: ProjectContext;
 	public activeSceneId = ref<string | null>(null);
+	public timelineEvaluationScenes = computed(() => getTimelineScenesWithProjectAutomationGraphs(
+		this.projectContext.stateManager.state.timelineScenes.value, this.projectContext.stateManager.state.automationGraphs.value,
+	));
 	public activeScene = computed(() => this.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === this.activeSceneId.value) ?? null);
 	public selectedTimelineLayer = computed(() => {
 		const scene = this.activeScene.value;
@@ -119,7 +123,7 @@ export class AppContext {
 			() => ({
 				generatedSpeech: this.previewSpeech.value,
 				assets: deepClone(this.projectContext.stateManager.state.assets.value),
-				timelineScenes: deepClone(this.projectContext.stateManager.state.timelineScenes.value),
+				timelineScenes: deepClone(this.timelineEvaluationScenes.value),
 				sceneId: this.activeSceneId.value,
 			}),
 		));
@@ -147,7 +151,7 @@ export class AppContext {
 				if (this.visualModuleRendererManagerController.isReady.value && this.timelineRendererManagerController.isReady.value) return;
 				// エラー中の差分は送らない。再生成時に、UIの最新状態を一度だけ取り込む。
 				const state = this.projectContext.stateManager.state;
-				await this.replacePreviewProject({ visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value });
+				await this.replacePreviewProject({ automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value });
 				await this.updatePreviewOptions({ assets: deepClone(state.assets.value), resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value });
 				await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value, generatedSpeech: deepClone(this.previewSpeech.value) });
 				if (!isCurrent()) return;
@@ -343,7 +347,7 @@ export class AppContext {
 		this.projectWatchers = [];
 		this.previewPlayback.dispose();
 		// 同じIDのプロジェクトを再読込した場合も、以前の再生・ノード履歴を引き継がない。
-		await this.replacePreviewProject({ visualModules: [], timelineScenes: [] });
+		await this.replacePreviewProject({ automationGraphs: [], visualModules: [], timelineScenes: [] });
 		await this.updatePreviewOptions({ assets: [] });
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: null });
 		await this.visualModuleRendererManagerController.updatePlayers([]);
@@ -364,7 +368,7 @@ export class AppContext {
 		this.activeSceneId.value = project.timelineScenes[0]?.id ?? null;
 		this.scenePlaybackTimes.clear();
 		this.pendingSceneSeek = null;
-		await this.replacePreviewProject({ visualModules: project.visualModules, timelineScenes: project.timelineScenes });
+		await this.replacePreviewProject({ automationGraphs: project.automationGraphs, visualModules: project.visualModules, timelineScenes: project.timelineScenes });
 		await this.updatePreviewOptions({ assets: deepClone(project.assets) });
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value });
 		await this.visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
@@ -403,7 +407,7 @@ export class AppContext {
 		// 音声の内容・参照素材・ループ長だけを比較する。Blobは不変なので同一性で判定し、
 		// 素材名や映像パラメータの編集では再生中のWorkerと先読みPCMを維持する。
 		this.projectWatchers.push(watch(() => {
-			const layers = this.renderValidation.errorMessage.value || this.activeSceneId.value == null ? [] : getSceneAudioClips(this.projectContext.stateManager.state.timelineScenes.value, this.activeSceneId.value, { type: 'all' }, createSpeechResolver(this.previewSpeech.value));
+			const layers = this.renderValidation.errorMessage.value || this.activeSceneId.value == null ? [] : getSceneAudioClips(this.timelineEvaluationScenes.value, this.activeSceneId.value, { type: 'all' }, createSpeechResolver(this.previewSpeech.value));
 			const assetIds = new Set(layers.map(clip => clip.sourceId));
 			return {
 				layers: deepClone(layers),

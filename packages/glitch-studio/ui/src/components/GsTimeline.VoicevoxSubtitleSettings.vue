@@ -10,6 +10,7 @@
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
+			:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
 			:paramValue="values[key] ?? def.defaultValue"
@@ -20,6 +21,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { computed } from 'vue';
 import { voicevoxSubtitleParamDefs } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle.ts';

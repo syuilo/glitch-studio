@@ -9,6 +9,12 @@ const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { ProjectContext } from './src/Project.ts';
+		export { getAvailableAutomationGraphs, getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
+		export { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
+		export { TimelineAudioRenderer } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts';
+		export { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.ts';
+		export { createProjectAutomationGraph } from './src/utility/automation-graph.ts';
+		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
 		export { RendererProjectSynchronizer } from './src/RendererProjectSynchronizer.ts';
 		export { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 		export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
@@ -41,7 +47,7 @@ function fixture(t, count = 1, overrides = {}) {
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
 	manager.state.visualModules.value = [visualModule];
 	manager.state.timelineScenes.value = [scene];
-	let replica = structuredClone({ visualModules: [visualModule], timelineScenes: [scene] });
+	let replica = structuredClone({ automationGraphs: [], visualModules: [visualModule], timelineScenes: [scene] });
 	const batches = [], errors = [];
 	const sync = new RendererProjectSynchronizer(manager, {
 		apply: async changes => { batches.push(changes); replica = applyRendererProjectChanges(replica, changes); },
@@ -430,4 +436,115 @@ test('synchronizes camera layer edits and undo without replacing other layers', 
 	assert.deepEqual(values().position.value, [0.4, 0.2]);
 	assert.equal(f.replica.timelineScenes[0].layers.find(layer => layer.id === image.id), originalImage);
 	assert.deepEqual(f.errors, []);
+});
+
+const { getAvailableAutomationGraphs, getTimelineScenesWithProjectAutomationGraphs, ParameterBindingEvaluator,
+	TimelineAudioRenderer, getSceneAudioClips, createProjectAutomationGraph, encodeProjectFile, decodeProjectFile } = module.exports;
+const sharedGraph = (id = 'shared', nameForReference = 'Curve', value = null) => ({ id, nameForReference, isNormalized: false,
+	points: [0, 1000].map((x, index) => ({ id: id + index, x, y: value ?? index, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] })),
+});
+const graphReference = id => ({ inputSource: 'automationGraphReference', automationGraphId: id, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start' });
+
+// 【共通定義の編集・削除・Undo/Redoと同期・保存は、参照元のIDを維持する】
+// 削除時にBindingをnullへ書き換えるとUndoで再接続できない。曲線変更も最新の定義を送り、
+// 名前変更後のID参照と保存ファイル内の定義が食い違わないことを確認する。
+test('synchronizes and saves shared graphs through editing deletion undo and redo', async t => {
+	const f = fixture(t);
+	const graph = sharedGraph();
+	const layer = createImageLayer('asset', 0);
+	layer.compositingParamValues.opacity = graphReference(graph.id);
+	f.manager.state.timelineScenes.value[0].layers.push(layer);
+	f.manager.commit('addProjectAutomationGraph', { automationGraph: graph });
+	await f.sync.flush();
+	assert.deepEqual(f.replica.automationGraphs, [graph]);
+	const renamed = { ...graph, nameForReference: 'Renamed', points: graph.points.map(point => ({ ...point, y: 0.25 })) };
+	f.manager.commit('updateProjectAutomationGraph', { automationGraph: renamed });
+	await f.sync.flush();
+	assert.deepEqual(f.replica.automationGraphs, [renamed]);
+	const decoded = decodeProjectFile(await encodeProjectFile({ automationGraphs: f.manager.state.automationGraphs.value,
+		assets: [], generatedSpeech: [], visualModules: [], timelineScenes: f.manager.state.timelineScenes.value }));
+	assert.deepEqual(decoded.automationGraphs, [renamed]);
+	assert.equal(decoded.timelineScenes[0].layers[0].compositingParamValues.opacity.automationGraphId, graph.id);
+	f.manager.commit('removeProjectAutomationGraph', { automationGraphId: graph.id });
+	await f.sync.flush();
+	assert.deepEqual(f.replica.automationGraphs, []);
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].compositingParamValues.opacity.automationGraphId, graph.id);
+	f.manager.undo();
+	await f.sync.flush();
+	assert.deepEqual(f.replica.automationGraphs, [renamed]);
+	f.manager.redo();
+	await f.sync.flush();
+	assert.deepEqual(f.replica.automationGraphs, []);
+});
+
+// 【共通定義の参照名はプロジェクト内で一意にし、複製では曲線とIDを独立させる】
+// GRAPH()の解決を登録順に依存させず、失敗したコマンドで一覧の一部だけが変更されないようにする。
+test('validates shared graph names and duplicates independent curves and identities', t => {
+	const f = fixture(t);
+	const graph = sharedGraph();
+	f.manager.commit('addProjectAutomationGraph', { automationGraph: graph });
+	for (const invalid of [{ ...graph, id: 'other' }, { ...graph, id: 'empty', nameForReference: '  ' }]) {
+		assert.throws(() => f.manager.commit('addProjectAutomationGraph', { automationGraph: invalid }));
+	}
+	const copy = createProjectAutomationGraph(f.manager.state.automationGraphs.value, graph);
+	assert.notEqual(copy.id, graph.id);
+	assert.notEqual(copy.nameForReference, graph.nameForReference);
+	assert.notEqual(copy.points[0].id, graph.points[0].id);
+	copy.points[0].y = 100;
+	assert.equal(graph.points[0].y, 0);
+	f.manager.commit('addProjectAutomationGraph', { automationGraph: copy });
+	assert.throws(() => f.manager.commit('updateProjectAutomationGraph', { automationGraph: { ...copy, nameForReference: graph.nameForReference } }));
+	assert.equal(f.manager.state.automationGraphs.value[1].nameForReference, copy.nameForReference);
+});
+
+// 【名前参照はローカル優先でも、ID参照は同名の共通定義を選べる】
+// 名前の上書きで共通定義自体を候補から除くと、選択済みのID参照まで失われてしまう。
+// 曲線の保存場所に時計を持たせず、参照元の時刻が評価値を決めることも確認する。
+test('prefers local names while resolving shared IDs using the caller clock', () => {
+	const evaluator = new ParameterBindingEvaluator();
+	const global = sharedGraph();
+	const local = sharedGraph('local', global.nameForReference, 0.75);
+	const scope = { automationGraphs: getAvailableAutomationGraphs([local], [global]), time: 200, endTime: Infinity, variables: {} };
+	assert.equal(evaluator.evaluate({ inputSource: 'expression', expression: 'GRAPH("Curve", 200, "clamp")' }, scope, -1), 0.75);
+	assert.equal(evaluator.evaluate(graphReference(local.id), scope, -1), 0.75);
+	assert.ok(Math.abs(evaluator.evaluate(graphReference(global.id), scope, -1) - 0.2) < 1e-8);
+	assert.ok(Math.abs(evaluator.evaluate(graphReference(global.id), { ...scope, time: 800 }, -1) - 0.8) < 1e-8);
+	assert.equal(evaluator.evaluate(graphReference('deleted'), scope, 0.4), 0.4);
+});
+
+// 【グループ内でも参照元レイヤーだけのローカル定義を使い、Visual Module内部へ公開しない】
+// 評価用のSceneを組み立てる際に保存状態を変更すると、共有定義がレイヤーやVisual Moduleへ
+// コピーされ、編集の二重管理や持ち出し時の意図しない依存が生じる。
+test('composes timeline evaluation graphs without mutating saved layers or Visual Module internals', () => {
+	const global = sharedGraph();
+	const child = { id: 'child', layerType: 'inlineVisualModule', automationGraphs: [], visualModule: { automationGraphs: [] } };
+	const group = { id: 'group', layerType: 'group', automationGraphs: [sharedGraph('parent')], layers: [child] };
+	const scenes = [{ id: 'scene', layers: [group] }];
+	const [evaluated] = getTimelineScenesWithProjectAutomationGraphs(scenes, [global]);
+	assert.deepEqual(evaluated.layers[0].automationGraphs.map(graph => graph.id), ['parent', 'shared']);
+	assert.deepEqual(evaluated.layers[0].layers[0].automationGraphs.map(graph => graph.id), ['shared']);
+	assert.equal(evaluated.layers[0].layers[0].visualModule, child.visualModule);
+	assert.deepEqual(child.visualModule.automationGraphs, []);
+	assert.deepEqual(child.automationGraphs, []);
+	assert.deepEqual(group.automationGraphs.map(graph => graph.id), ['parent']);
+});
+
+// 【音量も映像と同じ候補を使い、子Sceneの配置ではそのSceneの時計で評価する】
+// 最上位の時刻だけで共通グラフを一度評価すると、子Sceneのトリムや配置位置で音量がずれる。
+// 実際の音声計画とミキサーを通して、プレビュー・書き出し両方のPCMを確認する。
+test('evaluates shared audio gain in nested scene time during preview and export', async () => {
+	const graph = sharedGraph();
+	const audioLayer = { id: 'audio', layerType: 'audio', isDisabled: false, automationGraphs: [],
+		audioParamValues: { volume: graphReference(graph.id) }, clips: [{ id: 'audio-clip', assetId: 'sound',
+			startMs: 0, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, durationMs: 1000 }] };
+	const sceneLayer = { id: 'nested', layerType: 'scene', isDisabled: false, automationGraphs: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
+		clips: [{ id: 'nested-clip', sceneId: 'child', startMs: 1000, contentOffsetMs: 200, durationMs: 500 }] };
+	const scenes = getTimelineScenesWithProjectAutomationGraphs([{ id: 'root', layers: [sceneLayer] }, { id: 'child', layers: [audioLayer] }], [graph]);
+	const clips = getSceneAudioClips(scenes, 'root');
+	assert.equal(clips.length, 1);
+	const renderer = new TimelineAudioRenderer(async (_source, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(1)]);
+	for (const isExport of [false, true]) {
+		const pcm = await renderer.renderClips(clips, 1000, 1, 1000, isExport);
+		assert.ok(Math.abs(pcm[0][0] - 0.2) < 1e-6);
+	}
 });

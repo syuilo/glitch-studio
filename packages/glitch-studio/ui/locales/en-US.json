@@ -727,6 +727,13 @@
 		"Remove": "Remove parameter"
 	},
 	"_AutomationGraph": {
+		"ProjectGraphs": "Project Automation Graphs",
+		"LocalGraphs": "Local Automation Graphs",
+		"ReferenceName": "Reference name",
+		"MissingGraph": "Referenced graph not found",
+		"RenameHint": "References inside GRAPH() expressions are not renamed automatically.",
+		"Empty": "Add an Automation Graph to share a curve across parameters.",
+		"AddGraph": "Add Automation Graph",
 		"SnapHint": "Snap to step (hold Shift to disable)",
 		"Snap": "Snap",
 		"TimelineOffset": "TL Offset",

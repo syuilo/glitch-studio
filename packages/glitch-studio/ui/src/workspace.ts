@@ -17,10 +17,12 @@ import XCommandLog from '@/components/GsWorkspacePanel.CommandLog.vue';
 import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import XAssets from '@/components/GsWorkspacePanel.Assets.vue';
+import XAutomationGraphs from '@/components/GsWorkspacePanel.AutomationGraphs.vue';
 import XProjectInfo from '@/components/GsWorkspacePanel.ProjectInfo.vue';
 import XTimelineInspectorPanel from '@/components/GsWorkspacePanel.TimelineInspectorPanel.vue';
 
 const panelDefinitions = {
+	automationGraphs: { label: i18n.ts._AutomationGraph.ProjectGraphs, icon: 'ti ti-ease-in-out-control-points', component: XAutomationGraphs },
 	blank: { label: i18n.ts._Workspace.Blank, icon: '', component: XBlank },
 	audioSpectrum: { label: i18n.ts._Workspace.AudioSpectrum, icon: 'ti ti-chart-column', component: XAudioSpectrum },
 	audioSpectrogram: { label: i18n.ts._Workspace.AudioSpectrogram, icon: 'ti ti-chart-area', component: XAudioSpectrogram },

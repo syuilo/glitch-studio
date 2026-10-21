@@ -22,6 +22,8 @@ import { createVoicevoxTimelineLayer } from '@gs/subsystems_timeline_renderer/la
 import { createTextTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/text/text-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/shape/shape-timeline-layer.ts';
 import { createSceneOutput } from '@gs/subsystems_timeline_renderer/scene-output.ts';
+import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
+import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import { createTimelineCompositor } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
 import { TimelineCompositingParameters } from '@gs/subsystems_timeline_renderer/timeline-compositing-parameters.ts';
 import { isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
@@ -91,6 +93,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	generatedSpeech: GeneratedSpeech[];
 	visualModules: ProjectVisualModule[];
 	timelineScenes: TimelineScene[];
+	automationGraphs: AutomationGraph[];
 	sceneId: string | null;
 	transformObserver: TimelineTransformObservation | null;
 	/** UIから送られた状態の世代。既存の更新RPCに同梱し、古い枠の採用を防ぐ。 */
@@ -138,6 +141,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	private projectVersions = new ProjectStateVersions();
+	private evaluationScenes: TimelineScene[] = [];
 	private pendingTransformPreview: TimelineTransformPreview | null = null;
 	private lastTransformPreview: TimelineTransformPreview | null = null;
 	private transformPreviewParameters = new TimelineCompositingParameters();
@@ -154,6 +158,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		generatedSpeech: [],
 		visualModules: [],
 		timelineScenes: [],
+		automationGraphs: [],
 		sceneId: null,
 		transformObserver: null,
 		previewRevision: 0,
@@ -211,7 +216,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				parent: TIMELINE_IDENTITY,
 				depth: 0,
 				viewport: TIMELINE_FRAME,
-				camera: camera.evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === this.dynamicOptions.sceneId)?.layers ?? [], time, isExport,
+				camera: camera.evaluate(this.evaluationScenes.find(scene => scene.id === this.dynamicOptions.sceneId)?.layers ?? [], time, isExport,
 					scaleResolution(this.sceneBaseResolution, this.dynamicOptions.resolutionScale), referenceTime?.timeMs),
 			}),
 			fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
@@ -290,12 +295,13 @@ export class TimelineRendererManager extends EventEmitter<{
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
 		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
+		if (Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'automationGraphs')) this.refreshEvaluationScenes();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
 		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
-		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'visualModules') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId')) {
+		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'visualModules') || Object.hasOwn(newOptions, 'automationGraphs') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId')) {
 			this.clearTimelineRenderers();
 		}
 		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId') || Object.hasOwn(newOptions, 'outputResolution')) {
@@ -324,6 +330,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.clearTimelineRenderers();
 		this.projectVersions = new ProjectStateVersions();
 		Object.assign(this.dynamicOptions, state);
+		this.refreshEvaluationScenes();
 		this.dynamicOptions.previewRevision = previewRevision;
 		if (!state.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) this.dynamicOptions.sceneId = null;
 		this.gpuContext.canvas.width = resolution.width;
@@ -343,6 +350,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.motionBlurTiming = null;
 		this.projectVersions.apply(changes, this.dynamicOptions);
 		Object.assign(this.dynamicOptions, next);
+		this.refreshEvaluationScenes();
+		if (changes.some(change => change.type === 'automationGraphs')) this.clearTimelineRenderers();
 		this.dynamicOptions.previewRevision = previewRevision;
 		if (!next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) {
 			this.dynamicOptions.sceneId = null;
@@ -357,6 +366,10 @@ export class TimelineRendererManager extends EventEmitter<{
 		}
 	}
 
+	private refreshEvaluationScenes() {
+		this.evaluationScenes = getTimelineScenesWithProjectAutomationGraphs(this.dynamicOptions.timelineScenes, this.dynamicOptions.automationGraphs);
+	}
+
 	private resolveProjectOutputResolution(state: RendererProjectState): Resolution {
 		const scene = state.timelineScenes.find(scene => scene.id === this.dynamicOptions.sceneId);
 		const sceneResolution = resolveSceneResolution(scene?.resolution ?? { mode: 'project' }, this.dynamicOptions.resolution,
@@ -369,7 +382,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private getLayer(sceneId: string, layerId: string) {
-		return findTimelineLayer(getTimelineScene(this.dynamicOptions.timelineScenes, sceneId).layers, layerId);
+		return findTimelineLayer(getTimelineScene(this.evaluationScenes, sceneId).layers, layerId);
 	}
 
 	private getLayerVersion(sceneId: string, layer: TimelineLayer, clipId: string | null): string {
@@ -525,7 +538,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				automationGraphs: entry.automationGraphs,
 			});
 			const settings = evaluate(layer);
-			const camera = new TimelineSceneCamera().evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false, sceneSize);
+			const camera = new TimelineSceneCamera().evaluate(this.evaluationScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false, sceneSize);
 			const parent = getTimelinePreviewParent(location.ancestors.map(parent => parent.layerType === 'transform'
 				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
@@ -573,9 +586,9 @@ export class TimelineRendererManager extends EventEmitter<{
 			return this.timelineRenderer.renderAt(time, this.getSceneLayers(), initialTimeDelta, isExport);
 		}
 		this.motionBlurTiming ??= this.dynamicOptions.sceneId == null ? { boundaries: [], loops: [], cameras: [] } : {
-			boundaries: getTimelineMotionBlurBoundaries(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId),
-			loops: getTimelineMotionBlurLoops(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId),
-			cameras: getTimelineMotionBlurCameraCuts(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId),
+			boundaries: getTimelineMotionBlurBoundaries(this.evaluationScenes, this.dynamicOptions.sceneId),
+			loops: getTimelineMotionBlurLoops(this.evaluationScenes, this.dynamicOptions.sceneId),
+			cameras: getTimelineMotionBlurCameraCuts(this.evaluationScenes, this.dynamicOptions.sceneId),
 		};
 		const times = getTimelineSampleTimes(time, fps, settings, this.motionBlurTiming.boundaries, this.motionBlurTiming.loops, this.motionBlurTiming.cameras);
 		return this.frameRenderer.render(time, times, isExport, initialTimeDelta);
@@ -583,17 +596,17 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private get renderResolution(): Resolution {
 		return resolveSceneResolution(this.dynamicOptions.sceneId == null ? { mode: 'project' }
-			: getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).resolution,
+			: getTimelineScene(this.evaluationScenes, this.dynamicOptions.sceneId).resolution,
 		this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
 	}
 
 	private get sceneBaseResolution(): Resolution {
 		return this.dynamicOptions.sceneId == null ? this.dynamicOptions.resolution
-			: getSceneBaseResolution(getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).resolution, this.dynamicOptions.resolution);
+			: getSceneBaseResolution(getTimelineScene(this.evaluationScenes, this.dynamicOptions.sceneId).resolution, this.dynamicOptions.resolution);
 	}
 
 	private getSceneLayers() {
-		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).layers.filter(isTimelineRenderLayer);
+		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.evaluationScenes, this.dynamicOptions.sceneId).layers.filter(isTimelineRenderLayer);
 	}
 
 	private createTimelineLayer(layer: TimelineLayer, clipId: string | null, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<TimelineImage> {
@@ -677,7 +690,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					resolutionScale: this.dynamicOptions.resolutionScale,
 					assets: this.dynamicOptions.assets,
 					assetTextures: this.assetTextures.textures,
-					getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.dynamicOptions.timelineScenes, sceneId, layer.id, binding, time, isExport),
+					getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
 					onState: status => this.emit('ev', { type: 'effectLayerState', ctx: { source, status } }),
 				});
 			}
@@ -718,9 +731,9 @@ export class TimelineRendererManager extends EventEmitter<{
 			}
 			case 'scene': {
 				const clip = layer.clips.find(clip => clip.id === clipId)!;
-				const scene = getTimelineScene(this.dynamicOptions.timelineScenes, clip.sceneId);
+				const scene = getTimelineScene(this.evaluationScenes, clip.sceneId);
 				const childBaseResolution = getSceneBaseResolution(scene.resolution, this.dynamicOptions.resolution);
-				return createSceneTimelineLayer(() => getTimelineScene(this.dynamicOptions.timelineScenes, scene.id), layer, {
+				return createSceneTimelineLayer(() => getTimelineScene(this.evaluationScenes, scene.id), layer, {
 					onCompositing,
 					device: this.gpuDevice,
 					vertex: this.defaultVertexShaderModule,
@@ -807,7 +820,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				this.gpuDevice.queue.submit([encoder.finish()]);
 				return result;
 			},
-			getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.dynamicOptions.timelineScenes, sceneId, layer.id, binding, time, isExport),
+			getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();

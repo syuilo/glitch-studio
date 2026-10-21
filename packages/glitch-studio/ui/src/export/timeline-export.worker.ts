@@ -7,6 +7,7 @@ import { createMp4Writer } from './mp4-writer.ts';
 import { adjustExportResolution, scaleExportResolution } from './export-settings.ts';
 import { encodeStillWebp } from './still-webp.ts';
 import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
+import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { getExportAudioClips } from './audio-export-settings.ts';
 import { TimelineAudioExport } from './timeline-audio-export.ts';
 import type { ExportRequest, ExportResponse } from './types.ts';
@@ -41,7 +42,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		send({ type: 'progress', progress: { phase: 'preparing', completedFrames: 0, totalFrames: 0 } });
 		const canvas = new OffscreenCanvas(settings.width, settings.height);
 		if (settings.format === 'mp4') {
-			const audioClips = getExportAudioClips(project.timelineScenes, project.sceneId, settings, project.generatedSpeech);
+			const audioClips = getExportAudioClips(getTimelineScenesWithProjectAutomationGraphs(project.timelineScenes, project.automationGraphs), project.sceneId, settings, project.generatedSpeech);
 			writer = await createMp4Writer(canvas, settings, audioClips.length > 0);
 			if (audioClips.length > 0) audio = new TimelineAudioExport(project.assets, audioClips, settings, project.generatedSpeech);
 		}

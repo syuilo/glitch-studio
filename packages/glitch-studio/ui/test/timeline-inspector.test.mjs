@@ -461,7 +461,7 @@ async function fixture(t, component = Inspector) {
 	globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 	globalThis.HTMLElement = class {};
 	t.after(() => { globalThis.ResizeObserver = previousResizeObserver; globalThis.HTMLElement = previousHTMLElement; });
-	const state = { timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [makeLayer('a'), makeLayer('b')] }]),
+	const state = { automationGraphs: ref([]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [makeLayer('a'), makeLayer('b')] }]),
 																	assets: ref([{ id: 'sound', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }]), visualModules: ref([]),
 																	players: ref([]), generatedSpeech: ref([]), resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30) };
 	const history = new UndoRedo(state, COMMAND_DEFS);

@@ -22,6 +22,7 @@
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
+			:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
 			:paramValue="layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key)"
@@ -42,6 +43,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { computed } from 'vue';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';

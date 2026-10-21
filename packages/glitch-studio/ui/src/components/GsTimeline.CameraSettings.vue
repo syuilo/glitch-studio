@@ -10,6 +10,7 @@
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
+			:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
 			:paramValue="layer.cameraParamValues[key] ?? def.defaultValue"
@@ -26,6 +27,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import GsFolder from './common/GsFolder.vue';

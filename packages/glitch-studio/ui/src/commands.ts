@@ -61,7 +61,8 @@ import type { Resolution } from '@gs/shared/resolution.ts';
 import type { ExportDialogSettings } from './export/export-settings.ts';
 import type { VisualModuleImport } from './gsvm.ts';
 import type { Player } from '@gs/shared/types.ts';
-import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
+import { validateProjectAutomationGraphName } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
+import type { AutomationGraph, AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineEffectParameterBinding, TimelineLowerLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ValueParameterEdit } from '@/types/parameter-edit.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -2599,7 +2600,63 @@ const moveTimelineContainerCommandDef = defineCommand<{ sceneId: string; layerId
 	},
 });
 
+const addProjectAutomationGraphCommandDef = defineCommand<{ automationGraph: AutomationGraph }>({
+	label: 'Add project Automation Graph',
+	changes: () => [{ type: 'automationGraphs' }],
+	create: ({ automationGraph }) => ({
+		execute(state) {
+			if (state.automationGraphs.value.some(graph => graph.id === automationGraph.id)) throw new Error('Duplicate Automation Graph ID');
+			validateProjectAutomationGraphName(state.automationGraphs.value, automationGraph);
+			state.automationGraphs.value.push(deepClone(automationGraph));
+		},
+		undo(state) { state.automationGraphs.value = state.automationGraphs.value.filter(graph => graph.id !== automationGraph.id); },
+	}),
+});
+
+const updateProjectAutomationGraphCommandDef = defineCommand<{ automationGraph: AutomationGraph }>({
+	label: 'Update project Automation Graph',
+	changes: () => [{ type: 'automationGraphs' }],
+	create: ({ automationGraph }) => {
+		let before: AutomationGraph;
+		return {
+			execute(state) {
+				const index = state.automationGraphs.value.findIndex(graph => graph.id === automationGraph.id);
+				if (index < 0) throw new Error('Automation Graph not found');
+				validateProjectAutomationGraphName(state.automationGraphs.value, automationGraph);
+				before = deepClone(state.automationGraphs.value[index]);
+				state.automationGraphs.value[index] = deepClone(automationGraph);
+			},
+			undo(state) {
+				const index = state.automationGraphs.value.findIndex(graph => graph.id === automationGraph.id);
+				state.automationGraphs.value[index] = deepClone(before);
+			},
+		};
+	},
+});
+
+const removeProjectAutomationGraphCommandDef = defineCommand<{ automationGraphId: string }>({
+	label: 'Remove project Automation Graph',
+	changes: () => [{ type: 'automationGraphs' }],
+	create: ({ automationGraphId }) => {
+		let before: AutomationGraph;
+		let index: number;
+		return {
+			execute(state) {
+				index = state.automationGraphs.value.findIndex(graph => graph.id === automationGraphId);
+				if (index < 0) throw new Error('Automation Graph not found');
+				before = deepClone(state.automationGraphs.value[index]);
+				// 参照元のIDは残し、Undoで同じ定義を復元したときに再接続する。
+				state.automationGraphs.value.splice(index, 1);
+			},
+			undo(state) { state.automationGraphs.value.splice(index, 0, deepClone(before)); },
+		};
+	},
+});
+
 export const COMMAND_DEFS = {
+	addProjectAutomationGraph: addProjectAutomationGraphCommandDef,
+	updateProjectAutomationGraph: updateProjectAutomationGraphCommandDef,
+	removeProjectAutomationGraph: removeProjectAutomationGraphCommandDef,
 	groupTimelineLayers: groupTimelineLayersCommandDef,
 	transformTimelineLayers: transformTimelineLayersCommandDef,
 	unwrapTimelineLayer: unwrapTimelineLayerCommandDef,

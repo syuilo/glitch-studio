@@ -387,8 +387,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	}
 
 	public async replaceProjectState(state: RendererProjectState) {
-		const snapshot = { visualModules: deepClone(state.visualModules), timelineScenes: [] };
-		this.dynamicOptions = { ...this.dynamicOptions, visualModules: snapshot.visualModules };
+		const snapshot = { automationGraphs: deepClone(state.automationGraphs), visualModules: deepClone(state.visualModules), timelineScenes: [] };
+		this.dynamicOptions = { ...this.dynamicOptions, automationGraphs: snapshot.automationGraphs, visualModules: snapshot.visualModules };
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;
 		const replacement = this.callAndWaitReturn('replaceProjectState', [snapshot]);
@@ -401,11 +401,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	}
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const patch = deepClone(changes.filter(change => change.type === 'visualModuleRegistration'
+		const patch = deepClone(changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
 			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
 		if (patch.length === 0) return;
-		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: [] }, patch);
-		this.dynamicOptions = { ...this.dynamicOptions, visualModules: next.visualModules };
+		const next = applyRendererProjectChanges({ automationGraphs: this.dynamicOptions.automationGraphs ?? [], visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: [] }, patch);
+		this.dynamicOptions = { ...this.dynamicOptions, automationGraphs: next.automationGraphs, visualModules: next.visualModules };
 		if (this.visualModuleLivePreviewVisualModuleId.value != null && !next.visualModules.some(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId.value)) this.stopRenderLoop();
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;

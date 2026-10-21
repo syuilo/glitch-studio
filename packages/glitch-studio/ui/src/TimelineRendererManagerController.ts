@@ -177,7 +177,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
 		const patch = deepClone(changes);
-		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: this.dynamicOptions.timelineScenes ?? [] }, patch);
+		const next = applyRendererProjectChanges({ automationGraphs: this.dynamicOptions.automationGraphs ?? [], visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: this.dynamicOptions.timelineScenes ?? [] }, patch);
 		const revision = this.invalidateTransformPreview();
 		this.dynamicOptions = {
 			...this.dynamicOptions,

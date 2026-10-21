@@ -1,11 +1,13 @@
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ProjectVisualModule } from './types.ts';
 import type { VisualModule, VisualModuleNode, VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineClipLayer, TimelineGroupLayer, TimelineTransformLayer, TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleTarget } from './visual-module-target.ts';
 
 export type RendererProjectState = {
+	automationGraphs: AutomationGraph[];
 	visualModules: ProjectVisualModule[];
 	timelineScenes: TimelineScene[];
 };
@@ -21,6 +23,7 @@ export function getRendererLayerState(layer: TimelineLayer): RendererLayerState 
 }
 
 export type RendererProjectChange =
+	| { type: 'automationGraphs'; automationGraphs: AutomationGraph[] }
 	| { type: 'node'; target: VisualModuleTarget; node: VisualModuleNode; changes: VisualModuleNodeChange[] }
 	| { type: 'visualModule'; target: VisualModuleTarget; visualModule: VisualModule }
 	| { type: 'visualModuleRegistration'; visualModuleId: string; visualModule: ProjectVisualModule | null }
@@ -42,6 +45,7 @@ export function findRendererVisualModule(state: RendererProjectState, target: Vi
  * 途中で失敗しても呼び出し元の状態は変わらず、完成した結果を一度だけ採用できる。
  */
 export function applyRendererProjectChanges(state: RendererProjectState, changes: readonly RendererProjectChange[]): RendererProjectState {
+	let automationGraphs = state.automationGraphs;
 	let visualModules = state.visualModules;
 	let timelineScenes = state.timelineScenes;
 	const updateScene = (id: string, update: (scene: TimelineScene) => TimelineScene) => {
@@ -52,6 +56,7 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 	};
 	for (const change of changes) {
 		switch (change.type) {
+			case 'automationGraphs': automationGraphs = change.automationGraphs; break;
 			case 'visualModuleRegistration': {
 				if (change.visualModule == null) visualModules = visualModules.filter(visualModule => visualModule.id !== change.visualModuleId);
 				else {
@@ -121,5 +126,5 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 			}
 		}
 	}
-	return { visualModules, timelineScenes };
+	return { automationGraphs, visualModules, timelineScenes };
 }

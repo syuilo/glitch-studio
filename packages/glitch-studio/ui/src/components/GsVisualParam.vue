@@ -42,8 +42,9 @@
 						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" style="display: grid; gap: 6px;">
-						<GsButton v-if="paramValue.inputSource === 'automationGraphReference'" @click="selectAutomationGraph">{{ selectedAutomationGraph?.nameForReference ?? i18n.ts.None }}</GsButton>
+						<GsButton v-if="paramValue.inputSource === 'automationGraphReference'" @click="selectAutomationGraph">{{ selectedAutomationGraph?.nameForReference ?? (paramValue.automationGraphId == null ? i18n.ts.None : i18n.ts._AutomationGraph.MissingGraph) }}</GsButton>
 						<GsButton v-else @click="inlineGraphEditorOpen = true">{{ i18n.ts._Parameter.EditGraph }}</GsButton>
+						<GsButton v-if="selectedProjectAutomationGraph != null" @click="projectGraphEditorOpen = true">{{ i18n.ts._Parameter.EditGraph }}</GsButton>
 						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
 							<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
 						</GsSelect>
@@ -110,6 +111,13 @@
 	</div>
 	<Teleport to="body">
 		<GsAutomationGraphPointsEditorWindow
+			v-if="projectGraphEditorOpen && selectedProjectAutomationGraph != null"
+			:automationGraph="selectedProjectAutomationGraph"
+			:title="i18n.ts._AutomationGraph.ProjectGraphs + ': ' + selectedProjectAutomationGraph.nameForReference"
+			@change="updateProjectGraphPoints"
+			@closed="projectGraphEditorOpen = false"
+		/>
+		<GsAutomationGraphPointsEditorWindow
 			v-if="inlineGraphEditorOpen && paramValue.inputSource === 'automationGraphInline'"
 			:automationGraph="paramValue.automationGraph"
 			:title="label ?? paramDef.ui.label"
@@ -122,6 +130,7 @@
 			v-for="(element, index) in arrayValues"
 			:key="element.id"
 			:automationGraphs="automationGraphs"
+			:projectAutomationGraphs="projectAutomationGraphs"
 			:availableVariables="availableVariables"
 			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:keyframesEnabled="keyframesEnabled"
@@ -147,6 +156,7 @@
 			v-for="[key, def] in visibleFields"
 			:key="key"
 			:automationGraphs="automationGraphs"
+			:projectAutomationGraphs="projectAutomationGraphs"
 			:availableVariables="availableVariables"
 			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:keyframesEnabled="keyframesEnabled"
@@ -213,12 +223,15 @@ import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey, canConnect
 import { registerWireInput } from '@/utility/wire-drag.ts';
 import { getNodeInputSamplingMenuItems } from '@/utility/input-sampling-menu.ts';
 import * as ui from '@/ui.ts';
+import { appContext } from '@/app.ts';
+import { getAvailableAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 
 const wireMap = useVisualModuleWires();
 
 const props = defineProps<{
 	automationGraphs: readonly AutomationGraph[];
+	projectAutomationGraphs?: readonly AutomationGraph[];
 	availableVariables: readonly ExpressionVariableName[];
 	visualModule?: VisualModule;
 	node?: VisualModuleEffectNode;
@@ -282,9 +295,13 @@ function updateAnotherLayerAudio(value: string | null) {
 const paramDefs = computed(() => props.visualModule?.paramDefs ?? []);
 const nodes = computed(() => props.visualModule?.nodes ?? []);
 
+const availableAutomationGraphs = computed(() => getAvailableAutomationGraphs(props.automationGraphs, props.projectAutomationGraphs ?? []));
+const selectedProjectAutomationGraph = computed(() => selectedAutomationGraph.value != null && !props.automationGraphs.some(graph => graph.id === selectedAutomationGraph.value?.id)
+	? props.projectAutomationGraphs?.find(graph => graph.id === selectedAutomationGraph.value?.id) ?? null : null);
+const projectGraphEditorOpen = ref(false);
 const selectedAutomationGraph = computed(() => {
 	const value = props.paramValue;
-	return value.inputSource === 'automationGraphReference' ? props.automationGraphs.find(graph => graph.id === value.automationGraphId) : null;
+	return value.inputSource === 'automationGraphReference' ? availableAutomationGraphs.value.find(graph => graph.id === value.automationGraphId) : null;
 });
 const graphTimeAxisItems = [
 	{ label: i18n.ts._Parameter.NormalizedTime, value: 'normalized' },
@@ -388,13 +405,22 @@ function updateAutomationGraphDuration(trimmedDurationMs: number) {
 	if (Number.isFinite(trimmedDurationMs) && trimmedDurationMs > 0) updateAutomationGraphOptions({ trimmedDurationMs });
 }
 
+function updateProjectGraphPoints(points: BezierAnchorPoint[], mergeKey: string | null) {
+	if (selectedProjectAutomationGraph.value != null) appContext.projectContext.stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...selectedProjectAutomationGraph.value, points } }, mergeKey);
+}
+
 function selectAutomationGraph(ev: PointerEvent) {
 	ui.popupMenu([
 		{ text: i18n.ts.None, action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: null }) },
-		...props.automationGraphs.map(automationGraph => ({
-			text: automationGraph.nameForReference,
-			action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: automationGraph.id }),
-		})),
+		...([
+			{ graphs: props.automationGraphs, label: i18n.ts._AutomationGraph.LocalGraphs },
+			{ graphs: props.projectAutomationGraphs ?? [], label: i18n.ts._AutomationGraph.ProjectGraphs },
+		]).flatMap<MenuItem>(({ graphs, label }) => graphs.length === 0 ? [] : [
+			{ type: 'label', text: label },
+			...graphs.map(automationGraph => ({ text: automationGraph.nameForReference,
+				action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: automationGraph.id }),
+			})),
+		]),
 	], ev.currentTarget ?? ev.target);
 }
 

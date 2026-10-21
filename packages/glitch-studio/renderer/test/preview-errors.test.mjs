@@ -810,3 +810,41 @@ for (const [name, createManager] of [['visualModuleLivePreview', createVisualMod
 		});
 	}
 }
+
+// 【共通定義の差分を両プレビューへ反映し、Visual Module内部の定義は独立に保つ】
+// Live Previewの公開引数とTimelineのレイヤー引数は別の評価経路を通るため、
+// 片方だけ同期したり、同一時刻での再描画に古い曲線を使い続けたりする不具合を防ぐ。
+for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
+	test(`${Manager.name} refreshes project curves without exposing them inside Visual Modules`, async t => {
+		const { renderer, frame, errors } = await fixture(t, {}, Manager);
+		const graph = value => ({ id: 'shared-curve', nameForReference: 'Curve', isNormalized: false,
+			points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
+		const expression = { inputSource: 'expression', expression: '[GRAPH("Curve", TIME_MS, "clamp"), 0, 0, 1]' };
+		const observedColors = [];
+		if (Manager === TimelineRendererManager) t.mock.method(renderer, 'createCompositingObserver', () => source => observedColors.push(source.value));
+		const definition = constantVisualModule();
+		await renderer.updateDynamicOptions({ visualModules: [definition], automationGraphs: [graph(0.5)] });
+		if (Manager === VisualModuleRendererManager) renderer.startVisualModuleLivePreviewRenderLoopFor('module', { color: expression });
+		else {
+			const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
+			scene.layers[0].visualModuleParamValues = { color: expression };
+			renderer.applyProjectChanges([{ type: 'scene', sceneId: scene.id, scene }]);
+		}
+		const writes = [];
+		const writeTexture = renderer.gpuDevice.queue.writeTexture;
+		renderer.gpuDevice.queue.writeTexture = (...args) => { writes.push(Array.from(new Uint16Array(args[1].buffer, args[1].byteOffset, 4))); writeTexture(...args); };
+		let timestamp = 0;
+		const render = async () => Manager === VisualModuleRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(100);
+		await render();
+		assert.deepEqual(errors, []);
+		assert.deepEqual(Manager === TimelineRendererManager ? observedColors.at(-1) : writes.at(-1), Manager === TimelineRendererManager ? [0.5, 0, 0, 1] : [0x3800, 0, 0, 0x3c00]);
+		renderer.applyProjectChanges([{ type: 'automationGraphs', automationGraphs: [graph(0.25)] }]);
+		await render();
+		assert.deepEqual(Manager === TimelineRendererManager ? observedColors.at(-1) : writes.at(-1), Manager === TimelineRendererManager ? [0.25, 0, 0, 1] : [0x3400, 0, 0, 0x3c00]);
+		assert.deepEqual(renderer.dynamicOptions.visualModules[0].automationGraphs, []);
+		renderer.applyProjectChanges([{ type: 'automationGraphs', automationGraphs: [] }]);
+		await render();
+		assert.deepEqual(Manager === TimelineRendererManager ? observedColors.at(-1) : writes.at(-1), Manager === TimelineRendererManager ? [0, 0, 0, 1] : [0, 0, 0, 0x3c00]);
+		assert.deepEqual(errors, []);
+	});
+}

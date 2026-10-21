@@ -727,6 +727,13 @@
 		"Remove": "パラメータを削除"
 	},
 	"_AutomationGraph": {
+		"ProjectGraphs": "プロジェクト共通のAutomation Graph",
+		"LocalGraphs": "ローカルのAutomation Graph",
+		"ReferenceName": "参照名",
+		"MissingGraph": "参照先が見つかりません",
+		"RenameHint": "GRAPH()内の参照名は自動で変更されません。",
+		"Empty": "Automation Graphを追加すると、複数のパラメータから同じ曲線を参照できます。",
+		"AddGraph": "Automation Graphを追加",
 		"SnapHint": "刻み幅にスナップ (Shiftを押すと無効)",
 		"Snap": "スナップ",
 		"TimelineOffset": "タイムラインのオフセット",

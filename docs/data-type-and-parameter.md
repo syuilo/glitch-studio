@@ -37,6 +37,16 @@
 - カスタムパラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`externalCustomParameterInput` や `PARAM` による直接参照は `canNode: false` のカスタムパラメータに限定する仕様です。ただし音声は`externalCustomParameterInput`だけで参照し、`PARAM`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
 - レイヤーの引数・合成設定と、モジュール内部の式は別の評価スコープです。変数・automation graph・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。グラフの再生時刻を渡すことと、同名の変数を式に公開することも別です。
 
+## プロジェクト共通のAutomation Graph
+
+プロジェクトの`automationGraphs`は曲線の定義（ID・`nameForReference`・点・時間軸の種類）だけを共有する。再生設定は各Binding、評価時刻・終了時刻は参照元の評価スコープが所有する。Timelineでは所属Sceneの時刻を使い、Visual Module Live Previewの公開パラメータへの入力ではLive Previewの時刻を使う。
+
+`automationGraphReference`はIDで解決する。レイヤー内とプロジェクト共通の両方を候補に残すので、同じ参照名でも共通定義をIDで選べる。式の`GRAPH(nameForReference, coordinate, wrapMode)`はローカル定義を優先し、見つからない場合にプロジェクト共通の定義を使う。GroupやTransformのローカル定義を子レイヤーへ継承しない。
+
+共通定義の`nameForReference`はプロジェクト内で一意とし、名前変更でID参照は変わらない。`GRAPH()`内の文字列は自動変更しない。削除後も参照IDを保持し、未解決参照は既存の評価フォールバックを使う。Undoで同じIDを復元すれば再び解決される。
+
+プロジェクト共通の定義はVisual Module内部のノード・式へ直接公開しない。Visual Module自身のローカル定義は維持し、プロジェクト共通の曲線を使う値は公開パラメータへの引数として渡す。
+
 ## Other
 
 Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Visual Module内部の `VisualModuleParameterBinding` は共通方式に `node` / `externalCustomParameterInput` を加えます。Timelineの `TimelineVisualModuleParameterBinding` は共通方式に音声用の `lowerLayerAudio` / `anotherLayerAudio` と画像用の `lowerLayerOutput` / `anotherLayerOutput` を加えます。`TimelineEffectParameterBinding` は同じ取得元を扱い、画像Bindingにfit・wrap・filterを持ちます。Visual Module公開入力のサンプリングは内部接続が所有します。Visual Module Live Previewから渡す `VisualModuleArgumentBindings`、タイムラインの合成設定・音量には共通方式だけを許可します。

@@ -238,6 +238,7 @@ async function doExport() {
 			assets: getRendererAssets(stateManager.state.assets.value),
 			generatedSpeech: stateManager.state.generatedSpeech.value,
 			visualModules: stateManager.state.visualModules.value,
+			automationGraphs: stateManager.state.automationGraphs.value,
 			timelineScenes: stateManager.state.timelineScenes.value,
 			sceneId: exportSceneId,
 		});

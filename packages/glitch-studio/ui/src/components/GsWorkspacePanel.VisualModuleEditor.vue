@@ -15,6 +15,7 @@
 				:availableVariables="VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS"
 				:paramPath="[paramDef.id]"
 				:automationGraphs="[]"
+				:projectAutomationGraphs="stateManager.state.automationGraphs.value"
 				:paramDef="{ ...paramDef, canNode: false }"
 				:paramValue="previewParamValues[paramDef.id]"
 				@edit="onPreviewParamEdit"

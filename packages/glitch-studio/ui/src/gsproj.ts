@@ -1,6 +1,7 @@
 import { getReferencedGeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
+import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { Player } from '@gs/shared/types.js';
@@ -43,6 +44,7 @@ export type ProjectInfo = {
 };
 
 export type Project = ProjectInfo & {
+	automationGraphs: AutomationGraph[];
 	exportSettings: ExportDialogSettings | null;
 	timelineFps: number;
 	timelineMotionBlur: TimelineMotionBlurSettings;

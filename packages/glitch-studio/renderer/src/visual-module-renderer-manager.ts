@@ -19,6 +19,7 @@ import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import type { FrameScheduler, VisualModuleLivePreviewFrameTiming } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { VisualModuleCustomParameterId, VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
@@ -57,6 +58,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	fpsLimit: number | null;
 	assets: Asset[];
 	visualModules: ProjectVisualModule[];
+	automationGraphs: AutomationGraph[];
 };
 
 export type VisualModuleLivePreviewEffectStatusSource = { type: 'visualModuleLivePreview'; instanceId: string; visualModuleId: string };
@@ -114,6 +116,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		opaqueOutput: false,
 		assets: [],
 		visualModules: [],
+		automationGraphs: [],
 	};
 
 	constructor(coreConfig: {
@@ -287,13 +290,15 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		// 全量置換は初期化・復旧の境界。差分更新と違い、同じIDでも履歴を引き継がない。
 		this.stopRenderLoop();
 		this.dynamicOptions.visualModules = state.visualModules;
+		this.dynamicOptions.automationGraphs = state.automationGraphs;
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const relevant = changes.filter(change => change.type === 'visualModuleRegistration'
+		const relevant = changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
 			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target);
-		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules, timelineScenes: [] }, relevant);
+		const next = applyRendererProjectChanges({ automationGraphs: this.dynamicOptions.automationGraphs, visualModules: this.dynamicOptions.visualModules, timelineScenes: [] }, relevant);
 		this.dynamicOptions.visualModules = next.visualModules;
+		this.dynamicOptions.automationGraphs = next.automationGraphs;
 		const visualModuleLivePreviewChanges = relevant.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.visualModuleLivePreviewVisualModuleId
 			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.visualModuleLivePreviewVisualModuleId);
 		if (visualModuleLivePreviewChanges.length > 0 && this.visualModuleLivePreviewVisualModuleRenderer != null) {
@@ -384,7 +389,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 						TIME: timing.time / 1000,
 						TIME_MS: timing.time,
 					} satisfies Record<typeof VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS[number], unknown>,
-					automationGraphs: [],
+					automationGraphs: this.dynamicOptions.automationGraphs,
 					time: timing.time,
 					endTime: Infinity,
 				}, def.dataType.kind === 'enum' ? null : genEmptyValue(def))))); // TODO: genEmptyValueを遅延評価したい

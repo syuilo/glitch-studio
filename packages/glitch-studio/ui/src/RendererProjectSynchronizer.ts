@@ -28,9 +28,9 @@ export class RendererProjectSynchronizer {
 			// Assets・Players・プロジェクト解像度・タイムライン描画設定は専用同期経路が扱い、表示名は送らない。
 			// どの通知を描画へ送るかは、状態管理ではなくこの購読側で選ぶ。
 			const targets = changes.filter((change): change is ProjectContentChange =>
-				change.type === 'node' || change.type === 'visualModule' || change.type === 'visualModuleRegistration' || change.type === 'layer' || change.type === 'layerTree' || change.type === 'layerOrder' || change.type === 'scene');
+				change.type === 'automationGraphs' || change.type === 'node' || change.type === 'visualModule' || change.type === 'visualModuleRegistration' || change.type === 'layer' || change.type === 'layerTree' || change.type === 'layerOrder' || change.type === 'scene');
 			for (let target of targets) {
-				const key = target.type === 'node' ? JSON.stringify([target.type, visualModuleTargetKey(target.target), target.nodeId])
+				const key = target.type === 'automationGraphs' ? target.type : target.type === 'node' ? JSON.stringify([target.type, visualModuleTargetKey(target.target), target.nodeId])
 					: target.type === 'visualModule' ? JSON.stringify([target.type, visualModuleTargetKey(target.target)])
 					: target.type === 'visualModuleRegistration' ? JSON.stringify([target.type, target.visualModuleId])
 					: JSON.stringify([target.type, target.sceneId, target.type === 'layer' ? target.layerId : null]);
@@ -60,7 +60,9 @@ export class RendererProjectSynchronizer {
 		const registeredVisualModuleIds = new Set(targets.filter(target => target.type === 'visualModuleRegistration').map(target => target.visualModuleId));
 		const changes: RendererProjectChange[] = [];
 		for (const target of targets) {
-			if (target.type === 'visualModuleRegistration') {
+			if (target.type === 'automationGraphs') {
+				changes.push({ type: 'automationGraphs', automationGraphs: this.manager.state.automationGraphs.value });
+			} else if (target.type === 'visualModuleRegistration') {
 				changes.push({ ...target, visualModule: this.manager.state.visualModules.value.find(visualModule => visualModule.id === target.visualModuleId) ?? null });
 			} else if (target.type === 'node' || target.type === 'visualModule') {
 				const moduleTarget = target.target;
