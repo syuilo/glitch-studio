@@ -14,7 +14,7 @@ globalThis.GPUQueue = class { submit() {} };
 const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const def = (id, value = 7) => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(value), canNode: false });
+const def = (id, value = 7) => ({ id, nameForReference: id.toLowerCase().replaceAll('-', '_'), dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(value), canNode: false });
 const frame = { time: 500, endTime: 2000, isExport: true };
 const clipFrame = { sceneTimeMs: 500, contentTimeMs: 250, contentEndTimeMs: 2000, clipElapsedTimeMs: 100, clipDurationMs: 1850, isExport: true };
 
@@ -159,8 +159,8 @@ test('does not retain PARAM functions or local declarations between expressions'
 // IDとnameForReferenceが同じグラフでも所有者ごとに解決し、削除後は他スコープへフォールバックしない。
 test('isolates graph references and GRAPH functions without inheriting graphs', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
-	const graph = value => ({ id: 'graph', nameForReference: 'Graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
-	const params = { ref: { inputSource: 'automationGraphReference', automationGraphId: 'graph', trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' }, named: expression('GRAPH("Graph", 0, "clamp")') };
+	const graph = value => ({ id: 'graph', nameForReference: 'graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
+	const params = { ref: { inputSource: 'automationGraphReference', automationGraphId: 'graph', trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' }, named: expression('GRAPH("graph", 0, "clamp")') };
 	const defs = [def('ref'), def('named')];
 	const external = externalValues(evaluator, defs, params, { ...layerScope, automationGraphs: [graph(2)] });
 	assert.deepEqual([...external.values()], [2, 2]);
@@ -210,7 +210,7 @@ test('snapshots layer values once for prepare and render', async () => {
 test('keeps layer defaults and excludes primary inputs from evaluated values', async () => {
 	const definitions = [
 		{ ...def('input', [0, 0, 0, 0]), dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true },
-		{ ...def('gain-id', 8), nameForReference: 'Gain' },
+		{ ...def('gain-id', 8), nameForReference: 'gain' },
 		def('missing', 9), def('invalid', 10), def('export'),
 	];
 	let resolved;

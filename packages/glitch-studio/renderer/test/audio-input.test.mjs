@@ -124,7 +124,7 @@ test('shares player snapshots across nodes, public inputs, and unchanged frames'
 	const selection = { type: 'player', playerId: 'player' };
 	const renderer = createVisualModuleRenderer(VisualModuleRenderer, { resolveAudioSource: value => inputs.resolve(value) });
 	const nodes = ['first', 'second'].map(id => ({ id, type: 'effect', effectId: 'probe', params: { audio: literal(selection) } }));
-	const publicAudio = { ...audioDef, id: 'sound', nameForReference: 'Sound' };
+	const publicAudio = { ...audioDef, id: 'sound', nameForReference: 'sound' };
 	nodes[1].params.audio = { inputSource: 'externalCustomParameterInput', parameterId: publicAudio.id };
 	Object.assign(renderer, { nodes, paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef } } } });
 	const publicInput = inputs.resolve(selection);
@@ -185,10 +185,10 @@ test('invalidates player snapshots on append, reset, replacement, and disconnect
 // canNodeを無効にしても、音声リソースを通常の数値・画像の参照へ流してはいけない。
 test('resolves public audio inputs independently of PARAM and image parameters', () => {
 	const renderer = createVisualModuleRenderer(VisualModuleRenderer);
-	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'Sound' };
+	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'sound' };
 	const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Number', control: { controlType: 'number' } }, defaultValue: literal(0) };
 	const source = { cacheKey: 'lower', readWindow: () => window() };
-	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'externalCustomParameterInput', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PARAM("Sound")' } } };
+	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'externalCustomParameterInput', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PARAM("sound")' } } };
 	Object.assign(renderer, { nodes: [node], paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef, amount: scalar } } } });
 	const context = { time: 50, endTime: 100, isExport: false, evaluatedParamValues: new Map([[publicAudio.id, 123]]), audioParamInputs: new Map([[publicAudio.id, source]]) };
 	renderer.evaluateParameters(context);
@@ -220,7 +220,7 @@ test('delegates literal audio selections without knowing their source domain', (
 // トリムやモジュール内のTIMEを変えても、同じ場所の下層音声が選ばれる必要がある。
 // Noneを明示した場合は自動割り当てを上書きし、音声の読み出しも行わない。
 test('anchors module audio to scene time while preserving content time and explicit none', async () => {
-	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'Sound' };
+	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'sound' };
 	const visualModule = { paramDefs: [publicAudio], primaryInputId: null, primaryAudioInputId: publicAudio.id };
 	const layer = { visualModuleParamValues: {}, automationGraphs: [] };
 	const calls = [];
@@ -250,7 +250,7 @@ test('resolves independent public audio sources and shares only matching frame i
 	const bindings = {
 		lower: { inputSource: 'lowerLayerAudio' }, first: { inputSource: 'anotherLayerAudio', layerId: 'a' },
 		again: { inputSource: 'anotherLayerAudio', layerId: 'a' }, second: { inputSource: 'anotherLayerAudio', layerId: 'b' },
-		missing: { inputSource: 'anotherLayerAudio', layerId: 'missing' }, missingAgain: { inputSource: 'anotherLayerAudio', layerId: 'missing' },
+		missing: { inputSource: 'anotherLayerAudio', layerId: 'missing' }, missing_again: { inputSource: 'anotherLayerAudio', layerId: 'missing' },
 		none: { inputSource: 'anotherLayerAudio', layerId: null },
 	};
 	const visualModule = { primaryInputId: null, primaryAudioInputId: null,

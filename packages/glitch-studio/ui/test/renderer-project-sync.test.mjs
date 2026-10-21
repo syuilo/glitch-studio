@@ -280,7 +280,7 @@ test('sends each layer once without nested snapshots when moving a deep group', 
 test('retains layer edit kinds through merged history and simultaneous inline edits', async t => {
 	const f = fixture(t);
 	const visualModule = structuredClone(f.replica.visualModules[0]);
-	visualModule.paramDefs = [{ id: 'amount', nameForReference: 'Amount', dataType: { kind: 'scalar' },
+	visualModule.paramDefs = [{ id: 'amount', nameForReference: 'amount', dataType: { kind: 'scalar' },
 		ui: { label: 'Amount', control: { controlType: 'number' } }, canNode: false, defaultValue: { inputSource: 'literal', value: 1 } }];
 	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: {
 		id: 'inline', name: 'Inline', layerType: 'inlineVisualModule', visualModule,

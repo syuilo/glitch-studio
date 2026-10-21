@@ -47,11 +47,11 @@ const emit = defineEmits<{
 }>();
 
 function add() {
-	let name = 'myParam';
-	for (let suffix = 2; props.visualModule.paramDefs.some(def => def.nameForReference === name); suffix++) name = `myParam${suffix}`;
+	let nameForReference = 'my_param';
+	for (let suffix = 2; props.visualModule.paramDefs.some(def => def.nameForReference === nameForReference); suffix++) nameForReference = `my_param_${suffix}`;
 	emit('add', {
 		id: visualModuleCustomParameterId(genId()),
-		nameForReference: visualModuleCustomParameterName(name),
+		nameForReference: visualModuleCustomParameterName(nameForReference),
 		dataType: { kind: 'scalar' },
 		ui: {
 			label: 'My Parameter',

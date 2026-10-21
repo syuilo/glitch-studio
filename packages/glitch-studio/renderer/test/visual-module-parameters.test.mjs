@@ -55,7 +55,7 @@ function structParameter(fields) {
 
 const number = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
 const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', isBypass, params });
-const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, nameForReference: id, dataType: { kind: dataType }, ui: { label: id, control: dataType === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(defaultValue), canNode: false });
+const paramDef = (id, defaultValue = 7, dataType = 'scalar', nameForReference = id.replaceAll('-', '_')) => ({ id, nameForReference, dataType: { kind: dataType }, ui: { label: id, control: dataType === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(defaultValue), canNode: false });
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
@@ -91,11 +91,11 @@ test('keyframes evaluate in nested node parameters and module arguments', () => 
 // IDと表示名が異なっても、PARAMは名前、外部入力参照はIDで同じ評価済み値を読む。
 test('resolves PARAM names separately from external parameter IDs', () => {
 	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ named: number, direct: number, invalid: number }, {
-		named: expression('PARAM("Gain")'),
+		named: expression('PARAM("gain")'),
 		direct: { inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' },
 		invalid: expression('PARAM("gain-id")'),
 	}, {
-		paramDefs: [{ ...paramDef('gain-id'), nameForReference: 'Gain' }],
+		paramDefs: [{ ...paramDef('gain-id'), nameForReference: 'gain' }],
 		paramValues: { 'gain-id': literal(23) },
 	}));
 	assert.deepEqual([...result.paramValues], [['gain-id', 23]]);
@@ -103,7 +103,7 @@ test('resolves PARAM names separately from external parameter IDs', () => {
 });
 
 const rampGraph = (isNormalized = true) => ({
-	id: 'ramp-id', nameForReference: 'Ramp', isNormalized,
+	id: 'ramp-id', nameForReference: 'ramp', isNormalized,
 	// 配列順に依存せず終端を取得できることも確認する。
 	points: [graphPoint(isNormalized ? 1 : 2000, 10), graphPoint(0, 0)],
 });
@@ -112,7 +112,7 @@ test('isolates caller and module graphs for references and GRAPH expressions', (
 	const internal = { ...rampGraph(), points: [graphPoint(0, 9)] };
 	const external = { ...internal, points: [graphPoint(0, 3)] };
 	const reference = { inputSource: 'automationGraphReference', automationGraphId: internal.id, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' };
-	const named = expression('GRAPH("Ramp", 0, "clamp")');
+	const named = expression('GRAPH("ramp", 0, "clamp")');
 	const input = context({ reference: number, named: number }, { reference, named }, {
 		automationGraphs: [internal], callerGraphs: [external],
 		paramDefs: [paramDef('reference'), paramDef('named')], paramValues: { reference, named },
@@ -146,15 +146,15 @@ function assertClose(actual, expected) {
 // グラフ固有の座標を使い、IDによる参照と混同せずに両スコープから値を取得する。
 test('evaluates GRAPH by nameForReference in module and node expressions', () => {
 	const graph = rampGraph();
-	const msGraph = { ...rampGraph(false), id: 'ms-id', nameForReference: 'Milliseconds' };
+	const msGraph = { ...rampGraph(false), id: 'ms-id', nameForReference: 'milliseconds' };
 	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ values: arrayParameter(number) }, {
 		values: arrayBinding([
-			expression('GRAPH("Ramp", 0.25, "clamp")'),
-			expression('GRAPH("Ramp", 1.25, "repeat")'),
-			expression('GRAPH("Ramp", -0.25, "repeatMirrored")'),
-			expression('GRAPH("Milliseconds", TIME_MS, "clamp") + PARAM("gain")'),
+			expression('GRAPH("ramp", 0.25, "clamp")'),
+			expression('GRAPH("ramp", 1.25, "repeat")'),
+			expression('GRAPH("ramp", -0.25, "repeatMirrored")'),
+			expression('GRAPH("milliseconds", TIME_MS, "clamp") + PARAM("gain")'),
 		]),
-	}, { automationGraphs: [graph, msGraph], callerGraphs: [graph], paramDefs: [paramDef('gain')], paramValues: { gain: expression('GRAPH("Ramp", 0.5, "clamp")') } }));
+	}, { automationGraphs: [graph, msGraph], callerGraphs: [graph], paramDefs: [paramDef('gain')], paramValues: { gain: expression('GRAPH("ramp", 0.5, "clamp")') } }));
 	assertClose(result.paramValues.get('gain'), 5);
 	result.nodeParams.get('node').values.forEach((value, index) => assertClose(value, [2.5, 2.5, 2.5, 7.5][index]));
 });
@@ -164,8 +164,8 @@ test('falls back for invalid GRAPH calls and does not expose inline graphs', () 
 	const graph = rampGraph();
 	const invalid = [
 		'GRAPH("missing", 0.5, "clamp")', 'GRAPH("ramp-id", 0.5, "clamp")',
-		'GRAPH("Ramp", 0.5, "invalid")', 'GRAPH("Ramp", "0.5", "clamp")',
-		'GRAPH(1, 0.5, "clamp")', 'GRAPH("Ramp", 0.5)', 'GRAPH("Ramp", 0.5, "clamp", 1)',
+		'GRAPH("ramp", 0.5, "invalid")', 'GRAPH("ramp", "0.5", "clamp")',
+		'GRAPH(1, 0.5, "clamp")', 'GRAPH("ramp", 0.5)', 'GRAPH("ramp", 0.5, "clamp", 1)',
 	];
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
@@ -174,7 +174,7 @@ test('falls back for invalid GRAPH calls and does not expose inline graphs', () 
 	assert.deepEqual(result.nodeParams.get('node').values, invalid.map(() => 0));
 	assert.equal(result.paramValues.get('invalid'), 0);
 	const inline = evaluate(evaluator, context({ inline: number, expression: number }, {
-		inline: graphInput('automationGraphInline', graph), expression: expression('GRAPH("Ramp", 0.5, "clamp")'),
+		inline: graphInput('automationGraphInline', graph), expression: expression('GRAPH("ramp", 0.5, "clamp")'),
 	}));
 	assertClose(inline.nodeParams.get('node').inline, 2.5);
 	assert.equal(inline.nodeParams.get('node').expression, 0);
@@ -183,7 +183,7 @@ test('falls back for invalid GRAPH calls and does not expose inline graphs', () 
 // ASTを再利用しても別モジュールや変更前のグラフを参照しない。
 test('refreshes GRAPH definitions between evaluations', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
-	const input = context({ value: number }, { value: expression('GRAPH("Ramp", 0.5, "clamp")') }, { automationGraphs: [rampGraph()] });
+	const input = context({ value: number }, { value: expression('GRAPH("ramp", 0.5, "clamp")') }, { automationGraphs: [rampGraph()] });
 	assertClose(evaluate(evaluator, input).nodeParams.get('node').value, 5);
 	assertClose(evaluate(evaluator, { ...input, automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }).nodeParams.get('node').value, 20);
 	assert.equal(evaluate(evaluator, { ...input, automationGraphs: [] }).nodeParams.get('node').value, 0);
@@ -263,7 +263,7 @@ test('falls back for texture parameters, missing references and invalid expressi
 		missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' },
 	};
 	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
-		paramDefs: [paramDef('texture', 99), paramDef('missingAutomationGraph', 12)],
+		paramDefs: [paramDef('texture', 99), paramDef('missingAutomationGraph', 12, 'scalar', 'missing_automation_graph')],
 		paramValues: { missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } },
 		inputParamIds: new Set(['texture']),
 	}));

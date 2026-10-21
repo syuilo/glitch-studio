@@ -801,7 +801,7 @@ test('preserves selection across inspector visibility changes and routes removal
 test('exposes public primary image bindings and routes their edits through history', async t => {
 	const f = await fixture(t);
 	const layer = createInlineVisualModuleLayer(0);
-	layer.visualModule.paramDefs = [{ id: 'image', nameForReference: 'Image', dataType: { kind: 'color' }, canNode: true,
+	layer.visualModule.paramDefs = [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, canNode: true,
 		ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }];
 	layer.visualModule.primaryInputId = 'image';
 	const source = { id: 'source', name: 'Source', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };

@@ -257,7 +257,7 @@ test('revalidates references after registration and deletion', () => {
 // expressionという入力方式はscalarでは使えるがaudioSourceでは使えない。
 // Bindingの形だけのキャッシュでは型変更を見落とすため、修正による診断解除まで確認する。
 test('revalidates inline arguments when the public parameter type changes', () => {
-	const parameter = { ...scalar, id: 'amount', nameForReference: 'Amount', canNode: false };
+	const parameter = { ...scalar, id: 'amount', nameForReference: 'amount', canNode: false };
 	const inlineVisualModule = { ...visualModule([]), paramDefs: [parameter] };
 	const layer = { ...sceneLayer('inline', 'unused'), layerType: 'inlineVisualModule', visualModule: inlineVisualModule,
 		visualModuleParamValues: { amount: { inputSource: 'expression', expression: '1' } } };
@@ -277,7 +277,7 @@ test('revalidates inline arguments when the public parameter type changes', () =
 // 公開定義だけを変更しても既存のレイヤー引数は残る。
 // レンダラーへ到達して実行時エラーになる前に、所有レイヤーで入力方式を拒否する。
 test('rejects retained inline audio arguments after changing their public type', () => {
-	const audio = { ...scalar, id: 'audio', nameForReference: 'Audio', canNode: false, dataType: { kind: 'audioSource' }, defaultValue: literal(null) };
+	const audio = { ...scalar, id: 'audio', nameForReference: 'audio', canNode: false, dataType: { kind: 'audioSource' }, defaultValue: literal(null) };
 	const layer = { ...sceneLayer('inline', 'unused'), layerType: 'inlineVisualModule',
 		visualModule: { ...visualModule([]), paramDefs: [audio] }, visualModuleParamValues: { audio: { inputSource: 'lowerLayerAudio' } } };
 	const { state, validation } = fixture([], [scene('scene', [layer])]);
@@ -481,7 +481,7 @@ test('detects ancestor and inactive image cycles across group boundaries', () =>
 // 公開入力にはサンプリング設定がなくても有効であることも同時に確認する。
 test('includes default public primary inputs in the image dependency graph', () => {
 	const visual = visualModule([], 'visual');
-	visual.paramDefs = [{ id: 'image', nameForReference: 'Image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) }];
+	visual.paramDefs = [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) }];
 	visual.primaryInputId = 'image';
 	const publicLayer = { ...imageEffectLayer('public'), layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {} };
 	const source = imageEffectLayer('source', outputReference('public'));
@@ -497,7 +497,7 @@ test('includes default public primary inputs in the image dependency graph', () 
 // 下層から上層素材を読む有効な配線を使い、主入力指定による循環の導入と解消の両方を確認する。
 test('revalidates image cycles when an inline Visual Module primary input changes', () => {
 	const visual = visualModule([]);
-	visual.paramDefs = [{ id: 'image', nameForReference: 'Image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) }];
+	visual.paramDefs = [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) }];
 	const inline = { ...imageEffectLayer('inline'), layerType: 'inlineVisualModule', visualModule: visual, visualModuleParamValues: {} };
 	const f = fixture([], [scene('scene', [inline, imageEffectLayer('lower', outputReference('inline'))])]);
 	const target = { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' };
@@ -515,7 +515,7 @@ test('revalidates image cycles when an inline Visual Module primary input change
 // UIがまだ公開していない保存値でも、画像Bindingを受け入れて描画中に失敗させない。
 test('rejects image references in nonpublic nested Visual Module arguments', () => {
 	const visual = visualModule([], 'visual');
-	visual.paramDefs = [{ id: 'settings', nameForReference: 'Settings', canNode: false,
+	visual.paramDefs = [{ id: 'settings', nameForReference: 'settings', canNode: false,
 		dataType: { kind: 'struct', fields: { image: { kind: 'color' } } }, ui: { label: 'Settings', control: { fields: { image: { label: 'Image', control: {} } } } },
 		fields: { image: { canNode: true, defaultValue: literal([0, 0, 0, 0]) } }, defaultValue: literal({ image: literal([0, 0, 0, 0]) }) }];
 	const layer = { ...imageEffectLayer('public'), layerType: 'visualModule', visualModuleId: 'visual',

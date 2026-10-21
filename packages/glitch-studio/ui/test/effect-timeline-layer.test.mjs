@@ -98,7 +98,7 @@ test('preserves dangling anotherLayerAudio references through deletion, saving, 
 // 共通パラメータの検証から取得元の種類を取り除いても、保存されるPlayer指定の制約は維持する。
 // 公開パラメータ参照の扱いはVisual Module側に残し、異なる取得元の指定を混入させない。
 test('validates player audio selections at the application command boundary', () => {
-	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'Sound' };
+	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound' };
 	const node = { id: 'waveform', type: 'effect', effectId: 'audioWaveform', params: { audio: literal(null) } };
 	const state = { visualModules: { value: [{ id: 'visual', paramDefs: [audio], nodes: [node] }] } };
 	const target = { visualModuleId: 'visual', nodeId: node.id, paramPath: ['audio'] };
@@ -171,7 +171,7 @@ test('validates and edits nested audio bindings using stable parameter paths', t
 // 音声型からの変更・削除で参照を解除し、Undoでは元のIDと設定を復元する。
 test('edits primary audio parameters and timeline arguments with independent undo history', () => {
 	const f = fixture('audioWaveform');
-	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'Sound' };
+	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound' };
 	const visualModule = { id: 'visual', nodes: [], outputDefs: [], primaryOutputId: null, primaryInputId: null, primaryAudioInputId: null,
 		paramDefs: [audio], automationGraphs: [] };
 	f.state.visualModules.value.push(visualModule);
@@ -454,7 +454,7 @@ test('edits nested image references and preserves their stages through undo and 
 test('edits public primary image inputs and resets them to lower layers', () => {
 	const f = fixture();
 	const visual = { id: 'visual', primaryInputId: 'image', primaryAudioInputId: null,
-		paramDefs: [{ id: 'image', nameForReference: 'Image', dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }] };
+		paramDefs: [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }] };
 	f.state.visualModules.value.push(visual);
 	const publicLayer = { id: 'public', layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {}, automationGraphs: [] };
 	f.state.timelineScenes.value[0].layers.push(publicLayer);

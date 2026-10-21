@@ -131,7 +131,7 @@ test('round-trips and undoes discrete keyframe creation insertion and editing on
 	for (const inline of [false, true]) {
 		for (const [dataType, first, second] of [[{ kind: 'string' }, 'Hello\n世界', ''], [{ kind: 'bool' }, true, false], [{ kind: 'enum', options: ['a', 'b'] }, 'a', 'b']]) {
 			const { state } = fixture();
-			const definition = { ...keyframeDefinition(dataType, first), id: 'gain', nameForReference: 'Gain' };
+			const definition = { ...keyframeDefinition(dataType, first), id: 'gain', nameForReference: 'gain' };
 			state.visualModules.value[0].paramDefs = [definition];
 			const layer = state.timelineScenes.value[0].layers[0];
 			if (inline) { layer.layerType = 'inlineVisualModule'; layer.visualModule = state.visualModules.value[0]; delete layer.visualModuleId; }
@@ -391,7 +391,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	};
 	const input = createInlineAutomationGraph();
 	input.automationGraph.points[0].y = 0.25;
-	layer.automationGraphs.push({ id: 'graph', nameForReference: 'Layer graph', ...structuredClone(input.automationGraph) });
+	layer.automationGraphs.push({ id: 'graph', nameForReference: 'layer_graph', ...structuredClone(input.automationGraph) });
 	const inline = edit('opacity', { kind: 'automationGraphInline', value: input });
 	input.automationGraph.points[0].y = 99;
 	assert.equal(layer.compositingParamValues.opacity.automationGraph.points[0].y, 0.25);

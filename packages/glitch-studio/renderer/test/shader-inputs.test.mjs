@@ -435,7 +435,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 	const { device, calls, encoder } = gpuFixture();
 	const presented = [];
 	const module = {
-		paramDefs: [{ id: 'input', nameForReference: 'Input', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) }], primaryInputId: 'input',
+		paramDefs: [{ id: 'input', nameForReference: 'input', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) }], primaryInputId: 'input',
 		automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'in', outputPort: 'input' } } }],
 	};
@@ -474,9 +474,9 @@ test('passes module constants through bypasses without allocating input textures
 	const probe = { ...effect, init: () => ({ prepare: params => captured.push(['prepare', params]), render: ctx => captured.push(['render', ctx.params]), dispose() {} }) };
 	const renderer = createRenderer(device, {
 		paramDefs: [
-			{ id: 'color', nameForReference: 'Color', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([1, 0.5, 0, 0.25]) },
-			{ id: 'vector', nameForReference: 'Vector', dataType: { kind: 'vector' }, canNode: true, defaultValue: literal([0.123456789, -2]) },
-			{ id: 'scalar', nameForReference: 'Scalar', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0.123456789) },
+			{ id: 'color', nameForReference: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([1, 0.5, 0, 0.25]) },
+			{ id: 'vector', nameForReference: 'vector', dataType: { kind: 'vector' }, canNode: true, defaultValue: literal([0.123456789, -2]) },
+			{ id: 'scalar', nameForReference: 'scalar', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0.123456789) },
 		], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, bypass, mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
 	}, { effectImplementations: { colorMix: probe } });
@@ -513,8 +513,8 @@ test('switches module outputs between constants and borrowed textures', () => {
 	const out = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } };
 	const renderer = createRenderer(device, {
 		paramDefs: [
-			{ id: 'color', nameForReference: 'Color', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) },
-			{ id: 'gain', nameForReference: 'Gain', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0) },
+			{ id: 'color', nameForReference: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) },
+			{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0) },
 		], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out', nodes: [{ id: 'in', type: 'globalIn' }, mix, out],
 	}, { effectImplementations: { colorMix: { ...effect, init: () => ({ render: ctx => captured.push(ctx.params), dispose() {} }) } } });
 	const texture = device.createTexture({ size: [17, 9], format: 'rgba8unorm' });
@@ -729,7 +729,7 @@ test('refreshes external textures and restores constants after disconnecting the
 		inputA: { inputSource: 'node', nodeId: null, outputPort: null }, inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'node', nodeId: 'in', outputPort: 'gain', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 	} };
 	const renderer = createRenderer(device, {
-		paramDefs: [{ id: 'gain', nameForReference: 'Gain', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0) }],
+		paramDefs: [{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0) }],
 		automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
 	});

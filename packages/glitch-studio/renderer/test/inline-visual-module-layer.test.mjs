@@ -30,12 +30,12 @@ const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', no
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, canNode: false, defaultValue: literal(0) };
 const color = { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) };
 const probeParamDefs = { input: color, amount: scalar, local: scalar, caller: scalar, localTime: scalar, duration: scalar, exported: scalar, forbidden: scalar, directForbidden: scalar };
-const graph = value => ({ id: 'graph', nameForReference: 'Graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
+const graph = value => ({ id: 'graph', nameForReference: 'graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 
 function visualModule({ primaryInput = false, params } = {}) {
 	return {
 		automationGraphs: [],
-		paramDefs: [{ ...color, id: 'input', nameForReference: 'Input' }],
+		paramDefs: [{ ...color, id: 'input', nameForReference: 'input' }],
 		primaryInputId: primaryInput ? 'input' : null,
 		outputDefs: [{ id: 'output', label: 'Output', name: 'output', dataType: { kind: 'color' } }],
 		primaryOutputId: 'output',
@@ -344,8 +344,8 @@ test('invalidates cut boundaries after edits', async t => {
 // 引数だけを変えた配置のために、他の配置や上流のエフェクトを再生成してはいけない。
 test('updates shared definitions and module arguments without recreating placements', async t => {
 	const { manager, calls } = fixture(t, { disableCache: false });
-	const module = { ...visualModule({ params: { amount: expression('PARAM("Amount")') } }), id: 'registered', name: 'Module' };
-	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'Amount' });
+	const module = { ...visualModule({ params: { amount: expression('PARAM("amount")') } }), id: 'registered', name: 'Module' };
+	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	const entries = ['first', 'second'].map(id => {
 		const { visualModule: _, ...entry } = layer(id, module);
 		return { ...entry, layerType: 'visualModule', visualModuleId: module.id, visualModuleParamValues: { amount: literal(1) } };
@@ -474,8 +474,8 @@ test('derives module cache invalidation from all node edit kinds', async t => {
 // 通常の引数編集とは区別しつつ、同じSceneの無関係な配置は維持する。
 test('recreates only the module placement whose argument edits include a reset', async t => {
 	const { manager, calls } = fixture(t, { disableCache: false });
-	const module = visualModule({ params: { amount: expression('PARAM("Amount")') } });
-	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'Amount' });
+	const module = visualModule({ params: { amount: expression('PARAM("amount")') } });
+	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	const entries = ['first', 'second'].map(id => layer(id, structuredClone(module), { visualModuleParamValues: { amount: literal(1) } }));
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: entries }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 20);
@@ -579,14 +579,14 @@ test('passes the referenced layer output through an inline primary input', async
 test('isolates inline module scopes and passes local time and export context', async t => {
 	const { manager, calls } = fixture(t);
 	const module = visualModule({ params: {
-		amount: expression('PARAM("Amount")'), local: expression('GRAPH("Graph", 0, "clamp")'),
+		amount: expression('PARAM("amount")'), local: expression('GRAPH("graph", 0, "clamp")'),
 		caller: expression('TEST_SAME_NAME'), localTime: expression('TIME_MS'), duration: expression('END_TIME_MS'),
-		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: expression('PARAM("Input")'),
+		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: expression('PARAM("input")'),
 		directForbidden: { inputSource: 'externalCustomParameterInput', parameterId: 'input' },
 	} });
-	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'Amount' });
+	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	module.automationGraphs = [graph(7)];
-	const entry = layer('inline', module, { automationGraphs: [graph(4)], visualModuleParamValues: { amount: expression('GRAPH("Graph", 0, "clamp") + TEST_SAME_NAME') } });
+	const entry = layer('inline', module, { automationGraphs: [graph(4)], visualModuleParamValues: { amount: expression('GRAPH("graph", 0, "clamp") + TEST_SAME_NAME') } });
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 50);
 	const { input, ...values } = calls.renders.at(-1).params;
@@ -756,8 +756,8 @@ test('finalizes uniform and replace outputs at scene size before final canvas ad
 // さらに別の時計で評価する。隣接クリップへ移ると、子の履歴も新しく開始する。
 test('restarts child scene state between adjacent clips and uses the child scene clock', async t => {
 	const { manager, calls } = fixture(t);
-	const module = visualModule({ params: { localTime: expression('TIME_MS'), amount: expression('PARAM("SceneTime")') } });
-	module.paramDefs.push({ ...scalar, id: 'scene-time', nameForReference: 'SceneTime' });
+	const module = visualModule({ params: { localTime: expression('TIME_MS'), amount: expression('PARAM("scene_time")') } });
+	module.paramDefs.push({ ...scalar, id: 'scene-time', nameForReference: 'scene_time' });
 	const child = layer('inner', module, {
 		clips: [{ id: 'inner-clip', startMs: 500, durationMs: 200, contentOffsetMs: 20 }],
 		visualModuleParamValues: { 'scene-time': expression('TIME_MS') },

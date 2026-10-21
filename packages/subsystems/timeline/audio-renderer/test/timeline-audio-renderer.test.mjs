@@ -240,12 +240,12 @@ test('mixes scene gains using local clocks independently of chunk boundaries', a
 // nameForReferenceが同じグラフは所有者ごとに解決する。書き出しかどうかは両スコープへ明示的に渡す。
 test('isolates scene gain variables and graphs from the audio layer scope', async () => {
 	const expression = expression => ({ inputSource: 'expression', expression });
-	const graph = value => ({ id: 'shared', nameForReference: 'Shared', isNormalized: true,
+	const graph = value => ({ id: 'shared', nameForReference: 'shared', isNormalized: true,
 		points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 	const renderer = new TimelineAudioRenderer(constant);
 	const clip = { sourceId: 'asset', sourceTiming: { startMs: 1000, sourceInMs: 0, sourceOutMs: 1600 - (1000), playbackRate: 1, loop: false }, startMs: 1400, endMs: 1600, gains: [{ sceneStartMs: 900,
-			volume: expression('if IS_EXPORT { TEST_SAME_NAME + GRAPH("Shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.5)] }, { sceneStartMs: 1000,
-			volume: expression('if IS_EXPORT { TIME + GRAPH("Shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.25)] }] };
+			volume: expression('if IS_EXPORT { TEST_SAME_NAME + GRAPH("shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.5)] }, { sceneStartMs: 1000,
+			volume: expression('if IS_EXPORT { TIME + GRAPH("shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.25)] }] };
 	assert.equal((await renderer.renderClips([clip], 1500, 1, 1000, true))[0][0], 1.875);
 	assert.equal((await renderer.renderClips([clip], 1500, 1, 1000, false))[0][0], 0);
 	for (const variable of ['END_TIME', 'END_TIME_MS', 'PROGRESS']) {

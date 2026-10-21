@@ -98,7 +98,7 @@ export async function newProject() {
 		primaryInputId: initialInputParamId,
 		paramDefs: [{
 			id: initialInputParamId,
-			nameForReference: visualModuleCustomParameterName('myInput'),
+			nameForReference: visualModuleCustomParameterName('my_input'),
 			dataType: { kind: 'color' },
 			ui: { label: 'My Input', control: {} },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
@@ -237,7 +237,7 @@ async function loadMediaProject(file?: File) {
 		primaryInputId: initialInputParamId,
 		paramDefs: [{
 			id: initialInputParamId,
-			nameForReference: visualModuleCustomParameterName('myInput'),
+			nameForReference: visualModuleCustomParameterName('my_input'),
 			dataType: { kind: 'color' },
 			ui: { label: 'My Input', control: {} },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },

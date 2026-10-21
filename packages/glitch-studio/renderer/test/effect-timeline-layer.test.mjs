@@ -557,7 +557,7 @@ test('resolves nested source references across groups and skips unavailable targ
 // 行ったりしないことを、実際のVisualModuleRendererと後続エフェクトを通して検証する。
 test('routes an explicit public primary input through a Visual Module without resampling', async t => {
 	const f = fixture(t);
-	const visualModule = { id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'Image' }],
+	const visualModule = { id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'image' }],
 		primaryInputId: 'image', primaryOutputId: 'output', automationGraphs: [],
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'image', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };

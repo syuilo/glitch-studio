@@ -41,7 +41,7 @@ function fixture(t, nodes, { kind = 'color', paramDefs = {}, lazy = false, disab
 	};
 	const module = {
 		id: 'module', name: 'module', automationGraphs: [],
-		paramDefs: [{ id: 'input', nameForReference: 'Input', dataType: { kind }, canNode: true }],
+		paramDefs: [{ id: 'input', nameForReference: 'input', dataType: { kind }, canNode: true }],
 		primaryInputId: 'input',
 		outputDefs: [{ id: 'out', dataType: { kind } }], primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, ...nodes, { id: 'out', type: 'globalOut', inputs: { out: reference(nodes.at(-1).id) } }],

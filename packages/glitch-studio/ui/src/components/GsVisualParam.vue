@@ -47,7 +47,7 @@
 						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
 							<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
 						</GsSelect>
-						<GsInput v-if="selectedAutomationGraph?.isNormalized" type="number" :min="1" :modelValue="paramValue.trimmedDurationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
+						<GsInput v-if="paramValue.inputSource === 'automationGraphInline' ? paramValue.automationGraph.isNormalized : selectedAutomationGraph?.isNormalized" type="number" :min="1" :modelValue="paramValue.trimmedDurationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
 							<template #label>{{ i18n.ts._Parameter.DurationMs }}</template>
 						</GsInput>
 						<GsSelect :modelValue="paramValue.wrapMode" :items="graphWrapModeItems" @update:modelValue="wrapMode => updateAutomationGraphOptions({ wrapMode })">
@@ -284,8 +284,7 @@ const nodes = computed(() => props.visualModule?.nodes ?? []);
 
 const selectedAutomationGraph = computed(() => {
 	const value = props.paramValue;
-	return value.inputSource === 'automationGraphInline' ? { ...value.automationGraph, nameForReference: i18n.ts._AutomationGraph.InlineGraph }
-		: value.inputSource === 'automationGraphReference' ? props.automationGraphs.find(graph => graph.id === value.automationGraphId) : null;
+	return value.inputSource === 'automationGraphReference' ? props.automationGraphs.find(graph => graph.id === value.automationGraphId) : null;
 });
 const graphTimeAxisItems = [
 	{ label: i18n.ts._Parameter.NormalizedTime, value: 'normalized' },

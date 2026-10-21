@@ -211,7 +211,7 @@ test('applies normalized timing end alignment and wrapping to discrete keyframes
 });
 
 const rampGraph = (isNormalized = true) => ({
-	id: 'ramp-id', nameForReference: 'Ramp', isNormalized,
+	id: 'ramp-id', nameForReference: 'ramp', isNormalized,
 	// 配列順に依存せず終端を取得できることも確認する。
 	points: [graphPoint(isNormalized ? 1 : 2000, 10), graphPoint(0, 0)],
 });
@@ -337,12 +337,12 @@ test('clones values read from variables', () => {
 // ASTを再利用しても、グラフは毎回渡されたスコープからのみ参照する。
 test('evaluates GRAPH by nameForReference and refreshes definitions between scopes', () => {
 	const evaluator = new ParameterBindingEvaluator();
-	const binding = expression('GRAPH("Ramp", 0.5, "clamp")');
+	const binding = expression('GRAPH("ramp", 0.5, "clamp")');
 	assertClose(evaluator.evaluate(binding, context({ automationGraphs: [rampGraph()] }), -1), 5);
 	assert.equal(evaluator.evaluate(binding, context({ automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }), -1), 20);
 	assert.equal(evaluator.evaluate(binding, context(), -1), -1);
 	assert.equal(evaluator.evaluate(graphInput('automationGraphReference', rampGraph()), context(), 12), 12);
-	for (const text of ['GRAPH("ramp-id", 0.5, "clamp")', 'GRAPH("Ramp", 0.5, "invalid")', 'GRAPH("Ramp", "0.5", "clamp")', 'GRAPH(1, 0.5, "clamp")', 'GRAPH("Ramp", 0.5)', 'GRAPH("Ramp", 0.5, "clamp", 1)']) {
+	for (const text of ['GRAPH("ramp-id", 0.5, "clamp")', 'GRAPH("ramp", 0.5, "invalid")', 'GRAPH("ramp", "0.5", "clamp")', 'GRAPH(1, 0.5, "clamp")', 'GRAPH("ramp", 0.5)', 'GRAPH("ramp", 0.5, "clamp", 1)']) {
 		assert.equal(evaluator.evaluate(expression(text), context({ automationGraphs: [rampGraph()] }), -1), -1);
 	}
 	assertClose(evaluator.evaluate(graphInput('automationGraphInline', rampGraph()), context(), -1), 2.5);

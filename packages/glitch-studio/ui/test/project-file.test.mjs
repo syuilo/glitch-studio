@@ -239,7 +239,7 @@ test('recreates previews after switching away from invalid visualModuleLivePrevi
 	setup(t);
 	const { appContext } = evaluate(appBundle);
 	await appContext.ready(project({ visualModules: [{ id: 'visualModule', nodes: [], paramDefs: [{
-		id: 'audio', nameForReference: 'Audio', dataType: { kind: 'audioSource' }, canNode: false,
+		id: 'audio', nameForReference: 'audio', dataType: { kind: 'audioSource' }, canNode: false,
 		ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: { inputSource: 'literal', value: null },
 	}] }] }));
 	appContext.previewPlayback.updateVisualModuleLivePreviewParamValues('visualModule', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
