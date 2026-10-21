@@ -24,6 +24,8 @@ export function createStartupSplash({ mainWindow, imagePath }) {
 			skipTaskbar: true,
 			title: 'Glitch Studio',
 			backgroundColor: '#000',
+			// 静的な黒背景を使うため、WindowsのDWMによる背景素材は描画させない。
+			backgroundMaterial: 'none',
 		});
 		const imageView = new ImageView();
 		imageView.setBackgroundColor('#000');

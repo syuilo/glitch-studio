@@ -116,9 +116,17 @@ function createWindow() {
 	// 初回描画前に表示すると、背景色を黒にしていても白くちらつくことがある。
 	// maximize()自体もウィンドウを表示するため、最大化も描画の準備ができるまで待つ。
 	mainWindow.once('ready-to-show', () => {
-		// 通常サイズのウィンドウが一瞬表示されないよう、最大化してから表示する。
-		mainWindow.maximize();
-		mainWindow.show();
+		const readyMainWindow = mainWindow;
+		// ready-to-showは初回描画の通知であり、Vueによる初期レイアウトの完了までは
+		// 保証しない。スプラッシュを表示したまま待ち、描画が落ち着く猶予を設ける。
+		const mainWindowShowTimer = setTimeout(() => {
+			if (readyMainWindow.isDestroyed()) return;
+			// 通常サイズのウィンドウが一瞬表示されないよう、最大化してから表示する。
+			readyMainWindow.maximize();
+			readyMainWindow.show();
+		}, 500);
+		// 待機中に終了したウィンドウや、その後に作られた別のウィンドウを表示しない。
+		readyMainWindow.once('closed', () => { clearTimeout(mainWindowShowTimer); });
 	});
 	mainWindow.on('close', event => {
 		if (desktopUpdateController?.shouldBlockQuit === true) event.preventDefault();
