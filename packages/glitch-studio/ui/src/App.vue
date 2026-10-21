@@ -125,7 +125,9 @@ onMounted(() => {
 });
 onBeforeUnmount(() => { disposeFileDrops?.(); });
 
-const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, visualModuleLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, visualModuleLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus, renderingStatsEnabled, waveformAndHistogramEnabled } = appContext;
+const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, visualModuleLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, visualModuleLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
+const renderingStatsEnabled = preferences.model('renderingStatsEnabled');
+const waveformAndHistogramEnabled = preferences.model('waveformAndHistogramEnabled');
 const visualModuleLivePreviewFpsLabel = computed(() => renderingStatsEnabled.value
 	? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps`
 	: `${visualModuleLivePreviewFpsLimit.value ?? '∞'}fps`);

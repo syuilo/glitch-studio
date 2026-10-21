@@ -62,7 +62,9 @@ const appBundle = await build({
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
-							projectBackups: { autoEnabled: false, autoIntervalMinutes: 1, autoRetentionDays: 1, saveEnabled: false, saveRetentionDays: 7 } });
+							renderingStatsEnabled: false, waveformAndHistogramEnabled: true,
+							projectBackups: { autoEnabled: false, autoIntervalMinutes: 1, autoRetentionDays: 1, saveEnabled: false, saveRetentionDays: 7 },
+							...window.initialTestPreferences });
 						window.testPreferences = settings;
 						export const preferences = { s: settings, r: toRefs(settings) };
 					`
@@ -133,19 +135,19 @@ const appBundle = await build({
 	}],
 });
 
-// 【計測は起動時に無効で、両プレビューへ反映しても保存データやUndo履歴には入れない】
-// 一時設定をプロジェクトへ混ぜると再起動後も負荷が残り、単なる計測切替が編集扱いになる。
-// 新規作成ではアプリ起動中の設定を保ち、新しいアプリでは無効から始まることも確認する。
-test('keeps rendering statistics disabled by default and transient across projects', async t => {
+// 【計測の環境設定は両プレビューへ反映し、プロジェクトの保存データやUndo履歴には入れない】
+// 計測切替をプロジェクトの編集扱いにせず、新規作成でも環境設定の値を維持する。
+test('applies rendering statistics preferences without changing project data or undo history', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
 	const context = app.appContext;
+	const settings = window.testPreferences;
 	await context.ready(project());
 	const controllers = [context.visualModuleRendererManagerController, context.timelineRendererManagerController];
-	assert.equal(context.renderingStatsEnabled.value, false);
+	assert.equal(settings.renderingStatsEnabled, false);
 	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === false));
 	const historyLength = context.projectContext.stateManager.undoStack.value.length;
-	context.renderingStatsEnabled.value = true;
+	settings.renderingStatsEnabled = true;
 	await setImmediate();
 	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === true));
 	assert.equal(context.projectContext.stateManager.undoStack.value.length, historyLength);
@@ -153,26 +155,25 @@ test('keeps rendering statistics disabled by default and transient across projec
 	assert.equal('renderingStatsEnabled' in restored, false);
 	assert.equal('enableStats' in restored, false);
 	await app.newProject();
-	assert.equal(context.renderingStatsEnabled.value, true);
-	context.renderingStatsEnabled.value = false;
+	assert.equal(settings.renderingStatsEnabled, true);
+	settings.renderingStatsEnabled = false;
 	await setImmediate();
 	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === false));
-	assert.equal(evaluate(appBundle).appContext.renderingStatsEnabled.value, false);
 });
 
-// 【波形・ヒストグラムは既定で有効とし、切り替えを両プレビューへ反映しても保存しない】
-// 負荷の切り分け用の設定を編集履歴やファイルに混ぜず、プロジェクトを切り替えても
-// 同じ起動中の選択は保つ。計測設定とは独立に切り替えられることも確認する。
-test('keeps waveform and histogram enabled by default and transient across projects', async t => {
+// 【波形・ヒストグラムの環境設定は計測と独立して反映し、プロジェクトへ保存しない】
+// プロジェクトを切り替えても環境設定を維持し、負荷の切り分けで編集履歴を増やさない。
+test('applies waveform and histogram preferences without changing project data or undo history', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
 	const context = app.appContext;
+	const settings = window.testPreferences;
 	await context.ready(project());
 	const controllers = [context.visualModuleRendererManagerController, context.timelineRendererManagerController];
-	assert.equal(context.waveformAndHistogramEnabled.value, true);
+	assert.equal(settings.waveformAndHistogramEnabled, true);
 	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === true));
 	const historyLength = context.projectContext.stateManager.undoStack.value.length;
-	context.waveformAndHistogramEnabled.value = false;
+	settings.waveformAndHistogramEnabled = false;
 	await setImmediate();
 	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === false));
 	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === false));
@@ -181,11 +182,23 @@ test('keeps waveform and histogram enabled by default and transient across proje
 	assert.equal('waveformAndHistogramEnabled' in restored, false);
 	assert.equal('enableWaveformAndHistogram' in restored, false);
 	await app.newProject();
-	assert.equal(context.waveformAndHistogramEnabled.value, false);
-	context.waveformAndHistogramEnabled.value = true;
+	assert.equal(settings.waveformAndHistogramEnabled, false);
+	settings.waveformAndHistogramEnabled = true;
 	await setImmediate();
 	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === true));
-	assert.equal(evaluate(appBundle).appContext.waveformAndHistogramEnabled.value, true);
+});
+
+// 【起動時に保存済みの計測・解析設定を両プレビューの初期設定へ反映する】
+// 起動直後だけ既定値でWorkerを生成すると、footerの表示と実際のGPU処理が食い違う。
+test('initializes both previews from saved rendering preferences', async t => {
+	const window = setup(t);
+	window.initialTestPreferences = { renderingStatsEnabled: true, waveformAndHistogramEnabled: false };
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.staticOptions.enableStats, true);
+		assert.equal(controller.staticOptions.enableWaveformAndHistogram, false);
+	}
 });
 
 function project(overrides = {}) {

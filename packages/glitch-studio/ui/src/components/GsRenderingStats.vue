@@ -42,9 +42,11 @@
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import { appContext } from '@/app.ts';
+import { preferences } from '@/preferences.ts';
 import { i18n } from '@/i18n.ts';
 
-const { visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, renderingStatsEnabled } = appContext;
+const { visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback } = appContext;
+const renderingStatsEnabled = preferences.r.renderingStatsEnabled;
 
 type SeriesKey = 'fast' | 'medium' | 'slow' | keyof TimelinePreviewFrameTiming;
 type RenderTimes = Partial<Record<SeriesKey, number>>;

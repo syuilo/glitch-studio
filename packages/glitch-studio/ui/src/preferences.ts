@@ -36,6 +36,8 @@ export const PREF_DEF = definePreferences({
 	timelineSnapSeekBar: { default: () => false },
 	enable32bitDataTextures: { default: () => false },
 	intermediateTextureFormat: { default: () => null as IntermediateTextureFormat | null },
+	renderingStatsEnabled: { default: () => true },
+	waveformAndHistogramEnabled: { default: () => true },
 	workspaceDefinition: {
 		default: (): WorkspaceElement => {
 			return {

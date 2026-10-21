@@ -15,8 +15,9 @@ const bundle = await build({ stdin: { contents: `${script}
 	component.__cssModules = { $style: {} }; export default component;`, loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'statistics-context', setup(build) {
-		build.onResolve({ filter: /^@\/app\.ts$/ }, () => ({ path: 'app', namespace: 'statistics-context' }));
-		build.onLoad({ filter: /.*/, namespace: 'statistics-context' }, () => ({ contents: 'export const appContext = dependencies.appContext;' }));
+		build.onResolve({ filter: /^@\/(?:app|preferences)\.ts$/ }, args => ({ path: args.path, namespace: 'statistics-context' }));
+		build.onLoad({ filter: /.*/, namespace: 'statistics-context' }, args => ({ contents: args.path.endsWith('preferences.ts')
+			? 'export const preferences = dependencies.preferences;' : 'export const appContext = dependencies.appContext;' }));
 	} }],
 });
 
@@ -24,13 +25,13 @@ async function fixture(t, { enabled = true } = {}) {
 	const renderingStatsEnabled = shallowRef(enabled);
 	const statistics = shallowRef(null);
 	const state = shallowRef({ mode: 'timeline', playing: false });
-	const appContext = { renderingStatsEnabled, previewPlayback: { state }, timelineRendererManagerController: { previewStatistics: statistics },
+	const appContext = { previewPlayback: { state }, timelineRendererManagerController: { previewStatistics: statistics },
 		visualModuleRendererManagerController: { gpuAverageDisplayFast: shallowRef(1500), gpuAverageDisplayMedium: shallowRef(2500), gpuAverageDisplaySlow: shallowRef(3500) } };
 	let timestamp = 0;
 	let tick = null;
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', 'dependencies', 'window', 'ResizeObserver', 'performance', bundle.outputFiles[0].text)(
-		createRequire(import.meta.url), module, module.exports, { appContext },
+		createRequire(import.meta.url), module, module.exports, { appContext, preferences: { r: { renderingStatsEnabled } } },
 		{ setInterval(callback) { tick = callback; return 1; }, clearInterval() { tick = null; } },
 		class { observe() {} disconnect() {} }, { now: () => timestamp });
 	const element = tag => ({ tag, children: [], props: {}, style: {}, text: '', parent: null });
