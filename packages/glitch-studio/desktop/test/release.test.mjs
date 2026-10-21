@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import yaml from 'js-yaml';
 import asar from '@electron/asar';
@@ -273,4 +275,66 @@ test('rejects missing direct and transitive dependencies in a packaged applicati
 	await asar.createPackage(source, archive);
 	asar.uncache(archive);
 	assert.doesNotThrow(() => verifyPackagedApplication(archive));
+});
+
+// 【配布対象の実ソースをASARに詰め、起動時の相対importをすべて解決できることを確認する】
+// main.mjsに実装を追加しても配布対象への追加を忘れると、開発環境だけ起動できて配布版が起動不能になる。
+// 実際のelectron-builder設定とソースを使い、別の手書きファイル一覧との比較では見逃す追加漏れを検出する。
+test('packages every local module required by the actual application and preload', async t => {
+	const temporaryRoot = path.resolve(os.tmpdir());
+	const directory = await fs.mkdtemp(path.join(temporaryRoot, 'glitch-runtime-package-test-'));
+	t.after(async () => {
+		assert.equal(path.dirname(directory), temporaryRoot);
+		assert.ok(path.basename(directory).startsWith('glitch-runtime-package-test-'));
+		await fs.rm(directory, { recursive: true, force: true });
+	});
+	const desktopDirectory = fileURLToPath(new URL('../', import.meta.url));
+	const configuration = createRequire(import.meta.url)('../electron-builder.config.cjs');
+	const manifest = JSON.parse(await fs.readFile(path.join(desktopDirectory, 'package.json'), 'utf8'));
+	const source = path.join(directory, 'app');
+	await fs.mkdir(source);
+	// npmの依存収集は既存のテストで検証し、ここではアプリ自身のファイル選択を検証する。
+	await fs.writeFile(path.join(source, 'package.json'), JSON.stringify({ main: manifest.main }));
+	for (const file of configuration.files) await fs.copyFile(path.join(desktopDirectory, file), path.join(source, file));
+	const archive = path.join(directory, 'app.asar');
+	await asar.createPackage(source, archive);
+	assert.doesNotThrow(() => verifyPackagedApplication(archive, configuration.files));
+});
+
+// 【ASAR内のエントリ・推移的なimport・動的import・preloadのrequireの欠落を検出する】
+// 必須ファイル一覧だけでは、まだ一覧に追加されていない新しいモジュールの梱包漏れを防げない。
+// コードを実行せず依存先をたどり、循環importがあっても検証を終えられる必要がある。
+test('rejects missing application modules recursively without executing packaged code', async t => {
+	const temporaryRoot = path.resolve(os.tmpdir());
+	const directory = await fs.mkdtemp(path.join(temporaryRoot, 'glitch-local-module-test-'));
+	t.after(async () => {
+		assert.equal(path.dirname(directory), temporaryRoot);
+		assert.ok(path.basename(directory).startsWith('glitch-local-module-test-'));
+		await fs.rm(directory, { recursive: true, force: true });
+	});
+	const source = path.join(directory, 'app');
+	const archive = path.join(directory, 'app.asar');
+	await fs.mkdir(source);
+	await fs.writeFile(path.join(source, 'package.json'), JSON.stringify({ main: 'main.mjs' }));
+	async function pack() { await asar.createPackage(source, archive); asar.uncache(archive); }
+	await pack();
+	assert.throws(() => verifyPackagedApplication(archive), /Missing packaged application file: main\.mjs/);
+	await fs.writeFile(path.join(source, 'main.mjs'), "import './edit-command-ipc.mjs'; throw new Error('Must not execute');");
+	await pack();
+	assert.throws(() => verifyPackagedApplication(archive), /edit-command-ipc\.mjs \(required by main\.mjs\)/);
+	await fs.writeFile(path.join(source, 'edit-command-ipc.mjs'), "export * from './helper.mjs';");
+	await pack();
+	assert.throws(() => verifyPackagedApplication(archive), /helper\.mjs \(required by edit-command-ipc\.mjs\)/);
+	await fs.writeFile(path.join(source, 'helper.mjs'), "import './main.mjs'; import('./late.mjs');");
+	await pack();
+	assert.throws(() => verifyPackagedApplication(archive), /late\.mjs \(required by helper\.mjs\)/);
+	await fs.writeFile(path.join(source, 'late.mjs'), 'export const value = 1;');
+	await pack();
+	assert.throws(() => verifyPackagedApplication(archive, ['preload.cjs']), /preload\.cjs/);
+	await fs.writeFile(path.join(source, 'preload.cjs'), "require('./preload-helper.cjs');");
+	await pack();
+	assert.throws(() => verifyPackagedApplication(archive, ['preload.cjs']), /preload-helper\.cjs \(required by preload\.cjs\)/);
+	await fs.writeFile(path.join(source, 'preload-helper.cjs'), 'module.exports = {};');
+	await pack();
+	assert.doesNotThrow(() => verifyPackagedApplication(archive, ['preload.cjs']));
 });

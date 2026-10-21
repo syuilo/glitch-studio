@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import semver from 'semver';
 import yaml from 'js-yaml';
 import asar from '@electron/asar';
+import { buildSync } from 'esbuild';
 import { UPDATE_REPOSITORY } from './github-updates.mjs';
 
 const executeFile = promisify(execFile);
@@ -148,7 +149,7 @@ export async function verifyReleaseArtifacts(directory, version, platform = 'all
 	return files;
 }
 
-export function verifyPackagedApplication(archive) {
+export function verifyPackagedApplication(archive, applicationFiles = []) {
 	const files = new Set(asar.listPackage(archive).map(file => file.replaceAll('\\', '/').replace(/^\//, '')));
 	const metadata = file => JSON.parse(asar.extractFile(archive, path.normalize(file)).toString());
 	const checked = new Set();
@@ -170,6 +171,32 @@ export function verifyPackagedApplication(archive) {
 		}
 	};
 	checkDependencies('package.json');
+
+	const checkedModules = new Set();
+	const checkModule = (file, requiredBy) => {
+		if (!files.has(file)) throw new Error(`Missing packaged application file: ${file} (required by ${requiredBy})`);
+		if (checkedModules.has(file) || !/\.[cm]?js$/.test(file)) return;
+		checkedModules.add(file);
+		// ASAR内のコードを実行せず構文解析し、コメントや文字列をimportと誤認しない。
+		// パッケージ依存は上で検証し、ここではアプリ自身の相対import・requireを再帰的にたどる。
+		const result = buildSync({
+			stdin: { contents: asar.extractFile(archive, path.normalize(file)).toString(), sourcefile: file },
+			// ESM出力へ揃えると、CommonJSのrequireも依存メタデータに残る。
+			// 出力コードは使わないため、requireのESM変換に関する警告だけを抑える。
+			platform: 'node', format: 'esm', bundle: false, write: false, metafile: true,
+			logOverride: { 'unsupported-require-call': 'silent' },
+		});
+		for (const output of Object.values(result.metafile.outputs)) {
+			for (const dependency of output.imports) {
+				if (!dependency.path.startsWith('./') && !dependency.path.startsWith('../')) continue;
+				checkModule(path.posix.join(path.posix.dirname(file), dependency.path), file);
+			}
+		}
+	};
+	const entry = metadata('package.json').main;
+	if (entry != null) checkModule(path.posix.normalize(entry), 'package.json');
+	// preloadなど、import文ではなくBrowserWindowの設定から読み込むファイルも確認する。
+	for (const file of applicationFiles) checkModule(file, 'electron-builder.config.cjs');
 }
 
 async function getRelease(tag) {

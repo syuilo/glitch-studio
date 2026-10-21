@@ -1,5 +1,28 @@
 const { version } = require('../../../package.json');
 
+// エントリと実装だけを列挙する。実行時依存はelectron-builderに収集させ、開発依存は含めない。
+const applicationFiles = [
+	'main.mjs',
+	'startup-splash.mjs',
+	'voicevox.mjs',
+	'preload.cjs',
+	'app-protocol.mjs',
+	'protocol-path.mjs',
+	'project-files.mjs',
+	'project-file-ipc.mjs',
+	'project-close-guard.mjs',
+	'edit-command-ipc.mjs',
+	'external-assets.mjs',
+	'recent-projects.mjs',
+	'startup-project.mjs',
+	'project-launch.mjs',
+	'export-files.mjs',
+	'export-file-ipc.mjs',
+	'desktop-update.mjs',
+	'desktop-instances.mjs',
+	'github-updates.mjs',
+];
+
 module.exports = {
 	appId: 'io.github.syuilo.glitch-studio',
 	productName: 'Glitch Studio',
@@ -9,7 +32,7 @@ module.exports = {
 	afterPack: async context => {
 		// pnpmのworkspace探索で別パッケージが選ばれても、起動不能な配布物を公開しない。
 		const { verifyPackagedApplication } = await import('./release.mjs');
-		verifyPackagedApplication(require('node:path').join(context.packager.getResourcesDir(context.appOutDir), 'app.asar'));
+		verifyPackagedApplication(require('node:path').join(context.packager.getResourcesDir(context.appOutDir), 'app.asar'), applicationFiles);
 	},
 	directories: { output: '../../../release' },
 	extraMetadata: {
@@ -17,8 +40,8 @@ module.exports = {
 		description: 'Node-based image, video and audio editor',
 		author: 'syuilo',
 	},
-	// エントリと実装だけを列挙する。実行時依存はelectron-builderに収集させ、開発依存は含めない。
-	files: ['main.mjs', 'startup-splash.mjs', 'voicevox.mjs', 'preload.cjs', 'app-protocol.mjs', 'protocol-path.mjs', 'project-files.mjs', 'project-file-ipc.mjs', 'project-close-guard.mjs', 'external-assets.mjs', 'recent-projects.mjs', 'startup-project.mjs', 'project-launch.mjs', 'export-files.mjs', 'export-file-ipc.mjs', 'desktop-update.mjs', 'desktop-instances.mjs', 'github-updates.mjs'],
+	// electron-builderはこの配列をFileSetへ正規化するため、検証用の一覧とは配列を共有しない。
+	files: [...applicationFiles],
 	extraResources: [
 		{ from: '../ui/dist-electron', to: 'ui' },
 		// OSがタスクバー用のアイコンを直接読み取れるよう、asarの外に配置する。

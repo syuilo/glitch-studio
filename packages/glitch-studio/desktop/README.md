@@ -2,7 +2,7 @@
 
 Windows x64向けのNSISインストーラーと、macOSのApple Silicon（arm64）・Intel（x64）向けのDMGを配布します。開発起動はルートで`pnpm dev:desktop`を実行します。公開しない配布ビルドは、Windows上では`pnpm dist:desktop:win`、macOS上では`pnpm dist:desktop:mac`を実行します。macOSのコマンドは両アーキテクチャを生成します。出力先はルートの`release/`です。
 
-desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`でASAR内の実行時依存を再帰的に検査します。
+desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`では、ASAR内のnpmの実行時依存に加え、エントリ・preload・配布対象ファイルから静的にたどれる相対import・require先の存在も再帰的に検査します。新しい実装ファイルを追加した場合は、`electron-builder.config.cjs`の`applicationFiles`へ追加してください。実際の設定とソースをASARに詰める回帰テストでも、配布対象への追加漏れを検出します。
 
 ## 起動時の表示
 
