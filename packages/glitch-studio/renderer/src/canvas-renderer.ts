@@ -22,6 +22,7 @@ export class CanvasRenderer {
 	constructor(options: {
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
+		enableWaveformAndHistogram: boolean;
 		histogramGpuContext?: GPUCanvasContext;
 		waveformHorizontalGpuContext?: GPUCanvasContext;
 		waveformVerticalGpuContext?: GPUCanvasContext;
@@ -29,18 +30,20 @@ export class CanvasRenderer {
 		this.gpuDevice = options.gpuDevice;
 		this.gpuContext = options.gpuContext;
 
-		if (options.histogramGpuContext) this.gpuHistogram = new GpuHistogram(
+		// 非表示にするだけでは集計パスが残る。無効時は解析用リソース自体を生成せず、
+		// renderToCanvasでも通常のプレビュー描画だけを実行する。
+		if (options.enableWaveformAndHistogram && options.histogramGpuContext != null) this.gpuHistogram = new GpuHistogram(
 			this.gpuDevice,
 			options.histogramGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
 		);
-		if (options.waveformHorizontalGpuContext) this.gpuWaveformHorizontal = new GpuWaveform(
+		if (options.enableWaveformAndHistogram && options.waveformHorizontalGpuContext != null) this.gpuWaveformHorizontal = new GpuWaveform(
 			this.gpuDevice,
 			options.waveformHorizontalGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
 		);
 
-		if (options.waveformVerticalGpuContext) this.gpuWaveformVertical = new GpuWaveform(
+		if (options.enableWaveformAndHistogram && options.waveformVerticalGpuContext != null) this.gpuWaveformVertical = new GpuWaveform(
 			this.gpuDevice,
 			options.waveformVerticalGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),

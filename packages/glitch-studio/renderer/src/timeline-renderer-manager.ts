@@ -65,6 +65,8 @@ export type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from './ti
  */
 export type TimelineRendererManagerStaticOptions = {
 	enableStats: boolean;
+	/** プレビュー用の波形・ヒストグラムのGPU処理を有効にする。 */
+	enableWaveformAndHistogram: boolean;
 	timelineFps: number;
 	timelineMotionBlur: TimelineMotionBlurSettings;
 	enable32bitDataTextures: boolean;
@@ -197,6 +199,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
+			enableWaveformAndHistogram: this.staticOptions.enableWaveformAndHistogram,
 			histogramGpuContext: coreConfig.histogramGpuContext,
 			waveformHorizontalGpuContext: coreConfig.waveformHorizontalGpuContext,
 			waveformVerticalGpuContext: coreConfig.waveformVerticalGpuContext,

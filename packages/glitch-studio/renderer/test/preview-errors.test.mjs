@@ -261,7 +261,7 @@ test('publishes one base-time transform for a motion-blurred frame', async t => 
 	assert.equal(events[0].geometry.transform.rotation, 0.2);
 });
 
-async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererManager) {
+async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererManager, waveformAndHistogramCanvases = {}) {
 	const errors = [];
 	const frames = new Map();
 	let frameId = 0;
@@ -269,12 +269,13 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	const originalGpuMethods = { createTexture: device.createTexture, createBuffer: device.createBuffer, submit: device.queue.submit };
 	const renderer = new Manager({
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
+		...waveformAndHistogramCanvases,
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
 		effectDefinitions: { pass: { paramDefs: {
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		}, primaryInputParameter: 'input', resolutionInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
 	renderer.on('ev', event => {
 		if (event.type === 'renderError') errors.push(event.ctx.message);
 	});
@@ -289,6 +290,35 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 		frames.delete(id);
 		callback(timestamp);
 	} };
+}
+
+for (const Manager of [TimelineRendererManager, VisualModuleRendererManager]) {
+	for (const enableWaveformAndHistogram of [false, true]) {
+		// 【波形・ヒストグラムを無効にすると通常描画だけを残し、解析用のGPU処理を生成しない】
+		// パネルを隠すだけではGPU待ちの比較にならない。両ManagerでCanvasが渡されていても
+		// 無効時は解析用の初期化とcompute passを省き、有効時は縦横の波形も処理する。
+		test(`renders the preview with optional waveform and histogram GPU work: ${Manager.name}, ${enableWaveformAndHistogram}`, async t => {
+			let configuredCanvases = 0;
+			const context = () => ({ configure() { configuredCanvases++; }, unconfigure() {}, getCurrentTexture: () => ({ createView: () => ({}) }) });
+			const f = await fixture(t, { enableWaveformAndHistogram }, Manager, {
+				histogramGpuContext: context(), waveformHorizontalGpuContext: context(), waveformVerticalGpuContext: context(),
+			});
+			assert.equal(configuredCanvases, enableWaveformAndHistogram ? 3 : 0);
+			Object.assign(f.renderer.gpuDevice.limits, { maxStorageBufferBindingSize: 128 * 1024 * 1024, maxBufferSize: 128 * 1024 * 1024, maxComputeWorkgroupsPerDimension: 65535 });
+			let renderPasses = 0;
+			let computePasses = 0;
+			const pass = { setPipeline() {}, setBindGroup() {}, draw() {}, dispatchWorkgroups() {}, end() {} };
+			const encoder = {
+				clearBuffer() {},
+				beginRenderPass() { renderPasses++; return pass; },
+				beginComputePass() { computePasses++; return pass; },
+			};
+			f.renderer.canvasRenderer.renderToCanvas(f.renderer.gpuDevice.createTexture({ size: [16, 16] }), encoder);
+			assert.equal(renderPasses, enableWaveformAndHistogram ? 4 : 1, 'the main preview must render even when analysis is disabled');
+			assert.equal(computePasses, enableWaveformAndHistogram ? 4 : 0);
+			assert.deepEqual(f.errors, []);
+		});
+	}
 }
 
 for (const enableStats of [false, true]) {

@@ -37,6 +37,8 @@ export type VisualModuleRendererManagerStaticOptions = {
 	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
 	intermediateTextureFormat: IntermediateTextureFormat;
 	enableStats: boolean;
+	/** プレビュー用の波形・ヒストグラムのGPU処理を有効にする。 */
+	enableWaveformAndHistogram: boolean;
 };
 
 /**
@@ -169,6 +171,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
+			enableWaveformAndHistogram: this.staticOptions.enableWaveformAndHistogram,
 			histogramGpuContext: coreConfig.histogramGpuContext,
 			waveformHorizontalGpuContext: coreConfig.waveformHorizontalGpuContext,
 			waveformVerticalGpuContext: coreConfig.waveformVerticalGpuContext,

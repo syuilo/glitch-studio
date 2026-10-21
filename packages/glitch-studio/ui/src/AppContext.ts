@@ -63,6 +63,8 @@ export class AppContext {
 	public resolutionFactor = ref(1);
 	/** アプリ起動中だけ保持する計測設定。プロジェクト・preferencesには保存しない。 */
 	public renderingStatsEnabled = ref(false);
+	/** プレビューの解析表示をまとめて切り替える一時設定。プロジェクト・preferencesには保存しない。 */
+	public waveformAndHistogramEnabled = ref(true);
 	public highlightClipping = ref(false);
 	public audioOutput = markRaw(new AudioOutput());
 	public visualModuleRendererManagerController: VisualModuleRendererManagerController;
@@ -99,6 +101,7 @@ export class AppContext {
 			enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 			enableStats: this.renderingStatsEnabled.value,
+			enableWaveformAndHistogram: this.waveformAndHistogramEnabled.value,
 		}, {
 			fpsLimit: this.visualModuleLivePreviewFpsLimit.value,
 			visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value,
@@ -107,6 +110,7 @@ export class AppContext {
 
 		this.timelineRendererManagerController = markRaw(new TimelineRendererManagerController({
 			enableStats: this.renderingStatsEnabled.value,
+			enableWaveformAndHistogram: this.waveformAndHistogramEnabled.value,
 			timelineFps: this.projectContext.stateManager.state.timelineFps.value,
 			// プレビュー品質はUIだけが所有し、保存するプロジェクトのサンプル数は変更しない。
 			timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
@@ -267,9 +271,10 @@ export class AppContext {
 			this.previewPlayback.refresh();
 		});
 
-		watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat, this.renderingStatsEnabled], async () => {
+		watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat, this.renderingStatsEnabled, this.waveformAndHistogramEnabled], async () => {
 			const options = {
 				enableStats: this.renderingStatsEnabled.value,
+				enableWaveformAndHistogram: this.waveformAndHistogramEnabled.value,
 				enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 				intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 			};

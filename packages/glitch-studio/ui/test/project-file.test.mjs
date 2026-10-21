@@ -160,6 +160,34 @@ test('keeps rendering statistics disabled by default and transient across projec
 	assert.equal(evaluate(appBundle).appContext.renderingStatsEnabled.value, false);
 });
 
+// 【波形・ヒストグラムは既定で有効とし、切り替えを両プレビューへ反映しても保存しない】
+// 負荷の切り分け用の設定を編集履歴やファイルに混ぜず、プロジェクトを切り替えても
+// 同じ起動中の選択は保つ。計測設定とは独立に切り替えられることも確認する。
+test('keeps waveform and histogram enabled by default and transient across projects', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const context = app.appContext;
+	await context.ready(project());
+	const controllers = [context.visualModuleRendererManagerController, context.timelineRendererManagerController];
+	assert.equal(context.waveformAndHistogramEnabled.value, true);
+	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === true));
+	const historyLength = context.projectContext.stateManager.undoStack.value.length;
+	context.waveformAndHistogramEnabled.value = false;
+	await setImmediate();
+	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === false));
+	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === false));
+	assert.equal(context.projectContext.stateManager.undoStack.value.length, historyLength);
+	const restored = decodeProjectFile(await encodeProjectFile(context.projectContext.snapshot()));
+	assert.equal('waveformAndHistogramEnabled' in restored, false);
+	assert.equal('enableWaveformAndHistogram' in restored, false);
+	await app.newProject();
+	assert.equal(context.waveformAndHistogramEnabled.value, false);
+	context.waveformAndHistogramEnabled.value = true;
+	await setImmediate();
+	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === true));
+	assert.equal(evaluate(appBundle).appContext.waveformAndHistogramEnabled.value, true);
+});
+
 function project(overrides = {}) {
 	return {
 		exportSettings: null,

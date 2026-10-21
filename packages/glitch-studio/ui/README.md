@@ -58,6 +58,8 @@ Scene・動画／静止画・形式・品質・解像度・FPS・時間範囲と
 
 計測設定`AppContext.renderingStatsEnabled`は起動時にfalseとなる一時的なrefで、プロジェクト・preferences・Undo履歴には保存しない。App.vueのフッターのStatsボタンから両プレビューの計測をまとめて切り替える。GPUデバイスの計測機能とリソース追跡の有無を変更するため、既存のstatic options更新でWorkerを再生成する。計測無効時はStatsパネルの定期サンプリングも停止し、Live PreviewのフッターFPSは実測値の代わりに設定上限を表示する。書き出しWorkerはプレビュー設定にかかわらず`enableStats: false`を指定する。
 
+波形・ヒストグラムの設定`AppContext.waveformAndHistogramEnabled`も一時的なrefで、起動時はtrue。App.vueのフッターからTimelineとVisual Module Live Previewのヒストグラム・縦横の波形をまとめて切り替える。Statsとは独立した設定で、static optionsの`enableWaveformAndHistogram`へ反映してWorkerを再生成する。無効時は解析用GPUリソースの生成・集計・描画を省き、通常のプレビュー描画は継続する。プロジェクトを切り替えても同じアプリ起動中の設定は保ち、プロジェクト・preferences・Undo履歴には保存しない。書き出しWorkerでは常に無効にする。
+
 Statsパネルは表示中のプレビューに追従する。Timelineではフレーム全体・動画取得待ち・動画取り込み（CPU）・GPU完了待ちをmsで表示し、約100msごとの完了フレームの平均をグラフにする。凡例の括弧内は各項目の最大値で、同一フレームの値とは限らない。全体には個別の待ち時間が含まれるため、四項目を足し合わせない。凡例のツールチップで各計測範囲を確認できる。Visual Module Live Previewは従来のGPU移動平均を表示し、表示モード切り替え時にグラフの履歴を分ける。TimelineのScene変更・Worker破棄時には古い統計を消す。
 
 アプリ内のHTML Drag and Dropは`composables/useDragSession.ts`を使う。`utility/drag-and-drop.ts`が型付きデータのスナップショット・開始元の識別・終了処理を所有し、dragoverでも同じセッションのデータを参照できる。GsTimeline、GsDraggable、GsWorkspacePanel、GsWorkspaceDivider、GsAssetはドラッグ状態をこの仕組みへ委ねる。操作ごとの移動条件や配置計算、Command・preferencesへの反映は各コンポーネントが所有する。APIと寿命の詳細は[UIのドラッグセッション](../../../docs/drag-and-drop.md)を参照。

@@ -60,6 +60,7 @@
 			<button v-if="preferences.r.projectBackups.value.autoEnabled || preferences.r.projectBackups.value.saveEnabled" class="_button" :class="$style.footerItem" :title="projectBackupStatus.error ?? i18n.ts._App.BackupHint" @click="openPreferences">{{ projectBackupStatus.error ? i18n.ts._App.BackupError : projectBackupAccess === 'ready' ? i18n.ts._App.Backups : projectBackupAccess === 'unsaved' ? i18n.ts._App.BackupsUnsaved : i18n.ts._App.BackupsFolderRequired }}</button>
 			<div v-if="activePreviewRenderer.errorMessage.value != null" v-tooltip="activePreviewRenderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ activePreviewRenderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
+				<button data-test-waveform-and-histogram-toggle :aria-pressed="waveformAndHistogramEnabled" :class="$style.footerItem" class="_button" @click="waveformAndHistogramEnabled = !waveformAndHistogramEnabled">{{ i18n.ts._App.WaveformAndHistogram }}: {{ waveformAndHistogramEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
 				<button data-test-rendering-stats-toggle :aria-pressed="renderingStatsEnabled" :class="$style.footerItem" class="_button" @click="renderingStatsEnabled = !renderingStatsEnabled">{{ i18n.ts._Workspace.Stats }}: {{ renderingStatsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
 				<div v-if="renderingStatsEnabled && previewPlayback.state.value.mode === 'visualModuleLivePreview' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
@@ -124,7 +125,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => { disposeFileDrops?.(); });
 
-const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, visualModuleLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, visualModuleLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus, renderingStatsEnabled } = appContext;
+const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, visualModuleLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, visualModuleLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus, renderingStatsEnabled, waveformAndHistogramEnabled } = appContext;
 const visualModuleLivePreviewFpsLabel = computed(() => renderingStatsEnabled.value
 	? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps`
 	: `${visualModuleLivePreviewFpsLimit.value ?? '∞'}fps`);

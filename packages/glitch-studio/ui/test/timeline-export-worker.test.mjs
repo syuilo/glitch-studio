@@ -97,7 +97,7 @@ for (const format of ['mp4', 'webp']) {
 		assert.deepEqual(f.frames, []);
 		assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), ['float32-filterable']);
 		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = request.project;
-		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer, timelineFps, timelineMotionBlur, enableStats: false });
+		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer, timelineFps, timelineMotionBlur, enableStats: false, enableWaveformAndHistogram: false });
 		const resolution = format === 'mp4' ? { width: 4, height: 6 } : { width: 3, height: 5 };
 		assert.deepEqual(structuredClone(f.instance.dynamicOptions), {
 			...dynamicProjectOptions, resolutionScale: 1, outputResolution: resolution, opaqueOutput: format === 'mp4',

@@ -70,6 +70,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			timelineFps,
 			timelineMotionBlur,
 			enableStats: false,
+			enableWaveformAndHistogram: false,
 		});
 		renderer.on('ev', event => {
 			if (event.type !== 'effectState' && event.type !== 'effectLayerState') return;
