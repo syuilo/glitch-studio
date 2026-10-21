@@ -38,7 +38,7 @@ features:
     link: /guide/visual-module
     linkText: Visual Moduleについて
   - title: 動画編集
-    details: タイムライン上に画像、動画、音声、エフェクトなどのクリップをレイヤー状に配置し、動画の作成・加工が行えます。
+    details: タイムライン上に画像、動画、音声、エフェクトなどのクリップをレイヤー状に配置し、動画の作成・加工が可能。
     link: /guide/timeline
     linkText: タイムラインについて
   - title: VOICEVOX連携
@@ -46,7 +46,7 @@ features:
     link: /guide/timeline/layers/voicevox
     linkText: VOICEVOXレイヤー
   - title: ブラウザ上でも
-    details: "デスクトップ版に比べると制限はありますが、インストール不要でWebブラウザ上でも使用できます。"
+    details: "デスクトップ版に比べると制限はありますが、インストール不要でWebブラウザ上でも使用できます。(Google Chromeのみ)"
     linkText: Web版を開く
     link: https://syuilo.dev/glitch-studio/
 ---
