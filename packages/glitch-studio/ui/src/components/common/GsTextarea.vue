@@ -1,7 +1,7 @@
 <template>
-<div class="_selectable">
+<div class="_selectable" :class="[$style.root, { [$style.small]: small, [$style.large]: large }]">
 	<div :class="$style.label" @click="focus"><slot name="label"></slot></div>
-	<div :class="{ [$style.disabled]: disabled, [$style.focused]: focused, [$style.tall]: tall, [$style.pre]: pre }" style="position: relative;">
+	<div :class="{ [$style.disabled]: disabled, [$style.focused]: focused, [$style.tall]: tall, [$style.pre]: pre, [$style.adaptiveHeight]: adaptiveHeight }" style="position: relative;">
 		<textarea
 			ref="inputEl"
 			v-model="v"
@@ -22,8 +22,8 @@
 	<div :class="$style.caption"><slot name="caption" :value="v"></slot></div>
 
 	<div v-if="manualSave && changed" :class="$style.manualSaveActions">
-		<GsButton data-test-textarea-save large primary :disabled="disabled || readonly" icon="ti ti-check" @click="updated">{{ i18n.ts.Save }}</GsButton>
-		<GsButton data-test-textarea-cancel large :disabled="disabled || readonly" icon="ti ti-x" @click="cancelEditing">{{ i18n.ts.Cancel }}</GsButton>
+		<GsButton data-test-textarea-save small primary :disabled="disabled || readonly" icon="ti ti-check" @click="updated">{{ i18n.ts.Save }}</GsButton>
+		<GsButton data-test-textarea-cancel small :disabled="disabled || readonly" icon="ti ti-x" @click="cancelEditing">{{ i18n.ts.Cancel }}</GsButton>
 	</div>
 </div>
 </template>
@@ -51,6 +51,9 @@ const props = defineProps<{
 	code?: boolean;
 	tall?: boolean;
 	pre?: boolean;
+	adaptiveHeight?: boolean;
+	small?: boolean;
+	large?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -179,6 +182,18 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" module>
+.root {
+	--height: var(--GS-CONTROL-HEIGHT);
+
+	&.small {
+		--height: var(--GS-CONTROL-HEIGHT-SMALL);
+	}
+
+	&.large {
+		--height: var(--GS-CONTROL-HEIGHT-LARGE);
+	}
+}
+
 .label {
 	font-size: 90%;
 	padding: 0 0 4px 0;
@@ -208,7 +223,8 @@ onUnmounted(() => {
 	max-width: 100%;
 	min-height: 130px;
 	margin: 0;
-	padding: 12px;
+	padding: 4px 10px;
+	field-sizing: content;
 	font: inherit;
 	font-weight: normal;
 	font-size: 1em;
@@ -223,6 +239,12 @@ onUnmounted(() => {
 
 	&:hover {
 		border-color: var(--THEME-accent) !important;
+	}
+}
+
+.adaptiveHeight {
+	> .textarea {
+		min-height: var(--height);
 	}
 }
 

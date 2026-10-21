@@ -34,8 +34,8 @@
 	<div :class="$style.caption"><slot name="caption" :value="v"></slot></div>
 
 	<div v-if="manualSave && changed" :class="$style.manualSaveActions">
-		<GsButton data-test-input-save large primary :disabled="disabled || readonly" icon="ti ti-check" @click="updated">{{ i18n.ts.Save }}</GsButton>
-		<GsButton data-test-input-cancel large :disabled="disabled || readonly" icon="ti ti-x" @click="cancelEditing">{{ i18n.ts.Cancel }}</GsButton>
+		<GsButton data-test-input-save small primary :disabled="disabled || readonly" icon="ti ti-check" @click="updated">{{ i18n.ts.Save }}</GsButton>
+		<GsButton data-test-input-cancel small :disabled="disabled || readonly" icon="ti ti-x" @click="cancelEditing">{{ i18n.ts.Cancel }}</GsButton>
 	</div>
 </div>
 </template>

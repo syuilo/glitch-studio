@@ -30,11 +30,11 @@
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
-					<GsInput v-if="paramValue.inputSource === 'expression'" :key="paramPathKey(paramPath)" data-test-base-expression-code manualSave large type="text" class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
+					<GsTextarea v-if="paramValue.inputSource === 'expression'" :key="paramPathKey(paramPath)" adaptiveHeight data-test-base-expression-code manualSave class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
 						<template #caption="{ value }">
 							<div v-if="hasExpressionSyntaxError(value ?? '')" data-test-base-expression-error style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> {{ (value ?? '').trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</div>
 						</template>
-					</GsInput>
+					</GsTextarea>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'envVariable'"
 						:modelValue="paramValue.variable"
@@ -117,11 +117,11 @@
 			</label>
 			<GsButton v-tooltip="i18n.ts._Parameter.RemoveExpressionModifier" data-test-expression-modifier-remove iconOnly icon="ti ti-x" @click="removeExpressionModifier"/>
 		</div>
-		<GsInput :key="paramPathKey(paramPath)" data-test-expression-modifier-code manualSave large type="text" class="_monospace" :modelValue="expressionModifier.code" @update:modelValue="code => updateExpressionModifier({ code })">
+		<GsTextarea :key="paramPathKey(paramPath)" adaptiveHeight data-test-expression-modifier-code manualSave class="_monospace" :modelValue="expressionModifier.code" @update:modelValue="code => updateExpressionModifier({ code })">
 			<template #caption="{ value }">
 				<span v-if="expressionModifier.enabled && hasExpressionSyntaxError(value ?? '')" data-test-expression-modifier-error style="color: var(--THEME-error);">{{ (value ?? '').trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</span>
 			</template>
-		</GsInput>
+		</GsTextarea>
 	</div>
 	<Teleport to="body">
 		<GsAutomationGraphPointsEditorWindow
@@ -191,6 +191,14 @@
 
 <script lang="ts">
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
+import GsTextarea from './common/GsTextarea.vue';
+import GsNodePort from './GsNodePort.vue';
+import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
+import GsButton from './common/GsButton.vue';
+import GsInput from './common/GsInput.vue';
+import GsCondensedLine from './common/GsCondensedLine.vue';
+import GsSelect from './common/GsSelect.vue';
+import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
 import type { TimelineLowerLayerOutputBinding, TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding, TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 
@@ -218,13 +226,6 @@ import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watc
 import { genId } from '@gs/shared/utility/id.ts';
 import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 import * as AiScript from '@syuilo/aiscript';
-import GsNodePort from './GsNodePort.vue';
-import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
-import GsButton from './common/GsButton.vue';
-import GsInput from './common/GsInput.vue';
-import GsCondensedLine from './common/GsCondensedLine.vue';
-import GsSelect from './common/GsSelect.vue';
-import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Ref } from 'vue';
 import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';

@@ -113,6 +113,7 @@ onMounted(() => {
 	&.small {
 		--height: var(--GS-CONTROL-HEIGHT-SMALL);
 		padding: 0 8px;
+		font-size: 90%;
 	}
 
 	&.large {
