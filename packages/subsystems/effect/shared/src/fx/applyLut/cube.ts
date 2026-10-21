@@ -44,7 +44,12 @@ export function parseCubeLut(text: string): CubeLut {
 			const span = Math.fround(max[channel] - min[channel]);
 			if (!(span > 0) || !Number.isFinite(span) || !Number.isFinite(Math.fround(1 / span))) fail('Input domain must have a finite, positive span.');
 		}
-		return { size, min, max, values: new Float32Array(size ** dimensions * 4) };
+		return {
+			size,
+			min,
+			max,
+			values: new Float32Array(size ** dimensions * 4),
+		};
 	};
 	const beginData = (): CubeLut => {
 		if (size1d === 0 && size3d === 0) fail('Missing LUT_1D_SIZE or LUT_3D_SIZE.');

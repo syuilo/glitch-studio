@@ -36,7 +36,12 @@ export class AssetTextures {
 	public async update(assets: readonly Asset[], onCommit: () => void): Promise<boolean> {
 		if (this.disposed) return false;
 		const { promise, resolve } = Promise.withResolvers<void>();
-		const update: AssetTextureUpdate = { completion: promise, finish: resolve, finished: false, failure: null };
+		const update: AssetTextureUpdate = {
+			completion: promise,
+			finish: resolve,
+			finished: false,
+			failure: null,
+		};
 		const previous = this.latestUpdate;
 		this.latestUpdate = update;
 		// 新しい要求が来たら待機先も切り替える。古いcreateImageBitmapは中断できないので、

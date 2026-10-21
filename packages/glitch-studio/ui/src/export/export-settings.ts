@@ -22,9 +22,18 @@ export type ExportDialogSettings = {
 
 export function createDefaultExportDialogSettings(sceneId: string, resolution: Resolution, fps: number, endTimeMs: number): ExportDialogSettings {
 	return {
-		sceneId, mode: 'video', videoFormat: 'mp4', stillFormat: 'webp', videoQuality: 'high', stillQuality: 'high',
-		resolutionScale: 1, customResolution: { ...resolution }, fpsScale: 1, customFps: fps,
-		startTime: formatExportTime(0), endTime: formatExportTime(endTimeMs),
+		sceneId,
+		mode: 'video',
+		videoFormat: 'mp4',
+		stillFormat: 'webp',
+		videoQuality: 'high',
+		stillQuality: 'high',
+		resolutionScale: 1,
+		customResolution: { ...resolution },
+		fpsScale: 1,
+		customFps: fps,
+		startTime: formatExportTime(0),
+		endTime: formatExportTime(endTimeMs),
 	};
 }
 
@@ -61,11 +70,22 @@ export function estimateExportBytes(settings: TimelineExportSettings, audioBitra
 	const pixels = settings.width * settings.height;
 	if (settings.format === 'webp') {
 		// 圧縮後の1画素あたりのバイト数。losslessは写真程度の細かさを想定する。
-		const bytesPerPixel = { low: 0.08, medium: 0.15, high: 0.3, 'very-high': 0.6, lossless: 1.5 }[settings.quality];
+		const bytesPerPixel = {
+			low: 0.08,
+			medium: 0.15,
+			high: 0.3,
+			'very-high': 0.6,
+			lossless: 1.5,
+		}[settings.quality];
 		return Math.round(256 + pixels * bytesPerPixel);
 	}
 	// H.264の1画素・1フレームあたりの概算ビット数。コンテナの余裕を2%含める。
-	const bitsPerPixel = { low: 0.04, medium: 0.08, high: 0.15, 'very-high': 0.3 }[settings.quality];
+	const bitsPerPixel = {
+		low: 0.04,
+		medium: 0.08,
+		high: 0.15,
+		'very-high': 0.3,
+	}[settings.quality];
 	const durationSeconds = (settings.endTimeMs - settings.positionMs) / 1000;
 	return Math.round(4096 + (pixels * settings.fps * bitsPerPixel + audioBitrate) * durationSeconds / 8 * 1.02);
 }

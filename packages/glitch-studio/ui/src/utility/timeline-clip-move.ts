@@ -37,8 +37,13 @@ export function prepareTimelineClipMove(state: Pick<ProjectState, 'visualModules
 		}
 		const savedPositions = new Map(initialKeyframes?.filter(point => point.layerId === layerId).map(point => [keyframeSelectionKey(point), point]));
 		for (const lane of getTimelineKeyframeLanes(state, layer)) {
-			const position = (point: { id: string; x: number }): TimelineKeyframePosition => ({ layerId, target: lane.target,
-				paramPath: lane.paramPath, keyframeId: point.id, x: point.x });
+			const position = (point: { id: string; x: number }): TimelineKeyframePosition => ({
+				layerId,
+				target: lane.target,
+				paramPath: lane.paramPath,
+				keyframeId: point.id,
+				x: point.x,
+			});
 			// 追従中のキーはすでに更新済みなので、境界計算にも開始時の時刻を復元する。
 			const initialPoints = lane.keyframes.map(point => ({ ...point, x: savedPositions.get(keyframeSelectionKey(position(point)))?.x ?? point.x }));
 			const moving = initialPoints.filter(point => {
@@ -60,5 +65,10 @@ export function prepareTimelineClipMove(state: Pick<ProjectState, 'visualModules
 	}
 	if (initialKeyframes != null && (keyframes.length !== initialKeyframes.length
 		|| new Set(initialKeyframes.map(keyframeSelectionKey)).size !== initialKeyframes.length)) throw new Error('Timeline keyframe not found');
-	return { clips, keyframes, minDelta, maxDelta };
+	return {
+		clips,
+		keyframes,
+		minDelta,
+		maxDelta,
+	};
 }

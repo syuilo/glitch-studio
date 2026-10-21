@@ -139,7 +139,8 @@ function editSelectedClipTime(kind: 'move' | 'start' | 'duration', value: string
 	else {
 		if (selectedClipNeedsMedia.value && !selectedClipMedia.value) return;
 		stateManager.commit('editTimelineClipTiming', {
-			sceneId: props.sceneId, ...entry.target,
+			sceneId: props.sceneId,
+			...entry.target,
 			edge: kind === 'start' ? 'start' : 'end',
 			deltaMs: kind === 'start' ? next - entry.clip.startMs : next - (selectedMediaClip.value ? getTimelineMediaSingleDuration(selectedMediaClip.value) : entry.clip.durationMs),
 			sourceDurationMs: selectedClipMedia.value?.durationMs,
@@ -153,8 +154,11 @@ function editSelectedClipLoop(value: string | number) {
 	const next = Number(value);
 	if (!clip || !media || !Number.isFinite(next)) return;
 	stateManager.commit('editMediaClipLoop', {
-		sceneId: props.sceneId, layerId: props.layer.id, clipId: clip.id,
-		deltaMs: next - clip.durationMs, sourceDurationMs: media.durationMs,
+		sceneId: props.sceneId,
+		layerId: props.layer.id,
+		clipId: clip.id,
+		deltaMs: next - clip.durationMs,
+		sourceDurationMs: media.durationMs,
 	});
 }
 
@@ -164,7 +168,13 @@ function editSelectedClipSpeed() {
 	const timing = speedChange.value.timing;
 	if (!clip || !media || !timing || speedChange.value.error) return;
 	try {
-		stateManager.commit('editMediaClipPlaybackRate', { sceneId: props.sceneId, layerId: props.layer.id, clipId: clip.id, playbackRate: timing.playbackRate, sourceDurationMs: media.durationMs });
+		stateManager.commit('editMediaClipPlaybackRate', {
+			sceneId: props.sceneId,
+			layerId: props.layer.id,
+			clipId: clip.id,
+			playbackRate: timing.playbackRate,
+			sourceDurationMs: media.durationMs,
+		});
 		speedError.value = '';
 	} catch (error) { speedError.value = error instanceof Error ? error.message : String(error); }
 }

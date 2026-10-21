@@ -11,9 +11,39 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['color', 'pixel', 'stylized'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		quality: { dataType: { kind: 'scalar' }, ui: { label: 'Quality', control: { controlType: 'range', min: 0, max: 1, step: 0.001 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0.6 } },
-		blockSize: { dataType: { kind: 'scalar' }, ui: { label: 'Block Size (% of Short Side)', control: { controlType: 'range', min: 0.5, max: 10, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 2 } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		quality: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Quality',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.001,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0.6 },
+		},
+		blockSize: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Block Size (% of Short Side)',
+				control: {
+					controlType: 'range',
+					min: 0.5,
+					max: 10,
+					step: 0.1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 2 },
+		},
 		blockOrigin: {
 			dataType: { kind: 'enum', options: ['topLeft', 'center'] },
 			ui: { label: 'Block Origin', control: { labels: { topLeft: 'Top Left', center: 'Center' } } },

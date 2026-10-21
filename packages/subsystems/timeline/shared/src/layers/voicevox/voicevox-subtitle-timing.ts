@@ -21,7 +21,11 @@ export function getVoicevoxSubtitleIntervals(settings: VoicevoxSettings, utteran
 		}
 		const endMs = Math.min(sorted[index + 1]?.timeMs ?? Infinity, utterance.timeMs + durationMs);
 		return utterance.text !== '' && endMs > utterance.timeMs ? [{
-			utteranceId: utterance.id, text: utterance.text, startMs: utterance.timeMs, endMs, isSpecified: duration.mode === 'specified',
+			utteranceId: utterance.id,
+			text: utterance.text,
+			startMs: utterance.timeMs,
+			endMs,
+			isSpecified: duration.mode === 'specified',
 		}] : [];
 	});
 }
@@ -35,7 +39,13 @@ export function getVoicevoxSubtitlePlacements(settings: VoicevoxSettings, uttera
 		const utterance = byId.get(interval.utteranceId)!;
 		const duration = utterance.subtitleDuration;
 		const canResize = duration.mode === 'specified' && endMs === utterance.timeMs + duration.durationMs;
-		return endMs > startMs ? [{ ...interval, clipId: clip.id, startMs, endMs, canResize }] : [];
+		return endMs > startMs ? [{
+			...interval,
+			clipId: clip.id,
+			startMs,
+			endMs,
+			canResize,
+		}] : [];
 	}));
 }
 

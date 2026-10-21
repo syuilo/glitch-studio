@@ -11,9 +11,32 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {
-		inputA: { dataType: { kind: 'color' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		inputB: { dataType: { kind: 'color' }, ui: { label: 'B', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
+		inputA: {
+			dataType: { kind: 'color' },
+			ui: { label: 'A', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		inputB: {
+			dataType: { kind: 'color' },
+			ui: { label: 'B', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		amount: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Amount',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
 		blendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Blend Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'add' } },
 	},
 	primaryInputParameter: 'inputA',

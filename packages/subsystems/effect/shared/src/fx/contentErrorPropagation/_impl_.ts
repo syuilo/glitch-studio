@@ -24,9 +24,11 @@ export default implementEffect<typeof definition>({
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
-		const captureLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		] });
+		const captureLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			],
+		});
 		const captureGroup = device.createBindGroup({ layout: captureLayout, entries: [uniformEntry] });
 		const colorEntries: GPUBindGroupLayoutEntry[] = [
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
@@ -34,21 +36,32 @@ export default implementEffect<typeof definition>({
 			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
 		];
 		const colorLayout = device.createBindGroupLayout({ entries: colorEntries });
-		const propagationLayout = device.createBindGroupLayout({ entries: [
-			...colorEntries,
-			{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-		] });
+		const propagationLayout = device.createBindGroupLayout({
+			entries: [
+				...colorEntries,
+				{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+				{ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+			],
+		});
 		const outputLayout = device.createBindGroupLayout({ entries: colorEntries });
 		const capturePipelines = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code: commonCode + '\n' + captureCode,
-			schema: { input: 'color' }, targets: [{ format: dataFormat }],
-			internalLayouts: [captureLayout], sampling: 'level0', entryPoint: 'capture',
+			device,
+			vertex: defaultVertexShaderModule,
+			code: commonCode + '\n' + captureCode,
+			schema: { input: 'color' },
+			targets: [{ format: dataFormat }],
+			internalLayouts: [captureLayout],
+			sampling: 'level0',
+			entryPoint: 'capture',
 		});
 		const outputPipelines = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code: commonCode + '\n' + outputCode,
-			schema: { input: 'color' }, targets: [{ format: intermediateTextureFormat }],
-			internalLayouts: [outputLayout], sampling: 'level0',
+			device,
+			vertex: defaultVertexShaderModule,
+			code: commonCode + '\n' + outputCode,
+			schema: { input: 'color' },
+			targets: [{ format: intermediateTextureFormat }],
+			internalLayouts: [outputLayout],
+			sampling: 'level0',
 		});
 		const propagationModule = device.createShaderModule({ code: commonCode + '\n' + propagationCode });
 		const createPipeline = (entryPoint: string, layout: GPUBindGroupLayout) => device.createRenderPipeline({
@@ -62,7 +75,12 @@ export default implementEffect<typeof definition>({
 		const propagate = createPipeline('propagate', propagationLayout);
 		// 誤差と方向は連続した場なので、補間して読む。アプリの32bit設定では
 		// float32-filterableが有効であり、16bitへの独自フォールバックは不要。
-		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
+		const sampler = device.createSampler({
+			minFilter: 'linear',
+			magFilter: 'linear',
+			addressModeU: 'clamp-to-edge',
+			addressModeV: 'clamp-to-edge',
+		});
 		const samplerEntry = { binding: 1, resource: sampler };
 
 		const getGeometry = (value: number) => {
@@ -76,7 +94,12 @@ export default implementEffect<typeof definition>({
 				|| width > device.limits.maxTextureDimension2D || height > device.limits.maxTextureDimension2D) {
 				throw new Error('Content error propagation: analysis image exceeds GPU texture limits. Reduce Analysis resolution.');
 			}
-			return { analysisResolution, virtualSize, width, height };
+			return {
+				analysisResolution,
+				virtualSize,
+				width,
+				height,
+			};
 		};
 		const createResources = (geometry: ReturnType<typeof getGeometry>) => {
 			const textures: GPUTexture[] = [];
@@ -106,7 +129,8 @@ export default implementEffect<typeof definition>({
 						entries: [uniformEntry, samplerEntry, capturedColorEntry, { binding: 3, resource: guidanceView }, { binding: 4, resource: view }],
 					})),
 					outputGroups: errorViews.map(view => device.createBindGroup({
-						layout: outputLayout, entries: [uniformEntry, samplerEntry, { binding: 2, resource: view }],
+						layout: outputLayout,
+						entries: [uniformEntry, samplerEntry, { binding: 2, resource: view }],
 					})),
 					dispose: () => { for (const texture of textures) texture.destroy(); },
 				};
@@ -161,7 +185,17 @@ export default implementEffect<typeof definition>({
 					// fitは最終出力の寸法を基準とし、解析用テクスチャの切り上げには影響させない。
 					const capture = capturePipelines.update({ input: params.input }, outputTexture);
 					const attachment = (view: GPUTextureView): GPURenderPassDescriptor => ({
-						colorAttachments: [{ view, clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }],
+						colorAttachments: [{
+							view,
+							clearValue: {
+								r: 0,
+								g: 0,
+								b: 0,
+								a: 0,
+							},
+							loadOp: 'clear',
+							storeOp: 'store',
+						}],
 					});
 					const capturePass = ctx.createPassEncoder(ctx.commandEncoder, attachment(resources.capturedColorView));
 					capturePass.setPipeline(capture.pipeline);

@@ -18,7 +18,9 @@ export default implementEffect<typeof definition>({
 	init: ({ wgpu }) => {
 		const emptyInput = constantShaderInput('vector', [0, 0]);
 		const pipelines = createShaderInputPipeline({
-			device: wgpu.device, vertex: wgpu.defaultVertexShaderModule, code,
+			device: wgpu.device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
 			schema: { inputA: 'vector', inputB: 'vector', amount: 'scalar' },
 			targets: [{ format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' }],
 			sampling: 'level0',

@@ -367,13 +367,20 @@ function updateAutomationGraphOptions(options: Partial<AutomationGraphPlaybackOp
 		return;
 	}
 	if (props.paramValue.inputSource !== 'automationGraphReference') return;
-	emit('edit', { kind: 'automationGraphReference', ...target(), value: props.paramValue.automationGraphId, options });
+	emit('edit', {
+		kind: 'automationGraphReference',
+		...target(),
+		value: props.paramValue.automationGraphId,
+		options,
+	});
 }
 
 function updateInlineGraphPoints(points: BezierAnchorPoint[], mergeKey: string | null) {
 	if (!mounted || props.paramValue.inputSource !== 'automationGraphInline') return;
 	emit('edit', {
-		kind: 'automationGraphInline', ...target(), mergeKey,
+		kind: 'automationGraphInline',
+		...target(),
+		mergeKey,
 		value: { ...deepClone(props.paramValue), automationGraph: { ...props.paramValue.automationGraph, points: deepClone(points) } },
 	});
 }
@@ -493,7 +500,12 @@ function onBeginChanging() {
 }
 
 function changeContinuous(value: any) {
-	if (mounted) emit('edit', { kind: 'literal', ...target(), value, mergeKey: commandMergeKey });
+	if (mounted) emit('edit', {
+		kind: 'literal',
+		...target(),
+		value,
+		mergeKey: commandMergeKey,
+	});
 }
 
 function onFinishChanging() {
@@ -505,14 +517,24 @@ function updateParamAsLiteral(value: any) {
 }
 
 function updateParamAsExpression(value: string) {
-	if (mounted) emit('edit', { kind: 'expression', ...target(), value, mergeKey: commandMergeKey });
+	if (mounted) emit('edit', {
+		kind: 'expression',
+		...target(),
+		value,
+		mergeKey: commandMergeKey,
+	});
 }
 
 function connectNode(value: NodeOutputReference | null, preserveSampling = true) {
 	if (!canNode.value) return;
 	// 別のVisualModuleや、グラフ切り替え前の候補へ接続しない。
 	if (value != null && !nodeOutputItems.value.some(item => item.value === nodeOutputKey(value))) return;
-	if (mounted) emit('edit', { kind: 'node', ...target(), value, preserveSampling });
+	if (mounted) emit('edit', {
+		kind: 'node',
+		...target(),
+		value,
+		preserveSampling,
+	});
 }
 
 function updateParamAsNode(key: string | null) {

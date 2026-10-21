@@ -7,7 +7,16 @@ import type { RuntimeEffectParameters } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
 
 // enumは文字列で保存し、共通の音声解析処理には数値のFFTサイズを渡す。
-const fftSizes = { '256': 256, '512': 512, '1024': 1024, '2048': 2048, '4096': 4096, '8192': 8192, '16384': 16384, '32768': 32768 } as const;
+const fftSizes = {
+	'256': 256,
+	'512': 512,
+	'1024': 1024,
+	'2048': 2048,
+	'4096': 4096,
+	'8192': 8192,
+	'16384': 16384,
+	'32768': 32768,
+} as const;
 
 export default implementEffect<typeof definition>({
 	disableCache: true,
@@ -41,8 +50,10 @@ export default implementEffect<typeof definition>({
 			const key = JSON.stringify([params.audio?.cacheKey ?? null, historyKey]);
 			if (key !== requestKey) {
 				request = params.audio == null ? null : analysis.plan(params.audio, {
-					fftSize: settings.fftSize, windowName: settings.window,
-					channel: settings.channel, smoothing: settings.smoothing,
+					fftSize: settings.fftSize,
+					windowName: settings.window,
+					channel: settings.channel,
+					smoothing: settings.smoothing,
 				}, historyKey !== renderedHistoryKey);
 				requestKey = key;
 			}

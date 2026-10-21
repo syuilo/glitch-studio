@@ -7,7 +7,8 @@ export function createPreviewWaveform(device: GPUDevice) {
 	const buffer = device.createBuffer({ size: samples.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 	const uniform = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	const params = new Float32Array(4);
-	const shader = device.createShaderModule({ code: `
+	const shader = device.createShaderModule({
+		code: `
 struct Params { columns: f32, overlay: f32, height: f32, padding: f32 };
 @group(0) @binding(0) var<storage, read> ranges: array<vec2f>;
 @group(0) @binding(1) var<uniform> p: Params;
@@ -32,15 +33,29 @@ struct Vertex { @builtin(position) position: vec4f, @location(0) color: vec4f };
 	return Vertex(vec4f(x * 2.0 - 1.0, 1.0 - y * 2.0, 0, 1), vec4f(color, alpha));
 }
 @fragment fn fs(input: Vertex) -> @location(0) vec4f { return input.color; }
-` });
-	const pipeline = device.createRenderPipeline({ layout: 'auto', vertex: { module: shader },
-		fragment: { module: shader, targets: [{ format: navigator.gpu.getPreferredCanvasFormat(), blend: {
-			color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
-			alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
-		} }] }, primitive: { topology: 'triangle-list' } });
-	const group = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
-		{ binding: 0, resource: { buffer } }, { binding: 1, resource: { buffer: uniform } },
-	] });
+`,
+	});
+	const pipeline = device.createRenderPipeline({
+		layout: 'auto',
+		vertex: { module: shader },
+		fragment: {
+			module: shader,
+			targets: [{
+				format: navigator.gpu.getPreferredCanvasFormat(),
+				blend: {
+					color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+					alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+				},
+			}],
+		},
+		primitive: { topology: 'triangle-list' },
+	});
+	const group = device.createBindGroup({
+		layout: pipeline.getBindGroupLayout(0),
+		entries: [
+			{ binding: 0, resource: { buffer } }, { binding: 1, resource: { buffer: uniform } },
+		],
+	});
 	return {
 		render(history: AudioHistory | null, settings: MonitorSettings, pass: GPURenderPassEncoder, width: number, height: number) {
 			const count = Math.max(2, Math.min(columns, Math.floor(width)));

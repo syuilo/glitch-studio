@@ -64,7 +64,12 @@ export function createTimelineClipboardActions(options: TimelineClipboardActions
 				if (layer.layerType !== 'audio' && layer.layerType !== 'video') return [];
 				const asset = 'assetId' in clip ? stateManager.state.assets.value.find(asset => asset.id === clip.assetId) : null;
 				if (!asset) throw new Error('Missing media');
-				return [{ layerId, clipId: clip.id, asset, fileSource: asset.fileData }];
+				return [{
+					layerId,
+					clipId: clip.id,
+					asset,
+					fileSource: asset.fileData,
+				}];
 			});
 			const durations = await Promise.all(sources.map(async ({ layerId, clipId, asset }) => ({ layerId, clipId, durationMs: (await inspectMedia(asset)).durationMs })));
 			if (!isActive()) return;
@@ -98,11 +103,21 @@ export function createTimelineClipboardActions(options: TimelineClipboardActions
 				const initialLayers = sceneLayers.value;
 				const sourceDurationsMs = await readLayerMediaDurations(layer);
 				if (!isActive() || sceneLayers.value !== initialLayers) return;
-				stateManager.commit('pasteTimelineLayer', { sceneId: scene.id, layer, sourceLayerId, sourceDurationsMs });
+				stateManager.commit('pasteTimelineLayer', {
+					sceneId: scene.id,
+					layer,
+					sourceLayerId,
+					sourceDurationsMs,
+				});
 			} catch (error) { reportError(error); return; }
 			selectLayer(layer);
 		}
 	}
 
-	return { canCopy, copySelection, canPaste, paste };
+	return {
+		canCopy,
+		copySelection,
+		canPaste,
+		paste,
+	};
 }

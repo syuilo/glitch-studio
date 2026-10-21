@@ -11,9 +11,32 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'math', 'utility'],
 	paramDefs: {
-		inputA: { dataType: { kind: 'any' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: null } },
-		inputB: { dataType: { kind: 'any' }, ui: { label: 'B', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: null } },
-		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0.5 } },
+		inputA: {
+			dataType: { kind: 'any' },
+			ui: { label: 'A', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: null },
+		},
+		inputB: {
+			dataType: { kind: 'any' },
+			ui: { label: 'B', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: null },
+		},
+		amount: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Amount',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0.5 },
+		},
 	},
 	primaryInputParameter: 'inputA',
 	resolutionInputParameter: 'inputA',

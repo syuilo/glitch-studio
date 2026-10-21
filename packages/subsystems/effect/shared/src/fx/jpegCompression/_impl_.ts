@@ -22,16 +22,20 @@ export default implementEffect<typeof definition>({
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
-		const compressLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-		] });
-		const outputLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-		] });
+		const compressLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+				{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			],
+		});
+		const outputLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+			],
+		});
 
 		const createVariant = (inputs: ShaderInputValues<typeof inputSchema>) => {
 			// 入力画像とQualityはそれぞれ定数・テクスチャを受け取る。computeとfragmentで
@@ -93,7 +97,14 @@ export default implementEffect<typeof definition>({
 				// 見た目を維持するため、リソース不足でも仮想解像度を勝手に変更しない。
 				throw new Error('JPEG compression: virtual image exceeds GPU resource limits. Increase Block Size.');
 			}
-			return { virtualSize, gridSize, mcuColumns, mcuRows, blocksPerMcu, sampleBytes };
+			return {
+				virtualSize,
+				gridSize,
+				mcuColumns,
+				mcuRows,
+				blocksPerMcu,
+				sampleBytes,
+			};
 		};
 		const createResources = (geometry: ReturnType<typeof getGeometry>, preserveDetails: boolean) => {
 			const buffers: GPUBuffer[] = [];

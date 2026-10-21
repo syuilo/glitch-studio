@@ -11,7 +11,12 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['color'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
 		mode: { dataType: { kind: 'enum', options: ['value', 'intensity', 'luminance'] }, ui: { label: 'Mode', control: { labels: { value: 'Value (Max)', intensity: 'Intensity (Average)', luminance: 'Luminance' } } }, defaultValue: { inputSource: 'literal', value: 'luminance' } },
 	},
 	primaryInputParameter: 'input',

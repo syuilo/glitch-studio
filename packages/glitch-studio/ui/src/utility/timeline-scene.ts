@@ -102,12 +102,28 @@ export function getLayerParameterDefinition(state: Pick<ProjectState, 'visualMod
 }
 
 export function getLayerKeyframeParameters(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer) {
-	const targetLabels: Record<TimelineParameterTarget, string> = { module: 'Module', effect: 'Effect', shape: 'Shape', text: 'Text', voicevoxSubtitle: 'Subtitle', compositing: 'Compositing', audio: 'Audio', camera: 'Camera', transform: 'Transform' };
+	const targetLabels: Record<TimelineParameterTarget, string> = {
+		module: 'Module',
+		effect: 'Effect',
+		shape: 'Shape',
+		text: 'Text',
+		voicevoxSubtitle: 'Subtitle',
+		compositing: 'Compositing',
+		audio: 'Audio',
+		camera: 'Camera',
+		transform: 'Transform',
+	};
 	return getLayerParameterTargets(layer).flatMap(target => {
 		const defs = getLayerParameterDefinitions(state, layer, target);
 		const values = getLayerParameterValues(layer, target);
 		return [...walkParameters<EditableTimelineParameterBinding>(defs, values)].flatMap(({ path, def, value }) => value.inputSource === 'keyframesTimelineInline'
-			? [{ key: JSON.stringify([target, path]), paramPath: path, target, def,
-				label: `${targetLabels[target]} / ${getParameterPathLabel(defs, values, path)}`, binding: value }] : []);
+			? [{
+				key: JSON.stringify([target, path]),
+				paramPath: path,
+				target,
+				def,
+				label: `${targetLabels[target]} / ${getParameterPathLabel(defs, values, path)}`,
+				binding: value,
+			}] : []);
 	});
 }

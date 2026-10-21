@@ -19,7 +19,9 @@ export default implementEffect<typeof definition>({
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
-			device, vertex: wgpu.defaultVertexShaderModule, code,
+			device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
 			schema: { input: 'color', vector: 'vector' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
@@ -28,8 +30,10 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				uniformValues.set({
-					amount: ctx.params.amount, rotation: -(ctx.params.rotation ?? 0) * Math.PI,
-					flipX: ctx.params.flipX ? -1 : 1, flipY: ctx.params.flipY ? -1 : 1,
+					amount: ctx.params.amount,
+					rotation: -(ctx.params.rotation ?? 0) * Math.PI,
+					flipX: ctx.params.flipX ? -1 : 1,
+					flipY: ctx.params.flipY ? -1 : 1,
 					aspectRatio: resolution.width / resolution.height,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);

@@ -34,7 +34,13 @@ let cancelDrag: (() => void) | null = null;
 function startDrag(event: PointerEvent, port: string) {
 	const source = elements.get(port);
 	if (!source) return;
-	const cancel = startWireDrag(event, { nodeId: props.node.id, outputPort: port, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }, { source });
+	const cancel = startWireDrag(event, {
+		nodeId: props.node.id,
+		outputPort: port,
+		fitMode: 'cover',
+		wrapMode: 'repeatMirrored',
+		filterMode: 'linear',
+	}, { source });
 	if (cancel) cancelDrag = cancel;
 }
 

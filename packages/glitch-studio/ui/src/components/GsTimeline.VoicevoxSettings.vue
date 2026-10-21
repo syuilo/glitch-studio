@@ -59,7 +59,12 @@ async function connect() {
 function commit(utterances: VoicevoxUtterance[], voicevox = props.layer.voicevox) {
 	error.value = '';
 	try {
-		stateManager.commit('editVoicevoxLayer', { sceneId: props.sceneId, layerId: props.layer.id, voicevox, utterances });
+		stateManager.commit('editVoicevoxLayer', {
+			sceneId: props.sceneId,
+			layerId: props.layer.id,
+			voicevox,
+			utterances,
+		});
 		return true;
 	} catch (cause) {
 		error.value = String(cause);
@@ -96,8 +101,11 @@ function fitLastClip() {
 		}
 		// 生成音声の小数msの末尾を切らないよう切り上げる。キーは動かさない。
 		stateManager.commit('editTimelineClipTiming', {
-			sceneId: props.sceneId, layerId: props.layer.id, clipId: clip.id,
-			edge: 'end', deltaMs: Math.ceil(endMs) - (clip.startMs + clip.durationMs),
+			sceneId: props.sceneId,
+			layerId: props.layer.id,
+			clipId: clip.id,
+			edge: 'end',
+			deltaMs: Math.ceil(endMs) - (clip.startMs + clip.durationMs),
 		});
 	} catch (cause) { error.value = String(cause); }
 }

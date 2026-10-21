@@ -53,7 +53,12 @@ onmessage = async (event) => {
 				// 戻り値不要の呼び出しもawaitし、非同期の失敗を未処理のrejectにしない。
 				const res = await Reflect.apply(method, manager, event.data.args ?? []);
 				if (event.data.needReturnValue) {
-					self.postMessage({ type: 'return', id: event.data.id, success: true, value: res });
+					self.postMessage({
+						type: 'return',
+						id: event.data.id,
+						success: true,
+						value: res,
+					});
 				}
 			} catch (error) {
 				if (!event.data.needReturnValue) {
@@ -62,9 +67,16 @@ onmessage = async (event) => {
 				}
 				// 任意のthrow値には複製できないオブジェクトも含まれるため、エラー情報だけを返す。
 				const reason = error instanceof Error ? error : new Error(String(error));
-				self.postMessage({ type: 'return', id: event.data.id, success: false, error: {
-					name: reason.name, message: reason.message, stack: reason.stack,
-				} });
+				self.postMessage({
+					type: 'return',
+					id: event.data.id,
+					success: false,
+					error: {
+						name: reason.name,
+						message: reason.message,
+						stack: reason.stack,
+					},
+				});
 			}
 			break;
 		}

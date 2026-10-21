@@ -24,7 +24,12 @@ export type TimelineAnotherLayerOutputBinding = {
 export type TimelineEffectAnotherLayerOutputBinding = TimelineAnotherLayerOutputBinding & Omit<TimelineLowerLayerOutputBinding, 'inputSource'>;
 
 export function createLowerLayerOutputBinding(): TimelineLowerLayerOutputBinding {
-	return { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+	return {
+		inputSource: 'lowerLayerOutput',
+		fitMode: 'cover',
+		wrapMode: 'repeatMirrored',
+		filterMode: 'linear',
+	};
 }
 
 export type TimelineParameterBinding = ValueParameterBinding;

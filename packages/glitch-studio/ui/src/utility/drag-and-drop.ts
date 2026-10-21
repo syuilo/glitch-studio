@@ -43,7 +43,16 @@ export function startDragSession<T extends keyof DragDataMap>(event: DragEvent, 
 	event.dataTransfer.setData(marker, marker);
 	const source = (event.currentTarget ?? event.target) as HTMLElement | null;
 	const ownerWindow = source?.ownerDocument?.defaultView ?? null;
-	const session: DragSession = { sourceId, type, data: JSON.parse(serialized), serialized, marker, onDrop, finishAfterDrop: () => {}, dispose: () => {} };
+	const session: DragSession = {
+		sourceId,
+		type,
+		data: JSON.parse(serialized),
+		serialized,
+		marker,
+		onDrop,
+		finishAfterDrop: () => {},
+		dispose: () => {},
+	};
 	const finish = () => finishSession(session);
 	let dropTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
 	// ネイティブイベントではリスナー間にもmicrotaskが実行され得るため、次のタスクまで待つ。

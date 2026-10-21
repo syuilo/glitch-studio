@@ -29,9 +29,12 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = project;
 		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
 		const scene = getTimelineScene(project.timelineScenes, project.sceneId);
-		const settings = { ...requestedSettings, ...(resolutionScale == null
-			? adjustExportResolution(requestedSettings, requestedSettings.format)
-			: scaleExportResolution(getSceneBaseResolution(scene.resolution, project.resolution), resolutionScale, requestedSettings.format)) };
+		const settings = {
+			...requestedSettings,
+			...(resolutionScale == null
+				? adjustExportResolution(requestedSettings, requestedSettings.format)
+				: scaleExportResolution(getSceneBaseResolution(scene.resolution, project.resolution), resolutionScale, requestedSettings.format)),
+		};
 		if (getSceneDuration(scene) <= 0) throw new Error('Cannot export an empty scene.');
 		const validationError = validateExportSettings(settings);
 		if (validationError) throw new Error(validationError);
@@ -62,7 +65,12 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			gpuContext: context,
 			effectDefinitions,
 			effectImplementations,
-		}, { ...rendererSettings, timelineFps, timelineMotionBlur, enableStats: false });
+		}, {
+			...rendererSettings,
+			timelineFps,
+			timelineMotionBlur,
+			enableStats: false,
+		});
 		renderer.on('ev', event => {
 			if (event.type !== 'effectState' && event.type !== 'effectLayerState') return;
 			const status = event.ctx.status?.status;

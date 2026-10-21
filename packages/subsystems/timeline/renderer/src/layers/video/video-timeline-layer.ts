@@ -74,7 +74,15 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 				}
 				if (timing != null) options.onTiming?.(timing);
 				// 前景が同じでも下層入力・Scene時刻は変わり得るため、設定の評価と合成は毎回行う。
-				const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, mask: layer.mask, layerMask: layer.layerMask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+				const settings = parameters.evaluate({
+					time: context.sceneTimeMs,
+					isExport: context.isExport,
+					coordinateSpace: layer.coordinateSpace,
+					mask: layer.mask,
+					layerMask: layer.layerMask,
+					paramValues: layer.compositingParamValues,
+					automationGraphs: layer.automationGraphs,
+				});
 				return compositor.evaluate(context, cachedFrame.foreground, settings);
 			};
 			const result = pending.then(render);

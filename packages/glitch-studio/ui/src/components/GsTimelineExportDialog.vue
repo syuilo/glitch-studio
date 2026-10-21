@@ -143,7 +143,13 @@ const settings = computed<TimelineExportSettings>(() => {
 	const common = { ...resolution.value, positionMs: parseExportTime(startTime.value) };
 	return mode.value === 'still'
 		? { ...common, format: 'webp', quality: stillQuality.value }
-		: { ...common, format: 'mp4', quality: videoQuality.value, fps: fps.value, endTimeMs: parseExportTime(endTime.value) };
+		: {
+			...common,
+			format: 'mp4',
+			quality: videoQuality.value,
+			fps: fps.value,
+			endTimeMs: parseExportTime(endTime.value),
+		};
 });
 const validationError = computed(() => {
 	if (appContext.renderValidation.errorMessage.value) return appContext.renderValidation.errorMessage.value;

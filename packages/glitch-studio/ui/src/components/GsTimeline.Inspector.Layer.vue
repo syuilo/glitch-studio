@@ -316,14 +316,24 @@ function setMask(mask: TimelineMask | null) {
 function setLayerMaskSource(sourceLayerId: string | null) {
 	const layer = props.layer;
 	if (!isTimelineVisualLayer(layer)) return;
-	stateManager.commit('setTimelineLayerReferenceMask', { sceneId: props.scene.id, layerId: layer.id,
-		layerMask: sourceLayerId == null ? null : { channel: 'alpha', inverted: false, ...layer.layerMask, sourceLayerId } });
+	stateManager.commit('setTimelineLayerReferenceMask', {
+		sceneId: props.scene.id,
+		layerId: layer.id,
+		layerMask: sourceLayerId == null ? null : {
+			channel: 'alpha',
+			inverted: false,
+			...layer.layerMask,
+			sourceLayerId,
+		},
+	});
 }
 
 function updateLayerMask(change: Partial<TimelineLayerMask>) {
 	const layer = props.layer;
 	if (isTimelineVisualLayer(layer) && layer.layerMask != null) stateManager.commit('setTimelineLayerReferenceMask', {
-		sceneId: props.scene.id, layerId: layer.id, layerMask: { ...layer.layerMask, ...change },
+		sceneId: props.scene.id,
+		layerId: layer.id,
+		layerMask: { ...layer.layerMask, ...change },
 	});
 }
 
@@ -362,18 +372,32 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;
 	if (event.kind === 'anotherLayerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio'))) {
-		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', { sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event }, mergeKey);
+		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', {
+			sceneId: props.scene.id,
+			layerId: layer.id,
+			target,
+			paramPath: event.paramPath,
+			edit: event,
+		}, mergeKey);
 		return;
 	}
 	if (event.kind === 'lowerLayerOutput' || event.kind === 'anotherLayerOutput' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerOutput' || event.inputSource === 'anotherLayerOutput'))) {
 		if (target !== 'effect' && target !== 'module') return;
 		stateManager.commit('editTimelineLayerParam', {
-			sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event,
+			sceneId: props.scene.id,
+			layerId: layer.id,
+			target,
+			paramPath: event.paramPath,
+			edit: event,
 		}, mergeKey);
 		return;
 	}
 	stateManager.commit('editTimelineLayerParam', {
-		sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event,
+		sceneId: props.scene.id,
+		layerId: layer.id,
+		target,
+		paramPath: event.paramPath,
+		edit: event,
 	}, mergeKey);
 	if (event.kind === 'keyframesTimelineInline' || (event.kind === 'inputSource' && event.inputSource === 'keyframesTimelineInline')) {
 		emit('expandRequested', layer.id);

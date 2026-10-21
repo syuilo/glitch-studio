@@ -41,7 +41,12 @@ export async function importAssets(context: ProjectContext, files?: readonly Fil
 						hash: result.hash,
 					});
 					if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
-						players.push({ id: genId(), name: result.name, sourceType: 'asset', assetId: id });
+						players.push({
+							id: genId(),
+							name: result.name,
+							sourceType: 'asset',
+							assetId: id,
+						});
 					}
 				}
 				const placement = await preparePlacement?.(assets, players, dialog) ?? {};

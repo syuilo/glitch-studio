@@ -116,7 +116,12 @@ const rows = computed(() => {
 	];
 	return definitions.map(row => ({
 		name: row.name,
-		fields: row.values.map((value, index) => ({ key: `${row.name}-${index}`, index, label: row.labels[index], value: typeof value === 'number' ? String(Number(value.toFixed(4))) : value })),
+		fields: row.values.map((value, index) => ({
+			key: `${row.name}-${index}`,
+			index,
+			label: row.labels[index],
+			value: typeof value === 'number' ? String(Number(value.toFixed(4))) : value,
+		})),
 	}));
 });
 

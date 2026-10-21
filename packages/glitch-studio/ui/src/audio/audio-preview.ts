@@ -47,7 +47,12 @@ export class AudioPreview {
 		const id = this.nextId++;
 		const offscreen = canvas.transferControlToOffscreen();
 		this.errors.set(id, error);
-		this.send({ type: 'add', id, canvas: offscreen, options }, [offscreen]);
+		this.send({
+			type: 'add',
+			id,
+			canvas: offscreen,
+			options,
+		}, [offscreen]);
 		return {
 			configure: (options: PreviewOptions) => this.send({ type: 'options', id, options }),
 			resize: (size: PreviewSize) => this.send({ type: 'resize', id, ...size }),

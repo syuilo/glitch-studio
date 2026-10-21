@@ -23,7 +23,10 @@ export function getTimelineKeyframeEditTarget(
 	if (index < 0) return null;
 	const bounds = keyframeMoveBounds(keyframes, new Set([selection.keyframeId]), selection.keyframeId);
 	return {
-		selection, binding, def, keyframe: keyframes[index],
+		selection,
+		binding,
+		def,
+		keyframe: keyframes[index],
 		previousKeyframe: keyframes[index - 1] ?? null,
 		minX: keyframes[index].x + bounds.minDelta,
 		maxX: keyframes[index].x + bounds.maxDelta,

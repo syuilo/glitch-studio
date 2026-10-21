@@ -30,10 +30,33 @@ export async function resolveExternalAssets(assets: readonly ProjectAsset[]): Pr
 export async function openExternalAsset(filePath: string, type: string, isExternalReference = true) {
 	const name = filePath.split(/[\\/]/).at(-1)!;
 	const extension = name.split('.').at(-1)!.toLowerCase();
-	const mimeTypes: Record<string, string> = { mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', mkv: 'video/x-matroska', avi: 'video/x-msvideo',
-		mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', ogg: 'audio/ogg', opus: 'audio/ogg', m4a: 'audio/mp4', aac: 'audio/aac',
-		png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', bmp: 'image/bmp', svg: 'image/svg+xml',
-		txt: 'text/plain', json: 'application/json', zip: 'application/zip', pdf: 'application/pdf' };
+	const mimeTypes: Record<string, string> = {
+		mp4: 'video/mp4',
+		m4v: 'video/mp4',
+		mov: 'video/quicktime',
+		webm: 'video/webm',
+		mkv: 'video/x-matroska',
+		avi: 'video/x-msvideo',
+		mp3: 'audio/mpeg',
+		wav: 'audio/wav',
+		flac: 'audio/flac',
+		ogg: 'audio/ogg',
+		opus: 'audio/ogg',
+		m4a: 'audio/mp4',
+		aac: 'audio/aac',
+		png: 'image/png',
+		jpg: 'image/jpeg',
+		jpeg: 'image/jpeg',
+		gif: 'image/gif',
+		webp: 'image/webp',
+		avif: 'image/avif',
+		bmp: 'image/bmp',
+		svg: 'image/svg+xml',
+		txt: 'text/plain',
+		json: 'application/json',
+		zip: 'application/zip',
+		pdf: 'application/pdf',
+	};
 	type = mimeTypes[extension] ?? type;
 	if (window.desktop?.resolveExternalAsset == null) throw new Error('External references require the Electron app.');
 	// 外部参照ではこの空Fileのバイト列を使わない。埋め込み変換時だけ原本を取得する。
@@ -42,5 +65,11 @@ export async function openExternalAsset(filePath: string, type: string, isExtern
 		const source = await window.desktop.resolveExternalAsset(filePath);
 		file = new File([await readFileSource(source)], name, { type });
 	}
-	return openMediaFile({ file, sourceFilePath: filePath, isExternalReference, includeFonts: true, allowAnyFile: true });
+	return openMediaFile({
+		file,
+		sourceFilePath: filePath,
+		isExternalReference,
+		includeFonts: true,
+		allowAnyFile: true,
+	});
 }

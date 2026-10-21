@@ -48,12 +48,25 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	if (port == null) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };
 	const { device } = options.wgpu;
 	const renderer = new EffectRenderer({
-		definition, implementation, wgpu: options.wgpu,
-		fallbackTexture: options.fallbackTexture, onState: options.onState });
+		definition,
+		implementation,
+		wgpu: options.wgpu,
+		fallbackTexture: options.fallbackTexture,
+		onState: options.onState,
+	});
 	const compositor = createTimelineCompositor({
-		device, vertex: options.wgpu.defaultVertexShaderModule, onCompositing: options.onCompositing,
-		resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
-	const inputFrame = createSceneOutput({ device, vertex: options.wgpu.defaultVertexShaderModule, resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
+		device,
+		vertex: options.wgpu.defaultVertexShaderModule,
+		onCompositing: options.onCompositing,
+		resolution: options.resolution,
+		format: options.wgpu.intermediateTextureFormat,
+	});
+	const inputFrame = createSceneOutput({
+		device,
+		vertex: options.wgpu.defaultVertexShaderModule,
+		resolution: options.resolution,
+		format: options.wgpu.intermediateTextureFormat,
+	});
 	// 出力段階ごとに別の確定画像を保持する。同じ変換先を使うと、複数入力の最後の画像で
 	// 先に解決した入力まで上書きされてしまう。
 	const referenceFrames = new Map<string, ReturnType<typeof createSceneOutput>>();
@@ -61,7 +74,9 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	const compositing = new TimelineCompositingParameters();
 	const usedOutputPorts = new Set([port]);
 	const parameters = Object.entries(definition.paramDefs).map(([key, def]) => ({
-		key, def, binding: layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key),
+		key,
+		def,
+		binding: layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key),
 	}));
 	let disposed = false;
 	return {
@@ -80,7 +95,15 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 				if (signal.aborted) return { gpuTime: 0 };
 				if (binding.outputStage !== 'source' || image.region != null) {
 					let frame = referenceFrames.get(key);
-					if (frame == null) { frame = createSceneOutput({ device, vertex: options.wgpu.defaultVertexShaderModule, resolution: options.resolution, format: options.wgpu.intermediateTextureFormat }); referenceFrames.set(key, frame); }
+					if (frame == null) {
+						frame = createSceneOutput({
+							device,
+							vertex: options.wgpu.defaultVertexShaderModule,
+							resolution: options.resolution,
+							format: options.wgpu.intermediateTextureFormat,
+						});
+						referenceFrames.set(key, frame);
+					}
 					const encoder = device.createCommandEncoder();
 					image = frame.renderInput(encoder, image);
 					device.queue.submit([encoder.finish()]);
@@ -117,7 +140,8 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			renderer.setUsedOutputPorts(usedOutputPorts);
 			renderer.setResolution(resolveEffectNodeResolution({
 				setting: layer.resolution,
-				contextResolution: options.resolution, resolutionScale: options.resolutionScale,
+				contextResolution: options.resolution,
+				resolutionScale: options.resolutionScale,
 				intrinsicResolution: layer.resolution.mode === 'auto' ? implementation.getIntrinsicResolution?.(params) : null,
 				inputResolution: layer.resolution.mode === 'auto'
 					? implementation.getInputResolution?.(params) ?? (resolutionInput?.kind === 'texture' ? resolutionInput.texture : null)
@@ -130,14 +154,26 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			try {
 				// キー・式はScene時刻だが、エフェクト固有のアニメーションには内容時刻（秒）を渡す。
 				renderer.render({
-					params, time: context.contentTimeMs / 1000, timeDelta: context.timeDelta,
-					pointerPosition: { x: -99999, y: -99999 }, pointerVector: { x: 0, y: 0 },
-					usedOutputPorts, commandEncoder: encoder });
+					params,
+					time: context.contentTimeMs / 1000,
+					timeDelta: context.timeDelta,
+					pointerPosition: { x: -99999, y: -99999 },
+					pointerVector: { x: 0, y: 0 },
+					usedOutputPorts,
+					commandEncoder: encoder,
+				});
 				const texture = renderer.getOutputTexture(port);
 				if (texture == null) return { gpuTime: 0 };
 				const settings = compositing.evaluate({
-					time: context.sceneTimeMs, isExport: context.isExport,
-					coordinateSpace: layer.coordinateSpace, mask: layer.mask, layerMask: layer.layerMask, transformTarget: layer.transformTarget, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+					time: context.sceneTimeMs,
+					isExport: context.isExport,
+					coordinateSpace: layer.coordinateSpace,
+					mask: layer.mask,
+					layerMask: layer.layerMask,
+					transformTarget: layer.transformTarget,
+					paramValues: layer.compositingParamValues,
+					automationGraphs: layer.automationGraphs,
+				});
 				return { ...compositor.evaluate(context, { kind: 'texture', texture }, settings), gpuTime: 0 };
 			} finally {
 				// 次のフレームによる出力の再利用・破棄より先に、その出力を読む合成もsubmitする。

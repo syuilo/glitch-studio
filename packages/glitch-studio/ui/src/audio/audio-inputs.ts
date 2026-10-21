@@ -31,8 +31,14 @@ export class AudioInputs {
 	public registerPlayer(id: string, media: HTMLMediaElement) {
 		this.removePlayer(id);
 		const entry: PlayerAudio = {
-			media, volume: media.muted ? 0 : media.volume, generation: 0,
-			gain: null, source: null, capture: null, ready: null, cleanup: () => {},
+			media,
+			volume: media.muted ? 0 : media.volume,
+			generation: 0,
+			gain: null,
+			source: null,
+			capture: null,
+			ready: null,
+			cleanup: () => {},
 		};
 		this.players.set(id, entry);
 		const sync = () => entry.capture?.setState(!media.paused && !media.seeking && !media.ended, entry.generation);

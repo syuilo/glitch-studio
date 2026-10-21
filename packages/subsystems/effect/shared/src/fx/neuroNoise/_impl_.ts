@@ -23,7 +23,8 @@ function phaseNoise(time: number, seed: number): number {
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
-			size: resolution, format: wgpu.intermediateTextureFormat,
+			size: resolution,
+			format: wgpu.intermediateTextureFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -34,7 +35,9 @@ export default implementEffect<typeof definition>({
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
-			device, vertex: wgpu.defaultVertexShaderModule, code,
+			device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
 			schema: { background: 'color', colorFront: 'color', colorMid: 'color' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],

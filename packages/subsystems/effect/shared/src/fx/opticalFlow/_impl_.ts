@@ -28,18 +28,27 @@ export default implementEffect<typeof definition>({
 		});
 		const scalarFormat = enable32bitDataTextures ? 'r32float' : 'r16float';
 		const vectorFormat = enable32bitDataTextures ? 'rg32float' : 'rg16float';
-		const captureLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		] });
+		const captureLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			],
+		});
 		const capturePipelines = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code: captureCode,
-			schema: { input: 'color' }, targets: [{ format: scalarFormat }],
-			internalLayouts: [captureLayout], sampling: 'level0', entryPoint: 'capture',
+			device,
+			vertex: defaultVertexShaderModule,
+			code: captureCode,
+			schema: { input: 'color' },
+			targets: [{ format: scalarFormat }],
+			internalLayouts: [captureLayout],
+			sampling: 'level0',
+			entryPoint: 'capture',
 		});
 		const estimate = createPipeline('estimate', vectorFormat);
 		const output = createPipeline('output', vectorFormat);
 		const createTexture = (format: GPUTextureFormat) => device.createTexture({
-			size, format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+			size,
+			format,
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		const frames = [createTexture(scalarFormat), createTexture(scalarFormat)];
 		const frameViews = frames.map(texture => texture.createView());
@@ -48,10 +57,16 @@ export default implementEffect<typeof definition>({
 		const values = new Float32Array(6);
 		values.set([1 / size.width, 1 / size.height]);
 		const uniforms = device.createBuffer({
-			size: values.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+			size: values.byteLength,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 		// 内部の移動量の平滑化・拡大には、入力接続のwrap/filterを適用しない。
-		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
+		const sampler = device.createSampler({
+			minFilter: 'linear',
+			magFilter: 'linear',
+			addressModeU: 'clamp-to-edge',
+			addressModeV: 'clamp-to-edge',
+		});
 		const uniformEntry = { binding: 0, resource: { buffer: uniforms } };
 		const samplerEntry = { binding: 1, resource: sampler };
 		const estimateGroups = frameViews.map((view, index) => device.createBindGroup({
@@ -70,7 +85,17 @@ export default implementEffect<typeof definition>({
 		let current = 0;
 		let hasPrevious = false;
 		const attachment = (view: GPUTextureView): GPURenderPassDescriptor => ({
-			colorAttachments: [{ view, clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }],
+			colorAttachments: [{
+				view,
+				clearValue: {
+					r: 0,
+					g: 0,
+					b: 0,
+					a: 0,
+				},
+				loadOp: 'clear',
+				storeOp: 'store',
+			}],
 		});
 		return {
 			render: ctx => {

@@ -90,7 +90,12 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			const media = layerType === 'image' ? null : await inspectMedia(asset);
 			if (!isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== fileSource) return null;
 			if (media?.audioError) {
-				const result = await ui.confirm({ type: 'warning', title: asset.name, text: media.audioError, okText: i18n.ts._Timeline.AddWithoutAudio });
+				const result = await ui.confirm({
+					type: 'warning',
+					title: asset.name,
+					text: media.audioError,
+					okText: i18n.ts._Timeline.AddWithoutAudio,
+				});
 				if (result.canceled || !isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== fileSource) return null;
 			}
 			return { kind: 'asset', asset, media };
@@ -116,7 +121,12 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			...(type === 'video' ? { audioEnabled: source?.kind === 'asset' && !!source.media?.audioAvailable, videoEnabled: true } : {}),
 		};
 		try {
-			stateManager.commit('addTimelineClip', { sceneId: scene.id, layerId: layer.id, clip, sourceDurationMs });
+			stateManager.commit('addTimelineClip', {
+				sceneId: scene.id,
+				layerId: layer.id,
+				clip,
+				sourceDurationMs,
+			});
 			selectClip({ layerId: layer.id, clipId: clip.id });
 		} catch (error) { reportError(error); }
 	}
@@ -137,7 +147,8 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 				...(source.kind === 'scene' ? {
 					referencedSceneId: source.scene.id,
 				} : {
-					assetId: source.asset.id, sourceDurationMs: source.media?.durationMs,
+					assetId: source.asset.id,
+					sourceDurationMs: source.media?.durationMs,
 					audioEnabled: !!source.media?.audioAvailable && (!('audioEnabled' in entry.clip) || entry.clip.audioEnabled === true),
 				}),
 			});
@@ -180,10 +191,27 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			return;
 		}
 		const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) };
-		const base = { id: genId(), name: source.scene.name, automationGraphs: [], isDisabled: false, color: null };
+		const base = {
+			id: genId(),
+			name: source.scene.name,
+			automationGraphs: [],
+			isDisabled: false,
+			color: null,
+		};
 		const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
 		const compositingParamValues = initialCompositingParameters();
-		const layer: TimelineLayer = { ...base, layerType: 'scene', clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues, mask: null, layerMask: null, isIncludedInComposite: true, coordinateSpace: 'screen', forceDisableMotionBlur: false };
+		const layer: TimelineLayer = {
+			...base,
+			layerType: 'scene',
+			clips: [{ ...clip, sceneId: source.scene.id }],
+			audioParamValues,
+			compositingParamValues,
+			mask: null,
+			layerMask: null,
+			isIncludedInComposite: true,
+			coordinateSpace: 'screen',
+			forceDisableMotionBlur: false,
+		};
 		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
 		selectClip({ layerId: layer.id, clipId: clip.id });
 	}
@@ -325,5 +353,10 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		}], ev.currentTarget ?? ev.target);
 	}
 
-	return { addClip, changeClipSource, showAddLayerMenu, readLayerMediaDurations };
+	return {
+		addClip,
+		changeClipSource,
+		showAddLayerMenu,
+		readLayerMediaDurations,
+	};
 }

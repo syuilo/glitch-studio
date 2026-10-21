@@ -2,12 +2,14 @@ import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts
 import type { CubeLut, CubeLutTable } from './cube.ts';
 
 export function createLutLayout(device: GPUDevice): GPUBindGroupLayout {
-	return device.createBindGroupLayout({ entries: [
-		{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d' } },
-		{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '3d' } },
-		{ binding: 3, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-	] });
+	return device.createBindGroupLayout({
+		entries: [
+			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d' } },
+			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '3d' } },
+			{ binding: 3, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+		],
+	});
 }
 
 /** LUTは画像ではなく数値表。画像の保存形式・色空間・premultiplyは適用しない。 */
@@ -39,7 +41,9 @@ export function createLutResources(device: GPUDevice, layout: GPUBindGroupLayout
 				}
 			}
 			const texture = device.createTexture({
-				size, dimension, format: use32bit ? 'rgba32float' : 'rgba16float',
+				size,
+				dimension,
+				format: use32bit ? 'rgba32float' : 'rgba16float',
 				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 			});
 			textures.push(texture);
@@ -58,15 +62,21 @@ export function createLutResources(device: GPUDevice, layout: GPUBindGroupLayout
 		buffer = device.createBuffer({ size: uniforms.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		device.queue.writeBuffer(buffer, 0, uniforms);
 		const sampler = device.createSampler({
-			addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge', addressModeW: 'clamp-to-edge',
-			minFilter: 'linear', magFilter: 'linear',
+			addressModeU: 'clamp-to-edge',
+			addressModeV: 'clamp-to-edge',
+			addressModeW: 'clamp-to-edge',
+			minFilter: 'linear',
+			magFilter: 'linear',
 		});
-		const bindGroup = device.createBindGroup({ layout, entries: [
-			{ binding: 0, resource: { buffer } },
-			{ binding: 1, resource: oneView },
-			{ binding: 2, resource: threeView },
-			{ binding: 3, resource: sampler },
-		] });
+		const bindGroup = device.createBindGroup({
+			layout,
+			entries: [
+				{ binding: 0, resource: { buffer } },
+				{ binding: 1, resource: oneView },
+				{ binding: 2, resource: threeView },
+				{ binding: 3, resource: sampler },
+			],
+		});
 		return { bindGroup, dispose };
 	} catch (error) {
 		dispose();

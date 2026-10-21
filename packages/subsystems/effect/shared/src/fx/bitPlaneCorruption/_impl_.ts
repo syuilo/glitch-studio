@@ -4,8 +4,19 @@ import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
-const modes = { invert: 0, clear: 1, set: 2, swap: 3, randomize: 4 };
-const patterns = { blocks: 0, horizontal: 1, vertical: 2, wholeImage: 3 };
+const modes = {
+	invert: 0,
+	clear: 1,
+	set: 2,
+	swap: 3,
+	randomize: 4,
+};
+const patterns = {
+	blocks: 0,
+	horizontal: 1,
+	vertical: 2,
+	wholeImage: 3,
+};
 const fitModes = { stretch: 0, cover: 1, contain: 2 };
 const clampInteger = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(value)));
 
@@ -20,12 +31,16 @@ export default implementEffect<typeof definition>({
 	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution }) => {
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		const layout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		] });
+		const layout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			],
+		});
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code,
+			device,
+			vertex: defaultVertexShaderModule,
+			code,
 			schema: { input: 'color', probability: 'scalar', density: 'vector' },
 			targets: [{ format: intermediateTextureFormat }],
 			internalLayouts: [layout],

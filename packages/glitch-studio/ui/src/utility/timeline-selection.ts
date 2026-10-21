@@ -64,7 +64,12 @@ export function getTimelineStretchSelection(keyframes: readonly TimelineKeyframe
 }
 
 export function selectionRect(x1: number, y1: number, x2: number, y2: number): SelectionRect {
-	return { left: Math.min(x1, x2), top: Math.min(y1, y2), right: Math.max(x1, x2), bottom: Math.max(y1, y2) };
+	return {
+		left: Math.min(x1, x2),
+		top: Math.min(y1, y2),
+		right: Math.max(x1, x2),
+		bottom: Math.max(y1, y2),
+	};
 }
 
 export function timelineMarqueeRect(origin: { x: number; y: number }, pointer: { x: number; y: number }, viewport: SelectionRect, scrollTop: number): SelectionRect {
@@ -88,10 +93,16 @@ export function mergeTimelineRangeSelection(clips: TimelineClipSelection[], keyf
 	// 追加したかったキーがクリップとの交差によって失われてしまうため。
 	const kind = additive && hasPrevious ? previous.kind : clips.length > 0 ? 'clips' : 'keyframes';
 	if (kind === 'layers') return previous;
-	if (kind === 'clips') return { kind, clips: [...new Map([...(additive && previous.kind === kind ? previous.clips : []), ...clips]
-		.map(clip => [clipSelectionKey(clip), clip])).values()] };
-	return { kind, keyframes: [...new Map([...(additive && previous.kind === kind ? previous.keyframes : []), ...keyframes]
-		.map(point => [keyframeSelectionKey(point), point])).values()] };
+	if (kind === 'clips') return {
+		kind,
+		clips: [...new Map([...(additive && previous.kind === kind ? previous.clips : []), ...clips]
+			.map(clip => [clipSelectionKey(clip), clip])).values()],
+	};
+	return {
+		kind,
+		keyframes: [...new Map([...(additive && previous.kind === kind ? previous.keyframes : []), ...keyframes]
+			.map(point => [keyframeSelectionKey(point), point])).values()],
+	};
 }
 
 export type TimelineMovePoint = {

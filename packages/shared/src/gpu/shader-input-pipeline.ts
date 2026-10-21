@@ -29,7 +29,12 @@ export function createShaderInputPipeline<const Schema extends ShaderInputSchema
 					const pipeline = device.createRenderPipeline({
 						layout: device.createPipelineLayout({ bindGroupLayouts: [...internalLayouts, bindings.layout] }),
 						vertex: { module: options.vertex },
-						fragment: { module: device.createShaderModule({ code: generated.code + '\n' + options.code }), targets: options.targets, entryPoint: options.entryPoint, constants: options.constants },
+						fragment: {
+							module: device.createShaderModule({ code: generated.code + '\n' + options.code }),
+							targets: options.targets,
+							entryPoint: options.entryPoint,
+							constants: options.constants,
+						},
 						primitive: { topology: 'triangle-list' },
 					});
 					variant = { pipeline, bindings };

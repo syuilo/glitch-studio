@@ -11,16 +11,46 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['pixel', 'stylized'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
 		density: {
 			dataType: { kind: 'vector' },
-			ui: { label: 'Density', control: { controlType: 'dimension', min: 1, max: 1000, logarithmic: true } },
+			ui: {
+				label: 'Density',
+				control: {
+					controlType: 'dimension',
+					min: 1,
+					max: 1000,
+					logarithmic: true,
+				},
+			},
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [3, 3] },
 		},
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
-		rotation: { dataType: { kind: 'scalar' }, ui: { label: 'Rotation', control: { controlType: 'angle' } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
-		samples: { dataType: { kind: 'scalar' }, ui: { label: 'Samples', control: { controlType: 'range', min: 1, max: 256, step: 1 } }, defaultValue: { inputSource: 'literal', value: 16 } },
+		rotation: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Rotation', control: { controlType: 'angle' } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		samples: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Samples',
+				control: {
+					controlType: 'range',
+					min: 1,
+					max: 256,
+					step: 1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 16 },
+		},
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameter: 'input',

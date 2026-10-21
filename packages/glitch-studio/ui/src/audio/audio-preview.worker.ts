@@ -66,12 +66,14 @@ function gpu() {
 			for (const id of [...panels.keys()]) removePanel(id);
 			send({ type: 'error', message: event.error.message });
 		});
-		vertex = created.createShaderModule({ code: `
+		vertex = created.createShaderModule({
+			code: `
 struct VertexOut { @builtin(position) position: vec4f, @location(0) uv: vec2f };
 @vertex fn vs(@builtin(vertex_index) index: u32) -> VertexOut {
 	let positions = array(vec2f(-1, -1), vec2f(1, -1), vec2f(-1, 1), vec2f(-1, 1), vec2f(1, -1), vec2f(1, 1));
 	return VertexOut(vec4f(positions[index], 0, 1), positions[index]);
-}` });
+}`,
+		});
 		void created.lost.then(info => {
 			if (device !== created) return;
 			for (const id of [...panels.keys()]) removePanel(id);
@@ -104,7 +106,16 @@ async function addPanel(id: number, panel: Panel) {
 onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 	switch (data.type) {
 		case 'add':
-			void addPanel(data.id, { canvas: data.canvas, options: data.options, size: { width: 0, height: 0, ratio: 1, visible: false } });
+			void addPanel(data.id, {
+				canvas: data.canvas,
+				options: data.options,
+				size: {
+					width: 0,
+					height: 0,
+					ratio: 1,
+					visible: false,
+				},
+			});
 			break;
 		case 'remove': removePanel(data.id); break;
 		case 'options': {
@@ -148,9 +159,12 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 				if (meters.get(id) !== port) return;
 				const previous = readings.get(id);
 				// 通知待ちの間もピークを保持し、UI復帰時に古い通知を連続配送しない。
-				readings.set(id, { id, generation: reading.generation,
-																							left: Math.max(reading.left, previous?.generation === reading.generation ? previous.left : 0),
-																							right: Math.max(reading.right, previous?.generation === reading.generation ? previous.right : 0) });
+				readings.set(id, {
+					id,
+					generation: reading.generation,
+					left: Math.max(reading.left, previous?.generation === reading.generation ? previous.left : 0),
+					right: Math.max(reading.right, previous?.generation === reading.generation ? previous.right : 0),
+				});
 				port.postMessage({ type: 'meterReceived' });
 			};
 			break;
@@ -185,8 +199,14 @@ function drawFrame() {
 			if (panel.canvas.width !== pixelWidth) panel.canvas.width = pixelWidth;
 			if (panel.canvas.height !== pixelHeight) panel.canvas.height = pixelHeight;
 			const encoder = device.createCommandEncoder();
-			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: panel.context.getCurrentTexture().createView(),
-																																																															loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
+			const pass = encoder.beginRenderPass({
+				colorAttachments: [{
+					view: panel.context.getCurrentTexture().createView(),
+					loadOp: 'clear',
+					storeOp: 'store',
+					clearValue: [0, 0, 0, 0],
+				}],
+			});
 			const options = panel.options;
 			if (options.mode === 'spectrogram') panel.spectrogram!.render(history, options.settings, pass);
 			else if (options.mode === 'spectrum') panel.spectrum!.render(running ? history : null, options.settings, pass, width);

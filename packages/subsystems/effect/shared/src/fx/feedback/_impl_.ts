@@ -22,7 +22,9 @@ export default implementEffect<typeof definition>({
 			],
 		});
 		const pipelines = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code,
+			device,
+			vertex: defaultVertexShaderModule,
+			code,
 			schema: { input: 'any' },
 			internalLayouts: [layout],
 			// 入力の加算を行う分岐から呼ぶためLODを明示する。

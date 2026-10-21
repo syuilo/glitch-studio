@@ -41,7 +41,13 @@ export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: s
 		if (node.id === excludedNodeId) return [];
 		const name = node.type === 'effect' ? getEffectNodeName(node) : node.type === 'globalIn' ? 'In' : 'Out';
 		const outputs = Object.entries(getNodeOutputs(node, paramDefs)).filter(([, output]) => inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType)).map(([outputPort, output]) => {
-			const connection: NodeOutputReference = { nodeId: node.id, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+			const connection: NodeOutputReference = {
+				nodeId: node.id,
+				outputPort,
+				fitMode: 'cover',
+				wrapMode: 'repeatMirrored',
+				filterMode: 'linear',
+			};
 			const typeCompatible = inputDataType === undefined || areNodeDataTypesCompatible(output.dataType, inputDataType);
 			return {
 				label: `${name} [${prettyId(node.id)}]: ${node.type === 'globalIn' ? paramDefs.find(def => def.id === outputPort)?.ui.label ?? outputPort : outputPort}`,

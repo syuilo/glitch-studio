@@ -16,11 +16,14 @@ export class UniformOrTextureToTextureResolver {
 		let cached = this.constants.get(components.length);
 		if (cached == null) {
 			const channels = components.length === 4 ? 'rgba' : components.length === 2 ? 'rg' : 'r';
-			cached = { texture: this.device.createTexture({
-				size: [1, 1],
-				format: `${channels}${this.enable32bitDataTextures ? '32float' : '16float'}` as GPUTextureFormat,
-				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-			}), values: [] };
+			cached = {
+				texture: this.device.createTexture({
+					size: [1, 1],
+					format: `${channels}${this.enable32bitDataTextures ? '32float' : '16float'}` as GPUTextureFormat,
+					usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+				}),
+				values: [],
+			};
 			this.constants.set(components.length, cached);
 		}
 		if (!components.every((value, i) => Object.is(value, cached.values[i]))) {

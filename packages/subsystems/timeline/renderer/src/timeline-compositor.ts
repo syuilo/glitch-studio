@@ -18,7 +18,8 @@ const rows = (matrix: TimelineAffine) => ({ x: [matrix[0], matrix[2], matrix[4],
 export function getTimelinePlacement(source: TimelineImage, resolution: { width: number; height: number }, settings: TimelineCompositingSettings, space?: TimelineRenderSpace) {
 	const transformsRegion = settings.transformTarget === 'region';
 	const local = timelineGeometryMatrix({
-		sourceSize: transformsRegion ? resolution : timelineImageFrame(source, resolution), sceneSize: resolution,
+		sourceSize: transformsRegion ? resolution : timelineImageFrame(source, resolution),
+		sceneSize: resolution,
 		transform: transformsRegion ? { ...settings, fitMode: 'stretch' } : settings,
 	});
 	return settings.coordinateSpace === 'screen' ? multiplyTimelineAffine(space?.screenParent ?? TIMELINE_IDENTITY, local) : projectTimelineMatrix(multiplyTimelineAffine(space?.parent ?? TIMELINE_IDENTITY, local), (space?.depth ?? 0) + settings.depth, resolution, space?.camera);
@@ -36,8 +37,14 @@ export function createTimelineCompositor(options: {
 	const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 	const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer } }] });
 	const pipelines = createShaderInputPipeline({
-		device, vertex: options.vertex, code: blendCode + code,
-		schema: { background: 'color', source: 'color', layerMask: 'color' }, targets: [{ format: options.format }], internalLayouts: [layout], sampling: 'level0' });
+		device,
+		vertex: options.vertex,
+		code: blendCode + code,
+		schema: { background: 'color', source: 'color', layerMask: 'color' },
+		targets: [{ format: options.format }],
+		internalLayouts: [layout],
+		sampling: 'level0',
+	});
 	let texture: GPUTexture | null = null;
 	let renderedCompositor: ReturnType<typeof createTimelineCompositor> | null = null;
 	return {
@@ -53,7 +60,8 @@ export function createTimelineCompositor(options: {
 				try { return compositor.render(commandEncoder, background, source, values, context.renderSpace, projected, undefined, layerMaskImage); } finally { device.queue.submit([commandEncoder.finish()]); }
 			};
 			return {
-				source, gpuTime: 0,
+				source,
+				gpuTime: 0,
 				rendered: signal => {
 					// マスク元など、通常合成を省くレイヤーも変形ハンドルの素材寸法を通知する。
 					options.onCompositing?.(source, settings, context.renderSpace);
@@ -111,14 +119,24 @@ export function createTimelineCompositor(options: {
 			const clipRows = rows(clipInverse ?? TIMELINE_IDENTITY);
 			const maskImage: TimelineImage = layerMaskImage ?? { kind: 'uniform', value: [0, 0, 0, 0] };
 			uniforms.set({
-				inverseX: inverseRows.x, inverseY: inverseRows.y, clipX: clipRows.x, clipY: clipRows.y,
-				sourceBounds: boundsUniform(sourceBounds), backgroundBounds: boundsUniform(backgroundBounds), outputBounds: boundsUniform(outputBounds),
-				opacity: settings.opacity, blendMode: settings.blendMode, sourceVisible: Number(foregroundBounds != null), clipToFrame: Number(settings.clipToFrame),
+				inverseX: inverseRows.x,
+				inverseY: inverseRows.y,
+				clipX: clipRows.x,
+				clipY: clipRows.y,
+				sourceBounds: boundsUniform(sourceBounds),
+				backgroundBounds: boundsUniform(backgroundBounds),
+				outputBounds: boundsUniform(outputBounds),
+				opacity: settings.opacity,
+				blendMode: settings.blendMode,
+				sourceVisible: Number(foregroundBounds != null),
+				clipToFrame: Number(settings.clipToFrame),
 				transformTarget: Number(transformsRegion),
-				maskChannel: settings.mask == null ? 0 : settings.mask.channel === 'alpha' ? 1 : 2, maskInverted: Number(settings.mask?.inverted === true),
+				maskChannel: settings.mask == null ? 0 : settings.mask.channel === 'alpha' ? 1 : 2,
+				maskInverted: Number(settings.mask?.inverted === true),
 				layerMaskBounds: boundsUniform(timelineImageBounds(maskImage)),
 				layerMaskChannel: settings.layerMask == null ? 0 : settings.layerMask.channel === 'alpha' ? 1 : 2,
-				layerMaskInverted: Number(settings.layerMask?.inverted === true) });
+				layerMaskInverted: Number(settings.layerMask?.inverted === true),
+			});
 			device.queue.writeBuffer(buffer, 0, uniforms.arrayBuffer);
 			const variant = pipelines.update({
 				// 背景は合成先へ配置済み。座標範囲への写像はWGSL側で行うため、
@@ -127,7 +145,14 @@ export function createTimelineCompositor(options: {
 				source: toShaderInput(source, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
 				layerMask: toShaderInput(maskImage, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
 			}, size);
-			const descriptor: GPURenderPassDescriptor = { colorAttachments: [{ view: texture.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] };
+			const descriptor: GPURenderPassDescriptor = {
+				colorAttachments: [{
+					view: texture.createView(),
+					loadOp: 'clear',
+					storeOp: 'store',
+					clearValue: [0, 0, 0, 0],
+				}],
+			};
 			const pass = options.beginPass?.(encoder, descriptor) ?? encoder.beginRenderPass(descriptor);
 			pass.setPipeline(variant.pipeline);
 			pass.setBindGroup(0, group);

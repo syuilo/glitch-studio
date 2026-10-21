@@ -11,7 +11,12 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['transform'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
 		horizontal: {
 			dataType: { kind: 'enum', options: ['leftToRight', 'none', 'rightToLeft'] },
 			ui: { label: 'Horizontal', control: { labels: { leftToRight: 'Left to Right', none: 'None', rightToLeft: 'Right to Left' } } },

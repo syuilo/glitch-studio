@@ -26,14 +26,86 @@ export default defineEffect({
 			element: { canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 		},
 		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		distortion: { dataType: { kind: 'scalar' }, ui: { label: 'Distortion', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.8 } },
-		swirl: { dataType: { kind: 'scalar' }, ui: { label: 'Swirl', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.1 } },
-		grainMixer: { dataType: { kind: 'scalar' }, ui: { label: 'Grain Mixer', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		grainOverlay: { dataType: { kind: 'scalar' }, ui: { label: 'Grain Overlay', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		distortion: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Distortion',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.8 },
+		},
+		swirl: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Swirl',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.1 },
+		},
+		grainMixer: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Grain Mixer',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		grainOverlay: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Grain Overlay',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
-		scale: { dataType: { kind: 'scalar' }, ui: { label: 'Scale', control: { controlType: 'range', min: 0.01, max: 4, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
+		scale: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Scale',
+				control: {
+					controlType: 'range',
+					min: 0.01,
+					max: 4,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
 		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		offset: { dataType: { kind: 'vector' }, ui: { label: 'Offset', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
+		offset: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Offset',
+				control: {
+					controlType: 'vector',
+					min: -1,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: [0, 0] },
+		},
 	},
 	primaryInputParameter: null,
 	resolutionInputParameter: null,

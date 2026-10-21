@@ -19,7 +19,12 @@ export function createVisualModuleAssetNode(asset: Asset, players: readonly Play
 	if (definition !== imageEffect) {
 		playerId = players.find(player => player.sourceType === 'asset' && player.assetId === asset.id)?.id ?? null;
 		if (playerId == null) {
-			player = { id: genId(), name: asset.name, sourceType: 'asset', assetId: asset.id };
+			player = {
+				id: genId(),
+				name: asset.name,
+				sourceType: 'asset',
+				assetId: asset.id,
+			};
 			playerId = player.id;
 		}
 	}
@@ -27,6 +32,17 @@ export function createVisualModuleAssetNode(asset: Asset, players: readonly Play
 	if (definition === imageEffect) params.image = { inputSource: 'literal', value: asset.id };
 	else if (definition === videoEffect) params.player = { inputSource: 'literal', value: playerId };
 	else params.audio = { inputSource: 'literal', value: { type: 'player', playerId: playerId! } };
-	return { player, node: { id: genId(), type: 'effect', effectId: definition.id, displayName: '', isBypass: false,
-		resolution: { mode: 'auto' }, pos: { x: 0, y: 0 }, params } };
+	return {
+		player,
+		node: {
+			id: genId(),
+			type: 'effect',
+			effectId: definition.id,
+			displayName: '',
+			isBypass: false,
+			resolution: { mode: 'auto' },
+			pos: { x: 0, y: 0 },
+			params,
+		},
+	};
 }

@@ -16,7 +16,14 @@ export function insertVoicevoxUtterance(utterances: readonly VoicevoxUtterance[]
 	// 値としてコピーするため、後から継承元を編集・移動しても新しい発話の声は変わらない。
 	const sorted = utterances.toSorted((a, b) => a.timeMs - b.timeMs);
 	const source = sorted.findLast(utterance => utterance.timeMs < time) ?? sorted[0];
-	const utterance: VoicevoxUtterance = { id: genId(), timeMs: time, text: '', reading: null, styleId: source?.styleId ?? 1, subtitleDuration: { mode: 'fill' } };
+	const utterance: VoicevoxUtterance = {
+		id: genId(),
+		timeMs: time,
+		text: '',
+		reading: null,
+		styleId: source?.styleId ?? 1,
+		subtitleDuration: { mode: 'fill' },
+	};
 	return { utterance, utterances: [...utterances, utterance] };
 }
 
@@ -41,8 +48,11 @@ export function getVoicevoxSubtitleTrimBounds(settings: VoicevoxSettings, uttera
 	const placement = getVoicevoxSubtitlePlacements(settings, utterances, clips).find(range => range.utteranceId === id && range.clipId === clipId);
 	if (!placement?.canResize) return null;
 	const nextTime = Math.min(...utterances.filter(key => key.timeMs > utterance.timeMs).map(key => key.timeMs));
-	return { endMs: placement.endMs, minDelta: -utterance.subtitleDuration.durationMs,
-		maxDelta: Math.min(nextTime, getTimelineClipEnd(clip), Number.MAX_SAFE_INTEGER) - placement.endMs };
+	return {
+		endMs: placement.endMs,
+		minDelta: -utterance.subtitleDuration.durationMs,
+		maxDelta: Math.min(nextTime, getTimelineClipEnd(clip), Number.MAX_SAFE_INTEGER) - placement.endMs,
+	};
 }
 
 export function getVoicevoxUtteranceTimeBounds(utterances: readonly VoicevoxUtterance[], id: string) {

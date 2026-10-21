@@ -118,7 +118,11 @@ export function useTimelineMarqueeSelection(options: TimelineMarqueeSelectionOpt
 					interaction.suppressNextClick();
 					selectionArea.value = rect;
 					const candidates = collectTimelineMarqueeCandidates(marqueeLayers.value, origin, end, boundaryLayouts, {
-						left: rect.left, right: rect.right, position: positionX.value, range: rangeX.value, width: width.value,
+						left: rect.left,
+						right: rect.right,
+						position: positionX.value,
+						range: rangeX.value,
+						width: width.value,
 					});
 					selection.value = mergeTimelineRangeSelection(candidates.clips, candidates.keyframes, previous, event.shiftKey);
 					// 開始行と現在の境界以外のレーン座標は不要。高速スクロールでもメモリを増やさない。

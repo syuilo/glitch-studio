@@ -76,7 +76,12 @@ const gridLinePositions = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 const zoom = ref(1 / ZOOM_STEP / ZOOM_STEP / ZOOM_STEP);
 const pan = ref<[number, number]>([0, 0]);
 const panning = ref(false);
-const previewCanvasRect = shallowRef<PreviewCanvasRect>({ left: 0, top: 0, width: 0, height: 0 });
+const previewCanvasRect = shallowRef<PreviewCanvasRect>({
+	left: 0,
+	top: 0,
+	width: 0,
+	height: 0,
+});
 let stopPan: (() => void) | null = null;
 const visualModuleLivePreviewTime = ref(0);
 const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : visualModuleLivePreviewTime.value);
@@ -134,7 +139,12 @@ function updatePreviewCanvasRect() {
 	if (!canvasContainer.value || !containerContainer.value) return;
 	const canvas = canvasContainer.value.getBoundingClientRect();
 	const container = containerContainer.value.getBoundingClientRect();
-	const next = { left: canvas.left - container.left, top: canvas.top - container.top, width: canvas.width, height: canvas.height };
+	const next = {
+		left: canvas.left - container.left,
+		top: canvas.top - container.top,
+		width: canvas.width,
+		height: canvas.height,
+	};
 	const previous = previewCanvasRect.value;
 	if (next.left !== previous.left || next.top !== previous.top || next.width !== previous.width || next.height !== previous.height) previewCanvasRect.value = next;
 }

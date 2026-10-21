@@ -56,7 +56,12 @@ function update(defId: string, changes: Partial<Omit<OutputDef, 'id'>>) {
 function add() {
 	let name = 'output';
 	for (let suffix = 2; props.visualModule.outputDefs.some(def => def.name === name); suffix++) name = `output${suffix}`;
-	emit('add', { id: genId(), label: 'Output', name, dataType: { kind: 'color' } });
+	emit('add', {
+		id: genId(),
+		label: 'Output',
+		name,
+		dataType: { kind: 'color' },
+	});
 }
 </script>
 

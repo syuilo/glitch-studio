@@ -20,10 +20,12 @@ export function createWaveform(options: {
 	format: GPUTextureFormat;
 }) {
 	const { device } = options;
-	const computeLayout = device.createBindGroupLayout({ entries: [
-		{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-		{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-	] });
+	const computeLayout = device.createBindGroupLayout({
+		entries: [
+			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+		],
+	});
 	const createVariant = (input: ShaderInput) => {
 		const generated = generateShaderInputs({ input: 'color' }, { input }, 1, 'level0');
 		const bindings = createShaderInputBindings(device, generated);
@@ -85,9 +87,12 @@ export function createWaveform(options: {
 				counts?.destroy();
 				counts = device.createBuffer({ size: byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 				capacity = byteLength;
-				computeGroup = device.createBindGroup({ layout: computeLayout, entries: [
-					uniformEntry, { binding: 2, resource: { buffer: counts } },
-				] });
+				computeGroup = device.createBindGroup({
+					layout: computeLayout,
+					entries: [
+						uniformEntry, { binding: 2, resource: { buffer: counts } },
+					],
+				});
 				outputGroup = device.createBindGroup({
 					layout: renderPipeline.getBindGroupLayout(0),
 					entries: [uniformEntry, { binding: 3, resource: { buffer: counts } }],

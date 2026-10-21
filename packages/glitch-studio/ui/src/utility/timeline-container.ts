@@ -9,8 +9,12 @@ import type { ProjectState } from '../Project.ts';
 /** コンテナに含まれる全キーを対象にし、クリップ内への所属判定や別Sceneへの再帰は行わない。 */
 export function prepareTimelineContainerMove(state: Pick<ProjectState, 'visualModules'>, container: TimelineContainerLayer) {
 	const layers = flattenTimelineLayers([container]);
-	const clips = getTimelineClipLayers([container]).flatMap(layer => layer.clips.map(clip => ({ layerId: layer.id, clipId: clip.id,
-		startMs: clip.startMs, endMs: clip.startMs + clip.durationMs })));
+	const clips = getTimelineClipLayers([container]).flatMap(layer => layer.clips.map(clip => ({
+		layerId: layer.id,
+		clipId: clip.id,
+		startMs: clip.startMs,
+		endMs: clip.startMs + clip.durationMs,
+	})));
 	const keyframes = getTimelineKeyframeEntries(state, layers).map(entry => ({ ...entry.selection, x: entry.time }));
 	const times = [...clips.map(clip => clip.startMs), ...keyframes.map(point => point.x)];
 	// 発話キーだけでなく保存する字幕終端も安全な整数の範囲へ収める。
@@ -18,8 +22,12 @@ export function prepareTimelineContainerMove(state: Pick<ProjectState, 'visualMo
 		.filter(utterance => utterance.subtitleDuration.mode === 'specified')
 		.map(utterance => utterance.timeMs + (utterance.subtitleDuration.mode === 'specified' ? utterance.subtitleDuration.durationMs : 0)) : []);
 	const ends = [...clips.map(clip => clip.endMs), ...keyframes.map(point => point.x), ...subtitleEnds];
-	return { clips, keyframes, minDelta: times.length ? -times.reduce((min, time) => Math.min(min, time), Infinity) : 0,
-		maxDelta: ends.length ? Number.MAX_SAFE_INTEGER - ends.reduce((max, time) => Math.max(max, time), 0) : 0 };
+	return {
+		clips,
+		keyframes,
+		minDelta: times.length ? -times.reduce((min, time) => Math.min(min, time), Infinity) : 0,
+		maxDelta: ends.length ? Number.MAX_SAFE_INTEGER - ends.reduce((max, time) => Math.max(max, time), 0) : 0,
+	};
 }
 
 export type TimelineContainerMove = ReturnType<typeof prepareTimelineContainerMove>;

@@ -27,7 +27,12 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 		if (!layer || !Number.isSafeInteger(Math.round(position.x)) || position.x < 0) throw new Error('Invalid keyframe move');
 		if (position.target === 'utterance') {
 			if (layer.layerType !== 'voicevox' || position.paramPath.length !== 1 || position.paramPath[0] !== 'utterances') throw new Error('Invalid utterance target');
-			const update = speeches.get(layer.id) ?? { layerId: layer.id, target: 'utterance', before: deepClone(layer.utterances), after: deepClone(layer.utterances) };
+			const update = speeches.get(layer.id) ?? {
+				layerId: layer.id,
+				target: 'utterance',
+				before: deepClone(layer.utterances),
+				after: deepClone(layer.utterances),
+			};
 			const utterance = update.after.find(utterance => utterance.id === position.keyframeId);
 			if (!utterance) throw new Error('Utterance not found');
 			utterance.timeMs = Math.round(position.x);
@@ -36,9 +41,13 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 		}
 		const paramId = position.paramPath[0];
 		const rootKey = JSON.stringify([layer.id, position.target, paramId]);
-		const update = parameters.get(rootKey) ?? { layerId: layer.id, target: position.target, paramId,
+		const update = parameters.get(rootKey) ?? {
+			layerId: layer.id,
+			target: position.target,
+			paramId,
 			before: deepClone(getLayerParameterValues(layer, position.target)[paramId] ?? null),
-			after: deepClone(resolveLayerParameter(state, layer, position.target, [paramId]).value) };
+			after: deepClone(resolveLayerParameter(state, layer, position.target, [paramId]).value),
+		};
 		const definitions = getLayerParameterDefinitions(state, layer, position.target);
 		// 同じ配列・構造体の別レーンも一つの案にまとめる。未設定の引数は既定値の
 		// 独立したコピーへ書き込み、共有定義を変更せずUndoで未設定へ戻せるようにする。

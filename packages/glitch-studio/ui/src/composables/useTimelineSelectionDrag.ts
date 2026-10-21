@@ -83,7 +83,13 @@ export function useTimelineSelectionDrag(options: TimelineSelectionDragOptions) 
 		});
 	}
 
-	return { canStart, startSelectionMove, onSeekBarPointerDown, movingSelection: readonly(movingSelection), snappingTimes: readonly(snappingTimes) };
+	return {
+		canStart,
+		startSelectionMove,
+		onSeekBarPointerDown,
+		movingSelection: readonly(movingSelection),
+		snappingTimes: readonly(snappingTimes),
+	};
 }
 
 export type TimelineSelectionDrag = ReturnType<typeof useTimelineSelectionDrag>;

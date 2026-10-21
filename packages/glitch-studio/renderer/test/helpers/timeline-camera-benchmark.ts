@@ -14,19 +14,49 @@ export async function run() {
 	if (!adapter) throw new Error('WebGPU unavailable');
 	const device = await adapter.requestDevice();
 	const vertex = device.createShaderModule({ code: vertexCode });
-	const options = { device, vertex, resolution: { width: 1920, height: 1080 }, format: 'rgba16float' as const };
+	const options = {
+		device,
+		vertex,
+		resolution: { width: 1920, height: 1080 },
+		format: 'rgba16float' as const,
+	};
 	const literal = (value: any) => ({ inputSource: 'literal' as const, value });
 	const compositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'];
-	const common = { isDisabled: false, forceDisableMotionBlur: false, mask: null, coordinateSpace: 'world' as const, automationGraphs: [] };
+	const common = {
+		isDisabled: false,
+		forceDisableMotionBlur: false,
+		mask: null,
+		coordinateSpace: 'world' as const,
+		automationGraphs: [],
+	};
 	const shapes: TimelineLayer[] = Array.from({ length: 12 }, (_, index) => {
 		const shape = createShape('rectangle');
 		shape.paramValues.size = literal([0.25, 0.2]);
 		shape.paramValues.position = literal([(index % 4 - 1.5) * 0.35, (Math.floor(index / 4) - 1) * 0.4]);
-		return { ...common, id: String(index), name: 'Shape', layerType: 'shape', shape, compositingParamValues: compositing(),
-			clips: [{ id: 'clip', startMs: 0, durationMs: 10000, contentOffsetMs: 0 }] };
+		return {
+			...common,
+			id: String(index),
+			name: 'Shape',
+			layerType: 'shape',
+			shape,
+			compositingParamValues: compositing(),
+			clips: [{
+				id: 'clip',
+				startMs: 0,
+				durationMs: 10000,
+				contentOffsetMs: 0,
+			}],
+		};
 	});
-	const grouped: TimelineLayer[] = Array.from({ length: 4 }, (_, index) => ({ ...common, id: `group${index}`, name: 'Group', layerType: 'group',
-		layers: shapes.slice(index * 3, index * 3 + 3), compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } }));
+	const grouped: TimelineLayer[] = Array.from({ length: 4 }, (_, index) => ({
+		...common,
+		id: `group${index}`,
+		name: 'Group',
+		layerType: 'group',
+		layers: shapes.slice(index * 3, index * 3 + 3),
+		compositingParamValues: compositing(),
+		audioParamValues: { volume: literal(1) },
+	}));
 	const createLayer = (layer: TimelineLayer): TimelineLayerRenderer<UniformOrTexture> => layer.layerType === 'group'
 		? createGroupTimelineLayer(() => layer, { ...options, createLayer, getLayerVersion: () => 0 })
 		: layer.layerType === 'shape' ? createShapeTimelineLayer(layer, options) : (() => { throw new Error('Unexpected layer'); })();

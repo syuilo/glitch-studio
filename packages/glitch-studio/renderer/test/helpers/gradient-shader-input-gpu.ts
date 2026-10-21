@@ -38,7 +38,14 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			const encoder = device.createCommandEncoder();
 			const outputDataMap: any = { scalar: { texture: scalar, textureView: scalar.createView() } };
 			if (needsVector) outputDataMap.vector = { texture: vector, textureView: vector.createView() };
-			instance.render({ params, commandEncoder: encoder, outputDataMap, usedOutputPorts: new Set(needsVector ? ['scalar', 'vector'] : ['scalar']), createPassEncoder: (e: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => e.beginRenderPass(descriptor), createPassEncoderFor: (e: GPUCommandEncoder, view: GPUTextureView) => e.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+			instance.render({
+				params,
+				commandEncoder: encoder,
+				outputDataMap,
+				usedOutputPorts: new Set(needsVector ? ['scalar', 'vector'] : ['scalar']),
+				createPassEncoder: (e: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => e.beginRenderPass(descriptor),
+				createPassEncoderFor: (e: GPUCommandEncoder, view: GPUTextureView) => e.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			} as any);
 			encoder.copyTextureToBuffer({ texture: scalar }, { buffer, bytesPerRow: 256 }, [4, 4]);
 			if (needsVector) encoder.copyTextureToBuffer({ texture: vector }, { buffer, offset: 1024, bytesPerRow: 256 }, [4, 4]);
 			device.queue.submit([encoder.finish()]);

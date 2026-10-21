@@ -13,10 +13,12 @@ export default implementEffect<typeof definition>({
 		}),
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution, params }) => {
-		const accumulateLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-		] });
+		const accumulateLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+				{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			],
+		});
 		const createVariant = (input: ShaderInput) => {
 			const generated = generateShaderInputs({ input: 'color' }, { input }, 1, 'level0');
 			const bindings = createShaderInputBindings(device, generated);
@@ -44,7 +46,8 @@ export default implementEffect<typeof definition>({
 		// 集計後の処理は入力を読まないため、入力種別によらずpipelineを共有する。
 		const module = getVariant(params.input).module;
 		const findMax = device.createComputePipeline({
-			layout: 'auto', compute: { module, entryPoint: 'findMax' },
+			layout: 'auto',
+			compute: { module, entryPoint: 'findMax' },
 		});
 		const output = device.createRenderPipeline({
 			layout: 'auto',

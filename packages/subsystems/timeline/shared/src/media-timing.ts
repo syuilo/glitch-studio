@@ -18,7 +18,14 @@ export type TimelineMediaSourceTiming = {
 export type TimelineMediaClipTiming = TimelineClipPlacement & TimelineMediaSourceTiming;
 
 export function createTimelineMediaClipTiming(startMs: number, durationMs: number): TimelineMediaClipTiming {
-	return { startMs: Math.round(startMs), durationMs: Math.floor(durationMs), sourceInMs: 0, sourceOutMs: Math.floor(durationMs), playbackRate: 1, loop: false };
+	return {
+		startMs: Math.round(startMs),
+		durationMs: Math.floor(durationMs),
+		sourceInMs: 0,
+		sourceOutMs: Math.floor(durationMs),
+		playbackRate: 1,
+		loop: false,
+	};
 }
 
 export function getTimelineMediaPeriod(clip: TimelineMediaSourceTiming): number {
@@ -111,6 +118,8 @@ export function trimTimelineMediaClip(clip: TimelineMediaClipTiming, edge: 'star
 
 export function getTimelineMediaLoopBounds(clips: readonly ClipWithId[], clip: TimelineMediaClipTiming & { id: string }) {
 	const bounds = getTimelineClipMoveBounds(clips, new Set([clip.id]), clip.id);
-	return { minDelta: getTimelineMediaSingleDuration(clip) - clip.durationMs,
-		maxDelta: Math.min(bounds.maxDelta, Number.MAX_SAFE_INTEGER - clip.startMs - clip.durationMs) };
+	return {
+		minDelta: getTimelineMediaSingleDuration(clip) - clip.durationMs,
+		maxDelta: Math.min(bounds.maxDelta, Number.MAX_SAFE_INTEGER - clip.startMs - clip.durationMs),
+	};
 }

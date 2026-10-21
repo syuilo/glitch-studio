@@ -38,8 +38,22 @@ export async function run() {
 			} finally { sample.close(); }
 		}
 		completed.push('reverse decoding and pixels');
-		const settings = { format: 'mp4' as const, quality: 'medium' as const, width: 1280, height: 720, fps: 60, positionMs: 0, endTimeMs: 1500 };
-		const clip = { startMs: 0, sourceInMs: 0, sourceOutMs: 1500, playbackRate: -1, loop: false };
+		const settings = {
+			format: 'mp4' as const,
+			quality: 'medium' as const,
+			width: 1280,
+			height: 720,
+			fps: 60,
+			positionMs: 0,
+			endTimeMs: 1500,
+		};
+		const clip = {
+			startMs: 0,
+			sourceInMs: 0,
+			sourceOutMs: 1500,
+			playbackRate: -1,
+			loop: false,
+		};
 		const writer = await createMp4Writer(canvas, settings);
 		const progress: number[] = [];
 		try {

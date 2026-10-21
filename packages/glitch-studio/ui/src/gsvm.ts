@@ -90,7 +90,15 @@ export function collectVisualModuleFile(input: {
 }, definitions: EffectDefinitions): VisualModuleFile {
 	// ProjectVisualModuleやインラインのレイヤーから渡されても、所属先のID・設定はファイルへ持ち込まない。
 	const { nodes, paramDefs, outputDefs, primaryInputId, primaryOutputId, primaryAudioInputId, automationGraphs } = input.visualModule;
-	const visualModule = deepClone({ nodes, paramDefs, outputDefs, primaryInputId, primaryOutputId, primaryAudioInputId, automationGraphs });
+	const visualModule = deepClone({
+		nodes,
+		paramDefs,
+		outputDefs,
+		primaryInputId,
+		primaryOutputId,
+		primaryAudioInputId,
+		automationGraphs,
+	});
 	const availableAssets = indexResources(input.assets);
 	const availablePlayers = indexResources(input.players);
 	const assets = new Map<string, Asset>();
@@ -100,21 +108,36 @@ export function collectVisualModuleFile(input: {
 		if (!asset) throw new Error(`Missing Asset: ${id}`);
 		// 元ファイルの絶対パスなど、取り込み元PC固有の情報は同梱しない。
 		const { name, width, height, fileDataType, fileData, hash } = asset;
-		assets.set(id, { id, name, width, height, fileDataType, fileData, ...(hash == null ? {} : { hash }) });
+		assets.set(id, {
+			id,
+			name,
+			width,
+			height,
+			fileDataType,
+			fileData,
+			...(hash == null ? {} : { hash }),
+		});
 	};
 	visitResourceBindings(visualModule, definitions, (_def, _binding, reference) => {
 		if (reference.kind === 'asset') { addAsset(reference.id); return; }
 		const player = availablePlayers.get(reference.id);
 		if (!player) throw new Error(`Missing Player: ${reference.id}`);
 		players.set(player.id, {
-			id: player.id, name: player.name, sourceType: player.sourceType,
+			id: player.id,
+			name: player.name,
+			sourceType: player.sourceType,
 			...(player.sourceType === 'asset' ? { assetId: player.assetId } : {}),
 		});
 		if (player.sourceType === 'asset' && player.assetId != null) addAsset(player.assetId);
 	});
 	return {
-		kind: 'glitch-studio-visual-module', formatVersion: 1, gsVersion: input.gsVersion, name: input.name,
-		visualModule, assets: [...assets.values()], players: [...players.values()],
+		kind: 'glitch-studio-visual-module',
+		formatVersion: 1,
+		gsVersion: input.gsVersion,
+		name: input.name,
+		visualModule,
+		assets: [...assets.values()],
+		players: [...players.values()],
 	};
 }
 
@@ -122,8 +145,15 @@ export async function encodeVisualModuleFile(file: VisualModuleFile): Promise<Ui
 	const assets = await Promise.all(file.assets.map(async asset => {
 		try {
 			const { id, name, width, height, fileDataType, hash } = asset;
-			return { id, name, width, height, fileDataType, ...(hash == null ? {} : { hash }),
-				fileData: new Uint8Array(await (await readFileSource(asset.fileData)).arrayBuffer()) };
+			return {
+				id,
+				name,
+				width,
+				height,
+				fileDataType,
+				...(hash == null ? {} : { hash }),
+				fileData: new Uint8Array(await (await readFileSource(asset.fileData)).arrayBuffer()),
+			};
 		} catch (cause) {
 			throw new Error(`Could not read Asset "${asset.name}". Replace it with the source file and try exporting again.`, { cause });
 		}
@@ -143,10 +173,13 @@ export function decodeVisualModuleFile(data: Uint8Array, currentVersion: string)
 		throw new Error('Unsupported Visual Module file.');
 	}
 	if (semverGt(file.gsVersion, currentVersion)) throw new Error(`This Visual Module requires a newer version of Glitch Studio (${file.gsVersion}).`);
-	return { ...file, assets: file.assets.map(asset => {
-		if (!(asset.fileData instanceof Uint8Array)) throw new Error(`Invalid Asset data: ${asset.name}`);
-		return { ...asset, fileData: new Blob([new Uint8Array(asset.fileData)], { type: asset.fileDataType }) };
-	}) };
+	return {
+		...file,
+		assets: file.assets.map(asset => {
+			if (!(asset.fileData instanceof Uint8Array)) throw new Error(`Invalid Asset data: ${asset.name}`);
+			return { ...asset, fileData: new Blob([new Uint8Array(asset.fileData)], { type: asset.fileDataType }) };
+		}),
+	};
 }
 
 export function prepareVisualModuleImport(file: VisualModuleFile, definitions: EffectDefinitions, createId = genId): VisualModuleImport {
@@ -170,7 +203,14 @@ export function prepareVisualModuleImport(file: VisualModuleFile, definitions: E
 	});
 	return {
 		visualModule: { ...collected.visualModule, id: createId(), name: collected.name },
-		assets: collected.assets.map(asset => ({ ...asset, id: assetIds.get(asset.id)!, isExternalReference: false, sourceFilePath: null, thumbnailSequence: null })),
-		players, unassignedPlayerNames,
+		assets: collected.assets.map(asset => ({
+			...asset,
+			id: assetIds.get(asset.id)!,
+			isExternalReference: false,
+			sourceFilePath: null,
+			thumbnailSequence: null,
+		})),
+		players,
+		unassignedPlayerNames,
 	};
 }

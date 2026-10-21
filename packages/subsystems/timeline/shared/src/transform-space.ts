@@ -7,8 +7,11 @@ import type { EvaluatedTimelineTransform } from './layers/transform/transform.ts
 export function getTimelineTransformSpace(transform: EvaluatedTimelineTransform, frame: Resolution, space?: TimelineRenderSpace): TimelineRenderSpace {
 	// Transform自身は素材枠を持たず、ローカル原点を支点に拡縮→回転→移動する。
 	// 非等方scaleと子の回転から生じるせん断を失わないよう、成分へ分解せず行列で継承する。
-	const local = timelineGeometryMatrix({ sourceSize: frame, sceneSize: frame,
-		transform: { ...transform, origin: [0, 0], fitMode: 'stretch' } });
+	const local = timelineGeometryMatrix({
+		sourceSize: frame,
+		sceneSize: frame,
+		transform: { ...transform, origin: [0, 0], fitMode: 'stretch' },
+	});
 	return {
 		...space,
 		parent: multiplyTimelineAffine(space?.parent ?? TIMELINE_IDENTITY, local),

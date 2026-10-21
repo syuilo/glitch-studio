@@ -32,11 +32,15 @@ export function resolveSpectrogramSettings(settings: SpectrogramSettings, sample
 	const minFrequency = finiteNumber(settings.minFrequency, 20, settings.logarithmic ? 1 : 0, sampleRate / 2 - 1);
 	const minDb = finiteNumber(settings.minDb, -80, -120, -1);
 	return {
-		...settings, fftSize, channel: audioChannel(settings.channel),
+		...settings,
+		fftSize,
+		channel: audioChannel(settings.channel),
 		smoothing: finiteNumber(settings.smoothing, 0, 0, 2),
 		duration: finiteNumber(settings.duration, 10, 0.5, 60),
-		minFrequency, maxFrequency: finiteNumber(settings.maxFrequency, 20000, minFrequency + 1, sampleRate / 2),
-		minDb, maxDb: finiteNumber(settings.maxDb, 0, minDb + 1, 20),
+		minFrequency,
+		maxFrequency: finiteNumber(settings.maxFrequency, 20000, minFrequency + 1, sampleRate / 2),
+		minDb,
+		maxDb: finiteNumber(settings.maxDb, 0, minDb + 1, 20),
 	};
 }
 
@@ -52,11 +56,13 @@ export function createSpectrogramRenderer(options: SpectrogramRendererOptions) {
 	const module = options.device.createShaderModule({ code: shader });
 	const sampler = options.device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 	const uploadRow = new Uint16Array(bands);
-	const layout = options.device.createBindGroupLayout({ entries: [
-		{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-		{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
-	] });
+	const layout = options.device.createBindGroupLayout({
+		entries: [
+			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
+		],
+	});
 	const pipeline = options.device.createRenderPipeline({
 		layout: options.device.createPipelineLayout({ bindGroupLayouts: [layout] }),
 		vertex: { module: options.vertexShaderModule },
@@ -104,11 +110,14 @@ export function createSpectrogramRenderer(options: SpectrogramRendererOptions) {
 				format: options.enable32bitDataTextures ? 'r32float' : 'r16float',
 				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 			});
-			bindGroup = options.device.createBindGroup({ layout, entries: [
-				{ binding: 2, resource: sampler },
-				{ binding: 0, resource: { buffer: uniformBuffer } },
-				{ binding: 1, resource: texture.createView({ dimension: '2d-array' }) },
-			] });
+			bindGroup = options.device.createBindGroup({
+				layout,
+				entries: [
+					{ binding: 2, resource: sampler },
+					{ binding: 0, resource: { buffer: uniformBuffer } },
+					{ binding: 1, resource: texture.createView({ dimension: '2d-array' }) },
+				],
+			});
 		},
 		reset,
 		append(endFrame: number, left: Float32Array, right: Float32Array) {

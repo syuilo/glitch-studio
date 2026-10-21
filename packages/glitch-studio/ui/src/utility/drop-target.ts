@@ -90,5 +90,12 @@ export function createDropTargetHandlers<T>(options: DropTargetOptions<T>) {
 		clear();
 	}
 
-	return { onDragenter, onDragover, onDragleave, onDrop, observeWindow, dispose };
+	return {
+		onDragenter,
+		onDragover,
+		onDragleave,
+		onDrop,
+		observeWindow,
+		dispose,
+	};
 }

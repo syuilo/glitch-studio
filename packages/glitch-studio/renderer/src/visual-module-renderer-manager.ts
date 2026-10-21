@@ -175,12 +175,15 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		});
 
 		if (this.staticOptions.enableStats) this.telemetryReportIntervalId = setInterval(() => {
-			this.emit('ev', { type: 'telemetry', ctx: {
-				fpsAverage: this.fpsAverage.get(),
-				gpuAverageFast: this.gpuAverageFast.get(),
-				gpuAverageMedium: this.gpuAverageMedium.get(),
-				gpuAverageSlow: this.gpuAverageSlow.get(),
-			} });
+			this.emit('ev', {
+				type: 'telemetry',
+				ctx: {
+					fpsAverage: this.fpsAverage.get(),
+					gpuAverageFast: this.gpuAverageFast.get(),
+					gpuAverageMedium: this.gpuAverageMedium.get(),
+					gpuAverageSlow: this.gpuAverageSlow.get(),
+				},
+			});
 		}, 100);
 
 		if (gpuMemory != null) this.gpuMemoryReportIntervalId = setInterval(() => {

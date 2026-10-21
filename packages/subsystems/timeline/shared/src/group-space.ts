@@ -13,10 +13,13 @@ export function getTimelineGroupSpace(group: GroupPlacement, frame: Resolution, 
 	if (group.compositingMode !== 'preserveDepth') return { parent: TIMELINE_IDENTITY, depth: 0 };
 	const local = timelineGeometryMatrix({ sourceSize: frame, sceneSize: frame, transform: group.settings });
 	const screen = group.settings.coordinateSpace === 'screen';
-	return { parent: multiplyTimelineAffine(screen ? space?.screenParent ?? TIMELINE_IDENTITY : space?.parent ?? TIMELINE_IDENTITY, local),
-										screenParent: space?.screenParent,
-										depth: (screen ? 0 : space?.depth ?? 0) + group.settings.depth,
-										camera: screen ? null : space?.camera, viewport: space?.viewport };
+	return {
+		parent: multiplyTimelineAffine(screen ? space?.screenParent ?? TIMELINE_IDENTITY : space?.parent ?? TIMELINE_IDENTITY, local),
+		screenParent: space?.screenParent,
+		depth: (screen ? 0 : space?.depth ?? 0) + group.settings.depth,
+		camera: screen ? null : space?.camera,
+		viewport: space?.viewport,
+	};
 }
 
 /**

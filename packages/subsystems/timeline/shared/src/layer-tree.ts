@@ -15,7 +15,12 @@ export function findTimelineLayerLocation(layers: TimelineLayer[], id: string, a
 	layer: TimelineLayer; siblings: TimelineLayer[]; index: number; ancestors: TimelineContainerLayer[];
 } | null {
 	for (const [index, layer] of layers.entries()) {
-		if (layer.id === id) return { layer, siblings: layers, index, ancestors };
+		if (layer.id === id) return {
+			layer,
+			siblings: layers,
+			index,
+			ancestors,
+		};
 		if (isTimelineContainerLayer(layer)) {
 			const found = findTimelineLayerLocation(layer.layers, id, [...ancestors, layer]);
 			if (found) return found;

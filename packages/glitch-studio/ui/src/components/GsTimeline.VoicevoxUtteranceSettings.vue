@@ -79,7 +79,12 @@ const status = computed(() => {
 function commit(utterances: VoicevoxUtterance[]) {
 	error.value = '';
 	try {
-		stateManager.commit('editVoicevoxLayer', { sceneId: props.sceneId, layerId: props.layer.id, voicevox: props.layer.voicevox, utterances });
+		stateManager.commit('editVoicevoxLayer', {
+			sceneId: props.sceneId,
+			layerId: props.layer.id,
+			voicevox: props.layer.voicevox,
+			utterances,
+		});
 		return true;
 	} catch (cause) { error.value = String(cause); return false; }
 }

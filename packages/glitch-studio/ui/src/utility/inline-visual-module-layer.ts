@@ -43,7 +43,12 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 				defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 				canNode: true,
 			}],
-			outputDefs: [{ id: outputId, label: 'Output', name: 'output', dataType: { kind: 'color' } }],
+			outputDefs: [{
+				id: outputId,
+				label: 'Output',
+				name: 'output',
+				dataType: { kind: 'color' },
+			}],
 			primaryOutputId: outputId,
 			primaryInputId: inputId,
 			automationGraphs: [],

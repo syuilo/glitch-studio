@@ -93,8 +93,11 @@ export class AudioHistory {
 			const left = new Float32Array(chunk.buffer, skip * 4, retainedFrames).slice();
 			const right = chunk.channelCount === 1 ? left
 				: new Float32Array(chunk.buffer, (chunk.frameCount + skip) * 4, retainedFrames).slice();
-			this.blocks.push({ startFrame: this.endFrame - retainedFrames, endFrame: this.endFrame,
-				window: createAudioWindow(this.sampleRate, [left, right]) });
+			this.blocks.push({
+				startFrame: this.endFrame - retainedFrames,
+				endFrame: this.endFrame,
+				window: createAudioWindow(this.sampleRate, [left, right]),
+			});
 		}
 		let expired = 0;
 		while (expired < this.blocks.length && this.blocks[expired].endFrame <= this.startFrame) expired++;

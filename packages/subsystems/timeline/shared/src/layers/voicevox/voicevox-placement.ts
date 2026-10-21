@@ -25,7 +25,12 @@ export function getVoicevoxUtterancePlacements(settings: VoicevoxSettings, utter
 		const startMs = Math.max(interval.startMs, clip.startMs);
 		const endMs = Math.min(interval.endMs, getTimelineClipEnd(clip));
 		// 左トリム・クリップの分離でも素材時刻0は発話キーに固定し、途中からの音声を使う。
-		return endMs > startMs ? [{ ...interval, clipId: clip.id, startMs, endMs }] : [];
+		return endMs > startMs ? [{
+			...interval,
+			clipId: clip.id,
+			startMs,
+			endMs,
+		}] : [];
 	}));
 }
 
@@ -33,5 +38,10 @@ export function getVoicevoxUtterancePlacements(settings: VoicevoxSettings, utter
 export function assignPreparedSpeech(interval: SpeechInterval, speech: PreparedSpeech): (SpeechInterval & { sourceId: string }) | null {
 	const endMs = Math.min(interval.endMs, interval.sourceStartMs + speech.durationMs);
 	if (endMs <= interval.startMs) return null;
-	return { sourceId: speech.sourceId, sourceStartMs: interval.sourceStartMs, startMs: interval.startMs, endMs };
+	return {
+		sourceId: speech.sourceId,
+		sourceStartMs: interval.sourceStartMs,
+		startMs: interval.startMs,
+		endMs,
+	};
 }

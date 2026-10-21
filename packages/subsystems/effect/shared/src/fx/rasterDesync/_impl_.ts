@@ -17,24 +17,38 @@ export default implementEffect<typeof definition>({
 	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution }) => {
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		const layout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-		] });
+		const layout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+			],
+		});
 		const pipelines = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code,
-			schema: { input: 'color' }, targets: [{ format: intermediateTextureFormat }],
-			internalLayouts: [layout], sampling: 'level0',
+			device,
+			vertex: defaultVertexShaderModule,
+			code,
+			schema: { input: 'color' },
+			targets: [{ format: intermediateTextureFormat }],
+			internalLayouts: [layout],
+			sampling: 'level0',
 		});
 		const createRows = (rows: number) => {
 			const values = new Float32Array(rows * ROW_STATE_FLOATS);
 			const buffer = device.createBuffer({ size: values.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 			try {
-				const bindGroup = device.createBindGroup({ layout, entries: [
-					{ binding: 0, resource: { buffer: uniformBuffer } },
-					{ binding: 1, resource: { buffer } },
-				] });
-				return { rows, values, buffer, bindGroup };
+				const bindGroup = device.createBindGroup({
+					layout,
+					entries: [
+						{ binding: 0, resource: { buffer: uniformBuffer } },
+						{ binding: 1, resource: { buffer } },
+					],
+				});
+				return {
+					rows,
+					values,
+					buffer,
+					bindGroup,
+				};
 			} catch (error) {
 				buffer.destroy();
 				throw error;
@@ -72,7 +86,8 @@ export default implementEffect<typeof definition>({
 				}
 				seedValue[0] = params.seed;
 				const settings: RasterSettings = {
-					columns, rows,
+					columns,
+					rows,
 					rowWidthError: params.rowWidthError,
 					readOffset: params.readOffset,
 					startPosition: params.startPosition,

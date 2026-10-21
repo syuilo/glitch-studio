@@ -97,13 +97,17 @@ export default implementEffect<typeof definition>({
 		const device = wgpu.device;
 		const shaderDataDefinitions = makeShaderDataDefinitions(code);
 		// 内部のシンボル配列と、接続から生成する入力のbindingを分離する。
-		const symbolLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
-		] });
+		const symbolLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+				{ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
+			],
+		});
 		const pipelines = createShaderInputPipeline({
-			device, vertex: wgpu.defaultVertexShaderModule, code,
+			device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
 			schema: { input: 'color', forceField: 'vector' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [symbolLayout],

@@ -67,11 +67,14 @@ export class TimelineAudioInputs {
 			pending = result.catch(() => {});
 			return result;
 		});
-		this.current = { renderer, dispose: () => {
-			disposed = true;
-			// open/readの途中でdisposeすると、後から開いた資源が残るため完了後に解放する。
-			void pending.then(() => reader.dispose());
-		} };
+		this.current = {
+			renderer,
+			dispose: () => {
+				disposed = true;
+				// open/readの途中でdisposeすると、後から開いた資源が残るため完了後に解放する。
+				void pending.then(() => reader.dispose());
+			},
+		};
 		return renderer;
 	}
 

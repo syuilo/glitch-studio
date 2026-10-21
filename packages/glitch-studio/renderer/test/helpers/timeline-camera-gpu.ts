@@ -29,23 +29,82 @@ export async function run() {
 	device.pushErrorScope('validation');
 	const frame = { width: 128, height: 64 };
 	const vertex = device.createShaderModule({ code: vertexCode });
-	const options = { device, vertex, resolution: frame, format: 'rgba16float' as const };
+	const options = {
+		device,
+		vertex,
+		resolution: frame,
+		format: 'rgba16float' as const,
+	};
 	const output = createSceneOutput(options);
 	const cameraParameters = new TimelineSceneCamera();
 	const literal = (value: any) => ({ inputSource: 'literal' as const, value });
 	const composite = (values = {}) => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } as TimelineGroupLayer['compositingParamValues']);
-	const base = { isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
+	const base = {
+		isDisabled: false,
+		forceDisableMotionBlur: false,
+		automationGraphs: [],
+		clips: [{
+			id: 'clip',
+			startMs: 0,
+			durationMs: 1000,
+			contentOffsetMs: 0,
+		}],
+	};
 	let nextId = 0;
 	// colorをundefinedで省略する呼び出しは既定の赤を適用し、後続の変形・合成引数だけを指定する。
 	const shape = (color = [1, 0, 0, 1], values = {}, compositing = {}, coordinateSpace: TimelineLayerCoordinateSpace = 'world'): TimelineLayer => {
 		const shape = createShape('rectangle');
 		Object.assign(shape.paramValues, { size: literal([0.5, 0.5]), fillColor: literal(color), strokeWidth: literal(0) }, Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])));
-		return { ...base, id: 'shape' + nextId++, name: 'shape', layerType: 'shape', shape, mask: null, coordinateSpace, compositingParamValues: composite(compositing) };
+		return {
+			...base,
+			id: 'shape' + nextId++,
+			name: 'shape',
+			layerType: 'shape',
+			shape,
+			mask: null,
+			coordinateSpace,
+			compositingParamValues: composite(compositing),
+		};
 	};
-	const group = (layers: TimelineLayer[], mode: 'flat' | 'preserveDepth' = 'flat', values = {}): TimelineGroupLayer => ({ isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], id: `group${nextId++}`, name: 'group', layerType: 'group', layers, mask: null, coordinateSpace: 'world', compositingMode: mode, compositingParamValues: composite(values), audioParamValues: { volume: literal(1) } });
-	const transform = (layers: TimelineLayer[], values = {}): TimelineTransformLayer => ({ isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], id: `transform${nextId++}`, name: 'Transform', layerType: 'transform', layers, transformParamValues: { ...createTimelineTransformParameterValues(), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } });
-	const text = (position: number): TimelineLayer => ({ ...base, id: `text${nextId++}`, name: 'text', layerType: 'text', mask: null, coordinateSpace: 'world',
-		textParamValues: { ...createTextParameterValues(), text: literal('OFFSCREEN'), size: literal(0.3), position: literal([position, 0]) }, compositingParamValues: composite() });
+	const group = (layers: TimelineLayer[], mode: 'flat' | 'preserveDepth' = 'flat', values = {}): TimelineGroupLayer => ({
+		isDisabled: false,
+		forceDisableMotionBlur: false,
+		automationGraphs: [],
+		id: `group${nextId++}`,
+		name: 'group',
+		layerType: 'group',
+		layers,
+		mask: null,
+		coordinateSpace: 'world',
+		compositingMode: mode,
+		compositingParamValues: composite(values),
+		audioParamValues: { volume: literal(1) },
+	});
+	const transform = (layers: TimelineLayer[], values = {}): TimelineTransformLayer => ({
+		isDisabled: false,
+		forceDisableMotionBlur: false,
+		automationGraphs: [],
+		id: `transform${nextId++}`,
+		name: 'Transform',
+		layerType: 'transform',
+		layers,
+		transformParamValues: { ...createTimelineTransformParameterValues(), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) },
+	});
+	const text = (position: number): TimelineLayer => ({
+		...base,
+		id: `text${nextId++}`,
+		name: 'text',
+		layerType: 'text',
+		mask: null,
+		coordinateSpace: 'world',
+		textParamValues: {
+			...createTextParameterValues(),
+			text: literal('OFFSCREEN'),
+			size: literal(0.3),
+			position: literal([position, 0]),
+		},
+		compositingParamValues: composite(),
+	});
 	let sceneLayers: TimelineLayer[] = [];
 	let childScene: TimelineScene;
 	const imageSources = new Map<string, GPUTexture>();
@@ -55,7 +114,16 @@ export async function run() {
 		const pixels = new Uint8Array(Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => pixel(x, y))).flat(2));
 		device.queue.writeTexture({ texture }, pixels, { bytesPerRow: width * 4 }, { width, height });
 		imageSources.set(id, texture);
-		return { ...base, id, name: id, layerType: 'image', mask: null, coordinateSpace: 'world', clips: [{ ...base.clips[0], assetId: id }], compositingParamValues: composite({ fitMode: 'stretch', blendMode: 'replace' }) };
+		return {
+			...base,
+			id,
+			name: id,
+			layerType: 'image',
+			mask: null,
+			coordinateSpace: 'world',
+			clips: [{ ...base.clips[0], assetId: id }],
+			compositingParamValues: composite({ fitMode: 'stretch', blendMode: 'replace' }),
+		};
 	};
 	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<TimelineImage> => {
 		switch (layer.layerType) {
@@ -66,24 +134,54 @@ export async function run() {
 				// 定数を返すEffectと同じ合成経路。無限の一様色として扱わないことを検証する。
 				const compositor = createTimelineCompositor(options);
 				const parameters = new TimelineCompositingParameters();
-				return { async evaluate(context) {
-					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: [] });
-					const texture = imageSources.get(layer.clips[0].assetId);
-					const source: TimelineImage = texture ? { kind: 'texture', texture } : { kind: 'uniform', value: layer.name === 'red' ? [1, 0, 0, 1] : [0, 0, 0, 0] };
-					return compositor.evaluate(context, source, settings);
-				}, destroy() { compositor.dispose(); } };
+				return {
+					async evaluate(context) {
+						const settings = parameters.evaluate({
+							time: context.sceneTimeMs,
+							isExport: context.isExport,
+							coordinateSpace: layer.coordinateSpace,
+							mask: layer.mask,
+							paramValues: layer.compositingParamValues,
+							automationGraphs: [],
+						});
+						const texture = imageSources.get(layer.clips[0].assetId);
+						const source: TimelineImage = texture ? { kind: 'texture', texture } : { kind: 'uniform', value: layer.name === 'red' ? [1, 0, 0, 1] : [0, 0, 0, 0] };
+						return compositor.evaluate(context, source, settings);
+					},
+					destroy() { compositor.dispose(); },
+				};
 			}
 			case 'text': return createTextTimelineLayer(layer, { ...options, getFont: () => null });
-			case 'scene': return createSceneTimelineLayer(() => childScene, layer, { ...options, sceneResolution: frame, createLayer, getLayerVersion: () => 0 });
+			case 'scene': return createSceneTimelineLayer(() => childScene, layer, {
+				...options,
+				sceneResolution: frame,
+				createLayer,
+				getLayerVersion: () => 0,
+			});
 			default: throw new Error(`Unsupported fixture layer ${layer.layerType} ${clipId}`);
 		}
 	};
-	const renderer = new TimelineRenderer<TimelineImage, TimelineLayer>({ fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] }, createLayer,
-		getRenderSpace: (time, isExport) => ({ parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME, camera: cameraParameters.evaluate(sceneLayers, time, isExport, frame) }) });
+	const renderer = new TimelineRenderer<TimelineImage, TimelineLayer>({
+		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
+		createLayer,
+		getRenderSpace: (time, isExport) => ({
+			parent: TIMELINE_IDENTITY,
+			depth: 0,
+			viewport: TIMELINE_FRAME,
+			camera: cameraParameters.evaluate(sceneLayers, time, isExport, frame),
+		}),
+	});
 	const readback = device.createBuffer({ size: 128 * 8 * 64, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 	// 出力はCOPY_SRCを持たないため、Scene出力から読み出し用の描画先へ転写する。
-	const copy = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex, entryPoint: 'vs' }, fragment: {
-		module: device.createShaderModule({ code: '@group(0) @binding(0) var tex: texture_2d<f32>; @fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f { return textureLoad(tex, vec2i(p.xy), 0); }' }), entryPoint: 'fs', targets: [{ format: 'rgba16float' }] } });
+	const copy = device.createRenderPipeline({
+		layout: 'auto',
+		vertex: { module: vertex, entryPoint: 'vs' },
+		fragment: {
+			module: device.createShaderModule({ code: '@group(0) @binding(0) var tex: texture_2d<f32>; @fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f { return textureLoad(tex, vec2i(p.xy), 0); }' }),
+			entryPoint: 'fs',
+			targets: [{ format: 'rgba16float' }],
+		},
+	});
 	const target = device.createTexture({ size: frame, format: 'rgba16float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 	const completed: string[] = [];
 
@@ -113,8 +211,13 @@ export async function run() {
 		completed.push(name);
 	}
 
-	const view = (values: Record<string, any>): TimelineCameraLayer => ({ ...base, id: 'camera' + nextId++, name: 'Camera', layerType: 'camera',
-		cameraParamValues: { ...createTimelineCameraParameterValues(), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } });
+	const view = (values: Record<string, any>): TimelineCameraLayer => ({
+		...base,
+		id: 'camera' + nextId++,
+		name: 'Camera',
+		layerType: 'camera',
+		cameraParamValues: { ...createTimelineCameraParameterValues(), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) },
+	});
 	try {
 		const baseline = await render([shape()]);
 		if (baseline[(32 * 128 + 64) * 4] < 0.99) throw new Error('Baseline shape was not drawn');
@@ -143,7 +246,16 @@ export async function run() {
 		same('camera XY moves the world in the opposite direction', await render([shape()], view({ position: [0.4, -0.2] })), await render([shape(undefined, {}, { position: [-0.4, 0.2] })]));
 		same('screen layer ignores camera and depth', await render([shape(undefined, {}, { depth: 100 }, 'screen')], view({ position: [5, 4], z: 0 })), baseline);
 		same('screen child avoids inherited projection', await render([group([shape(undefined, {}, {}, 'screen')], 'preserveDepth', { position: [1, 1], depth: 1 })], view({ position: [5, 4], z: 0 })), baseline);
-		const constant = (name: string, compositing = {}): TimelineLayer => ({ ...base, id: 'constant' + nextId++, name, layerType: 'image', mask: null, coordinateSpace: 'world', clips: [{ ...base.clips[0], assetId: 'unused' }], compositingParamValues: composite(compositing) });
+		const constant = (name: string, compositing = {}): TimelineLayer => ({
+			...base,
+			id: 'constant' + nextId++,
+			name,
+			layerType: 'image',
+			mask: null,
+			coordinateSpace: 'world',
+			clips: [{ ...base.clips[0], assetId: 'unused' }],
+			compositingParamValues: composite(compositing),
+		});
 		// 【正方形素材のStretchを、親グループのContainで取り消さない】
 		// Replaceが元テクスチャを借用する場合も、親は子のScene基準の配置を維持する。
 		same('flat groups preserve stretched replace images', await render([group([image(128, 128, () => [255, 0, 0, 255])])]), await render([constant('red')]));
@@ -157,8 +269,23 @@ export async function run() {
 		same('group opacity is applied once after overlapping projected children', await render([group([shape(), shape()], 'preserveDepth', { opacity: 0.5 })]), await render([shape(undefined, {}, { opacity: 0.5 })]));
 		same('a plane behind the camera does not erase the background with replace', await render([shape(undefined, {}, { depth: 10, blendMode: 'replace' }), blue], view({})), await render([blue]));
 		same('explicit clipping restores the old frame crop', await render([group([shape(undefined, { position: [2, 0] })], 'flat', { position: [-2, 0], clipToFrame: true })]), new Array(baseline.length).fill(0));
-		childScene = { id: 'child', name: 'child', resolution: { mode: 'project' }, layers: [view({ z: DEFAULT_CAMERA_DISTANCE / 2 }), shape()] };
-		const nested: TimelineLayer = { ...base, id: 'scene', name: 'scene', layerType: 'scene', mask: null, coordinateSpace: 'world', clips: [{ ...base.clips[0], sceneId: 'child' }], compositingParamValues: composite(), audioParamValues: { volume: literal(1) } };
+		childScene = {
+			id: 'child',
+			name: 'child',
+			resolution: { mode: 'project' },
+			layers: [view({ z: DEFAULT_CAMERA_DISTANCE / 2 }), shape()],
+		};
+		const nested: TimelineLayer = {
+			...base,
+			id: 'scene',
+			name: 'scene',
+			layerType: 'scene',
+			mask: null,
+			coordinateSpace: 'world',
+			clips: [{ ...base.clips[0], sceneId: 'child' }],
+			compositingParamValues: composite(),
+			audioParamValues: { volume: literal(1) },
+		};
 		same('child scene uses its own camera and is a plane in its parent', await render([nested]), twice);
 		// 【Transformは子の深度と合成を保ち、カメラにも同じ親移動を与える】
 		// ピクセル比較により、早すぎる切り取り、二重投影、Group化による背景分離を検出する。

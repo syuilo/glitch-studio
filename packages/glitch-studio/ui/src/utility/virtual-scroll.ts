@@ -6,7 +6,12 @@ export function createVirtualScrollLayout(keys: readonly VirtualScrollKey[], hei
 	let top = 0;
 	const items = keys.map((key, index) => {
 		const height = heights.get(key) ?? estimatedHeight;
-		const item = { key, index, top, height };
+		const item = {
+			key,
+			index,
+			top,
+			height,
+		};
 		top += height + gap;
 		return item;
 	});

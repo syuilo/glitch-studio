@@ -13,15 +13,46 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 	const resolution = { width: 8, height: 4 };
 	const blue: UniformOrTexture = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const transparent: UniformOrTexture = { kind: 'uniform', value: [0, 0, 0, 0] };
-	const child: TimelineLayer = { id: 'child', name: 'child', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], layerType: 'image',
-		mask: null, coordinateSpace: 'screen', compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'],
+	const child: TimelineLayer = {
+		id: 'child',
+		name: 'child',
+		isDisabled: false,
+		forceDisableMotionBlur: false,
+		automationGraphs: [],
+		layerType: 'image',
+		mask: null,
+		coordinateSpace: 'screen',
+		compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'],
 		clips: [
-			{ id: 'red', assetId: 'red', startMs: 100, durationMs: 100, contentOffsetMs: 25 },
-			{ id: 'transparent', assetId: 'transparent', startMs: 300, durationMs: 100, contentOffsetMs: 0 },
-		] };
-	const group = (id: string, layers: TimelineLayer[]): TimelineGroupLayer => ({ id, name: id, layerType: 'group', layers,
-		isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
-		mask: null, coordinateSpace: 'screen', compositingParamValues: { ...structuredClone(child.compositingParamValues), opacity: { inputSource: 'literal', value: 0.5 } } });
+			{
+				id: 'red',
+				assetId: 'red',
+				startMs: 100,
+				durationMs: 100,
+				contentOffsetMs: 25,
+			},
+			{
+				id: 'transparent',
+				assetId: 'transparent',
+				startMs: 300,
+				durationMs: 100,
+				contentOffsetMs: 0,
+			},
+		],
+	};
+	const group = (id: string, layers: TimelineLayer[]): TimelineGroupLayer => ({
+		id,
+		name: id,
+		layerType: 'group',
+		layers,
+		isDisabled: false,
+		forceDisableMotionBlur: false,
+		automationGraphs: [],
+		audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
+		mask: null,
+		coordinateSpace: 'screen',
+		compositingParamValues: { ...structuredClone(child.compositingParamValues), opacity: { inputSource: 'literal', value: 0.5 } },
+	});
 	const inner = group('inner', [child]);
 	const outer = group('outer', [inner]);
 	const contexts: TimelineLayerContext<UniformOrTexture>[] = [];
@@ -30,12 +61,22 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<UniformOrTexture> => {
 		if (layer.layerType === 'group') {
 			if (clipId != null) throw new Error('Groups must not create artificial clips');
-			return createGroupTimelineLayer(() => layer, { device, vertex, resolution, format: 'rgba8unorm', createLayer, getLayerVersion: () => 0 });
+			return createGroupTimelineLayer(() => layer, {
+				device,
+				vertex,
+				resolution,
+				format: 'rgba8unorm',
+				createLayer,
+				getLayerVersion: () => 0,
+			});
 		}
-		return { async evaluate(context) {
-			contexts.push(context);
-			return { output: clipId === 'red' ? { kind: 'uniform', value: [1, 0, 0, 1] } : transparent, gpuTime: 7 };
-		}, destroy() { destroyed.push(clipId!); } };
+		return {
+			async evaluate(context) {
+				contexts.push(context);
+				return { output: clipId === 'red' ? { kind: 'uniform', value: [1, 0, 0, 1] } : transparent, gpuTime: 7 };
+			},
+			destroy() { destroyed.push(clipId!); },
+		};
 	};
 	const renderer = new TimelineRenderer<UniformOrTexture, TimelineLayer>({ fallbackOutput: blue, createLayer });
 	async function check(name: string, time: number, expected: number[], delta = 0) {
@@ -95,8 +136,13 @@ export async function run() {
 	const vertex = device.createShaderModule({ code: vertexCode });
 	const target = device.createTexture({ size: [8, 4], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 	const buffer = device.createBuffer({ size: 4 * 256, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-	const copy = createShaderInputPipeline({ device, vertex, schema: { source: 'color' }, targets: [{ format: 'rgba8unorm' }],
-		code: '@fragment fn fs(@location(0) position: vec2f) -> @location(0) vec4f { return read_source(position); }' });
+	const copy = createShaderInputPipeline({
+		device,
+		vertex,
+		schema: { source: 'color' },
+		targets: [{ format: 'rgba8unorm' }],
+		code: '@fragment fn fs(@location(0) position: vec2f) -> @location(0) vec4f { return read_source(position); }',
+	});
 	try {
 		const read = async (output: GPUTexture) => {
 			const encoder = device.createCommandEncoder();

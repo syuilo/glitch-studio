@@ -65,7 +65,9 @@ function add(event: MouseEvent) {
 	const inserted = insertVoicevoxUtterance(props.layer.utterances, timeMs);
 	if (!inserted) return;
 	if (inserted.utterances !== props.layer.utterances) stateManager.commit('editVoicevoxLayer', {
-		sceneId: props.sceneId, layerId: props.layer.id, voicevox: props.layer.voicevox,
+		sceneId: props.sceneId,
+		layerId: props.layer.id,
+		voicevox: props.layer.voicevox,
 		utterances: [...inserted.utterances],
 	});
 	emit('selected', inserted.utterance.id);

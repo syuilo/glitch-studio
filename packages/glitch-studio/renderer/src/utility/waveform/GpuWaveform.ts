@@ -22,7 +22,12 @@ export class GpuWaveform {
 		format: GPUTextureFormat,
 		private readonly positionAxis: 'x' | 'y' = 'x',
 	) {
-		context.configure({ device, format, alphaMode: 'opaque', usage: GPUTextureUsage.RENDER_ATTACHMENT });
+		context.configure({
+			device,
+			format,
+			alphaMode: 'opaque',
+			usage: GPUTextureUsage.RENDER_ATTACHMENT,
+		});
 		this.waveform = createWaveform({ device, vertexShaderModule: device.createShaderModule({ code: vertexShaderCode }), format });
 	}
 
@@ -46,8 +51,14 @@ export class GpuWaveform {
 			label: 'render waveform',
 			colorAttachments: [{
 				view: this.context.getCurrentTexture().createView(),
-				clearValue: { r: 0, g: 0, b: 0, a: 1 },
-				loadOp: 'clear', storeOp: 'store',
+				clearValue: {
+					r: 0,
+					g: 0,
+					b: 0,
+					a: 1,
+				},
+				loadOp: 'clear',
+				storeOp: 'store',
 			}],
 		});
 		this.waveform.render(pass);

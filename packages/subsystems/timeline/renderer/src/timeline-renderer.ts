@@ -114,9 +114,14 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			if (isCancelled()) return null;
 			const session = new TimelineEvaluationSession(this.options.fallbackOutput);
 			const evaluation = this.createEvaluation(timeline, {
-				time, timeDelta, isExport, signal: controller.signal, referenceTime,
+				time,
+				timeDelta,
+				isExport,
+				signal: controller.signal,
+				referenceTime,
 				renderSpace: renderSpace ?? this.options.getRenderSpace?.(time, isExport, referenceTime),
-				getInput: async () => input, session,
+				getInput: async () => input,
+				session,
 			});
 			const result = await evaluation.evaluate();
 			if (result == null || isCancelled()) return null;
@@ -148,9 +153,19 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		const entries = timeline.flatMap<{ entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }>(entry => {
 			if (entry.isDisabled) return [];
 			const evaluationTime = entry.forceDisableMotionBlur && referenceTime != null ? referenceTime.timeMs : time;
-			if (entry.clips == null) return [{ entry, clip: null, instanceKey: JSON.stringify([entry.id, null]), time: evaluationTime }];
+			if (entry.clips == null) return [{
+				entry,
+				clip: null,
+				instanceKey: JSON.stringify([entry.id, null]),
+				time: evaluationTime,
+			}];
 			const clip = entry.clips.find(clip => isTimelineClipActive(clip, evaluationTime));
-			return clip != null ? [{ entry, clip, instanceKey: JSON.stringify([entry.id, clip.id]), time: evaluationTime }] : [];
+			return clip != null ? [{
+				entry,
+				clip,
+				instanceKey: JSON.stringify([entry.id, clip.id]),
+				time: evaluationTime,
+			}] : [];
 		}).reverse();
 		this.releaseUnusedLayers(new Set(entries.map(entry => entry.instanceKey)));
 		let previous: () => Promise<TimelineEvaluationResult<Output>> = async () => ({ output: await options.getInput(), hasOutput: false, gpuTime: 0 });
@@ -184,12 +199,15 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			}
 			const getPrevious = previous;
 			const context: TimelineLayerContext<Output> = {
-				renderSpace, isExport,
-				sceneTimeMs: evaluationTime, contentTimeMs,
+				renderSpace,
+				isExport,
+				sceneTimeMs: evaluationTime,
+				contentTimeMs,
 				// 終端は素材の時計、進行率は表示区間を使う。トリムしてもScene上のキーは動かさない。
 				contentEndTimeMs,
 				referenceTime: referenceTime != null ? { sceneTimeMs: referenceTime.timeMs, contentTimeMs: referenceContentTimeMs, timeDelta: referenceTime.timeDelta } : undefined,
-				clipElapsedTimeMs: clip != null ? evaluationTime - clip.startMs : 0, clipDurationMs: clip?.durationMs ?? 0,
+				clipElapsedTimeMs: clip != null ? evaluationTime - clip.startMs : 0,
+				clipDurationMs: clip?.durationMs ?? 0,
 				// 新規配置の過去の履歴は再現しない。固定した内容の経過時間も一度だけ進める。
 				timeDelta: isNewLayer ? 0 : entry.forceDisableMotionBlur && referenceTime != null ? referenceTime.timeDelta : timeDelta,
 				getInput: async () => (await getPrevious()).output,

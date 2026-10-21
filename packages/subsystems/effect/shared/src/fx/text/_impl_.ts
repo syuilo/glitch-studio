@@ -20,10 +20,12 @@ export default implementEffect<typeof definition>({
 		if (context == null) throw new Error('Could not create a text canvas.');
 		const font = createTextFontLoader(reportStatus);
 		const prepare = (nextParams: typeof params) => font.prepare(nextParams.font?.fileData ?? null);
-		const maskLayout = wgpu.device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-		] });
+		const maskLayout = wgpu.device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+			],
+		});
 		const pipeline = createShaderInputPipeline({
 			device: wgpu.device,
 			vertex: wgpu.defaultVertexShaderModule,
@@ -66,10 +68,13 @@ export default implementEffect<typeof definition>({
 					format: 'rgba8unorm',
 					usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
 				});
-				maskBinding = wgpu.device.createBindGroup({ layout: maskLayout, entries: [
-					{ binding: 0, resource: maskTexture.createView({ dimension: '2d-array' }) },
-					{ binding: 1, resource: sampler },
-				] });
+				maskBinding = wgpu.device.createBindGroup({
+					layout: maskLayout,
+					entries: [
+						{ binding: 0, resource: maskTexture.createView({ dimension: '2d-array' }) },
+						{ binding: 1, resource: sampler },
+					],
+				});
 			}
 			context!.clearRect(0, 0, width, height);
 			const x = (values.position[0] + 1) * width / 2;
@@ -134,7 +139,11 @@ export default implementEffect<typeof definition>({
 				if (layout != null) {
 					shadowRenderer ??= createTextShadowMaskRenderer();
 					shadowRenderer.render(context!, {
-						layout, fontFamily: font.family, alignment: values.align, x, y,
+						layout,
+						fontFamily: font.family,
+						alignment: values.align,
+						x,
+						y,
 						settings: { blur: values.shadowBlur, offset: values.shadowOffset },
 					});
 				} else {
@@ -157,9 +166,14 @@ export default implementEffect<typeof definition>({
 				prepare(ctx.params);
 				const output = ctx.outputDataMap.output;
 				if (!font.ready) {
-					const pass = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [{
-						view: output.textureView, clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store',
-					}] });
+					const pass = ctx.createPassEncoder(ctx.commandEncoder, {
+						colorAttachments: [{
+							view: output.textureView,
+							clearValue: [0, 0, 0, 0],
+							loadOp: 'clear',
+							storeOp: 'store',
+						}],
+					});
 					pass.end();
 					return;
 				}

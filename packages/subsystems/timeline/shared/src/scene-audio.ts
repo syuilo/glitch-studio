@@ -70,7 +70,14 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 					const sourceStartMs = sceneStartMs + placement.sourceStartMs;
 					const startMs = Math.max(start, sceneStartMs + placement.startMs);
 					const endMs = Math.min(end, sceneStartMs + placement.endMs);
-					if (endMs > startMs) placements.push({ type: 'speech', request: placement.request, sourceStartMs, startMs, endMs, gains: layerGains });
+					if (endMs > startMs) placements.push({
+						type: 'speech',
+						request: placement.request,
+						sourceStartMs,
+						startMs,
+						endMs,
+						gains: layerGains,
+					});
 				}
 				continue;
 			}
@@ -85,8 +92,21 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 					const childScene = getTimelineScene(scenes, clip.sceneId);
 					visit(childScene.layers, sourceStartMs, startMs, Math.min(endMs, sourceStartMs + getSceneDuration(childScene)), layerGains);
 				} else if (!('sourceTimeMs' in clip) && (!('audioEnabled' in clip) || clip.audioEnabled)) {
-					const sourceTiming = { startMs: sceneStartMs + clip.startMs, sourceInMs: clip.sourceInMs, sourceOutMs: clip.sourceOutMs, playbackRate: clip.playbackRate, loop: clip.loop };
-					placements.push({ type: 'asset', sourceId: clip.assetId, sourceTiming, startMs, endMs, gains: layerGains });
+					const sourceTiming = {
+						startMs: sceneStartMs + clip.startMs,
+						sourceInMs: clip.sourceInMs,
+						sourceOutMs: clip.sourceOutMs,
+						playbackRate: clip.playbackRate,
+						loop: clip.loop,
+					};
+					placements.push({
+						type: 'asset',
+						sourceId: clip.assetId,
+						sourceTiming,
+						startMs,
+						endMs,
+						gains: layerGains,
+					});
 				}
 			}
 		}
@@ -101,7 +121,13 @@ export function resolveSceneAudioPlacements(placements: readonly SceneAudioPlace
 	for (const placement of placements) {
 		if (placement.type === 'asset') {
 			const { sourceId, sourceTiming, startMs, endMs, gains } = placement;
-			clips.push({ sourceId, sourceTiming, startMs, endMs, gains });
+			clips.push({
+				sourceId,
+				sourceTiming,
+				startMs,
+				endMs,
+				gains,
+			});
 		} else {
 			const speech = resolveSpeech(placement.request);
 			if (!speech) {
@@ -109,8 +135,19 @@ export function resolveSceneAudioPlacements(placements: readonly SceneAudioPlace
 				continue;
 			}
 			const interval = assignPreparedSpeech(placement, speech);
-			if (interval) clips.push({ sourceId: interval.sourceId, startMs: interval.startMs, endMs: interval.endMs, gains: placement.gains,
-				sourceTiming: { startMs: interval.sourceStartMs, sourceInMs: 0, sourceOutMs: speech.durationMs, playbackRate: 1, loop: false } });
+			if (interval) clips.push({
+				sourceId: interval.sourceId,
+				startMs: interval.startMs,
+				endMs: interval.endMs,
+				gains: placement.gains,
+				sourceTiming: {
+					startMs: interval.sourceStartMs,
+					sourceInMs: 0,
+					sourceOutMs: speech.durationMs,
+					playbackRate: 1,
+					loop: false,
+				},
+			});
 		}
 	}
 	return { clips, missingSpeech };

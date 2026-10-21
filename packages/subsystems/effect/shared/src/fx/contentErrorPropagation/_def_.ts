@@ -11,10 +11,51 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'color', 'stylized'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		sourceProbability: { dataType: { kind: 'scalar' }, ui: { label: 'Source Probability', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.12 } },
-		sourceSpacing: { dataType: { kind: 'scalar' }, ui: { label: 'Source Spacing (% of Short Side)', control: { controlType: 'range', min: 0.5, max: 20, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 4 } },
-		sourceSize: { dataType: { kind: 'scalar' }, ui: { label: 'Source Size / Spacing', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.2 } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		sourceProbability: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Source Probability',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.12 },
+		},
+		sourceSpacing: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Source Spacing (% of Short Side)',
+				control: {
+					controlType: 'range',
+					min: 0.5,
+					max: 20,
+					step: 0.1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 4 },
+		},
+		sourceSize: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Source Size / Spacing',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.2 },
+		},
 		errorMode: {
 			dataType: { kind: 'enum', options: ['rgb', 'luminance', 'chroma'] },
 			ui: { label: 'Error Mode', control: { labels: { rgb: 'RGB', luminance: 'Luminance', chroma: 'Chroma' } } },
@@ -25,15 +66,111 @@ export default defineEffect({
 			ui: { label: 'Propagation Path', control: { labels: { contour: 'Along Contours', gradient: 'Across Contours', fixed: 'Fixed Direction' } } },
 			defaultValue: { inputSource: 'literal', value: 'contour' },
 		},
-		following: { dataType: { kind: 'scalar' }, ui: { label: 'Content Following', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
+		following: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Content Following',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
 		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Fallback Direction', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		guidanceRadius: { dataType: { kind: 'scalar' }, ui: { label: 'Guidance Radius (% of Short Side)', control: { controlType: 'range', min: 0.1, max: 5, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 0.8 } },
-		propagationLength: { dataType: { kind: 'scalar' }, ui: { label: 'Propagation Length (% of Short Side)', control: { controlType: 'range', min: 0, max: 50, step: 0.5 } }, defaultValue: { inputSource: 'literal', value: 20 } },
-		retention: { dataType: { kind: 'scalar' }, ui: { label: 'Retention at Full Length', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.2 } },
-		boundaryThreshold: { dataType: { kind: 'scalar' }, ui: { label: 'Boundary Threshold', control: { controlType: 'range', min: 0.01, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.12 } },
-		boundaryStrength: { dataType: { kind: 'scalar' }, ui: { label: 'Boundary Blocking', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		steps: { dataType: { kind: 'scalar' }, ui: { label: 'Propagation Steps', control: { controlType: 'range', min: 1, max: 256, step: 1 } }, defaultValue: { inputSource: 'literal', value: 64 } },
-		analysisResolution: { dataType: { kind: 'scalar' }, ui: { label: 'Analysis Resolution (Short Side)', control: { controlType: 'range', min: 128, max: 1024, step: 128 } }, defaultValue: { inputSource: 'literal', value: 512 } },
+		guidanceRadius: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Guidance Radius (% of Short Side)',
+				control: {
+					controlType: 'range',
+					min: 0.1,
+					max: 5,
+					step: 0.1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.8 },
+		},
+		propagationLength: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Propagation Length (% of Short Side)',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 50,
+					step: 0.5,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 20 },
+		},
+		retention: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Retention at Full Length',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.2 },
+		},
+		boundaryThreshold: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Boundary Threshold',
+				control: {
+					controlType: 'range',
+					min: 0.01,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.12 },
+		},
+		boundaryStrength: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Boundary Blocking',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
+		steps: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Propagation Steps',
+				control: {
+					controlType: 'range',
+					min: 1,
+					max: 256,
+					step: 1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 64 },
+		},
+		analysisResolution: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Analysis Resolution (Short Side)',
+				control: {
+					controlType: 'range',
+					min: 128,
+					max: 1024,
+					step: 128,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 512 },
+		},
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	primaryInputParameter: 'input',

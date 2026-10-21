@@ -131,8 +131,12 @@ const stateUtility = {
 
 const editTimelineLayerTransformCommandDef = defineCommand<{ sceneId: string; layerId: string; bindings: TimelineTransformBindings }>({
 	label: 'Transform timeline layer',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId,
-																																		changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }],
+	}],
 	create: payload => {
 		let before: TimelineTransformBindings;
 		const keys = Object.keys(payload.bindings) as TimelineTransformKey[];
@@ -196,8 +200,12 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			case 'anotherLayerAudio': kind = 'connection'; break;
 			default: kind = 'value'; break;
 		}
-		return [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId,
-												changes: [{ type: 'parameter', target: payload.target ?? 'module', kind }] }];
+		return [{
+			type: 'layer',
+			sceneId: payload.sceneId,
+			layerId: payload.layerId,
+			changes: [{ type: 'parameter', target: payload.target ?? 'module', kind }],
+		}];
 	},
 	create: payload => {
 		let before: EditableTimelineParameterBinding | null = null;
@@ -252,8 +260,13 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'envVariable': next = { inputSource: 'envVariable', variable: edit.value }; break;
 						case 'expression': next = { inputSource: 'expression', expression: edit.value }; break;
 						case 'automationGraphReference': next = {
-							inputSource: 'automationGraphReference', trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start',
-							...(current.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: edit.value, ...edit.options,
+							inputSource: 'automationGraphReference',
+							trimmedDurationMs: 1000,
+							wrapMode: 'repeat',
+							offsetMode: 'start',
+							...(current.inputSource === 'automationGraphReference' ? current : {}),
+							automationGraphId: edit.value,
+							...edit.options,
 						}; break;
 						case 'reset':
 							if (payload.paramPath.length === 1 && (def.dataType.kind === 'audioSource' || module?.primaryInputId === rootKey)) { next = deepClone(defaultBinding); break; }
@@ -265,9 +278,12 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							if (def.dataType.kind !== 'array' || current.inputSource !== 'literal') throw new Error('Expected array parameter');
 							const elements = current.value as ParameterArrayElement<TimelineEffectParameterBinding>[];
 							if (edit.kind === 'removeElement' && !elements.some(element => element.id === edit.elementId)) throw new Error('Unknown array element');
-							next = { inputSource: 'literal', value: edit.kind === 'addElement'
-								? [...elements, { id: genId(), binding: createResetParameterBinding(getArrayElementDefinition(def)) }]
-								: elements.filter(element => element.id !== edit.elementId) };
+							next = {
+								inputSource: 'literal',
+								value: edit.kind === 'addElement'
+									? [...elements, { id: genId(), binding: createResetParameterBinding(getArrayElementDefinition(def)) }]
+									: elements.filter(element => element.id !== edit.elementId),
+							};
 							break;
 						}
 						case 'inputSource':
@@ -275,11 +291,22 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								case 'literal': next = deepClone(def.defaultValue); break;
 								case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 								case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue.value) }; break;
-								case 'automationGraphReference': next = { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
+								case 'automationGraphReference': next = {
+									inputSource: 'automationGraphReference',
+									automationGraphId: null,
+									trimmedDurationMs: 1000,
+									wrapMode: 'repeat',
+									offsetMode: 'start',
+								}; break;
 								case 'automationGraphInline': next = createInlineAutomationGraph(); break;
 								case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(def, current); break;
 								case 'lowerLayerOutput': next = target === 'effect' ? createLowerLayerOutputBinding() : { inputSource: 'lowerLayerOutput' }; break;
-								case 'anotherLayerOutput': next = { ...(target === 'effect' ? createLowerLayerOutputBinding() : {}), inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' }; break;
+								case 'anotherLayerOutput': next = {
+									...(target === 'effect' ? createLowerLayerOutputBinding() : {}),
+									inputSource: 'anotherLayerOutput',
+									layerId: null,
+									outputStage: 'source',
+								}; break;
 								case 'lowerLayerAudio': next = { inputSource: 'lowerLayerAudio' }; break;
 								case 'anotherLayerAudio': next = { inputSource: 'anotherLayerAudio', layerId: null }; break;
 								default: throw new Error('Unsupported layer parameter input source');
@@ -305,7 +332,12 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 
 const changeTimelineGroupModeCommandDef = defineCommand<{ sceneId: string; layerId: string; mode: 'flat' | 'preserveDepth' }>({
 	label: 'Change group compositing mode',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }],
+	}],
 	create: payload => {
 		let before: 'flat' | 'preserveDepth' | null = null;
 		const group = (state: ProjectState) => {
@@ -397,13 +429,27 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 							// 元の接続が副出力でも、その出力ポートをそのまま引き継ぐ。
 							const output = getNodeOutputs(previous, visualModule.paramDefs)[previousInput.outputPort];
 							if (canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(def))) {
-								params[key] = { inputSource: 'node', ...deepClone(previousInput), fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+								params[key] = {
+									inputSource: 'node',
+									...deepClone(previousInput),
+									fitMode: 'cover',
+									wrapMode: 'repeatMirrored',
+									filterMode: 'linear',
+								};
 							}
 						}
 					}
 					// ランダムな初期値もRedo時に変えない。
-					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, displayName: '', isBypass: false, resolution: { mode: 'auto' },
-																			params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
+					addedNode = {
+						id: payload.id,
+						type: 'effect',
+						effectId: payload.effectId,
+						displayName: '',
+						isBypass: false,
+						resolution: { mode: 'auto' },
+						params: { ...params, ...deepClone(payload.params ?? {}) },
+						pos: { x: 0, y: 0 },
+					};
 					const primaryPort = effectDefinitions[payload.effectId].primaryOutput;
 					const outputPort = primaryPort != null && canConnectNodeDataTypes(effectDefinitions[payload.effectId].outputDefs[primaryPort].dataType, { kind: 'color' }) ? primaryPort : null;
 					if (globalOut != null && primaryOutput != null && outputPort != null) {
@@ -534,8 +580,11 @@ const importAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: 
 				// 新規Assetを含む仮の状態で配置を検証し、失敗時には素材もレイヤーも追加しない。
 				validateTimelineAssetPlacement({ ...state, assets: ref([...state.assets.value, ...payload.assets]) }, payload.timeline);
 			}
-			if (payload.visualModule != null) validateVisualModuleAssetPlacement({ ...state,
-				assets: ref([...state.assets.value, ...payload.assets]), players: ref([...state.players.value, ...payload.players]) }, payload.visualModule);
+			if (payload.visualModule != null) validateVisualModuleAssetPlacement({
+				...state,
+				assets: ref([...state.assets.value, ...payload.assets]),
+				players: ref([...state.players.value, ...payload.players]),
+			}, payload.visualModule);
 			state.assets.value.push(...deepClone(payload.assets));
 			state.players.value.push(...deepClone(payload.players));
 			if (payload.timeline != null) getScene(state, payload.timeline.sceneId).layers.unshift(...deepClone(payload.timeline.layers));
@@ -770,7 +819,12 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 ) {
 	return defineCommand<Payload>({
 		label,
-		changes: (_state, payload) => [{ type: 'node', target: payload, nodeId: payload.nodeId, changes: [{ type: 'parameter', kind }] }],
+		changes: (_state, payload) => [{
+			type: 'node',
+			target: payload,
+			nodeId: payload.nodeId,
+			changes: [{ type: 'parameter', kind }],
+		}],
 		create: payload => {
 			let before: VisualModuleParameterBinding;
 			let after: VisualModuleParameterBinding | null = null;
@@ -820,7 +874,13 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			};
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'literal': return { inputSource: 'literal', value: defaultValue.value };
-			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
+			case 'automationGraphReference': return {
+				inputSource: 'automationGraphReference',
+				automationGraphId: null,
+				trimmedDurationMs: 1000,
+				wrapMode: 'repeat',
+				offsetMode: 'start',
+			};
 			case 'automationGraphInline': return createInlineAutomationGraph();
 			case 'keyframesTimelineInline':
 				return createInlineKeyframesTimeline(target.def, currentValue);
@@ -868,7 +928,8 @@ const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<N
 			trimmedDurationMs: 1000,
 			wrapMode: 'repeat',
 			offsetMode: 'start',
-			...(target.value.inputSource === 'automationGraphReference' ? target.value : {}), automationGraphId: payload.value,
+			...(target.value.inputSource === 'automationGraphReference' ? target.value : {}),
+			automationGraphId: payload.value,
 			...payload.options,
 		};
 	},
@@ -909,7 +970,13 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 		// 読み取り方法は接続先の入力に属するので、配線操作では同じ出力への再接続でも維持する。
 		const previous = target.value.inputSource === 'node' && target.value.nodeId != null ? target.value : null;
 		const sampling = payload.preserveSampling && previous != null ? previous : payload.value;
-		return { inputSource: 'node', ...payload.value, fitMode: sampling.fitMode, wrapMode: sampling.wrapMode, filterMode: sampling.filterMode };
+		return {
+			inputSource: 'node',
+			...payload.value,
+			fitMode: sampling.fitMode,
+			wrapMode: sampling.wrapMode,
+			filterMode: sampling.filterMode,
+		};
 	},
 	'connection',
 );
@@ -937,7 +1004,12 @@ const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget
 
 const changeNodeBypassStateCommandDef = defineCommand<NodeTarget & { bypass: boolean }>({
 	label: 'Change node bypass state',
-	changes: (_state, payload) => [{ type: 'node', target: payload, nodeId: payload.nodeId, changes: [{ type: 'bypass' }] }],
+	changes: (_state, payload) => [{
+		type: 'node',
+		target: payload,
+		nodeId: payload.nodeId,
+		changes: [{ type: 'bypass' }],
+	}],
 	create: (payload) => {
 		let before: boolean;
 		return {
@@ -979,7 +1051,12 @@ const changeNodeDisplayNameCommandDef = defineCommand<NodeTarget & { displayName
 
 const changeNodeResolutionCommandDef = defineCommand<NodeTarget & { resolution: VisualModuleEffectNode['resolution'] }>({
 	label: 'Change node resolution',
-	changes: (_state, payload) => [{ type: 'node', target: payload, nodeId: payload.nodeId, changes: [{ type: 'resolution' }] }],
+	changes: (_state, payload) => [{
+		type: 'node',
+		target: payload,
+		nodeId: payload.nodeId,
+		changes: [{ type: 'resolution' }],
+	}],
 	create: payload => {
 		let before: VisualModuleEffectNode['resolution'];
 		return {
@@ -1377,7 +1454,12 @@ const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Timel
 	label: 'Add timeline layer',
 	// 単一レイヤーのルート追加では既存の兄弟を送り直さず、子孫を伴う追加だけ階層全体を通知する。
 	changes: (_state, payload) => isTimelineContainerLayer(payload.layer) ? [{ type: 'layerTree', sceneId: payload.sceneId }]
-		: [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layer.id, changes: [{ type: 'definition' }] }, { type: 'layerOrder', sceneId: payload.sceneId }],
+		: [{
+			type: 'layer',
+			sceneId: payload.sceneId,
+			layerId: payload.layer.id,
+			changes: [{ type: 'definition' }],
+		}, { type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => ({
 		execute(state) {
 			const scene = getScene(state, payload.sceneId);
@@ -1391,7 +1473,12 @@ const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Timel
 function getTimelineAssetPlacementChanges(placement: TimelineAssetPlacement | null): AppStateChange[] {
 	if (placement == null || placement.layers.length === 0) return [];
 	return [
-		...placement.layers.map(layer => ({ type: 'layer' as const, sceneId: placement.sceneId, layerId: layer.id, changes: [{ type: 'definition' as const }] })),
+		...placement.layers.map(layer => ({
+			type: 'layer' as const,
+			sceneId: placement.sceneId,
+			layerId: layer.id,
+			changes: [{ type: 'definition' as const }],
+		})),
 		{ type: 'layerOrder', sceneId: placement.sceneId },
 	];
 }
@@ -1454,7 +1541,12 @@ const setTimelineLayerColorCommandDef = defineCommand<{ sceneId: string; layerId
 
 const setTimelineLayerDisabledCommandDef = defineCommand<{ sceneId: string; layerId: string; isDisabled: boolean }>({
 	label: 'Change timeline layer visibility',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'disabled' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'disabled' }],
+	}],
 	create: payload => {
 		let before: boolean;
 		return {
@@ -1470,7 +1562,12 @@ const setTimelineLayerDisabledCommandDef = defineCommand<{ sceneId: string; laye
 
 const setTimelineLayerCoordinateSpaceCommandDef = defineCommand<{ sceneId: string; layerId: string; coordinateSpace: TimelineLayerCoordinateSpace }>({
 	label: 'Change timeline layer coordinate space',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'coordinateSpace' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'coordinateSpace' }],
+	}],
 	create: payload => {
 		let before: TimelineLayerCoordinateSpace;
 		const getLayer = (state: ProjectState) => {
@@ -1491,7 +1588,12 @@ const setTimelineLayerCoordinateSpaceCommandDef = defineCommand<{ sceneId: strin
 
 const setTimelineLayerTransformTargetCommandDef = defineCommand<{ sceneId: string; layerId: string; transformTarget: TimelineLayerTransformTarget }>({
 	label: 'Change timeline layer transform target',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'transformTarget' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'transformTarget' }],
+	}],
 	create: payload => {
 		let before: TimelineLayerTransformTarget;
 		const getLayer = (state: ProjectState) => {
@@ -1513,7 +1615,12 @@ const setTimelineLayerTransformTargetCommandDef = defineCommand<{ sceneId: strin
 
 const setTimelineLayerMaskCommandDef = defineCommand<{ sceneId: string; layerId: string; mask: TimelineMask | null }>({
 	label: 'Change timeline layer mask',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'mask' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'mask' }],
+	}],
 	create: payload => {
 		let before: TimelineMask | null;
 		const getLayer = (state: ProjectState) => {
@@ -1535,7 +1642,12 @@ const setTimelineLayerMaskCommandDef = defineCommand<{ sceneId: string; layerId:
 
 const setTimelineLayerReferenceMaskCommandDef = defineCommand<{ sceneId: string; layerId: string; layerMask: TimelineLayerMask | null }>({
 	label: 'Change timeline layer reference mask',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'layerMask' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'layerMask' }],
+	}],
 	create: payload => {
 		let before: TimelineLayerMask | null;
 		const getLayer = (state: ProjectState) => {
@@ -1561,7 +1673,12 @@ const setTimelineLayerReferenceMaskCommandDef = defineCommand<{ sceneId: string;
 
 const setTimelineLayerCompositeInclusionCommandDef = defineCommand<{ sceneId: string; layerId: string; isIncludedInComposite: boolean }>({
 	label: 'Change timeline layer composite inclusion',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'compositeInclusion' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'compositeInclusion' }],
+	}],
 	create: payload => {
 		let before: boolean;
 		const getLayer = (state: ProjectState) => {
@@ -1583,7 +1700,12 @@ const setTimelineLayerCompositeInclusionCommandDef = defineCommand<{ sceneId: st
 
 const setTimelineLayerMotionBlurDisabledCommandDef = defineCommand<{ sceneId: string; layerId: string; forceDisableMotionBlur: boolean }>({
 	label: 'Change timeline layer motion blur',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'motionBlur' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'motionBlur' }],
+	}],
 	create: payload => {
 		let before: boolean;
 		const getLayer = (state: ProjectState) => {
@@ -1604,7 +1726,12 @@ const setTimelineLayerMotionBlurDisabledCommandDef = defineCommand<{ sceneId: st
 
 const changeEffectLayerResolutionCommandDef = defineCommand<{ sceneId: string; layerId: string; resolution: EffectResolution }>({
 	label: 'Change effect layer resolution',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'resolution' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'resolution' }],
+	}],
 	create: payload => {
 		let before: EffectResolution;
 		const getLayer = (state: ProjectState) => {
@@ -1626,7 +1753,12 @@ const changeEffectLayerResolutionCommandDef = defineCommand<{ sceneId: string; l
 
 const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: string; clip: TimelineClipData; sourceDurationMs?: number | null }>({
 	label: 'Add timeline clip',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'clips' }],
+	}],
 	create: payload => ({
 		execute(state) {
 			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
@@ -1644,7 +1776,12 @@ const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: stri
 const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipPaste[]; sourceDurationsMs?: TimelineClipSourceDurations | null }>({
 	label: 'Paste timeline clips',
 	changes: (_state, payload) => [...new Set(payload.clips.map(entry => entry.layerId))]
-		.map(layerId => ({ type: 'layer', sceneId: payload.sceneId, layerId, changes: [{ type: 'clips' }] })),
+		.map(layerId => ({
+			type: 'layer',
+			sceneId: payload.sceneId,
+			layerId,
+			changes: [{ type: 'clips' }],
+		})),
 	create: payload => ({
 		execute(state) {
 			if (payload.clips.length === 0) throw new Error('No clips to paste');
@@ -1674,7 +1811,12 @@ const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Tim
 
 const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number | null; initialTiming?: TimelineClipTiming | TimelineMediaClipTiming | TimelineVideoHoldTiming }>({
 	label: 'Trim timeline clip',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'clips' }],
+	}],
 	create: payload => {
 		let before: TimelineClipData;
 		let after: TimelineClipData | null = null;
@@ -1702,8 +1844,12 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 				let next: TimelineClipData;
 				if ('sourceTimeMs' in initial) next = { ...clip, ...trimTimelineVideoHold(initial, payload.edge, delta) };
 				else if ('sourceInMs' in initial) next = { ...clip, ...trimTimelineMediaClip(initial, payload.edge, delta) };
-				else if (payload.edge === 'start') next = { ...clip, startMs: initial.startMs + delta,
-					durationMs: initial.durationMs - delta, contentOffsetMs: initial.contentOffsetMs + delta };
+				else if (payload.edge === 'start') next = {
+					...clip,
+					startMs: initial.startMs + delta,
+					durationMs: initial.durationMs - delta,
+					contentOffsetMs: initial.contentOffsetMs + delta,
+				};
 				else next = { ...clip, durationMs: initial.durationMs + delta };
 				validateTimelineClips(layer.clips.map(entry => entry.id === clip.id ? next : entry));
 				if (media) validateMediaClipTiming(next, payload.sourceDurationMs);
@@ -1717,7 +1863,12 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 
 const editMediaClipLoopCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; deltaMs: number; sourceDurationMs: number; initialTiming?: TimelineMediaClipTiming }>({
 	label: 'Resize media loop',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'clips' }],
+	}],
 	create: payload => {
 		let before: Pick<TimelineMediaClipTiming, 'durationMs' | 'loop'>;
 		let after: typeof before | null = null;
@@ -1754,7 +1905,12 @@ const editMediaClipLoopCommandDef = defineCommand<TimelineClipTarget & { sceneId
 
 const editMediaClipPlaybackRateCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; playbackRate: number; sourceDurationMs: number }>({
 	label: 'Change media playback speed',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'clips' }],
+	}],
 	create: payload => {
 		let before: TimelineMediaClipTiming;
 		let after: TimelineMediaClipTiming | null = null;
@@ -1788,7 +1944,10 @@ function applyTimelineKeyframeMove(state: ProjectState, sceneId: string, updates
 const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipMoveTarget[]; deltaMs: number; initialKeyframes?: TimelineKeyframePosition[] }>({
 	label: 'Move timeline clips',
 	changes: (_state, payload) => [...new Set(payload.clips.map(clip => clip.layerId))].map(layerId => ({
-		type: 'layer', sceneId: payload.sceneId, layerId, changes: [
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId,
+		changes: [
 			{ type: 'clips' },
 			...[...new Set(payload.initialKeyframes?.filter(point => point.layerId === layerId).map(point => point.target))].map(target => target === 'utterance'
 				? { type: 'definition' as const } : { type: 'parameter' as const, target, kind: 'value' as const }),
@@ -1829,7 +1988,12 @@ const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Time
 
 const removeTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipTarget[] }>({
 	label: 'Remove timeline clips',
-	changes: (_state, payload) => payload.clips.map(clip => ({ type: 'layer', sceneId: payload.sceneId, layerId: clip.layerId, changes: [{ type: 'clips' }] })),
+	changes: (_state, payload) => payload.clips.map(clip => ({
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: clip.layerId,
+		changes: [{ type: 'clips' }],
+	})),
 	create: payload => {
 		let before: { layerId: string; clips: TimelineClipData[] }[];
 		return {
@@ -1847,7 +2011,12 @@ const removeTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Ti
 
 const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; assetId?: string; referencedSceneId?: string; sourceDurationMs?: number | null; audioEnabled?: boolean }>({
 	label: 'Change timeline clip source',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'clips' }],
+	}],
 	create: payload => {
 		let before: TimelineClipData;
 		return {
@@ -1855,7 +2024,8 @@ const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { 
 				const { layer, clip } = getTimelineClip(state, payload.sceneId, payload);
 				const media = layer.layerType === 'video' || layer.layerType === 'audio';
 				if (media) requireMediaDurationMs(payload.sourceDurationMs);
-				const next = { ...(media ? { id: clip.id, startMs: clip.startMs, durationMs: clip.durationMs } : clip),
+				const next = {
+					...(media ? { id: clip.id, startMs: clip.startMs, durationMs: clip.durationMs } : clip),
 					...(media ? createTimelineMediaClipTiming(clip.startMs, getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, requireMediaDurationMs(payload.sourceDurationMs))) : { contentOffsetMs: 0 }),
 					...(layer.layerType === 'scene' ? { sceneId: payload.referencedSceneId } : { assetId: payload.assetId }),
 					...(layer.layerType === 'video' ? {
@@ -1885,7 +2055,12 @@ function replaceTimelineClipData(clip: TimelineClipData, next: TimelineClipData)
 
 const holdVideoClipFrameCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; sourceTimeMs: number; sourceDurationMs: number }>({
 	label: 'Hold video frame',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'clips' }],
+	}],
 	create: payload => {
 		let before: TimelineVideoClip;
 		let after: TimelineVideoClip | null = null;
@@ -1900,8 +2075,15 @@ const holdVideoClipFrameCommandDef = defineCommand<TimelineClipTarget & { sceneI
 			execute(state) {
 				const clip = find(state);
 				if (after != null) { replaceTimelineClipData(clip, after); return; }
-				const next: TimelineVideoClip = { id: clip.id, assetId: clip.assetId, startMs: clip.startMs,
-					durationMs: clip.durationMs, sourceTimeMs: payload.sourceTimeMs, audioEnabled: false, videoEnabled: true };
+				const next: TimelineVideoClip = {
+					id: clip.id,
+					assetId: clip.assetId,
+					startMs: clip.startMs,
+					durationMs: clip.durationMs,
+					sourceTimeMs: payload.sourceTimeMs,
+					audioEnabled: false,
+					videoEnabled: true,
+				};
 				validateTimelineVideoHoldTiming(next, requireMediaDurationMs(payload.sourceDurationMs));
 				before = deepClone(clip);
 				after = next;
@@ -1914,7 +2096,12 @@ const holdVideoClipFrameCommandDef = defineCommand<TimelineClipTarget & { sceneI
 
 const editVideoClipVideoEnabledCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; videoEnabled: boolean }>({
 	label: 'Edit video clip video output',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'clips' }],
+	}],
 	create: payload => {
 		let before: boolean;
 		const find = (state: ProjectState) => {
@@ -1938,7 +2125,12 @@ const editVideoClipVideoEnabledCommandDef = defineCommand<TimelineClipTarget & {
 
 const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; audioEnabled: boolean }>({
 	label: 'Edit video clip audio',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'clips' }],
+	}],
 	create: payload => {
 		let before: boolean;
 		const find = (state: ProjectState) => {
@@ -2137,8 +2329,12 @@ const removeSceneCommandDef = defineCommand<{ sceneId: string }>({
 const pasteTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyframes: TimelineKeyframePaste[] }>({
 	label: 'Paste timeline keyframes',
 	changes: (_state, payload) => [...new Map(payload.keyframes.map(entry => [JSON.stringify([entry.layerId, entry.target]),
-																																																																											{ type: 'layer' as const, sceneId: payload.sceneId, layerId: entry.layerId,
-																																																																													changes: entry.target === 'utterance' ? [{ type: 'definition' as const }] : [{ type: 'parameter' as const, target: entry.target, kind: 'value' as const }] }])).values()],
+																																																																											{
+																																																																												type: 'layer' as const,
+																																																																												sceneId: payload.sceneId,
+																																																																												layerId: entry.layerId,
+																																																																												changes: entry.target === 'utterance' ? [{ type: 'definition' as const }] : [{ type: 'parameter' as const, target: entry.target, kind: 'value' as const }],
+																																																																											}])).values()],
 	create: payload => {
 		let updates: NonNullable<ReturnType<typeof getTimelineKeyframePasteUpdates>>;
 		return {
@@ -2167,8 +2363,12 @@ const pasteTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfra
 
 const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positions: TimelineKeyframePosition[] }>({
 	label: 'Move timeline keyframes',
-	changes: (_state, payload) => payload.positions.map(position => ({ type: 'layer', sceneId: payload.sceneId, layerId: position.layerId,
-																																																																				changes: position.target === 'utterance' ? [{ type: 'definition' }] : [{ type: 'parameter', target: position.target, kind: 'value' }] })),
+	changes: (_state, payload) => payload.positions.map(position => ({
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: position.layerId,
+		changes: position.target === 'utterance' ? [{ type: 'definition' }] : [{ type: 'parameter', target: position.target, kind: 'value' }],
+	})),
 	create: payload => {
 		let updates: TimelineKeyframeMoveUpdate[] | null = null;
 		return {
@@ -2183,7 +2383,12 @@ const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positio
 
 const editVoicevoxLayerCommandDef = defineCommand<{ sceneId: string; layerId: string; voicevox: VoicevoxSettings; utterances: VoicevoxUtterance[] }>({
 	label: 'Edit VOICEVOX speech',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'definition' }] }],
+	changes: (_state, payload) => [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layerId,
+		changes: [{ type: 'definition' }],
+	}],
 	create: payload => {
 		let before: { voicevox: VoicevoxSettings; utterances: VoicevoxUtterance[] };
 		const find = (state: ProjectState) => {
@@ -2206,7 +2411,10 @@ const editVoicevoxLayerCommandDef = defineCommand<{ sceneId: string; layerId: st
 const removeTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyframes: TimelineKeyframeSelection[] }>({
 	label: 'Remove timeline keyframes',
 	changes: (_state, payload) => [...new Set(payload.keyframes.map(point => point.layerId))].map(layerId => ({
-		type: 'layer', sceneId: payload.sceneId, layerId, changes: [{ type: 'definition' }],
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId,
+		changes: [{ type: 'definition' }],
 	})),
 	create: payload => {
 		let before: TimelineLayer[];
@@ -2357,7 +2565,9 @@ const moveTimelineContainerCommandDef = defineCommand<{ sceneId: string; layerId
 	changes: (state, payload) => {
 		const group = getTimelineLayer(state, payload.sceneId, payload.layerId);
 		return flattenTimelineLayers([group]).map(layer => ({
-			type: 'layer' as const, sceneId: payload.sceneId, layerId: layer.id,
+			type: 'layer' as const,
+			sceneId: payload.sceneId,
+			layerId: layer.id,
 			changes: layer.layerType === 'voicevox' ? [{ type: 'definition' as const }] : [
 				...(isTimelineContainerLayer(layer) ? [] : [{ type: 'clips' as const }]),
 				...getLayerParameterTargets(layer).map(target => ({ type: 'parameter' as const, target, kind: 'value' as const })),

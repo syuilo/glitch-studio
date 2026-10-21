@@ -192,13 +192,21 @@ const wires = computed(() => {
 		const to = (connection.input && positions.get(connection.input))
 			?? (connection.allIn && positions.get(connection.allIn));
 		if (!from || !to) continue;
-		result.push({ key: connection.key, from, to, fromColor: connection.fromColor, toColor: connection.toColor });
+		result.push({
+			key: connection.key,
+			from,
+			to,
+			fromColor: connection.fromColor,
+			toColor: connection.toColor,
+		});
 	}
 	const source = dragSource.value;
 	const from = source && positions.get(source);
 	if (source && from && dragPosition.value) {
 		result.push({
-			key: 'drag', from, to: dragPosition.value,
+			key: 'drag',
+			from,
+			to: dragPosition.value,
 			...getWireColors({ kind: (source.dataset.type as TextureDataType['kind']) ?? 'any' }, { kind: 'any' }),
 		});
 	}

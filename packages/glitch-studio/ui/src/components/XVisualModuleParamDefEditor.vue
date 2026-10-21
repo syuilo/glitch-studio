@@ -186,7 +186,12 @@ function updateControl(controlType: 'number' | 'range' | 'angle' | 'seed') {
 	// UIだけを変更するときは、保存値・式・ノード接続を維持する。
 	const previous = def.ui.control;
 	const control = controlType === 'range'
-		? { controlType, min: 'min' in previous ? previous.min ?? 0 : 0, max: 'max' in previous ? previous.max ?? 1 : 1, step: 'step' in previous ? previous.step ?? 0.01 : 0.01 }
+		? {
+			controlType,
+			min: 'min' in previous ? previous.min ?? 0 : 0,
+			max: 'max' in previous ? previous.max ?? 1 : 1,
+			step: 'step' in previous ? previous.step ?? 0.01 : 0.01,
+		}
 		: { controlType };
 	update({ dataType: { kind: 'scalar' }, ui: { label: def.ui.label, control } });
 }

@@ -17,9 +17,16 @@ function estimateTextureBytes(texture: GPUTexture): number {
 	} else {
 		// Depth/stencil allocation is implementation-dependent; use a nominal size.
 		const packed: Partial<Record<GPUTextureFormat, number>> = {
-			rgb10a2uint: 4, rgb10a2unorm: 4, rg11b10ufloat: 4, rgb9e5ufloat: 4,
-			stencil8: 1, depth16unorm: 2, depth24plus: 4, 'depth24plus-stencil8': 4,
-			depth32float: 4, 'depth32float-stencil8': 8,
+			rgb10a2uint: 4,
+			rgb10a2unorm: 4,
+			rg11b10ufloat: 4,
+			rgb9e5ufloat: 4,
+			stencil8: 1,
+			depth16unorm: 2,
+			depth24plus: 4,
+			'depth24plus-stencil8': 4,
+			depth32float: 4,
+			'depth32float-stencil8': 8,
 		};
 		bytesPerBlock = packed[format] ?? 0;
 	}

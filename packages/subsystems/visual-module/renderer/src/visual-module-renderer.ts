@@ -360,7 +360,9 @@ export class VisualModuleRenderer {
 		for (const node of addedNodes) {
 			// 自動解像度は上流・素材の解決まで未確定。それまでは小さい仮出力を使う。
 			const resolution = node.resolution.mode === 'auto' ? null : resolveEffectNodeResolution({
-				setting: node.resolution, contextResolution: this.contextResolution, resolutionScale: this.resolutionScale,
+				setting: node.resolution,
+				contextResolution: this.contextResolution,
+				resolutionScale: this.resolutionScale,
 				maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
 			});
 			const renderer = new EffectRenderer({
@@ -368,10 +370,14 @@ export class VisualModuleRenderer {
 				implementation: this.effectImplementations[node.effectId],
 				resolution,
 				wgpu: {
-					device: this.gpuDevice, defaultVertexShaderModule: this.defaultVertexShaderModule,
-					enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat,
+					device: this.gpuDevice,
+					defaultVertexShaderModule: this.defaultVertexShaderModule,
+					enable32bitDataTextures: this.enable32bitDataTextures,
+					intermediateTextureFormat: this.intermediateTextureFormat,
 				},
-				fallbackTexture: this.fallbackTexture, enableStats: this.enableStats, timingHelper: this.timingHelper,
+				fallbackTexture: this.fallbackTexture,
+				enableStats: this.enableStats,
+				timingHelper: this.timingHelper,
 				onState: state => this.onEffectState?.(node.id, state),
 			});
 			this.effectRenderers.set(node.id, renderer);
@@ -515,7 +521,8 @@ export class VisualModuleRenderer {
 		const inputKey = this.effectDefinitions[node.effectId].resolutionInputParameter;
 		const input = inputKey == null ? null : params[inputKey];
 		this.effectRenderers.get(node.id)!.setResolution(resolveEffectNodeResolution({
-			setting: node.resolution, contextResolution: this.contextResolution,
+			setting: node.resolution,
+			contextResolution: this.contextResolution,
 			resolutionScale: this.resolutionScale,
 			intrinsicResolution: node.resolution.mode === 'auto' ? effect.getIntrinsicResolution?.(params) : null,
 			inputResolution: node.resolution.mode === 'auto'

@@ -11,8 +11,25 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'pixel', 'stylized', 'experimental'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		threshold: { dataType: { kind: 'scalar' }, ui: { label: 'Threshold', control: { controlType: 'range', min: 0, max: 1, step: 0.001 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		threshold: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Threshold',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.001,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.5 },
+		},
 		shadow: { dataType: { kind: 'bool' }, ui: { label: 'Shadow', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		direction: {
 			dataType: { kind: 'enum', options: ['horizontal', 'vertical'] },

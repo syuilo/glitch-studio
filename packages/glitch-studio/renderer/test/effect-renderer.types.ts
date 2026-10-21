@@ -12,11 +12,22 @@ declare const params: RuntimeEffectParameters<typeof definition.paramDefs>;
 
 // 【Canvasを持たないGPU環境でエフェクトを実行できる】
 // 出力テクスチャだけを扱う呼び出し元に、表示先のCanvasを要求しない契約を保つ。
-const wgpu: EffectGpuContext = { device, defaultVertexShaderModule, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' };
+const wgpu: EffectGpuContext = {
+	device,
+	defaultVertexShaderModule,
+	enable32bitDataTextures: false,
+	intermediateTextureFormat: 'rgba8unorm',
+};
 
 // 【エフェクトの定義に従う入力・出力だけを単体レンダラーへ渡せる】
 // Visual Module由来の型を使わず、既存実装のネストした実行時パラメータ型を再利用する。
-const renderer = new EffectRenderer({ definition, implementation, wgpu, fallbackTexture, resolution: { width: 16, height: 9 } });
+const renderer = new EffectRenderer({
+	definition,
+	implementation,
+	wgpu,
+	fallbackTexture,
+	resolution: { width: 16, height: 9 },
+});
 renderer.prepare(params);
 renderer.getOutputTexture('output');
 renderer.setUsedOutputPorts(new Set(['output', 'output2']));

@@ -9,7 +9,13 @@ type UpdatePreparation = {
 
 /** mainの状態を表示へ反映し、終了前にUIの非同期処理を完了させる。プロジェクト状態には含めない。 */
 export class DesktopUpdates {
-	readonly state = shallowRef<DesktopUpdateState>({ revision: -1, phase: 'disabled', version: null, progress: null, error: null });
+	readonly state = shallowRef<DesktopUpdateState>({
+		revision: -1,
+		phase: 'disabled',
+		version: null,
+		progress: null,
+		error: null,
+	});
 	readonly running = ref(false);
 	readonly localError = ref<string | null>(null);
 	private unsubscribe: (() => void) | null = null;

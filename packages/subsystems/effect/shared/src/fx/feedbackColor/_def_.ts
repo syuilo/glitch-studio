@@ -11,12 +11,51 @@ export default defineEffect({
 	dependsOnRenderHistory: true,
 	tags: ['temporal', 'color', 'utility'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
 		mode: { dataType: { kind: 'enum', options: ['add', 'interpolate'] }, ui: { label: 'Mode', control: { labels: { add: 'Add', interpolate: 'Interpolate' } } }, defaultValue: { inputSource: 'literal', value: 'add' } },
-		strength: { dataType: { kind: 'scalar' }, ui: { label: 'Strength', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		strengthFactor: { dataType: { kind: 'color' }, ui: { label: 'Strength Factor', control: { controlType: 'signal' } }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
-		halfLife: { dataType: { kind: 'scalar' }, ui: { label: 'Half-Life (ms)', control: { controlType: 'range', min: 0, max: 10000, step: 1 } }, defaultValue: { inputSource: 'literal', value: 300 } },
-		halfLifeFactor: { dataType: { kind: 'color' }, ui: { label: 'Half-Life Factor', control: { controlType: 'signal' } }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+		strength: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Strength',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 10,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
+		strengthFactor: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Strength Factor', control: { controlType: 'signal' } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] },
+		},
+		halfLife: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Half-Life (ms)',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 10000,
+					step: 1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 300 },
+		},
+		halfLifeFactor: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Half-Life Factor', control: { controlType: 'signal' } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] },
+		},
 		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
 	primaryInputParameter: 'input',

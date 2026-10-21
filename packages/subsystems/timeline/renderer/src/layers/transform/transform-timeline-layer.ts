@@ -20,7 +20,9 @@ export function createTransformTimelineLayer<Output>(getTransform: () => Timelin
 			const layer = getTransform();
 			const transform = parameters.evaluate(layer.transformParamValues, layer.automationGraphs, context.sceneTimeMs, context.isExport);
 			return renderer.createEvaluation(layer.layers.filter(isTimelineRenderLayer), {
-				...evaluation, time: context.sceneTimeMs, timeDelta: context.timeDelta,
+				...evaluation,
+				time: context.sceneTimeMs,
+				timeDelta: context.timeDelta,
 				referenceTime: context.referenceTime != null ? { timeMs: context.referenceTime.sceneTimeMs, timeDelta: context.referenceTime.timeDelta } : undefined,
 				renderSpace: getTimelineTransformSpace(transform, options.resolution, context.renderSpace),
 				getInput: context.getInput,

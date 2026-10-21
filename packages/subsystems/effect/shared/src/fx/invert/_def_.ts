@@ -11,7 +11,12 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['color'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
 		red: { dataType: { kind: 'bool' }, ui: { label: 'Red', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		green: { dataType: { kind: 'bool' }, ui: { label: 'Green', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		blue: { dataType: { kind: 'bool' }, ui: { label: 'Blue', control: {} }, defaultValue: { inputSource: 'literal', value: true } },

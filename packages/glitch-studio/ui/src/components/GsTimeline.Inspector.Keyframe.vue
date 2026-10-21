@@ -100,7 +100,8 @@ function updateKeyframe(keyframeId: string, patch: { x?: number; value?: unknown
 	if (value == null) return;
 	stateManager.commit('editTimelineLayerParam', {
 		sceneId: props.sceneId,
-		layerId: selected.selection.layerId, target: selected.selection.target,
+		layerId: selected.selection.layerId,
+		target: selected.selection.target,
 		paramPath: selected.selection.paramPath,
 		edit: { kind: 'keyframesTimelineInline', value },
 	}, mergeKey);

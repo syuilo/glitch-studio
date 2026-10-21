@@ -5,8 +5,13 @@ import type { TimelineCameraLayer } from '@gs/subsystems_timeline_shared/types.t
 
 export function createCameraTimelineLayer(startMs: number): TimelineCameraLayer {
 	return {
-		id: genId(), name: 'Camera', layerType: 'camera', isDisabled: false, color: null,
-		automationGraphs: [], forceDisableMotionBlur: false,
+		id: genId(),
+		name: 'Camera',
+		layerType: 'camera',
+		isDisabled: false,
+		color: null,
+		automationGraphs: [],
+		forceDisableMotionBlur: false,
 		cameraParamValues: createTimelineCameraParameterValues(),
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 	};

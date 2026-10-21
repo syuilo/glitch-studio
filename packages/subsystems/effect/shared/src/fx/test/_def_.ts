@@ -11,8 +11,32 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['utility'],
 	paramDefs: {
-		x: { dataType: { kind: 'scalar' }, ui: { label: 'X', control: { controlType: 'range', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		y: { dataType: { kind: 'scalar' }, ui: { label: 'Y', control: { controlType: 'range', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		x: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'X',
+				control: {
+					controlType: 'range',
+					min: -1,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		y: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Y',
+				control: {
+					controlType: 'range',
+					min: -1,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
 	},
 	primaryInputParameter: null,
 	resolutionInputParameter: null,

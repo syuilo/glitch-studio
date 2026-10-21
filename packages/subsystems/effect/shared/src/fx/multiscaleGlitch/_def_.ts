@@ -11,21 +11,158 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'distortion', 'color', 'stylized', 'experimental'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		probability: { dataType: { kind: 'scalar' }, ui: { label: 'Corruption Probability', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.4 } },
-		fineScale: { dataType: { kind: 'scalar' }, ui: { label: 'Fine Scale (% of Short Side)', control: { controlType: 'range', min: 0.1, max: 5, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },
-		coarseScale: { dataType: { kind: 'scalar' }, ui: { label: 'Coarse Scale (% of Short Side)', control: { controlType: 'range', min: 1, max: 25, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 8 } },
-		blockShape: { dataType: { kind: 'vector' }, ui: { label: 'Block Shape', control: { controlType: 'dimension', min: 0.1, max: 8, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: [4, 1] } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		probability: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Corruption Probability',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.4 },
+		},
+		fineScale: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Fine Scale (% of Short Side)',
+				control: {
+					controlType: 'range',
+					min: 0.1,
+					max: 5,
+					step: 0.1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.5 },
+		},
+		coarseScale: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Coarse Scale (% of Short Side)',
+				control: {
+					controlType: 'range',
+					min: 1,
+					max: 25,
+					step: 0.1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 8 },
+		},
+		blockShape: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Block Shape',
+				control: {
+					controlType: 'dimension',
+					min: 0.1,
+					max: 8,
+					step: 0.1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: [4, 1] },
+		},
 		fineEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Fine Detail Corruption', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
-		fineAmount: { dataType: { kind: 'scalar' }, ui: { label: 'Fine Detail Amount', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		fineShift: { dataType: { kind: 'vector' }, ui: { label: 'Fine Detail Displacement (Blocks)', control: { controlType: 'vector', min: 0, max: 3, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [1, 0.15] } },
+		fineAmount: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Fine Detail Amount',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 2,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
+		fineShift: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Fine Detail Displacement (Blocks)',
+				control: {
+					controlType: 'vector',
+					min: 0,
+					max: 3,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: [1, 0.15] },
+		},
 		mediumEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Medium Structure Corruption', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
-		mediumAmount: { dataType: { kind: 'scalar' }, ui: { label: 'Medium Structure Amount', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		mediumShift: { dataType: { kind: 'vector' }, ui: { label: 'Medium Structure Displacement (Blocks)', control: { controlType: 'vector', min: 0, max: 3, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0.6, 0.2] } },
+		mediumAmount: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Medium Structure Amount',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 2,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
+		mediumShift: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Medium Structure Displacement (Blocks)',
+				control: {
+					controlType: 'vector',
+					min: 0,
+					max: 3,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: [0.6, 0.2] },
+		},
 		coarseEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Coarse Shape Corruption', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
-		coarseAmount: { dataType: { kind: 'scalar' }, ui: { label: 'Coarse Shape Amount', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		coarseShift: { dataType: { kind: 'vector' }, ui: { label: 'Coarse Shape Displacement (Blocks)', control: { controlType: 'vector', min: 0, max: 3, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0.35, 0.15] } },
-		colorCorruption: { dataType: { kind: 'scalar' }, ui: { label: 'Color Corruption', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.25 } },
+		coarseAmount: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Coarse Shape Amount',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 2,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
+		coarseShift: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Coarse Shape Displacement (Blocks)',
+				control: {
+					controlType: 'vector',
+					min: 0,
+					max: 3,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: [0.35, 0.15] },
+		},
+		colorCorruption: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Color Corruption',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.25 },
+		},
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	primaryInputParameter: 'input',

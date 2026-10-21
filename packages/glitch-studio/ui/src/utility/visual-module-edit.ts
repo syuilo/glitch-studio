@@ -37,7 +37,12 @@ export function commitVisualModuleEdit(manager: ProjectCommands, target: VisualM
 			break;
 		}
 		case 'setOutputConnection':
-			manager.commit('updateGlobalOutInput', { ...target, nodeId: event.nodeId, outputId: event.outputId, value: event.value });
+			manager.commit('updateGlobalOutInput', {
+				...target,
+				nodeId: event.nodeId,
+				outputId: event.outputId,
+				value: event.value,
+			});
 			break;
 		case 'addParamDef':
 			manager.commit('addVisualModuleParamDef', { ...target, def: event.def });

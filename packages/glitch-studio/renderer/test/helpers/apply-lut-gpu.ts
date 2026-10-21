@@ -17,10 +17,17 @@ export async function run() {
 	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
 	// float出力の負値や1超も検証する。検査用コピーは補間せず、同じ画素を厳密に読む。
 	const copy = device.createRenderPipeline({
-		layout: 'auto', vertex: { module: vertex }, primitive: { topology: 'triangle-list' },
-		fragment: { targets: [{ format: 'rgba32float' }], module: device.createShaderModule({ code: `
+		layout: 'auto',
+		vertex: { module: vertex },
+		primitive: { topology: 'triangle-list' },
+		fragment: {
+			targets: [{ format: 'rgba32float' }],
+			module: device.createShaderModule({
+				code: `
 @group(0) @binding(0) var input: texture_2d<f32>;
-@fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f { return textureLoad(input, vec2i(p.xy), 0); }` }) },
+@fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f { return textureLoad(input, vec2i(p.xy), 0); }`,
+			}),
+		},
 	});
 	async function read(texture: GPUTexture) {
 		const output = device.createTexture({ size: [1, 1], format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
@@ -49,8 +56,17 @@ export async function run() {
 	const identity = 'LUT_3D_SIZE 3\n' + rows3d(3, (r, g, b) => [r, g, b]);
 	try {
 		for (const use32bit of supports32 ? [false, true] : [false]) {
-			const renderer = new EffectRenderer({ definition, implementation, resolution: { width: 1, height: 1 }, fallbackTexture,
-				wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: use32bit, intermediateTextureFormat: 'rgba16float' },
+			const renderer = new EffectRenderer({
+				definition,
+				implementation,
+				resolution: { width: 1, height: 1 },
+				fallbackTexture,
+				wgpu: {
+					device,
+					defaultVertexShaderModule: vertex,
+					enable32bitDataTextures: use32bit,
+					intermediateTextureFormat: 'rgba16float',
+				},
 			});
 			let inputTexture: GPUTexture | null = null;
 			const draw = async (name: string, text: string | null, rgba: number[], expected: number[], input?: ShaderInput) => {
@@ -61,7 +77,14 @@ export async function run() {
 				renderer.prepare(params);
 				if (!await renderer.waitUntilReady(new AbortController().signal)) throw new Error('LUT preparation cancelled');
 				const encoder = device.createCommandEncoder();
-				renderer.render({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 } });
+				renderer.render({
+					params,
+					commandEncoder: encoder,
+					time: 0,
+					timeDelta: 0,
+					pointerPosition: { x: 0, y: 0 },
+					pointerVector: { x: 0, y: 0 },
+				});
 				device.queue.submit([encoder.finish()]);
 				const actual = await read(renderer.getOutputTexture('output')!);
 				if (actual.some((value, index) => !Number.isFinite(value) || Math.abs(value - expected[index]) > 0.004)) throw new Error(`${name}: ${actual} != ${expected}`);
@@ -80,7 +103,14 @@ export async function run() {
 					const params = { input: { kind: 'uniform' as const, value: [0.2, 0.6, 0.4, 1] }, lut: { id: 'same-asset', fileData: new DelayedBlob(['pending']) } };
 					const renderVisualModuleLivePreview = () => {
 						const encoder = device.createCommandEncoder();
-						renderer.render({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 } });
+						renderer.render({
+							params,
+							commandEncoder: encoder,
+							time: 0,
+							timeDelta: 0,
+							pointerPosition: { x: 0, y: 0 },
+							pointerVector: { x: 0, y: 0 },
+						});
 						device.queue.submit([encoder.finish()]);
 					};
 					renderVisualModuleLivePreview();
@@ -115,7 +145,13 @@ export async function run() {
 				if (boundary < size) await draw('1D row boundary', `LUT_1D_SIZE ${size}\n${longRows.join('\n')}`, [value, value, value, 1], [0.5, 0.5, 0.5, 1]);
 				inputTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 				device.queue.writeTexture({ texture: inputTexture }, new Uint8Array([64, 32, 16, 128]), {}, [1, 1]);
-				await draw('texture input', identity, [], [64 / 255, 32 / 255, 16 / 255, 128 / 255], { kind: 'texture', texture: inputTexture, fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' });
+				await draw('texture input', identity, [], [64 / 255, 32 / 255, 16 / 255, 128 / 255], {
+					kind: 'texture',
+					texture: inputTexture,
+					fitMode: 'cover',
+					wrapMode: 'clamp',
+					filterMode: 'linear',
+				});
 			} finally { renderer.dispose(); inputTexture?.destroy(); }
 		}
 		// 【GPU制限と16bitの範囲外を明示的なエラーにする】

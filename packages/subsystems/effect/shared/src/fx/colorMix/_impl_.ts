@@ -6,13 +6,17 @@ import type definition from './_def_.ts';
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
-			size: resolution, format: wgpu.intermediateTextureFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+			size: resolution,
+			format: wgpu.intermediateTextureFormat,
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
 		const pipelines = createShaderInputPipeline({
-			device, vertex: wgpu.defaultVertexShaderModule, code,
+			device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
 			schema: { inputA: 'color', inputB: 'color', amount: 'scalar' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 		});

@@ -79,7 +79,12 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 			.flatMap(child => child.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], ticksWithMinor.value, [], time.value);
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (!sceneLayers.value.some(current => current.id === layer.id)) return false;
-			stateManager.commit('moveTimelineContainer', { sceneId: scene.id, layerId: layer.id, deltaMs: delta, initial }, mergeKey);
+			stateManager.commit('moveTimelineContainer', {
+				sceneId: scene.id,
+				layerId: layer.id,
+				deltaMs: delta,
+				initial,
+			}, mergeKey);
 			return true;
 		});
 	}
@@ -102,7 +107,12 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const initialTargets = entries.map(({ target, clip }) => ({ ...target, initialStartMs: clip.startMs }));
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (targets.some(target => !resolveClip(target))) return false;
-			stateManager.commit('moveTimelineClips', { sceneId: scene.id, clips: initialTargets, initialKeyframes: move.keyframes, deltaMs: delta }, mergeKey);
+			stateManager.commit('moveTimelineClips', {
+				sceneId: scene.id,
+				clips: initialTargets,
+				initialKeyframes: move.keyframes,
+				deltaMs: delta,
+			}, mergeKey);
 			return true;
 		});
 	}
@@ -128,7 +138,14 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const initialTiming = deepClone(clip);
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (!resolveClip(target)) return false;
-			stateManager.commit('editTimelineClipTiming', { sceneId: scene.id, ...target, edge, deltaMs: delta, initialTiming, sourceDurationMs }, mergeKey);
+			stateManager.commit('editTimelineClipTiming', {
+				sceneId: scene.id,
+				...target,
+				edge,
+				deltaMs: delta,
+				initialTiming,
+				sourceDurationMs,
+			}, mergeKey);
 			return true;
 		});
 	}
@@ -152,7 +169,13 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const initialTiming = deepClone(clip);
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (!resolveClip(target)) return false;
-			stateManager.commit('editMediaClipLoop', { sceneId: scene.id, ...target, deltaMs: delta, sourceDurationMs, initialTiming }, mergeKey);
+			stateManager.commit('editMediaClipLoop', {
+				sceneId: scene.id,
+				...target,
+				deltaMs: delta,
+				sourceDurationMs,
+				initialTiming,
+			}, mergeKey);
 			return true;
 		});
 	}
@@ -164,7 +187,12 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const bounds = getVoicevoxSubtitleTrimBounds(layer.voicevox, layer.utterances, layer.clips, utteranceId, clipId);
 		if (!bounds) return;
 		const utterance = layer.utterances.find(key => key.id === utteranceId)!;
-		onKeyframeSelected({ layerId, target: 'utterance', paramPath: ['utterances'], keyframeId: utteranceId });
+		onKeyframeSelected({
+			layerId,
+			target: 'utterance',
+			paramPath: ['utterances'],
+			keyframeId: utteranceId,
+		});
 		const resolveSpeech = createSpeechResolver(stateManager.state.generatedSpeech.value);
 		const audioEnds = getVoicevoxUtterancePlacements(layer.voicevox, layer.utterances, layer.clips).flatMap(placement => {
 			const speech = resolveSpeech(placement.request);
@@ -186,8 +214,12 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 			const current = currentLayer.utterances.find(key => key.id === utteranceId);
 			// 設定画面でFill・発話長モードへ変えた場合や、別操作でキーが移動・削除された場合はドラッグを続けない。
 			if (!current || current.subtitleDuration.mode !== 'specified' || current.timeMs !== initialTime) return false;
-			stateManager.commit('editVoicevoxLayer', { sceneId: scene.id, layerId, voicevox: currentLayer.voicevox,
-																																														utterances: currentLayer.utterances.map(key => key.id === utteranceId ? { ...key, subtitleDuration: { mode: 'specified' as const, durationMs: initialDuration + delta } } : key) }, mergeKey);
+			stateManager.commit('editVoicevoxLayer', {
+				sceneId: scene.id,
+				layerId,
+				voicevox: currentLayer.voicevox,
+				utterances: currentLayer.utterances.map(key => key.id === utteranceId ? { ...key, subtitleDuration: { mode: 'specified' as const, durationMs: initialDuration + delta } } : key),
+			}, mergeKey);
 			return true;
 		});
 	}
@@ -237,7 +269,12 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const points = entries.filter(entry => stretch == null || keyframeSelectionKey(entry.selection) === key).map(entry => {
 			const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));
 			const bounds = stretch ?? keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId);
-			return { time: entry.time, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };
+			return {
+				time: entry.time,
+				minDelta: bounds.minDelta,
+				maxDelta: bounds.maxDelta,
+				snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [],
+			};
 		});
 		const positions = entries.map(entry => ({ ...entry.selection, x: entry.x }));
 		const movedX = (x: number, delta: number) => Math.round(stretch == null ? x + delta : stretchKeyframeX(x, stretch, delta));
@@ -248,9 +285,18 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 			return true;
 		}, delta => getTimelineSnappingTimes(entries.map(entry => ({
 			time: entry.time + movedX(entry.x, delta) - entry.x,
-			minDelta: 0, maxDelta: 0, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [],
+			minDelta: 0,
+			maxDelta: 0,
+			snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [],
 		})), [], 0));
 	}
 
-	return { resolveClip, onGroupMoveStart, onClipMoveStart, onClipTrimStart, onSubtitleTrimStart, onKeyframeMoveStart };
+	return {
+		resolveClip,
+		onGroupMoveStart,
+		onClipMoveStart,
+		onClipTrimStart,
+		onSubtitleTrimStart,
+		onKeyframeMoveStart,
+	};
 }

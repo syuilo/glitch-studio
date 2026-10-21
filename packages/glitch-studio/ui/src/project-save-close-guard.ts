@@ -19,9 +19,12 @@ export function installProjectSaveCloseGuard(isProjectSaving: Readonly<Ref<boole
 				// 保存中に止めた終了は、保存が先に完了しても自動では再開しない。
 				if (!disposed && !unloadBlockedBySaving && !isProjectSaving.value) {
 					const result = hasUnsavedChanges.value ? await ui.confirm({
-						type: 'warning', title: i18n.ts._App.ConfirmCloseUnsavedProject,
+						type: 'warning',
+						title: i18n.ts._App.ConfirmCloseUnsavedProject,
 						text: i18n.ts._App.UnsavedChangesWillBeLost,
-						okText: i18n.ts._App.CloseWithoutSaving, cancelText: i18n.ts.Cancel, autofocusAction: 'cancel',
+						okText: i18n.ts._App.CloseWithoutSaving,
+						cancelText: i18n.ts.Cancel,
+						autofocusAction: 'cancel',
 					}) : { canceled: false };
 					confirmed = !result.canceled && !disposed && !isProjectSaving.value;
 				}

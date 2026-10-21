@@ -33,9 +33,12 @@ export class TimelineAudioRenderer {
 			const first = Math.max(startFrame, frameAtOrAfter(clip.startMs, sampleRate));
 			const end = Math.min(startFrame + frames, frameAtOrAfter(clip.endMs, sampleRate));
 			if (end <= first) continue;
-			const gains = clip.gains.map(gain => ({ sceneStartMs: gain.sceneStartMs,
+			const gains = clip.gains.map(gain => ({
+				sceneStartMs: gain.sceneStartMs,
 				evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({
-					time, automationGraphs: gain.automationGraphs, isExport,
+					time,
+					automationGraphs: gain.automationGraphs,
+					isExport,
 				})),
 			}));
 			for (let partStart = first; partStart < end;) {

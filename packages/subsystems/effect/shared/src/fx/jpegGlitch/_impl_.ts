@@ -9,7 +9,13 @@ import decodeCode from './decode.wgsl?raw';
 import outputCode from './output.wgsl?raw';
 import type definition from './_def_.ts';
 
-const acModes = { mixed: 0, drop: 1, invert: 2, amplify: 3, shift: 4 };
+const acModes = {
+	mixed: 0,
+	drop: 1,
+	invert: 2,
+	amplify: 3,
+	shift: 4,
+};
 const inverseTransforms = { dct: 0, hadamard: 1 };
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -25,27 +31,35 @@ export default implementEffect<typeof definition>({
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
-		const encodeLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-			{ binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-		] });
-		const scanLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-		] });
-		const decodeLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
-			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
-			{ binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-		] });
-		const outputLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-			{ binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-		] });
+		const encodeLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+				{ binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			],
+		});
+		const scanLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+				{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			],
+		});
+		const decodeLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+				{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+				{ binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			],
+		});
+		const outputLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+				{ binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+				{ binding: 4, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+			],
+		});
 		const scan = device.createComputePipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [scanLayout] }),
 			compute: { module: device.createShaderModule({ code: commonCode + '\n' + scanCode }), entryPoint: 'scan' },
@@ -118,7 +132,16 @@ export default implementEffect<typeof definition>({
 				// 無断で処理解像度を落とすと出力によって見た目が変わるため、設定の変更を求める。
 				throw new Error('JPEG glitch: virtual image exceeds GPU resource limits. Increase Block size.');
 			}
-			return { virtualSize, gridSize, mcuColumns, mcuRows, mcuCount, blocksPerMcu, coefficientBytes, stateBytes };
+			return {
+				virtualSize,
+				gridSize,
+				mcuColumns,
+				mcuRows,
+				mcuCount,
+				blocksPerMcu,
+				coefficientBytes,
+				stateBytes,
+			};
 		};
 		const createResources = (geometry: ReturnType<typeof getGeometry>, preserveDetails: boolean) => {
 			const buffers: GPUBuffer[] = [];

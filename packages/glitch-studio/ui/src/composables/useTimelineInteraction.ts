@@ -29,7 +29,9 @@ export function useTimelineInteraction() {
 	});
 
 	return {
-		active, begin, onTimelineClick,
+		active,
+		begin,
+		onTimelineClick,
 		suppressNextClick: () => { suppressClick = true; },
 		resetClickSuppression: () => { suppressClick = false; },
 	};

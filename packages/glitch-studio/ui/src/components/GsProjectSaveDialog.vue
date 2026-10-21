@@ -62,7 +62,12 @@ async function selectFile() {
 	error.value = null;
 	try {
 		const handle = await getProjectSaveFileHandle(directory.value, fileName.value, async name => {
-			const result = await confirm({ type: 'question', title: i18n.ts._Project.ReplaceExisting, text: `"${name}" already exists in this folder.`, okText: i18n.ts.Replace });
+			const result = await confirm({
+				type: 'question',
+				title: i18n.ts._Project.ReplaceExisting,
+				text: `"${name}" already exists in this folder.`,
+				okText: i18n.ts.Replace,
+			});
 			return !result.canceled;
 		});
 		if (handle == null) return;

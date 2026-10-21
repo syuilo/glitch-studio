@@ -65,14 +65,56 @@ const plotHeight = computed(() => chartHeight.value - plotTop - plotBottom);
 
 const isTimeline = computed(() => previewPlayback.state.value.mode === 'timeline');
 const series = computed(() => isTimeline.value ? [
-	{ key: 'frameDurationMs', label: i18n.ts._Stats.FrameDuration, description: i18n.ts._Stats.FrameDurationDescription, color: '#c2fe0c', strokeWidth: 2 },
-	{ key: 'videoSampleWaitMs', label: i18n.ts._Stats.VideoSampleWait, description: i18n.ts._Stats.VideoSampleWaitDescription, color: '#55c8ff', strokeWidth: 1.5 },
-	{ key: 'videoUploadCpuMs', label: i18n.ts._Stats.VideoUploadCpu, description: i18n.ts._Stats.VideoUploadCpuDescription, color: '#ffbd69', strokeWidth: 1.5 },
-	{ key: 'gpuWaitMs', label: i18n.ts._Stats.GpuWait, description: i18n.ts._Stats.GpuWaitDescription, color: '#c98cff', strokeWidth: 1.5 },
+	{
+		key: 'frameDurationMs',
+		label: i18n.ts._Stats.FrameDuration,
+		description: i18n.ts._Stats.FrameDurationDescription,
+		color: '#c2fe0c',
+		strokeWidth: 2,
+	},
+	{
+		key: 'videoSampleWaitMs',
+		label: i18n.ts._Stats.VideoSampleWait,
+		description: i18n.ts._Stats.VideoSampleWaitDescription,
+		color: '#55c8ff',
+		strokeWidth: 1.5,
+	},
+	{
+		key: 'videoUploadCpuMs',
+		label: i18n.ts._Stats.VideoUploadCpu,
+		description: i18n.ts._Stats.VideoUploadCpuDescription,
+		color: '#ffbd69',
+		strokeWidth: 1.5,
+	},
+	{
+		key: 'gpuWaitMs',
+		label: i18n.ts._Stats.GpuWait,
+		description: i18n.ts._Stats.GpuWaitDescription,
+		color: '#c98cff',
+		strokeWidth: 1.5,
+	},
 ] as const : [
-	{ key: 'fast', label: 'fast', description: '', color: '#c2fe0c', strokeWidth: 1 },
-	{ key: 'medium', label: 'medium', description: '', color: '#55c8ff', strokeWidth: 1.5 },
-	{ key: 'slow', label: 'slow', description: '', color: '#c98cff', strokeWidth: 2 },
+	{
+		key: 'fast',
+		label: 'fast',
+		description: '',
+		color: '#c2fe0c',
+		strokeWidth: 1,
+	},
+	{
+		key: 'medium',
+		label: 'medium',
+		description: '',
+		color: '#55c8ff',
+		strokeWidth: 1.5,
+	},
+	{
+		key: 'slow',
+		label: 'slow',
+		description: '',
+		color: '#c98cff',
+		strokeWidth: 2,
+	},
 ] as const);
 
 const samples = ref<Sample[]>([]);

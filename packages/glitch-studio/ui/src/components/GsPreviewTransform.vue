@@ -148,7 +148,12 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	let session: ReturnType<typeof stateManager.beginEdit<'editTimelineLayerTransform'>> | null = null;
 	let prepared: TimelineTransformBindings;
 	let initialBindings: TimelineTransformBindings;
-	let latest = { x: event.clientX, y: event.clientY, alt: event.altKey, shift: event.shiftKey };
+	let latest = {
+		x: event.clientX,
+		y: event.clientY,
+		alt: event.altKey,
+		shift: event.shiftKey,
+	};
 	let frame: number | null = null;
 	let previousAngle = 0;
 	let accumulatedAngle = 0;
@@ -218,7 +223,12 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 		move(next) {
 			if (session && !session.active) { stopDrag?.(); return; }
 			// origin固定で開始した位置が式の場合、途中でAltを離しても位置を上書きしない。
-			latest = { x: next.clientX, y: next.clientY, alt: next.altKey || !keys.includes('position') && resizing, shift: next.shiftKey };
+			latest = {
+				x: next.clientX,
+				y: next.clientY,
+				alt: next.altKey || !keys.includes('position') && resizing,
+				shift: next.shiftKey,
+			};
 			if (initial && handle === 'rotate') {
 				const angle = angleAt(next.clientX, next.clientY);
 				accumulatedAngle += unwrapPreviewRotation(previousAngle, angle);

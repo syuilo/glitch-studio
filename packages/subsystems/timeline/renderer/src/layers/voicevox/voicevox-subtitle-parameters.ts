@@ -28,13 +28,21 @@ export class VoicevoxSubtitleParameters {
 			return [r, g, b, Math.max(0, Math.min(1, a))];
 		};
 		return {
-			text: text.trim(), font: typeof values.font === 'string' ? values.font : null,
-			size: Math.max(0, number(values.size)), maxWidth: number(values.maxWidth),
-			overflow: values.overflow as TextRenderValues['overflow'], align: values.align as TextRenderValues['align'],
-			position: vector(values.position), lineHeight: Math.max(0, number(values.lineHeight)),
-			color: color(values.color), outlineColor: color(values.outlineColor), outlineWidth: Math.max(0, number(values.outlineWidth)),
-			shadowEnabled: values.shadowEnabled === true, shadowColor: color(values.shadowColor),
-			shadowOffset: vector(values.shadowOffset), shadowBlur: Math.max(0, number(values.shadowBlur)),
+			text: text.trim(),
+			font: typeof values.font === 'string' ? values.font : null,
+			size: Math.max(0, number(values.size)),
+			maxWidth: number(values.maxWidth),
+			overflow: values.overflow as TextRenderValues['overflow'],
+			align: values.align as TextRenderValues['align'],
+			position: vector(values.position),
+			lineHeight: Math.max(0, number(values.lineHeight)),
+			color: color(values.color),
+			outlineColor: color(values.outlineColor),
+			outlineWidth: Math.max(0, number(values.outlineWidth)),
+			shadowEnabled: values.shadowEnabled === true,
+			shadowColor: color(values.shadowColor),
+			shadowOffset: vector(values.shadowOffset),
+			shadowBlur: Math.max(0, number(values.shadowBlur)),
 		};
 	}
 }

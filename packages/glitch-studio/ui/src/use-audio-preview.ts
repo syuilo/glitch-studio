@@ -19,8 +19,12 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 		const element = canvas.value;
 		if (!element || !panel) return;
 		const { width, height } = element.getBoundingClientRect();
-		panel.resize({ width, height, ratio: viewWindow?.devicePixelRatio ?? 1,
-			visible: !doc?.hidden && intersecting && element.getClientRects().length > 0 });
+		panel.resize({
+			width,
+			height,
+			ratio: viewWindow?.devicePixelRatio ?? 1,
+			visible: !doc?.hidden && intersecting && element.getClientRects().length > 0,
+		});
 	}
 
 	function watchDensity() {

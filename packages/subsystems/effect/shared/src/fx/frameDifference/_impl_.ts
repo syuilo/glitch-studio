@@ -22,15 +22,28 @@ export default implementEffect<typeof definition>({
 			],
 		});
 		const inputOptions = {
-			device, vertex: defaultVertexShaderModule, code,
-			schema: { input: 'color' }, sampling: 'level0',
+			device,
+			vertex: defaultVertexShaderModule,
+			code,
+			schema: { input: 'color' },
+			sampling: 'level0',
 			constants: { HALF_PRECISION: Number(!enable32bitDataTextures) },
 		} as const;
-		const difference = createShaderInputPipeline({ ...inputOptions, internalLayouts: [historyLayout], entryPoint: 'difference', targets: [{ format: intermediateTextureFormat }] });
+		const difference = createShaderInputPipeline({
+			...inputOptions,
+			internalLayouts: [historyLayout],
+			entryPoint: 'difference',
+			targets: [{ format: intermediateTextureFormat }],
+		});
 		// captureでは書き込み先の履歴を読み取りbindingに含めない。
 		const emptyLayout = device.createBindGroupLayout({ entries: [] });
 		const emptyGroup = device.createBindGroup({ layout: emptyLayout, entries: [] });
-		const capture = createShaderInputPipeline({ ...inputOptions, internalLayouts: [emptyLayout], entryPoint: 'capture', targets: [{ format: historyFormat }] });
+		const capture = createShaderInputPipeline({
+			...inputOptions,
+			internalLayouts: [emptyLayout],
+			entryPoint: 'capture',
+			targets: [{ format: historyFormat }],
+		});
 		// シェーダー側でも同じ保存精度に丸め、静止画に量子化由来の差分が出ないようにする。
 		const history = device.createTexture({
 			size: resolution,
@@ -78,8 +91,14 @@ export default implementEffect<typeof definition>({
 				const save = ctx.createPassEncoder(ctx.commandEncoder, {
 					colorAttachments: [{
 						view: historyView,
-						clearValue: { r: 0, g: 0, b: 0, a: 1 },
-						loadOp: 'clear', storeOp: 'store',
+						clearValue: {
+							r: 0,
+							g: 0,
+							b: 0,
+							a: 1,
+						},
+						loadOp: 'clear',
+						storeOp: 'store',
 					}],
 				});
 				const variant = capture.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);

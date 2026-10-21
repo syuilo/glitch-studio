@@ -46,8 +46,12 @@ export class AudioInputSpectrogram {
 		const firstEndFrame = Math.max(nextEndFrame, lastEndFrame - 127 * hop,
 			Math.min(lastEndFrame, Math.ceil((input.startFrame + fftSize) / hop) * hop));
 		return {
-			...settings, sourceKey: input.sourceKey, sampleRate: input.sampleRate, endFrame: input.endFrame,
-			firstEndFrame, lastEndFrame,
+			...settings,
+			sourceKey: input.sourceKey,
+			sampleRate: input.sampleRate,
+			endFrame: input.endFrame,
+			firstEndFrame,
+			lastEndFrame,
 			// 追いつきを省略した場合も、欠落区間を連続した履歴として表示しない。
 			reset: !continuous || firstEndFrame > nextEndFrame,
 			durationSeconds: firstEndFrame <= lastEndFrame ? (input.endFrame - firstEndFrame + fftSize) / input.sampleRate : null,

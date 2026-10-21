@@ -23,14 +23,18 @@ export default implementEffect<typeof definition>({
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
-		const computeLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-		] });
-		const outputLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-		] });
+		const computeLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			],
+		});
+		const outputLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+			],
+		});
 		const createVariant = (inputs: ShaderInputValues<typeof inputSchema>) => {
 			// computeでの面積サンプリングと、fragmentでの元画像の取得に同じ入力設定を使う。
 			const generated = generateShaderInputs(inputSchema, inputs, 1, 'level0');
@@ -78,7 +82,12 @@ export default implementEffect<typeof definition>({
 				|| columns > device.limits.maxComputeWorkgroupsPerDimension || rows > device.limits.maxComputeWorkgroupsPerDimension) {
 				throw new Error('Frequency transplant: virtual image exceeds GPU resource limits. Increase Block size.');
 			}
-			return { virtualSize, columns, rows, byteLength };
+			return {
+				virtualSize,
+				columns,
+				rows,
+				byteLength,
+			};
 		};
 		const createResources = (geometry: ReturnType<typeof getGeometry>) => {
 			const buffer = device.createBuffer({ size: geometry.byteLength, usage: GPUBufferUsage.STORAGE });

@@ -9,7 +9,8 @@ const opaqueVideoFormats = new Set<VideoPixelFormat>(['I420', 'I422', 'I444', 'N
 export function createVideoTexture(device: GPUDevice, format: IntermediateTextureFormat) {
 	const shader = device.createShaderModule({ code });
 	const createPipeline = (entryPoint: string) => device.createRenderPipeline({
-		layout: 'auto', vertex: { module: shader, entryPoint: 'vs' },
+		layout: 'auto',
+		vertex: { module: shader, entryPoint: 'vs' },
 		fragment: { module: shader, entryPoint, targets: [{ format }] },
 		primitive: { topology: 'triangle-list' },
 	});
@@ -22,7 +23,9 @@ export function createVideoTexture(device: GPUDevice, format: IntermediateTextur
 	let copiedFrameTexture: GPUTexture | null = null;
 	let copiedFrameBindGroup: GPUBindGroup | null = null;
 	const createTexture = (width: number, height: number) => device.createTexture({
-		size: { width, height }, format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
+		size: { width, height },
+		format,
+		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
 	});
 	const clearCopiedFrame = () => {
 		copiedFrameTexture?.destroy();
@@ -30,9 +33,14 @@ export function createVideoTexture(device: GPUDevice, format: IntermediateTextur
 		copiedFrameBindGroup = null;
 	};
 	const draw = (encoder: GPUCommandEncoder, target: GPUTexture, pipeline: GPURenderPipeline, bindGroup: GPUBindGroup) => {
-		const pass = encoder.beginRenderPass({ colorAttachments: [{
-			view: target.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0],
-		}] });
+		const pass = encoder.beginRenderPass({
+			colorAttachments: [{
+				view: target.createView(),
+				loadOp: 'clear',
+				storeOp: 'store',
+				clearValue: [0, 0, 0, 0],
+			}],
+		});
 		pass.setPipeline(pipeline);
 		pass.setBindGroup(0, bindGroup);
 		pass.draw(3);
@@ -68,9 +76,12 @@ export function createVideoTexture(device: GPUDevice, format: IntermediateTextur
 				if (isOpaque) {
 					pipeline = externalVideoPipeline;
 					const externalTexture = device.importExternalTexture({ source: frame, colorSpace: 'srgb' });
-					bindGroup = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
-						{ binding: 0, resource: externalTexture }, { binding: 1, resource: { buffer: rotationBuffer } }, { binding: 3, resource: sampler },
-					] });
+					bindGroup = device.createBindGroup({
+						layout: pipeline.getBindGroupLayout(0),
+						entries: [
+							{ binding: 0, resource: externalTexture }, { binding: 1, resource: { buffer: rotationBuffer } }, { binding: 3, resource: sampler },
+						],
+					});
 				} else {
 					// ChromeにはRGBAのexternalTextureをpremultiply済みで返す経路があり、シェーダーで
 					// 再乗算すると半透明が暗くなる。alphaを持ち得る形式と形式非公開のフレームは、
@@ -78,9 +89,12 @@ export function createVideoTexture(device: GPUDevice, format: IntermediateTextur
 					if (copiedFrameTexture == null || copiedFrameBindGroup == null || copiedFrameTexture.width !== frame.displayWidth || copiedFrameTexture.height !== frame.displayHeight) {
 						clearCopiedFrame();
 						copiedFrameTexture = createTexture(frame.displayWidth, frame.displayHeight);
-						copiedFrameBindGroup = device.createBindGroup({ layout: copiedVideoPipeline.getBindGroupLayout(0), entries: [
-							{ binding: 1, resource: { buffer: rotationBuffer } }, { binding: 2, resource: copiedFrameTexture.createView() }, { binding: 3, resource: sampler },
-						] });
+						copiedFrameBindGroup = device.createBindGroup({
+							layout: copiedVideoPipeline.getBindGroupLayout(0),
+							entries: [
+								{ binding: 1, resource: { buffer: rotationBuffer } }, { binding: 2, resource: copiedFrameTexture.createView() }, { binding: 3, resource: sampler },
+							],
+						});
 					}
 					device.queue.copyExternalImageToTexture({ source: frame }, { texture: copiedFrameTexture, colorSpace: 'srgb', premultipliedAlpha: true }, { width: frame.displayWidth, height: frame.displayHeight });
 					pipeline = copiedVideoPipeline;

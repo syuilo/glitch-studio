@@ -116,7 +116,12 @@ export class AppContext {
 
 		this.timelineAudioPreview = markRaw(new TimelineAudioPreview(
 			() => this.audioOutput.getOutput(),
-			() => ({ generatedSpeech: this.previewSpeech.value, assets: deepClone(this.projectContext.stateManager.state.assets.value), timelineScenes: deepClone(this.projectContext.stateManager.state.timelineScenes.value), sceneId: this.activeSceneId.value }),
+			() => ({
+				generatedSpeech: this.previewSpeech.value,
+				assets: deepClone(this.projectContext.stateManager.state.assets.value),
+				timelineScenes: deepClone(this.projectContext.stateManager.state.timelineScenes.value),
+				sceneId: this.activeSceneId.value,
+			}),
 		));
 
 		this.previewPlayback = markRaw(new PreviewPlaybackController(
@@ -196,8 +201,14 @@ export class AppContext {
 				const fileData = new Blob([new Uint8Array(result.data)], { type: 'audio/wav' });
 				const audio = await openAudioFile(fileData);
 				try {
-					return { key: getVoicevoxRequestKey(request), sourceId: genId(), durationMs: audio.durationSeconds * 1000,
-														fileData, engineVersion: result.engineVersion, audioQuery: result.audioQuery };
+					return {
+						key: getVoicevoxRequestKey(request),
+						sourceId: genId(),
+						durationMs: audio.durationSeconds * 1000,
+						fileData,
+						engineVersion: result.engineVersion,
+						audioQuery: result.audioQuery,
+					};
 				} finally { audio.dispose(); }
 			},
 		}));
@@ -360,8 +371,13 @@ export class AppContext {
 
 		// 発話編集・削除・Undo/Redoでは、旧音声と新字幕を混在させず再生を停止する。
 		this.projectWatchers.push(watch(() => JSON.stringify(this.projectContext.stateManager.state.timelineScenes.value.map(scene => ({
-			id: scene.id, layers: flattenTimelineLayers(scene.layers).filter(layer => layer.layerType === 'voicevox').map(layer => ({
-				id: layer.id, voicevox: layer.voicevox, utterances: layer.utterances, clips: layer.clips, isDisabled: layer.isDisabled,
+			id: scene.id,
+			layers: flattenTimelineLayers(scene.layers).filter(layer => layer.layerType === 'voicevox').map(layer => ({
+				id: layer.id,
+				voicevox: layer.voicevox,
+				utterances: layer.utterances,
+				clips: layer.clips,
+				isDisabled: layer.isDisabled,
 			})),
 		}))), () => { if (this.previewPlayback.isTimelinePlaying.value) this.previewPlayback.pauseTimeline(); }, { flush: 'sync' }));
 		this.projectWatchers.push(watch(() => JSON.stringify(getVoicevoxRequests(this.projectContext.stateManager.state.timelineScenes.value)), () => {

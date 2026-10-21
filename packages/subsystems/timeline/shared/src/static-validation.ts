@@ -28,11 +28,20 @@ function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule | nul
 	if (layer.layerType === 'camera') add('cameraParamValues', timelineCameraParamDefs, layer.cameraParamValues);
 	if (layer.layerType === 'transform') add('transformParamValues', timelineTransformParamDefs, layer.transformParamValues);
 	if (layer.layerType === 'shape') add('shape', getShapeParameterDefinitions(layer.shape.type), layer.shape.paramValues);
-	if (layer.layerType === 'effect' && effect) groups.push({ name: 'effectParamValues', definitions: effect.paramDefs,
-		values: Object.fromEntries(Object.keys(effect.paramDefs).map(key => [key, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(effect, key)])), imageInput: true, audioInput: true });
-	if ('visualModuleParamValues' in layer && visualModule) groups.push({ name: 'visualModuleParamValues',
+	if (layer.layerType === 'effect' && effect) groups.push({
+		name: 'effectParamValues',
+		definitions: effect.paramDefs,
+		values: Object.fromEntries(Object.keys(effect.paramDefs).map(key => [key, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(effect, key)])),
+		imageInput: true,
+		audioInput: true,
+	});
+	if ('visualModuleParamValues' in layer && visualModule) groups.push({
+		name: 'visualModuleParamValues',
 		definitions: Object.fromEntries(visualModule.paramDefs.map(def => [def.id, def])),
-		values: Object.fromEntries(visualModule.paramDefs.map(def => [def.id, layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def)])), imageInput: true, audioInput: true });
+		values: Object.fromEntries(visualModule.paramDefs.map(def => [def.id, layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def)])),
+		imageInput: true,
+		audioInput: true,
+	});
 	return groups;
 }
 

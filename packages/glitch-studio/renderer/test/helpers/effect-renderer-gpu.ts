@@ -37,12 +37,18 @@ async function runGpuChecks(check: typeof checkTimelineCompositor) {
 	// エフェクトの出力はCOPY_SRCを持たない。画素の検証用にだけRGBA8へコピーする。
 	// 同一画素を厳密に比較するため、ここでは補間せずtextureLoadで読み取る。
 	const pipeline = device.createRenderPipeline({
-		layout: 'auto', vertex: { module: vertex },
-		fragment: { module: device.createShaderModule({ code: `
+		layout: 'auto',
+		vertex: { module: vertex },
+		fragment: {
+			module: device.createShaderModule({
+				code: `
 @group(0) @binding(0) var input: texture_2d<f32>;
 @fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
 	return textureLoad(input, vec2i(position.xy), 0);
-}` }), targets: [{ format: 'rgba8unorm' }] },
+}`,
+			}),
+			targets: [{ format: 'rgba8unorm' }],
+		},
 		primitive: { topology: 'triangle-list' },
 	});
 	async function read(texture: GPUTexture) {
@@ -87,33 +93,88 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 	}
 	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
 	const single = new EffectRenderer({
-		definition: gradientDefinition, implementation: gradient, resolution: { width: 4, height: 4 }, fallbackTexture,
-		wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		definition: gradientDefinition,
+		implementation: gradient,
+		resolution: { width: 4, height: 4 },
+		fallbackTexture,
+		wgpu: {
+			device,
+			defaultVertexShaderModule: vertex,
+			enable32bitDataTextures: false,
+			intermediateTextureFormat: 'rgba8unorm',
+		},
 	});
 	const params = Object.fromEntries(Object.entries(gradientDefinition.paramDefs).map(([key, def]) => [
 		key, 'canNode' in def && def.canNode ? constantShaderInput(def.dataType.kind, def.defaultValue.value) : def.defaultValue.value,
 	])) as unknown as RuntimeEffectParameters<typeof gradientDefinition.paramDefs>;
 	const history: VisualModuleEffectNode = {
-		id: 'history', type: 'effect', effectId: 'feedback', displayName: '', isBypass: false, resolution: { mode: 'context' },
+		id: 'history',
+		type: 'effect',
+		effectId: 'feedback',
+		displayName: '',
+		isBypass: false,
+		resolution: { mode: 'context' },
 		params: {
-			input: { inputSource: 'node', nodeId: 'source', outputPort: 'output', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
-			strength: { inputSource: 'literal', value: 1 }, halfLife: { inputSource: 'literal', value: 0 }, reset: { inputSource: 'literal', value: false },
+			input: {
+				inputSource: 'node',
+				nodeId: 'source',
+				outputPort: 'output',
+				fitMode: 'cover',
+				wrapMode: 'repeatMirrored',
+				filterMode: 'linear',
+			},
+			strength: { inputSource: 'literal', value: 1 },
+			halfLife: { inputSource: 'literal', value: 0 },
+			reset: { inputSource: 'literal', value: false },
 		},
 	};
 	const module: VisualModule = {
-		automationGraphs: [], paramDefs: [], primaryInputId: null,
-		outputDefs: [{ id: 'out', name: 'out', label: 'Out', dataType: { kind: 'any' } }], primaryOutputId: 'out',
+		automationGraphs: [],
+		paramDefs: [],
+		primaryInputId: null,
+		outputDefs: [{
+			id: 'out',
+			name: 'out',
+			label: 'Out',
+			dataType: { kind: 'any' },
+		}],
+		primaryOutputId: 'out',
 		nodes: [{
-			id: 'source', type: 'effect', effectId: 'colorMix', displayName: '', isBypass: false, resolution: { mode: 'context' },
+			id: 'source',
+			type: 'effect',
+			effectId: 'colorMix',
+			displayName: '',
+			isBypass: false,
+			resolution: { mode: 'context' },
 			params: { inputA: { inputSource: 'literal', value: [1, 0, 0, 1] }, inputB: { inputSource: 'literal', value: [0, 0, 0, 0] }, amount: { inputSource: 'literal', value: 0 } },
 		}, history, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'history', outputPort: 'output' } } }],
 	};
 	const renderer = new VisualModuleRenderer({
-		gpuDevice: device, fallbackTexture, resolution: { width: 4, height: 4 }, enableStats: false, timingHelper: null,
-		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', assets: [], assetTextures: new Map(), audioSources: new Map(), videoFrames: new Map(), videoFrameVersions: new Map(),
-		effectDefinitions: { colorMix: { ...colorMixDefinition }, feedback: { ...feedbackDefinition } }, effectImplementations: { colorMix, feedback }, visualModule: module,
+		gpuDevice: device,
+		fallbackTexture,
+		resolution: { width: 4, height: 4 },
+		enableStats: false,
+		timingHelper: null,
+		enable32bitDataTextures: false,
+		intermediateTextureFormat: 'rgba8unorm',
+		assets: [],
+		assetTextures: new Map(),
+		audioSources: new Map(),
+		videoFrames: new Map(),
+		videoFrameVersions: new Map(),
+		effectDefinitions: { colorMix: { ...colorMixDefinition }, feedback: { ...feedbackDefinition } },
+		effectImplementations: { colorMix, feedback },
+		visualModule: module,
 	});
-	const frame = () => ({ time: 1000, timeDelta: 250, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map() });
+	const frame = () => ({
+		time: 1000,
+		timeDelta: 250,
+		endTime: Infinity,
+		isExport: false,
+		pointerPosition: { x: 0, y: 0 },
+		pointerPositionPrev: { x: 0, y: 0 },
+		evaluatedParamValues: new Map(),
+	});
 	async function drawModule() {
 		const ctx = frame();
 		await renderer.prepare(ctx, new AbortController().signal);
@@ -127,7 +188,15 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		single.setUsedOutputPorts(ports);
 		single.prepare(params);
 		const encoder = device.createCommandEncoder();
-		single.render({ params, commandEncoder: encoder, usedOutputPorts: ports, time: 1, timeDelta: 250, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 } });
+		single.render({
+			params,
+			commandEncoder: encoder,
+			usedOutputPorts: ports,
+			time: 1,
+			timeDelta: 250,
+			pointerPosition: { x: 0, y: 0 },
+			pointerVector: { x: 0, y: 0 },
+		});
 		device.queue.submit([encoder.finish()]);
 	}
 	try {

@@ -8,10 +8,54 @@ import type { TimelineParameterBinding } from '../../parameter-binding.ts';
 export const DEFAULT_CAMERA_DISTANCE = 1 / Math.tan(Math.PI / 8);
 export const CAMERA_NEAR_DISTANCE = 0.001;
 export const timelineCameraParamDefs = {
-	position: { dataType: { kind: 'vector' }, ui: { label: 'Camera XY', control: { controlType: 'xy', min: -2, max: 2, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] }, canNode: false },
-	z: { dataType: { kind: 'scalar' }, ui: { label: 'Camera Z', control: { controlType: 'range', min: -10, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: DEFAULT_CAMERA_DISTANCE }, canNode: false },
-	roll: { dataType: { kind: 'scalar' }, ui: { label: 'Roll', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 }, canNode: false },
-	fieldOfView: { dataType: { kind: 'scalar' }, ui: { label: 'Vertical field of view (degrees)', control: { controlType: 'range', min: 1, max: 175, step: 1 } }, defaultValue: { inputSource: 'literal', value: 45 }, canNode: false },
+	position: {
+		dataType: { kind: 'vector' },
+		ui: {
+			label: 'Camera XY',
+			control: {
+				controlType: 'xy',
+				min: -2,
+				max: 2,
+				step: 0.01,
+			},
+		},
+		defaultValue: { inputSource: 'literal', value: [0, 0] },
+		canNode: false,
+	},
+	z: {
+		dataType: { kind: 'scalar' },
+		ui: {
+			label: 'Camera Z',
+			control: {
+				controlType: 'range',
+				min: -10,
+				max: 10,
+				step: 0.01,
+			},
+		},
+		defaultValue: { inputSource: 'literal', value: DEFAULT_CAMERA_DISTANCE },
+		canNode: false,
+	},
+	roll: {
+		dataType: { kind: 'scalar' },
+		ui: { label: 'Roll', control: { controlType: 'angle' } },
+		defaultValue: { inputSource: 'literal', value: 0 },
+		canNode: false,
+	},
+	fieldOfView: {
+		dataType: { kind: 'scalar' },
+		ui: {
+			label: 'Vertical field of view (degrees)',
+			control: {
+				controlType: 'range',
+				min: 1,
+				max: 175,
+				step: 1,
+			},
+		},
+		defaultValue: { inputSource: 'literal', value: 45 },
+		canNode: false,
+	},
 } as const satisfies Record<string, ParameterDefinition>;
 
 export type TimelineCameraParameterValues = Record<keyof typeof timelineCameraParamDefs, TimelineParameterBinding>;

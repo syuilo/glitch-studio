@@ -24,8 +24,11 @@ export async function exportVisualModuleFile(context: ProjectContext, visualModu
 		const state = context.stateManager.state;
 		// 素材の読み出し中に編集・プロジェクト切替が起きても、開始時点の構成だけを書き出す。
 		const file = collectVisualModuleFile({
-			visualModule, name, gsVersion: _VERSION_,
-			assets: state.assets.value, players: state.players.value,
+			visualModule,
+			name,
+			gsVersion: _VERSION_,
+			assets: state.assets.value,
+			players: state.players.value,
 		}, effectDefinitions);
 		const data = await encodeVisualModuleFile(file);
 		const url = URL.createObjectURL(new Blob([new Uint8Array(data)], { type: 'application/octet-stream' }));

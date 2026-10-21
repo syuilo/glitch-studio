@@ -50,7 +50,12 @@ const references = computed(() => stateManager.state.timelineScenes.value.filter
 
 function createScene() {
 	const id = genId();
-	stateManager.commit('addScene', { id, name: `Scene ${stateManager.state.timelineScenes.value.length + 1}`, resolution: { mode: 'project' }, layers: [] });
+	stateManager.commit('addScene', {
+		id,
+		name: `Scene ${stateManager.state.timelineScenes.value.length + 1}`,
+		resolution: { mode: 'project' },
+		layers: [],
+	});
 	activeSceneId.value = id;
 }
 

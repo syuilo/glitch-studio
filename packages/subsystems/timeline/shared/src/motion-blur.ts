@@ -86,7 +86,12 @@ export function getTimelineMotionBlurCameraCuts(scenes: readonly TimelineScene[]
 		if (getTimelineCameraCandidates(scene.layers).length > 0) {
 			let cuts = plans.get(id);
 			if (!cuts) { cuts = new TimelineCameraCuts(scene.layers); plans.set(id, cuts); }
-			placements.push({ startMs, endMs, sceneStartMs, cuts });
+			placements.push({
+				startMs,
+				endMs,
+				sceneStartMs,
+				cuts,
+			});
 		}
 		for (const layer of getMotionBlurLayers(scene.layers)) {
 			if (layer.layerType !== 'scene') continue;
@@ -126,7 +131,12 @@ export function getTimelineMotionBlurLoops(scenes: readonly TimelineScene[], sce
 				if ('sceneId' in clip) {
 					visit(clip.sceneId, clipStartMs - clip.contentOffsetMs, visibleStartMs, visibleEndMs);
 				} else if ('sourceInMs' in clip && clip.loop) {
-					loops.push({ startMs: visibleStartMs, endMs: visibleEndMs, loopStartMs: clipStartMs, loopDurationMs: getTimelineMediaPeriod(clip) });
+					loops.push({
+						startMs: visibleStartMs,
+						endMs: visibleEndMs,
+						loopStartMs: clipStartMs,
+						loopDurationMs: getTimelineMediaPeriod(clip),
+					});
 				}
 			}
 		}

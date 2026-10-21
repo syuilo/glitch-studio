@@ -23,21 +23,56 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 	device.queue.writeTexture({ texture: background }, new Uint8Array(backgroundPixels), { bytesPerRow: 32 }, resolution);
 	const image: TimelineImage = { kind: 'texture', texture: background };
 	const layer: TimelineEffectLayer = {
-		id: 'blur', name: 'Blur', layerType: 'effect', effectId: 'blur', transformTarget: 'region',
-		isDisabled: false, color: null, forceDisableMotionBlur: false, mask: null, coordinateSpace: 'screen',
-		clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], resolution: { mode: 'auto' }, automationGraphs: [],
+		id: 'blur',
+		name: 'Blur',
+		layerType: 'effect',
+		effectId: 'blur',
+		transformTarget: 'region',
+		isDisabled: false,
+		color: null,
+		forceDisableMotionBlur: false,
+		mask: null,
+		coordinateSpace: 'screen',
+		clips: [{
+			id: 'clip',
+			startMs: 0,
+			durationMs: 1000,
+			contentOffsetMs: 0,
+		}],
+		resolution: { mode: 'auto' },
+		automationGraphs: [],
 		effectParamValues: Object.fromEntries(Object.keys(blurDefinition.paramDefs).map(key => [key, getEffectLayerParameterDefault(blurDefinition, key)])),
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineEffectLayer['compositingParamValues'],
-			position: { inputSource: 'literal', value: [0.5, 0] }, scale: { inputSource: 'literal', value: [0.5, 1] }, blendMode: { inputSource: 'literal', value: 'replace' },
+			position: { inputSource: 'literal', value: [0.5, 0] },
+			scale: { inputSource: 'literal', value: [0.5, 1] },
+			blendMode: { inputSource: 'literal', value: 'replace' },
 		},
 	};
 	const renderer = createEffectTimelineLayer(layer, blurDefinition, blur, {
-		wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
-		fallbackTexture: background, resolution, resolutionScale: 1, assets: [], assetTextures: new Map(),
+		wgpu: {
+			device,
+			defaultVertexShaderModule: vertex,
+			enable32bitDataTextures: false,
+			intermediateTextureFormat: 'rgba8unorm',
+		},
+		fallbackTexture: background,
+		resolution,
+		resolutionScale: 1,
+		assets: [],
+		assetTextures: new Map(),
 	});
-	const context = { sceneTimeMs: 0, contentTimeMs: 0, timeDelta: 0, isExport: true, clipElapsedTimeMs: 0, clipDurationMs: 1000, contentEndTimeMs: 1000,
-		getInput: async () => image, getLayerOutput: async () => image };
+	const context = {
+		sceneTimeMs: 0,
+		contentTimeMs: 0,
+		timeDelta: 0,
+		isExport: true,
+		clipElapsedTimeMs: 0,
+		clipDurationMs: 1000,
+		contentEndTimeMs: 1000,
+		getInput: async () => image,
+		getLayerOutput: async () => image,
+	};
 	const completed: string[] = [];
 	async function pixels(output: TimelineImage | null | undefined) {
 		if (output?.kind !== 'texture') throw new Error('Expected a rendered blur texture');
@@ -77,11 +112,21 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 	function createLayer(effectId: keyof typeof implementations): TimelineEffectLayer {
 		const definition = definitions[effectId];
 		return {
-			id: effectId, name: definition.displayName, layerType: 'effect', effectId,
-			clips: [{ id: 'clip', startMs: 100, durationMs: 5000, contentOffsetMs: 0 }],
-			resolution: { mode: 'auto' }, automationGraphs: [],
+			id: effectId,
+			name: definition.displayName,
+			layerType: 'effect',
+			effectId,
+			clips: [{
+				id: 'clip',
+				startMs: 100,
+				durationMs: 5000,
+				contentOffsetMs: 0,
+			}],
+			resolution: { mode: 'auto' },
+			automationGraphs: [],
 			forceDisableMotionBlur: false,
-			mask: null, coordinateSpace: 'screen',
+			mask: null,
+			coordinateSpace: 'screen',
 			effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 			compositingParamValues: {
 				fitMode: structuredClone(timelineCompositingParamDefs.fitMode.defaultValue),
@@ -98,8 +143,17 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 	const timeline = new TimelineRenderer<UniformOrTexture, TimelineEffectLayer>({
 		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
 		createLayer: layer => createEffectTimelineLayer(layer, definitions[layer.effectId as keyof typeof definitions], implementations[layer.effectId as keyof typeof implementations], {
-			wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
-			fallbackTexture, resolution: { width: 4, height: 4 }, resolutionScale: 1, assets: [], assetTextures: new Map(),
+			wgpu: {
+				device,
+				defaultVertexShaderModule: vertex,
+				enable32bitDataTextures: false,
+				intermediateTextureFormat: 'rgba8unorm',
+			},
+			fallbackTexture,
+			resolution: { width: 4, height: 4 },
+			resolutionScale: 1,
+			assets: [],
+			assetTextures: new Map(),
 		}),
 	});
 	const completed: string[] = [];
@@ -117,12 +171,30 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 	const modifier = createLayer('colorMix');
 	modifier.clips[0].contentOffsetMs = 25;
 	modifier.effectParamValues.inputB = { inputSource: 'literal', value: [1, 0, 0, 0.5] };
-	modifier.effectParamValues.amount = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: {
-		dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
-			{ id: 'start', x: 100, value: 0, interpolation: { type: 'linear' } },
-			{ id: 'end', x: 600, value: 1, interpolation: { type: 'linear' } },
-		],
-	} };
+	modifier.effectParamValues.amount = {
+		inputSource: 'keyframesTimelineInline',
+		offsetMode: 'start',
+		wrapMode: 'clamp',
+		trimmedDurationMs: null,
+		keyframesTimeline: {
+			dataType: { kind: 'scalar' },
+			isNormalized: false,
+			keyframes: [
+				{
+					id: 'start',
+					x: 100,
+					value: 0,
+					interpolation: { type: 'linear' },
+				},
+				{
+					id: 'end',
+					x: 600,
+					value: 1,
+					interpolation: { type: 'linear' },
+				},
+			],
+		},
+	};
 	try {
 		// 【生成系の通常合成と加工系の置換を実画素で確認する】
 		// 下層画像の二重合成・アルファの二重乗算や、キーを内容時刻で評価する誤りを検出する。

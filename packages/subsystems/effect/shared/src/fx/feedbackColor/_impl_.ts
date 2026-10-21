@@ -28,7 +28,9 @@ export default implementEffect<typeof definition>({
 			],
 		});
 		const pipelines = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code,
+			device,
+			vertex: defaultVertexShaderModule,
+			code,
 			schema: { input: 'color', strengthFactor: 'color', halfLifeFactor: 'color' },
 			internalLayouts: [layout],
 			constants: {
@@ -68,8 +70,18 @@ export default implementEffect<typeof definition>({
 				const nextIndex = 1 - previousIndex;
 				const render = ctx.createPassEncoder(ctx.commandEncoder, {
 					colorAttachments: [
-						{ view: ctx.outputDataMap.output.textureView, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] },
-						{ view: historyViews[nextIndex], loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] },
+						{
+							view: ctx.outputDataMap.output.textureView,
+							loadOp: 'clear',
+							storeOp: 'store',
+							clearValue: [0, 0, 0, 0],
+						},
+						{
+							view: historyViews[nextIndex],
+							loadOp: 'clear',
+							storeOp: 'store',
+							clearValue: [0, 0, 0, 0],
+						},
 					],
 				});
 				render.setPipeline(variant.pipeline);

@@ -48,7 +48,8 @@ export function prepareTimelineClipPaste(scene: TimelineScene, clipboard: Timeli
 	const startMs = Math.round(timeMs);
 	const firstStartMs = Math.min(...clipboard.clips.map(entry => entry.clip.startMs));
 	// 全クリップを共通量だけずらし、間隔・トリム済みの内容オフセット・素材設定を維持する。
-	const clips = clipboard.clips.map(entry => ({ layerId: entry.layerId,
+	const clips = clipboard.clips.map(entry => ({
+		layerId: entry.layerId,
 		clip: { ...deepClone(entry.clip), id: genId(), startMs: startMs + (entry.clip.startMs - firstStartMs) },
 	}));
 	return canPasteTimelineClips(scene, clips) ? clips : null;

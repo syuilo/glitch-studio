@@ -20,18 +20,27 @@ export default implementEffect<typeof definition>({
 		const { device } = wgpu;
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
+		const sampler = device.createSampler({
+			magFilter: 'linear',
+			minFilter: 'linear',
+			addressModeU: 'clamp-to-edge',
+			addressModeV: 'clamp-to-edge',
+		});
 		const gradientFormat = wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
-		const computeLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-			{ binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-			{ binding: 4, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: gradientFormat } },
-		] });
-		const renderLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-			{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-		] });
+		const computeLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+				{ binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+				{ binding: 4, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: gradientFormat } },
+			],
+		});
+		const renderLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+				{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+			],
+		});
 		const createVariant = (input: ShaderInput) => {
 			const generated = generateShaderInputs({ input: 'color' }, { input }, 1, 'level0');
 			const bindings = createShaderInputBindings(device, generated);
@@ -48,7 +57,12 @@ export default implementEffect<typeof definition>({
 					fragment: { module: device.createShaderModule({ code: generated.code + '\n' + code }), targets: [{ format: wgpu.intermediateTextureFormat }] },
 					primitive: { topology: 'triangle-list' },
 				});
-				return { computeModule, initialize, pipeline, bindings };
+				return {
+					computeModule,
+					initialize,
+					pipeline,
+					bindings,
+				};
 			} catch (error) {
 				bindings.dispose();
 				throw error;
@@ -80,17 +94,23 @@ export default implementEffect<typeof definition>({
 		const height = Math.max(1, Math.round(resolution.height * scale));
 		const gradient = device.createTexture({ size: [width, height], format: gradientFormat, usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
 		const pixels = device.createBuffer({ size: width * height * 8, usage: GPUBufferUsage.STORAGE });
-		const computeGroup = device.createBindGroup({ layout: computeLayout, entries: [
-			{ binding: 2, resource: { buffer: pixels } },
-			{ binding: 3, resource: { buffer: maximum } },
-			{ binding: 4, resource: gradient.createView() },
-		] });
+		const computeGroup = device.createBindGroup({
+			layout: computeLayout,
+			entries: [
+				{ binding: 2, resource: { buffer: pixels } },
+				{ binding: 3, resource: { buffer: maximum } },
+				{ binding: 4, resource: gradient.createView() },
+			],
+		});
 		// 内部の輪郭データには入力接続のwrap/filterを適用せず、linear/clampで補間する。
-		const renderGroup = device.createBindGroup({ layout: renderLayout, entries: [
-			{ binding: 0, resource: { buffer: uniformBuffer } },
-			{ binding: 1, resource: sampler },
-			{ binding: 3, resource: gradient.createView() },
-		] });
+		const renderGroup = device.createBindGroup({
+			layout: renderLayout,
+			entries: [
+				{ binding: 0, resource: { buffer: uniformBuffer } },
+				{ binding: 1, resource: sampler },
+				{ binding: 3, resource: gradient.createView() },
+			],
+		});
 		return {
 			render: (ctx) => {
 				const p = ctx.params;

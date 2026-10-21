@@ -29,6 +29,11 @@ export function useAssetDrop(options: {
 	});
 	onMounted(handlers.observeWindow);
 	onBeforeUnmount(handlers.dispose);
-	return { hovering, onDragenter: handlers.onDragenter, onDragover: handlers.onDragover,
-		onDragleave: handlers.onDragleave, onDrop: handlers.onDrop };
+	return {
+		hovering,
+		onDragenter: handlers.onDragenter,
+		onDragover: handlers.onDragover,
+		onDragleave: handlers.onDragleave,
+		onDrop: handlers.onDrop,
+	};
 }

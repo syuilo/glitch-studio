@@ -78,7 +78,13 @@ export class BrowserRecentProjectsStore implements RecentProjectsStore {
 		// プロジェクトIDや同名ファイルでは判定しない。別名保存・コピー・別フォルダの同名作品を区別する。
 		const matches = await Promise.all(entries.map(async entry => await entry.handle.isSameEntry(handle) ? entry.id : null));
 		const id = matches.find(candidate => candidate != null) ?? genId();
-		const entry = { id, name, fileName: handle.name, lastUsedAt: Date.now(), handle };
+		const entry = {
+			id,
+			name,
+			fileName: handle.name,
+			lastUsedAt: Date.now(),
+			handle,
+		};
 		const retained = [entry, ...entries.filter(candidate => !matches.includes(candidate.id))]
 			.sort((first, second) => second.lastUsedAt - first.lastUsedAt).slice(0, 20);
 		// isSameEntryの非同期処理をtransactionへ持ち込むと、その間にtransactionが閉じてしまう。

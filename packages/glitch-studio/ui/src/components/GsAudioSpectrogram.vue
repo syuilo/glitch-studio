@@ -16,12 +16,25 @@ import type { PreviewOptions } from '@/audio/audio-preview-types.ts';
 import { useAudioPreview } from '@/use-audio-preview.ts';
 
 const props = defineProps<{ options?: Partial<SpectrogramSettings> }>();
-const options = computed<PreviewOptions>(() => ({ mode: 'spectrogram', settings: {
-	channel: 'mix', fftSize: 2048, window: 'hann', smoothing: 0,
-	minFrequency: 20, maxFrequency: 20000, logarithmic: false,
-	minDb: -80, maxDb: 0, duration: 10, orientation: 'horizontal',
-	direction: 'forward', flipFrequency: false, ...props.options,
-} }));
+const options = computed<PreviewOptions>(() => ({
+	mode: 'spectrogram',
+	settings: {
+		channel: 'mix',
+		fftSize: 2048,
+		window: 'hann',
+		smoothing: 0,
+		minFrequency: 20,
+		maxFrequency: 20000,
+		logarithmic: false,
+		minDb: -80,
+		maxDb: 0,
+		duration: 10,
+		orientation: 'horizontal',
+		direction: 'forward',
+		flipFrequency: false,
+		...props.options,
+	},
+}));
 const canvas = useTemplateRef('canvas');
 const { changeWindow, error } = useAudioPreview(canvas, options);
 </script>

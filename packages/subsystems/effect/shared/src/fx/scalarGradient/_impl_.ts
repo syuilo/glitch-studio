@@ -14,20 +14,29 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const device = wgpu.device;
-		const layout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		] });
+		const layout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			],
+		});
 		const pipelines = createShaderInputPipeline({
-			device, vertex: wgpu.defaultVertexShaderModule, code,
+			device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
 			schema: { input: 'scalar' },
 			targets: [{ format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' }],
-			internalLayouts: [layout], sampling: 'level0', scalarGradients: true,
+			internalLayouts: [layout],
+			sampling: 'level0',
+			scalarGradients: true,
 		});
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		const bindGroup = device.createBindGroup({ layout, entries: [
-			{ binding: 0, resource: { buffer: uniformBuffer } },
-		] });
+		const bindGroup = device.createBindGroup({
+			layout,
+			entries: [
+				{ binding: 0, resource: { buffer: uniformBuffer } },
+			],
+		});
 		return {
 			render: ctx => {
 				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);

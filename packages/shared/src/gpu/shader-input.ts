@@ -13,7 +13,13 @@ export type ShaderInput =
 	| (TextureValue & ShaderInputSampling);
 
 export function textureShaderInput(texture: GPUTexture, sampling: ShaderInputSampling): ShaderInput {
-	return { kind: 'texture', texture, fitMode: sampling.fitMode, wrapMode: sampling.wrapMode, filterMode: sampling.filterMode };
+	return {
+		kind: 'texture',
+		texture,
+		fitMode: sampling.fitMode,
+		wrapMode: sampling.wrapMode,
+		filterMode: sampling.filterMode,
+	};
 }
 
 /** 受け取り側の読み取り設定を付ける。定数をテクスチャ化せず、色の再乗算も行わない。 */
@@ -77,9 +83,16 @@ export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderIn
 				names.add(name);
 			}
 			const index = slots.length;
-			slots.push({ name, sourceName, elementIndex: typeof type === 'object' ? elementIndex : null,
-																type: typeof type === 'object' ? type.array : type, index, kind: input.kind,
-																textureBinding: index * 2 + 1, samplerBinding: index * 2 + 2 });
+			slots.push({
+				name,
+				sourceName,
+				elementIndex: typeof type === 'object' ? elementIndex : null,
+				type: typeof type === 'object' ? type.array : type,
+				index,
+				kind: input.kind,
+				textureBinding: index * 2 + 1,
+				samplerBinding: index * 2 + 2,
+			});
 			elementNames.push(name);
 		}
 		if (typeof type === 'object') arrays.push({ name: sourceName, type: type.array, elements: elementNames });
@@ -206,7 +219,12 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 				let sampler = samplers.get(samplerKey);
 				if (sampler == null) {
 					const addressMode = input.wrapMode === 'repeatMirrored' ? 'mirror-repeat' : input.wrapMode === 'repeat' ? 'repeat' : 'clamp-to-edge';
-					sampler = device.createSampler({ minFilter: input.filterMode, magFilter: input.filterMode, addressModeU: addressMode, addressModeV: addressMode });
+					sampler = device.createSampler({
+						minFilter: input.filterMode,
+						magFilter: input.filterMode,
+						addressModeU: addressMode,
+						addressModeV: addressMode,
+					});
 					samplers.set(samplerKey, sampler);
 				}
 				resources.push(input.texture, sampler);

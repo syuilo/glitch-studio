@@ -8,7 +8,8 @@ import type definition from './_def_.ts';
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
-			size: resolution, format: wgpu.intermediateTextureFormat,
+			size: resolution,
+			format: wgpu.intermediateTextureFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -17,8 +18,12 @@ export default implementEffect<typeof definition>({
 		const bypass = createLutResources(wgpu.device, layout, wgpu.enable32bitDataTextures, null);
 		const loader = createLutLoader(lut => createLutResources(wgpu.device, layout, wgpu.enable32bitDataTextures, lut), reportStatus);
 		const pipelines = createShaderInputPipeline({
-			device: wgpu.device, vertex: wgpu.defaultVertexShaderModule, code,
-			schema: { input: 'color' }, targets: [{ format: wgpu.intermediateTextureFormat }], internalLayouts: [layout],
+			device: wgpu.device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
+			schema: { input: 'color' },
+			targets: [{ format: wgpu.intermediateTextureFormat }],
+			internalLayouts: [layout],
 		});
 		const prepare = (values: typeof params) => loader.prepare(values.lut?.fileData ?? null);
 		prepare(params);
@@ -32,9 +37,14 @@ export default implementEffect<typeof definition>({
 				// 完了時のcacheVersion更新で再描画する。例外を投げるとVisual Module Live Previewの描画が停止する。
 				// 書き出し側はwaitUntilReadyで待機し、読み込み失敗も状態通知から受け取る。
 				if (!loader.ready) {
-					const pass = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [{
-						view: output.textureView, clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store',
-					}] });
+					const pass = ctx.createPassEncoder(ctx.commandEncoder, {
+						colorAttachments: [{
+							view: output.textureView,
+							clearValue: [0, 0, 0, 0],
+							loadOp: 'clear',
+							storeOp: 'store',
+						}],
+					});
 					pass.end();
 					return;
 				}

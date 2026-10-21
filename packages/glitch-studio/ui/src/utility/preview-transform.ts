@@ -84,8 +84,11 @@ export function snapPreviewLayerMove(geometry: TimelineLayerGeometry, rect: Prev
 export function snapPreviewLayerResize(initial: TimelineLayerGeometry, transform: TimelineLayerTransform, handle: TimelinePoint,
 	keepRatio: boolean, fromOrigin: boolean, rect: PreviewCanvasRect, parentGeometries: readonly TimelineLayerGeometry[] = []): TimelineLayerTransform {
 	const fixed: TimelinePoint = fromOrigin ? initial.transform.origin : [-handle[0], -handle[1]];
-	const toTransform = (scale: TimelinePoint): TimelineLayerTransform => ({ ...transform, scale,
-		position: fromOrigin ? [...initial.transform.position] : positionForFixedPoint(initial, fixed, scale) });
+	const toTransform = (scale: TimelinePoint): TimelineLayerTransform => ({
+		...transform,
+		scale,
+		position: fromOrigin ? [...initial.transform.position] : positionForFixedPoint(initial, fixed, scale),
+	});
 	const current = { ...initial, transform };
 	const corners = getTimelineLayerCorners(current);
 	const currentHandle = sceneToPreview(timelineSourceToScene(handle, current), rect, parentGeometries);

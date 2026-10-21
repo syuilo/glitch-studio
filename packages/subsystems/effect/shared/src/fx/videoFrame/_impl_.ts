@@ -63,8 +63,14 @@ export default implementEffect<typeof definition>({
 				const pass = ctx.createPassEncoder(ctx.commandEncoder, {
 					colorAttachments: [{
 						view: ctx.outputDataMap.output.textureView,
-						clearValue: { r: 0, g: 0, b: 0, a: 0 },
-						loadOp: 'clear', storeOp: 'store',
+						clearValue: {
+							r: 0,
+							g: 0,
+							b: 0,
+							a: 0,
+						},
+						loadOp: 'clear',
+						storeOp: 'store',
 					}],
 				});
 				if (sourceTexture != null && bindGroup != null) {

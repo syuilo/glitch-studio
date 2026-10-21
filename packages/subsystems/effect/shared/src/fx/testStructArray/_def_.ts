@@ -29,7 +29,27 @@ export default defineEffect({
 				label: 'Buzzs',
 				control: {
 					element: {
-						fields: { image: { label: 'Image', control: {} }, x: { label: 'X', control: { controlType: 'range', min: -1, max: 1, step: 0.01 } }, y: { label: 'Y', control: { controlType: 'range', min: -1, max: 1, step: 0.01 } } },
+						fields: {
+							image: { label: 'Image', control: {} },
+							x: {
+								label: 'X',
+								control: {
+									controlType: 'range',
+									min: -1,
+									max: 1,
+									step: 0.01,
+								},
+							},
+							y: {
+								label: 'Y',
+								control: {
+									controlType: 'range',
+									min: -1,
+									max: 1,
+									step: 0.01,
+								},
+							},
+						},
 					},
 				},
 			},

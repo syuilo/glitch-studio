@@ -15,17 +15,28 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 	getLayerVersion: (layer: TimelineLayer, clipId: string | null) => string | number;
 }): TimelineLayerRenderer<TimelineImage> {
 	const renderer = new TimelineRenderer<TimelineImage, TimelineLayer>({
-		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] }, createLayer: options.createLayer, getLayerVersion: options.getLayerVersion,
+		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
+		createLayer: options.createLayer,
+		getLayerVersion: options.getLayerVersion,
 	});
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();
 	return {
 		createChildren(context, evaluation) {
 			const group = getGroup();
-			const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport,
-				coordinateSpace: group.coordinateSpace, mask: group.mask, layerMask: group.layerMask, paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
+			const settings = parameters.evaluate({
+				time: context.sceneTimeMs,
+				isExport: context.isExport,
+				coordinateSpace: group.coordinateSpace,
+				mask: group.mask,
+				layerMask: group.layerMask,
+				paramValues: group.compositingParamValues,
+				automationGraphs: group.automationGraphs,
+			});
 			return renderer.createEvaluation(group.layers.filter(isTimelineRenderLayer), {
-				...evaluation, time: context.sceneTimeMs, timeDelta: context.timeDelta,
+				...evaluation,
+				time: context.sceneTimeMs,
+				timeDelta: context.timeDelta,
 				referenceTime: context.referenceTime != null ? { timeMs: context.referenceTime.sceneTimeMs, timeDelta: context.referenceTime.timeDelta } : undefined,
 				renderSpace: getTimelineGroupSpace({ settings, compositingMode: group.compositingMode }, options.resolution, context.renderSpace),
 				getInput: async () => ({ kind: 'uniform', value: [0, 0, 0, 0] }),
@@ -34,8 +45,14 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 		async evaluate(context, signal) {
 			const group = getGroup();
 			const settings = parameters.evaluate({
-				time: context.sceneTimeMs, isExport: context.isExport,
-				coordinateSpace: group.coordinateSpace, mask: group.mask, layerMask: group.layerMask, paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
+				time: context.sceneTimeMs,
+				isExport: context.isExport,
+				coordinateSpace: group.coordinateSpace,
+				mask: group.mask,
+				layerMask: group.layerMask,
+				paramValues: group.compositingParamValues,
+				automationGraphs: group.automationGraphs,
+			});
 			const preserveDepth = group.compositingMode === 'preserveDepth';
 			const result = await context.childEvaluation!.evaluate();
 			if (signal.aborted) return { gpuTime: 0 };

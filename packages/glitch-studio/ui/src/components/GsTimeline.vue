@@ -212,60 +212,96 @@ const snapToSeekBar = preferences.model('timelineSnapToSeekBar');
 const snapGlobalTicks = preferences.model('timelineSnapGlobalTicks');
 const snapLocalTicks = preferences.model('timelineSnapLocalTicks');
 const snapSeekBar = preferences.model('timelineSnapSeekBar');
-const snapSettings = computed(() => ({ enabled: snapEnabled.value, globalTicks: snapGlobalTicks.value, localTicks: snapLocalTicks.value, seekBar: snapToSeekBar.value }));
+const snapSettings = computed(() => ({
+	enabled: snapEnabled.value,
+	globalTicks: snapGlobalTicks.value,
+	localTicks: snapLocalTicks.value,
+	seekBar: snapToSeekBar.value,
+}));
 const clipSnapSettings = computed(() => ({ start: snapClipStart.value, end: snapClipEnd.value }));
 
 function showTickMenu(event: PointerEvent) {
 	ui.popupMenu([{
-		type: 'label', text: i18n.ts._Timeline.Ticks,
+		type: 'label',
+		text: i18n.ts._Timeline.Ticks,
 	}, {
-		type: 'radioOption', text: i18n.ts._Timeline.Original,
+		type: 'radioOption',
+		text: i18n.ts._Timeline.Original,
 		active: computed(() => tickMode.value === 'legacy'),
 		action: () => { tickMode.value = 'legacy'; },
 	}, {
-		type: 'radioOption', text: i18n.ts._Timeline.Binary,
+		type: 'radioOption',
+		text: i18n.ts._Timeline.Binary,
 		active: computed(() => tickMode.value === 'binary'),
 		action: () => { tickMode.value = 'binary'; },
 	}, {
-		type: 'radioOption', text: '1–2–5 (1, 0.5, 0.2, …)',
+		type: 'radioOption',
+		text: '1–2–5 (1, 0.5, 0.2, …)',
 		active: computed(() => tickMode.value === 'decimal125'),
 		action: () => { tickMode.value = 'decimal125'; },
 	}, {
 		type: 'divider',
 	}, {
-		type: 'label', text: i18n.ts._Timeline.Subdivisions,
+		type: 'label',
+		text: i18n.ts._Timeline.Subdivisions,
 	}, {
-		text: i18n.ts._Timeline.Midpoints, type: 'switch', ref: halfTicks,
+		text: i18n.ts._Timeline.Midpoints,
+		type: 'switch',
+		ref: halfTicks,
 	}, {
-		text: i18n.ts._Timeline.Thirds, type: 'switch', ref: thirdTicks,
+		text: i18n.ts._Timeline.Thirds,
+		type: 'switch',
+		ref: thirdTicks,
 	}], event.currentTarget ?? event.target);
 }
 
 function showSnapMenu(event: PointerEvent) {
 	ui.popupMenu([{
-		text: i18n.ts._Timeline.EnableSnapping, type: 'switch', ref: snapEnabled,
+		text: i18n.ts._Timeline.EnableSnapping,
+		type: 'switch',
+		ref: snapEnabled,
 	}, {
 		type: 'divider',
 	}, {
-		type: 'label', text: i18n.ts._Timeline.WhatSnaps,
+		type: 'label',
+		text: i18n.ts._Timeline.WhatSnaps,
 	}, {
-		text: i18n.ts._Timeline.ClipStart, type: 'switch', ref: snapClipStart, disabled: computed(() => !snapEnabled.value),
+		text: i18n.ts._Timeline.ClipStart,
+		type: 'switch',
+		ref: snapClipStart,
+		disabled: computed(() => !snapEnabled.value),
 	}, {
-		text: i18n.ts._Timeline.ClipEnd, type: 'switch', ref: snapClipEnd, disabled: computed(() => !snapEnabled.value),
-	}, {
-		type: 'divider',
-	}, {
-		type: 'label', text: i18n.ts._Timeline.SnapTo,
-	}, {
-		text: i18n.ts._Timeline.GlobalTicks, type: 'switch', ref: snapGlobalTicks, disabled: computed(() => !snapEnabled.value),
-	}, {
-		text: i18n.ts._Timeline.ClipLocalTicks, type: 'switch', ref: snapLocalTicks, disabled: computed(() => !snapEnabled.value),
-	}, {
-		text: i18n.ts._Timeline.Seekbar, type: 'switch', ref: snapToSeekBar, disabled: computed(() => !snapEnabled.value),
+		text: i18n.ts._Timeline.ClipEnd,
+		type: 'switch',
+		ref: snapClipEnd,
+		disabled: computed(() => !snapEnabled.value),
 	}, {
 		type: 'divider',
 	}, {
-		text: i18n.ts._Timeline.SnapSeekbar, type: 'switch', ref: snapSeekBar, disabled: computed(() => !snapEnabled.value),
+		type: 'label',
+		text: i18n.ts._Timeline.SnapTo,
+	}, {
+		text: i18n.ts._Timeline.GlobalTicks,
+		type: 'switch',
+		ref: snapGlobalTicks,
+		disabled: computed(() => !snapEnabled.value),
+	}, {
+		text: i18n.ts._Timeline.ClipLocalTicks,
+		type: 'switch',
+		ref: snapLocalTicks,
+		disabled: computed(() => !snapEnabled.value),
+	}, {
+		text: i18n.ts._Timeline.Seekbar,
+		type: 'switch',
+		ref: snapToSeekBar,
+		disabled: computed(() => !snapEnabled.value),
+	}, {
+		type: 'divider',
+	}, {
+		text: i18n.ts._Timeline.SnapSeekbar,
+		type: 'switch',
+		ref: snapSeekBar,
+		disabled: computed(() => !snapEnabled.value),
 	}], event.currentTarget ?? event.target);
 }
 
@@ -325,7 +361,8 @@ function onLayerDragOver(event: DragEvent, layer: TimelineLayer) {
 	const location = findTimelineLayerLocation(rootLayers.value, layer.id)!;
 	const position = isTimelineContainerLayer(layer) && fraction >= 0.25 && fraction <= 0.75 ? 'inside' : fraction < 0.5 ? 'before' : 'after';
 	dropTarget.value = {
-		layerId: layer.id, position,
+		layerId: layer.id,
+		position,
 		parentId: position === 'inside' ? layer.id : location.ancestors.at(-1)?.id ?? null,
 		beforeId: position === 'inside' && isTimelineContainerLayer(layer) ? layer.layers[0]?.id ?? null
 		: position === 'before' ? layer.id : location.siblings[location.index + 1]?.id ?? null,
@@ -340,7 +377,10 @@ function onLayerDrop(event: DragEvent) {
 		if (data == null || data.sceneId !== props.sceneId || dropTarget.value == null) return;
 		event.preventDefault();
 		stateManager.commit('moveTimelineLayer', {
-			sceneId: data.sceneId, layerId: data.layerId, parentId: dropTarget.value.parentId, beforeId: dropTarget.value.beforeId,
+			sceneId: data.sceneId,
+			layerId: data.layerId,
+			parentId: dropTarget.value.parentId,
+			beforeId: dropTarget.value.beforeId,
 		});
 	} finally { layerDragSession.finish(); dropTarget.value = null; }
 }
@@ -371,8 +411,14 @@ function getLayerSizeKey(layer: TimelineLayer) { return layerSizeKeys.value.get(
 const interaction = useTimelineInteraction();
 const { onTimelineClick } = interaction;
 const viewport = useTimelineViewport({
-	timelineElement: tlEl, layersElement: layersEl, savedState: editorState,
-	currentTime: time, isPlaying: previewPlayback.isTimelinePlaying, followPlayhead, tickMode, tickSubdivisions,
+	timelineElement: tlEl,
+	layersElement: layersEl,
+	savedState: editorState,
+	currentTime: time,
+	isPlaying: previewPlayback.isTimelinePlaying,
+	followPlayhead,
+	tickMode,
+	tickSubdivisions,
 	interactionActive: interaction.active,
 });
 const {
@@ -433,20 +479,52 @@ function transformSelection() {
 
 function addEmptyGroup() {
 	const id = genId();
-	stateManager.commit('groupTimelineLayers', { sceneId: props.sceneId, layerIds: [], group: {
-		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, color: null, forceDisableMotionBlur: false, automationGraphs: [],
-		mask: null, layerMask: null, isIncludedInComposite: true, coordinateSpace: 'screen', compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
-	} });
+	stateManager.commit('groupTimelineLayers', {
+		sceneId: props.sceneId,
+		layerIds: [],
+		group: {
+			id,
+			name: 'Group',
+			layerType: 'group',
+			layers: [],
+			isDisabled: false,
+			color: null,
+			forceDisableMotionBlur: false,
+			automationGraphs: [],
+			mask: null,
+			layerMask: null,
+			isIncludedInComposite: true,
+			coordinateSpace: 'screen',
+			compositingParamValues: initialCompositingParameters(),
+			audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
+		},
+	});
 	selection.value = { kind: 'layers', ids: [id] };
 }
 
 function groupSelection() {
 	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
 	const id = genId();
-	stateManager.commit('groupTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], group: {
-		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, color: null, forceDisableMotionBlur: false, automationGraphs: [],
-		mask: null, layerMask: null, isIncludedInComposite: true, coordinateSpace: 'screen', compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
-	} });
+	stateManager.commit('groupTimelineLayers', {
+		sceneId: props.sceneId,
+		layerIds: [...selection.value.ids],
+		group: {
+			id,
+			name: 'Group',
+			layerType: 'group',
+			layers: [],
+			isDisabled: false,
+			color: null,
+			forceDisableMotionBlur: false,
+			automationGraphs: [],
+			mask: null,
+			layerMask: null,
+			isIncludedInComposite: true,
+			coordinateSpace: 'screen',
+			compositingParamValues: initialCompositingParameters(),
+			audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
+		},
+	});
 	selection.value = { kind: 'layers', ids: [id] };
 }
 
@@ -461,8 +539,12 @@ function moveSelectedLayerOut() {
 	if (!selectedLayer.value) return;
 	const location = findTimelineLayerLocation(rootLayers.value, selectedLayer.value.id)!;
 	const parent = location.ancestors.at(-1);
-	if (parent) stateManager.commit('moveTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.value.id,
-																																																								parentId: location.ancestors.at(-2)?.id ?? null, beforeId: parent.id });
+	if (parent) stateManager.commit('moveTimelineLayer', {
+		sceneId: props.sceneId,
+		layerId: selectedLayer.value.id,
+		parentId: location.ancestors.at(-2)?.id ?? null,
+		beforeId: parent.id,
+	});
 }
 
 const selectedLayerKeyframeTimes = computed(() => {
@@ -558,26 +640,60 @@ function selectClip(target: TimelineClipSelection, additive = false) {
 	if (additive && selection.value.kind === 'clips') {
 		const key = clipSelectionKey(target);
 		const clips = selection.value.clips;
-		selection.value = { kind: 'clips', clips: clips.some(clip => clipSelectionKey(clip) === key)
-			? clips.filter(clip => clipSelectionKey(clip) !== key) : [...clips, target] };
+		selection.value = {
+			kind: 'clips',
+			clips: clips.some(clip => clipSelectionKey(clip) === key)
+				? clips.filter(clip => clipSelectionKey(clip) !== key) : [...clips, target],
+		};
 	} else selection.value = { kind: 'clips', clips: [target] };
 	revealDetails();
 }
 
 const { selectionArea, onBackgroundPointerDown, onVirtualLayersLayout } = useTimelineMarqueeSelection({
-	sceneId: () => props.sceneId, timelineElement: tlEl, layersElement: layersEl, virtualLayers,
-	viewport, interaction, layers: marqueeLayers, layerSizeKeys, rulerHeight: X_TICKS_HEIGHT, selection, revealDetails,
+	sceneId: () => props.sceneId,
+	timelineElement: tlEl,
+	layersElement: layersEl,
+	virtualLayers,
+	viewport,
+	interaction,
+	layers: marqueeLayers,
+	layerSizeKeys,
+	rulerHeight: X_TICKS_HEIGHT,
+	selection,
+	revealDetails,
 });
 const selectionDrag = useTimelineSelectionDrag({
-	timelineElement: tlEl, layersElement: layersEl, viewport, interaction, duration, snapSettings, snapSeekBar,
+	timelineElement: tlEl,
+	layersElement: layersEl,
+	viewport,
+	interaction,
+	duration,
+	snapSettings,
+	snapSeekBar,
 	seek: timeMs => previewPlayback.seekTimeline(timeMs),
 });
 const { movingSelection, snappingTimes, onSeekBarPointerDown } = selectionDrag;
 const mediaInfo = shallowRef<ReadonlyMap<string, TimelineClipMediaInfo>>(new Map());
 const { onGroupMoveStart, onClipMoveStart, onClipTrimStart, onSubtitleTrimStart, onKeyframeMoveStart } = createTimelineDragActions({
-	stateManager, scene: editedScene, sceneLayers, keyframeEntries, selection, mediaInfo, viewport, drag: selectionDrag,
-	snapping: { settings: snapSettings, clipSettings: clipSnapSettings, tickMode, tickSubdivisions, currentTime: time },
-	selectLayer, selectClip, selectKeyframe: onKeyframeSelected, revealDetails,
+	stateManager,
+	scene: editedScene,
+	sceneLayers,
+	keyframeEntries,
+	selection,
+	mediaInfo,
+	viewport,
+	drag: selectionDrag,
+	snapping: {
+		settings: snapSettings,
+		clipSettings: clipSnapSettings,
+		tickMode,
+		tickSubdivisions,
+		currentTime: time,
+	},
+	selectLayer,
+	selectClip,
+	selectKeyframe: onKeyframeSelected,
+	revealDetails,
 	focusTimeline: () => tlEl.value?.focus({ preventScroll: true }),
 });
 
@@ -590,21 +706,46 @@ function isTimelineActive() {
 
 const assetDrop = useAssetDrop({
 	target: useTemplateRef<HTMLElement>('root'),
-	...createTimelineDropActions({ context: appContext.projectContext, sceneId: editedScene.id, currentTime: () => time.value,
-																																isActive: isTimelineActive, inspectMedia: inspectTimelineClipMedia, revealAssets: () => emit('revealAssets') }),
+	...createTimelineDropActions({
+		context: appContext.projectContext,
+		sceneId: editedScene.id,
+		currentTime: () => time.value,
+		isActive: isTimelineActive,
+		inspectMedia: inspectTimelineClipMedia,
+		revealAssets: () => emit('revealAssets'),
+	}),
 	reportError: error => { void ui.alert({ type: 'error', title: i18n.ts._Timeline.Drop, text: error instanceof Error ? error.message : String(error) }); },
 });
 
 const { addClip, changeClipSource, showAddLayerMenu, readLayerMediaDurations } = createTimelineSourceActions({
-	stateManager, scene: editedScene, sceneLayers, currentTime: time, isActive: isTimelineActive,
-	inspectMedia: inspectTimelineClipMedia, ui, pickEffect: showEffectPicker, desktopAvailable: () => !!window.desktop,
-	selectLayer, selectClip, addEmptyGroup, seek: timeMs => previewPlayback.seekTimeline(timeMs),
+	stateManager,
+	scene: editedScene,
+	sceneLayers,
+	currentTime: time,
+	isActive: isTimelineActive,
+	inspectMedia: inspectTimelineClipMedia,
+	ui,
+	pickEffect: showEffectPicker,
+	desktopAvailable: () => !!window.desktop,
+	selectLayer,
+	selectClip,
+	addEmptyGroup,
+	seek: timeMs => previewPlayback.seekTimeline(timeMs),
 	reportError: error => { audioError.value = error instanceof Error ? error.message : String(error); },
 });
 const clipboardActions = createTimelineClipboardActions({
-	stateManager, scene: editedScene, sceneLayers, selection, selectedLayer, clipboard: timelineClipboard,
-	currentTime: time, isActive: isTimelineActive, inspectMedia: inspectTimelineClipMedia, readLayerMediaDurations,
-	selectLayer, focusTimeline: () => tlEl.value?.focus({ preventScroll: true }),
+	stateManager,
+	scene: editedScene,
+	sceneLayers,
+	selection,
+	selectedLayer,
+	clipboard: timelineClipboard,
+	currentTime: time,
+	isActive: isTimelineActive,
+	inspectMedia: inspectTimelineClipMedia,
+	readLayerMediaDurations,
+	selectLayer,
+	focusTimeline: () => tlEl.value?.focus({ preventScroll: true }),
 	reportError: error => {
 		console.error(error);
 		ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
@@ -612,8 +753,16 @@ const clipboardActions = createTimelineClipboardActions({
 });
 
 const layerActions = createTimelineLayerActions({
-	stateManager, scene: editedScene, selection, isActive: isTimelineActive, readLayerMediaDurations,
-	selectLayer, canWrap: () => canWrapSelection.value, groupSelection, transformSelection, ui,
+	stateManager,
+	scene: editedScene,
+	selection,
+	isActive: isTimelineActive,
+	readLayerMediaDurations,
+	selectLayer,
+	canWrap: () => canWrapSelection.value,
+	groupSelection,
+	transformSelection,
+	ui,
 	focusTimeline: () => tlEl.value?.focus({ preventScroll: true }),
 });
 
@@ -639,7 +788,8 @@ async function onTlKeydown(ev: KeyboardEvent) {
 
 function selectLayer(layer: TimelineLayer, event?: MouseEvent) {
 	const next = selectTimelineLayer(selection.value, visibleLayers.value.map(entry => entry.id), layer.id, editorState.layerSelectionAnchorId, {
-		range: event?.shiftKey ?? false, additive: (event?.ctrlKey || event?.metaKey) ?? false,
+		range: event?.shiftKey ?? false,
+		additive: (event?.ctrlKey || event?.metaKey) ?? false,
 	});
 	selection.value = next.selection;
 	editorState.layerSelectionAnchorId = next.anchorId;
@@ -674,7 +824,12 @@ function showAddInlineEffectNodeMenu(layerId: string) {
 	showEffectPicker(effect => {
 		// 選択変更やレイヤー削除を挟んでも、ピッカーを開いた対象にだけ追加する。
 		if (!isTimelineActive() || !sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'inlineVisualModule')) return;
-		stateManager.commit('addEffectNode', { sceneId: props.sceneId, inlineVisualModuleLayerId: layerId, effectId: effect.id, id: genId() });
+		stateManager.commit('addEffectNode', {
+			sceneId: props.sceneId,
+			inlineVisualModuleLayerId: layerId,
+			effectId: effect.id,
+			id: genId(),
+		});
 	});
 }
 
@@ -702,7 +857,10 @@ function showClipMenu(event: PointerEvent, target: TimelineClipSelection) {
 	// 選択済みのクリップでは複数選択を保持し、修飾キーによる選択解除は行わない。
 	if (selection.value.kind !== 'clips' || !selection.value.clips.some(clip => clipSelectionKey(clip) === clipSelectionKey(target))) selectClip(target);
 	ui.contextMenu([{
-		text: i18n.ts.Delete, icon: 'ti ti-trash', danger: true, action: removeSelectedClips,
+		text: i18n.ts.Delete,
+		icon: 'ti ti-trash',
+		danger: true,
+		action: removeSelectedClips,
 	}], event);
 }
 

@@ -14,7 +14,10 @@ export function installFileDropHandlers(target: HTMLElement, onDrop: (files: Fil
 			const files = Array.from(event.dataTransfer?.files ?? []);
 			return files.length > 0 ? files : null;
 		},
-		onDrop, onError, isApplicationBlocked, onHoverChange,
+		onDrop,
+		onError,
+		isApplicationBlocked,
+		onHoverChange,
 	});
 	target.addEventListener('dragover', handlers.onDragover);
 	target.addEventListener('dragenter', handlers.onDragenter);

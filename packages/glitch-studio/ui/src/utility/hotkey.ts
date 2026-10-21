@@ -80,7 +80,12 @@ const parsePatterns = (rawPatterns: keyof Keymap) => {
 		const ctrl = keys.includes('ctrl');
 		const alt = keys.includes('alt');
 		const shift = keys.includes('shift');
-		return { which, ctrl, alt, shift } as const satisfies Pattern;
+		return {
+			which,
+			ctrl,
+			alt,
+			shift,
+		} as const satisfies Pattern;
 	});
 };
 

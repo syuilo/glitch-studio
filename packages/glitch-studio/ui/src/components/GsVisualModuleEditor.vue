@@ -125,7 +125,8 @@ const emit = defineEmits<{
 
 const tab = ref('nodes');
 const assetDrop = useAssetDrop({
-	target: useTemplateRef<HTMLElement>('root'), enabled: () => props.assetDropActions != null,
+	target: useTemplateRef<HTMLElement>('root'),
+	enabled: () => props.assetDropActions != null,
 	dropFiles: async files => { if (await props.assetDropActions?.dropFiles(files) === true) tab.value = 'nodes'; },
 	dropAsset: async assetId => { if (await props.assetDropActions?.dropAsset(assetId) === true) tab.value = 'nodes'; },
 	reportError: error => { void ui.alert({ type: 'error', title: i18n.ts._VisualModule.Drop, text: error instanceof Error ? error.message : String(error) }); },
@@ -146,7 +147,12 @@ function onSorted(nodes: VisualModuleNode[]) {
 
 function onOutputInputChange(outputId: string, value: NodeOutputReference | null) {
 	if (globalOutNode.value == null) return;
-	emit('edit', { kind: 'setOutputConnection', nodeId: globalOutNode.value.id, outputId, value });
+	emit('edit', {
+		kind: 'setOutputConnection',
+		nodeId: globalOutNode.value.id,
+		outputId,
+		value,
+	});
 }
 </script>
 

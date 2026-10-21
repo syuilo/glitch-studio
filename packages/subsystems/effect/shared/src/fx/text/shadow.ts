@@ -15,7 +15,12 @@ export function getTextShadowMetrics(settings: TextShadowSettings, fontSize: num
 	// 描画領域外の文字から入ってくる影も作れるよう、最終画面より広く字形を描く。
 	const padding = blur > 0 ? Math.ceil(blur * 3) + 2 : 0;
 	if (!(fontSize > 0) || ![fontSize, blur, offsetX, offsetY, padding].every(Number.isFinite)) return null;
-	return { blur, offsetX, offsetY, padding };
+	return {
+		blur,
+		offsetX,
+		offsetY,
+		padding,
+	};
 }
 
 export function createTextShadowMaskRenderer() {

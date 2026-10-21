@@ -43,7 +43,12 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 		for (const [definition, implementation] of effects) {
 			device.pushErrorScope('validation');
 			const textures: GPUTexture[] = [];
-			const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm', enable32bitDataTextures };
+			const wgpu = {
+				device,
+				defaultVertexShaderModule: vertex,
+				intermediateTextureFormat: 'rgba8unorm',
+				enable32bitDataTextures,
+			};
 			const context = { wgpu, resolution: { width: 8, height: 4 } } as any;
 			const instance = implementation.init(context);
 			try {
@@ -74,7 +79,12 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 					const mask = iteration % (2 ** inputs.length);
 					inputs.forEach((input, i) => { params[input.name] = mask & (1 << i) ? input.texture : input.uniform; });
 					const encoder = device.createCommandEncoder();
-					instance.render({ params, commandEncoder: encoder, outputDataMap: { output: { texture: output, textureView: output.createView() } }, createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+					instance.render({
+						params,
+						commandEncoder: encoder,
+						outputDataMap: { output: { texture: output, textureView: output.createView() } },
+						createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+					} as any);
 					device.queue.submit([encoder.finish()]);
 					const pixels = await readOutput(output);
 					baseline ??= pixels;
@@ -101,9 +111,12 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 		device.queue.writeTexture({ texture: lcdSource }, new Uint8Array(colors.flat()), { bytesPerRow: 8 }, [2, 2]);
 		const encoder = device.createCommandEncoder();
 		// 座標の全幅は2なのでsize=1で2分割。2×2の入力と8px幅のセルを対応させる。
-		lcdInstance.render({ params: { input: textureShaderInput(lcdSource, { wrapMode: 'repeatMirrored', fitMode: 'stretch', filterMode: 'nearest' }), size: 1, border: 0 },
-			commandEncoder: encoder, outputDataMap: { output: { texture: lcdOutput, textureView: lcdOutput.createView() } },
-			createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+		lcdInstance.render({
+			params: { input: textureShaderInput(lcdSource, { wrapMode: 'repeatMirrored', fitMode: 'stretch', filterMode: 'nearest' }), size: 1, border: 0 },
+			commandEncoder: encoder,
+			outputDataMap: { output: { texture: lcdOutput, textureView: lcdOutput.createView() } },
+			createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+		} as any);
 		device.queue.submit([encoder.finish()]);
 		const pixels = await readOutput(lcdOutput);
 		for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
@@ -122,16 +135,34 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 
 async function checkChannelBlends(device: GPUDevice, vertex: GPUShaderModule, readOutput: (output: GPUTexture) => Promise<number[]>) {
 	const completed: string[] = [];
-	const context = { wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm', enable32bitDataTextures: false } } as any;
+	const context = {
+		wgpu: {
+			device,
+			defaultVertexShaderModule: vertex,
+			intermediateTextureFormat: 'rgba8unorm',
+			enable32bitDataTextures: false,
+		},
+	} as any;
 	const shift = channelShift.init(context);
 	const blend = colorBlend.init(context);
 	const output = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
 	const input = constantShaderInput('color', [1, 0.5, 0.25, 0.5]);
-	const params = { input, amount: constantShaderInput('vector', [0, 0]), leftSignal: [1, 0, 0, 1], rightSignal: [0, 0, 1, 1], channelBlendMode: 'lighten', inputBlendMode: 'replace' };
+	const params = {
+		input,
+		amount: constantShaderInput('vector', [0, 0]),
+		leftSignal: [1, 0, 0, 1],
+		rightSignal: [0, 0, 1, 1],
+		channelBlendMode: 'lighten',
+		inputBlendMode: 'replace',
+	};
 	async function check(name: string, instance: typeof shift | typeof blend, values: object, expected: number[]) {
 		const encoder = device.createCommandEncoder();
-		instance.render({ params: values, commandEncoder: encoder, outputDataMap: { output: { texture: output, textureView: output.createView() } },
-			createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+		instance.render({
+			params: values,
+			commandEncoder: encoder,
+			outputDataMap: { output: { texture: output, textureView: output.createView() } },
+			createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+		} as any);
 		device.queue.submit([encoder.finish()]);
 		const actual = await readOutput(output);
 		if (actual.length !== expected.length || actual.some((value, i) => Math.abs(value - expected[i]) > 2)) throw new Error(`${name}: ${actual} != ${expected}`);
@@ -150,10 +181,20 @@ async function checkChannelBlends(device: GPUDevice, vertex: GPUShaderModule, re
 		await check('channel shift multiply blends overlapping channels', shift, { ...params, rightSignal: [1, 0, 0, 1], channelBlendMode: 'multiply' }, [191, 0, 0, 191]);
 		// 共通Replaceは透明なBでも背景を残さない
 		// 通常合成と置き換えはRGBだけでは区別できず、透明度込みの検証が必要。
-		await check('color blend replace clears with transparent source', blend, { inputA: input, inputB: constantShaderInput('color', [0, 0, 0, 0]), amount: constantShaderInput('scalar', 1), blendMode: 'replace' }, [0, 0, 0, 0]);
+		await check('color blend replace clears with transparent source', blend, {
+			inputA: input,
+			inputB: constantShaderInput('color', [0, 0, 0, 0]),
+			amount: constantShaderInput('scalar', 1),
+			blendMode: 'replace',
+		}, [0, 0, 0, 0]);
 		// Replaceの適用量はアルファも含めて補間する
 		// 適用量をBの不透明度として扱うと、透明なBへ置き換えられなくなる。
-		await check('color blend replace amount interpolates RGBA', blend, { inputA: input, inputB: constantShaderInput('color', [0, 0, 0, 0]), amount: constantShaderInput('scalar', 0.5), blendMode: 'replace' }, [64, 32, 16, 64]);
+		await check('color blend replace amount interpolates RGBA', blend, {
+			inputA: input,
+			inputB: constantShaderInput('color', [0, 0, 0, 0]),
+			amount: constantShaderInput('scalar', 0.5),
+			blendMode: 'replace',
+		}, [64, 32, 16, 64]);
 	} finally { shift.dispose(); blend.dispose(); output.destroy(); }
 	return completed;
 }
@@ -175,11 +216,25 @@ async function checkChromaticAspectRatio(device: GPUDevice, vertex: GPUShaderMod
 				pixels.set([128 + 80 * px, 128 + 80 * py, 128 + 40 * (px + py), 255], (y * width + x) * 4);
 			}
 			device.queue.writeTexture({ texture: source }, pixels, { bytesPerRow: width * 4 }, [width, height]);
-			const params = { input: textureShaderInput(source, { filterMode: 'linear', fitMode: 'stretch', wrapMode: 'clamp' }), fitMode, normalize, start,
-				amount: 0.12, rStrength: 1, gStrength: 1.5, bStrength: 2, samples: 4, vector: [0.2, -0.15] };
+			const params = {
+				input: textureShaderInput(source, { filterMode: 'linear', fitMode: 'stretch', wrapMode: 'clamp' }),
+				fitMode,
+				normalize,
+				start,
+				amount: 0.12,
+				rStrength: 1,
+				gStrength: 1.5,
+				bStrength: 2,
+				samples: 4,
+				vector: [0.2, -0.15],
+			};
 			const encoder = device.createCommandEncoder();
-			instance.render({ params, commandEncoder: encoder, outputDataMap: { output: { texture: output, textureView: output.createView() } },
-				createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+			instance.render({
+				params,
+				commandEncoder: encoder,
+				outputDataMap: { output: { texture: output, textureView: output.createView() } },
+				createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			} as any);
 			device.queue.submit([encoder.finish()]);
 			return await readOutput(output);
 		} finally { source.destroy(); output.destroy(); }

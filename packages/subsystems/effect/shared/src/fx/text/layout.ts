@@ -115,5 +115,12 @@ export function layoutText(options: TextLayoutOptions, measureText: (text: strin
 	const lineAdvance = lineHeight * fontSize;
 	// Yは複数行全体の中央。縮小時は行送りも縮め、横圧縮時は高さを維持する。
 	const firstBaselineOffset = -(metrics.top + metrics.bottom) / 2;
-	return { lines, fontSize, outlineWidth: outlineWidthRatio * fontSize, horizontalScale, lineAdvance, firstBaselineOffset };
+	return {
+		lines,
+		fontSize,
+		outlineWidth: outlineWidthRatio * fontSize,
+		horizontalScale,
+		lineAdvance,
+		firstBaselineOffset,
+	};
 }

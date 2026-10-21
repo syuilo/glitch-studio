@@ -182,7 +182,21 @@ const emit = defineEmits<{
 	(ev: 'subtitleTrimStart', event: PointerEvent, layerId: string, utteranceId: string, clipId: string): void;
 }>();
 
-const layerIcon = computed(() => ({ group: 'ti-folder', transform: 'ti-gizmo', camera: 'ti-camera', voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
+const layerIcon = computed(() => ({
+	group: 'ti-folder',
+	transform: 'ti-gizmo',
+	camera: 'ti-camera',
+	voicevox: 'ti-microphone',
+	image: 'ti-photo',
+	video: 'ti-video',
+	audio: 'ti-music',
+	scene: 'ti-memory',
+	visualModule: 'ti-chart-dots-3',
+	inlineVisualModule: 'ti-chart-dots-3',
+	effect: 'ti-sparkles',
+	shape: 'ti-shape',
+	text: 'ti-typography',
+})[props.layer.layerType]);
 const colorBarColors = computed(() => [...(props.ancestors ?? []), props.layer].map(layer => layer.color == null ? '' : colorCss(layer.color)));
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
@@ -226,14 +240,18 @@ function look(clip: TimelineClip) {
 
 function toggleDisabled() {
 	stateManager.commit('setTimelineLayerDisabled', {
-		sceneId: props.sceneId, layerId: props.layer.id, isDisabled: !props.layer.isDisabled,
+		sceneId: props.sceneId,
+		layerId: props.layer.id,
+		isDisabled: !props.layer.isDisabled,
 	});
 }
 
 function toggleCoordinateSpace() {
 	if (!isTimelineVisualLayer(props.layer)) return;
 	stateManager.commit('setTimelineLayerCoordinateSpace', {
-		sceneId: props.sceneId, layerId: props.layer.id, coordinateSpace: props.layer.coordinateSpace === 'world' ? 'screen' : 'world',
+		sceneId: props.sceneId,
+		layerId: props.layer.id,
+		coordinateSpace: props.layer.coordinateSpace === 'world' ? 'screen' : 'world',
 	});
 }
 
@@ -283,12 +301,20 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	if (!inserted) return;
 	if (inserted.value !== current) {
 		stateManager.commit('editTimelineLayerParam', {
-			sceneId: props.sceneId, layerId: layer.id, target: param.target, paramPath: param.paramPath,
+			sceneId: props.sceneId,
+			layerId: layer.id,
+			target: param.target,
+			paramPath: param.paramPath,
 			edit: { kind: 'keyframesTimelineInline', value: inserted.value },
 		});
 		emit('expandRequested', layer.id);
 	}
-	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId: inserted.keyframeId });
+	emit('keyframeSelected', {
+		layerId: layer.id,
+		target: param.target,
+		paramPath: param.paramPath,
+		keyframeId: inserted.keyframeId,
+	});
 }
 
 const visibleClipTicks = computed(() => props.collapsed ? [] : getTimelineVisibleClipTicks<TimelineClip>(

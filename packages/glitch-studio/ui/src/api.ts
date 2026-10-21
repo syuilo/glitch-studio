@@ -109,7 +109,14 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 		}
 		const fileError = getFileSourceError(fileData);
 		if (fileError != null) throw new Error(fileError);
-		const source = { name: file.name, type, fileData, sourceFilePath, isExternalReference, thumbnailSequence: null };
+		const source = {
+			name: file.name,
+			type,
+			fileData,
+			sourceFilePath,
+			isExternalReference,
+			thumbnailSequence: null,
+		};
 		if (fontType != null || !isMedia) {
 			// 汎用ファイルはデコードの対象にせず、プロジェクトに原本を保存する。
 			// フォントもここではデコードせず、使用するエフェクトがFontFaceとして読み込む。
@@ -167,7 +174,11 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 	const selectedFiles = options.multiple === true ? files : files.slice(0, 1);
 	for (const [index, file] of selectedFiles.entries()) {
 		const report = (fileProgress: number | null, completedFiles = index) => options.onReadProgress?.({
-			file, fileIndex: index, completedFiles, totalFiles: selectedFiles.length, fileProgress,
+			file,
+			fileIndex: index,
+			completedFiles,
+			totalFiles: selectedFiles.length,
+			fileProgress,
 		});
 		report(null);
 		try {

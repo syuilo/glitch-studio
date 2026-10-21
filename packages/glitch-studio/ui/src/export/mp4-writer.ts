@@ -38,7 +38,13 @@ export async function createMp4Writer(canvas: OffscreenCanvas, settings: VideoEx
 					data[channel * frames + frame] = Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0;
 				}
 			}
-			const sample = new AudioSample({ data, format: 'f32-planar', numberOfChannels: 2, sampleRate: MP4_AUDIO_SAMPLE_RATE, timestamp });
+			const sample = new AudioSample({
+				data,
+				format: 'f32-planar',
+				numberOfChannels: 2,
+				sampleRate: MP4_AUDIO_SAMPLE_RATE,
+				timestamp,
+			});
 			try { await audio.add(sample); } finally { sample.close(); }
 		},
 		async finalize() {

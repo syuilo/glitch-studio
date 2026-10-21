@@ -17,7 +17,14 @@ export function getTimelineKeyframeLanes(state: Pick<ProjectState, 'visualModule
 
 export function getTimelineKeyframeEntries(state: Pick<ProjectState, 'visualModules'>, layers: readonly TimelineLayer[]) {
 	return layers.flatMap(layer => getTimelineKeyframeLanes(state, layer).flatMap(lane => lane.keyframes.map(point => ({
-		selection: { layerId: layer.id, target: lane.target, paramPath: lane.paramPath, keyframeId: point.id } satisfies TimelineKeyframeSelection,
-		x: point.x, time: point.x, keyframes: lane.keyframes,
+		selection: {
+			layerId: layer.id,
+			target: lane.target,
+			paramPath: lane.paramPath,
+			keyframeId: point.id,
+		} satisfies TimelineKeyframeSelection,
+		x: point.x,
+		time: point.x,
+		keyframes: lane.keyframes,
 	}))));
 }

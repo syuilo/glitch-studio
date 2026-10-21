@@ -35,7 +35,10 @@ export function createInlineKeyframesTimeline(definition: ParameterDefinition, c
 	return {
 		inputSource: 'keyframesTimelineInline',
 		keyframesTimeline: createTimelineData(definition.dataType, [{
-			id: genId(), x: 0, value, interpolation: { type: supportsKeyframeInterpolation(definition.dataType) ? 'linear' : 'hold' },
+			id: genId(),
+			x: 0,
+			value,
+			interpolation: { type: supportsKeyframeInterpolation(definition.dataType) ? 'linear' : 'hold' },
 		}], false),
 		trimmedDurationMs: null,
 		wrapMode: 'clamp',
@@ -73,12 +76,20 @@ export function insertInlineKeyframe(input: InlineKeyframesTimeline, definition:
 	const evaluated = evaluateKeyframesTimeline(input.keyframesTimeline, { ...input, wrapMode: 'clamp' }, x, endTime, fallback);
 	const keyframeId = genId();
 	const interpolation = previous?.interpolation ?? { type: supportsKeyframeInterpolation(definition.dataType) ? 'linear' : 'hold' };
-	keyframes.push({ id: keyframeId, x, value: evaluated, interpolation });
+	keyframes.push({
+		id: keyframeId,
+		x,
+		value: evaluated,
+		interpolation,
+	});
 	keyframes.sort((a, b) => a.x - b.x);
-	return { value: {
-		...deepClone(input),
-		keyframesTimeline: createTimelineData(definition.dataType, keyframes, input.keyframesTimeline.isNormalized),
-	}, keyframeId };
+	return {
+		value: {
+			...deepClone(input),
+			keyframesTimeline: createTimelineData(definition.dataType, keyframes, input.keyframesTimeline.isNormalized),
+		},
+		keyframeId,
+	};
 }
 
 /** コピーした値・補間を保持して追加する。同時刻の既存キーを上書きせず、全件を拒否する。 */
@@ -94,6 +105,9 @@ export function appendInlineKeyframes(input: InlineKeyframesTimeline, definition
 		ids.add(point.id);
 		times.add(point.x);
 	}
-	return { ...deepClone(input), keyframesTimeline: createTimelineData(definition.dataType,
-		[...input.keyframesTimeline.keyframes, ...added].toSorted((a, b) => a.x - b.x), input.keyframesTimeline.isNormalized) };
+	return {
+		...deepClone(input),
+		keyframesTimeline: createTimelineData(definition.dataType,
+			[...input.keyframesTimeline.keyframes, ...added].toSorted((a, b) => a.x - b.x), input.keyframesTimeline.isNormalized),
+	};
 }

@@ -105,7 +105,13 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 					reject(error);
 				};
 				try {
-					const message = { type: 'call', fn, args, needReturnValue: true, id };
+					const message = {
+						type: 'call',
+						fn,
+						args,
+						needReturnValue: true,
+						id,
+					};
 					// initメッセージ送信後の編集も、初期化完了時に送って応答まで待つ。
 					if (!this.isReady.value) this.pendingCalls.push({ message, onError, options: serializeOptions });
 					else this.worker!.postMessage(message, serializeOptions);

@@ -16,7 +16,12 @@ export type TimelinePreviewStatistics = {
 };
 
 function emptyTiming(): TimelinePreviewFrameTiming {
-	return { frameDurationMs: 0, videoSampleWaitMs: 0, videoUploadCpuMs: 0, gpuWaitMs: 0 };
+	return {
+		frameDurationMs: 0,
+		videoSampleWaitMs: 0,
+		videoUploadCpuMs: 0,
+		gpuWaitMs: 0,
+	};
 }
 
 /** 通信をフレームごとに増やさず、通知間の全フレームを平均と最大値へ集約する。 */
@@ -27,7 +32,13 @@ export class TimelinePreviewStatisticsCollector {
 	addFrame(sceneId: string | null, revision: number, timing: TimelinePreviewFrameTiming) {
 		if (this.statistics == null || this.statistics.sceneId !== sceneId || this.statistics.revision !== revision) {
 			this.clear();
-			this.statistics = { sceneId, revision, frameCount: 0, average: emptyTiming(), maximum: emptyTiming() };
+			this.statistics = {
+				sceneId,
+				revision,
+				frameCount: 0,
+				average: emptyTiming(),
+				maximum: emptyTiming(),
+			};
 		}
 		const statistics = this.statistics;
 		statistics.frameCount++;

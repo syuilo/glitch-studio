@@ -20,41 +20,67 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution }) => {
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
-		const historyLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-		] });
+		const historyLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
+				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+			],
+		});
 		const output = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code,
+			device,
+			vertex: defaultVertexShaderModule,
+			code,
 			schema: { input: 'color', density: 'vector' },
-			internalLayouts: [historyLayout], sampling: 'level0',
+			internalLayouts: [historyLayout],
+			sampling: 'level0',
 			targets: [{ format: intermediateTextureFormat }],
 		});
 		// 保存時には同じtexture arrayを読み取りbindingへ含めず、書き込みとの重複を避ける。
 		const emptyLayout = device.createBindGroupLayout({ entries: [] });
 		const emptyGroup = device.createBindGroup({ layout: emptyLayout, entries: [] });
 		const capture = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code: captureCode,
-			schema: { input: 'color' }, internalLayouts: [emptyLayout],
-			entryPoint: 'capture', targets: [{ format: historyFormat }],
+			device,
+			vertex: defaultVertexShaderModule,
+			code: captureCode,
+			schema: { input: 'color' },
+			internalLayouts: [emptyLayout],
+			entryPoint: 'capture',
+			targets: [{ format: historyFormat }],
 		});
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
+		const sampler = device.createSampler({
+			minFilter: 'linear',
+			magFilter: 'linear',
+			addressModeU: 'clamp-to-edge',
+			addressModeV: 'clamp-to-edge',
+		});
 		const createHistory = (width: number, height: number, layers: number) => {
 			const texture = device.createTexture({
-				size: { width, height, depthOrArrayLayers: layers }, format: historyFormat,
+				size: { width, height, depthOrArrayLayers: layers },
+				format: historyFormat,
 				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 			});
 			try {
 				const views = Array.from({ length: layers }, (_, layer) => texture.createView({ dimension: '2d', baseArrayLayer: layer, arrayLayerCount: 1 }));
-				const group = device.createBindGroup({ layout: historyLayout, entries: [
-					{ binding: 0, resource: { buffer: uniformBuffer } },
-					{ binding: 1, resource: texture.createView({ dimension: '2d-array' }) },
-					{ binding: 2, resource: sampler },
-				] });
-				return { texture, views, group, times: new Float64Array(layers), width, height, layers };
+				const group = device.createBindGroup({
+					layout: historyLayout,
+					entries: [
+						{ binding: 0, resource: { buffer: uniformBuffer } },
+						{ binding: 1, resource: texture.createView({ dimension: '2d-array' }) },
+						{ binding: 2, resource: sampler },
+					],
+				});
+				return {
+					texture,
+					views,
+					group,
+					times: new Float64Array(layers),
+					width,
+					height,
+					layers,
+				};
 			} catch (error) {
 				texture.destroy();
 				throw error;
@@ -119,7 +145,12 @@ export default implementEffect<typeof definition>({
 					}
 					const variant = capture.update({ input }, ctx.outputDataMap.output.texture);
 					const save = ctx.createPassEncoder(ctx.commandEncoder, {
-						colorAttachments: [{ view: history.views[newestLayer], clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store' }],
+						colorAttachments: [{
+							view: history.views[newestLayer],
+							clearValue: [0, 0, 0, 0],
+							loadOp: 'clear',
+							storeOp: 'store',
+						}],
 					});
 					save.setPipeline(variant.pipeline);
 					save.setBindGroup(0, emptyGroup);

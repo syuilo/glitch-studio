@@ -15,5 +15,10 @@ export function measureTextInkBounds(layout: TextLayout, measure: (line: string)
 		top = Math.min(top, baseline - metrics.actualBoundingBoxAscent - layout.outlineWidth);
 		bottom = Math.max(bottom, baseline + metrics.actualBoundingBoxDescent + layout.outlineWidth);
 	}
-	return Number.isFinite(left) ? { left, top, right, bottom } : null;
+	return Number.isFinite(left) ? {
+		left,
+		top,
+		right,
+		bottom,
+	} : null;
 }

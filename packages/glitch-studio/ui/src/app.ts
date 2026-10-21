@@ -88,7 +88,12 @@ export async function newProject() {
 		id: genId(),
 		name: 'My Visual Module',
 		automationGraphs: [],
-		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: { kind: 'color' } }],
+		outputDefs: [{
+			id: initialOutputId,
+			label: 'Output',
+			name: 'output',
+			dataType: { kind: 'color' },
+		}],
 		primaryOutputId: initialOutputId,
 		primaryInputId: initialInputParamId,
 		paramDefs: [{
@@ -115,10 +120,12 @@ export async function newProject() {
 		} satisfies EffectNodeOf<typeof fillEffectDef>, {
 			id: genId(),
 			type: 'globalOut',
-			inputs: { [initialOutputId]: {
-				nodeId: initialEffectNodeId,
-				outputPort: 'output',
-			} },
+			inputs: {
+				[initialOutputId]: {
+					nodeId: initialEffectNodeId,
+					outputPort: 'output',
+				},
+			},
 		}],
 	} satisfies ProjectVisualModule;
 	await appContext.ready({
@@ -220,7 +227,12 @@ async function loadMediaProject(file?: File) {
 		id: genId(),
 		name: 'My Visual Module',
 		automationGraphs: [],
-		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: { kind: 'color' } }],
+		outputDefs: [{
+			id: initialOutputId,
+			label: 'Output',
+			name: 'output',
+			dataType: { kind: 'color' },
+		}],
 		primaryOutputId: initialOutputId,
 		primaryInputId: initialInputParamId,
 		paramDefs: [{
@@ -284,10 +296,12 @@ async function loadMediaProject(file?: File) {
 		} satisfies EffectNodeOf<typeof fillEffectDef>, {
 			id: genId(),
 			type: 'globalOut',
-			inputs: { [initialOutputId]: {
-				nodeId: initialEffectNodeId,
-				outputPort: 'output',
-			} },
+			inputs: {
+				[initialOutputId]: {
+					nodeId: initialEffectNodeId,
+					outputPort: 'output',
+				},
+			},
 		}],
 	} satisfies ProjectVisualModule;
 

@@ -19,10 +19,12 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 	const context = canvas.getContext('2d');
 	if (context == null) throw new Error('Could not create a text canvas.');
 	const font = createTextFontLoader();
-	const maskLayout = options.device.createBindGroupLayout({ entries: [
-		{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
-		{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-	] });
+	const maskLayout = options.device.createBindGroupLayout({
+		entries: [
+			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
+			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+		],
+	});
 	const pipeline = createShaderInputPipeline({
 		device: options.device,
 		vertex: options.vertex,
@@ -64,10 +66,13 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 				format: 'rgba8unorm',
 				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
 			});
-			maskBinding = options.device.createBindGroup({ layout: maskLayout, entries: [
-				{ binding: 0, resource: maskTexture.createView({ dimension: '2d-array' }) },
-				{ binding: 1, resource: sampler },
-			] });
+			maskBinding = options.device.createBindGroup({
+				layout: maskLayout,
+				entries: [
+					{ binding: 0, resource: maskTexture.createView({ dimension: '2d-array' }) },
+					{ binding: 1, resource: sampler },
+				],
+			});
 		}
 		context!.clearRect(0, 0, width, height);
 		const { x, y, layout } = plan;
@@ -115,7 +120,11 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 			if (layout != null) {
 				shadowRenderer ??= createTextShadowMaskRenderer();
 				shadowRenderer.render(context!, {
-					layout, fontFamily: font.family, alignment: values.align, x, y,
+					layout,
+					fontFamily: font.family,
+					alignment: values.align,
+					x,
+					y,
 					settings: { blur: values.shadowBlur, offset: values.shadowOffset },
 				});
 			} else {
@@ -136,9 +145,14 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 		context!.textBaseline = 'alphabetic';
 		context!.direction = 'ltr';
 		const layout = layoutText({
-			text: values.text, fontSize: values.size * frame.height,
-			outlineWidth: values.outlineWidth, lineHeight: values.lineHeight, alignment: values.align,
-			overflow: values.overflow, maxWidth: values.maxWidth * frame.width }, (line, size) => {
+			text: values.text,
+			fontSize: values.size * frame.height,
+			outlineWidth: values.outlineWidth,
+			lineHeight: values.lineHeight,
+			alignment: values.align,
+			overflow: values.overflow,
+			maxWidth: values.maxWidth * frame.width,
+		}, (line, size) => {
 			context!.font = `${size}px ${font.family}`;
 			return context!.measureText(line);
 		});
@@ -146,10 +160,20 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 		const ink = layout && measureTextInkBounds(layout, line => context!.measureText(line));
 		const positionX = (values.position[0] + 1) * frame.width / 2;
 		const positionY = (1 - values.position[1]) * frame.height / 2;
-		let pixels = { left: 0, top: 0, right: 1, bottom: 1 };
+		let pixels = {
+			left: 0,
+			top: 0,
+			right: 1,
+			bottom: 1,
+		};
 		const valid = ink && Number.isFinite(positionX) && Number.isFinite(positionY);
 		if (valid) {
-			pixels = { left: ink.left + positionX, top: ink.top + positionY, right: ink.right + positionX, bottom: ink.bottom + positionY };
+			pixels = {
+				left: ink.left + positionX,
+				top: ink.top + positionY,
+				right: ink.right + positionX,
+				bottom: ink.bottom + positionY,
+			};
 			const shadow = values.shadowEnabled && getTextShadowMetrics({ blur: values.shadowBlur, offset: values.shadowOffset }, layout!.fontSize);
 			if (shadow) pixels = {
 				left: Math.min(pixels.left, pixels.left + shadow.offsetX - shadow.padding),
@@ -159,20 +183,36 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 			};
 		}
 		// 補間とアンチエイリアスの余白を取り、整数画素へ外向きに丸める。
-		pixels = { left: Math.floor(pixels.left) - 2, top: Math.floor(pixels.top) - 2, right: Math.ceil(pixels.right) + 2, bottom: Math.ceil(pixels.bottom) + 2 };
+		pixels = {
+			left: Math.floor(pixels.left) - 2,
+			top: Math.floor(pixels.top) - 2,
+			right: Math.ceil(pixels.right) + 2,
+			bottom: Math.ceil(pixels.bottom) + 2,
+		};
 		const bounds = {
-			left: pixels.left * 2 / frame.width - 1, right: pixels.right * 2 / frame.width - 1,
-			top: 1 - pixels.top * 2 / frame.height, bottom: 1 - pixels.bottom * 2 / frame.height };
+			left: pixels.left * 2 / frame.width - 1,
+			right: pixels.right * 2 / frame.width - 1,
+			top: 1 - pixels.top * 2 / frame.height,
+			bottom: 1 - pixels.bottom * 2 / frame.height,
+		};
 		const size = timelineTextureSize(bounds, frame, options.device.limits.maxTextureDimension2D);
 		const density = Math.min(size.width / (pixels.right - pixels.left), size.height / (pixels.bottom - pixels.top));
 		// 丸めによる微小な縦横比差を座標範囲へ戻す。字形自体を歪ませない。
 		bounds.right = bounds.left + size.width / density * 2 / frame.width;
 		bounds.bottom = bounds.top - size.height / density * 2 / frame.height;
 		return {
-			bounds, size, x: valid ? (positionX - pixels.left) * density : 0, y: valid ? (positionY - pixels.top) * density : 0,
+			bounds,
+			size,
+			x: valid ? (positionX - pixels.left) * density : 0,
+			y: valid ? (positionY - pixels.top) * density : 0,
 			layout: valid && layout ? {
-				...layout, fontSize: layout.fontSize * density, outlineWidth: layout.outlineWidth * density,
-				lineAdvance: layout.lineAdvance * density, firstBaselineOffset: layout.firstBaselineOffset * density } : null };
+				...layout,
+				fontSize: layout.fontSize * density,
+				outlineWidth: layout.outlineWidth * density,
+				lineAdvance: layout.lineAdvance * density,
+				firstBaselineOffset: layout.firstBaselineOffset * density,
+			} : null,
+		};
 	}
 
 	let outputKey: string | null = null;
@@ -190,11 +230,17 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 			updateMask(values, output.width, output.height, plan);
 			const current = pipeline.update({
 				color: constantShaderInput('color', values.color),
-				outlineColor: constantShaderInput('color', values.outlineColor), shadowColor: constantShaderInput('color', values.shadowColor) }, output);
+				outlineColor: constantShaderInput('color', values.outlineColor),
+				shadowColor: constantShaderInput('color', values.shadowColor),
+			}, output);
 			const pass = encoder.beginRenderPass({
 				colorAttachments: [{
 					view: output.createView(),
-					clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store' }] });
+					clearValue: [0, 0, 0, 0],
+					loadOp: 'clear',
+					storeOp: 'store',
+				}],
+			});
 			pass.setPipeline(current.pipeline);
 			pass.setBindGroup(0, maskBinding);
 			pass.setBindGroup(pipeline.inputGroup, current.bindGroup);

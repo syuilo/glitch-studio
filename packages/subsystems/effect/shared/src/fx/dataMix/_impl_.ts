@@ -6,13 +6,17 @@ import type definition from './_def_.ts';
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
-			size: resolution, format: wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+			size: resolution,
+			format: wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float',
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
 		const pipelines = createShaderInputPipeline({
-			device, vertex: wgpu.defaultVertexShaderModule, code,
+			device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
 			schema: { inputA: 'any', inputB: 'any', amount: 'scalar' },
 			targets: [{ format: wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float' }],
 			sampling: 'level0',

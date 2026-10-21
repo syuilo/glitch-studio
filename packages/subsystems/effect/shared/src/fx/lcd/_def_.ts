@@ -11,9 +11,38 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['pixel', 'pattern', 'gimmicky', 'stylized'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		density: { dataType: { kind: 'scalar' }, ui: { label: 'Density', control: { controlType: 'range', min: 1, max: 1000, logarithmic: true } }, defaultValue: { inputSource: 'literal', value: 200 } },
-		border: { dataType: { kind: 'scalar' }, ui: { label: 'Border', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.1 } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		density: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Density',
+				control: {
+					controlType: 'range',
+					min: 1,
+					max: 1000,
+					logarithmic: true,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 200 },
+		},
+		border: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Border',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.1 },
+		},
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameter: 'input',

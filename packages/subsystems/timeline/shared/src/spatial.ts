@@ -9,7 +9,12 @@ export { transformTimelinePoint, multiplyTimelineAffine, invertTimelineAffine } 
 export type { TimelineAffine } from './affine.ts';
 
 export type TimelineBounds = { left: number; bottom: number; right: number; top: number };
-export const TIMELINE_FRAME: TimelineBounds = { left: -1, bottom: -1, right: 1, top: 1 };
+export const TIMELINE_FRAME: TimelineBounds = {
+	left: -1,
+	bottom: -1,
+	right: 1,
+	top: 1,
+};
 export const TIMELINE_IDENTITY: TimelineAffine = [1, 0, 0, 1, 0, 0];
 
 export function timelineGeometryMatrix(geometry: TimelineLayerGeometry): TimelineAffine {
@@ -22,13 +27,28 @@ export function timelineGeometryMatrix(geometry: TimelineLayerGeometry): Timelin
 }
 export function transformTimelineBounds(bounds: TimelineBounds, matrix: TimelineAffine): TimelineBounds {
 	const points = [[bounds.left, bounds.bottom], [bounds.right, bounds.bottom], [bounds.right, bounds.top], [bounds.left, bounds.top]].map(point => transformTimelinePoint(matrix, point as TimelinePoint));
-	return { left: Math.min(...points.map(point => point[0])), right: Math.max(...points.map(point => point[0])), bottom: Math.min(...points.map(point => point[1])), top: Math.max(...points.map(point => point[1])) };
+	return {
+		left: Math.min(...points.map(point => point[0])),
+		right: Math.max(...points.map(point => point[0])),
+		bottom: Math.min(...points.map(point => point[1])),
+		top: Math.max(...points.map(point => point[1])),
+	};
 }
 export function unionTimelineBounds(a: TimelineBounds, b: TimelineBounds): TimelineBounds {
-	return { left: Math.min(a.left, b.left), bottom: Math.min(a.bottom, b.bottom), right: Math.max(a.right, b.right), top: Math.max(a.top, b.top) };
+	return {
+		left: Math.min(a.left, b.left),
+		bottom: Math.min(a.bottom, b.bottom),
+		right: Math.max(a.right, b.right),
+		top: Math.max(a.top, b.top),
+	};
 }
 export function intersectTimelineBounds(a: TimelineBounds, b: TimelineBounds): TimelineBounds | null {
-	const result = { left: Math.max(a.left, b.left), bottom: Math.max(a.bottom, b.bottom), right: Math.min(a.right, b.right), top: Math.min(a.top, b.top) };
+	const result = {
+		left: Math.max(a.left, b.left),
+		bottom: Math.max(a.bottom, b.bottom),
+		right: Math.min(a.right, b.right),
+		top: Math.min(a.top, b.top),
+	};
 	return result.left < result.right && result.bottom < result.top ? result : null;
 }
 export type TimelineRenderSpace = {
@@ -50,7 +70,16 @@ export function projectTimelineMatrix(matrix: TimelineAffine, depth: number, fra
 	const scale = 1 / (Math.tan(camera.fieldOfView * Math.PI / 360) * distance);
 	// カメラ位置を引いてからロールの逆回転を適用する。映像と同じ縦横比補正を使い、
 	// 横長のSceneでもロールで映像が歪まないようにする。親のscaleは視点の位置にのみ反映済み。
-	const view = timelineGeometryMatrix({ sourceSize: frame, sceneSize: frame,
-		transform: { position: [0, 0], origin: camera.position, scale: [scale, scale], rotation: -camera.roll, fitMode: 'stretch' } });
+	const view = timelineGeometryMatrix({
+		sourceSize: frame,
+		sceneSize: frame,
+		transform: {
+			position: [0, 0],
+			origin: camera.position,
+			scale: [scale, scale],
+			rotation: -camera.roll,
+			fitMode: 'stretch',
+		},
+	});
 	return multiplyTimelineAffine(view, matrix);
 }

@@ -25,8 +25,10 @@ export class ProjectStateVersions {
 				this.modules.set(visualModuleTargetKey({ visualModuleId: change.visualModuleId }), { revision, cacheResetRevision: revision });
 			} else if (change.type === 'node' || change.type === 'visualModule') {
 				const previous = this.module(change.target);
-				this.modules.set(visualModuleTargetKey(change.target), { revision,
-					cacheResetRevision: change.type === 'node' && canPreserveNodeOutputCache(change.changes) ? previous.cacheResetRevision : revision });
+				this.modules.set(visualModuleTargetKey(change.target), {
+					revision,
+					cacheResetRevision: change.type === 'node' && canPreserveNodeOutputCache(change.changes) ? previous.cacheResetRevision : revision,
+				});
 			} else if (change.type === 'layerTree') {
 				// 並び・親だけの変更では既存配置の履歴を捨てない。ただし削除後に描画せず
 				// Undoした場合にも、復活したIDへ削除前のインスタンスを使い回さない。

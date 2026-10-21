@@ -82,8 +82,13 @@ export class TimelineAudioPreview {
 		const clips = project.sceneId == null ? [] : getSceneAudioClips(project.timelineScenes, project.sceneId, { type: 'all' }, createSpeechResolver(project.generatedSpeech));
 		const assetIds = new Set(clips.map(clip => clip.sourceId));
 		worker.postMessage({
-			type: 'start', generatedSpeech: project.generatedSpeech, assets: project.assets.filter(asset => assetIds.has(asset.id)), clips,
-			sampleRate: this.rate, startFrame: this.startFrame, endFrame: this.endFrame,
+			type: 'start',
+			generatedSpeech: project.generatedSpeech,
+			assets: project.assets.filter(asset => assetIds.has(asset.id)),
+			clips,
+			sampleRate: this.rate,
+			startFrame: this.startFrame,
+			endFrame: this.endFrame,
 		});
 		// 最大1秒を先読みする。消費したチャンク分だけ補充し、長さに比例してメモリを使わない。
 		for (let i = 0; i < 4; i++) worker.postMessage({ type: 'pull' });

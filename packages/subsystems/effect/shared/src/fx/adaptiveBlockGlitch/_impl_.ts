@@ -25,14 +25,18 @@ export default implementEffect<typeof definition>({
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
-		const computeLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-		] });
-		const outputLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-		] });
+		const computeLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			],
+		});
+		const outputLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+			],
+		});
 		const reduceModule = device.createShaderModule({ code: commonCode + '\n' + reduceCode });
 		const reduceLayout = device.createPipelineLayout({ bindGroupLayouts: [computeLayout] });
 		const reducers = new Map<number, GPUComputePipeline>();
@@ -108,7 +112,16 @@ export default implementEffect<typeof definition>({
 			}
 			const levelValues = new Uint32Array((maxSubdivisionLevels + 1) * 4);
 			for (const [index, level] of levels.entries()) levelValues.set([level.offset, level.width, level.height, 0], index * 4);
-			return { rootSize, rootColumns, rootRows, gridOrigin, maxDepth, levels, levelValues, byteLength };
+			return {
+				rootSize,
+				rootColumns,
+				rootRows,
+				gridOrigin,
+				maxDepth,
+				levels,
+				levelValues,
+				byteLength,
+			};
 		};
 		const createResources = (geometry: ReturnType<typeof getGeometry>) => {
 			const statistics = device.createBuffer({ size: geometry.byteLength, usage: GPUBufferUsage.STORAGE });

@@ -16,7 +16,8 @@ export function createKeyframeStretch(keyframes: readonly { id: string; x: numbe
 	// 元々1ms未満のデータは操作開始時に広げず、その幅を下限にする。
 	const minimumSpan = Math.min(1, lastX - firstX);
 	const stretch = {
-		anchorX, endpointX: endpoint.x,
+		anchorX,
+		endpointX: endpoint.x,
 		minDelta: endpoint.x === firstX ? -firstX : firstX + minimumSpan - lastX,
 		maxDelta: endpoint.x === firstX ? lastX - minimumSpan - firstX : Infinity,
 	};

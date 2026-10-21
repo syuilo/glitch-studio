@@ -14,14 +14,18 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution, params }) => {
 		// バッチごとのソートbufferはgroup 0、全バッチ共通の生成入力はgroup 1。
-		const initializeLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-			{ binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-		] });
-		const outputLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-		] });
+		const initializeLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+				{ binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			],
+		});
+		const outputLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+			],
+		});
 		const createVariant = (input: ShaderInput) => {
 			const generated = generateShaderInputs({ input: 'color' }, { input }, 1, 'level0');
 			const bindings = createShaderInputBindings(device, generated);
@@ -38,7 +42,12 @@ export default implementEffect<typeof definition>({
 					fragment: { module, entryPoint: 'fs', targets: [{ format: intermediateTextureFormat }] },
 					primitive: { topology: 'triangle-list' },
 				});
-				return { module, initialize, output, bindings };
+				return {
+					module,
+					initialize,
+					output,
+					bindings,
+				};
 			} catch (error) {
 				bindings.dispose();
 				throw error;
@@ -57,7 +66,8 @@ export default implementEffect<typeof definition>({
 		// mergeは色入力を参照せず、輝度・区間・インデックスだけを並べ替える。
 		// auto layoutにはmergeが使うgroup 0だけが含まれ、入力種別によらず再利用できる。
 		const merge = device.createComputePipeline({
-			layout: 'auto', compute: { module: getVariant(params.input).module, entryPoint: 'merge' },
+			layout: 'auto',
+			compute: { module: getVariant(params.input).module, entryPoint: 'merge' },
 		});
 		const maxPasses = Math.ceil(Math.log2(Math.max(resolution.width, resolution.height)));
 		const uniformSize = 40;
@@ -90,9 +100,14 @@ export default implementEffect<typeof definition>({
 					size: length * count * 12,
 					usage: GPUBufferUsage.STORAGE,
 				}));
-				const uniformEntry = (pass: number) => ({ binding: 0, resource: {
-					buffer: uniforms, offset: (batch * (maxPasses + 1) + pass) * stride, size: uniformSize,
-				} });
+				const uniformEntry = (pass: number) => ({
+					binding: 0,
+					resource: {
+						buffer: uniforms,
+						offset: (batch * (maxPasses + 1) + pass) * stride,
+						size: uniformSize,
+					},
+				});
 				const mergeGroups = Array.from({ length: maxPasses }, (_, pass) => device.createBindGroup({
 					layout: merge.getBindGroupLayout(0),
 					entries: [
@@ -101,7 +116,13 @@ export default implementEffect<typeof definition>({
 						{ binding: 3, resource: { buffer: buffers[1 - pass % 2] } },
 					],
 				}));
-				return { lineOffset, count, buffers, uniformEntry, mergeGroups };
+				return {
+					lineOffset,
+					count,
+					buffers,
+					uniformEntry,
+					mergeGroups,
+				};
 			});
 		};
 		let batches = createBatches();

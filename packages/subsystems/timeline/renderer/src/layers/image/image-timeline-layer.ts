@@ -25,24 +25,51 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, mask: layer.mask, layerMask: layer.layerMask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+			const settings = parameters.evaluate({
+				time: context.sceneTimeMs,
+				isExport: context.isExport,
+				coordinateSpace: layer.coordinateSpace,
+				mask: layer.mask,
+				layerMask: layer.layerMask,
+				paramValues: layer.compositingParamValues,
+				automationGraphs: layer.automationGraphs,
+			});
 			const encoder = options.device.createCommandEncoder();
 			try {
 				// replaceの無変形経路は素材を直接後段へ渡す。原寸のままだと後続モジュールの
 				// 自動解像度だけがプレビュー倍率を無視するため、素材にも倍率を一度だけ適用する。
 				// 静止画像は再描画のたびに縮小せず、Asset変更・倍率変更でレイヤーが破棄されるまで再利用する。
 				if (!scaledTexture && (sourceResolution.width !== sourceTexture.width || sourceResolution.height !== sourceTexture.height)) {
-					scaledTexture = options.device.createTexture({ size: sourceResolution, format: options.format,
-																																																				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+					scaledTexture = options.device.createTexture({
+						size: sourceResolution,
+						format: options.format,
+						usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+					});
 					scalingPipeline = createShaderInputPipeline({
-						device: options.device, vertex: options.vertex, schema: { source: 'color' }, targets: [{ format: options.format }],
+						device: options.device,
+						vertex: options.vertex,
+						schema: { source: 'color' },
+						targets: [{ format: options.format }],
 						code: '@fragment fn fs(@location(0) position: vec2f) -> @location(0) vec4f { return read_source(position); }',
 					});
 					// Asset側で既にpremultiply済みなので、RGBAをそのまま補間する。
-					const variant = scalingPipeline.update({ source: { kind: 'texture', texture: sourceTexture,
-																																																								fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' } }, sourceResolution);
-					const pass = encoder.beginRenderPass({ colorAttachments: [{ view: scaledTexture.createView(),
-																																																																	loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
+					const variant = scalingPipeline.update({
+						source: {
+							kind: 'texture',
+							texture: sourceTexture,
+							fitMode: 'stretch',
+							wrapMode: 'clamp',
+							filterMode: 'linear',
+						},
+					}, sourceResolution);
+					const pass = encoder.beginRenderPass({
+						colorAttachments: [{
+							view: scaledTexture.createView(),
+							loadOp: 'clear',
+							storeOp: 'store',
+							clearValue: [0, 0, 0, 0],
+						}],
+					});
 					pass.setPipeline(variant.pipeline);
 					pass.setBindGroup(scalingPipeline.inputGroup, variant.bindGroup);
 					pass.draw(6);

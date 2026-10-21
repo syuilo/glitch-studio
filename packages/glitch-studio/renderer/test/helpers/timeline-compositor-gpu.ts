@@ -8,10 +8,29 @@ import { colorBlendModes } from '@gs/shared/color-blend.ts';
 // 実際の合成シェーダーを実行し、透明背景・変形後の空白・長方形での回転を画素で確認する。
 export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShaderModule, read: (output: GPUTexture) => Promise<number[]>) {
 	const resolution = { width: 8, height: 4 };
-	const compositor = createTimelineCompositor({ device, vertex, resolution, format: 'rgba8unorm' });
+	const compositor = createTimelineCompositor({
+		device,
+		vertex,
+		resolution,
+		format: 'rgba8unorm',
+	});
 	const textures: GPUTexture[] = [];
 	const completed: string[] = [];
-	const defaults: TimelineCompositingSettings = { transformTarget: 'image', mask: null, layerMask: null, coordinateSpace: 'world', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
+	const defaults: TimelineCompositingSettings = {
+		transformTarget: 'image',
+		mask: null,
+		layerMask: null,
+		coordinateSpace: 'world',
+		depth: 0,
+		clipToFrame: false,
+		blendMode: 0,
+		opacity: 1,
+		fitMode: 'contain',
+		position: [0, 0],
+		origin: [0, 0],
+		scale: [1, 1],
+		rotation: 0,
+	};
 	const uniform = (value: number[]): UniformOrTexture => ({ kind: 'uniform', value });
 	const blue = uniform([0, 0, 1, 1]);
 	const red = uniform([1, 0, 0, 1]);
@@ -57,12 +76,28 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		// テクスチャ寸法から再Fitしたり対象の逆変換を掛けると、別々に動く2枚の位置がずれる。
 		await check('timeline referenced mask stays independent from target placement', blue, red, { layerMask, position: [1, 0] }, solid([0, 0, 255, 255]), undefined, leftMask);
 		await check('timeline referenced mask honors placed image bounds', blue, red, { layerMask }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]), undefined,
-			{ ...uniform([1, 1, 1, 1]), region: { bounds: { left: -1, bottom: -1, right: 0, top: 1 }, frameSize: resolution } });
+			{
+				...uniform([1, 1, 1, 1]),
+				region: {
+					bounds: {
+						left: -1,
+						bottom: -1,
+						right: 0,
+						top: 1,
+					},
+					frameSize: resolution,
+				},
+			});
 		await check('timeline missing referenced mask is transparent black', blue, red, { layerMask }, solid([0, 0, 255, 255]));
 		await check('timeline inverted missing referenced mask passes the target', blue, red, { layerMask: { ...layerMask, inverted: true } }, solid([255, 0, 0, 255]));
 		// 【参照マスクは範囲モードと既存の下層マスクの作用範囲にも掛かる】
 		// 共通の被覆率で扱わないと、特定モードだけマスク外の背景を変更する。
-		await check('timeline referenced mask intersects application regions', blue, red, { layerMask, transformTarget: 'region', position: [0.5, 0], scale: [0.5, 1] }, solid([0, 0, 255, 255]), undefined, leftMask);
+		await check('timeline referenced mask intersects application regions', blue, red, {
+			layerMask,
+			transformTarget: 'region',
+			position: [0.5, 0],
+			scale: [0.5, 1],
+		}, solid([0, 0, 255, 255]), undefined, leftMask);
 		await check('timeline referenced mask limits lower-layer masking', blue, transparent, { layerMask, mask: alphaMask }, pixels(x => x < 4 ? [0, 0, 0, 0] : [0, 0, 255, 255]), undefined, leftMask);
 		// 【Alphaマスクは素材の色を描かず、下層のpremultiplied RGBAをまとめて減衰させる】
 		// alphaだけを書き換えると透明な輪郭に元のRGBが残る。半透明の下層でも検証する。
@@ -125,7 +160,12 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline negative scale flips texture source', transparent, striped, { scale: [-1, 1] }, pixels(x => x < 4 ? [0, 255, 0, 255] : [255, 0, 0, 255]));
 		// 【適用範囲だけを動かし、処理済み画像の模様は合成先の座標に固定する】
 		// 画像まで変形すると右半分に赤が現れる。反転しても画像の左右は入れ替えない。
-		const regionSettings = { transformTarget: 'region' as const, blendMode: 19, position: [0.5, 0] as [number, number], scale: [0.5, 1] as [number, number] };
+		const regionSettings = {
+			transformTarget: 'region' as const,
+			blendMode: 19,
+			position: [0.5, 0] as [number, number],
+			scale: [0.5, 1] as [number, number],
+		};
 		const rightGreen = pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 255, 0, 255]);
 		await check('timeline region transforms the window without moving its image', blue, striped, regionSettings, rightGreen);
 		await check('timeline region reflection leaves image coordinates unchanged', blue, striped, { ...regionSettings, scale: [-0.5, 1] }, rightGreen);
@@ -147,8 +187,32 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline region antialiases subpixel window edges', blue, red, { ...regionSettings, position: [0.125, 0] }, pixels(x => x === 2 || x === 6 ? [128, 0, 128, 255] : x > 2 && x < 6 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【祖先のTransformも枠だけへ反映する】
 		// 子のpositionだけで補正すると、親を動かしたときに背景の模様まで移動してしまう。
-		await check('timeline region inherits parent placement without transforming pixels', blue, striped, { ...regionSettings, position: [0, 0] }, rightGreen, { parent: [1, 0, 0, 1, 0.5, 0], depth: 0, viewport: { left: -1, bottom: -1, right: 1, top: 1 } });
-		await check('timeline region inherits camera placement without transforming pixels', blue, striped, { ...regionSettings, position: [0, 0] }, rightGreen, { parent: [1, 0, 0, 1, 0, 0], depth: 0, camera: { position: [-0.5, 0], z: 1, roll: 0, fieldOfView: 90 }, viewport: { left: -1, bottom: -1, right: 1, top: 1 } });
+		await check('timeline region inherits parent placement without transforming pixels', blue, striped, { ...regionSettings, position: [0, 0] }, rightGreen, {
+			parent: [1, 0, 0, 1, 0.5, 0],
+			depth: 0,
+			viewport: {
+				left: -1,
+				bottom: -1,
+				right: 1,
+				top: 1,
+			},
+		});
+		await check('timeline region inherits camera placement without transforming pixels', blue, striped, { ...regionSettings, position: [0, 0] }, rightGreen, {
+			parent: [1, 0, 0, 1, 0, 0],
+			depth: 0,
+			camera: {
+				position: [-0.5, 0],
+				z: 1,
+				roll: 0,
+				fieldOfView: 90,
+			},
+			viewport: {
+				left: -1,
+				bottom: -1,
+				right: 1,
+				top: 1,
+			},
+		});
 		// 【背景は配置済みのScene画像として読み、素材の比率で再度Coverしない】
 		// 無変形Replaceは素材を借用するため、物理テクスチャの比率がSceneと異なる場合もある。
 		const wideBackground = texture(16, 4, Array.from({ length: 4 }, () => Array.from({ length: 16 }, (_, x) => x >= 4 && x < 12 ? [0, 255, 0, 255] : [255, 0, 0, 255])).flat(2));

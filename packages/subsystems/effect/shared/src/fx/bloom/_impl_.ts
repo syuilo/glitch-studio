@@ -49,18 +49,36 @@ export default implementEffect<typeof definition>({
 		// Blend into the finer level in place; no second pyramid or detail sample.
 		const blend: GPUBlendComponent = { srcFactor: 'constant', dstFactor: 'one-minus-constant' };
 		const upsamplePipeline = makePipeline('upsample', wgpu.intermediateTextureFormat, { color: blend, alpha: blend });
-		const prefilterLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		] });
-		const prefilterGroup = device.createBindGroup({ layout: prefilterLayout, entries: [
-			{ binding: 0, resource: { buffer: uniformBuffer } },
-		] });
+		const prefilterLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			],
+		});
+		const prefilterGroup = device.createBindGroup({
+			layout: prefilterLayout,
+			entries: [
+				{ binding: 0, resource: { buffer: uniformBuffer } },
+			],
+		});
 		const inputPipelineOptions = {
-			device, vertex: wgpu.defaultVertexShaderModule, code: blendCode + '\n' + commonCode + '\n' + inputCode,
-			schema: { input: 'color' }, sampling: 'level0',
+			device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code: blendCode + '\n' + commonCode + '\n' + inputCode,
+			schema: { input: 'color' },
+			sampling: 'level0',
 		} as const;
-		const prefilterPipelines = createShaderInputPipeline({ ...inputPipelineOptions, internalLayouts: [prefilterLayout], entryPoint: 'prefilter', targets: [{ format: wgpu.intermediateTextureFormat }] });
-		const compositePipelines = createShaderInputPipeline({ ...inputPipelineOptions, internalLayouts: [bindGroupLayout], entryPoint: 'composite', targets: [{ format: wgpu.intermediateTextureFormat }] });
+		const prefilterPipelines = createShaderInputPipeline({
+			...inputPipelineOptions,
+			internalLayouts: [prefilterLayout],
+			entryPoint: 'prefilter',
+			targets: [{ format: wgpu.intermediateTextureFormat }],
+		});
+		const compositePipelines = createShaderInputPipeline({
+			...inputPipelineOptions,
+			internalLayouts: [bindGroupLayout],
+			entryPoint: 'composite',
+			targets: [{ format: wgpu.intermediateTextureFormat }],
+		});
 		const longestSide = Math.max(resolution.width, resolution.height);
 		const clamp = (value: number, max: number, fallback: number) => Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : fallback;
 		const getRadiusSettings = (value: readonly number[]) => {
@@ -79,7 +97,12 @@ export default implementEffect<typeof definition>({
 			],
 		});
 		const makePass = (view: GPUTextureView, loadOp: GPULoadOp = 'clear'): GPURenderPassDescriptor => ({
-			colorAttachments: [{ view, loadOp, storeOp: 'store', clearValue: [0, 0, 0, 0] }],
+			colorAttachments: [{
+				view,
+				loadOp,
+				storeOp: 'store',
+				clearValue: [0, 0, 0, 0],
+			}],
 		});
 		const makePyramid = (workingSize: number, scaleX: number, scaleY: number) => {
 			const sizes: number[] = [];
@@ -101,7 +124,11 @@ export default implementEffect<typeof definition>({
 				return { texture, view: texture.createView() };
 			});
 			return {
-				workingSize, scaleX, scaleY, detailLevelCount, levels,
+				workingSize,
+				scaleX,
+				scaleY,
+				detailLevelCount,
+				levels,
 				downPasses: levels.map(({ view }) => makePass(view)),
 				upPasses: levels.slice(0, -1).map(({ view }) => makePass(view, 'load')),
 				downGroups: levels.slice(0, -1).map(({ view }) => makeBindGroup(view)),

@@ -30,8 +30,11 @@ export class AudioOutput {
 	public captureSource(id: AudioSourceId, source: AudioNode, handlers: { attach: (port: MessagePort) => void; reset: () => void; running?: (running: boolean) => void }): AudioCapture {
 		const context = source.context as AudioContext;
 		const capture = new AudioWorkletNode(context, 'glitch-audio-capture', {
-			numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
-			channelCountMode: 'max', channelInterpretation: 'discrete',
+			numberOfInputs: 1,
+			numberOfOutputs: 1,
+			outputChannelCount: [1],
+			channelCountMode: 'max',
+			channelInterpretation: 'discrete',
 		});
 		const channel = new MessageChannel();
 		const reset = handlers.reset;
@@ -72,7 +75,12 @@ export class AudioOutput {
 				if (!nextActive || generation !== nextGeneration) clearLevels();
 				active = nextActive;
 				generation = nextGeneration;
-				capture.port.postMessage({ type: 'state', active, generation, meterGeneration: ++meterGeneration });
+				capture.port.postMessage({
+					type: 'state',
+					active,
+					generation,
+					meterGeneration: ++meterGeneration,
+				});
 			},
 			dispose: () => {
 				active = false;

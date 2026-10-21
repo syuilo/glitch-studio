@@ -47,13 +47,21 @@ export async function run() {
 	async function mix(params: any, width = 1, height = 1) {
 		const output = texture(width, height);
 		const encoder = device.createCommandEncoder();
-		instance.render({ params, commandEncoder: encoder, outputDataMap: { output: { texture: output, textureView: output.createView() } }, createPassEncoderFor: (_, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+		instance.render({
+			params,
+			commandEncoder: encoder,
+			outputDataMap: { output: { texture: output, textureView: output.createView() } },
+			createPassEncoderFor: (_, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+		} as any);
 		return read(output, encoder);
 	}
 	try {
 		// 画素ごとに異なる配列要素を選び、定数・補間・境界処理を実際のWGSLで確認する。
 		const arrayPipelines = createShaderInputPipeline({
-			device, vertex, schema: { images: { array: 'color' } }, targets: [{ format: 'rgba8unorm' }],
+			device,
+			vertex,
+			schema: { images: { array: 'color' } },
+			targets: [{ format: 'rgba8unorm' }],
 			code: '@fragment fn fs(@builtin(position) pixel: vec4f) -> @location(0) vec4f { return read_images(u32(pixel.x), vec2f(0.0, 0.75)); }',
 		});
 		const arrayOutput = texture(5, 1);
@@ -88,8 +96,12 @@ export async function run() {
 		} finally { arrayPipelines.dispose(); }
 		// スカラー配列の微分と、空のvector/any配列も型の一致した選択関数になる。
 		const gradientArrayPipelines = createShaderInputPipeline({
-			device, vertex, schema: { fields: { array: 'scalar' }, vectors: { array: 'vector' }, data: { array: 'any' } },
-			targets: [{ format: 'rgba8unorm' }], sampling: 'level0', scalarGradients: true,
+			device,
+			vertex,
+			schema: { fields: { array: 'scalar' }, vectors: { array: 'vector' }, data: { array: 'any' } },
+			targets: [{ format: 'rgba8unorm' }],
+			sampling: 'level0',
+			scalarGradients: true,
 			code: '@fragment fn fs(@builtin(position) pixel: vec4f) -> @location(0) vec4f { return vec4f(readGradient_fields(u32(pixel.x), vec2f(0.0), true), 1.0) + vec4f(read_vectors(0u, vec2f(0.0)), 0.0, 0.0) + read_data(0u, vec2f(0.0)); }',
 		});
 		try {
@@ -109,14 +121,27 @@ export async function run() {
 			const canvas = new OffscreenCanvas(width, height);
 			canvas.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(pixels), width, height), 0, 0);
 			const fileData = await canvas.convertToBlob({ type: 'image/png' });
-			await assetTextures.update([{ id: 'image', name: 'image', width, height, fileData, fileDataType: fileData.type }], () => {});
+			await assetTextures.update([{
+				id: 'image',
+				name: 'image',
+				width,
+				height,
+				fileData,
+				fileDataType: fileData.type,
+			}], () => {});
 			return assetTextures.textures.get('image')!;
 		}
 		const rawSource = await loadImageAsset(2, 2, [255, 0, 0, 128, 0, 255, 0, 255, 0, 0, 255, 64, 255, 255, 255, 0]);
 		const rawOutput = texture(2, 2);
 		const raw = imageEffect.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
 		const rawEncoder = device.createCommandEncoder();
-		raw.render({ params: { image: rawSource, fit: 'stretch' }, commandEncoder: rawEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }), createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
+		raw.render({
+			params: { image: rawSource, fit: 'stretch' },
+			commandEncoder: rawEncoder,
+			outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } },
+			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+		} as any);
 		const rawPixels = await read(rawOutput, rawEncoder);
 		check('original image top row and half alpha', rawPixels[0], [128, 0, 0, 128, 0, 255, 0, 255]);
 		check('original image bottom row and zero alpha', rawPixels[1], [0, 0, 64, 64, 0, 0, 0, 0]);
@@ -124,10 +149,21 @@ export async function run() {
 		const edgeSource = await loadImageAsset(2, 1, [255, 0, 0, 255, 0, 0, 0, 0]);
 		const edgeOutput = texture(1, 1);
 		const edgeEncoder = device.createCommandEncoder();
-		raw.render({ params: { image: edgeSource, fit: 'stretch' }, commandEncoder: edgeEncoder, outputDataMap: { output: { texture: edgeOutput, textureView: edgeOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+		raw.render({
+			params: { image: edgeSource, fit: 'stretch' },
+			commandEncoder: edgeEncoder,
+			outputDataMap: { output: { texture: edgeOutput, textureView: edgeOutput.createView() } },
+			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+		} as any);
 		check('image interpolation preserves premultiplied transparent edges', (await read(edgeOutput, edgeEncoder))[0], [128, 0, 0, 128]);
 		const emptyEncoder = device.createCommandEncoder();
-		raw.render({ params: { image: null, fit: 'stretch' }, commandEncoder: emptyEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }), createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
+		raw.render({
+			params: { image: null, fit: 'stretch' },
+			commandEncoder: emptyEncoder,
+			outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } },
+			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+		} as any);
 		check('original image without asset is transparent', (await read(rawOutput, emptyEncoder))[0], Array(8).fill(0));
 		raw.dispose();
 		assetTextures.dispose();
@@ -180,8 +216,19 @@ export async function run() {
 						const output = texture(4, 4);
 						const encoder = device.createCommandEncoder();
 						blocks.render({
-							params: { input, size: constantShaderInput('vector', [0.5, 0.75]), amount: selection, fitMode: 'contain', seed: 123, randomSwap: false, randomRotation: false, randomFlipX: false, randomFlipY: false },
-							commandEncoder: encoder, outputDataMap: { output: { texture: output, textureView: output.createView() } },
+							params: {
+								input,
+								size: constantShaderInput('vector', [0.5, 0.75]),
+								amount: selection,
+								fitMode: 'contain',
+								seed: 123,
+								randomSwap: false,
+								randomRotation: false,
+								randomFlipX: false,
+								randomFlipY: false,
+							},
+							commandEncoder: encoder,
+							outputDataMap: { output: { texture: output, textureView: output.createView() } },
 							createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
 						} as any);
 						check(`blockShuffle ${fitMode} ${wrapMode} selection ${selection}`, (await read(output, encoder)).flat(), expected);

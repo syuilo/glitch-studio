@@ -81,7 +81,12 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		try {
 			texture = createTexture(args);
 			previousFrameTexture = this.options.implementation.needsPreviousFrame ? createTexture(args) : null;
-			return { texture, textureView: texture.createView(), previousFrameTexture, previousFrameTextureView: previousFrameTexture?.createView() ?? null };
+			return {
+				texture,
+				textureView: texture.createView(),
+				previousFrameTexture,
+				previousFrameTextureView: previousFrameTexture?.createView() ?? null,
+			};
 		} catch (error) {
 			texture?.destroy();
 			previousFrameTexture?.destroy();
@@ -142,8 +147,10 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 				reportStatus: status => {
 					if (!this.disposed && this.instanceGeneration === generation) this.setStatus(status);
 				},
-				resolution: { ...this.currentResolution }, wgpu: this.options.wgpu,
-				params, fallbackTexture: this.options.fallbackTexture,
+				resolution: { ...this.currentResolution },
+				wgpu: this.options.wgpu,
+				params,
+				fallbackTexture: this.options.fallbackTexture,
 			});
 		} catch (error) {
 			this.releaseInstance();
@@ -195,7 +202,8 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 			};
 		}
 		this.instance!.render({
-			...context, outputDataMap: outputDataMap as EffectOutputDataMap<Definition['outputDefs']>,
+			...context,
+			outputDataMap: outputDataMap as EffectOutputDataMap<Definition['outputDefs']>,
 			createPassEncoderFor: this.createPassEncoderFor,
 			createPassEncoder: this.createPassEncoder,
 			createComputePassEncoder: this.createComputePassEncoder,
@@ -211,7 +219,17 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	}
 
 	private createPassEncoderFor = (encoder: GPUCommandEncoder, view: GPUTextureView): GPURenderPassEncoder => this.createPassEncoder(encoder, {
-		colorAttachments: [{ view, clearValue: { r: 0, g: 0, b: 0, a: 1 }, loadOp: 'clear', storeOp: 'store' }],
+		colorAttachments: [{
+			view,
+			clearValue: {
+				r: 0,
+				g: 0,
+				b: 0,
+				a: 1,
+			},
+			loadOp: 'clear',
+			storeOp: 'store',
+		}],
 	});
 
 	private createPassEncoder = (encoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor): GPURenderPassEncoder => {

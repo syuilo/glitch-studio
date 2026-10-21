@@ -7,7 +7,16 @@ export const voicevoxSubtitleParamDefs = {
 	font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 	size: {
 		dataType: { kind: 'scalar' },
-		ui: { label: 'Size (height ratio)', control: { controlType: 'range', min: 0.0001, max: 1, step: 0.01, logarithmic: true } },
+		ui: {
+			label: 'Size (height ratio)',
+			control: {
+				controlType: 'range',
+				min: 0.0001,
+				max: 1,
+				step: 0.01,
+				logarithmic: true,
+			},
+		},
 		defaultValue: { inputSource: 'literal', value: 0.1 },
 	},
 	overflow: {
@@ -17,13 +26,29 @@ export const voicevoxSubtitleParamDefs = {
 	},
 	maxWidth: {
 		dataType: { kind: 'scalar' },
-		ui: { label: 'Max width (width ratio)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+		ui: {
+			label: 'Max width (width ratio)',
+			control: {
+				controlType: 'range',
+				min: 0,
+				max: 1,
+				step: 0.01,
+			},
+		},
 		defaultValue: { inputSource: 'literal', value: 1 },
 	},
 	color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 	outlineWidth: {
 		dataType: { kind: 'scalar' },
-		ui: { label: 'Outline width (size ratio)', control: { controlType: 'range', min: 0, max: 0.25, step: 0.005 } },
+		ui: {
+			label: 'Outline width (size ratio)',
+			control: {
+				controlType: 'range',
+				min: 0,
+				max: 0.25,
+				step: 0.005,
+			},
+		},
 		defaultValue: { inputSource: 'literal', value: 0 },
 	},
 	outlineColor: { dataType: { kind: 'color' }, ui: { label: 'Outline color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },
@@ -31,15 +56,43 @@ export const voicevoxSubtitleParamDefs = {
 	shadowColor: { dataType: { kind: 'color' }, ui: { label: 'Shadow color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0.5] } },
 	shadowOffset: {
 		dataType: { kind: 'vector' },
-		ui: { label: 'Shadow offset (size ratio)', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } },
+		ui: {
+			label: 'Shadow offset (size ratio)',
+			control: {
+				controlType: 'vector',
+				min: -1,
+				max: 1,
+				step: 0.01,
+			},
+		},
 		defaultValue: { inputSource: 'literal', value: [0.1, -0.1] },
 	},
 	shadowBlur: {
 		dataType: { kind: 'scalar' },
-		ui: { label: 'Shadow blur (size ratio)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+		ui: {
+			label: 'Shadow blur (size ratio)',
+			control: {
+				controlType: 'range',
+				min: 0,
+				max: 1,
+				step: 0.01,
+			},
+		},
 		defaultValue: { inputSource: 'literal', value: 0.1 },
 	},
-	position: { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
+	position: {
+		dataType: { kind: 'vector' },
+		ui: {
+			label: 'Position',
+			control: {
+				controlType: 'xy',
+				min: -1,
+				max: 1,
+				step: 0.01,
+			},
+		},
+		defaultValue: { inputSource: 'literal', value: [0, 0] },
+	},
 	align: {
 		dataType: { kind: 'enum', options: ['left', 'center', 'right'] },
 		ui: { label: 'Alignment', control: { labels: { left: 'Left', center: 'Center', right: 'Right' } } },

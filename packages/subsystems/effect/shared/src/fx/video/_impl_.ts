@@ -5,7 +5,8 @@ import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	getIntrinsicResolution: params => params.player?.videoFrame == null ? null : {
-		width: params.player.videoFrame.displayWidth, height: params.player.videoFrame.displayHeight,
+		width: params.player.videoFrame.displayWidth,
+		height: params.player.videoFrame.displayHeight,
 	},
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
@@ -61,7 +62,12 @@ export default implementEffect<typeof definition>({
 					ctx.createPassEncoder(ctx.commandEncoder, {
 						colorAttachments: [{
 							view: ctx.outputDataMap.output.textureView,
-							clearValue: { r: 0, g: 0, b: 0, a: 0 },
+							clearValue: {
+								r: 0,
+								g: 0,
+								b: 0,
+								a: 0,
+							},
 							loadOp: 'clear',
 							storeOp: 'store',
 						}],

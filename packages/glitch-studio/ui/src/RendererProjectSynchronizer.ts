@@ -80,7 +80,12 @@ export class RendererProjectSynchronizer {
 				else {
 					const node = visualModule.nodes.find(node => node.id === target.nodeId);
 					if (!node) throw new Error('Changed node not found');
-					changes.push({ type: 'node', target: address, node, changes: target.changes });
+					changes.push({
+						type: 'node',
+						target: address,
+						node,
+						changes: target.changes,
+					});
 				}
 			} else {
 				if (target.type !== 'scene' && scenes.has(target.sceneId)) continue;

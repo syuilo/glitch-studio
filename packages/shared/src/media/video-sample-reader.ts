@@ -43,7 +43,11 @@ export class VideoSampleReader {
 		if (this.lastTime != null && (time < this.lastTime || time - this.lastTime > 1)) this.reset();
 		this.lastTime = time;
 		const session = this.session ??= {
-			iterator: this.sink.samples(time), current: null, next: null, ended: false, closed: false,
+			iterator: this.sink.samples(time),
+			current: null,
+			next: null,
+			ended: false,
+			closed: false,
 		};
 		try {
 			// FPSやdurationから次フレームを推測せず、表示順のtimestampで選ぶ。
@@ -175,11 +179,16 @@ async function copyVideoSample(sample: VideoSample, options: VideoFrameCopyToOpt
 	const data = new Uint8Array(byteLength);
 	const layout = await sample.copyTo(data, options);
 	return new VideoSample(data, {
-		format: sample.format ?? 'RGBA', layout,
+		format: sample.format ?? 'RGBA',
+		layout,
 		// copyToの既定範囲はvisibleRect。コピー済み画素へ元の切り抜き位置を二重に適用しない。
-		codedWidth: sample.codedWidth, codedHeight: sample.codedHeight,
-		displayWidth: sample.displayWidth, displayHeight: sample.displayHeight, rotation: sample.rotation,
-		timestamp: sample.timestamp, duration: sample.duration,
+		codedWidth: sample.codedWidth,
+		codedHeight: sample.codedHeight,
+		displayWidth: sample.displayWidth,
+		displayHeight: sample.displayHeight,
+		rotation: sample.rotation,
+		timestamp: sample.timestamp,
+		duration: sample.duration,
 		...(sample.format == null ? {} : { colorSpace: sample.colorSpace }),
 	});
 }

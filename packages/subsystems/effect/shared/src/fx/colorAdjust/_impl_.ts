@@ -13,8 +13,17 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu }) => {
 		const pipelines = createShaderInputPipeline({
-			device: wgpu.device, vertex: wgpu.defaultVertexShaderModule, code,
-			schema: { input: 'color', lightness: 'scalar', contrast: 'scalar', hue: 'scalar', brightness: 'scalar', saturation: 'scalar' },
+			device: wgpu.device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
+			schema: {
+				input: 'color',
+				lightness: 'scalar',
+				contrast: 'scalar',
+				hue: 'scalar',
+				brightness: 'scalar',
+				saturation: 'scalar',
+			},
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 		});
 		return {

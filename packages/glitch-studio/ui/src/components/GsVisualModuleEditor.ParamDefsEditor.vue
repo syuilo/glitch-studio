@@ -53,7 +53,15 @@ function add() {
 		id: visualModuleCustomParameterId(genId()),
 		nameForReference: visualModuleCustomParameterName(name),
 		dataType: { kind: 'scalar' },
-		ui: { label: 'My Parameter', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+		ui: {
+			label: 'My Parameter',
+			control: {
+				controlType: 'range',
+				min: 0,
+				max: 1,
+				step: 0.01,
+			},
+		},
 		defaultValue: { inputSource: 'literal', value: 0.5 },
 		canNode: false,
 	});

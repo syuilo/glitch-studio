@@ -39,8 +39,10 @@ const props = defineProps<{ mode: 'spectrum' | 'waveform' }>();
 const overlay = defineModel<boolean>('overlay', { default: false });
 const canvas = useTemplateRef('canvas');
 const waveformSeconds = ref(0.04);
-const options = computed<PreviewOptions>(() => ({ mode: props.mode,
-																																																		settings: { overlay: overlay.value, waveformSeconds: waveformSeconds.value } }));
+const options = computed<PreviewOptions>(() => ({
+	mode: props.mode,
+	settings: { overlay: overlay.value, waveformSeconds: waveformSeconds.value },
+}));
 const { changeWindow, error, sampleRate } = useAudioPreview(canvas, options);
 const displaySeconds = computed(() => Math.max(2, Math.min(32768, Math.round(sampleRate.value * waveformSeconds.value))) / sampleRate.value);
 const frequencyTicks = computed(() => {

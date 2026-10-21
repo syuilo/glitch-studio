@@ -56,15 +56,25 @@ export function copyTimelineKeyframes(state: ParameterState, scene: TimelineScen
 				if (layer.layerType !== 'voicevox') return null;
 				const utterance = layer.utterances.find(utterance => utterance.id === point.keyframeId);
 				if (!utterance) return null;
-				keyframes.push(deepClone({ layerId: point.layerId, target: 'utterance', paramPath: ['utterances'], utterance }));
+				keyframes.push(deepClone({
+					layerId: point.layerId,
+					target: 'utterance',
+					paramPath: ['utterances'],
+					utterance,
+				}));
 				continue;
 			}
 			const binding = resolveLayerParameter(state, layer, point.target, point.paramPath).value;
 			if (binding.inputSource !== 'keyframesTimelineInline') return null;
 			const keyframe = binding.keyframesTimeline.keyframes.find(keyframe => keyframe.id === point.keyframeId);
 			if (!keyframe) return null;
-			keyframes.push(deepClone({ layerId: point.layerId, target: point.target, paramPath: point.paramPath,
-				dataType: binding.keyframesTimeline.dataType, keyframe }));
+			keyframes.push(deepClone({
+				layerId: point.layerId,
+				target: point.target,
+				paramPath: point.paramPath,
+				dataType: binding.keyframesTimeline.dataType,
+				keyframe,
+			}));
 		}
 	} catch { return null; }
 	return { kind: 'keyframes', scene, keyframes };
@@ -80,7 +90,12 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 		if (entry.target === 'utterance') {
 			const layer = findTimelineLayer(scene.layers, entry.layerId);
 			if (layer?.layerType !== 'voicevox' || entry.paramPath.length !== 1 || entry.paramPath[0] !== 'utterances') return null;
-			const update = speechUpdates.get(layer.id) ?? { layerId: layer.id, target: 'utterance', before: deepClone(layer.utterances), after: deepClone(layer.utterances) };
+			const update = speechUpdates.get(layer.id) ?? {
+				layerId: layer.id,
+				target: 'utterance',
+				before: deepClone(layer.utterances),
+				after: deepClone(layer.utterances),
+			};
 			update.after.push(deepClone(entry.utterance));
 			speechUpdates.set(layer.id, update);
 			continue;
@@ -105,8 +120,13 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 			let update = updates.get(key);
 			if (!update) {
 				const before = getLayerParameterValues(layer, entry.target)[paramId] ?? null;
-				update = { layerId: layer.id, target: entry.target, paramId, before: deepClone(before),
-					after: deepClone(resolveLayerParameter(state, layer, entry.target, [paramId]).value) };
+				update = {
+					layerId: layer.id,
+					target: entry.target,
+					paramId,
+					before: deepClone(before),
+					after: deepClone(resolveLayerParameter(state, layer, entry.target, [paramId]).value),
+				};
 				updates.set(key, update);
 			}
 			const draft = { [paramId]: update.after };
@@ -127,14 +147,20 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 }
 
 export function getPastedTimelineKeySelection(entry: TimelineKeyframePaste): TimelineKeyframeSelection {
-	return { layerId: entry.layerId, target: entry.target, paramPath: entry.paramPath, keyframeId: entry.target === 'utterance' ? entry.utterance.id : entry.keyframe.id };
+	return {
+		layerId: entry.layerId,
+		target: entry.target,
+		paramPath: entry.paramPath,
+		keyframeId: entry.target === 'utterance' ? entry.utterance.id : entry.keyframe.id,
+	};
 }
 
 export function prepareTimelineKeyframePaste(state: ParameterState, scene: TimelineScene, clipboard: TimelineKeyframeClipboard, timeMs: number): TimelineKeyframePaste[] | null {
 	if (scene !== clipboard.scene || clipboard.keyframes.length === 0 || !Number.isFinite(timeMs)) return null;
 	const startMs = Math.round(timeMs);
 	const firstTime = Math.min(...clipboard.keyframes.map(entry => entry.target === 'utterance' ? entry.utterance.timeMs : entry.keyframe.x));
-	const keyframes = clipboard.keyframes.map(entry => entry.target === 'utterance' ? { ...deepClone(entry),
+	const keyframes = clipboard.keyframes.map(entry => entry.target === 'utterance' ? {
+		...deepClone(entry),
 		utterance: { ...deepClone(entry.utterance), id: genId(), timeMs: startMs + entry.utterance.timeMs - firstTime },
 	} : { ...deepClone(entry), keyframe: { ...deepClone(entry.keyframe), id: genId(), x: startMs + entry.keyframe.x - firstTime } });
 	return getTimelineKeyframePasteUpdates(state, scene, keyframes) ? keyframes : null;

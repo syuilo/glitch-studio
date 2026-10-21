@@ -35,7 +35,12 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 			const s = Math.abs(Math.sin(shape.rotation * Math.PI));
 			const extentX = (c * (shape.size[0] / 2 + outside) + s * (shape.size[1] / 2 + outside)) * 2 * resolution.height / resolution.width;
 			const extentY = (s * (shape.size[0] / 2 + outside) + c * (shape.size[1] / 2 + outside)) * 2;
-			const bounds = { left: shape.position[0] - extentX, right: shape.position[0] + extentX, bottom: shape.position[1] - extentY, top: shape.position[1] + extentY };
+			const bounds = {
+				left: shape.position[0] - extentX,
+				right: shape.position[0] + extentX,
+				bottom: shape.position[1] - extentY,
+				top: shape.position[1] + extentY,
+			};
 			const size = timelineTextureSize(bounds, resolution, device.limits.maxTextureDimension2D);
 			if (!texture || texture.width !== size.width || texture.height !== size.height) {
 				texture?.destroy();
@@ -48,17 +53,34 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 			const sweepAngle = (Math.atan2(end.point[0], end.point[1]) - startAngle + 2 * Math.PI) % (2 * Math.PI);
 			uniforms.set({
 				bounds: [shape.position[0], shape.position[1], extentX, extentY],
-				position: shape.position, halfSize: shape.size.map(value => value / 2),
-				fillColor: shape.fillColor, strokeColor: shape.strokeColor,
-				rotation: shape.rotation * Math.PI, cornerRadius: shape.type === 'rectangle' ? shape.cornerRadius : 0,
-				strokeInside: inside, strokeOutside: shape.strokeWidth - inside,
-				strokeProgress: shape.strokeProgress, strokeStartPoint: start.point, strokeStartTangent: start.tangent,
-				strokeEndPoint: end.point, strokeEndTangent: end.tangent, strokeStartAngle: startAngle, strokeSweepAngle: sweepAngle,
-				aspectRatio: resolution.width / resolution.height, pixelSize: extentY / size.height,
+				position: shape.position,
+				halfSize: shape.size.map(value => value / 2),
+				fillColor: shape.fillColor,
+				strokeColor: shape.strokeColor,
+				rotation: shape.rotation * Math.PI,
+				cornerRadius: shape.type === 'rectangle' ? shape.cornerRadius : 0,
+				strokeInside: inside,
+				strokeOutside: shape.strokeWidth - inside,
+				strokeProgress: shape.strokeProgress,
+				strokeStartPoint: start.point,
+				strokeStartTangent: start.tangent,
+				strokeEndPoint: end.point,
+				strokeEndTangent: end.tangent,
+				strokeStartAngle: startAngle,
+				strokeSweepAngle: sweepAngle,
+				aspectRatio: resolution.width / resolution.height,
+				pixelSize: extentY / size.height,
 				shapeType: shape.type === 'ellipse' ? 0 : 1,
 			});
 			device.queue.writeBuffer(buffer, 0, uniforms.arrayBuffer);
-			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: texture.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
+			const pass = encoder.beginRenderPass({
+				colorAttachments: [{
+					view: texture.createView(),
+					loadOp: 'clear',
+					storeOp: 'store',
+					clearValue: [0, 0, 0, 0],
+				}],
+			});
 			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, group);
 			pass.draw(6);

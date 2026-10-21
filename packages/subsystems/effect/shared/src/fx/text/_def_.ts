@@ -15,7 +15,16 @@ export default defineEffect({
 		font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		size: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Size (Height Ratio)', control: { controlType: 'range', min: 0.0001, max: 1, step: 0.01, logarithmic: true } },
+			ui: {
+				label: 'Size (Height Ratio)',
+				control: {
+					controlType: 'range',
+					min: 0.0001,
+					max: 1,
+					step: 0.01,
+					logarithmic: true,
+				},
+			},
 			defaultValue: { inputSource: 'literal', value: 0.1 },
 		},
 		overflow: {
@@ -25,29 +34,88 @@ export default defineEffect({
 		},
 		maxWidth: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Max Width (Width Ratio)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			ui: {
+				label: 'Max Width (Width Ratio)',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
-		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] }, canNode: true },
+		color: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Color', control: {} },
+			defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] },
+			canNode: true,
+		},
 		outlineWidth: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Outline Width (Size Ratio)', control: { controlType: 'range', min: 0, max: 0.25, step: 0.005 } },
+			ui: {
+				label: 'Outline Width (Size Ratio)',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 0.25,
+					step: 0.005,
+				},
+			},
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
-		outlineColor: { dataType: { kind: 'color' }, ui: { label: 'Outline Color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] }, canNode: true },
+		outlineColor: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Outline Color', control: {} },
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] },
+			canNode: true,
+		},
 		shadowEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Drop Shadow', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
-		shadowColor: { dataType: { kind: 'color' }, ui: { label: 'Shadow Color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0.5] }, canNode: true },
+		shadowColor: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Shadow Color', control: {} },
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0.5] },
+			canNode: true,
+		},
 		shadowOffset: {
 			dataType: { kind: 'vector' },
-			ui: { label: 'Shadow Offset (Size Ratio)', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } },
+			ui: {
+				label: 'Shadow Offset (Size Ratio)',
+				control: {
+					controlType: 'vector',
+					min: -1,
+					max: 1,
+					step: 0.01,
+				},
+			},
 			defaultValue: { inputSource: 'literal', value: [0.1, -0.1] },
 		},
 		shadowBlur: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Shadow Blur (Size Ratio)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			ui: {
+				label: 'Shadow Blur (Size Ratio)',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
 			defaultValue: { inputSource: 'literal', value: 0.1 },
 		},
-		position: { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
+		position: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Position',
+				control: {
+					controlType: 'xy',
+					min: -1,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: [0, 0] },
+		},
 		align: {
 			dataType: { kind: 'enum', options: ['left', 'center', 'right'] },
 			ui: { label: 'Alignment', control: { labels: { left: 'Left', center: 'Center', right: 'Right' } } },

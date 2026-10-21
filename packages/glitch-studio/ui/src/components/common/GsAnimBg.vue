@@ -278,7 +278,12 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 					const passEncoder = ctx.commandEncoder.beginRenderPass({
 						colorAttachments: [{
 							view: pointerTrailBufferViews[pointerTrailWriteBufferIndex],
-							clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+							clearValue: {
+								r: 0.0,
+								g: 0.0,
+								b: 0.0,
+								a: 1.0,
+							},
 							loadOp: 'clear',
 							storeOp: 'store',
 						}],
@@ -404,7 +409,12 @@ fn vs(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
 	const bgRendererInstance = await defaultBgRendererDef.init({
 		width: canvasElement.width,
 		height: canvasElement.height,
-		wgpu: { device, context, sampler, defaultVertexShaderModule },
+		wgpu: {
+			device,
+			context,
+			sampler,
+			defaultVertexShaderModule,
+		},
 		canvas: canvasElement,
 	});
 	if (unmounted) {
@@ -428,7 +438,12 @@ fn vs(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
 		const _descriptor = descriptor ?? {
 			colorAttachments: [{
 				view: context.getCurrentTexture().createView(),
-				clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+				clearValue: {
+					r: 0.0,
+					g: 0.0,
+					b: 0.0,
+					a: 1.0,
+				},
 				loadOp: 'clear',
 				storeOp: 'store',
 			}],

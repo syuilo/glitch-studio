@@ -41,7 +41,8 @@ const panelDefinitions = {
 
 export const workspacePanelDefinitions: typeof panelDefinitions = markRaw(panelDefinitions);
 export const workspacePanelChoices = Object.entries(workspacePanelDefinitions).map(([type, info]) => ({
-	type: type as keyof typeof panelDefinitions, ...info,
+	type: type as keyof typeof panelDefinitions,
+	...info,
 }));
 
 export type WorkspacePanel = {

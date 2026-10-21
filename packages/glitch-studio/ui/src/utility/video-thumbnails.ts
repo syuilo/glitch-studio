@@ -24,7 +24,13 @@ export async function generateVideoThumbnails(fileSource: FileSource, onProgress
 		const timestamps = Array.from({ length: 11 }, (_, index) => start + (end - start) * index / 10);
 		// 終端指定は最後のフレームを返す。1/FPSを引く方法では可変FPSの動画を正しく扱えない。
 		// Canvasを再利用するため、画像の圧縮を待ってから次のフレームを取得する。
-		const sink = new CanvasSink(track, { width, height, fit: 'contain', alpha: true, poolSize: 1 });
+		const sink = new CanvasSink(track, {
+			width,
+			height,
+			fit: 'contain',
+			alpha: true,
+			poolSize: 1,
+		});
 		const frames: AssetThumbnailSequence['frames'] = [];
 		let completed = 0;
 		for await (const frame of sink.canvasesAtTimestamps(timestamps)) {

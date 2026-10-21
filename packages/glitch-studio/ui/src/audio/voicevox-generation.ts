@@ -101,7 +101,13 @@ export class VoicevoxGeneration {
 			pending.manual ||= manual;
 			return pending.completion.promise;
 		}
-		const job: GenerationJob = { key, request, epoch: this.epoch, manual, completion: Promise.withResolvers<GeneratedSpeech>() };
+		const job: GenerationJob = {
+			key,
+			request,
+			epoch: this.epoch,
+			manual,
+			completion: Promise.withResolvers<GeneratedSpeech>(),
+		};
 		this.pending.set(key, job);
 		this.statuses.value[key] = { state: 'generating' };
 		this.queue.push(job);

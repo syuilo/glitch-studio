@@ -9,16 +9,26 @@ export async function run() {
 	device.pushErrorScope('validation');
 	const completed: string[] = [];
 	const readPipeline = device.createRenderPipeline({
-		layout: 'auto', vertex: { module: device.createShaderModule({ code: `
+		layout: 'auto',
+		vertex: {
+			module: device.createShaderModule({
+				code: `
 @vertex fn vs(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
 	let positions = array(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
 	return vec4f(positions[index], 0.0, 1.0);
-}` }) },
-		fragment: { targets: [{ format: 'rgba32float' }], module: device.createShaderModule({ code: `
+}`,
+			}),
+		},
+		fragment: {
+			targets: [{ format: 'rgba32float' }],
+			module: device.createShaderModule({
+				code: `
 @group(0) @binding(0) var image: texture_2d<f32>;
 @fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
 	return textureLoad(image, vec2i(position.xy), 0);
-}` }) },
+}`,
+			}),
+		},
 	});
 
 	async function read(texture: GPUTexture) {
@@ -41,10 +51,20 @@ export async function run() {
 		} finally { buffer.destroy(); target.destroy(); }
 	}
 
-	const rgbaColorSpace: VideoColorSpaceInit = { primaries: 'bt709', transfer: 'iec61966-2-1', matrix: 'rgb', fullRange: true };
+	const rgbaColorSpace: VideoColorSpaceInit = {
+		primaries: 'bt709',
+		transfer: 'iec61966-2-1',
+		matrix: 'rgb',
+		fullRange: true,
+	};
 	const colors = [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255], [255, 255, 0, 255], [255, 0, 255, 255], [0, 255, 255, 255]];
 	const rawSample = (pixels: number[][], width: number, height: number, rotation: 0 | 90 | 180 | 270 = 0, format: 'RGBA' | 'RGBX' = 'RGBA') => new VideoSample(new Uint8Array(pixels.flat()), {
-		format, codedWidth: width, codedHeight: height, timestamp: 0, rotation, colorSpace: rgbaColorSpace,
+		format,
+		codedWidth: width,
+		codedHeight: height,
+		timestamp: 0,
+		rotation,
+		colorSpace: rgbaColorSpace,
 	});
 	const assertPixels = (name: string, actual: number[], expected: number[], tolerance = 0.012) => {
 		if (actual.length !== expected.length || actual.some((value, index) => !Number.isFinite(value) || Math.abs(value - expected[index]) > tolerance)) {
@@ -82,8 +102,21 @@ export async function run() {
 				// coded領域には余白を置き、visibleRectと非正方形ピクセルの補正が失われる回帰を検出する。
 				const padded = new Uint8Array(4 * 4 * 4);
 				for (const [index, color] of [colors[0], colors[1], colors[2], colors[3]].entries()) padded.set(color, ((1 + Math.floor(index / 2)) * 4 + 1 + index % 2) * 4);
-				const frame = new VideoFrame(padded, { format: 'RGBA', codedWidth: 4, codedHeight: 4,
-					visibleRect: { x: 1, y: 1, width: 2, height: 2 }, displayWidth: 4, displayHeight: 2, timestamp: 0, colorSpace: rgbaColorSpace });
+				const frame = new VideoFrame(padded, {
+					format: 'RGBA',
+					codedWidth: 4,
+					codedHeight: 4,
+					visibleRect: {
+						x: 1,
+						y: 1,
+						width: 2,
+						height: 2,
+					},
+					displayWidth: 4,
+					displayHeight: 2,
+					timestamp: 0,
+					colorSpace: rgbaColorSpace,
+				});
 				const cropped = new VideoSample(frame, { rotation: 90 });
 				const canvas = new OffscreenCanvas(2, 4);
 				const context = canvas.getContext('2d')!;
@@ -105,7 +138,13 @@ export async function run() {
 		const decoder = new VideoDecoder({ output(frame) { decoded.push(new VideoSample(frame)); }, error(error) { codecError = error; } });
 		const uploader = createVideoTexture(device, 'rgba8unorm');
 		try {
-			encoder.configure({ codec: 'avc1.42001f', width: 64, height: 32, bitrate: 1_000_000, framerate: 30 });
+			encoder.configure({
+				codec: 'avc1.42001f',
+				width: 64,
+				height: 32,
+				bitrate: 1_000_000,
+				framerate: 30,
+			});
 			for (let index = 0; index < 3; index++) {
 				const sample = rawSample(Array.from({ length: 64 * 32 }, () => colors[index]), 64, 32);
 				const frame = sample.toVideoFrame();

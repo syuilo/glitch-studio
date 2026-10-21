@@ -5,7 +5,15 @@ import type { TimelineGroupLayer, TimelineVoicevoxLayer, TimelineAudioLayer, Tim
 export const timelineAudioParamDefs = {
 	volume: {
 		dataType: { kind: 'scalar' },
-		ui: { label: 'Volume', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } },
+		ui: {
+			label: 'Volume',
+			control: {
+				controlType: 'range',
+				min: 0,
+				max: 2,
+				step: 0.01,
+			},
+		},
 		defaultValue: { inputSource: 'literal', value: 1 },
 		canNode: false,
 	},

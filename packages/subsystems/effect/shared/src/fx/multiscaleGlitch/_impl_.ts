@@ -29,22 +29,33 @@ export default implementEffect<typeof definition>({
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
-		const captureLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		] });
+		const captureLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			],
+		});
 		const captureGroup = device.createBindGroup({ layout: captureLayout, entries: [uniformEntry] });
-		const compositeLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-			{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-		] });
-		const filterLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-		] });
-		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: 'mirror-repeat', addressModeV: 'mirror-repeat' });
+		const compositeLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+				{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+			],
+		});
+		const filterLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+			],
+		});
+		const sampler = device.createSampler({
+			minFilter: 'linear',
+			magFilter: 'linear',
+			addressModeU: 'mirror-repeat',
+			addressModeV: 'mirror-repeat',
+		});
 		const samplerEntry = { binding: 1, resource: sampler };
 		// downsampleはstepを参照しないが、Gaussianと同じlayoutを使うためゼロのbufferを渡す。
 		const zeroStepBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM });
@@ -57,14 +68,25 @@ export default implementEffect<typeof definition>({
 		});
 		const downsample = createFilterPipeline('downsample');
 		const gaussian = createFilterPipeline('gaussian');
-		const inputOptions = { device, vertex: defaultVertexShaderModule, schema: { input: 'color' }, sampling: 'level0' } as const;
+		const inputOptions = {
+			device,
+			vertex: defaultVertexShaderModule,
+			schema: { input: 'color' },
+			sampling: 'level0',
+		} as const;
 		const capturePipelines = createShaderInputPipeline({
-			...inputOptions, code: commonCode + '\n' + captureCode,
-			internalLayouts: [captureLayout], entryPoint: 'capture', targets: [{ format: internalFormat }],
+			...inputOptions,
+			code: commonCode + '\n' + captureCode,
+			internalLayouts: [captureLayout],
+			entryPoint: 'capture',
+			targets: [{ format: internalFormat }],
 		});
 		const compositePipelines = createShaderInputPipeline({
-			...inputOptions, code: commonCode + '\n' + compositeCode,
-			internalLayouts: [compositeLayout], entryPoint: 'fs', targets: [{ format: wgpu.intermediateTextureFormat }],
+			...inputOptions,
+			code: commonCode + '\n' + compositeCode,
+			internalLayouts: [compositeLayout],
+			entryPoint: 'fs',
+			targets: [{ format: wgpu.intermediateTextureFormat }],
 		});
 		const createCompositeGroup = (fine: GPUTextureView, coarse: GPUTextureView) => device.createBindGroup({
 			layout: compositeLayout,
@@ -108,8 +130,18 @@ export default implementEffect<typeof definition>({
 					output,
 					// 各pass専用のuniformを持ち、submit前のwriteBufferで別passの方向を上書きしない。
 					passes: [
-						{ view: intermediate.view, group: createFilterGroup(source, horizontalStep), stepBuffer: horizontalStep, axis: [1, 0] },
-						{ view: output.view, group: createFilterGroup(intermediate.view, verticalStep), stepBuffer: verticalStep, axis: [0, 1] },
+						{
+							view: intermediate.view,
+							group: createFilterGroup(source, horizontalStep),
+							stepBuffer: horizontalStep,
+							axis: [1, 0],
+						},
+						{
+							view: output.view,
+							group: createFilterGroup(intermediate.view, verticalStep),
+							stepBuffer: verticalStep,
+							axis: [0, 1],
+						},
 					],
 				};
 			};
@@ -124,7 +156,11 @@ export default implementEffect<typeof definition>({
 				const fine = createBlur(levels[0].view, fineSize);
 				const coarse = createBlur(levels[levels.length - 1].view, coarseSize);
 				return {
-					fineSize, coarseSize, levels, fine, coarse,
+					fineSize,
+					coarseSize,
+					levels,
+					fine,
+					coarse,
 					downGroups: levels.slice(0, -1).map(level => createFilterGroup(level.view, zeroStepBuffer)),
 					compositeGroup: createCompositeGroup(fine.output.view, coarse.output.view),
 					dispose,
@@ -180,14 +216,30 @@ export default implementEffect<typeof definition>({
 				}
 				seedValue[0] = params.seed;
 				uniformValues.set({
-					aspect, fineRadius, coarseRadius, probability, colorCorruption,
+					aspect,
+					fineRadius,
+					coarseRadius,
+					probability,
+					colorCorruption,
 					seed: (seedWords[0] ^ seedWords[1]) >>> 0,
 					blockShape: params.blockShape.map((value, index) => Math.max(0.01, nonNegative(value, index === 0 ? 4 : 1))),
-					fineShift, mediumShift, coarseShift, bandAmounts, captureGrid, captureStep,
+					fineShift,
+					mediumShift,
+					coarseShift,
+					bandAmounts,
+					captureGrid,
+					captureStep,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const draw = (view: GPUTextureView, pipeline: GPURenderPipeline, group: GPUBindGroup, inputGroup: GPUBindGroup | null = null) => {
-					const pass = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [{ view, clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store' }] });
+					const pass = ctx.createPassEncoder(ctx.commandEncoder, {
+						colorAttachments: [{
+							view,
+							clearValue: [0, 0, 0, 0],
+							loadOp: 'clear',
+							storeOp: 'store',
+						}],
+					});
 					pass.setPipeline(pipeline);
 					pass.setBindGroup(0, group);
 					if (inputGroup != null) pass.setBindGroup(1, inputGroup);

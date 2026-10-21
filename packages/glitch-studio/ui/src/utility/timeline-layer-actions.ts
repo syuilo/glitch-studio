@@ -88,9 +88,10 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 			const durations = await Promise.all(layers.map(readLayerMediaDurations));
 			// 素材読み込み中に階層が編集された場合は、古い所属・順序で複製を挿入しない。
 			if (!isActive() || scene.layers !== initialLayers) return;
-			stateManager.commit('duplicateTimelineLayers', { sceneId: scene.id,
-																																																				layers: layers.map((layer, index) => ({ layer, sourceLayerId: sources[index].id })),
-																																																				sourceDurationsMs: Object.assign(Object.create(null), ...durations),
+			stateManager.commit('duplicateTimelineLayers', {
+				sceneId: scene.id,
+				layers: layers.map((layer, index) => ({ layer, sourceLayerId: sources[index].id })),
+				sourceDurationsMs: Object.assign(Object.create(null), ...durations),
 			});
 			selection.value = { kind: 'layers', ids: layers.map(layer => layer.id) };
 			focusTimeline();

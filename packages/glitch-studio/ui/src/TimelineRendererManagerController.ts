@@ -165,8 +165,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 		this.cancelSeek();
 		const snapshot = deepClone(state);
 		const revision = this.invalidateTransformPreview();
-		this.dynamicOptions = { ...this.dynamicOptions, ...snapshot,
-			sceneId: snapshot.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null };
+		this.dynamicOptions = {
+			...this.dynamicOptions,
+			...snapshot,
+			sceneId: snapshot.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null,
+		};
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;
 		await this.callAndWaitReturn('replaceProjectState', [snapshot, revision]);
@@ -176,8 +179,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 		const patch = deepClone(changes);
 		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: this.dynamicOptions.timelineScenes ?? [] }, patch);
 		const revision = this.invalidateTransformPreview();
-		this.dynamicOptions = { ...this.dynamicOptions, ...next,
-			sceneId: next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null };
+		this.dynamicOptions = {
+			...this.dynamicOptions,
+			...next,
+			sceneId: next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null,
+		};
 		if (!this.isReady.value && !this.isInitializing) return;
 		// 初期スナップショットへ取り込まれた差分は再送しない。削除済みノードへの
 		// 更新を初期化後に再生すると失敗するため、送信境界以降だけをキューへ積む。

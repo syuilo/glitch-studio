@@ -34,7 +34,11 @@ export function createSceneTimelineLayer(
 		getLayerVersion: options.getLayerVersion,
 	});
 	const compositor = createTimelineCompositor({
-		device: options.device, vertex: options.vertex, resolution: options.resolution, format: options.format, onCompositing: options.onCompositing,
+		device: options.device,
+		vertex: options.vertex,
+		resolution: options.resolution,
+		format: options.format,
+		onCompositing: options.onCompositing,
 	});
 	const parameters = new TimelineCompositingParameters();
 	const sceneOutput = createSceneOutput({ ...options, resolution: options.sceneResolution });
@@ -44,13 +48,24 @@ export function createSceneTimelineLayer(
 			// 参照先Sceneの時計へ両方の時刻を変換する。配置ごとの無効化は保存された子の設定を変更しない。
 			const referenceTime = context.referenceTime && { timeMs: context.referenceTime.contentTimeMs, timeDelta: context.referenceTime.timeDelta };
 			const result = await renderer.evaluateAt(context.contentTimeMs, scene.layers.filter(isTimelineRenderLayer), context.timeDelta, context.isExport, signal, referenceTime,
-				{ parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME, camera: camera.evaluate(scene.layers, context.contentTimeMs, context.isExport, options.sceneResolution, referenceTime?.timeMs) });
+				{
+					parent: TIMELINE_IDENTITY,
+					depth: 0,
+					viewport: TIMELINE_FRAME,
+					camera: camera.evaluate(scene.layers, context.contentTimeMs, context.isExport, options.sceneResolution, referenceTime?.timeMs),
+				});
 			if (result == null || signal.aborted) return { gpuTime: 0 };
 			const encoder = options.device.createCommandEncoder();
 			try {
 				const settings = parameters.evaluate({
-					time: context.sceneTimeMs, isExport: context.isExport,
-					coordinateSpace: layer.coordinateSpace, mask: layer.mask, layerMask: layer.layerMask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+					time: context.sceneTimeMs,
+					isExport: context.isExport,
+					coordinateSpace: layer.coordinateSpace,
+					mask: layer.mask,
+					layerMask: layer.layerMask,
+					paramValues: layer.compositingParamValues,
+					automationGraphs: layer.automationGraphs,
+				});
 				const source: TimelineImage = { kind: 'texture', texture: sceneOutput.render(encoder, result.output) };
 				return { ...compositor.evaluate(context, source, settings), gpuTime: result.gpuTime };
 			} finally {

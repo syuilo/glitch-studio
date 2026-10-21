@@ -48,8 +48,13 @@ export class AudioInputSpectrum {
 		firstEndFrame = Math.max(firstEndFrame, Math.min(lastEndFrame, Math.ceil((input.startFrame + this.size) / hop) * hop));
 		if (firstEndFrame > lastEndFrame) return null;
 		return {
-			sourceKey: input.sourceKey, sampleRate: input.sampleRate, endFrame: input.endFrame,
-			channel, windowName, firstEndFrame, lastEndFrame,
+			sourceKey: input.sourceKey,
+			sampleRate: input.sampleRate,
+			endFrame: input.endFrame,
+			channel,
+			windowName,
+			firstEndFrame,
+			lastEndFrame,
 			durationSeconds: (input.endFrame - firstEndFrame + this.size) / input.sampleRate,
 		};
 	}

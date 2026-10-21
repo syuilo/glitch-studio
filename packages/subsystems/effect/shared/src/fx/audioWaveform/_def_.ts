@@ -18,9 +18,45 @@ export default defineEffect({
 			ui: { label: 'Channel', control: { labels: { 'left': 'L', 'right': 'R', 'stereo': 'Stereo' } } },
 			defaultValue: { inputSource: 'literal', value: 'stereo' },
 		},
-		duration: { dataType: { kind: 'scalar' }, ui: { label: 'Time Span (Seconds)', control: { controlType: 'range', min: 0.005, max: 1, step: 0.005 } }, defaultValue: { inputSource: 'literal', value: 0.05 } },
-		amplitude: { dataType: { kind: 'scalar' }, ui: { label: 'Amplitude', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		lineWidth: { dataType: { kind: 'scalar' }, ui: { label: 'Line Width', control: { controlType: 'range', min: 0.001, max: 0.05, step: 0.001 } }, defaultValue: { inputSource: 'literal', value: 0.003 } },
+		duration: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Time Span (Seconds)',
+				control: {
+					controlType: 'range',
+					min: 0.005,
+					max: 1,
+					step: 0.005,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.05 },
+		},
+		amplitude: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Amplitude',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 10,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
+		lineWidth: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Line Width',
+				control: {
+					controlType: 'range',
+					min: 0.001,
+					max: 0.05,
+					step: 0.001,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.003 },
+		},
 		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 	},
 	primaryInputParameter: null,

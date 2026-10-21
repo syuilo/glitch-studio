@@ -28,7 +28,8 @@ export async function openAudioFile(fileSource: FileSource): Promise<AudioFile> 
 		const sampleRate = await track.getSampleRate();
 		const sink = new AudioSampleSink(track);
 		return {
-			durationSeconds, sampleRate,
+			durationSeconds,
+			sampleRate,
 			async *readBlocks(startSeconds, endSeconds) {
 				for await (const sample of sink.samples(startSeconds, endSeconds)) {
 					let block: DecodedPcmBlock;

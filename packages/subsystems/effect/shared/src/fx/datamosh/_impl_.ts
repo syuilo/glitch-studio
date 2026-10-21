@@ -26,51 +26,79 @@ export default implementEffect<typeof definition>({
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
-		const uniformLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		] });
+		const uniformLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			],
+		});
 		const uniformGroup = device.createBindGroup({ layout: uniformLayout, entries: [uniformEntry] });
-		const composeLayout = device.createBindGroupLayout({ entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-			{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-		] });
+		const composeLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+				{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+				{ binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+			],
+		});
 		const capture = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code: commonCode + '\n' + captureCode,
-			schema: { input: 'color' }, internalLayouts: [uniformLayout],
-			targets: [{ format: motionFormat }], sampling: 'level0', entryPoint: 'capture',
+			device,
+			vertex: defaultVertexShaderModule,
+			code: commonCode + '\n' + captureCode,
+			schema: { input: 'color' },
+			internalLayouts: [uniformLayout],
+			targets: [{ format: motionFormat }],
+			sampling: 'level0',
+			entryPoint: 'capture',
 		});
 		const compose = createShaderInputPipeline({
-			device, vertex: defaultVertexShaderModule, code: commonCode + '\n' + composeCode,
-			schema: { input: 'color', recoveryMask: 'scalar' }, internalLayouts: [composeLayout],
+			device,
+			vertex: defaultVertexShaderModule,
+			code: commonCode + '\n' + composeCode,
+			schema: { input: 'color', recoveryMask: 'scalar' },
+			internalLayouts: [composeLayout],
 			targets: [{ format: intermediateTextureFormat }, { format: historyFormat }],
-			sampling: 'level0', entryPoint: 'compose',
+			sampling: 'level0',
+			entryPoint: 'compose',
 		});
 		const reduce = device.createRenderPipeline({
-			layout: 'auto', vertex: { module: defaultVertexShaderModule },
+			layout: 'auto',
+			vertex: { module: defaultVertexShaderModule },
 			fragment: { module: device.createShaderModule({ code: reduceCode }), entryPoint: 'reduce', targets: [{ format: motionFormat }] },
 			primitive: { topology: 'triangle-list' },
 		});
 		const estimate = device.createRenderPipeline({
-			layout: 'auto', vertex: { module: defaultVertexShaderModule },
+			layout: 'auto',
+			vertex: { module: defaultVertexShaderModule },
 			fragment: { module: device.createShaderModule({ code: commonCode + '\n' + estimateCode }), entryPoint: 'estimate', targets: [{ format: motionFormat }] },
 			primitive: { topology: 'triangle-list' },
 		});
-		const linearSampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
+		const linearSampler = device.createSampler({
+			minFilter: 'linear',
+			magFilter: 'linear',
+			addressModeU: 'clamp-to-edge',
+			addressModeV: 'clamp-to-edge',
+		});
 		const historySamplers = new Map<WrapMode, GPUSampler>();
 		const historySampler = (wrap: WrapMode) => {
 			let sampler = historySamplers.get(wrap);
 			if (sampler == null) {
 				const addressMode = wrap === 'repeat' ? 'repeat' : wrap === 'repeatMirrored' ? 'mirror-repeat' : 'clamp-to-edge';
-				sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: addressMode, addressModeV: addressMode });
+				sampler = device.createSampler({
+					minFilter: 'linear',
+					magFilter: 'linear',
+					addressModeU: addressMode,
+					addressModeV: addressMode,
+				});
 				historySamplers.set(wrap, sampler);
 			}
 			return sampler;
 		};
 		const createTexture = (size: { width: number; height: number }, format: GPUTextureFormat, mipLevelCount = 1) => device.createTexture({
-			size, format, mipLevelCount, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+			size,
+			format,
+			mipLevelCount,
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		// 動き推定の解像度だけを長辺512に固定する。過去の出力は別の原寸画像へ保持し、
 		// プレビュー倍率や出力解像度を変えてもブロックの割合・推定の粒度が変わらないようにする。
@@ -106,7 +134,12 @@ export default implementEffect<typeof definition>({
 				throw new Error('Datamoshing: motion grid exceeds GPU texture limits. Increase Block size.');
 			}
 			const origin = centered ? [0.5 - width * block[0] * 0.5, 0.5 - height * block[1] * 0.5] : [0, 0];
-			return { width, height, block, origin };
+			return {
+				width,
+				height,
+				block,
+				origin,
+			};
 		};
 		const createMotionResources = (size: { width: number; height: number }) => {
 			const textures: GPUTexture[] = [];
@@ -125,7 +158,10 @@ export default implementEffect<typeof definition>({
 				}));
 				const composeGroups = new Map<WrapMode, GPUBindGroup[]>();
 				return {
-					width: size.width, height: size.height, views, estimateGroups,
+					width: size.width,
+					height: size.height,
+					views,
+					estimateGroups,
 					composeGroup: (index: number, wrap: WrapMode) => {
 						let groups = composeGroups.get(wrap);
 						if (groups == null) {
@@ -164,7 +200,15 @@ export default implementEffect<typeof definition>({
 		const seedValue = new Float64Array(1);
 		const seedWords = new Uint32Array(seedValue.buffer);
 		const attachment = (view: GPUTextureView): GPURenderPassColorAttachment => ({
-			view, clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store',
+			view,
+			clearValue: {
+				r: 0,
+				g: 0,
+				b: 0,
+				a: 0,
+			},
+			loadOp: 'clear',
+			storeOp: 'store',
 		});
 
 		return {
@@ -209,7 +253,8 @@ export default implementEffect<typeof definition>({
 					analysisSize: [analysisSize.width, analysisSize.height],
 					blockSize: geometry.block,
 					gridOrigin: geometry.origin,
-					seconds, searchRadius,
+					seconds,
+					searchRadius,
 					motionStrength: params.motionStrength,
 					motionRetention: halfLife > 0 ? Math.exp(-Math.LN2 * seconds / halfLife) : 0,
 					motionThreshold: Math.max(0, params.motionThreshold),

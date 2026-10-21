@@ -65,7 +65,15 @@ function addTab(ev: PointerEvent) {
 			const tabs = findWorkspaceElement(workspace, props.tabs.id);
 			if (tabs?.type !== 'tabs') return;
 			const id = genId();
-			tabs.children.push({ name: info.label, element: { id, type: 'panel', direction: 'horizontal', contentType: type } });
+			tabs.children.push({
+				name: info.label,
+				element: {
+					id,
+					type: 'panel',
+					direction: 'horizontal',
+					contentType: type,
+				},
+			});
 			preferences.commit('workspaceDefinition', workspace);
 			selectedTabId.value = id;
 		},

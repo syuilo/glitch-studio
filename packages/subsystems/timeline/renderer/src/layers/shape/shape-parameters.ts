@@ -40,7 +40,9 @@ export class ShapeParameters {
 			strokeAlignment: values.strokeAlignment === 'inside' || values.strokeAlignment === 'outside' ? values.strokeAlignment : 'center',
 		} satisfies Omit<EvaluatedShape, 'type' | 'size'>;
 		return shape.type === 'ellipse' ? { ...common, type: 'ellipse', size } : {
-			...common, type: 'rectangle', size,
+			...common,
+			type: 'rectangle',
+			size,
 			cornerRadius: Math.max(0, Math.min(number(values.cornerRadius), size[0] / 2, size[1] / 2)),
 		};
 	}

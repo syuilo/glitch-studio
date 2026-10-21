@@ -77,7 +77,12 @@ export function collectTimelineMarqueeCandidates(
 			}
 			for (const point of lane.keyframes) {
 				const center = timelineKeyframePosition(point.x, pixelsPerMs) - horizontal.position * pixelsPerMs;
-				if (center >= 0 && center <= horizontal.width && center >= horizontal.left && center <= horizontal.right) keyframes.push({ layerId: layer.id, target: lane.target, paramPath: lane.paramPath, keyframeId: point.id });
+				if (center >= 0 && center <= horizontal.width && center >= horizontal.left && center <= horizontal.right) keyframes.push({
+					layerId: layer.id,
+					target: lane.target,
+					paramPath: lane.paramPath,
+					keyframeId: point.id,
+				});
 			}
 		}
 	}

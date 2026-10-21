@@ -158,10 +158,24 @@ export function useTimelineViewport(options: TimelineViewportOptions) {
 	});
 
 	return {
-		positionX, rangeX, width: readonly(width), height: readonly(height), pixelsPerMs,
-		panning: readonly(panning), optimizeHorizontalMovement,
-		tickCount, ticks, minorTicks, ticksWithMinor,
-		timeToX, timeAtX, timeAtClientX,
-		onTimelineWheel, onBackgroundWheel, onRulerWheel, onPanMousedown, onPanAuxclick,
+		positionX,
+		rangeX,
+		width: readonly(width),
+		height: readonly(height),
+		pixelsPerMs,
+		panning: readonly(panning),
+		optimizeHorizontalMovement,
+		tickCount,
+		ticks,
+		minorTicks,
+		ticksWithMinor,
+		timeToX,
+		timeAtX,
+		timeAtClientX,
+		onTimelineWheel,
+		onBackgroundWheel,
+		onRulerWheel,
+		onPanMousedown,
+		onPanAuxclick,
 	};
 }

@@ -23,12 +23,24 @@ export function setInlineAutomationGraphNormalized(input: InlineAutomationGraph,
 		value.trimmedDurationMs = span > 0 ? span : trimmedDurationMs;
 		// 正規化エディタが固定する0と1の端点を、空・1点のグラフにも用意する。
 		if (graph.points.length === 0) {
-			graph.points.push({ id: genId(), x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
+			graph.points.push({
+				id: genId(),
+				x: 0,
+				y: 0,
+				bezierControlPointA: [0, 0],
+				bezierControlPointB: [0, 0],
+			});
 		}
 		if (span <= 0) {
 			const last = graph.points.at(-1)!;
 			last.bezierControlPointB = [0, 0];
-			graph.points.push({ id: genId(), x: 1, y: last.y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
+			graph.points.push({
+				id: genId(),
+				x: 1,
+				y: last.y,
+				bezierControlPointA: [0, 0],
+				bezierControlPointB: [0, 0],
+			});
 		} else {
 			// 丸め誤差で固定端点の1をわずかに越えないようにする。
 			graph.points[0].x = 0;
@@ -45,8 +57,20 @@ export function createInlineAutomationGraph(): Extract<ValueParameterBinding, { 
 		automationGraph: {
 			isNormalized: true,
 			points: [
-				{ id: genId(), x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0.5, 0] },
-				{ id: genId(), x: 1, y: 1, bezierControlPointA: [-0.5, 0], bezierControlPointB: [0, 0] },
+				{
+					id: genId(),
+					x: 0,
+					y: 0,
+					bezierControlPointA: [0, 0],
+					bezierControlPointB: [0.5, 0],
+				},
+				{
+					id: genId(),
+					x: 1,
+					y: 1,
+					bezierControlPointA: [-0.5, 0],
+					bezierControlPointB: [0, 0],
+				},
 			],
 		},
 		trimmedDurationMs: 1000,

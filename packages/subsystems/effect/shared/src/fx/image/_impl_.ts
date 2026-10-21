@@ -54,9 +54,14 @@ export default implementEffect<typeof definition>({
 		return {
 			render: (ctx) => {
 				if (ctx.params.image == null) {
-					const pass = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [{
-						view: ctx.outputDataMap.output.textureView, clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store',
-					}] });
+					const pass = ctx.createPassEncoder(ctx.commandEncoder, {
+						colorAttachments: [{
+							view: ctx.outputDataMap.output.textureView,
+							clearValue: [0, 0, 0, 0],
+							loadOp: 'clear',
+							storeOp: 'store',
+						}],
+					});
 					pass.end();
 					return;
 				}
