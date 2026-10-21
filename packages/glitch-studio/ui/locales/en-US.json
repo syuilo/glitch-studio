@@ -236,7 +236,7 @@
 		"Preview": "Preview",
 		"MotionBlurSamplesHint": "Preview motion blur samples. Requires motion blur to be enabled in Project Settings.",
 		"MotionBlur": "Motion blur",
-		"WaveformAndHistogram": "Waveform / Histogram",
+		"Analyze": "Analyze",
 		"Time": "TIME",
 		"UnlimitedVisualModuleLivePreview": "Visual Module Live Preview: Unlimited",
 		"VisualModuleLivePreview120fps": "Visual Module Live Preview: 120fps",

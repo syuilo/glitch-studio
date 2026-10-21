@@ -236,7 +236,7 @@
 		"Preview": "プレビュー",
 		"MotionBlurSamplesHint": "プレビューのモーションブラーのサンプル数です。プロジェクト設定でモーションブラーを有効にする必要があります。",
 		"MotionBlur": "モーションブラー",
-		"WaveformAndHistogram": "波形 / ヒストグラム",
+		"Analyze": "アナライズ",
 		"Time": "時刻",
 		"UnlimitedVisualModuleLivePreview": "Visual Module Live Preview: 無制限",
 		"VisualModuleLivePreview120fps": "Visual Module Live Preview: 120fps",
