@@ -120,7 +120,6 @@
 		<GsInput :key="paramPathKey(paramPath)" data-test-expression-modifier-code manualSave large type="text" class="_monospace" :modelValue="expressionModifier.code" @update:modelValue="code => updateExpressionModifier({ code })">
 			<template #caption="{ value }">
 				<span v-if="expressionModifier.enabled && hasExpressionSyntaxError(value ?? '')" data-test-expression-modifier-error style="color: var(--THEME-error);">{{ (value ?? '').trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</span>
-				<span v-else>{{ i18n.ts._Parameter.ExpressionModifierHelp }}</span>
 			</template>
 		</GsInput>
 	</div>
