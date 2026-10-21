@@ -360,8 +360,8 @@ export function progress(options: { text?: string } = { }) {
 
 	const showing = ref(true);
 	const text = ref(options.text);
-	const progress = ref<number | null>(null); // nullでwaiting状態を表す
-	const subProgress = ref<number | null | undefined>(undefined); // nullでwaiting状態を表す。undefinedは未設定を表す
+	const progress = ref<number | null>(null); // nullでindeterminate状態を表す
+	const subProgress = ref<number | null | undefined>(undefined); // nullでindeterminate状態を表す。undefinedは未設定を表す
 
 	function done() {
 		showing.value = false;

@@ -18,8 +18,8 @@ const modal = useTemplateRef('modal');
 let finished = false;
 
 const props = defineProps<{
-	progress: number | null; // nullでwaiting状態を表す
-	subProgress?: number | null | undefined; // nullでwaiting状態を表す。undefinedは未設定を表す
+	progress: number | null; // nullでindeterminate状態を表す
+	subProgress?: number | null | undefined; // nullでindeterminate状態を表す。undefinedは未設定を表す
 	showing: boolean;
 	text?: string | null;
 }>();

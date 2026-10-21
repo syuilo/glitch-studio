@@ -1,7 +1,7 @@
 <template>
 <div
 	:key="key"
-	:class="[$style.root, { [$style.waiting]: progress == null }]" :style="{
+	:class="[$style.root, { [$style.indeterminate]: progress == null }]" :style="{
 		'--p': progress != null ? `${progress * 100}%` : '0%',
 	}"
 >
@@ -12,11 +12,11 @@
 import { ref, watch } from 'vue';
 
 const props = withDefaults(defineProps<{
-	progress: number | null; // nullでwaiting状態を表す
+	progress: number | null; // nullでindeterminate状態を表す
 }>(), {
 });
 
-// 進捗が0にリセットされたとき(減少したとき)やwaiting状態への移行ではtransitionさせないためのkey
+// 進捗が0にリセットされたとき(減少したとき)やindeterminate状態への移行ではtransitionさせないためのkey
 const key = ref(0);
 
 watch(() => props.progress, (after, before) => {
@@ -54,7 +54,7 @@ watch(() => props.progress, (after, before) => {
 		transition: all 0.5s cubic-bezier(0,.5,.5,1);
 	}
 
-	&.waiting {
+	&.indeterminate {
 		--c1: var(--THEME-accent);
 		--c2: color(from var(--THEME-accent) srgb r g b / 0.5);
 
