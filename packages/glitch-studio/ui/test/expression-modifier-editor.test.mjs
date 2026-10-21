@@ -22,7 +22,16 @@ const bundle = await build({ absWorkingDir: directory, external: ['vue'], bundle
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'effects' }));
 		build.onLoad({ filter: /.*/, namespace: 'effects' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsVisualParam.vue') ? null : { path: basename(path), namespace: 'control' });
-		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ contents: `import { h } from 'vue';
+		// GsInputの保存とショートカットはinput-sync.test.mjsで実コードを確認する。
+		// ここでは未保存のslot値と保存イベントを分け、親が入力途中の本文を適用しないことを確認する。
+		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ contents: path === 'GsInput.vue' ? `
+			import { h, ref, watch } from 'vue';
+			export default { props: { modelValue: null, manualSave: Boolean }, setup(props, { attrs, slots }) {
+				const draft = ref(props.modelValue);
+				watch(() => props.modelValue, value => { draft.value = value; });
+				return () => h('control', { ...attrs, modelValue: props.modelValue, manualSave: props.manualSave,
+					onDraftInput: value => { draft.value = value; } }, Object.values(slots).flatMap(slot => slot({ value: draft.value })));
+			} };` : `import { h } from 'vue';
 			export default { setup(_, { attrs, slots }) { return () => h('control', attrs, Object.values(slots).flatMap(slot => slot())); } };`, loader: 'ts' }));
 		build.onLoad({ filter: /GsVisualParam\.vue$/ }, async ({ path }) => {
 			const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
@@ -64,6 +73,8 @@ function fixture(t) {
 // 実際のコンポーネントを通し、Commandへ渡す対象パスとイベント種別も確認する。
 test('edits modifier code enabled state and removal independently of the source expression', async t => {
 	const f = fixture(t);
+	assert.equal(f.find('data-test-base-expression-code').props.manualSave, true);
+	assert.equal(f.find('data-test-expression-modifier-code').props.manualSave, true);
 	f.find('data-test-expression-modifier-code').props['onUpdate:modelValue']('VALUE * 2');
 	assert.deepEqual(f.edits.at(-1).value, { enabled: true, code: 'VALUE * 2' });
 	assert.equal(f.edits.at(-1).kind, 'expressionModifier');
@@ -79,6 +90,35 @@ test('edits modifier code enabled state and removal independently of the source 
 	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
 	modifierUiTest.menu.find(item => item.text === i18n.ts._Parameter.AddExpressionModifier).action();
 	assert.deepEqual(f.edits.at(-1).value, { enabled: true, code: 'VALUE' });
+});
+
+// 【保存前の本文で構文診断し、明示的な保存イベントまで基準式・加工式を変更しない】
+// 閉じ括弧などを入力する途中でレンダラーへ不完全な式を送ると、プレビューが停止してしまう。
+// 診断用のドラフトとCommandへ渡す保存済み値が独立していることを、両方の式で確認する。
+test('checks draft syntax without applying base or modifier code before saving', async t => {
+	const f = fixture(t);
+	const base = f.find('data-test-base-expression-code');
+	const modifier = f.find('data-test-expression-modifier-code');
+	base.props.onDraftInput('TIME +');
+	modifier.props.onDraftInput('VALUE *');
+	await nextTick();
+	assert.notEqual(f.find('data-test-base-expression-error'), null);
+	assert.notEqual(f.find('data-test-expression-modifier-error'), null);
+	assert.equal(f.props.paramValue.expression, 'TIME');
+	assert.equal(f.props.paramValue.expressionModifier.code, 'VALUE + 1');
+	assert.deepEqual(f.edits, []);
+	base.props.onDraftInput('TIME + 2');
+	modifier.props.onDraftInput('VALUE * 2');
+	await nextTick();
+	assert.equal(f.find('data-test-base-expression-error'), null);
+	assert.equal(f.find('data-test-expression-modifier-error'), null);
+	assert.deepEqual(f.edits, []);
+	base.props['onUpdate:modelValue']('TIME + 2');
+	modifier.props['onUpdate:modelValue']('VALUE * 2');
+	assert.deepEqual(f.edits, [
+		{ kind: 'expression', paramPath: ['amount'], value: 'TIME + 2' },
+		{ kind: 'expressionModifier', paramPath: ['amount'], value: { enabled: true, code: 'VALUE * 2' } },
+	]);
 });
 
 // 【空の有効な式は入力欄にエラーを表示し、加工式の無効化では本文を保持する】

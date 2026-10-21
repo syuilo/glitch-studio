@@ -32,6 +32,10 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 プロジェクトの操作はCommandを通し、Undo/Redoとレンダラー同期を同じ変更通知から行う。
 
+`GsVisualParam`の基準式・加工式の本文は`GsInput`の手動保存を使い、保存ボタン・Ctrl+Enter・Ctrl+S（MacではCommandも可）でだけCommandへ渡す。フォーカス移動では適用しない。構文診断はcaptionスロットが受け取る入力中の値に対して行い、レンダラーには適用済みの本文だけを送る。明示保存ごとに独立したUndo履歴を作る。
+
+`GsInput`と`GsTextarea`の`manualSave`は同じ保存操作とキャンセルボタン・Escに対応する。キャンセルは入力中のドラフトだけを現在の`modelValue`へ戻し、親への値の更新通知やUndo/Redoを発生させない。IME変換中の確定・取消しは処理せず、`GsTextarea`の通常のEnterは改行として扱う。両部品のcaptionスロットは入力中の`value`を渡す。外部同期とキャンセル・破棄では古い遅延通知を取り消す。
+
 TimelineのInspectorでは、同じ合成境界にある別の映像レイヤーをマスク元に指定できる。`setTimelineLayerReferenceMask`が参照ID・Alpha／輝度・反転を、`setTimelineLayerCompositeInclusion`が通常合成への参加を変更する。マスク元を通常合成から外しても画像参照と音声を維持し、レイヤー無効化とは区別する。削除後の参照IDを選択肢に残し、複製時には同時に複製したマスク元のIDも付け替える。境界の候補・検証はTimeline shared、循環の診断は`ProjectRenderValidation`が担当する。
 
 グループを含む追加・レイヤー削除・グループ化・親変更は`layerTree`を通知し、`RendererProjectSynchronizer`が最終的な階層を一度だけ送る。ルートへの単一レイヤー追加は`layer`と`layerOrder`で送り、既存の兄弟の定義は送らない。設定編集の`layer`差分ではグループの子配列を送らず、受信側が既存の子を保持する。階層と同時に編集した既存レイヤーやノードの変更種別も残し、階層→ノード→レイヤー設定の順に適用する。Sceneの設定変更・追加・削除は`scene`で扱う。通知の集約はUI、通信契約はGlitch Studio shared、描画履歴の破棄方針はGlitch Studio rendererが担当し、Timelineの保存形式へ通信上の都合を持ち込まない。

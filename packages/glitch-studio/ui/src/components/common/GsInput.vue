@@ -31,9 +31,12 @@
 		</datalist>
 		<div ref="suffixEl" :class="$style.suffix"><slot name="suffix"></slot></div>
 	</div>
-	<div :class="$style.caption"><slot name="caption"></slot></div>
+	<div :class="$style.caption"><slot name="caption" :value="v"></slot></div>
 
-	<GsButton v-if="manualSave && changed" large primary :class="$style.save" icon="ti ti-check" @click="updated"/>
+	<div v-if="manualSave && changed" :class="$style.manualSaveActions">
+		<GsButton data-test-input-save large primary :disabled="disabled || readonly" icon="ti ti-check" @click="updated">{{ i18n.ts.Save }}</GsButton>
+		<GsButton data-test-input-cancel large :disabled="disabled || readonly" icon="ti ti-x" @click="cancelEditing">{{ i18n.ts.Cancel }}</GsButton>
+	</div>
 </div>
 </template>
 
@@ -109,6 +112,25 @@ const onInput = (event: InputEvent) => {
 const onKeydown = (ev: KeyboardEvent) => {
 	if (ev.isComposing || ev.key === 'Process' || ev.keyCode === 229) return;
 
+	// Escは編集中のドラフトだけを破棄する。IMEの取消しや親画面の閉じる操作と区別する。
+	if (props.manualSave && !props.disabled && !props.readonly && changed.value && ev.key === 'Escape'
+		&& !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+		ev.preventDefault();
+		ev.stopPropagation();
+		cancelEditing();
+		return;
+	}
+
+	// 手動保存では、入力中のドラフトだけを明示的に確定する。ブラウザや親画面の
+	// 保存処理へ伝播させず、IME確定や通常のEnterでは編集中の値を適用しない。
+	if (props.manualSave && !props.disabled && !props.readonly && (ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey
+		&& (ev.key === 'Enter' || ev.key.toLowerCase() === 's')) {
+		ev.preventDefault();
+		ev.stopPropagation();
+		if (!ev.repeat) updated();
+		return;
+	}
+
 	emit('keydown', ev);
 
 	if (ev.code === 'Enter') {
@@ -130,15 +152,27 @@ const updated = () => {
 const throttledUpdated = throttle(typeof props.throttle === 'number' ? props.throttle : 1000, updated);
 const debouncedUpdated = debounce(typeof props.debounce === 'number' ? props.debounce : 1000, updated);
 
+function cancelEditing() {
+	// 破棄した入力を後から遅延通知せず、現在の適用済み値へローカルだけを戻す。
+	throttledUpdated.cancel({ upcomingOnly: true });
+	debouncedUpdated.cancel({ upcomingOnly: true });
+	v.value = modelValue.value;
+	changed.value = false;
+	focus();
+}
+
 watch(modelValue, newValue => {
 	// 外部から値が確定した後に、以前の入力の遅延通知を発行しない。
 	throttledUpdated.cancel({ upcomingOnly: true });
 	debouncedUpdated.cancel({ upcomingOnly: true });
+	changed.value = false;
 	v.value = newValue;
 });
 
 watch(v, () => {
-	if (!props.manualSave && !Object.is(v.value, modelValue.value)) {
+	if (props.manualSave) {
+		changed.value = !Object.is(v.value, modelValue.value);
+	} else if (!Object.is(v.value, modelValue.value)) {
 		if (props.throttle === true || typeof props.throttle === 'number') {
 			throttledUpdated();
 		} else if (props.debounce === true || typeof props.debounce === 'number') {
@@ -190,6 +224,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+	throttledUpdated.cancel({ upcomingOnly: true });
+	debouncedUpdated.cancel({ upcomingOnly: true });
 	paddingObserver?.disconnect();
 	paddingObserver = null;
 
@@ -318,7 +354,9 @@ defineExpose({
 	right: 0;
 	padding-left: 6px;
 }
-.save {
+.manualSaveActions {
+	display: flex;
+	gap: 8px;
 	margin: 8px 0 0 0;
 }
 </style>

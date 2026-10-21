@@ -30,10 +30,10 @@
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
-					<GsInput v-if="paramValue.inputSource === 'expression'" large type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
+					<GsInput v-if="paramValue.inputSource === 'expression'" :key="paramPathKey(paramPath)" data-test-base-expression-code manualSave large type="text" class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
 						<template #label>{{ i18n.ts._Parameter.BaseExpression }}</template>
-						<template #caption>
-							<div v-if="isExpressionSyntaxError" data-test-base-expression-error style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> {{ paramValue.expression.trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</div>
+						<template #caption="{ value }">
+							<div v-if="hasExpressionSyntaxError(value ?? '')" data-test-base-expression-error style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> {{ (value ?? '').trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</div>
 						</template>
 					</GsInput>
 					<GsSelect
@@ -118,9 +118,9 @@
 			</label>
 			<GsButton data-test-expression-modifier-remove iconOnly :title="i18n.ts._Parameter.RemoveExpressionModifier" icon="ti ti-x" @click="removeExpressionModifier"/>
 		</div>
-		<GsInput data-test-expression-modifier-code large type="text" class="_monospace" :modelValue="expressionModifier.code" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="code => updateExpressionModifier({ code })">
-			<template #caption>
-				<span v-if="isModifierSyntaxError" data-test-expression-modifier-error style="color: var(--THEME-error);">{{ expressionModifier.code.trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</span>
+		<GsInput :key="paramPathKey(paramPath)" data-test-expression-modifier-code manualSave large type="text" class="_monospace" :modelValue="expressionModifier.code" @update:modelValue="code => updateExpressionModifier({ code })">
+			<template #caption="{ value }">
+				<span v-if="expressionModifier.enabled && hasExpressionSyntaxError(value ?? '')" data-test-expression-modifier-error style="color: var(--THEME-error);">{{ (value ?? '').trim() === '' ? i18n.ts._Parameter.EmptyExpression : i18n.ts._Parameter.SyntaxError }}</span>
 				<span v-else>{{ i18n.ts._Parameter.ExpressionModifierHelp }}</span>
 			</template>
 		</GsInput>
@@ -387,12 +387,6 @@ function hasExpressionSyntaxError(code: string): boolean {
 	try { return code.trim() === '' || aisParser.parse(code).length === 0; } catch { return true; }
 }
 
-const isModifierSyntaxError = computed(() => expressionModifier.value?.enabled === true && hasExpressionSyntaxError(expressionModifier.value.code));
-const isExpressionSyntaxError = computed(() => {
-	if (props.paramValue.inputSource !== 'expression') return false;
-	return hasExpressionSyntaxError(props.paramValue.expression);
-});
-
 function updateInlineGraphNormalized(isNormalized: boolean) {
 	if (props.paramValue.inputSource !== 'automationGraphInline' || props.paramValue.automationGraph.isNormalized === isNormalized) return;
 	emit('edit', { kind: 'automationGraphInline', ...target(), value: setInlineAutomationGraphNormalized(props.paramValue, isNormalized) });
@@ -574,13 +568,12 @@ function updateParamAsExpression(value: string) {
 		kind: 'expression',
 		...target(),
 		value,
-		mergeKey: commandMergeKey,
 	});
 }
 
 function updateExpressionModifier(changes: Partial<ParameterExpressionModifier>) {
 	if (!mounted || expressionModifier.value == null) return;
-	emit('edit', { kind: 'expressionModifier', ...target(), value: { ...expressionModifier.value, ...changes }, mergeKey: commandMergeKey });
+	emit('edit', { kind: 'expressionModifier', ...target(), value: { ...expressionModifier.value, ...changes } });
 }
 
 function removeExpressionModifier() {

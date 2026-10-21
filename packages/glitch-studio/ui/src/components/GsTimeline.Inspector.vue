@@ -18,7 +18,7 @@
 	@remove="emit('removeClips')" @changeSource="emit('changeClipSource', $event)"
 />
 <GsTimelineInspectorLayer
-	v-else-if="selectedLayer" :scene="scene" :layer="selectedLayer"
+	v-else-if="selectedLayer" :key="JSON.stringify([scene.id, selectedLayer.id])" :scene="scene" :layer="selectedLayer"
 	@selectKeyframe="emit('selectKeyframe', $event)" @requestAddInlineEffectNode="emit('requestAddInlineEffectNode', $event)"
 	@expandRequested="emit('expandRequested', $event)"
 	@revealAssets="emit('revealAssets')"
