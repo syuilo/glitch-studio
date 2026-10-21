@@ -25,7 +25,7 @@
 		<div :class="$style.paramBody">
 			<template v-if="paramDef.dataType.kind === 'array'">
 				<span :class="$style.count">{{ arrayValues.length }}</span>
-				<GsButton iconOnly :title="i18n.ts._Parameter.AddElement" icon="ti ti-plus" @click="addElement"/>
+				<GsButton v-tooltip="i18n.ts._Parameter.AddElement" iconOnly icon="ti ti-plus" @click="addElement"/>
 			</template>
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
@@ -83,7 +83,7 @@
 					<div v-else-if="paramValue.inputSource === 'anotherLayerOutput'" style="display: flex; gap: 4px; align-items: center;">
 						<GsSelect data-test-image-layer-reference :modelValue="paramValue.layerId" :items="imageLayerItems" @update:modelValue="value => updateAnotherLayerOutput({ layerId: value })"/>
 						<GsSelect data-test-layer-output-stage :modelValue="paramValue.outputStage" :items="outputStageItems" @update:modelValue="value => updateAnotherLayerOutput({ outputStage: value })"/>
-						<button v-if="imageInputSamplingEnabled" class="_button" :title="i18n.ts._Parameter.Sampling" @click="showAnotherLayerOutputSamplingMenu"><i class="ti ti-dots"></i></button>
+						<button v-if="imageInputSamplingEnabled" class="_button" :v-tooltip="i18n.ts._Parameter.Sampling" @click="showAnotherLayerOutputSamplingMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<span v-else-if="paramValue.inputSource === 'lowerLayerAudio'">{{ i18n.ts._Parameter.LowerLayerAudio }}</span>
 					<GsSelect v-else-if="paramValue.inputSource === 'anotherLayerAudio'" :modelValue="paramValue.layerId" :items="anotherLayerAudioItems" @update:modelValue="updateAnotherLayerAudio"/>
@@ -115,7 +115,7 @@
 				<input data-test-expression-modifier-enabled type="checkbox" :checked="expressionModifier.enabled" @change="updateExpressionModifier({ enabled: ($event.target as HTMLInputElement).checked })">
 				{{ i18n.ts._Parameter.ExpressionModifier }}
 			</label>
-			<GsButton data-test-expression-modifier-remove iconOnly :title="i18n.ts._Parameter.RemoveExpressionModifier" icon="ti ti-x" @click="removeExpressionModifier"/>
+			<GsButton v-tooltip="i18n.ts._Parameter.RemoveExpressionModifier" data-test-expression-modifier-remove iconOnly icon="ti ti-x" @click="removeExpressionModifier"/>
 		</div>
 		<GsInput :key="paramPathKey(paramPath)" data-test-expression-modifier-code manualSave large type="text" class="_monospace" :modelValue="expressionModifier.code" @update:modelValue="code => updateExpressionModifier({ code })">
 			<template #caption="{ value }">
@@ -162,7 +162,7 @@
 			@edit="emit('edit', $event)"
 		>
 			<template #actions>
-				<GsButton iconOnly danger :title="i18n.ts._Parameter.RemoveElement" icon="ti ti-x" @click="removeElement(element.id)"/>
+				<GsButton v-tooltip="i18n.ts._Parameter.RemoveElement" iconOnly danger icon="ti ti-x" @click="removeElement(element.id)"/>
 			</template>
 		</GsVisualParam>
 	</div>
