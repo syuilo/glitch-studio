@@ -15,11 +15,13 @@
 				<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
 				<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
 				<template v-if="isElectron">
+					<span :class="$style.headerDivider"></span>
 					<button v-tooltip="i18n.ts.Copy" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Copy" :disabled="!headerEditActions.canCopy.value" data-editor-command-button data-test-header-copy @pointerdown.prevent @click="headerEditActions.execute('copy')"><i class="ti ti-copy"></i></button>
 					<button v-tooltip="i18n.ts.Paste" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Paste" :disabled="!headerEditActions.canPaste.value" data-editor-command-button data-test-header-paste @pointerdown.prevent @click="headerEditActions.execute('paste')"><i class="ti ti-clipboard"></i></button>
 					<button v-tooltip="i18n.ts.Cut" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Cut" :disabled="!headerEditActions.canCut.value" data-editor-command-button data-test-header-cut @pointerdown.prevent @click="headerEditActions.execute('cut')"><i class="ti ti-cut"></i></button>
 					<button v-tooltip="i18n.ts.Delete" class="_button" :class="$style.headerQuickButton" :aria-label="i18n.ts.Delete" :disabled="!headerEditActions.canDelete.value" data-editor-command-button data-test-header-delete @pointerdown.prevent @click="headerEditActions.execute('delete')"><i class="ti ti-trash"></i></button>
 				</template>
+				<span :class="$style.headerDivider"></span>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
@@ -92,11 +94,11 @@ import { importVisualModuleFile } from './utility/visual-module-file.ts';
 import { importAssets } from './utility/import-assets.ts';
 import { fileDropTargetInstallerKey, installFileDropHandlers } from './utility/file-drop.ts';
 import { editorEditTargetKey } from './composables/useEditorEditActions.ts';
-import type { EditorEditTarget } from './composables/useEditorEditActions.ts';
 import { useHeaderEditActions } from './composables/useHeaderEditActions.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsDropOverlay from './components/common/GsDropOverlay.vue';
 import GsEllipsis from './components/common/GsEllipsis.vue';
+import type { EditorEditTarget } from './composables/useEditorEditActions.ts';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
 import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
@@ -519,6 +521,13 @@ onMounted(async () => {
 	padding: 0 12px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.headerDivider {
+	width: 1px;
+	height: 50%;
+	margin: 0 4px;
+	background-color: #fff2;
 }
 
 .projectFileName {
