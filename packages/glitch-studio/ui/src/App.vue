@@ -22,7 +22,7 @@
 					<button v-tooltip="i18n.ts.Delete" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canDelete.value" data-editor-command-button data-test-header-delete @pointerdown.prevent @click="headerEditActions.execute('delete')"><i class="ti ti-trash"></i></button>
 				</template>
 				<span :class="$style.headerDivider"></span>
-				<!-- TODO: save button -->
+				<button v-tooltip="i18n.ts.Save" class="_button" :class="$style.headerQuickButton" :disabled="isProjectSaving" @click="appContext.saveProject()"><i class="ti ti-device-floppy"></i></button>
 				<span :class="$style.headerDivider"></span>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
