@@ -79,6 +79,7 @@ export class AppContext {
 	public readonly renderValidation: ProjectRenderValidation;
 	public readonly renderEngine: PreviewRenderEngine;
 	private projectWatchers: WatchStopHandle[] = [];
+	private rendererProjectSynchronizer: RendererProjectSynchronizer | null = null;
 	private projectSaveController: ProjectSaveController;
 	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'visualModuleLivePreview' ? this.visualModuleRendererManagerController : this.timelineRendererManagerController);
 	public get projectFileName() { return this.projectSaveController.projectFileName; }
@@ -458,7 +459,11 @@ export class AppContext {
 				if (this.renderEngine.canRender.value) this.renderEngine.fail(error);
 			},
 		});
-		this.projectWatchers.push(() => rendererSync.dispose());
+		this.rendererProjectSynchronizer = rendererSync;
+		this.projectWatchers.push(() => {
+			rendererSync.dispose();
+			this.rendererProjectSynchronizer = null;
+		});
 
 		let sceneUpdateGeneration = 0;
 		this.projectWatchers.push(watch(this.activeSceneId, async (sceneId, _previous, onCleanup) => {
@@ -485,6 +490,14 @@ export class AppContext {
 		await this.renderEngine.resume();
 
 		waiting.done();
+	}
+
+	public async flushRendererProjectChanges(): Promise<void> {
+		try {
+			await this.rendererProjectSynchronizer?.flush();
+		} catch (error) {
+			if (this.renderEngine.canRender.value) this.renderEngine.fail(error);
+		}
 	}
 
 	public grantProjectBackupAccess(): Promise<void> {

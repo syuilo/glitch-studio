@@ -54,7 +54,7 @@ Scene・動画／静止画・形式・品質・解像度・FPS・時間範囲と
 
 `GsVisualModuleEditor`はファイル・Assetのドロップ受付と表示を担当し、親が渡す`VisualModuleAssetDropActions`で保存先へ反映する。登録済みとインラインの両方で`utility/visual-module-drop-actions.ts`を使い、画像・動画・音声からImage・Video・Audio Waveformノードを通常ノード一覧の末尾へ追加する。ノード生成は`visual-module-asset-node.ts`、Asset・Player・ノードの一括追加とUndo/RedoはCommandが担当する。既存の配線と出力接続は変更しない。
 
-`gsvm.ts`は`.gsvm`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。元PCのパスや利用側のレイヤー／Visual Module Live Previewの状態は保存しない。
+`gsvm.ts`は`.gsvm`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。素材参照の加工式は無効化中や基準値がnullの場合も含めて転送を拒否する。元PCのパスや利用側のレイヤー／Visual Module Live Previewの状態は保存しない。
 
 `utility/visual-module-file.ts`が選択・ダウンロード・エラー表示を担当する。共通のVisual ModuleエディターはOtherタブから`requestExport`を通知し、登録済み／インラインそれぞれの親が対象名とプロジェクトを渡す。ImportはApp.vueのFile → Import → Visual Module (.gsvm)、または登録済みVisual Moduleの選択メニューから同じ処理を呼び出し、`importVisualModule` Commandで依存リソースごと一括追加する。ファイル選択・読み出しの間に`ProjectContext.load()`の世代が変わった操作は破棄する。
 
@@ -106,7 +106,7 @@ literalは値を変更し、キーフレームは現在のScene時刻（最寄�
 
 `preview-transform.ts`が操作時の座標計算・スナップ、`timeline-transform-edit.ts`がキーの準備・更新を担当する。`editTimelineLayerTransform`は位置・倍率などを一括検証・適用する。`UndoRedo.beginEdit()`は描画更新を通知しながら、確定時に一履歴だけを作る。Esc・pointercancel・ウィンドウ切替・選択やSceneの変更では取消し、開始時の値と既存Redoを保つ。外部のCommandは先にセッションを確定し、プロジェクト読み込みは状態交換前に取り消す。
 
-Workerは表示対象だけを購読し、ポインター移動による更新はrequestAnimationFrameへまとめる。操作中の枠はUIで計算し、Workerの往復を待たない。解像度は既存の変形情報通知へ同梱し、再生中は購読を解除するため継続的な解像度通知を追加しない。購読の変更と状態の世代で古い通知を除外する。別ウィンドウでは表示先のDocument・requestAnimationFrame・DPRを使う。
+Workerは表示対象だけを購読し、ポインター移動による更新はrequestAnimationFrameへまとめる。操作中の枠はUIで計算し、Workerの往復を待たない。操作終了時は差分同期をflushして待機する世代を記録し、その世代以降のプレビュー応答でドラフトを解除する。加工式によってドラフトと描画位置が異なる場合も、座標の一致は待たない。解像度は既存の変形情報通知へ同梱し、再生中は購読を解除するため継続的な解像度通知を追加しない。購読の変更と状態の世代で古い通知を除外する。別ウィンドウでは表示先のDocument・requestAnimationFrame・DPRを使う。
 
 ## VOICEVOX音声の生成と編集
 

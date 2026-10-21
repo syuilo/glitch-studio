@@ -43,6 +43,11 @@ function getResourceReference(def: ParameterDefinition, binding: VisualModulePar
 	if (binding.inputSource !== 'literal') {
 		throw new Error(`Cannot transfer "${def.ui.label}": Asset and Player references must use a fixed value or a Custom Parameter.`);
 	}
+	// 無効化中もコードは保存され、取り込み後に再有効化できる。コード内のIDは
+	// 安全に書き換えられないため、有効・無効や基準値の未選択によらず転送を拒否する。
+	if (binding.expressionModifier != null) {
+		throw new Error(`Cannot transfer "${def.ui.label}": Remove its expression modifier and use a fixed Asset or Player reference, or a Custom Parameter.`);
+	}
 	// nullは明示的な未選択。valueの欠落をここで省略すると、不正な参照を転送時に見落としてしまう。
 	if (binding.value === null) return null;
 	if (kind === 'audioSource') {

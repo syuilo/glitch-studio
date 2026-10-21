@@ -13,6 +13,7 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);
 	public readonly layerTransform = shallowRef<TimelineTransformPreview | null>(null);
+	public get transformPreviewRevision() { return this.dynamicOptions.previewRevision ?? 0; }
 	public readonly previewStatistics = shallowRef<TimelinePreviewStatistics | null>(null);
 	private seekRequestId = 0;
 	private pendingSeek = shallowRef<{ requestId: number; time: number } | null>(null);

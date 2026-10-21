@@ -176,6 +176,47 @@ test('rejects missing resources unknown effects and dynamic resource bindings', 
 	assert.throws(missingPlayerAsset.file, /Missing Asset/);
 });
 
+// 【素材・Playerの加工式は無効化中や未選択の基準値でも転送しない】
+// コード内のIDは取り込み時に再割り当てできず、無効な式も再有効化すると参照切れになる。
+// 基準値だけの収集で成功扱いにしないよう、直接参照・ネスト・公開既定値と読み込み側も確認する。
+test('rejects resource modifiers on export and import including disabled and unselected bindings', () => {
+	const cases = [
+		{ label: 'imageAssetTextureReference', binding: f => f.visualModule.paramDefs[0].defaultValue },
+		{ label: 'assetReference', binding: f => f.visualModule.nodes[1].params.video },
+		{ label: 'playerReference', binding: f => f.visualModule.nodes[1].params.player },
+		{ label: 'Image', binding: f => f.visualModule.nodes[1].params.nested.value[0].binding.value.image },
+		{ label: 'Font', binding: f => f.visualModule.paramDefs[1].element.fields.font.defaultValue },
+	];
+	for (const { label, binding } of cases) {
+		for (const enabled of [true, false]) {
+			for (const unselected of [false, true]) {
+				const f = fixture();
+				const file = f.file();
+				const value = binding(f);
+				if (unselected) value.value = null;
+				value.expressionModifier = { enabled, code: '"unused"' };
+				const expected = { message: `Cannot transfer "${label}": Remove its expression modifier and use a fixed Asset or Player reference, or a Custom Parameter.` };
+				assert.throws(f.file, expected);
+				file.visualModule = f.visualModule;
+				assert.throws(() => prepareVisualModuleImport(file, f.definitions), expected);
+			}
+		}
+	}
+});
+
+// 【素材参照以外の加工式と、加工式のない未選択値はそのまま転送できる】
+// 素材を列挙できない場合だけ拒否し、通常の数値加工やnullによる未選択まで制限しない。
+test('preserves non-resource modifiers and permits unmodified unselected resources', () => {
+	const f = fixture();
+	f.visualModule.nodes[1].params.amount.expressionModifier = { enabled: true, code: 'VALUE * 2' };
+	f.visualModule.nodes[1].params.video.value = null;
+	f.visualModule.nodes[1].params.player.value = null;
+	const imported = prepareVisualModuleImport(f.file(), f.definitions);
+	assert.deepEqual(imported.visualModule.nodes[1].params.amount, f.visualModule.nodes[1].params.amount);
+	assert.equal(imported.visualModule.nodes[1].params.video.value, null);
+	assert.equal(imported.visualModule.nodes[1].params.player.value, null);
+});
+
 // 【専用形式以外と未来の形式は読み込みを拒否する】
 // プロジェクトファイルや形式の異なるデータをVisual Moduleとして誤って状態へ追加しない。
 // 現行形式のみを扱い、旧形式のマイグレーションは行わない。

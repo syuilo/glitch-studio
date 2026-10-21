@@ -60,6 +60,7 @@ const keepRatio = preferences.model('previewTransformKeepRatio');
 const dragging = ref(false);
 type PreviewGeometry = TimelineLayerGeometry & { parents: TimelineLayerGeometry[] };
 const draft = shallowRef<PreviewGeometry | null>(null);
+const pendingDraftPreviewRevision = ref<number | null>(null);
 let stopDrag: (() => void) | null = null;
 const transformObserver = {};
 
@@ -143,6 +144,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	if (!target.value) return;
 	// 新時刻の応答待ちでSVGをunmountするとpointer captureまで失われるため、
 	// 操作開始時の枠を残し、正しい時刻の評価が届いてから編集を開始する。
+	pendingDraftPreviewRevision.value = null;
 	draft.value = pendingGeometry;
 	let initial: PreviewGeometry | null = null;
 	let session: ReturnType<typeof stateManager.beginEdit<'editTimelineLayerTransform'>> | null = null;
@@ -246,13 +248,27 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 			dragging.value = false;
 			// 最後の値がWorkerへ反映されるまで手元の枠を保ち、古い応答へ一瞬戻さない。
 			if (cancelled || !changed) draft.value = null;
+			else void trackFinalPreviewRevision();
 		},
 	});
 }
 
-watch(renderedGeometry, value => {
-	if (!dragging.value && draft.value && value && deepEqual(value.transform.position, draft.value.transform.position)
-		&& deepEqual(value.transform.scale, draft.value.transform.scale) && value.transform.rotation === draft.value.transform.rotation) draft.value = null;
+async function trackFinalPreviewRevision() {
+	const pendingDraft = draft.value;
+	// 差分はマイクロタスクで集約されるため、Command直後の世代はまだ古い場合がある。
+	// 最終編集を送ってから待機する世代を記録し、加工式で位置が変わっても実際の枠へ確定する。
+	await appContext.flushRendererProjectChanges();
+	// 同期待ちの間に別の操作・取消し・対象変更が起きた場合は、そのドラフトに干渉しない。
+	if (pendingDraft == null || draft.value !== pendingDraft || dragging.value) return;
+	pendingDraftPreviewRevision.value = timelineRendererManagerController.transformPreviewRevision;
+}
+
+watch([renderedPreview, dragging, pendingDraftPreviewRevision], ([preview, isDragging, revision]) => {
+	// 応答がドラッグ中やflush完了前に届いていても、終了後に同じ条件で解除する。
+	if (!isDragging && draft.value != null && preview != null && revision != null && preview.revision >= revision) {
+		draft.value = null;
+		pendingDraftPreviewRevision.value = null;
+	}
 });
 watch([() => target.value && JSON.stringify(target.value), previewPlayback.currentTimelineTime, () => props.canvasRect], () => {
 	stopDrag?.();
@@ -278,6 +294,7 @@ function resetScale() {
 
 onBeforeUnmount(() => {
 	stopDrag?.();
+	draft.value = null;
 	unsubscribe();
 	void timelineRendererManagerController.observeLayerTransform(transformObserver, null, null);
 });
