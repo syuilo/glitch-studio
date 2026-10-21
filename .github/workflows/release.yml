@@ -61,12 +61,6 @@ jobs:
       - name: Prepare the version commit and download page
         id: prepare
         run: node packages/glitch-studio/desktop/release.mjs prepare
-      - name: Lint and typecheck
-        run: pnpm lint
-      - name: Test
-        run: pnpm test
-        env:
-          CI: true
       - name: Validate the documentation build
         run: pnpm docs:build
       # まだpushしていない同一のリリースコミットを各OSへ渡す。

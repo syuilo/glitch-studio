@@ -87,11 +87,13 @@ Workflowは以下を実行します。
 
 1. dispatch時点の`github.sha`を固定する。実行待ちやビルド中の追加コミットは含めない。
 2. 選択した方法でバージョンを確定し、ルート`package.json`をその番号へ変更する。Workflow実行の`createdAt`を取得して日本時間の公開日を決め、`docs-site/guide/download.md`のリンク・表示バージョン・公開日も更新する。すべてを一つのリリース用コミットに含める。UIの表示バージョンとElectronのバージョンはこの値を使う。
-3. lint・型チェック・テスト・ドキュメントのビルドを実行する。未公開のリリースコミットをGit bundleで各ビルドジョブへ渡し、WindowsランナーでNSIS、macOSランナーでarm64・x64のDMGを生成する。ASARの依存、macOSアプリの署名とDMGの整合性も検証する。
+3. ドキュメントのビルドを実行する。未公開のリリースコミットをGit bundleで各ビルドジョブへ渡し、WindowsランナーでNSIS、macOSランナーでarm64・x64のDMGを生成する。ASARの依存、macOSアプリの署名とDMGの整合性も検証する。
 4. masterが元のコミットのままであることを確認し、リリース用コミットと`v<version>`タグをatomic pushする。force pushは使わない。
 5. Draft ReleaseへSetup.exe・`.blockmap`・`latest.yml`・`Glitch-Studio-<version>-mac-arm64.dmg`・`Glitch-Studio-<version>-mac-x64.dmg`をアップロードし、ダウンロードし直してローカルの成果物と比較する。すべてのOSの成果物を必須とする。
 6. すべて成功した場合だけ公開する。開発版はpre-releaseとし、正式版だけGitHubのLatestへ指定する。
 7. 公開成功後、`deploy-pages`ジョブから既存のPages Workflow（`deploy.yml`）を`master`指定で起動し、アプリとドキュメントをまとめてデプロイする。デプロイ自体は別のWorkflowとして実行する。
+
+lint・型チェックはLint Workflow、テストはTest Workflowで実行します。
 
 ダウンロードページでは`DOWNLOAD_LINK_MARKER: windows`・`DOWNLOAD_LINK_MARKER: macos`・`CURRENT_VERSION_MARKER`・`CURRENT_VERSION_RELEASE_DATE_MARKER`の開始・終了コメントをそれぞれ一組ずつ保持してください。Windowsはx64インストーラー、macOSはApple Silicon（arm64）とIntel（x64）のDMGへリンクします。表示バージョンの`v`接頭辞はマーカー外の本文に置きます。正式版・開発版ともリリース対象のバージョンへ更新します。マーカー外の本文は変更せず、マーカーの欠落・重複・入れ子は公開前にエラーにします。
 
