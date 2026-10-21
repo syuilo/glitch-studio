@@ -1,4 +1,4 @@
-import type { timelineCompositingParamDefs, TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask } from './timeline-compositing.ts';
+import type { timelineCompositingParamDefs, TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask, TimelineLayerMask } from './timeline-compositing.ts';
 import type { TimelineCameraParameterValues } from './layers/camera/camera.ts';
 import type { TimelineTransformParameterValues } from './layers/transform/transform.ts';
 import type { TimelineClip, TimelineContentClip, TimelineMediaClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
@@ -19,7 +19,7 @@ export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | '
 // 実行インスタンスの扱いは利用側へ委ねる。
 export type TimelineLayerChange =
 	| { type: 'parameter'; target: TimelineParameterTarget; kind: ParameterChangeKind }
-	| { type: 'definition' | 'clips' | 'resolution' | 'disabled' | 'motionBlur' | 'coordinateSpace' | 'mask' | 'transformTarget' };
+	| { type: 'definition' | 'clips' | 'resolution' | 'disabled' | 'motionBlur' | 'coordinateSpace' | 'mask' | 'layerMask' | 'compositeInclusion' | 'transformTarget' };
 
 type TimelineLayerCommon = {
 	id: string;
@@ -40,6 +40,9 @@ type TimelineAudioLayerBase = {
 type TimelineVisualLayerBase = {
 	coordinateSpace: TimelineLayerCoordinateSpace;
 	mask: TimelineMask | null;
+	layerMask: TimelineLayerMask | null;
+	/** 通常合成だけから除外する。参照用の単独描画・音声は引き続き評価できる。 */
+	isIncludedInComposite: boolean;
 	/** 内容・合成設定をフレームの基準時刻で評価する。グループ・Sceneでは配下にも適用する。 */
 	forceDisableMotionBlur: boolean;
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;

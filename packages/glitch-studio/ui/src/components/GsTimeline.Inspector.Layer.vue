@@ -112,6 +112,24 @@
 		<GsFolder v-if="isTimelineVisualLayer(layer)" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-layers-selected"></i></template>
 			<template #label>{{ i18n.ts._TimelineLayer.Compositing }}</template>
+			<div class="_spacer _gaps_m">
+				<GsSwitch data-test-timeline-composite-inclusion :modelValue="layer.isIncludedInComposite" @update:modelValue="isIncludedInComposite => stateManager.commit('setTimelineLayerCompositeInclusion', { sceneId, layerId: layer.id, isIncludedInComposite })">
+					<template #label>{{ i18n.ts._TimelineLayer.IncludeInComposite }}</template>
+					<template #caption>{{ i18n.ts._TimelineLayer.IncludeInCompositeHint }}</template>
+				</GsSwitch>
+				<GsSelect large data-test-timeline-layer-mask-source :modelValue="layer.layerMask?.sourceLayerId ?? null" :items="layerMaskSourceOptions" @update:modelValue="setLayerMaskSource">
+					<template #label>{{ i18n.ts._TimelineLayer.MaskSource }}</template>
+					<template #caption>{{ i18n.ts._TimelineLayer.MaskSourceHint }}</template>
+				</GsSelect>
+				<template v-if="layer.layerMask != null">
+					<GsSelect large data-test-timeline-layer-mask-channel :modelValue="layer.layerMask.channel" :items="maskChannels" @update:modelValue="channel => updateLayerMask({ channel })">
+						<template #label>{{ i18n.ts._TimelineLayer.MaskChannel }}</template>
+					</GsSelect>
+					<GsSwitch data-test-timeline-layer-mask-inverted :modelValue="layer.layerMask.inverted" @update:modelValue="inverted => updateLayerMask({ inverted })">
+						<template #label>{{ i18n.ts._TimelineLayer.InvertMask }}</template>
+					</GsSwitch>
+				</template>
+			</div>
 			<div v-if="isTimelineEffectOrVisualModuleLayer(layer)" class="_spacer">
 				<GsSelect large data-test-timeline-transform-target :modelValue="layer.transformTarget ?? 'image'" :items="transformTargets" @update:modelValue="transformTarget => stateManager.commit('setTimelineLayerTransformTarget', { sceneId, layerId: layer.id, transformTarget })">
 					<template #label>{{ i18n.ts._TimelineLayer.TransformTarget }}</template>
@@ -188,6 +206,7 @@
 import { computed, ref, onBeforeUnmount } from 'vue';
 import { isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { getTimelineLayerMaskSources } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { timelineAudioParamDefs, isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -208,7 +227,7 @@ import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
 import GsTimelineTransformSettings from './GsTimeline.TransformSettings.vue';
 import GsTimelineCameraSettings from './GsTimeline.CameraSettings.vue';
-import type { TimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineMask, TimelineLayerMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
@@ -270,6 +289,14 @@ const imageLayerOptions = computed(() => {
 const anotherLayerAudioOptions = computed(() => sceneLayers.value
 	.filter(layer => layer.id !== props.layer.id && isTimelineAudioOutputLayer(layer))
 	.map(layer => ({ value: layer.id, label: layer.name })));
+const layerMaskSourceOptions = computed(() => {
+	const sources = new Set(getTimelineLayerMaskSources(props.scene.layers, props.layer.id).map(layer => layer.id));
+	const items: { value: string | null; label: string }[] = [{ value: null, label: i18n.ts.None }, ...imageLayerOptions.value.filter(item => sources.has(item.value))];
+	const layer = props.layer;
+	const id = isTimelineVisualLayer(layer) ? layer.layerMask?.sourceLayerId : null;
+	if (id != null && !sources.has(id)) items.push({ value: id, label: i18n.tsx._Parameter.MissingLayer({ id }) });
+	return items;
+});
 const visualModule = computed(() => {
 	const layer = props.layer;
 	return layer.layerType === 'inlineVisualModule' ? layer.visualModule
@@ -284,6 +311,20 @@ const exportingVisualModule = ref(false);
 
 function setMask(mask: TimelineMask | null) {
 	stateManager.commit('setTimelineLayerMask', { sceneId: props.scene.id, layerId: props.layer.id, mask });
+}
+
+function setLayerMaskSource(sourceLayerId: string | null) {
+	const layer = props.layer;
+	if (!isTimelineVisualLayer(layer)) return;
+	stateManager.commit('setTimelineLayerReferenceMask', { sceneId: props.scene.id, layerId: layer.id,
+		layerMask: sourceLayerId == null ? null : { channel: 'alpha', inverted: false, ...layer.layerMask, sourceLayerId } });
+}
+
+function updateLayerMask(change: Partial<TimelineLayerMask>) {
+	const layer = props.layer;
+	if (isTimelineVisualLayer(layer) && layer.layerMask != null) stateManager.commit('setTimelineLayerReferenceMask', {
+		sceneId: props.scene.id, layerId: layer.id, layerMask: { ...layer.layerMask, ...change },
+	});
 }
 
 function updateMask(change: Partial<TimelineMask>) {

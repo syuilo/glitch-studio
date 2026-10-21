@@ -5,7 +5,7 @@ import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-so
 import { findDependencyCycle } from '@gs/shared/utility/dependency-cycle.ts';
 import { inspectVisualModuleNode, validateVisualModuleInterface, visualModuleNodeStaticShape } from '@gs/subsystems_visual-module_shared/static-validation.ts';
 import { inspectTimelineLayer, timelineLayerStaticShape } from '@gs/subsystems_timeline_shared/static-validation.ts';
-import { getTimelineLayerOutputDependencyGraph } from '@gs/subsystems_timeline_shared/layer-output.ts';
+import { getTimelineLayerOutputDependencyGraph, validateTimelineLayerMaskReferences } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import type { TimelineImageInputReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
@@ -308,7 +308,11 @@ export class ProjectRenderValidation {
 		const scene = this.state.timelineScenes.value.find(scene => scene.id === sceneId);
 		if (scene == null) return;
 		const graph = getTimelineLayerOutputDependencyGraph(scene.layers, id => this.imageInputs.get(sceneId)?.get(id) ?? []);
-		this.check('scene:' + sceneId + '/layer outputs', [...graph], () => {
+		// 参照切れ・不正な参照も再検証するが、通常パラメータの値はshapeに含めない。
+		const structure = (layers: readonly TimelineLayer[]): unknown[] => layers.map(layer => [layer.id, layer.layerType,
+			'layerMask' in layer ? layer.layerMask?.sourceLayerId : null, isTimelineContainerLayer(layer) ? structure(layer.layers) : null]);
+		this.check('scene:' + sceneId + '/layer outputs', [[...graph], structure(scene.layers)], () => {
+			validateTimelineLayerMaskReferences(scene.layers);
 			const cycle = findDependencyCycle(graph);
 			if (cycle != null) throw new Error('Circular layer output reference: ' + cycle.join(' → '));
 		});

@@ -2,6 +2,7 @@ import { createTimelineCompositor } from '@gs/subsystems_timeline_renderer/timel
 import type { TimelineCompositingSettings } from '@gs/subsystems_timeline_renderer/timeline-compositing-parameters.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
+import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
 
 // 実際の合成シェーダーを実行し、透明背景・変形後の空白・長方形での回転を画素で確認する。
@@ -10,7 +11,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const compositor = createTimelineCompositor({ device, vertex, resolution, format: 'rgba8unorm' });
 	const textures: GPUTexture[] = [];
 	const completed: string[] = [];
-	const defaults: TimelineCompositingSettings = { transformTarget: 'image', mask: null, coordinateSpace: 'world', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
+	const defaults: TimelineCompositingSettings = { transformTarget: 'image', mask: null, layerMask: null, coordinateSpace: 'world', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const uniform = (value: number[]): UniformOrTexture => ({ kind: 'uniform', value });
 	const blue = uniform([0, 0, 1, 1]);
 	const red = uniform([1, 0, 0, 1]);
@@ -25,9 +26,9 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const pixels = (pixel: (x: number, y: number) => number[]) => Array.from({ length: 4 }, (_, y) => Array.from({ length: 8 }, (_, x) => pixel(x, y))).flat(2);
 	const solid = (pixel: number[]) => pixels(() => pixel);
 
-	async function check(name: string, background: UniformOrTexture, source: UniformOrTexture, settings: Partial<TimelineCompositingSettings>, expected: number[], space?: TimelineRenderSpace) {
+	async function check(name: string, background: UniformOrTexture, source: UniformOrTexture, settings: Partial<TimelineCompositingSettings>, expected: number[], space?: TimelineRenderSpace, layerMaskImage: TimelineImage | null = null) {
 		const encoder = device.createCommandEncoder();
-		const output = compositor.render(encoder, background, source, { ...defaults, ...settings }, space);
+		const output = compositor.render(encoder, background, source, { ...defaults, ...settings }, space, false, undefined, layerMaskImage);
 		device.queue.submit([encoder.finish()]);
 		const actual = output.kind === 'texture' ? await read(output.texture) : solid(output.value.map(value => Math.round(value * 255)));
 		if (actual.length !== expected.length || actual.some((value, i) => Math.abs(value - expected[i]) > 2)) {
@@ -39,6 +40,30 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	try {
 		const alphaMask = { channel: 'alpha' as const, inverted: false };
 		const luminanceMask = { channel: 'luminance' as const, inverted: false };
+		const layerMask = { sourceLayerId: 'mask-source', ...alphaMask };
+		const leftMask = texture(8, 4, pixels(x => x < 4 ? [255, 255, 255, 255] : [0, 0, 0, 0]));
+		// 【参照マスクは対象だけを減衰させ、premultiplied RGBとalphaを揃える】
+		// 下層全体を切り抜く既存マスクとの取り違えと、opacity・alphaの二重乗算を画素で検出する。
+		await check('timeline referenced alpha mask retains the background', blue, red, { layerMask }, solid([128, 0, 128, 255]), undefined, uniform([0, 1, 0, 0.5]));
+		await check('timeline referenced mask preserves premultiplied translucency', transparent, uniform([0.5, 0, 0, 0.5]), { layerMask, opacity: 0.5 }, solid([32, 0, 0, 32]), undefined, uniform([0.5, 0.5, 0.5, 0.5]));
+		await check('timeline referenced luminance counts alpha once', blue, red, { layerMask: { ...layerMask, channel: 'luminance' } }, solid([128, 0, 128, 255]), undefined, uniform([0.5, 0.5, 0.5, 0.5]));
+		await check('timeline referenced luminance reads working RGB weights', blue, red, { layerMask: { ...layerMask, channel: 'luminance' } }, solid([54, 0, 201, 255]), undefined, red);
+		// 【Replaceでは透明な対象もマスク内だけ背景を置換する】
+		// 素材へマスクを乗算するだけでは、マスク外まで透明黒で置き換えてしまう。
+		await check('timeline referenced mask limits transparent replacement', blue, transparent, { layerMask, blendMode: 19 }, pixels(x => x < 4 ? [0, 0, 0, 0] : [0, 0, 255, 255]), undefined, leftMask);
+		await check('timeline referenced mask disables replace borrowing', blue, red, { layerMask, blendMode: 19 }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]), undefined, leftMask);
+		await check('timeline inverted referenced mask retains its inverse area', blue, red, { layerMask: { ...layerMask, inverted: true } }, pixels(x => x < 4 ? [0, 0, 255, 255] : [255, 0, 0, 255]), undefined, leftMask);
+		// 【マスク元の配置を対象の変形へ追従させず、描画済みの座標範囲で読む】
+		// テクスチャ寸法から再Fitしたり対象の逆変換を掛けると、別々に動く2枚の位置がずれる。
+		await check('timeline referenced mask stays independent from target placement', blue, red, { layerMask, position: [1, 0] }, solid([0, 0, 255, 255]), undefined, leftMask);
+		await check('timeline referenced mask honors placed image bounds', blue, red, { layerMask }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]), undefined,
+			{ ...uniform([1, 1, 1, 1]), region: { bounds: { left: -1, bottom: -1, right: 0, top: 1 }, frameSize: resolution } });
+		await check('timeline missing referenced mask is transparent black', blue, red, { layerMask }, solid([0, 0, 255, 255]));
+		await check('timeline inverted missing referenced mask passes the target', blue, red, { layerMask: { ...layerMask, inverted: true } }, solid([255, 0, 0, 255]));
+		// 【参照マスクは範囲モードと既存の下層マスクの作用範囲にも掛かる】
+		// 共通の被覆率で扱わないと、特定モードだけマスク外の背景を変更する。
+		await check('timeline referenced mask intersects application regions', blue, red, { layerMask, transformTarget: 'region', position: [0.5, 0], scale: [0.5, 1] }, solid([0, 0, 255, 255]), undefined, leftMask);
+		await check('timeline referenced mask limits lower-layer masking', blue, transparent, { layerMask, mask: alphaMask }, pixels(x => x < 4 ? [0, 0, 0, 0] : [0, 0, 255, 255]), undefined, leftMask);
 		// 【Alphaマスクは素材の色を描かず、下層のpremultiplied RGBAをまとめて減衰させる】
 		// alphaだけを書き換えると透明な輪郭に元のRGBが残る。半透明の下層でも検証する。
 		await check('timeline alpha mask attenuates premultiplied background', uniform([0.2, 0.1, 0.05, 0.5]), uniform([0.3, 0.1, 0, 0.5]), { mask: alphaMask }, solid([26, 13, 6, 64]));

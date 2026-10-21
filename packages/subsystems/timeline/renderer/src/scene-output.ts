@@ -6,7 +6,7 @@ import type { Resolution } from '@gs/shared/resolution.ts';
 import type { TimelineImage } from './timeline-image.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
 
-const settings: TimelineCompositingSettings = { transformTarget: 'image', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'stretch', opacity: 1, blendMode: 19, mask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false };
+const settings: TimelineCompositingSettings = { transformTarget: 'image', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'stretch', opacity: 1, blendMode: 19, mask: null, layerMask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false };
 /** Scene出力・有限のエフェクト入力として画面を確定する。グループ境界では自動適用しない。 */
 export function createSceneOutput(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat }) {
 	let compositor: ReturnType<typeof createTimelineCompositor> | null = null;

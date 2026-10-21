@@ -16,6 +16,8 @@
 						<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
 					</span>
 					<i v-if="isTimelineVisualLayer(layer) && layer.mask != null" class="ti ti-mask" data-test-timeline-mask-indicator :title="layer.mask.channel === 'alpha' ? (layer.mask.inverted ? i18n.ts._TimelineLayer.InvertedAlphaMask : i18n.ts._TimelineLayer.AlphaMask) : (layer.mask.inverted ? i18n.ts._TimelineLayer.InvertedLuminanceMask : i18n.ts._TimelineLayer.LuminanceMask)"></i>
+					<i v-if="isTimelineVisualLayer(layer) && layer.layerMask != null" v-tooltip="i18n.ts._TimelineLayer.MaskSource" class="ti ti-mask" data-test-timeline-layer-mask-indicator></i>
+					<i v-if="isTimelineVisualLayer(layer) && layer.isIncludedInComposite === false" v-tooltip="i18n.ts._TimelineLayer.ExcludedFromComposite" class="ti ti-stack-pop" data-test-timeline-composite-excluded-indicator></i>
 					<button
 						v-if="isTimelineVisualLayer(layer)"
 						v-tooltip="i18n.tsx._TimelineLayer.CoordinateSpaceHint({ space: layer.coordinateSpace === 'world' ? i18n.ts._TimelineLayer.WorldSpace : i18n.ts._TimelineLayer.ScreenSpace })"

@@ -435,7 +435,7 @@ function addEmptyGroup() {
 	const id = genId();
 	stateManager.commit('groupTimelineLayers', { sceneId: props.sceneId, layerIds: [], group: {
 		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, color: null, forceDisableMotionBlur: false, automationGraphs: [],
-		mask: null, coordinateSpace: 'screen', compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
+		mask: null, layerMask: null, isIncludedInComposite: true, coordinateSpace: 'screen', compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 	} });
 	selection.value = { kind: 'layers', ids: [id] };
 }
@@ -445,7 +445,7 @@ function groupSelection() {
 	const id = genId();
 	stateManager.commit('groupTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], group: {
 		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, color: null, forceDisableMotionBlur: false, automationGraphs: [],
-		mask: null, coordinateSpace: 'screen', compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
+		mask: null, layerMask: null, isIncludedInComposite: true, coordinateSpace: 'screen', compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 	} });
 	selection.value = { kind: 'layers', ids: [id] };
 }

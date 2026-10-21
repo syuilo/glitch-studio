@@ -23,7 +23,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 		createChildren(context, evaluation) {
 			const group = getGroup();
 			const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport,
-				coordinateSpace: group.coordinateSpace, mask: group.mask, paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
+				coordinateSpace: group.coordinateSpace, mask: group.mask, layerMask: group.layerMask, paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
 			return renderer.createEvaluation(group.layers.filter(isTimelineRenderLayer), {
 				...evaluation, time: context.sceneTimeMs, timeDelta: context.timeDelta,
 				referenceTime: context.referenceTime != null ? { timeMs: context.referenceTime.sceneTimeMs, timeDelta: context.referenceTime.timeDelta } : undefined,
@@ -35,7 +35,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 			const group = getGroup();
 			const settings = parameters.evaluate({
 				time: context.sceneTimeMs, isExport: context.isExport,
-				coordinateSpace: group.coordinateSpace, mask: group.mask, paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
+				coordinateSpace: group.coordinateSpace, mask: group.mask, layerMask: group.layerMask, paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
 			const preserveDepth = group.compositingMode === 'preserveDepth';
 			const result = await context.childEvaluation!.evaluate();
 			if (signal.aborted) return { gpuTime: 0 };

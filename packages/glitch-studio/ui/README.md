@@ -26,6 +26,8 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 プロジェクトの操作はCommandを通し、Undo/Redoとレンダラー同期を同じ変更通知から行う。
 
+TimelineのInspectorでは、同じ合成境界にある別の映像レイヤーをマスク元に指定できる。`setTimelineLayerReferenceMask`が参照ID・Alpha／輝度・反転を、`setTimelineLayerCompositeInclusion`が通常合成への参加を変更する。マスク元を通常合成から外しても画像参照と音声を維持し、レイヤー無効化とは区別する。削除後の参照IDを選択肢に残し、複製時には同時に複製したマスク元のIDも付け替える。境界の候補・検証はTimeline shared、循環の診断は`ProjectRenderValidation`が担当する。
+
 グループを含む追加・レイヤー削除・グループ化・親変更は`layerTree`を通知し、`RendererProjectSynchronizer`が最終的な階層を一度だけ送る。ルートへの単一レイヤー追加は`layer`と`layerOrder`で送り、既存の兄弟の定義は送らない。設定編集の`layer`差分ではグループの子配列を送らず、受信側が既存の子を保持する。階層と同時に編集した既存レイヤーやノードの変更種別も残し、階層→ノード→レイヤー設定の順に適用する。Sceneの設定変更・追加・削除は`scene`で扱う。通知の集約はUI、通信契約はGlitch Studio shared、描画履歴の破棄方針はGlitch Studio rendererが担当し、Timelineの保存形式へ通信上の都合を持ち込まない。
 
 複数クリップの追加に使う素材長は`TimelineClipSourceDurations`で扱い、レイヤーID→クリップIDの順に参照する。クリップIDの一意性は所属レイヤー内に限られるため、グループの子孫をまとめて扱う場合もクリップIDだけでは索引しない。

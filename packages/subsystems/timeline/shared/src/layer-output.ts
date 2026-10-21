@@ -1,9 +1,31 @@
 import { isTimelineVisualLayer } from './types.ts';
-import { findTimelineLayer } from './layer-tree.ts';
+import { findTimelineLayer, findTimelineLayerLocation, flattenTimelineLayers } from './layer-tree.ts';
 import type { TimelineLayer, TimelineVisualLayer } from './types.ts';
 import type { TimelineAnotherLayerOutputBinding } from './parameter-binding.ts';
 
 export type TimelineImageInputReference = { inputSource: 'lowerLayerOutput' } | TimelineAnotherLayerOutputBinding;
+
+/** Transformは境界を作らない。Group自身は外側、子孫はGroup内の合成空間に属する。 */
+export function getTimelineLayerMaskSources(layers: TimelineLayer[], ownerLayerId: string): TimelineVisualLayer[] {
+	const owner = findTimelineLayerLocation(layers, ownerLayerId);
+	if (owner == null || !isTimelineVisualLayer(owner.layer)) return [];
+	const boundary = owner.ancestors.findLast(layer => layer.layerType === 'group');
+	const visit = (entries: readonly TimelineLayer[]): TimelineVisualLayer[] => entries.flatMap(layer => [
+		...(layer.id !== ownerLayerId && isTimelineVisualLayer(layer) ? [layer] : []),
+		...(layer.layerType === 'transform' ? visit(layer.layers) : []),
+	]);
+	return visit(boundary?.layers ?? layers);
+}
+
+export function validateTimelineLayerMaskReferences(layers: TimelineLayer[]): void {
+	for (const layer of flattenTimelineLayers(layers)) {
+		if (!isTimelineVisualLayer(layer) || layer.layerMask == null) continue;
+		const source = findTimelineLayer(layers, layer.layerMask.sourceLayerId);
+		// 削除されたIDは保持する。Undoで復旧でき、取得時は透明黒になる。
+		if (source == null) continue;
+		if (!getTimelineLayerMaskSources(layers, layer.id).some(candidate => candidate.id === source.id)) throw new Error('Layer mask source must be another visual layer in the same compositing boundary');
+	}
+}
 
 export function resolveTimelineImageLayerReference(layers: readonly TimelineLayer[], ownerLayerId: string, layerId: string | null): TimelineVisualLayer | null {
 	if (layerId == null || layerId === ownerLayerId) return null;
@@ -42,9 +64,14 @@ export function getTimelineLayerOutputDependencyGraph(layers: readonly TimelineL
 				}
 			}
 			graph.set(source, dependencies);
-			graph.set(key(layer.id, 'rendered'), [source]);
+			const renderedDependencies = [source];
+			if (layer.layerMask != null) {
+				const target = findTimelineLayer(layers, layer.layerMask.sourceLayerId);
+				if (target != null && isTimelineVisualLayer(target)) renderedDependencies.push(key(target.id, 'rendered'));
+			}
+			graph.set(key(layer.id, 'rendered'), renderedDependencies);
 			const composited = key(layer.id, 'composited');
-			graph.set(composited, lower == null ? [source] : [lower, source]);
+			graph.set(composited, [...(lower == null ? [] : [lower]), ...(layer.isIncludedInComposite === false ? [] : renderedDependencies)]);
 			lower = composited;
 		}
 		return lower;

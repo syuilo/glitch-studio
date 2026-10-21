@@ -38,6 +38,7 @@ export function duplicateTimelineLayers(source: readonly TimelineLayer[]): Timel
 	};
 	for (const layer of layers) {
 		layer.id = ids.get(layer.id)!;
+		if ('layerMask' in layer && layer.layerMask != null) layer.layerMask.sourceLayerId = ids.get(layer.layerMask.sourceLayerId) ?? layer.layerMask.sourceLayerId;
 		if (!isTimelineContainerLayer(layer)) for (const clip of layer.clips) clip.id = genId();
 		if ('effectParamValues' in layer) remapReferences(layer.effectParamValues);
 		if ('visualModuleParamValues' in layer) remapReferences(layer.visualModuleParamValues);

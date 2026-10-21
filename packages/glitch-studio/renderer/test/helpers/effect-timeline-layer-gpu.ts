@@ -50,10 +50,11 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 	try {
 		// 【本物のBlurの素材・単独描画・合成結果を独立して読む】
 		// 合成が素材を上書きしたり、範囲の端で入力を切ってぼかしに必要な周囲を失う不具合を防ぐ。
-		const result = await renderer.evaluate(context, new AbortController().signal);
+		const signal = new AbortController().signal;
+		const result = await renderer.evaluate(context, signal);
 		const source = await pixels(result.source);
-		const rendered = await pixels(result.rendered?.());
-		const composited = await pixels(result.composite?.(image));
+		const rendered = await pixels(await result.rendered?.(signal));
+		const composited = await pixels(await result.composite?.(image, signal));
 		check('blur region renders only the selected area on transparency', rendered, source.map((value, index) => Math.floor(index / 4) % 8 < 4 ? 0 : value));
 		check('blur region composites over the original fixed background', composited, source.map((value, index) => Math.floor(index / 4) % 8 < 4 ? backgroundPixels[index] : value));
 		check('blur source remains available after rendering and compositing', await pixels(result.source), source);
@@ -63,7 +64,7 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 		layer.compositingParamValues.position = { inputSource: 'literal', value: [-0.5, 0] };
 		const moved = await renderer.evaluate(context, new AbortController().signal);
 		check('blur source stays fixed when its application region moves', await pixels(moved.source), source);
-		check('blur region moves to the other half without moving the background', await pixels(moved.composite?.(image)), source.map((value, index) => Math.floor(index / 4) % 8 < 4 ? value : backgroundPixels[index]));
+		check('blur region moves to the other half without moving the background', await pixels(await moved.composite?.(image, signal)), source.map((value, index) => Math.floor(index / 4) % 8 < 4 ? value : backgroundPixels[index]));
 		return completed;
 	} finally { renderer.destroy(); background.destroy(); }
 }

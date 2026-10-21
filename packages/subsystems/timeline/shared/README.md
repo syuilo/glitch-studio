@@ -14,6 +14,8 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `timeline-compositing.ts`は画像を持つレイヤーの静的な`TimelineMask`（Alpha／輝度・反転）を定義する。nullでは通常描画、設定時は同じ合成境界の下層を切り抜く。opacityのBindingはマスク強度として再利用し、表示名だけをInspector・キーフレームで切り替える。素材の種類・時計・音声の契約は変更しない。
 
+`TimelineLayerMask`は対象自身を別レイヤーの単独描画で切り抜く静的な参照。`layerMask`に参照ID・Alpha／輝度・反転を保持する。`layer-output.ts`が、Transformを透過する同じ合成境界の候補・参照検証・素材とマスクを区別した依存グラフを所有する。Groupは両モードとも境界を作る。参照切れのIDは保持し、存在する自己参照・非映像・境界越えと循環を拒否する。`isIncludedInComposite`は映像の通常合成だけを切り替え、参照画像や音声へ影響しない。複製時のID付け替えはUIが担当する。
+
 `timing.ts`はScene上の共通配置`TimelineClipPlacement`と、生成系・Scene参照の`TimelineClipTiming`を定義する。通常再生の動画・音声は`media-timing.ts`の`TimelineMediaClipTiming`を使い、`sourceInMs`・`sourceOutMs`の半開素材範囲、符号付き`playbackRate`、`loop`を所有する。内容オフセットと素材範囲を重複保存しない。速度は有限・非ゼロで、1周が1ms以上となる配置を扱う。
 
 動画の固定表示は`layers/video/video-hold.ts`の`TimelineVideoHoldTiming`を使い、素材内の`sourceTimeMs`だけを時計として持つ。`clip.ts`の`TimelineVideoClip`は通常再生と固定表示のunionで、`sourceInMs`と`sourceTimeMs`の存在で区別する。固定表示に通常再生の時計を重複保存せず、`audioEnabled`はfalse。固定地点だけを素材長と照合し、表示長と両端の伸縮は素材長から独立する。移動・伸縮で固定地点は変えず、音声計画とループ計画から除外する。動画レンダラーへ渡す素材時刻は固定するが、合成設定とキーはScene時刻で評価する。

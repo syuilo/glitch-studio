@@ -68,6 +68,24 @@ function observeValidation(f) {
 	return validation;
 }
 
+// 【マスク参照は複製範囲内だけIDを付け替え、削除のUndoでは元の参照を復元する】
+// 対象とマスク元の同時複製が元のマスクを使い続けたり、参照専用の設定が失われる不具合を防ぐ。
+test('remaps internal layer masks and preserves references through deletion and undo', t => {
+	const source = { ...group('source'), isIncludedInComposite: false, layerMask: null };
+	const target = { ...group('target'), isIncludedInComposite: true, layerMask: { sourceLayerId: source.id, channel: 'luminance', inverted: true } };
+	const [targetCopy, sourceCopy] = duplicateTimelineLayers([target, source]);
+	assert.equal(targetCopy.layerMask.sourceLayerId, sourceCopy.id);
+	assert.equal(sourceCopy.isIncludedInComposite, false);
+	const [externalCopy] = duplicateTimelineLayers([target]);
+	assert.equal(externalCopy.layerMask.sourceLayerId, source.id);
+	const f = fixture(t, [target, source]);
+	f.history.commit('removeTimelineLayer', { sceneId: f.scene.id, layerId: source.id });
+	assert.equal(target.layerMask.sourceLayerId, source.id);
+	f.history.undo();
+	assert.equal(f.scene.layers[1].id, source.id);
+	assert.deepEqual(f.scene.layers[0].layerMask, { sourceLayerId: source.id, channel: 'luminance', inverted: true });
+});
+
 // 【マスクの設定と通常描画用のキーを複製・移動でも保持する】
 // マスク時に使わないブレンド設定も保存データの一部であり、表示を隠すことを理由に
 // Group移動への追従対象や複製対象から外すと、通常描画へ戻した際の動きが変わってしまう。

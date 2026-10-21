@@ -93,6 +93,31 @@ function gpuFixture() {
 }
 const literal = value => ({ inputSource: 'literal', value });
 
+// 【マスク画像の取得中に中断した合成は、GPUへ新たなコマンドを送信しない】
+// 遅延解決が終わった直後にも中断を確認し、古いシークの合成によるテクスチャ上書きを防ぐ。
+test('cancels compositing while awaiting a referenced mask image', async () => {
+	const { device, calls } = gpuFixture();
+	let submissions = 0;
+	device.queue.submit = () => { submissions++; };
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
+	let resolveMask;
+	const mask = new Promise(resolve => { resolveMask = resolve; });
+	const source = { kind: 'uniform', value: [1, 0, 0, 1] };
+	const settings = { mask: null, layerMask: { sourceLayerId: 'source', channel: 'alpha', inverted: false }, coordinateSpace: 'screen',
+		blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
+	const controller = new AbortController();
+	try {
+		const result = compositor.evaluate({ getLayerOutput: () => mask }, source, settings);
+		assert.equal(result.source, source);
+		const pending = result.composite({ kind: 'uniform', value: [0, 0, 0, 0] }, controller.signal);
+		controller.abort();
+		resolveMask(source);
+		await assert.rejects(pending, { name: 'AbortError' });
+		assert.equal(calls.draws, 0);
+		assert.equal(submissions, 0);
+	} finally { compositor.dispose(); }
+});
+
 // 【画像レイヤーの素材寸法へ倍率を一度だけ適用し、縮小結果だけを所有する】
 // 無変形replaceで素材が直接後段へ流れても、原寸がプレビューへ漏れたり二重縮小されたりしない。
 // 再評価で縮小パスを繰り返さないことと、破棄時に共有Assetテクスチャを壊さないことも確認する。
@@ -112,8 +137,8 @@ test('scales image layer sources once and preserves borrowed asset textures', as
 		const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 		const context = { sceneTimeMs: 0, contentTimeMs: 0, contentEndTimeMs: 5000, clipElapsedTimeMs: 0, clipDurationMs: 5000, isExport: resolutionScale === 1 };
 		const signal = new AbortController().signal;
-		const first = (await renderer.evaluate(context, signal)).composite(background);
-		const second = (await renderer.evaluate({ ...context, sceneTimeMs: 1000, contentTimeMs: 1000, clipElapsedTimeMs: 1000 }, signal)).composite(background);
+		const first = await (await renderer.evaluate(context, signal)).composite(background, signal);
+		const second = await (await renderer.evaluate({ ...context, sceneTimeMs: 1000, contentTimeMs: 1000, clipElapsedTimeMs: 1000 }, signal)).composite(background, signal);
 		assert.equal(first.texture, second.texture);
 		assert.deepEqual([first.texture.width, first.texture.height], [3840 * resolutionScale, 2160 * resolutionScale]);
 		assert.equal(calls.draws, resolutionScale === 1 ? 0 : 1);

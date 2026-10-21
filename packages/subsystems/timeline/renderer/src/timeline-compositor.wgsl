@@ -6,6 +6,7 @@ struct Uniforms {
 	sourceBounds: vec4f,
 	backgroundBounds: vec4f,
 	outputBounds: vec4f,
+	layerMaskBounds: vec4f,
 	opacity: f32,
 	blendMode: u32,
 	sourceVisible: u32,
@@ -13,10 +14,18 @@ struct Uniforms {
 	maskChannel: u32,
 	maskInverted: u32,
 	transformTarget: u32,
+	layerMaskChannel: u32,
+	layerMaskInverted: u32,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 fn mapBounds(point: vec2f, bounds: vec4f) -> vec2f {
 	return (point - bounds.xy) / bounds.zw;
+}
+fn maskValue(color: vec4f, channel: u32, inverted: u32) -> f32 {
+	// RGBは既にalpha乗算済みなので、輝度にも透明度が含まれている。
+	// alphaを再乗算すると、半透明の白マスクの効きが二重に弱まる。
+	let value = clamp(select(dot(color.rgb, vec3f(0.2126, 0.7152, 0.0722)), color.a, channel == 1u), 0.0, 1.0);
+	return select(value, 1.0 - value, inverted != 0u);
 }
 fn readTransformedSource(position: vec2f) -> vec4f {
 	if (uniforms.sourceVisible == 0u) { return vec4f(0.0); }
@@ -54,11 +63,18 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	} else {
 		source = readTransformedSource(outputPosition);
 	}
+	if (uniforms.layerMaskChannel != 0u) {
+		// 参照先は同じ合成空間へ配置済み。対象の逆変換やFitを適用すると、
+		// 対象を動かすたびにマスクまで一緒に動いて画面上の重なりが失われる。
+		let maskPosition = mapBounds(outputPosition, uniforms.layerMaskBounds);
+		var maskColor = vec4f(0.0);
+		if (all(abs(maskPosition) <= vec2f(1.0))) { maskColor = read_layerMask(maskPosition); }
+		// 被覆率として合成へ渡すことで、Replaceの透明画素や下層切り抜きマスクも
+		// 参照マスクの外側では背景を保持する。RGBだけを減衰させては実現できない。
+		coverage *= maskValue(maskColor, uniforms.layerMaskChannel, uniforms.layerMaskInverted);
+	}
 	if (uniforms.maskChannel != 0u) {
-		// RGBは既にalpha乗算済みなので、輝度にも透明度が含まれている。
-		// ここでalphaを再乗算すると、半透明の白マスクの効きが二重に弱まる。
-		var mask = clamp(select(dot(source.rgb, vec3f(0.2126, 0.7152, 0.0722)), source.a, uniforms.maskChannel == 1u), 0.0, 1.0);
-		if (uniforms.maskInverted != 0u) { mask = 1.0 - mask; }
+		let mask = maskValue(source, uniforms.maskChannel, uniforms.maskInverted);
 		// opacityは適用の強さ。0では下層を保ち、1では透明部分も切り抜く。
 		// premultiplied RGBAのRGBとalphaを同じ割合で減衰させる。
 		return background * mix(1.0, mask, uniforms.opacity * coverage);

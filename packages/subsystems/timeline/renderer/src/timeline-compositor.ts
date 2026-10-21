@@ -37,29 +37,35 @@ export function createTimelineCompositor(options: {
 	const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer } }] });
 	const pipelines = createShaderInputPipeline({
 		device, vertex: options.vertex, code: blendCode + code,
-		schema: { background: 'color', source: 'color' }, targets: [{ format: options.format }], internalLayouts: [layout], sampling: 'level0' });
+		schema: { background: 'color', source: 'color', layerMask: 'color' }, targets: [{ format: options.format }], internalLayouts: [layout], sampling: 'level0' });
 	let texture: GPUTexture | null = null;
 	let renderedCompositor: ReturnType<typeof createTimelineCompositor> | null = null;
 	return {
 		/** 素材のGPU処理は呼び出し側がsubmitし、合成は依存評価が確定してから実行する。 */
 		evaluate(context: TimelineLayerContext<TimelineImage>, source: TimelineImage,
 			settings: TimelineCompositingSettings, projected = false): TimelineLayerEvaluation<TimelineImage> {
-			const submit = (compositor: ReturnType<typeof createTimelineCompositor>, background: TimelineImage, values: TimelineCompositingSettings) => {
+			const submit = async (compositor: ReturnType<typeof createTimelineCompositor>, background: TimelineImage, values: TimelineCompositingSettings, signal: AbortSignal) => {
+				// 素材だけへの参照ではマスクを要求しない。単独描画・通常合成の直前に解決し、
+				// 取得先自身の時計・描画空間で生成された結果を共有セッションから読む。
+				const layerMaskImage = values.layerMask == null ? null : await context.getLayerOutput(values.layerMask.sourceLayerId, 'rendered');
+				signal.throwIfAborted();
 				const commandEncoder = device.createCommandEncoder();
-				try { return compositor.render(commandEncoder, background, source, values, context.renderSpace, projected); } finally { device.queue.submit([commandEncoder.finish()]); }
+				try { return compositor.render(commandEncoder, background, source, values, context.renderSpace, projected, undefined, layerMaskImage); } finally { device.queue.submit([commandEncoder.finish()]); }
 			};
 			return {
 				source, gpuTime: 0,
-				rendered: () => {
+				rendered: signal => {
+					// マスク元など、通常合成を省くレイヤーも変形ハンドルの素材寸法を通知する。
+					options.onCompositing?.(source, settings, context.renderSpace);
 					// 通常合成と別の出力を保持し、一方を参照中にもう一方で上書きしない。
 					renderedCompositor ??= createTimelineCompositor({ ...options, onCompositing: null });
-					return submit(renderedCompositor, { kind: 'uniform', value: [0, 0, 0, 0] }, { ...settings, blendMode: 0, mask: null });
+					return submit(renderedCompositor, { kind: 'uniform', value: [0, 0, 0, 0] }, { ...settings, blendMode: 0, mask: null }, signal);
 				},
-				composite: background => submit(this, background, settings),
+				composite: (background, signal) => submit(this, background, settings, signal),
 			};
 		},
 		render(encoder: GPUCommandEncoder, background: TimelineImage, source: TimelineImage, settings: TimelineCompositingSettings,
-			space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME }, projected = false, fixedBounds?: TimelineBounds): TimelineImage {
+			space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME }, projected = false, fixedBounds?: TimelineBounds, layerMaskImage: TimelineImage | null = null): TimelineImage {
 			options.onCompositing?.(source, settings, space);
 			if (settings.opacity === 0 || (settings.mask == null && settings.blendMode === 10)) return background;
 			const placement = getTimelinePlacement(source, resolution, settings, space);
@@ -89,7 +95,7 @@ export function createTimelineCompositor(options: {
 			outputBounds = fixedBounds ?? outputBounds;
 			// 無変形のReplaceは素材を借用する。高解像度の動画・画像をここで縮小せず、
 			// 次のEffectが素材解像度を選べる既存の動作と余分なパスの省略を維持する。
-			if (!transformsRegion && settings.mask == null && !fixedBounds && settings.blendMode === 19 && settings.opacity === 1 && !settings.clipToFrame
+			if (!transformsRegion && settings.mask == null && settings.layerMask == null && !fixedBounds && settings.blendMode === 19 && settings.opacity === 1 && !settings.clipToFrame
 				&& matrix && matrix.every((value, index) => Math.abs(value - TIMELINE_IDENTITY[index]) < 1e-12)
 				&& Object.keys(sourceBounds).every(key => sourceBounds[key as keyof TimelineBounds] === outputBounds[key as keyof TimelineBounds])) {
 				// 画素を借用しても配置後の基準枠はSceneへ変わる。素材寸法のまま返すと、
@@ -103,18 +109,23 @@ export function createTimelineCompositor(options: {
 			}
 			const inverseRows = rows(inverse ?? TIMELINE_IDENTITY);
 			const clipRows = rows(clipInverse ?? TIMELINE_IDENTITY);
+			const maskImage: TimelineImage = layerMaskImage ?? { kind: 'uniform', value: [0, 0, 0, 0] };
 			uniforms.set({
 				inverseX: inverseRows.x, inverseY: inverseRows.y, clipX: clipRows.x, clipY: clipRows.y,
 				sourceBounds: boundsUniform(sourceBounds), backgroundBounds: boundsUniform(backgroundBounds), outputBounds: boundsUniform(outputBounds),
 				opacity: settings.opacity, blendMode: settings.blendMode, sourceVisible: Number(foregroundBounds != null), clipToFrame: Number(settings.clipToFrame),
 				transformTarget: Number(transformsRegion),
-				maskChannel: settings.mask == null ? 0 : settings.mask.channel === 'alpha' ? 1 : 2, maskInverted: Number(settings.mask?.inverted === true) });
+				maskChannel: settings.mask == null ? 0 : settings.mask.channel === 'alpha' ? 1 : 2, maskInverted: Number(settings.mask?.inverted === true),
+				layerMaskBounds: boundsUniform(timelineImageBounds(maskImage)),
+				layerMaskChannel: settings.layerMask == null ? 0 : settings.layerMask.channel === 'alpha' ? 1 : 2,
+				layerMaskInverted: Number(settings.layerMask?.inverted === true) });
 			device.queue.writeBuffer(buffer, 0, uniforms.arrayBuffer);
 			const variant = pipelines.update({
 				// 背景は合成先へ配置済み。座標範囲への写像はWGSL側で行うため、
 				// 拡張された描画先の物理寸法でFitし直すと、静止した背景までクロップされる。
 				background: toShaderInput(background, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
 				source: toShaderInput(source, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
+				layerMask: toShaderInput(maskImage, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
 			}, size);
 			const descriptor: GPURenderPassDescriptor = { colorAttachments: [{ view: texture.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] };
 			const pass = options.beginPass?.(encoder, descriptor) ?? encoder.beginRenderPass(descriptor);

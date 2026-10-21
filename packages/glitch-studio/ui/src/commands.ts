@@ -35,8 +35,9 @@ import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveTimelineAnotherLayerAudioReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { timelineCompositingParamDefs, validateTimelineMask, isTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import type { TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs, validateTimelineMask, validateTimelineLayerMask, isTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask, TimelineLayerMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { getTimelineLayerMaskSources } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from './utility/timeline-container.ts';
@@ -1532,6 +1533,54 @@ const setTimelineLayerMaskCommandDef = defineCommand<{ sceneId: string; layerId:
 	},
 });
 
+const setTimelineLayerReferenceMaskCommandDef = defineCommand<{ sceneId: string; layerId: string; layerMask: TimelineLayerMask | null }>({
+	label: 'Change timeline layer reference mask',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'layerMask' }] }],
+	create: payload => {
+		let before: TimelineLayerMask | null;
+		const getLayer = (state: ProjectState) => {
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			if (!isTimelineVisualLayer(layer)) throw new Error('Layer mask requires a visual layer');
+			return layer;
+		};
+		return {
+			execute(state) {
+				validateTimelineLayerMask(payload.layerMask);
+				const layer = getLayer(state);
+				const layerMask = payload.layerMask;
+				const layers = getScene(state, payload.sceneId).layers;
+				if (layerMask != null && findTimelineLayer(layers, layerMask.sourceLayerId) != null
+					&& !getTimelineLayerMaskSources(layers, layer.id).some(source => source.id === layerMask.sourceLayerId)) throw new Error('Layer mask source must be another visual layer in the same compositing boundary');
+				before = deepClone(layer.layerMask);
+				layer.layerMask = deepClone(payload.layerMask);
+			},
+			undo(state) { getLayer(state).layerMask = deepClone(before); },
+		};
+	},
+});
+
+const setTimelineLayerCompositeInclusionCommandDef = defineCommand<{ sceneId: string; layerId: string; isIncludedInComposite: boolean }>({
+	label: 'Change timeline layer composite inclusion',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'compositeInclusion' }] }],
+	create: payload => {
+		let before: boolean;
+		const getLayer = (state: ProjectState) => {
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			if (!isTimelineVisualLayer(layer)) throw new Error('Composite inclusion requires a visual layer');
+			return layer;
+		};
+		return {
+			execute(state) {
+				if (typeof payload.isIncludedInComposite !== 'boolean') throw new Error('Invalid timeline composite inclusion');
+				const layer = getLayer(state);
+				before = layer.isIncludedInComposite;
+				layer.isIncludedInComposite = payload.isIncludedInComposite;
+			},
+			undo(state) { getLayer(state).isIncludedInComposite = before; },
+		};
+	},
+});
+
 const setTimelineLayerMotionBlurDisabledCommandDef = defineCommand<{ sceneId: string; layerId: string; forceDisableMotionBlur: boolean }>({
 	label: 'Change timeline layer motion blur',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'motionBlur' }] }],
@@ -2362,6 +2411,8 @@ export const COMMAND_DEFS = {
 	setTimelineLayerCoordinateSpace: setTimelineLayerCoordinateSpaceCommandDef,
 	setTimelineLayerTransformTarget: setTimelineLayerTransformTargetCommandDef,
 	setTimelineLayerMask: setTimelineLayerMaskCommandDef,
+	setTimelineLayerReferenceMask: setTimelineLayerReferenceMaskCommandDef,
+	setTimelineLayerCompositeInclusion: setTimelineLayerCompositeInclusionCommandDef,
 	setTimelineLayerMotionBlurDisabled: setTimelineLayerMotionBlurDisabledCommandDef,
 	addTimelineClip: addTimelineClipCommandDef,
 	pasteTimelineClips: pasteTimelineClipsCommandDef,

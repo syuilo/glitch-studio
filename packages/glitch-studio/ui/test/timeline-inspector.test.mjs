@@ -296,6 +296,50 @@ test('edits layer masks through the inspector without losing normal compositing 
 	assert.deepEqual(layer.mask, { channel: 'luminance', inverted: true });
 });
 
+// 【別レイヤーのマスクをInspectorから設定し、参照専用の表示設定もUndoする】
+// 候補から自己参照・Group内外を除き、チャンネル・反転・解除が同じCommandへ届くことを確認する。
+test('edits referenced layer masks and composite inclusion through the inspector', async t => {
+	const f = await fixture(t);
+	const target = createInlineVisualModuleLayer(0);
+	const source = createInlineVisualModuleLayer(0);
+	source.name = 'Mask source';
+	const inside = createInlineVisualModuleLayer(0);
+	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [inside], isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
+	f.scene.layers.push(target, source, group);
+	f.props.selection = { kind: 'layers', ids: [target.id] };
+	await nextTick();
+	const control = attribute => descendants(f.root).find(node => attribute in node.props);
+	const options = control('data-test-timeline-layer-mask-source').props.items;
+	assert.deepEqual(options.map(item => item.value), [null, source.id, group.id]);
+	control('data-test-timeline-layer-mask-source').props['onUpdate:modelValue'](source.id);
+	await nextTick();
+	assert.deepEqual(target.layerMask, { sourceLayerId: source.id, channel: 'alpha', inverted: false });
+	control('data-test-timeline-layer-mask-channel').props['onUpdate:modelValue']('luminance');
+	await nextTick();
+	control('data-test-timeline-layer-mask-inverted').props['onUpdate:modelValue'](true);
+	assert.deepEqual(target.layerMask, { sourceLayerId: source.id, channel: 'luminance', inverted: true });
+	f.history.undo();
+	assert.equal(target.layerMask.inverted, false);
+	f.history.redo();
+	control('data-test-timeline-layer-mask-source').props['onUpdate:modelValue'](null);
+	assert.equal(target.layerMask, null);
+	f.history.undo();
+	assert.equal(target.layerMask.sourceLayerId, source.id);
+	assert.throws(() => f.history.commit('setTimelineLayerReferenceMask', { sceneId: f.scene.id, layerId: target.id, layerMask: { ...target.layerMask, sourceLayerId: inside.id } }), /compositing boundary/);
+	f.props.selection = { kind: 'layers', ids: [source.id] };
+	await nextTick();
+	control('data-test-timeline-composite-inclusion').props['onUpdate:modelValue'](false);
+	assert.equal(source.isIncludedInComposite, false);
+	assert.equal(source.isDisabled, false);
+	f.history.undo();
+	assert.equal(source.isIncludedInComposite, true);
+	// 参照切れも選択値として表示し、暗黙に別のレイヤーへ切り替えない。
+	f.scene.layers.splice(f.scene.layers.indexOf(source), 1);
+	f.props.selection = { kind: 'layers', ids: [target.id] };
+	await nextTick();
+	assert.ok(control('data-test-timeline-layer-mask-source').props.items.some(item => item.value === source.id));
+});
+
 // 【変形対象の切り替えはCommandを使い、画像用の設定を保持したまま表示を切り替える】
 // 範囲モードで無効なFit・Clipを表示したり、画像モードへ戻したときに保存値を失う不具合を防ぐ。
 // Visual Moduleの参照形式にかかわらず同じ設定を使えることも、実際のInspector経由で確認する。

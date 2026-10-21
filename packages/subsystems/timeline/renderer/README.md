@@ -6,7 +6,9 @@
 
 各レイヤーのcompositorは任意の`onCompositing`で合成前の`TimelineImage`と評価済み設定を呼び出し側へ渡せる。opacity=0やreplaceの短絡経路でも通知する。通知の購読対象・Worker通信・プレビューのハンドルはGlitch Studio側が所有し、このパッケージはUIの選択状態を知らない。
 
-マスクも各レイヤー共通のcompositorで処理する。変形後の素材からAlphaまたは輝度を読み、必要なら反転し、下層のpremultiplied RGBA全体を減衰させる。opacityは適用強度、blendModeは無視する。描画範囲は下層のまま保ち、素材の領域を加えない。Group・Sceneも通常の描画結果を素材として渡すため、個別のマスク用レンダラーや別レイヤーへの参照は不要。区間外・無効・Groupの映像出力なしでは既存の評価規則でスキップする。
+下層切り抜き用の`mask`も各レイヤー共通のcompositorで処理する。変形後の素材からAlphaまたは輝度を読み、必要なら反転し、下層のpremultiplied RGBA全体を減衰させる。opacityは適用強度、blendModeは無視する。描画範囲は下層のまま保ち、素材の領域を加えない。Group・Sceneも通常の描画結果を素材として渡す。区間外・無効・Groupの映像出力なしでは既存の評価規則でスキップする。
+
+`layerMask`は同じ合成境界の別レイヤーの`rendered`を非同期に取得し、対象の合成パスで被覆率へ掛ける。マスク元の配置済み`region.bounds`で読み、対象のFit・逆変換を再適用しない。範囲外と参照切れは透明黒として反転前のマスク値0にする。マスク画像で出力範囲を広げず、Replaceや既存の下層マスクでも参照マスク外の背景を保持する。`rendered`は`layerMask`を反映し、`source`は参照を解決しない。取得待機後はAbortSignalを確認してからGPUへ送信する。
 
 `src/layers/`にレイヤー種別ごとの実装をまとめる。`group`・`transform`・`effect`・`image`・`scene`・`video`・`visual-module`・`text`・`shape`の各ディレクトリに、レイヤーの描画処理と種別固有の補助処理・シェーダーを置く。Timeline全体の評価・合成・Scene出力・音声入力の解決など、複数種別で使う処理は`src/`直下に置く。
 
@@ -67,6 +69,8 @@ Transformは`layers/transform/transform-timeline-layer.ts`が子の寿命を管�
 `TimelineRenderer.createEvaluation()`は描画前にGroup・Transformの子孫まで通常の時計と描画空間を登録する。`TimelineEvaluationSession`は同じScene配置・サブサンプル内の素材準備、単独描画、合成途中の画像を共有する。子Sceneは配置ごとに別セッションを使う。参照の要求は直列で、静的検証を迂回した循環も未完了Promiseへの再入として拒否する。
 
 各映像レイヤーは素材を生成してGPU処理をsubmitし、compositorの`evaluate()`が素材と遅延した単独描画・合成を返す。サンプリング入力が必要なレイヤーだけ必須の`context.getInput()`で下層を要求するため、独立した上層素材への参照は下層合成に依存しない。通常の合成順は変わらない。Group・Transformの子評価は`createChildren()`で同じセッションへ登録し、素材評価時には登録済みの結果を使う。
+
+`isIncludedInComposite: false`のレイヤーもセッションへ登録する。通常合成は素材を要求せず下層を返し、参照された段階だけ評価する。音声やクリップの寿命の規則は変えない。マスク元として単独描画するときも変形Observerへ元の素材寸法を通知する。
 
 単独描画と通常合成は別のcompositor出力を保持し、同じ画像を参照中に別段階で上書きしない。Effectの参照画像とVisual Moduleの公開画像入力は、必要な場合だけ入力ごとのScene枠確定器を持つ。Visual Moduleの公開入力間では同じ評価内の同一画像の確定結果を共有し、削除された公開入力の確定器は定義更新時に解放する。素材・表示・複数入力で同じ元画像を使っても、素材生成は一度だけ行う。
 

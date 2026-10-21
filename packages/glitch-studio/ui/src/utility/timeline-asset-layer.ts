@@ -51,6 +51,8 @@ export function createTimelineAssetLayer(asset: Asset, startMs: number, media: T
 	};
 	const visual = {
 		mask: null,
+		layerMask: null,
+		isIncludedInComposite: true,
 		coordinateSpace: 'screen' as const,
 		forceDisableMotionBlur: false,
 		compositingParamValues: deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs)

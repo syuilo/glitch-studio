@@ -623,3 +623,30 @@ test('references group source images before applying group opacity in both depth
 		assert.equal(f.calls.renders[1].params.input.kind, 'texture');
 	}
 });
+
+// 【通常合成から外したマスク元は、複数の対象から参照しても一度だけ生成する】
+// マスク元が対象の素材を読む配線も許可し、素材の評価へマスク依存を混ぜないことを確認する。
+// 参照元の位置や入力を使ってマスク元を別時計で二重評価すると、履歴エフェクトの状態が進み過ぎる。
+test('shares hidden mask sources while allowing them to read the target source', async t => {
+	const f = fixture(t);
+	const layerMask = { sourceLayerId: 'mask-source', channel: 'alpha', inverted: false };
+	const target = layer('target', { amount: literal(11) }, { layerMask });
+	const maskSource = layer('mask-source', { amount: literal(22), input: imageReference('target') }, { isIncludedInComposite: false });
+	const other = layer('other', { amount: literal(33) }, { layerMask });
+	await f.setup([maskSource, other, target]);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.deepEqual(f.calls.renders.map(call => call.params.amount), [11, 22, 33]);
+	assert.equal(f.calls.renders[1].params.input.texture, f.calls.renders[0].outputDataMap.output.texture);
+	assert.equal(f.calls.instances.length, 3);
+});
+
+// 【対象の素材だけを読む場合は、その対象のマスク元を描画しない】
+// sourceはマスク前の契約であり、不要な参照評価で履歴やGPU負荷を増やしてはいけない。
+test('does not evaluate masks when only the uncomposited source is requested', async t => {
+	const f = fixture(t);
+	const target = layer('target', { amount: literal(11) }, { isIncludedInComposite: false, layerMask: { sourceLayerId: 'mask-source', channel: 'alpha', inverted: false } });
+	const maskSource = layer('mask-source', { amount: literal(22) }, { isIncludedInComposite: false });
+	await f.setup([target, maskSource, layer('receiver', { amount: literal(33), input: imageReference('target') })]);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.deepEqual(f.calls.renders.map(call => call.params.amount), [11, 33]);
+});

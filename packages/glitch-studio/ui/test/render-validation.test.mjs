@@ -404,6 +404,35 @@ const imageEffectLayer = (id, binding = literal(0)) => ({ id, name: id, layerTyp
 	clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], isDisabled: false, automationGraphs: [], compositingParamValues: {}, effectParamValues: { amount: binding } });
 const imageLayerChange = layerId => [{ type: 'layer', sceneId: 'scene', layerId, changes: [{ type: 'parameter', target: 'effect', kind: 'connection' }] }];
 
+// 【参照マスクの変更と階層移動でも、描画前に循環・座標境界を再検証する】
+// 無効な枝も静的な配線の一部として扱い、削除のUndoで戻った参照を再び診断する。
+test('revalidates mask cycles and compositing boundaries after edits and tree changes', () => {
+	const target = imageEffectLayer('target');
+	const source = imageEffectLayer('source', outputReference('target'));
+	target.layerMask = { sourceLayerId: 'source', channel: 'alpha', inverted: false };
+	source.isIncludedInComposite = false;
+	const root = scene('scene', [source, target]);
+	const f = fixture([], [root]);
+	assert.equal(f.validation.errorMessage.value, null);
+	source.effectParamValues.amount = outputReference('target', 'rendered');
+	f.validation.update(imageLayerChange('source'));
+	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	source.effectParamValues.amount = outputReference('target');
+	f.validation.update(imageLayerChange('source'));
+	assert.equal(f.validation.errorMessage.value, null);
+	root.layers = [groupLayer('group', [source]), target];
+	f.validation.update([{ type: 'layerTree', sceneId: 'scene' }]);
+	assert.match(f.validation.errorMessage.value, /compositing boundary/);
+	root.layers = [target];
+	f.validation.update([{ type: 'layerTree', sceneId: 'scene' }]);
+	assert.equal(f.validation.errorMessage.value, null);
+	root.layers = [source, target];
+	source.layerMask = { sourceLayerId: 'target', channel: 'alpha', inverted: false };
+	source.isDisabled = true;
+	f.validation.update([{ type: 'layerTree', sceneId: 'scene' }]);
+	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+});
+
 // 【上層素材の参照と、下層合成を経由する循環を区別する】
 // 配列の順序をそのまま素材の依存にすると成立する配線を拒否する。一方、出力段階の
 // 切替やlowerLayerOutputを経由した循環も、描画前に静的診断へ反映する必要がある。

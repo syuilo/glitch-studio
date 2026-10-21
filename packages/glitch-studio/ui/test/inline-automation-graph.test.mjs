@@ -254,6 +254,19 @@ test('round-trips image assets and independently undoes timing, compositing and 
 	assert.deepEqual(current(), layer);
 });
 
+// 【参照マスクと通常合成からの除外をプロジェクトファイルへ保存する】
+// UIの状態にだけ設定が残ると、開き直しや書き出しでマスク元の色が現れてしまう。
+test('round-trips layer masks and reference-only layers through project files', async () => {
+	const { state, target, current } = imageFixture();
+	const source = createImageLayer('second', 2000);
+	COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer: source }).execute(state);
+	COMMAND_DEFS.setTimelineLayerReferenceMask.create({ ...target, layerMask: { sourceLayerId: source.id, channel: 'luminance', inverted: true } }).execute(state);
+	COMMAND_DEFS.setTimelineLayerCompositeInclusion.create({ sceneId: 'scene', layerId: source.id, isIncludedInComposite: false }).execute(state);
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
+	assert.deepEqual(restored.timelineScenes[0].layers.find(layer => layer.id === target.layerId).layerMask, current().layerMask);
+	assert.equal(restored.timelineScenes[0].layers.find(layer => layer.id === source.id).isIncludedInComposite, false);
+});
+
 // 【画像レイヤーの複製は設定だけを独立させ、Asset削除後も参照IDを保持する】
 // 画像を失ったレイヤーの期間やキーフレームを削除してしまうと、素材の復元や付け替えができない。
 // 削除のUndoと、参照切れから別画像へ変更した操作のUndoをそれぞれ保証する。

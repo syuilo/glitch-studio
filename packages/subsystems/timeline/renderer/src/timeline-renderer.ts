@@ -8,7 +8,7 @@ import type { TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial
 
 // 制御に必要なID・期間・有効状態だけを要求し、レイヤー固有のデータは生成関数にそのまま渡す。
 // clipsの省略は同じ時計を使うコンテナ。空配列はクリップのない通常レイヤーを表す。
-export type TimelineRenderEntry = { id: string; clips?: readonly TimelineClip[]; isDisabled: boolean; forceDisableMotionBlur?: boolean };
+export type TimelineRenderEntry = { id: string; clips?: readonly TimelineClip[]; isDisabled: boolean; forceDisableMotionBlur?: boolean; isIncludedInComposite?: boolean };
 
 /** 露光が境界で短縮されても、フレーム本来の時刻と経過時間を保持する。 */
 export type TimelineFrameReferenceTime = { timeMs: number; timeDelta: number };
@@ -35,8 +35,8 @@ export type TimelineLayerContext<Output> = {
 export type TimelineLayerEvaluation<Output> = {
 	output?: Output | null;
 	source?: Output | null;
-	rendered?: () => Output;
-	composite?: (background: Output) => Output;
+	rendered?: (signal: AbortSignal) => Output | Promise<Output>;
+	composite?: (background: Output, signal: AbortSignal) => Output | Promise<Output>;
 	gpuTime: number;
 };
 
@@ -206,17 +206,21 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			});
 			const composite = () => session.memoize(entry.id, 'prefix', async () => {
 				const background = await getPrevious();
+				// 通常合成から除外しても登録は残す。参照されたときだけ素材と単独描画を評価する。
+				if (entry.isIncludedInComposite === false) return background;
 				const result = await prepare();
 				signal.throwIfAborted();
-				const output = result.composite != null ? result.composite(background.output) : result.output;
+				const output = result.composite != null ? await result.composite(background.output, signal) : result.output;
+				signal.throwIfAborted();
 				return { output: output ?? background.output, hasOutput: background.hasOutput || output != null, gpuTime: 0 };
 			});
 			session.register(entry.id, stage => session.memoize(entry.id, stage, async () => {
+				if (stage === 'composited' && entry.isIncludedInComposite === false) return (await composite()).output;
 				const result = await prepare();
 				signal.throwIfAborted();
 				if (result.source == null && result.output == null) return session.fallbackOutput;
 				if (stage === 'composited') return (await composite()).output;
-				if (stage === 'rendered' && result.rendered != null) return result.rendered();
+				if (stage === 'rendered' && result.rendered != null) return result.rendered(signal);
 				return result.source ?? result.output ?? session.fallbackOutput;
 			}));
 			previous = composite;

@@ -145,6 +145,8 @@ export async function newProject() {
 				visualModuleParamValues: {},
 				forceDisableMotionBlur: false,
 				mask: null,
+				layerMask: null,
+				isIncludedInComposite: true,
 				coordinateSpace: 'screen',
 				compositingParamValues: deepClone({
 					depth: timelineCompositingParamDefs.depth.defaultValue,
@@ -331,6 +333,8 @@ async function loadMediaProject(file?: File) {
 				}),
 				forceDisableMotionBlur: false,
 				mask: null,
+				layerMask: null,
+				isIncludedInComposite: true,
 				coordinateSpace: 'screen',
 				compositingParamValues: deepClone({
 					depth: timelineCompositingParamDefs.depth.defaultValue,

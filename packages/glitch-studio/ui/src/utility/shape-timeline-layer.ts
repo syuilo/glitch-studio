@@ -18,6 +18,8 @@ export function createShapeTimelineLayer(type: ShapeType, startMs: number): Time
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		forceDisableMotionBlur: false,
 		mask: null,
+		layerMask: null,
+		isIncludedInComposite: true,
 		coordinateSpace: 'screen',
 		compositingParamValues: {
 			depth: { inputSource: 'literal', value: 0 },

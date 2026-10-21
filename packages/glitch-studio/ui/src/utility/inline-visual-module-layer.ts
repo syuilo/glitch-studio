@@ -20,6 +20,8 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 		automationGraphs: [],
 		forceDisableMotionBlur: false,
 		mask: null,
+		layerMask: null,
+		isIncludedInComposite: true,
 		coordinateSpace: 'screen',
 		compositingParamValues: deepClone({
 			depth: timelineCompositingParamDefs.depth.defaultValue,

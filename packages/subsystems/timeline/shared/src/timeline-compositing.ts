@@ -19,6 +19,14 @@ export type TimelineMask = {
 	inverted: boolean;
 };
 
+/** 同じ合成境界の別レイヤーの単独描画で、このレイヤーの作用範囲を切り抜く。 */
+export type TimelineLayerMask = TimelineMask & { sourceLayerId: string };
+
+export function validateTimelineLayerMask(mask: TimelineLayerMask | null): void {
+	validateTimelineMask(mask);
+	if (mask != null && (typeof mask.sourceLayerId !== 'string' || mask.sourceLayerId.length === 0)) throw new Error('Invalid timeline layer mask source');
+}
+
 export function validateTimelineMask(mask: TimelineMask | null): void {
 	if (mask == null) return;
 	if ((mask.channel !== 'alpha' && mask.channel !== 'luminance') || typeof mask.inverted !== 'boolean') throw new Error('Invalid timeline mask');

@@ -21,6 +21,8 @@ export function createEffectTimelineLayer(definition: EffectDefinition, startMs:
 		effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 		forceDisableMotionBlur: false,
 		mask: null,
+		layerMask: null,
+		isIncludedInComposite: true,
 		coordinateSpace: 'screen',
 		compositingParamValues: {
 			depth: { inputSource: 'literal', value: 0 },

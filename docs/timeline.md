@@ -47,6 +47,17 @@ VOICEVOXの発話は`subtitleDuration`に字幕長のモードを保持する。
 - クリップ区間外・無効レイヤー・映像出力のないGroupでは処理をスキップする。有効な透明出力は通常マスクで下層を消し、反転マスクでは残す。複数マスクは下から順に適用する。
 - チャンネル・反転・マスクの有無はキーや式で変更しない。素材・変形・適用強度の時計とモーションブラーは既存の評価規則に従う。InspectorはopacityをMask strengthと表示し、マスク時はblendModeを隠す。設定の変更はCommandでUndo/Redoできる。
 
+### 別レイヤーによるマスク
+
+- 画像を出力するレイヤーは、`layerMask: null | { sourceLayerId: string; channel: 'alpha' | 'luminance'; inverted: boolean }`を持つ。設定時は参照先の単独描画結果で、そのレイヤー自身の作用範囲を切り抜く。既存の`mask`（下層全体の切り抜き）と併用すると、その作用範囲にも参照マスクを掛ける。
+- マスク元は同じ合成境界の別の映像レイヤーに限る。Transformを透過して選択でき、Group自身は外側の境界に属する。flat・preserveDepthともGroupの内外をまたぐ指定は拒否する。Sceneレイヤーは完成した画像を使い、参照先Scene内部のレイヤーは選べない。
+- 参照先の位置・変形・投影・opacity・clipToFrameと、その参照先自身の`layerMask`を反映する。対象側のFitや変形はマスク元へ再適用せず、共通の合成空間で重なる画素を使う。マスク画像の範囲を対象の描画範囲へ加えない。
+- Alpha・輝度・反転の計算は既存マスクと同じ。マスクを被覆率へ掛けるため、通常合成では対象だけを減衰し、Replaceでもマスク外の下層を保持する。対象のopacityは通常の合成設定として使う。
+- 未解決・無効・祖先無効・クリップ区間外・映像出力なしの参照先は透明黒とする。通常マスクは0、反転マスクは1。削除後もIDを保持し、Undoで復旧できる。チャンネル・反転・参照先は静的な設定で、マスク元自身の時計・モーションブラー規則に従って評価する。
+- `isIncludedInComposite`は通常合成へ含めるかを指定し、初期値はtrue。falseでも素材・単独描画への参照と音声出力は有効で、`composited`はそのレイヤーを重ねない下層結果になる。Inspectorでマスク元を通常合成から除外できる。`isDisabled`は引き続き映像・音声・参照用評価をすべて停止する。
+- 参照の依存は単独描画・合成へ加え、素材出力へは加えない。マスク元が対象の素材を読む配線は許可し、マスク同士・下層入力・画像入力を経由した循環は無効化や区間外でも拒否する。同じScene配置・サブサンプル内でマスク元の評価を共有する。
+- 設定は保存・CommandのUndo/Redo・複製の対象。複製範囲内のマスク参照は新しいIDへ付け替え、範囲外への参照は維持する。タイムライン行には参照マスクと通常合成からの除外を表示する。
+
 ## 動画の固定表示
 
 動画クリップは通常再生の`TimelineVideoPlaybackClip`と固定表示の`TimelineVideoHoldClip`のunion。固定表示は整数msの配置・表示長と小数msの`sourceTimeMs`を所有し、素材範囲・倍率・ループ・内容オフセットを持たない。`audioEnabled`はfalse。表示区間は通常の半開区間で、表示長は素材長に依存せず、左右の伸縮・移動では固定地点を変えない。素材長と照合するのは固定地点だけで、隣接クリップとの衝突と最小1msは既存の配置規則を使う。
@@ -61,7 +72,7 @@ InspectorのHold current frameは、操作時のScene時刻を速度・逆方向
 - `EffectDefinition.kind` は `modify` / `generate` を明示します。作成時、modifyは主入力を `lowerLayerOutput`、合成を `replace` にし、generateは定義の入力初期値と `normal` を使います。主入力がnullなら自動割当を行いません。modifyの主入力のリセットも `lowerLayerOutput` に戻しますが、手動の入力・合成変更は互いに連動しません。
 - `lowerLayerOutput` は同じ親の下層レイヤーの合成結果です。グループ内部から外側の背景は参照しません。下層がなければ透明黒です。配列・構造体内を含め `canNode: true` の末端にだけ指定でき、主入力以外にも指定できます。サンプリング設定の既定値は `cover` / `repeatMirrored` / `linear` です。入力型はcolorとして既存のノード互換性判定を使い、UIの型安全設定が有効なら不一致の接続を禁止、無効なら警告付きで許可します。
 - `anotherLayerOutput`は同じScene内の映像レイヤーをIDで参照します。Group・Transform配下も選べますが、Sceneレイヤーの参照先Scene内部には踏み込みません。音声・Camera・Transform自身は対象外です。エフェクトでは`lowerLayerOutput`と同じ末端へ指定でき、Visual Moduleレイヤーでは`canNode: true`の公開画像入力へ指定できます。Visual Module内部のBindingには追加しません。
-- `outputStage`は`source`（素材出力・既定）、`rendered`（単独描画結果）、`composited`（下層との合成結果）です。通常の素材出力はレイヤー自身の配置・合成前。単独描画は配置・投影・opacity・clipToFrameを反映し、blendModeとマスクは適用しません。合成結果は参照先と同じ合成境界内で、そのレイヤーまで合成した画像です。Transformは境界を作りません。エフェクトとVisual Moduleはレイヤーとしてのprimary出力を使います。
+- `outputStage`は`source`（素材出力・既定）、`rendered`（単独描画結果）、`composited`（下層との合成結果）です。通常の素材出力はレイヤー自身の配置・合成前。単独描画は配置・投影・opacity・clipToFrame・`layerMask`を反映し、blendModeと下層切り抜き用の`mask`は適用しません。合成結果は参照先と同じ合成境界内で、そのレイヤーまで合成した画像です。Transformは境界を作りません。エフェクトとVisual Moduleはレイヤーとしてのprimary出力を使います。
 - `preserveDepth` Groupの素材出力は、通常描画と同じ空間で子のZ・Groupや祖先の変形・カメラを反映して合成した中間画像です。Group自身のopacity・blendMode・マスク・clipToFrameはまだ適用しません。2D画像として渡し、後段で変形・投影を二重適用しません。Groupの配置やカメラを変えると素材出力も変わります。
 - 配置を持つ出力は参照先の合成空間のScene基準枠で確定して画像入力へ渡し、位置と透明余白を維持します。画面外領域はこの境界で切り取ります。素材の寸法がそのまま利用できる画像・Effectなどは元の寸法を維持します。
 - 未選択・参照切れ・無効・祖先無効・クリップ区間外・映像出力なしは、どの段階でも入力として透明黒を渡します。参照IDは保持し、削除のUndoで復旧できます。Group・Sceneの複製では、複製範囲内への画像参照も新しいIDへ付け替えます。
