@@ -20,6 +20,8 @@ Asset自体への参照は`{ kind: 'assetReference', assetType: 'font' | 'lut' |
 
 `ParameterBindingEvaluator`が受け取る`ValueParameterBinding`は、literal・環境変数・式・グラフ参照・インライングラフ・キーフレームに限定する。時刻、終了時刻、グラフ一覧と式の環境は`ParameterEvaluationScope`で渡す。評価結果やスコープは保持しない。
 
+共通の式関数`RANDOM(index, seed = 0)`と`NOISE(x, seed = 0)`は`src/expression/random-functions.ts`に定義し、`ParameterBindingEvaluator`から公開する。前者は0以上1未満の疑似乱数、後者は−1〜1の1次元Perlin Noiseを返す。引数だけで結果が決まり、時刻・レイヤー・評価順を暗黙に参照しない。式エンジン自体は関数を自動登録しない。引数・使い方は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#乱数とノイズの式関数)を参照。
+
 評価後、受け取り側のパラメータ定義が判明する境界で`coerceParameterValue()`を使う。scalarへ渡された文字列は`Number()`で有限な数値に変換し、空文字列・空白のみ・変換不能・非有限となる文字列はパラメータ名を含むエラーにする。enumの値やstring、保存済みのBindingは文字列のまま保持する。配列・構造体は既存のツリー走査で各scalar末端に適用する。数値以外の型やvector/colorの成分を暗黙変換する処理ではない。
 
 共通の`ParameterBindingBase`はツリー操作に必要な`inputSource`だけを定義する。`resolveParameter`・`walkParameters`・`mapParameterTree`・`walkParameterLeaves`の型引数には、ツリー全体で許可するBinding型を明示する。親がliteralでも子は式やドメイン固有方式になり得るため、親の具体型からは推論しない。走査結果・編集先と`ParameterArrayElement`は指定したBinding型を保持する。既定値にもフォールバックする`walkParameters`の結果には`ValueParameterBinding`を含める。パラメータ定義の初期値は、配列・構造体内部も共通方式に限定する。

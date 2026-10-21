@@ -17,6 +17,20 @@ const context = (overrides = {}) => ({
 	evaluatedParamValues: new Map(), paramIdsByName: new Map(), ...overrides,
 });
 
+// 【Visual Moduleの式でも共通の乱数・ノイズとPARAMを組み合わせる】
+// Timeline専用の登録や別の乱数実装にせず、公開パラメータをseedとして使えるようにする。
+// 評価器やASTを再利用してseedを変更しても、前回の系列を保持しないことを確認する。
+test('combines shared random and noise functions with evaluated custom parameters', () => {
+	const evaluator = new VisualModuleParameterBindingEvaluator();
+	const binding = expression('[RANDOM(0, PARAM("seed")), NOISE(0.25, PARAM("seed"))]');
+	const at = seed => evaluator.evaluate(binding, context({
+		evaluatedParamValues: new Map([['seed-id', seed]]), paramIdsByName: new Map([['seed', 'seed-id']]),
+	}), null);
+	assert.deepEqual(at(0), [0.21822303580120206, -0.13380707257101676]);
+	assert.notDeepEqual(at(1), at(0));
+	assert.deepEqual(at(0), [0.21822303580120206, -0.13380707257101676]);
+});
+
 // 【接続参照はVisual Moduleの評価器が解決する】
 // 共通の値評価器にはノードの識別子を持ち込まず、未接続の場合も従来のnullを返す。
 test('evaluates node references directly', () => {

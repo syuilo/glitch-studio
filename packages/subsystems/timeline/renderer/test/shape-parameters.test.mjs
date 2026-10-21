@@ -9,6 +9,31 @@ const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const scope = { time: 1500, isExport: true, automationGraphs: [] };
 
+// 【乱数とノイズをSceneの秒数で評価し、シーク・書き出しで再現する】
+// 式が未登録のため既定値へ落ちることや、ミリ秒・フレーム番号を暗黙に使うことを防ぐ。
+// 同じ時刻を持つ30fpsと60fpsのサンプルでも、位置と離散的な回転が一致することを確認する。
+test('reproduces random and noise animation across seeking export and frame rates', () => {
+	const shape = createShape('rectangle');
+	shape.paramValues.position = expression('[NOISE(TIME * 3, 1) * 0.03, NOISE(TIME * 3, 2) * 0.03]');
+	shape.paramValues.rotation = expression('RANDOM(Math:floor(TIME * 12), 7)');
+	const evaluator = new ShapeParameters();
+	const at = (time, isExport = false, instance = evaluator) => instance.evaluate(shape, { ...scope, time, isExport });
+	const first = at(250);
+	assert.ok(first.position.some(value => Math.abs(value) > 0.0001));
+	assert.notEqual(first.position[0], first.position[1]);
+	assert.ok(first.rotation > 0 && first.rotation < 1);
+	assert.equal(at(260).rotation, first.rotation);
+	assert.notDeepEqual(at(260).position, first.position);
+	const expected = new Map([0, 250, 500, 1000, 1750].map(time => [time, at(time)]));
+	for (const time of [1750, 500, 0, 1000, 250]) {
+		assert.deepEqual(at(time, true), expected.get(time));
+		assert.deepEqual(at(time, false, new ShapeParameters()), expected.get(time));
+	}
+	for (let frame = 0; frame < 30; frame++) {
+		assert.deepEqual(at(frame / 30 * 1000), at(frame * 2 / 60 * 1000, true));
+	}
+});
+
 // 【式・キー・公開変数の評価を共通のScene時刻へ揃える】
 // シェイプだけクリップ開始からの時刻で動くことや、Visual Moduleの終端・進捗を
 // 誤って継承することを防ぐ。キーの補間結果も素の描画値へ変換する。

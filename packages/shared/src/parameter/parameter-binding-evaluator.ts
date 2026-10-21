@@ -1,5 +1,6 @@
 import { evaluateAutomationGraph, evalAutomationGraphValue } from '../automation-graph/automation-graph-evaluator.ts';
 import { ExpressionEvaluator } from '../expression/expression-evaluator.ts';
+import { randomExpressionFunctions } from '../expression/random-functions.ts';
 import { evaluateKeyframesTimeline } from '../keyframes/keyframes-timeline-evaluator.ts';
 import { deepClone } from '../utility/deep-clone.ts';
 import type { ExpressionFunction } from '../expression/expression-environment.ts';
@@ -31,7 +32,7 @@ export class ParameterBindingEvaluator {
 			case 'envVariable': return Object.hasOwn(scope.variables, binding.variable) ? deepClone(scope.variables[binding.variable]) ?? fallback : fallback;
 			case 'expression': return binding.expression ? this.expressionEvaluator.evaluate(binding.expression, {
 				variables: scope.variables,
-				functions: { ...scope.functions, GRAPH: this.graphReader(scope) },
+				functions: { ...scope.functions, ...randomExpressionFunctions, GRAPH: this.graphReader(scope) },
 			}, fallback) : fallback;
 			case 'automationGraphReference': {
 				const graph = scope.automationGraphs.find(graph => graph.id === binding.automationGraphId);
