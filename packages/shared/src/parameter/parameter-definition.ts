@@ -4,7 +4,7 @@ import type { DataTypeUiDefinition } from '../data-type/data-type-ui.ts';
 import type { BlendMode } from '../color-blend.ts';
 import type { FitMode, WrapMode } from '../types.ts';
 import type { ParameterArrayElement } from './parameter-binding.ts';
-import type { ValueParameterBinding, ParameterExpressionModifier } from './value-parameter-binding.ts';
+import type { ValueParameterSource } from './value-parameter-binding.ts';
 
 // 値には式・キー・automationの内容を含む。入力方式の切替、接続先の変更、
 // 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
@@ -30,9 +30,10 @@ type ParameterDefaultValueMap = {
 
 // コンテナ内部は素の値ではなく子ごとのBindingを保持する。
 // キーフレームのリテラル値や、レンダラーが評価済みの値とは別の構造。
+// 既定値は加工前の初期状態を表す。通常のBindingを代入した場合も加工設定を持ち込ませない。
 export type ParameterDefaultValue<T extends DataType> = {
 	inputSource: 'literal';
-	expressionModifier?: ParameterExpressionModifier | null;
+	expressionModifier?: never;
 	value: T extends { kind: 'array'; elementType: infer E extends DataType }
 		? ParameterArrayElement<ParameterDefaultBinding<E>>[]
 		: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
@@ -48,7 +49,7 @@ export type ParameterDefaultValue<T extends DataType> = {
 // 定義の既定値は利用場所から独立させ、ノード接続やレイヤー入力は各ドメインで設定する。
 type ParameterDefaultBinding<T extends DataType> = T extends { kind: 'array' | 'struct' }
 	? ParameterDefaultValue<T>
-	: ParameterDefaultValue<T> | Exclude<ValueParameterBinding, { inputSource: 'literal' }>;
+	: ParameterDefaultValue<T> | (Exclude<ValueParameterSource, { inputSource: 'literal' }> & { expressionModifier?: never });
 
 // 型とUIは別のツリーにあるため、ここでは子の接続可否・初期値だけを定義する。
 // element.defaultValueは要素追加時の初期値、外側のdefaultValueは配列全体の初期値。

@@ -28,7 +28,7 @@ export type ValueParameterSource = {
 	keyframesTimeline: KeyframesTimelineData;
 } & KeyframesTimelinePlaybackOptions);
 
-// 未指定とnullは加工なし。定義の既定値や未編集のBindingにも不要な設定を追加しない。
+// 未指定とnullは加工なし。未編集のBindingには不要な設定を追加しない。
 // コンテナ・音声入力・各ドメイン固有の接続は加工対象に含めない。
 export type ValueParameterBinding = ValueParameterSource & {
 	expressionModifier?: ParameterExpressionModifier | null;

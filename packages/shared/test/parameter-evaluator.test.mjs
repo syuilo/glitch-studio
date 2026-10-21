@@ -18,7 +18,7 @@ async function loadSource(name) {
 	return module.exports;
 }
 const { ParameterBindingEvaluator } = await loadSource('parameter/parameter-binding-evaluator');
-const { inspectStaticParameter, staticParameterShape } = await loadSource('parameter/static-parameter');
+const { inspectStaticParameter, staticParameterShape, validateParameterDefaultValues } = await loadSource('parameter/static-parameter');
 
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
@@ -41,7 +41,7 @@ test('evaluates base expressions before modifiers and isolates VALUE between eva
 	for (const time of [2, 0, -1, 2]) {
 		assert.equal(evaluator.evaluate(input, context({ variables: { TIME: time, VALUE: 99 } }), -1, scalarDefinition), time * 3);
 	}
-	assert.throws(() => evaluator.evaluate(expression('VALUE'), context({ variables: { VALUE: 99 } }), -1), /Base expression.*VALUE/);
+	assert.throws(() => evaluator.evaluate(expression('VALUE'), context({ variables: { VALUE: 99 } }), -1, scalarDefinition), /Base expression.*VALUE/);
 	assert.equal(evaluator.evaluate(expression('2'), context(), -1, scalarDefinition), 2);
 });
 
@@ -86,10 +86,16 @@ test('validates base and modifier types without clamping finite values', () => {
 test('copies VALUE and preserves stored literal and keyframe data', () => {
 	const evaluator = new ParameterBindingEvaluator();
 	const definition = { dataType: { kind: 'vector' }, ui: { label: 'Position' } };
-	const input = modified(literal([1, 2]), 'VALUE[0] = 9\nVALUE');
-	const before = structuredClone(input);
-	assert.deepEqual(evaluator.evaluate(input, context(), null, definition), [9, 2]);
-	assert.deepEqual(input, before);
+	for (const source of [literal([1, 2]), keyframesInput([keyframe(0, [1, 2])], 'vector')]) {
+		for (const code of ['VALUE', 'VALUE[0] = 9\nVALUE']) {
+			const input = modified(source, code);
+			const before = structuredClone(input);
+			const result = evaluator.evaluate(input, context(), null, definition);
+			assert.deepEqual(result, code === 'VALUE' ? [1, 2] : [9, 2]);
+			result[0] = 99;
+			assert.deepEqual(input, before);
+		}
+	}
 });
 const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 	inputSource: 'keyframesTimelineInline',
@@ -99,7 +105,7 @@ const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
 	return new ParameterBindingEvaluator().evaluate(input, {
 		variables: {}, automationGraphs: [], time, endTime,
-	}, fallback);
+	}, fallback, { dataType: input.keyframesTimeline.dataType, ui: { label: 'Keyframes' } });
 }
 
 // 【キーフレームの補間と境界】
@@ -290,7 +296,7 @@ const graphInput = (inputSource, graph, options = {}) => ({
 function evaluateGraphInput(inputSource, graph, { time = 500, endTime = 5000, ...options } = {}) {
 	return new ParameterBindingEvaluator().evaluate(graphInput(inputSource, graph, options), context({
 		automationGraphs: inputSource === 'automationGraphReference' ? [graph] : [], time, endTime,
-	}), -1);
+	}), -1, scalarDefinition);
 }
 
 function assertClose(actual, expected) {
@@ -361,7 +367,7 @@ for (const source of ['automationGraphReference', 'automationGraphInline']) {
 test('evaluates literal values directly', () => {
 	const evaluator = new ParameterBindingEvaluator();
 	for (const value of [0, false, null, 'text', [1, 2], { value: 3 }]) {
-		assert.deepEqual(evaluator.evaluate(literal(value), context(), -1), value);
+		assert.deepEqual(evaluator.evaluate(literal(value), context(), -1, scalarDefinition), value);
 	}
 });
 
@@ -372,15 +378,15 @@ test('reads only explicit scope variables and skips parsing for single variables
 	const parse = t.mock.method(evaluator.expressionEvaluator.parser, 'parse');
 	for (const value of [0.5, 0]) {
 		const scope = context({ variables: { TIME: value } });
-		assert.equal(evaluator.evaluate(expression(' \tTIME\r\n'), scope, -1), value);
-		assert.equal(evaluator.evaluate({ inputSource: 'envVariable', variable: 'TIME' }, scope, -1), value);
+		assert.equal(evaluator.evaluate(expression(' \tTIME\r\n'), scope, -1, scalarDefinition), value);
+		assert.equal(evaluator.evaluate({ inputSource: 'envVariable', variable: 'TIME' }, scope, -1, scalarDefinition), value);
 	}
 	assert.equal(parse.mock.callCount(), 0);
 	for (const name of ['TIME', 'toString']) {
-		assert.throws(() => evaluator.evaluate(expression(name), context(), -1), /Base expression/);
-		assert.equal(evaluator.evaluate({ inputSource: 'envVariable', variable: name }, context(), -1), -1);
+		assert.throws(() => evaluator.evaluate(expression(name), context(), -1, scalarDefinition), /Base expression/);
+		assert.equal(evaluator.evaluate({ inputSource: 'envVariable', variable: name }, context(), -1, scalarDefinition), -1);
 	}
-	assert.equal(evaluator.evaluate(expression('TIME + 1'), context({ variables: { TIME: 2 } }), -1), 3);
+	assert.equal(evaluator.evaluate(expression('TIME + 1'), context({ variables: { TIME: 2 } }), -1, scalarDefinition), 3);
 });
 
 // 【参照値の複製】
@@ -390,10 +396,10 @@ test('clones values read from variables', () => {
 	const value = [1, 0.5, 0, 0.25];
 	const scope = context({ variables: { COLOR: value } });
 	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }]) {
-		const result = evaluator.evaluate(binding, scope, null);
+		const result = evaluator.evaluate(binding, scope, null, { dataType: { kind: 'color' }, ui: { label: 'Color' } });
 		assert.deepEqual(result, value);
 		result[0] = 99;
-		assert.deepEqual(evaluator.evaluate(binding, scope, null), [1, 0.5, 0, 0.25]);
+		assert.deepEqual(evaluator.evaluate(binding, scope, null, { dataType: { kind: 'color' }, ui: { label: 'Color' } }), [1, 0.5, 0, 0.25]);
 	}
 });
 
@@ -402,15 +408,15 @@ test('clones values read from variables', () => {
 test('evaluates GRAPH by nameForReference and refreshes definitions between scopes', () => {
 	const evaluator = new ParameterBindingEvaluator();
 	const binding = expression('GRAPH("ramp", 0.5, "clamp")');
-	assertClose(evaluator.evaluate(binding, context({ automationGraphs: [rampGraph()] }), -1), 5);
-	assert.equal(evaluator.evaluate(binding, context({ automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }), -1), 20);
-	assert.throws(() => evaluator.evaluate(binding, context(), -1), /Unknown automation graph/);
-	assert.equal(evaluator.evaluate(graphInput('automationGraphReference', rampGraph()), context(), 12), 12);
+	assertClose(evaluator.evaluate(binding, context({ automationGraphs: [rampGraph()] }), -1, scalarDefinition), 5);
+	assert.equal(evaluator.evaluate(binding, context({ automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }), -1, scalarDefinition), 20);
+	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown automation graph/);
+	assert.equal(evaluator.evaluate(graphInput('automationGraphReference', rampGraph()), context(), 12, scalarDefinition), 12);
 	for (const text of ['GRAPH("ramp-id", 0.5, "clamp")', 'GRAPH("ramp", 0.5, "invalid")', 'GRAPH("ramp", "0.5", "clamp")', 'GRAPH(1, 0.5, "clamp")', 'GRAPH("ramp", 0.5)', 'GRAPH("ramp", 0.5, "clamp", 1)']) {
-		assert.throws(() => evaluator.evaluate(expression(text), context({ automationGraphs: [rampGraph()] }), -1), /Base expression/);
+		assert.throws(() => evaluator.evaluate(expression(text), context({ automationGraphs: [rampGraph()] }), -1, scalarDefinition), /Base expression/);
 	}
-	assertClose(evaluator.evaluate(graphInput('automationGraphInline', rampGraph()), context(), -1), 2.5);
-	assert.throws(() => evaluator.evaluate(binding, context(), -1), /Unknown automation graph/);
+	assertClose(evaluator.evaluate(graphInput('automationGraphInline', rampGraph()), context(), -1, scalarDefinition), 2.5);
+	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown automation graph/);
 });
 
 // 【キー・グラフ・環境変数による基準値にも同じ加工段階を使う】
@@ -448,4 +454,34 @@ test('validates modifier shapes and rejects unsupported input kinds without pars
 	const first = modified(literal(1), 'VALUE + 1');
 	assert.deepEqual(staticParameterShape(scalarDefinition, first), staticParameterShape(scalarDefinition, modified(literal(1), 'VALUE * 2', false)));
 	assert.notDeepEqual(staticParameterShape(scalarDefinition, first), staticParameterShape(scalarDefinition, { ...first, expressionModifier: { enabled: 1, code: 'VALUE' } }));
+});
+
+// 【既定値にはコンテナ内部や要素追加用の設定にも加工式を持たせない】
+// 既定値をそのまま読む利用箇所でも意味が変わらないように、定義側で加工式を拒否する。
+// 通常の基準式は子のBindingとして引き続き許可し、有効・無効にかかわらず加工設定を拒否する。
+test('rejects modifiers throughout parameter defaults while allowing nested base expressions', () => {
+	const scalar = { ...scalarDefinition, defaultValue: literal(1) };
+	const array = {
+		dataType: { kind: 'array', elementType: scalar.dataType },
+		ui: { label: 'Values', control: { element: {} } },
+		element: { defaultValue: literal(1) },
+		defaultValue: literal([{ id: 'first', binding: expression('TIME') }]),
+	};
+	const struct = {
+		dataType: { kind: 'struct', fields: { values: array.dataType } },
+		ui: { label: 'Group', control: { fields: { values: array.ui } } },
+		fields: { values: { element: array.element, defaultValue: array.defaultValue } },
+		defaultValue: literal({ values: array.defaultValue }),
+	};
+	assert.doesNotThrow(() => validateParameterDefaultValues(struct));
+	for (const enabled of [true, false]) {
+		const cases = [
+			{ ...scalar, defaultValue: modified(scalar.defaultValue, 'VALUE', enabled) },
+			{ ...array, defaultValue: literal([{ id: 'first', binding: modified(expression('TIME'), 'VALUE', enabled) }]) },
+			{ ...array, defaultValue: literal([]), element: { defaultValue: modified(literal(1), 'VALUE', enabled) } },
+			{ ...struct, defaultValue: literal({ values: literal([{ id: 'first', binding: modified(literal(1), 'VALUE', enabled) }]) }) },
+			{ ...struct, fields: { values: { ...struct.fields.values, element: { defaultValue: modified(literal(1), 'VALUE', enabled) } } } },
+		];
+		for (const definition of cases) assert.throws(() => validateParameterDefaultValues(definition), /not allowed on parameter default values/);
+	}
 });

@@ -42,7 +42,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `timeline-audio.ts`の`resolveTimelineAnotherLayerAudioReference()`は、所属Scene内のグループを含む探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
 
-`parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、`TimelineParameterBindingEvaluator`はCPU値として扱えるBindingだけを共通評価器へ渡す。`lowerLayerOutput`はTimeline Renderer内のエフェクト・Visual Moduleレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
+`parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、CPU値の評価にはsharedの`ParameterBindingEvaluator`を直接使う。`lowerLayerOutput`はTimeline Renderer内のエフェクト・Visual Moduleレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
 
 UIの静的検証で使う`inspectTimelineLayer()`は、`validateTimelineLayerStructure()`でレイヤー自身の区間・解像度・固有設定を検証し、パラメータは`validateTimelineParameterTree()`で一度だけ走査する。コンテナの構造・末端の入力方式の検証と、呼び出し側による参照収集を同じ走査で行う。子レイヤーの検証は含めず、それぞれを独立した検証単位として扱う。
 

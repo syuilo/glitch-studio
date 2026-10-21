@@ -1,4 +1,4 @@
-import { inspectStaticParameter, staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
+import { inspectStaticParameter, staticParameterShape, validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { validateVisualModuleAudioBinding } from './audio-parameters.ts';
@@ -15,6 +15,7 @@ export function visualModuleNodeStaticShape(node: VisualModuleNode, definitions:
 export function validateVisualModuleInterface(visualModule: VisualModule): void {
 	if (new Set(visualModule.nodes.map(node => node.id)).size !== visualModule.nodes.length) throw new Error('Duplicate node ID');
 	if (new Set(visualModule.paramDefs.map(def => def.id)).size !== visualModule.paramDefs.length) throw new Error('Duplicate custom parameter ID');
+	for (const definition of visualModule.paramDefs) validateParameterDefaultValues(definition);
 	if (new Set(visualModule.outputDefs.map(def => def.id)).size !== visualModule.outputDefs.length) throw new Error('Duplicate output ID');
 	if (visualModule.primaryInputId != null && !visualModule.paramDefs.some(def => def.id === visualModule.primaryInputId && def.canNode && def.dataType.kind === 'color')) throw new Error('Invalid primary image input');
 	if (visualModule.primaryAudioInputId != null && !visualModule.paramDefs.some(def => def.id === visualModule.primaryAudioInputId && !def.canNode && def.dataType.kind === 'audioSource')) throw new Error('Invalid primary audio input');

@@ -501,15 +501,16 @@ test('validates shared graph names and duplicates independent curves and identit
 // 名前の上書きで共通定義自体を候補から除くと、選択済みのID参照まで失われてしまう。
 // 曲線の保存場所に時計を持たせず、参照元の時刻が評価値を決めることも確認する。
 test('prefers local names while resolving shared IDs using the caller clock', () => {
+	const definition = { dataType: { kind: 'scalar' }, ui: { label: 'Value' } };
 	const evaluator = new ParameterBindingEvaluator();
 	const global = sharedGraph();
 	const local = sharedGraph('local', global.nameForReference, 0.75);
 	const scope = { automationGraphs: getAvailableAutomationGraphs([local], [global]), time: 200, endTime: Infinity, variables: {} };
-	assert.equal(evaluator.evaluate({ inputSource: 'expression', expression: 'GRAPH("Curve", 200, "clamp")' }, scope, -1), 0.75);
-	assert.equal(evaluator.evaluate(graphReference(local.id), scope, -1), 0.75);
-	assert.ok(Math.abs(evaluator.evaluate(graphReference(global.id), scope, -1) - 0.2) < 1e-8);
-	assert.ok(Math.abs(evaluator.evaluate(graphReference(global.id), { ...scope, time: 800 }, -1) - 0.8) < 1e-8);
-	assert.equal(evaluator.evaluate(graphReference('deleted'), scope, 0.4), 0.4);
+	assert.equal(evaluator.evaluate({ inputSource: 'expression', expression: 'GRAPH("Curve", 200, "clamp")' }, scope, -1, definition), 0.75);
+	assert.equal(evaluator.evaluate(graphReference(local.id), scope, -1, definition), 0.75);
+	assert.ok(Math.abs(evaluator.evaluate(graphReference(global.id), scope, -1, definition) - 0.2) < 1e-8);
+	assert.ok(Math.abs(evaluator.evaluate(graphReference(global.id), { ...scope, time: 800 }, -1, definition) - 0.8) < 1e-8);
+	assert.equal(evaluator.evaluate(graphReference('deleted'), scope, 0.4, definition), 0.4);
 });
 
 // 【グループ内でも参照元レイヤーだけのローカル定義を使い、Visual Module内部へ公開しない】

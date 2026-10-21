@@ -1,6 +1,6 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
-import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
+import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
@@ -28,7 +28,7 @@ export function createVisualModuleTimelineLayer(
 		destroy: () => void;
 	},
 ): TimelineLayerRenderer<TimelineImage> {
-	const evaluator = new TimelineParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator();
 	return {
 		evaluate: async (context, signal) => {
 			if (signal.aborted) return { gpuTime: 0 };

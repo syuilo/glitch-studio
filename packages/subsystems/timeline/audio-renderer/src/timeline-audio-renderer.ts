@@ -1,7 +1,7 @@
 import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/types.ts';
-import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
+import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
@@ -21,7 +21,7 @@ function frameAtOrAfter(timeMs: number, sampleRate: number): number {
 
 /** DOM・GPU・再生状態を持たない。書き出しも独立インスタンスで同じPCMを生成できる。 */
 export class TimelineAudioRenderer {
-	private evaluator = new TimelineParameterBindingEvaluator();
+	private evaluator = new ParameterBindingEvaluator();
 
 	constructor(private read: AudioPcmReader) {}
 

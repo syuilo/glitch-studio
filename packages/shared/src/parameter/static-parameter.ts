@@ -3,6 +3,19 @@ import { validateParameterExpressionModifier } from './parameter-expression-modi
 import type { ParameterDefinition } from './parameter-definition.ts';
 import type { ParameterBindingBase, ParameterArrayElement } from './parameter-binding.ts';
 
+/** 定義の初期状態には加工式を保存しない。加工は各利用箇所のBindingで設定する。 */
+export function validateParameterDefaultValues(definition: ParameterDefinition): void {
+	inspectStaticParameter(definition, definition.defaultValue, (_definition, binding) => {
+		if (binding.expressionModifier != null) throw new Error('Expression modifier is not allowed on parameter default values');
+	});
+	// 配列全体が空でも、新しい要素・フィールドの初期値には独立した既定値がある。
+	if (definition.dataType.kind === 'array') {
+		validateParameterDefaultValues(getArrayElementDefinition(definition));
+	} else if (definition.dataType.kind === 'struct') {
+		for (const field of Object.values(getStructFieldDefinitions(definition))) validateParameterDefaultValues(field);
+	}
+}
+
 /** 値の妥当性は評価後に検査する。ここではBindingの構造と静的な参照だけを扱う。 */
 export function inspectStaticParameter<Binding extends ParameterBindingBase>(definition: ParameterDefinition, binding: Binding,
 	inspectLeaf: (definition: ParameterDefinition, binding: Binding) => void): void {

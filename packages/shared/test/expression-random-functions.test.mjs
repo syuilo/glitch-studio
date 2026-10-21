@@ -17,6 +17,7 @@ const [{ randomExpressionFunctions: { RANDOM, NOISE } }, { ParameterBindingEvalu
 	loadSource('expression/random-functions'), loadSource('parameter/parameter-binding-evaluator'),
 ]);
 const expression = expression => ({ inputSource: 'expression', expression });
+const samplesDefinition = { dataType: { kind: 'any' }, ui: { label: 'Samples' } };
 const scope = { variables: {}, automationGraphs: [], time: 0, endTime: Infinity };
 
 // 【乱数とノイズのパターンを固定する】
@@ -113,11 +114,11 @@ test('registers stateless functions without using scope time or call order', () 
 	for (const time of [1000, -1000, 0, 5000, 1000]) {
 		for (const isExport of [false, true]) {
 			const context = { ...scope, time, variables: { TIME: time / 1000, IS_EXPORT: isExport } };
-			assert.deepEqual(evaluator.evaluate(binding, context, null), expected);
-			assert.deepEqual(new ParameterBindingEvaluator().evaluate(binding, context, null), expected);
+			assert.deepEqual(evaluator.evaluate(binding, context, null, samplesDefinition), expected);
+			assert.deepEqual(new ParameterBindingEvaluator().evaluate(binding, context, null, samplesDefinition), expected);
 		}
 	}
-	assert.deepEqual(evaluator.evaluate(expression('[RANDOM(7), RANDOM(7, 0), NOISE(0.25), NOISE(0.25, 0)]'), scope, null),
+	assert.deepEqual(evaluator.evaluate(expression('[RANDOM(7), RANDOM(7, 0), NOISE(0.25), NOISE(0.25, 0)]'), scope, null, samplesDefinition),
 		[RANDOM(7), RANDOM(7), NOISE(0.25), NOISE(0.25)]);
 });
 
@@ -135,11 +136,11 @@ test('throws expression errors for invalid arguments', () => {
 	for (const value of [NaN, -Infinity, Infinity, Number.MAX_SAFE_INTEGER + 1, Number.MIN_SAFE_INTEGER - 1]) {
 		const context = { ...scope, variables: { INVALID: value } };
 		for (const text of ['RANDOM(INVALID)', 'RANDOM(1, INVALID)', 'NOISE(0.25, INVALID)']) {
-			assert.throws(() => evaluator.evaluate(expression(text), context, 'invalid'), /Base expression/, `${text}: ${value}`);
+			assert.throws(() => evaluator.evaluate(expression(text), context, 'invalid', samplesDefinition), /Base expression/, `${text}: ${value}`);
 		}
-		if (!Number.isFinite(value)) assert.throws(() => evaluator.evaluate(expression('NOISE(INVALID)'), context, 'invalid'), /Base expression/);
+		if (!Number.isFinite(value)) assert.throws(() => evaluator.evaluate(expression('NOISE(INVALID)'), context, 'invalid', samplesDefinition), /Base expression/);
 	}
 	for (const text of invalidExpressions) {
-		assert.throws(() => evaluator.evaluate(expression(text), scope, 'invalid'), /Base expression/, text);
+		assert.throws(() => evaluator.evaluate(expression(text), scope, 'invalid', samplesDefinition), /Base expression/, text);
 	}
 });

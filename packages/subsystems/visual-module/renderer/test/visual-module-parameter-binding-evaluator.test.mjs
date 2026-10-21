@@ -12,6 +12,9 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { VisualModuleParameterBindingEvaluator } = module.exports;
 const expression = expression => ({ inputSource: 'expression', expression });
+const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Value' } };
+const vectorDefinition = { dataType: { kind: 'vector' }, ui: { label: 'Value' } };
+const colorDefinition = { dataType: { kind: 'color' }, ui: { label: 'Value' } };
 const context = (overrides = {}) => ({
 	variables: {}, automationGraphs: [], time: 500, endTime: 5000,
 	evaluatedParamValues: new Map(), paramIdsByName: new Map(), ...overrides,
@@ -25,7 +28,7 @@ test('combines shared random and noise functions with evaluated custom parameter
 	const binding = expression('[RANDOM(0, PARAM("seed")), NOISE(0.25, PARAM("seed"))]');
 	const at = seed => evaluator.evaluate(binding, context({
 		evaluatedParamValues: new Map([['seed-id', seed]]), paramIdsByName: new Map([['seed', 'seed-id']]),
-	}), null);
+	}), null, vectorDefinition);
 	assert.deepEqual(at(0), [0.21822303580120206, -0.13380707257101676]);
 	assert.notDeepEqual(at(1), at(0));
 	assert.deepEqual(at(0), [0.21822303580120206, -0.13380707257101676]);
@@ -35,8 +38,8 @@ test('combines shared random and noise functions with evaluated custom parameter
 // 共通の値評価器にはノードの識別子を持ち込まず、未接続の場合も従来のnullを返す。
 test('evaluates node references directly', () => {
 	const evaluator = new VisualModuleParameterBindingEvaluator();
-	assert.deepEqual(evaluator.evaluate({ inputSource: 'node', nodeId: 'source', outputPort: 'value' }, context(), -1), { nodeId: 'source', outputPort: 'value' });
-	assert.equal(evaluator.evaluate({ inputSource: 'node', nodeId: null }, context(), -1), null);
+	assert.deepEqual(evaluator.evaluate({ inputSource: 'node', nodeId: 'source', outputPort: 'value' }, context(), -1, scalarDefinition), { nodeId: 'source', outputPort: 'value' });
+	assert.equal(evaluator.evaluate({ inputSource: 'node', nodeId: null }, context(), -1, scalarDefinition), null);
 });
 
 // 【PARAMの名前と直接参照のID】
@@ -44,14 +47,14 @@ test('evaluates node references directly', () => {
 test('resolves parameter names separately from IDs and rejects invalid expressions', () => {
 	const evaluator = new VisualModuleParameterBindingEvaluator();
 	const scope = context({ evaluatedParamValues: new Map([['gain-id', 0]]), paramIdsByName: new Map([['gain', 'gain-id']]) });
-	assert.equal(evaluator.evaluate(expression('PARAM("gain")'), scope, -1), 0);
-	assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, scope, -1), 0);
+	assert.equal(evaluator.evaluate(expression('PARAM("gain")'), scope, -1, scalarDefinition), 0);
+	assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, scope, -1, scalarDefinition), 0);
 	for (const text of ['PARAM("gain-id")', 'PARAM("missing")', 'PARAM(1)', 'PARAM()', 'PARAM("gain", 1)', '1 +', '']) {
-		assert.throws(() => evaluator.evaluate(expression(text), scope, -1), /Base expression/);
+		assert.throws(() => evaluator.evaluate(expression(text), scope, -1, scalarDefinition), /Base expression/);
 	}
 	for (const empty of [context(), context({ evaluatedParamValues: new Map(), paramIdsByName: scope.paramIdsByName })]) {
-		assert.throws(() => evaluator.evaluate(expression('PARAM("gain")'), empty, -1), /Unknown or unavailable parameter/);
-		assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, empty, -1), -1);
+		assert.throws(() => evaluator.evaluate(expression('PARAM("gain")'), empty, -1, scalarDefinition), /Unknown or unavailable parameter/);
+		assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, empty, -1, scalarDefinition), -1);
 	}
 });
 
@@ -62,10 +65,10 @@ test('clones values read from variables and evaluated parameters', () => {
 	const value = [1, 0.5, 0, 0.25];
 	const scope = context({ variables: { COLOR: value }, evaluatedParamValues: new Map([['color-id', value]]), paramIdsByName: new Map([['color', 'color-id']]) });
 	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }, expression('PARAM("color")'), { inputSource: 'externalCustomParameterInput', parameterId: 'color-id' }]) {
-		const result = evaluator.evaluate(binding, scope, null);
+		const result = evaluator.evaluate(binding, scope, null, colorDefinition);
 		assert.deepEqual(result, value);
 		result[0] = 99;
-		assert.deepEqual(evaluator.evaluate(binding, scope, null), [1, 0.5, 0, 0.25]);
+		assert.deepEqual(evaluator.evaluate(binding, scope, null, colorDefinition), [1, 0.5, 0, 0.25]);
 	}
 });
 

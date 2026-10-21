@@ -8,6 +8,7 @@ import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { preserveParameterExpressionModifier, validateParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
+import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
@@ -1138,6 +1139,7 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 });
 
 function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: VisualModuleCustomParameterId) {
+	validateParameterDefaultValues(def);
 	if (def.dataType.kind === 'audioSource') {
 		validateLiteralAudioSourceBinding(def.defaultValue);
 		// 音声の既定値は明示的なnullだけを許可する。defaultValue.valueの欠落は定義不備。

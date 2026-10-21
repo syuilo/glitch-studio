@@ -17,7 +17,7 @@ export type VisualModuleParameterEvaluationContext = ParameterEvaluationScope & 
 export class VisualModuleParameterBindingEvaluator {
 	private valueEvaluator = new ParameterBindingEvaluator();
 
-	evaluate(binding: VisualModuleParameterBinding, context: VisualModuleParameterEvaluationContext, fallback: any, definition?: ExpressionParameterDefinition): any {
+	evaluate(binding: VisualModuleParameterBinding, context: VisualModuleParameterEvaluationContext, fallback: any, definition: ExpressionParameterDefinition): any {
 		if (binding.inputSource === 'node') return binding.nodeId == null ? null : { nodeId: binding.nodeId, outputPort: binding.outputPort };
 		if (binding.inputSource === 'externalCustomParameterInput') {
 			return context.evaluatedParamValues.has(binding.parameterId) ? deepClone(context.evaluatedParamValues.get(binding.parameterId)) : fallback;

@@ -1,7 +1,25 @@
 import { resolveParameter, walkParameters } from '../src/parameter/parameter-path.ts';
 import { mapParameterTree, walkParameterLeaves } from '../src/parameter/parameter-tree.ts';
-import type { ParameterDefinition } from '../src/parameter/parameter-definition.ts';
+import { ParameterBindingEvaluator } from '../src/parameter/parameter-binding-evaluator.ts';
+import type { ParameterDefaultValue, ParameterDefinition } from '../src/parameter/parameter-definition.ts';
 import type { ValueParameterBinding } from '../src/parameter/value-parameter-binding.ts';
+
+// 【加工設定は利用箇所のBindingにだけ保持する】
+// 広いBinding型を経由した代入でも、既定値とコンテナの子へ加工式を持ち込ませない。
+declare const modifiedLiteral: Extract<ValueParameterBinding, { inputSource: 'literal' }>;
+declare const modifiedExpression: Extract<ValueParameterBinding, { inputSource: 'expression' }>;
+// @ts-expect-error 通常のBindingは加工設定を持ち得るため既定値として代入しない
+const scalarDefault: ParameterDefaultValue<{ kind: 'scalar' }> = modifiedLiteral;
+const arrayDefault: ParameterDefaultValue<{ kind: 'array'; elementType: { kind: 'scalar' } }> = {
+	inputSource: 'literal',
+	// @ts-expect-error 子が非literalでも既定値では加工設定を禁止する
+	value: [{ id: 'first', binding: modifiedExpression }],
+};
+
+// 【評価には必ずパラメータの型を渡す】
+// 定義を渡し忘れた呼び出しで、基準値や式の結果の型検証が省略されないようにする。
+// @ts-expect-error 第4引数のパラメータ定義は必須
+new ParameterBindingEvaluator().evaluate(modifiedLiteral, { variables: {}, automationGraphs: [], time: 0, endTime: 0 }, null);
 
 // sharedのテストは実際の利用ドメインに依存せず、独自方式を加えた利用側を模擬する。
 type ReferenceBinding = { inputSource: 'testReference'; referenceId: string };

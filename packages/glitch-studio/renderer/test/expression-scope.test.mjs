@@ -14,7 +14,12 @@ globalThis.GPUQueue = class { submit() {} };
 const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const def = (id, value = 7) => ({ id, nameForReference: id.toLowerCase().replaceAll('-', '_'), dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(value), canNode: false });
+const def = (id, value = 7, kind = 'scalar') => ({ id, nameForReference: id.toLowerCase().replaceAll('-', '_'), dataType: { kind }, ui: { label: id, control: kind === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(value), canNode: false });
+// ノード側の評価にも期待する型を渡し、スコープの検証で戻り値の型検証を迂回しない。
+const nodeParameterDefinitions = {
+	vm: def('vm', false, 'bool'), layer: def('layer', false, 'bool'), export: def('export', false, 'bool'),
+	text: def('text', '', 'string'), array: def('array', [0, 0], 'vector'),
+};
 const frame = { time: 500, endTime: 2000, isExport: true };
 const clipFrame = { sceneTimeMs: 500, contentTimeMs: 250, contentEndTimeMs: 2000, clipElapsedTimeMs: 100, clipDurationMs: 1850, isExport: true };
 
@@ -85,14 +90,14 @@ function nodes(evaluator, params, scope = moduleScope, external = new Map(), def
 		evaluatedParamValues: new Map([...external].filter(([id]) => !inputIds.has(id))),
 		paramIdsByName: new Map(defs.map(def => [def.nameForReference, def.id])),
 	};
-	return Object.fromEntries(Object.entries(params).map(([key, value]) => [key, evaluator.evaluate(value, context, 0)]));
+	return Object.fromEntries(Object.entries(params).map(([key, value]) => [key, evaluator.evaluate(value, context, 0, nodeParameterDefinitions[key] ?? def(key))]));
 }
 function externalValues(evaluator, defs, params, scope) {
 	return new Map(defs.map(def => {
 		const value = params[def.id];
 		return [def.id, value == null ? structuredClone(def.defaultValue.value) : evaluator.valueEvaluator.evaluate(value,
 			scope,
-			value.inputSource === 'automationGraphReference' ? structuredClone(def.defaultValue.value) : genEmptyValue(def))];
+			value.inputSource === 'automationGraphReference' ? structuredClone(def.defaultValue.value) : genEmptyValue(def), def)];
 	}));
 }
 
@@ -141,7 +146,7 @@ test('isolates variables across repeated layer and module evaluations', () => {
 		assert.deepEqual(nodes(evaluator, moduleParams), { vm: true, same: 1, compound: 11, time: 0.5, progress: 0.25, export: true });
 		const { vm, ...layerParams } = params;
 		assert.throws(() => externalValues(evaluator, [def('vm')], { vm }, layerScope), /TEST_ONLY_VM/);
-		const values = externalValues(evaluator, Object.keys(layerParams).map(key => def(key)), layerParams, layerScope);
+		const values = externalValues(evaluator, Object.keys(layerParams).map(key => nodeParameterDefinitions[key] ?? def(key)), layerParams, layerScope);
 		assert.deepEqual(Object.fromEntries(values), { layer: true, same: 2, compound: 12, time: 0.5, progress: 0, export: true });
 	}
 });
@@ -149,7 +154,7 @@ test('isolates variables across repeated layer and module evaluations', () => {
 // レイヤーで評価した値は内部の同名変数で再評価しない。PARAMは外から渡された値だけを読む。
 test('passes evaluated values across the boundary without reinterpreting them', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
-	const defs = [def('amount'), def('text')];
+	const defs = [def('amount'), def('text', '', 'string')];
 	const values = externalValues(evaluator, defs, { amount: expression('TEST_SAME_NAME'), text: literal('TEST_SAME_NAME') }, layerScope);
 	assert.deepEqual(nodes(evaluator, { amount: expression('PARAM("amount")'), local: expression('TEST_SAME_NAME'), text: expression('PARAM("text")'), direct: { inputSource: 'externalCustomParameterInput', parameterId: 'amount' } }, moduleScope, values, defs), { amount: 2, local: 1, text: 'TEST_SAME_NAME', direct: 2 });
 });

@@ -26,7 +26,7 @@ function evaluate(evaluator, input) {
 		const value = input.paramValues[def.id];
 		paramValues.set(def.id, structuredClone(value == null ? def.defaultValue.value : evaluator.valueEvaluator.evaluate(value, {
 			variables, automationGraphs: input.callerGraphs ?? [], time: input.time, endTime: input.endTime,
-		}, value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def))));
+		}, value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def), def)));
 	}
 	// GPUリソースを使わないパラメータ評価部分だけを呼ぶ。
 	const renderer = Object.assign(Object.create(VisualModuleRenderer.prototype), {

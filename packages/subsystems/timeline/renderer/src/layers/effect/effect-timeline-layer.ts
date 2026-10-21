@@ -1,6 +1,6 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
-import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
+import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
@@ -70,7 +70,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	// 出力段階ごとに別の確定画像を保持する。同じ変換先を使うと、複数入力の最後の画像で
 	// 先に解決した入力まで上書きされてしまう。
 	const referenceFrames = new Map<string, ReturnType<typeof createSceneOutput>>();
-	const evaluator = new TimelineParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator();
 	const compositing = new TimelineCompositingParameters();
 	const usedOutputPorts = new Set([port]);
 	const parameters = Object.entries(definition.paramDefs).map(([key, def]) => ({
