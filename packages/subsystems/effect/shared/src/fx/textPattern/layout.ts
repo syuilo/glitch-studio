@@ -17,6 +17,11 @@ export type TextPatternMeasurements = {
 	descent: number;
 };
 
+type TextPatternLayout = {
+	characters: { glyph: TextPatternGlyph; centerX: number; centerY: number }[];
+	rows: { firstCharacter: number; characterCount: number }[];
+};
+
 // UTF-16のコード単位やコードポイントではなく、結合文字・ZWJ絵文字をまとめて扱う。
 // 文脈依存の字形置換は行わず、各書記素のフォント本来の送り幅で独立配置する。
 export function measureTextPattern(text: string, measureText: (text: string) => TextPatternMeasurement): TextPatternMeasurements {
@@ -59,17 +64,21 @@ export function layoutTextPattern(measurements: TextPatternMeasurements, options
 	lineHeight: number;
 	repetitions: readonly [number, number];
 	position: readonly [number, number];
-	alignment: 'left' | 'center' | 'right';
+	alignment: 'left' | 'center' | 'right' | 'distribute';
 	resolution: { width: number; height: number };
 	maxInstances: number;
-}) {
+}): TextPatternLayout {
 	const { fontSize, lineHeight, repetitions, position, resolution, maxInstances } = options;
-	if (![fontSize, lineHeight, ...repetitions, ...position].every(Number.isFinite) || fontSize <= 0) return [];
+	const layout: TextPatternLayout = { characters: [], rows: [] };
+	if (![fontSize, lineHeight, ...repetitions, ...position].every(Number.isFinite) || fontSize <= 0) return layout;
 	const horizontalRepetitions = Math.max(1, Math.round(repetitions[0]));
 	const verticalRepetitions = Math.max(1, Math.round(repetitions[1]));
-	const visibleCount = measurements.lines.reduce((sum, line) => sum + line.filter(glyph => glyph.width > 0).length, 0);
-	if (visibleCount === 0) return [];
-	const instanceCount = visibleCount * horizontalRepetitions * verticalRepetitions;
+	// 空白もTrackingの評価点になる。字形のない行は描画せず、縦の配置にだけ高さを残す。
+	// 反復で増やす前に、区切りの空白を含めた全評価点をGPUの上限と照合する。
+	const charactersPerBlock = measurements.lines.reduce((sum, line) => line.some(glyph => glyph.width > 0)
+		? sum + line.length * horizontalRepetitions + horizontalRepetitions - 1 : sum, 0);
+	if (charactersPerBlock === 0) return layout;
+	const instanceCount = charactersPerBlock * verticalRepetitions;
 	if (!Number.isSafeInteger(instanceCount) || instanceCount > maxInstances) throw new Error('Text Pattern exceeds the GPU character limit.');
 	const lineAdvance = Math.max(0, lineHeight) * fontSize;
 	const lineCount = measurements.lines.length * verticalRepetitions;
@@ -77,20 +86,32 @@ export function layoutTextPattern(measurements: TextPatternMeasurements, options
 	const firstBaseline = (1 - position[1]) * resolution.height / 2 - blockHeight / 2 + measurements.ascent;
 	const cellCenterOffset = (measurements.descent - measurements.ascent) / 2;
 	const alignmentFraction = options.alignment === 'left' ? 0 : options.alignment === 'right' ? 1 : 0.5;
-	const placements: { glyph: TextPatternGlyph; centerX: number; centerY: number }[] = [];
 	for (let repetition = 0; repetition < verticalRepetitions; repetition++) {
 		for (const [lineIndex, line] of measurements.lines.entries()) {
+			if (!line.some(glyph => glyph.width > 0)) continue;
 			const lineWidth = line.reduce((sum, glyph) => sum + glyph.advance, 0) * horizontalRepetitions + measurements.separator.advance * (horizontalRepetitions - 1);
-			let cursor = (position[0] + 1) * resolution.width / 2 - lineWidth * alignmentFraction;
+			const characterCount = line.length * horizontalRepetitions + horizontalRepetitions - 1;
+			const distribute = options.alignment === 'distribute' && characterCount > 1;
+			// 書記素の送り幅は変えず、残りの幅を全ての文字間へ同量ずつ配分する。
+			// 1文字では配分先がないため中央へ置く。行が画面幅より長い場合は負の字間で詰める。
+			// 位置・Trackingの入力は、この均等割付まで反映した基準点を使って評価する。
+			const distributedSpacing = distribute ? (resolution.width - lineWidth) / (characterCount - 1) : 0;
+			const effectiveWidth = distribute ? resolution.width : lineWidth;
+			let cursor = (position[0] + 1) * resolution.width / 2 - effectiveWidth * alignmentFraction;
 			const centerY = firstBaseline + (repetition * measurements.lines.length + lineIndex) * lineAdvance + cellCenterOffset;
+			const firstCharacter = layout.characters.length;
 			for (let column = 0; column < horizontalRepetitions; column++) {
-				for (const glyph of line) {
-					if (glyph.width > 0) placements.push({ glyph, centerX: cursor + glyph.advance / 2, centerY });
-					cursor += glyph.advance;
+				if (column > 0) {
+					layout.characters.push({ glyph: measurements.separator, centerX: cursor + measurements.separator.advance / 2, centerY });
+					cursor += measurements.separator.advance + distributedSpacing;
 				}
-				cursor += measurements.separator.advance;
+				for (const glyph of line) {
+					layout.characters.push({ glyph, centerX: cursor + glyph.advance / 2, centerY });
+					cursor += glyph.advance + distributedSpacing;
+				}
 			}
+			layout.rows.push({ firstCharacter, characterCount: layout.characters.length - firstCharacter });
 		}
 	}
-	return placements;
+	return layout;
 }

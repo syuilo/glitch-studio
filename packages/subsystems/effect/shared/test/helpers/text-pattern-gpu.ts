@@ -111,9 +111,10 @@ export async function run() {
 	function close(actual: number, expected: number, tolerance: number, message: string) { assert(Math.abs(actual - expected) <= tolerance, `${message}: ${actual} != ${expected}`); }
 	function equalPixels(actual: Uint8ClampedArray, expected: Uint8ClampedArray, tolerance = 1) { assert(actual.every((value, index) => Math.abs(value - expected[index]) <= tolerance), 'pixel arrays differ'); }
 	function texture(values: number[]) {
-		const image = device.createTexture({ size: [2, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+		const width = values.length / 4;
+		const image = device.createTexture({ size: [width, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		owned.push(image);
-		device.queue.writeTexture({ texture: image }, new Uint8Array(values), { bytesPerRow: 8 }, [2, 1]);
+		device.queue.writeTexture({ texture: image }, new Uint8Array(values), { bytesPerRow: width * 4 }, [width, 1]);
 		return textureShaderInput(image, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' });
 	}
 
@@ -145,6 +146,33 @@ export async function run() {
 		equalPixels(await effect.render({ scale: scalar(-1) }), await effect.render({ rotation: scalar(1) }));
 		assert(metrics(await effect.render({ scale: scalar(0) }), 256).area === 0, 'zero scale');
 		checks.push('negative and zero scale');
+		// Trackingの一様な加算は、フォントの空白幅に一致させれば空白文字の挿入と同じになる。
+		// 文字の後ろだけに追加し、行末に余分な間隔を付けず、全ての整列で行全体を揃える。
+		const measuringCanvas = new OffscreenCanvas(1, 1);
+		const measuringContext = measuringCanvas.getContext('2d')!;
+		const fontSize = effect.base.size * effect.output.height;
+		measuringContext.font = `${fontSize}px sans-serif`;
+		const spaceRatio = measuringContext.measureText(' ').width / fontSize;
+		for (const align of ['left', 'center', 'right'] as const) {
+			equalPixels(await effect.render({ text: 'FFF', align, tracking: scalar(spaceRatio) }), await effect.render({ text: 'F F F', align }));
+			equalPixels(await effect.render({ text: 'F F F', align, tracking: scalar(-spaceRatio / 2) }), await effect.render({ text: 'FFF', align }));
+		}
+		equalPixels(await effect.render({ tracking: scalar(1) }), original);
+		checks.push('tracking and alignment', 'negative tracking and whitespace', 'single-character tracking');
+		// 均等割付は字形の拡大ではなく、画面幅を満たす一定の字間追加と同じ画素になる。
+		const distributedTracking = (effect.output.width - measuringContext.measureText('F').width * 3) / (2 * fontSize);
+		equalPixels(await effect.render({ text: 'FFF', align: 'distribute' }), await effect.render({ text: 'FFF', tracking: scalar(distributedTracking) }));
+		equalPixels(await effect.render({ text: 'FFF', align: 'distribute', tracking: scalar(0.25) }), await effect.render({ text: 'FFF', tracking: scalar(distributedTracking + 0.25) }));
+		equalPixels(await effect.render({ align: 'distribute' }), original);
+		const distributedRows = await effect.render({ text: 'FFF\nF', repetitions: [1, 2], align: 'distribute', size: 0.15 });
+		assert(metrics(distributedRows, 256).area > 30, 'distributed repeated multiline text');
+		checks.push('distributed alignment', 'tracking after distribution', 'distributed single and multiline text');
+		// 入力場は通常配置の狭い範囲ではなく、均等割付した後の基準位置で読む。
+		const edgesOnly = texture([255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 0, 0, 255]);
+		const distributedEdges = metrics(await effect.render({ text: 'FFF', align: 'distribute', opacity: edgesOnly }), 256);
+		close(distributedEdges.area / originalMetrics.area, 2, 0.05, 'distributed input sampling');
+		assert(metrics(await effect.render({ text: 'FFF', opacity: edgesOnly }), 256).area === 0, 'natural input sampling');
+		checks.push('sampling distributed anchors');
 		const rightOnly = texture([0, 0, 0, 255, 255, 255, 255, 255]);
 		const leftOnly = texture([255, 255, 255, 255, 0, 0, 0, 255]);
 		const both = metrics(await effect.render({ text: 'FF' }), 256);
@@ -159,6 +187,19 @@ export async function run() {
 		close(movedLeft.area, leftVisible.area, 2, 'sample before translation');
 		assert(movedLeft.minX > 128, 'translated glyph must cross field boundary');
 		checks.push('stable sampling anchor');
+		// 後ろの文字を押す量を、各文字の元の位置で評価する。最終文字自身の値は使わない。
+		const leftTracking = texture([64, 0, 0, 255, 0, 0, 0, 255]);
+		const rightTracking = texture([0, 0, 0, 255, 64, 0, 0, 255]);
+		equalPixels(await effect.render({ text: 'FF', tracking: leftTracking }), await effect.render({ text: 'FF', tracking: scalar(64 / 255) }));
+		equalPixels(await effect.render({ text: 'FF', tracking: rightTracking }), await effect.render({ text: 'FF' }));
+		equalPixels(await effect.render({ text: 'FFF\nFFF', repetitions: [1, 2], tracking: scalar(spaceRatio) }), await effect.render({ text: 'F F F\nF F F', repetitions: [1, 2] }));
+		equalPixels(await effect.render({ text: 'F', repetitions: [3, 1], tracking: scalar(0.2) }), await effect.render({ text: 'F F F', tracking: scalar(0.2) }));
+		checks.push('tracking node', 'tracking resets per row');
+		// 字間を負にして文字が入力場の境界を越えても、Opacityの評価点は元の位置に残る。
+		equalPixels(await effect.render({ text: 'FF', opacity: leftOnly, tracking: scalar(-1) }), await effect.render({ text: 'FF', opacity: leftOnly, translation: vector([fontSize / 256, 0]) }));
+		checks.push('sampling before tracking');
+		assert(metrics(await effect.render({ text: 'F'.repeat(130), size: 0.01, repetitions: [1, 3], tracking: scalar(0.1) }), 256).area > 10, 'long tracking rows');
+		checks.push('tracking across long rows');
 		const colorInput = texture([128, 0, 0, 128, 0, 128, 0, 128]);
 		const fieldColors = await effect.render({ text: 'FF', color: colorInput });
 		assert(fieldColors.some((value, index) => index % 4 === 0 && value > 0) && fieldColors.some((value, index) => index % 4 === 1 && value > 0), 'color node');
@@ -174,11 +215,12 @@ export async function run() {
 		const overlap = await effect.render({ text: 'F\nF', lineHeight: 0, opacity: scalar(0.5) });
 		assert(overlap.every((value, index) => Math.abs(value - (1 - (1 - original[index] / 510) ** 2) * 255) <= 2), 'overlap source-over');
 		checks.push('ordered alpha blending');
-		for (let mask = 0; mask < 32; mask++) await effect.render({
+		for (let mask = 0; mask < 64; mask++) await effect.render({
 			translation: (mask & 1) !== 0 ? translationInput : vector([0, 0]), opacity: (mask & 2) !== 0 ? rightOnly : scalar(1),
 			scale: (mask & 4) !== 0 ? rightOnly : scalar(1), rotation: (mask & 8) !== 0 ? rotationInput : scalar(0), color: (mask & 16) !== 0 ? colorInput : color([1, 1, 1, 1]),
+			tracking: (mask & 32) !== 0 ? leftTracking : scalar(0),
 		});
-		checks.push('all 32 input variants');
+		checks.push('all 64 input variants');
 		for (const overrides of [{ text: '' }, { text: ' \n ' }, { size: 0 }]) assert(metrics(await effect.render(overrides), 256).area === 0, 'clear empty output');
 		equalPixels(await effect.render(), original);
 		checks.push('clear and restore');

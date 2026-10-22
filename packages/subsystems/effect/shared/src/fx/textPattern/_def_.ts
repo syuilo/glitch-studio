@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'textPattern',
 	displayName: 'Text Pattern',
 	description: {
-		'ja-JP': '文字列を反復配置し、各文字の位置・透明度・大きさ・回転・色を入力で変化させます。',
-		'en-US': 'Repeats text and controls each character’s position, opacity, scale, rotation, and color using inputs.',
+		'ja-JP': '文字列を反復配置し、各文字の字間・位置・透明度・大きさ・回転・色を入力で変化させます。',
+		'en-US': 'Repeats text and controls each character’s tracking, position, opacity, scale, rotation, and color using inputs.',
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
@@ -29,14 +29,20 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
 		align: {
-			dataType: { kind: 'enum', options: ['left', 'center', 'right'] },
-			ui: { label: 'Alignment', control: { labels: { left: 'Left', center: 'Center', right: 'Right' } } },
+			dataType: { kind: 'enum', options: ['left', 'center', 'right', 'distribute'] },
+			ui: { label: 'Alignment', control: { labels: { left: 'Left', center: 'Center', right: 'Right', distribute: 'Distribute' } } },
 			defaultValue: { inputSource: 'literal', value: 'center' },
 		},
 		lineHeight: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Line Height (Size Ratio)', control: { controlType: 'range', min: 0, max: 3, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 1.2 },
+		},
+		tracking: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Tracking (Size Ratio)', control: { controlType: 'range', min: -1, max: 2, step: 0.01 } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		translation: {
 			dataType: { kind: 'vector' },

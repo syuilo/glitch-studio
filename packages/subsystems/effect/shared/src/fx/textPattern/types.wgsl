@@ -1,7 +1,14 @@
 struct TextPatternUniforms {
 	aspectRatio: f32,
 	characterCount: u32,
-	padding: vec2u,
+	rowCount: u32,
+	trackingScale: f32,
+	alignment: f32,
+};
+
+struct TextPatternRow {
+	firstCharacter: u32,
+	characterCount: u32,
 };
 
 struct TextPatternGlyph {
