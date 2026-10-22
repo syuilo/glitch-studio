@@ -1,6 +1,6 @@
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createTextFontLoader } from './font-loader.ts';
+import { createTextFontLoader } from '../../text-font-loader.ts';
 import { layoutText } from './layout.ts';
 import { createTextShadowMaskRenderer } from './shadow.ts';
 import code from './shader.wgsl?raw';

@@ -8,7 +8,7 @@ const { EffectRenderer } = await load('@gs/subsystems_effect_renderer/effect-ren
 const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
 const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
 const { createVideoFrameLoader } = await load('@gs/subsystems_effect_shared/fx/videoFrame/frame-loader.ts');
-const { createTextFontLoader } = await load('@gs/subsystems_effect_shared/fx/text/font-loader.ts');
+const { createTextFontLoader } = await load('@gs/subsystems_effect_shared/text-font-loader.ts');
 
 const literal = value => ({ inputSource: 'literal', value });
 const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', nodeId, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });

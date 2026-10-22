@@ -1,5 +1,5 @@
 import { readFileSource, type FileSource } from '@gs/shared/file-source.ts';
-import type { EffectStatus } from '../../effect-status.ts';
+import type { EffectStatus } from './effect-status.ts';
 
 let nextFontId = 0;
 
