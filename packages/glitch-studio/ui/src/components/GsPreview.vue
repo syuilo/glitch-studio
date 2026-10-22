@@ -398,6 +398,7 @@ function showMenu(ev: PointerEvent) {
 
 .previewTargetName {
 	padding: 4px 8px;
+	background: #0008;
 }
 
 .topRight {
