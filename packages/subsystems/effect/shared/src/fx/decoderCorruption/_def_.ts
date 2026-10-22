@@ -23,6 +23,11 @@ export default defineEffect({
 			ui: { label: 'Maximum Block Size (% of Short Side)', control: { controlType: 'range', min: 1, max: 20, step: 0.1 } },
 			defaultValue: { inputSource: 'literal', value: 4 },
 		},
+		blockOrigin: {
+			dataType: { kind: 'enum', options: ['topLeft', 'center'] },
+			ui: { label: 'Block Origin', control: { labels: { topLeft: 'Top Left', center: 'Center' } } },
+			defaultValue: { inputSource: 'literal', value: 'center' },
+		},
 		subdivisions: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Subdivision Levels', control: { controlType: 'range', min: 0, max: maximumSubdivisionLevels, step: 1 } },

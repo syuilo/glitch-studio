@@ -4,6 +4,7 @@ struct Uniforms {
 	packetSize: vec2u,
 	samplingGrid: vec2u,
 	packetColumns: u32,
+	originAtCenter: u32,
 	predictionMode: u32,
 	corruptionProbability: f32,
 	burstLength: u32,
@@ -30,13 +31,15 @@ struct DecodedSample {
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
-// 取得・出力の両方で、画像中央と計算領域中央を重ねた同じ変換を使う。
-// 区画数を奇数に保つことで、計算領域が増減しても中央区画の格子の位相を変えない。
+// 取得・出力の両方で同じ原点の変換を使う。左上原点では画像と計算領域の先頭を揃える。
+// 中央原点では両方の中心を重ね、奇数個の区画によって中央の格子の位相を維持する。
 fn image_to_grid(imagePosition: vec2f) -> vec2f {
+	if (uniforms.originAtCenter == 0u) { return imagePosition * uniforms.virtualSize; }
 	return (imagePosition - vec2f(0.5)) * uniforms.virtualSize + vec2f(uniforms.gridSize) * 0.5;
 }
 
 fn grid_to_image(gridPosition: vec2f) -> vec2f {
+	if (uniforms.originAtCenter == 0u) { return gridPosition / uniforms.virtualSize; }
 	return (gridPosition - vec2f(uniforms.gridSize) * 0.5) / uniforms.virtualSize + vec2f(0.5);
 }
 

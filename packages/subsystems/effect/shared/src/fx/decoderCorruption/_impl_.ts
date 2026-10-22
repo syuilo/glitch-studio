@@ -82,7 +82,7 @@ export default implementEffect<typeof definition>({
 			}
 			return variant;
 		};
-		const getGeometry = (blockSize: number, packetWidth: number, packetHeight: number, subdivisions: number) => {
+		const getGeometry = (blockSize: number, packetWidth: number, packetHeight: number, subdivisions: number, originAtCenter: boolean) => {
 			if (blockSize <= 0) throw new Error('Decoder corruption: maximum block size must be positive.');
 			// 最大ブロックを仮想画像上の16サンプルへ対応付ける。論理寸法は丸めず、
 			// 出力解像度や縦横比が変わっても正方形のブロックと同じ相対寸法を維持する。
@@ -91,8 +91,13 @@ export default implementEffect<typeof definition>({
 			const packetSize = [packetWidth * maximumPredictionBlockSamples, packetHeight * maximumPredictionBlockSamples];
 			// 中央区画の中心を画像中央へ固定する。単にceilした個数で中央寄せすると、
 			// 偶奇の切り替わりで半区画ずれるため、両側へ同数ずつ追加して常に奇数個にする。
-			const packetColumns = 2 * Math.ceil(Math.max(0, virtualSize[0] / packetSize[0] - 1) / 2) + 1;
-			const packetRows = 2 * Math.ceil(Math.max(0, virtualSize[1] / packetSize[1] - 1) / 2) + 1;
+			// 左上原点では従来どおり右端・下端だけを切り上げ、余白や走査順も維持する。
+			const packetColumns = originAtCenter
+				? 2 * Math.ceil(Math.max(0, virtualSize[0] / packetSize[0] - 1) / 2) + 1
+				: Math.max(1, Math.ceil(virtualSize[0] / packetSize[0]));
+			const packetRows = originAtCenter
+				? 2 * Math.ceil(Math.max(0, virtualSize[1] / packetSize[1] - 1) / 2) + 1
+				: Math.max(1, Math.ceil(virtualSize[1] / packetSize[1]));
 			const width = packetColumns * packetSize[0];
 			const height = packetRows * packetSize[1];
 			const sampleCount = width * height;
@@ -110,7 +115,7 @@ export default implementEffect<typeof definition>({
 				throw new Error('Decoder corruption: virtual image exceeds GPU resource limits. Increase Maximum block size.');
 			}
 			return {
-				key: JSON.stringify([width, height, packetWidth, packetHeight, subdivisions]),
+				key: JSON.stringify([width, height, packetWidth, packetHeight, subdivisions, originAtCenter]),
 				virtualSize,
 				packetSize,
 				packetColumns,
@@ -161,7 +166,8 @@ export default implementEffect<typeof definition>({
 				const packetWidth = clamp(Math.round(params.packetWidth), 1, 8);
 				const packetHeight = clamp(Math.round(params.packetHeight), 1, 8);
 				const subdivisions = clamp(Math.round(params.subdivisions), 0, maximumSubdivisionLevels);
-				const geometry = getGeometry(params.blockSize, packetWidth, packetHeight, subdivisions);
+				const originAtCenter = params.blockOrigin === 'center';
+				const geometry = getGeometry(params.blockSize, packetWidth, packetHeight, subdivisions, originAtCenter);
 				if (resources == null || resources.geometryKey !== geometry.key) {
 					const next = createResources(geometry);
 					resources?.dispose();
@@ -181,6 +187,7 @@ export default implementEffect<typeof definition>({
 							packetRows: geometry.packetRows,
 							packetWidth,
 							packetHeight,
+							originAtCenter,
 							subdivisions,
 							splitProbability,
 							seed,
@@ -203,6 +210,7 @@ export default implementEffect<typeof definition>({
 					packetSize: geometry.packetSize,
 					samplingGrid,
 					packetColumns: geometry.packetColumns,
+					originAtCenter: Number(originAtCenter),
 					predictionMode: predictionModes[params.predictionMode],
 					corruptionProbability,
 					burstLength: clamp(Math.round(params.burstLength), 1, 64),
