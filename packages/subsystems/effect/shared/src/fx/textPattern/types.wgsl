@@ -4,6 +4,7 @@ struct TextPatternUniforms {
 	rowCount: u32,
 	trackingScale: f32,
 	alignment: f32,
+	preserveTrackingEndpoints: u32,
 };
 
 struct TextPatternRow {

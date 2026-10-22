@@ -16,9 +16,16 @@ fn applyTracking(@builtin(global_invocation_id) invocation: vec3u) {
 	for (var index = row.firstCharacter; index + 1u < end; index++) {
 		totalTracking += trackingOffsets[index];
 	}
-	var offset = -totalTracking * uniforms.alignment;
+	var accumulatedTracking = 0.0;
+	let intervalCount = f32(max(row.characterCount, 2u) - 1u);
 	for (var index = row.firstCharacter; index < end; index++) {
-		instances[index].transform.x += offset;
-		offset += trackingOffsets[index];
+		// Distributeでは、各文字までの累積量から「全間隔の合計 × 行内の進行率」を引く。
+		// 各間隔から平均値を差し引くことに相当し、先頭と末尾の補正はともに0になる。
+		// 一様なTrackingは相殺され、局所的な疎密だけを残す。合計値や変化後の行幅で
+		// 除算しないので、Trackingが0・負値になっても同じ式で扱える。
+		let progress = f32(index - row.firstCharacter) / intervalCount;
+		let correctionFraction = select(uniforms.alignment, progress, uniforms.preserveTrackingEndpoints != 0u);
+		instances[index].transform.x += accumulatedTracking - totalTracking * correctionFraction;
+		accumulatedTracking += trackingOffsets[index];
 	}
 }

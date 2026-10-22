@@ -205,6 +205,7 @@ export default implementEffect<typeof definition>({
 				] });
 				new Uint32Array(uniformData).set([characterCount, rowCount], 1);
 				new Float32Array(uniformData).set([fontSize * 2 / resolution.width, values.align === 'left' ? 0 : values.align === 'right' ? 1 : 0.5], 3);
+				new Uint32Array(uniformData)[5] = Number(values.align === 'distribute');
 				device.queue.writeBuffer(uniforms, 0, uniformData);
 			}
 			layoutKey = nextLayoutKey;

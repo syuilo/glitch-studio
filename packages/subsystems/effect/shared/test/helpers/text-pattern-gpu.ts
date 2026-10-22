@@ -161,12 +161,15 @@ export async function run() {
 		checks.push('tracking and alignment', 'negative tracking and whitespace', 'single-character tracking');
 		// 均等割付は字形の拡大ではなく、画面幅を満たす一定の字間追加と同じ画素になる。
 		const distributedTracking = (effect.output.width - measuringContext.measureText('F').width * 3) / (2 * fontSize);
-		equalPixels(await effect.render({ text: 'FFF', align: 'distribute' }), await effect.render({ text: 'FFF', tracking: scalar(distributedTracking) }));
-		equalPixels(await effect.render({ text: 'FFF', align: 'distribute', tracking: scalar(0.25) }), await effect.render({ text: 'FFF', tracking: scalar(distributedTracking + 0.25) }));
+		const distributed = await effect.render({ text: 'FFF', align: 'distribute' });
+		equalPixels(distributed, await effect.render({ text: 'FFF', tracking: scalar(distributedTracking) }));
+		// 両端を固定する場合、一様なTrackingには内部の疎密を変える成分がない。
+		// 正・負の値でも行幅や字形のサイズが変わらないことを画素で確認する。
+		for (const tracking of [-1, 0.25, 1]) equalPixels(await effect.render({ text: 'FFF', align: 'distribute', tracking: scalar(tracking) }), distributed);
 		equalPixels(await effect.render({ align: 'distribute' }), original);
 		const distributedRows = await effect.render({ text: 'FFF\nF', repetitions: [1, 2], align: 'distribute', size: 0.15 });
 		assert(metrics(distributedRows, 256).area > 30, 'distributed repeated multiline text');
-		checks.push('distributed alignment', 'tracking after distribution', 'distributed single and multiline text');
+		checks.push('distributed alignment', 'uniform tracking with fixed endpoints', 'distributed single and multiline text');
 		// 入力場は通常配置の狭い範囲ではなく、均等割付した後の基準位置で読む。
 		const edgesOnly = texture([255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 0, 0, 255]);
 		const distributedEdges = metrics(await effect.render({ text: 'FFF', align: 'distribute', opacity: edgesOnly }), 256);
@@ -195,6 +198,20 @@ export async function run() {
 		equalPixels(await effect.render({ text: 'FFF\nFFF', repetitions: [1, 2], tracking: scalar(spaceRatio) }), await effect.render({ text: 'F F F\nF F F', repetitions: [1, 2] }));
 		equalPixels(await effect.render({ text: 'F', repetitions: [3, 1], tracking: scalar(0.2) }), await effect.render({ text: 'F F F', tracking: scalar(0.2) }));
 		checks.push('tracking node', 'tracking resets per row');
+		// 非一様なTrackingでは両端の画素を維持し、中間の文字だけを移動する。
+		// 3文字の場合、先頭側の間隔を増やすと中央が右へ、末尾側なら左へ同量動く。
+		const middleOnly = texture([0, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 255]);
+		const distributedEndpoints = await effect.render({ text: 'FFF', align: 'distribute', opacity: edgesOnly });
+		for (const [tracking, direction] of [[leftTracking, 1], [rightTracking, -1]] as const) {
+			equalPixels(await effect.render({ text: 'FFF', align: 'distribute', opacity: edgesOnly, tracking }), distributedEndpoints);
+			equalPixels(await effect.render({ text: 'FFF', align: 'distribute', opacity: middleOnly, tracking }), await effect.render({ text: 'FFF', align: 'distribute', opacity: middleOnly, translation: vector([direction * (64 / 255) * fontSize / 256, 0]) }));
+		}
+		checks.push('distributed node tracking pins endpoints', 'distributed tracking moves interior characters');
+		const distributedBlock = { text: 'F F F\nFFF\nF', align: 'distribute', repetitions: [1, 2], opacity: edgesOnly } as const;
+		equalPixels(await effect.render({ ...distributedBlock, tracking: leftTracking }), await effect.render(distributedBlock));
+		equalPixels(await effect.render({ text: 'FF', align: 'distribute', tracking: leftTracking }), await effect.render({ text: 'FF', align: 'distribute' }));
+		equalPixels(await effect.render({ align: 'distribute', tracking: leftTracking }), original);
+		checks.push('distributed multiline endpoint constraints', 'distributed short rows with tracking');
 		// 字間を負にして文字が入力場の境界を越えても、Opacityの評価点は元の位置に残る。
 		equalPixels(await effect.render({ text: 'FF', opacity: leftOnly, tracking: scalar(-1) }), await effect.render({ text: 'FF', opacity: leftOnly, translation: vector([fontSize / 256, 0]) }));
 		checks.push('sampling before tracking');
