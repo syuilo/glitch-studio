@@ -1,0 +1,48 @@
+import { defineEffect } from '../../effect-definition.ts';
+
+export default defineEffect({
+	id: 'timePatchwork',
+	displayName: 'Time Patchwork',
+	description: {
+		'ja-JP': 'ブロックごとに異なる時刻の映像を表示します。動きに応じて遅延を変化させたり、動いた領域の更新を一時停止したりできます。',
+		'en-US': 'Displays different moments in each block, with motion-driven delays and temporary freezes in moving regions.',
+	},
+	kind: 'modify',
+	dependsOnRenderHistory: true,
+	tags: ['glitch', 'temporal', 'pixel'],
+	paramDefs: {
+		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
+		blockSize: { dataType: { kind: 'scalar' }, ui: { label: 'Block Size (% of Short Side)', control: { controlType: 'range', min: 1, max: 30, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 8 } },
+		blockOrigin: {
+			dataType: { kind: 'enum', options: ['topLeft', 'center'] },
+			ui: { label: 'Block Origin', control: { labels: { topLeft: 'Top Left', center: 'Image Center' } } },
+			defaultValue: { inputSource: 'literal', value: 'center' },
+		},
+		maxDelay: { dataType: { kind: 'scalar' }, ui: { label: 'Maximum Delay (ms)', control: { controlType: 'range', min: 0, max: 5000, step: 1 } }, defaultValue: { inputSource: 'literal', value: 1000 } },
+		delayMap: { dataType: { kind: 'scalar' }, ui: { label: 'Delay Map', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
+		patternRate: { dataType: { kind: 'scalar' }, ui: { label: 'Pattern Change Rate (Hz)', control: { controlType: 'range', min: 0, max: 30, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		motionMode: {
+			dataType: { kind: 'enum', options: ['off', 'movingOlder', 'movingNewer'] },
+			ui: { label: 'Motion Delay Mode', control: { labels: { off: 'Off', movingOlder: 'Moving Regions Are Older', movingNewer: 'Moving Regions Are Newer' } } },
+			defaultValue: { inputSource: 'literal', value: 'movingOlder' },
+		},
+		motionInfluence: { dataType: { kind: 'scalar' }, ui: { label: 'Motion Influence', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.75 } },
+		motionSensitivity: { dataType: { kind: 'scalar' }, ui: { label: 'Motion Sensitivity', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1.5 } },
+		motionThreshold: { dataType: { kind: 'scalar' }, ui: { label: 'Motion Change Threshold (1/s)', control: { controlType: 'range', min: 0, max: 1, step: 0.001 } }, defaultValue: { inputSource: 'literal', value: 0.02 } },
+		motionSmoothing: { dataType: { kind: 'scalar' }, ui: { label: 'Motion Smoothing Half-Life (ms)', control: { controlType: 'range', min: 0, max: 2000, step: 1 } }, defaultValue: { inputSource: 'literal', value: 100 } },
+		freezeEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Freeze Moving Blocks', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		freezeRate: { dataType: { kind: 'scalar' }, ui: { label: 'Freeze Rate (1/s)', control: { controlType: 'range', min: 0, max: 5, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.6 } },
+		freezeDuration: { dataType: { kind: 'scalar' }, ui: { label: 'Freeze Duration (ms)', control: { controlType: 'range', min: 0, max: 5000, step: 1 } }, defaultValue: { inputSource: 'literal', value: 700 } },
+		freezeThreshold: { dataType: { kind: 'scalar' }, ui: { label: 'Freeze Motion Threshold', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.2 } },
+		interpolate: { dataType: { kind: 'bool' }, ui: { label: 'Interpolate History Frames', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		historyFrames: { dataType: { kind: 'scalar' }, ui: { label: 'History Frames', control: { controlType: 'range', min: 2, max: 64, step: 1 } }, defaultValue: { inputSource: 'literal', value: 8 } },
+		historyScale: { dataType: { kind: 'scalar' }, ui: { label: 'History Resolution (%)', control: { controlType: 'range', min: 10, max: 100, step: 1 } }, defaultValue: { inputSource: 'literal', value: 100 } },
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset History', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+	},
+	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
+	outputDefs: { output: { dataType: { kind: 'color' } } },
+	primaryOutput: 'output',
+});
