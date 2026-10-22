@@ -514,6 +514,7 @@
 		"VisualModuleParameters": "Module Parameters",
 		"EditingUnsupported": ": Editing is not yet supported.",
 		"Compositing": "Compositing",
+		"Mask": "Mask",
 		"UseAsMask": "Use as mask",
 		"MaskSource": "Mask source layer",
 		"MaskSourceHint": "Choose a layer within the same compositing boundary. Its position, transform and opacity are applied to the mask.",

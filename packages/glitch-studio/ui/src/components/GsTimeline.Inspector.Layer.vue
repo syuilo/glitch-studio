@@ -3,7 +3,7 @@
 	<template #icon><i class="ti ti-stack-middle"></i></template>
 	<template #label>{{ i18n.ts._TimelineLayer.Title }}: {{ layer.name }}</template>
 
-	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
+	<div>
 		<div class="_spacer">
 			<GsInput data-test-layer-name :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
 		</div>
@@ -62,6 +62,7 @@
 			:layer="layer"
 			@edit="event => onTimelineLayerParamEdit(event, 'shape')"
 		/>
+
 		<GsFolder v-if="layer.layerType === 'inlineVisualModule'" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-chart-dots-3"></i></template>
 			<template #label>{{ i18n.ts.VisualModule }}</template>
@@ -81,6 +82,7 @@
 				/>
 			</div>
 		</GsFolder>
+
 		<GsFolder v-if="visualModule != null" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
 			<template #label>{{ i18n.ts._TimelineLayer.VisualModuleParameters }}</template>
@@ -110,17 +112,48 @@
 				</template>
 			</div>
 		</GsFolder>
+
 		<GsFolder v-if="isTimelineVisualLayer(layer)" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-layers-selected"></i></template>
 			<template #label>{{ i18n.ts._TimelineLayer.Compositing }}</template>
 			<div class="_spacer _gaps_m">
-				<GsSwitch data-test-timeline-composite-inclusion :modelValue="layer.isIncludedInComposite" @update:modelValue="isIncludedInComposite => stateManager.commit('setTimelineLayerCompositeInclusion', { sceneId, layerId: layer.id, isIncludedInComposite })">
+				<div>
+					<template v-for="(paramDef, paramId) in getTimelineCompositingParameterDefinitions(layer.mask)" :key="paramId">
+						<GsVisualParam
+							v-if="(paramId !== 'blendMode' || layer.mask == null) && (getTimelineLayerTransformTarget(layer) !== 'region' || (paramId !== 'fitMode' && paramId !== 'clipToFrame'))"
+							:data-test-timeline-compositing-parameter="paramId"
+							keyframesEnabled
+							:automationGraphEndEnabled="false"
+							:availableVariables="LAYER_VAR_DEFS"
+							:automationGraphs="layer.automationGraphs"
+							:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
+							:paramPath="[paramId]"
+							:paramDef="paramDef"
+							:paramValue="layer.compositingParamValues[paramId] ?? paramDef.defaultValue"
+							@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
+						/>
+					</template>
+				</div>
+				<GsSwitch data-test-timeline-composite-inclusion :modelValue="layer.isIncludedInComposite" :helpText="i18n.ts._TimelineLayer.IncludeInCompositeHint" @update:modelValue="isIncludedInComposite => stateManager.commit('setTimelineLayerCompositeInclusion', { sceneId, layerId: layer.id, isIncludedInComposite })">
 					<template #label>{{ i18n.ts._TimelineLayer.IncludeInComposite }}</template>
-					<template #caption>{{ i18n.ts._TimelineLayer.IncludeInCompositeHint }}</template>
 				</GsSwitch>
+				<template v-if="isTimelineEffectOrVisualModuleLayer(layer)">
+					<GsSelect large data-test-timeline-transform-target :modelValue="layer.transformTarget ?? 'image'" :items="transformTargets" @update:modelValue="transformTarget => stateManager.commit('setTimelineLayerTransformTarget', { sceneId, layerId: layer.id, transformTarget })">
+						<template #label>{{ i18n.ts._TimelineLayer.TransformTarget }}</template>
+					</GsSelect>
+				</template>
+				<GsSelect large :modelValue="layer.coordinateSpace" :items="coordinateSpaces" @update:modelValue="coordinateSpace => stateManager.commit('setTimelineLayerCoordinateSpace', { sceneId, layerId: layer.id, coordinateSpace })">
+					<template #label>{{ i18n.ts._TimelineLayer.CoordinateSpace }}</template>
+				</GsSelect>
+			</div>
+		</GsFolder>
+
+		<GsFolder v-if="isTimelineVisualLayer(layer)" :asSection="true" defaultOpen :withSpacer="false">
+			<template #icon><i class="ti ti-mask"></i></template>
+			<template #label>{{ i18n.ts._TimelineLayer.Mask }}</template>
+			<div class="_spacer _gaps_m">
 				<GsSelect large data-test-timeline-layer-mask-source :modelValue="layer.layerMask?.sourceLayerId ?? null" :items="layerMaskSourceOptions" @update:modelValue="setLayerMaskSource">
-					<template #label>{{ i18n.ts._TimelineLayer.MaskSource }}</template>
-					<template #caption>{{ i18n.ts._TimelineLayer.MaskSourceHint }}</template>
+					<template #label>{{ i18n.ts._TimelineLayer.MaskSource }} <div v-tooltip:dialog="i18n.ts._TimelineLayer.MaskSourceHint" class="_button _help"><i class="ti ti-help-circle"></i></div></template>
 				</GsSelect>
 				<template v-if="layer.layerMask != null">
 					<GsSelect large data-test-timeline-layer-mask-channel :modelValue="layer.layerMask.channel" :items="maskChannels" @update:modelValue="channel => updateLayerMask({ channel })">
@@ -130,53 +163,21 @@
 						<template #label>{{ i18n.ts._TimelineLayer.InvertMask }}</template>
 					</GsSwitch>
 				</template>
-			</div>
-			<div v-if="isTimelineEffectOrVisualModuleLayer(layer)" class="_spacer">
-				<GsSelect large data-test-timeline-transform-target :modelValue="layer.transformTarget ?? 'image'" :items="transformTargets" @update:modelValue="transformTarget => stateManager.commit('setTimelineLayerTransformTarget', { sceneId, layerId: layer.id, transformTarget })">
-					<template #label>{{ i18n.ts._TimelineLayer.TransformTarget }}</template>
-				</GsSelect>
-			</div>
-			<div class="_spacer">
+				<hr>
 				<GsSwitch data-test-timeline-mask-enabled :modelValue="layer.mask != null" @update:modelValue="enabled => setMask(enabled ? { channel: 'alpha', inverted: false } : null)">
 					<template #label>{{ i18n.ts._TimelineLayer.UseAsMask }}</template>
 				</GsSwitch>
-			</div>
-			<div v-if="layer.mask != null" class="_spacer _gaps_m">
-				<GsSelect large data-test-timeline-mask-channel :modelValue="layer.mask.channel" :items="maskChannels" @update:modelValue="channel => updateMask({ channel })">
-					<template #label>{{ i18n.ts._TimelineLayer.MaskChannel }}</template>
-				</GsSelect>
-				<GsSwitch data-test-timeline-mask-inverted :modelValue="layer.mask.inverted" @update:modelValue="inverted => updateMask({ inverted })">
-					<template #label>{{ i18n.ts._TimelineLayer.InvertMask }}</template>
-				</GsSwitch>
-			</div>
-			<div style="padding: 8px 0;">
-				<template v-for="(paramDef, paramId) in getTimelineCompositingParameterDefinitions(layer.mask)" :key="paramId">
-					<GsVisualParam
-						v-if="(paramId !== 'blendMode' || layer.mask == null) && (getTimelineLayerTransformTarget(layer) !== 'region' || (paramId !== 'fitMode' && paramId !== 'clipToFrame'))"
-						:data-test-timeline-compositing-parameter="paramId"
-						keyframesEnabled
-						:automationGraphEndEnabled="false"
-						:availableVariables="LAYER_VAR_DEFS"
-						:automationGraphs="layer.automationGraphs"
-						:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
-						:paramPath="[paramId]"
-						:paramDef="paramDef"
-						:paramValue="layer.compositingParamValues[paramId] ?? paramDef.defaultValue"
-						@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
-					/>
+				<template v-if="layer.mask != null">
+					<GsSelect large data-test-timeline-mask-channel :modelValue="layer.mask.channel" :items="maskChannels" @update:modelValue="channel => updateMask({ channel })">
+						<template #label>{{ i18n.ts._TimelineLayer.MaskChannel }}</template>
+					</GsSelect>
+					<GsSwitch data-test-timeline-mask-inverted :modelValue="layer.mask.inverted" @update:modelValue="inverted => updateMask({ inverted })">
+						<template #label>{{ i18n.ts._TimelineLayer.InvertMask }}</template>
+					</GsSwitch>
 				</template>
 			</div>
-			<div class="_spacer">
-				<GsSelect large :modelValue="layer.coordinateSpace" :items="coordinateSpaces" @update:modelValue="coordinateSpace => stateManager.commit('setTimelineLayerCoordinateSpace', { sceneId, layerId: layer.id, coordinateSpace })">
-					<template #label>{{ i18n.ts._TimelineLayer.CoordinateSpace }}</template>
-				</GsSelect>
-			</div>
-			<div class="_spacer">
-				<GsSwitch :modelValue="layer.forceDisableMotionBlur" @update:modelValue="forceDisableMotionBlur => stateManager.commit('setTimelineLayerMotionBlurDisabled', { sceneId, layerId: layer.id, forceDisableMotionBlur })">
-					<template #label>{{ i18n.ts._TimelineLayer.DisableMotionBlur }}</template>
-				</GsSwitch>
-			</div>
 		</GsFolder>
+
 		<GsFolder v-if="isTimelineAudioOutputLayer(layer)" :asSection="true" defaultOpen>
 			<template #icon><i class="ti ti-music"></i></template>
 			<template #label>{{ i18n.ts.Audio }}</template>
@@ -195,9 +196,14 @@
 				/>
 			</div>
 		</GsFolder>
+
 		<GsFolder :asSection="true" defaultOpen>
 			<template #label>{{ i18n.ts.Other }}</template>
 			<div class="_gaps_m">
+				<GsSwitch v-if="isTimelineVisualLayer(layer)" :modelValue="layer.forceDisableMotionBlur" @update:modelValue="forceDisableMotionBlur => stateManager.commit('setTimelineLayerMotionBlurDisabled', { sceneId, layerId: layer.id, forceDisableMotionBlur })">
+					<template #label>{{ i18n.ts._TimelineLayer.DisableMotionBlur }}</template>
+				</GsSwitch>
+
 				<GsButton danger icon="ti ti-trash" @click="stateManager.commit('removeTimelineLayer', { sceneId: scene.id, layerId: layer.id })">{{ i18n.ts._TimelineLayer.Remove }}</GsButton>
 			</div>
 		</GsFolder>
