@@ -52,7 +52,7 @@ function createScene() {
 	const id = genId();
 	stateManager.commit('addScene', {
 		id,
-		name: `Scene ${stateManager.state.timelineScenes.value.length + 1}`,
+		name: `SN${stateManager.state.timelineScenes.value.length + 1}`,
 		resolution: { mode: 'project' },
 		layers: [],
 	});

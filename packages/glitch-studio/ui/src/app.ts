@@ -141,7 +141,7 @@ export async function newProject() {
 		generatedSpeech: [],
 		timelineScenes: [{
 			id: genId(),
-			name: 'Main Scene',
+			name: 'SN1',
 			resolution: { mode: 'project' },
 			layers: [{
 				id: genId(),
@@ -319,7 +319,7 @@ async function loadMediaProject(file?: File) {
 		generatedSpeech: [],
 		timelineScenes: [{
 			id: genId(),
-			name: 'Main Scene',
+			name: 'SN1',
 			resolution: { mode: 'project' },
 			layers: [{
 				id: genId(),
