@@ -87,7 +87,7 @@ export async function newProject() {
 	const initialOutputId = genId();
 	const initialVisualModule: ProjectVisualModule = {
 		id: genId(),
-		name: 'My Visual Module',
+		name: 'VM1',
 		automationGraphs: [],
 		outputDefs: [{
 			id: initialOutputId,
@@ -227,7 +227,7 @@ async function loadMediaProject(file?: File) {
 	const initialOutputId = genId();
 	const initialVisualModule: ProjectVisualModule = {
 		id: genId(),
-		name: 'My Visual Module',
+		name: 'VM1',
 		automationGraphs: [],
 		outputDefs: [{
 			id: initialOutputId,
