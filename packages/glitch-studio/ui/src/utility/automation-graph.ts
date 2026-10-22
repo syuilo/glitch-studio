@@ -81,7 +81,7 @@ export function createInlineAutomationGraph(): Extract<ValueParameterBinding, { 
 }
 
 export function createProjectAutomationGraph(graphs: readonly AutomationGraph[], source?: AutomationGraph): AutomationGraph {
-	const baseName = source?.nameForReference ?? 'my_automation_graph';
+	const baseName = source?.nameForReference ?? 'my_graph';
 	let nameForReference = baseName;
 	for (let suffix = 2; graphs.some(graph => graph.nameForReference === nameForReference); suffix++) nameForReference = `${baseName}_${suffix}`;
 	const data = deepClone(source ?? createInlineAutomationGraph().automationGraph);

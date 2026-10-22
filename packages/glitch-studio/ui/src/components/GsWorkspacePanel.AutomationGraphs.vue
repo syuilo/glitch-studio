@@ -2,7 +2,7 @@
 <div :class="$style.root" data-test-project-automation-graphs>
 	<div :class="$style.toolbar">
 		<GsButton v-tooltip="i18n.ts._AutomationGraph.AddGraph" data-test-add-automation-graph icon="ti ti-plus" iconOnly @click="addGraph()"></GsButton>
-		<GsButton @click="selectGraph()"><i class="ti ti-chevron-down"></i> {{ selectedGraph != null ? selectedGraph.nameForReference : '' }}</GsButton>
+		<GsButton data-test-select-automation-graph @click="selectGraph"><i class="ti ti-chevron-down"></i> {{ selectedGraph != null ? selectedGraph.nameForReference : '' }}</GsButton>
 	</div>
 	<template v-if="selectedGraph != null">
 		<div :class="$style.header">
@@ -13,6 +13,10 @@
 			<GsAutomationGraphPointsEditor :key="selectedGraph.id + String(selectedGraph.isNormalized)" :points="selectedGraph.points" :isNormalized="selectedGraph.isNormalized" @change="updatePoints"/>
 		</div>
 		<div v-else-if="tab === 'settings'" class="_spacer _gaps_l">
+			<GsInput :key="selectedGraph.id" data-test-automation-graph-reference-name monospace :manualSave="true" :modelValue="selectedGraph.nameForReference" @update:modelValue="setNameForReference">
+				<template #label>{{ i18n.ts._ParameterEditor.ReferenceName }}</template>
+			</GsInput>
+
 			<GsSelect :modelValue="selectedGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="timeAxisItems" @update:modelValue="setNormalized($event === 'normalized')">
 				<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
 			</GsSelect>
@@ -32,6 +36,7 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
 import GsButton from './common/GsButton.vue';
+import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditor from './GsAutomationGraphPointsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
@@ -58,6 +63,24 @@ const timeAxisItems = [
 	{ label: i18n.ts._Parameter.NormalizedTime, value: 'normalized' },
 	{ label: i18n.ts._Parameter.Milliseconds, value: 'milliseconds' },
 ];
+
+function selectGraph(ev: PointerEvent) {
+	ui.popupMenu(graphs.value.map(graph => ({
+		text: graph.nameForReference,
+		active: selectedGraph.value?.id === graph.id,
+		action: () => { selectedGraphId.value = graph.id; },
+	})), ev.currentTarget ?? ev.target);
+}
+
+function setNameForReference(nameForReference: string) {
+	const graph = selectedGraph.value;
+	if (graph == null || graph.nameForReference === nameForReference) return;
+	try {
+		stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...graph, nameForReference } });
+	} catch (error) {
+		ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+	}
+}
 
 function addGraph(source?: AutomationGraph) {
 	const automationGraph = createProjectAutomationGraph(graphs.value, source);
