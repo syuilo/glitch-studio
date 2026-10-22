@@ -69,6 +69,7 @@ import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { exportVisualModuleFile, importVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
+import { createProjectVisualModule } from '@/utility/project-visual-module.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 
 const { previewPlayback, visualModuleRendererManagerController } = appContext;
@@ -226,9 +227,7 @@ function showSwitchMenu(ev: PointerEvent) {
 	}, {
 		text: i18n.ts.New,
 		icon: 'ti ti-plus',
-		action: () => {
-
-		},
+		action: addVisualModule,
 	}, {
 		type: 'divider',
 	}, ...stateManager.state.visualModules.value.map(_visualModule => ({
@@ -238,6 +237,12 @@ function showSwitchMenu(ev: PointerEvent) {
 			selectedModuleId.value = _visualModule.id;
 		},
 	}))], ev.currentTarget ?? ev.target);
+}
+
+function addVisualModule() {
+	const newVisualModule = createProjectVisualModule(stateManager.state.visualModules.value.length);
+	stateManager.commit('addVisualModule', { visualModule: newVisualModule });
+	selectedModuleId.value = newVisualModule.id;
 }
 
 async function importVisualModule() {

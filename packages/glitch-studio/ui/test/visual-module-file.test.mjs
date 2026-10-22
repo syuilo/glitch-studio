@@ -13,6 +13,7 @@ const bundle = await build({
 		export * from './src/gsvm.ts';
 		export * from './src/utility/visual-module-file.ts';
 		export { ProjectContext } from './src/Project.ts';
+		export { createProjectVisualModule } from './src/utility/project-visual-module.ts';
 		export { RendererProjectSynchronizer } from './src/RendererProjectSynchronizer.ts';
 		export { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 	` },
@@ -30,7 +31,7 @@ const bundle = await build({
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', 'console', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports, { ...console, log() {}, error() {} });
 const { collectVisualModuleFile, encodeVisualModuleFile, decodeVisualModuleFile, prepareVisualModuleImport,
-	ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, importVisualModuleFile, exportVisualModuleFile } = loaded.exports;
+	ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, importVisualModuleFile, exportVisualModuleFile, createProjectVisualModule } = loaded.exports;
 
 const literal = value => ({ inputSource: 'literal', value });
 const parameter = (dataType, value = null) => ({ dataType: typeof dataType === 'string' ? { kind: dataType } : dataType,
@@ -229,6 +230,60 @@ test('rejects other formats future versions and invalid media bytes', async () =
 	assert.throws(() => decodeVisualModuleFile(new Uint8Array([0xc0]), f.input.gsVersion), /Unsupported/);
 	const { encode } = await import('@msgpack/msgpack');
 	assert.throws(() => decodeVisualModuleFile(encode({ ...f.file(), assets: [{ id: 'asset', fileData: [1, 2] }] }), f.input.gsVersion), /Invalid Asset data/);
+});
+
+// 【新規作成を一回のUndoで戻し、Redoでも同じ定義を登録する】
+// Visual Moduleがまだないプロジェクトでも、既存の定義がある場合でも作成できる必要がある。
+// 初期名には作成後の個数を使い、空ならVM1、既存が一つならVM2にする。
+// 既存の定義を残しつつ、追加・削除をWorkerへ通知し、Redo時に内部ポートのIDも維持する。
+test('creates a Visual Module with synchronized undo and redo in empty and populated projects', async t => {
+	for (const populated of [false, true]) {
+		const manager = new ProjectContext().stateManager;
+		const existing = populated ? [createProjectVisualModule(0)] : [];
+		manager.state.visualModules.value = structuredClone(existing);
+		let replica = { visualModules: structuredClone(existing), timelineScenes: [] };
+		const sync = new RendererProjectSynchronizer(manager, {
+			apply: async changes => { replica = applyRendererProjectChanges(replica, changes); },
+			replace: async () => assert.fail('No recovery snapshot should be necessary'), onUpdated() {}, onError: error => assert.fail(error),
+		});
+		t.after(() => sync.dispose());
+		const visualModule = createProjectVisualModule(manager.state.visualModules.value.length);
+		manager.commit('addVisualModule', { visualModule });
+		await sync.flush();
+		assert.equal(manager.undoStack.value.length, 1);
+		assert.equal(visualModule.name, populated ? 'VM2' : 'VM1');
+		assert.deepEqual(replica.visualModules, [...existing, visualModule]);
+		assert.equal(visualModule.nodes.filter(node => node.type === 'effect').length, 0);
+		assert.equal(visualModule.paramDefs.find(def => def.id === visualModule.primaryInputId).dataType.kind, 'color');
+		assert.equal(visualModule.outputDefs.find(def => def.id === visualModule.primaryOutputId).dataType.kind, 'color');
+		assert.deepEqual(visualModule.nodes.find(node => node.type === 'globalOut').inputs, {});
+		manager.undo();
+		await sync.flush();
+		assert.deepEqual(manager.state.visualModules.value, existing);
+		assert.deepEqual(replica.visualModules, existing);
+		manager.redo();
+		await sync.flush();
+		assert.deepEqual(manager.state.visualModules.value, [...existing, visualModule]);
+		assert.deepEqual(replica.visualModules, [...existing, visualModule]);
+	}
+});
+
+// 【連続作成したVisual ModuleはIDと内部状態を共有しない】
+// 同じ名前のVisual Moduleを作成しても、片方の編集が別の定義へ混入してはいけない。
+// IDが衝突した場合も、既存の定義や履歴を壊さず追加を拒否する。
+test('keeps newly created Visual Modules independent and rejects duplicate registration', () => {
+	const manager = new ProjectContext().stateManager;
+	const first = createProjectVisualModule(0);
+	const second = createProjectVisualModule(0);
+	const collectIds = visualModule => [visualModule.id, ...visualModule.nodes.map(node => node.id), ...visualModule.paramDefs.map(def => def.id), ...visualModule.outputDefs.map(def => def.id)];
+	const ids = [...collectIds(first), ...collectIds(second)];
+	assert.equal(new Set(ids).size, ids.length);
+	first.paramDefs[0].defaultValue.value[0] = 1;
+	assert.deepEqual(second.paramDefs[0].defaultValue.value, [0, 0, 0, 0]);
+	manager.commit('addVisualModule', { visualModule: first });
+	assert.throws(() => manager.commit('addVisualModule', { visualModule: first }), /already exists/);
+	assert.equal(manager.undoStack.value.length, 1);
+	assert.deepEqual(manager.state.visualModules.value, [first]);
 });
 
 // 【取り込み全体を一回のUndoで戻し、Redoでも同じIDで同期する】

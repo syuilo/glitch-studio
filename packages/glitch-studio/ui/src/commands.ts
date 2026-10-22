@@ -63,6 +63,7 @@ import type { CommandDef as UndoRedoCommandDef } from './utility/undo-redo.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { ExportDialogSettings } from './export/export-settings.ts';
 import type { VisualModuleImport } from './gsvm.ts';
+import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { Player } from '@gs/shared/types.ts';
 import { validateProjectAutomationGraphName } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import type { AutomationGraph, AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
@@ -361,6 +362,20 @@ const changeTimelineGroupModeCommandDef = defineCommand<{ sceneId: string; layer
 			undo(state) { if (before == null) delete group(state).compositingMode; else group(state).compositingMode = before; },
 		};
 	},
+});
+
+const addVisualModuleCommandDef = defineCommand<{ visualModule: ProjectVisualModule }>({
+	label: 'Add Visual Module',
+	changes: (_state, payload) => [{ type: 'visualModuleRegistration', visualModuleId: payload.visualModule.id }],
+	create: payload => ({
+		execute(state) {
+			if (state.visualModules.value.some(visualModule => visualModule.id === payload.visualModule.id)) throw new Error('Visual Module ID already exists');
+			state.visualModules.value.push(deepClone(payload.visualModule));
+		},
+		undo(state) {
+			state.visualModules.value = state.visualModules.value.filter(visualModule => visualModule.id !== payload.visualModule.id);
+		},
+	}),
 });
 
 const importVisualModuleCommandDef = defineCommand<VisualModuleImport>({
@@ -2687,6 +2702,7 @@ export const COMMAND_DEFS = {
 	moveTimelineLayer: moveTimelineLayerCommandDef,
 	moveTimelineContainer: moveTimelineContainerCommandDef,
 	importVisualModule: importVisualModuleCommandDef,
+	addVisualModule: addVisualModuleCommandDef,
 	renameVisualModule: renameVisualModuleCommandDef,
 	removeTimelineKeyframes: removeTimelineKeyframesCommandDef,
 	editVoicevoxLayer: editVoicevoxLayerCommandDef,
