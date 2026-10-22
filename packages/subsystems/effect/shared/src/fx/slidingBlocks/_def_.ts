@@ -1,0 +1,53 @@
+import { defineEffect } from '../../effect-definition.ts';
+
+export default defineEffect({
+	id: 'slidingBlocks',
+	displayName: 'Sliding Blocks',
+	description: {
+		'ja-JP': '動いた領域を過去画像のブロックとして切り出し、その画像を保持したまま滑らせます。発生率、速度、寿命、減衰を調整できます。',
+		'en-US': 'Detaches moving regions as frozen image blocks and lets them slide independently. Controls emission, velocity, lifetime, and drag.',
+	},
+	kind: 'modify',
+	dependsOnRenderHistory: true,
+	tags: ['glitch', 'temporal', 'pixel', 'distortion'],
+	paramDefs: {
+		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
+		blockSize: { dataType: { kind: 'scalar' }, ui: { label: 'Block Size (% of Short Side)', control: { controlType: 'range', min: 1, max: 30, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 8 } },
+		blockOrigin: {
+			dataType: { kind: 'enum', options: ['topLeft', 'center'] },
+			ui: { label: 'Block Origin', control: { labels: { topLeft: 'Top Left', center: 'Image Center' } } },
+			defaultValue: { inputSource: 'literal', value: 'center' },
+		},
+		motionSource: {
+			dataType: { kind: 'enum', options: ['input', 'separate'] },
+			ui: { label: 'Motion Source', control: { labels: { input: 'Input', separate: 'Separate Motion Input' } } },
+			defaultValue: { inputSource: 'literal', value: 'input' },
+		},
+		motionInput: { dataType: { kind: 'color' }, ui: { label: 'Motion Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		motionSpeedThreshold: { dataType: { kind: 'scalar' }, ui: { label: 'Motion Speed Threshold (% of Short Side/s)', control: { controlType: 'range', min: 0, max: 100, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 3 } },
+		searchRange: { dataType: { kind: 'scalar' }, ui: { label: 'Motion Search Range (% of Short Side)', control: { controlType: 'range', min: 0, max: 25, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 8 } },
+		matchThreshold: { dataType: { kind: 'scalar' }, ui: { label: 'Maximum Motion Match Error', control: { controlType: 'range', min: 0.001, max: 0.5, step: 0.001 } }, defaultValue: { inputSource: 'literal', value: 0.15 } },
+		spawnRate: { dataType: { kind: 'scalar' }, ui: { label: 'Emission Rate (1/s)', control: { controlType: 'range', min: 0, max: 20, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 3 } },
+		spawnMask: { dataType: { kind: 'scalar' }, ui: { label: 'Emission Mask', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
+		lifetime: { dataType: { kind: 'scalar' }, ui: { label: 'Lifetime (ms)', control: { controlType: 'range', min: 0, max: 10000, step: 1 } }, defaultValue: { inputSource: 'literal', value: 1500 } },
+		lifetimeRandomness: { dataType: { kind: 'scalar' }, ui: { label: 'Lifetime Randomness', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.3 } },
+		velocityStrength: { dataType: { kind: 'scalar' }, ui: { label: 'Inherited Motion Strength', control: { controlType: 'range', min: -4, max: 4, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1.5 } },
+		motionRotation: { dataType: { kind: 'scalar' }, ui: { label: 'Motion Rotation', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		driftSpeed: { dataType: { kind: 'scalar' }, ui: { label: 'Random Drift Speed (% of Short Side/s)', control: { controlType: 'range', min: 0, max: 100, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 5 } },
+		drag: { dataType: { kind: 'scalar' }, ui: { label: 'Drag (1/s)', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },
+		cooldown: { dataType: { kind: 'scalar' }, ui: { label: 'Emission Cooldown (ms)', control: { controlType: 'range', min: 0, max: 5000, step: 1 } }, defaultValue: { inputSource: 'literal', value: 250 } },
+		fadeOut: { dataType: { kind: 'scalar' }, ui: { label: 'Fade Out (Lifetime Fraction)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.3 } },
+		background: {
+			dataType: { kind: 'enum', options: ['input', 'cutout', 'transparent'] },
+			ui: { label: 'Background', control: { labels: { input: 'Live Input', cutout: 'Cut Out Detached Blocks', transparent: 'Transparent' } } },
+			defaultValue: { inputSource: 'literal', value: 'input' },
+		},
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset Blocks', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+	},
+	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
+	outputDefs: { output: { dataType: { kind: 'color' } } },
+	primaryOutput: 'output',
+});
