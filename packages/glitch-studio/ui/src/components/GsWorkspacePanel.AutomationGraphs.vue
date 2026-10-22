@@ -110,17 +110,15 @@ function setNormalized(isNormalized: boolean) {
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding: 12px;
 	overflow: auto;
 }
 .toolbar {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+	padding: 4px 8px 0 8px;
 }
 .editor {
 	flex: 1;
-	min-height: 280px;
 }
 </style>
