@@ -4,12 +4,12 @@ export default defineEffect({
 	id: 'liquidGlass',
 	displayName: 'Liquid Glass',
 	description: {
-		'ja-JP': 'マスクの輪郭に丸みを付け、背景の屈折と光沢を持つガラスを描画します。',
-		'en-US': 'Creates rounded glass along a mask contour with background refraction and highlights.',
+		'ja-JP': 'マスクの輪郭に丸みを付け、屈折・ぼかし・色分散・表面の揺らぎを持つガラスを描画します。',
+		'en-US': 'Creates rounded glass along a mask contour with refraction, blur, dispersion, and surface waviness.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
-	tags: ['distortion', 'light', 'liquid', 'stylized'],
+	tags: ['distortion', 'blur', 'light', 'liquid', 'stylized'],
 	paramDefs: {
 		background: {
 			dataType: { kind: 'color' },
@@ -37,6 +37,48 @@ export default defineEffect({
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Refraction Strength', control: { controlType: 'range', min: -1, max: 1, step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: 0.08 },
+		},
+		blurRadius: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Blur Radius', control: { controlType: 'range', min: 0, max: 0.2, step: 0.001 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		blurSamples: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Blur Samples', control: { controlType: 'range', min: 4, max: 64, step: 2 } },
+			defaultValue: { inputSource: 'literal', value: 24 },
+		},
+		dispersion: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Dispersion', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		surfaceWavinessAmplitude: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Waviness Amplitude', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		surfaceWavinessScale: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Waviness Scale', control: { controlType: 'range', min: 0.01, max: 2, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0.3 },
+		},
+		surfaceWavinessSpeed: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Waviness Speed', control: { controlType: 'number', step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0.3 },
+		},
+		surfaceWavinessSeed: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Waviness Seed', control: { controlType: 'seed' } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		// 再生時刻への依存をパラメータとして明示し、Visual Moduleの描画キャッシュへ伝える。
+		// ノード入力にすると16bitテクスチャへ丸められる場合があるため、通常の数値・式として扱う。
+		time: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		highlightStrength: {
 			dataType: { kind: 'scalar' },

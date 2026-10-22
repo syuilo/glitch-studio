@@ -4,4 +4,4 @@
 
 [2D Light Tracing](./src/fx/lightTracing2d/README.md)は、入力の不透明部分を光源・遮蔽物として、JFAの距離場と履歴に依存しないレイ積分で2Dの照明を描画します。
 
-[Liquid Glass](./src/fx/liquidGlass/README.md)は、任意のスカラーマスクの輪郭から丸みを作り、背景の屈折・光沢・色味を持つガラスを描画します。
+[Liquid Glass](./src/fx/liquidGlass/README.md)は、任意のスカラーマスクの輪郭から丸みを作り、背景の屈折・ぼかし・色分散・表面の揺らぎ・光沢を持つガラスを描画します。

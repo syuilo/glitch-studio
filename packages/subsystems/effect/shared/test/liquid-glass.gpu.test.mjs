@@ -10,7 +10,7 @@ import { build, stop } from 'esbuild';
 
 // 【実際のWebGPUで任意形状のガラス・屈折・透明度・再現性を確認する】
 // WGSLのbindingや座標の向き、距離場から生成する法線は型チェックでは検証できない。
-// Workerで本物のエフェクトを描画し、縁の拡大方向・マスク外の保持・乗算済みα・解像度差を画素で確認する。
+// Workerで本物のエフェクトを描画し、屈折・ぼかし・色分散・揺らぎと乗算済みα・解像度差を画素で確認する。
 test('renders deterministic masked glass and refraction on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
 	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/liquid-glass-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
@@ -46,7 +46,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'Liquid Glass GPU test timed out' }), 75000);
 		const output = await result.promise;
 		assert.equal(output.error ?? null, null, output.error);
-		assert.ok(output.checks.length >= 15);
+		assert.ok(output.checks.length >= 34);
 		if (process.env.LIQUID_GLASS_PREVIEW != null) await writeFile(process.env.LIQUID_GLASS_PREVIEW, Buffer.from(output.preview, 'base64'));
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {

@@ -5,6 +5,8 @@ import commonCode from './common.wgsl?raw';
 import maskCode from './mask.wgsl?raw';
 import distanceCode from './distance.wgsl?raw';
 import compositeCode from './composite.wgsl?raw';
+import surfaceWavinessCode from './surface-waviness.wgsl?raw';
+import refractionCode from './refraction.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -49,7 +51,7 @@ export default implementEffect<typeof definition>({
 		const jumpPipeline = createDistancePipeline('jumpFlood', seedFormat);
 		const distancePipeline = createDistancePipeline('signedDistance', scalarFormat);
 		const compositePipelines = createShaderInputPipeline({
-			device, vertex: wgpu.defaultVertexShaderModule, code: commonCode + '\n' + compositeCode,
+			device, vertex: wgpu.defaultVertexShaderModule, code: [commonCode, surfaceWavinessCode, refractionCode, compositeCode].join('\n'),
 			schema: { background: 'color' }, targets: [{ format: wgpu.intermediateTextureFormat }], internalLayouts: [compositeLayout],
 			entryPoint: 'composite', sampling: 'level0',
 		});
@@ -86,12 +88,22 @@ export default implementEffect<typeof definition>({
 		const clampParameter = (value: number, min: number, max: number, fallback: number) => Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 		return {
 			render: ctx => {
+				const time = Number.isFinite(ctx.params.time) ? ctx.params.time : 0;
+				const surfaceWavinessSpeed = clampParameter(ctx.params.surfaceWavinessSpeed, -10, 10, 0.3);
 				uniformValues.set({
 					size: [resolution.width, resolution.height],
 					bevelWidth: clampParameter(ctx.params.bevelWidth, 0, 2, 0.12),
 					surfaceHeight: clampParameter(ctx.params.surfaceHeight, 0, 2, 0.06),
 					refractionStrength: clampParameter(ctx.params.refractionStrength, -2, 2, 0.08),
 					highlightStrength: clampParameter(ctx.params.highlightStrength, 0, 10, 0.8),
+					blurRadius: clampParameter(ctx.params.blurRadius, 0, 1, 0),
+					// 対称なサンプル対を使うので、式などから渡された奇数も近い偶数へ揃える。
+					blurSamples: 2 * Math.round(clampParameter(ctx.params.blurSamples, 4, 64, 24) / 2),
+					dispersion: clampParameter(ctx.params.dispersion, 0, 1, 0),
+					surfaceWavinessAmplitude: clampParameter(ctx.params.surfaceWavinessAmplitude, 0, 1, 0),
+					surfaceWavinessScale: clampParameter(ctx.params.surfaceWavinessScale, 0.01, 10, 0.3),
+					surfaceWavinessTime: time * surfaceWavinessSpeed,
+					surfaceWavinessSeed: Math.trunc(clampParameter(ctx.params.surfaceWavinessSeed, -2147483648, 4294967295, 0)) >>> 0,
 					lightDirection: ctx.params.lightDirection.map(value => clampParameter(value, -10, 10, 0)),
 					tint: [...ctx.params.tint.slice(0, 3), clampParameter(ctx.params.tint[3], 0, 1, 0)],
 				});

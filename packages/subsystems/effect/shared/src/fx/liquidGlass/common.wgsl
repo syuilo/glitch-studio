@@ -6,6 +6,13 @@ struct Uniforms {
 	surfaceHeight: f32,
 	refractionStrength: f32,
 	highlightStrength: f32,
+	blurRadius: f32,
+	blurSamples: u32,
+	dispersion: f32,
+	surfaceWavinessAmplitude: f32,
+	surfaceWavinessScale: f32,
+	surfaceWavinessTime: f32,
+	surfaceWavinessSeed: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;

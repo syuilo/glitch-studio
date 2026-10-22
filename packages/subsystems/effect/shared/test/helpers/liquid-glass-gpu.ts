@@ -58,9 +58,9 @@ export async function run() {
 		const effect = implementation.init({ wgpu, resolution, params: defaults, reportStatus: () => {}, fallbackTexture: output });
 		effects.push(effect);
 		return {
-			async render(overrides: Partial<Parameters> = {}, time = 0) {
+			async render(overrides: Partial<Parameters> = {}, time = 0, timeDelta = 16) {
 				const commandEncoder = device.createCommandEncoder();
-				effect.render({ params: { ...defaults, ...overrides }, commandEncoder, time, timeDelta: 16,
+				effect.render({ params: { ...defaults, ...overrides }, commandEncoder, time, timeDelta,
 					pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
 					outputDataMap: { output: { texture: output, textureView: output.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
 					createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
@@ -165,23 +165,100 @@ export async function run() {
 		assert(at(transparentWrap, width, 33, 48)[3] === 0 && at(clampedWrap, width, 33, 48)[3] === 255, 'background wrap ignored');
 		checks.push('input resolution and orientation', 'background wrap');
 
+		// 【追加機能を無効にした場合の保持】強度が0なら、時刻・seed・サンプル数の設定だけで従来の屈折を変えない。
+		equalPixels(refracted, await effect.render({ ...settings, blurRadius: 0, blurSamples: 4, dispersion: 0, surfaceWavinessAmplitude: 0, surfaceWavinessScale: 0.1, surfaceWavinessSeed: 123, time: 7 }), 'disabled additions change refraction');
+		checks.push('disabled blur dispersion and waviness');
+
+		// 【背景だけのぼかし】高周波の背景を平均し、マスク外やガラス表面の光沢をぼかさないことを確認する。
+		const checker = image(width, height, (x, y) => { const value = (Math.floor(x / 2) + Math.floor(y / 2)) % 2 * 255; return [value, value, value, 255]; });
+		const checkerSettings = { ...opticalOnly, background: checker, mask: inputs.mask, refractionStrength: 0 };
+		const sharpChecker = await effect.render(checkerSettings);
+		const blurredChecker = await effect.render({ ...checkerSettings, blurRadius: 0.12, blurSamples: 64 });
+		let sharpContrast = 0;
+		let blurredContrast = 0;
+		for (let y = 34; y < 62; y++) for (let x = 50; x < 78; x++) {
+			sharpContrast += Math.abs(at(sharpChecker, width, x, y)[0] - 127.5);
+			blurredContrast += Math.abs(at(blurredChecker, width, x, y)[0] - 127.5);
+		}
+		assert(blurredContrast < sharpContrast * 0.45, 'blur does not reduce background contrast');
+		closePixel(at(blurredChecker, width, 10, 48), at(sharpChecker, width, 10, 48), 0, 'blur changes mask exterior');
+		const sharpHighlightsWithBlur = await effect.render({ ...inputs, background: black, tint: [0, 0, 0, 0], lightDirection: [1, 0], highlightStrength: 2, blurRadius: 0.12 });
+		equalPixels(rightLight, sharpHighlightsWithBlur, 'blur softens surface highlights');
+		const transparentRedEdge = image(width, height, x => x >= 64 ? [128, 0, 0, 128] : [0, 0, 0, 0]);
+		const blurredAlpha = await effect.render({ ...opticalOnly, background: transparentRedEdge, mask: fullMask, refractionStrength: 0, blurRadius: 0.12, blurSamples: 64 });
+		assert(at(blurredAlpha, width, 63, 48)[3] > 0 && at(blurredAlpha, width, 63, 48)[3] < 128, 'blur ignores transparent neighbors');
+		assert(blurredAlpha.every((value, index) => index % 4 !== 0 || value === blurredAlpha[index + 3]), 'blur multiplies alpha twice');
+		checks.push('background blur', 'sharp mask and highlights', 'premultiplied blur');
+
+		// 【RGBごとの色分散と透明度】法線方向に色を分け、透明な境界でもαより大きい乗算済みRGBを生成しないことを確認する。
+		const grayRamp = image(width, height, x => { const value = x / (width - 1) * 255; return [value, value, value, 255]; });
+		const dispersed = await effect.render({ ...settings, background: grayRamp, dispersion: 1 });
+		const dispersedLeft = at(dispersed, width, 33, 48);
+		const dispersedRight = at(dispersed, width, 94, 48);
+		assert(dispersedLeft[0] < dispersedLeft[1] && dispersedLeft[1] < dispersedLeft[2], `left dispersion direction: ${dispersedLeft}`);
+		assert(dispersedRight[0] > dispersedRight[1] && dispersedRight[1] > dispersedRight[2], `right dispersion direction: ${dispersedRight}`);
+		const combinedSettings = { ...settings, blurRadius: 0.06, blurSamples: 32, dispersion: 0.4, surfaceWavinessAmplitude: 0.01, surfaceWavinessScale: 0.25, surfaceWavinessSeed: 5, time: 1.25 };
+		const combined = await effect.render(combinedSettings);
+		closePixel(at(combined, width, 10, 48), at(original, width, 10, 48), 0, 'combined additions change mask exterior');
+		const whiteAlphaBackground = image(width, height, x => [x, x, x, x]);
+		const dispersedAlpha = await effect.render({ ...combinedSettings, background: whiteAlphaBackground });
+		assert(dispersedAlpha.every((value, index) => index % 4 === 3 || value <= dispersedAlpha[index - index % 4 + 3]), 'dispersion produces RGB outside alpha coverage');
+		const emptyWithAdditions = await effect.render({ ...combinedSettings, background: constantShaderInput('color', [0, 0, 0, 0]) });
+		assert(emptyWithAdditions.every(value => value === 0), 'combined additions create color on transparent background');
+		const constantWithAdditions = await effect.render({ ...combinedSettings, mask: fullMask, background: constantShaderInput('color', [0.8, 0.4, 0.2, 0.5]) });
+		closePixel(at(constantWithAdditions, width, 64, 48), [102, 51, 26, 128], 1, 'combined additions change constant premultiplied color');
+		checks.push('RGB dispersion direction', 'dispersed alpha coverage', 'combined additions on transparent and uniform inputs');
+
+		// 【表面の揺らぎ・シーク・描画間隔】明示的なTimeだけで動き、同じ時刻へのシークやfpsの違いで結果を変えない。
+		const wavinessSettings = { ...opticalOnly, background: inputs.background, mask: fullMask, refractionStrength: 0.25, surfaceWavinessAmplitude: 0.03, surfaceWavinessScale: 0.25, surfaceWavinessSpeed: 0.8, surfaceWavinessSeed: 5, time: 0.75 };
+		const wavy = await effect.render(wavinessSettings);
+		const laterWaviness = await effect.render({ ...wavinessSettings, time: 1.75 });
+		assert(wavy.some((value, index) => value !== original[index]), 'waviness does not affect flat surface refraction');
+		assert(wavy.some((value, index) => value !== laterWaviness[index]), 'explicit time does not animate waviness');
+		equalPixels(wavy, await effect.render(wavinessSettings, 999, 1000 / 30), 'waviness depends on context time or frame interval');
+		await effect.render({ ...wavinessSettings, time: 0.25 });
+		equalPixels(wavy, await effect.render(wavinessSettings, 1, 1000 / 120), 'waviness depends on seeking order');
+		equalPixels(wavy, await effect.render({ ...wavinessSettings, time: -0.75, surfaceWavinessSpeed: -0.8 }), 'negative speed does not reverse time');
+		const changedSeedWaviness = await effect.render({ ...wavinessSettings, surfaceWavinessSeed: 6 });
+		assert(wavy.some((value, index) => value !== changedSeedWaviness[index]), 'seed does not change waviness');
+		const scaledWaviness = await effect.render({ ...wavinessSettings, surfaceWavinessScale: 0.5 });
+		assert(wavy.some((value, index) => value !== scaledWaviness[index]), 'scale does not change waviness');
+		const stillWaviness = await effect.render({ ...wavinessSettings, surfaceWavinessSpeed: 0 });
+		equalPixels(stillWaviness, await effect.render({ ...wavinessSettings, surfaceWavinessSpeed: 0, time: 42 }), 'zero speed does not freeze waviness');
+		equalPixels(original, await effect.render({ ...wavinessSettings, surfaceWavinessAmplitude: 0 }), 'zero amplitude leaves stale waviness');
+		checks.push('surface waviness', 'explicit time animation', 'fps and seeking independence', 'reverse and zero speed', 'waviness seed and scale');
+
 		// 【縦横比・解像度】同じ等方座標の形が横長・縦長でも同じ幅の縁になり、解像度を上げても変位量を保つことを確認する。
 		for (const [otherWidth, otherHeight] of [[192, 96], [96, 128]]) {
-			const other = await createEffect(otherWidth, otherHeight).render({ ...circleInputs(otherWidth, otherHeight), ...opticalOnly });
+			const otherEffect = createEffect(otherWidth, otherHeight);
+			const otherInputs = circleInputs(otherWidth, otherHeight);
+			const other = await otherEffect.render({ ...otherInputs, ...opticalOnly });
 			closePixel(at(other, otherWidth, otherWidth / 2 - 30, otherHeight / 2), at(refracted, width, 34, 48), 1, 'aspect ratio changes refraction');
+			const otherCombined = await otherEffect.render({ ...combinedSettings, ...otherInputs });
+			closePixel(at(otherCombined, otherWidth, otherWidth / 2 - 30, otherHeight / 2), at(combined, width, 34, 48), 2, 'aspect ratio changes blur dispersion or waviness');
 		}
-		const doubled = await createEffect(256, 192).render({ ...circleInputs(256, 192), ...opticalOnly });
+		const doubledEffect = createEffect(256, 192);
+		const doubledInputs = circleInputs(256, 192);
+		const doubled = await doubledEffect.render({ ...doubledInputs, ...opticalOnly });
 		closePixel(at(doubled, 256, 68, 96), at(refracted, width, 34, 48), 2, 'resolution changes refraction');
+		const doubledCombined = await doubledEffect.render({ ...combinedSettings, ...doubledInputs });
+		closePixel(at(doubledCombined, 256, 68, 96), at(combined, width, 34, 48), 3, 'resolution changes blur dispersion or waviness');
 		checks.push('aspect ratio independence', 'resolution independence');
 
 		// 【出力形式・内部精度・極端な寸法】各精度設定でbindingを検証し、16bitで大きなseed座標が隣の輪郭に丸まらないことを確認する。
 		for (const format of ['bgra8unorm', 'rgba16float'] as const) {
-			const formatted = await createEffect(width, height, format).render(settings);
+			const formattedEffect = createEffect(width, height, format);
+			const formatted = await formattedEffect.render(settings);
 			closePixel(at(formatted, width, 34, 48), at(refracted, width, 34, 48), 1, `output format ${format}`);
+			const formattedCombined = await formattedEffect.render(combinedSettings);
+			closePixel(at(formattedCombined, width, 34, 48), at(combined, width, 34, 48), 1, `combined additions output format ${format}`);
 		}
 		if (supports32bit) {
-			const precise = await createEffect(width, height, 'rgba8unorm', true).render(settings);
+			const preciseEffect = createEffect(width, height, 'rgba8unorm', true);
+			const precise = await preciseEffect.render(settings);
 			closePixel(at(precise, width, 34, 48), at(refracted, width, 34, 48), 1, '32bit internal textures');
+			const preciseCombined = await preciseEffect.render(combinedSettings);
+			closePixel(at(preciseCombined, width, 34, 48), at(combined, width, 34, 48), 1, 'combined additions 32bit internal textures');
 			checks.push('32bit internal textures');
 		}
 		const tiny = await createEffect(1, 1).render({ background: black, mask: fullMask, tint: [1, 0, 0, 0.5], highlightStrength: 0 });
@@ -212,9 +289,19 @@ export async function run() {
 		context.font = 'bold 104px sans-serif'; context.fillText('GLASS', 100, 335);
 		const maskPixels = context.getImageData(0, 0, previewWidth, previewHeight).data;
 		const previewMask = image(previewWidth, previewHeight, (x, y) => [maskPixels[(y * previewWidth + x) * 4 + 3], 0, 0, 255]);
-		const previewPixels = await createEffect(previewWidth, previewHeight).render({ background: previewBackground, mask: previewMask, bevelWidth: 0.05, surfaceHeight: 0.025, highlightStrength: 1.5 });
-		context.putImageData(new ImageData(previewPixels, previewWidth, previewHeight), 0, 0);
-		const png = new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer());
+		const previewEffect = createEffect(previewWidth, previewHeight);
+		const previewSettings = { background: previewBackground, mask: previewMask, bevelWidth: 0.05, surfaceHeight: 0.025, highlightStrength: 1.5 };
+		const previewPixels = await previewEffect.render(previewSettings);
+		const extendedPreviewPixels = await previewEffect.render({ ...previewSettings, blurRadius: 0.025, blurSamples: 64, dispersion: 0.5, surfaceWavinessAmplitude: 0.012, surfaceWavinessScale: 0.25, surfaceWavinessSeed: 11, time: 2 });
+		const comparison = new OffscreenCanvas(previewWidth * 2, previewHeight + 40);
+		const comparisonContext = comparison.getContext('2d')!;
+		comparisonContext.fillStyle = '#111827'; comparisonContext.fillRect(0, 0, comparison.width, comparison.height);
+		comparisonContext.fillStyle = 'white'; comparisonContext.font = '18px sans-serif';
+		comparisonContext.fillText('Refraction + Highlights', 16, 27);
+		comparisonContext.fillText('Blur + Dispersion + Waviness', previewWidth + 16, 27);
+		comparisonContext.putImageData(new ImageData(previewPixels, previewWidth, previewHeight), 0, 40);
+		comparisonContext.putImageData(new ImageData(extendedPreviewPixels, previewWidth, previewHeight), previewWidth, 40);
+		const png = new Uint8Array(await (await comparison.convertToBlob()).arrayBuffer());
 		const preview = btoa(Array.from(png, byte => String.fromCharCode(byte)).join(''));
 		await validate();
 		return { checks, preview };

@@ -2,13 +2,14 @@
 @group(0) @binding(2) var distanceTexture: texture_2d<f32>;
 @group(0) @binding(3) var surfaceSampler: sampler;
 
-fn heightAt(uv: vec2f) -> f32 {
+// 高さと距離を一緒に返し、丸みと揺らぎの接続に同じ距離場のサンプルを使う。
+fn bevelAt(uv: vec2f) -> vec2f {
 	let distance = textureSampleLevel(distanceTexture, surfaceSampler, uv, 0.0).r;
-	if (uniforms.bevelWidth <= 0.0) { return 0.0; }
+	if (uniforms.bevelWidth <= 0.0) { return vec2f(0.0, distance); }
 	let t = clamp(distance / uniforms.bevelWidth, 0.0, 1.0);
 	// 楕円の1/4断面。縁で傾きが大きく、中央の平面へ滑らかにつながる。
 	// 高さと縁の幅を別々に指定できるため、薄い板から厚いレンズまで調整できる。
-	return uniforms.surfaceHeight * sqrt(max(0.0, t * (2.0 - t)));
+	return vec2f(uniforms.surfaceHeight * sqrt(max(0.0, t * (2.0 - t))), distance);
 }
 
 @fragment
@@ -24,15 +25,21 @@ fn composite(frag: FragmentIn) -> @location(0) vec4f {
 	let normalStep = max(pixelSize(), uniforms.bevelWidth * 0.08);
 	let texel = normalStep / (pixelSize() * uniforms.size);
 	// 中央差分で高さの勾配を求める。テクスチャの下向きYを、+Yが上の空間へ戻す。
-	let gradient = vec2f(
-		heightAt(uv + vec2f(texel.x, 0.0)) - heightAt(uv - vec2f(texel.x, 0.0)),
-		heightAt(uv - vec2f(0.0, texel.y)) - heightAt(uv + vec2f(0.0, texel.y))
+	let horizontalDifference = bevelAt(uv + vec2f(texel.x, 0.0)) - bevelAt(uv - vec2f(texel.x, 0.0));
+	let verticalDifference = bevelAt(uv - vec2f(0.0, texel.y)) - bevelAt(uv + vec2f(0.0, texel.y));
+	var gradient = vec2f(
+		horizontalDifference.x, verticalDifference.x
 	) / (2.0 * normalStep);
+	let coordinateScale = min(uniforms.size.x, uniforms.size.y) / uniforms.size;
+	if (uniforms.surfaceWavinessAmplitude > 0.0) {
+		let distance = textureSampleLevel(distanceTexture, surfaceSampler, uv, 0.0).r;
+		let distanceGradient = vec2f(horizontalDifference.y, verticalDifference.y) / (2.0 * normalStep);
+		gradient += surfaceWavinessGradient(frag.position / coordinateScale, distance, distanceGradient);
+	}
 	let normal = normalize(vec3f(-gradient, 1.0));
 	// 背景平面への変位による屈折近似。屈折率や3Dの奥行きを表す値ではない。
 	// 正の強度では輪郭の内側を参照し、縁で背景が拡大される向きに曲げる。
-	let coordinateScale = min(uniforms.size.x, uniforms.size.y) / uniforms.size;
-	let refracted = read_background(frag.position - normal.xy * uniforms.refractionStrength * coordinateScale);
+	let refracted = refractedBackground(frag.position, normal.xy * uniforms.refractionStrength * coordinateScale, coordinateScale);
 	let light = normalize(vec3f(uniforms.lightDirection, 0.8));
 	let halfway = normalize(light + vec3f(0.0, 0.0, 1.0));
 	let rim = clamp(1.0 - normal.z, 0.0, 1.0);
