@@ -65,20 +65,6 @@ function addGraph(source?: AutomationGraph) {
 	selectedGraphId.value = automationGraph.id;
 }
 
-async function renameGraph() {
-	const graph = selectedGraph.value;
-	if (graph == null) return;
-	const generation = appContext.projectContext.generation;
-	const { canceled, result } = await ui.inputText({ title: i18n.ts._AutomationGraph.ReferenceName, text: i18n.ts._AutomationGraph.RenameHint, default: graph.nameForReference, minLength: 1 });
-	const currentGraph = graphs.value.find(candidate => candidate.id === graph.id);
-	if (canceled || currentGraph == null || generation !== appContext.projectContext.generation) return;
-	try {
-		stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...currentGraph, nameForReference: result.trim() } });
-	} catch (error) {
-		ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
-	}
-}
-
 function removeGraph() {
 	if (selectedGraph.value != null) stateManager.commit('removeProjectAutomationGraph', { automationGraphId: selectedGraph.value.id });
 }
