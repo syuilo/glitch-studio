@@ -31,7 +31,7 @@ export default defineEffect({
 		subdivisions: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Subdivision Levels', control: { controlType: 'range', min: 0, max: maximumSubdivisionLevels, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: 2 },
+			defaultValue: { inputSource: 'literal', value: 4 },
 		},
 		splitProbability: {
 			dataType: { kind: 'scalar' },
@@ -41,12 +41,12 @@ export default defineEffect({
 		packetWidth: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Resync Width (Maximum Blocks)', control: { controlType: 'range', min: 1, max: 8, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: 4 },
+			defaultValue: { inputSource: 'literal', value: 8 },
 		},
 		packetHeight: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Resync Height (Maximum Blocks)', control: { controlType: 'range', min: 1, max: 8, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: 4 },
+			defaultValue: { inputSource: 'literal', value: 8 },
 		},
 		predictionMode: {
 			dataType: { kind: 'enum', options: ['automatic', 'horizontal', 'vertical', 'dc', 'planar'] },
