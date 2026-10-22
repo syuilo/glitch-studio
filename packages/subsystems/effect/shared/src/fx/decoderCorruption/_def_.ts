@@ -1,4 +1,5 @@
 import { defineEffect } from '../../effect-definition.ts';
+import { maximumSubdivisionLevels } from './partition.ts';
 
 export default defineEffect({
 	id: 'decoderCorruption',
@@ -24,7 +25,7 @@ export default defineEffect({
 		},
 		subdivisions: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Subdivision Levels', control: { controlType: 'range', min: 0, max: 2, step: 1 } },
+			ui: { label: 'Subdivision Levels', control: { controlType: 'range', min: 0, max: maximumSubdivisionLevels, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 2 },
 		},
 		splitProbability: {
@@ -109,11 +110,6 @@ export default defineEffect({
 			dataType: { kind: 'bool' },
 			ui: { label: 'Preserve Input Detail', control: {} },
 			defaultValue: { inputSource: 'literal', value: true },
-		},
-		strength: {
-			dataType: { kind: 'scalar' },
-			ui: { label: 'Strength', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},

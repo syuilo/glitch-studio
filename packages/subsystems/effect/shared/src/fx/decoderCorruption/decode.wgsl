@@ -58,11 +58,13 @@ fn predict(mode: u32, point: vec2u, size: u32, reconstructed: bool, offsets: vec
 fn choose_prediction(block: vec4u) -> u32 {
 	if (uniforms.predictionMode != 0u) { return uniforms.predictionMode - 1u; }
 	var costs = vec4f(0.0);
-	// 全画素で4方式を評価すると小ブロックが多い設定で高価になるため、4×4点で比較する。
+	// 全画素で4方式を評価すると小ブロックが多い設定で高価になるため、最大4×4点で比較する。
+	// 1×1・2×2の葉では同じ画素を繰り返し評価せず、その葉の画素数だけを使う。
 	// 色差も評価し、輝度が同じ色同士の境界で不適切な予測を選び続けることを避ける。
-	for (var y = 0u; y < 4u; y++) {
-		for (var x = 0u; x < 4u; x++) {
-			let point = vec2u(x * block.z + block.z / 2u, y * block.z + block.z / 2u) / 4u;
+	let samplingSize = min(4u, block.z);
+	for (var y = 0u; y < samplingSize; y++) {
+		for (var x = 0u; x < samplingSize; x++) {
+			let point = vec2u(x * block.z + block.z / 2u, y * block.z + block.z / 2u) / samplingSize;
 			let original = originalSamples[sample_index(block.xy + point)].rgb;
 			for (var mode = 0u; mode < 4u; mode++) {
 				let error = original - predict(mode, point, block.z, false, vec2i(0));

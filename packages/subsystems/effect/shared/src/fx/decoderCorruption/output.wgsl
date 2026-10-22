@@ -8,7 +8,7 @@ struct InterpolatedSample {
 };
 
 fn sample_block(imagePosition: vec2f) -> InterpolatedSample {
-	let gridPosition = imagePosition * uniforms.virtualSize;
+	let gridPosition = image_to_grid(imagePosition);
 	let point = clamped_sample_position(vec2i(floor(gridPosition)));
 	let metadata = decodedSamples[sample_index(point)];
 	let blockOrigin = point / metadata.blockSize * metadata.blockSize;
@@ -30,7 +30,7 @@ fn sample_block(imagePosition: vec2f) -> InterpolatedSample {
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let original = read_input(position);
-	if (uniforms.strength <= 0.0 || uniforms.corruptionProbability <= 0.0 || original.a <= 0.0) { return original; }
+	if (uniforms.corruptionProbability <= 0.0 || original.a <= 0.0) { return original; }
 	let sample = sample_block(position * vec2f(0.5, -0.5) + vec2f(0.5));
 	var rgb = ycbcr_to_rgb(sample.decoded);
 	if (uniforms.preserveDetails != 0u) {
@@ -40,5 +40,5 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	}
 	rgb = clamp(rgb, vec3f(0.0), vec3f(1.0));
 	// 画像の透明度は元の位置の値を保持する。色を復号した後に一度だけpremultiplyする。
-	return mix(original, vec4f(rgb * original.a, original.a), uniforms.strength);
+	return vec4f(rgb * original.a, original.a);
 }

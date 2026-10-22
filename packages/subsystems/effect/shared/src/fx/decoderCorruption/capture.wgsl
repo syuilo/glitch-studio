@@ -8,7 +8,7 @@ fn capture(@builtin(global_invocation_id) invocation: vec3u) {
 		for (var x = 0u; x < uniforms.samplingGrid.x; x++) {
 			let offset = (vec2f(f32(x), f32(y)) + vec2f(0.5)) / vec2f(uniforms.samplingGrid);
 			// 区画に合わせた余白だけは画像端の色で埋め、実際の入力のfit/wrap/filterは生成関数へ任せる。
-			let imagePosition = clamp((vec2f(invocation.xy) + offset) / uniforms.virtualSize, vec2f(0.0), vec2f(1.0));
+			let imagePosition = clamp(grid_to_image(vec2f(invocation.xy) + offset), vec2f(0.0), vec2f(1.0));
 			color += read_input(imagePosition * vec2f(2.0, -2.0) + vec2f(-1.0, 1.0));
 		}
 	}

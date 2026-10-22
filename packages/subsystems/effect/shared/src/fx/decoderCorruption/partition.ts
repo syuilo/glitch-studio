@@ -1,5 +1,5 @@
 export const maximumPredictionBlockSamples = 16;
-export const maximumSubdivisionLevels = 2;
+export const maximumSubdivisionLevels = 4;
 
 export type DecoderPartitionSettings = {
 	packetColumns: number;
@@ -23,11 +23,14 @@ function hash32(value: number): number {
 /** 画素やGPUを参照せず、独立した再同期区画と、その中を復号する順番だけを作る。 */
 export function createDecoderPartition(settings: DecoderPartitionSettings): Uint32Array {
 	const packetCount = settings.packetColumns * settings.packetRows;
+	const centerPacketOriginX = (settings.packetColumns - 1) / 2 * settings.packetWidth * maximumPredictionBlockSamples;
+	const centerPacketOriginY = (settings.packetRows - 1) / 2 * settings.packetHeight * maximumPredictionBlockSamples;
 	// 先頭に各区画の開始位置・葉の個数を置き、その後に葉のx・y・一辺・識別子を並べる。
-	// 識別子はバッファの添字ではなく絶対座標から作り、画像の列数による乱数の入れ替わりを避ける。
+	// 識別子は中央区画からの相対座標で作る。描画範囲を覆う区画数が増減しても、
+	// 中央付近の葉の分割や破損位置が入れ替わらず、同じパターンを中央から拡縮できるようにする。
 	const descriptors: number[] = new Array<number>(packetCount * 4).fill(0);
 	const appendBlock = (x: number, y: number, size: number, depth: number): void => {
-		const identity = hash32(Math.imul(x, 0x9e3779b9) ^ Math.imul(y, 0x85ebca6b) ^ Math.imul(size, 0xc2b2ae35));
+		const identity = hash32(Math.imul(x - centerPacketOriginX, 0x9e3779b9) ^ Math.imul(y - centerPacketOriginY, 0x85ebca6b) ^ Math.imul(size, 0xc2b2ae35));
 		const split = (hash32(identity ^ settings.seed ^ 0x68bc21eb) >>> 8) / 16777216;
 		if (depth < settings.subdivisions && split < settings.splitProbability) {
 			const halfSize = size / 2;

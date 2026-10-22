@@ -16,7 +16,6 @@ struct Uniforms {
 	residualNoise: f32,
 	propagation: f32,
 	recoveryProbability: f32,
-	strength: f32,
 	preserveDetails: u32,
 	seed: u32,
 };
@@ -30,6 +29,16 @@ struct DecodedSample {
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
+// 取得・出力の両方で、画像中央と計算領域中央を重ねた同じ変換を使う。
+// 区画数を奇数に保つことで、計算領域が増減しても中央区画の格子の位相を変えない。
+fn image_to_grid(imagePosition: vec2f) -> vec2f {
+	return (imagePosition - vec2f(0.5)) * uniforms.virtualSize + vec2f(uniforms.gridSize) * 0.5;
+}
+
+fn grid_to_image(gridPosition: vec2f) -> vec2f {
+	return (gridPosition - vec2f(uniforms.gridSize) * 0.5) / uniforms.virtualSize + vec2f(0.5);
+}
 
 fn sample_index(point: vec2u) -> u32 {
 	return point.y * uniforms.gridSize.x + point.x;

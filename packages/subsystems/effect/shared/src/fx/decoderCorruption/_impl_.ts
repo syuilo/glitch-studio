@@ -82,21 +82,25 @@ export default implementEffect<typeof definition>({
 			}
 			return variant;
 		};
-		const getGeometry = (blockSize: number, packetWidth: number, packetHeight: number) => {
+		const getGeometry = (blockSize: number, packetWidth: number, packetHeight: number, subdivisions: number) => {
 			if (blockSize <= 0) throw new Error('Decoder corruption: maximum block size must be positive.');
 			// 最大ブロックを仮想画像上の16サンプルへ対応付ける。論理寸法は丸めず、
 			// 出力解像度や縦横比が変わっても正方形のブロックと同じ相対寸法を維持する。
 			const scale = maximumPredictionBlockSamples * 100 / blockSize / Math.min(resolution.width, resolution.height);
 			const virtualSize = [resolution.width * scale, resolution.height * scale];
 			const packetSize = [packetWidth * maximumPredictionBlockSamples, packetHeight * maximumPredictionBlockSamples];
-			const packetColumns = Math.ceil(virtualSize[0] / packetSize[0]);
-			const packetRows = Math.ceil(virtualSize[1] / packetSize[1]);
+			// 中央区画の中心を画像中央へ固定する。単にceilした個数で中央寄せすると、
+			// 偶奇の切り替わりで半区画ずれるため、両側へ同数ずつ追加して常に奇数個にする。
+			const packetColumns = 2 * Math.ceil(Math.max(0, virtualSize[0] / packetSize[0] - 1) / 2) + 1;
+			const packetRows = 2 * Math.ceil(Math.max(0, virtualSize[1] / packetSize[1] - 1) / 2) + 1;
 			const width = packetColumns * packetSize[0];
 			const height = packetRows * packetSize[1];
 			const sampleCount = width * height;
 			const originalByteLength = sampleCount * 16;
 			const decodedByteLength = sampleCount * 32;
-			const minimumBlockSamples = maximumPredictionBlockSamples / 2 ** maximumSubdivisionLevels;
+			// 細分化の上限を引き上げても、浅い設定で全段階分の記述領域を確保しない。
+			// 指定された深さで全ブロックが分割された場合の容量だけを用意する。
+			const minimumBlockSamples = maximumPredictionBlockSamples / 2 ** subdivisions;
 			const descriptorByteLength = (packetColumns * packetRows + sampleCount / minimumBlockSamples ** 2) * 16;
 			const maximumBufferLength = Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize);
 			if (![originalByteLength, decodedByteLength, descriptorByteLength].every(size => Number.isSafeInteger(size) && size > 0 && size <= maximumBufferLength)
@@ -106,7 +110,7 @@ export default implementEffect<typeof definition>({
 				throw new Error('Decoder corruption: virtual image exceeds GPU resource limits. Increase Maximum block size.');
 			}
 			return {
-				key: JSON.stringify([width, height, packetWidth, packetHeight]),
+				key: JSON.stringify([width, height, packetWidth, packetHeight, subdivisions]),
 				virtualSize,
 				packetSize,
 				packetColumns,
@@ -156,7 +160,8 @@ export default implementEffect<typeof definition>({
 				}
 				const packetWidth = clamp(Math.round(params.packetWidth), 1, 8);
 				const packetHeight = clamp(Math.round(params.packetHeight), 1, 8);
-				const geometry = getGeometry(params.blockSize, packetWidth, packetHeight);
+				const subdivisions = clamp(Math.round(params.subdivisions), 0, maximumSubdivisionLevels);
+				const geometry = getGeometry(params.blockSize, packetWidth, packetHeight, subdivisions);
 				if (resources == null || resources.geometryKey !== geometry.key) {
 					const next = createResources(geometry);
 					resources?.dispose();
@@ -165,13 +170,11 @@ export default implementEffect<typeof definition>({
 				}
 				seedValue[0] = params.seed;
 				const seed = (seedWords[0] ^ seedWords[1]) >>> 0;
-				const strength = clamp(params.strength, 0, 1);
 				const corruptionProbability = clamp(params.corruptionProbability, 0, 1);
-				const enabled = strength > 0 && corruptionProbability > 0;
+				const enabled = corruptionProbability > 0;
 				if (enabled) {
-					const subdivisions = clamp(Math.round(params.subdivisions), 0, maximumSubdivisionLevels);
 					const splitProbability = clamp(params.splitProbability, 0, 1);
-					const nextPartitionKey = JSON.stringify([geometry.key, subdivisions, splitProbability, seed]);
+					const nextPartitionKey = JSON.stringify([geometry.key, splitProbability, seed]);
 					if (partitionKey !== nextPartitionKey) {
 						const descriptors = createDecoderPartition({
 							packetColumns: geometry.packetColumns,
@@ -212,7 +215,6 @@ export default implementEffect<typeof definition>({
 					residualNoise: clamp(params.residualNoise, 0, 1),
 					propagation: clamp(params.propagation, 0, 1),
 					recoveryProbability: clamp(params.recoveryProbability, 0, 1),
-					strength,
 					preserveDetails: Number(params.preserveDetails),
 					seed,
 				});
