@@ -18,8 +18,8 @@ description: パラメータについて
 | **Literal** | すべて | スライダー・数値欄・色選択などで固定値を設定する |
 | **Environment Variable** | すべて | 現在時刻など、変数を参照する |
 | **Expression** | すべて | 式を評価する |
-| **Automation Graph (Inline)** | すべて | カーブを使う |
-| **Automation Graph (Reference)** | すべて | カーブを参照する |
+| **Graph (Inline)** | すべて | カーブを使う |
+| **Graph (Reference)** | すべて | カーブを参照する |
 | **Node** | Visual Module | 別ノードの出力を受け取る |
 | **Custom Parameter** | Visual Module | カスタムパラメータを受け取る |
 | **Keyframes** | タイムライン | 時刻ごとに値を設定する |

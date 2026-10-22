@@ -341,6 +341,7 @@
 		"Timeline": "タイムライン",
 		"ProjectInfo": "プロジェクト情報",
 		"TimelineInspectorPanel": "タイムライン インスペクタ",
+		"AutomationGraphs": "グラフ",
 		"SwitchType": "パネルの種類を変更",
 		"GroupInTabs": "タブにまとめる",
 		"AddAbove": "上にパネルを追加",
@@ -692,8 +693,8 @@
 		"ExpressionModifierHelp": "VALUEで基準値を参照できます。",
 		"EmptyExpression": "式が未入力です。",
 		"Keyframes": "キーフレーム",
-		"AutomationGraphReference": "Automation Graph (参照)",
-		"AutomationGraphInline": "Automation Graph (インライン)",
+		"AutomationGraphReference": "グラフ (参照)",
+		"AutomationGraphInline": "グラフ (インライン)",
 		"LowerLayerAudio": "下のレイヤーの音声",
 		"AnotherLayerAudio": "別のレイヤーの音声",
 		"CustomParameter": "カスタムパラメータ",
@@ -706,7 +707,7 @@
 		"Disconnect": "接続を解除",
 		"Sampling": "サンプリング",
 		"Title": "パラメータ",
-		"AutomationGraph": "Automation Graph",
+		"AutomationGraph": "グラフ",
 		"AddElement": "要素を追加",
 		"SyntaxError": "構文エラーです！",
 		"EditGraph": "グラフを編集",
@@ -738,20 +739,21 @@
 		"Remove": "パラメータを削除"
 	},
 	"_AutomationGraph": {
-		"ProjectGraphs": "プロジェクト共通のAutomation Graph",
-		"LocalGraphs": "ローカルのAutomation Graph",
+		"ProjectGraphs": "プロジェクト共通のグラフ",
+		"LocalGraphs": "ローカルのグラフ",
 		"ReferenceName": "参照名",
 		"MissingGraph": "参照先が見つかりません",
 		"RenameHint": "GRAPH()内の参照名は自動で変更されません。",
-		"Empty": "Automation Graphを追加すると、複数のパラメータから同じ曲線を参照できます。",
-		"AddGraph": "Automation Graphを追加",
+		"Empty": "グラフを追加すると、複数のパラメータから同じ曲線を参照できます。",
+		"AddGraph": "グラフを追加",
 		"SnapHint": "刻み幅にスナップ (Shiftを押すと無効)",
 		"Snap": "スナップ",
 		"TimelineOffset": "タイムラインのオフセット",
 		"Cursor": "カーソル",
 		"Current": "現在値",
 		"Title": "グラフエディター",
-		"InlineGraph": "インライングラフ"
+		"InlineGraph": "インライングラフ",
+		"Graph": "グラフ"
 	},
 	"_Webcam": {
 		"Title": "Webカメラ",
@@ -782,5 +784,6 @@
 	"Total": "合計",
 	"Replace": "置き換え",
 	"Import": "インポート",
-	"Search": "検索"
+	"Search": "検索",
+	"Metadata": "メタデータ"
 }

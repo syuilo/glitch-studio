@@ -1,8 +1,8 @@
-import { i18n } from '@/i18n.ts';
 import { genId } from '@gs/shared/utility/id.js';
 import { markRaw } from 'vue';
 import { findWorkspaceElement, removeWorkspaceElement, replaceWorkspaceElement, splitAndAddWorkspacePanel } from './utility/workspace.ts';
 import type { MenuItem } from './types/menu.ts';
+import { i18n } from '@/i18n.ts';
 import { preferences } from '@/preferences.ts';
 import XBlank from '@/components/GsWorkspacePanel.Blank.vue';
 import XPreview from '@/components/GsWorkspacePanel.Preview.vue';
@@ -22,7 +22,6 @@ import XProjectInfo from '@/components/GsWorkspacePanel.ProjectInfo.vue';
 import XTimelineInspectorPanel from '@/components/GsWorkspacePanel.TimelineInspectorPanel.vue';
 
 const panelDefinitions = {
-	automationGraphs: { label: i18n.ts._AutomationGraph.ProjectGraphs, icon: 'ti ti-ease-in-out-control-points', component: XAutomationGraphs },
 	blank: { label: i18n.ts._Workspace.Blank, icon: '', component: XBlank },
 	audioSpectrum: { label: i18n.ts._Workspace.AudioSpectrum, icon: 'ti ti-chart-column', component: XAudioSpectrum },
 	audioSpectrogram: { label: i18n.ts._Workspace.AudioSpectrogram, icon: 'ti ti-chart-area', component: XAudioSpectrogram },
@@ -39,6 +38,7 @@ const panelDefinitions = {
 	assets: { label: i18n.ts.Assets, icon: 'ti ti-folder-open', component: XAssets },
 	projectInfo: { label: i18n.ts._Workspace.ProjectInfo, icon: 'ti ti-file-description', component: XProjectInfo },
 	timelineInspectorPanel: { label: i18n.ts._Workspace.TimelineInspectorPanel, icon: 'ti ti-layout-sidebar-right', component: XTimelineInspectorPanel },
+	automationGraphs: { label: i18n.ts._Workspace.AutomationGraphs, icon: 'ti ti-ease-in-out-control-points', component: XAutomationGraphs },
 } as const;
 
 export const workspacePanelDefinitions: typeof panelDefinitions = markRaw(panelDefinitions);

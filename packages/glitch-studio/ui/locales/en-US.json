@@ -341,6 +341,7 @@
 		"Timeline": "Timeline",
 		"ProjectInfo": "Project Info",
 		"TimelineInspectorPanel": "Timeline Inspector Panel",
+		"AutomationGraphs": "Graphs",
 		"SwitchType": "Switch type to",
 		"GroupInTabs": "Group in tabs",
 		"AddAbove": "Add panel to above",
@@ -692,8 +693,8 @@
 		"ExpressionModifierHelp": "VALUE is the base value before this expression.",
 		"EmptyExpression": "Expression is empty.",
 		"Keyframes": "Keyframes",
-		"AutomationGraphReference": "Automation Graph (Reference)",
-		"AutomationGraphInline": "Automation Graph (Inline)",
+		"AutomationGraphReference": "Graph (Reference)",
+		"AutomationGraphInline": "Graph (Inline)",
 		"LowerLayerAudio": "Audio From Layers Below",
 		"AnotherLayerAudio": "Audio From Another Layer",
 		"CustomParameter": "Custom Parameter",
@@ -738,20 +739,21 @@
 		"Remove": "Remove parameter"
 	},
 	"_AutomationGraph": {
-		"ProjectGraphs": "Project Automation Graphs",
-		"LocalGraphs": "Local Automation Graphs",
+		"ProjectGraphs": "Project Graphs",
+		"LocalGraphs": "Local Graphs",
 		"ReferenceName": "Reference name",
 		"MissingGraph": "Referenced graph not found",
 		"RenameHint": "References inside GRAPH() expressions are not renamed automatically.",
-		"Empty": "Add an Automation Graph to share a curve across parameters.",
-		"AddGraph": "Add Automation Graph",
+		"Empty": "Add a Graph to share a curve across parameters.",
+		"AddGraph": "Add Graph",
 		"SnapHint": "Snap to step (hold Shift to disable)",
 		"Snap": "Snap",
 		"TimelineOffset": "TL Offset",
 		"Cursor": "Cursor",
 		"Current": "Current",
 		"Title": "Graph Editor",
-		"InlineGraph": "Inline graph"
+		"InlineGraph": "Inline graph",
+		"Graph": "Graph"
 	},
 	"_Webcam": {
 		"Title": "Webcam",
@@ -782,5 +784,6 @@
 	"Total": "Total",
 	"Replace": "Replace",
 	"Import": "Import",
-	"Search": "Search"
+	"Search": "Search",
+	"Metadata": "Metadata"
 }

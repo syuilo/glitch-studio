@@ -123,7 +123,6 @@ const emit = defineEmits<{
 	requestExport: [];
 }>();
 
-const tab = ref('nodes');
 const assetDrop = useAssetDrop({
 	target: useTemplateRef<HTMLElement>('root'),
 	enabled: () => props.assetDropActions != null,
@@ -131,6 +130,8 @@ const assetDrop = useAssetDrop({
 	dropAsset: async assetId => { if (await props.assetDropActions?.dropAsset(assetId) === true) tab.value = 'nodes'; },
 	reportError: error => { void ui.alert({ type: 'error', title: i18n.ts._VisualModule.Drop, text: error instanceof Error ? error.message : String(error) }); },
 });
+
+const tab = ref('nodes');
 const tabs = [
 	{ id: 'nodes', label: i18n.ts._VisualModule.Nodes },
 	{ id: 'inputs', label: i18n.ts._VisualModule.InputDefs },
