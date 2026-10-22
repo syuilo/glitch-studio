@@ -163,8 +163,8 @@ export default implementEffect<typeof definition>({
 				if (Object.values(params).some(value => typeof value === 'number' && !Number.isFinite(value))) {
 					throw new Error('Decoder corruption: numeric parameters must be finite.');
 				}
-				const packetWidth = clamp(Math.round(params.packetWidth), 1, 8);
-				const packetHeight = clamp(Math.round(params.packetHeight), 1, 8);
+				const packetWidth = clamp(Math.round(params.packetWidth), 1, 32);
+				const packetHeight = clamp(Math.round(params.packetHeight), 1, 32);
 				const subdivisions = clamp(Math.round(params.subdivisions), 0, maximumSubdivisionLevels);
 				const originAtCenter = params.blockOrigin === 'center';
 				const geometry = getGeometry(params.blockSize, packetWidth, packetHeight, subdivisions, originAtCenter);

@@ -20,7 +20,7 @@ export default defineEffect({
 		},
 		blockSize: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Maximum Block Size (% of Short Side)', control: { controlType: 'range', min: 1, max: 20, step: 0.1 } },
+			ui: { label: 'Maximum Block Size (% of Short Side)', control: { controlType: 'range', min: 2, max: 20, step: 0.1 } },
 			defaultValue: { inputSource: 'literal', value: 4 },
 		},
 		blockOrigin: {
@@ -40,12 +40,12 @@ export default defineEffect({
 		},
 		packetWidth: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Resync Width (Maximum Blocks)', control: { controlType: 'range', min: 1, max: 8, step: 1 } },
+			ui: { label: 'Resync Width (Maximum Blocks)', control: { controlType: 'range', min: 1, max: 32, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 8 },
 		},
 		packetHeight: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Resync Height (Maximum Blocks)', control: { controlType: 'range', min: 1, max: 8, step: 1 } },
+			ui: { label: 'Resync Height (Maximum Blocks)', control: { controlType: 'range', min: 1, max: 32, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 8 },
 		},
 		predictionMode: {
