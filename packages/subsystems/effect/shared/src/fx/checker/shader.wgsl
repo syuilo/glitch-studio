@@ -13,7 +13,7 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
-	let angle = read_angle(fragData.position) * 3.141592653589793;
+	let angle = read_angle(fragData.position) * 6.283185307179586;
 	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
 	let density = max(read_density(fragData.position), vec2f(1.0));
 	// 各軸2マスで1周期。Stretch・Density=[1, 1]・Angle=0なら1周期が画面全体を覆う。

@@ -31,7 +31,7 @@ export default implementEffect<typeof definition>({
 			render: ctx => {
 				uniformValues.set({
 					amount: ctx.params.amount,
-					rotation: -(ctx.params.rotation ?? 0) * Math.PI,
+					rotation: -(ctx.params.rotation ?? 0) * (2 * Math.PI),
 					flipX: ctx.params.flipX ? -1 : 1,
 					flipY: ctx.params.flipY ? -1 : 1,
 					aspectRatio: resolution.width / resolution.height,

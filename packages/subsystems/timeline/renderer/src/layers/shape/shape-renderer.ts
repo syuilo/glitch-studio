@@ -31,8 +31,9 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 			const inside = shape.strokeAlignment === 'inside' ? shape.strokeWidth : shape.strokeAlignment === 'center' ? shape.strokeWidth / 2 : 0;
 			// 回転前の外周を囲う矩形を回転する。Scene外の位置でも同じ画素密度で描く。
 			const outside = shape.strokeWidth - inside + 2 / resolution.height;
-			const c = Math.abs(Math.cos(shape.rotation * Math.PI));
-			const s = Math.abs(Math.sin(shape.rotation * Math.PI));
+			const rotation = shape.rotation * (2 * Math.PI);
+			const c = Math.abs(Math.cos(rotation));
+			const s = Math.abs(Math.sin(rotation));
 			const extentX = (c * (shape.size[0] / 2 + outside) + s * (shape.size[1] / 2 + outside)) * 2 * resolution.height / resolution.width;
 			const extentY = (s * (shape.size[0] / 2 + outside) + c * (shape.size[1] / 2 + outside)) * 2;
 			const bounds = {
@@ -57,7 +58,7 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 				halfSize: shape.size.map(value => value / 2),
 				fillColor: shape.fillColor,
 				strokeColor: shape.strokeColor,
-				rotation: shape.rotation * Math.PI,
+				rotation,
 				cornerRadius: shape.type === 'rectangle' ? shape.cornerRadius : 0,
 				strokeInside: inside,
 				strokeOutside: shape.strokeWidth - inside,

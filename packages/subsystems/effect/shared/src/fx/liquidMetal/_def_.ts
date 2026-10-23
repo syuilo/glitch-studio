@@ -99,7 +99,7 @@ export default defineEffect({
 			},
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
-		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 70 / 180 } },
+		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 70 / 360 } },
 		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		speed: { dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
 		frame: { dataType: { kind: 'scalar' }, ui: { label: 'Frame Offset (ms)', control: { controlType: 'number', step: 1 } }, defaultValue: { inputSource: 'literal', value: 0 } },

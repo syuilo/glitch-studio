@@ -8,7 +8,8 @@ type DataTypeUiControlDefinition_Scalar =
 	| { controlType: 'number'; min?: number; max?: number; step?: number }
 	// logarithmicは0 < min < maxで使用する。UI座標だけを対数変換し、値側のstepは適用しない。
 	| { controlType: 'range'; min: number; max: number; step?: number; logarithmic?: boolean }
-	// -1〜+1を-180〜+180度として表示する。保存値の規約はコントロールによらない。
+	// 1を1周とするturn単位。式・ノード入力・保存値もturnで扱い、UIでは度を併記する。
+	// 複数周の情報を失わないよう、コントロールや共通の値評価では折り返さない。
 	| { controlType: 'angle'; step?: number }
 	| { controlType: 'seed' };
 

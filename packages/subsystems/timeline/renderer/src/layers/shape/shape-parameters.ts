@@ -31,7 +31,7 @@ export class ShapeParameters {
 		};
 		const common = {
 			position: components(values.position, 2) as [number, number],
-			rotation: number(values.rotation) % 2,
+			rotation: number(values.rotation) % 1,
 			fillColor: color(values.fillColor, values.fillEnabled),
 			strokeColor: color(values.strokeColor, values.strokeEnabled),
 			strokeWidth: values.strokeEnabled === true ? Math.max(0, number(values.strokeWidth)) : 0,

@@ -25,7 +25,7 @@
 	<div v-else-if="scalarControl?.controlType === 'angle'">
 		<GsAngle
 			:modelValue="value"
-			:step="scalarControl.step ?? 0.125"
+			:step="scalarControl.step ?? 0.0625"
 			@beginChanging="onBeginChanging"
 			@update:modelValue="changeContinuous"
 			@changeFinished="onFinishChanging"

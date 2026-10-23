@@ -10,6 +10,7 @@ export type TimelineLayerTransform = {
 	position: TimelinePoint;
 	origin: TimelinePoint;
 	scale: TimelinePoint;
+	/** 時計回りを正とするturn単位。複数周の値も保持する。 */
 	rotation: number;
 	fitMode: FitMode;
 };
@@ -31,7 +32,7 @@ export function getTimelineFittedExtent(sourceSize: Resolution, sceneSize: Resol
 /** 中央原点・上向きYのScene座標。回転する距離だけを画素の縦横比へ揃える。 */
 export function rotateTimelineVector(vector: TimelinePoint, rotation: number, sceneSize: Resolution): TimelinePoint {
 	const aspect = sceneSize.width / sceneSize.height;
-	const angle = rotation * Math.PI;
+	const angle = rotation * (2 * Math.PI);
 	const c = Math.cos(angle);
 	const s = Math.sin(angle);
 	return [c * vector[0] + s * vector[1] / aspect, -s * vector[0] * aspect + c * vector[1]];

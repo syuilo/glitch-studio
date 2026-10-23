@@ -28,7 +28,7 @@ fn hexEdgeDistance(position: vec2f) -> f32 {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
-	let angle = read_angle(fragData.position) * 3.141592653589793;
+	let angle = read_angle(fragData.position) * 6.283185307179586;
 	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
 	let density = max(read_density(fragData.position), vec2f(1.0));
 	// 六角セルでは対辺間距離を基準寸法 / Densityとする。

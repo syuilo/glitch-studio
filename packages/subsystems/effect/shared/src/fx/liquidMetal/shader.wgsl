@@ -123,7 +123,7 @@ fn fs(frag: FragmentIn) -> @location(0) vec4f {
   var edge = 0.0;
 
   var rotatedUV = uv - vec2f(0.5);
-  var angle = (-uniforms.angle + 70.0 / 180.0) * PI;
+  var angle = (-uniforms.angle + 70.0 / 360.0) * (2.0 * PI);
   var cosA = cos(angle);
   var sinA = sin(angle);
   rotatedUV = vec2f(

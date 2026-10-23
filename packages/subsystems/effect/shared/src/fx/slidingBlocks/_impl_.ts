@@ -243,7 +243,7 @@ export default implementEffect<typeof definition>({
 					motionSpeedThreshold: Math.max(0, params.motionSpeedThreshold) / 100,
 					matchThreshold: Math.max(0.000001, params.matchThreshold), spawnRate: Math.max(0, params.spawnRate),
 					lifetime: Math.max(0, params.lifetime) / 1000, lifetimeRandomness: clamp(params.lifetimeRandomness, 0, 1),
-					velocityStrength: params.velocityStrength, motionRotation: -params.motionRotation * Math.PI,
+					velocityStrength: params.velocityStrength, motionRotation: -params.motionRotation * (2 * Math.PI),
 					driftSpeed: Math.max(0, params.driftSpeed) / 100, drag: Math.max(0, params.drag),
 					cooldown: Math.max(0, params.cooldown) / 1000, fadeOut: clamp(params.fadeOut, 0, 1),
 					amount: clamp(params.amount, 0, 1), backgroundMode: backgroundModes[params.background],

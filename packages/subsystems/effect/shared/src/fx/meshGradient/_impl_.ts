@@ -36,7 +36,7 @@ export default implementEffect<typeof definition>({
 					coordinateScale: ctx.params.fitMode === 'stretch' ? [1, 1] : [output.width / extent, output.height / extent],
 					offset: ctx.params.offset,
 					scale: Math.max(0.01, ctx.params.scale),
-					angle: ctx.params.angle * Math.PI,
+					angle: ctx.params.angle * (2 * Math.PI),
 					time: ctx.params.time,
 					distortion: Math.max(0, Math.min(1, ctx.params.distortion)),
 					swirl: Math.max(0, Math.min(1, ctx.params.swirl)),

@@ -157,7 +157,7 @@ export default implementEffect<typeof definition>({
 				const retention = clamp(params.retention, 0, 1);
 				const sourceProbability = clamp(params.sourceProbability, 0, 1);
 				const sourceSize = clamp(params.sourceSize, 0, 1);
-				const angle = params.angle * Math.PI;
+				const angle = params.angle * (2 * Math.PI);
 				seedValue[0] = params.seed;
 				uniformValues.set({
 					virtualSize: geometry.virtualSize,

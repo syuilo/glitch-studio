@@ -21,9 +21,9 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// 1未満は1として扱い、画素数による下限や密度の上限は設けない。
 	let cellSize = 2.0 * (extent / uniforms.resolution) / density;
 
-	// 1 = 180度、正の角度は時計回り。物理的な縦横の単位を揃えてから
+	// 1 = 1周、正の角度は時計回り。物理的な縦横の単位を揃えてから
 	// 逆回転してセルを特定し、サンプル位置は順回転して元画像へ戻す。
-	let rotation = -read_rotation(position) * 3.141592653589793;
+	let rotation = -read_rotation(position) * 6.283185307179586;
 	let cosine = cos(rotation);
 	let sine = sin(rotation);
 	let physicalPosition = position * uniforms.resolution;

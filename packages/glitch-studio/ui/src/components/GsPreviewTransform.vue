@@ -185,8 +185,8 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 			transform = { ...initial.transform, position: [initial.transform.position[0] + delta[0], initial.transform.position[1] + delta[1]] };
 			if (snap.value && delta.some(value => value !== 0)) transform = snapPreviewLayerMove({ ...initial, transform }, rect, initial.parents);
 		} else if (handle === 'rotate') {
-			let rotation = initial.transform.rotation + accumulatedAngle / Math.PI;
-			if (latest.shift) rotation = Math.round(rotation * 12) / 12;
+			let rotation = initial.transform.rotation + accumulatedAngle / (2 * Math.PI);
+			if (latest.shift) rotation = Math.round(rotation * 24) / 24;
 			transform = { ...initial.transform, rotation };
 		} else {
 			transform = resizePreviewLayer(initial, handle, delta, keepRatio.value, latest.alt);

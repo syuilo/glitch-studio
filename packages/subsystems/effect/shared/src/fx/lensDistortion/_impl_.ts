@@ -34,7 +34,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					// レンズは出力領域を基準にする。入力自身の比率とfitはread_inputへ任せる。
 					aspectRatio: output.width / output.height,
-					angle: ctx.params.angle * Math.PI,
+					angle: ctx.params.angle * (2 * Math.PI),
 					spread: Math.max(0, Math.min(1, ctx.params.spread)),
 					bias: Math.max(-1, Math.min(1, ctx.params.bias)),
 					perspective: Math.max(0, Math.min(1, ctx.params.perspective)),

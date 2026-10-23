@@ -2,10 +2,11 @@
 <div ref="rootEl" :class="$style.root">
 	<GsButton :class="$style.open" :primary="anglePadOpened" iconOnly icon="ti ti-angle" @click="openAnglePad"/>
 	<GsRange
+		v-if="value >= -0.5 && value <= 0.5"
 		:class="$style.slider"
 		:modelValue="value"
-		:min="-1"
-		:max="1"
+		:min="-0.5"
+		:max="0.5"
 		:step="step"
 		:textConverter="formatAngle"
 		:continuousUpdate="true"
@@ -13,6 +14,18 @@
 		@beginChanging="emit('beginChanging')"
 		@changeFinished="emit('changeFinished')"
 	/>
+	<GsInput
+		v-else
+		:class="$style.slider"
+		type="number"
+		:modelValue="value * 360"
+		:step="step * 360"
+		@focusin="emit('beginChanging')"
+		@update:modelValue="setValue($event / 360)"
+		@focusout="emit('changeFinished')"
+	>
+		<template #suffix>°</template>
+	</GsInput>
 	<Teleport to="body">
 		<GsModal
 			v-if="anglePadOpened"
@@ -36,13 +49,16 @@
 					@pointercancel="onPointerCancel"
 					@lostpointercapture="onPointerCancel"
 				>
-					<div :class="$style.needle" :style="{ transform: `rotate(${value * 180}deg)` }">
+					<div :class="$style.needle" :style="{ transform: `rotate(${value}turn)` }">
 						<div :class="$style.knob"></div>
 					</div>
 					<div :class="$style.center"></div>
 				</div>
 				<div :class="$style.control">
 					<div :class="$style.value">{{ formatAngle(value) }}</div>
+					<GsInput type="number" :modelValue="value * 360" :step="step * 360" @update:modelValue="setValue($event / 360)">
+						<template #suffix>°</template>
+					</GsInput>
 					<GsButton :primary="snapEnabled" :title="i18n.ts._AutomationGraph.SnapHint" @click="snapEnabled = !snapEnabled">
 						{{ i18n.ts._AutomationGraph.Snap }} {{ snapEnabled ? i18n.ts.On : i18n.ts.Off }}
 					</GsButton>
@@ -56,6 +72,7 @@
 <script lang="ts" setup>
 import { onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import GsButton from './GsButton.vue';
+import GsInput from './GsInput.vue';
 import GsModal from './GsModal.vue';
 import GsRange from './GsRange.vue';
 import { i18n } from '@/i18n.ts';
@@ -63,7 +80,7 @@ import { i18n } from '@/i18n.ts';
 const props = withDefaults(defineProps<{
 	modelValue: number;
 	step?: number;
-}>(), { step: 0.001 });
+}>(), { step: 0.0005 });
 
 const emit = defineEmits<{
 	(ev: 'update:modelValue', value: number): void;
@@ -110,12 +127,13 @@ function updateFromPointer(event: PointerEvent) {
 	// 中心付近では方向が定まらず小さな移動で角度が跳ねるため、現在値を維持する。
 	if (Math.hypot(x, y) < 2) return;
 
-	// 上を0、時計回りを正にし、従来と同じく1を180度として扱う。
-	let angle = Math.atan2(x, -y) / Math.PI;
+	// 上を0、時計回りを正とするturn単位へ変換する。
+	const pointerAngle = Math.atan2(x, -y) / (2 * Math.PI);
+	// 現在値に最も近い周回を選ぶ。atan2の境界を跨いでも連続し、既存の複数周も失わない。
+	let angle = pointerAngle + Math.round(value.value - pointerAngle);
 	if (snapEnabled.value && !event.shiftKey && Number.isFinite(props.step) && props.step > 0) {
 		angle = Number((Math.round(angle / props.step) * props.step).toFixed(10));
 	}
-	angle = Math.min(1, Math.max(-1, angle));
 	if (value.value === angle) return;
 	setValue(angle);
 }
@@ -156,7 +174,7 @@ function finishDrag() {
 onBeforeUnmount(closeAnglePad);
 
 function formatAngle(value: number): string {
-	return `${Math.round(value * 1000) / 1000} (${Math.round(value * 1800) / 10}°)`;
+	return `${Math.round(value * 10000) / 10000} turn (${Math.round(value * 3600) / 10}°)`;
 }
 </script>
 

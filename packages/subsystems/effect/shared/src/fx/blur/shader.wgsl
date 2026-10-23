@@ -25,9 +25,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		return read_input(fragData.uv);
 	}
 
-	// 角度は既存のangleコントロールと同じく1 = 180度。
+	// 角度入力のturn単位（1で1周）を、三角関数のラジアンへ変換する。
 	// +Yが上の座標系で時計回りに回すため符号を反転し、三角関数はループ外で計算する。
-	let rotation = -read_rotation(fragData.uv) * 3.141592653589793;
+	let rotation = -read_rotation(fragData.uv) * 6.283185307179586;
 	let cosine = cos(rotation);
 	let sine = sin(rotation);
 	// 縦横とも従来のAmountと同じ距離単位で伸縮・回転してから比率を補正する。

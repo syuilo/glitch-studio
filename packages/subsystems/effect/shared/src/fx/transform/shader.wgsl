@@ -11,7 +11,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let translation = read_translation(position);
 	let scale = read_scale(position);
 	// +Yが上の座標系なので、時計回りの角度は符号を反転する。
-	let rotation = -read_rotation(position) * 3.141592653589793;
+	let rotation = -read_rotation(position) * 6.283185307179586;
 	// いずれかの軸が潰れた場合は逆変換できないため、透明とする。
 	if (any(abs(scale) < vec2f(0.000001))) {
 		return vec4f(0.0);

@@ -68,7 +68,7 @@ export default implementEffect<typeof definition>({
 					coordinateScale: ctx.params.fitMode === 'stretch' ? [1, 1] : [output.width / extent, output.height / extent],
 					offset: ctx.params.offset,
 					density: Math.max(1, ctx.params.density),
-					angle: ctx.params.angle * Math.PI,
+					angle: ctx.params.angle * fullTurn,
 					brightness: Math.max(0, Math.min(1, ctx.params.brightness)),
 					contrast: Math.max(0, Math.min(1, ctx.params.contrast)),
 					phases,

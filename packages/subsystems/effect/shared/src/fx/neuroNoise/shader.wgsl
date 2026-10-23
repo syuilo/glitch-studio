@@ -44,7 +44,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// Fit Modeの基準領域全体を1単位とし、Densityを直接掛ける。
 	// 非周期の多層ノイズなので、周期数ではなく基準座標の密度を表す。
 	// 旧Scale=1の座標倍率1.3はDensityの初期値へ移し、見た目を保つ。
-	// offsetは半幅・半高さが1、Angleは1で時計回り180度というアプリの単位。
+	// offsetは半幅・半高さが1、Angleは1で時計回り1周というアプリの単位。
 	let shapeUV = rotate((position - uniforms.offset) * uniforms.coordinateScale * 0.5, uniforms.angle) * uniforms.density;
 	var intensity = neuroShape(shapeUV);
 	intensity = (1.0 + uniforms.brightness) * intensity * intensity;

@@ -63,7 +63,7 @@ export default implementEffect<typeof definition>({
 					mode: ctx.params.mode === 'radial' ? 1 : 0,
 					center: ctx.params.center,
 					fitMode: { stretch: 0, cover: 1, contain: 2 }[ctx.params.fitMode],
-					angle: ctx.params.angle * Math.PI, // 正の角度で時計回り
+					angle: ctx.params.angle * (2 * Math.PI), // turnをラジアンへ変換。正の角度で時計回り。
 					clampEdge: ctx.params.clampEdge ? 1 : 0,
 					mirrorRepeat: ctx.params.mirrorRepeat ? 1 : 0,
 					interpolation: {

@@ -50,8 +50,8 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let brightness = read_brightness(position);
 	let lightness = read_lightness(position);
 	let contrast = read_contrast(position);
-	// Angleの1は180度。HSLの色相は1周が1なので、移植元と同じく半分にする。
-	let hue = read_hue(position) * 0.5;
+	// 角度入力とHSLの色相は、どちらも1を1周とするturn単位。
+	let hue = read_hue(position);
 	let saturation = read_saturation(position);
 	// 色調整は未乗算RGBで行う。透明画素は除算せず、明度の加算で色が漏れることも防ぐ。
 	if (input.a <= 0.0) { return vec4f(0.0); }
