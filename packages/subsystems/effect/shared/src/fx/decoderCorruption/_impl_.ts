@@ -129,7 +129,7 @@ export default implementEffect<typeof definition>({
 		};
 		const createResources = (geometry: ReturnType<typeof getGeometry>) => {
 			const buffers: GPUBuffer[] = [];
-			const createBuffer = (size: number, usage = GPUBufferUsage.STORAGE) => {
+			const createBuffer = (size: number, usage: GPUBufferUsageFlags = GPUBufferUsage.STORAGE) => {
 				const buffer = device.createBuffer({ size, usage });
 				buffers.push(buffer);
 				return buffer;
