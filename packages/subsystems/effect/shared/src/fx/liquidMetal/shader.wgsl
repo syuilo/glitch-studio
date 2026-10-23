@@ -14,7 +14,7 @@ struct Uniforms {
 	shiftBlue: f32, // B-channel dispersion (-1 to 1)
 	distortion: f32, // Noise distortion over the stripes pattern (0 to 1)
 	contour: f32, // Strength of the distortion on the shape edges (0 to 1)
-	angle: f32, // Direction of pattern animation in half turns (-1 to +1)
+	angle: f32, // Direction of pattern animation in turns (1 = full turn)
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var edgeSampler: sampler;

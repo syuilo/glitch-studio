@@ -173,7 +173,7 @@ test('propagates frame reference times through nested groups and trimmed scenes 
 test('renders all stroke alignments at scene resolution and evaluates subframe scene time', async t => {
 	const f = fixture(t);
 	await f.setup(['inside', 'center', 'outside'].map(alignment => layer(alignment, 'rectangle', {
-		position: expression('[TIME, 0]'), size: literal([0.6, 0.3]), rotation: literal(0.5),
+		position: expression('[TIME, 0]'), size: literal([0.6, 0.3]), rotation: literal(0.25),
 		strokeEnabled: literal(true), strokeWidth: literal(0.02), strokeAlignment: literal(alignment), cornerRadius: literal(10),
 	})));
 	await f.manager.renderTimelineFrame(350.25, 0);

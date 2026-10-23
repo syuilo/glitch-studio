@@ -1,7 +1,7 @@
 // Lens Distortion by Paper Design, Apache-2.0 (see LICENSE and NOTICE).
 // https://github.com/paper-design/shaders/blob/main/packages/shaders/src/shaders/lens-distortion.ts
 // Modified: GLSL -> WGSL, premultiplied ShaderInput, connection-controlled sampling,
-// output-based lens geometry, clockwise half-turn angles, resolution-independent grain.
+// output-based lens geometry, clockwise angles in turns, resolution-independent grain.
 // Noise-driven spread and image transforms removed.
 
 struct Uniforms {

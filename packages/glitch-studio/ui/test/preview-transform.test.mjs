@@ -64,7 +64,7 @@ test('edits base transform values while retaining modifiers and unmodified inser
 test('maps fitted source bounds and clockwise rotation on a rectangular scene', () => {
 	near(timelineSourceToScene([1, 1], geometry()), [0.5625, 1]);
 	near(timelineSourceToScene([1, 1], geometry({ fitMode: 'cover' })), [1, 1600 / 900]);
-	near(timelineSourceToScene([1, 0], geometry({ rotation: 0.5 })), [0, -1]);
+	near(timelineSourceToScene([1, 0], geometry({ rotation: 0.25 })), [0, -1]);
 	near(timelineSourceToScene([0.4, -0.6], geometry({ origin: [0.4, -0.6], position: [0.2, -0.1], rotation: 0.4 })), [0.2, -0.1]);
 });
 
@@ -151,7 +151,7 @@ test('uses screen distances through ancestor transforms for move and resize snap
 	const cases = [
 		{ parents: [parent({ scale: [10, 10] })], pixelsPerX: 4000 },
 		{ parents: [parent({ scale: [0.1, 0.1] })], pixelsPerX: 40 },
-		{ parents: [parent({ scale: [10, 0.1], rotation: 0.27 }), parent({ scale: [-1, 1], rotation: 0.5 })], pixelsPerX: 40 },
+		{ parents: [parent({ scale: [10, 0.1], rotation: 0.135 }), parent({ scale: [-1, 1], rotation: 0.25 })], pixelsPerX: 40 },
 	];
 	for (const { parents, pixelsPerX } of cases) for (const distance of [5, 7]) {
 		const initial = geometry({ fitMode: 'stretch', scale: [0.4, 0.3], position: [0.6 - distance / pixelsPerX, 0.13] });

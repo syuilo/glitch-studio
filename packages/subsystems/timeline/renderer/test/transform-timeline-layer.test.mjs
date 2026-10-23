@@ -107,7 +107,7 @@ test('inherits frozen clocks without freezing motion from higher ancestors', asy
 // 更新後も同じ子を使い、On screen用の行列にもせん断を残すことを確認する。
 test('passes composed scale and rotation to existing children without additional compositing', async () => {
 	const inner = transform('inner', [leaf('child')], [0.1, 0.2]);
-	inner.transformParamValues.rotation = literal(0.25);
+	inner.transformParamValues.rotation = literal(0.125);
 	const outer = transform('outer', [inner]);
 	outer.transformParamValues.scale = literal([2, 1]);
 	const f = fixture([outer]);

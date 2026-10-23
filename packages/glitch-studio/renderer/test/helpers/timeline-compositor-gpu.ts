@@ -138,7 +138,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		// 正のYは上方向。上下反転の取り違えを検出する。
 		await check('timeline positive y moves source upward', blue, red, { position: [0, 1] }, pixels((_, y) => y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		await check('timeline scale shrinks around canvas center', blue, red, { scale: [0.5, 0.5] }, pixels((x, y) => x >= 2 && x < 6 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
-		await check('timeline rotation respects rectangular aspect ratio', blue, red, { rotation: 0.5 }, pixels(x => x >= 2 && x < 6 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline rotation respects rectangular aspect ratio', blue, red, { rotation: 0.25 }, pixels(x => x >= 2 && x < 6 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【素材の右端を画面中央に配置する】
 		// 定数には画面サイズの素材枠を与える。originだけを変えても配置が動くことを確認する。
 		await check('timeline anchors the right edge of a uniform source at the center', blue, red, { origin: [1, 0] }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
@@ -147,7 +147,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline scales around the positioned source anchor', blue, red, { origin: [1, 0], scale: [0.5, 0.5] }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【長方形の素材を端の支点で回転する】
 		// 右端を中央に固定して時計回り90度回すと、素材は支点の上側へ伸びる。
-		await check('timeline rotates around the positioned source anchor', blue, red, { origin: [1, 0], rotation: 0.5 }, pixels((x, y) => x >= 2 && x < 6 && y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline rotates around the positioned source anchor', blue, red, { origin: [1, 0], rotation: 0.25 }, pixels((x, y) => x >= 2 && x < 6 && y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【fit後も画面端ではなく素材端を支点にする】
 		// coverでは画面外の端、containでは余白を除いた素材端を中央へ配置する。
 		const wideRed = texture(16, 4, Array.from({ length: 64 }, () => [255, 0, 0, 255]).flat());
@@ -169,7 +169,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		const rightGreen = pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 255, 0, 255]);
 		await check('timeline region transforms the window without moving its image', blue, striped, regionSettings, rightGreen);
 		await check('timeline region reflection leaves image coordinates unchanged', blue, striped, { ...regionSettings, scale: [-0.5, 1] }, rightGreen);
-		await check('timeline region rotation leaves image coordinates unchanged', blue, striped, { ...regionSettings, rotation: 0.5 }, rightGreen);
+		await check('timeline region rotation leaves image coordinates unchanged', blue, striped, { ...regionSettings, rotation: 0.25 }, rightGreen);
 		await check('timeline region opacity interpolates only inside the window', blue, striped, { ...regionSettings, opacity: 0.5 }, pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 128, 128, 255]));
 		// 【透明な処理結果は範囲内だけ背景を置換し、潰れた枠・画面外の枠は下層を保つ】
 		// 範囲判定をalphaに依存させたり、既存のReplaceの全域置換をそのまま使う退行を検出する。

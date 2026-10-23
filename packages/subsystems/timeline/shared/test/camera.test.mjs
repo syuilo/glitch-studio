@@ -220,12 +220,12 @@ test('resets preserved transforms for screen placement inside the current flat b
 test('projects camera roll as an inverse rotation around its position at every aspect ratio', () => {
 	const position = [0.3, -0.2];
 	for (const size of [{ width: 200, height: 100 }, { width: 100, height: 200 }, { width: 100, height: 100 }]) {
-		const view = { ...camera, position, roll: 0.5 };
+		const view = { ...camera, position, roll: 0.25 };
 		const projection = projectTimelineMatrix(TIMELINE_IDENTITY, 0, size, view);
 		near(transformTimelinePoint(projection, position), [0, 0]);
 		near(transformTimelinePoint(projection, [position[0] + 0.5, position[1]]), [0, 0.5 * size.width / size.height]);
 		const placement = timelineGeometryMatrix({ sourceSize: size, sceneSize: size,
-			transform: { ...settings, fitMode: 'stretch', position, rotation: 0.5 } });
+			transform: { ...settings, fitMode: 'stretch', position, rotation: 0.25 } });
 		near(projectTimelineMatrix(placement, 0, size, view), TIMELINE_IDENTITY);
 	}
 });

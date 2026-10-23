@@ -137,13 +137,13 @@ export async function run() {
 		checks.push('opacity range');
 		const enlarged = metrics(await effect.render({ scale: scalar(2) }), 256);
 		close(enlarged.area / originalMetrics.area, 4, 0.1, 'scale area');
-		const rotated = metrics(await effect.render({ rotation: scalar(0.5) }), 256);
+		const rotated = metrics(await effect.render({ rotation: scalar(0.25) }), 256);
 		close(rotated.maxX - rotated.minX, originalMetrics.maxY - originalMetrics.minY, 1, 'rotation aspect x');
 		close(rotated.maxY - rotated.minY, originalMetrics.maxX - originalMetrics.minX, 1, 'rotation aspect y');
 		close(rotated.x, 128 - (originalMetrics.y - 64), 0.2, 'rotation center x');
 		close(rotated.y, 64 + (originalMetrics.x - 128), 0.2, 'rotation center y');
 		checks.push('scale', 'rotation and aspect ratio');
-		equalPixels(await effect.render({ scale: scalar(-1) }), await effect.render({ rotation: scalar(1) }));
+		equalPixels(await effect.render({ scale: scalar(-1) }), await effect.render({ rotation: scalar(0.5) }));
 		assert(metrics(await effect.render({ scale: scalar(0) }), 256).area === 0, 'zero scale');
 		checks.push('negative and zero scale');
 		// Trackingの一様な加算は、フォントの空白幅に一致させれば空白文字の挿入と同じになる。

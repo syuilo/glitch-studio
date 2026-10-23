@@ -135,7 +135,7 @@ test('evaluates transform variables and sanitizes non-finite coordinates', () =>
 test('preserves shear and child positions when composing nonuniform scale and rotation', () => {
 	const wide = { width: 200, height: 100 };
 	const outer = getTimelineTransformSpace({ ...identityTransform, position: [0.2, 0.3], scale: [2, 1] }, wide);
-	const inner = getTimelineTransformSpace({ ...identityTransform, position: [0.1, 0.2], rotation: 0.25 }, wide, outer);
+	const inner = getTimelineTransformSpace({ ...identityTransform, position: [0.1, 0.2], rotation: 0.125 }, wide, outer);
 	const c = Math.SQRT1_2;
 	near(inner.parent, [2 * c, -2 * c, c, c, 0.4, 0.5]);
 	near(inner.screenParent, inner.parent);
@@ -144,7 +144,7 @@ test('preserves shear and child positions when composing nonuniform scale and ro
 	const point = [0.4, -0.2];
 	near(transformTimelinePoint(invertTimelineAffine(inner.parent), transformTimelinePoint(inner.parent, point)), point);
 	const reversed = getTimelineTransformSpace({ ...identityTransform, scale: [2, 1] }, wide,
-		getTimelineTransformSpace({ ...identityTransform, rotation: 0.25 }, wide));
+		getTimelineTransformSpace({ ...identityTransform, rotation: 0.125 }, wide));
 	assert.notDeepEqual(inner.parent.slice(0, 4), reversed.parent.slice(0, 4));
 });
 
@@ -154,21 +154,21 @@ test('preserves shear and child positions when composing nonuniform scale and ro
 test('transforms camera positions through nested matrices while inheriting rotation independently', () => {
 	const square = { width: 100, height: 100 };
 	const child = camera('camera');
-	Object.assign(child.cameraParamValues, { position: literal([0.5, 1]), z: literal(2), roll: literal(0.125), fieldOfView: literal(60) });
-	const inner = transform('inner', [child], { position: literal([1, 2]), scale: literal([-4, 0.5]), rotation: literal(0.25), z: literal(0.25) });
-	const outer = transform('outer', [inner], { position: literal([10, 20]), scale: literal([2, 3]), rotation: literal(0.5), z: literal(0.5) });
+	Object.assign(child.cameraParamValues, { position: literal([0.5, 1]), z: literal(2), roll: literal(0.0625), fieldOfView: literal(60) });
+	const inner = transform('inner', [child], { position: literal([1, 2]), scale: literal([-4, 0.5]), rotation: literal(0.125), z: literal(0.25) });
+	const outer = transform('outer', [inner], { position: literal([10, 20]), scale: literal([2, 3]), rotation: literal(0.25), z: literal(0.5) });
 	const evaluator = new TimelineSceneCamera();
 	const evaluated = evaluator.evaluate([outer], 0, false, square);
 	const c = Math.SQRT1_2;
 	const innerPosition = [1 - 1.5 * c, 2 + 2.5 * c];
 	near(evaluated.position, [10 + 3 * innerPosition[1], 20 - 2 * innerPosition[0]]);
 	assert.equal(evaluated.z, 2.75);
-	assert.equal(evaluated.roll, 0.875);
+	assert.equal(evaluated.roll, 0.4375);
 	assert.equal(evaluated.fieldOfView, 60);
 	outer.transformParamValues.scale = literal([-2, 0]);
 	const collapsed = evaluator.evaluate([outer], 0, false, square);
 	near(collapsed.position, [10, 20 + 2 * innerPosition[0]]);
-	assert.equal(collapsed.roll, 0.875);
+	assert.equal(collapsed.roll, 0.4375);
 	assert.equal(collapsed.fieldOfView, 60);
 	assert.deepEqual(child.cameraParamValues.position.value, [0.5, 1]);
 });
@@ -182,13 +182,13 @@ test('freezes animated scale, rotation and camera roll at the correct hierarchy 
 	const parent = transform('parent', [child], { scale: expression('[1 + TIME, 1]'), rotation: expression('TIME') });
 	const evaluator = new TimelineSceneCamera();
 	const evaluate = () => evaluator.evaluate([parent], 500, true, frame, 400);
-	near(evaluate().position, [0, -1.5 * frame.width / frame.height]);
+	near(evaluate().position, [-1.5, 0]);
 	assert.equal(evaluate().roll, 1);
 	child.forceDisableMotionBlur = true;
-	near(evaluate().position, [0, -1.5 * frame.width / frame.height]);
+	near(evaluate().position, [-1.5, 0]);
 	assert.equal(evaluate().roll, 0.9);
 	parent.forceDisableMotionBlur = true;
-	near(evaluate().position, [1.4 * Math.cos(0.4 * Math.PI), -1.4 * Math.sin(0.4 * Math.PI) * frame.width / frame.height]);
+	near(evaluate().position, [1.4 * Math.cos(0.4 * 2 * Math.PI), -1.4 * Math.sin(0.4 * 2 * Math.PI) * frame.width / frame.height]);
 	assert.equal(evaluate().roll, 0.8);
 });
 

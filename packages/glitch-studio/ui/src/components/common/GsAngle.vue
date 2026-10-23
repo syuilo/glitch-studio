@@ -2,7 +2,8 @@
 <div ref="rootEl" :class="$style.root">
 	<GsButton :class="$style.open" :primary="anglePadOpened" iconOnly icon="ti ti-angle" @click="openAnglePad"/>
 	<GsRange
-		v-if="value >= -0.5 && value <= 0.5"
+		v-if="!numberInputFocused && value >= -0.5 && value <= 0.5"
+		data-test-angle-slider
 		:class="$style.slider"
 		:modelValue="value"
 		:min="-0.5"
@@ -16,13 +17,14 @@
 	/>
 	<GsInput
 		v-else
+		data-test-angle-number-input
 		:class="$style.slider"
 		type="number"
 		:modelValue="value * 360"
 		:step="step * 360"
-		@focusin="emit('beginChanging')"
+		@focusin="onNumberInputFocusIn"
 		@update:modelValue="setValue($event / 360)"
-		@focusout="emit('changeFinished')"
+		@focusout="onNumberInputFocusOut"
 	>
 		<template #suffix>°</template>
 	</GsInput>
@@ -93,6 +95,9 @@ const modal = useTemplateRef('modal');
 const surface = useTemplateRef<HTMLElement>('surface');
 const anglePadOpened = ref(false);
 const value = ref(props.modelValue);
+// 入力途中の1桁がスライダー範囲内でも、フォーカスが外れるまでは入力欄を残す。
+// その場で切り替えると入力要素が破棄され、複数桁や負の角度を最後まで入力できない。
+const numberInputFocused = ref(false);
 const snapEnabled = ref(true);
 const activePointerId = ref<number | null>(null);
 
@@ -103,6 +108,16 @@ watch(() => props.modelValue, (newValue) => {
 function setValue(newValue: number) {
 	value.value = newValue;
 	emit('update:modelValue', newValue);
+}
+
+function onNumberInputFocusIn() {
+	numberInputFocused.value = true;
+	emit('beginChanging');
+}
+
+function onNumberInputFocusOut() {
+	numberInputFocused.value = false;
+	emit('changeFinished');
 }
 
 function openAnglePad() {
