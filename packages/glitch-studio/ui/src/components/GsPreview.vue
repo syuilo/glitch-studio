@@ -11,7 +11,7 @@
 			<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
 				<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
 			</button>
-			<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s" role="alert">
+			<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s _selectable">
 				<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
 				<div>{{ renderEngine.errorMessage.value }}</div>
 				<button type="button" class="_button" :disabled="renderValidation.errorMessage.value != null" @click="renderEngine.retry()">{{ i18n.ts._Preview.Retry }}</button>
@@ -27,7 +27,7 @@
 				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 			</div>
 			<GsPreviewTransform :canvasRect="previewCanvasRect"/>
-			<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" role="status" data-test-timeline-seek-loading>
+			<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" data-test-timeline-seek-loading>
 				<GsLoading :colored="false" :mini="true"/>
 			</div>
 		</div>

@@ -4,7 +4,7 @@
 		<div :class="$style.header">
 			<b><i class="ti ti-settings"></i> {{ i18n.ts._Settings.Title }}</b>
 			<div style="margin-left: auto;">
-				<div v-if="validationError" role="alert">{{ validationError }}</div>
+				<div v-if="validationError">{{ validationError }}</div>
 				<div :class="$style.actions">
 					<GsButton icon="ti ti-x" large inline @click="modal?.close()">{{ i18n.ts.Cancel }}</GsButton>
 					<GsButton icon="ti ti-check" large inline primary :disabled="validationError != null" @click="apply">{{ i18n.ts.Apply }}</GsButton>

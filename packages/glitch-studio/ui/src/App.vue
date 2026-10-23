@@ -36,7 +36,7 @@
 				<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
 			</div>
 			<div :class="$style.headerRight">
-				<span v-if="isProjectSaving" :class="$style.projectSaving" role="status" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}<GsEllipsis/></span>
+				<span v-if="isProjectSaving" :class="$style.projectSaving" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}<GsEllipsis/></span>
 			</div>
 		</div>
 	</div>

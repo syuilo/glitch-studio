@@ -7,7 +7,7 @@
 		</GsInput>
 		<div :class="$style.folder">{{ directory?.name ?? i18n.ts._Project.NoFolder }}</div>
 		<GsButton large :disabled="busy" icon="ti ti-folder" @click="chooseFolder">{{ i18n.ts._Project.ChooseFolder }}</GsButton>
-		<div v-if="error" role="alert">{{ error }}</div>
+		<div v-if="error">{{ error }}</div>
 		<div :class="$style.actions">
 			<GsButton large inline :disabled="busy" @click="dismiss">{{ i18n.ts.Cancel }}</GsButton>
 			<GsButton large inline primary :disabled="!directory || !fileName?.trim() || busy" :wait="busy" @click="selectFile">{{ i18n.ts.Save }}</GsButton>
@@ -17,11 +17,11 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { ref, shallowRef, useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
+import { i18n } from '@/i18n.ts';
 import { getProjectFileName, getProjectSaveFileHandle } from '@/gsproj.ts';
 import { confirm } from '@/ui.ts';
 

@@ -1,8 +1,8 @@
 <template>
 <GsModal ref="modal" preferType="dialog" zPriority="high" @opened="content?.focus()" @click="close" @esc="close" @closed="emit('closed')" @dragover.prevent.stop @drop.prevent.stop>
-	<div ref="content" :class="$style.root" class="_gaps_m" role="dialog" tabindex="-1" data-test-desktop-update-dialog @keydown.stop>
+	<div ref="content" :class="$style.root" class="_gaps_m" tabindex="-1" data-test-desktop-update-dialog @keydown.stop>
 		<strong>{{ i18n.ts._DesktopUpdate.Title }}</strong>
-		<div v-if="working" role="status" data-test-desktop-update-status>
+		<div v-if="working" data-test-desktop-update-status>
 			{{ state.phase === 'downloading' ? i18n.ts._DesktopUpdate.Downloading : state.phase === 'installing' ? i18n.ts._DesktopUpdate.Installing : i18n.ts._DesktopUpdate.Preparing }}<GsEllipsis/>
 		</div>
 		<template v-if="working">
@@ -10,7 +10,7 @@
 			<div v-if="state.phase === 'downloading' && state.progress != null" class="_monospace">{{ Math.floor(state.progress.percent) }}% · {{ (state.progress.transferred / 1024 ** 2).toFixed(1) }} / {{ (state.progress.total / 1024 ** 2).toFixed(1) }} MiB</div>
 		</template>
 		<template v-else>
-			<div role="alert" data-test-desktop-update-error>{{ errorMessage }}</div>
+			<div data-test-desktop-update-error>{{ errorMessage }}</div>
 			<div :class="$style.actions">
 				<GsButton large inline data-test-desktop-update-close @click="close">{{ i18n.ts.Close }}</GsButton>
 				<GsButton v-if="state.version != null && state.phase !== 'restart-required'" large inline primary data-test-desktop-update-retry @click="emit('retry')">{{ i18n.ts._DesktopUpdate.Retry }}</GsButton>

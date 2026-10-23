@@ -14,7 +14,7 @@
 				<GsInput data-test-clip-speed type="number" :min="timelineMediaMinPlaybackSpeed * 100" :max="timelineMediaMaxPlaybackSpeed * 100" :modelValue="speedPercent" @update:modelValue="value => speedPercent = Number(value)"><template #label>{{ i18n.ts._TimelineClip.Speed }}</template><template #suffix>%</template></GsInput>
 				<GsSwitch v-model="reversePlayback" data-test-clip-reverse>{{ i18n.ts._TimelineClip.Reverse }}</GsSwitch>
 				<div v-if="speedChange.timing">{{ i18n.ts._TimelineClip.DurationAtSpeed }}: {{ formatMsToTimecode(speedChange.timing.durationMs) }}</div>
-				<div v-if="speedChange.error || speedError" data-test-clip-speed-error role="alert">{{ speedChange.error || speedError }}</div>
+				<div v-if="speedChange.error || speedError" data-test-clip-speed-error>{{ speedChange.error || speedError }}</div>
 				<GsButton data-test-clip-apply-speed :disabled="!selectedClipMedia || !!speedChange.error || speedChange.timing?.playbackRate === selectedMediaClip.playbackRate" @click="editSelectedClipSpeed">{{ i18n.ts._TimelineClip.ApplySpeed }}</GsButton>
 				<div>{{ i18n.ts._TimelineClip.SpeedHint }}</div>
 				<GsInput data-test-clip-total-duration type="number" :min="getTimelineMediaSingleDuration(selectedMediaClip)" :disabled="!selectedClipMedia" :modelValue="selectedMediaClip.durationMs" @update:modelValue="editSelectedClipLoop"><template #label>{{ i18n.ts._TimelineClip.TotalDuration }}</template><template #suffix>ms</template></GsInput>
@@ -28,7 +28,7 @@
 					<div>{{ i18n.ts._TimelineClip.HoldHint }}</div>
 				</template>
 				<div v-else>{{ i18n.ts._TimelineClip.SeekToHoldHint }}</div>
-				<div v-if="holdError" data-test-clip-hold-error role="alert">{{ holdError }}</div>
+				<div v-if="holdError" data-test-clip-hold-error>{{ holdError }}</div>
 				<GsSwitch data-test-clip-audio-enabled :modelValue="selectedVideoClip.audioEnabled" :disabled="'sourceTimeMs' in selectedVideoClip || (!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable)" @update:modelValue="editSelectedClipAudio">{{ i18n.ts._TimelineClip.AudioEnabled }}</GsSwitch>
 				<GsSwitch data-test-clip-audio-only :modelValue="!selectedVideoClip.videoEnabled" :disabled="'sourceTimeMs' in selectedVideoClip" @update:modelValue="editSelectedClipAudioOnly">{{ i18n.ts._TimelineClip.AudioOnly }}</GsSwitch>
 				<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
