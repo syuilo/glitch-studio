@@ -25,10 +25,10 @@
 		"OutputType": "出力の型",
 		"NoTypeFilter": "指定なし",
 		"_DataTypes": {
-			"color": "色 (color)",
-			"scalar": "スカラー (scalar)",
-			"vector": "ベクトル (vector)",
-			"any": "任意型 (any)"
+			"color": "色",
+			"scalar": "スカラー",
+			"vector": "ベクトル",
+			"any": "任意"
 		},
 		"Tags": "タグ",
 		"TagFilterHint": "選択したタグをすべて含むエフェクトを表示",
