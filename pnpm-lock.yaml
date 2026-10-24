@@ -185,8 +185,8 @@ importers:
         specifier: 4.3.2
         version: 4.3.2
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/glitch-studio/renderer:
     dependencies:
@@ -240,8 +240,8 @@ importers:
         specifier: 0.1.72
         version: 0.1.72
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/glitch-studio/shared:
     dependencies:
@@ -265,8 +265,8 @@ importers:
         specifier: 0.1.72
         version: 0.1.72
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/glitch-studio/ui:
     dependencies:
@@ -363,7 +363,7 @@ importers:
         version: 8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       '@vitejs/plugin-vue':
         specifier: 6.0.8
-        version: 6.0.8(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))(vue@3.5.42(@typescript/typescript6@6.0.2))
+        version: 6.0.8(vite@8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))(vue@3.5.42(@typescript/typescript6@6.0.2))
       eslint:
         specifier: 9.39.5
         version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
@@ -380,8 +380,8 @@ importers:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
       vue-eslint-parser:
         specifier: 10.4.1
         version: 10.4.1(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
@@ -408,8 +408,8 @@ importers:
         specifier: 0.1.72
         version: 0.1.72
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/subsystems/audio/renderer:
     dependencies:
@@ -430,8 +430,8 @@ importers:
         specifier: 8.59.2
         version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/subsystems/audio/shared:
     devDependencies:
@@ -442,8 +442,8 @@ importers:
         specifier: 8.59.2
         version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/subsystems/effect/renderer:
     dependencies:
@@ -464,8 +464,8 @@ importers:
         specifier: 0.1.72
         version: 0.1.72
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/subsystems/effect/shared:
     dependencies:
@@ -501,8 +501,8 @@ importers:
         specifier: 0.1.72
         version: 0.1.72
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/subsystems/timeline/audio-renderer:
     dependencies:
@@ -523,8 +523,8 @@ importers:
         specifier: 8.59.2
         version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/subsystems/timeline/renderer:
     dependencies:
@@ -563,8 +563,8 @@ importers:
         specifier: 0.1.72
         version: 0.1.72
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/subsystems/timeline/shared:
     dependencies:
@@ -588,8 +588,8 @@ importers:
         specifier: 0.1.72
         version: 0.1.72
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/subsystems/visual-module/renderer:
     dependencies:
@@ -622,8 +622,8 @@ importers:
         specifier: 0.1.72
         version: 0.1.72
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
   packages/subsystems/visual-module/shared:
     dependencies:
@@ -644,8 +644,8 @@ importers:
         specifier: 0.1.72
         version: 0.1.72
       vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+        specifier: 8.2.4
+        version: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
 packages:
 
@@ -3812,8 +3812,8 @@ packages:
       terser:
         optional: true
 
-  vite@8.2.2:
-    resolution: {integrity: sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==}
+  vite@8.2.4:
+    resolution: {integrity: sha512-lfauXnrf2x0p+UoA+wXh0dgFWnUjCyG6Js95KBkgaCwUU9k0DAHI4W6Q0WCx+h+5g+Alce1y4Zi2QjjK0UvGBw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -5021,10 +5021,10 @@ snapshots:
       vite: 5.4.21(@types/node@26.2.0)(lightningcss@1.33.0)(sass@1.83.4)
       vue: 3.5.42(@typescript/typescript6@6.0.2)
 
-  '@vitejs/plugin-vue@6.0.8(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))(vue@3.5.42(@typescript/typescript6@6.0.2))':
+  '@vitejs/plugin-vue@6.0.8(vite@8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))(vue@3.5.42(@typescript/typescript6@6.0.2))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+      vite: 8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
       vue: 3.5.42(@typescript/typescript6@6.0.2)
 
   '@volar/language-core@2.4.28':
@@ -7373,7 +7373,7 @@ snapshots:
       lightningcss: 1.33.0
       sass: 1.83.4
 
-  vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4):
+  vite@8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
