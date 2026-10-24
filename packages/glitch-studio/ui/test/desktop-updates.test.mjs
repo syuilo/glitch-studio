@@ -127,3 +127,32 @@ test('coordinates application work with updates and releases failed work', async
 	await assert.rejects(activity.run(async () => { throw new Error('failed'); }));
 	assert.equal(typeof activity.beginUpdate(), 'function');
 });
+
+// 【書き出しを重ねても最後の完了まで終了防止を維持し、更新と相互排他にする】
+// 一つの書き出しの後始末が別の書き出しの保護を解除したり、二重解放で件数が負になったり
+// しないようにする。素材の読み込みだけではエクスポート中の案内を出さない。
+test('tracks concurrent exports independently from other work and prevents updates', () => {
+	const activity = new ApplicationActivity();
+	const releaseWork = activity.acquire();
+	assert.equal(activity.isExporting.value, false);
+	const releaseFirstExport = activity.acquireExport();
+	const releaseSecondExport = activity.acquireExport();
+	assert.equal(activity.isExporting.value, true);
+	assert.equal(activity.beginUpdate(), null);
+	releaseFirstExport();
+	releaseFirstExport();
+	assert.equal(activity.isExporting.value, true);
+	releaseSecondExport();
+	assert.equal(activity.isExporting.value, false);
+	assert.equal(activity.beginUpdate(), null);
+	releaseWork();
+	const releaseUpdate = activity.beginUpdate();
+	assert.equal(typeof releaseUpdate, 'function');
+	assert.throws(() => activity.acquireExport(), /updated/);
+	assert.equal(activity.isExporting.value, false);
+	releaseUpdate();
+	const releaseNextExport = activity.acquireExport();
+	assert.equal(activity.isExporting.value, true);
+	releaseNextExport();
+	assert.equal(activity.isExporting.value, false);
+});

@@ -22,15 +22,19 @@ test('guards real Electron closing, reloading and application quit through async
 	});
 	const uiDirectory = fileURLToPath(new URL('../../ui/', import.meta.url));
 	const bundle = await build({
-		absWorkingDir: uiDirectory, entryPoints: ['./src/project-save-close-guard.ts'], bundle: true,
+		absWorkingDir: uiDirectory, stdin: { loader: 'ts', resolveDir: uiDirectory, contents: `
+			export { installProjectCloseGuard } from './src/project-close-guard.ts';
+			export { ApplicationActivity } from './src/application-activity.ts';
+			export { ref } from 'vue';
+		` }, bundle: true,
 		format: 'iife', globalName: 'projectCloseGuard', platform: 'browser', write: false,
 		define: { __ELECTRON__: 'true' },
 		plugins: [{ name: 'close-dialog-dependencies', setup(builder) {
 			builder.onResolve({ filter: /(?:^|\/)i18n\.ts$/ }, () => ({ path: 'i18n', namespace: 'close-dialog-dependencies' }));
 			builder.onResolve({ filter: /(?:^|\/)ui\.ts$/ }, () => ({ path: 'ui', namespace: 'close-dialog-dependencies' }));
 			builder.onLoad({ filter: /.*/, namespace: 'close-dialog-dependencies' }, ({ path: dependency }) => ({ contents: dependency === 'i18n'
-				? `export const i18n = { ts: { Cancel: 'Cancel', _App: { ConfirmCloseUnsavedProject: 'Close without saving?', UnsavedChangesWillBeLost: 'Unsaved changes will be lost.', CloseWithoutSaving: 'Close without saving', ProjectSaving: 'Saving', CannotCloseWhileSaving: 'Wait for saving.' } } };`
-				: `export function alert() { window.savingNotices++; return new Promise(() => {}); }
+				? `export const i18n = { ts: { Cancel: 'Cancel', _App: { ConfirmCloseUnsavedProject: 'Close without saving?', UnsavedChangesWillBeLost: 'Unsaved changes will be lost.', CloseWithoutSaving: 'Close without saving', ProjectSaving: 'Saving', CannotCloseWhileSaving: 'Wait for saving.', Exporting: 'Exporting', CannotCloseWhileExporting: 'Wait for exporting.' } } };`
+				: `export function alert(options) { window.closeNotices.push(options); return Promise.resolve(); }
 				   export function confirm(options) { window.closeConfirmations.push(options); return new Promise(resolve => { window.resolveClose = resolve; }); }`,
 			}));
 		} }],
@@ -59,7 +63,7 @@ test('guards real Electron closing, reloading and application quit through async
 				return mainWindow;
 			}, () => controller);
 			async function initializeGuard() {
-				await mainWindow.webContents.executeJavaScript("window.savingNotices = 0; window.closeConfirmations = []; window.saving = { value: false }; window.unsaved = { value: true }; projectCloseGuard.installProjectSaveCloseGuard(window.saving, window.unsaved); void 0;");
+				await mainWindow.webContents.executeJavaScript("window.closeNotices = []; window.closeConfirmations = []; window.saving = projectCloseGuard.ref(false); window.unsaved = projectCloseGuard.ref(true); window.activity = new projectCloseGuard.ApplicationActivity(); projectCloseGuard.installProjectCloseGuard(window.saving, window.activity.isExporting, window.unsaved); void 0;");
 			}
 			async function createWindow() {
 				mainWindow = new BrowserWindow({ show: false, webPreferences: { preload: ${JSON.stringify(preload)}, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
@@ -98,9 +102,22 @@ test('guards real Electron closing, reloading and application quit through async
 			let completed = once(completions, 'completed');
 			await expectBlocked(() => mainWindow.close());
 			assert.equal((await completed)[0], false);
-			assert.equal(await mainWindow.webContents.executeJavaScript('window.savingNotices'), 1);
+			assert.equal(await mainWindow.webContents.executeJavaScript('window.closeNotices.length'), 1);
 			assert.equal(await mainWindow.webContents.executeJavaScript('window.closeConfirmations.length'), 0);
 			await mainWindow.webContents.executeJavaScript('window.saving.value = false; window.unsaved.value = false');
+			console.log('stage: exporting');
+			await mainWindow.webContents.executeJavaScript('window.releaseExport = window.activity.acquireExport(); window.closeNotices = []; void 0;');
+			// 保存済みでも、ウィンドウ終了・再読み込み・アプリ終了の全経路を止める。
+			for (const action of [() => mainWindow.close(), () => mainWindow.reload(), () => app.quit()]) {
+				completed = once(completions, 'completed');
+				await expectBlocked(action);
+				assert.equal((await completed)[0], false);
+			}
+			assert.equal(await mainWindow.webContents.executeJavaScript('window.closeNotices.length'), 3);
+			assert.equal(await mainWindow.webContents.executeJavaScript("window.closeNotices.every(notice => notice.title === 'Exporting')"), true);
+			assert.equal(await mainWindow.webContents.executeJavaScript('window.closeConfirmations.length'), 0);
+			await mainWindow.webContents.executeJavaScript('window.releaseExport(); void 0;');
+			assert.equal(mainWindow.isDestroyed(), false);
 			console.log('stage: saved close');
 			let closed = once(mainWindow, 'closed'); mainWindow.close(); await closed;
 			await createWindow();

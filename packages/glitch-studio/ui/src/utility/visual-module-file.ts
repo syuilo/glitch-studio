@@ -19,7 +19,7 @@ export function pickVisualModuleFile(): Promise<File | null> {
 }
 
 export async function exportVisualModuleFile(context: ProjectContext, visualModule: VisualModule, name: string): Promise<void> {
-	const releaseActivity = applicationActivity.acquire();
+	const releaseActivity = applicationActivity.acquireExport();
 	try {
 		const state = context.stateManager.state;
 		// 素材の読み出し中に編集・プロジェクト切替が起きても、開始時点の構成だけを書き出す。

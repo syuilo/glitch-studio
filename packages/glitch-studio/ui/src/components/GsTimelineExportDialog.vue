@@ -201,7 +201,7 @@ function setTaskbarProgress(value: number | null) {
 async function doExport() {
 	if (exporting.value || validationError.value) return;
 	saveExportSettings();
-	const releaseActivity = applicationActivity.acquire();
+	const releaseActivity = applicationActivity.acquireExport();
 	// 無効化するEXPORTボタンからフォーカスを移し、背後の編集ショートカットへイベントを流さない。
 	dialogContent.value?.focus();
 	exporting.value = true;

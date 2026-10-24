@@ -235,6 +235,8 @@
 		"CloseWithoutSaving": "Close without saving",
 		"ProjectSaving": "Saving project",
 		"CannotCloseWhileSaving": "The project is being saved, so this window cannot be closed yet. Please close the window again after saving finishes.",
+		"Exporting": "Exporting",
+		"CannotCloseWhileExporting": "An export is in progress, so this window cannot be closed yet. Please try again after the export finishes or is canceled.",
 		"Project": "Project",
 		"Preview": "Preview",
 		"MotionBlurSamplesHint": "Preview motion blur samples. Requires motion blur to be enabled in Project Settings.",

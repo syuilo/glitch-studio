@@ -22,9 +22,9 @@ Web版の公開先に必要な設定や素材の読み込み条件は[Web版の�
 
 ## 未保存の変更の終了確認
 
-UIが終了・再読み込み時に未保存の変更を判定して`beforeunload`を取り消し、`project-close-guard.mjs`の`ProjectCloseController`が`will-prevent-unload`後にVueの確認を要求します。ウィンドウ終了・アプリ終了・再読み込みのどれだったかと要求IDをmainが保持し、連続した操作ではダイアログを重ねません。UIからの非同期IPCは送信元と要求IDを検証し、「保存せずに閉じる」を選んだ場合だけ元の操作を再開します。キャンセル・Esc・表示失敗・画面破棄で終了を許可せず、保存中は既存の終了防止を優先します。確認済みの自動更新による終了では重ねて確認せず、更新準備・ダウンロード中の終了防止も維持します。
+UIが終了・再読み込み時に未保存の変更を判定して`beforeunload`を取り消し、`project-close-guard.mjs`の`ProjectCloseController`が`will-prevent-unload`後にVueの確認を要求します。ウィンドウ終了・アプリ終了・再読み込みのどれだったかと要求IDをmainが保持し、連続した操作ではダイアログを重ねません。UIからの非同期IPCは送信元と要求IDを検証し、「保存せずに閉じる」を選んだ場合だけ元の操作を再開します。キャンセル・Esc・表示失敗・画面破棄で終了を許可せず、保存中・エクスポート中は未保存変更の確認より終了防止を優先します。エクスポート中の終了要求は案内を表示して拒否し、完了しても自動では再開しません。確認済みの自動更新による終了では重ねて確認せず、更新準備・ダウンロード中の終了防止も維持します。
 
-`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/project-close-guard-electron.test.mjs`を実行すると、非表示のElectronウィンドウで終了の取消・許可、再読み込み、保存中の保護、更新時の確認省略、アプリ終了を検証します。確認UIの表示先と返答だけを置き換え、実際のpreloadとUI・main間の非同期IPCを使います。
+`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/project-close-guard-electron.test.mjs`を実行すると、非表示のElectronウィンドウで終了の取消・許可、再読み込み、保存中・エクスポート中の保護、更新時の確認省略、アプリ終了を検証します。確認UIの表示先と返答だけを置き換え、実際のpreloadとUI・main間の非同期IPCを使います。
 
 ## 外部参照アセット
 

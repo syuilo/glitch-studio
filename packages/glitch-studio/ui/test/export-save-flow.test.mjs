@@ -2,9 +2,19 @@ import { i18n } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { parse } from 'vue/compiler-sfc';
 import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
-import { transform } from 'esbuild';
+import { build, transform } from 'esbuild';
+
+const activityBundle = await build({
+	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)), entryPoints: ['./src/application-activity.ts'],
+	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
+});
+const activityModule = { exports: {} };
+new Function('require', 'module', 'exports', activityBundle.outputFiles[0].text)(createRequire(import.meta.url), activityModule, activityModule.exports);
+const { ApplicationActivity } = activityModule.exports;
 
 // コンポーネントの実際の入口を実行し、保存先選択・描画・保存の非同期の順序を検証する。
 const source = await readFile(new URL('../src/components/GsTimelineExportDialog.vue', import.meta.url), 'utf8');
@@ -18,7 +28,7 @@ const rendererAssetsModule = { exports: {} };
 new Function('module', 'exports', rendererAssetsCode)(rendererAssetsModule, rendererAssetsModule.exports);
 const { getRendererAssets } = rendererAssetsModule.exports;
 
-function fixture({ browser = false, choose = null, save = null, renderError = null } = {}) {
+function fixture({ browser = false, choose = null, save = null, resume = null, renderError = null } = {}) {
 	const events = [];
 	const ref = value => ({ value });
 	const state = Object.fromEntries(Object.entries({
@@ -36,7 +46,7 @@ function fixture({ browser = false, choose = null, save = null, renderError = nu
 	};
 	const context = {
 		saveExportSettings() {},
-		applicationActivity: { acquire: () => () => {} },
+		applicationActivity: new ApplicationActivity(),
 		i18n,
 		dialogContent: ref(null), exporting: ref(false), choosingSaveFile: ref(false), savingFile: ref(false),
 		validationError: ref(null), error: ref(''), status: ref(''), progress: ref(null),
@@ -48,7 +58,7 @@ function fixture({ browser = false, choose = null, save = null, renderError = nu
 		appContext: {
 			voicevoxGeneration: { async prepare() { events.push(['prepare']); return []; } },
 			async suspendPreview() { events.push(['suspend']); },
-			async resumePreview() { events.push(['resume']); },
+			async resumePreview() { events.push(['resume']); await resume?.(); },
 		},
 		async exportTimeline(_request, _signal, onProgress) {
 			events.push(['render']);
@@ -80,9 +90,11 @@ test('waits for the save choice before rendering and for saving before notifying
 	const job = f.doExport();
 	assert.deepEqual(f.events, [['choose', 'Project-Scene.mp4', 'mp4']]);
 	assert.equal(f.context.choosingSaveFile.value, true);
+	assert.equal(f.context.applicationActivity.isExporting.value, true);
 	choice.resolve({ id: 'selected', name: 'custom.mp4' });
 	await saving.promise;
 	assert.equal(f.context.savingFile.value, true);
+	assert.equal(f.context.applicationActivity.isExporting.value, true);
 	assert.equal(f.context.status.value, '');
 	assert.equal(f.events.some(([name]) => name === 'notify' || name === 'download'), false);
 	saved.resolve();
@@ -93,6 +105,7 @@ test('waits for the save choice before rendering and for saving before notifying
 	]);
 	assert.equal(f.context.status.value, 'Export complete.');
 	assert.equal(f.context.exporting.value, false);
+	assert.equal(f.context.applicationActivity.isExporting.value, false);
 });
 
 // 【保存ダイアログをキャンセルしたら描画せず、前回のダウンロードも保持する】
@@ -105,6 +118,7 @@ test('does not prepare or render when the save dialog is canceled', async () => 
 	assert.equal(f.context.exporting.value, false);
 	assert.equal(f.context.choosingSaveFile.value, false);
 	assert.equal(f.context.error.value, '');
+	assert.equal(f.context.applicationActivity.isExporting.value, false);
 });
 
 // 【保存先選択中に画面が閉じられた場合は、選択後も描画せずIDを解放する】
@@ -119,6 +133,7 @@ test('releases the selected target without rendering if aborted during the dialo
 	assert.equal(f.events.some(([name]) => name === 'render' || name === 'save' || name === 'notify'), false);
 	assert.ok(f.events.some(([name, id]) => name === 'release' && id === 'abandoned'));
 	assert.equal(f.context.status.value, 'Export canceled.');
+	assert.equal(f.context.applicationActivity.isExporting.value, false);
 });
 
 // 【描画や保存が失敗した場合は完了通知を出さず、プレビューと保存先IDを後始末する】
@@ -137,6 +152,7 @@ test('reports rendering and saving failures without a completion notification', 
 		assert.ok(f.events.some(([name]) => name === 'resume'));
 		assert.equal(f.context.exporting.value, false);
 		assert.equal(f.context.savingFile.value, false);
+		assert.equal(f.context.applicationActivity.isExporting.value, false);
 	}
 });
 
@@ -150,4 +166,20 @@ test('keeps the download flow in the browser', async () => {
 	assert.equal(f.context.downloadUrl.value, 'download-url');
 	assert.equal(f.context.downloadName.value, 'Project-Scene.mp4');
 	assert.equal(f.context.status.value, 'Export complete.');
+	assert.equal(f.context.applicationActivity.isExporting.value, false);
+});
+
+// 【プレビュー復帰中も終了防止を維持し、復帰に失敗しても保護を解除する】
+// エクスポートの最後の後始末までアプリを保護しつつ、エラー後に終了不能な状態を残さない。
+test('protects preview restoration and releases export activity even if restoration fails', async () => {
+	const resuming = Promise.withResolvers();
+	const resumed = Promise.withResolvers();
+	const f = fixture({ resume: () => { resuming.resolve(); return resumed.promise; } });
+	const job = f.doExport();
+	await resuming.promise;
+	assert.equal(f.context.applicationActivity.isExporting.value, true);
+	resumed.reject(new Error('preview failed'));
+	await job;
+	assert.match(f.context.error.value, /preview failed/);
+	assert.equal(f.context.applicationActivity.isExporting.value, false);
 });

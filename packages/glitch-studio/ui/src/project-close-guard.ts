@@ -1,14 +1,15 @@
-import { watch } from 'vue';
+import { computed, watch } from 'vue';
 import type { Ref } from 'vue';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
-/** 保存状態を終了処理へ反映し、Appの破棄時に解除できるようにする。 */
-export function installProjectSaveCloseGuard(isProjectSaving: Readonly<Ref<boolean>>, hasUnsavedChanges: Readonly<Ref<boolean>>): () => void {
+/** 保存・書き出し・未保存の変更を終了処理へ反映し、Appの破棄時に解除する。 */
+export function installProjectCloseGuard(isProjectSaving: Readonly<Ref<boolean>>, isExporting: Readonly<Ref<boolean>>, hasUnsavedChanges: Readonly<Ref<boolean>>): () => void {
+	const isCloseBlocked = computed(() => isProjectSaving.value || isExporting.value);
 	let showingCloseNotice = false;
 	let disposed = false;
 	let allowNextUnload = false;
-	let unloadBlockedBySaving = false;
+	let unloadBlockedByOperation = false;
 	let activeRequestId: number | null = null;
 	const desktop = __ELECTRON__ ? window.desktop ?? null : null;
 	const stopListening = desktop?.onProjectCloseRequested(requestId => {
@@ -16,8 +17,8 @@ export function installProjectSaveCloseGuard(isProjectSaving: Readonly<Ref<boole
 		void (async () => {
 			let confirmed = false;
 			try {
-				// 保存中に止めた終了は、保存が先に完了しても自動では再開しない。
-				if (!disposed && !unloadBlockedBySaving && !isProjectSaving.value) {
+				// 保存・書き出し中に止めた終了は、処理が先に完了しても自動では再開しない。
+				if (!disposed && !unloadBlockedByOperation && !isCloseBlocked.value) {
 					const result = hasUnsavedChanges.value ? await ui.confirm({
 						type: 'warning',
 						title: i18n.ts._App.ConfirmCloseUnsavedProject,
@@ -26,13 +27,13 @@ export function installProjectSaveCloseGuard(isProjectSaving: Readonly<Ref<boole
 						cancelText: i18n.ts.Cancel,
 						autofocusAction: 'cancel',
 					}) : { canceled: false };
-					confirmed = !result.canceled && !disposed && !isProjectSaving.value;
+					confirmed = !result.canceled && !disposed && !isCloseBlocked.value;
 				}
 			} catch (error) {
 				console.error('Failed to confirm project closing:', error);
 			}
 			try {
-				// 確認済みの要求の再実行だけを一度許可する。保存中の終了禁止は引き続き優先する。
+				// 確認済みの要求の再実行だけを一度許可し、保存・書き出し中の終了禁止を優先する。
 				allowNextUnload = confirmed;
 				if (!await desktop.completeProjectClose(requestId, confirmed)) allowNextUnload = false;
 			} catch (error) {
@@ -46,24 +47,27 @@ export function installProjectSaveCloseGuard(isProjectSaving: Readonly<Ref<boole
 	const onBeforeUnload = (event: BeforeUnloadEvent) => {
 		const confirmed = allowNextUnload;
 		allowNextUnload = false;
-		unloadBlockedBySaving = isProjectSaving.value;
-		if (!isProjectSaving.value && (confirmed || !__ELECTRON__ || !hasUnsavedChanges.value)) return;
+		unloadBlockedByOperation = isCloseBlocked.value;
+		if (!isCloseBlocked.value && (confirmed || !__ELECTRON__ || !hasUnsavedChanges.value)) return;
 		event.preventDefault();
 		// Electronでは終了を取り消し、Web版ではブラウザー標準の終了確認を表示する。
 		// Web版の確認文言は変更できず、ユーザーが終了を選ぶことも禁止できない。
 		event.returnValue = true;
-		if (__ELECTRON__ && isProjectSaving.value && !showingCloseNotice) {
+		if (__ELECTRON__ && isCloseBlocked.value && !showingCloseNotice) {
 			showingCloseNotice = true;
-			void ui.alert({ type: 'info', title: i18n.ts._App.ProjectSaving, text: i18n.ts._App.CannotCloseWhileSaving })
+			void ui.alert({ type: 'info',
+				title: isProjectSaving.value ? i18n.ts._App.ProjectSaving : i18n.ts._App.Exporting,
+				text: isProjectSaving.value ? i18n.ts._App.CannotCloseWhileSaving : i18n.ts._App.CannotCloseWhileExporting,
+			})
 				.finally(() => { showingCloseNotice = false; });
 		}
 	};
 	// Electron版は終了要求の時点で未保存状態を評価する。
 	// 編集のたびにスナップショットを比較するためのwatchは追加しない。
 	if (__ELECTRON__) window.addEventListener('beforeunload', onBeforeUnload);
-	// クリック直後から保護し、保存完了直後の終了も妨げないよう同期的に切り替える。
-	const stopWatching = __ELECTRON__ ? null : watch(isProjectSaving, saving => {
-		if (saving) window.addEventListener('beforeunload', onBeforeUnload);
+	// クリック直後から保護し、保存・書き出し完了直後の終了も妨げないよう同期的に切り替える。
+	const stopWatching = __ELECTRON__ ? null : watch(isCloseBlocked, blocked => {
+		if (blocked) window.addEventListener('beforeunload', onBeforeUnload);
 		else window.removeEventListener('beforeunload', onBeforeUnload);
 	}, { immediate: true, flush: 'sync' });
 	return () => {

@@ -94,7 +94,8 @@ import { preferences } from './preferences.ts';
 import { WorkspaceController, workspaceControllerKey } from './WorkspaceController.ts';
 import { desktopProjectFile } from './gsproj.ts';
 import { desktopUpdateUi } from './desktop-update-ui.ts';
-import { installProjectSaveCloseGuard } from './project-save-close-guard.ts';
+import { installProjectCloseGuard } from './project-close-guard.ts';
+import { applicationActivity } from './application-activity.ts';
 import { importVisualModuleFile } from './utility/visual-module-file.ts';
 import { importAssets } from './utility/import-assets.ts';
 import { fileDropTargetInstallerKey, installFileDropHandlers } from './utility/file-drop.ts';
@@ -161,7 +162,7 @@ const visualModuleLivePreviewFpsLabel = computed(() => renderingStatsEnabled.val
 const { stateManager } = appContext.projectContext;
 const { name: projectName } = appContext.projectContext.stateManager.state;
 const { projectFileName, hasUnsavedChanges, isProjectSaving } = appContext;
-onBeforeUnmount(installProjectSaveCloseGuard(isProjectSaving, hasUnsavedChanges));
+onBeforeUnmount(installProjectCloseGuard(isProjectSaving, applicationActivity.isExporting, hasUnsavedChanges));
 
 const releaseOutputCapture = audioOutput.retainOutputCapture();
 onBeforeUnmount(releaseOutputCapture);
