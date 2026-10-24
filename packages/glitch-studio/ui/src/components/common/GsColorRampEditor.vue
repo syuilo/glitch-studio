@@ -6,7 +6,9 @@
 			<div v-tooltip="i18n.ts.Close" class="_button" :class="$style.close" data-test-color-ramp-close tabindex="0" @click="closeEditor" @keydown.enter.prevent="closeEditor" @keydown.space.prevent="closeEditor"><i class="ti ti-x"></i></div>
 		</div>
 		<div ref="track" :class="$style.track" data-test-color-ramp-track @dblclick="addAtPointer">
-			<GsColorRampPreview :ramp="modelValue"/>
+			<div style="height: 24px;">
+				<GsColorRampPreview :ramp="modelValue"/>
+			</div>
 			<div
 				v-for="(stop, index) in modelValue.stops" :key="stop.id" v-tooltip="i18n.tsx._ColorRamp.StopLabel({ index: index + 1, position: stop.position })" class="_button" :class="[$style.stop, { [$style.selected]: selectedId === stop.id }]"
 				data-test-color-ramp-stop :data-stop-id="stop.id" :style="{ left: `${stop.position * 100}%`, background: colorCss(stop.color) }"

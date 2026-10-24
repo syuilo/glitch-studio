@@ -1,5 +1,5 @@
 <template>
-<div ref="preview" v-tooltip="title ?? i18n.ts._ColorRamp.Title" class="_button" :class="$style.root" data-test-color-ramp data-test-color-ramp-toggle tabindex="0" @click="openPopup" @keydown.enter.prevent="openPopup" @keydown.space.prevent="openPopup">
+<button ref="preview" v-tooltip="title ?? i18n.ts._ColorRamp.Title" class="_button" :class="[$style.root, { [$style.small]: small, [$style.large]: large }]" data-test-color-ramp data-test-color-ramp-toggle tabindex="0" @click="openPopup" @keydown.enter.prevent="openPopup" @keydown.space.prevent="openPopup">
 	<GsColorRampPreview :ramp="modelValue"/>
 	<Teleport to="body">
 		<GsColorRampEditor
@@ -7,7 +7,7 @@
 			@update:modelValue="updateRamp" @closing="finishEditing('closing')" @closed="onClosed"
 		/>
 	</Teleport>
-</div>
+</button>
 </template>
 
 <script setup lang="ts">
@@ -17,7 +17,13 @@ import GsColorRampEditor from './GsColorRampEditor.vue';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
 import { i18n } from '@/i18n.ts';
 
-defineProps<{ modelValue: ColorRamp; title?: string }>();
+defineProps<{
+	modelValue: ColorRamp;
+	title?: string;
+	small?: boolean;
+	large?: boolean;
+}>();
+
 const emit = defineEmits<{
 	(ev: 'update:modelValue', value: ColorRamp): void;
 	(ev: 'beginChanging'): void;
@@ -63,7 +69,19 @@ onBeforeUnmount(() => finishEditing(null));
 
 <style module lang="scss">
 .root {
+	--height: var(--GS-CONTROL-HEIGHT);
+
+	&.small {
+		--height: var(--GS-CONTROL-HEIGHT-SMALL);
+	}
+
+	&.large {
+		--height: var(--GS-CONTROL-HEIGHT-LARGE);
+	}
+
+	display: block;
 	min-width: 0;
 	width: 100%;
+	height: var(--height);
 }
 </style>

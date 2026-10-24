@@ -1,5 +1,7 @@
 <template>
-<span :class="$style.root"><canvas ref="canvas" :class="$style.canvas" width="512" height="1"></canvas></span>
+<div :class="$style.root">
+	<canvas ref="canvas" :class="$style.canvas" width="512" height="1"></canvas>
+</div>
 </template>
 
 <script setup lang="ts">
@@ -28,7 +30,7 @@ watchEffect(() => {
 <style module lang="scss">
 .root {
 	display: block;
-	height: 24px;
+	height: 100%;
 	border-radius: 4px;
 	overflow: clip;
 	background: repeating-conic-gradient(#888 0% 25%, #ccc 0% 50%) 0 / 12px 12px;
