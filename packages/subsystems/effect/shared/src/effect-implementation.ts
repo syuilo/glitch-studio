@@ -3,6 +3,7 @@ import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { BlendMode } from '@gs/shared/color-blend.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
+import type { ColorRamp } from '@gs/shared/color-ramp.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { Asset, FitMode, IntermediateTextureFormat, WrapMode } from '@gs/shared/types.ts';
 import type { EffectOutputDefinitions, EffectDefinition } from './effect-definition.ts';
@@ -16,6 +17,7 @@ type RuntimeEffectOptionValue<D extends DataType, S> =
 	D extends { kind: 'bool' } ? boolean :
 	D extends { kind: 'string' } ? string :
 	D extends { kind: 'color' } ? Readonly<[number, number, number, number]> :
+	D extends { kind: 'colorRamp' } ? ColorRamp :
 	D extends { kind: 'vector' } ? Readonly<[number, number]> :
 	D extends { kind: 'blendMode' } ? BlendMode :
 	D extends { kind: 'fitMode' } ? FitMode :

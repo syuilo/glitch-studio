@@ -29,6 +29,28 @@ const context = (overrides = {}) => ({
 	...overrides,
 });
 
+// 【ランプ全体の基準式・加工式を評価し、保存値と式の結果を分離する】
+// 個別stopのBindingは追加せず、既存のオブジェクト値の式評価を使う。戻り値の検証と再評価の再現性も確認する。
+test('evaluates complete Color Ramp expressions and modifiers without mutating stored values', () => {
+	const evaluator = new ParameterBindingEvaluator();
+	const ramp = { colorSpace: 'srgb', interpolation: 'linear', stops: [{ id: 'start', position: 0, color: [1, 0, 0, 1] }, { id: 'end', position: 1, color: [0, 0, 1, 1] }] };
+	const definition = { dataType: { kind: 'colorRamp' }, ui: { label: 'Ramp' } };
+	const source = modified(literal(ramp), 'VALUE.colorSpace = "oklab"\nVALUE.stops[0].position = TIME\nVALUE');
+	for (const time of [0.5, 0, 0.5]) {
+		const value = evaluator.evaluate(source, context({ variables: { TIME: time } }), null, definition);
+		assert.equal(value.colorSpace, 'oklab');
+		assert.equal(value.stops[0].position, time);
+		assert.equal(ramp.colorSpace, 'srgb');
+		assert.equal(ramp.stops[0].position, 0);
+	}
+	const code = '{ colorSpace: "linearSrgb", interpolation: "constant", stops: [{ id: "only", position: 0, color: [TIME, 0, 0, 1] }] }';
+	assert.equal(evaluator.evaluate(expression(code), context({ variables: { TIME: 0.25 } }), null, definition).stops[0].color[0], 0.25);
+	assert.throws(() => evaluator.evaluate(expression('{}'), context(), ramp, definition), /Base expression for parameter "Ramp"/);
+	assert.throws(() => evaluator.evaluate(modified(literal(ramp), 'VALUE.colorSpace = "unknown"\nVALUE'), context(), ramp, definition), /Modifier expression for parameter "Ramp"/);
+	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'automationGraphReference' }, () => {}), /does not support/);
+	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'keyframesTimelineInline' }, () => {}), /does not support/);
+});
+
 const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpolation: { type } });
 
 // 【基準式と加工式を独立した環境で順に評価する】

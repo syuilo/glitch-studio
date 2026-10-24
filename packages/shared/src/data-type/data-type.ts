@@ -10,6 +10,7 @@ export type DataType =
 	| { kind: 'bool' }
 	| { kind: 'string' }
 	| { kind: 'color' }
+	| { kind: 'colorRamp' }
 	| { kind: 'vector' }
 	| { kind: 'blendMode' }
 	| { kind: 'fitMode' }

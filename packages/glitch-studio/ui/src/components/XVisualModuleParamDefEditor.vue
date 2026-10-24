@@ -18,6 +18,7 @@
 				{ label: i18n.ts._CustomParameterInput._Types.Flag, value: 'bool' },
 				{ label: i18n.ts._CustomParameterInput._Types.String, value: 'string' },
 				{ label: i18n.ts._CustomParameterInput._Types.Color, value: 'color' },
+				{ label: i18n.ts._ColorRamp.Title, value: 'colorRamp' },
 				{ label: i18n.ts._CustomParameterInput._Types.Vector, value: 'vector' },
 				{ label: i18n.ts._CustomParameterInput._Types.Enum, value: 'enum' },
 				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'imageAssetTextureReference' },
@@ -154,13 +155,14 @@ function updateEnumOptions(options: string[], labels: Record<string, string>, de
 function updateType(dataType: EditableDataType) {
 	if (dataType === parameterType.value) return;
 	defaultValueMergeKey = null;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'imageAssetTextureReference' && dataType !== 'assetReference:video' && dataType !== 'assetReference:font' && dataType !== 'assetReference:lut' && dataType !== 'audioSource') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'colorRamp' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'imageAssetTextureReference' && dataType !== 'assetReference:video' && dataType !== 'assetReference:font' && dataType !== 'assetReference:lut' && dataType !== 'audioSource') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
 		bool: { dataType: { kind: 'bool' }, ui: { label: props.def.ui.label, control: {} } },
 		string: { dataType: { kind: 'string' }, ui: { label: props.def.ui.label, control: {} } },
 		color: { dataType: { kind: 'color' }, ui: { label: props.def.ui.label, control: {} } },
+		colorRamp: { dataType: { kind: 'colorRamp' }, ui: { label: props.def.ui.label, control: {} } },
 		vector: { dataType: { kind: 'vector' }, ui: { label: props.def.ui.label, control: { controlType: 'vector' } } },
 		enum: { dataType: { kind: 'enum', options: ['option1', 'option2'] }, ui: { label: props.def.ui.label, control: { labels: { option1: 'Option 1', option2: 'Option 2' } } } },
 		imageAssetTextureReference: { dataType: { kind: 'imageAssetTextureReference' }, ui: { label: props.def.ui.label, control: {} } },

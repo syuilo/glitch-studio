@@ -22,9 +22,9 @@ const bundle = await build({ absWorkingDir: directory, external: ['vue'], bundle
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'effects' }));
 		build.onLoad({ filter: /.*/, namespace: 'effects' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsVisualParam.vue') ? null : { path: basename(path), namespace: 'control' });
-		// GsInputの保存とショートカットはinput-sync.test.mjsで実コードを確認する。
+		// GsInput/GsTextareaの保存とショートカットはinput-sync.test.mjsで実コードを確認する。
 		// ここでは未保存のslot値と保存イベントを分け、親が入力途中の本文を適用しないことを確認する。
-		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ contents: path === 'GsInput.vue' ? `
+		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ contents: path === 'GsInput.vue' || path === 'GsTextarea.vue' ? `
 			import { h, ref, watch } from 'vue';
 			export default { props: { modelValue: null, manualSave: Boolean }, setup(props, { attrs, slots }) {
 				const draft = ref(props.modelValue);

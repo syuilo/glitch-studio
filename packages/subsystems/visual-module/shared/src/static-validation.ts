@@ -1,5 +1,6 @@
 import { inspectStaticParameter, staticParameterShape, validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { validateVisualModuleAudioBinding } from './audio-parameters.ts';
 import { getNodeOutputs } from './node-outputs.ts';
@@ -49,6 +50,8 @@ export function inspectVisualModuleNode(node: VisualModuleNode, visualModule: Vi
 				connection(binding);
 			} else if (binding.inputSource === 'externalCustomParameterInput') {
 				if (!visualModule.paramDefs.some(def => def.id === binding.parameterId)) throw new Error('Custom parameter not found');
+				const customDefinition = visualModule.paramDefs.find(def => def.id === binding.parameterId)!;
+				if ((leaf.dataType.kind === 'colorRamp' || customDefinition.dataType.kind === 'colorRamp') && !areDataTypesEqual(leaf.dataType, customDefinition.dataType)) throw new Error('Color Ramp custom parameter type mismatch');
 			} else if (!isValueParameterBinding(binding)) throw new Error('Unsupported visual module parameter input source');
 		});
 	}

@@ -225,6 +225,7 @@ import { visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shar
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
+import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import * as AiScript from '@syuilo/aiscript';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Ref } from 'vue';
@@ -342,6 +343,7 @@ const envVariableItems = computed(() => props.availableVariables.map(variable =>
 }));
 const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : paramDefs.value)
 	.filter(def => !def.canNode && (def.dataType.kind === 'audioSource') === (props.paramDef.dataType.kind === 'audioSource'))
+	.filter(def => def.dataType.kind !== 'colorRamp' && props.paramDef.dataType.kind !== 'colorRamp' || areDataTypesEqual(def.dataType, props.paramDef.dataType))
 	.map(def => ({ label: `${def.ui.label} (${def.nameForReference})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
@@ -476,6 +478,7 @@ function getMenu() {
 			if (props.imageLayerOptions != null) types.push({ text: i18n.ts._Parameter.AnotherLayerOutput, inputSource: 'anotherLayerOutput', icon: 'ti ti-stack' });
 		}
 		for (const { text, inputSource, icon } of types) {
+			if (props.paramDef.dataType.kind === 'colorRamp' && ['automationGraphReference', 'automationGraphInline'].includes(inputSource)) continue;
 			if (inputSource === 'keyframesTimelineInline' && (!props.keyframesEnabled || !isKeyframesDataType(props.paramDef.dataType))) continue;
 			menuItems.push({
 				text,

@@ -275,6 +275,18 @@
 		"GotIt": "Got It",
 		"DropHere": "Drop here"
 	},
+	"_ColorRamp": {
+		"Title": "Color Ramp",
+		"StopLabel": "Stop {index} ({position})",
+		"AddStop": "Add Stop",
+		"RemoveStop": "Remove Stop",
+		"Position": "Position",
+		"Interpolation": "Interpolation",
+		"ColorSpace": "Interpolation Color Space",
+		"Constant": "Constant",
+		"Linear": "Linear",
+		"Smoothstep": "Smoothstep"
+	},
 	"_ColorPicker": {
 		"PickFromScreen": "Pick a color from the screen",
 		"RecentColors": "Recent colors",

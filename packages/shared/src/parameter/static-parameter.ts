@@ -3,6 +3,11 @@ import { validateParameterExpressionModifier } from './parameter-expression-modi
 import type { ParameterDefinition } from './parameter-definition.ts';
 import type { ParameterBindingBase, ParameterArrayElement } from './parameter-binding.ts';
 
+/** 共通の入力方式のうち、対応表への変換を定義していない方式を入口で拒否する。 */
+export function validateColorRampParameterInputSource(definition: Pick<ParameterDefinition, 'dataType'>, binding: ParameterBindingBase): void {
+	if (definition.dataType.kind === 'colorRamp' && ['keyframesTimelineInline', 'automationGraphReference', 'automationGraphInline'].includes(binding.inputSource)) throw new Error('Color Ramp does not support keyframes or Automation Graph input');
+}
+
 /** 定義の初期状態には加工式を保存しない。加工は各利用箇所のBindingで設定する。 */
 export function validateParameterDefaultValues(definition: ParameterDefinition): void {
 	inspectStaticParameter(definition, definition.defaultValue, (_definition, binding) => {
@@ -22,6 +27,7 @@ export function inspectStaticParameter<Binding extends ParameterBindingBase>(def
 	if (!binding) throw new Error('Missing parameter binding');
 	validateParameterExpressionModifier(definition, binding);
 	if (definition.dataType.kind !== 'array' && definition.dataType.kind !== 'struct') {
+		validateColorRampParameterInputSource(definition, binding);
 		inspectLeaf(definition, binding);
 		return;
 	}

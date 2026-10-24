@@ -8,7 +8,7 @@ import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { preserveParameterExpressionModifier, validateParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
-import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
+import { validateColorRampParameterInputSource, validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
@@ -867,6 +867,7 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 						after = deepClone(kind === 'reset' || options.preserveExpressionModifier === false ? updated : preserveParameterExpressionModifier(target.value, updated));
 					}
 					mapParameterTree<VisualModuleParameterBinding>(target.def, after, [], (def, binding) => {
+						validateColorRampParameterInputSource(def, binding);
 						validateParameterExpressionModifier(def, binding);
 						validateVisualModuleAudioBinding(def, binding, stateUtility.getVisualModule(state, payload).paramDefs);
 						if (def.dataType.kind === 'audioSource' && binding.inputSource === 'literal') validatePlayerAudioSourceSelection(binding.value);

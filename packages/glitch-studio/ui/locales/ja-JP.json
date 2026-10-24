@@ -275,6 +275,18 @@
 		"GotIt": "おｋ",
 		"DropHere": "ここにドロップ"
 	},
+	"_ColorRamp": {
+		"Title": "Color Ramp",
+		"StopLabel": "ストップ {index} ({position})",
+		"AddStop": "ストップを追加",
+		"RemoveStop": "ストップを削除",
+		"Position": "位置",
+		"Interpolation": "補間方法",
+		"ColorSpace": "補間の色空間",
+		"Constant": "一定",
+		"Linear": "線形",
+		"Smoothstep": "Smoothstep"
+	},
 	"_ColorPicker": {
 		"PickFromScreen": "画面から色を取得",
 		"RecentColors": "最近使った色",

@@ -1,4 +1,5 @@
 import { deepClone } from '../utility/deep-clone.ts';
+import { createDefaultColorRamp } from '../color-ramp.ts';
 import type { DataType } from '../data-type/data-type.ts';
 import type { ParameterSettings } from './parameter-definition.ts';
 
@@ -19,6 +20,7 @@ export function genEmptyValue(paramDef: EmptyValueDefinition): any {
 		case 'wrapMode': return 'repeatMirrored';
 		case 'vector': return [0, 0];
 		case 'color': return [0, 0, 0, 1];
+		case 'colorRamp': return createDefaultColorRamp();
 		case 'any': case 'imageAssetTextureReference': case 'assetReference': case 'playerReference': case 'audioSource': return null;
 		case 'array': return [];
 		case 'struct': {

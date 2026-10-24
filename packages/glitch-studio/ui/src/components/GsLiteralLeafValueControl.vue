@@ -148,6 +148,7 @@
 	<div v-else-if="vectorControl?.controlType === 'vector'">
 		<GsXy :enableRatioLock="false" :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
+	<GsColorRampInput v-else-if="dataType.kind === 'colorRamp'" :modelValue="value" :title="title" @beginChanging="onBeginChanging" @update:modelValue="changeContinuous" @changeFinished="onFinishChanging"/>
 	<div v-else-if="dataType.kind === 'color'" :class="$style.colorControl">
 		<GsSignal
 			v-if="colorControl?.controlType === 'signal'"
@@ -196,6 +197,7 @@ import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { computed, onBeforeUnmount, ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
+import GsColorRampInput from './common/GsColorRampInput.vue';
 import GsSignal from './common/GsSignal.vue';
 import GsInput from './common/GsInput.vue';
 import GsTextarea from './common/GsTextarea.vue';

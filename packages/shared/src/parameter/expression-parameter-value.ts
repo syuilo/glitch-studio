@@ -1,4 +1,5 @@
 import { isBlendMode } from '../color-blend.ts';
+import { validateColorRamp } from '../color-ramp.ts';
 import { coerceParameterValue } from './coerce-parameter-value.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 
@@ -14,6 +15,7 @@ export function prepareExpressionParameterValue(definition: ExpressionParameterD
 		case 'scalar': valid = finiteNumber(prepared); break;
 		case 'vector': valid = components(2); break;
 		case 'color': valid = components(4); break;
+		case 'colorRamp': validateColorRamp(prepared); valid = true; break;
 		case 'bool': valid = typeof prepared === 'boolean'; break;
 		case 'string': valid = typeof prepared === 'string'; break;
 		case 'enum': valid = typeof prepared === 'string' && definition.dataType.options.includes(prepared); break;

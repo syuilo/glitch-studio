@@ -27,7 +27,42 @@
 - 種類の判定は `dataType.kind`、構造を含む型の等価判定は `areDataTypesEqual()` を使います。オブジェクトの `===` で型を比較しないでください。ノード接続の互換性判定は、anyの規約を含む `areNodeDataTypesCompatible()` を使います。
 - パラメータ定義全体を種類で絞り込む場合は `isParameterType(def, 'scalar')` などを使えます。種類名だけ必要な選択UIやDOM属性では `DataType['kind']` / `dataType.kind` を使い、保存する型はオブジェクトのままにします。
 - enumの `options` は文字列のみです。表示名は `ui.control.labels` に分離し、初期値も選択肢の文字列にします。数値計算やGPUで番号が必要なら利用側の境界で変換します。
-- `GsLiteralParameterValueControl.vue` は `LeafDataType` と対応する `control`、リテラル値を受け取ります。パラメータ定義やBinding全体は渡しません。array・structの展開とフィールドラベルの表示は上位コンポーネントの責務です。enumの選択肢ラベルは末端コントロールでも使用します。
+- `GsLiteralLeafValueControl.vue` は `LeafDataType` と対応する `control`、リテラル値を受け取ります。パラメータ定義やBinding全体は渡しません。array・structの展開とフィールドラベルの表示は上位コンポーネントの責務です。enumの選択肢ラベルは末端コントロールでも使用します。
+
+## Color Ramp
+
+`{ kind: 'colorRamp' }`は、scalarからcolorへの対応表を一つの末端値として扱います。
+`packages/shared/src/color-ramp.ts`の`ColorRamp`は`stops`・`interpolation`・`colorSpace`を持ち、
+各stopは`{ id, position, color }`です。stop内部にはBindingを持たせません。
+
+- stopは1個以上。IDはランプ内で一意な空でない文字列、位置は0〜1の有限値とします。RGBAは未乗算sRGBの有限値で、alphaは0〜1です。
+- 初期値は位置0の黒と位置1の白（不透明）、Linear・sRGBです。RGBの有限な範囲外値は保存できますが、描画結果はsRGBへ戻した後に0〜1へclampします。
+- 評価では位置をGPUと同じf32へ丸め、保存順を保って位置順に並べます。同位置では保存順で最後のstopを採用し、左から近づく区間には最初のstopを使います。範囲外は端の色、単一stopは全域でその色です。保存値の順序・位置は変更しません。
+- 補間は`constant`・`linear`・`smoothstep`、補間色空間は`srgb`・`linearSrgb`・`oklab`です。色空間の設定変更で保存済みのRGBAを書き換えません。
+- 選択した色空間へ変換してからalphaを乗算して補間します。補間後は未乗算へ戻し、sRGBへ変換・clampして再びalphaを乗算します。alphaが0の場合は透明色を返します。端点とConstantでは色空間変換の往復を省略します。
+- 固定値・環境変数・ランプ全体を返す基準式と加工式・Visual Moduleの公開入力で利用できます。キーフレーム・Automation Graph・テクスチャとしてのノード接続は扱いません。
+- 式は各stopのIDを安定した文字列で返してください。加工式の`VALUE`もランプ全体で、式の内部変更は保存値へ書き戻されません。不正な構造や非有限値はエラーとして報告します。
+
+専用UIはプレビューをクリックすると編集用ポップアップを開き、stopの追加・削除・選択・色・位置を編集します。バーのダブルクリックでその位置へ追加し、追加色は現在の補間色から取得します。重複stopは選択欄から個別に選べます。左右キーで0.01、Shift併用で0.1移動し、Delete/Backspaceで削除します。最後のstopは削除できません。外側のクリック・Escape・閉じるボタンでポップアップを閉じ、開いている間の変更を一つのUndoにまとめます。
+
+```aiscript
+// ランプ全体を返す式
+{
+  interpolation: "linear"
+  colorSpace: "oklab"
+  stops: [
+    { id: "start", position: 0, color: [1, 0, 0, 1] }
+    { id: "end", position: 1, color: [0, 0, 1, 1] }
+  ]
+}
+```
+
+```aiscript
+// 固定値で編集したランプを加工する式
+VALUE.stops[0].color = [1, 0, 0, 0.5]
+VALUE.colorSpace = "linearSrgb"
+VALUE
+```
 
 ## パラメータの参照スコープ
 

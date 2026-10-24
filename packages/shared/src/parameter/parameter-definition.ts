@@ -5,6 +5,7 @@ import type { BlendMode } from '../color-blend.ts';
 import type { FitMode, WrapMode } from '../types.ts';
 import type { ParameterArrayElement } from './parameter-binding.ts';
 import type { ValueParameterSource } from './value-parameter-binding.ts';
+import type { ColorRamp } from '../color-ramp.ts';
 
 // 値には式・キー・automationの内容を含む。入力方式の切替、接続先の変更、
 // 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
@@ -17,6 +18,7 @@ type ParameterDefaultValueMap = {
 	bool: boolean;
 	string: string;
 	color: [number, number, number, number];
+	colorRamp: ColorRamp;
 	vector: [number, number];
 	blendMode: BlendMode;
 	fitMode: FitMode;

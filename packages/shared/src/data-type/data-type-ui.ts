@@ -19,6 +19,7 @@ export type DataTypeUiControlDefinitionMap = {
 	bool: {};
 	string: {};
 	color: { controlType?: 'color' | 'signal'; };
+	colorRamp: {};
 	// logarithmicの範囲・stepの扱いはrangeと同じ。各軸の実際の値を保存する。
 	vector: { controlType: 'vector' | 'xy' | 'dimension'; min?: number; max?: number; step?: number; logarithmic?: boolean };
 	blendMode: {};
