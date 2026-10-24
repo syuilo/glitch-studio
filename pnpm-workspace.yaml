@@ -29,6 +29,8 @@ minimumReleaseAgeExclude:
   - pnpm@12.3.4
   # Renovate security update: js-yaml@4.3.2
   - js-yaml@4.3.2
+  # Renovate security update: electron@44.9.1
+  - electron@44.9.1
 overrides:
   '@aiscript-dev/aiscript-languageserver': '-'
   '@tabler/icons-webfont>sharp': '-'
