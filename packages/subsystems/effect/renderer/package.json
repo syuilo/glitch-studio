@@ -13,9 +13,9 @@
 		"./effect-parameter-value.ts": "./src/effect-parameter-value.ts"
 	},
 	"devDependencies": {
-		"@types/web": "0.0.352",
-		"@typescript-eslint/parser": "8.59.2",
-		"@webgpu/types": "0.1.72",
+		"@types/web": "0.0.359",
+		"@typescript-eslint/parser": "8.71.2",
+		"@webgpu/types": "0.1.74",
 		"vite": "8.2.2"
 	},
 	"dependencies": {
