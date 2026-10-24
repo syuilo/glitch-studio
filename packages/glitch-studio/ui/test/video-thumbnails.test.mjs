@@ -9,7 +9,7 @@ import { decode } from '@msgpack/msgpack';
 const bundle = await build({
 	stdin: { contents: `export { generateVideoThumbnails } from './utility/video-thumbnails.ts';
 		export { openMediaFile } from './api.ts';
-		export { openMediaFile as openWithProgress } from './utility/open-media-file.ts';
+		export { openMediaFile as openWithProgress, openMediaFileFromPath } from './utility/open-media-file.ts';
 		export { importAssets } from './utility/import-assets.ts';
 		export { encodeProjectFile, decodeProjectFile } from './gsproj.ts';
 		export { ProjectContext } from './Project.ts';
@@ -49,6 +49,7 @@ function setup(t, overrides = {}) {
 		getDisplayWidth: async () => options.width, getDisplayHeight: async () => options.height,
 	};
 	const mediabunny = { ALL_FORMATS: [], BlobSource: class { constructor(blob) { calls.blob = blob; } },
+		UrlSource: class { constructor(url) { calls.sourceUrl = url; } },
 		Input: class { async getPrimaryVideoTrack() { return track; } dispose() { calls.disposed++; } },
 		CanvasSink: class {
 			constructor(received, settings) { assert.equal(received, track); calls.settings = settings; }
@@ -278,6 +279,55 @@ function setupImport(t) {
 	globalThis.window = { document: { createElement: type => type === 'video' ? new Video() : input } };
 	return input;
 }
+
+// 【OSから受け取った動画もサイズと設定に従い、外部参照では全量読み込みしない】
+// ネイティブのFileがなくても、パス・MIME・サムネイルを持つ素材として読み込める必要がある。
+// 小さい素材の埋め込みと外部参照の各設定を切り替え、30MBの境界も通常の取り込みと一致させる。
+test('opens media paths using import preferences and preserves streaming for large videos', async t => {
+	const f = setup(t, { preferences: { importLargeAssetsAsExternalReferences: true } });
+	setupImport(t);
+	const filePath = 'C:/素材 フォルダ/動画.MP4';
+	let size = 29_999_999;
+	window.desktop = {
+		getPathForFile: () => assert.fail('An OS path must be supplied explicitly'),
+		resolveExternalAsset: async received => {
+			assert.equal(received, filePath);
+			return { url: 'app://external-assets/video', size, error: null };
+		},
+	};
+	const fetched = t.mock.method(globalThis, 'fetch', async () => new Response('encoded video'));
+	const embedded = await f.openMediaFileFromPath(filePath, 'video/mp4');
+	assert.equal(embedded.isExternalReference, false);
+	assert.equal(await embedded.fileData.text(), 'encoded video');
+	assert.equal(embedded.sourceFilePath, filePath);
+	assert.equal(embedded.thumbnailSequence.frames.length, 11);
+	assert.equal(fetched.mock.callCount(), 1);
+	size = 30_000_000;
+	const external = await f.openMediaFileFromPath(filePath, 'video/mp4');
+	assert.equal(external.isExternalReference, true);
+	assert.equal(external.fileData.url, 'app://external-assets/video');
+	assert.equal(external.thumbnailSequence.frames.length, 11);
+	assert.equal(f.calls.sourceUrl, external.fileData.url);
+	assert.equal(fetched.mock.callCount(), 1);
+	f.preferences.importLargeAssetsAsExternalReferences = false;
+	f.preferences.importAssetsAsExternalReferences = true;
+	size = 1;
+	assert.equal((await f.openMediaFileFromPath(filePath, 'video/mp4')).isExternalReference, true);
+	assert.equal(fetched.mock.callCount(), 1);
+	assert.equal(f.calls.dialogs, 3);
+	assert.equal(f.calls.done, 3);
+});
+
+// 【読み込めないOS素材で待機ダイアログと操作ロックを残さない】
+// ファイルが移動・削除された場合も、エラーを呼び出し元へ返して次の操作を可能にする。
+test('reports unavailable media paths and closes the import dialog', async t => {
+	const f = setup(t);
+	setupImport(t);
+	window.desktop = { resolveExternalAsset: async () => ({ url: null, size: 0, error: 'Missing media file' }) };
+	await assert.rejects(f.openMediaFileFromPath('C:/missing.png', 'image/png'), /Missing media file/);
+	assert.equal(f.calls.dialogs, 1);
+	assert.equal(f.calls.done, 1);
+});
 
 // 【複数動画のサムネイル生成を待ち、進捗ダイアログを一度だけ表示する】
 // 取り込み完了時に表示用画像が揃っていることと、ファイルごとに進捗率が巻き戻らないことを確認する。

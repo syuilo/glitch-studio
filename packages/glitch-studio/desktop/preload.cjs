@@ -20,7 +20,7 @@ contextBridge.exposeInMainWorld('desktop', {
 	},
 	voicevoxConnect: endpoint => ipcRenderer.invoke('desktop:voicevox-connect', endpoint),
 	voicevoxSynthesize: request => ipcRenderer.invoke('desktop:voicevox-synthesize', request),
-	takeStartupProjectFile: () => ipcRenderer.invoke('desktop:take-startup-project-file'),
+	takeStartupFile: () => ipcRenderer.invoke('desktop:take-startup-file'),
 	// FileをIPCへ送るとネイティブな情報が失われるため、preload内で元ファイルのパスを取得する。
 	getPathForFile: (file) => webUtils.getPathForFile(file),
 	resolveExternalAsset: (filePath, reload = false) => ipcRenderer.invoke('desktop:resolve-external-asset', filePath, reload),

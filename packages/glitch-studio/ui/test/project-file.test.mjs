@@ -952,6 +952,44 @@ test('retains the source path when creating a project from an image', async t =>
 	assert.equal(await saved.fileData.text(), 'encoded image');
 });
 
+// 【OSから開いた画像は新規プロジェクトになり、保存時に素材原本を上書きしない】
+// プロジェクトを開く経路と素材を開く経路を混同すると、原本の画像がgsprojの内容で置き換わる。
+// ダイアログなしで寸法・画像ノードを初期化し、保存先は新しく選ぶことを確認する。
+test('creates a new project from a media path and chooses a separate project save target', async t => {
+	const window = setup(t);
+	const filePath = 'C:/素材 フォルダ/画像.PNG';
+	window.desktop = {
+		resolveExternalAsset: async received => {
+			assert.equal(received, filePath);
+			return { url: 'app://external-assets/image', size: 13, error: null };
+		},
+		getPathForFile: () => assert.fail('The media path is already known'),
+		registerProjectFile: () => assert.fail('A media file must not become a project save target'),
+	};
+	t.mock.method(globalThis, 'fetch', async () => new Response('encoded image'));
+	const previous = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
+	globalThis.createImageBitmap = async () => ({ width: 640, height: 360, close() {} });
+	t.after(() => {
+		if (previous != null) Object.defineProperty(globalThis, 'createImageBitmap', previous);
+		else delete globalThis.createImageBitmap;
+	});
+	const app = evaluate(appBundle);
+	assert.equal(await app.newProjectFromMediaPath(filePath, 'image/png'), true);
+	const manager = app.appContext.projectContext.stateManager;
+	assert.deepEqual({ ...manager.state.resolution.value }, { width: 640, height: 360 });
+	assert.equal(manager.state.assets.value[0].sourceFilePath, filePath);
+	assert.equal(manager.state.assets.value[0].fileDataType, 'image/png');
+	assert.equal(manager.state.visualModules.value[0].nodes.find(node => node.type === 'effect').effectId, 'image');
+	const handle = fileHandle('from-os-image.gsproj');
+	let saveSelections = 0;
+	window.selectProjectSaveFile = async () => { saveSelections++; return handle; };
+	await app.appContext.saveProject();
+	assert.equal(saveSelections, 1);
+	const saved = decodeProjectFile(handle.bytes);
+	assert.equal(saved.assets[0].sourceFilePath, filePath);
+	assert.equal(await saved.assets[0].fileData.text(), 'encoded image');
+});
+
 // 【Openで得たハンドルを使い、選択ダイアログなしで元ファイルへ上書きする】
 // Fileだけを保持すると開いたファイルを上書きできず、Save asと同じ動作になってしまう。
 test('retains the opened handle and overwrites it without a save picker', async t => {

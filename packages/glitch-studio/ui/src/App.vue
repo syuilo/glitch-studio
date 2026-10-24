@@ -88,7 +88,7 @@
 
 <script lang="ts" setup>
 import { provide, computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { appContext, newProject, openProject } from './app.ts';
+import { appContext, newProject, newProjectFromMediaPath, openProject } from './app.ts';
 import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
 import { preferences } from './preferences.ts';
 import { WorkspaceController, workspaceControllerKey } from './WorkspaceController.ts';
@@ -464,8 +464,9 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 
 onMounted(async () => {
 	try {
-		const startupProject = await window.desktop?.takeStartupProjectFile();
-		if (startupProject && await openProject(null, desktopProjectFile(startupProject))) return;
+		const startupFile = await window.desktop?.takeStartupFile();
+		if (startupFile?.kind === 'project' && await openProject(null, desktopProjectFile(startupFile.file))) return;
+		if (startupFile?.kind === 'media' && await newProjectFromMediaPath(startupFile.path, startupFile.type)) return;
 	} catch (error) {
 		console.error(error);
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });

@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { ProjectFiles } from '../project-files.mjs';
 import { registerProjectFileIpc } from '../project-file-ipc.mjs';
+import { registerStartupFileIpc } from '../startup-file-ipc.mjs';
 
 async function fixture(t, { startup = false } = {}) {
 	const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'glitch-studio-project-ipc-'));
@@ -23,14 +24,18 @@ async function fixture(t, { startup = false } = {}) {
 	};
 	function registerHandlers() {
 		let startupProjectPath = startup ? file : null;
-		registerProjectFileIpc({ handle: (name, action) => handlers.set(name, action) }, dialogs, new ProjectFiles(), event => {
+		const ipcMain = { handle: (name, action) => handlers.set(name, action) };
+		const projectFiles = new ProjectFiles();
+		const getTrustedMainWindow = event => {
 			if (event !== trusted) throw new Error('Untrusted');
 			return parent;
-		}, () => {
+		};
+		registerProjectFileIpc(ipcMain, dialogs, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath);
+		registerStartupFileIpc(ipcMain, projectFiles, getTrustedMainWindow, () => {
 			const filePath = startupProjectPath;
 			startupProjectPath = null;
 			return filePath;
-		}, projectOpenDirectoryFilePath);
+		});
 	}
 	registerHandlers();
 	return { file, projectOpenDirectoryFilePath, handlers, calls, dialogs, trusted, restart: registerHandlers,
@@ -42,13 +47,15 @@ async function fixture(t, { startup = false } = {}) {
 // 信頼できない送信元による起動要求の横取りも防ぐ。
 test('delivers the startup project once to the trusted UI and preserves its save target', async t => {
 	const h = await fixture(t, { startup: true });
-	assert.throws(() => h.handlers.get('desktop:take-startup-project-file')({}), /Untrusted/);
-	const opened = await h.invoke('take-startup-project-file');
+	assert.throws(() => h.handlers.get('desktop:take-startup-file')({}), /Untrusted/);
+	const startup = await h.invoke('take-startup-file');
+	assert.equal(startup.kind, 'project');
+	const opened = startup.file;
 	assert.equal(opened.name, 'project.gsproj');
 	assert.deepEqual(new Uint8Array(await h.invoke('read-project-file', opened.id)), new Uint8Array([1, 2, 3]));
 	await h.invoke('write-project-file', opened.id, new Uint8Array([4]));
 	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([4]));
-	assert.equal(await h.invoke('take-startup-project-file'), null);
+	assert.equal(await h.invoke('take-startup-file'), null);
 	assert.deepEqual(h.calls, []);
 });
 
@@ -56,7 +63,7 @@ test('delivers the startup project once to the trusted UI and preserves its save
 // 以前開いたプロジェクトを推測せず、UIがダッシュボードを表示できるようにする。
 test('returns no startup project for a regular launch', async t => {
 	const h = await fixture(t);
-	assert.equal(await h.invoke('take-startup-project-file'), null);
+	assert.equal(await h.invoke('take-startup-file'), null);
 });
 
 // 【ネイティブのOpen/Save asはファイルだけを選び、選択時に旧内容を空にしない】

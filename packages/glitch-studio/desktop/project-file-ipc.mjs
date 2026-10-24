@@ -3,16 +3,8 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 
 // メインウィンドウの検証を全操作に適用し、UIへ汎用的なファイル操作を公開しない。
-export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, takeStartupProjectPath = () => null, projectOpenDirectoryFilePath = null) {
+export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath = null) {
 	let projectOpenDirectory = null;
-	ipcMain.handle('desktop:take-startup-project-file', event => {
-		getTrustedMainWindow(event);
-		// macOSでは全ウィンドウを閉じた後のopen-fileでも、同じプロセスに新しい要求が届く。
-		// 登録時のパスを閉じ込めず、今回のウィンドウに割り当てたパスを取得する。
-		const startupProjectPath = takeStartupProjectPath();
-		if (startupProjectPath == null) return null;
-		return projectFiles.describe(projectFiles.register(startupProjectPath));
-	});
 	ipcMain.handle('desktop:register-project-file', (event, filePath) => {
 		getTrustedMainWindow(event);
 		return projectFiles.describe(projectFiles.register(filePath));

@@ -8,8 +8,9 @@ import { ExternalAssetFiles, registerExternalAssetIpc } from './external-assets.
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
 import { ProjectCloseController, registerProjectCloseIpc } from './project-close-guard.mjs';
 import { RecentProjects, registerRecentProjectsIpc } from './recent-projects.mjs';
-import { getStartupProjectPath } from './startup-project.mjs';
-import { ProjectLaunchController, launchProjectProcess } from './project-launch.mjs';
+import { getStartupFilePaths } from './startup-files.mjs';
+import { FileLaunchController, launchFileProcess } from './file-launch.mjs';
+import { registerStartupFileIpc } from './startup-file-ipc.mjs';
 import { ExportFiles } from './export-files.mjs';
 import { registerExportFileIpc } from './export-file-ipc.mjs';
 import { DesktopInstances } from './desktop-instances.mjs';
@@ -54,21 +55,21 @@ let projectCloseController = null;
 // 通知をGCで失わないよう、次のエクスポートが完了するまで最新の通知を保持する。
 let exportCompleteNotification = null;
 
-const projectLaunchController = new ProjectLaunchController({
-	startupProjectPath: getStartupProjectPath(process.argv, { defaultApp: process.defaultApp }),
+const fileLaunchController = new FileLaunchController({
+	startupFilePaths: getStartupFilePaths(process.argv, { defaultApp: process.defaultApp }),
 	createWindow,
 	hasMainWindow: () => mainWindow != null,
-	openProjectInNewProcess: filePath => {
-		void launchProjectProcess(filePath, { applicationPath: process.defaultApp === true ? app.getAppPath() : null }).catch(error => {
-			console.error('Failed to launch the project:', error);
-			dialog.showErrorBox('Could not open the project', error.message);
+	openFileInNewProcess: filePath => {
+		void launchFileProcess(filePath, { applicationPath: process.defaultApp === true ? app.getAppPath() : null }).catch(error => {
+			console.error('Failed to launch the file:', error);
+			dialog.showErrorBox('Could not open the file', error.message);
 		});
 	},
 });
 if (process.platform === 'darwin') {
 	// 起動を伴う要求を取りこぼさないよう、whenReadyより前に購読する。
 	app.on('open-file', (event, filePath) => {
-		if (projectLaunchController.requestProject(filePath)) event.preventDefault();
+		if (fileLaunchController.requestFile(filePath)) event.preventDefault();
 	});
 }
 
@@ -265,16 +266,17 @@ app.whenReady().then(async () => {
 	});
 
 	registerVoicevoxIpc(ipcMain, getTrustedMainWindow);
-	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, () => projectLaunchController.takeStartupProjectPath(),
+	registerStartupFileIpc(ipcMain, projectFiles, getTrustedMainWindow, () => fileLaunchController.takeStartupFilePath());
+	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow,
 		path.join(app.getPath('userData'), 'project-open-directory'));
 	registerRecentProjectsIpc(ipcMain, new RecentProjects(path.join(app.getPath('userData'), 'recent-projects')), projectFiles,
 		getTrustedMainWindow, process.platform === 'win32' || process.platform === 'darwin' ? app : null);
 	registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMainWindow);
 
-	projectLaunchController.start();
+	fileLaunchController.start();
 	if (updatesEnabled) void desktopUpdateController.checkForUpdates();
 	app.on('activate', () => {
-		projectLaunchController.activate();
+		fileLaunchController.activate();
 	});
 }).catch(error => {
 	console.error(error);

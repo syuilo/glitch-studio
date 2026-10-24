@@ -16,7 +16,11 @@ interface Window {
 		onUpdateStateChanged(listener: (state: import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState) => void): () => void;
 		voicevoxConnect(endpoint: string): Promise<{ version: string; speakers: import('@gs/glitch-studio_shared/voicevox.ts').VoicevoxSpeaker[] }>;
 		voicevoxSynthesize(request: import('@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts').VoicevoxRequest): Promise<{ data: Uint8Array; engineVersion: string; audioQuery: Record<string, unknown> }>;
-		takeStartupProjectFile(): Promise<{ id: string; name: string } | null>;
+		takeStartupFile(): Promise<
+			{ kind: 'project'; file: { id: string; name: string } }
+			| { kind: 'media'; path: string; type: string }
+			| null
+		>;
 		getPathForFile(file: File): string;
 		resolveExternalAsset(filePath: string, reload?: boolean): Promise<import('@gs/shared/file-source.ts').UrlFileSource>;
 		assetProjectPaths(paths: (string | null)[], projectId: string | null, storing: boolean): Promise<(string | null)[]>;

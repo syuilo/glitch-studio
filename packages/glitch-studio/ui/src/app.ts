@@ -26,9 +26,10 @@ import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types
 import type { EffectNodeOf } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { ProjectFileHandle } from './gsproj.ts';
+import type { OpenedMediaFile } from './api.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
-import { openMediaFile } from '@/utility/open-media-file.ts';
+import { openMediaFile, openMediaFileFromPath } from '@/utility/open-media-file.ts';
 
 if (isLocaleUnconfigured) {
 	configureLocale();
@@ -184,11 +185,14 @@ export async function newProject() {
 }
 
 export async function newProjectFromImageOrVideo(file?: File) {
-	return applicationActivity.run(() => loadMediaProject(file));
+	return applicationActivity.run(async () => loadMediaProject(await openMediaFile({ file })));
 }
 
-async function loadMediaProject(file?: File) {
-	const result = await openMediaFile({ file });
+export async function newProjectFromMediaPath(filePath: string, type: string) {
+	return applicationActivity.run(async () => loadMediaProject(await openMediaFileFromPath(filePath, type)));
+}
+
+async function loadMediaProject(result: OpenedMediaFile | null) {
 	if (result == null) return false;
 
 	const asset = {

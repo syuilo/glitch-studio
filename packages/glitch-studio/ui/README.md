@@ -1,5 +1,9 @@
 # Glitch Studio UI
 
+## OSからのファイルオープン
+
+Electron版の起動時は`App.vue`から`desktop.takeStartupFile()`を呼び、プロジェクトなら保存可能なハンドルで開き、画像・動画なら`app.ts`の`newProjectFromMediaPath()`で新規プロジェクトを作ります。通常起動と読み込み失敗時はダッシュボードを表示します。`utility/open-media-file.ts`の`openMediaFileFromPath()`が取り込み中の操作ロック・待機表示と埋め込み／外部参照設定の適用を担当し、デコードは`external-assets.ts`の既存経路へ渡します。素材のパスをプロジェクトの保存先として扱いません。対応形式とOS登録方法は[Electron版README](../desktop/README.md#画像動画をosから開く)を参照してください。
+
 ## コンポーネントの実装
 
 メンテナンスしやすさを保つため、HTMLをセマンティックにしたり、アクセシビリティを考慮したりする必要はありません。基本的にdivやspanタグを使い、aria属性・role属性は不要です。

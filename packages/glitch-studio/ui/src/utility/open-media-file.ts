@@ -3,9 +3,27 @@ import * as api from '../api.ts';
 import { progress } from '../ui.ts';
 import { applicationActivity } from '../application-activity.ts';
 import { preferences } from '../preferences.ts';
+import { openExternalAsset } from '../external-assets.ts';
 import type { OpenedMediaFile, OpenMediaFileOptions } from '../api.ts';
 
 const LARGE_ASSET_EXTERNAL_REFERENCE_THRESHOLD_BYTES = 30_000_000;
+
+/** OSから受け取った素材にも通常の取り込み設定を適用し、大きな動画を先に全量取得しない。 */
+export async function openMediaFileFromPath(filePath: string, type: string): Promise<OpenedMediaFile | null> {
+	if (window.desktop == null) throw new Error('Opening a media path requires the Electron app.');
+	const releaseActivity = applicationActivity.acquire();
+	const dialog = progress({ text: `${i18n.ts._Assets.Importing}: ${filePath.split(/[\\/]/).at(-1)}` });
+	try {
+		const source = await window.desktop.resolveExternalAsset(filePath);
+		if (source.error != null) throw new Error(source.error);
+		const isExternalReference = preferences.s.importAssetsAsExternalReferences === true
+			|| (preferences.s.importLargeAssetsAsExternalReferences === true && source.size >= LARGE_ASSET_EXTERNAL_REFERENCE_THRESHOLD_BYTES);
+		return await openExternalAsset(filePath, type, isExternalReference);
+	} finally {
+		dialog.done();
+		releaseActivity();
+	}
+}
 
 type ImportMediaFilesOptions = OpenMediaFileOptions & {
 	/** 素材のプロジェクト反映までダイアログを維持する。 */

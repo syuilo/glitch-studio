@@ -1,4 +1,7 @@
 const { version } = require('../../../package.json');
+const mediaFileTypes = require('./media-file-types.cjs');
+
+const projectFileAssociation = { ext: 'gsproj', name: 'GlitchStudio.Project', description: 'Glitch Studio project', role: 'Editor' };
 
 // エントリと実装だけを列挙する。実行時依存はelectron-builderに収集させ、開発依存は含めない。
 const applicationFiles = [
@@ -15,8 +18,10 @@ const applicationFiles = [
 	'edit-command-ipc.mjs',
 	'external-assets.mjs',
 	'recent-projects.mjs',
-	'startup-project.mjs',
-	'project-launch.mjs',
+	'startup-files.mjs',
+	'file-launch.mjs',
+	'startup-file-ipc.mjs',
+	'media-file-types.cjs',
 	'export-files.mjs',
 	'export-file-ipc.mjs',
 	'desktop-update.mjs',
@@ -27,8 +32,7 @@ const applicationFiles = [
 module.exports = {
 	appId: 'io.github.syuilo.glitch-studio',
 	productName: 'Glitch Studio',
-	// macOSのCFBundleDocumentTypesとWindowsの関連付けで、同じプロジェクト拡張子を扱う。
-	fileAssociations: [{ ext: 'gsproj', name: 'GlitchStudio.Project', description: 'Glitch Studio project', role: 'Editor' }],
+	fileAssociations: [projectFileAssociation],
 	publish: [{ provider: 'github', owner: 'syuilo', repo: 'glitch-studio', channel: 'latest' }],
 	afterPack: async context => {
 		// pnpmのworkspace探索で別パッケージが選ばれても、起動不能な配布物を公開しない。
@@ -56,6 +60,10 @@ module.exports = {
 		artifactName: 'Glitch-Studio-${version}-${arch}-Setup.${ext}',
 	},
 	mac: {
+		// 汎用の画像・動画は代替の編集アプリとして公開する。
+		fileAssociations: mediaFileTypes.map(({ ext, type }) => ({
+			ext, name: `Glitch Studio ${type}`, role: 'Editor', rank: 'Alternate',
+		})),
 		target: [{ target: 'dmg', arch: ['arm64', 'x64'] }],
 		icon: '../ui/public/icon-512.png',
 		artifactName: 'Glitch-Studio-${version}-mac-${arch}.${ext}',
@@ -74,6 +82,8 @@ module.exports = {
 		writeUpdateInfo: false,
 	},
 	nsis: {
+		// 標準のfileAssociationsは拡張子の既定値も書くため、素材は専用の候補登録だけを行う。
+		include: 'resources/installer.nsh',
 		oneClick: false,
 		perMachine: false,
 		allowToChangeInstallationDirectory: true,
