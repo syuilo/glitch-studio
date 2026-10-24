@@ -127,8 +127,13 @@ function startDrag(event: PointerEvent, id: string) {
 	stopDrag?.();
 	selectedId.value = id;
 	(event.currentTarget as HTMLElement).focus({ preventScroll: true });
+	const initialStopPosition = selectedStop.value?.position;
+	const trackWidth = track.value?.getBoundingClientRect().width;
+	if (initialStopPosition == null || trackWidth == null || trackWidth <= 0) return;
+	// 押下位置からの移動量を使い、ハンドルの端を選択しただけでは位置を変えない。
+	// pointerupでも更新されるため、絶対座標を使うとドラッグしなくても色の対応が変わってしまう。
 	// 並び替えずIDで編集する。stopが交差・重複しても選択中の色を維持する。
-	stopDrag = listenPointerDrag(event, current => updatePosition(positionAtPointer(current)), () => { stopDrag = null; });
+	stopDrag = listenPointerDrag(event, current => updatePosition(initialStopPosition + (current.clientX - event.clientX) / trackWidth), () => { stopDrag = null; });
 }
 
 function onStopKeydown(event: KeyboardEvent, id: string) {

@@ -66,21 +66,20 @@ const componentDirectory = fileURLToPath(new URL('../src/components/common/', im
 async function buildComponent(name) {
 	const { descriptor } = parse(await readFile(new URL(`../src/components/common/${name}.vue`, import.meta.url), 'utf8'));
 	const componentBundle = await build({
-		stdin: { contents: `${compileScript(descriptor, { id: name, inlineTemplate: true }).content}\nexport { popupRequests } from '@/ui.ts';`, loader: 'ts', resolveDir: componentDirectory },
+		stdin: { contents: compileScript(descriptor, { id: name, inlineTemplate: true }).content, loader: 'ts', resolveDir: componentDirectory },
 		bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 		plugins: [i18nPlugin, { name: 'color-ramp-controls', setup(build) {
 			build.onResolve({ filter: /^@\/utility\// }, args => ({ path: fileURLToPath(new URL(`../src/utility/${args.path.split('/').at(-1)}`, import.meta.url)) }));
-			build.onResolve({ filter: /^@\/ui\.ts$/ }, args => ({ path: args.path, namespace: 'popup' }));
-			build.onLoad({ filter: /.*/, namespace: 'popup' }, () => ({ contents: `
-				export const popupRequests = [];
-				export function popup(component, props, events) {
-					const request = { component, props, events, disposals: 0 };
-					popupRequests.push(request);
-					return { dispose() { request.disposals++; } };
-				}
-			` }));
 			build.onResolve({ filter: /\.vue$/ }, args => ({ path: args.path, namespace: 'control' }));
-			build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ contents: path.endsWith('GsModal.vue') ? `
+			build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ contents: path.endsWith('GsColorRampEditor.vue') ? `
+				import { h } from 'vue'; export default {
+					props: ['modelValue', 'anchorElement', 'title'], emits: ['update:modelValue', 'closing', 'closed'],
+					setup(props, { emit }) { return () => h('div', {
+						'data-test-color-ramp-editor-stub': '', value: props.modelValue, anchorElement: props.anchorElement, title: props.title,
+						onInput: value => emit('update:modelValue', value), onClosing: () => emit('closing'), onClosed: () => emit('closed'),
+					}); },
+				};
+			` : path.endsWith('GsModal.vue') ? `
 				import { h } from 'vue'; export default {
 					props: ['anchorElement', 'zPriority', 'transparentBg'], emits: ['click', 'esc', 'close', 'closed'],
 					setup(props, { emit, expose, slots }) {
@@ -101,10 +100,11 @@ async function buildComponent(name) {
 	return component;
 }
 const { default: ColorRampEditor } = await buildComponent('GsColorRampEditor');
-const { default: ColorRampInput, popupRequests } = await buildComponent('GsColorRampInput');
+const { default: ColorRampInput } = await buildComponent('GsColorRampInput');
 const element = () => markRaw({ children: [], props: {}, parent: null, focusCount: 0, focus() { this.focusCount++; } });
-const renderer = createRenderer({
+const createTestRenderer = teleportTarget => createRenderer({
 	createElement: element, createText: element, createComment: element, setText() {}, setElementText() {},
+	querySelector: () => teleportTarget,
 	patchProp(element, key, _previous, value) { element.props[key] = value; },
 	insert(element, parent, anchor = null) { parent.children.splice(anchor == null ? parent.children.length : parent.children.indexOf(anchor), 0, element); element.parent = parent; },
 	remove(element) { element.parent.children.splice(element.parent.children.indexOf(element), 1); element.parent = null; },
@@ -114,6 +114,8 @@ async function fixture(t, component = ColorRampEditor) {
 	const state = reactive({ modelValue: createDefaultColorRamp() });
 	const events = [];
 	const root = element();
+	const teleportTarget = element();
+	const renderer = createTestRenderer(teleportTarget);
 	const app = renderer.createApp({ render: () => h(component, { ...state, anchorElement: root, title: 'Ramp',
 		'onUpdate:modelValue': value => { state.modelValue = value; events.push('value'); },
 		onBeginChanging: () => events.push('begin'), onChangeFinished: () => events.push('finish'),
@@ -126,12 +128,49 @@ async function fixture(t, component = ColorRampEditor) {
 	t.after(unmount);
 	const findAll = attribute => {
 		const visit = element => [...(Object.hasOwn(element.props, attribute) ? [element] : []), ...element.children.flatMap(visit)];
-		return visit(root);
+		return [...visit(root), ...visit(teleportTarget)];
 	};
 	const find = attribute => findAll(attribute)[0];
 	await nextTick();
 	return { state, events, find, findAll, unmount };
 }
+
+// 【ストップを選択するだけでは値を変えず、掴んだ位置からの移動量でドラッグする】
+// ハンドルの中心以外を押しても、移動のないpointerupで位置や履歴を変更しない。
+// 同じ押下位置からドラッグした場合も、最初のクリック位置へ飛ばず移動距離だけを反映する。
+test('preserves stop positions on selection and drags relative to the grabbed position', async t => {
+	const { state, events, find, findAll } = await fixture(t);
+	const track = find('data-test-color-ramp-track');
+	track.getBoundingClientRect = () => ({ left: 100, width: 200 });
+	const stop = findAll('data-test-color-ramp-stop')[0];
+	const ownerWindow = new EventTarget();
+	const pointerTarget = new EventTarget();
+	const captures = new Set();
+	Object.assign(stop, {
+		ownerDocument: { defaultView: ownerWindow },
+		addEventListener: pointerTarget.addEventListener.bind(pointerTarget),
+		removeEventListener: pointerTarget.removeEventListener.bind(pointerTarget),
+		setPointerCapture: id => captures.add(id),
+		hasPointerCapture: id => captures.has(id),
+		releasePointerCapture: id => captures.delete(id),
+	});
+	const press = () => stop.props.onPointerdown({ button: 0, pointerId: 1, clientX: 105, currentTarget: stop, stopPropagation() {}, preventDefault() {} });
+	const dispatch = (type, clientX) => ownerWindow.dispatchEvent(Object.assign(new Event(type), { pointerId: 1, clientX }));
+	press();
+	dispatch('pointerup', 105);
+	await nextTick();
+	assert.equal(state.modelValue.stops[0].position, 0);
+	assert.deepEqual(events, []);
+	press();
+	dispatch('pointermove', 155);
+	await nextTick();
+	assert.equal(state.modelValue.stops[0].position, 0.25);
+	dispatch('pointerup', 155);
+	await nextTick();
+	assert.equal(state.modelValue.stops[0].position, 0.25);
+	assert.deepEqual(events, ['value']);
+	assert.equal(captures.size, 0);
+});
 
 // 【追加色を現在の補間色で初期化し、交差・削除後もIDで選択する】
 // 実際のSFCテンプレートを使い、クラス名に依存せずstopの選択・数値編集・最後のstop保護を確認する。
@@ -177,34 +216,39 @@ test('synchronizes replacement ramps and selects an existing stop without emitti
 test('opens an anchored popup and groups its edits until closing', async t => {
 	const { state, events, find } = await fixture(t, ColorRampInput);
 	const preview = find('data-test-color-ramp-toggle');
-	assert.equal(find('data-test-color-ramp-editor'), undefined);
-	const previousRequests = popupRequests.length;
+	assert.equal(find('data-test-color-ramp-editor-stub'), undefined);
 	preview.props.onKeydown[0]({ key: 'Enter', preventDefault() {} });
 	preview.props.onClick();
-	assert.equal(popupRequests.length, previousRequests + 1);
-	const request = popupRequests.at(-1);
-	assert.equal(request.props.anchorElement, preview);
-	assert.equal(request.props.title, 'Ramp');
-	assert.deepEqual(events, []);
-	request.events['update:modelValue']({ ...state.modelValue, interpolation: 'constant' });
 	await nextTick();
-	request.events['update:modelValue']({ ...state.modelValue, colorSpace: 'oklab' });
+	const editor = find('data-test-color-ramp-editor-stub');
+	assert.equal(editor.props.anchorElement, preview);
+	assert.equal(editor.props.title, 'Ramp');
+	assert.equal(find('data-test-color-ramp-toggle').children.includes(editor), false);
+	assert.deepEqual(events, []);
+	editor.props.onInput({ ...state.modelValue, interpolation: 'constant' });
+	await nextTick();
+	editor.props.onInput({ ...state.modelValue, colorSpace: 'oklab' });
 	await nextTick();
 	assert.deepEqual(events, ['begin', 'value', 'value']);
 	state.modelValue = createDefaultColorRamp();
 	await nextTick();
-	assert.equal(request.props.modelValue.value, state.modelValue);
-	request.events.closing();
-	request.events['update:modelValue']({ ...state.modelValue, colorSpace: 'linearSrgb' });
+	assert.equal(editor.props.value, state.modelValue);
+	editor.props.onClosing();
+	editor.props.onInput({ ...state.modelValue, colorSpace: 'linearSrgb' });
+	preview.props.onClick();
+	await nextTick();
 	assert.deepEqual(events, ['begin', 'value', 'value', 'finish']);
 	assert.equal(state.modelValue.colorSpace, 'srgb');
-	request.events.closed();
-	request.events.closed();
-	assert.equal(request.disposals, 1);
+	assert.equal(find('data-test-color-ramp-editor-stub'), editor);
+	editor.props.onClosed();
+	editor.props.onClosed();
+	await nextTick();
+	assert.equal(find('data-test-color-ramp-editor-stub'), undefined);
 	assert.equal(preview.focusCount, 1);
 	preview.props.onClick();
-	assert.equal(popupRequests.length, previousRequests + 2);
-	popupRequests.at(-1).events.closed();
+	await nextTick();
+	assert.notEqual(find('data-test-color-ramp-editor-stub'), editor);
+	find('data-test-color-ramp-editor-stub').props.onClosed();
 	assert.deepEqual(events, ['begin', 'value', 'value', 'finish']);
 });
 
@@ -214,14 +258,15 @@ test('disposes the popup on unmount and ignores late updates', async t => {
 	const { state, events, find, unmount } = await fixture(t, ColorRampInput);
 	const preview = find('data-test-color-ramp-toggle');
 	preview.props.onClick();
-	const request = popupRequests.at(-1);
-	request.events['update:modelValue']({ ...state.modelValue, colorSpace: 'oklab' });
+	await nextTick();
+	const editor = find('data-test-color-ramp-editor-stub');
+	editor.props.onInput({ ...state.modelValue, colorSpace: 'oklab' });
 	unmount();
-	assert.equal(request.disposals, 1);
+	assert.equal(find('data-test-color-ramp-editor-stub'), undefined);
 	assert.deepEqual(events, ['begin', 'value', 'finish']);
-	request.events['update:modelValue'](createDefaultColorRamp());
-	request.events.closing();
-	request.events.closed();
+	editor.props.onInput(createDefaultColorRamp());
+	editor.props.onClosing();
+	editor.props.onClosed();
 	assert.deepEqual(events, ['begin', 'value', 'finish']);
 	assert.equal(state.modelValue.colorSpace, 'oklab');
 	assert.equal(preview.focusCount, 0);
