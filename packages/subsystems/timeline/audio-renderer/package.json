@@ -13,8 +13,8 @@
 		"./timeline-audio-input.ts": "./src/timeline-audio-input.ts"
 	},
 	"devDependencies": {
-		"@types/web": "0.0.352",
-		"@typescript-eslint/parser": "8.59.2",
+		"@types/web": "0.0.359",
+		"@typescript-eslint/parser": "8.71.2",
 		"vite": "8.2.2"
 	},
 	"dependencies": {
