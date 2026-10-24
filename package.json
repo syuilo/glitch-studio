@@ -40,13 +40,13 @@
 		"esbuild": "0.28.2"
 	},
 	"devDependencies": {
-		"@eslint/js": "9.39.5",
+		"@eslint/js": "10.0.1",
 		"@misskey-dev/eslint-plugin": "2.2.1",
 		"@types/node": "26.2.0",
 		"@typescript-eslint/eslint-plugin": "8.67.0",
 		"@typescript-eslint/parser": "8.67.0",
 		"cross-env": "10.1.0",
-		"eslint": "9.39.5",
+		"eslint": "10.13.0",
 		"globals": "17.11.0",
 		"typescript": "npm:@typescript/typescript6@6.0.2"
 	}
