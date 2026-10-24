@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
-import { createRenderer, h, markRaw, nextTick, ref } from 'vue';
+import { compile, createRenderer, h, markRaw, nextTick, ref, Teleport } from 'vue';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({
@@ -39,7 +39,17 @@ const bundled = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports);
 const Modal = bundled.exports.default;
 
-function fixture(t) {
+// App全体の起動処理を持ち込まず、実際のポップアップ一覧のテンプレートを使う。
+// テスト側でTeleportを再実装すると、App.vueからTeleportがなくなっても解除漏れを検出できない。
+const { descriptor: applicationDescriptor } = parse(await readFile(resolve(directory, 'src/App.vue'), 'utf8'));
+const popupListTemplate = applicationDescriptor.template.ast.children.find(child => child.type === 1).loc.source;
+const PopupList = {
+	props: ['popups'],
+	setup: props => ({ ui: { popups: props.popups } }),
+	render: compile(popupListTemplate),
+};
+
+function fixture(t, renderApplicationContent = null) {
 	const previousGlobals = new Map(['window', 'HTMLElement', 'ResizeObserver'].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
 	const document = { body: null, activeElement: null };
 	class TestElement {
@@ -55,6 +65,7 @@ function fixture(t) {
 		createElement: tag => new TestElement(tag),
 		createText: () => ({ parentElement: null }), createComment: () => ({ parentElement: null }),
 		setText() {}, setElementText() {},
+		querySelector: selector => selector === 'body' ? document.body : null,
 		patchProp: (element, name, _previous, value) => { if (name === 'style') Object.assign(element.style, value); },
 		insert(element, parent, anchor = null) {
 			if (element.parentElement != null) element.parentElement.childNodes.splice(element.parentElement.childNodes.indexOf(element), 1);
@@ -75,11 +86,14 @@ function fixture(t) {
 	const showingConfirmation = ref(false);
 	let editor = null;
 	let confirmation = null;
-	const app = renderer.createApp({ setup: () => () => h('div', [
-		h('div', { 'data-test-editor': '', ref: element => { editor = element; } }),
+	const renderDefaultContent = editorElement => [
+		editorElement,
 		...(showingUpdate.value ? [h(Modal, { key: 'update', preferType: 'dialog', returnFocusTo: document.body })] : []),
 		...(showingConfirmation.value ? [h(Modal, { key: 'confirmation', preferType: 'dialog', ref: element => { confirmation = element; } })] : []),
-	]) });
+	];
+	const app = renderer.createApp({ setup: () => () => h('div', (renderApplicationContent ?? renderDefaultContent)(
+		h('div', { 'data-test-editor': '', ref: element => { editor = element; } }),
+	)) });
 	app.mount(document.body);
 	t.after(() => {
 		app.unmount();
@@ -128,3 +142,58 @@ test('preserves the replacement dialog focus when the previous modal is unmounte
 	await nextTick();
 	assert.equal(f.editor().inert, false);
 });
+
+for (const closeMethod of ['close', 'dispose']) {
+	// 【直接Teleportしたモーダルから共通ポップアップを開いても、すべて閉じた後に編集画面を操作できる】
+	// Color rampはbody直下、色編集はAppのポップアップ一覧から表示される。
+	// 両者の階層が違うと、色編集を閉じた際に編集画面内部へ設定したinertが最後まで残る。
+	// 通常のcloseと一覧からの直接破棄の両方で、親モーダルの操作禁止と背景の解除を確認する。
+	test(`unlocks the editor after a popup opened from a teleported modal is removed by ${closeMethod}`, async t => {
+		const popups = ref([]);
+		const showingColorRamp = ref(true);
+		let colorRampModal = null;
+		let colorPickerModal = null;
+		let closingEvents = 0;
+		const f = fixture(t, editorElement => [
+			h(PopupList, { popups }),
+			editorElement,
+			h(Teleport, { to: 'body' }, showingColorRamp.value ? [h(Modal, {
+				preferType: 'dialog', ref: modal => { colorRampModal = modal; },
+			})] : []),
+		]);
+		await nextTick();
+		const applicationElement = f.editor().parentElement;
+		const colorRampElement = colorRampModal.getRootElement();
+		assert.equal(colorRampElement.parentElement, f.document.body);
+		assert.equal(applicationElement.inert, true);
+
+		popups.value.push({
+			id: 1, component: markRaw(Modal),
+			props: { preferType: 'dialog', ref: modal => { colorPickerModal = modal; } },
+			events: { close: () => { closingEvents++; } },
+		});
+		await nextTick();
+		assert.equal(colorPickerModal.getRootElement().parentElement, f.document.body);
+		assert.equal(colorRampElement.inert, true);
+		assert.equal(applicationElement.inert, true);
+		assert.equal(f.editor().inert, false);
+
+		if (closeMethod === 'close') {
+			colorPickerModal.close();
+			await nextTick();
+			assert.equal(closingEvents, 1);
+			assert.equal(colorRampElement.inert, false);
+		}
+		popups.value = [];
+		await nextTick();
+		assert.equal(colorRampElement.inert, false);
+		assert.equal(applicationElement.inert, true);
+
+		colorRampModal.close();
+		await nextTick();
+		showingColorRamp.value = false;
+		await nextTick();
+		assert.equal(applicationElement.inert, false);
+		assert.equal(f.editor().inert, false);
+	});
+}

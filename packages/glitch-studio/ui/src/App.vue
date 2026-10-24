@@ -1,11 +1,14 @@
 <template>
-<component
-	:is="popup.component"
-	v-for="popup in ui.popups.value"
-	:key="popup.id"
-	v-bind="popup.props"
-	v-on="popup.events"
-/>
+<!-- 個別にTeleportするモーダルと階層を揃え、focus trapの解除後に背景内部のinertが残るのを防ぐ。 -->
+<Teleport to="body">
+	<component
+		:is="popup.component"
+		v-for="popup in ui.popups.value"
+		:key="popup.id"
+		v-bind="popup.props"
+		v-on="popup.events"
+	/>
+</Teleport>
 
 <div ref="root" :class="$style.root">
 	<div :class="$style.header">
