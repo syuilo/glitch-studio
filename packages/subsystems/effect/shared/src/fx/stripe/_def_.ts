@@ -32,6 +32,21 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 100 / (2 * Math.PI) },
 		},
+		// Phaseは画面上の距離ではなく、回転後のパターンの1周期を単位にする。
+		phase: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Phase',
+				control: {
+					controlType: 'range',
+					min: -1,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
 		angle: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Angle', control: { controlType: 'angle' } },

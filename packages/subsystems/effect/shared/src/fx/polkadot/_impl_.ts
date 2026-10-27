@@ -22,7 +22,7 @@ export default implementEffect<typeof definition>({
 			device,
 			vertex: wgpu.defaultVertexShaderModule,
 			code,
-			schema: { background: 'color', angle: 'scalar', density: 'vector' },
+			schema: { background: 'color', angle: 'scalar', density: 'vector', phase: 'vector' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 		});
@@ -44,7 +44,7 @@ export default implementEffect<typeof definition>({
 					minorColor: ctx.params.minorColor,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const variant = pipelines.update({ background: ctx.params.background, angle: ctx.params.angle, density: ctx.params.density }, output);
+				const variant = pipelines.update({ background: ctx.params.background, angle: ctx.params.angle, density: ctx.params.density, phase: ctx.params.phase }, output);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, group);

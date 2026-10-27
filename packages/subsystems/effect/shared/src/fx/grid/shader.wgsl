@@ -26,6 +26,8 @@ fn gridDistance(gridPosition: vec2f) -> f32 {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
 	let angle = read_angle(fragData.position) * 6.283185307179586;
+	// 制御用の入力は出力座標で読み、位相によって参照位置を動かさない。
+	let phase = read_phase(fragData.position);
 	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
 	let density = max(read_density(fragData.position), vec2f(1.0));
 	let size = uniforms.referenceExtent / density;
@@ -38,7 +40,8 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		centeredPosition.x * sine + centeredPosition.y * cosine,
 	);
 	var lineColor = vec4f(0.0);
-	let gridPosition = rotatedPosition / size;
+	// 主線・補助線を同じ周期座標から生成し、位相を変えても互いの配置を保つ。
+	let gridPosition = rotatedPosition / size + phase;
 	// 線幅はそれぞれの格子間隔に対する割合。格子座標のまま判定し、
 	// Densityを上げると間隔と線幅が一緒に縮むようにする。
 	if (gridDistance(gridPosition) < uniforms.majorWidth * 0.5) {

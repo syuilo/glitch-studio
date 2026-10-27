@@ -25,6 +25,8 @@ fn dotDistance(gridPosition: vec2f) -> f32 {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
 	let angle = read_angle(fragData.position) * 6.283185307179586;
+	// 制御用の入力は出力座標で読み、位相によって参照位置を動かさない。
+	let phase = read_phase(fragData.position);
 	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
 	let density = max(read_density(fragData.position), vec2f(1.0));
 	let size = uniforms.referenceExtent / density;
@@ -36,7 +38,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		centeredUv.x * cosine - centeredUv.y * sine,
 		centeredUv.x * sine + centeredUv.y * cosine,
 	);
-	let gridPosition = rotatedUv / size;
+	// 主ドット・補助ドットの配置を保つため、分割前の座標へ同じ位相を加える。
+	// 非整数の補助分割数では全体の周期が1とは限らないので、Phase自体は折り返さない。
+	let gridPosition = rotatedUv / size + phase;
 	var dotColor = vec4f(0.0);
 	if (dotDistance(gridPosition) < uniforms.majorRadius * 0.5) {
 		dotColor = uniforms.majorColor;
