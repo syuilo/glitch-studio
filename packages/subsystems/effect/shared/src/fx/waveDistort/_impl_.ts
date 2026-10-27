@@ -1,0 +1,55 @@
+import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
+import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
+import { implementEffect } from '../../effect-implementation.ts';
+import code from './shader.wgsl?raw';
+import type definition from './_def_.ts';
+
+export default implementEffect<typeof definition>({
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
+			size: resolution,
+			format: wgpu.intermediateTextureFormat,
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+		}),
+	},
+	init: ({ wgpu, resolution }) => {
+		const device = wgpu.device;
+		const shortSide = Math.min(resolution.width, resolution.height);
+		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const uniformBindGroupLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
+		const uniformBindGroup = device.createBindGroup({ layout: uniformBindGroupLayout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
+		const pipelines = createShaderInputPipeline({
+			device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code,
+			schema: { input: 'color' },
+			targets: [{ format: wgpu.intermediateTextureFormat }],
+			internalLayouts: [uniformBindGroupLayout],
+		});
+
+		return {
+			render: ctx => {
+				uniformValues.set({
+					aspect: [resolution.width / shortSide, resolution.height / shortSide],
+					direction: ctx.params.direction * (2 * Math.PI),
+					phase: ctx.params.phase * Math.PI,
+					frequency: ctx.params.frequency,
+					strength: ctx.params.strength,
+				});
+				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
+				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
+				pass.setPipeline(variant.pipeline);
+				pass.setBindGroup(0, uniformBindGroup);
+				pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
+				pass.draw(6);
+				pass.end();
+			},
+			dispose: () => {
+				pipelines.dispose();
+				uniformBuffer.destroy();
+			},
+		};
+	},
+});
