@@ -29,6 +29,10 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		return read_input(position + displacementOffset);
 	}
 
+	// 歪みの中心位置と色の分離方向を分け、色の並びは常にdirectionの向きに従わせる。
+	// 符号付きの変位をそのまま使うと、directionを半周回した際に波の座標軸も反転し、
+	// phaseが0では正弦波の符号反転と方向反転が打ち消し合う。絶対値で分離幅だけを取り出す。
+	let chromaticAberrationOffset = displacementDirection * abs(displacement) * 2.0 / uniforms.aspect;
 	var colorAccumulator = vec3f(0.0);
 	var alphaAccumulator = vec3f(0.0);
 	var weightAccumulator = vec3f(0.0);
@@ -38,7 +42,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		// 波長計算の代わりに、赤・緑・青をそれぞれ-1・0・1に置いた三角形の重みで近似する。
 		// RGBを個別に3回読むのではなく、1回の参照から各チャンネルの寄与を取り出す。
 		let colorWeights = max(vec3f(1.0) - abs(vec3f(spectralPosition) - vec3f(-1.0, 0.0, 1.0)), vec3f(0.0));
-		let sampledColor = read_input(position + displacementOffset * (1.0 + chromaticAberrationStrength * spectralPosition));
+		let sampledColor = read_input(position + displacementOffset + chromaticAberrationOffset * chromaticAberrationStrength * spectralPosition);
 		colorAccumulator += sampledColor.rgb * colorWeights;
 		alphaAccumulator += sampledColor.a * colorWeights;
 		weightAccumulator += colorWeights;
