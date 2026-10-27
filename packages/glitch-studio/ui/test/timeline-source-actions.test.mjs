@@ -79,6 +79,26 @@ function fixture(t, layers = [mediaLayer()]) {
 
 function addLayerMenu(actions) { actions.showAddLayerMenu({ currentTarget: null, target: null }); }
 
+// 【追加メニューから空のフォルダとパラメータコンテナを作り、一回のUndo/Redoで復元する】
+// 描画設定を持たないレイヤーにも通常の追加・選択経路を使い、フォルダには値の設定を保存しない。
+test('adds organizing containers from the layer menu with undo and redo', t => {
+	for (const type of ['folder', 'parameterContainer']) {
+		const f = fixture(t, []);
+		addLayerMenu(f.create());
+		f.menu.find(item => item.id === type).action();
+		const added = structuredClone(f.scene.layers[0]);
+		assert.equal(added.layerType, type);
+		assert.deepEqual(added.layers, []);
+		assert.equal(Object.hasOwn(added, 'compositingParamValues'), false);
+		assert.equal(Object.hasOwn(added, 'automationGraphs'), type === 'parameterContainer');
+		assert.deepEqual(f.selection.value, { kind: 'layers', ids: [added.id] });
+		f.history.undo();
+		assert.deepEqual(f.scene.layers, []);
+		f.history.redo();
+		assert.deepEqual(f.scene.layers[0], added);
+	}
+});
+
 // 【固定動画で同じ素材を選び直すと通常再生へ戻り、Undoで固定地点を復元する】
 // 通常の素材変更では同一Assetを選ぶ操作を省略するが、固定表示では時間モデルを戻す
 // 操作として必要になる。素材の追加や画像生成を要求せず、元の動画の再生に戻せるようにする。

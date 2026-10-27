@@ -37,13 +37,13 @@ import GsFolder from './common/GsFolder.vue';
 import GsButton from './common/GsButton.vue';
 import type { TimelineLayerCustomParameterDefinition } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
 import type { CustomParameterDefinitionEdit } from '@/types/parameter-edit.ts';
-import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineLayerWithParameters, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 
-const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
+const props = defineProps<{ scene: TimelineScene; layer: TimelineLayerWithParameters }>();
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 const { stateManager } = appContext.projectContext;
 const supportedTypes = ['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp'];

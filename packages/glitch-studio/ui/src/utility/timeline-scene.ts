@@ -1,7 +1,7 @@
 import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import { timelineTransformParamDefs } from '@gs/subsystems_timeline_shared/layers/transform/transform.ts';
 import { timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
-import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineVisualLayer, hasTimelineLayerParameters } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -28,6 +28,8 @@ export function getScene(state: ProjectState, sceneId: string) {
 /** キーフレームの表示と選択で、存在しないパラメータ群を参照しないよう一覧を共有する。 */
 export function getLayerParameterTargets(layer: TimelineLayer): readonly TimelineParameterTarget[] {
 	switch (layer.layerType) {
+		case 'folder': return [];
+		case 'parameterContainer': return ['customParameter'];
 		case 'audio': return ['customParameter', 'audio'];
 		case 'camera': return ['customParameter', 'camera'];
 		case 'transform': return ['customParameter', 'transform'];
@@ -51,7 +53,7 @@ export function getLayerParameterValues(layer: TimelineLayer, target: 'effect'):
 export function getLayerParameterValues(layer: TimelineLayer, target: 'customParameter' | 'compositing' | 'audio' | 'camera' | 'transform' | 'shape' | 'text' | 'voicevoxSubtitle'): Record<string, TimelineParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, EditableTimelineParameterBinding>>;
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, EditableTimelineParameterBinding>> {
-	if (target === 'customParameter') return layer.customParameterValues ?? {};
+	if (target === 'customParameter' && hasTimelineLayerParameters(layer)) return layer.customParameterValues ?? {};
 	if (target === 'compositing' && 'compositingParamValues' in layer) return layer.compositingParamValues;
 	if (target === 'audio' && (layer.layerType === 'group' || layer.layerType === 'voicevox' || layer.layerType === 'scene' || layer.layerType === 'video' || layer.layerType === 'audio')) return layer.audioParamValues;
 	if (target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')) return layer.visualModuleParamValues;
@@ -67,7 +69,7 @@ export function getLayerParameterValues(layer: TimelineLayer, target: TimelinePa
 /** キーの値編集・挿入は、保存した型の古い選択肢ではなく現在の定義を使う。 */
 export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterDefinition> {
 	if (!getLayerParameterTargets(layer).includes(target)) throw new Error('Invalid layer parameter target');
-	if (target === 'customParameter') return Object.fromEntries((layer.customParameterDefs ?? []).map(def => [def.id, def]));
+	if (target === 'customParameter' && hasTimelineLayerParameters(layer)) return Object.fromEntries((layer.customParameterDefs ?? []).map(def => [def.id, def]));
 	if (target === 'audio') return timelineAudioParamDefs;
 	if (target === 'transform') return timelineTransformParamDefs;
 	if (target === 'camera') return timelineCameraParamDefs;

@@ -4,6 +4,7 @@ import { findTimelineLayerLocation } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
 import { isTimelineAudioOutputLayer } from './timeline-audio.ts';
+import { isTimelineNonCompositingContainerLayer } from './types.ts';
 import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from './layers/voicevox/voicevox-placement.ts';
 import type { SpeechResolver, VoicevoxRequest } from './layers/voicevox/voicevox.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
@@ -70,7 +71,7 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 	const visit = (layers: readonly TimelineLayer[], sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[], scene: TimelineScene) => {
 		for (const layer of layers) {
 			if (layer.isDisabled) continue;
-			if (layer.layerType === 'transform') { visit(layer.layers, sceneStartMs, start, end, gains, scene); continue; }
+			if (isTimelineNonCompositingContainerLayer(layer)) { visit(layer.layers, sceneStartMs, start, end, gains, scene); continue; }
 			if (!isTimelineAudioOutputLayer(layer)) continue;
 			// 選択範囲が別々のTransformの子を含む場合も、Scene全体の索引なら
 			// 各レイヤーの本来の祖先を保てる。同じSceneの複数配置でも索引を再利用する。

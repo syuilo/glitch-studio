@@ -1,4 +1,6 @@
 {
+	"Folder": "Folder",
+	"ParameterContainer": "Parameter Container",
 	"_DesktopUpdate": {
 		"Title": "Updating Glitch Studio",
 		"Available": "Update available",
@@ -518,6 +520,11 @@
 		"SceneResolutionTitle": "Scene resolution — {name}"
 	},
 	"_TimelineLayer": {
+		"WrapInFolder": "Wrap in Folder",
+		"WrapInParameterContainer": "Wrap in Parameter Container",
+		"ConvertContainer": "Convert Container",
+		"ContainerType": "Container Type",
+		"ContainerConversionHint": "Conversion can change parameter scope or compositing. Undo restores the previous container.",
 		"LayerColor": "Layer Color",
 		"Title": "Layer",
 		"Name": "Layer Name",

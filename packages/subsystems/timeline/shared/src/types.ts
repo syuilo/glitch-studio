@@ -27,14 +27,17 @@ type TimelineLayerCommon = {
 	name: string;
 	/** UI上の識別用RGBA（各成分0〜1）。nullはレイヤー種別のデフォルト色を使う。 */
 	color: [number, number, number, number] | null;
-	automationGraphs: AutomationGraph[];
-	customParameterDefs?: TimelineLayerCustomParameterDefinition[];
-	customParameterValues?: Record<string, TimelineParameterBinding>;
 	/** 無効時は映像・音声とも評価せず、クリップの配置やSceneの長さは維持する。 */
 	isDisabled: boolean;
 };
 
-type TimelineLayerBase<Clip extends TimelineClip> = TimelineLayerCommon & { clips: Clip[] };
+type TimelineLayerParameters = {
+	automationGraphs: AutomationGraph[];
+	customParameterDefs?: TimelineLayerCustomParameterDefinition[];
+	customParameterValues?: Record<string, TimelineParameterBinding>;
+};
+
+type TimelineLayerBase<Clip extends TimelineClip> = TimelineLayerCommon & TimelineLayerParameters & { clips: Clip[] };
 
 type TimelineAudioLayerBase = {
 	audioParamValues: { volume: TimelineParameterBinding };
@@ -123,7 +126,7 @@ export type TimelineSceneLayer = TimelineLayerBase<TimelineSceneClip> & Timeline
 };
 
 /** 子は同じSceneの時刻・画面を使う。グループ自身は配置クリップを持たない。 */
-export type TimelineGroupLayer = TimelineLayerCommon & TimelineAudioLayerBase & TimelineVisualLayerBase & {
+export type TimelineGroupLayer = TimelineLayerCommon & TimelineLayerParameters & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'group';
 	/** 未指定は平面化。空間の奥行きを保つ場合だけ明示する。 */
 	compositingMode?: 'flat' | 'preserveDepth';
@@ -132,15 +135,33 @@ export type TimelineGroupLayer = TimelineLayerCommon & TimelineAudioLayerBase & 
 
 export type TimelineClipLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | TimelineCameraLayer;
 /** 子を平面化せず、座標系の移動だけを継承する。自身の画像・クリップ・音量は持たない。 */
-export type TimelineTransformLayer = TimelineLayerCommon & {
+export type TimelineTransformLayer = TimelineLayerCommon & TimelineLayerParameters & {
 	layerType: 'transform';
 	transformParamValues: TimelineTransformParameterValues;
 	forceDisableMotionBlur: boolean;
 	layers: TimelineLayer[];
 };
 
-export type TimelineContainerLayer = TimelineGroupLayer | TimelineTransformLayer;
+/** 整理と一括無効化だけを担当し、描画・パラメータのスコープを作らない。 */
+export type TimelineFolderLayer = TimelineLayerCommon & {
+	layerType: 'folder';
+	layers: TimelineLayer[];
+};
+
+/** 描画の境界を作らず、子孫へ公開する値とその評価設定だけを所有する。 */
+export type TimelineParameterContainerLayer = TimelineLayerCommon & TimelineLayerParameters & {
+	layerType: 'parameterContainer';
+	layers: TimelineLayer[];
+};
+
+export type TimelineContainerLayer = TimelineGroupLayer | TimelineTransformLayer | TimelineFolderLayer | TimelineParameterContainerLayer;
+export type TimelineNonCompositingContainerLayer = Exclude<TimelineContainerLayer, TimelineGroupLayer>;
 export type TimelineLayer = TimelineClipLayer | TimelineContainerLayer;
+export type TimelineLayerWithParameters = Exclude<TimelineLayer, TimelineFolderLayer>;
+
+export function hasTimelineLayerParameters<Layer extends TimelineLayer>(layer: Layer): layer is Exclude<Layer, TimelineFolderLayer> {
+	return layer.layerType !== 'folder';
+}
 
 export function isTimelineEffectOrVisualModuleLayer(layer: TimelineLayer): layer is TimelineEffectLayer | TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer {
 	return layer.layerType === 'effect' || layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule';
@@ -151,14 +172,18 @@ export function getTimelineLayerTransformTarget(layer: TimelineLayer): TimelineL
 }
 
 export function isTimelineContainerLayer(layer: TimelineLayer): layer is TimelineContainerLayer {
-	return layer.layerType === 'group' || layer.layerType === 'transform';
+	return layer.layerType === 'group' || layer.layerType === 'transform' || layer.layerType === 'folder' || layer.layerType === 'parameterContainer';
 }
 
-export type TimelineVisualLayer = Exclude<TimelineLayer, TimelineAudioLayer | TimelineCameraLayer | TimelineTransformLayer>;
+export function isTimelineNonCompositingContainerLayer(layer: TimelineLayer): layer is TimelineNonCompositingContainerLayer {
+	return isTimelineContainerLayer(layer) && layer.layerType !== 'group';
+}
+
+export type TimelineVisualLayer = Exclude<TimelineLayer, TimelineAudioLayer | TimelineCameraLayer | TimelineNonCompositingContainerLayer>;
 
 /** 映像合成・プレビュー変形の対象。カメラはSceneの視点を制御する別の役割を持つ。 */
 export function isTimelineVisualLayer(layer: TimelineLayer): layer is TimelineVisualLayer {
-	return layer.layerType !== 'audio' && layer.layerType !== 'camera' && layer.layerType !== 'transform';
+	return layer.layerType !== 'audio' && layer.layerType !== 'camera' && !isTimelineNonCompositingContainerLayer(layer);
 }
 
 /** 描画走査には、画像を持たないTransformも含めて子へ入力と座標系を渡す。 */

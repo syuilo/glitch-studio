@@ -1,4 +1,5 @@
 import { validateTimelineLayerCustomParameterDefinitions } from './custom-parameters.ts';
+import { hasTimelineLayerParameters } from './types.ts';
 import { staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
 import { validateTimelineLayerStructure } from './scenes.ts';
 import { validateTimelineParameterTree } from './parameter-binding.ts';
@@ -21,6 +22,7 @@ type ParameterGroup = { name: string; definitions: Record<string, ParameterDefin
 
 function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule | null, effect?: EffectDefinition | null): ParameterGroup[] {
 	const groups: ParameterGroup[] = [];
+	if (!hasTimelineLayerParameters(layer)) return groups;
 	const customParameterDefs = layer.customParameterDefs ?? [];
 	if (customParameterDefs.length > 0) groups.push({
 		name: 'customParameterValues',
@@ -53,8 +55,9 @@ function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule | nul
 }
 
 export function timelineLayerStaticShape(layer: TimelineLayer, visualModule?: VisualModule | null, effect?: EffectDefinition | null): unknown {
-	const { name, automationGraphs, isDisabled, ...shape } = layer;
+	const { name, isDisabled, ...shape } = layer;
 	const result: Record<string, unknown> = { ...shape };
+	delete result.automationGraphs;
 	delete result.layers;
 	delete result.visualModule;
 	for (const group of parameterGroups(layer, visualModule, effect)) {
@@ -69,7 +72,7 @@ export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualM
 	onValue: (definition: ParameterDefinition, binding: unknown) => void): void {
 	// コンテナの設定編集で子孫を再検証しない。子は各自の検証単位を持つ。
 	validateTimelineLayerStructure(layer);
-	validateTimelineLayerCustomParameterDefinitions(layer.customParameterDefs ?? []);
+	if (hasTimelineLayerParameters(layer)) validateTimelineLayerCustomParameterDefinitions(layer.customParameterDefs ?? []);
 	if (layer.layerType === 'effect' && !effect) throw new Error('Effect not found: ' + layer.effectId);
 	if ('visualModuleParamValues' in layer && !visualModule) throw new Error('Visual Module not found');
 	for (const group of parameterGroups(layer, visualModule, effect)) {

@@ -260,7 +260,7 @@ function layerMenuFixture(f, ids, overrides = {}) {
 		readLayerMediaDurations: async layer => Object.fromEntries(module.exports.flattenTimelineLayers([layer])
 			.filter(child => child.layerType === 'audio').map(child => [child.id, Object.fromEntries(child.clips.map(clip => [clip.id, 5000]))])),
 		selectLayer: layer => { selection.value = { kind: 'layers', ids: [layer.id] }; },
-		canWrap: () => true, groupSelection: () => {}, transformSelection: () => {}, focusTimeline: () => {},
+		canWrap: () => true, folderSelection: () => {}, parameterContainerSelection: () => {}, groupSelection: () => {}, transformSelection: () => {}, focusTimeline: () => {},
 		ui: { contextMenu: items => { menu = items; }, inputText: async () => ({ canceled: false, result: 'Renamed' }), alert: error => alerts.push(error) },
 		...overrides,
 	});
@@ -269,15 +269,86 @@ function layerMenuFixture(f, ids, overrides = {}) {
 	};
 }
 
+// 【整理用コンテナでまとめ、同じIDのまま段階的に変換し、設定と子を一操作ずつ復元する】
+// 見た目だけの置換では参照IDや保存したキーを失うため、実際のCommandと履歴を通して確認する。
+test('wraps and converts containers with stable identities references and atomic history', t => {
+	const f = fixture(t, [sound('a'), sound('b')]);
+	const original = structuredClone(f.scene.layers);
+	const folder = { id: 'organizer', name: 'Organizer', layerType: 'folder', color: [0.2, 0.4, 0.8, 1], isDisabled: false, layers: [] };
+	f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: ['a', 'b'], container: folder });
+	const wrapped = structuredClone(f.scene.layers);
+	f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'parameterContainer' });
+	f.history.commit('updateTimelineLayerCustomParameter', { sceneId: 'scene', layerId: folder.id, definition: customScalar('speed') });
+	f.history.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: folder.id, target: 'customParameter', paramPath: ['speed'], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } });
+	f.history.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'a', target: 'audio', paramPath: ['volume'], edit: { kind: 'timelineLayerCustomParameterReference', value: { inputSource: 'timelineLayerCustomParameterReference', layerId: folder.id, parameterId: 'speed' } } });
+	const parameters = structuredClone(f.scene.layers);
+	f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'transform' });
+	const transform = structuredClone(f.scene.layers);
+	f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'group' });
+	const converted = f.scene.layers[0];
+	assert.equal(converted.id, folder.id);
+	assert.equal(converted.name, folder.name);
+	assert.equal(converted.compositingMode, 'flat');
+	assert.deepEqual(converted.color, folder.color);
+	assert.deepEqual(converted.customParameterValues, parameters[0].customParameterValues);
+	assert.equal(converted.layers[0].audioParamValues.volume.layerId, folder.id);
+	assert.deepEqual(converted.layers.map(layer => layer.id), ['a', 'b']);
+	f.history.undo();
+	assert.deepEqual(f.scene.layers, transform);
+	f.history.undo();
+	assert.deepEqual(f.scene.layers, parameters);
+	f.history.redo();
+	f.history.redo();
+	assert.equal(f.scene.layers[0].compositingMode, 'flat');
+	for (let index = 0; index < 6; index++) f.history.undo();
+	assert.deepEqual(f.scene.layers, wrapped);
+	f.history.undo();
+	assert.deepEqual(f.scene.layers, original);
+});
+
+// 【フォルダに値を追加できず、変換メニューでは許可された方向だけを表示する】
+// UIから隠すだけでなくCommandにも同じ能力制約を持たせ、逆変換で設定を捨てないようにする。
+test('restricts folder capabilities and exposes only forward conversion actions', t => {
+	const folder = { id: 'folder', name: 'Folder', layerType: 'folder', color: null, isDisabled: false, layers: [] };
+	const f = fixture(t, [folder]);
+	assert.throws(() => f.history.commit('updateTimelineLayerCustomParameter', { sceneId: 'scene', layerId: folder.id, definition: customScalar('speed') }), /cannot own/);
+	assert.throws(() => f.history.commit('setTimelineLayerMotionBlurDisabled', { sceneId: 'scene', layerId: folder.id, forceDisableMotionBlur: true }), /visual layer/);
+	const controls = layerMenuFixture(f, [folder.id]);
+	const conversion = controls.open(folder.id).find(item => item.type === 'parent');
+	assert.deepEqual(conversion.children.map(item => item.id), ['convertTo:parameterContainer', 'convertTo:transform', 'convertTo:group']);
+	conversion.children[0].action();
+	assert.equal(f.scene.layers[0].layerType, 'parameterContainer');
+	assert.throws(() => f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'folder' }), /Unsupported/);
+	assert.equal(f.scene.layers[0].layerType, 'parameterContainer');
+	f.history.undo();
+	assert.deepEqual(f.scene.layers[0], folder);
+});
+
+// 【Group変換で生じたカメラの制約違反を診断し、子を削除せずUndoで元へ戻す】
+// 合成境界の追加が既存データを暗黙に変更しないことと、無効な編集状態から修正できることを保証する。
+test('diagnoses camera placement after Group conversion without losing descendants', t => {
+	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', color: null, isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], cameraParamValues: {}, clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
+	const folder = { id: 'folder', name: 'Folder', layerType: 'folder', color: null, isDisabled: false, layers: [camera] };
+	const f = fixture(t, [folder]);
+	const validation = observeValidation(f);
+	assert.equal(validation.errorMessage.value, null);
+	f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'group' });
+	assert.match(validation.errorMessage.value, /Camera is inside a Group/);
+	assert.equal(f.scene.layers[0].layers[0].id, camera.id);
+	f.history.undo();
+	assert.equal(validation.errorMessage.value, null);
+	assert.equal(f.scene.layers[0].layerType, 'folder');
+});
+
 // 【右クリックは複数選択を保持し、未選択の行だけ単独選択へ切り替える】
 // 選択済みの行で毎回単独選択すると、メニューからまとめて操作できなくなる。
 // クリップ選択中の右クリックもレイヤー操作へ切り替え、Renameは単独選択時だけ出す。
 test('keeps selected layers on right click and offers rename only for one layer', t => {
 	const f = fixture(t, [group('a'), group('b'), group('c')]);
 	const controls = layerMenuFixture(f, ['a', 'b']);
-	assert.deepEqual(controls.open('b').map(item => item.id), ['wrapInTransform', 'group', 'duplicate', 'delete']);
+	assert.deepEqual(controls.open('b').map(item => item.id), ['wrapInFolder', 'wrapInParameterContainer', 'wrapInTransform', 'group', 'duplicate', 'delete']);
 	assert.deepEqual(controls.selection.value.ids, ['a', 'b']);
-	assert.deepEqual(controls.open('c').map(item => item.id), ['wrapInTransform', 'group', 'rename', 'duplicate', 'delete']);
+	assert.deepEqual(controls.open('c').map(item => item.id), ['wrapInFolder', 'wrapInParameterContainer', 'wrapInTransform', 'group', 'rename', 'duplicate', 'delete']);
 	assert.deepEqual(controls.selection.value.ids, ['c']);
 	controls.selection.value = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	controls.open('a');

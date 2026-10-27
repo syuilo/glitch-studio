@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { loadSource } from './helpers/load-source.mjs';
 
 const load = path => loadSource(fileURLToPath(new URL('../src/' + path, import.meta.url)));
 const { TimelineRenderer } = await load('timeline-renderer.ts');
 const { createTransformTimelineLayer } = await load('layers/transform/transform-timeline-layer.ts');
+const { getTimelineRenderLayers } = await loadSource(createRequire(import.meta.url).resolve('@gs/subsystems_timeline_shared/layer-tree.ts'));
 const frame = { width: 1920, height: 1080 };
 const literal = value => ({ inputSource: 'literal', value });
 const leaf = id => ({ id, layerType: 'image', isDisabled: false, forceDisableMotionBlur: false, clips: [{ id: 'clip', startMs: 100, durationMs: 1000, contentOffsetMs: 0 }] });
@@ -36,8 +38,47 @@ function fixture(layers) {
 		};
 	};
 	const renderer = new TimelineRenderer({ fallbackOutput: [], createLayer });
-	return { renderer, calls, created, destroyed, render: (time, reference) => renderer.evaluateAt(time, layers, 10, false, undefined, reference) };
+	return { renderer, calls, created, destroyed, render: (time, reference) => renderer.evaluateAt(time, getTimelineRenderLayers(layers), 10, false, undefined, reference) };
 }
+
+// 【整理用の階層を追加しても描画順・下層入力・既存の子の描画履歴を変えない】
+// フォルダごとに子レンダラーを作ると、整理するだけで履歴依存エフェクトの状態を失ってしまう。
+test('flattens organizing containers without recreating children or changing compositing', async () => {
+	const upper = leaf('upper');
+	const lower = leaf('lower');
+	const layers = [upper, lower, leaf('background')];
+	const f = fixture(layers);
+	try {
+		assert.deepEqual((await f.render(500)).output, ['background', 'lower', 'upper']);
+		const parameters = { id: 'parameters', layerType: 'parameterContainer', isDisabled: false, automationGraphs: [], layers: [upper] };
+		const folder = { id: 'folder', layerType: 'folder', isDisabled: false, layers: [parameters, lower] };
+		layers.splice(0, 2, folder);
+		const result = await f.render(600);
+		assert.deepEqual(result.output, ['background', 'lower', 'upper']);
+		assert.equal(result.gpuTime, 6);
+		assert.deepEqual(f.created, ['background', 'lower', 'upper']);
+		assert.deepEqual(f.destroyed, []);
+		folder.isDisabled = true;
+		assert.deepEqual((await f.render(700)).output, ['background']);
+		assert.deepEqual(f.destroyed.sort(), ['lower', 'upper']);
+		assert.equal(parameters.isDisabled, false);
+	} finally { f.renderer.clear(); }
+});
+
+// 【Transform内の整理用コンテナも、親の座標と時計をそのまま子へ渡す】
+// 整理用の枝で座標を初期化したり、新しい基準時刻を作ったりしないことを描画側で確認する。
+test('keeps transform space and frozen time across folders and parameter containers', async () => {
+	const folders = { id: 'folder', layerType: 'folder', isDisabled: false, layers: [{ id: 'parameters', layerType: 'parameterContainer', isDisabled: false, automationGraphs: [], layers: [leaf('child')] }] };
+	const parent = transform('parent', [folders], [0.2, 0.3], 0.4);
+	parent.forceDisableMotionBlur = true;
+	const f = fixture([parent]);
+	try {
+		await f.render(500, { timeMs: 400, timeDelta: 16 });
+		assert.deepEqual(f.calls.at(-1).renderSpace.parent.slice(4), [0.2, 0.3]);
+		assert.equal(f.calls.at(-1).renderSpace.depth, 0.4);
+		assert.equal(f.calls.at(-1).sceneTimeMs, 400);
+	} finally { f.renderer.clear(); }
+});
 
 // 【Transformの子は外側の背景へ直接重なり、追加の合成処理を行わない】
 // 子を透明背景から評価すると下層入力が失われ、最後に再合成するとblendを二重適用する。

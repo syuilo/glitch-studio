@@ -14,7 +14,7 @@ export function getAvailableAutomationGraphs(localAutomationGraphs: readonly Aut
  */
 export function getTimelineScenesWithProjectAutomationGraphs(scenes: TimelineScene[], automationGraphs: readonly AutomationGraph[]): TimelineScene[] {
 	if (automationGraphs.length === 0) return scenes;
-	const visit = (layer: TimelineLayer): TimelineLayer => ({
+	const visit = (layer: TimelineLayer): TimelineLayer => layer.layerType === 'folder' ? { ...layer, layers: layer.layers.map(visit) } : ({
 		...layer,
 		automationGraphs: getAvailableAutomationGraphs(layer.automationGraphs, automationGraphs),
 		...(isTimelineContainerLayer(layer) ? { layers: layer.layers.map(visit) } : {}),

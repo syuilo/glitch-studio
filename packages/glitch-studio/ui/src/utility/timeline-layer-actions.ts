@@ -1,3 +1,7 @@
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { getTimelineContainerConversionTargets } from '@gs/subsystems_timeline_shared/container-layer.ts';
+import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
+import { getTimelineContainerTypeLabel } from './container-timeline-layer.ts';
 import { findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { duplicateTimelineLayers } from './timeline-container.ts';
 import type { Ref } from 'vue';
@@ -18,6 +22,8 @@ type TimelineLayerActionsOptions = {
 	readLayerMediaDurations: (layer: TimelineLayer) => Promise<TimelineClipSourceDurations | null>;
 	selectLayer: (layer: TimelineLayer) => void;
 	canWrap: () => boolean;
+	folderSelection: () => void;
+	parameterContainerSelection: () => void;
 	groupSelection: () => void;
 	transformSelection: () => void;
 	focusTimeline: () => void;
@@ -25,7 +31,7 @@ type TimelineLayerActionsOptions = {
 };
 
 export function createTimelineLayerActions(options: TimelineLayerActionsOptions) {
-	const { stateManager, scene, selection, isActive, readLayerMediaDurations, selectLayer, canWrap, groupSelection, transformSelection, focusTimeline, ui } = options;
+	const { stateManager, scene, selection, isActive, readLayerMediaDurations, selectLayer, canWrap, folderSelection, parameterContainerSelection, groupSelection, transformSelection, focusTimeline, ui } = options;
 
 	function showMenu(event: PointerEvent, layer: TimelineLayer) {
 		if (!isActive()) return;
@@ -34,6 +40,10 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 		if (selection.value.kind !== 'layers') return;
 		const ids = [...selection.value.ids];
 		const menu: MenuItem[] = [{
+			id: 'wrapInFolder', text: i18n.ts._TimelineLayer.WrapInFolder, icon: 'ti ti-folder', disabled: !canWrap(), action: folderSelection,
+		}, {
+			id: 'wrapInParameterContainer', text: i18n.ts._TimelineLayer.WrapInParameterContainer, icon: 'ti ti-adjustments-horizontal', disabled: !canWrap(), action: parameterContainerSelection,
+		}, {
 			id: 'wrapInTransform',
 			text: i18n.ts._TimelineLayer.WrapInTransform,
 			icon: 'ti ti-gizmo',
@@ -46,6 +56,16 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 			disabled: !canWrap(),
 			action: groupSelection,
 		}];
+		if (ids.length === 1 && isTimelineContainerLayer(layer)) {
+			const targets = getTimelineContainerConversionTargets(layer);
+			if (targets.length > 0) menu.push({
+				type: 'parent', text: i18n.ts._TimelineLayer.ConvertContainer,
+				caption: i18n.ts._TimelineLayer.ContainerConversionHint,
+				children: targets.map(target => ({
+					id: `convertTo:${target}`, text: getTimelineContainerTypeLabel(target), action: () => convert(layer.id, target),
+				})),
+			});
+		}
 		if (ids.length === 1) menu.push({
 			id: 'rename',
 			text: i18n.ts.Rename,
@@ -65,6 +85,13 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 			action: () => remove(ids),
 		});
 		ui.contextMenu(menu, event);
+	}
+
+	function convert(layerId: string, target: TimelineContainerLayerType) {
+		const current = findTimelineLayerLocation(scene.layers, layerId)?.layer;
+		if (!isActive() || current == null || !isTimelineContainerLayer(current) || !getTimelineContainerConversionTargets(current).includes(target)) return;
+		stateManager.commit('convertTimelineContainer', { sceneId: scene.id, layerId, target });
+		focusTimeline();
 	}
 
 	async function rename(layerId: string) {

@@ -74,7 +74,7 @@ VALUE
 
 ## Timelineレイヤーのカスタムパラメータ
 
-Group・Transformを含む全レイヤーに、`customParameterDefs`（定義）と`customParameterValues`（IDをキーにしたBinding）を持たせられます。未定義のレイヤーでは省略できます。Inspectorの「レイヤーのカスタムパラメータ」から追加し、定義内で表示名・参照名・型・編集UI・初期値を設定します。値は通常のパラメータと同じ方式で編集し、キーの表示・選択・コピー・Group全体の時間移動にも含めます。
+フォルダ以外の全レイヤーに、`customParameterDefs`（定義）と`customParameterValues`（IDをキーにしたBinding）を持たせられます。未定義のレイヤーでは省略できます。Inspectorの「レイヤーのカスタムパラメータ」から追加し、定義内で表示名・参照名・型・編集UI・初期値を設定します。値は通常のパラメータと同じ方式で編集し、キーの表示・選択・コピー・コンテナ全体の時間移動にも含めます。
 
 対応する型は数値・真理値・文字列・色・ベクトル・enum・Color Rampです。画像・Asset・音声・配列・構造体やノード入力は公開しません。固定値・環境変数・式・キー・Automation Graph・加工式の対応範囲は、それぞれの型の通常の値Bindingに従います。
 
@@ -85,7 +85,7 @@ Group・Transformを含む全レイヤーに、`customParameterDefs`（定義）
 | カスタムパラメータの値・加工式 | 直上の親だけ | すべての祖先 |
 | 通常のパラメータの値・加工式 | 自身だけ | 自身とすべての祖先 |
 
-親は同じScene内の直上GroupまたはTransformです。Scene最上位には親がなく、`PARAM`で祖父母の同名定義を自動探索しません。同じレイヤーの別カスタムパラメータも参照できないため、カスタムパラメータ間の循環は構造的に発生しません。親の値を子で加工する場合、子のカスタムパラメータの式を`PARAM("speed") * 2`とし、子の通常のパラメータからその子自身の定義を参照できます。
+親は、同じScene内でフォルダを除いた直近の祖先（パラメータコンテナ・Transform・Group）です。フォルダはスコープを作らず、その挿入で式の親が変わることはありません。空のパラメータコンテナもスコープとなり、目的の定義がなければ外側へ探索せずエラーです。Scene最上位には親がなく、同じレイヤーの別カスタムパラメータも参照できないため、カスタムパラメータ間の循環は構造的に発生しません。親の値を子で加工する場合、子のカスタムパラメータの式を`PARAM("speed") * 2`とし、子の通常のパラメータからその子自身の定義を参照できます。
 
 直接参照は`{ inputSource: 'timelineLayerCustomParameterReference', layerId, parameterId }`を保存し、Visual Module内部の参照とは共有しません。未選択では両IDをnullにします。UIには所有レイヤーと表示名・参照名を表示し、型が一致する定義だけを候補にします。参照名はレイヤー内で一意とし、名前変更でも直接参照は維持します。`PARAM`内の文字列は自動変更せず、未知の名前・不正な引数は式エラーです。
 
@@ -161,7 +161,7 @@ NOISE(TIME * 3, 1) * 0.03
 
 プロジェクトの`automationGraphs`は曲線の定義（ID・`nameForReference`・点・時間軸の種類）だけを共有する。再生設定は各Binding、評価時刻・終了時刻は参照元の評価スコープが所有する。Timelineでは所属Sceneの時刻を使い、Visual Module Live Previewの公開パラメータへの入力ではLive Previewの時刻を使う。
 
-`automationGraphReference`はIDで解決する。レイヤー内とプロジェクト共通の両方を候補に残すので、同じ参照名でも共通定義をIDで選べる。式の`GRAPH(nameForReference, coordinate, wrapMode)`はローカル定義を優先し、見つからない場合にプロジェクト共通の定義を使う。GroupやTransformのローカル定義を子レイヤーへ継承しない。
+`automationGraphReference`はIDで解決する。レイヤー内とプロジェクト共通の両方を候補に残すので、同じ参照名でも共通定義をIDで選べる。式の`GRAPH(nameForReference, coordinate, wrapMode)`はローカル定義を優先し、見つからない場合にプロジェクト共通の定義を使う。Group・Transform・パラメータコンテナのローカル定義を子レイヤーへ継承しない。
 
 共通定義の`nameForReference`はプロジェクト内で一意とし、名前変更でID参照は変わらない。`GRAPH()`内の文字列は自動変更しない。削除後もBindingの参照IDを保持し、未解決のID参照には既定値を使う。一方、式の`GRAPH()`で参照名が見つからない場合は式エラーにする。Undoで同じID・参照名を復元すれば再び解決される。
 

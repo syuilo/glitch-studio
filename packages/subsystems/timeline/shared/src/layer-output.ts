@@ -1,18 +1,18 @@
-import { isTimelineVisualLayer } from './types.ts';
+import { isTimelineVisualLayer, isTimelineNonCompositingContainerLayer } from './types.ts';
 import { findTimelineLayer, findTimelineLayerLocation, flattenTimelineLayers } from './layer-tree.ts';
 import type { TimelineLayer, TimelineVisualLayer } from './types.ts';
 import type { TimelineAnotherLayerOutputBinding } from './parameter-binding.ts';
 
 export type TimelineImageInputReference = { inputSource: 'lowerLayerOutput' } | TimelineAnotherLayerOutputBinding;
 
-/** Transformは境界を作らない。Group自身は外側、子孫はGroup内の合成空間に属する。 */
+/** Group以外のコンテナは境界を作らない。Group自身は外側、子孫はGroup内の合成空間に属する。 */
 export function getTimelineLayerMaskSources(layers: TimelineLayer[], ownerLayerId: string): TimelineVisualLayer[] {
 	const owner = findTimelineLayerLocation(layers, ownerLayerId);
 	if (owner == null || !isTimelineVisualLayer(owner.layer)) return [];
 	const boundary = owner.ancestors.findLast(layer => layer.layerType === 'group');
 	const visit = (entries: readonly TimelineLayer[]): TimelineVisualLayer[] => entries.flatMap(layer => [
 		...(layer.id !== ownerLayerId && isTimelineVisualLayer(layer) ? [layer] : []),
-		...(layer.layerType === 'transform' ? visit(layer.layers) : []),
+		...(isTimelineNonCompositingContainerLayer(layer) ? visit(layer.layers) : []),
 	]);
 	return visit(boundary?.layers ?? layers);
 }
@@ -44,7 +44,7 @@ export function getTimelineLayerOutputDependencyGraph(layers: readonly TimelineL
 	const visit = (entries: readonly TimelineLayer[], initial: string | null): string | null => {
 		let lower = initial;
 		for (const layer of entries.toReversed()) {
-			if (layer.layerType === 'transform') {
+			if (isTimelineNonCompositingContainerLayer(layer)) {
 				lower = visit(layer.layers, lower);
 				continue;
 			}

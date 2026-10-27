@@ -494,6 +494,32 @@ async function fixture(t, component = Inspector) {
 	return { props, scene, history, events, root, controls, control };
 }
 
+// 【Inspectorの種類選択からコンテナを変換し、フォルダにはカスタムパラメータを表示しない】
+// 同一IDの型変更でも詳細パネルが追従し、変換後の機能とUndo後の表示を反映する必要がある。
+test('converts container types through the Inspector and hides parameter controls on folders', async t => {
+	const f = await fixture(t);
+	const child = f.scene.layers[0];
+	f.scene.layers = [{ id: 'folder', name: 'Folder', layerType: 'folder', isDisabled: false, color: null, layers: [child] }];
+	f.props.selection = { kind: 'layers', ids: ['folder'] };
+	await nextTick();
+	assert.equal(f.controls('GsTimeline.CustomParameters').length, 0);
+	const control = () => f.control('GsSelect', 'timeline-container-type');
+	assert.deepEqual(control().props.items.map(item => item.value), ['folder', 'parameterContainer', 'transform', 'group']);
+	control().props['onUpdate:modelValue']('parameterContainer');
+	await nextTick();
+	assert.equal(f.controls('GsTimeline.CustomParameters').length, 1);
+	assert.equal(f.scene.layers[0].layers[0].id, child.id);
+	control().props['onUpdate:modelValue']('group');
+	await nextTick();
+	assert.equal(f.scene.layers[0].compositingMode, 'flat');
+	assert.equal(control().props.disabled, true);
+	f.history.undo();
+	f.history.undo();
+	await nextTick();
+	assert.equal(f.scene.layers[0].layerType, 'folder');
+	assert.equal(f.controls('GsTimeline.CustomParameters').length, 0);
+});
+
 // 【識別色は未設定から指定・解除でき、連続した色選択を一回のUndoで戻せる】
 // 色選択中に履歴を大量に増やさず、解除後はnullを復元して種別のデフォルト色に戻す。
 // UI専用の通知を使い、識別色の変更でレンダラーの内容を更新しないことも確認する。

@@ -29,7 +29,7 @@ export function validateTimelineMotionBlur(settings: TimelineMotionBlurSettings)
 /** 固定する枝は除外する。カメラは優先順位も必要なため別途計画し、Scene参照は呼び出し側で辿る。 */
 function* getMotionBlurLayers(layers: readonly TimelineLayer[]): Generator<TimelineClipLayer> {
 	for (const layer of layers) {
-		if (layer.isDisabled || layer.layerType === 'audio' || layer.layerType === 'camera' || layer.forceDisableMotionBlur) continue;
+		if (layer.isDisabled || layer.layerType === 'audio' || layer.layerType === 'camera' || ('forceDisableMotionBlur' in layer && layer.forceDisableMotionBlur)) continue;
 		if (isTimelineContainerLayer(layer)) yield* getMotionBlurLayers(layer.layers);
 		else yield layer;
 	}

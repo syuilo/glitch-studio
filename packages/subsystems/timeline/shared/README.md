@@ -12,11 +12,11 @@
 
 Scene・レイヤー・クリップと、その時間・合成・音声設定の契約を定義する。キーフレームの補間や式エンジンは共通基盤を利用し、Scene時刻で評価することや許可するBindingなどの規約をこのドメインで決める。
 
-`custom-parameters.ts`は全レイヤー共通のカスタムパラメータの定義・ID・評価情報・祖先参照を所有する。`customParameterDefs`と`customParameterValues`を分け、数値・真理値・文字列・色・ベクトル・enum・Color Rampを扱う。`parameter-binding-evaluator.ts`が`timelineLayerCustomParameterReference`と`PARAM`を解決して共通の値評価器へ渡す。`PARAM`は通常のパラメータでは自身だけ、カスタムパラメータの値では直上の親だけを参照する。直接参照は自身と祖先を選べるが、カスタムパラメータの値では自身を除外する。Scene参照を跨がず、参照先は所有レイヤーのグラフと所属Scene時刻で評価する。
+`custom-parameters.ts`はフォルダ以外のレイヤーのカスタムパラメータの定義・ID・評価情報・祖先参照を所有する。`customParameterDefs`と`customParameterValues`を分け、数値・真理値・文字列・色・ベクトル・enum・Color Rampを扱う。`parameter-binding-evaluator.ts`が`timelineLayerCustomParameterReference`と`PARAM`を解決して共通の値評価器へ渡す。`PARAM`は通常のパラメータでは自身だけ、カスタムパラメータの値ではフォルダを除いた直上の親だけを参照する。直接参照は自身と祖先を選べるが、カスタムパラメータの値では自身を除外する。Scene参照を跨がず、参照先は所有レイヤーのグラフと所属Scene時刻で評価する。
 
 `timeline-compositing.ts`は画像を持つレイヤーの静的な`TimelineMask`（Alpha／輝度・反転）を定義する。nullでは通常描画、設定時は同じ合成境界の下層を切り抜く。opacityのBindingはマスク強度として再利用し、表示名だけをInspector・キーフレームで切り替える。素材の種類・時計・音声の契約は変更しない。
 
-`TimelineLayerMask`は対象自身を別レイヤーの単独描画で切り抜く静的な参照。`layerMask`に参照ID・Alpha／輝度・反転を保持する。`layer-output.ts`が、Transformを透過する同じ合成境界の候補・参照検証・素材とマスクを区別した依存グラフを所有する。Groupは両モードとも境界を作る。参照切れのIDは保持し、存在する自己参照・非映像・境界越えと循環を拒否する。`isIncludedInComposite`は映像の通常合成だけを切り替え、参照画像や音声へ影響しない。複製時のID付け替えはUIが担当する。
+`TimelineLayerMask`は対象自身を別レイヤーの単独描画で切り抜く静的な参照。`layerMask`に参照ID・Alpha／輝度・反転を保持する。`layer-output.ts`が、Group以外のコンテナを透過する同じ合成境界の候補・参照検証・素材とマスクを区別した依存グラフを所有する。Groupは両モードとも境界を作る。参照切れのIDは保持し、存在する自己参照・非映像・境界越えと循環を拒否する。`isIncludedInComposite`は映像の通常合成だけを切り替え、参照画像や音声へ影響しない。複製時のID付け替えはUIが担当する。
 
 `timing.ts`はScene上の共通配置`TimelineClipPlacement`と、生成系・Scene参照の`TimelineClipTiming`を定義する。通常再生の動画・音声は`media-timing.ts`の`TimelineMediaClipTiming`を使い、`sourceInMs`・`sourceOutMs`の半開素材範囲、符号付き`playbackRate`、`loop`を所有する。内容オフセットと素材範囲を重複保存しない。速度は有限・非ゼロで、1周が1ms以上となる配置を扱う。
 
@@ -84,7 +84,7 @@ Scene一覧の重複ID・参照先の欠落・循環参照などの診断は、�
 
 ## カメラと空間
 
-Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`にXY・Z・roll・縦画角のBindingを持ち、通常のレイヤーとしてAutomation Graphと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならカメラを返さず、Zによる拡縮・近接面での非表示を行わない2D合成となる。カメラレイヤーの初期値はXY=0、Z=cot(22.5°)、roll=0、縦画角45°で、Z=0の2D配置を維持する。Zの単位はSceneの半高で、正がカメラ方向。視点と平面の距離が0.001未満なら非表示。rollの1は時計回り360度（1周）で、投影では視点の位置を引いてから逆回転する。回転の縦横比補正には描画先のScene寸法を渡す。
+Scene直下またはGroup以外のコンテナ配下の`camera`レイヤーは`cameraParamValues`にXY・Z・roll・縦画角のBindingを持ち、通常のレイヤーとしてAutomation Graphと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならカメラを返さず、Zによる拡縮・近接面での非表示を行わない2D合成となる。カメラレイヤーの初期値はXY=0、Z=cot(22.5°)、roll=0、縦画角45°で、Z=0の2D配置を維持する。Zの単位はSceneの半高で、正がカメラ方向。視点と平面の距離が0.001未満なら非表示。rollの1は時計回り360度（1周）で、投影では視点の位置を引いてから逆回転する。回転の縦横比補正には描画先のScene寸法を渡す。
 
 `affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。映像レイヤーの`coordinateSpace`は`world`または`screen`の静的な属性で、新規作成時は`screen`とする。`compositingParamValues`には含めず、式・キーフレームで評価しない。`screen`は現在の合成先のGroupの変形・カメラを適用しない。TransformのXY移動・拡縮・回転は`screenParent`として別に蓄積し、画面配置にも反映する。
 
@@ -92,15 +92,25 @@ Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`
 
 `TimelineCameraCuts`は描画と同じカメラ選択規則で、実際に選択が変わる境界だけを計算する。ブラー無効のカメラは基準時刻で有効状態を固定し、最上段の有効な固定カメラごとに結果をキャッシュする。`getTimelineMotionBlurBoundaries()`は通常の映像カットを収集し、カメラは`getTimelineMotionBlurCameraCuts()`で配置ごとのScene時計・トリム範囲と選択計画を保持する。`getTimelineSampleTimes()`へ両方を渡すことで、未採用のカメラに露光を制限されず、子Sceneの固定カメラも配置ごとに解釈できる。計画はプロジェクト変更時に作り直す。
 
+## 整理用コンテナと変換
+
+`TimelineFolderLayer`（`folder`）はID・名前・識別色・無効状態・子だけを持つ。パラメータやAutomation Graphを持たず、パラメータの親探索も透過する。`TimelineParameterContainerLayer`（`parameterContainer`）は子とパラメータの定義・値・Automation Graphを持ち、定義が空でも明示的な参照スコープを作る。両者とも自身のクリップ・変形・画像・音量・モーションブラー設定は持たない。
+
+描画には`getTimelineRenderLayers()`で子を同じ描画列へ展開する。中間画像や専用レンダラーを作らず、整理用の階層を追加するだけでは既存の子の描画履歴やGPUリソースを作り直さない。描画順・下層入力・マスクの参照境界・カメラ・音声は透過し、無効な枝だけを除外する。子の保存された無効状態は変更しない。通常のコンテナと同じ折り畳み・複製・解除・親子移動・仮想クリップによる一括時間移動を使う。
+
+`container-layer.ts`は新規作成時の既定値と、フォルダ→パラメータコンテナ／Transform／Group、パラメータコンテナ→Transform／Group、Transform→Groupの変換を定義する。逆方向は許可しない。ID・子の順序・識別情報・カスタムパラメータ・保存Bindingを維持し、Transformのposition・scale・rotation・zをGroupのposition・scale・rotation・depthへ移す。Groupの初期合成モードは通常作成と同じ`flat`とし、追加される音量や合成設定は既定値を使う。
+
+変換は一つのCommandでUndo/Redoする。フォルダからの変換では新しいパラメータスコープが生まれ、Group化では合成境界も生まれるため、描画結果が変わる場合がある。式の書き換え・転送パラメータの生成・子の削除は行わない。Group内のカメラや新たな参照制約の違反は、保存データを残したまま既存の静的検証で診断する。
+
 ## Transformレイヤー
 
-`TimelineTransformLayer`は`layers`とXYZ移動・XY scale・rotationのBinding、Automation Graph、`forceDisableMotionBlur`を所有する。Groupと合わせて`TimelineContainerLayer`とし、木の走査・時間移動・範囲計算を共有する。自身のクリップ・画像・合成設定・音量は持たない。`layers/transform`が定義と評価器、`transform-space.ts`がローカル原点で拡縮→回転→移動した行列の累積を担当する。非等方scaleと子の回転によるせん断を行列のまま保持し、Zは加算だけを行う。カメラ位置にも同じ行列を使うが、rollには祖先のrotationだけを加算し、scale・反転・せん断を向きや画角へ継承しない。
+`TimelineTransformLayer`は`layers`とXYZ移動・XY scale・rotationのBinding、Automation Graph、`forceDisableMotionBlur`を所有する。Group・フォルダ・パラメータコンテナと合わせて`TimelineContainerLayer`とし、木の走査・時間移動・範囲計算を共有する。自身のクリップ・画像・合成設定・音量は持たない。`layers/transform`が定義と評価器、`transform-space.ts`がローカル原点で拡縮→回転→移動した行列の累積を担当する。非等方scaleと子の回転によるせん断を行列のまま保持し、Zは加算だけを行う。カメラ位置にも同じ行列を使うが、rollには祖先のrotationだけを加算し、scale・反転・せん断を向きや画角へ継承しない。
 
-カメラ選択はTransformだけを再帰し、無効な枝を除いた表示順で行う。カメラ配下の計算ではなく、Scene側で選択したカメラの祖先を評価するため循環しない。祖先Transformのブラー無効は子のクリップ選択とカット計画にも引き継ぐ。カメラ自身だけを固定した場合は祖先のサンプル時刻を維持する。
+カメラ選択はGroup以外のコンテナを再帰し、無効な枝を除いた表示順で行う。座標変換には祖先Transformだけを適用する。カメラ配下の計算ではなく、Scene側で選択したカメラの祖先を評価するため循環しない。祖先Transformのブラー無効は子のクリップ選択とカット計画にも引き継ぐ。カメラ自身だけを固定した場合は祖先のサンプル時刻を維持する。
 
 Groupを祖先に持つカメラはUIの静的検証で診断する。無効な枝やクリップ期間外も含めてプロジェクト全体の描画を停止する。`TimelineSceneCamera.evaluate()`は検証済みの階層から選択・評価だけを行い、配置の検証を繰り返さない。
 
 音声計画はTransformを音量なしで透過し、下層入力も外側へ継続する。Group・Sceneは従来の合成境界を維持する。
 
 
-画像入力はエフェクトとVisual Moduleレイヤーの公開画像入力に`lowerLayerOutput` / `anotherLayerOutput`を許可する。`anotherLayerOutput`は`layerId`と`outputStage: source | rendered | composited`を持つ。公開入力のBindingにはサンプリングを持たせず、エフェクト用Bindingにだけfit・wrap・filterを組み合わせる。公開主入力の既定値・リセットは`lowerLayerOutput`とする。`layer-output.ts`は同じScene内の画像参照と、素材・合成境界・Transformの透過を区別した依存グラフを所有する。静的な循環は無効化・クリップ期間にかかわらず拒否する。
+画像入力はエフェクトとVisual Moduleレイヤーの公開画像入力に`lowerLayerOutput` / `anotherLayerOutput`を許可する。`anotherLayerOutput`は`layerId`と`outputStage: source | rendered | composited`を持つ。公開入力のBindingにはサンプリングを持たせず、エフェクト用Bindingにだけfit・wrap・filterを組み合わせる。公開主入力の既定値・リセットは`lowerLayerOutput`とする。`layer-output.ts`は同じScene内の画像参照と、素材・合成境界・Group以外のコンテナの透過を区別した依存グラフを所有する。静的な循環は無効化・クリップ期間にかかわらず拒否する。

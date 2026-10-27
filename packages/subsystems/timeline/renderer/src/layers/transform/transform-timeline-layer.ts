@@ -1,4 +1,4 @@
-import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { getTimelineRenderLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { TimelineTransformParameters } from '@gs/subsystems_timeline_shared/layers/transform/transform-parameters.ts';
 import { getTimelineTransformSpace } from '@gs/subsystems_timeline_shared/transform-space.ts';
 import { TimelineRenderer } from '../../timeline-renderer.ts';
@@ -19,7 +19,7 @@ export function createTransformTimelineLayer<Output>(getTransform: () => Timelin
 		createChildren(context, evaluation) {
 			const layer = getTransform();
 			const transform = parameters.evaluate(layer.transformParamValues, layer.automationGraphs, context.sceneTimeMs, context.isExport, context.customParameters);
-			return renderer.createEvaluation(layer.layers.filter(isTimelineRenderLayer), {
+			return renderer.createEvaluation(getTimelineRenderLayers(layer.layers), {
 				...evaluation,
 				time: context.sceneTimeMs,
 				timeDelta: context.timeDelta,

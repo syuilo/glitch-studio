@@ -183,7 +183,9 @@ const emit = defineEmits<{
 }>();
 
 const layerIcon = computed(() => ({
-	group: 'ti-folder',
+	folder: 'ti-folder',
+	parameterContainer: 'ti-adjustments-horizontal',
+	group: 'ti-stack-2',
 	transform: 'ti-gizmo',
 	camera: 'ti-camera',
 	voicevox: 'ti-microphone',

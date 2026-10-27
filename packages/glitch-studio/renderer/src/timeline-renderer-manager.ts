@@ -2,8 +2,8 @@ import { createTimelineLayerCustomParameterContextIndex } from '@gs/subsystems_t
 import type { TimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
 import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/transform/transform-timeline-layer.ts';
 import { TimelineTransformParameters } from '@gs/subsystems_timeline_shared/layers/transform/transform-parameters.ts';
-import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { getTimelineRenderLayers, flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/group/group-timeline-layer.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineMotionBlurLoops, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
@@ -440,7 +440,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		const request = this.dynamicOptions.transformObserver;
 		const location = request?.sceneId === this.dynamicOptions.sceneId ? findTimelineLayerLocation(this.getSceneLayers(), request.layerId) : null;
 		const layer = location && !location.layer.isDisabled && !location.ancestors.some(group => group.isDisabled) && isTimelineVisualLayer(location.layer) ? location.layer : null;
-		const clip = layer && layer.layerType !== 'group' ? layer.clips.find(clip => isTimelineClipActive(clip, time)) : null;
+		const clip = layer && !isTimelineContainerLayer(layer) ? layer.clips.find(clip => isTimelineClipActive(clip, time)) : null;
 		const preview: TimelineTransformPreview | null = request ? {
 			request,
 			revision: this.dynamicOptions.previewRevision,
@@ -551,7 +551,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			});
 			const settings = evaluate(layer);
 			const camera = new TimelineSceneCamera().evaluate(this.evaluationScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false, sceneSize);
-			const parent = getTimelinePreviewParent(location.ancestors.map(parent => parent.layerType === 'transform'
+			const parent = getTimelinePreviewParent(location.ancestors.filter(parent => parent.layerType === 'group' || parent.layerType === 'transform').map(parent => parent.layerType === 'transform'
 				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false, this.getLayerCustomParameterContext(sceneId, parent.id)) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
 			{
@@ -618,7 +618,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private getSceneLayers() {
-		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.evaluationScenes, this.dynamicOptions.sceneId).layers.filter(isTimelineRenderLayer);
+		return this.dynamicOptions.sceneId == null ? [] : getTimelineRenderLayers(getTimelineScene(this.evaluationScenes, this.dynamicOptions.sceneId).layers);
 	}
 
 	private createTimelineLayer(layer: TimelineLayer, clipId: string | null, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<TimelineImage> {

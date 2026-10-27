@@ -1,10 +1,13 @@
+import { convertTimelineContainerLayer } from '@gs/subsystems_timeline_shared/container-layer.ts';
+import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
+import type { TimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelineLayerCustomParameterContext, resolveTimelineLayerCustomParameterReference, areTimelineCustomParameterTypesCompatible, validateTimelineLayerCustomParameterDefinitions } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
 import type { TimelineLayerCustomParameterDefinition, TimelineLayerCustomParameterId } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
 import type { TimelineLayerCustomParameterReferenceBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { EditableTimelineParameterBinding } from './types/parameter-edit.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import type { TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineContainerLayer, hasTimelineLayerParameters, isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
@@ -106,6 +109,7 @@ type NodeParamTarget = EffectNodeParamTarget & VisualModuleTarget;
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelineParameterTarget, rootKey: string, binding: EditableTimelineParameterBinding | null | undefined) {
 	if (target === 'customParameter') {
+		if (!hasTimelineLayerParameters(layer)) throw new Error('Folder layers cannot own parameters');
 		if (binding == null) {
 			delete layer.customParameterValues?.[rootKey];
 			if (Object.keys(layer.customParameterValues ?? {}).length === 0) delete layer.customParameterValues;
@@ -1768,7 +1772,7 @@ const setTimelineLayerMotionBlurDisabledCommandDef = defineCommand<{ sceneId: st
 		let before: boolean;
 		const getLayer = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
-			if (layer.layerType === 'audio') throw new Error('Motion blur requires a visual layer');
+			if (!('forceDisableMotionBlur' in layer)) throw new Error('Motion blur requires a visual layer');
 			return layer;
 		};
 		return {
@@ -2553,6 +2557,22 @@ const transformTimelineLayersCommandDef = defineCommand<{ sceneId: string; layer
 	create: payload => wrapTimelineLayers(payload.sceneId, payload.layerIds, payload.transform),
 });
 
+const wrapTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds: string[]; container: TimelineContainerLayer }>({
+	label: 'Wrap timeline layers in container',
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
+	create: payload => wrapTimelineLayers(payload.sceneId, payload.layerIds, payload.container),
+});
+
+const convertTimelineContainerCommandDef = defineCommand<{ sceneId: string; layerId: string; target: TimelineContainerLayerType }>({
+	label: 'Convert timeline container',
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
+	create: payload => editTimelineTree(payload.sceneId, layers => {
+		const location = findTimelineLayerLocation(layers, payload.layerId);
+		if (location == null || !isTimelineContainerLayer(location.layer)) throw new Error('Container not found');
+		location.siblings.splice(location.index, 1, convertTimelineContainerLayer(location.layer, payload.target));
+	}),
+});
+
 const duplicateTimelineLayersCommandDef = defineCommand<{ sceneId: string; layers: { layer: TimelineLayer; sourceLayerId: string }[]; sourceDurationsMs?: TimelineClipSourceDurations | null }>({
 	label: 'Duplicate timeline layers',
 	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
@@ -2719,7 +2739,7 @@ const updateTimelineLayerCustomParameterCommandDef = defineCommand<{ sceneId: st
 		let changesDataType = false;
 		const getLayer = (state: ProjectState) => {
 			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
-			if (layer == null) throw new Error('Timeline layer not found');
+			if (layer == null || !hasTimelineLayerParameters(layer)) throw new Error('Layer cannot own custom parameters');
 			return layer;
 		};
 		return {
@@ -2762,7 +2782,7 @@ const removeTimelineLayerCustomParameterCommandDef = defineCommand<{ sceneId: st
 		let values: Record<string, TimelineParameterBinding> | null = null;
 		const getLayer = (state: ProjectState) => {
 			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
-			if (layer == null) throw new Error('Timeline layer not found');
+			if (layer == null || !hasTimelineLayerParameters(layer)) throw new Error('Layer cannot own custom parameters');
 			return layer;
 		};
 		return {
@@ -2785,6 +2805,8 @@ const removeTimelineLayerCustomParameterCommandDef = defineCommand<{ sceneId: st
 });
 
 export const COMMAND_DEFS = {
+	wrapTimelineLayers: wrapTimelineLayersCommandDef,
+	convertTimelineContainer: convertTimelineContainerCommandDef,
 	updateTimelineLayerCustomParameter: updateTimelineLayerCustomParameterCommandDef,
 	removeTimelineLayerCustomParameter: removeTimelineLayerCustomParameterCommandDef,
 	addProjectAutomationGraph: addProjectAutomationGraphCommandDef,

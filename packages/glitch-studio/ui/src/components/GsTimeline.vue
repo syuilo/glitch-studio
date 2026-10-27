@@ -155,9 +155,7 @@ import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } f
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.js';
-import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { createContainerTimelineLayer } from '../utility/container-timeline-layer.ts';
 import { createTransformTimelineLayer } from '../utility/transform-timeline-layer.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineInspector from './GsTimeline.Inspector.vue';
@@ -473,6 +471,14 @@ const canWrapSelection = computed(() => {
 	return indexes.every((index, offset) => index === indexes[0] + offset);
 });
 
+function wrapInOrganizingContainer(type: 'folder' | 'parameterContainer') {
+	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
+	const container = createContainerTimelineLayer(type);
+	stateManager.commit('wrapTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], container });
+	selection.value = { kind: 'layers', ids: [container.id] };
+	expandedLayers.value = new Set([...expandedLayers.value, container.id]);
+}
+
 function transformSelection() {
 	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
 	const transform = createTransformTimelineLayer();
@@ -482,54 +488,24 @@ function transformSelection() {
 }
 
 function addEmptyGroup() {
-	const id = genId();
+	const group = createContainerTimelineLayer('group');
 	stateManager.commit('groupTimelineLayers', {
 		sceneId: props.sceneId,
 		layerIds: [],
-		group: {
-			id,
-			name: 'Group',
-			layerType: 'group',
-			layers: [],
-			isDisabled: false,
-			color: null,
-			forceDisableMotionBlur: false,
-			automationGraphs: [],
-			mask: null,
-			layerMask: null,
-			isIncludedInComposite: true,
-			coordinateSpace: 'screen',
-			compositingParamValues: initialCompositingParameters(),
-			audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
-		},
+		group,
 	});
-	selection.value = { kind: 'layers', ids: [id] };
+	selection.value = { kind: 'layers', ids: [group.id] };
 }
 
 function groupSelection() {
 	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
-	const id = genId();
+	const group = createContainerTimelineLayer('group');
 	stateManager.commit('groupTimelineLayers', {
 		sceneId: props.sceneId,
 		layerIds: [...selection.value.ids],
-		group: {
-			id,
-			name: 'Group',
-			layerType: 'group',
-			layers: [],
-			isDisabled: false,
-			color: null,
-			forceDisableMotionBlur: false,
-			automationGraphs: [],
-			mask: null,
-			layerMask: null,
-			isIncludedInComposite: true,
-			coordinateSpace: 'screen',
-			compositingParamValues: initialCompositingParameters(),
-			audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
-		},
+		group,
 	});
-	selection.value = { kind: 'layers', ids: [id] };
+	selection.value = { kind: 'layers', ids: [group.id] };
 }
 
 function ungroupSelection() {
@@ -766,6 +742,8 @@ const layerActions = createTimelineLayerActions({
 	readLayerMediaDurations,
 	selectLayer,
 	canWrap: () => canWrapSelection.value,
+	folderSelection: () => wrapInOrganizingContainer('folder'),
+	parameterContainerSelection: () => wrapInOrganizingContainer('parameterContainer'),
 	groupSelection,
 	transformSelection,
 	ui,
@@ -857,10 +835,6 @@ function showClipMenu(event: PointerEvent, target: TimelineClipSelection) {
 		danger: true,
 		action: removeSelectedClips,
 	}], event);
-}
-
-function initialCompositingParameters() {
-	return deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, def.defaultValue]))) as import('@gs/subsystems_timeline_shared/types.ts').TimelineImageLayer['compositingParamValues'];
 }
 
 function play() {

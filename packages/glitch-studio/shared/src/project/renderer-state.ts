@@ -3,7 +3,7 @@ import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ProjectVisualModule } from './types.ts';
 import type { VisualModule, VisualModuleNode, VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
-import type { TimelineClipLayer, TimelineGroupLayer, TimelineTransformLayer, TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleTarget } from './visual-module-target.ts';
 
 export type RendererProjectState = {
@@ -14,7 +14,8 @@ export type RendererProjectState = {
 
 // 通信上の設定差分は子の配置を所有しない。保存形式の木はTimelineに残し、
 // Glitch Studioの同期契約でだけ設定と階層を分ける。
-export type RendererLayerState = TimelineClipLayer | ((Omit<TimelineGroupLayer, 'layers'> | Omit<TimelineTransformLayer, 'layers'>) & { layers?: never });
+type RendererContainerState = { [Type in TimelineContainerLayer['layerType']]: Omit<Extract<TimelineContainerLayer, { layerType: Type }>, 'layers'> & { layers?: never } }[TimelineContainerLayer['layerType']];
+export type RendererLayerState = TimelineClipLayer | RendererContainerState;
 
 export function getRendererLayerState(layer: TimelineLayer): RendererLayerState {
 	if (!isTimelineContainerLayer(layer)) return layer;
@@ -98,7 +99,7 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 					const previous = findTimelineLayer(scene.layers, change.layerId);
 					if (change.layer == null) return { ...scene, layers: updateTimelineLayer(scene.layers, change.layerId, () => null) };
 					if (change.layer.id !== change.layerId) throw new Error('Layer ID does not match');
-					const layer: TimelineLayer = (change.layer.layerType === 'group' || change.layer.layerType === 'transform')
+					const layer: TimelineLayer = (change.layer.layerType === 'group' || change.layer.layerType === 'transform' || change.layer.layerType === 'folder' || change.layer.layerType === 'parameterContainer')
 						? { ...change.layer, layers: previous && isTimelineContainerLayer(previous) ? previous.layers : [] } : change.layer;
 					return { ...scene, layers: previous == null ? [...scene.layers, layer] : updateTimelineLayer(scene.layers, change.layerId, () => layer) };
 				});

@@ -13,12 +13,18 @@
 			</GsSwitch>
 			<GsColorInput v-if="layer.color != null" :key="layer.id" data-test-layer-color :modelValue="layer.color" :title="i18n.ts._TimelineLayer.LayerColor" @beginChanging="beginColorEdit" @update:modelValue="setColor" @changeFinished="finishColorEdit"/>
 		</div>
+		<div v-if="isTimelineContainerLayer(layer)" class="_spacer">
+			<GsSelect data-test-timeline-container-type large :disabled="getTimelineContainerConversionTargets(layer).length === 0" :modelValue="layer.layerType" :items="[{ value: layer.layerType, label: getTimelineContainerTypeLabel(layer.layerType) }, ...getTimelineContainerConversionTargets(layer).map(type => ({ value: type, label: getTimelineContainerTypeLabel(type) }))]" @update:modelValue="changeContainerType">
+				<template #label>{{ i18n.ts._TimelineLayer.ContainerType }}</template>
+				<template #caption>{{ i18n.ts._TimelineLayer.ContainerConversionHint }}</template>
+			</GsSelect>
+		</div>
 		<div v-if="layer.layerType === 'group'" class="_spacer">
 			<GsSelect large :modelValue="layer.compositingMode ?? 'flat'" :items="groupModes" @update:modelValue="mode => stateManager.commit('changeTimelineGroupMode', { sceneId, layerId: layer.id, mode })">
 				<template #label>{{ i18n.ts._TimelineLayer.GroupCompositing }}</template>
 			</GsSelect>
 		</div>
-		<GsTimelineCustomParameters :key="layer.id" :scene="scene" :layer="layer" @edit="event => onTimelineLayerParamEdit(event, 'customParameter')"/>
+		<GsTimelineCustomParameters v-if="hasTimelineLayerParameters(layer)" :key="layer.id" :scene="scene" :layer="layer" @edit="event => onTimelineLayerParamEdit(event, 'customParameter')"/>
 		<GsTimelineEffectSettings
 			v-if="layer.layerType === 'effect'"
 			:key="layer.id"
@@ -99,7 +105,7 @@
 						keyframesEnabled
 						:automationGraphEndEnabled="false"
 						:availableVariables="LAYER_VAR_DEFS"
-						:automationGraphs="layer.automationGraphs"
+						:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
 						:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 						:data-test-visual-module-argument="paramDef.id"
 						:paramPath="[paramDef.id]"
@@ -126,7 +132,7 @@
 							keyframesEnabled
 							:automationGraphEndEnabled="false"
 							:availableVariables="LAYER_VAR_DEFS"
-							:automationGraphs="layer.automationGraphs"
+							:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
 							:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 							:paramPath="[paramId]"
 							:paramDef="paramDef"
@@ -188,7 +194,7 @@
 					keyframesEnabled
 					:automationGraphEndEnabled="false"
 					:availableVariables="LAYER_VAR_DEFS"
-					:automationGraphs="layer.automationGraphs"
+					:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
 					:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 					:paramPath="['volume']"
 					:paramDef="timelineAudioParamDefs.volume"
@@ -214,7 +220,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, onBeforeUnmount, provide } from 'vue';
-import { isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineVisualLayer, isTimelineContainerLayer, hasTimelineLayerParameters, isTimelineEffectOrVisualModuleLayer, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineLayerMaskSources } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
@@ -222,6 +228,9 @@ import { timelineAudioParamDefs, isTimelineAudioOutputLayer } from '@gs/subsyste
 import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
+import { getTimelineContainerConversionTargets } from '@gs/subsystems_timeline_shared/container-layer.ts';
+import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
+import { getTimelineContainerTypeLabel } from '@/utility/container-timeline-layer.ts';
 import GsSelect from './common/GsSelect.vue';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
@@ -292,11 +301,17 @@ const inlineAssetDropActions = computed(() => {
 	});
 });
 const sceneId = computed(() => props.scene.id);
+
+function changeContainerType(target: TimelineContainerLayerType) {
+	if (!isTimelineContainerLayer(props.layer) || target === props.layer.layerType) return;
+	stateManager.commit('convertTimelineContainer', { sceneId: props.scene.id, layerId: props.layer.id, target });
+}
+
 const sceneLayers = computed(() => flattenTimelineLayers(props.scene.layers));
 const imageLayerOptions = computed(() => {
 	const visit = (layers: readonly TimelineLayer[], parents: readonly string[]): { value: string; label: string }[] => layers.flatMap(layer => [
 		...layer.id !== props.layer.id && isTimelineVisualLayer(layer) ? [{ value: layer.id, label: [...parents, layer.name].join(' / ') }] : [],
-		...layer.layerType === 'group' || layer.layerType === 'transform' ? visit(layer.layers, [...parents, layer.name]) : [],
+		...isTimelineContainerLayer(layer) ? visit(layer.layers, [...parents, layer.name]) : [],
 	]);
 	return visit(props.scene.layers, []);
 });

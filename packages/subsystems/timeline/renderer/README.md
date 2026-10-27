@@ -66,6 +66,8 @@ Transformは`layers/transform/transform-timeline-layer.ts`が子の寿命を管�
 
 ## 別レイヤー出力の評価
 
+フォルダとパラメータコンテナは`getTimelineRenderLayers()`で子を同じ描画列へ展開し、専用レンダラーや中間画像を作らない。参照スコープは展開前の保存ツリーから別途作り、描画順と下層入力を維持する。
+
 `TimelineRenderer.createEvaluation()`は描画前にGroup・Transformの子孫まで通常の時計と描画空間を登録する。`TimelineEvaluationSession`は同じScene配置・サブサンプル内の素材準備、単独描画、合成途中の画像を共有する。子Sceneは配置ごとに別セッションを使う。参照の要求は直列で、静的検証を迂回した循環も未完了Promiseへの再入として拒否する。
 
 各映像レイヤーは素材を生成してGPU処理をsubmitし、compositorの`evaluate()`が素材と遅延した単独描画・合成を返す。サンプリング入力が必要なレイヤーだけ必須の`context.getInput()`で下層を要求するため、独立した上層素材への参照は下層合成に依存しない。通常の合成順は変わらない。Group・Transformの子評価は`createChildren()`で同じセッションへ登録し、素材評価時には登録済みの結果を使う。

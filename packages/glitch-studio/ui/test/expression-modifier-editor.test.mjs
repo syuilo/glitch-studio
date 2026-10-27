@@ -105,7 +105,11 @@ test('excludes own custom values and keeps timeline sources out of Visual Module
 	f.props.node = { id: 'node', type: 'effect', params: {} };
 	await nextTick();
 	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
-	assert.equal(modifierUiTest.menu.some(item => item.text === i18n.ts._Parameter.CustomParameter), false);
+	// 表示名は両方の参照方式で共通なので、選択したときに通知されるドメインを確認する。
+	const customParameterItems = modifierUiTest.menu.filter(item => item.text === i18n.ts._Parameter.CustomParameter);
+	assert.equal(customParameterItems.length, 1);
+	customParameterItems[0].action();
+	assert.equal(f.edits.at(-1).inputSource, 'visualModuleCustomParameterReference');
 });
 
 // 【加工式の本文・無効化・削除を基準式とは独立した編集として通知する】

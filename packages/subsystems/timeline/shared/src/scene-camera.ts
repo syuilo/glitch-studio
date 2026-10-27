@@ -1,4 +1,5 @@
 import { getTimelineLayerCustomParameterContext } from './custom-parameters.ts';
+import { isTimelineNonCompositingContainerLayer } from './types.ts';
 import { getTimelineClipEnd, isTimelineClipActive } from './timing.ts';
 import { TimelineCameraParameters } from './layers/camera/camera-parameters.ts';
 import { TimelineTransformParameters } from './layers/transform/transform-parameters.ts';
@@ -10,11 +11,13 @@ import type { Resolution } from '@gs/shared/resolution.ts';
 
 type CameraCandidate = { layer: TimelineCameraLayer; ancestors: TimelineTransformLayer[]; frozen: boolean };
 
-/** Groupは合成境界なので探索せず、Transformだけを表示順に透過する。 */
+/** Groupは合成境界なので探索せず、他のコンテナは表示順に透過する。変形はTransformだけから継承する。 */
 export function getTimelineCameraCandidates(layers: readonly TimelineLayer[], ancestors: TimelineTransformLayer[] = [], frozen = false): CameraCandidate[] {
 	return layers.flatMap<CameraCandidate>(layer => {
 		if (layer.isDisabled) return [];
-		if (layer.layerType === 'transform') return getTimelineCameraCandidates(layer.layers, [...ancestors, layer], frozen || layer.forceDisableMotionBlur);
+		if (isTimelineNonCompositingContainerLayer(layer)) return getTimelineCameraCandidates(layer.layers,
+			layer.layerType === 'transform' ? [...ancestors, layer] : ancestors,
+			frozen || (layer.layerType === 'transform' && layer.forceDisableMotionBlur));
 		return layer.layerType === 'camera' ? [{ layer, ancestors, frozen: frozen || layer.forceDisableMotionBlur }] : [];
 	});
 }

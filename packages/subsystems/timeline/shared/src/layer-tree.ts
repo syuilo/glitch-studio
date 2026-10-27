@@ -1,5 +1,17 @@
-import { isTimelineContainerLayer } from './types.ts';
-import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer } from './types.ts';
+import { isTimelineContainerLayer, isTimelineRenderLayer } from './types.ts';
+import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer, TimelineVisualLayer, TimelineTransformLayer } from './types.ts';
+
+/**
+ * 整理用コンテナは描画列へ展開する。レンダラーの境界を増やさないため、フォルダへ
+ * まとめるだけで既存の子の履歴・GPUリソースが破棄されることもない。
+ * 参照スコープは保存ツリーから別途作り、ここでは描画順と一括無効化だけを扱う。
+ */
+export function getTimelineRenderLayers(layers: readonly TimelineLayer[]): (TimelineVisualLayer | TimelineTransformLayer)[] {
+	return layers.flatMap(layer => {
+		if (layer.layerType === 'folder' || layer.layerType === 'parameterContainer') return layer.isDisabled ? [] : getTimelineRenderLayers(layer.layers);
+		return isTimelineRenderLayer(layer) ? [layer] : [];
+	});
+}
 
 /** Scene参照は辿らず、同じSceneが所有するレイヤーだけを表示順に列挙する。 */
 export function flattenTimelineLayers(layers: readonly TimelineLayer[]): TimelineLayer[] {

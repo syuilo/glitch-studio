@@ -1,4 +1,6 @@
 {
+	"Folder": "フォルダ",
+	"ParameterContainer": "パラメータコンテナ",
 	"_DesktopUpdate": {
 		"Title": "Glitch Studioを更新",
 		"Available": "アップデートあり",
@@ -518,6 +520,11 @@
 		"SceneResolutionTitle": "シーンの解像度 — {name}"
 	},
 	"_TimelineLayer": {
+		"WrapInFolder": "フォルダにまとめる",
+		"WrapInParameterContainer": "パラメータコンテナにまとめる",
+		"ConvertContainer": "コンテナを変換",
+		"ContainerType": "コンテナの種類",
+		"ContainerConversionHint": "変換によりパラメータの参照範囲や合成結果が変わる場合があります。元に戻す操作で復元できます。",
 		"LayerColor": "レイヤーカラー",
 		"Title": "レイヤー",
 		"Name": "レイヤー名",

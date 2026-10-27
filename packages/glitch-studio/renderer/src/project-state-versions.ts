@@ -38,7 +38,7 @@ export class ProjectStateVersions {
 					if (previousLayers.get(id) !== nextLayers.get(id)) this.layers.set(JSON.stringify([change.sceneId, id]), revision);
 				}
 			} else if (change.type === 'layer' && !canPreserveTimelineLayerInstance(change.changes)
-				&& ((change.layer?.layerType !== 'group' && change.layer?.layerType !== 'transform') || change.changes.some(edit => edit.type === 'definition'))) {
+				&& ((change.layer == null || !['group', 'transform', 'folder', 'parameterContainer'].includes(change.layer.layerType)) || change.changes.some(edit => edit.type === 'definition'))) {
 				// コンテナ自身の設定は毎回読み直すため、子の描画履歴まで巻き込んで破棄しない。
 				this.layers.set(JSON.stringify([change.sceneId, change.layerId]), revision);
 			} else if (change.type === 'scene') {

@@ -7,6 +7,7 @@ import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
+import { createContainerTimelineLayer } from './container-timeline-layer.ts';
 import { createTransformTimelineLayer } from './transform-timeline-layer.ts';
 import { createEffectTimelineLayer } from './effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from './shape-timeline-layer.ts';
@@ -329,8 +330,26 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			icon: 'ti ti-memory',
 			action: () => addMediaLayer('scene'),
 		}, {
-			text: i18n.ts.Group,
+			id: 'folder',
+			text: i18n.ts.Folder,
 			icon: 'ti ti-folder',
+			action: () => {
+				const layer = createContainerTimelineLayer('folder');
+				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
+				selectLayer(layer);
+			},
+		}, {
+			id: 'parameterContainer',
+			text: i18n.ts.ParameterContainer,
+			icon: 'ti ti-adjustments-horizontal',
+			action: () => {
+				const layer = createContainerTimelineLayer('parameterContainer');
+				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
+				selectLayer(layer);
+			},
+		}, {
+			text: i18n.ts.Group,
+			icon: 'ti ti-stack-2',
 			action: addEmptyGroup,
 		}, {
 			text: i18n.ts.Transform,

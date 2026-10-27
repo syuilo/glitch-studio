@@ -1,4 +1,4 @@
-import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { getTimelineRenderLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineGroupSpace } from '@gs/subsystems_timeline_shared/group-space.ts';
 import { TimelineRenderer, type TimelineLayerRenderer } from '../../timeline-renderer.ts';
 import { createTimelineCompositor, type TimelineCompositingObserver } from '../../timeline-compositor.ts';
@@ -34,7 +34,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 				customParameters: context.customParameters,
 				automationGraphs: group.automationGraphs,
 			});
-			return renderer.createEvaluation(group.layers.filter(isTimelineRenderLayer), {
+			return renderer.createEvaluation(getTimelineRenderLayers(group.layers), {
 				...evaluation,
 				time: context.sceneTimeMs,
 				timeDelta: context.timeDelta,
