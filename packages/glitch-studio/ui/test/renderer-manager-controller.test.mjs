@@ -49,6 +49,35 @@ class FakeWorker {
 	calls(fn) { return this.messages.filter(message => message.type === 'call' && message.fn === fn); }
 }
 
+// 【古いWorker・Scene・設定世代のキャッシュ通知を表示へ混ぜない】
+// 通知を間引くため編集後に旧スナップショットが届き得る。通常の表示変更では範囲を保持し、
+// fps変更と破棄では消去する。精密シークの指定もWorkerへ明示して伝える。
+test('filters frame cache notifications and forwards precise seeks independently of completion requests', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	const state = { sceneId: null, contentRevision: 1, previewRevision: 0, fps: 15,
+		frameRanges: [{ startFrame: 0, endFrame: 2 }], estimatedBytes: 8, maxBytes: 16 };
+	const notify = ctx => worker.reply({ type: 'ev', ev: { type: 'frameCache', ctx } });
+	notify({ ...state, sceneId: 'old' });
+	notify({ ...state, previewRevision: -1 });
+	assert.equal(controller.frameCacheState.value, null);
+	notify(state);
+	assert.deepEqual(controller.frameCacheState.value, state);
+	controller.renderTimelineAt(120, true, 'precise');
+	const seek = worker.calls('renderTimelineAt').at(-1);
+	assert.deepEqual(seek.args, [120, 1, 'precise']);
+	const update = controller.updateDynamicOptions({ previewFps: 30 });
+	assert.equal(controller.frameCacheState.value, null);
+	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
+	await update;
+	notify(state);
+	assert.equal(controller.frameCacheState.value, null);
+	notify({ ...state, previewRevision: 1, fps: 30 });
+	assert.equal(controller.frameCacheState.value.fps, 30);
+	controller.disposeManager();
+	assert.equal(controller.frameCacheState.value, null);
+});
+
 function fixture(t, kind = 'VisualModule') {
 	const workers = [];
 	const canvas = () => ({

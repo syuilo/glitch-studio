@@ -16,6 +16,65 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewPlaybackController } = module.exports;
 
+// 【通常シークはプレビューfpsに揃え、精密位置は停止中の再描画でも保持する】
+// 修飾キーを離した後や編集後に勝手に丸めると、任意時刻の確認を継続できない。
+// 精密位置がフレーム境界と一致していても、明示した精密モードはキャッシュを迂回する。
+test('snaps ordinary seeks and retains precise mode through paused redraws', t => {
+	const { playback, timelineRenderer } = setup(t, 15);
+	const requests = [];
+	timelineRenderer.renderTimelineAt = (...args) => requests.push(args);
+	playback.seekTimeline(120);
+	assert.equal(playback.currentTimelineTime.value, 2 * 1000 / 15);
+	assert.deepEqual(requests.at(-1), [2 * 1000 / 15, true]);
+	playback.seekTimeline(120, true, 'precise');
+	assert.equal(playback.currentTimelineTime.value, 120);
+	assert.deepEqual(requests.at(-1), [120, true, 'precise']);
+	playback.refresh();
+	assert.deepEqual(requests.at(-1), [120, false, 'precise']);
+	playback.seekTimeline(0, true, 'precise');
+	assert.deepEqual(requests.at(-1), [0, true, 'precise']);
+	playback.seekTimeline(120);
+	assert.deepEqual(requests.at(-1), [2 * 1000 / 15, true]);
+});
+
+// 【精密位置からのコマ送りも最寄りの次の境界へ進める】
+// 四捨五入した番号へ1を足すと一枚を飛ばす。終端付近も区間外の透明フレームへ移動させない。
+test('steps to adjacent preview frames from precise positions and keeps seeks inside the duration', t => {
+	const { playback } = setup(t, 15, null, 1000);
+	playback.seekTimeline(120, true, 'precise');
+	playback.stepTimelineFrame(1);
+	assert.equal(playback.currentTimelineTime.value, 2 * 1000 / 15);
+	playback.seekTimeline(120, true, 'precise');
+	playback.stepTimelineFrame(-1);
+	assert.equal(playback.currentTimelineTime.value, 1000 / 15);
+	playback.seekTimeline(999);
+	assert.equal(playback.currentTimelineTime.value, 14 * 1000 / 15);
+});
+
+// 【fps変更と再生開始では通常モードへ戻し、再生時計自体は連続時刻を保つ】
+// 表示時刻の丸めを音声時計へ蓄積するとドリフトする。再生中の精密シークも次の通常フレームへ戻す。
+test('changes the preview frame grid and returns precise seeks to normal playback', t => {
+	let fps = 15;
+	let position = 0;
+	const audio = { error: { value: null }, currentTime: () => position, start(time) { position = time; }, stop() {} };
+	const { playback, timelineRenderer, frame } = setup(t, () => fps, audio);
+	const requests = [];
+	timelineRenderer.renderTimelineAt = (...args) => requests.push(args);
+	playback.seekTimeline(120, true, 'precise');
+	fps = 30;
+	playback.updateTimelinePreviewFps();
+	assert.equal(playback.currentTimelineTime.value, 4 * 1000 / 30);
+	playback.seekTimeline(120, true, 'precise');
+	playback.playTimeline();
+	assert.equal(requests.at(-1).length, 1);
+	frame(0);
+	playback.seekTimeline(125, true, 'precise');
+	position = 170;
+	frame(40);
+	assert.equal(playback.currentTimelineTime.value, 170);
+	assert.deepEqual(requests.at(-1), [5 * 1000 / 30]);
+});
+
 // 【停止中の映像エラーと同一エラーの再発でも、音声だけを再生し続けない】
 // エラー文字列の変更通知は一度しか来ないため、再生開始時に現在の状態を確認する。
 // 再試行の描画は許可し、修正後に成功してエラーが解除されれば通常再生へ復帰できる。
@@ -59,7 +118,8 @@ test('stops on rendering failure before the next FPS-limited frame', t => {
 	timelineRenderer.errorMessage.value = 'Video decode failed';
 	frame(17);
 	assert.equal(playback.isTimelinePlaying.value, false);
-	assert.equal(playback.currentTimelineTime.value, 17);
+	// 停止位置も1fpsの境界へ揃う。音声の停止自体は描画間隔を待たずに行う。
+	assert.equal(playback.currentTimelineTime.value, 0);
 	assert.equal(callbacks.size, 0);
 	assert.equal(stopped, 1);
 });
@@ -132,7 +192,7 @@ function setup(t, fpsLimit = null, audio, duration = Infinity) {
 	const visualModuleLivePreviewRenderer = Object.fromEntries(['startVisualModuleLivePreviewRenderLoopFor', 'updateVisualModuleLivePreviewParamValues', 'stopRenderLoop']
 		.map(name => [name, (...args) => calls.push([name, ...args])]));
 	const timelineRenderer = { isReady: { value: true }, errorMessage: { value: null }, cancelSeek() {}, renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
-	const playback = new PreviewPlaybackController(visualModuleLivePreviewRenderer, timelineRenderer, () => fpsLimit, () => duration, audio);
+	const playback = new PreviewPlaybackController(visualModuleLivePreviewRenderer, timelineRenderer, () => typeof fpsLimit === 'function' ? fpsLimit() : fpsLimit, () => duration, audio);
 	t.after(() => {
 		playback.dispose();
 		delete globalThis.window;

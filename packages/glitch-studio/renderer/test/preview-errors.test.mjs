@@ -45,7 +45,7 @@ function constantVisualModule() {
 
 function gpuFixture() {
 	const texture = ({ size = [1, 1], format = 'rgba8unorm' } = {}) => ({
-		width: size[0], height: size[1], depthOrArrayLayers: 1, mipLevelCount: 1, sampleCount: 1,
+		width: size.width ?? size[0], height: size.height ?? size[1], depthOrArrayLayers: 1, mipLevelCount: 1, sampleCount: 1,
 		format, dimension: '2d', createView: () => ({}), destroy() {},
 	});
 	const device = {
@@ -61,6 +61,95 @@ function gpuFixture() {
 	};
 	return { device, texture };
 }
+
+// 【キャッシュヒットでは評価を省き、精密シークと書き出しでは必ず通常評価する】
+// 最終画像の保存をpresentだけへ追加すると、精密シークや書き出しまで既存画像を使い回し得る。
+// 生成・削除したフレームの範囲と容量通知も、実Managerの経路を通して確認する。
+test('reuses timeline frames with LRU while bypassing the cache for precise seeks and export', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 8 });
+	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
+	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	const states = [];
+	renderer.on('ev', event => { if (event.type === 'frameCache') states.push(event.ctx); });
+	const time = frame => frame * 1000 / 30;
+	for (const frame of [0, 1, 0, 2]) await renderer.renderTimelineAt(time(frame));
+	assert.equal(evaluations.mock.callCount(), 3);
+	assert.equal(present.mock.callCount(), 4);
+	assert.deepEqual(renderer.frameCache.snapshot().frameRanges, [{ startFrame: 0, endFrame: 1 }, { startFrame: 2, endFrame: 3 }]);
+	await renderer.renderTimelineAt(0, null, 'precise');
+	assert.equal(evaluations.mock.callCount(), 4);
+	assert.deepEqual(renderer.frameCache.snapshot().frameRanges, [{ startFrame: 0, endFrame: 1 }, { startFrame: 2, endFrame: 3 }]);
+	await renderer.renderTimelineFrame(0, 0);
+	assert.equal(evaluations.mock.callCount(), 5);
+	renderer.reportFrameCache();
+	assert.equal(states.at(-1).estimatedBytes, 8);
+	assert.equal(states.at(-1).fps, 30);
+	await renderer.updateDynamicOptions({ frameCacheMaxBytes: 0 });
+	assert.deepEqual(states.at(-1).frameRanges, []);
+	await renderer.renderTimelineAt(0);
+	assert.equal(evaluations.mock.callCount(), 6);
+	assert.deepEqual(errors, []);
+});
+
+// 【未選択で保存した画像からも、後で選んだレイヤーの変形ハンドルを復元する】
+// 選択変更だけで全フレームを捨てたり、画像だけを再利用して枠を消したりしてはならない。
+test('restores transform metadata on cache hits after changing the observation', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
+	await renderer.renderTimelineAt(0);
+	const transforms = [];
+	renderer.on('ev', event => { if (event.type === 'layerTransform') transforms.push(event.ctx); });
+	await renderer.updateDynamicOptions({ transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 2 }, previewRevision: 2 });
+	await renderer.renderTimelineAt(0);
+	assert.equal(evaluations.mock.callCount(), 1);
+	assert.equal(transforms.at(-1).request.requestId, 2);
+	assert.notEqual(transforms.at(-1).geometry, null);
+	// 定数をそのまま返すVisual Moduleなので、素材はテクスチャではない。
+	assert.equal(transforms.at(-1).outputResolution, null);
+	assert.deepEqual(transforms.at(-1).geometry.sourceSize, { width: 1, height: 1 });
+	assert.deepEqual(errors, []);
+});
+
+// 【編集・fps・素材などの変更で保存済み画像と古い非同期結果を無効化する】
+// GPUへ送ったコピーの完了を待つ間にも編集RPCが届くため、世代確認は登録直前に必要となる。
+test('invalidates cached frames and rejects snapshots completed after an edit', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	await renderer.renderTimelineAt(0);
+	const gate = Promise.withResolvers();
+	const entered = Promise.withResolvers();
+	const wait = renderer.gpuDevice.queue.onSubmittedWorkDone;
+	renderer.gpuDevice.queue.onSubmittedWorkDone = () => { entered.resolve(); return gate.promise; };
+	const pending = renderer.renderTimelineAt(1000 / 30);
+	await entered.promise;
+	const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
+	renderer.applyProjectChanges([{ type: 'scene', sceneId: scene.id, scene }]);
+	gate.resolve();
+	await pending;
+	assert.deepEqual(renderer.frameCache.snapshot().frameRanges, []);
+	renderer.gpuDevice.queue.onSubmittedWorkDone = wait;
+	await renderer.renderTimelineAt(0);
+	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 4);
+	await renderer.updateDynamicOptions({ previewFps: 15 });
+	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 0);
+	assert.deepEqual(errors, []);
+});
+
+// 【キャッシュ用GPU確保が失敗しても通常画像の表示は完了する】
+// 空き容量の推定だけで確保成功は保証できない。失敗した画像を採用せず、通常再生を維持する。
+test('keeps rendering when a cache allocation reports out of memory', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	renderer.gpuDevice.pushErrorScope = () => {};
+	renderer.gpuDevice.popErrorScope = async () => ({ message: 'out of memory' });
+	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	await renderer.renderTimelineAt(0);
+	assert.equal(present.mock.callCount(), 1);
+	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 0);
+	assert.deepEqual(errors, []);
+});
 
 function deferredImageDecodes(t) {
 	const previous = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');

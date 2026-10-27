@@ -8,6 +8,7 @@ import type { TimelineSnapSettings } from '@/utility/timeline-snapping.ts';
 import { constrainTimelineMove, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
 import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
+import type { TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 
 type TimelineSelectionDragOptions = {
 	timelineElement: Readonly<Ref<HTMLElement | null>>;
@@ -17,7 +18,7 @@ type TimelineSelectionDragOptions = {
 	duration: Readonly<Ref<number>>;
 	snapSettings: Readonly<Ref<TimelineSnapSettings>>;
 	snapSeekBar: Readonly<Ref<boolean>>;
-	seek: (timeMs: number) => void;
+	seek: (timeMs: number, mode?: TimelinePreviewSeekMode) => void;
 };
 
 /** ポインターの進行と表示用の状態を所有し、対象ごとの制約・Command生成は呼び出し側へ委ねる。 */
@@ -70,13 +71,15 @@ export function useTimelineSelectionDrag(options: TimelineSelectionDragOptions) 
 		if (!release) return;
 		event.preventDefault();
 		event.stopPropagation();
+		// 操作開始時の修飾キーを保持し、pointerup直前のキー解放で時刻を飛ばさない。
+		const precise = event.shiftKey;
 		const stopPointer = listenPointerDrag(event, current => {
 			const pointerTime = viewport.timeAtClientX(current.clientX);
 			if (pointerTime == null) return;
-			const candidates = options.snapSeekBar.value ? getTimelineSnapCandidates(options.snapSettings.value, [], viewport.ticksWithMinor.value) : [];
+			const candidates = !precise && options.snapSeekBar.value ? getTimelineSnapCandidates(options.snapSettings.value, [], viewport.ticksWithMinor.value) : [];
 			const result = getTimelineSeekPosition(Math.round(pointerTime), options.duration.value, candidates, 1 / viewport.pixelsPerMs.value);
 			snappingTimes.value = result.snappingTime == null ? [] : [result.snappingTime];
-			options.seek(result.timeMs);
+			options.seek(result.timeMs, precise ? 'precise' : 'frame');
 		}, () => {
 			snappingTimes.value = [];
 			release();

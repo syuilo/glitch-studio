@@ -43,7 +43,7 @@ const result = await build({
 				projectContext: { stateManager: null, getVisualModuleById: () => null }, activeSceneId: ref('scene'),
 				previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
 				timelineAudioPreview: { buffering: ref(false), error: ref(null) },
-				timelineRendererManagerController: { errorMessage: ref(null), getLayerEffectStates() {}, getEffectLayerState() {} },
+				timelineRendererManagerController: { errorMessage: ref(null), frameCacheState: ref(null), getLayerEffectStates() {}, getEffectLayerState() {} },
 			};`,
 			effects: 'export const effectDefinitions = {};',
 			preferences: `import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: true },
@@ -100,6 +100,30 @@ const renderer = createRenderer({
 function descendants(root) { return [root, ...root.children.flatMap(descendants)]; }
 
 function textContent(node) { return node.text + node.children.map(textContent).join(''); }
+
+// 【キャッシュ表示は有効なSceneの範囲だけを描き、LRU削除とfps変更に追従する】
+// 一度描いた帯を残すと、既に破棄された画像や別Sceneを再利用できるように見えてしまう。
+test('shows cached timeline ranges and updates their widths and removal without frame DOM nodes', async t => {
+	const f = await fixture(t, Timeline);
+	const ranges = () => descendants(f.root).filter(node => Object.hasOwn(node.props, 'data-test-timeline-cached-range'));
+	const state = { sceneId: 'scene', contentRevision: 1, previewRevision: 1, fps: 15,
+		frameRanges: [{ startFrame: 0, endFrame: 2 }, { startFrame: 4, endFrame: 5 }], estimatedBytes: 1024 ** 2, maxBytes: 2 * 1024 ** 3 };
+	appContext.timelineRendererManagerController.frameCacheState.value = state;
+	await nextTick();
+	assert.equal(ranges().length, 2);
+	const width = Number.parseFloat(ranges()[0].props.style.width);
+	assert.ok(width > 0);
+	appContext.timelineRendererManagerController.frameCacheState.value = { ...state, fps: 30, frameRanges: [state.frameRanges[0]] };
+	await nextTick();
+	assert.equal(ranges().length, 1);
+	assert.ok(Math.abs(Number.parseFloat(ranges()[0].props.style.width) - width / 2) < 1e-6);
+	appContext.timelineRendererManagerController.frameCacheState.value = { ...state, sceneId: 'other-scene' };
+	await nextTick();
+	assert.equal(ranges().length, 0);
+	appContext.timelineRendererManagerController.frameCacheState.value = null;
+	await nextTick();
+	assert.equal(descendants(f.root).some(node => Object.hasOwn(node.props, 'data-test-timeline-frame-cache')), false);
+});
 
 // 【Timeline全体に素材ドロップの表示を出し、子要素間の移動やフォントにも対応する】
 // 行の並び替えは通過させ、素材ドロップだけをAppやレイヤー行へ伝播させない。
@@ -456,6 +480,7 @@ async function fixture(t, component = Inspector) {
 	videoHoldTest.calls = [];
 	videoHoldTest.read = null;
 	appContext.previewPlayback.currentTimelineTime.value = 0;
+	appContext.timelineRendererManagerController.frameCacheState.value = null;
 	t.mock.method(console, 'log', () => {});
 	const previousResizeObserver = globalThis.ResizeObserver;
 	const previousHTMLElement = globalThis.HTMLElement;

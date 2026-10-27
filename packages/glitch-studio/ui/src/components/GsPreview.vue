@@ -87,9 +87,8 @@ const visualModuleLivePreviewTime = ref(0);
 const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : visualModuleLivePreviewTime.value);
 const currentFrameNumber = computed(() => {
 	if (previewPlayback.state.value.mode !== 'timeline') return null;
-	// プレビューの描画頻度を下げても、フレーム番号はタイムラインの設定FPSを基準にする。
-	// フレーム送りで生じる浮動小数点誤差により、境界が直前のフレームに切り捨てられるのを防ぐ。
-	return Math.floor(time.value * stateManager.state.timelineFps.value / 1000 + 1e-7);
+	// シーク・コマ送り・キャッシュと同じプレビューの時計で番号を表示する。
+	return Math.floor(time.value * stateManager.state.timelineFps.value * appContext.timelinePreviewFpsFactor.value / 1000 + 1e-7);
 });
 const previewTargetName = computed(() => {
 	const state = previewPlayback.state.value;

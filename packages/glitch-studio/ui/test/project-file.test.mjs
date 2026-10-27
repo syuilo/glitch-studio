@@ -62,7 +62,7 @@ const appBundle = await build({
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
-							renderingStatsEnabled: false, waveformAndHistogramEnabled: true,
+							renderingStatsEnabled: false, waveformAndHistogramEnabled: true, timelineFrameCacheMaxGiB: 2,
 							projectBackupAutoEnabled: false, projectBackupAutoIntervalMinutes: 1, projectBackupAutoRetentionDays: 1,
 							projectBackupSaveEnabled: false, projectBackupSaveRetentionDays: 7,
 							...window.initialTestPreferences });
@@ -79,7 +79,9 @@ const appBundle = await build({
 						staticUpdates = [];
 						patches = []; snapshots = [];
 						options = {};
-						constructor(staticOptions) { this.staticOptions = deepClone(staticOptions); }
+						constructor(staticOptions, dynamicOptions = {}) {
+							this.staticOptions = deepClone(staticOptions); this.initialDynamicOptions = deepClone(dynamicOptions);
+						}
 						async updateDynamicOptions(options) {
 							this.updates.push(options);
 							Object.assign(this.options, options);
@@ -202,6 +204,28 @@ test('initializes both previews from saved rendering preferences', async t => {
 		assert.equal(controller.staticOptions.enableWaveformAndHistogram, false);
 	}
 });
+
+for (const desktop of [false, true]) {
+	// 【フレームキャッシュはElectronだけで有効にし、容量の変更をプロジェクト編集に含めない】
+	// Web版へ設定値だけ送ってGPU画像を保持したり、上限変更でWorkerを再起動して全消去したりしない。
+	test(`applies the per-window frame cache capacity only on desktop: ${desktop}`, async t => {
+		const window = setup(t);
+		if (desktop) window.desktop = {};
+		const { appContext } = evaluate(appBundle);
+		await appContext.ready(project());
+		const timeline = appContext.timelineRendererManagerController;
+		assert.equal(timeline.initialDynamicOptions.frameCacheMaxBytes, desktop ? 2 * 1024 ** 3 : 0);
+		const historyLength = appContext.projectContext.stateManager.undoStack.value.length;
+		const staticUpdates = timeline.staticUpdates.length;
+		timeline.updates.length = 0;
+		window.testPreferences.timelineFrameCacheMaxGiB = 0;
+		await setImmediate();
+		assert.deepEqual(timeline.updates, desktop ? [{ frameCacheMaxBytes: 0 }] : []);
+		assert.equal(timeline.staticUpdates.length, staticUpdates);
+		assert.equal(appContext.projectContext.stateManager.undoStack.value.length, historyLength);
+		assert.equal('timelineFrameCacheMaxGiB' in appContext.projectContext.snapshot(), false);
+	});
+}
 
 function project(overrides = {}) {
 	return {
@@ -400,7 +424,7 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	assert.equal(timeline.staticOptions.timelineFps, 29.97);
 	assert.deepEqual(timeline.staticOptions.timelineMotionBlur, previewSettings.timelineMotionBlur);
 	assert.deepEqual(timeline.staticUpdates, [previewSettings]);
-	assert.equal(timeline.updates.length, 0);
+	assert.deepEqual(timeline.updates, [{ previewFps: settings.timelineFps * appContext.timelinePreviewFpsFactor.value }]);
 	assert.equal(visualModuleLivePreview.updates.length, 0);
 	assert.equal(visualModuleLivePreview.staticUpdates.length, 0);
 	manager.undo();
@@ -1803,7 +1827,8 @@ test('waits for both preview workers before restoring the paused timeline', asyn
 	const app = evaluate(appBundle);
 	const { appContext } = app;
 	await appContext.ready(project());
-	appContext.previewPlayback.seekTimeline(123);
+	// 精密シークの位置もWorker再生成をまたいで丸めず復元する。
+	appContext.previewPlayback.seekTimeline(123, true, 'precise');
 	const visualModuleLivePreview = appContext.visualModuleRendererManagerController;
 	const timeline = appContext.timelineRendererManagerController;
 	await appContext.suspendPreview();

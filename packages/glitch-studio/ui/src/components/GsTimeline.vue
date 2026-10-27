@@ -120,6 +120,9 @@
 			<div :class="$style.tlOverlaySideSpacer"></div>
 			<div :class="$style.tlOverlay">
 				<div :class="$style.xTicks" @pointerdown="onSeekBarPointerDown" @wheel="onXTicksWheel">
+					<div v-if="frameCacheState != null && frameCacheState.maxBytes > 0" :class="$style.frameCache" data-test-timeline-frame-cache>
+						<div v-for="range in visibleCachedRanges" :key="range.startFrame" :class="$style.cachedRange" :style="{ left: range.left + 'px', width: range.width + 'px' }" data-test-timeline-cached-range></div>
+					</div>
 					<div v-for="time of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: timeToDomX(time) + 'px' }">{{ formatMsToTimecode(time) }}</div>
 					<div v-for="time of xMinorTicks" :class="$style.xMinorTick" :style="{ left: timeToDomX(time) + 'px' }"></div>
 					<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @pointerdown="onSeekBarPointerDown"></div>
@@ -195,6 +198,10 @@ const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererMa
 const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{ sceneId: string; inspectorPanelTarget?: HTMLElement | null }>();
+const frameCacheState = computed(() => {
+	const state = timelineRendererManagerController.frameCacheState.value;
+	return state?.sceneId === props.sceneId ? state : null;
+});
 const emit = defineEmits<{ revealDetails: []; revealAssets: [] }>();
 
 // 選択を保持している間は監視しない。手動で閉じた詳細を、値の編集や再描画で開き直さないため。
@@ -430,6 +437,16 @@ const {
 	onTimelineWheel, onBackgroundWheel: onTlWheel, onRulerWheel: onXTicksWheel, onPanMousedown, onPanAuxclick,
 } = viewport;
 
+const visibleCachedRanges = computed(() => {
+	const state = frameCacheState.value;
+	if (state == null) return [];
+	return state.frameRanges.flatMap(range => {
+		const left = Math.max(0, timeToDomX(range.startFrame * 1000 / state.fps));
+		const right = Math.min(tlElWidth.value, timeToDomX(range.endFrame * 1000 / state.fps));
+		return right > left ? [{ startFrame: range.startFrame, left, width: right - left }] : [];
+	});
+});
+
 const seekBarPos = computed(() => {
 	return timeToDomX(time.value);
 });
@@ -649,7 +666,7 @@ const selectionDrag = useTimelineSelectionDrag({
 	duration,
 	snapSettings,
 	snapSeekBar,
-	seek: timeMs => previewPlayback.seekTimeline(timeMs),
+	seek: (timeMs, mode) => previewPlayback.seekTimeline(timeMs, true, mode),
 });
 const { movingSelection, snappingTimes, onSeekBarPointerDown } = selectionDrag;
 const mediaInfo = shallowRef<ReadonlyMap<string, TimelineClipMediaInfo>>(new Map());
@@ -850,9 +867,7 @@ function seek(timeMs: number) {
 }
 
 function stepFrame(direction: -1 | 1) {
-	// 再生中は音声時計の最新位置で停止してから、設定fpsに相当する時間だけ進める。
-	previewPlayback.pauseTimeline();
-	seek(time.value + direction * 1000 / stateManager.state.timelineFps.value);
+	previewPlayback.stepTimelineFrame(direction);
 }
 
 function startCue(): () => void {
@@ -1210,6 +1225,21 @@ function formatFullTimecode(timeMs: number): string {
     width: 16px;
 		height: 100%;
 	}
+}
+
+.frameCache {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 4px;
+	pointer-events: none;
+	overflow: clip;
+}
+.cachedRange {
+	position: absolute;
+	height: 100%;
+	background: #52c987;
 }
 
 .seekBar {

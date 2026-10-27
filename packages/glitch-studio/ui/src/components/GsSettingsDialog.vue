@@ -36,6 +36,11 @@
 							<template #label>{{ i18n.ts._Settings.Rendering }}</template>
 
 							<div class="_gaps_l">
+								<GsInput v-if="desktopAvailable" v-model="timelineFrameCacheMaxGiB" large type="number" :min="0" :step="0.25" data-test-timeline-frame-cache-capacity>
+									<template #label>{{ i18n.ts._Settings.TimelineFrameCacheCapacity }}</template>
+									<template #suffix>GiB</template>
+									<template #caption>{{ i18n.ts._Settings.TimelineFrameCacheCapacityHint }}</template>
+								</GsInput>
 								<GsSwitch v-model="enable32bitDataTextures">
 									{{ i18n.ts._Settings.Use32bitDataTextures }}
 									<template #caption>{{ i18n.ts._Settings.DataTexturesHint }}</template>
@@ -120,9 +125,15 @@ const importAssetsAsExternalReferences = ref(preferences.s.importAssetsAsExterna
 const importLargeAssetsAsExternalReferences = ref(preferences.s.importLargeAssetsAsExternalReferences);
 const enable32bitDataTextures = ref(preferences.s.enable32bitDataTextures);
 const intermediateTextureFormat = ref(preferences.s.intermediateTextureFormat);
+const timelineFrameCacheMaxGiB = ref(preferences.s.timelineFrameCacheMaxGiB);
 const visualModuleAutoConnectOnNodeAdd = ref(preferences.s.visualModuleAutoConnectOnNodeAdd);
 const validationError = computed(() => {
-	try { validateProjectBackupSettings(settings.value); return null; } catch (error) { return error instanceof Error ? error.message : String(error); }
+	try {
+		validateProjectBackupSettings(settings.value);
+		if (desktopAvailable && (!Number.isFinite(timelineFrameCacheMaxGiB.value) || timelineFrameCacheMaxGiB.value < 0
+			|| !Number.isSafeInteger(Math.floor(timelineFrameCacheMaxGiB.value * 1024 ** 3)))) return i18n.ts._Settings.InvalidFrameCacheCapacity;
+		return null;
+	} catch (error) { return error instanceof Error ? error.message : String(error); }
 });
 
 async function apply() {
@@ -137,6 +148,7 @@ async function apply() {
 	preferences.commit('projectBackupSaveRetentionDays', settings.value.saveRetentionDays);
 	preferences.commit('enable32bitDataTextures', enable32bitDataTextures.value);
 	preferences.commit('intermediateTextureFormat', intermediateTextureFormat.value);
+	if (desktopAvailable) preferences.commit('timelineFrameCacheMaxGiB', timelineFrameCacheMaxGiB.value);
 	preferences.commit('visualModuleAutoConnectOnNodeAdd', visualModuleAutoConnectOnNodeAdd.value);
 	modal.value?.close();
 	if (initialLocale !== selectedLocale.value) await changeLocale(selectedLocale.value);

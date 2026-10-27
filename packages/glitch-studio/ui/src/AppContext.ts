@@ -117,7 +117,10 @@ export class AppContext {
 			timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
 			enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
-		}, { highlightClipping: this.highlightClipping.value }));
+		}, { highlightClipping: this.highlightClipping.value,
+			previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value,
+			frameCacheMaxBytes: window.desktop != null ? Math.floor(preferences.s.timelineFrameCacheMaxGiB * 1024 ** 3) : 0,
+		}));
 
 		this.timelineAudioPreview = markRaw(new TimelineAudioPreview(
 			() => this.audioOutput.getOutput(),
@@ -261,7 +264,17 @@ export class AppContext {
 			await this.visualModuleRendererManagerController.updateDynamicOptions({ visualModuleLivePreviewTimeFactor: value });
 			this.renderEngine.requestRetry();
 		});
-		watch(this.timelinePreviewFpsFactor, () => this.renderEngine.requestRetry());
+		watch(this.timelinePreviewFpsFactor, async () => {
+			await this.timelineRendererManagerController.updateDynamicOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
+			this.previewPlayback.updateTimelinePreviewFps();
+			this.renderEngine.requestRetry();
+		});
+		watch(preferences.r.timelineFrameCacheMaxGiB, async value => {
+			if (window.desktop == null) return;
+			await this.timelineRendererManagerController.updateDynamicOptions({ frameCacheMaxBytes: Math.floor(value * 1024 ** 3) });
+			this.renderEngine.requestRetry();
+			this.previewPlayback.refresh();
+		});
 
 		watch([this.projectContext.stateManager.state.resolution, this.resolutionFactor], async () => {
 			await this.updatePreviewOptions({
@@ -371,7 +384,9 @@ export class AppContext {
 		this.pendingSceneSeek = null;
 		await this.replacePreviewProject({ automationGraphs: project.automationGraphs, visualModules: project.visualModules, timelineScenes: project.timelineScenes });
 		await this.updatePreviewOptions({ assets: deepClone(project.assets) });
-		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value });
+		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value,
+			previewFps: project.timelineFps * this.timelinePreviewFpsFactor.value,
+		});
 		await this.visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
 		this.projectSaveController.finishProjectLoad(fileName, fileHandle);
 		await window.desktop?.setCurrentProjectFile?.(fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
@@ -399,6 +414,8 @@ export class AppContext {
 					timelineFps: this.projectContext.stateManager.state.timelineFps.value,
 					timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
 				});
+				await this.timelineRendererManagerController.updateDynamicOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
+				this.previewPlayback.updateTimelinePreviewFps();
 				this.renderEngine.requestRetry();
 			} catch (error) {
 				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });

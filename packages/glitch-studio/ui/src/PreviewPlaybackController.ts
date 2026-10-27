@@ -1,5 +1,7 @@
 import { computed, readonly, ref, shallowRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { getTimelinePreviewFrameTime } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
+import type { TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
@@ -24,6 +26,7 @@ export class PreviewPlaybackController {
 	private readonly timelineTime = ref(0);
 	private timelineRafId: number | null = null;
 	private pendingTimelineSeek = false;
+	private timelineSeekMode: TimelinePreviewSeekMode = 'frame';
 	private readonly suspended = ref(false);
 	private visualModuleLivePreviewParams: VisualModuleArgumentBindings = {};
 
@@ -72,6 +75,8 @@ export class PreviewPlaybackController {
 		const duration = this.getDuration();
 		if (duration <= 0) return;
 		if (this.timelineTime.value >= duration) this.timelineTime.value = 0;
+		this.timelineSeekMode = 'frame';
+		this.timelineTime.value = this.snapTimelineTime(this.timelineTime.value);
 		this.playbackState.value = { mode: 'timeline', playing: true };
 		if (this.suspended.value) return;
 		this.audio?.start(this.timelineTime.value, duration);
@@ -101,6 +106,7 @@ export class PreviewPlaybackController {
 			// FPS制限の余りは描画タイミングだけに使い、経過時間を二重加算しない。
 			this.timelineTime.value = this.audio ? this.audio.currentTime() : (this.timelineTime.value + timestamp - previousAdvanceTime) % this.getDuration();
 			previousAdvanceTime = timestamp;
+			this.timelineSeekMode = 'frame';
 			this.refresh();
 		};
 		this.timelineRafId = window.requestAnimationFrame(renderLoop);
@@ -124,11 +130,39 @@ export class PreviewPlaybackController {
 		this.refresh();
 	}
 
-	public seekTimeline(time: number, isManualSeek = true) {
+	public seekTimeline(time: number, isManualSeek = true, seekMode: TimelinePreviewSeekMode = 'frame') {
 		this.leaveVisualModuleLivePreview();
-		this.timelineTime.value = Math.max(0, time);
+		this.timelineSeekMode = seekMode;
+		this.timelineTime.value = seekMode === 'precise' ? Math.max(0, time) : this.snapTimelineTime(time);
 		this.pendingTimelineSeek = isManualSeek && !this.isTimelinePlaying.value;
 		if (this.isTimelinePlaying.value) this.audio?.start(this.timelineTime.value, this.getDuration());
+		this.refresh();
+	}
+
+	private snapTimelineTime(time: number): number {
+		const fps = this.getTimelinePreviewFps();
+		if (fps == null || fps <= 0) return Math.max(0, time);
+		const snapped = getTimelinePreviewFrameTime(time, fps);
+		const duration = this.getDuration();
+		// 終端は再生区間外。区間内からの通常シークだけを最終フレームへ制限し、
+		// 区間外にも置けるキーフレームへのジャンプは引き続き許可する。
+		return time <= duration && Number.isFinite(duration) && duration > 0
+			? Math.min(snapped, Math.max(0, Math.ceil(duration * fps / 1000) - 1) * 1000 / fps) : snapped;
+	}
+
+	public stepTimelineFrame(direction: -1 | 1) {
+		this.pauseTimeline();
+		const fps = this.getTimelinePreviewFps();
+		if (fps == null || fps <= 0) return;
+		// 精密位置からも隣の境界へ進む。四捨五入してから加減すると一枚飛ばしてしまう。
+		const position = this.timelineTime.value * fps / 1000;
+		const frame = direction === 1 ? Math.floor(position + 1e-7) + 1 : Math.ceil(position - 1e-7) - 1;
+		this.seekTimeline(Math.min(this.getDuration(), Math.max(0, frame) * 1000 / fps));
+	}
+
+	public updateTimelinePreviewFps() {
+		this.timelineSeekMode = 'frame';
+		if (!this.isTimelinePlaying.value) this.timelineTime.value = this.snapTimelineTime(this.timelineTime.value);
 		this.refresh();
 	}
 
@@ -143,10 +177,23 @@ export class PreviewPlaybackController {
 	/** 編集による再描画では表示モードを切り替えない。Visual Module Live PreviewはWorkerのループが描画する。 */
 	public refresh() {
 		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
+			const fps = this.getTimelinePreviewFps();
+			// 音声時計自体は丸めない。表示する画像だけを現在位置以前の境界に揃え、
+			// 停止中はカーソルの時刻も描画時刻に一致させる。
+			const precise = this.timelineSeekMode === 'precise';
+			const renderTime = precise || fps == null || fps <= 0 ? this.timelineTime.value : this.isTimelinePlaying.value
+				? Math.max(0, Math.floor(this.timelineTime.value * fps / 1000 + 1e-7)) * 1000 / fps : this.snapTimelineTime(this.timelineTime.value);
+			if (!this.isTimelinePlaying.value && !precise) this.timelineTime.value = renderTime;
+			if (precise) {
+				const manualSeek = this.pendingTimelineSeek;
+				this.pendingTimelineSeek = false;
+				this.timelineRenderer.renderTimelineAt(renderTime, manualSeek, 'precise');
+				return;
+			}
 			if (this.pendingTimelineSeek) {
 				this.pendingTimelineSeek = false;
-				this.timelineRenderer.renderTimelineAt(this.timelineTime.value, true);
-			} else this.timelineRenderer.renderTimelineAt(this.timelineTime.value);
+				this.timelineRenderer.renderTimelineAt(renderTime, true);
+			} else this.timelineRenderer.renderTimelineAt(renderTime);
 		}
 	}
 

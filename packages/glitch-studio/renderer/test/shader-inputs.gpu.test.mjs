@@ -59,6 +59,10 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 // モックでは検出できないシェーダーとbindingの不整合を検出する。CIではChromeのパスを明示する。
 test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20));
 
+// 【キャッシュの実GPUコピーが元画像の更新に影響されず、alphaとHDRの精度を維持する】
+// 容量やLRUのモックでは、WGSL・binding・RGBA/BGRAの取り違えを検出できない。
+test('preserves timeline frame cache pixels on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/timeline-preview-frame-cache-gpu.ts', 8));
+
 // 【合成と適用範囲の実画素を、他のエフェクトのテスト素材に依存せず確認する】
 // 固定された画像座標と変形する枠、透明結果のReplace、マスク、祖先・カメラを実WGSLで検証する。
 test('renders timeline compositing and application regions on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, async t => {

@@ -96,6 +96,7 @@ async function fixture(t) {
 	const layerSizeKeys = shallowRef(new Map([['a', ''], ['b', ''], ['c', '']]));
 	const playback = { currentTime: ref(1000), isPlaying: ref(false), followPlayhead: ref(false) };
 	const sought = [];
+	const seekModes = [];
 	let revealed = 0;
 	let interaction;
 	let viewport;
@@ -106,7 +107,8 @@ async function fixture(t) {
 		viewport = useTimelineViewport({ timelineElement, layersElement, savedState: { positionX: 0, rangeX: 1000 }, ...playback,
 			tickMode: ref('decimal125'), tickSubdivisions: ref({ halves: false, thirds: false }), interactionActive: interaction.active });
 		drag = useTimelineSelectionDrag({ timelineElement, layersElement, viewport, interaction, duration: ref(1000),
-			snapSettings: ref({ enabled: true, globalTicks: true, localTicks: false, seekBar: false }), snapSeekBar: ref(true), seek: time => sought.push(time) });
+			snapSettings: ref({ enabled: true, globalTicks: true, localTicks: false, seekBar: false }), snapSeekBar: ref(true),
+			seek: (time, mode) => { sought.push(time); seekModes.push(mode); } });
 		marquee = useTimelineMarqueeSelection({ timelineElement, layersElement, viewport, interaction, selection,
 			sceneId: () => sceneId.value, virtualLayers: shallowRef(virtualLayers), rulerHeight: 20, layerSizeKeys,
 			layers: shallowRef(layout.items.map(item => ({ id: item.key, clips: [{ id: 'clip', startMs: 20, durationMs: 80 }], lanes: [] }))),
@@ -131,7 +133,7 @@ async function fixture(t) {
 			await settle();
 		}
 	}
-	return { interaction, viewport, drag, marquee, timeline, layers, rows, ownerWindow, selection, sceneId, layerSizeKeys, playback, sought,
+	return { interaction, viewport, drag, marquee, timeline, layers, rows, ownerWindow, selection, sceneId, layerSizeKeys, playback, sought, seekModes,
 		pendingMeasurements, flushMeasurements, dispose, observer: observers[0], get revealed() { return revealed; } };
 }
 
@@ -228,6 +230,18 @@ test('snaps seeking to ruler ticks, clamps its end and blocks selection while pa
 	f.marquee.onBackgroundPointerDown(pointer(f.rows[0]));
 	assert.equal(f.interaction.active.value, false);
 	assert.equal(f.pendingMeasurements.length, 0);
+});
+
+// 【Shiftで始めた精密シークは吸着を解除し、操作途中でキーを離しても維持する】
+// pointerupの修飾キーだけを見ると、最後の一回で通常位置へ戻ってしまう。
+test('keeps precise seeking unsnapped for the entire shift-started gesture', async t => {
+	const f = await fixture(t);
+	f.drag.onSeekBarPointerDown(pointer(f.timeline, { shiftKey: true }));
+	f.ownerWindow.dispatch('pointermove', pointer(f.timeline, { clientX: 398 }));
+	f.ownerWindow.dispatch('pointerup', pointer(f.timeline, { clientX: 399 }));
+	assert.deepEqual(f.sought, [198, 199]);
+	assert.deepEqual(f.seekModes, ['precise', 'precise']);
+	assert.deepEqual(f.drag.snappingTimes.value, []);
 });
 
 // 【対象外のポインター入力で操作を占有せず、背景クリックだけで既存選択を解除する】

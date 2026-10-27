@@ -43,6 +43,10 @@ import { ProjectStateVersions } from './project-state-versions.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { TimelineAudioInputs } from './timeline-audio-inputs.ts';
 import { TimelinePreviewStatisticsCollector } from './timeline-preview-statistics.ts';
+import { TimelinePreviewFrameCache } from './timeline-preview-frame-cache.ts';
+import { getTimelinePreviewFrameIndex } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
+import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
+import type { TimelinePreviewCachedFrame } from './timeline-preview-frame-cache.ts';
 import type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from './timeline-preview-statistics.ts';
 import type { TimelineTransformObservation, TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import type { TimelineCompositingObserver } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
@@ -100,6 +104,19 @@ export type TimelineRendererManagerDynamicOptions = {
 	transformObserver: TimelineTransformObservation | null;
 	/** UIから送られた状態の世代。既存の更新RPCに同梱し、古い枠の採用を防ぐ。 */
 	previewRevision: number;
+	/** nullではプロジェクト基準fpsを使用する。露光時間とは独立したプレビューの時計。 */
+	previewFps: number | null;
+	/** Electronプレビューだけが設定する。0では複製・保持・通知を行わない。 */
+	frameCacheMaxBytes: number;
+};
+
+type CachedLayerTransform = Pick<TimelineTransformPreview, 'clipId' | 'geometry' | 'outputResolution' | 'parentGeometries'>;
+type PreviewFrameCapture = {
+	time: number;
+	frameIndex: number | null;
+	transforms: Map<string, CachedLayerTransform>;
+	snapshot: TimelinePreviewCachedFrame<ReadonlyMap<string, CachedLayerTransform>> | null;
+	allocationError: Promise<GPUError | null> | null;
 };
 
 // エフェクトは配置場所を知らず、インスタンスを所有するManagerが通知元を付加する。
@@ -109,6 +126,7 @@ export type TimelineLayerStatusSource = {
 
 export type TimelineRendererManagerEvents = {
 	'telemetry': (ctx: TimelinePreviewStatistics) => void;
+	'frameCache': (ctx: TimelinePreviewFrameCacheState) => void;
 	/** 完了通知を要求した手動シークだけを、最終出力のGPU処理完了後に通知する。 */
 	'frameRendered': (ctx: { requestId: number; sceneId: string | null; time: number; revision: number }) => void;
 	'effectState': (ctx: { source: TimelineLayerStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
@@ -126,6 +144,11 @@ export class TimelineRendererManager extends EventEmitter<{
 	private previewStatistics = new TimelinePreviewStatisticsCollector();
 	private telemetryReportIntervalId: ReturnType<typeof setInterval> | null = null;
 	private frameRenderedRequestId: number | null = null;
+	private previewSeekMode: TimelinePreviewSeekMode = 'frame';
+	private frameCache: TimelinePreviewFrameCache<ReadonlyMap<string, CachedLayerTransform>>;
+	private frameCacheRevision = 0;
+	private frameCacheReportIntervalId: ReturnType<typeof setInterval> | null = null;
+	private activePreviewFrame: PreviewFrameCapture | null = null;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | null = null;
 	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[]; cameras: TimelineMotionBlurCameraCuts[] } | null = null;
@@ -165,6 +188,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		sceneId: null,
 		transformObserver: null,
 		previewRevision: 0,
+		previewFps: null,
+		frameCacheMaxBytes: 0,
 	};
 
 	constructor(coreConfig: {
@@ -203,6 +228,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
 			code: defaultVertexShaderCode,
 		});
+		this.frameCache = new TimelinePreviewFrameCache(this.gpuDevice, this.defaultVertexShaderModule);
 
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
@@ -265,8 +291,36 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolution: this.renderResolution,
 			format: this.staticOptions.intermediateTextureFormat,
 		});
-		this.canvasRenderer.renderToCanvas(this.sceneOutput.render(encoder, output), encoder);
+		const texture = this.sceneOutput.render(encoder, output);
+		const capture = this.activePreviewFrame;
+		if (capture?.frameIndex != null && this.frameCache.enabled) {
+			// キャッシュの確保失敗で本来のプレビューまで停止させない。WebGPUの
+			// メモリー不足は非同期なので、GPU完了後にerror scopeの結果も確認する。
+			this.gpuDevice.pushErrorScope?.('out-of-memory');
+			try {
+				capture.snapshot = this.frameCache.capture(encoder, texture, new Map(capture.transforms));
+			} finally {
+				// device lossはqueueの待機と既存のlost通知で扱う。先にrejectされても
+				// 未処理のPromiseにせず、finallyでキャッシュ用画像を必ず解放する。
+				capture.allocationError = this.gpuDevice.popErrorScope?.().catch(() => null) ?? null;
+			}
+		}
+		this.canvasRenderer.renderToCanvas(texture, encoder);
 		this.gpuDevice.queue.submit([encoder.finish()]);
+	}
+
+	private invalidateFrameCache() {
+		this.frameCacheRevision++;
+		this.frameCache.clear();
+	}
+
+	private reportFrameCache() {
+		if (!this.frameCache.changed) return;
+		this.frameCache.changed = false;
+		this.emit('ev', { type: 'frameCache', ctx: { ...this.frameCache.snapshot(),
+			sceneId: this.dynamicOptions.sceneId, contentRevision: this.frameCacheRevision,
+			previewRevision: this.dynamicOptions.previewRevision, fps: this.dynamicOptions.previewFps ?? this.staticOptions.timelineFps,
+		} });
 	}
 
 	private reportRenderError(message: string) {
@@ -274,6 +328,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private clearTimelineRenderers(preservePreviewRequests = false) {
+		this.invalidateFrameCache();
 		this.previewStatistics.clear();
 		this.frameRenderer.clear();
 		this.motionBlurTiming = null;
@@ -289,7 +344,14 @@ export class TimelineRendererManager extends EventEmitter<{
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public async updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		const { assets, ...synchronousOptions } = newOptions;
+		if (Object.hasOwn(newOptions, 'previewFps') && newOptions.previewFps != null && (!Number.isFinite(newOptions.previewFps) || newOptions.previewFps <= 0)) throw new RangeError('Invalid preview FPS');
+		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes')) {
+			this.frameCache.setMaxBytes(newOptions.frameCacheMaxBytes!);
+			if (this.frameCacheReportIntervalId != null) clearInterval(this.frameCacheReportIntervalId);
+			this.frameCacheReportIntervalId = this.frameCache.enabled ? setInterval(() => this.reportFrameCache(), 100) : null;
+		}
 		if (newOptions.generatedSpeech) {
+			this.invalidateFrameCache();
 			this.frameRenderer.clear();
 			this.resolveSpeech = createSpeechResolver(newOptions.generatedSpeech);
 			this.audioInputs.setGeneratedSpeech(newOptions.generatedSpeech);
@@ -304,7 +366,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
-		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'visualModules') || Object.hasOwn(newOptions, 'automationGraphs') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId')) {
+		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'visualModules') || Object.hasOwn(newOptions, 'automationGraphs') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId') || Object.hasOwn(newOptions, 'previewFps')) {
 			this.clearTimelineRenderers();
 		}
 		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId') || Object.hasOwn(newOptions, 'outputResolution')) {
@@ -325,6 +387,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		}
 
 		const assetsCommitted = Object.hasOwn(newOptions, 'assets') ? await this.updateAssets(assets!) : null;
+		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes') && !this.frameCache.enabled) this.reportFrameCache();
 		return { assetsCommitted };
 	}
 
@@ -347,6 +410,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		// 差分の検証が成功するまで公開状態を変更しない。編集中の非同期フレームは
 		// 中断するが、履歴とキャッシュの破棄は変更された配置だけが次の評価で行う。
 		this.previewScheduler.clear();
+		this.invalidateFrameCache();
 		this.previewRenderGeneration++;
 		this.timelineRenderer.cancelPendingRender();
 		this.frameRenderer.cancel();
@@ -413,16 +477,26 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
-	public renderTimelineAt(time: number, frameRenderedRequestId: number | null = null): Promise<void> {
+	public renderTimelineAt(time: number, frameRenderedRequestId: number | null = null, seekMode: TimelinePreviewSeekMode = 'frame'): Promise<void> {
 		// Schedulerが最新の待機位置だけを保持するのに合わせ、通知対象も置き換える。
 		// 描画開始時にIDを取り出すため、間引かれた要求を完了として通知しない。
 		// 再生時はnullで通知を止め、フレームごとのWorker通信を追加しない。
 		this.frameRenderedRequestId = frameRenderedRequestId;
+		this.previewSeekMode = seekMode;
 		return this.previewScheduler.render(time);
 	}
 
 	private async renderPreviewFrame(time: number, timeDelta: number): Promise<boolean> {
 		const generation = ++this.previewRenderGeneration;
+		const contentRevision = this.frameCacheRevision;
+		const fps = this.dynamicOptions.previewFps ?? this.staticOptions.timelineFps;
+		const frameIndex = getTimelinePreviewFrameIndex(time, fps);
+		// 呼び出し側が表示時刻を所有する。任意時刻を同じ番号へ誤って保存しないよう、
+		// 精密シークとフレーム境界以外の直接呼び出しは検索・保存の両方を省く。
+		const capture: PreviewFrameCapture = { time, frameIndex: this.previewSeekMode === 'frame' && Number.isFinite(time)
+			&& Math.abs(time - frameIndex * 1000 / fps) < 1e-7 && this.frameCache.enabled ? frameIndex : null,
+		transforms: new Map(), snapshot: null, allocationError: null };
+		this.activePreviewFrame = capture;
 		// SchedulerがGPU完了まで直列化するため、この集計は一つの出力フレームに属する。
 		// 子Scene・複数レイヤー・ブラーの全サンプルを足し、書き出しはここを経由しない。
 		const timing: TimelinePreviewFrameTiming | null = this.staticOptions.enableStats
@@ -453,7 +527,15 @@ export class TimelineRendererManager extends EventEmitter<{
 		try {
 			try {
 				if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
-				await this.renderFrame(time, false, this.staticOptions.timelineFps, timeDelta);
+				const cached = capture.frameIndex != null && this.assetTextures.isReady ? this.frameCache.get(capture.frameIndex) : null;
+				if (cached != null) {
+					if (preview != null) Object.assign(preview, cached.metadata.get(preview.request.layerId) ?? {});
+					const encoder = this.gpuDevice.createCommandEncoder();
+					this.canvasRenderer.renderToCanvas(cached.texture, encoder);
+					this.gpuDevice.queue.submit([encoder.finish()]);
+				} else {
+					await this.renderFrame(time, false, this.staticOptions.timelineFps, timeDelta);
+				}
 			} finally {
 				// submitはGPUへの実行予約であり、描画完了ではない。最終表示・ブラーの
 				// 全サンプルを含めて待ち、重いフレームの後ろにGPU処理を積み重ねない。
@@ -465,6 +547,13 @@ export class TimelineRendererManager extends EventEmitter<{
 					if (timing != null) timing.gpuWaitMs = performance.now() - gpuWaitStartedAt;
 				}
 			}
+			const allocationError = await capture.allocationError;
+			if (capture.snapshot != null && allocationError == null && capture.frameIndex != null
+				&& contentRevision === this.frameCacheRevision && generation === this.previewRenderGeneration) {
+				this.frameCache.commit(capture.frameIndex, capture.snapshot);
+				capture.snapshot = null;
+			}
+			if (allocationError != null) this.frameCache.clear();
 			if (timing != null) timing.frameDurationMs = performance.now() - frameStartedAt;
 			if (timing != null && generation === this.previewRenderGeneration && sceneId === this.dynamicOptions.sceneId && revision === this.dynamicOptions.previewRevision) {
 				this.previewStatistics.addFrame(sceneId, revision, timing);
@@ -516,6 +605,8 @@ export class TimelineRendererManager extends EventEmitter<{
 			}
 			return false;
 		} finally {
+			capture.snapshot?.texture.destroy();
+			if (this.activePreviewFrame === capture) this.activePreviewFrame = null;
 			if (this.previewFrameTiming === timing) this.previewFrameTiming = null;
 			if (this.pendingTransformPreview === preview) this.pendingTransformPreview = null;
 		}
@@ -530,8 +621,12 @@ export class TimelineRendererManager extends EventEmitter<{
 	private createCompositingObserver(sceneId: string, layerId: string, clipId: string | null, sceneSize: Resolution): TimelineCompositingObserver | null {
 		if (sceneId !== this.dynamicOptions.sceneId) return null;
 		return (source) => {
-			const preview = this.pendingTransformPreview;
-			if (!preview || preview.request.sceneId !== sceneId || preview.request.layerId !== layerId || preview.clipId !== clipId) return;
+			const pending = this.pendingTransformPreview;
+			const capture = this.activePreviewFrame;
+			const observed = pending != null && pending.request.sceneId === sceneId && pending.request.layerId === layerId && pending.clipId === clipId;
+			if (!observed && capture?.frameIndex == null) return;
+			const time = capture?.time ?? pending!.time;
+			const preview: CachedLayerTransform = { clipId, geometry: null, outputResolution: null };
 			const location = findTimelineLayerLocation(this.getSceneLayers(), layerId);
 			const layer = location?.layer;
 			if (!layer || !isTimelineVisualLayer(layer)) return;
@@ -539,7 +634,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			// 実テクスチャ寸法とは異なる。表示する解像度は実寸を既存の購読通知へ同梱する。
 			preview.outputResolution = source.kind === 'texture' ? { width: source.texture.width, height: source.texture.height } : null;
 			const evaluate = (entry: Extract<TimelineLayer, { compositingParamValues: unknown }>) => this.transformPreviewParameters.evaluate({
-				time: preview.time,
+				time,
 				isExport: false,
 				coordinateSpace: entry.coordinateSpace,
 				mask: entry.mask,
@@ -550,9 +645,9 @@ export class TimelineRendererManager extends EventEmitter<{
 				customParameters: this.getLayerCustomParameterContext(sceneId, entry.id),
 			});
 			const settings = evaluate(layer);
-			const camera = new TimelineSceneCamera().evaluate(this.evaluationScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false, sceneSize);
+			const camera = new TimelineSceneCamera().evaluate(this.evaluationScenes.find(scene => scene.id === sceneId)?.layers ?? [], time, false, sceneSize);
 			const parent = getTimelinePreviewParent(location.ancestors.filter(parent => parent.layerType === 'group' || parent.layerType === 'transform').map(parent => parent.layerType === 'transform'
-				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false, this.getLayerCustomParameterContext(sceneId, parent.id)) }
+				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, time, false, this.getLayerCustomParameterContext(sceneId, parent.id)) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
 			{
 				parent: TIMELINE_IDENTITY,
@@ -574,6 +669,8 @@ export class TimelineRendererManager extends EventEmitter<{
 				},
 				matrix: parent,
 			}] : [];
+			if (capture?.frameIndex != null) capture.transforms.set(layerId, preview);
+			if (observed) Object.assign(pending!, preview);
 		};
 	}
 
@@ -898,6 +995,8 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public destroy() {
+		if (this.frameCacheReportIntervalId != null) clearInterval(this.frameCacheReportIntervalId);
+		this.frameCache.dispose();
 		if (this.telemetryReportIntervalId != null) clearInterval(this.telemetryReportIntervalId);
 		this.clearTimelineRenderers();
 		this.audioInputs.dispose();
