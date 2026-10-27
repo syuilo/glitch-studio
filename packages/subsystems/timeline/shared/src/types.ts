@@ -171,7 +171,9 @@ export function getTimelineLayerTransformTarget(layer: TimelineLayer): TimelineL
 	return isTimelineEffectOrVisualModuleLayer(layer) ? layer.transformTarget ?? 'image' : 'image';
 }
 
-export function isTimelineContainerLayer(layer: TimelineLayer): layer is TimelineContainerLayer {
+// 通信上はlayersを省くため、種別だけで分類し、絞り込み後も呼び出し元の型を保つ。
+// layerTypeだけを渡された場合に、子レイヤーの存在まで保証してはならない。
+export function isTimelineContainerLayer<Layer extends Pick<TimelineLayer, 'layerType'>>(layer: Layer): layer is Layer & Pick<TimelineContainerLayer, 'layerType'> {
 	return layer.layerType === 'group' || layer.layerType === 'transform' || layer.layerType === 'folder' || layer.layerType === 'parameterContainer';
 }
 

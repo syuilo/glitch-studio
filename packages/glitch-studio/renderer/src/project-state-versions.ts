@@ -1,5 +1,6 @@
 import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { canPreserveTimelineLayerInstance, canPreserveNodeOutputCache } from './project-change-policy.ts';
@@ -38,7 +39,7 @@ export class ProjectStateVersions {
 					if (previousLayers.get(id) !== nextLayers.get(id)) this.layers.set(JSON.stringify([change.sceneId, id]), revision);
 				}
 			} else if (change.type === 'layer' && !canPreserveTimelineLayerInstance(change.changes)
-				&& ((change.layer == null || !['group', 'transform', 'folder', 'parameterContainer'].includes(change.layer.layerType)) || change.changes.some(edit => edit.type === 'definition'))) {
+				&& ((change.layer == null || !isTimelineContainerLayer(change.layer)) || change.changes.some(edit => edit.type === 'definition'))) {
 				// コンテナ自身の設定は毎回読み直すため、子の描画履歴まで巻き込んで破棄しない。
 				this.layers.set(JSON.stringify([change.sceneId, change.layerId]), revision);
 			} else if (change.type === 'scene') {

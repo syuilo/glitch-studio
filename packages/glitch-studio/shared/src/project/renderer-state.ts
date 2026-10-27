@@ -99,7 +99,7 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 					const previous = findTimelineLayer(scene.layers, change.layerId);
 					if (change.layer == null) return { ...scene, layers: updateTimelineLayer(scene.layers, change.layerId, () => null) };
 					if (change.layer.id !== change.layerId) throw new Error('Layer ID does not match');
-					const layer: TimelineLayer = (change.layer.layerType === 'group' || change.layer.layerType === 'transform' || change.layer.layerType === 'folder' || change.layer.layerType === 'parameterContainer')
+					const layer: TimelineLayer = isTimelineContainerLayer(change.layer)
 						? { ...change.layer, layers: previous && isTimelineContainerLayer(previous) ? previous.layers : [] } : change.layer;
 					return { ...scene, layers: previous == null ? [...scene.layers, layer] : updateTimelineLayer(scene.layers, change.layerId, () => layer) };
 				});
