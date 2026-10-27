@@ -23,7 +23,7 @@ export default implementEffect<typeof definition>({
 			device,
 			vertex: wgpu.defaultVertexShaderModule,
 			code,
-			schema: { input: 'color', direction: 'scalar', phase: 'scalar', frequency: 'scalar', strength: 'scalar' },
+			schema: { input: 'color', direction: 'scalar', phase: 'scalar', frequency: 'scalar', amplitude: 'scalar' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [uniformBindGroupLayout],
 		});
@@ -39,7 +39,7 @@ export default implementEffect<typeof definition>({
 					direction: ctx.params.direction,
 					phase: ctx.params.phase,
 					frequency: ctx.params.frequency,
-					strength: ctx.params.strength,
+					amplitude: ctx.params.amplitude,
 				}, ctx.outputDataMap.output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);

@@ -25,15 +25,7 @@ export default defineEffect({
 		},
 		phase: {
 			dataType: { kind: 'scalar' },
-			ui: {
-				label: 'Phase',
-				control: {
-					controlType: 'range',
-					min: -1,
-					max: 1,
-					step: 0.01,
-				},
-			},
+			ui: { label: 'Phase', control: { controlType: 'angle' } },
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
@@ -51,10 +43,10 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 30 },
 		},
-		strength: {
+		amplitude: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Strength',
+				label: 'Amplitude',
 				control: {
 					controlType: 'range',
 					min: 0,
