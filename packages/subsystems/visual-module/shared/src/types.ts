@@ -8,13 +8,13 @@ import type { FitMode, WrapMode } from '@gs/shared/types.js';
 
 export type VisualModuleNodeParameterBinding = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
-export type VisualModuleCustomParameterInputBinding = {
+export type VisualModuleCustomParameterReferenceBinding = {
 	inputSource: 'visualModuleCustomParameterReference';
 	parameterId: VisualModuleCustomParameterId;
 };
 
 // Visual Module内部でだけ解決できる参照を、共通の値入力に加える。
-export type VisualModuleParameterBinding = ValueParameterBinding | VisualModuleNodeParameterBinding | VisualModuleCustomParameterInputBinding;
+export type VisualModuleParameterBinding = ValueParameterBinding | VisualModuleNodeParameterBinding | VisualModuleCustomParameterReferenceBinding;
 
 export type VisualModuleEffectNode = {
 	id: string;
