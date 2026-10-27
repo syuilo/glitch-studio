@@ -20,7 +20,8 @@ export default defineEffect({
 		direction: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Direction', control: { controlType: 'angle' } },
-			defaultValue: { inputSource: 'literal', value: 0 },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0.25 },
 		},
 		phase: {
 			dataType: { kind: 'scalar' },
@@ -33,6 +34,7 @@ export default defineEffect({
 					step: 0.01,
 				},
 			},
+			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		frequency: {
@@ -46,6 +48,7 @@ export default defineEffect({
 					step: 0.1,
 				},
 			},
+			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 30 },
 		},
 		strength: {
@@ -59,6 +62,7 @@ export default defineEffect({
 					step: 0.01,
 				},
 			},
+			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0.05 },
 		},
 	},

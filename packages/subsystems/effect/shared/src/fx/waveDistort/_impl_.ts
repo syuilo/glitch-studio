@@ -23,7 +23,7 @@ export default implementEffect<typeof definition>({
 			device,
 			vertex: wgpu.defaultVertexShaderModule,
 			code,
-			schema: { input: 'color' },
+			schema: { input: 'color', direction: 'scalar', phase: 'scalar', frequency: 'scalar', strength: 'scalar' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [uniformBindGroupLayout],
 		});
@@ -32,13 +32,15 @@ export default implementEffect<typeof definition>({
 			render: ctx => {
 				uniformValues.set({
 					aspect: [resolution.width / shortSide, resolution.height / shortSide],
-					direction: ctx.params.direction * (2 * Math.PI),
-					phase: ctx.params.phase * Math.PI,
-					frequency: ctx.params.frequency,
-					strength: ctx.params.strength,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
+				const variant = pipelines.update({
+					input: ctx.params.input,
+					direction: ctx.params.direction,
+					phase: ctx.params.phase,
+					frequency: ctx.params.frequency,
+					strength: ctx.params.strength,
+				}, ctx.outputDataMap.output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, uniformBindGroup);
