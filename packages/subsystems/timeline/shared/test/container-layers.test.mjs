@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
 const load = name => loadSource(fileURLToPath(new URL('../src/' + name, import.meta.url)));
@@ -12,10 +12,38 @@ const { getTimelineLayerMaskSources, getTimelineLayerOutputDependencyGraph } = a
 const { getSceneAudioClips } = await load('scene-audio.ts');
 const { getActiveTimelineCamera } = await load('scene-camera.ts');
 const { getSceneDuration } = await load('scenes.ts');
+const { getTimelineRenderLayers } = await load('layer-tree.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = id => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(0) });
 const container = type => createTimelineContainerLayer(type, type, type);
 const sound = () => ({ id: 'sound', layerType: 'audio', name: 'Sound', isDisabled: false, automationGraphs: [], audioParamValues: { volume: literal(1) }, clips: [{ id: 'clip', startMs: 100, durationMs: 200, sourceInMs: 0, sourceOutMs: 200, playbackRate: 1, loop: false, assetId: 'asset' }] });
+
+// 【整理用コンテナだけを表示順に展開し、無効な枝と描画境界の内側を結果へ混ぜない】
+// 結果配列への直接追加に変更しても、Group/Transformの子は各レンダラーが扱い、
+// 通常レイヤー自身の無効化は従来どおり描画側で判定する必要がある。
+test('collects render layers in order without crossing render boundaries or mutating the tree', () => {
+	const image = id => ({ id, layerType: 'image', isDisabled: false, clips: [] });
+	const top = image('top');
+	const middle = image('middle');
+	const bottom = { ...image('bottom'), isDisabled: true };
+	const group = container('group');
+	group.layers = [image('group-child')];
+	const transform = container('transform');
+	transform.isDisabled = true;
+	transform.layers = [image('transform-child')];
+	const disabledFolder = container('folder');
+	disabledFolder.id = 'disabled-folder';
+	disabledFolder.isDisabled = true;
+	disabledFolder.layers = [image('hidden')];
+	const parameters = container('parameterContainer');
+	parameters.layers = [middle, disabledFolder, group, transform];
+	const folder = container('folder');
+	folder.layers = [parameters];
+	const layers = [top, folder, sound(), { id: 'camera', layerType: 'camera' }, bottom];
+	const snapshot = globalThis.structuredClone(layers);
+	assert.deepEqual(getTimelineRenderLayers(layers), [top, middle, group, transform, bottom]);
+	assert.deepEqual(layers, snapshot);
+});
 
 // 【フォルダには描画設定もパラメータ設定も持たせず、パラメータコンテナにも画像や音量を持たせない】
 // UIで非表示にするだけでは保存時に作用が紛れ込むため、生成するデータ自体の責務を分ける。

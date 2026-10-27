@@ -7,10 +7,17 @@ import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer, Timeline
  * 参照スコープは保存ツリーから別途作り、ここでは描画順と一括無効化だけを扱う。
  */
 export function getTimelineRenderLayers(layers: readonly TimelineLayer[]): (TimelineVisualLayer | TimelineTransformLayer)[] {
-	return layers.flatMap(layer => {
-		if (layer.layerType === 'folder' || layer.layerType === 'parameterContainer') return layer.isDisabled ? [] : getTimelineRenderLayers(layer.layers);
-		return isTimelineRenderLayer(layer) ? [layer] : [];
-	});
+	const renderLayers: (TimelineVisualLayer | TimelineTransformLayer)[] = [];
+	// 入れ子ごとに子孫の配列を作り直さず、表示順で一つの結果配列へ追加する。
+	const visit = (layers: readonly TimelineLayer[]) => {
+		for (const layer of layers) {
+			if (layer.layerType === 'folder' || layer.layerType === 'parameterContainer') {
+				if (!layer.isDisabled) visit(layer.layers);
+			} else if (isTimelineRenderLayer(layer)) renderLayers.push(layer);
+		}
+	};
+	visit(layers);
+	return renderLayers;
 }
 
 /** Scene参照は辿らず、同じSceneが所有するレイヤーだけを表示順に列挙する。 */
