@@ -2,7 +2,7 @@ import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-m
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import { canPreserveModuleLayerInstance, canPreserveNodeOutputCache } from './project-change-policy.ts';
+import { canPreserveTimelineLayerInstance, canPreserveNodeOutputCache } from './project-change-policy.ts';
 
 /** 定義の変更だけを数える。描画回数やGPUリソースの世代とは独立して扱う。 */
 export class ProjectStateVersions {
@@ -37,7 +37,7 @@ export class ProjectStateVersions {
 				for (const id of new Set([...previousLayers.keys(), ...nextLayers.keys()])) {
 					if (previousLayers.get(id) !== nextLayers.get(id)) this.layers.set(JSON.stringify([change.sceneId, id]), revision);
 				}
-			} else if (change.type === 'layer' && !canPreserveModuleLayerInstance(change.changes)
+			} else if (change.type === 'layer' && !canPreserveTimelineLayerInstance(change.changes)
 				&& ((change.layer?.layerType !== 'group' && change.layer?.layerType !== 'transform') || change.changes.some(edit => edit.type === 'definition'))) {
 				// コンテナ自身の設定は毎回読み直すため、子の描画履歴まで巻き込んで破棄しない。
 				this.layers.set(JSON.stringify([change.sceneId, change.layerId]), revision);

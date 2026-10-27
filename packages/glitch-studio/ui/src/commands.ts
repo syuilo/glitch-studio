@@ -2715,6 +2715,8 @@ const updateTimelineLayerCustomParameterCommandDef = defineCommand<{ sceneId: st
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'definition' }] }],
 	create: payload => {
 		let before: TimelineLayerCustomParameterDefinition[] | null = null;
+		let beforeValues: Record<string, TimelineParameterBinding> | null = null;
+		let changesDataType = false;
 		const getLayer = (state: ProjectState) => {
 			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
@@ -2725,16 +2727,28 @@ const updateTimelineLayerCustomParameterCommandDef = defineCommand<{ sceneId: st
 				const layer = getLayer(state);
 				const definitions = [...layer.customParameterDefs ?? []];
 				const index = definitions.findIndex(definition => definition.id === payload.definition.id);
+				const previousDefinition = definitions[index];
 				if (index < 0) definitions.push(deepClone(payload.definition));
 				else definitions[index] = deepClone(payload.definition);
 				validateTimelineLayerCustomParameterDefinitions(definitions);
 				before = deepClone(layer.customParameterDefs ?? null);
+				changesDataType = previousDefinition != null && previousDefinition.dataType.kind !== payload.definition.dataType.kind;
+				if (changesDataType) {
+					// 旧型の固定値・式・キーを新型で評価すると失敗するため、未設定へ戻して
+					// 新しい既定値を使う。UI設定やenumの選択肢だけの変更では保存値を維持する。
+					beforeValues = deepClone(layer.customParameterValues ?? null);
+					setTimelineLayerParameterRoot(layer, 'customParameter', payload.definition.id, null);
+				}
 				layer.customParameterDefs = definitions;
 			},
 			undo(state) {
 				const layer = getLayer(state);
 				if (before == null) delete layer.customParameterDefs;
 				else layer.customParameterDefs = deepClone(before);
+				if (changesDataType) {
+					if (beforeValues == null) delete layer.customParameterValues;
+					else layer.customParameterValues = deepClone(beforeValues);
+				}
 			},
 		};
 	},

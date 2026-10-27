@@ -2,6 +2,7 @@ import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { findTimelineLayerLocation } from './layer-tree.ts';
+import { isTimelineContainerLayer } from './types.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TimelineLayer } from './types.ts';
@@ -26,16 +27,33 @@ export type TimelineLayerCustomParameterContext = {
 	ancestors: readonly TimelineLayerCustomParameterOwner[];
 };
 
-export function getTimelineLayerCustomParameterContext(layers: TimelineLayer[], layerId: string): TimelineLayerCustomParameterContext | null {
-	const location = findTimelineLayerLocation(layers, layerId);
-	const owner = (layer: TimelineLayer): TimelineLayerCustomParameterOwner => ({
+function createTimelineLayerCustomParameterOwner(layer: TimelineLayer): TimelineLayerCustomParameterOwner {
+	return {
 		id: layer.id,
 		name: layer.name,
 		automationGraphs: layer.automationGraphs,
 		customParameterDefs: layer.customParameterDefs,
 		customParameterValues: layer.customParameterValues,
-	});
-	return location == null ? null : { layer: owner(location.layer), ancestors: location.ancestors.map(owner) };
+	};
+}
+
+export function getTimelineLayerCustomParameterContext(layers: TimelineLayer[], layerId: string): TimelineLayerCustomParameterContext | null {
+	const location = findTimelineLayerLocation(layers, layerId);
+	return location == null ? null : { layer: createTimelineLayerCustomParameterOwner(location.layer), ancestors: location.ancestors.map(createTimelineLayerCustomParameterOwner) };
+}
+
+/** 同じSceneをまとめて評価するときは一度の走査で環境を作り、レイヤーごとの全木探索を避ける。 */
+export function createTimelineLayerCustomParameterContextIndex(layers: readonly TimelineLayer[]): ReadonlyMap<string, TimelineLayerCustomParameterContext> {
+	const contexts = new Map<string, TimelineLayerCustomParameterContext>();
+	const visit = (layers: readonly TimelineLayer[], ancestors: readonly TimelineLayerCustomParameterOwner[]) => {
+		for (const layer of layers) {
+			const owner = createTimelineLayerCustomParameterOwner(layer);
+			contexts.set(layer.id, { layer: owner, ancestors });
+			if (isTimelineContainerLayer(layer)) visit(layer.layers, [...ancestors, owner]);
+		}
+	};
+	visit(layers, []);
+	return contexts;
 }
 
 export function getTimelineLayerCustomParameterSources(context: TimelineLayerCustomParameterContext, isCustomParameterValue = false): TimelineLayerCustomParameterOwner[] {

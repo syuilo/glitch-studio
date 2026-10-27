@@ -6,7 +6,7 @@ import { loadSource } from './helpers/load-source.mjs';
 const load = name => loadSource(fileURLToPath(new URL('../src/' + name, import.meta.url)));
 const { TimelineParameterBindingEvaluator } = await load('parameter-binding-evaluator.ts');
 const { createTimelineLayerEvaluationScope } = await load('evaluation-scope.ts');
-const { getTimelineLayerCustomParameterContext, getTimelineLayerCustomParameterSources, validateTimelineLayerCustomParameterDefinitions } = await load('custom-parameters.ts');
+const { createTimelineLayerCustomParameterContextIndex, getTimelineLayerCustomParameterContext, getTimelineLayerCustomParameterSources, validateTimelineLayerCustomParameterDefinitions } = await load('custom-parameters.ts');
 const { validateTimelineParameterTree } = await load('parameter-binding.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
@@ -18,6 +18,24 @@ function evaluate(layers, owner, binding, time = 0, definition = scalar('target'
 	const context = getTimelineLayerCustomParameterContext(layers, owner.id);
 	return evaluator.evaluate(binding, createTimelineLayerEvaluationScope({ time, isExport: true, automationGraphs: owner.automationGraphs, customParameters: context }), -1, definition);
 }
+
+// 【Sceneの索引は無効な枝も含めて各レイヤーの所有者と祖先を保持する】
+// 個別探索を索引へ置き換えても参照可能範囲を変えず、階層移動後の再構築で古い祖先を残さない。
+test('indexes owner scopes and refreshes ancestors after reparenting', () => {
+	const child = layer('child', [scalar('speed')], { speed: literal(3) });
+	const parent = { ...layer('parent', [], {}, [child]), layerType: 'transform', isDisabled: true };
+	const root = layer('root', [scalar('speed')], { speed: literal(2) }, [parent]);
+	const other = layer('other');
+	const layers = [root, other];
+	const index = createTimelineLayerCustomParameterContextIndex(layers);
+	assert.deepEqual([...index.keys()], ['root', 'parent', 'child', 'other']);
+	for (const id of index.keys()) assert.deepEqual(index.get(id), getTimelineLayerCustomParameterContext(layers, id));
+	parent.layers = [];
+	other.layers = [child];
+	const updated = createTimelineLayerCustomParameterContextIndex(layers);
+	assert.deepEqual(updated.get(child.id).ancestors.map(owner => owner.id), ['other']);
+	assert.deepEqual(index.get(child.id).ancestors.map(owner => owner.id), ['root', 'parent']);
+});
 
 // 【通常の式は自身だけ、カスタムパラメータの式は直接の親だけを参照する】
 // 同名の定義が階層に並んでも、所有レイヤーの環境で評価を進めれば循環せず値を加工できる。

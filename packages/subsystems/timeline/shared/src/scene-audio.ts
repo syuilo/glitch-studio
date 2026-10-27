@@ -1,4 +1,4 @@
-import { getTimelineLayerCustomParameterContext } from './custom-parameters.ts';
+import { createTimelineLayerCustomParameterContextIndex } from './custom-parameters.ts';
 import type { TimelineLayerCustomParameterContext } from './custom-parameters.ts';
 import { findTimelineLayerLocation } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
@@ -58,12 +58,23 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 		}
 	}
 	const placements: SceneAudioPlacement[] = [];
-	const visit = (layers: readonly TimelineLayer[], sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[], sceneLayers: TimelineLayer[]) => {
+	const customParameterContextsBySceneId = new Map<string, ReadonlyMap<string, TimelineLayerCustomParameterContext>>();
+	const getCustomParameterContexts = (scene: TimelineScene) => {
+		let contexts = customParameterContextsBySceneId.get(scene.id);
+		if (contexts == null) {
+			contexts = createTimelineLayerCustomParameterContextIndex(scene.layers);
+			customParameterContextsBySceneId.set(scene.id, contexts);
+		}
+		return contexts;
+	};
+	const visit = (layers: readonly TimelineLayer[], sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[], scene: TimelineScene) => {
 		for (const layer of layers) {
 			if (layer.isDisabled) continue;
-			if (layer.layerType === 'transform') { visit(layer.layers, sceneStartMs, start, end, gains, sceneLayers); continue; }
+			if (layer.layerType === 'transform') { visit(layer.layers, sceneStartMs, start, end, gains, scene); continue; }
 			if (!isTimelineAudioOutputLayer(layer)) continue;
-			const parameterContext = getTimelineLayerCustomParameterContext(sceneLayers, layer.id)!;
+			// 選択範囲が別々のTransformの子を含む場合も、Scene全体の索引なら
+			// 各レイヤーの本来の祖先を保てる。同じSceneの複数配置でも索引を再利用する。
+			const parameterContext = getCustomParameterContexts(scene).get(layer.id)!;
 			const hasCustomParameters = [parameterContext.layer, ...parameterContext.ancestors].some(owner => (owner.customParameterDefs?.length ?? 0) > 0);
 			const layerGains = [...gains, {
 				sceneStartMs,
@@ -72,7 +83,7 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 				...hasCustomParameters ? { customParameters: parameterContext } : {},
 			}];
 			if (layer.layerType === 'group') {
-				visit(layer.layers, sceneStartMs, start, end, layerGains, sceneLayers);
+				visit(layer.layers, sceneStartMs, start, end, layerGains, scene);
 				continue;
 			}
 			if (layer.layerType === 'voicevox') {
@@ -100,7 +111,7 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 				if ('sceneId' in clip) {
 					const sourceStartMs = sceneStartMs + clip.startMs - clip.contentOffsetMs;
 					const childScene = getTimelineScene(scenes, clip.sceneId);
-					visit(childScene.layers, sourceStartMs, startMs, Math.min(endMs, sourceStartMs + getSceneDuration(childScene)), layerGains, childScene.layers);
+					visit(childScene.layers, sourceStartMs, startMs, Math.min(endMs, sourceStartMs + getSceneDuration(childScene)), layerGains, childScene);
 				} else if (!('sourceTimeMs' in clip) && (!('audioEnabled' in clip) || clip.audioEnabled)) {
 					const sourceTiming = {
 						startMs: sceneStartMs + clip.startMs,
@@ -121,7 +132,7 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 			}
 		}
 	};
-	visit(rootLayers, 0, 0, getSceneDuration(rootScene), [], rootScene.layers);
+	visit(rootLayers, 0, 0, getSceneDuration(rootScene), [], rootScene);
 	return placements;
 }
 

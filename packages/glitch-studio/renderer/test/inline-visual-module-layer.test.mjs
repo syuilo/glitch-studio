@@ -339,6 +339,70 @@ test('invalidates cut boundaries after edits', async t => {
 	assert.ok(calls.renders.every(call => call.params.localTime > 100));
 });
 
+for (const layerType of ['inlineVisualModule', 'visualModule']) {
+	// 【レイヤーのカスタム値だけの編集ではVisual Moduleの履歴とキャッシュを維持する】
+	// 未使用の値でもインスタンスを破棄するとFeedbackの蓄積が失われる。
+	// 使用中の値の変更は、同じインスタンスの次の評価へ新しい参照環境で反映する。
+	test(`preserves ${layerType} instances and updates custom inputs after value edits`, async t => {
+		const { manager, calls } = fixture(t, { disableCache: false });
+		const module = { ...visualModule({ params: { amount: expression('PARAM("amount")') } }), id: 'registered', name: 'Visual Module' };
+		module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
+		const entry = layer('layer', module, {
+			customParameterDefs: ['speed', 'unused'].map(id => ({ ...scalar, id, nameForReference: id })),
+			customParameterValues: { speed: literal(1), unused: literal(0) },
+			visualModuleParamValues: { amount: expression('PARAM("speed")') },
+		});
+		if (layerType === 'visualModule') {
+			delete entry.visualModule;
+			entry.layerType = layerType;
+			entry.visualModuleId = module.id;
+		}
+		await manager.updateDynamicOptions({ visualModules: [module], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
+		await manager.renderTimelineFrame(350, 20);
+		const instance = calls.instances[0];
+		assert.equal(calls.renders.at(-1).params.amount, 1);
+		let edited = structuredClone(entry);
+		for (const [id, value] of [['unused', 3], ['speed', 2]]) {
+			edited = { ...edited, customParameterValues: { ...edited.customParameterValues, [id]: literal(value) } };
+			manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: edited.id, layer: edited, changes: [{ type: 'parameter', target: 'customParameter', kind: 'value' }] }]);
+			await manager.renderTimelineFrame(350, 20);
+			assert.equal(calls.instances.length, 1);
+			assert.equal(instance.disposed, false);
+			assert.equal(calls.renders.at(-1).instance, instance);
+			assert.equal(calls.renders.at(-1).params.amount, id === 'speed' ? 2 : 1);
+		}
+		assert.equal(calls.renders.length, 2);
+		assert.deepEqual(calls.errors, []);
+	});
+}
+
+// 【祖先の値変更と階層移動で索引を更新する】
+// 作成時のコンテキストを固定すると、値編集で保持された子が古い親の値を参照し続ける。
+// 別のコンテナへ移動した後は、移動先の祖先を参照することも確認する。
+test('refreshes custom parameter scopes after parent value edits and hierarchy changes', async t => {
+	const { manager, calls } = fixture(t, { disableCache: false });
+	const module = visualModule({ params: { amount: expression('PARAM("amount")') } });
+	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
+	const definition = { ...scalar, id: 'speed', nameForReference: 'speed' };
+	const entry = layer('layer', module, { customParameterDefs: [definition], customParameterValues: { speed: expression('PARAM("speed")') }, visualModuleParamValues: { amount: expression('PARAM("speed")') } });
+	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, automationGraphs: [], transformParamValues: createTimelineTransformParameterValues(),
+		layers: [entry], customParameterDefs: [definition], customParameterValues: { speed: literal(1) } };
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [parent] }], sceneId: 'scene' });
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(calls.renders.at(-1).params.amount, 1);
+	const changed = { ...parent, customParameterValues: { speed: literal(2) } };
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: parent.id, layer: changed, changes: [{ type: 'parameter', target: 'customParameter', kind: 'value' }] }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(calls.renders.at(-1).params.amount, 2);
+	assert.equal(calls.instances.length, 1);
+	assert.equal(calls.instances[0].disposed, false);
+	const nextParent = { ...parent, id: 'next-parent', customParameterValues: { speed: literal(4) } };
+	manager.applyProjectChanges([{ type: 'layerTree', sceneId: 'scene', layers: [{ ...changed, layers: [] }, nextParent] }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(calls.renders.at(-1).params.amount, 4);
+	assert.deepEqual(calls.errors, []);
+});
+
 // 【共有Moduleの差分は各配置へ反映し、引数編集では配置ごとの履歴とキャッシュを保持する】
 // 同じModuleの二つのクリップは別インスタンスだが、定義編集は両方へ届く必要がある。
 // 引数だけを変えた配置のために、他の配置や上流のエフェクトを再生成してはいけない。

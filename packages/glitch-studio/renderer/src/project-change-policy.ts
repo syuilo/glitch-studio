@@ -9,8 +9,9 @@ export function canPreserveNodeOutputCache(changes: readonly VisualModuleNodeCha
 	return changes.length > 0 && changes.every(change => change.type === 'parameter' && change.kind === 'value');
 }
 
-export function canPreserveModuleLayerInstance(changes: readonly TimelineLayerChange[]): boolean {
-	// Module引数の値は内部ノードのキーで比較できる。その他のレイヤー編集では、
-	// 対象配置の再生成を許容し、別レイヤーの履歴・リソースは維持する。
-	return changes.length > 0 && changes.every(change => change.type === 'parameter' && change.target === 'module' && change.kind === 'value');
+export function canPreserveTimelineLayerInstance(changes: readonly TimelineLayerChange[]): boolean {
+	// Visual Module引数とカスタムパラメータの値は次の評価で読み直す。
+	// 値だけの編集でインスタンスを破棄すると、未使用の値でもFeedbackの履歴を失う。
+	return changes.length > 0 && changes.every(change => change.type === 'parameter'
+		&& (change.target === 'module' || change.target === 'customParameter') && change.kind === 'value');
 }

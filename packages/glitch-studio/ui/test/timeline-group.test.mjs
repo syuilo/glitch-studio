@@ -70,6 +70,48 @@ function observeValidation(f) {
 
 const customScalar = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: literal(0), canNode: false });
 
+// 【カスタムパラメータの型変更では旧型の保存値を外し、Undoで定義と値を一緒に復元する】
+// 固定値だけでなく式やキーも旧型に依存するため、新型の既定値へ戻す。
+// 同じレイヤーの別の値を消さず、未編集だった保存状態もUndoで正確に戻す必要がある。
+test('resets custom values on type changes and restores definitions and bindings with undo', t => {
+	for (const binding of [literal(0.7), { inputSource: 'expression', expression: 'TIME' }, keys([100, 800]), null]) {
+		const owner = group('owner');
+		const original = customScalar('speed');
+		owner.customParameterDefs = [original, customScalar('other')];
+		if (binding != null) owner.customParameterValues = { speed: binding, other: literal(0.2) };
+		const before = structuredClone(owner);
+		const f = fixture(t, [owner]);
+		const definition = { ...original, dataType: { kind: 'vector' }, ui: { label: 'Speed', control: { controlType: 'vector' } }, defaultValue: literal([0, 0]) };
+		f.history.commit('updateTimelineLayerCustomParameter', { sceneId: 'scene', layerId: owner.id, definition });
+		assert.deepEqual(module.exports.resolveLayerParameter(f.state, owner, 'customParameter', ['speed']).value, literal([0, 0]));
+		assert.deepEqual(owner.customParameterValues?.other, before.customParameterValues?.other);
+		const changed = structuredClone(owner);
+		f.history.undo();
+		assert.deepEqual(owner, before);
+		f.history.redo();
+		assert.deepEqual(owner, changed);
+	}
+});
+
+// 【表示設定やenumの選択肢だけの変更では所有Bindingを維持する】
+// 型変更時のリセットを広げすぎて、ラベル変更や選択肢編集でアニメーションを失わないようにする。
+test('preserves custom bindings when editing labels controls and enum options', t => {
+	const owner = group('owner');
+	const original = customScalar('speed');
+	owner.customParameterDefs = [original];
+	owner.customParameterValues = { speed: keys([100, 800]) };
+	const f = fixture(t, [owner]);
+	const target = { sceneId: 'scene', layerId: owner.id };
+	const before = structuredClone(owner.customParameterValues);
+	f.history.commit('updateTimelineLayerCustomParameter', { ...target, definition: { ...original, ui: { label: 'Renamed', control: { controlType: 'range', min: 0, max: 2 } } } });
+	assert.deepEqual(owner.customParameterValues, before);
+	const enumDefinition = { ...original, dataType: { kind: 'enum', options: ['left', 'right'] }, ui: { label: 'Direction', control: { labels: {} } }, defaultValue: literal('left') };
+	f.history.commit('updateTimelineLayerCustomParameter', { ...target, definition: enumDefinition });
+	f.history.commit('editTimelineLayerParam', { ...target, target: 'customParameter', paramPath: ['speed'], edit: { kind: 'literal', value: 'right' } });
+	f.history.commit('updateTimelineLayerCustomParameter', { ...target, definition: { ...enumDefinition, dataType: { kind: 'enum', options: ['left'] } } });
+	assert.deepEqual(owner.customParameterValues.speed, literal('right'));
+});
+
 // 【カスタムパラメータの定義・値・削除をUndo/Redoし、Groupの時間移動にもキーを含める】
 // 新しい保存先だけを特別扱いすると、履歴やコンテナ移動で定義・値・キーが取り残されてしまう。
 test('edits custom definitions and bindings with history and includes custom keyframe lanes', t => {
