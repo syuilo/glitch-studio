@@ -41,7 +41,7 @@ export default defineEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 30 },
+			defaultValue: { inputSource: 'literal', value: 5 },
 		},
 		amplitude: {
 			dataType: { kind: 'scalar' },
