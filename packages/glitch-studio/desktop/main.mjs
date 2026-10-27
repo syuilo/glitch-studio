@@ -142,8 +142,9 @@ function createWindow() {
 	mainWindow.webContents.on('did-start-loading', () => { void desktopUpdateController?.abortPreparation().catch(console.error); });
 	mainWindow.webContents.on('render-process-gone', () => { void desktopUpdateController?.abortPreparation().catch(console.error); });
 	mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-		// 既存の切り離しプレビューはabout:blankを開き、親からDOMを構築する。
-		if (url === 'about:blank') return { action: 'allow' };
+		// 切り離したパネル・プレビューはabout:blankを開き、親からDOMを構築する。
+		// OSの親子関係でメイン画面より手前に保つ。modalにはせず、メイン画面も操作できる。
+		if (url === 'about:blank') return { action: 'allow', overrideBrowserWindowOptions: { parent: mainWindow } };
 		if (['https:', 'http:'].includes(new URL(url).protocol)) {
 			void shell.openExternal(url).catch(console.error);
 		}

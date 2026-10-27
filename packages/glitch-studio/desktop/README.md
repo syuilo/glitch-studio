@@ -12,6 +12,10 @@ desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-buil
 
 `GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/startup-splash-electron.test.mjs`を実行すると、実ウィンドウを短時間表示してレンダラープロセスを増やさない表示と切り替え・起動途中の終了・読み込み失敗を検証します。
 
+## パネルとプレビューの別ウィンドウ
+
+Windowメニューから開くパネルと、既存パネル・プレビューを切り離したウィンドウは、メインウィンドウを`parent`に指定して開きます。メイン画面を操作しても、その子ウィンドウはメイン画面より前面に表示されます。モーダルにはしないため、両方の画面を操作できます。Web版の通常の別ウィンドウには、この前面固定は適用できません。
+
 ## 計測精度
 
 `app-protocol.mjs`がアプリのHTMLとWorkerを含む静的ファイルへCOOP・COEPヘッダーを付け、`performance.now()`の丸めを緩和します。開発起動ではViteのヘッダー設定を使用します。`contextIsolation`とは別の仕組みで、sandboxとNode.jsの無効化は維持します。
