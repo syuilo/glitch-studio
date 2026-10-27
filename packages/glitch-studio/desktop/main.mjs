@@ -95,17 +95,21 @@ function getTrustedMainWindow(event) {
 }
 
 function createWindow() {
+	// メイン画面と切り離し先で、タイトルバーとOSの操作ボタンの表示方法を揃える。
+	const customTitleBarOptions = {
+		titleBarStyle: 'hidden',
+		backgroundColor: '#000',
+		titleBarOverlay: {
+			height: 32,
+			...(process.platform !== 'darwin' ? { color: 'rgba(1, 0, 0, 0)', symbolColor: '#fff' } : {}),
+		},
+	};
 	mainWindow = new BrowserWindow({
 		width: 1440,
 		height: 960,
 		show: false,
 		title: 'Glitch Studio',
-		titleBarStyle: 'hidden',
-		backgroundColor: '#000',
-		...(process.platform !== 'darwin' ? { titleBarOverlay: {
-			color: 'rgba(1, 0, 0, 0)',
-			symbolColor: '#fff',
-		} } : {}),
+		...customTitleBarOptions,
 		webPreferences: {
 			preload: path.join(import.meta.dirname, 'preload.cjs'),
 			nodeIntegration: false,
@@ -144,7 +148,7 @@ function createWindow() {
 	mainWindow.webContents.setWindowOpenHandler(({ url }) => {
 		// 切り離したパネル・プレビューはabout:blankを開き、親からDOMを構築する。
 		// OSの親子関係でメイン画面より手前に保つ。modalにはせず、メイン画面も操作できる。
-		if (url === 'about:blank') return { action: 'allow', overrideBrowserWindowOptions: { parent: mainWindow } };
+		if (url === 'about:blank') return { action: 'allow', overrideBrowserWindowOptions: { ...customTitleBarOptions, parent: mainWindow } };
 		if (['https:', 'http:'].includes(new URL(url).protocol)) {
 			void shell.openExternal(url).catch(console.error);
 		}

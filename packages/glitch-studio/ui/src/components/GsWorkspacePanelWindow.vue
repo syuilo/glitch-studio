@@ -1,13 +1,16 @@
 <template>
 <Teleport :to="panelWindow.document.body">
 	<div ref="root" :class="$style.root" :data-test-workspace-panel-window="panel.contentType">
-		<component :is="workspacePanelDefinitions[panel.contentType].component" :panel="panel"/>
+		<GsDetachedWindowFrame :title="workspacePanelDefinitions[panel.contentType].label" :customTitlebar="isElectron">
+			<component :is="workspacePanelDefinitions[panel.contentType].component" :panel="panel"/>
+		</GsDetachedWindowFrame>
 	</div>
 </Teleport>
 </template>
 
 <script lang="ts" setup>
 import { inject, onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
+import GsDetachedWindowFrame from './GsDetachedWindowFrame.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { workspacePanelDefinitions } from '@/workspace.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
@@ -19,6 +22,7 @@ const props = defineProps<{
 	panelWindow: Window;
 }>();
 const emit = defineEmits<{ closed: [] }>();
+const isElectron = __ELECTRON__;
 const root = useTemplateRef('root');
 const workspaceController = inject(workspaceControllerKey)!;
 const installFileDrops = inject(fileDropTargetInstallerKey, null);

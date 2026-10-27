@@ -66,7 +66,7 @@
 				</template>
 			</button>
 			<span :class="$style.title"><i :class="workspacePanelDefinitions[panel.contentType].icon" style="margin-inline-end: 0.5em;"></i>{{ workspacePanelDefinitions[panel.contentType].label }}</span>
-			<button :class="$style.popoutButton" class="_button" @click="popout"><i class="ti ti-external-link"></i></button>
+			<button :class="$style.popoutButton" class="_button" data-test-workspace-panel-popout @click="popout"><i class="ti ti-external-link"></i></button>
 			<div :class="$style.grabber" data-test-workspace-panel-grabber draggable="true" @dragstart.stop="onDragstart">
 				<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
 					<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>

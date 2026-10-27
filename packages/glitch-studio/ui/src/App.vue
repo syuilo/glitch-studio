@@ -11,39 +11,37 @@
 </Teleport>
 
 <div ref="root" :class="$style.root">
-	<div :class="$style.header">
-		<div :class="$style.headerInner">
-			<div :class="$style.headerLeft">
-				<img src="/gs.svg" draggable="false" style="display: block; width: 20px; height: 20px; margin: 0 4px 0 8px;">
-				<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
-				<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
-				<template v-if="isElectron">
-					<span :class="$style.headerDivider"></span>
-					<button v-tooltip="i18n.ts.Copy" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canCopy.value" data-editor-command-button data-test-header-copy @pointerdown.prevent @click="headerEditActions.execute('copy')"><i class="ti ti-copy"></i></button>
-					<button v-tooltip="i18n.ts.Paste" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canPaste.value" data-editor-command-button data-test-header-paste @pointerdown.prevent @click="headerEditActions.execute('paste')"><i class="ti ti-clipboard"></i></button>
-					<button v-tooltip="i18n.ts.Cut" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canCut.value" data-editor-command-button data-test-header-cut @pointerdown.prevent @click="headerEditActions.execute('cut')"><i class="ti ti-cut"></i></button>
-					<button v-tooltip="i18n.ts.Delete" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canDelete.value" data-editor-command-button data-test-header-delete @pointerdown.prevent @click="headerEditActions.execute('delete')"><i class="ti ti-trash"></i></button>
-				</template>
+	<GsWindowTitlebar>
+		<div :class="$style.headerLeft">
+			<img src="/gs.svg" draggable="false" style="display: block; width: 20px; height: 20px; margin: 0 4px 0 8px;">
+			<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
+			<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
+			<template v-if="isElectron">
 				<span :class="$style.headerDivider"></span>
-				<button v-tooltip="i18n.ts.Save" class="_button" :class="$style.headerQuickButton" :disabled="isProjectSaving || !hasUnsavedChanges" @click="appContext.saveProject()"><i class="ti ti-device-floppy"></i></button>
-				<span :class="$style.headerDivider"></span>
-				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
-				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
-				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
-				<button class="_button" :class="$style.headerMenuItem" data-test-header-window-menu @click="openHeaderWindowMenu">{{ i18n.ts._App.Window }}</button>
-				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
-				<button v-if="desktopUpdateUi?.state.value.version != null" class="_button" :class="[$style.headerMenuItem, $style.updateNotification]" data-test-desktop-update-notification @click="desktopUpdateUi?.requestUpdate()">{{ i18n.ts._DesktopUpdate.Available }}</button>
-			</div>
-			<div :class="$style.headerCenter">
-				{{ projectName }}
-				<span v-if="hasUnsavedChanges" v-tooltip="i18n.ts._App.UnsavedChanges">*</span>
-				<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
-			</div>
-			<div :class="$style.headerRight">
-				<span v-if="isProjectSaving" :class="$style.projectSaving" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}<GsEllipsis/></span>
-			</div>
+				<button v-tooltip="i18n.ts.Copy" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canCopy.value" data-editor-command-button data-test-header-copy @pointerdown.prevent @click="headerEditActions.execute('copy')"><i class="ti ti-copy"></i></button>
+				<button v-tooltip="i18n.ts.Paste" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canPaste.value" data-editor-command-button data-test-header-paste @pointerdown.prevent @click="headerEditActions.execute('paste')"><i class="ti ti-clipboard"></i></button>
+				<button v-tooltip="i18n.ts.Cut" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canCut.value" data-editor-command-button data-test-header-cut @pointerdown.prevent @click="headerEditActions.execute('cut')"><i class="ti ti-cut"></i></button>
+				<button v-tooltip="i18n.ts.Delete" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canDelete.value" data-editor-command-button data-test-header-delete @pointerdown.prevent @click="headerEditActions.execute('delete')"><i class="ti ti-trash"></i></button>
+			</template>
+			<span :class="$style.headerDivider"></span>
+			<button v-tooltip="i18n.ts.Save" class="_button" :class="$style.headerQuickButton" :disabled="isProjectSaving || !hasUnsavedChanges" @click="appContext.saveProject()"><i class="ti ti-device-floppy"></i></button>
+			<span :class="$style.headerDivider"></span>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
+			<button class="_button" :class="$style.headerMenuItem" data-test-header-window-menu @click="openHeaderWindowMenu">{{ i18n.ts._App.Window }}</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
+			<button v-if="desktopUpdateUi?.state.value.version != null" class="_button" :class="[$style.headerMenuItem, $style.updateNotification]" data-test-desktop-update-notification @click="desktopUpdateUi?.requestUpdate()">{{ i18n.ts._DesktopUpdate.Available }}</button>
 		</div>
-	</div>
+		<div :class="$style.headerCenter">
+			{{ projectName }}
+			<span v-if="hasUnsavedChanges" v-tooltip="i18n.ts._App.UnsavedChanges">*</span>
+			<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
+		</div>
+		<div :class="$style.headerRight">
+			<span v-if="isProjectSaving" :class="$style.projectSaving" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}<GsEllipsis/></span>
+		</div>
+	</GsWindowTitlebar>
 	<div :class="$style.body">
 		<GsWorkspaceElement style="flex: 1" :element="preferences.r.workspaceDefinition.value"/>
 	</div>
@@ -106,6 +104,7 @@ import { useHeaderEditActions } from './composables/useHeaderEditActions.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsDropOverlay from './components/common/GsDropOverlay.vue';
 import GsEllipsis from './components/common/GsEllipsis.vue';
+import GsWindowTitlebar from './components/common/GsWindowTitlebar.vue';
 import type { EditorEditTarget } from './composables/useEditorEditActions.ts';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
@@ -513,23 +512,6 @@ onMounted(async () => {
 	width: 100%;
 	overflow: clip;
 	gap: 4px;
-}
-
-.header {
-	height: 32px;
-	line-height: 32px;
-	box-sizing: border-box;
-
-	app-region: drag;
-
-	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
-}
-
-.headerInner {
-	display: flex;
-	padding-left: env(titlebar-area-x, 0);
-	width: env(titlebar-area-width, 100%);
-	box-sizing: border-box;
 }
 
 .headerLeft {

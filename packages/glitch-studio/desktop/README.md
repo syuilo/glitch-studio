@@ -16,6 +16,8 @@ desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-buil
 
 Windowメニューから開くパネルと、既存パネル・プレビューを切り離したウィンドウは、メインウィンドウを`parent`に指定して開きます。メイン画面を操作しても、その子ウィンドウはメイン画面より前面に表示されます。モーダルにはしないため、両方の画面を操作できます。Web版の通常の別ウィンドウには、この前面固定は適用できません。
 
+メイン画面と別ウィンドウは、`titleBarStyle: 'hidden'`と高さ32pxの`titleBarOverlay`を共通で使います。UIの`GsWindowTitlebar.vue`が背景とドラッグ領域を描き、別ウィンドウでは`GsDetachedWindowFrame.vue`がアイコン・パネル名と残りのコンテンツ領域を配置します。最小化・最大化・閉じる操作はOSのボタンを使い、CSSの`titlebar-area-*`でその領域を避けます。Web版とDocument PiPには独自タイトルバーを追加しません。
+
 ## 計測精度
 
 `app-protocol.mjs`がアプリのHTMLとWorkerを含む静的ファイルへCOOP・COEPヘッダーを付け、`performance.now()`の丸めを緩和します。開発起動ではViteのヘッダー設定を使用します。`contextIsolation`とは別の仕組みで、sandboxとNode.jsの無効化は維持します。

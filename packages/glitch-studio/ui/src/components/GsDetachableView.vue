@@ -6,7 +6,9 @@
 	</div>
 	<div v-show="!viewWindow" ref="home" :class="$style.root">
 		<div ref="view" :class="$style.root" @contextmenu.prevent.stop="onContextmenu">
-			<slot :detached="!!viewWindow"></slot>
+			<GsDetachedWindowFrame :title="title" :customTitlebar="isElectron && viewWindow != null && windowMode === 'window'">
+				<slot :detached="!!viewWindow"></slot>
+			</GsDetachedWindowFrame>
 		</div>
 	</div>
 </div>
@@ -15,6 +17,7 @@
 <script lang="ts" setup>
 import { i18n } from '@/i18n.ts';
 import { inject, useTemplateRef, ref, shallowRef, onBeforeUnmount } from 'vue';
+import GsDetachedWindowFrame from './GsDetachedWindowFrame.vue';
 import { fileDropTargetInstallerKey } from '@/utility/file-drop.ts';
 import { prepareDetachedWindow } from '@/utility/detached-window.ts';
 import type { MenuItem } from '@/types/menu.ts';
@@ -25,6 +28,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{ changeWindow: [] }>();
+const isElectron = __ELECTRON__;
 
 const home = useTemplateRef('home');
 const view = useTemplateRef('view');
