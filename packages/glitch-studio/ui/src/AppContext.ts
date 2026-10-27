@@ -374,6 +374,7 @@ export class AppContext {
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value });
 		await this.visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
 		this.projectSaveController.finishProjectLoad(fileName, fileHandle);
+		await window.desktop?.setCurrentProjectFile?.(fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
 
 		// 発話編集・削除・Undo/Redoでは、旧音声と新字幕を混在させず再生を停止する。
 		this.projectWatchers.push(watch(() => JSON.stringify(this.projectContext.stateManager.state.timelineScenes.value.map(scene => ({

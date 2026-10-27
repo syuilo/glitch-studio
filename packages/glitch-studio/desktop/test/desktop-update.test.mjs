@@ -22,6 +22,19 @@ function fixture({ enabled = true, currentVersion = '2.0.0-alpha.1' } = {}) {
 	return { controller, updater, instances, calls, download };
 }
 
+// 【編集ウィンドウが複数ある間は更新を始めず、切り離したパネルの数とは分離する】
+// 単一メインプロセスでは他プロセス検査だけでは作品数を判定できない。
+// 全作品の保存・停止調整を実装するまでは、未確認の別作品を更新で終了させない。
+test('rejects update preparation while multiple editor windows are open', async () => {
+	const f = fixture();
+	f.controller.getEditorWindowCount = () => 2;
+	await f.controller.checkForUpdates();
+	assert.equal((await f.controller.prepareUpdate('2.0.0-beta.1')).error.code, 'other-instances');
+	assert.equal(f.calls.some(([name]) => name === 'acquire'), false);
+	f.controller.getEditorWindowCount = () => 1;
+	assert.equal((await f.controller.prepareUpdate('2.0.0-beta.1')).phase, 'preparing');
+});
+
 // 【更新は同意・保存完了後だけダウンロードし、キャッシュ済みでも検証完了から一度だけインストールする】
 // 自動ダウンロードや通常終了時のインストールが有効だと、UIの確認を迂回して更新されてしまう。
 test('checks without downloading and installs once after explicit preparation and download completion', async () => {

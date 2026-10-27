@@ -185,6 +185,7 @@ export async function loadProjectFile(file?: File | null, handle?: ProjectFileHa
 	if (file != null) {
 		if (window.desktop?.registerProjectFile && handle?.kind !== 'desktop-project-file') {
 			const descriptor = await window.desktop.registerProjectFile(file);
+			if (descriptor == null) return null;
 			if (descriptor) handle = desktopProjectFile(descriptor);
 		}
 		const project = await mapProjectAssetPaths(decodeProjectFile(new Uint8Array(await file.arrayBuffer()), _VERSION_), handle ?? null, false);

@@ -11,6 +11,9 @@ export class ExternalAssetFiles {
 	#files = new Map();
 	#keys = new Map();
 
+	hasUrl(url) { return this.#files.has(new URL(url).pathname.slice(1)); }
+	clear() { this.#files.clear(); this.#keys.clear(); }
+
 	async resolve(filePath, reload = false) {
 		if (!path.isAbsolute(filePath)) throw new Error('An absolute asset path is required.');
 		try {
@@ -83,6 +86,7 @@ export function projectAssetPath(filePath, projectPath, storing) {
 
 export function registerExternalAssetIpc(ipcMain, dialog, files, projectFiles, getTrustedMainWindow) {
 	const exports = new Map();
+	let disposed = false;
 	ipcMain.handle('desktop:resolve-external-asset', (event, filePath, reload) => {
 		getTrustedMainWindow(event);
 		return files.resolve(filePath, reload);
@@ -104,9 +108,16 @@ export function registerExternalAssetIpc(ipcMain, dialog, files, projectFiles, g
 		if (typeof name !== 'string' || path.basename(name) !== name) throw new Error('Invalid asset name.');
 		const selected = await dialog.showSaveDialog(parent, { defaultPath: name });
 		if (selected.canceled || selected.filePath == null) return null;
+		if (disposed) throw new Error('The editor window has been closed.');
 		const id = randomUUID();
 		const temporary = path.join(path.dirname(selected.filePath), `.glitch-studio-asset-${id}.tmp`);
-		exports.set(id, { destination: selected.filePath, temporary, file: await fs.open(temporary, 'wx') });
+		const file = await fs.open(temporary, 'wx');
+		// ファイル作成を待つ間に画面が閉じられても、後から一時ファイルを残さない。
+		if (disposed) {
+			await file.close(); await fs.unlink(temporary).catch(() => {});
+			throw new Error('The editor window has been closed.');
+		}
+		exports.set(id, { destination: selected.filePath, temporary, file });
 		return id;
 	});
 	ipcMain.handle('desktop:write-asset-export', async (event, id, chunk) => {
@@ -131,4 +142,13 @@ export function registerExternalAssetIpc(ipcMain, dialog, files, projectFiles, g
 		exports.delete(id);
 		if (output != null) { await output.file.close().catch(() => {}); await fs.unlink(output.temporary).catch(() => {}); }
 	});
+	return async () => {
+		disposed = true;
+		const outputs = [...exports.values()];
+		exports.clear();
+		for (const output of outputs) {
+			await output.file.close().catch(() => {});
+			await fs.unlink(output.temporary).catch(() => {});
+		}
+	};
 }

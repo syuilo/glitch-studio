@@ -70,7 +70,7 @@
 			</div>
 		</div>
 		<div :class="$style.footerRight">
-			<button v-if="preferences.r.projectBackups.value.autoEnabled || preferences.r.projectBackups.value.saveEnabled" class="_button" :class="$style.footerItem" :title="projectBackupStatus.error ?? i18n.ts._App.BackupHint" @click="openPreferences">{{ projectBackupStatus.error ? i18n.ts._App.BackupError : projectBackupAccess === 'ready' ? i18n.ts._App.Backups : projectBackupAccess === 'unsaved' ? i18n.ts._App.BackupsUnsaved : i18n.ts._App.BackupsFolderRequired }}</button>
+			<button v-if="preferences.r.projectBackupAutoEnabled.value || preferences.r.projectBackupSaveEnabled.value" class="_button" :class="$style.footerItem" :title="projectBackupStatus.error ?? i18n.ts._App.BackupHint" @click="openPreferences">{{ projectBackupStatus.error ? i18n.ts._App.BackupError : projectBackupAccess === 'ready' ? i18n.ts._App.Backups : projectBackupAccess === 'unsaved' ? i18n.ts._App.BackupsUnsaved : i18n.ts._App.BackupsFolderRequired }}</button>
 			<div v-if="activePreviewRenderer.errorMessage.value != null" v-tooltip="activePreviewRenderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ activePreviewRenderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
 				<button data-test-waveform-and-histogram-toggle :class="$style.footerItem" class="_button" @click="waveformAndHistogramEnabled = !waveformAndHistogramEnabled">{{ i18n.ts._App.Analyze }}: {{ waveformAndHistogramEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>

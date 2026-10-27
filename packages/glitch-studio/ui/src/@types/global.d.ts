@@ -8,6 +8,8 @@ interface Window {
 	desktop?: {
 		onProjectCloseRequested(listener: (requestId: number) => void): () => void;
 		completeProjectClose(requestId: number, confirmed: boolean): Promise<boolean>;
+		setCurrentProjectFile(id: string | null): Promise<void>;
+		releaseProjectReservations(): Promise<void>;
 		getUpdateState(): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
 		checkForUpdates(): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
 		prepareUpdate(version: string): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
@@ -32,7 +34,7 @@ interface Window {
 		chooseProjectFile(): Promise<{ id: string; name: string } | null>;
 		listRecentProjects(): Promise<import('../recent-projects.ts').RecentProjectEntry[]>;
 		rememberRecentProject(id: string, name: string): Promise<void>;
-		resolveRecentProject(id: string): Promise<{ id: string; name: string }>;
+		resolveRecentProject(id: string): Promise<{ id: string; name: string } | null>;
 		removeRecentProject(id: string): Promise<void>;
 		clearRecentProjects(): Promise<void>;
 		chooseProjectSaveFile(name: string): Promise<{ id: string; name: string } | null>;

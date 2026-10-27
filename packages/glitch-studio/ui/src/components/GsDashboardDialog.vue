@@ -93,6 +93,7 @@ async function openRecentProject(id: string) {
 	recentProjectsBusy.value = true;
 	try {
 		const handle = await recentProjects.resolve(id);
+		if (handle == null) return;
 		if (await openProject(null, handle)) modal.value?.close();
 	} catch (error) {
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
@@ -115,6 +116,7 @@ async function clearRecentProjects() {
 }
 
 onMounted(() => {
+	// 他画面の履歴変更は購読せず、ダッシュボードを開くたびに最新の保存値を取得する。
 	void refreshRecentProjects();
 	const target = modal.value?.getRootElement();
 	if (target == null) return;

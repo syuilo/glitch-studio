@@ -6,7 +6,7 @@ import { transform } from 'esbuild';
 // ブラウザー固有の初期化より前を取り出すことで、補間処理のモック実装や辞書の複製を避ける。
 const source = await readFile(new URL('../../src/i18n.ts', import.meta.url), 'utf8');
 const locale = JSON.parse(await readFile(new URL('../../locales/en-US.json', import.meta.url), 'utf8'));
-const contents = `${source.slice(0, source.indexOf('export const SUPPORTED_LOCALES'))}
+const contents = `${source.slice(0, source.indexOf('export const isLocaleUnconfigured'))}
 export const i18n = new I18n(${JSON.stringify(locale)});
 export const lang = 'en-US';
 export const isLocaleUnconfigured = false;`;

@@ -3,11 +3,15 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 
 // メインウィンドウの検証を全操作に適用し、UIへ汎用的なファイル操作を公開しない。
-export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath = null) {
+export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath = null, {
+	registerProject = filePath => projectFiles.describe(projectFiles.register(filePath)),
+	projectWillWrite = () => {},
+	projectWritten = () => {},
+} = {}) {
 	let projectOpenDirectory = null;
 	ipcMain.handle('desktop:register-project-file', (event, filePath) => {
 		getTrustedMainWindow(event);
-		return projectFiles.describe(projectFiles.register(filePath));
+		return registerProject(filePath);
 	});
 	ipcMain.handle('desktop:choose-project-file', async event => {
 		const parent = getTrustedMainWindow(event);
@@ -41,7 +45,7 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 				await fs.unlink(temporaryFilePath).catch(() => {});
 			}
 		}
-		return projectFiles.describe(projectFiles.register(filePath));
+		return registerProject(filePath);
 	});
 	ipcMain.handle('desktop:choose-project-save-file', async (event, name) => {
 		const parent = getTrustedMainWindow(event);
@@ -54,7 +58,8 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 		if (result.canceled || !result.filePath) return null;
 		const filePath = result.filePath.toLowerCase().endsWith('.gsproj') ? result.filePath : `${result.filePath}.gsproj`;
 		// 拡張子を補った場合、OSが確認したパスとは異なるのでここで上書き確認する。
-		const id = projectFiles.register(filePath);
+		const descriptor = registerProject(filePath, true);
+		const id = descriptor.id;
 		if (filePath !== result.filePath && await projectFiles.exists(id)) {
 			const confirmation = await dialog.showMessageBox(parent, { type: 'question', message: `Replace ${path.basename(filePath)}?`, buttons: ['Cancel', 'Replace'], defaultId: 0, cancelId: 0 });
 			if (confirmation.response !== 1) return null;
@@ -65,9 +70,11 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 		getTrustedMainWindow(event);
 		return projectFiles.read(id);
 	});
-	ipcMain.handle('desktop:write-project-file', (event, id, data) => {
+	ipcMain.handle('desktop:write-project-file', async (event, id, data) => {
 		getTrustedMainWindow(event);
-		return projectFiles.write(id, data);
+		projectWillWrite(id);
+		await projectFiles.write(id, data);
+		projectWritten(id);
 	});
 	ipcMain.handle('desktop:list-project-backups', (event, id) => {
 		getTrustedMainWindow(event);

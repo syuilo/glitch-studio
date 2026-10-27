@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('desktop', {
 		return () => ipcRenderer.removeListener('desktop:project-close-requested', handler);
 	},
 	completeProjectClose: (requestId, confirmed) => ipcRenderer.invoke('desktop:complete-project-close', requestId, confirmed),
+	setCurrentProjectFile: id => ipcRenderer.invoke('desktop:set-current-project-file', id),
+	releaseProjectReservations: () => ipcRenderer.invoke('desktop:release-project-reservations'),
 	getUpdateState: () => ipcRenderer.invoke('desktop:get-update-state'),
 	checkForUpdates: () => ipcRenderer.invoke('desktop:check-for-updates'),
 	prepareUpdate: version => ipcRenderer.invoke('desktop:prepare-update', version),

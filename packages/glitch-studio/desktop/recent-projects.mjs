@@ -58,7 +58,9 @@ export class RecentProjects {
 	}
 }
 
-export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles, getTrustedMainWindow, recentDocuments = null) {
+export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles, getTrustedMainWindow, recentDocuments = null, {
+	registerProject = filePath => projectFiles.describe(projectFiles.register(filePath)),
+} = {}) {
 	ipcMain.handle('desktop:list-recent-projects', async event => {
 		getTrustedMainWindow(event);
 		return (await recentProjects.list()).slice(0, 20).map(({ filePath: _filePath, ...entry }) => entry);
@@ -79,7 +81,7 @@ export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles,
 	ipcMain.handle('desktop:resolve-recent-project', async (event, id) => {
 		getTrustedMainWindow(event);
 		const entry = await recentProjects.read(id);
-		return projectFiles.describe(projectFiles.register(entry.filePath));
+		return registerProject(entry.filePath);
 	});
 	ipcMain.handle('desktop:remove-recent-project', async (event, id) => {
 		getTrustedMainWindow(event);

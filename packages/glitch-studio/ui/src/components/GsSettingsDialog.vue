@@ -7,7 +7,7 @@
 				<div v-if="validationError">{{ validationError }}</div>
 				<div :class="$style.actions">
 					<GsButton icon="ti ti-x" large inline @click="modal?.close()">{{ i18n.ts.Cancel }}</GsButton>
-					<GsButton icon="ti ti-check" large inline primary :disabled="validationError != null" @click="apply">{{ i18n.ts.Apply }}</GsButton>
+					<GsButton icon="ti ti-check" large inline primary :disabled="validationError != null" data-test-settings-apply @click="apply">{{ i18n.ts.Apply }}</GsButton>
 				</div>
 			</div>
 		</div>
@@ -72,14 +72,14 @@
 							<template #label>{{ i18n.ts._ProjectBackups.Title }}</template>
 
 							<div class="_gaps_l">
-								<GsSwitch v-model="settings.autoEnabled">{{ i18n.ts._ProjectBackups.Automatic }}</GsSwitch>
+								<GsSwitch v-model="settings.autoEnabled" data-test-backup-auto-enabled>{{ i18n.ts._ProjectBackups.Automatic }}</GsSwitch>
 								<div class="_gaps_m" :inert="!settings.autoEnabled">
-									<GsInput v-model="settings.autoIntervalMinutes" large type="number" :min="1" :step="1"><template #label>{{ i18n.ts._ProjectBackups.Interval }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Minutes }}</template></GsInput>
-									<GsInput v-model="settings.autoRetentionDays" large type="number" :min="1" :step="1"><template #label>{{ i18n.ts._ProjectBackups.Retention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template></GsInput>
+									<GsInput v-model="settings.autoIntervalMinutes" large type="number" :min="1" :step="1" data-test-backup-auto-interval><template #label>{{ i18n.ts._ProjectBackups.Interval }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Minutes }}</template></GsInput>
+									<GsInput v-model="settings.autoRetentionDays" large type="number" :min="1" :step="1" data-test-backup-auto-retention><template #label>{{ i18n.ts._ProjectBackups.Retention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template></GsInput>
 								</div>
 								<hr>
-								<GsSwitch v-model="settings.saveEnabled">{{ i18n.ts._ProjectBackups.BeforeOverwrite }}</GsSwitch>
-								<GsInput v-model="settings.saveRetentionDays" large type="number" :min="1" :step="1" :disabled="!settings.saveEnabled"><template #label>{{ i18n.ts._ProjectBackups.Retention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template><template #caption>{{ i18n.ts._ProjectBackups.SaveHint }}</template></GsInput>
+								<GsSwitch v-model="settings.saveEnabled" data-test-backup-save-enabled>{{ i18n.ts._ProjectBackups.BeforeOverwrite }}</GsSwitch>
+								<GsInput v-model="settings.saveRetentionDays" large type="number" :min="1" :step="1" :disabled="!settings.saveEnabled" data-test-backup-save-retention><template #label>{{ i18n.ts._ProjectBackups.Retention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template><template #caption>{{ i18n.ts._ProjectBackups.SaveHint }}</template></GsInput>
 							</div>
 						</GsFolder>
 					</template>
@@ -98,18 +98,23 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsFolder from './common/GsFolder.vue';
-import { appContext } from '@/app.ts';
 import { i18n, lang, SUPPORTED_LOCALES } from '@/i18n.ts';
 import { changeLocale } from '@/locale-settings-ui.ts';
 import { preferences } from '@/preferences.ts';
 import { validateProjectBackupSettings } from '@/project-backups.ts';
 
-const { projectBackupAccess, projectBackupStatus } = appContext;
-
 const modal = useTemplateRef('modal');
-const selectedLocale = ref(localStorage.getItem('locale') ?? lang);
+const selectedLocale = ref(window.localStorage.getItem('locale') ?? lang);
+// 未設定時に表示される既定の言語は、ユーザーが選び直すまでは保存しない。
+const initialLocale = selectedLocale.value;
 const localeOptions = Object.entries(SUPPORTED_LOCALES).map(([value, label]) => ({ value, label }));
-const settings = ref({ ...preferences.s.projectBackups });
+const settings = ref({
+	autoEnabled: preferences.s.projectBackupAutoEnabled,
+	autoIntervalMinutes: preferences.s.projectBackupAutoIntervalMinutes,
+	autoRetentionDays: preferences.s.projectBackupAutoRetentionDays,
+	saveEnabled: preferences.s.projectBackupSaveEnabled,
+	saveRetentionDays: preferences.s.projectBackupSaveRetentionDays,
+});
 const desktopAvailable = window.desktop != null;
 const importAssetsAsExternalReferences = ref(preferences.s.importAssetsAsExternalReferences);
 const importLargeAssetsAsExternalReferences = ref(preferences.s.importLargeAssetsAsExternalReferences);
@@ -122,14 +127,19 @@ const validationError = computed(() => {
 
 async function apply() {
 	if (validationError.value != null) return;
+	// この画面の保持値と同じ項目はcommit()が保存しない。他画面の保存値は比較に使わない。
 	preferences.commit('importAssetsAsExternalReferences', importAssetsAsExternalReferences.value);
 	preferences.commit('importLargeAssetsAsExternalReferences', importLargeAssetsAsExternalReferences.value);
-	preferences.commit('projectBackups', { ...settings.value });
+	preferences.commit('projectBackupAutoEnabled', settings.value.autoEnabled);
+	preferences.commit('projectBackupAutoIntervalMinutes', settings.value.autoIntervalMinutes);
+	preferences.commit('projectBackupAutoRetentionDays', settings.value.autoRetentionDays);
+	preferences.commit('projectBackupSaveEnabled', settings.value.saveEnabled);
+	preferences.commit('projectBackupSaveRetentionDays', settings.value.saveRetentionDays);
 	preferences.commit('enable32bitDataTextures', enable32bitDataTextures.value);
 	preferences.commit('intermediateTextureFormat', intermediateTextureFormat.value);
 	preferences.commit('visualModuleAutoConnectOnNodeAdd', visualModuleAutoConnectOnNodeAdd.value);
 	modal.value?.close();
-	await changeLocale(selectedLocale.value);
+	if (initialLocale !== selectedLocale.value) await changeLocale(selectedLocale.value);
 }
 
 const emit = defineEmits<{

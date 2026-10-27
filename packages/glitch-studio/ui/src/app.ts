@@ -32,7 +32,7 @@ import * as ui from '@/ui.ts';
 import { openMediaFile, openMediaFileFromPath } from '@/utility/open-media-file.ts';
 
 if (isLocaleUnconfigured) {
-	configureLocale();
+	void configureLocale().catch(console.error);
 }
 
 export const appContext = new AppContext(new ProjectContext());
@@ -65,12 +65,17 @@ export const rendererEnv = {
 };
 
 export async function openProject(file?: File | null, fileHandle?: ProjectFileHandle | null): Promise<boolean> {
+	if (appContext.isProjectSaving.value || applicationActivity.isExporting.value) {
+		await confirmProjectReplacement();
+		return false;
+	}
 	const releaseActivity = applicationActivity.acquire();
 	const waiting = ui.waiting({ text: i18n.ts._App.LoadingProjectFile });
 	try {
 		const result = await loadProjectFile(file, fileHandle);
 		waiting.done();
 		if (result == null) return false;
+		if (!await confirmProjectReplacement()) return false;
 		await appContext.ready(result.project, result.name, result.handle);
 		if (result.handle != null) await recentProjects.remember(result.handle, result.project.name);
 		return true;
@@ -79,10 +84,26 @@ export async function openProject(file?: File | null, fileHandle?: ProjectFileHa
 		waiting.done();
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		return false;
-	} finally { releaseActivity(); }
+	} finally {
+		await window.desktop?.releaseProjectReservations?.().catch(console.error);
+		releaseActivity();
+	}
+}
+
+async function confirmProjectReplacement(): Promise<boolean> {
+	if (appContext.isProjectSaving.value || applicationActivity.isExporting.value) {
+		await ui.alert({ type: 'info', text: appContext.isProjectSaving.value ? i18n.ts._App.CannotCloseWhileSaving : i18n.ts._App.CannotCloseWhileExporting });
+		return false;
+	}
+	if (!appContext.hasUnsavedChanges.value) return true;
+	const result = await ui.confirm({ type: 'warning', title: i18n.ts._App.ConfirmReplaceUnsavedProject,
+		text: i18n.ts._App.ReplaceUnsavedChangesWillBeLost, okText: i18n.ts._App.DiscardAndContinue,
+		cancelText: i18n.ts.Cancel, autofocusAction: 'cancel' });
+	return !result.canceled && !appContext.isProjectSaving.value && !applicationActivity.isExporting.value;
 }
 
 export async function newProject() {
+	if (!await confirmProjectReplacement()) return;
 	const initialEffectNodeId = genId();
 	const initialInputParamId = visualModuleCustomParameterId(genId());
 	const initialOutputId = genId();
@@ -194,6 +215,7 @@ export async function newProjectFromMediaPath(filePath: string, type: string) {
 
 async function loadMediaProject(result: OpenedMediaFile | null) {
 	if (result == null) return false;
+	if (!await confirmProjectReplacement()) return false;
 
 	const asset = {
 		id: genId(),

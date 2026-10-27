@@ -63,7 +63,8 @@ const appBundle = await build({
 						import { reactive, toRefs } from 'vue';
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
 							renderingStatsEnabled: false, waveformAndHistogramEnabled: true,
-							projectBackups: { autoEnabled: false, autoIntervalMinutes: 1, autoRetentionDays: 1, saveEnabled: false, saveRetentionDays: 7 },
+							projectBackupAutoEnabled: false, projectBackupAutoIntervalMinutes: 1, projectBackupAutoRetentionDays: 1,
+							projectBackupSaveEnabled: false, projectBackupSaveRetentionDays: 7,
 							...window.initialTestPreferences });
 						window.testPreferences = settings;
 						export const preferences = { s: settings, r: toRefs(settings) };
@@ -117,6 +118,7 @@ const appBundle = await build({
 					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); await window.acknowledgeProjectAlert?.(); }
+					export async function confirm(options) { window.projectConfirmations?.push(options); return { canceled: window.cancelProjectReplacement === true }; }
 					export function progress() { return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
 					export function waiting() { return { setText() {}, done() {} }; }
 						export function popup(component, props, events) {
@@ -851,6 +853,26 @@ function setup(t) {
 	return globalThis.window;
 }
 
+// 【別作品を開く・新規作成するときに、現在の未保存変更を破棄するか確認する】
+// キャンセルした作品の内容やUndo履歴を変更せず、保存済みファイルの読込にも同じ保護を適用する。
+test('preserves the current project when replacement of unsaved changes is canceled', async t => {
+	const window = setup(t);
+	window.projectConfirmations = [];
+	const app = evaluate(appBundle);
+	await app.newProject();
+	app.appContext.projectContext.stateManager.state.name.value = 'Keep this project';
+	window.cancelProjectReplacement = true;
+	await app.newProject();
+	assert.equal(app.appContext.projectContext.snapshot().name, 'Keep this project');
+	const file = new File([new Uint8Array(await encodeProjectFile(project()))], 'other.gsproj');
+	assert.equal(await app.openProject(file), false);
+	assert.equal(app.appContext.projectContext.snapshot().name, 'Keep this project');
+	assert.equal(window.projectConfirmations.length, 2);
+	window.cancelProjectReplacement = false;
+	assert.equal(await app.openProject(file), true);
+	assert.equal(app.appContext.projectContext.snapshot().name, 'Example');
+});
+
 // 【名前・説明・作者と素材の原本を一緒に保存・復元する】
 // 表示用の情報だけが保存対象から漏れたり、改行や日本語が失われたりすることを防ぐ。
 test('round trips project information and original assets', async () => {
@@ -1277,7 +1299,7 @@ test('distinguishes automatic backups from manual saves queued behind them', asy
 	const { appContext } = evaluate(appBundle);
 	const handle = fileHandle('automatic.gsproj');
 	await appContext.ready(project(), handle.name, handle);
-	window.testPreferences.projectBackups.autoEnabled = true;
+	window.testPreferences.projectBackupAutoEnabled = true;
 	await nextTick();
 	const backupStarted = Promise.withResolvers();
 	const finishBackup = Promise.withResolvers();
@@ -1894,7 +1916,7 @@ test('uses Electron backup access without a folder picker and stops overwrite on
 	window.showOpenFilePicker = async () => [handle];
 	const app = evaluate(appBundle);
 	const { appContext } = app;
-	window.testPreferences.projectBackups.saveEnabled = true;
+	window.testPreferences.projectBackupSaveEnabled = true;
 	assert.equal(await app.openProject(), true);
 	assert.equal(appContext.projectBackupAccess.value, 'ready');
 	window.desktop.readProjectFile = () => assert.fail('Save backup must not read the old file into the renderer');
@@ -1940,7 +1962,8 @@ test('backs up the Save as destination and keeps automatic backups separate from
 	const destination = fileHandle('second.gsproj', { bytes: await encodeProjectFile(project({ name: 'Destination before overwrite' })) });
 	const app = evaluate(appBundle);
 	const { appContext } = app;
-	window.testPreferences.projectBackups = { autoEnabled: true, autoIntervalMinutes: 3, autoRetentionDays: 1, saveEnabled: true, saveRetentionDays: 7 };
+	Object.assign(window.testPreferences, { projectBackupAutoEnabled: true, projectBackupAutoIntervalMinutes: 3,
+		projectBackupAutoRetentionDays: 1, projectBackupSaveEnabled: true, projectBackupSaveRetentionDays: 7 });
 	await appContext.ready(project(), original.name, desktopProjectFile({ id: original.name, name: original.name }));
 	appContext.projectContext.stateManager.state.name.value = 'Saving as second';
 	window.selectProjectSaveFile = async () => destination;
@@ -1992,7 +2015,8 @@ test('retains the Chrome save folder and starts backups only after the first sav
 	window.showDirectoryPicker = () => assert.fail('The chosen save folder should be retained');
 	const app = evaluate(appBundle);
 	const { appContext } = app;
-	window.testPreferences.projectBackups = { autoEnabled: true, autoIntervalMinutes: 2, autoRetentionDays: 1, saveEnabled: true, saveRetentionDays: 7 };
+	Object.assign(window.testPreferences, { projectBackupAutoEnabled: true, projectBackupAutoIntervalMinutes: 2,
+		projectBackupAutoRetentionDays: 1, projectBackupSaveEnabled: true, projectBackupSaveRetentionDays: 7 });
 	await app.newProject();
 	await appContext.projectBackupController.tick();
 	assert.equal(appContext.projectBackupAccess.value, 'unsaved');
@@ -2075,6 +2099,59 @@ test('rejects update preparation after an in-flight save fails and restores save
 	const preparing = appContext.pauseForDesktopUpdate();
 	const rejected = assert.rejects(preparing, /write failed/);
 	finish.resolve();
+	await Promise.all([saving, rejected]);
+	assert.deepEqual(globalThis.projectAlerts, []);
+	handle.createWritable = createWritable;
+	await appContext.saveProject();
+	assert.equal(decodeProjectFile(handle.bytes).name, 'Example');
+});
+
+// 【更新準備では、書込み後の保存先予約の解放まで完了を待つ】
+// 保存キューだけが先に完了すると、画面を閉じた後に保存の後処理が残る。
+// 保存管理側の待機だけで、インストーラーへの引き継ぎより先に後処理を終える必要がある。
+test('waits for save reservation cleanup before preparing an update', async t => {
+	const window = setup(t);
+	const cleanupStarted = Promise.withResolvers();
+	const finishCleanup = Promise.withResolvers();
+	window.desktop = { async releaseProjectReservations() { cleanupStarted.resolve(); await finishCleanup.promise; } };
+	const { appContext } = evaluate(appBundle);
+	const handle = fileHandle('update-cleanup.gsproj');
+	await appContext.ready(project(), handle.name, handle);
+	const saving = appContext.saveProject();
+	await cleanupStarted.promise;
+	let prepared = false;
+	const preparing = appContext.pauseForDesktopUpdate().then(resume => { prepared = true; return resume; });
+	await setImmediate();
+	assert.equal(prepared, false);
+	assert.equal(appContext.isProjectSaving.value, true);
+	finishCleanup.resolve();
+	const resume = await preparing;
+	await saving;
+	assert.equal(appContext.isProjectSaving.value, false);
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	await resume();
+	await appContext.saveProject();
+	assert.equal(handle.calls.filter(([action]) => action === 'write').length, 2);
+});
+
+// 【保存の後処理中に更新準備が始まっても、それ以前の書込み失敗を見落とさない】
+// 保存開始・終了時の失敗フラグをUIへ公開しなくても、停止要求元へエラーを返す。
+// 背後のエラーダイアログを待たず更新を中止し、その後の保存を受け付ける必要がある。
+test('rejects update preparation after a save fails during reservation cleanup and resumes saving', async t => {
+	const window = setup(t);
+	t.mock.method(console, 'error', () => {});
+	const cleanupStarted = Promise.withResolvers();
+	const finishCleanup = Promise.withResolvers();
+	window.desktop = { async releaseProjectReservations() { cleanupStarted.resolve(); await finishCleanup.promise; } };
+	const { appContext } = evaluate(appBundle);
+	const handle = fileHandle('failed-update-cleanup.gsproj');
+	await appContext.ready(project(), handle.name, handle);
+	const createWritable = handle.createWritable;
+	handle.createWritable = async () => { throw new Error('write failed'); };
+	const saving = appContext.saveProject();
+	await cleanupStarted.promise;
+	const rejected = assert.rejects(appContext.pauseForDesktopUpdate(), /write failed/);
+	finishCleanup.resolve();
 	await Promise.all([saving, rejected]);
 	assert.deepEqual(globalThis.projectAlerts, []);
 	handle.createWritable = createWritable;

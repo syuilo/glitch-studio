@@ -35,7 +35,8 @@ test('guards real Electron closing, reloading and application quit through async
 			builder.onLoad({ filter: /.*/, namespace: 'close-dialog-dependencies' }, ({ path: dependency }) => ({ contents: dependency === 'i18n'
 				? `export const i18n = { ts: { Cancel: 'Cancel', _App: { ConfirmCloseUnsavedProject: 'Close without saving?', UnsavedChangesWillBeLost: 'Unsaved changes will be lost.', CloseWithoutSaving: 'Close without saving', ProjectSaving: 'Saving', CannotCloseWhileSaving: 'Wait for saving.', Exporting: 'Exporting', CannotCloseWhileExporting: 'Wait for exporting.' } } };`
 				: `export function alert(options) { window.closeNotices.push(options); return Promise.resolve(); }
-				   export function confirm(options) { window.closeConfirmations.push(options); return new Promise(resolve => { window.resolveClose = resolve; }); }`,
+				   export function confirm(options) { window.closeConfirmations.push(options); return new Promise(resolve => { window.resolveClose = resolve; }); }
+				   `,
 			}));
 		} }],
 	});
@@ -50,8 +51,15 @@ test('guards real Electron closing, reloading and application quit through async
 		const { app, BrowserWindow, ipcMain } = require('electron');
 		const path = require('node:path');
 		app.setPath('userData', path.join(__dirname, 'profile'));
-		app.on('window-all-closed', () => {});
+		const applicationQuitState = { requested: false };
+		// 個別のcloseではアプリを残し、全体終了で最後の画面を閉じた場合だけ終了する。
+		// Windows上でもmacOSと同じ寿命で確認する。
+		app.on('window-all-closed', () => { if (applicationQuitState.requested) app.quit(); });
 		let mainWindow, controller, updates = null;
+		app.on('before-quit', event => {
+			if (updates?.shouldBlockQuit === true) event.preventDefault();
+			else applicationQuitState.requested = true;
+		});
 		const completions = new EventEmitter();
 		app.whenReady().then(async () => {
 			const { ProjectCloseController, registerProjectCloseIpc } = await import(${JSON.stringify(closeGuardModule)});
@@ -67,7 +75,7 @@ test('guards real Electron closing, reloading and application quit through async
 			}
 			async function createWindow() {
 				mainWindow = new BrowserWindow({ show: false, webPreferences: { preload: ${JSON.stringify(preload)}, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
-				controller = new ProjectCloseController({ app, window: mainWindow, getUpdateController: () => updates });
+				controller = new ProjectCloseController({ window: mainWindow, getUpdateController: () => updates, applicationQuitState });
 				await mainWindow.loadFile(path.join(__dirname, 'index.html'));
 				await initializeGuard();
 			}

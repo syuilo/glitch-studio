@@ -13,7 +13,7 @@ export type RecentProjectEntry = {
 export interface RecentProjectsStore {
 	list(): Promise<RecentProjectEntry[]>;
 	remember(handle: ProjectFileHandle, name: string): Promise<void>;
-	resolve(id: string): Promise<ProjectFileHandle>;
+	resolve(id: string): Promise<ProjectFileHandle | null>;
 	remove(id: string): Promise<void>;
 	clear(): Promise<void>;
 }
@@ -116,7 +116,10 @@ function desktopRecentProjectsStore(): RecentProjectsStore {
 		remember: async (handle, name) => {
 			if (handle.kind === 'desktop-project-file') await window.desktop!.rememberRecentProject(handle.id, name);
 		},
-		resolve: async id => desktopProjectFile(await window.desktop!.resolveRecentProject(id)),
+		resolve: async id => {
+			const descriptor = await window.desktop!.resolveRecentProject(id);
+			return descriptor == null ? null : desktopProjectFile(descriptor);
+		},
 		remove: id => window.desktop!.removeRecentProject(id),
 		clear: () => window.desktop!.clearRecentProjects(),
 	};
@@ -148,7 +151,7 @@ export class RecentProjectsController {
 	remember(handle: ProjectFileHandle, name: string): Promise<void> { return this.update(async () => { await this.store?.remember(handle, name); }); }
 	remove(id: string): Promise<void> { return this.update(async () => { await this.store?.remove(id); }); }
 	clear(): Promise<void> { return this.update(async () => { await this.store?.clear(); }); }
-	resolve(id: string): Promise<ProjectFileHandle> {
+	resolve(id: string): Promise<ProjectFileHandle | null> {
 		if (this.store == null) return Promise.reject(new Error('Recent projects are unavailable.'));
 		return this.store.resolve(id);
 	}

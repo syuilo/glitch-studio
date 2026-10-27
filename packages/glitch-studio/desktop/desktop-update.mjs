@@ -3,12 +3,13 @@ import semver from 'semver';
 
 /** electron-updaterの操作・状態・終了許可を所有する。ProjectやVueには依存しない。 */
 export class DesktopUpdateController extends EventEmitter {
-	constructor({ updater, instances, currentVersion, enabled, findUpdate }) {
+	constructor({ updater, instances, currentVersion, enabled, findUpdate, getEditorWindowCount = () => 1 }) {
 		super();
 		this.updater = updater;
 		this.instances = instances;
 		this.currentVersion = currentVersion;
 		this.findUpdate = findUpdate;
+		this.getEditorWindowCount = getEditorWindowCount;
 		this.state = { revision: 0, phase: enabled ? 'idle' : 'disabled', version: null, progress: null, error: null };
 		this.checking = null;
 		this.allowQuit = false;
@@ -72,6 +73,10 @@ export class DesktopUpdateController extends EventEmitter {
 		if (this.installationAttempted) throw new Error('Restart Glitch Studio before trying to update again.');
 		if (this.busy || this.checking != null || this.state.version !== expectedVersion || expectedVersion == null || this.state.phase === 'disabled') {
 			throw new Error('The update is no longer available. Check for updates again.');
+		}
+		if (this.getEditorWindowCount() !== 1) {
+			await this.fail('other-instances', new Error('Close other Glitch Studio editor windows before updating.'));
+			return this.getState();
 		}
 		this.allowQuit = false;
 		const preparationId = ++this.preparationId;

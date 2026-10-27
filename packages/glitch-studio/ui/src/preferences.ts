@@ -11,7 +11,11 @@ import type { TimelineTickMode } from './utility/timeline-ticks.ts';
 export const PREF_DEF = definePreferences({
 	importAssetsAsExternalReferences: { default: () => false },
 	importLargeAssetsAsExternalReferences: { default: () => true },
-	projectBackups: { default: () => ({ ...DEFAULT_PROJECT_BACKUP_SETTINGS }) },
+	projectBackupAutoEnabled: { default: () => DEFAULT_PROJECT_BACKUP_SETTINGS.autoEnabled },
+	projectBackupAutoIntervalMinutes: { default: () => DEFAULT_PROJECT_BACKUP_SETTINGS.autoIntervalMinutes },
+	projectBackupAutoRetentionDays: { default: () => DEFAULT_PROJECT_BACKUP_SETTINGS.autoRetentionDays },
+	projectBackupSaveEnabled: { default: () => DEFAULT_PROJECT_BACKUP_SETTINGS.saveEnabled },
+	projectBackupSaveRetentionDays: { default: () => DEFAULT_PROJECT_BACKUP_SETTINGS.saveRetentionDays },
 	animation: { default: () => true },
 	menuStyle: { default: () => 'auto' },
 	animatedBgInPreview: { default: () => false },
@@ -339,6 +343,7 @@ export const PREF_DEF = definePreferences({
 });
 
 type PREF = typeof PREF_DEF;
+const preferenceStoragePrefix = 'preferences:';
 type DefaultValues = {
 	[K in keyof PREF]: PREF[K]['default'] extends (...args: any) => infer R ? R : PREF[K]['default'];
 };
@@ -384,45 +389,28 @@ export class PreferencesManager extends EventEmitter<PreferencesManagerEvents> {
 	constructor() {
 		super();
 
-		const savedStatesRaw = window.localStorage.getItem('preferences');
-		const savedStates = savedStatesRaw ? JSON.parse(savedStatesRaw) : {};
-
-		const states = {
-			...this.genStates(),
-			...savedStates,
-		};
-
-		// apply states
-		for (const key in states) {
-			(this.s[key as keyof PREF] as any) = states[key as keyof PREF];
-			(this.r[key as keyof PREF] as Ref<any>) = ref(this.s[key as keyof PREF]);
+		// 保存値は画面の初期化時だけ読む。他の画面での変更はこの画面へ取り込まない。
+		for (const key of Object.keys(PREF_DEF) as (keyof PREF)[]) {
+			const saved = window.localStorage.getItem(preferenceStoragePrefix + key);
+			const value = saved == null ? PREF_DEF[key].default() : JSON.parse(saved);
+			(this.s[key] as ValueOf<typeof key>) = value;
+			(this.r[key] as Ref<any>) = ref(value);
 		}
-	}
-
-	private rewriteRawState<K extends keyof PREF>(key: K, value: ValueOf<K>) {
-		const v = JSON.parse(JSON.stringify(value)); // deep copy 兼 vueのプロキシ解除
-		this.r[key].value = this.s[key] = v;
 	}
 
 	public commit<K extends keyof PREF>(key: K, value: ValueOf<K>) {
-		const v = JSON.parse(JSON.stringify(value)); // deep copy 兼 vueのプロキシ解除
+		const serializedValue = JSON.stringify(value);
+		const clonedValue = JSON.parse(serializedValue); // deep copy 兼 vueのプロキシ解除
 
-		if (deepEqual(this.s[key], v)) {
+		if (deepEqual(this.s[key], clonedValue)) {
 			return;
 		}
 
-		this.rewriteRawState(key, v);
-
-		const _save = () => {
-			this.save();
-			this.emit('committed', {
-				key,
-				value: v,
-				oldValue: this.s[key],
-			});
-		};
-
-		_save();
+		const oldValue = this.s[key];
+		// 1項目を1つの保存キーにし、別ウィンドウの未知の変更を上書きしない。
+		window.localStorage.setItem(preferenceStoragePrefix + key, serializedValue);
+		this.r[key].value = this.s[key] = clonedValue;
+		this.emit('committed', { key, value: clonedValue, oldValue });
 	}
 
 	/**
@@ -463,21 +451,6 @@ export class PreferencesManager extends EventEmitter<PreferencesManagerEvents> {
 				},
 			};
 		});
-	}
-
-	private genStates() {
-		const states = {} as { [K in keyof PREF]: ValueOf<K> };
-		for (const _key in PREF_DEF) {
-			const key = _key as keyof PREF;
-			(states[key] as any) = PREF_DEF[key].default();
-		}
-
-		return states;
-	}
-
-	public save() {
-		// TODO: Throttle
-		window.localStorage.setItem('preferences', JSON.stringify(this.s));
 	}
 
 	public getPerPrefMenu<K extends keyof PREF>(key: K): MenuItem[] {

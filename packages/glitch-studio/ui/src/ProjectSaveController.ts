@@ -3,7 +3,7 @@ import { genId } from '@gs/shared/utility/id.ts';
 import { recentProjects } from './recent-projects.ts';
 import { preferences } from './preferences.ts';
 import { projectSaveBackupWriter, ProjectSaveSession } from './project-save-session.ts';
-import { createProjectBackupFingerprint, DEFAULT_PROJECT_BACKUP_SETTINGS, ProjectBackupController } from './project-backups.ts';
+import { createProjectBackupFingerprint, ProjectBackupController } from './project-backups.ts';
 import { desktopProjectFile, encodeProjectFile, saveProjectFile } from './gsproj.ts';
 import { browserProjectBackupDirectory, desktopProjectBackupDirectory, selectProjectBackupFolder } from './project-backup-directory.ts';
 import GsProjectSaveDialog from './components/GsProjectSaveDialog.vue';
@@ -39,7 +39,15 @@ function requestBackupDirectory(handle: FileSystemFileHandle): Promise<FileSyste
 	});
 }
 
-function backupSettings() { return preferences.s.projectBackups ?? DEFAULT_PROJECT_BACKUP_SETTINGS; }
+function backupSettings() {
+	return {
+		autoEnabled: preferences.s.projectBackupAutoEnabled,
+		autoIntervalMinutes: preferences.s.projectBackupAutoIntervalMinutes,
+		autoRetentionDays: preferences.s.projectBackupAutoRetentionDays,
+		saveEnabled: preferences.s.projectBackupSaveEnabled,
+		saveRetentionDays: preferences.s.projectBackupSaveRetentionDays,
+	};
+}
 
 /** 保存先の選択・権限・保存処理とバックアップをまとめ、プレビューの実装に依存させない。 */
 export class ProjectSaveController {
@@ -83,7 +91,9 @@ export class ProjectSaveController {
 			schedule: (callback, delay) => window.setTimeout(callback, delay),
 			cancel: timer => { if (timer != null) window.clearTimeout(timer as number); },
 		});
-		watch(() => preferences.r.projectBackups?.value, () => this.projectBackupController.refreshSchedule(), { deep: true });
+		watch(() => [preferences.r.projectBackupAutoEnabled.value, preferences.r.projectBackupAutoIntervalMinutes.value,
+			preferences.r.projectBackupAutoRetentionDays.value, preferences.r.projectBackupSaveEnabled.value,
+			preferences.r.projectBackupSaveRetentionDays.value], () => this.projectBackupController.refreshSchedule());
 	}
 
 	// IDは同じプロジェクトの再読込でも変わらないため、保存要求の失効には使わない。
@@ -194,10 +204,10 @@ export class ProjectSaveController {
 					}
 				} catch (error) {
 					console.error(error);
-					// 更新用モーダルの背後の確認待ちで保存キューを止めない。
-					// 待機中の保存失敗は更新開始元へ返し、編集を続けられる状態へ戻す。
-					if (this.pausedForUpdate) { this.updatePreparationError = error; return null; }
 					return { error };
+				} finally {
+					// 予約の解放まで保存キューに含め、更新の準備が後処理を追い越さないようにする。
+					await window.desktop?.releaseProjectReservations?.().catch(console.error);
 				}
 				return null;
 			});
@@ -207,7 +217,10 @@ export class ProjectSaveController {
 		// エラーの確認待ちは保存処理ではないため、保存中の表示と終了防止を先に解除する。
 		if (saveFailure != null) {
 			const { error } = saveFailure;
-			await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+			// 更新の要求元へ失敗を返し、更新の待機表示を解除してから報告する。
+			// 後処理中に停止を要求された場合も、失敗を見落とさない。
+			if (this.pausedForUpdate) this.updatePreparationError = error;
+			else await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		}
 	}
 

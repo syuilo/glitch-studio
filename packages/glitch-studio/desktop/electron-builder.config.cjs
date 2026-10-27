@@ -6,6 +6,7 @@ const projectFileAssociation = { ext: 'gsproj', name: 'GlitchStudio.Project', de
 // エントリと実装だけを列挙する。実行時依存はelectron-builderに収集させ、開発依存は含めない。
 const applicationFiles = [
 	'main.mjs',
+	'editor-windows.mjs',
 	'startup-splash.mjs',
 	'resources/startup-splash.png',
 	'voicevox.mjs',

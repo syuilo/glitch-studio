@@ -17,7 +17,7 @@ export async function changeLocale(locale: string) {
 	const newLocale = await saveLocale(locale);
 	if (newLocale == null) return;
 
-	// 実行中の表示言語にかかわらず、再起動の案内は選択した言語で表示する。
+	// 現在の表示言語にかかわらず、適用タイミングの案内は選択した言語で表示する。
 	ui.alert({
 		title: newLocale.LocaleChangedTitle,
 		text: newLocale.LocaleChangedDescription,
