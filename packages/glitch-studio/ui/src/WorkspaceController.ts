@@ -1,7 +1,7 @@
 import { reactive, shallowReactive, watch } from 'vue';
 import type { InjectionKey, Ref } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
-import type { WorkspaceElement, WorkspaceTabs } from '@/workspace.ts';
+import type { WorkspaceElement, WorkspacePanel, WorkspaceTabs } from '@/workspace.ts';
 import type { WorkspacePanelRevealRequest } from '@/utility/workspace-panel-reveal.ts';
 import { findWorkspacePanelRevealPlan, getWorkspacePanelRevealCost, getWorkspaceSelectedTabId } from '@/utility/workspace-panel-reveal.ts';
 import { findWorkspaceElement } from '@/utility/workspace.ts';
@@ -12,6 +12,8 @@ export class WorkspaceController {
 	private readonly selectedTabIds = reactive(new Map<string, string>());
 	// HTMLElementはVueのproxyにせず、マウント・アンマウントだけを購読する。
 	readonly panelTargets = shallowReactive(new Map<string, HTMLElement>());
+	// 別ウィンドウのパネルは実行時だけ保持し、保存済みのworkspace配置には追加しない。
+	readonly windowPanels = shallowReactive(new Map<string, WorkspacePanel>());
 
 	constructor(private readonly root: Ref<WorkspaceElement>, private readonly commit: (root: WorkspaceElement) => void) {
 		// タブがアンマウントされても選択を維持し、構造変更時には旧選択と同じ位置へ戻す。
@@ -48,12 +50,12 @@ export class WorkspaceController {
 	}
 
 	findVisiblePanel(request: WorkspacePanelRevealRequest): string | null {
-		const plan = findWorkspacePanelRevealPlan(this.root.value, this.selectedTabIds, request);
+		const plan = findWorkspacePanelRevealPlan(this.root.value, this.selectedTabIds, request, [...this.windowPanels.values()].reverse());
 		return plan && getWorkspacePanelRevealCost(plan) === 0 ? plan.panelId : null;
 	}
 
 	revealPanel(request: WorkspacePanelRevealRequest): string | null {
-		const plan = findWorkspacePanelRevealPlan(this.root.value, this.selectedTabIds, request);
+		const plan = findWorkspacePanelRevealPlan(this.root.value, this.selectedTabIds, request, [...this.windowPanels.values()].reverse());
 		if (!plan) return null;
 		if (plan.expandIds.length) {
 			const root = deepClone(this.root.value);

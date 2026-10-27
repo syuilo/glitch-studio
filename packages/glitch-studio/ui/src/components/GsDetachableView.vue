@@ -16,6 +16,7 @@
 import { i18n } from '@/i18n.ts';
 import { inject, useTemplateRef, ref, shallowRef, onBeforeUnmount } from 'vue';
 import { fileDropTargetInstallerKey } from '@/utility/file-drop.ts';
+import { prepareDetachedWindow } from '@/utility/detached-window.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import * as ui from '@/ui.ts';
 
@@ -101,10 +102,7 @@ async function openView(mode: 'pip' | 'window') {
 		windowMode.value = mode;
 		pip.addEventListener('pagehide', restoreView);
 		pip.document.addEventListener('fullscreenchange', updateFullscreen);
-		pip.document.title = `Glitch Studio — ${props.title}`;
-		for (const style of window.document.querySelectorAll('style, link[rel="stylesheet"]')) {
-			pip.document.head.append(style.cloneNode(true));
-		}
+		prepareDetachedWindow(pip, props.title);
 		pip.document.body.append(view.value!);
 		disposeFileDrops = installFileDrops?.(view.value!) ?? null;
 		emit('changeWindow');

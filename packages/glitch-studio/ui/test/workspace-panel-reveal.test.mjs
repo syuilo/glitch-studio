@@ -134,3 +134,39 @@ test('reconciles selection on replacement and removes stale tab state', () => {
 		assert.equal(controller.getSelectedTabId(state.value), 'a');
 	});
 });
+
+// 【別ウィンドウの詳細パネルへ選択を届け、閉じたら元の表示先へ戻す】
+// ウィンドウのパネルは保存済みのツリーに含まれないが、開いた直後から表示先として使う。
+// 複数ある場合は最後に開いたものを使い、閉じたパネルのIDを返し続けないことも確認する。
+test('prefers the newest window panel and falls back after it closes without changing the layout', () => {
+	const root = divider('root', [source(), panel('docked')]);
+	withController(root, (controller, state, commits) => {
+		controller.windowPanels.set('first', panel('first'));
+		controller.windowPanels.set('second', panel('second'));
+		assert.equal(controller.findVisiblePanel(request), 'second');
+		assert.equal(controller.revealPanel(request), 'second');
+		controller.windowPanels.delete('second');
+		assert.equal(controller.findVisiblePanel(request), 'first');
+		controller.windowPanels.delete('first');
+		assert.equal(controller.findVisiblePanel(request), 'docked');
+		assert.deepEqual(state.value, root);
+		assert.deepEqual(commits, []);
+	});
+});
+
+// 【別ウィンドウからも非表示のworkspaceパネルを開ける】
+// 操作元が保存済みツリーの外にあっても、存在しないパネルと誤判定してはいけない。
+// 閉じたウィンドウからの古い要求は引き続き無視し、意図しないタブ変更を防ぐ。
+test('reveals workspace panels from a window source and rejects requests after it closes', () => {
+	withController(tabs('root', [panel('blank', 'blank'), panel('assets', 'assets')]), (controller, state, commits) => {
+		const windowRequest = { contentType: 'assets', sourcePanelId: 'windowTimeline' };
+		controller.windowPanels.set('windowTimeline', panel('windowTimeline', 'timeline'));
+		assert.equal(controller.findVisiblePanel(windowRequest), null);
+		assert.equal(controller.revealPanel(windowRequest), 'assets');
+		assert.equal(controller.getSelectedTabId(state.value), 'assets');
+		assert.equal(controller.findVisiblePanel(windowRequest), 'assets');
+		controller.windowPanels.delete('windowTimeline');
+		assert.equal(controller.revealPanel(windowRequest), null);
+		assert.deepEqual(commits, []);
+	});
+});

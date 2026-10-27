@@ -30,6 +30,7 @@
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
+				<button class="_button" :class="$style.headerMenuItem" data-test-header-window-menu @click="openHeaderWindowMenu">{{ i18n.ts._App.Window }}</button>
 				<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
 				<button v-if="desktopUpdateUi?.state.value.version != null" class="_button" :class="[$style.headerMenuItem, $style.updateNotification]" data-test-desktop-update-notification @click="desktopUpdateUi?.requestUpdate()">{{ i18n.ts._DesktopUpdate.Available }}</button>
 			</div>
@@ -88,6 +89,7 @@
 
 <script lang="ts" setup>
 import { provide, computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { genId } from '@gs/shared/utility/id.js';
 import { appContext, newProject, newProjectFromMediaPath, openProject } from './app.ts';
 import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
 import { preferences } from './preferences.ts';
@@ -111,6 +113,9 @@ import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
 import GsTimelineExportDialog from '@/components/GsTimelineExportDialog.vue';
 import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
 import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
+import GsWorkspacePanelWindow from '@/components/GsWorkspacePanelWindow.vue';
+import { workspacePanelChoices } from '@/workspace.ts';
+import type { WorkspacePanel } from '@/workspace.ts';
 import { i18n } from '@/i18n.ts';
 import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
@@ -430,6 +435,25 @@ function openHeaderViewMenu(ev: PointerEvent) {
 		icon: 'ti ti-zoom-out',
 		action: () => { void changeZoom('out'); },
 	}] : [], ev.currentTarget ?? ev.target);
+}
+
+function openWorkspacePanelWindow(contentType: WorkspacePanel['contentType']) {
+	// クリックのユーザー操作権限を維持するため、Vueのマウントを待たずに開く。
+	const panelWindow = window.open('', '_blank', 'popup,width=960,height=640');
+	if (panelWindow == null) {
+		void ui.alert({ type: 'error', text: i18n.ts._DetachableView.PopupBlocked });
+		return;
+	}
+	const panel: WorkspacePanel = { id: genId(), type: 'panel', direction: 'horizontal', contentType };
+	const { dispose } = ui.popup(GsWorkspacePanelWindow, { panel, panelWindow }, { closed: () => dispose() });
+}
+
+function openHeaderWindowMenu(ev: PointerEvent) {
+	ui.popupMenu(workspacePanelChoices.map(({ type, label, icon }) => ({
+		text: label,
+		icon,
+		action: () => openWorkspacePanelWindow(type),
+	})), ev.currentTarget ?? ev.target);
 }
 
 async function toggleDevTools() {

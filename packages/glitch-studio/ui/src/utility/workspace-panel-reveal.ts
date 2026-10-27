@@ -21,7 +21,7 @@ export function getWorkspacePanelRevealCost(plan: WorkspacePanelRevealPlan): num
 }
 
 /** DOMの有無によらず、未マウントのタブも含めて表示に必要な変更を調べる。 */
-export function findWorkspacePanelRevealPlan(root: WorkspaceElement, selections: ReadonlyMap<string, string>, request: WorkspacePanelRevealRequest): WorkspacePanelRevealPlan | null {
+export function findWorkspacePanelRevealPlan(root: WorkspaceElement, selections: ReadonlyMap<string, string>, request: WorkspacePanelRevealRequest, windowPanels: readonly WorkspacePanel[] = []): WorkspacePanelRevealPlan | null {
 	const panels: { panel: WorkspacePanel; tabs: Map<string, string>; expandIds: string[] }[] = [];
 
 	function visit(element: WorkspaceElement, parent: WorkspaceElement | null, tabs: Map<string, string>, expandIds: string[]) {
@@ -36,6 +36,9 @@ export function findWorkspacePanelRevealPlan(root: WorkspaceElement, selections:
 		}
 	}
 
+	// 別ウィンドウは操作元を隠さずに表示できる。新しく開いた詳細パネルにも選択を届けるため、
+	// 同じコストならworkspace内より優先し、操作元が別ウィンドウの場合も探索に含める。
+	for (const panel of windowPanels) visit(panel, null, new Map(), []);
 	visit(root, null, new Map(), []);
 	const source = panels.find(entry => entry.panel.id === request.sourcePanelId);
 	// 全体ドロップなどの要求には操作元パネルがない。指定された古いIDだけを拒否する。
