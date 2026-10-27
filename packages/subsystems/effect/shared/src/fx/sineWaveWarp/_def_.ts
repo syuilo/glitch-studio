@@ -4,12 +4,12 @@ export default defineEffect({
 	id: 'sineWaveWarp',
 	displayName: 'Sine Wave Warp',
 	description: {
-		'ja-JP': '正弦波に沿って入力画像を任意の方向に歪めます。',
-		'en-US': 'Distorts the input image along a sine wave in any direction.',
+		'ja-JP': '正弦波に沿って入力画像を任意の方向に歪め、変位に応じた色収差を加えます。',
+		'en-US': 'Warps the input image along a sine wave in any direction, with optional chromatic aberration proportional to the displacement.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
-	tags: ['distortion'],
+	tags: ['distortion', 'color'],
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },
@@ -56,6 +56,33 @@ export default defineEffect({
 			},
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0.05 },
+		},
+		chromaticAberrationStrength: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Chromatic Aberration Strength',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		chromaticAberrationSamples: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Chromatic Aberration Samples',
+				control: {
+					controlType: 'number',
+					min: 3,
+					max: 64,
+					step: 1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 16 },
 		},
 	},
 	primaryInputParameter: 'input',

@@ -23,15 +23,29 @@ export default implementEffect<typeof definition>({
 			device,
 			vertex: wgpu.defaultVertexShaderModule,
 			code,
-			schema: { input: 'color', direction: 'scalar', phase: 'scalar', frequency: 'scalar', amplitude: 'scalar' },
+			schema: {
+				input: 'color',
+				direction: 'scalar',
+				phase: 'scalar',
+				frequency: 'scalar',
+				amplitude: 'scalar',
+				chromaticAberrationStrength: 'scalar',
+			},
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [uniformBindGroupLayout],
+			// 色収差の強度による画素ごとの早期returnと、サンプリングループでLODを明示する。
+			sampling: 'level0',
 		});
 
 		return {
 			render: ctx => {
+				const chromaticAberrationSamples = ctx.params.chromaticAberrationSamples;
 				uniformValues.set({
 					aspect: [resolution.width / shortSide, resolution.height / shortSide],
+					// 両端の赤・青と中央の緑に重みを持たせるには最低3点必要。
+					// 式からの値も整数化し、描画負荷が際限なく増えないよう上限を設ける。
+					chromaticAberrationSamples: Number.isFinite(chromaticAberrationSamples)
+						? Math.min(64, Math.max(3, Math.round(chromaticAberrationSamples))) : 16,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = pipelines.update({
@@ -40,6 +54,7 @@ export default implementEffect<typeof definition>({
 					phase: ctx.params.phase,
 					frequency: ctx.params.frequency,
 					amplitude: ctx.params.amplitude,
+					chromaticAberrationStrength: ctx.params.chromaticAberrationStrength,
 				}, ctx.outputDataMap.output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
