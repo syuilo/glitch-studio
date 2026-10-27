@@ -17,13 +17,13 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let angle = read_angle(fragData.position) * 6.283185307179586;
 	// 制御用の入力は出力座標で読み、位相によって参照位置を動かさない。
 	let phase = read_phase(fragData.position);
-	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
-	let density = max(read_density(fragData.position), 1.0);
-	let size = uniforms.referenceExtent / density;
+	// Frequencyは基準領域あたりの周期数。1未満も許し、0除算を避けるため最小値を0.01とする。
+	let frequency = max(read_frequency(fragData.position), 0.01);
+	let size = uniforms.referenceExtent / frequency;
 	let centeredUv = fragData.position * 0.5 * uniforms.aspect;
 	// Checkerと同じ角度の向き・回転順序で、縞のローカルX座標を求める。
 	let rotatedX = centeredUv.x * cos(angle) - centeredUv.y * sin(angle);
-	// Density適用後に周期単位の位相を進める。正のPhaseで模様はローカルXの負方向へ移動する。
+	// Frequency適用後に周期単位の位相を進める。正のPhaseで模様はローカルXの負方向へ移動する。
 	let cycle = rotatedX / size + phase;
 	let wave = (1.0 + sin(cycle * 6.283185307179586 - 1.5707963267948966)) * 0.5;
 	// 元の正弦波のしきい値を維持するため、Widthは実際の面積比には比例しない。

@@ -31,10 +31,10 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let angle = read_angle(fragData.position) * 6.283185307179586;
 	// 制御用の入力は出力座標で読み、位相によって参照位置を動かさない。
 	let phase = read_phase(fragData.position);
-	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
-	let density = max(read_density(fragData.position), vec2f(1.0));
-	// 六角セルでは対辺間距離を基準寸法 / Densityとする。
-	let size = uniforms.referenceExtent / density;
+	// Frequencyは基準領域あたりの周期数。1未満も許し、0除算を避けるため最小値を0.01とする。
+	let frequency = max(read_frequency(fragData.position), vec2f(0.01));
+	// 直交するローカルX/Y軸の1周期。六角格子固有の縦横比は周期座標の算出後に適用する。
+	let periodSize = uniforms.referenceExtent / frequency;
 	let centeredPosition = fragData.position * 0.5 * uniforms.aspect;
 	let cosine = cos(angle);
 	let sine = sin(angle);
@@ -42,9 +42,11 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		centeredPosition.x * cosine - centeredPosition.y * sine,
 		centeredPosition.x * sine + centeredPosition.y * cosine,
 	);
+	// X/YともPhase=1で1周期となる座標を作り、格子固有の周期[1, √3]へ変換する。
+	// Yの周波数にも√3を適用することで、他のパターンと同じく周期長を基準寸法 / Frequencyに揃える。
+	let cyclePosition = rotatedPosition / periodSize + phase;
+	let gridPosition = cyclePosition * vec2f(1.0, 1.7320508075688772);
 	// 線幅は六角セルの対辺間距離に対する割合で、セル寸法と一緒に拡縮する。
-	// 格子はX方向に1、Y方向に√3で繰り返す。各成分のPhase=1を1周期へ換算する。
-	let gridPosition = rotatedPosition / size + phase * vec2f(1.0, 1.7320508075688772);
 	let edgeDistance = hexEdgeDistance(gridPosition);
 	let isLine = uniforms.lineWidth > 0.0 && edgeDistance <= uniforms.lineWidth * 0.5;
 	// セル内部はBackgroundをそのまま表示し、線の部分だけを着色する。

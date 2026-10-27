@@ -8,10 +8,11 @@ import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
-// 【パターンの位相・周期・入力場の参照位置を実際のWebGPU描画で確認する】
+// 【パターンの周波数・位相・周期・入力場の参照位置を実際のWebGPU描画で確認する】
 // 型チェックだけでは、Checkerの2マス周期やHex GridのY方向の周期の換算ミスを検出できない。
-// 定数の画素移動とノード入力の描画結果を比較し、背景や制御用入力の参照位置が動かないことも保証する。
-test('renders cycle-based pattern phases with uniform and texture inputs on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
+// 定数の画素移動とノード入力を比較し、1未満の周波数・Fit Mode・六角形の形状まで確認する。
+// 背景や制御用入力の参照位置が動かないことも保証する。
+test('renders cycle-based pattern frequencies and phases with uniform and texture inputs on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
 	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/pattern-phase-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
@@ -42,7 +43,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'Pattern Phase GPU test timed out' }), 45000);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
-		assert.equal(output.checks.length, 45);
+		assert.equal(output.checks.length, 84);
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {
 		clearTimeout(timer);

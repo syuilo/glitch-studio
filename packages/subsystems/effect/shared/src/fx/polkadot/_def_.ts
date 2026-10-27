@@ -17,13 +17,13 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		density: {
+		frequency: {
 			dataType: { kind: 'vector' },
 			ui: {
-				label: 'Density',
+				label: 'Frequency',
 				control: {
 					controlType: 'dimension',
-					min: 1,
+					min: 0.01,
 					max: 1000,
 					logarithmic: true,
 				},

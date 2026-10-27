@@ -28,9 +28,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let angle = read_angle(fragData.position) * 6.283185307179586;
 	// 制御用の入力は出力座標で読み、位相によって参照位置を動かさない。
 	let phase = read_phase(fragData.position);
-	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
-	let density = max(read_density(fragData.position), vec2f(1.0));
-	let size = uniforms.referenceExtent / density;
+	// Frequencyは基準領域あたりの周期数。1未満も許し、0除算を避けるため最小値を0.01とする。
+	let frequency = max(read_frequency(fragData.position), vec2f(0.01));
+	let size = uniforms.referenceExtent / frequency;
 	// 短辺全体が1となる中央原点の座標にし、セル寸法のX/Yで縦横の間隔を指定する。
 	let centeredPosition = fragData.position * 0.5 * uniforms.aspect;
 	let cosine = cos(angle);
@@ -43,7 +43,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	// 主線・補助線を同じ周期座標から生成し、位相を変えても互いの配置を保つ。
 	let gridPosition = rotatedPosition / size + phase;
 	// 線幅はそれぞれの格子間隔に対する割合。格子座標のまま判定し、
-	// Densityを上げると間隔と線幅が一緒に縮むようにする。
+	// Frequencyを上げると間隔と線幅が一緒に縮むようにする。
 	if (gridDistance(gridPosition) < uniforms.majorWidth * 0.5) {
 		lineColor = uniforms.majorColor;
 	} else if (uniforms.minorDivisions > 0.0) {

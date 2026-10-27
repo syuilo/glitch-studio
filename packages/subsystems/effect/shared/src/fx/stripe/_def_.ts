@@ -17,14 +17,14 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		// 元のfrequency=10は角周波数100なので、周期数は100/(2π)。
-		density: {
+		// 基準領域あたりの周期数。初期値は角周波数100に相当する。
+		frequency: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Density',
+				label: 'Frequency',
 				control: {
 					controlType: 'range',
-					min: 1,
+					min: 0.01,
 					max: 1000,
 					logarithmic: true,
 				},

@@ -16,10 +16,10 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let angle = read_angle(fragData.position) * 6.283185307179586;
 	// 制御用の入力は出力座標で読み、位相によって参照位置を動かさない。
 	let phase = read_phase(fragData.position);
-	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
-	let density = max(read_density(fragData.position), vec2f(1.0));
-	// 各軸2マスで1周期。Stretch・Density=[1, 1]・Angle=0なら1周期が画面全体を覆う。
-	let cellSize = uniforms.referenceExtent / density * 0.5;
+	// Frequencyは基準領域あたりの周期数。1未満も許し、0除算を避けるため最小値を0.01とする。
+	let frequency = max(read_frequency(fragData.position), vec2f(0.01));
+	// 各軸2マスで1周期。Stretch・Frequency=[1, 1]・Angle=0なら1周期が画面全体を覆う。
+	let cellSize = uniforms.referenceExtent / frequency * 0.5;
 	// 短辺基準で縦横の単位を揃え、長方形のマス目でも回転による歪みを防ぐ。
 	let centeredUv = fragData.position * 0.5 * uniforms.aspect;
 	let cosine = cos(angle);

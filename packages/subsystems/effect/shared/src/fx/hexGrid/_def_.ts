@@ -17,19 +17,20 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		density: {
+		frequency: {
 			dataType: { kind: 'vector' },
 			ui: {
-				label: 'Density',
+				label: 'Frequency',
 				control: {
 					controlType: 'dimension',
-					min: 1,
+					min: 0.01,
 					max: 1000,
 					logarithmic: true,
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [3, 3] },
+			// X/Yの周期を別々に数えるため、正六角形となるY周波数はXの1/√3倍。
+			defaultValue: { inputSource: 'literal', value: [3, Math.sqrt(3)] },
 		},
 		// Phaseは画面上の距離ではなく、回転後のパターンの1周期を単位にする。
 		phase: {
