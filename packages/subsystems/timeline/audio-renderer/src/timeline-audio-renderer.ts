@@ -1,7 +1,7 @@
 import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';
-import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
+import type { TimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/types.ts';
-import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
+import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
@@ -21,7 +21,7 @@ function frameAtOrAfter(timeMs: number, sampleRate: number): number {
 
 /** DOM・GPU・再生状態を持たない。書き出しも独立インスタンスで同じPCMを生成できる。 */
 export class TimelineAudioRenderer {
-	private evaluator = new ParameterBindingEvaluator();
+	private evaluator = new TimelineParameterBindingEvaluator();
 
 	constructor(private read: AudioPcmReader) {}
 
@@ -38,6 +38,7 @@ export class TimelineAudioRenderer {
 				evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({
 					time,
 					automationGraphs: gain.automationGraphs,
+					customParameters: gain.customParameters,
 					isExport,
 				})),
 			}));
@@ -74,8 +75,13 @@ export class TimelineAudioRenderer {
 		return output;
 	}
 
-	private createGain(binding: TimelineParameterBinding, getScope: (time: number) => ParameterEvaluationScope) {
+	private createGain(binding: TimelineParameterBinding, getScope: (time: number) => TimelineLayerEvaluationScope) {
 		const cache = new Map<number, number>();
+		const context = getScope(0).customParameters;
+		// 参照やPARAMの奥にあるholdキーも、通常の音量キーと同じ境界で切り替える。
+		// 名前が式で計算される場合もあるため、公開範囲のキーを保守的に調べる。
+		const hasCustomParameterKeyframes = context != null && [context.layer, ...context.ancestors].some(owner =>
+			Object.values(owner.customParameterValues ?? {}).some(value => value.inputSource === 'keyframesTimelineInline'));
 		const evaluate = (time: number) => {
 			const value = coerceParameterValue(timelineAudioParamDefs.volume, this.evaluator.evaluate(binding, getScope(time), 0, timelineAudioParamDefs.volume));
 			return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -86,7 +92,7 @@ export class TimelineAudioRenderer {
 		};
 		return (time: number) => {
 			// 固定200HzグリッドはチャンクやFPSに依存しない。holdキーはサンプル時刻で直接評価する。
-			if (binding.inputSource === 'keyframesTimelineInline') return evaluate(time);
+			if (binding.inputSource === 'keyframesTimelineInline' || hasCustomParameterKeyframes) return evaluate(time);
 			const index = Math.floor(time / 5);
 			const fraction = time / 5 - index;
 			return control(index) * (1 - fraction) + control(index + 1) * fraction;

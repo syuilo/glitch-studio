@@ -79,6 +79,7 @@ function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualMod
 	switch (event.kind) {
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput':
+		case 'timelineLayerCustomParameterReference':
 		case 'anotherLayerAudio': throw new Error('Timeline input is only available in timeline layer parameters');
 		case 'literal': manager.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
 		case 'automationGraphInline': manager.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
@@ -90,7 +91,7 @@ function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualMod
 		case 'node': manager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
 		case 'visualModuleCustomParameterReference': manager.commit('updateParamAsVisualModuleCustomParameterReference', { ...target, value: event.value }); break;
 		case 'inputSource':
-			if (event.inputSource === 'anotherLayerOutput' || event.inputSource === 'lowerLayerOutput' || event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio') throw new Error('Timeline input is only available in timeline layer parameters');
+			if (event.inputSource === 'timelineLayerCustomParameterReference' || event.inputSource === 'anotherLayerOutput' || event.inputSource === 'lowerLayerOutput' || event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio') throw new Error('Timeline input is only available in timeline layer parameters');
 			manager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource });
 			break;
 		case 'reset': manager.commit('resetNodeParam', target); break;

@@ -30,9 +30,9 @@ import GsFolder from './common/GsFolder.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineTextLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 
 const props = defineProps<{ layer: TimelineTextLayer }>();
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
-const values = computed<Record<string, ValueParameterBinding>>(() => props.layer.textParamValues);
+const values = computed<Record<string, TimelineParameterBinding>>(() => props.layer.textParamValues);
 </script>

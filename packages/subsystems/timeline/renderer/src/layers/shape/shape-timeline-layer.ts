@@ -16,7 +16,7 @@ export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Par
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const scope = { time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs };
+			const scope = { time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs };
 			const shape = parameters.evaluate(layer.shape, scope);
 			const settings = compositing.evaluate({
 				...scope,

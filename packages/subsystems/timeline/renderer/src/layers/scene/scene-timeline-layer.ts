@@ -64,6 +64,7 @@ export function createSceneTimelineLayer(
 					mask: layer.mask,
 					layerMask: layer.layerMask,
 					paramValues: layer.compositingParamValues,
+					customParameters: context.customParameters,
 					automationGraphs: layer.automationGraphs,
 				});
 				const source: TimelineImage = { kind: 'texture', texture: sceneOutput.render(encoder, result.output) };

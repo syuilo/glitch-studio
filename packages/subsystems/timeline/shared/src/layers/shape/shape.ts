@@ -1,5 +1,6 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
 // 配置と見た目は形状の種類から独立させる。Scene・クリップ・レイヤーの情報は持たず、
@@ -142,9 +143,9 @@ export const shapeDefinitions = {
 } as const satisfies Record<string, { label: string; paramDefs: Record<string, ParameterDefinition> }>;
 
 export type ShapeType = keyof typeof shapeDefinitions;
-export type Shape = { [T in ShapeType]: {
+export type Shape<Binding extends ParameterBindingBase = ValueParameterBinding> = { [T in ShapeType]: {
 	type: T;
-	paramValues: Record<keyof typeof shapeDefinitions[T]['paramDefs'], ValueParameterBinding>;
+	paramValues: Record<keyof typeof shapeDefinitions[T]['paramDefs'], Binding>;
 } }[ShapeType];
 
 export function getShapeParameterDefinitions(type: ShapeType): Record<string, ParameterDefinition> {

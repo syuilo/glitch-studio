@@ -695,6 +695,7 @@
 		"UnassignedInputs": "外部入力が未割り当てです: {names}。カメラ入力はPlayerメニューから選択できます。マイクとライブストリームの入力にはまだ対応していません。"
 	},
 	"_Parameter": {
+		"UnavailableCustomParameter": "参照先が存在しないか、参照範囲外または型が一致しません",
 		"NormalizedTime": "正規化 (0〜1)",
 		"Milliseconds": "ミリ秒",
 		"DirectEdit": "値を直接編集",
@@ -736,6 +737,7 @@
 		"MissingLayer": "レイヤーが見つかりません ({id})"
 	},
 	"_ParameterEditor": {
+		"Definition": "定義",
 		"UiLabel": "UIのラベル",
 		"ReferenceName": "参照名",
 		"VideoAsset": "動画アセット",

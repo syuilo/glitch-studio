@@ -1,3 +1,4 @@
+import { getTimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
 import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/transform/transform-timeline-layer.ts';
 import { TimelineTransformParameters } from '@gs/subsystems_timeline_shared/layers/transform/transform-parameters.ts';
 import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -474,6 +475,7 @@ export class TimelineRendererManager extends EventEmitter<{
 						transformTarget: getTimelineLayerTransformTarget(layer),
 						paramValues: layer.compositingParamValues,
 						automationGraphs: layer.automationGraphs,
+						customParameters: getTimelineLayerCustomParameterContext(this.getSceneLayers(), layer.id),
 					});
 					preview.geometry.transform = {
 						position,
@@ -536,11 +538,12 @@ export class TimelineRendererManager extends EventEmitter<{
 				transformTarget: getTimelineLayerTransformTarget(entry),
 				paramValues: entry.compositingParamValues,
 				automationGraphs: entry.automationGraphs,
+				customParameters: getTimelineLayerCustomParameterContext(this.getSceneLayers(), entry.id),
 			});
 			const settings = evaluate(layer);
 			const camera = new TimelineSceneCamera().evaluate(this.evaluationScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false, sceneSize);
 			const parent = getTimelinePreviewParent(location.ancestors.map(parent => parent.layerType === 'transform'
-				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false) }
+				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false, getTimelineLayerCustomParameterContext(this.getSceneLayers(), parent.id)) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
 			{
 				parent: TIMELINE_IDENTITY,
@@ -610,6 +613,16 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private createTimelineLayer(layer: TimelineLayer, clipId: string | null, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<TimelineImage> {
+		const renderer = this.createTimelineLayerRenderer(layer, clipId, layerPath, sceneBaseResolution, sceneId);
+		const customParameters = () => getTimelineLayerCustomParameterContext(getTimelineScene(this.evaluationScenes, sceneId).layers, layer.id);
+		return {
+			...renderer,
+			evaluate: (context, signal) => renderer.evaluate({ ...context, customParameters: customParameters() }, signal),
+			createChildren: renderer.createChildren == null ? undefined : (context, options) => renderer.createChildren!({ ...context, customParameters: customParameters() }, options),
+		};
+	}
+
+	private createTimelineLayerRenderer(layer: TimelineLayer, clipId: string | null, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<TimelineImage> {
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
 		if (layer.layerType === 'transform') {
 			return createTransformTimelineLayer(() => {
@@ -838,6 +851,7 @@ export class TimelineRendererManager extends EventEmitter<{
 							transformTarget: getLayer().transformTarget,
 							paramValues: getLayer().compositingParamValues,
 							automationGraphs: getLayer().automationGraphs,
+							customParameters: layerContext.customParameters,
 						});
 						result = compositor.evaluate(layerContext, output, settings);
 					}

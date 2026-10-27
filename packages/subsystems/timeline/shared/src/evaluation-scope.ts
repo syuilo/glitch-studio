@@ -1,11 +1,14 @@
 import type { LAYER_VAR_DEFS } from './expression.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
+import type { TimelineLayerCustomParameterContext } from './custom-parameters.ts';
 
-type TimelineEvaluationContext = Pick<ParameterEvaluationScope, 'time' | 'automationGraphs'> & { isExport: boolean };
+export type TimelineEvaluationContext = Pick<ParameterEvaluationScope, 'time' | 'automationGraphs'> & { isExport: boolean; customParameters?: TimelineLayerCustomParameterContext | null };
+export type TimelineLayerEvaluationScope = ParameterEvaluationScope & { customParameters?: TimelineLayerCustomParameterContext | null };
 
 /** 映像・音声ともに所属Sceneの時刻で評価する。クリップの時刻や終端は継承しない。 */
-export function createTimelineLayerEvaluationScope(context: TimelineEvaluationContext): ParameterEvaluationScope {
+export function createTimelineLayerEvaluationScope(context: TimelineEvaluationContext): TimelineLayerEvaluationScope {
 	return {
+		customParameters: context.customParameters,
 		time: context.time,
 		// レイヤーには終端がない。Automation Graphも開始基準だけを利用する。
 		endTime: Infinity,

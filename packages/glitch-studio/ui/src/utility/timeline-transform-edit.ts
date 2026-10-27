@@ -31,7 +31,7 @@ export function updateTimelineTransformBindings(prepared: TimelineTransformBindi
 	for (const key of Object.keys(prepared) as TimelineTransformKey[]) {
 		const binding = prepared[key]!;
 		let value = transform[key];
-		if (displayedStart != null && binding.expressionModifier?.enabled === true) {
+		if (displayedStart != null && ('expressionModifier' in binding ? binding.expressionModifier?.enabled : false) === true) {
 			// 任意の加工式を逆算せず、表示上の操作量だけを基準値へ反映する。
 			// 加工後の絶対値をキーへ保存すると、同じ加工が次の描画で二重に適用されてしまう。
 			const base = binding.inputSource === 'keyframesTimelineInline'

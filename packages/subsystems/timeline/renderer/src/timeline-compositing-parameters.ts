@@ -1,8 +1,9 @@
+import type { TimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
 import { colorBlendModes, isBlendMode } from '@gs/shared/color-blend.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { timelineCompositingParamDefs, type TimelineLayerCoordinateSpace, type TimelineLayerTransformTarget, type TimelineMask, type TimelineLayerMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
+import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { FitMode } from '@gs/shared/types.ts';
@@ -25,9 +26,9 @@ export type TimelineCompositingSettings = {
 };
 
 export class TimelineCompositingParameters {
-	private evaluator = new ParameterBindingEvaluator();
+	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(context: { time: number; isExport: boolean; coordinateSpace: TimelineLayerCoordinateSpace; mask: TimelineMask | null; layerMask: TimelineLayerMask | null; transformTarget?: TimelineLayerTransformTarget; paramValues: Record<string, TimelineParameterBinding>; automationGraphs: AutomationGraph[] }): TimelineCompositingSettings {
+	evaluate(context: { time: number; isExport: boolean; coordinateSpace: TimelineLayerCoordinateSpace; mask: TimelineMask | null; layerMask: TimelineLayerMask | null; transformTarget?: TimelineLayerTransformTarget; paramValues: Record<string, TimelineParameterBinding>; automationGraphs: AutomationGraph[]; customParameters?: TimelineLayerCustomParameterContext | null }): TimelineCompositingSettings {
 		const evaluationContext = createTimelineLayerEvaluationScope(context);
 		const values = new Map<string, any>();
 		for (const [key, def] of Object.entries(timelineCompositingParamDefs)) {

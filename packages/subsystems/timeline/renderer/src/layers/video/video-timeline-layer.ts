@@ -1,8 +1,8 @@
-import type { FileSource } from '@gs/shared/file-source.ts';
 import { openVideoSource } from '@gs/shared/media/video-source.ts';
 import { createVideoTexture } from '@gs/shared/media/video-texture.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
+import type { FileSource } from '@gs/shared/file-source.ts';
 import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import type { TimelineVideoLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
@@ -81,6 +81,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 					mask: layer.mask,
 					layerMask: layer.layerMask,
 					paramValues: layer.compositingParamValues,
+					customParameters: context.customParameters,
 					automationGraphs: layer.automationGraphs,
 				});
 				return compositor.evaluate(context, cachedFrame.foreground, settings);

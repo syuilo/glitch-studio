@@ -1,3 +1,5 @@
+import { getTimelineLayerCustomParameterContext } from './custom-parameters.ts';
+import type { TimelineLayerCustomParameterContext } from './custom-parameters.ts';
 import { findTimelineLayerLocation } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
@@ -9,6 +11,7 @@ import type { TimelineParameterBinding, TimelineLayer, TimelineScene } from './t
 import type { TimelineMediaSourceTiming } from './media-timing.ts';
 
 export type SceneAudioGain = {
+	customParameters?: TimelineLayerCustomParameterContext | null;
 	/** 最上位Scene上で、音量を所有するSceneの時刻0が置かれる位置。 */
 	sceneStartMs: number;
 	volume: TimelineParameterBinding;
@@ -55,14 +58,21 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 		}
 	}
 	const placements: SceneAudioPlacement[] = [];
-	const visit = (layers: readonly TimelineLayer[], sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[]) => {
+	const visit = (layers: readonly TimelineLayer[], sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[], sceneLayers: TimelineLayer[]) => {
 		for (const layer of layers) {
 			if (layer.isDisabled) continue;
-			if (layer.layerType === 'transform') { visit(layer.layers, sceneStartMs, start, end, gains); continue; }
+			if (layer.layerType === 'transform') { visit(layer.layers, sceneStartMs, start, end, gains, sceneLayers); continue; }
 			if (!isTimelineAudioOutputLayer(layer)) continue;
-			const layerGains = [...gains, { sceneStartMs, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }];
+			const parameterContext = getTimelineLayerCustomParameterContext(sceneLayers, layer.id)!;
+			const hasCustomParameters = [parameterContext.layer, ...parameterContext.ancestors].some(owner => (owner.customParameterDefs?.length ?? 0) > 0);
+			const layerGains = [...gains, {
+				sceneStartMs,
+				volume: layer.audioParamValues.volume,
+				automationGraphs: layer.automationGraphs,
+				...hasCustomParameters ? { customParameters: parameterContext } : {},
+			}];
 			if (layer.layerType === 'group') {
-				visit(layer.layers, sceneStartMs, start, end, layerGains);
+				visit(layer.layers, sceneStartMs, start, end, layerGains, sceneLayers);
 				continue;
 			}
 			if (layer.layerType === 'voicevox') {
@@ -90,7 +100,7 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 				if ('sceneId' in clip) {
 					const sourceStartMs = sceneStartMs + clip.startMs - clip.contentOffsetMs;
 					const childScene = getTimelineScene(scenes, clip.sceneId);
-					visit(childScene.layers, sourceStartMs, startMs, Math.min(endMs, sourceStartMs + getSceneDuration(childScene)), layerGains);
+					visit(childScene.layers, sourceStartMs, startMs, Math.min(endMs, sourceStartMs + getSceneDuration(childScene)), layerGains, childScene.layers);
 				} else if (!('sourceTimeMs' in clip) && (!('audioEnabled' in clip) || clip.audioEnabled)) {
 					const sourceTiming = {
 						startMs: sceneStartMs + clip.startMs,
@@ -111,7 +121,7 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 			}
 		}
 	};
-	visit(rootLayers, 0, 0, getSceneDuration(rootScene), []);
+	visit(rootLayers, 0, 0, getSceneDuration(rootScene), [], rootScene.layers);
 	return placements;
 }
 

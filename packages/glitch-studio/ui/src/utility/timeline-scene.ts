@@ -28,19 +28,19 @@ export function getScene(state: ProjectState, sceneId: string) {
 /** キーフレームの表示と選択で、存在しないパラメータ群を参照しないよう一覧を共有する。 */
 export function getLayerParameterTargets(layer: TimelineLayer): readonly TimelineParameterTarget[] {
 	switch (layer.layerType) {
-		case 'audio': return ['audio'];
-		case 'camera': return ['camera'];
-		case 'transform': return ['transform'];
-		case 'image': return ['compositing'];
+		case 'audio': return ['customParameter', 'audio'];
+		case 'camera': return ['customParameter', 'camera'];
+		case 'transform': return ['customParameter', 'transform'];
+		case 'image': return ['customParameter', 'compositing'];
 		case 'group':
 		case 'video':
-		case 'scene': return ['compositing', 'audio'];
+		case 'scene': return ['customParameter', 'compositing', 'audio'];
 		case 'visualModule':
-		case 'inlineVisualModule': return ['compositing', 'module'];
-		case 'effect': return ['compositing', 'effect'];
-		case 'voicevox': return ['compositing', 'voicevoxSubtitle', 'audio'];
-		case 'text': return ['compositing', 'text'];
-		case 'shape': return ['compositing', 'shape'];
+		case 'inlineVisualModule': return ['customParameter', 'compositing', 'module'];
+		case 'effect': return ['customParameter', 'compositing', 'effect'];
+		case 'voicevox': return ['customParameter', 'compositing', 'voicevoxSubtitle', 'audio'];
+		case 'text': return ['customParameter', 'compositing', 'text'];
+		case 'shape': return ['customParameter', 'compositing', 'shape'];
 	}
 }
 
@@ -48,9 +48,10 @@ export function getLayerParameterTargets(layer: TimelineLayer): readonly Timelin
 // 動的なtargetで取得する一覧は読み取り専用にし、音量や合成設定へのlowerLayerOutputの書き込みを防ぐ。
 export function getLayerParameterValues(layer: TimelineLayer, target: 'module'): Record<string, TimelineVisualModuleParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: 'effect'): Record<string, TimelineEffectParameterBinding>;
-export function getLayerParameterValues(layer: TimelineLayer, target: 'compositing' | 'audio' | 'camera' | 'transform' | 'shape' | 'text' | 'voicevoxSubtitle'): Record<string, TimelineParameterBinding>;
+export function getLayerParameterValues(layer: TimelineLayer, target: 'customParameter' | 'compositing' | 'audio' | 'camera' | 'transform' | 'shape' | 'text' | 'voicevoxSubtitle'): Record<string, TimelineParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, EditableTimelineParameterBinding>>;
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, EditableTimelineParameterBinding>> {
+	if (target === 'customParameter') return layer.customParameterValues ?? {};
 	if (target === 'compositing' && 'compositingParamValues' in layer) return layer.compositingParamValues;
 	if (target === 'audio' && (layer.layerType === 'group' || layer.layerType === 'voicevox' || layer.layerType === 'scene' || layer.layerType === 'video' || layer.layerType === 'audio')) return layer.audioParamValues;
 	if (target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')) return layer.visualModuleParamValues;
@@ -66,6 +67,7 @@ export function getLayerParameterValues(layer: TimelineLayer, target: TimelinePa
 /** キーの値編集・挿入は、保存した型の古い選択肢ではなく現在の定義を使う。 */
 export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterDefinition> {
 	if (!getLayerParameterTargets(layer).includes(target)) throw new Error('Invalid layer parameter target');
+	if (target === 'customParameter') return Object.fromEntries((layer.customParameterDefs ?? []).map(def => [def.id, def]));
 	if (target === 'audio') return timelineAudioParamDefs;
 	if (target === 'transform') return timelineTransformParamDefs;
 	if (target === 'camera') return timelineCameraParamDefs;
@@ -103,6 +105,7 @@ export function getLayerParameterDefinition(state: Pick<ProjectState, 'visualMod
 
 export function getLayerKeyframeParameters(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer) {
 	const targetLabels: Record<TimelineParameterTarget, string> = {
+		customParameter: 'Custom Parameters',
 		module: 'Module',
 		effect: 'Effect',
 		shape: 'Shape',

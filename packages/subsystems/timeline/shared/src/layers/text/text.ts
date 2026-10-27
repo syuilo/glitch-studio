@@ -1,5 +1,6 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
 // Textレイヤー固有の定義。Textエフェクトとは独立して変更できるようにする。
@@ -106,7 +107,7 @@ export const textParamDefs = {
 	},
 } satisfies Record<string, ParameterDefinition>;
 
-export type TextParameterValues = Record<keyof typeof textParamDefs, ValueParameterBinding>;
+export type TextParameterValues<Binding extends ParameterBindingBase = ValueParameterBinding> = Record<keyof typeof textParamDefs, Binding>;
 
 export function createTextParameterValues(): TextParameterValues {
 	return Object.fromEntries(Object.entries(textParamDefs).map(([key, def]) => [key, deepClone(def.defaultValue)])) as TextParameterValues;

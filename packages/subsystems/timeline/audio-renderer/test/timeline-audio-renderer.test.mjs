@@ -32,6 +32,45 @@ test('uses scene time for video volume without shifting audio timestamps', async
 });
 const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(0.5)];
 
+// 【祖先のカスタムパラメータを音量へ接続し、参照の奥のholdキーもサンプル境界で切り替える】
+// 200Hzの制御値補間へ丸めると、短いキーの切り替えが映像とずれ、チャンクによって音が変わってしまう。
+test('evaluates ancestor custom gain keyframes without smoothing hold boundaries', async () => {
+	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 1 } };
+	const sound = layer({ clips: [{ id: 'clip', startMs: 0, durationMs: 10, sourceInMs: 0, sourceOutMs: 10, playbackRate: 1, loop: false, assetId: 'asset' }],
+		customParameterDefs: [{ ...definition, id: 'forward' }],
+		customParameterValues: { forward: { inputSource: 'timelineLayerCustomParameterReference', layerId: 'transform', parameterId: 'gain' } },
+		audioParamValues: { volume: { inputSource: 'expression', expression: 'PARAM("gain")' } },
+	});
+	const transform = { id: 'transform', name: 'Transform', layerType: 'transform', isDisabled: false, layers: [sound], automationGraphs: [],
+		customParameterDefs: [definition], customParameterValues: { gain: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
+			keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
+				{ id: 'first', x: 0, value: 0.25, interpolation: { type: 'hold' } },
+				{ id: 'second', x: 3, value: 0.75, interpolation: { type: 'hold' } },
+			] } } },
+	};
+	const renderer = new TimelineAudioRenderer(constant);
+	const complete = await renderSceneAudio(renderer, [transform], 0, 10, 1000);
+	assert.deepEqual([...complete[0]], [0.25, 0.25, 0.25, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75]);
+	const partial = await renderSceneAudio(renderer, [transform], 2, 4, 1000, true);
+	assert.deepEqual([...partial[0]], [...complete[0].slice(2, 6)]);
+});
+
+// 【参照先Sceneは親Sceneのカスタムパラメータを暗黙に継承せず、所属Sceneの時計で評価する】
+// 同じSceneの複数配置が呼び出し側の値を共有してしまわないよう、音声計画にも境界を保持する。
+test('keeps custom gain scope inside its owning scene across repeated placements', async () => {
+	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 1 } };
+	const sound = layer({ clips: [{ id: 'clip', startMs: 0, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false, assetId: 'asset' }], customParameterDefs: [definition], customParameterValues: { gain: { inputSource: 'expression', expression: 'TIME_MS / 100' } }, audioParamValues: { volume: { inputSource: 'expression', expression: 'PARAM("gain")' } } });
+	const placement = startMs => ({ id: `placement-${startMs}`, name: 'Placement', layerType: 'scene', isDisabled: false, automationGraphs: [], customParameterDefs: [definition], customParameterValues: { gain: { inputSource: 'literal', value: 99 } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, clips: [{ id: 'clip', startMs, durationMs: 100, contentOffsetMs: 0, sceneId: 'child' }] });
+	const scenes = [{ id: 'root', layers: [placement(0), placement(100)] }, { id: 'child', layers: [sound] }];
+	const renderer = new TimelineAudioRenderer(constant);
+	const clips = getSceneAudioClips(scenes, 'root');
+	const output = await renderer.renderClips(clips, 50, 1, 1000);
+	const repeated = await renderer.renderClips(clips, 150, 1, 1000, true);
+	assert.equal(output[0][0], 0.5);
+	assert.equal(repeated[0][0], 0.5);
+	assert.equal(clips[0].gains.at(-1).customParameters.ancestors.length, 0);
+});
+
 // 【小数オフセットの演算誤差でループ境界を1サンプル遅らせない】
 // 1000/3msをトリムした子Sceneでは、境界のサンプル位置が32000の直後へ丸まり得る。
 // そこを単純に切り上げると前の周の範囲外を読むため、整数境界の誤差だけを吸収する。

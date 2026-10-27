@@ -29,11 +29,11 @@ import GsFolder from './common/GsFolder.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineShapeLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{ layer: TimelineShapeLayer }>();
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 const definitions = computed(() => getShapeParameterDefinitions(props.layer.shape.type));
-const values = computed<Record<string, ValueParameterBinding>>(() => props.layer.shape.paramValues);
+const values = computed<Record<string, TimelineParameterBinding>>(() => props.layer.shape.paramValues);
 </script>

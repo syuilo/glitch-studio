@@ -11,9 +11,10 @@ import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.js'
 import type { VoicevoxSubtitleParameterValues } from './layers/voicevox/voicevox-subtitle.ts';
 import type { TextParameterValues } from './layers/text/text.ts';
 import type { Shape } from './layers/shape/shape.ts';
+import type { TimelineLayerCustomParameterDefinition } from './custom-parameters.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from './layers/voicevox/voicevox.ts';
 
-export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'transform' | 'compositing' | 'audio';
+export type TimelineParameterTarget = 'customParameter' | 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'transform' | 'compositing' | 'audio';
 
 // definitionはレイヤー全体の追加・削除・置換。部分編集では変更した内容を列挙し、
 // 実行インスタンスの扱いは利用側へ委ねる。
@@ -27,6 +28,8 @@ type TimelineLayerCommon = {
 	/** UI上の識別用RGBA（各成分0〜1）。nullはレイヤー種別のデフォルト色を使う。 */
 	color: [number, number, number, number] | null;
 	automationGraphs: AutomationGraph[];
+	customParameterDefs?: TimelineLayerCustomParameterDefinition[];
+	customParameterValues?: Record<string, TimelineParameterBinding>;
 	/** 無効時は映像・音声とも評価せず、クリップの配置やSceneの長さは維持する。 */
 	isDisabled: boolean;
 };
@@ -76,13 +79,13 @@ export type TimelineEffectLayer = TimelineLayerBase<TimelineContentClip> & Timel
 /** シェイプはレイヤー所有。クリップは表示区間だけを持ち、形状のキーはScene時刻で評価する。 */
 export type TimelineShapeLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'shape';
-	shape: Shape;
+	shape: Shape<TimelineParameterBinding>;
 };
 
 /** 本文と装飾はレイヤー所有。クリップは表示区間だけを持つ。 */
 export type TimelineTextLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'text';
-	textParamValues: TextParameterValues;
+	textParamValues: TextParameterValues<TimelineParameterBinding>;
 };
 
 export type TimelineAudioLayer = TimelineLayerBase<TimelineMediaClip> & TimelineAudioLayerBase & {
@@ -101,7 +104,7 @@ export type TimelineVoicevoxLayer = TimelineLayerBase<TimelineContentClip> & Tim
 	layerType: 'voicevox';
 	voicevox: VoicevoxSettings;
 	utterances: VoicevoxUtterance[];
-	subtitleParamValues: VoicevoxSubtitleParameterValues;
+	subtitleParamValues: VoicevoxSubtitleParameterValues<TimelineParameterBinding>;
 };
 
 /** 静止画像は素材長を持たず、内容時刻は描画に影響しない。 */

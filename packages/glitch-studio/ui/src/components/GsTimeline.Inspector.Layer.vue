@@ -18,6 +18,7 @@
 				<template #label>{{ i18n.ts._TimelineLayer.GroupCompositing }}</template>
 			</GsSelect>
 		</div>
+		<GsTimelineCustomParameters :key="layer.id" :scene="scene" :layer="layer" @edit="event => onTimelineLayerParamEdit(event, 'customParameter')"/>
 		<GsTimelineEffectSettings
 			v-if="layer.layerType === 'effect'"
 			:key="layer.id"
@@ -212,7 +213,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, onBeforeUnmount } from 'vue';
+import { computed, ref, onBeforeUnmount, provide } from 'vue';
 import { isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineLayerMaskSources } from '@gs/subsystems_timeline_shared/layer-output.ts';
@@ -228,6 +229,9 @@ import GsInput from './common/GsInput.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsVisualParam from './GsVisualParam.vue';
+import GsTimelineCustomParameters from './GsTimeline.CustomParameters.vue';
+import { getTimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
 import GsTimelineVoicevoxSettings from './GsTimeline.VoicevoxSettings.vue';
@@ -250,6 +254,7 @@ import { getLayerParameterValues, resolveLayerParameter } from '@/utility/timeli
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
 
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
+provide(timelineParameterEditorContextKey, { context: computed(() => getTimelineLayerCustomParameterContext(props.scene.layers, props.layer.id)), isCustomParameterValue: false });
 const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection]; expandRequested: [layerId: string]; requestAddInlineEffectNode: [layerId: string]; revealAssets: [] }>();
 const { previewPlayback, timelineRendererManagerController } = appContext;
 const groupModes = [{ value: 'flat' as const, label: i18n.ts._TimelineLayer.SinglePlane }, { value: 'preserveDepth' as const, label: i18n.ts._TimelineLayer.PreserveDepth }];

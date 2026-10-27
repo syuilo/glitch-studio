@@ -12,6 +12,8 @@
 
 Scene・レイヤー・クリップと、その時間・合成・音声設定の契約を定義する。キーフレームの補間や式エンジンは共通基盤を利用し、Scene時刻で評価することや許可するBindingなどの規約をこのドメインで決める。
 
+`custom-parameters.ts`は全レイヤー共通のカスタムパラメータの定義・ID・評価情報・祖先参照を所有する。`customParameterDefs`と`customParameterValues`を分け、数値・真理値・文字列・色・ベクトル・enum・Color Rampを扱う。`parameter-binding-evaluator.ts`が`timelineLayerCustomParameterReference`と`PARAM`を解決して共通の値評価器へ渡す。`PARAM`は通常のパラメータでは自身だけ、カスタムパラメータの値では直上の親だけを参照する。直接参照は自身と祖先を選べるが、カスタムパラメータの値では自身を除外する。Scene参照を跨がず、参照先は所有レイヤーのグラフと所属Scene時刻で評価する。
+
 `timeline-compositing.ts`は画像を持つレイヤーの静的な`TimelineMask`（Alpha／輝度・反転）を定義する。nullでは通常描画、設定時は同じ合成境界の下層を切り抜く。opacityのBindingはマスク強度として再利用し、表示名だけをInspector・キーフレームで切り替える。素材の種類・時計・音声の契約は変更しない。
 
 `TimelineLayerMask`は対象自身を別レイヤーの単独描画で切り抜く静的な参照。`layerMask`に参照ID・Alpha／輝度・反転を保持する。`layer-output.ts`が、Transformを透過する同じ合成境界の候補・参照検証・素材とマスクを区別した依存グラフを所有する。Groupは両モードとも境界を作る。参照切れのIDは保持し、存在する自己参照・非映像・境界越えと循環を拒否する。`isIncludedInComposite`は映像の通常合成だけを切り替え、参照画像や音声へ影響しない。複製時のID付け替えはUIが担当する。
@@ -26,23 +28,23 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 音声計画の`sourceTiming`は`TimelineMediaSourceTiming`として最上位Scene上の再生原点・素材範囲・倍率・ループを持つ。親Sceneのトリムは表示区間だけに適用し、時計の原点を変更しない。生成音声も準備後に同じ契約へ変換する。全周期の配置は展開しない。`getTimelineMotionBlurLoops()`は映像クリップの倍率を反映した周期を収集し、各フレームではループの前後の境界だけで露光区間を狭める。
 
-`TimelineTextLayer`は本文・フォントAsset参照・サイズ・最大幅とoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有し、既存のTextエフェクトとは定義・描画処理を共有しない。サイズはScene高さ比、最大幅はScene幅比、輪郭・影・行間は文字サイズ比。入力は共通の値Bindingだけを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
+`TimelineTextLayer`は本文・フォントAsset参照・サイズ・最大幅とoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有し、既存のTextエフェクトとは定義・描画処理を共有しない。サイズはScene高さ比、最大幅はScene幅比、輪郭・影・行間は文字サイズ比。入力はTimelineの値Bindingを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
 
 `TimelineShapeLayer`は一つの形状を所有し、クリップは時間情報だけを持つ。初期対応は楕円と角丸を含む長方形で、作成後に種類は変更しない。`layers/shape/shape.ts`が形状の種類別パラメータ定義と保存用・評価済みの型を所有し、Sceneやレイヤーの情報には依存しない。将来の多角形・シンボル・パスも同じレイヤー種別へ追加する。
 
 シェイプの位置・寸法・回転・塗り・輪郭は合成設定から独立したBindingで、式・automation・キーを所属Scene時刻で評価する。寸法は輪郭を付ける前の全幅・全高。寸法・輪郭幅・角丸半径は縦横ともScene高さを1とし、位置は画面中央が[0, 0]、画面端が±1。回転の1は形状中心を支点とした時計回り360度（1周）。輪郭は内側・中央（既定）・外側から選び、寸法を変えても輪郭幅は保つ。非正の寸法は透明、非正の輪郭幅は輪郭なし、角丸半径は0から短辺の半分までに制限する。塗り・輪郭は個別に有効化できるRGBA色で、輪郭を塗りの上へ合成する。
 
-シェイプの初期値は中央、寸法[0.5, 0.5]、白い塗り、輪郭無効（色は黒、幅0.01）。`layers/shape/shape-layer.ts`は共通の値Bindingだけを受け入れ、ノード・下層画像・音声入力を拒否する。複数形状・グラデーション・任意パス・プレビュー上の直接編集は未対応。
+シェイプの初期値は中央、寸法[0.5, 0.5]、白い塗り、輪郭無効（色は黒、幅0.01）。`layers/shape/shape-layer.ts`はTimelineの値Bindingを受け入れ、ノード・下層画像・音声入力を拒否する。複数形状・グラデーション・任意パス・プレビュー上の直接編集は未対応。
 
 `strokeProgress`は輪郭の描画割合で、0は輪郭なし、0.5は半周、1（既定値）は閉じた輪郭。`strokeStart`は描き始める位置で、0（既定値）と1が上中央、0.25が右中央、0.5が下中央、0.75が左中央。どちらも輪郭を付ける前の形状の周長を基準に時計回りに数え、評価値は0〜1へ制限する。起点を越える区間も連続して描き、部分描画の両端は輪郭の接線に垂直に切る。塗り・輪郭幅・輪郭配置は変えない。両パラメータとも通常の式・automation・キーを使う。
 
 `expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Visual Module内部の変数・カスタムパラメータ・グラフ一覧は継承しない。
 
-`parameter-binding.ts`は共通方式だけの`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`lowerLayerOutput` / `anotherLayerOutput`を加えた`TimelineVisualModuleParameterBinding`、画像入力にサンプリングを組み合わせた`TimelineEffectParameterBinding`を定義する。合成設定・音量は共通方式だけを使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
+`parameter-binding.ts`は共通方式とカスタムパラメータ直接参照を扱う`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`lowerLayerOutput` / `anotherLayerOutput`を加えた`TimelineVisualModuleParameterBinding`、画像入力にサンプリングを組み合わせた`TimelineEffectParameterBinding`を定義する。合成設定・音量にも同じカスタムパラメータ参照を使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
 
 `timeline-audio.ts`の`resolveTimelineAnotherLayerAudioReference()`は、所属Scene内のグループを含む探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
 
-`parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、CPU値の評価にはsharedの`ParameterBindingEvaluator`を直接使う。`lowerLayerOutput`はTimeline Renderer内のエフェクト・Visual Moduleレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
+`parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、CPU値の評価にはTimelineの`TimelineParameterBindingEvaluator`を使う。`lowerLayerOutput`はTimeline Renderer内のエフェクト・Visual Moduleレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
 
 UIの静的検証で使う`inspectTimelineLayer()`は、`validateTimelineLayerStructure()`でレイヤー自身の区間・解像度・固有設定を検証し、パラメータは`validateTimelineParameterTree()`で一度だけ走査する。コンテナの構造・末端の入力方式の検証と、呼び出し側による参照収集を同じ走査で行う。子レイヤーの検証は含めず、それぞれを独立した検証単位として扱う。
 

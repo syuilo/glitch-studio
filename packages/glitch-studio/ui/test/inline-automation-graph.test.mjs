@@ -235,7 +235,7 @@ test('round-trips image assets and independently undoes timing, compositing and 
 	const { state, layer, target, add, current } = imageFixture();
 	assert.equal(layer.clips[0].durationMs, 5000);
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
-	assert.deepEqual(getLayerParameterTargets(layer), ['compositing']);
+	assert.deepEqual(getLayerParameterTargets(layer), ['customParameter', 'compositing']);
 	const timing = COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'end', deltaMs: 55000 });
 	const opacity = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
 	const source = COMMAND_DEFS.changeTimelineClipSource.create({ ...target, assetId: 'second' });

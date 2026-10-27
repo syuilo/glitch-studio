@@ -1,3 +1,6 @@
+import { getTimelineLayerCustomParameterContext, resolveTimelineLayerCustomParameterReference, areTimelineCustomParameterTypesCompatible, validateTimelineLayerCustomParameterDefinitions } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import type { TimelineLayerCustomParameterDefinition, TimelineLayerCustomParameterId } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import type { TimelineLayerCustomParameterReferenceBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { EditableTimelineParameterBinding } from './types/parameter-edit.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import type { TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -102,7 +105,12 @@ type NodeParamTarget = EffectNodeParamTarget & VisualModuleTarget;
 
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelineParameterTarget, rootKey: string, binding: EditableTimelineParameterBinding | null | undefined) {
-	if (target === 'effect') {
+	if (target === 'customParameter') {
+		if (binding == null) {
+			delete layer.customParameterValues?.[rootKey];
+			if (Object.keys(layer.customParameterValues ?? {}).length === 0) delete layer.customParameterValues;
+		} else (layer.customParameterValues ??= {})[rootKey] = deepClone(binding as TimelineParameterBinding);
+	} else if (target === 'effect') {
 		const values = getLayerParameterValues(layer, target);
 		if (binding == null) delete values[rootKey];
 		else {
@@ -121,7 +129,7 @@ function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelinePar
 		const values = getLayerParameterValues(layer, target);
 		if (binding == null) delete values[rootKey];
 		else {
-			if (!isValueParameterBinding(binding)) throw new Error('Unsupported layer parameter input source');
+			if (!isValueParameterBinding(binding) && binding.inputSource !== 'timelineLayerCustomParameterReference') throw new Error('Unsupported layer parameter input source');
 			values[rootKey] = deepClone(binding);
 		}
 	}
@@ -188,7 +196,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 	layerId: string;
 	paramPath: ParamPath;
 } & (
-	| { target?: TimelineParameterTarget; edit: ValueParameterEdit }
+	| { target?: TimelineParameterTarget; edit: ValueParameterEdit | { kind: 'timelineLayerCustomParameterReference'; value: TimelineLayerCustomParameterReferenceBinding } | { kind: 'inputSource'; inputSource: 'timelineLayerCustomParameterReference' } }
 	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'anotherLayerAudio' } | { kind: 'anotherLayerAudio'; value: string | null } }
 	| { target: 'effect' | 'module'; edit: { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding } | { kind: 'inputSource'; inputSource: 'lowerLayerOutput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
 )>({
@@ -202,6 +210,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			case 'inputSource': kind = 'inputSource'; break;
 			case 'lowerLayerOutput':
 			case 'anotherLayerOutput':
+			case 'timelineLayerCustomParameterReference':
 			case 'anotherLayerAudio': kind = 'connection'; break;
 			default: kind = 'value'; break;
 		}
@@ -262,6 +271,13 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							next = { inputSource: 'anotherLayerAudio', layerId: edit.value };
 							break;
 						}
+						case 'timelineLayerCustomParameterReference': {
+							const context = getTimelineLayerCustomParameterContext(getScene(state, payload.sceneId).layers, layer.id)!;
+							const source = resolveTimelineLayerCustomParameterReference(context, edit.value.layerId, edit.value.parameterId, target === 'customParameter');
+							if (edit.value.layerId != null && (source == null || !areTimelineCustomParameterTypesCompatible(def, source.definition))) throw new Error('Custom parameter must have a compatible type and belong to an available layer');
+							next = deepClone(edit.value);
+							break;
+						}
 						case 'envVariable': next = { inputSource: 'envVariable', variable: edit.value }; break;
 						case 'expression': next = { inputSource: 'expression', expression: edit.value }; break;
 						case 'expressionModifier': {
@@ -318,6 +334,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 									layerId: null,
 									outputStage: 'source',
 								}; break;
+								case 'timelineLayerCustomParameterReference': next = { inputSource: 'timelineLayerCustomParameterReference', layerId: null, parameterId: null }; break;
 								case 'lowerLayerAudio': next = { inputSource: 'lowerLayerAudio' }; break;
 								case 'anotherLayerAudio': next = { inputSource: 'anotherLayerAudio', layerId: null }; break;
 								default: throw new Error('Unsupported layer parameter input source');
@@ -2693,7 +2710,69 @@ const removeProjectAutomationGraphCommandDef = defineCommand<{ automationGraphId
 	},
 });
 
+const updateTimelineLayerCustomParameterCommandDef = defineCommand<{ sceneId: string; layerId: string; definition: TimelineLayerCustomParameterDefinition }>({
+	label: 'Update timeline layer custom parameter',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'definition' }] }],
+	create: payload => {
+		let before: TimelineLayerCustomParameterDefinition[] | null = null;
+		const getLayer = (state: ProjectState) => {
+			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
+			if (layer == null) throw new Error('Timeline layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				const layer = getLayer(state);
+				const definitions = [...layer.customParameterDefs ?? []];
+				const index = definitions.findIndex(definition => definition.id === payload.definition.id);
+				if (index < 0) definitions.push(deepClone(payload.definition));
+				else definitions[index] = deepClone(payload.definition);
+				validateTimelineLayerCustomParameterDefinitions(definitions);
+				before = deepClone(layer.customParameterDefs ?? null);
+				layer.customParameterDefs = definitions;
+			},
+			undo(state) {
+				const layer = getLayer(state);
+				if (before == null) delete layer.customParameterDefs;
+				else layer.customParameterDefs = deepClone(before);
+			},
+		};
+	},
+});
+
+const removeTimelineLayerCustomParameterCommandDef = defineCommand<{ sceneId: string; layerId: string; parameterId: TimelineLayerCustomParameterId }>({
+	label: 'Remove timeline layer custom parameter',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'definition' }] }],
+	create: payload => {
+		let definitions: TimelineLayerCustomParameterDefinition[] = [];
+		let values: Record<string, TimelineParameterBinding> | null = null;
+		const getLayer = (state: ProjectState) => {
+			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
+			if (layer == null) throw new Error('Timeline layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				const layer = getLayer(state);
+				definitions = deepClone(layer.customParameterDefs ?? []);
+				values = deepClone(layer.customParameterValues ?? null);
+				if (!definitions.some(definition => definition.id === payload.parameterId)) throw new Error('Timeline custom parameter not found');
+				layer.customParameterDefs = definitions.filter(definition => definition.id !== payload.parameterId);
+				delete layer.customParameterValues?.[payload.parameterId];
+			},
+			undo(state) {
+				const layer = getLayer(state);
+				layer.customParameterDefs = deepClone(definitions);
+				if (values == null) delete layer.customParameterValues;
+				else layer.customParameterValues = deepClone(values);
+			},
+		};
+	},
+});
+
 export const COMMAND_DEFS = {
+	updateTimelineLayerCustomParameter: updateTimelineLayerCustomParameterCommandDef,
+	removeTimelineLayerCustomParameter: removeTimelineLayerCustomParameterCommandDef,
 	addProjectAutomationGraph: addProjectAutomationGraphCommandDef,
 	updateProjectAutomationGraph: updateProjectAutomationGraphCommandDef,
 	removeProjectAutomationGraph: removeProjectAutomationGraphCommandDef,

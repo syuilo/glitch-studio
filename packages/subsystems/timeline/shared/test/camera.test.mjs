@@ -22,6 +22,21 @@ const cameraLayer = (id, startMs, durationMs, paramValues = {}) => ({
 	clips: [{ id: 'view', startMs, durationMs, contentOffsetMs: 300 }],
 });
 
+// 【カメラと祖先Transformも、通常のレイヤーと同じカスタムパラメータの参照規則を使う】
+// カメラは映像レイヤーの描画走査とは別に評価するため、Scene側でも所有レイヤーの環境を渡す必要がある。
+test('evaluates camera and ancestor transforms with custom parameter scopes', () => {
+	const definition = { id: 'offset', nameForReference: 'offset', dataType: { kind: 'scalar' }, ui: { label: 'Offset', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
+	const camera = cameraLayer('view', 0, 1000, { position: { inputSource: 'expression', expression: '[PARAM("offset"), 0]' } });
+	camera.customParameterDefs = [definition];
+	camera.customParameterValues = { offset: { inputSource: 'expression', expression: 'PARAM("offset") * 2' } };
+	const transform = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false, layers: [camera], automationGraphs: [],
+		customParameterDefs: [definition], customParameterValues: { offset: { inputSource: 'expression', expression: 'TIME' } },
+		transformParamValues: { position: { inputSource: 'expression', expression: '[PARAM("offset"), 0]' }, z: { inputSource: 'literal', value: 0 }, scale: { inputSource: 'literal', value: [1, 1] }, rotation: { inputSource: 'literal', value: 0 } },
+	};
+	assert.deepEqual(new TimelineSceneCamera().evaluate([transform], 500, false, frame).position, [1.5, 0]);
+	assert.deepEqual(new TimelineSceneCamera().evaluate([transform], 250, true, frame).position, [0.75, 0]);
+});
+
 // 【最上段の有効なカメラを選び、無効化・空白区間・並べ替えを反映する】
 // カメラの順序は映像合成の順序と別に解決し、該当なしでは前フレームの視点を残さない。
 test('selects the topmost active camera and disables projection during gaps', () => {

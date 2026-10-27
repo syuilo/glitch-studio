@@ -695,6 +695,7 @@
 		"UnassignedInputs": "External inputs were left unassigned: {names}. Camera inputs can be selected from the Player menu. Microphone and live stream inputs are not yet supported."
 	},
 	"_Parameter": {
+		"UnavailableCustomParameter": "Reference is missing, out of scope, or has an incompatible type",
 		"NormalizedTime": "Normalized (0–1)",
 		"Milliseconds": "Milliseconds",
 		"DirectEdit": "Direct Edit",
@@ -736,6 +737,7 @@
 		"MissingLayer": "Missing layer ({id})"
 	},
 	"_ParameterEditor": {
+		"Definition": "Definition",
 		"UiLabel": "UI Label",
 		"ReferenceName": "Reference Name",
 		"VideoAsset": "Video asset",

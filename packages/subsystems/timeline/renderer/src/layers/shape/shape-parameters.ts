@@ -1,19 +1,20 @@
+import type { TimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
 import { getShapeParameterDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
-import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
+import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import type { Shape, EvaluatedShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 
 export class ShapeParameters {
-	private evaluator = new ParameterBindingEvaluator();
+	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(shape: Shape, context: { time: number; isExport: boolean; automationGraphs: AutomationGraph[] }): EvaluatedShape {
+	evaluate(shape: Shape<TimelineParameterBinding>, context: { time: number; isExport: boolean; automationGraphs: AutomationGraph[]; customParameters?: TimelineLayerCustomParameterContext | null }): EvaluatedShape {
 		const scope = createTimelineLayerEvaluationScope(context);
 		const definitions = getShapeParameterDefinitions(shape.type);
-		const bindings: Record<string, ValueParameterBinding> = shape.paramValues;
+		const bindings: Record<string, TimelineParameterBinding> = shape.paramValues;
 		const values: Record<string, unknown> = {};
 		for (const [key, def] of Object.entries(definitions)) {
 			const binding = bindings[key] ?? def.defaultValue;

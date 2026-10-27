@@ -1,5 +1,6 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
 // VOICEVOXの字幕専用。本文は発話キーが所有し、装飾の定義と既定値は他のレイヤーから独立させる。
@@ -105,7 +106,7 @@ export const voicevoxSubtitleParamDefs = {
 	},
 } satisfies Record<string, ParameterDefinition>;
 
-export type VoicevoxSubtitleParameterValues = Record<keyof typeof voicevoxSubtitleParamDefs, ValueParameterBinding>;
+export type VoicevoxSubtitleParameterValues<Binding extends ParameterBindingBase = ValueParameterBinding> = Record<keyof typeof voicevoxSubtitleParamDefs, Binding>;
 
 export function createVoicevoxSubtitleParameterValues(): VoicevoxSubtitleParameterValues {
 	return Object.fromEntries(Object.entries(voicevoxSubtitleParamDefs).map(([key, def]) => [key, deepClone(def.defaultValue)])) as VoicevoxSubtitleParameterValues;

@@ -5,6 +5,13 @@ import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-so
 import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { FitMode, WrapMode } from '@gs/shared/types.ts';
+import type { TimelineLayerCustomParameterId } from './custom-parameters.ts';
+
+export type TimelineLayerCustomParameterReferenceBinding = {
+	inputSource: 'timelineLayerCustomParameterReference';
+	layerId: string | null;
+	parameterId: TimelineLayerCustomParameterId | null;
+};
 
 export type TimelineLowerLayerOutputBinding = {
 	inputSource: 'lowerLayerOutput';
@@ -32,7 +39,7 @@ export function createLowerLayerOutputBinding(): TimelineLowerLayerOutputBinding
 	};
 }
 
-export type TimelineParameterBinding = ValueParameterBinding;
+export type TimelineParameterBinding = ValueParameterBinding | TimelineLayerCustomParameterReferenceBinding;
 export type TimelineLowerLayerAudioBinding = { inputSource: 'lowerLayerAudio' };
 export type TimelineAnotherLayerAudioBinding = { inputSource: 'anotherLayerAudio'; layerId: string | null };
 export type TimelineAudioInputBinding = TimelineLowerLayerAudioBinding | TimelineAnotherLayerAudioBinding;
@@ -51,6 +58,12 @@ export function isTimelineImageInputBinding(binding: ParameterBindingBase): bind
 export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowImageInput?: false): asserts binding is TimelineParameterBinding;
 export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowImageInput: boolean, allowAudioInput?: boolean): asserts binding is TimelineVisualModuleParameterBinding | TimelineEffectParameterBinding;
 export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowImageInput = false, allowAudioInput = allowImageInput): asserts binding is TimelineVisualModuleParameterBinding | TimelineEffectParameterBinding {
+	if (binding.inputSource === 'timelineLayerCustomParameterReference') {
+		const reference = binding as TimelineLayerCustomParameterReferenceBinding;
+		if ((reference.layerId !== null && (typeof reference.layerId !== 'string' || reference.layerId.length === 0))
+			|| (reference.parameterId !== null && (typeof reference.parameterId !== 'string' || reference.parameterId.length === 0))) throw new Error('Invalid timeline custom parameter reference');
+		return;
+	}
 	if (isTimelineAudioInputBinding(binding)) {
 		if (!allowAudioInput) throw new Error('Layer audio is not available in this parameter');
 		// layerIdのnullは明示的な未選択。省略されたundefinedではBindingの必須フィールドを満たさない。

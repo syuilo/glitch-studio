@@ -31,6 +31,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 				mask: group.mask,
 				layerMask: group.layerMask,
 				paramValues: group.compositingParamValues,
+				customParameters: context.customParameters,
 				automationGraphs: group.automationGraphs,
 			});
 			return renderer.createEvaluation(group.layers.filter(isTimelineRenderLayer), {
@@ -51,6 +52,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 				mask: group.mask,
 				layerMask: group.layerMask,
 				paramValues: group.compositingParamValues,
+				customParameters: context.customParameters,
 				automationGraphs: group.automationGraphs,
 			});
 			const preserveDepth = group.compositingMode === 'preserveDepth';

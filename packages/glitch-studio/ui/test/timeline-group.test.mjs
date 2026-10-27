@@ -68,6 +68,63 @@ function observeValidation(f) {
 	return validation;
 }
 
+const customScalar = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: literal(0), canNode: false });
+
+// 【カスタムパラメータの定義・値・削除をUndo/Redoし、Groupの時間移動にもキーを含める】
+// 新しい保存先だけを特別扱いすると、履歴やコンテナ移動で定義・値・キーが取り残されてしまう。
+test('edits custom definitions and bindings with history and includes custom keyframe lanes', t => {
+	const child = group('child');
+	const parent = group('parent', [child]);
+	const f = fixture(t, [parent]);
+	const target = { sceneId: 'scene', layerId: child.id };
+	f.history.commit('updateTimelineLayerCustomParameter', { ...target, definition: customScalar('speed') });
+	assert.equal(child.customParameterDefs[0].nameForReference, 'speed');
+	f.history.undo();
+	assert.equal(child.customParameterDefs, undefined);
+	f.history.redo();
+	f.history.commit('editTimelineLayerParam', { ...target, target: 'customParameter', paramPath: ['speed'], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } });
+	assert.equal(module.exports.getLayerKeyframeParameters(f.state, child).find(parameter => parameter.target === 'customParameter').paramPath[0], 'speed');
+	assert.deepEqual(prepareTimelineContainerMove(f.state, parent).keyframes.filter(key => key.target === 'customParameter').map(key => key.x), [100, 800]);
+	f.history.commit('removeTimelineLayerCustomParameter', { ...target, parameterId: 'speed' });
+	assert.deepEqual(child.customParameterDefs, []);
+	assert.equal(child.customParameterValues.speed, undefined);
+	f.history.undo();
+	assert.equal(child.customParameterValues.speed.inputSource, 'keyframesTimelineInline');
+	f.history.undo();
+	assert.equal(child.customParameterValues, undefined);
+	f.history.redo();
+	assert.deepEqual(child.customParameterValues.speed.keyframesTimeline.keyframes.map(key => key.x), [100, 800]);
+});
+
+// 【直接参照は祖先へ接続できるがカスタムパラメータから自身への接続は保存しない】
+// CommandでもUIと同じ範囲を守り、Group複製では内部の参照IDだけを付け替える必要がある。
+test('validates custom reference scope and remaps internal references when duplicating groups', t => {
+	const child = group('child');
+	child.customParameterDefs = [customScalar('forward')];
+	const root = group('root', [group('parent', [child])]);
+	root.customParameterDefs = [customScalar('speed')];
+	root.customParameterValues = { speed: literal(0.25) };
+	const f = fixture(t, [root]);
+	const target = { sceneId: 'scene', layerId: child.id, target: 'customParameter', paramPath: ['forward'] };
+	const reference = { inputSource: 'timelineLayerCustomParameterReference', layerId: root.id, parameterId: 'speed' };
+	f.history.commit('editTimelineLayerParam', { ...target, edit: { kind: 'timelineLayerCustomParameterReference', value: reference } });
+	f.history.commit('editTimelineLayerParam', { ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'timelineLayerCustomParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } });
+	assert.equal(child.compositingParamValues.opacity.layerId, child.id);
+	assert.throws(() => COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'timelineLayerCustomParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } }).execute(f.state), /available layer/);
+	const [copy] = duplicateTimelineLayers([root]);
+	const copiedChild = copy.layers[0].layers[0];
+	assert.equal(copiedChild.customParameterValues.forward.layerId, copy.id);
+	assert.equal(copiedChild.customParameterValues.forward.parameterId, 'speed');
+	assert.equal(copiedChild.compositingParamValues.opacity.layerId, copiedChild.id);
+	const [externalCopy] = duplicateTimelineLayers([child]);
+	assert.equal(externalCopy.customParameterValues.forward.layerId, root.id);
+	f.history.undo();
+	f.history.undo();
+	assert.equal(child.customParameterValues, undefined);
+	f.history.redo();
+	assert.deepEqual(child.customParameterValues.forward, reference);
+});
+
 // 【マスク参照は複製範囲内だけIDを付け替え、削除のUndoでは元の参照を復元する】
 // 対象とマスク元の同時複製が元のマスクを使い続けたり、参照専用の設定が失われる不具合を防ぐ。
 test('remaps internal layer masks and preserves references through deletion and undo', t => {

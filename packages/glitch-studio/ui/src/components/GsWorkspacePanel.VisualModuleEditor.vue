@@ -168,6 +168,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 			automationGraphId: event.value,
 			...event.options,
 		}; break;
+		case 'timelineLayerCustomParameterReference':
 		case 'node':
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput':

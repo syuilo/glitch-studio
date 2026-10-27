@@ -1,6 +1,8 @@
+import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
 import type { TextRenderValues } from '../../text-rendering/text-render-values.ts';
 import { voicevoxSubtitleParamDefs } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle.ts';
-import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
+import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
@@ -9,9 +11,9 @@ import type { VoicevoxSubtitleParameterValues } from '@gs/subsystems_timeline_sh
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 
 export class VoicevoxSubtitleParameters {
-	private evaluator = new ParameterBindingEvaluator();
+	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(text: string, bindings: VoicevoxSubtitleParameterValues, context: { time: number; isExport: boolean; automationGraphs: AutomationGraph[] }): TextRenderValues {
+	evaluate(text: string, bindings: VoicevoxSubtitleParameterValues<TimelineParameterBinding>, context: { time: number; isExport: boolean; automationGraphs: AutomationGraph[]; customParameters?: TimelineLayerCustomParameterContext | null }): TextRenderValues {
 		const scope = createTimelineLayerEvaluationScope(context);
 		const values: Record<string, unknown> = {};
 		for (const [key, def] of Object.entries(voicevoxSubtitleParamDefs)) {

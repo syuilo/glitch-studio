@@ -66,11 +66,32 @@ VALUE
 
 ## パラメータの参照スコープ
 
-- カスタムパラメータの `id` は接続・引数・直接参照の識別子、`nameForReference` は `PARAM` 式から参照する名前、`ui.label` は表示名です。IDと参照名のブランド型を相互に代用せず、表示名を接続のキーにしないでください。
+- Visual Moduleのカスタムパラメータの `id` は接続・引数・直接参照の識別子、`nameForReference` は `PARAM` 式から参照する名前、`ui.label` は表示名です。IDと参照名のブランド型を相互に代用せず、表示名を接続のキーにしないでください。TimelineのカスタムパラメータIDはTimeline固有の型で、Visual ModuleのIDとは区別します。
 - コードで用意する `nameForReference` の初期値・自動生成名・テストデータは、`my_input`・`my_param_2`・`scene_time` のようなsnake caseに統一します。
 - `AutomationGraph` の `nameForReference` は `GRAPH("graph_name", 座標, "clamp")` で照合する参照名で、UIのグラフ選択にも表示します。`automationGraphReference` は `automationGraphId` とグラフの `id` で参照するため、参照名を変更してもその接続は維持されます。インラインの `AutomationGraphData` は参照名・IDを持ちません。
-- カスタムパラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`visualModuleCustomParameterReference` や `PARAM` による直接参照は `canNode: false` のカスタムパラメータに限定する仕様です。ただし音声は`visualModuleCustomParameterReference`だけで参照し、`PARAM`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
+- Visual Moduleのカスタムパラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`visualModuleCustomParameterReference` や `PARAM` による直接参照は `canNode: false` のカスタムパラメータに限定する仕様です。ただし音声は`visualModuleCustomParameterReference`だけで参照し、`PARAM`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
 - レイヤーの引数・合成設定と、モジュール内部の式は別の評価スコープです。変数・automation graph・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。グラフの再生時刻を渡すことと、同名の変数を式に公開することも別です。
+
+## Timelineレイヤーのカスタムパラメータ
+
+Group・Transformを含む全レイヤーに、`customParameterDefs`（定義）と`customParameterValues`（IDをキーにしたBinding）を持たせられます。未定義のレイヤーでは省略できます。Inspectorの「レイヤーのカスタムパラメータ」から追加し、定義内で表示名・参照名・型・編集UI・初期値を設定します。値は通常のパラメータと同じ方式で編集し、キーの表示・選択・コピー・Group全体の時間移動にも含めます。
+
+対応する型は数値・真理値・文字列・色・ベクトル・enum・Color Rampです。画像・Asset・音声・配列・構造体やノード入力は公開しません。固定値・環境変数・式・キー・Automation Graph・加工式の対応範囲は、それぞれの型の通常の値Bindingに従います。
+
+| 参照する場所 | 式の`PARAM("reference_name")` | 入力方式からの直接参照 |
+| --- | --- | --- |
+| カスタムパラメータの値・加工式 | 直上の親だけ | すべての祖先 |
+| 通常のパラメータの値・加工式 | 自身だけ | 自身とすべての祖先 |
+
+親は同じScene内の直上GroupまたはTransformです。Scene最上位には親がなく、`PARAM`で祖父母の同名定義を自動探索しません。同じレイヤーの別カスタムパラメータも参照できないため、カスタムパラメータ間の循環は構造的に発生しません。親の値を子で加工する場合、子のカスタムパラメータの式を`PARAM("speed") * 2`とし、子の通常のパラメータからその子自身の定義を参照できます。
+
+直接参照は`{ inputSource: 'timelineLayerCustomParameterReference', layerId, parameterId }`を保存し、Visual Module内部の参照とは共有しません。未選択では両IDをnullにします。UIには所有レイヤーと表示名・参照名を表示し、型が一致する定義だけを候補にします。参照名はレイヤー内で一意とし、名前変更でも直接参照は維持します。`PARAM`内の文字列は自動変更せず、未知の名前・不正な引数は式エラーです。
+
+直接参照先の削除・階層移動ではIDを保持し、UIに欠落・範囲外を表示します。未選択・未解決の参照は受け取り側のパラメータ定義の既定値を使い、存在する参照先の型不一致は評価エラーにします。Group複製では範囲内のレイヤーIDだけを付け替えます。直接参照Binding自体への加工式は提供せず、加工したい値はカスタムパラメータへ受けて通常の式から参照します。
+
+値は所有レイヤーの式環境・Automation Graphを使い、評価サンプルの所属Scene時刻で評価します。子のグラフやクリップの内容時刻は継承しません。参照値はコピーして渡し、式から変更しても保存値や他の利用者へ漏らしません。評価値をシーク間で共有しません。
+
+参照先Sceneの内部とVisual Module内部は別スコープです。Scene最上位には呼び出し元Sceneレイヤーのパラメータを渡しません。Visual Moduleへはレイヤー側で評価した値を既存の公開入力へ渡します。合成・Transform・カメラと音量にも同じ参照規則を適用し、音声では参照先のキーも通常の音量キーと同じ時刻で評価します。
 
 ## 乱数とノイズの式関数
 
@@ -146,6 +167,6 @@ NOISE(TIME * 3, 1) * 0.03
 
 ## Other
 
-Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Visual Module内部の `VisualModuleParameterBinding` は共通方式に `node` / `visualModuleCustomParameterReference` を加えます。Timelineの `TimelineVisualModuleParameterBinding` は共通方式に音声用の `lowerLayerAudio` / `anotherLayerAudio` と画像用の `lowerLayerOutput` / `anotherLayerOutput` を加えます。`TimelineEffectParameterBinding` は同じ取得元を扱い、画像Bindingにfit・wrap・filterを持ちます。Visual Module公開入力のサンプリングは内部接続が所有します。Visual Module Live Previewから渡す `VisualModuleArgumentBindings`、タイムラインの合成設定・音量には共通方式だけを許可します。
+Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Visual Module内部の `VisualModuleParameterBinding` は共通方式に `node` / `visualModuleCustomParameterReference` を加えます。Timelineの `TimelineParameterBinding` は共通方式に `timelineLayerCustomParameterReference` を加えます。`TimelineVisualModuleParameterBinding` はTimelineの方式に音声用の `lowerLayerAudio` / `anotherLayerAudio` と画像用の `lowerLayerOutput` / `anotherLayerOutput` を加えます。`TimelineEffectParameterBinding` は同じ取得元を扱い、画像Bindingにfit・wrap・filterを持ちます。Visual Module公開入力のサンプリングは内部接続が所有します。Visual Module Live Previewから渡す `VisualModuleArgumentBindings` は共通方式だけを許可し、タイムラインの合成設定・音量にはTimelineの方式を許可します。
 
 共通の `ParameterBindingBase` はツリー操作に必要な `inputSource` だけを持ち、保存用の全方式を集めたunionにはしません。共通の走査・IDパスによる編集処理はジェネリックにし、呼び出し側のBinding型を保持します。パラメータ定義の初期値も子要素を含めて共通方式に限定し、ノード接続やレイヤー入力は利用ドメイン側で設定します。複数ドメインを扱う編集用unionはUI側に置き、各Commandへ渡す境界で対象を絞り込みます。literalの内部値の完全な静的型付けは行っていないため、配列・構造体内部の入力方式の実行時検証も維持します。
