@@ -4,8 +4,8 @@ description: デスクトップ版のダウンロード
 
 # ダウンロード
 
-現在のバージョン: v<!--[CURRENT_VERSION_MARKER]-->2.0.0-alpha.19<!--[/CURRENT_VERSION_MARKER]-->
-公開日: <!--[CURRENT_VERSION_RELEASE_DATE_MARKER]-->2026-10-22<!--[/CURRENT_VERSION_RELEASE_DATE_MARKER]-->
+現在のバージョン: v<!--[CURRENT_VERSION_MARKER]-->2.0.0-alpha.20<!--[/CURRENT_VERSION_MARKER]-->
+公開日: <!--[CURRENT_VERSION_RELEASE_DATE_MARKER]-->2026-10-25<!--[/CURRENT_VERSION_RELEASE_DATE_MARKER]-->
 
 <table>
 	<thead>
@@ -19,7 +19,7 @@ description: デスクトップ版のダウンロード
 			<td>Windows</td>
 			<td>
 				<!--[DOWNLOAD_LINK_MARKER: windows]-->
-				<a href="https://github.com/syuilo/glitch-studio/releases/download/v2.0.0-alpha.19/Glitch-Studio-2.0.0-alpha.19-x64-Setup.exe">ダウンロード</a>
+				<a href="https://github.com/syuilo/glitch-studio/releases/download/v2.0.0-alpha.20/Glitch-Studio-2.0.0-alpha.20-x64-Setup.exe">ダウンロード</a>
 				<!--[/DOWNLOAD_LINK_MARKER: windows]-->
 			</td>
 		</tr>
@@ -27,8 +27,8 @@ description: デスクトップ版のダウンロード
 			<td>MacOS</td>
 			<td>
 				<!--[DOWNLOAD_LINK_MARKER: macos]-->
-				<a href="https://github.com/syuilo/glitch-studio/releases/download/v2.0.0-alpha.19/Glitch-Studio-2.0.0-alpha.19-mac-arm64.dmg">Apple Silicon（arm64）</a><br>
-				<a href="https://github.com/syuilo/glitch-studio/releases/download/v2.0.0-alpha.19/Glitch-Studio-2.0.0-alpha.19-mac-x64.dmg">Intel（x64）</a>
+				<a href="https://github.com/syuilo/glitch-studio/releases/download/v2.0.0-alpha.20/Glitch-Studio-2.0.0-alpha.20-mac-arm64.dmg">Apple Silicon（arm64）</a><br>
+				<a href="https://github.com/syuilo/glitch-studio/releases/download/v2.0.0-alpha.20/Glitch-Studio-2.0.0-alpha.20-mac-x64.dmg">Intel（x64）</a>
 				<!--[/DOWNLOAD_LINK_MARKER: macos]-->
 			</td>
 		</tr>
