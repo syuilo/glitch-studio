@@ -48,13 +48,13 @@ test('resolves parameter names separately from IDs and rejects invalid expressio
 	const evaluator = new VisualModuleParameterBindingEvaluator();
 	const scope = context({ evaluatedParamValues: new Map([['gain-id', 0]]), paramIdsByName: new Map([['gain', 'gain-id']]) });
 	assert.equal(evaluator.evaluate(expression('PARAM("gain")'), scope, -1, scalarDefinition), 0);
-	assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, scope, -1, scalarDefinition), 0);
+	assert.equal(evaluator.evaluate({ inputSource: 'visualModuleCustomParameterReference', parameterId: 'gain-id' }, scope, -1, scalarDefinition), 0);
 	for (const text of ['PARAM("gain-id")', 'PARAM("missing")', 'PARAM(1)', 'PARAM()', 'PARAM("gain", 1)', '1 +', '']) {
 		assert.throws(() => evaluator.evaluate(expression(text), scope, -1, scalarDefinition), /Base expression/);
 	}
 	for (const empty of [context(), context({ evaluatedParamValues: new Map(), paramIdsByName: scope.paramIdsByName })]) {
 		assert.throws(() => evaluator.evaluate(expression('PARAM("gain")'), empty, -1, scalarDefinition), /Unknown or unavailable parameter/);
-		assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, empty, -1, scalarDefinition), -1);
+		assert.equal(evaluator.evaluate({ inputSource: 'visualModuleCustomParameterReference', parameterId: 'gain-id' }, empty, -1, scalarDefinition), -1);
 	}
 });
 
@@ -64,7 +64,7 @@ test('clones values read from variables and evaluated parameters', () => {
 	const evaluator = new VisualModuleParameterBindingEvaluator();
 	const value = [1, 0.5, 0, 0.25];
 	const scope = context({ variables: { COLOR: value }, evaluatedParamValues: new Map([['color-id', value]]), paramIdsByName: new Map([['color', 'color-id']]) });
-	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }, expression('PARAM("color")'), { inputSource: 'externalCustomParameterInput', parameterId: 'color-id' }]) {
+	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }, expression('PARAM("color")'), { inputSource: 'visualModuleCustomParameterReference', parameterId: 'color-id' }]) {
 		const result = evaluator.evaluate(binding, scope, null, colorDefinition);
 		assert.deepEqual(result, value);
 		result[0] = 99;

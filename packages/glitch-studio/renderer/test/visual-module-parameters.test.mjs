@@ -93,7 +93,7 @@ test('resolves PARAM names separately from external parameter IDs', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const result = evaluate(evaluator, context({ named: number, direct: number }, {
 		named: expression('PARAM("gain")'),
-		direct: { inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' },
+		direct: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'gain-id' },
 	}, {
 		paramDefs: [{ ...paramDef('gain-id'), nameForReference: 'gain' }],
 		paramValues: { 'gain-id': literal(23) },
@@ -233,9 +233,9 @@ test('evaluates nested values, expressions and node references without a GPU', (
 });
 
 // 呼び出し側で評価した既定値・式を、内部の外部入力参照・PARAMから読む
-test('reads caller evaluated values through externalCustomParameterInputs and PARAM', () => {
+test('reads caller evaluated values through visualModuleCustomParameterReferences and PARAM', () => {
 	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ a: number, b: number, c: number }, {
-		a: { inputSource: 'externalCustomParameterInput', parameterId: 'gain' },
+		a: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'gain' },
 		b: expression('PARAM("gain") + PARAM("offset")'),
 		c: expression('PARAM("literal")'),
 	}, {
@@ -250,12 +250,12 @@ test('reads caller evaluated values through externalCustomParameterInputs and PA
 // 直接参照の未設定は既定値を使い、式で参照できない値や構文の誤りはレンダリング失敗へ伝える。
 test('defaults unassigned direct references and rejects invalid expressions', () => {
 	const params = {
-		textureCustomParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'texture' },
+		textureCustomParameterInput: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'texture' },
 		textureExpression: expression('PARAM("texture")'),
 		missing: expression('PARAM("missing")'),
 		invalid: expression('1 +'),
 		empty: expression(''),
-		missingCustomParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'missing' },
+		missingCustomParameterInput: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'missing' },
 		missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' },
 	};
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
@@ -305,7 +305,7 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 		const external = { ...paramDef('amount'), ui };
 		const result = evaluate(evaluator, context({ amount: def, external: def }, {
 			amount: expression('TIME + 100'),
-			external: { inputSource: 'externalCustomParameterInput', parameterId: 'amount' },
+			external: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'amount' },
 		}, { paramDefs: [external], paramValues: { amount: literal(-5.25) } }));
 		assert.deepEqual(result.nodeParams.get('node'), { amount: 100.5, external: -5.25 });
 		assert.throws(() => evaluate(evaluator, context({ invalid: def }, { invalid: expression('missing') })), /Base expression/);

@@ -19,7 +19,7 @@ export class VisualModuleParameterBindingEvaluator {
 
 	evaluate(binding: VisualModuleParameterBinding, context: VisualModuleParameterEvaluationContext, fallback: any, definition: ExpressionParameterDefinition): any {
 		if (binding.inputSource === 'node') return binding.nodeId == null ? null : { nodeId: binding.nodeId, outputPort: binding.outputPort };
-		if (binding.inputSource === 'externalCustomParameterInput') {
+		if (binding.inputSource === 'visualModuleCustomParameterReference') {
 			return context.evaluatedParamValues.has(binding.parameterId) ? deepClone(context.evaluatedParamValues.get(binding.parameterId)) : fallback;
 		}
 		return this.valueEvaluator.evaluate(binding as ValueParameterBinding, {

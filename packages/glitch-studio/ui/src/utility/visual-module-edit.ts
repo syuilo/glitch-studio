@@ -88,7 +88,7 @@ function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualMod
 		case 'automationGraphReference': manager.commit('updateParamAsAutomationGraphReference', { ...target, value: event.value, options: event.options }); break;
 		case 'keyframesTimelineInline': manager.commit('updateParamAsKeyframesTimelineInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'node': manager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
-		case 'externalCustomParameterInput': manager.commit('updateParamAsExternalCustomParameterInput', { ...target, value: event.value }); break;
+		case 'visualModuleCustomParameterReference': manager.commit('updateParamAsVisualModuleCustomParameterReference', { ...target, value: event.value }); break;
 		case 'inputSource':
 			if (event.inputSource === 'anotherLayerOutput' || event.inputSource === 'lowerLayerOutput' || event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio') throw new Error('Timeline input is only available in timeline layer parameters');
 			manager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource });

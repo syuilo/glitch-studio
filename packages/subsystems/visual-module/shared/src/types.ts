@@ -9,7 +9,7 @@ import type { FitMode, WrapMode } from '@gs/shared/types.js';
 export type VisualModuleNodeParameterBinding = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
 export type VisualModuleCustomParameterInputBinding = {
-	inputSource: 'externalCustomParameterInput';
+	inputSource: 'visualModuleCustomParameterReference';
 	parameterId: VisualModuleCustomParameterId;
 };
 

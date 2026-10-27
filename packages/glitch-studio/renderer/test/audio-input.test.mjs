@@ -125,7 +125,7 @@ test('shares player snapshots across nodes, public inputs, and unchanged frames'
 	const renderer = createVisualModuleRenderer(VisualModuleRenderer, { resolveAudioSource: value => inputs.resolve(value) });
 	const nodes = ['first', 'second'].map(id => ({ id, type: 'effect', effectId: 'probe', params: { audio: literal(selection) } }));
 	const publicAudio = { ...audioDef, id: 'sound', nameForReference: 'sound' };
-	nodes[1].params.audio = { inputSource: 'externalCustomParameterInput', parameterId: publicAudio.id };
+	nodes[1].params.audio = { inputSource: 'visualModuleCustomParameterReference', parameterId: publicAudio.id };
 	Object.assign(renderer, { nodes, paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef } } } });
 	const publicInput = inputs.resolve(selection);
 	// すでに取得したPCMを再利用できれば、履歴へ再アクセスする必要はない。
@@ -188,7 +188,7 @@ test('resolves public audio inputs independently of PARAM and image parameters',
 	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'sound' };
 	const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Number', control: { controlType: 'number' } }, defaultValue: literal(0) };
 	const source = { cacheKey: 'lower', readWindow: () => window() };
-	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'externalCustomParameterInput', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PARAM("sound")' } } };
+	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'visualModuleCustomParameterReference', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PARAM("sound")' } } };
 	Object.assign(renderer, { nodes: [node], paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef, amount: scalar } } } });
 	const context = { time: 50, endTime: 100, isExport: false, evaluatedParamValues: new Map([[publicAudio.id, 123]]), audioParamInputs: new Map([[publicAudio.id, source]]) };
 	assert.throws(() => renderer.evaluateParameters(context), /Unknown or unavailable parameter/);

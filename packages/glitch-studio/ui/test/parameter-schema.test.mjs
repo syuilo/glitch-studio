@@ -145,7 +145,7 @@ const externalValues: VisualModuleArgumentBindings = {};
 // @ts-expect-error モジュールの外から内部ノードを参照できない
 externalValues[external.id] = { inputSource: 'node', nodeId: null, outputPort: null };
 // @ts-expect-error モジュールの外から内部カスタムパラメータを参照できない
-externalValues[external.id] = { inputSource: 'externalCustomParameterInput', parameterId: external.id };
+externalValues[external.id] = { inputSource: 'visualModuleCustomParameterReference', parameterId: external.id };
 `;
 	const options = {
 		strict: true, noEmit: true, skipLibCheck: true, types: ['@webgpu/types', '@types/web'],

@@ -48,7 +48,7 @@ export function inspectVisualModuleNode(node: VisualModuleNode, visualModule: Vi
 			if (binding.inputSource === 'node') {
 				if (!leaf.canNode) throw new Error('Parameter does not accept node input: ' + key);
 				connection(binding);
-			} else if (binding.inputSource === 'externalCustomParameterInput') {
+			} else if (binding.inputSource === 'visualModuleCustomParameterReference') {
 				if (!visualModule.paramDefs.some(def => def.id === binding.parameterId)) throw new Error('Custom parameter not found');
 				const customDefinition = visualModule.paramDefs.find(def => def.id === binding.parameterId)!;
 				if ((leaf.dataType.kind === 'colorRamp' || customDefinition.dataType.kind === 'colorRamp') && !areDataTypesEqual(leaf.dataType, customDefinition.dataType)) throw new Error('Color Ramp custom parameter type mismatch');

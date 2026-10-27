@@ -113,7 +113,7 @@ test('validates player audio selections at the application command boundary', ()
 	}
 	edit.undo(state);
 	assert.deepEqual(node.params.audio, literal(null));
-	COMMAND_DEFS.updateParamAsExternalCustomParameterInput.create({ ...target, value: audio.id }).execute(state);
+	COMMAND_DEFS.updateParamAsVisualModuleCustomParameterReference.create({ ...target, value: audio.id }).execute(state);
 	assert.equal(node.params.audio.parameterId, audio.id);
 	assert.throws(() => COMMAND_DEFS.updateParamAsExpression.create({ ...target, value: 'null' }).execute(state), /static input/);
 });
@@ -392,7 +392,7 @@ test('supports secondary lowerLayerOutput bindings and enforces their scope inde
 	f.edit(path, { kind: 'lowerLayerOutput', value: { ...f.read(path), fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } });
 	assert.equal(f.read(path).filterMode, 'nearest');
 	assert.throws(() => COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'inputSource', inputSource: 'lowerLayerOutput' } }).execute(f.state));
-	for (const inputSource of ['node', 'externalCustomParameterInput']) assert.throws(() => f.edit(path, { kind: 'inputSource', inputSource }));
+	for (const inputSource of ['node', 'visualModuleCustomParameterReference']) assert.throws(() => f.edit(path, { kind: 'inputSource', inputSource }));
 	const input = { kind: 'scalar' };
 	preferences.s.forceTypeSafety = false;
 	assert.equal(canConnectNodeDataTypes({ kind: 'color' }, input), true);

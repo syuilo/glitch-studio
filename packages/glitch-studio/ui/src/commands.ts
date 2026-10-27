@@ -914,7 +914,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'automationGraphInline': return createInlineAutomationGraph();
 			case 'keyframesTimelineInline':
 				return createInlineKeyframesTimeline(target.def, currentValue);
-			case 'externalCustomParameterInput': return { inputSource: 'externalCustomParameterInput', parameterId: visualModuleCustomParameterId('') };
+			case 'visualModuleCustomParameterReference': return { inputSource: 'visualModuleCustomParameterReference', parameterId: visualModuleCustomParameterId('') };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
 				return { inputSource: 'node', nodeId: null, outputPort: null };
@@ -991,11 +991,11 @@ const updateParamAsKeyframesTimelineInlineCommandDef = defineNodeParamCommand<No
 	},
 );
 
-const updateParamAsExternalCustomParameterInputCommandDef = defineNodeParamCommand<NodeParamTarget & { value: VisualModuleCustomParameterId }>(
-	'Update param as externalCustomParameterInput',
+const updateParamAsVisualModuleCustomParameterReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: VisualModuleCustomParameterId }>(
+	'Update param as visualModuleCustomParameterReference',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { inputSource: 'externalCustomParameterInput', parameterId: payload.value };
+		return { inputSource: 'visualModuleCustomParameterReference', parameterId: payload.value };
 	},
 	'connection',
 );
@@ -2779,7 +2779,7 @@ export const COMMAND_DEFS = {
 	updateParamAsAutomationGraphInline: updateParamAsAutomationGraphInlineCommandDef,
 	updateParamAsKeyframesTimelineInline: updateParamAsKeyframesTimelineInlineCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
-	updateParamAsExternalCustomParameterInput: updateParamAsExternalCustomParameterInputCommandDef,
+	updateParamAsVisualModuleCustomParameterReference: updateParamAsVisualModuleCustomParameterReferenceCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,
 	resetNodeParam: resetNodeParamCommandDef,
 	addArrayParamElement: addArrayParamElementCommandDef,

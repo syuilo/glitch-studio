@@ -12,7 +12,7 @@
 			<div style="height: 100%; place-content: center;">
 				<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="i18n.ts._Parameter.EnvironmentVariable" class="ti ti-variable" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="i18n.ts._Parameter.Expression" class="ti ti-math-function" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'externalCustomParameterInput'" v-tooltip="i18n.ts._Parameter.Title" class="ti ti-wifi" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'visualModuleCustomParameterReference'" v-tooltip="i18n.ts._Parameter.Title" class="ti ti-wifi" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="i18n.ts._Parameter.Node" class="ti ti-plug" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'anotherLayerOutput'" v-tooltip="i18n.ts._Parameter.AnotherLayerOutput" class="ti ti-stack" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'lowerLayerOutput'" v-tooltip="i18n.ts._Parameter.LowerLayerOutput" class="ti ti-stack-2" :class="$style.typeIcon"></i>
@@ -62,10 +62,10 @@
 						{{ paramValue.keyframesTimeline.keyframes.length }} {{ i18n.ts._Parameter.InlineKeyframes }}
 					</div>
 					<GsSelect
-						v-else-if="paramValue.inputSource === 'externalCustomParameterInput'"
+						v-else-if="paramValue.inputSource === 'visualModuleCustomParameterReference'"
 						:modelValue="paramValue.parameterId"
-						:items="[{ label: i18n.ts.None, value: visualModuleCustomParameterId('') }, ...externalCustomParameterInputItems]"
-						@update:modelValue="value => emit('edit', { kind: 'externalCustomParameterInput', ...target(), value })"
+						:items="[{ label: i18n.ts.None, value: visualModuleCustomParameterId('') }, ...visualModuleCustomParameterReferenceItems]"
+						@update:modelValue="value => emit('edit', { kind: 'visualModuleCustomParameterReference', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
 						<GsSelect
@@ -210,8 +210,8 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding }
 	| { kind: 'anotherLayerOutput'; value: Extract<EditableParameterBinding, { inputSource: 'anotherLayerOutput' }> }
 	| { kind: 'anotherLayerAudio'; value: string | null }
-	| { kind: 'externalCustomParameterInput'; value: VisualModuleCustomParameterId }
-	| ParameterInputSourceEdit<'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'externalCustomParameterInput'>
+	| { kind: 'visualModuleCustomParameterReference'; value: VisualModuleCustomParameterId }
+	| ParameterInputSourceEdit<'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'visualModuleCustomParameterReference'>
 );
 </script>
 
@@ -341,7 +341,7 @@ const envVariableItems = computed(() => props.availableVariables.map(variable =>
 		: variable;
 	return { label, value: variable };
 }));
-const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : paramDefs.value)
+const visualModuleCustomParameterReferenceItems = computed(() => (props.node == null ? [] : paramDefs.value)
 	.filter(def => !def.canNode && (def.dataType.kind === 'audioSource') === (props.paramDef.dataType.kind === 'audioSource'))
 	.filter(def => def.dataType.kind !== 'colorRamp' && props.paramDef.dataType.kind !== 'colorRamp' || areDataTypesEqual(def.dataType, props.paramDef.dataType))
 	.map(def => ({ label: `${def.ui.label} (${def.nameForReference})`, value: def.id })));
@@ -471,7 +471,7 @@ function getMenu() {
 				{ text: i18n.ts._Parameter.AnotherLayerAudio, inputSource: 'anotherLayerAudio', icon: 'ti ti-wave-sine' },
 			);
 		}
-		if (props.node != null) types.push({ text: i18n.ts._Parameter.CustomParameter, inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
+		if (props.node != null) types.push({ text: i18n.ts._Parameter.CustomParameter, inputSource: 'visualModuleCustomParameterReference', icon: 'ti ti-wifi' });
 		if (canNode.value && props.node != null) types.push({ text: i18n.ts._Parameter.Node, inputSource: 'node', icon: 'ti ti-plug' });
 		if (props.imageInputEnabled && canNode.value && canConnectNodeDataTypes({ kind: 'color' }, inputDataType.value)) {
 			types.push({ text: i18n.ts._Parameter.LowerLayerOutput, inputSource: 'lowerLayerOutput', icon: 'ti ti-stack-2' });

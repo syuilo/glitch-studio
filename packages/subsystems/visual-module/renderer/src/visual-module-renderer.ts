@@ -197,7 +197,7 @@ export class VisualModuleRenderer {
 			for (const [key, def] of Object.entries(paramDefs)) {
 				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
 				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
-					if (def.dataType.kind === 'audioSource' && param.inputSource === 'externalCustomParameterInput') return null;
+					if (def.dataType.kind === 'audioSource' && param.inputSource === 'visualModuleCustomParameterReference') return null;
 					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
 						def.dataType.kind === 'enum' ? null : genEmptyValue(def), def))); // TODO: genEmptyValueを遅延評価したい
 				});
@@ -251,7 +251,7 @@ export class VisualModuleRenderer {
 					key += JSON.stringify([param.fitMode, param.wrapMode, param.filterMode]);
 				}
 				// 外部から渡されたテクスチャは同じオブジェクトの内容が毎フレーム変わり得る。
-				if (def.canNode && param.inputSource === 'externalCustomParameterInput') {
+				if (def.canNode && param.inputSource === 'visualModuleCustomParameterReference') {
 					const input = this.paramInputs.get(param.parameterId);
 					if (input?.kind === 'texture') return null;
 					key += JSON.stringify(input);
@@ -302,10 +302,10 @@ export class VisualModuleRenderer {
 		const key = JSON.stringify([nodeId, path]);
 		if (this.resolvedAudioInputs.has(key)) return this.resolvedAudioInputs.get(key)!;
 		let input: AudioInput | null = null;
-		if (binding.inputSource === 'externalCustomParameterInput' && this.audioParamInputs.has(binding.parameterId)) {
+		if (binding.inputSource === 'visualModuleCustomParameterReference' && this.audioParamInputs.has(binding.parameterId)) {
 			input = this.audioParamInputs.get(binding.parameterId)!;
 		} else {
-			const selection = binding.inputSource === 'externalCustomParameterInput'
+			const selection = binding.inputSource === 'visualModuleCustomParameterReference'
 				? this.paramValues.get(binding.parameterId) ?? this.paramDefs.find(def => def.id === binding.parameterId)?.defaultValue.value ?? null : value;
 			if (selection != null) input = this.resolveAudioSource?.(selection) ?? null;
 		}

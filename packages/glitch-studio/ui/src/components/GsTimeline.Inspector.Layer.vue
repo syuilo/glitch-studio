@@ -377,8 +377,8 @@ function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 
 function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTarget) {
 	const layer = props.layer;
-	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput') return;
-	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
+	if (event.kind === 'node' || event.kind === 'visualModuleCustomParameterReference') return;
+	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'visualModuleCustomParameterReference')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;
 	if (event.kind === 'anotherLayerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio'))) {
 		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', {

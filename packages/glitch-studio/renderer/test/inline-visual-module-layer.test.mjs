@@ -582,7 +582,7 @@ test('isolates inline module scopes and passes local time and export context', a
 		amount: expression('PARAM("amount")'), local: expression('GRAPH("graph", 0, "clamp")'),
 		caller: expression('TEST_SAME_NAME'), localTime: expression('TIME_MS'), duration: expression('END_TIME_MS'),
 		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: literal(0),
-		directForbidden: { inputSource: 'externalCustomParameterInput', parameterId: 'input' },
+		directForbidden: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'input' },
 	} });
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	module.automationGraphs = [graph(7)];

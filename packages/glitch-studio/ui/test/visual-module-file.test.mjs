@@ -61,7 +61,7 @@ function fixture() {
 		nodes: [
 			{ id: 'in', type: 'globalIn' },
 			{ id: 'effect', type: 'effect', effectId: 'resources', displayName: 'Resource Node', isBypass: false, resolution: { mode: 'auto' }, pos: { x: 3, y: 4 },
-				params: { image: { inputSource: 'externalCustomParameterInput', parameterId: 'image' }, video: literal('video'), player: literal('file-player'),
+				params: { image: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'image' }, video: literal('video'), player: literal('file-player'),
 					audio: literal({ type: 'player', playerId: 'microphone' }), amount: { inputSource: 'expression', expression: 'TIME * 0.5' },
 					nested: literal([{ id: 'element', binding: literal({ image: literal('nested-image'), font: literal('font') }) }]),
 					input: { inputSource: 'node', nodeId: 'in', outputPort: 'input', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } } },

@@ -183,7 +183,7 @@ test('resolves relays on both sides of a bypassed effect', t => {
 // 【公開入力の評価値からバイパスの接続を動的に作らない】
 // 静的検証したBindingにない自己参照を、値のobjectから作ると循環検査の前提が崩れる。
 test('does not interpret evaluated parameter objects as bypass connections', t => {
-	const f = fixture(t, [effectNode('bypass', { input: { inputSource: 'externalCustomParameterInput', parameterId: 'input' } }, true)], { paramDefs: { input: colorInput } });
+	const f = fixture(t, [effectNode('bypass', { input: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'input' } }, true)], { paramDefs: { input: colorInput } });
 	f.module.paramDefs[0].canNode = false;
 	const ctx = { ...context(), evaluatedParamValues: new Map([['input', { nodeId: 'bypass', outputPort: 'output' }]]) };
 	assert.equal(f.render(ctx), null);

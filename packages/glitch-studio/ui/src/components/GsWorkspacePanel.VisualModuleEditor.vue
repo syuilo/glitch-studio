@@ -172,7 +172,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput':
 		case 'anotherLayerAudio':
-		case 'externalCustomParameterInput': return;
+		case 'visualModuleCustomParameterReference': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
 		case 'inputSource':
 			switch (event.inputSource) {
@@ -192,7 +192,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				case 'keyframesTimelineInline':
 					previewParamValues.value[id] = createInlineKeyframesTimeline(def, current);
 					break;
-				case 'externalCustomParameterInput':
+				case 'visualModuleCustomParameterReference':
 				case 'anotherLayerOutput':
 		case 'lowerLayerOutput':
 				case 'lowerLayerAudio':
