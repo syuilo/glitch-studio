@@ -1,8 +1,8 @@
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
-	id: 'waveDistort',
-	displayName: 'Wave Distort',
+	id: 'sineWaveWarp',
+	displayName: 'Sine Wave Warp',
 	description: {
 		'ja-JP': '正弦波に沿って入力画像を任意の方向に歪めます。',
 		'en-US': 'Distorts the input image along a sine wave in any direction.',
