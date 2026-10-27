@@ -30,6 +30,7 @@
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
 			<button class="_button" :class="$style.headerMenuItem" data-test-header-window-menu @click="openHeaderWindowMenu">{{ i18n.ts._App.Window }}</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderToolsMenu">{{ i18n.ts._App.Tools }}</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
 			<button v-if="desktopUpdateUi?.state.value.version != null" class="_button" :class="[$style.headerMenuItem, $style.updateNotification]" data-test-desktop-update-notification @click="desktopUpdateUi?.requestUpdate()">{{ i18n.ts._DesktopUpdate.Available }}</button>
 		</div>
@@ -106,6 +107,7 @@ import GsDropOverlay from './components/common/GsDropOverlay.vue';
 import GsEllipsis from './components/common/GsEllipsis.vue';
 import GsWindowTitlebar from './components/common/GsWindowTitlebar.vue';
 import type { EditorEditTarget } from './composables/useEditorEditActions.ts';
+import type { WorkspacePanel } from '@/workspace.ts';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
 import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
@@ -114,7 +116,6 @@ import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
 import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
 import GsWorkspacePanelWindow from '@/components/GsWorkspacePanelWindow.vue';
 import { workspacePanelChoices } from '@/workspace.ts';
-import type { WorkspacePanel } from '@/workspace.ts';
 import { i18n } from '@/i18n.ts';
 import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
@@ -453,6 +454,9 @@ function openHeaderWindowMenu(ev: PointerEvent) {
 		icon,
 		action: () => openWorkspacePanelWindow(type),
 	})), ev.currentTarget ?? ev.target);
+}
+
+function openHeaderToolsMenu(ev: PointerEvent) {
 }
 
 async function toggleDevTools() {
