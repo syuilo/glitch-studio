@@ -43,6 +43,7 @@ export const PREF_DEF = definePreferences({
 	renderingStatsEnabled: { default: () => true },
 	waveformAndHistogramEnabled: { default: () => true },
 	timelineFrameCacheMaxGiB: { default: () => 2 },
+	timelinePreviewFramesAhead: { default: () => 1 },
 	workspaceDefinition: {
 		default: (): WorkspaceElement => {
 			return {

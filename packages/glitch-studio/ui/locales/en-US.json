@@ -426,6 +426,9 @@
 		"VisualModuleAutoConnectOnNodeAdd": "Automatically connect added nodes",
 		"VisualModuleAutoConnectOnNodeAddHint": "Connects the current primary output source to the added node's primary input and switches the primary output to the added node, when connectable.",
 		"Rendering": "Rendering",
+		"TimelinePreviewFramesAhead": "Timeline preview frames ahead",
+		"TimelinePreviewFramesAheadHint": "Additional frames allowed beyond the one being processed. 0 disables processing ahead; the default of 1 allows up to 2 frames in total. Higher values may improve smoothness but can delay visual feedback and increase memory use. Changing this setting reinitializes the preview and clears its frame cache.",
+		"InvalidTimelinePreviewFramesAhead": "Enter an integer from 0 to 3 for frames ahead.",
 		"TimelineFrameCacheCapacity": "Timeline frame cache capacity",
 		"TimelineFrameCacheCapacityHint": "Maximum capacity per editor window. Set to 0 to disable.",
 		"InvalidFrameCacheCapacity": "Enter a valid, non-negative cache capacity.",
@@ -454,7 +457,7 @@
 	"_Stats": {
 		"DisabledHint": "Measurement is disabled. Click Stats in the footer to enable it.",
 		"FrameDuration": "Frame total",
-		"FrameDurationDescription": "Elapsed time from the start of rendering through GPU completion. Excludes time spent waiting for an earlier frame.",
+		"FrameDurationDescription": "Elapsed time from the start of rendering through GPU completion. Excludes time spent waiting for an earlier frame. GPU waits can overlap across frames, so the inverse of this value is not the FPS.",
 		"VideoSampleWait": "Video retrieval",
 		"VideoSampleWaitDescription": "Time spent retrieving video frames, including file reads, initialization, decoding and cache waits. Summed across video layers, child Scenes and motion blur samples.",
 		"VideoUploadCpu": "Video upload (CPU)",

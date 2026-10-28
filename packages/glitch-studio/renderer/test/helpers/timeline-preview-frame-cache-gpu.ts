@@ -15,6 +15,7 @@ export async function run() {
 	return textureLoad(image, vec2i(pixel.xy), 0);
 }` }), targets: [{ format: 'rgba32float' }] }, primitive: { topology: 'triangle-list' },
 	});
+
 	async function read(source: GPUTexture) {
 		const target = device.createTexture({ size: [2, 2], format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 		const buffer = device.createBuffer({ size: 512, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
@@ -32,6 +33,7 @@ export async function run() {
 			return [...data.slice(0, 8), ...data.slice(64, 72)];
 		} finally { buffer.destroy(); target.destroy(); }
 	}
+
 	const checks: string[] = [];
 	try {
 		for (const format of ['rgba8unorm', 'bgra8unorm', 'rgba16float', 'rgba32float', 'r16float', 'rg16float', 'r32float', 'rg32float'] as const) {
@@ -57,6 +59,26 @@ export async function run() {
 				if (saved == null) throw new Error('Cached frame disappeared');
 				const actual = await read(saved.texture);
 				if (actual.some((value, index) => Math.abs(value - expected[index]) > 1e-6)) throw new Error(`${format}: cached pixels differ`);
+				// 【GPU完了を待たずに次の画像を送っても、各フレームの画素を独立して保持する】
+				// プレビューの先行処理では同じ作業用画像を次のフレームが更新する。
+				// submit順の依存関係でコピーが保護され、透明度・HDR値も混ざらないことを実GPUで確認する。
+				const secondEncoder = device.createCommandEncoder();
+				const second = cache.capture(secondEncoder, source, null);
+				if (second == null) throw new Error('Second frame was not captured');
+				device.queue.submit([secondEncoder.finish()]);
+				device.queue.writeTexture({ texture: source }, pixels, { bytesPerRow: pixels.byteLength / 2 }, [2, 2]);
+				const thirdEncoder = device.createCommandEncoder();
+				const third = cache.capture(thirdEncoder, source, null);
+				if (third == null) throw new Error('Third frame was not captured');
+				device.queue.submit([thirdEncoder.finish()]);
+				await device.queue.onSubmittedWorkDone();
+				cache.commit(1, second);
+				cache.commit(2, third);
+				const blank = await read(cache.get(1)!.texture);
+				const restored = await read(cache.get(2)!.texture);
+				const hasAlpha = format.startsWith('rgba') || format.startsWith('bgra');
+				if (blank.some((value, index) => Math.abs(value - (!hasAlpha && index % 4 === 3 ? 1 : 0)) > 1e-6)) throw new Error(`${format}: submitted frames mixed`);
+				if (restored.some((value, index) => Math.abs(value - expected[index]) > 1e-6)) throw new Error(`${format}: following frame pixels differ`);
 				const error = await device.popErrorScope();
 				if (error != null) throw new Error(error.message);
 				checks.push(format);

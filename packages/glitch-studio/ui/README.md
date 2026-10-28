@@ -46,6 +46,8 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 ## Timelineのプレビュー再生・BAKE
 
+環境設定の「レンダリング」にある「タイムラインプレビューの先行フレーム数」は、処理中の1フレームに追加する先行数を0〜3で指定します。既定値は1（合計2フレーム）、0では各フレームのGPU完了を待ってから次を処理します。端末・編集ウィンドウの環境設定として保存し、プロジェクトには含めません。変更時は`updateStaticOptions()`でTimelineのWorkerを再生成するため、プレビューの初期化とフレームキャッシュの消去が発生します。Scene・現在位置・再生状態は維持し、Visual ModuleのWorkerは再生成しません。
+
 通常再生では`TimelineAudioPreview.currentTime()`が音声出力のtimestamp対から現在時刻を補間し、`PreviewPlaybackController`は毎RAFで表示対象フレームの変化を判定します。FPS制限をRAF間隔でも重ねると時計の位相差・浮動小数点の誤差で描画機会を逃すため、描画要求は表示フレームの変化だけで制限します。明示的な`refresh()`は編集・Worker復帰のため同じ時刻でも再描画します。
 
 TimelineのBAKEは`PreviewPlaybackController`が現在位置からScene終端までのフレーム進行と中止を管理し、`TimelineRendererManagerController.renderTimelineAtAndWait()`が既存の`frameRendered`通知でGPU描画完了を待ちます。通常シークのスピナーやキャッシュ済み通知の省略とは独立し、BAKEでは毎フレーム完了通知を要求します。通常操作・設定更新・編集・Worker破棄で待機を解除し、レンダラーにはBAKE専用の処理を追加しません。挙動は[タイムライン](../../../docs/timeline.md)を参照してください。

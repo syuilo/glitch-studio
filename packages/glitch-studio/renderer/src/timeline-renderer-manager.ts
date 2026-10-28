@@ -80,6 +80,8 @@ export type TimelineRendererManagerStaticOptions = {
 	enable32bitDataTextures: boolean;
 	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
 	intermediateTextureFormat: IntermediateTextureFormat;
+	/** 処理中の1件に追加できる先行数。省略時は1、0ではGPU完了まで直列に処理する。 */
+	previewFramesAhead?: number;
 };
 
 /**
@@ -142,6 +144,8 @@ export class TimelineRendererManager extends EventEmitter<{
 }> {
 	private timelineRenderer: TimelineRenderer<TimelineImage, TimelineLayer>;
 	private previewRenderGeneration = 0;
+	private previewFrameSequence = 0;
+	private publishedPreviewFrameSequence = 0;
 	private previewFrameTiming: TimelinePreviewFrameTiming | null = null;
 	private previewStatistics = new TimelinePreviewStatisticsCollector();
 	private telemetryReportIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -156,7 +160,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[]; cameras: TimelineMotionBlurCameraCuts[] } | null = null;
 	private resolveSpeech = createSpeechResolver([]);
 	private nextTimelineLayerStatusId = 0;
-	private previewScheduler = new TimelinePreviewScheduler((time, timeDelta) => this.renderPreviewFrame(time, timeDelta));
+	private previewScheduler: TimelinePreviewScheduler;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
@@ -207,6 +211,10 @@ export class TimelineRendererManager extends EventEmitter<{
 	}, staticOptions: TimelineRendererManagerStaticOptions) {
 		super();
 		this.staticOptions = { ...staticOptions, timelineMotionBlur: { ...staticOptions.timelineMotionBlur } };
+		this.previewScheduler = new TimelinePreviewScheduler(
+			(time, timeDelta, onSubmitted) => this.renderPreviewFrame(time, timeDelta, onSubmitted),
+			(staticOptions.previewFramesAhead ?? 1) + 1,
+		);
 
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.assetTextures = new AssetTextures(this.gpuDevice);
@@ -500,8 +508,9 @@ export class TimelineRendererManager extends EventEmitter<{
 		return this.previewScheduler.render(time);
 	}
 
-	private async renderPreviewFrame(time: number, timeDelta: number): Promise<boolean> {
-		const generation = ++this.previewRenderGeneration;
+	private async renderPreviewFrame(time: number, timeDelta: number, onSubmitted: () => void): Promise<boolean> {
+		const generation = this.previewRenderGeneration;
+		const sequence = ++this.previewFrameSequence;
 		const contentRevision = this.frameCacheRevision;
 		const fps = this.dynamicOptions.previewFps ?? this.staticOptions.timelineFps;
 		const frameIndex = getTimelinePreviewFrameIndex(time, fps);
@@ -511,8 +520,8 @@ export class TimelineRendererManager extends EventEmitter<{
 			&& Math.abs(time - frameIndex * 1000 / fps) < 1e-7 && this.frameCache.enabled ? frameIndex : null,
 		transforms: new Map(), cameraEvaluation: null, snapshot: null, captureError: null };
 		this.activePreviewFrame = capture;
-		// SchedulerがGPU完了まで直列化するため、この集計は一つの出力フレームに属する。
-		// 子Scene・複数レイヤー・ブラーの全サンプルを足し、書き出しはここを経由しない。
+		// CPU側の評価・送信は直列なので、子Scene・複数レイヤー・ブラーの集計はこの1フレームに属する。
+		// GPU通知待ちへ移る前に共有の参照を外し、先行する次フレームの計測と混ざらないようにする。
 		const timing: TimelinePreviewFrameTiming | null = this.staticOptions.enableStats
 			? {
 				frameDurationMs: 0,
@@ -539,6 +548,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		} : null;
 		this.pendingTransformPreview = preview;
 		try {
+			let prepared = false;
 			try {
 				if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 				const cached = capture.frameIndex != null && this.assetTextures.isReady ? this.frameCache.get(capture.frameIndex) : null;
@@ -550,13 +560,18 @@ export class TimelineRendererManager extends EventEmitter<{
 				} else {
 					await this.renderFrame(time, false, this.staticOptions.timelineFps, timeDelta);
 				}
+				prepared = true;
 			} finally {
-				// submitはGPUへの実行予約であり、描画完了ではない。最終表示・ブラーの
-				// 全サンプルを含めて待ち、重いフレームの後ろにGPU処理を積み重ねない。
-				// 途中で失敗・編集による中断が起きても、送信済みの処理は待ち切る。
+				// 送信後は設定された上限まで次の準備を許可する。GPU完了を待つこの関数の寿命と、
+				// CPU側の評価で使う参照の寿命を分け、前フレームの後始末で次の参照を消さない。
+				if (this.activePreviewFrame === capture) this.activePreviewFrame = null;
+				if (this.previewFrameTiming === timing) this.previewFrameTiming = null;
+				if (this.pendingTransformPreview === preview) this.pendingTransformPreview = null;
 				const gpuWaitStartedAt = timing != null ? performance.now() : 0;
 				try {
-					await this.gpuDevice.queue.onSubmittedWorkDone();
+					const completed = this.gpuDevice.queue.onSubmittedWorkDone();
+					if (prepared) onSubmitted();
+					await completed;
 				} finally {
 					if (timing != null) timing.gpuWaitMs = performance.now() - gpuWaitStartedAt;
 				}
@@ -573,7 +588,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				this.previewStatistics.addFrame(sceneId, revision, timing);
 			}
 			// 編集や破棄で無効になったフレームの変形情報を、現在の表示へ反映しない。
-			if (generation === this.previewRenderGeneration && preview && this.dynamicOptions.transformObserver === request) {
+			if (generation === this.previewRenderGeneration && sequence >= this.publishedPreviewFrameSequence && preview && this.dynamicOptions.transformObserver === request) {
 				// ブラーのサブサンプルごとには通知しない。枠の変形は基準時刻で評価し、
 				// 寸法には実際の合成前出力を使う。画像の読み戻し・ハンドル用の再描画は不要。
 				const blur = this.staticOptions.timelineMotionBlur;
@@ -597,6 +612,7 @@ export class TimelineRendererManager extends EventEmitter<{
 						fitMode,
 					};
 				}
+				this.publishedPreviewFrameSequence = sequence;
 				this.publishTransformPreview(preview);
 			}
 			if (generation === this.previewRenderGeneration && frameRenderedRequestId != null

@@ -42,7 +42,8 @@ function evaluate(bundle) {
 // 古い画面で間隔だけを変えても、別の画面で無効化した設定まで元に戻してはならない。
 // 保存キーを細分化しただけでは、適用時に全フィールドを書き戻す実装を防げない。
 // ブラウザー版のキャッシュ容量も表示・検証・保存でき、未編集時には書き戻さないことを確認する。
-test('applies only edited settings and validates the browser frame cache capacity', async t => {
+// 先行フレーム数も環境設定だけへ保存し、0や上限3を使えて不正値を適用しないことを確認する。
+test('applies only edited settings and validates timeline preview preferences', async t => {
 	const previousWindow = globalThis.window;
 	const storage = new Map([['preferences:projectBackupAutoEnabled', 'true'], ['locale', 'ja-JP']]);
 	const writes = [];
@@ -96,4 +97,27 @@ test('applies only edited settings and validates the browser frame cache capacit
 	await find('data-test-settings-apply').props.onClick();
 	assert.equal(preferences.s.timelineFrameCacheMaxGiB, 1);
 	assert.equal(storage.get('preferences:timelineFrameCacheMaxGiB'), '1');
+	// 【先行フレーム数を0〜3の整数に限定し、0でも設定を適用する】
+	// 空欄や小数などを保存するとスケジューラーを作れなくなるため、適用前に拒否する。
+	const framesAhead = find('data-test-timeline-preview-frames-ahead');
+	assert.equal(framesAhead.props.modelValue, 1);
+	assert.equal(framesAhead.props.min, 0);
+	assert.equal(framesAhead.props.max, 3);
+	assert.equal(framesAhead.props.step, 1);
+	const writeCount = writes.length;
+	for (const value of [-1, 0.5, 4, NaN, Infinity]) {
+		framesAhead.props['onUpdate:modelValue'](value);
+		await nextTick();
+		assert.equal(find('data-test-settings-apply').props.disabled, true);
+		await find('data-test-settings-apply').props.onClick();
+		assert.equal(writes.length, writeCount);
+	}
+	for (const value of [0, 3]) {
+		framesAhead.props['onUpdate:modelValue'](value);
+		await nextTick();
+		assert.equal(find('data-test-settings-apply').props.disabled, false);
+		await find('data-test-settings-apply').props.onClick();
+		assert.equal(preferences.s.timelinePreviewFramesAhead, value);
+		assert.equal(storage.get('preferences:timelinePreviewFramesAhead'), JSON.stringify(value));
+	}
 });

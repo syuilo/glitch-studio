@@ -117,6 +117,7 @@ export class AppContext {
 			timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
 			enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
+			previewFramesAhead: preferences.s.timelinePreviewFramesAhead,
 		}, { highlightClipping: this.highlightClipping.value,
 			previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value,
 			frameCacheMaxBytes: Math.floor(preferences.s.timelineFrameCacheMaxGiB * 1024 ** 3),
@@ -271,6 +272,12 @@ export class AppContext {
 		});
 		watch(preferences.r.timelineFrameCacheMaxGiB, async value => {
 			await this.timelineRendererManagerController.updateDynamicOptions({ frameCacheMaxBytes: Math.floor(value * 1024 ** 3) });
+			this.renderEngine.requestRetry();
+			this.previewPlayback.refresh();
+		});
+		watch(preferences.r.timelinePreviewFramesAhead, async value => {
+			// 既存の静的設定と同じ再生成手順を使い、先行中の処理やGPU資源を持ち越さない。
+			await this.timelineRendererManagerController.updateStaticOptions({ previewFramesAhead: value });
 			this.renderEngine.requestRetry();
 			this.previewPlayback.refresh();
 		});

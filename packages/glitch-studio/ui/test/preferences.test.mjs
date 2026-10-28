@@ -106,3 +106,19 @@ test('isolates committed workspace values from later edits and skips equal copie
 	assert.equal(preferences.r.workspaceDefinition.value.children[0].name, 'Edited workspace');
 	assert.deepEqual(JSON.parse(storage.get('preferences:workspaceDefinition')), preferences.s.workspaceDefinition);
 });
+
+// 【先行フレーム数は未設定時に1を使い、0も通常の環境設定として保存・復元する】
+// 0を未設定扱いにすると低遅延を選んでも再起動後に先行処理が有効へ戻ってしまう。
+test('persists zero frames ahead and restores the configured preview preference', () => {
+	const storage = new Map();
+	const window = { localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } };
+	const module = { exports: {} };
+	new Function('require', 'module', 'exports', 'window', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, window);
+	const { preferences, PreferencesManager } = module.exports;
+	assert.equal(preferences.s.timelinePreviewFramesAhead, 1);
+	for (const value of [0, 3]) {
+		preferences.commit('timelinePreviewFramesAhead', value);
+		assert.equal(storage.get('preferences:timelinePreviewFramesAhead'), JSON.stringify(value));
+		assert.equal(new PreferencesManager().s.timelinePreviewFramesAhead, value);
+	}
+});

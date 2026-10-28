@@ -117,7 +117,7 @@ function fixture(t, { present = false, disableCache = true, timelineFps = 60, ti
 for (const samples of [1, 4]) {
 	// 【GPUが完了するまで次のプレビューフレームを投入しない】
 	// JavaScript側の描画完了だけを待つと、重いGPU処理がフレームごとに蓄積する。
-	// 単発・モーションブラーとも最終表示まで送信してから待ち、連続した要求の
+	// 単発・モーションブラーとも送信済みの先行処理を最大2件に制限し、空き枠がない間の
 	// 中間位置を捨てることを、実際のレイヤー評価とManagerを通して確認する。
 	test(`waits for GPU completion and coalesces preview requests with a sample count of ${samples}`, async t => {
 		const { manager, calls } = fixture(t, { present: true, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples } });
@@ -135,7 +135,7 @@ for (const samples of [1, 4]) {
 			waits++;
 			assert.equal(calls.presented.length, waits);
 			assert.equal(calls.renders.length, waits * samples);
-			if (waits === 1) {
+			if (waits <= 2) {
 				waitingForGpu.resolve();
 				await gpuFinished.promise;
 			}
@@ -145,17 +145,19 @@ for (const samples of [1, 4]) {
 		await waitingForGpu.promise;
 		const submitted = submit.mock.callCount();
 		assert.ok(submitted > 0);
-		for (const time of [225, 250, 800, 300, 900]) await manager.renderTimelineAt(time);
+		await manager.renderTimelineAt(225);
+		await new Promise(resolve => setImmediate(resolve));
+		for (const time of [250, 800, 300, 900]) await manager.renderTimelineAt(time);
 		assert.equal(finished, false);
-		assert.equal(submit.mock.callCount(), submitted);
-		assert.equal(render.mock.callCount(), 1);
-		assert.equal(calls.presented.length, 1);
+		assert.ok(submit.mock.callCount() > submitted);
+		assert.equal(render.mock.callCount(), 2);
+		assert.equal(calls.presented.length, 2);
 		gpuFinished.resolve();
 		await first;
-		assert.deepEqual(render.mock.calls.map(call => call.arguments[0]), [200, 900]);
-		assert.deepEqual(render.mock.calls.map(call => call.arguments[3]), [0, 700]);
-		assert.equal(waits, 2);
-		assert.equal(calls.presented.length, 2);
+		assert.deepEqual(render.mock.calls.map(call => call.arguments[0]), [200, 225, 900]);
+		assert.deepEqual(render.mock.calls.map(call => call.arguments[3]), [0, 25, 675]);
+		assert.equal(waits, 3);
+		assert.equal(calls.presented.length, 3);
 		assert.deepEqual(calls.errors, []);
 	});
 

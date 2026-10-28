@@ -108,6 +108,38 @@ async function initialize(controller, workers) {
 	return worker;
 }
 
+// 【先行数は静的設定として再生成したWorkerへ渡し、同じ値の適用では再生成しない】
+// 設定を下げるときに旧Workerの送信済みフレームやキャッシュを持ち越さず、GPU完了待ちの
+// シークも解除する。0を未設定扱いにしたり、projectの動的情報へ混ぜたりしないことを確認する。
+test('recreates the timeline worker for frames ahead changes and clears obsolete preview state', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	await controller.updateStaticOptions({ previewFramesAhead: 1 });
+	const oldWorker = await initialize(controller, workers);
+	oldWorker.reply({ type: 'ev', ev: { type: 'frameCache', ctx: { sceneId: null, previewRevision: 0, contentRevision: 1,
+		fps: 60, frameRanges: [{ startFrame: 0, endFrame: 2 }], maxBytes: 16, estimatedBytes: 8 } } });
+	assert.notEqual(controller.frameCacheState.value, null);
+	const seek = controller.renderTimelineAtAndWait(100);
+	const changed = controller.updateStaticOptions({ previewFramesAhead: 0 });
+	assert.equal(await seek, false);
+	assert.equal(oldWorker.terminated, true);
+	assert.equal(controller.frameCacheState.value, null);
+	const replacement = workers[1];
+	const initial = await replacement.initialization.promise;
+	assert.equal(initial.staticOptions.previewFramesAhead, 0);
+	assert.equal(Object.hasOwn(initial.dynamicOptions, 'previewFramesAhead'), false);
+	replacement.reply({ type: 'inited' });
+	await changed;
+	await controller.updateStaticOptions({ previewFramesAhead: 0 });
+	assert.equal(workers.length, 2);
+	const increased = controller.updateStaticOptions({ previewFramesAhead: 3 });
+	assert.equal(replacement.terminated, true);
+	const latest = workers[2];
+	assert.equal((await latest.initialization.promise).staticOptions.previewFramesAhead, 3);
+	latest.reply({ type: 'inited' });
+	await increased;
+	assert.equal(controller.isReady.value, true);
+});
+
 // 【推定使用量と最大容量から丸めない使用率を求め、未通知・無効時は不明とする】
 // UI表示とBAKEの停止判定で同じ比率を使う。容量変更やWorker破棄後の古い値を残したり、
 // 最大容量0で除算してInfinityを表示したりしない。

@@ -36,6 +36,10 @@
 							<template #label>{{ i18n.ts._Settings.Rendering }}</template>
 
 							<div class="_gaps_l">
+								<GsInput v-model="timelinePreviewFramesAhead" large type="number" :min="0" :max="3" :step="1" data-test-timeline-preview-frames-ahead>
+									<template #label>{{ i18n.ts._Settings.TimelinePreviewFramesAhead }}</template>
+									<template #caption>{{ i18n.ts._Settings.TimelinePreviewFramesAheadHint }}</template>
+								</GsInput>
 								<GsInput v-model="timelineFrameCacheMaxGiB" large type="number" :min="0" :step="0.25" data-test-timeline-frame-cache-capacity>
 									<template #label>{{ i18n.ts._Settings.TimelineFrameCacheCapacity }}</template>
 									<template #suffix>GiB</template>
@@ -126,10 +130,12 @@ const importLargeAssetsAsExternalReferences = ref(preferences.s.importLargeAsset
 const enable32bitDataTextures = ref(preferences.s.enable32bitDataTextures);
 const intermediateTextureFormat = ref(preferences.s.intermediateTextureFormat);
 const timelineFrameCacheMaxGiB = ref(preferences.s.timelineFrameCacheMaxGiB);
+const timelinePreviewFramesAhead = ref(preferences.s.timelinePreviewFramesAhead);
 const visualModuleAutoConnectOnNodeAdd = ref(preferences.s.visualModuleAutoConnectOnNodeAdd);
 const validationError = computed(() => {
 	try {
 		validateProjectBackupSettings(settings.value);
+		if (!Number.isInteger(timelinePreviewFramesAhead.value) || timelinePreviewFramesAhead.value < 0 || timelinePreviewFramesAhead.value > 3) return i18n.ts._Settings.InvalidTimelinePreviewFramesAhead;
 		if (!Number.isFinite(timelineFrameCacheMaxGiB.value) || timelineFrameCacheMaxGiB.value < 0
 			|| !Number.isSafeInteger(Math.floor(timelineFrameCacheMaxGiB.value * 1024 ** 3))) return i18n.ts._Settings.InvalidFrameCacheCapacity;
 		return null;
@@ -149,6 +155,7 @@ async function apply() {
 	preferences.commit('enable32bitDataTextures', enable32bitDataTextures.value);
 	preferences.commit('intermediateTextureFormat', intermediateTextureFormat.value);
 	preferences.commit('timelineFrameCacheMaxGiB', timelineFrameCacheMaxGiB.value);
+	preferences.commit('timelinePreviewFramesAhead', timelinePreviewFramesAhead.value);
 	preferences.commit('visualModuleAutoConnectOnNodeAdd', visualModuleAutoConnectOnNodeAdd.value);
 	modal.value?.close();
 	if (initialLocale !== selectedLocale.value) await changeLocale(selectedLocale.value);

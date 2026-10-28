@@ -43,6 +43,86 @@ function constantVisualModule() {
 	] };
 }
 
+for (const framesAhead of [undefined, 0, 1, 2, 3]) {
+	// 【静的な先行数を、処理中の1件を含めたスケジューラーの上限へ変換する】
+	// 0は無効・未設定ではなく先行なしを表す。初期値では以前と同じ合計2件を許可し、
+	// UIの設定値がそのまま合計件数として扱われてしまうoff-by-oneも防ぐ。
+	test(`applies the static preview frames ahead value ${framesAhead ?? 'default'}`, async t => {
+		const { renderer, errors } = await fixture(t, { previewFramesAhead: framesAhead }, TimelineRendererManager);
+		const completed = Promise.withResolvers();
+		const times = [];
+		const limit = (framesAhead ?? 1) + 1;
+		t.mock.method(renderer, 'renderFrame', async time => { times.push(time); });
+		t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', () => completed.promise);
+		const pending = renderer.renderTimelineAt(0);
+		await new Promise(resolve => setImmediate(resolve));
+		for (let time = 1; time < limit; time++) {
+			await renderer.renderTimelineAt(time);
+			await new Promise(resolve => setImmediate(resolve));
+		}
+		await renderer.renderTimelineAt(99);
+		assert.deepEqual(times, Array.from({ length: limit }, (_, index) => index));
+		completed.resolve();
+		await pending;
+		assert.deepEqual(times, [...Array.from({ length: limit }, (_, index) => index), 99]);
+		assert.deepEqual(errors, []);
+	});
+}
+
+// 【先行フレームの後処理が逆順になっても、画像・変形情報・統計をそれぞれのフレームへ保存する】
+// GPUの完了後にもキャッシュ用error scopeを待つため、先のフレームの後処理が遅れ得る。
+// 最新フレームで旧結果をすべて無効化するとキャッシュや統計を失い、逆に全通知を許すと
+// 選択枠が古い時刻へ戻る。GPU完了前の登録・シーク完了通知も同時に防ぐ。
+test('keeps both submitted frame results while publishing only the newest transform', async t => {
+	const { renderer, errors } = await fixture(t, { enableStats: true }, TimelineRendererManager);
+	const scenes = structuredClone(renderer.dynamicOptions.timelineScenes);
+	scenes[0].layers[0].compositingParamValues.rotation = { inputSource: 'expression', expression: 'TIME_MS / 1000' };
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], timelineScenes: scenes, previewFps: 30, frameCacheMaxBytes: 64,
+		transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
+	const firstGpu = Promise.withResolvers();
+	const secondGpu = Promise.withResolvers();
+	const firstCaptureCheck = Promise.withResolvers();
+	const waiting = Promise.withResolvers();
+	let gpuWaits = 0;
+	t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', () => {
+		if (++gpuWaits === 1) { waiting.resolve(); return firstGpu.promise; }
+		return secondGpu.promise;
+	});
+	let captureChecks = 0;
+	t.mock.method(renderer.gpuDevice, 'popErrorScope', async () => ++captureChecks === 1 ? firstCaptureCheck.promise : null);
+	const statistics = t.mock.method(renderer.previewStatistics, 'addFrame');
+	const transforms = [];
+	const completed = [];
+	renderer.on('ev', event => {
+		if (event.type === 'layerTransform') transforms.push(event.ctx);
+		if (event.type === 'frameRendered') completed.push(event.ctx);
+	});
+	const pending = renderer.renderTimelineAt(0, 1);
+	await waiting.promise;
+	await renderer.renderTimelineAt(1000 / 30, 2);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(gpuWaits, 2);
+	assert.equal(renderer.frameCache.get(0), null);
+	assert.equal(renderer.frameCache.get(1), null);
+	assert.deepEqual(completed, []);
+	firstGpu.resolve();
+	secondGpu.resolve();
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(renderer.frameCache.get(0), null);
+	assert.notEqual(renderer.frameCache.get(1), null);
+	assert.equal(statistics.mock.callCount(), 1);
+	assert.deepEqual(completed.map(event => event.requestId), [2]);
+	firstCaptureCheck.resolve(null);
+	await pending;
+	assert.notEqual(renderer.frameCache.get(0), null);
+	assert.equal(statistics.mock.callCount(), 2);
+	assert.equal(renderer.frameCache.get(0).metadata.get('layer').geometry.transform.rotation, 0);
+	assert.equal(renderer.frameCache.get(1).metadata.get('layer').geometry.transform.rotation, 1 / 30);
+	assert.equal(transforms.at(-1).geometry.transform.rotation, 1 / 30);
+	assert.equal(transforms.length, 1);
+	assert.deepEqual(errors, []);
+});
+
 function gpuFixture() {
 	const texture = ({ size = [1, 1], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], depthOrArrayLayers: 1, mipLevelCount: 1, sampleCount: 1,
@@ -664,8 +744,8 @@ test('ignores obsolete timeline completions after destruction', async t => {
 for (const failure of ['render', 'GPU completion']) {
 	// 【描画途中の失敗でも送信済みGPU処理を待ち、完了待ちの失敗からも復旧できる】
 	// 失敗で即座に処理中フラグを解除すると、再試行時に古いGPU処理が残る。
-	// 完了待ちのrejectもプレビューエラーとして通知し、後続要求を止めたうえで
-	// 新しい明示的な描画要求は受け付ける必要がある。
+	// 完了待ちのrejectもプレビューエラーとして通知し、未着手の要求は止める。
+	// GPU送信に成功した場合は最大2件まで先行するが、新しい明示的な再試行は受け付ける。
 	test(`waits for submitted work and allows retry after ${failure} failure`, async t => {
 		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
 		const gpuFinished = Promise.withResolvers();
@@ -681,7 +761,7 @@ for (const failure of ['render', 'GPU completion']) {
 		let waits = 0;
 		t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', async () => {
 			assert.equal(submitted, ++waits);
-			if (waits === 1) {
+			if (waits === 1 || (waits === 2 && failure === 'GPU completion')) {
 				waitingForGpu.resolve();
 				await gpuFinished.promise;
 			}
@@ -689,24 +769,28 @@ for (const failure of ['render', 'GPU completion']) {
 		const first = renderer.renderTimelineAt(0);
 		await waitingForGpu.promise;
 		await renderer.renderTimelineAt(10);
-		assert.deepEqual(times, [0]);
+		await new Promise(resolve => setImmediate(resolve));
+		const submittedTimes = failure === 'render' ? [0] : [0, 10];
+		assert.deepEqual(times, submittedTimes);
+		await renderer.renderTimelineAt(15);
 		assert.deepEqual(errors, []);
 		if (failure === 'render') gpuFinished.resolve();
 		else gpuFinished.reject(new Error('GPU completion failed'));
 		await first;
 		const message = failure === 'render' ? 'partial rendering failed' : 'GPU completion failed';
-		assert.deepEqual(errors, [message]);
-		assert.deepEqual(times, [0]);
+		const expectedErrors = failure === 'render' ? [message] : [message, message];
+		assert.deepEqual(errors, expectedErrors);
+		assert.deepEqual(times, submittedTimes);
 		await renderer.renderTimelineAt(20);
-		assert.deepEqual(times, [0, 20]);
+		assert.deepEqual(times, [...submittedTimes, 20]);
 		// 正常フレームはエラー解除を通知しない。復旧の表示はUIの再生成完了が担当する。
-		assert.deepEqual(errors, [message]);
+		assert.deepEqual(errors, expectedErrors);
 	});
 }
 
 for (const invalidation of ['edit', 'scene change', 'destroy']) {
 	// 【GPU完了待ち中の編集・Scene切り替え・破棄でも待機制限を維持する】
-	// CPU評価が終わっていても、GPUへの送信を取り消すことはできない。
+	// CPU評価が終わっていても、先行する最大2件のGPUへの送信を取り消すことはできない。
 	// 古い完了待ちが失敗しても無効化後のエラー表示へ漏らさず、破棄時は
 	// 待機要求を実行しない。編集・Scene切り替えでは新しい要求だけを実行する。
 	test(`keeps GPU backpressure and ignores stale errors after ${invalidation}`, async t => {
@@ -716,7 +800,7 @@ for (const invalidation of ['edit', 'scene change', 'destroy']) {
 		const waitingForGpu = Promise.withResolvers();
 		let waits = 0;
 		t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', async () => {
-			if (++waits === 1) {
+			if (++waits <= 2) {
 				waitingForGpu.resolve();
 				await gpuFinished.promise;
 			}
@@ -725,6 +809,7 @@ for (const invalidation of ['edit', 'scene change', 'destroy']) {
 		const first = renderer.renderTimelineAt(0);
 		await waitingForGpu.promise;
 		await renderer.renderTimelineAt(10);
+		await new Promise(resolve => setImmediate(resolve));
 		if (invalidation === 'edit') {
 			const updatedVisualModule = visualModule(false);
 			updatedVisualModule.nodes[0].params.input = { inputSource: 'literal', value: [1, 0, 0, 1] };
@@ -732,10 +817,10 @@ for (const invalidation of ['edit', 'scene change', 'destroy']) {
 		} else if (invalidation === 'scene change') await renderer.updateDynamicOptions({ sceneId: null });
 		else renderer.destroy();
 		if (invalidation !== 'destroy') await renderer.renderTimelineAt(20);
-		assert.equal(render.mock.callCount(), 1);
+		assert.equal(render.mock.callCount(), 2);
 		gpuFinished.reject(new Error('obsolete GPU completion failed'));
 		await first;
-		assert.deepEqual(render.mock.calls.map(call => call.arguments[0]), invalidation === 'destroy' ? [0] : [0, 20]);
+		assert.deepEqual(render.mock.calls.map(call => call.arguments[0]), invalidation === 'destroy' ? [0, 10] : [0, 10, 20]);
 		assert.deepEqual(errors, []);
 	});
 }

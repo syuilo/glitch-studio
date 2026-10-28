@@ -1,4 +1,7 @@
-/** GPUのtimestamp queryではなく、フレーム処理中の実経過時間をmsで表す。 */
+/**
+ * GPUのtimestamp queryではなく、フレーム処理中の実経過時間をmsで表す。
+ * 先行処理を許可するとGPU待機はフレーム間で重なるため、平均時間の逆数は描画スループットとは一致しない。
+ */
 export type TimelinePreviewFrameTiming = {
 	frameDurationMs: number;
 	videoSampleWaitMs: number;
