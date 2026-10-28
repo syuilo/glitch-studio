@@ -93,6 +93,12 @@ export class AppContext {
 		this.projectContext = projectContext;
 		this.renderValidation = markRaw(new ProjectRenderValidation(projectContext.stateManager.state, effectDefinitions));
 
+		// 保存済みのAnalyze設定をWorker生成より先に渡す。切り替え時も、映像レンダラーの
+		// 再生成を待たず音声モニターを止める。音声再生・作品内の音声解析には適用しない。
+		watch(preferences.r.analysisMonitorsEnabled, enabled => {
+			void this.audioOutput.preview.setAnalysisEnabled(enabled);
+		}, { immediate: true, flush: 'sync' });
+
 		// Sceneを削除・Undoした場合にも、UIが存在しないSceneを編集し続けないようにする。
 		watch(() => this.projectContext.stateManager.state.timelineScenes.value.map(scene => scene.id), ids => {
 			if (this.activeSceneId.value == null || !ids.includes(this.activeSceneId.value)) this.activeSceneId.value = ids[0] ?? null;
@@ -102,7 +108,7 @@ export class AppContext {
 			enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 			enableStats: preferences.s.renderingStatsEnabled,
-			enableWaveformAndHistogram: preferences.s.waveformAndHistogramEnabled,
+			enableWaveformAndHistogram: preferences.s.analysisMonitorsEnabled,
 		}, {
 			fpsLimit: this.visualModuleLivePreviewFpsLimit.value,
 			visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value,
@@ -111,7 +117,7 @@ export class AppContext {
 
 		this.timelineRendererManagerController = markRaw(new TimelineRendererManagerController({
 			enableStats: preferences.s.renderingStatsEnabled,
-			enableWaveformAndHistogram: preferences.s.waveformAndHistogramEnabled,
+			enableWaveformAndHistogram: preferences.s.analysisMonitorsEnabled,
 			timelineFps: this.projectContext.stateManager.state.timelineFps.value,
 			// プレビュー品質はUIだけが所有し、保存するプロジェクトのサンプル数は変更しない。
 			timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
@@ -291,10 +297,10 @@ export class AppContext {
 			this.previewPlayback.refresh();
 		});
 
-		watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat, preferences.r.renderingStatsEnabled, preferences.r.waveformAndHistogramEnabled], async () => {
+		watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat, preferences.r.renderingStatsEnabled, preferences.r.analysisMonitorsEnabled], async () => {
 			const options = {
 				enableStats: preferences.s.renderingStatsEnabled,
-				enableWaveformAndHistogram: preferences.s.waveformAndHistogramEnabled,
+				enableWaveformAndHistogram: preferences.s.analysisMonitorsEnabled,
 				enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 				intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 			};

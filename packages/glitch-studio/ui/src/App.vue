@@ -76,7 +76,7 @@
 			<div v-if="activePreviewRenderer.errorMessage.value != null" v-tooltip="activePreviewRenderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ activePreviewRenderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
 				<div data-test-timeline-frame-cache-usage :class="$style.footerMemory">{{ i18n.tsx._App.TimelineFrameCacheUsage({ usage: timelineFrameCacheUsageLabel }) }}</div>
-				<button data-test-waveform-and-histogram-toggle :class="$style.footerItem" class="_button" @click="waveformAndHistogramEnabled = !waveformAndHistogramEnabled">{{ i18n.ts._App.Analyze }}: {{ waveformAndHistogramEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
+				<button data-test-analysis-monitors-toggle :class="$style.footerItem" class="_button" @click="analysisMonitorsEnabled = !analysisMonitorsEnabled">{{ i18n.ts._App.Analyze }}: {{ analysisMonitorsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
 				<button data-test-rendering-stats-toggle :class="$style.footerItem" class="_button" @click="renderingStatsEnabled = !renderingStatsEnabled">{{ i18n.ts._Workspace.Stats }}: {{ renderingStatsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
 				<div v-if="renderingStatsEnabled && previewPlayback.state.value.mode === 'visualModuleLivePreview' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
@@ -168,7 +168,7 @@ const timelineFrameCacheUsageLabel = computed(() => {
 	return ratio == null ? '—' : `${(ratio * 100).toFixed(1)}%`;
 });
 const renderingStatsEnabled = preferences.model('renderingStatsEnabled');
-const waveformAndHistogramEnabled = preferences.model('waveformAndHistogramEnabled');
+const analysisMonitorsEnabled = preferences.model('analysisMonitorsEnabled');
 const visualModuleLivePreviewFpsLabel = computed(() => renderingStatsEnabled.value
 	? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps`
 	: `${visualModuleLivePreviewFpsLimit.value ?? '∞'}fps`);

@@ -347,7 +347,8 @@
 		"AccessDenied": "Local font access was not allowed. Allow font access in the browser site settings, or import a font file using Add asset."
 	},
 	"_AudioMonitor": {
-		"Overlay": "Overlay L/R"
+		"Overlay": "Overlay L/R",
+		"DisabledHint": "Analysis is disabled. Click Analyze in the footer to enable it."
 	},
 	"_Workspace": {
 		"AudioSpectrum": "Audio Spectrum",

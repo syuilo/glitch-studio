@@ -1,7 +1,8 @@
 <template>
 <GsDetachableView :title="i18n.ts._Workspace.AudioSpectrogram" :suspended="renderingSuspended" @changeWindow="changeWindow">
 	<div :class="$style.root">
-		<canvas v-show="!renderingSuspended" ref="canvas" :class="$style.canvas" data-test-audio-spectrogram-canvas></canvas>
+		<canvas v-show="analysisEnabled && !renderingSuspended" ref="canvas" :class="$style.canvas" data-test-audio-spectrogram-canvas></canvas>
+		<div v-if="!analysisEnabled" :class="$style.disabledHint" data-test-audio-spectrogram-disabled>{{ i18n.ts._AudioMonitor.DisabledHint }}</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsDetachableView>
@@ -36,7 +37,7 @@ const options = computed<PreviewOptions>(() => ({
 	},
 }));
 const canvas = useTemplateRef('canvas');
-const { changeWindow, error, renderingSuspended } = useAudioPreview(canvas, options);
+const { changeWindow, error, analysisEnabled, renderingSuspended } = useAudioPreview(canvas, options);
 </script>
 
 <style module lang="scss">
@@ -61,5 +62,13 @@ const { changeWindow, error, renderingSuspended } = useAudioPreview(canvas, opti
 	background: #111e;
 	color: #ff8400;
 	overflow: auto;
+}
+.disabledHint {
+	display: grid;
+	place-content: center;
+	box-sizing: border-box;
+	height: 100%;
+	padding: 16px;
+	text-align: center;
 }
 </style>

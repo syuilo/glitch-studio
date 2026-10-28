@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Ref } from 'vue';
 import type { PreviewOptions } from './audio/audio-preview-types.ts';
 import { appContext } from './app.ts';
@@ -23,7 +23,7 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 			width,
 			height,
 			ratio: viewWindow?.devicePixelRatio ?? 1,
-			visible: !audioOutput.preview.isRenderingSuspended.value && !doc?.hidden && intersecting && element.getClientRects().length > 0,
+			visible: audioOutput.preview.isRenderingEnabled.value && !doc?.hidden && intersecting && element.getClientRects().length > 0,
 		});
 	}
 
@@ -72,7 +72,10 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 		} catch (reason) { error.value = String(reason); stop(); }
 	});
 	watch(options, value => panel?.configure(value), { deep: true });
-	watch(audioOutput.preview.isRenderingSuspended, resize, { flush: 'post' });
+	// v-showのupdatedもpost flushで走る。Canvasが再表示される前に寸法を読むと、
+	// Analyzeを有効にしてもWorkerへvisible:falseを送り続けるため、表示更新を待つ。
+	watch(audioOutput.preview.isRenderingEnabled, () => nextTick(resize), { flush: 'post' });
 	onBeforeUnmount(stop);
-	return { changeWindow, error, sampleRate: audioOutput.preview.sampleRate, renderingSuspended: audioOutput.preview.isRenderingSuspended };
+	return { changeWindow, error, sampleRate: audioOutput.preview.sampleRate,
+		analysisEnabled: audioOutput.preview.isAnalysisEnabled, renderingSuspended: audioOutput.preview.isRenderingSuspended };
 }

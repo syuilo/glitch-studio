@@ -1,4 +1,4 @@
-import { readonly, ref } from 'vue';
+import { computed, readonly, ref } from 'vue';
 import type { MeterReading, PreviewOptions, PreviewRequest, PreviewResponse, PreviewSize } from './audio-preview-types.ts';
 
 // UIは接続と設定変更だけを担当し、PCMや描画フレームを中継しない。
@@ -9,8 +9,11 @@ export class AudioPreview {
 	private nextId = 0;
 	private meters = new Map<number, (reading: MeterReading) => void>();
 	private errors = new Map<number, (message: string) => void>();
+	private analysisEnabled = ref(true);
+	public readonly isAnalysisEnabled = readonly(this.analysisEnabled);
 	private renderingSuspended = ref(false);
 	public readonly isRenderingSuspended = readonly(this.renderingSuspended);
+	public readonly isRenderingEnabled = computed(() => this.analysisEnabled.value && !this.renderingSuspended.value);
 	private nextRenderingStateRequestId = 0;
 	private renderingStateRequests = new Map<number, () => void>();
 
@@ -40,8 +43,8 @@ export class AudioPreview {
 				this.finishRenderingStateRequests();
 				for (const error of [...this.errors.values()]) error(event.message);
 			};
-			// 休止中にパネルを開いた場合も、最初の描画より先に現在の状態を渡す。
-			this.worker.postMessage({ type: 'renderingSuspended', suspended: this.renderingSuspended.value, requestId: null } satisfies PreviewRequest);
+			// Analyze無効時や休止中にパネルを開いても、最初の描画より先に停止状態を渡す。
+			this.worker.postMessage({ type: 'renderingSuspended', suspended: !this.isRenderingEnabled.value, requestId: null } satisfies PreviewRequest);
 		}
 		this.worker.postMessage(message, transfer);
 	}
@@ -50,14 +53,26 @@ export class AudioPreview {
 	public resetAudio() { this.send({ type: 'resetAudio' }); }
 	public setRunning(running: boolean) { this.send({ type: 'running', running }); }
 
+	/** 監視パネルの解析・描画だけを切り替える。音声履歴とメーターの配送は維持する。 */
+	public setAnalysisEnabled(enabled: boolean): Promise<void> {
+		this.analysisEnabled.value = enabled;
+		return this.applyRenderingState();
+	}
+
 	/** 再生位置・履歴・Canvasの所有権を保持し、モニターの描画だけを休止する。 */
 	public setRenderingSuspended(suspended: boolean): Promise<void> {
 		this.renderingSuspended.value = suspended;
+		return this.applyRenderingState();
+	}
+
+	private applyRenderingState(): Promise<void> {
+		// ユーザー設定と一時休止を別に持ち、書き出し後の復帰や休止中の設定変更で
+		// もう一方の停止理由を解除しない。Workerには実際に描画できる状態だけを送る。
 		if (this.worker == null || this.workerFailed) return Promise.resolve();
 		const requestId = this.nextRenderingStateRequestId++;
 		const { promise, resolve } = Promise.withResolvers<void>();
 		this.renderingStateRequests.set(requestId, resolve);
-		this.send({ type: 'renderingSuspended', suspended, requestId });
+		this.send({ type: 'renderingSuspended', suspended: !this.isRenderingEnabled.value, requestId });
 		return promise;
 	}
 

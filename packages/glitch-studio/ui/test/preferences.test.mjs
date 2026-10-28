@@ -19,24 +19,24 @@ test('persists independent rendering preferences through models and restores the
 		createRequire(import.meta.url), module, module.exports, window);
 	const { preferences, PreferencesManager } = module.exports;
 	assert.equal(preferences.s.renderingStatsEnabled, true);
-	assert.equal(preferences.s.waveformAndHistogramEnabled, true);
+	assert.equal(preferences.s.analysisMonitorsEnabled, true);
 	const scope = effectScope();
 	t.after(() => scope.stop());
 	const models = scope.run(() => ({
 		renderingStatsEnabled: preferences.model('renderingStatsEnabled'),
-		waveformAndHistogramEnabled: preferences.model('waveformAndHistogramEnabled'),
+		analysisMonitorsEnabled: preferences.model('analysisMonitorsEnabled'),
 	}));
 	models.renderingStatsEnabled.value = false;
 	assert.equal(new PreferencesManager().s.renderingStatsEnabled, false);
-	assert.equal(new PreferencesManager().s.waveformAndHistogramEnabled, true);
-	models.waveformAndHistogramEnabled.value = false;
+	assert.equal(new PreferencesManager().s.analysisMonitorsEnabled, true);
+	models.analysisMonitorsEnabled.value = false;
 	const restored = new PreferencesManager();
 	assert.equal(restored.r.renderingStatsEnabled.value, false);
-	assert.equal(restored.r.waveformAndHistogramEnabled.value, false);
+	assert.equal(restored.r.analysisMonitorsEnabled.value, false);
 	assert.equal(restored.s.previewVolume, 0.25);
 	models.renderingStatsEnabled.value = true;
 	assert.equal(new PreferencesManager().s.renderingStatsEnabled, true);
-	assert.equal(new PreferencesManager().s.waveformAndHistogramEnabled, false);
+	assert.equal(new PreferencesManager().s.analysisMonitorsEnabled, false);
 });
 
 // 【各画面は初期化時だけ設定を読み、変更項目だけを保存する】

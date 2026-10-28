@@ -47,7 +47,9 @@ const appBundle = await build({
 					start(time) { this.time = time; this.starts.push(time); this.projects.push(structuredClone(this.getProject())); } stop() {} currentTime() { return this.time; }
 				}
 				export class AudioOutput {
-					preview = { suspended: false, updates: [], async setRenderingSuspended(value) { this.suspended = value; this.updates.push(value); } };
+					preview = { analysisEnabled: true, suspended: false, updates: [],
+						async setAnalysisEnabled(value) { this.analysisEnabled = value; },
+						async setRenderingSuspended(value) { this.suspended = value; this.updates.push(value); } };
 				}
 			`, loader: 'ts' }));
 			// 相対パスとaliasからの参照でも、本番と同じ設定インスタンスを共有する。
@@ -64,7 +66,7 @@ const appBundle = await build({
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
-							renderingStatsEnabled: false, waveformAndHistogramEnabled: true, timelineFrameCacheMaxGiB: 2,
+							renderingStatsEnabled: false, analysisMonitorsEnabled: true, timelineFrameCacheMaxGiB: 2,
 							projectBackupAutoEnabled: false, projectBackupAutoIntervalMinutes: 1, projectBackupAutoRetentionDays: 1,
 							projectBackupSaveEnabled: false, projectBackupSaveRetentionDays: 7,
 							...window.initialTestPreferences });
@@ -168,30 +170,34 @@ test('applies rendering statistics preferences without changing project data or 
 	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === false));
 });
 
-// 【波形・ヒストグラムの環境設定は計測と独立して反映し、プロジェクトへ保存しない】
+// 【映像と音声の解析モニター設定は計測と独立して反映し、プロジェクトへ保存しない】
 // プロジェクトを切り替えても環境設定を維持し、負荷の切り分けで編集履歴を増やさない。
-test('applies waveform and histogram preferences without changing project data or undo history', async t => {
+test('applies analysis monitor preferences without changing project data or undo history', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
 	const context = app.appContext;
 	const settings = window.testPreferences;
 	await context.ready(project());
 	const controllers = [context.visualModuleRendererManagerController, context.timelineRendererManagerController];
-	assert.equal(settings.waveformAndHistogramEnabled, true);
+	assert.equal(settings.analysisMonitorsEnabled, true);
+	assert.equal(context.audioOutput.preview.analysisEnabled, true);
 	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === true));
 	const historyLength = context.projectContext.stateManager.undoStack.value.length;
-	settings.waveformAndHistogramEnabled = false;
+	settings.analysisMonitorsEnabled = false;
+	assert.equal(context.audioOutput.preview.analysisEnabled, false);
 	await setImmediate();
 	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === false));
 	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === false));
 	assert.equal(context.projectContext.stateManager.undoStack.value.length, historyLength);
 	const restored = decodeProjectFile(await encodeProjectFile(context.projectContext.snapshot()));
-	assert.equal('waveformAndHistogramEnabled' in restored, false);
+	assert.equal('analysisMonitorsEnabled' in restored, false);
 	assert.equal('enableWaveformAndHistogram' in restored, false);
 	await app.newProject();
-	assert.equal(settings.waveformAndHistogramEnabled, false);
-	settings.waveformAndHistogramEnabled = true;
+	assert.equal(settings.analysisMonitorsEnabled, false);
+	assert.equal(context.audioOutput.preview.analysisEnabled, false);
+	settings.analysisMonitorsEnabled = true;
 	await setImmediate();
+	assert.equal(context.audioOutput.preview.analysisEnabled, true);
 	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === true));
 });
 
@@ -199,9 +205,11 @@ test('applies waveform and histogram preferences without changing project data o
 // 起動直後だけ既定値でWorkerを生成すると、footerの表示と実際のGPU処理が食い違う。
 test('initializes both previews from saved rendering preferences', async t => {
 	const window = setup(t);
-	window.initialTestPreferences = { renderingStatsEnabled: true, waveformAndHistogramEnabled: false };
+	window.initialTestPreferences = { renderingStatsEnabled: true, analysisMonitorsEnabled: false };
 	const { appContext } = evaluate(appBundle);
+	assert.equal(appContext.audioOutput.preview.analysisEnabled, false);
 	await appContext.ready(project());
+	assert.equal(appContext.audioOutput.preview.analysisEnabled, false);
 	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
 		assert.equal(controller.staticOptions.enableStats, true);
 		assert.equal(controller.staticOptions.enableWaveformAndHistogram, false);

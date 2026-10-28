@@ -41,7 +41,7 @@ export const PREF_DEF = definePreferences({
 	enable32bitDataTextures: { default: () => false },
 	intermediateTextureFormat: { default: () => null as IntermediateTextureFormat | null },
 	renderingStatsEnabled: { default: () => true },
-	waveformAndHistogramEnabled: { default: () => true },
+	analysisMonitorsEnabled: { default: () => true },
 	timelineFrameCacheMaxGiB: { default: () => 2 },
 	timelinePreviewFramesAhead: { default: () => 1 },
 	workspaceDefinition: {

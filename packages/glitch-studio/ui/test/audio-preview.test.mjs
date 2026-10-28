@@ -68,3 +68,55 @@ test('settles pending and future rendering requests after worker failure or disp
 		await f.preview.setRenderingSuspended(false);
 	}
 });
+
+// 【保存済みのAnalyze無効状態でパネルを追加しても、解析・描画を始めずメーターは継続する】
+// 起動後に一度だけ描画してしまうのを防ぎ、停止のためにWorkerやCanvasを破棄しない。
+// 音声再生の基本表示に必要なメーター通知は、モニター解析の無効化から独立させる。
+test('initializes disabled analysis without suspending playback meters or recreating panels', async () => {
+	const f = fixture();
+	await f.preview.setAnalysisEnabled(false);
+	assert.equal(f.workers.length, 0);
+	f.preview.add(f.canvas, { mode: 'waveform', settings: { overlay: false, waveformSeconds: 0.04 } }, () => {});
+	const worker = f.workers[0];
+	assert.equal(f.preview.isAnalysisEnabled.value, false);
+	assert.equal(f.preview.isRenderingSuspended.value, false);
+	assert.equal(f.preview.isRenderingEnabled.value, false);
+	assert.deepEqual(worker.messages[0].message, { type: 'renderingSuspended', suspended: true, requestId: null });
+	const readings = [];
+	f.preview.attachMeter({}, reading => readings.push(reading));
+	const id = worker.messages.at(-1).message.id;
+	const reading = { id, generation: 1, left: 0.5, right: 0.25 };
+	worker.reply({ type: 'meters', readings: [reading] });
+	assert.deepEqual(readings, [reading]);
+	assert.deepEqual(worker.messages.at(-1).message, { type: 'metersReceived' });
+	const enabled = f.preview.setAnalysisEnabled(true);
+	worker.reply({ type: 'renderingStateApplied', requestId: worker.messages.at(-1).message.requestId });
+	await enabled;
+	assert.equal(f.preview.isRenderingEnabled.value, true);
+	assert.equal(f.workers.length, 1);
+	assert.equal(worker.terminated, false);
+	assert.equal(f.transfers, 1);
+});
+
+// 【Analyzeと一時休止は互いの停止理由を解除せず、最後の状態をWorkerへ送る】
+// 書き出し終了時のresumeでAnalyze無効を上書きしたり、休止中のAnalyze切り替えで
+// 先に音声モニターだけが動き出したりすると、映像処理との競合が再発する。
+test('combines analysis preferences and temporary suspension across interleaved changes', async () => {
+	const f = fixture();
+	f.preview.add(f.canvas, { mode: 'waveform', settings: { overlay: false, waveformSeconds: 0.04 } }, () => {});
+	const worker = f.workers[0];
+	async function apply(change, suspended) {
+		const applied = change();
+		const request = worker.messages.at(-1).message;
+		assert.equal(request.suspended, suspended);
+		worker.reply({ type: 'renderingStateApplied', requestId: request.requestId });
+		await applied;
+		assert.equal(f.preview.isRenderingEnabled.value, !suspended);
+	}
+	await apply(() => f.preview.setAnalysisEnabled(false), true);
+	await apply(() => f.preview.setRenderingSuspended(true), true);
+	await apply(() => f.preview.setRenderingSuspended(false), true);
+	await apply(() => f.preview.setRenderingSuspended(true), true);
+	await apply(() => f.preview.setAnalysisEnabled(true), true);
+	await apply(() => f.preview.setRenderingSuspended(false), false);
+});
