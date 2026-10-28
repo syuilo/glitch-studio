@@ -44,7 +44,9 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 参照名は共通定義の中で一意にする。名前変更ダイアログは`GRAPH()`内の参照名を自動変更しないことを案内する。曲線の再生設定は共通定義ではなく参照元のパラメータに保存する。
 
-## TimelineのBAKE
+## Timelineのプレビュー再生・BAKE
+
+通常再生では`TimelineAudioPreview.currentTime()`が音声出力のtimestamp対から現在時刻を補間し、`PreviewPlaybackController`は毎RAFで表示対象フレームの変化を判定します。FPS制限をRAF間隔でも重ねると時計の位相差・浮動小数点の誤差で描画機会を逃すため、描画要求は表示フレームの変化だけで制限します。明示的な`refresh()`は編集・Worker復帰のため同じ時刻でも再描画します。
 
 TimelineのBAKEは`PreviewPlaybackController`が現在位置からScene終端までのフレーム進行と中止を管理し、`TimelineRendererManagerController.renderTimelineAtAndWait()`が既存の`frameRendered`通知でGPU描画完了を待ちます。通常シークのスピナーやキャッシュ済み通知の省略とは独立し、BAKEでは毎フレーム完了通知を要求します。通常操作・設定更新・編集・Worker破棄で待機を解除し、レンダラーにはBAKE専用の処理を追加しません。挙動は[タイムライン](../../../docs/timeline.md)を参照してください。
 

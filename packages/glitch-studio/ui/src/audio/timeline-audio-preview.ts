@@ -20,7 +20,8 @@ export class TimelineAudioPreview {
 	private clocks: Clock[] = [];
 	private startFrame = 0;
 	private endFrame = 1;
-	private requestedTime = 0;
+	private lastKnownPlaybackTime = 0;
+	private lastKnownPlayedFrames = 0;
 	private rate = 48000;
 
 	constructor(private getOutput: () => Promise<GainNode>, private getProject: () => { assets: Asset[]; generatedSpeech: GeneratedSpeech[]; timelineScenes: TimelineScene[]; sceneId: string | null }) {}
@@ -28,7 +29,8 @@ export class TimelineAudioPreview {
 	start(time: number, duration: number) {
 		this.stop();
 		const generation = this.generation;
-		this.requestedTime = time;
+		this.lastKnownPlaybackTime = time;
+		this.lastKnownPlayedFrames = 0;
 		this.error.value = null;
 		this.buffering.value = true;
 		void this.prepare(time, duration, generation).catch(error => {
@@ -59,7 +61,7 @@ export class TimelineAudioPreview {
 		this.worker = worker;
 		const fail = (message: string) => {
 			if (generation !== this.generation) return;
-			this.requestedTime = this.currentTime();
+			this.lastKnownPlaybackTime = this.currentTime();
 			this.stop();
 			this.error.value = message;
 		};
@@ -96,14 +98,28 @@ export class TimelineAudioPreview {
 	}
 
 	currentTime(): number {
-		if (!this.context || this.clocks.length === 0) return this.requestedTime;
+		if (this.context == null || this.clocks.length === 0) return this.lastKnownPlaybackTime;
+		if (this.context.state !== 'running') {
+			// 出力停止中の古いperformanceTimeから補間すると、音声が止まっても時計が進んでしまう。
+			this.buffering.value = true;
+			return this.lastKnownPlaybackTime;
+		}
 		const timestamp = this.context.getOutputTimestamp();
-		const audibleFrame = (timestamp.contextTime ?? this.context.currentTime - this.context.outputLatency) * this.rate;
+		if (timestamp.contextTime === 0 && timestamp.performanceTime === 0) return this.lastKnownPlaybackTime;
+		// contextTimeは音声デバイスの更新単位で進むため、そのままフレーム境界へ
+		// 丸めると重複・飛びが起きる。対になったperformanceTimeから現在の出力位置を補間する。
+		const elapsed = timestamp.contextTime != null && timestamp.performanceTime != null && timestamp.performanceTime > 0
+			? Math.max(0, performance.now() - timestamp.performanceTime) / 1000 : 0;
+		const audibleFrame = ((timestamp.contextTime ?? this.context.currentTime - this.context.outputLatency) + elapsed) * this.rate;
 		const clock = this.clocks.findLast(clock => clock.contextFrame <= audibleFrame);
-		if (!clock) return this.requestedTime;
-		this.buffering.value = !clock.running || this.context.state !== 'running';
+		if (clock == null) return this.lastKnownPlaybackTime;
+		this.buffering.value = !clock.running;
 		const played = clock.playedFrames + (clock.running ? Math.max(0, audibleFrame - clock.contextFrame) : 0);
-		return ((this.startFrame + played) % this.endFrame) * 1000 / this.rate;
+		// デバイスの推定timestampが揺れても、映像を前のフレームへ巻き戻さない。
+		// 周回後の時刻ではなく消費サンプル数で比較し、正規のループは引き続き許可する。
+		this.lastKnownPlayedFrames = Math.max(this.lastKnownPlayedFrames, played);
+		this.lastKnownPlaybackTime = ((this.startFrame + this.lastKnownPlayedFrames) % this.endFrame) * 1000 / this.rate;
+		return this.lastKnownPlaybackTime;
 	}
 
 	stop() {

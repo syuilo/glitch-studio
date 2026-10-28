@@ -27,6 +27,7 @@ export class PreviewPlaybackController {
 	private timelineRafId: number | null = null;
 	private pendingTimelineSeek = false;
 	private timelineSeekMode: TimelinePreviewSeekMode = 'frame';
+	private lastTimelinePreviewRequest: { time: number; seekMode: TimelinePreviewSeekMode } | null = null;
 	private readonly suspended = ref(false);
 	private readonly timelineBake = shallowRef<{ stopRequested: boolean } | null>(null);
 	private visualModuleLivePreviewParams: VisualModuleArgumentBindings = {};
@@ -85,31 +86,27 @@ export class PreviewPlaybackController {
 		this.audio?.start(this.timelineTime.value, duration);
 		this.refresh();
 
-		let previousFrameTime: number | null = null;
 		let previousAdvanceTime: number | null = null;
 		const renderLoop = (timestamp: number) => {
 			if (!this.isTimelinePlaying.value) return;
-			// エラー文の変化ではなく現在の状態を見る。FPS制限中・初回RAFでも停止する。
+			// エラー文の変化ではなく現在の状態を見る。同じ表示フレームの間も停止できるようにする。
 			if (this.audio?.error.value || this.timelineRenderer.errorMessage.value) { this.pauseTimeline(); return; }
 			this.timelineRafId = window.requestAnimationFrame(renderLoop);
-			if (previousFrameTime == null || previousAdvanceTime == null) {
+			if (previousAdvanceTime == null) {
 				// 停止中の実時間を再生時刻へ加算しない。
-				previousFrameTime = previousAdvanceTime = timestamp;
+				previousAdvanceTime = timestamp;
 				return;
 			}
-			const delta = timestamp - previousFrameTime;
-			const timelinePreviewFps = this.getTimelinePreviewFps();
-			if (timelinePreviewFps != null && timelinePreviewFps > 0) {
-				const interval = 1000 / timelinePreviewFps;
-				if (delta < interval) return;
-				previousFrameTime = timestamp - (delta % interval);
-			} else {
-				previousFrameTime = timestamp;
-			}
-			// FPS制限の余りは描画タイミングだけに使い、経過時間を二重加算しない。
-			this.timelineTime.value = this.audio ? this.audio.currentTime() : (this.timelineTime.value + timestamp - previousAdvanceTime) % this.getDuration();
-			previousAdvanceTime = timestamp;
+			const nextTime = this.audio ? this.audio.currentTime() : (this.timelineTime.value + timestamp - previousAdvanceTime) % this.getDuration();
 			this.timelineSeekMode = 'frame';
+			// RAFの間隔でもFPS制限すると、音声時計との位相差や浮動小数点の誤差で
+			// フレーム境界を逃す。毎RAFで時計を読み、表示フレームが変わった時だけ要求する。
+			const previousRequest = this.lastTimelinePreviewRequest;
+			if (previousRequest?.seekMode === 'frame' && previousRequest.time === this.getTimelineRenderTime(nextTime)) return;
+			// 低FPS設定でUI全体を毎RAF更新しない。音声がない場合の経過時間は、
+			// 最後に反映した時刻からまとめて加算し、省略したRAFの時間も保持する。
+			this.timelineTime.value = nextTime;
+			previousAdvanceTime = timestamp;
 			this.refresh();
 		};
 		this.timelineRafId = window.requestAnimationFrame(renderLoop);
@@ -233,13 +230,13 @@ export class PreviewPlaybackController {
 	public refresh() {
 		this.cancelTimelineBake();
 		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
-			const fps = this.getTimelinePreviewFps();
 			// 音声時計自体は丸めない。表示する画像だけを現在位置以前の境界に揃え、
 			// 停止中はカーソルの時刻も描画時刻に一致させる。
 			const precise = this.timelineSeekMode === 'precise';
-			const renderTime = precise || fps == null || fps <= 0 ? this.timelineTime.value : this.isTimelinePlaying.value
-				? Math.max(0, Math.floor(this.timelineTime.value * fps / 1000 + 1e-7)) * 1000 / fps : this.snapTimelineTime(this.timelineTime.value);
+			const renderTime = this.getTimelineRenderTime(this.timelineTime.value);
 			if (!this.isTimelinePlaying.value && !precise) this.timelineTime.value = renderTime;
+			// 編集・シーク・Worker再生成後の明示的なrefreshは、同じフレームでも必ず描き直す。
+			this.lastTimelinePreviewRequest = { time: renderTime, seekMode: this.timelineSeekMode };
 			if (precise) {
 				const manualSeek = this.pendingTimelineSeek;
 				this.pendingTimelineSeek = false;
@@ -251,6 +248,13 @@ export class PreviewPlaybackController {
 				this.timelineRenderer.renderTimelineAt(renderTime, true);
 			} else this.timelineRenderer.renderTimelineAt(renderTime);
 		}
+	}
+
+	private getTimelineRenderTime(time: number): number {
+		const fps = this.getTimelinePreviewFps();
+		if (this.timelineSeekMode === 'precise' || fps == null || fps <= 0) return time;
+		return this.isTimelinePlaying.value
+			? Math.max(0, Math.floor(time * fps / 1000 + 1e-7)) * 1000 / fps : this.snapTimelineTime(time);
 	}
 
 	/** Workerを解放する間も、表示モードと再開位置を保持する。 */

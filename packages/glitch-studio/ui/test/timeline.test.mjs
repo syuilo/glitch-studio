@@ -17,6 +17,99 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewPlaybackController } = module.exports;
 
+for (const jitter of [0, 0.15]) {
+	// 【60Hz・60fpsでは小さな時刻誤差で描画機会を捨てない】
+	// intervalとの厳密比較と剰余によるFPS制限は、理想的な時刻列でも丸め誤差で一枚を飛ばす。
+	// 実際のRAFに相当する微小な揺れも含め、全てのフレームを一度ずつ要求する。
+	test(`requests every 60 fps frame across 60 Hz callbacks with ${jitter} ms jitter`, t => {
+		const { playback, timelineRenderer, frame } = setup(t, 60);
+		const requests = [];
+		timelineRenderer.renderTimelineAt = time => requests.push(Math.round(time * 60 / 1000));
+		playback.playTimeline();
+		frame(1000);
+		for (let index = 1; index <= 300; index++) frame(1000 + index * 1000 / 60 + (index % 2 === 0 ? 0 : jitter));
+		assert.deepEqual(requests, Array.from({ length: 301 }, (_, index) => index));
+	});
+}
+
+// 【RAFと音声時計の位相がずれても同じフレームを重複要求せず、一枚も飛ばさない】
+// 先にRAFで30fpsへ間引くと、音声時計が境界へ届く直前の要求が重複して次の境界を逃す。
+// 時計は毎RAFで読み、描画要求だけをフレーム番号の変化で制限する。
+test('follows audio frame boundaries independently of the RAF phase', t => {
+	let position = 0;
+	let reads = 0;
+	const audio = { error: { value: null }, start() {}, stop() {}, currentTime() { reads++; return position; } };
+	const { playback, timelineRenderer, frame } = setup(t, 30, audio, 10000);
+	const requests = [];
+	timelineRenderer.renderTimelineAt = time => requests.push(Math.round(time * 30 / 1000));
+	playback.playTimeline();
+	frame(0);
+	for (let index = 1; index <= 300; index++) {
+		position = index * 1000 / 60 - 1;
+		frame(index * 1000 / 60);
+	}
+	assert.deepEqual(requests, Array.from({ length: 150 }, (_, index) => index));
+	assert.equal(reads, 300);
+	assert.ok(playback.currentTimelineTime.value >= 149 * 1000 / 30);
+	assert.ok(playback.currentTimelineTime.value < 5000);
+});
+
+// 【同じフレームの間も編集による明示的な再描画は省略しない】
+// 再生時の重複抑制をrefresh全体へ適用すると、バッファリング中の編集やWorker復帰が表示されない。
+test('suppresses unchanged playback frames while retaining explicit redraws', t => {
+	let position = 0;
+	const audio = { error: { value: null }, start() {}, stop() {}, currentTime: () => position };
+	const { playback, timelineRenderer, frame } = setup(t, 15, audio, 10000);
+	const requests = [];
+	timelineRenderer.renderTimelineAt = (...args) => requests.push(args);
+	playback.playTimeline();
+	frame(0);
+	for (let index = 1; index <= 5; index++) { position = index; frame(index * 17); }
+	assert.deepEqual(requests, [[0]]);
+	assert.equal(playback.currentTimelineTime.value, 0);
+	playback.refresh();
+	assert.deepEqual(requests, [[0], [0]]);
+	position = 70;
+	frame(102);
+	assert.deepEqual(requests.at(-1), [1000 / 15]);
+});
+
+// 【精密シークと通常フレームが同時刻でも通常描画への復帰を省略しない】
+// 精密モードはキャッシュを迂回するため、同じ時刻でも通常モードとして要求し直す必要がある。
+test('returns aligned precise seeks to normal playback even at the same time', t => {
+	const audio = { error: { value: null }, start() {}, stop() {}, currentTime: () => 0 };
+	const { playback, timelineRenderer, frame } = setup(t, 30, audio, 10000);
+	const requests = [];
+	timelineRenderer.renderTimelineAt = (...args) => requests.push(args);
+	playback.playTimeline();
+	frame(0);
+	playback.seekTimeline(0, true, 'precise');
+	frame(17);
+	frame(34);
+	assert.deepEqual(requests, [[0], [0, false, 'precise'], [0]]);
+});
+
+// 【ループで時刻が先頭へ戻っても再描画し、FPS変更は同時刻でも反映する】
+// フレーム番号の増加だけで判断するとループ先が表示されず、最後の画面が残ってしまう。
+test('redraws on loop wraparound and preview FPS changes', t => {
+	let position = 0;
+	let fps = 30;
+	const audio = { error: { value: null }, start() {}, stop() {}, currentTime: () => position };
+	const { playback, timelineRenderer, frame } = setup(t, () => fps, audio, 1000);
+	const requests = [];
+	timelineRenderer.renderTimelineAt = time => requests.push(time);
+	playback.playTimeline();
+	frame(0);
+	position = 990;
+	frame(17);
+	position = 5;
+	frame(34);
+	assert.deepEqual(requests, [0, 29 * 1000 / 30, 0]);
+	fps = 60;
+	playback.updateTimelinePreviewFps();
+	assert.deepEqual(requests, [0, 29 * 1000 / 30, 0, 0]);
+});
+
 function setupBake(t, fps = 15, duration = 301, audio) {
 	const fixture = setup(t, fps, audio, duration);
 	const requests = [];
