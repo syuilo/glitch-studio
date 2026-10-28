@@ -1,3 +1,5 @@
+<!-- NOTE: このコンポーネントがunmountされることはない -->
+
 <template>
 <!-- 個別にTeleportするモーダルと階層を揃え、focus trapの解除後に背景内部のinertが残るのを防ぐ。 -->
 <Teleport to="body">
@@ -44,8 +46,7 @@
 		</div>
 	</GsWindowTitlebar>
 	<div :class="$style.body">
-		<!-- Canvas停止後もワークスペースの合成が映像出力を待たせる環境がある。
-		     DOMとレイアウト設定は保持し、bodyへTeleportした進捗・キャンセルUIは表示し続ける。 -->
+		<!-- Canvas停止後もワークスペースの合成が映像出力を待たせる環境がある。DOMとレイアウト設定は保持し、bodyへTeleportした進捗・キャンセルUIは表示し続ける。 -->
 		<GsWorkspaceElement v-show="!appContext.renderEngine.isSuspended.value" style="flex: 1" :element="preferences.r.workspaceDefinition.value" data-test-workspace-rendering-surface/>
 	</div>
 	<div :class="$style.footer" class="_monospace">
@@ -90,7 +91,7 @@
 </template>
 
 <script lang="ts" setup>
-import { provide, computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { provide, computed, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.js';
 import { appContext, newProject, newProjectFromMediaPath, openProject } from './app.ts';
 import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
@@ -120,7 +121,6 @@ import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
 import GsWorkspacePanelWindow from '@/components/GsWorkspacePanelWindow.vue';
 import { workspacePanelChoices } from '@/workspace.ts';
 import { i18n } from '@/i18n.ts';
-import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';
 
@@ -193,52 +193,6 @@ const gpuMemoryTooltip = computed(() => {
 		buffers: (usage.buffers / 1024 ** 2).toFixed(1),
 	});
 });
-
-async function saveImage() {
-
-}
-
-async function saveAnimation() {
-	/*
-	const dirPath = await api.selectDirectory({
-	});
-	if (dirPath == null) return;
-
-	frame.value = 0;
-
-	for (let i = 0; i <= frameMax.value; i++) {
-		console.log(`${i} of ${frameMax.value}`);
-		const path = `${dirPath}/${i.toString().padStart(4, '0')}.png`;
-
-		await new Promise(resolve => {
-			canvas.value!.toBlob(async blob => {
-				api.saveFile(path, await blob.arrayBuffer()).then(resolve);
-			});
-		});
-	}
-		*/
-}
-
-async function saveAnimationGif() {
-
-}
-
-async function importPreset() {
-	/*
-	const result = await api.openPresetFile({});
-	if (result == null) return;
-
-	const assets = await api.decodeAssets(result.preset.assets);
-
-	for (const asset of assets) {
-		stateManager.commit('addAsset', asset);
-	}
-
-	for (const node of result.preset.nodes) {
-		store.nodes.push(node);
-	}
-		*/
-}
 
 // 現在表示中の画像を保存する機能。元解像度での書き出しは独立したExport経路で行う。
 function savePreviewSnapshot() {
