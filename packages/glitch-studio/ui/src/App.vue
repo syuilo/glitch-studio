@@ -91,7 +91,7 @@
 </template>
 
 <script lang="ts" setup>
-import { provide, computed, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { provide, computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.js';
 import { appContext, newProject, newProjectFromMediaPath, openProject } from './app.ts';
 import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
@@ -159,7 +159,6 @@ let disposeFileDrops: (() => void) | null = null;
 onMounted(() => {
 	if (root.value != null) disposeFileDrops = installFileDrops(root.value);
 });
-onBeforeUnmount(() => { disposeFileDrops?.(); });
 
 const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, timelineRendererManagerController, resolutionFactor, visualModuleLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, visualModuleLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
 const timelineFrameCacheUsageLabel = computed(() => {
@@ -175,10 +174,9 @@ const visualModuleLivePreviewFpsLabel = computed(() => renderingStatsEnabled.val
 const { stateManager } = appContext.projectContext;
 const { name: projectName } = appContext.projectContext.stateManager.state;
 const { projectFileName, hasUnsavedChanges, isProjectSaving } = appContext;
-onBeforeUnmount(installProjectCloseGuard(isProjectSaving, applicationActivity.isExporting, hasUnsavedChanges));
+installProjectCloseGuard(isProjectSaving, applicationActivity.isExporting, hasUnsavedChanges);
 
 const releaseOutputCapture = audioOutput.retainOutputCapture();
-onBeforeUnmount(releaseOutputCapture);
 
 const previewVolume = preferences.model('previewVolume');
 watch(previewVolume, (newValue) => {
