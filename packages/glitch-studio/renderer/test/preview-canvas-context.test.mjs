@@ -1,9 +1,77 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { loadShaderSource } from './helpers/load-shader-source.mjs';
+import { bundleSource, loadShaderSource } from './helpers/load-shader-source.mjs';
 
 const { CpuPreviewCanvasContext, copyPreviewPixels } = await loadShaderSource(fileURLToPath(new URL('../src/preview-canvas-context.ts', import.meta.url)));
+
+function pixelConversionFixture({ blueFirst, opaque, sourceOffset = 4, destinationOffset = 8, bytesPerRow = 80, sourceExtraBytes = 0, destinationExtraBytes = 0 }) {
+	const width = 16; const height = 16;
+	const sourceBytes = new Uint8Array(sourceOffset + bytesPerRow * height + sourceExtraBytes + 7).fill(0xa5);
+	const source = new Uint8Array(sourceBytes.buffer, sourceOffset, bytesPerRow * height + sourceExtraBytes);
+	const destinationBytes = new Uint8Array(destinationOffset + width * height * 4 + destinationExtraBytes + 7).fill(0x6a);
+	const destination = new Uint8ClampedArray(destinationBytes.buffer, destinationOffset, width * height * 4 + destinationExtraBytes);
+	const expected = destinationBytes.slice();
+	for (let index = 0; index < width * height; index++) {
+		const alpha = opaque ? 255 : index;
+		const red = (index * 29 + 17) % 256; const green = (index * 43 + 3) % 256; const blue = (index * 71 + 251) % 256;
+		source.set(blueFirst ? [blue, green, red, alpha] : [red, green, blue, alpha], Math.floor(index / width) * bytesPerRow + index % width * 4);
+		// byte経路の数値仕様を基準にし、32bitのmaskやshiftを期待値の生成には使わない。
+		const factor = alpha === 0 ? 0 : 255 / alpha;
+		expected.set(new Uint8ClampedArray([red * factor, green * factor, blue * factor, alpha]), destinationOffset + index * 4);
+	}
+	const originalSource = sourceBytes.slice();
+	return { source, destination, width, height, bytesPerRow, verify() {
+		assert.deepEqual(destinationBytes, expected);
+		assert.deepEqual(sourceBytes, originalSource);
+	} };
+}
+
+// 【32bit経路でもRGBA・BGRAと全alpha値の変換結果を変えない】
+// 不透明な動画だけでなく、半透明・完全透明を混ぜた出力も同じ関数を通る。
+// 行paddingと非ゼロのbyteOffsetを使い、範囲外を書き換えないことも検証する。
+test('preserves packed opaque pixels and every alpha value in both channel orders', () => {
+	for (const blueFirst of [false, true]) for (const opaque of [false, true]) {
+		const f = pixelConversionFixture({ blueFirst, opaque });
+		copyPreviewPixels(f.source, f.destination, f.width, f.height, f.bytesPerRow, blueFirst);
+		f.verify();
+	}
+});
+
+// 【32bit viewを作れない開始位置・長さ・行幅ではbyte経路を使う】
+// Uint32Arrayの制約を満たさないsubarrayでも例外や画素ずれを起こしてはいけない。
+// 入出力の各制約を個別に崩し、フォールバックの条件漏れを検出する。
+test('converts unaligned views and row strides without accessing surrounding bytes', () => {
+	for (const layout of [{ sourceOffset: 1 }, { destinationOffset: 1 }, { bytesPerRow: 81 }, { sourceExtraBytes: 1 }, { destinationExtraBytes: 1 }]) {
+		for (const blueFirst of [false, true]) for (const opaque of [false, true]) {
+			const f = pixelConversionFixture({ ...layout, blueFirst, opaque });
+			copyPreviewPixels(f.source, f.destination, f.width, f.height, f.bytesPerRow, blueFirst);
+			f.verify();
+		}
+	}
+});
+
+// 【little endian以外では32bitのチャンネル位置を仮定しない】
+// このテスト環境のCPUに依存せず、byte順の検出だけをbig endianとして評価する。
+// 以降の32bit view生成は失敗させ、byte経路だけで同じ画素を得られることを確認する。
+test('uses byte conversion when the native word order is not little endian', async () => {
+	class BigEndianProbe extends Uint32Array {
+		constructor(values) {
+			if (!Array.isArray(values)) throw new Error('Packed pixel views must not be used');
+			super(values.length);
+			const data = new DataView(this.buffer);
+			for (let index = 0; index < values.length; index++) data.setUint32(index * 4, values[index], false);
+		}
+	}
+	const compiled = await bundleSource(fileURLToPath(new URL('../src/preview-canvas-context.ts', import.meta.url)));
+	const module = { exports: {} };
+	new Function('module', 'exports', 'Uint32Array', compiled.outputFiles[0].text)(module, module.exports, BigEndianProbe);
+	for (const blueFirst of [false, true]) for (const opaque of [false, true]) {
+		const f = pixelConversionFixture({ blueFirst, opaque });
+		module.exports.copyPreviewPixels(f.source, f.destination, f.width, f.height, f.bytesPerRow, blueFirst);
+		f.verify();
+	}
+});
 
 // 【行の隙間・BGRA順・乗算済みalphaをCanvas 2D用のRGBAへ変換する】
 // 0.25xなどの行幅にはGPUコピー用のpaddingが入る。上下の取り違えや、

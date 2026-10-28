@@ -9,16 +9,35 @@ export type PreviewCanvasContext = Pick<GPUCanvasContext, 'canvas' | 'configure'
 
 type ReadbackBuffer = { buffer: GPUBuffer; size: number };
 
+const isLittleEndian = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
+
 /**
  * GPUのコピー先は256byte境界の行幅、ImageDataは隙間のない未乗算RGBAを要求する。
  * Canvasへそのまま渡すとBGRAの赤青が逆転し、乗算済み色は二重に暗くなるため両方を変換する。
  */
 export function copyPreviewPixels(source: Uint8Array, destination: Uint8ClampedArray, width: number, height: number, bytesPerRow: number, blueFirst: boolean) {
+	// 32bitのRGBAを扱う条件を呼び出しごとに確認する。行paddingは飛ばし、subarrayの範囲も守る。
+	// 下のビット演算はlittle endian用なので、それ以外や4byte境界でない配置は従来のbyte経路を使う。
+	const canCopyPackedPixels = isLittleEndian && bytesPerRow % 4 === 0
+		&& source.byteOffset % 4 === 0 && source.byteLength % 4 === 0
+		&& destination.byteOffset % 4 === 0 && destination.byteLength % 4 === 0;
+	const sourcePixels = canCopyPackedPixels ? new Uint32Array(source.buffer, source.byteOffset, source.byteLength / 4) : null;
+	const destinationPixels = canCopyPackedPixels ? new Uint32Array(destination.buffer, destination.byteOffset, destination.byteLength / 4) : null;
 	for (let row = 0; row < height; row++) {
 		for (let column = 0; column < width; column++) {
 			const sourceIndex = row * bytesPerRow + column * 4;
 			const destinationIndex = (row * width + column) * 4;
+			// alphaを先に判定し、半透明画素には32bit viewの参照や追加の画素読み出しを増やさない。
 			const alpha = source[sourceIndex + 3];
+			if (alpha === 255 && sourcePixels != null && destinationPixels != null) {
+				const pixel = sourcePixels[sourceIndex / 4];
+				// 不透明画素のalpha補正は恒等変換。RGBAをまとめてコピーし、BGRAなら赤青だけ交換する。
+				// 0xff00ff00でalphaと緑を残し、下位byteと16〜23bitのbyteを入れ替える。
+				destinationPixels[destinationIndex / 4] = blueFirst
+					? (pixel & 0xff00ff00) | ((pixel >>> 16) & 0xff) | ((pixel & 0xff) << 16) : pixel;
+				continue;
+			}
+			// 半透明画素は従来と同じ丸め・clampで未乗算RGBへ戻す。完全透明の残色も消す。
 			const factor = alpha === 0 ? 0 : 255 / alpha;
 			destination[destinationIndex] = source[sourceIndex + (blueFirst ? 2 : 0)] * factor;
 			destination[destinationIndex + 1] = source[sourceIndex + 1] * factor;
