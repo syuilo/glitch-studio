@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import yaml from 'js-yaml';
-import asar from '@electron/asar';
+import * as asar from '@electron/asar';
 import { validateReleaseVersion, resolveReleaseVersion, formatReleaseDate, updateReleaseDownloadLinks, updateReleaseDownloadPage, verifyPreparedDownloadPage, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
 
 const downloadPagePath = new URL('../../../../docs-site/guide/download.md', import.meta.url);

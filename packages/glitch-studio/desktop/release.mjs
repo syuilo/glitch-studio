@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import semver from 'semver';
 import yaml from 'js-yaml';
-import asar from '@electron/asar';
+import * as asar from '@electron/asar';
 import { buildSync } from 'esbuild';
 import { UPDATE_REPOSITORY } from './github-updates.mjs';
 
