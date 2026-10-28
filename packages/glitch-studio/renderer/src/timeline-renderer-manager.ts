@@ -39,6 +39,7 @@ import { invertTimelineAffine, TIMELINE_IDENTITY, TIMELINE_FRAME } from '@gs/sub
 import { TimelinePreviewScheduler } from '@gs/subsystems_timeline_renderer/timeline-preview-scheduler.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { CanvasRenderer } from './canvas-renderer.ts';
+import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
 import { createPreviewCanvasContext } from './preview-canvas-context.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 export type { PreviewDisplayMode, CpuPreviewFrame } from './preview-canvas-context.ts';
@@ -125,6 +126,8 @@ type PreviewFrameCapture = {
 	cameraEvaluation: { camera: ReturnType<TimelineSceneCamera['evaluate']> } | null;
 	snapshot: TimelinePreviewCachedFrame<ReadonlyMap<string, CachedLayerTransform>> | null;
 	captureError: Promise<GPUError | null> | null;
+	cpuFrame: CpuPreviewFrameReservation | null;
+	cpuPresentation: Promise<void> | null;
 };
 
 // エフェクトは配置場所を知らず、インスタンスを所有するManagerが通知元を付加する。
@@ -309,7 +312,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 		const texture = this.sceneOutput.render(encoder, output);
 		this.canvasRenderer.renderToCanvas(texture, encoder);
-		this.gpuDevice.queue.submit([encoder.finish()]);
+		this.submitPreviewOutput(encoder);
 
 		const capture = this.activePreviewFrame;
 		if (capture?.frameIndex != null && this.frameCache.enabled) {
@@ -334,6 +337,20 @@ export class TimelineRendererManager extends EventEmitter<{
 					.then(errors => errors.find(error => error != null) ?? null).catch(() => null);
 			}
 		}
+	}
+
+	private submitPreviewOutput(encoder: GPUCommandEncoder) {
+		const capture = this.activePreviewFrame;
+		try {
+			// 最終描画と読み戻しコピーを一緒に送信し、その後でだけmapAsyncを開始する。
+			capture?.cpuFrame?.prepareReadback(encoder);
+			this.gpuDevice.queue.submit([encoder.finish()]);
+			if (capture?.cpuFrame != null) {
+				capture.cpuPresentation = capture.cpuFrame.complete();
+				// 上位の描画・キャッシュ準備がawait中でも、読み戻しの失敗を未処理のrejectにしない。
+				void capture.cpuPresentation.catch(() => {});
+			}
+		} catch (error) { capture?.cpuFrame?.cancel(); throw error; }
 	}
 
 	private invalidateFrameCache() {
@@ -523,7 +540,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		// 精密シークとフレーム境界以外の直接呼び出しは検索・保存の両方を省く。
 		const capture: PreviewFrameCapture = { time, frameIndex: this.previewSeekMode === 'frame' && Number.isFinite(time)
 			&& Math.abs(time - frameIndex * 1000 / fps) < 1e-7 && this.frameCache.enabled ? frameIndex : null,
-		transforms: new Map(), cameraEvaluation: null, snapshot: null, captureError: null };
+		transforms: new Map(), cameraEvaluation: null, snapshot: null, captureError: null, cpuFrame: null, cpuPresentation: null };
 		this.activePreviewFrame = capture;
 		// CPU側の評価・送信は直列なので、子Scene・複数レイヤー・ブラーの集計はこの1フレームに属する。
 		// GPU通知待ちへ移る前に共有の参照を外し、先行する次フレームの計測と混ざらないようにする。
@@ -553,6 +570,11 @@ export class TimelineRendererManager extends EventEmitter<{
 		} : null;
 		this.pendingTransformPreview = preview;
 		try {
+			if (this.canvasRenderer.usesCpuDisplay) {
+				// 評価・GPU描画の前にUI返却までの表示枠を予約する。満杯なら最後のシーク画像も待って表示する。
+				capture.cpuFrame = await this.canvasRenderer.reserveCpuPreviewFrame();
+				if (capture.cpuFrame == null || generation !== this.previewRenderGeneration) return false;
+			}
 			let prepared = false;
 			try {
 				if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
@@ -561,7 +583,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					if (preview != null) Object.assign(preview, cached.metadata.get(preview.request.layerId) ?? {});
 					const encoder = this.gpuDevice.createCommandEncoder();
 					this.canvasRenderer.renderToCanvas(cached.texture, encoder);
-					this.gpuDevice.queue.submit([encoder.finish()]);
+					this.submitPreviewOutput(encoder);
 				} else {
 					await this.renderFrame(time, false, this.staticOptions.timelineFps, timeDelta);
 				}
@@ -572,20 +594,18 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (this.activePreviewFrame === capture) this.activePreviewFrame = null;
 				if (this.previewFrameTiming === timing) this.previewFrameTiming = null;
 				if (this.pendingTransformPreview === preview) this.pendingTransformPreview = null;
-				// UIでの返却が遅い場合も、シーク先やBAKEの最終画像を省略して完了通知を出してはいけない。
-				// 現在の出力を読み戻す枠を待ってから次の準備を許可し、Textureの上書きも防ぐ。
-				if (prepared && this.canvasRenderer.usesCpuDisplay) await this.canvasRenderer.waitForCpuDisplayCapacity();
 				const gpuWaitStartedAt = timing != null ? performance.now() : 0;
 				// 読み戻しのコピーも同じqueueへ先に送る。次の準備を許可しても、
 				// 各フレームは専用のバッファを持ち、読み戻し・UIへの送信が終わるまで完了扱いにしない。
 				// 同じWorkerからの通知順により、UIは画像を描いてからframeRenderedを受け取る。
-				const cpuPresented = prepared ? this.canvasRenderer.presentCpuFrame() : null;
+				const cpuPresented = capture.cpuPresentation;
 				const completed = this.gpuDevice.queue.onSubmittedWorkDone().finally(() => {
 					if (timing != null) timing.gpuWaitMs = performance.now() - gpuWaitStartedAt;
 				});
 				if (prepared) onSubmitted();
 				await Promise.all([completed, cpuPresented]);
 			}
+			if (capture.cpuFrame?.isCancelled === true) return false;
 			const captureError = await capture.captureError;
 			if (capture.snapshot != null && captureError == null && capture.frameIndex != null
 				&& contentRevision === this.frameCacheRevision && generation === this.previewRenderGeneration) {
@@ -639,12 +659,14 @@ export class TimelineRendererManager extends EventEmitter<{
 			}
 			return true;
 		} catch (error) {
+			capture.cpuFrame?.cancel();
 			if (generation === this.previewRenderGeneration) {
 				this.reportRenderError(error instanceof Error ? error.message : String(error));
 				if (preview != null && this.dynamicOptions.transformObserver === request) this.publishTransformPreview({ ...preview, geometry: null, outputResolution: null });
 			}
 			return false;
 		} finally {
+			if (capture.cpuPresentation == null) capture.cpuFrame?.cancel();
 			capture.snapshot?.texture.destroy();
 			if (this.activePreviewFrame === capture) this.activePreviewFrame = null;
 			if (this.previewFrameTiming === timing) this.previewFrameTiming = null;

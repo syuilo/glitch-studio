@@ -8,6 +8,7 @@ export type CpuPreviewFrame = CpuPreviewPixels & { target: CpuPreviewCanvasTarge
 export type PreviewCanvasContext = Pick<GPUCanvasContext, 'canvas' | 'configure' | 'getCurrentTexture' | 'unconfigure'>;
 
 type ReadbackBuffer = { buffer: GPUBuffer; size: number };
+export type CpuPreviewReadback = { complete(): Promise<void>; cancel(): void };
 
 const isLittleEndian = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
 
@@ -57,8 +58,8 @@ export class CpuPreviewCanvasContext implements PreviewCanvasContext {
 	private generation = 0;
 	private nextSequence = 0;
 	private presentedSequence = -1;
-	private readonly pendingFrames = new Set<number>();
-	private readonly capacityWaiters = new Set<() => void>();
+	// 上限と描画前の予約はCpuPreviewFrameQueueが所有する。ここでは返却IDと解放通知だけを保持する。
+	private readonly pendingFrames = new Map<number, () => void>();
 
 	constructor(public readonly canvas: OffscreenCanvas, private readonly presentPixels: (frame: CpuPreviewPixels) => void) {}
 
@@ -68,21 +69,12 @@ export class CpuPreviewCanvasContext implements PreviewCanvasContext {
 		if (this.configuration != null && pixels.byteLength === this.canvas.width * this.canvas.height * 4 && this.availablePixelBuffers.length < 4) this.availablePixelBuffers.push(pixels);
 	}
 
-	public waitForReadbackCapacity(): Promise<void> {
-		if (this.pendingFrames.size < 2) return Promise.resolve();
-		return new Promise(resolve => this.capacityWaiters.add(resolve));
-	}
-
 	private releasePendingFrame(frameId: number): boolean {
-		const released = this.pendingFrames.delete(frameId);
-		this.notifyAvailableCapacity();
-		return released;
-	}
-
-	private notifyAvailableCapacity() {
-		if (this.pendingFrames.size >= 2) return;
-		for (const resolve of this.capacityWaiters) resolve();
-		this.capacityWaiters.clear();
+		const release = this.pendingFrames.get(frameId);
+		if (release == null) return false;
+		this.pendingFrames.delete(frameId);
+		release();
+		return true;
 	}
 
 	public configure(configuration: GPUCanvasConfiguration) {
@@ -107,12 +99,11 @@ export class CpuPreviewCanvasContext implements PreviewCanvasContext {
 		return this.texture;
 	}
 
-	/** コピーは描画と同じqueueへ先に送信し、次のフレームが出力Textureを上書きしても混ざらないようにする。 */
-	public prepareReadback(encoder: GPUCommandEncoder): (() => Promise<void>) | null {
+	/** 予約済みフレームのコピーを最終描画と同じencoderへ記録する。completeはsubmit後に呼ぶ。 */
+	public prepareReadback(encoder: GPUCommandEncoder, onReleased: () => void): CpuPreviewReadback | null {
 		const configuration = this.configuration;
 		const texture = this.texture;
-		// UIでの表示・返却まで最大2枚。GPU読み戻しが速くても、UIに画像を積み上げない。
-		if (configuration == null || texture == null || this.pendingFrames.size >= 2) return null;
+		if (configuration == null || texture == null) return null;
 		const width = texture.width;
 		const height = texture.height;
 		const bytesPerRow = Math.ceil(width * 4 / 256) * 256;
@@ -129,14 +120,23 @@ export class CpuPreviewCanvasContext implements PreviewCanvasContext {
 		const { buffer } = readback;
 		const generation = this.generation;
 		const sequence = this.nextSequence++;
-		this.pendingFrames.add(sequence);
-		encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow }, [width, height]);
-		return async () => {
+		this.pendingFrames.set(sequence, onReleased);
+		let cancelled = false;
+		let holdsReadback = true;
+		const cancel = () => {
+			cancelled = true;
+			this.releasePendingFrame(sequence);
+			// 未送信のencoderやmapAsync待機中だけを破棄する。プールへ戻ったbufferは別フレームの所有物。
+			if (holdsReadback) { holdsReadback = false; buffer.destroy(); this.buffers.delete(reservedReadback); }
+		};
+		try { encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow }, [width, height]); } catch (error) { cancel(); throw error; }
+		const read = async () => {
+			if (cancelled) return;
 			let published = false;
 			try {
 				await buffer.mapAsync(GPUMapMode.READ);
 				// 編集・サイズ変更・破棄後の画像と、先に表示済みの新しい画像を巻き戻す完了通知を捨てる。
-				if (generation !== this.generation || sequence < this.presentedSequence || width !== this.canvas.width || height !== this.canvas.height) return;
+				if (cancelled || generation !== this.generation || sequence < this.presentedSequence || width !== this.canvas.width || height !== this.canvas.height) return;
 				const pixels = this.availablePixelBuffers.pop() ?? new ArrayBuffer(width * height * 4);
 				copyPreviewPixels(new Uint8Array(buffer.getMappedRange()), new Uint8ClampedArray(pixels), width, height, bytesPerRow, configuration.format === 'bgra8unorm');
 				this.presentPixels({ frameId: sequence, width, height, pixels });
@@ -144,21 +144,23 @@ export class CpuPreviewCanvasContext implements PreviewCanvasContext {
 				this.presentedSequence = sequence;
 			} catch (error) {
 				// 意図した破棄ではmapAsyncも中断される。旧Workerの後始末を新しい描画の失敗にしない。
-				if (generation === this.generation) throw error;
+				if (!cancelled && generation === this.generation) throw error;
 			} finally {
 				if (!published) this.releasePendingFrame(sequence);
 				if (buffer.mapState === 'mapped') buffer.unmap();
-				if (generation === this.generation && this.configuration != null) this.availableBuffers.push(reservedReadback);
+				if (!cancelled && generation === this.generation && this.configuration != null) this.availableBuffers.push(reservedReadback);
 				else { buffer.destroy(); this.buffers.delete(reservedReadback); }
+				holdsReadback = false;
 			}
 		};
+		let completion: Promise<void> | null = null;
+		return { complete: () => completion ??= read(), cancel };
 	}
 
 	public invalidatePendingFrames() {
 		this.generation++;
 		this.availablePixelBuffers = [];
-		this.pendingFrames.clear();
-		this.notifyAvailableCapacity();
+		for (const frameId of this.pendingFrames.keys()) this.releasePendingFrame(frameId);
 		for (const readback of this.availableBuffers) { readback.buffer.destroy(); this.buffers.delete(readback); }
 		this.availableBuffers = [];
 	}

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { bundleSource, loadShaderSource } from './helpers/load-shader-source.mjs';
 
+const { CpuPreviewFrameQueue } = await loadShaderSource(fileURLToPath(new URL('../src/cpu-preview-frame-queue.ts', import.meta.url)));
 const { CpuPreviewCanvasContext, copyPreviewPixels } = await loadShaderSource(fileURLToPath(new URL('../src/preview-canvas-context.ts', import.meta.url)));
 
 function pixelConversionFixture({ blueFirst, opaque, sourceOffset = 4, destinationOffset = 8, bytesPerRow = 80, sourceExtraBytes = 0, destinationExtraBytes = 0 }) {
@@ -113,7 +114,7 @@ function fixture(t) {
 	context.configure({ device, format: 'rgba8unorm' });
 	context.getCurrentTexture();
 	t.after(() => context.unconfigure());
-	return { context, canvas, buffers, textures, copies, encoder, displayed, pixelBuffers };
+	return { context, canvas, buffers, textures, copies, encoder, displayed, pixelBuffers, prepareReadback: () => context.prepareReadback(encoder, () => {}) };
 }
 
 // 【読み戻しの完了順が逆でも最新画像を巻き戻さず、完了後のバッファを再利用する】
@@ -121,8 +122,8 @@ function fixture(t) {
 // 古い完了通知の表示を防ぎつつ毎フレームのGPUバッファ確保を避ける必要がある。
 test('keeps the newest completed image and reuses readback buffers', async t => {
 	const f = fixture(t);
-	const first = f.context.prepareReadback(f.encoder)();
-	const second = f.context.prepareReadback(f.encoder)();
+	const first = f.prepareReadback().complete();
+	const second = f.prepareReadback().complete();
 	assert.equal(f.copies[0].destination.bytesPerRow, 256);
 	assert.equal(f.buffers[0].size, 512);
 	new Uint8Array(f.buffers[1].bytes).set([40, 50, 60, 255]);
@@ -130,7 +131,7 @@ test('keeps the newest completed image and reuses readback buffers', async t => 
 	f.buffers[0].pending.resolve(); await first;
 	assert.equal(f.displayed.length, 1);
 	assert.deepEqual(f.displayed[0].slice(0, 4), [40, 50, 60, 255]);
-	const third = f.context.prepareReadback(f.encoder)();
+	const third = f.prepareReadback().complete();
 	assert.equal(f.buffers.length, 2);
 	f.buffers[0].pending.resolve(); await third;
 	assert.equal(f.displayed.length, 2);
@@ -141,12 +142,12 @@ test('keeps the newest completed image and reuses readback buffers', async t => 
 // 古い寸法の画像を再表示したり、意図した破棄を描画失敗として報告しないことを確認する。
 test('discards obsolete dimensions and suppresses intentional disposal failures', async t => {
 	const f = fixture(t);
-	const oldFrame = f.context.prepareReadback(f.encoder)();
+	const oldFrame = f.prepareReadback().complete();
 	f.canvas.width = 5; f.context.getCurrentTexture();
 	f.buffers[0].pending.resolve(); await oldFrame;
 	assert.equal(f.displayed.length, 0);
 	assert.equal(f.buffers[0].destroyed, true);
-	const pending = f.context.prepareReadback(f.encoder)();
+	const pending = f.prepareReadback().complete();
 	f.context.unconfigure();
 	f.buffers[1].pending.reject(new Error('Buffer was destroyed'));
 	await pending;
@@ -158,7 +159,7 @@ test('discards obsolete dimensions and suppresses intentional disposal failures'
 // GPUの障害を黙って無視すると、再生だけ進んでプレビューが静止し続けてしまう。
 test('propagates readback errors while the output is active', async t => {
 	const f = fixture(t);
-	const pending = f.context.prepareReadback(f.encoder)();
+	const pending = f.prepareReadback().complete();
 	f.buffers[0].pending.reject(new Error('Readback failed'));
 	await assert.rejects(pending, /Readback failed/);
 });
@@ -168,7 +169,7 @@ test('propagates readback errors while the output is active', async t => {
 // 返却された同じ寸法の領域を使い、解像度変更前の領域は保持しないことを確認する。
 test('recycles only returned pixel buffers with the current dimensions', async t => {
 	const f = fixture(t);
-	const render = async () => { const completion = f.context.prepareReadback(f.encoder)(); f.buffers.at(-1).pending.resolve(); await completion; };
+	const render = async () => { const completion = f.prepareReadback().complete(); f.buffers.at(-1).pending.resolve(); await completion; };
 	await render();
 	const pixels = f.pixelBuffers[0];
 	f.context.recyclePixels(0, pixels);
@@ -181,34 +182,93 @@ test('recycles only returned pixel buffers with the current dimensions', async t
 	assert.equal(f.pixelBuffers[2].byteLength, 5 * 2 * 4);
 });
 
-// 【UIが受け取った画像を返却するまで、未表示の画像を増やさない】
-// GPUのmapAsyncだけを上限にすると、UIが遅いときに転送済み画像が際限なく増える。
-test('bounds images awaiting display acknowledgment as well as GPU readbacks', async t => {
+// 【GPU読み戻しが終わってもUIの返却まで表示枠を予約したままにする】
+// 描画前の判定から返却まで一つの上限で制御し、表示できない画像の評価・描画を防ぐ。
+test('holds reservations until UI acknowledgment rather than readback completion', async t => {
 	const f = fixture(t);
-	for (let index = 0; index < 2; index++) { const completion = f.context.prepareReadback(f.encoder)(); f.buffers[0].pending.resolve(); await completion; }
-	assert.equal(f.context.prepareReadback(f.encoder), null);
+	const queue = new CpuPreviewFrameQueue([f.context]); t.after(() => queue.destroy());
+	for (let index = 0; index < 2; index++) {
+		const frame = queue.tryReserveFrame(); frame.prepareReadback(f.encoder);
+		const completion = frame.complete(); f.buffers[0].pending.resolve(); await completion;
+	}
+	assert.equal(queue.tryReserveFrame(), null);
 	f.context.recyclePixels(0, f.pixelBuffers[0]);
-	const completion = f.context.prepareReadback(f.encoder)();
-	f.buffers[0].pending.resolve(); await completion;
-	assert.equal(f.displayed.length, 3);
+	const frame = queue.tryReserveFrame(); assert.notEqual(frame, null);
+	frame.cancel();
 });
 
-// 【表示待ちが満杯なら領域の返却を待ち、破棄時には待機も解除する】
-// 手動シークは最新画像の読み戻しを省略できない。UIの返却待ちで画像を失わず、
-// 設定変更による破棄やサイズ変更でも待機を残さないことを確認する。
-test('waits for display capacity and releases waiters on invalidation', async t => {
+// 【全出力が返却されるまで次の表示枠を解放しない】
+// 主映像だけが速く返っても、ヒストグラムや波形の転送画像を積み上げないようにする。
+test('keeps a frame reserved until every output has been returned', async t => {
+	const outputs = [fixture(t), fixture(t)];
+	const queue = new CpuPreviewFrameQueue(outputs.map(f => f.context)); t.after(() => queue.destroy());
+	const reserved = queue.tryReserveFrame(); reserved.prepareReadback(outputs[0].encoder);
+	const completion = reserved.complete();
+	for (const f of outputs) f.buffers[0].pending.resolve();
+	await completion;
+	const second = queue.tryReserveFrame();
+	outputs[0].context.recyclePixels(0, outputs[0].pixelBuffers[0]);
+	assert.equal(queue.tryReserveFrame(), null);
+	outputs[1].context.recyclePixels(0, outputs[1].pixelBuffers[0]);
+	assert.notEqual(queue.tryReserveFrame(), null);
+	second.cancel();
+});
+
+// 【未記録の予約はリサイズでも維持し、送信失敗の解放で待機を再開する】
+// 出力寸法はノード評価後に決まる。予約は旧サイズの画像に結び付けず、
+// encoderの破棄やsubmitの失敗では読み戻しを開始せず資源を解放する。
+test('preserves a pre-render reservation across resize and cancels unsubmitted copies', async t => {
 	const f = fixture(t);
-	const render = async () => { const completion = f.context.prepareReadback(f.encoder)(); f.buffers[0].pending.resolve(); await completion; };
-	await render(); await render();
-	let available = false;
-	const capacity = f.context.waitForReadbackCapacity().then(() => { available = true; });
-	await Promise.resolve(); assert.equal(available, false);
-	f.context.recyclePixels(0, f.pixelBuffers[0]);
-	await capacity; assert.equal(available, true);
-	await render();
-	available = false;
-	const obsolete = f.context.waitForReadbackCapacity().then(() => { available = true; });
-	await Promise.resolve(); assert.equal(available, false);
-	f.context.invalidatePendingFrames();
-	await obsolete; assert.equal(available, true);
+	const queue = new CpuPreviewFrameQueue([f.context]); t.after(() => queue.destroy());
+	const frame = queue.tryReserveFrame(); const second = queue.tryReserveFrame();
+	let resumed = false;
+	const waiting = queue.reserveFrame().then(value => { resumed = true; return value; });
+	await Promise.resolve(); assert.equal(resumed, false);
+	f.canvas.width = 5; f.context.getCurrentTexture();
+	frame.prepareReadback(f.encoder);
+	assert.equal(f.copies[0].size[0], 5);
+	assert.equal(resumed, false);
+	frame.cancel(); assert.equal(f.buffers[0].destroyed, true);
+	assert.equal(frame.isCancelled, true);
+	const next = await waiting; assert.notEqual(next, null);
+	assert.equal(f.displayed.length, 0);
+	second.cancel(); next.cancel();
+});
+
+// 【返却待ちの終了時に古い描画を開始せず、破棄時にも待機を残さない】
+// 読み戻し容量を待つTimelineがWorker終了時に永久待機しないことを確認する。
+test('releases capacity waiters when the queue is destroyed', async t => {
+	const f = fixture(t);
+	const queue = new CpuPreviewFrameQueue([f.context]);
+	queue.tryReserveFrame(); queue.tryReserveFrame();
+	const waiting = queue.reserveFrame();
+	queue.destroy();
+	assert.equal(await waiting, null);
+	assert.equal(queue.tryReserveFrame(), null);
+});
+
+// 【コピー記録の失敗でも確保済みbufferと予約を回収する】
+// mapAsyncに到達する前の例外は、非同期完了のfinallyだけでは解放できない。
+test('releases readbacks and reservations when encoding fails', t => {
+	const f = fixture(t);
+	const queue = new CpuPreviewFrameQueue([f.context]); t.after(() => queue.destroy());
+	const frame = queue.tryReserveFrame();
+	assert.throws(() => frame.prepareReadback({ copyTextureToBuffer() { throw new Error('Copy failed'); } }), /Copy failed/);
+	assert.equal(f.buffers[0].destroyed, true);
+	assert.notEqual(queue.tryReserveFrame(), null);
+});
+
+// 【UI返却待ちの画像を取り消しても、既に再利用中のGPU bufferを破棄しない】
+// 読み戻しbufferはUIへの送信後にプールへ戻り、ピクセルの返却より先に次の描画へ使われる。
+test('does not destroy a reused buffer when an older presentation is cancelled', async t => {
+	const f = fixture(t);
+	const queue = new CpuPreviewFrameQueue([f.context]); t.after(() => queue.destroy());
+	const first = queue.tryReserveFrame(); first.prepareReadback(f.encoder);
+	const firstCompletion = first.complete(); f.buffers[0].pending.resolve(); await firstCompletion;
+	const second = queue.tryReserveFrame(); second.prepareReadback(f.encoder);
+	const secondCompletion = second.complete();
+	first.cancel();
+	assert.equal(f.buffers[0].destroyed, false);
+	f.buffers[0].pending.resolve(); await secondCompletion;
+	assert.equal(f.displayed.length, 2);
 });

@@ -80,7 +80,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 }> {
 	private previewRenderGeneration = 0;
 	private gpuContext: PreviewCanvasContext;
-	private pendingCpuPresentations = 0;
 	private skippedCpuTimeDelta = 0;
 	private skippedCpuRealTimeDelta = 0;
 	private gpuDevice: GPUDevice;
@@ -373,7 +372,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	private renderVisualModuleLivePreviewFrame(timing: VisualModuleLivePreviewFrameTiming) {
 		if (this.visualModuleLivePreviewVisualModuleRenderer == null) return;
-		if (this.canvasRenderer.usesCpuDisplay && this.pendingCpuPresentations >= 2) {
+		const cpuFrame = this.canvasRenderer.tryReserveCpuPreviewFrame();
+		if (this.canvasRenderer.usesCpuDisplay && cpuFrame == null) {
 			// 画面更新より読み戻しが遅い時にバッファと表示遅延を積み上げない。
 			// 間引いた時間は次の描画へ加え、TIME_DELTAを使うエフェクトの時計も進める。
 			this.skippedCpuTimeDelta += timing.timeDelta;
@@ -385,73 +385,76 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.skippedCpuRealTimeDelta = 0;
 		const generation = ++this.previewRenderGeneration;
 		const visualModule = this.dynamicOptions.visualModules.find(module => module.id === this.visualModuleLivePreviewVisualModuleId)!;
-		const commandEncoder = this.gpuDevice.createCommandEncoder();
-
 		try {
-			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
-			for (const def of visualModule.paramDefs) {
-				if (def.dataType.kind === 'audioSource') {
-					const binding = this.visualModuleLivePreviewParamValues[def.id] ?? def.defaultValue;
-					// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
-					// 注入したresolveAudioSourceで取得する。音声の指定はPARAMへ公開されない。
-					evaluatedParamValues.set(def.id, (binding as { value: unknown }).value);
-					continue;
+			const commandEncoder = this.gpuDevice.createCommandEncoder();
+
+			try {
+				const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
+				for (const def of visualModule.paramDefs) {
+					if (def.dataType.kind === 'audioSource') {
+						const binding = this.visualModuleLivePreviewParamValues[def.id] ?? def.defaultValue;
+						// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
+						// 注入したresolveAudioSourceで取得する。音声の指定はPARAMへ公開されない。
+						evaluatedParamValues.set(def.id, (binding as { value: unknown }).value);
+						continue;
+					}
+					if (this.visualModuleLivePreviewParamValues[def.id] == null) {
+						evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, def.defaultValue.value)));
+						continue;
+					}
+					evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.visualModuleLivePreviewParamEvaluator.evaluate(this.visualModuleLivePreviewParamValues[def.id], {
+						variables: {
+							TIME: timing.time / 1000,
+							TIME_MS: timing.time,
+						} satisfies Record<typeof VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS[number], unknown>,
+						automationGraphs: this.dynamicOptions.automationGraphs,
+						time: timing.time,
+						endTime: Infinity,
+					}, def.dataType.kind === 'enum' ? null : genEmptyValue(def), def)))); // TODO: genEmptyValueを遅延評価したい
 				}
-				if (this.visualModuleLivePreviewParamValues[def.id] == null) {
-					evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, def.defaultValue.value)));
-					continue;
-				}
-				evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.visualModuleLivePreviewParamEvaluator.evaluate(this.visualModuleLivePreviewParamValues[def.id], {
-					variables: {
-						TIME: timing.time / 1000,
-						TIME_MS: timing.time,
-					} satisfies Record<typeof VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS[number], unknown>,
-					automationGraphs: this.dynamicOptions.automationGraphs,
+
+				// Outが未接続でも透明な出力を描画し、前の映像や集計結果を残さない。
+				const nodeOutput = this.visualModuleLivePreviewVisualModuleRenderer.render({
+					evaluatedParamValues: evaluatedParamValues,
 					time: timing.time,
+					timeDelta: timing.timeDelta,
 					endTime: Infinity,
-				}, def.dataType.kind === 'enum' ? null : genEmptyValue(def), def)))); // TODO: genEmptyValueを遅延評価したい
-			}
+					pointerPosition: this.pointerPosition,
+					pointerPositionPrev: this.pointerPositionPrev,
+					isExport: false,
+				}, commandEncoder) ?? { kind: 'uniform', value: [0, 0, 0, 0] };
 
-			// Outが未接続でも透明な出力を描画し、前の映像や集計結果を残さない。
-			const nodeOutput = this.visualModuleLivePreviewVisualModuleRenderer.render({
-				evaluatedParamValues: evaluatedParamValues,
-				time: timing.time,
-				timeDelta: timing.timeDelta,
-				endTime: Infinity,
-				pointerPosition: this.pointerPosition,
-				pointerPositionPrev: this.pointerPositionPrev,
-				isExport: false,
-			}, commandEncoder) ?? { kind: 'uniform', value: [0, 0, 0, 0] };
+				// 定数を表示用に1x1へ変換しても、表示枠の寸法は1x1にしない。
+				this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
+				const tex = this.outputTextures.resolve(nodeOutput);
+				this.canvasRenderer.renderToCanvas(tex, commandEncoder);
 
-			// 定数を表示用に1x1へ変換しても、表示枠の寸法は1x1にしない。
-			this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
-			const tex = this.outputTextures.resolve(nodeOutput);
-			this.canvasRenderer.renderToCanvas(tex, commandEncoder);
+				this.pointerPositionPrev = { ...this.pointerPosition };
 
-			this.pointerPositionPrev = { ...this.pointerPosition };
-
-			if (this.staticOptions.enableStats) this.fpsAverage.addSample(1000 / timing.realTimeDelta);
-		} finally {
-			// 部分的に描画して失敗しても計測を完了する。未完了のencoderを残すと、
-			// 次のフレームでTimingHelperが別のencoderを受け付けず、修正後も復旧できない。
-			this.gpuDevice.queue.submit([commandEncoder.finish()]);
-			const cpuPresented = this.canvasRenderer.presentCpuFrame();
-			if (cpuPresented != null) {
-				this.pendingCpuPresentations++;
-				void cpuPresented.catch(error => {
-					if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
-				}).finally(() => { this.pendingCpuPresentations--; });
-			}
-			if (this.timingHelper != null) {
-				this.timingHelper.getResult().then(gpuTime => {
-					this.gpuAverageFast.addSample(gpuTime / 1000);
-					this.gpuAverageMedium.addSample(gpuTime / 1000);
-					this.gpuAverageSlow.addSample(gpuTime / 1000);
-				}).catch(error => {
+				if (this.staticOptions.enableStats) this.fpsAverage.addSample(1000 / timing.realTimeDelta);
+			} catch (error) {
+				cpuFrame?.cancel();
+				throw error;
+			} finally {
+				// 部分的に描画して失敗しても計測を完了する。未完了のencoderを残すと、
+				// 次のフレームでTimingHelperが別のencoderを受け付けず、修正後も復旧できない。
+				cpuFrame?.prepareReadback(commandEncoder);
+				this.gpuDevice.queue.submit([commandEncoder.finish()]);
+				if (cpuFrame != null) void cpuFrame.complete().catch(error => {
+					cpuFrame.cancel();
 					if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
 				});
+				if (this.timingHelper != null) {
+					this.timingHelper.getResult().then(gpuTime => {
+						this.gpuAverageFast.addSample(gpuTime / 1000);
+						this.gpuAverageMedium.addSample(gpuTime / 1000);
+						this.gpuAverageSlow.addSample(gpuTime / 1000);
+					}).catch(error => {
+						if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
+					});
+				}
 			}
-		}
+		} catch (error) { cpuFrame?.cancel(); throw error; }
 	}
 
 	private updateCanvasResolution(resolution: Resolution) {
@@ -467,6 +470,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.skippedCpuTimeDelta = 0;
 		this.skippedCpuRealTimeDelta = 0;
 		this.previewRenderGeneration++;
+		this.canvasRenderer.clear();
 		this.visualModuleLivePreviewRenderLoop.stop();
 		this.visualModuleLivePreviewVisualModuleId = null;
 		this.visualModuleLivePreviewVisualModuleRenderer?.destroy();

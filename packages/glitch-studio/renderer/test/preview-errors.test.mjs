@@ -607,21 +607,46 @@ test('waits for CPU presentation before publishing timeline completion', async t
 	const waiting = Promise.withResolvers();
 	const capacity = Promise.withResolvers();
 	Object.defineProperty(renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
-	const capacityWait = t.mock.method(renderer.canvasRenderer, 'waitForCpuDisplayCapacity', () => capacity.promise);
-	t.mock.method(renderer.canvasRenderer, 'presentCpuFrame', () => { waiting.resolve(); return displayed.promise; });
+	const capacityWait = t.mock.method(renderer.canvasRenderer, 'reserveCpuPreviewFrame', () => capacity.promise);
+	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
+	const drawing = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	const steps = [];
+	t.mock.method(renderer.gpuDevice.queue, 'submit', () => { steps.push('submit'); });
+	const frame = { prepareReadback(encoder) { steps.push('copy'); assert.equal(encoder, drawing.mock.calls.at(-1).arguments[1]); },
+		complete() { steps.push('map'); waiting.resolve(); return displayed.promise; }, cancel() {} };
 	const events = [];
 	renderer.on('ev', event => { if (event.type === 'frameRendered') events.push(event.ctx); });
 	const pending = renderer.renderTimelineAt(100, 1);
 	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(capacityWait.mock.callCount(), 1);
+	assert.equal(evaluations.mock.callCount(), 0);
 	assert.equal(events.length, 0);
-	capacity.resolve();
+	capacity.resolve(frame);
 	await waiting.promise;
+	assert.deepEqual(steps.slice(-3), ['copy', 'submit', 'map']);
 	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(events.length, 0);
 	displayed.resolve(); await pending;
 	assert.equal(events.length, 1);
 	assert.equal(events[0].requestId, 1);
+});
+
+// 【取り消したCPU表示をシーク完了として通知しない】
+// 後続フレームの失敗などで表示枠が解放されても、GPU完了だけを理由に
+// 取り消された画像を描画済みとして扱ってはいけない。
+test('does not publish completion for a cancelled CPU presentation', async t => {
+	const { renderer } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
+	const waiting = Promise.withResolvers(); const gpu = Promise.withResolvers();
+	const frame = { isCancelled: false, prepareReadback() {}, async complete() {}, cancel() { this.isCancelled = true; } };
+	Object.defineProperty(renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
+	t.mock.method(renderer.canvasRenderer, 'reserveCpuPreviewFrame', async () => frame);
+	t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', () => { waiting.resolve(); return gpu.promise; });
+	const completed = [];
+	renderer.on('ev', event => { if (event.type === 'frameRendered') completed.push(event); });
+	const pending = renderer.renderTimelineAt(100, 1);
+	await waiting.promise; frame.cancel(); gpu.resolve(); await pending;
+	assert.deepEqual(completed, []);
 });
 
 // 【Live Previewの未完了CPU表示を2件に制限し、間引いた時間を次の描画へ渡す】
@@ -631,22 +656,66 @@ test('bounds CPU live preview readbacks and preserves skipped elapsed time', asy
 	const f = await fixture(t);
 	await f.renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
 	Object.defineProperty(f.renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
-	const completions = [];
-	t.mock.method(f.renderer.canvasRenderer, 'presentCpuFrame', () => { const completion = Promise.withResolvers(); completions.push(completion); return completion.promise; });
+	const { CpuPreviewFrameQueue } = await loadShaderSource(fileURLToPath(new URL('../src/cpu-preview-frame-queue.ts', import.meta.url)));
+	const returned = []; const encoders = [];
+	const queue = new CpuPreviewFrameQueue([{ prepareReadback(encoder, release) {
+		encoders.push(encoder); returned.push(release);
+		return { async complete() {}, cancel: release };
+	} }]); t.after(() => queue.destroy());
+	t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => queue.tryReserveFrame());
+	const submitted = t.mock.method(f.renderer.gpuDevice.queue, 'submit');
+	const drawing = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
 	f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 	const frames = t.mock.method(f.renderer.visualModuleLivePreviewVisualModuleRenderer, 'render', () => ({ kind: 'uniform', value: [1, 0, 0, 1] }));
-	f.frame(16); f.frame(32); f.frame(48); f.frame(64);
-	assert.equal(completions.length, 2);
-	assert.equal(frames.mock.callCount(), 2);
-	completions[0].resolve(); await new Promise(resolve => setImmediate(resolve));
-	f.frame(80);
-	assert.equal(completions.length, 3);
-	assert.equal(frames.mock.calls[2].arguments[0].timeDelta, 48);
-	for (const completion of completions) completion.resolve();
+	f.frame(16); f.frame(32);
 	await new Promise(resolve => setImmediate(resolve));
-	assert.equal(f.renderer.pendingCpuPresentations, 0);
+	f.frame(48); f.frame(64);
+	assert.equal(returned.length, 2);
+	assert.equal(frames.mock.callCount(), 2);
+	assert.equal(drawing.mock.callCount(), 2);
+	assert.equal(submitted.mock.callCount(), 2);
+	returned[0]();
+	f.frame(80);
+	assert.equal(returned.length, 3);
+	assert.equal(frames.mock.calls[2].arguments[0].timeDelta, 48);
+	assert.equal(submitted.mock.callCount(), 3);
+	assert.deepEqual(encoders, drawing.mock.calls.map(call => call.arguments[1]));
+	for (const release of returned) release();
+	await new Promise(resolve => setImmediate(resolve));
 	assert.deepEqual(f.errors, []);
 });
+
+for (const failure of ['encoder', 'evaluation', 'finish', 'submit']) {
+	// 【描画準備・評価・送信の失敗でも予約を返し、未送信の読み戻しを開始しない】
+	// 通常のGPU完了に到達しない例外でも、次の描画の表示枠を失って永久停止してはいけない。
+	test(`releases CPU live preview capacity after ${failure} failure`, async t => {
+		const f = await fixture(t);
+		await f.renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
+		const { CpuPreviewFrameQueue } = await loadShaderSource(fileURLToPath(new URL('../src/cpu-preview-frame-queue.ts', import.meta.url)));
+		let readbacks = 0;
+		const queue = new CpuPreviewFrameQueue([{ prepareReadback(encoder, release) {
+			return { async complete() { readbacks++; }, cancel: release };
+		} }]); t.after(() => queue.destroy());
+		Object.defineProperty(f.renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
+		t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => queue.tryReserveFrame());
+		f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+		const fail = () => { throw new Error('Injected failure'); };
+		if (failure === 'evaluation') t.mock.method(f.renderer.visualModuleLivePreviewVisualModuleRenderer, 'render', fail);
+		if (failure === 'encoder') t.mock.method(f.renderer.gpuDevice, 'createCommandEncoder', fail);
+		if (failure === 'finish') {
+			const create = f.renderer.gpuDevice.createCommandEncoder.bind(f.renderer.gpuDevice);
+			t.mock.method(f.renderer.gpuDevice, 'createCommandEncoder', () => ({ ...create(), finish: fail }));
+		}
+		if (failure === 'submit') t.mock.method(f.renderer.gpuDevice.queue, 'submit', fail);
+		f.frame(16);
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(readbacks, 0);
+		assert.notEqual(queue.tryReserveFrame(), null);
+		assert.notEqual(queue.tryReserveFrame(), null);
+		assert.equal(queue.tryReserveFrame(), null);
+		assert.deepEqual(f.errors, ['Injected failure']);
+	});
+}
 
 for (const motionBlur of [false, true]) {
 	// 【手動シークの完了は、最終表示とブラー全サンプルのGPU処理後にだけ通知する】

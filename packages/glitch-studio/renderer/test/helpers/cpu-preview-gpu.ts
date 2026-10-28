@@ -21,8 +21,10 @@ export async function run() {
 	const texture = device.createTexture({ size: [2, 2], format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
 	try {
 		device.queue.writeTexture({ texture }, new Uint8Array([128, 0, 0, 128, 0, 255, 0, 255, 0, 0, 0, 0, 64, 64, 64, 64]), { bytesPerRow: 8 }, [2, 2]);
-		const encoder = device.createCommandEncoder(); renderer.renderToCanvas(texture, encoder); device.queue.submit([encoder.finish()]);
-		await renderer.presentCpuFrame();
+		const frame = renderer.tryReserveCpuPreviewFrame()!;
+		const encoder = device.createCommandEncoder(); renderer.renderToCanvas(texture, encoder);
+		frame.prepareReadback(encoder); device.queue.submit([encoder.finish()]);
+		await frame.complete();
 		const pixels = canvas.getContext('2d')!.getImageData(0, 0, 2, 2).data;
 		const expected = [255, 0, 0, 128, 0, 255, 0, 255, 0, 0, 0, 0, 255, 255, 255, 64];
 		for (let index = 0; index < expected.length; index++) if (Math.abs(pixels[index] - expected[index]) > 1) throw new Error(`CPU preview pixel ${index}: ${pixels[index]} != ${expected[index]}`);

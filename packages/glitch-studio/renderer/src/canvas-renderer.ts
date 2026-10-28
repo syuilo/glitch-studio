@@ -4,11 +4,13 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import finalRenderShaderCode from './render.wgsl?raw';
 import { CpuPreviewCanvasContext } from './preview-canvas-context.ts';
+import { CpuPreviewFrameQueue } from './cpu-preview-frame-queue.ts';
 import type { PreviewCanvasContext, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 
 export class CanvasRenderer {
 	private gpuContext: PreviewCanvasContext;
 	private readonly cpuCanvasContexts: CpuPreviewCanvasContext[];
+	private readonly cpuFrameQueue: CpuPreviewFrameQueue | null;
 	private readonly canvasContexts: Partial<Record<CpuPreviewCanvasTarget, PreviewCanvasContext>>;
 	public get usesCpuDisplay() { return this.cpuCanvasContexts.length > 0; }
 	private gpuDevice: GPUDevice;
@@ -37,6 +39,7 @@ export class CanvasRenderer {
 		this.canvasContexts = { canvas: options.gpuContext, histogramCanvas: options.histogramGpuContext, waveformHorizontalCanvas: options.waveformHorizontalGpuContext, waveformVerticalCanvas: options.waveformVerticalGpuContext };
 		this.cpuCanvasContexts = [options.gpuContext, options.histogramGpuContext, options.waveformHorizontalGpuContext, options.waveformVerticalGpuContext]
 			.filter((context): context is CpuPreviewCanvasContext => context instanceof CpuPreviewCanvasContext);
+		this.cpuFrameQueue = this.cpuCanvasContexts.length > 0 ? new CpuPreviewFrameQueue(this.cpuCanvasContexts) : null;
 
 		// 非表示にするだけでは集計パスが残る。無効時は解析用リソース自体を生成せず、
 		// renderToCanvasでも通常のプレビュー描画だけを実行する。
@@ -134,27 +137,15 @@ export class CanvasRenderer {
 	}
 
 	public clear() {
+		this.cpuFrameQueue?.clear();
 		for (const context of this.cpuCanvasContexts) context.invalidatePendingFrames();
 		this.finalRenderBindGroup = null;
 		this.latestRenderedToCanasTexture = null;
 	}
 
-	public async waitForCpuDisplayCapacity() {
-		await Promise.all(this.cpuCanvasContexts.map(context => context.waitForReadbackCapacity()));
-	}
+	public tryReserveCpuPreviewFrame() { return this.cpuFrameQueue?.tryReserveFrame() ?? null; }
 
-	/** 解析用Canvasも同じ経路で表示し、CPU表示時だけ解析を省く条件差を作らない。 */
-	public presentCpuFrame(): Promise<void> | null {
-		if (!this.usesCpuDisplay) return null;
-		const encoder = this.gpuDevice.createCommandEncoder({ label: 'CPU preview readback' });
-		const completions = this.cpuCanvasContexts.flatMap(context => {
-			const complete = context.prepareReadback(encoder);
-			return complete == null ? [] : [complete];
-		});
-		if (completions.length === 0) return null;
-		this.gpuDevice.queue.submit([encoder.finish()]);
-		return Promise.all(completions.map(complete => complete())).then(() => {});
-	}
+	public async reserveCpuPreviewFrame() { return this.cpuFrameQueue?.reserveFrame() ?? null; }
 
 	public recycleCpuPreviewPixels(target: CpuPreviewCanvasTarget, frameId: number, pixels: ArrayBuffer) {
 		const context = this.canvasContexts[target];
@@ -162,6 +153,7 @@ export class CanvasRenderer {
 	}
 
 	public destroy() {
+		this.cpuFrameQueue?.destroy();
 		this.gpuHistogram?.dispose();
 		this.gpuWaveformHorizontal?.dispose();
 		this.gpuWaveformVertical?.dispose();
