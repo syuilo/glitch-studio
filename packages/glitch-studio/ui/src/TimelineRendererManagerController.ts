@@ -10,6 +10,7 @@ import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
 import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
+import { getTimelinePreviewFrameIndex } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);
@@ -150,7 +151,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
-		if (['assets', 'resolution', 'resolutionScale', 'visualModules', 'timelineScenes', 'automationGraphs', 'sceneId', 'previewFps', 'generatedSpeech'].some(key => Object.hasOwn(options, key))) this.frameCacheState.value = null;
+		if (['assets', 'resolution', 'resolutionScale', 'visualModules', 'timelineScenes', 'automationGraphs', 'sceneId', 'previewFps', 'generatedSpeech', 'frameCacheMaxBytes'].some(key => Object.hasOwn(options, key))) this.frameCacheState.value = null;
 		if (Object.hasOwn(options, 'sceneId') && options.sceneId !== this.dynamicOptions.sceneId) {
 			this.cancelSeek();
 			this.previewStatistics.value = null;
@@ -217,12 +218,27 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public renderTimelineAt(time: number, isManualSeek = false, seekMode: TimelinePreviewSeekMode = 'frame') {
 		if (!this.isReady.value) return;
-		if (isManualSeek) this.pendingSeek.value = { requestId: ++this.seekRequestId, time };
+		// 既知のキャッシュなら完了通知を要求しない。未描画フレームから移動した場合も
+		// 以前の待機状態を解除し、キャッシュされた画像の表示にスピナーを重ねない。
+		if ((isManualSeek || this.pendingSeek.value != null) && this.hasCachedPreviewFrame(time, seekMode)) this.cancelSeek();
+		else if (isManualSeek) this.pendingSeek.value = { requestId: ++this.seekRequestId, time };
 		else if (this.pendingSeek.value != null && this.pendingSeek.value.time !== time) this.cancelSeek();
 		// シーク中の編集・購読変更による同時刻の再描画にもIDを引き継ぐ。
 		// 古い状態の完了はrevisionで除外し、新しい状態の描画が終わるまで表示を続ける。
 		const requestId = this.pendingSeek.value?.requestId;
 		this.call('renderTimelineAt', seekMode === 'precise' ? [time, requestId ?? null, seekMode] : requestId == null ? [time] : [time, requestId]);
+	}
+
+	private hasCachedPreviewFrame(time: number, seekMode: TimelinePreviewSeekMode): boolean {
+		const cache = this.frameCacheState.value;
+		const fps = this.dynamicOptions.previewFps ?? this.staticOptions.timelineFps;
+		if (seekMode !== 'frame' || cache == null || cache.maxBytes <= 0 || cache.fps !== fps
+			|| cache.sceneId !== (this.dynamicOptions.sceneId ?? null)) return false;
+		const frameIndex = getTimelinePreviewFrameIndex(time, fps);
+		// 選択・表示設定だけでもpreviewRevisionは進むが、画像は引き続き利用できる。
+		// 内容や容量の変更時にはframeCacheState自体を消して、次の通知まで未確認とする。
+		return Math.abs(time - frameIndex * 1000 / fps) < 1e-7
+			&& cache.frameRanges.some(range => range.startFrame <= frameIndex && frameIndex < range.endFrame);
 	}
 
 	public cancelSeek() {

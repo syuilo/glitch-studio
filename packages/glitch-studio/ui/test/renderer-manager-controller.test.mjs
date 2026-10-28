@@ -172,6 +172,88 @@ test('tracks manual seeks until the matching current frame completes', async t =
 	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [100]);
 });
 
+// 【既知のキャッシュへ移動すると完了通知を要求せず、以前のシーク待ちも解除する】
+// 未保存のフレームを待っている最中にキャッシュへ戻った場合も、古いスピナーを残さない。
+// 区間の終端は未保存として扱い、古い完了通知で次の未保存フレームの待機を解除しない。
+test('seeks to known cached frames without completion requests and cancels an older pending seek', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	worker.reply({ type: 'ev', ev: { type: 'frameCache', ctx: {
+		sceneId: null, contentRevision: 1, previewRevision: 0, fps: 60,
+		frameRanges: [{ startFrame: 0, endFrame: 2 }, { startFrame: 4, endFrame: 6 }], estimatedBytes: 16, maxBytes: 16,
+	} } });
+	for (const frame of [0, 1, 4, 5]) {
+		const time = frame * 1000 / 60;
+		controller.renderTimelineAt(time, true);
+		assert.equal(controller.isSeeking.value, false);
+		assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [time]);
+	}
+	const uncachedTime = 2 * 1000 / 60;
+	controller.renderTimelineAt(uncachedTime, true);
+	const oldRequestId = worker.calls('renderTimelineAt').at(-1).args[1];
+	assert.equal(controller.isSeeking.value, true);
+	controller.renderTimelineAt(0, true);
+	assert.equal(controller.isSeeking.value, false);
+	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [0]);
+	controller.renderTimelineAt(100, true);
+	const requestId = worker.calls('renderTimelineAt').at(-1).args[1];
+	assert.notEqual(requestId, oldRequestId);
+	worker.reply({ type: 'ev', ev: { type: 'frameRendered', ctx: { requestId: oldRequestId, time: uncachedTime, sceneId: null, revision: 0 } } });
+	assert.equal(controller.isSeeking.value, true);
+	worker.reply({ type: 'ev', ev: { type: 'frameRendered', ctx: { requestId, time: 100, sceneId: null, revision: 0 } } });
+	assert.equal(controller.isSeeking.value, false);
+});
+
+// 【精密シークとフレーム境界以外の時刻は、同じ番号のキャッシュがあっても完了を待つ】
+// 精密モードはGPU側で検索・保存を迂回するため、UIでも通常の待機表示を維持する。
+// その後の通常描画がキャッシュを使うときは、同時刻の待機IDも引き継がない。
+test('retains completion requests for precise and off-grid seeks even when a frame is cached', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	worker.reply({ type: 'ev', ev: { type: 'frameCache', ctx: {
+		sceneId: null, contentRevision: 1, previewRevision: 0, fps: 60,
+		frameRanges: [{ startFrame: 0, endFrame: 1 }], estimatedBytes: 4, maxBytes: 16,
+	} } });
+	controller.renderTimelineAt(0, true, 'precise');
+	const requestId = worker.calls('renderTimelineAt').at(-1).args[1];
+	assert.equal(controller.isSeeking.value, true);
+	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [0, requestId, 'precise']);
+	controller.renderTimelineAt(0);
+	assert.equal(controller.isSeeking.value, false);
+	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [0]);
+	controller.renderTimelineAt(8, true);
+	assert.equal(controller.isSeeking.value, true);
+	assert.equal(worker.calls('renderTimelineAt').at(-1).args.length, 2);
+});
+
+// 【表示設定の変更後も既知の画像を利用し、容量変更後は新しい通知で範囲を確認し直す】
+// previewRevisionだけで判定すると、画像を変えない選択・表示設定の変更でキャッシュ判定が失われる。
+// 容量縮小後は削除対象がUIに未通知でもあり得るため、以前の範囲を使わない。
+test('keeps cached seek feedback across display updates and resets it for capacity changes', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	const state = { sceneId: null, contentRevision: 1, previewRevision: 0, fps: 60,
+		frameRanges: [{ startFrame: 0, endFrame: 2 }], estimatedBytes: 8, maxBytes: 16 };
+	const notify = ctx => worker.reply({ type: 'ev', ev: { type: 'frameCache', ctx } });
+	notify(state);
+	const displayUpdate = controller.updateDynamicOptions({ highlightClipping: true });
+	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
+	await displayUpdate;
+	controller.renderTimelineAt(0, true);
+	assert.equal(controller.isSeeking.value, false);
+	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [0]);
+	const capacityUpdate = controller.updateDynamicOptions({ frameCacheMaxBytes: 4 });
+	assert.equal(controller.frameCacheState.value, null);
+	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
+	await capacityUpdate;
+	controller.renderTimelineAt(0, true);
+	assert.equal(controller.isSeeking.value, true);
+	notify({ ...state, previewRevision: 2, maxBytes: 4, frameRanges: [{ startFrame: 0, endFrame: 1 }], estimatedBytes: 4 });
+	controller.renderTimelineAt(0);
+	assert.equal(controller.isSeeking.value, false);
+	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [0]);
+});
+
 // 【シーク待ちを再生開始・Scene切替・失敗・Worker破棄で解除する】
 // 取り消された要求には正常な完了通知が来ないことがある。表示を残さず、古いWorkerの
 // 通知も新しい要求の待機状態を解除できないことを確認する。
