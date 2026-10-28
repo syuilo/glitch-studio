@@ -33,7 +33,7 @@ onmessage = async (event) => {
 				});
 
 				manager.on('ev', ({ type, ctx }) => {
-					self.postMessage({ type: 'ev', ev: { type, ctx } });
+					self.postMessage({ type: 'ev', ev: { type, ctx } }, { transfer: type === 'cpuPreviewFrame' ? [ctx.pixels] : [] });
 				});
 
 				self.postMessage({ type: 'inited' });

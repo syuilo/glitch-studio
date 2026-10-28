@@ -7,6 +7,7 @@ import type { WorkspaceElement } from './workspace.ts';
 import type { MenuItem } from './types/menu.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { TimelineTickMode } from './utility/timeline-ticks.ts';
+import type { PreviewDisplayMode } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 
 export const PREF_DEF = definePreferences({
 	importAssetsAsExternalReferences: { default: () => false },
@@ -41,6 +42,7 @@ export const PREF_DEF = definePreferences({
 	enable32bitDataTextures: { default: () => false },
 	intermediateTextureFormat: { default: () => null as IntermediateTextureFormat | null },
 	renderingStatsEnabled: { default: () => true },
+	previewDisplayMode: { default: (): PreviewDisplayMode => 'gpu' },
 	analysisMonitorsEnabled: { default: () => true },
 	timelineFrameCacheMaxGiB: { default: () => 2 },
 	timelinePreviewFramesAhead: { default: () => 1 },

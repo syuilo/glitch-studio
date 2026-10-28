@@ -105,6 +105,7 @@ export class AppContext {
 		}, { flush: 'sync' });
 
 		this.visualModuleRendererManagerController = markRaw(new VisualModuleRendererManagerController({
+			previewDisplayMode: preferences.s.previewDisplayMode,
 			enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 			enableStats: preferences.s.renderingStatsEnabled,
@@ -116,6 +117,7 @@ export class AppContext {
 		}, this.audioOutput));
 
 		this.timelineRendererManagerController = markRaw(new TimelineRendererManagerController({
+			previewDisplayMode: preferences.s.previewDisplayMode,
 			enableStats: preferences.s.renderingStatsEnabled,
 			enableWaveformAndHistogram: preferences.s.analysisMonitorsEnabled,
 			timelineFps: this.projectContext.stateManager.state.timelineFps.value,
@@ -297,8 +299,9 @@ export class AppContext {
 			this.previewPlayback.refresh();
 		});
 
-		watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat, preferences.r.renderingStatsEnabled, preferences.r.analysisMonitorsEnabled], async () => {
+		watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat, preferences.r.renderingStatsEnabled, preferences.r.analysisMonitorsEnabled, preferences.r.previewDisplayMode], async () => {
 			const options = {
+				previewDisplayMode: preferences.s.previewDisplayMode,
 				enableStats: preferences.s.renderingStatsEnabled,
 				enableWaveformAndHistogram: preferences.s.analysisMonitorsEnabled,
 				enable32bitDataTextures: preferences.s.enable32bitDataTextures,

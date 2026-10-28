@@ -3,9 +3,16 @@ import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
 import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import finalRenderShaderCode from './render.wgsl?raw';
+import { CpuPreviewCanvasContext } from './preview-canvas-context.ts';
+import { CpuPreviewFrameQueue } from './cpu-preview-frame-queue.ts';
+import type { PreviewCanvasContext, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 
 export class CanvasRenderer {
-	private gpuContext: GPUCanvasContext;
+	private gpuContext: PreviewCanvasContext;
+	private readonly cpuCanvasContexts: CpuPreviewCanvasContext[];
+	private readonly cpuFrameQueue: CpuPreviewFrameQueue | null;
+	private readonly canvasContexts: Partial<Record<CpuPreviewCanvasTarget, PreviewCanvasContext>>;
+	public get usesCpuDisplay() { return this.cpuCanvasContexts.length > 0; }
 	private gpuDevice: GPUDevice;
 	private finalRenderUniformValues: ReturnType<typeof makeStructuredView>;
 	private finalRenderSampler: GPUSampler;
@@ -21,14 +28,18 @@ export class CanvasRenderer {
 
 	constructor(options: {
 		gpuDevice: GPUDevice;
-		gpuContext: GPUCanvasContext;
+		gpuContext: PreviewCanvasContext;
 		enableWaveformAndHistogram: boolean;
-		histogramGpuContext?: GPUCanvasContext;
-		waveformHorizontalGpuContext?: GPUCanvasContext;
-		waveformVerticalGpuContext?: GPUCanvasContext;
+		histogramGpuContext?: PreviewCanvasContext;
+		waveformHorizontalGpuContext?: PreviewCanvasContext;
+		waveformVerticalGpuContext?: PreviewCanvasContext;
 	}) {
 		this.gpuDevice = options.gpuDevice;
 		this.gpuContext = options.gpuContext;
+		this.canvasContexts = { canvas: options.gpuContext, histogramCanvas: options.histogramGpuContext, waveformHorizontalCanvas: options.waveformHorizontalGpuContext, waveformVerticalCanvas: options.waveformVerticalGpuContext };
+		this.cpuCanvasContexts = [options.gpuContext, options.histogramGpuContext, options.waveformHorizontalGpuContext, options.waveformVerticalGpuContext]
+			.filter((context): context is CpuPreviewCanvasContext => context instanceof CpuPreviewCanvasContext);
+		this.cpuFrameQueue = this.cpuCanvasContexts.length > 0 ? new CpuPreviewFrameQueue(this.cpuCanvasContexts) : null;
 
 		// 非表示にするだけでは集計パスが残る。無効時は解析用リソース自体を生成せず、
 		// renderToCanvasでも通常のプレビュー描画だけを実行する。
@@ -126,13 +137,26 @@ export class CanvasRenderer {
 	}
 
 	public clear() {
+		this.cpuFrameQueue?.clear();
+		for (const context of this.cpuCanvasContexts) context.invalidatePendingFrames();
 		this.finalRenderBindGroup = null;
 		this.latestRenderedToCanasTexture = null;
 	}
 
+	public tryReserveCpuPreviewFrame() { return this.cpuFrameQueue?.tryReserveFrame() ?? null; }
+
+	public async reserveCpuPreviewFrame() { return this.cpuFrameQueue?.reserveFrame() ?? null; }
+
+	public recycleCpuPreviewPixels(target: CpuPreviewCanvasTarget, frameId: number, pixels: ArrayBuffer) {
+		const context = this.canvasContexts[target];
+		if (context instanceof CpuPreviewCanvasContext) context.recyclePixels(frameId, pixels);
+	}
+
 	public destroy() {
+		this.cpuFrameQueue?.destroy();
 		this.gpuHistogram?.dispose();
 		this.gpuWaveformHorizontal?.dispose();
 		this.gpuWaveformVertical?.dispose();
+		for (const context of this.cpuCanvasContexts) context.unconfigure();
 	}
 }

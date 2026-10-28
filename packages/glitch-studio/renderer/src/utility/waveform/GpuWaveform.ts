@@ -1,6 +1,7 @@
 import { createWaveform } from '@gs/shared/utility/waveform/waveform.ts';
 import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import vertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
+import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
 
 const MAX_SAMPLE_EDGE = 1024;
 
@@ -18,7 +19,7 @@ export class GpuWaveform {
 
 	constructor(
 		device: GPUDevice,
-		private readonly context: GPUCanvasContext,
+		private readonly context: PreviewCanvasContext,
 		format: GPUTextureFormat,
 		private readonly positionAxis: 'x' | 'y' = 'x',
 	) {
