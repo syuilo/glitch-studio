@@ -10,7 +10,8 @@ import { createRenderer, h, nextTick } from 'vue';
 import { i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
-const options = { absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false };
+// Viteを通さないテストでも、ブラウザー版のビルド時定数を設定する。
+const options = { absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false, define: { __ELECTRON__: 'false' } };
 const preferenceBundle = await build({ ...options, entryPoints: ['./src/preferences.ts'] });
 const dialogBundle = await build({ ...options, entryPoints: ['./src/components/GsSettingsDialog.vue'], plugins: [{
 	name: 'settings-dialog-platform', setup(builder) {
