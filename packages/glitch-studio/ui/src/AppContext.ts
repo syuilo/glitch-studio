@@ -277,9 +277,9 @@ export class AppContext {
 		});
 		watch(preferences.r.timelinePreviewFramesAhead, async value => {
 			// 既存の静的設定と同じ再生成手順を使い、先行中の処理やGPU資源を持ち越さない。
+			// 再描画はisReadyのwatchへ任せ、同じ位置への要求を重ねて送らない。
 			await this.timelineRendererManagerController.updateStaticOptions({ previewFramesAhead: value });
 			this.renderEngine.requestRetry();
-			this.previewPlayback.refresh();
 		});
 
 		watch([this.projectContext.stateManager.state.resolution, this.resolutionFactor], async () => {

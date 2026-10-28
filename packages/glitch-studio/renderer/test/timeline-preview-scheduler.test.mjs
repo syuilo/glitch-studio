@@ -176,6 +176,40 @@ test('submits at most two frames ahead and drains all work before returning', as
 	assert.equal(finished, true);
 });
 
+// 【先頭の後処理が遅くても後続の完了分を回収し、次のフレームを準備する】
+// エラースコープ確認などにより完了順が入れ替わることがある。満杯のときも空き枠があるときも、
+// 先頭以外の完了で待機を解除し、遅いフレームを残したまま新しい要求へ追従する必要がある。
+// 最初のrender()自体は、遅れている先頭も含めて全フレームが完了するまで戻してはいけない。
+test('reuses slots completed out of order while draining the oldest frame before returning', async t => {
+	const gates = new Map([0, 10, 20, 30].map(time => [time, Promise.withResolvers()]));
+	t.after(() => { for (const gate of gates.values()) gate.resolve(true); });
+	const frames = [];
+	const scheduler = new TimelinePreviewScheduler(async (time, delta, onSubmitted) => {
+		frames.push([time, delta]);
+		onSubmitted();
+		return gates.get(time).promise;
+	});
+	let finished = false;
+	const pending = scheduler.render(0).then(() => { finished = true; });
+	await scheduler.render(10);
+	await new Promise(resolve => setImmediate(resolve));
+	await scheduler.render(20);
+	gates.get(10).resolve(true);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(frames, [[0, 0], [10, 10], [20, 10]]);
+	gates.get(20).resolve(true);
+	await new Promise(resolve => setImmediate(resolve));
+	await scheduler.render(30);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(frames, [[0, 0], [10, 10], [20, 10], [30, 10]]);
+	gates.get(30).resolve(true);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(finished, false);
+	gates.get(0).resolve(true);
+	await pending;
+	assert.equal(finished, true);
+});
+
 // 【CPU側の評価・コマンド生成はGPUの先行処理を許可しても並列化しない】
 // レイヤーの履歴・変形情報・計測の参照は準備中の1フレームに属する。
 // 送信通知より前に次の準備を始めると、前のフレームの状態へ書き込む競合が生じる。
@@ -279,6 +313,45 @@ test('drains submitted frames after rejection and releases the scheduler for a r
 	await scheduler.render(20);
 	assert.deepEqual(times, [0, 10, 20]);
 });
+
+for (const outcome of ['failure', 'rejection']) {
+	// 【先頭より早く完了した後続の失敗でも未着手要求を止め、残ったフレームを待つ】
+	// 完了順に回収すると、後続の失敗が先に判明する。空き枠を再利用して描画を続けたり、
+	// 再試行時に旧処理を残したりせず、通常の失敗とPromiseのrejectの両方を処理する。
+	test(`drains the oldest frame after a later frame reports ${outcome}`, async t => {
+		const first = Promise.withResolvers();
+		const second = Promise.withResolvers();
+		t.after(() => { first.resolve(true); second.resolve(true); });
+		const times = [];
+		const scheduler = new TimelinePreviewScheduler(async (time, delta, onSubmitted) => {
+			times.push(time);
+			onSubmitted();
+			return time === 0 ? first.promise : time === 10 ? second.promise : true;
+		});
+		let finished = false;
+		const rendering = scheduler.render(0);
+		const pending = (outcome === 'rejection' ? assert.rejects(rendering, /later frame rejected/) : rendering)
+			.then(() => { finished = true; });
+		await scheduler.render(10);
+		await new Promise(resolve => setImmediate(resolve));
+		await scheduler.render(20);
+		if (outcome === 'rejection') second.reject(new Error('later frame rejected'));
+		else second.resolve(false);
+		await new Promise(resolve => setImmediate(resolve));
+		assert.deepEqual(times, [0, 10]);
+		assert.equal(finished, false);
+		if (outcome === 'failure') {
+			await scheduler.render(30);
+			await new Promise(resolve => setImmediate(resolve));
+			assert.deepEqual(times, [0, 10]);
+		}
+		first.resolve(true);
+		await pending;
+		assert.deepEqual(times, outcome === 'failure' ? [0, 10, 30] : [0, 10]);
+		await scheduler.render(40);
+		assert.equal(times.at(-1), 40);
+	});
+}
 
 for (const maxSubmittedFrames of [1, 2, 3, 4]) {
 	// 【設定された未完了件数を超えず、先行なしの場合も最新の未着手要求だけを保持する】

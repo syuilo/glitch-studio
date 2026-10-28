@@ -42,8 +42,12 @@ export class TimelinePreviewScheduler {
 		let failedGeneration: number | null = null;
 		try {
 			while (this.pendingTime != null || submittedFrames.length > 0) {
-				while (submittedFrames.length > 0 && submittedFrames[0].outcome.type !== 'pending') {
-					const frame = submittedFrames.shift()!;
+				// GPUの送信順と、キャッシュ用エラースコープ確認まで含めた完了順は一致しない。
+				// 先頭の後処理が遅くても後続の完了分を回収し、空いた枠で次の準備を始める。
+				for (let index = submittedFrames.length - 1; index >= 0; index--) {
+					const frame = submittedFrames[index];
+					if (frame.outcome.type === 'pending') continue;
+					submittedFrames.splice(index, 1);
 					if (frame.outcome.type === 'failed') throw frame.outcome.error;
 					// 編集前の失敗で、編集後に届いた要求まで捨てない。
 					if (frame.outcome.type === 'completed' && !frame.outcome.succeeded && frame.generation === this.generation) {
@@ -74,13 +78,14 @@ export class TimelinePreviewScheduler {
 					continue;
 				}
 				if (submittedFrames.length === 0) break;
+				const completions = submittedFrames.map(frame => frame.completed);
 				if (submittedFrames.length >= this.maxSubmittedFrames || mustDrain) {
 					// 編集や失敗後の再試行は、空き枠があっても送信済みGPU処理を追い越さない。
-					await submittedFrames[0].completed;
+					await Promise.race(completions);
 				} else {
 					// 空き枠がある時は次の要求でも起こす。GPU完了だけを待つと再び完全な直列になる。
 					this.pendingRequest = Promise.withResolvers<void>();
-					await Promise.race([submittedFrames[0].completed, this.pendingRequest.promise]);
+					await Promise.race([...completions, this.pendingRequest.promise]);
 				}
 			}
 		} finally {

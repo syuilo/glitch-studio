@@ -73,7 +73,7 @@ for (const framesAhead of [undefined, 0, 1, 2, 3]) {
 // GPUの完了後にもキャッシュ用error scopeを待つため、先のフレームの後処理が遅れ得る。
 // 最新フレームで旧結果をすべて無効化するとキャッシュや統計を失い、逆に全通知を許すと
 // 選択枠が古い時刻へ戻る。GPU完了前の登録・シーク完了通知も同時に防ぐ。
-test('keeps both submitted frame results while publishing only the newest transform', async t => {
+test('keeps out-of-order frame results and starts new previews before older cache checks finish', async t => {
 	const { renderer, errors } = await fixture(t, { enableStats: true }, TimelineRendererManager);
 	const scenes = structuredClone(renderer.dynamicOptions.timelineScenes);
 	scenes[0].layers[0].compositingParamValues.rotation = { inputSource: 'expression', expression: 'TIME_MS / 1000' };
@@ -112,14 +112,22 @@ test('keeps both submitted frame results while publishing only the newest transf
 	assert.notEqual(renderer.frameCache.get(1), null);
 	assert.equal(statistics.mock.callCount(), 1);
 	assert.deepEqual(completed.map(event => event.requestId), [2]);
+	// 最初のエラースコープ確認が残っていても、2枚目の完了で空いた枠を再利用する。
+	await renderer.renderTimelineAt(2000 / 30, 3);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(gpuWaits, 3);
+	assert.notEqual(renderer.frameCache.get(2), null);
+	assert.equal(statistics.mock.callCount(), 2);
+	assert.deepEqual(completed.map(event => event.requestId), [2, 3]);
 	firstCaptureCheck.resolve(null);
 	await pending;
 	assert.notEqual(renderer.frameCache.get(0), null);
-	assert.equal(statistics.mock.callCount(), 2);
+	assert.equal(statistics.mock.callCount(), 3);
 	assert.equal(renderer.frameCache.get(0).metadata.get('layer').geometry.transform.rotation, 0);
 	assert.equal(renderer.frameCache.get(1).metadata.get('layer').geometry.transform.rotation, 1 / 30);
-	assert.equal(transforms.at(-1).geometry.transform.rotation, 1 / 30);
-	assert.equal(transforms.length, 1);
+	assert.equal(renderer.frameCache.get(2).metadata.get('layer').geometry.transform.rotation, 2 / 30);
+	assert.equal(transforms.at(-1).geometry.transform.rotation, 2 / 30);
+	assert.equal(transforms.length, 2);
 	assert.deepEqual(errors, []);
 });
 
