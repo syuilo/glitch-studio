@@ -56,6 +56,7 @@ function gpuFixture() {
 		createBindGroupLayout: () => ({}), createPipelineLayout: () => ({}),
 		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
 		createComputePipeline: () => ({}),
+		pushErrorScope() {}, async popErrorScope() { return null; },
 		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) }),
 		queue: { submit() {}, async onSubmittedWorkDone() {}, writeBuffer() {}, writeTexture() {}, copyExternalImageToTexture() {} },
 	};
@@ -150,6 +151,82 @@ test('keeps rendering when a cache allocation reports out of memory', async t =>
 	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 0);
 	assert.deepEqual(errors, []);
 });
+
+for (const failure of ['out-of-memory', 'exception']) {
+	// 【キャッシュ複製だけが失敗しても有効な通常表示を送信し、次の描画で復旧する】
+	// renderToCanvasの呼び出し回数だけでは、同じencoderの無効化を検出できない。
+	// 非同期OOMに伴うvalidation errorと同期例外の両方で、表示用command bufferの送信を確認する。
+	test(`isolates ${failure} in frame capture from submitted preview work`, async t => {
+		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+		const device = renderer.gpuDevice;
+		const scopes = [];
+		let failCapture = true;
+		let displayedFrames = 0;
+		let destroyedFrames = 0;
+		device.pushErrorScope = filter => scopes.push({ filter, error: null });
+		device.popErrorScope = async () => scopes.pop().error;
+		const createEncoder = device.createCommandEncoder.bind(device);
+		device.createCommandEncoder = () => {
+			const encoder = createEncoder();
+			encoder.finish = () => ({ invalid: encoder.invalid === true, presentation: encoder.presentation === true });
+			return encoder;
+		};
+		device.queue.submit = commands => {
+			if (commands.some(command => command.invalid)) {
+				const scope = scopes.find(scope => scope.filter === 'validation');
+				if (scope != null) scope.error = { message: 'Invalid capture attachment' };
+				else errors.push('Uncaptured invalid command buffer');
+				return;
+			}
+			displayedFrames += commands.filter(command => command.presentation).length;
+		};
+		const present = renderer.canvasRenderer.renderToCanvas.bind(renderer.canvasRenderer);
+		t.mock.method(renderer.canvasRenderer, 'renderToCanvas', (texture, encoder) => { encoder.presentation = true; present(texture, encoder); });
+		const capture = renderer.frameCache.capture.bind(renderer.frameCache);
+		t.mock.method(renderer.frameCache, 'capture', (encoder, ...args) => {
+			if (!failCapture) return capture(encoder, ...args);
+			if (failure === 'exception') throw new Error('Cache allocation failed');
+			encoder.invalid = true;
+			scopes.find(scope => scope.filter === 'out-of-memory').error = { message: 'Out of memory' };
+			return { texture: { destroy() { destroyedFrames++; } }, metadata: new Map(), bytes: 4 };
+		});
+		await renderer.renderTimelineAt(0);
+		assert.equal(displayedFrames, 1);
+		assert.equal(destroyedFrames, failure === 'out-of-memory' ? 1 : 0);
+		assert.equal(renderer.frameCache.snapshot().estimatedBytes, 0);
+		assert.equal(scopes.length, 0);
+		failCapture = false;
+		await renderer.renderTimelineAt(0);
+		assert.equal(displayedFrames, 2);
+		assert.equal(renderer.frameCache.snapshot().estimatedBytes, 4);
+		assert.deepEqual(errors, []);
+	});
+}
+
+for (const hasCamera of [false, true]) {
+	// 【カメラの有無にかかわらず、全レイヤーの変形情報で基準時刻のカメラ評価を共有する】
+	// カメラなしのnullを未評価扱いにすると毎回Sceneを走査してしまう。
+	// 露光サンプル間は共有し、次のフレームでは時刻に合わせて評価し直す。
+	test(`shares transform-preview camera evaluation across layers and blur samples with camera ${hasCamera}`, async t => {
+		const { renderer, errors } = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } }, TimelineRendererManager);
+		const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
+		scene.layers = ['a', 'b', 'c'].map(id => ({ ...structuredClone(scene.layers[0]), id }));
+		if (hasCamera) scene.layers.unshift({ id: 'camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false,
+			automationGraphs: [], cameraParamValues: {}, clips: [{ id: 'camera-clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] });
+		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], timelineScenes: [scene], previewFps: 30, frameCacheMaxBytes: 64 });
+		const camera = t.mock.method(renderer.transformPreviewCamera, 'evaluate');
+		const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
+		await renderer.renderTimelineAt(200);
+		assert.equal(evaluations.mock.callCount(), 4);
+		assert.equal(camera.mock.callCount(), 1);
+		assert.equal(camera.mock.calls[0].result == null, !hasCamera);
+		await renderer.renderTimelineAt(7 * 1000 / 30);
+		assert.equal(evaluations.mock.callCount(), 8);
+		assert.equal(camera.mock.callCount(), 2);
+		assert.deepEqual(errors, []);
+	});
+}
 
 function deferredImageDecodes(t) {
 	const previous = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');

@@ -113,6 +113,12 @@ export class PreviewPlaybackController {
 	}
 
 	public pauseTimeline() {
+		this.stopTimelinePlayback();
+		this.refresh();
+	}
+
+	/** 停止と表示時刻の丸めを分け、コマ送りは丸め前の音声時刻から移動先を決める。 */
+	private stopTimelinePlayback() {
 		if (this.isTimelinePlaying.value && this.audio) this.timelineTime.value = this.audio.currentTime();
 		this.audio?.stop();
 		if (this.timelineRafId != null) {
@@ -121,7 +127,6 @@ export class PreviewPlaybackController {
 		}
 		if (this.playbackState.value.mode === 'timeline') {
 			this.playbackState.value = { mode: 'timeline', playing: false };
-			this.refresh();
 		}
 	}
 
@@ -151,7 +156,7 @@ export class PreviewPlaybackController {
 	}
 
 	public stepTimelineFrame(direction: -1 | 1) {
-		this.pauseTimeline();
+		this.stopTimelinePlayback();
 		const fps = this.getTimelinePreviewFps();
 		if (fps == null || fps <= 0) return;
 		// 精密位置からも隣の境界へ進む。四捨五入してから加減すると一枚飛ばしてしまう。

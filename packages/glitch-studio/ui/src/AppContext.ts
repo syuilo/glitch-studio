@@ -408,14 +408,17 @@ export class AppContext {
 		}, { immediate: true, flush: 'sync' }));
 
 		// 1回のCommandで変わるfpsとブラー設定をまとめて送り、Undo/Redoも同じ再生成経路を通す。
-		this.projectWatchers.push(watch([this.projectContext.stateManager.state.timelineFps, this.projectContext.stateManager.state.timelineMotionBlur, this.timelinePreviewMotionBlurSamples], async () => {
+		this.projectWatchers.push(watch([this.projectContext.stateManager.state.timelineFps, this.projectContext.stateManager.state.timelineMotionBlur, this.timelinePreviewMotionBlurSamples], async ([timelineFps], [previousTimelineFps]) => {
 			try {
 				await this.timelineRendererManagerController.updateStaticOptions({
 					timelineFps: this.projectContext.stateManager.state.timelineFps.value,
 					timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
 				});
-				await this.timelineRendererManagerController.updateDynamicOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
-				this.previewPlayback.updateTimelinePreviewFps();
+				// ブラーだけの変更では、停止中の精密シーク位置とモードを維持する。
+				if (timelineFps !== previousTimelineFps) {
+					await this.timelineRendererManagerController.updateDynamicOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
+					this.previewPlayback.updateTimelinePreviewFps();
+				}
 				this.renderEngine.requestRetry();
 			} catch (error) {
 				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });

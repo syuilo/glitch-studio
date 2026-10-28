@@ -51,6 +51,26 @@ test('steps to adjacent preview frames from precise positions and keeps seeks in
 	assert.equal(playback.currentTimelineTime.value, 14 * 1000 / 15);
 });
 
+// 【再生中のコマ送りは停止時の四捨五入を挟まず、音声時刻の隣の境界へ移動する】
+// 15fpsの120msを停止処理で133.33msへ丸めてから進めると200msまで飛んでしまう。
+// 移動途中の別フレームも要求せず、最新の音声時刻から求めた一枚だけを表示する。
+test('steps from the unrounded audio time without rendering an intermediate paused frame', t => {
+	let position = 0;
+	const audio = { error: { value: null }, currentTime: () => position, start(time) { position = time; }, stop() {} };
+	const { playback, timelineRenderer } = setup(t, 15, audio, 1000);
+	const requests = [];
+	timelineRenderer.renderTimelineAt = (...args) => requests.push(args);
+	for (const [direction, expectedFrame] of [[1, 2], [-1, 1]]) {
+		playback.playTimeline();
+		position = 120;
+		requests.length = 0;
+		playback.stepTimelineFrame(direction);
+		assert.equal(playback.isTimelinePlaying.value, false);
+		assert.equal(playback.currentTimelineTime.value, expectedFrame * 1000 / 15);
+		assert.deepEqual(requests, [[expectedFrame * 1000 / 15, true]]);
+	}
+});
+
 // 【fps変更と再生開始では通常モードへ戻し、再生時計自体は連続時刻を保つ】
 // 表示時刻の丸めを音声時計へ蓄積するとドリフトする。再生中の精密シークも次の通常フレームへ戻す。
 test('changes the preview frame grid and returns precise seeks to normal playback', t => {

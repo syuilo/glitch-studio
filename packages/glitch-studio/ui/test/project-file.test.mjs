@@ -205,6 +205,38 @@ test('initializes both previews from saved rendering preferences', async t => {
 	}
 });
 
+// 【ブラーだけの変更とUndo/Redoでは停止中の精密位置を維持する】
+// FPSとブラーの同期を同じwatchで行っても、精密モードを解除するのはFPSの変更時だけにする。
+// プレビューサンプル数の変更も、画像の品質を変えるだけで確認中の時刻は動かさない。
+test('preserves precise seek positions when changing motion blur without changing FPS', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project({ timelineFps: 30 }));
+	const playback = appContext.previewPlayback;
+	const timeline = appContext.timelineRendererManagerController;
+	const manager = appContext.projectContext.stateManager;
+	playback.seekTimeline(120, true, 'precise');
+	timeline.updates.length = 0;
+	appContext.timelinePreviewMotionBlurSamples.value = 4;
+	await setImmediate();
+	assert.equal(playback.currentTimelineTime.value, 120);
+	manager.commit('changeTimelineRenderSettings', { timelineFps: 30,
+		timelineMotionBlur: { ...manager.state.timelineMotionBlur.value, enabled: true, shutterAngle: 90 } });
+	await setImmediate();
+	assert.equal(playback.currentTimelineTime.value, 120);
+	manager.undo();
+	await setImmediate();
+	assert.equal(playback.currentTimelineTime.value, 120);
+	manager.redo();
+	await setImmediate();
+	playback.refresh();
+	assert.equal(timeline.renders.at(-1), 120);
+	assert.equal(timeline.updates.some(options => Object.hasOwn(options, 'previewFps')), false);
+	manager.commit('changeTimelineRenderSettings', { timelineFps: 60, timelineMotionBlur: manager.state.timelineMotionBlur.value });
+	await setImmediate();
+	assert.equal(playback.currentTimelineTime.value, 4 * 1000 / 30);
+});
+
 for (const desktop of [false, true]) {
 	// 【フレームキャッシュはElectronだけで有効にし、容量の変更をプロジェクト編集に含めない】
 	// Web版へ設定値だけ送ってGPU画像を保持したり、上限変更でWorkerを再起動して全消去したりしない。

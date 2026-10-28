@@ -115,8 +115,10 @@ type PreviewFrameCapture = {
 	time: number;
 	frameIndex: number | null;
 	transforms: Map<string, CachedLayerTransform>;
+	/** nullのカメラも評価済みとして保持し、露光サンプル間でも基準時刻の結果を共有する。 */
+	cameraEvaluation: { camera: ReturnType<TimelineSceneCamera['evaluate']> } | null;
 	snapshot: TimelinePreviewCachedFrame<ReadonlyMap<string, CachedLayerTransform>> | null;
-	allocationError: Promise<GPUError | null> | null;
+	captureError: Promise<GPUError | null> | null;
 };
 
 // エフェクトは配置場所を知らず、インスタンスを所有するManagerが通知元を付加する。
@@ -172,6 +174,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private lastTransformPreview: TimelineTransformPreview | null = null;
 	private transformPreviewParameters = new TimelineCompositingParameters();
 	private transformPreviewContainerParameters = new TimelineTransformParameters();
+	private transformPreviewCamera = new TimelineSceneCamera();
 
 	private readonly staticOptions: TimelineRendererManagerStaticOptions;
 	private dynamicOptions: TimelineRendererManagerDynamicOptions = {
@@ -292,21 +295,32 @@ export class TimelineRendererManager extends EventEmitter<{
 			format: this.staticOptions.intermediateTextureFormat,
 		});
 		const texture = this.sceneOutput.render(encoder, output);
+		this.canvasRenderer.renderToCanvas(texture, encoder);
+		this.gpuDevice.queue.submit([encoder.finish()]);
+
 		const capture = this.activePreviewFrame;
 		if (capture?.frameIndex != null && this.frameCache.enabled) {
-			// キャッシュの確保失敗で本来のプレビューまで停止させない。WebGPUの
-			// メモリー不足は非同期なので、GPU完了後にerror scopeの結果も確認する。
-			this.gpuDevice.pushErrorScope?.('out-of-memory');
+			// 確保失敗で返る無効なテクスチャはencoderも無効にし得る。表示を先に
+			// submitし、複製は別のencoder・submitへ隔離する。派生するvalidation
+			// errorもここで捕捉し、キャッシュだけの失敗を通常の描画エラーにしない。
+			this.gpuDevice.pushErrorScope('out-of-memory');
+			this.gpuDevice.pushErrorScope('validation');
 			try {
-				capture.snapshot = this.frameCache.capture(encoder, texture, new Map(capture.transforms));
+				const captureEncoder = this.gpuDevice.createCommandEncoder();
+				capture.snapshot = this.frameCache.capture(captureEncoder, texture, new Map(capture.transforms));
+				if (capture.snapshot != null) this.gpuDevice.queue.submit([captureEncoder.finish()]);
+			} catch {
+				// 同期的な失敗でも表示は送信済み。途中まで生成した複製を回収する。
+				capture.snapshot?.texture.destroy();
+				capture.snapshot = null;
+				this.frameCache.clear();
 			} finally {
 				// device lossはqueueの待機と既存のlost通知で扱う。先にrejectされても
 				// 未処理のPromiseにせず、finallyでキャッシュ用画像を必ず解放する。
-				capture.allocationError = this.gpuDevice.popErrorScope?.().catch(() => null) ?? null;
+				capture.captureError = Promise.all([this.gpuDevice.popErrorScope(), this.gpuDevice.popErrorScope()])
+					.then(errors => errors.find(error => error != null) ?? null).catch(() => null);
 			}
 		}
-		this.canvasRenderer.renderToCanvas(texture, encoder);
-		this.gpuDevice.queue.submit([encoder.finish()]);
 	}
 
 	private invalidateFrameCache() {
@@ -495,7 +509,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		// 精密シークとフレーム境界以外の直接呼び出しは検索・保存の両方を省く。
 		const capture: PreviewFrameCapture = { time, frameIndex: this.previewSeekMode === 'frame' && Number.isFinite(time)
 			&& Math.abs(time - frameIndex * 1000 / fps) < 1e-7 && this.frameCache.enabled ? frameIndex : null,
-		transforms: new Map(), snapshot: null, allocationError: null };
+		transforms: new Map(), cameraEvaluation: null, snapshot: null, captureError: null };
 		this.activePreviewFrame = capture;
 		// SchedulerがGPU完了まで直列化するため、この集計は一つの出力フレームに属する。
 		// 子Scene・複数レイヤー・ブラーの全サンプルを足し、書き出しはここを経由しない。
@@ -547,13 +561,13 @@ export class TimelineRendererManager extends EventEmitter<{
 					if (timing != null) timing.gpuWaitMs = performance.now() - gpuWaitStartedAt;
 				}
 			}
-			const allocationError = await capture.allocationError;
-			if (capture.snapshot != null && allocationError == null && capture.frameIndex != null
+			const captureError = await capture.captureError;
+			if (capture.snapshot != null && captureError == null && capture.frameIndex != null
 				&& contentRevision === this.frameCacheRevision && generation === this.previewRenderGeneration) {
 				this.frameCache.commit(capture.frameIndex, capture.snapshot);
 				capture.snapshot = null;
 			}
-			if (allocationError != null) this.frameCache.clear();
+			if (captureError != null) this.frameCache.clear();
 			if (timing != null) timing.frameDurationMs = performance.now() - frameStartedAt;
 			if (timing != null && generation === this.previewRenderGeneration && sceneId === this.dynamicOptions.sceneId && revision === this.dynamicOptions.previewRevision) {
 				this.previewStatistics.addFrame(sceneId, revision, timing);
@@ -645,14 +659,17 @@ export class TimelineRendererManager extends EventEmitter<{
 				customParameters: this.getLayerCustomParameterContext(sceneId, entry.id),
 			});
 			const settings = evaluate(layer);
-			const camera = new TimelineSceneCamera().evaluate(this.evaluationScenes.find(scene => scene.id === sceneId)?.layers ?? [], time, false, sceneSize);
+			const cameraEvaluation = capture?.cameraEvaluation ?? {
+				camera: this.transformPreviewCamera.evaluate(this.evaluationScenes.find(scene => scene.id === sceneId)?.layers ?? [], time, false, sceneSize),
+			};
+			if (capture != null) capture.cameraEvaluation = cameraEvaluation;
 			const parent = getTimelinePreviewParent(location.ancestors.filter(parent => parent.layerType === 'group' || parent.layerType === 'transform').map(parent => parent.layerType === 'transform'
 				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, time, false, this.getLayerCustomParameterContext(sceneId, parent.id)) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
 			{
 				parent: TIMELINE_IDENTITY,
 				depth: 0,
-				camera,
+				camera: cameraEvaluation.camera,
 				viewport: TIMELINE_FRAME,
 			});
 			// 範囲モードのハンドルは出力の物理解像度・比率に依存しないSceneの矩形を操作する。

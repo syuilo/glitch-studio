@@ -37,7 +37,7 @@ export class TimelinePreviewFrameCache<Metadata> {
 		return frame;
 	}
 
-	/** 借用出力は次の評価で上書きされるので、同じsubmit内で独立した画像へ複製する。 */
+	/** 借用出力は次の評価で上書きされるので、次の評価より先に複製をsubmitすること。 */
 	capture(encoder: GPUCommandEncoder, source: GPUTexture, metadata: Metadata): TimelinePreviewCachedFrame<Metadata> | null {
 		// 無変形Replaceではデータ用のR/RGテクスチャも最終画像として借用される。
 		const bytesPerPixel = textureBytesPerPixel[source.format];
