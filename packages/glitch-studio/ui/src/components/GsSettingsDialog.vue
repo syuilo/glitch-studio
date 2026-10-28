@@ -36,10 +36,6 @@
 							<template #label>{{ i18n.ts._Settings.Rendering }}</template>
 
 							<div class="_gaps_l">
-								<GsInput v-model="timelinePreviewFramesAhead" large type="number" :min="0" :max="3" :step="1" data-test-timeline-preview-frames-ahead>
-									<template #label>{{ i18n.ts._Settings.TimelinePreviewFramesAhead }}</template>
-									<template #caption>{{ i18n.ts._Settings.TimelinePreviewFramesAheadHint }}</template>
-								</GsInput>
 								<GsInput v-model="timelineFrameCacheMaxGiB" large type="number" :min="0" :step="0.25" data-test-timeline-frame-cache-capacity>
 									<template #label>{{ i18n.ts._Settings.TimelineFrameCacheCapacity }}</template>
 									<template #suffix>GiB</template>
@@ -60,6 +56,10 @@
 									<template #label>{{ i18n.ts._Settings.IntermediateTextureFormat }}</template>
 									<template #caption>{{ i18n.ts._Settings.IntermediateTextureFormatHint }}</template>
 								</GsSelect>
+								<GsInput v-model="timelinePreviewFramesAhead" large type="number" :min="0" :max="3" :step="1" data-test-timeline-preview-frames-ahead>
+									<template #label>{{ i18n.ts._Settings.TimelinePreviewFramesAhead }}</template>
+									<template #caption>{{ i18n.ts._Settings.TimelinePreviewFramesAheadHint }}</template>
+								</GsInput>
 								<GsSelect
 									v-model="previewDisplayMode" large :items="[
 										{ value: 'gpu', label: i18n.ts._Settings.PreviewDisplayGpu },
