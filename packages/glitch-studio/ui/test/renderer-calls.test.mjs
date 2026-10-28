@@ -27,6 +27,7 @@ async function bundle(path) {
 					export const isVideoFrameAvailable = () => false;
 					export const playVideoAfterFirstFrameIsReady = () => {}, setupWebcam = () => {};
 					export const alert = () => {};
+					export const displayCpuPreviewFrame = () => {};
 					export class AudioInputs { dispose() {} reconnectRenderer() {} registerPlayer() {} removePlayer() {} }
 					export class VisualModuleLivePreviewEffectStateStore { stop() {} }
 				` }));

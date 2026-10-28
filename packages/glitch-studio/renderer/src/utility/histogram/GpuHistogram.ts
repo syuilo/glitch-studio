@@ -1,12 +1,13 @@
 import computeShaderCode from './histogram-compute.wgsl?raw';
 import renderShaderCode from './histogram-render.wgsl?raw';
+import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
 
 const BIN_COUNT = 256;
 const CHANNEL_COUNT = 3;
 const HISTOGRAM_VALUE_COUNT = (BIN_COUNT * CHANNEL_COUNT) + 1;
 
 export class GpuHistogram {
-	private readonly context: GPUCanvasContext;
+	private readonly context: PreviewCanvasContext;
 	private readonly histogramBuffer: GPUBuffer;
 	private readonly accumulatePipeline: GPUComputePipeline;
 	private readonly maxPipeline: GPUComputePipeline;
@@ -20,7 +21,7 @@ export class GpuHistogram {
 
 	constructor(
 		private readonly device: GPUDevice,
-		context: GPUCanvasContext,
+		context: PreviewCanvasContext,
 		format: GPUTextureFormat,
 	) {
 		this.context = context;

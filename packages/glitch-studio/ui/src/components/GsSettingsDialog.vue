@@ -60,6 +60,15 @@
 									<template #label>{{ i18n.ts._Settings.IntermediateTextureFormat }}</template>
 									<template #caption>{{ i18n.ts._Settings.IntermediateTextureFormatHint }}</template>
 								</GsSelect>
+								<GsSelect
+									v-model="previewDisplayMode" large :items="[
+										{ value: 'gpu', label: i18n.ts._Settings.PreviewDisplayGpu },
+										{ value: 'cpu', label: i18n.ts._Settings.PreviewDisplayCpu },
+									]" data-test-preview-display-mode
+								>
+									<template #label>{{ i18n.ts._Settings.PreviewDisplayMode }}</template>
+									<template #caption>{{ i18n.ts._Settings.PreviewDisplayModeHint }}</template>
+								</GsSelect>
 							</div>
 						</GsFolder>
 
@@ -131,6 +140,7 @@ const enable32bitDataTextures = ref(preferences.s.enable32bitDataTextures);
 const intermediateTextureFormat = ref(preferences.s.intermediateTextureFormat);
 const timelineFrameCacheMaxGiB = ref(preferences.s.timelineFrameCacheMaxGiB);
 const timelinePreviewFramesAhead = ref(preferences.s.timelinePreviewFramesAhead);
+const previewDisplayMode = ref(preferences.s.previewDisplayMode);
 const visualModuleAutoConnectOnNodeAdd = ref(preferences.s.visualModuleAutoConnectOnNodeAdd);
 const validationError = computed(() => {
 	try {
@@ -156,6 +166,7 @@ async function apply() {
 	preferences.commit('intermediateTextureFormat', intermediateTextureFormat.value);
 	preferences.commit('timelineFrameCacheMaxGiB', timelineFrameCacheMaxGiB.value);
 	preferences.commit('timelinePreviewFramesAhead', timelinePreviewFramesAhead.value);
+	preferences.commit('previewDisplayMode', previewDisplayMode.value);
 	preferences.commit('visualModuleAutoConnectOnNodeAdd', visualModuleAutoConnectOnNodeAdd.value);
 	modal.value?.close();
 	if (initialLocale !== selectedLocale.value) await changeLocale(selectedLocale.value);

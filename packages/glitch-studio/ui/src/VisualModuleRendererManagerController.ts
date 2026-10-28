@@ -10,6 +10,7 @@ import { VisualModuleLivePreviewEffectStateStore } from './utility/visual-module
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
+import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
 import type { FileSource } from '@gs/shared/file-source.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -79,10 +80,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				}
 				this.canvasRevision.value++;
 
-				const offscreen = this.canvas.transferControlToOffscreen();
-				const histogramOffscreen = this.histogramCanvas.transferControlToOffscreen();
-				const waveformHorizontalOffscreen = this.waveformHorizontalCanvas.transferControlToOffscreen();
-				const waveformVerticalOffscreen = this.waveformVerticalCanvas.transferControlToOffscreen();
+				const transferCanvas = (canvas: HTMLCanvasElement) => this.staticOptions.previewDisplayMode === 'cpu'
+					? new OffscreenCanvas(canvas.width, canvas.height) : canvas.transferControlToOffscreen();
+				const offscreen = transferCanvas(this.canvas);
+				const histogramOffscreen = transferCanvas(this.histogramCanvas);
+				const waveformHorizontalOffscreen = transferCanvas(this.waveformHorizontalCanvas);
+				const waveformVerticalOffscreen = transferCanvas(this.waveformVerticalCanvas);
 
 				this.initialSnapshotTaken = true;
 				this.initializationStaticOptions = this.staticOptions;
@@ -110,6 +113,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				this.errorMessage.value = error?.message ?? null;
 			},
 			eventHandlers: {
+				cpuPreviewFrame: frame => {
+					try { displayCpuPreviewFrame(this[frame.target], frame); } catch (error) { this.reportRenderFailure(error instanceof Error ? error : new Error(String(error))); } finally {
+						if (this.isReady.value) this.call('recycleCpuPreviewPixels', [frame.target, frame.frameId, frame.pixels], [frame.pixels]);
+					}
+				},
 				outputResolution: ctx => {
 					this.outputResolution.value = ctx;
 					// 転送済みcanvasのwidth属性は変更せず、表示枠だけをWorkerの実寸に合わせる。
