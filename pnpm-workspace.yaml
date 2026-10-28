@@ -31,6 +31,8 @@ minimumReleaseAgeExclude:
   - js-yaml@4.3.2
   # Renovate security update: electron@44.9.1
   - electron@44.9.1
+  # Renovate security update: vite@8.2.4
+  - vite@8.2.4
 overrides:
   '@aiscript-dev/aiscript-languageserver': '-'
   '@tabler/icons-webfont>sharp': '-'
