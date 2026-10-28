@@ -38,12 +38,11 @@ function evaluate(bundle) {
 	return module.exports;
 }
 
-// 【環境設定の適用では、編集したバックアップのフィールドだけを保存する】
+// 【環境設定では、個別に確定した項目だけを保存する】
 // 古い画面で間隔だけを変えても、別の画面で無効化した設定まで元に戻してはならない。
-// 保存キーを細分化しただけでは、適用時に全フィールドを書き戻す実装を防げない。
-// ブラウザー版のキャッシュ容量も表示・検証・保存でき、未編集時には書き戻さないことを確認する。
-// 先行フレーム数も環境設定だけへ保存し、0や上限3を使えて不正値を適用しないことを確認する。
-test('applies only edited settings and validates timeline preview preferences', async t => {
+// ブラウザー版のキャッシュ容量も表示・保存でき、未編集時には書き戻さないことを確認する。
+// 先行フレーム数も環境設定だけへ保存し、0も保存できることを確認する。
+test('saves settings individually', async t => {
 	const previousWindow = globalThis.window;
 	const storage = new Map([['preferences:projectBackupAutoEnabled', 'true'], ['locale', 'ja-JP']]);
 	const writes = [];
@@ -70,13 +69,12 @@ test('applies only edited settings and validates timeline preview preferences', 
 	}
 	// 言語だけはダイアログを開くときの保存値を使い、表示中の辞書とは独立した選択値を示す。
 	assert.equal(find('data-test-language').props.modelValue, 'ja-JP');
-	// 別の画面による保存を再現する。適用時には未編集の言語も保存しない。
+	// 別の画面による保存を再現する。未編集の項目は保存しない。
 	storage.set('preferences:projectBackupAutoEnabled', 'false');
 	storage.set('preferences:projectBackupSaveRetentionDays', '30');
 	storage.set('locale', 'en-US');
 	find('data-test-backup-auto-interval').props['onUpdate:modelValue'](5);
 	await nextTick();
-	await find('data-test-settings-apply').props.onClick();
 	assert.deepEqual(writes, ['preferences:projectBackupAutoIntervalMinutes']);
 	assert.equal(storage.get('preferences:projectBackupAutoEnabled'), 'false');
 	assert.equal(storage.get('preferences:projectBackupAutoIntervalMinutes'), '5');
@@ -86,49 +84,46 @@ test('applies only edited settings and validates timeline preview preferences', 
 	assert.deepEqual(window.settingsTestLocaleChanges, []);
 	const capacity = find('data-test-timeline-frame-cache-capacity');
 	assert.equal(capacity.props.modelValue, 2);
-	capacity.props['onUpdate:modelValue'](-1);
-	await nextTick();
-	assert.equal(find('data-test-settings-apply').props.disabled, true);
-	await find('data-test-settings-apply').props.onClick();
-	assert.deepEqual(writes, ['preferences:projectBackupAutoIntervalMinutes']);
+	assert.equal(Object.hasOwn(capacity.props, 'manualSave'), true);
+	assert.equal(Object.hasOwn(find('data-test-backup-auto-interval').props, 'manualSave'), true);
 	capacity.props['onUpdate:modelValue'](1);
 	await nextTick();
-	assert.equal(find('data-test-settings-apply').props.disabled, false);
-	await find('data-test-settings-apply').props.onClick();
 	assert.equal(preferences.s.timelineFrameCacheMaxGiB, 1);
 	assert.equal(storage.get('preferences:timelineFrameCacheMaxGiB'), '1');
-	// 【先行フレーム数を0〜3の整数に限定し、0でも設定を適用する】
-	// 空欄や小数などを保存するとスケジューラーを作れなくなるため、適用前に拒否する。
+	// 【先行フレーム数を0・1・2・3から選択し、即時保存する】
+	// 自由入力を使わず、先行レンダリングを無効にする0も含めて選択・保存できるようにする。
 	const framesAhead = find('data-test-timeline-preview-frames-ahead');
+	assert.equal(Object.hasOwn(framesAhead.props, 'manualSave'), false);
 	assert.equal(framesAhead.props.modelValue, 1);
-	assert.equal(framesAhead.props.min, 0);
-	assert.equal(framesAhead.props.max, 3);
-	assert.equal(framesAhead.props.step, 1);
-	const writeCount = writes.length;
-	for (const value of [-1, 0.5, 4, NaN, Infinity]) {
+	assert.deepEqual(framesAhead.props.items, [0, 1, 2, 3].map(value => ({ value, label: String(value) })));
+	for (const value of [0, 1, 2, 3]) {
 		framesAhead.props['onUpdate:modelValue'](value);
 		await nextTick();
-		assert.equal(find('data-test-settings-apply').props.disabled, true);
-		await find('data-test-settings-apply').props.onClick();
-		assert.equal(writes.length, writeCount);
-	}
-	for (const value of [0, 3]) {
-		framesAhead.props['onUpdate:modelValue'](value);
-		await nextTick();
-		assert.equal(find('data-test-settings-apply').props.disabled, false);
-		await find('data-test-settings-apply').props.onClick();
 		assert.equal(preferences.s.timelinePreviewFramesAhead, value);
 		assert.equal(storage.get('preferences:timelinePreviewFramesAhead'), JSON.stringify(value));
 	}
 	// 【表示方式を設定から保存し、GPUとCPUを相互に切り替える】
-	// 設定画面を開いただけでは既定値を書き込まず、適用した方式を次回起動にも保持する。
+	// 設定画面を開いただけでは既定値を書き込まず、選択した方式を次回起動にも保持する。
 	const displayMode = find('data-test-preview-display-mode');
 	assert.equal(displayMode.props.modelValue, 'gpu');
 	for (const value of ['cpu', 'gpu']) {
 		displayMode.props['onUpdate:modelValue'](value);
 		await nextTick();
-		await find('data-test-settings-apply').props.onClick();
 		assert.equal(preferences.s.previewDisplayMode, value);
 		assert.equal(storage.get('preferences:previewDisplayMode'), JSON.stringify(value));
 	}
+	// 【数値とスイッチを個別に保存する】
+	// 数値の確定操作とスイッチの即時保存が、全体の適用操作を必要としないことを確認する。
+	find('data-test-backup-auto-interval').props['onUpdate:modelValue'](10);
+	find('data-test-visual-module-auto-connect-on-node-add').props['onUpdate:modelValue'](true);
+	await nextTick();
+	assert.equal(preferences.s.timelineFrameCacheMaxGiB, 1);
+	assert.equal(preferences.s.projectBackupAutoIntervalMinutes, 10);
+	assert.equal(preferences.s.visualModuleAutoConnectOnNodeAdd, true);
+	assert.equal(find('data-test-settings-apply'), null);
+	// 【言語は選択した時点で保存する】
+	// ダイアログ全体の適用操作を不要にし、初期表示だけでは保存しない。
+	find('data-test-language').props['onUpdate:modelValue']('en-US');
+	await nextTick();
+	assert.deepEqual(window.settingsTestLocaleChanges, ['en-US']);
 });

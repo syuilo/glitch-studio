@@ -4,10 +4,8 @@
 		<div :class="$style.header">
 			<b><i class="ti ti-settings"></i> {{ i18n.ts._Settings.Title }}</b>
 			<div style="margin-left: auto;">
-				<div v-if="validationError">{{ validationError }}</div>
 				<div :class="$style.actions">
-					<GsButton icon="ti ti-x" large inline @click="modal?.close()">{{ i18n.ts.Cancel }}</GsButton>
-					<GsButton icon="ti ti-check" large inline primary :disabled="validationError != null" data-test-settings-apply @click="apply">{{ i18n.ts.Apply }}</GsButton>
+					<GsButton icon="ti ti-x" large inline @click="modal?.close()">{{ i18n.ts.Close }}</GsButton>
 				</div>
 			</div>
 		</div>
@@ -36,7 +34,7 @@
 							<template #label>{{ i18n.ts._Settings.Rendering }}</template>
 
 							<div class="_gaps_l">
-								<GsInput v-model="timelineFrameCacheMaxGiB" large type="number" :min="0" :step="0.25" data-test-timeline-frame-cache-capacity>
+								<GsInput v-model="timelineFrameCacheMaxGiB" manualSave large type="number" :min="0" :step="0.25" data-test-timeline-frame-cache-capacity>
 									<template #label>{{ i18n.ts._Settings.TimelineFrameCacheCapacity }}</template>
 									<template #suffix>GiB</template>
 									<template #caption>{{ i18n.ts._Settings.TimelineFrameCacheCapacityHint }}</template>
@@ -56,10 +54,10 @@
 									<template #label>{{ i18n.ts._Settings.IntermediateTextureFormat }}</template>
 									<template #caption>{{ i18n.ts._Settings.IntermediateTextureFormatHint }}</template>
 								</GsSelect>
-								<GsInput v-model="timelinePreviewFramesAhead" large type="number" :min="0" :max="3" :step="1" data-test-timeline-preview-frames-ahead>
+								<GsSelect v-model="timelinePreviewFramesAhead" large :items="[0, 1, 2, 3].map(value => ({ value, label: String(value) }))" data-test-timeline-preview-frames-ahead>
 									<template #label>{{ i18n.ts._Settings.TimelinePreviewFramesAhead }}</template>
 									<template #caption>{{ i18n.ts._Settings.TimelinePreviewFramesAheadHint }}</template>
-								</GsInput>
+								</GsSelect>
 								<GsSelect
 									v-model="previewDisplayMode" large :items="[
 										{ value: 'gpu', label: i18n.ts._Settings.PreviewDisplayGpu },
@@ -76,10 +74,10 @@
 							<template #label>{{ i18n.ts.Assets }}</template>
 
 							<div class="_gaps_l">
-								<GsSwitch v-model="importAssetsAsExternalReferences" :disabled="!desktopAvailable" data-test-default-external-reference>
+								<GsSwitch v-model="importAssetsAsExternalReferences" :disabled="!isElectron" data-test-default-external-reference>
 									{{ i18n.ts._Assets.DefaultExternalReference }}
 								</GsSwitch>
-								<GsSwitch v-model="importLargeAssetsAsExternalReferences" :disabled="!desktopAvailable" data-test-large-asset-external-reference>
+								<GsSwitch v-model="importLargeAssetsAsExternalReferences" :disabled="!isElectron" data-test-large-asset-external-reference>
 									{{ i18n.ts._Assets.LargeAssetExternalReference }}
 									<template #caption>{{ i18n.ts._Assets.LargeAssetExternalReferenceHint }}</template>
 								</GsSwitch>
@@ -90,14 +88,14 @@
 							<template #label>{{ i18n.ts._ProjectBackups.Title }}</template>
 
 							<div class="_gaps_l">
-								<GsSwitch v-model="settings.autoEnabled" data-test-backup-auto-enabled>{{ i18n.ts._ProjectBackups.Automatic }}</GsSwitch>
-								<div class="_gaps_m" :inert="!settings.autoEnabled">
-									<GsInput v-model="settings.autoIntervalMinutes" large type="number" :min="1" :step="1" data-test-backup-auto-interval><template #label>{{ i18n.ts._ProjectBackups.Interval }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Minutes }}</template></GsInput>
-									<GsInput v-model="settings.autoRetentionDays" large type="number" :min="1" :step="1" data-test-backup-auto-retention><template #label>{{ i18n.ts._ProjectBackups.Retention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template></GsInput>
+								<GsSwitch v-model="projectBackupAutoEnabled" data-test-backup-auto-enabled>{{ i18n.ts._ProjectBackups.Automatic }}</GsSwitch>
+								<div class="_gaps_m" :inert="!projectBackupAutoEnabled">
+									<GsInput v-model="projectBackupAutoIntervalMinutes" manualSave large type="number" :min="1" :step="1" data-test-backup-auto-interval><template #label>{{ i18n.ts._ProjectBackups.Interval }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Minutes }}</template></GsInput>
+									<GsInput v-model="projectBackupAutoRetentionDays" manualSave large type="number" :min="1" :step="1" data-test-backup-auto-retention><template #label>{{ i18n.ts._ProjectBackups.Retention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template></GsInput>
 								</div>
 								<hr>
-								<GsSwitch v-model="settings.saveEnabled" data-test-backup-save-enabled>{{ i18n.ts._ProjectBackups.BeforeOverwrite }}</GsSwitch>
-								<GsInput v-model="settings.saveRetentionDays" large type="number" :min="1" :step="1" :disabled="!settings.saveEnabled" data-test-backup-save-retention><template #label>{{ i18n.ts._ProjectBackups.Retention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template><template #caption>{{ i18n.ts._ProjectBackups.SaveHint }}</template></GsInput>
+								<GsSwitch v-model="projectBackupSaveEnabled" data-test-backup-save-enabled>{{ i18n.ts._ProjectBackups.BeforeOverwrite }}</GsSwitch>
+								<GsInput v-model="projectBackupSaveRetentionDays" manualSave large type="number" :min="1" :step="1" :disabled="!projectBackupSaveEnabled" data-test-backup-save-retention><template #label>{{ i18n.ts._ProjectBackups.Retention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template><template #caption>{{ i18n.ts._ProjectBackups.SaveHint }}</template></GsInput>
 							</div>
 						</GsFolder>
 					</template>
@@ -109,7 +107,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, useTemplateRef } from 'vue';
+import { ref, useTemplateRef, watch } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
@@ -119,64 +117,32 @@ import GsFolder from './common/GsFolder.vue';
 import { i18n, lang, SUPPORTED_LOCALES } from '@/i18n.ts';
 import { changeLocale } from '@/locale-settings-ui.ts';
 import { preferences } from '@/preferences.ts';
-import { validateProjectBackupSettings } from '@/project-backups.ts';
 
-const modal = useTemplateRef('modal');
-const selectedLocale = ref(window.localStorage.getItem('locale') ?? lang);
-// 未設定時に表示される既定の言語は、ユーザーが選び直すまでは保存しない。
-const initialLocale = selectedLocale.value;
-const localeOptions = Object.entries(SUPPORTED_LOCALES).map(([value, label]) => ({ value, label }));
-const settings = ref({
-	autoEnabled: preferences.s.projectBackupAutoEnabled,
-	autoIntervalMinutes: preferences.s.projectBackupAutoIntervalMinutes,
-	autoRetentionDays: preferences.s.projectBackupAutoRetentionDays,
-	saveEnabled: preferences.s.projectBackupSaveEnabled,
-	saveRetentionDays: preferences.s.projectBackupSaveRetentionDays,
-});
-const desktopAvailable = window.desktop != null;
-const importAssetsAsExternalReferences = ref(preferences.s.importAssetsAsExternalReferences);
-const importLargeAssetsAsExternalReferences = ref(preferences.s.importLargeAssetsAsExternalReferences);
-const enable32bitDataTextures = ref(preferences.s.enable32bitDataTextures);
-const intermediateTextureFormat = ref(preferences.s.intermediateTextureFormat);
-const timelineFrameCacheMaxGiB = ref(preferences.s.timelineFrameCacheMaxGiB);
-const timelinePreviewFramesAhead = ref(preferences.s.timelinePreviewFramesAhead);
-const previewDisplayMode = ref(preferences.s.previewDisplayMode);
-const visualModuleAutoConnectOnNodeAdd = ref(preferences.s.visualModuleAutoConnectOnNodeAdd);
-const validationError = computed(() => {
-	try {
-		validateProjectBackupSettings(settings.value);
-		if (!Number.isInteger(timelinePreviewFramesAhead.value) || timelinePreviewFramesAhead.value < 0 || timelinePreviewFramesAhead.value > 3) return i18n.ts._Settings.InvalidTimelinePreviewFramesAhead;
-		if (!Number.isFinite(timelineFrameCacheMaxGiB.value) || timelineFrameCacheMaxGiB.value < 0
-			|| !Number.isSafeInteger(Math.floor(timelineFrameCacheMaxGiB.value * 1024 ** 3))) return i18n.ts._Settings.InvalidFrameCacheCapacity;
-		return null;
-	} catch (error) { return error instanceof Error ? error.message : String(error); }
-});
-
-async function apply() {
-	if (validationError.value != null) return;
-	// この画面の保持値と同じ項目はcommit()が保存しない。他画面の保存値は比較に使わない。
-	preferences.commit('importAssetsAsExternalReferences', importAssetsAsExternalReferences.value);
-	preferences.commit('importLargeAssetsAsExternalReferences', importLargeAssetsAsExternalReferences.value);
-	preferences.commit('projectBackupAutoEnabled', settings.value.autoEnabled);
-	preferences.commit('projectBackupAutoIntervalMinutes', settings.value.autoIntervalMinutes);
-	preferences.commit('projectBackupAutoRetentionDays', settings.value.autoRetentionDays);
-	preferences.commit('projectBackupSaveEnabled', settings.value.saveEnabled);
-	preferences.commit('projectBackupSaveRetentionDays', settings.value.saveRetentionDays);
-	preferences.commit('enable32bitDataTextures', enable32bitDataTextures.value);
-	preferences.commit('intermediateTextureFormat', intermediateTextureFormat.value);
-	preferences.commit('timelineFrameCacheMaxGiB', timelineFrameCacheMaxGiB.value);
-	preferences.commit('timelinePreviewFramesAhead', timelinePreviewFramesAhead.value);
-	preferences.commit('previewDisplayMode', previewDisplayMode.value);
-	preferences.commit('visualModuleAutoConnectOnNodeAdd', visualModuleAutoConnectOnNodeAdd.value);
-	modal.value?.close();
-	if (initialLocale !== selectedLocale.value) await changeLocale(selectedLocale.value);
-}
+const isElectron = __ELECTRON__;
 
 const emit = defineEmits<{
 	(ev: 'closed'): void;
 }>();
 
+const modal = useTemplateRef('modal');
 const tab = ref('general');
+const selectedLocale = ref(window.localStorage.getItem('locale') ?? lang);
+const localeOptions = Object.entries(SUPPORTED_LOCALES).map(([value, label]) => ({ value, label }));
+watch(selectedLocale, locale => changeLocale(locale));
+
+const projectBackupAutoEnabled = preferences.model('projectBackupAutoEnabled');
+const projectBackupAutoIntervalMinutes = preferences.model('projectBackupAutoIntervalMinutes');
+const projectBackupAutoRetentionDays = preferences.model('projectBackupAutoRetentionDays');
+const projectBackupSaveEnabled = preferences.model('projectBackupSaveEnabled');
+const projectBackupSaveRetentionDays = preferences.model('projectBackupSaveRetentionDays');
+const importAssetsAsExternalReferences = preferences.model('importAssetsAsExternalReferences');
+const importLargeAssetsAsExternalReferences = preferences.model('importLargeAssetsAsExternalReferences');
+const enable32bitDataTextures = preferences.model('enable32bitDataTextures');
+const intermediateTextureFormat = preferences.model('intermediateTextureFormat');
+const timelineFrameCacheMaxGiB = preferences.model('timelineFrameCacheMaxGiB');
+const timelinePreviewFramesAhead = preferences.model('timelinePreviewFramesAhead');
+const previewDisplayMode = preferences.model('previewDisplayMode');
+const visualModuleAutoConnectOnNodeAdd = preferences.model('visualModuleAutoConnectOnNodeAdd');
 </script>
 
 <style module lang="scss">
