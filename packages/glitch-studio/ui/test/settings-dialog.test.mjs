@@ -120,4 +120,15 @@ test('applies only edited settings and validates timeline preview preferences', 
 		assert.equal(preferences.s.timelinePreviewFramesAhead, value);
 		assert.equal(storage.get('preferences:timelinePreviewFramesAhead'), JSON.stringify(value));
 	}
+	// 【表示方式を設定から保存し、GPUとCPUを相互に切り替える】
+	// 設定画面を開いただけでは既定値を書き込まず、適用した方式を次回起動にも保持する。
+	const displayMode = find('data-test-preview-display-mode');
+	assert.equal(displayMode.props.modelValue, 'gpu');
+	for (const value of ['cpu', 'gpu']) {
+		displayMode.props['onUpdate:modelValue'](value);
+		await nextTick();
+		await find('data-test-settings-apply').props.onClick();
+		assert.equal(preferences.s.previewDisplayMode, value);
+		assert.equal(storage.get('preferences:previewDisplayMode'), JSON.stringify(value));
+	}
 });

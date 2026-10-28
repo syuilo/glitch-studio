@@ -17,6 +17,8 @@ import { PlayerAudioInputs } from './player-audio-inputs.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
+import { createPreviewCanvasContext } from './preview-canvas-context.ts';
+import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { FrameScheduler, VisualModuleLivePreviewFrameTiming } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
@@ -34,6 +36,7 @@ import type { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shar
  * 初期化時に決まっている必要がある設定情報
  */
 export type VisualModuleRendererManagerStaticOptions = {
+	previewDisplayMode?: PreviewDisplayMode;
 	enable32bitDataTextures: boolean;
 	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
 	intermediateTextureFormat: IntermediateTextureFormat;
@@ -64,6 +67,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 export type VisualModuleLivePreviewEffectStatusSource = { type: 'visualModuleLivePreview'; instanceId: string; visualModuleId: string };
 
 export type VisualModuleRendererManagerEvents = {
+	'cpuPreviewFrame': (ctx: CpuPreviewFrame) => void;
 	'outputResolution': (ctx: Resolution) => void;
 	'effectState': (ctx: { source: VisualModuleLivePreviewEffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
 	'renderError': (ctx: { message: string }) => void;
@@ -75,7 +79,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	'ev': (ctx: { [K in keyof VisualModuleRendererManagerEvents]: { type: K; ctx: Parameters<VisualModuleRendererManagerEvents[K]>[0] } }[keyof VisualModuleRendererManagerEvents]) => void;
 }> {
 	private previewRenderGeneration = 0;
-	private gpuContext: GPUCanvasContext;
+	private gpuContext: PreviewCanvasContext;
+	private pendingCpuPresentations = 0;
+	private skippedCpuTimeDelta = 0;
+	private skippedCpuRealTimeDelta = 0;
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
 	private fallbackTexture: GPUTexture;
@@ -121,11 +128,11 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	constructor(coreConfig: {
 		gpuDevice: GPUDevice;
-		gpuContext: GPUCanvasContext;
+		gpuContext: PreviewCanvasContext;
 		frameScheduler?: FrameScheduler;
-		histogramGpuContext?: GPUCanvasContext;
-		waveformHorizontalGpuContext?: GPUCanvasContext;
-		waveformVerticalGpuContext?: GPUCanvasContext;
+		histogramGpuContext?: PreviewCanvasContext;
+		waveformHorizontalGpuContext?: PreviewCanvasContext;
+		waveformVerticalGpuContext?: PreviewCanvasContext;
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}, staticOptions: VisualModuleRendererManagerStaticOptions) {
@@ -366,6 +373,16 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	private renderVisualModuleLivePreviewFrame(timing: VisualModuleLivePreviewFrameTiming) {
 		if (this.visualModuleLivePreviewVisualModuleRenderer == null) return;
+		if (this.canvasRenderer.usesCpuDisplay && this.pendingCpuPresentations >= 2) {
+			// 画面更新より読み戻しが遅い時にバッファと表示遅延を積み上げない。
+			// 間引いた時間は次の描画へ加え、TIME_DELTAを使うエフェクトの時計も進める。
+			this.skippedCpuTimeDelta += timing.timeDelta;
+			this.skippedCpuRealTimeDelta += timing.realTimeDelta;
+			return;
+		}
+		timing = { ...timing, timeDelta: timing.timeDelta + this.skippedCpuTimeDelta, realTimeDelta: timing.realTimeDelta + this.skippedCpuRealTimeDelta };
+		this.skippedCpuTimeDelta = 0;
+		this.skippedCpuRealTimeDelta = 0;
 		const generation = ++this.previewRenderGeneration;
 		const visualModule = this.dynamicOptions.visualModules.find(module => module.id === this.visualModuleLivePreviewVisualModuleId)!;
 		const commandEncoder = this.gpuDevice.createCommandEncoder();
@@ -418,6 +435,13 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			// 部分的に描画して失敗しても計測を完了する。未完了のencoderを残すと、
 			// 次のフレームでTimingHelperが別のencoderを受け付けず、修正後も復旧できない。
 			this.gpuDevice.queue.submit([commandEncoder.finish()]);
+			const cpuPresented = this.canvasRenderer.presentCpuFrame();
+			if (cpuPresented != null) {
+				this.pendingCpuPresentations++;
+				void cpuPresented.catch(error => {
+					if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
+				}).finally(() => { this.pendingCpuPresentations--; });
+			}
 			if (this.timingHelper != null) {
 				this.timingHelper.getResult().then(gpuTime => {
 					this.gpuAverageFast.addSample(gpuTime / 1000);
@@ -440,6 +464,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public stopRenderLoop() {
+		this.skippedCpuTimeDelta = 0;
+		this.skippedCpuRealTimeDelta = 0;
 		this.previewRenderGeneration++;
 		this.visualModuleLivePreviewRenderLoop.stop();
 		this.visualModuleLivePreviewVisualModuleId = null;
@@ -460,6 +486,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.videoFrameErrors.clear();
 		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();
+	}
+
+	public recycleCpuPreviewPixels(target: CpuPreviewCanvasTarget, frameId: number, pixels: ArrayBuffer) {
+		this.canvasRenderer.recycleCpuPreviewPixels(target, frameId, pixels);
 	}
 }
 
@@ -489,13 +519,13 @@ export async function createManager(options: {
 
 	let manager: VisualModuleRendererManager | null = null;
 	try {
-		const context = options.canvas.getContext('webgpu');
-		const histogramContext = options.histogramCanvas.getContext('webgpu');
-		const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
-		const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
-		if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
-			throw new Error('cannot get webgpu context');
-		}
+		const displayMode = options.staticOptions.previewDisplayMode ?? 'gpu';
+		const createContext = (canvas: OffscreenCanvas, target: CpuPreviewCanvasTarget) => createPreviewCanvasContext(canvas, displayMode,
+			frame => manager?.emit('ev', { type: 'cpuPreviewFrame', ctx: { ...frame, target } }));
+		const context = createContext(options.canvas, 'canvas');
+		const histogramContext = createContext(options.histogramCanvas, 'histogramCanvas');
+		const waveformHorizontalContext = createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas');
+		const waveformVerticalContext = createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas');
 
 		manager = new VisualModuleRendererManager({
 			gpuDevice: device,

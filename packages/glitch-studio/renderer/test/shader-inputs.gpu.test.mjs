@@ -59,6 +59,10 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 // モックでは検出できないシェーダーとbindingの不整合を検出する。CIではChromeのパスを明示する。
 test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20));
 
+// 【CPU表示でも色・透明度・上下方向と全ての映像解析Canvasを保つ】
+// 実GPUでの読み戻しとCanvas 2Dのalpha変換はモックだけでは検証できない。
+test('presents preview and analysis canvases through CPU readback', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/cpu-preview-gpu.ts', 4));
+
 // 【キャッシュの実GPUコピーが元画像の更新に影響されず、alphaとHDRの精度を維持する】
 // 容量やLRUのモックでは、WGSL・binding・RGBA/BGRAの取り違えを検出できない。
 test('preserves timeline frame cache pixels on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/timeline-preview-frame-cache-gpu.ts', 8));

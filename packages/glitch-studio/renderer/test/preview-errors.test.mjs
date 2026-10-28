@@ -598,6 +598,56 @@ for (const enableStats of [false, true]) {
 	});
 }
 
+// 【CPU表示が完了するまで手動シークの完了を通知しない】
+// GPU処理だけで待機表示を消すと、読み戻し中は古い画像が最新結果として扱われる。
+test('waits for CPU presentation before publishing timeline completion', async t => {
+	const { renderer } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
+	const displayed = Promise.withResolvers();
+	const waiting = Promise.withResolvers();
+	const capacity = Promise.withResolvers();
+	Object.defineProperty(renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
+	const capacityWait = t.mock.method(renderer.canvasRenderer, 'waitForCpuDisplayCapacity', () => capacity.promise);
+	t.mock.method(renderer.canvasRenderer, 'presentCpuFrame', () => { waiting.resolve(); return displayed.promise; });
+	const events = [];
+	renderer.on('ev', event => { if (event.type === 'frameRendered') events.push(event.ctx); });
+	const pending = renderer.renderTimelineAt(100, 1);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(capacityWait.mock.callCount(), 1);
+	assert.equal(events.length, 0);
+	capacity.resolve();
+	await waiting.promise;
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(events.length, 0);
+	displayed.resolve(); await pending;
+	assert.equal(events.length, 1);
+	assert.equal(events[0].requestId, 1);
+});
+
+// 【Live Previewの未完了CPU表示を2件に制限し、間引いた時間を次の描画へ渡す】
+// 読み戻しが遅くてもバッファや表示待ちを増やし続けず、TIME_DELTAで動く効果の
+// 時間まで止めてしまわないことを確認する。
+test('bounds CPU live preview readbacks and preserves skipped elapsed time', async t => {
+	const f = await fixture(t);
+	await f.renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
+	Object.defineProperty(f.renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
+	const completions = [];
+	t.mock.method(f.renderer.canvasRenderer, 'presentCpuFrame', () => { const completion = Promise.withResolvers(); completions.push(completion); return completion.promise; });
+	f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+	const frames = t.mock.method(f.renderer.visualModuleLivePreviewVisualModuleRenderer, 'render', () => ({ kind: 'uniform', value: [1, 0, 0, 1] }));
+	f.frame(16); f.frame(32); f.frame(48); f.frame(64);
+	assert.equal(completions.length, 2);
+	assert.equal(frames.mock.callCount(), 2);
+	completions[0].resolve(); await new Promise(resolve => setImmediate(resolve));
+	f.frame(80);
+	assert.equal(completions.length, 3);
+	assert.equal(frames.mock.calls[2].arguments[0].timeDelta, 48);
+	for (const completion of completions) completion.resolve();
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(f.renderer.pendingCpuPresentations, 0);
+	assert.deepEqual(f.errors, []);
+});
+
 for (const motionBlur of [false, true]) {
 	// 【手動シークの完了は、最終表示とブラー全サンプルのGPU処理後にだけ通知する】
 	// CPU側の評価完了だけでスピナーを消すと、重いGPU処理では古い画像を最新結果と誤認する。

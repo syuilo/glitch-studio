@@ -39,6 +39,9 @@ import { invertTimelineAffine, TIMELINE_IDENTITY, TIMELINE_FRAME } from '@gs/sub
 import { TimelinePreviewScheduler } from '@gs/subsystems_timeline_renderer/timeline-preview-scheduler.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { CanvasRenderer } from './canvas-renderer.ts';
+import { createPreviewCanvasContext } from './preview-canvas-context.ts';
+import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
+export type { PreviewDisplayMode, CpuPreviewFrame } from './preview-canvas-context.ts';
 import { ProjectStateVersions } from './project-state-versions.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { TimelineAudioInputs } from './timeline-audio-inputs.ts';
@@ -72,6 +75,7 @@ export type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from './ti
  * 初期化時に決まっている必要がある設定情報
  */
 export type TimelineRendererManagerStaticOptions = {
+	previewDisplayMode?: PreviewDisplayMode;
 	enableStats: boolean;
 	/** プレビュー用の波形・ヒストグラムのGPU処理を有効にする。 */
 	enableWaveformAndHistogram: boolean;
@@ -129,6 +133,7 @@ export type TimelineLayerStatusSource = {
 };
 
 export type TimelineRendererManagerEvents = {
+	'cpuPreviewFrame': (ctx: CpuPreviewFrame) => void;
 	'telemetry': (ctx: TimelinePreviewStatistics) => void;
 	'frameCache': (ctx: TimelinePreviewFrameCacheState) => void;
 	/** 完了通知を要求した手動シークだけを、最終出力のGPU処理完了後に通知する。 */
@@ -161,7 +166,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private resolveSpeech = createSpeechResolver([]);
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler: TimelinePreviewScheduler;
-	private gpuContext: GPUCanvasContext;
+	private gpuContext: PreviewCanvasContext;
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
 	private defaultVertexShaderModule: GPUShaderModule;
@@ -201,11 +206,11 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	constructor(coreConfig: {
 		gpuDevice: GPUDevice;
-		gpuContext: GPUCanvasContext;
+		gpuContext: PreviewCanvasContext;
 		frameScheduler?: FrameScheduler;
-		histogramGpuContext?: GPUCanvasContext;
-		waveformHorizontalGpuContext?: GPUCanvasContext;
-		waveformVerticalGpuContext?: GPUCanvasContext;
+		histogramGpuContext?: PreviewCanvasContext;
+		waveformHorizontalGpuContext?: PreviewCanvasContext;
+		waveformVerticalGpuContext?: PreviewCanvasContext;
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}, staticOptions: TimelineRendererManagerStaticOptions) {
@@ -567,14 +572,19 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (this.activePreviewFrame === capture) this.activePreviewFrame = null;
 				if (this.previewFrameTiming === timing) this.previewFrameTiming = null;
 				if (this.pendingTransformPreview === preview) this.pendingTransformPreview = null;
+				// UIでの返却が遅い場合も、シーク先やBAKEの最終画像を省略して完了通知を出してはいけない。
+				// 現在の出力を読み戻す枠を待ってから次の準備を許可し、Textureの上書きも防ぐ。
+				if (prepared && this.canvasRenderer.usesCpuDisplay) await this.canvasRenderer.waitForCpuDisplayCapacity();
 				const gpuWaitStartedAt = timing != null ? performance.now() : 0;
-				try {
-					const completed = this.gpuDevice.queue.onSubmittedWorkDone();
-					if (prepared) onSubmitted();
-					await completed;
-				} finally {
+				// 読み戻しのコピーも同じqueueへ先に送る。次の準備を許可しても、
+				// 各フレームは専用のバッファを持ち、読み戻し・UIへの送信が終わるまで完了扱いにしない。
+				// 同じWorkerからの通知順により、UIは画像を描いてからframeRenderedを受け取る。
+				const cpuPresented = prepared ? this.canvasRenderer.presentCpuFrame() : null;
+				const completed = this.gpuDevice.queue.onSubmittedWorkDone().finally(() => {
 					if (timing != null) timing.gpuWaitMs = performance.now() - gpuWaitStartedAt;
-				}
+				});
+				if (prepared) onSubmitted();
+				await Promise.all([completed, cpuPresented]);
 			}
 			const captureError = await capture.captureError;
 			if (capture.snapshot != null && captureError == null && capture.frameIndex != null
@@ -1037,6 +1047,10 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();
 	}
+
+	public recycleCpuPreviewPixels(target: CpuPreviewCanvasTarget, frameId: number, pixels: ArrayBuffer) {
+		this.canvasRenderer.recycleCpuPreviewPixels(target, frameId, pixels);
+	}
 }
 
 export async function createManager(options: {
@@ -1064,13 +1078,13 @@ export async function createManager(options: {
 
 	let manager: TimelineRendererManager | null = null;
 	try {
-		const context = options.canvas.getContext('webgpu');
-		const histogramContext = options.histogramCanvas.getContext('webgpu');
-		const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
-		const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
-		if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
-			throw new Error('cannot get webgpu context');
-		}
+		const displayMode = options.staticOptions.previewDisplayMode ?? 'gpu';
+		const createContext = (canvas: OffscreenCanvas, target: CpuPreviewCanvasTarget) => createPreviewCanvasContext(canvas, displayMode,
+			frame => manager?.emit('ev', { type: 'cpuPreviewFrame', ctx: { ...frame, target } }));
+		const context = createContext(options.canvas, 'canvas');
+		const histogramContext = createContext(options.histogramCanvas, 'histogramCanvas');
+		const waveformHorizontalContext = createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas');
+		const waveformVerticalContext = createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas');
 
 		manager = new TimelineRendererManager({
 			gpuDevice: device,

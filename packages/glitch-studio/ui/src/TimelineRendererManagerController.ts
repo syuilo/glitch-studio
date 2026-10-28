@@ -7,6 +7,7 @@ import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-stu
 import { createTimelineRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
+import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
 import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
@@ -62,10 +63,13 @@ export class TimelineRendererManagerController extends RendererManagerController
 				}
 				this.canvasRevision.value++;
 
-				const offscreen = this.canvas.transferControlToOffscreen();
-				const histogramOffscreen = this.histogramCanvas.transferControlToOffscreen();
-				const waveformHorizontalOffscreen = this.waveformHorizontalCanvas.transferControlToOffscreen();
-				const waveformVerticalOffscreen = this.waveformVerticalCanvas.transferControlToOffscreen();
+				// CPU方式では実画面のCanvasをUIに残す。Workerには寸法を所有する描画先だけを渡す。
+				const transferCanvas = (canvas: HTMLCanvasElement) => this.staticOptions.previewDisplayMode === 'cpu'
+					? new OffscreenCanvas(canvas.width, canvas.height) : canvas.transferControlToOffscreen();
+				const offscreen = transferCanvas(this.canvas);
+				const histogramOffscreen = transferCanvas(this.histogramCanvas);
+				const waveformHorizontalOffscreen = transferCanvas(this.waveformHorizontalCanvas);
+				const waveformVerticalOffscreen = transferCanvas(this.waveformVerticalCanvas);
 
 				this.initialSnapshotTaken = true;
 				this.initializationStaticOptions = this.staticOptions;
@@ -94,6 +98,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 				if (error != null) this.cancelSeek();
 			},
 			eventHandlers: {
+				cpuPreviewFrame: frame => {
+					try { displayCpuPreviewFrame(this[frame.target], frame); } catch (error) { this.reportRenderFailure(error instanceof Error ? error : new Error(String(error))); } finally {
+						if (this.isReady.value) this.call('recycleCpuPreviewPixels', [frame.target, frame.frameId, frame.pixels], [frame.pixels]);
+					}
+				},
 				frameCache: ctx => {
 					if (this.isReady.value && ctx.sceneId === (this.dynamicOptions.sceneId ?? null)
 						&& ctx.previewRevision === this.dynamicOptions.previewRevision) this.frameCacheState.value = ctx;
