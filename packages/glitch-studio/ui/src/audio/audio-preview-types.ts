@@ -14,10 +14,12 @@ export type PreviewRequest =
 	| { type: 'audio'; port: MessagePort }
 	| { type: 'resetAudio' }
 	| { type: 'running'; running: boolean }
+	| { type: 'renderingSuspended'; suspended: boolean; requestId: number | null }
 	| { type: 'meter'; id: number; port: MessagePort }
 	| { type: 'removeMeter'; id: number }
 	| { type: 'metersReceived' };
 export type PreviewResponse =
 	| { type: 'meters'; readings: MeterReading[] }
 	| { type: 'sampleRate'; sampleRate: number }
+	| { type: 'renderingStateApplied'; requestId: number }
 	| { type: 'error'; id?: number; message: string };

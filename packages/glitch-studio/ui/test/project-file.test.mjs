@@ -46,7 +46,9 @@ const appBundle = await build({
 					// postMessageと同じ複製を行い、VueのProxyを再生Workerへ渡す不具合も検出する。
 					start(time) { this.time = time; this.starts.push(time); this.projects.push(structuredClone(this.getProject())); } stop() {} currentTime() { return this.time; }
 				}
-				export class AudioOutput {}
+				export class AudioOutput {
+					preview = { suspended: false, updates: [], async setRenderingSuspended(value) { this.suspended = value; this.updates.push(value); } };
+				}
 			`, loader: 'ts' }));
 			// 相対パスとaliasからの参照でも、本番と同じ設定インスタンスを共有する。
 			// 別々に生成すると、クラスへの分離でimport順が変わっただけでテスト側の設定変更が届かなくなる。
@@ -1896,17 +1898,39 @@ test('waits for both preview workers before restoring the paused timeline', asyn
 	await appContext.suspendPreview();
 	assert.equal(visualModuleLivePreview.isReady.value, false);
 	assert.equal(timeline.isReady.value, false);
+	assert.equal(appContext.renderEngine.isSuspended.value, true);
+	assert.equal(appContext.audioOutput.preview.suspended, true);
 	timeline.renders.length = 0;
 	const gate = Promise.withResolvers();
 	visualModuleLivePreview.relaunchManager = async () => { await gate.promise; visualModuleLivePreview.isReady.value = true; };
 	const restarting = appContext.resumePreview();
 	await setImmediate();
 	assert.equal(timeline.isReady.value, true);
+	assert.equal(appContext.audioOutput.preview.suspended, true);
 	assert.deepEqual(timeline.renders, []);
 	gate.resolve();
 	await restarting;
 	assert.deepEqual(timeline.renders, [123]);
 	assert.equal(appContext.previewPlayback.isTimelinePlaying.value, false);
+	assert.equal(appContext.audioOutput.preview.suspended, false);
+});
+
+// 【復帰待ちの途中に新しく休止した場合は音声モニターも停止状態を維持する】
+// 先行する再初期化が遅れて完了し、次の書き出し中に音声モニターだけを再開してしまうのを防ぐ。
+test('does not resume audio monitor rendering after a newer preview suspension', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	await appContext.suspendPreview();
+	const gate = Promise.withResolvers();
+	appContext.visualModuleRendererManagerController.relaunchManager = async () => { await gate.promise; };
+	const restarting = appContext.resumePreview();
+	await setImmediate();
+	await appContext.suspendPreview();
+	gate.resolve();
+	await restarting;
+	assert.equal(appContext.renderEngine.isSuspended.value, true);
+	assert.equal(appContext.audioOutput.preview.suspended, true);
 });
 
 // 【復帰に失敗してももう一方の初期化を待ち、描画は再開しない】

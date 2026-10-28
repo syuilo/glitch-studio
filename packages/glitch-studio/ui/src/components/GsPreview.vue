@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView :title="i18n.ts.Preview" @changeWindow="onPreviewWindowChanged">
+<GsDetachableView :title="i18n.ts.Preview" :suspended="renderEngine.isSuspended.value" @changeWindow="onPreviewWindowChanged">
 	<div :class="$style.root">
 		<div :class="$style.topLeft">
 			<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">
@@ -22,8 +22,8 @@
 			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
 		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
-			<div ref="canvasContainer" :class="[$style.canvasContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" :style="{ scale: zoom, translate: `${pan[0]}px ${pan[1]}px` }"></div>
-			<div v-if="showGridInPreview" ref="gridOverlay" :class="$style.grid">
+			<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :class="[$style.canvasContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" :style="{ scale: zoom, translate: `${pan[0]}px ${pan[1]}px` }"></div>
+			<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
 				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 			</div>
 			<GsPreviewTransform :canvasRect="previewCanvasRect"/>
@@ -107,9 +107,11 @@ let latestTime: number | null = null;
 let latestGridGeometry = '';
 
 let animationWindow = window;
-let timecodeRaf = animationWindow.requestAnimationFrame(update);
+let timecodeRaf: number | null = null;
 
 function update(t: number) {
+	timecodeRaf = null;
+	if (renderEngine.isSuspended.value) return;
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
 	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') visualModuleLivePreviewTime.value += delta * visualModuleLivePreviewTimeFactor.value;
@@ -122,16 +124,24 @@ watch(resolutionFactor, (newFactor, oldFactor) => {
 	zoom.value *= (oldFactor ?? 1) / newFactor;
 }, { immediate: true });
 
-useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'canvas');
-onBeforeUnmount(() => { animationWindow.cancelAnimationFrame(timecodeRaf); cancelPan(); });
+useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'canvas', renderEngine.isSuspended);
+watch(renderEngine.isSuspended, updateTimecodeLoop, { immediate: true });
+onBeforeUnmount(() => { if (timecodeRaf != null) animationWindow.cancelAnimationFrame(timecodeRaf); cancelPan(); });
+
+function updateTimecodeLoop() {
+	if (timecodeRaf != null) animationWindow.cancelAnimationFrame(timecodeRaf);
+	timecodeRaf = null;
+	// 休止中の実時間をLive Previewの表示時刻へ加算しない。
+	latestTime = null;
+	if (!renderEngine.isSuspended.value) timecodeRaf = animationWindow.requestAnimationFrame(update);
+}
 
 function onPreviewWindowChanged() {
 	cancelPan();
 	// 元のウィンドウが非表示でも、切り離したプレビューの寸法・DPRを更新し続ける。
-	animationWindow.cancelAnimationFrame(timecodeRaf);
+	if (timecodeRaf != null) animationWindow.cancelAnimationFrame(timecodeRaf);
 	animationWindow = canvasContainer.value?.ownerDocument.defaultView ?? window;
-	latestTime = null;
-	timecodeRaf = animationWindow.requestAnimationFrame(update);
+	updateTimecodeLoop();
 }
 
 function updatePreviewCanvasRect() {

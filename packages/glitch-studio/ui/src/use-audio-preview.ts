@@ -23,7 +23,7 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 			width,
 			height,
 			ratio: viewWindow?.devicePixelRatio ?? 1,
-			visible: !doc?.hidden && intersecting && element.getClientRects().length > 0,
+			visible: !audioOutput.preview.isRenderingSuspended.value && !doc?.hidden && intersecting && element.getClientRects().length > 0,
 		});
 	}
 
@@ -72,6 +72,7 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 		} catch (reason) { error.value = String(reason); stop(); }
 	});
 	watch(options, value => panel?.configure(value), { deep: true });
+	watch(audioOutput.preview.isRenderingSuspended, resize, { flush: 'post' });
 	onBeforeUnmount(stop);
-	return { changeWindow, error, sampleRate: audioOutput.preview.sampleRate };
+	return { changeWindow, error, sampleRate: audioOutput.preview.sampleRate, renderingSuspended: audioOutput.preview.isRenderingSuspended };
 }

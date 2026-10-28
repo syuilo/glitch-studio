@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView :title="direction === 'horizontal' ? i18n.ts._Workspace.WaveformX : i18n.ts._Workspace.WaveformY">
+<GsDetachableView :title="direction === 'horizontal' ? i18n.ts._Workspace.WaveformX : i18n.ts._Workspace.WaveformY" :suspended="appContext.renderEngine.isSuspended.value">
 	<div :class="$style.root">
 		<div :class="$style.scope">
 			<div ref="canvasContainer" :class="$style.canvas"></div>
@@ -28,7 +28,7 @@ const props = defineProps<{
 const canvasContainer = useTemplateRef('canvasContainer');
 const gridLinePositions = [25, 50, 75];
 
-useRendererCanvas(canvasContainer, activePreviewRenderer, () => props.direction === 'horizontal' ? 'waveformHorizontalCanvas' : 'waveformVerticalCanvas');
+useRendererCanvas(canvasContainer, activePreviewRenderer, () => props.direction === 'horizontal' ? 'waveformHorizontalCanvas' : 'waveformVerticalCanvas', appContext.renderEngine.isSuspended);
 </script>
 
 <style module lang="scss">

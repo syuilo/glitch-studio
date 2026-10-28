@@ -37,7 +37,7 @@
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting && !choosingSaveFile" class="_gaps_m">
 			<div :class="$style.progress"><div :class="$style.progressFill" :style="{ width: `${progressPercent}%` }"></div></div>
-			<div>{{ progressText }}<GsEllipsis/></div>
+			<div>{{ progressText }}<GsEllipsis static/></div>
 		</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 		<div v-if="status">{{ status }}</div>
@@ -253,9 +253,10 @@ async function doExport() {
 		}
 		signal.throwIfAborted();
 		const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
-		// エクスポート中はリソース節約のためプレビュー用レンダラーは破棄
-		await appContext.suspendPreview();
+		// 映像・音声モニターとUI表示の休止完了を待つ。途中で失敗しても復帰を試みる。
 		previewDisposed = true;
+		await appContext.suspendPreview();
+		signal.throwIfAborted();
 		// VueのProxyを外し、編集中の状態とWorkerの状態を独立させる。
 		const buffer = await exportTimeline({
 			settings: exportSettings,
@@ -358,6 +359,7 @@ onBeforeUnmount(() => {
 .progressFill {
 	height: 100%;
 	background: var(--THEME-accent);
-	transition: width 0.1s linear;
+	// 補間で毎画面更新すると、軽い進捗UIだけでも映像取り込みのGPU待ちが増える。
+	// Workerの進捗通知に合わせて直接反映し、書き出し中の連続的な画面合成を避ける。
 }
 </style>

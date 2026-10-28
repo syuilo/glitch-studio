@@ -44,7 +44,9 @@
 		</div>
 	</GsWindowTitlebar>
 	<div :class="$style.body">
-		<GsWorkspaceElement style="flex: 1" :element="preferences.r.workspaceDefinition.value"/>
+		<!-- Canvas停止後もワークスペースの合成が映像出力を待たせる環境がある。
+		     DOMとレイアウト設定は保持し、bodyへTeleportした進捗・キャンセルUIは表示し続ける。 -->
+		<GsWorkspaceElement v-show="!appContext.renderEngine.isSuspended.value" style="flex: 1" :element="preferences.r.workspaceDefinition.value" data-test-workspace-rendering-surface/>
 	</div>
 	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">

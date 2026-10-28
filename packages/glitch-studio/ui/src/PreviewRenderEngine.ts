@@ -6,6 +6,7 @@ export class PreviewRenderEngine {
 	private staticError = ref<string | null>(null);
 	private runtimeError = shallowRef<RenderFailureDiagnostic | null>(null);
 	private suspended = ref(false);
+	public readonly isSuspended = readonly(this.suspended);
 	private enabled = ref(false);
 	private generation = 0;
 	private restarting: Promise<void> | null = null;

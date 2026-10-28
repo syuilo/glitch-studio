@@ -4,7 +4,7 @@
 		<img :src="logoUrl" :class="$style.logo" draggable="false" alt="">
 		<span :class="$style.title">{{ title }}</span>
 	</GsWindowTitlebar>
-	<div :class="$style.content" data-test-detached-window-content>
+	<div v-show="!contentHidden" :class="$style.content" data-test-detached-window-content>
 		<slot></slot>
 	</div>
 </div>
@@ -16,6 +16,7 @@ import GsWindowTitlebar from './common/GsWindowTitlebar.vue';
 defineProps<{
 	title: string;
 	customTitlebar: boolean;
+	contentHidden?: boolean;
 }>();
 
 // about:blankの子ウィンドウへ移した後も、元のアプリのアイコンを参照する。

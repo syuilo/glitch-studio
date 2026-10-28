@@ -91,3 +91,31 @@ test('moves between containers and only removes the canvas it still owns', async
 	scope.stop();
 	assert.deepEqual(first.children, [selected.value.histogramCanvas]);
 });
+
+// 【休止中は別ウィンドウへ移動してもCanvasを合成対象へ戻さず、最新の要素で復帰する】
+// Workerを止めた後のCanvasもブラウザーの合成資源を保持する。書き出し中の表示先変更や
+// Worker再生成によって古いCanvasが残ったり、復帰後のプレビューが欠落したりするのを防ぐ。
+test('detaches suspended canvases and restores the latest canvas in the current window', async () => {
+	const selected = shallowRef(renderer());
+	const first = element();
+	const detached = element();
+	const container = shallowRef(first);
+	const suspended = ref(false);
+	const scope = effectScope();
+	scope.run(() => useRendererCanvas(container, selected, () => 'canvas', suspended));
+	try {
+		await nextTick();
+		assert.deepEqual(first.children, [selected.value.canvas]);
+		suspended.value = true;
+		await nextTick();
+		assert.deepEqual(first.children, []);
+		container.value = detached;
+		selected.value.canvas = element();
+		selected.value.canvasRevision.value++;
+		await nextTick();
+		assert.deepEqual(detached.children, []);
+		suspended.value = false;
+		await nextTick();
+		assert.deepEqual(detached.children, [selected.value.canvas]);
+	} finally { scope.stop(); }
+});

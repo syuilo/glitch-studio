@@ -6,7 +6,7 @@
 	</div>
 	<div v-show="!viewWindow" ref="home" :class="$style.root">
 		<div ref="view" :class="$style.root" @contextmenu.prevent.stop="onContextmenu">
-			<GsDetachedWindowFrame :title="title" :customTitlebar="isElectron && viewWindow != null && windowMode === 'window'">
+			<GsDetachedWindowFrame :title="title" :customTitlebar="isElectron && viewWindow != null && windowMode === 'window'" :contentHidden="suspended">
 				<slot :detached="!!viewWindow"></slot>
 			</GsDetachedWindowFrame>
 		</div>
@@ -25,6 +25,7 @@ import * as ui from '@/ui.ts';
 
 const props = defineProps<{
 	title: string;
+	suspended?: boolean;
 }>();
 
 const emit = defineEmits<{ changeWindow: [] }>();

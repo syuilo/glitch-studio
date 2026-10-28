@@ -5,7 +5,7 @@ import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 
 import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
-import { computed, ref, shallowRef, markRaw, watch } from 'vue';
+import { computed, ref, shallowRef, markRaw, nextTick, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.js';
 import { deepEqual } from '@gs/shared/utility/deep-equal.js';
@@ -322,10 +322,18 @@ export class AppContext {
 	/** 再生要求を止めてからGPUリソースを解放し、復帰完了後にだけ再生を戻す。 */
 	public async suspendPreview() {
 		this.renderEngine.suspend();
+		// 映像Workerを破棄しても、音声モニターとUIのCanvasは別の寿命で残る。
+		// 両方の休止を反映してから、同じGPUを使う書き出しへ進む。
+		await Promise.all([this.audioOutput.preview.setRenderingSuspended(true), nextTick()]);
 	}
 
 	public async resumePreview() {
-		await this.renderEngine.resume();
+		try {
+			await this.renderEngine.resume();
+		} finally {
+			// 再初期化の完了待ち中に別の休止が入った場合、その新しい要求を解除しない。
+			await this.audioOutput.preview.setRenderingSuspended(this.renderEngine.isSuspended.value);
+		}
 	}
 
 	public async pauseForDesktopUpdate(): Promise<() => Promise<void>> {
@@ -343,7 +351,7 @@ export class AppContext {
 	private async loadProject(project: Project, fileName: string | null, fileHandle: ProjectFileHandle | null) {
 		const waiting = ui.waiting({ text: i18n.ts._App.InitializingProject });
 
-		this.renderEngine.suspend();
+		await this.suspendPreview();
 		timelineClipboard.value = null;
 		this.scenePlaybackTimes.clear();
 		// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
@@ -508,7 +516,7 @@ export class AppContext {
 
 		waiting.setText(i18n.ts._App.InitializingRenderer);
 		await this.renderEngine.enable();
-		await this.renderEngine.resume();
+		await this.resumePreview();
 
 		waiting.done();
 	}

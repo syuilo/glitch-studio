@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView :title="i18n.ts._Workspace.Histogram">
+<GsDetachableView :title="i18n.ts._Workspace.Histogram" :suspended="appContext.renderEngine.isSuspended.value">
 <div :class="$style.root">
 	<div ref="canvasContainer" :class="$style.canvas"></div>
 </div>
@@ -17,7 +17,7 @@ const { activePreviewRenderer } = appContext;
 
 const canvasContainer = useTemplateRef('canvasContainer');
 
-useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'histogramCanvas');
+useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'histogramCanvas', appContext.renderEngine.isSuspended);
 </script>
 
 <style lang="scss" module>

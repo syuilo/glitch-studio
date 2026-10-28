@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView :title="mode === 'spectrum' ? i18n.ts._Workspace.AudioSpectrum : i18n.ts._Workspace.AudioWaveform" @changeWindow="changeWindow">
+<GsDetachableView :title="mode === 'spectrum' ? i18n.ts._Workspace.AudioSpectrum : i18n.ts._Workspace.AudioWaveform" :suspended="renderingSuspended" @changeWindow="changeWindow">
 	<template #controls>
 		<label :class="$style.option"><input v-model="overlay" type="checkbox"> {{ i18n.ts._AudioMonitor.Overlay }}</label>
 	</template>
@@ -8,7 +8,7 @@
 			<div :class="$style.grid">
 				<div v-for="lane in (overlay ? 1 : 2)" :key="lane" :class="$style.lane"></div>
 			</div>
-			<canvas ref="canvas" :class="$style.canvas"></canvas>
+			<canvas v-show="!renderingSuspended" ref="canvas" :class="$style.canvas" data-test-audio-monitor-canvas></canvas>
 			<span :class="$style.left">L</span>
 			<span :class="$style.right" :style="{ top: overlay ? '0' : '50%', left: overlay ? '18px' : '0' }">R</span>
 		</div>
@@ -43,7 +43,7 @@ const options = computed<PreviewOptions>(() => ({
 	mode: props.mode,
 	settings: { overlay: overlay.value, waveformSeconds: waveformSeconds.value },
 }));
-const { changeWindow, error, sampleRate } = useAudioPreview(canvas, options);
+const { changeWindow, error, sampleRate, renderingSuspended } = useAudioPreview(canvas, options);
 const displaySeconds = computed(() => Math.max(2, Math.min(32768, Math.round(sampleRate.value * waveformSeconds.value))) / sampleRate.value);
 const frequencyTicks = computed(() => {
 	const max = Math.min(20000, sampleRate.value / 2);

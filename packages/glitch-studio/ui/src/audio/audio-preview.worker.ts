@@ -20,6 +20,8 @@ const readings = new Map<number, MeterReading>();
 const history = new AudioHistory();
 let audioPort: MessagePort | null = null;
 let running = false;
+let renderingSuspended = false;
+let animationFrameId: number | null = null;
 let meterPending = false;
 let device: GPUDevice | null = null;
 let deviceReady: Promise<GPUDevice> | null = null;
@@ -35,6 +37,7 @@ function removePanel(id: number) {
 	panel.waveform?.dispose();
 	panel.context?.unconfigure();
 	panels.delete(id);
+	updateDrawLoop();
 }
 
 function configurePanel(panel: Panel) {
@@ -96,6 +99,7 @@ async function addPanel(id: number, panel: Panel) {
 		panel.context = context;
 		context.configure({ device: created, format: navigator.gpu.getPreferredCanvasFormat(), alphaMode: 'premultiplied' });
 		configurePanel(panel);
+		updateDrawLoop();
 	} catch (error) {
 		if (panels.get(id) !== panel) return;
 		removePanel(id);
@@ -132,6 +136,7 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 		case 'resize': {
 			const panel = panels.get(data.id);
 			if (panel) panel.size = data;
+			updateDrawLoop();
 			break;
 		}
 		case 'audio': {
@@ -152,6 +157,13 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 		}
 		case 'resetAudio': audioPort?.close(); audioPort = null; history.reset(); break;
 		case 'running': running = data.running; break;
+		case 'renderingSuspended':
+			renderingSuspended = data.suspended;
+			updateDrawLoop();
+			// 休止後は新しいGPUコマンドを発行しない。呼び出し側はこの確認とUIの
+			// 更新を待ってから書き出しを始め、モニターの再生状態とは独立して復帰する。
+			if (data.requestId != null) send({ type: 'renderingStateApplied', requestId: data.requestId });
+			break;
 		case 'meter': {
 			const { id, port } = data;
 			meters.set(id, port);
@@ -186,9 +198,19 @@ setInterval(() => {
 // 描画はブラウザーのリフレッシュ周期に合わせる。FFTの解析間隔・平滑化・履歴の進行は
 // PCMのサンプル時刻を基準にするため、描画FPSが変わっても時間スケールは変わらない。
 // 非表示のパネルでは解析も描画も行わない。
+function updateDrawLoop() {
+	const shouldDraw = !renderingSuspended && device != null && [...panels.values()].some(panel =>
+		panel.context != null && panel.size.visible && panel.size.width > 0 && panel.size.height > 0);
+	if (shouldDraw && animationFrameId == null) animationFrameId = self.requestAnimationFrame(drawFrame);
+	if (!shouldDraw && animationFrameId != null) {
+		self.cancelAnimationFrame(animationFrameId);
+		animationFrameId = null;
+	}
+}
+
 function drawFrame() {
-	self.requestAnimationFrame(drawFrame);
-	if (!device) return;
+	animationFrameId = null;
+	if (renderingSuspended || device == null) return;
 	for (const [id, panel] of panels) {
 		const { width, height, ratio, visible } = panel.size;
 		if (!visible || width <= 0 || height <= 0 || !panel.context) continue;
@@ -218,6 +240,5 @@ function drawFrame() {
 			send({ type: 'error', id, message: String(error) });
 		}
 	}
+	updateDrawLoop();
 }
-
-self.requestAnimationFrame(drawFrame);

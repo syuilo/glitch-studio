@@ -1,7 +1,7 @@
 <template>
-<GsDetachableView :title="i18n.ts._Workspace.AudioSpectrogram" @changeWindow="changeWindow">
+<GsDetachableView :title="i18n.ts._Workspace.AudioSpectrogram" :suspended="renderingSuspended" @changeWindow="changeWindow">
 	<div :class="$style.root">
-		<canvas ref="canvas" :class="$style.canvas"></canvas>
+		<canvas v-show="!renderingSuspended" ref="canvas" :class="$style.canvas" data-test-audio-spectrogram-canvas></canvas>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsDetachableView>
@@ -36,7 +36,7 @@ const options = computed<PreviewOptions>(() => ({
 	},
 }));
 const canvas = useTemplateRef('canvas');
-const { changeWindow, error } = useAudioPreview(canvas, options);
+const { changeWindow, error, renderingSuspended } = useAudioPreview(canvas, options);
 </script>
 
 <style module lang="scss">

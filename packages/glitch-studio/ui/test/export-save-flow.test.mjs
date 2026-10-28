@@ -28,7 +28,7 @@ const rendererAssetsModule = { exports: {} };
 new Function('module', 'exports', rendererAssetsCode)(rendererAssetsModule, rendererAssetsModule.exports);
 const { getRendererAssets } = rendererAssetsModule.exports;
 
-function fixture({ browser = false, choose = null, save = null, resume = null, renderError = null } = {}) {
+function fixture({ browser = false, choose = null, save = null, suspend = null, resume = null, renderError = null } = {}) {
 	const events = [];
 	const ref = value => ({ value });
 	const state = Object.fromEntries(Object.entries({
@@ -57,7 +57,7 @@ function fixture({ browser = false, choose = null, save = null, resume = null, r
 		getRequiredVoicevoxRequestsForRendering: () => [],
 		appContext: {
 			voicevoxGeneration: { async prepare() { events.push(['prepare']); return []; } },
-			async suspendPreview() { events.push(['suspend']); },
+			async suspendPreview() { events.push(['suspend']); await suspend?.(); },
 			async resumePreview() { events.push(['resume']); await resume?.(); },
 		},
 		async exportTimeline(_request, _signal, onProgress) {
@@ -152,6 +152,27 @@ test('reports rendering and saving failures without a completion notification', 
 		assert.ok(f.events.some(([name]) => name === 'resume'));
 		assert.equal(f.context.exporting.value, false);
 		assert.equal(f.context.savingFile.value, false);
+		assert.equal(f.context.applicationActivity.isExporting.value, false);
+	}
+});
+
+// 【休止確認を待ってから書き出し、確認待ち中の中止・失敗でもプレビューを復帰する】
+// Workerの休止は非同期なので、確認前にエンコーダーを起動してはいけない。
+// 中止や休止途中の失敗でUIを非表示のまま残さず、保存先と終了防止も解放する。
+test('waits for preview suspension and restores it after cancellation or suspension failure', async () => {
+	for (const outcome of ['cancel', 'failure']) {
+		const suspending = Promise.withResolvers();
+		const suspended = Promise.withResolvers();
+		const f = fixture({ suspend: () => { suspending.resolve(); return suspended.promise; } });
+		const job = f.doExport();
+		await suspending.promise;
+		assert.equal(f.events.some(([name]) => name === 'render'), false);
+		if (outcome === 'cancel') { f.abort(); suspended.resolve(); }
+		else suspended.reject(new Error('suspension failed'));
+		await job;
+		assert.equal(f.events.some(([name]) => name === 'render' || name === 'save'), false);
+		assert.ok(f.events.some(([name]) => name === 'resume'));
+		assert.ok(f.events.some(([name]) => name === 'release'));
 		assert.equal(f.context.applicationActivity.isExporting.value, false);
 	}
 });

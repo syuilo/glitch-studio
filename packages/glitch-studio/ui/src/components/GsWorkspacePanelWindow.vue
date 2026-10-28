@@ -1,7 +1,7 @@
 <template>
 <Teleport :to="panelWindow.document.body">
 	<div ref="root" :class="$style.root" :data-test-workspace-panel-window="panel.contentType">
-		<GsDetachedWindowFrame :title="workspacePanelDefinitions[panel.contentType].label" :customTitlebar="isElectron">
+		<GsDetachedWindowFrame :title="workspacePanelDefinitions[panel.contentType].label" :customTitlebar="isElectron" :contentHidden="appContext.renderEngine.isSuspended.value">
 			<component :is="workspacePanelDefinitions[panel.contentType].component" :panel="panel"/>
 		</GsDetachedWindowFrame>
 	</div>
@@ -11,6 +11,7 @@
 <script lang="ts" setup>
 import { inject, onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
 import GsDetachedWindowFrame from './GsDetachedWindowFrame.vue';
+import { appContext } from '@/app.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { workspacePanelDefinitions } from '@/workspace.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
