@@ -68,7 +68,7 @@
 			:value="def.defaultValue.value"
 			@input="updateDefaultValue"
 			@beginChanging="beginDefaultValueChange"
-			@changeContinuous="value => updateDefaultValue(value, defaultValueMergeKey)"
+			@changeContinuous="updateDefaultValueContinuously"
 			@changeFinished="defaultValueMergeKey = null"
 			@reset="updateDefaultValue(genEmptyValue(def))"
 		/>
@@ -128,6 +128,10 @@ function beginDefaultValueChange() {
 
 function updateDefaultValue(value: any, mergeKey?: string | null) {
 	emit('update', { defaultValue: { inputSource: 'literal', value } }, mergeKey);
+}
+
+function updateDefaultValueContinuously(value: any) {
+	updateDefaultValue(value, defaultValueMergeKey);
 }
 
 function updateEnumOptions(options: string[], labels: Record<string, string>, defaultValue: string) {

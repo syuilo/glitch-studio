@@ -14,7 +14,7 @@
 			<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s _selectable">
 				<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
 				<div>{{ renderEngine.errorMessage.value }}</div>
-				<button type="button" class="_button" :disabled="renderValidation.errorMessage.value != null" @click="renderEngine.retry()">{{ i18n.ts._Preview.Retry }}</button>
+				<button type="button" class="_button" :disabled="renderValidationErrorMessage != null" @click="renderEngine.retry()">{{ i18n.ts._Preview.Retry }}</button>
 			</div>
 		</div>
 		<div :class="$style.topRight">
@@ -61,6 +61,7 @@ import * as ui from '@/ui.ts';
 
 const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
 const { stateManager } = appContext.projectContext;
+const renderValidationErrorMessage = renderValidation.errorMessage;
 const renderFailureLocation = computed(() => {
 	const origin = renderEngine.runtimeDiagnostic.value?.origin;
 	return origin && renderValidation.errorMessage.value == null

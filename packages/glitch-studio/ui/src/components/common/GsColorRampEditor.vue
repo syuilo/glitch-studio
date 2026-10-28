@@ -18,7 +18,7 @@
 			</div>
 		</div>
 		<div :class="$style.actions">
-			<GsSelect data-test-color-ramp-selection :modelValue="selectedId" :items="modelValue.stops.map((stop, index) => ({ value: stop.id, label: i18n.tsx._ColorRamp.StopLabel({ index: index + 1, position: stop.position.toFixed(3) }) }))" @update:modelValue="selectedId = $event"/>
+			<GsSelect data-test-color-ramp-selection :modelValue="selectedId" :items="stopChoices" @update:modelValue="selectedId = $event"/>
 			<GsButton v-tooltip="i18n.ts._ColorRamp.AddStop" data-test-color-ramp-add iconOnly icon="ti ti-plus" @click="addStop(0.5)"/>
 			<GsButton v-tooltip="i18n.ts._ColorRamp.RemoveStop" data-test-color-ramp-remove iconOnly danger icon="ti ti-minus" :disabled="modelValue.stops.length <= 1" @click="removeStop"/>
 		</div>
@@ -70,6 +70,10 @@ const emit = defineEmits<{
 const modal = useTemplateRef('modal');
 const selectedId = ref('');
 const selectedStop = computed(() => props.modelValue.stops.find(stop => stop.id === selectedId.value) ?? null);
+const stopChoices = computed(() => props.modelValue.stops.map((stop, index) => ({
+	value: stop.id,
+	label: i18n.tsx._ColorRamp.StopLabel({ index: index + 1, position: stop.position.toFixed(3) }),
+})));
 const track = useTemplateRef('track');
 let stopDrag: (() => void) | null = null;
 

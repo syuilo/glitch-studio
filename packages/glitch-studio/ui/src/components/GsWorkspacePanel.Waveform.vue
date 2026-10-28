@@ -6,6 +6,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
+import type { ComputedRef } from 'vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import GsWaveform from '@/components/GsWaveform.vue';
 
@@ -13,7 +14,9 @@ const props = defineProps<{
 	panel: WorkspacePanel;
 }>();
 
-const verticalPosition = computed(() => props.panel.contentType === 'waveformVertical');
+// WorkspacePanelのcontentTypeはこのコンポーネントを含むパネル定義から導出されるため、
+// 戻り値を明示してコンポーネントとパネル定義の型推論が循環するのを防ぐ。
+const verticalPosition: ComputedRef<boolean> = computed((): boolean => props.panel.contentType === 'waveformVertical');
 </script>
 
 <style module lang="scss">

@@ -12,13 +12,13 @@
 		"./*": "./src/*"
 	},
 	"devDependencies": {
-		"@types/web": "0.0.352",
-		"@typescript-eslint/parser": "8.59.2",
-		"@webgpu/types": "0.1.72",
-		"vite": "8.2.4"
+		"@types/web": "0.0.359",
+		"@typescript-eslint/parser": "8.72.0",
+		"@webgpu/types": "0.1.74",
+		"vite": "8.3.5"
 	},
 	"dependencies": {
 		"@syuilo/aiscript": "1.2.1",
-		"mediabunny": "1.56.2"
+		"mediabunny": "1.62.0"
 	}
 }
