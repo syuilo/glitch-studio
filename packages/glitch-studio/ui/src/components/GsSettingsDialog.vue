@@ -36,13 +36,6 @@
 							<template #label>{{ i18n.ts._Settings.Rendering }}</template>
 
 							<div class="_gaps_l">
-								<GsSelect v-model="previewDisplayMode" large :items="[
-									{ value: 'gpu', label: i18n.ts._Settings.PreviewDisplayGpu },
-									{ value: 'cpu', label: i18n.ts._Settings.PreviewDisplayCpu },
-								]" data-test-preview-display-mode>
-									<template #label>{{ i18n.ts._Settings.PreviewDisplayMode }}</template>
-									<template #caption>{{ i18n.ts._Settings.PreviewDisplayModeHint }}</template>
-								</GsSelect>
 								<GsInput v-model="timelinePreviewFramesAhead" large type="number" :min="0" :max="3" :step="1" data-test-timeline-preview-frames-ahead>
 									<template #label>{{ i18n.ts._Settings.TimelinePreviewFramesAhead }}</template>
 									<template #caption>{{ i18n.ts._Settings.TimelinePreviewFramesAheadHint }}</template>
@@ -66,6 +59,15 @@
 								>
 									<template #label>{{ i18n.ts._Settings.IntermediateTextureFormat }}</template>
 									<template #caption>{{ i18n.ts._Settings.IntermediateTextureFormatHint }}</template>
+								</GsSelect>
+								<GsSelect
+									v-model="previewDisplayMode" large :items="[
+										{ value: 'gpu', label: i18n.ts._Settings.PreviewDisplayGpu },
+										{ value: 'cpu', label: i18n.ts._Settings.PreviewDisplayCpu },
+									]" data-test-preview-display-mode
+								>
+									<template #label>{{ i18n.ts._Settings.PreviewDisplayMode }}</template>
+									<template #caption>{{ i18n.ts._Settings.PreviewDisplayModeHint }}</template>
 								</GsSelect>
 							</div>
 						</GsFolder>

@@ -430,7 +430,7 @@
 		"PreviewDisplayMode": "プレビューの表示方式",
 		"PreviewDisplayGpu": "GPU経由（標準）",
 		"PreviewDisplayCpu": "CPU経由",
-		"PreviewDisplayModeHint": "CPU経由は完成画像を読み戻して表示します。UI描画の影響を抑えられる場合がありますが、CPU・メモリ転送の負荷が増えます。タイムライン・Visual Module Live Previewと映像解析の表示に適用され、変更時はプレビューを再初期化します。",
+		"PreviewDisplayModeHint": "CPU経由は低解像度レンダリングでパフォーマンスが向上する場合がありますが、逆に高解像度では負荷が増えます。",
 		"TimelinePreviewFramesAhead": "タイムラインプレビューの先行フレーム数",
 		"TimelinePreviewFramesAheadHint": "処理中の1フレームに追加できる数。増やすと描画が滑らかになる場合がありますが、操作の反映が遅れたり、メモリ使用量が増える可能性があります。",
 		"InvalidTimelinePreviewFramesAhead": "先行フレーム数には0〜3の整数を指定してください。",
