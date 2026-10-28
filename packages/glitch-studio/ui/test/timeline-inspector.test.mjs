@@ -17,6 +17,7 @@ const result = await build({
 	stdin: { contents: `
 		export { default as Timeline } from './src/components/GsTimeline.vue';
 		export { default as Inspector } from './src/components/GsTimeline.Inspector.vue';
+		export { default as PreviewTransform } from './src/components/GsPreviewTransform.vue';
 		export { appContext } from '@/app.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
@@ -35,18 +36,18 @@ const result = await build({
 		build.onResolve({ filter: /^@\/utility\/(timeline-clip-media|visual-module-file)\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/utility\/timeline-video-hold\.ts$/ }, () => ({ path: 'video-hold', namespace: 'test' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => {
-			if (/GsTimeline(?:\.Inspector(?:\.(?:Clip|Keyframe|Layer))?)?\.vue$/.test(path)) return;
+			if (/GsTimeline(?:\.Inspector(?:\.(?:Clip|Keyframe|Layer))?)?\.vue$|GsPreviewTransform\.vue$/.test(path)) return;
 			return { path: basename(path, '.vue'), namespace: 'control' };
 		});
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
 			app: `import { ref } from 'vue'; export const appContext = {
-				projectContext: { stateManager: null, getVisualModuleById: () => null }, activeSceneId: ref('scene'),
-				previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
+				projectContext: { stateManager: null, getVisualModuleById: () => null }, activeSceneId: ref('scene'), selectedTimelineLayer: ref(null),
+				previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false), isTimelineBaking: ref(false), toggleTimelineBake() {}, refresh() {} },
 				timelineAudioPreview: { buffering: ref(false), error: ref(null) },
-				timelineRendererManagerController: { errorMessage: ref(null), frameCacheState: ref(null), getLayerEffectStates() {}, getEffectLayerState() {} },
+				timelineRendererManagerController: { errorMessage: ref(null), frameCacheState: ref(null), isReady: ref(true), isFrameCacheEnabled: ref(false), layerTransform: ref(null), async observeLayerTransform() {}, getLayerEffectStates() {}, getEffectLayerState() {} },
 			};`,
 			effects: 'export const effectDefinitions = {};',
-			preferences: `import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: true },
+			preferences: `import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: true }, r: { showTransformInPreview: ref(true) },
 				model: key => ref(key === 'timelineTickMode' ? 'binary' : false) };`,
 			ui: `export const dropUiTest = { dialogs: 0 };
 				export function progress() { dropUiTest.dialogs++; return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
@@ -75,9 +76,10 @@ const result = await build({
 	} }],
 });
 const bundled = { exports: {} };
+const testWindow = { document: { getSelection: () => null } };
 new Function('require', 'module', 'exports', 'window', result.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports,
-	{ document: { getSelection: () => null } });
-const { Timeline, Inspector, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest, dropUiTest } = bundled.exports;
+	testWindow);
+const { Timeline, Inspector, PreviewTransform, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest, dropUiTest } = bundled.exports;
 const { startDragSession, finishDragSession } = bundled.exports;
 let dragWindow = null;
 
@@ -100,6 +102,66 @@ const renderer = createRenderer({
 function descendants(root) { return [root, ...root.children.flatMap(descendants)]; }
 
 function textContent(node) { return node.text + node.children.map(textContent).join(''); }
+
+// 【BAKEの開始・フレーム進行で変形枠の購読や再描画を発生させない】
+// 内部の表示更新がBAKEをユーザー操作と誤認して中止しないよう、購読は維持してハンドルだけ隠す。
+// 終了地点でクリップがなくても、終了後には保持していた購読を解除する。
+test('defers transform observation and redraws during baking until the bake ends', async t => {
+	const f = await fixture(t, PreviewTransform);
+	const observations = [];
+	let redraws = 0;
+	t.mock.method(appContext.timelineRendererManagerController, 'observeLayerTransform', async (_owner, sceneId, layerId) => { observations.push([sceneId, layerId]); });
+	t.mock.method(appContext.previewPlayback, 'refresh', () => { redraws++; });
+	const layer = createInlineVisualModuleLayer(0);
+	appContext.selectedTimelineLayer.value = layer;
+	await nextTick();
+	assert.deepEqual(observations, [['scene', layer.id]]);
+	assert.equal(redraws, 1);
+	appContext.previewPlayback.isTimelineBaking.value = true;
+	await nextTick();
+	appContext.previewPlayback.currentTimelineTime.value = 6000;
+	await nextTick();
+	assert.equal(observations.length, 1);
+	assert.equal(redraws, 1);
+	appContext.previewPlayback.isTimelineBaking.value = false;
+	await nextTick();
+	assert.deepEqual(observations.at(-1), [null, null]);
+	assert.equal(redraws, 2);
+	assert.equal(f.history.undoStack.value.length, 0);
+});
+
+// 【ブラウザー版にはBAKEを表示しない】
+// GPUフレームキャッシュはElectron限定のため、保存できない機能の入口を出さない。
+test('omits the bake button in the browser', async t => {
+	const f = await fixture(t, Timeline);
+	assert.equal(f.control('GsButton', 'timeline-bake'), undefined);
+});
+
+// 【Electron版のBAKEボタンは有効状態と実行状態を反映し、再押下できる】
+// キャッシュ無効時や未準備時は開始せず、終端の一枚を待つ間も停止操作は受け付ける。
+test('shows the Electron bake button and keeps it usable to stop an active bake', async t => {
+	testWindow.desktop = {};
+	t.after(() => { delete testWindow.desktop; });
+	const f = await fixture(t, Timeline);
+	const button = () => f.control('GsButton', 'timeline-bake');
+	assert.equal(button().props.disabled, true);
+	appContext.timelineRendererManagerController.isFrameCacheEnabled.value = true;
+	await nextTick();
+	assert.equal(button().props.disabled, false);
+	let presses = 0;
+	t.mock.method(appContext.previewPlayback, 'toggleTimelineBake', () => { presses++; appContext.previewPlayback.isTimelineBaking.value = true; });
+	button().props.onClick();
+	await nextTick();
+	assert.equal(button().props.primary, true);
+	appContext.previewPlayback.currentTimelineTime.value = 5000;
+	await nextTick();
+	assert.equal(button().props.disabled, false);
+	button().props.onClick();
+	assert.equal(presses, 2);
+	appContext.previewPlayback.isTimelineBaking.value = false;
+	await nextTick();
+	assert.equal(button().props.disabled, true);
+});
 
 // 【キャッシュ表示は有効なSceneの範囲だけを描き、LRU削除とfps変更に追従する】
 // 一度描いた帯を残すと、既に破棄された画像や別Sceneを再利用できるように見えてしまう。
@@ -480,7 +542,11 @@ async function fixture(t, component = Inspector) {
 	videoHoldTest.calls = [];
 	videoHoldTest.read = null;
 	appContext.previewPlayback.currentTimelineTime.value = 0;
+	appContext.previewPlayback.isTimelineBaking.value = false;
+	appContext.selectedTimelineLayer.value = null;
 	appContext.timelineRendererManagerController.frameCacheState.value = null;
+	appContext.timelineRendererManagerController.isReady.value = true;
+	appContext.timelineRendererManagerController.isFrameCacheEnabled.value = false;
 	t.mock.method(console, 'log', () => {});
 	const previousResizeObserver = globalThis.ResizeObserver;
 	const previousHTMLElement = globalThis.HTMLElement;
@@ -498,7 +564,7 @@ async function fixture(t, component = Inspector) {
 	const events = [];
 	const root = element();
 	const app = renderer.createApp({ setup: () => () => h(component, {
-		...(component === Timeline ? {
+		...(component === PreviewTransform ? { canvasRect: { left: 0, top: 0, width: 1000, height: 500 } } : component === Timeline ? {
 			sceneId: props.sceneId, inspectorPanelTarget: props.inspectorPanelTarget,
 			onRevealDetails: () => events.push(['revealDetails']),
 		} : {

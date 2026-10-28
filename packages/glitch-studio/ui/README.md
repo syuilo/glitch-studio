@@ -44,6 +44,10 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 参照名は共通定義の中で一意にする。名前変更ダイアログは`GRAPH()`内の参照名を自動変更しないことを案内する。曲線の再生設定は共通定義ではなく参照元のパラメータに保存する。
 
+## TimelineのBAKE
+
+TimelineのBAKEは`PreviewPlaybackController`が現在位置からScene終端までのフレーム進行と中止を管理し、`TimelineRendererManagerController.renderTimelineAtAndWait()`が既存の`frameRendered`通知でGPU描画完了を待ちます。通常シークのスピナーやキャッシュ済み通知の省略とは独立し、BAKEでは毎フレーム完了通知を要求します。通常操作・設定更新・編集・Worker破棄で待機を解除し、レンダラーにはBAKE専用の処理を追加しません。挙動は[タイムライン](../../../docs/timeline.md)を参照してください。
+
 ## Timelineのエクスポート
 
 エクスポートダイアログの解像度はSceneの基準サイズ、フレームレートはプロジェクトのTimeline FPSに対し、0.25x / 0.5x / 1x / 2x / 4xから選ぶ。カスタムでは幅・高さとFPSを直接入力する。MP4では奇数の辺を1px増やして偶数にする。カスタム解像度は書き出し対象Sceneの基準サイズとして使い、その画角で描画する。プロジェクトや子Sceneの基準サイズは変更しない。

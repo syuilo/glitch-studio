@@ -1,6 +1,6 @@
 import { computed, readonly, ref, shallowRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { getTimelinePreviewFrameTime } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
+import { getTimelinePreviewFrameIndex, getTimelinePreviewFrameTime } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -18,7 +18,7 @@ type TimelineAudio = {
 	currentTime(): number;
 	error: { value: string | null };
 };
-type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'cancelSeek' | 'isReady' | 'errorMessage'>;
+type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'renderTimelineAtAndWait' | 'cancelSeek' | 'isReady' | 'errorMessage' | 'isFrameCacheEnabled'>;
 
 /** プレビューの切り替えと時刻更新を所有し、Visual Module Live Previewとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
@@ -28,11 +28,13 @@ export class PreviewPlaybackController {
 	private pendingTimelineSeek = false;
 	private timelineSeekMode: TimelinePreviewSeekMode = 'frame';
 	private readonly suspended = ref(false);
+	private readonly timelineBake = shallowRef<{ stopRequested: boolean } | null>(null);
 	private visualModuleLivePreviewParams: VisualModuleArgumentBindings = {};
 
 	public readonly state = readonly(this.playbackState);
 	public readonly currentTimelineTime = readonly(this.timelineTime);
 	public readonly isTimelinePlaying = computed(() => !this.suspended.value && this.playbackState.value.mode === 'timeline' && this.playbackState.value.playing);
+	public readonly isTimelineBaking = computed(() => this.timelineBake.value != null);
 	public readonly visualModuleLivePreviewVisualModuleId = computed(() => this.playbackState.value.mode === 'visualModuleLivePreview' ? this.playbackState.value.visualModuleId : null);
 
 	constructor(
@@ -65,6 +67,7 @@ export class PreviewPlaybackController {
 	}
 
 	public playTimeline() {
+		this.cancelTimelineBake();
 		if (this.isTimelinePlaying.value) return;
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
@@ -119,6 +122,7 @@ export class PreviewPlaybackController {
 
 	/** 停止と表示時刻の丸めを分け、コマ送りは丸め前の音声時刻から移動先を決める。 */
 	private stopTimelinePlayback() {
+		this.cancelTimelineBake();
 		if (this.isTimelinePlaying.value && this.audio) this.timelineTime.value = this.audio.currentTime();
 		this.audio?.stop();
 		if (this.timelineRafId != null) {
@@ -136,6 +140,7 @@ export class PreviewPlaybackController {
 	}
 
 	public seekTimeline(time: number, isManualSeek = true, seekMode: TimelinePreviewSeekMode = 'frame') {
+		this.cancelTimelineBake();
 		this.leaveVisualModuleLivePreview();
 		this.timelineSeekMode = seekMode;
 		this.timelineTime.value = seekMode === 'precise' ? Math.max(0, time) : this.snapTimelineTime(time);
@@ -165,6 +170,50 @@ export class PreviewPlaybackController {
 		this.seekTimeline(Math.min(this.getDuration(), Math.max(0, frame) * 1000 / fps));
 	}
 
+	/** 実時間の時計を使わず、GPU完了ごとにプレビューの次のフレームを要求する。 */
+	public async toggleTimelineBake(): Promise<void> {
+		const currentBake = this.timelineBake.value;
+		if (currentBake != null) {
+			// 送信済みの描画は取り消せない。再押下では一枚の完了を待って止める。
+			currentBake.stopRequested = true;
+			return;
+		}
+		const fps = this.getTimelinePreviewFps();
+		const duration = this.getDuration();
+		if (this.suspended.value || !this.timelineRenderer.isReady.value || !this.timelineRenderer.isFrameCacheEnabled.value
+			|| this.timelineRenderer.errorMessage.value != null || fps == null || !Number.isFinite(fps) || fps <= 0
+			|| !Number.isFinite(duration) || duration <= 0) return;
+		this.stopTimelinePlayback();
+		this.leaveVisualModuleLivePreview();
+		this.pendingTimelineSeek = false;
+		this.timelineRenderer.cancelSeek();
+		if (this.timelineTime.value >= duration) return;
+		this.timelineSeekMode = 'frame';
+		const endFrame = Math.ceil(duration * fps / 1000);
+		const startFrame = Math.min(endFrame - 1, getTimelinePreviewFrameIndex(this.timelineTime.value, fps));
+		const bake = { stopRequested: false };
+		this.timelineBake.value = bake;
+		try {
+			for (let frame = startFrame; frame < endFrame; frame++) {
+				if (this.timelineBake.value !== bake || bake.stopRequested) break;
+				// 加算を繰り返すと誤差が蓄積するため、常に整数の番号から境界を求める。
+				// キャッシュの有無は通常描画へ委ね、LRUもそのまま適用する。
+				const time = frame * 1000 / fps;
+				this.timelineTime.value = time;
+				if (!await this.timelineRenderer.renderTimelineAtAndWait(time)) break;
+			}
+		} finally {
+			// 通常操作から新しいBAKEが始まっていても、古い待機の終了で止めない。
+			if (this.timelineBake.value === bake) this.timelineBake.value = null;
+		}
+	}
+
+	public cancelTimelineBake() {
+		if (this.timelineBake.value == null) return;
+		this.timelineBake.value = null;
+		this.timelineRenderer.cancelSeek();
+	}
+
 	public updateTimelinePreviewFps() {
 		this.timelineSeekMode = 'frame';
 		if (!this.isTimelinePlaying.value) this.timelineTime.value = this.snapTimelineTime(this.timelineTime.value);
@@ -173,6 +222,7 @@ export class PreviewPlaybackController {
 
 	/** 編集・Undo/Redoでは旧PCMを破棄し、実際に聞こえていた位置から生成し直す。 */
 	public refreshAudio() {
+		this.cancelTimelineBake();
 		if (!this.isTimelinePlaying.value) return;
 		if (this.getDuration() <= 0) { this.pauseTimeline(); return; }
 		if (this.audio) this.timelineTime.value = this.audio.currentTime() % this.getDuration();
@@ -181,6 +231,7 @@ export class PreviewPlaybackController {
 
 	/** 編集による再描画では表示モードを切り替えない。Visual Module Live PreviewはWorkerのループが描画する。 */
 	public refresh() {
+		this.cancelTimelineBake();
 		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
 			const fps = this.getTimelinePreviewFps();
 			// 音声時計自体は丸めない。表示する画像だけを現在位置以前の境界に揃え、
@@ -204,6 +255,7 @@ export class PreviewPlaybackController {
 
 	/** Workerを解放する間も、表示モードと再開位置を保持する。 */
 	public suspend() {
+		this.cancelTimelineBake();
 		if (this.suspended.value) return;
 		this.timelineRenderer.cancelSeek();
 		if (this.isTimelinePlaying.value && this.audio) this.timelineTime.value = this.audio.currentTime();

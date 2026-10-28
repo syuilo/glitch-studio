@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { setImmediate } from 'node:timers/promises';
 
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
@@ -15,6 +16,145 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewPlaybackController } = module.exports;
+
+function setupBake(t, fps = 15, duration = 301, audio) {
+	const fixture = setup(t, fps, audio, duration);
+	const requests = [];
+	let pending = null;
+	fixture.timelineRenderer.isFrameCacheEnabled = { value: true };
+	fixture.timelineRenderer.renderTimelineAtAndWait = time => {
+		assert.equal(pending, null, 'Only one frame may be outstanding');
+		requests.push(time);
+		return new Promise(resolve => { pending = resolve; });
+	};
+	fixture.timelineRenderer.cancelSeek = () => { const resolve = pending; pending = null; resolve?.(false); };
+	return { ...fixture, requests, async completeFrame() {
+		assert.notEqual(pending, null);
+		const resolve = pending;
+		pending = null;
+		resolve(true);
+		await setImmediate();
+	} };
+}
+
+// 【BAKEはプレビューの各境界をGPU完了ごとに進め、Scene終端で停止する】
+// FPS制限やRAFを使うと軽いフレームを速く処理できず、完了待ちを省くと重いフレームが間引かれる。
+// 精密位置から通常境界へ戻すこと、端数のある期間の最後のフレームを含むことも確認する。
+test('bakes every preview frame from the nearest boundary without a playback clock', async t => {
+	const f = setupBake(t);
+	f.playback.seekTimeline(120, true, 'precise');
+	const finished = f.playback.toggleTimelineBake();
+	assert.equal(f.playback.isTimelineBaking.value, true);
+	assert.equal(f.playback.isTimelinePlaying.value, false);
+	assert.deepEqual(f.requests, [2 * 1000 / 15]);
+	await setImmediate();
+	assert.equal(f.requests.length, 1);
+	for (let frame = 2; frame <= 4; frame++) {
+		assert.equal(f.playback.currentTimelineTime.value, frame * 1000 / 15);
+		await f.completeFrame();
+	}
+	await finished;
+	assert.deepEqual(f.requests, [2, 3, 4].map(frame => frame * 1000 / 15));
+	assert.equal(f.playback.isTimelineBaking.value, false);
+	assert.equal(f.playback.currentTimelineTime.value, 4 * 1000 / 15);
+	assert.equal(f.callbacks.size, 0);
+	f.playback.refresh();
+	assert.equal(f.calls.at(-1)[1], 4 * 1000 / 15);
+});
+
+// 【BAKEの再押下は処理中の一枚を待ち、次のフレームを送らない】
+// GPU処理を途中で取り消せるように見せず、停止後も描画済みの位置を維持する。
+test('stops a bake after the outstanding frame completes when toggled again', async t => {
+	const f = setupBake(t);
+	const finished = f.playback.toggleTimelineBake();
+	await f.playback.toggleTimelineBake();
+	assert.equal(f.playback.isTimelineBaking.value, true);
+	assert.equal(f.requests.length, 1);
+	await f.completeFrame();
+	await finished;
+	assert.equal(f.playback.isTimelineBaking.value, false);
+	assert.equal(f.requests.length, 1);
+	assert.equal(f.playback.currentTimelineTime.value, 0);
+});
+
+for (const [name, action] of [
+	['seek', playback => playback.seekTimeline(200)],
+	['play', playback => playback.playTimeline()],
+	['pause', playback => playback.pauseTimeline()],
+	['edit redraw', playback => playback.refresh()],
+	['frame step', playback => playback.stepTimelineFrame(1)],
+	['FPS change', playback => playback.updateTimelinePreviewFps()],
+	['audio edit', playback => playback.refreshAudio()],
+	['suspend', playback => playback.suspend()],
+	['Visual Module Live Preview', playback => playback.startVisualModuleLivePreview('visualModule')],
+	['dispose', playback => playback.dispose()],
+]) {
+	// 【通常操作はBAKEを中止し、遅れて届く描画完了から処理を再開しない】
+	// ボタン以外の入口や書き出し・Scene切り替えでも待機を残さず、ユーザーの操作を優先する。
+	test(`cancels baking before ${name}`, async t => {
+		const f = setupBake(t);
+		const finished = f.playback.toggleTimelineBake();
+		action(f.playback);
+		assert.equal(f.playback.isTimelineBaking.value, false);
+		await finished;
+		assert.equal(f.requests.length, 1);
+	});
+}
+
+// 【旧BAKEの待機が解けても新しく開始したBAKEを終了させない】
+// 通常操作と再開が同じイベント内で続く場合、古い非同期処理のfinallyは後から実行される。
+test('keeps a restarted bake running after the previous bake is cancelled', async t => {
+	const f = setupBake(t);
+	const previous = f.playback.toggleTimelineBake();
+	f.playback.seekTimeline(200);
+	const current = f.playback.toggleTimelineBake();
+	await previous;
+	assert.equal(f.playback.isTimelineBaking.value, true);
+	assert.deepEqual(f.requests, [0, 200]);
+	await f.playback.toggleTimelineBake();
+	await f.completeFrame();
+	await current;
+});
+
+// 【BAKE開始時は音声と通常再生を止め、音声の現在位置から開始する】
+// RAFで更新された表示位置が古くても、実際に再生していた時刻から最寄りの境界へ揃える。
+test('stops audio and playback before baking from the current audio time', async t => {
+	let position = 0;
+	let starts = 0;
+	let stops = 0;
+	const audio = { error: { value: null }, start() { starts++; }, stop() { stops++; }, currentTime: () => position };
+	const f = setupBake(t, 15, 1000, audio);
+	f.playback.playTimeline();
+	position = 120;
+	const finished = f.playback.toggleTimelineBake();
+	assert.equal(f.playback.isTimelinePlaying.value, false);
+	assert.equal(f.callbacks.size, 0);
+	assert.equal(starts, 1);
+	assert.ok(stops > 0);
+	assert.deepEqual(f.requests, [2 * 1000 / 15]);
+	await f.playback.toggleTimelineBake();
+	await f.completeFrame();
+	await finished;
+});
+
+// 【無効なキャッシュ・未準備・エラー・空SceneではBAKEを開始しない】
+// 保存できない状態で空回りする要求を送らず、精密シークでSceneの外へ移動していてもループさせない。
+test('does not bake without an available frame cache or a valid frame range', async t => {
+	const f = setupBake(t);
+	f.timelineRenderer.isFrameCacheEnabled.value = false;
+	await f.playback.toggleTimelineBake();
+	f.timelineRenderer.isFrameCacheEnabled.value = true;
+	f.timelineRenderer.isReady.value = false;
+	await f.playback.toggleTimelineBake();
+	f.timelineRenderer.isReady.value = true;
+	f.timelineRenderer.errorMessage.value = 'GPU failed';
+	await f.playback.toggleTimelineBake();
+	f.timelineRenderer.errorMessage.value = null;
+	f.playback.seekTimeline(500, true, 'precise');
+	await f.playback.toggleTimelineBake();
+	assert.deepEqual(f.requests, []);
+	assert.equal(f.playback.isTimelineBaking.value, false);
+});
 
 // 【通常シークはプレビューfpsに揃え、精密位置は停止中の再描画でも保持する】
 // 修飾キーを離した後や編集後に勝手に丸めると、任意時刻の確認を継続できない。

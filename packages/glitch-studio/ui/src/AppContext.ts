@@ -462,6 +462,7 @@ export class AppContext {
 
 		// UndoでVisual Module Live Preview対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
 		this.projectWatchers.push(this.projectContext.stateManager.onChange(changes => {
+			this.previewPlayback.cancelTimelineBake();
 			const visualModuleLivePreviewVisualModuleId = this.previewPlayback.visualModuleLivePreviewVisualModuleId.value;
 			if (visualModuleLivePreviewVisualModuleId != null && changes.some(change => change.type === 'visualModuleRegistration' && change.visualModuleId === visualModuleLivePreviewVisualModuleId)
 				&& this.projectContext.getVisualModuleById(visualModuleLivePreviewVisualModuleId) == null) this.previewPlayback.showTimeline();

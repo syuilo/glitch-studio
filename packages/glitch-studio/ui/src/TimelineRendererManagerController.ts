@@ -18,8 +18,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public get transformPreviewRevision() { return this.dynamicOptions.previewRevision ?? 0; }
 	public readonly previewStatistics = shallowRef<TimelinePreviewStatistics | null>(null);
 	public readonly frameCacheState = shallowRef<TimelinePreviewFrameCacheState | null>(null);
+	private readonly frameCacheMaxBytes = ref(0);
+	public readonly isFrameCacheEnabled = computed(() => this.frameCacheMaxBytes.value > 0);
 	private seekRequestId = 0;
 	private pendingSeek = shallowRef<{ requestId: number; time: number } | null>(null);
+	private pendingFrameCompletion: { requestId: number; time: number; resolve: (completed: boolean) => void } | null = null;
 	public readonly isSeeking = computed(() => this.pendingSeek.value != null);
 	private transformRequestId = 0;
 	private transformObservers = new Map<object, { sceneId: string; layerId: string }>();
@@ -97,9 +100,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 					}
 				},
 				frameRendered: ctx => {
+					if (!this.isReady.value || ctx.sceneId !== (this.dynamicOptions.sceneId ?? null) || ctx.revision !== this.dynamicOptions.previewRevision) return;
+					const completion = this.pendingFrameCompletion;
+					if (completion != null && ctx.requestId === completion.requestId && ctx.time === completion.time) this.finishFrameCompletion(true);
 					const pending = this.pendingSeek.value;
-					if (this.isReady.value && pending != null && ctx.requestId === pending.requestId && ctx.time === pending.time
-						&& ctx.sceneId === (this.dynamicOptions.sceneId ?? null) && ctx.revision === this.dynamicOptions.previewRevision) this.cancelSeek();
+					if (pending != null && ctx.requestId === pending.requestId && ctx.time === pending.time) this.cancelSeek();
 				},
 				layerTransform: ctx => {
 					if (this.isReady.value && ctx.request.requestId === this.dynamicOptions.transformObserver?.requestId
@@ -147,10 +152,12 @@ export class TimelineRendererManagerController extends RendererManagerController
 		this.waveformVerticalCanvas.style.height = '100%';
 		this.staticOptions = deepClone(staticOptions);
 		this.dynamicOptions = { ...this.dynamicOptions, ...dynamicOptions };
+		this.frameCacheMaxBytes.value = dynamicOptions.frameCacheMaxBytes ?? 0;
 	}
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
+		if (options.frameCacheMaxBytes != null) this.frameCacheMaxBytes.value = options.frameCacheMaxBytes;
 		if (['assets', 'resolution', 'resolutionScale', 'visualModules', 'timelineScenes', 'automationGraphs', 'sceneId', 'previewFps', 'generatedSpeech', 'frameCacheMaxBytes'].some(key => Object.hasOwn(options, key))) this.frameCacheState.value = null;
 		if (Object.hasOwn(options, 'sceneId') && options.sceneId !== this.dynamicOptions.sceneId) {
 			this.cancelSeek();
@@ -204,6 +211,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 	}
 
 	public async updateStaticOptions(newStaticOptions: Partial<TimelineRendererManagerStaticOptions>): Promise<void> {
+		this.finishFrameCompletion(false);
 		const options = { ...this.staticOptions, ...deepClone(newStaticOptions) };
 		this.staticOptions = options;
 		// 解放中は設定のみ保持する。Worker障害時は再生成して復旧できるようにする。
@@ -217,6 +225,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 	}
 
 	public renderTimelineAt(time: number, isManualSeek = false, seekMode: TimelinePreviewSeekMode = 'frame') {
+		this.finishFrameCompletion(false);
 		if (!this.isReady.value) return;
 		// 既知のキャッシュなら完了通知を要求しない。未描画フレームから移動した場合も
 		// 以前の待機状態を解除し、キャッシュされた画像の表示にスピナーを重ねない。
@@ -227,6 +236,29 @@ export class TimelineRendererManagerController extends RendererManagerController
 		// 古い状態の完了はrevisionで除外し、新しい状態の描画が終わるまで表示を続ける。
 		const requestId = this.pendingSeek.value?.requestId;
 		this.call('renderTimelineAt', seekMode === 'precise' ? [time, requestId ?? null, seekMode] : requestId == null ? [time] : [time, requestId]);
+	}
+
+	/** BAKEはキャッシュ済みでもGPU描画の完了を待つ。通常シークのスピナーとは分けて管理する。 */
+	public renderTimelineAtAndWait(time: number): Promise<boolean> {
+		this.cancelSeek();
+		if (!this.isReady.value || this.errorMessage.value != null) return Promise.resolve(false);
+		return new Promise(resolve => {
+			const requestId = ++this.seekRequestId;
+			this.pendingFrameCompletion = { requestId, time, resolve };
+			try {
+				// RPCの戻り値は、既に描画中なら要求の登録だけで返る。requestId付きの
+				// frameRenderedを使い、GPU完了前に次のフレームを送らないようにする。
+				this.call('renderTimelineAt', [time, requestId]);
+			} catch (error) {
+				this.reportRenderFailure(error instanceof Error ? error : new Error(String(error)));
+			}
+		});
+	}
+
+	private finishFrameCompletion(completed: boolean) {
+		const pending = this.pendingFrameCompletion;
+		this.pendingFrameCompletion = null;
+		pending?.resolve(completed);
 	}
 
 	private hasCachedPreviewFrame(time: number, seekMode: TimelinePreviewSeekMode): boolean {
@@ -242,10 +274,13 @@ export class TimelineRendererManagerController extends RendererManagerController
 	}
 
 	public cancelSeek() {
+		this.finishFrameCompletion(false);
 		this.pendingSeek.value = null;
 	}
 
 	private invalidateTransformPreview() {
+		// 設定・選択・編集の更新で完了通知の世代が変わる。旧要求を待ち続けずBAKEを中止する。
+		this.finishFrameCompletion(false);
 		this.layerTransform.value = null;
 		return this.dynamicOptions.previewRevision = (this.dynamicOptions.previewRevision ?? 0) + 1;
 	}

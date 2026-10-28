@@ -66,18 +66,21 @@ const transformObserver = {};
 
 const target = computed(() => {
 	const layer = selectedTimelineLayer.value;
-	if (!preferences.r.showTransformInPreview.value || !timelineRendererManagerController.isReady.value || previewPlayback.state.value.mode !== 'timeline' || previewPlayback.isTimelinePlaying.value
+	if (!preferences.r.showTransformInPreview.value || !timelineRendererManagerController.isReady.value || previewPlayback.state.value.mode !== 'timeline' || previewPlayback.isTimelinePlaying.value || previewPlayback.isTimelineBaking.value
 		|| !layer || !isTimelineVisualLayer(layer) || layer.isDisabled || activeSceneId.value == null) return null;
 	if (layer.layerType === 'group') return { sceneId: activeSceneId.value, layerId: layer.id, clipId: null };
 	const clip = layer.clips.find(clip => isTimelineClipActive(clip, previewPlayback.currentTimelineTime.value));
 	return clip ? { sceneId: activeSceneId.value, layerId: layer.id, clipId: clip.id } : null;
 });
 
-watch(() => target.value ? JSON.stringify([target.value.sceneId, target.value.layerId]) : null, async () => {
+watch([previewPlayback.isTimelineBaking, () => target.value ? JSON.stringify([target.value.sceneId, target.value.layerId]) : null], async ([baking]) => {
 	stopDrag?.();
+	// BAKEの開始・フレーム進行で購読を変更すると、設定世代が進んで完了待ちを中断してしまう。
+	// ハンドルだけを隠し、購読の再設定と再描画は終了後にまとめて行う。
+	if (baking) return;
 	const current = target.value;
 	await timelineRendererManagerController.observeLayerTransform(transformObserver, current?.sceneId ?? null, current?.layerId ?? null);
-	previewPlayback.refresh();
+	if (!previewPlayback.isTimelineBaking.value) previewPlayback.refresh();
 }, { immediate: true });
 
 const renderedPreview = computed(() => {

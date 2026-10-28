@@ -108,6 +108,80 @@ async function initialize(controller, workers) {
 	return worker;
 }
 
+// 【BAKEはキャッシュ済みでも自身の描画完了通知を待ち、通常シークのスピナーは出さない】
+// RPCの応答や過去の通知では次へ進めない。UIが持つキャッシュ範囲の遅延にも依存させない。
+test('waits for the requested bake frame even when it is cached and rejects stale completions', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	worker.reply({ type: 'ev', ev: { type: 'frameCache', ctx: {
+		sceneId: null, contentRevision: 1, previewRevision: 0, fps: 60,
+		frameRanges: [{ startFrame: 0, endFrame: 1 }], estimatedBytes: 4, maxBytes: 16,
+	} } });
+	let result = null;
+	const waiting = controller.renderTimelineAtAndWait(0).then(value => { result = value; });
+	const [time, requestId] = worker.calls('renderTimelineAt').at(-1).args;
+	assert.equal(time, 0);
+	assert.equal(typeof requestId, 'number');
+	assert.equal(controller.isSeeking.value, false);
+	const current = { requestId, time, sceneId: null, revision: 0 };
+	const notify = ctx => worker.reply({ type: 'ev', ev: { type: 'frameRendered', ctx } });
+	for (const stale of [{ ...current, requestId: requestId - 1 }, { ...current, time: 1 },
+		{ ...current, sceneId: 'old' }, { ...current, revision: -1 }]) notify(stale);
+	await setImmediate();
+	assert.equal(result, null);
+	notify(current);
+	await waiting;
+	assert.equal(result, true);
+});
+
+for (const action of ['redraw', 'cancel', 'dynamic options', 'project edit', 'dispose', 'render failure', 'send failure']) {
+	// 【通常描画・更新・失敗・破棄でBAKEの完了待ちを解除する】
+	// 取り消された要求には通知が来ないため、正常完了とは区別してfalseで中止を伝える。
+	test(`cancels a bake frame completion on ${action}`, async t => {
+		const { controller, workers } = fixture(t, 'Timeline');
+		const worker = await initialize(controller, workers);
+		const waiting = controller.renderTimelineAtAndWait(0);
+		if (action === 'redraw') controller.renderTimelineAt(0);
+		if (action === 'cancel') controller.cancelSeek();
+		if (action === 'dynamic options' || action === 'project edit') {
+			const method = action === 'dynamic options' ? 'updateDynamicOptions' : 'applyProjectChanges';
+			const update = action === 'dynamic options' ? controller.updateDynamicOptions({ highlightClipping: true }) : controller.applyProjectChanges([]);
+			worker.returnValue(worker.calls(method).at(-1), {});
+			await update;
+		}
+		if (action === 'dispose') controller.disposeManager();
+		if (action === 'render failure') worker.reply({ type: 'ev', ev: { type: 'renderError', ctx: { message: 'GPU failed' } } });
+		if (action === 'send failure') {
+			worker.sendError = new Error('Cannot post frame');
+			assert.equal(await controller.renderTimelineAtAndWait(100), false);
+		}
+		assert.equal(await waiting, false);
+	});
+}
+
+// 【Worker再生成を伴う設定変更でもBAKE待機を残さず、容量の有効状態を通知前に反映する】
+// BAKE開始可否は間引かれるキャッシュ通知に依存させず、保持している設定から判断する。
+test('cancels bake waits for static changes and tracks configured cache availability', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	assert.equal(controller.isFrameCacheEnabled.value, false);
+	const capacity = controller.updateDynamicOptions({ frameCacheMaxBytes: 100 });
+	assert.equal(controller.isFrameCacheEnabled.value, true);
+	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
+	await capacity;
+	const waiting = controller.renderTimelineAtAndWait(0);
+	const changing = controller.updateStaticOptions({ enableStats: true });
+	assert.equal(await waiting, false);
+	const next = workers.at(-1);
+	await next.initialization.promise;
+	next.reply({ type: 'inited' });
+	await changing;
+	const disabled = controller.updateDynamicOptions({ frameCacheMaxBytes: 0 });
+	assert.equal(controller.isFrameCacheEnabled.value, false);
+	next.returnValue(next.calls('updateDynamicOptions').at(-1), {});
+	await disabled;
+});
+
 // 【現在のScene・編集世代の計測結果だけを表示し、Scene変更とWorker破棄で消去する】
 // 通知は描画とは別の周期で届く。遅れた統計を採用すると、編集後や再起動後も
 // 古い動画の待ち時間が表示されるため、シーク完了通知と同じ状態の境界で確認する。

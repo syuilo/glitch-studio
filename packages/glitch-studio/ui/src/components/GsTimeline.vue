@@ -16,6 +16,15 @@
 			<span :class="$style.headerMajorDivider"></span>
 		</div>
 		<div :class="$style.headerCenter" style="gap: 20px;">
+			<GsButton
+				v-if="isDesktop"
+				data-test-timeline-bake
+				:primary="previewPlayback.isTimelineBaking.value"
+				:disabled="!previewPlayback.isTimelineBaking.value && (!timelineRendererManagerController.isReady.value || !timelineRendererManagerController.isFrameCacheEnabled.value || timelineRendererManagerController.errorMessage.value != null || duration <= 0 || time >= duration)"
+				@click="previewPlayback.toggleTimelineBake()"
+			>
+				{{ i18n.ts._Timeline.Bake }}
+			</GsButton>
 			<GsButton v-tooltip="i18n.ts._Timeline.CueShortcut" :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent>{{ i18n.ts._Timeline.Cue }}</GsButton>
 			<div style="display: flex; gap: 4px;">
 				<GsButton v-tooltip="i18n.ts._Timeline.GoToStart" iconOnly icon="ti ti-player-skip-back" @click="seek(0)"/>
@@ -196,6 +205,7 @@ import { useDragSession } from '@/composables/useDragSession.ts';
 
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
+const isDesktop = window.desktop != null;
 
 const props = defineProps<{ sceneId: string; inspectorPanelTarget?: HTMLElement | null }>();
 const frameCacheState = computed(() => {
@@ -424,7 +434,7 @@ const viewport = useTimelineViewport({
 	layersElement: layersEl,
 	savedState: editorState,
 	currentTime: time,
-	isPlaying: previewPlayback.isTimelinePlaying,
+	isPlaying: computed(() => previewPlayback.isTimelinePlaying.value || previewPlayback.isTimelineBaking.value),
 	followPlayhead,
 	tickMode,
 	tickSubdivisions,

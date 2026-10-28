@@ -272,6 +272,35 @@ function project(overrides = {}) {
 	};
 }
 
+// 【描画へ送らない表示名の編集でもBAKEをその場で中止する】
+// レンダラー同期や次の描画通知に頼ると、名前変更などでは中止されない。
+// 通常のCommand購読で止め、BAKE自体がUndo履歴を増やさないことも確認する。
+test('cancels baking synchronously on metadata edits without adding bake history', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const { appContext } = app;
+	await app.newProject();
+	t.after(() => appContext.previewPlayback.dispose());
+	appContext.previewPlayback.seekTimeline(0);
+	await setImmediate();
+	const timeline = appContext.timelineRendererManagerController;
+	const gate = Promise.withResolvers();
+	let frameRequested = false;
+	timeline.isFrameCacheEnabled = { value: true };
+	timeline.renderTimelineAtAndWait = () => { frameRequested = true; return gate.promise; };
+	timeline.cancelSeek = () => { if (frameRequested) gate.resolve(false); };
+	const manager = appContext.projectContext.stateManager;
+	const scene = manager.state.timelineScenes.value[0];
+	const historyLength = manager.undoStack.value.length;
+	const baking = appContext.previewPlayback.toggleTimelineBake();
+	assert.equal(appContext.previewPlayback.isTimelineBaking.value, true);
+	assert.equal(manager.undoStack.value.length, historyLength);
+	manager.commit('renameTimelineLayer', { sceneId: scene.id, layerId: scene.layers[0].id, name: 'Renamed while baking' });
+	assert.equal(appContext.previewPlayback.isTimelineBaking.value, false);
+	await baking;
+	assert.equal(manager.undoStack.value.length, historyLength + 1);
+});
+
 // 【不正な設定も読み込んで編集でき、修正した最新状態から両エンジンを生成する】
 // レンダラー側で更新を拒否するとUIとWorkerの状態が食い違い、循環を直す編集も失敗する。
 test('keeps invalid projects editable and recreates both previews after correction', async t => {
