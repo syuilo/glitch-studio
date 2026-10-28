@@ -75,6 +75,7 @@ const appBundle = await build({
 					import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 					export class VisualModuleRendererManagerController {
 						isReady = ref(false); errorMessage = ref(null);
+						frameCacheUsageRatio = ref(null);
 						updates = []; renders = []; lifecycle = [];
 						staticUpdates = [];
 						patches = []; snapshots = [];

@@ -1,4 +1,4 @@
-import { computed, readonly, ref, shallowRef } from 'vue';
+import { computed, readonly, ref, shallowRef, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { getTimelinePreviewFrameIndex, getTimelinePreviewFrameTime } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
@@ -18,7 +18,7 @@ type TimelineAudio = {
 	currentTime(): number;
 	error: { value: string | null };
 };
-type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'renderTimelineAtAndWait' | 'cancelSeek' | 'isReady' | 'errorMessage' | 'isFrameCacheEnabled'>;
+type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'renderTimelineAtAndWait' | 'cancelSeek' | 'isReady' | 'errorMessage' | 'isFrameCacheEnabled' | 'frameCacheUsageRatio'>;
 
 /** プレビューの切り替えと時刻更新を所有し、Visual Module Live Previewとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
@@ -190,6 +190,11 @@ export class PreviewPlaybackController {
 		const startFrame = Math.min(endFrame - 1, getTimelinePreviewFrameIndex(this.timelineTime.value, fps));
 		const bake = { stopRequested: false };
 		this.timelineBake.value = bake;
+		const stopWatchingCacheUsage = watch(() => this.timelineRenderer.frameCacheUsageRatio.value, ratio => {
+			// 容量通知は間引かれるため、超過を一度検知したら停止要求を保持する。
+			// GPU処理は取り消さず、手動停止と同じく現在の一枚が終わってから止める。
+			if (ratio != null && ratio > 0.9) bake.stopRequested = true;
+		}, { immediate: true, flush: 'sync' });
 		try {
 			for (let frame = startFrame; frame < endFrame; frame++) {
 				if (this.timelineBake.value !== bake || bake.stopRequested) break;
@@ -200,6 +205,7 @@ export class PreviewPlaybackController {
 				if (!await this.timelineRenderer.renderTimelineAtAndWait(time)) break;
 			}
 		} finally {
+			stopWatchingCacheUsage();
 			// 通常操作から新しいBAKEが始まっていても、古い待機の終了で止めない。
 			if (this.timelineBake.value === bake) this.timelineBake.value = null;
 		}

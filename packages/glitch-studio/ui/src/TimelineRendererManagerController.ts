@@ -20,6 +20,10 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public readonly frameCacheState = shallowRef<TimelinePreviewFrameCacheState | null>(null);
 	private readonly frameCacheMaxBytes = ref(0);
 	public readonly isFrameCacheEnabled = computed(() => this.frameCacheMaxBytes.value > 0);
+	public readonly frameCacheUsageRatio = computed(() => {
+		const cache = this.frameCacheState.value;
+		return cache != null && cache.maxBytes > 0 ? cache.estimatedBytes / cache.maxBytes : null;
+	});
 	private seekRequestId = 0;
 	private pendingSeek = shallowRef<{ requestId: number; time: number } | null>(null);
 	private pendingFrameCompletion: { requestId: number; time: number; resolve: (completed: boolean) => void } | null = null;

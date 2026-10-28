@@ -108,6 +108,32 @@ async function initialize(controller, workers) {
 	return worker;
 }
 
+// 【推定使用量と最大容量から丸めない使用率を求め、未通知・無効時は不明とする】
+// UI表示とBAKEの停止判定で同じ比率を使う。容量変更やWorker破棄後の古い値を残したり、
+// 最大容量0で除算してInfinityを表示したりしない。
+test('reports the unrounded cache usage ratio and clears it across capacity changes and disposal', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	assert.equal(controller.frameCacheUsageRatio.value, null);
+	const state = { sceneId: null, contentRevision: 1, previewRevision: 0, fps: 60,
+		frameRanges: [], estimatedBytes: 0, maxBytes: 1000000 };
+	const notify = ctx => worker.reply({ type: 'ev', ev: { type: 'frameCache', ctx } });
+	notify(state);
+	assert.equal(controller.frameCacheUsageRatio.value, 0);
+	notify({ ...state, estimatedBytes: 900001 });
+	assert.equal(controller.frameCacheUsageRatio.value, 0.900001);
+	const update = controller.updateDynamicOptions({ frameCacheMaxBytes: 0 });
+	assert.equal(controller.frameCacheUsageRatio.value, null);
+	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
+	await update;
+	notify({ ...state, previewRevision: 1, maxBytes: 0 });
+	assert.equal(controller.frameCacheUsageRatio.value, null);
+	notify({ ...state, previewRevision: 1, estimatedBytes: 500000 });
+	assert.equal(controller.frameCacheUsageRatio.value, 0.5);
+	controller.disposeManager();
+	assert.equal(controller.frameCacheUsageRatio.value, null);
+});
+
 // 【BAKEはキャッシュ済みでも自身の描画完了通知を待ち、通常シークのスピナーは出さない】
 // RPCの応答や過去の通知では次へ進めない。UIが持つキャッシュ範囲の遅延にも依存させない。
 test('waits for the requested bake frame even when it is cached and rejects stale completions', async t => {

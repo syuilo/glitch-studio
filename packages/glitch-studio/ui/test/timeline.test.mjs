@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { setImmediate } from 'node:timers/promises';
+import { ref } from 'vue';
 
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
@@ -11,6 +12,7 @@ const bundled = await build({
 	bundle: true,
 	platform: 'node',
 	format: 'cjs',
+	external: ['vue'],
 	write: false,
 });
 const module = { exports: {} };
@@ -115,6 +117,7 @@ function setupBake(t, fps = 15, duration = 301, audio) {
 	const requests = [];
 	let pending = null;
 	fixture.timelineRenderer.isFrameCacheEnabled = { value: true };
+	fixture.timelineRenderer.frameCacheUsageRatio = ref(null);
 	fixture.timelineRenderer.renderTimelineAtAndWait = time => {
 		assert.equal(pending, null, 'Only one frame may be outstanding');
 		requests.push(time);
@@ -168,6 +171,55 @@ test('stops a bake after the outstanding frame completes when toggled again', as
 	assert.equal(f.playback.isTimelineBaking.value, false);
 	assert.equal(f.requests.length, 1);
 	assert.equal(f.playback.currentTimelineTime.value, 0);
+});
+
+// 【使用率90%ちょうどでは継続し、丸め前の値が超過したら描画中の一枚を待って止める】
+// 表示の小数一桁へ丸めてから比較すると、90.0%と表示される僅かな超過を見逃す。
+// 完了前に次の要求を送ったり、送信済みのフレームの待機を途中で解除したりしない。
+test('continues at ninety percent and stops after the current frame when raw usage exceeds it', async t => {
+	const f = setupBake(t);
+	const finished = f.playback.toggleTimelineBake();
+	f.timelineRenderer.frameCacheUsageRatio.value = 0.9;
+	await f.completeFrame();
+	assert.equal(f.requests.length, 2);
+	f.timelineRenderer.frameCacheUsageRatio.value = 0.900001;
+	await setImmediate();
+	assert.equal(f.playback.isTimelineBaking.value, true);
+	assert.equal(f.requests.length, 2);
+	await f.completeFrame();
+	await finished;
+	assert.equal(f.requests.length, 2);
+	assert.equal(f.playback.isTimelineBaking.value, false);
+	assert.equal(f.playback.currentTimelineTime.value, 1000 / 15);
+});
+
+// 【開始時点で90%超過が分かっていれば追加のフレームを要求しない】
+// 自動停止直後の再押下で再びキャッシュを増やさず、使用率が下がれば通常どおり再開できる。
+test('does not request bake frames when already above ninety percent and can restart after usage falls', async t => {
+	const f = setupBake(t);
+	f.timelineRenderer.frameCacheUsageRatio.value = 0.95;
+	await f.playback.toggleTimelineBake();
+	assert.deepEqual(f.requests, []);
+	assert.equal(f.playback.isTimelineBaking.value, false);
+	f.timelineRenderer.frameCacheUsageRatio.value = 0.5;
+	const finished = f.playback.toggleTimelineBake();
+	assert.deepEqual(f.requests, [0]);
+	await f.playback.toggleTimelineBake();
+	await f.completeFrame();
+	await finished;
+});
+
+// 【超過通知を受けた後に使用率が下がっても停止要求を保持する】
+// キャッシュ削除などの通知が描画完了より先に届いても、一度検知した停止を取り消さない。
+test('keeps an automatic stop request after cache usage falls before frame completion', async t => {
+	const f = setupBake(t);
+	const finished = f.playback.toggleTimelineBake();
+	f.timelineRenderer.frameCacheUsageRatio.value = 0.91;
+	f.timelineRenderer.frameCacheUsageRatio.value = 0.5;
+	await f.completeFrame();
+	await finished;
+	assert.equal(f.requests.length, 1);
+	assert.equal(f.playback.isTimelineBaking.value, false);
 });
 
 for (const [name, action] of [
