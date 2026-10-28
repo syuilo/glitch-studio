@@ -41,7 +41,8 @@ function evaluate(bundle) {
 // 【環境設定の適用では、編集したバックアップのフィールドだけを保存する】
 // 古い画面で間隔だけを変えても、別の画面で無効化した設定まで元に戻してはならない。
 // 保存キーを細分化しただけでは、適用時に全フィールドを書き戻す実装を防げない。
-test('applies only edited backup fields without reverting another windows saved choices', async t => {
+// ブラウザー版のキャッシュ容量も表示・検証・保存でき、未編集時には書き戻さないことを確認する。
+test('applies only edited settings and validates the browser frame cache capacity', async t => {
 	const previousWindow = globalThis.window;
 	const storage = new Map([['preferences:projectBackupAutoEnabled', 'true'], ['locale', 'ja-JP']]);
 	const writes = [];
@@ -82,4 +83,17 @@ test('applies only edited backup fields without reverting another windows saved 
 	assert.equal(preferences.s.projectBackupAutoEnabled, true);
 	assert.equal(storage.get('locale'), 'en-US');
 	assert.deepEqual(window.settingsTestLocaleChanges, []);
+	const capacity = find('data-test-timeline-frame-cache-capacity');
+	assert.equal(capacity.props.modelValue, 2);
+	capacity.props['onUpdate:modelValue'](-1);
+	await nextTick();
+	assert.equal(find('data-test-settings-apply').props.disabled, true);
+	await find('data-test-settings-apply').props.onClick();
+	assert.deepEqual(writes, ['preferences:projectBackupAutoIntervalMinutes']);
+	capacity.props['onUpdate:modelValue'](1);
+	await nextTick();
+	assert.equal(find('data-test-settings-apply').props.disabled, false);
+	await find('data-test-settings-apply').props.onClick();
+	assert.equal(preferences.s.timelineFrameCacheMaxGiB, 1);
+	assert.equal(storage.get('preferences:timelineFrameCacheMaxGiB'), '1');
 });

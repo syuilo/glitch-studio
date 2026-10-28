@@ -36,7 +36,7 @@
 							<template #label>{{ i18n.ts._Settings.Rendering }}</template>
 
 							<div class="_gaps_l">
-								<GsInput v-if="desktopAvailable" v-model="timelineFrameCacheMaxGiB" large type="number" :min="0" :step="0.25" data-test-timeline-frame-cache-capacity>
+								<GsInput v-model="timelineFrameCacheMaxGiB" large type="number" :min="0" :step="0.25" data-test-timeline-frame-cache-capacity>
 									<template #label>{{ i18n.ts._Settings.TimelineFrameCacheCapacity }}</template>
 									<template #suffix>GiB</template>
 									<template #caption>{{ i18n.ts._Settings.TimelineFrameCacheCapacityHint }}</template>
@@ -130,8 +130,8 @@ const visualModuleAutoConnectOnNodeAdd = ref(preferences.s.visualModuleAutoConne
 const validationError = computed(() => {
 	try {
 		validateProjectBackupSettings(settings.value);
-		if (desktopAvailable && (!Number.isFinite(timelineFrameCacheMaxGiB.value) || timelineFrameCacheMaxGiB.value < 0
-			|| !Number.isSafeInteger(Math.floor(timelineFrameCacheMaxGiB.value * 1024 ** 3)))) return i18n.ts._Settings.InvalidFrameCacheCapacity;
+		if (!Number.isFinite(timelineFrameCacheMaxGiB.value) || timelineFrameCacheMaxGiB.value < 0
+			|| !Number.isSafeInteger(Math.floor(timelineFrameCacheMaxGiB.value * 1024 ** 3))) return i18n.ts._Settings.InvalidFrameCacheCapacity;
 		return null;
 	} catch (error) { return error instanceof Error ? error.message : String(error); }
 });
@@ -148,7 +148,7 @@ async function apply() {
 	preferences.commit('projectBackupSaveRetentionDays', settings.value.saveRetentionDays);
 	preferences.commit('enable32bitDataTextures', enable32bitDataTextures.value);
 	preferences.commit('intermediateTextureFormat', intermediateTextureFormat.value);
-	if (desktopAvailable) preferences.commit('timelineFrameCacheMaxGiB', timelineFrameCacheMaxGiB.value);
+	preferences.commit('timelineFrameCacheMaxGiB', timelineFrameCacheMaxGiB.value);
 	preferences.commit('visualModuleAutoConnectOnNodeAdd', visualModuleAutoConnectOnNodeAdd.value);
 	modal.value?.close();
 	if (initialLocale !== selectedLocale.value) await changeLocale(selectedLocale.value);

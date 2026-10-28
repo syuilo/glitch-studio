@@ -17,7 +17,6 @@
 		</div>
 		<div :class="$style.headerCenter" style="gap: 20px;">
 			<GsButton
-				v-if="isDesktop"
 				data-test-timeline-bake
 				:primary="previewPlayback.isTimelineBaking.value"
 				:disabled="!previewPlayback.isTimelineBaking.value && (!timelineRendererManagerController.isReady.value || !timelineRendererManagerController.isFrameCacheEnabled.value || timelineRendererManagerController.errorMessage.value != null || duration <= 0 || time >= duration)"
@@ -205,7 +204,6 @@ import { useDragSession } from '@/composables/useDragSession.ts';
 
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
-const isDesktop = window.desktop != null;
 
 const props = defineProps<{ sceneId: string; inspectorPanelTarget?: HTMLElement | null }>();
 const frameCacheState = computed(() => {

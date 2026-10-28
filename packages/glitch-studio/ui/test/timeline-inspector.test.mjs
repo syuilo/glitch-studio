@@ -130,38 +130,33 @@ test('defers transform observation and redraws during baking until the bake ends
 	assert.equal(f.history.undoStack.value.length, 0);
 });
 
-// 【ブラウザー版にはBAKEを表示しない】
-// GPUフレームキャッシュはElectron限定のため、保存できない機能の入口を出さない。
-test('omits the bake button in the browser', async t => {
-	const f = await fixture(t, Timeline);
-	assert.equal(f.control('GsButton', 'timeline-bake'), undefined);
-});
-
-// 【Electron版のBAKEボタンは有効状態と実行状態を反映し、再押下できる】
-// キャッシュ無効時や未準備時は開始せず、終端の一枚を待つ間も停止操作は受け付ける。
-test('shows the Electron bake button and keeps it usable to stop an active bake', async t => {
-	testWindow.desktop = {};
-	t.after(() => { delete testWindow.desktop; });
-	const f = await fixture(t, Timeline);
-	const button = () => f.control('GsButton', 'timeline-bake');
-	assert.equal(button().props.disabled, true);
-	appContext.timelineRendererManagerController.isFrameCacheEnabled.value = true;
-	await nextTick();
-	assert.equal(button().props.disabled, false);
-	let presses = 0;
-	t.mock.method(appContext.previewPlayback, 'toggleTimelineBake', () => { presses++; appContext.previewPlayback.isTimelineBaking.value = true; });
-	button().props.onClick();
-	await nextTick();
-	assert.equal(button().props.primary, true);
-	appContext.previewPlayback.currentTimelineTime.value = 5000;
-	await nextTick();
-	assert.equal(button().props.disabled, false);
-	button().props.onClick();
-	assert.equal(presses, 2);
-	appContext.previewPlayback.isTimelineBaking.value = false;
-	await nextTick();
-	assert.equal(button().props.disabled, true);
-});
+for (const desktop of [false, true]) {
+	// 【ブラウザー版とElectron版のBAKEボタンは有効状態と実行状態を反映し、再押下できる】
+	// キャッシュ無効時や未準備時は開始せず、終端の一枚を待つ間も停止操作は受け付ける。
+	test(`shows the bake button and keeps it usable to stop an active bake on desktop: ${desktop}`, async t => {
+		if (desktop) testWindow.desktop = {};
+		t.after(() => { delete testWindow.desktop; });
+		const f = await fixture(t, Timeline);
+		const button = () => f.control('GsButton', 'timeline-bake');
+		assert.equal(button().props.disabled, true);
+		appContext.timelineRendererManagerController.isFrameCacheEnabled.value = true;
+		await nextTick();
+		assert.equal(button().props.disabled, false);
+		let presses = 0;
+		t.mock.method(appContext.previewPlayback, 'toggleTimelineBake', () => { presses++; appContext.previewPlayback.isTimelineBaking.value = true; });
+		button().props.onClick();
+		await nextTick();
+		assert.equal(button().props.primary, true);
+		appContext.previewPlayback.currentTimelineTime.value = 5000;
+		await nextTick();
+		assert.equal(button().props.disabled, false);
+		button().props.onClick();
+		assert.equal(presses, 2);
+		appContext.previewPlayback.isTimelineBaking.value = false;
+		await nextTick();
+		assert.equal(button().props.disabled, true);
+	});
+}
 
 // 【キャッシュ表示は有効なSceneの範囲だけを描き、LRU削除とfps変更に追従する】
 // 一度描いた帯を残すと、既に破棄された画像や別Sceneを再利用できるように見えてしまう。

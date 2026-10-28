@@ -106,7 +106,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	previewRevision: number;
 	/** nullではプロジェクト基準fpsを使用する。露光時間とは独立したプレビューの時計。 */
 	previewFps: number | null;
-	/** Electronプレビューだけが設定する。0では複製・保持・通知を行わない。 */
+	/** プレビュー用の容量上限。0では複製・保持・通知を行わない。 */
 	frameCacheMaxBytes: number;
 };
 

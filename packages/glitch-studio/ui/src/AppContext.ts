@@ -119,7 +119,7 @@ export class AppContext {
 			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 		}, { highlightClipping: this.highlightClipping.value,
 			previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value,
-			frameCacheMaxBytes: window.desktop != null ? Math.floor(preferences.s.timelineFrameCacheMaxGiB * 1024 ** 3) : 0,
+			frameCacheMaxBytes: Math.floor(preferences.s.timelineFrameCacheMaxGiB * 1024 ** 3),
 		}));
 
 		this.timelineAudioPreview = markRaw(new TimelineAudioPreview(
@@ -270,7 +270,6 @@ export class AppContext {
 			this.renderEngine.requestRetry();
 		});
 		watch(preferences.r.timelineFrameCacheMaxGiB, async value => {
-			if (window.desktop == null) return;
 			await this.timelineRendererManagerController.updateDynamicOptions({ frameCacheMaxBytes: Math.floor(value * 1024 ** 3) });
 			this.renderEngine.requestRetry();
 			this.previewPlayback.refresh();

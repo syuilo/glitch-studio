@@ -238,21 +238,21 @@ test('preserves precise seek positions when changing motion blur without changin
 });
 
 for (const desktop of [false, true]) {
-	// 【フレームキャッシュはElectronだけで有効にし、容量の変更をプロジェクト編集に含めない】
-	// Web版へ設定値だけ送ってGPU画像を保持したり、上限変更でWorkerを再起動して全消去したりしない。
-	test(`applies the per-window frame cache capacity only on desktop: ${desktop}`, async t => {
+	// 【フレームキャッシュはブラウザー版とElectron版で有効にし、容量の変更をプロジェクト編集に含めない】
+	// どちらも同じ初期容量と設定変更の経路を使い、上限変更でWorkerを再起動して全消去したりしない。
+	test(`applies the per-window frame cache capacity on browser and desktop: ${desktop}`, async t => {
 		const window = setup(t);
 		if (desktop) window.desktop = {};
 		const { appContext } = evaluate(appBundle);
 		await appContext.ready(project());
 		const timeline = appContext.timelineRendererManagerController;
-		assert.equal(timeline.initialDynamicOptions.frameCacheMaxBytes, desktop ? 2 * 1024 ** 3 : 0);
+		assert.equal(timeline.initialDynamicOptions.frameCacheMaxBytes, 2 * 1024 ** 3);
 		const historyLength = appContext.projectContext.stateManager.undoStack.value.length;
 		const staticUpdates = timeline.staticUpdates.length;
 		timeline.updates.length = 0;
 		window.testPreferences.timelineFrameCacheMaxGiB = 0;
 		await setImmediate();
-		assert.deepEqual(timeline.updates, desktop ? [{ frameCacheMaxBytes: 0 }] : []);
+		assert.deepEqual(timeline.updates, [{ frameCacheMaxBytes: 0 }]);
 		assert.equal(timeline.staticUpdates.length, staticUpdates);
 		assert.equal(appContext.projectContext.stateManager.undoStack.value.length, historyLength);
 		assert.equal('timelineFrameCacheMaxGiB' in appContext.projectContext.snapshot(), false);
