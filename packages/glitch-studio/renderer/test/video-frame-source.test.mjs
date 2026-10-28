@@ -17,6 +17,7 @@ function setup({ firstTimestamp = 5, endTimestamp = 15, decodable = true, missin
 		canDecode: async () => decodable,
 		getFirstTimestamp: async () => { ++calls.first; return firstTimestamp; },
 		computeDuration: async () => { ++calls.end; return endTimestamp; },
+		getTimeResolution: async () => 1000,
 	};
 	const mediabunny = {
 		ALL_FORMATS: [],

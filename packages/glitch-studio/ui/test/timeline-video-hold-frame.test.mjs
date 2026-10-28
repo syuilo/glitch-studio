@@ -14,7 +14,7 @@ const bundle = await build({
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['mediabunny'],
 });
 
-function fixture(timestamps = [2, 3, 4.25, 7], endTimestamp = 8) {
+function fixture(timestamps = [2, 3, 4.25, 7], endTimestamp = 8, timeResolution = 1000) {
 	const calls = { disposed: 0, closed: 0 };
 	const sample = timestamp => ({ timestamp, duration: 0.25, format: 'RGBA', codedWidth: 16, codedHeight: 16,
 		displayWidth: 16, displayHeight: 16, rotation: 0, allocationSize: () => 1024,
@@ -25,7 +25,7 @@ function fixture(timestamps = [2, 3, 4.25, 7], endTimestamp = 8) {
 		ALL_FORMATS: [], BlobSource: class {},
 		Input: class {
 			async getPrimaryVideoTrack() {
-				return { canDecode: async () => true, getFirstTimestamp: async () => timestamps[0], computeDuration: async () => endTimestamp };
+				return { canDecode: async () => true, getFirstTimestamp: async () => timestamps[0], computeDuration: async () => endTimestamp, getTimeResolution: async () => timeResolution };
 			}
 			dispose() { calls.disposed++; }
 		},
@@ -65,7 +65,7 @@ test('resolves held timestamps using the same variable-rate and reverse boundary
 test('preserves fractional frame selection through the seconds to milliseconds round trip', async () => {
 	const timestamp = 12.846166666666667;
 	assert.ok(timestamp * 1000 / 1000 < timestamp);
-	const f = fixture([12, timestamp, 13], 14);
+	const f = fixture([12, timestamp, 13], 14, 60000);
 	const held = await f.readTimelineVideoHoldFrame(new Blob(), 12900);
 	assert.ok(Math.abs(held.sourceTimeMs - timestamp * 1000) < 1e-10);
 	const source = f.openVideoSource(new Blob());

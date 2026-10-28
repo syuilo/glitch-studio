@@ -19,7 +19,7 @@ function setup() {
 		ALL_FORMATS: [], BlobSource: class {},
 		Input: class {
 			async getPrimaryVideoTrack() {
-				return { canDecode: async () => true, getFirstTimestamp: async () => 2, computeDuration: async () => 8 };
+				return { canDecode: async () => true, getFirstTimestamp: async () => 2, computeDuration: async () => 8, getTimeResolution: async () => 1000 };
 			}
 			dispose() { calls.disposed++; }
 		},
