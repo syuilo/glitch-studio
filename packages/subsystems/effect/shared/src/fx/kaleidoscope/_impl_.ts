@@ -37,6 +37,7 @@ export default implementEffect<typeof definition>({
 					aspectRatio: output.width / output.height,
 					// 式やキーから小数が渡っても全周が閉じるよう、1以上の整数にする。
 					sectorAngle: 2 * Math.PI / Math.max(1, Math.round(ctx.params.repetitions)),
+					mirror: ctx.params.mirror ? 1 : 0,
 					rotation: ctx.params.rotation * (2 * Math.PI),
 					twist: ctx.params.twist * (2 * Math.PI),
 					radialRepeat: Math.max(0, ctx.params.radialRepeat),

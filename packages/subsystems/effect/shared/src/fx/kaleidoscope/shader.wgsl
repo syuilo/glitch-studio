@@ -9,6 +9,7 @@ struct Uniforms {
 	twist: f32,
 	radialRepeat: f32,
 	radialPhase: f32,
+	mirror: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -20,7 +21,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let outputExtent = vec2f(uniforms.aspectRatio, 1.0);
 	let relativePosition = (position - uniforms.center) * outputExtent;
 	let radius = length(relativePosition);
-	var foldedAngle = 0.0;
+	var repeatedAngle = 0.0;
 	// 中心では角度を定義できないのでatan2(0, 0)を避ける。
 	// Radial Phaseによって入力の中心以外を参照する場合も、中心の角度は上向きに固定する。
 	if (radius > 0.0) {
@@ -29,10 +30,16 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		// Twistは折り返し前の角度に適用し、対称軸そのものを渦巻きにする。
 		// 半径方向の反復やZoomより前の距離を使い、リングをまたいでもねじれを連続させる。
 		let angle = atan2(relativePosition.x, relativePosition.y) - uniforms.rotation - uniforms.twist * radius;
-		// 1周期を中央で折り返し、[0, sectorAngle / 2]の扇形へ写す。
-		// 正負の角度を同じ周期で扱うことで、全周の境界でも模様が連続する。
-		let sectorPosition = fract(angle / uniforms.sectorAngle + 0.5);
-		foldedAngle = abs(sectorPosition - 0.5) * uniforms.sectorAngle;
+		if (uniforms.mirror != 0u) {
+			// 1周期を中央で折り返し、[0, sectorAngle / 2]の扇形へ写す。
+			// 正負の角度を同じ周期で扱うことで、全周の境界でも模様が連続する。
+			let sectorPosition = fract(angle / uniforms.sectorAngle + 0.5);
+			repeatedAngle = abs(sectorPosition - 0.5) * uniforms.sectorAngle;
+		} else {
+			// 上向きを扇形の開始方向に保ち、向きを反転せず[0, sectorAngle)を反復する。
+			// 入力の両端を接続するため、扇形の境界では模様に継ぎ目が生じる場合がある。
+			repeatedAngle = fract(angle / uniforms.sectorAngle) * uniforms.sectorAngle;
+		}
 	}
 
 	var sourceRadius = radius;
@@ -49,7 +56,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 
 	// 入力側の回転は取り込む扇形の向きだけを時計回りに変える。
 	// 出力側の対称軸には影響させず、万華鏡の内部の模様を動かせるようにする。
-	let sourceAngle = foldedAngle + uniforms.sourceRotation;
+	let sourceAngle = repeatedAngle + uniforms.sourceRotation;
 	// 入力も上向き基準で復元する。出力だけ基準を変えると画像が90°回転してしまうため、
 	// 同じ座標変換を対にして使い、基準となる扇形では元画像の向きを保つ。
 	let sourceOffset = sourceRadius / uniforms.zoom * vec2f(sin(sourceAngle), cos(sourceAngle));

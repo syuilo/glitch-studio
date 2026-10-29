@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'kaleidoscope',
 	displayName: 'Kaleidoscope',
 	description: {
-		'ja-JP': '入力画像の扇形領域を円周方向に鏡映・反復し、万華鏡のような模様を作ります。',
-		'en-US': 'Mirrors and repeats a wedge of the input image around a center to create a kaleidoscope pattern.',
+		'ja-JP': '入力画像の扇形領域を円周方向に反復し、鏡映の有無を切り替えられる万華鏡のような模様を作ります。',
+		'en-US': 'Repeats a wedge of the input image around a center, with optional mirroring, to create a kaleidoscope pattern.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
@@ -17,7 +17,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		// 鏡映前後の扇形を合わせた組の数。6なら30°の扇形が12枚並ぶ。
+		// 円周方向の反復数。6ならMirror ONで30°の扇形が12枚、OFFで60°の扇形が6枚並ぶ。
 		repetitions: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -30,6 +30,12 @@ export default defineEffect({
 				},
 			},
 			defaultValue: { inputSource: 'literal', value: 6 },
+		},
+		// 円周方向の鏡映だけを切り替える。Radial Repeatの半径方向の鏡映は維持する。
+		mirror: {
+			dataType: { kind: 'bool' },
+			ui: { label: 'Mirror', control: {} },
+			defaultValue: { inputSource: 'literal', value: true },
 		},
 		center: {
 			dataType: { kind: 'vector' },
