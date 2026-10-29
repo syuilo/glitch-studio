@@ -51,7 +51,7 @@ export async function run() {
 	const defaults: Parameters = {
 		input: color([0, 0, 0, 0]), sdf: scalar(65504), refraction: 1, thickness: 0.03, edgeSoftness: 0.0015,
 		refractionModel: 'quadratic', curvature: 4, ior: 1.5,
-		blur: 0, aberration: 0.5, innerZoom: 1, innerZoomCenter: [0, 0], lightAngle: 300 / 360,
+		blur: 0, blurSamples: 24, aberration: 0.5, aberrationSamples: 1, innerZoom: 1, innerZoomCenter: [0, 0], lightAngle: 300 / 360,
 		highlight: 0.05, highlightColor: [1, 1, 1, 1], highlightSoftness: 0.5,
 		fresnel: 0.1, fresnelColor: [1, 1, 1, 1], fresnelSoftness: 0.1,
 		tintColor: [1, 1, 1, 1], tintIntensity: 0, tintPreserveLuminosity: true, cutout: false,
@@ -160,6 +160,7 @@ export async function run() {
 		assert(definition.paramDefs.innerZoomCenter.defaultValue.value.join(',') === '0,0', 'independent zoom center defaults');
 		assert(definition.paramDefs.refractionModel.defaultValue.value === 'quadratic' && definition.paramDefs.refractionModel.dataType.options.join(',') === 'quadratic,curvedSurface', 'refraction models and unchanged default');
 		assert(definition.paramDefs.curvature.defaultValue.value === 4 && definition.paramDefs.ior.defaultValue.value === 1.5, 'curved surface defaults');
+		assert(definition.paramDefs.blurSamples.defaultValue.value === 24 && definition.paramDefs.aberrationSamples.defaultValue.value === 1, 'unchanged blur and per-channel aberration sample defaults');
 		assert(Object.entries(definition.paramDefs).filter(([, param]) => 'canNode' in param && param.canNode).map(([name]) => name).join(',') === 'input,sdf', 'only image and SDF are node inputs');
 		checks.push('color and scalar ports independent zoom center and resolution contract');
 
@@ -305,6 +306,46 @@ export async function run() {
 			rgbaNear(separated, [1, 0, 0, 1], 'red coverage survives transparent green and blue');
 			checks.push(`${label}: RGB separation and independent alpha coverage`);
 
+			// 【色収差の点数を増やしても、チャンネルの分散中心と一様な色は移動しない】
+			// 対称な区間積分なので線形の色勾配の平均は中心の値と一致する。
+			// サンプル数を変更して色ずれ量そのものを移動させる実装を検出する。
+			for (const aberrationSamples of [1, 2, 8, 32]) {
+				const values = await render({ ...refractParams, aberration: 1, aberrationSamples });
+				rgbaNear(pixel(values, 64, 32, 32), chromatic, 'aberration sample count preserves linear channel centers');
+				const constant = await render({ ...refractParams, input: color([0.25, 0.5, 0.75, 0.5]), aberration: 1, aberrationSamples });
+				rgbaNear(pixel(constant, 64, 32, 32), [0.125, 0.25, 0.375, 0.5], 'aberration average preserves constant premultiplied color');
+			}
+			checks.push(`${label}: aberration sample counts preserve dispersion centers and constant colors`);
+
+			// 【色収差のサンプル数が細かい模様と透明境界の平均へ作用する】
+			// 白と透明の交互の帯をnearestで読み、各RGBの被覆数から期待値を求める。
+			// RGBだけ平均する誤りや、平均前の最大alphaを使って透明境界を不透明にする誤りを検出する。
+			const stripeSource = inputTexture(64, 1, 4, Array.from({ length: 64 }, (_, index) => index % 2 === 0 ? [0.5, 0.5, 0.5, 0.5] : [0, 0, 0, 0]).flat(), false, { filterMode: 'nearest' }).input;
+			const targetU = 0.5145;
+			const spectralZoomCenter = 2 * ((targetU * 2 - 1) + strength * 2) - 0.015625;
+			const stripeParams = { ...refractParams, input: stripeSource, aberration: 8, innerZoom: 2, innerZoomCenter: [spectralZoomCenter, 0] as const };
+			const separationU = -strength * 8 * 0.06;
+			const stripeExpectation = (count: number) => {
+				const channels = [1, 0, -1].map(center => {
+					let occupied = 0;
+					for (let index = 0; index < count; index++) {
+						const subPosition = (index + 0.5) / count - 0.5;
+						const sourceU = targetU + separationU * (center + subPosition);
+						const texel = Math.min(63, Math.max(0, Math.floor(sourceU * 64)));
+						if (texel % 2 === 0) occupied++;
+					}
+					return 0.5 * occupied / count;
+				});
+				return [...channels, Math.max(...channels)];
+			};
+			for (const aberrationSamples of [1, 2, 4, 9, 32]) {
+				rgbaNear(pixel(await render({ ...stripeParams, aberrationSamples }), 64, 32, 32), stripeExpectation(aberrationSamples), 'known spectral stripe coverage');
+			}
+			const singleStripe = pixel(await render({ ...stripeParams, aberrationSamples: 1 }), 64, 32, 32);
+			const smoothStripe = pixel(await render({ ...stripeParams, aberrationSamples: 32 }), 64, 32, 32);
+			assert(singleStripe.some((value, index) => Math.abs(value - smoothStripe[index]) > 0.05), 'more aberration samples actually smooth the stripe');
+			checks.push(`${label}: spectral sampling and averaged transparent channel coverage`);
+
 			// 【ぼかしは乗算済みRGBAのまま計算し、時間によって揺れない】
 			// 半透明の小さな光点を広げ、黒い縁やalphaの二重乗算が出ないことを確認する。
 			const impulseRender = createEffect(33, 33, precise, format);
@@ -318,6 +359,55 @@ export async function run() {
 			const repeated = await impulseRender(blurParams, 123.5);
 			assert(blurred.every((value, index) => value === repeated[index]), 'blur is independent of time and frame order');
 			checks.push(`${label}: deterministic frosted blur and premultiplied alpha`);
+
+			// 【ぼかしの点数1は中心を読み、複数点では指定数で円盤を平均する】
+			// 1点がVogel diskの片側に置かれて画像を移動させないことと、
+			// 点数を変更しても乗算済みRGBA・明るさ・再現性が維持されることを確認する。
+			const unblurred = await impulseRender({ ...blurParams, blur: 0 });
+			const oneBlurSample = await impulseRender({ ...blurParams, blurSamples: 1 });
+			assert(unblurred.every((value, index) => value === oneBlurSample[index]), 'one blur sample reads the lens center');
+			const originalBlurSamples = await impulseRender({ ...blurParams, blurSamples: 24 });
+			assert(blurred.every((value, index) => value === originalBlurSamples[index]), 'default blur samples preserve the original image');
+			for (const blurSamples of [2, 8, 64, 128]) {
+				const values = await impulseRender({ ...blurParams, blurSamples });
+				assert(values.some((value, index) => Math.abs(value - unblurred[index]) > 0.01), 'multiple blur samples change the impulse');
+				assert(values.every((value, index) => index % 4 === 3 || Math.abs(value - values[index - index % 4 + 3]) <= tolerance), 'sampled blur keeps RGB and alpha consistent');
+			}
+			const twoBlurSamples = await impulseRender({ ...blurParams, blurSamples: 2 });
+			const eightBlurSamples = await impulseRender({ ...blurParams, blurSamples: 8 });
+			assert(twoBlurSamples.some((value, index) => Math.abs(value - eightBlurSamples[index]) > 0.01), 'blur sample count changes sampling of the impulse');
+			checks.push(`${label}: configurable blur sample counts and centered single sample`);
+
+			// 【サンプル数は丸め・上下限制限し、無効な効果では結果へ影響しない】
+			// 式やautomationの小数値から0除算・巨大ループを作らず、整数の設定と同じ結果にする。
+			for (const [blurSamples, rounded] of [[-5, 1], [0, 1], [2.4, 2], [2.6, 3], [999, 128]]) {
+				const values = await impulseRender({ ...blurParams, blurSamples });
+				const reference = await impulseRender({ ...blurParams, blurSamples: rounded });
+				assert(values.every((value, index) => value === reference[index]), 'blur sample rounding and bounds');
+			}
+			for (const [aberrationSamples, rounded] of [[-5, 1], [0, 1], [2.4, 2], [2.6, 3], [999, 32]]) {
+				const values = await render({ ...stripeParams, aberrationSamples });
+				const reference = await render({ ...stripeParams, aberrationSamples: rounded });
+				assert(values.every((value, index) => value === reference[index]), 'aberration sample rounding and bounds');
+			}
+			const noAberration = await render({ ...refractParams, aberration: 0, aberrationSamples: 1 });
+			const noAberrationWithSamples = await render({ ...refractParams, aberration: 0, aberrationSamples: 32 });
+			assert(noAberration.every((value, index) => value === noAberrationWithSamples[index]), 'disabled aberration ignores its sample count');
+			const noBlurWithSamples = await impulseRender({ ...blurParams, blur: 0, blurSamples: 128 });
+			assert(unblurred.every((value, index) => value === noBlurWithSamples[index]), 'disabled blur ignores its sample count');
+			checks.push(`${label}: sample rounding bounds and disabled effect identities`);
+
+			// 【複数点の色収差とぼかしを両屈折方式で組み合わせる】
+			// 二重の平均でも透明度を失わず、点数変更・時刻変更の後も同じRGBAを生成する。
+			for (const refractionModel of ['quadratic', 'curvedSurface'] as const) {
+				const combinedParams = { ...stripeParams, refractionModel, blur: 0.01, blurSamples: 8, aberrationSamples: 4 };
+				const combined = await render(combinedParams);
+				assert(combined.every((value, index) => index % 4 === 3 || value <= combined[index - index % 4 + 3] + tolerance), 'combined sampling stays premultiplied');
+				assert(combined.every((value, index) => index % 4 !== 3 || value <= 0.5 + tolerance), 'combined averaging cannot increase source alpha');
+				const repeatedCombined = await render(combinedParams, 81);
+				assert(combined.every((value, index) => value === repeatedCombined[index]), 'combined sampling is deterministic');
+			}
+			checks.push(`${label}: independent blur and aberration sampling in both refraction models`);
 
 			// 【境界AAとFeatherはRGBA全体へ適用する】
 			// Cutout時にRGBだけが残らず、境界ちょうどが半分の被覆率になることを確認する。

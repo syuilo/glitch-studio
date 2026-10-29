@@ -25,6 +25,8 @@ struct Uniforms {
 	refractionModel: u32,
 	tintPreserveLuminosity: u32,
 	cutout: u32,
+	blurSamples: u32,
+	aberrationSamples: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -74,13 +76,17 @@ fn refractionStrength(depth: f32) -> f32 {
 }
 
 fn lensSample(position: vec2f) -> vec4f {
-	if (uniforms.blur <= 0.0) { return read_input(position); }
-	// 元実装のVogel disk方式を使用する。固定した24点を高さ基準の円盤へ配置し、
-	// Gaussian重みを掛ける。画素・時刻による乱数を使わず、再描画で揺れないようにする。
+	// 1点では円盤中心を読む。Vogel diskの最初の点をそのまま使うと、
+	// 平均できないまま画像が片側へ移動するため、ぼかしなしと同じ参照位置にする。
+	if (uniforms.blur <= 0.0 || uniforms.blurSamples <= 1u) { return read_input(position); }
+	// 元実装のVogel disk方式を使用する。指定数の点を高さ基準の円盤へ配置し、
+	// Gaussian重みを掛ける。初期値24では従来の点配置・計算順序を維持する。
+	// 画素・時刻による乱数を使わず、再描画で揺れないようにする。
 	var result = vec4f(0.0);
 	var totalWeight = 0.0;
-	for (var index = 0u; index < 24u; index++) {
-		let radiusSquared = (f32(index) + 0.5) / 24.0;
+	let sampleCount = uniforms.blurSamples;
+	for (var index = 0u; index < sampleCount; index++) {
+		let radiusSquared = (f32(index) + 0.5) / f32(sampleCount);
 		let angle = f32(index) * 2.399963229728653;
 		let offset = vec2f(cos(angle) / uniforms.aspectRatio, sin(angle)) * sqrt(radiusSquared) * uniforms.blur * 2.0;
 		let weight = exp(-radiusSquared * 4.0);
@@ -92,14 +98,34 @@ fn lensSample(position: vec2f) -> vec4f {
 }
 
 fn refractedSample(position: vec2f, offset: vec2f) -> vec4f {
-	let green = lensSample(position);
-	if (uniforms.aberration <= 0.0 || all(offset == vec2f(0.0))) { return green; }
+	if (uniforms.aberration <= 0.0 || all(offset == vec2f(0.0))) { return lensSample(position); }
 	let separation = offset * uniforms.aberration * 0.06;
-	let red = lensSample(position + separation);
-	let blue = lensSample(position - separation);
-	// 色収差でRGBごとに参照位置が異なる。緑のalphaだけを使うと、緑が透明な場所の
-	// 赤・青まで消えるため、3つの被覆率の最大値を共通alphaにする。
-	return vec4f(red.r, green.g, blue.b, max(red.a, max(green.a, blue.a)));
+	let sampleCount = uniforms.aberrationSamples;
+	if (sampleCount <= 1u) {
+		// 初期値では従来と同じRGB各1点を読み、低コストの色ずれも維持する。
+		let green = lensSample(position);
+		let red = lensSample(position + separation);
+		let blue = lensSample(position - separation);
+		return vec4f(red.r, green.g, blue.b, max(red.a, max(green.a, blue.a)));
+	}
+	var colorAccumulator = vec3f(0.0);
+	var alphaAccumulator = vec3f(0.0);
+	for (var index = 0u; index < sampleCount; index++) {
+		// 各RGBの従来の参照位置を中心に、幅separationの区間を中点で積分する。
+		// 区間を対称にして、点数を変えても各チャンネルの分散の中心を移動させない。
+		let fraction = (f32(index) + 0.5) / f32(sampleCount) - 0.5;
+		let subPosition = position + separation * fraction;
+		let red = lensSample(subPosition + separation);
+		let green = lensSample(subPosition);
+		let blue = lensSample(subPosition - separation);
+		colorAccumulator += vec3f(red.r, green.g, blue.b);
+		alphaAccumulator += vec3f(red.a, green.a, blue.a);
+	}
+	// 色とalphaを同じ重みで平均してから、各チャンネルの最大alphaを採用する。
+	// サンプル全体の最大alphaを直接使うと、透明境界の薄い色まで不透明になってしまう。
+	let color = colorAccumulator / f32(sampleCount);
+	let alpha = alphaAccumulator / f32(sampleCount);
+	return vec4f(color, max(alpha.r, max(alpha.g, alpha.b)));
 }
 
 fn tint(rgb: vec3f) -> vec3f {

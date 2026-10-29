@@ -58,10 +58,20 @@ export default defineEffect({
 			ui: { label: 'Blur Radius (Height Units)', control: { controlType: 'range', min: 0, max: 0.05, step: 0.0001 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
+		blurSamples: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Blur Samples', control: { controlType: 'range', min: 1, max: 128, step: 1 } },
+			defaultValue: { inputSource: 'literal', value: 24 },
+		},
 		aberration: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Aberration', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0.5 },
+		},
+		aberrationSamples: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Aberration Samples (per Channel)', control: { controlType: 'range', min: 1, max: 32, step: 1 } },
+			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 		innerZoom: {
 			dataType: { kind: 'scalar' },
