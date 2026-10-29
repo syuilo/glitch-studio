@@ -135,6 +135,7 @@
 		}
 	},
 	"_EnvVariables": {
+		"POINTER_POSITION": "Pointer Position",
 		"TIME": "Time (s)",
 		"TIME_MS": "Time (ms)",
 		"END_TIME": "Time of End (s)",

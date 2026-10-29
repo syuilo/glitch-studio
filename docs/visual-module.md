@@ -8,6 +8,8 @@ Custom Parameterは、`canNode: true` ならInノード経由で配線し、`can
 
 Visual Module内で別のVisual Moduleを通常のエフェクトのように使用するなど、再帰的な使用も将来実装予定です。
 
+Visual Module内の式では、`POINTER_POSITION`でポインタ位置を2要素の配列`[x, y]`として参照できます。位置パラメータの式にそのまま指定でき、成分は`POINTER_POSITION[0]`（X）・`POINTER_POSITION[1]`（Y）で取得できます。入力元を「環境変数」に切り替え、「ポインタ位置 (POINTER_POSITION)」を選ぶことでも直接指定できます。座標はプレビューの画像領域を基準に、中央が`[0, 0]`、左下が`[-1, -1]`、右上が`[1, 1]`です。Visual Module Live Previewではプレビュー領域内のポインタ移動に追従し、画像の外側では`-1`〜`1`を超える値も取ります。プレビュー領域を離れると最後の位置を保持します。Timeline内のVisual Moduleでは、既存のポインタ未指定値`[-99999, -99999]`になります。TimelineレイヤーやVisual Module Live PreviewのCustom Parameterを設定する式には公開しません。
+
 レイヤーとして使う場合、下のレイヤーまでの合成結果がInノードの出力になります。Outノードの出力は、タイムライン側でレイヤーのtransform・opacity・合成方法を適用してから、上のレイヤーへの入力になります。
 
 ## Visual Moduleファイル

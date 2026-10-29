@@ -179,6 +179,7 @@ export class VisualModuleRenderer {
 				END_TIME_MS: context.endTime,
 				PROGRESS: context.progress ?? context.time / context.endTime,
 				IS_EXPORT: context.isExport,
+				POINTER_POSITION: [context.pointerPosition.x, context.pointerPosition.y],
 				TEST_ONLY_VM: true,
 				TEST_SAME_NAME: 1,
 			} satisfies Record<typeof IN_VISUAL_MODULE_VAR_DEFS[number], unknown>,

@@ -33,7 +33,7 @@ function evaluate(evaluator, input) {
 		nodes: input.nodes, paramDefs: input.paramDefs, effectDefinitions: input.effectDefinitions,
 		automationGraphs: input.automationGraphs, contextResolution: input.resolution, parameterEvaluator: evaluator,
 	});
-	renderer.evaluateParameters({ ...input, isExport: input.isExport ?? false, evaluatedParamValues: paramValues });
+	renderer.evaluateParameters({ pointerPosition: { x: 0, y: 0 }, ...input, isExport: input.isExport ?? false, evaluatedParamValues: paramValues });
 	return { paramValues, nodeParams: renderer.evaledNodeParams };
 }
 

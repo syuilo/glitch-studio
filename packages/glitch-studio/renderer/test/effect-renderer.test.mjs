@@ -100,6 +100,32 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 		prepare: (ctx = context(), signal = new AbortController().signal) => renderer.prepare(ctx, signal) };
 }
 
+// 【ポインタ位置を配列として評価し、移動に応じて描画キャッシュを更新する】
+// 位置パラメータへの直接指定・成分参照・環境変数指定・加工式のどれでも同じ座標を利用できる。
+// 時刻が変わらなくても移動を描画へ反映し、同じ位置では既存のキャッシュを再利用する。
+test('evaluates pointer positions as vectors and redraws when the pointer moves', async t => {
+	const g = gpu();
+	const vector = { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'vector' } }, defaultValue: literal([0, 0]) };
+	const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'X', control: { controlType: 'number' } }, defaultValue: literal(0) };
+	const p = probe(g, { paramDefs: { position: vector, x: scalar, selected: vector, modified: vector } });
+	const f = graph(t, g, { pointer: p }, [node('pointer', 'pointer', {
+		position: { inputSource: 'expression', expression: 'POINTER_POSITION' },
+		x: { inputSource: 'expression', expression: 'POINTER_POSITION[0]' },
+		selected: { inputSource: 'envVariable', variable: 'POINTER_POSITION' },
+		modified: { ...literal([0, 0]), expressionModifier: { enabled: true, code: '[POINTER_POSITION[0], -POINTER_POSITION[1]]' } },
+	})]);
+	for (const [x, y] of [[0.25, -0.75], [-1, 1], [-99999, -99999]]) {
+		const context = f.context({ pointerPosition: { x, y } });
+		await f.prepare(context);
+		f.render(context);
+		assert.deepEqual(p.renders.at(-1).params, { position: [x, y], x, selected: [x, y], modified: [x, -y] });
+		const renderCount = p.renders.length;
+		f.render(f.context({ pointerPosition: { x, y } }));
+		assert.equal(p.renders.length, renderCount);
+	}
+	assert.equal(p.renders.length, 3);
+});
+
 // 【使用中のPlayerの原本が欠落した場合だけ、準備と描画の両方を失敗させる】
 // キャッシュ無効のエフェクトでも検出し、未接続のノードの参照切れで正常な出力を妨げない。
 // 書き出しの準備段階でも失敗させ、欠落フレームを含む動画を完成させない。

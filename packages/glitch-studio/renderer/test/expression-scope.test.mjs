@@ -20,7 +20,7 @@ const nodeParameterDefinitions = {
 	vm: def('vm', false, 'bool'), layer: def('layer', false, 'bool'), export: def('export', false, 'bool'),
 	text: def('text', '', 'string'), array: def('array', [0, 0], 'vector'),
 };
-const frame = { time: 500, endTime: 2000, isExport: true };
+const frame = { time: 500, endTime: 2000, isExport: true, pointerPosition: { x: 0.25, y: -0.75 } };
 const clipFrame = { sceneTimeMs: 500, contentTimeMs: 250, contentEndTimeMs: 2000, clipElapsedTimeMs: 100, clipDurationMs: 1850, isExport: true };
 
 // 【レイヤーの離散キーフレームは評価済みの引数としてモジュールへ渡す】
@@ -82,6 +82,7 @@ const layerScope = { ...frame, endTime: Infinity, variables: { TIME: 0.5, TIME_M
 const moduleScope = { ...frame, variables: {
 	WIDTH: 800, HEIGHT: 400, TIME: 0.5, TIME_MS: 500,
 	END_TIME: 2, END_TIME_MS: 2000, PROGRESS: 0.25, IS_EXPORT: true,
+	POINTER_POSITION: [0.25, -0.75],
 	TEST_ONLY_VM: true, TEST_SAME_NAME: 1,
 }, automationGraphs: [] };
 // 評価器には単一の値と、その式で参照可能な評価済み値だけを渡す。
