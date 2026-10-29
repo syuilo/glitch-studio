@@ -9,7 +9,7 @@ export default defineEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['pattern', 'math'],
+	tags: ['pattern', 'math', 'sdf'],
 	paramDefs: {
 		shape: {
 			dataType: { kind: 'enum', options: ['ellipse', 'rectangle'] },

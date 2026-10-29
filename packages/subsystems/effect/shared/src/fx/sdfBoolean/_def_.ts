@@ -9,7 +9,7 @@ export default defineEffect({
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
-	tags: ['composite', 'math'],
+	tags: ['composite', 'math', 'sdf'],
 	paramDefs: {
 		inputA: {
 			dataType: { kind: 'scalar' },
