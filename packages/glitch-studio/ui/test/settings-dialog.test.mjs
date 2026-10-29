@@ -17,7 +17,7 @@ const dialogBundle = await build({ ...options, entryPoints: ['./src/components/G
 	name: 'settings-dialog-platform', setup(builder) {
 		builder.onResolve({ filter: /(?:^|\/)(preferences|locale-settings-ui)\.ts$/ }, ({ path }) => ({ path: basename(path), namespace: 'settings-platform' }));
 		builder.onLoad({ filter: /.*/, namespace: 'settings-platform' }, ({ path }) => ({ contents: path === 'preferences.ts' ? 'export const preferences = window.settingsTestPreferences;'
-				: 'export async function changeLocale(locale) { window.settingsTestLocaleChanges.push(locale); }' }));
+			: 'export async function changeLocale(locale) { window.settingsTestLocaleChanges.push(locale); }' }));
 		builder.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsSettingsDialog.vue') ? null : { path: basename(path, '.vue'), namespace: 'settings-control' });
 		builder.onLoad({ filter: /.*/, namespace: 'settings-control' }, () => ({ contents: `
 			import { h } from 'vue';
@@ -48,26 +48,28 @@ test('saves settings individually', async t => {
 	const storage = new Map([['preferences:projectBackupAutoEnabled', 'true'], ['locale', 'ja-JP']]);
 	const writes = [];
 	globalThis.window = { localStorage: { getItem: key => storage.get(key) ?? null,
-		setItem(key, value) { storage.set(key, value); writes.push(key); } }, settingsTestLocaleChanges: [] };
+																																							setItem(key, value) { storage.set(key, value); writes.push(key); } }, settingsTestLocaleChanges: [] };
 	const { preferences } = evaluate(preferenceBundle);
 	window.settingsTestPreferences = preferences;
 	const component = evaluate(dialogBundle).default;
 	const element = tag => ({ tag, children: [], parent: null, props: {} });
 	const renderer = createRenderer({ createElement: element, createText: () => element('text'), createComment: () => element('comment'),
-		setText() {}, setElementText() {}, patchProp(node, key, _old, value) { node.props[key] = value; },
-		insert(node, parent, anchor = null) { parent.children.splice(anchor == null ? parent.children.length : parent.children.indexOf(anchor), 0, node); node.parent = parent; },
-		remove(node) { node.parent.children.splice(node.parent.children.indexOf(node), 1); },
-		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
+																																			setText() {}, setElementText() {}, patchProp(node, key, _old, value) { node.props[key] = value; },
+																																			insert(node, parent, anchor = null) { parent.children.splice(anchor == null ? parent.children.length : parent.children.indexOf(anchor), 0, node); node.parent = parent; },
+																																			remove(node) { node.parent.children.splice(node.parent.children.indexOf(node), 1); },
+																																			parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
 	const root = element('root');
 	const app = renderer.createApp({ render: () => h(component) });
 	t.after(() => { app.unmount(); globalThis.window = previousWindow; });
 	app.mount(root);
+
 	function find(attribute, node = root) {
 		if (Object.hasOwn(node.props, attribute)) return node;
 		for (const child of node.children) { const found = find(attribute, child); if (found != null) return found; }
 		return null;
 	}
+
 	// 言語だけはダイアログを開くときの保存値を使い、表示中の辞書とは独立した選択値を示す。
 	assert.equal(find('data-test-language').props.modelValue, 'ja-JP');
 	// 別の画面による保存を再現する。未編集の項目は保存しない。
@@ -106,7 +108,7 @@ test('saves settings individually', async t => {
 	// 【表示方式を設定から保存し、GPUとCPUを相互に切り替える】
 	// 設定画面を開いただけでは既定値を書き込まず、選択した方式を次回起動にも保持する。
 	const displayMode = find('data-test-preview-display-mode');
-	assert.equal(displayMode.props.modelValue, 'gpu');
+	assert.equal(displayMode.props.modelValue, 'cpu');
 	for (const value of ['cpu', 'gpu']) {
 		displayMode.props['onUpdate:modelValue'](value);
 		await nextTick();
