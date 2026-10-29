@@ -7,7 +7,7 @@
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'range'">
 		<GsRange
-			v-if="value >= scalarControl.min && value <= scalarControl.max"
+			v-if="value >= scalarControl.min && value <= scalarControl.max && !isNumberInputChanging"
 			:modelValue="value"
 			:step="scalarControl.step ?? 1"
 			:logarithmic="scalarControl.logarithmic"
@@ -20,7 +20,7 @@
 			@changeFinished="onFinishChanging"
 			@thumbDoubleClicked="reset"
 		/>
-		<GsInput v-else type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(Number($event))" @focusout="onFinishChanging"/>
+		<GsInput v-else type="number" :modelValue="value" @focusin="() => { onBeginChanging(); isNumberInputChanging = true; }" @update:modelValue="changeContinuous(Number($event))" @focusout="() => { onFinishChanging(); isNumberInputChanging = false; }"/>
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'angle'">
 		<GsAngle
@@ -248,6 +248,7 @@ const enumItems = computed(() => {
 });
 
 const directEditMode = ref(false);
+const isNumberInputChanging = ref(false); // 範囲外の数値編集欄を入力中に一時的に範囲内の値になってもコントロールを切り替えないようにするためのフラグ
 const selectedAsset = computed(() => stateManager.state.assets.value.find(asset => asset.id === props.value) ?? null);
 let disposed = false;
 onBeforeUnmount(() => { disposed = true; });
