@@ -1,5 +1,11 @@
 # Visual Module Shared
 
+Visual Moduleはノードごとに異なる解像度や比率でテクスチャを出力する可能性があります。ただ、通常入力テクスチャのサンプリング処理は、動的に生成される専用関数をシェーダー内で使う形になり、その場合は入力テクスチャの解像度・アスペクト比についてシェーダー側は意識する必要のない仕組みになっています。
+
+Visual Moduleのノード間の接続は、deterministicです。つまり、expressionで動的に配線を変えるといった挙動はサポートしません。
+
+ノードの入力が前回のレンダリング時から変化がない場合は、そのノードの処理をスキップしてパフォーマンスを向上させる仕組みがあります。
+
 Visual Moduleのノード・入出力・公開カスタムパラメータ・接続の契約を定義する。パラメータ自体の定義とBindingは共通基盤を組み合わせ、カスタムパラメータのID・参照名・主入力などの役割はこのドメインが所有する。
 
 `expression.ts`はVisual Module内で公開する変数名、`parameter-evaluation.ts`は呼び出し側から受け取る評価済みカスタムパラメータのCPU値を定義する。`PARAM`・Visual Moduleカスタムパラメータ参照（`visualModuleCustomParameterReference`）・ノード参照の評価はVisual Module Rendererが担当する。
