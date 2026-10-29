@@ -18,6 +18,7 @@ import { AppContext } from './AppContext.ts';
 import { applicationActivity } from './application-activity.ts';
 import { ProjectContext } from './Project.ts';
 import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
+import { readVideoFrameRate } from './utility/video-frame-rate.ts';
 import { isLocaleUnconfigured } from './i18n.ts';
 import { configureLocale } from './locale-settings-ui.ts';
 import type { ProjectAsset } from './Project.ts';
@@ -231,6 +232,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 	} satisfies ProjectAsset;
 
 	const videoMedia = result.type.startsWith('video/') ? await inspectTimelineClipMedia(asset) : null;
+	const videoFrameRate = videoMedia != null ? await readVideoFrameRate(asset.fileData) : null;
 	if (videoMedia != null) {
 		if (videoMedia.durationMs < 1) {
 			await ui.alert({ type: 'error', text: i18n.ts._Assets.MediaTooShort });
@@ -392,7 +394,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 				automationGraphs: [],
 			}],
 		}],
-		timelineFps: DEFAULT_TIMELINE_FPS,
+		timelineFps: videoFrameRate ?? DEFAULT_TIMELINE_FPS,
 		automationGraphs: [],
 		exportSettings: null,
 		timelineMotionBlur: { ...DEFAULT_TIMELINE_MOTION_BLUR },
