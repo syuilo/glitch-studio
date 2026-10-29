@@ -10,6 +10,7 @@ struct Uniforms {
 	radialRepeat: f32,
 	radialPhase: f32,
 	mirror: u32,
+	angularSkew: f32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -31,10 +32,25 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		// 半径方向の反復やZoomより前の距離を使い、リングをまたいでもねじれを連続させる。
 		let angle = atan2(relativePosition.x, relativePosition.y) - uniforms.rotation - uniforms.twist * radius;
 		if (uniforms.mirror != 0u) {
-			// 1周期を中央で折り返し、[0, sectorAngle / 2]の扇形へ写す。
-			// 正負の角度を同じ周期で扱うことで、全周の境界でも模様が連続する。
-			let sectorPosition = fract(angle / uniforms.sectorAngle + 0.5);
-			repeatedAngle = abs(sectorPosition - 0.5) * uniforms.sectorAngle;
+			if (uniforms.angularSkew == 0.0) {
+				// 1周期を中央で折り返し、[0, sectorAngle / 2]の扇形へ写す。
+				// 正負の角度を同じ周期で扱うことで、全周の境界でも模様が連続する。
+				let sectorPosition = fract(angle / uniforms.sectorAngle + 0.5);
+				repeatedAngle = abs(sectorPosition - 0.5) * uniforms.sectorAngle;
+			} else {
+				// 開始角を固定したまま、1周期の折り返し位置だけを移動する。
+				// 各側は同じ入力扇形[0, sectorAngle / 2]をたどり、幅に応じて伸縮する。
+				let sectorPosition = fract(angle / uniforms.sectorAngle);
+				let midpoint = (uniforms.angularSkew + 1.0) * 0.5;
+				// 基準角では0を保つ。幅0の側を評価しないことで±1でも0除算を避ける。
+				if (sectorPosition > 0.0) {
+					if (sectorPosition < midpoint) {
+						repeatedAngle = sectorPosition / midpoint * (uniforms.sectorAngle * 0.5);
+					} else {
+						repeatedAngle = (1.0 - sectorPosition) / (1.0 - midpoint) * (uniforms.sectorAngle * 0.5);
+					}
+				}
+			}
 		} else {
 			// 上向きを扇形の開始方向に保ち、向きを反転せず[0, sectorAngle)を反復する。
 			// 入力の両端を接続するため、扇形の境界では模様に継ぎ目が生じる場合がある。

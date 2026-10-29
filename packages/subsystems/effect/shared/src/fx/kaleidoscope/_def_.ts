@@ -17,7 +17,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		// 円周方向の反復数。6ならMirror ONで30°の扇形が12枚、OFFで60°の扇形が6枚並ぶ。
+		// 円周方向の反復数。Angular Skewが0で6なら、Mirror ONで30°の扇形が12枚、OFFで60°の扇形が6枚並ぶ。
 		repetitions: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -36,6 +36,21 @@ export default defineEffect({
 			dataType: { kind: 'bool' },
 			ui: { label: 'Mirror', control: {} },
 			defaultValue: { inputSource: 'literal', value: true },
+		},
+		// Mirror ON時の往復の幅を変える。正なら上向きの基準から時計回りに進む側を広げる。
+		// ±1では片側の幅が0になり、鏡映の折り返しが周期境界へ移動する。
+		angularSkew: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Angular Skew',
+				control: {
+					controlType: 'range',
+					min: -1,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		center: {
 			dataType: { kind: 'vector' },

@@ -38,6 +38,7 @@ export default implementEffect<typeof definition>({
 					// 式やキーから小数が渡っても全周が閉じるよう、1以上の整数にする。
 					sectorAngle: 2 * Math.PI / Math.max(1, Math.round(ctx.params.repetitions)),
 					mirror: ctx.params.mirror ? 1 : 0,
+					angularSkew: Math.max(-1, Math.min(1, ctx.params.angularSkew)),
 					rotation: ctx.params.rotation * (2 * Math.PI),
 					twist: ctx.params.twist * (2 * Math.PI),
 					radialRepeat: Math.max(0, ctx.params.radialRepeat),
