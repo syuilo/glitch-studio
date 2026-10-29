@@ -30,12 +30,12 @@ export default defineEffect({
 		},
 		refraction: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Refraction', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } },
+			ui: { label: 'Refraction', control: { controlType: 'range', min: 0, max: 4, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 		thickness: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Thickness (Height Units)', control: { controlType: 'range', min: 0, max: 0.2, step: 0.001 } },
+			ui: { label: 'Thickness (Height Units)', control: { controlType: 'range', min: 0, max: 0.5, step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: 0.03 },
 		},
 		curvature: {
