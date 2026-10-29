@@ -40,7 +40,7 @@ const { ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges
 function fixture(t, count = 1, overrides = {}) {
 	const manager = new ProjectContext().stateManager;
 	const nodes = Array.from({ length: count }, (_, i) => ({
-		id: 'node-' + i, type: 'effect', effectId: definition.id, pos: { x: 0, y: 0 }, isBypass: false, resolution: { mode: 'auto' },
+		id: 'node-' + i, type: 'effect', effectId: definition.id, pos: { x: 0, y: 0 }, isBypass: false, resolution: { mode: 'auto', scale: 1 },
 		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 	}));
 	const visualModule = { id: 'module', name: 'Module', nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] };

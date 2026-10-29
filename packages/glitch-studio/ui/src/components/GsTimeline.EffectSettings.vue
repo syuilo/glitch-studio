@@ -30,10 +30,16 @@
 		/>
 	</div>
 	<div class="_spacer">
-		<GsSelect large :modelValue="layer.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
+		<GsSelect data-test-effect-layer-resolution-mode large :modelValue="layer.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
 			<template #label>{{ i18n.ts.Resolution }}</template>
 			<template v-if="layer.resolution.mode === 'context'" #caption>{{ i18n.ts._TimelineLayer.ResolutionHint }}</template>
+			<template v-else-if="layer.resolution.mode === 'auto'" #caption>{{ i18n.ts._Node.AutoResolutionHint }}</template>
 		</GsSelect>
+		<GsInput v-if="layer.resolution.mode !== 'customAbsolute'" data-test-effect-layer-resolution-scale large type="number" :modelValue="layer.resolution.scale" :min="0" step="any" :debounce="400" @update:modelValue="setResolutionScale">
+			<template #label>{{ i18n.ts._Node.ResolutionScale }}</template>
+			<template #suffix>×</template>
+			<template #caption>{{ i18n.ts._Node.ResolutionScaleHint }}</template>
+		</GsInput>
 		<div v-if="layer.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
 			<GsInput large style="flex: 1;" type="number" :modelValue="layer.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
 			<GsInput large style="flex: 1;" type="number" :modelValue="layer.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
@@ -69,7 +75,14 @@ const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 ];
 
 function setResolutionMode(mode: EffectResolution['mode']) {
-	if (mode !== props.layer.resolution.mode) emit('resolution', mode === 'customAbsolute' ? { mode, ...props.contextResolution } : { mode });
+	if (mode === props.layer.resolution.mode) return;
+	emit('resolution', mode === 'customAbsolute' ? { mode, ...props.contextResolution }
+		: { mode, scale: props.layer.resolution.mode === 'customAbsolute' ? 1 : props.layer.resolution.scale });
+}
+
+function setResolutionScale(scale: number | null) {
+	if (props.layer.resolution.mode === 'customAbsolute' || scale == null || !Number.isFinite(scale) || scale <= 0 || scale === props.layer.resolution.scale) return;
+	emit('resolution', { ...props.layer.resolution, scale });
 }
 
 function setDimension(axis: 'width' | 'height', value: number | null) {

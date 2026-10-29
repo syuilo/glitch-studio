@@ -515,8 +515,8 @@ test('scales video sources once through replace composition and automatic proces
 			primaryInputId: 'output', primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }],
 			nodes: [
 				{ id: 'in', type: 'globalIn' },
-				{ id: 'first', type: 'effect', effectId: 'pass', resolution: { mode: 'auto' }, isBypass: false, params: { input: connection('in') } },
-				{ id: 'second', type: 'effect', effectId: 'pass', resolution: { mode: 'auto' }, isBypass: false, params: { input: connection('first') } },
+				{ id: 'first', type: 'effect', effectId: 'pass', resolution: { mode: 'auto', scale: 1 }, isBypass: false, params: { input: connection('in') } },
+				{ id: 'second', type: 'effect', effectId: 'pass', resolution: { mode: 'auto', scale: 1 }, isBypass: false, params: { input: connection('first') } },
 				{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'second', outputPort: 'output' } } },
 			],
 		},

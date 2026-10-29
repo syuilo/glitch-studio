@@ -321,7 +321,7 @@ test('initializes kinds independently of primary input presence and resets the l
 	assert.deepEqual(modified.read(['inputA']), literal([1, 0, 0, 1]));
 	reset.execute(modified.state);
 	assert.equal(effectDefinitions.colorMix.paramDefs.inputA.defaultValue.inputSource, 'literal');
-	assert.deepEqual(modified.layer.resolution, { mode: 'auto' });
+	assert.deepEqual(modified.layer.resolution, { mode: 'auto', scale: 1 });
 	const noPrimary = createEffectTimelineLayer({ ...effectDefinitions.grid, kind: 'modify', primaryInputParameter: null }, 0);
 	assert.equal(noPrimary.effectParamValues.background.inputSource, 'literal');
 });
@@ -416,10 +416,46 @@ test('round trips effect layers and changes resolution and clips with undo', asy
 		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 	resolution.undo(f.state);
-	assert.deepEqual(f.layer.resolution, { mode: 'auto' });
+	assert.deepEqual(f.layer.resolution, { mode: 'auto', scale: 1 });
 	add.undo(f.state);
 	assert.equal(f.layer.clips.length, 1);
 	assert.equal(f.read(['buzzs', 'first', 'image']).inputSource, 'lowerLayerOutput');
+});
+
+// 【ノードとエフェクトレイヤーの倍率を保存し、Undo/Redoで正確に復元する】
+// どちらの設定も同じ検証を使い、不正値は現在の設定を変更する前に拒否する。
+// インラインのVisual Moduleも登録済みと同じCommand経路で編集できる必要がある。
+test('saves local resolution scales and validates undoable edits for nodes and effect layers', async () => {
+	const f = fixture();
+	const node = { id: 'node', type: 'effect', effectId: 'testStructArray', resolution: { mode: 'auto', scale: 1 }, params: {} };
+	const visualModule = { id: 'visual', nodes: [node] };
+	f.state.visualModules.value.push(visualModule);
+	const inlineNode = structuredClone(node);
+	f.state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: { nodes: [inlineNode] } });
+	for (const [definition, target, owner] of [
+		[COMMAND_DEFS.changeNodeResolution, { visualModuleId: 'visual', nodeId: node.id }, node],
+		[COMMAND_DEFS.changeNodeResolution, { sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: inlineNode.id }, inlineNode],
+		[COMMAND_DEFS.changeEffectLayerResolution, f.target, f.layer],
+	]) {
+		assert.deepEqual(owner.resolution, { mode: 'auto', scale: 1 });
+		for (const resolution of [{ mode: 'context', scale: 0.5 }, { mode: 'auto', scale: 2.5 }]) {
+			const before = structuredClone(owner.resolution);
+			const command = definition.create({ ...target, resolution });
+			command.execute(f.state);
+			assert.deepEqual(owner.resolution, resolution);
+			command.undo(f.state);
+			assert.deepEqual(owner.resolution, before);
+			command.execute(f.state);
+			assert.deepEqual(owner.resolution, resolution);
+			for (const scale of [0, -1, NaN, Infinity]) {
+				assert.throws(() => definition.create({ ...target, resolution: { mode: resolution.mode, scale } }).execute(f.state), /scale/);
+				assert.deepEqual(owner.resolution, resolution);
+			}
+		}
+	}
+	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, id: 'project', gsVersion: '2.0.0-alpha', name: 'Test', description: '', author: '', resolution: { width: 800, height: 600 },
+		assets: [], generatedSpeech: [], players: [], visualModules: f.state.visualModules.value, timelineScenes: f.state.timelineScenes.value };
+	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 });
 
 // 【ネストした別レイヤー出力の段階とサンプリングをUndo/Redoで維持する】

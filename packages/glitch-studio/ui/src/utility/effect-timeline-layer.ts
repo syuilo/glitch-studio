@@ -16,7 +16,7 @@ export function createEffectTimelineLayer(definition: EffectDefinition, startMs:
 		isDisabled: false,
 		color: null,
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
-		resolution: { mode: 'auto' },
+		resolution: { mode: 'auto', scale: 1 },
 		automationGraphs: [],
 		effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 		forceDisableMotionBlur: false,

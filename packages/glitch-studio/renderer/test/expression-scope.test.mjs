@@ -108,7 +108,7 @@ test('exposes exactly the declared variables for each scope', async () => {
 	let moduleVariables;
 	const renderer = Object.assign(Object.create(VisualModuleRenderer.prototype), {
 		contextResolution: { width: 800, height: 400 }, paramDefs: [], automationGraphs: [],
-		nodes: [{ id: 'probe', type: 'effect', resolution: { mode: 'context' }, effectId: 'probe', params: { value: literal(0) } }],
+		nodes: [{ id: 'probe', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'probe', params: { value: literal(0) } }],
 		effectDefinitions: { probe: { paramDefs: { value: def('value') } } },
 		parameterEvaluator: { evaluate(binding, context) { moduleVariables = context.variables; return 0; } },
 	});

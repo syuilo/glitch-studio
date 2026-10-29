@@ -26,7 +26,7 @@ const { ProjectRenderValidation, PreviewRenderEngine, inspectTimelineLayer, crea
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = { dataType: { kind: 'scalar' }, canNode: true, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: literal(0) };
 const definitions = { effect: { id: 'effect', paramDefs: { amount: scalar }, outputDefs: { output: { dataType: { kind: 'scalar' } } }, primaryInputParameter: 'amount' } };
-const node = (id, amount = literal(0)) => ({ id, type: 'effect', effectId: 'effect', resolution: { mode: 'context' }, params: { amount }, isBypass: false });
+const node = (id, amount = literal(0)) => ({ id, type: 'effect', effectId: 'effect', resolution: { mode: 'context', scale: 1 }, params: { amount }, isBypass: false });
 const connection = id => ({ inputSource: 'node', nodeId: id, outputPort: 'output', fitMode: 'contain', wrapMode: 'clamp', filterMode: 'linear' });
 const visualModule = (nodes, id = 'visualModule') => ({ id, nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] });
 const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project' }, layers });
@@ -84,7 +84,7 @@ test('inspects nested timeline bindings once while collecting references', () =>
 	} }));
 	const effect = { ...definitions.effect, paramDefs: { inputs: nestedParameterDefinition() } };
 	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect',
-		resolution: { mode: 'context' }, effectParamValues: { inputs: literal(elements) } };
+		resolution: { mode: 'context', scale: 1 }, effectParamValues: { inputs: literal(elements) } };
 	const references = [];
 	inspectTimelineLayer(layer, undefined, effect, (def, binding) => {
 		assert.equal(def.dataType.kind, 'imageAssetTextureReference');
@@ -122,7 +122,7 @@ for (const invalid of ['duplicate element', 'unknown field', 'missing field', 'c
 		else { values.asset = { inputSource: 'lowerLayerOutput' }; message = /Timeline image input is only available/; }
 		const effect = { ...definitions.effect, paramDefs: { inputs: nestedParameterDefinition() } };
 		const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect',
-			resolution: { mode: 'context' }, effectParamValues: { inputs: binding } };
+			resolution: { mode: 'context', scale: 1 }, effectParamValues: { inputs: binding } };
 		assert.throws(() => inspectTimelineLayer(layer, undefined, effect, () => {}), message);
 	});
 }
@@ -391,7 +391,7 @@ test('invalidates an old creation even if static errors are already corrected', 
 // 【音声以外へ下層音声を渡す構造エラーは、Commandの拒否に依存せず診断する】
 // 外部から読み込んだ設定や編集途中の状態もUIで一貫して扱うために必要な検査。
 test('diagnoses invalid layer audio bindings before rendering', () => {
-	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect', resolution: { mode: 'context' }, effectParamValues: { amount: { inputSource: 'lowerLayerAudio' } } };
+	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect', resolution: { mode: 'context', scale: 1 }, effectParamValues: { amount: { inputSource: 'lowerLayerAudio' } } };
 	const { state, validation } = fixture([], [scene('scene', [layer])]);
 	assert.match(validation.errorMessage.value, /Layer audio is not available/);
 	state.timelineScenes.value[0].layers[0].effectParamValues.amount = literal(1);
@@ -400,7 +400,7 @@ test('diagnoses invalid layer audio bindings before rendering', () => {
 });
 
 const outputReference = (layerId, outputStage = 'source') => ({ inputSource: 'anotherLayerOutput', layerId, outputStage, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
-const imageEffectLayer = (id, binding = literal(0)) => ({ id, name: id, layerType: 'effect', effectId: 'effect', resolution: { mode: 'context' },
+const imageEffectLayer = (id, binding = literal(0)) => ({ id, name: id, layerType: 'effect', effectId: 'effect', resolution: { mode: 'context', scale: 1 },
 	clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], isDisabled: false, automationGraphs: [], compositingParamValues: {}, effectParamValues: { amount: binding } });
 const imageLayerChange = layerId => [{ type: 'layer', sceneId: 'scene', layerId, changes: [{ type: 'parameter', target: 'effect', kind: 'connection' }] }];
 

@@ -1,6 +1,6 @@
 export type Resolution = { width: number; height: number };
 
-/** 素材・指定寸法には一度だけ適用する。上流の計算用テクスチャには再適用しない。 */
+/** 各軸へ倍率を掛け、四捨五入して最低1pxを保つ。 */
 export function scaleResolution(resolution: Resolution, scale: number): Resolution {
 	if (!Number.isFinite(scale) || scale <= 0) throw new Error('Resolution scale must be positive and finite');
 	if (![resolution.width, resolution.height].every(value => Number.isSafeInteger(value) && value > 0)) {

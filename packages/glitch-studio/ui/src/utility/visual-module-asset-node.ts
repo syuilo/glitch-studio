@@ -40,7 +40,7 @@ export function createVisualModuleAssetNode(asset: Asset, players: readonly Play
 			effectId: definition.id,
 			displayName: '',
 			isBypass: false,
-			resolution: { mode: 'auto' },
+			resolution: { mode: 'auto', scale: 1 },
 			pos: { x: 0, y: 0 },
 			params,
 		},

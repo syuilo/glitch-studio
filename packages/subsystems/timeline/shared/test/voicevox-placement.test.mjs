@@ -129,7 +129,7 @@ function speechHistoryFixture() {
 		audioParamValues: volume, compositingParamValues: {}, subtitleParamValues: {}, voicevox: settings,
 		utterances: [utterance('first', 0, 'First')], clips: [clip('speech', 0, 500)] };
 	const waveform = { id: 'waveform', name: 'Waveform', layerType: 'effect', isDisabled: false, automationGraphs: [],
-		compositingParamValues: {}, effectId: 'audioWaveform', resolution: { mode: 'auto' },
+		compositingParamValues: {}, effectId: 'audioWaveform', resolution: { mode: 'auto', scale: 1 },
 		effectParamValues: { audio: { inputSource: 'lowerLayerAudio' }, duration: { inputSource: 'literal', value: 1 } },
 		clips: [clip('waveform', 0, 3000)] };
 	const parent = { id: 'parent', name: 'Parent', layerType: 'scene', isDisabled: false, automationGraphs: [],

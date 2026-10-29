@@ -113,7 +113,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		effectId: 'feedback',
 		displayName: '',
 		isBypass: false,
-		resolution: { mode: 'context' },
+		resolution: { mode: 'context', scale: 1 },
 		params: {
 			input: {
 				inputSource: 'node',
@@ -145,7 +145,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			effectId: 'colorMix',
 			displayName: '',
 			isBypass: false,
-			resolution: { mode: 'context' },
+			resolution: { mode: 'context', scale: 1 },
 			params: { inputA: { inputSource: 'literal', value: [1, 0, 0, 1] }, inputB: { inputSource: 'literal', value: [0, 0, 0, 0] }, amount: { inputSource: 'literal', value: 0 } },
 		}, history, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'history', outputPort: 'output' } } }],
 	};

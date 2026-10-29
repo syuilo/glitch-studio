@@ -28,8 +28,8 @@ function visualModule(circular) {
 		paramDefs: [],
 		outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
 		nodes: [
-			{ id: 'a', type: 'effect', resolution: { mode: 'context' }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: circular ? 'b' : null, outputPort: 'output' } } },
-			{ id: 'b', type: 'effect', resolution: { mode: 'context' }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: 'a', outputPort: 'output' } } },
+			{ id: 'a', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: circular ? 'b' : null, outputPort: 'output' } } },
+			{ id: 'b', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: 'a', outputPort: 'output' } } },
 			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'a', outputPort: 'output' } } },
 		],
 	};

@@ -7,7 +7,7 @@ const { TimelineAudioInputs } = await loadShaderSource(fileURLToPath(new URL('..
 const samples = (window, channel = 'left') => Float32Array.from({ length: window.frameCount }, (_, frame) => window.sample(frame, channel));
 const literal = value => ({ inputSource: 'literal', value });
 const scenes = [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
-	{ id: 'waveform', name: 'Waveform', layerType: 'effect', effectId: 'audioWaveform', resolution: { mode: 'auto' }, isDisabled: false,
+	{ id: 'waveform', name: 'Waveform', layerType: 'effect', effectId: 'audioWaveform', resolution: { mode: 'auto', scale: 1 }, isDisabled: false,
 		clips: [{ id: 'wave', startMs: 0, durationMs: 10000, contentOffsetMs: 0 }], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] },
 	{ id: 'audio', name: 'Audio', layerType: 'audio', isDisabled: false, automationGraphs: [], audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'sound', assetId: 'asset', startMs: 0, durationMs: 10000, sourceInMs: 0, sourceOutMs: 10000, playbackRate: 1, loop: false }] },

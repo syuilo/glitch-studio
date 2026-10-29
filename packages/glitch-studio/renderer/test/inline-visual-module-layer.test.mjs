@@ -41,7 +41,7 @@ function visualModule({ primaryInput = false, params } = {}) {
 		primaryOutputId: 'output',
 		nodes: [
 			{ id: 'in', type: 'globalIn' },
-			...(params ? [{ id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'probe', isBypass: false, params: {
+			...(params ? [{ id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'probe', isBypass: false, params: {
 				...Object.fromEntries(Object.entries(probeParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 				input: connection('in', 'input'), ...params,
 			} }] : []),

@@ -97,7 +97,9 @@ InspectorのHold current frameは、操作時のScene時刻を速度・逆方向
 - Visual Moduleの公開主入力も編集でき、既定値とリセットは`lowerLayerOutput`です。明示Bindingは自動割当より優先します。公開入力にはfit・wrap・filterを保存せず、サンプリングは内部接続で指定します。エフェクト側の画像Bindingは従来どおりこれらの設定を持ちます。
 - 直接のパラメータ編集・選択・キー操作は `['items', 'item-id', 'color']` のようなIDパスを使います。配列要素の削除で内部のキーも消え、UndoでIDごと復元します。キー・式の評価時刻とスコープは通常のレイヤー引数と同じです。`EffectRenderContext.time` だけはクリップの内容時刻を秒で渡します。
 - 出力は `primaryOutput` だけを使用し、nullの場合は合成をスキップします。タイムラインに不向きなエフェクトも候補から除外しません。Player入力、シーク前の履歴再現などは保証しません。
-- 解像度はノードと共通の `EffectResolution`（`auto` / `context` / `customAbsolute`）で、初期値はautoです。autoは素材固有寸法・解像度用入力のテクスチャ寸法・所属Sceneの順で解決し、倍率は一度だけ適用します。
+- 解像度はノードと共通の `EffectResolution`（`auto` / `context` / `customAbsolute`）で、初期値は`{ mode: 'auto', scale: 1 }`です。autoは素材固有寸法・解像度用入力のテクスチャ寸法・所属Sceneの順で解決します。
+- `auto` / `context`では正の有限数の倍率`scale`を数値で自由入力でき、基準となる幅・高さの両方に掛けます。両モード間では倍率を維持し、`customAbsolute`から戻すと1になります。保存・Undo/Redoの対象で、式・アニメーションには対応しません。
+- 全体のプレビュー・書き出し倍率で計算用寸法を求めた後にレイヤー自身の倍率を掛け、四捨五入して各辺を最低1pxにします。入力テクスチャに全体倍率を重ねて適用しません。autoで入力に追従する場合は入力側の倍率も引き継ぎ、contextは所属Sceneの寸法だけを基準にします。GPUの上限超過はエラーにし、`customAbsolute`は全体倍率だけを適用します。
 
 ## シーンの解像度
 

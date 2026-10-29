@@ -494,7 +494,7 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 						effectId: payload.effectId,
 						displayName: '',
 						isBypass: false,
-						resolution: { mode: 'auto' },
+						resolution: { mode: 'auto', scale: 1 },
 						params: { ...params, ...deepClone(payload.params ?? {}) },
 						pos: { x: 0, y: 0 },
 					};
@@ -1126,10 +1126,7 @@ const changeNodeResolutionCommandDef = defineCommand<NodeTarget & { resolution: 
 			execute(state) {
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'effect') throw new Error('Effect node not found');
-				if (!['context', 'auto', 'customAbsolute'].includes(payload.resolution.mode)) throw new Error('Invalid node resolution mode');
-				if (payload.resolution.mode === 'customAbsolute' && ![payload.resolution.width, payload.resolution.height].every(value => Number.isSafeInteger(value) && value > 0)) {
-					throw new Error('Resolution width and height must be positive integers');
-				}
+				validateEffectResolution(payload.resolution);
 				before = deepClone(node.resolution);
 				node.resolution = deepClone(payload.resolution);
 			},

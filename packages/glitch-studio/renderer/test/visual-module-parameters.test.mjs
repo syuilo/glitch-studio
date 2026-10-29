@@ -54,7 +54,7 @@ function structParameter(fields) {
 }
 
 const number = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
-const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', isBypass, params });
+const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'test', isBypass, params });
 const paramDef = (id, defaultValue = 7, dataType = 'scalar', nameForReference = id.replaceAll('-', '_')) => ({ id, nameForReference, dataType: { kind: dataType }, ui: { label: id, control: dataType === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(defaultValue), canNode: false });
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],

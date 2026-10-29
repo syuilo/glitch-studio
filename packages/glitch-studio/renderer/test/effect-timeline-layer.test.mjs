@@ -40,7 +40,7 @@ const definition = {
 const compositing = () => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), blendMode: literal('replace') });
 const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, durationMs, contentOffsetMs });
 const layer = (id, values = {}, overrides = {}) => ({
-	id, name: id, layerType: 'effect', effectId: 'probe', resolution: { mode: 'auto' },
+	id, name: id, layerType: 'effect', effectId: 'probe', resolution: { mode: 'auto', scale: 1 },
 	clips: [clip('clip', 100, 1000, 20.5)], automationGraphs: [], compositingParamValues: compositing(),
 	effectParamValues: { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...values }, ...overrides,
 });
@@ -383,11 +383,33 @@ test('resolves context and intrinsic sizes within nested scenes without inheriti
 	const childSource = f.calls.states.find(event => event.source.layerId === 'child').source;
 	assert.deepEqual(childSource, { type: 'timelineLayer', instanceId: childSource.instanceId,
 		rootSceneId: 'scene', layerId: 'child', clipId: 'clip', layerPath: ['placed', 'childClip', 'child'] });
-	for (const [resolution, expected] of [[{ mode: 'auto' }, { width: 100, height: 50 }], [{ mode: 'context' }, { width: 160, height: 90 }]]) {
+	for (const [resolution, expected] of [[{ mode: 'auto', scale: 1 }, { width: 100, height: 50 }], [{ mode: 'context', scale: 1 }, { width: 160, height: 90 }]]) {
 		await f.setup([layer('intrinsic', { amount: literal(1) }, { resolution })], { resolutionScale: 0.5 });
 		await f.manager.renderTimelineFrame(350, 0);
 		assert.deepEqual(f.calls.renders.at(-1).instance.resolution, expected);
 	}
+});
+
+// 【エフェクトレイヤーでも素材・下層・Sceneを基準に設定倍率を適用する】
+// プレビューの全体倍率とレイヤーの倍率を区別し、設定変更後の出力寸法の通知まで確認する。
+test('applies effect layer scales to intrinsic input and context sizes and refreshes edited output', async t => {
+	const f = fixture(t, { intrinsicResolution: params => params.amount === 1 ? { width: 200, height: 100 } : null });
+	for (const [values, resolution, expected] of [
+		[{ amount: literal(1) }, { mode: 'auto', scale: 1.5 }, { width: 150, height: 75 }],
+		[{ amount: literal(1) }, { mode: 'context', scale: 0.25 }, { width: 40, height: 23 }],
+		[{}, { mode: 'auto', scale: 0.25 }, { width: 40, height: 23 }],
+		[{ input }, { mode: 'auto', scale: 0.5 }, { width: 80, height: 45 }],
+	]) {
+		await f.setup([layer('scaled', values, { resolution })], { resolutionScale: 0.5 });
+		await f.manager.renderTimelineFrame(350, 0);
+		assert.deepEqual(f.calls.renders.at(-1).instance.resolution, expected);
+		assert.deepEqual(f.calls.states.at(-1).status.outputs.output, expected);
+	}
+	const edited = layer('scaled', { input }, { resolution: { mode: 'context', scale: 2 } });
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: edited.id, layer: edited, changes: [{ type: 'resolution' }] }]);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.deepEqual(f.calls.renders.at(-1).instance.resolution, { width: 320, height: 180 });
+	assert.deepEqual(f.calls.states.at(-1).status.outputs.output, { width: 320, height: 180 });
 });
 
 // 【同じエフェクトでも隣接クリップに履歴を引き継がず、非同期待機を中断できる】

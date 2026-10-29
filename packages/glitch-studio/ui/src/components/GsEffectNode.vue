@@ -11,7 +11,7 @@
 			<div :class="$style.nodeId" class="_monospace">{{ prettyId(node.id) }}</div>
 			<div :class="$style.headerButtons">
 				<GsButton transparent :class="[$style.headerButton]" inline iconOnly :icon="'ti ' + (expanded ? 'ti-chevron-up' : 'ti-chevron-down')" @click="expanded = !expanded"/>
-				<GsButton :transparent="!showSettings" :class="[$style.headerButton]" inline iconOnly :primary="showSettings" icon="ti ti-settings" @click="showSettings = !showSettings"/>
+				<GsButton data-test-node-settings :transparent="!showSettings" :class="[$style.headerButton]" inline iconOnly :primary="showSettings" icon="ti ti-settings" @click="showSettings = !showSettings"/>
 				<GsButton :transparent="node.isBypass" :class="[$style.headerButton]" inline iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts._Node.ClickToEnable : i18n.ts._Node.ClickToDisable" :icon="'ti ' + (node.isBypass ? 'ti-eye-off' : 'ti-eye')" @click="toggleBypass()"/>
 				<GsButton transparent :class="[$style.headerButton]" inline iconOnly :title="i18n.ts._Node.RemoveEffect" icon="ti ti-x" @click="remove()"/>
 			</div>
@@ -25,10 +25,16 @@
 
 				<div class="_gaps_s">
 					<GsInput large :modelValue="node.displayName" :debounce="400" @update:modelValue="emit('setDisplayName', $event)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
-					<GsSelect large :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
+					<GsSelect data-test-node-resolution-mode large :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
 						<template #label>{{ i18n.ts.Resolution }}</template>
 						<template v-if="node.resolution.mode === 'context'" #caption>{{ i18n.ts._Node.ResolutionHint }}</template>
+						<template v-else-if="node.resolution.mode === 'auto'" #caption>{{ i18n.ts._Node.AutoResolutionHint }}</template>
 					</GsSelect>
+					<GsInput v-if="node.resolution.mode !== 'customAbsolute'" data-test-node-resolution-scale large type="number" :modelValue="node.resolution.scale" :min="0" step="any" :debounce="400" @update:modelValue="setResolutionScale">
+						<template #label>{{ i18n.ts._Node.ResolutionScale }}</template>
+						<template #suffix>×</template>
+						<template #caption>{{ i18n.ts._Node.ResolutionScaleHint }}</template>
+					</GsInput>
 					<div v-if="node.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
 						<GsInput large style="flex: 1" type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
 						<GsInput large style="flex: 1" type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
@@ -110,7 +116,13 @@ const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 
 function setResolutionMode(mode: EffectResolution['mode']) {
 	if (mode === props.node.resolution.mode) return;
-	emit('setResolution', mode === 'customAbsolute' ? { mode, ...stateManager.state.resolution.value } : { mode });
+	emit('setResolution', mode === 'customAbsolute' ? { mode, ...stateManager.state.resolution.value }
+		: { mode, scale: props.node.resolution.mode === 'customAbsolute' ? 1 : props.node.resolution.scale });
+}
+
+function setResolutionScale(scale: number | null) {
+	if (props.node.resolution.mode === 'customAbsolute' || scale == null || !Number.isFinite(scale) || scale <= 0 || scale === props.node.resolution.scale) return;
+	emit('setResolution', { ...props.node.resolution, scale });
 }
 
 function setDimension(axis: 'width' | 'height', value: number | null) {

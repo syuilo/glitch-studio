@@ -134,7 +134,7 @@ export async function newProject() {
 		}, {
 			id: initialEffectNodeId,
 			type: 'effect',
-			resolution: { mode: 'auto' },
+			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'fill',
 			displayName: '',
 			params: {
@@ -279,7 +279,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 		}, result.type.startsWith('image/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
-			resolution: { mode: 'auto' },
+			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'image',
 			displayName: '',
 			params: {
@@ -290,7 +290,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 		} satisfies EffectNodeOf<typeof imageEffectDef> : result.type.startsWith('video/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
-			resolution: { mode: 'auto' },
+			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'video',
 			displayName: '',
 			params: {
@@ -301,7 +301,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 		} satisfies EffectNodeOf<typeof videoEffectDef> : result.type.startsWith('audio/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
-			resolution: { mode: 'auto' },
+			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'audioWaveform',
 			displayName: '',
 			params: {
@@ -316,7 +316,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 		} satisfies EffectNodeOf<typeof audioWaveformEffectDef> : {
 			id: initialEffectNodeId,
 			type: 'effect',
-			resolution: { mode: 'auto' },
+			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'fill',
 			displayName: '',
 			params: {

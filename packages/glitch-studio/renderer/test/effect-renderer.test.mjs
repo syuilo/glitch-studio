@@ -12,7 +12,7 @@ const { createTextFontLoader } = await load('@gs/subsystems_effect_shared/text-f
 
 const literal = value => ({ inputSource: 'literal', value });
 const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', nodeId, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
-const node = (id, effectId = id, params = {}) => ({ id, type: 'effect', effectId, params, isBypass: false, resolution: { mode: 'context' } });
+const node = (id, effectId = id, params = {}) => ({ id, type: 'effect', effectId, params, isBypass: false, resolution: { mode: 'context', scale: 1 } });
 const color = { dataType: { kind: 'color' }, canNode: true };
 const uniform = { kind: 'uniform', value: [0.5, 0, 0, 0.5] };
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -582,7 +582,7 @@ test('invalidates downstream caches after resizing away and back without renderi
 	const g = gpu();
 	const source = probe(g, { paramDefs: { size: { dataType: { kind: 'scalar' } } }, intrinsic: params => ({ width: params.size, height: 9 }) });
 	const consumer = probe(g, { paramDefs: { input: color } });
-	const raw = { ...node('source', 'source', { size: literal(16) }), resolution: { mode: 'auto' } };
+	const raw = { ...node('source', 'source', { size: literal(16) }), resolution: { mode: 'auto', scale: 1 } };
 	const f = graph(t, g, { source, consumer }, [raw, node('consumer', 'consumer', { input: connection('source') })]);
 	f.render();
 	const first = consumer.renders[0].params.input.texture;
@@ -598,6 +598,42 @@ test('invalidates downstream caches after resizing away and back without renderi
 	assert.equal(consumer.renders.length, 2);
 	assert.equal(first.destroyed, 1);
 	assert.notEqual(consumer.renders[1].params.input.texture, first);
+});
+
+// 【ノード倍率は自動接続で累積し、変更時は後段の寸法・キャッシュも更新する】
+// 設定だけを保存して描画サイズが変わらない不具合や、全体倍率の二重適用を防ぐ。
+// コンテキストへ切り替えたノードは上流から独立し、再描画なしの繰り返しはキャッシュを使う。
+test('propagates local resolution scales through graph updates and preview resizing', async t => {
+	const g = gpu();
+	const source = probe(g, { intrinsic: () => ({ width: 1920, height: 1080 }) });
+	const consumer = probe(g, { paramDefs: { input: color } });
+	consumer.definition.resolutionInputParameter = 'input';
+	const sourceNode = { ...node('source'), resolution: { mode: 'auto', scale: 0.5 } };
+	const consumerNode = { ...node('consumer', 'consumer', { input: connection('source') }), resolution: { mode: 'auto', scale: 0.5 } };
+	const f = graph(t, g, { source, consumer }, [sourceNode, consumerNode], undefined, { resolution: { width: 1920, height: 1080 }, resolutionScale: 0.5 });
+	const outputSize = () => consumer.instances.at(-1).args.resolution;
+	await f.prepare();
+	f.render();
+	assert.deepEqual(source.instances.at(-1).args.resolution, { width: 480, height: 270 });
+	assert.deepEqual(outputSize(), { width: 240, height: 135 });
+	f.render();
+	assert.deepEqual([source.renders.length, consumer.renders.length], [1, 1]);
+	const originalInput = consumer.renders.at(-1).params.input.texture;
+	sourceNode.resolution.scale = 1;
+	f.renderer.updateNodes(f.module.nodes);
+	await f.prepare();
+	f.render();
+	assert.deepEqual(outputSize(), { width: 480, height: 270 });
+	assert.equal(originalInput.destroyed, 1);
+	assert.deepEqual([source.renders.length, consumer.renders.length], [2, 2]);
+	consumerNode.resolution = { mode: 'context', scale: 0.5 };
+	f.renderer.updateNodes(f.module.nodes);
+	f.render();
+	assert.deepEqual(outputSize(), { width: 480, height: 270 });
+	f.renderer.resize({ width: 1920, height: 1080 }, 1);
+	await f.prepare();
+	f.render(f.context({ isExport: true }));
+	assert.deepEqual(outputSize(), { width: 960, height: 540 });
 });
 
 // 【同じIDのノードを再作成しても以前の出力キャッシュを使用しない】
