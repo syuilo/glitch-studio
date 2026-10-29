@@ -430,7 +430,7 @@
 		"VisualModuleAutoConnectOnNodeAddHint": "接続可能な場合、現在の主出力の接続元を追加したノードの主入力につなぎ、主出力を追加したノードに切り替えます。",
 		"Rendering": "レンダリング",
 		"PreviewDisplayMode": "プレビューの表示方式",
-		"PreviewDisplayGpu": "GPU経由（標準）",
+		"PreviewDisplayGpu": "GPU経由",
 		"PreviewDisplayCpu": "CPU経由",
 		"PreviewDisplayModeHint": "CPU経由は低解像度レンダリングでパフォーマンスが向上する場合がありますが、逆に高解像度では負荷が増えます。",
 		"TimelinePreviewFramesAhead": "タイムラインプレビューの先行フレーム数",
