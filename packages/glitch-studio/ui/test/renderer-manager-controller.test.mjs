@@ -49,33 +49,49 @@ class FakeWorker {
 	calls(fn) { return this.messages.filter(message => message.type === 'call' && message.fn === fn); }
 }
 
-// 【古いWorker・Scene・設定世代のキャッシュ通知を表示へ混ぜない】
-// 通知を間引くため編集後に旧スナップショットが届き得る。通常の表示変更では範囲を保持し、
-// fps変更と破棄では消去する。精密シークの指定もWorkerへ明示して伝える。
-test('filters frame cache notifications and forwards precise seeks independently of completion requests', async t => {
+// 【キャッシュ状態はUIの更新で消さず、現在のWorkerから最後に受け取った通知を保持する】
+// UIのScene・設定世代で選別すると、変更時だけ送る通知を失って次の更新まで状態が欠ける。
+// 更新RPCの応答でも状態を推測せず、破棄済みWorkerの通知だけを基底クラスで除外する。
+test('retains cache notifications independently of UI revisions and rejects disposed worker notifications', async t => {
 	const { controller, workers } = fixture(t, 'Timeline');
 	const worker = await initialize(controller, workers);
 	const state = { sceneId: null, contentRevision: 1, previewRevision: 0, fps: 15,
 		frameRanges: [{ startFrame: 0, endFrame: 2 }], estimatedBytes: 8, maxBytes: 16 };
 	const notify = ctx => worker.reply({ type: 'ev', ev: { type: 'frameCache', ctx } });
-	notify({ ...state, sceneId: 'old' });
-	notify({ ...state, previewRevision: -1 });
-	assert.equal(controller.frameCacheState.value, null);
 	notify(state);
 	assert.deepEqual(controller.frameCacheState.value, state);
 	controller.renderTimelineAt(120, true, 'precise');
 	const seek = worker.calls('renderTimelineAt').at(-1);
 	assert.deepEqual(seek.args, [120, 1, 'precise']);
 	const update = controller.updateDynamicOptions({ previewFps: 30 });
-	assert.equal(controller.frameCacheState.value, null);
+	assert.equal(controller.frameCacheState.value, state);
 	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
 	await update;
-	notify(state);
-	assert.equal(controller.frameCacheState.value, null);
-	notify({ ...state, previewRevision: 1, fps: 30 });
-	assert.equal(controller.frameCacheState.value.fps, 30);
+	assert.equal(controller.frameCacheState.value, state);
+	const previousScene = { ...state, sceneId: 'previous-scene', previewRevision: 0 };
+	notify(previousScene);
+	assert.equal(controller.frameCacheState.value, previousScene);
+
+	const latest = { ...state, previewRevision: 1, fps: 30 };
+	notify(latest);
+	for (const [method, argument] of [
+		['applyProjectChanges', []],
+		['replaceProjectState', { automationGraphs: [], visualModules: [], timelineScenes: [] }],
+	]) {
+		const changed = controller[method](argument);
+		assert.equal(controller.frameCacheState.value, latest);
+		worker.returnValue(worker.calls(method).at(-1), {});
+		await changed;
+		assert.equal(controller.frameCacheState.value, latest);
+	}
 	controller.disposeManager();
 	assert.equal(controller.frameCacheState.value, null);
+	notify(state);
+	assert.equal(controller.frameCacheState.value, null);
+	const replacement = await initialize(controller, workers);
+	replacement.reply({ type: 'ev', ev: { type: 'frameCache', ctx: latest } });
+	notify(state);
+	assert.equal(controller.frameCacheState.value, latest);
 });
 
 function fixture(t, kind = 'VisualModule') {
@@ -140,10 +156,10 @@ test('recreates the timeline worker for frames ahead changes and clears obsolete
 	assert.equal(controller.isReady.value, true);
 });
 
-// 【推定使用量と最大容量から丸めない使用率を求め、未通知・無効時は不明とする】
-// UI表示とBAKEの停止判定で同じ比率を使う。容量変更やWorker破棄後の古い値を残したり、
-// 最大容量0で除算してInfinityを表示したりしない。
-test('reports the unrounded cache usage ratio and clears it across capacity changes and disposal', async t => {
+// 【使用率も最後の通知を使い、容量変更では保持しWorker破棄で解除する】
+// UIが保持する新しい容量と古い使用量を混ぜず、同じ通知内の比率を表示とBAKE判定で共有する。
+// 通知の最大容量が0の場合は除算せず、未通知と同じく不明として扱う。
+test('reports the last notified cache usage ratio across capacity changes until disposal', async t => {
 	const { controller, workers } = fixture(t, 'Timeline');
 	const worker = await initialize(controller, workers);
 	assert.equal(controller.frameCacheUsageRatio.value, null);
@@ -155,9 +171,10 @@ test('reports the unrounded cache usage ratio and clears it across capacity chan
 	notify({ ...state, estimatedBytes: 900001 });
 	assert.equal(controller.frameCacheUsageRatio.value, 0.900001);
 	const update = controller.updateDynamicOptions({ frameCacheMaxBytes: 0 });
-	assert.equal(controller.frameCacheUsageRatio.value, null);
+	assert.equal(controller.frameCacheUsageRatio.value, 0.900001);
 	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
 	await update;
+	assert.equal(controller.frameCacheUsageRatio.value, 0.900001);
 	notify({ ...state, previewRevision: 1, maxBytes: 0 });
 	assert.equal(controller.frameCacheUsageRatio.value, null);
 	notify({ ...state, previewRevision: 1, estimatedBytes: 500000 });
@@ -358,10 +375,10 @@ test('retains completion requests for precise and off-grid seeks even when a fra
 	assert.equal(worker.calls('renderTimelineAt').at(-1).args.length, 2);
 });
 
-// 【表示設定の変更後も既知の画像を利用し、容量変更後は新しい通知で範囲を確認し直す】
-// previewRevisionだけで判定すると、画像を変えない選択・表示設定の変更でキャッシュ判定が失われる。
-// 容量縮小後は削除対象がUIに未通知でもあり得るため、以前の範囲を使わない。
-test('keeps cached seek feedback across display updates and resets it for capacity changes', async t => {
+// 【シークの待機表示は設定変更を推測せず、最後のキャッシュ通知から判断する】
+// 容量縮小後も通知までは以前の範囲を使い、削除が通知されたフレームから待機表示へ戻す。
+// 実際のキャッシュ検索はWorkerが行うため、この遅れで描画結果が古くなることはない。
+test('keeps cached seek feedback until the worker reports evicted frames', async t => {
 	const { controller, workers } = fixture(t, 'Timeline');
 	const worker = await initialize(controller, workers);
 	const state = { sceneId: null, contentRevision: 1, previewRevision: 0, fps: 60,
@@ -375,12 +392,14 @@ test('keeps cached seek feedback across display updates and resets it for capaci
 	assert.equal(controller.isSeeking.value, false);
 	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [0]);
 	const capacityUpdate = controller.updateDynamicOptions({ frameCacheMaxBytes: 4 });
-	assert.equal(controller.frameCacheState.value, null);
+	assert.equal(controller.frameCacheState.value, state);
 	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
 	await capacityUpdate;
-	controller.renderTimelineAt(0, true);
-	assert.equal(controller.isSeeking.value, true);
+	controller.renderTimelineAt(1000 / 60, true);
+	assert.equal(controller.isSeeking.value, false);
 	notify({ ...state, previewRevision: 2, maxBytes: 4, frameRanges: [{ startFrame: 0, endFrame: 1 }], estimatedBytes: 4 });
+	controller.renderTimelineAt(1000 / 60, true);
+	assert.equal(controller.isSeeking.value, true);
 	controller.renderTimelineAt(0);
 	assert.equal(controller.isSeeking.value, false);
 	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [0]);

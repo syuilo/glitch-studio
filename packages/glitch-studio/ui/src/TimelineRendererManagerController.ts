@@ -104,8 +104,9 @@ export class TimelineRendererManagerController extends RendererManagerController
 					}
 				},
 				frameCache: ctx => {
-					if (this.isReady.value && ctx.sceneId === (this.dynamicOptions.sceneId ?? null)
-						&& ctx.previewRevision === this.dynamicOptions.previewRevision) this.frameCacheState.value = ctx;
+					// UIの編集・設定世代では選別せず、最後に受信したWorkerの実状態を保持する。
+					// 破棄済みWorkerからの通知は基底クラスのWorker世代チェックで除外される。
+					this.frameCacheState.value = ctx;
 				},
 				telemetry: ctx => {
 					if (this.isReady.value && ctx.sceneId === (this.dynamicOptions.sceneId ?? null) && ctx.revision === this.dynamicOptions.previewRevision) {
@@ -171,7 +172,6 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
 		if (options.frameCacheMaxBytes != null) this.frameCacheMaxBytes.value = options.frameCacheMaxBytes;
-		if (['assets', 'resolution', 'resolutionScale', 'visualModules', 'timelineScenes', 'automationGraphs', 'sceneId', 'previewFps', 'generatedSpeech', 'frameCacheMaxBytes'].some(key => Object.hasOwn(options, key))) this.frameCacheState.value = null;
 		if (Object.hasOwn(options, 'sceneId') && options.sceneId !== this.dynamicOptions.sceneId) {
 			this.cancelSeek();
 			this.previewStatistics.value = null;
@@ -192,7 +192,6 @@ export class TimelineRendererManagerController extends RendererManagerController
 	}
 
 	public async replaceProjectState(state: RendererProjectState) {
-		this.frameCacheState.value = null;
 		this.cancelSeek();
 		const snapshot = deepClone(state);
 		const revision = this.invalidateTransformPreview();
@@ -207,7 +206,6 @@ export class TimelineRendererManagerController extends RendererManagerController
 	}
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		this.frameCacheState.value = null;
 		const patch = deepClone(changes);
 		const next = applyRendererProjectChanges({ automationGraphs: this.dynamicOptions.automationGraphs ?? [], visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: this.dynamicOptions.timelineScenes ?? [] }, patch);
 		const revision = this.invalidateTransformPreview();
@@ -280,8 +278,8 @@ export class TimelineRendererManagerController extends RendererManagerController
 		if (seekMode !== 'frame' || cache == null || cache.maxBytes <= 0 || cache.fps !== fps
 			|| cache.sceneId !== (this.dynamicOptions.sceneId ?? null)) return false;
 		const frameIndex = getTimelinePreviewFrameIndex(time, fps);
-		// 選択・表示設定だけでもpreviewRevisionは進むが、画像は引き続き利用できる。
-		// 内容や容量の変更時にはframeCacheState自体を消して、次の通知まで未確認とする。
+		// シークの待機表示も最後の通知に基づく。編集や容量変更後の反映の遅れを許容し、
+		// 実際にテクスチャを再利用できるかどうかの最終判断はWorkerへ委ねる。
 		return Math.abs(time - frameIndex * 1000 / fps) < 1e-7
 			&& cache.frameRanges.some(range => range.startFrame <= frameIndex && frameIndex < range.endFrame);
 	}

@@ -52,6 +52,8 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 TimelineのBAKEは`PreviewPlaybackController`が現在位置からScene終端までのフレーム進行と中止を管理し、`TimelineRendererManagerController.renderTimelineAtAndWait()`が既存の`frameRendered`通知でGPU描画完了を待ちます。通常シークのスピナーやキャッシュ済み通知の省略とは独立し、BAKEでは毎フレーム完了通知を要求します。通常操作・設定更新・編集・Worker破棄で待機を解除し、レンダラーにはBAKE専用の処理を追加しません。挙動は[タイムライン](../../../docs/timeline.md)を参照してください。
 
+`TimelineRendererManagerController.frameCacheState`は、現在のWorkerから最後に受信したキャッシュ状態をそのまま保持します。UIのScene・`previewRevision`では通知を選別せず、編集・設定変更・プロジェクトの置き換えでもクリアしません。Workerは100ms間隔で変更を確認し、変更時だけ通知します。フッターの使用率、キャッシュ範囲、シークの待機表示、BAKEの90%超過判定は、この最後の通知に基づきます。次の通知までの遅れを許容し、BAKE開始時に最新状態を問い合わせる処理は設けません。Worker破棄時だけ状態をnullに戻し、破棄済みWorkerからの通知は`RendererManagerControllerBase`のWorker世代チェックで除外します。描画完了・変形情報などの編集世代チェックは引き続き行います。
+
 ## Timelineのエクスポート
 
 エクスポートダイアログの解像度はSceneの基準サイズ、フレームレートはプロジェクトのTimeline FPSに対し、0.25x / 0.5x / 1x / 2x / 4xから選ぶ。カスタムでは幅・高さとFPSを直接入力する。MP4では奇数の辺を1px増やして偶数にする。カスタム解像度は書き出し対象Sceneの基準サイズとして使い、その画角で描画する。プロジェクトや子Sceneの基準サイズは変更しない。
