@@ -6,6 +6,9 @@ struct Uniforms {
 	rotation: f32,
 	sourceRotation: f32,
 	zoom: f32,
+	twist: f32,
+	radialRepeat: f32,
+	radialPhase: f32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -19,15 +22,29 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let radius = length(relativePosition);
 	var foldedAngle = 0.0;
 	// 中心では角度を定義できないのでatan2(0, 0)を避ける。
-	// 半径がゼロのため、どの角度でもSource Centerを参照する。
+	// Radial Phaseによって入力の中心以外を参照する場合も、中心の角度は上向きに固定する。
 	if (radius > 0.0) {
 		// 上向きを角度0、時計回りを正とし、Repetitionsを変えても上側の軸を固定する。
 		// Rotationは出力全体の時計回りの回転なので、参照時には差し引く。
-		let angle = atan2(relativePosition.x, relativePosition.y) - uniforms.rotation;
+		// Twistは折り返し前の角度に適用し、対称軸そのものを渦巻きにする。
+		// 半径方向の反復やZoomより前の距離を使い、リングをまたいでもねじれを連続させる。
+		let angle = atan2(relativePosition.x, relativePosition.y) - uniforms.rotation - uniforms.twist * radius;
 		// 1周期を中央で折り返し、[0, sectorAngle / 2]の扇形へ写す。
 		// 正負の角度を同じ周期で扱うことで、全周の境界でも模様が連続する。
 		let sectorPosition = fract(angle / uniforms.sectorAngle + 0.5);
 		foldedAngle = abs(sectorPosition - 0.5) * uniforms.sectorAngle;
+	}
+
+	var sourceRadius = radius;
+	if (uniforms.radialRepeat > 0.0) {
+		// 1周期で入力の中心から外へ進み、同じ経路を戻る三角波にする。
+		// 周期境界でも入力の参照位置がつながるため、同心円状の切れ目を作らない。
+		// 位相を差し引くことで、値を増やすと模様が外側へ移動する。
+		let radialCycle = fract(radius * uniforms.radialRepeat - uniforms.radialPhase);
+		// 周波数で割って周期内の倍率を保つ。位相0では周波数を0に近づけると
+		// 最初の折り返しが遠ざかり、反復なしの半径に自然につながる。
+		// 小さい周波数でも桁落ちしにくい形で計算する。
+		sourceRadius = min(radialCycle, 1.0 - radialCycle) / uniforms.radialRepeat;
 	}
 
 	// 入力側の回転は取り込む扇形の向きだけを時計回りに変える。
@@ -35,7 +52,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let sourceAngle = foldedAngle + uniforms.sourceRotation;
 	// 入力も上向き基準で復元する。出力だけ基準を変えると画像が90°回転してしまうため、
 	// 同じ座標変換を対にして使い、基準となる扇形では元画像の向きを保つ。
-	let sourceOffset = radius / uniforms.zoom * vec2f(sin(sourceAngle), cos(sourceAngle));
+	let sourceOffset = sourceRadius / uniforms.zoom * vec2f(sin(sourceAngle), cos(sourceAngle));
 	let sourcePosition = uniforms.sourceCenter + sourceOffset / outputExtent;
 	// wrap・filterとpremultiplied alphaを含め、共通入力のサンプリング結果を保持する。
 	return read_input(sourcePosition);

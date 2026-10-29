@@ -38,6 +38,10 @@ export default implementEffect<typeof definition>({
 					// 式やキーから小数が渡っても全周が閉じるよう、1以上の整数にする。
 					sectorAngle: 2 * Math.PI / Math.max(1, Math.round(ctx.params.repetitions)),
 					rotation: ctx.params.rotation * (2 * Math.PI),
+					twist: ctx.params.twist * (2 * Math.PI),
+					radialRepeat: Math.max(0, ctx.params.radialRepeat),
+					// 大きな位相をGPUへ渡して半径方向の細かな差が失われないよう、周期内へ戻す。
+					radialPhase: ctx.params.radialPhase - Math.floor(ctx.params.radialPhase),
 					sourceRotation: ctx.params.sourceRotation * (2 * Math.PI),
 					// Zoomは正の拡大率。UI範囲外の値でもゼロ除算を起こさない。
 					zoom: Math.max(0.000001, ctx.params.zoom),
