@@ -58,7 +58,8 @@ type ParameterDefaultBinding<T extends DataType> = T extends { kind: 'array' | '
 export type ParameterSettings<T extends DataType> = T extends DataType
 	? { defaultValue: ParameterDefaultValue<T> } & (
 		T extends { kind: 'array'; elementType: infer E extends DataType }
-			? { canNode?: false; element: ParameterSettings<E> }
+			// 要素数の上限は型ではなくパラメータ固有の制約。未指定なら追加数を制限しない。
+			? { canNode?: false; maxElements?: number; element: ParameterSettings<E> }
 			: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
 				? { canNode?: false; fields: { [K in keyof F]: ParameterSettings<F[K]> } }
 				: T extends { kind: 'any' }

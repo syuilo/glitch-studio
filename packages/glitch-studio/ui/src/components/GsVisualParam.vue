@@ -24,8 +24,8 @@
 		</div>
 		<div :class="$style.paramBody">
 			<template v-if="paramDef.dataType.kind === 'array'">
-				<span :class="$style.count">{{ arrayValues.length }}</span>
-				<GsButton v-tooltip="i18n.ts._Parameter.AddElement" iconOnly icon="ti ti-plus" @click="addElement"/>
+				<span :class="$style.count">{{ arrayValues.length }}<template v-if="arrayMaxElements != null"> / {{ arrayMaxElements }}</template></span>
+				<GsButton v-tooltip="i18n.ts._Parameter.AddElement" iconOnly icon="ti ti-plus" :disabled="!canAddArrayElement" @click="addElement"/>
 			</template>
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
@@ -218,7 +218,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 </script>
 
 <script lang="ts" setup>
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
@@ -299,6 +299,8 @@ function updateTimelineCustomParameterReference(key: string | null) {
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
 const arrayValues = computed<ParameterArrayElement<EditableParameterBinding>[]>(() => props.paramDef.dataType.kind === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
+const arrayMaxElements = computed(() => isParameterType(props.paramDef, 'array') ? props.paramDef.maxElements ?? null : null);
+const canAddArrayElement = computed(() => arrayMaxElements.value == null || arrayValues.value.length < arrayMaxElements.value);
 const structValues = computed<Record<string, EditableParameterBinding> | null>(() => props.paramDef.dataType.kind === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
 	if (props.paramDef.dataType.kind !== 'struct') return [];
@@ -631,6 +633,7 @@ function updateParamAsNode(key: string | null) {
 }
 
 function addElement() {
+	if (!canAddArrayElement.value) return;
 	emit('edit', { kind: 'addElement', ...target() });
 }
 

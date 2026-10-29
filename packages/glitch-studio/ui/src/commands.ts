@@ -306,8 +306,9 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								? createLowerLayerOutputBinding() : createResetParameterBinding(def); break;
 						case 'addElement':
 						case 'removeElement': {
-							if (def.dataType.kind !== 'array' || current.inputSource !== 'literal') throw new Error('Expected array parameter');
+							if (!isParameterType(def, 'array') || current.inputSource !== 'literal') throw new Error('Expected array parameter');
 							const elements = current.value as ParameterArrayElement<TimelineEffectParameterBinding>[];
+							if (edit.kind === 'addElement' && def.maxElements != null && elements.length >= def.maxElements) throw new Error('Array parameter element limit reached');
 							if (edit.kind === 'removeElement' && !elements.some(element => element.id === edit.elementId)) throw new Error('Unknown array element');
 							next = {
 								inputSource: 'literal',
@@ -1045,7 +1046,8 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Add array parameter element',
 	({ def, value }) => {
-		if (def.dataType.kind !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
+		if (!isParameterType(def, 'array') || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
+		if (def.maxElements != null && value.value.length >= def.maxElements) throw new Error('Array parameter element limit reached');
 		const element: ParameterArrayElement = { id: genId(), binding: deepClone(getArrayElementDefinition(def).defaultValue) };
 		return { inputSource: 'literal', value: [...value.value, element] };
 	},

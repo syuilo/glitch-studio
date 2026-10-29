@@ -1,6 +1,7 @@
 import type { UniformOrTexture, UniformValue, TextureValue } from './uniform-or-texture.ts';
 import { inputUvScale } from './input-fit.ts';
 import type { InputFitMode } from './input-fit.ts';
+import type { Resolution } from '../resolution.ts';
 export { inputUvScale } from './input-fit.ts';
 
 type InputWrapMode = 'repeat' | 'repeatMirrored' | 'clamp' | 'transparent';
@@ -46,6 +47,8 @@ export function constantShaderInput(dataType: string, value: any): ShaderInput {
 
 export type ShaderInputType = 'scalar' | 'vector' | 'color' | 'any';
 export type ShaderInputSchema = Readonly<Record<string, ShaderInputType | { array: ShaderInputType }>>;
+/** 素材と制御用の場など、入力ごとに異なる座標領域でfitする場合の基準寸法。配列には要素共通で適用する。 */
+export type ShaderInputReferenceResolutions = Readonly<Partial<Record<string, Resolution>>>;
 type ShaderInputValue<T extends ShaderInputSchema[string]> = T extends ShaderInputType ? ShaderInput : readonly ShaderInput[];
 export type ShaderInputValues<Schema extends ShaderInputSchema = ShaderInputSchema> = {
 	readonly [Key in keyof Schema]: ShaderInputValue<Schema[Key]>;
@@ -200,7 +203,7 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 	let bindGroup: GPUBindGroup;
 	return {
 		layout,
-		update(inputs: ShaderInputValues, output: { width: number; height: number }) {
+		update(inputs: ShaderInputValues, output: { width: number; height: number }, inputReferenceResolutions: ShaderInputReferenceResolutions = {}) {
 			if (shaderInputVariantKey(generated.schema, inputs) !== generated.variantKey) throw new Error('Shader input shape or kind changed');
 			const entries: GPUBindGroupEntry[] = [{ binding: 0, resource: { buffer } }];
 			const resources: (GPUTexture | GPUSampler)[] = [];
@@ -213,7 +216,7 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 					values.set(input.value, slot.index * 8);
 					continue;
 				}
-				const scale = inputUvScale(input.texture, output, input.fitMode);
+				const scale = inputUvScale(input.texture, inputReferenceResolutions[slot.sourceName] ?? output, input.fitMode);
 				values.set([...scale, Number(input.filterMode === 'nearest'), Number(input.wrapMode === 'transparent')], slot.index * 8 + 4);
 				const samplerKey = `${input.wrapMode}:${input.filterMode}`;
 				let sampler = samplers.get(samplerKey);
