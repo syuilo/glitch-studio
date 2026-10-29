@@ -1,11 +1,14 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { timelineTextureSize } from '../../timeline-image.ts';
-import code from './shape-renderer.wgsl?raw';
+import shapeDistanceCode from '@gs/shared/gpu/shape-distance.wgsl?raw';
+import shapeRendererCode from './shape-renderer.wgsl?raw';
 import { getShapeStrokeEndpoint } from './shape-stroke-progress.ts';
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { EvaluatedShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+
+const code = shapeDistanceCode + '\n' + shapeRendererCode;
 
 /** 評価済みの形状だけを受け取り、配置先やBindingを知らずに透明背景へ描画する。 */
 export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat }) {
