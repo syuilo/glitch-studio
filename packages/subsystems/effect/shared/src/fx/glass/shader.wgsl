@@ -101,8 +101,9 @@ fn refractedSample(position: vec2f, offset: vec2f) -> vec4f {
 	if (uniforms.aberration <= 0.0 || all(offset == vec2f(0.0))) { return lensSample(position); }
 	let separation = offset * uniforms.aberration * 0.06;
 	let sampleCount = uniforms.aberrationSamples;
-	if (sampleCount <= 1u) {
-		// 初期値では従来と同じRGB各1点を読み、低コストの色ずれも維持する。
+	if (sampleCount == 3u) {
+		// 3点なら両端の赤・青と中央の緑の重みがそれぞれ1になり、従来のRGB各1点と一致する。
+		// 初期値ではこの直接参照を維持し、ぼかしとの組合せでも従来と同じ計算結果を保つ。
 		let green = lensSample(position);
 		let red = lensSample(position + separation);
 		let blue = lensSample(position - separation);
@@ -110,21 +111,25 @@ fn refractedSample(position: vec2f, offset: vec2f) -> vec4f {
 	}
 	var colorAccumulator = vec3f(0.0);
 	var alphaAccumulator = vec3f(0.0);
+	var weightAccumulator = vec3f(0.0);
 	for (var index = 0u; index < sampleCount; index++) {
-		// 各RGBの従来の参照位置を中心に、幅separationの区間を中点で積分する。
-		// 区間を対称にして、点数を変えても各チャンネルの分散の中心を移動させない。
-		let fraction = (f32(index) + 0.5) / f32(sampleCount) - 0.5;
-		let subPosition = position + separation * fraction;
-		let red = lensSample(subPosition + separation);
-		let green = lensSample(subPosition);
-		let blue = lensSample(subPosition - separation);
-		colorAccumulator += vec3f(red.r, green.g, blue.b);
-		alphaAccumulator += vec3f(red.a, green.a, blue.a);
+		// 分散範囲の両端を含む[-1, 1]へ配置し、点数が変わっても範囲は広げない。
+		// +1が従来の赤、0が緑、-1が青。中間ではRGBの三角形の重みを重ね、
+		// 色ごとに独立した狭い区間を平均していたときの、分離した3色の帯を抑える。
+		let spectralPosition = 1.0 - 2.0 * f32(index) / f32(sampleCount - 1u);
+		let weights = max(vec3f(1.0) - abs(vec3f(spectralPosition) - vec3f(1.0, 0.0, -1.0)), vec3f(0.0));
+		// 1回の参照を複数チャンネルへ寄与させる。ぼかしを使う場合も、
+		// 同じ分散位置でRGB別に3回ぼかさず、平均済みのRGBAを重みに従って使う。
+		let sampled = lensSample(position + separation * spectralPosition);
+		colorAccumulator += sampled.rgb * weights;
+		alphaAccumulator += sampled.a * weights;
+		weightAccumulator += weights;
 	}
-	// 色とalphaを同じ重みで平均してから、各チャンネルの最大alphaを採用する。
-	// サンプル全体の最大alphaを直接使うと、透明境界の薄い色まで不透明になってしまう。
-	let color = colorAccumulator / f32(sampleCount);
-	let alpha = alphaAccumulator / f32(sampleCount);
+	// RGBは重みの合計が異なるため、色ごとに正規化して一様な入力の色・明るさを保つ。
+	// alphaも同じ重みで平均してから最大値を使い、透明境界の色を失わず、
+	// サンプル全体の最大alphaで薄い色まで不透明にすることも避ける。
+	let color = colorAccumulator / weightAccumulator;
+	let alpha = alphaAccumulator / weightAccumulator;
 	return vec4f(color, max(alpha.r, max(alpha.g, alpha.b)));
 }
 

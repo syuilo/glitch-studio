@@ -70,8 +70,8 @@ export default defineEffect({
 		},
 		aberrationSamples: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Aberration Samples (per Channel)', control: { controlType: 'range', min: 1, max: 32, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: 1 },
+			ui: { label: 'Aberration Samples', control: { controlType: 'range', min: 3, max: 64, step: 1 } },
+			defaultValue: { inputSource: 'literal', value: 3 },
 		},
 		innerZoom: {
 			dataType: { kind: 'scalar' },

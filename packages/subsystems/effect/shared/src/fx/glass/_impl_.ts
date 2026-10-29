@@ -56,7 +56,9 @@ export default implementEffect<typeof definition>({
 					blur: Math.max(0, params.blur),
 					blurSamples: Math.max(1, Math.min(128, Math.round(params.blurSamples))),
 					aberration: Math.max(0, params.aberration),
-					aberrationSamples: Math.max(1, Math.min(32, Math.round(params.aberrationSamples))),
+					// 分散範囲全体の点数。RGBすべてに正の重みを持たせるため最低3点必要。
+					aberrationSamples: Number.isFinite(params.aberrationSamples)
+						? Math.max(3, Math.min(64, Math.round(params.aberrationSamples))) : 3,
 					innerZoom: Math.max(0.001, params.innerZoom),
 					innerZoomCenter: params.innerZoomCenter,
 					lightDirection: [Math.cos(angle), -Math.sin(angle)],

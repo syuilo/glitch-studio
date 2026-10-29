@@ -51,7 +51,7 @@ export async function run() {
 	const defaults: Parameters = {
 		input: color([0, 0, 0, 0]), sdf: scalar(65504), refraction: 1, thickness: 0.03, edgeSoftness: 0.0015,
 		refractionModel: 'quadratic', curvature: 4, ior: 1.5,
-		blur: 0, blurSamples: 24, aberration: 0.5, aberrationSamples: 1, innerZoom: 1, innerZoomCenter: [0, 0], lightAngle: 300 / 360,
+		blur: 0, blurSamples: 24, aberration: 0.5, aberrationSamples: 3, innerZoom: 1, innerZoomCenter: [0, 0], lightAngle: 300 / 360,
 		highlight: 0.05, highlightColor: [1, 1, 1, 1], highlightSoftness: 0.5,
 		fresnel: 0.1, fresnelColor: [1, 1, 1, 1], fresnelSoftness: 0.1,
 		tintColor: [1, 1, 1, 1], tintIntensity: 0, tintPreserveLuminosity: true, cutout: false,
@@ -160,7 +160,8 @@ export async function run() {
 		assert(definition.paramDefs.innerZoomCenter.defaultValue.value.join(',') === '0,0', 'independent zoom center defaults');
 		assert(definition.paramDefs.refractionModel.defaultValue.value === 'quadratic' && definition.paramDefs.refractionModel.dataType.options.join(',') === 'quadratic,curvedSurface', 'refraction models and unchanged default');
 		assert(definition.paramDefs.curvature.defaultValue.value === 4 && definition.paramDefs.ior.defaultValue.value === 1.5, 'curved surface defaults');
-		assert(definition.paramDefs.blurSamples.defaultValue.value === 24 && definition.paramDefs.aberrationSamples.defaultValue.value === 1, 'unchanged blur and per-channel aberration sample defaults');
+		assert(definition.paramDefs.blurSamples.defaultValue.value === 24 && definition.paramDefs.aberrationSamples.defaultValue.value === 3, 'unchanged blur and three-point aberration defaults');
+		assert(definition.paramDefs.aberrationSamples.ui.control.min === 3 && definition.paramDefs.aberrationSamples.ui.control.max === 64 && definition.paramDefs.aberrationSamples.ui.label === 'Aberration Samples', 'aberration sample count describes the entire dispersion range');
 		assert(Object.entries(definition.paramDefs).filter(([, param]) => 'canNode' in param && param.canNode).map(([name]) => name).join(',') === 'input,sdf', 'only image and SDF are node inputs');
 		checks.push('color and scalar ports independent zoom center and resolution contract');
 
@@ -306,45 +307,66 @@ export async function run() {
 			rgbaNear(separated, [1, 0, 0, 1], 'red coverage survives transparent green and blue');
 			checks.push(`${label}: RGB separation and independent alpha coverage`);
 
-			// 【色収差の点数を増やしても、チャンネルの分散中心と一様な色は移動しない】
-			// 対称な区間積分なので線形の色勾配の平均は中心の値と一致する。
-			// サンプル数を変更して色ずれ量そのものを移動させる実装を検出する。
-			for (const aberrationSamples of [1, 2, 8, 32]) {
+			// 【色収差をRGBの重みで正規化し、偶数・奇数の点数でも明るさを保つ】
+			// 線形な色勾配は参照位置の重心を表す。赤・青の重心は三角形の重みから
+			// 閉形式で求め、同じシェーダーの計算をそのまま参照値へ写さないようにする。
+			for (const aberrationSamples of [3, 4, 8, 17, 64]) {
 				const values = await render({ ...refractParams, aberration: 1, aberrationSamples });
-				rgbaNear(pixel(values, 64, 32, 32), chromatic, 'aberration sample count preserves linear channel centers');
+				const redCentroid = aberrationSamples % 2 === 0
+					? 2 * (aberrationSamples + 1) / (3 * aberrationSamples)
+					: 2 * aberrationSamples / (3 * (aberrationSamples - 1));
+				rgbaNear(pixel(values, 64, 32, 32), [0.5078125 - strength * (1 + 0.06 * redCentroid), 0.5078125, 0.5078125 - strength * (1 - 0.06 * redCentroid), 1], 'weighted spectral centroids');
+				if (aberrationSamples === 3) rgbaNear(pixel(values, 64, 32, 32), chromatic, 'three samples reproduce the previous RGB shifts');
 				const constant = await render({ ...refractParams, input: color([0.25, 0.5, 0.75, 0.5]), aberration: 1, aberrationSamples });
 				rgbaNear(pixel(constant, 64, 32, 32), [0.125, 0.25, 0.375, 0.5], 'aberration average preserves constant premultiplied color');
 			}
-			checks.push(`${label}: aberration sample counts preserve dispersion centers and constant colors`);
+			checks.push(`${label}: weighted spectral centroids three-point compatibility and constant colors`);
 
 			// 【色収差のサンプル数が細かい模様と透明境界の平均へ作用する】
-			// 白と透明の交互の帯をnearestで読み、各RGBの被覆数から期待値を求める。
-			// RGBだけ平均する誤りや、平均前の最大alphaを使って透明境界を不透明にする誤りを検出する。
+			// 白と透明の交互の帯をnearestで読み、参照された画素のRGBへの寄与から期待値を求める。
+			// 重みをサンプル数で割る誤りや、平均前の最大alphaで透明境界を不透明にする誤りを検出する。
 			const stripeSource = inputTexture(64, 1, 4, Array.from({ length: 64 }, (_, index) => index % 2 === 0 ? [0.5, 0.5, 0.5, 0.5] : [0, 0, 0, 0]).flat(), false, { filterMode: 'nearest' }).input;
 			const targetU = 0.5145;
 			const spectralZoomCenter = 2 * ((targetU * 2 - 1) + strength * 2) - 0.015625;
 			const stripeParams = { ...refractParams, input: stripeSource, aberration: 8, innerZoom: 2, innerZoomCenter: [spectralZoomCenter, 0] as const };
 			const separationU = -strength * 8 * 0.06;
 			const stripeExpectation = (count: number) => {
-				const channels = [1, 0, -1].map(center => {
-					let occupied = 0;
-					for (let index = 0; index < count; index++) {
-						const subPosition = (index + 0.5) / count - 0.5;
-						const sourceU = targetU + separationU * (center + subPosition);
-						const texel = Math.min(63, Math.max(0, Math.floor(sourceU * 64)));
-						if (texel % 2 === 0) occupied++;
+				const covered = [0, 0, 0];
+				const totalWeight = [0, 0, 0];
+				for (let index = 0; index < count; index++) {
+					const position = 1 - 2 * index / (count - 1);
+					const texel = Math.min(63, Math.max(0, Math.floor((targetU + separationU * position) * 64)));
+					const weights = [Math.max(position, 0), 1 - Math.abs(position), Math.max(-position, 0)];
+					for (let channel = 0; channel < 3; channel++) {
+						totalWeight[channel] += weights[channel];
+						if (texel % 2 === 0) covered[channel] += weights[channel];
 					}
-					return 0.5 * occupied / count;
-				});
+				}
+				const channels = covered.map((value, channel) => 0.5 * value / totalWeight[channel]);
 				return [...channels, Math.max(...channels)];
 			};
-			for (const aberrationSamples of [1, 2, 4, 9, 32]) {
+			for (const aberrationSamples of [3, 4, 9, 32, 64]) {
 				rgbaNear(pixel(await render({ ...stripeParams, aberrationSamples }), 64, 32, 32), stripeExpectation(aberrationSamples), 'known spectral stripe coverage');
 			}
-			const singleStripe = pixel(await render({ ...stripeParams, aberrationSamples: 1 }), 64, 32, 32);
-			const smoothStripe = pixel(await render({ ...stripeParams, aberrationSamples: 32 }), 64, 32, 32);
-			assert(singleStripe.some((value, index) => Math.abs(value - smoothStripe[index]) > 0.05), 'more aberration samples actually smooth the stripe');
+			const threePointStripe = pixel(await render({ ...stripeParams, aberrationSamples: 3 }), 64, 32, 32);
+			const smoothStripe = pixel(await render({ ...stripeParams, aberrationSamples: 64 }), 64, 32, 32);
+			assert(threePointStripe.some((value, index) => Math.abs(value - smoothStripe[index]) > 0.05), 'more aberration samples actually smooth the stripe');
 			checks.push(`${label}: spectral sampling and averaged transparent channel coverage`);
+
+			// 【色の中間位置を読み、同じ参照から複数のチャンネルへ寄与させる】
+			// 赤と緑の中間にある細い白線は3点では拾えず、5点では両方へ寄与する。
+			// 単にRGBそれぞれの独立した平均を続ける実装では、この既知の重みにならない。
+			const intermediateTexel = Math.floor((targetU + separationU * 0.5) * 256);
+			const spectralLine = inputTexture(256, 1, 4, Array.from({ length: 256 }, (_, index) => index === intermediateTexel ? [0.5, 0.5, 0.5, 0.5] : [0, 0, 0, 0]).flat(), false, { filterMode: 'nearest' }).input;
+			rgbaNear(pixel(await render({ ...stripeParams, input: spectralLine, aberrationSamples: 3 }), 64, 32, 32), [0, 0, 0, 0], 'three samples miss the intermediate white line');
+			rgbaNear(pixel(await render({ ...stripeParams, input: spectralLine, aberrationSamples: 5 }), 64, 32, 32), [1 / 6, 1 / 8, 0, 1 / 6], 'one intermediate sample contributes weighted red and green');
+			// 点数を増やしても従来の赤・青より外側へ範囲を広げない。
+			const outsideTexel = Math.floor((targetU + separationU * 1.25) * 256);
+			const outsideLine = inputTexture(256, 1, 4, Array.from({ length: 256 }, (_, index) => index === outsideTexel ? [0.5, 0.5, 0.5, 0.5] : [0, 0, 0, 0]).flat(), false, { filterMode: 'nearest' }).input;
+			for (const aberrationSamples of [3, 5, 16, 64]) {
+				rgbaNear(pixel(await render({ ...stripeParams, input: outsideLine, aberrationSamples }), 64, 32, 32), [0, 0, 0, 0], 'spectral support never expands beyond the original endpoints');
+			}
+			checks.push(`${label}: overlapping RGB weights and fixed dispersion support`);
 
 			// 【ぼかしは乗算済みRGBAのまま計算し、時間によって揺れない】
 			// 半透明の小さな光点を広げ、黒い縁やalphaの二重乗算が出ないことを確認する。
@@ -385,13 +407,13 @@ export async function run() {
 				const reference = await impulseRender({ ...blurParams, blurSamples: rounded });
 				assert(values.every((value, index) => value === reference[index]), 'blur sample rounding and bounds');
 			}
-			for (const [aberrationSamples, rounded] of [[-5, 1], [0, 1], [2.4, 2], [2.6, 3], [999, 32]]) {
+			for (const [aberrationSamples, rounded] of [[-5, 3], [0, 3], [1, 3], [2.4, 3], [4.4, 4], [4.6, 5], [999, 64], [Number.NaN, 3], [Number.POSITIVE_INFINITY, 3], [Number.NEGATIVE_INFINITY, 3]]) {
 				const values = await render({ ...stripeParams, aberrationSamples });
 				const reference = await render({ ...stripeParams, aberrationSamples: rounded });
 				assert(values.every((value, index) => value === reference[index]), 'aberration sample rounding and bounds');
 			}
-			const noAberration = await render({ ...refractParams, aberration: 0, aberrationSamples: 1 });
-			const noAberrationWithSamples = await render({ ...refractParams, aberration: 0, aberrationSamples: 32 });
+			const noAberration = await render({ ...refractParams, aberration: 0, aberrationSamples: 3 });
+			const noAberrationWithSamples = await render({ ...refractParams, aberration: 0, aberrationSamples: 64 });
 			assert(noAberration.every((value, index) => value === noAberrationWithSamples[index]), 'disabled aberration ignores its sample count');
 			const noBlurWithSamples = await impulseRender({ ...blurParams, blur: 0, blurSamples: 128 });
 			assert(unblurred.every((value, index) => value === noBlurWithSamples[index]), 'disabled blur ignores its sample count');
