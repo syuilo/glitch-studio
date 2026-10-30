@@ -10,6 +10,7 @@ struct Uniforms {
 
 struct CellControls {
 	opacity: f32,
+	translation: vec2f,
 	scale: vec2f,
 	rotation: f32,
 };
@@ -22,6 +23,7 @@ fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls
 	let extraRows = uniforms.controlSamples % rowCount;
 	var completedSamples = 0u;
 	var opacity = 0.0;
+	var translation = vec2f(0.0);
 	var scale = vec2f(0.0);
 	var rotation = 0.0;
 	for (var row = 0u; row < rowCount; row++) {
@@ -30,13 +32,14 @@ fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls
 		for (var column = 0u; column < columns; column++) {
 			let localX = (f32(column) + 0.5) / f32(columns) - 0.5;
 			let gridSample = cellCenter + vec2f(localX, localY) * uniforms.cellSize;
-			// 分割格子から出力座標へ戻して評価する。拡縮・個別回転ではサンプル領域を
+			// 分割格子から出力座標へ戻して評価する。移動・拡縮・個別回転ではサンプル領域を
 			// 動かさず、同じセルに属する全画素で共通の属性値を使う。
 			let samplePosition = vec2f(
 				cosine * gridSample.x + sine * gridSample.y,
 				-sine * gridSample.x + cosine * gridSample.y,
 			) * 2.0 / uniforms.aspect;
 			opacity += read_perCellOpacity(samplePosition);
+			translation += read_perCellTranslation(samplePosition);
 			scale += read_perCellScale(samplePosition);
 			// 角度も折り返す前の値を算術平均し、複数周の情報を保つ。
 			rotation += read_perCellRotation(samplePosition);
@@ -44,7 +47,7 @@ fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls
 		completedSamples += columns;
 	}
 	let sampleCount = f32(uniforms.controlSamples);
-	return CellControls(opacity / sampleCount, scale / sampleCount, rotation / sampleCount);
+	return CellControls(opacity / sampleCount, translation / sampleCount, scale / sampleCount, rotation / sampleCount);
 }
 
 @fragment
@@ -66,13 +69,21 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 
 	// 変形がなければ分割方法によらず元画像をそのまま保つ。格子座標を往復する
 	// 丸め誤差によってサンプル位置がずれたり、セル境界に隙間が出たりするのを避ける。
-	if (all(controls.scale == vec2f(1.0)) && controls.rotation == 0.0) {
+	if (all(controls.translation == vec2f(0.0)) && all(controls.scale == vec2f(1.0)) && controls.rotation == 0.0) {
 		return read_input(position) * opacity;
 	}
 
-	// セル中心を原点に、拡縮→時計回りの個別回転の逆変換を適用する。
+	// Translationは出力座標で指定するため、格子と同じ物理座標へ変換する。
+	// 格子のAngleを変えても、正のXは画面右、正のYは画面上へ移動する。
+	let physicalTranslation = controls.translation * 0.5 * uniforms.aspect;
+	let gridTranslation = vec2f(
+		cosine * physicalTranslation.x - sine * physicalTranslation.y,
+		sine * physicalTranslation.x + cosine * physicalTranslation.y,
+	);
+	// セル中心を原点に、拡縮→時計回りの個別回転→移動の逆変換を適用する。
+	// 移動後も描画先は元のセル内とし、切り出す元画像の領域や制御入力の評価点は動かさない。
 	// 回転中も物理的な距離の単位を揃え、長方形のセルや出力でも歪ませない。
-	let localPosition = gridPosition - cellCenter;
+	let localPosition = gridPosition - cellCenter - gridTranslation;
 	let rotation = controls.rotation * 6.283185307179586;
 	let localCosine = cos(rotation);
 	let localSine = sin(rotation);

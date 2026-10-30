@@ -26,6 +26,7 @@ export default implementEffect<typeof definition>({
 				inputs: { array: 'color' },
 				perCellSelection: 'scalar',
 				perCellOpacity: 'scalar',
+				perCellTranslation: 'vector',
 				perCellScale: 'vector',
 				perCellRotation: 'scalar',
 			},
@@ -36,7 +37,7 @@ export default implementEffect<typeof definition>({
 		});
 		return {
 			render: ctx => {
-				const { inputs, frequency, phase, angle, fitMode, controlSamples, perCellSelection, perCellOpacity, perCellScale, perCellRotation } = ctx.params;
+				const { inputs, frequency, phase, angle, fitMode, controlSamples, perCellSelection, perCellOpacity, perCellTranslation, perCellScale, perCellRotation } = ctx.params;
 				if (inputs.length > definition.paramDefs.inputs.maxElements) throw new Error('Cell Repeater supports at most 10 inputs');
 				const output = ctx.outputDataMap.output;
 				const { width, height } = output.texture;
@@ -54,7 +55,7 @@ export default implementEffect<typeof definition>({
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = pipelines.update({
-					inputs, perCellSelection, perCellOpacity, perCellScale, perCellRotation,
+					inputs, perCellSelection, perCellOpacity, perCellTranslation, perCellScale, perCellRotation,
 				}, output.texture, {
 					// 素材は変形前のセル、制御用の場は出力画面を基準にfitする。
 					// 基準を分けないと、長方形セルへ素材を入れた際に縦横比が崩れる。

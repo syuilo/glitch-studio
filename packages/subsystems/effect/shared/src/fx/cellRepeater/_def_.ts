@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'cellRepeater',
 	displayName: 'Cell Repeater',
 	description: {
-		'ja-JP': '最大10個の入力画像・色を格子状のセルへ反復配置します。各セル内で制御入力をサンプリングし、素材の選択・不透明度・拡縮・回転を設定します。描画はセル境界で切り取ります。',
-		'en-US': 'Repeats up to 10 input images or colors in grid cells. Samples control inputs within each cell to select its input, opacity, scale, and rotation. Clips drawing to cell boundaries.',
+		'ja-JP': '最大10個の入力画像・色を格子状のセルへ反復配置します。各セル内で制御入力をサンプリングし、素材の選択・不透明度・移動・拡縮・回転を設定します。描画はセル境界で切り取ります。',
+		'en-US': 'Repeats up to 10 input images or colors in grid cells. Samples control inputs within each cell to select its input, opacity, translation, scale, and rotation. Clips drawing to cell boundaries.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
@@ -21,7 +21,7 @@ export default defineEffect({
 			},
 			element: { canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 		},
-		// 格子自体は全体共通の値にする。素材10個と制御4個で、テクスチャ入力は最大14個。
+		// 格子自体は全体共通の値にする。素材10個と制御5個で、テクスチャ入力は最大15個。
 		frequency: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Frequency', control: { controlType: 'dimension', min: 0.01, max: 1000, logarithmic: true } },
@@ -58,6 +58,13 @@ export default defineEffect({
 			ui: { label: 'Per Cell Opacity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 1 },
+		},
+		// Transformと同じ出力座標の単位。±2で画面幅／高さ1つ分を移動し、Angleで移動方向は回さない。
+		perCellTranslation: {
+			dataType: { kind: 'vector' },
+			ui: { label: 'Per Cell Translation', control: { controlType: 'vector', min: -2, max: 2, step: 0.01 } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
 		perCellScale: {
 			dataType: { kind: 'vector' },

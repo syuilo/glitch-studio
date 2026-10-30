@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'cellTransform',
 	displayName: 'Cell Transform',
 	description: {
-		'ja-JP': '入力画像を格子状のセルへ分割し、各セルの不透明度・拡縮・回転を制御します。制御入力は変形前のセル内でサンプリングし、描画は元のセル境界で切り取ります。Angleは分割格子だけを回転します。',
-		'en-US': 'Splits the input image into grid cells with individual opacity, scale, and rotation. Samples control inputs within each original cell and clips drawing to its boundaries. Angle rotates only the dividing grid.',
+		'ja-JP': '入力画像を格子状のセルへ分割し、各セルの不透明度・移動・拡縮・回転を制御します。制御入力は変形前のセル内でサンプリングし、描画は元のセル境界で切り取ります。Angleは分割格子だけを回転します。',
+		'en-US': 'Splits the input image into grid cells with individual opacity, translation, scale, and rotation. Samples control inputs within each original cell and clips drawing to its boundaries. Angle rotates only the dividing grid.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
@@ -49,6 +49,13 @@ export default defineEffect({
 			ui: { label: 'Per Cell Opacity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 1 },
+		},
+		// Transformと同じ出力座標の単位。±2で画面幅／高さ1つ分を移動し、Angleで移動方向は回さない。
+		perCellTranslation: {
+			dataType: { kind: 'vector' },
+			ui: { label: 'Per Cell Translation', control: { controlType: 'vector', min: -2, max: 2, step: 0.01 } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
 		perCellScale: {
 			dataType: { kind: 'vector' },

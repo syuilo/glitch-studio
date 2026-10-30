@@ -11,6 +11,7 @@ struct Uniforms {
 struct CellControls {
 	selection: f32,
 	opacity: f32,
+	translation: vec2f,
 	scale: vec2f,
 	rotation: f32,
 };
@@ -24,6 +25,7 @@ fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls
 	var completedSamples = 0u;
 	var selection = 0.0;
 	var opacity = 0.0;
+	var translation = vec2f(0.0);
 	var scale = vec2f(0.0);
 	var rotation = 0.0;
 	for (var row = 0u; row < rowCount; row++) {
@@ -32,7 +34,7 @@ fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls
 		for (var column = 0u; column < columns; column++) {
 			let localX = (f32(column) + 0.5) / f32(columns) - 0.5;
 			let gridSample = cellCenter + vec2f(localX, localY) * uniforms.cellSize;
-			// 格子の逆変換で出力座標へ戻す。個別の拡縮・回転では評価領域を動かさず、
+			// 格子の逆変換で出力座標へ戻す。個別の移動・拡縮・回転では評価領域を動かさず、
 			// 同じセルの全画素が同じ属性値を得るようにする。
 			let samplePosition = vec2f(
 				cosine * gridSample.x + sine * gridSample.y,
@@ -40,6 +42,7 @@ fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls
 			) * 2.0 / uniforms.aspect;
 			selection += read_perCellSelection(samplePosition);
 			opacity += read_perCellOpacity(samplePosition);
+			translation += read_perCellTranslation(samplePosition);
 			scale += read_perCellScale(samplePosition);
 			// 他のスカラーと同じ算術平均。1周で折り返してからの平均や円周平均はしない。
 			rotation += read_perCellRotation(samplePosition);
@@ -47,7 +50,7 @@ fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls
 		completedSamples += columns;
 	}
 	let sampleCount = f32(uniforms.controlSamples);
-	return CellControls(selection / sampleCount, opacity / sampleCount, scale / sampleCount, rotation / sampleCount);
+	return CellControls(selection / sampleCount, opacity / sampleCount, translation / sampleCount, scale / sampleCount, rotation / sampleCount);
 }
 
 @fragment
@@ -68,9 +71,17 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let opacity = clamp(controls.opacity, 0.0, 1.0);
 	if (opacity == 0.0 || any(abs(controls.scale) < vec2f(0.000001))) { return vec4f(0.0); }
 
-	// 素材には拡縮→個別回転→格子全体の回転を適用するので、その逆順で参照位置を求める。
+	// Translationは出力座標で指定するため、格子と同じ物理座標へ変換する。
+	// 格子のAngleを変えても、正のXは画面右、正のYは画面上へ移動する。
+	let physicalTranslation = controls.translation * 0.5 * uniforms.aspect;
+	let gridTranslation = vec2f(
+		cosine * physicalTranslation.x - sine * physicalTranslation.y,
+		sine * physicalTranslation.x + cosine * physicalTranslation.y,
+	);
+	// 拡縮→個別回転→格子全体の回転→移動の逆順で参照位置を求める。
+	// 移動は拡縮や個別回転に巻き込まず、描画先のセルと制御入力の評価点は固定する。
 	// セルの物理的な縦横比を保ったまま回転し、最後にセル内の[-1,+1]へ正規化する。
-	let localPosition = gridPosition - cellCenter;
+	let localPosition = gridPosition - cellCenter - gridTranslation;
 	let rotation = controls.rotation * 6.283185307179586;
 	let localCosine = cos(rotation);
 	let localSine = sin(rotation);

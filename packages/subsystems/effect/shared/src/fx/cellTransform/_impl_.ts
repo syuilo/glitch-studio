@@ -25,6 +25,7 @@ export default implementEffect<typeof definition>({
 			schema: {
 				input: 'color',
 				perCellOpacity: 'scalar',
+				perCellTranslation: 'vector',
 				perCellScale: 'vector',
 				perCellRotation: 'scalar',
 			},
@@ -35,7 +36,7 @@ export default implementEffect<typeof definition>({
 		});
 		return {
 			render: ctx => {
-				const { input, frequency, phase, angle, fitMode, controlSamples, perCellOpacity, perCellScale, perCellRotation } = ctx.params;
+				const { input, frequency, phase, angle, fitMode, controlSamples, perCellOpacity, perCellTranslation, perCellScale, perCellRotation } = ctx.params;
 				const output = ctx.outputDataMap.output;
 				const { width, height } = output.texture;
 				const shortDimension = Math.min(width, height);
@@ -53,7 +54,7 @@ export default implementEffect<typeof definition>({
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				// 素材も制御用の場も出力画面を基準にfitする。素材をセルごとにfitし直すと
 				// 元画像の切り出しではなく複製になってしまうため、全体の座標対応を維持する。
-				const variant = pipelines.update({ input, perCellOpacity, perCellScale, perCellRotation }, output.texture);
+				const variant = pipelines.update({ input, perCellOpacity, perCellTranslation, perCellScale, perCellRotation }, output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, bindGroup);
