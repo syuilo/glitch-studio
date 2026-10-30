@@ -19,6 +19,23 @@ test('resolves static resources and dimensions independently of GPU readiness', 
 	assert.throws(() => resolveEffectStaticResources(definition, { image: 'missing' }, context), /not found/);
 });
 
+// 【動画・フォント・LUTは素材メタデータから分離した読み取り口だけを渡す】
+// 埋め込みのBlobと外部参照のURLをそのまま借用し、エフェクト実装へIDや寸法を渡さない。
+// 動画の原寸は別途メタデータから解決し、ファイル読み込み前にも確定できるようにする。
+test('resolves file sources separately from asset metadata', () => {
+	for (const [assetType, fileDataType] of [['video', 'video/mp4'], ['font', 'font/ttf'], ['lut', 'application/x-cube-lut']]) {
+		const definition = { staticSettingDefs: { file: { dataType: { kind: 'assetReference', assetType }, ui: { label: 'File' }, defaultValue: null } },
+			intrinsicResolutionSetting: assetType === 'video' ? 'file' : null };
+		for (const fileData of [new Blob(), { url: 'https://example.test/asset', size: 100, error: null }]) {
+			const asset = { id: 'asset', width: 640, height: 360, fileDataType, fileData };
+			const context = { assets: [asset], assetTextures: new Map() };
+			assert.equal(resolveEffectStaticResources(definition, { file: asset.id }, context).file, fileData);
+			assert.equal(resolveEffectStaticResources(definition, { file: null }, context).file, null);
+			assert.deepEqual(getEffectIntrinsicResolution(definition, { file: asset.id }, context), assetType === 'video' ? { width: 640, height: 360 } : null);
+		}
+	}
+});
+
 // 【固定したPlayer参照から最新の映像を読み、解像度はメタデータだけを使う】
 // 初期化時のフレームを固定すると再生できず、到着したフレームで寸法を変えると静的性が崩れる。
 test('reads changing frames through a fixed player while keeping dimensions static', () => {

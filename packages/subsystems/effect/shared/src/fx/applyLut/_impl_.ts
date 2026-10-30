@@ -24,7 +24,7 @@ export default implementEffect<typeof definition>({
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 		});
-		const loader = createLutLoader(resources.lut?.fileData ?? null, lut => createLutResources(wgpu.device, layout, wgpu.enable32bitDataTextures, lut), reportStatus);
+		const loader = createLutLoader(resources.lut ?? null, lut => createLutResources(wgpu.device, layout, wgpu.enable32bitDataTextures, lut), reportStatus);
 		return {
 			get cacheVersion() { return loader.cacheVersion; },
 			render: ctx => {

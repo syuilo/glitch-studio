@@ -11,7 +11,7 @@ import type { ColorRamp } from '../color-ramp.ts';
 // 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
 export type ParameterChangeKind = 'value' | 'inputSource' | 'connection' | 'arrayElements' | 'reset';
 
-// 初期値として保存する値。アセットはIDまたは未選択、プレイヤーの初期参照は未選択とする。
+// 通常パラメータの初期値として保存する値。
 // anyの4成分は色ではなくデータであり、nullは未接続と同じゼロ値を表す。
 type ParameterDefaultValueMap = {
 	scalar: number;

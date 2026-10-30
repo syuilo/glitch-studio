@@ -33,7 +33,7 @@ export default implementEffect<typeof definition>({
 		let cacheVersion = 0;
 		const videoTexture = createVideoTexture(wgpu.device, wgpu.intermediateTextureFormat);
 		const loader = createVideoFrameLoader({
-			fileSource: resources.asset?.fileData ?? null,
+			fileSource: resources.asset ?? null,
 			open: openVideoFrameSource,
 			reportStatus,
 			publish: sample => {

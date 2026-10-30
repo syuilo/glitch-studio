@@ -236,9 +236,9 @@ export class VisualModuleRenderer {
 			if (this.effectImplementations[node.effectId].disableCache) { // TODO: 廃止(cacheVersionに一本化)
 				return null;
 			}
-			// 非同期のリソース更新も後続ノードのキャッシュキーに伝播させる。
+			// 解像度・静的設定の変更はresourceVersionへ反映されるため、設定値自体は含めない。
+			// 非同期準備の完了はcacheVersionで後続ノードへ伝播させる。
 			const renderer = this.effectRenderers.get(node.id)!;
-			key += JSON.stringify([node.resolution, renderer.resolution]);
 			key += `cacheVersion=${renderer.cacheVersion};resources=${renderer.resourceVersion};`;
 			// 出力の利用開始・停止でも、依存先を含めキャッシュを更新する。
 			if (renderer.hasLazyOutputs) key += `ports=${JSON.stringify([...(this.usedOutputPorts.get(node.id) ?? [])].sort())};`;
@@ -247,7 +247,7 @@ export class VisualModuleRenderer {
 
 			const params = this.evaledNodeParams.get(node.id)!;
 			// 空配列・空structや要素数の変化もキーに含める。
-			key += JSON.stringify([node.staticSettings, params]);
+			key += JSON.stringify(params);
 			for (const [setting, definition] of Object.entries(this.effectDefinitions[node.effectId].staticSettingDefs ?? {})) {
 				if (definition.dataType.kind !== 'playerReference') continue;
 				const playerId = node.staticSettings[setting];
@@ -500,7 +500,7 @@ export class VisualModuleRenderer {
 
 		const resolvedParams = this.resolveParams(node, params);
 		this.effectRenderers.get(node.id)!.initialize(resolvedParams);
-		// 上流のサイズ・非同期リソース更新を確定させてからキャッシュを判定する。
+		// 初期化で変化するcacheVersionも反映してからキャッシュを判定する。
 		const key = this.evalCacheKey(node);
 		if (key != null && key === this.effectCacheKeys.get(node.id)) {
 			context.rendered.add(node.id);
@@ -616,7 +616,7 @@ export class VisualModuleRenderer {
 		const node = this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return outputs;
 
-		// 準備時と同じ評価結果を使い、式の再評価によるリソースの再読み込みを防ぐ。
+		// 準備時と同じ評価結果を使い、同じフレームで式を重複評価しない。
 		if (this.preparedContext !== context) {
 			this.evaluateParameters(context);
 		}

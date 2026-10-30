@@ -44,7 +44,7 @@ export default implementEffect<typeof definition>({
 			const text = String(values.text).trim();
 			// 色のアニメーションや接続先の更新では、Canvas描画と転送を繰り返さない。
 			const key = JSON.stringify([
-				font.cacheVersion, width, height, text, values.size, values.outlineWidth,
+				width, height, text, values.size, values.outlineWidth,
 				values.position, values.align, values.lineHeight, values.overflow, values.maxWidth,
 				values.shadowEnabled ? [values.shadowBlur, values.shadowOffset] : null,
 			]);
@@ -157,7 +157,7 @@ export default implementEffect<typeof definition>({
 			maskKey = key;
 		}
 
-		const font = createTextFontLoader(resources.font?.fileData ?? null, reportStatus);
+		const font = createTextFontLoader(resources.font ?? null, reportStatus);
 		return {
 			get cacheVersion() { return font.cacheVersion; },
 			render: ctx => {

@@ -85,16 +85,17 @@ const invalidAssetDefault: ParameterDefinition = { ...videoAsset, defaultValue: 
 const assetNodeInput: ParameterDefinition = { ...fontAsset, canNode: true };
 const videoSetting = { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Video' }, defaultValue: null } as const;
 const staticSettingDefs = { video: videoSetting, font: { ...videoSetting, dataType: { kind: 'assetReference', assetType: 'font' } }, lut: { ...videoSetting, dataType: { kind: 'assetReference', assetType: 'lut' } } } as const;
-type AssetValues = import('@gs/subsystems_effect_shared/effect-implementation.ts').EffectStaticResources<{ staticSettingDefs: typeof staticSettingDefs }>;
+type ResolvedStaticResources = import('@gs/subsystems_effect_shared/effect-implementation.ts').EffectStaticResources<{ staticSettingDefs: typeof staticSettingDefs }>;
 // @ts-expect-error 設定値はBindingではなく素材IDを直接保存する
 const invalidStaticValue: import('@gs/shared/static-setting.ts').StaticSettingValues<typeof staticSettingDefs> = { video: { inputSource: 'literal', value: 'video' }, font: null, lut: null };
-const runtimeVideoAsset: AssetValues['video'] = { id: 'video', fileData: new Blob(), width: 640, height: 360 };
-const runtimeFontAsset: AssetValues['font'] = { id: 'font', fileData: new Blob() };
-const runtimeLutAsset: AssetValues['lut'] = { id: 'lut', fileData: new Blob() };
-// @ts-expect-error 動画の実行時入力には原寸の情報が必要
-const videoWithoutDimensions: AssetValues['video'] = { id: 'video', fileData: new Blob() };
-// @ts-expect-error フォントの実行時入力はGPUTextureではなくAssetである
-const fontTexture: AssetValues['font'] = {} as GPUTexture;
+const runtimeVideoFile: ResolvedStaticResources['video'] = new Blob();
+const runtimeFontFile: ResolvedStaticResources['font'] = new Blob();
+const runtimeLutFile: ResolvedStaticResources['lut'] = { url: 'https://example.test/lut.cube', size: 100, error: null };
+const unselectedFont: ResolvedStaticResources['font'] = null;
+// @ts-expect-error 動画の実行時入力はAssetではなくFileSourceである
+const videoAssetObject: ResolvedStaticResources['video'] = { id: 'video', fileData: new Blob(), width: 640, height: 360 };
+// @ts-expect-error フォントの実行時入力はGPUTextureではなくFileSourceである
+const fontTexture: ResolvedStaticResources['font'] = {} as GPUTexture;
 const blend = { dataType: { kind: 'blendMode' }, ui: { control: {}, label: 'Blend' }, defaultValue: { inputSource: 'literal', value: 'normal' } } as const satisfies ParameterDefinition;
 const blendValue: BlendMode = 'multiply';
 const blendNumber: number = colorBlendModes[blendValue];

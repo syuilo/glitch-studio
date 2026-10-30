@@ -286,17 +286,6 @@ defineExpose({
 	gap: 16px;
 }
 
-.assetControl {
-	display: flex;
-	gap: 8px;
-}
-
-.assetButton {
-	flex: 1;
-	min-width: 0;
-	overflow: hidden;
-}
-
 .enumError {
 	color: var(--THEME-error);
 	margin-top: 4px;

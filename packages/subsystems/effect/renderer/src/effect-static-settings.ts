@@ -44,6 +44,6 @@ export function resolveEffectStaticResources<Definition extends { staticSettingD
 		const error = getFileSourceError(asset.fileData);
 		if (error != null) throw new Error(error);
 		// 画像のアップロードは非同期。未準備の間はnullを渡し、公開後に呼び出し側が再準備する。
-		return [key, setting.dataType.assetType === 'image' ? context.assetTextures.get(asset.id) ?? null : asset];
+		return [key, setting.dataType.assetType === 'image' ? context.assetTextures.get(asset.id) ?? null : asset.fileData];
 	})) as EffectStaticResources<Definition>;
 }

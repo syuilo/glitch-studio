@@ -118,7 +118,7 @@ export default implementEffect<typeof definition>({
 			const fontSize = values.size * resolution.height;
 			if (!Number.isFinite(fontSize) || fontSize <= 0) return 0;
 			if (fontSize > device.limits.maxTextureDimension2D) throw new Error('Text Pattern glyph atlas exceeds the GPU texture limit.');
-			const nextMeasurementKey = JSON.stringify([font.cacheVersion, String(values.text), fontSize]);
+			const nextMeasurementKey = JSON.stringify([String(values.text), fontSize]);
 			if (measurementKey !== nextMeasurementKey) {
 				// 位置・反復数・入力の変化では字形を描き直さない。サイズはCanvasでの基準サイズ、
 				// Scaleはキャッシュ済みの字形へのGPU変形として役割を分ける。
@@ -210,7 +210,7 @@ export default implementEffect<typeof definition>({
 			return characterCount;
 		}
 
-		const font = createTextFontLoader(resources.font?.fileData ?? null, reportStatus);
+		const font = createTextFontLoader(resources.font ?? null, reportStatus);
 		return {
 			get cacheVersion() { return font.cacheVersion; },
 			render: ctx => {

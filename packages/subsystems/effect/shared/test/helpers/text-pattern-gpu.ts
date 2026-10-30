@@ -74,11 +74,10 @@ export async function run() {
 				return read(output);
 			},
 			async loadFont(fileData: Blob) {
-				const font = { id: 'test-font', fileData };
 				await new Promise<void>((resolve, reject) => {
 					onStatus = status => { if (status.type === 'ready') resolve(); else if (status.type === 'error') reject(new Error(status.message)); };
 					effect.dispose();
-					effect = implementation.init({ wgpu, resolution, params: base, resources: { font }, reportStatus: status => onStatus?.(status), fallbackTexture: output });
+					effect = implementation.init({ wgpu, resolution, params: base, resources: { font: fileData }, reportStatus: status => onStatus?.(status), fallbackTexture: output });
 					effects.push(effect);
 				});
 				onStatus = null;

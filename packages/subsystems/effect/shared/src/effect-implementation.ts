@@ -4,8 +4,9 @@ import type { BlendMode } from '@gs/shared/color-blend.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
+import type { FileSource } from '@gs/shared/file-source.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import type { Asset, FitMode, IntermediateTextureFormat, WrapMode } from '@gs/shared/types.ts';
+import type { FitMode, IntermediateTextureFormat, WrapMode } from '@gs/shared/types.ts';
 import type { EffectOutputDefinitions, EffectDefinition } from './effect-definition.ts';
 import type { EffectStatus } from './effect-status.ts';
 
@@ -117,11 +118,11 @@ export function implementEffect<Definition extends Pick<EffectDefinition, 'param
 }
 
 // 保存するIDと借用するリソースを分離する。Playerの選択は固定でもフレームは更新される。
+// 素材のID・寸法は呼び出し側で解決し、ファイルを読む実装には読み取り口だけを渡す。
 type EffectStaticResource<T extends StaticSettingDataType> =
- T extends { kind: 'assetReference'; assetType: 'image' } ? GPUTexture | null :
- T extends { kind: 'assetReference'; assetType: 'video' } ? Pick<Asset, 'id' | 'fileData' | 'width' | 'height'> | null :
- T extends { kind: 'assetReference' } ? Pick<Asset, 'id' | 'fileData'> | null :
- T extends { kind: 'playerReference' } ? { getVideoFrame: () => VideoFrame | null } | null : StaticSettingValue<T>;
+	T extends { kind: 'assetReference'; assetType: 'image' } ? GPUTexture | null :
+	T extends { kind: 'assetReference' } ? FileSource | null :
+	T extends { kind: 'playerReference' } ? { getVideoFrame: () => VideoFrame | null } | null : StaticSettingValue<T>;
 export type EffectStaticResources<Definition extends { staticSettingDefs?: StaticSettingDefinitions }> = {
- readonly [Key in keyof NonNullable<Definition['staticSettingDefs']>]: EffectStaticResource<NonNullable<Definition['staticSettingDefs']>[Key]['dataType']>;
+	readonly [Key in keyof NonNullable<Definition['staticSettingDefs']>]: EffectStaticResource<NonNullable<Definition['staticSettingDefs']>[Key]['dataType']>;
 };

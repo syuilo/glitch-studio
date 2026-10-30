@@ -15,3 +15,5 @@ Playerの映像は現在のフレームまたはnullとして借用する。Play
 `visual-module-resolutions.ts`が設定スナップショット・接続・宣言された外部入力寸法・素材メタデータだけで解像度を計画する。GPU確保や初回の式評価より前に計画し、各ノードの式・環境変数・加工式へ自身の`RESOLUTION: [width, height]`を渡す。静的設定の編集はそのエフェクトのインスタンス・履歴と後段キャッシュを更新する。外部入力の寸法変更は`setInputResolutions()`で明示し、現在のテクスチャ寸法から推測しない。
 
 公開定義と入力寸法を同時に変更する場合は`updateVisualModule()`の第3引数へ寸法宣言を渡し、一つのスナップショットとして計画する。Timelineは生成時・公開定義変更時だけ宣言し、フレームごとに寸法Mapを生成しない。音声は`resolveAudioSource`または`audioParamInputs`から受け取り、音声履歴を直接保持しない。
+
+描画キャッシュは解像度・静的設定の変更を`EffectRenderer.resourceVersion`、非同期準備の完了を`cacheVersion`で後段へ伝える。解像度や静的設定自体は毎フレームのキーに重複して含めない。Playerの現在フレームは`videoFrameVersions`で追跡する。
