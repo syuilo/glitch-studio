@@ -30,6 +30,7 @@ Visual Module内の式では、`POINTER_POSITION`でポインタ位置を2要素
 - Visual Module内のエフェクトの式は`RESOLUTION`を2要素の配列`[width, height]`で参照する。そのノード自身の倍率・丸めを反映した実際の計算用寸法で、最初の式評価から利用できる。成分は`RESOLUTION[0]`・`RESOLUTION[1]`で参照し、環境変数指定と加工式でも使える。`WIDTH`・`HEIGHT`は廃止する。公開引数の評価には公開しない。
 
 - 解像度は設定変更時にグラフ全体を計画し、フレームの時刻・通常パラメータ・GPUアップロード・非同期準備で変わらない。`intrinsicResolutionSetting`で指定した素材メタデータ、`resolutionInputParameters`で宣言した全接続の最大画素数、contextの順で決める。Selectorの選択位置や入力画像の内容では変わらず、定数入力に固有寸法はない。
+- 描画基準・プレビュー倍率の変更でも、Visual Module内の全エフェクトを再作成する。素材原寸・固定寸法によって実寸法が変わらないノードも履歴・準備済みリソースを失う。同じ倍率適用後の描画基準と同じ倍率の再通知では再作成しない。EffectRendererの解像度は生成から破棄まで固定する。
 - Visual Module Live Previewでは、ファイルPlayerの原寸を参照素材のメタデータから取得し、Webcamなどのライブ入力はcontextに従う。Playerの選択は静的でも動画フレームは更新される。TimelineはPlayerを管理・解決せず、Player入力には対応しない。
 - Playerのフレームが未到着・取得不能の場合、Videoエフェクトは透明画像として描画を続ける。Playerの実行時エラーはVisual Moduleの描画エラーへ伝播せず、現時点ではPlayer側のエラー表示も行わない。フレームの解除・復旧でも更新番号で出力キャッシュを更新する。
 - Timelineからの画像入力は`source`を含む全出力段階を所属Sceneの寸法へ揃える。呼び出し側は入力ごとの寸法を宣言し、Visual Module側はScene・プロジェクトの定義を参照しない。

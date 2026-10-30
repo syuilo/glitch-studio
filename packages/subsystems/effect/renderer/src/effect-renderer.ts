@@ -16,7 +16,7 @@ type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outp
 /**
  * エフェクト1個の実行と、生成した出力・履歴の所有者。
  * 入力・fallback・GPU環境は借用し、評価スコープ・接続・描画順序・submitを扱わない。
- * キャッシュする呼び出し側は必要ポート・解像度の適用とinitializeを済ませてから
+ * 解像度と借用リソースは生成時に固定する。キャッシュする呼び出し側は必要ポートの適用とinitializeを済ませてから
  * resourceVersion/cacheVersionを読む。入力の内容更新は呼び出し側のキーで扱う。
  * 返した出力を読むコマンドは、次の描画・再確保・破棄より前に呼び出し側でsubmitする。
  */
@@ -24,7 +24,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	private instance: EffectInstance<Definition['paramDefs'], Definition['outputDefs']> | null = null;
 	private instanceGeneration = 0;
 	private resourceVersionValue = ++nextResourceVersion;
-	private currentResolution: Resolution | null = null;
+	public readonly resolution: Readonly<Resolution>;
 	private readonly outputs = new Map<string, EffectOutputData>();
 	private readonly lazyPorts: string[];
 	private status: EffectStatus | null = null;
@@ -41,18 +41,18 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		/** 静的設定の変更ではEffectRenderer自体を作り直す。借用リソースを途中で差し替えない。 */
 		readonly staticResources: EffectStaticResources<Definition>;
 		/** 出力の確保・初期化より前に、呼び出し側が静的に解決した寸法。 */
-		resolution: Resolution;
+		readonly resolution: Resolution;
 		onState?: (state: EffectInstanceState | null) => void;
 		timingHelper?: TimingHelper | null;
 		enableStats?: boolean;
 	}) {
-		this.currentResolution = { ...options.resolution };
+		this.resolution = { ...options.resolution };
 		this.lazyPorts = Object.keys(options.definition.outputDefs).filter(port => options.definition.outputDefs[port].canLazyAllocation);
 		this.outputState = this.emptyOutputState();
 		try {
 			for (const port of Object.keys(options.implementation.outputTextureFactories)) {
 				if (!options.definition.outputDefs[port].canLazyAllocation) {
-					this.outputs.set(port, this.createOutput(port, this.currentResolution!));
+					this.outputs.set(port, this.createOutput(port));
 				}
 			}
 		} catch (error) {
@@ -61,7 +61,6 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		}
 	}
 
-	get resolution(): Readonly<Resolution> | null { return this.currentResolution; }
 	get resourceVersion(): number { return this.resourceVersionValue; }
 	get cacheVersion(): number { return this.instance?.cacheVersion ?? 0; }
 	get hasLazyOutputs(): boolean { return this.lazyPorts.length > 0; }
@@ -75,9 +74,9 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		if (this.disposed) throw new Error('EffectRenderer has been disposed');
 	}
 
-	private createOutput(port: string, resolution: Resolution): EffectOutputData {
+	private createOutput(port: string): EffectOutputData {
 		const createTexture = this.options.implementation.outputTextureFactories[port];
-		const args = { resolution, wgpu: this.options.wgpu };
+		const args = { resolution: { ...this.resolution }, wgpu: this.options.wgpu };
 		let texture: GPUTexture | null = null;
 		let previousFrameTexture: GPUTexture | null = null;
 		try {
@@ -104,12 +103,11 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	/** 必要ポートの収集は呼び出し側が行う。省略は全出力、空集合は利用なし。 */
 	setUsedOutputPorts(ports?: ReadonlySet<Extract<keyof Definition['outputDefs'], string>>) {
 		this.assertAlive();
-		if (this.currentResolution == null) throw new Error('Effect resolution has not been resolved');
 		for (const port of this.lazyPorts) {
 			const output = this.outputs.get(port);
 			if (ports == null || ports.has(port as Extract<keyof Definition['outputDefs'], string>)) {
 				if (output == null) {
-					this.outputs.set(port, this.createOutput(port, this.currentResolution!));
+					this.outputs.set(port, this.createOutput(port));
 					this.resourceVersionValue = ++nextResourceVersion;
 				}
 			} else if (output != null) {
@@ -122,35 +120,17 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		}
 	}
 
-	/** 解像度の選択・倍率適用は呼び出し側で済ませる。同寸法なら履歴もインスタンスも維持する。 */
-	setResolution(resolution: Resolution) {
-		this.assertAlive();
-		if (this.currentResolution?.width === resolution.width && this.currentResolution.height === resolution.height) return;
-		// init時の寸法で内部bufferを作る実装もあるため、出力だけを交換しない。
-		this.releaseInstance();
-		// ポートごとに交換し、全出力の新旧を同時に保持してピークメモリを増やさない。
-		// 途中で確保に失敗した場合は寸法を未確定にして、再試行前の描画を防ぐ。
-		this.currentResolution = null;
-		for (const [port, previous] of this.outputs) {
-			const output = this.createOutput(port, resolution);
-			this.destroyOutput(previous);
-			this.outputs.set(port, output);
-		}
-		this.currentResolution = { ...resolution };
-	}
-
 	/** 初期化で変化するcacheVersionも含め、呼び出し側はこの後でキャッシュを判定する。 */
 	initialize(params: RuntimeEffectParameters<Definition['paramDefs']>) {
 		this.assertAlive();
 		if (this.instance != null) return;
-		if (this.currentResolution == null) throw new Error('Effect resolution has not been resolved');
 		const generation = ++this.instanceGeneration;
 		try {
 			this.instance = this.options.implementation.init({
 				reportStatus: status => {
 					if (!this.disposed && this.instanceGeneration === generation) this.setStatus(status);
 				},
-				resolution: { ...this.currentResolution },
+				resolution: { ...this.resolution },
 				wgpu: this.options.wgpu,
 				params,
 				resources: this.options.staticResources,

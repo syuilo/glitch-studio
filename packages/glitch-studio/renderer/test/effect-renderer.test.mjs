@@ -255,35 +255,32 @@ test('aborts only the selected wait while preserving the instance and history', 
 	assert.equal(f.instances.length, 1);
 });
 
-// 【実寸法が変わったときだけ履歴を作り直し、古い通知・待機を無効化する】
-// dispose自身からの同期通知や、再初期化後に遅れて届く通知が新しい状態を上書きしてはいけない。
-test('reinitializes on resize and ignores notifications from released instances', async t => {
-	const f = single(t, { history: true, loading: true, lazy: true });
+// 【生成時の解像度を固定し、破棄後の通知・待機を無効化する】
+// 呼び出し元やinitに渡した寸法を書き換えても、後から確保する遅延出力と寸法がずれてはいけない。
+// 解像度変更は所有者による再生成で行い、破棄したエフェクトの遅延通知は公開しない。
+test('keeps constructor resolution fixed and ignores notifications after disposal', async t => {
+	const resolution = { width: 16, height: 9 };
+	const f = single(t, { history: true, loading: true, lazy: true, rendererOptions: { resolution } });
 	f.renderer.prepare({});
 	const old = f.instances[0];
 	const output = f.renderer.getOutputTexture('output');
-	const allocations = f.textures.length;
-	f.renderer.setResolution({ width: 16, height: 9 });
-	assert.equal(f.textures.length, allocations);
-	assert.equal(old.disposed, 0);
+	resolution.width = 32;
+	old.args.resolution.height = 18;
+	f.renderer.setUsedOutputPorts(new Set(['output', 'extra']));
+	assert.deepEqual(f.renderer.resolution, { width: 16, height: 9 });
+	const extra = f.renderer.getOutputTexture('extra');
+	assert.deepEqual([extra.width, extra.height], [16, 9]);
 	const pending = f.renderer.waitUntilReady(new AbortController().signal);
-	f.renderer.setResolution({ width: 32, height: 18 });
+	f.renderer.dispose();
 	assert.equal(await pending, false);
 	assert.equal(output.destroyed, 1);
 	assert.equal(old.disposed, 1);
 	assert.equal(f.renderer.getOutputTexture('extra'), null);
-	f.renderer.prepare({});
-	assert.deepEqual(f.instances[1].args.resolution, { width: 32, height: 18 });
 	const count = f.states.length;
 	old.args.reportStatus({ type: 'ready' });
+	old.args.reportStatus({ type: 'error', message: 'late' });
+	f.renderer.dispose();
 	assert.equal(f.states.length, count);
-	const destroyedWait = f.renderer.waitUntilReady(new AbortController().signal);
-	f.renderer.dispose();
-	assert.equal(await destroyedWait, false);
-	const disposedCount = f.states.length;
-	f.instances[1].args.reportStatus({ type: 'error', message: 'late' });
-	f.renderer.dispose();
-	assert.equal(f.states.length, disposedCount);
 	assert.ok(f.textures.filter(texture => texture !== f.fallbackTexture).every(texture => texture.destroyed === 1));
 	assert.throws(() => f.renderer.prepare({}), /disposed/);
 });
@@ -333,24 +330,87 @@ test('cleans up partially allocated output and history textures', () => {
 	assert.ok(g.textures.every(texture => texture.destroyed === 1));
 });
 
-// 【リサイズ途中の確保失敗後は描画を止め、再試行で全出力の寸法をそろえる】
-// ポート単位の交換でピークメモリを抑えつつ、新旧サイズが混在した状態をエフェクトに渡さない。
-test('retries a failed resize without rendering mixed output dimensions', t => {
-	const f = single(t, { history: true });
-	f.renderer.render(f.frame());
-	const factory = f.implementation.outputTextureFactories.extra;
-	f.implementation.outputTextureFactories.extra = () => { throw new Error('resize failed'); };
-	assert.throws(() => f.renderer.setResolution({ width: 32, height: 18 }), /resize failed/);
-	assert.throws(() => f.renderer.render(f.frame()), /resolution has not been resolved/);
-	f.implementation.outputTextureFactories.extra = factory;
-	f.renderer.setResolution({ width: 32, height: 18 });
-	f.renderer.render(f.frame());
-	for (const output of Object.values(f.renders.at(-1).outputDataMap)) {
+// 【全再生成の途中で確保に失敗したら、旧出力と新しい部分出力をすべて解放する】
+// 複数ノードの一部だけが新しくなったグラフを描画したり、生成済みのGPU出力を漏らしたりしない。
+// 復旧はVisualModuleRendererの再生成で行い、破棄後の古い通知も無視する。
+test('releases every graph output after failed resize and recovers with a new renderer', t => {
+	const g = gpu();
+	const source = probe(g, { history: true });
+	const consumer = probe(g, { history: true, paramDefs: { input: color } });
+	const effects = { source, consumer };
+	const nodes = [node('source'), node('consumer', 'consumer', { input: connection('source') })];
+	const f = graph(t, g, effects, nodes);
+	f.render();
+	const factory = consumer.implementation.outputTextureFactories.extra;
+	consumer.implementation.outputTextureFactories.extra = () => { throw new Error('resize failed'); };
+	assert.throws(() => f.renderer.resize({ width: 32, height: 18 }), /resize failed/);
+	assert.ok(g.textures.every(texture => texture.destroyed === 1));
+	assert.equal(source.instances[0].disposed, 1);
+	assert.equal(consumer.instances[0].disposed, 1);
+	assert.equal(f.render(), null);
+	const notices = f.states.length;
+	source.instances[0].args.reportStatus({ type: 'ready' });
+	assert.equal(f.states.length, notices);
+	consumer.implementation.outputTextureFactories.extra = factory;
+	const replacement = graph(t, g, effects, nodes, undefined, { resolution: { width: 32, height: 18 } });
+	replacement.render();
+	for (const output of Object.values(consumer.renders.at(-1).outputDataMap)) {
 		assert.equal(output.texture.width, 32);
 		assert.equal(output.previousFrameTexture.width, 32);
 	}
-	f.renderer.dispose();
-	assert.ok(f.textures.filter(texture => texture !== f.fallbackTexture).every(texture => texture.destroyed === 1));
+	replacement.renderer.destroy();
+	assert.ok(g.textures.every(texture => texture.destroyed === 1));
+});
+
+// 【描画基準の変更で実寸法が同じノードも作り直し、同値通知では履歴を維持する】
+// 固定寸法ノードを含めて同じ寿命規則を使い、待機中の旧エフェクトを新しい描画へ持ち越さない。
+// 呼び出し側から同じ解像度が通知されても、準備やキャッシュを無駄に捨てないことを確認する。
+test('recreates all graph effects on resize and preserves equal rendering settings', async t => {
+	const g = gpu();
+	const fixed = probe(g, { history: true });
+	const changing = probe(g, { history: true });
+	const fixedNode = { ...node('fixed'), resolution: { mode: 'customAbsolute', width: 16, height: 9 } };
+	const f = graph(t, g, { fixed, changing }, [fixedNode, node('changing')], {
+		out: { nodeId: 'changing', outputPort: 'output' }, fixed: { nodeId: 'fixed', outputPort: 'output' },
+	});
+	const context = f.context({ outputIds: ['out', 'fixed'] });
+	f.render(context);
+	const oldFixed = f.renderer.effectRenderers.get('fixed').getOutputTexture('output');
+	const allocated = g.textures.length;
+	f.renderer.resize({ width: 16, height: 9 });
+	f.render(context);
+	assert.equal(g.textures.length, allocated);
+	assert.deepEqual([fixed, changing].map(effect => effect.renders.length), [1, 1]);
+	fixed.instances[0].args.reportStatus({ type: 'loading' });
+	const pending = f.prepare(context);
+	f.renderer.resize({ width: 32, height: 18 });
+	await pending;
+	assert.equal(oldFixed.destroyed, 1);
+	assert.ok([fixed, changing].every(effect => effect.instances[0].disposed === 1));
+	const notices = f.states.length;
+	fixed.instances[0].args.reportStatus({ type: 'error', message: 'obsolete' });
+	assert.equal(f.states.length, notices);
+	f.render(context);
+	assert.deepEqual(fixed.instances[1].args.resolution, { width: 16, height: 9 });
+	assert.deepEqual(changing.instances[1].args.resolution, { width: 32, height: 18 });
+	assert.deepEqual([fixed, changing].map(effect => effect.renders.length), [2, 2]);
+});
+
+// 【描画基準の実寸法が同じでも倍率変更を素材・固定寸法へ反映する】
+// 基準サイズと倍率を逆方向へ変えるとcontext寸法は一致するが、customAbsoluteの寸法は変わる。
+// contextだけの同値判定で全再生成を省略すると、倍率を反映しない出力が残ってしまう。
+test('recreates effects when the scale changes without changing context dimensions', t => {
+	const g = gpu();
+	const effect = probe(g);
+	const fixed = { ...node('fixed', 'effect'), resolution: { mode: 'customAbsolute', width: 80, height: 40 } };
+	const f = graph(t, g, { effect }, [fixed], undefined, { resolution: { width: 32, height: 18 }, resolutionScale: 0.5 });
+	const first = f.render();
+	assert.deepEqual([first.texture.width, first.texture.height], [40, 20]);
+	f.renderer.resize({ width: 16, height: 9 }, 1);
+	const resized = f.render();
+	assert.equal(first.texture.destroyed, 1);
+	assert.deepEqual([resized.texture.width, resized.texture.height], [80, 40]);
+	assert.equal(effect.instances.length, 2);
 });
 
 // 【同一インスタンス内の動画要求の競合管理を維持する】

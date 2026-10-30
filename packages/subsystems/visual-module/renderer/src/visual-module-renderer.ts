@@ -341,6 +341,7 @@ export class VisualModuleRenderer {
 
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateNodes(newNodes: VisualModuleNode[], preserveStaticState = false) {
+		if (this.destroyed) return;
 		this.preparedContext = null;
 		++this.preparationVersion;
 		// 保存済みスナップショットを変更せず、解像度・資源・キャッシュが同じ補完済み設定を使う。
@@ -350,38 +351,48 @@ export class VisualModuleRenderer {
 		} : node);
 		this.allNodeIdMap = new Map(this.nodes.map(node => [node.id, node]));
 		// 値の編集でもBindingは最新スナップショットへ置き換えるが、静的な計画・
-		// リソース・出力ノードは変わらないため、全ノードの再計算と設定比較を省く。
+		// リソース・出力ノードは変わらないため、全ノードの再計画と再作成を省く。
 		if (preserveStaticState) return;
-		this.recomputeResolutions();
-		// 値だけの編集は上で保持する。それ以外では全エフェクトを作り直し、
-		// 個々の設定差分・借用リソース・非同期準備・描画履歴の更新を別々に管理しない。
-		for (const renderer of this.effectRenderers.values()) renderer.dispose();
-		this.effectRenderers.clear();
-		this.lazyEffectRenderers.clear();
-		this.usedOutputPorts.clear();
-		this.effectCacheKeys.clear();
-		for (const node of this.nodes.filter(node => node.type === 'effect')) {
-			const resolution = this.nodeResolutions.get(node.id)!;
-			const renderer = new EffectRenderer({
-				definition: this.effectDefinitions[node.effectId],
-				implementation: this.effectImplementations[node.effectId],
-				resolution,
-				staticResources: this.resolveStaticResources(node),
-				wgpu: {
-					device: this.gpuDevice,
-					defaultVertexShaderModule: this.defaultVertexShaderModule,
-					enable32bitDataTextures: this.enable32bitDataTextures,
-					intermediateTextureFormat: this.intermediateTextureFormat,
-				},
-				fallbackTexture: this.fallbackTexture,
-				enableStats: this.enableStats,
-				timingHelper: this.timingHelper,
-				onState: state => this.onEffectState?.(node.id, state),
-			});
-			this.effectRenderers.set(node.id, renderer);
-			if (renderer.hasLazyOutputs) this.lazyEffectRenderers.set(node.id, renderer);
-		}
+		this.recreateEffectRenderers();
 		this.renderNodeId = this.nodes.find(node => node.type === 'globalOut')?.id ?? null;
+	}
+
+	/** 静的設定・配線・描画基準の変更は、確定した解像度で全エフェクトを作り直す。 */
+	private recreateEffectRenderers() {
+		try {
+			this.recomputeResolutions();
+			// 新旧の出力を同時に保持せず、非同期準備・履歴・キャッシュもまとめて破棄する。
+			for (const renderer of this.effectRenderers.values()) renderer.dispose();
+			this.effectRenderers.clear();
+			this.lazyEffectRenderers.clear();
+			this.usedOutputPorts.clear();
+			this.effectCacheKeys.clear();
+			for (const node of this.nodes.filter(node => node.type === 'effect')) {
+				const renderer = new EffectRenderer({
+					definition: this.effectDefinitions[node.effectId],
+					implementation: this.effectImplementations[node.effectId],
+					resolution: this.nodeResolutions.get(node.id)!,
+					staticResources: this.resolveStaticResources(node),
+					wgpu: {
+						device: this.gpuDevice,
+						defaultVertexShaderModule: this.defaultVertexShaderModule,
+						enable32bitDataTextures: this.enable32bitDataTextures,
+						intermediateTextureFormat: this.intermediateTextureFormat,
+					},
+					fallbackTexture: this.fallbackTexture,
+					enableStats: this.enableStats,
+					timingHelper: this.timingHelper,
+					onState: state => this.onEffectState?.(node.id, state),
+				});
+				this.effectRenderers.set(node.id, renderer);
+				if (renderer.hasLazyOutputs) this.lazyEffectRenderers.set(node.id, renderer);
+			}
+		} catch (error) {
+			// 生成途中のグラフを公開せず、確保済みの出力と待機も解放する。
+			// 復旧は所有者がVisualModuleRendererを再生成して行う。
+			this.destroy();
+			throw error;
+		}
 	}
 
 	// relayと無効なエフェクトは入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
@@ -486,17 +497,6 @@ export class VisualModuleRenderer {
 		});
 	}
 
-	/** 呼び出し側が宣言した寸法は、入力フレームが未到着でも維持する。 */
-	public setInputResolutions(resolutions: ReadonlyMap<string, Resolution | null>) {
-		if (JSON.stringify([...this.inputResolutions]) === JSON.stringify([...resolutions])) return;
-		this.inputResolutions = new Map(resolutions);
-		this.recomputeResolutions();
-		for (const [id, renderer] of this.effectRenderers) renderer.setResolution(this.nodeResolutions.get(id)!);
-		this.preparedContext = null;
-		++this.preparationVersion;
-		this.effectCacheKeys.clear();
-	}
-
 	// 描画せずに初期化・パラメータ変更の準備を行い、履歴を余分に進めない。
 	public async prepare(context: VisualModuleRenderContext, signal: AbortSignal): Promise<void> {
 		if (signal.aborted || this.destroyed) return;
@@ -583,13 +583,17 @@ export class VisualModuleRenderer {
 	}
 
 	public resize(resolution: Resolution, resolutionScale = 1) {
+		if (this.destroyed) return;
+		const contextResolution = scaleResolution(resolution, resolutionScale);
+		// contextの寸法が同じでも倍率が変われば素材原寸・customAbsoluteの計画は変わる。
+		// 同じ描画基準の再通知だけは、履歴や非同期準備を失わないようにする。
+		if (this.resolutionScale === resolutionScale && this.contextResolution.width === contextResolution.width
+			&& this.contextResolution.height === contextResolution.height) return;
 		this.resolutionScale = resolutionScale;
-		this.contextResolution = scaleResolution(resolution, resolutionScale);
+		this.contextResolution = contextResolution;
 		this.preparedContext = null;
 		++this.preparationVersion;
-		this.effectCacheKeys.clear();
-		this.recomputeResolutions();
-		for (const [id, renderer] of this.effectRenderers) renderer.setResolution(this.nodeResolutions.get(id)!);
+		this.recreateEffectRenderers();
 	}
 
 	public destroy() {

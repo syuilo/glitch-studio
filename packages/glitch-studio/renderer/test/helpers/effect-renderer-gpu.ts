@@ -8,6 +8,7 @@ import colorMixDefinition from '@gs/subsystems_effect_shared/fx/colorMix/_def_.t
 import colorMix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { checkEffectTimelineLayers, checkBlurRegionTimelineLayer } from './effect-timeline-layer-gpu.ts';
@@ -92,10 +93,11 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		completed.push(name);
 	}
 	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
-	const single = new EffectRenderer({
+	const createGradientRenderer = (resolution: Resolution) => new EffectRenderer({
 		definition: gradientDefinition,
 		implementation: gradient,
-		resolution: { width: 4, height: 4 },
+		resolution,
+		staticResources: {},
 		fallbackTexture,
 		wgpu: {
 			device,
@@ -104,6 +106,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			intermediateTextureFormat: 'rgba8unorm',
 		},
 	});
+	let single = createGradientRenderer({ width: 4, height: 4 });
 	const params = Object.fromEntries(Object.entries(gradientDefinition.paramDefs).map(([key, def]) => [
 		key, 'canNode' in def && def.canNode ? constantShaderInput(def.dataType.kind, def.defaultValue.value) : def.defaultValue.value,
 	])) as unknown as RuntimeEffectParameters<typeof gradientDefinition.paramDefs>;
@@ -215,9 +218,10 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			single.setUsedOutputPorts(scalarOnly);
 			if (single.getOutputTexture('vector') != null) throw new Error('Unused lazy output was retained');
 		}
-		single.setResolution({ width: 2, height: 2 });
+		single.dispose();
+		single = createGradientRenderer({ width: 2, height: 2 });
 		drawGradient(both);
-		check('EffectRenderer resized output', await read(single.getOutputTexture('scalar')!), [191, 64].flatMap(value => Array(2).fill([value, 0, 0, 255]).flat()));
+		check('EffectRenderer recreated output', await read(single.getOutputTexture('scalar')!), [191, 64].flatMap(value => Array(2).fill([value, 0, 0, 255]).flat()));
 
 		// 【モジュール経由の履歴とバイパス・リサイズを実画素で確認する】
 		// prepareだけで加算が進まず、バイパス解除・リサイズのどちらでも履歴を新しく始める。
