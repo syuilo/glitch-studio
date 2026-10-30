@@ -50,12 +50,21 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
-		// セル幅／高さ1つ分を移動量1とする。個別のScaleでは単位を変えず、Angleで移動方向は回さない。
+		// Cellではセル幅／高さ1つ分、Screenでは画面幅／高さの半分を移動量1とする。
+		// 個別のScaleでは単位を変えず、Angleで移動方向は回さない。
 		perCellTranslation: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Per Cell Translation', control: { controlType: 'vector', min: -2, max: 2, step: 0.01 } },
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0] },
+		},
+		translationUnit: {
+			dataType: { kind: 'enum', options: ['cell', 'screen'] },
+			ui: {
+				label: 'Translation Unit',
+				control: { labels: { cell: 'Cell', screen: 'Screen' } },
+			},
+			defaultValue: { inputSource: 'literal', value: 'cell' },
 		},
 		perCellScale: {
 			dataType: { kind: 'vector' },

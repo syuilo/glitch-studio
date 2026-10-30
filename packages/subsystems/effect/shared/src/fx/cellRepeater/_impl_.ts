@@ -37,7 +37,7 @@ export default implementEffect<typeof definition>({
 		});
 		return {
 			render: ctx => {
-				const { inputs, frequency, phase, angle, fitMode, controlSamples, perCellSelection, perCellOpacity, perCellTranslation, perCellScale, perCellRotation } = ctx.params;
+				const { inputs, frequency, phase, angle, fitMode, controlSamples, perCellSelection, perCellOpacity, perCellTranslation, translationUnit, perCellScale, perCellRotation } = ctx.params;
 				if (inputs.length > definition.paramDefs.inputs.maxElements) throw new Error('Cell Repeater supports at most 10 inputs');
 				const output = ctx.outputDataMap.output;
 				const { width, height } = output.texture;
@@ -46,9 +46,12 @@ export default implementEffect<typeof definition>({
 				// Grid系と同じ基準領域を使う。1周期は1セルで、1未満のFrequencyも許可する。
 				const cellWidth = (fitMode === 'stretch' ? width : referenceExtent) / (Number.isFinite(frequency[0]) ? Math.max(0.01, frequency[0]) : 0.01);
 				const cellHeight = (fitMode === 'stretch' ? height : referenceExtent) / (Number.isFinite(frequency[1]) ? Math.max(0.01, frequency[1]) : 0.01);
+				const aspect = [width / shortDimension, height / shortDimension] as const;
+				const cellSize = [cellWidth / shortDimension, cellHeight / shortDimension] as const;
 				uniformValues.set({
-					aspect: [width / shortDimension, height / shortDimension],
-					cellSize: [cellWidth / shortDimension, cellHeight / shortDimension],
+					aspect,
+					cellSize,
+					translationUnitScale: translationUnit === 'screen' ? [aspect[0] * 0.5, aspect[1] * 0.5] : cellSize,
 					phase: phase.map(value => Number.isFinite(value) ? value : 0),
 					angle: Number.isFinite(angle) ? angle * 2 * Math.PI : 0,
 					controlSamples: Number.isFinite(controlSamples) ? Math.min(256, Math.max(1, Math.round(controlSamples))) : 1,

@@ -50,6 +50,11 @@ export default implementEffect<typeof definition>({
 		});
 
 		const bindGroups = new Map<GPUTextureView, GPUBindGroup>();
+		const longDimension = Math.max(resolution.width, resolution.height);
+		const isotropicVectorOutputScale = [resolution.width / longDimension, resolution.height / longDimension] as const;
+		// 出力テクスチャを履歴にも使うため、前回の出力単位を記録する。
+		// 初回の履歴は0なので、Screenとして扱っても換算結果は変わらない。
+		let previousVectorOutputScale: readonly [number, number] = [1, 1];
 
 		return {
 			render: (ctx) => {
@@ -69,6 +74,7 @@ export default implementEffect<typeof definition>({
 					bindGroups.set(previousVectorTextureView, bindGroup);
 				}
 
+				const vectorOutputScale = ctx.params.vectorCoordinateSystem === 'isotropic' ? isotropicVectorOutputScale : [1, 1] as const;
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,
 					timeDelta: ctx.timeDelta,
@@ -77,6 +83,8 @@ export default implementEffect<typeof definition>({
 					halfLife: Math.max(1, ctx.params.halfLife),
 					pointerPosition: [ctx.pointerPosition.x, ctx.pointerPosition.y],
 					pointerVector: [ctx.pointerVector.x, ctx.pointerVector.y],
+					vectorOutputScale,
+					vectorHistoryScale: [vectorOutputScale[0] / previousVectorOutputScale[0], vectorOutputScale[1] / previousVectorOutputScale[1]],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 
@@ -92,6 +100,7 @@ export default implementEffect<typeof definition>({
 				passEncoder.setBindGroup(0, bindGroup);
 				passEncoder.draw(6);
 				passEncoder.end();
+				previousVectorOutputScale = vectorOutputScale;
 			},
 			dispose: () => {
 				uniformBuffer.destroy();

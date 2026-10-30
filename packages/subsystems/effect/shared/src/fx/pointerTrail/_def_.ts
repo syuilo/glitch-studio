@@ -24,6 +24,16 @@ export default defineEffect({
 			},
 			defaultValue: { inputSource: 'literal', value: 0.3 },
 		},
+		// Screenは各軸の画面寸法、Isotropicは長辺を共通の距離単位とする。
+		// scalarは常に長辺基準で測り、この選択によって強さの意味を変えない。
+		vectorCoordinateSystem: {
+			dataType: { kind: 'enum', options: ['screen', 'isotropic'] },
+			ui: {
+				label: 'Vector Coordinates',
+				control: { labels: { screen: 'Screen', isotropic: 'Isotropic (Long Side)' } },
+			},
+			defaultValue: { inputSource: 'literal', value: 'screen' },
+		},
 		radius: {
 			dataType: { kind: 'scalar' },
 			ui: {
