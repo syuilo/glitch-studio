@@ -220,7 +220,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		check('EffectRenderer resized output', await read(single.getOutputTexture('scalar')!), [191, 64].flatMap(value => Array(2).fill([value, 0, 0, 255]).flat()));
 
 		// 【モジュール経由の履歴とバイパス・リサイズを実画素で確認する】
-		// prepareだけで加算が進まず、バイパス解除では既存履歴から再開し、リサイズでは新しく始める。
+		// prepareだけで加算が進まず、バイパス解除・リサイズのどちらでも履歴を新しく始める。
 		check('module first history frame', await drawModule(), Array(16).fill([64, 0, 0, 64]).flat());
 		await renderer.prepare(frame(), new AbortController().signal);
 		await renderer.prepare(frame(), new AbortController().signal);
@@ -229,7 +229,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		check('module bypasses history', await drawModule(), Array(16).fill([255, 0, 0, 255]).flat());
 		history.isBypass = false;
 		renderer.updateNodes(module.nodes);
-		check('module resumes history', await drawModule(), Array(16).fill([128, 0, 0, 128]).flat());
+		check('module resets history after bypass', await drawModule(), Array(16).fill([64, 0, 0, 64]).flat());
 		renderer.resize({ width: 2, height: 2 });
 		check('module resets resized history', await drawModule(), Array(4).fill([64, 0, 0, 64]).flat());
 		return completed;

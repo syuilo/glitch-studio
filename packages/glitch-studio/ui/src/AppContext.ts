@@ -515,13 +515,10 @@ export class AppContext {
 		}));
 
 		const rendererSync = new RendererProjectSynchronizer(this.projectContext.stateManager, {
-			apply: async changes => {
-				if (!this.renderEngine.canRender.value) return;
-				await Promise.all([
-					this.visualModuleRendererManagerController.applyProjectChanges(changes),
-					this.timelineRendererManagerController.applyProjectChanges(changes),
-				]);
-			},
+			apply: changes => this.renderEngine.runRendererUpdate(() => Promise.all([
+				this.visualModuleRendererManagerController.applyProjectChanges(changes),
+				this.timelineRendererManagerController.applyProjectChanges(changes),
+			])),
 			onUpdated: () => this.previewPlayback.refresh(),
 			onError: error => {
 				if (this.renderEngine.canRender.value) this.renderEngine.fail(error);

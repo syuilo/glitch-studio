@@ -74,7 +74,7 @@ function single(t, options = {}) {
 	const p = probe(g, options);
 	const states = [];
 	const fallbackTexture = g.device.createTexture({ size: { width: 1, height: 1 } });
-	const renderer = new EffectRenderer({ ...p, wgpu: g.wgpu, fallbackTexture, resolution: { width: 16, height: 9 }, onState: state => states.push(state), ...options.rendererOptions });
+	const renderer = new EffectRenderer({ ...p, wgpu: g.wgpu, fallbackTexture, staticResources: {}, resolution: { width: 16, height: 9 }, onState: state => states.push(state), ...options.rendererOptions });
 	t.after(() => renderer.dispose());
 	const frame = (params = {}, extra = {}) => ({ params, time: 1.25, timeDelta: 20, pointerPosition: { x: 0.5, y: 0 }, pointerVector: { x: 0.1, y: 0 }, commandEncoder: g.encoder, ...extra });
 	return { ...g, ...p, renderer, states, fallbackTexture, frame };
@@ -223,7 +223,6 @@ test('advances history only after a successful render', t => {
 	assert.notEqual(second, first);
 	assert.equal(f.renders[0].outputDataMap.output.previousFrameTexture, first);
 	f.renderer.prepare({});
-	f.renderer.clearOutputState();
 	assert.equal(f.renderer.getOutputTexture('output'), second);
 	fail = true;
 	assert.throws(() => f.renderer.render(f.frame()), /draw failed/);
@@ -386,7 +385,7 @@ test('retains the video loader request ordering within one effect instance', asy
 
 // 【静的設定変更で破棄されたフォントの読み込みを公開しない】
 // 素材ごとにローダーを作り直す境界を通し、旧フォントの遅い完了で登録やキャッシュが戻らないことを確認する。
-test('discards obsolete font loads when static resources recreate the effect', async t => {
+test('discards obsolete font loads when static settings recreate the graph effects', async t => {
 	const requests = [];
 	const fonts = new Set();
 	const previousGlobals = ['FontFace', 'fonts'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
@@ -401,25 +400,32 @@ test('discards obsolete font loads when static resources recreate the effect', a
 		load() { const request = { face: this, ...deferred() }; requests.push(request); return request.promise; }
 	};
 	globalThis.fonts = fonts;
-	const f = single(t, { init: ({ reportStatus, resources }) => {
+	const g = gpu();
+	const effect = probe(g, { init: ({ reportStatus, resources }) => {
 		const font = createTextFontLoader(resources.font, reportStatus);
 		return { get cacheVersion() { return font.cacheVersion; }, render() {}, dispose: () => font.dispose() };
 	} });
-	f.renderer.setStaticResources({ font: new Blob(['A']) });
-	f.renderer.prepare({});
+	effect.definition.staticSettingDefs = { font: { dataType: { kind: 'assetReference', assetType: 'font' }, defaultValue: null } };
+	const source = { ...node('text'), staticSettings: { font: 'first' } };
+	const f = graph(t, g, { text: effect }, [source], undefined, { assets: ['first', 'second'].map(id => ({
+		id, fileDataType: 'font/ttf', fileData: new Blob([id]),
+	})) });
+	const obsoletePreparation = f.prepare();
 	await tick();
-	f.renderer.setStaticResources({ font: new Blob(['B']) });
-	f.renderer.prepare({});
+	source.staticSettings.font = 'second';
+	f.renderer.updateNodes(f.module.nodes);
+	const ready = f.prepare();
 	await tick();
-	const ready = f.renderer.waitUntilReady(new AbortController().signal);
 	requests[1].resolve(requests[1].face);
-	assert.equal(await ready, true);
-	const version = f.renderer.cacheVersion;
+	await ready;
+	await obsoletePreparation;
+	const renderer = f.renderer.effectRenderers.get('text');
+	const version = renderer.cacheVersion;
 	requests[0].resolve(requests[0].face);
 	await tick();
 	assert.deepEqual([...fonts], [requests[1].face]);
-	assert.equal(f.renderer.cacheVersion, version);
-	assert.equal(f.instances.length, 2);
+	assert.equal(renderer.cacheVersion, version);
+	assert.equal(effect.instances.length, 2);
 });
 
 // 【複数の出力を要求しても同じ履歴ノードを一度だけ実行する】
@@ -468,7 +474,7 @@ test('keeps graph caches stable and propagates parameter and cacheVersion change
 	assert.equal(consumer.renders.length, 2);
 	assert.equal(consumer.renders[1].params.input.texture, texture);
 	raw.params.amount = literal(2);
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.module.nodes, true);
 	f.render();
 	assert.equal(source.renders.length, 3);
 	assert.equal(consumer.renders.length, 3);
@@ -490,10 +496,10 @@ test('retains upstream caches and instances across literal expression keyframe a
 	const counts = () => [a, b, c, d].map(effect => effect.renders.length);
 	f.render(ctx);
 	let module = f.module;
-	const edit = (update, preserveCache = true) => {
+	const edit = (update, preserveStaticState = true) => {
 		module = structuredClone(module);
 		update(module.nodes.find(node => node.id === 'b').params);
-		f.renderer.updateVisualModule(module, { preserveCache });
+		f.renderer.updateVisualModule(module, { preserveStaticState });
 		f.render(ctx);
 	};
 	edit(params => { params.amount = literal(2); });
@@ -513,12 +519,13 @@ test('retains upstream caches and instances across literal expression keyframe a
 	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [1, 1, 1, 1]);
 	edit(params => { params.input = connection('a', 'extra'); }, false);
 	assert.deepEqual(counts(), [2, 7, 7, 2]);
+	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [2, 2, 2, 2]);
 });
 
 // 【通常の値編集では素材寸法を読み直さず、静的設定の編集では再計画する】
 // スライダー操作のたびに全ノードの解像度計画を作り直さず、評価値だけを更新する。
-// Playerの選択変更は出力キャッシュを保持できても別の寸法になり得るため、
-// 値編集とは区別し、解像度・インスタンス・後段の結果を更新する必要がある。
+// Playerの選択変更は別の寸法になり得るため、値編集とは区別し、
+// 解像度を計画し直して全エフェクト・キャッシュ・履歴を再作成する。
 test('reuses static planning for value edits and replans when the selected player changes', t => {
 	const g = gpu();
 	const effect = probe(g, { paramDefs: { amount: { dataType: { kind: 'scalar' } } } });
@@ -537,7 +544,7 @@ test('reuses static planning for value edits and replans when the selected playe
 	const allocated = g.textures.length;
 	const edited = structuredClone(f.module);
 	edited.nodes[0].params.amount = literal(2);
-	f.renderer.updateVisualModule(edited, { preserveCache: true, preserveStaticState: true });
+	f.renderer.updateVisualModule(edited, { preserveStaticState: true });
 	f.render();
 	assert.equal(resolutionRequests, 1);
 	assert.equal(g.textures.length, allocated);
@@ -545,7 +552,7 @@ test('reuses static planning for value edits and replans when the selected playe
 	assert.equal(effect.renders.at(-1).params.amount, 2);
 	const changedPlayer = structuredClone(edited);
 	changedPlayer.nodes[0].staticSettings.player = 'second';
-	f.renderer.updateVisualModule(changedPlayer, { preserveCache: true });
+	f.renderer.updateVisualModule(changedPlayer);
 	f.render();
 	assert.equal(resolutionRequests, 2);
 	assert.equal(effect.instances.length, 2);
@@ -611,7 +618,7 @@ test('invalidates downstream caches after resizing away and back without renderi
 	assert.equal(consumer.renders.length, 1);
 	f.render();
 	assert.equal(source.instances.length, 3);
-	assert.equal(consumer.instances.length, 1);
+	assert.equal(consumer.instances.length, 3);
 	assert.equal(consumer.renders.length, 2);
 	assert.equal(first.destroyed, 1);
 	assert.notEqual(consumer.renders[1].params.input.texture, first);
@@ -670,29 +677,30 @@ test('invalidates downstream caches when an upstream renderer is recreated with 
 	assert.notEqual(consumer.renders[1].params.input.texture, consumer.renders[0].params.input.texture);
 });
 
-// 【バイパス中は入力を通し、再有効化時は保持していた履歴から再開する】
-// 借用した上流出力を履歴に取り込んだり、バイパス中に履歴テクスチャを交換したりしない。
-test('preserves effect history while bypassing and resumes it without reinitialization', async t => {
+// 【バイパス中は入力を通し、切り替え時には全エフェクトの履歴を作り直す】
+// 借用した上流出力を履歴に取り込まず、再有効化時も破棄済みの履歴を読み直さない。
+test('passes through bypassed effects and recreates history when bypass changes', async t => {
 	const g = gpu();
 	const source = probe(g);
 	const history = probe(g, { history: true, disableCache: true, paramDefs: { input: color } });
 	const accumulation = node('history', 'history', { input: connection('source') });
 	const f = graph(t, g, { source, history }, [node('source'), accumulation]);
 	const first = f.render();
-	const allocated = g.textures.length;
 	accumulation.isBypass = true;
 	f.renderer.updateNodes(f.module.nodes);
 	await f.prepare();
-	assert.equal(f.render().texture, source.renders[0].outputDataMap.output.texture);
+	assert.equal(f.render().texture, source.renders.at(-1).outputDataMap.output.texture);
 	assert.equal(history.renders.length, 1);
-	assert.equal(f.states.filter(item => item.id === 'history').at(-1).state.outputs.output, null);
+	assert.equal(history.instances[0].disposed, 1);
+	assert.equal(first.texture.destroyed, 1);
+	assert.equal(f.states.filter(item => item.id === 'history').at(-1).state, null);
 	accumulation.isBypass = false;
 	f.renderer.updateNodes(f.module.nodes);
 	await f.prepare();
 	f.render();
-	assert.equal(history.instances.length, 1);
-	assert.equal(history.renders[1].outputDataMap.output.previousFrameTexture, first.texture);
-	assert.equal(g.textures.length, allocated);
+	assert.equal(history.instances.length, 2);
+	assert.notEqual(history.renders[1].outputDataMap.output.previousFrameTexture, first.texture);
+	assert.equal(history.renders[1].outputDataMap.output.previousFrameTexture.destroyed, 0);
 });
 
 // 【実際のモジュールを使うシークの中断後に描画・履歴更新を行わない】
@@ -760,10 +768,10 @@ test('ends aggregate preparation on failure without disposing other pending effe
 	assert.equal(consumer.renders.length, 1);
 });
 
-// 【静的設定の編集は対象インスタンスと履歴だけを作り直し、後段のキャッシュへ伝える】
-// 毎回全エフェクトを初期化すると独立した履歴を失う。同じ出力テクスチャでも新設定の画素を
-// 後段へ伝えるため、リソース世代の更新と無関係な枝のキャッシュ維持を一緒に確認する。
-test('reinitializes only edited static settings and invalidates downstream output caches', t => {
+// 【静的設定の編集は全エフェクトのインスタンス・履歴・キャッシュを作り直す】
+// 差分によるリソース更新を持たず、独立した枝も含めて破棄する契約を確認する。
+// 同じ寸法・同じIDでも旧出力や非同期通知を新しいエフェクトへ引き継がない。
+test('recreates every graph effect and invalidates caches after static setting edits', t => {
 	const g = gpu();
 	const a = probe(g);
 	const b = probe(g, { history: true, paramDefs: { input: color } });
@@ -783,8 +791,9 @@ test('reinitializes only edited static settings and invalidates downstream outpu
 	assert.equal(history.destroyed, 1);
 	f.render(context);
 	assert.equal(b.instances[1].args.resources.mode, 'second');
-	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [1, 2, 1, 1]);
-	assert.deepEqual([a, b, c, d].map(effect => effect.renders.length), [1, 2, 2, 1]);
+	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [2, 2, 2, 2]);
+	assert.deepEqual([a, b, c, d].map(effect => effect.renders.length), [2, 2, 2, 2]);
+	assert.ok([a, b, c, d].every(effect => effect.instances[0].disposed === 1));
 });
 
 // 【各ノードの最初の式評価から倍率適用後のRESOLUTIONを渡す】

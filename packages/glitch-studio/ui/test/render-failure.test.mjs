@@ -14,6 +14,45 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', result.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewRenderEngine, formatRenderFailureOrigin } = module.exports;
 
+// 【破棄されたWorkerのRPC失敗が遅れて届いても新しいプレビューを停止しない】
+// Worker破棄は未完了RPCをrejectするが、その拒否は複数の非同期呼び出しを経由して届く。
+// 素材準備が先に終わって描画可能に戻った後も、失敗した更新の世代で判定する必要がある。
+test('ignores obsolete renderer update failures after resource recreation completes', async () => {
+	const rpc = Promise.withResolvers();
+	const delivery = Promise.withResolvers();
+	let created = 0, disposed = 0;
+	const engine = new PreviewRenderEngine({
+		create: async () => { created++; },
+		dispose: () => { disposed++; rpc.reject(new Error('Engine reloaded during renderer call')); },
+	});
+	await engine.enable();
+	const update = engine.runRendererUpdate(async () => {
+		try { await rpc.promise; } catch (error) {
+			await delivery.promise;
+			throw error;
+		}
+	});
+	const resources = engine.beginResourceUpdate();
+	await resources.complete();
+	assert.equal(engine.canRender.value, true);
+	delivery.resolve();
+	await update;
+	assert.equal(engine.errorMessage.value, null);
+	assert.equal(engine.canRender.value, true);
+	assert.equal(created, 2);
+	assert.equal(disposed, 1);
+});
+
+// 【現在のWorkerで発生した更新失敗は隠さず描画を停止する】
+// 古いRPCの無効化と、本当に修正が必要な更新エラーの報告を区別する。
+test('reports failures from renderer updates in the current generation', async () => {
+	const engine = new PreviewRenderEngine({ create: async () => {}, dispose() {} });
+	await engine.enable();
+	await engine.runRendererUpdate(async () => { throw new Error('Invalid connection'); });
+	assert.equal(engine.errorMessage.value, 'Invalid connection');
+	assert.equal(engine.canRender.value, false);
+});
+
 // 【素材準備中の通常再試行と古い準備完了ではエンジンを再生成しない】
 // 同じ編集のノード通知やプレビュー設定変更も再試行を要求するため、素材更新側のawaitだけでは
 // 再生成を抑止できない。最後の素材更新だけが最新スナップショットの生成を許可する必要がある。

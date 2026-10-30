@@ -1,12 +1,13 @@
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect-node-resolution.ts';
 import { getEffectInputResolution } from '@gs/subsystems_effect_shared/effect-resolution-inputs.ts';
+import { resolveVisualModuleOutputSource } from './visual-module-output-source.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { VisualModule, VisualModuleEffectNode, VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 
 /** 設定スナップショットに対する計画。描画結果・時刻・GPUリソースを入力に含めない。 */
 export function resolveVisualModuleResolutions(options: {
-	visualModule: Pick<VisualModule, 'nodes' | 'primaryInputId' | 'primaryOutputId'>;
+	visualModule: Pick<VisualModule, 'nodes' | 'paramDefs' | 'outputDefs' | 'primaryInputId' | 'primaryOutputId'>;
 	effectDefinitions: Readonly<Record<string, EffectDefinition>>;
 	contextResolution: Resolution;
 	resolutionScale: number;
@@ -15,22 +16,14 @@ export function resolveVisualModuleResolutions(options: {
 	getIntrinsicResolution: (node: VisualModuleEffectNode) => Resolution | null;
 }): Map<string, Resolution> {
 	const nodes = new Map(options.visualModule.nodes.map(node => [node.id, node]));
+	const outputContext = { ...options.visualModule, nodes, effectDefinitions: options.effectDefinitions };
 	const resolutions = new Map<string, Resolution>();
 	const connectionResolution = (nodeId: string | null, port: string | null): Resolution | null => {
 		const node = nodeId == null ? null : nodes.get(nodeId);
 		if (node == null) return null;
-		if (node.type === 'globalIn') return options.inputResolutions.get(port ?? options.visualModule.primaryInputId ?? '') ?? null;
-		if (node.type === 'globalOut') {
-			const input = node.inputs[port ?? options.visualModule.primaryOutputId ?? ''];
-			return input == null ? null : connectionResolution(input.nodeId, input.outputPort);
-		}
-		if (node.type === 'relay') return connectionResolution(node.input.nodeId, node.input.outputPort);
-		if (node.isBypass) {
-			const primary = options.effectDefinitions[node.effectId].primaryInputParameter;
-			const input = primary == null ? null : node.params[primary];
-			return input?.inputSource === 'node' ? connectionResolution(input.nodeId, input.outputPort) : null;
-		}
-		return nodeResolution(node);
+		const output = resolveVisualModuleOutputSource(outputContext, node, port);
+		if (output == null) return null;
+		return output.node.type === 'globalIn' ? options.inputResolutions.get(output.outputPort) ?? null : nodeResolution(output.node);
 	};
 	const nodeResolution = (node: VisualModuleEffectNode): Resolution => {
 		const cached = resolutions.get(node.id);

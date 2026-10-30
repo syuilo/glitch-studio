@@ -43,6 +43,17 @@ export class PreviewRenderEngine {
 	public resume() { this.suspended.value = false; return this.retry(); }
 	public enable() { this.enabled.value = true; return this.retry(); }
 
+	/** Worker破棄で失敗した旧RPCを、新しい世代の描画エラーとして扱わない。 */
+	public async runRendererUpdate(update: () => Promise<unknown>): Promise<void> {
+		if (!this.canRender.value) return;
+		const generation = this.generation;
+		try {
+			await update();
+		} catch (error) {
+			if (generation === this.generation) this.fail(error);
+		}
+	}
+
 	/**
 	 * 素材・Playerとノードの更新を旧エンジンへ別々に適用しないよう、変更の検知時に同期的に破棄する。
 	 * 書き出し等による休止とは独立させ、素材の準備完了でその休止まで解除しない。

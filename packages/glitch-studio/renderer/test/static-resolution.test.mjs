@@ -24,7 +24,7 @@ test('plans graph resolutions before any frames textures or expressions exist', 
 		node('source', { input: literal([0, 0, 0, 0]) }),
 		node('external', { input: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'image' } }),
 		node('constant', { input: connection('in', 'constant') }), { id: 'in', type: 'globalIn' }];
-	const options = { visualModule: { nodes, primaryInputId: 'image', primaryOutputId: null }, effectDefinitions: { filter: definition },
+	const options = { visualModule: { nodes, paramDefs: ['image', 'constant'].map(id => ({ ...input, id })), outputDefs: [], primaryInputId: 'image', primaryOutputId: null }, effectDefinitions: { filter: definition },
 		contextResolution: { width: 960, height: 540 }, resolutionScale: 0.5, maxDimension: 8192,
 		inputResolutions: new Map([['image', { width: 800, height: 200 }], ['constant', null]]),
 		getIntrinsicResolution: node => node.id === 'source' ? { width: 301, height: 101 } : null };
@@ -44,7 +44,7 @@ test('uses every nested input candidate and preserves the first aspect ratio on 
 	const candidates = { dataType: { kind: 'array', elementType: input.dataType }, ui: { label: 'Candidates', control: { element: input.ui.control } }, element: { canNode: true, defaultValue: input.defaultValue }, defaultValue: literal([]) };
 	const options = { visualModule: { nodes: [{ id: 'in', type: 'globalIn' }, node('selector', { candidates: literal([
 			{ id: 'a', binding: connection('in', 'landscape') }, { id: 'b', binding: connection('in', 'portrait') },
-		]), index: { inputSource: 'expression', expression: 'TIME' } })], primaryInputId: null, primaryOutputId: null },
+		]), index: { inputSource: 'expression', expression: 'TIME' } })], paramDefs: ['landscape', 'portrait'].map(id => ({ ...input, id })), outputDefs: [], primaryInputId: null, primaryOutputId: null },
 		effectDefinitions: { filter: { ...definition, paramDefs: { candidates }, resolutionInputParameters: ['candidates'], primaryInputParameter: null } },
 		contextResolution: { width: 100, height: 100 }, resolutionScale: 1, maxDimension: 8192,
 		inputResolutions: new Map([['landscape', { width: 80, height: 40 }], ['portrait', { width: 40, height: 80 }]]), getIntrinsicResolution: () => null };
@@ -58,6 +58,36 @@ test('uses every nested input candidate and preserves the first aspect ratio on 
 test('rejects non-resource intrinsic settings and non-input resolution declarations', () => {
 	assert.throws(() => defineEffect({ ...definition, staticSettingDefs: { size: { dataType: { kind: 'scalar' }, ui: { label: 'Size' }, defaultValue: 1 } }, intrinsicResolutionSetting: 'size' }), /Intrinsic resolution/);
 	assert.throws(() => defineEffect({ ...definition, primaryInputParameter: null, paramDefs: { input: { ...input, canNode: false } } }), /Resolution input/);
+});
+
+// 【解像度計画も描画と同じ公開ポート・relay・Bypassの解決規則に従う】
+// 保存値に未知のポートがあっても、主出力や寸法Mapの値へ勝手に読み替えない。
+// Bypassでは自身の寸法を使わず、主入力が選択した公開入力をそのまま解決する。
+test('resolves declared output sources consistently through relay bypass and global ports', () => {
+	const relay = { id: 'relay', type: 'relay', dataType: input.dataType, input: { nodeId: 'bypass', outputPort: 'output' } };
+	const bypass = node('bypass', { input: connection('in', 'image') }, { isBypass: true });
+	const output = { id: 'out', type: 'globalOut', inputs: { result: { nodeId: 'relay', outputPort: 'output' } } };
+	const consumer = node('consumer', { input: connection('out', 'result') });
+	const options = {
+		visualModule: { nodes: [{ id: 'in', type: 'globalIn' }, bypass, relay, output, consumer],
+			paramDefs: [{ ...input, id: 'image' }], outputDefs: [{ id: 'result' }], primaryInputId: 'image', primaryOutputId: 'result' },
+		effectDefinitions: { filter: definition }, contextResolution: { width: 100, height: 100 }, resolutionScale: 1,
+		maxDimension: 8192, inputResolutions: new Map([['image', { width: 80, height: 40 }], ['unknown', { width: 200, height: 200 }]]),
+		getIntrinsicResolution: () => null,
+	};
+	const size = () => resolveVisualModuleResolutions(options).get('consumer');
+	assert.deepEqual(size(), { width: 80, height: 40 });
+	options.visualModule.outputDefs = [];
+	assert.deepEqual(size(), options.contextResolution);
+	options.visualModule.outputDefs = [{ id: 'result' }];
+	output.inputs.result.outputPort = 'unknown';
+	assert.deepEqual(size(), options.contextResolution);
+	output.inputs.result.outputPort = 'output';
+	relay.input.outputPort = 'unknown';
+	assert.deepEqual(size(), options.contextResolution);
+	relay.input.outputPort = 'output';
+	bypass.params.input = connection('in', 'unknown');
+	assert.deepEqual(size(), options.contextResolution);
 });
 
 // 【Playerは現在のフレーム寸法ではなく素材の保存済みメタデータを参照する】

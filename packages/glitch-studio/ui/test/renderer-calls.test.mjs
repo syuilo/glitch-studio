@@ -142,10 +142,10 @@ test('initializes the renderer with unassigned players without waiting for media
 	assert.deepEqual(instances[0].resources.players, [player]);
 });
 
-// 【外部参照の同期用コピーでは再生を維持し、原本のリロードや参照切れだけを反映する】
-// アセット名などの変更でも読み取り口は複製されるため、オブジェクト参照で比較すると
-// 無関係な編集で再生が停止する。一方、URLや可用性の変化では古いPlayerを使い続けない。
-test('preserves external players across asset copies and replaces them when the source changes', async t => {
+// 【Player定義の反映ではメディアを全再作成し、古い要素を解放する】
+// 同じ原本でも再生成時には再生状態を引き継がず、素材とPlayerの差分同期を持たない。
+// 参照切れの入力は作らず、次の生成では復旧した読み取り口を採用する。
+test('recreates player media from initial assets and releases previous media', async t => {
 	class MediaElement extends EventTarget {
 		currentTime = 0;
 		paused = true;
@@ -166,9 +166,12 @@ test('preserves external players across asset copies and replaces them when the 
 	await originalMedia.play();
 	controller.setInitialAssets([{ ...asset, name: 'Renamed', fileData: { ...asset.fileData } }]);
 	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: asset.id }]);
-	assert.equal(controller.getMediaElement('player'), originalMedia);
-	assert.equal(originalMedia.paused, false);
-	assert.equal(originalMedia.currentTime, 3);
+	const recreatedMedia = controller.getMediaElement('player');
+	assert.notEqual(recreatedMedia, originalMedia);
+	assert.equal(originalMedia.paused, true);
+	assert.equal(originalMedia.src, '');
+	assert.equal(recreatedMedia.paused, true);
+	assert.equal(recreatedMedia.currentTime, 0);
 
 	const reloaded = { ...asset, fileData: { ...asset.fileData, url: 'app://external-assets/reloaded' } };
 	controller.setInitialAssets([reloaded]);

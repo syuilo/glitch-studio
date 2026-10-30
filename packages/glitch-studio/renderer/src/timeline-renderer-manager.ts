@@ -1042,7 +1042,6 @@ export class TimelineRendererManager extends EventEmitter<{
 					}
 					// 公開入力の寸法も定義変更時だけ宣言し、新しい配線と同時に計画する。
 					renderer.updateVisualModule(currentVisualModule, {
-						preserveCache: version.cacheResetRevision <= moduleRevision,
 						preserveStaticState,
 						...(preserveStaticState ? {} : { inputResolutions: getInputResolutions() }),
 					});

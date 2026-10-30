@@ -23,7 +23,6 @@ type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outp
 export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs'> = EffectDefinition<any, any>> {
 	private instance: EffectInstance<Definition['paramDefs'], Definition['outputDefs']> | null = null;
 	private instanceGeneration = 0;
-	private staticResources: EffectStaticResources<Definition>;
 	private resourceVersionValue = ++nextResourceVersion;
 	private currentResolution: Resolution | null = null;
 	private readonly outputs = new Map<string, EffectOutputData>();
@@ -39,14 +38,14 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		implementation: EffectImplementation<Definition>;
 		wgpu: EffectGpuContext;
 		fallbackTexture: GPUTexture;
-		staticResources: EffectStaticResources<Definition>;
+		/** 静的設定の変更ではEffectRenderer自体を作り直す。借用リソースを途中で差し替えない。 */
+		readonly staticResources: EffectStaticResources<Definition>;
 		/** 出力の確保・初期化より前に、呼び出し側が静的に解決した寸法。 */
 		resolution: Resolution;
 		onState?: (state: EffectInstanceState | null) => void;
 		timingHelper?: TimingHelper | null;
 		enableStats?: boolean;
 	}) {
-		this.staticResources = options.staticResources;
 		this.currentResolution = { ...options.resolution };
 		this.lazyPorts = Object.keys(options.definition.outputDefs).filter(port => options.definition.outputDefs[port].canLazyAllocation);
 		this.outputState = this.emptyOutputState();
@@ -140,20 +139,6 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		this.currentResolution = { ...resolution };
 	}
 
-	/** 設定・借用リソースの変更時だけ呼ぶ。古い非同期処理と内部履歴も破棄する。 */
-	setStaticResources(resources: EffectStaticResources<Definition>) {
-		this.assertAlive();
-		this.releaseInstance();
-		this.staticResources = resources;
-		if (this.options.implementation.needsPreviousFrame === true && this.currentResolution != null) {
-			for (const [port, previous] of this.outputs) {
-				const output = this.createOutput(port, this.currentResolution);
-				this.destroyOutput(previous);
-				this.outputs.set(port, output);
-			}
-		}
-	}
-
 	/** 初期化で変化するcacheVersionも含め、呼び出し側はこの後でキャッシュを判定する。 */
 	initialize(params: RuntimeEffectParameters<Definition['paramDefs']>) {
 		this.assertAlive();
@@ -168,7 +153,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 				resolution: { ...this.currentResolution },
 				wgpu: this.options.wgpu,
 				params,
-				resources: this.staticResources,
+				resources: this.options.staticResources,
 				fallbackTexture: this.options.fallbackTexture,
 			});
 		} catch (error) {
@@ -263,12 +248,6 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 
 	private emptyOutputState(): EffectInstanceState['outputs'] {
 		return Object.fromEntries(Object.keys(this.options.definition.outputDefs).map(port => [port, null]));
-	}
-
-	/** 出力寸法の公開だけを取り消す。呼び出し側で利用を休止しても、出力・履歴は破棄しない。 */
-	clearOutputState() {
-		this.outputState = this.emptyOutputState();
-		this.publishState();
 	}
 
 	private setStatus(status: EffectStatus) {

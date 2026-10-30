@@ -12,7 +12,7 @@ import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-tex
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import { browserFrameScheduler, VisualModuleLivePreviewRenderLoop } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
-import { canPreserveNodeOutputCache, canPreserveNodeStaticState } from './project-change-policy.ts';
+import { canPreserveNodeStaticState } from './project-change-policy.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { PlayerAudioInputs } from './player-audio-inputs.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
@@ -309,7 +309,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId);
 			if (visualModule == null) this.stopRenderLoop();
 			else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule, {
-				preserveCache: visualModuleLivePreviewChanges.every(change => change.type === 'node' && canPreserveNodeOutputCache(change.changes)),
 				preserveStaticState: visualModuleLivePreviewChanges.every(change => change.type === 'node' && canPreserveNodeStaticState(change.changes)),
 			});
 		}

@@ -475,7 +475,7 @@ test('publishes output resolutions only after drawing and when state changes', a
 		assert.equal(latest().outputs.extra, null);
 		node.isBypass = true;
 		renderer.updateNodes(nodes);
-		assert.deepEqual(latest().outputs, { output: null, extra: null });
+		assert.equal(latest(), null);
 		node.isBypass = false;
 		renderer.updateNodes(nodes);
 		renderer.render(renderContext(), encoder);
