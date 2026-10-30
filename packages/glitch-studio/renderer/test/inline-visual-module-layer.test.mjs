@@ -102,7 +102,7 @@ function fixture(t, { present = false, disableCache = true, timelineFps = 60, ti
 				};
 			},
 		} },
-	}, { timelineFps, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	}, { timelineFps, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [] });
 	manager.on('ev', event => {
 		if (event.type === 'effectState') calls.statuses.push(event.ctx);
 		if (event.type === 'renderError') calls.errors.push(event.ctx.message);

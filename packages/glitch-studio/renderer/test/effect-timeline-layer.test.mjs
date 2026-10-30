@@ -80,7 +80,7 @@ function fixture(t, options = {}) {
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: { probe: definition, noOutput: { ...definition, id: 'noOutput', primaryOutput: null } },
 		effectImplementations: { probe: implementation, noOutput: implementation },
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [{ id: 'intrinsic', width: 200, height: 100, fileDataType: 'video/mp4', fileData: new Blob() }] });
 	manager.presentOutput = output => calls.outputs.push(output);
 	manager.on('ev', event => {
 		if (event.type === 'effectLayerState') calls.states.push(event.ctx);
@@ -88,7 +88,7 @@ function fixture(t, options = {}) {
 	t.after(() => manager.destroy());
 	const setup = (layers, extra = {}) => manager.updateDynamicOptions({
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers }], sceneId: 'scene',
-		resolution: { width: 320, height: 180 }, assets: [{ id: 'intrinsic', width: 200, height: 100, fileDataType: 'video/mp4', fileData: new Blob() }], ...extra,
+		resolution: { width: 320, height: 180 }, ...extra,
 	});
 	return { manager, calls, setup, implementation, directOptions: {
 		wgpu: { device, defaultVertexShaderModule: {}, intermediateTextureFormat: 'rgba8unorm', enable32bitDataTextures: false },

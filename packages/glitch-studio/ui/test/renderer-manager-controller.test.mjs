@@ -805,7 +805,7 @@ test('queues edits after init is sent and waits for each response', async t => {
 	const calls = worker.calls('updateDynamicOptions');
 	assert.deepEqual(calls.map(call => call.args[0]), [{ fpsLimit: 30 }, { visualModules: [], resolution: { width: 32, height: 24 } }]);
 	assert.equal(settled, false);
-	for (const call of calls) worker.returnValue(call, { assetsCommitted: null });
+	for (const call of calls) worker.returnValue(call, undefined);
 	await Promise.all([first, second]);
 });
 
@@ -821,7 +821,7 @@ test('accepts edits before worker creation completes', async t => {
 	await ready;
 	const calls = worker.calls('updateDynamicOptions');
 	assert.equal(calls.length, 1);
-	worker.returnValue(calls[0], { assetsCommitted: null });
+	worker.returnValue(calls[0], undefined);
 	await update;
 });
 
@@ -832,7 +832,7 @@ test('reports initialization errors and rejects queued edits', async t => {
 	const ready = controller.relaunchManager();
 	const worker = workers[0];
 	await worker.initialization.promise;
-	const update = controller.updateDynamicOptions({ assets: [] });
+	const update = controller.updateDynamicOptions({ highlightClipping: true });
 	const rejected = Promise.all([assert.rejects(ready, /GPU unavailable/), assert.rejects(update, /GPU unavailable/)]);
 	worker.reply({ type: 'initError', message: 'GPU unavailable' });
 	await rejected;

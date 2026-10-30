@@ -15,7 +15,7 @@ import type { FileSource } from '@gs/shared/file-source.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { Player } from '@gs/shared/types.ts';
+import type { Asset, Player } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
@@ -44,9 +44,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	private pointerPosition = { x: 0, y: 0 };
 	private staticOptions: VisualModuleRendererManagerStaticOptions;
 	private initializationStaticOptions: VisualModuleRendererManagerStaticOptions | null = null;
-	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> & Pick<VisualModuleRendererManagerDynamicOptions, 'assets'> = {
-		assets: [],
-	};
+	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> = {};
+	private initialAssets: readonly Asset[] = [];
 	private players: Player[] = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private playerAssetFiles = new Map<Player['id'], FileSource>();
@@ -97,6 +96,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 						waveformVerticalCanvas: waveformVerticalOffscreen,
 						staticOptions: this.staticOptions,
 						dynamicOptions: this.dynamicOptions,
+						resources: { assets: this.initialAssets, players: this.players },
 					},
 					transfer: [
 						offscreen,
@@ -248,12 +248,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		const oldPlayers = this.players;
 		const players = deepClone(newPlayers);
 		this.players = players;
-		await this.updateDynamicOptions({ players });
 
 		for (const [id, video] of this.videoElements) {
 			const oldPlayer = oldPlayers.find(player => player.id === id);
 			const newPlayer = players.find(player => player.id === id);
-			const asset = newPlayer?.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === newPlayer.assetId) : null;
+			const asset = newPlayer?.sourceType === 'asset' ? this.initialAssets.find(asset => asset.id === newPlayer.assetId) : null;
 			if (!newPlayer || oldPlayer?.sourceType !== newPlayer.sourceType || !deepEqual(oldPlayer?.assetId, newPlayer.assetId)
 				|| (newPlayer.sourceType === 'asset' && !isSamePlayerAssetFile(this.playerAssetFiles.get(id), asset?.fileData))) {
 				this.audioInputs.removePlayer(id);
@@ -262,7 +261,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				this.videoFrameCallbacks.delete(id);
 				this.pendingVideoFrames.get(id)?.close();
 				this.pendingVideoFrames.delete(id);
-				if (this.isReady.value) this.call('updateVideoFrame', [id, null]);
 				video.pause();
 				this.videoElements.delete(id);
 				this.playerAssetFiles.delete(id);
@@ -279,10 +277,9 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 		for (const player of players) {
 			if (!this.videoElements.has(player.id)) {
-				const asset = player.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
+				const asset = player.sourceType === 'asset' ? this.initialAssets.find(asset => asset.id === player.assetId) : null;
 				if (player.sourceType === 'asset' && !asset) continue;
 				if (asset != null && getFileSourceError(asset.fileData) != null) continue;
-				if (this.isReady.value) this.call('updateVideoFrame', [player.id, null]);
 				const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
 				video.loop = true;
 				video.preload = 'auto';
@@ -379,15 +376,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		}
 		this.dynamicOptions = { ...this.dynamicOptions, ...options };
 		// 初回起動前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
-		if (!this.isReady.value && !this.isInitializing) return { assetsCommitted: null };
-		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
-		if (result.assetsCommitted && options.assets === this.dynamicOptions.assets) {
-			// 素材の差し替え・削除ではPlayer定義は変わらないため、ここで参照先を同期する。
-			// 後続のAsset更新がある場合は、その完了側に同期を任せる。
-			await this.updatePlayers(this.players);
-		}
-		return result;
+		if (!this.isReady.value && !this.isInitializing) return;
+		await this.callAndWaitReturn('updateDynamicOptions', [options]);
 	}
+
+	/** 次に生成するManagerへ渡す。動作中のManagerの素材一覧は更新しない。 */
+	public setInitialAssets(assets: readonly Asset[]) { this.initialAssets = deepClone(assets); }
 
 	public async replaceProjectState(state: RendererProjectState) {
 		const snapshot = { automationGraphs: deepClone(state.automationGraphs), visualModules: deepClone(state.visualModules), timelineScenes: [] };

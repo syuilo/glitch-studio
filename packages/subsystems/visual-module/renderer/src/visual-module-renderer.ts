@@ -80,8 +80,8 @@ export class VisualModuleRenderer {
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private videoFrames: Map<string, VideoFrame>;
 	private videoFrameVersions: Map<string, number>;
-	private assetTextures: Map<string, GPUTexture>;
-	private assets: Asset[];
+	private readonly assetTextures: ReadonlyMap<string, GPUTexture>;
+	private readonly assets: readonly Asset[];
 	private timingHelper: TimingHelper | null;
 	private enableStats = true;
 	private renderNodeId: VisualModuleNode['id'] | null = null;
@@ -103,9 +103,10 @@ export class VisualModuleRenderer {
 		intermediateTextureFormat: IntermediateTextureFormat;
 		videoFrames: Map<string, VideoFrame>;
 		videoFrameVersions: Map<string, number>;
-		assets: Asset[];
+		/** 素材一覧とテクスチャはインスタンスの寿命中に変更しない。GPUへの準備完了後に渡す。 */
+		assets: readonly Asset[];
 		visualModule: VisualModule;
-		assetTextures: Map<string, GPUTexture>;
+		assetTextures: ReadonlyMap<string, GPUTexture>;
 		/** 静的な音声指定の解釈は呼び出し側が所有する。未提供の取得元は未接続とする。 */
 		resolveAudioSource?: (selection: unknown) => AudioInput | null;
 		effectDefinitions: Record<string, EffectDefinition>;
@@ -397,21 +398,6 @@ export class VisualModuleRenderer {
 			}
 		}
 		this.renderNodeId = this.nodes.find(node => node.type === 'globalOut')?.id ?? null;
-	}
-
-	public updateAssets(assets: Asset[]) {
-		this.assets = assets;
-		this.preparedContext = null;
-		++this.preparationVersion;
-		// 同じAsset IDでもテクスチャを作り直すため、静的設定の参照も再解決する。
-		this.effectCacheKeys.clear();
-		this.recomputeResolutions();
-		for (const node of this.nodes) {
-			if (node.type !== 'effect') continue;
-			const renderer = this.effectRenderers.get(node.id)!;
-			renderer.setResolution(this.nodeResolutions.get(node.id)!);
-			if (Object.values(this.effectDefinitions[node.effectId].staticSettingDefs ?? {}).some(setting => setting.dataType.kind === 'assetReference')) renderer.setStaticResources(this.resolveStaticResources(node));
-		}
 	}
 
 	// relayと無効なエフェクトは入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。

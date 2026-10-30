@@ -94,12 +94,12 @@ const appBundle = await build({
 						async updateDynamicOptions(options) {
 							this.updates.push(options);
 							Object.assign(this.options, options);
-							return { assetsCommitted: true };
 						}
 						async updateStaticOptions(options) {
 							this.staticUpdates.push(deepClone(options));
 							Object.assign(this.staticOptions, deepClone(options));
 						}
+						setInitialAssets(assets) { this.options.assets = deepClone(assets); }
 						async updatePlayers(players) { this.options.players = deepClone(players); }
 						async replaceProjectState(state) {
 							const snapshot = deepClone(state);
@@ -1935,6 +1935,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 // 映像のスライダー操作や素材名の変更で先読みPCMを破棄せず、音量・参照素材・
 // ループ長が変わったときだけ音声を再生成する。実際のappの監視とコマンドを組み合わせる。
 // 表示切り替えも音声レイヤーだけが音声計画を変更し、映像だけの無効化では再生を中断しない。
+// 素材原本はプレビュー再生成で更新し、同値のURL入力の再代入では音声も再起動しない。
 test('refreshes audio only for audio content, source files or loop duration changes', async t => {
 	const window = setup(t);
 	window.requestAnimationFrame = () => 1;
@@ -2000,6 +2001,14 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.commit('setTimelineLayerDisabled', { sceneId: 'scene', layerId: 'audio', isDisabled: false });
 		await nextTick();
 		assert.equal(starts.length, 12);
+		const source = { url: 'app://external-assets/audio', size: 100, error: null };
+		manager.state.assets.value[0].fileData = source;
+		await setImmediate();
+		assert.equal(starts.length, 13);
+		assert.equal(appContext.timelineAudioPreview.projects.at(-1).assets.find(asset => asset.id === 'audio').fileData.url, source.url);
+		manager.state.assets.value[0].fileData = { ...source };
+		await setImmediate();
+		assert.equal(starts.length, 13);
 	} finally { appContext.previewPlayback.dispose(); }
 });
 

@@ -43,7 +43,10 @@ export function resolveEffectStaticResources<Definition extends { staticSettingD
 		if (asset == null || !matchesAssetReferenceMimeType(setting.dataType, asset.fileDataType)) throw new Error(`Asset not found or incompatible: ${value}`);
 		const error = getFileSourceError(asset.fileData);
 		if (error != null) throw new Error(error);
-		// 画像のアップロードは非同期。未準備の間はnullを渡し、公開後に呼び出し側が再準備する。
-		return [key, setting.dataType.assetType === 'image' ? context.assetTextures.get(asset.id) ?? null : asset.fileData];
+		if (setting.dataType.assetType !== 'image') return [key, asset.fileData];
+		// 呼び出し側は素材の準備完了を保証する。選択済み画像の欠落は準備待ちではなく読み込み失敗。
+		const texture = context.assetTextures.get(asset.id);
+		if (texture == null) throw new Error(`Image asset is unavailable: ${asset.name}`);
+		return [key, texture];
 	})) as EffectStaticResources<Definition>;
 }

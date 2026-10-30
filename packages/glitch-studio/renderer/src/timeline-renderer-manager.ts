@@ -102,7 +102,6 @@ export type TimelineRendererManagerDynamicOptions = {
 	highlightClipping: boolean;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
-	assets: Asset[];
 	generatedSpeech: GeneratedSpeech[];
 	visualModules: ProjectVisualModule[];
 	timelineScenes: TimelineScene[];
@@ -116,6 +115,9 @@ export type TimelineRendererManagerDynamicOptions = {
 	/** プレビュー用の容量上限。0では複製・保持・通知を行わない。 */
 	frameCacheMaxBytes: number;
 };
+
+/** 素材一覧はManagerの寿命中に固定し、変更時はManagerを再生成する。 */
+export type TimelineRendererManagerResources = { assets: readonly Asset[] };
 
 type CachedLayerTransform = Pick<TimelineTransformPreview, 'clipId' | 'geometry' | 'outputResolution' | 'parentGeometries'>;
 type PreviewFrameCapture = {
@@ -176,7 +178,10 @@ export class TimelineRendererManager extends EventEmitter<{
 	private fallbackTexture: GPUTexture;
 	private sceneOutput: ReturnType<typeof createSceneOutput> | null = null;
 	private assetTextures: AssetTextures;
-	private audioInputs = new TimelineAudioInputs();
+	/** 直接生成した場合も、この完了後に描画を開始する。 */
+	public readonly ready: Promise<void>;
+	private readonly resources: TimelineRendererManagerResources;
+	private audioInputs: TimelineAudioInputs;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	private projectVersions = new ProjectStateVersions();
@@ -195,7 +200,6 @@ export class TimelineRendererManager extends EventEmitter<{
 		outputResolution: null,
 		highlightClipping: false,
 		opaqueOutput: false,
-		assets: [],
 		generatedSpeech: [],
 		visualModules: [],
 		timelineScenes: [],
@@ -216,16 +220,17 @@ export class TimelineRendererManager extends EventEmitter<{
 		waveformVerticalGpuContext?: PreviewCanvasContext;
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
-	}, staticOptions: TimelineRendererManagerStaticOptions) {
+	}, staticOptions: TimelineRendererManagerStaticOptions, resources: TimelineRendererManagerResources) {
 		super();
 		this.staticOptions = { ...staticOptions, timelineMotionBlur: { ...staticOptions.timelineMotionBlur } };
+		this.resources = resources;
+		this.audioInputs = new TimelineAudioInputs(resources.assets);
 		this.previewScheduler = new TimelinePreviewScheduler(
 			(time, timeDelta, onSubmitted) => this.renderPreviewFrame(time, timeDelta, onSubmitted),
 			(staticOptions.previewFramesAhead ?? 1) + 1,
 		);
 
 		this.gpuDevice = coreConfig.gpuDevice;
-		this.assetTextures = new AssetTextures(this.gpuDevice);
 		this.gpuContext = coreConfig.gpuContext;
 		this.effectDefinitions = coreConfig.effectDefinitions;
 		this.effectImplementations = coreConfig.effectImplementations;
@@ -293,6 +298,8 @@ export class TimelineRendererManager extends EventEmitter<{
 			present: output => this.presentOutput(output),
 		});
 		if (this.staticOptions.enableStats) this.telemetryReportIntervalId = setInterval(() => this.reportPreviewStatistics(), 100);
+		this.assetTextures = new AssetTextures(this.gpuDevice, resources.assets);
+		this.ready = this.assetTextures.ready;
 	}
 
 	private reportPreviewStatistics() {
@@ -371,14 +378,14 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
-	private clearTimelineRenderers(preservePreviewRequests = false) {
+	private clearTimelineRenderers() {
 		this.invalidateFrameCache();
 		this.previewStatistics.clear();
 		this.frameRenderer.clear();
 		this.motionBlurTiming = null;
 		this.motionBlurAccumulator?.dispose();
 		this.motionBlurAccumulator = null;
-		this.previewScheduler.clear(preservePreviewRequests);
+		this.previewScheduler.clear();
 		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
 		this.sceneOutput?.dispose();
@@ -387,7 +394,6 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public async updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
-		const { assets, ...synchronousOptions } = newOptions;
 		if (Object.hasOwn(newOptions, 'previewFps') && newOptions.previewFps != null && (!Number.isFinite(newOptions.previewFps) || newOptions.previewFps <= 0)) throw new RangeError('Invalid preview FPS');
 		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes')) {
 			this.frameCache.setMaxBytes(newOptions.frameCacheMaxBytes!);
@@ -400,10 +406,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			this.resolveSpeech = createSpeechResolver(newOptions.generatedSpeech);
 			this.audioInputs.setGeneratedSpeech(newOptions.generatedSpeech);
 		}
-		// 通常の設定は呼び出し順に反映する。画像のデコード完了を待ってから反映すると、
-		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
-		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
-		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
+		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
 		if (Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'automationGraphs')) this.refreshEvaluationScenes();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
@@ -430,9 +433,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			}
 		}
 
-		const assetsCommitted = Object.hasOwn(newOptions, 'assets') ? await this.updateAssets(assets!) : null;
 		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes') && !this.frameCache.enabled) this.reportFrameCache();
-		return { assetsCommitted };
 	}
 
 	public replaceProjectState(state: RendererProjectState, previewRevision = this.dynamicOptions.previewRevision + 1) {
@@ -509,17 +510,6 @@ export class TimelineRendererManager extends EventEmitter<{
 																									childId == null ? 0 : this.projectVersions.scene(childId)]);
 	}
 
-	private updateAssets(assets: Asset[]): Promise<boolean> {
-		return this.assetTextures.update(assets, () => {
-			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
-			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
-			// Assetの準備を待つフレームと最新のシーク要求は、公開後に描画できるので維持する。
-			this.clearTimelineRenderers(true);
-			this.dynamicOptions.assets = assets;
-			this.audioInputs.setAssets(assets);
-		});
-	}
-
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
 	public renderTimelineAt(time: number, frameRenderedRequestId: number | null = null, seekMode: TimelinePreviewSeekMode = 'frame'): Promise<void> {
 		// Schedulerが最新の待機位置だけを保持するのに合わせ、通知対象も置き換える。
@@ -578,7 +568,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			let prepared = false;
 			try {
 				if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
-				const cached = capture.frameIndex != null && this.assetTextures.isReady ? this.frameCache.get(capture.frameIndex) : null;
+				const cached = capture.frameIndex != null ? this.frameCache.get(capture.frameIndex) : null;
 				if (cached != null) {
 					if (preview != null) Object.assign(preview, cached.metadata.get(preview.request.layerId) ?? {});
 					const encoder = this.gpuDevice.createCommandEncoder();
@@ -746,12 +736,6 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private async renderFrame(time: number, isExport: boolean, fps = this.staticOptions.timelineFps, initialTimeDelta = 0) {
-		// Assetとレイヤーの同期は別経路で、Workerもデコード待ち中に次のRPCを処理する。
-		// 新しいレイヤーが先に届いてもGPUテクスチャの公開までは評価しない。待機中の
-		// 更新・削除は最新の一覧へ追従し、破棄後にはGPUを使用しない。
-		while (!this.assetTextures.isReady) {
-			if (!await this.assetTextures.waitUntilReady()) return false;
-		}
 		const settings = this.staticOptions.timelineMotionBlur;
 		if (!settings.enabled || settings.shutterAngle === 0 || settings.samples <= 1) {
 			// 単発描画ではサンプル配列や露光全体用の中断管理を作らない。
@@ -837,7 +821,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
 					format: this.staticOptions.intermediateTextureFormat,
-					fontFileSource: this.dynamicOptions.assets.find(asset => asset.id === layer.subtitleStaticSettings.font && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
+					fontFileSource: this.resources.assets.find(asset => asset.id === layer.subtitleStaticSettings.font && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
 				});
 			case 'text':
 				return createTextTimelineLayer(layer, {
@@ -846,7 +830,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
 					format: this.staticOptions.intermediateTextureFormat,
-					fontFileSource: this.dynamicOptions.assets.find(asset => asset.id === layer.textStaticSettings.font && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
+					fontFileSource: this.resources.assets.find(asset => asset.id === layer.textStaticSettings.font && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
 				});
 			case 'shape':
 				return createShapeTimelineLayer(layer, {
@@ -872,7 +856,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					fallbackTexture: this.fallbackTexture,
 					resolution: renderResolution,
 					resolutionScale: this.dynamicOptions.resolutionScale,
-					assets: this.dynamicOptions.assets,
+					assets: this.resources.assets,
 					assetTextures: this.assetTextures.textures,
 					getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
 					onState: status => this.emit('ev', { type: 'effectLayerState', ctx: { source, status } }),
@@ -895,7 +879,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			}
 			case 'video': {
 				const clip = layer.clips.find(clip => clip.id === clipId)!;
-				const asset = this.dynamicOptions.assets.find(asset => asset.id === clip.assetId);
+				const asset = this.resources.assets.find(asset => asset.id === clip.assetId);
 				if (!asset) throw new Error(`Video asset not found: ${clip.assetId}`);
 				return createVideoTimelineLayer(layer, asset.fileData, {
 					videoEnabled: clip.videoEnabled,
@@ -977,7 +961,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
 			videoFrames: new Map(),
 			videoFrameVersions: new Map(),
-			assets: this.dynamicOptions.assets,
+			assets: this.resources.assets,
 			visualModule,
 			assetTextures: this.assetTextures.textures,
 			effectDefinitions: this.effectDefinitions,
@@ -1089,6 +1073,7 @@ export async function createManager(options: {
 	waveformVerticalCanvas: OffscreenCanvas;
 	staticOptions: TimelineRendererManagerStaticOptions;
 	dynamicOptions: Partial<TimelineRendererManagerDynamicOptions>;
+	resources: TimelineRendererManagerResources;
 	effectDefinitions: Record<string, EffectDefinition>;
 	effectImplementations: Record<string, EffectImplementation>;
 }) {
@@ -1123,11 +1108,12 @@ export async function createManager(options: {
 			waveformVerticalGpuContext: waveformVerticalContext,
 			effectDefinitions: options.effectDefinitions,
 			effectImplementations: options.effectImplementations,
-		}, options.staticOptions);
+		}, options.staticOptions, options.resources);
 		device.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
 		void device.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
 
-		await manager.updateDynamicOptions(options.dynamicOptions);
+		// どちらが先に失敗しても、もう片方のPromiseを未処理にしない。
+		await Promise.all([manager.ready, manager.updateDynamicOptions(options.dynamicOptions)]);
 
 		return manager;
 	} catch (error) {

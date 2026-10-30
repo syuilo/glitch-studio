@@ -116,19 +116,21 @@ export async function run() {
 			check('scalar array derivatives and empty typed selectors', (await read(arrayOutput, encoder))[0], [64, 0, 0, 255, 128, 255, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
 		} finally { gradientArrayPipelines.dispose(); }
 		// Blobのデコード・GPU転送・画像ノードを通し、上下の向きと二重premultiplyがないことを確認する。
-		const assetTextures = new AssetTextures(device);
+		const imageAssetTextures: AssetTextures[] = [];
 		async function loadImageAsset(width: number, height: number, pixels: number[]) {
 			const canvas = new OffscreenCanvas(width, height);
 			canvas.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(pixels), width, height), 0, 0);
 			const fileData = await canvas.convertToBlob({ type: 'image/png' });
-			await assetTextures.update([{
+			const assetTextures = new AssetTextures(device, [{
 				id: 'image',
 				name: 'image',
 				width,
 				height,
 				fileData,
 				fileDataType: fileData.type,
-			}], () => {});
+			}]);
+			imageAssetTextures.push(assetTextures);
+			await assetTextures.ready;
 			return assetTextures.textures.get('image')!;
 		}
 		const rawSource = await loadImageAsset(2, 2, [255, 0, 0, 128, 0, 255, 0, 255, 0, 0, 255, 64, 255, 255, 255, 0]);
@@ -170,7 +172,7 @@ export async function run() {
 		} as any);
 		check('original image without asset is transparent', (await read(rawOutput, emptyEncoder))[0], Array(8).fill(0));
 		raw.dispose();
-		assetTextures.dispose();
+		for (const assetTextures of imageAssetTextures) assetTextures.dispose();
 		const a = constantShaderInput('color', [1, 0, 0, 0.5]);
 		const b = constantShaderInput('color', [0, 0, 1, 1]);
 		const amount = constantShaderInput('scalar', 0.25);

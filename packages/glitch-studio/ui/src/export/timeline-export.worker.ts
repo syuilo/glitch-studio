@@ -27,7 +27,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 	let finished = false;
 	try {
 		const { settings: requestedSettings, project, resolutionScale, renderer: rendererSettings } = event.data;
-		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = project;
+		const { timelineFps, timelineMotionBlur, assets, ...dynamicProjectOptions } = project;
 		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
 		const scene = getTimelineScene(project.timelineScenes, project.sceneId);
 		const settings = {
@@ -72,7 +72,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			timelineMotionBlur,
 			enableStats: false,
 			enableWaveformAndHistogram: false,
-		});
+		}, { assets });
 		renderer.on('ev', event => {
 			if (event.type !== 'effectState' && event.type !== 'effectLayerState') return;
 			const status = event.ctx.status?.status;
@@ -84,7 +84,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		});
 		// 基準サイズを上書きすると、customAbsoluteの子Sceneやノードに書き出し倍率が伝わらない。
 		// 倍率は独立して渡し、MP4の偶数寸法補正は最終Canvasだけに適用する。
-		await renderer.updateDynamicOptions({
+		await Promise.all([renderer.ready, renderer.updateDynamicOptions({
 			...dynamicProjectOptions,
 			// カスタム指定では出力Sceneだけの基準サイズを差し替える。別比率の出力も
 			// 引き伸ばさずその画角で描画し、子Sceneやプロジェクトの基準サイズは保持する。
@@ -94,7 +94,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			resolutionScale: resolutionScale ?? 1,
 			outputResolution: { width: settings.width, height: settings.height },
 			opaqueOutput: settings.format === 'mp4',
-		});
+		})]);
 		controller.signal.throwIfAborted();
 		if (settings.format === 'webp') {
 			await renderer.renderTimelineFrame(settings.positionMs, 0);

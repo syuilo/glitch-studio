@@ -31,14 +31,7 @@ export class TimelineAudioInputs {
 		this.revision++;
 	}
 
-	constructor(private assets: readonly Asset[] = [], private openFile: (fileSource: FileSource) => Promise<AudioFile> = openAudioFile) {}
-
-	setAssets(assets: readonly Asset[]) {
-		this.current?.dispose();
-		this.current = null;
-		this.assets = assets;
-		this.revision++;
-	}
+	constructor(private readonly assets: readonly Asset[] = [], private openFile: (fileSource: FileSource) => Promise<AudioFile> = openAudioFile) {}
 
 	private getRenderer() {
 		if (this.current) return this.current.renderer;

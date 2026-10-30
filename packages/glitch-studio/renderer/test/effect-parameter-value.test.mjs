@@ -4,14 +4,15 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { resolveEffectStaticResources, getEffectIntrinsicResolution } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_renderer/effect-static-settings.ts')));
 
-// 【静的設定から素材を借用し、画像のアップロード前にも原寸を取得できる】
-// GPUリソースの生成時期で解像度が変わらず、借用した素材を複製しないことを確認する。
-test('resolves static resources and dimensions independently of GPU readiness', () => {
+// 【原寸はメタデータから求め、選択済み画像のテクスチャ欠落は読み込み失敗として通知する】
+// レンダラーには準備済みの素材を渡すため、欠落を準備待ちの透明表示で隠さない。
+// 未選択のnullとは区別し、正常な素材は借用したテクスチャを複製せずに使う。
+test('resolves intrinsic dimensions and rejects missing prepared image textures', () => {
 	const definition = { staticSettingDefs: { image: { dataType: { kind: 'assetReference', assetType: 'image' }, ui: { label: 'Image' }, defaultValue: null } }, intrinsicResolutionSetting: 'image' };
 	const asset = { id: 'image', width: 640, height: 360, fileDataType: 'image/png', fileData: new Blob() };
 	const context = { assets: [asset], assetTextures: new Map() };
 	assert.deepEqual(getEffectIntrinsicResolution(definition, { image: asset.id }, context), { width: 640, height: 360 });
-	assert.equal(resolveEffectStaticResources(definition, { image: asset.id }, context).image, null);
+	assert.throws(() => resolveEffectStaticResources(definition, { image: asset.id }, context), /Image asset is unavailable/);
 	const texture = { width: 640, height: 360 };
 	context.assetTextures.set(asset.id, texture);
 	assert.equal(resolveEffectStaticResources(definition, { image: asset.id }, context).image, texture);

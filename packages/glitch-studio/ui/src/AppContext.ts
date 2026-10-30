@@ -30,7 +30,7 @@ import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
-import type { IntermediateTextureFormat } from '@gs/shared/types.js';
+import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { ProjectContext } from './Project.ts';
 import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.js';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
@@ -166,9 +166,10 @@ export class AppContext {
 				const state = this.projectContext.stateManager.state;
 				await this.replacePreviewProject({ automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value });
 				if (!isCurrent()) return;
-				await this.updatePreviewOptions({ assets: deepClone(state.assets.value), resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value });
+				this.setPreviewAssets(state.assets.value);
+				await this.updatePreviewOptions({ resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value });
 				if (!isCurrent()) return;
-				await this.visualModuleRendererManagerController.updatePlayers(deepClone(state.players.value));
+				await this.visualModuleRendererManagerController.updatePlayers(state.players.value);
 				if (!isCurrent()) return;
 				await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value, generatedSpeech: deepClone(this.previewSpeech.value) });
 				if (!isCurrent()) return;
@@ -324,8 +325,13 @@ export class AppContext {
 		);
 	}
 
-	private async updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
-		if (options.assets != null) options = { ...options, assets: getRendererAssets(options.assets) };
+	private setPreviewAssets(assets: readonly Asset[]) {
+		const rendererAssets = getRendererAssets(assets);
+		this.visualModuleRendererManagerController.setInitialAssets(rendererAssets);
+		this.timelineRendererManagerController.setInitialAssets(rendererAssets);
+	}
+
+	private async updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
 		await Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),
 			this.timelineRendererManagerController.updateDynamicOptions(options),
@@ -389,7 +395,7 @@ export class AppContext {
 		this.previewPlayback.dispose();
 		// 同じIDのプロジェクトを再読込した場合も、以前の再生・ノード履歴を引き継がない。
 		await this.replacePreviewProject({ automationGraphs: [], visualModules: [], timelineScenes: [] });
-		await this.updatePreviewOptions({ assets: [] });
+		this.setPreviewAssets([]);
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: null });
 		await this.visualModuleRendererManagerController.updatePlayers([]);
 		// 旧プロジェクトを解放してから設定を適用し、不要な素材の再アップロードを避ける。
@@ -410,11 +416,11 @@ export class AppContext {
 		this.scenePlaybackTimes.clear();
 		this.pendingSceneSeek = null;
 		await this.replacePreviewProject({ automationGraphs: project.automationGraphs, visualModules: project.visualModules, timelineScenes: project.timelineScenes });
-		await this.updatePreviewOptions({ assets: deepClone(project.assets) });
+		this.setPreviewAssets(project.assets);
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value,
 			previewFps: project.timelineFps * this.timelinePreviewFpsFactor.value,
 		});
-		await this.visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
+		await this.visualModuleRendererManagerController.updatePlayers(project.players);
 		this.projectSaveController.finishProjectLoad(fileName, fileHandle);
 		await window.desktop?.setCurrentProjectFile?.(fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
 
@@ -453,19 +459,16 @@ export class AppContext {
 			}
 		}));
 
-		// 音声の内容・参照素材・ループ長だけを比較する。Blobは不変なので同一性で判定し、
-		// 素材名や映像パラメータの編集では再生中のWorkerと先読みPCMを維持する。
+		// 音声の内容・参照先・ループ長を比較し、映像パラメータの編集では先読みPCMを維持する。
+		// 素材原本の変更は下の同期watchがプレビュー全体を再生成し、再開時に最新素材で音声も作り直す。
 		this.projectWatchers.push(watch(() => {
 			const layers = this.renderValidation.errorMessage.value || this.activeSceneId.value == null ? [] : getSceneAudioClips(this.timelineEvaluationScenes.value, this.activeSceneId.value, { type: 'all' }, createSpeechResolver(this.previewSpeech.value));
-			const assetIds = new Set(layers.map(clip => clip.sourceId));
 			return {
 				layers: deepClone(layers),
 				duration: this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),
-				files: new Map(this.projectContext.stateManager.state.assets.value.filter(asset => assetIds.has(asset.id)).map(asset => [asset.id, asset.fileData])),
 			};
 		}, (next, previous) => {
-			if (next.duration !== previous.duration || !deepEqual(next.layers, previous.layers)
-					|| next.files.size !== previous.files.size || [...next.files].some(([id, file]) => previous.files.get(id) !== file)) {
+			if (next.duration !== previous.duration || !deepEqual(next.layers, previous.layers)) {
 				this.previewPlayback.refreshAudio();
 			}
 		}));

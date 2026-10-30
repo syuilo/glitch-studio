@@ -127,7 +127,7 @@ function timelineFixture(t, { enableStats = false, timelineMotionBlur = { enable
 			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
 			init: () => ({ render: ctx => calls.renders.push(ctx), dispose() {} }),
 		} },
-	}, { enableStats, timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	}, { enableStats, timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }] });
 	calls.compositing = [];
 	manager.createCompositingObserver = (_sceneId, layerId) => (foreground, settings) => calls.compositing.push({ layerId, foreground, settings });
 	manager.on('ev', event => { if (event.type === 'renderError') calls.errors.push(event.ctx.message); });
@@ -167,7 +167,7 @@ async function timingFixture(t, { enableStats = true, videoLayers = 1, motionBlu
 		clips: [{ id: `clip-${index}`, startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000,
 			playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }],
 	}));
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 16, height: 8 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: videos }] });
 	return { ...fixture, costs, statistics, get gpuWaits() { return gpuWaits; }, get clockReads() { return clockReads; } };
@@ -265,7 +265,7 @@ test('does not open video sources or composite audio-only clips in preview or ex
 		compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 3000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: -1, loop: true,
 			assetId: 'asset', audioEnabled: true, videoEnabled: false }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	// 動画レイヤー単体の生成で、空のレンダラーにGPU資源が紛れ込まないことも保証する。
@@ -297,7 +297,7 @@ test('preserves lower layers beneath audio-only replace and mask clips including
 		compositingParamValues: { blendMode: literal('replace') }, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'background-clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false,
 			assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [background] }] });
 	await manager.renderTimelineAt(500);
@@ -331,7 +331,7 @@ test('releases decoded video resources when disabling video and recreates them w
 		compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false,
 			assetId: 'asset', audioEnabled: true, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	await manager.renderTimelineAt(100);
@@ -368,7 +368,7 @@ for (const reversePlayback of [false, true]) {
 		const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false,
 			automationGraphs: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
 			clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: reversePlayback ? -1 : 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-		await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+		await manager.updateDynamicOptions({
 			resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 			timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 		const sourceTimesMs = [100, 200, 300, 600, 800, 100];
@@ -400,7 +400,7 @@ test('holds the same source frame across seeks and export while animating compos
 		automationGraphs: [], coordinateSpace: 'screen',
 		compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME / 10' } }, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'hold', startMs: 1000, durationMs: 10000, sourceTimeMs: 2000.25, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	await manager.renderTimelineAt(5000);
@@ -427,7 +427,7 @@ test('uploads frozen video once per source time while compositing every motion b
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: true,
 		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 2000, sourceInMs: 0, sourceOutMs: 2000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 0.5, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	await manager.renderTimelineAt(500);
@@ -454,7 +454,7 @@ test('refreshes composition at repeated video times and caches transparent foreg
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
 		automationGraphs: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 3000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: true, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	for (const time of [500, 1500, 1600, 2600, 1500]) await manager.renderTimelineFrame(time, 0);
@@ -473,7 +473,7 @@ test('loops decoded video timestamps in preview and export and applies clip edit
 	const { manager, calls } = timelineFixture(t);
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 1000, sourceInMs: 2000.25, sourceOutMs: 5000.25, playbackRate: 1, loop: true, durationMs: 8000, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	for (const time of [3999, 4000, 8000, 1000]) {
@@ -521,7 +521,7 @@ test('scales video sources once through replace composition and automatic proces
 			],
 		},
 	};
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }] });
+	await manager.ready;
 	for (const [resolutionScale, blendMode, expectedOutput] of [
 		[0.5, 'replace', [960, 540]],
 		[0.25, 'replace', [480, 270]],

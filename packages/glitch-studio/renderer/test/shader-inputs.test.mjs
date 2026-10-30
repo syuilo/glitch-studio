@@ -827,21 +827,20 @@ test('refreshes external textures and restores constants after disconnecting the
 test('resizes automatic image outputs to the selected asset and preserves borrowed textures', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const asset = device.createTexture({ size: [7, 3], format: 'rgba8unorm' });
-	const assets = new Map([['asset', asset]]);
+	const assets = new Map([['asset', asset], ['replacement', device.createTexture({ size: [4, 9], format: 'rgba8unorm' })]]);
 	const raw = { id: 'raw', type: 'effect', resolution: { mode: 'auto', scale: 1 }, effectId: 'image', staticSettings: { image: 'asset' }, params: { fit: literal('cover') } };
 	const output = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'raw', outputPort: 'output' } } };
 	const visualModule = { nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out' };
 	const metadata = { id: 'asset', width: 7, height: 3, fileDataType: 'image/png', fileData: new Blob() };
-	const renderer = createRenderer(device, visualModule, { assets: [metadata], assetTextures: assets });
+	const renderer = createRenderer(device, visualModule, { assets: [metadata, { ...metadata, id: 'replacement', width: 4, height: 9 }], assetTextures: assets });
 	const initial = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([initial.width, initial.height], [7, 3]);
 	const allocated = calls.textures.length;
 	renderer.render(renderContext(), encoder);
 	assert.equal(calls.textures.length, allocated);
-	const replacement = device.createTexture({ size: [4, 9], format: 'rgba8unorm' });
-	assets.set('asset', replacement);
-	metadata.width = 4; metadata.height = 9;
-	renderer.updateAssets([metadata]);
+	const replacement = assets.get('replacement');
+	raw.staticSettings.image = 'replacement';
+	renderer.updateNodes(visualModule.nodes);
 	const resized = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([resized.width, resized.height], [4, 9]);
 	assert.equal(initial.destroyed, true);

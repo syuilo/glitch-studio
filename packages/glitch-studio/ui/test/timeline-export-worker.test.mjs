@@ -35,17 +35,17 @@ function fixture() {
 	}
 	const dependencies = {
 		TimelineRendererManager: class {
-			constructor(core, staticOptions) {
+			constructor(core, staticOptions, resources) {
 				this.core = core;
 				this.staticOptions = staticOptions;
+				this.resources = resources;
+				this.ready = prepared.promise;
 				instance = this;
 			}
 			on(name, handler) { this.handler = handler; }
 			async updateDynamicOptions(options) {
 				this.dynamicOptions = options;
 				preparing.resolve();
-				await prepared.promise;
-				return { assetsCommitted: true };
 			}
 			async renderTimelineFrame(time, delta, fps) { this.renderFps = fps ?? this.staticOptions.timelineFps; frames.push([time, delta]); }
 			destroy() { destroyed = true; }
@@ -96,7 +96,8 @@ for (const format of ['mp4', 'webp']) {
 		await f.preparing.promise;
 		assert.deepEqual(f.frames, []);
 		assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), ['float32-filterable']);
-		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = request.project;
+		const { timelineFps, timelineMotionBlur, assets, ...dynamicProjectOptions } = request.project;
+		assert.deepEqual(structuredClone(f.instance.resources), { assets });
 		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer, timelineFps, timelineMotionBlur, enableStats: false, enableWaveformAndHistogram: false });
 		const resolution = format === 'mp4' ? { width: 4, height: 6 } : { width: 3, height: 5 };
 		assert.deepEqual(structuredClone(f.instance.dynamicOptions), {

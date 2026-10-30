@@ -10,6 +10,7 @@ import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
 import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { Asset } from '@gs/shared/types.ts';
 import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import { getTimelinePreviewFrameIndex } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 
@@ -37,8 +38,8 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public waveformVerticalCanvas: HTMLCanvasElement;
 	private staticOptions: TimelineRendererManagerStaticOptions;
 	private initializationStaticOptions: TimelineRendererManagerStaticOptions | null = null;
-	private dynamicOptions: Partial<TimelineRendererManagerDynamicOptions> & Pick<TimelineRendererManagerDynamicOptions, 'assets'> = {
-		assets: [],
+	private initialAssets: readonly Asset[] = [];
+	private dynamicOptions: Partial<TimelineRendererManagerDynamicOptions> = {
 		previewRevision: 0,
 	};
 	public errorMessage = ref<string | null>(null);
@@ -81,6 +82,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 						waveformVerticalCanvas: waveformVerticalOffscreen,
 						staticOptions: this.staticOptions,
 						dynamicOptions: this.dynamicOptions,
+						resources: { assets: this.initialAssets },
 					},
 					transfer: [
 						offscreen,
@@ -187,9 +189,12 @@ export class TimelineRendererManagerController extends RendererManagerController
 		}
 		this.dynamicOptions = { ...this.dynamicOptions, ...options };
 		// 初回起動前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
-		if (!this.isReady.value && !this.isInitializing) return { assetsCommitted: null };
+		if (!this.isReady.value && !this.isInitializing) return;
 		return this.callAndWaitReturn('updateDynamicOptions', [options]);
 	}
+
+	/** 次に生成するManagerへ渡す。動作中のManagerの素材一覧は更新しない。 */
+	public setInitialAssets(assets: readonly Asset[]) { this.initialAssets = deepClone(assets); }
 
 	public async replaceProjectState(state: RendererProjectState) {
 		this.cancelSeek();

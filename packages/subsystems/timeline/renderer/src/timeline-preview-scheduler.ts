@@ -22,8 +22,8 @@ export class TimelinePreviewScheduler {
 		if (!Number.isSafeInteger(maxSubmittedFrames) || maxSubmittedFrames < 1) throw new RangeError('Invalid submitted preview frame limit');
 	}
 
-	clear(preservePendingTime = false) {
-		if (!preservePendingTime) this.pendingTime = null;
+	clear() {
+		this.pendingTime = null;
 		this.generation++;
 		this.previousTime = null;
 		// 編集・Scene切り替えで要求を破棄しても、送信済みGPU処理は取り消せない。
