@@ -9,11 +9,17 @@ struct Uniforms {
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(2) var previousVectorTexture: texture_2d<f32>;
+@group(0) @binding(3) var previousScalarTexture: texture_2d<f32>;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
 	@builtin(position) position: vec4f,
+};
+
+struct PointerTrailOutputs {
+	@location(0) vector: vec2f,
+	@location(1) scalar: f32,
 };
 
 fn scaleUvToCoverGivenAspectRatio(uv: vec2f, aspectRatio: f32) -> vec2f {
@@ -39,11 +45,17 @@ fn getPointerForceVector(uv: vec2f) -> vec2f {
 }
 
 @fragment
-fn fs(fragData: FragmentIn) -> @location(0) vec2f {
+fn fs(fragData: FragmentIn) -> PointerTrailOutputs {
 	let uv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
-	// 履歴のベクトル場を補間で拡散させず、同じ画素に力を蓄積する。
-	var before = textureLoad(sourceTexture, vec2i(fragData.position.xy), 0).rg;
-	before *= exp2(-uniforms.timeDelta / uniforms.halfLife);
-	let v = getPointerForceVector(uv) * uniforms.strength;
-	return before + v;
+	// 履歴を補間で拡散させず、同じ画素に力を蓄積する。
+	let previousVector = textureLoad(previousVectorTexture, vec2i(fragData.position.xy), 0).rg;
+	let previousScalar = textureLoad(previousScalarTexture, vec2i(fragData.position.xy), 0).r;
+	let decay = exp2(-uniforms.timeDelta / uniforms.halfLife);
+	let pointerForceVector = getPointerForceVector(uv) * uniforms.strength;
+	// 蓄積済みベクトルの長さでは逆方向の動きが相殺されるため、
+	// 各フレームで加える力の長さを独立した履歴へ蓄積して軌跡の強さを保つ。
+	return PointerTrailOutputs(
+		previousVector * decay + pointerForceVector,
+		previousScalar * decay + length(pointerForceVector),
+	);
 }

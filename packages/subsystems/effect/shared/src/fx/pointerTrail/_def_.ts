@@ -55,6 +55,7 @@ export default defineEffect({
 	resolutionInputParameter: null,
 	outputDefs: {
 		output: { dataType: { kind: 'vector' } },
+		scalar: { dataType: { kind: 'scalar' } },
 	},
 	primaryOutput: 'output',
 });
