@@ -165,7 +165,11 @@ export class AppContext {
 				// エラー中の差分は送らない。再生成時に、UIの最新状態を一度だけ取り込む。
 				const state = this.projectContext.stateManager.state;
 				await this.replacePreviewProject({ automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value });
+				if (!isCurrent()) return;
 				await this.updatePreviewOptions({ assets: deepClone(state.assets.value), resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value });
+				if (!isCurrent()) return;
+				await this.visualModuleRendererManagerController.updatePlayers(deepClone(state.players.value));
+				if (!isCurrent()) return;
 				await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value, generatedSpeech: deepClone(this.previewSpeech.value) });
 				if (!isCurrent()) return;
 				const results = await Promise.allSettled([
@@ -466,22 +470,39 @@ export class AppContext {
 			}
 		}));
 
-		this.projectWatchers.push(watch(this.projectContext.stateManager.state.assets, async () => {
+		const state = this.projectContext.stateManager.state;
+		const previewResources = computed<(string | number | boolean | Blob | null | undefined)[][]>(previous => {
+			// Blobは不変なので同一性で、URL入力は値で比較する。履歴のメタデータ復元は同値の
+			// オブジェクトも再代入するため、その通知や名前・サムネイルだけの変更では再生成しない。
+			const next = [
+				...state.assets.value.map(asset => [
+					'asset', asset.id, asset.fileDataType, asset.width, asset.height, asset.hash,
+					asset.isExternalReference, asset.sourceFilePath,
+					...(asset.fileData instanceof Blob ? [asset.fileData] : [asset.fileData.url, asset.fileData.size, asset.fileData.error]),
+				]),
+				...state.players.value.map(player => ['player', player.id, player.sourceType, player.assetId]),
+			];
+			return previous != null && next.length === previous.length && next.every((resource, index) =>
+				resource.length === previous[index].length && resource.every((value, field) => value === previous[index][field])) ? previous : next;
+		});
+		this.projectWatchers.push(watch(previewResources, async (_value, _previous, onCleanup) => {
+			// 同じCommandが追加するノードの差分より先に止める。await後では旧素材で解像度を計算してしまう。
+			const update = this.renderEngine.beginResourceUpdate();
+			onCleanup(update.cancel);
 			try {
-				await resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
-				await this.updatePreviewOptions({ assets: deepClone(this.projectContext.stateManager.state.assets.value) });
-				this.renderEngine.requestRetry();
-				// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
-				this.previewPlayback.refresh();
+				// 同期watchはCommandの途中にも呼ばれるため、最終状態になってから参照解決する。
+				await Promise.resolve();
+				if (!update.isCurrent()) return;
+				await resolveExternalAssets(state.assets.value);
+				if (!update.isCurrent()) return;
+				// 準備中の編集差分は再送せず、再生成経路が素材・Player・ノードの最新状態を取り込む。
+				await update.complete();
 			} catch (error) {
-				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
-				console.error(error);
+				if (!update.isCurrent()) return;
+				update.cancel();
+				this.renderEngine.fail(error);
 			}
-		}, { deep: true }));
-
-		this.projectWatchers.push(watch(this.projectContext.stateManager.state.players, () => {
-			this.visualModuleRendererManagerController.updatePlayers(deepClone(this.projectContext.stateManager.state.players.value));
-		}, { deep: true }));
+		}, { flush: 'sync' }));
 
 		// UndoでVisual Module Live Preview対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
 		this.projectWatchers.push(this.projectContext.stateManager.onChange(changes => {

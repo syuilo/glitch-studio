@@ -32,6 +32,7 @@ const appBundle = await build({
 		export { getAssetMenu } from './src/utility/asset-menu.ts';
 		export { recentProjects } from './src/recent-projects.ts';
 		export { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './src/AppContext.ts';
+		export { createVisualModuleAssetNode } from './src/utility/visual-module-asset-node.ts';
 	` },
 	plugins: [i18nPlugin, {
 		name: 'project-test-platform',
@@ -62,7 +63,10 @@ const appBundle = await build({
 			build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({
 				loader: 'ts', resolveDir: import.meta.dirname,
 				contents: /effect-definitions\.[jt]s$/.test(args.path)
-					? "import fill from '@gs/subsystems_effect_shared/fx/fill/_def_.ts'; export const effectDefinitions = { fill };"
+					? `import fill from '@gs/subsystems_effect_shared/fx/fill/_def_.ts';
+						import image from '@gs/subsystems_effect_shared/fx/image/_def_.ts';
+						import video from '@gs/subsystems_effect_shared/fx/video/_def_.ts';
+						export const effectDefinitions = { fill, image, video };`
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
@@ -96,7 +100,7 @@ const appBundle = await build({
 							this.staticUpdates.push(deepClone(options));
 							Object.assign(this.staticOptions, deepClone(options));
 						}
-						async updatePlayers() {}
+						async updatePlayers(players) { this.options.players = deepClone(players); }
 						async replaceProjectState(state) {
 							const snapshot = deepClone(state);
 							this.snapshots.push(snapshot);
@@ -282,6 +286,114 @@ function project(overrides = {}) {
 		assets: (overrides.assets ?? []).map(asset => ({ fileDataType: asset.fileData?.type || (asset.id === 'audio' ? 'audio/wav' : 'image/png'), ...asset })),
 	};
 }
+
+for (const [label, fileDataType, isExternalReference] of [
+	['embedded image', 'image/png', false], ['external image', 'image/png', true], ['external video', 'video/mp4', true],
+]) {
+	// 【素材とノードを同じCommandで取り込んでも、素材準備前にノード差分を旧エンジンへ送らない】
+	// AppContext・Command・RendererProjectSynchronizerは実コードを通す。遅い素材参照解決の間にも
+	// 編集を続け、最新の寸法・Player・ノード設定を両プレビューの再生成へ一緒に渡す必要がある。
+	test(`rebuilds previews with matching assets and nodes after importing an ${label}`, async t => {
+		const window = setup(t);
+		const { appContext, createVisualModuleAssetNode } = evaluate(appBundle);
+		await appContext.ready(project({ visualModules: [{ id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+		t.after(() => appContext.previewPlayback.dispose());
+		const gate = Promise.withResolvers();
+		const source = { url: 'app://external-assets/imported', size: 100, error: null };
+		window.desktop = { resolveExternalAsset: () => gate.promise };
+		const asset = { id: 'imported', name: 'Imported', width: 1920, height: 1080, fileDataType,
+			fileData: isExternalReference ? source : new Blob(['image'], { type: fileDataType }), sourceFilePath: 'C:/assets/imported', isExternalReference };
+		const { node, player } = createVisualModuleAssetNode(asset, []);
+		const players = player == null ? [] : [player];
+		const manager = appContext.projectContext.stateManager;
+		const controllers = [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController];
+		for (const controller of controllers) {
+			controller.lifecycle.length = 0;
+			controller.patches.length = 0;
+			const relaunch = controller.relaunchManager.bind(controller);
+			controller.relaunchManager = async () => {
+				// 埋め込み画像でも、Worker初期化中のデコード・GPU転送待ちを再現する。
+				if (!isExternalReference) await gate.promise;
+				// 起動時に実際の参照先と寸法を読み取れ、Player参照も同じ世代で揃っていることを確認する。
+				const importedNode = controller.options.visualModules[0].nodes[0];
+				const assetId = importedNode.effectId === 'image' ? importedNode.staticSettings.image
+					: appContext.visualModuleRendererManagerController.options.players.find(player => player.id === importedNode.staticSettings.player).assetId;
+				const referencedAsset = controller.options.assets.find(asset => asset.id === assetId);
+				assert.deepEqual([referencedAsset.width, referencedAsset.height], [1920, 1080]);
+				assert.equal(importedNode.resolution.scale, 0.5);
+				await relaunch();
+			};
+		}
+		manager.commit('importAssets', { assets: [asset], players, visualModule: { target: { visualModuleId: 'visualModule' }, nodes: [node] } });
+		assert.equal(appContext.renderEngine.canRender.value, false);
+		assert.ok(controllers.every(controller => controller.isReady.value === false));
+		manager.commit('changeNodeResolution', { visualModuleId: 'visualModule', nodeId: node.id, resolution: { mode: 'auto', scale: 0.5 } });
+		await appContext.flushRendererProjectChanges();
+		await setImmediate();
+		assert.ok(controllers.every(controller => controller.patches.length === 0));
+		assert.ok(controllers.every(controller => !controller.lifecycle.includes('relaunch')));
+		gate.resolve(source);
+		await setImmediate();
+		assert.equal(appContext.renderEngine.errorMessage.value, null);
+		for (const controller of controllers) {
+			assert.equal(controller.isReady.value, true);
+			assert.equal(controller.lifecycle.filter(event => event === 'relaunch').length, 1);
+		}
+		manager.commit('renameAsset', { assetId: asset.id, name: 'Renamed' });
+		await setImmediate();
+		assert.ok(controllers.every(controller => controller.lifecycle.filter(event => event === 'relaunch').length === 1));
+	});
+}
+
+// 【取り込み準備中のUndoは素材とノードを両方除いた状態で再生成し、古い準備完了で戻さない】
+// 素材削除を旧ノードへ先に反映すると静的解像度の計算が失敗する。
+// 遅れて完了した参照解決の無視と、Redoでの再取り込みを同じ実際の履歴経路で確認する。
+test('ignores obsolete asset preparation after undo and rebuilds the latest state on redo', async t => {
+	const window = setup(t);
+	const { appContext, createVisualModuleAssetNode } = evaluate(appBundle);
+	await appContext.ready(project({ visualModules: [{ id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+	t.after(() => appContext.previewPlayback.dispose());
+	const gate = Promise.withResolvers();
+	const source = { url: 'app://external-assets/imported', size: 100, error: null };
+	window.desktop = { resolveExternalAsset: () => gate.promise };
+	const asset = { id: 'imported', name: 'Imported', width: 640, height: 480, fileDataType: 'image/png',
+		fileData: source, sourceFilePath: 'C:/assets/imported', isExternalReference: true };
+	const { node } = createVisualModuleAssetNode(asset, []);
+	const manager = appContext.projectContext.stateManager;
+	const controllers = [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController];
+	manager.commit('importAssets', { assets: [asset], players: [], visualModule: { target: { visualModuleId: 'visualModule' }, nodes: [node] } });
+	await setImmediate();
+	manager.undo();
+	await setImmediate();
+	for (const controller of controllers) {
+		assert.equal(controller.isReady.value, true);
+		assert.deepEqual(controller.options.assets, []);
+		assert.deepEqual(controller.options.visualModules[0].nodes, []);
+		controller.lifecycle.length = 0;
+	}
+	gate.resolve(source);
+	await setImmediate();
+	assert.ok(controllers.every(controller => controller.lifecycle.length === 0));
+	manager.redo();
+	await setImmediate();
+	assert.equal(appContext.renderEngine.errorMessage.value, null);
+	for (const controller of controllers) {
+		assert.equal(controller.isReady.value, true);
+		assert.equal(controller.options.assets[0].id, asset.id);
+		assert.equal(controller.options.visualModules[0].nodes[0].staticSettings.image, asset.id);
+		assert.equal(controller.lifecycle.filter(event => event === 'relaunch').length, 1);
+	}
+	// 再生成済みの旧ノードが存在する場合も、素材だけを先に削除して参照切れを起こさない。
+	manager.undo();
+	assert.ok(controllers.every(controller => controller.isReady.value === false));
+	await setImmediate();
+	assert.equal(appContext.renderEngine.errorMessage.value, null);
+	for (const controller of controllers) {
+		assert.equal(controller.isReady.value, true);
+		assert.deepEqual(controller.options.assets, []);
+		assert.deepEqual(controller.options.visualModules[0].nodes, []);
+	}
+});
 
 // 【描画へ送らない表示名の編集でもBAKEをその場で中止する】
 // レンダラー同期や次の描画通知に頼ると、名前変更などでは中止されない。
@@ -1849,8 +1961,6 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.redo();
 		await nextTick();
 		manager.state.assets.value[0].name = 'Renamed.wav';
-		manager.state.assets.value[1].fileData = new Blob(['new image']);
-		manager.state.assets.value.push({ id: 'unused', fileData: new Blob(['unused']) });
 		await nextTick();
 		assert.equal(starts.length, 1);
 		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'audio', target: 'audio', paramPath: ['volume'], edit: { kind: 'literal', value: 0.3 } });
@@ -1863,7 +1973,8 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		await nextTick();
 		assert.equal(starts.length, 4);
 		manager.state.assets.value[0].fileData = new Blob(['new audio']);
-		await nextTick();
+		// 原本の変更では両映像プレビューも再生成するため、その再開まで待つ。
+		await setImmediate();
 		assert.equal(starts.length, 5);
 		manager.state.timelineScenes.value[0].layers[0].clips[0].durationMs = 20000;
 		await nextTick();
