@@ -1,7 +1,7 @@
 import { getReferencedGeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
-import { migrateProjectFile } from './project-file-migration.ts';
+import { readFileSource } from '@gs/shared/file-source.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
@@ -11,7 +11,6 @@ import type { ProjectAsset } from './Project.ts';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ExportDialogSettings } from './export/export-settings.ts';
-import { readFileSource } from '@gs/shared/file-source.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 
@@ -101,7 +100,6 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 	if (currentVersion != null && semverGt(project.gsVersion, currentVersion)) {
 		throw new Error(`未来のバージョンのプロジェクトファイルの読み込みはサポートしていません。（ファイル: ${project.gsVersion} / 現在: ${currentVersion}）`);
 	}
-	migrateProjectFile(project);
 	return {
 		...project,
 		generatedSpeech: project.generatedSpeech.map(speech => ({ ...speech, fileData: new Blob([new Uint8Array(speech.fileData)], { type: 'audio/wav' }) })),
