@@ -411,7 +411,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	let frameId = 0;
 	const { device, texture } = gpuFixture();
 	const originalGpuMethods = { createTexture: device.createTexture, createBuffer: device.createBuffer, submit: device.queue.submit };
-	const renderer = new Manager({
+	const renderer = await Manager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 		...waveformAndHistogramCanvases,
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
@@ -992,10 +992,62 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 	});
 }
 
+for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
+	// 【GPUを注入する生成経路でも、画像準備前のManagerを返さない】
+	// 書き出しとプレビューで同じ不変条件を持たせ、呼び出し側のready待機に依存しないことを確認する。
+	test(`${Manager.name} returns a prepared manager without exposing a ready promise`, async t => {
+		const { device, texture } = gpuFixture();
+		const requests = deferredImageDecodes(t);
+		let returned = false;
+		const starting = Manager.create({
+			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
+			effectDefinitions: {}, effectImplementations: {},
+		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		{ assets: [imageAsset('image')], players: [] }).then(manager => { returned = true; return manager; });
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(returned, false);
+		assert.equal(requests.length, 1);
+		requests[0].resolve({ width: 4, height: 2, close() {} });
+		const manager = await starting;
+		t.after(() => manager.destroy());
+		assert.equal(manager.assetTextures.textures.has('image'), true);
+		assert.equal('ready' in manager, false);
+	});
+
+	// 【素材のデコード待ちでも生成を中断し、遅れて完了した画像をGPUへ転送しない】
+	// 非公開の生成途中Managerを呼び出し側では破棄できないため、factoryがGPUDeviceを回収する。
+	// デコード完了を待たない中断と、完了後のBitmap解放の双方を確認する。
+	test(`${Manager.name} aborts initialization before image decoding finishes and releases late bitmaps`, async t => {
+		const { device, texture } = gpuFixture();
+		const requests = deferredImageDecodes(t);
+		const destroyed = t.mock.method(device, 'destroy');
+		const allocations = t.mock.method(device, 'createTexture');
+		const uploads = t.mock.method(device.queue, 'copyExternalImageToTexture');
+		const controller = new AbortController();
+		const starting = Manager.create({
+			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
+			effectDefinitions: {}, effectImplementations: {},
+		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		{ assets: [imageAsset('image')], players: [] }, controller.signal);
+		assert.equal(requests.length, 1);
+		const rejected = assert.rejects(starting, /initialization cancelled/);
+		controller.abort(new Error('initialization cancelled'));
+		await rejected;
+		assert.equal(destroyed.mock.callCount(), 1);
+		const allocatedBeforeDecode = allocations.mock.callCount();
+		let closedBitmaps = 0;
+		requests[0].resolve({ width: 4, height: 2, close() { closedBitmaps++; } });
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(allocations.mock.callCount(), allocatedBeforeDecode);
+		assert.equal(uploads.mock.callCount(), 0);
+		assert.equal(closedBitmaps, 1);
+	});
+}
+
 for (const [name, createManager] of [['visualModuleLivePreview', createVisualModuleLivePreviewManager], ['timeline', createTimelineManager]]) {
 	// 【Factoryは固定素材のGPU準備が完了してからManagerを公開する】
 	// 描画側の素材待機を廃止しても、初期化メッセージの完了時点で全画像が使える必要がある。
-	// 通常の設定適用とは別にreadyを待ち、素材を動的オプションへ混ぜないことを確認する。
+	// 通常の設定適用とは別に素材の準備を待ち、素材を動的オプションへ混ぜないことを確認する。
 	test(`${name} factory waits for its fixed resources before returning the manager`, async t => {
 		const { device } = gpuFixture();
 		const requests = deferredImageDecodes(t);

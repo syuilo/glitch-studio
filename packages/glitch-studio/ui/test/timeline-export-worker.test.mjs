@@ -35,18 +35,33 @@ function fixture() {
 	}
 	const dependencies = {
 		TimelineRendererManager: class {
+			static async create(core, staticOptions, resources, signal) {
+				const manager = new this(core, staticOptions, resources);
+				preparing.resolve();
+				try {
+					await prepared.promise;
+					signal.throwIfAborted();
+					return manager;
+				} catch (error) {
+					manager.destroy();
+					throw error;
+				}
+			}
 			constructor(core, staticOptions, resources) {
 				this.core = core;
 				this.staticOptions = staticOptions;
 				this.resources = resources;
-				this.ready = prepared.promise;
 				instance = this;
 			}
-			on(name, handler) { this.handler = handler; preparing.resolve(); }
+			on(name, handler) { this.handler = handler; }
 			updateDynamicOptions(options) {
 				this.dynamicOptions = options;
 			}
-			async renderTimelineFrame(time, delta, fps) { this.renderFps = fps ?? this.staticOptions.timelineFps; frames.push([time, delta]); }
+			async renderTimelineFrame(time, delta, fps) {
+				this.renderFps = fps ?? this.staticOptions.timelineFps;
+				if (this.renderErrorEvent != null) { this.handler(this.renderErrorEvent); return; }
+				frames.push([time, delta]);
+			}
 			destroy() { destroyed = true; }
 		},
 		async createMp4Writer(canvas, settings) {
@@ -117,7 +132,7 @@ for (const format of ['mp4', 'webp']) {
 
 // 【素材準備の失敗を描画前に通知する】
 // 素材準備が失敗したら描画・エンコードを行わず、UIへ失敗を返す。
-// readyの完了を待たない実装では、欠落した素材のまま成功扱いになり得る。
+// 非同期factoryの完了を待たない実装では、欠落した素材のまま成功扱いになり得る。
 test('reports asset preparation failures without rendering export frames', { timeout: 2000 }, async () => {
 	const f = fixture();
 	const job = f.run({
@@ -154,7 +169,7 @@ for (const [type, source, label] of [
 			project: { automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		});
 		await f.preparing.promise;
-		f.instance.handler({ type, ctx: { ...source, status: { status: { type: 'error', message: 'Invalid expression' } } } });
+		f.instance.renderErrorEvent = { type, ctx: { ...source, status: { status: { type: 'error', message: 'Invalid expression' } } } };
 		f.prepared.resolve();
 		await job;
 		assert.deepEqual(f.frames, []);

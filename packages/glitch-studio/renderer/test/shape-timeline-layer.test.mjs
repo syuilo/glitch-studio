@@ -38,7 +38,7 @@ function layer(id, type = 'ellipse', values = {}) {
 	return { id, name: id, layerType: 'shape', shape, isDisabled: false, forceDisableMotionBlur: false,
 		clips: [clip('clip', 100, 1000, 20.5)], automationGraphs: [], compositingParamValues: compositing() };
 }
-function fixture(t, staticOptions = {}) {
+async function fixture(t, staticOptions = {}) {
 	const calls = { draws: [], outputs: [], evaluations: [], submits: 0 };
 	const texture = ({ size = [16, 16], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], format, destroyed: false,
@@ -67,7 +67,7 @@ function fixture(t, staticOptions = {}) {
 			writeBuffer(buffer, _offset, data) { buffer.data = data.slice(0); },
 		},
 	};
-	const manager = new TimelineRendererManager({
+	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: {}, effectImplementations: {},
 	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float', ...staticOptions }, { assets: [] });
@@ -96,7 +96,7 @@ const near = (actual, expected, tolerance = 1e-6) => assert.ok(Math.abs(actual -
 // 固定すると下層の動きが止まるため、実Managerの評価順とGPUへ渡す値を合わせて確認する。
 test('freezes layer content and compositing in preview and export and refreshes cut boundaries after editing', async t => {
 	for (const isExport of [false, true]) {
-		const f = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+		const f = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 		const background = layer('background', 'ellipse', { position: expression('[TIME, 0]') });
 		background.clips = [clip('background', 0, 2000)];
 		const foreground = layer('foreground', 'rectangle', { position: expression('[TIME, 0]') });
@@ -133,7 +133,7 @@ test('freezes layer content and compositing in preview and export and refreshes 
 // 親のサンプル時刻を子の基準時刻として使うと子のbooleanが効かなくなる。同じSceneの
 // 別配置には影響させず、親グループの変形だけを動かす場合も子の内容は基準時刻に保つ。
 test('propagates frame reference times through nested groups and trimmed scenes without changing other placements', async t => {
-	const f = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const f = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 	const fixed = layer('fixed');
 	fixed.forceDisableMotionBlur = true;
 	const moving = layer('moving');
@@ -171,7 +171,7 @@ test('propagates frame reference times through nested groups and trimmed scenes 
 // 画面外も描くためテクスチャ寸法は変わるが、形状・輪郭・回転の基準寸法は変えない。
 // プレビュー倍率の二重適用とScene時刻の小数の喪失を防ぐ。
 test('renders all stroke alignments at scene resolution and evaluates subframe scene time', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	await f.setup(['inside', 'center', 'outside'].map(alignment => layer(alignment, 'rectangle', {
 		position: expression('[TIME, 0]'), size: literal([0.6, 0.3]), rotation: literal(0.25),
 		strokeEnabled: literal(true), strokeWidth: literal(0.02), strokeAlignment: literal(alignment), cornerRadius: literal(10),
@@ -199,7 +199,7 @@ test('renders all stroke alignments at scene resolution and evaluates subframe s
 // シェイプと背景込みの出力を混同したキャッシュは、下層の動画・アニメーションを止める。
 // 差分編集で無関係のレイヤーを破棄しないことも、実際のマネージャー経由で確認する。
 test('caches geometry without freezing animated backgrounds and recreates only edited layers', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const foreground = layer('foreground');
 	await f.setup([foreground, layer('background', 'rectangle', { rotation: expression('TIME') })]);
 	await f.manager.renderTimelineFrame(350, 0);
@@ -228,7 +228,7 @@ test('caches geometry without freezing animated backgrounds and recreates only e
 // 寸法0と区間外を同じ「出力なし」にするとreplaceで下層が残る。
 // 隣接しない次のクリップは別の出力を持ち、内容オフセットにキーを引きずられない。
 test('preserves transparent replace output and releases resources across clip gaps', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const entry = layer('shape', 'ellipse', { size: literal([0, 0.5]), position: expression('[TIME, 0]') });
 	entry.clips = [clip('first', 100, 100), clip('second', 400, 100, 900)];
 	entry.compositingParamValues.blendMode = literal('replace');
@@ -252,7 +252,7 @@ test('preserves transparent replace output and releases resources across clip ga
 // 【子Sceneのシェイプは子の寸法と時刻で描画する】
 // 親のScene解像度や配置時刻を使うと、同じSceneを単独で開いた場合と見た目が異なる。
 test('uses the owning child scene resolution and time when nested', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'customAbsolute', width: 600, height: 400 },
 		layers: [layer('shape', 'ellipse', { position: expression('[TIME, 0]') })] };
 	const parent = { id: 'scene', name: 'Parent', resolution: { mode: 'project' }, layers: [{
@@ -271,7 +271,7 @@ test('uses the owning child scene resolution and time when nested', async t => {
 // 起点だけの編集も描画に反映し、塗りのRGBAや輪郭配置には影響させない。
 // 0と1はシェーダーへ明示して、空の輪郭と閉じた輪郭を同じ端点から区別する。
 test('updates animated wrapped stroke intervals without changing fill or texture size', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const entry = layer('shape', 'ellipse', {
 		size: literal([1, 1]), strokeEnabled: literal(true), strokeStart: literal(0.75), strokeProgress: expression('TIME'),
 		fillColor: literal([0.5, 0.25, 0.75, 0.5]),
@@ -308,7 +308,7 @@ test('updates animated wrapped stroke intervals without changing fill or texture
 // 子はScene上のレイヤーとして直接編集できる。親の設定を閉じ込めた古いクロージャや、
 // 根のレイヤーだけを調べる参照処理では、描画とハンドルが食い違う。
 test('updates group transforms while retaining child resources and reporting ancestor geometry', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const group = (id, layers, position) => ({ id, name: id, layerType: 'group', isDisabled: false, layers, automationGraphs: [],
 		compositingParamValues: { ...compositing(), position: literal(position) }, audioParamValues: { volume: literal(1) } });
 	const child = layer('child');
@@ -346,7 +346,7 @@ test('updates group transforms while retaining child resources and reporting anc
 // カメラの値をレイヤーの基準時刻で評価するとカメラ移動のブラーが失われる。
 // カメラ編集でも静止した形状のGPU資源を作り直さないことを同時に確認する。
 test('samples camera motion independently of frozen layer content and keeps cached shapes on camera edits', async t => {
-	const f = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const f = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 	const entry = layer('fixed');
 	entry.forceDisableMotionBlur = true;
 	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', clips: [clip('view', 0, 1000)], isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],

@@ -67,6 +67,18 @@ export type VisualModuleRendererManagerDynamicOptions = {
 /** 素材・Playerの定義はManagerの寿命中に固定する。フレームや音声の内容は個別に更新できる。 */
 export type VisualModuleRendererManagerResources = { assets: readonly Asset[]; players: readonly Player[] };
 
+/** Managerが所有するGPU環境と、注入する描画機能。 */
+export type VisualModuleRendererManagerCoreConfig = {
+	gpuDevice: GPUDevice;
+	gpuContext: PreviewCanvasContext;
+	frameScheduler?: FrameScheduler;
+	histogramGpuContext?: PreviewCanvasContext;
+	waveformHorizontalGpuContext?: PreviewCanvasContext;
+	waveformVerticalGpuContext?: PreviewCanvasContext;
+	effectDefinitions: Record<string, EffectDefinition<any>>;
+	effectImplementations: Record<string, EffectImplementation<any>>;
+};
+
 export type VisualModuleLivePreviewEffectStatusSource = { type: 'visualModuleLivePreview'; instanceId: string; visualModuleId: string };
 
 export type VisualModuleRendererManagerEvents = {
@@ -96,8 +108,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator();
 	private visualModuleLivePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private assetTextures: AssetTextures;
-	/** 直接生成した場合も、この完了後に描画を開始する。 */
-	public readonly ready: Promise<void>;
 	private readonly resources: VisualModuleRendererManagerResources;
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
@@ -129,16 +139,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		automationGraphs: [],
 	};
 
-	constructor(coreConfig: {
-		gpuDevice: GPUDevice;
-		gpuContext: PreviewCanvasContext;
-		frameScheduler?: FrameScheduler;
-		histogramGpuContext?: PreviewCanvasContext;
-		waveformHorizontalGpuContext?: PreviewCanvasContext;
-		waveformVerticalGpuContext?: PreviewCanvasContext;
-		effectDefinitions: Record<string, EffectDefinition<any>>;
-		effectImplementations: Record<string, EffectImplementation<any>>;
-	}, staticOptions: VisualModuleRendererManagerStaticOptions, resources: VisualModuleRendererManagerResources) {
+	private constructor(coreConfig: VisualModuleRendererManagerCoreConfig, staticOptions: VisualModuleRendererManagerStaticOptions, resources: VisualModuleRendererManagerResources) {
 		super();
 
 		this.staticOptions = { ...staticOptions };
@@ -206,7 +207,26 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			this.emit('ev', { type: 'gpuMemory', ctx: { usage: gpuMemory.getUsage() } });
 		}, 1000);
 		this.assetTextures = new AssetTextures(this.gpuDevice, resources.assets);
-		this.ready = this.assetTextures.ready;
+	}
+
+	/** 準備済みのManagerだけを返す。渡されたGPUDeviceは、生成失敗・中断時にもここで解放する。 */
+	public static async create(coreConfig: VisualModuleRendererManagerCoreConfig, staticOptions: VisualModuleRendererManagerStaticOptions,
+		resources: VisualModuleRendererManagerResources, signal?: AbortSignal): Promise<VisualModuleRendererManager> {
+		let manager: VisualModuleRendererManager | null = null;
+		try {
+			signal?.throwIfAborted();
+			manager = new VisualModuleRendererManager(coreConfig, staticOptions, resources);
+			coreConfig.gpuDevice.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
+			void coreConfig.gpuDevice.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
+			await manager.assetTextures.waitUntilReady(signal);
+			signal?.throwIfAborted();
+			return manager;
+		} catch (error) {
+			// 生成中のManagerを外へ渡さず、遅れて完了するデコードもGPUを使えない状態にする。
+			if (manager != null) manager.destroy();
+			else coreConfig.gpuDevice.destroy();
+			throw error;
+		}
 	}
 
 	private reportRenderError(message: string) {
@@ -506,35 +526,31 @@ export async function createManager(options: {
 	}
 
 	let manager: VisualModuleRendererManager | null = null;
+	let coreConfig: VisualModuleRendererManagerCoreConfig;
 	try {
 		const displayMode = options.staticOptions.previewDisplayMode ?? 'gpu';
 		const createContext = (canvas: OffscreenCanvas, target: CpuPreviewCanvasTarget) => createPreviewCanvasContext(canvas, displayMode,
 			frame => manager?.emit('ev', { type: 'cpuPreviewFrame', ctx: { ...frame, target } }));
-		const context = createContext(options.canvas, 'canvas');
-		const histogramContext = createContext(options.histogramCanvas, 'histogramCanvas');
-		const waveformHorizontalContext = createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas');
-		const waveformVerticalContext = createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas');
-
-		manager = new VisualModuleRendererManager({
+		coreConfig = {
 			gpuDevice: device,
-			gpuContext: context,
-			histogramGpuContext: histogramContext,
-			waveformHorizontalGpuContext: waveformHorizontalContext,
-			waveformVerticalGpuContext: waveformVerticalContext,
+			gpuContext: createContext(options.canvas, 'canvas'),
+			histogramGpuContext: createContext(options.histogramCanvas, 'histogramCanvas'),
+			waveformHorizontalGpuContext: createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas'),
+			waveformVerticalGpuContext: createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas'),
 			effectDefinitions: options.effectDefinitions,
 			effectImplementations: options.effectImplementations,
-		}, options.staticOptions, options.resources);
-		device.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
-		void device.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
-
-		await manager.ready;
+		};
+	} catch (error) {
+		// Managerへ渡す前の失敗だけは、GPUDeviceを取得したこの呼び出し元が回収する。
+		device.destroy();
+		throw error;
+	}
+	manager = await VisualModuleRendererManager.create(coreConfig, options.staticOptions, options.resources);
+	try {
 		manager.updateDynamicOptions(options.dynamicOptions);
-
 		return manager;
 	} catch (error) {
-		// 呼び出し元にはまだmanagerを返していないため、ここでリソースを回収する。
-		if (manager != null) manager.destroy();
-		else device.destroy();
+		manager.destroy();
 		throw error;
 	}
 }

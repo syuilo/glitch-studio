@@ -46,7 +46,7 @@ const layer = (id, values = {}, overrides = {}) => ({
 	effectStaticSettings: {}, effectParamValues: { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...values }, ...overrides,
 });
 
-function fixture(t, options = {}) {
+async function fixture(t, options = {}) {
 	const calls = { instances: [], renders: [], outputs: [], passes: [], submits: 0, states: [] };
 	const texture = ({ size = [16, 16], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], format, destroyed: false,
@@ -76,7 +76,7 @@ function fixture(t, options = {}) {
 			};
 		},
 	};
-	const manager = new TimelineRendererManager({
+	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: { probe: definition, noOutput: { ...definition, id: 'noOutput', primaryOutput: null } },
 		effectImplementations: { probe: implementation, noOutput: implementation },
@@ -99,7 +99,7 @@ function fixture(t, options = {}) {
 // 【適用範囲の操作枠はScene基準とし、処理結果の実寸は別に通知する】
 // カスタム解像度の縦横比でハンドルが変わったり、モード切り替え後も古い枠が残る不具合を防ぐ。
 test('publishes scene-based region handles while preserving the effect output resolution', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const previews = [];
 	f.manager.on('ev', event => { if (event.type === 'layerTransform') previews.push(structuredClone(event.ctx)); });
 	const effect = layer('effect', {}, { transformTarget: 'region', resolution: { mode: 'customAbsolute', width: 80, height: 20 } });
@@ -118,7 +118,7 @@ test('publishes scene-based region handles while preserving the effect output re
 // 【Visual Moduleの適用範囲も共通のcompositorへ渡す】
 // エフェクトレイヤーだけの対応にならないよう、インラインと参照形式の両方を実際のManagerで描画する。
 test('routes region transforms through both Visual Module layer render paths', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const observations = [];
 	f.manager.createCompositingObserver = () => (_source, settings) => observations.push(settings);
 	const visualModule = { id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'color', nameForReference: 'color' }], primaryOutputId: 'output', automationGraphs: [],
@@ -144,7 +144,7 @@ test('refreshes lower audio inputs after timeline edits without recreating the r
 	const audioDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: literal(null) };
 	definition.paramDefs.audio = audioDef;
 	t.after(() => { delete definition.paramDefs.audio; });
-	const f = fixture(t);
+	const f = await fixture(t);
 	const calls = [];
 	f.manager.audioInputs.getInput = (...args) => {
 		calls.push(args);
@@ -181,7 +181,7 @@ test('resolves distinct anotherLayerAudio inputs in nested effect parameters', a
 		fields: Object.fromEntries(['first', 'again', 'second', 'none'].map(key => [key, { canNode: false, defaultValue: literal(null) }])),
 		defaultValue: literal({ first: literal(null), again: literal(null), second: literal(null), none: literal(null) }) };
 	t.after(() => { delete definition.paramDefs.audio; delete definition.paramDefs.sounds; });
-	const f = fixture(t);
+	const f = await fixture(t);
 	const calls = [];
 	f.manager.audioInputs.getInput = (...args) => {
 		calls.push(args);
@@ -205,7 +205,7 @@ test('resolves distinct anotherLayerAudio inputs in nested effect parameters', a
 // Scene全体の世代を進めると、操作と無関係なエフェクトまで初期化される。
 // 同じバッチの設定編集は対象だけを破棄し、削除直後に描画せず復元したグループは作り直す。
 test('preserves unaffected effect instances across tree edits and resets restored removed groups', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false,
 		automationGraphs: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
 	const foreground = layer('foreground', { amount: literal(1) });
@@ -242,7 +242,7 @@ test('preserves unaffected effect instances across tree edits and resets restore
 // 【参照先Sceneの階層変更でも、親Sceneの配置と無関係な子の履歴を維持する】
 // 子Sceneの同期を解像度変更と同じ世代へまとめると、Sceneを利用する全配置が再生成される。
 test('keeps child scene instances while applying its current layer tree', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [layer('effect')] };
 	const parent = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{
 		id: 'placement', name: 'Placement', layerType: 'scene', isDisabled: false, automationGraphs: [],
@@ -263,7 +263,7 @@ test('keeps child scene instances while applying its current layer tree', async 
 // 【直接エフェクトの編集では対象レイヤーだけを再生成する】
 // この種類の編集では対象の履歴リセットを許容するが、全タイムラインのリセットにはしない。
 test('recreates only an edited effect layer', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const first = layer('first', { amount: literal(1) });
 	const second = layer('second', { amount: literal(2) });
 	await f.setup([first, second]);
@@ -289,7 +289,7 @@ test('recreates only an edited effect layer', async t => {
 // デコード等の完了を待っている古いシークから、編集前の値や合成結果を表示させない。
 // 中断だけを理由に、今回編集していない下層のリソースを破棄しないことも確認する。
 test('cancels pending frames on edits without disposing an unchanged loading layer', async t => {
-	const f = fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
+	const f = await fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
 	const first = layer('first', { amount: literal(1) });
 	await f.setup([first, layer('second', { amount: literal(2) })]);
 	const obsolete = f.manager.renderTimelineFrame(350, 20);
@@ -314,7 +314,7 @@ test('cancels pending frames on edits without disposing an unchanged loading lay
 // 同じクリップでも内容オフセットと配置開始が異なるため、一つの時刻を使い回すとキーがずれる。
 // 出力のないエフェクトでreplaceを実行すると下層が消えてしまうため、合成自体のスキップも確認する。
 test('evaluates nested bindings at scene time and renders primary output at content time', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const entry = layer('effect', { input, amount: expression('TIME_MS'), exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: { inputSource: 'envVariable', variable: 'PROGRESS' } });
 	entry.effectParamValues.buzzs.value[0].binding.value = {
 		image: input, x: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', keyframesTimeline: {
@@ -348,7 +348,7 @@ test('evaluates nested bindings at scene time and renders primary output at cont
 // 【下層入力の寸法をSceneへ揃え、定数の色を二重に乗算しない】
 // 主入力以外や配列要素も同じ画像を独立したサンプリング設定で読める必要がある。
 test('normalizes lower composites for secondary inputs and preserves premultiplied uniforms', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const bottom = layer('bottom', {}, { resolution: { mode: 'customAbsolute', width: 160, height: 90 } });
 	const top = layer('top', { input, foo: literal({ node: input }) });
 	await f.setup([top, bottom], { resolutionScale: 0.5 });
@@ -370,7 +370,7 @@ test('normalizes lower composites for secondary inputs and preserves premultipli
 // 【解像度は素材・入力・Sceneの優先順で解決し、倍率を一度だけ適用する】
 // 入れ子のSceneでは親画面やその下層を暗黙に参照せず、子Sceneの画面から評価を始める。
 test('resolves context and intrinsic sizes within nested scenes without inheriting parent input', async t => {
-	const f = fixture(t, { intrinsicResolution: params => params.amount === 1 ? { width: 200, height: 100 } : undefined });
+	const f = await fixture(t, { intrinsicResolution: params => params.amount === 1 ? { width: 200, height: 100 } : undefined });
 	const childLayer = layer('child', { input });
 	const child = { id: 'childScene', name: 'Child', resolution: { mode: 'customAbsolute', width: 240, height: 120 }, layers: [childLayer] };
 	const placed = { id: 'placed', name: 'Placed', layerType: 'scene', automationGraphs: [], compositingParamValues: compositing(),
@@ -395,7 +395,7 @@ test('resolves context and intrinsic sizes within nested scenes without inheriti
 // 【エフェクトレイヤーでも素材・下層・Sceneを基準に設定倍率を適用する】
 // プレビューの全体倍率とレイヤーの倍率を区別し、設定変更後の出力寸法の通知まで確認する。
 test('applies effect layer scales to intrinsic input and context sizes and refreshes edited output', async t => {
-	const f = fixture(t, { intrinsicResolution: params => params.amount === 1 ? { width: 200, height: 100 } : null });
+	const f = await fixture(t, { intrinsicResolution: params => params.amount === 1 ? { width: 200, height: 100 } : null });
 	for (const [values, resolution, expected] of [
 		[{ amount: literal(1) }, { mode: 'auto', scale: 1.5 }, { width: 150, height: 75 }],
 		[{ amount: literal(1) }, { mode: 'context', scale: 0.25 }, { width: 40, height: 23 }],
@@ -417,7 +417,7 @@ test('applies effect layer scales to intrinsic input and context sizes and refre
 // 【同じエフェクトでも隣接クリップに履歴を引き継がず、非同期待機を中断できる】
 // 区間外の評価や古いシークの描画を残すと、履歴エフェクトと書き出しが再現できなくなる。
 test('separates clip instances and cancels obsolete asynchronous preparation', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const entry = layer('effect', {}, { clips: [clip('first', 100, 100), clip('second', 200, 100, 50)] });
 	await f.setup([entry]);
 	await f.manager.renderTimelineFrame(100, 40);
@@ -432,7 +432,7 @@ test('separates clip instances and cancels obsolete asynchronous preparation', a
 	await f.manager.renderTimelineFrame(300, 40);
 	assert.equal(f.calls.instances[1].disposed, true);
 	assert.equal(f.calls.renders.length, 3);
-	const pending = fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
+	const pending = await fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
 	await pending.setup([entry]);
 	const oldSeek = pending.manager.renderTimelineFrame(100, 0);
 	await new Promise(setImmediate);
@@ -449,7 +449,7 @@ test('separates clip instances and cancels obsolete asynchronous preparation', a
 // ノードを持たないレイヤーでもUIが状態を表示でき、書き出し側が失敗した配置を特定できる必要がある。
 // 隣接クリップへの切り替え後は、旧インスタンスからの遅延通知を採用しない。
 test('publishes effect layer states with clip identities and suppresses disposed instances', async t => {
-	const f = fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
+	const f = await fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
 	await f.setup([layer('effect', {}, { clips: [clip('first', 100, 100), clip('second', 200, 100)] })]);
 	const firstRender = f.manager.renderTimelineFrame(100, 0);
 	await new Promise(setImmediate);
@@ -482,7 +482,7 @@ test('publishes effect layer states with clip identities and suppresses disposed
 // Binding全体のコピーを省いても、canNodeでないvectorなどはエフェクトへ素の配列として渡る。
 // await中の編集や次の評価で、すでに準備に渡した値が書き換わらないことを保証する。
 test('snapshots evaluated leaf arrays before asynchronous preparation', async t => {
-	const f = fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
+	const f = await fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
 	const vectors = { dataType: { kind: 'array', elementType: { kind: 'vector' } },
 		ui: { label: 'Vectors', control: { element: {} } }, element: { defaultValue: literal([0, 0]) }, defaultValue: literal([]) };
 	const def = { ...definition, paramDefs: { ...definition.paramDefs, vectors } };
@@ -506,7 +506,7 @@ test('snapshots evaluated leaf arrays before asynchronous preparation', async t 
 // グループをSceneの配置と同じパス要素にすると、詳細パネルが状態やエラーを見つけられない。
 // 参照先Sceneの配置パスとは区別し、入れ子の深さで通知先を変えない。
 test('reports grouped effect states at their owning scene layer address', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const group = (id, layers) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, automationGraphs: [],
 		compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
 	await f.setup([group('outer', [group('inner', [layer('effect')])])]);
@@ -524,7 +524,7 @@ const imageReference = (layerId, outputStage = 'source') => ({ ...input, inputSo
 // 上層素材を得るために下層の合成まで要求すると、成立する配線を循環と誤認する。
 // 素材を再描画すると履歴依存エフェクトも二度進むため、描画回数と出力の同一性を確認する。
 test('references an upper source once while preserving timeline compositing', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	await f.setup([layer('source', { amount: literal(11) }), layer('receiver', { amount: literal(22), input: imageReference('source') })]);
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.deepEqual(f.calls.renders.map(call => call.params.amount), [11, 22]);
@@ -540,7 +540,7 @@ test('references an upper source once while preserving timeline compositing', as
 test('keeps source rendered and composited outputs distinct and shares repeated references', async t => {
 	for (const key of ['secondImage', 'thirdImage', 'fourthImage']) definition.paramDefs[key] = color;
 	t.after(() => { for (const key of ['secondImage', 'thirdImage', 'fourthImage']) delete definition.paramDefs[key]; });
-	const f = fixture(t);
+	const f = await fixture(t);
 	const source = layer('source', { amount: literal(11) });
 	source.compositingParamValues.position = literal([0.2, 0]);
 	source.compositingParamValues.opacity = literal(0.5);
@@ -561,7 +561,7 @@ test('keeps source rendered and composited outputs distinct and shares repeated 
 // 参照先Group全体の評価を待つ実装では、Group間で必要のない循環が生じる。
 // 祖先無効化時は子を直接参照しても描画せず、保存IDは復旧に備えて維持する。
 test('resolves nested source references across groups and skips unavailable targets', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const group = { id: 'group', name: 'Group', layerType: 'group', isDisabled: false, compositingMode: 'preserveDepth',
 		layers: [layer('source', { amount: literal(11) })], compositingParamValues: compositing(), audioParamValues: {}, automationGraphs: [] };
 	const receiver = layer('receiver', { amount: literal(22), input: imageReference('source') });
@@ -582,7 +582,7 @@ test('resolves nested source references across groups and skips unavailable targ
 // 【Visual Moduleの明示した公開主入力を優先し、素材をSceneの宣言寸法へ揃える】
 // 同じ縦横比の素材も入口で正規化し、クリップの切り替えで入力寸法が変化しないようにする。
 test('normalizes an explicit public primary input before routing it through a Visual Module', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const visualModule = { id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'image' }],
 		primaryInputId: 'image', primaryOutputId: 'output', automationGraphs: [],
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
@@ -605,7 +605,7 @@ test('normalizes an explicit public primary input before routing it through a Vi
 // flat Group内で画面外へ広がる下層を使い、実際にScene枠確定テクスチャが必要な経路を通す。
 // 未接続の主入力を削除しても、同じ画像を使う別の公開入力は新しいテクスチャで描画を続ける。
 test('releases deleted public input frames while preserving the placement and remaining inputs', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const visualModule = { id: 'visual', name: 'Visual', paramDefs: ['unused', 'kept'].map(id => ({ ...color, id, nameForReference: id })),
 		primaryInputId: 'unused', primaryOutputId: 'output', automationGraphs: [],
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
@@ -637,7 +637,7 @@ test('releases deleted public input frames while preserving the placement and re
 // 素材と混同しない。透明背景へ消えた通常合成結果を読む退行を、実際のcompositor境界で検出する。
 test('references group source images before applying group opacity in both depth modes', async t => {
 	for (const compositingMode of ['flat', 'preserveDepth']) {
-		const f = fixture(t);
+		const f = await fixture(t);
 		const observations = new Map();
 		f.manager.createCompositingObserver = (_sceneId, layerId) => source => observations.set(layerId, source);
 		const group = { id: 'group', name: 'Group', layerType: 'group', isDisabled: false, compositingMode,
@@ -655,7 +655,7 @@ test('references group source images before applying group opacity in both depth
 // マスク元が対象の素材を読む配線も許可し、素材の評価へマスク依存を混ぜないことを確認する。
 // 参照元の位置や入力を使ってマスク元を別時計で二重評価すると、履歴エフェクトの状態が進み過ぎる。
 test('shares hidden mask sources while allowing them to read the target source', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const layerMask = { sourceLayerId: 'mask-source', channel: 'alpha', inverted: false };
 	const target = layer('target', { amount: literal(11) }, { layerMask });
 	const maskSource = layer('mask-source', { amount: literal(22), input: imageReference('target') }, { isIncludedInComposite: false });
@@ -670,7 +670,7 @@ test('shares hidden mask sources while allowing them to read the target source',
 // 【対象の素材だけを読む場合は、その対象のマスク元を描画しない】
 // sourceはマスク前の契約であり、不要な参照評価で履歴やGPU負荷を増やしてはいけない。
 test('does not evaluate masks when only the uncomposited source is requested', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const target = layer('target', { amount: literal(11) }, { isIncludedInComposite: false, layerMask: { sourceLayerId: 'mask-source', channel: 'alpha', inverted: false } });
 	const maskSource = layer('mask-source', { amount: literal(22) }, { isIncludedInComposite: false });
 	await f.setup([target, maskSource, layer('receiver', { amount: literal(33), input: imageReference('target') })]);
@@ -681,7 +681,7 @@ test('does not evaluate masks when only the uncomposited source is requested', a
 // 【エフェクトレイヤーも初回から実際の計算用寸法を式に公開する】
 // Scene全体の寸法を渡すとcustomAbsoluteやプレビュー倍率でVMと結果が揃わない。
 test('exposes the scaled static effect layer RESOLUTION on its first evaluation', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const effect = layer('effect', { amount: expression('RESOLUTION[0] + RESOLUTION[1]') }, { resolution: { mode: 'customAbsolute', width: 51, height: 19 } });
 	await f.setup([effect], { resolutionScale: 0.5 });
 	await f.manager.renderTimelineAt(350);

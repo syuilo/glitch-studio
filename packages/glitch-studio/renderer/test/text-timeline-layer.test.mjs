@@ -37,7 +37,7 @@ function layer(id, values = {}) {
 	return { id, name: id, layerType: 'text', textStaticSettings: { font: null }, textParamValues, isDisabled: false,
 		clips: [clip('clip', 100, 1000, 20.5)], automationGraphs: [], compositingParamValues: compositing() };
 }
-function fixture(t) {
+async function fixture(t) {
 	const calls = { draws: [], outputs: [], submits: 0, uploads: [], glyphs: [] };
 	globalThis.OffscreenCanvas = class {
 		constructor(width, height) { this.width = width; this.height = height; }
@@ -78,7 +78,7 @@ function fixture(t) {
 			writeBuffer(buffer, _offset, data) { buffer.data = data.slice(0); },
 		},
 	};
-	const manager = new TimelineRendererManager({
+	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: {}, effectImplementations: {},
 	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float' }, { assets: [] });
@@ -97,7 +97,7 @@ const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6,
 // 【VOICEVOXの字幕は音声生成や再生履歴によらずScene時刻で決まる】
 // 未生成でも本文を描画し、最初のキー前と空文字キー以降は前の字幕を残さない。
 test('renders VOICEVOX subtitles at scene time without requiring generated audio', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const speech = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
 		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleStaticSettings: { font: null }, subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { speedScale: 1 },
 		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1, subtitleDuration: { mode: 'specified', durationMs: 200 } }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }],
@@ -119,7 +119,7 @@ test('renders VOICEVOX subtitles at scene time without requiring generated audio
 // 音声一覧の更新では既存レイヤーを維持しても終了時刻を更新し、未生成・指定・Fillの挙動を混同しない。
 // プレビューと書き出しは渡された音声一覧を使い、小数msの境界でも字幕を残さない。
 test('renders subtitles through speech duration and extension using updated prepared speech', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const key = { id: 'first', timeMs: 300, text: 'Speech subtitle', reading: null, styleId: 1, subtitleDuration: { mode: 'speech', extensionMs: 50 } };
 	const speechLayer = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
 		clips: [clip('speech-clip', 100, 1000)], compositingParamValues: compositing(), subtitleStaticSettings: { font: null }, subtitleParamValues: createVoicevoxSubtitleParameterValues(),
@@ -147,7 +147,7 @@ test('renders subtitles through speech duration and extension using updated prep
 // 【TextをScene解像度で描画し、本文と色をScene時刻で評価する】
 // 倍率の二重適用と内容オフセットによる時刻ずれを防ぎ、半透明色は一度だけpremultiplyする。
 test('renders text at scene resolution with scene-time expressions and premultiplied colors', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	await f.setup([layer('text', { text: expression('Core:to_str(TIME_MS)'), color: literal([0.8, 0.4, 0.2, 0.5]),
 		outlineWidth: literal(0.05), shadowEnabled: literal(true) })]);
 	await f.manager.renderTimelineFrame(350.25, 0);
@@ -163,7 +163,7 @@ test('renders text at scene resolution with scene-time expressions and premultip
 // 【Textのマスクを再利用しても色と下層の合成は更新する】
 // 色だけのアニメーションでCanvasを再描画せず、静止Textのキャッシュで背景を凍結させない。
 test('reuses glyph masks for animated colors and recreates only edited layers', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const foreground = layer('foreground');
 	await f.setup([foreground, layer('background', { color: expression('[TIME, 0, 0, 1]') })]);
 	await f.manager.renderTimelineFrame(350, 0);
@@ -188,7 +188,7 @@ test('reuses glyph masks for animated colors and recreates only edited layers', 
 // 【空のTextもreplaceで合成し、区間外ではGPUリソースを解放する】
 // 空文字とクリップ不在を同一視するとreplaceの透明出力を失い、隣接しないクリップへ状態が残る。
 test('keeps transparent replace output and releases resources across clip gaps', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const entry = layer('text', { text: literal(''), size: literal(0) });
 	entry.clips = [clip('first', 100, 100), clip('second', 400, 100, 900)];
 	entry.compositingParamValues.blendMode = literal('replace');
@@ -213,7 +213,7 @@ test('keeps transparent replace output and releases resources across clip gaps',
 // 【子SceneのTextは子の時刻と寸法を使う】
 // 親のタイムライン上へ配置しても、子Sceneを単独で編集した場合と同じテキストを生成する。
 test('uses child scene time and resolution when nested', async t => {
-	const f = fixture(t);
+	const f = await fixture(t);
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'customAbsolute', width: 600, height: 400 },
 		layers: [layer('text', { text: expression('Core:to_str(TIME_MS)') })] };
 	const parent = { id: 'scene', name: 'Parent', resolution: { mode: 'project' }, layers: [{

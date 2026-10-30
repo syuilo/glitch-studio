@@ -119,6 +119,18 @@ export type TimelineRendererManagerDynamicOptions = {
 /** 素材一覧はManagerの寿命中に固定し、変更時はManagerを再生成する。 */
 export type TimelineRendererManagerResources = { assets: readonly Asset[] };
 
+/** Managerが所有するGPU環境と、注入する描画機能。 */
+export type TimelineRendererManagerCoreConfig = {
+	gpuDevice: GPUDevice;
+	gpuContext: PreviewCanvasContext;
+	frameScheduler?: FrameScheduler;
+	histogramGpuContext?: PreviewCanvasContext;
+	waveformHorizontalGpuContext?: PreviewCanvasContext;
+	waveformVerticalGpuContext?: PreviewCanvasContext;
+	effectDefinitions: Record<string, EffectDefinition<any>>;
+	effectImplementations: Record<string, EffectImplementation<any>>;
+};
+
 type CachedLayerTransform = Pick<TimelineTransformPreview, 'clipId' | 'geometry' | 'outputResolution' | 'parentGeometries'>;
 type PreviewFrameCapture = {
 	time: number;
@@ -178,8 +190,6 @@ export class TimelineRendererManager extends EventEmitter<{
 	private fallbackTexture: GPUTexture;
 	private sceneOutput: ReturnType<typeof createSceneOutput> | null = null;
 	private assetTextures: AssetTextures;
-	/** 直接生成した場合も、この完了後に描画を開始する。 */
-	public readonly ready: Promise<void>;
 	private readonly resources: TimelineRendererManagerResources;
 	private audioInputs: TimelineAudioInputs;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
@@ -211,16 +221,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		frameCacheMaxBytes: 0,
 	};
 
-	constructor(coreConfig: {
-		gpuDevice: GPUDevice;
-		gpuContext: PreviewCanvasContext;
-		frameScheduler?: FrameScheduler;
-		histogramGpuContext?: PreviewCanvasContext;
-		waveformHorizontalGpuContext?: PreviewCanvasContext;
-		waveformVerticalGpuContext?: PreviewCanvasContext;
-		effectDefinitions: Record<string, EffectDefinition<any>>;
-		effectImplementations: Record<string, EffectImplementation<any>>;
-	}, staticOptions: TimelineRendererManagerStaticOptions, resources: TimelineRendererManagerResources) {
+	private constructor(coreConfig: TimelineRendererManagerCoreConfig, staticOptions: TimelineRendererManagerStaticOptions, resources: TimelineRendererManagerResources) {
 		super();
 		this.staticOptions = { ...staticOptions, timelineMotionBlur: { ...staticOptions.timelineMotionBlur } };
 		this.resources = resources;
@@ -299,7 +300,26 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 		if (this.staticOptions.enableStats) this.telemetryReportIntervalId = setInterval(() => this.reportPreviewStatistics(), 100);
 		this.assetTextures = new AssetTextures(this.gpuDevice, resources.assets);
-		this.ready = this.assetTextures.ready;
+	}
+
+	/** 準備済みのManagerだけを返す。渡されたGPUDeviceは、生成失敗・中断時にもここで解放する。 */
+	public static async create(coreConfig: TimelineRendererManagerCoreConfig, staticOptions: TimelineRendererManagerStaticOptions,
+		resources: TimelineRendererManagerResources, signal?: AbortSignal): Promise<TimelineRendererManager> {
+		let manager: TimelineRendererManager | null = null;
+		try {
+			signal?.throwIfAborted();
+			manager = new TimelineRendererManager(coreConfig, staticOptions, resources);
+			coreConfig.gpuDevice.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
+			void coreConfig.gpuDevice.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
+			await manager.assetTextures.waitUntilReady(signal);
+			signal?.throwIfAborted();
+			return manager;
+		} catch (error) {
+			// 生成中のManagerを外へ渡さず、遅れて完了するデコードもGPUを使えない状態にする。
+			if (manager != null) manager.destroy();
+			else coreConfig.gpuDevice.destroy();
+			throw error;
+		}
 	}
 
 	private reportPreviewStatistics() {
@@ -1094,35 +1114,31 @@ export async function createManager(options: {
 	}
 
 	let manager: TimelineRendererManager | null = null;
+	let coreConfig: TimelineRendererManagerCoreConfig;
 	try {
 		const displayMode = options.staticOptions.previewDisplayMode ?? 'gpu';
 		const createContext = (canvas: OffscreenCanvas, target: CpuPreviewCanvasTarget) => createPreviewCanvasContext(canvas, displayMode,
 			frame => manager?.emit('ev', { type: 'cpuPreviewFrame', ctx: { ...frame, target } }));
-		const context = createContext(options.canvas, 'canvas');
-		const histogramContext = createContext(options.histogramCanvas, 'histogramCanvas');
-		const waveformHorizontalContext = createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas');
-		const waveformVerticalContext = createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas');
-
-		manager = new TimelineRendererManager({
+		coreConfig = {
 			gpuDevice: device,
-			gpuContext: context,
-			histogramGpuContext: histogramContext,
-			waveformHorizontalGpuContext: waveformHorizontalContext,
-			waveformVerticalGpuContext: waveformVerticalContext,
+			gpuContext: createContext(options.canvas, 'canvas'),
+			histogramGpuContext: createContext(options.histogramCanvas, 'histogramCanvas'),
+			waveformHorizontalGpuContext: createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas'),
+			waveformVerticalGpuContext: createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas'),
 			effectDefinitions: options.effectDefinitions,
 			effectImplementations: options.effectImplementations,
-		}, options.staticOptions, options.resources);
-		device.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
-		void device.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
-
-		await manager.ready;
+		};
+	} catch (error) {
+		// Managerへ渡す前の失敗だけは、GPUDeviceを取得したこの呼び出し元が回収する。
+		device.destroy();
+		throw error;
+	}
+	manager = await TimelineRendererManager.create(coreConfig, options.staticOptions, options.resources);
+	try {
 		manager.updateDynamicOptions(options.dynamicOptions);
-
 		return manager;
 	} catch (error) {
-		// 呼び出し元にはまだmanagerを返していないため、ここでリソースを回収する。
-		if (manager != null) manager.destroy();
-		else device.destroy();
+		manager.destroy();
 		throw error;
 	}
 }

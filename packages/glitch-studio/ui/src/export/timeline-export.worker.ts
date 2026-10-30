@@ -61,7 +61,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		void device.lost.then(info => fail(info.message || 'Export GPU device was lost.'));
 		const context = canvas.getContext('webgpu');
 		if (!(context instanceof GPUCanvasContext)) throw new Error('Could not create the export canvas.');
-		renderer = new TimelineRendererManager({
+		renderer = await TimelineRendererManager.create({
 			gpuDevice: device,
 			gpuContext: context,
 			effectDefinitions,
@@ -72,7 +72,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			timelineMotionBlur,
 			enableStats: false,
 			enableWaveformAndHistogram: false,
-		}, { assets });
+		}, { assets }, controller.signal);
 		renderer.on('ev', event => {
 			if (event.type !== 'effectState' && event.type !== 'effectLayerState') return;
 			const status = event.ctx.status?.status;
@@ -84,7 +84,6 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		});
 		// 基準サイズを上書きすると、customAbsoluteの子Sceneやノードに書き出し倍率が伝わらない。
 		// 倍率は独立して渡し、MP4の偶数寸法補正は最終Canvasだけに適用する。
-		await renderer.ready;
 		renderer.updateDynamicOptions({
 			...dynamicProjectOptions,
 			// カスタム指定では出力Sceneだけの基準サイズを差し替える。別比率の出力も

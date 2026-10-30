@@ -12,6 +12,21 @@ export class AssetTextures {
 		this.ready = this.prepare(assets);
 	}
 
+	/** デコード自体は中断できなくても、Managerの生成待機は中断して所有者へ解放を委ねる。 */
+	public async waitUntilReady(signal?: AbortSignal): Promise<void> {
+		if (signal == null) return this.ready;
+		signal.throwIfAborted();
+		const { promise: aborted, reject } = Promise.withResolvers<never>();
+		const onAbort = () => reject(signal.reason);
+		signal.addEventListener('abort', onAbort, { once: true });
+		try {
+			await Promise.race([this.ready, aborted]);
+			signal.throwIfAborted();
+		} finally {
+			signal.removeEventListener('abort', onAbort);
+		}
+	}
+
 	private async prepare(assets: readonly Asset[]): Promise<void> {
 		try {
 			// 大きな画像を同時にすべてデコードすると、一時メモリが膨らむため順番に処理する。
