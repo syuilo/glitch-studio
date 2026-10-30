@@ -39,14 +39,14 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		implementation: EffectImplementation<Definition>;
 		wgpu: EffectGpuContext;
 		fallbackTexture: GPUTexture;
-		staticResources?: EffectStaticResources<Definition>;
+		staticResources: EffectStaticResources<Definition>;
 		/** 出力の確保・初期化より前に、呼び出し側が静的に解決した寸法。 */
 		resolution: Resolution;
 		onState?: (state: EffectInstanceState | null) => void;
 		timingHelper?: TimingHelper | null;
 		enableStats?: boolean;
 	}) {
-		this.staticResources = options.staticResources ?? {} as EffectStaticResources<Definition>;
+		this.staticResources = options.staticResources;
 		this.currentResolution = { ...options.resolution };
 		this.lazyPorts = Object.keys(options.definition.outputDefs).filter(port => options.definition.outputDefs[port].canLazyAllocation);
 		this.outputState = this.emptyOutputState();

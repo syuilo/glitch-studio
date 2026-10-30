@@ -13,13 +13,13 @@ export type EffectStaticResourceContext = {
 	getPlayerVideoFrame?: (playerId: string) => VideoFrame | null;
 };
 
-/** GPUやフレームの到着を待たず、保存済みメタデータから原寸を求める。 */
+/** 既定値補完済みの設定と保存済みメタデータから、GPUやフレームの到着を待たず原寸を求める。 */
 export function getEffectIntrinsicResolution(definition: Pick<EffectDefinition, 'staticSettingDefs' | 'intrinsicResolutionSetting'>,
 	values: StaticSettingValues, context: Pick<EffectStaticResourceContext, 'assets' | 'getPlayerResolution'>): Resolution | null {
 	const key = definition.intrinsicResolutionSetting;
 	if (key == null) return null;
 	const setting = definition.staticSettingDefs?.[key];
-	const value = (Object.hasOwn(values, key) ? values[key] : setting?.defaultValue);
+	const value = values[key];
 	if (typeof value !== 'string' || setting == null) return null;
 	if (setting.dataType.kind === 'playerReference') return context.getPlayerResolution?.(value) ?? null;
 	if (setting.dataType.kind !== 'assetReference') return null;
@@ -29,10 +29,11 @@ export function getEffectIntrinsicResolution(definition: Pick<EffectDefinition, 
 	return { width: asset.width, height: asset.height };
 }
 
+/** 呼び出し側で既定値を補完した設定を、借用する実行時リソースへ変換する。 */
 export function resolveEffectStaticResources<Definition extends { staticSettingDefs?: StaticSettingDefinitions }>(
 	definition: Definition, values: StaticSettingValues, context: EffectStaticResourceContext): EffectStaticResources<Definition> {
 	return Object.fromEntries(Object.entries(definition.staticSettingDefs ?? {}).map(([key, setting]) => {
-		const value = (Object.hasOwn(values, key) ? values[key] : setting.defaultValue);
+		const value = values[key];
 		if (value == null) return [key, null];
 		if (setting.dataType.kind === 'playerReference') {
 			// フレームそのものを初期化時に固定しない。再生状態は注入元が所有する。

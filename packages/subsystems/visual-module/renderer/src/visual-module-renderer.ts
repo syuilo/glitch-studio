@@ -1,4 +1,5 @@
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
+import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { constantShaderInput, toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
@@ -346,14 +347,18 @@ export class VisualModuleRenderer {
 	public updateNodes(newNodes: VisualModuleNode[], preserveStaticState = false) {
 		this.preparedContext = null;
 		++this.preparationVersion;
-		this.nodes = newNodes;
-		this.allNodeIdMap = new Map(newNodes.map(node => [node.id, node]));
+		// 保存済みスナップショットを変更せず、解像度・資源・キャッシュが同じ補完済み設定を使う。
+		this.nodes = newNodes.map(node => node.type === 'effect' ? {
+			...node,
+			staticSettings: createStaticSettingValues(this.effectDefinitions[node.effectId].staticSettingDefs ?? {}, node.staticSettings),
+		} : node);
+		this.allNodeIdMap = new Map(this.nodes.map(node => [node.id, node]));
 		// 値の編集でもBindingは最新スナップショットへ置き換えるが、静的な計画・
 		// リソース・出力ノードは変わらないため、全ノードの再計算と設定比較を省く。
 		if (preserveStaticState) return;
 		this.recomputeResolutions();
 		const oldEffectNodes = [...this.effectRenderers.keys()].map(id => ({ id }));
-		const newEffectNodes = newNodes.filter(node => node.type === 'effect');
+		const newEffectNodes = this.nodes.filter(node => node.type === 'effect');
 		const oldNodeIds = new Set(oldEffectNodes.map(node => node.id));
 		const newNodeIds = new Set(newEffectNodes.map(node => node.id));
 		const addedNodes = newEffectNodes.filter(node => !oldNodeIds.has(node.id));
@@ -520,7 +525,7 @@ export class VisualModuleRenderer {
 	}
 
 	private resolveStaticResources(node: VisualModuleEffectNode) {
-		return resolveEffectStaticResources(this.effectDefinitions[node.effectId], node.staticSettings ?? {}, {
+		return resolveEffectStaticResources(this.effectDefinitions[node.effectId], node.staticSettings, {
 			assets: this.assets, assetTextures: this.assetTextures,
 			getPlayerVideoFrame: playerId => this.videoFrames.get(playerId) ?? null,
 		});
@@ -533,7 +538,7 @@ export class VisualModuleRenderer {
 			contextResolution: this.contextResolution, resolutionScale: this.resolutionScale,
 			maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
 			inputResolutions: this.inputResolutions,
-			getIntrinsicResolution: node => getEffectIntrinsicResolution(this.effectDefinitions[node.effectId], node.staticSettings ?? {}, {
+			getIntrinsicResolution: node => getEffectIntrinsicResolution(this.effectDefinitions[node.effectId], node.staticSettings, {
 				assets: this.assets, getPlayerResolution: playerId => this.getPlayerResolution?.(playerId) ?? null,
 			}),
 		});

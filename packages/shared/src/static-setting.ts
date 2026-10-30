@@ -23,8 +23,11 @@ export type StaticSettingValues<Definitions extends StaticSettingDefinitions = S
 	[Key in keyof Definitions]: StaticSettingValue<Definitions[Key]['dataType']>;
 };
 
-export function createStaticSettingValues<Definitions extends StaticSettingDefinitions>(definitions: Definitions): StaticSettingValues<Definitions> {
-	return Object.fromEntries(Object.entries(definitions).map(([key, definition]) => [key, definition.defaultValue])) as StaticSettingValues<Definitions>;
+/** 明示したnullは維持し、省略された設定だけを既定値で補完する。入力は変更しない。 */
+export function createStaticSettingValues<Definitions extends StaticSettingDefinitions>(definitions: Definitions,
+	values: Partial<StaticSettingValues<Definitions>> = {}): StaticSettingValues<Definitions> {
+	// 未知のキーも残し、補完後に検証する呼び出し側が不正な設定を検出できるようにする。
+	return { ...Object.fromEntries(Object.entries(definitions).map(([key, definition]) => [key, definition.defaultValue])), ...values } as StaticSettingValues<Definitions>;
 }
 
 export function validateStaticSettingValue(definition: StaticSettingDefinition, value: unknown): void {
@@ -41,5 +44,6 @@ export function validateStaticSettings(definitions: StaticSettingDefinitions, va
 	for (const key of Object.keys(values)) {
 		if (!Object.hasOwn(definitions, key)) throw new Error(`Unknown static setting: ${key}`);
 	}
-	for (const [key, definition] of Object.entries(definitions)) validateStaticSettingValue(definition, (Object.hasOwn(values, key) ? values[key] : definition.defaultValue));
+	const resolvedValues = createStaticSettingValues(definitions, values);
+	for (const [key, definition] of Object.entries(definitions)) validateStaticSettingValue(definition, resolvedValues[key]);
 }

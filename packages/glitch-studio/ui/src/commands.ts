@@ -498,7 +498,7 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 						displayName: '',
 						isBypass: false,
 						resolution: { mode: 'auto', scale: 1 },
-						staticSettings: { ...createStaticSettingValues(effectDefinitions[payload.effectId].staticSettingDefs ?? {}), ...payload.staticSettings },
+						staticSettings: createStaticSettingValues(effectDefinitions[payload.effectId].staticSettingDefs ?? {}, payload.staticSettings),
 						params: { ...params, ...deepClone(payload.params ?? {}) },
 						pos: { x: 0, y: 0 },
 					};

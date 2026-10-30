@@ -1,6 +1,5 @@
 import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
-import { validateStaticSettings } from '@gs/shared/static-setting.ts';
-import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
+import { createStaticSettingValues, validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { readFileSource } from '@gs/shared/file-source.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
@@ -52,10 +51,10 @@ function visitResourceReferences(visualModule: VisualModule, definitions: Effect
 		if (node.type !== 'effect') continue;
 		const definition = definitions[node.effectId];
 		if (definition == null) throw new Error(`Unknown effect: ${node.effectId}`);
-		const settings: StaticSettingValues = node.staticSettings ?? {};
+		const settings = createStaticSettingValues(definition.staticSettingDefs ?? {}, node.staticSettings);
 		validateStaticSettings(definition.staticSettingDefs ?? {}, settings);
 		for (const [key, setting] of Object.entries(definition.staticSettingDefs ?? {})) {
-			const value = (Object.hasOwn(settings, key) ? settings[key] : setting.defaultValue);
+			const value = settings[key];
 			if (value == null) continue;
 			if (setting.dataType.kind !== 'assetReference' && setting.dataType.kind !== 'playerReference') continue;
 			visit({ kind: setting.dataType.kind === 'assetReference' ? 'asset' : 'player', id: value as string }, id => { settings[key] = id; });

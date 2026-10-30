@@ -169,8 +169,7 @@ export class AppContext {
 				this.setPreviewAssets(state.assets.value);
 				await this.updatePreviewOptions({ resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value });
 				if (!isCurrent()) return;
-				await this.visualModuleRendererManagerController.updatePlayers(state.players.value);
-				if (!isCurrent()) return;
+				this.visualModuleRendererManagerController.updatePlayers(state.players.value);
 				await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value, generatedSpeech: deepClone(this.previewSpeech.value) });
 				if (!isCurrent()) return;
 				const results = await Promise.allSettled([
@@ -397,7 +396,7 @@ export class AppContext {
 		await this.replacePreviewProject({ automationGraphs: [], visualModules: [], timelineScenes: [] });
 		this.setPreviewAssets([]);
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: null });
-		await this.visualModuleRendererManagerController.updatePlayers([]);
+		this.visualModuleRendererManagerController.updatePlayers([]);
 		// 旧プロジェクトを解放してから設定を適用し、不要な素材の再アップロードを避ける。
 		// 初回や同値の設定では再生成しない。通常編集のwatchは読込完了後に登録する。
 		await this.timelineRendererManagerController.updateStaticOptions(timelineRenderSettings);
@@ -420,7 +419,7 @@ export class AppContext {
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value,
 			previewFps: project.timelineFps * this.timelinePreviewFpsFactor.value,
 		});
-		await this.visualModuleRendererManagerController.updatePlayers(project.players);
+		this.visualModuleRendererManagerController.updatePlayers(project.players);
 		this.projectSaveController.finishProjectLoad(fileName, fileHandle);
 		await window.desktop?.setCurrentProjectFile?.(fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
 

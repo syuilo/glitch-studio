@@ -1,4 +1,5 @@
 import { getEffectIntrinsicResolution, resolveEffectStaticResources } from '@gs/subsystems_effect_renderer/effect-static-settings.ts';
+import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { getEffectInputResolution } from '@gs/subsystems_effect_shared/effect-resolution-inputs.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
@@ -49,18 +50,19 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	// 出力のないエフェクトは透明画像としてreplaceせず、合成自体をスキップする。
 	if (port == null) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };
 	const { device } = options.wgpu;
+	const staticSettings = createStaticSettingValues(definition.staticSettingDefs ?? {}, layer.effectStaticSettings);
 	const inputResolution = getEffectInputResolution<TimelineEffectParameterBinding>(definition, Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key)])), binding =>
 		binding.inputSource === 'lowerLayerOutput' || binding.inputSource === 'anotherLayerOutput' ? options.resolution : null);
 	const effectResolution = resolveEffectNodeResolution({
 		setting: layer.resolution, contextResolution: options.resolution, resolutionScale: options.resolutionScale,
-		intrinsicResolution: layer.resolution.mode === 'auto' ? getEffectIntrinsicResolution(definition, layer.effectStaticSettings ?? {}, options) : null,
+		intrinsicResolution: layer.resolution.mode === 'auto' ? getEffectIntrinsicResolution(definition, staticSettings, options) : null,
 		inputResolution, maxDimension: device.limits.maxTextureDimension2D,
 	});
 	const renderer = new EffectRenderer({
 		definition,
 		implementation,
 		resolution: effectResolution,
-		staticResources: resolveEffectStaticResources(definition, layer.effectStaticSettings ?? {}, options),
+		staticResources: resolveEffectStaticResources(definition, staticSettings, options),
 		wgpu: options.wgpu,
 		fallbackTexture: options.fallbackTexture,
 		onState: options.onState,

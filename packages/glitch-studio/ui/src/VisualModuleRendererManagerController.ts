@@ -5,7 +5,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { createVisualModuleRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
-import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
+import { isVideoFrameAvailable } from './utility/video.ts';
 import { VisualModuleLivePreviewEffectStateStore } from './utility/visual-module-live-preview-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
@@ -50,7 +50,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private playerAssetFiles = new Map<Player['id'], FileSource>();
 	private audioInputs: AudioInputs;
-	private videoLoads = new Map<Player['id'], Promise<void>>();
 	private videoFrameCallbacks = new Map<Player['id'], number>();
 	private pendingVideoFrames = new Map<Player['id'], VideoFrame>();
 	private inFlightVideoFrames = new Map<Player['id'], number>();
@@ -244,7 +243,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.visualModuleLivePreviewVisualModuleId.value = null;
 	}
 
-	public async updatePlayers(newPlayers: Player[]) {
+	/** 定義は同期的に反映し、メディアの準備・権限待ちはプレビュー全体の起動条件にしない。 */
+	public updatePlayers(newPlayers: Player[]) {
 		const oldPlayers = this.players;
 		const players = deepClone(newPlayers);
 		this.players = players;
@@ -264,7 +264,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				video.pause();
 				this.videoElements.delete(id);
 				this.playerAssetFiles.delete(id);
-				this.videoLoads.delete(id);
 				if (video.srcObject instanceof MediaStream) {
 					for (const track of video.srcObject.getTracks()) track.stop();
 					video.srcObject = null;
@@ -276,8 +275,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		}
 
 		for (const player of players) {
-			// 未割り当て・未対応の入力には読み込みイベントが発生しない。
-			// Managerの再生成を待たせないよう、定義だけ保持してメディア要素は作らない。
+			// 未割り当て・未対応の入力は、定義だけ保持してメディア要素は作らない。
 			if (player.sourceType !== 'asset' && player.sourceType !== 'webcam') continue;
 			if (!this.videoElements.has(player.id)) {
 				const asset = player.sourceType === 'asset' ? this.initialAssets.find(asset => asset.id === player.assetId) : null;
@@ -300,17 +298,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.onAssetReadFailure?.();
 					console.error(video.error);
 				});
-				this.videoLoads.set(player.id, new Promise<void>(resolve => {
-					const finish = () => {
-						video.removeEventListener('loadeddata', finish);
-						video.removeEventListener('error', finish);
-						video.removeEventListener('emptied', finish);
-						resolve();
-					};
-					video.addEventListener('loadeddata', finish);
-					video.addEventListener('error', finish);
-					video.addEventListener('emptied', finish);
-				}));
 
 				const onVideoFrame = () => {
 					if (!(video instanceof HTMLVideoElement)) return;
@@ -333,17 +320,23 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.playerAssetFiles.set(player.id, asset!.fileData);
 					video.src = getFileSourceUrl(asset!.fileData);
 				} else if (player.sourceType === 'webcam' && video instanceof HTMLVideoElement) {
-					this.videoLoads.set(player.id, setupWebcam().then(camera => {
+					void setupWebcam().then(camera => {
+						// 権限待ちの間に削除・入力変更・破棄されたPlayerへ古いカメラを接続しない。
+						if (this.videoElements.get(player.id) !== video) {
+							for (const track of camera.getTracks()) track.stop();
+							return;
+						}
 						video.srcObject = camera;
 						video.muted = true;
 						video.playsInline = true;
-						return playVideoAfterFirstFrameIsReady(video);
-					}));
+						// 到着したフレームは既存のコールバックが転送するため、初回フレームも待たない。
+						return video.play();
+					}).catch(error => {
+						if (this.videoElements.get(player.id) === video) console.error(error);
+					});
 				}
 			}
 		}
-
-		await Promise.all(this.videoLoads.values());
 	}
 
 	public getVideoElement(playerId: Player['id']): HTMLVideoElement | null {
@@ -446,7 +439,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.videoElements.clear();
 		this.playerAssetFiles.clear();
 		this.videoFrameCallbacks.clear();
-		this.videoLoads.clear();
 		this.pendingVideoFrames.clear();
 		this.inFlightVideoFrames.clear();
 	}

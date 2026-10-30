@@ -1,4 +1,5 @@
 import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
+import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
 import { matchesAssetReferenceMimeType } from '@gs/shared/data-type/asset-reference.ts';
 import { computed, shallowRef } from 'vue';
@@ -178,8 +179,9 @@ export class ProjectRenderValidation {
 	}
 
 	private staticSettings(definitions: StaticSettingDefinitions, values: StaticSettingValues, dependencies: Set<string>) {
+		const resolvedValues = createStaticSettingValues(definitions, values);
 		for (const [key, definition] of Object.entries(definitions)) {
-			const value = (Object.hasOwn(values, key) ? values[key] : definition.defaultValue);
+			const value = resolvedValues[key];
 			if (value == null) continue;
 			if (definition.dataType.kind === 'assetReference') {
 				const mimeType = this.asset(value as string, dependencies);
