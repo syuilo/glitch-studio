@@ -357,7 +357,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			assets: this.dynamicOptions.assets,
 			visualModule,
 			assetTextures: this.assetTextures.textures,
-			audioSources: this.audioSources,
 			resolveAudioSource: selection => this.playerAudioInputs.resolve(selection),
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,

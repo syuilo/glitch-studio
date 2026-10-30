@@ -59,63 +59,61 @@ test('accepts non-power-of-two grids and agreeing range declarations', () => {
 	assert.equal(lut.threeDimensional.values.length, 108);
 });
 
-// 【同じBlobの準備を繰り返さず、差し替え・未選択・破棄で古い結果を捨てる】
-// IDだけのキャッシュでは同じAssetの差し替えが反映されない。読み込みの完了順が逆転しても
-// 最新の選択だけを公開し、未選択へ戻した後に古いGPUリソースを復活させない。
-test('loads once per blob and ignores obsolete loads and errors', async () => {
+// 【素材ごとに作り直したローダーは破棄済みの結果を公開しない】
+// 静的設定・Asset差し替えではローダーを破棄するため、古い読み込みが後から成功・失敗しても影響させない。
+test('loads fixed sources and ignores completions from disposed loaders', async () => {
 	const statuses = [];
 	const resources = [];
-	const loader = createLutLoader(lut => {
+	const createResource = lut => {
 		const resource = { lut, disposed: false, dispose() { this.disposed = true; } };
 		resources.push(resource);
 		return resource;
-	}, state => statuses.push(state));
+	};
 	let finishOld;
 	const old = { size: 10, text: () => new Promise(resolve => { finishOld = resolve; }) };
-	loader.prepare(old);
-	const current = new Blob([identity1d]);
-	loader.prepare(current);
+	const oldStatuses = [];
+	const oldLoader = createLutLoader(old, createResource, state => oldStatuses.push(state));
+	oldLoader.dispose();
+	const loader = createLutLoader(new Blob([identity1d]), createResource, state => statuses.push(state));
 	await flush();
 	const version = loader.cacheVersion;
-	loader.prepare(current);
-	assert.equal(loader.cacheVersion, version);
 	assert.equal(resources.length, 1);
+	assert.equal(loader.ready, true);
 	finishOld('invalid');
 	await flush();
+	assert.deepEqual(oldStatuses, [{ type: 'loading' }]);
 	assert.equal(statuses.at(-1).type, 'ready');
 	assert.equal(loader.resource, resources[0]);
-	loader.prepare(old);
-	assert.equal(resources[0].disposed, true);
-	loader.prepare(null);
-	finishOld(identity1d);
-	await flush();
-	assert.equal(loader.ready, true);
-	assert.equal(loader.resource, null);
-	assert.equal(resources.length, 1);
-	loader.prepare(current);
-	await flush();
+	assert.equal(loader.cacheVersion, version);
 	loader.dispose();
-	assert.equal(resources[1].disposed, true);
-	loader.prepare(current);
+	assert.equal(resources[0].disposed, true);
 	assert.equal(loader.resource, null);
 });
 
-// 【不正ファイルとGPU準備失敗を状態通知し、別のLUTで回復する】
-// readyを通知してしまうと書き出しが誤った画素で進む。失敗後の差し替えは再試行できる。
-test('reports parsing and resource errors and recovers on replacement', async () => {
+// 【不正ファイルとGPU準備失敗を状態通知する】
+// 素材は固定でも読み込みは非同期なので、readyで誤った書き出しを進めず原因を通知する必要がある。
+test('reports fixed-source parsing size and GPU resource failures', async () => {
+	for (const [fileSource, message] of [
+		[new Blob(['LUT_1D_SIZE 2']), /Expected 2 LUT entries/],
+		[new Blob([identity1d]), /GPU limit/],
+		[{ size: MAX_CUBE_FILE_BYTES + 1, text() { throw new Error('Must not read'); } }, /file limit/],
+	]) {
+		const statuses = [];
+		const loader = createLutLoader(fileSource, () => { throw new Error('GPU limit'); }, state => statuses.push(state));
+		await flush();
+		assert.match(statuses.at(-1).message, message);
+		assert.equal(loader.ready, false);
+		loader.dispose();
+	}
+});
+
+// 【未選択のLUTは読み込みやGPU確保を行わず準備完了になる】
+// 初期化時のnullを要求済み素材と区別する状態管理を持たず、入力を通す状態で開始できるようにする。
+test('is ready without loading or allocating an unselected LUT', () => {
 	const statuses = [];
-	const loader = createLutLoader(() => { throw new Error('GPU limit'); }, state => statuses.push(state));
-	loader.prepare(new Blob(['LUT_1D_SIZE 2']));
-	await flush();
-	assert.match(statuses.at(-1).message, /Expected 2 LUT entries/);
-	assert.equal(loader.ready, false);
-	loader.prepare(new Blob([identity1d]));
-	await flush();
-	assert.match(statuses.at(-1).message, /GPU limit/);
-	loader.prepare({ size: MAX_CUBE_FILE_BYTES + 1, text() { throw new Error('Must not read'); } });
-	await flush();
-	assert.match(statuses.at(-1).message, /file limit/);
-	loader.prepare(null);
+	const loader = createLutLoader(null, () => assert.fail('must not allocate'), state => statuses.push(state));
 	assert.equal(loader.ready, true);
-	assert.equal(statuses.at(-1).type, 'ready');
+	assert.equal(loader.resource, null);
+	assert.deepEqual(statuses, [{ type: 'ready' }]);
+	loader.dispose();
 });

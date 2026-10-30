@@ -318,26 +318,26 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 	}
 });
 
-// ノード対応型だけをInの出力として公開し、真偽値や素材参照は変換しない。
+// 【ノード対応型だけをInの出力として公開する】
+// 公開パラメータとして有効な型を使い、真偽値・文字列・無効な入力をテクスチャ出力に混ぜない。
 test('uses shared scalar types for node inputs and module outputs', async () => {
 	const { getNodeOutputs } = await loadSource('@gs/subsystems_visual-module_shared/node-outputs.ts');
 	const defs = [
-		{ ...paramDef('amount'), canNode: true }, paramDef('flag', true, 'bool'), paramDef('image', null, 'imageAssetTextureReference'),
+		{ ...paramDef('amount'), canNode: true }, paramDef('flag', true, 'bool'), paramDef('label', '', 'string'),
 		{ ...paramDef('vector', [0, 0], 'vector'), canNode: true }, { ...paramDef('color', [0, 0, 0, 1], 'color'), canNode: true },
-		paramDef('player', null, 'playerReference'), { ...paramDef('disabled'), canNode: false },
+		{ ...paramDef('disabled'), canNode: false },
 	];
 	const outputs = getNodeOutputs({ id: 'in', type: 'globalIn' }, defs);
 	assert.equal(outputs.amount.dataType.kind, 'scalar');
 	assert.equal(outputs.flag, undefined);
-	assert.equal(outputs.image, undefined);
+	assert.equal(outputs.label, undefined);
 	assert.equal(outputs.vector.dataType.kind, 'vector');
 	assert.equal(outputs.color.dataType.kind, 'color');
-	assert.equal(outputs.player, undefined);
 	assert.equal(outputs.disabled, undefined);
 	assert.equal(getNodeInputDataType({ ...number, canNode: false }), null);
 	assert.equal(getNodeInputDataType({ dataType: { kind: 'struct', fields: {} } }), null);
 	assert.equal(getNodeInputDataType({ dataType: { kind: 'array', elementType: { kind: 'scalar' } } }), null);
-	assert.equal(getNodeInputDataType({ dataType: { kind: 'playerReference' }, canNode: true }), null);
+	assert.equal(getNodeInputDataType({ dataType: { kind: 'string' }, canNode: false }), null);
 	assert.equal(areNodeDataTypesCompatible(outputs.amount.dataType, getNodeInputDataType({ ...number, canNode: true })), true);
 	assert.equal(areNodeDataTypesCompatible({ kind: 'scalar' }, { kind: 'vector' }), false);
 	assert.equal(areNodeDataTypesCompatible({ kind: 'any' }, { kind: 'scalar' }), true);
@@ -385,7 +385,7 @@ for (const enable32bitDataTextures of [false, true]) {
 			gpuDevice: device, timingHelper: null,
 			enableStats: false, enable32bitDataTextures, intermediateTextureFormat: 'rgba8unorm',
 			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(),
-			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), audioSources: new Map(), assets: [],
+			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), assets: [],
 			effectDefinitions: definitions,
 			effectImplementations: { test: {
 				outputTextureFactories: { image: () => output },

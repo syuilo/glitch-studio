@@ -837,7 +837,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
 					format: this.staticOptions.intermediateTextureFormat,
-					getFont: id => this.dynamicOptions.assets.find(asset => asset.id === id && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
+					fontFileSource: this.dynamicOptions.assets.find(asset => asset.id === layer.subtitleStaticSettings.font && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
 				});
 			case 'text':
 				return createTextTimelineLayer(layer, {
@@ -846,7 +846,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
 					format: this.staticOptions.intermediateTextureFormat,
-					getFont: id => this.dynamicOptions.assets.find(asset => asset.id === id && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
+					fontFileSource: this.dynamicOptions.assets.find(asset => asset.id === layer.textStaticSettings.font && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
 				});
 			case 'shape':
 				return createShapeTimelineLayer(layer, {
@@ -980,7 +980,6 @@ export class TimelineRendererManager extends EventEmitter<{
 			assets: this.dynamicOptions.assets,
 			visualModule,
 			assetTextures: this.assetTextures.textures,
-			audioSources: new Map(),
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
 		});
@@ -1012,10 +1011,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				return result;
 			},
 			getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
-			prepare: (context, signal) => {
-				renderer.setInputResolutions(getInputResolutions());
-				return renderer.prepare(context, signal);
-			},
+			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
 				let result: Awaited<ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>> = { gpuTime: 0 };
@@ -1060,7 +1056,8 @@ export class TimelineRendererManager extends EventEmitter<{
 						frame.dispose();
 						inputFrames.delete(parameterId);
 					}
-					renderer.updateVisualModule(currentVisualModule, version.cacheResetRevision <= moduleRevision);
+					// 公開入力の寸法も定義変更時だけ宣言し、新しい配線と同時に計画する。
+					renderer.updateVisualModule(currentVisualModule, version.cacheResetRevision <= moduleRevision, getInputResolutions());
 					moduleRevision = version.revision;
 				}
 				return instance.evaluate(context, signal);

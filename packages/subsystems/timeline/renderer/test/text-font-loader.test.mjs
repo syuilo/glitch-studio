@@ -11,7 +11,7 @@ function fixture(t) {
 	} })) {
 		const descriptor = Object.getOwnPropertyDescriptor(globalThis, key);
 		Object.defineProperty(globalThis, key, { configurable: true, value });
-		t.after(() => { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; });
+		t.after(() => { if (descriptor != null) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; });
 	}
 	return { loads, fonts };
 }
@@ -21,15 +21,15 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 // 書き出しの最初のフレームが代替フォントになることや、シークで読み込みを繰り返すことを防ぐ。
 test('waits for fonts and reuses an in-flight load after cancellation', async t => {
 	const { loads, fonts } = fixture(t);
-	const loader = createTextFontLoader();
 	const blob = new Blob(['font']);
+	const loader = createTextFontLoader(blob);
 	const controller = new AbortController();
-	const cancelled = loader.prepare(blob, controller.signal);
+	const cancelled = loader.waitUntilReady(controller.signal);
 	await flush();
 	assert.equal(fonts.size, 0);
 	controller.abort();
 	assert.equal(await cancelled, false);
-	const pending = loader.prepare(blob, new AbortController().signal);
+	const pending = loader.waitUntilReady(new AbortController().signal);
 	assert.equal(loads.length, 1);
 	loads[0].resolve();
 	assert.equal(await pending, true);
@@ -39,14 +39,16 @@ test('waits for fonts and reuses an in-flight load after cancellation', async t 
 	assert.equal(fonts.size, 0);
 });
 
-// 【フォント変更・破棄より古い非同期結果を登録しない】
-// 別クリップのフォントへ戻る競合と、区間外へシークした後のFontFaceSetへのリークを防ぐ。
-test('discards replaced and disposed loads and releases registered fonts', async t => {
+// 【素材変更でローダーを作り直しても古いフォントを登録しない】
+// 静的設定の変更とクリップ終了ではローダーを破棄するため、各寿命をまたいだFontFaceSetへのリークを防ぐ。
+test('discards disposed loads and releases fonts when loaders are recreated', async t => {
 	const { loads, fonts } = fixture(t);
-	const loader = createTextFontLoader();
-	const first = loader.prepare(new Blob(['first']), new AbortController().signal);
+	const firstLoader = createTextFontLoader(new Blob(['first']));
+	const first = firstLoader.waitUntilReady(new AbortController().signal);
 	await flush();
-	const second = loader.prepare(new Blob(['second']), new AbortController().signal);
+	firstLoader.dispose();
+	const secondLoader = createTextFontLoader(new Blob(['second']));
+	const second = secondLoader.waitUntilReady(new AbortController().signal);
 	await flush();
 	loads[0].resolve();
 	assert.equal(await first, false);
@@ -54,12 +56,16 @@ test('discards replaced and disposed loads and releases registered fonts', async
 	loads[1].resolve();
 	assert.equal(await second, true);
 	assert.equal(fonts.size, 1);
-	assert.equal(await loader.prepare(null, new AbortController().signal), true);
+	secondLoader.dispose();
 	assert.equal(fonts.size, 0);
-	assert.equal(loader.family, 'sans-serif');
-	const third = loader.prepare(new Blob(['third']), new AbortController().signal);
+	const defaultLoader = createTextFontLoader(null);
+	assert.equal(await defaultLoader.waitUntilReady(new AbortController().signal), true);
+	assert.equal(defaultLoader.family, 'sans-serif');
+	defaultLoader.dispose();
+	const thirdLoader = createTextFontLoader(new Blob(['third']));
+	const third = thirdLoader.waitUntilReady(new AbortController().signal);
 	await flush();
-	loader.dispose();
+	thirdLoader.dispose();
 	loads[2].resolve();
 	assert.equal(await third, false);
 	assert.equal(fonts.size, 0);
@@ -69,11 +75,25 @@ test('discards replaced and disposed loads and releases registered fonts', async
 // 書き出しを代替フォントで黙って続けず、既存のタイムラインエラー表示へ到達させる。
 test('propagates font loading failures', async t => {
 	const { loads } = fixture(t);
-	const loader = createTextFontLoader();
-	const pending = loader.prepare(new Blob(['invalid']), new AbortController().signal);
+	const loader = createTextFontLoader(new Blob(['invalid']));
+	const pending = loader.waitUntilReady(new AbortController().signal);
 	const rejected = assert.rejects(pending, /invalid font/);
 	await flush();
 	loads[0].reject(new Error('invalid font'));
 	await rejected;
 	loader.dispose();
+});
+
+// 【待機が中断済みかローダーが破棄済みならフォントを読み込まない】
+// 未使用のクリップや古いシーク要求のために非同期処理を開始しないことを保証する。
+test('does not start loading for cancelled or disposed waiters', async t => {
+	const { loads } = fixture(t);
+	const loader = createTextFontLoader(new Blob(['font']));
+	const controller = new AbortController();
+	controller.abort();
+	assert.equal(await loader.waitUntilReady(controller.signal), false);
+	loader.dispose();
+	assert.equal(await loader.waitUntilReady(new AbortController().signal), false);
+	await flush();
+	assert.equal(loads.length, 0);
 });

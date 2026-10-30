@@ -33,6 +33,7 @@ export default implementEffect<typeof definition>({
 		let cacheVersion = 0;
 		const videoTexture = createVideoTexture(wgpu.device, wgpu.intermediateTextureFormat);
 		const loader = createVideoFrameLoader({
+			fileSource: resources.asset?.fileData ?? null,
 			open: openVideoFrameSource,
 			reportStatus,
 			publish: sample => {
@@ -51,7 +52,7 @@ export default implementEffect<typeof definition>({
 				});
 			},
 		});
-		const prepare = (nextParams: typeof params) => loader.prepare(resources.asset?.fileData ?? null, nextParams.time, nextParams.outOfRange);
+		const prepare = (nextParams: typeof params) => loader.prepare(nextParams.time, nextParams.outOfRange);
 		prepare(params);
 		return {
 			get cacheVersion() { return cacheVersion; },

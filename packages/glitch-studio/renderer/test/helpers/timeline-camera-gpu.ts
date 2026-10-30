@@ -151,7 +151,7 @@ export async function run() {
 					destroy() { compositor.dispose(); },
 				};
 			}
-			case 'text': return createTextTimelineLayer(layer, { ...options, getFont: () => null });
+			case 'text': return createTextTimelineLayer(layer, { ...options, fontFileSource: null });
 			case 'scene': return createSceneTimelineLayer(() => childScene, layer, {
 				...options,
 				sceneResolution: frame,

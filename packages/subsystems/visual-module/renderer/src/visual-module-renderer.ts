@@ -2,7 +2,6 @@ import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { constantShaderInput, toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
-import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { VisualModuleParameterBindingEvaluator } from './visual-module-parameter-binding-evaluator.ts';
@@ -19,7 +18,6 @@ import type { VisualModuleEvaluatedParameterValues } from '@gs/subsystems_visual
 import type { VisualModuleParameterEvaluationContext } from './visual-module-parameter-binding-evaluator.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { AudioSourceId } from '@gs/shared/audio.ts';
 import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, VisualModule, VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -84,7 +82,6 @@ export class VisualModuleRenderer {
 	private videoFrameVersions: Map<string, number>;
 	private assetTextures: Map<string, GPUTexture>;
 	private assets: Asset[];
-	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private timingHelper: TimingHelper | null;
 	private enableStats = true;
 	private renderNodeId: VisualModuleNode['id'] | null = null;
@@ -109,7 +106,6 @@ export class VisualModuleRenderer {
 		assets: Asset[];
 		visualModule: VisualModule;
 		assetTextures: Map<string, GPUTexture>;
-		audioSources: Map<AudioSourceId, AudioHistory>;
 		/** 静的な音声指定の解釈は呼び出し側が所有する。未提供の取得元は未接続とする。 */
 		resolveAudioSource?: (selection: unknown) => AudioInput | null;
 		effectDefinitions: Record<string, EffectDefinition>;
@@ -130,7 +126,6 @@ export class VisualModuleRenderer {
 		this.videoFrameVersions = options.videoFrameVersions;
 		this.assetTextures = options.assetTextures;
 		this.assets = options.assets;
-		this.audioSources = options.audioSources;
 		this.resolveAudioSource = options.resolveAudioSource ?? null;
 		this.timingHelper = options.timingHelper;
 		this.effectDefinitions = options.effectDefinitions;
@@ -141,12 +136,14 @@ export class VisualModuleRenderer {
 		this.updateVisualModule(options.visualModule);
 	}
 
-	public updateVisualModule(visualModule: VisualModule, preserveCache = false) {
+	public updateVisualModule(visualModule: VisualModule, preserveCache = false, inputResolutions = this.inputResolutions) {
 		this.automationGraphs = visualModule.automationGraphs;
 		this.outputDefs = visualModule.outputDefs;
 		this.primaryOutputId = visualModule.primaryOutputId;
 		this.primaryInputId = visualModule.primaryInputId;
 		this.paramDefs = visualModule.paramDefs;
+		// 公開定義と入力寸法を同じスナップショットとして取り込み、仮の寸法で出力を確保しない。
+		this.inputResolutions = new Map(inputResolutions);
 		this.preparedContext = null;
 		this.paramValues = new Map();
 		this.paramInputs = new Map();

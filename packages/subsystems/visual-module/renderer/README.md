@@ -13,3 +13,5 @@ RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできな
 Playerの映像は現在のフレームまたはnullとして借用する。Playerの実行時エラーは受け取らず、フレームがなければVideoエフェクトが透明に描画する。フレームの解除・復旧時も`videoFrameVersions`を更新して出力キャッシュへ伝える。
 
 `visual-module-resolutions.ts`が設定スナップショット・接続・宣言された外部入力寸法・素材メタデータだけで解像度を計画する。GPU確保や初回の式評価より前に計画し、各ノードの式・環境変数・加工式へ自身の`RESOLUTION: [width, height]`を渡す。静的設定の編集はそのエフェクトのインスタンス・履歴と後段キャッシュを更新する。外部入力の寸法変更は`setInputResolutions()`で明示し、現在のテクスチャ寸法から推測しない。
+
+公開定義と入力寸法を同時に変更する場合は`updateVisualModule()`の第3引数へ寸法宣言を渡し、一つのスナップショットとして計画する。Timelineは生成時・公開定義変更時だけ宣言し、フレームごとに寸法Mapを生成しない。音声は`resolveAudioSource`または`audioParamInputs`から受け取り、音声履歴を直接保持しない。

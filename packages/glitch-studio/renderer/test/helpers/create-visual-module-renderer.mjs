@@ -6,7 +6,7 @@ export function createVisualModuleRenderer(VisualModuleRenderer, options = {}) {
 		timingHelper: null, enableStats: false, enable32bitDataTextures: false,
 		intermediateTextureFormat: 'rgba8unorm', resolution: { width: 640, height: 360 },
 		videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(),
-		audioSources: new Map(), assets: [], effectDefinitions: {}, effectImplementations: {},
+		assets: [], effectDefinitions: {}, effectImplementations: {},
 		visualModule: {
 			nodes: [], paramDefs: [], outputDefs: [], automationGraphs: [],
 			primaryInputId: null, primaryOutputId: null,

@@ -3,55 +3,46 @@ import { MAX_CUBE_FILE_BYTES, parseCubeLut } from './cube.ts';
 import type { EffectStatus } from '../../effect-status.ts';
 import type { CubeLut } from './cube.ts';
 
-/** 非同期読み込みの世代とリソースの寿命を所有する。GPUへの変換は呼び出し側から渡す。 */
+/** インスタンスに固定された素材の非同期読み込みとリソースの寿命を所有する。 */
 export function createLutLoader<Resource extends { dispose: () => void }>(
+	fileSource: FileSource | null,
 	createResource: (lut: CubeLut) => Resource,
 	reportStatus: (status: EffectStatus) => void,
 ) {
-	let requestedFileSource: FileSource | null = null;
 	let resource: Resource | null = null;
-	let revision = 0;
+	let cacheVersion = 0;
 	let disposed = false;
-	let ready = true;
+	let ready = fileSource == null;
 
-	async function load(fileSource: FileSource, generation: number) {
+	async function load(source: FileSource) {
 		try {
-			if (fileSource.size > MAX_CUBE_FILE_BYTES) throw new Error('Cube LUT exceeds the 128 MiB file limit.');
-			const text = await ('url' in fileSource ? readFileSource(fileSource).then(file => file.text()) : fileSource.text());
-			if (disposed || generation !== revision) return;
+			if (source.size > MAX_CUBE_FILE_BYTES) throw new Error('Cube LUT exceeds the 128 MiB file limit.');
+			const text = await ('url' in source ? readFileSource(source).then(file => file.text()) : source.text());
+			if (disposed) return;
 			resource = createResource(parseCubeLut(text));
 			ready = true;
-			revision++;
+			++cacheVersion;
 			reportStatus({ type: 'ready' });
 		} catch (error) {
-			if (disposed || generation !== revision) return;
+			if (disposed) return;
 			reportStatus({ type: 'error', message: `Could not load LUT: ${error instanceof Error ? error.message : String(error)}` });
 		}
+	}
+
+	if (fileSource == null) reportStatus({ type: 'ready' });
+	else {
+		reportStatus({ type: 'loading' });
+		void load(fileSource);
 	}
 
 	return {
 		get resource() { return resource; },
 		get ready() { return ready; },
-		get cacheVersion() { return revision; },
-		prepare(fileSource: FileSource | null) {
-			if (disposed || requestedFileSource === fileSource) return;
-			requestedFileSource = fileSource;
-			revision++;
-			resource?.dispose();
-			resource = null;
-			ready = fileSource == null;
-			if (fileSource == null) reportStatus({ type: 'ready' });
-			else {
-				reportStatus({ type: 'loading' });
-				void load(fileSource, revision);
-			}
-		},
+		get cacheVersion() { return cacheVersion; },
 		dispose() {
 			disposed = true;
-			revision++;
 			resource?.dispose();
 			resource = null;
-			requestedFileSource = null;
 		},
 	};
 }

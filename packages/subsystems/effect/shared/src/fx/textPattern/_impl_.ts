@@ -25,7 +25,6 @@ export default implementEffect<typeof definition>({
 		}),
 	},
 	init: ({ wgpu: { device, intermediateTextureFormat }, resolution, reportStatus, resources }) => {
-		const font = createTextFontLoader(reportStatus);
 		const canvas = new OffscreenCanvas(1, 1);
 		const canvasContext = canvas.getContext('2d');
 		if (canvasContext == null) throw new Error('Could not create a Text Pattern canvas.');
@@ -211,7 +210,7 @@ export default implementEffect<typeof definition>({
 			return characterCount;
 		}
 
-		font.prepare(resources.font?.fileData ?? null);
+		const font = createTextFontLoader(resources.font?.fileData ?? null, reportStatus);
 		return {
 			get cacheVersion() { return font.cacheVersion; },
 			render: ctx => {

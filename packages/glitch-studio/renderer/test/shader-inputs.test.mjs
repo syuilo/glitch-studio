@@ -112,7 +112,7 @@ test('keeps rendering transparent video while player frames are missing and resu
 	const renderer = new VisualModuleRenderer({
 		gpuDevice: device, fallbackTexture: {}, resolution: { width: 16, height: 9 },
 		enableStats: false, timingHelper: null, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
-		assets: [], assetTextures: new Map(), audioSources: new Map(), videoFrames, videoFrameVersions,
+		assets: [], assetTextures: new Map(), videoFrames, videoFrameVersions,
 		effectDefinitions: { video: videoDefinition }, effectImplementations: { video: videoEffect },
 		visualModule: { paramDefs: [], primaryInputId: null, primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], automationGraphs: [],
 			nodes: [{ id: 'video', type: 'effect', effectId: 'video', staticSettings: { player: 'player' }, params: { fit: literal('stretch') }, resolution: { mode: 'auto', scale: 1 }, isBypass: false },
@@ -675,7 +675,7 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 });
 
 function createRenderer(device, visualModule, overrides = {}) {
-	return new VisualModuleRenderer({ gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
+	return new VisualModuleRenderer({ gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
 }
 
 function renderContext(overrides = {}) {

@@ -19,7 +19,6 @@ export default implementEffect<typeof definition>({
 		const canvas = new OffscreenCanvas(1, 1);
 		const context = canvas.getContext('2d');
 		if (context == null) throw new Error('Could not create a text canvas.');
-		const font = createTextFontLoader(reportStatus);
 		const maskLayout = wgpu.device.createBindGroupLayout({
 			entries: [
 				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
@@ -158,7 +157,7 @@ export default implementEffect<typeof definition>({
 			maskKey = key;
 		}
 
-		font.prepare(resources.font?.fileData ?? null);
+		const font = createTextFontLoader(resources.font?.fileData ?? null, reportStatus);
 		return {
 			get cacheVersion() { return font.cacheVersion; },
 			render: ctx => {

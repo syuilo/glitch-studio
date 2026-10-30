@@ -16,7 +16,6 @@ export default implementEffect<typeof definition>({
 	init: ({ wgpu, reportStatus, resources }) => {
 		const layout = createLutLayout(wgpu.device);
 		const bypass = createLutResources(wgpu.device, layout, wgpu.enable32bitDataTextures, null);
-		const loader = createLutLoader(lut => createLutResources(wgpu.device, layout, wgpu.enable32bitDataTextures, lut), reportStatus);
 		const pipelines = createShaderInputPipeline({
 			device: wgpu.device,
 			vertex: wgpu.defaultVertexShaderModule,
@@ -25,7 +24,7 @@ export default implementEffect<typeof definition>({
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 		});
-		loader.prepare(resources.lut?.fileData ?? null);
+		const loader = createLutLoader(resources.lut?.fileData ?? null, lut => createLutResources(wgpu.device, layout, wgpu.enable32bitDataTextures, lut), reportStatus);
 		return {
 			get cacheVersion() { return loader.cacheVersion; },
 			render: ctx => {

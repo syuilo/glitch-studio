@@ -87,7 +87,7 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 	const renderer = new VisualModuleRenderer({
 		gpuDevice: g.device, fallbackTexture: {}, enableStats: false, timingHelper: null,
 		resolution: { width: 16, height: 9 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
-		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(),
+		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
 		effectDefinitions: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.definition])),
 		effectImplementations: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.implementation])), visualModule: module,
 		onEffectState: (id, state) => states.push({ id, state }),
@@ -362,14 +362,14 @@ test('retains the video loader request ordering within one effect instance', asy
 	let cacheVersion = 0;
 	const f = single(t, { init: ({ reportStatus }) => {
 		const loader = createVideoFrameLoader({
+			fileSource: new Blob(),
 			open: () => ({ getSample(time) { const request = { time, ...deferred() }; requests.push(request); return request.promise; }, dispose() {} }),
 			reportStatus, publish(sample) { published.push(sample?.name); cacheVersion++; },
 		});
-		return { prepare: params => loader.prepare(params.asset, params.time, 'clamp'), get cacheVersion() { return cacheVersion; }, render() {}, dispose: () => loader.dispose() };
+		return { prepare: params => loader.prepare(params.time, 'clamp'), get cacheVersion() { return cacheVersion; }, render() {}, dispose: () => loader.dispose() };
 	} });
-	const asset = new Blob();
-	f.renderer.prepare({ asset, time: 0.2 });
-	f.renderer.prepare({ asset, time: 0.8 });
+	f.renderer.prepare({ time: 0.2 });
+	f.renderer.prepare({ time: 0.8 });
 	const ready = f.renderer.waitUntilReady(new AbortController().signal);
 	const a = { name: 'A', closed: 0, close() { this.closed++; } };
 	requests[0].resolve(a);
@@ -384,9 +384,9 @@ test('retains the video loader request ordering within one effect instance', asy
 	assert.equal(f.renderer.cacheVersion, cacheVersion);
 });
 
-// 【フォントの新しい準備結果を古い読み込み完了で上書きしない】
-// フォントローダー自身の要求世代が、レンダラーの通知世代から独立して働くことを確認する。
-test('retains the font loader request ordering within one effect instance', async t => {
+// 【静的設定変更で破棄されたフォントの読み込みを公開しない】
+// 素材ごとにローダーを作り直す境界を通し、旧フォントの遅い完了で登録やキャッシュが戻らないことを確認する。
+test('discards obsolete font loads when static resources recreate the effect', async t => {
 	const requests = [];
 	const fonts = new Set();
 	const previousGlobals = ['FontFace', 'fonts'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
@@ -401,14 +401,15 @@ test('retains the font loader request ordering within one effect instance', asyn
 		load() { const request = { face: this, ...deferred() }; requests.push(request); return request.promise; }
 	};
 	globalThis.fonts = fonts;
-	let font;
-	const f = single(t, { init: ({ reportStatus }) => {
-		font = createTextFontLoader(reportStatus);
-		return { prepare: params => font.prepare(params.font), get cacheVersion() { return font.cacheVersion; }, render() {}, dispose: () => font.dispose() };
+	const f = single(t, { init: ({ reportStatus, resources }) => {
+		const font = createTextFontLoader(resources.font, reportStatus);
+		return { get cacheVersion() { return font.cacheVersion; }, render() {}, dispose: () => font.dispose() };
 	} });
-	f.renderer.prepare({ font: new Blob(['A']) });
+	f.renderer.setStaticResources({ font: new Blob(['A']) });
+	f.renderer.prepare({});
 	await tick();
-	f.renderer.prepare({ font: new Blob(['B']) });
+	f.renderer.setStaticResources({ font: new Blob(['B']) });
+	f.renderer.prepare({});
 	await tick();
 	const ready = f.renderer.waitUntilReady(new AbortController().signal);
 	requests[1].resolve(requests[1].face);
@@ -418,6 +419,7 @@ test('retains the font loader request ordering within one effect instance', asyn
 	await tick();
 	assert.deepEqual([...fonts], [requests[1].face]);
 	assert.equal(f.renderer.cacheVersion, version);
+	assert.equal(f.instances.length, 2);
 });
 
 // 【複数の出力を要求しても同じ履歴ノードを一度だけ実行する】
@@ -765,4 +767,27 @@ test('evaluates RESOLUTION with each planned node size before initialization', t
 	first.params.size = { inputSource: 'expression', expression: '[WIDTH, HEIGHT]' };
 	f.renderer.updateNodes(f.module.nodes);
 	assert.throws(() => f.render(context), /WIDTH|HEIGHT/);
+});
+
+// 【公開入力の追加と宣言寸法を同時に反映する】
+// 描画ごとの寸法更新に頼らず、追加ノードの最初の確保と式評価から新しい入力の寸法を使う。
+// 古い宣言で一度確保してからリサイズすると、余分なGPU確保と初期化が発生する。
+test('applies new public input dimensions before allocating added nodes', t => {
+	const g = gpu();
+	const effect = probe(g, { paramDefs: { input: color, size: { dataType: { kind: 'vector' }, ui: { label: 'Size', control: {} } } } });
+	effect.definition.resolutionInputParameters = ['input'];
+	const f = graph(t, g, { effect }, [], {});
+	const consumer = node('consumer', 'effect', {
+		input: connection('in', 'image'), size: { inputSource: 'expression', expression: 'RESOLUTION' },
+	});
+	consumer.resolution = { mode: 'auto', scale: 1 };
+	const visualModule = { ...f.module,
+		paramDefs: [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, canNode: true }],
+		outputDefs: [{ id: 'out' }],
+		nodes: [{ id: 'in', type: 'globalIn' }, consumer, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'consumer', outputPort: 'output' } } }],
+	};
+	f.renderer.updateVisualModule(visualModule, false, new Map([['image', { width: 321, height: 123 }]]));
+	assert.deepEqual(g.textures.map(texture => [texture.width, texture.height]), [[321, 123], [321, 123]]);
+	f.render(f.context({ paramInputs: new Map([['image', uniform]]) }));
+	assert.deepEqual(effect.renders[0].params.size, [321, 123]);
 });

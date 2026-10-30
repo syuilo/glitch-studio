@@ -13,12 +13,12 @@ import type { Resolution } from '@gs/shared/resolution.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 
 /** 呼び出し元のレイヤーを知らず、評価済みの文字・装飾を指定解像度のpremultiplied RGBAへ描く。 */
-export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat }) {
+export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat; fontFileSource: FileSource | null }) {
 	let output: GPUTexture | null = null;
 	const canvas = new OffscreenCanvas(1, 1);
 	const context = canvas.getContext('2d');
 	if (context == null) throw new Error('Could not create a text canvas.');
-	const font = createTextFontLoader();
+	const font = createTextFontLoader(options.fontFileSource);
 	const maskLayout = options.device.createBindGroupLayout({
 		entries: [
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
@@ -43,7 +43,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 		const text = values.text;
 		// 色のアニメーションでは、Canvas描画と転送を繰り返さない。
 		const key = JSON.stringify([
-			font.cacheVersion, width, height, text, values.size, values.outlineWidth,
+			width, height, text, values.size, values.outlineWidth,
 			values.position, values.align, values.lineHeight, values.overflow, values.maxWidth,
 			values.shadowEnabled ? [values.shadowBlur, values.shadowOffset] : null,
 		]);
@@ -218,9 +218,9 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 	let outputKey: string | null = null;
 	let result: TimelineImage;
 	return {
-		prepare: (fileSource: FileSource | null, signal: AbortSignal) => font.prepare(fileSource, signal),
+		waitUntilReady: (signal: AbortSignal) => font.waitUntilReady(signal),
 		render(encoder: GPUCommandEncoder, values: TextRenderValues): TimelineImage {
-			const key = JSON.stringify([font.cacheVersion, values]);
+			const key = JSON.stringify(values);
 			if (key === outputKey) return result;
 			const plan = planSurface(values);
 			if (!output || output.width !== plan.size.width || output.height !== plan.size.height) {

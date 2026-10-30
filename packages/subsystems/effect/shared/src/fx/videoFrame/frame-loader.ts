@@ -24,37 +24,34 @@ export type VideoFrameSource<Sample> = {
 
 // デコードとGPUアップロードを境界に分け、要求の競合・破棄をブラウザーなしでテストできるようにする。
 export function createVideoFrameLoader<Sample extends { close: () => void }>(options: {
+	fileSource: FileSource | null;
 	open: (fileSource: FileSource) => VideoFrameSource<Sample>;
 	publish: (sample: Sample | null) => void;
 	reportStatus: (status: EffectStatus) => void;
 }) {
-	let desired: { fileSource: FileSource | null; time: number | null } | null = null;
+	const { fileSource } = options;
+	let desired: { time: number | null } | null = null;
 	let revision = 0;
 	let disposed = false;
 	let running = false;
 	let source: VideoFrameSource<Sample> | null = null;
-	let openedFileSource: FileSource | null = null;
 
 	const releaseSource = () => {
 		source?.dispose();
 		source = null;
-		openedFileSource = null;
 	};
 
 	const drain = async () => {
 		running = true;
 		try {
-			while (!disposed && desired?.fileSource != null && desired.time != null) {
-				const request = { fileSource: desired.fileSource, time: desired.time };
+			while (!disposed && fileSource != null && desired?.time != null) {
+				const requestTime = desired.time;
 				const requestRevision = revision;
 				let sample: Sample | null = null;
 				try {
-					if (openedFileSource !== request.fileSource || source == null) {
-						releaseSource();
-						source = options.open(request.fileSource);
-						openedFileSource = request.fileSource;
-					}
-					sample = await source.getSample(request.time);
+					// 素材は固定。エラーで破棄したデコーダーだけ、次の時刻要求で開き直す。
+					if (source == null) source = options.open(fileSource);
+					sample = await source.getSample(requestTime);
 					if (!disposed && requestRevision === revision) {
 						// publishは同期的にGPUへコピーする。保持せず、finallyで必ずcloseする。
 						options.publish(sample);
@@ -78,7 +75,7 @@ export function createVideoFrameLoader<Sample extends { close: () => void }>(opt
 	};
 
 	return {
-		prepare(fileSource: FileSource | null, time: number, mode: OutOfRange) {
+		prepare(time: number, mode: OutOfRange) {
 			if (disposed) return;
 			let position: number | null;
 			try {
@@ -91,10 +88,9 @@ export function createVideoFrameLoader<Sample extends { close: () => void }>(opt
 				options.reportStatus({ type: 'error', message: (error as Error).message });
 				return;
 			}
-			if (desired?.fileSource === fileSource && desired.time === position) return;
-			desired = { fileSource, time: position };
+			if (desired?.time === position) return;
+			desired = { time: position };
 			++revision;
-			if (openedFileSource !== fileSource) releaseSource();
 			// Visual Module Live Previewの描画でも異なる時刻のフレームを正しい結果として表示しない。
 			options.publish(null);
 			if (fileSource == null || position == null) {

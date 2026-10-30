@@ -49,7 +49,7 @@ function fixture(t, nodes, { kind = 'color', paramDefs = {}, lazy = false, disab
 	const renderer = new VisualModuleRenderer({
 		gpuDevice: { limits: { maxTextureDimension2D: 8192 }, createShaderModule: () => ({}) }, fallbackTexture: {}, timingHelper: null,
 		resolution: { width: 16, height: 16 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
-		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(),
+		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
 		effectDefinitions: { probe: definition }, effectImplementations: { probe: implementation }, visualModule: module,
 	});
 	t.after(() => renderer.destroy());
