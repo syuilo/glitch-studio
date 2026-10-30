@@ -73,9 +73,10 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		return read_input(position) * opacity;
 	}
 
-	// Translationは出力座標で指定するため、格子と同じ物理座標へ変換する。
+	// Translationの1を変形前のセル幅／高さ1つ分に変換する。
+	// FrequencyやFit Modeでセル寸法を変えても、セルに対する移動量の比率を保つ。
 	// 格子のAngleを変えても、正のXは画面右、正のYは画面上へ移動する。
-	let physicalTranslation = controls.translation * 0.5 * uniforms.aspect;
+	let physicalTranslation = controls.translation * uniforms.cellSize;
 	let gridTranslation = vec2f(
 		cosine * physicalTranslation.x - sine * physicalTranslation.y,
 		sine * physicalTranslation.x + cosine * physicalTranslation.y,

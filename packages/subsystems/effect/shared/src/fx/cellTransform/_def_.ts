@@ -50,7 +50,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
-		// Transformと同じ出力座標の単位。±2で画面幅／高さ1つ分を移動し、Angleで移動方向は回さない。
+		// セル幅／高さ1つ分を移動量1とする。個別のScaleでは単位を変えず、Angleで移動方向は回さない。
 		perCellTranslation: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Per Cell Translation', control: { controlType: 'vector', min: -2, max: 2, step: 0.01 } },
