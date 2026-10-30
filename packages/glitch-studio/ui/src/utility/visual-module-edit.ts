@@ -24,6 +24,9 @@ export function commitVisualModuleEdit(manager: ProjectCommands, target: VisualM
 		case 'setNodeBypass':
 			manager.commit('changeNodeBypassState', { ...target, nodeId: event.nodeId, bypass: event.bypass });
 			break;
+		case 'editNodeStaticSetting':
+			manager.commit('changeNodeStaticSetting', { ...target, nodeId: event.nodeId, key: event.key, value: event.value });
+			break;
 		case 'editNodeParam':
 			onNodeParamEdit(manager, target, event.nodeId, event.edit);
 			break;

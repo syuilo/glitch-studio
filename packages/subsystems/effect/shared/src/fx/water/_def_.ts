@@ -116,7 +116,7 @@ export default defineEffect({
 		frame: { dataType: { kind: 'scalar' }, ui: { label: 'Frame Offset (ms)', control: { controlType: 'number', step: 1 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	primaryInputParameter: 'input',
-	resolutionInputParameter: 'input',
+	resolutionInputParameters: ['input'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

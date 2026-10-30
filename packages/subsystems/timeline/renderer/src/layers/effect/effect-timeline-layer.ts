@@ -1,3 +1,5 @@
+import { getEffectIntrinsicResolution, resolveEffectStaticResources } from '@gs/subsystems_effect_renderer/effect-static-settings.ts';
+import { getEffectInputResolution } from '@gs/subsystems_effect_shared/effect-resolution-inputs.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
@@ -47,9 +49,18 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	// 出力のないエフェクトは透明画像としてreplaceせず、合成自体をスキップする。
 	if (port == null) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };
 	const { device } = options.wgpu;
+	const inputResolution = getEffectInputResolution<TimelineEffectParameterBinding>(definition, Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key)])), binding =>
+		binding.inputSource === 'lowerLayerOutput' || binding.inputSource === 'anotherLayerOutput' ? options.resolution : null);
+	const effectResolution = resolveEffectNodeResolution({
+		setting: layer.resolution, contextResolution: options.resolution, resolutionScale: options.resolutionScale,
+		intrinsicResolution: layer.resolution.mode === 'auto' ? getEffectIntrinsicResolution(definition, layer.effectStaticSettings ?? {}, options) : null,
+		inputResolution, maxDimension: device.limits.maxTextureDimension2D,
+	});
 	const renderer = new EffectRenderer({
 		definition,
 		implementation,
+		resolution: effectResolution,
+		staticResources: resolveEffectStaticResources(definition, layer.effectStaticSettings ?? {}, options),
 		wgpu: options.wgpu,
 		fallbackTexture: options.fallbackTexture,
 		onState: options.onState,
@@ -82,7 +93,8 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs });
+			const baseScope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs });
+			const scope = { ...baseScope, variables: { ...baseScope.variables, RESOLUTION: [effectResolution.width, effectResolution.height] } };
 			const resolveAudioInput = createTimelineAudioInputResolver(options.getAudioInput, context.sceneTimeMs, context.isExport);
 			const references = new Map<string, TimelineImage>();
 			let lowerLayerOutput: TimelineImage | null = null;
@@ -93,7 +105,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 				if (references.has(key)) continue;
 				let image = await context.getLayerOutput(binding.layerId, binding.outputStage);
 				if (signal.aborted) return { gpuTime: 0 };
-				if (binding.outputStage !== 'source' || image.region != null) {
+				{
 					let frame = referenceFrames.get(key);
 					if (frame == null) {
 						frame = createSceneOutput({
@@ -131,23 +143,10 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 					// await前に評価結果だけを固定する。literalの配列を準備中の編集と共有せず、
 					// AssetやGPUリソースはこの後の変換で借用する。
 					const evaluated = coerceParameterValue(leaf, deepClone(validateEnumParameterValue(leaf, evaluator.evaluate(value, scope, fallback, leaf))));
-					// タイムラインにはPlayerの再生状態を持ち込まない。
-					if (leaf.dataType.kind === 'playerReference') return null;
-					return resolveEffectParameterValue(leaf, evaluated, options);
+					return resolveEffectParameterValue(leaf, evaluated);
 				})];
 			}));
-			const resolutionInput = definition.resolutionInputParameter == null ? null : params[definition.resolutionInputParameter];
 			renderer.setUsedOutputPorts(usedOutputPorts);
-			renderer.setResolution(resolveEffectNodeResolution({
-				setting: layer.resolution,
-				contextResolution: options.resolution,
-				resolutionScale: options.resolutionScale,
-				intrinsicResolution: layer.resolution.mode === 'auto' ? implementation.getIntrinsicResolution?.(params) : null,
-				inputResolution: layer.resolution.mode === 'auto'
-					? implementation.getInputResolution?.(params) ?? (resolutionInput?.kind === 'texture' ? resolutionInput.texture : null)
-					: null,
-				maxDimension: device.limits.maxTextureDimension2D,
-			}));
 			renderer.prepare(params, signal);
 			if (!await renderer.waitUntilReady(signal) || signal.aborted || disposed) return { gpuTime: 0 };
 			const encoder = device.createCommandEncoder();

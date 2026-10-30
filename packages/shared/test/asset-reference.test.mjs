@@ -1,54 +1,34 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { areDataTypesEqual } from '../src/data-type/data-type.ts';
 import { getAssetReferenceMimeType, matchesAssetReferenceMimeType } from '../src/data-type/asset-reference.ts';
-import { genEmptyValue } from '../src/parameter/parameter-default.ts';
-import { staticParameterShape } from '../src/parameter/static-parameter.ts';
+import { createStaticSettingValues, validateStaticSettings } from '../src/static-setting.ts';
+import { validateParameterDefaultValues } from '../src/parameter/static-parameter.ts';
 
-// 【Asset参照の種類を型の同一性に含める】
-// kindが共通でも、フォント用の値をLUTや動画へ引き継ぐことはできない。
-// 配列・構造体の内部も比較し、公開パラメータやキーフレームの互換判定を維持する。
-test('compares asset categories including nested data types', () => {
-	const nested = assetType => ({ kind: 'array', elementType: { kind: 'struct', fields: {
-		asset: { kind: 'assetReference', assetType },
-	} } });
-	for (const assetType of ['font', 'lut', 'video']) {
-		const dataType = { kind: 'assetReference', assetType };
-		assert.equal(areDataTypesEqual(dataType, structuredClone(dataType)), true);
-		assert.equal(areDataTypesEqual(dataType, { kind: 'imageAssetTextureReference' }), false);
-		for (const otherAssetType of ['font', 'lut', 'video']) {
-			assert.equal(areDataTypesEqual(dataType, { kind: 'assetReference', assetType: otherAssetType }), assetType === otherAssetType);
-			assert.equal(areDataTypesEqual(nested(assetType), nested(otherAssetType)), assetType === otherAssetType);
-		}
-	}
+// 【素材参照にはBindingを保存せず、選択したIDを直接保持する】
+// literalの加工式でも参照先が変わらないよう、Bindingのオブジェクト自体を入口で拒否する。
+test('stores static asset IDs directly and rejects binding sources', () => {
+	const definitions = { image: { dataType: { kind: 'assetReference', assetType: 'image' }, ui: { label: 'Image' }, defaultValue: null } };
+	assert.deepEqual(createStaticSettingValues(definitions), { image: null });
+	for (const image of [null, 'asset']) assert.doesNotThrow(() => validateStaticSettings(definitions, { image }));
+	for (const image of [{ inputSource: 'literal', value: 'asset' }, { inputSource: 'expression', expression: 'TIME' }, { inputSource: 'visualModuleCustomParameterReference', parameterId: 'image' }]) assert.throws(() => validateStaticSettings(definitions, { image }), /Invalid static setting/);
 });
 
-// 【選択候補と実行時の種類チェックで同じMIME制約を使う】
-// 動画・フォントは各形式を許可する一方、LUTは専用MIMEだけを受け付ける。
-// prefixの判定が広すぎて別カテゴリや似た名前のMIMEを許可することを防ぐ。
+// 【選択候補と読み込み処理で同じ素材カテゴリの制約を使う】
+// 画像もAsset参照へ統合し、画像・動画・フォント・LUTを取り違えない。
 test('shares MIME constraints between selection and resource validation', () => {
 	for (const [assetType, expectedMimeType, accepted] of [
-		['font', 'font/*', ['font/ttf', 'font/otf', 'font/woff2']],
-		['video', 'video/*', ['video/mp4', 'video/webm']],
-		['lut', 'application/x-cube-lut', ['application/x-cube-lut']],
+		['image', 'image/*', ['image/png', 'image/jpeg']], ['font', 'font/*', ['font/ttf', 'font/otf']],
+		['video', 'video/*', ['video/mp4', 'video/webm']], ['lut', 'application/x-cube-lut', ['application/x-cube-lut']],
 	]) {
 		const dataType = { kind: 'assetReference', assetType };
 		assert.equal(getAssetReferenceMimeType(dataType), expectedMimeType);
 		for (const mimeType of accepted) assert.equal(matchesAssetReferenceMimeType(dataType, mimeType), true);
-		for (const mimeType of ['', 'image/png', 'audio/wav', 'fontish/ttf', 'videoish/mp4', 'application/x-cube-lut-extra']) {
-			assert.equal(matchesAssetReferenceMimeType(dataType, mimeType), false);
-		}
+		for (const mimeType of ['', 'audio/wav', 'fontish/ttf', 'videoish/mp4', 'application/x-cube-lut-extra']) assert.equal(matchesAssetReferenceMimeType(dataType, mimeType), false);
 	}
 });
 
-// 【全種類のAsset参照を未選択で初期化し、参照先の変更を静的検証へ通知する】
-// 通常の値編集を検証キャッシュから除外しても、素材IDの変更は依存先を変える。
-// 統合後のkindを参照として扱い忘れると、差し替えや削除による不整合を見落とす。
-test('initializes references to null and retains IDs in static validation shapes', () => {
-	for (const assetType of ['font', 'lut', 'video']) {
-		const definition = { dataType: { kind: 'assetReference', assetType } };
-		assert.equal(genEmptyValue(definition), null);
-		assert.deepEqual(staticParameterShape(definition, { inputSource: 'literal', value: 'first' }), ['literal', 'first']);
-		assert.deepEqual(staticParameterShape(definition, { inputSource: 'literal', value: 'second' }), ['literal', 'second']);
-	}
+// 【公開する通常パラメータへ素材参照型を戻せない】
+// ファイルやCommandで作られた定義も検査し、UIの選択肢を隠すだけの制限にしない。
+test('rejects resource references in ordinary parameter definitions', () => {
+	for (const kind of ['imageAssetTextureReference', 'assetReference', 'playerReference']) assert.throws(() => validateParameterDefaultValues({ dataType: { kind }, ui: { label: 'Resource', control: {} }, defaultValue: { inputSource: 'literal', value: null } }), /Unsupported parameter data type/);
 });

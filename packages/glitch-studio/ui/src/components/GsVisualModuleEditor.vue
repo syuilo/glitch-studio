@@ -32,6 +32,7 @@
 							:effectState="effectStates?.get(node.id)"
 							:class="$style.node"
 							@dragStart="dragStart"
+							@staticSetting="edit => emit('edit', { kind: 'editNodeStaticSetting', nodeId: node.id, ...edit })"
 							@editParam="edit => emit('edit', { kind: 'editNodeParam', nodeId: node.id, edit })"
 							@remove="emit('edit', { kind: 'removeNode', nodeId: node.id })"
 							@setBypass="bypass => emit('edit', { kind: 'setNodeBypass', nodeId: node.id, bypass })"

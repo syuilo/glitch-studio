@@ -72,8 +72,8 @@ export async function run() {
 			const draw = async (name: string, text: string | null, rgba: number[], expected: number[], input?: ShaderInput) => {
 				const params = {
 					input: input ?? { kind: 'uniform' as const, value: rgba },
-					lut: text == null ? null : { id: 'same-asset', fileData: new Blob([text]) },
 				};
+				renderer.setStaticResources({ lut: text == null ? null : { id: 'same-asset', fileData: new Blob([text]) } });
 				renderer.prepare(params);
 				if (!await renderer.waitUntilReady(new AbortController().signal)) throw new Error('LUT preparation cancelled');
 				const encoder = device.createCommandEncoder();
@@ -100,7 +100,8 @@ export async function run() {
 					class DelayedBlob extends Blob {
 						override text() { return pendingText; }
 					}
-					const params = { input: { kind: 'uniform' as const, value: [0.2, 0.6, 0.4, 1] }, lut: { id: 'same-asset', fileData: new DelayedBlob(['pending']) } };
+					renderer.setStaticResources({ lut: { id: 'same-asset', fileData: new DelayedBlob(['pending']) } });
+					const params = { input: { kind: 'uniform' as const, value: [0.2, 0.6, 0.4, 1] } };
 					const renderVisualModuleLivePreview = () => {
 						const encoder = device.createCommandEncoder();
 						renderer.render({

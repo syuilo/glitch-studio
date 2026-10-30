@@ -1,7 +1,8 @@
 import { LUT_ASSET_MIME_TYPE } from '../media/lut.ts';
-import type { AssetReferenceDataType } from './data-type.ts';
+import type { AssetReferenceDataType } from '../static-setting.ts';
 
 const assetReferenceMimeTypes = {
+	image: 'image/*',
 	font: 'font/*',
 	lut: LUT_ASSET_MIME_TYPE,
 	video: 'video/*',

@@ -13,6 +13,8 @@ const { default: effect } = await load('@gs/subsystems_effect_shared/fx/colorMix
 const { default: definition } = await load('@gs/subsystems_effect_shared/fx/colorMix/_def_.ts');
 const { default: imageEffect } = await load('@gs/subsystems_effect_shared/fx/image/_impl_.ts');
 const { default: imageDefinition } = await load('@gs/subsystems_effect_shared/fx/image/_def_.ts');
+const { default: videoEffect } = await load('@gs/subsystems_effect_shared/fx/video/_impl_.ts');
+const { default: videoDefinition } = await load('@gs/subsystems_effect_shared/fx/video/_def_.ts');
 const { default: structArrayDefinition } = await load('@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts');
 const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
 const { UniformOrTextureToTextureResolver } = await load('@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts');
@@ -92,6 +94,61 @@ function gpuFixture() {
 	return { device, calls, encoder };
 }
 const literal = value => ({ inputSource: 'literal', value });
+
+// 【Playerのフレーム消失では透明にし、復旧した映像でキャッシュを更新する】
+// 初回到着待ちと取得失敗を同じnull入力として扱い、準備・描画を継続する。
+// 実際のVideo実装を通し、取得不能の間に古い映像が残らず、復旧時に設定の再編集も不要なことを確認する。
+test('keeps rendering transparent video while player frames are missing and resumes after recovery', async t => {
+	const { device, calls } = gpuFixture();
+	const importedFrames = [];
+	device.importExternalTexture = ({ source }) => { importedFrames.push(source); return {}; };
+	const passes = [];
+	const encoder = { beginRenderPass(descriptor) {
+		passes.push(descriptor);
+		return { setPipeline() {}, setBindGroup() {}, draw() { calls.draws++; }, end() {} };
+	} };
+	const videoFrames = new Map();
+	const videoFrameVersions = new Map();
+	const renderer = new VisualModuleRenderer({
+		gpuDevice: device, fallbackTexture: {}, resolution: { width: 16, height: 9 },
+		enableStats: false, timingHelper: null, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
+		assets: [], assetTextures: new Map(), audioSources: new Map(), videoFrames, videoFrameVersions,
+		effectDefinitions: { video: videoDefinition }, effectImplementations: { video: videoEffect },
+		visualModule: { paramDefs: [], primaryInputId: null, primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], automationGraphs: [],
+			nodes: [{ id: 'video', type: 'effect', effectId: 'video', staticSettings: { player: 'player' }, params: { fit: literal('stretch') }, resolution: { mode: 'auto', scale: 1 }, isBypass: false },
+				{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'video', outputPort: 'output' } } }] },
+	});
+	t.after(() => renderer.destroy());
+	const context = { time: 0, timeDelta: 0, endTime: Infinity, isExport: false, evaluatedParamValues: new Map(), pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 } };
+	const render = async () => {
+		await renderer.prepare(context, new AbortController().signal);
+		return renderer.render(context, encoder);
+	};
+	const assertTransparent = () => {
+		assert.equal(passes.at(-1).colorAttachments[0].loadOp, 'clear');
+		assert.deepEqual(passes.at(-1).colorAttachments[0].clearValue, { r: 0, g: 0, b: 0, a: 0 });
+	};
+	await render();
+	assertTransparent();
+	const first = {};
+	videoFrames.set('player', first);
+	videoFrameVersions.set('player', 1);
+	await render();
+	assert.deepEqual(importedFrames, [first]);
+	assert.equal(calls.draws, 1);
+	videoFrames.delete('player');
+	videoFrameVersions.set('player', 2);
+	await render();
+	assertTransparent();
+	assert.equal(calls.draws, 1);
+	const recovered = {};
+	videoFrames.set('player', recovered);
+	videoFrameVersions.set('player', 3);
+	const output = await render();
+	assert.deepEqual(importedFrames, [first, recovered]);
+	assert.equal(calls.draws, 2);
+	assert.deepEqual([output.texture.width, output.texture.height], [16, 9]);
+});
 
 // 【マスク画像の取得中に中断した合成は、GPUへ新たなコマンドを送信しない】
 // 遅延解決が終わった直後にも中断を確認し、古いシークの合成によるテクスチャ上書きを防ぐ。
@@ -200,22 +257,26 @@ test('keeps stretched replace outputs in scene coordinates without copying the s
 	assert.equal(source.texture.destroyed, false);
 });
 
-// 【ノード入力では論理的なStretchを画素へ確定し、同じ比率の素材解像度は維持する】
+// 【ノード入力は同じ縦横比でもSceneの宣言寸法へ揃える】
 // EffectとVisual ModuleはTimelineのregionを知らないため、正方形の物理テクスチャを
 // 横長の合成結果としてそのまま渡すと入力サンプリングで再びFitされてしまう。
-test('materializes stretched node inputs while borrowing matching native-resolution frames', () => {
+test('normalizes node inputs to declared scene dimensions while borrowing already matching frames', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const resolution = { width: 8, height: 4 };
 	const output = createSceneOutput({ device, vertex: {}, resolution, format: 'rgba16float' });
 	const region = { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: resolution };
-	const matching = { kind: 'texture', texture: device.createTexture({ size: [16, 8], format: 'rgba16float' }), region };
+	const matching = { kind: 'texture', texture: device.createTexture({ size: [8, 4], format: 'rgba16float' }), region };
 	assert.equal(output.renderInput(encoder, matching), matching);
 	assert.equal(calls.draws, 0);
+	const native = { kind: 'texture', texture: device.createTexture({ size: [16, 8], format: 'rgba16float' }), region };
+	const framed = output.renderInput(encoder, native);
+	assert.deepEqual([framed.texture.width, framed.texture.height], [8, 4]);
+	assert.equal(calls.draws, 1);
 	const stretched = { kind: 'texture', texture: device.createTexture({ size: [16, 16], format: 'rgba16float' }), region };
 	const normalized = output.renderInput(encoder, stretched);
 	assert.notEqual(normalized.texture, stretched.texture);
 	assert.deepEqual([normalized.texture.width, normalized.texture.height], [8, 4]);
-	assert.equal(calls.draws, 1);
+	assert.equal(calls.draws, 2);
 	output.dispose();
 	assert.equal(matching.texture.destroyed, false);
 	assert.equal(stretched.texture.destroyed, false);
@@ -370,11 +431,10 @@ test('publishes output resolutions only after drawing and when state changes', a
 	const { device, encoder } = gpuFixture();
 	const notifications = [];
 	const reports = [];
-	const node = { id: 'mix', type: 'effect', resolution: { mode: 'auto', scale: 1 }, effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(7) } };
+	const node = { id: 'mix', type: 'effect', resolution: { mode: 'customAbsolute', width: 7, height: 3 }, effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(7) } };
 	const out = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: node.id, outputPort: 'output' }, extra: { nodeId: node.id, outputPort: 'extra' } } };
 	const nodes = [node, out];
 	const probe = {
-		getIntrinsicResolution: params => ({ width: params.amount.value[0], height: 3 }),
 		outputTextureFactories: Object.fromEntries(['output', 'extra'].map(port => [port, ({ resolution }) => device.createTexture({ size: { width: resolution.width, height: port === 'output' ? resolution.height : 5 }, format: 'rgba8unorm' })])),
 		init: ({ reportStatus }) => { reports.push(reportStatus); return { render() {}, dispose() {} }; },
 	};
@@ -396,6 +456,8 @@ test('publishes output resolutions only after drawing and when state changes', a
 		reports.at(-1)({ type: 'ready' });
 		assert.equal(notifications.length, count);
 		node.params.amount = literal(9);
+		node.resolution.width = 9;
+		renderer.updateNodes(nodes);
 		renderer.render(renderContext({ outputIds: ['out', 'extra'] }), encoder);
 		assert.deepEqual(latest().outputs, { output: { width: 9, height: 3 }, extra: { width: 9, height: 5 } });
 		renderer.render(renderContext(), encoder);
@@ -766,10 +828,11 @@ test('resizes automatic image outputs to the selected asset and preserves borrow
 	const { device, calls, encoder } = gpuFixture();
 	const asset = device.createTexture({ size: [7, 3], format: 'rgba8unorm' });
 	const assets = new Map([['asset', asset]]);
-	const raw = { id: 'raw', type: 'effect', resolution: { mode: 'auto', scale: 1 }, effectId: 'image', params: { image: literal('asset'), fit: literal('cover') } };
+	const raw = { id: 'raw', type: 'effect', resolution: { mode: 'auto', scale: 1 }, effectId: 'image', staticSettings: { image: 'asset' }, params: { fit: literal('cover') } };
 	const output = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'raw', outputPort: 'output' } } };
 	const visualModule = { nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out' };
-	const renderer = createRenderer(device, visualModule, { assetTextures: assets });
+	const metadata = { id: 'asset', width: 7, height: 3, fileDataType: 'image/png', fileData: new Blob() };
+	const renderer = createRenderer(device, visualModule, { assets: [metadata], assetTextures: assets });
 	const initial = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([initial.width, initial.height], [7, 3]);
 	const allocated = calls.textures.length;
@@ -777,18 +840,21 @@ test('resizes automatic image outputs to the selected asset and preserves borrow
 	assert.equal(calls.textures.length, allocated);
 	const replacement = device.createTexture({ size: [4, 9], format: 'rgba8unorm' });
 	assets.set('asset', replacement);
-	renderer.updateAssets([]);
+	metadata.width = 4; metadata.height = 9;
+	renderer.updateAssets([metadata]);
 	const resized = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([resized.width, resized.height], [4, 9]);
 	assert.equal(initial.destroyed, true);
 	// プロジェクトモードはfitによらず描画先の寸法を使う。
 	raw.resolution = { mode: 'context', scale: 1 };
+	renderer.updateNodes(visualModule.nodes);
 	for (const fit of ['stretch', 'cover', 'contain']) {
 		raw.params.fit = literal(fit);
 		const normal = renderer.render(renderContext(), encoder).texture;
 		assert.deepEqual([normal.width, normal.height], [32, 32]);
 	}
 	raw.resolution = { mode: 'auto', scale: 1 };
+	renderer.updateNodes(visualModule.nodes);
 	const original = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([original.width, original.height], [4, 9]);
 	// 自動のImage→プロジェクト解像度のcolorMixでも、元の比率をサンプリングに使う。
@@ -810,7 +876,7 @@ test('resizes automatic image outputs to the selected asset and preserves borrow
 	renderer.resize({ width: 32, height: 32 }, 1);
 	const fullSize = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([fullSize.width, fullSize.height], [4, 9]);
-	raw.params.image = literal(null);
+	raw.staticSettings.image = null;
 	output.inputs.out.nodeId = 'raw';
 	renderer.updateNodes([raw, mix, output]);
 	const empty = renderer.render(renderContext(), encoder).texture;

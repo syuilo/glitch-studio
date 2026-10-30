@@ -48,11 +48,11 @@ function probe(g, { history = false, lazy = false, loading = false, disableCache
 	const renders = [];
 	const definition = {
 		paramDefs, primaryInputParameter: Object.keys(paramDefs).find(key => paramDefs[key].canNode) ?? null,
-		resolutionInputParameter: null, primaryOutput: 'output',
+		resolutionInputParameters: [], primaryOutput: 'output',
 		outputDefs: { output: { dataType: { kind: 'color' } }, extra: { dataType: { kind: 'color' }, canLazyAllocation: lazy } },
 	};
 	const implementation = {
-		needsPreviousFrame: history, disableCache, getIntrinsicResolution: intrinsic,
+		needsPreviousFrame: history, disableCache,
 		outputTextureFactories: Object.fromEntries(['output', 'extra'].map(port => [port, ({ resolution }) => g.device.createTexture({ size: resolution, port })])),
 		init(args) {
 			const record = { args, version: 0, disposed: 0, prepares: [], renders: [] };
@@ -124,28 +124,6 @@ test('evaluates pointer positions as vectors and redraws when the pointer moves'
 		assert.equal(p.renders.length, renderCount);
 	}
 	assert.equal(p.renders.length, 3);
-});
-
-// 【使用中のPlayerの原本が欠落した場合だけ、準備と描画の両方を失敗させる】
-// キャッシュ無効のエフェクトでも検出し、未接続のノードの参照切れで正常な出力を妨げない。
-// 書き出しの準備段階でも失敗させ、欠落フレームを含む動画を完成させない。
-test('fails preparation and rendering only for player sources used by the requested output', async t => {
-	for (const disableCache of [false, true]) {
-		const g = gpu();
-		const source = probe(g, { disableCache, paramDefs: { player: { dataType: { kind: 'playerReference' }, defaultValue: literal(null) } } });
-		const errors = new Map([['unused-player', 'Unused file is unavailable']]);
-		const f = graph(t, g, { source }, [node('unused', 'source', { player: literal('unused-player') }), node('used', 'source', { player: literal('used-player') })],
-			{ out: { nodeId: 'used', outputPort: 'output' } }, { videoFrameErrors: errors });
-		await f.prepare();
-		f.render();
-		assert.equal(source.renders.length, 1);
-		errors.set('used-player', 'Used file is unavailable');
-		await assert.rejects(f.prepare(f.context({ isExport: true })), /Used file is unavailable/);
-		assert.throws(() => f.render(), /Used file is unavailable/);
-		errors.delete('used-player');
-		await f.prepare();
-		f.render();
-	}
 });
 
 // 【解決済み入力と描画コンテキストを変更せず渡し、借用リソースを破棄しない】
@@ -580,14 +558,14 @@ test('invalidates downstream caches when lazy outputs are released and reacquire
 // prepareのみでA→B→Aとリサイズすると値ベースのキーは元に戻るが、履歴・出力は新しくなっている。
 test('invalidates downstream caches after resizing away and back without rendering', async t => {
 	const g = gpu();
-	const source = probe(g, { paramDefs: { size: { dataType: { kind: 'scalar' } } }, intrinsic: params => ({ width: params.size, height: 9 }) });
+	const source = probe(g);
 	const consumer = probe(g, { paramDefs: { input: color } });
-	const raw = { ...node('source', 'source', { size: literal(16) }), resolution: { mode: 'auto', scale: 1 } };
+	const raw = { ...node('source', 'source'), resolution: { mode: 'customAbsolute', width: 16, height: 9 } };
 	const f = graph(t, g, { source, consumer }, [raw, node('consumer', 'consumer', { input: connection('source') })]);
 	f.render();
 	const first = consumer.renders[0].params.input.texture;
 	for (const size of [32, 16]) {
-		raw.params.size = literal(size);
+		raw.resolution.width = size;
 		f.renderer.updateNodes(f.module.nodes);
 		await f.prepare();
 	}
@@ -607,7 +585,7 @@ test('propagates local resolution scales through graph updates and preview resiz
 	const g = gpu();
 	const source = probe(g, { intrinsic: () => ({ width: 1920, height: 1080 }) });
 	const consumer = probe(g, { paramDefs: { input: color } });
-	consumer.definition.resolutionInputParameter = 'input';
+	consumer.definition.resolutionInputParameters = ['input'];
 	const sourceNode = { ...node('source'), resolution: { mode: 'auto', scale: 0.5 } };
 	const consumerNode = { ...node('consumer', 'consumer', { input: connection('source') }), resolution: { mode: 'auto', scale: 0.5 } };
 	const f = graph(t, g, { source, consumer }, [sourceNode, consumerNode], undefined, { resolution: { width: 1920, height: 1080 }, resolutionScale: 0.5 });
@@ -741,4 +719,50 @@ test('ends aggregate preparation on failure without disposing other pending effe
 	assert.equal(source.instances.length, 1);
 	assert.equal(consumer.instances.length, 1);
 	assert.equal(consumer.renders.length, 1);
+});
+
+// 【静的設定の編集は対象インスタンスと履歴だけを作り直し、後段のキャッシュへ伝える】
+// 毎回全エフェクトを初期化すると独立した履歴を失う。同じ出力テクスチャでも新設定の画素を
+// 後段へ伝えるため、リソース世代の更新と無関係な枝のキャッシュ維持を一緒に確認する。
+test('reinitializes only edited static settings and invalidates downstream output caches', t => {
+	const g = gpu();
+	const a = probe(g);
+	const b = probe(g, { history: true, paramDefs: { input: color } });
+	b.definition.staticSettingDefs = { mode: { dataType: { kind: 'string' }, ui: { label: 'Mode' }, defaultValue: 'first' } };
+	const c = probe(g, { paramDefs: { input: color } });
+	const d = probe(g);
+	const edited = { ...node('b', 'b', { input: connection('a') }), staticSettings: { mode: 'first' } };
+	const f = graph(t, g, { a, b, c, d }, [node('a'), edited, node('c', 'c', { input: connection('b') }), node('d')],
+		{ out: { nodeId: 'c', outputPort: 'output' }, independent: { nodeId: 'd', outputPort: 'output' } });
+	const context = f.context({ outputIds: ['out', 'independent'] });
+	f.render(context);
+	const previous = b.instances[0];
+	const history = f.renderer.effectRenderers.get('b').getOutputTexture('output');
+	edited.staticSettings.mode = 'second';
+	f.renderer.updateNodes(f.module.nodes);
+	assert.equal(previous.disposed, 1);
+	assert.equal(history.destroyed, 1);
+	f.render(context);
+	assert.equal(b.instances[1].args.resources.mode, 'second');
+	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [1, 2, 1, 1]);
+	assert.deepEqual([a, b, c, d].map(effect => effect.renders.length), [1, 2, 2, 1]);
+});
+
+// 【各ノードの最初の式評価から倍率適用後のRESOLUTIONを渡す】
+// initや描画結果から解像度を知る構成では、初回だけcontext寸法を式が参照してしまう。
+// 同じエフェクトを異なる寸法で配置し、単独変数と環境変数の両経路を確認する。
+test('evaluates RESOLUTION with each planned node size before initialization', t => {
+	const g = gpu();
+	const effect = probe(g, { paramDefs: { size: { dataType: { kind: 'vector' }, ui: { label: 'Size', control: {} } } } });
+	const first = node('first', 'effect', { size: { inputSource: 'expression', expression: 'RESOLUTION' } });
+	first.resolution = { mode: 'customAbsolute', width: 81, height: 31 };
+	const second = node('second', 'effect', { size: { inputSource: 'envVariable', variable: 'RESOLUTION' } });
+	const f = graph(t, g, { effect }, [first, second], { out: { nodeId: 'first', outputPort: 'output' }, other: { nodeId: 'second', outputPort: 'output' } }, { resolutionScale: 0.5 });
+	assert.equal(effect.instances.length, 0);
+	const context = f.context({ outputIds: ['out', 'other'] });
+	f.render(context);
+	assert.deepEqual(effect.renders.map(render => render.params.size), [[41, 16], [8, 5]]);
+	first.params.size = { inputSource: 'expression', expression: '[WIDTH, HEIGHT]' };
+	f.renderer.updateNodes(f.module.nodes);
+	assert.throws(() => f.render(context), /WIDTH|HEIGHT/);
 });

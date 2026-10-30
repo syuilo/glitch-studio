@@ -3,14 +3,12 @@ import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.
 import { inputUvScale } from '@gs/shared/gpu/input-fit.ts';
 import shapeDistanceCode from '@gs/shared/gpu/shape-distance.wgsl?raw';
 import { implementEffect } from '../../effect-implementation.ts';
-import { getLargestInputResolution } from '../../effect-input-resolution.ts';
 import shaderCode from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 const code = shapeDistanceCode + '\n' + shaderCode;
 
 export default implementEffect<typeof definition>({
-	getInputResolution: params => getLargestInputResolution([params.inputA, params.inputB]),
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,

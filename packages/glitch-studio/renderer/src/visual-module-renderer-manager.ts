@@ -1,3 +1,4 @@
+import { getPlayerIntrinsicResolution } from '@gs/glitch-studio_shared/player-resolution.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
@@ -60,6 +61,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	/** Visual Module Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
 	assets: Asset[];
+	players: Player[];
 	visualModules: ProjectVisualModule[];
 	automationGraphs: AutomationGraph[];
 };
@@ -95,7 +97,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private assetTextures: AssetTextures;
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
-	private videoFrameErrors = new Map<string, string>();
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private playerAudioInputs = new PlayerAudioInputs(this.audioSources);
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
@@ -121,6 +122,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		fpsLimit: null,
 		opaqueOutput: false,
 		assets: [],
+		players: [],
 		visualModules: [],
 		automationGraphs: [],
 	};
@@ -242,8 +244,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		}
 	}
 
-	public updateVideoFrame(playerId: Player['id'], videoFrame: VideoFrame | null, error: string | null = null) {
-		if (error == null) this.videoFrameErrors.delete(playerId); else this.videoFrameErrors.set(playerId, error);
+	public updateVideoFrame(playerId: Player['id'], videoFrame: VideoFrame | null) {
 		// 同じtimestampでも別のフレームとして扱う。削除・再追加でも更新番号を戻さない。
 		this.videoFrameVersions.set(playerId, (this.videoFrameVersions.get(playerId) ?? 0) + 1);
 		this.videoFrames.get(playerId)?.close();
@@ -288,6 +289,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			}
 		}
 
+		if (Object.hasOwn(newOptions, 'players')) this.visualModuleLivePreviewVisualModuleRenderer?.updateAssets(this.dynamicOptions.assets);
 		const assetsCommitted = Object.hasOwn(newOptions, 'assets') ? await this.updateAssets(assets!) : null;
 		return { assetsCommitted };
 	}
@@ -344,6 +346,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			fallbackTexture: this.fallbackTexture,
 			resolution: this.dynamicOptions.resolution,
 			resolutionScale: this.dynamicOptions.resolutionScale,
+			getPlayerResolution: playerId => getPlayerIntrinsicResolution(playerId, this.dynamicOptions.players, this.dynamicOptions.assets),
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: this.staticOptions.enableStats,
@@ -351,18 +354,11 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
-			videoFrameErrors: this.videoFrameErrors,
 			assets: this.dynamicOptions.assets,
 			visualModule,
 			assetTextures: this.assetTextures.textures,
 			audioSources: this.audioSources,
-			resolveAudioSource: selection => {
-				if (selection != null && typeof selection === 'object' && 'playerId' in selection && typeof selection.playerId === 'string') {
-					const error = this.videoFrameErrors.get(selection.playerId);
-					if (error != null) throw new Error(error);
-				}
-				return this.playerAudioInputs.resolve(selection);
-			},
+			resolveAudioSource: selection => this.playerAudioInputs.resolve(selection),
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
 		});
@@ -487,7 +483,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();
 		this.videoFrameVersions.clear();
-		this.videoFrameErrors.clear();
 		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();
 	}

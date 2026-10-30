@@ -10,9 +10,11 @@ export default defineEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['typography', 'pattern'],
+	staticSettingDefs: {
+		font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font' }, defaultValue: null },
+	},
 	paramDefs: {
 		text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: { inputSource: 'literal', value: 'TOGETHER' } },
-		font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		size: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Size (Height Ratio)', control: { controlType: 'range', min: 0.0001, max: 1, step: 0.01, logarithmic: true } },
@@ -76,7 +78,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: null,
-	resolutionInputParameter: null,
+	resolutionInputParameters: [],
 	outputDefs: { output: { dataType: { kind: 'color' } } },
 	primaryOutput: 'output',
 });

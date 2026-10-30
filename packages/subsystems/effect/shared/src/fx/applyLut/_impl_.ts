@@ -13,7 +13,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, params, reportStatus }) => {
+	init: ({ wgpu, reportStatus, resources }) => {
 		const layout = createLutLayout(wgpu.device);
 		const bypass = createLutResources(wgpu.device, layout, wgpu.enable32bitDataTextures, null);
 		const loader = createLutLoader(lut => createLutResources(wgpu.device, layout, wgpu.enable32bitDataTextures, lut), reportStatus);
@@ -25,13 +25,10 @@ export default implementEffect<typeof definition>({
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 		});
-		const prepare = (values: typeof params) => loader.prepare(values.lut?.fileData ?? null);
-		prepare(params);
+		loader.prepare(resources.lut?.fileData ?? null);
 		return {
-			prepare,
 			get cacheVersion() { return loader.cacheVersion; },
 			render: ctx => {
-				prepare(ctx.params);
 				const output = ctx.outputDataMap.output;
 				// Visual Module Live Previewは非同期準備を待たずに描画する。読み込み中は透明にし、
 				// 完了時のcacheVersion更新で再描画する。例外を投げるとVisual Module Live Previewの描画が停止する。

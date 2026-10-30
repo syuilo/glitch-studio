@@ -39,7 +39,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: 'inputA',
-	resolutionInputParameter: 'inputA',
+	resolutionInputParameters: ['inputA'],
 	outputDefs: {
 		output: { dataType: { kind: 'any' } },
 	},

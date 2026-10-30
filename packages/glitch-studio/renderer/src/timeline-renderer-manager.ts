@@ -958,9 +958,16 @@ export class TimelineRendererManager extends EventEmitter<{
 		const getLayer = () => this.getLayer(sceneId, layer.id) as TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer;
 		let moduleRevision = this.projectVersions.module(target).revision;
 		const statusSource = this.createLayerStatusSource(layer.id, clipId, layerPath);
+		const getInputResolutions = () => new Map(getModule().paramDefs.map(definition => {
+			const binding = getLayer().visualModuleParamValues[definition.id];
+			const isTexture = binding?.inputSource === 'lowerLayerOutput' || binding?.inputSource === 'anotherLayerOutput'
+				|| (binding == null && definition.id === getModule().primaryInputId);
+			return [definition.id, isTexture ? scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale) : null] as const;
+		}));
 		const renderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			fallbackTexture: this.fallbackTexture,
+			inputResolutions: getInputResolutions(),
 			resolution: sceneBaseResolution,
 			resolutionScale: this.dynamicOptions.resolutionScale,
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
@@ -1005,7 +1012,10 @@ export class TimelineRendererManager extends EventEmitter<{
 				return result;
 			},
 			getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
-			prepare: (context, signal) => renderer.prepare(context, signal),
+			prepare: (context, signal) => {
+				renderer.setInputResolutions(getInputResolutions());
+				return renderer.prepare(context, signal);
+			},
 			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
 				let result: Awaited<ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>> = { gpuTime: 0 };

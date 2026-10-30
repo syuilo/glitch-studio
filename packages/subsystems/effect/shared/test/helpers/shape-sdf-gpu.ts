@@ -63,7 +63,7 @@ export async function run() {
 	try {
 		// 【形状の値は一様とし、距離場だけを主出力にする】
 		// 画素ごとの寸法変更を許すと距離の契約を保てないため、ノード接続を公開しない。
-		assert(definition.kind === 'generate' && definition.primaryInputParameter === null && definition.resolutionInputParameter === null, 'generator input contract');
+		assert(definition.kind === 'generate' && definition.primaryInputParameter === null && definition.resolutionInputParameters.length === 0, 'generator input contract');
 		assert(definition.outputDefs.output.dataType.kind === 'scalar' && definition.primaryOutput === 'output' && !definition.dependsOnRenderHistory, 'scalar output contract');
 		assert(Object.values(definition.paramDefs).every(parameter => !('canNode' in parameter) || parameter.canNode !== true), 'uniform shape parameters');
 		checks.push('definition contract');

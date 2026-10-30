@@ -1,12 +1,8 @@
+import { createStaticSettingValues, validateStaticSettingValue } from '@gs/shared/static-setting.ts';
+import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
 import { convertTimelineContainerLayer } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import type { TimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelineLayerCustomParameterContext, resolveTimelineLayerCustomParameterReference, areTimelineCustomParameterTypesCompatible, validateTimelineLayerCustomParameterDefinitions } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
-import type { TimelineLayerCustomParameterDefinition, TimelineLayerCustomParameterId } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
-import type { TimelineLayerCustomParameterReferenceBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import type { EditableTimelineParameterBinding } from './types/parameter-edit.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
-import type { TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { isTimelineContainerLayer, hasTimelineLayerParameters, isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -15,10 +11,10 @@ import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { preserveParameterExpressionModifier, validateParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { validateColorRampParameterInputSource, validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
-import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
+import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import { createLowerLayerOutputBinding, getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
@@ -72,6 +68,13 @@ import type { VisualModuleImport } from './gsvm.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { Player } from '@gs/shared/types.ts';
 import { validateProjectAutomationGraphName } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
+import type { TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { EditableTimelineParameterBinding } from './types/parameter-edit.ts';
+import type { TimelineLayerCustomParameterReferenceBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineLayerCustomParameterDefinition, TimelineLayerCustomParameterId } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import type { TimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
+import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { AutomationGraph, AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineEffectParameterBinding, TimelineLowerLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ValueParameterEdit } from '@/types/parameter-edit.ts';
@@ -448,7 +451,7 @@ const renameVisualModuleCommandDef = defineCommand<{ visualModuleId: string; nam
 	},
 });
 
-const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; params?: Record<string, VisualModuleParameterBinding> }>({
+const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; staticSettings?: StaticSettingValues; params?: Record<string, VisualModuleParameterBinding> }>({
 	label: 'Add fx node',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
@@ -495,6 +498,7 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 						displayName: '',
 						isBypass: false,
 						resolution: { mode: 'auto', scale: 1 },
+						staticSettings: { ...createStaticSettingValues(effectDefinitions[payload.effectId].staticSettingDefs ?? {}), ...payload.staticSettings },
 						params: { ...params, ...deepClone(payload.params ?? {}) },
 						pos: { x: 0, y: 0 },
 					};
@@ -661,12 +665,12 @@ function validateVisualModuleAssetPlacement(state: ProjectState, placement: Visu
 		if (ids.has(node.id)) throw new Error('Duplicate node ID');
 		ids.add(node.id);
 		if (node.effectId === 'image') {
-			const image = node.params.image;
-			if (image?.inputSource !== 'literal' || !state.assets.value.some(asset => asset.id === image.value && asset.fileDataType.startsWith('image/'))) throw new Error('Image asset not found');
+			const image = node.staticSettings.image;
+			if (typeof image !== 'string' || !state.assets.value.some(asset => asset.id === image && asset.fileDataType.startsWith('image/'))) throw new Error('Image asset not found');
 			continue;
 		}
 		let playerId: unknown = null;
-		if (node.effectId === 'video' && node.params.player?.inputSource === 'literal') playerId = node.params.player.value;
+		if (node.effectId === 'video') playerId = node.staticSettings.player;
 		else if (node.effectId === 'audioWaveform' && node.params.audio?.inputSource === 'literal') {
 			const audio = node.params.audio.value;
 			if (audio != null && typeof audio === 'object' && 'type' in audio && audio.type === 'player' && 'playerId' in audio) playerId = audio.playerId;
@@ -761,10 +765,8 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 				for (const { visualModule } of listVisualModules(state)) {
 					for (const node of visualModule.nodes) {
 						if (node.type !== 'effect') continue;
-						for (const { path, def, value } of walkNodeParams(node)) {
-							if ((def.dataType.kind === 'imageAssetTextureReference' || def.dataType.kind === 'assetReference') && value.inputSource === 'literal' && value.value === payload.assetId) {
-								resolveNodeParam(node, path).setValue({ inputSource: 'literal', value: null });
-							}
+						for (const [key, definition] of Object.entries(effectDefinitions[node.effectId].staticSettingDefs ?? {})) {
+							if (definition.dataType.kind === 'assetReference' && node.staticSettings[key] === payload.assetId) node.staticSettings[key] = null;
 						}
 					}
 				}
@@ -1107,6 +1109,57 @@ const changeNodeDisplayNameCommandDef = defineCommand<NodeTarget & { displayName
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'effect') throw new Error('Effect node not found');
 				node.displayName = before;
+			},
+		};
+	},
+});
+
+const changeNodeStaticSettingCommandDef = defineCommand<NodeTarget & { key: string; value: string | number | boolean | null }>({
+	label: 'Change node static setting',
+	changes: (_state, payload) => [{ type: 'node', target: payload, nodeId: payload.nodeId, changes: [{ type: 'staticSetting' }] }],
+	create: payload => {
+		let before: StaticSettingValues;
+		const getNode = (state: ProjectState) => {
+			const node = stateUtility.findNode(state, payload);
+			if (node?.type !== 'effect') throw new Error('Effect node not found');
+			return node;
+		};
+		return {
+			execute(state) {
+				const node = getNode(state);
+				const definition = effectDefinitions[node.effectId].staticSettingDefs?.[payload.key];
+				if (definition == null) throw new Error('Static setting not found');
+				validateStaticSettingValue(definition, payload.value);
+				before = { ...node.staticSettings };
+				node.staticSettings = { ...node.staticSettings, [payload.key]: payload.value };
+			},
+			undo(state) { getNode(state).staticSettings = { ...before }; },
+		};
+	},
+});
+
+const changeTimelineStaticSettingCommandDef = defineCommand<{ sceneId: string; layerId: string; key: string; value: string | number | boolean | null }>({
+	label: 'Change timeline static setting',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'staticSetting' }] }],
+	create: payload => {
+		let before: StaticSettingValues;
+		const getSettings = (state: ProjectState) => {
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			return getTimelineLayerStaticSettings(layer, layer.layerType === 'effect' ? effectDefinitions[layer.effectId] : null);
+		};
+		return {
+			execute(state) {
+				const { definitions, values } = getSettings(state);
+				const definition = definitions[payload.key];
+				if (definition == null) throw new Error('Static setting not found');
+				validateStaticSettingValue(definition, payload.value);
+				before = { ...values };
+				values[payload.key] = payload.value;
+			},
+			undo(state) {
+				const { values } = getSettings(state);
+				for (const key of Object.keys(values)) delete values[key];
+				Object.assign(values, before);
 			},
 		};
 	},
@@ -1515,12 +1568,12 @@ const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Timel
 	label: 'Add timeline layer',
 	// 単一レイヤーのルート追加では既存の兄弟を送り直さず、子孫を伴う追加だけ階層全体を通知する。
 	changes: (_state, payload) => isTimelineContainerLayer(payload.layer) ? [{ type: 'layerTree', sceneId: payload.sceneId }]
-		: [{
-			type: 'layer',
-			sceneId: payload.sceneId,
-			layerId: payload.layer.id,
-			changes: [{ type: 'definition' }],
-		}, { type: 'layerOrder', sceneId: payload.sceneId }],
+	: [{
+		type: 'layer',
+		sceneId: payload.sceneId,
+		layerId: payload.layer.id,
+		changes: [{ type: 'definition' }],
+	}, { type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => ({
 		execute(state) {
 			const scene = getScene(state, payload.sceneId);
@@ -1897,8 +1950,8 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 				validateTimelineClips(initialClips);
 				const bounds = 'sourceTimeMs' in initial
 					? getTimelineVideoHoldTrimBounds(initialClips, initial, payload.edge) : 'sourceInMs' in initial
-					? getTimelineMediaTrimBounds(initialClips, initial, payload.edge, sourceDurationMs!)
-					: getTimelineClipTrimBounds(initialClips, initial, payload.edge, layer.layerType === 'scene', sourceDurationMs ?? Infinity);
+						? getTimelineMediaTrimBounds(initialClips, initial, payload.edge, sourceDurationMs!)
+						: getTimelineClipTrimBounds(initialClips, initial, payload.edge, layer.layerType === 'scene', sourceDurationMs ?? Infinity);
 				if (bounds.minDelta > bounds.maxDelta) throw new Error('No valid clip duration within the media');
 				const delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, Math.round(payload.deltaMs)));
 				before = deepClone(clip);
@@ -2824,6 +2877,8 @@ export const COMMAND_DEFS = {
 	changeProjectResolution: changeProjectResolutionCommandDef,
 	changeExportSettings: changeExportSettingsCommandDef,
 	changeTimelineRenderSettings: changeTimelineRenderSettingsCommandDef,
+	changeNodeStaticSetting: changeNodeStaticSettingCommandDef,
+	changeTimelineStaticSetting: changeTimelineStaticSettingCommandDef,
 	changeEffectLayerResolution: changeEffectLayerResolutionCommandDef,
 	addTimelineLayer: addTimelineLayerCommandDef,
 	addTimelineAssetLayers: addTimelineAssetLayersCommandDef,

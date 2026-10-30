@@ -20,7 +20,7 @@ export default defineEffect({
 		mode: { dataType: { kind: 'enum', options: ['value', 'intensity', 'luminance'] }, ui: { label: 'Mode', control: { labels: { value: 'Value (Max)', intensity: 'Intensity (Average)', luminance: 'Luminance' } } }, defaultValue: { inputSource: 'literal', value: 'luminance' } },
 	},
 	primaryInputParameter: 'input',
-	resolutionInputParameter: 'input',
+	resolutionInputParameters: ['input'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

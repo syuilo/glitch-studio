@@ -527,7 +527,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
 		effectDefinitions: { pass: { paramDefs: {
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		}, primaryInputParameter: 'input', resolutionInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
+		}, primaryInputParameter: 'input', resolutionInputParameters: ['input'], outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
 	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
 	renderer.on('ev', event => {

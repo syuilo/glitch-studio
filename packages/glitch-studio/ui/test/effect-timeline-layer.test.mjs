@@ -247,10 +247,11 @@ test('edits and restores LUT assets and references through commands', async () =
 	const original = { id: 'lut', name: 'Look', width: 0, height: 0, fileDataType: 'application/x-cube-lut',
 		fileData: new Blob(['LUT_1D_SIZE 2\n0 0 0\n1 1 1']), sourceFilePath: null, thumbnailSequence: null };
 	f.state.assets.value.push(original);
-	const selection = f.edit(['lut'], { kind: 'literal', value: 'lut' });
-	assert.deepEqual(f.read(['lut']), literal('lut'));
+	const selection = COMMAND_DEFS.changeTimelineStaticSetting.create({ sceneId: 'scene', layerId: f.layer.id, key: 'lut', value: 'lut' });
+	selection.execute(f.state);
+	assert.equal(f.layer.effectStaticSettings.lut, 'lut');
 	selection.undo(f.state);
-	assert.deepEqual(f.read(['lut']), literal(null));
+	assert.equal(f.layer.effectStaticSettings.lut, null);
 	selection.execute(f.state);
 	const replacement = COMMAND_DEFS.replaceAsset.create({ ...original, assetId: 'lut', fileData: new Blob(['replacement']) });
 	replacement.execute(f.state);
@@ -258,14 +259,14 @@ test('edits and restores LUT assets and references through commands', async () =
 	replacement.undo(f.state);
 	assert.equal(await f.state.assets.value[0].fileData.text(), 'LUT_1D_SIZE 2\n0 0 0\n1 1 1');
 	f.state.visualModules.value.push({ id: 'visual', nodes: [{ id: 'lut-node', type: 'effect', effectId: 'applyLut',
-		params: { input: literal([0, 0, 0, 0]), lut: literal('lut') } }] });
+		staticSettings: { lut: 'lut' }, params: { input: literal([0, 0, 0, 0]) } }] });
 	const removal = COMMAND_DEFS.removeAsset.create({ assetId: 'lut' });
 	removal.execute(f.state);
 	assert.equal(f.state.assets.value.length, 0);
-	assert.deepEqual(f.state.visualModules.value[0].nodes[0].params.lut, literal(null));
-	assert.deepEqual(f.read(['lut']), literal('lut'));
+	assert.equal(f.state.visualModules.value[0].nodes[0].staticSettings.lut, null);
+	assert.equal(f.layer.effectStaticSettings.lut, 'lut');
 	removal.undo(f.state);
-	assert.deepEqual(f.state.visualModules.value[0].nodes[0].params.lut, literal('lut'));
+	assert.equal(f.state.visualModules.value[0].nodes[0].staticSettings.lut, 'lut');
 	assert.equal(f.state.assets.value[0].id, 'lut');
 });
 

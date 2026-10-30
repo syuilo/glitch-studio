@@ -62,17 +62,19 @@ App.vueの全体受付でも、ファイルのホバー中は「Drop here」を�
 
 ファイルの読み込み・サムネイル生成からノード反映まで同じprogressダイアログを維持します。`importAssets`の配置準備コールバックへ読み込んだAsset・Player・ダイアログを渡し、`AssetImportPlacement`でTimelineまたはVisual Moduleへの配置を指定します。Asset・Player・ノードを一つのCommandで反映し、参照の検証が失敗した場合は部分追加しません。既存Assetは進捗ダイアログを表示せず、`addVisualModuleAssetNodes`で不足するPlayerとノードだけを追加します。ノードに対応しないファイルはAssetsへ取り込んでパネルを開き、同じ種類の既存Assetは無視します。
 
-## パラメータからのAsset参照
+## 静的設定からのAsset参照
 
-動画・フォント・LUTを直接参照するパラメータは、`{ kind: 'assetReference', assetType: 'video' | 'font' | 'lut' }`で表します。保存値はAsset IDまたはnullです。`assetType`は型の一部で、選択候補の絞り込み・描画前の検証・実行時のリソース解決に共通のMIME制約を使います。参照の収集・ID再割り当て・削除時の参照解除は種類によらず扱います。
+画像・動画・フォント・LUTを直接参照する静的設定は、`{ kind: 'assetReference', assetType: 'image' | 'video' | 'font' | 'lut' }`で表します。保存値はAsset IDまたはnullです。`assetType`は型の一部で、選択候補の絞り込み・描画前の検証・実行時のリソース解決に共通のMIME制約を使います。参照の収集・ID再割り当て・削除時の参照解除は種類によらず扱います。
 
-画像をGPUTextureとして受け取る`imageAssetTextureReference`は、Asset自体を受け取る`assetReference`とは別の型です。動画の`assetReference`は素材を直接参照し、Playerの再生状態を参照しません。
+画像の`assetReference`は実行時にGPUTextureへ解決します。`imageAssetTextureReference`は廃止しました。動画の`assetReference`は素材を直接参照し、Playerの再生状態を参照しません。
+
+素材・PlayerのIDは静的設定に直接保存し、通常パラメータ・Custom Parameterでは公開しません。Textレイヤーのフォントは`textStaticSettings.font`、VOICEVOX字幕は`subtitleStaticSettings.font`に保存します。
 
 ## LUT Asset
 
 `.cube`は取り込み時に`application/x-cube-lut`へ正規化し、原本のBlobを保存します。表示名の拡張子を再判定しないため、改名後も種類は維持されます。Playerは作りません。内容の解析・検証はエフェクトが使用する際に行い、取り込み時にはデコードしません。
 
-`{ kind: 'assetReference', assetType: 'lut' }`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。カスタムパラメータへの公開、Asset差し替え、Visual Module内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gsvm`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの引数などに残った参照切れは描画前の検証で通知します。
+`{ kind: 'assetReference', assetType: 'lut' }`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。Asset差し替え、Visual Module内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gsvm`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの静的設定などに残った参照切れは描画前の検証で通知します。
 
 LUTの解析・GPU処理はEffect subsystemの`fx/applyLut`が所有し、UIやプロジェクトに依存しません。詳しくは[Apply LUT](../packages/subsystems/effect/shared/src/fx/applyLut/README.md)を参照してください。
 

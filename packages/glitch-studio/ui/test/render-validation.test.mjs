@@ -44,29 +44,29 @@ const nodeChange = nodeId => [{ type: 'node', target: { visualModuleId: 'visualM
 // 通常値の変更を省略する静的shapeにLUT IDを含めないと、別Assetへの切替を見落とす。
 // Asset差し替えの依存通知でも再検証し、誤った種類を描画へ渡さない。
 test('revalidates LUT selection and asset replacement', () => {
-	const selected = node('lut', literal('first'));
+	const selected = { ...node('lut'), staticSettings: { lut: 'first' } };
 	const { state } = fixture([visualModule([selected])]);
 	state.assets.value.push({ id: 'first', fileDataType: 'application/x-cube-lut' }, { id: 'second', fileDataType: 'font/ttf' });
-	const lutDefinitions = { effect: { ...definitions.effect, primaryInputParameter: null, paramDefs: {
-		amount: { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: 'LUT', control: {} }, defaultValue: literal(null) },
+	const lutDefinitions = { effect: { ...definitions.effect, primaryInputParameter: null, staticSettingDefs: {
+		lut: { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: 'LUT' }, defaultValue: null },
 	} } };
 	const validation = new ProjectRenderValidation(state, lutDefinitions);
 	validation.reset();
 	assert.equal(validation.errorMessage.value, null);
-	selected.params.amount = literal('second');
+	selected.staticSettings.lut = 'second';
 	validation.update(nodeChange('lut'));
 	assert.match(validation.errorMessage.value, /Incompatible Asset/);
 	state.assets.value[1].fileDataType = 'application/x-cube-lut';
 	validation.update([{ type: 'asset', assetId: 'second' }]);
 	assert.equal(validation.errorMessage.value, null);
-	selected.params.amount = literal(null);
+	selected.staticSettings.lut = null;
 	validation.update(nodeChange('lut'));
 	assert.equal(validation.errorMessage.value, null);
 });
 
 function nestedParameterDefinition() {
 	return {
-		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { asset: { kind: 'imageAssetTextureReference' } } } },
+		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { asset: { kind: 'audioSource' } } } },
 		ui: { label: 'Inputs', control: { element: { fields: { asset: { label: 'Asset', control: {} } } } } },
 		element: { fields: { asset: { defaultValue: literal(null), canNode: false } }, defaultValue: literal({ asset: literal(null) }) },
 		defaultValue: literal([]),
@@ -80,18 +80,18 @@ test('inspects nested timeline bindings once while collecting references', () =>
 	const reads = [];
 	const elements = ['first', 'second'].map(id => ({ id, get binding() {
 		reads.push(id);
-		return literal({ get asset() { reads.push(id + '/asset'); return literal(id + '-asset'); } });
+		return literal({ get asset() { reads.push(id + '/asset'); return { inputSource: 'anotherLayerAudio', layerId: id + '-audio' }; } });
 	} }));
 	const effect = { ...definitions.effect, paramDefs: { inputs: nestedParameterDefinition() } };
 	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect',
 		resolution: { mode: 'context', scale: 1 }, effectParamValues: { inputs: literal(elements) } };
 	const references = [];
 	inspectTimelineLayer(layer, undefined, effect, (def, binding) => {
-		assert.equal(def.dataType.kind, 'imageAssetTextureReference');
-		references.push(binding.value);
+		assert.equal(def.dataType.kind, 'audioSource');
+		references.push(binding.layerId);
 	});
 	assert.deepEqual(reads, ['first', 'first/asset', 'second', 'second/asset']);
-	assert.deepEqual(references, ['first-asset', 'second-asset']);
+	assert.deepEqual(references, ['first-audio', 'second-audio']);
 });
 
 // 【レイヤー固有のパラメータも重複検証せず、通常のliteral値は静的検査から除外する】

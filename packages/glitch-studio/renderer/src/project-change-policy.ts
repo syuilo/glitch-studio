@@ -6,7 +6,7 @@ import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.t
 export function canPreserveNodeOutputCache(changes: readonly VisualModuleNodeChange[]): boolean {
 	// 値の編集は既存キーとの比較で依存先へ伝播する。それ以外はModule単位で
 	// 無効化することで、構造の差分から依存関係を追い直す仕組みを増やさない。
-	return changes.length > 0 && changes.every(change => change.type === 'parameter' && change.kind === 'value');
+	return changes.length > 0 && changes.every(change => change.type === 'staticSetting' || (change.type === 'parameter' && change.kind === 'value'));
 }
 
 export function canPreserveTimelineLayerInstance(changes: readonly TimelineLayerChange[]): boolean {

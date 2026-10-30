@@ -95,7 +95,7 @@ export default defineEffect({
 	},
 	// 素材の配列要素を主入力にはしない。自動解像度は全素材の最大画素数から求める。
 	primaryInputParameter: null,
-	resolutionInputParameter: null,
+	resolutionInputParameters: [],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

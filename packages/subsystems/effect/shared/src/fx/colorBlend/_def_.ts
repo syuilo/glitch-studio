@@ -40,7 +40,7 @@ export default defineEffect({
 		blendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Blend Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'add' } },
 	},
 	primaryInputParameter: 'inputA',
-	resolutionInputParameter: 'inputA',
+	resolutionInputParameters: ['inputA'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

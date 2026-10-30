@@ -9,6 +9,7 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
+		"./visual-module-resolutions.ts": "./src/visual-module-resolutions.ts",
 		"./visual-module-renderer.ts": "./src/visual-module-renderer.ts",
 		"./visual-module-live-preview-render-loop.ts": "./src/visual-module-live-preview-render-loop.ts"
 	},

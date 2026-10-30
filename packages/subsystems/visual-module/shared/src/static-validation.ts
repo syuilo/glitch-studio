@@ -1,3 +1,4 @@
+import { validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { inspectStaticParameter, staticParameterShape, validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
@@ -10,7 +11,7 @@ import type { VisualModule, VisualModuleNode } from './types.ts';
 
 export function visualModuleNodeStaticShape(node: VisualModuleNode, definitions: Readonly<Record<string, EffectDefinition>>): unknown {
 	if (node.type !== 'effect') return node.type === 'relay' ? [node.type, node.input] : node.type === 'globalOut' ? [node.type, node.inputs] : node.type;
-	return [node.effectId, node.resolution, Object.entries(node.params).map(([key, binding]) => [key, staticParameterShape(definitions[node.effectId]?.paramDefs[key], binding)])];
+	return [node.effectId, node.resolution, node.staticSettings, Object.entries(node.params).map(([key, binding]) => [key, staticParameterShape(definitions[node.effectId]?.paramDefs[key], binding)])];
 }
 
 export function validateVisualModuleInterface(visualModule: VisualModule): void {
@@ -41,6 +42,7 @@ export function inspectVisualModuleNode(node: VisualModuleNode, visualModule: Vi
 	const definition = definitions[node.effectId];
 	if (!definition) throw new Error('Effect not found: ' + node.effectId);
 	validateEffectResolution(node.resolution);
+	validateStaticSettings(definition.staticSettingDefs ?? {}, node.staticSettings ?? {});
 	for (const [key, def] of Object.entries(definition.paramDefs)) {
 		inspectStaticParameter(def, node.params[key], (leaf, binding) => {
 			onValue(leaf, binding);

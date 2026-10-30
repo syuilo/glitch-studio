@@ -10,6 +10,7 @@ export function createVoicevoxTimelineLayer(startMs: number): TimelineVoicevoxLa
 		id: genId(),
 		name: 'VOICEVOX',
 		layerType: 'voicevox',
+		subtitleStaticSettings: { font: null },
 		subtitleParamValues: createVoicevoxSubtitleParameterValues(),
 		isDisabled: false,
 		color: null,

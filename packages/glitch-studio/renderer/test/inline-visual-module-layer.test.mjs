@@ -88,7 +88,7 @@ function fixture(t, { present = false, disableCache = true, timelineFps = 60, ti
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: { probe: {
 			paramDefs: probeParamDefs,
-			primaryInputParameter: 'input', resolutionInputParameter: 'input', primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
+			primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
 		} },
 		effectImplementations: { probe: {
 			disableCache,
@@ -772,10 +772,10 @@ test('starts nested scenes on transparent backgrounds and materializes their can
 
 // 【入れ子のノードは所属Sceneの基準を使い、単独表示でも同じサイズになる】
 // 親のcustom寸法をproject指定の孫へ流さず、プレビュー・書き出し倍率を一度だけ適用する。
-// WIDTH/HEIGHT・Canvasの更新・解像度変更時の履歴破棄も同じ境界で確認する。
+// RESOLUTION[0]/RESOLUTION[1]・Canvasの更新・解像度変更時の履歴破棄も同じ境界で確認する。
 test('uses each containing scene for context nodes and preserves project references through nesting', async t => {
 	const { manager, calls } = fixture(t, { present: true });
-	const probe = id => layer(id, visualModule({ params: { amount: expression('WIDTH'), local: expression('HEIGHT') } }), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
+	const probe = id => layer(id, visualModule({ params: { amount: expression('RESOLUTION[0]'), local: expression('RESOLUTION[1]') } }), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
 	const scenes = [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [sceneLayer('child-placement', 'child')] },
 		{ id: 'child', name: 'Child', resolution: { mode: 'customAbsolute', width: 512, height: 256 }, layers: [probe('child-probe'), sceneLayer('leaf-placement', 'leaf')] },

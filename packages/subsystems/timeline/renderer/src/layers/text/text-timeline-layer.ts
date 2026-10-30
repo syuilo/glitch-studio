@@ -19,7 +19,7 @@ export function createTextTimelineLayer(layer: TimelineTextLayer, options: Param
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = { time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs };
 			const text = parameters.evaluate(layer.textParamValues, scope);
-			if (!await renderer.prepare(text.font == null ? null : options.getFont(text.font), signal) || disposed || signal.aborted) return { gpuTime: 0 };
+			if (!await renderer.prepare(layer.textStaticSettings.font == null ? null : options.getFont(layer.textStaticSettings.font), signal) || disposed || signal.aborted) return { gpuTime: 0 };
 			const settings = compositing.evaluate({
 				...scope,
 				coordinateSpace: layer.coordinateSpace,

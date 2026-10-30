@@ -144,11 +144,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				},
 			},
 			onCreated: () => {
-				for (const player of this.players) {
-					const asset = player.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
-					const error = asset == null ? null : getFileSourceError(asset.fileData);
-					if (error != null) this.call('updateVideoFrame', [player.id, null, error]);
-				}
 				this.audioInputs.reconnectRenderer();
 				// 一時停止中の動画には新しいフレーム通知が来ないため、現在のフレームも送り直す。
 				for (const [id, media] of this.videoElements) {
@@ -253,6 +248,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		const oldPlayers = this.players;
 		const players = deepClone(newPlayers);
 		this.players = players;
+		await this.updateDynamicOptions({ players });
 
 		for (const [id, video] of this.videoElements) {
 			const oldPlayer = oldPlayers.find(player => player.id === id);
@@ -285,10 +281,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			if (!this.videoElements.has(player.id)) {
 				const asset = player.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
 				if (player.sourceType === 'asset' && !asset) continue;
-				if (asset != null && getFileSourceError(asset.fileData) != null) {
-					if (this.isReady.value) this.call('updateVideoFrame', [player.id, null, getFileSourceError(asset.fileData)]);
-					continue;
-				}
+				if (asset != null && getFileSourceError(asset.fileData) != null) continue;
 				if (this.isReady.value) this.call('updateVideoFrame', [player.id, null]);
 				const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
 				video.loop = true;
@@ -298,10 +291,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				this.videoElements.set(player.id, video);
 				if (player.sourceType === 'asset') this.audioInputs.registerPlayer(player.id, video);
 				// loadeddata後も、再生・シーク中に原本を読めなくなる場合がある。
-				// 初回の読み込み待機とは別に監視し、使用中のPlayerへ障害を伝える。
+				// 古い映像を残さずフレームを解除し、描画側では透明として継続する。
 				video.addEventListener('error', () => {
 					if (video.error == null || this.videoElements.get(player.id) !== video) return;
-					if (this.isReady.value) this.call('updateVideoFrame', [player.id, null, video.error.message]);
+					this.pendingVideoFrames.get(player.id)?.close();
+					this.pendingVideoFrames.delete(player.id);
+					if (this.isReady.value) this.call('updateVideoFrame', [player.id, null]);
 					this.onAssetReadFailure?.();
 					console.error(video.error);
 				});

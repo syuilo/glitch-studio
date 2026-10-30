@@ -91,7 +91,7 @@ test('keeps scene-time text keyframes when the last clip is removed', t => {
 	assert.equal(getLayerKeyframeParameters(f.state, f.layer).length, 1);
 	f.history.undo();
 	assert.deepEqual(f.layer.clips, [clip]);
-	assert.deepEqual(resolveLayerParameter(f.state, f.layer, 'text', ['font']).def.dataType, { kind: 'assetReference', assetType: 'font' });
+	assert.throws(() => resolveLayerParameter(f.state, f.layer, 'text', ['font']), /Unknown parameter/);
 });
 
 // 【本文・フォント・影・式を保存し、複製と読込後も保持する】
@@ -99,7 +99,7 @@ test('keeps scene-time text keyframes when the last clip is removed', t => {
 test('round-trips and duplicates text layers without sharing parameter values', async t => {
 	const f = fixture(t);
 	f.edit('text', { kind: 'literal', value: '日本語\nText' });
-	f.edit('font', { kind: 'literal', value: 'font-asset' });
+	f.history.commit('changeTimelineStaticSetting', { sceneId: 'scene', layerId: f.layer.id, key: 'font', value: 'font-asset' });
 	f.edit('shadowEnabled', { kind: 'literal', value: true });
 	f.edit('shadowColor', { kind: 'literal', value: [0.2, 0.4, 0.8, 0.5] });
 	f.edit('size', { kind: 'expression', value: 'TIME * 0.02' });

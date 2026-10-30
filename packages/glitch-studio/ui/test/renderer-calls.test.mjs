@@ -171,10 +171,10 @@ test('preserves external players across asset copies and replaces them when the 
 	assert.equal(controller.getMediaElement('player').src, reloaded.fileData.url);
 });
 
-// 【初回の読み込み後のPlayerの読み取り失敗も使用側へ伝える】
-// loadeddataで待機リスナーを解除した後も、原本の削除やシーク中のI/O失敗を見逃さない。
-// 未使用のPlayerの障害で全描画を止めず、参照するノードが評価される際に失敗させる。
-test('reports player read failures after the initial media load has completed', async t => {
+// 【Playerの読み取り失敗では古いフレームを解除し、レンダラーを動かし続ける】
+// 送信待ちのフレームが残ると、解除した後で古い映像が再送されてしまう。
+// エラー情報はWorkerへ送らず、映像なしの通知とAssetの再確認だけを行う。
+test('clears player frames without reporting a rendering error after media read failures', async t => {
 	class MediaElement extends EventTarget {
 		error = null;
 		get src() { return this.source; }
@@ -190,11 +190,15 @@ test('reports player read failures after the initial media load has completed', 
 	await controller.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'audio/wav', fileData: { url: 'app://external-assets/audio', size: 100, error: null } }] });
 	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: 'asset' }]);
 	const media = controller.getMediaElement('player');
+	let closed = 0;
+	controller.pendingVideoFrames.set('player', { close() { closed++; } });
 	media.error = { message: 'Original file was removed' };
 	media.dispatchEvent(new Event('error'));
 	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(rechecks, 1);
-	assert.deepEqual(instances[0].videoFrameUpdates.at(-1), ['player', null, 'Original file was removed']);
+	assert.deepEqual(instances[0].videoFrameUpdates.at(-1), ['player', null]);
+	assert.equal(closed, 1);
+	assert.equal(controller.pendingVideoFrames.has('player'), false);
 	assert.equal(controller.isReady.value, true);
 });
 

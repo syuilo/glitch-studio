@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/naming-convention */
-import type { AssetReferenceDataType, DataType, TextureDataType } from '../data-type/data-type.ts';
+import type { DataType, TextureDataType } from '../data-type/data-type.ts';
 import type { DataTypeUiDefinition } from '../data-type/data-type-ui.ts';
 import type { BlendMode } from '../color-blend.ts';
 import type { FitMode, WrapMode } from '../types.ts';
@@ -23,9 +23,6 @@ type ParameterDefaultValueMap = {
 	blendMode: BlendMode;
 	fitMode: FitMode;
 	wrapMode: WrapMode;
-	imageAssetTextureReference: string | null;
-	assetReference: string | null;
-	playerReference: null;
 	audioSource: null;
 	any: [number, number, number, number] | null;
 };
@@ -107,9 +104,6 @@ export type ParameterDefinition_BlendMode = ParameterDefinition<{ kind: 'blendMo
 export type ParameterDefinition_FitMode = ParameterDefinition<{ kind: 'fitMode' }>;
 export type ParameterDefinition_WrapMode = ParameterDefinition<{ kind: 'wrapMode' }>;
 export type ParameterDefinition_Enum<Options extends readonly string[] = readonly string[]> = ParameterDefinition<{ kind: 'enum'; options: Options }>;
-export type ParameterDefinition_ImageAssetTextureReference = ParameterDefinition<{ kind: 'imageAssetTextureReference' }>;
-export type ParameterDefinition_AssetReference<AssetType extends AssetReferenceDataType['assetType'] = AssetReferenceDataType['assetType']> = ParameterDefinition<{ kind: 'assetReference'; assetType: AssetType }>;
-export type ParameterDefinition_PlayerReference = ParameterDefinition<{ kind: 'playerReference' }>;
 export type ParameterDefinition_Struct<Fields extends Record<string, DataType> = Record<string, DataType>> = ParameterDefinition<{ kind: 'struct'; fields: Fields }>;
 export type ParameterDefinition_Array<Element extends DataType = DataType> = ParameterDefinition<{ kind: 'array'; elementType: Element }>;
 // 入力チャンネルをそのまま扱う汎用データ処理用。リテラルの編集UIは持たない。

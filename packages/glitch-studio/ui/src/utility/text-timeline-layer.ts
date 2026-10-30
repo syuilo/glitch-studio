@@ -10,6 +10,7 @@ export function createTextTimelineLayer(startMs: number): TimelineTextLayer {
 		id: genId(),
 		name: 'Text',
 		layerType: 'text',
+		textStaticSettings: { font: null },
 		textParamValues: createTextParameterValues(),
 		isDisabled: false,
 		color: null,

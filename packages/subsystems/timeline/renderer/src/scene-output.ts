@@ -25,15 +25,13 @@ const settings: TimelineCompositingSettings = {
 export function createSceneOutput(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat }) {
 	let compositor: ReturnType<typeof createTimelineCompositor> | null = null;
 	return {
-		/** ノード入力の画面が既に確定していれば、定数や素材の解像度をそのまま借用する。 */
+		/** 定数は維持し、テクスチャはノードへ宣言したSceneの寸法に揃える。 */
 		renderInput(encoder: GPUCommandEncoder, output: TimelineImage): TimelineImage {
-			const bounds = timelineImageBounds(output);
-			// ノードはTimelineのregionを解釈しない。Stretchで借用した素材など、
-			// 物理寸法の比率がSceneと異なる入力はここで画素へ確定してから渡す。
-			const sameAspectRatio = output.kind !== 'texture'
-				|| output.texture.width * options.resolution.height === output.texture.height * options.resolution.width;
-			return sameAspectRatio && bounds.left === -1 && bounds.bottom === -1 && bounds.right === 1 && bounds.top === 1
-				? output : { kind: 'texture', texture: this.render(encoder, output) };
+			if (output.kind === 'uniform') return output;
+			// 同じ縦横比でも物理寸法を揃え、素材差し替えや入力の有無で宣言寸法とずれないようにする。
+			// ノードはTimelineのregionを知らないため、画面外領域・Stretchもここで画素へ確定する。
+			const texture = this.render(encoder, output);
+			return texture === output.texture ? output : { kind: 'texture', texture };
 		},
 		render(encoder: GPUCommandEncoder, output: TimelineImage): GPUTexture {
 			const bounds = timelineImageBounds(output);

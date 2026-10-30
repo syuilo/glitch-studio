@@ -1,3 +1,5 @@
+import { validateStaticSettings } from '@gs/shared/static-setting.ts';
+import { getTimelineLayerStaticSettings } from './layer-static-settings.ts';
 import { validateTimelineLayerCustomParameterDefinitions } from './custom-parameters.ts';
 import { hasTimelineLayerParameters } from './types.ts';
 import { staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
@@ -72,6 +74,8 @@ export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualM
 	onValue: (definition: ParameterDefinition, binding: unknown) => void): void {
 	// コンテナの設定編集で子孫を再検証しない。子は各自の検証単位を持つ。
 	validateTimelineLayerStructure(layer);
+	const staticSettings = getTimelineLayerStaticSettings(layer, effect);
+	validateStaticSettings(staticSettings.definitions, staticSettings.values ?? {});
 	if (hasTimelineLayerParameters(layer)) validateTimelineLayerCustomParameterDefinitions(layer.customParameterDefs ?? []);
 	if (layer.layerType === 'effect' && !effect) throw new Error('Effect not found: ' + layer.effectId);
 	if ('visualModuleParamValues' in layer && !visualModule) throw new Error('Visual Module not found');

@@ -33,8 +33,9 @@ const color = { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }
 const definition = {
 	id: 'probe', displayName: 'Probe', kind: 'modify', tags: [],
 	description: { 'ja-JP': 'エフェクトレイヤーの動作を検証します。', 'en-US': 'Verifies effect layer behavior.' },
+	staticSettingDefs: { source: { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Source' }, defaultValue: null } }, intrinsicResolutionSetting: 'source',
 	paramDefs: { input: color, amount: scalar, forbidden: scalar, exported: scalar, ...nested.paramDefs },
-	primaryInputParameter: 'input', resolutionInputParameter: 'input', primaryOutput: 'output',
+	primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output',
 	outputDefs: { output: { dataType: { kind: 'color' } }, unused: { dataType: { kind: 'color' }, canLazyAllocation: true } },
 };
 const compositing = () => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), blendMode: literal('replace') });
@@ -42,7 +43,7 @@ const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, d
 const layer = (id, values = {}, overrides = {}) => ({
 	id, name: id, layerType: 'effect', effectId: 'probe', resolution: { mode: 'auto', scale: 1 },
 	clips: [clip('clip', 100, 1000, 20.5)], automationGraphs: [], compositingParamValues: compositing(),
-	effectParamValues: { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...values }, ...overrides,
+	effectStaticSettings: {}, effectParamValues: { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...values }, ...overrides,
 });
 
 function fixture(t, options = {}) {
@@ -64,7 +65,6 @@ function fixture(t, options = {}) {
 		queue: { submit() { calls.submits++; }, async onSubmittedWorkDone() {}, writeTexture() {}, writeBuffer() {} },
 	};
 	const implementation = {
-		getIntrinsicResolution: options.intrinsicResolution,
 		outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }), unused: ({ resolution }) => texture({ size: resolution }) },
 		init({ reportStatus, resolution }) {
 			const instance = { disposed: false, reportStatus, resolution };
@@ -88,7 +88,7 @@ function fixture(t, options = {}) {
 	t.after(() => manager.destroy());
 	const setup = (layers, extra = {}) => manager.updateDynamicOptions({
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers }], sceneId: 'scene',
-		resolution: { width: 320, height: 180 }, ...extra,
+		resolution: { width: 320, height: 180 }, assets: [{ id: 'intrinsic', width: 200, height: 100, fileDataType: 'video/mp4', fileData: new Blob() }], ...extra,
 	});
 	return { manager, calls, setup, implementation, directOptions: {
 		wgpu: { device, defaultVertexShaderModule: {}, intermediateTextureFormat: 'rgba8unorm', enable32bitDataTextures: false },
@@ -345,9 +345,9 @@ test('evaluates nested bindings at scene time and renders primary output at cont
 	await assert.rejects(f.manager.renderTimelineFrame(400, 0), /Base expression/);
 });
 
-// 【下層入力は同じSceneの合成結果を借用し、色を二重に乗算しない】
+// 【下層入力の寸法をSceneへ揃え、定数の色を二重に乗算しない】
 // 主入力以外や配列要素も同じ画像を独立したサンプリング設定で読める必要がある。
-test('borrows lower composites for secondary inputs and preserves premultiplied uniforms', async t => {
+test('normalizes lower composites for secondary inputs and preserves premultiplied uniforms', async t => {
 	const f = fixture(t);
 	const bottom = layer('bottom', {}, { resolution: { mode: 'customAbsolute', width: 160, height: 90 } });
 	const top = layer('top', { input, foo: literal({ node: input }) });
@@ -355,10 +355,12 @@ test('borrows lower composites for secondary inputs and preserves premultiplied 
 	await f.manager.renderTimelineFrame(350, 0);
 	const [source, receiver] = f.calls.renders;
 	assert.deepEqual(source.params.input, { kind: 'uniform', value: [0.5, 0, 0, 0.5] });
-	assert.deepEqual(receiver.params.foo.node, { kind: 'texture', texture: source.outputDataMap.output.texture, fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' });
-	assert.deepEqual(receiver.instance.resolution, { width: 80, height: 45 });
+	assert.deepEqual([receiver.params.foo.node.texture.width, receiver.params.foo.node.texture.height], [160, 90]);
+	assert.notEqual(receiver.params.foo.node.texture, source.outputDataMap.output.texture);
+	assert.deepEqual({ ...receiver.params.foo.node, texture: null }, { kind: 'texture', texture: null, fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' });
+	assert.deepEqual(receiver.instance.resolution, { width: 160, height: 90 });
 	assert.equal(source.outputDataMap.output.texture.destroyed, false);
-	assert.equal(f.calls.passes.length, 0);
+	assert.equal(f.calls.passes.length, 1);
 	const direct = createEffectTimelineLayer(top, definition, f.implementation, f.directOptions);
 	t.after(() => direct.destroy());
 	await direct.evaluate({ sceneTimeMs: 350, contentTimeMs: 270.5, timeDelta: 0, isExport: false, getInput: async () => ({ kind: 'uniform', value: [0.25, 0, 0, 0.5] }) }, new AbortController().signal);
@@ -384,7 +386,7 @@ test('resolves context and intrinsic sizes within nested scenes without inheriti
 	assert.deepEqual(childSource, { type: 'timelineLayer', instanceId: childSource.instanceId,
 		rootSceneId: 'scene', layerId: 'child', clipId: 'clip', layerPath: ['placed', 'childClip', 'child'] });
 	for (const [resolution, expected] of [[{ mode: 'auto', scale: 1 }, { width: 100, height: 50 }], [{ mode: 'context', scale: 1 }, { width: 160, height: 90 }]]) {
-		await f.setup([layer('intrinsic', { amount: literal(1) }, { resolution })], { resolutionScale: 0.5 });
+		await f.setup([layer('intrinsic', { amount: literal(1) }, { resolution, effectStaticSettings: { source: 'intrinsic' } })], { resolutionScale: 0.5 });
 		await f.manager.renderTimelineFrame(350, 0);
 		assert.deepEqual(f.calls.renders.at(-1).instance.resolution, expected);
 	}
@@ -400,7 +402,7 @@ test('applies effect layer scales to intrinsic input and context sizes and refre
 		[{}, { mode: 'auto', scale: 0.25 }, { width: 40, height: 23 }],
 		[{ input }, { mode: 'auto', scale: 0.5 }, { width: 80, height: 45 }],
 	]) {
-		await f.setup([layer('scaled', values, { resolution })], { resolutionScale: 0.5 });
+		await f.setup([layer('scaled', values, { resolution, effectStaticSettings: { source: values.amount?.value === 1 ? 'intrinsic' : null } })], { resolutionScale: 0.5 });
 		await f.manager.renderTimelineFrame(350, 0);
 		assert.deepEqual(f.calls.renders.at(-1).instance.resolution, expected);
 		assert.deepEqual(f.calls.states.at(-1).status.outputs.output, expected);
@@ -577,10 +579,9 @@ test('resolves nested source references across groups and skips unavailable targ
 	assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
 });
 
-// 【Visual Moduleの公開主入力を別レイヤーへ差し替えても元の画像をIn経由で渡す】
-// 主入力への下層自動割当が明示Bindingを上書きしたり、入口で不要な再サンプリングを
-// 行ったりしないことを、実際のVisualModuleRendererと後続エフェクトを通して検証する。
-test('routes an explicit public primary input through a Visual Module without resampling', async t => {
+// 【Visual Moduleの明示した公開主入力を優先し、素材をSceneの宣言寸法へ揃える】
+// 同じ縦横比の素材も入口で正規化し、クリップの切り替えで入力寸法が変化しないようにする。
+test('normalizes an explicit public primary input before routing it through a Visual Module', async t => {
 	const f = fixture(t);
 	const visualModule = { id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'image' }],
 		primaryInputId: 'image', primaryOutputId: 'output', automationGraphs: [],
@@ -594,8 +595,9 @@ test('routes an explicit public primary input through a Visual Module without re
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.equal(f.calls.renders.length, 2);
 	const [source, receiver] = f.calls.renders;
-	assert.equal(receiver.params.input.texture, source.outputDataMap.output.texture);
-	assert.equal(receiver.params.input.texture.width, 80);
+	assert.notEqual(receiver.params.input.texture, source.outputDataMap.output.texture);
+	assert.equal(receiver.params.input.texture.width, 320);
+	assert.equal(receiver.params.input.texture.height, 180);
 });
 
 // 【公開入力の削除では、共有していた確定画像を解放して残る入力だけを再確保する】
@@ -674,4 +676,15 @@ test('does not evaluate masks when only the uncomposited source is requested', a
 	await f.setup([target, maskSource, layer('receiver', { amount: literal(33), input: imageReference('target') })]);
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.deepEqual(f.calls.renders.map(call => call.params.amount), [11, 33]);
+});
+
+// 【エフェクトレイヤーも初回から実際の計算用寸法を式に公開する】
+// Scene全体の寸法を渡すとcustomAbsoluteやプレビュー倍率でVMと結果が揃わない。
+test('exposes the scaled static effect layer RESOLUTION on its first evaluation', async t => {
+	const f = fixture(t);
+	const effect = layer('effect', { amount: expression('RESOLUTION[0] + RESOLUTION[1]') }, { resolution: { mode: 'customAbsolute', width: 51, height: 19 } });
+	await f.setup([effect], { resolutionScale: 0.5 });
+	await f.manager.renderTimelineAt(350);
+	assert.deepEqual(f.calls.instances[0].resolution, { width: 26, height: 10 });
+	assert.equal(f.calls.renders[0].params.amount, 36);
 });

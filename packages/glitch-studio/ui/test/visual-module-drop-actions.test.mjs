@@ -60,9 +60,9 @@ test('imports media nodes in order with one undo and preserves existing wiring',
 	assert.equal(await f.actions.dropFiles(files), true);
 	assert.deepEqual(f.visualModule.nodes.map(node => node.effectId ?? node.type), ['globalIn', 'fill', 'image', 'video', 'audioWaveform', 'globalOut']);
 	const nodes = f.visualModule.nodes.slice(2, 5);
-	assert.equal(nodes[0].params.image.value, f.state.assets.value[0].id);
+	assert.equal(nodes[0].staticSettings.image, f.state.assets.value[0].id);
 	assert.equal(nodes[0].params.fit.value, 'cover');
-	assert.equal(nodes[1].params.player.value, f.state.players.value[0].id);
+	assert.equal(nodes[1].staticSettings.player, f.state.players.value[0].id);
 	assert.deepEqual(nodes[2].params.audio.value, { type: 'player', playerId: f.state.players.value[1].id });
 	assert.equal(nodes[2].params.channel.value, 'stereo');
 	assert.equal(f.state.assets.value.length, 5);
@@ -90,7 +90,7 @@ test('reuses existing players and creates missing players with an atomic node ad
 		{ id: 'audio', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }, { id: 'font', name: 'Font', fileDataType: 'font/ttf', fileData: new Blob() });
 	f.state.players.value.push({ id: 'existing', name: 'Existing', sourceType: 'asset', assetId: 'video' });
 	assert.equal(await f.actions.dropAsset('video'), true);
-	assert.equal(f.visualModule.nodes[2].params.player.value, 'existing');
+	assert.equal(f.visualModule.nodes[2].staticSettings.player, 'existing');
 	assert.equal(f.state.players.value.length, 1);
 	assert.equal(await f.actions.dropAsset('audio'), true);
 	assert.equal(f.state.players.value.length, 2);

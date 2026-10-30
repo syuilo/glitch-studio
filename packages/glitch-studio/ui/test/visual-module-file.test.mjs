@@ -11,6 +11,7 @@ const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export * from './src/gsvm.ts';
+		export { default as imageDefinition } from '@gs/subsystems_effect_shared/fx/image/_def_.ts';
 		export * from './src/utility/visual-module-file.ts';
 		export { ProjectContext } from './src/Project.ts';
 		export { createProjectVisualModule } from './src/utility/project-visual-module.ts';
@@ -21,17 +22,17 @@ const bundle = await build({
 	define: { _VERSION_: '"2.0.0-alpha.1"' },
 	plugins: [i18nPlugin, { name: 'visual-module-file-platform', setup(build) {
 		build.onResolve({ filter: /effect-definitions\.[jt]s$|preferences\.ts$|(?:\/|\\)ui\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
-		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts',
+		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory,
 			contents: path.endsWith('preferences.ts') ? 'export const preferences = { s: { forceTypeSafety: false } };'
 				: /ui\.ts$/.test(path) ? 'export async function alert(options) { globalThis.visualModuleAlerts.push(options); }'
-					: 'export const effectDefinitions = {};',
+					: "import image from '@gs/subsystems_effect_shared/fx/image/_def_.ts'; export const effectDefinitions = { image };",
 		}));
 	} }],
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', 'console', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports, { ...console, log() {}, error() {} });
 const { collectVisualModuleFile, encodeVisualModuleFile, decodeVisualModuleFile, prepareVisualModuleImport,
-	ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, importVisualModuleFile, exportVisualModuleFile, createProjectVisualModule } = loaded.exports;
+	imageDefinition, ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, importVisualModuleFile, exportVisualModuleFile, createProjectVisualModule } = loaded.exports;
 
 const literal = value => ({ inputSource: 'literal', value });
 const parameter = (dataType, value = null) => ({ dataType: typeof dataType === 'string' ? { kind: dataType } : dataType,
@@ -41,34 +42,22 @@ function asset(id, type = 'image/png') {
 		sourceFilePath: 'C:/private/' + id, hash: 'hash-' + id };
 }
 function fixture() {
-	const nested = {
-		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { image: { kind: 'imageAssetTextureReference' }, font: { kind: 'assetReference', assetType: 'font' } } } },
-		ui: { label: 'Nested', control: { element: { fields: { image: { label: 'Image', control: {} }, font: { label: 'Font', control: {} } } } } },
-		defaultValue: literal([]),
-		element: { defaultValue: literal({ image: literal(null), font: literal(null) }),
-			fields: { image: { defaultValue: literal(null) }, font: { defaultValue: literal(null) } } },
-	};
-	const definitions = { resources: { paramDefs: {
-		image: parameter('imageAssetTextureReference'), video: parameter({ kind: 'assetReference', assetType: 'video' }), player: parameter('playerReference'),
-		audio: parameter('audioSource'), nested, amount: parameter('scalar', 1), input: { ...parameter('color', [0, 0, 0, 0]), canNode: true },
-	} } };
-	const template = structuredClone(nested);
-	template.id = 'template'; template.nameForReference = 'template'; template.canNode = false;
-	template.element.defaultValue.value.image.value = 'template-image';
-	template.element.fields.font.defaultValue.value = 'template-font';
+	const setting = (assetType, label = assetType) => ({ dataType: assetType === 'player' ? { kind: 'playerReference' } : { kind: 'assetReference', assetType }, ui: { label }, defaultValue: null });
+	const definitions = { resources: { staticSettingDefs: {
+		image: setting('image'), video: setting('video'), player: setting('player'), nestedImage: setting('image'), font: setting('font'), templateImage: setting('image'), templateFont: setting('font'),
+	}, paramDefs: { audio: parameter('audioSource'), amount: parameter('scalar', 1), input: { ...parameter('color', [0, 0, 0, 0]), canNode: true } } } };
 	const visualModule = {
 		id: 'source-visual-module', name: 'Source Visual Module',
 		nodes: [
 			{ id: 'in', type: 'globalIn' },
 			{ id: 'effect', type: 'effect', effectId: 'resources', displayName: 'Resource Node', isBypass: false, resolution: { mode: 'auto', scale: 1 }, pos: { x: 3, y: 4 },
-				params: { image: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'image' }, video: literal('video'), player: literal('file-player'),
-					audio: literal({ type: 'player', playerId: 'microphone' }), amount: { inputSource: 'expression', expression: 'TIME * 0.5' },
-					nested: literal([{ id: 'element', binding: literal({ image: literal('nested-image'), font: literal('font') }) }]),
+				staticSettings: { image: 'default-image', video: 'video', player: 'file-player', nestedImage: 'nested-image', font: 'font', templateImage: 'template-image', templateFont: 'template-font' },
+				params: { audio: literal({ type: 'player', playerId: 'microphone' }), amount: { inputSource: 'expression', expression: 'TIME * 0.5' },
 					input: { inputSource: 'node', nodeId: 'in', outputPort: 'input', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } } },
 			{ id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: 'effect', outputPort: 'output' } },
 			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'relay', outputPort: 'output' } } },
 		],
-		paramDefs: [{ ...parameter('imageAssetTextureReference', 'default-image'), id: 'image', nameForReference: 'image', canNode: false }, template,
+		paramDefs: [{ ...parameter('scalar', 1), id: 'amount', nameForReference: 'amount', canNode: false },
 			{ ...parameter('color', [0, 0, 0, 0]), id: 'input', nameForReference: 'input', canNode: true },
 			{ ...parameter('audioSource'), id: 'audio', nameForReference: 'audio', canNode: false }],
 		outputDefs: [{ id: 'output', name: 'output', label: 'Output', dataType: { kind: 'color' } }],
@@ -88,17 +77,15 @@ function ids(prefix) { let index = 0; return () => `${prefix}-${++index}`; }
 // 同じLUTを複数箇所で使っていても、一つの原本と新しい共通IDにまとめる。
 test('packages LUT references and remaps them on Visual Module import', async () => {
 	const f = fixture();
-	f.definitions.resources.paramDefs.lut = parameter({ kind: 'assetReference', assetType: 'lut' });
-	f.visualModule.nodes[1].params.lut = literal('lut');
-	f.visualModule.paramDefs.push({ ...parameter({ kind: 'assetReference', assetType: 'lut' }, 'lut'), id: 'look', nameForReference: 'look', canNode: false });
+	f.definitions.resources.staticSettingDefs.lut = { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: 'LUT' }, defaultValue: null };
+	f.visualModule.nodes[1].staticSettings.lut = 'lut';
 	f.input.assets.push(asset('lut', 'application/x-cube-lut'));
 	const decoded = decodeVisualModuleFile(await encodeVisualModuleFile(f.file()), f.input.gsVersion);
 	assert.equal(decoded.assets.filter(item => item.id === 'lut').length, 1);
 	const imported = prepareVisualModuleImport(decoded, f.definitions, ids('lut-import'));
 	const lut = imported.assets.find(item => item.fileDataType === 'application/x-cube-lut');
 	assert.notEqual(lut.id, 'lut');
-	assert.equal(imported.visualModule.nodes[1].params.lut.value, lut.id);
-	assert.equal(imported.visualModule.paramDefs.find(def => def.nameForReference === 'look').defaultValue.value, lut.id);
+	assert.equal(imported.visualModule.nodes[1].staticSettings.lut, lut.id);
 	assert.deepEqual([...new Uint8Array(await lut.fileData.arrayBuffer())], [1, 2, 3, 4]);
 });
 
@@ -123,7 +110,7 @@ test('round trips referenced media and definition defaults without project paths
 		assert.deepEqual([...new Uint8Array(await item.fileData.arrayBuffer())], [1, 2, 3, 4]);
 	}
 	assert.equal(decoded.visualModule.nodes[1].displayName, 'Resource Node');
-	assert.equal(decoded.visualModule.paramDefs[0].defaultValue.value, 'default-image');
+	assert.equal(decoded.visualModule.paramDefs[0].defaultValue.value, 1);
 });
 
 // 【取り込みごとに共有リソースのIDを変え、内部の配線と既定値を維持する】
@@ -143,17 +130,18 @@ test('remaps project resources while preserving local wiring and resetting devic
 	assert.deepEqual(first.visualModule.automationGraphs, file.visualModule.automationGraphs);
 	const importedAsset = name => first.assets.find(item => item.name === name).id;
 	const params = first.visualModule.nodes[1].params;
-	assert.equal(params.video.value, importedAsset('video'));
-	assert.equal(params.nested.value[0].binding.value.image.value, importedAsset('nested-image'));
-	assert.equal(first.visualModule.paramDefs[0].defaultValue.value, importedAsset('default-image'));
-	assert.equal(first.visualModule.paramDefs[1].element.defaultValue.value.image.value, importedAsset('template-image'));
-	assert.equal(first.visualModule.paramDefs[1].element.fields.font.defaultValue.value, importedAsset('template-font'));
+	const settings = first.visualModule.nodes[1].staticSettings;
+	assert.equal(settings.video, importedAsset('video'));
+	assert.equal(settings.nestedImage, importedAsset('nested-image'));
+	assert.equal(settings.image, importedAsset('default-image'));
+	assert.equal(settings.templateImage, importedAsset('template-image'));
+	assert.equal(settings.templateFont, importedAsset('template-font'));
 	assert.equal(first.players[0].assetId, importedAsset('video'));
-	assert.equal(params.player.value, first.players[0].id);
+	assert.equal(settings.player, first.players[0].id);
 	assert.deepEqual(params.audio.value, { type: 'player', playerId: first.players[1].id });
 	assert.equal(first.players[1].sourceType, null);
 	assert.deepEqual(first.unassignedPlayerNames, ['Mic']);
-	assert.equal(file.visualModule.paramDefs[0].defaultValue.value, 'default-image');
+	assert.equal(file.visualModule.paramDefs[0].defaultValue.value, 1);
 });
 
 // 【未知の参照や動的な素材選択は状態変更の前に失敗する】
@@ -170,8 +158,8 @@ test('rejects missing resources unknown effects and dynamic resource bindings', 
 	unknown.visualModule.nodes[1].effectId = 'unknown';
 	assert.throws(unknown.file, /Unknown effect/);
 	const dynamic = fixture();
-	dynamic.visualModule.nodes[1].params.nested.value[0].binding.value.image = { inputSource: 'expression', expression: '"nested-image"' };
-	assert.throws(dynamic.file, /fixed value or a Custom Parameter/);
+	dynamic.visualModule.nodes[1].staticSettings.image = { inputSource: 'expression', expression: '"nested-image"' };
+	assert.throws(dynamic.file, /Invalid static setting/);
 	const missingPlayerAsset = fixture();
 	missingPlayerAsset.input.players[0].assetId = 'absent';
 	assert.throws(missingPlayerAsset.file, /Missing Asset/);
@@ -180,27 +168,15 @@ test('rejects missing resources unknown effects and dynamic resource bindings', 
 // 【素材・Playerの加工式は無効化中や未選択の基準値でも転送しない】
 // コード内のIDは取り込み時に再割り当てできず、無効な式も再有効化すると参照切れになる。
 // 基準値だけの収集で成功扱いにしないよう、直接参照・ネスト・公開既定値と読み込み側も確認する。
-test('rejects resource modifiers on export and import including disabled and unselected bindings', () => {
-	const cases = [
-		{ label: 'imageAssetTextureReference', binding: f => f.visualModule.paramDefs[0].defaultValue },
-		{ label: 'assetReference', binding: f => f.visualModule.nodes[1].params.video },
-		{ label: 'playerReference', binding: f => f.visualModule.nodes[1].params.player },
-		{ label: 'Image', binding: f => f.visualModule.nodes[1].params.nested.value[0].binding.value.image },
-		{ label: 'Font', binding: f => f.visualModule.paramDefs[1].element.fields.font.defaultValue },
-	];
-	for (const { label, binding } of cases) {
+test('rejects bindings and modifiers inside static settings on export and import', () => {
+	for (const key of ['image', 'video', 'player', 'font']) {
 		for (const enabled of [true, false]) {
-			for (const unselected of [false, true]) {
-				const f = fixture();
-				const file = f.file();
-				const value = binding(f);
-				if (unselected) value.value = null;
-				value.expressionModifier = { enabled, code: '"unused"' };
-				const expected = { message: `Cannot transfer "${label}": Remove its expression modifier and use a fixed Asset or Player reference, or a Custom Parameter.` };
-				assert.throws(f.file, expected);
-				file.visualModule = f.visualModule;
-				assert.throws(() => prepareVisualModuleImport(file, f.definitions), expected);
-			}
+			const f = fixture();
+			const file = f.file();
+			f.visualModule.nodes[1].staticSettings[key] = { inputSource: 'literal', value: null, expressionModifier: { enabled, code: '"unused"' } };
+			assert.throws(f.file, /Invalid static setting/);
+			file.visualModule = f.visualModule;
+			assert.throws(() => prepareVisualModuleImport(file, f.definitions), /Invalid static setting/);
 		}
 	}
 });
@@ -210,12 +186,12 @@ test('rejects resource modifiers on export and import including disabled and uns
 test('preserves non-resource modifiers and permits unmodified unselected resources', () => {
 	const f = fixture();
 	f.visualModule.nodes[1].params.amount.expressionModifier = { enabled: true, code: 'VALUE * 2' };
-	f.visualModule.nodes[1].params.video.value = null;
-	f.visualModule.nodes[1].params.player.value = null;
+	f.visualModule.nodes[1].staticSettings.video = null;
+	f.visualModule.nodes[1].staticSettings.player = null;
 	const imported = prepareVisualModuleImport(f.file(), f.definitions);
 	assert.deepEqual(imported.visualModule.nodes[1].params.amount, f.visualModule.nodes[1].params.amount);
-	assert.equal(imported.visualModule.nodes[1].params.video.value, null);
-	assert.equal(imported.visualModule.nodes[1].params.player.value, null);
+	assert.equal(imported.visualModule.nodes[1].staticSettings.video, null);
+	assert.equal(imported.visualModule.nodes[1].staticSettings.player, null);
 });
 
 // 【専用形式以外と未来の形式は読み込みを拒否する】
@@ -425,7 +401,7 @@ test('reports asset read errors before creating a download', async t => {
 	const broken = asset('broken');
 	broken.fileData = new class extends Blob { async arrayBuffer() { throw new Error('Unreadable'); } }();
 	context.stateManager.state.assets.value = [broken];
-	await exportVisualModuleFile(context, { nodes: [], paramDefs: [{ ...parameter('imageAssetTextureReference', 'broken'), id: 'image', nameForReference: 'image', canNode: false }],
+	await exportVisualModuleFile(context, { nodes: [{ id: 'image', type: 'effect', effectId: 'image', staticSettings: { image: 'broken' }, params: { fit: literal('contain') } }], paramDefs: [],
 		outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }, 'Broken');
 	assert.equal(links.length, 0);
 	assert.equal(alerts.length, 1);

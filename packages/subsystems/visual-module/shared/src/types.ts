@@ -1,3 +1,4 @@
+import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
@@ -23,6 +24,7 @@ export type VisualModuleEffectNode = {
 	isBypass: boolean;
 	resolution: EffectResolution;
 	params: Record<string, VisualModuleParameterBinding>;
+	staticSettings: StaticSettingValues;
 
 	displayName: string;
 
@@ -63,7 +65,7 @@ export type VisualModuleNode = VisualModuleEffectNode | VisualModuleGlobalInNode
 // ノード自身の変更内容だけを表す。所属Moduleや変更後の描画方針は含めない。
 export type VisualModuleNodeChange =
 	| { type: 'parameter'; kind: ParameterChangeKind }
-	| { type: 'bypass' | 'resolution' };
+	| { type: 'bypass' | 'resolution' | 'staticSetting' };
 
 declare const visualModuleCustomParameterIdentity: unique symbol;
 
@@ -108,9 +110,10 @@ export type VisualModule = {
 // レイヤー・Visual Module Live Previewからは、モジュール内部のノードやパラメータを参照しない。
 export type VisualModuleArgumentBindings = Record<VisualModuleCustomParameterId, ValueParameterBinding>;
 
-export type EffectNodeOf<DEF extends Pick<EffectDefinition, 'id' | 'paramDefs'>> =
-	Omit<VisualModuleEffectNode, 'effectId' | 'params'> & {
+export type EffectNodeOf<DEF extends Pick<EffectDefinition, 'id' | 'paramDefs' | 'staticSettingDefs'>> =
+	Omit<VisualModuleEffectNode, 'effectId' | 'params' | 'staticSettings'> & {
 		effectId: DEF['id'];
+		staticSettings: StaticSettingValues<NonNullable<DEF['staticSettingDefs']>>;
 		params: {
 			[K in keyof DEF['paramDefs']]-?: VisualModuleParameterBinding;
 		};

@@ -1,5 +1,5 @@
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters, EffectStaticResources } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { EffectInstanceState, EffectStatus } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
@@ -8,7 +8,7 @@ import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 // インスタンスからの通知を無効化する世代とは独立し、描画のたびには更新しない。
 let nextResourceVersion = 0;
 
-type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs'>> = Omit<
+type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs'>> = Omit<
 	EffectRenderContext<Definition['paramDefs'], Definition['outputDefs']>,
 	'outputDataMap' | 'createPassEncoderFor' | 'createPassEncoder' | 'createComputePassEncoder'
 >;
@@ -20,9 +20,10 @@ type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outp
  * resourceVersion/cacheVersionを読む。入力の内容更新は呼び出し側のキーで扱う。
  * 返した出力を読むコマンドは、次の描画・再確保・破棄より前に呼び出し側でsubmitする。
  */
-export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs'> = EffectDefinition<any, any>> {
+export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs'> = EffectDefinition<any, any>> {
 	private instance: EffectInstance<Definition['paramDefs'], Definition['outputDefs']> | null = null;
 	private instanceGeneration = 0;
+	private staticResources: EffectStaticResources<Definition>;
 	private resourceVersionValue = ++nextResourceVersion;
 	private currentResolution: Resolution | null = null;
 	private readonly outputs = new Map<string, EffectOutputData>();
@@ -38,19 +39,21 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		implementation: EffectImplementation<Definition>;
 		wgpu: EffectGpuContext;
 		fallbackTexture: GPUTexture;
-		/** 未確定なら非遅延出力を1x1で仮確保し、初期化前にsetResolutionで確定する。 */
-		resolution?: Resolution | null;
+		staticResources?: EffectStaticResources<Definition>;
+		/** 出力の確保・初期化より前に、呼び出し側が静的に解決した寸法。 */
+		resolution: Resolution;
 		onState?: (state: EffectInstanceState | null) => void;
 		timingHelper?: TimingHelper | null;
 		enableStats?: boolean;
 	}) {
-		this.currentResolution = options.resolution == null ? null : { ...options.resolution };
+		this.staticResources = options.staticResources ?? {} as EffectStaticResources<Definition>;
+		this.currentResolution = { ...options.resolution };
 		this.lazyPorts = Object.keys(options.definition.outputDefs).filter(port => options.definition.outputDefs[port].canLazyAllocation);
 		this.outputState = this.emptyOutputState();
 		try {
 			for (const port of Object.keys(options.implementation.outputTextureFactories)) {
 				if (!options.definition.outputDefs[port].canLazyAllocation) {
-					this.outputs.set(port, this.createOutput(port, this.currentResolution ?? { width: 1, height: 1 }));
+					this.outputs.set(port, this.createOutput(port, this.currentResolution!));
 				}
 			}
 		} catch (error) {
@@ -102,11 +105,12 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	/** 必要ポートの収集は呼び出し側が行う。省略は全出力、空集合は利用なし。 */
 	setUsedOutputPorts(ports?: ReadonlySet<Extract<keyof Definition['outputDefs'], string>>) {
 		this.assertAlive();
+		if (this.currentResolution == null) throw new Error('Effect resolution has not been resolved');
 		for (const port of this.lazyPorts) {
 			const output = this.outputs.get(port);
 			if (ports == null || ports.has(port as Extract<keyof Definition['outputDefs'], string>)) {
 				if (output == null) {
-					this.outputs.set(port, this.createOutput(port, this.currentResolution ?? { width: 1, height: 1 }));
+					this.outputs.set(port, this.createOutput(port, this.currentResolution!));
 					this.resourceVersionValue = ++nextResourceVersion;
 				}
 			} else if (output != null) {
@@ -136,6 +140,20 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		this.currentResolution = { ...resolution };
 	}
 
+	/** 設定・借用リソースの変更時だけ呼ぶ。古い非同期処理と内部履歴も破棄する。 */
+	setStaticResources(resources: EffectStaticResources<Definition>) {
+		this.assertAlive();
+		this.releaseInstance();
+		this.staticResources = resources;
+		if (this.options.implementation.needsPreviousFrame === true && this.currentResolution != null) {
+			for (const [port, previous] of this.outputs) {
+				const output = this.createOutput(port, this.currentResolution);
+				this.destroyOutput(previous);
+				this.outputs.set(port, output);
+			}
+		}
+	}
+
 	/** 初期化で変化するcacheVersionも含め、呼び出し側はこの後でキャッシュを判定する。 */
 	initialize(params: RuntimeEffectParameters<Definition['paramDefs']>) {
 		this.assertAlive();
@@ -150,6 +168,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 				resolution: { ...this.currentResolution },
 				wgpu: this.options.wgpu,
 				params,
+				resources: this.staticResources,
 				fallbackTexture: this.options.fallbackTexture,
 			});
 		} catch (error) {

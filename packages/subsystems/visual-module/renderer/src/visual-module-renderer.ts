@@ -2,7 +2,6 @@ import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { constantShaderInput, toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
-import { playerAudioSourceId } from '@gs/shared/audio.ts';
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
@@ -10,7 +9,8 @@ import { VisualModuleParameterBindingEvaluator } from './visual-module-parameter
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
-import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect-node-resolution.ts';
+import { resolveVisualModuleResolutions } from './visual-module-resolutions.ts';
+import { getEffectIntrinsicResolution, resolveEffectStaticResources } from '@gs/subsystems_effect_renderer/effect-static-settings.ts';
 import { resolveEffectParameterValue } from '@gs/subsystems_effect_renderer/effect-parameter-value.ts';
 import { getEvaluatedParameterValue, mapParameterTree, walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
@@ -53,6 +53,10 @@ export class VisualModuleRenderer {
 	/** 呼び出し側から与えられた描画基準。倍率適用済みで、個々のノード寸法とは異なる。 */
 	private contextResolution: Resolution;
 	private resolutionScale: number;
+	private nodeResolutions = new Map<string, Resolution>();
+	private inputResolutions: ReadonlyMap<string, Resolution | null>;
+	private getPlayerResolution: ((playerId: string) => Resolution | null) | null;
+	private staticSettingKeys = new Map<string, string>();
 	private nodes: VisualModuleNode[] = [];
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
@@ -78,7 +82,6 @@ export class VisualModuleRenderer {
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private videoFrames: Map<string, VideoFrame>;
 	private videoFrameVersions: Map<string, number>;
-	private videoFrameErrors: ReadonlyMap<string, string>;
 	private assetTextures: Map<string, GPUTexture>;
 	private assets: Asset[];
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
@@ -97,11 +100,12 @@ export class VisualModuleRenderer {
 		fallbackTexture: GPUTexture;
 		resolution: Resolution;
 		resolutionScale?: number;
+		inputResolutions?: ReadonlyMap<string, Resolution | null>;
+		getPlayerResolution?: (playerId: string) => Resolution | null;
 		enable32bitDataTextures: boolean;
 		intermediateTextureFormat: IntermediateTextureFormat;
 		videoFrames: Map<string, VideoFrame>;
 		videoFrameVersions: Map<string, number>;
-		videoFrameErrors?: ReadonlyMap<string, string>;
 		assets: Asset[];
 		visualModule: VisualModule;
 		assetTextures: Map<string, GPUTexture>;
@@ -111,6 +115,8 @@ export class VisualModuleRenderer {
 		effectDefinitions: Record<string, EffectDefinition>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
+		this.inputResolutions = options.inputResolutions ?? new Map();
+		this.getPlayerResolution = options.getPlayerResolution ?? null;
 		this.gpuDevice = options.gpuDevice;
 		this.fallbackTexture = options.fallbackTexture;
 		this.paramDefs = options.visualModule.paramDefs;
@@ -122,7 +128,6 @@ export class VisualModuleRenderer {
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.videoFrames = options.videoFrames;
 		this.videoFrameVersions = options.videoFrameVersions;
-		this.videoFrameErrors = options.videoFrameErrors ?? new Map();
 		this.assetTextures = options.assetTextures;
 		this.assets = options.assets;
 		this.audioSources = options.audioSources;
@@ -171,8 +176,7 @@ export class VisualModuleRenderer {
 
 		const evalCtx = {
 			variables: {
-				WIDTH: this.contextResolution.width,
-				HEIGHT: this.contextResolution.height,
+				RESOLUTION: [0, 0],
 				TIME: context.time / 1000,
 				TIME_MS: context.time,
 				END_TIME: context.endTime / 1000,
@@ -193,13 +197,15 @@ export class VisualModuleRenderer {
 
 		const evaluated = new Map<VisualModuleNode['id'], Record<string, any>>();
 		for (const node of this.nodes.filter((n): n is VisualModuleEffectNode => n.type === 'effect')) {
+			const resolution = this.nodeResolutions.get(node.id)!;
+			const nodeEvalCtx = { ...evalCtx, variables: { ...evalCtx.variables, RESOLUTION: [resolution.width, resolution.height] } };
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
 			const evaluatedParamsPerNode = {} as Record<string, any>;
 			for (const [key, def] of Object.entries(paramDefs)) {
 				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
 				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
 					if (def.dataType.kind === 'audioSource' && param.inputSource === 'visualModuleCustomParameterReference') return null;
-					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
+					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, nodeEvalCtx,
 						def.dataType.kind === 'enum' ? null : genEmptyValue(def), def))); // TODO: genEmptyValueを遅延評価したい
 				});
 			}
@@ -244,7 +250,12 @@ export class VisualModuleRenderer {
 
 			const params = this.evaledNodeParams.get(node.id)!;
 			// 空配列・空structや要素数の変化もキーに含める。
-			key += JSON.stringify(params);
+			key += JSON.stringify([node.staticSettings, params]);
+			for (const [setting, definition] of Object.entries(this.effectDefinitions[node.effectId].staticSettingDefs ?? {})) {
+				if (definition.dataType.kind !== 'playerReference') continue;
+				const playerId = node.staticSettings[setting];
+				key += JSON.stringify([setting, typeof playerId === 'string' ? this.videoFrameVersions.get(playerId) ?? 0 : 0]);
+			}
 			for (const { def, param, path } of walkParameterLeaves<VisualModuleParameterBinding>(paramDefs, node.params)) {
 				const v = getEvaluatedParameterValue(params, path);
 				key += JSON.stringify([path, param.inputSource]);
@@ -257,11 +268,7 @@ export class VisualModuleRenderer {
 					if (input?.kind === 'texture') return null;
 					key += JSON.stringify(input);
 				}
-				if (def.dataType.kind === 'playerReference') {
-					key += JSON.stringify([path, 'videoFrameVersion', v == null ? 0 : this.videoFrameVersions.get(v) ?? 0]);
-					const audio = v == null ? null : this.audioSources.get(playerAudioSourceId(v));
-					key += JSON.stringify([path, 'audio', audio == null ? null : [audio.generation, audio.revision, audio.endFrame]]);
-				}
+
 				if (def.dataType.kind === 'audioSource') key += JSON.stringify([path, this.resolveAudioInput(node.id, path, param, v)?.cacheKey ?? null]);
 				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
 					const targetNode = this.allNodeIdMap.get(param.nodeId);
@@ -281,19 +288,12 @@ export class VisualModuleRenderer {
 			resolvedParams[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param, path) => {
 				const v = getEvaluatedParameterValue(params, path);
 				if (def.dataType.kind === 'audioSource') return this.resolveAudioInput(node.id, path, param, v);
-				if (def.dataType.kind === 'playerReference') {
-					const error = v == null ? null : this.videoFrameErrors.get(v);
-					if (error != null) throw new Error(error);
-					return v == null ? null : {
-						videoFrame: this.videoFrames.get(v) ?? null,
-						audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
-					};
-				}
+
 				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
 					const output = this.getOutputValue(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
 					return output == null ? constantShaderInput(def.dataType.kind, null) : toShaderInput(output, param);
 				}
-				return resolveEffectParameterValue(def, v, { assets: this.assets, assetTextures: this.assetTextures });
+				return resolveEffectParameterValue(def, v);
 			});
 		}
 		return resolvedParams;
@@ -343,7 +343,10 @@ export class VisualModuleRenderer {
 	public updateNodes(newNodes: VisualModuleNode[]) {
 		this.preparedContext = null;
 		++this.preparationVersion;
-		const oldEffectNodes = this.nodes.filter(node => node.type === 'effect');
+		this.nodes = newNodes;
+		this.allNodeIdMap = new Map(newNodes.map(node => [node.id, node]));
+		this.recomputeResolutions();
+		const oldEffectNodes = [...this.effectRenderers.keys()].map(id => ({ id }));
 		const newEffectNodes = newNodes.filter(node => node.type === 'effect');
 		const oldNodeIds = new Set(oldEffectNodes.map(node => node.id));
 		const newNodeIds = new Set(newEffectNodes.map(node => node.id));
@@ -353,23 +356,19 @@ export class VisualModuleRenderer {
 		for (const node of removedNodes) {
 			this.effectRenderers.get(node.id)?.dispose();
 			this.effectRenderers.delete(node.id);
+			this.staticSettingKeys.delete(node.id);
 			this.lazyEffectRenderers.delete(node.id);
 			this.usedOutputPorts.delete(node.id);
 			this.effectCacheKeys.delete(node.id);
 		}
 
 		for (const node of addedNodes) {
-			// 自動解像度は上流・素材の解決まで未確定。それまでは小さい仮出力を使う。
-			const resolution = node.resolution.mode === 'auto' ? null : resolveEffectNodeResolution({
-				setting: node.resolution,
-				contextResolution: this.contextResolution,
-				resolutionScale: this.resolutionScale,
-				maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
-			});
+			const resolution = this.nodeResolutions.get(node.id)!;
 			const renderer = new EffectRenderer({
 				definition: this.effectDefinitions[node.effectId],
 				implementation: this.effectImplementations[node.effectId],
 				resolution,
+				staticResources: this.resolveStaticResources(node),
 				wgpu: {
 					device: this.gpuDevice,
 					defaultVertexShaderModule: this.defaultVertexShaderModule,
@@ -381,19 +380,25 @@ export class VisualModuleRenderer {
 				timingHelper: this.timingHelper,
 				onState: state => this.onEffectState?.(node.id, state),
 			});
+			this.staticSettingKeys.set(node.id, JSON.stringify([node.effectId, node.staticSettings]));
 			this.effectRenderers.set(node.id, renderer);
 			if (renderer.hasLazyOutputs) this.lazyEffectRenderers.set(node.id, renderer);
 		}
 
 		for (const node of newEffectNodes) {
+			const renderer = this.effectRenderers.get(node.id)!;
+			renderer.setResolution(this.nodeResolutions.get(node.id)!);
+			const settingKey = JSON.stringify([node.effectId, node.staticSettings]);
+			if (this.staticSettingKeys.get(node.id) !== settingKey) {
+				renderer.setStaticResources(this.resolveStaticResources(node));
+				this.staticSettingKeys.set(node.id, settingKey);
+			}
 			if (node.isBypass) {
 				this.effectRenderers.get(node.id)!.clearOutputState();
 				// 履歴を維持したまま公開だけを休止し、再有効化時に再描画する。
 				this.effectCacheKeys.delete(node.id);
 			}
 		}
-		this.nodes = newNodes;
-		this.allNodeIdMap = new Map(newNodes.map(node => [node.id, node]));
 		this.renderNodeId = this.nodes.find(node => node.type === 'globalOut')?.id ?? null;
 	}
 
@@ -401,8 +406,15 @@ export class VisualModuleRenderer {
 		this.assets = assets;
 		this.preparedContext = null;
 		++this.preparationVersion;
-		// 同じAsset IDでもテクスチャを作り直すため、ネスト内の画像参照も再解決する。
+		// 同じAsset IDでもテクスチャを作り直すため、静的設定の参照も再解決する。
 		this.effectCacheKeys.clear();
+		this.recomputeResolutions();
+		for (const node of this.nodes) {
+			if (node.type !== 'effect') continue;
+			const renderer = this.effectRenderers.get(node.id)!;
+			renderer.setResolution(this.nodeResolutions.get(node.id)!);
+			if (Object.values(this.effectDefinitions[node.effectId].staticSettingDefs ?? {}).some(setting => setting.dataType.kind === 'assetReference')) renderer.setStaticResources(this.resolveStaticResources(node));
+		}
 	}
 
 	// relayと無効なエフェクトは入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
@@ -490,7 +502,6 @@ export class VisualModuleRenderer {
 		}
 
 		const resolvedParams = this.resolveParams(node, params);
-		this.ensureNodeResolution(node, resolvedParams);
 		this.effectRenderers.get(node.id)!.initialize(resolvedParams);
 		// 上流のサイズ・非同期リソース更新を確定させてからキャッシュを判定する。
 		const key = this.evalCacheKey(node);
@@ -517,20 +528,35 @@ export class VisualModuleRenderer {
 		else this.effectCacheKeys.delete(node.id);
 	}
 
-	private ensureNodeResolution(node: VisualModuleEffectNode, params: Record<string, any>) {
-		const effect = this.effectImplementations[node.effectId];
-		const inputKey = this.effectDefinitions[node.effectId].resolutionInputParameter;
-		const input = inputKey == null ? null : params[inputKey];
-		this.effectRenderers.get(node.id)!.setResolution(resolveEffectNodeResolution({
-			setting: node.resolution,
-			contextResolution: this.contextResolution,
-			resolutionScale: this.resolutionScale,
-			intrinsicResolution: node.resolution.mode === 'auto' ? effect.getIntrinsicResolution?.(params) : null,
-			inputResolution: node.resolution.mode === 'auto'
-				? effect.getInputResolution?.(params) ?? (input?.kind === 'texture' ? input.texture : null)
-				: null,
+	private resolveStaticResources(node: VisualModuleEffectNode) {
+		return resolveEffectStaticResources(this.effectDefinitions[node.effectId], node.staticSettings ?? {}, {
+			assets: this.assets, assetTextures: this.assetTextures,
+			getPlayerVideoFrame: playerId => this.videoFrames.get(playerId) ?? null,
+		});
+	}
+
+	private recomputeResolutions() {
+		this.nodeResolutions = resolveVisualModuleResolutions({
+			visualModule: { nodes: this.nodes, primaryInputId: this.primaryInputId, primaryOutputId: this.primaryOutputId },
+			effectDefinitions: this.effectDefinitions,
+			contextResolution: this.contextResolution, resolutionScale: this.resolutionScale,
 			maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
-		}));
+			inputResolutions: this.inputResolutions,
+			getIntrinsicResolution: node => getEffectIntrinsicResolution(this.effectDefinitions[node.effectId], node.staticSettings ?? {}, {
+				assets: this.assets, getPlayerResolution: playerId => this.getPlayerResolution?.(playerId) ?? null,
+			}),
+		});
+	}
+
+	/** 呼び出し側が宣言した寸法は、入力フレームが未到着でも維持する。 */
+	public setInputResolutions(resolutions: ReadonlyMap<string, Resolution | null>) {
+		if (JSON.stringify([...this.inputResolutions]) === JSON.stringify([...resolutions])) return;
+		this.inputResolutions = new Map(resolutions);
+		this.recomputeResolutions();
+		for (const [id, renderer] of this.effectRenderers) renderer.setResolution(this.nodeResolutions.get(id)!);
+		this.preparedContext = null;
+		++this.preparationVersion;
+		this.effectCacheKeys.clear();
 	}
 
 	// 描画せずに初期化・パラメータ変更の準備を行い、履歴を余分に進めない。
@@ -558,7 +584,6 @@ export class VisualModuleRenderer {
 				visit(source!, param.outputPort ?? null);
 			}
 			const params = this.resolveParams(effectNode, this.evaledNodeParams.get(effectNode.id)!);
-			this.ensureNodeResolution(effectNode, params);
 			this.effectRenderers.get(effectNode.id)!.prepare(params, signal);
 			prepared.add(effectNode.id);
 		};
@@ -625,7 +650,8 @@ export class VisualModuleRenderer {
 		this.preparedContext = null;
 		++this.preparationVersion;
 		this.effectCacheKeys.clear();
-		// 実際にサイズが変わったノードだけ、次の準備・描画でリソースを更新する。
+		this.recomputeResolutions();
+		for (const [id, renderer] of this.effectRenderers) renderer.setResolution(this.nodeResolutions.get(id)!);
 	}
 
 	public destroy() {

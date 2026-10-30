@@ -14,7 +14,7 @@ const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(import.met
 function evaluate(evaluator, input) {
 	// 呼び出し側の評価スコープは明示する。モジュール内部の変数は実際のレンダラーが構築する。
 	const variables = {
-		WIDTH: input.resolution.width, HEIGHT: input.resolution.height,
+		RESOLUTION: [input.resolution.width, input.resolution.height],
 		TIME: input.time / 1000, TIME_MS: input.time,
 		END_TIME: input.endTime / 1000, END_TIME_MS: input.endTime,
 		PROGRESS: input.time / input.endTime, IS_EXPORT: input.isExport ?? false,
@@ -30,6 +30,7 @@ function evaluate(evaluator, input) {
 	}
 	// GPUリソースを使わないパラメータ評価部分だけを呼ぶ。
 	const renderer = Object.assign(Object.create(VisualModuleRenderer.prototype), {
+		nodeResolutions: new Map(input.nodes.map(node => [node.id, input.resolution])),
 		nodes: input.nodes, paramDefs: input.paramDefs, effectDefinitions: input.effectDefinitions,
 		automationGraphs: input.automationGraphs, contextResolution: input.resolution, parameterEvaluator: evaluator,
 	});
@@ -59,7 +60,7 @@ const paramDef = (id, defaultValue = 7, dataType = 'scalar', nameForReference = 
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
-	effectDefinitions: { test: { id: 'test', displayName: 'Test', description: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null } },
+	effectDefinitions: { test: { id: 'test', displayName: 'Test', description: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null } },
 	automationGraphs: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,
@@ -190,14 +191,14 @@ test('reads single scope variables without parsing or executing AiScript', t => 
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const parse = t.mock.method(evaluator.valueEvaluator.expressionEvaluator.parser, 'parse');
 	const input = context({ values: arrayParameter(number) }, {
-		values: arrayBinding(['TIME', 'TIME_MS', 'WIDTH', 'HEIGHT', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
+		values: arrayBinding(['TIME', 'TIME_MS', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
 	}, { paramDefs: [paramDef('time')], paramValues: { time: expression('TIME') } });
 	const first = evaluate(evaluator, input);
 	assert.equal(first.paramValues.get('time'), 0.5);
-	assert.deepEqual(first.nodeParams.get('node').values, [0.5, 500, 640, 360, 0.25]);
+	assert.deepEqual(first.nodeParams.get('node').values, [0.5, 500, 0.25]);
 	const second = evaluate(evaluator, { ...input, time: 0, progress: 0, resolution: { width: 1280, height: 720 } });
 	assert.equal(second.paramValues.get('time'), 0);
-	assert.deepEqual(second.nodeParams.get('node').values, [0, 0, 1280, 720, 0]);
+	assert.deepEqual(second.nodeParams.get('node').values, [0, 0, 0]);
 	assert.equal(parse.mock.callCount(), 0);
 });
 
@@ -222,7 +223,7 @@ test('evaluates nested values, expressions and node references without a GPU', (
 		link: { ...number, canNode: true },
 		empty: arrayParameter(number),
 	}, {
-		items: arrayBinding([literal({ value: expression('WIDTH + HEIGHT + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
+		items: arrayBinding([literal({ value: expression('RESOLUTION[0] + RESOLUTION[1] + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
 		link: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'source', outputPort: 'value' },
 		empty: literal([]),
 	});

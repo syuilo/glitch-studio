@@ -52,7 +52,7 @@ test('evaluates expressions and environment variables in layer context', () => {
 		opacity: expression('TEST_SAME_NAME / 4'), blendMode: expression('"replace"'),
 	}, [], { isExport: true });
 	assert.deepEqual(result, { transformTarget: 'image', mask: null, layerMask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false, blendMode: 19, opacity: 0.5, fitMode: 'contain', position: [2, 0], origin: [0, 0], scale: [2, 0], rotation: 0.5 });
-	assert.throws(() => evaluate({ position: expression('[HEIGHT / WIDTH, 0]') }), /Base expression/);
+	assert.throws(() => evaluate({ position: expression('[RESOLUTION[1] / RESOLUTION[0], 0]') }), /Base expression/);
 	assert.deepEqual(evaluate({ position: { inputSource: 'envVariable', variable: 'PROGRESS' } }).position, [0, 0]);
 });
 

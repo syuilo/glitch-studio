@@ -1,12 +1,10 @@
 import { implementEffect } from '../../effect-implementation.ts';
-import { getLargestInputResolution } from '../../effect-input-resolution.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	// 各成分を対等に扱い、Alphaだけがスカラー場の場合も入力の解像度を引き継ぐ。
-	getInputResolution: params => getLargestInputResolution([params.hue, params.saturation, params.lightness, params.alpha]),
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,

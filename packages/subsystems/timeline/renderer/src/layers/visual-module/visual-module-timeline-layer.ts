@@ -48,8 +48,7 @@ export function createVisualModuleTimelineLayer(
 					const image = value.inputSource === 'lowerLayerOutput' ? await context.getInput()
 						: await context.getLayerOutput(value.layerId, value.outputStage);
 					if (signal.aborted) return { gpuTime: 0 };
-					const sceneFrame = value.inputSource === 'lowerLayerOutput' || value.outputStage !== 'source' || image.region != null;
-					if (sceneFrame && renderer.getImageInput != null) {
+					if (renderer.getImageInput != null) {
 						const framedInput = framedImageInputs.get(image) ?? renderer.getImageInput(image, def.id);
 						framedImageInputs.set(image, framedInput);
 						paramInputs.set(def.id, framedInput);

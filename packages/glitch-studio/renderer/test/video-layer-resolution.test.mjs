@@ -121,7 +121,7 @@ function timelineFixture(t, { enableStats = false, timelineMotionBlur = { enable
 	const input = { dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
 	const manager = new module.exports.TimelineRendererManager({
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
-		effectDefinitions: { pass: { paramDefs: { input }, primaryInputParameter: 'input', resolutionInputParameter: 'input',
+		effectDefinitions: { pass: { paramDefs: { input }, primaryInputParameter: 'input', resolutionInputParameters: ['input'],
 			primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } } } },
 		effectImplementations: { pass: {
 			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
@@ -523,10 +523,10 @@ test('scales video sources once through replace composition and automatic proces
 	};
 	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }] });
 	for (const [resolutionScale, blendMode, expectedOutput] of [
-		[0.5, 'replace', [1920, 1080]],
-		[0.25, 'replace', [960, 540]],
+		[0.5, 'replace', [960, 540]],
+		[0.25, 'replace', [480, 270]],
 		[0.5, 'normal', [960, 540]],
-		[1, 'replace', [3840, 2160]],
+		[1, 'replace', [1920, 1080]],
 	]) {
 		video.compositingParamValues.blendMode = literal(blendMode);
 		await manager.updateDynamicOptions({ resolution: { width: 1920, height: 1080 }, resolutionScale,

@@ -38,13 +38,12 @@ test('evaluates text expressions, keyframes and export variables at scene time',
 test('sanitizes text values while preserving bindings and straight-alpha colors', () => {
 	const bindings = createTextParameterValues();
 	Object.assign(bindings, { position: literal([Infinity, 1e100]), size: literal(-1), shadowBlur: literal(-2),
-		color: literal([0.8, 0.4, 0.2, 0.5]), font: literal('font-id') });
+		color: literal([0.8, 0.4, 0.2, 0.5]) });
 	const before = structuredClone(bindings);
 	const result = new TextParameters().evaluate(bindings, scope);
 	assert.deepEqual(result.position, [0, 0]);
 	assert.equal(result.size, 0);
 	assert.equal(result.shadowBlur, 0);
-	assert.equal(result.font, 'font-id');
 	assert.deepEqual(result.color, [0.8, 0.4, 0.2, 0.5]);
 	assert.deepEqual(bindings, before);
 	bindings.color.value[0] = 0;

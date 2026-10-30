@@ -2,7 +2,7 @@
 // パラメータ評価だけのテストではGPUリソースを使わず、シェーダーモジュールの作成だけ置き換える。
 export function createVisualModuleRenderer(VisualModuleRenderer, options = {}) {
 	return new VisualModuleRenderer({
-		gpuDevice: { createShaderModule: () => ({}) }, fallbackTexture: {},
+		gpuDevice: { limits: { maxTextureDimension2D: 8192 }, createShaderModule: () => ({}) }, fallbackTexture: {},
 		timingHelper: null, enableStats: false, enable32bitDataTextures: false,
 		intermediateTextureFormat: 'rgba8unorm', resolution: { width: 640, height: 360 },
 		videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(),

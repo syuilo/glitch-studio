@@ -13,6 +13,7 @@ export type VisualModuleEdit =
 	| { kind: 'setNodeBypass'; nodeId: string; bypass: boolean }
 	| { kind: 'setNodeResolution'; nodeId: string; resolution: EffectResolution }
 	| { kind: 'setNodeDisplayName'; nodeId: string; displayName: string }
+	| { kind: 'editNodeStaticSetting'; nodeId: string; key: string; value: string | number | boolean | null }
 	| { kind: 'editNodeParam'; nodeId: string; edit: ParamEdit }
 	| { kind: 'reorderNodes'; nodeIds: string[] }
 	| { kind: 'setOutputConnection'; nodeId: string; outputId: string; value: NodeOutputReference | null }

@@ -35,7 +35,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: 'inputA',
-	resolutionInputParameter: null,
+	resolutionInputParameters: ['inputA', 'inputB'],
 	outputDefs: { output: { dataType: { kind: 'scalar' } } },
 	primaryOutput: 'output',
 });

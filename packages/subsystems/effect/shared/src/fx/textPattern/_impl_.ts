@@ -24,9 +24,8 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, intermediateTextureFormat }, resolution, params, reportStatus }) => {
+	init: ({ wgpu: { device, intermediateTextureFormat }, resolution, reportStatus, resources }) => {
 		const font = createTextFontLoader(reportStatus);
-		const prepare = (values: RuntimeEffectParameters<typeof definition.paramDefs>) => font.prepare(values.font?.fileData ?? null);
 		const canvas = new OffscreenCanvas(1, 1);
 		const canvasContext = canvas.getContext('2d');
 		if (canvasContext == null) throw new Error('Could not create a Text Pattern canvas.');
@@ -116,7 +115,7 @@ export default implementEffect<typeof definition>({
 		let rowCapacity = 0;
 		let rowCount = 0;
 
-		function updateLayout(values: typeof params) {
+		function updateLayout(values: RuntimeEffectParameters<typeof definition.paramDefs>) {
 			const fontSize = values.size * resolution.height;
 			if (!Number.isFinite(fontSize) || fontSize <= 0) return 0;
 			if (fontSize > device.limits.maxTextureDimension2D) throw new Error('Text Pattern glyph atlas exceeds the GPU texture limit.');
@@ -212,12 +211,10 @@ export default implementEffect<typeof definition>({
 			return characterCount;
 		}
 
-		prepare(params);
+		font.prepare(resources.font?.fileData ?? null);
 		return {
 			get cacheVersion() { return font.cacheVersion; },
-			prepare,
 			render: ctx => {
-				prepare(ctx.params);
 				const count = font.ready ? updateLayout(ctx.params) : 0;
 				if (count > 0) {
 					const { tracking, translation, opacity, scale, rotation, color } = ctx.params;

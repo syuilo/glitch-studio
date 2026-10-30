@@ -1,3 +1,4 @@
+import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
@@ -5,7 +6,6 @@ import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter
 
 // VOICEVOXの字幕専用。本文は発話キーが所有し、装飾の定義と既定値は他のレイヤーから独立させる。
 export const voicevoxSubtitleParamDefs = {
-	font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 	size: {
 		dataType: { kind: 'scalar' },
 		ui: {
@@ -112,3 +112,7 @@ export function createVoicevoxSubtitleParameterValues(): VoicevoxSubtitleParamet
 	return Object.fromEntries(Object.entries(voicevoxSubtitleParamDefs).map(([key, def]) => [key, deepClone(def.defaultValue)])) as VoicevoxSubtitleParameterValues;
 }
 
+export const voicevoxSubtitleStaticSettingDefs = {
+	font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font' }, defaultValue: null },
+} as const satisfies StaticSettingDefinitions;
+export type VoicevoxSubtitleStaticSettings = StaticSettingValues<typeof voicevoxSubtitleStaticSettingDefs>;

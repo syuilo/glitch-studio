@@ -167,33 +167,14 @@
 		<GsInput large style="flex: 1;" type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(parseInt(String($event), 10))" @focusout="onFinishChanging"/>
 		<GsButton iconOnly :title="i18n.ts.Random" icon="ti ti-dice-5" @click="() => changeValue(Math.floor(Math.random() * 16384))"/>
 	</div>
-	<div v-else-if="dataType.kind === 'imageAssetTextureReference' || dataType.kind === 'assetReference'" :class="$style.assetControl">
-		<GsButton :class="$style.assetButton" @click="chooseAsset">{{ selectedAsset?.name ?? (value == null ? `${i18n.ts._Assets.SelectButton}...` : i18n.ts._Assets.Missing) }}</GsButton>
-		<GsButton v-if="value != null" iconOnly :title="i18n.ts.None" icon="ti ti-x" @click="changeValue(null)"/>
-	</div>
 	<div v-else-if="dataType.kind === 'audioSource'">
 		<GsSelect :modelValue="value?.playerId ?? null" :items="[{ label: i18n.ts.None, value: null }, ...stateManager.state.players.value.map(player => ({ label: player.name, value: player.id }))]" @update:modelValue="v => changeValue(v == null ? null : { type: 'player', playerId: v })"/>
 	</div>
-	<div v-else-if="dataType.kind === 'playerReference'">
-		<GsSelect
-			:modelValue="value"
-			:items="[
-				{ label: i18n.ts.None, value: null },
-				...(stateManager.state.players.value.length > 0 ? [{
-					type: 'group' as const,
-					label: i18n.ts.Players,
-					items: stateManager.state.players.value.map(player => ({ label: player.name, value: player.id })),
-				}] : []),
-			]"
-			@update:modelValue="v => changeValue(v)"
-		/>
-	</div>
+
 </div>
 </template>
 
 <script lang="ts" setup generic="T extends LeafDataType">
-import { getAssetReferenceMimeType } from '@gs/shared/data-type/asset-reference.ts';
-import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { computed, onBeforeUnmount, ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
@@ -210,7 +191,6 @@ import type { LeafDataType } from '@gs/shared/data-type/data-type.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
-import { selectAsset } from '@/ui.ts';
 
 const { stateManager } = appContext.projectContext;
 
@@ -249,20 +229,6 @@ const enumItems = computed(() => {
 
 const directEditMode = ref(false);
 const isNumberInputChanging = ref(false); // 範囲外の数値編集欄を入力中に一時的に範囲内の値になってもコントロールを切り替えないようにするためのフラグ
-const selectedAsset = computed(() => stateManager.state.assets.value.find(asset => asset.id === props.value) ?? null);
-let disposed = false;
-onBeforeUnmount(() => { disposed = true; });
-
-async function chooseAsset() {
-	const dataType = props.dataType;
-	if (dataType.kind !== 'imageAssetTextureReference' && dataType.kind !== 'assetReference') return;
-	const mimeType = dataType.kind === 'assetReference' ? getAssetReferenceMimeType(dataType) : 'image/*';
-	const [selected] = await selectAsset({ multiple: false, mimeType });
-	// ダイアログを開いている間に参照先の種類が変わった場合も、旧候補を反映しない。
-	if (disposed || selected == null || !areDataTypesEqual(props.dataType, dataType)) return;
-	const asset = stateManager.state.assets.value.find(asset => asset.id === selected.id);
-	if (asset != null) changeValue(asset.id);
-}
 
 function changeValue(value: any) {
 	emit('input', value);

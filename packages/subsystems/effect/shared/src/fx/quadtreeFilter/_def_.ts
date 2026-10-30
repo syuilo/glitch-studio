@@ -72,7 +72,7 @@ export default defineEffect({
 		borderAbsolute: { dataType: { kind: 'bool' }, ui: { label: 'Border Absolute', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
 	primaryInputParameter: 'input',
-	resolutionInputParameter: 'input',
+	resolutionInputParameters: ['input'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

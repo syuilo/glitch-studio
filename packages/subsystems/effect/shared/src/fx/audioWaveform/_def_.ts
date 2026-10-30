@@ -61,7 +61,7 @@ export default defineEffect({
 	},
 	primaryInputParameter: null,
 	primaryAudioInputParameter: 'audio',
-	resolutionInputParameter: null,
+	resolutionInputParameters: [],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

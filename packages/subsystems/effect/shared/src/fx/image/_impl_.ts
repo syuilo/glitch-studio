@@ -4,7 +4,6 @@ import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
-	getIntrinsicResolution: params => params.image == null ? null : { width: params.image.width, height: params.image.height },
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -12,7 +11,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu }) => {
+	init: ({ wgpu, resources }) => {
 		const shaderModule = wgpu.device.createShaderModule({
 			code: code,
 		});
@@ -51,9 +50,20 @@ export default implementEffect<typeof definition>({
 			addressModeW: 'mirror-repeat',
 		});
 
+		// 素材選択はインスタンスの寿命の間は固定なので、bindingも一度だけ構築する。
+		const sourceTexture = resources.image;
+		const bindGroup = sourceTexture == null ? null : wgpu.device.createBindGroup({
+			layout: pipeline.getBindGroupLayout(0),
+			entries: [
+				{ binding: 1, resource: { buffer: uniformBuffer } },
+				{ binding: 2, resource: sampler },
+				{ binding: 3, resource: sourceTexture.createView() },
+			],
+		});
+
 		return {
 			render: (ctx) => {
-				if (ctx.params.image == null) {
+				if (sourceTexture == null || bindGroup == null) {
 					const pass = ctx.createPassEncoder(ctx.commandEncoder, {
 						colorAttachments: [{
 							view: ctx.outputDataMap.output.textureView,
@@ -65,16 +75,6 @@ export default implementEffect<typeof definition>({
 					pass.end();
 					return;
 				}
-				// 初期化後のAsset選択・変更も描画に反映する。
-				const sourceTexture = ctx.params.image;
-				const bindGroup = wgpu.device.createBindGroup({
-					layout: pipeline.getBindGroupLayout(0),
-					entries: [
-						{ binding: 1, resource: { buffer: uniformBuffer } },
-						{ binding: 2, resource: sampler },
-						{ binding: 3, resource: sourceTexture.createView() },
-					],
-				});
 				uniformValues.set({
 					aspectRatio: ctx.outputDataMap.output.texture.width / ctx.outputDataMap.output.texture.height,
 					sourceAspectRatio: sourceTexture.width / sourceTexture.height,

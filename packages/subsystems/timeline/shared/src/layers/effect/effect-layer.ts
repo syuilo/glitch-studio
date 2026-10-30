@@ -1,3 +1,4 @@
+import { validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { createLowerLayerOutputBinding, validateTimelineParameterTree } from '../../parameter-binding.ts';
@@ -17,6 +18,7 @@ export function getEffectLayerParameterDefault(definition: EffectDefinition, key
 export function validateTimelineEffectLayer(layer: TimelineEffectLayer, definition: EffectDefinition | null | undefined): void {
 	if (definition == null) throw new Error(`Effect not found: ${layer.effectId}`);
 	validateEffectResolution(layer.resolution);
+	validateStaticSettings(definition.staticSettingDefs ?? {}, layer.effectStaticSettings ?? {});
 	for (const [key, def] of Object.entries(definition.paramDefs)) {
 		validateTimelineParameterTree(def, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key), true, true, (_definition, binding) => {
 			if ((binding.inputSource === 'lowerLayerOutput' || binding.inputSource === 'anotherLayerOutput') && !('fitMode' in binding)) throw new Error('Effect image input requires sampling');

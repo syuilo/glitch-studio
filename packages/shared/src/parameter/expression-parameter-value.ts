@@ -22,9 +22,6 @@ export function prepareExpressionParameterValue(definition: ExpressionParameterD
 		case 'blendMode': valid = isBlendMode(prepared); break;
 		case 'fitMode': valid = prepared === 'contain' || prepared === 'cover' || prepared === 'stretch'; break;
 		case 'wrapMode': valid = prepared === 'clamp' || prepared === 'repeat' || prepared === 'repeatMirrored' || prepared === 'transparent'; break;
-		case 'assetReference':
-		case 'imageAssetTextureReference':
-		case 'playerReference': valid = prepared == null || typeof prepared === 'string'; break;
 		case 'any': valid = prepared == null || finiteNumber(prepared) || (Array.isArray(prepared) && prepared.every(finiteNumber)); break;
 		default: valid = false;
 	}

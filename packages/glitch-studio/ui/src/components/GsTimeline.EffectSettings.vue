@@ -11,6 +11,7 @@
 		<div :class="$style.errorMessage">{{ effectState.status.message }}</div>
 	</div>
 	<div style="padding: 8px 0;">
+		<GsStaticSettings :definitions="definition.staticSettingDefs ?? {}" :values="layer.effectStaticSettings" @change="emit('staticSetting', $event)"/>
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(definition.paramDefs)"
 			:key="key"
@@ -20,7 +21,7 @@
 			:imageLayerOptions="imageLayerOptions"
 			:anotherLayerAudioOptions="anotherLayerAudioOptions"
 			:automationGraphEndEnabled="false"
-			:availableVariables="LAYER_VAR_DEFS"
+			:availableVariables="EFFECT_LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
 			:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
@@ -52,12 +53,13 @@
 import { appContext } from '@/app.ts';
 import { computed } from 'vue';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
-import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
+import { EFFECT_LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsVisualParam from './GsVisualParam.vue';
+import GsStaticSettings from './GsStaticSettings.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
 import type { AnotherLayerAudioOption, ParamEdit } from './GsVisualParam.vue';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -67,7 +69,7 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; imageLayerOptions: readonly { value: string; label: string }[]; anotherLayerAudioOptions: readonly AnotherLayerAudioOption[] }>();
-const emit = defineEmits<{ edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
+const emit = defineEmits<{ staticSetting: [edit: { key: string; value: string | number | boolean | null }]; edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
 const definition = computed(() => effectDefinitions[props.layer.effectId]);
 const outputResolution = computed(() => definition.value.primaryOutput == null ? null : props.effectState?.outputs[definition.value.primaryOutput]);
 const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [

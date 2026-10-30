@@ -47,7 +47,7 @@ export default defineEffect({
 		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
 	primaryInputParameter: 'input',
-	resolutionInputParameter: 'input',
+	resolutionInputParameters: ['input'],
 	outputDefs: {
 		output: { dataType: { kind: 'any' } },
 	},

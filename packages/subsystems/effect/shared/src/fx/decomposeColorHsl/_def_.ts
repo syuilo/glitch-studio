@@ -19,7 +19,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: 'input',
-	resolutionInputParameter: 'input',
+	resolutionInputParameters: ['input'],
 	outputDefs: {
 		hue: { dataType: { kind: 'scalar' } },
 		saturation: { dataType: { kind: 'scalar' } },

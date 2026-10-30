@@ -21,7 +21,7 @@ export function createVoicevoxTimelineLayer(layer: TimelineVoicevoxLayer, option
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = { time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs };
 			const text = parameters.evaluate(getVoicevoxSubtitle(layer.voicevox, layer.utterances, context.sceneTimeMs, options.resolveSpeech), layer.subtitleParamValues, scope);
-			if (!await renderer.prepare(text.font == null ? null : options.getFont(text.font), signal) || disposed || signal.aborted) return { gpuTime: 0 };
+			if (!await renderer.prepare(layer.subtitleStaticSettings.font == null ? null : options.getFont(layer.subtitleStaticSettings.font), signal) || disposed || signal.aborted) return { gpuTime: 0 };
 			const settings = compositing.evaluate({
 				...scope,
 				coordinateSpace: layer.coordinateSpace,

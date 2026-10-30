@@ -127,7 +127,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: null,
-	resolutionInputParameter: null,
+	resolutionInputParameters: [],
 	outputDefs: {
 		scalar: { dataType: { kind: 'scalar' } },
 		vector: { dataType: { kind: 'vector' }, canLazyAllocation: true },

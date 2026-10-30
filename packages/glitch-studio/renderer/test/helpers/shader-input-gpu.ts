@@ -133,10 +133,10 @@ export async function run() {
 		}
 		const rawSource = await loadImageAsset(2, 2, [255, 0, 0, 128, 0, 255, 0, 255, 0, 0, 255, 64, 255, 255, 255, 0]);
 		const rawOutput = texture(2, 2);
-		const raw = imageEffect.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
+		let raw = imageEffect.init({ resources: { image: rawSource }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
 		const rawEncoder = device.createCommandEncoder();
 		raw.render({
-			params: { image: rawSource, fit: 'stretch' },
+			params: { fit: 'stretch' },
 			commandEncoder: rawEncoder,
 			outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } },
 			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
@@ -148,17 +148,21 @@ export async function run() {
 		// 赤と透明黒の中間が暗くならないことを、実際の線形補間で確認する。
 		const edgeSource = await loadImageAsset(2, 1, [255, 0, 0, 255, 0, 0, 0, 0]);
 		const edgeOutput = texture(1, 1);
+		raw.dispose();
+		raw = imageEffect.init({ resources: { image: edgeSource }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
 		const edgeEncoder = device.createCommandEncoder();
 		raw.render({
-			params: { image: edgeSource, fit: 'stretch' },
+			params: { fit: 'stretch' },
 			commandEncoder: edgeEncoder,
 			outputDataMap: { output: { texture: edgeOutput, textureView: edgeOutput.createView() } },
 			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
 		} as any);
 		check('image interpolation preserves premultiplied transparent edges', (await read(edgeOutput, edgeEncoder))[0], [128, 0, 0, 128]);
+		raw.dispose();
+		raw = imageEffect.init({ resources: { image: null }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
 		const emptyEncoder = device.createCommandEncoder();
 		raw.render({
-			params: { image: null, fit: 'stretch' },
+			params: { fit: 'stretch' },
 			commandEncoder: emptyEncoder,
 			outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } },
 			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
@@ -218,7 +222,7 @@ export async function run() {
 						blocks.render({
 							params: {
 								input,
-								size: constantShaderInput('vector', [0.5, 0.75]),
+								density: constantShaderInput('vector', [2, 4 / 3]),
 								amount: selection,
 								fitMode: 'contain',
 								seed: 123,

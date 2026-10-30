@@ -34,7 +34,7 @@ const compositing = () => Object.fromEntries(Object.entries(timelineCompositingP
 const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, durationMs, contentOffsetMs });
 function layer(id, values = {}) {
 	const textParamValues = { ...createTextParameterValues(), ...values };
-	return { id, name: id, layerType: 'text', textParamValues, isDisabled: false,
+	return { id, name: id, layerType: 'text', textStaticSettings: { font: null }, textParamValues, isDisabled: false,
 		clips: [clip('clip', 100, 1000, 20.5)], automationGraphs: [], compositingParamValues: compositing() };
 }
 function fixture(t) {
@@ -99,7 +99,7 @@ const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6,
 test('renders VOICEVOX subtitles at scene time without requiring generated audio', async t => {
 	const f = fixture(t);
 	const speech = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
-		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { speedScale: 1 },
+		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleStaticSettings: { font: null }, subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { speedScale: 1 },
 		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1, subtitleDuration: { mode: 'specified', durationMs: 200 } }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }],
 		audioParamValues: { volume: literal(1) } };
 	await f.setup([speech]);
@@ -122,7 +122,7 @@ test('renders subtitles through speech duration and extension using updated prep
 	const f = fixture(t);
 	const key = { id: 'first', timeMs: 300, text: 'Speech subtitle', reading: null, styleId: 1, subtitleDuration: { mode: 'speech', extensionMs: 50 } };
 	const speechLayer = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
-		clips: [clip('speech-clip', 100, 1000)], compositingParamValues: compositing(), subtitleParamValues: createVoicevoxSubtitleParameterValues(),
+		clips: [clip('speech-clip', 100, 1000)], compositingParamValues: compositing(), subtitleStaticSettings: { font: null }, subtitleParamValues: createVoicevoxSubtitleParameterValues(),
 		layerType: 'voicevox', voicevox: { speedScale: 1 }, utterances: [key], audioParamValues: { volume: literal(1) } };
 	const speech = { key: getVoicevoxRequestKey(getVoicevoxRequest(speechLayer.voicevox, key)), sourceId: 'audio', durationMs: 125.5,
 		fileData: new Blob(['audio']), engineVersion: 'test', audioQuery: {} };

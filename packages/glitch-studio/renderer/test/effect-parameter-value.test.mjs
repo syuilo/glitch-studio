@@ -1,57 +1,33 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { resolveEffectParameterValue } from '@gs/subsystems_effect_renderer/effect-parameter-value.ts';
+import { fileURLToPath } from 'node:url';
+import { loadShaderSource } from './helpers/load-shader-source.mjs';
+const { resolveEffectStaticResources, getEffectIntrinsicResolution } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_renderer/effect-static-settings.ts')));
 
-// 【Asset参照を種類に対応する借用リソースへ変換する】
-// ノードとエフェクトレイヤーで、同じIDの解決結果や参照切れの扱いが変わらないようにする。
-// リソース自体を複製するとGPUTextureや素材データの所有権が壊れるため、同一参照であることも確認する。
-test('borrows matching asset resources and returns null for missing or incompatible references', () => {
+// 【静的設定から素材を借用し、画像のアップロード前にも原寸を取得できる】
+// GPUリソースの生成時期で解像度が変わらず、借用した素材を複製しないことを確認する。
+test('resolves static resources and dimensions independently of GPU readiness', () => {
+	const definition = { staticSettingDefs: { image: { dataType: { kind: 'assetReference', assetType: 'image' }, ui: { label: 'Image' }, defaultValue: null } }, intrinsicResolutionSetting: 'image' };
+	const asset = { id: 'image', width: 640, height: 360, fileDataType: 'image/png', fileData: new Blob() };
+	const context = { assets: [asset], assetTextures: new Map() };
+	assert.deepEqual(getEffectIntrinsicResolution(definition, { image: asset.id }, context), { width: 640, height: 360 });
+	assert.equal(resolveEffectStaticResources(definition, { image: asset.id }, context).image, null);
 	const texture = { width: 640, height: 360 };
-	const video = { id: 'video', fileDataType: 'video/mp4', fileData: new Blob() };
-	const font = { id: 'font', fileDataType: 'font/woff2', fileData: new Blob() };
-	const lut = { id: 'lut', fileDataType: 'application/x-cube-lut', fileData: new Blob() };
-	const resources = { assets: [video, font, lut], assetTextures: new Map([['image', texture]]) };
-	for (const [dataType, id, expected] of [
-		[{ kind: 'imageAssetTextureReference' }, 'image', texture],
-		[{ kind: 'assetReference', assetType: 'video' }, 'video', video],
-		[{ kind: 'assetReference', assetType: 'font' }, 'font', font],
-		[{ kind: 'assetReference', assetType: 'lut' }, 'lut', lut],
-	]) {
-		const def = { dataType };
-		assert.equal(resolveEffectParameterValue(def, id, resources), expected);
-		assert.equal(resolveEffectParameterValue(def, 'missing', resources), null);
-		assert.equal(resolveEffectParameterValue(def, null, resources), null);
-	}
-	for (const assetType of ['video', 'font', 'lut']) {
-		for (const asset of resources.assets.filter(asset => asset.id !== assetType)) {
-			assert.equal(resolveEffectParameterValue({ dataType: { kind: 'assetReference', assetType } }, asset.id, resources), null);
-		}
-	}
+	context.assetTextures.set(asset.id, texture);
+	assert.equal(resolveEffectStaticResources(definition, { image: asset.id }, context).image, texture);
+	assert.equal(resolveEffectStaticResources(definition, { image: null }, context).image, null);
+	assert.throws(() => resolveEffectStaticResources(definition, { image: 'missing' }, context), /not found/);
 });
 
-// 【使用する外部参照だけをパラメータ評価時に失敗させる】
-// 欠落を透明画像や未選択のフォント・LUTとして処理すると、成功したように異なる結果を出力してしまう。
-test('rejects unavailable references when an effect uses them and accepts unselected inputs', () => {
-	const resources = { assets: [{ id: 'asset', fileData: { url: null, size: 0, error: 'missing' } }], assetTextures: new Map() };
-	for (const dataType of [{ kind: 'imageAssetTextureReference' }, ...['video', 'font', 'lut'].map(assetType => ({ kind: 'assetReference', assetType }))]) {
-		const definition = { dataType };
-		assert.equal(resolveEffectParameterValue(definition, null, resources), null);
-		assert.throws(() => resolveEffectParameterValue(definition, 'asset', resources), /missing/);
-	}
-});
-
-// 【接続可能な定数だけをShaderInputへ変換し、色の乗算境界を揃える】
-// 同じ4成分でもcolorは画像、anyはデータであり、canNodeでない値はCPU用のまま渡す。
-// 共通化時に全配列をpremultiplyしたり、CPU用の値までラップしたりする回帰を防ぐ。
-test('converts shader constants while preserving CPU values and data channels', () => {
-	const resources = { assets: [], assetTextures: new Map() };
-	const value = [1, 0.5, 0, 0.5];
-	const resolve = (kind, canNode, value) => resolveEffectParameterValue({ dataType: { kind }, canNode }, value, resources);
-	assert.deepEqual(resolve('color', true, value), { kind: 'uniform', value: [0.5, 0.25, 0, 0.5] });
-	assert.deepEqual(resolve('any', true, value), { kind: 'uniform', value });
-	assert.deepEqual(resolve('vector', true, [2, 3]), { kind: 'uniform', value: [2, 3] });
-	assert.deepEqual(resolve('scalar', true, 2), { kind: 'uniform', value: [2] });
-	assert.equal(resolve('color', false, value), value);
-	assert.equal(resolve('scalar', false, 2), 2);
-	assert.deepEqual(value, [1, 0.5, 0, 0.5]);
+// 【固定したPlayer参照から最新の映像を読み、解像度はメタデータだけを使う】
+// 初期化時のフレームを固定すると再生できず、到着したフレームで寸法を変えると静的性が崩れる。
+test('reads changing frames through a fixed player while keeping dimensions static', () => {
+	const definition = { staticSettingDefs: { player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player' }, defaultValue: null } }, intrinsicResolutionSetting: 'player' };
+	let frame = null;
+	const context = { assets: [], assetTextures: new Map(), getPlayerVideoFrame: () => frame, getPlayerResolution: () => ({ width: 1920, height: 1080 }) };
+	const resource = resolveEffectStaticResources(definition, { player: 'player' }, context).player;
+	assert.equal(resource.getVideoFrame(), null);
+	frame = { displayWidth: 320, displayHeight: 240 };
+	assert.equal(resource.getVideoFrame(), frame);
+	assert.deepEqual(getEffectIntrinsicResolution(definition, { player: 'player' }, context), { width: 1920, height: 1080 });
 });

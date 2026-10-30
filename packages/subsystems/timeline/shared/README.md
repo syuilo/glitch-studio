@@ -28,7 +28,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 音声計画の`sourceTiming`は`TimelineMediaSourceTiming`として最上位Scene上の再生原点・素材範囲・倍率・ループを持つ。親Sceneのトリムは表示区間だけに適用し、時計の原点を変更しない。生成音声も準備後に同じ契約へ変換する。全周期の配置は展開しない。`getTimelineMotionBlurLoops()`は映像クリップの倍率を反映した周期を収集し、各フレームではループの前後の境界だけで露光区間を狭める。
 
-`TimelineTextLayer`は本文・フォントAsset参照・サイズ・最大幅とoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有し、既存のTextエフェクトとは定義・描画処理を共有しない。サイズはScene高さ比、最大幅はScene幅比、輪郭・影・行間は文字サイズ比。入力はTimelineの値Bindingを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
+`TimelineTextLayer`は本文・サイズ・最大幅とoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、フォントAsset IDは`textStaticSettings.font`に直接保存し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有し、既存のTextエフェクトとは定義・描画処理を共有しない。サイズはScene高さ比、最大幅はScene幅比、輪郭・影・行間は文字サイズ比。入力はTimelineの値Bindingを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
 
 `TimelineShapeLayer`は一つの形状を所有し、クリップは時間情報だけを持つ。初期対応は楕円と角丸を含む長方形で、作成後に種類は変更しない。`layers/shape/shape.ts`が形状の種類別パラメータ定義と保存用・評価済みの型を所有し、Sceneやレイヤーの情報には依存しない。将来の多角形・シンボル・パスも同じレイヤー種別へ追加する。
 
@@ -72,7 +72,7 @@ Scene一覧の重複ID・参照先の欠落・循環参照などの診断は、�
 
 `getRequiredVoicevoxRequestsForRendering()`は描画区間を各子Sceneの内容時刻へ変換し、それぞれのSceneの時刻0から描画区間の終端までの音声要求を集める。波形・スペクトラムが読む窓の長さをTimeline側で決めず、履歴を保守的に準備する。親のトリム前に終了した発話も子Scene内では履歴として必要になるため、親Sceneの音声出力だけでは判定しない。無効・描画区間外のScene配置は再帰せず、同じSceneの複数配置はそれぞれの内容時刻を扱い、同一の生成要求はまとめる。
 
-字幕装飾は`layers/voicevox/voicevox-subtitle.ts`が専用の定義・既定値・型を所有し、`subtitleParamValues`に保存する。編集対象は`voicevoxSubtitle`。Textレイヤーの定義・検証・保存型を継承せず、それぞれ独立して変更できる。
+字幕装飾は`layers/voicevox/voicevox-subtitle.ts`が専用の定義・既定値・型を所有し、`subtitleParamValues`に保存する。フォントAsset IDだけは`subtitleStaticSettings.font`に直接保存し、式や公開参照を持たない。編集対象は`voicevoxSubtitle`。Textレイヤーの定義・検証・保存型を継承せず、それぞれ独立して変更できる。
 
 ## グループレイヤー
 
@@ -114,3 +114,5 @@ Groupを祖先に持つカメラはUIの静的検証で診断する。無効な�
 
 
 画像入力はエフェクトとVisual Moduleレイヤーの公開画像入力に`lowerLayerOutput` / `anotherLayerOutput`を許可する。`anotherLayerOutput`は`layerId`と`outputStage: source | rendered | composited`を持つ。公開入力のBindingにはサンプリングを持たせず、エフェクト用Bindingにだけfit・wrap・filterを組み合わせる。公開主入力の既定値・リセットは`lowerLayerOutput`とする。`layer-output.ts`は同じScene内の画像参照と、素材・合成境界・Group以外のコンテナの透過を区別した依存グラフを所有する。静的な循環は無効化・クリップ期間にかかわらず拒否する。
+
+`layer-static-settings.ts`はEffect・Text・VOICEVOXの独立した静的設定の定義と保存値を組み合わせる。エフェクトレイヤーは`effectStaticSettings`を持ち、共通の`StaticSettingValues`へIDや値を直接保存する。素材参照型は通常・公開パラメータから除外する。

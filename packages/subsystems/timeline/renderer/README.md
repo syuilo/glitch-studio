@@ -79,3 +79,5 @@ Transformは`layers/transform/transform-timeline-layer.ts`が子の寿命を管�
 単独描画と通常合成は別のcompositor出力を保持し、同じ画像を参照中に別段階で上書きしない。Effectの参照画像とVisual Moduleの公開画像入力は、必要な場合だけ入力ごとのScene枠確定器を持つ。Visual Moduleの公開入力間では同じ評価内の同一画像の確定結果を共有し、削除された公開入力の確定器は定義更新時に解放する。素材・表示・複数入力で同じ元画像を使っても、素材生成は一度だけ行う。
 
 `preserveDepth` Groupの素材は子の投影済み合成結果を使い、Group自身のopacity・blendMode・マスク・clipToFrameの前で取り出す。`projected`を引き継ぎ、単独描画・通常合成で変形を再適用しない。参照する側がブラー無効でも、取得先の登録済みの通常評価を読む。
+
+エフェクトレイヤーは静的設定・素材メタデータ・Scene寸法から初回の式評価前に解像度を決め、エフェクトのパラメータ式だけへ`RESOLUTION`を渡す。外部の画像入力はsource段階も含め所属Scene寸法へ揃える。Text・VOICEVOX字幕のフォントはレイヤーの静的設定から解決し、通常パラメータの評価には含めない。

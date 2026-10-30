@@ -25,7 +25,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: null,
-	resolutionInputParameter: null,
+	resolutionInputParameters: ['angle', 'length'],
 	outputDefs: { output: { dataType: { kind: 'vector' } } },
 	primaryOutput: 'output',
 });

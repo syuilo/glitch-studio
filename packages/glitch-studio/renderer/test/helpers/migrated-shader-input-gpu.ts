@@ -103,28 +103,30 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 	}
 	completed.push(...await checkChromaticAspectRatio(device, vertex, readOutput));
 	// LCDの中央原点化で、入力の上下やセル内のRGB順が反転しないことを確認する。
-	const lcdSource = device.createTexture({ size: [2, 2], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
-	const lcdOutput = device.createTexture({ size: [16, 16], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
-	const lcdInstance = lcd.init({ resolution: { width: 16, height: 16 }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
+	const lcdSource = device.createTexture({ size: [3, 3], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+	const lcdOutput = device.createTexture({ size: [18, 18], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+	const lcdInstance = lcd.init({ resolution: { width: 18, height: 18 }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
 	try {
-		const colors = [[200, 100, 50, 255], [60, 180, 240, 255], [80, 160, 40, 255], [220, 120, 180, 255]];
-		device.queue.writeTexture({ texture: lcdSource }, new Uint8Array(colors.flat()), { bytesPerRow: 8 }, [2, 2]);
+		const colors = [[200, 100, 50, 255], [60, 180, 240, 255], [80, 160, 40, 255], [220, 120, 180, 255],
+			[120, 200, 60, 255], [40, 80, 160, 255], [180, 60, 120, 255], [100, 220, 80, 255], [240, 40, 200, 255]];
+		device.queue.writeTexture({ texture: lcdSource }, new Uint8Array(colors.flat()), { bytesPerRow: 12 }, [3, 3]);
 		const encoder = device.createCommandEncoder();
-		// 座標の全幅は2なのでsize=1で2分割。2×2の入力と8px幅のセルを対応させる。
+		// 中央原点の格子では奇数のセル数を使うと端に半端なセルが生じない。
+		// 現行のDensityで3×3に分割し、各6pxセルのRGB順と入力の上下を独立に確認する。
 		lcdInstance.render({
-			params: { input: textureShaderInput(lcdSource, { wrapMode: 'repeatMirrored', fitMode: 'stretch', filterMode: 'nearest' }), size: 1, border: 0 },
+			params: { input: textureShaderInput(lcdSource, { wrapMode: 'repeatMirrored', fitMode: 'stretch', filterMode: 'nearest' }), density: 3, border: 0 },
 			commandEncoder: encoder,
 			outputDataMap: { output: { texture: lcdOutput, textureView: lcdOutput.createView() } },
 			createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
 		} as any);
 		device.queue.submit([encoder.finish()]);
 		const pixels = await readOutput(lcdOutput);
-		for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-			const color = colors[Math.floor(y / 8) * 2 + Math.floor(x / 8)];
-			const channel = Math.floor((x % 8 + 0.5) / 8 * 3);
+		for (let y = 0; y < 18; y++) for (let x = 0; x < 18; x++) {
+			const color = colors[Math.floor(y / 6) * 3 + Math.floor(x / 6)];
+			const channel = Math.floor((x % 6 + 0.5) / 6 * 3);
 			for (let c = 0; c < 4; c++) {
 				const expected = c === 3 ? 255 : c === channel ? color[c] : 0;
-				if (Math.abs(pixels[(y * 16 + x) * 4 + c] - expected) > 1) throw new Error(`LCD cell orientation mismatch at ${x},${y},${c}`);
+				if (Math.abs(pixels[(y * 18 + x) * 4 + c] - expected) > 1) throw new Error(`LCD cell orientation mismatch at ${x},${y},${c}`);
 			}
 		}
 		completed.push('lcd cell orientation and RGB order');

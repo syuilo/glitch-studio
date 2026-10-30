@@ -1,7 +1,6 @@
 /** 描画側の入力契約。レイヤー種別・Binding・発話キーを持たず、評価済みの文字と装飾だけを受け取る。 */
 export type TextRenderValues = {
 	text: string;
-	font: string | null;
 	size: number;
 	overflow: 'none' | 'shrink' | 'compress';
 	maxWidth: number;

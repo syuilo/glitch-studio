@@ -57,7 +57,7 @@ export async function run() {
 		owned.push(output);
 		const base: Parameters = { ...defaults, text: 'F', size: 0.22, repetitions: [1, 1] };
 		let onStatus: ((status: { type: string; message?: string }) => void) | null = null;
-		const effect = implementation.init({ wgpu, resolution, params: base, reportStatus: status => onStatus?.(status), fallbackTexture: output });
+		let effect = implementation.init({ wgpu, resolution, params: base, resources: { font: null }, reportStatus: status => onStatus?.(status), fallbackTexture: output });
 		effects.push(effect);
 		return {
 			base, output,
@@ -77,7 +77,9 @@ export async function run() {
 				const font = { id: 'test-font', fileData };
 				await new Promise<void>((resolve, reject) => {
 					onStatus = status => { if (status.type === 'ready') resolve(); else if (status.type === 'error') reject(new Error(status.message)); };
-					effect.prepare!({ ...base, font });
+					effect.dispose();
+					effect = implementation.init({ wgpu, resolution, params: base, resources: { font }, reportStatus: status => onStatus?.(status), fallbackTexture: output });
+					effects.push(effect);
 				});
 				onStatus = null;
 				return font;
@@ -255,8 +257,8 @@ export async function run() {
 		checks.push('intermediate formats');
 		const fontResponse = await fetch('/font');
 		if (fontResponse.ok) {
-			const font = await effect.loadFont(await fontResponse.blob());
-			assert(metrics(await effect.render({ font }), 256).area > 30, 'loaded font missing');
+			await effect.loadFont(await fontResponse.blob());
+			assert(metrics(await effect.render(), 256).area > 30, 'loaded font missing');
 			checks.push('font file');
 		}
 		const previewEffect = createEffect(720, 900);

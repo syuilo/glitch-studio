@@ -33,6 +33,7 @@
 			:contextResolution="getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value)"
 			:anotherLayerAudioOptions="anotherLayerAudioOptions"
 			:imageLayerOptions="imageLayerOptions"
+			@staticSetting="edit => stateManager.commit('changeTimelineStaticSetting', { sceneId, layerId: layer.id, ...edit })"
 			@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 			@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: layer.id, resolution })"
 		/>
@@ -41,12 +42,14 @@
 			v-if="layer.layerType === 'voicevox'"
 			:key="layer.id"
 			:layer="layer"
+			@staticSetting="edit => stateManager.commit('changeTimelineStaticSetting', { sceneId, layerId: layer.id, ...edit })"
 			@edit="event => onTimelineLayerParamEdit(event, 'voicevoxSubtitle')"
 		/>
 		<GsTimelineTextSettings
 			v-if="layer.layerType === 'text'"
 			:key="layer.id"
 			:layer="layer"
+			@staticSetting="edit => stateManager.commit('changeTimelineStaticSetting', { sceneId, layerId: layer.id, ...edit })"
 			@edit="event => onTimelineLayerParamEdit(event, 'text')"
 		/>
 		<GsTimelineTransformSettings

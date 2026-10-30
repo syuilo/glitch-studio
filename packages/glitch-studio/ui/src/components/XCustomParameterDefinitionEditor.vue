@@ -21,10 +21,6 @@
 				{ label: i18n.ts._ColorRamp.Title, value: 'colorRamp' },
 				{ label: i18n.ts._CustomParameterInput._Types.Vector, value: 'vector' },
 				{ label: i18n.ts._CustomParameterInput._Types.Enum, value: 'enum' },
-				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'imageAssetTextureReference' },
-				{ label: i18n.ts._ParameterEditor.VideoAsset, value: 'assetReference:video' },
-				{ label: i18n.ts._ParameterEditor.FontAsset, value: 'assetReference:font' },
-				{ label: i18n.ts._ParameterEditor.LutAsset, value: 'assetReference:lut' },
 				{ label: i18n.ts.Audio, value: 'audioSource' },
 			].filter(item => supportedTypes == null || supportedTypes.includes(item.value))"
 			@update:modelValue="updateType"
@@ -86,7 +82,6 @@ import { computed } from 'vue';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { AssetReferenceDataType } from '@gs/shared/data-type/data-type.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
@@ -99,7 +94,7 @@ import type { CustomParameterDefinitionEdit } from '@/types/parameter-edit.ts';
 import { i18n } from '@/i18n.ts';
 
 type CustomParameterDefinition = ParameterDefinition & { nameForReference: string };
-type EditableDataType = Exclude<CustomParameterDefinition['dataType']['kind'], 'assetReference'> | `assetReference:${AssetReferenceDataType['assetType']}`;
+type EditableDataType = CustomParameterDefinition['dataType']['kind'];
 const props = defineProps<{
 	supportedTypes?: readonly string[];
 	nodeInputEnabled?: boolean;
@@ -117,10 +112,7 @@ function update(changes: CustomParameterDefinitionEdit) {
 
 let defaultValueMergeKey: string | null = null;
 
-// セレクトではAssetの種類も区別するが、保存するDataTypeは共通のassetReferenceとする。
-const parameterType = computed<EditableDataType>(() => props.def.dataType.kind === 'assetReference'
-	? `assetReference:${props.def.dataType.assetType}`
-	: props.def.dataType.kind);
+const parameterType = computed<EditableDataType>(() => props.def.dataType.kind);
 
 function beginDefaultValueChange() {
 	defaultValueMergeKey = genId();
@@ -147,7 +139,7 @@ function updateEnumOptions(options: string[], labels: Record<string, string>, de
 function updateType(dataType: EditableDataType) {
 	if (dataType === parameterType.value) return;
 	defaultValueMergeKey = null;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'colorRamp' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'imageAssetTextureReference' && dataType !== 'assetReference:video' && dataType !== 'assetReference:font' && dataType !== 'assetReference:lut' && dataType !== 'audioSource') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'colorRamp' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'audioSource') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
@@ -157,11 +149,7 @@ function updateType(dataType: EditableDataType) {
 		colorRamp: { dataType: { kind: 'colorRamp' }, ui: { label: props.def.ui.label, control: {} } },
 		vector: { dataType: { kind: 'vector' }, ui: { label: props.def.ui.label, control: { controlType: 'vector' } } },
 		enum: { dataType: { kind: 'enum', options: ['option1', 'option2'] }, ui: { label: props.def.ui.label, control: { labels: { option1: 'Option 1', option2: 'Option 2' } } } },
-		imageAssetTextureReference: { dataType: { kind: 'imageAssetTextureReference' }, ui: { label: props.def.ui.label, control: {} } },
-		'assetReference:video': { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: props.def.ui.label, control: {} } },
 		audioSource: { dataType: { kind: 'audioSource' }, ui: { label: props.def.ui.label, control: {} } },
-		'assetReference:font': { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: props.def.ui.label, control: {} } },
-		'assetReference:lut': { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: props.def.ui.label, control: {} } },
 	} as const;
 
 	const schema = schemas[dataType];

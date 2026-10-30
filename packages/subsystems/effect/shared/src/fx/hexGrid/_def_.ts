@@ -70,7 +70,7 @@ export default defineEffect({
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'cover' } },
 	},
 	primaryInputParameter: 'background',
-	resolutionInputParameter: 'background',
+	resolutionInputParameters: ['background'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

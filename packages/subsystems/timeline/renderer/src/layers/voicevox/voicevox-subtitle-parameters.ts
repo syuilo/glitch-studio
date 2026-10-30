@@ -31,7 +31,6 @@ export class VoicevoxSubtitleParameters {
 		};
 		return {
 			text: text.trim(),
-			font: typeof values.font === 'string' ? values.font : null,
 			size: Math.max(0, number(values.size)),
 			maxWidth: number(values.maxWidth),
 			overflow: values.overflow as TextRenderValues['overflow'],
