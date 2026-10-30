@@ -393,7 +393,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public async updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
+	public updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		if (Object.hasOwn(newOptions, 'previewFps') && newOptions.previewFps != null && (!Number.isFinite(newOptions.previewFps) || newOptions.previewFps <= 0)) throw new RangeError('Invalid preview FPS');
 		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes')) {
 			this.frameCache.setMaxBytes(newOptions.frameCacheMaxBytes!);
@@ -989,10 +989,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					});
 					inputFrames.set(parameterId, inputFrame);
 				}
-				const encoder = this.gpuDevice.createCommandEncoder();
-				const result = inputFrame.renderInput(encoder, input);
-				this.gpuDevice.queue.submit([encoder.finish()]);
-				return result;
+				return inputFrame.renderInput(input);
 			},
 			getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
 			prepare: (context, signal) => renderer.prepare(context, signal),
@@ -1029,19 +1026,26 @@ export class TimelineRendererManager extends EventEmitter<{
 			},
 		});
 		return {
-				evaluate: (context, signal) => {
+			evaluate: (context, signal) => {
 				const version = this.projectVersions.module(target);
 				if (version.revision !== moduleRevision) {
 					const currentVisualModule = getModule();
-					const parameterIds = new Set(currentVisualModule.paramDefs.map(definition => definition.id));
-					// 公開定義の編集では配置を維持するため、消えた入力のGPU資源をここで解放する。
-					for (const [parameterId, frame] of inputFrames) {
-						if (parameterIds.has(parameterId)) continue;
-						frame.dispose();
-						inputFrames.delete(parameterId);
+					const preserveStaticState = version.staticResetRevision <= moduleRevision;
+					if (!preserveStaticState) {
+						const parameterIds = new Set(currentVisualModule.paramDefs.map(definition => definition.id));
+						// 公開定義の編集では配置を維持するため、消えた入力のGPU資源をここで解放する。
+						for (const [parameterId, frame] of inputFrames) {
+							if (parameterIds.has(parameterId)) continue;
+							frame.dispose();
+							inputFrames.delete(parameterId);
+						}
 					}
 					// 公開入力の寸法も定義変更時だけ宣言し、新しい配線と同時に計画する。
-					renderer.updateVisualModule(currentVisualModule, version.cacheResetRevision <= moduleRevision, getInputResolutions());
+					renderer.updateVisualModule(currentVisualModule, {
+						preserveCache: version.cacheResetRevision <= moduleRevision,
+						preserveStaticState,
+						...(preserveStaticState ? {} : { inputResolutions: getInputResolutions() }),
+					});
 					moduleRevision = version.revision;
 				}
 				return instance.evaluate(context, signal);
@@ -1112,8 +1116,8 @@ export async function createManager(options: {
 		device.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
 		void device.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
 
-		// どちらが先に失敗しても、もう片方のPromiseを未処理にしない。
-		await Promise.all([manager.ready, manager.updateDynamicOptions(options.dynamicOptions)]);
+		await manager.ready;
+		manager.updateDynamicOptions(options.dynamicOptions);
 
 		return manager;
 	} catch (error) {

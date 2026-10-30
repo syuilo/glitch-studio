@@ -9,6 +9,12 @@ export function canPreserveNodeOutputCache(changes: readonly VisualModuleNodeCha
 	return changes.length > 0 && changes.every(change => change.type === 'staticSetting' || (change.type === 'parameter' && change.kind === 'value'));
 }
 
+export function canPreserveNodeStaticState(changes: readonly VisualModuleNodeChange[]): boolean {
+	// 通常パラメータの値は解像度・静的リソースを変えない。静的設定の変更は
+	// 出力キャッシュを残せる場合も、解像度の再計画とリソースの再解決が必要になる。
+	return changes.length > 0 && changes.every(change => change.type === 'parameter' && change.kind === 'value');
+}
+
 export function canPreserveTimelineLayerInstance(changes: readonly TimelineLayerChange[]): boolean {
 	// Visual Module引数とカスタムパラメータの値は次の評価で読み直す。
 	// 値だけの編集でインスタンスを破棄すると、未使用の値でもFeedbackの履歴を失う。

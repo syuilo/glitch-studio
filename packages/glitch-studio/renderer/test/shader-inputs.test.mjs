@@ -260,23 +260,34 @@ test('keeps stretched replace outputs in scene coordinates without copying the s
 // 【ノード入力は同じ縦横比でもSceneの宣言寸法へ揃える】
 // EffectとVisual ModuleはTimelineのregionを知らないため、正方形の物理テクスチャを
 // 横長の合成結果としてそのまま渡すと入力サンプリングで再びFitされてしまう。
+// 定数と確定済み画像では、空のencoder作成・GPU送信も省く必要がある。
 test('normalizes node inputs to declared scene dimensions while borrowing already matching frames', () => {
 	const { device, calls, encoder } = gpuFixture();
+	let encoders = 0, submissions = 0;
+	device.createCommandEncoder = () => { encoders++; return encoder; };
+	encoder.finish = () => ({});
+	device.queue.submit = () => { submissions++; };
 	const resolution = { width: 8, height: 4 };
 	const output = createSceneOutput({ device, vertex: {}, resolution, format: 'rgba16float' });
 	const region = { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: resolution };
+	const uniform = { kind: 'uniform', value: [0, 0, 0, 0] };
+	assert.equal(output.renderInput(uniform), uniform);
 	const matching = { kind: 'texture', texture: device.createTexture({ size: [8, 4], format: 'rgba16float' }), region };
-	assert.equal(output.renderInput(encoder, matching), matching);
+	assert.equal(output.renderInput(matching), matching);
 	assert.equal(calls.draws, 0);
+	assert.equal(encoders, 0);
+	assert.equal(submissions, 0);
 	const native = { kind: 'texture', texture: device.createTexture({ size: [16, 8], format: 'rgba16float' }), region };
-	const framed = output.renderInput(encoder, native);
+	const framed = output.renderInput(native);
 	assert.deepEqual([framed.texture.width, framed.texture.height], [8, 4]);
 	assert.equal(calls.draws, 1);
 	const stretched = { kind: 'texture', texture: device.createTexture({ size: [16, 16], format: 'rgba16float' }), region };
-	const normalized = output.renderInput(encoder, stretched);
+	const normalized = output.renderInput(stretched);
 	assert.notEqual(normalized.texture, stretched.texture);
 	assert.deepEqual([normalized.texture.width, normalized.texture.height], [8, 4]);
 	assert.equal(calls.draws, 2);
+	assert.equal(encoders, 2);
+	assert.equal(submissions, 2);
 	output.dispose();
 	assert.equal(matching.texture.destroyed, false);
 	assert.equal(stretched.texture.destroyed, false);

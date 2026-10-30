@@ -128,6 +128,20 @@ async function fixture(t, options = {}) {
 	return { controller, workers, pending, instances, notifications };
 }
 
+// 【入力未割り当てのPlayerがあってもManagerの生成を完了する】
+// ライブ入力を含むVisual Moduleの取り込みでは、Playerの入力を未割り当てにする。
+// 読み込み元のないメディア要素を作るとイベントが発生せず、プレビューの再生成が終わらなくなる。
+// Playerの定義はWorkerへ渡しつつ、メディアの準備を待たずに生成できることを確認する。
+test('initializes the renderer with unassigned players without waiting for media', async t => {
+	const { controller, instances } = await fixture(t, { initialize: false });
+	const player = { id: 'unassigned-player', name: 'Camera', sourceType: null };
+	await controller.updatePlayers([player]);
+	assert.equal(controller.getMediaElement(player.id), null);
+	await controller.relaunchManager();
+	assert.equal(controller.isReady.value, true);
+	assert.deepEqual(instances[0].resources.players, [player]);
+});
+
 // 【外部参照の同期用コピーでは再生を維持し、原本のリロードや参照切れだけを反映する】
 // アセット名などの変更でも読み取り口は複製されるため、オブジェクト参照で比較すると
 // 無関係な編集で再生が停止する。一方、URLや可用性の変化では古いPlayerを使い続けない。

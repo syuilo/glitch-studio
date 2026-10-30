@@ -137,21 +137,26 @@ export class VisualModuleRenderer {
 		this.updateVisualModule(options.visualModule);
 	}
 
-	public updateVisualModule(visualModule: VisualModule, preserveCache = false, inputResolutions = this.inputResolutions) {
+	public updateVisualModule(visualModule: VisualModule, options: {
+		preserveCache?: boolean;
+		/** 通常パラメータの値だけを編集した場合に指定する。 */
+		preserveStaticState?: boolean;
+		inputResolutions?: ReadonlyMap<string, Resolution | null>;
+	} = {}) {
 		this.automationGraphs = visualModule.automationGraphs;
 		this.outputDefs = visualModule.outputDefs;
 		this.primaryOutputId = visualModule.primaryOutputId;
 		this.primaryInputId = visualModule.primaryInputId;
 		this.paramDefs = visualModule.paramDefs;
 		// 公開定義と入力寸法を同じスナップショットとして取り込み、仮の寸法で出力を確保しない。
-		this.inputResolutions = new Map(inputResolutions);
+		if (options.preserveStaticState !== true) this.inputResolutions = new Map(options.inputResolutions ?? this.inputResolutions);
 		this.preparedContext = null;
 		this.paramValues = new Map();
 		this.paramInputs = new Map();
 		// 値の編集では既存のキーと再評価結果を比較する。全消去すると無関係な上流も描画される。
 		// 準備中のフレームはupdateNodesの世代更新で無効化し、出力キャッシュとは分ける。
-		if (!preserveCache) this.effectCacheKeys.clear();
-		this.updateNodes(visualModule.nodes);
+		if (options.preserveCache !== true) this.effectCacheKeys.clear();
+		this.updateNodes(visualModule.nodes, options.preserveStaticState === true);
 	}
 
 	private getParamOutput(paramId: VisualModuleCustomParameterId): UniformOrTexture | null {
@@ -338,11 +343,14 @@ export class VisualModuleRenderer {
 	}
 
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public updateNodes(newNodes: VisualModuleNode[]) {
+	public updateNodes(newNodes: VisualModuleNode[], preserveStaticState = false) {
 		this.preparedContext = null;
 		++this.preparationVersion;
 		this.nodes = newNodes;
 		this.allNodeIdMap = new Map(newNodes.map(node => [node.id, node]));
+		// 値の編集でもBindingは最新スナップショットへ置き換えるが、静的な計画・
+		// リソース・出力ノードは変わらないため、全ノードの再計算と設定比較を省く。
+		if (preserveStaticState) return;
 		this.recomputeResolutions();
 		const oldEffectNodes = [...this.effectRenderers.keys()].map(id => ({ id }));
 		const newEffectNodes = newNodes.filter(node => node.type === 'effect');

@@ -12,7 +12,7 @@ import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-tex
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import { browserFrameScheduler, VisualModuleLivePreviewRenderLoop } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
-import { canPreserveNodeOutputCache } from './project-change-policy.ts';
+import { canPreserveNodeOutputCache, canPreserveNodeStaticState } from './project-change-policy.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { PlayerAudioInputs } from './player-audio-inputs.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
@@ -264,7 +264,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public async updateDynamicOptions(newOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
+	public updateDynamicOptions(newOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
 		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
@@ -308,7 +308,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		if (visualModuleLivePreviewChanges.length > 0 && this.visualModuleLivePreviewVisualModuleRenderer != null) {
 			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId);
 			if (visualModule == null) this.stopRenderLoop();
-			else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule, visualModuleLivePreviewChanges.every(change => change.type === 'node' && canPreserveNodeOutputCache(change.changes)));
+			else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule, {
+				preserveCache: visualModuleLivePreviewChanges.every(change => change.type === 'node' && canPreserveNodeOutputCache(change.changes)),
+				preserveStaticState: visualModuleLivePreviewChanges.every(change => change.type === 'node' && canPreserveNodeStaticState(change.changes)),
+			});
 		}
 	}
 
@@ -525,8 +528,8 @@ export async function createManager(options: {
 		device.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
 		void device.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
 
-		// どちらが先に失敗しても、もう片方のPromiseを未処理にしない。
-		await Promise.all([manager.ready, manager.updateDynamicOptions(options.dynamicOptions)]);
+		await manager.ready;
+		manager.updateDynamicOptions(options.dynamicOptions);
 
 		return manager;
 	} catch (error) {

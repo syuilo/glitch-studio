@@ -116,9 +116,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 						});
 						referenceFrames.set(key, frame);
 					}
-					const encoder = device.createCommandEncoder();
-					image = frame.renderInput(encoder, image);
-					device.queue.submit([encoder.finish()]);
+					image = frame.renderInput(image);
 				}
 				references.set(key, image);
 			}
@@ -126,11 +124,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			// Effectの入力は有限のSceneフレーム。中間画像の可変範囲をノードへ漏らさない。
 			let input: TimelineImage | null = null;
 			const getInput = () => {
-				if (!input) {
-					const encoder = device.createCommandEncoder();
-					input = inputFrame.renderInput(encoder, lowerLayerOutput!);
-					device.queue.submit([encoder.finish()]);
-				}
+				input ??= inputFrame.renderInput(lowerLayerOutput!);
 				return input;
 			};
 			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {

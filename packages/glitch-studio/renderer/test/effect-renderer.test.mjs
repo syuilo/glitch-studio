@@ -493,7 +493,7 @@ test('retains upstream caches and instances across literal expression keyframe a
 	const edit = (update, preserveCache = true) => {
 		module = structuredClone(module);
 		update(module.nodes.find(node => node.id === 'b').params);
-		f.renderer.updateVisualModule(module, preserveCache);
+		f.renderer.updateVisualModule(module, { preserveCache });
 		f.render(ctx);
 	};
 	edit(params => { params.amount = literal(2); });
@@ -513,6 +513,43 @@ test('retains upstream caches and instances across literal expression keyframe a
 	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [1, 1, 1, 1]);
 	edit(params => { params.input = connection('a', 'extra'); }, false);
 	assert.deepEqual(counts(), [2, 7, 7, 2]);
+});
+
+// 【通常の値編集では素材寸法を読み直さず、静的設定の編集では再計画する】
+// スライダー操作のたびに全ノードの解像度計画を作り直さず、評価値だけを更新する。
+// Playerの選択変更は出力キャッシュを保持できても別の寸法になり得るため、
+// 値編集とは区別し、解像度・インスタンス・後段の結果を更新する必要がある。
+test('reuses static planning for value edits and replans when the selected player changes', t => {
+	const g = gpu();
+	const effect = probe(g, { paramDefs: { amount: { dataType: { kind: 'scalar' } } } });
+	effect.definition.staticSettingDefs = { player: { dataType: { kind: 'playerReference' }, defaultValue: null } };
+	effect.definition.intrinsicResolutionSetting = 'player';
+	const source = { ...node('effect', 'effect', { amount: literal(1) }), staticSettings: { player: 'first' }, resolution: { mode: 'auto', scale: 1 } };
+	let resolutionRequests = 0;
+	const f = graph(t, g, { effect }, [source], { out: { nodeId: source.id, outputPort: 'output' } }, {
+		getPlayerResolution: playerId => {
+			resolutionRequests++;
+			return playerId === 'first' ? { width: 16, height: 9 } : { width: 32, height: 18 };
+		},
+	});
+	f.render();
+	assert.equal(resolutionRequests, 1);
+	const allocated = g.textures.length;
+	const edited = structuredClone(f.module);
+	edited.nodes[0].params.amount = literal(2);
+	f.renderer.updateVisualModule(edited, { preserveCache: true, preserveStaticState: true });
+	f.render();
+	assert.equal(resolutionRequests, 1);
+	assert.equal(g.textures.length, allocated);
+	assert.equal(effect.instances.length, 1);
+	assert.equal(effect.renders.at(-1).params.amount, 2);
+	const changedPlayer = structuredClone(edited);
+	changedPlayer.nodes[0].staticSettings.player = 'second';
+	f.renderer.updateVisualModule(changedPlayer, { preserveCache: true });
+	f.render();
+	assert.equal(resolutionRequests, 2);
+	assert.equal(effect.instances.length, 2);
+	assert.deepEqual(effect.instances.at(-1).args.resolution, { width: 32, height: 18 });
 });
 
 // 【Inの別ポートを使う枝は、無関係な引数や外部テクスチャに依存しない】
@@ -786,7 +823,7 @@ test('applies new public input dimensions before allocating added nodes', t => {
 		outputDefs: [{ id: 'out' }],
 		nodes: [{ id: 'in', type: 'globalIn' }, consumer, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'consumer', outputPort: 'output' } } }],
 	};
-	f.renderer.updateVisualModule(visualModule, false, new Map([['image', { width: 321, height: 123 }]]));
+	f.renderer.updateVisualModule(visualModule, { inputResolutions: new Map([['image', { width: 321, height: 123 }]]) });
 	assert.deepEqual(g.textures.map(texture => [texture.width, texture.height]), [[321, 123], [321, 123]]);
 	f.render(f.context({ paramInputs: new Map([['image', uniform]]) }));
 	assert.deepEqual(effect.renders[0].params.size, [321, 123]);

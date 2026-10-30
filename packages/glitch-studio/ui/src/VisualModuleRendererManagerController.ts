@@ -276,6 +276,9 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		}
 
 		for (const player of players) {
+			// 未割り当て・未対応の入力には読み込みイベントが発生しない。
+			// Managerの再生成を待たせないよう、定義だけ保持してメディア要素は作らない。
+			if (player.sourceType !== 'asset' && player.sourceType !== 'webcam') continue;
 			if (!this.videoElements.has(player.id)) {
 				const asset = player.sourceType === 'asset' ? this.initialAssets.find(asset => asset.id === player.assetId) : null;
 				if (player.sourceType === 'asset' && !asset) continue;
