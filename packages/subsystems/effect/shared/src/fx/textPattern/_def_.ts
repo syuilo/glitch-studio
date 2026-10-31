@@ -20,7 +20,7 @@ export default defineEffect({
 			ui: { label: 'Size (Reference Ratio)', control: { controlType: 'range', min: 0.0001, max: 1, step: 0.01, logarithmic: true } },
 			defaultValue: { inputSource: 'literal', value: 0.05 },
 		},
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		repetitions: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Repetitions', control: { controlType: 'dimension', min: 1, max: 1000, step: 1 } },

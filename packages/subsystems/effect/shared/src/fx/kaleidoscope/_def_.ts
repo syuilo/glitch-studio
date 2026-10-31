@@ -11,7 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['transform', 'pattern'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },

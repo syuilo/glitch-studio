@@ -26,7 +26,8 @@
 			:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
-			:paramValue="layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key)"
+			:paramValue="layer.effectParamValues[key] ?? parameterDefaults[key]"
+			:defaultBinding="parameterDefaults[key]"
 			@edit="emit('edit', $event)"
 		/>
 	</div>
@@ -71,6 +72,7 @@ import { i18n } from '@/i18n.ts';
 const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; imageLayerOptions: readonly { value: string; label: string }[]; anotherLayerAudioOptions: readonly AnotherLayerAudioOption[] }>();
 const emit = defineEmits<{ staticSetting: [edit: { key: string; value: string | number | boolean | null }]; edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
 const definition = computed(() => effectDefinitions[props.layer.effectId]);
+const parameterDefaults = computed(() => Object.fromEntries(Object.keys(definition.value.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition.value, key)])));
 const outputResolution = computed(() => definition.value.primaryOutput == null ? null : props.effectState?.outputs[definition.value.primaryOutput]);
 const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 	{ value: 'auto', label: i18n.ts.Auto }, { value: 'context', label: i18n.ts._Node.ContextResolution }, { value: 'customAbsolute', label: i18n.ts._Node.CustomResolution },

@@ -11,7 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['pattern', 'math', 'sdf'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		shape: {
 			dataType: { kind: 'enum', options: ['ellipse', 'rectangle'] },
 			ui: { label: 'Shape', control: { labels: { ellipse: 'Ellipse', rectangle: 'Rectangle' } } },

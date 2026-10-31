@@ -11,7 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'math', 'sdf'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		inputA: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'A', control: { controlType: 'number', step: 0.01 } },

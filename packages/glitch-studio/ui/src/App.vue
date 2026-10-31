@@ -30,7 +30,7 @@
 			<span :class="$style.headerDivider"></span>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
-			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
+			<button class="_button" :class="$style.headerMenuItem" data-test-header-view-menu @click="openHeaderViewMenu">{{ i18n.ts._App.View }}</button>
 			<button class="_button" :class="$style.headerMenuItem" data-test-header-window-menu @click="openHeaderWindowMenu">{{ i18n.ts._App.Window }}</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderToolsMenu">{{ i18n.ts._App.Tools }}</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
@@ -168,6 +168,7 @@ const timelineFrameCacheUsageLabel = computed(() => {
 });
 const renderingStatsEnabled = preferences.model('renderingStatsEnabled');
 const analysisMonitorsEnabled = preferences.model('analysisMonitorsEnabled');
+const showAdvancedParameters = preferences.model('showAdvancedParameters');
 const visualModuleLivePreviewFpsLabel = computed(() => renderingStatsEnabled.value
 	? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps`
 	: `${visualModuleLivePreviewFpsLimit.value ?? '∞'}fps`);
@@ -386,7 +387,13 @@ async function changeZoom(direction: 'in' | 'out') {
 }
 
 function openHeaderViewMenu(ev: PointerEvent) {
-	ui.popupMenu(__ELECTRON__ ? [{
+	ui.popupMenu([{
+		type: 'switch',
+		text: i18n.ts._App.ShowAdvancedParameters,
+		ref: showAdvancedParameters,
+	}, ...(__ELECTRON__ ? [{
+		type: 'divider' as const,
+	}, {
 		text: i18n.ts._App.ZoomIn,
 		icon: 'ti ti-zoom-in',
 		action: () => { void changeZoom('in'); },
@@ -394,7 +401,7 @@ function openHeaderViewMenu(ev: PointerEvent) {
 		text: i18n.ts._App.ZoomOut,
 		icon: 'ti ti-zoom-out',
 		action: () => { void changeZoom('out'); },
-	}] : [], ev.currentTarget ?? ev.target);
+	}] : [])], ev.currentTarget ?? ev.target);
 }
 
 function openWorkspacePanelWindow(contentType: WorkspacePanel['contentType']) {

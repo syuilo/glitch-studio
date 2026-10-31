@@ -57,7 +57,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [20, 20] },
 		},
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		horizontalShift: { dataType: { kind: 'bool' }, ui: { label: 'Horizontal Shift', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		verticalShift: { dataType: { kind: 'bool' }, ui: { label: 'Vertical Shift', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },

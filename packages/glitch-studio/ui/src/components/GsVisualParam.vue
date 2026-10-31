@@ -1,5 +1,5 @@
 <template>
-<div :class="$style.root">
+<div v-if="isVisible" :class="$style.root" :data-test-parameter-path="JSON.stringify(paramPath)">
 	<div ref="rowEl" :class="$style.row" data-wire-input-row @contextmenu.prevent.stop="onRowContextmenu">
 		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.inputSource !== 'literal' }]">
 			<button v-if="paramDef.dataType.kind === 'array' || paramDef.dataType.kind === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
@@ -158,6 +158,7 @@
 			:paramPath="[...paramPath, element.id]"
 			:paramDef="getArrayElementDefinition(paramDef)"
 			:paramValue="element.binding"
+			:defaultBinding="arrayDefaultValues?.[index]?.binding"
 			:label="'[' + index + ']'"
 			@edit="emit('edit', $event)"
 		>
@@ -184,6 +185,7 @@
 			:paramPath="[...paramPath, key]"
 			:paramDef="def"
 			:paramValue="structValues[key]"
+			:defaultBinding="structDefaultValues?.[key]"
 			@edit="emit('edit', $event)"
 		/>
 	</div>
@@ -222,6 +224,7 @@ import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType }
 import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
+import { isParameterBindingDefault } from '@gs/shared/parameter/parameter-default.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { computed, inject, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
@@ -248,6 +251,7 @@ import { registerWireInput } from '@/utility/wire-drag.ts';
 import { getNodeInputSamplingMenuItems } from '@/utility/input-sampling-menu.ts';
 import * as ui from '@/ui.ts';
 import { appContext } from '@/app.ts';
+import { preferences } from '@/preferences.ts';
 import { getAvailableAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 
@@ -263,6 +267,8 @@ const props = defineProps<{
 	paramPath: ParamPath;
 	paramDef: ParameterDefinition;
 	paramValue: EditableParameterBinding;
+	/** 利用場所や親コンテナの既定Binding。省略時はパラメータ定義の既定値を使う。 */
+	defaultBinding?: EditableParameterBinding;
 	label?: string;
 	keyframesEnabled?: boolean;
 	imageInputEnabled?: boolean;
@@ -298,6 +304,11 @@ function updateTimelineCustomParameterReference(key: string | null) {
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
+const defaultBinding = computed(() => props.defaultBinding ?? props.paramDef.defaultValue);
+const isVisible = computed(() => props.paramDef.ui.isAdvanced !== true || preferences.r.showAdvancedParameters.value
+	|| !isParameterBindingDefault(props.paramDef, props.paramValue, defaultBinding.value));
+const arrayDefaultValues = computed<ParameterArrayElement<EditableParameterBinding>[] | null>(() => props.paramDef.dataType.kind === 'array' && defaultBinding.value.inputSource === 'literal' ? defaultBinding.value.value : null);
+const structDefaultValues = computed<Record<string, EditableParameterBinding> | null>(() => props.paramDef.dataType.kind === 'struct' && defaultBinding.value.inputSource === 'literal' ? defaultBinding.value.value : null);
 const arrayValues = computed<ParameterArrayElement<EditableParameterBinding>[]>(() => props.paramDef.dataType.kind === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
 const arrayMaxElements = computed(() => isParameterType(props.paramDef, 'array') ? props.paramDef.maxElements ?? null : null);
 const canAddArrayElement = computed(() => arrayMaxElements.value == null || arrayValues.value.length < arrayMaxElements.value);

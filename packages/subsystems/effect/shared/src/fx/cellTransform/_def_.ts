@@ -39,7 +39,7 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		// セル寸法の基準領域。入力画像のfitは接続設定で画面全体へ適用する。
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		perCellOpacity: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Per Cell Opacity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },

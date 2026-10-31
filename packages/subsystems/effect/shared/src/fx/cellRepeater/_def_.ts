@@ -41,7 +41,7 @@ export default defineEffect({
 			canNode: false,
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		perCellSelection: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Per Cell Selection', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },

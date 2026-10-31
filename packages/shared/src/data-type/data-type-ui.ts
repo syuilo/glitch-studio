@@ -38,7 +38,7 @@ export type DataTypeUiDefinition<T extends DataType = DataType> =
 	T extends { kind: 'array'; elementType: infer E extends DataType }
 		? { element: DataTypeUiDefinition<E> }
 		: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
-			? { fields: { [K in keyof F]: { label: string; control: DataTypeUiDefinition<F[K]> } } }
+			? { fields: { [K in keyof F]: { label: string; isAdvanced?: boolean; control: DataTypeUiDefinition<F[K]> } } }
 			: T extends { kind: 'enum'; options: readonly string[] }
 				? { labels: Record<T['options'][number], string> }
 				: T extends { kind: keyof DataTypeUiControlDefinitionMap }

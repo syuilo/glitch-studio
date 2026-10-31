@@ -11,7 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['utility', 'convert'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		vector: { dataType: { kind: 'vector' }, ui: { label: 'Vector', control: { controlType: 'vector' } }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 		density: { dataType: { kind: 'scalar' }, ui: { label: 'Seed Density', control: { controlType: 'range', min: 1, max: 64, step: 1 } }, defaultValue: { inputSource: 'literal', value: 8 } },
 		maximumLength: { dataType: { kind: 'scalar' }, ui: { label: 'Maximum Length', control: { controlType: 'range', min: 0.001, max: 4, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.75 } },

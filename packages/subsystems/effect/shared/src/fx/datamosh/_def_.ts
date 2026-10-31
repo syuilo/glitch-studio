@@ -11,7 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal', 'distortion', 'pixel'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },

@@ -8,6 +8,24 @@ import { effectScope } from 'vue';
 const bundle = await build({ entryPoints: [fileURLToPath(new URL('../src/preferences.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'] });
 
+// 【高度なパラメータの表示は既定でオフにし、アプリケーション設定として復元する】
+// 表示メニューの切り替えをプロジェクトへ保存せず、次回起動にも引き継ぐ。
+test('defaults advanced parameters to hidden and persists the display preference', t => {
+	const storage = new Map();
+	const window = { localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } };
+	const module = { exports: {} };
+	new Function('require', 'module', 'exports', 'window', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, window);
+	const { preferences, PreferencesManager } = module.exports;
+	assert.equal(preferences.r.showAdvancedParameters.value, false);
+	const scope = effectScope();
+	t.after(() => scope.stop());
+	const model = scope.run(() => preferences.model('showAdvancedParameters'));
+	model.value = true;
+	assert.equal(new PreferencesManager().r.showAdvancedParameters.value, true);
+	model.value = false;
+	assert.equal(new PreferencesManager().r.showAdvancedParameters.value, false);
+});
+
 // 【計測・解析設定は既定で有効になり、footerと同じモデル経由の変更を保存・復元する】
 // 表示用のrefだけを書き換えても再起動後には復元できない。既存の環境設定に新しい
 // キーがない場合の既定値と、片方の切り替えが他方を書き換えないことも確認する。

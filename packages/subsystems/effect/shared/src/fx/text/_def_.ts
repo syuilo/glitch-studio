@@ -29,7 +29,7 @@ export default defineEffect({
 			},
 			defaultValue: { inputSource: 'literal', value: 0.1 },
 		},
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		overflow: {
 			dataType: { kind: 'enum', options: ['none', 'shrink', 'compress'] },
 			ui: { label: 'Overflow', control: { labels: { none: 'Do Nothing', shrink: 'Shrink Font Size', compress: 'Compress Horizontally' } } },

@@ -74,7 +74,7 @@ export type ParameterSettings<T extends DataType> = T extends DataType
 export type ParameterDefinition<T extends DataType = DataType> = T extends DataType
 	? {
 		dataType: T;
-		ui: { label: string; control: DataTypeUiDefinition<T> };
+		ui: { label: string; isAdvanced?: boolean; control: DataTypeUiDefinition<T> };
 	} & ParameterSettings<T>
 	: never;
 

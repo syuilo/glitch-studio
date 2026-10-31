@@ -31,7 +31,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [3, 3] },
 		},
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		rotation: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Rotation', control: { controlType: 'angle' } },
