@@ -109,7 +109,9 @@ test('saves settings individually', async t => {
 	// 設定画面を開いただけでは既定値を書き込まず、選択した方式を次回起動にも保持する。
 	const displayMode = find('data-test-preview-display-mode');
 	assert.equal(displayMode.props.modelValue, 'cpu');
-	for (const value of ['cpu', 'gpu']) {
+	assert.equal(storage.has('preferences:previewDisplayMode'), false);
+	// 既定のCPUから別の方式へ変更してから戻し、両方向の変更で保存されることを確認する。
+	for (const value of ['gpu', 'cpu']) {
 		displayMode.props['onUpdate:modelValue'](value);
 		await nextTick();
 		assert.equal(preferences.s.previewDisplayMode, value);

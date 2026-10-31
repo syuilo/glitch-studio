@@ -508,17 +508,17 @@ test('preserves Transform child instances and outside inputs across project patc
 	assert.equal(instance.disposed, true);
 });
 
-// 【値編集と接続変更の扱いをレンダラー側で決め、同じバッチの変更内容を全て考慮する】
-// 通知から保持フラグを外しても、通常の値編集では上流を描き直さず、接続変更を含む
-// 編集ではModule全体のキャッシュを更新する。どちらも既存のエフェクトインスタンスは保つ。
-test('derives module cache invalidation from all node edit kinds', async t => {
+// 【値編集では履歴を保ち、接続変更を含むバッチではVisual Module内の全エフェクトを再作成する】
+// 接続変更は解像度の静的計画にも影響するため、値編集と同じバッチに含まれていても
+// 全エフェクトの履歴とキャッシュを破棄する。値編集だけなら上流の描画と既存インスタンスを保つ。
+test('preserves instances for value edits and recreates all effects for batches containing connection edits', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
-	const module = visualModule({ params: { amount: literal(1) } });
-	const upstream = module.nodes[1];
+	const inlineVisualModule = visualModule({ params: { amount: literal(1) } });
+	const upstream = inlineVisualModule.nodes[1];
 	const downstream = { ...structuredClone(upstream), id: 'downstream', params: { ...upstream.params, input: connection(upstream.id), amount: literal(2) } };
-	module.nodes.splice(2, 0, downstream);
-	module.nodes.at(-1).inputs.output.nodeId = downstream.id;
-	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer('inline', module)] }], sceneId: 'scene' });
+	inlineVisualModule.nodes.splice(2, 0, downstream);
+	inlineVisualModule.nodes.at(-1).inputs.output.nodeId = downstream.id;
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer('inline', inlineVisualModule)] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 20);
 	const instances = [...calls.instances];
 	const edited = structuredClone(downstream);
@@ -528,11 +528,22 @@ test('derives module cache invalidation from all node edit kinds', async t => {
 	manager.applyProjectChanges([patch]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.deepEqual(instances.map(instance => instance.renders), [1, 2]);
-	manager.applyProjectChanges([{ ...patch, changes: [{ type: 'parameter', kind: 'connection' }, { type: 'parameter', kind: 'value' }] }]);
-	await manager.renderTimelineFrame(350, 20);
-	assert.deepEqual(instances.map(instance => instance.renders), [2, 3]);
 	assert.deepEqual(calls.instances, instances);
 	assert.ok(instances.every(instance => !instance.disposed));
+	assert.equal(calls.renders.at(-1).params.amount, 3);
+	manager.applyProjectChanges([{ ...patch, changes: [{ type: 'parameter', kind: 'connection' }, { type: 'parameter', kind: 'value' }] }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.deepEqual(instances.map(instance => instance.renders), [1, 2]);
+	assert.ok(instances.every(instance => instance.disposed));
+	assert.equal(calls.instances.length, 4);
+	const recreatedInstances = calls.instances.slice(2);
+	assert.deepEqual(recreatedInstances.map(instance => instance.renders), [1, 1]);
+	assert.ok(recreatedInstances.every(instance => !instance.disposed));
+	assert.equal(calls.renders.at(-1).params.amount, 3);
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(calls.instances.length, 4);
+	assert.deepEqual(recreatedInstances.map(instance => instance.renders), [1, 1]);
+	assert.deepEqual(calls.errors, []);
 });
 
 // 【Module引数のリセットに値編集が続いても、対象配置だけを再生成する】

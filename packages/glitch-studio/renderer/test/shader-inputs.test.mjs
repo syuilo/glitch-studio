@@ -877,6 +877,8 @@ test('resizes automatic image outputs to the selected asset and preserves borrow
 	assert.deepEqual([...calls.writes.at(-1).slice(4, 6)], [1, Math.fround(4 / 9)]);
 	// 自動の加工ノードは、縮小済みImageのサイズを再度半分にしない。
 	mix.resolution = { mode: 'auto', scale: 1 };
+	// 解像度は静的なスナップショットなので、設定の変更を通知してから倍率を変える。
+	renderer.updateNodes([raw, mix, output]);
 	renderer.resize({ width: 32, height: 32 }, 0.5);
 	const preview = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([preview.width, preview.height], [2, 5]);
