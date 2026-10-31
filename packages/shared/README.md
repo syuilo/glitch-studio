@@ -37,6 +37,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `uniform-or-texture.ts`: 空間的に一定の値、またはテクスチャを表す`UniformOrTexture`。生成元や接続先の情報、サンプリング設定は持たない。
 - `shader-input.ts`: `UniformOrTexture`と受け取り側のサンプリング設定から`ShaderInput`を作る`toShaderInput()`、およびWGSLの読み取り関数とbindingの生成。
 - `shader-input-pipeline.ts`: シェーダー入力の構成に応じたpipelineとbindingの管理。
+- `color-ramp.ts` / `color-ramp.wgsl`: fragment描画用のColor Rampのbuffer・binding・乗算済みsRGBへの評価。呼び出し側がbind group番号を指定し、`shaderCode`をシェーダーへ組み込み、`update()`が返すbind groupを使用する。stop数の変更はbufferの拡張で扱い、pipelineの再生成を要求しない。
 - `shape-distance.wgsl`: 楕円・角丸矩形の境界への距離と、楕円の最近点を求める数学処理。座標の単位・配置・描画方式は呼び出し側が決める。
 - `uniform-or-texture-to-texture-resolver.ts`: `GPUTexture`が必要な境界で定数だけをテクスチャ化する`UniformOrTextureToTextureResolver`。借用テクスチャの所有権は持たず、自身が作った定数テクスチャだけを管理する。
 

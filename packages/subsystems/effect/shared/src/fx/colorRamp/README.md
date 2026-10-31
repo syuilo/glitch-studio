@@ -10,6 +10,7 @@ Constant・Linear・Smoothstep、およびsRGB・Linear sRGB・Oklabを選択で
 CPUで位置をf32へ丸めてstable sortし、選択色空間の乗算済みの色と端点用sRGBをstorage bufferへ渡します。
 画素ごとにupper_boundで区間を求め、同位置の最後のstopを採用します。stop数・補間方式・色空間の変更ではpipelineを再生成しません。
 対応表が変わったときだけbufferを書き換え、容量不足で拡張し、破棄時にはuniform・storage・入力pipelineを解放します。
+GPUのbuffer・bindingとWGSLの評価は、`@gs/shared/gpu/color-ramp.ts`の`createColorRampBindings()`で管理します。Vector Field Visualizationも同じ処理を使い、エフェクト同士は参照しません。
 
 補間後はalphaを戻してからsRGBへ変換し、RGBを0〜1へclampしてalphaを再乗算します。
 このclampは簡単なgamut処理であり、色相・彩度を保つgamut mappingではありません。UIプレビューも同じ処理を使います。
