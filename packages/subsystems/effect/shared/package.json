@@ -21,7 +21,7 @@
 	"dependencies": {
 		"@gs/subsystems_audio_renderer": "workspace:*",
 		"@gs/shared": "workspace:*",
-		"mediabunny": "1.62.0",
+		"mediabunny": "1.62.1",
 		"seedrandom": "3.0.5",
 		"webgpu-utils": "2.1.1",
 		"@gs/subsystems_audio_shared": "workspace:*"

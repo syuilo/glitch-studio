@@ -19,6 +19,6 @@
 	},
 	"dependencies": {
 		"@syuilo/aiscript": "1.2.1",
-		"mediabunny": "1.62.0"
+		"mediabunny": "1.62.1"
 	}
 }
