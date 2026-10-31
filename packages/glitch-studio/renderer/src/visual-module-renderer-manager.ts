@@ -21,7 +21,7 @@ import { CanvasRenderer } from './canvas-renderer.ts';
 import { createPreviewCanvasContext } from './preview-canvas-context.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { FrameScheduler, VisualModuleLivePreviewFrameTiming } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
-import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { VisualModuleCustomParameterId, VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -308,13 +308,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule);
 			}
 		}
-	}
-
-	public replaceProjectState(state: RendererProjectState) {
-		// 全量置換は初期化・復旧の境界。差分更新と違い、同じIDでも履歴を引き継がない。
-		this.stopRenderLoop();
-		this.dynamicOptions.visualModules = state.visualModules;
-		this.dynamicOptions.automationGraphs = state.automationGraphs;
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[]) {

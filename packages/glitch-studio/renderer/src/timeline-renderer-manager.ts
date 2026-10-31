@@ -456,18 +456,6 @@ export class TimelineRendererManager extends EventEmitter<{
 		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes') && !this.frameCache.enabled) this.reportFrameCache();
 	}
 
-	public replaceProjectState(state: RendererProjectState, previewRevision = this.dynamicOptions.previewRevision + 1) {
-		const resolution = this.resolveProjectOutputResolution(state);
-		this.clearTimelineRenderers();
-		this.projectVersions = new ProjectStateVersions();
-		Object.assign(this.dynamicOptions, state);
-		this.refreshEvaluationScenes();
-		this.dynamicOptions.previewRevision = previewRevision;
-		if (!state.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) this.dynamicOptions.sceneId = null;
-		this.gpuContext.canvas.width = resolution.width;
-		this.gpuContext.canvas.height = resolution.height;
-	}
-
 	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = this.dynamicOptions.previewRevision + 1) {
 		const next = applyRendererProjectChanges(this.dynamicOptions, changes);
 		const changesRootScene = changes.some(change => change.type === 'scene' && change.sceneId === this.dynamicOptions.sceneId);

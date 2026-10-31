@@ -14,6 +14,68 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', result.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewRenderEngine, formatRenderFailureOrigin } = module.exports;
 
+// 【初期化中の編集は旧生成を破棄し、最新スナップショットだけで再開する】
+// スナップショット送信後に値が変わっても差分RPCを予約せず、通常の設定・素材と同じ
+// 世代としてやり直す。古い完了通知で描画可能にならず、再開も最新の一度だけにする。
+test('restarts initialization with the latest edited snapshot and resumes only once', async () => {
+	const requests = [];
+	const resumed = [];
+	let version = 1;
+	const engine = new PreviewRenderEngine({
+		create: isCurrent => {
+			const ready = Promise.withResolvers();
+			requests.push({ version, isCurrent, ...ready });
+			return ready.promise;
+		},
+		dispose: () => requests.at(-1)?.reject(new Error('disposed')),
+		onReady: () => resumed.push(version),
+	});
+	const starting = engine.enable();
+	await Promise.resolve();
+	assert.equal(requests.length, 1);
+	assert.equal(engine.canRender.value, false);
+	version = 2;
+	engine.notifyContentChange();
+	version = 3;
+	engine.notifyContentChange();
+	assert.equal(requests[0].isCurrent(), false);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(requests.map(request => request.version), [1, 3]);
+	assert.deepEqual(resumed, []);
+	requests[1].resolve();
+	await starting;
+	assert.equal(engine.canRender.value, true);
+	assert.deepEqual(resumed, [3]);
+	// 起動後の通常編集は差分更新へ任せ、Workerを作り直さない。
+	engine.notifyContentChange();
+	await engine.retry();
+	assert.equal(requests.length, 2);
+});
+
+// 【静的設定の連続変更も両プレビューの再生成としてまとめ、書き出し中は起動しない】
+// Controller独自のreloadがなくても、休止中に変えた設定を復帰時の最新値から取得できる必要がある。
+// 初期化中の再変更も同じ入口で旧世代を無効化する。
+test('coalesces static setting restarts and keeps them suspended until explicit resume', async () => {
+	const snapshots = [];
+	let setting = 1;
+	const engine = new PreviewRenderEngine({ create: async () => { snapshots.push(setting); }, dispose() {} });
+	await engine.enable();
+	setting = 2;
+	engine.requestRestart();
+	setting = 3;
+	engine.requestRestart();
+	await engine.retry();
+	assert.deepEqual(snapshots, [1, 3]);
+	engine.suspend();
+	setting = 4;
+	engine.requestRestart();
+	await engine.retry();
+	assert.deepEqual(snapshots, [1, 3]);
+	assert.equal(engine.isSuspended.value, true);
+	await engine.resume();
+	assert.deepEqual(snapshots, [1, 3, 4]);
+});
+
 // 【破棄されたWorkerのRPC失敗が遅れて届いても新しいプレビューを停止しない】
 // Worker破棄は未完了RPCをrejectするが、その拒否は複数の非同期呼び出しを経由して届く。
 // 素材準備が先に終わって描画可能に戻った後も、失敗した更新の世代で判定する必要がある。

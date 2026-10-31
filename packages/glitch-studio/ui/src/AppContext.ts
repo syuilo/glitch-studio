@@ -30,17 +30,17 @@ import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
-import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.js';
+import type { IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { ProjectContext } from './Project.ts';
-import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.js';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
+import type { VisualModuleRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
 const DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES = 0;
 
 function getRendererIntermediateTextureFormat(): IntermediateTextureFormat {
-	if (preferences.s.intermediateTextureFormat != null) return preferences.s.intermediateTextureFormat;
+	if (preferences.r.intermediateTextureFormat.value != null) return preferences.r.intermediateTextureFormat.value;
 	const preferred = navigator.gpu.getPreferredCanvasFormat();
 	return preferred === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm';
 }
@@ -104,32 +104,8 @@ export class AppContext {
 			if (this.activeSceneId.value == null || !ids.includes(this.activeSceneId.value)) this.activeSceneId.value = ids[0] ?? null;
 		}, { flush: 'sync' });
 
-		this.visualModuleRendererManagerController = markRaw(new VisualModuleRendererManagerController({
-			previewDisplayMode: preferences.s.previewDisplayMode,
-			enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
-			enableStats: preferences.s.renderingStatsEnabled,
-			enableWaveformAndHistogram: preferences.s.analysisMonitorsEnabled,
-		}, {
-			fpsLimit: this.visualModuleLivePreviewFpsLimit.value,
-			visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value,
-			highlightClipping: this.highlightClipping.value,
-		}, this.audioOutput));
-
-		this.timelineRendererManagerController = markRaw(new TimelineRendererManagerController({
-			previewDisplayMode: preferences.s.previewDisplayMode,
-			enableStats: preferences.s.renderingStatsEnabled,
-			enableWaveformAndHistogram: preferences.s.analysisMonitorsEnabled,
-			timelineFps: this.projectContext.stateManager.state.timelineFps.value,
-			// プレビュー品質はUIだけが所有し、保存するプロジェクトのサンプル数は変更しない。
-			timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
-			enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
-			previewFramesAhead: preferences.s.timelinePreviewFramesAhead,
-		}, { highlightClipping: this.highlightClipping.value,
-			previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value,
-			frameCacheMaxBytes: Math.floor(preferences.s.timelineFrameCacheMaxGiB * 1024 ** 3),
-		}));
+		this.visualModuleRendererManagerController = markRaw(new VisualModuleRendererManagerController(this.audioOutput));
+		this.timelineRendererManagerController = markRaw(new TimelineRendererManagerController());
 
 		this.timelineAudioPreview = markRaw(new TimelineAudioPreview(
 			() => this.audioOutput.getOutput(),
@@ -150,7 +126,7 @@ export class AppContext {
 			(visualModuleId, params) => {
 				this.renderValidation.setVisualModuleLivePreviewInputs(visualModuleId, params);
 				this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
-				this.renderEngine.requestRetry();
+				this.renderEngine.notifyContentChange();
 			},
 		));
 		this.renderEngine = markRaw(new PreviewRenderEngine({
@@ -161,25 +137,36 @@ export class AppContext {
 			},
 			create: async isCurrent => {
 				if (!isCurrent()) return;
-				if (this.visualModuleRendererManagerController.isReady.value && this.timelineRendererManagerController.isReady.value) return;
-				// エラー中の差分は送らない。再生成時に、UIの最新状態を一度だけ取り込む。
+				// 初回・設定変更・復旧で同じ境界から取得する。awaitを挟まず両プレビュー分を固定し、
+				// 送信後の編集は差分を予約せず、この生成自体を破棄して取り込み直す。
 				const state = this.projectContext.stateManager.state;
-				await this.replacePreviewProject({ automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value });
-				if (!isCurrent()) return;
-				this.setPreviewAssets(state.assets.value);
-				await this.updatePreviewOptions({ resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value });
-				if (!isCurrent()) return;
-				this.visualModuleRendererManagerController.updatePlayers(state.players.value);
-				await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value, generatedSpeech: deepClone(this.previewSpeech.value) });
-				if (!isCurrent()) return;
+				const staticOptions = this.getPreviewStaticOptions();
+				const snapshot = deepClone({
+					assets: getRendererAssets(state.assets.value), players: state.players.value,
+					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
+					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value },
+					visualModuleOptions: { fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
+					timelineOptions: { sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
+						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value,
+						frameCacheMaxBytes: Math.floor(preferences.s.timelineFrameCacheMaxGiB * 1024 ** 3) },
+				});
 				const results = await Promise.allSettled([
-					this.visualModuleRendererManagerController.relaunchManager(),
-					this.timelineRendererManagerController.relaunchManager(),
+					this.visualModuleRendererManagerController.initialize({
+						staticOptions: staticOptions.visualModule,
+						dynamicOptions: { ...snapshot.commonOptions, ...snapshot.visualModuleOptions,
+							automationGraphs: snapshot.project.automationGraphs, visualModules: snapshot.project.visualModules },
+						resources: { assets: snapshot.assets, players: snapshot.players },
+					}),
+					isCurrent() ? this.timelineRendererManagerController.initialize({
+						staticOptions: staticOptions.timeline,
+						dynamicOptions: { ...snapshot.project, ...snapshot.commonOptions, ...snapshot.timelineOptions },
+						resources: { assets: snapshot.assets },
+					}) : Promise.resolve(),
 				]);
 				const failure = results.find(result => result.status === 'rejected');
 				if (failure?.status === 'rejected') throw failure.reason;
-				if (isCurrent()) this.previewPlayback.resume();
 			},
+			onReady: () => this.previewPlayback.resume(),
 		}));
 		for (const controller of [this.visualModuleRendererManagerController, this.timelineRendererManagerController]) {
 			controller.onRenderFailure = (error, origin) => {
@@ -207,8 +194,8 @@ export class AppContext {
 		projectContext.stateManager.onChange(changes => {
 			this.renderValidation.update(changes);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
-			if (changes.some(change => !['nodeName', 'visualModuleName', 'layerName', 'layerColor', 'sceneName'].includes(change.type))) {
-				this.renderEngine.requestRetry();
+			if (changes.some(change => ['automationGraphs', 'node', 'visualModule', 'visualModuleRegistration', 'layer', 'layerTree', 'layerOrder', 'scene'].includes(change.type))) {
+				this.renderEngine.notifyContentChange();
 			}
 		});
 
@@ -244,79 +231,53 @@ export class AppContext {
 			}
 		}, { flush: 'sync' });
 		watch(this.previewSpeech, speech => {
-			void this.timelineRendererManagerController.updateDynamicOptions({ generatedSpeech: deepClone(speech) }).then(() => this.previewPlayback.refresh()).catch(error => {
+			void this.updateTimelinePreviewOptions({ generatedSpeech: deepClone(speech) }).then(() => this.previewPlayback.refresh()).catch(error => {
 				ui.alert({ type: 'error', text: String(error) });
 				console.error(error);
 			});
 		}, { flush: 'sync' });
 
 		watch(this.activeSceneId, (sceneId, previousId) => {
+			this.renderEngine.notifyContentChange();
 			// 音声更新のwatchより前に旧Sceneの時計を止め、切替先の長さで位置を丸めない。
 			this.previewPlayback.pauseTimeline();
 			if (previousId != null) this.scenePlaybackTimes.set(previousId, this.previewPlayback.currentTimelineTime.value);
 			this.pendingSceneSeek = sceneId == null ? 0 : this.scenePlaybackTimes.get(sceneId) ?? 0;
 		}, { flush: 'sync' });
 
-		// Worker再読み込み後も、停止中のタイムラインの現在位置を復元する。
-		watch(this.timelineRendererManagerController.isReady, ready => {
-			if (ready) this.previewPlayback.refresh();
-		});
-
 		watch(this.highlightClipping, async value => {
 			await this.updatePreviewOptions({ highlightClipping: value });
-			this.renderEngine.requestRetry();
 			this.previewPlayback.refresh();
-		});
+		}, { flush: 'sync' });
 
 		watch(this.visualModuleLivePreviewFpsLimit, async value => {
-			await this.visualModuleRendererManagerController.updateDynamicOptions({ fpsLimit: value });
-			this.renderEngine.requestRetry();
-		});
+			await this.updateVisualModulePreviewOptions({ fpsLimit: value });
+		}, { flush: 'sync' });
 
 		watch(this.visualModuleLivePreviewTimeFactor, async value => {
-			await this.visualModuleRendererManagerController.updateDynamicOptions({ visualModuleLivePreviewTimeFactor: value });
-			this.renderEngine.requestRetry();
-		});
-		watch(this.timelinePreviewFpsFactor, async () => {
-			await this.timelineRendererManagerController.updateDynamicOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
+			await this.updateVisualModulePreviewOptions({ visualModuleLivePreviewTimeFactor: value });
+		}, { flush: 'sync' });
+		watch([this.projectContext.stateManager.state.timelineFps, this.timelinePreviewFpsFactor], async () => {
+			await this.updateTimelinePreviewOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
 			this.previewPlayback.updateTimelinePreviewFps();
-			this.renderEngine.requestRetry();
-		});
+		}, { flush: 'sync' });
 		watch(preferences.r.timelineFrameCacheMaxGiB, async value => {
-			await this.timelineRendererManagerController.updateDynamicOptions({ frameCacheMaxBytes: Math.floor(value * 1024 ** 3) });
-			this.renderEngine.requestRetry();
+			await this.updateTimelinePreviewOptions({ frameCacheMaxBytes: Math.floor(value * 1024 ** 3) });
 			this.previewPlayback.refresh();
-		});
-		watch(preferences.r.timelinePreviewFramesAhead, async value => {
-			// 既存の静的設定と同じ再生成手順を使い、先行中の処理やGPU資源を持ち越さない。
-			// 再描画はisReadyのwatchへ任せ、同じ位置への要求を重ねて送らない。
-			await this.timelineRendererManagerController.updateStaticOptions({ previewFramesAhead: value });
-			this.renderEngine.requestRetry();
-		});
+		}, { flush: 'sync' });
 
 		watch([this.projectContext.stateManager.state.resolution, this.resolutionFactor], async () => {
 			await this.updatePreviewOptions({
 				resolution: { ...this.projectContext.stateManager.state.resolution.value },
 				resolutionScale: this.resolutionFactor.value,
 			});
-			this.renderEngine.requestRetry();
 			this.previewPlayback.refresh();
-		});
+		}, { flush: 'sync' });
 
-		watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat, preferences.r.renderingStatsEnabled, preferences.r.analysisMonitorsEnabled, preferences.r.previewDisplayMode], async () => {
-			const options = {
-				previewDisplayMode: preferences.s.previewDisplayMode,
-				enableStats: preferences.s.renderingStatsEnabled,
-				enableWaveformAndHistogram: preferences.s.analysisMonitorsEnabled,
-				enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-				intermediateTextureFormat: getRendererIntermediateTextureFormat(),
-			};
-			await Promise.all([
-				this.visualModuleRendererManagerController.updateStaticOptions(options),
-				this.timelineRendererManagerController.updateStaticOptions(options),
-			]);
-			this.renderEngine.requestRetry();
-		});
+		watch(() => this.getPreviewStaticOptions(), (options, previous) => {
+			// 同値の再代入を除き、Timeline固有の設定も両プレビューを同じ世代として再生成する。
+			if (!deepEqual(options, previous)) this.renderEngine.requestRestart();
+		}, { flush: 'sync' });
 
 		this.projectSaveController = new ProjectSaveController(
 			() => this.projectContext.snapshot(),
@@ -324,24 +285,40 @@ export class AppContext {
 		);
 	}
 
-	private setPreviewAssets(assets: readonly Asset[]) {
-		const rendererAssets = getRendererAssets(assets);
-		this.visualModuleRendererManagerController.setInitialAssets(rendererAssets);
-		this.timelineRendererManagerController.setInitialAssets(rendererAssets);
+	private getPreviewStaticOptions() {
+		const state = this.projectContext.stateManager.state;
+		const common = {
+			previewDisplayMode: preferences.r.previewDisplayMode.value,
+			enableStats: preferences.r.renderingStatsEnabled.value,
+			enableWaveformAndHistogram: preferences.r.analysisMonitorsEnabled.value,
+			enable32bitDataTextures: preferences.r.enable32bitDataTextures.value,
+			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
+		};
+		return {
+			visualModule: common,
+			timeline: { ...common, timelineFps: state.timelineFps.value,
+				// 保存する書き出しサンプル数とプレビュー品質は別の設定として扱う。
+				timelineMotionBlur: { ...state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
+				previewFramesAhead: preferences.r.timelinePreviewFramesAhead.value },
+		};
 	}
 
-	private async updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
-		await Promise.all([
+	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
+		this.renderEngine.notifyContentChange();
+		return this.renderEngine.runRendererUpdate(() => Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),
 			this.timelineRendererManagerController.updateDynamicOptions(options),
-		]);
+		]));
 	}
 
-	private async replacePreviewProject(state: RendererProjectState) {
-		await Promise.all([
-			this.visualModuleRendererManagerController.replaceProjectState(state),
-			this.timelineRendererManagerController.replaceProjectState(state),
-		]);
+	private updateTimelinePreviewOptions(options: Partial<Omit<TimelineRendererManagerDynamicOptions, 'automationGraphs' | 'visualModules' | 'timelineScenes'>>) {
+		this.renderEngine.notifyContentChange();
+		return this.renderEngine.runRendererUpdate(() => this.timelineRendererManagerController.updateDynamicOptions(options));
+	}
+
+	private updateVisualModulePreviewOptions(options: Partial<VisualModuleRendererManagerDynamicOptions>) {
+		this.renderEngine.notifyContentChange();
+		return this.renderEngine.runRendererUpdate(() => this.visualModuleRendererManagerController.updateDynamicOptions(options));
 	}
 
 	/** 再生要求を止めてからGPUリソースを解放し、復帰完了後にだけ再生を戻す。 */
@@ -382,24 +359,13 @@ export class AppContext {
 		// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
 		const maxDimension = Math.max(project.resolution.width, project.resolution.height);
 		const initialResolutionFactor = maxDimension > 3000 ? 0.25 : maxDimension > 1500 ? 0.5 : 1;
-		const timelineRenderSettings = {
-			timelineFps: project.timelineFps,
-			timelineMotionBlur: { ...project.timelineMotionBlur, samples: DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES },
-		};
 
 		// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
 		this.projectSaveController.beginProjectLoad();
 		for (const stop of this.projectWatchers) stop();
 		this.projectWatchers = [];
 		this.previewPlayback.dispose();
-		// 同じIDのプロジェクトを再読込した場合も、以前の再生・ノード履歴を引き継がない。
-		await this.replacePreviewProject({ automationGraphs: [], visualModules: [], timelineScenes: [] });
-		this.setPreviewAssets([]);
-		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: null });
-		this.visualModuleRendererManagerController.updatePlayers([]);
-		// 旧プロジェクトを解放してから設定を適用し、不要な素材の再アップロードを避ける。
-		// 初回や同値の設定では再生成しない。通常編集のwatchは読込完了後に登録する。
-		await this.timelineRendererManagerController.updateStaticOptions(timelineRenderSettings);
+		this.previewPlayback.suspend();
 
 		this.timelinePreviewFpsFactor.value = 0.5;
 		this.timelinePreviewMotionBlurSamples.value = DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES;
@@ -414,12 +380,7 @@ export class AppContext {
 		this.activeSceneId.value = project.timelineScenes[0]?.id ?? null;
 		this.scenePlaybackTimes.clear();
 		this.pendingSceneSeek = null;
-		await this.replacePreviewProject({ automationGraphs: project.automationGraphs, visualModules: project.visualModules, timelineScenes: project.timelineScenes });
-		this.setPreviewAssets(project.assets);
-		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value,
-			previewFps: project.timelineFps * this.timelinePreviewFpsFactor.value,
-		});
-		this.visualModuleRendererManagerController.updatePlayers(project.players);
+
 		this.projectSaveController.finishProjectLoad(fileName, fileHandle);
 		await window.desktop?.setCurrentProjectFile?.(fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
 
@@ -438,25 +399,6 @@ export class AppContext {
 			if (window.desktop) this.voicevoxGeneration.schedule();
 			else this.voicevoxGeneration.synchronizeSpeech();
 		}, { immediate: true, flush: 'sync' }));
-
-		// 1回のCommandで変わるfpsとブラー設定をまとめて送り、Undo/Redoも同じ再生成経路を通す。
-		this.projectWatchers.push(watch([this.projectContext.stateManager.state.timelineFps, this.projectContext.stateManager.state.timelineMotionBlur, this.timelinePreviewMotionBlurSamples], async ([timelineFps], [previousTimelineFps]) => {
-			try {
-				await this.timelineRendererManagerController.updateStaticOptions({
-					timelineFps: this.projectContext.stateManager.state.timelineFps.value,
-					timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
-				});
-				// ブラーだけの変更では、停止中の精密シーク位置とモードを維持する。
-				if (timelineFps !== previousTimelineFps) {
-					await this.timelineRendererManagerController.updateDynamicOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
-					this.previewPlayback.updateTimelinePreviewFps();
-				}
-				this.renderEngine.requestRetry();
-			} catch (error) {
-				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
-				console.error(error);
-			}
-		}));
 
 		// 音声の内容・参照先・ループ長を比較し、映像パラメータの編集では先読みPCMを維持する。
 		// 素材原本の変更は下の同期watchがプレビュー全体を再生成し、再開時に最新素材で音声も作り直す。
@@ -538,7 +480,7 @@ export class AppContext {
 			// Scene追加コマンドの通知は同期watchの後に届く。差分を確定してから参照を切り替える。
 			await rendererSync.flush();
 			if (cancelled || generation !== sceneUpdateGeneration) return;
-			await this.timelineRendererManagerController.updateDynamicOptions({ sceneId });
+			await this.updateTimelinePreviewOptions({ sceneId });
 			if (cancelled || generation !== sceneUpdateGeneration) return;
 			if (this.pendingSceneSeek != null) {
 				const time = this.pendingSceneSeek;

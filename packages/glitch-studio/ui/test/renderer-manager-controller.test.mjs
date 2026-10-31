@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
 import { build } from 'esbuild';
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 
 // Controller間の連携は実コードを使い、ブラウザーのリソース生成だけ置き換える。
 const result = await build({
@@ -76,7 +76,6 @@ test('retains cache notifications independently of UI revisions and rejects disp
 	notify(latest);
 	for (const [method, argument] of [
 		['applyProjectChanges', []],
-		['replaceProjectState', { automationGraphs: [], visualModules: [], timelineScenes: [] }],
 	]) {
 		const changed = controller[method](argument);
 		assert.equal(controller.frameCacheState.value, latest);
@@ -94,6 +93,8 @@ test('retains cache notifications independently of UI revisions and rejects disp
 	assert.equal(controller.frameCacheState.value, latest);
 });
 
+const initialOptions = new WeakMap();
+
 function fixture(t, kind = 'VisualModule') {
 	const workers = [];
 	const canvas = () => ({
@@ -105,56 +106,43 @@ function fixture(t, kind = 'VisualModule') {
 		window: { document: { createElement: canvas } },
 		dependencies: { createWorker() { const worker = new FakeWorker(); workers.push(worker); return worker; } },
 	});
-	const controller = new module.exports[kind + 'RendererManagerController']({
-		...(kind === 'Timeline' ? { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 } } : {}),
-		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
-	}, { assets: [], fpsLimit: null, resolution: { width: 16, height: 16 }, resolutionScale: 1 });
+	const controller = new module.exports[kind + 'RendererManagerController']({});
+	initialOptions.set(controller, {
+		staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false },
+		dynamicOptions: { fpsLimit: null, resolution: { width: 16, height: 16 }, resolutionScale: 1 },
+		resources: { assets: [], players: [] },
+	});
 	// 本番のPreviewRenderEngineと同様に、エンジンの所有者が失敗通知を受けて解放する。
 	controller.onRenderFailure = error => controller.disposeManager(error);
 	t.after(() => controller.destroy());
 	return { controller, workers, Base: module.exports.RendererManagerControllerBase };
 }
 
+function start(controller) { return controller.initialize(initialOptions.get(controller)); }
+function restart(controller) { controller.disposeManager(); return start(controller); }
+
+for (const kind of ['VisualModule', 'Timeline']) {
+	// 【Canvas準備の同期通知で破棄された場合も、古い起動からWorkerを生成しない】
+	// 再生成の無効化は任意の初期化段階で起きる。CanvasをUIへ通知した後に世代を作ると、
+	// 既に取り消された起動が新しいWorkerを所有してしまい、次回の生成も妨げる。
+	test(`does not create a ${kind} worker after disposal during canvas preparation`, async t => {
+		const { controller, workers } = fixture(t, kind);
+		const stop = watch(controller.canvasRevision, () => controller.disposeManager(), { flush: 'sync' });
+		t.after(stop);
+		await assert.rejects(start(controller), /disposed during initialization/);
+		assert.equal(workers.length, 0);
+		assert.equal(controller.isReady.value, false);
+	});
+}
+
 async function initialize(controller, workers) {
-	const ready = controller.relaunchManager();
+	const ready = start(controller);
 	const worker = workers.at(-1);
 	await worker.initialization.promise;
 	worker.reply({ type: 'inited' });
 	await ready;
 	return worker;
 }
-
-// 【先行数は静的設定として再生成したWorkerへ渡し、同じ値の適用では再生成しない】
-// 設定を下げるときに旧Workerの送信済みフレームやキャッシュを持ち越さず、GPU完了待ちの
-// シークも解除する。0を未設定扱いにしたり、projectの動的情報へ混ぜたりしないことを確認する。
-test('recreates the timeline worker for frames ahead changes and clears obsolete preview state', async t => {
-	const { controller, workers } = fixture(t, 'Timeline');
-	await controller.updateStaticOptions({ previewFramesAhead: 1 });
-	const oldWorker = await initialize(controller, workers);
-	oldWorker.reply({ type: 'ev', ev: { type: 'frameCache', ctx: { sceneId: null, previewRevision: 0, contentRevision: 1,
-		fps: 60, frameRanges: [{ startFrame: 0, endFrame: 2 }], maxBytes: 16, estimatedBytes: 8 } } });
-	assert.notEqual(controller.frameCacheState.value, null);
-	const seek = controller.renderTimelineAtAndWait(100);
-	const changed = controller.updateStaticOptions({ previewFramesAhead: 0 });
-	assert.equal(await seek, false);
-	assert.equal(oldWorker.terminated, true);
-	assert.equal(controller.frameCacheState.value, null);
-	const replacement = workers[1];
-	const initial = await replacement.initialization.promise;
-	assert.equal(initial.staticOptions.previewFramesAhead, 0);
-	assert.equal(Object.hasOwn(initial.dynamicOptions, 'previewFramesAhead'), false);
-	replacement.reply({ type: 'inited' });
-	await changed;
-	await controller.updateStaticOptions({ previewFramesAhead: 0 });
-	assert.equal(workers.length, 2);
-	const increased = controller.updateStaticOptions({ previewFramesAhead: 3 });
-	assert.equal(replacement.terminated, true);
-	const latest = workers[2];
-	assert.equal((await latest.initialization.promise).staticOptions.previewFramesAhead, 3);
-	latest.reply({ type: 'inited' });
-	await increased;
-	assert.equal(controller.isReady.value, true);
-});
 
 // 【使用率も最後の通知を使い、容量変更では保持しWorker破棄で解除する】
 // UIが保持する新しい容量と古い使用量を混ぜず、同じ通知内の比率を表示とBAKE判定で共有する。
@@ -236,7 +224,7 @@ for (const action of ['redraw', 'cancel', 'dynamic options', 'project edit', 'di
 
 // 【Worker再生成を伴う設定変更でもBAKE待機を残さず、容量の有効状態を通知前に反映する】
 // BAKE開始可否は間引かれるキャッシュ通知に依存させず、保持している設定から判断する。
-test('cancels bake waits for static changes and tracks configured cache availability', async t => {
+test('cancels bake waits on owner disposal and tracks configured cache availability', async t => {
 	const { controller, workers } = fixture(t, 'Timeline');
 	const worker = await initialize(controller, workers);
 	assert.equal(controller.isFrameCacheEnabled.value, false);
@@ -245,7 +233,8 @@ test('cancels bake waits for static changes and tracks configured cache availabi
 	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
 	await capacity;
 	const waiting = controller.renderTimelineAtAndWait(0);
-	const changing = controller.updateStaticOptions({ enableStats: true });
+	initialOptions.get(controller).staticOptions.enableStats = true;
+	const changing = restart(controller);
 	assert.equal(await waiting, false);
 	const next = workers.at(-1);
 	await next.initialization.promise;
@@ -502,191 +491,6 @@ test('shares transform observation and rejects old state revisions', async t => 
 	assert.equal(controller.layerTransform.value, null);
 });
 
-for (const kind of ['VisualModule', 'Timeline']) {
-	// 【計測切替の再生成中に設定が変わっても両プレビューが最後の設定へ追従する】
-	// GPUの機能は初期化時に確定する。最初の再生成を待つだけでは、連続クリック後も
-	// 古い計測有効状態が残るため、スナップショット送信後の切り替えを再現する。
-	test(`applies the latest statistics setting across rapid ${kind} restarts`, async t => {
-		const { controller, workers } = fixture(t, kind);
-		await initialize(controller, workers);
-		const enabled = controller.updateStaticOptions({ enableStats: true });
-		const first = await workers[1].initialization.promise;
-		assert.equal(first.staticOptions.enableStats, true);
-		const disabled = controller.updateStaticOptions({ enableStats: false });
-		workers[1].reply({ type: 'inited' });
-		await setImmediate();
-		assert.equal(workers[1].terminated, true);
-		const latest = await workers[2].initialization.promise;
-		assert.equal(latest.staticOptions.enableStats, false);
-		workers[2].reply({ type: 'inited' });
-		await Promise.all([enabled, disabled]);
-		await controller.updateStaticOptions({ enableStats: false });
-		assert.equal(workers.length, 3, 'unchanged settings must not restart the worker');
-	});
-}
-
-// 【fpsとモーションブラーを一度の再生成で反映し、同値の適用では再生成しない】
-// 1回の設定適用やUndoでWorkerを二重生成せず、旧Workerの完了通知で表示を巻き戻さない。
-test('recreates the timeline once for combined render settings and ignores unchanged settings', async t => {
-	const { controller, workers } = fixture(t, 'Timeline');
-	const oldWorker = await initialize(controller, workers);
-	const previousCanvas = controller.canvas;
-	const previousCanvasRevision = controller.canvasRevision.value;
-	const settings = { timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
-	const ready = controller.updateStaticOptions(settings);
-	assert.equal(oldWorker.terminated, true);
-	const replacement = workers[1];
-	const initial = await replacement.initialization.promise;
-	assert.equal(initial.staticOptions.timelineFps, 24);
-	assert.deepEqual(initial.staticOptions.timelineMotionBlur, settings.timelineMotionBlur);
-	assert.equal('timelineFps' in initial.dynamicOptions, false);
-	assert.equal('timelineMotionBlur' in initial.dynamicOptions, false);
-	const sameSettings = controller.updateStaticOptions(structuredClone(settings));
-	oldWorker.reply({ type: 'inited' });
-	assert.equal(controller.isReady.value, false);
-	replacement.reply({ type: 'inited' });
-	await Promise.all([ready, sameSettings]);
-	await controller.updateStaticOptions(structuredClone(settings));
-	assert.equal(workers.length, 2);
-	assert.notEqual(controller.canvas, previousCanvas);
-	assert.equal(controller.canvasRevision.value, previousCanvasRevision + 1);
-	assert.equal(controller.isReady.value, true);
-});
-
-// 【初期設定の送信前に変わった値は最初のWorkerへまとめる】
-// 初期化中という理由だけで再生成すると、プロジェクト読込で不要なGPU初期化を繰り返す。
-test('absorbs static timeline changes before the initial snapshot', async t => {
-	const { controller, workers } = fixture(t, 'Timeline');
-	const ready = controller.relaunchManager();
-	const changed = controller.updateStaticOptions({ timelineFps: 30 });
-	const initial = await workers[0].initialization.promise;
-	assert.equal(initial.staticOptions.timelineFps, 30);
-	workers[0].reply({ type: 'inited' });
-	await Promise.all([ready, changed]);
-	assert.equal(workers.length, 1);
-});
-
-// 【再生成中のUndo/Redoでも最後の設定を取りこぼさない】
-// 初期スナップショット送信後の変更は動的更新できないため、次の生成へ集約して反映する。
-// 最初のreloadのPromiseを返すだけでは古い設定のWorkerが残ってしまう。
-test('recreates again with the latest timeline settings changed after the snapshot', async t => {
-	const { controller, workers } = fixture(t, 'Timeline');
-	await initialize(controller, workers);
-	const first = controller.updateStaticOptions({ timelineFps: 24 });
-	await workers[1].initialization.promise;
-	const undone = controller.updateStaticOptions({ timelineFps: 60 });
-	const latestBlur = { enabled: true, shutterAngle: 90, samples: 8 };
-	const latest = controller.updateStaticOptions({ timelineFps: 48, timelineMotionBlur: latestBlur });
-	// 呼び出し元による変更で、保持した初期化設定を後から書き換えない。
-	latestBlur.shutterAngle = 360;
-	workers[1].reply({ type: 'inited' });
-	await setImmediate();
-	assert.equal(workers[1].terminated, true);
-	const initial = await workers[2].initialization.promise;
-	assert.equal(initial.staticOptions.timelineFps, 48);
-	assert.equal(initial.staticOptions.timelineMotionBlur.shutterAngle, 90);
-	workers[2].reply({ type: 'inited' });
-	await Promise.all([first, undone, latest]);
-	assert.equal(workers.length, 3);
-	assert.equal(controller.isReady.value, true);
-});
-
-
-
-// 【初期スナップショット前の差分は吸収し、それ以降の差分だけを送信する】
-// Worker生成待ちの間に「編集→削除」が起きた場合、削除済みノードへの更新を再送してはいけない。
-// 初期化中の後続編集は順序を保って送り、再起動時にはそれを含む全量状態から復元する。
-for (const kind of ['VisualModule', 'Timeline']) test(`${kind} uses a snapshot boundary for project patches and restores the latest state on reload`, async t => {
-	const { controller } = fixture(t, kind);
-	const node = { id: 'node', type: 'effect', effectId: 'fill', params: { value: { inputSource: 'literal', value: 1 } } };
-	const visualModule = { id: 'module', name: 'Module', nodes: [node], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
-	await controller.replaceProjectState({ visualModules: [visualModule], timelineScenes: [] });
-	const created = Promise.withResolvers();
-	const worker = new FakeWorker();
-	controller.createWorker = () => created.promise;
-	const ready = controller.relaunchManager();
-	const edited = { ...node, params: { value: { inputSource: 'literal', value: 2 } } };
-	const absorbed = controller.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, node: edited, changes: [{ type: 'parameter', kind: 'value' }] }]);
-	const removed = controller.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: { ...visualModule, nodes: [] } }]);
-	created.resolve(worker);
-	const initial = await worker.initialization.promise;
-	assert.deepEqual(initial.dynamicOptions.visualModules[0].nodes, []);
-	const queued = controller.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: { ...visualModule, nodes: [edited] } }]);
-	assert.equal(worker.calls('applyProjectChanges').length, 0);
-	worker.reply({ type: 'inited' });
-	await ready;
-	await Promise.all([absorbed, removed]);
-	const calls = worker.calls('applyProjectChanges');
-	assert.equal(calls.length, 1);
-	assert.equal(calls[0].args[0][0].type, 'visualModule');
-	worker.returnValue(calls[0]);
-	await queued;
-	const restarted = new FakeWorker();
-	controller.createWorker = () => restarted;
-	const reloading = controller.reload();
-	const restored = await restarted.initialization.promise;
-	assert.deepEqual(restored.dynamicOptions.visualModules[0].nodes, [edited]);
-	restarted.reply({ type: 'inited' });
-	await reloading;
-	assert.equal(restarted.calls('applyProjectChanges').length, 0);
-});
-
-// 【Visual Moduleの追加と削除を両ControllerからWorkerへ送り、再起動でも削除を維持する】
-// 既存定義の編集だけを送信するフィルタでは、取り込んだVisual ModuleをVisual Module Live PreviewやTimelineから使えない。
-// 初期スナップショット・差分・再起動のどの境界でも、登録一覧が同じ最終状態になる必要がある。
-for (const kind of ['VisualModule', 'Timeline']) test(`${kind} synchronizes Visual Module registration and removal`, async t => {
-	const { controller, workers } = fixture(t, kind);
-	await controller.replaceProjectState({ visualModules: [], timelineScenes: [] });
-	const worker = await initialize(controller, workers);
-	const visualModule = { id: 'imported', name: 'Imported Visual Module', nodes: [], paramDefs: [], outputDefs: [],
-		primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
-	const registration = { type: 'visualModuleRegistration', visualModuleId: visualModule.id, visualModule };
-	const adding = controller.applyProjectChanges([registration]);
-	const added = worker.calls('applyProjectChanges').at(-1);
-	assert.deepEqual(added.args[0], [registration]);
-	worker.returnValue(added);
-	await adding;
-	assert.equal(controller.dynamicOptions.visualModules[0].id, 'imported');
-	if (kind === 'VisualModule') controller.startVisualModuleLivePreviewRenderLoopFor('imported');
-	const removal = { ...registration, visualModule: null };
-	const removing = controller.applyProjectChanges([removal]);
-	const removed = worker.calls('applyProjectChanges').at(-1);
-	assert.deepEqual(removed.args[0], [removal]);
-	worker.returnValue(removed);
-	await removing;
-	assert.equal(controller.dynamicOptions.visualModules.length, 0);
-	if (kind === 'VisualModule') assert.equal(controller.visualModuleLivePreviewVisualModuleId.value, null);
-	const restarted = new FakeWorker();
-	controller.createWorker = () => restarted;
-	const reloading = controller.reload();
-	const initial = await restarted.initialization.promise;
-	assert.deepEqual(initial.dynamicOptions.visualModules, []);
-	restarted.reply({ type: 'inited' });
-	await reloading;
-});
-
-// 【全量復旧の再開要求は応答待ちより前に送り、後続編集やモード切替で巻き戻さない】
-// 置換の応答中に編集が続いてもVisual Module Live Previewを停止したままにせず、停止後に遅れた再開もしない。
-test('orders Visual Module Live Preview recovery before later edits and does not restart after a mode switch', async t => {
-	const { controller, workers } = fixture(t);
-	const visualModule = { id: 'module', name: 'Module', nodes: [{ id: 'node', type: 'effect', effectId: 'fill', params: {} }] };
-	const state = { visualModules: [visualModule], timelineScenes: [] };
-	await controller.replaceProjectState(state);
-	const worker = await initialize(controller, workers);
-	controller.startVisualModuleLivePreviewRenderLoopFor('module');
-	const replacing = controller.replaceProjectState(state);
-	const replacement = worker.calls('replaceProjectState').at(-1);
-	assert.equal(worker.messages.at(-1).fn, 'startVisualModuleLivePreviewRenderLoopFor');
-	const patching = controller.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, node: visualModule.nodes[0], changes: [{ type: 'parameter', kind: 'value' }] }]);
-	worker.returnValue(worker.calls('applyProjectChanges').at(-1));
-	await patching;
-	controller.stopRenderLoop();
-	worker.returnValue(replacement);
-	await replacing;
-	assert.equal(worker.messages.at(-1).fn, 'stopRenderLoop');
-	assert.equal(worker.calls('startVisualModuleLivePreviewRenderLoopFor').length, 2);
-});
-
 // 【エフェクトレイヤーの状態をUIへ反映し、旧クリップと子Sceneの通知を分離する】
 // ノードIDのない状態通知を取りこぼさず、同じレイヤーを使う別配置や破棄済みクリップの通知で
 // 現在の表示を消さない。Worker障害後は状態を捨て、遅延通知による復活も防ぐ。
@@ -752,12 +556,11 @@ function baseFixture(t, overrides) {
 	const errors = [];
 	let created = 0;
 	class Controller extends Base {
-		start() { return this.relaunchManager(); }
+		start() { return this.launchManager(() => ({ options: {}, transfer: [] })); }
 		request() { return this.callAndWaitReturn('stopRenderLoop', []); }
 	}
 	const controller = new Controller({
 		createWorker: () => new FakeWorker(),
-		getInitialOptions: async () => ({ options: {}, transfer: [] }),
 		eventHandlers: {}, onCreated: () => { created++; }, onDisposed() {},
 		onError: error => errors.push(error?.message ?? null), ...overrides,
 	});
@@ -784,62 +587,6 @@ test('delegates failure disposal to the owner exactly once', async t => {
 	assert.equal(controller.errorMessage.value, 'draw failed');
 });
 
-// 【初期化中の編集を順序どおり送信し応答を待つ】
-// GPU初期化や画像デコード中にも編集されるため、送信済みの初期設定だけでは最新状態にならない。
-test('queues edits after init is sent and waits for each response', async t => {
-	const { controller, workers } = fixture(t);
-	await controller.updateDynamicOptions({ fpsLimit: 60 });
-	const ready = controller.relaunchManager();
-	const worker = workers[0];
-	const initial = await worker.initialization.promise;
-	assert.equal(initial.dynamicOptions.fpsLimit, 60);
-	const first = controller.updateDynamicOptions({ fpsLimit: 30 });
-	const second = controller.updateDynamicOptions({ visualModules: [], resolution: { width: 32, height: 24 } });
-	let settled = false;
-	void second.then(() => { settled = true; });
-	await Promise.resolve();
-	assert.equal(settled, false);
-	assert.equal(worker.calls('updateDynamicOptions').length, 0);
-	worker.reply({ type: 'inited' });
-	await ready;
-	const calls = worker.calls('updateDynamicOptions');
-	assert.deepEqual(calls.map(call => call.args[0]), [{ fpsLimit: 30 }, { visualModules: [], resolution: { width: 32, height: 24 } }]);
-	assert.equal(settled, false);
-	for (const call of calls) worker.returnValue(call, undefined);
-	await Promise.all([first, second]);
-});
-
-// 【Worker生成の完了前にも編集を受け付ける】
-// init直後や非同期のWorker生成中にも、更新Promiseを失敗させず応答まで保持する必要がある。
-test('accepts edits before worker creation completes', async t => {
-	const { controller, workers } = fixture(t);
-	const ready = controller.relaunchManager();
-	const update = controller.updateDynamicOptions({ fpsLimit: 24 });
-	const worker = workers[0];
-	await worker.initialization.promise;
-	worker.reply({ type: 'inited' });
-	await ready;
-	const calls = worker.calls('updateDynamicOptions');
-	assert.equal(calls.length, 1);
-	worker.returnValue(calls[0], undefined);
-	await update;
-});
-
-// 【初期化失敗を表示し待機中の編集も終了する】
-// initedが届かない場合、初期化と編集のどちらにも失敗を返さないと呼び出し元が待ち続ける。
-test('reports initialization errors and rejects queued edits', async t => {
-	const { controller, workers } = fixture(t);
-	const ready = controller.relaunchManager();
-	const worker = workers[0];
-	await worker.initialization.promise;
-	const update = controller.updateDynamicOptions({ highlightClipping: true });
-	const rejected = Promise.all([assert.rejects(ready, /GPU unavailable/), assert.rejects(update, /GPU unavailable/)]);
-	worker.reply({ type: 'initError', message: 'GPU unavailable' });
-	await rejected;
-	assert.equal(controller.errorMessage.value, 'GPU unavailable');
-	assert.equal(controller.isReady.value, false);
-});
-
 // 【生成待ちの破棄はすぐ終了し遅れて得たWorkerを回収する】
 // Worker生成Promiseが長時間完了しなくても破棄を待たせず、完了後に起動を再開してはいけない。
 test('rejects immediately on disposal and terminates a late worker', async t => {
@@ -847,7 +594,7 @@ test('rejects immediately on disposal and terminates a late worker', async t => 
 	const state = baseFixture(t, { createWorker: () => gate.promise });
 	const ready = state.controller.start();
 	const request = state.controller.request();
-	const rejected = Promise.all([assert.rejects(ready, /disposed/), assert.rejects(request, /reloaded/)]);
+	const rejected = Promise.all([assert.rejects(ready, /disposed/), assert.rejects(request, /not initialized/)]);
 	state.controller.destroy();
 	await rejected;
 	const worker = new FakeWorker();
@@ -859,35 +606,11 @@ test('rejects immediately on disposal and terminates a late worker', async t => 
 	assert.deepEqual(state.errors, []);
 });
 
-// 【初期設定の準備中に破棄してもinitを送信しない】
-// Worker生成後にも非同期の準備があるため、生成直後の確認だけでは破棄済みの起動が続いてしまう。
-test('does not send init after disposal during option preparation', async t => {
-	const gate = Promise.withResolvers();
-	const preparing = Promise.withResolvers();
-	const worker = new FakeWorker();
-	const state = baseFixture(t, {
-		createWorker: () => worker,
-		getInitialOptions: () => { preparing.resolve(); return gate.promise; },
-	});
-	const ready = state.controller.start();
-	await preparing.promise;
-	const rejected = assert.rejects(ready, /disposed/);
-	state.controller.disposeManager();
-	await rejected;
-	gate.resolve({ options: {}, transfer: [] });
-	await setImmediate();
-	worker.reply({ type: 'inited' });
-	assert.equal(worker.terminated, true);
-	assert.equal(worker.messages.length, 0);
-	assert.equal(state.controller.isReady.value, false);
-	assert.equal(state.created, 0);
-});
-
 // 【同期的なWorker生成でも直後の破棄に対応する】
 // awaitは同期の戻り値でも処理を中断するため、通常のWorkerファクトリーでも同じ競合が起きる。
 test('terminates a synchronously created worker when destroyed immediately', async t => {
 	const { controller, workers } = fixture(t);
-	const ready = controller.relaunchManager();
+	const ready = start(controller);
 	const rejected = assert.rejects(ready, /disposed/);
 	controller.destroy();
 	await rejected;
@@ -897,7 +620,7 @@ test('terminates a synchronously created worker when destroyed immediately', asy
 
 // 【操作エラーでWorkerを破棄しても、次の生成に使う設定変更を保持する】
 // 戻り値不要のRPCの失敗も停止の契機とし、失敗したWorkerへ更新を送り続けない。
-test('disposes after call errors and retains subsequent edits for recreation', async t => {
+test('disposes after call errors and accepts a new snapshot after failure', async t => {
 	const { controller, workers } = fixture(t);
 	const worker = await initialize(controller, workers);
 	controller.startVisualModuleLivePreviewRenderLoopFor('module');
@@ -921,7 +644,7 @@ test('reports fatal errors, rejects pending calls and ignores stale notification
 	worker.reply({ type: 'ev', ev: { type: 'renderError', ctx: { message: 'old frame failure' } } });
 	assert.equal(controller.errorMessage.value, 'worker crashed');
 	assert.equal(controller.isReady.value, false);
-	const reload = controller.reload();
+	const reload = restart(controller);
 	const replacement = workers[1];
 	await replacement.initialization.promise;
 	worker.reply({ type: 'inited' });
@@ -940,83 +663,10 @@ test('clears render errors on reload without a render recovery event', async t =
 	const worker = await initialize(controller, workers);
 	worker.reply({ type: 'ev', ev: { type: 'renderError', ctx: { message: 'Invalid graph' } } });
 	assert.equal(controller.errorMessage.value, 'Invalid graph');
-	const reload = controller.reload();
+	const reload = restart(controller);
 	const replacement = workers[1];
 	await replacement.initialization.promise;
 	replacement.reply({ type: 'inited' });
 	await reload;
 	assert.equal(controller.errorMessage.value, null);
-});
-
-// 【準備処理の例外でも初期化とRPCを終了する】
-// 設定取得が失敗するとWorkerから応答が来ないため、ローカルの例外にも同じ終了処理が必要になる。
-test('settles queued calls when initial option preparation fails', async t => {
-	const state = baseFixture(t, { getInitialOptions: async () => { throw new Error('Cannot transfer canvas'); } });
-	const ready = state.controller.start();
-	const request = state.controller.request();
-	await Promise.all([assert.rejects(ready, /Cannot transfer canvas/), assert.rejects(request, /Cannot transfer canvas/)]);
-	assert.deepEqual(state.errors, ['Cannot transfer canvas']);
-	assert.equal(state.created, 0);
-});
-
-for (const kind of ['VisualModule', 'Timeline']) {
-	// 【初回起動を再生成と同じ入口に揃え、同時要求でもWorkerを一つだけ生成する】
-	// 設定は起動前に保持し、初回だけの解像度設定経路に依存しない。
-	// 複数の再試行要求が重なってもCanvasを再転送したり二重起動したりしない。
-	test(`starts ${kind} once from retained settings through the shared launch entry point`, async t => {
-		const { controller, workers } = fixture(t, kind);
-		await controller.updateDynamicOptions({ resolution: { width: 100, height: 80 }, resolutionScale: 0.5 });
-		assert.equal(workers.length, 0);
-		const ready = controller.relaunchManager();
-		assert.equal(controller.relaunchManager(), ready);
-		const initial = await workers[0].initialization.promise;
-		assert.deepEqual(initial.dynamicOptions.resolution, { width: 100, height: 80 });
-		assert.equal(initial.dynamicOptions.resolutionScale, 0.5);
-		workers[0].reply({ type: 'inited' });
-		await ready;
-		await controller.relaunchManager();
-		assert.equal(workers.length, 1);
-		assert.equal(controller.isReady.value, true);
-	});
-
-	// 【解放中の設定変更を保持し、新しいCanvasで両Managerを復帰させる】
-	// エクスポート中にはWorkerを起動せず、復帰後に最新の解像度・精度で描画する必要がある。
-	test(`relaunches ${kind} with fresh canvases and settings changed while disposed`, async t => {
-		const { controller, workers } = fixture(t, kind);
-		const worker = await initialize(controller, workers);
-		const previous = controller.canvas;
-		const previousCanvasRevision = controller.canvasRevision.value;
-		controller.disposeManager();
-		await controller.updateStaticOptions({ enable32bitDataTextures: true });
-		await controller.updateDynamicOptions({ resolution: { width: 100, height: 80 } });
-		assert.equal(workers.length, 1);
-		assert.equal(worker.terminated, true);
-		const ready = controller.relaunchManager();
-		await Promise.resolve();
-		const replacement = workers[1];
-		const initial = await replacement.initialization.promise;
-		assert.equal(initial.staticOptions.enable32bitDataTextures, true);
-		assert.deepEqual(initial.dynamicOptions.resolution, { width: 100, height: 80 });
-		assert.notEqual(controller.canvas, previous);
-		assert.equal(controller.canvasRevision.value, previousCanvasRevision + 1);
-		replacement.reply({ type: 'inited' });
-		await ready;
-		assert.equal(controller.isReady.value, true);
-	});
-
-
-}
-
-// 【再読み込み中にVisual Module Live Previewから離れた場合は復帰後も停止を維持する】
-// Worker不在中の停止を例外にしたり古い再生状態を復元すると、タイムラインと同時にVisual Module Live Previewが動く。
-test('does not restart Visual Module Live Preview after switching away during reload', async t => {
-	const { controller, workers } = fixture(t);
-	await initialize(controller, workers);
-	controller.startVisualModuleLivePreviewRenderLoopFor('module');
-	const ready = controller.reload();
-	controller.stopRenderLoop();
-	await workers[1].initialization.promise;
-	workers[1].reply({ type: 'inited' });
-	await ready;
-	assert.deepEqual(workers[1].calls('startVisualModuleLivePreviewRenderLoopFor'), []);
 });

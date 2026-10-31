@@ -11,18 +11,20 @@ export class PreviewRenderEngine {
 	private updatingResources = ref(false);
 	private resourceUpdateGeneration = 0;
 	private generation = 0;
-	private restarting: Promise<void> | null = null;
+	private initializing: Promise<void> | null = null;
+	private initialized = ref(false);
 	private retryScheduled = false;
 	public readonly runtimeDiagnostic = readonly(this.runtimeError);
 	public readonly errorMessage = computed(() => this.staticError.value ?? this.runtimeError.value?.message ?? null);
-	public readonly canRender = computed(() => this.enabled.value && !this.suspended.value && !this.updatingResources.value && this.errorMessage.value == null);
+	private readonly canInitialize = computed(() => this.enabled.value && !this.suspended.value && !this.updatingResources.value && this.staticError.value == null);
+	public readonly canRender = computed(() => this.canInitialize.value && this.initialized.value && this.runtimeError.value == null);
 
-	constructor(private operations: { dispose: (reason?: Error) => void; create: (isCurrent: () => boolean) => Promise<void> }) {}
+	constructor(private operations: { dispose: (reason?: Error) => void; create: (isCurrent: () => boolean) => Promise<void>; onReady?: () => void }) {}
 
 	public setValidationError(message: string | null) {
 		const previous = this.staticError.value;
 		this.staticError.value = message;
-		if (message && previous == null) this.stop();
+		if (message != null && previous == null) this.stop();
 		if (message == null && previous != null) this.requestRetry();
 	}
 
@@ -35,6 +37,7 @@ export class PreviewRenderEngine {
 
 	private stop(reason?: Error) {
 		this.generation++;
+		this.initialized.value = false;
 		this.retryScheduled = false;
 		this.operations.dispose(reason);
 	}
@@ -42,6 +45,18 @@ export class PreviewRenderEngine {
 	public suspend() { this.suspended.value = true; this.stop(); }
 	public resume() { this.suspended.value = false; return this.retry(); }
 	public enable() { this.enabled.value = true; return this.retry(); }
+
+	/** 初期化後は差分更新を使い、初期化中の編集だけは最新スナップショットでやり直す。 */
+	public notifyContentChange(): void {
+		if (!this.initialized.value && this.initializing != null) this.requestRestart();
+		else this.requestRetry();
+	}
+
+	/** 静的設定の変更は、差分や古い初期化結果を採用する前に両プレビューを破棄する。 */
+	public requestRestart(): void {
+		this.stop();
+		this.requestRetry();
+	}
 
 	/** Worker破棄で失敗した旧RPCを、新しい世代の描画エラーとして扱わない。 */
 	public async runRendererUpdate(update: () => Promise<unknown>): Promise<void> {
@@ -88,27 +103,31 @@ export class PreviewRenderEngine {
 		});
 	}
 
-	public retry(): Promise<void> {
+	public async retry(): Promise<void> {
 		this.retryScheduled = false;
-		if (!this.enabled.value || this.suspended.value || this.updatingResources.value || this.staticError.value != null) return Promise.resolve();
+		if (!this.canInitialize.value) return;
 		this.runtimeError.value = null;
-		// 初期化中の複数変更は、同じ生成を待つ。エラーで無効化した生成は再利用しない。
-		if (this.restarting != null) return this.restarting.then(() => {
-			if (this.canRender.value) return this.createIfNeeded();
-			return;
-		});
-		return this.createIfNeeded();
+		// 古い生成の破棄が完了してから最新状態を取得する。複数の呼び出しも同じ生成を待つ。
+		// 失敗は明示的な再試行まで保持し、このループで自動的に再試行し続けない。
+		while (this.canInitialize.value && this.runtimeError.value == null && !this.initialized.value) {
+			await (this.initializing ?? this.initialize());
+		}
 	}
 
-	private createIfNeeded(): Promise<void> {
-		if (!this.canRender.value) return Promise.resolve();
-		if (this.restarting) return this.restarting;
+	private initialize(): Promise<void> {
 		const generation = this.generation;
-		const pending = this.operations.create(() => generation === this.generation && this.canRender.value).catch(error => {
-			// エンジン破棄が原因の初期化失敗で、次の世代の診断を上書きしない。
+		const isCurrent = () => generation === this.generation && this.canInitialize.value && this.runtimeError.value == null;
+		// 初期化中という状態を先に公開し、create内の同期的な変更も旧生成の無効化として扱う。
+		const pending = Promise.resolve().then(async () => {
+			if (!isCurrent()) return;
+			await this.operations.create(isCurrent);
+			if (!isCurrent()) return;
+			this.initialized.value = true;
+			this.operations.onReady?.();
+		}).catch(error => {
 			if (generation === this.generation) this.fail(error);
-		}).finally(() => { if (this.restarting === pending) this.restarting = null; });
-		this.restarting = pending;
+		}).finally(() => { if (this.initializing === pending) this.initializing = null; });
+		this.initializing = pending;
 		return pending;
 	}
 }

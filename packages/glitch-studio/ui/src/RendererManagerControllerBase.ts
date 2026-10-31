@@ -16,15 +16,8 @@ type ManagerEventHandlers<T extends RendererManager> = {
 // 対象のRendererManagerがWorker越しに動いているのか直接動いているのか隠蔽するクラス(現在はworkerのみ)
 export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	private worker: Worker | null = null;
-	private reloadPromise: Promise<void> | null = null;
-	private relaunchPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private generation = 0;
-	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions; onError?: (error: unknown) => void }[] = [];
-	protected initialSnapshotTaken = false;
-	protected initializationReady: Promise<void> = Promise.resolve();
-
-	private getInitialOptions: (() => Promise<{ options: Record<string, unknown>; transfer: Transferable[] }>);
 	private createWorker: () => Worker | Promise<Worker>;
 	private managerEventHandlers: ManagerEventHandlers<T>;
 	private onCreated: (() => void);
@@ -40,23 +33,13 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		this.onError(error);
 	}
 
-	protected get isInitializing(): boolean {
-		return this.rejectInitialization != null;
-	}
-
-	protected get hasManager(): boolean {
-		return this.worker != null;
-	}
-
 	constructor(options: {
-		getInitialOptions: RendererManagerControllerBase<T>['getInitialOptions'];
 		createWorker: RendererManagerControllerBase<T>['createWorker'];
 		eventHandlers: RendererManagerControllerBase<T>['managerEventHandlers'];
 		onCreated: RendererManagerControllerBase<T>['onCreated'];
 		onDisposed: RendererManagerControllerBase<T>['onDisposed'];
 		onError: RendererManagerControllerBase<T>['onError'];
 	}) {
-		this.getInitialOptions = options.getInitialOptions;
 		this.createWorker = options.createWorker;
 		this.managerEventHandlers = options.eventHandlers;
 		this.onCreated = options.onCreated;
@@ -65,63 +48,26 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	}
 
 	protected call<FN extends keyof ManagerMethods<T>>(fn: FN, args: Parameters<ManagerMethods<T>[FN]>, options?: StructuredSerializeOptions | Transferable[]): void {
-		//console.log('Calling renderer method:', fn, 'with args:', args);
-		const message = { type: 'call', fn, args };
-		const serializeOptions = Array.isArray(options) ? { transfer: options } : options;
-		if (!this.isReady.value) {
-			if (this.isInitializing) {
-				this.pendingCalls.push({ message, options: serializeOptions });
-				return;
-			}
-			throw new Error('Renderer is not initialized');
-		}
-		if (this.worker != null) {
-			this.worker.postMessage(message, serializeOptions);
-		//} else if (this.renderer != null) {
-		//	this.renderer[fn](...args);
-		} else {
-			throw new Error('Renderer is not initialized');
-		}
+		if (!this.isReady.value || this.worker == null) throw new Error('Renderer is not initialized');
+		this.worker.postMessage({ type: 'call', fn, args }, Array.isArray(options) ? { transfer: options } : options);
 	}
 
 	private returnHooks = new Map<number, { resolve: (value: unknown) => void; reject: (reason: Error) => void }>();
 	private callCounter = 0;
 
-	// 初期化チェックなどの同期的なthrowもPromiseのrejectに統一し、呼び出し側で.catch()でも受け取れるようasyncにする。
+	// 初期化中の編集は所有者がWorkerごと破棄する。未起動のWorkerへRPCを予約しない。
 	protected async callAndWaitReturn<FN extends keyof ManagerMethods<T>>(fn: FN, args: Parameters<ManagerMethods<T>[FN]>, options?: StructuredSerializeOptions | Transferable[]): Promise<Awaited<ReturnType<ManagerMethods<T>[FN]>>> {
-		const serializeOptions = Array.isArray(options) ? { transfer: options } : options;
-		if (!this.isReady.value && this.rejectInitialization == null) {
-			throw new Error('Renderer is not initialized');
-		}
-		if (this.worker != null || this.isInitializing) {
-			return new Promise<Awaited<ReturnType<ManagerMethods<T>[FN]>>>((resolve, reject) => {
-				const id = this.callCounter++;
-				this.returnHooks.set(id, {
-					resolve: value => resolve(value as Awaited<ReturnType<ManagerMethods<T>[FN]>>),
-					reject,
-				});
-				const onError = (error: unknown) => {
-					this.returnHooks.delete(id);
-					reject(error);
-				};
-				try {
-					const message = {
-						type: 'call',
-						fn,
-						args,
-						needReturnValue: true,
-						id,
-					};
-					// initメッセージ送信後の編集も、初期化完了時に送って応答まで待つ。
-					if (!this.isReady.value) this.pendingCalls.push({ message, onError, options: serializeOptions });
-					else this.worker!.postMessage(message, serializeOptions);
-				} catch (error) {
-					onError(error);
-				}
-			});
-		} else {
-			throw new Error('Renderer is not initialized');
-		}
+		if (!this.isReady.value || this.worker == null) throw new Error('Renderer is not initialized');
+		return new Promise<Awaited<ReturnType<ManagerMethods<T>[FN]>>>((resolve, reject) => {
+			const id = this.callCounter++;
+			this.returnHooks.set(id, { resolve: value => resolve(value as Awaited<ReturnType<ManagerMethods<T>[FN]>>), reject });
+			try {
+				this.worker!.postMessage({ type: 'call', fn, args, needReturnValue: true, id }, Array.isArray(options) ? { transfer: options } : options);
+			} catch (error) {
+				this.returnHooks.delete(id);
+				reject(error);
+			}
+		});
 	}
 
 	private rejectPendingReturns(error: Error) {
@@ -130,13 +76,11 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		this.returnHooks.clear();
 	}
 
-	private async launchManager() {
-		if (this.worker != null || this.isInitializing) throw new Error('Renderer is already initialized or initializing');
+	protected async launchManager(prepare: () => { options: Record<string, unknown>; transfer: Transferable[] }) {
+		if (this.worker != null || this.rejectInitialization != null) throw new Error('Renderer is already initialized or initializing');
 		const generation = ++this.generation;
 		const isCurrent = () => generation === this.generation;
 		const { promise: ready, resolve: resolveReady, reject: rejectReady } = Promise.withResolvers<void>();
-		this.initialSnapshotTaken = false;
-		this.initializationReady = ready;
 		this.rejectInitialization = rejectReady;
 
 		const fail = (reason: unknown) => {
@@ -148,6 +92,9 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		};
 
 		const initialize = async () => {
+			// Canvas差し替え等の同期通知でも破棄され得るため、準備より先に世代と待機を所有する。
+			const initial = prepare();
+			if (!isCurrent()) return;
 			const worker = await this.createWorker();
 			// 生成中に破棄されても、遅れて得たWorkerの所有権を残さない。
 			if (!isCurrent()) {
@@ -168,16 +115,6 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 						this.rejectInitialization = null;
 						// エラーからの復旧は新しいManagerの生成で行うため、初期化完了時に解除する。
 						this.onError(null);
-						for (const { message, options, onError } of this.pendingCalls) {
-							try {
-								worker.postMessage(message, options);
-							} catch (error) {
-								// 遅延送信の失敗でも待機中のRPCを完了させ、残りの更新は送信する。
-								if (onError) onError(error);
-								else this.onError(error instanceof Error ? error : new Error(String(error)));
-							}
-						}
-						this.pendingCalls = [];
 						resolveReady();
 						break;
 					}
@@ -212,9 +149,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 					}
 				}
 			};
-			const { options: initOptions, transfer: initTransfer } = await this.getInitialOptions();
-			if (!isCurrent()) return;
-			worker.postMessage({ type: 'init', ...initOptions }, initTransfer);
+			worker.postMessage({ type: 'init', ...initial.options }, initial.transfer);
 		};
 
 		// 準備の完了とは独立してreadyを待ち、生成が未完了でも破棄時に呼び出し元を解放する。
@@ -224,41 +159,16 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		this.onCreated();
 	}
 
-	public reload(): Promise<void> {
-		if (this.reloadPromise) return this.reloadPromise;
-		if (!this.worker && !this.isInitializing) return this.relaunchManager();
-		if (this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));
-		this.disposeManager();
-		this.reloadPromise = this.launchManager().finally(() => { this.reloadPromise = null; });
-		return this.reloadPromise;
-	}
-
 	public disposeManager(reason?: Error) {
 		this.generation++;
 		this.rejectPendingReturns(reason ?? new Error('Engine reloaded during renderer call'));
-		// エクスポート開始時は初期化途中でも破棄する。待機を残すとreloadPromiseが
-		// 解決されず、復帰後の設定変更でもWorkerを再読み込みできなくなる。
+		// 初期化途中でも待機をrejectし、所有者が最新スナップショットで起動し直せるようにする。
 		this.rejectInitialization?.(reason ?? new Error('Engine disposed during initialization'));
 		this.rejectInitialization = null;
-		this.pendingCalls = [];
 		this.isReady.value = false;
 		this.worker?.terminate();
 		this.worker = null;
 		this.onDisposed();
-	}
-
-	/** 初回起動・破棄後の再生成ともに、保持中の設定と新しいCanvasからManagerを生成する。 */
-	public relaunchManager(): Promise<void> {
-		if (this.relaunchPromise) return this.relaunchPromise;
-		this.relaunchPromise = this.relaunch().finally(() => { this.relaunchPromise = null; });
-		return this.relaunchPromise;
-	}
-
-	private async relaunch(): Promise<void> {
-		// 破棄によってrejectされたreloadの後処理を先に終わらせる。
-		if (this.reloadPromise) await this.reloadPromise.catch(() => {});
-		if (this.isReady.value) return;
-		await this.launchManager();
 	}
 
 	public destroy() {

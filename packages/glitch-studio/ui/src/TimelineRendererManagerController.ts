@@ -1,18 +1,23 @@
 import { computed, ref, shallowRef } from 'vue';
 import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
-import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { createTimelineRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
-import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
+import type { TimelineRendererManager, TimelineRendererManagerResources, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { Asset } from '@gs/shared/types.ts';
 import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import { getTimelinePreviewFrameIndex } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
+
+export type TimelineRendererManagerInitialOptions = {
+	staticOptions: TimelineRendererManagerStaticOptions;
+	dynamicOptions: Partial<TimelineRendererManagerDynamicOptions>;
+	resources: TimelineRendererManagerResources;
+};
+
+type TimelineRendererManagerRuntimeOptions = Omit<TimelineRendererManagerDynamicOptions, 'automationGraphs' | 'visualModules' | 'timelineScenes'>;
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);
@@ -36,10 +41,9 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
 	public waveformVerticalCanvas: HTMLCanvasElement;
-	private staticOptions: TimelineRendererManagerStaticOptions;
-	private initializationStaticOptions: TimelineRendererManagerStaticOptions | null = null;
-	private initialAssets: readonly Asset[] = [];
-	private dynamicOptions: Partial<TimelineRendererManagerDynamicOptions> = {
+	private timelineFps = 60;
+	/** 再生・通知の照合に必要なUI側の情報だけを保持し、プロジェクトや素材を複製しない。 */
+	private dynamicOptions: Partial<Pick<TimelineRendererManagerRuntimeOptions, 'sceneId' | 'previewFps' | 'previewRevision' | 'transformObserver'>> = {
 		previewRevision: 0,
 	};
 	public errorMessage = ref<string | null>(null);
@@ -53,45 +57,8 @@ export class TimelineRendererManagerController extends RendererManagerController
 		return this.effectStates.getLayer(sceneId, layerId);
 	}
 
-	constructor(staticOptions: TimelineRendererManagerStaticOptions, dynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
+	constructor() {
 		super({
-			getInitialOptions: async () => {
-				// 転送済みcanvasは再転送できないため、起動ごとに属性を引き継いだcanvasを用意する。
-				// 初回も同じ手順に揃え、表示先への付け替えはUIに通知する。
-				for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
-					const previous = this[key];
-					this[key] = previous.cloneNode(false) as HTMLCanvasElement;
-				}
-				this.canvasRevision.value++;
-
-				// CPU方式では実画面のCanvasをUIに残す。Workerには寸法を所有する描画先だけを渡す。
-				const transferCanvas = (canvas: HTMLCanvasElement) => this.staticOptions.previewDisplayMode === 'cpu'
-					? new OffscreenCanvas(canvas.width, canvas.height) : canvas.transferControlToOffscreen();
-				const offscreen = transferCanvas(this.canvas);
-				const histogramOffscreen = transferCanvas(this.histogramCanvas);
-				const waveformHorizontalOffscreen = transferCanvas(this.waveformHorizontalCanvas);
-				const waveformVerticalOffscreen = transferCanvas(this.waveformVerticalCanvas);
-
-				this.initialSnapshotTaken = true;
-				this.initializationStaticOptions = this.staticOptions;
-				return {
-					options: {
-						canvas: offscreen,
-						histogramCanvas: histogramOffscreen,
-						waveformHorizontalCanvas: waveformHorizontalOffscreen,
-						waveformVerticalCanvas: waveformVerticalOffscreen,
-						staticOptions: this.staticOptions,
-						dynamicOptions: this.dynamicOptions,
-						resources: { assets: this.initialAssets },
-					},
-					transfer: [
-						offscreen,
-						histogramOffscreen,
-						waveformHorizontalOffscreen,
-						waveformVerticalOffscreen,
-					],
-				};
-			},
 			createWorker: () => {
 				return createTimelineRendererManagerWorker();
 			},
@@ -138,8 +105,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 					this.reportRenderFailure(new Error(ctx.message));
 				},
 			},
-			onCreated: () => {
-			},
+			onCreated: () => {},
 			onDisposed: () => {
 				this.frameCacheState.value = null;
 				this.previewStatistics.value = null;
@@ -166,12 +132,59 @@ export class TimelineRendererManagerController extends RendererManagerController
 		this.waveformVerticalCanvas.height = 512;
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
-		this.staticOptions = deepClone(staticOptions);
-		this.dynamicOptions = { ...this.dynamicOptions, ...dynamicOptions };
-		this.frameCacheMaxBytes.value = dynamicOptions.frameCacheMaxBytes ?? 0;
 	}
 
-	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
+	/** 起動ごとに所有者が取得した最新スナップショットだけを使い、停止中の編集状態を複製しない。 */
+	public async initialize(options: TimelineRendererManagerInitialOptions): Promise<void> {
+		const snapshot = deepClone(options);
+		await this.launchManager(() => {
+			const previewRevision = this.transformPreviewRevision;
+			const transformObserver = this.dynamicOptions.transformObserver ?? null;
+			this.dynamicOptions = { sceneId: snapshot.dynamicOptions.sceneId, previewFps: snapshot.dynamicOptions.previewFps, transformObserver, previewRevision };
+			this.timelineFps = snapshot.staticOptions.timelineFps;
+			this.frameCacheMaxBytes.value = snapshot.dynamicOptions.frameCacheMaxBytes ?? 0;
+			snapshot.dynamicOptions = { ...snapshot.dynamicOptions, ...this.dynamicOptions };
+			// 転送済みcanvasは再転送できないため、起動ごとに属性を引き継いだcanvasを用意する。
+			// 初回も同じ手順に揃え、表示先への付け替えはUIに通知する。
+			for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
+				const previous = this[key];
+				this[key] = previous.cloneNode(false) as HTMLCanvasElement;
+			}
+			this.canvasRevision.value++;
+
+			// CPU方式では実画面のCanvasをUIに残す。Workerには寸法を所有する描画先だけを渡す。
+			const transferCanvas = (canvas: HTMLCanvasElement) => snapshot.staticOptions.previewDisplayMode === 'cpu'
+				? new OffscreenCanvas(canvas.width, canvas.height) : canvas.transferControlToOffscreen();
+			const offscreen = transferCanvas(this.canvas);
+			const histogramOffscreen = transferCanvas(this.histogramCanvas);
+			const waveformHorizontalOffscreen = transferCanvas(this.waveformHorizontalCanvas);
+			const waveformVerticalOffscreen = transferCanvas(this.waveformVerticalCanvas);
+
+			return {
+				options: {
+					canvas: offscreen,
+					histogramCanvas: histogramOffscreen,
+					waveformHorizontalCanvas: waveformHorizontalOffscreen,
+					waveformVerticalCanvas: waveformVerticalOffscreen,
+					staticOptions: snapshot.staticOptions,
+					dynamicOptions: snapshot.dynamicOptions,
+					resources: snapshot.resources,
+				},
+				transfer: [
+					offscreen,
+					histogramOffscreen,
+					waveformHorizontalOffscreen,
+					waveformVerticalOffscreen,
+				],
+			};
+		});
+		// 購読対象は起動中にも変わる。描画内容とは別に保持した最新のUI購読を適用する。
+		if (snapshot.dynamicOptions.previewRevision !== this.transformPreviewRevision) {
+			this.call('updateDynamicOptions', [{ transformObserver: this.dynamicOptions.transformObserver ?? null, previewRevision: this.transformPreviewRevision }]);
+		}
+	}
+
+	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerRuntimeOptions>) {
 		const options = deepClone(newDynamicOptions);
 		if (options.frameCacheMaxBytes != null) this.frameCacheMaxBytes.value = options.frameCacheMaxBytes;
 		if (Object.hasOwn(options, 'sceneId') && options.sceneId !== this.dynamicOptions.sceneId) {
@@ -187,57 +200,17 @@ export class TimelineRendererManagerController extends RendererManagerController
 				height: Math.max(1, Math.floor(options.resolution.height)),
 			};
 		}
-		this.dynamicOptions = { ...this.dynamicOptions, ...options };
-		// 初回起動前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
-		if (!this.isReady.value && !this.isInitializing) return;
+		if (Object.hasOwn(options, 'sceneId')) this.dynamicOptions.sceneId = options.sceneId;
+		if (Object.hasOwn(options, 'previewFps')) this.dynamicOptions.previewFps = options.previewFps;
+		if (Object.hasOwn(options, 'transformObserver')) this.dynamicOptions.transformObserver = options.transformObserver;
+		// 起動前・初期化中の変更は、所有者が最新スナップショットで生成し直す。
+		if (!this.isReady.value) return;
 		return this.callAndWaitReturn('updateDynamicOptions', [options]);
 	}
 
-	/** 次に生成するManagerへ渡す。動作中のManagerの素材一覧は更新しない。 */
-	public setInitialAssets(assets: readonly Asset[]) { this.initialAssets = deepClone(assets); }
-
-	public async replaceProjectState(state: RendererProjectState) {
-		this.cancelSeek();
-		const snapshot = deepClone(state);
-		const revision = this.invalidateTransformPreview();
-		this.dynamicOptions = {
-			...this.dynamicOptions,
-			...snapshot,
-			sceneId: snapshot.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null,
-		};
-		if (!this.isReady.value && !this.isInitializing) return;
-		if (!this.initialSnapshotTaken) return this.initializationReady;
-		await this.callAndWaitReturn('replaceProjectState', [snapshot, revision]);
-	}
-
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const patch = deepClone(changes);
-		const next = applyRendererProjectChanges({ automationGraphs: this.dynamicOptions.automationGraphs ?? [], visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: this.dynamicOptions.timelineScenes ?? [] }, patch);
-		const revision = this.invalidateTransformPreview();
-		this.dynamicOptions = {
-			...this.dynamicOptions,
-			...next,
-			sceneId: next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null,
-		};
-		if (!this.isReady.value && !this.isInitializing) return;
-		// 初期スナップショットへ取り込まれた差分は再送しない。削除済みノードへの
-		// 更新を初期化後に再生すると失敗するため、送信境界以降だけをキューへ積む。
-		if (!this.initialSnapshotTaken) return this.initializationReady;
-		await this.callAndWaitReturn('applyProjectChanges', [patch, revision]);
-	}
-
-	public async updateStaticOptions(newStaticOptions: Partial<TimelineRendererManagerStaticOptions>): Promise<void> {
-		this.finishFrameCompletion(false);
-		const options = { ...this.staticOptions, ...deepClone(newStaticOptions) };
-		this.staticOptions = options;
-		// 解放中は設定のみ保持する。Worker障害時は再生成して復旧できるようにする。
-		if (!this.hasManager && !this.isInitializing) return;
-		// 送信前の変更は初期スナップショットに含まれる。送信後の変更は初期化後に
-		// 再生成して反映する。同値の適用や同時変更は、既存のreload待機を共有する。
-		if (this.isInitializing) await this.initializationReady;
-		while (this.hasManager && !deepEqual(this.initializationStaticOptions, this.staticOptions)) {
-			await this.reload();
-		}
+		if (!this.isReady.value) return;
+		await this.callAndWaitReturn('applyProjectChanges', [deepClone(changes), this.invalidateTransformPreview()]);
 	}
 
 	public renderTimelineAt(time: number, isManualSeek = false, seekMode: TimelinePreviewSeekMode = 'frame') {
@@ -279,7 +252,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	private hasCachedPreviewFrame(time: number, seekMode: TimelinePreviewSeekMode): boolean {
 		const cache = this.frameCacheState.value;
-		const fps = this.dynamicOptions.previewFps ?? this.staticOptions.timelineFps;
+		const fps = this.dynamicOptions.previewFps ?? this.timelineFps;
 		if (seekMode !== 'frame' || cache == null || cache.maxBytes <= 0 || cache.fps !== fps
 			|| cache.sceneId !== (this.dynamicOptions.sceneId ?? null)) return false;
 		const frameIndex = getTimelinePreviewFrameIndex(time, fps);
@@ -313,9 +286,5 @@ export class TimelineRendererManagerController extends RendererManagerController
 		this.layerTransform.value = null;
 		const transformObserver = sceneId != null && layerId != null ? { sceneId, layerId, requestId: ++this.transformRequestId } : null;
 		await this.updateDynamicOptions({ transformObserver });
-	}
-
-	public destroy() {
-		super.destroy();
 	}
 }

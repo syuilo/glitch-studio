@@ -119,25 +119,32 @@ async function fixture(t, options = {}) {
 		window: { document: { createElement: tag => tag === 'audio' && options.mediaElement != null ? new options.mediaElement() : canvas() } },
 	};
 	runInNewContext(controllerCode, context);
-	const controller = new context.module.exports.VisualModuleRendererManagerController({
-		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
-	}, { fpsLimit: null, resolution: { width: 1, height: 1 }, resolutionScale: 1 });
+	const controller = new context.module.exports.VisualModuleRendererManagerController({});
+	const initialOptions = {
+		staticOptions: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false },
+		dynamicOptions: { fpsLimit: null, resolution: { width: 1, height: 1 }, resolutionScale: 1 },
+		resources: { assets: [], players: [] },
+	};
+	const start = () => controller.initialize(initialOptions);
+	const restart = () => { controller.disposeManager(); return start(); };
 	controller.onRenderFailure = error => controller.disposeManager(error);
 	t.after(() => controller.destroy());
-	if (options.initialize !== false) await controller.relaunchManager();
-	return { controller, workers, pending, instances, notifications };
+	if (options.initialize !== false) await start();
+	return { controller, workers, pending, instances, notifications, initialOptions, start, restart };
 }
+
+function setInitialAssets(initialOptions, assets) { initialOptions.resources.assets = structuredClone(assets); }
 
 // 【入力未割り当てのPlayerがあってもManagerの生成を完了する】
 // ライブ入力を含むVisual Moduleの取り込みでは、Playerの入力を未割り当てにする。
 // 読み込み元のないメディア要素を作るとイベントが発生せず、プレビューの再生成が終わらなくなる。
 // Playerの定義はWorkerへ渡しつつ、メディアの準備を待たずに生成できることを確認する。
 test('initializes the renderer with unassigned players without waiting for media', async t => {
-	const { controller, instances } = await fixture(t, { initialize: false });
+	const { controller, instances, initialOptions, start, restart } = await fixture(t, { initialize: false });
 	const player = { id: 'unassigned-player', name: 'Camera', sourceType: null };
-	await controller.updatePlayers([player]);
+	initialOptions.resources.players = [player];
+	await restart();
 	assert.equal(controller.getMediaElement(player.id), null);
-	await controller.relaunchManager();
 	assert.equal(controller.isReady.value, true);
 	assert.deepEqual(instances[0].resources.players, [player]);
 });
@@ -156,16 +163,18 @@ test('recreates player media from initial assets and releases previous media', a
 		load() {}
 		removeAttribute() { this.source = ''; }
 	}
-	const { controller, instances } = await fixture(t, { mediaElement: MediaElement });
+	const { controller, instances, initialOptions, start, restart } = await fixture(t, { mediaElement: MediaElement });
 	const asset = { id: 'asset', name: 'Audio', fileDataType: 'audio/wav',
 		fileData: { url: 'app://external-assets/original', size: 100, error: null } };
-	controller.setInitialAssets([asset]);
-	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: asset.id }]);
+	setInitialAssets(initialOptions, [asset]);
+	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
+	await restart();
 	const originalMedia = controller.getMediaElement('player');
 	originalMedia.currentTime = 3;
 	await originalMedia.play();
-	controller.setInitialAssets([{ ...asset, name: 'Renamed', fileData: { ...asset.fileData } }]);
-	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: asset.id }]);
+	setInitialAssets(initialOptions, [{ ...asset, name: 'Renamed', fileData: { ...asset.fileData } }]);
+	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
+	await restart();
 	const recreatedMedia = controller.getMediaElement('player');
 	assert.notEqual(recreatedMedia, originalMedia);
 	assert.equal(originalMedia.paused, true);
@@ -174,18 +183,21 @@ test('recreates player media from initial assets and releases previous media', a
 	assert.equal(recreatedMedia.currentTime, 0);
 
 	const reloaded = { ...asset, fileData: { ...asset.fileData, url: 'app://external-assets/reloaded' } };
-	controller.setInitialAssets([reloaded]);
-	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: asset.id }]);
+	setInitialAssets(initialOptions, [reloaded]);
+	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
+	await restart();
 	const reloadedMedia = controller.getMediaElement('player');
 	assert.notEqual(reloadedMedia, originalMedia);
 	assert.equal(originalMedia.paused, true);
 	assert.equal(reloadedMedia.src, reloaded.fileData.url);
 
-	controller.setInitialAssets([{ ...reloaded, fileData: { ...reloaded.fileData, error: 'missing' } }]);
-	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: asset.id }]);
+	setInitialAssets(initialOptions, [{ ...reloaded, fileData: { ...reloaded.fileData, error: 'missing' } }]);
+	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
+	await restart();
 	assert.equal(controller.getMediaElement('player'), null);
-	controller.setInitialAssets([reloaded]);
-	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: asset.id }]);
+	setInitialAssets(initialOptions, [reloaded]);
+	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
+	await restart();
 	assert.notEqual(controller.getMediaElement('player'), reloadedMedia);
 	assert.equal(controller.getMediaElement('player').src, reloaded.fileData.url);
 	// 定義の差し替えは次のWorkerの初期入力で反映し、準備中に旧Workerへフレーム解除を送らない。
@@ -206,11 +218,12 @@ test('clears player frames without reporting a rendering error after media read 
 		removeAttribute() { this.source = ''; }
 	}
 	t.mock.method(console, 'error', () => {});
-	const { controller, instances } = await fixture(t, { mediaElement: MediaElement });
+	const { controller, instances, initialOptions, start, restart } = await fixture(t, { mediaElement: MediaElement });
 	let rechecks = 0;
 	controller.onAssetReadFailure = () => rechecks++;
-	controller.setInitialAssets([{ id: 'asset', fileDataType: 'audio/wav', fileData: { url: 'app://external-assets/audio', size: 100, error: null } }]);
-	await controller.updatePlayers([{ id: 'player', sourceType: 'asset', assetId: 'asset' }]);
+	setInitialAssets(initialOptions, [{ id: 'asset', fileDataType: 'audio/wav', fileData: { url: 'app://external-assets/audio', size: 100, error: null } }]);
+	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: 'asset' }];
+	await restart();
 	const media = controller.getMediaElement('player');
 	let closed = 0;
 	controller.pendingVideoFrames.set('player', { close() { closed++; } });
@@ -218,27 +231,44 @@ test('clears player frames without reporting a rendering error after media read 
 	media.dispatchEvent(new Event('error'));
 	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(rechecks, 1);
-	assert.deepEqual(instances[0].videoFrameUpdates.at(-1), ['player', null]);
+	assert.deepEqual(instances.at(-1).videoFrameUpdates.at(-1), ['player', null]);
 	assert.equal(closed, 1);
 	assert.equal(controller.pendingVideoFrames.has('player'), false);
 	assert.equal(controller.isReady.value, true);
 });
 
+// 【Worker再生成でフレーム送信が失敗しても、古い失敗を新世代へ通知しない】
+// フレーム送信はイベントコールバックから開始するため、破棄によるrejectを投げ直すと
+// 未処理の例外になる。借用中のフレームを閉じ、破棄後の失敗はその場で完了させる。
+test('ignores a video frame RPC failure from a disposed worker and closes the frame', async t => {
+	const { controller } = await fixture(t);
+	const sent = Promise.withResolvers();
+	t.mock.method(controller, 'callAndWaitReturn', () => sent.promise);
+	let closed = 0;
+	controller.pendingVideoFrames.set('player', { close() { closed++; } });
+	const sending = controller.sendPendingVideoFrame('player');
+	controller.disposeManager();
+	sent.reject(new Error('Engine reloaded during renderer call'));
+	await sending;
+	assert.equal(closed, 1);
+	assert.equal(controller.errorMessage.value, null);
+});
+
 // 【実行時失敗でWorkerを破棄し、編集した最新状態を再生成へ渡す】
-// エラー中の編集はControllerに保持し、破棄済みWorkerからの遅延通知ではエラーを変更しない。
+// エラー中の編集は所有者の次回スナップショットに保持し、破棄済みWorkerからの遅延通知ではエラーを変更しない。
 test('disposes after preview errors and restores edited settings on retry', async t => {
-	const { controller, instances, notifications } = await fixture(t);
+	const { controller, instances, notifications, initialOptions, start, restart } = await fixture(t);
 	instances[0].reportPreviewError('circular dependency detected');
 	instances[0].reportPreviewError('circular dependency detected');
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	assert.equal(controller.isReady.value, false);
-	await controller.updateDynamicOptions({ visualModules: [{ id: 'repaired', nodes: [] }] });
+	initialOptions.dynamicOptions.visualModules = [{ id: 'repaired', nodes: [] }];
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	instances[0].reportPreviewError('old frame failure');
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
-	await controller.reload();
+	await restart();
 	assert.equal(instances.at(-1).dynamicOptions.visualModules[0].id, 'repaired');
 	assert.equal(controller.errorMessage.value, null);
 	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), ['circular dependency detected', 'circular dependency detected', 'old frame failure']);
@@ -248,13 +278,13 @@ test('disposes after preview errors and restores edited settings on retry', asyn
 // タイムライン描画などは戻り値を要求しないため、RPCの戻り値経路だけのcatchでは保護できない。
 // 操作失敗でWorkerを破棄し、明示的に再生成するまで停止を維持する。
 test('disposes after fire-and-forget failures and permits explicit retries', async t => {
-	const { controller, instances } = await fixture(t);
+	const { controller, instances, initialOptions, start, restart } = await fixture(t);
 	for (const [method, message] of [['failSync', 'sync failure'], ['failAsync', 'async failure']]) {
 		controller.call(method, []);
 		await new Promise(resolve => setImmediate(resolve));
 		assert.equal(controller.isReady.value, false);
 		assert.equal(controller.errorMessage.value, message);
-		await controller.reload();
+		await restart();
 		assert.equal(controller.errorMessage.value, null);
 	}
 });
@@ -263,8 +293,8 @@ test('disposes after fire-and-forget failures and permits explicit retries', asy
 // 初期化全体がasyncなので、画像準備だけをcatchするとアダプター取得失敗で待機が終わらない。
 // 初期化できていないWorkerに編集を送ることも防ぎ、失敗理由をfooter用の状態へ残す。
 test('rejects initialization failures before assets are prepared', async t => {
-	const { controller } = await fixture(t, { initialize: false, adapterError: new Error('GPU unavailable') });
-	await assert.rejects(controller.relaunchManager(), /GPU unavailable/);
+	const { controller, initialOptions, start, restart } = await fixture(t, { initialize: false, adapterError: new Error('GPU unavailable') });
+	await assert.rejects(start(), /GPU unavailable/);
 	assert.equal(controller.isReady.value, false);
 	assert.equal(controller.errorMessage.value, 'GPU unavailable');
 });
@@ -273,63 +303,25 @@ test('rejects initialization failures before assets are prepared', async t => {
 // UIの編集は続けられるが、描画再開には新しいWorkerが必要。
 // 旧Workerの通知で停止した原因を書き換えないことを確認する。
 test('retains fatal errors until the worker is reinitialized', async t => {
-	const { controller, workers, instances } = await fixture(t);
+	const { controller, workers, instances, initialOptions, start, restart } = await fixture(t);
 	workers[0].onerror({ message: 'worker crashed' });
 	instances[0].reportPreviewError('old frame failure');
 	await Promise.resolve();
 	assert.equal(controller.isReady.value, false);
 	assert.equal(controller.errorMessage.value, 'worker crashed');
-	await controller.reload();
+	await restart();
 	assert.equal(controller.isReady.value, true);
 	assert.equal(controller.errorMessage.value, null);
 });
-
-// 【画像のデコード完了前にはreadyにせず、初期化中の変更と失敗を待機元へ返す】
-// Blobからの画像準備は非同期なので、Worker生成だけでreadyにすると最初の描画で画像が欠落する。
-// また、初期化中の例外を応答しないと起動要求元が永久に待機するため、失敗経路も確認する。
-for (const failure of [false, true]) {
-	test(`queues updates during initialization and ${failure ? 'rejects failures' : 'applies them when ready'}`, { timeout: 2000 }, async t => {
-		const gate = Promise.withResolvers();
-		const requested = Promise.withResolvers();
-		let destroyed = false;
-		const { controller, instances } = await fixture(t, {
-			initialize: false,
-			prepareResources: () => { requested.resolve(); return gate.promise; },
-			onDestroy: () => { destroyed = true; },
-		});
-		const initializing = controller.relaunchManager();
-		const rejected = failure ? assert.rejects(initializing, /image decode failed/) : null;
-		await requested.promise;
-		assert.equal(controller.isReady.value, false);
-		const update = controller.updateDynamicOptions({ highlightClipping: true, fpsLimit: 24 });
-		const updateRejected = failure ? assert.rejects(update, /image decode failed/) : null;
-		assert.equal(instances[0].dynamicOptions.highlightClipping, undefined);
-		if (failure) {
-			gate.reject(new Error('image decode failed'));
-			await rejected;
-			await updateRejected;
-			assert.equal(controller.returnHooks.size, 0);
-			assert.equal(controller.isReady.value, false);
-			assert.equal(destroyed, true);
-		} else {
-			gate.resolve(true);
-			await initializing;
-			await update;
-			assert.equal(controller.isReady.value, true);
-			assert.equal(instances[0].dynamicOptions.highlightClipping, true);
-			assert.equal(instances[0].dynamicOptions.fpsLimit, 24);
-		}
-	});
-}
 
 // 【素材は初期化メッセージだけへ渡し、通常設定の変更では素材を再同期しない】
 // ControllerとWorkerの実際の通信を通し、初期素材の準備中はreadyにしないことも確認する。
 test('passes fixed resources only at initialization and waits for their preparation', async t => {
 	const gate = Promise.withResolvers();
 	const requested = Promise.withResolvers();
-	const { controller, instances } = await fixture(t, { initialize: false, prepareResources: resources => { requested.resolve(resources); return gate.promise; } });
-	controller.setInitialAssets([{ id: 'image' }]);
-	const starting = controller.relaunchManager();
+	const { controller, instances, initialOptions, start, restart } = await fixture(t, { initialize: false, prepareResources: resources => { requested.resolve(resources); return gate.promise; } });
+	setInitialAssets(initialOptions, [{ id: 'image' }]);
+	const starting = start();
 	const resources = await requested.promise;
 	assert.deepEqual(resources.assets, [{ id: 'image' }]);
 	assert.deepEqual(resources.players, []);
@@ -345,17 +337,18 @@ test('passes fixed resources only at initialization and waits for their preparat
 // 【素材の初期化失敗は起動失敗として通知し、利用可能なManagerを残さない】
 // 描画開始後に欠落した画像を見つけるのではなく、元のデコード失敗を呼び出し側へ返す。
 test('reports resource preparation failures during initialization', async t => {
-	const { controller } = await fixture(t, { initialize: false, prepareResources: async () => { throw new Error('decode failed'); } });
-	controller.setInitialAssets([{ id: 'broken' }]);
-	await assert.rejects(controller.relaunchManager(), /decode failed/);
+	const { controller, initialOptions, start, restart } = await fixture(t, { initialize: false, prepareResources: async () => { throw new Error('decode failed'); } });
+	setInitialAssets(initialOptions, [{ id: 'broken' }]);
+	await assert.rejects(start(), /decode failed/);
 	assert.equal(controller.isReady.value, false);
 });
 
 // プレビューの静的設定を変更すると、新しい設定でWorkerを再生成する。
 // 既存GPUリソースの形式は途中で変えられないため、設定の保持だけで更新を終えてはいけない。
 test('reloads the preview worker with updated static settings', async t => {
-	const { controller, instances } = await fixture(t);
-	await controller.updateStaticOptions({ intermediateTextureFormat: 'rgba16float', enable32bitDataTextures: true });
+	const { controller, instances, initialOptions, start, restart } = await fixture(t);
+	Object.assign(initialOptions.staticOptions, { intermediateTextureFormat: 'rgba16float', enable32bitDataTextures: true });
+	await restart();
 	assert.equal(instances.length, 2);
 	assert.equal(instances[0].staticOptions.intermediateTextureFormat, 'rgba8unorm');
 	assert.equal(instances[0].staticOptions.enable32bitDataTextures, false);
@@ -363,50 +356,9 @@ test('reloads the preview worker with updated static settings', async t => {
 	assert.equal(instances[1].staticOptions.enable32bitDataTextures, true);
 });
 
-// 【初期化・再読み込み中に破棄しても待機を解除し、復帰後に再び設定変更できる】
-// エクスポート開始で画像準備中のWorkerが終了しても、旧起動要求やreloadを未完了にせず、
-// キューに残った操作を新Workerへ再送しない。設定変更まで確認しreloadPromiseの残留を検出する。
-for (const phase of ['initialization', 'reload']) {
-	test(`disposes during ${phase} and allows subsequent static settings updates`, { timeout: 2000 }, async t => {
-		const requested = Promise.withResolvers();
-		const gate = Promise.withResolvers();
-		let hold = false;
-		const { controller, instances } = await fixture(t, {
-			initialize: false,
-			prepareResources: () => {
-				if (!hold) return true;
-				requested.resolve();
-				return gate.promise;
-			},
-		});
-		if (phase === 'reload') await controller.relaunchManager();
-		hold = true;
-		const starting = phase === 'reload' ? controller.reload() : controller.relaunchManager();
-		const stopped = assert.rejects(starting, /disposed during initialization/);
-		await requested.promise;
-		const updateStopped = assert.rejects(controller.updateDynamicOptions({ highlightClipping: true }), /Engine reloaded/);
-		controller.call('updatePointerPosition', [{ x: 999, y: 999 }]);
-		controller.disposeManager();
-		await Promise.all([stopped, updateStopped]);
-		assert.equal(controller.isReady.value, false);
-		await assert.rejects(controller.callAndWaitReturn('echo', [42]), /not initialized/);
-		hold = false;
-		gate.resolve(true);
-		await controller.relaunchManager();
-		assert.equal(controller.isReady.value, true);
-		assert.equal(instances.at(-1).dynamicOptions.highlightClipping, true);
-		assert.deepEqual(instances.at(-1).pointerPositions, [{ x: 0, y: 0 }]);
-		const previousCount = instances.length;
-		await controller.updateStaticOptions({ intermediateTextureFormat: 'rgba16float' });
-		assert.equal(instances.length, previousCount + 1);
-		assert.equal(instances.at(-1).staticOptions.intermediateTextureFormat, 'rgba16float');
-		assert.equal(await controller.callAndWaitReturn('echo', [42]), 42);
-	});
-}
-
 // 同期の結果を受け取り、並行した非同期呼び出しも応答IDで正しく対応付ける。
 test('returns values and matches out-of-order asynchronous responses', { timeout: 2000 }, async t => {
-	const { controller, pending } = await fixture(t);
+	const { controller, pending, initialOptions, start, restart } = await fixture(t);
 	assert.deepEqual(await controller.callAndWaitReturn('echo', [{ result: 42 }]), { result: 42 });
 	const first = controller.callAndWaitReturn('deferred', []);
 	const second = controller.callAndWaitReturn('deferred', []);
@@ -421,22 +373,22 @@ test('returns values and matches out-of-order asynchronous responses', { timeout
 
 // 同期例外・非同期失敗・複製不能な結果でも待機を解除し、登録を残さない。
 test('rejects failed calls and removes their pending entries', { timeout: 2000 }, async t => {
-	const { controller } = await fixture(t);
+	const { controller, initialOptions, start, restart } = await fixture(t);
 	await assert.rejects(controller.callAndWaitReturn('failSync', []), { name: 'TypeError', message: 'sync failure' });
-	await controller.reload();
+	await restart();
 	await assert.rejects(controller.callAndWaitReturn('failAsync', []), /async failure/);
-	await controller.reload();
+	await restart();
 	await assert.rejects(controller.callAndWaitReturn('failNonError', []), /non-error failure/);
-	await controller.reload();
+	await restart();
 	await assert.rejects(controller.callAndWaitReturn('uncloneable', []), { name: 'DataCloneError' });
-	await controller.reload();
+	await restart();
 	assert.equal(controller.returnHooks.size, 0);
 	assert.equal(await controller.callAndWaitReturn('echo', [42]), 42);
 });
 
 // 送信そのものが失敗した場合も、登録済みのコールバックを解放する。
 test('cleans up after a postMessage failure', { timeout: 2000 }, async t => {
-	const { controller, workers } = await fixture(t);
+	const { controller, workers, initialOptions, start, restart } = await fixture(t);
 	workers[0].sendError = new Error('cannot send');
 	await assert.rejects(controller.callAndWaitReturn('echo', [42]), /cannot send/);
 	assert.equal(controller.returnHooks.size, 0);
@@ -445,11 +397,12 @@ test('cleans up after a postMessage failure', { timeout: 2000 }, async t => {
 // Workerが終了した場合は全呼び出しをrejectし、再読み込み後は新しい呼び出しを受け付ける。
 for (const action of ['destroy', 'reload', 'error']) {
 	test(`rejects all pending calls on worker ${action}`, { timeout: 2000 }, async t => {
-		const { controller, workers } = await fixture(t);
+		const { controller, workers, initialOptions, start, restart } = await fixture(t);
 		const rejected = [1, 2].map(() => assert.rejects(controller.callAndWaitReturn('deferred', [])));
 		await Promise.resolve();
 		if (action === 'error') workers[0].onerror({ message: 'worker crashed' });
-		else await controller[action]();
+		else if (action === 'reload') await restart();
+		else controller.destroy();
 		await Promise.all(rejected);
 		assert.equal(controller.returnHooks.size, 0);
 		if (action === 'reload') assert.equal(await controller.callAndWaitReturn('echo', [42]), 42);

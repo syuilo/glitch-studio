@@ -359,6 +359,7 @@ test('coalesces retries and keeps queued retries suspended', async () => {
 	let created = 0;
 	const engine = new PreviewRenderEngine({ create: async () => { created++; await gate.promise; }, dispose() {} });
 	const starting = engine.enable();
+	await Promise.resolve();
 	const retry = engine.retry();
 	engine.suspend();
 	gate.resolve();

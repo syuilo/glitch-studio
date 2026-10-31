@@ -70,7 +70,7 @@ const appBundle = await build({
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
-							renderingStatsEnabled: false, analysisMonitorsEnabled: true, timelineFrameCacheMaxGiB: 2,
+							renderingStatsEnabled: false, analysisMonitorsEnabled: true, timelineFrameCacheMaxGiB: 2, previewDisplayMode: 'gpu', timelinePreviewFramesAhead: 1,
 							projectBackupAutoEnabled: false, projectBackupAutoIntervalMinutes: 1, projectBackupAutoRetentionDays: 1,
 							projectBackupSaveEnabled: false, projectBackupSaveRetentionDays: 7,
 							...window.initialTestPreferences });
@@ -88,23 +88,21 @@ const appBundle = await build({
 						staticUpdates = [];
 						patches = []; snapshots = [];
 						options = {};
-						constructor(staticOptions, dynamicOptions = {}) {
-							this.staticOptions = deepClone(staticOptions); this.initialDynamicOptions = deepClone(dynamicOptions);
+						generation = 0;
+						async initialize(snapshot) {
+							this.staticOptions = deepClone(snapshot.staticOptions);
+							this.staticUpdates.push(deepClone(snapshot.staticOptions));
+							this.initialStaticOptions = deepClone(snapshot.staticOptions);
+							this.initialDynamicOptions = deepClone(snapshot.dynamicOptions);
+							this.options = { ...deepClone(snapshot.dynamicOptions), ...deepClone(snapshot.resources) };
+							this.snapshots.push(deepClone(snapshot.dynamicOptions));
+							this.initialResolution = this.options.resolution;
+							this.initialResolutionScale = this.options.resolutionScale;
+							this.lifecycle.push('initialize'); this.isReady.value = true;
 						}
 						async updateDynamicOptions(options) {
 							this.updates.push(options);
 							Object.assign(this.options, options);
-						}
-						async updateStaticOptions(options) {
-							this.staticUpdates.push(deepClone(options));
-							Object.assign(this.staticOptions, deepClone(options));
-						}
-						setInitialAssets(assets) { this.options.assets = deepClone(assets); }
-						async updatePlayers(players) { this.options.players = deepClone(players); }
-						async replaceProjectState(state) {
-							const snapshot = deepClone(state);
-							this.snapshots.push(snapshot);
-							Object.assign(this.options, this.timeline ? snapshot : { automationGraphs: snapshot.automationGraphs, visualModules: snapshot.visualModules });
 						}
 						async applyProjectChanges(changes) {
 							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
@@ -118,13 +116,7 @@ const appBundle = await build({
 						stopRenderLoop() { this.lifecycle.push('stop'); }
 						renderTimelineAt(time) { this.renders.push(time); }
 						cancelSeek() {}
-						disposeManager() { this.lifecycle.push('dispose'); this.isReady.value = false; }
-						async relaunchManager() {
-							this.initialStaticOptions = deepClone(this.staticOptions);
-							this.initialResolution = this.options.resolution;
-							this.initialResolutionScale = this.options.resolutionScale;
-							this.lifecycle.push('relaunch'); this.isReady.value = true;
-						}
+						disposeManager() { this.generation++; this.lifecycle.push('dispose'); this.isReady.value = false; }
 					}
 					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
@@ -310,18 +302,19 @@ for (const [label, fileDataType, isExternalReference] of [
 		for (const controller of controllers) {
 			controller.lifecycle.length = 0;
 			controller.patches.length = 0;
-			const relaunch = controller.relaunchManager.bind(controller);
-			controller.relaunchManager = async () => {
-				// 埋め込み画像でも、Worker初期化中のデコード・GPU転送待ちを再現する。
+			const initialize = controller.initialize.bind(controller);
+			controller.initialize = async snapshot => {
+				const generation = controller.generation;
+				// 遅いデコード中にも編集できる。破棄された試行は起動せず、次の最新スナップショットを使う。
 				if (!isExternalReference) await gate.promise;
-				// 起動時に実際の参照先と寸法を読み取れ、Player参照も同じ世代で揃っていることを確認する。
-				const importedNode = controller.options.visualModules[0].nodes[0];
+				if (generation !== controller.generation) return;
+				const importedNode = snapshot.dynamicOptions.visualModules[0].nodes[0];
 				const assetId = importedNode.effectId === 'image' ? importedNode.staticSettings.image
-					: appContext.visualModuleRendererManagerController.options.players.find(player => player.id === importedNode.staticSettings.player).assetId;
-				const referencedAsset = controller.options.assets.find(asset => asset.id === assetId);
+					: appContext.projectContext.stateManager.state.players.value.find(player => player.id === importedNode.staticSettings.player).assetId;
+				const referencedAsset = snapshot.resources.assets.find(asset => asset.id === assetId);
 				assert.deepEqual([referencedAsset.width, referencedAsset.height], [1920, 1080]);
 				assert.equal(importedNode.resolution.scale, 0.5);
-				await relaunch();
+				await initialize(snapshot);
 			};
 		}
 		manager.commit('importAssets', { assets: [asset], players, visualModule: { target: { visualModuleId: 'visualModule' }, nodes: [node] } });
@@ -331,19 +324,69 @@ for (const [label, fileDataType, isExternalReference] of [
 		await appContext.flushRendererProjectChanges();
 		await setImmediate();
 		assert.ok(controllers.every(controller => controller.patches.length === 0));
-		assert.ok(controllers.every(controller => !controller.lifecycle.includes('relaunch')));
+		assert.ok(controllers.every(controller => !controller.lifecycle.includes('initialize')));
 		gate.resolve(source);
 		await setImmediate();
 		assert.equal(appContext.renderEngine.errorMessage.value, null);
 		for (const controller of controllers) {
 			assert.equal(controller.isReady.value, true);
-			assert.equal(controller.lifecycle.filter(event => event === 'relaunch').length, 1);
+			assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
 		}
 		manager.commit('renameAsset', { assetId: asset.id, name: 'Renamed' });
 		await setImmediate();
-		assert.ok(controllers.every(controller => controller.lifecycle.filter(event => event === 'relaunch').length === 1));
+		assert.ok(controllers.every(controller => controller.lifecycle.filter(event => event === 'initialize').length === 1));
 	});
 }
+
+// 【初期化中の通常編集・動的設定・静的設定を最新スナップショットで両プレビューへ反映する】
+// 初期化中の差分キューを削除しても、素材変更を伴わないノード編集を失ってはいけない。
+// 表示名だけの変更では生成を破棄せず、起動後の通常編集では差分更新を維持する。
+test('restarts both previews after content and settings change during initialization and keeps live edits incremental', async t => {
+	const window = setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project({ visualModules: [{ id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+	t.after(() => appContext.previewPlayback.dispose());
+	await appContext.suspendPreview();
+	const gate = Promise.withResolvers();
+	const controllers = [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController];
+	const attempts = controllers.map(controller => {
+		const snapshots = [];
+		const initialize = controller.initialize.bind(controller);
+		controller.initialize = async snapshot => {
+			const generation = controller.generation;
+			snapshots.push(snapshot);
+			if (snapshots.length === 1) await gate.promise;
+			if (generation === controller.generation) await initialize(snapshot);
+		};
+		controller.patches.length = 0;
+		return snapshots;
+	});
+	const starting = appContext.resumePreview();
+	await setImmediate();
+	assert.ok(attempts.every(snapshots => snapshots.length === 1));
+	const generations = controllers.map(controller => controller.generation);
+	const manager = appContext.projectContext.stateManager;
+	manager.commit('renameVisualModule', { visualModuleId: 'visualModule', name: 'Renamed' });
+	assert.deepEqual(controllers.map(controller => controller.generation), generations);
+	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'during-initialization', effectId: 'fill' });
+	appContext.highlightClipping.value = true;
+	window.testPreferences.timelinePreviewFramesAhead = 0;
+	await appContext.flushRendererProjectChanges();
+	assert.equal(appContext.renderEngine.canRender.value, false);
+	assert.ok(controllers.every(controller => controller.patches.length === 0));
+	gate.resolve();
+	await starting;
+	assert.ok(attempts.every(snapshots => snapshots.length === 2));
+	for (const controller of controllers) {
+		assert.equal(controller.options.visualModules[0].nodes[0].id, 'during-initialization');
+		assert.equal(controller.options.highlightClipping, true);
+	}
+	assert.equal(appContext.timelineRendererManagerController.staticOptions.previewFramesAhead, 0);
+	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'after-initialization', effectId: 'fill' });
+	await appContext.flushRendererProjectChanges();
+	assert.ok(attempts.every(snapshots => snapshots.length === 2));
+	assert.ok(controllers.every(controller => controller.patches.length > 0));
+});
 
 // 【取り込み準備中のUndoは素材とノードを両方除いた状態で再生成し、古い準備完了で戻さない】
 // 素材削除を旧ノードへ先に反映すると静的解像度の計算が失敗する。
@@ -381,7 +424,7 @@ test('ignores obsolete asset preparation after undo and rebuilds the latest stat
 		assert.equal(controller.isReady.value, true);
 		assert.equal(controller.options.assets[0].id, asset.id);
 		assert.equal(controller.options.visualModules[0].nodes[0].staticSettings.image, asset.id);
-		assert.equal(controller.lifecycle.filter(event => event === 'relaunch').length, 1);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
 	}
 	// 再生成済みの旧ノードが存在する場合も、素材だけを先に削除して参照切れを起こさない。
 	manager.undo();
@@ -494,7 +537,7 @@ for (const [setting, change, inspect] of [
 	assert.equal(appContext.renderEngine.errorMessage.value, null);
 	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
 		assert.equal(controller.isReady.value, true);
-		assert.equal(controller.lifecycle.filter(event => event === 'relaunch').length, 2);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 2);
 	}
 	inspect?.(appContext);
 });
@@ -587,7 +630,7 @@ test('leaves Visual Module Live Preview when an imported Visual Module is undone
 
 // 【描画設定を保存・復元し、Undo/Redoでもタイムラインだけへ同期する】
 // プレビュー用の値だけが変わって保存から漏れたり、Visual Module Live Preview側のfps制限を書き換えたりしないことを保証する。
-test('persists timeline render settings and synchronizes undo and redo without changing Visual Module Live Preview', async t => {
+test('persists timeline render settings and recreates both previews through undo and redo', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
 	const { appContext } = app;
@@ -604,19 +647,22 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	timeline.updates.length = 0;
 	manager.commit('changeTimelineRenderSettings', settings);
 	await nextTick();
+	await appContext.renderEngine.retry();
 	const previewSettings = { ...settings, timelineMotionBlur: { ...settings.timelineMotionBlur, samples: appContext.timelinePreviewMotionBlurSamples.value } };
 	assert.equal(timeline.staticOptions.timelineFps, 29.97);
 	assert.deepEqual(timeline.staticOptions.timelineMotionBlur, previewSettings.timelineMotionBlur);
-	assert.deepEqual(timeline.staticUpdates, [previewSettings]);
+	assert.deepEqual(timeline.staticUpdates.map(options => ({ timelineFps: options.timelineFps, timelineMotionBlur: options.timelineMotionBlur })), [previewSettings]);
 	assert.deepEqual(timeline.updates, [{ previewFps: settings.timelineFps * appContext.timelinePreviewFpsFactor.value }]);
 	assert.equal(visualModuleLivePreview.updates.length, 0);
-	assert.equal(visualModuleLivePreview.staticUpdates.length, 0);
+	assert.ok(visualModuleLivePreview.staticUpdates.length > 0);
 	manager.undo();
 	await nextTick();
+	await appContext.renderEngine.retry();
 	assert.equal(timeline.staticOptions.timelineFps, 60);
 	assert.equal(manager.state.timelineMotionBlur.value.enabled, false);
 	manager.redo();
 	await nextTick();
+	await appContext.renderEngine.retry();
 	assert.equal(timeline.staticOptions.timelineFps, 29.97);
 	assert.equal(timeline.staticUpdates.length, 3);
 	assert.deepEqual(notifications, Array.from({ length: 3 }, () => [{ type: 'timelineRenderSettings' }]));
@@ -825,6 +871,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 	const settings = { timelineFps: 30, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
 	manager.commit('changeTimelineRenderSettings', settings);
 	await nextTick();
+	await appContext.renderEngine.retry();
 	const historyLength = manager.undoStack.value.length;
 	const timeline = appContext.timelineRendererManagerController;
 	const visualModuleLivePreview = appContext.visualModuleRendererManagerController;
@@ -833,17 +880,20 @@ test('keeps preview motion blur samples separate from project settings and saved
 	for (const samples of [2, 4, 8, 0]) {
 		appContext.timelinePreviewMotionBlurSamples.value = samples;
 		await nextTick();
+	await appContext.renderEngine.retry();
 		assert.deepEqual(timeline.staticOptions.timelineMotionBlur, { ...settings.timelineMotionBlur, samples });
 		assert.deepEqual(manager.state.timelineMotionBlur.value, settings.timelineMotionBlur);
 		assert.equal(manager.undoStack.value.length, historyLength);
 	}
-	assert.equal(visualModuleLivePreview.staticUpdates.length, 0);
+	assert.ok(visualModuleLivePreview.staticUpdates.length > 0);
 	manager.undo();
 	await nextTick();
+	await appContext.renderEngine.retry();
 	assert.equal(appContext.timelinePreviewMotionBlurSamples.value, 0);
 	assert.equal(timeline.staticOptions.timelineMotionBlur.enabled, false);
 	manager.redo();
 	await nextTick();
+	await appContext.renderEngine.retry();
 	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 0);
 	assert.equal(manager.state.timelineMotionBlur.value.samples, 32);
 	const handle = fileHandle('preview-quality.gsproj');
@@ -856,6 +906,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 	// 読み込み前にオンにしておき、単に直前のオフ状態を維持しているだけではないことを確認する。
 	appContext.timelinePreviewMotionBlurSamples.value = 4;
 	await nextTick();
+	await appContext.renderEngine.retry();
 	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 4);
 	window.showOpenFilePicker = async () => [handle];
 	assert.equal(await app.openProject(), true);
@@ -2030,7 +2081,7 @@ test('waits for both preview workers before restoring the paused timeline', asyn
 	assert.equal(appContext.audioOutput.preview.suspended, true);
 	timeline.renders.length = 0;
 	const gate = Promise.withResolvers();
-	visualModuleLivePreview.relaunchManager = async () => { await gate.promise; visualModuleLivePreview.isReady.value = true; };
+	visualModuleLivePreview.initialize = async () => { await gate.promise; visualModuleLivePreview.isReady.value = true; };
 	const restarting = appContext.resumePreview();
 	await setImmediate();
 	assert.equal(timeline.isReady.value, true);
@@ -2051,7 +2102,7 @@ test('does not resume audio monitor rendering after a newer preview suspension',
 	await appContext.ready(project());
 	await appContext.suspendPreview();
 	const gate = Promise.withResolvers();
-	appContext.visualModuleRendererManagerController.relaunchManager = async () => { await gate.promise; };
+	appContext.visualModuleRendererManagerController.initialize = async () => { await gate.promise; };
 	const restarting = appContext.resumePreview();
 	await setImmediate();
 	await appContext.suspendPreview();
@@ -2071,9 +2122,9 @@ test('keeps playback suspended and waits for the other worker after a restart fa
 	await appContext.suspendPreview();
 	const timeline = appContext.timelineRendererManagerController;
 	timeline.renders.length = 0;
-	appContext.visualModuleRendererManagerController.relaunchManager = async () => { throw new Error('GPU unavailable'); };
+	appContext.visualModuleRendererManagerController.initialize = async () => { throw new Error('GPU unavailable'); };
 	const gate = Promise.withResolvers();
-	timeline.relaunchManager = async () => { await gate.promise; timeline.isReady.value = true; };
+	timeline.initialize = async () => { await gate.promise; timeline.isReady.value = true; };
 	let settled = false;
 	const restarting = appContext.resumePreview();
 	const completed = restarting.then(() => { settled = true; });

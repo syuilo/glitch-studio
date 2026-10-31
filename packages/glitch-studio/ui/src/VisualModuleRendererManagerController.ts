@@ -1,8 +1,6 @@
 import { ref, shallowReactive } from 'vue';
 import { getFileSourceUrl, getFileSourceError } from '@gs/shared/file-source.ts';
-import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { createVisualModuleRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { isVideoFrameAvailable } from './utility/video.ts';
@@ -12,13 +10,19 @@ import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
-import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
+import type { VisualModuleRendererManager, VisualModuleRendererManagerResources, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
+
+export type VisualModuleRendererManagerInitialOptions = {
+	staticOptions: VisualModuleRendererManagerStaticOptions;
+	dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>;
+	resources: VisualModuleRendererManagerResources;
+};
 
 export class VisualModuleRendererManagerController extends RendererManagerControllerBase<VisualModuleRendererManager> {
 	public onAssetReadFailure: (() => void) | null = null;
@@ -28,15 +32,9 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
 	public waveformVerticalCanvas: HTMLCanvasElement;
-	private renderLoopRunning = false;
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
 	private visualModuleLivePreviewVisualModuleId = ref<ProjectVisualModule['id'] | null>(null);
-	private visualModuleLivePreviewParamValues: VisualModuleArgumentBindings = {};
 	private pointerPosition = { x: 0, y: 0 };
-	private staticOptions: VisualModuleRendererManagerStaticOptions;
-	private initializationStaticOptions: VisualModuleRendererManagerStaticOptions | null = null;
-	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> = {};
-	private initialAssets: readonly Asset[] = [];
 	private players: Player[] = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private audioInputs: AudioInputs;
@@ -57,44 +55,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		return this.visualModuleLivePreviewEffectStateStore.get(visualModuleId, nodeId) ?? null;
 	}
 
-	constructor(staticOptions: VisualModuleRendererManagerStaticOptions, dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>, audioOutput: AudioOutput) {
+	constructor(audioOutput: AudioOutput) {
 		super({
-			getInitialOptions: async () => {
-				// 転送済みcanvasは再転送できないため、起動ごとに属性を引き継いだcanvasを用意する。
-				// 初回も同じ手順に揃え、表示先への付け替えはUIに通知する。
-				for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
-					const previous = this[key];
-					this[key] = previous.cloneNode(false) as HTMLCanvasElement;
-				}
-				this.canvasRevision.value++;
-
-				const transferCanvas = (canvas: HTMLCanvasElement) => this.staticOptions.previewDisplayMode === 'cpu'
-					? new OffscreenCanvas(canvas.width, canvas.height) : canvas.transferControlToOffscreen();
-				const offscreen = transferCanvas(this.canvas);
-				const histogramOffscreen = transferCanvas(this.histogramCanvas);
-				const waveformHorizontalOffscreen = transferCanvas(this.waveformHorizontalCanvas);
-				const waveformVerticalOffscreen = transferCanvas(this.waveformVerticalCanvas);
-
-				this.initialSnapshotTaken = true;
-				this.initializationStaticOptions = this.staticOptions;
-				return {
-					options: {
-						canvas: offscreen,
-						histogramCanvas: histogramOffscreen,
-						waveformHorizontalCanvas: waveformHorizontalOffscreen,
-						waveformVerticalCanvas: waveformVerticalOffscreen,
-						staticOptions: this.staticOptions,
-						dynamicOptions: this.dynamicOptions,
-						resources: { assets: this.initialAssets, players: this.players },
-					},
-					transfer: [
-						offscreen,
-						histogramOffscreen,
-						waveformHorizontalOffscreen,
-						waveformVerticalOffscreen,
-					],
-				};
-			},
 			createWorker: () => {
 				return createVisualModuleRendererManagerWorker();
 			},
@@ -142,13 +104,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.sendPendingVideoFrame(id);
 				}
 				this.call('updatePointerPosition', [this.pointerPosition]);
-				if (this.renderLoopRunning && this.visualModuleLivePreviewVisualModuleId.value != null) this.startVisualModuleLivePreviewRenderLoopFor(this.visualModuleLivePreviewVisualModuleId.value, this.visualModuleLivePreviewParamValues);
 			},
 			onDisposed: () => {
 				this.outputResolution.value = null;
-				this.inFlightVideoFrames.clear();
-				for (const frame of this.pendingVideoFrames.values()) frame.close();
-				this.pendingVideoFrames.clear();
+				this.releasePlayerMedia();
+				this.visualModuleLivePreviewVisualModuleId.value = null;
 				this.visualModuleLivePreviewEffectStateStore.stop();
 				this.gpuMemoryUsage.value = null;
 				this.fpsDisplay.value = 0;
@@ -159,7 +119,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		});
 
 		this.audioInputs = new AudioInputs(audioOutput,
-			(id, port) => this.call('attachAudioSource', [id, port], [port]),
+			(id, port) => { if (this.isReady.value) this.call('attachAudioSource', [id, port], [port]); else port.close(); },
 			(id, generation) => { if (this.isReady.value) this.call('resetAudioSource', [id, generation]); },
 		);
 
@@ -180,8 +140,46 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.waveformVerticalCanvas.height = 512;
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
-		this.staticOptions = staticOptions;
-		this.dynamicOptions = { ...this.dynamicOptions, ...dynamicOptions };
+	}
+
+	/** 起動ごとに所有者が取得した最新スナップショットだけを使い、停止中の編集状態を複製しない。 */
+	public async initialize(options: VisualModuleRendererManagerInitialOptions): Promise<void> {
+		const snapshot = deepClone(options);
+		await this.launchManager(() => {
+			this.updatePlayers(snapshot.resources.players, snapshot.resources.assets);
+			// 転送済みcanvasは再転送できないため、起動ごとに属性を引き継いだcanvasを用意する。
+			// 初回も同じ手順に揃え、表示先への付け替えはUIに通知する。
+			for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
+				const previous = this[key];
+				this[key] = previous.cloneNode(false) as HTMLCanvasElement;
+			}
+			this.canvasRevision.value++;
+
+			const transferCanvas = (canvas: HTMLCanvasElement) => snapshot.staticOptions.previewDisplayMode === 'cpu'
+				? new OffscreenCanvas(canvas.width, canvas.height) : canvas.transferControlToOffscreen();
+			const offscreen = transferCanvas(this.canvas);
+			const histogramOffscreen = transferCanvas(this.histogramCanvas);
+			const waveformHorizontalOffscreen = transferCanvas(this.waveformHorizontalCanvas);
+			const waveformVerticalOffscreen = transferCanvas(this.waveformVerticalCanvas);
+
+			return {
+				options: {
+					canvas: offscreen,
+					histogramCanvas: histogramOffscreen,
+					waveformHorizontalCanvas: waveformHorizontalOffscreen,
+					waveformVerticalCanvas: waveformVerticalOffscreen,
+					staticOptions: snapshot.staticOptions,
+					dynamicOptions: snapshot.dynamicOptions,
+					resources: snapshot.resources,
+				},
+				transfer: [
+					offscreen,
+					histogramOffscreen,
+					waveformHorizontalOffscreen,
+					waveformVerticalOffscreen,
+				],
+			};
+		});
 	}
 
 	private async sendPendingVideoFrame(playerId: string) {
@@ -194,9 +192,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		try {
 			await this.callAndWaitReturn('updateVideoFrame', [playerId, frame], [frame]);
 		} catch (error) {
-			if (this.inFlightVideoFrames.get(playerId) === id) this.inFlightVideoFrames.delete(playerId);
 			frame.close();
-			throw error;
+			// 再生成で破棄したWorkerのRPC失敗は、新世代のエラーにも未処理のrejectにもしない。
+			if (this.inFlightVideoFrames.get(playerId) !== id) return;
+			this.inFlightVideoFrames.delete(playerId);
+			this.reportRenderFailure(error instanceof Error ? error : new Error(String(error)));
+			return;
 		}
 		// Worker再読み込み前の応答で、新しい送信の状態を解除しない。
 		if (this.inFlightVideoFrames.get(playerId) !== id) return;
@@ -206,43 +207,39 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 	public startVisualModuleLivePreviewRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings = {}) {
 		this.outputResolution.value = null;
-		this.visualModuleLivePreviewParamValues = deepClone(paramValues);
 		const statusInstanceId = genId();
-		// 再初期化中のモード変更はonCreatedで最新状態だけを復元し、古い開始要求をキューに残さない。
-		if (this.isReady.value) this.call('startVisualModuleLivePreviewRenderLoopFor', [visualModuleId, this.visualModuleLivePreviewParamValues, statusInstanceId]);
+		// 再生成中の表示モードはPreviewPlaybackControllerが保持し、両プレビューの準備後に再開する。
+		if (this.isReady.value) this.call('startVisualModuleLivePreviewRenderLoopFor', [visualModuleId, deepClone(paramValues), statusInstanceId]);
 		this.visualModuleLivePreviewEffectStateStore.start(visualModuleId, statusInstanceId);
 		this.visualModuleLivePreviewVisualModuleId.value = visualModuleId;
-		this.renderLoopRunning = true;
 	}
 
 	public updateVisualModuleLivePreviewParamValues(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings) {
-		if (!this.renderLoopRunning || this.visualModuleLivePreviewVisualModuleId.value !== visualModuleId) {
+		if (this.visualModuleLivePreviewVisualModuleId.value !== visualModuleId) {
 			this.startVisualModuleLivePreviewRenderLoopFor(visualModuleId, paramValues);
 			return;
 		}
 		// 同じモジュールの操作ではインスタンスを維持し、履歴を初期化しない。
-		this.visualModuleLivePreviewParamValues = deepClone(paramValues);
-		if (this.isReady.value) this.call('updateVisualModuleLivePreviewParamValues', [this.visualModuleLivePreviewParamValues]);
+		if (this.isReady.value) this.call('updateVisualModuleLivePreviewParamValues', [deepClone(paramValues)]);
 	}
 
 	public stopRenderLoop() {
 		if (this.isReady.value) this.call('stopRenderLoop', []);
-		this.renderLoopRunning = false;
 		this.outputResolution.value = null;
 		this.visualModuleLivePreviewEffectStateStore.stop();
 		this.visualModuleLivePreviewVisualModuleId.value = null;
 	}
 
 	/** 定義は同期的に反映し、メディアの準備・権限待ちはプレビュー全体の起動条件にしない。 */
-	public updatePlayers(newPlayers: Player[]) {
+	private updatePlayers(newPlayers: readonly Player[], assets: readonly Asset[]) {
 		// 定義変更はManager再生成時にまとめて反映する。原本や参照先の差分を追わず、
 		// 再生位置・Webcam接続も含めてメディアを作り直す。
 		this.releasePlayerMedia();
-		this.players = deepClone(newPlayers);
+		this.players = [...deepClone(newPlayers)];
 		for (const player of this.players) {
 			// 未割り当て・未対応の入力は、定義だけ保持してメディア要素は作らない。
 			if (player.sourceType !== 'asset' && player.sourceType !== 'webcam') continue;
-			const asset = player.sourceType === 'asset' ? this.initialAssets.find(asset => asset.id === player.assetId) : null;
+			const asset = player.sourceType === 'asset' ? assets.find(asset => asset.id === player.assetId) : null;
 			if (player.sourceType === 'asset' && asset == null) continue;
 			if (asset != null && getFileSourceError(asset.fileData) != null) continue;
 			const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
@@ -332,50 +329,16 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				height: Math.max(1, Math.floor(options.resolution.height)),
 			};
 		}
-		this.dynamicOptions = { ...this.dynamicOptions, ...options };
-		// 初回起動前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
-		if (!this.isReady.value && !this.isInitializing) return;
+		// 起動前・初期化中の変更は、所有者が最新スナップショットで生成し直す。
+		if (!this.isReady.value) return;
 		await this.callAndWaitReturn('updateDynamicOptions', [options]);
 	}
 
-	/** 次に生成するManagerへ渡す。動作中のManagerの素材一覧は更新しない。 */
-	public setInitialAssets(assets: readonly Asset[]) { this.initialAssets = deepClone(assets); }
-
-	public async replaceProjectState(state: RendererProjectState) {
-		const snapshot = { automationGraphs: deepClone(state.automationGraphs), visualModules: deepClone(state.visualModules), timelineScenes: [] };
-		this.dynamicOptions = { ...this.dynamicOptions, automationGraphs: snapshot.automationGraphs, visualModules: snapshot.visualModules };
-		if (!this.isReady.value && !this.isInitializing) return;
-		if (!this.initialSnapshotTaken) return this.initializationReady;
-		const replacement = this.callAndWaitReturn('replaceProjectState', [snapshot]);
-		// 復旧用の再開も置換の直後に送る。応答待ちの後に送ると、その間の
-		// パラメータ編集で再開を取りこぼしたり、モード切替後に古いVisual Module Live Previewを開始したりする。
-		if (this.renderLoopRunning && this.visualModuleLivePreviewVisualModuleId.value != null) {
-			this.startVisualModuleLivePreviewRenderLoopFor(this.visualModuleLivePreviewVisualModuleId.value, this.visualModuleLivePreviewParamValues);
-		}
-		await replacement;
-	}
-
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
+		if (!this.isReady.value) return;
 		const patch = deepClone(changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
 			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
-		if (patch.length === 0) return;
-		const next = applyRendererProjectChanges({ automationGraphs: this.dynamicOptions.automationGraphs ?? [], visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: [] }, patch);
-		this.dynamicOptions = { ...this.dynamicOptions, automationGraphs: next.automationGraphs, visualModules: next.visualModules };
-		if (this.visualModuleLivePreviewVisualModuleId.value != null && !next.visualModules.some(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId.value)) this.stopRenderLoop();
-		if (!this.isReady.value && !this.isInitializing) return;
-		if (!this.initialSnapshotTaken) return this.initializationReady;
-		await this.callAndWaitReturn('applyProjectChanges', [patch]);
-	}
-
-	public async updateStaticOptions(newStaticOptions: Partial<VisualModuleRendererManagerStaticOptions>): Promise<void> {
-		this.staticOptions = { ...this.staticOptions, ...deepClone(newStaticOptions) };
-		// 解放中は設定のみ保持する。Worker障害時は再生成して復旧できるようにする。
-		if (!this.hasManager && !this.isInitializing) return;
-		// 計測を連続で切り替えても、起動時の古い設定を残さず最新値まで反映する。
-		if (this.isInitializing) await this.initializationReady;
-		while (this.hasManager && !deepEqual(this.initializationStaticOptions, this.staticOptions)) {
-			await this.reload();
-		}
+		if (patch.length > 0) await this.callAndWaitReturn('applyProjectChanges', [patch]);
 	}
 
 	private releasePlayerMedia() {
@@ -397,13 +360,5 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.videoFrameCallbacks.clear();
 		this.pendingVideoFrames.clear();
 		this.inFlightVideoFrames.clear();
-	}
-
-	public destroy() {
-		super.destroy();
-		this.renderLoopRunning = false;
-		this.visualModuleLivePreviewVisualModuleId.value = null;
-		this.visualModuleLivePreviewEffectStateStore.stop();
-		this.releasePlayerMedia();
 	}
 }
