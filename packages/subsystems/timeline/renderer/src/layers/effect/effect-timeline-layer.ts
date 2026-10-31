@@ -1,5 +1,6 @@
 import { getEffectIntrinsicResolution, resolveEffectStaticResources } from '@gs/subsystems_effect_renderer/effect-static-settings.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
+import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
 import { getEffectInputResolution } from '@gs/subsystems_effect_shared/effect-resolution-inputs.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
@@ -96,7 +97,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const baseScope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs });
-			const scope = { ...baseScope, variables: { ...baseScope.variables, RESOLUTION: [effectResolution.width, effectResolution.height] } };
+			const scope = { ...baseScope, variables: { ...baseScope.variables, ...createResolutionExpressionVariables(effectResolution) } };
 			const resolveAudioInput = createTimelineAudioInputResolver(options.getAudioInput, context.sceneTimeMs, context.isExport);
 			const references = new Map<string, TimelineImage>();
 			let lowerLayerOutput: TimelineImage | null = null;

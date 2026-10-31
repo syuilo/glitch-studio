@@ -1,5 +1,6 @@
 import { evaluateAutomationGraph, evalAutomationGraphValue } from '../automation-graph/automation-graph-evaluator.ts';
 import { ExpressionEvaluator } from '../expression/expression-evaluator.ts';
+import { createCoordinateExpressionFunctions } from '../expression/coordinate-functions.ts';
 import { randomExpressionFunctions } from '../expression/random-functions.ts';
 import { evaluateKeyframesTimeline } from '../keyframes/keyframes-timeline-evaluator.ts';
 import { deepClone } from '../utility/deep-clone.ts';
@@ -46,7 +47,12 @@ export class ParameterBindingEvaluator {
 	private evaluateExpression(code: string, scope: ParameterEvaluationScope, stage: 'base' | 'modifier', definition: ExpressionParameterDefinition, value?: unknown): any {
 		try {
 			const variables = { ...scope.variables };
-			const functions = { ...scope.functions, ...randomExpressionFunctions, GRAPH: this.graphReader(scope) };
+			const functions = {
+				...scope.functions,
+				...randomExpressionFunctions,
+				...createCoordinateExpressionFunctions(scope.variables.ASPECT_RATIO),
+				GRAPH: this.graphReader(scope),
+			};
 			// VALUEは加工式だけに公開する。親スコープの同名変数・関数を基準式へ漏らさない。
 			delete variables.VALUE;
 			delete (functions as Record<string, ExpressionFunction>).VALUE;

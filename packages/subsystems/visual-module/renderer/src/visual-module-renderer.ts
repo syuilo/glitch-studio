@@ -1,4 +1,5 @@
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
+import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { constantShaderInput, toShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -176,7 +177,6 @@ export class VisualModuleRenderer {
 
 		const evalCtx = {
 			variables: {
-				RESOLUTION: [0, 0],
 				TIME: context.time / 1000,
 				TIME_MS: context.time,
 				END_TIME: context.endTime / 1000,
@@ -186,7 +186,7 @@ export class VisualModuleRenderer {
 				POINTER_POSITION: [context.pointerPosition.x, context.pointerPosition.y],
 				TEST_ONLY_VM: true,
 				TEST_SAME_NAME: 1,
-			} satisfies Record<typeof IN_VISUAL_MODULE_VAR_DEFS[number], unknown>,
+			},
 			automationGraphs: this.automationGraphs,
 			time: context.time,
 			endTime: context.endTime,
@@ -198,7 +198,13 @@ export class VisualModuleRenderer {
 		const evaluated = new Map<VisualModuleNode['id'], Record<string, any>>();
 		for (const node of this.nodes.filter((n): n is VisualModuleEffectNode => n.type === 'effect')) {
 			const resolution = this.nodeResolutions.get(node.id)!;
-			const nodeEvalCtx = { ...evalCtx, variables: { ...evalCtx.variables, RESOLUTION: [resolution.width, resolution.height] } };
+			const nodeEvalCtx = {
+				...evalCtx,
+				variables: {
+					...evalCtx.variables,
+					...createResolutionExpressionVariables(resolution),
+				} satisfies Record<typeof IN_VISUAL_MODULE_VAR_DEFS[number], unknown>,
+			};
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
 			const evaluatedParamsPerNode = {} as Record<string, any>;
 			for (const [key, def] of Object.entries(paramDefs)) {
