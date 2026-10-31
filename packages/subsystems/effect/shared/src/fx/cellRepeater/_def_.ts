@@ -26,7 +26,7 @@ export default defineEffect({
 			dataType: { kind: 'vector' },
 			ui: { label: 'Frequency', control: { controlType: 'dimension', min: 0.01, max: 1000, logarithmic: true } },
 			canNode: false,
-			defaultValue: { inputSource: 'literal', value: [3, 3] },
+			defaultValue: { inputSource: 'literal', value: [10, 10] },
 		},
 		// 画面上の距離ではなくセルの周期が単位。1で回転後の格子を1セル分ずらす。
 		phase: {

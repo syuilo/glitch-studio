@@ -22,7 +22,7 @@ export default defineEffect({
 			dataType: { kind: 'vector' },
 			ui: { label: 'Frequency', control: { controlType: 'dimension', min: 0.01, max: 1000, logarithmic: true } },
 			canNode: false,
-			defaultValue: { inputSource: 'literal', value: [3, 3] },
+			defaultValue: { inputSource: 'literal', value: [10, 10] },
 		},
 		// Phaseは回転後の格子の周期が単位。1で分割位置を1セル分ずらす。
 		phase: {
