@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/shader-input.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -147,7 +148,7 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
-				const geometry = getGeometry(params.maxBlockSize, params.subdivisions);
+				const geometry = getGeometry(params.maxBlockSize * getSizeReferenceLength(params.sizeReference, resolution) / shortSide, params.subdivisions);
 				if (resources == null || resources.rootColumns !== geometry.rootColumns || resources.rootRows !== geometry.rootRows || resources.maxDepth !== geometry.maxDepth) {
 					const next = createResources(geometry);
 					resources?.dispose();

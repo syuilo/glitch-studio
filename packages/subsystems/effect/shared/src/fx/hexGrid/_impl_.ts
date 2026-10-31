@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -30,13 +31,11 @@ export default implementEffect<typeof definition>({
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
 				const shortDimension = Math.min(output.width, output.height);
-				// パターン形状の基準領域。入力接続のfitとは独立に、各軸／長辺／短辺へ合わせる。
-				const extent = ctx.params.fitMode === 'cover' ? Math.max(output.width, output.height) : shortDimension;
+				// パターン形状の基準領域。入力接続のfitとは独立に、Size Referenceへ合わせる。
+				const extent = getSizeReferenceLength(ctx.params.sizeReference, output);
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
-					referenceExtent: ctx.params.fitMode === 'stretch'
-						? [output.width / shortDimension, output.height / shortDimension]
-						: [extent / shortDimension, extent / shortDimension],
+					referenceExtent: [extent / shortDimension, extent / shortDimension],
 					lineWidth: Math.min(1, Math.max(0, ctx.params.lineWidth)),
 					lineColor: ctx.params.lineColor,
 				});

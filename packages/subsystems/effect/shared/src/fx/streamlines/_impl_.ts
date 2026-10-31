@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/shader-input.ts';
@@ -96,15 +97,16 @@ export default implementEffect<typeof definition>({
 					ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView).end();
 					return;
 				}
+				const referenceScale = getSizeReferenceLength(ctx.params.sizeReference, resolution) / shortDimension;
 				const density = Math.min(64, Math.max(1, Math.floor(ctx.params.density)));
-				const seedCount = aspect.map(value => Math.max(1, Math.floor(value * density)));
+				const seedCount = aspect.map(value => Math.max(1, Math.floor(value * density / referenceScale)));
 				const seeds = seedCount[0] * seedCount[1];
 				const traceCount = seeds * 2;
-				const maximumLength = Math.max(0.000001, ctx.params.maximumLength);
-				const stepSize = Math.max(0.00001, ctx.params.stepSize);
+				const maximumLength = Math.max(0.000001, ctx.params.maximumLength) * referenceScale;
+				const stepSize = Math.max(0.00001, ctx.params.stepSize) * referenceScale;
 				const maximumSteps = Math.min(2048, Math.max(1, Math.floor(ctx.params.maximumSteps)));
 				const stepCount = Math.max(1, Math.min(maximumSteps, Math.ceil(maximumLength / stepSize)));
-				const arrowSpacing = Math.max(0.001, ctx.params.arrowSpacing);
+				const arrowSpacing = Math.max(0.001, ctx.params.arrowSpacing) * referenceScale;
 				const arrowCount = ctx.params.arrowSize <= 0 ? 0 : Math.max(0, Math.floor(Math.min(maximumLength, stepCount * stepSize) / arrowSpacing + 0.5));
 				const pointBytes = traceCount * (stepCount + 1) * 8;
 				const traceBytes = traceCount * 8;
@@ -120,10 +122,10 @@ export default implementEffect<typeof definition>({
 					resources?.traces.destroy();
 					resources = replacement;
 				}
-				uniformValues.set({ aspect, seedCount, seedSpacing: 1 / density, maximumLength, stepSize, stepCount, arrowSpacing, arrowCount,
+				uniformValues.set({ aspect, seedCount, seedSpacing: referenceScale / density, maximumLength, stepSize, stepCount, arrowSpacing, arrowCount,
 					minimumMagnitude: Math.max(0, ctx.params.minimumMagnitude),
 					directionSpace: ctx.params.directionSpace === 'displacement' ? 1 : 0,
-					lineWidth: Math.max(0, ctx.params.lineWidth), arrowSize: Math.max(0, ctx.params.arrowSize), pixelSize: 1 / shortDimension,
+					lineWidth: Math.max(0, ctx.params.lineWidth) * referenceScale, arrowSize: Math.max(0, ctx.params.arrowSize) * referenceScale, pixelSize: 1 / shortDimension,
 					maximumMagnitude: Math.max(0.000001, ctx.params.maximumMagnitude), zeroColor: ctx.params.zeroColor, overflowColor: ctx.params.overflowColor,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);

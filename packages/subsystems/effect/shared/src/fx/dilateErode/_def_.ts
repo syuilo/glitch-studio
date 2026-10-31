@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Input', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
@@ -25,7 +26,7 @@ export default defineEffect({
 		// 正方形の形態演算を段階的に合成するため、半径は描画全体で共通にする。
 		radius: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Radius (Fraction of Short Side)', control: { controlType: 'number', min: 0, step: 0.001 } },
+			ui: { label: 'Radius (Reference Ratio)', control: { controlType: 'number', min: 0, step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: 0.01 },
 		},
 	},

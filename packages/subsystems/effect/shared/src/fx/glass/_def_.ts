@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['distortion', 'light', 'sdf'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
@@ -35,7 +36,7 @@ export default defineEffect({
 		},
 		thickness: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Thickness (Height Units)', control: { controlType: 'range', min: 0, max: 0.5, step: 0.001 } },
+			ui: { label: 'Thickness (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.5, step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: 0.03 },
 		},
 		curvature: {
@@ -50,17 +51,17 @@ export default defineEffect({
 		},
 		edgeSoftness: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Edge Softness (Height Units)', control: { controlType: 'range', min: 0, max: 0.05, step: 0.0001 } },
+			ui: { label: 'Edge Softness (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.05, step: 0.0001 } },
 			defaultValue: { inputSource: 'literal', value: 0.0015 },
 		},
 		normalSmoothing: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Normal Smoothing (Height Units)', control: { controlType: 'range', min: 0, max: 0.02, step: 0.0001 } },
+			ui: { label: 'Normal Smoothing (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.02, step: 0.0001 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		blur: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Blur Radius (Height Units)', control: { controlType: 'range', min: 0, max: 0.05, step: 0.0001 } },
+			ui: { label: 'Blur Radius (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.05, step: 0.0001 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		blurSamples: {

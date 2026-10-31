@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'distortion', 'stylized'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
@@ -20,7 +21,7 @@ export default defineEffect({
 		rasterDensity: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Raster Density (Short Side)',
+				label: 'Raster Density (Reference)',
 				control: {
 					controlType: 'range',
 					min: 1,

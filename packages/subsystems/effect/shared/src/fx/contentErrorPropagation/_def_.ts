@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'color', 'stylized'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
@@ -33,7 +34,7 @@ export default defineEffect({
 		sourceSpacing: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Source Spacing (% of Short Side)',
+				label: 'Source Spacing (% of Reference)',
 				control: {
 					controlType: 'range',
 					min: 0.5,
@@ -83,7 +84,7 @@ export default defineEffect({
 		guidanceRadius: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Guidance Radius (% of Short Side)',
+				label: 'Guidance Radius (% of Reference)',
 				control: {
 					controlType: 'range',
 					min: 0.1,
@@ -96,7 +97,7 @@ export default defineEffect({
 		propagationLength: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Propagation Length (% of Short Side)',
+				label: 'Propagation Length (% of Reference)',
 				control: {
 					controlType: 'range',
 					min: 0,

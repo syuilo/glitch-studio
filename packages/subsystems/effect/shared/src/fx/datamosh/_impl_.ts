@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import type { WrapMode } from '@gs/shared/types.ts';
@@ -118,10 +119,9 @@ export default implementEffect<typeof definition>({
 		const histories = [createTexture(resolution, historyFormat), createTexture(resolution, historyFormat)];
 		const historyViews = histories.map(texture => texture.createView());
 
-		const getGeometry = (blockSize: number, centered: boolean) => {
+		const getGeometry = (blockSize: number, referenceLength: number, centered: boolean) => {
 			if (!Number.isFinite(blockSize) || blockSize <= 0) throw new Error('Datamoshing: block size must be a positive finite number.');
-			const shortSide = Math.min(resolution.width, resolution.height);
-			const block = [blockSize / 100 * shortSide / resolution.width, blockSize / 100 * shortSide / resolution.height];
+			const block = [blockSize / 100 * referenceLength / resolution.width, blockSize / 100 * referenceLength / resolution.height];
 			// 配置全体を中央寄せするだけでは、ブロック数の偶奇が変わるたびに中心が半ブロック
 			// 移動してしまう。中央モードは必ず奇数個とし、中央のブロック中心を画像中央に固定する。
 			const countBlocks = (axisBlockSize: number) => centered
@@ -214,14 +214,14 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
-				const geometry = getGeometry(params.blockSize, params.blockOrigin === 'center');
+				const geometry = getGeometry(params.blockSize, getSizeReferenceLength(params.sizeReference, resolution), params.blockOrigin === 'center');
 				if (motionResources == null || motionResources.width !== geometry.width || motionResources.height !== geometry.height) {
 					const next = createMotionResources(geometry);
 					motionResources?.dispose();
 					motionResources = next;
 					hasFlow = false;
 				}
-				const gridSettings = `${params.blockSize}:${params.blockOrigin}`;
+				const gridSettings = `${params.sizeReference}:${params.blockSize}:${params.blockOrigin}`;
 				if (gridSettings !== previousGridSettings) {
 					// 寸法が同じでも配置やサイズが変われば、同じセル番号は別の領域を表す。
 					// 旧グリッドの速度との平滑化だけを止め、蓄積した映像の履歴は保持する。
@@ -245,7 +245,7 @@ export default implementEffect<typeof definition>({
 				const reset = !hasHistory || params.reset || (resetInterval > 0 && elapsedSinceReset >= resetInterval);
 				if (reset) elapsedSinceReset = 0;
 				const canEstimateMotion = hasMotion && !reset && seconds > 0;
-				const searchRadius = clamp(params.searchRange, 0, 100) / 100 * Math.min(analysisSize.width, analysisSize.height);
+				const searchRadius = clamp(params.searchRange, 0, 100) / 100 * getSizeReferenceLength(params.sizeReference, analysisSize);
 				const maxLevel = Math.min(mipLevelCount - 1, Math.max(0, Math.floor(Math.log2(Math.max(1, searchRadius)))));
 				const halfLife = Math.max(0, params.motionSmoothing) / 1000;
 				seedValue[0] = params.seed;

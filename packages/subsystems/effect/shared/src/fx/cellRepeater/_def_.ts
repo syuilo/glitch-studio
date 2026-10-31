@@ -41,12 +41,7 @@ export default defineEffect({
 			canNode: false,
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
-		fitMode: {
-			dataType: { kind: 'fitMode' },
-			ui: { label: 'Fit Mode', control: {} },
-			defaultValue: { inputSource: 'literal', value: 'cover' },
-		},
-		// 各制御入力は変形前のセル内で平均する。Selectionは平均後の0〜1を素材数で均等分割する。
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		perCellSelection: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Per Cell Selection', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },

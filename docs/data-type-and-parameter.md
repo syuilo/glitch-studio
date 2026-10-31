@@ -29,6 +29,10 @@
 - enumの `options` は文字列のみです。表示名は `ui.control.labels` に分離し、初期値も選択肢の文字列にします。数値計算やGPUで番号が必要なら利用側の境界で変換します。
 - `GsLiteralLeafValueControl.vue` は `LeafDataType` と対応する `control`、リテラル値を受け取ります。パラメータ定義やBinding全体は渡しません。array・structの展開とフィールドラベルの表示は上位コンポーネントの責務です。enumの選択肢ラベルは末端コントロールでも使用します。
 
+## Size Reference
+
+サイズ指定には専用型`{ kind: 'sizeReference' }`を使用できます。Height・Width・Short Side・Long Sideから選び、共通の既定値はLong Sideです。汎用enumへ変換せずに保存・式評価・カスタムパラメータ・Holdのキーで扱います。[サイズ基準の規約と対象パラメータ](./size-reference.md)を参照してください。
+
 ## Color Ramp
 
 `{ kind: 'colorRamp' }`は、scalarからcolorへの対応表を一つの末端値として扱います。
@@ -76,7 +80,7 @@ VALUE
 
 フォルダ以外の全レイヤーに、`customParameterDefs`（定義）と`customParameterValues`（IDをキーにしたBinding）を持たせられます。未定義のレイヤーでは省略できます。Inspectorの「レイヤーのカスタムパラメータ」から追加し、定義内で表示名・参照名・型・編集UI・初期値を設定します。値は通常のパラメータと同じ方式で編集し、キーの表示・選択・コピー・コンテナ全体の時間移動にも含めます。
 
-対応する型は数値・真理値・文字列・色・ベクトル・enum・Color Rampです。画像・Asset・音声・配列・構造体やノード入力は公開しません。固定値・環境変数・式・キー・Automation Graph・加工式の対応範囲は、それぞれの型の通常の値Bindingに従います。
+対応する型は数値・真理値・文字列・色・ベクトル・enum・Color Ramp・Size Referenceです。画像・Asset・音声・配列・構造体やノード入力は公開しません。固定値・環境変数・式・キー・Automation Graph・加工式の対応範囲は、それぞれの型の通常の値Bindingに従います。
 
 型の種類を変更すると、所有する保存Bindingを外して新しい定義の既定値へ戻します。Undo/Redoでは定義と保存Bindingをまとめて復元します。表示名・編集UI・既定値だけの変更では保存Bindingを維持し、enumの選択肢の削除・改名も既存の値を残して評価時に検証します。Visual Moduleレイヤーのカスタム値だけを編集する場合は、内部の履歴とインスタンスを維持します。
 

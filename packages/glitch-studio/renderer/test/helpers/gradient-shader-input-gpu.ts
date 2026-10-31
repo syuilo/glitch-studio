@@ -82,7 +82,7 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			}
 			// Radialでも既存の解析的微分と+Y方向を維持する。
 			params.mode = 'radial';
-			params.fitMode = 'stretch';
+			params.sizeReference = 'longSide';
 			const radial = await render(params, true);
 			const radius = Math.hypot(-0.25, 0.25);
 			check('radial value and derivative', [radial.scalar[5], ...radial.vector.slice(10, 12)], [radius, -0.25 / radius, 0.25 / radius]);

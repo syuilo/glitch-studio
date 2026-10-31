@@ -46,7 +46,7 @@ import { i18n } from '@/i18n.ts';
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayerWithParameters }>();
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 const { stateManager } = appContext.projectContext;
-const supportedTypes = ['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp'];
+const supportedTypes = ['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp', 'sizeReference'];
 provide(timelineParameterEditorContextKey, { context: computed(() => getTimelineLayerCustomParameterContext(props.scene.layers, props.layer.id)), isCustomParameterValue: true });
 
 function update(definition: TimelineLayerCustomParameterDefinition, changes: CustomParameterDefinitionEdit, mergeKey?: string | null) {

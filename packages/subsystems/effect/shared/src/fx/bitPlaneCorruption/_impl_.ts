@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -17,7 +18,6 @@ const patterns = {
 	vertical: 2,
 	wholeImage: 3,
 };
-const fitModes = { stretch: 0, cover: 1, contain: 2 };
 const clampInteger = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(value)));
 
 export default implementEffect<typeof definition>({
@@ -59,7 +59,7 @@ export default implementEffect<typeof definition>({
 				seedValue[0] = params.seed;
 				uniformValues.set({
 					resolution: [resolution.width, resolution.height],
-					fitMode: fitModes[params.fitMode],
+					referenceLength: getSizeReferenceLength(params.sizeReference, resolution),
 					mode: modes[params.mode],
 					pattern: patterns[params.pattern],
 					bitDepth,

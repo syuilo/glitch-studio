@@ -7,12 +7,12 @@
 - A・Bはスカラーの定数またはノード出力。初期値はいずれも空形状の65504。
 - OperationはUnion（初期値）・Intersection・Difference（A − B）。DifferenceはAからBを除く方向に固定する。
 - Smoothingは初期値0、負の値は0として扱う。描画全体で共通の値で、式・automationなどによる変更に対応する。ノード接続はA・Bのみ。
-- 距離・Smoothingの単位は既存SDFと同じく描画領域の高さを1とする。出力を0〜1へ正規化しない。
+- 距離の単位は既存SDFと同じく描画領域の高さを1とする。SmoothingはSize Referenceの基準寸法に対する比率で、既定値はLong Side。内部で基準寸法/出力高さを掛け、距離単位へ換算する。出力を0〜1へ正規化しない。
 
 Smoothingが0なら、Unionは`min(a, b)`、Intersectionは`max(a, b)`、Differenceは`max(a, -b)`。正なら次の多項式で合成する。
 
 ```text
-k = Smoothing
+k = Smoothing * 基準寸法 / 出力高さ
 h = max(1 - abs(a - b) / k, 0)
 smoothMin(a, b) = min(a, b) - k * h² / 4
 smoothMax(a, b) = -smoothMin(-a, -b)

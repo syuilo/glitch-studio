@@ -6,6 +6,7 @@ import type { FitMode, WrapMode } from '../types.ts';
 import type { ParameterArrayElement } from './parameter-binding.ts';
 import type { ValueParameterSource } from './value-parameter-binding.ts';
 import type { ColorRamp } from '../color-ramp.ts';
+import type { SizeReference } from '../size-reference.ts';
 
 // 値には式・キー・automationの内容を含む。入力方式の切替、接続先の変更、
 // 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
@@ -22,6 +23,7 @@ type ParameterDefaultValueMap = {
 	vector: [number, number];
 	blendMode: BlendMode;
 	fitMode: FitMode;
+	sizeReference: SizeReference;
 	wrapMode: WrapMode;
 	audioSource: null;
 	any: [number, number, number, number] | null;
@@ -102,6 +104,7 @@ export type ParameterDefinition_Color = ParameterDefinition<{ kind: 'color' }>;
 export type ParameterDefinition_Vector = ParameterDefinition<{ kind: 'vector' }>;
 export type ParameterDefinition_BlendMode = ParameterDefinition<{ kind: 'blendMode' }>;
 export type ParameterDefinition_FitMode = ParameterDefinition<{ kind: 'fitMode' }>;
+export type ParameterDefinition_SizeReference = ParameterDefinition<{ kind: 'sizeReference' }>;
 export type ParameterDefinition_WrapMode = ParameterDefinition<{ kind: 'wrapMode' }>;
 export type ParameterDefinition_Enum<Options extends readonly string[] = readonly string[]> = ParameterDefinition<{ kind: 'enum'; options: Options }>;
 export type ParameterDefinition_Struct<Fields extends Record<string, DataType> = Record<string, DataType>> = ParameterDefinition<{ kind: 'struct'; fields: Fields }>;

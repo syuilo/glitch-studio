@@ -1,4 +1,5 @@
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createTextFontLoader } from '../../text-font-loader.ts';
 import { layoutText } from './layout.ts';
@@ -44,7 +45,7 @@ export default implementEffect<typeof definition>({
 			const text = String(values.text).trim();
 			// 色のアニメーションや接続先の更新では、Canvas描画と転送を繰り返さない。
 			const key = JSON.stringify([
-				width, height, text, values.size, values.outlineWidth,
+				width, height, text, values.size, values.sizeReference, values.outlineWidth,
 				values.position, values.align, values.lineHeight, values.overflow, values.maxWidth,
 				values.shadowEnabled ? [values.shadowBlur, values.shadowOffset] : null,
 			]);
@@ -89,7 +90,7 @@ export default implementEffect<typeof definition>({
 				context!.direction = 'ltr';
 				layout = layoutText({
 					text,
-					fontSize: values.size * height,
+					fontSize: values.size * getSizeReferenceLength(values.sizeReference, { width, height }),
 					outlineWidth: values.outlineWidth,
 					lineHeight: values.lineHeight,
 					alignment: values.align,

@@ -49,7 +49,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [12, 12] },
 		},
-		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Region Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		maxDelay: {
 			dataType: { kind: 'scalar' },
 			ui: {

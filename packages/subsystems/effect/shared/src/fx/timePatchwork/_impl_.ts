@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -95,10 +96,9 @@ export default implementEffect<typeof definition>({
 				throw error;
 			}
 		};
-		const getBlockGeometry = (blockSize: number, centered: boolean) => {
+		const getBlockGeometry = (blockSize: number, referenceLength: number, centered: boolean) => {
 			if (!Number.isFinite(blockSize) || blockSize <= 0) throw new Error('Time Patchwork: block size must be a positive finite number.');
-			const shortSide = Math.min(resolution.width, resolution.height);
-			const block = [blockSize / 100 * shortSide / resolution.width, blockSize / 100 * shortSide / resolution.height];
+			const block = [blockSize / 100 * referenceLength / resolution.width, blockSize / 100 * referenceLength / resolution.height];
 			// 中央モードでは奇数個を使い、ブロック数が変わっても中央ブロックの中心を固定する。
 			const countBlocks = (axisBlockSize: number) => centered
 				? Math.max(1, Math.ceil(0.5 / axisBlockSize - 0.5) * 2 + 1)
@@ -199,14 +199,14 @@ export default implementEffect<typeof definition>({
 					history = next;
 					clearHistory();
 				}
-				const geometry = getBlockGeometry(params.blockSize, params.blockOrigin === 'center');
+				const geometry = getBlockGeometry(params.blockSize, getSizeReferenceLength(params.sizeReference, resolution), params.blockOrigin === 'center');
 				if (blockResources == null || blockResources.width !== geometry.width || blockResources.height !== geometry.height) {
 					const next = createBlockResources(geometry);
 					blockResources?.dispose();
 					blockResources = next;
 					hasBlockState = false;
 				}
-				const gridSettings = `${params.blockSize}:${params.blockOrigin}:${params.seed}`;
+				const gridSettings = `${params.sizeReference}:${params.blockSize}:${params.blockOrigin}:${params.seed}`;
 				if (gridSettings !== previousGridSettings) hasBlockState = false;
 				previousGridSettings = gridSettings;
 				const input = params.input;

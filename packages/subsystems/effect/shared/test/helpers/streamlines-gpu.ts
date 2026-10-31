@@ -23,7 +23,7 @@ export async function run() {
 		{ id: 'start', position: 0, color: [1, 0, 0, 0.5] },
 		{ id: 'end', position: 1, color: [0, 0, 1, 0.5] },
 	] };
-	const defaults: Parameters = {
+	const defaults: Parameters = { sizeReference: 'shortSide',
 		vector: constantShaderInput('vector', [1, 0]), density: 1, maximumLength: 0.3, stepSize: 0.01, maximumSteps: 256,
 		minimumMagnitude: 0.000001, lineWidth: 0.01, arrowSpacing: 0.2, arrowSize: 0.04, maximumMagnitude: 1,
 		ramp, zeroColor: [0, 1, 0, 0.5], overflowColor: [0.2, 0.6, 0.8, 0.25], directionSpace: 'component',
@@ -171,6 +171,13 @@ export async function run() {
 		assert(scaled.at(0.25, 0)[3] > 100 && scaled.at(0.33, 0)[3] === 0 && scaled.at(0, 0.03)[3] === 0, 'streamline geometry scales with rendering resolution');
 		const repeated = await square.render({ arrowSize: 0 }, 100);
 		assert(repeated.pixels.every((value, index) => value === horizontal.pixels[index]), 'rendering is independent of history and time after input and capacity changes');
+		// 【長さと線幅を共通の基準で指定し、ベクトルの大きさによる色は維持する】
+		// 横長の出力で幅基準だけが短辺の0.15まで届くため、固定短辺のままの実装を検出できる。
+		const heightReference = await wide.render({ sizeReference: 'height', maximumLength: 0.1, lineWidth: 0.01, arrowSize: 0 });
+		const widthReference = await wide.render({ sizeReference: 'width', maximumLength: 0.1, lineWidth: 0.01, arrowSize: 0 });
+		assert(heightReference.at(0.15, 0)[3] === 0 && widthReference.at(0.15, 0)[3] > 100, 'maximum length uses the selected reference');
+		assert(heightReference.at(0, 0.008)[3] === 0 && widthReference.at(0, 0.008)[3] > 60, 'line width uses the selected reference');
+		nearColor(widthReference.at(0, 0), heightReference.at(0, 0).map(value => value / 255), 'size reference does not change magnitude colors');
 		return { checks };
 	} finally {
 		square.dispose(); wide.dispose(); larger.dispose();

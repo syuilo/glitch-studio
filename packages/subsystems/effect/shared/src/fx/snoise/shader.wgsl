@@ -74,12 +74,8 @@ fn snoise(v: vec3f) -> f32 {
 	return 105.0 * dot(m * m, vec4f(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
 }
 
-fn scaleUvToCoverGivenAspectRatio(uv: vec2f, aspectRatio: f32) -> vec2f {
-	return uv / vec2f(1.0, aspectRatio) * select(1.0, aspectRatio, 1.0 > aspectRatio);
-}
-
 struct Uniforms {
-	aspectRatio: f32,
+	coordinateScale: vec2f,
 	time: f32,
 	seedOffset: vec2f,
 	offset: vec2f,
@@ -96,8 +92,8 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	let density = max(read_density(fragData.uv), vec2f(1.0));
 	let outputMin = read_outputMin(fragData.uv);
 	let outputMax = read_outputMax(fragData.uv);
-	let aspectUv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
-	// 長辺全体をノイズ座標の1単位に揃え、その範囲にDensity単位を配置する。
+	let aspectUv = fragData.uv * uniforms.coordinateScale;
+	// 基準寸法全体をノイズ座標の1単位に揃え、その範囲にDensity単位を配置する。
 	// 非周期ノイズなので「1」は厳密な繰り返し数ではなく基準座標の密度を表す。
 	let uv = aspectUv * 0.5 * density + uniforms.offset + uniforms.seedOffset;
 	let noise = snoise(vec3f(uv.x, uv.y, uniforms.time));

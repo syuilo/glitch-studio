@@ -17,7 +17,7 @@ struct Uniforms {
 	resolution: vec2f,
 	amount: f32,
 	seed: u32,
-	fitMode: u32,
+	referenceLength: f32,
 	randomSwap: u32,
 	randomRotation: u32,
 	randomFlipX: u32,
@@ -34,13 +34,7 @@ struct FragmentIn {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	// 入力参照関数が、定数または接続ごとのfit/wrapを適用した値を返す。
 	let density = max(read_density(fragData.uv), vec2f(1.0));
-	var extent = uniforms.resolution;
-	// ブロック形状のfit。入力接続のfitとは独立に、基準領域を長辺／短辺へ合わせる。
-	if (uniforms.fitMode == 1u) {
-		extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
-	} else if (uniforms.fitMode == 2u) {
-		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
-	}
+	let extent = vec2f(uniforms.referenceLength);
 	// 画面全体は各軸[-1, 1]の幅2なので、画素数の比率をこの単位へ変換する。
 	// Stretch・Density=1ではcellSizeが2になり、中央の1セルが画面全体を覆う。
 	// 1未満は1として扱い、画素数による下限や密度の上限は設けない。

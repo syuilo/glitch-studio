@@ -114,7 +114,7 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 		// 中央原点の格子では奇数のセル数を使うと端に半端なセルが生じない。
 		// 現行のDensityで3×3に分割し、各6pxセルのRGB順と入力の上下を独立に確認する。
 		lcdInstance.render({
-			params: { input: textureShaderInput(lcdSource, { wrapMode: 'repeatMirrored', fitMode: 'stretch', filterMode: 'nearest' }), density: 3, border: 0 },
+			params: { input: textureShaderInput(lcdSource, { wrapMode: 'repeatMirrored', fitMode: 'stretch', filterMode: 'nearest' }), density: 3, border: 0, sizeReference: 'shortSide' },
 			commandEncoder: encoder,
 			outputDataMap: { output: { texture: lcdOutput, textureView: lcdOutput.createView() } },
 			createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
@@ -206,7 +206,7 @@ async function checkChannelBlends(device: GPUDevice, vertex: GPUShaderModule, re
 async function checkChromaticAspectRatio(device: GPUDevice, vertex: GPUShaderModule, readOutput: (output: GPUTexture) => Promise<number[]>) {
 	const completed: string[] = [];
 	const instance = chromaticAberration.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
-	async function draw(width: number, height: number, scale: number, fitMode: string, normalize: boolean, start = 0.2) {
+	async function draw(width: number, height: number, scale: number, sizeReference: string, normalize: boolean, start = 0.2) {
 		const source = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		const output = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
 		try {
@@ -220,7 +220,7 @@ async function checkChromaticAspectRatio(device: GPUDevice, vertex: GPUShaderMod
 			device.queue.writeTexture({ texture: source }, pixels, { bytesPerRow: width * 4 }, [width, height]);
 			const params = {
 				input: textureShaderInput(source, { filterMode: 'linear', fitMode: 'stretch', wrapMode: 'clamp' }),
-				fitMode,
+				sizeReference,
 				normalize,
 				start,
 				amount: 0.12,
@@ -242,22 +242,22 @@ async function checkChromaticAspectRatio(device: GPUDevice, vertex: GPUShaderMod
 		} finally { source.destroy(); output.destroy(); }
 	}
 	try {
-		for (const fitMode of ['cover', 'contain']) for (const normalize of [false, true]) {
-			const side = fitMode === 'cover' ? 129 : 65;
-			const square = await draw(side, side, side, fitMode, normalize);
+		for (const sizeReference of ['height', 'width', 'shortSide', 'longSide']) for (const normalize of [false, true]) {
 			for (const [width, height] of [[129, 65], [65, 129]]) {
-				const rectangle = await draw(width, height, side, fitMode, normalize);
-				// 入力の端のclampが比較に混ざらない中央領域を使う。
+				const side = sizeReference === 'height' ? height : sizeReference === 'width' ? width : sizeReference === 'longSide' ? 129 : 65;
+				const square = await draw(side, side, side, sizeReference, normalize);
+				const rectangle = await draw(width, height, side, sizeReference, normalize);
+				// 入力の端のclampが比較へ混ざらない中央領域を使う。
 				for (let y = -24; y <= 24; y++) for (let x = -24; x <= 24; x++) for (let c = 0; c < 4; c++) {
 					const a = square[((Math.floor(side / 2) + y) * side + Math.floor(side / 2) + x) * 4 + c];
 					const b = rectangle[((Math.floor(height / 2) + y) * width + Math.floor(width / 2) + x) * 4 + c];
-					if (Math.abs(a - b) > 2) throw new Error(`Chromatic aspect mismatch: ${fitMode}, normalize=${normalize}, ${width}x${height}, ${x},${y}`);
+					if (Math.abs(a - b) > 2) throw new Error(`Chromatic aspect mismatch: ${sizeReference}, normalize=${normalize}, ${width}x${height}, ${x},${y}`);
 				}
 			}
-			completed.push(`chromatic aspect ${fitMode} normalize=${normalize}`);
+			completed.push(`chromatic aspect ${sizeReference} normalize=${normalize}`);
 		}
 		// 中心のNormalizeとStart=1がNaNを生成せず、元の中心色を保つ。
-		const center = await draw(65, 65, 65, 'stretch', true, 1);
+		const center = await draw(65, 65, 65, 'longSide', true, 1);
 		if (center.slice((32 * 65 + 32) * 4, (32 * 65 + 32) * 4 + 4).some((v, i) => Math.abs(v - [128, 128, 128, 255][i]) > 1)) throw new Error('Chromatic center is not finite');
 		completed.push('chromatic normalized center');
 	} finally { instance.dispose(); }

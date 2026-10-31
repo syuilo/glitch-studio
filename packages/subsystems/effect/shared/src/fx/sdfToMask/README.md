@@ -13,7 +13,7 @@
 - Anti-aliasは初期値true。出力画素における距離の変化幅`fwidth(d - Offset)`とFeatherの大きい方を、実際の遷移幅に使う。Featherの幅にAA幅を加算しない。
 - Invertは初期値false。透明余白の処理も含めて、最後に`1 - mask`へ反転する。
 
-Offset・Stroke Width・Featherの単位は、入力する距離場と同じく描画領域の高さを1とする。調整パラメータは画面全体で共通の値で、式・automationなどによるアニメーションに対応する。ノード接続はInputだけで受け付ける。
+Offset・Stroke Width・FeatherはSize Referenceの基準寸法に対する比率で、既定値はLong Side。内部で基準寸法/出力高さを掛け、入力SDFの高さ単位へ換算する。以下の数式のOffset・Width・Featherは換算後の値を表す。調整パラメータは画面全体で共通の値で、式・automationなどによるアニメーションに対応する。ノード接続はInputだけで受け付ける。
 
 ## 塗り・輪郭・滑らかさ
 

@@ -65,7 +65,8 @@ export async function run() {
 			const phase = (x: number, y = 0) => isStripe ? scalar(x) : vector([x, y]);
 			const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value]));
 			const base: RuntimeEffectParameters<typeof definition.paramDefs> = {
-				...defaults, angle: scalar(0), frequency: isStripe ? scalar(3) : vector([3, 2]), fitMode: 'stretch',
+				...defaults, angle: scalar(0), frequency: isStripe ? scalar(3) : vector([3, 2]),
+				sizeReference: 'longSide',
 				...('color' in defaults ? { color: [1, 1, 1, 1] } : {}),
 				...('majorColor' in defaults ? { majorColor: [1, 0, 0, 1], minorColor: [0, 1, 0, 0.75], minorDivisions: 4 } : {}),
 			};
@@ -99,11 +100,11 @@ export async function run() {
 				compare(await render({ phase: phase(0) }), original, `${definition.id}: zero phase`);
 				const shifted = await render({ phase: phase(0.25) });
 				assert(shifted.some((value, index) => Math.abs(value - original[index]) > 1), `${definition.id}: phase did not change the pattern`);
-				// Stretchでは幅192/Frequency=3より、1周期は64画素。1/4周期は左へ16画素となる。
+				// X方向の基準幅192/Frequency=3より、1周期は64画素。1/4周期は左へ16画素となる。
 				compare(shifted, original, `${definition.id}: quarter cycle and sign`, 16);
 				if (!isStripe) {
-					// Hex Gridも他のパターンと同じく、高さ128/Frequency=2の1/4周期が16画素になる。
-					compare(await render({ phase: phase(0, 0.25) }), original, `${definition.id}: y phase`, 0, -16);
+					// 共通サイズ基準は長辺192なので、Y方向もX方向と同じ物理単位になる。
+					compare(await render({ phase: phase(0, 0.25) }), original, `${definition.id}: y phase`, 0, -24);
 				}
 				const negative = await render({ phase: phase(-0.125, -0.25) });
 				compare(await render({ phase: phase(0.875, -0.25) }), negative, `${definition.id}: negative phase and x period`);
@@ -112,22 +113,25 @@ export async function run() {
 				compare(await render({ angle: scalar(0.25), phase: phase(0.25) }), rotated, `${definition.id}: rotated local axis`, 0, 16);
 				const highFrequency = { frequency: isStripe ? scalar(6) : vector([6, 2]) };
 				compare(await render({ ...highFrequency, phase: phase(0.25) }), await render(highFrequency), `${definition.id}: frequency-independent phase`, 8);
-				// 1未満の周波数でも周期数の定義を保つ。0.5周期/画面の1/8周期はXで48、Yで32画素。
+				// 1未満の周波数でも周期数の定義を保つ。0.5周期/基準寸法の1/8周期は、X/Yとも48画素。
 				const lowFrequency = { frequency: isStripe ? scalar(0.5) : vector([0.5, 0.5]) };
 				const lowFrequencyOriginal = await render(lowFrequency);
 				compare(await render({ ...lowFrequency, phase: phase(0.125) }), lowFrequencyOriginal, `${definition.id}: subunit x frequency`, 48);
-				if (!isStripe) compare(await render({ ...lowFrequency, phase: phase(0, 0.125) }), lowFrequencyOriginal, `${definition.id}: subunit y frequency`, 0, -32);
+				if (!isStripe) compare(await render({ ...lowFrequency, phase: phase(0, 0.125) }), lowFrequencyOriginal, `${definition.id}: subunit y frequency`, 0, -48);
 				compare(await render({ frequency: isStripe ? scalar(-1) : vector([-1, 0]) }), await render({ frequency: isStripe ? scalar(0.01) : vector([0.01, 0.01]) }), `${definition.id}: minimum frequency`);
 				// 周波数の入力場も変形前の出力座標で読む。定数2種類の結果を左右で繋いだ画像と一致する。
 				const minimumFrequency = await render({ frequency: isStripe ? scalar(0) : vector([0, 0]) });
 				const fractionalFrequency = await render({ frequency: isStripe ? scalar(64 / 255) : vector([64 / 255, 32 / 255]) });
 				const expectedFrequencyField = minimumFrequency.map((value, index) => Math.floor(index / 4) % width < width / 2 ? value : fractionalFrequency[index]);
 				compare(await render({ frequency: phaseField }), expectedFrequencyField, `${definition.id}: frequency field in output coordinates`);
-				// Cover/Containでは出力の長辺/短辺を基準にし、Hex Gridにも同じ周期長を適用する。
-				for (const fitMode of ['cover', 'contain'] as const) {
-					const fitted = await render({ fitMode });
-					compare(await render({ fitMode, phase: phase(fitMode === 'cover' ? 0.25 : 0.375) }), fitted, `${definition.id}: ${fitMode} x period`, 16);
-					if (!isStripe) compare(await render({ fitMode, phase: phase(0, 0.25) }), fitted, `${definition.id}: ${fitMode} y period`, 0, fitMode === 'cover' ? -24 : -16);
+				// サイズ基準は固定軸と長辺・短辺を区別し、接続のfitや位相の定義を変更しない。
+				const references = ['height', 'width', 'shortSide', 'longSide'];
+				for (const reference of references) {
+					const longReference = reference === 'width' || reference === 'longSide';
+					const settings = { sizeReference: reference };
+					const fitted = await render(settings);
+					compare(await render({ ...settings, phase: phase(longReference ? 0.25 : 0.375) }), fitted, `${definition.id}: ${reference} x period`, 16);
+					if (!isStripe) compare(await render({ ...settings, phase: phase(0, 0.25) }), fitted, `${definition.id}: ${reference} y period`, 0, longReference ? -24 : -16);
 				}
 				const uniformFieldPhase = await render({ phase: phase(64 / 255, 32 / 255) });
 				const expectedField = original.map((value, index) => Math.floor(index / 4) % width < width / 2 ? value : uniformFieldPhase[index]);
@@ -155,10 +159,10 @@ export async function run() {
 						if (rightEdge == null || upperEdge == null) throw new Error('Hex Grid: central cell edges missing');
 						return { halfWidth: rightEdge + 0.5 - width / 2, halfHeight: height / 2 - upperEdge - 0.5 };
 					}
-					const regularHexagon = centralCellExtents(await render({ frequency: defaults.frequency, fitMode: 'cover', lineWidth: 0.15 }));
+					const regularHexagon = centralCellExtents(await render({ frequency: defaults.frequency, sizeReference: 'longSide', lineWidth: 0.15 }));
 					assert(Math.abs(regularHexagon.halfHeight - regularHexagon.halfWidth * 2 / Math.sqrt(3)) <= 1.5, 'Hex Grid: default frequency must preserve regular hexagons');
 					checks.push('hexGrid: regular default hexagons');
-					const compressedHexagon = centralCellExtents(await render({ frequency: vector([3, 3]), fitMode: 'cover', lineWidth: 0.15 }));
+					const compressedHexagon = centralCellExtents(await render({ frequency: vector([3, 3]), sizeReference: 'longSide', lineWidth: 0.15 }));
 					assert(Math.abs(compressedHexagon.halfHeight - compressedHexagon.halfWidth * 2 / 3) <= 1.5, 'Hex Grid: equal frequencies must compress hexagons vertically');
 					checks.push('hexGrid: equal frequencies compress hexagons');
 				}

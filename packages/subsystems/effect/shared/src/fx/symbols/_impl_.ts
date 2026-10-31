@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { createTextureFromImages, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -191,8 +192,9 @@ export default implementEffect<typeof definition>({
 				const output = ctx.outputDataMap.output.texture;
 				const variant = pipelines.update(inputs, output);
 
+				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, output);
 				uniformValues.set({
-					aspectRatio: output.width / output.height,
+					coordinateScale: [output.width / referenceLength, output.height / referenceLength],
 					highlightClipThreshold: ctx.params.highlightClipThreshold,
 					shadowClipThreshold: ctx.params.shadowClipThreshold,
 					density: Math.max(1, ctx.params.density),

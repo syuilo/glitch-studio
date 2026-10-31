@@ -4,7 +4,7 @@ fn modVec2f(a: vec2f, b: vec2f) -> vec2f {
 }
 
 struct Uniforms {
-	aspectRatio: f32,
+	coordinateScale: vec2f,
 	density: f32,
 	margin: f32,
 	symbolTexturesCount: u32,
@@ -38,7 +38,7 @@ fn getPixelatedUv(uv: vec2f, cellSize: vec2f) -> vec2f {
 
 fn getSourceColor(uv: vec2f) -> vec4f {
 	// セルの座標を入力参照の座標へ戻せば、ベクトル値はそのまま変位に使える。
-	var position = unscaleUvToCoverGivenAspectRatio(uv, uniforms.aspectRatio);
+	var position = toOutputCoordinates(uv, uniforms.coordinateScale);
 	if (uniforms.forceFieldWarp == 1) {
 		position -= read_forceField(position);
 	}
@@ -46,9 +46,9 @@ fn getSourceColor(uv: vec2f) -> vec4f {
 }
 
 fn getForceFieldAspectVector(aspectUv: vec2f) -> vec2f {
-	let position = unscaleUvToCoverGivenAspectRatio(aspectUv, uniforms.aspectRatio);
+	let position = toOutputCoordinates(aspectUv, uniforms.coordinateScale);
 	// 参照位置のfitとは別に、ベクトル値をセルの座標系へ変換する。
-	return scaleUvToCoverGivenAspectRatio(read_forceField(position), uniforms.aspectRatio);
+	return toPatternCoordinates(read_forceField(position), uniforms.coordinateScale);
 }
 
 fn isSimilar(a: vec4f, b: vec4f, c: vec4f, d: vec4f, threshold: f32) -> bool {
@@ -59,12 +59,12 @@ fn isSimilar(a: vec4f, b: vec4f, c: vec4f, d: vec4f, threshold: f32) -> bool {
 	);
 }
 
-fn scaleUvToCoverGivenAspectRatio(uv: vec2f, aspectRatio: f32) -> vec2f {
-	return uv / vec2f(1.0, aspectRatio) * select(1.0, aspectRatio, 1.0 > aspectRatio);
+fn toPatternCoordinates(uv: vec2f, coordinateScale: vec2f) -> vec2f {
+	return uv * coordinateScale;
 }
 
-fn unscaleUvToCoverGivenAspectRatio(uv: vec2f, aspectRatio: f32) -> vec2f {
-	return uv * vec2f(1.0, aspectRatio) / select(1.0, aspectRatio, 1.0 > aspectRatio);
+fn toOutputCoordinates(uv: vec2f, coordinateScale: vec2f) -> vec2f {
+	return uv / coordinateScale;
 }
 
 struct FragmentIn {
@@ -73,8 +73,8 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	let uv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
-	// 長辺基準の基本セル密度。類似色による2×2・4×4の結合前の寸法を指定する。
+	let uv = toPatternCoordinates(fragData.uv, uniforms.coordinateScale);
+	// Size Reference基準の基本セル密度。類似色による2×2・4×4の結合前の寸法を指定する。
 	var cellSize = vec2f(2.0 / uniforms.density);
 	var border = uniforms.margin;
 	var modUv = modVec2f(uv, cellSize);

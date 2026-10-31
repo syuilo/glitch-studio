@@ -4,6 +4,7 @@ import type { BlendMode } from '@gs/shared/color-blend.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
+import type { SizeReference } from '@gs/shared/size-reference.ts';
 import type { FileSource } from '@gs/shared/file-source.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { FitMode, IntermediateTextureFormat, WrapMode } from '@gs/shared/types.ts';
@@ -22,6 +23,7 @@ type RuntimeEffectOptionValue<D extends DataType, S> =
 	D extends { kind: 'vector' } ? Readonly<[number, number]> :
 	D extends { kind: 'blendMode' } ? BlendMode :
 	D extends { kind: 'fitMode' } ? FitMode :
+	D extends { kind: 'sizeReference' } ? SizeReference :
 	D extends { kind: 'wrapMode' } ? WrapMode :
 	D extends { kind: 'enum'; options: readonly string[] } ? D['options'][number] :
 	D extends { kind: 'audioSource' } ? AudioInput | null :

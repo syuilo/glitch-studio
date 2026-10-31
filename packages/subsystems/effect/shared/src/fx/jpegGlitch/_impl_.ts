@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, inputUvScale } from '@gs/shared/gpu/shader-input.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -102,12 +103,11 @@ export default implementEffect<typeof definition>({
 			return variant;
 		};
 
-		const getGeometry = (blockSize: number, subsample: boolean, originAtCenter: boolean) => {
+		const getGeometry = (blockSize: number, referenceLength: number, subsample: boolean, originAtCenter: boolean) => {
 			if (!Number.isFinite(blockSize) || blockSize <= 0) throw new Error('JPEG glitch: block size must be a positive finite number.');
-			// Block sizeは輝度ブロックの一辺を画面短辺に対する百分率で指定する。
+			// Block sizeは輝度ブロックの一辺を基準寸法に対する百分率で指定する。
 			// 仮想寸法を整数に丸めないことで、解像度の変更によるブロックの伸縮と縦横の歪みを避ける。
-			const shortSide = Math.min(resolution.width, resolution.height);
-			const scale = (8 * 100 / blockSize) / shortSide;
+			const scale = (8 * 100 / blockSize) / referenceLength;
 			const virtualSize = [resolution.width * scale, resolution.height * scale];
 			const mcuSize = subsample ? 16 : 8;
 			// 中央MCUの中心を画像中央へ固定し、画像を覆うまで両側にMCUを追加する。
@@ -187,7 +187,7 @@ export default implementEffect<typeof definition>({
 				const params = ctx.params;
 				const subsample = params.chromaSubsampling === '420';
 				const originAtCenter = params.blockOrigin === 'center';
-				const geometry = getGeometry(params.blockSize, subsample, originAtCenter);
+				const geometry = getGeometry(params.blockSize, getSizeReferenceLength(params.sizeReference, resolution), subsample, originAtCenter);
 				if (resources == null || resources.mcuColumns !== geometry.mcuColumns || resources.mcuRows !== geometry.mcuRows
 					|| resources.blocksPerMcu !== geometry.blocksPerMcu || resources.preserveDetails !== params.preserveDetails) {
 					const next = createResources(geometry, params.preserveDetails);

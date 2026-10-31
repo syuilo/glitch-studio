@@ -48,7 +48,7 @@ export async function run() {
 	});
 	const scalar = (value: number) => constantShaderInput('scalar', value);
 	const color = (value: number[]) => constantShaderInput('color', value);
-	const defaults: Parameters = {
+	const defaults: Parameters = { sizeReference: 'height',
 		input: color([0, 0, 0, 0]), sdf: scalar(65504), refraction: 1, thickness: 0.03, edgeSoftness: 0.0015, normalSmoothing: 0,
 		refractionModel: 'quadratic', curvature: 4, ior: 1.5,
 		blur: 0, blurSamples: 24, aberration: 0.5, aberrationSamples: 3, innerZoom: 1, innerZoomCenter: [0, 0], lightAngle: 300 / 360,
@@ -115,7 +115,7 @@ export async function run() {
 	function shape(size: [number, number], precise: boolean) {
 		const resolution = { width: 64, height: 64 };
 		const wgpu = gpuContext(precise);
-		const params = { shape: 'ellipse' as const, position: [0, 0] as const, size, rotation: 0, cornerRadius: 0 };
+		const params = { sizeReference: 'height' as const, shape: 'ellipse' as const, position: [0, 0] as const, size, rotation: 0, cornerRadius: 0 };
 		const output = shapeImplementation.outputTextureFactories.output({ wgpu, resolution });
 		const effect = shapeImplementation.init({ wgpu, resolution, params, fallbackTexture: output, reportStatus: () => {} });
 		const encoder = device.createCommandEncoder();
@@ -128,7 +128,7 @@ export async function run() {
 	function subtract(a: ShaderInput, b: ShaderInput, precise: boolean) {
 		const resolution = { width: 64, height: 64 };
 		const wgpu = gpuContext(precise);
-		const params = { inputA: a, inputB: b, operation: 'difference' as const, smoothing: 0 };
+		const params = { sizeReference: 'height' as const, inputA: a, inputB: b, operation: 'difference' as const, smoothing: 0 };
 		const output = booleanImplementation.outputTextureFactories.output({ wgpu, resolution });
 		const effect = booleanImplementation.init({ wgpu, resolution, params, fallbackTexture: output, reportStatus: () => {} });
 		const encoder = device.createCommandEncoder();

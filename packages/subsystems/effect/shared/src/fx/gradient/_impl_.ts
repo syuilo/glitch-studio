@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -58,11 +59,12 @@ export default implementEffect<typeof definition>({
 
 		return {
 			render: (ctx) => {
+				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, resolution);
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,
 					mode: ctx.params.mode === 'radial' ? 1 : 0,
 					center: ctx.params.center,
-					fitMode: { stretch: 0, cover: 1, contain: 2 }[ctx.params.fitMode],
+					coordinateScale: [resolution.width / referenceLength, resolution.height / referenceLength],
 					angle: ctx.params.angle * (2 * Math.PI), // turnをラジアンへ変換。正の角度で時計回り。
 					clampEdge: ctx.params.clampEdge ? 1 : 0,
 					mirrorRepeat: ctx.params.mirrorRepeat ? 1 : 0,

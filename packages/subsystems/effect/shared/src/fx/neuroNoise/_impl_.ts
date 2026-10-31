@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -47,9 +48,7 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
-				const extent = ctx.params.fitMode === 'cover'
-					? Math.max(output.width, output.height)
-					: Math.min(output.width, output.height);
+				const extent = getSizeReferenceLength(ctx.params.sizeReference, output);
 				const time = ctx.params.time;
 				const fullTurn = 2 * Math.PI;
 				for (let layer = 0; layer < 15; layer++) {
@@ -65,7 +64,7 @@ export default implementEffect<typeof definition>({
 					}
 				}
 				uniformValues.set({
-					coordinateScale: ctx.params.fitMode === 'stretch' ? [1, 1] : [output.width / extent, output.height / extent],
+					coordinateScale: [output.width / extent, output.height / extent],
 					offset: ctx.params.offset,
 					density: Math.max(1, ctx.params.density),
 					angle: ctx.params.angle * fullTurn,

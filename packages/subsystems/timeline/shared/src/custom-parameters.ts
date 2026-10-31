@@ -13,7 +13,7 @@ export function timelineLayerCustomParameterId(value: string): TimelineLayerCust
 	return value as TimelineLayerCustomParameterId;
 }
 
-export type TimelineLayerCustomParameterDataType = Extract<DataType, { kind: 'scalar' | 'bool' | 'string' | 'color' | 'vector' | 'enum' | 'colorRamp' }>;
+export type TimelineLayerCustomParameterDataType = Extract<DataType, { kind: 'scalar' | 'bool' | 'string' | 'color' | 'vector' | 'enum' | 'colorRamp' | 'sizeReference' }>;
 export type TimelineLayerCustomParameterDefinition = ParameterDefinition<TimelineLayerCustomParameterDataType> & {
 	id: TimelineLayerCustomParameterId;
 	nameForReference: string;
@@ -76,7 +76,7 @@ export function validateTimelineLayerCustomParameterDefinitions(definitions: rea
 	const ids = new Set<string>();
 	const names = new Set<string>();
 	for (const definition of definitions) {
-		if (!['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp'].includes(definition.dataType.kind)) throw new Error('Unsupported timeline custom parameter type');
+		if (!['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp', 'sizeReference'].includes(definition.dataType.kind)) throw new Error('Unsupported timeline custom parameter type');
 		if (definition.id.length === 0 || ids.has(definition.id)) throw new Error('Duplicate or empty timeline custom parameter ID');
 		if (definition.nameForReference.trim().length === 0 || names.has(definition.nameForReference)) throw new Error('Duplicate or empty timeline custom parameter reference name');
 		if (definition.canNode === true) throw new Error('Timeline custom parameters cannot use node inputs');

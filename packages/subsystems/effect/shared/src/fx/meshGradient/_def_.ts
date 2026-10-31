@@ -78,7 +78,7 @@ export default defineEffect({
 			},
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
-		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		scale: {
 			dataType: { kind: 'scalar' },
 			ui: {

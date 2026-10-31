@@ -35,7 +35,7 @@ export async function run() {
 @fragment fn fs(@builtin(position) p: vec4f) -> @location(0) f32 { return textureLoad(image, vec2i(p.xy), 0).r; }` }), targets: [{ format: 'r32float' }] },
 	});
 	const scalar = (value: number) => constantShaderInput('scalar', value);
-	const defaults: Parameters = { inputA: scalar(65504), inputB: scalar(65504), operation: 'union', smoothing: 0 };
+	const defaults: Parameters = { sizeReference: 'height', inputA: scalar(65504), inputB: scalar(65504), operation: 'union', smoothing: 0 };
 	const checks: string[] = [];
 	const disposables: (() => void)[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
@@ -220,7 +220,7 @@ export async function run() {
 			const wgpu = gpuContext(precise);
 			const shapeInputs = [];
 			for (const center of [-0.5, 0.5]) {
-				const params: RuntimeEffectParameters<typeof shapeDefinition.paramDefs> = { shape: 'ellipse', position: [center, 0], size: [0.4, 0.4], rotation: 0, cornerRadius: 0 };
+				const params: RuntimeEffectParameters<typeof shapeDefinition.paramDefs> = { sizeReference: 'height', shape: 'ellipse', position: [center, 0], size: [0.4, 0.4], rotation: 0, cornerRadius: 0 };
 				const output = shapeImplementation.outputTextureFactories.output({ wgpu, resolution });
 				const effect = shapeImplementation.init({ wgpu, resolution, params, fallbackTexture: output, reportStatus: () => {} });
 				disposables.push(() => { effect.dispose(); output.destroy(); });
@@ -235,7 +235,7 @@ export async function run() {
 			near(hard[centerIndex], 0.05, 'separate circle gap');
 			const smooth = await combineShapes({ inputA: shapeInputs[0], inputB: shapeInputs[1], smoothing: 0.25 });
 			near(smooth[centerIndex], -0.0125, 'smooth union bridge');
-			const maskParams = { input: textureShaderInput(combineShapes.texture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }), mode: 'fill' as const, offset: 0, strokeWidth: 0.01, strokeAlignment: 'center' as const, feather: 0, antiAlias: false, invert: false };
+			const maskParams = { sizeReference: 'height', input: textureShaderInput(combineShapes.texture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }), mode: 'fill' as const, offset: 0, strokeWidth: 0.01, strokeAlignment: 'center' as const, feather: 0, antiAlias: false, invert: false };
 			const maskOutput = maskImplementation.outputTextureFactories.output({ wgpu, resolution });
 			const maskEffect = maskImplementation.init({ wgpu, resolution, params: maskParams, fallbackTexture: maskOutput, reportStatus: () => {} });
 			disposables.push(() => { maskEffect.dispose(); maskOutput.destroy(); });
@@ -247,6 +247,15 @@ export async function run() {
 			near(masked[0], 0, 'mask background');
 			checks.push(`${label}: Shape SDF boolean smoothing and SDF to Mask integration`);
 		}
+		// 【合成用の距離データはそのままに、スムージング幅だけを選択した基準へ換算する】
+		// 距離0同士のsmooth unionは-k/4になるため、見た目に頼らず単位を検証できる。
+		const referenceRenderer = createEffect(64, 32, false);
+		for (const sizeReference of ['height', 'width', 'shortSide', 'longSide'] as const) {
+			const result = await referenceRenderer({ sizeReference, inputA: scalar(0), inputB: scalar(0), smoothing: 0.2 });
+			const expected = sizeReference === 'height' || sizeReference === 'shortSide' ? -0.05 : -0.1;
+			assert(Math.abs(result[0] - expected) < 0.0001, `${sizeReference}: smoothing in height distance units`);
+		}
+		checks.push('smoothing size reference preserves input distance units');
 		return { checks };
 	} finally {
 		for (const dispose of disposables) dispose();

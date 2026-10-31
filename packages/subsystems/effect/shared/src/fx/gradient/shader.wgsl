@@ -3,7 +3,7 @@ override CALCULATE_GRADIENT: bool = false;
 
 struct Uniforms {
 	aspectRatio: f32,
-	fitMode: u32,
+	coordinateScale: vec2f,
 	angle: f32,
 	interpolation: u32,
 	clampEdge: u32,
@@ -37,18 +37,13 @@ fn evaluateGradient(fragData: FragmentIn) -> vec3f {
 	let skewDerivative = select(vec2f(0.0), skewSample.yz, abs(skewSample.x) < 1.0);
 	let direction = vec2f(sin(uniforms.angle), cos(uniforms.angle));
 	var position = fragData.uv;
-	var positionScale = vec2f(1.0);
+	let positionScale = uniforms.coordinateScale;
 	// Centerは画面座標（左下-1,-1、右上+1,+1）。比率補正前に引いて中心位置を保つ。
 	if (uniforms.mode == 1u) {
 		position -= uniforms.center;
 	}
-	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせる。
-	// stretchは出力全体に引き延ばす。角度に応じた再正規化はせず、勾配の幅を保つ。
-	if (uniforms.fitMode == 1u) {
-		positionScale = vec2f(uniforms.aspectRatio, 1.0) / max(uniforms.aspectRatio, 1.0);
-	} else if (uniforms.fitMode == 2u) {
-		positionScale = vec2f(uniforms.aspectRatio, 1.0) / min(uniforms.aspectRatio, 1.0);
-	}
+	// Size Referenceで選んだ共通寸法へ換算する。
+	// 角度に応じた再正規化はせず、勾配の幅と解析的な微分の対応を保つ。
 	position *= positionScale;
 	// Linearは基準区間の両端を0/1に変換する。区間外の値は反復のため残す。
 	var gradientPosition = dot(position, direction) * 0.5 + 0.5;

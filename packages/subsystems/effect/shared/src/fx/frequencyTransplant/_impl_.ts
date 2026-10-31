@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, inputUvScale, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -68,11 +69,11 @@ export default implementEffect<typeof definition>({
 			}
 			return variant;
 		};
-		const getGeometry = (blockSize: number) => {
+		const getGeometry = (blockSize: number, referenceLength: number) => {
 			if (!Number.isFinite(blockSize) || blockSize <= 0) throw new Error('Frequency transplant: block size must be a positive finite number.');
-			// ブロックの見た目の大きさを短辺の百分率で定め、出力解像度によらず同じ周波数帯を扱う。
+			// ブロックの見た目の大きさを基準寸法の百分率で定め、出力解像度によらず同じ周波数帯を扱う。
 			// 浮動小数点の仮想寸法を保ち、計算領域だけ8サンプル単位に切り上げる。
-			const scale = (8 * 100 / blockSize) / Math.min(resolution.width, resolution.height);
+			const scale = (8 * 100 / blockSize) / referenceLength;
 			const virtualSize = [resolution.width * scale, resolution.height * scale];
 			const columns = Math.max(1, Math.ceil(virtualSize[0] / 8));
 			const rows = Math.max(1, Math.ceil(virtualSize[1] / 8));
@@ -118,7 +119,7 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
-				const geometry = getGeometry(params.blockSize);
+				const geometry = getGeometry(params.blockSize, getSizeReferenceLength(params.sizeReference, resolution));
 				if (resources == null || resources.columns !== geometry.columns || resources.rows !== geometry.rows) {
 					const next = createResources(geometry);
 					resources?.dispose();

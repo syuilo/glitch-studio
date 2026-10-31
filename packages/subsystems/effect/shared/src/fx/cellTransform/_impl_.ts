@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -36,14 +37,14 @@ export default implementEffect<typeof definition>({
 		});
 		return {
 			render: ctx => {
-				const { input, frequency, phase, angle, fitMode, controlSamples, perCellOpacity, perCellTranslation, translationUnit, perCellScale, perCellRotation } = ctx.params;
+				const { input, frequency, phase, angle, sizeReference, controlSamples, perCellOpacity, perCellTranslation, translationUnit, perCellScale, perCellRotation } = ctx.params;
 				const output = ctx.outputDataMap.output;
 				const { width, height } = output.texture;
 				const shortDimension = Math.min(width, height);
-				const referenceExtent = fitMode === 'cover' ? Math.max(width, height) : shortDimension;
-				// Grid系と同じく各軸／長辺／短辺を基準に分割する。1周期は1セル。
-				const cellWidth = (fitMode === 'stretch' ? width : referenceExtent) / (Number.isFinite(frequency[0]) ? Math.max(0.01, frequency[0]) : 0.01);
-				const cellHeight = (fitMode === 'stretch' ? height : referenceExtent) / (Number.isFinite(frequency[1]) ? Math.max(0.01, frequency[1]) : 0.01);
+				const referenceExtent = getSizeReferenceLength(sizeReference, output.texture);
+				// Grid系と同じくSize Referenceを基準に分割する。1周期は1セル。
+				const cellWidth = referenceExtent / (Number.isFinite(frequency[0]) ? Math.max(0.01, frequency[0]) : 0.01);
+				const cellHeight = referenceExtent / (Number.isFinite(frequency[1]) ? Math.max(0.01, frequency[1]) : 0.01);
 				const aspect = [width / shortDimension, height / shortDimension] as const;
 				const cellSize = [cellWidth / shortDimension, cellHeight / shortDimension] as const;
 				uniformValues.set({

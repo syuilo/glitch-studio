@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/shader-input.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -144,10 +145,9 @@ export default implementEffect<typeof definition>({
 			}
 			return variant;
 		};
-		const getBlockGeometry = (blockSize: number, centered: boolean) => {
+		const getBlockGeometry = (blockSize: number, referenceLength: number, centered: boolean) => {
 			if (!Number.isFinite(blockSize) || blockSize <= 0) throw new Error('Sliding Blocks: block size must be a positive finite number.');
-			const shortSide = Math.min(resolution.width, resolution.height);
-			const block = [blockSize / 100 * shortSide / resolution.width, blockSize / 100 * shortSide / resolution.height];
+			const block = [blockSize / 100 * referenceLength / resolution.width, blockSize / 100 * referenceLength / resolution.height];
 			// 中央基準は奇数個で中央のセルを固定し、サイズ変更中も中心が半ブロックずれないようにする。
 			const countBlocks = (axisSize: number) => centered
 				? Math.max(1, Math.ceil(0.5 / axisSize - 0.5) * 2 + 1)
@@ -210,14 +210,15 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
-				const geometry = getBlockGeometry(params.blockSize, params.blockOrigin === 'center');
+				const referenceScale = getSizeReferenceLength(params.sizeReference, resolution) / Math.min(resolution.width, resolution.height);
+				const geometry = getBlockGeometry(params.blockSize, getSizeReferenceLength(params.sizeReference, resolution), params.blockOrigin === 'center');
 				if (blockResources == null || blockResources.width !== geometry.width || blockResources.height !== geometry.height) {
 					const next = createBlockResources(geometry);
 					blockResources?.dispose();
 					blockResources = next;
 					hasBlockState = false;
 				}
-				const gridSettings = `${params.blockSize}:${params.blockOrigin}`;
+				const gridSettings = `${params.sizeReference}:${params.blockSize}:${params.blockOrigin}`;
 				if (gridSettings !== previousGridSettings) {
 					// 保存画像の各セルの所有者が変わるので、サイズ・原点の変更時には断片を作り直す。
 					hasBlockState = false;
@@ -231,7 +232,7 @@ export default implementEffect<typeof definition>({
 				previousMotionSettings = motionSettings;
 				const seconds = Number.isFinite(ctx.timeDelta) ? Math.max(0, ctx.timeDelta / 1000) : 0;
 				const resetBlocks = !hasBlockState || params.reset;
-				const searchRadius = clamp(params.searchRange, 0, 100) / 100 * Math.min(analysisSize.width, analysisSize.height);
+				const searchRadius = clamp(params.searchRange, 0, 100) / 100 * getSizeReferenceLength(params.sizeReference, analysisSize);
 				seedValue[0] = params.seed;
 				uniformValues.set({
 					analysisSize: [analysisSize.width, analysisSize.height], outputSize: [resolution.width, resolution.height],
@@ -240,11 +241,11 @@ export default implementEffect<typeof definition>({
 					maxSearchLevel: Math.min(mipLevelCount - 1, Math.max(0, Math.floor(Math.log2(Math.max(1, searchRadius))))),
 					hasMotion: Number(hasAnalysis && !resetBlocks && seconds > 0), resetBlocks: Number(resetBlocks), frameIndex,
 					seed: (seedWords[0] ^ seedWords[1]) >>> 0,
-					motionSpeedThreshold: Math.max(0, params.motionSpeedThreshold) / 100,
+					motionSpeedThreshold: Math.max(0, params.motionSpeedThreshold) / 100 * referenceScale,
 					matchThreshold: Math.max(0.000001, params.matchThreshold), spawnRate: Math.max(0, params.spawnRate),
 					lifetime: Math.max(0, params.lifetime) / 1000, lifetimeRandomness: clamp(params.lifetimeRandomness, 0, 1),
 					velocityStrength: params.velocityStrength, motionRotation: -params.motionRotation * (2 * Math.PI),
-					driftSpeed: Math.max(0, params.driftSpeed) / 100, drag: Math.max(0, params.drag),
+					driftSpeed: Math.max(0, params.driftSpeed) / 100 * referenceScale, drag: Math.max(0, params.drag),
 					cooldown: Math.max(0, params.cooldown) / 1000, fadeOut: clamp(params.fadeOut, 0, 1),
 					amount: clamp(params.amount, 0, 1), backgroundMode: backgroundModes[params.background],
 				});

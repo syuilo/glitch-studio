@@ -18,7 +18,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let phase = read_phase(fragData.position);
 	// Frequencyは基準領域あたりの周期数。1未満も許し、0除算を避けるため最小値を0.01とする。
 	let frequency = max(read_frequency(fragData.position), vec2f(0.01));
-	// 各軸2マスで1周期。Stretch・Frequency=[1, 1]・Angle=0なら1周期が画面全体を覆う。
+	// 各軸2マスで1周期。選択した基準寸法あたりの周期数を、1マスの幅へ換算する。
 	let cellSize = uniforms.referenceExtent / frequency * 0.5;
 	// 短辺基準で縦横の単位を揃え、長方形のマス目でも回転による歪みを防ぐ。
 	let centeredUv = fragData.position * 0.5 * uniforms.aspect;

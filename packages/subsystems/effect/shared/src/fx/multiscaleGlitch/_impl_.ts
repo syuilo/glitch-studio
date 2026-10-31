@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { inputUvScale } from '@gs/shared/gpu/shader-input.ts';
@@ -176,6 +177,7 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
+				const referenceScale = getSizeReferenceLength(params.sizeReference, resolution) / shortSide;
 				const probability = unit(params.probability, 0.4);
 				const colorCorruption = unit(params.colorCorruption, 0.25);
 				const fineShift = displacement(params.fineShift);
@@ -188,10 +190,10 @@ export default implementEffect<typeof definition>({
 					bandAmount(params.coarseEnabled, params.coarseAmount, coarseShift),
 				];
 				const active = probability > 0 && bandAmounts.some(value => value > 0);
-				// ScaleはGaussianのsigmaを短辺の百分率で指定する。CoarseがFineより小さい場合は
+				// ScaleはGaussianのsigmaを基準寸法の百分率で指定する。CoarseがFineより小さい場合は
 				// 同じ半径まで戻し、中間帯域を0にする。描画解像度で帯域の大きさを変えない。
-				const fineRadius = Math.max(0.0001, nonNegative(params.fineScale, 0.5) / 100);
-				const coarseRadius = Math.max(fineRadius, nonNegative(params.coarseScale, 8) / 100);
+				const fineRadius = Math.max(0.0001, nonNegative(params.fineScale, 0.5) / 100 * referenceScale);
+				const coarseRadius = Math.max(fineRadius, nonNegative(params.coarseScale, 8) / 100 * referenceScale);
 				let captureGrid = [1, 1];
 				let captureStep = [0, 0];
 				if (active) {

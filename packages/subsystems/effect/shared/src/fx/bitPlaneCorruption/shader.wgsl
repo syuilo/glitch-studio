@@ -1,6 +1,6 @@
 struct Uniforms {
 	resolution: vec2f,
-	fitMode: u32,
+	referenceLength: f32,
 	mode: u32,
 	pattern: u32,
 	bitDepth: u32,
@@ -31,12 +31,7 @@ fn cell_hash(position: vec2f) -> u32 {
 	var cell = vec2i(0);
 	if (uniforms.pattern != 3u) {
 		let density = max(read_density(position), vec2f(1.0));
-		var extent = uniforms.resolution;
-		if (uniforms.fitMode == 1u) {
-			extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
-		} else if (uniforms.fitMode == 2u) {
-			extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
-		}
+		let extent = vec2f(uniforms.referenceLength);
 		// セルは正規化座標で定義する。短辺／長辺を基準に両軸の長さを揃えることで、
 		// 出力解像度に依存せず、縦横比が変わっても正方形の破損領域を維持できる。
 		let cellSize = 2.0 * (extent / uniforms.resolution) / density;

@@ -119,7 +119,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [24, 24] },
 		},
-		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Pattern Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	primaryInputParameter: 'input',

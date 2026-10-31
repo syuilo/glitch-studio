@@ -1,5 +1,6 @@
 import { isBlendMode } from '../color-blend.ts';
 import { validateColorRamp } from '../color-ramp.ts';
+import { isSizeReference } from '../size-reference.ts';
 import { coerceParameterValue } from './coerce-parameter-value.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 
@@ -21,6 +22,7 @@ export function prepareExpressionParameterValue(definition: ExpressionParameterD
 		case 'enum': valid = typeof prepared === 'string' && definition.dataType.options.includes(prepared); break;
 		case 'blendMode': valid = isBlendMode(prepared); break;
 		case 'fitMode': valid = prepared === 'contain' || prepared === 'cover' || prepared === 'stretch'; break;
+		case 'sizeReference': valid = isSizeReference(prepared); break;
 		case 'wrapMode': valid = prepared === 'clamp' || prepared === 'repeat' || prepared === 'repeatMirrored' || prepared === 'transparent'; break;
 		case 'any': valid = prepared == null || finiteNumber(prepared) || (Array.isArray(prepared) && prepared.every(finiteNumber)); break;
 		default: valid = false;

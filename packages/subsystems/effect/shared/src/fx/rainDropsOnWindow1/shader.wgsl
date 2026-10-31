@@ -2,7 +2,7 @@
 // https://koro-koro.com/three-js-shader-rain-through-the-window/
 // History-free: seeking time reproduces both droplets and their trails.
 struct Uniforms {
-	aspectRatio: f32,
+	coordinateScale: vec2f,
 	density: f32,
 	refraction: f32,
 	fog: f32,
@@ -62,7 +62,7 @@ struct FragmentIn {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	// 雨粒は+Yが下で縦横の単位が等しい局所座標で計算する。
 	// 入力参照にはアスペクト比とY方向だけを戻し、UVへの往復変換は行わない。
-	let toPosition = vec2f(1.0 / uniforms.aspectRatio, -1.0);
+	let toPosition = vec2f(1.0, -1.0) / uniforms.coordinateScale;
 	let point = fragData.uv / toPosition;
 	var water = vec3f(0.0);
 	if (uniforms.density > 0.0) {

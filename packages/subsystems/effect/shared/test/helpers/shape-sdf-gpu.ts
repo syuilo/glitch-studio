@@ -20,7 +20,7 @@ export async function run() {
 		fragment: { module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
 @fragment fn fs(@builtin(position) p: vec4f) -> @location(0) f32 { return textureLoad(image, vec2i(p.xy), 0).r; }` }), targets: [{ format: 'r32float' }] },
 	});
-	const defaults: Parameters = { shape: 'ellipse', position: [0, 0], size: [0.5, 0.5], rotation: 0, cornerRadius: 0 };
+	const defaults: Parameters = { sizeReference: 'height', shape: 'ellipse', position: [0, 0], size: [0.5, 0.5], rotation: 0, cornerRadius: 0 };
 	const disposables: (() => void)[] = [];
 	const checks: string[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
@@ -149,6 +149,23 @@ export async function run() {
 				near(tall[y * 33 + x - 16], expected, 'portrait distance');
 			}
 			checks.push(`${label}: resolution and aspect ratio independence`);
+
+			// 【サイズ基準を変えてもSDFの出力距離は高さ単位を保つ】
+			// SizeだけでなくCorner Radiusも同じ倍率で換算されることを、角丸矩形の角で確認する。
+			for (const [width, height] of [[129, 65], [65, 129]]) {
+				const referenceRenderer = createEffect(width, height, precise);
+				for (const sizeReference of ['height', 'width', 'shortSide', 'longSide'] as const) {
+					const basis = sizeReference === 'height' ? height : sizeReference === 'width' ? width : sizeReference === 'shortSide' ? Math.min(width, height) : Math.max(width, height);
+					const radius = 0.1 * basis / height;
+					const field = await referenceRenderer({ sizeReference, size: [0.2, 0.2] });
+					const center = Math.floor(height / 2) * width + Math.floor(width / 2);
+					near(field[center], -radius, `${sizeReference} physical radius and height distance unit`);
+					near(field[center + 20], 20 / height - radius, `${sizeReference} outer distance`);
+					const rounded = await referenceRenderer({ sizeReference, shape: 'rectangle', size: [0.2, 0.2], cornerRadius: 0.1 });
+					near(rounded[center + 20], field[center + 20], `${sizeReference} corner radius conversion`);
+				}
+			}
+			checks.push(`${label}: four size references preserve height distance units`);
 
 			// 【空形状・パラメータ変更・時刻非依存】寸法が消えてもNaNや古い画素を残さず、
 			// 有効な寸法へ戻した描画と別時刻の描画が初回出力に一致することを確認する。

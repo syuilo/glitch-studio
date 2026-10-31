@@ -24,7 +24,7 @@ export async function run() {
 		{ id: 'end', position: 1, color: [0, 0, 1, 0.5] },
 	] };
 	const defaults: Parameters = {
-		vector: constantShaderInput('vector', [0, 0]), density: 1, maximumMagnitude: 1, lineWidth: 0.04,
+		vector: constantShaderInput('vector', [0, 0]), density: 1, sizeReference: 'shortSide', maximumMagnitude: 1, lineWidth: 0.04,
 		ramp, zeroColor: [0, 1, 0, 0.5], overflowColor: [0.2, 0.6, 0.8, 0.25], directionSpace: 'component', gridWidth: 0, gridColor: [1, 1, 1, 0.5],
 	};
 	const nearColor = (actual: number[], expected: number[], label: string) => assert(actual.every((value, channel) => Math.abs(value - expected[channel] * 255) <= 2), `${label}: ${actual}`);
@@ -72,6 +72,7 @@ export async function run() {
 	const square = createRenderer(257, 257);
 	const wide = createRenderer(513, 257);
 	const larger = createRenderer(513, 513);
+	const tall = createRenderer(257, 513);
 	try {
 		// 【ゼロの点と太さの連続性】
 		// 矢尻がゼロでも残ったり、透明度が重ね描きで濃くなったりしないことを実画素で確認する。
@@ -152,8 +153,21 @@ export async function run() {
 		assert(scaled.at(0.35, 0)[3] > 100 && scaled.at(0.43, 0)[3] === 0 && scaled.at(0.2, 0.108)[3] > 100, 'arrow geometry scales with output resolution');
 		const repeated = await square.render({ vector: constantShaderInput('vector', [1, 0]) });
 		assert(repeated.pixels.every((value, index) => value === maximum.pixels[index]), 'repeated rendering is deterministic');
+		// 【密度の基準を切り替え、セルとその中の点を一緒に拡縮する】
+		// 横長と縦長で短辺・長辺が入れ替わり、固定軸は指定した寸法を使い続けることを確認する。
+		for (const [renderer, horizontal, vertical] of [[wide, 'longSide', 'shortSide'], [tall, 'shortSide', 'longSide']] as const) {
+			const heightReference = await renderer.render({ density: 3, lineWidth: 0.12, sizeReference: 'height' });
+			const widthReference = await renderer.render({ density: 3, lineWidth: 0.12, sizeReference: 'width' });
+			const shortReference = await renderer.render({ density: 3, lineWidth: 0.12, sizeReference: 'shortSide' });
+			const longReference = await renderer.render({ density: 3, lineWidth: 0.12, sizeReference: 'longSide' });
+			const xReference = horizontal === 'longSide' ? longReference : shortReference;
+			const yReference = vertical === 'longSide' ? longReference : shortReference;
+			assert(widthReference.pixels.every((value, index) => value === xReference.pixels[index]), `${horizontal}: width reference follows the horizontal dimension`);
+			assert(heightReference.pixels.every((value, index) => value === yReference.pixels[index]), `${vertical}: height reference follows the vertical dimension`);
+			assert(shortReference.at(1 / 3, 0)[3] > 100 && longReference.at(1 / 3, 0)[3] === 0, 'reference dimension changes the cell spacing');
+		}
 		return { checks };
 	} finally {
-		square.dispose(); wide.dispose(); larger.dispose(); device.destroy();
+		square.dispose(); wide.dispose(); larger.dispose(); tall.dispose(); device.destroy();
 	}
 }

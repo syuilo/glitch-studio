@@ -1,6 +1,5 @@
 struct Uniforms {
-	aspectRatio: f32,
-	fitMode: u32,
+	coordinateScale: vec2f,
 	amount: f32,
 	rStrength: f32,
 	gStrength: f32,
@@ -14,14 +13,9 @@ struct Uniforms {
 
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
-	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせる。
+	// Size Referenceで選んだ寸法を両軸共通の基準にする。
 	// ベクトルをこの領域で扱うことで、画面比率によって色ずれの方向や距離が歪むのを防ぐ。
-	var extent = vec2f(1.0);
-	if (uniforms.fitMode == 1u) {
-		extent = vec2f(uniforms.aspectRatio, 1.0) / max(uniforms.aspectRatio, 1.0);
-	} else if (uniforms.fitMode == 2u) {
-		extent = vec2f(uniforms.aspectRatio, 1.0) / min(uniforms.aspectRatio, 1.0);
-	}
+	let extent = uniforms.coordinateScale;
 
 	var direction = read_vector(position);
 	let magnitude = length(direction);

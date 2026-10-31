@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import seedrandom from 'seedrandom';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -43,10 +44,12 @@ export default implementEffect<typeof definition>({
 					// 帯の中心もシェーダーと同じ[-1, 1]の座標で渡す。
 					shifts[offset] = rnd() * 2 - 1;
 					shifts[offset + 1] = (1 - rnd() * 2) * ctx.params.strength;
-					shifts[offset + 2] = rnd() * (ctx.params.size / 100);
+					shifts[offset + 2] = rnd() * (ctx.params.size / 100) * 0.5;
 				}
 
+				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, ctx.outputDataMap.output.texture);
 				uniformValues.set({
+					coordinateScale: [ctx.outputDataMap.output.texture.width / referenceLength, ctx.outputDataMap.output.texture.height / referenceLength],
 					amount,
 					angle: ctx.params.angle * (2 * Math.PI),
 					channelShift: ctx.params.channelShift,

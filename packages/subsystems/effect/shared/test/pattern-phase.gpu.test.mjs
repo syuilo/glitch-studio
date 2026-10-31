@@ -43,7 +43,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'Pattern Phase GPU test timed out' }), 45000);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
-		assert.equal(output.checks.length, 84);
+		assert.equal(output.checks.length, 102);
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {
 		clearTimeout(timer);

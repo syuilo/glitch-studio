@@ -1,6 +1,5 @@
 struct Uniforms {
-	aspectRatio: f32,
-	fitMode: u32,
+	coordinateScale: vec2f,
 	amount: f32,
 	rStrength: f32,
 	gStrength: f32,
@@ -19,15 +18,10 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせる。
+	// Size Referenceで選んだ寸法を両軸共通の基準にする。
 	// 縦横の距離を揃えずUVのまま距離や方向を求めると、
 	// Startの等距離線が楕円になり、NormalizeやVectorの色ずれ量も方向で変わってしまう。
-	var extent = vec2f(1.0);
-	if (uniforms.fitMode == 1u) {
-		extent = vec2f(uniforms.aspectRatio, 1.0) / max(uniforms.aspectRatio, 1.0);
-	} else if (uniforms.fitMode == 2u) {
-		extent = vec2f(uniforms.aspectRatio, 1.0) / min(uniforms.aspectRatio, 1.0);
-	}
+	let extent = uniforms.coordinateScale;
 	let centered = fragData.uv * extent;
 	let radius = length(centered);
 	var strength = step(1.0, radius);

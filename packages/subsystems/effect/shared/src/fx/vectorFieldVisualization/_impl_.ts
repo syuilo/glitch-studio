@@ -1,6 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
@@ -29,7 +30,7 @@ export default implementEffect<typeof definition>({
 				const shortDimension = Math.min(output.width, output.height);
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
-					cellSize: 1 / Math.max(1, ctx.params.density),
+					cellSize: getSizeReferenceLength(ctx.params.sizeReference, output) / shortDimension / Math.max(1, ctx.params.density),
 					maximumMagnitude: Math.max(0.000001, ctx.params.maximumMagnitude),
 					lineWidth: Math.min(0.5, Math.max(0, ctx.params.lineWidth)),
 					directionSpace: ctx.params.directionSpace === 'displacement' ? 1 : 0,

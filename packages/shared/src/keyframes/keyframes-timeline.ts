@@ -1,7 +1,9 @@
 import type { DataType } from '../data-type/data-type.ts';
 import type { EasingFamily, EasingDirection } from '../easing.ts';
+import { isSizeReference } from '../size-reference.ts';
+import type { SizeReference } from '../size-reference.ts';
 
-export type KeyframesDataType = Extract<DataType, { kind: 'scalar' | 'vector' | 'color' | 'string' | 'bool' | 'enum' }>;
+export type KeyframesDataType = Extract<DataType, { kind: 'scalar' | 'vector' | 'color' | 'string' | 'bool' | 'enum' | 'sizeReference' }>;
 export type InterpolatedKeyframesDataType = Extract<KeyframesDataType, { kind: 'scalar' | 'vector' | 'color' }>;
 export type KeyframeInterpolation = { type: 'hold' } | { type: 'linear' } | { type: `ease:${EasingFamily}`; direction: EasingDirection };
 
@@ -11,7 +13,8 @@ export type KeyframeValue<T extends KeyframesDataType = KeyframesDataType> =
 			: T extends { kind: 'color' } ? [number, number, number, number]
 				: T extends { kind: 'bool' } ? boolean
 					: T extends { kind: 'enum'; options: readonly string[] } ? T['options'][number]
-						: string;
+						: T extends { kind: 'sizeReference' } ? SizeReference
+							: string;
 
 export type KeyframesTimelineKeyframe<T extends KeyframesDataType = KeyframesDataType> = T extends KeyframesDataType ? {
 	id: string;
@@ -32,7 +35,7 @@ export type KeyframesTimelineData<T extends KeyframesDataType = KeyframesDataTyp
 export type KeyframesTimeline = KeyframesTimelineData & { id: string; name: string };
 
 export function isKeyframesDataType(dataType: DataType): dataType is KeyframesDataType {
-	return supportsKeyframeInterpolation(dataType) || dataType.kind === 'string' || dataType.kind === 'bool' || dataType.kind === 'enum';
+	return supportsKeyframeInterpolation(dataType) || dataType.kind === 'string' || dataType.kind === 'bool' || dataType.kind === 'enum' || dataType.kind === 'sizeReference';
 }
 
 export function supportsKeyframeInterpolation(dataType: DataType): dataType is InterpolatedKeyframesDataType {
@@ -47,6 +50,7 @@ export function isKeyframeValue(dataType: KeyframesDataType, value: unknown): va
 		case 'vector':
 		case 'color': return Array.isArray(value) && value.length === (dataType.kind === 'vector' ? 2 : 4) && value.every(component => typeof component === 'number' && Number.isFinite(component));
 		case 'bool': return typeof value === 'boolean';
+		case 'sizeReference': return isSizeReference(value);
 		case 'string':
 		case 'enum': return typeof value === 'string';
 	}

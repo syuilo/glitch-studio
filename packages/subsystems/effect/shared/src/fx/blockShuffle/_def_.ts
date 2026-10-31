@@ -44,7 +44,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [20, 20] },
 		},
-		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		randomSwap: { dataType: { kind: 'bool' }, ui: { label: 'Random Swap', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		randomRotation: { dataType: { kind: 'bool' }, ui: { label: 'Random Rotation', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 		randomFlipX: { dataType: { kind: 'bool' }, ui: { label: 'Random Flip X', control: {} }, defaultValue: { inputSource: 'literal', value: false } },

@@ -93,7 +93,7 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 0.25 },
 		},
 		minorColor: { dataType: { kind: 'color' }, ui: { label: 'Minor Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.5] } },
-		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'cover' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 	},
 	primaryInputParameter: 'background',
 	resolutionInputParameters: ['background'],

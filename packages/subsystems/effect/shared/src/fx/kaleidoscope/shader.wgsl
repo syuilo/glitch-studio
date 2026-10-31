@@ -1,7 +1,7 @@
 struct Uniforms {
 	center: vec2f,
 	sourceCenter: vec2f,
-	aspectRatio: f32,
+	coordinateScale: vec2f,
 	sectorAngle: f32,
 	rotation: f32,
 	sourceRotation: f32,
@@ -19,7 +19,7 @@ struct Uniforms {
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// 出力の縦半径を距離の単位に揃え、長方形でも角度と半径を歪ませない。
 	// 入力自身の縦横比とfitは共通入力に任せる。
-	let outputExtent = vec2f(uniforms.aspectRatio, 1.0);
+	let outputExtent = uniforms.coordinateScale;
 	let relativePosition = (position - uniforms.center) * outputExtent;
 	let radius = length(relativePosition);
 	var repeatedAngle = 0.0;

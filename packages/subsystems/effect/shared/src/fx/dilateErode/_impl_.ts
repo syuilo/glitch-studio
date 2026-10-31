@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -76,7 +77,7 @@ export default implementEffect<typeof definition>({
 				// 端を延長するため、各軸の全画素を含む半径より先は結果が変わらない。
 				const maximumRadius = Math.max(resolution.width, resolution.height) - 1;
 				let remainingRadius = ctx.params.input.kind === 'uniform' ? 0 : Math.min(maximumRadius,
-					Math.ceil(Math.max(0, ctx.params.radius) * Math.min(resolution.width, resolution.height)));
+					Math.ceil(Math.max(0, ctx.params.radius) * getSizeReferenceLength(ctx.params.sizeReference, resolution)));
 				const passRadii: number[] = [];
 				// 半径Rの正方形同士の形態演算を合成すると、半径は加算される。
 				// 1, 2, 4, …と残りの半径を使えば、各段の3×3サンプルが覆う範囲に隙間がない。

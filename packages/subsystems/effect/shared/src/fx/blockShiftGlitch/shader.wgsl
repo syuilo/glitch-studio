@@ -18,7 +18,7 @@ struct Uniforms {
 	amount: f32,
 	strength: f32,
 	seed: u32,
-	fitMode: u32,
+	referenceLength: f32,
 	horizontalShift: u32,
 	verticalShift: u32,
 };
@@ -28,13 +28,7 @@ struct Uniforms {
 @fragment
 fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	let density = max(read_density(uv), vec2f(1.0));
-	var extent = uniforms.resolution;
-	// 入力接続のfitとは独立にブロック形状を決め、解像度によって密度を変えない。
-	if (uniforms.fitMode == 1u) {
-		extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
-	} else if (uniforms.fitMode == 2u) {
-		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
-	}
+	let extent = vec2f(uniforms.referenceLength);
 	let cellSize = 2.0 * (extent / uniforms.resolution) / density;
 	let cell = vec2i(round(uv / cellSize));
 	if (random(cell, uniforms.seed, 0u) >= uniforms.amount) {

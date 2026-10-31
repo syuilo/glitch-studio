@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import type definition from './_def_.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -32,16 +33,16 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
-				const shortDimension = Math.min(output.width, output.height);
-				// 短辺あたりのセル数。1未満は1にし、密度の上限や1pxの下限は設けない。
+				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, output);
+				// 選択した基準寸法あたりのセル数。1未満は1にし、密度の上限や1pxの下限は設けない。
 				const densityX = Math.max(1, ctx.params.density[0]);
 				const densityY = Math.max(1, ctx.params.density[1]);
 				seedValue[0] = ctx.params.seed;
 				uniformValues.set({
 					cellSize: [
-						// 座標の全幅は2。Density=1なら短辺全体を覆うセルになる。
-						2 * (shortDimension / output.width) / densityX,
-						2 * (shortDimension / output.height) / densityY,
+						// 座標の全幅は2。Density=1なら基準寸法全体を覆うセルになる。
+						2 * (referenceLength / output.width) / densityX,
+						2 * (referenceLength / output.height) / densityY,
 					],
 					amount: Math.min(1, Math.max(0, ctx.params.amount / 100)),
 					alphaRandomness: Math.min(1, Math.max(0, ctx.params.alphaRandomness)),

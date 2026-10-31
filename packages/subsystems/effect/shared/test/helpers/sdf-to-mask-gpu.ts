@@ -33,7 +33,7 @@ export async function run() {
 		fragment: { module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
 @fragment fn fs(@builtin(position) p: vec4f) -> @location(0) f32 { return textureLoad(image, vec2i(p.xy), 0).r; }` }), targets: [{ format: 'r32float' }] },
 	});
-	const defaults: Parameters = { input: constantShaderInput('scalar', 65504), mode: 'fill', offset: 0, strokeWidth: 0.01, strokeAlignment: 'center', feather: 0, antiAlias: true, invert: false };
+	const defaults: Parameters = { sizeReference: 'height', input: constantShaderInput('scalar', 65504), mode: 'fill', offset: 0, strokeWidth: 0.01, strokeAlignment: 'center', feather: 0, antiAlias: true, invert: false };
 	const checks: string[] = [];
 	const disposables: (() => void)[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
@@ -196,7 +196,7 @@ export async function run() {
 			// 二値マスクの符号を戻す。実際のテクスチャ形式・binding・単位の一致を確認する。
 			const resolution = { width: 65, height: 65 };
 			const wgpu = gpuContext(precise);
-			const shapeParams: RuntimeEffectParameters<typeof shapeDefinition.paramDefs> = { shape: 'ellipse', position: [0, 0], size: [0.5, 0.5], rotation: 0, cornerRadius: 0 };
+			const shapeParams: RuntimeEffectParameters<typeof shapeDefinition.paramDefs> = { sizeReference: 'height', shape: 'ellipse', position: [0, 0], size: [0.5, 0.5], rotation: 0, cornerRadius: 0 };
 			const shapeOutput = shapeImplementation.outputTextureFactories.output({ wgpu, resolution });
 			const shapeEffect = shapeImplementation.init({ wgpu, resolution, params: shapeParams, fallbackTexture: shapeOutput, reportStatus: () => {} });
 			disposables.push(() => { shapeEffect.dispose(); shapeOutput.destroy(); });
@@ -218,6 +218,14 @@ export async function run() {
 			assert(fromMask.every((value, index) => value === circleMask[index]), 'Mask to SDF connection');
 			checks.push(`${label}: Shape SDF and Mask to SDF integration`);
 		}
+		// 【入力SDFの距離単位を維持し、マスクの拡張量を選択した基準で指定する】
+		// 同じ0.15の距離に対し、高さの0.1では届かず、幅の0.1では届く横長の出力を使う。
+		const referenceRenderer = createEffect(64, 32, false);
+		for (const sizeReference of ['height', 'width', 'shortSide', 'longSide'] as const) {
+			const result = await referenceRenderer({ sizeReference, input: constantShaderInput('scalar', 0.15), offset: 0.1, antiAlias: false });
+			assert(result[0] === (sizeReference === 'height' || sizeReference === 'shortSide' ? 0 : 1), `${sizeReference}: offset length`);
+		}
+		checks.push('mask offset uses the selected size reference');
 		return { checks };
 	} finally {
 		for (const dispose of disposables) dispose();

@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -27,10 +28,11 @@ export default implementEffect<typeof definition>({
 			internalLayouts: [layout],
 			sampling: 'level0',
 		});
-		uniformValues.set({ aspectRatio: resolution.width / resolution.height });
 		return {
 			render: ctx => {
+				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, resolution);
 				uniformValues.set({
+					coordinateScale: [resolution.width / referenceLength, resolution.height / referenceLength],
 					time: ctx.params.time,
 					seedOffset: [ctx.params.seed, ctx.params.seed],
 					offset: ctx.params.offset,

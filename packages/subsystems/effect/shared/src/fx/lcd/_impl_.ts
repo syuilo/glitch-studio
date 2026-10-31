@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -30,15 +31,15 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
-				const shortDimension = Math.min(output.width, output.height);
-				// DensityはRGBの3サブピクセルをまとめたセルの短辺あたりの数。
+				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, output);
+				// DensityはRGBの3サブピクセルをまとめたセルの基準寸法あたりの数。
 				// 1未満は1にし、密度の上限や1pxの下限は設けない。
 				const density = Math.max(1, ctx.params.density);
 				uniformValues.set({
 					cellSize: [
-						// [-1, 1]の全幅2へ換算し、Density=1で短辺全体を覆う。
-						2 * (shortDimension / output.width) / density,
-						2 * (shortDimension / output.height) / density,
+						// [-1, 1]の全幅2へ換算し、Density=1で基準寸法全体を覆う。
+						2 * (referenceLength / output.width) / density,
+						2 * (referenceLength / output.height) / density,
 					],
 					border: Math.min(1, Math.max(0, ctx.params.border)),
 				});

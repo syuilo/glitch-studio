@@ -1,5 +1,9 @@
 import definition from '../../src/fx/textPattern/_def_.ts';
 import implementation from '../../src/fx/textPattern/_impl_.ts';
+import textDefinition from '../../src/fx/text/_def_.ts';
+import textImplementation from '../../src/fx/text/_impl_.ts';
+import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
+import type { EffectImplementation } from '../../src/effect-implementation.ts';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
@@ -10,13 +14,13 @@ export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
 	if (adapter == null) throw new Error('WebGPU adapter unavailable');
 	const device = await adapter.requestDevice();
+	const defaultVertexShaderModule = device.createShaderModule({ code: vertexCode });
 	device.pushErrorScope('validation');
 	const checks: string[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
 	const scalar = (value: number) => constantShaderInput('scalar', value);
 	const vector = (value: [number, number]) => constantShaderInput('vector', value);
 	const color = (value: [number, number, number, number]) => constantShaderInput('color', value);
-	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as Parameters;
 	const owned: { destroy(): void }[] = [];
 	const effects: { dispose(): void }[] = [];
 	const readModule = device.createShaderModule({ code: `
@@ -50,14 +54,17 @@ export async function run() {
 		} finally { buffer.destroy(); target.destroy(); }
 	}
 
-	function createEffect(width: number, height: number, format: IntermediateTextureFormat = 'rgba8unorm') {
+	function createEffect(width: number, height: number, format: IntermediateTextureFormat = 'rgba8unorm', effectKind: 'text' | 'textPattern' = 'textPattern') {
+		const selectedDefinition = effectKind === 'text' ? textDefinition : definition;
+		const selectedImplementation: EffectImplementation = effectKind === 'text' ? textImplementation : implementation;
 		const resolution = { width, height };
-		const wgpu = { device, intermediateTextureFormat: format, enable32bitDataTextures: false, defaultVertexShaderModule: readModule };
-		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
+		const wgpu = { device, intermediateTextureFormat: format, enable32bitDataTextures: false, defaultVertexShaderModule };
+		const output = selectedImplementation.outputTextureFactories.output({ wgpu, resolution });
 		owned.push(output);
-		const base: Parameters = { ...defaults, text: 'F', size: 0.22, repetitions: [1, 1] };
+		const selectedDefaults = Object.fromEntries(Object.entries(selectedDefinition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value]));
+		const base = { ...selectedDefaults, text: 'F', size: 0.22, sizeReference: 'height', ...(effectKind === 'text' ? { overflow: 'none' } : { repetitions: [1, 1] }) } as Parameters;
 		let onStatus: ((status: { type: string; message?: string }) => void) | null = null;
-		let effect = implementation.init({ wgpu, resolution, params: base, resources: { font: null }, reportStatus: status => onStatus?.(status), fallbackTexture: output });
+		let effect = selectedImplementation.init({ wgpu, resolution, params: base, resources: { font: null }, reportStatus: status => onStatus?.(status), fallbackTexture: output });
 		effects.push(effect);
 		return {
 			base, output,
@@ -77,7 +84,7 @@ export async function run() {
 				await new Promise<void>((resolve, reject) => {
 					onStatus = status => { if (status.type === 'ready') resolve(); else if (status.type === 'error') reject(new Error(status.message)); };
 					effect.dispose();
-					effect = implementation.init({ wgpu, resolution, params: base, resources: { font: fileData }, reportStatus: status => onStatus?.(status), fallbackTexture: output });
+				effect = selectedImplementation.init({ wgpu, resolution, params: base, resources: { font: fileData }, reportStatus: status => onStatus?.(status), fallbackTexture: output });
 					effects.push(effect);
 				});
 				onStatus = null;
@@ -125,6 +132,25 @@ export async function run() {
 		const originalMetrics = metrics(original, 256);
 		assert(originalMetrics.area > 30, 'base glyph missing');
 		checks.push('glyph atlas');
+		// 【文字のサイズ基準とキャッシュ更新】
+		// 同じSizeで基準だけを切り替えても、字形と配置が再計算されることを実描画で確認する。
+		// TextとText Patternの両方で、縦長・横長の固定軸と長辺・短辺の対応を保つ。
+		for (const effectKind of ['text', 'textPattern'] as const) {
+			for (const [width, height] of [[256, 128], [128, 256]]) {
+				const target = createEffect(width, height, 'rgba8unorm', effectKind);
+				const heightImage = await target.render({ sizeReference: 'height' });
+				const widthImage = await target.render({ sizeReference: 'width' });
+				const shortImage = await target.render({ sizeReference: 'shortSide' });
+				const longImage = await target.render({ sizeReference: 'longSide' });
+				equalPixels(shortImage, width < height ? widthImage : heightImage);
+				equalPixels(longImage, width < height ? heightImage : widthImage);
+				const shortMetrics = metrics(shortImage, width);
+				const longMetrics = metrics(longImage, width);
+				assert(longMetrics.area > shortMetrics.area * 3, `${effectKind}: reference must resize the actual glyph`);
+				equalPixels(await target.render({ sizeReference: 'height' }), heightImage);
+				checks.push(`${effectKind}: ${width}x${height} size references and cache invalidation`);
+			}
+		}
 		const translated = metrics(await effect.render({ translation: vector([0.5, -0.25]) }), 256);
 		close(translated.x - originalMetrics.x, 64, 0.2, 'translation x');
 		close(translated.y - originalMetrics.y, 16, 0.2, 'translation y');

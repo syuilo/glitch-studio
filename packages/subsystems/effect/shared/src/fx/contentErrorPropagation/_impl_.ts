@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -146,6 +147,7 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
+				const referenceScale = getSizeReferenceLength(params.sizeReference, resolution) / Math.min(resolution.width, resolution.height);
 				const geometry = getGeometry(params.analysisResolution);
 				if (resources == null || resources.width !== geometry.width || resources.height !== geometry.height) {
 					const next = createResources(geometry);
@@ -153,7 +155,7 @@ export default implementEffect<typeof definition>({
 					resources = next;
 				}
 				const steps = clamp(Math.round(params.steps), 1, 256);
-				const propagationLength = Math.max(0, params.propagationLength) / 100;
+				const propagationLength = Math.max(0, params.propagationLength) / 100 * referenceScale;
 				const retention = clamp(params.retention, 0, 1);
 				const sourceProbability = clamp(params.sourceProbability, 0, 1);
 				const sourceSize = clamp(params.sourceSize, 0, 1);
@@ -167,10 +169,10 @@ export default implementEffect<typeof definition>({
 					stepDistance: propagationLength * geometry.analysisResolution / steps,
 					// 全距離を進んだときの減衰を指定し、反復数を変えても同じ保持率を目指す。
 					stepDecay: Math.pow(retention, 1 / steps),
-					sourceSpacing: Math.max(0.000001, params.sourceSpacing / 100),
+					sourceSpacing: Math.max(0.000001, params.sourceSpacing / 100 * referenceScale),
 					sourceSize,
 					sourceProbability,
-					guidanceRadius: Math.max(0.000001, params.guidanceRadius / 100 * geometry.analysisResolution),
+					guidanceRadius: Math.max(0.000001, params.guidanceRadius / 100 * referenceScale * geometry.analysisResolution),
 					following: clamp(params.following, 0, 1),
 					boundaryThreshold: Math.max(0.000001, params.boundaryThreshold),
 					boundaryStrength: clamp(params.boundaryStrength, 0, 1),

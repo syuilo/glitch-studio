@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -32,9 +33,9 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
-				const shortDimension = Math.min(output.width, output.height);
+				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, output);
 				uniformValues.set({
-					aspect: [output.width / shortDimension, output.height / shortDimension],
+					aspect: [output.width / referenceLength * 0.5, output.height / referenceLength * 0.5],
 					position: ctx.params.position,
 					// 元のUIと同じ頻度の変化にする。時間・seedは元の固定値を維持する。
 					frequency: Math.max(0, ctx.params.frequency) ** 2,

@@ -8,6 +8,7 @@ export type DataType =
 	| { kind: 'vector' }
 	| { kind: 'blendMode' }
 	| { kind: 'fitMode' }
+	| { kind: 'sizeReference' }
 	| { kind: 'wrapMode' }
 	| { kind: 'enum'; options: readonly string[] }
 	| { kind: 'audioSource' }

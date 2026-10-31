@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['math', 'convert', 'sdf'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Input', control: { controlType: 'number', step: 0.01 } },
@@ -24,12 +25,12 @@ export default defineEffect({
 		},
 		offset: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Offset (Height Units)', control: { controlType: 'number', step: 0.001 } },
+			ui: { label: 'Offset (Reference Ratio)', control: { controlType: 'number', step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		strokeWidth: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Stroke Width (Height Units)', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } },
+			ui: { label: 'Stroke Width (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: 0.01 },
 		},
 		strokeAlignment: {
@@ -39,7 +40,7 @@ export default defineEffect({
 		},
 		feather: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Feather (Height Units)', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } },
+			ui: { label: 'Feather (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		antiAlias: {

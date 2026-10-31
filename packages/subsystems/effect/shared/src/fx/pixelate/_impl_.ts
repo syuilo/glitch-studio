@@ -1,10 +1,9 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
-
-const fitModes = { stretch: 0, cover: 1, contain: 2 };
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -38,7 +37,7 @@ export default implementEffect<typeof definition>({
 				const samples = Number.isFinite(ctx.params.samples) ? Math.min(256, Math.max(1, Math.round(ctx.params.samples))) : 1;
 				uniformValues.set({
 					resolution: [output.texture.width, output.texture.height],
-					fitMode: fitModes[ctx.params.fitMode],
+					referenceLength: getSizeReferenceLength(ctx.params.sizeReference, output.texture),
 					samples,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);

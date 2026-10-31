@@ -24,6 +24,7 @@ export type DataTypeUiControlDefinitionMap = {
 	vector: { controlType: 'vector' | 'xy' | 'dimension'; min?: number; max?: number; step?: number; logarithmic?: boolean };
 	blendMode: {};
 	fitMode: {};
+	sizeReference: {};
 	wrapMode: {};
 	enum: { labels: Record<string, string> };
 	audioSource: {};

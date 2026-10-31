@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
@@ -78,7 +79,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,
 					timeDelta: ctx.timeDelta,
-					radius: ctx.params.radius,
+					radius: 2 * ctx.params.radius * getSizeReferenceLength(ctx.params.sizeReference, resolution) / longDimension,
 					strength: ctx.params.strength,
 					halfLife: Math.max(1, ctx.params.halfLife),
 					pointerPosition: [ctx.pointerPosition.x, ctx.pointerPosition.y],

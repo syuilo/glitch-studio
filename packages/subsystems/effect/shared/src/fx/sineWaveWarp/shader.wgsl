@@ -16,13 +16,13 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// 角度パッドと同じく上を0・時計回りを正にし、波の位相は変位方向に直交する軸から求める。
 	let displacementDirection = vec2f(sin(direction), cos(direction));
 	let waveDirection = vec2f(displacementDirection.y, -displacementDirection.x);
-	// 短辺を1とする等方的な中央原点の座標から、波が変化する軸上の位置を求める。
+	// 基準寸法を1とする等方的な中央原点の座標から、波が変化する軸上の位置を求める。
 	// 縦横比を補正し、斜め方向でも角度や波の間隔が歪まないようにする。
 	let wavePosition = dot(position * uniforms.aspect * 0.5, waveDirection);
-	// Frequencyは短辺の長さあたりの周期数、Phaseは角度コントロールと同じく1で1周。
+	// Frequencyは基準寸法あたりの周期数、Phaseは角度コントロールと同じく1で1周。
 	// 周期単位で位相を足し合わせ、sinへ渡すときにラジアンへ変換する。
 	let displacement = sin((phase + wavePosition * frequency) * 6.283185307179586) * amplitude;
-	// Amplitudeは短辺に対する変位の比率。[-1, 1]の入力参照座標へ戻すため2倍し、縦横比の補正を戻す。
+	// Amplitudeは基準寸法に対する変位の比率。[-1, 1]の入力参照座標へ戻すため2倍し、縦横比の補正を戻す。
 	let displacementOffset = displacementDirection * displacement * 2.0 / uniforms.aspect;
 	// 色収差が無効な画素や波の変位が0の画素では、元と同じRGBAを1回だけ読み取る。
 	if (chromaticAberrationStrength == 0.0 || displacement == 0.0) {

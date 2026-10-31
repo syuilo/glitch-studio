@@ -2,7 +2,7 @@ struct Uniforms {
 	resolution: vec2f,
 	amount: f32,
 	maxDelay: f32,
-	fitMode: u32,
+	referenceLength: f32,
 	regionLayout: u32,
 	newestLayer: u32,
 	layerCount: u32,
@@ -77,12 +77,7 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	let current = read_input(fragment.uv);
 	if (uniforms.amount <= 0.0 || uniforms.maxDelay <= 0.0) { return current; }
 	let density = max(read_density(fragment.uv), vec2f(1.0));
-	var extent = uniforms.resolution;
-	if (uniforms.fitMode == 1u) {
-		extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
-	} else if (uniforms.fitMode == 2u) {
-		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
-	}
+	let extent = vec2f(uniforms.referenceLength);
 	// 領域サイズは画素数に固定せず、画面全体に対する密度とfitで決める。
 	let cellSize = 2.0 * (extent / uniforms.resolution) / density;
 	var cell = vec2i(round(fragment.uv / cellSize));

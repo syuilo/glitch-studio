@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, inputUvScale } from '@gs/shared/gpu/shader-input.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -82,11 +83,11 @@ export default implementEffect<typeof definition>({
 			}
 			return variant;
 		};
-		const getGeometry = (blockSize: number, packetWidth: number, packetHeight: number, subdivisions: number, originAtCenter: boolean) => {
+		const getGeometry = (blockSize: number, referenceLength: number, packetWidth: number, packetHeight: number, subdivisions: number, originAtCenter: boolean) => {
 			if (blockSize <= 0) throw new Error('Decoder corruption: maximum block size must be positive.');
 			// 最大ブロックを仮想画像上の16サンプルへ対応付ける。論理寸法は丸めず、
 			// 出力解像度や縦横比が変わっても正方形のブロックと同じ相対寸法を維持する。
-			const scale = maximumPredictionBlockSamples * 100 / blockSize / Math.min(resolution.width, resolution.height);
+			const scale = maximumPredictionBlockSamples * 100 / blockSize / referenceLength;
 			const virtualSize = [resolution.width * scale, resolution.height * scale];
 			const packetSize = [packetWidth * maximumPredictionBlockSamples, packetHeight * maximumPredictionBlockSamples];
 			// 中央区画の中心を画像中央へ固定する。単にceilした個数で中央寄せすると、
@@ -167,7 +168,7 @@ export default implementEffect<typeof definition>({
 				const packetHeight = clamp(Math.round(params.packetHeight), 1, 32);
 				const subdivisions = clamp(Math.round(params.subdivisions), 0, maximumSubdivisionLevels);
 				const originAtCenter = params.blockOrigin === 'center';
-				const geometry = getGeometry(params.blockSize, packetWidth, packetHeight, subdivisions, originAtCenter);
+				const geometry = getGeometry(params.blockSize, getSizeReferenceLength(params.sizeReference, resolution), packetWidth, packetHeight, subdivisions, originAtCenter);
 				if (resources == null || resources.geometryKey !== geometry.key) {
 					const next = createResources(geometry);
 					resources?.dispose();

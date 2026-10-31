@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['pattern', 'math', 'sdf'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		shape: {
 			dataType: { kind: 'enum', options: ['ellipse', 'rectangle'] },
 			ui: { label: 'Shape', control: { labels: { ellipse: 'Ellipse', rectangle: 'Rectangle' } } },
@@ -23,7 +24,7 @@ export default defineEffect({
 		},
 		size: {
 			dataType: { kind: 'vector' },
-			ui: { label: 'Size (Height Units)', control: { controlType: 'dimension', min: 0, max: 2, step: 0.01 } },
+			ui: { label: 'Size (Reference Ratio)', control: { controlType: 'dimension', min: 0, max: 2, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: [0.5, 0.5] },
 		},
 		rotation: {
@@ -33,7 +34,7 @@ export default defineEffect({
 		},
 		cornerRadius: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Corner Radius (Height Units)', control: { controlType: 'range', min: 0, max: 0.5, step: 0.001 } },
+			ui: { label: 'Corner Radius (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.5, step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 	},

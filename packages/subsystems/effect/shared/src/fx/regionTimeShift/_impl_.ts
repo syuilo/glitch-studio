@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -5,7 +6,6 @@ import code from './shader.wgsl?raw';
 import captureCode from './capture.wgsl?raw';
 import type definition from './_def_.ts';
 
-const fitModes = { stretch: 0, cover: 1, contain: 2 };
 const layouts = { blocks: 0, horizontalBands: 1, verticalBands: 2 };
 
 export default implementEffect<typeof definition>({
@@ -173,7 +173,7 @@ export default implementEffect<typeof definition>({
 					resolution: [resolution.width, resolution.height],
 					amount: Math.min(1, Math.max(0, params.amount)),
 					maxDelay: maxDelay / 1000,
-					fitMode: fitModes[params.fitMode],
+					referenceLength: getSizeReferenceLength(params.sizeReference, resolution),
 					regionLayout: layouts[params.layout],
 					newestLayer,
 					layerCount: layers,

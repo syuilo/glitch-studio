@@ -12,6 +12,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'pixel', 'color', 'stylized'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
@@ -20,7 +21,7 @@ export default defineEffect({
 		},
 		blockSize: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Maximum Block Size (% of Short Side)', control: { controlType: 'range', min: 2, max: 20, step: 0.1 } },
+			ui: { label: 'Maximum Block Size (% of Reference)', control: { controlType: 'range', min: 2, max: 20, step: 0.1 } },
 			defaultValue: { inputSource: 'literal', value: 4 },
 		},
 		blockOrigin: {

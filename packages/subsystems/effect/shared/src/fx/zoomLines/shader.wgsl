@@ -16,7 +16,7 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let inputColor = read_input(fragData.position);
-	// 中心は画面の[-1, 1]座標。距離は短辺基準にして、マスクを円形に保つ。
+	// 中心は画面の[-1, 1]座標。距離はSize Reference基準にして、マスクを円形に保つ。
 	let offset = (fragData.position - uniforms.position) * uniforms.aspect;
 	let distanceFromCenter = length(offset);
 	// 中心での正規化と、密度0での再マッピングの0除算を避ける。

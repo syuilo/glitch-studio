@@ -10,7 +10,7 @@ export function validateColorRampParameterInputSource(definition: Pick<Parameter
 
 /** 定義の初期状態には加工式を保存しない。加工は各利用箇所のBindingで設定する。 */
 export function validateParameterDefaultValues(definition: ParameterDefinition): void {
-	if (!['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'wrapMode', 'enum', 'audioSource', 'any', 'array', 'struct'].includes(definition.dataType.kind)) throw new Error('Unsupported parameter data type');
+	if (!['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'enum', 'audioSource', 'any', 'array', 'struct'].includes(definition.dataType.kind)) throw new Error('Unsupported parameter data type');
 	inspectStaticParameter(definition, definition.defaultValue, (_definition, binding) => {
 		if (binding.expressionModifier != null) throw new Error('Expression modifier is not allowed on parameter default values');
 	});

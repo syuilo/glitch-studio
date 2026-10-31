@@ -1,5 +1,6 @@
 import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { createTextFontLoader } from '../../text-font-loader.ts';
 import { measureTextPattern, layoutTextPattern } from './layout.ts';
 import { packTextPatternAtlas } from './atlas.ts';
@@ -115,7 +116,7 @@ export default implementEffect<typeof definition>({
 		let rowCount = 0;
 
 		function updateLayout(values: RuntimeEffectParameters<typeof definition.paramDefs>) {
-			const fontSize = values.size * resolution.height;
+			const fontSize = values.size * getSizeReferenceLength(values.sizeReference, resolution);
 			if (!Number.isFinite(fontSize) || fontSize <= 0) return 0;
 			if (fontSize > device.limits.maxTextureDimension2D) throw new Error('Text Pattern glyph atlas exceeds the GPU texture limit.');
 			const nextMeasurementKey = JSON.stringify([String(values.text), fontSize]);

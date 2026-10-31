@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: true,
 	tags: ['temporal', 'utility'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		strength: {
 			dataType: { kind: 'scalar' },
 			ui: {

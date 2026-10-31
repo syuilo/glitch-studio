@@ -131,6 +131,7 @@
 			"Color": "色",
 			"Vector": "ベクトル",
 			"Enum": "列挙型",
+			"SizeReference": "サイズ基準",
 			"Image": "画像"
 		}
 	},
@@ -143,6 +144,12 @@
 		"PROGRESS": "進行率",
 		"RESOLUTION": "このエフェクトの描画解像度 [幅, 高さ]",
 		"IS_EXPORT": "エクスポート用レンダリングかどうか"
+	},
+	"_SizeReferences": {
+		"height": "高さ",
+		"width": "幅",
+		"shortSide": "短辺",
+		"longSide": "長辺"
 	},
 	"_FitModes": {
 		"stretch": "引き伸ばす",

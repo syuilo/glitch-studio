@@ -6,7 +6,7 @@
 // Works as an image filter or standalone animated texture.
 struct Uniforms {
 	colorHighlight: vec4f, // Highlight color in RGBA, needs highlights > 0
-	aspectRatio: f32,
+	coordinateScale: vec2f,
 	time: f32,
 	highlights: f32, // Coloring following caustic shape, needs colorHighlight alpha > 0 (0 to 1)
 	layering: f32, // Power of 2nd layer of caustic distortion (0 to 1)
@@ -70,10 +70,10 @@ fn snoise(v: vec2f) -> f32 {
 fn fs(frag: FragmentIn) -> @location(0) vec4f {
 	// 端のマスクだけは[0, 1]を使い、変位と入力参照は中央原点で扱う。
 	let imageUV = vec2f(frag.uv.x, -frag.uv.y) * 0.5 + vec2f(0.5);
-	// 出力の高さ全体を基準の1単位とし、Densityを模様の座標に直接掛ける。
+	// 選択した基準寸法を1単位とし、Densityを模様の座標に直接掛ける。
 	// 複数の波・ノイズを重ねるため周期数ではなく基準座標の密度。画素数には依存しない。
 	// 旧Size=1では座標が10倍だったため、半幅座標から換算した初期Densityは20。
-	let patternUV = frag.uv * vec2f(uniforms.aspectRatio, -1.0) * 0.5 * uniforms.density;
+	let patternUV = frag.uv * uniforms.coordinateScale * vec2f(1.0, -1.0) * 0.5 * uniforms.density;
 	let t = uniforms.time;
 	let wavesNoise = snoise((0.3 + 0.1 * sin(t)) * 0.1 * patternUV + vec2f(0.0, 0.4 * t));
 	var causticNoise = getCausticNoise(patternUV + uniforms.waves * vec2f(1.0, -1.0) * wavesNoise, 2.0 * t, 1.5);
@@ -93,7 +93,7 @@ fn fs(frag: FragmentIn) -> @location(0) vec4f {
 		+ uniforms.caustic * causticNoiseDistortion * vec2f(1.0, -1.0);
 
 	// 変位後の座標に、入力接続のfit/wrap/filterを適用する。
-	let image = read_input(frag.uv + offset);
+	let image = read_input(frag.uv + offset / uniforms.coordinateScale);
 	// Engine textures already carry premultiplied RGB.
 	var color = image.rgb;
 	var opacity = image.a;

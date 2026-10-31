@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -31,10 +32,11 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
+				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, output);
 				uniformValues.set({
 					center: ctx.params.center,
 					sourceCenter: ctx.params.sourceCenter,
-					aspectRatio: output.width / output.height,
+					coordinateScale: [output.width / referenceLength * 0.5, output.height / referenceLength * 0.5],
 					// 式やキーから小数が渡っても全周が閉じるよう、1以上の整数にする。
 					sectorAngle: 2 * Math.PI / Math.max(1, Math.round(ctx.params.repetitions)),
 					mirror: ctx.params.mirror ? 1 : 0,

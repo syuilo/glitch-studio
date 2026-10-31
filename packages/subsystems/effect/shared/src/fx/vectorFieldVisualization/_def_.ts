@@ -22,6 +22,7 @@ export default defineEffect({
 			ui: { label: 'Density', control: { controlType: 'range', min: 1, max: 100, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 20 },
 		},
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		maximumMagnitude: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Maximum Magnitude', control: { controlType: 'number', min: 0.000001, step: 0.01 } },

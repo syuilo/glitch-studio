@@ -1,5 +1,6 @@
 struct Uniforms {
 	minDivisions: f32,
+	coordinateScale: vec2f,
 	maxIterations: u32,
 	threshold: f32,
 	borderAbsolute: u32,
@@ -53,7 +54,7 @@ fn quadColorVariation(center: vec2f, size: f32) -> vec4f {
 	// 分散はE[X²] - E[X]²で求められるので、サンプルの保存と再走査は不要。
 	for (var i = 0; i < SAMPLES_PER_ITERATION; i++) {
 		let r = hash22(center + vec2f(f32(i), 0.0)) - 0.5;
-		let sample = read_input(center + r * size).rgb;
+		let sample = read_input((center + r * size) * 2.0 / uniforms.coordinateScale).rgb;
 		sum += sample;
 		sumSquares += sample * sample;
 	}
@@ -66,7 +67,7 @@ fn quadColorVariation(center: vec2f, size: f32) -> vec4f {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	// 格子と入力参照に同じ中央原点の座標を使う。
-	let position = fragData.uv;
+	let position = fragData.uv * 0.5 * uniforms.coordinateScale;
 
 	// number of space divisions
 	var divs = uniforms.minDivisions;

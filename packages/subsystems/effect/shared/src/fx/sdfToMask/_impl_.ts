@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { inputUvScale } from '@gs/shared/gpu/input-fit.ts';
@@ -32,14 +33,16 @@ export default implementEffect<typeof definition>({
 				// 通常のtransparent入力は数値0を混ぜるが、SDFの0は背景ではなく境界を表す。
 				// 距離は端を延長して読み、元の透明領域は変換後のマスクへ適用する。
 				const distanceInput = transparent ? { ...input, wrapMode: 'clamp' as const } : input;
+				// 入力距離は再スケールせず、指定した幅だけをSDFの高さ単位へ変換する。
+				const referenceScale = getSizeReferenceLength(ctx.params.sizeReference, output) / output.height;
 				uniformValues.set({
 					inputScale: transparent ? inputUvScale(input.texture, output, input.fitMode) : [1, 1],
 					inputSize: transparent ? [input.texture.width, input.texture.height] : [1, 1],
 					transparentInput: transparent ? 1 : 0,
 					nearestInput: transparent && input.filterMode === 'nearest' ? 1 : 0,
-					offset: ctx.params.offset,
-					strokeWidth: Math.max(0, ctx.params.strokeWidth),
-					feather: Math.max(0, ctx.params.feather),
+					offset: ctx.params.offset * referenceScale,
+					strokeWidth: Math.max(0, ctx.params.strokeWidth) * referenceScale,
+					feather: Math.max(0, ctx.params.feather) * referenceScale,
 					mode: ctx.params.mode === 'fill' ? 0 : 1,
 					strokeAlignment: { inside: 0, center: 1, outside: 2 }[ctx.params.strokeAlignment],
 					antiAlias: ctx.params.antiAlias ? 1 : 0,

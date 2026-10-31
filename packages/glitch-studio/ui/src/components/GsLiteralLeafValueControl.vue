@@ -51,6 +51,9 @@
 			{{ i18n.t('_CustomParameterInput.InvalidEnumValue', { value: JSON.stringify(value) ?? String(value) }) }}
 		</div>
 	</div>
+	<div v-else-if="dataType.kind === 'sizeReference'">
+		<GsSelect data-test-size-reference :modelValue="value" :items="sizeReferenceItems" @update:modelValue="changeValue"/>
+	</div>
 	<div v-else-if="dataType.kind === 'fitMode'">
 		<GsSelect
 			:modelValue="value"
@@ -176,6 +179,7 @@
 
 <script lang="ts" setup generic="T extends LeafDataType">
 import { computed, onBeforeUnmount, ref } from 'vue';
+import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsColorRampInput from './common/GsColorRampInput.vue';
@@ -226,6 +230,7 @@ const enumItems = computed(() => {
 	const control = props.control as DataTypeUiControlDefinitionMap['enum'];
 	return props.dataType.options.map(value => ({ value, label: control.labels[value] ?? value }));
 });
+const sizeReferenceItems = computed(() => SIZE_REFERENCES.map(reference => ({ value: reference, label: i18n.ts._SizeReferences[reference] })));
 
 const directEditMode = ref(false);
 const isNumberInputChanging = ref(false); // 範囲外の数値編集欄を入力中に一時的に範囲内の値になってもコントロールを切り替えないようにするためのフラグ

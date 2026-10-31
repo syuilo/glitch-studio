@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { inputUvScale } from '@gs/shared/gpu/input-fit.ts';
@@ -44,7 +45,9 @@ export default implementEffect<typeof definition>({
 				const pixelGradientStep = sdf.kind === 'texture'
 					? [Math.max(2 / output.width, 2 / (sdf.texture.width * sdfScale[0])), Math.max(2 / output.height, 2 / (sdf.texture.height * sdfScale[1]))]
 					: [2 / output.width, 2 / output.height];
-				const normalSmoothing = Number.isFinite(params.normalSmoothing) ? Math.max(0, params.normalSmoothing) : 0;
+				// SDFの高さ単位は維持し、ガラスの寸法指定を同じ単位へ変換する。
+				const referenceScale = getSizeReferenceLength(params.sizeReference, output) / output.height;
+				const normalSmoothing = Number.isFinite(params.normalSmoothing) ? Math.max(0, params.normalSmoothing) * referenceScale : 0;
 				uniformValues.set({
 					sdfScale,
 					// 高さ基準の半径を画面座標[-1,+1]へ変換し、Xだけ縦横比を補正する。
@@ -55,11 +58,11 @@ export default implementEffect<typeof definition>({
 					transparentSdf: transparentSdf ? 1 : 0,
 					refractionModel: { quadratic: 0, curvedSurface: 1 }[params.refractionModel],
 					refraction: Math.max(0, params.refraction),
-					thickness: Math.max(0, params.thickness),
+					thickness: Math.max(0, params.thickness) * referenceScale,
 					curvature: Math.max(2, Math.min(6, params.curvature)),
 					ior: Math.max(1, Math.min(2, params.ior)),
-					edgeSoftness: Math.max(0, params.edgeSoftness),
-					blur: Math.max(0, params.blur),
+					edgeSoftness: Math.max(0, params.edgeSoftness) * referenceScale,
+					blur: Math.max(0, params.blur) * referenceScale,
 					blurSamples: Math.max(1, Math.min(128, Math.round(params.blurSamples))),
 					aberration: Math.max(0, params.aberration),
 					// 分散範囲全体の点数。RGBすべてに正の重みを持たせるため最低3点必要。

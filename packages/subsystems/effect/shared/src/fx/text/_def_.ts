@@ -18,7 +18,7 @@ export default defineEffect({
 		size: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Size (Height Ratio)',
+				label: 'Size (Reference Ratio)',
 				control: {
 					controlType: 'range',
 					min: 0.0001,
@@ -29,6 +29,7 @@ export default defineEffect({
 			},
 			defaultValue: { inputSource: 'literal', value: 0.1 },
 		},
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		overflow: {
 			dataType: { kind: 'enum', options: ['none', 'shrink', 'compress'] },
 			ui: { label: 'Overflow', control: { labels: { none: 'Do Nothing', shrink: 'Shrink Font Size', compress: 'Compress Horizontally' } } },

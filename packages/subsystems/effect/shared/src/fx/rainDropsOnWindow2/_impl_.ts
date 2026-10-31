@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import seedrandom from 'seedrandom';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -28,8 +29,6 @@ export default implementEffect<typeof definition>({
 			internalLayouts: [layout],
 			sampling: 'level0',
 		});
-		const shortSide = Math.min(resolution.width, resolution.height);
-		uniformValues.set({ aspect: [resolution.width / shortSide, resolution.height / shortSide] });
 		let previousSeed: number;
 		return {
 			render: ctx => {
@@ -39,7 +38,9 @@ export default implementEffect<typeof definition>({
 					const random = seedrandom(String(previousSeed));
 					uniformValues.set({ seed: [random() * 256, random() * 256] });
 				}
+				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, resolution);
 				uniformValues.set({
+					aspect: [resolution.width / referenceLength, resolution.height / referenceLength],
 					density: Math.min(1, Math.max(0, ctx.params.density)),
 					time: ctx.params.time,
 					scale: Math.max(0.1, ctx.params.scale),

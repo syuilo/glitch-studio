@@ -16,7 +16,7 @@
 
 ## 座標と分割
 
-`Maximum Block Size`は、最大の予測ブロックの一辺を画面短辺の百分率で指定する。最大ブロックは仮想画像上の16×16サンプルで、`Subdivision Levels`は0〜4段階。8×8、4×4、2×2、1×1へ四分割でき、最小の一辺は最大ブロックの1/16となる。`Block Split Probability`は各親を分割する確率。分割は入力の内容には依存せず、座標・寸法・Seedから決まる。
+`Maximum Block Size`は、最大の予測ブロックの一辺をSize Referenceの基準寸法の百分率で指定する。既定値はLong Side。最大ブロックは仮想画像上の16×16サンプルで、`Subdivision Levels`は0〜4段階。8×8、4×4、2×2、1×1へ四分割でき、最小の一辺は最大ブロックの1/16となる。`Block Split Probability`は各親を分割する確率。分割は入力の内容には依存せず、座標・寸法・Seedから決まる。
 
 仮想画像の論理寸法はアスペクト比を保った浮動小数点の値で保持する。`Block Origin`でBlock Sizeを変更した際の拡縮原点を選ぶ。初期値はCenter。
 

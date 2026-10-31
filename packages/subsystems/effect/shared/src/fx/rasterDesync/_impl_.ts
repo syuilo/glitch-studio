@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -67,11 +68,11 @@ export default implementEffect<typeof definition>({
 					|| params.rasterDensity <= 0) {
 					throw new Error('Raster desync: parameters must be finite and Raster density must be positive.');
 				}
-				// 解像度ではなく短辺の仮想画素数でラスタを定義する。整数の行幅で折り返すため、
+				// 解像度ではなく基準寸法の仮想画素数でラスタを定義する。整数の行幅で折り返すため、
 				// アスペクト比から仮想寸法を求めた後にだけ整数化する。
-				const shortSide = Math.min(resolution.width, resolution.height);
-				const columns = Math.max(1, Math.round(resolution.width / shortSide * params.rasterDensity));
-				const rows = Math.max(1, Math.round(resolution.height / shortSide * params.rasterDensity));
+				const referenceSide = getSizeReferenceLength(params.sizeReference, resolution);
+				const columns = Math.max(1, Math.round(resolution.width / referenceSide * params.rasterDensity));
+				const rows = Math.max(1, Math.round(resolution.height / referenceSide * params.rasterDensity));
 				const rowBytes = rows * ROW_STATE_FLOATS * Float32Array.BYTES_PER_ELEMENT;
 				// f32で仮想画素の整数位置を区別できる範囲と、行状態用バッファの上限を守る。
 				if (!Number.isSafeInteger(columns) || columns > 16777216 || rows > 16777216 || !Number.isSafeInteger(rowBytes)

@@ -1,6 +1,6 @@
 struct Uniforms {
 	resolution: vec2f,
-	fitMode: u32,
+	referenceLength: f32,
 	samples: u32,
 };
 
@@ -11,12 +11,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// パラメータ場は出力位置で読む。定数なら各ブロックは単色になり、
 	// 空間的に変化する場合は局所的に分割・平均化領域が変わる効果として扱う。
 	let density = max(read_density(position), vec2f(1.0));
-	var extent = uniforms.resolution;
-	if (uniforms.fitMode == 1u) {
-		extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
-	} else if (uniforms.fitMode == 2u) {
-		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
-	}
+	let extent = vec2f(uniforms.referenceLength);
 	// Density=1で基準領域全体、10で各軸を10分割する密度になる。
 	// 1未満は1として扱い、画素数による下限や密度の上限は設けない。
 	let cellSize = 2.0 * (extent / uniforms.resolution) / density;

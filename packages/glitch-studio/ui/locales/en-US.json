@@ -131,6 +131,7 @@
 			"Color": "Color",
 			"Vector": "Vector",
 			"Enum": "Enum",
+			"SizeReference": "Size Reference",
 			"Image": "Image"
 		}
 	},
@@ -143,6 +144,12 @@
 		"PROGRESS": "Progress",
 		"RESOLUTION": "Effect rendering resolution [width, height]",
 		"IS_EXPORT": "Whether it is an export rendering"
+	},
+	"_SizeReferences": {
+		"height": "Height",
+		"width": "Width",
+		"shortSide": "Short Side",
+		"longSide": "Long Side"
 	},
 	"_FitModes": {
 		"stretch": "Stretch",

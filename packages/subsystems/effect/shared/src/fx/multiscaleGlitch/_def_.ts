@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'distortion', 'color', 'stylized', 'experimental'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
@@ -33,7 +34,7 @@ export default defineEffect({
 		fineScale: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Fine Scale (% of Short Side)',
+				label: 'Fine Scale (% of Reference)',
 				control: {
 					controlType: 'range',
 					min: 0.1,
@@ -46,7 +47,7 @@ export default defineEffect({
 		coarseScale: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Coarse Scale (% of Short Side)',
+				label: 'Coarse Scale (% of Reference)',
 				control: {
 					controlType: 'range',
 					min: 1,

@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'math', 'sdf'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		inputA: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'A', control: { controlType: 'number', step: 0.01 } },
@@ -30,7 +31,7 @@ export default defineEffect({
 		},
 		smoothing: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Smoothing (Height Units)', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } },
+			ui: { label: 'Smoothing (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 	},

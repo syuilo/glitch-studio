@@ -1,3 +1,4 @@
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -30,10 +31,7 @@ export default implementEffect<typeof definition>({
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
 				const shortDimension = Math.min(output.width, output.height);
-				// Checkerと同じく回転後のローカルX軸に周期を配置する。
-				// StripeはX方向のみ繰り返すため、stretchの基準は画面幅になる。
-				const extent = ctx.params.fitMode === 'stretch' ? output.width
-					: ctx.params.fitMode === 'cover' ? Math.max(output.width, output.height) : shortDimension;
+				const extent = getSizeReferenceLength(ctx.params.sizeReference, output);
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
 					referenceExtent: extent / shortDimension,

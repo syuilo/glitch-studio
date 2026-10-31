@@ -17,6 +17,7 @@ export function genEmptyValue(paramDef: EmptyValueDefinition): any {
 		case 'string': return '';
 		case 'blendMode': return 'normal';
 		case 'fitMode': return 'stretch';
+		case 'sizeReference': return 'longSide';
 		case 'wrapMode': return 'repeatMirrored';
 		case 'vector': return [0, 0];
 		case 'color': return [0, 0, 0, 1];

@@ -11,9 +11,10 @@ export default defineEffect({
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal', 'pixel'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		blockSize: { dataType: { kind: 'scalar' }, ui: { label: 'Block Size (% of Short Side)', control: { controlType: 'range', min: 1, max: 30, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 8 } },
+		blockSize: { dataType: { kind: 'scalar' }, ui: { label: 'Block Size (% of Reference)', control: { controlType: 'range', min: 1, max: 30, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 8 } },
 		blockOrigin: {
 			dataType: { kind: 'enum', options: ['topLeft', 'center'] },
 			ui: { label: 'Block Origin', control: { labels: { topLeft: 'Top Left', center: 'Image Center' } } },

@@ -226,7 +226,7 @@ export async function run() {
 								input,
 								density: constantShaderInput('vector', [2, 4 / 3]),
 								amount: selection,
-								fitMode: 'contain',
+								sizeReference: 'shortSide',
 								seed: 123,
 								randomSwap: false,
 								randomRotation: false,

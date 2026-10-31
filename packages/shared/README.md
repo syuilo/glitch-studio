@@ -11,6 +11,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 ## データ型・パラメータ・式の共通基盤
 
 - `src/data-type`: 値の型と、その型に対応する編集UIのメタデータ。UIメタデータは`data-type-ui.ts`に分け、Vueコンポーネントやパラメータの初期値を含めない。
+- `src/size-reference.ts`: Height・Width・Short Side・Long Sideを表す`SizeReference`と基準寸法の換算。専用の`sizeReference`型として使用し、パラメータの既定値はLong Side。各パラメータをどのように換算するかは利用側が決める。
 - `src/parameter`: パラメータ定義・Binding・初期値・ツリー操作・CPU値の評価。`parameter-path.ts`は編集対象を識別するIDパス、`parameter-tree.ts`は評価後の配列をたどるindexのパスを扱う。
 - `src/expression`: AiScriptの構文・ASTキャッシュ・式の実行。変数と関数は呼び出し側から明示し、Visual ModuleやTimelineを参照しない。
 - `src/automation-graph`: グラフの定義・再生設定・補間。`GRAPH`への公開はパラメータ評価器が担当する。

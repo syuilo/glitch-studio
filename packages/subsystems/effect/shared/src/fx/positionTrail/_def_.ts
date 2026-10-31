@@ -11,6 +11,7 @@ export default defineEffect({
 	dependsOnRenderHistory: true,
 	tags: ['temporal', 'utility'],
 	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		// 発生源は単一の座標とし、画素ごとに異なる位置を持つvector場の接続は受け付けない。
 		// Positionは画面座標で指定し、移動量も同じ座標系で前回描画値との差分から求める。
 		position: {

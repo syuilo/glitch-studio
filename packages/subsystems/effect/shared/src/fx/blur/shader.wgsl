@@ -5,6 +5,7 @@ fn rand(seed: vec2f) -> f32 {
 
 struct Uniforms {
 	aspectRatio: f32,
+	referenceToPosition: vec2f,
 	samples: u32,
 };
 
@@ -30,9 +31,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let rotation = -read_rotation(fragData.uv) * 6.283185307179586;
 	let cosine = cos(rotation);
 	let sine = sin(rotation);
-	// 縦横とも従来のAmountと同じ距離単位で伸縮・回転してから比率を補正する。
+	// 縦横とも選択した基準寸法で伸縮・回転してから画面座標へ換算する。
 	// 比率補正を先に行うと、長方形の出力で回転時に楕円の形が歪んでしまう。
-	let aspectCorrection = vec2f(1.0, uniforms.aspectRatio);
+	let aspectCorrection = uniforms.referenceToPosition;
 	let horizontalAxis = vec2f(cosine, sine) * radii.x * aspectCorrection;
 	let verticalAxis = vec2f(-sine, cosine) * radii.y * aspectCorrection;
 
