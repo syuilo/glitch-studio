@@ -92,7 +92,9 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 		// 【入れ子の不透明度は各グループの合成後に適用する】
 		// 親の青を子の背景へ流すと結果が変わる。時刻も素材の内容時刻へ変換してはいけない。
 		const first = await check('nested groups isolate backgrounds and apply each opacity once', 150, [64, 0, 191, 255]);
-		if (first.gpuTime !== 7 || JSON.stringify(contexts[0].input) !== JSON.stringify(transparent)
+		// 下層入力は別レイヤー参照のため遅延取得する契約なので、保存済みのinputではなく
+		// getInput()の結果を検証する。親背景から隔離されるという確認内容は変えない。
+		if (first.gpuTime !== 7 || JSON.stringify(await contexts[0].getInput()) !== JSON.stringify(transparent)
 			|| contexts[0].sceneTimeMs !== 150 || contexts[0].contentTimeMs !== 75 || !contexts[0].isExport) throw new Error('Invalid group evaluation context');
 		await check('groups preserve child histories between active frames', 175, [64, 0, 191, 255], 25);
 		if (contexts[1].timeDelta !== 25 || destroyed.length !== 0) throw new Error('Active child history was reset');
