@@ -371,7 +371,7 @@ test('cancels file selection and rejects an import after the project generation 
 });
 
 // 【選択したファイルから登録し、読めないファイルでは既存の状態を保つ】
-// codecとCommandを個別に検証するだけでは、ファイル読み出しをつなぐUI側の失敗を見落とす。
+// codecとCommandを個別に検証するだけでは、ファイル読み出しを繋ぐUI側の失敗を見落とす。
 // 実際のFileからの取り込みを通して新しい登録IDと表示名を確認し、失敗時には履歴を増やさない。
 test('imports a selected file and preserves existing state when the next file cannot be decoded', async t => {
 	const context = new ProjectContext();

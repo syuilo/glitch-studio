@@ -215,7 +215,7 @@ export async function run() {
 			checks.push(`${label}: finite output saturation and precision`);
 
 			// 【Shape SDFからSDF to Maskまでの接続】離れた円の隙間が滑らかなUnionで
-			// つながることを確認し、合成した距離場をそのままマスクへ渡す。
+			// 繋がることを確認し、合成した距離場をそのままマスクへ渡す。
 			const resolution = { width: 65, height: 65 };
 			const wgpu = gpuContext(precise);
 			const shapeInputs = [];

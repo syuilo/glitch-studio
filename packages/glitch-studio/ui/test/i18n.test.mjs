@@ -50,7 +50,7 @@ function configureStorage(t, language) {
 }
 
 // 【すべての言語で翻訳キーと補間パラメータを揃える】
-// 一方の辞書だけへのキー追加や、翻訳中のパラメータ名の変更は、実行時の表示欠落につながる。
+// 一方の辞書だけへのキー追加や、翻訳中のパラメータ名の変更は、実行時の表示欠落に繋がる。
 test('keeps locale keys and interpolation parameters aligned', () => {
 	function flatten(locale, prefix = '') {
 		return Object.fromEntries(Object.entries(locale).flatMap(([key, value]) => typeof value === 'string'

@@ -63,7 +63,7 @@ test('preserves wiring when disabled even after enabling before redo', () => {
 	assert.deepEqual(f.visualModule, after);
 });
 
-// 【登録済み・インラインの主出力を追加ノードへつなぎ、副出力の接続元も維持する】
+// 【登録済み・インラインの主出力を追加ノードへ繋ぎ、副出力の接続元も維持する】
 // 主出力以外の配線を変えず、Undoで元へ戻す。設定を無効にしてもRedoは追加時の接続を復元する。
 test('connects primary ports and preserves secondary source ports through undo and redo', () => {
 	for (const inline of [false, true]) {

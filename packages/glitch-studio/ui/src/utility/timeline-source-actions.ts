@@ -45,7 +45,7 @@ type TimelineSourceActionsOptions = {
 	reportError: (error: unknown) => void;
 };
 
-/** 素材・Sceneの選択、クリップの追加・差し替え、レイヤー追加をCommandへつなぐ。DOMとピッカーの寿命は呼び出し側が所有する。 */
+/** 素材・Sceneの選択、クリップの追加・差し替え、レイヤー追加をCommandへ繋ぐ。DOMとピッカーの寿命は呼び出し側が所有する。 */
 export function createTimelineSourceActions(options: TimelineSourceActionsOptions) {
 	const {
 		stateManager,

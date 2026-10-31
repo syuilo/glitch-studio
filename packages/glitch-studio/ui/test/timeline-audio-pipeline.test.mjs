@@ -152,7 +152,7 @@ test('matches playback worker PCM and export PCM across seeks and nested scene t
 	assert.deepEqual(exported[1], exported[0].map(value => value === 0 ? 0 : -value / 2));
 });
 
-// 【再生ループをまたぐ先読みがScene末尾と先頭を欠落なくつなぐ】
+// 【再生ループをまたぐ先読みがScene末尾と先頭を欠落なく繋ぐ】
 // デコードキャッシュとTimelineミキサーを分離しても、ループ開始で素材オフセットや
 // 音量の時計を継続してはいけない。書き出したScene全体の該当区間と比較する。
 test('joins the scene end and beginning when a playback packet crosses the loop boundary', { timeout: 10000 }, async () => {

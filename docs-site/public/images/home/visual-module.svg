@@ -14,7 +14,7 @@
   <g font-family="sans-serif" fill="#f4f4f8">
     <text x="80" y="220" fill="#ff9d33" font-size="18" letter-spacing="4">GLITCH STUDIO / 01</text>
     <text x="80" y="290" font-size="46" font-weight="700">Visual Module</text>
-    <text x="80" y="338" font-size="23" fill="#b8b8c4">ノードをつなぎ、表現をつくる。</text>
+    <text x="80" y="338" font-size="23" fill="#b8b8c4">ノードを繋ぎ、表現をつくる。</text>
     <text x="594" y="220" font-size="20">Noise</text>
     <text x="594" y="390" font-size="20">Color</text>
     <text x="854" y="320" font-size="20">Output</text>

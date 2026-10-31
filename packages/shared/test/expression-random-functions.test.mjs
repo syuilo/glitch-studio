@@ -72,7 +72,7 @@ test('distinguishes high integer bits and does not repeat at short lattice perio
 	}
 });
 
-// 【格子点でも勾配と加速度が滑らかにつながる】
+// 【格子点でも勾配と加速度が滑らかに繋がる】
 // 値だけを連続にしても、区間ごとの停止や速度の飛びがあると揺れが不自然になる。
 // 負の境界も含め、Perlin Noiseの格子点で値が0になり、勾配が左右で一致することを確認する。
 test('keeps gradients continuous across positive and negative lattice boundaries', () => {

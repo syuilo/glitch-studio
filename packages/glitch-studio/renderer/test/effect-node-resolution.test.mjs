@@ -50,7 +50,7 @@ test('applies local scales to each automatic source and to context dimensions', 
 });
 
 // 【入力追従の倍率は累積し、コンテキスト指定では上流の倍率から独立する】
-// 自動×0.5を二つつないだ場合は1/4になるが、全体のプレビュー倍率まで累積してはならない。
+// 自動×0.5を二つ繋いだ場合は1/4になるが、全体のプレビュー倍率まで累積してはならない。
 test('accumulates local scales along automatic inputs while context remains independent', () => {
 	const first = resolve({ setting: { mode: 'auto', scale: 0.5 }, intrinsicResolution: { width: 1920, height: 1080 } });
 	assert.deepEqual(first, { width: 480, height: 270 });

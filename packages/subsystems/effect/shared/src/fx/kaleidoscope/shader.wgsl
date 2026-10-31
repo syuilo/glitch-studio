@@ -61,11 +61,11 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	var sourceRadius = radius;
 	if (uniforms.radialRepeat > 0.0) {
 		// 1周期で入力の中心から外へ進み、同じ経路を戻る三角波にする。
-		// 周期境界でも入力の参照位置がつながるため、同心円状の切れ目を作らない。
+		// 周期境界でも入力の参照位置が繋がるため、同心円状の切れ目を作らない。
 		// 位相を差し引くことで、値を増やすと模様が外側へ移動する。
 		let radialCycle = fract(radius * uniforms.radialRepeat - uniforms.radialPhase);
 		// 周波数で割って周期内の倍率を保つ。位相0では周波数を0に近づけると
-		// 最初の折り返しが遠ざかり、反復なしの半径に自然につながる。
+		// 最初の折り返しが遠ざかり、反復なしの半径に自然に繋がる。
 		// 小さい周波数でも桁落ちしにくい形で計算する。
 		sourceRadius = min(radialCycle, 1.0 - radialCycle) / uniforms.radialRepeat;
 	}

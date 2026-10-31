@@ -426,7 +426,7 @@
 		"Title": "環境設定",
 		"Language": "言語",
 		"VisualModuleAutoConnectOnNodeAdd": "追加したノードを自動接続する",
-		"VisualModuleAutoConnectOnNodeAddHint": "接続可能な場合、現在の主出力の接続元を追加したノードの主入力につなぎ、主出力を追加したノードに切り替えます。",
+		"VisualModuleAutoConnectOnNodeAddHint": "接続可能な場合、現在の主出力の接続元を追加したノードの主入力に繋ぎ、主出力を追加したノードに切り替えます。",
 		"Rendering": "レンダリング",
 		"PreviewDisplayMode": "プレビューの表示方式",
 		"PreviewDisplayGpu": "GPU経由",

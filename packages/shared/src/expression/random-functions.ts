@@ -44,7 +44,7 @@ function noise(...args: unknown[]): number {
 	// 値自体を補間するValue Noiseと異なり、格子点を越えても勾配を保つので、そこで毎回停止しない。
 	const leftGradient = hashSample(leftIndex, seed) / UINT32_RANGE * 2 - 1;
 	const rightGradient = hashSample(leftIndex + 1, seed) / UINT32_RANGE * 2 - 1;
-	// 5次の補間率は端点で1階・2階微分が0になるため、区間の境界でも滑らかにつながる。
+	// 5次の補間率は端点で1階・2階微分が0になるため、区間の境界でも滑らかに繋がる。
 	const weight = fraction * fraction * fraction * (fraction * (fraction * 6 - 15) + 10);
 	// 勾配の絶対値は1以下で、補間後の絶対値は最大1/2。2倍して出力を-1〜1に収める。
 	return 2 * ((1 - weight) * leftGradient * fraction + weight * rightGradient * (fraction - 1));
