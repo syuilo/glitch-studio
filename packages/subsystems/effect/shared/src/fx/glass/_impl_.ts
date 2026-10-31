@@ -38,14 +38,20 @@ export default implementEffect<typeof definition>({
 				// シェーダーで元の入力領域の矩形と交差させ、余白の距離と勾配も保つ。
 				const distanceInput = transparentSdf ? { ...sdf, wrapMode: 'clamp' as const } : sdf;
 				const angle = params.lightAngle * Math.PI * 2;
+				const aspectRatio = output.width / output.height;
+				// 差分幅を入力の1画素より狭くすると、低解像度SDFやnearest入力で
+				// 勾配がほぼ0になる。出力・入力の大きい方の1画素を最小半径にする。
+				const pixelGradientStep = sdf.kind === 'texture'
+					? [Math.max(2 / output.width, 2 / (sdf.texture.width * sdfScale[0])), Math.max(2 / output.height, 2 / (sdf.texture.height * sdfScale[1]))]
+					: [2 / output.width, 2 / output.height];
+				const normalSmoothing = Number.isFinite(params.normalSmoothing) ? Math.max(0, params.normalSmoothing) : 0;
 				uniformValues.set({
 					sdfScale,
-					// 差分幅を入力の1画素より狭くすると、低解像度SDFやnearest入力で
-					// 勾配がほぼ0になる。出力・入力の大きい方の1画素を使う。
-					gradientStep: sdf.kind === 'texture'
-						? [Math.max(2 / output.width, 2 / (sdf.texture.width * sdfScale[0])), Math.max(2 / output.height, 2 / (sdf.texture.height * sdfScale[1]))]
-						: [2 / output.width, 2 / output.height],
-					aspectRatio: output.width / output.height,
+					// 高さ基準の半径を画面座標[-1,+1]へ変換し、Xだけ縦横比を補正する。
+					// SDF自体は変えず、屈折方向・照明用の上下左右4点だけを遠くへ移す。
+					// 0では従来の差分幅を維持し、サンプル数・パス・中間テクスチャも増やさない。
+					gradientStep: [Math.max(pixelGradientStep[0], 2 * normalSmoothing / aspectRatio), Math.max(pixelGradientStep[1], 2 * normalSmoothing)],
+					aspectRatio,
 					transparentSdf: transparentSdf ? 1 : 0,
 					refractionModel: { quadratic: 0, curvedSurface: 1 }[params.refractionModel],
 					refraction: Math.max(0, params.refraction),

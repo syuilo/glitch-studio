@@ -49,7 +49,7 @@ export async function run() {
 	const scalar = (value: number) => constantShaderInput('scalar', value);
 	const color = (value: number[]) => constantShaderInput('color', value);
 	const defaults: Parameters = {
-		input: color([0, 0, 0, 0]), sdf: scalar(65504), refraction: 1, thickness: 0.03, edgeSoftness: 0.0015,
+		input: color([0, 0, 0, 0]), sdf: scalar(65504), refraction: 1, thickness: 0.03, edgeSoftness: 0.0015, normalSmoothing: 0,
 		refractionModel: 'quadratic', curvature: 4, ior: 1.5,
 		blur: 0, blurSamples: 24, aberration: 0.5, aberrationSamples: 3, innerZoom: 1, innerZoomCenter: [0, 0], lightAngle: 300 / 360,
 		highlight: 0.05, highlightColor: [1, 1, 1, 1], highlightSoftness: 0.5,
@@ -138,10 +138,10 @@ export async function run() {
 		return textureShaderInput(output, sampling());
 	}
 
-	function maskDistance(precise: boolean) {
+	function maskDistance(precise: boolean, maskInput: ShaderInput | null = null) {
 		const resolution = { width: 64, height: 64 };
 		const wgpu = gpuContext(precise);
-		const params = { input: field(64, 64, precise, (u, v) => Math.abs(u - 0.5) < 0.25 && Math.abs(v - 0.5) < 0.25 ? 1 : 0), threshold: 0.5, invert: false };
+		const params = { input: maskInput ?? field(64, 64, precise, (u, v) => Math.abs(u - 0.5) < 0.25 && Math.abs(v - 0.5) < 0.25 ? 1 : 0), threshold: 0.5, invert: false };
 		const output = maskImplementation.outputTextureFactories.output({ wgpu, resolution });
 		const effect = maskImplementation.init({ wgpu, resolution, params, fallbackTexture: output, reportStatus: () => {} });
 		const encoder = device.createCommandEncoder();
@@ -160,6 +160,7 @@ export async function run() {
 		assert(definition.paramDefs.innerZoomCenter.defaultValue.value.join(',') === '0,0', 'independent zoom center defaults');
 		assert(definition.paramDefs.refractionModel.defaultValue.value === 'quadratic' && definition.paramDefs.refractionModel.dataType.options.join(',') === 'quadratic,curvedSurface', 'refraction models and unchanged default');
 		assert(definition.paramDefs.curvature.defaultValue.value === 4 && definition.paramDefs.ior.defaultValue.value === 1.5, 'curved surface defaults');
+		assert(definition.paramDefs.normalSmoothing.defaultValue.value === 0 && definition.paramDefs.normalSmoothing.ui.control.min === 0, 'normal smoothing is disabled by default');
 		assert(definition.paramDefs.blurSamples.defaultValue.value === 24 && definition.paramDefs.aberrationSamples.defaultValue.value === 3, 'unchanged blur and three-point aberration defaults');
 		assert(definition.paramDefs.aberrationSamples.ui.control.min === 3 && definition.paramDefs.aberrationSamples.ui.control.max === 64 && definition.paramDefs.aberrationSamples.ui.label === 'Aberration Samples', 'aberration sample count describes the entire dispersion range');
 		assert(Object.entries(definition.paramDefs).filter(([, param]) => 'canNode' in param && param.canNode).map(([name]) => name).join(',') === 'input,sdf', 'only image and SDF are node inputs');
@@ -294,6 +295,86 @@ export async function run() {
 			const switchedBack = await render(refractParams, 12.5);
 			assert(quadraticReference.every((value, index) => value === switchedBack[index]), 'switching back restores every quadratic pixel');
 			checks.push(`${label}: curved gradient direction resolution aspect and model switching`);
+
+			// 【法線の平滑化0は従来どおりで、差分幅を広げても平面の屈折量を保つ】
+			// 負値・非有限値・1画素未満の指定で既定の描画が変わらず、
+			// 広い差分幅でも分母を正しく変え、勾配の大きさを増幅しないことを確認する。
+			for (const refractionModel of ['quadratic', 'curvedSurface'] as const) {
+				const parameters = { ...refractParams, refractionModel };
+				const reference = await render(parameters);
+				for (const normalSmoothing of [0, -1, 0.001, Number.NaN, Number.POSITIVE_INFINITY]) {
+					const values = await render({ ...parameters, normalSmoothing });
+					assert(reference.every((value, index) => value === values[index]), 'inactive or subpixel normal smoothing preserves every pixel');
+				}
+				for (const normalSmoothing of [0.03125, 0.0625]) {
+					const values = await render({ ...parameters, normalSmoothing });
+					rgbaNear(pixel(values, 64, 32, 32), pixel(reference, 64, 32, 32), 'wider finite differences preserve planar refraction strength');
+				}
+			}
+			checks.push(`${label}: zero normal smoothing compatibility and planar gradient strength`);
+
+			// 【法線用の半径は高さ基準で、縦横比・解像度・方向によらず同じ範囲を参照する】
+			// 平面へ既知の周期の小さな凹凸を加える。差分幅rによる接線方向の勾配は
+			// amplitude*sin(2*pi*r/period)/rとなり、Xの縦横比補正や分母の誤りを検出できる。
+			const normalRadius = 0.03125;
+			const rippleAmplitude = 0.00390625;
+			const ripplePeriod = 0.125;
+			const tangentialSlope = rippleAmplitude * Math.sin(2 * Math.PI * normalRadius / ripplePeriod) / normalRadius;
+			for (const [width, height] of [[64, 64], [128, 64], [128, 128]]) {
+				const sizedRender = createEffect(width, height, precise, format);
+				const centerU = (width / 2 + 0.5) / width;
+				const centerV = (height / 2 + 0.5) / height;
+				for (const verticalNormal of [false, true]) {
+					const rippledPlane = field(width, height, precise, (u, v) => {
+						const horizontal = (u - centerU) * width / height;
+						const vertical = centerV - v;
+						return (verticalNormal ? vertical : horizontal) - depth + rippleAmplitude * Math.sin(2 * Math.PI * (verticalNormal ? horizontal : vertical) / ripplePeriod);
+					});
+					for (const refractionModel of ['quadratic', 'curvedSurface'] as const) {
+						const displacementStrength = refractionModel === 'quadratic' ? strength : curvedStrength;
+						const length = refractionModel === 'quadratic' ? 1 : Math.hypot(1, tangentialSlope);
+						const gradientX = (verticalNormal ? tangentialSlope : 1) / length;
+						const gradientY = (verticalNormal ? 1 : tangentialSlope) / length;
+						const values = await sizedRender({ ...refractParams, input: gradientImage(width, height), sdf: rippledPlane, refractionModel, normalSmoothing: normalRadius });
+						rgbaNear(pixel(values, width, width / 2, height / 2), [centerU - displacementStrength * gradientX * height / width, centerV + displacementStrength * gradientY, centerU - displacementStrength * gradientX * height / width, 1], 'normal smoothing radius uses isotropic height units');
+					}
+				}
+			}
+			checks.push(`${label}: normal smoothing radius resolution aspect and directional consistency`);
+
+			// 【画像由来の円形マスクで、輪郭を変えずに法線の揺れを抑える】
+			// Mask to SDFを実際に経由し、屈折後の色勾配から参照位置の変位方向を読み戻す。
+			// 距離誤差による強度差を除くため方向を正規化して、既知の円の半径方向と比較する。
+			const rasterCircle = maskDistance(precise, field(64, 64, precise, (u, v) => Math.max(0, Math.min(1, 0.5 - (Math.hypot(u - 0.5, v - 0.5) - 0.3) * 64))));
+			const meanNormalError = (values: Float32Array) => {
+				let totalAngle = 0;
+				let count = 0;
+				for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+					const u = (x + 0.5) / 64;
+					const v = (y + 0.5) / 64;
+					const radius = Math.hypot(u - 0.5, 0.5 - v);
+					const inset = 0.3 - radius;
+					if (inset < 1 / 64 || inset > 4 / 64) continue;
+					const index = (y * 64 + x) * 4;
+					const horizontal = u - values[index];
+					const vertical = values[index + 1] - v;
+					const cosine = (horizontal * (u - 0.5) + vertical * (0.5 - v)) / (Math.hypot(horizontal, vertical) * radius);
+					totalAngle += Math.acos(Math.max(-1, Math.min(1, cosine)));
+					count++;
+				}
+				assert(count > 100 && Number.isFinite(totalAngle), 'enough finite normal directions near the raster contour');
+				return totalAngle / count;
+			};
+			for (const refractionModel of ['quadratic', 'curvedSurface'] as const) {
+				const parameters = { ...refractParams, sdf: rasterCircle, refractionModel, refraction: 2, cutout: true };
+				const original = await render(parameters);
+				const smoothed = await render({ ...parameters, normalSmoothing: 0.0625 });
+				assert(smoothed.every((value, index) => index % 4 !== 3 || value === original[index]), 'normal smoothing preserves contour coverage and AA');
+				const originalError = meanNormalError(original);
+				const smoothedError = meanNormalError(smoothed);
+				assert(smoothedError < originalError * 0.7, `${label} ${refractionModel} raster normal error decreases: ${originalError} -> ${smoothedError}`);
+			}
+			checks.push(`${label}: smoother mask-derived normals with identical contour coverage`);
 
 			// 【色収差は屈折ベクトルに沿って赤青を反対方向へずらす】
 			// RGBを単に同じ画像位置から取ったり、透明な緑の位置で赤青を失ったりしない。

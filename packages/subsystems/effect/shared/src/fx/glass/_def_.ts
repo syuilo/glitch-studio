@@ -53,6 +53,11 @@ export default defineEffect({
 			ui: { label: 'Edge Softness (Height Units)', control: { controlType: 'range', min: 0, max: 0.05, step: 0.0001 } },
 			defaultValue: { inputSource: 'literal', value: 0.0015 },
 		},
+		normalSmoothing: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Normal Smoothing (Height Units)', control: { controlType: 'range', min: 0, max: 0.02, step: 0.0001 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
 		blur: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Blur Radius (Height Units)', control: { controlType: 'range', min: 0, max: 0.05, step: 0.0001 } },
