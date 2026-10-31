@@ -23,7 +23,7 @@
 			</template>
 			<template v-else><span style="left: 0">−{{ (displaySeconds * 1000).toFixed(1) }} ms</span><span style="right: 0">0</span></template>
 		</div>
-		<div v-if="!analysisEnabled" :class="$style.disabledHint" data-test-audio-monitor-disabled>{{ i18n.ts._AudioMonitor.DisabledHint }}</div>
+		<div v-if="!analysisEnabled" :class="$style.disabledHint" data-test-audio-monitor-disabled>{{ i18n.ts.AnalysisDisabled }}</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsDetachableView>

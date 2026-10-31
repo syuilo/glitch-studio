@@ -2,18 +2,18 @@
 <GsDetachableView :title="i18n.ts._Workspace.AudioSpectrogram" :suspended="renderingSuspended" @changeWindow="changeWindow">
 	<div :class="$style.root">
 		<canvas v-show="analysisEnabled && !renderingSuspended" ref="canvas" :class="$style.canvas" data-test-audio-spectrogram-canvas></canvas>
-		<div v-if="!analysisEnabled" :class="$style.disabledHint" data-test-audio-spectrogram-disabled>{{ i18n.ts._AudioMonitor.DisabledHint }}</div>
+		<div v-if="!analysisEnabled" :class="$style.disabledHint" data-test-audio-spectrogram-disabled>{{ i18n.ts.AnalysisDisabled }}</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsDetachableView>
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import type { SpectrogramSettings } from '@gs/subsystems_effect_shared/audio-spectrogram/audio-spectrogram.ts';
 import type { PreviewOptions } from '@/audio/audio-preview-types.ts';
+import { i18n } from '@/i18n.ts';
 import { useAudioPreview } from '@/use-audio-preview.ts';
 
 const props = defineProps<{ options?: Partial<SpectrogramSettings> }>();

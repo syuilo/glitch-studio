@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<div v-if="!renderingStatsEnabled" data-test-rendering-stats-disabled>{{ i18n.ts._Stats.DisabledHint }}</div>
+	<div v-if="!renderingStatsEnabled" data-test-rendering-stats-disabled>{{ i18n.ts.StatsDisabled }}</div>
 	<div v-show="renderingStatsEnabled" :class="$style.legend">
 		<div v-for="item in series" :key="item.key" :title="item.description" :data-test-rendering-stat="item.key" :class="$style.legendItem">
 			<span style="width: 8px; height: 2px;" :style="{ backgroundColor: item.color }"></span>

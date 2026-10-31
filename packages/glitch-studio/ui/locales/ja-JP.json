@@ -348,8 +348,7 @@
 		"AccessDenied": "ローカルフォントへのアクセスが許可されていません。ブラウザーのサイト設定で許可するか、「アセットを追加」からフォントファイルをインポートしてください。"
 	},
 	"_AudioMonitor": {
-		"Overlay": "左右のチャンネルを重ねる",
-		"DisabledHint": "解析は無効です。フッターのアナライズから有効にできます。"
+		"Overlay": "左右のチャンネルを重ねる"
 	},
 	"_Workspace": {
 		"AudioSpectrum": "音声スペクトラム",
@@ -461,7 +460,6 @@
 		"SelectFolderDescription": "{name}を含むフォルダーを選択してください。このフォルダーでバックアップを作成し、保存期間を過ぎたバックアップを削除します。"
 	},
 	"_Stats": {
-		"DisabledHint": "計測は無効です。フッターのStatsから有効にできます。",
 		"FrameDuration": "フレーム全体",
 		"FrameDurationDescription": "描画開始からGPU処理が完了するまでの経過時間です。CPU経由では画像の読み戻し・変換も含みますが、UIでの表示処理は含みません。描画要求の順番待ちは除きます。複数フレームのGPU待機は重なるため、この値の逆数はFPSとは一致しません。",
 		"VideoSampleWait": "動画取得待ち",
@@ -827,5 +825,7 @@
 	"Replace": "置き換え",
 	"Import": "インポート",
 	"Search": "検索",
-	"Metadata": "メタデータ"
+	"Metadata": "メタデータ",
+	"StatsDisabled": "統計が無効になっています",
+	"AnalysisDisabled": "解析が無効になっています"
 }
