@@ -86,18 +86,7 @@ export async function run() {
 		assert(definition.paramDefs.operation.dataType.options.join(',') === 'union,intersection,difference', 'operation scope');
 		checks.push('scalar SDF input output and operation contract');
 
-		// 【両方の入力から自動解像度を選ぶ】Bだけがテクスチャの場合も参照し、
-		// 同画素数ではAを優先して縦横を別々の入力から混ぜない。
-		const landscape = inputTexture(8, 4, Array(32).fill(0));
-		const portrait = inputTexture(4, 8, Array(32).fill(0));
-		const small = inputTexture(4, 4, Array(16).fill(0));
-		const inputResolution = (parameters: Partial<Parameters>) => implementation.getInputResolution!({ ...defaults, ...parameters });
-		assert(inputResolution({}) === null, 'constants use render resolution');
-		assert(inputResolution({ inputB: landscape })?.width === 8, 'texture only in B');
-		assert(inputResolution({ inputA: small, inputB: landscape })?.width === 8, 'largest texture in B');
-		assert(inputResolution({ inputA: landscape, inputB: portrait })?.width === 8, 'equal areas prefer A');
-		assert(inputResolution({ inputA: portrait, inputB: landscape })?.height === 8, 'equal areas retain aspect ratio');
-		checks.push('automatic resolution from both inputs');
+		assert(definition.resolutionInputParameters.join(',') === 'inputA,inputB', 'static resolution inputs');
 
 		for (const precise of supports32bit ? [false, true] : [false]) {
 			const label = precise ? '32bit' : '16bit';

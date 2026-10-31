@@ -9,6 +9,7 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
+		"./visual-module-resolutions.ts": "./src/visual-module-resolutions.ts",
 		"./visual-module-renderer.ts": "./src/visual-module-renderer.ts",
 		"./visual-module-live-preview-render-loop.ts": "./src/visual-module-live-preview-render-loop.ts"
 	},
@@ -23,7 +24,6 @@
 		"@gs/subsystems_effect_shared": "workspace:*",
 		"@gs/shared": "workspace:*",
 		"@gs/subsystems_visual-module_shared": "workspace:*",
-		"@gs/subsystems_audio_shared": "workspace:*",
-		"@gs/subsystems_audio_renderer": "workspace:*"
+		"@gs/subsystems_audio_shared": "workspace:*"
 	}
 }

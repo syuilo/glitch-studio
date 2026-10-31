@@ -21,7 +21,7 @@ export function genEmptyValue(paramDef: EmptyValueDefinition): any {
 		case 'vector': return [0, 0];
 		case 'color': return [0, 0, 0, 1];
 		case 'colorRamp': return createDefaultColorRamp();
-		case 'any': case 'imageAssetTextureReference': case 'assetReference': case 'playerReference': case 'audioSource': return null;
+		case 'any': case 'audioSource': return null;
 		case 'array': return [];
 		case 'struct': {
 			if (!('fields' in paramDef)) throw new Error('Struct parameter settings are required');

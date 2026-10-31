@@ -1,3 +1,5 @@
+import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
+import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import imageEffect from '@gs/subsystems_effect_shared/fx/image/_def_.ts';
 import videoEffect from '@gs/subsystems_effect_shared/fx/video/_def_.ts';
 import audioWaveformEffect from '@gs/subsystems_effect_shared/fx/audioWaveform/_def_.ts';
@@ -29,8 +31,9 @@ export function createVisualModuleAssetNode(asset: Asset, players: readonly Play
 		}
 	}
 	const params: VisualModuleEffectNode['params'] = deepClone(Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, def.defaultValue])));
-	if (definition === imageEffect) params.image = { inputSource: 'literal', value: asset.id };
-	else if (definition === videoEffect) params.player = { inputSource: 'literal', value: playerId };
+	const staticSettings: StaticSettingValues = createStaticSettingValues(definition.staticSettingDefs ?? {});
+	if (definition === imageEffect) staticSettings.image = asset.id;
+	else if (definition === videoEffect) staticSettings.player = playerId;
 	else params.audio = { inputSource: 'literal', value: { type: 'player', playerId: playerId! } };
 	return {
 		player,
@@ -43,6 +46,7 @@ export function createVisualModuleAssetNode(asset: Asset, players: readonly Play
 			resolution: { mode: 'auto', scale: 1 },
 			pos: { x: 0, y: 0 },
 			params,
+			staticSettings,
 		},
 	};
 }

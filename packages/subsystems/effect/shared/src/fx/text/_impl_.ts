@@ -5,6 +5,7 @@ import { layoutText } from './layout.ts';
 import { createTextShadowMaskRenderer } from './shadow.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
+import type { RuntimeEffectParameters } from '../../effect-implementation.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -14,12 +15,10 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, params, reportStatus }) => {
+	init: ({ wgpu, reportStatus, resources }) => {
 		const canvas = new OffscreenCanvas(1, 1);
 		const context = canvas.getContext('2d');
 		if (context == null) throw new Error('Could not create a text canvas.');
-		const font = createTextFontLoader(reportStatus);
-		const prepare = (nextParams: typeof params) => font.prepare(nextParams.font?.fileData ?? null);
 		const maskLayout = wgpu.device.createBindGroupLayout({
 			entries: [
 				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
@@ -40,12 +39,12 @@ export default implementEffect<typeof definition>({
 		let maskKey: string | null = null;
 		let shadowRenderer: ReturnType<typeof createTextShadowMaskRenderer> | null = null;
 
-		function updateMask(values: typeof params, width: number, height: number) {
+		function updateMask(values: RuntimeEffectParameters<typeof definition.paramDefs>, width: number, height: number) {
 			// 式の結果は数値などにもなり得るため、描画とキャッシュには文字列化した値を使う。
 			const text = String(values.text).trim();
 			// 色のアニメーションや接続先の更新では、Canvas描画と転送を繰り返さない。
 			const key = JSON.stringify([
-				font.cacheVersion, width, height, text, values.size, values.outlineWidth,
+				width, height, text, values.size, values.outlineWidth,
 				values.position, values.align, values.lineHeight, values.overflow, values.maxWidth,
 				values.shadowEnabled ? [values.shadowBlur, values.shadowOffset] : null,
 			]);
@@ -158,12 +157,10 @@ export default implementEffect<typeof definition>({
 			maskKey = key;
 		}
 
-		prepare(params);
+		const font = createTextFontLoader(resources.font ?? null, reportStatus);
 		return {
 			get cacheVersion() { return font.cacheVersion; },
-			prepare,
 			render: ctx => {
-				prepare(ctx.params);
 				const output = ctx.outputDataMap.output;
 				if (!font.ready) {
 					const pass = ctx.createPassEncoder(ctx.commandEncoder, {

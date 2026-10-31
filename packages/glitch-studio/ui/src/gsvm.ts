@@ -1,3 +1,5 @@
+import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
+import { createStaticSettingValues, validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { readFileSource } from '@gs/shared/file-source.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
@@ -13,7 +15,7 @@ import type { VisualModule, VisualModuleParameterBinding } from '@gs/subsystems_
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { ProjectAsset } from './Project.ts';
 
-type EffectDefinitions = Readonly<Record<string, Pick<EffectDefinition, 'paramDefs'>>>;
+type EffectDefinitions = Readonly<Record<string, Pick<EffectDefinition, 'paramDefs' | 'staticSettingDefs'>>>;
 
 export type VisualModuleFile = {
 	kind: 'glitch-studio-visual-module';
@@ -34,54 +36,41 @@ export type VisualModuleImport = {
 
 type ResourceReference = { kind: 'asset' | 'player'; id: string };
 
-function getResourceReference(def: ParameterDefinition, binding: VisualModuleParameterBinding): ResourceReference | null {
-	const kind = def.dataType.kind;
-	if (!['imageAssetTextureReference', 'assetReference', 'playerReference', 'audioSource'].includes(kind)) return null;
-	if (binding.inputSource === 'visualModuleCustomParameterReference') return null;
-	// 式の実行結果や文字列内のIDからは、必要な素材を列挙したり参照を安全に書き換えたりできない。
-	// 動的な参照を黙って失うより、公開パラメータ経由の静的な指定へ変更してもらう。
-	if (binding.inputSource !== 'literal') {
-		throw new Error(`Cannot transfer "${def.ui.label}": Asset and Player references must use a fixed value or a Custom Parameter.`);
-	}
-	// 無効化中もコードは保存され、取り込み後に再有効化できる。コード内のIDは
-	// 安全に書き換えられないため、有効・無効や基準値の未選択によらず転送を拒否する。
-	if (binding.expressionModifier != null) {
-		throw new Error(`Cannot transfer "${def.ui.label}": Remove its expression modifier and use a fixed Asset or Player reference, or a Custom Parameter.`);
-	}
-	// nullは明示的な未選択。valueの欠落をここで省略すると、不正な参照を転送時に見落としてしまう。
-	if (binding.value === null) return null;
-	if (kind === 'audioSource') {
-		validatePlayerAudioSourceSelection(binding.value);
-		if (binding.value === null) return null;
-		return { kind: 'player', id: binding.value.playerId };
-	}
-	if (typeof binding.value !== 'string' || !binding.value) throw new Error(`Invalid resource reference: ${def.ui.label}`);
-	return { kind: kind === 'playerReference' ? 'player' : 'asset', id: binding.value };
-}
-
-function visitResourceBindings(visualModule: VisualModule, definitions: EffectDefinitions,
-	visit: (def: ParameterDefinition, binding: VisualModuleParameterBinding, reference: ResourceReference) => void) {
-	const visitBindings = (defs: Record<string, ParameterDefinition>, bindings: Record<string, VisualModuleParameterBinding>) => {
+/** 静的設定の参照と、既存の静的な音声ルーティングだけを列挙する。 */
+function visitResourceReferences(visualModule: VisualModule, definitions: EffectDefinitions,
+	visit: (reference: ResourceReference, replaceId: (id: string) => void) => void) {
+	const visitAudioBindings = (defs: Record<string, ParameterDefinition>, bindings: Record<string, VisualModuleParameterBinding>) => {
 		for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(defs, bindings)) {
-			if (param == null || typeof param.inputSource !== 'string') throw new Error('Invalid Visual Module parameter.');
-			const reference = getResourceReference(def, param);
-			if (reference != null) visit(def, param, reference);
+			if (def.dataType.kind !== 'audioSource' || param.inputSource === 'visualModuleCustomParameterReference') continue;
+			if (param.inputSource !== 'literal') throw new Error('Audio sources must use a static input');
+			validatePlayerAudioSourceSelection(param.value);
+			if (param.value != null) visit({ kind: 'player', id: param.value.playerId }, id => { param.value = { type: 'player', playerId: id }; });
 		}
 	};
 	for (const node of visualModule.nodes) {
 		if (node.type !== 'effect') continue;
 		const definition = definitions[node.effectId];
-		if (!definition) throw new Error(`Unknown effect: ${node.effectId}`);
-		visitBindings(definition.paramDefs, node.params);
+		if (definition == null) throw new Error(`Unknown effect: ${node.effectId}`);
+		const settings = createStaticSettingValues(definition.staticSettingDefs ?? {}, node.staticSettings);
+		validateStaticSettings(definition.staticSettingDefs ?? {}, settings);
+		for (const [key, setting] of Object.entries(definition.staticSettingDefs ?? {})) {
+			const value = settings[key];
+			if (value == null) continue;
+			if (setting.dataType.kind !== 'assetReference' && setting.dataType.kind !== 'playerReference') continue;
+			visit({ kind: setting.dataType.kind === 'assetReference' ? 'asset' : 'player', id: value as string }, id => { settings[key] = id; });
+		}
+		node.staticSettings = settings;
+		visitAudioBindings(definition.paramDefs, node.params);
 	}
-	const visitDefinition = (def: ParameterDefinition) => {
-		visitBindings({ default: def }, { default: def.defaultValue });
-		// 配列全体が空でも、後から要素を追加するときの既定値は素材に依存し得る。
-		// 現在の値のツリーとは別に、公開パラメータ定義の設定ツリーもたどる。
-		if (def.dataType.kind === 'array') visitDefinition(getArrayElementDefinition(def));
-		else if (def.dataType.kind === 'struct') for (const field of Object.values(getStructFieldDefinitions(def))) visitDefinition(field);
+	const visitDefinition = (definition: ParameterDefinition) => {
+		visitAudioBindings({ default: definition }, { default: definition.defaultValue });
+		if (definition.dataType.kind === 'array') visitDefinition(getArrayElementDefinition(definition));
+		else if (definition.dataType.kind === 'struct') for (const field of Object.values(getStructFieldDefinitions(definition))) visitDefinition(field);
 	};
-	for (const def of visualModule.paramDefs) visitDefinition(def);
+	for (const definition of visualModule.paramDefs) {
+		validateParameterDefaultValues(definition);
+		visitDefinition(definition);
+	}
 }
 
 function indexResources<T extends { id: string }>(resources: T[]): Map<string, T> {
@@ -123,7 +112,7 @@ export function collectVisualModuleFile(input: {
 			...(hash == null ? {} : { hash }),
 		});
 	};
-	visitResourceBindings(visualModule, definitions, (_def, _binding, reference) => {
+	visitResourceReferences(visualModule, definitions, reference => {
 		if (reference.kind === 'asset') { addAsset(reference.id); return; }
 		const player = availablePlayers.get(reference.id);
 		if (!player) throw new Error(`Missing Player: ${reference.id}`);
@@ -192,10 +181,8 @@ export function prepareVisualModuleImport(file: VisualModuleFile, definitions: E
 	const collected = collectVisualModuleFile(file, definitions);
 	const assetIds = new Map(collected.assets.map(asset => [asset.id, createId()]));
 	const playerIds = new Map(collected.players.map(player => [player.id, createId()]));
-	visitResourceBindings(collected.visualModule, definitions, (def, binding, reference) => {
-		if (binding.inputSource !== 'literal') return;
-		const id = (reference.kind === 'asset' ? assetIds : playerIds).get(reference.id)!;
-		binding.value = def.dataType.kind === 'audioSource' ? { type: 'player', playerId: id } : id;
+	visitResourceReferences(collected.visualModule, definitions, (reference, replaceId) => {
+		replaceId((reference.kind === 'asset' ? assetIds : playerIds).get(reference.id)!);
 	});
 	const unassignedPlayerNames: string[] = [];
 	const players = collected.players.map(player => {

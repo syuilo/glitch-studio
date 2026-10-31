@@ -43,6 +43,8 @@
 			</GsFolder>
 		</div>
 
+		<GsStaticSettings :definitions="effectDefinitions[node.effectId].staticSettingDefs ?? {}" :values="node.staticSettings" @change="emit('staticSetting', $event)"/>
+
 		<GsVisualParam
 			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))"
 			:key="param"
@@ -68,6 +70,8 @@ import { prettyId } from '@gs/shared/utility/id.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';
+import GsStaticSettings from './GsStaticSettings.vue';
+import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
@@ -95,6 +99,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
 	(ev: 'dragStart', event: DragEvent): void;
+	(ev: 'staticSetting', edit: { key: string; value: string | number | boolean | null }): void;
 	(ev: 'editParam', event: ParamEdit): void;
 	(ev: 'remove'): void;
 	(ev: 'setBypass', bypass: boolean): void;

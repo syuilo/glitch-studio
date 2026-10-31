@@ -53,13 +53,13 @@ type AllDataTypesHaveSchemas = AssertNever<Exclude<DataType, ParameterDefinition
 type AllSchemasUseCommonDataTypes = AssertNever<Exclude<ParameterDefinition['dataType'], DataType>>;
 const scalarOutput = { dataType: { kind: 'scalar' } } as const satisfies EffectOutputDefinitions[string];
 const description = { 'ja-JP': '型検査用のエフェクトです。', 'en-US': 'An effect for type checking.' };
-const outputDefinition = { id: 'outputs', displayName: 'Outputs', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: {}, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: { scalar: scalarOutput, color: { dataType: { kind: 'color' } } }, primaryOutput: 'scalar' } as const;
+const outputDefinition = { id: 'outputs', displayName: 'Outputs', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: {}, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: { scalar: scalarOutput, color: { dataType: { kind: 'color' } } }, primaryOutput: 'scalar' } as const;
 defineEffect({ ...outputDefinition, tags: [], primaryOutput: 'color' });
 defineEffect({ ...outputDefinition, tags: [], primaryOutput: null });
 // @ts-expect-error 存在しない出力キーを主出力に指定できない
 defineEffect({ ...outputDefinition, tags: [], primaryOutput: 'missing' });
 // @ts-expect-error 主出力がない場合もnullを明示する
-defineEffect({ id: 'missing-output', displayName: 'Missing', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: {}, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {} });
+defineEffect({ id: 'missing-output', displayName: 'Missing', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: {}, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {} });
 const moduleOutput: VisualModule['outputDefs'][number] = { ...scalarOutput, id: 'out', name: 'out', label: 'Out' };
 const textureType: TextureDataType = scalarOutput.dataType;
 // @ts-expect-error 旧numberデータ型は使用しない
@@ -69,8 +69,11 @@ const referenceOutput: EffectOutputDefinitions[string] = { dataType: { kind: 'im
 
 const number = { dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Value' }, defaultValue: { inputSource: 'literal', value: 0.5 } } as const;
 const color = { dataType: { kind: 'color' }, ui: { control: {}, label: 'Color' }, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } } as const satisfies ParameterDefinition;
+// @ts-expect-error 素材参照は通常パラメータに定義できない
 const videoAsset = { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { control: {}, label: 'Video' }, defaultValue: { inputSource: 'literal', value: null } } as const satisfies ParameterDefinition;
+// @ts-expect-error 素材参照は通常パラメータに定義できない
 const fontAsset = { ...videoAsset, dataType: { kind: 'assetReference', assetType: 'font' } } as const satisfies ParameterDefinition;
+// @ts-expect-error 素材参照は通常パラメータに定義できない
 const lutAsset = { ...videoAsset, dataType: { kind: 'assetReference', assetType: 'lut' }, defaultValue: { inputSource: 'literal', value: 'lut-id' } } as const satisfies ParameterDefinition;
 // @ts-expect-error 直接参照はAssetの種類を明示する
 const missingAssetType: DataType = { kind: 'assetReference' };
@@ -80,14 +83,19 @@ const unknownAssetType: DataType = { kind: 'assetReference', assetType: 'unknown
 const invalidAssetDefault: ParameterDefinition = { ...videoAsset, defaultValue: { inputSource: 'literal', value: { id: 'video' } } };
 // @ts-expect-error Asset自体への参照にはテクスチャのノード接続を許可しない
 const assetNodeInput: ParameterDefinition = { ...fontAsset, canNode: true };
-type AssetValues = Parameters<EffectInstance<{ video: typeof videoAsset; font: typeof fontAsset; lut: typeof lutAsset }>['render']>[0]['params'];
-const runtimeVideoAsset: AssetValues['video'] = { id: 'video', fileData: new Blob(), width: 640, height: 360 };
-const runtimeFontAsset: AssetValues['font'] = { id: 'font', fileData: new Blob() };
-const runtimeLutAsset: AssetValues['lut'] = { id: 'lut', fileData: new Blob() };
-// @ts-expect-error 動画の実行時入力には原寸の情報が必要
-const videoWithoutDimensions: AssetValues['video'] = { id: 'video', fileData: new Blob() };
-// @ts-expect-error フォントの実行時入力はGPUTextureではなくAssetである
-const fontTexture: AssetValues['font'] = {} as GPUTexture;
+const videoSetting = { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Video' }, defaultValue: null } as const;
+const staticSettingDefs = { video: videoSetting, font: { ...videoSetting, dataType: { kind: 'assetReference', assetType: 'font' } }, lut: { ...videoSetting, dataType: { kind: 'assetReference', assetType: 'lut' } } } as const;
+type ResolvedStaticResources = import('@gs/subsystems_effect_shared/effect-implementation.ts').EffectStaticResources<{ staticSettingDefs: typeof staticSettingDefs }>;
+// @ts-expect-error 設定値はBindingではなく素材IDを直接保存する
+const invalidStaticValue: import('@gs/shared/static-setting.ts').StaticSettingValues<typeof staticSettingDefs> = { video: { inputSource: 'literal', value: 'video' }, font: null, lut: null };
+const runtimeVideoFile: ResolvedStaticResources['video'] = new Blob();
+const runtimeFontFile: ResolvedStaticResources['font'] = new Blob();
+const runtimeLutFile: ResolvedStaticResources['lut'] = { url: 'https://example.test/lut.cube', size: 100, error: null };
+const unselectedFont: ResolvedStaticResources['font'] = null;
+// @ts-expect-error 動画の実行時入力はAssetではなくFileSourceである
+const videoAssetObject: ResolvedStaticResources['video'] = { id: 'video', fileData: new Blob(), width: 640, height: 360 };
+// @ts-expect-error フォントの実行時入力はGPUTextureではなくFileSourceである
+const fontTexture: ResolvedStaticResources['font'] = {} as GPUTexture;
 const blend = { dataType: { kind: 'blendMode' }, ui: { control: {}, label: 'Blend' }, defaultValue: { inputSource: 'literal', value: 'normal' } } as const satisfies ParameterDefinition;
 const blendValue: BlendMode = 'multiply';
 const blendNumber: number = colorBlendModes[blendValue];
@@ -97,7 +105,7 @@ const badBlend: ParameterDefinition = { ...blend, defaultValue: { inputSource: '
 const replaceBlend: BlendMode = 'replace';
 const replaceDefault: ParameterDefinition = { ...blend, defaultValue: { inputSource: 'literal', value: replaceBlend } };
 // @ts-expect-error エフェクト定義経由でも不正な初期値を拒否する
-defineEffect({ id: 'bad-blend', displayName: 'Bad blend', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { blend: { ...blend, defaultValue: { inputSource: 'literal', value: 'invalid' } } }, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null });
+defineEffect({ id: 'bad-blend', displayName: 'Bad blend', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { blend: { ...blend, defaultValue: { inputSource: 'literal', value: 'invalid' } } }, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null });
 type NestedBlendDefault = ParameterDefaultValue<{ kind: 'array'; elementType: { kind: 'struct'; fields: { mode: { kind: 'blendMode' } } } }>;
 const nestedBlend: NestedBlendDefault = { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { mode: { inputSource: 'literal', value: 'screen' } } } }] };
 // @ts-expect-error 配列・構造体内部の初期値にもモードの制約を適用する
@@ -111,7 +119,7 @@ const runtimeBlend: BlendValues['blend'] = 'screen';
 // @ts-expect-error 実行時の型も初期値だけに絞らず、全モードのunionにする
 const badRuntimeBlend: BlendValues['blend'] = 'invalid';
 // @ts-expect-error colorではrangeを使用できない
-defineEffect({ id: 'invalid-color', displayName: 'Invalid', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { color: { ...color, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Invalid' } } }, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null });
+defineEffect({ id: 'invalid-color', displayName: 'Invalid', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { color: { ...color, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Invalid' } } }, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null });
 // @ts-expect-error rangeの範囲は必須
 const missingBounds: ParameterDefinition = { ...number, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
 const external = { ...color, id: visualModuleCustomParameterId('c'), nameForReference: visualModuleCustomParameterName('color'), defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] }, canNode: true } satisfies VisualModuleParamDef;
@@ -123,14 +131,12 @@ const schemas = {
  angle: { ...number, ui: { control: { controlType: 'angle' }, label: 'Angle' } },
  color,
  mode: { dataType: { kind: 'enum', options: ['a', 'b'] }, ui: { control: { labels: { a: 'A', b: 'B' } }, label: 'Mode' }, defaultValue: { inputSource: 'literal', value: 'a' } },
- asset: { dataType: { kind: 'imageAssetTextureReference' }, ui: { control: {}, label: 'Asset' }, defaultValue: { inputSource: 'literal', value: null } },
- player: { dataType: { kind: 'playerReference' }, ui: { control: {}, label: 'Player' }, defaultValue: { inputSource: 'literal', value: null } },
  input: { ...number, canNode: true },
  group: { dataType: { kind: 'struct', fields: { input: number.dataType } }, ui: { label: 'Group', control: { fields: { input: number.ui } } }, fields: { input: { defaultValue: number.defaultValue, canNode: true } }, defaultValue: { inputSource: 'literal', value: { input: number.defaultValue } } },
  values: { dataType: { kind: 'array', elementType: number.dataType }, ui: { label: 'Values', control: { element: number.ui.control } }, element: { defaultValue: number.defaultValue }, defaultValue: { inputSource: 'literal', value: [] } },
 } as const satisfies Record<string, ParameterDefinition>;
 type Values = Parameters<EffectInstance<typeof schemas>['render']>[0]['params'];
-const values: Values = { amount: 2, seed: 1.25, angle: -0.5, color: [1, 0, 0, 1], mode: 'a', asset: null, player: { videoFrame: null, audio: null }, values: [1, 2], input: { kind: 'uniform', value: [2] }, group: { input: { kind: 'uniform', value: [3] } } };
+const values: Values = { amount: 2, seed: 1.25, angle: -0.5, color: [1, 0, 0, 1], mode: 'a', values: [1, 2], input: { kind: 'uniform', value: [2] }, group: { input: { kind: 'uniform', value: [3] } } };
 // @ts-expect-error canNodeなパラメータは定数でもShaderInputで受け取る
 const rawNodeInput: Values['input'] = 2;
 // @ts-expect-error 構造体内のcanNodeにも同じ規約を適用する
@@ -139,11 +145,11 @@ const rawNestedInput: Values['group']['input'] = 3;
 const badMode: Values['mode'] = 'c';
 // @ts-expect-error 配列要素も数値として推論する
 const badArray: Values['values'] = ['a'];
-defineEffect({ id: 'test', displayName: 'Test', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { amount: number }, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null });
+defineEffect({ id: 'test', displayName: 'Test', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { amount: number }, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null });
 // @ts-expect-error 主入力を持たない場合もnullを明示する
 defineEffect({ id: 'missing-primary', displayName: 'Missing primary', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: {}, outputDefs: {}, primaryOutput: null });
 // @ts-expect-error numberのdefaultValueに文字列を許可しない
-defineEffect({ id: 'bad', displayName: 'Bad', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { amount: { ...number, defaultValue: { inputSource: 'literal', value: 'bad' } } }, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null });
+defineEffect({ id: 'bad', displayName: 'Bad', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { amount: { ...number, defaultValue: { inputSource: 'literal', value: 'bad' } } }, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null });
 // @ts-expect-error パラメータ定義にはdefaultValueが必要
 const missingDefault: ParameterDefinition = { dataType: { kind: 'scalar' }, ui: { control: { controlType: 'number' }, label: 'Missing' } };
 // @ts-expect-error 真偽値をInノードの出力にできない

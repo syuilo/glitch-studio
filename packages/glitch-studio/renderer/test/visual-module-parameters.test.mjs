@@ -14,7 +14,7 @@ const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(import.met
 function evaluate(evaluator, input) {
 	// 呼び出し側の評価スコープは明示する。モジュール内部の変数は実際のレンダラーが構築する。
 	const variables = {
-		WIDTH: input.resolution.width, HEIGHT: input.resolution.height,
+		RESOLUTION: [input.resolution.width, input.resolution.height],
 		TIME: input.time / 1000, TIME_MS: input.time,
 		END_TIME: input.endTime / 1000, END_TIME_MS: input.endTime,
 		PROGRESS: input.time / input.endTime, IS_EXPORT: input.isExport ?? false,
@@ -30,6 +30,7 @@ function evaluate(evaluator, input) {
 	}
 	// GPUリソースを使わないパラメータ評価部分だけを呼ぶ。
 	const renderer = Object.assign(Object.create(VisualModuleRenderer.prototype), {
+		nodeResolutions: new Map(input.nodes.map(node => [node.id, input.resolution])),
 		nodes: input.nodes, paramDefs: input.paramDefs, effectDefinitions: input.effectDefinitions,
 		automationGraphs: input.automationGraphs, contextResolution: input.resolution, parameterEvaluator: evaluator,
 	});
@@ -59,7 +60,7 @@ const paramDef = (id, defaultValue = 7, dataType = 'scalar', nameForReference = 
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
-	effectDefinitions: { test: { id: 'test', displayName: 'Test', description: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null } },
+	effectDefinitions: { test: { id: 'test', displayName: 'Test', description: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null } },
 	automationGraphs: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,
@@ -190,14 +191,14 @@ test('reads single scope variables without parsing or executing AiScript', t => 
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const parse = t.mock.method(evaluator.valueEvaluator.expressionEvaluator.parser, 'parse');
 	const input = context({ values: arrayParameter(number) }, {
-		values: arrayBinding(['TIME', 'TIME_MS', 'WIDTH', 'HEIGHT', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
+		values: arrayBinding(['TIME', 'TIME_MS', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
 	}, { paramDefs: [paramDef('time')], paramValues: { time: expression('TIME') } });
 	const first = evaluate(evaluator, input);
 	assert.equal(first.paramValues.get('time'), 0.5);
-	assert.deepEqual(first.nodeParams.get('node').values, [0.5, 500, 640, 360, 0.25]);
+	assert.deepEqual(first.nodeParams.get('node').values, [0.5, 500, 0.25]);
 	const second = evaluate(evaluator, { ...input, time: 0, progress: 0, resolution: { width: 1280, height: 720 } });
 	assert.equal(second.paramValues.get('time'), 0);
-	assert.deepEqual(second.nodeParams.get('node').values, [0, 0, 1280, 720, 0]);
+	assert.deepEqual(second.nodeParams.get('node').values, [0, 0, 0]);
 	assert.equal(parse.mock.callCount(), 0);
 });
 
@@ -222,7 +223,7 @@ test('evaluates nested values, expressions and node references without a GPU', (
 		link: { ...number, canNode: true },
 		empty: arrayParameter(number),
 	}, {
-		items: arrayBinding([literal({ value: expression('WIDTH + HEIGHT + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
+		items: arrayBinding([literal({ value: expression('RESOLUTION[0] + RESOLUTION[1] + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
 		link: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'source', outputPort: 'value' },
 		empty: literal([]),
 	});
@@ -317,26 +318,26 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 	}
 });
 
-// ノード対応型だけをInの出力として公開し、真偽値や素材参照は変換しない。
+// 【ノード対応型だけをInの出力として公開する】
+// 公開パラメータとして有効な型を使い、真偽値・文字列・無効な入力をテクスチャ出力に混ぜない。
 test('uses shared scalar types for node inputs and module outputs', async () => {
 	const { getNodeOutputs } = await loadSource('@gs/subsystems_visual-module_shared/node-outputs.ts');
 	const defs = [
-		{ ...paramDef('amount'), canNode: true }, paramDef('flag', true, 'bool'), paramDef('image', null, 'imageAssetTextureReference'),
+		{ ...paramDef('amount'), canNode: true }, paramDef('flag', true, 'bool'), paramDef('label', '', 'string'),
 		{ ...paramDef('vector', [0, 0], 'vector'), canNode: true }, { ...paramDef('color', [0, 0, 0, 1], 'color'), canNode: true },
-		paramDef('player', null, 'playerReference'), { ...paramDef('disabled'), canNode: false },
+		{ ...paramDef('disabled'), canNode: false },
 	];
 	const outputs = getNodeOutputs({ id: 'in', type: 'globalIn' }, defs);
 	assert.equal(outputs.amount.dataType.kind, 'scalar');
 	assert.equal(outputs.flag, undefined);
-	assert.equal(outputs.image, undefined);
+	assert.equal(outputs.label, undefined);
 	assert.equal(outputs.vector.dataType.kind, 'vector');
 	assert.equal(outputs.color.dataType.kind, 'color');
-	assert.equal(outputs.player, undefined);
 	assert.equal(outputs.disabled, undefined);
 	assert.equal(getNodeInputDataType({ ...number, canNode: false }), null);
 	assert.equal(getNodeInputDataType({ dataType: { kind: 'struct', fields: {} } }), null);
 	assert.equal(getNodeInputDataType({ dataType: { kind: 'array', elementType: { kind: 'scalar' } } }), null);
-	assert.equal(getNodeInputDataType({ dataType: { kind: 'playerReference' }, canNode: true }), null);
+	assert.equal(getNodeInputDataType({ dataType: { kind: 'string' }, canNode: false }), null);
 	assert.equal(areNodeDataTypesCompatible(outputs.amount.dataType, getNodeInputDataType({ ...number, canNode: true })), true);
 	assert.equal(areNodeDataTypesCompatible({ kind: 'scalar' }, { kind: 'vector' }), false);
 	assert.equal(areNodeDataTypesCompatible({ kind: 'any' }, { kind: 'scalar' }), true);
@@ -384,7 +385,7 @@ for (const enable32bitDataTextures of [false, true]) {
 			gpuDevice: device, timingHelper: null,
 			enableStats: false, enable32bitDataTextures, intermediateTextureFormat: 'rgba8unorm',
 			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(),
-			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), audioSources: new Map(), assets: [],
+			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), assets: [],
 			effectDefinitions: definitions,
 			effectImplementations: { test: {
 				outputTextureFactories: { image: () => output },

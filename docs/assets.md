@@ -30,7 +30,7 @@ GsAssetのメニューから、リロード、再リンク、外部参照から�
 
 `ProjectContext`の`ExternalAssetMetadataStore`が、アセットIDと参照先パスごとの最新の寸法・種類・サムネイルを編集履歴とは別に保持します。再リンクや取り込みのUndo/Redoでアセットが復元されても、レンダラーへの同期前に、その参照先の最新の取り込み・リロード結果を適用します。埋め込みの原本とメタデータは履歴から復元します。この管理情報はプロジェクトの読み込み時に初期化し、外部原本のバイト列は保持しません。URLと参照切れの状態は従来どおり現在の参照先から解決します。
 
-Playerの読み込み元は、Blobではオブジェクトの同一性、外部参照ではURLとエラーの値で比較します。外部参照のURLは明示的なリロードで更新され、名前変更などの同期で読み取り口が複製されても既存Playerを維持します。
+素材・Playerの定義は、レンダラーの初期化時に固定します。追加・削除・原本や寸法・Playerの参照先が変わると両プレビューを停止・破棄し、最新状態から再生成します。その際はUI側のPlayerメディア要素も全再作成するため、無関係な動画・音声の再生位置や再生状態もリセットし、Webcamを再取得します。エラーからのエンジン再生成も同じ扱いです。素材名・Player名・サムネイルだけの変更では再生成しません。
 
 参照切れはプロジェクト読み込み、リロード、アプリへのフォーカス復帰、読み取り失敗時に確認します。常時監視やフォーカス復帰時の内容の自動リロードは行いません。外部原本は直接読むため、リロード前の内容を固定する保証はありません。GsAssetに警告と参照先を表示し、手動で再リンクできます。参照切れでもプロジェクトの読み込み・保存は可能で、未使用の素材はほかの描画を妨げません。実際に使用する描画はエラーになり、プレビューを停止し、動画書き出しも失敗させます。
 
@@ -62,17 +62,19 @@ App.vueの全体受付でも、ファイルのホバー中は「Drop here」を�
 
 ファイルの読み込み・サムネイル生成からノード反映まで同じprogressダイアログを維持します。`importAssets`の配置準備コールバックへ読み込んだAsset・Player・ダイアログを渡し、`AssetImportPlacement`でTimelineまたはVisual Moduleへの配置を指定します。Asset・Player・ノードを一つのCommandで反映し、参照の検証が失敗した場合は部分追加しません。既存Assetは進捗ダイアログを表示せず、`addVisualModuleAssetNodes`で不足するPlayerとノードだけを追加します。ノードに対応しないファイルはAssetsへ取り込んでパネルを開き、同じ種類の既存Assetは無視します。
 
-## パラメータからのAsset参照
+## 静的設定からのAsset参照
 
-動画・フォント・LUTを直接参照するパラメータは、`{ kind: 'assetReference', assetType: 'video' | 'font' | 'lut' }`で表します。保存値はAsset IDまたはnullです。`assetType`は型の一部で、選択候補の絞り込み・描画前の検証・実行時のリソース解決に共通のMIME制約を使います。参照の収集・ID再割り当て・削除時の参照解除は種類によらず扱います。
+画像・動画・フォント・LUTを直接参照する静的設定は、`{ kind: 'assetReference', assetType: 'image' | 'video' | 'font' | 'lut' }`で表します。保存値はAsset IDまたはnullです。`assetType`は型の一部で、選択候補の絞り込み・描画前の検証・実行時のリソース解決に共通のMIME制約を使います。参照の収集・ID再割り当て・削除時の参照解除は種類によらず扱います。
 
-画像をGPUTextureとして受け取る`imageAssetTextureReference`は、Asset自体を受け取る`assetReference`とは別の型です。動画の`assetReference`は素材を直接参照し、Playerの再生状態を参照しません。
+画像の`assetReference`は実行時にGPUTextureへ解決します。`imageAssetTextureReference`は廃止しました。動画の`assetReference`は素材を直接参照し、Playerの再生状態を参照しません。
+
+素材・PlayerのIDは静的設定に直接保存し、通常パラメータ・Custom Parameterでは公開しません。Textレイヤーのフォントは`textStaticSettings.font`、VOICEVOX字幕は`subtitleStaticSettings.font`に保存します。
 
 ## LUT Asset
 
 `.cube`は取り込み時に`application/x-cube-lut`へ正規化し、原本のBlobを保存します。表示名の拡張子を再判定しないため、改名後も種類は維持されます。Playerは作りません。内容の解析・検証はエフェクトが使用する際に行い、取り込み時にはデコードしません。
 
-`{ kind: 'assetReference', assetType: 'lut' }`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。カスタムパラメータへの公開、Asset差し替え、Visual Module内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gsvm`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの引数などに残った参照切れは描画前の検証で通知します。
+`{ kind: 'assetReference', assetType: 'lut' }`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。Asset差し替え、Visual Module内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gsvm`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの静的設定などに残った参照切れは描画前の検証で通知します。
 
 LUTの解析・GPU処理はEffect subsystemの`fx/applyLut`が所有し、UIやプロジェクトに依存しません。詳しくは[Apply LUT](../packages/subsystems/effect/shared/src/fx/applyLut/README.md)を参照してください。
 

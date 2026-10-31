@@ -154,7 +154,7 @@ export async function run() {
 	try {
 		// 【画像を主入力・解像度基準とし、SDFとズーム支点を独立させる】
 		// SDFを画像へ暗黙変換したり、支点をノードの位置と兼用したりしない契約を確認する。
-		assert(definition.primaryInputParameter === 'input' && definition.resolutionInputParameter === 'input' && definition.primaryOutput === 'output', 'primary input and resolution');
+		assert(definition.primaryInputParameter === 'input' && definition.resolutionInputParameters.join(',') === 'input' && definition.primaryOutput === 'output', 'primary input and resolution');
 		assert(definition.paramDefs.input.dataType.kind === 'color' && definition.paramDefs.sdf.dataType.kind === 'scalar' && definition.outputDefs.output.dataType.kind === 'color', 'port types');
 		assert(definition.paramDefs.sdf.defaultValue.value === 65504 && !definition.dependsOnRenderHistory, 'empty shape and deterministic definition');
 		assert(definition.paramDefs.innerZoomCenter.defaultValue.value.join(',') === '0,0', 'independent zoom center defaults');

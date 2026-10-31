@@ -28,6 +28,7 @@ onmessage = async (event) => {
 					waveformVerticalCanvas,
 					staticOptions: event.data.staticOptions,
 					dynamicOptions: event.data.dynamicOptions,
+					resources: event.data.resources,
 					effectDefinitions,
 					effectImplementations,
 				});

@@ -9,6 +9,7 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
+		"./effect-static-settings.ts": "./src/effect-static-settings.ts",
 		"./effect-renderer.ts": "./src/effect-renderer.ts",
 		"./effect-parameter-value.ts": "./src/effect-parameter-value.ts"
 	},

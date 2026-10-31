@@ -10,6 +10,9 @@ export default defineEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['color'],
+	staticSettingDefs: {
+		lut: { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: 'LUT' }, defaultValue: null },
+	},
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },
@@ -17,10 +20,9 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		lut: { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: 'LUT', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 	},
 	primaryInputParameter: 'input',
-	resolutionInputParameter: 'input',
+	resolutionInputParameters: ['input'],
 	outputDefs: { output: { dataType: { kind: 'color' } } },
 	primaryOutput: 'output',
 });

@@ -1,11 +1,9 @@
 import { implementEffect } from '../../effect-implementation.ts';
-import { getLargestInputResolution } from '../../effect-input-resolution.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
-	getInputResolution: params => getLargestInputResolution([params.angle, params.length]),
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,

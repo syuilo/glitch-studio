@@ -1,3 +1,4 @@
+import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -18,6 +19,7 @@ export function createEffectTimelineLayer(definition: EffectDefinition, startMs:
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		resolution: { mode: 'auto', scale: 1 },
 		automationGraphs: [],
+		effectStaticSettings: createStaticSettingValues(definition.staticSettingDefs ?? {}),
 		effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 		forceDisableMotionBlur: false,
 		mask: null,

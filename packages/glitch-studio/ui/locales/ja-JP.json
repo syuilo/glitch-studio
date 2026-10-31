@@ -141,8 +141,7 @@
 		"END_TIME": "終了時間 (秒)",
 		"END_TIME_MS": "終了時間 (ミリ秒)",
 		"PROGRESS": "進行率",
-		"WIDTH": "レンダリングの横幅",
-		"HEIGHT": "レンダリングの縦幅",
+		"RESOLUTION": "このエフェクトの描画解像度 [幅, 高さ]",
 		"IS_EXPORT": "エクスポート用レンダリングかどうか"
 	},
 	"_FitModes": {
@@ -768,9 +767,6 @@
 		"Definition": "定義",
 		"UiLabel": "UIのラベル",
 		"ReferenceName": "参照名",
-		"VideoAsset": "動画アセット",
-		"FontAsset": "フォントアセット",
-		"LutAsset": "LUTアセット",
 		"DataType": "データ型",
 		"Number": "数値",
 		"Range": "範囲",

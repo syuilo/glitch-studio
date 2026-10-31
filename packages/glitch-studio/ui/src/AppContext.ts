@@ -30,7 +30,7 @@ import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
-import type { IntermediateTextureFormat } from '@gs/shared/types.js';
+import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { ProjectContext } from './Project.ts';
 import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.js';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
@@ -165,7 +165,11 @@ export class AppContext {
 				// エラー中の差分は送らない。再生成時に、UIの最新状態を一度だけ取り込む。
 				const state = this.projectContext.stateManager.state;
 				await this.replacePreviewProject({ automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value });
-				await this.updatePreviewOptions({ assets: deepClone(state.assets.value), resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value });
+				if (!isCurrent()) return;
+				this.setPreviewAssets(state.assets.value);
+				await this.updatePreviewOptions({ resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value });
+				if (!isCurrent()) return;
+				this.visualModuleRendererManagerController.updatePlayers(state.players.value);
 				await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value, generatedSpeech: deepClone(this.previewSpeech.value) });
 				if (!isCurrent()) return;
 				const results = await Promise.allSettled([
@@ -320,8 +324,13 @@ export class AppContext {
 		);
 	}
 
-	private async updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
-		if (options.assets != null) options = { ...options, assets: getRendererAssets(options.assets) };
+	private setPreviewAssets(assets: readonly Asset[]) {
+		const rendererAssets = getRendererAssets(assets);
+		this.visualModuleRendererManagerController.setInitialAssets(rendererAssets);
+		this.timelineRendererManagerController.setInitialAssets(rendererAssets);
+	}
+
+	private async updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
 		await Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),
 			this.timelineRendererManagerController.updateDynamicOptions(options),
@@ -385,9 +394,9 @@ export class AppContext {
 		this.previewPlayback.dispose();
 		// 同じIDのプロジェクトを再読込した場合も、以前の再生・ノード履歴を引き継がない。
 		await this.replacePreviewProject({ automationGraphs: [], visualModules: [], timelineScenes: [] });
-		await this.updatePreviewOptions({ assets: [] });
+		this.setPreviewAssets([]);
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: null });
-		await this.visualModuleRendererManagerController.updatePlayers([]);
+		this.visualModuleRendererManagerController.updatePlayers([]);
 		// 旧プロジェクトを解放してから設定を適用し、不要な素材の再アップロードを避ける。
 		// 初回や同値の設定では再生成しない。通常編集のwatchは読込完了後に登録する。
 		await this.timelineRendererManagerController.updateStaticOptions(timelineRenderSettings);
@@ -406,11 +415,11 @@ export class AppContext {
 		this.scenePlaybackTimes.clear();
 		this.pendingSceneSeek = null;
 		await this.replacePreviewProject({ automationGraphs: project.automationGraphs, visualModules: project.visualModules, timelineScenes: project.timelineScenes });
-		await this.updatePreviewOptions({ assets: deepClone(project.assets) });
+		this.setPreviewAssets(project.assets);
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value,
 			previewFps: project.timelineFps * this.timelinePreviewFpsFactor.value,
 		});
-		await this.visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
+		this.visualModuleRendererManagerController.updatePlayers(project.players);
 		this.projectSaveController.finishProjectLoad(fileName, fileHandle);
 		await window.desktop?.setCurrentProjectFile?.(fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
 
@@ -449,39 +458,53 @@ export class AppContext {
 			}
 		}));
 
-		// 音声の内容・参照素材・ループ長だけを比較する。Blobは不変なので同一性で判定し、
-		// 素材名や映像パラメータの編集では再生中のWorkerと先読みPCMを維持する。
+		// 音声の内容・参照先・ループ長を比較し、映像パラメータの編集では先読みPCMを維持する。
+		// 素材原本の変更は下の同期watchがプレビュー全体を再生成し、再開時に最新素材で音声も作り直す。
 		this.projectWatchers.push(watch(() => {
 			const layers = this.renderValidation.errorMessage.value || this.activeSceneId.value == null ? [] : getSceneAudioClips(this.timelineEvaluationScenes.value, this.activeSceneId.value, { type: 'all' }, createSpeechResolver(this.previewSpeech.value));
-			const assetIds = new Set(layers.map(clip => clip.sourceId));
 			return {
 				layers: deepClone(layers),
 				duration: this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),
-				files: new Map(this.projectContext.stateManager.state.assets.value.filter(asset => assetIds.has(asset.id)).map(asset => [asset.id, asset.fileData])),
 			};
 		}, (next, previous) => {
-			if (next.duration !== previous.duration || !deepEqual(next.layers, previous.layers)
-					|| next.files.size !== previous.files.size || [...next.files].some(([id, file]) => previous.files.get(id) !== file)) {
+			if (next.duration !== previous.duration || !deepEqual(next.layers, previous.layers)) {
 				this.previewPlayback.refreshAudio();
 			}
 		}));
 
-		this.projectWatchers.push(watch(this.projectContext.stateManager.state.assets, async () => {
+		const state = this.projectContext.stateManager.state;
+		const previewResources = computed<(string | number | boolean | Blob | null | undefined)[][]>(previous => {
+			// Blobは不変なので同一性で、URL入力は値で比較する。履歴のメタデータ復元は同値の
+			// オブジェクトも再代入するため、その通知や名前・サムネイルだけの変更では再生成しない。
+			const next = [
+				...state.assets.value.map(asset => [
+					'asset', asset.id, asset.fileDataType, asset.width, asset.height, asset.hash,
+					asset.isExternalReference, asset.sourceFilePath,
+					...(asset.fileData instanceof Blob ? [asset.fileData] : [asset.fileData.url, asset.fileData.size, asset.fileData.error]),
+				]),
+				...state.players.value.map(player => ['player', player.id, player.sourceType, player.assetId]),
+			];
+			return previous != null && next.length === previous.length && next.every((resource, index) =>
+				resource.length === previous[index].length && resource.every((value, field) => value === previous[index][field])) ? previous : next;
+		});
+		this.projectWatchers.push(watch(previewResources, async (_value, _previous, onCleanup) => {
+			// 同じCommandが追加するノードの差分より先に止める。await後では旧素材で解像度を計算してしまう。
+			const update = this.renderEngine.beginResourceUpdate();
+			onCleanup(update.cancel);
 			try {
-				await resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
-				await this.updatePreviewOptions({ assets: deepClone(this.projectContext.stateManager.state.assets.value) });
-				this.renderEngine.requestRetry();
-				// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
-				this.previewPlayback.refresh();
+				// 同期watchはCommandの途中にも呼ばれるため、最終状態になってから参照解決する。
+				await Promise.resolve();
+				if (!update.isCurrent()) return;
+				await resolveExternalAssets(state.assets.value);
+				if (!update.isCurrent()) return;
+				// 準備中の編集差分は再送せず、再生成経路が素材・Player・ノードの最新状態を取り込む。
+				await update.complete();
 			} catch (error) {
-				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
-				console.error(error);
+				if (!update.isCurrent()) return;
+				update.cancel();
+				this.renderEngine.fail(error);
 			}
-		}, { deep: true }));
-
-		this.projectWatchers.push(watch(this.projectContext.stateManager.state.players, () => {
-			this.visualModuleRendererManagerController.updatePlayers(deepClone(this.projectContext.stateManager.state.players.value));
-		}, { deep: true }));
+		}, { flush: 'sync' }));
 
 		// UndoでVisual Module Live Preview対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
 		this.projectWatchers.push(this.projectContext.stateManager.onChange(changes => {
@@ -492,13 +515,10 @@ export class AppContext {
 		}));
 
 		const rendererSync = new RendererProjectSynchronizer(this.projectContext.stateManager, {
-			apply: async changes => {
-				if (!this.renderEngine.canRender.value) return;
-				await Promise.all([
-					this.visualModuleRendererManagerController.applyProjectChanges(changes),
-					this.timelineRendererManagerController.applyProjectChanges(changes),
-				]);
-			},
+			apply: changes => this.renderEngine.runRendererUpdate(() => Promise.all([
+				this.visualModuleRendererManagerController.applyProjectChanges(changes),
+				this.timelineRendererManagerController.applyProjectChanges(changes),
+			])),
 			onUpdated: () => this.previewPlayback.refresh(),
 			onError: error => {
 				if (this.renderEngine.canRender.value) this.renderEngine.fail(error);

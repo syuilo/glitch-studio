@@ -122,7 +122,7 @@ export async function run(benchmarkEnabled = false) {
 	}
 
 	try {
-		assert(definition.primaryInputParameter === 'input' && definition.resolutionInputParameter === 'input' && definition.outputDefs.output.dataType.kind === 'scalar' && !definition.dependsOnRenderHistory, 'definition contract');
+		assert(definition.primaryInputParameter === 'input' && definition.resolutionInputParameters.join(',') === 'input' && definition.outputDefs.output.dataType.kind === 'scalar' && !definition.dependsOnRenderHistory, 'definition contract');
 		checks.push('scalar input output and resolution contract');
 		for (const precise of supports32bit ? [false, true] : [false]) {
 			const label = precise ? '32bit' : '16bit';

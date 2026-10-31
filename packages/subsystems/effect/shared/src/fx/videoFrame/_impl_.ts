@@ -7,8 +7,6 @@ import type definition from './_def_.ts';
 import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
-	getIntrinsicResolution: params => params.asset != null && params.asset.width > 0 && params.asset.height > 0
-		? { width: params.asset.width, height: params.asset.height } : null,
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -16,7 +14,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution, params, reportStatus }) => {
+	init: ({ wgpu, resolution, params, reportStatus, resources }) => {
 		const shaderModule = wgpu.device.createShaderModule({ code });
 		const pipeline = wgpu.device.createRenderPipeline({
 			vertex: { module: wgpu.defaultVertexShaderModule },
@@ -35,6 +33,7 @@ export default implementEffect<typeof definition>({
 		let cacheVersion = 0;
 		const videoTexture = createVideoTexture(wgpu.device, wgpu.intermediateTextureFormat);
 		const loader = createVideoFrameLoader({
+			fileSource: resources.asset ?? null,
 			open: openVideoFrameSource,
 			reportStatus,
 			publish: sample => {
@@ -53,7 +52,7 @@ export default implementEffect<typeof definition>({
 				});
 			},
 		});
-		const prepare = (nextParams: typeof params) => loader.prepare(nextParams.asset?.fileData ?? null, nextParams.time, nextParams.outOfRange);
+		const prepare = (nextParams: typeof params) => loader.prepare(nextParams.time, nextParams.outOfRange);
 		prepare(params);
 		return {
 			get cacheVersion() { return cacheVersion; },

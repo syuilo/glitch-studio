@@ -172,3 +172,9 @@ NOISE(TIME * 3, 1) * 0.03
 Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Visual Module内部の `VisualModuleParameterBinding` は共通方式に `node` / `visualModuleCustomParameterReference` を加えます。Timelineの `TimelineParameterBinding` は共通方式に `timelineLayerCustomParameterReference` を加えます。`TimelineVisualModuleParameterBinding` はTimelineの方式に音声用の `lowerLayerAudio` / `anotherLayerAudio` と画像用の `lowerLayerOutput` / `anotherLayerOutput` を加えます。`TimelineEffectParameterBinding` は同じ取得元を扱い、画像Bindingにfit・wrap・filterを持ちます。Visual Module公開入力のサンプリングは内部接続が所有します。Visual Module Live Previewから渡す `VisualModuleArgumentBindings` は共通方式だけを許可し、タイムラインの合成設定・音量にはTimelineの方式を許可します。
 
 共通の `ParameterBindingBase` はツリー操作に必要な `inputSource` だけを持ち、保存用の全方式を集めたunionにはしません。共通の走査・IDパスによる編集処理はジェネリックにし、呼び出し側のBinding型を保持します。パラメータ定義の初期値も子要素を含めて共通方式に限定し、ノード接続やレイヤー入力は利用ドメイン側で設定します。複数ドメインを扱う編集用unionはUI側に置き、各Commandへ渡す境界で対象を絞り込みます。literalの内部値の完全な静的型付けは行っていないため、配列・構造体内部の入力方式の実行時検証も維持します。
+
+## 静的設定
+
+`packages/shared/src/static-setting.ts`の`StaticSettingDefinition`は`dataType`・`ui.label`・Bindingで包まない`defaultValue`を持つ。値は`StaticSettingValues`に直接保存する。対応型は素材参照（image / video / font / lut）・Player参照・scalar・bool・string・enum。具体的な設定名と定義はEffect・Timelineの各ドメインが所有し、共通層は利用先を知らない。
+
+素材参照・Player参照は通常の`DataType`から除外する。静的設定は式・加工式・キー・Automation Graph・ノード接続・Custom Parameter参照・公開引数を受け取らない。`audioSource`は従来の静的な音声ルーティングとして維持する。

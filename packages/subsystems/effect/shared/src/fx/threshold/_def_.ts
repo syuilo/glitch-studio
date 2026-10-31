@@ -61,7 +61,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: 'input',
-	resolutionInputParameter: 'input',
+	resolutionInputParameters: ['input'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

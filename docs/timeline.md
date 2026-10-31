@@ -84,22 +84,25 @@ InspectorのHold current frameは、操作時のScene時刻を速度・逆方向
 
 ## エフェクトレイヤー
 
-- `TimelineEffectLayer` はエフェクトの種類・パラメータ・解像度を所有し、クリップは時間情報だけを所有します。作成後のエフェクト種別変更は扱いません。Visual Moduleを経由せず `EffectRenderer` をクリップごとに使用し、区間外では破棄します。
+- `TimelineEffectLayer` はエフェクトの種類・通常パラメータ・`effectStaticSettings`・解像度を所有し、クリップは時間情報だけを所有します。作成後のエフェクト種別変更は扱いません。Visual Moduleを経由せず `EffectRenderer` をクリップごとに使用し、区間外では破棄します。
 - `EffectDefinition.kind` は `modify` / `generate` を明示します。作成時、modifyは主入力を `lowerLayerOutput`、合成を `replace` にし、generateは定義の入力初期値と `normal` を使います。主入力がnullなら自動割当を行いません。modifyの主入力のリセットも `lowerLayerOutput` に戻しますが、手動の入力・合成変更は互いに連動しません。
 - `lowerLayerOutput` は同じ親の下層レイヤーの合成結果です。グループ内部から外側の背景は参照しません。下層がなければ透明黒です。配列・構造体内を含め `canNode: true` の末端にだけ指定でき、主入力以外にも指定できます。サンプリング設定の既定値は `cover` / `repeatMirrored` / `linear` です。入力型はcolorとして既存のノード互換性判定を使い、UIの型安全設定が有効なら不一致の接続を禁止、無効なら警告付きで許可します。
 - `anotherLayerOutput`は同じScene内の映像レイヤーをIDで参照します。Group・Transform配下も選べますが、Sceneレイヤーの参照先Scene内部には踏み込みません。音声・Camera・Transform自身は対象外です。エフェクトでは`lowerLayerOutput`と同じ末端へ指定でき、Visual Moduleレイヤーでは`canNode: true`の公開画像入力へ指定できます。Visual Module内部のBindingには追加しません。
 - `outputStage`は`source`（素材出力・既定）、`rendered`（単独描画結果）、`composited`（下層との合成結果）です。通常の素材出力はレイヤー自身の配置・合成前。単独描画は配置・投影・opacity・clipToFrame・`layerMask`を反映し、blendModeと下層切り抜き用の`mask`は適用しません。合成結果は参照先と同じ合成境界内で、そのレイヤーまで合成した画像です。Transformは境界を作りません。エフェクトとVisual Moduleはレイヤーとしてのprimary出力を使います。
 - `preserveDepth` Groupの素材出力は、通常描画と同じ空間で子のZ・Groupや祖先の変形・カメラを反映して合成した中間画像です。Group自身のopacity・blendMode・マスク・clipToFrameはまだ適用しません。2D画像として渡し、後段で変形・投影を二重適用しません。Groupの配置やカメラを変えると素材出力も変わります。
-- 配置を持つ出力は参照先の合成空間のScene基準枠で確定して画像入力へ渡し、位置と透明余白を維持します。画面外領域はこの境界で切り取ります。素材の寸法がそのまま利用できる画像・Effectなどは元の寸法を維持します。
+- 配置を持つ出力は参照先の合成空間のScene基準枠で確定して画像入力へ渡し、位置と透明余白を維持します。画面外領域はこの境界で切り取ります。`source`を含むすべての出力段階を、受け取るエフェクト・Visual Moduleの所属Sceneの寸法へ揃えます。素材出力そのものの寸法は変更せず、入力境界で変換します。
 - 未選択・参照切れ・無効・祖先無効・クリップ区間外・映像出力なしは、どの段階でも入力として透明黒を渡します。参照IDは保持し、削除のUndoで復旧できます。Group・Sceneの複製では、複製範囲内への画像参照も新しいIDへ付け替えます。
 - 画像の依存は素材・単独描画・合成結果を区別し、`lowerLayerOutput`・公開主入力・Groupの内部合成も含めて静的に循環を検出します。無効化やクリップ期間が重ならないことによる例外は設けません。配線・出力段階・並び順・階層・公開入力の変更時に再検証します。
 - 通常描画と画像参照は同じScene配置・サブサンプルの評価結果を共有し、素材の履歴を二重に進めません。参照する側だけがモーションブラー無効でも、取得先は自身と祖先の設定に従った通常描画の時刻・空間で評価します。参照する側の基準時刻で取得先を再評価しません。
 - Visual Moduleの公開主入力も編集でき、既定値とリセットは`lowerLayerOutput`です。明示Bindingは自動割当より優先します。公開入力にはfit・wrap・filterを保存せず、サンプリングは内部接続で指定します。エフェクト側の画像Bindingは従来どおりこれらの設定を持ちます。
 - 直接のパラメータ編集・選択・キー操作は `['items', 'item-id', 'color']` のようなIDパスを使います。配列要素の削除で内部のキーも消え、UndoでIDごと復元します。キー・式の評価時刻とスコープは通常のレイヤー引数と同じです。`EffectRenderContext.time` だけはクリップの内容時刻を秒で渡します。
-- 出力は `primaryOutput` だけを使用し、nullの場合は合成をスキップします。タイムラインに不向きなエフェクトも候補から除外しません。Player入力、シーク前の履歴再現などは保証しません。
-- 解像度はノードと共通の `EffectResolution`（`auto` / `context` / `customAbsolute`）で、初期値は`{ mode: 'auto', scale: 1 }`です。autoは素材固有寸法・解像度用入力のテクスチャ寸法・所属Sceneの順で解決します。
+- 出力は `primaryOutput` だけを使用し、nullの場合は合成をスキップします。タイムラインに不向きなエフェクトも候補から除外しません。Playerは管理・解決せず、Player入力には対応しません。シーク前の履歴再現などは保証しません。
+- 解像度はノードと共通の `EffectResolution`（`auto` / `context` / `customAbsolute`）で、初期値は`{ mode: 'auto', scale: 1 }`です。autoは静的設定の素材メタデータ・解像度用入力の宣言寸法・所属Sceneの順で、初回評価前に解決します。フレームや式の評価値では変わりません。
 - `auto` / `context`では正の有限数の倍率`scale`を数値で自由入力でき、基準となる幅・高さの両方に掛けます。両モード間では倍率を維持し、`customAbsolute`から戻すと1になります。保存・Undo/Redoの対象で、式・アニメーションには対応しません。
 - 全体のプレビュー・書き出し倍率で計算用寸法を求めた後にレイヤー自身の倍率を掛け、四捨五入して各辺を最低1pxにします。入力テクスチャに全体倍率を重ねて適用しません。autoで入力に追従する場合は入力側の倍率も引き継ぎ、contextは所属Sceneの寸法だけを基準にします。GPUの上限超過はエラーにし、`customAbsolute`は全体倍率だけを適用します。
+
+- エフェクトの通常パラメータ・加工式は、そのエフェクト自身の計算用寸法を`RESOLUTION: [width, height]`として参照できます。合成設定・汎用レイヤー式・公開引数の評価には公開しません。
+- 素材の選択は`effectStaticSettings`へIDを直接保存します。式や公開パラメータによる選択には対応しません。Textのフォントは`textStaticSettings.font`、VOICEVOX字幕のフォントは`subtitleStaticSettings.font`とし、各レイヤーの通常パラメータから除外します。
 
 ## シーンの解像度
 

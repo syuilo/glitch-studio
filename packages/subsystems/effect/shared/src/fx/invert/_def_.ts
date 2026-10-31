@@ -22,7 +22,7 @@ export default defineEffect({
 		blue: { dataType: { kind: 'bool' }, ui: { label: 'Blue', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 	},
 	primaryInputParameter: 'input',
-	resolutionInputParameter: 'input',
+	resolutionInputParameters: ['input'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

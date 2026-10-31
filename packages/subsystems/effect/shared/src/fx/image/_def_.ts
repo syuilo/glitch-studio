@@ -10,8 +10,11 @@ export default defineEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['media'],
+	staticSettingDefs: {
+		image: { dataType: { kind: 'assetReference', assetType: 'image' }, ui: { label: 'Image' }, defaultValue: null },
+	},
+	intrinsicResolutionSetting: 'image',
 	paramDefs: {
-		image: { dataType: { kind: 'imageAssetTextureReference' }, ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		fit: {
 			dataType: { kind: 'fitMode' },
 			ui: { label: 'Fit', control: {} },
@@ -19,7 +22,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: null,
-	resolutionInputParameter: null,
+	resolutionInputParameters: [],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

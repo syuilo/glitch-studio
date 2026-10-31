@@ -1,3 +1,4 @@
+import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
@@ -6,7 +7,6 @@ import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter
 // Textレイヤー固有の定義。Textエフェクトとは独立して変更できるようにする。
 export const textParamDefs = {
 	text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: { inputSource: 'literal', value: 'Hello, world!' } },
-	font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 	size: {
 		dataType: { kind: 'scalar' },
 		ui: {
@@ -112,3 +112,8 @@ export type TextParameterValues<Binding extends ParameterBindingBase = ValuePara
 export function createTextParameterValues(): TextParameterValues {
 	return Object.fromEntries(Object.entries(textParamDefs).map(([key, def]) => [key, deepClone(def.defaultValue)])) as TextParameterValues;
 }
+
+export const textStaticSettingDefs = {
+	font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font' }, defaultValue: null },
+} as const satisfies StaticSettingDefinitions;
+export type TextStaticSettings = StaticSettingValues<typeof textStaticSettingDefs>;

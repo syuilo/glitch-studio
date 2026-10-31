@@ -5,29 +5,20 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { createVisualModuleRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
-import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
+import { isVideoFrameAvailable } from './utility/video.ts';
 import { VisualModuleLivePreviewEffectStateStore } from './utility/visual-module-live-preview-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
-import type { FileSource } from '@gs/shared/file-source.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { Player } from '@gs/shared/types.ts';
+import type { Asset, Player } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
-
-function isSamePlayerAssetFile(previous: FileSource | null | undefined, next: FileSource | null | undefined): boolean {
-	if (previous === next) return true;
-	if (previous == null || next == null || previous instanceof Blob || next instanceof Blob) return false;
-	// URL入力は同期のdeepCloneで別オブジェクトになる。リロード時には新しいURLが
-	// 発行されるため、URLと可用性で比較すれば無関係な編集で再生を止めずに済む。
-	return previous.url === next.url && previous.error === next.error;
-}
 
 export class VisualModuleRendererManagerController extends RendererManagerControllerBase<VisualModuleRendererManager> {
 	public onAssetReadFailure: (() => void) | null = null;
@@ -44,14 +35,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	private pointerPosition = { x: 0, y: 0 };
 	private staticOptions: VisualModuleRendererManagerStaticOptions;
 	private initializationStaticOptions: VisualModuleRendererManagerStaticOptions | null = null;
-	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> & Pick<VisualModuleRendererManagerDynamicOptions, 'assets'> = {
-		assets: [],
-	};
+	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> = {};
+	private initialAssets: readonly Asset[] = [];
 	private players: Player[] = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
-	private playerAssetFiles = new Map<Player['id'], FileSource>();
 	private audioInputs: AudioInputs;
-	private videoLoads = new Map<Player['id'], Promise<void>>();
 	private videoFrameCallbacks = new Map<Player['id'], number>();
 	private pendingVideoFrames = new Map<Player['id'], VideoFrame>();
 	private inFlightVideoFrames = new Map<Player['id'], number>();
@@ -97,6 +85,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 						waveformVerticalCanvas: waveformVerticalOffscreen,
 						staticOptions: this.staticOptions,
 						dynamicOptions: this.dynamicOptions,
+						resources: { assets: this.initialAssets, players: this.players },
 					},
 					transfer: [
 						offscreen,
@@ -144,11 +133,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				},
 			},
 			onCreated: () => {
-				for (const player of this.players) {
-					const asset = player.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
-					const error = asset == null ? null : getFileSourceError(asset.fileData);
-					if (error != null) this.call('updateVideoFrame', [player.id, null, error]);
-				}
 				this.audioInputs.reconnectRenderer();
 				// 一時停止中の動画には新しいフレーム通知が来ないため、現在のフレームも送り直す。
 				for (const [id, media] of this.videoElements) {
@@ -249,106 +233,72 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.visualModuleLivePreviewVisualModuleId.value = null;
 	}
 
-	public async updatePlayers(newPlayers: Player[]) {
-		const oldPlayers = this.players;
-		const players = deepClone(newPlayers);
-		this.players = players;
-
-		for (const [id, video] of this.videoElements) {
-			const oldPlayer = oldPlayers.find(player => player.id === id);
-			const newPlayer = players.find(player => player.id === id);
-			const asset = newPlayer?.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === newPlayer.assetId) : null;
-			if (!newPlayer || oldPlayer?.sourceType !== newPlayer.sourceType || !deepEqual(oldPlayer?.assetId, newPlayer.assetId)
-				|| (newPlayer.sourceType === 'asset' && !isSamePlayerAssetFile(this.playerAssetFiles.get(id), asset?.fileData))) {
-				this.audioInputs.removePlayer(id);
-				const callbackId = this.videoFrameCallbacks.get(id);
-				if (callbackId != null && video instanceof HTMLVideoElement) video.cancelVideoFrameCallback(callbackId);
-				this.videoFrameCallbacks.delete(id);
-				this.pendingVideoFrames.get(id)?.close();
-				this.pendingVideoFrames.delete(id);
-				if (this.isReady.value) this.call('updateVideoFrame', [id, null]);
-				video.pause();
-				this.videoElements.delete(id);
-				this.playerAssetFiles.delete(id);
-				this.videoLoads.delete(id);
-				if (video.srcObject instanceof MediaStream) {
-					for (const track of video.srcObject.getTracks()) track.stop();
-					video.srcObject = null;
-				}
-				URL.revokeObjectURL(video.src);
-				video.removeAttribute('src');
-				video.load();
-			}
-		}
-
-		for (const player of players) {
-			if (!this.videoElements.has(player.id)) {
-				const asset = player.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
-				if (player.sourceType === 'asset' && !asset) continue;
-				if (asset != null && getFileSourceError(asset.fileData) != null) {
-					if (this.isReady.value) this.call('updateVideoFrame', [player.id, null, getFileSourceError(asset.fileData)]);
-					continue;
-				}
+	/** 定義は同期的に反映し、メディアの準備・権限待ちはプレビュー全体の起動条件にしない。 */
+	public updatePlayers(newPlayers: Player[]) {
+		// 定義変更はManager再生成時にまとめて反映する。原本や参照先の差分を追わず、
+		// 再生位置・Webcam接続も含めてメディアを作り直す。
+		this.releasePlayerMedia();
+		this.players = deepClone(newPlayers);
+		for (const player of this.players) {
+			// 未割り当て・未対応の入力は、定義だけ保持してメディア要素は作らない。
+			if (player.sourceType !== 'asset' && player.sourceType !== 'webcam') continue;
+			const asset = player.sourceType === 'asset' ? this.initialAssets.find(asset => asset.id === player.assetId) : null;
+			if (player.sourceType === 'asset' && asset == null) continue;
+			if (asset != null && getFileSourceError(asset.fileData) != null) continue;
+			const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
+			video.loop = true;
+			video.preload = 'auto';
+			video.crossOrigin = 'anonymous';
+			video.volume = 1;
+			this.videoElements.set(player.id, video);
+			if (player.sourceType === 'asset') this.audioInputs.registerPlayer(player.id, video);
+			// loadeddata後も、再生・シーク中に原本を読めなくなる場合がある。
+			// 古い映像を残さずフレームを解除し、描画側では透明として継続する。
+			video.addEventListener('error', () => {
+				if (video.error == null || this.videoElements.get(player.id) !== video) return;
+				this.pendingVideoFrames.get(player.id)?.close();
+				this.pendingVideoFrames.delete(player.id);
 				if (this.isReady.value) this.call('updateVideoFrame', [player.id, null]);
-				const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
-				video.loop = true;
-				video.preload = 'auto';
-				video.crossOrigin = 'anonymous';
-				video.volume = 1;
-				this.videoElements.set(player.id, video);
-				if (player.sourceType === 'asset') this.audioInputs.registerPlayer(player.id, video);
-				// loadeddata後も、再生・シーク中に原本を読めなくなる場合がある。
-				// 初回の読み込み待機とは別に監視し、使用中のPlayerへ障害を伝える。
-				video.addEventListener('error', () => {
-					if (video.error == null || this.videoElements.get(player.id) !== video) return;
-					if (this.isReady.value) this.call('updateVideoFrame', [player.id, null, video.error.message]);
-					this.onAssetReadFailure?.();
-					console.error(video.error);
-				});
-				this.videoLoads.set(player.id, new Promise<void>(resolve => {
-					const finish = () => {
-						video.removeEventListener('loadeddata', finish);
-						video.removeEventListener('error', finish);
-						video.removeEventListener('emptied', finish);
-						resolve();
-					};
-					video.addEventListener('loadeddata', finish);
-					video.addEventListener('error', finish);
-					video.addEventListener('emptied', finish);
-				}));
+				this.onAssetReadFailure?.();
+				console.error(video.error);
+			});
 
-				const onVideoFrame = () => {
-					if (!(video instanceof HTMLVideoElement)) return;
-					if (this.videoElements.get(player.id) !== video) return;
-					try {
-						if (!isVideoFrameAvailable(video)) return;
-						const frame = new VideoFrame(video);
-						// Retain only the newest frame while the worker is busy.
-						this.pendingVideoFrames.get(player.id)?.close();
-						this.pendingVideoFrames.set(player.id, frame);
-						this.sendPendingVideoFrame(player.id);
-					} finally {
-						this.videoFrameCallbacks.set(player.id, video.requestVideoFrameCallback(onVideoFrame));
-					}
-				};
-
-				if (video instanceof HTMLVideoElement) this.videoFrameCallbacks.set(player.id, video.requestVideoFrameCallback(onVideoFrame));
-
-				if (player.sourceType === 'asset') {
-					this.playerAssetFiles.set(player.id, asset!.fileData);
-					video.src = getFileSourceUrl(asset!.fileData);
-				} else if (player.sourceType === 'webcam' && video instanceof HTMLVideoElement) {
-					this.videoLoads.set(player.id, setupWebcam().then(camera => {
-						video.srcObject = camera;
-						video.muted = true;
-						video.playsInline = true;
-						return playVideoAfterFirstFrameIsReady(video);
-					}));
+			const onVideoFrame = () => {
+				if (!(video instanceof HTMLVideoElement)) return;
+				if (this.videoElements.get(player.id) !== video) return;
+				try {
+					if (!isVideoFrameAvailable(video)) return;
+					const frame = new VideoFrame(video);
+					// Retain only the newest frame while the worker is busy.
+					this.pendingVideoFrames.get(player.id)?.close();
+					this.pendingVideoFrames.set(player.id, frame);
+					this.sendPendingVideoFrame(player.id);
+				} finally {
+					this.videoFrameCallbacks.set(player.id, video.requestVideoFrameCallback(onVideoFrame));
 				}
+			};
+
+			if (video instanceof HTMLVideoElement) this.videoFrameCallbacks.set(player.id, video.requestVideoFrameCallback(onVideoFrame));
+
+			if (player.sourceType === 'asset') {
+				video.src = getFileSourceUrl(asset!.fileData);
+			} else if (player.sourceType === 'webcam' && video instanceof HTMLVideoElement) {
+				void setupWebcam().then(camera => {
+					// 権限待ちの間に削除・入力変更・破棄されたPlayerへ古いカメラを接続しない。
+					if (this.videoElements.get(player.id) !== video) {
+						for (const track of camera.getTracks()) track.stop();
+						return;
+					}
+					video.srcObject = camera;
+					video.muted = true;
+					video.playsInline = true;
+					// 到着したフレームは既存のコールバックが転送するため、初回フレームも待たない。
+					return video.play();
+				}).catch(error => {
+					if (this.videoElements.get(player.id) === video) console.error(error);
+				});
 			}
 		}
-
-		await Promise.all(this.videoLoads.values());
 	}
 
 	public getVideoElement(playerId: Player['id']): HTMLVideoElement | null {
@@ -384,15 +334,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		}
 		this.dynamicOptions = { ...this.dynamicOptions, ...options };
 		// 初回起動前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
-		if (!this.isReady.value && !this.isInitializing) return { assetsCommitted: null };
-		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
-		if (result.assetsCommitted && options.assets === this.dynamicOptions.assets) {
-			// 素材の差し替え・削除ではPlayer定義は変わらないため、ここで参照先を同期する。
-			// 後続のAsset更新がある場合は、その完了側に同期を任せる。
-			await this.updatePlayers(this.players);
-		}
-		return result;
+		if (!this.isReady.value && !this.isInitializing) return;
+		await this.callAndWaitReturn('updateDynamicOptions', [options]);
 	}
+
+	/** 次に生成するManagerへ渡す。動作中のManagerの素材一覧は更新しない。 */
+	public setInitialAssets(assets: readonly Asset[]) { this.initialAssets = deepClone(assets); }
 
 	public async replaceProjectState(state: RendererProjectState) {
 		const snapshot = { automationGraphs: deepClone(state.automationGraphs), visualModules: deepClone(state.visualModules), timelineScenes: [] };
@@ -431,12 +378,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		}
 	}
 
-	public destroy() {
-		super.destroy();
-
-		this.renderLoopRunning = false;
-		this.visualModuleLivePreviewVisualModuleId.value = null;
-		this.visualModuleLivePreviewEffectStateStore.stop();
+	private releasePlayerMedia() {
 		this.audioInputs.dispose();
 		for (const [id, media] of this.videoElements) {
 			const callback = this.videoFrameCallbacks.get(id);
@@ -452,10 +394,16 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		}
 		for (const frame of this.pendingVideoFrames.values()) frame.close();
 		this.videoElements.clear();
-		this.playerAssetFiles.clear();
 		this.videoFrameCallbacks.clear();
-		this.videoLoads.clear();
 		this.pendingVideoFrames.clear();
 		this.inFlightVideoFrames.clear();
+	}
+
+	public destroy() {
+		super.destroy();
+		this.renderLoopRunning = false;
+		this.visualModuleLivePreviewVisualModuleId.value = null;
+		this.visualModuleLivePreviewEffectStateStore.stop();
+		this.releasePlayerMedia();
 	}
 }

@@ -1,3 +1,6 @@
+import type { StaticSettingDefinitions } from '@gs/shared/static-setting.ts';
+import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { CheckedParameterDefinition, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
@@ -41,7 +44,7 @@ export const EFFECT_TAGS = [
 
 export type EffectTags = typeof EFFECT_TAGS[number];
 
-export type EffectDefinition<In extends Record<string, ParameterDefinition> = Record<string, ParameterDefinition>, Out extends EffectOutputDefinitions = EffectOutputDefinitions> = {
+export type EffectDefinition<In extends Record<string, ParameterDefinition> = Record<string, ParameterDefinition>, Out extends EffectOutputDefinitions = EffectOutputDefinitions, Settings extends StaticSettingDefinitions = StaticSettingDefinitions> = {
 	id: string;
 	displayName: string;
 	// 説明の翻訳漏れを定義時に検出できるよう、日本語・英語の両方を必須にする。
@@ -59,25 +62,28 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	dependsOnRenderHistory: boolean;
 	tags: EffectTags[];
 	paramDefs: In;
+	staticSettingDefs?: Settings;
+	/** 原寸の取得元。静的設定の参照先メタデータだけから取得する。 */
+	intrinsicResolutionSetting?: Extract<keyof Settings, string>;
 	// バイパス・自動接続に使うトップレベルの入力。主入力がないエフェクトはnull。
 	primaryInputParameter: Extract<keyof In, string> | null;
 	/** 音声の自動割当先。画像のバイパス・合成方法・解像度とは独立する。 */
 	primaryAudioInputParameter?: Extract<keyof In, string> | null;
-	// 自動解像度の基準となる単一入力。実装のgetInputResolutionが返す寸法を優先し、入力寸法がなければ描画先を使う。
-	resolutionInputParameter: Extract<keyof In, string> | null;
+	/** 自動解像度に使う入力。配列・構造体では配下の全接続の最大画素数を採用する。 */
+	resolutionInputParameters: readonly Extract<keyof In, string>[];
 	outputDefs: Out;
 	primaryOutput: Extract<keyof NoInfer<Out>, string> | null;
 };
 
-export function defineEffect<const In extends Record<string, ParameterDefinition>, const Out extends EffectOutputDefinitions>(
-	def: EffectDefinition<In, Out> & {
+export function defineEffect<const In extends Record<string, ParameterDefinition>, const Out extends EffectOutputDefinitions, const Settings extends StaticSettingDefinitions = Record<never, never>>(
+	def: EffectDefinition<In, Out, Settings> & {
 		paramDefs: { [K in keyof In]: CheckedParameterDefinition<NoInfer<In[K]>> };
 	},
-): EffectDefinition<In, Out> {
+): EffectDefinition<In, Out, Settings> {
 	if (def.primaryAudioInputParameter != null && def.paramDefs[def.primaryAudioInputParameter]?.dataType.kind !== 'audioSource') {
 		throw new Error(`Primary audio input must reference an audio parameter: ${def.id}.${def.primaryAudioInputParameter}`);
 	}
-	// 必須の主入出力・解像度入力はnullで未選択を表す。undefinedによる定義の欠落は許容しない。
+	// 必須の主入出力はnullで未選択、解像度入力は空配列で未選択を表す。
 	// 画像の主入力は接続を受け取るため、通常の数値設定やコンテナは指定できない。
 	if (def.primaryInputParameter !== null && def.paramDefs[def.primaryInputParameter]?.canNode !== true) {
 		throw new Error(`Primary input must reference a node-capable parameter: ${def.id}.${def.primaryInputParameter}`);
@@ -85,8 +91,21 @@ export function defineEffect<const In extends Record<string, ParameterDefinition
 	if (def.primaryOutput !== null && !Object.hasOwn(def.outputDefs, def.primaryOutput)) {
 		throw new Error(`Primary output must reference an existing output: ${def.id}.${def.primaryOutput}`);
 	}
-	if (def.resolutionInputParameter !== null && def.paramDefs[def.resolutionInputParameter]?.canNode !== true) {
-		throw new Error(`Resolution input must reference a node-capable parameter: ${def.id}.${def.resolutionInputParameter}`);
+	for (const key of def.resolutionInputParameters) {
+		if (def.paramDefs[key] == null || !hasResolutionInput(def.paramDefs[key])) throw new Error(`Resolution input must contain a node-capable parameter: ${def.id}.${key}`);
+	}
+	for (const setting of Object.values(def.staticSettingDefs ?? {})) validateStaticSettingValue(setting, setting.defaultValue);
+	if (def.intrinsicResolutionSetting != null) {
+		const setting = def.staticSettingDefs?.[def.intrinsicResolutionSetting];
+		if (setting == null || !(setting.dataType.kind === 'playerReference' || (setting.dataType.kind === 'assetReference' && ['image', 'video'].includes(setting.dataType.assetType)))) {
+			throw new Error(`Intrinsic resolution must reference an image, video, or Player setting: ${def.id}`);
+		}
 	}
 	return def;
+}
+
+function hasResolutionInput(definition: ParameterDefinition): boolean {
+	if (definition.dataType.kind === 'array') return hasResolutionInput(getArrayElementDefinition(definition));
+	if (definition.dataType.kind === 'struct') return Object.values(getStructFieldDefinitions(definition)).some(hasResolutionInput);
+	return definition.canNode === true;
 }

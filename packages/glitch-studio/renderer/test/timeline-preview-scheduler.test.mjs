@@ -20,26 +20,24 @@ test('passes timeline time differences for forward, repeated and backward previe
 
 // 【Scene切り替え中に完了した旧フレームの時刻を新しい基準にしない】
 // clear中もGPUの完了を待つため、旧世代の成功が後から返ることがある。
-// 待機要求を維持する場合も初回は0から始め、その後の描画から差分を計算する。
+// 破棄後に改めて届いた要求は初回を0から始め、その後の描画から差分を計算する。
 test('resets preview time on clear even when an older frame completes successfully', async () => {
-	for (const preservePendingTime of [false, true]) {
-		const gate = Promise.withResolvers();
-		const frames = [];
-		const scheduler = new TimelinePreviewScheduler(async (time, timeDelta) => {
-			frames.push([time, timeDelta]);
-			if (time === 150) await gate.promise;
-			return true;
-		});
-		await scheduler.render(100);
-		const pending = scheduler.render(150);
-		await scheduler.render(300);
-		scheduler.clear(preservePendingTime);
-		if (!preservePendingTime) await scheduler.render(300);
-		gate.resolve();
-		await pending;
-		await scheduler.render(320);
-		assert.deepEqual(frames, [[100, 0], [150, 50], [300, 0], [320, 20]]);
-	}
+	const gate = Promise.withResolvers();
+	const frames = [];
+	const scheduler = new TimelinePreviewScheduler(async (time, timeDelta) => {
+		frames.push([time, timeDelta]);
+		if (time === 150) await gate.promise;
+		return true;
+	});
+	await scheduler.render(100);
+	const pending = scheduler.render(150);
+	await scheduler.render(300);
+	scheduler.clear();
+	await scheduler.render(300);
+	gate.resolve();
+	await pending;
+	await scheduler.render(320);
+	assert.deepEqual(frames, [[100, 0], [150, 50], [300, 0], [320, 20]]);
 });
 
 // 【デコードより速い再生要求でも処理中のフレームを完成させる】
@@ -112,22 +110,6 @@ test('drops pending requests on clear without restarting after completion', asyn
 	gate.resolve();
 	await pending;
 	assert.deepEqual(times, [0]);
-});
-
-// 【準備完了によるキャッシュ破棄では最新の待機位置を維持する】
-// 素材の準備中に届いたシークを失わず、旧フレームの失敗によって新しい描画まで中止しない。
-// キャッシュを無効にすることと、まだ実行していない描画要求を取り消すことを分離する。
-test('invalidates the current frame while preserving the latest pending position', async () => {
-	const gate = Promise.withResolvers();
-	const times = [];
-	const scheduler = new TimelinePreviewScheduler(async time => { times.push(time); return time === 0 ? gate.promise : true; });
-	const pending = scheduler.render(0);
-	await scheduler.render(10);
-	await scheduler.render(20);
-	scheduler.clear(true);
-	gate.resolve(false);
-	await pending;
-	assert.deepEqual(times, [0, 20]);
 });
 
 // 【描画失敗後は待機フレームを実行しない】
@@ -250,7 +232,8 @@ test('drains both old frames across invalidation before starting a new generatio
 	await scheduler.render(10);
 	await new Promise(resolve => setImmediate(resolve));
 	await scheduler.render(20);
-	scheduler.clear(true);
+	scheduler.clear();
+	await scheduler.render(20);
 	gates.get(0).resolve(false);
 	await new Promise(resolve => setImmediate(resolve));
 	assert.deepEqual(frames, [[0, 0], [10, 10]]);

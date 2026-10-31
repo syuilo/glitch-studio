@@ -92,7 +92,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: 'background',
-	resolutionInputParameter: 'background',
+	resolutionInputParameters: ['background'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

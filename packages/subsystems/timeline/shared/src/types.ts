@@ -1,3 +1,6 @@
+import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
+import type { TextStaticSettings } from './layers/text/text.ts';
+import type { VoicevoxSubtitleStaticSettings } from './layers/voicevox/voicevox-subtitle.ts';
 import type { timelineCompositingParamDefs, TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask, TimelineLayerMask } from './timeline-compositing.ts';
 import type { TimelineCameraParameterValues } from './layers/camera/camera.ts';
 import type { TimelineTransformParameterValues } from './layers/transform/transform.ts';
@@ -20,7 +23,7 @@ export type TimelineParameterTarget = 'customParameter' | 'module' | 'effect' | 
 // 実行インスタンスの扱いは利用側へ委ねる。
 export type TimelineLayerChange =
 	| { type: 'parameter'; target: TimelineParameterTarget; kind: ParameterChangeKind }
-	| { type: 'definition' | 'clips' | 'resolution' | 'disabled' | 'motionBlur' | 'coordinateSpace' | 'mask' | 'layerMask' | 'compositeInclusion' | 'transformTarget' };
+	| { type: 'staticSetting' | 'definition' | 'clips' | 'resolution' | 'disabled' | 'motionBlur' | 'coordinateSpace' | 'mask' | 'layerMask' | 'compositeInclusion' | 'transformTarget' };
 
 type TimelineLayerCommon = {
 	id: string;
@@ -76,6 +79,7 @@ export type TimelineEffectLayer = TimelineLayerBase<TimelineContentClip> & Timel
 	transformTarget?: TimelineLayerTransformTarget;
 	effectId: string;
 	effectParamValues: Record<string, TimelineEffectParameterBinding>;
+	effectStaticSettings: StaticSettingValues;
 	resolution: EffectResolution;
 };
 
@@ -89,6 +93,7 @@ export type TimelineShapeLayer = TimelineLayerBase<TimelineContentClip> & Timeli
 export type TimelineTextLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'text';
 	textParamValues: TextParameterValues<TimelineParameterBinding>;
+	textStaticSettings: TextStaticSettings;
 };
 
 export type TimelineAudioLayer = TimelineLayerBase<TimelineMediaClip> & TimelineAudioLayerBase & {
@@ -108,6 +113,7 @@ export type TimelineVoicevoxLayer = TimelineLayerBase<TimelineContentClip> & Tim
 	voicevox: VoicevoxSettings;
 	utterances: VoicevoxUtterance[];
 	subtitleParamValues: VoicevoxSubtitleParameterValues<TimelineParameterBinding>;
+	subtitleStaticSettings: VoicevoxSubtitleStaticSettings;
 };
 
 /** 静止画像は素材長を持たず、内容時刻は描画に影響しない。 */

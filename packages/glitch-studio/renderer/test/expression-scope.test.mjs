@@ -80,7 +80,7 @@ test('uses current enum defaults only for empty timelines and rejects obsolete k
 });
 const layerScope = { ...frame, endTime: Infinity, variables: { TIME: 0.5, TIME_MS: 500, TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: true }, automationGraphs: [] };
 const moduleScope = { ...frame, variables: {
-	WIDTH: 800, HEIGHT: 400, TIME: 0.5, TIME_MS: 500,
+	RESOLUTION: [800, 400], TIME: 0.5, TIME_MS: 500,
 	END_TIME: 2, END_TIME_MS: 2000, PROGRESS: 0.25, IS_EXPORT: true,
 	POINTER_POSITION: [0.25, -0.75],
 	TEST_ONLY_VM: true, TEST_SAME_NAME: 1,
@@ -107,6 +107,7 @@ function externalValues(evaluator, defs, params, scope) {
 test('exposes exactly the declared variables for each scope', async () => {
 	let moduleVariables;
 	const renderer = Object.assign(Object.create(VisualModuleRenderer.prototype), {
+		nodeResolutions: new Map([['probe', { width: 800, height: 400 }]]),
 		contextResolution: { width: 800, height: 400 }, paramDefs: [], automationGraphs: [],
 		nodes: [{ id: 'probe', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'probe', params: { value: literal(0) } }],
 		effectDefinitions: { probe: { paramDefs: { value: def('value') } } },
@@ -242,7 +243,7 @@ test('keeps layer defaults and excludes primary inputs from evaluated values', a
 
 // 【公開入力間で同じ画像のScene枠確定を共有し、次の評価では作り直す】
 // 元の画像が同じなら下層入力と別レイヤー参照でも同じ変換結果を使える。
-// 素材をそのまま渡す入力には変換を適用せず、同じGPUオブジェクトを再利用する次フレームへ
+// source段階の参照もScene寸法へ揃える。同じGPUオブジェクトを再利用する次フレームへ
 // 変換結果を持ち越して画像の更新を失うことも防ぐ。
 test('shares framed public image inputs only within the current evaluation', async () => {
 	const image = { kind: 'texture', texture: {} };
@@ -260,8 +261,7 @@ test('shares framed public image inputs only within the current evaluation', asy
 	for (let evaluation = 0; evaluation < 2; evaluation++) {
 		await adapter.evaluate(context, new AbortController().signal);
 		assert.equal(converted.length, evaluation + 1);
-		for (const id of ['left', 'right', 'background']) assert.strictEqual(resolved.get(id), converted[evaluation]);
-		assert.strictEqual(resolved.get('raw'), image);
+		for (const id of ['left', 'right', 'background', 'raw']) assert.strictEqual(resolved.get(id), converted[evaluation]);
 	}
 	assert.notStrictEqual(converted[0], converted[1]);
 });

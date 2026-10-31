@@ -1,11 +1,12 @@
-import type { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
+import type { StaticSettingDefinitions, StaticSettingDataType, StaticSettingValue } from '@gs/shared/static-setting.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { BlendMode } from '@gs/shared/color-blend.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
+import type { FileSource } from '@gs/shared/file-source.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import type { Asset, FitMode, IntermediateTextureFormat, WrapMode } from '@gs/shared/types.ts';
+import type { FitMode, IntermediateTextureFormat, WrapMode } from '@gs/shared/types.ts';
 import type { EffectOutputDefinitions, EffectDefinition } from './effect-definition.ts';
 import type { EffectStatus } from './effect-status.ts';
 
@@ -23,10 +24,6 @@ type RuntimeEffectOptionValue<D extends DataType, S> =
 	D extends { kind: 'fitMode' } ? FitMode :
 	D extends { kind: 'wrapMode' } ? WrapMode :
 	D extends { kind: 'enum'; options: readonly string[] } ? D['options'][number] :
-	D extends { kind: 'imageAssetTextureReference' } ? GPUTexture | null :
-	D extends { kind: 'assetReference'; assetType: 'video' } ? Pick<Asset, 'id' | 'fileData' | 'width' | 'height'> | null :
-	D extends { kind: 'assetReference' } ? Pick<Asset, 'id' | 'fileData'> | null :
-	D extends { kind: 'playerReference' } ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
 	D extends { kind: 'audioSource' } ? AudioInput | null :
 	D extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
 		? S extends { fields: infer Settings }
@@ -89,13 +86,10 @@ export type EffectInstance<Options extends Record<string, ParameterDefinition> =
 	dispose: () => void;
 };
 
-export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs'> = EffectDefinition, Options extends Record<string, ParameterDefinition> = Definition['paramDefs']> = {
+export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs'> = EffectDefinition, Options extends Record<string, ParameterDefinition> = Definition['paramDefs']> = {
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
-	/** 自動モードで使う素材の原寸。プレビュー倍率の適用はレンダラーが行う。ノード入力の寸法は返さない。 */
-	getIntrinsicResolution?: (params: RuntimeEffectParameters<Options>) => { width: number; height: number } | null;
-	/** 自動モードで使う入力の計算用寸法。複数入力などの選択に使い、プレビュー倍率は再適用しない。 */
-	getInputResolution?: (params: RuntimeEffectParameters<Options>) => { width: number; height: number } | null;
+
 	outputTextureFactories: {
 		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はレンダラー作成時に確保する。
 		[K in keyof Definition['outputDefs']]: (args: {
@@ -114,10 +108,21 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 		resolution: { width: number; height: number; },
 		wgpu: EffectGpuContext;
 		params: RuntimeEffectParameters<Options>;
+		resources: EffectStaticResources<Definition>;
 		fallbackTexture: GPUTexture;
 	}) => EffectInstance<Options, Definition['outputDefs']>;
 };
 
-export function implementEffect<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs'>>(def: EffectImplementation<Definition, Definition['paramDefs']>): EffectImplementation<Definition, Definition['paramDefs']> {
+export function implementEffect<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs'>>(def: EffectImplementation<Definition, Definition['paramDefs']>): EffectImplementation<Definition, Definition['paramDefs']> {
 	return def;
 }
+
+// 保存するIDと借用するリソースを分離する。Playerの選択は固定でもフレームは更新される。
+// 素材のID・寸法は呼び出し側で解決し、ファイルを読む実装には読み取り口だけを渡す。
+type EffectStaticResource<T extends StaticSettingDataType> =
+	T extends { kind: 'assetReference'; assetType: 'image' } ? GPUTexture | null :
+	T extends { kind: 'assetReference' } ? FileSource | null :
+	T extends { kind: 'playerReference' } ? { getVideoFrame: () => VideoFrame | null } | null : StaticSettingValue<T>;
+export type EffectStaticResources<Definition extends { staticSettingDefs?: StaticSettingDefinitions }> = {
+	readonly [Key in keyof NonNullable<Definition['staticSettingDefs']>]: EffectStaticResource<NonNullable<Definition['staticSettingDefs']>[Key]['dataType']>;
+};

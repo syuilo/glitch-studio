@@ -8,6 +8,7 @@ import colorMixDefinition from '@gs/subsystems_effect_shared/fx/colorMix/_def_.t
 import colorMix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { checkEffectTimelineLayers, checkBlurRegionTimelineLayer } from './effect-timeline-layer-gpu.ts';
@@ -92,10 +93,11 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		completed.push(name);
 	}
 	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
-	const single = new EffectRenderer({
+	const createGradientRenderer = (resolution: Resolution) => new EffectRenderer({
 		definition: gradientDefinition,
 		implementation: gradient,
-		resolution: { width: 4, height: 4 },
+		resolution,
+		staticResources: {},
 		fallbackTexture,
 		wgpu: {
 			device,
@@ -104,6 +106,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			intermediateTextureFormat: 'rgba8unorm',
 		},
 	});
+	let single = createGradientRenderer({ width: 4, height: 4 });
 	const params = Object.fromEntries(Object.entries(gradientDefinition.paramDefs).map(([key, def]) => [
 		key, 'canNode' in def && def.canNode ? constantShaderInput(def.dataType.kind, def.defaultValue.value) : def.defaultValue.value,
 	])) as unknown as RuntimeEffectParameters<typeof gradientDefinition.paramDefs>;
@@ -111,10 +114,12 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		id: 'history',
 		type: 'effect',
 		effectId: 'feedback',
+		staticSettings: {},
 		displayName: '',
 		isBypass: false,
 		resolution: { mode: 'context', scale: 1 },
 		params: {
+			...Object.fromEntries(Object.entries(feedbackDefinition.paramDefs).map(([key, definition]) => [key, structuredClone(definition.defaultValue)])),
 			input: {
 				inputSource: 'node',
 				nodeId: 'source',
@@ -124,7 +129,8 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 				filterMode: 'linear',
 			},
 			strength: { inputSource: 'literal', value: 1 },
-			halfLife: { inputSource: 'literal', value: 0 },
+			// 加算と履歴保持を確認するため、観測区間より十分長い半減期にする。
+			halfLife: { inputSource: 'literal', value: 1e9 },
 			reset: { inputSource: 'literal', value: false },
 		},
 	};
@@ -143,6 +149,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			id: 'source',
 			type: 'effect',
 			effectId: 'colorMix',
+			staticSettings: {},
 			displayName: '',
 			isBypass: false,
 			resolution: { mode: 'context', scale: 1 },
@@ -159,7 +166,6 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		intermediateTextureFormat: 'rgba8unorm',
 		assets: [],
 		assetTextures: new Map(),
-		audioSources: new Map(),
 		videoFrames: new Map(),
 		videoFrameVersions: new Map(),
 		effectDefinitions: { colorMix: { ...colorMixDefinition }, feedback: { ...feedbackDefinition } },
@@ -212,12 +218,13 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			single.setUsedOutputPorts(scalarOnly);
 			if (single.getOutputTexture('vector') != null) throw new Error('Unused lazy output was retained');
 		}
-		single.setResolution({ width: 2, height: 2 });
+		single.dispose();
+		single = createGradientRenderer({ width: 2, height: 2 });
 		drawGradient(both);
-		check('EffectRenderer resized output', await read(single.getOutputTexture('scalar')!), [191, 64].flatMap(value => Array(2).fill([value, 0, 0, 255]).flat()));
+		check('EffectRenderer recreated output', await read(single.getOutputTexture('scalar')!), [191, 64].flatMap(value => Array(2).fill([value, 0, 0, 255]).flat()));
 
 		// 【モジュール経由の履歴とバイパス・リサイズを実画素で確認する】
-		// prepareだけで加算が進まず、バイパス解除では既存履歴から再開し、リサイズでは新しく始める。
+		// prepareだけで加算が進まず、バイパス解除・リサイズのどちらでも履歴を新しく始める。
 		check('module first history frame', await drawModule(), Array(16).fill([64, 0, 0, 64]).flat());
 		await renderer.prepare(frame(), new AbortController().signal);
 		await renderer.prepare(frame(), new AbortController().signal);
@@ -226,7 +233,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		check('module bypasses history', await drawModule(), Array(16).fill([255, 0, 0, 255]).flat());
 		history.isBypass = false;
 		renderer.updateNodes(module.nodes);
-		check('module resumes history', await drawModule(), Array(16).fill([128, 0, 0, 128]).flat());
+		check('module resets history after bypass', await drawModule(), Array(16).fill([64, 0, 0, 64]).flat());
 		renderer.resize({ width: 2, height: 2 });
 		check('module resets resized history', await drawModule(), Array(4).fill([64, 0, 0, 64]).flat());
 		return completed;

@@ -110,7 +110,7 @@ export default defineEffect({
 		preserveDetails: { dataType: { kind: 'bool' }, ui: { label: 'Preserve Input Detail', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 	},
 	primaryInputParameter: 'input',
-	resolutionInputParameter: 'input',
+	resolutionInputParameters: ['input'],
 	outputDefs: { output: { dataType: { kind: 'color' } } },
 	primaryOutput: 'output',
 });

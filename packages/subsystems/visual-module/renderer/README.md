@@ -2,6 +2,8 @@
 
 呼び出し側は、静的な設定検証が成功したVisual Moduleだけを渡す。循環参照・Binding構造・音声指定の形式は`visual-module/shared/static-validation.ts`等で設定変更時に検証し、準備・描画・キャッシュ計算では再検証しない。式やenumなどの評価済み値と、素材・GPUの実行時検証は残す。
 
+素材一覧・素材メタデータ・画像のGPUテクスチャは、生成時に準備済みの状態で渡し、インスタンスの寿命中は変更しない。素材の追加・削除・原本や寸法の変更ではレンダラーを再生成する。素材更新APIや準備待ちの透明表示は持たない。固定された素材一覧から別の素材を選ぶノードの静的設定編集は`updateNodes()`等で反映できる。Playerの定義・固有寸法も固定するが、動画フレーム・外部画像入力・音声入力の内容は引き続き更新できる。
+
 RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできないため、意図しないそれらへの参照/依存が原理的に発生しないように別パッケージとする
 
 ただし、必要に応じて(別スレッドとして動かすとかえってパフォーマンスが悪化する環境で動かす場合)メインスレッドから直接利用することもできる設計
@@ -9,3 +11,13 @@ RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできな
 `VisualModuleParameterBindingEvaluator`はノード出力参照・Visual Moduleカスタムパラメータ参照（`visualModuleCustomParameterReference`）・`PARAM`関数を解決する。`canNode: false`で音声以外の公開パラメータだけを式の評価環境に渡し、CPU値の評価は共通の`ParameterBindingEvaluator`へ委ねる。解決済みの値をエフェクト入力へ変換する処理はEffect Rendererを利用する。
 
 `audioSource`は静的な音声取得元の指定で、ノードの画像配線・式・キー・automationへは流さない。リテラルの取得元は呼び出し側が注入する`resolveAudioSource`へ渡し、このパッケージでは取得元の種類や指定形式を解釈しない。解決関数が未提供なら未接続として扱う。公開音声パラメータは`visualModuleCustomParameterReference`で内部エフェクトへ渡せる。Timelineなどが解決済みの音声を提供する場合は`audioParamInputs`で受け取り、Scene・レイヤー・デコーダーの解決をこのパッケージへ持ち込まない。同じ描画内では解決した入力を保持し、非同期準備中に読み直さない。
+
+Playerの映像は現在のフレームまたはnullとして借用する。Playerの実行時エラーは受け取らず、フレームがなければVideoエフェクトが透明に描画する。フレームの解除・復旧時も`videoFrameVersions`を更新して出力キャッシュへ伝える。
+
+`visual-module-resolutions.ts`が設定スナップショット・接続・宣言された外部入力寸法・素材メタデータだけで解像度を計画する。GPU確保や初回の式評価より前に計画し、各ノードの式・環境変数・加工式へ自身の`RESOLUTION: [width, height]`を渡す。`visual-module-output-source.ts`が公開ポート・relay・Bypassの実効出力元を解決し、描画・キャッシュ・解像度計画で同じ接続規則を使う。外部入力の寸法はコンストラクターまたは`updateVisualModule()`の`inputResolutions`で明示し、現在のテクスチャ寸法から推測しない。
+
+公開定義と入力寸法を同時に変更する場合は`updateVisualModule()`の第2引数の`inputResolutions`へ寸法宣言を渡し、一つのスナップショットとして計画する。通常パラメータの値だけの編集では、呼び出し側が`preserveStaticState: true`を指定し、解像度計画・インスタンス・履歴・出力キャッシュを保持する。再評価した値と既存キーを比較し、変更した枝だけを描き直す。それ以外の静的設定・接続・Bypass・解像度・ノード構造・公開定義等の編集では、Visual Module内の全エフェクトを破棄・再作成する。未編集のノードも履歴を失う。Timelineも描画までに一度でもそれらが変更されていれば再作成し、フレームごとに寸法Mapを生成しない。音声は`resolveAudioSource`または`audioParamInputs`から受け取り、音声履歴を直接保持しない。
+
+`resize()`による描画基準・全体倍率の変更も同じ再計画・全再作成経路を使い、実寸法が変わらないノードも履歴を失う。倍率適用後の描画基準と全体倍率がともに同値なら、再作成を省いて準備・履歴・キャッシュを保持する。全体倍率は素材原寸・`customAbsolute`にも作用するため、描画基準の寸法だけでは同値と判定しない。再計画や生成途中で失敗した場合は全出力と待機を解放し、そのVisualModuleRendererでは描画を続けない。復旧は所有者によるVisualModuleRendererの再生成で行う。
+
+描画キャッシュは解像度・静的設定の変更を`EffectRenderer.resourceVersion`、非同期準備の完了を`cacheVersion`で後段へ伝える。解像度や静的設定自体は毎フレームのキーに重複して含めない。Playerの現在フレームは`videoFrameVersions`で追跡する。

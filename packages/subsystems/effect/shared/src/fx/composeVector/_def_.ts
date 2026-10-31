@@ -25,7 +25,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: null,
-	resolutionInputParameter: null,
+	resolutionInputParameters: ['x', 'y'],
 	outputDefs: {
 		output: { dataType: { kind: 'vector' } },
 	},

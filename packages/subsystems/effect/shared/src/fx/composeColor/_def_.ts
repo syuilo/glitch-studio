@@ -37,7 +37,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: null,
-	resolutionInputParameter: null,
+	resolutionInputParameters: ['red', 'green', 'blue', 'alpha'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

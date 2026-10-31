@@ -1,3 +1,6 @@
+import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
+import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
+import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
 import { matchesAssetReferenceMimeType } from '@gs/shared/data-type/asset-reference.ts';
 import { computed, shallowRef } from 'vue';
 import { inspectStaticParameter, staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
@@ -168,16 +171,25 @@ export class ProjectRenderValidation {
 	private value(definition: ParameterDefinition, binding: any, dependencies: Set<string>) {
 		if (binding.inputSource !== 'literal' || binding.value == null) return;
 		const kind = definition.dataType.kind;
-		if (kind === 'imageAssetTextureReference') this.asset(binding.value, dependencies);
-		if (definition.dataType.kind === 'assetReference') {
-			const mimeType = this.asset(binding.value, dependencies);
-			if (!matchesAssetReferenceMimeType(definition.dataType, mimeType)) throw new Error('Incompatible Asset: ' + binding.value);
+		if (kind === 'audioSource') {
+			validatePlayerAudioSourceSelection(binding.value);
+			dependencies.add('player:' + binding.value.playerId);
+			if (!this.players.has(binding.value.playerId)) throw new Error('Player not found: ' + binding.value.playerId);
 		}
-		if (kind === 'playerReference' || kind === 'audioSource') {
-			if (kind === 'audioSource') validatePlayerAudioSourceSelection(binding.value);
-			const id = kind === 'audioSource' ? binding.value.playerId : binding.value;
-			dependencies.add('player:' + id);
-			if (!this.players.has(id)) throw new Error('Player not found: ' + id);
+	}
+
+	private staticSettings(definitions: StaticSettingDefinitions, values: StaticSettingValues, dependencies: Set<string>) {
+		const resolvedValues = createStaticSettingValues(definitions, values);
+		for (const [key, definition] of Object.entries(definitions)) {
+			const value = resolvedValues[key];
+			if (value == null) continue;
+			if (definition.dataType.kind === 'assetReference') {
+				const mimeType = this.asset(value as string, dependencies);
+				if (!matchesAssetReferenceMimeType(definition.dataType, mimeType)) throw new Error('Incompatible Asset: ' + value);
+			} else if (definition.dataType.kind === 'playerReference') {
+				dependencies.add('player:' + value);
+				if (!this.players.has(value as string)) throw new Error('Player not found: ' + value);
+			}
 		}
 	}
 
@@ -209,6 +221,7 @@ export class ProjectRenderValidation {
 			edges.length = 0;
 			try {
 				inspectVisualModuleNode(node, this.visualModules.get(key)!, this.definitions, id => edges.push(id), (def, binding) => this.value(def, binding, dependencies));
+				if (node.type === 'effect') this.staticSettings(this.definitions[node.effectId].staticSettingDefs ?? {}, node.staticSettings ?? {}, dependencies);
 			} finally {
 				this.nodeEdges.get(key)?.set(node.id, edges);
 			}
@@ -292,6 +305,8 @@ export class ProjectRenderValidation {
 			}
 			if (layer.layerType === 'image' || layer.layerType === 'video' || layer.layerType === 'audio') for (const clip of layer.clips) this.asset(clip.assetId, dependencies);
 			const currentVisualModule = layer.layerType === 'visualModule' ? this.state.visualModules.value.find(visualModule => visualModule.id === layer.visualModuleId) : visualModule;
+			const settings = getTimelineLayerStaticSettings(layer, effect);
+			this.staticSettings(settings.definitions, settings.values ?? {}, dependencies);
 			inspectTimelineLayer(layer, currentVisualModule, effect, (def, binding) => {
 				this.value(def, binding, dependencies);
 				const input = binding as { inputSource: string };

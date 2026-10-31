@@ -35,19 +35,33 @@ function fixture() {
 	}
 	const dependencies = {
 		TimelineRendererManager: class {
-			constructor(core, staticOptions) {
+			static async create(core, staticOptions, resources, signal) {
+				const manager = new this(core, staticOptions, resources);
+				preparing.resolve();
+				try {
+					await prepared.promise;
+					signal.throwIfAborted();
+					return manager;
+				} catch (error) {
+					manager.destroy();
+					throw error;
+				}
+			}
+			constructor(core, staticOptions, resources) {
 				this.core = core;
 				this.staticOptions = staticOptions;
+				this.resources = resources;
 				instance = this;
 			}
 			on(name, handler) { this.handler = handler; }
-			async updateDynamicOptions(options) {
+			updateDynamicOptions(options) {
 				this.dynamicOptions = options;
-				preparing.resolve();
-				await prepared.promise;
-				return { assetsCommitted: true };
 			}
-			async renderTimelineFrame(time, delta, fps) { this.renderFps = fps ?? this.staticOptions.timelineFps; frames.push([time, delta]); }
+			async renderTimelineFrame(time, delta, fps) {
+				this.renderFps = fps ?? this.staticOptions.timelineFps;
+				if (this.renderErrorEvent != null) { this.handler(this.renderErrorEvent); return; }
+				frames.push([time, delta]);
+			}
 			destroy() { destroyed = true; }
 		},
 		async createMp4Writer(canvas, settings) {
@@ -96,14 +110,16 @@ for (const format of ['mp4', 'webp']) {
 		await f.preparing.promise;
 		assert.deepEqual(f.frames, []);
 		assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), ['float32-filterable']);
-		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = request.project;
+		const { timelineFps, timelineMotionBlur, assets, ...dynamicProjectOptions } = request.project;
+		assert.deepEqual(structuredClone(f.instance.resources), { assets });
 		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer, timelineFps, timelineMotionBlur, enableStats: false, enableWaveformAndHistogram: false });
 		const resolution = format === 'mp4' ? { width: 4, height: 6 } : { width: 3, height: 5 };
+		assert.equal(f.instance.dynamicOptions, undefined);
+		f.prepared.resolve();
+		await job;
 		assert.deepEqual(structuredClone(f.instance.dynamicOptions), {
 			...dynamicProjectOptions, resolutionScale: 1, outputResolution: resolution, opaqueOutput: format === 'mp4',
 		});
-		f.prepared.resolve();
-		await job;
 		assert.deepEqual(f.frames, [[1000, 0]]);
 		assert.equal(f.instance.renderFps, format === 'mp4' ? 30 : 60);
 		assert.equal(f.encodings.length, 1);
@@ -116,7 +132,7 @@ for (const format of ['mp4', 'webp']) {
 
 // 【素材準備の失敗を描画前に通知する】
 // 素材準備が失敗したら描画・エンコードを行わず、UIへ失敗を返す。
-// 動的オプションの更新を待たない実装では、欠落した素材のまま成功扱いになり得る。
+// 非同期factoryの完了を待たない実装では、欠落した素材のまま成功扱いになり得る。
 test('reports asset preparation failures without rendering export frames', { timeout: 2000 }, async () => {
 	const f = fixture();
 	const job = f.run({
@@ -153,7 +169,7 @@ for (const [type, source, label] of [
 			project: { automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		});
 		await f.preparing.promise;
-		f.instance.handler({ type, ctx: { ...source, status: { status: { type: 'error', message: 'Invalid expression' } } } });
+		f.instance.renderErrorEvent = { type, ctx: { ...source, status: { status: { type: 'error', message: 'Invalid expression' } } } };
 		f.prepared.resolve();
 		await job;
 		assert.deepEqual(f.frames, []);
@@ -179,11 +195,11 @@ test('exports custom scene sizes with an explicit scale and unchanged project di
 		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
 	});
 	await f.preparing.promise;
+	f.prepared.resolve();
+	await job;
 	assert.deepEqual(structuredClone(f.instance.dynamicOptions.resolution), project.resolution);
 	assert.equal(f.instance.dynamicOptions.resolutionScale, 2);
 	assert.deepEqual(structuredClone(f.instance.dynamicOptions.timelineScenes), project.timelineScenes);
-	f.prepared.resolve();
-	await job;
 	assert.deepEqual([f.encodings[0].canvas.width, f.encodings[0].canvas.height], [1026, 514]);
 	assert.equal(f.messages.at(-1).type, 'complete');
 });
@@ -207,6 +223,8 @@ for (const format of ['mp4', 'webp']) {
 			renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
 		});
 		await f.preparing.promise;
+		f.prepared.resolve();
+		await job;
 		const resolution = format === 'mp4' ? { width: 502, height: 778 } : { width: 501, height: 777 };
 		const dynamicOptions = structuredClone(f.instance.dynamicOptions);
 		assert.deepEqual(dynamicOptions.resolution, project.resolution);
@@ -215,8 +233,6 @@ for (const format of ['mp4', 'webp']) {
 		assert.deepEqual(dynamicOptions.timelineScenes[0].resolution, { mode: 'customAbsolute', ...resolution });
 		assert.deepEqual(dynamicOptions.timelineScenes[1], project.timelineScenes[1]);
 		assert.deepEqual(project.timelineScenes[0].resolution, { mode: 'project' });
-		f.prepared.resolve();
-		await job;
 		assert.deepEqual([f.encodings[0].canvas.width, f.encodings[0].canvas.height], [resolution.width, resolution.height]);
 		assert.equal(f.messages.at(-1).type, 'complete');
 	});

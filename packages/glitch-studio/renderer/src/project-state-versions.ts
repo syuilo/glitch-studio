@@ -3,17 +3,17 @@ import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import { canPreserveTimelineLayerInstance, canPreserveNodeOutputCache } from './project-change-policy.ts';
+import { canPreserveTimelineLayerInstance, canPreserveNodeStaticState } from './project-change-policy.ts';
 
 /** 定義の変更だけを数える。描画回数やGPUリソースの世代とは独立して扱う。 */
 export class ProjectStateVersions {
 	private revision = 0;
-	private modules = new Map<string, { revision: number; cacheResetRevision: number }>();
+	private modules = new Map<string, { revision: number; staticResetRevision: number }>();
 	private layers = new Map<string, number>();
 	private scenes = new Map<string, number>();
 
 	module(target: VisualModuleTarget) {
-		return this.modules.get(visualModuleTargetKey(target)) ?? { revision: 0, cacheResetRevision: 0 };
+		return this.modules.get(visualModuleTargetKey(target)) ?? { revision: 0, staticResetRevision: 0 };
 	}
 
 	scene(id: string) { return this.scenes.get(id) ?? 0; }
@@ -23,12 +23,12 @@ export class ProjectStateVersions {
 		const revision = ++this.revision;
 		for (const change of changes) {
 			if (change.type === 'visualModuleRegistration') {
-				this.modules.set(visualModuleTargetKey({ visualModuleId: change.visualModuleId }), { revision, cacheResetRevision: revision });
+				this.modules.set(visualModuleTargetKey({ visualModuleId: change.visualModuleId }), { revision, staticResetRevision: revision });
 			} else if (change.type === 'node' || change.type === 'visualModule') {
 				const previous = this.module(change.target);
 				this.modules.set(visualModuleTargetKey(change.target), {
 					revision,
-					cacheResetRevision: change.type === 'node' && canPreserveNodeOutputCache(change.changes) ? previous.cacheResetRevision : revision,
+					staticResetRevision: change.type === 'node' && canPreserveNodeStaticState(change.changes) ? previous.staticResetRevision : revision,
 				});
 			} else if (change.type === 'layerTree') {
 				// 並び・親だけの変更では既存配置の履歴を捨てない。ただし削除後に描画せず

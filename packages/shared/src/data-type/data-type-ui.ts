@@ -26,9 +26,6 @@ export type DataTypeUiControlDefinitionMap = {
 	fitMode: {};
 	wrapMode: {};
 	enum: { labels: Record<string, string> };
-	imageAssetTextureReference: {};
-	assetReference: {};
-	playerReference: {};
 	audioSource: {};
 	any: {};
 };

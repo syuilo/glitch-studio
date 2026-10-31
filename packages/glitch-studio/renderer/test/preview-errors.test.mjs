@@ -335,116 +335,6 @@ function imageAsset(id) {
 	return { id, name: id, width: 4, height: 2, fileDataType: 'image/png', fileData: new Blob([id], { type: 'image/png' }) };
 }
 
-function applyImageLayer(renderer, assetId) {
-	const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
-	scene.layers = [{ id: 'image-layer', name: 'Image', layerType: 'image', isDisabled: false, coordinateSpace: 'screen', mask: null,
-		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {},
-		clips: [{ id: 'image-clip', assetId, startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] }];
-	renderer.applyProjectChanges([{ type: 'scene', sceneId: scene.id, scene }]);
-}
-
-// 【画像の準備完了前に追加レイヤーが届いても描画を待ち、最新の待機位置へ追従する】
-// Assetとレイヤーは別のRPCで同期される。送信順を揃えてもデコード中には後続RPCを実行できるため、
-// 実ManagerでImage asset not foundを再現する順序にし、Assetの公開前には描画しないことを確認する。
-test('waits for image assets before rendering added layers and preserves the latest queued seek', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	const requests = deferredImageDecodes(t);
-	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
-	const times = [];
-	const renderAt = renderer.timelineRenderer.renderAt.bind(renderer.timelineRenderer);
-	t.mock.method(renderer.timelineRenderer, 'renderAt', (time, ...args) => { times.push(time); return renderAt(time, ...args); });
-	const update = renderer.updateDynamicOptions({ assets: [imageAsset('new-image')] });
-	applyImageLayer(renderer, 'new-image');
-	const pending = renderer.renderTimelineAt(0);
-	await renderer.renderTimelineAt(10);
-	await renderer.renderTimelineAt(20);
-	await new Promise(resolve => setImmediate(resolve));
-	assert.deepEqual(errors, []);
-	assert.equal(present.mock.callCount(), 0);
-	requests[0].resolve({ width: 4, height: 2, close() {} });
-	await Promise.all([update, pending]);
-	assert.deepEqual(times, [0, 20]);
-	assert.equal(present.mock.callCount(), 2);
-	assert.deepEqual(errors, []);
-});
-
-// 【差し替え後の画像が準備できたら、未完了の古い画像を待たずに描画する】
-// 連続ドロップやUndoで最新の定義と素材が変わり得る。取り消された重いデコードの
-// 完了順に依存せず、最新のレイヤーとテクスチャで描画を再開する。
-test('renders the replacement assets without waiting for an obsolete decode', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	const requests = deferredImageDecodes(t);
-	const first = renderer.updateDynamicOptions({ assets: [imageAsset('old-image')] });
-	applyImageLayer(renderer, 'old-image');
-	const pending = renderer.renderTimelineAt(0);
-	const second = renderer.updateDynamicOptions({ assets: [imageAsset('new-image')] });
-	applyImageLayer(renderer, 'new-image');
-	requests[1].resolve({ width: 4, height: 2, close() {} });
-	await Promise.all([second, pending]);
-	assert.equal(renderer.assetTextures.textures.has('new-image'), true);
-	assert.deepEqual(errors, []);
-	requests[0].reject(new Error('Obsolete decode failed'));
-	assert.equal((await first).assetsCommitted, false);
-	assert.deepEqual(errors, []);
-});
-
-// 【画像の準備失敗を描画側へ通知し、差し替え後には描画を再開できる】
-// 待機を単に解除するだけではImage asset not foundに置き換わってしまう。
-// 更新RPCとプレビューの両方で本来のデコード失敗を扱い、次の正常な更新で復旧する。
-test('reports the asset preparation failure and renders after a successful replacement', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	const requests = deferredImageDecodes(t);
-	const update = renderer.updateDynamicOptions({ assets: [imageAsset('image')] });
-	const rejected = assert.rejects(update, /Image decoding failed/);
-	applyImageLayer(renderer, 'image');
-	const pending = renderer.renderTimelineAt(0);
-	requests[0].reject(new Error('Image decoding failed'));
-	await Promise.all([rejected, pending]);
-	assert.deepEqual(errors, ['Image decoding failed']);
-	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
-	const replacement = renderer.updateDynamicOptions({ assets: [imageAsset('image')] });
-	const retry = renderer.renderTimelineAt(0);
-	requests[1].resolve({ width: 4, height: 2, close() {} });
-	await Promise.all([replacement, retry]);
-	assert.equal(present.mock.callCount(), 1);
-	assert.deepEqual(errors, ['Image decoding failed']);
-});
-
-// 【破棄で画像の準備待ちを解除し、GPUを使わず描画要求を終了する】
-// createImageBitmapが戻らなくても、閉じたManagerの描画Promiseを残さない。
-// 遅れてデコードが完了した場合の画像解放は、AssetTexturesの既存世代管理へ任せる。
-test('releases preview waits on destruction without rendering disposed resources', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	const requests = deferredImageDecodes(t);
-	const update = renderer.updateDynamicOptions({ assets: [imageAsset('image')] });
-	applyImageLayer(renderer, 'image');
-	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
-	const pending = renderer.renderTimelineAt(0);
-	renderer.destroy();
-	await pending;
-	assert.equal(present.mock.callCount(), 0);
-	assert.deepEqual(errors, []);
-	requests[0].resolve({ width: 4, height: 2, close() {} });
-	assert.equal((await update).assetsCommitted, false);
-});
-
-// 【書き出し用の描画もAsset準備の完了後に開始する】
-// プレビューだけを待たせると、同じManagerの画像評価経路で書き出しには競合が残る。
-test('waits for image preparation when rendering an export frame', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	const requests = deferredImageDecodes(t);
-	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
-	const update = renderer.updateDynamicOptions({ assets: [imageAsset('image')] });
-	applyImageLayer(renderer, 'image');
-	const pending = renderer.renderTimelineFrame(0, 0);
-	await new Promise(resolve => setImmediate(resolve));
-	assert.equal(present.mock.callCount(), 0);
-	requests[0].resolve({ width: 4, height: 2, close() {} });
-	await Promise.all([update, pending]);
-	assert.equal(present.mock.callCount(), 1);
-	assert.deepEqual(errors, []);
-});
-
 // 【選択レイヤーの変形情報だけを変更時に通知する】
 // ポーリングや全レイヤーの毎フレーム転送を避ける。選択解除・区間外・再描画での
 // 通知数を実Managerで検証し、同じ画像を再描画しただけでは通信を増やさない。
@@ -521,15 +411,15 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	let frameId = 0;
 	const { device, texture } = gpuFixture();
 	const originalGpuMethods = { createTexture: device.createTexture, createBuffer: device.createBuffer, submit: device.queue.submit };
-	const renderer = new Manager({
+	const renderer = await Manager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 		...waveformAndHistogramCanvases,
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
 		effectDefinitions: { pass: { paramDefs: {
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		}, primaryInputParameter: 'input', resolutionInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
+		}, primaryInputParameter: 'input', resolutionInputParameters: ['input'], outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions }, { assets: [], players: [] });
 	renderer.on('ev', event => {
 		if (event.type === 'renderError') errors.push(event.ctx.message);
 	});
@@ -797,16 +687,12 @@ test('preserves omitted Visual Module Live Preview options and clears an explici
 	const { renderer } = await fixture(t);
 	await renderer.updateDynamicOptions({ fpsLimit: 30, visualModuleLivePreviewTimeFactor: 2 });
 	const resize = t.mock.method(renderer, 'updateCanvasResolution');
-	const assets = t.mock.method(renderer, 'updateAssets', async () => true);
-	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, fpsLimit: null, visualModuleLivePreviewTimeFactor: 9, assets: [] }));
+	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, fpsLimit: null, visualModuleLivePreviewTimeFactor: 9 }));
 	assert.equal(renderer.visualModuleLivePreviewRenderLoop.fpsLimit, 30);
 	assert.equal(renderer.visualModuleLivePreviewRenderLoop.timeFactor, 2);
 	assert.equal(resize.mock.calls.length, 0);
-	assert.equal(assets.mock.calls.length, 0);
 	await renderer.updateDynamicOptions({ fpsLimit: null });
 	assert.equal(renderer.visualModuleLivePreviewRenderLoop.fpsLimit, null);
-	await renderer.updateDynamicOptions({ assets: [] });
-	assert.equal(assets.mock.calls.length, 1);
 });
 
 // 【PartialなTimeline設定の省略と、Scene・出力解像度・監視対象の解除を区別する】
@@ -1016,44 +902,6 @@ test('finishes partial Visual Module Live Preview frames before retrying', async
 	await Promise.resolve();
 });
 
-// 新しいAssetをデコードし、後から完了した古い更新で素材や通常設定を巻き戻さない。
-// AssetTextures単体の世代管理が正しくても、managerが更新前の一覧を渡したり、
-// await後に古いオプションをマージするとGPUリソースと設定の世代がずれる。
-test('commits only the latest assets and applies other options in call order', async t => {
-	const { renderer } = await fixture(t);
-	const requests = [];
-	const previous = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
-	globalThis.createImageBitmap = blob => {
-		const gate = Promise.withResolvers();
-		requests.push({ blob, ...gate });
-		return gate.promise;
-	};
-	t.after(() => {
-		if (previous) Object.defineProperty(globalThis, 'createImageBitmap', previous);
-		else delete globalThis.createImageBitmap;
-	});
-	const asset = id => ({ id, name: id, width: 4, height: 2, fileDataType: 'image/png', fileData: new Blob([id]) });
-	const bitmap = () => ({ width: 4, height: 2, close() {} });
-	const firstAssets = [asset('first')];
-	const first = renderer.updateDynamicOptions({ assets: firstAssets });
-	assert.equal(requests.length, 1);
-	assert.equal(requests[0].blob, firstAssets[0].fileData);
-	requests[0].resolve(bitmap());
-	assert.equal((await first).assetsCommitted, true);
-	assert.deepEqual([...renderer.assetTextures.textures.keys()], ['first']);
-
-	const earlier = renderer.updateDynamicOptions({ assets: [asset('earlier')], highlightClipping: true });
-	const laterAssets = [asset('later')];
-	const later = renderer.updateDynamicOptions({ assets: laterAssets, highlightClipping: false });
-	requests[2].resolve(bitmap());
-	assert.equal((await later).assetsCommitted, true);
-	requests[1].resolve(bitmap());
-	assert.equal((await earlier).assetsCommitted, false);
-	assert.equal(renderer.dynamicOptions.assets, laterAssets);
-	assert.deepEqual([...renderer.assetTextures.textures.keys()], ['later']);
-	assert.equal(renderer.dynamicOptions.highlightClipping, false);
-});
-
 // 解像度を汎用の更新APIで変えても、Canvasと描画先の解像度を一致させる。
 // 専用のresizeメッセージだけにCanvas更新を残すと、呼び出し経路で出力サイズが変わる。
 test('resizes the canvas and Visual Module Live Preview renderer through dynamic options', async t => {
@@ -1144,7 +992,102 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 	});
 }
 
+for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
+	// 【GPUを注入する生成経路でも、画像準備前のManagerを返さない】
+	// 書き出しとプレビューで同じ不変条件を持たせ、呼び出し側のready待機に依存しないことを確認する。
+	test(`${Manager.name} returns a prepared manager without exposing a ready promise`, async t => {
+		const { device, texture } = gpuFixture();
+		const requests = deferredImageDecodes(t);
+		let returned = false;
+		const starting = Manager.create({
+			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
+			effectDefinitions: {}, effectImplementations: {},
+		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		{ assets: [imageAsset('image')], players: [] }).then(manager => { returned = true; return manager; });
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(returned, false);
+		assert.equal(requests.length, 1);
+		requests[0].resolve({ width: 4, height: 2, close() {} });
+		const manager = await starting;
+		t.after(() => manager.destroy());
+		assert.equal(manager.assetTextures.textures.has('image'), true);
+		assert.equal('ready' in manager, false);
+	});
+
+	// 【素材のデコード待ちでも生成を中断し、遅れて完了した画像をGPUへ転送しない】
+	// 非公開の生成途中Managerを呼び出し側では破棄できないため、factoryがGPUDeviceを回収する。
+	// デコード完了を待たない中断と、完了後のBitmap解放の双方を確認する。
+	test(`${Manager.name} aborts initialization before image decoding finishes and releases late bitmaps`, async t => {
+		const { device, texture } = gpuFixture();
+		const requests = deferredImageDecodes(t);
+		const destroyed = t.mock.method(device, 'destroy');
+		const allocations = t.mock.method(device, 'createTexture');
+		const uploads = t.mock.method(device.queue, 'copyExternalImageToTexture');
+		const controller = new AbortController();
+		const starting = Manager.create({
+			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
+			effectDefinitions: {}, effectImplementations: {},
+		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		{ assets: [imageAsset('image')], players: [] }, controller.signal);
+		assert.equal(requests.length, 1);
+		const rejected = assert.rejects(starting, /initialization cancelled/);
+		controller.abort(new Error('initialization cancelled'));
+		await rejected;
+		assert.equal(destroyed.mock.callCount(), 1);
+		const allocatedBeforeDecode = allocations.mock.callCount();
+		let closedBitmaps = 0;
+		requests[0].resolve({ width: 4, height: 2, close() { closedBitmaps++; } });
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(allocations.mock.callCount(), allocatedBeforeDecode);
+		assert.equal(uploads.mock.callCount(), 0);
+		assert.equal(closedBitmaps, 1);
+	});
+}
+
 for (const [name, createManager] of [['visualModuleLivePreview', createVisualModuleLivePreviewManager], ['timeline', createTimelineManager]]) {
+	// 【Factoryは固定素材のGPU準備が完了してからManagerを公開する】
+	// 描画側の素材待機を廃止しても、初期化メッセージの完了時点で全画像が使える必要がある。
+	// 通常の設定適用とは別に素材の準備を待ち、素材を動的オプションへ混ぜないことを確認する。
+	test(`${name} factory waits for its fixed resources before returning the manager`, async t => {
+		const { device } = gpuFixture();
+		const requests = deferredImageDecodes(t);
+		class Context {
+			canvas = { width: 1, height: 1 };
+			configure() {}
+			unconfigure() {}
+		}
+		const previousContext = Object.getOwnPropertyDescriptor(globalThis, 'GPUCanvasContext');
+		const previousGpu = Object.getOwnPropertyDescriptor(navigator, 'gpu');
+		globalThis.GPUCanvasContext = Context;
+		Object.defineProperty(navigator, 'gpu', { configurable: true, value: {
+			getPreferredCanvasFormat: () => 'rgba8unorm',
+			requestAdapter: async () => ({ requestDevice: async () => device }),
+		} });
+		t.after(() => {
+			if (previousContext != null) Object.defineProperty(globalThis, 'GPUCanvasContext', previousContext);
+			else delete globalThis.GPUCanvasContext;
+			Object.defineProperty(navigator, 'gpu', previousGpu);
+		});
+		const canvas = { getContext: () => new Context() };
+		let ready = false;
+		const starting = createManager({
+			canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
+			staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+			dynamicOptions: { highlightClipping: true }, resources: { assets: [imageAsset('image')], players: [] },
+			effectDefinitions: {}, effectImplementations: {},
+		}).then(manager => { ready = true; return manager; });
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(ready, false);
+		assert.equal(requests.length, 1);
+		requests[0].resolve({ width: 4, height: 2, close() {} });
+		const manager = await starting;
+		t.after(() => manager.destroy());
+		assert.equal(manager.assetTextures.textures.has('image'), true);
+		assert.equal(manager.dynamicOptions.highlightClipping, true);
+		assert.equal('assets' in manager.dynamicOptions, false);
+		assert.equal('players' in manager.dynamicOptions, false);
+	});
+
 	for (const failure of ['context', 'constructor', 'assets']) {
 		// 【初期化失敗時にデバイスと定期通知を回収する】
 		// factoryがrejectすると呼び出し元はmanagerを受け取れず、後始末を委ねられない。
@@ -1180,7 +1123,8 @@ for (const [name, createManager] of [['visualModuleLivePreview', createVisualMod
 			await assert.rejects(createManager({
 				canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
 				staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
-				dynamicOptions: { assets: [{ id: 'broken', fileDataType: 'image/png', fileData: new Blob() }] },
+				dynamicOptions: {},
+				resources: { assets: [{ id: 'broken', fileDataType: 'image/png', fileData: new Blob() }], players: [] },
 				effectDefinitions: {}, effectImplementations: {},
 			}), failure === 'context' ? /cannot get webgpu context/ : failure === 'constructor' ? /pipeline failed/ : /asset decode failed/);
 			assert.equal(destroyed.mock.callCount(), 1);

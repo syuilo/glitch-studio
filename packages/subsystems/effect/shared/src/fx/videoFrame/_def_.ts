@@ -10,8 +10,11 @@ export default defineEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['media'],
+	staticSettingDefs: {
+		asset: { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Asset' }, defaultValue: null },
+	},
+	intrinsicResolutionSetting: 'asset',
 	paramDefs: {
-		asset: { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Asset', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		fit: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
 		outOfRange: {
@@ -21,7 +24,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: null,
-	resolutionInputParameter: null,
+	resolutionInputParameters: [],
 	outputDefs: { output: { dataType: { kind: 'color' } } },
 	primaryOutput: 'output',
 });

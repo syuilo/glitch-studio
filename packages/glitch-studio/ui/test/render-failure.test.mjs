@@ -14,6 +14,90 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', result.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewRenderEngine, formatRenderFailureOrigin } = module.exports;
 
+// 【破棄されたWorkerのRPC失敗が遅れて届いても新しいプレビューを停止しない】
+// Worker破棄は未完了RPCをrejectするが、その拒否は複数の非同期呼び出しを経由して届く。
+// 素材準備が先に終わって描画可能に戻った後も、失敗した更新の世代で判定する必要がある。
+test('ignores obsolete renderer update failures after resource recreation completes', async () => {
+	const rpc = Promise.withResolvers();
+	const delivery = Promise.withResolvers();
+	let created = 0, disposed = 0;
+	const engine = new PreviewRenderEngine({
+		create: async () => { created++; },
+		dispose: () => { disposed++; rpc.reject(new Error('Engine reloaded during renderer call')); },
+	});
+	await engine.enable();
+	const update = engine.runRendererUpdate(async () => {
+		try { await rpc.promise; } catch (error) {
+			await delivery.promise;
+			throw error;
+		}
+	});
+	const resources = engine.beginResourceUpdate();
+	await resources.complete();
+	assert.equal(engine.canRender.value, true);
+	delivery.resolve();
+	await update;
+	assert.equal(engine.errorMessage.value, null);
+	assert.equal(engine.canRender.value, true);
+	assert.equal(created, 2);
+	assert.equal(disposed, 1);
+});
+
+// 【現在のWorkerで発生した更新失敗は隠さず描画を停止する】
+// 古いRPCの無効化と、本当に修正が必要な更新エラーの報告を区別する。
+test('reports failures from renderer updates in the current generation', async () => {
+	const engine = new PreviewRenderEngine({ create: async () => {}, dispose() {} });
+	await engine.enable();
+	await engine.runRendererUpdate(async () => { throw new Error('Invalid connection'); });
+	assert.equal(engine.errorMessage.value, 'Invalid connection');
+	assert.equal(engine.canRender.value, false);
+});
+
+// 【素材準備中の通常再試行と古い準備完了ではエンジンを再生成しない】
+// 同じ編集のノード通知やプレビュー設定変更も再試行を要求するため、素材更新側のawaitだけでは
+// 再生成を抑止できない。最後の素材更新だけが最新スナップショットの生成を許可する必要がある。
+test('blocks retries during resource updates and only completes the latest update', async () => {
+	let created = 0, disposed = 0;
+	const engine = new PreviewRenderEngine({ create: async () => { created++; }, dispose: () => { disposed++; } });
+	await engine.enable();
+	const first = engine.beginResourceUpdate();
+	assert.equal(engine.canRender.value, false);
+	assert.equal(disposed, 1);
+	engine.requestRetry();
+	await engine.retry();
+	const latest = engine.beginResourceUpdate();
+	first.cancel();
+	await first.complete();
+	assert.equal(first.isCurrent(), false);
+	assert.equal(latest.isCurrent(), true);
+	assert.equal(created, 1);
+	await latest.complete();
+	assert.equal(created, 2);
+	assert.equal(engine.canRender.value, true);
+});
+
+// 【素材準備の完了・取消しで書き出しの休止や新プロジェクトの初期化を解除しない】
+// 素材更新とエクスポートは寿命が異なる。停止中に素材が準備できてもGPUを再取得せず、
+// 購読解除後の古い完了通知が別プロジェクトのプレビューを作り直すことも防ぐ。
+test('keeps explicit suspension independent of resource completion and cancellation', async () => {
+	let created = 0;
+	const engine = new PreviewRenderEngine({ create: async () => { created++; }, dispose() {} });
+	await engine.enable();
+	const update = engine.beginResourceUpdate();
+	engine.suspend();
+	await update.complete();
+	assert.equal(engine.isSuspended.value, true);
+	assert.equal(created, 1);
+	await engine.resume();
+	assert.equal(created, 2);
+	const cancelled = engine.beginResourceUpdate();
+	cancelled.cancel();
+	await cancelled.complete();
+	assert.equal(created, 2);
+	await engine.retry();
+	assert.equal(created, 3);
+});
+
 // 【実行状態の解放後も発生元の診断を保持し、再試行で解除する】
 // エンジンの破棄時にEffectStateStoreは消える。修正すべき場所まで失わないよう、
 // 発生元は別の診断として破棄前に保存し、再生成開始時にだけ解除する。

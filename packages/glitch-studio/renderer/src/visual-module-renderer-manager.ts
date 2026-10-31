@@ -1,3 +1,4 @@
+import { getPlayerIntrinsicResolution } from '@gs/glitch-studio_shared/player-resolution.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
@@ -11,7 +12,7 @@ import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-tex
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import { browserFrameScheduler, VisualModuleLivePreviewRenderLoop } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
-import { canPreserveNodeOutputCache } from './project-change-policy.ts';
+import { canPreserveNodeStaticState } from './project-change-policy.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { PlayerAudioInputs } from './player-audio-inputs.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
@@ -59,9 +60,23 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	visualModuleLivePreviewTimeFactor: number;
 	/** Visual Module Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
-	assets: Asset[];
 	visualModules: ProjectVisualModule[];
 	automationGraphs: AutomationGraph[];
+};
+
+/** 素材・Playerの定義はManagerの寿命中に固定する。フレームや音声の内容は個別に更新できる。 */
+export type VisualModuleRendererManagerResources = { assets: readonly Asset[]; players: readonly Player[] };
+
+/** Managerが所有するGPU環境と、注入する描画機能。 */
+export type VisualModuleRendererManagerCoreConfig = {
+	gpuDevice: GPUDevice;
+	gpuContext: PreviewCanvasContext;
+	frameScheduler?: FrameScheduler;
+	histogramGpuContext?: PreviewCanvasContext;
+	waveformHorizontalGpuContext?: PreviewCanvasContext;
+	waveformVerticalGpuContext?: PreviewCanvasContext;
+	effectDefinitions: Record<string, EffectDefinition<any>>;
+	effectImplementations: Record<string, EffectImplementation<any>>;
 };
 
 export type VisualModuleLivePreviewEffectStatusSource = { type: 'visualModuleLivePreview'; instanceId: string; visualModuleId: string };
@@ -93,9 +108,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator();
 	private visualModuleLivePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private assetTextures: AssetTextures;
+	private readonly resources: VisualModuleRendererManagerResources;
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
-	private videoFrameErrors = new Map<string, string>();
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private playerAudioInputs = new PlayerAudioInputs(this.audioSources);
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
@@ -120,24 +135,15 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		visualModuleLivePreviewTimeFactor: 1.0,
 		fpsLimit: null,
 		opaqueOutput: false,
-		assets: [],
 		visualModules: [],
 		automationGraphs: [],
 	};
 
-	constructor(coreConfig: {
-		gpuDevice: GPUDevice;
-		gpuContext: PreviewCanvasContext;
-		frameScheduler?: FrameScheduler;
-		histogramGpuContext?: PreviewCanvasContext;
-		waveformHorizontalGpuContext?: PreviewCanvasContext;
-		waveformVerticalGpuContext?: PreviewCanvasContext;
-		effectDefinitions: Record<string, EffectDefinition<any>>;
-		effectImplementations: Record<string, EffectImplementation<any>>;
-	}, staticOptions: VisualModuleRendererManagerStaticOptions) {
+	private constructor(coreConfig: VisualModuleRendererManagerCoreConfig, staticOptions: VisualModuleRendererManagerStaticOptions, resources: VisualModuleRendererManagerResources) {
 		super();
 
 		this.staticOptions = { ...staticOptions };
+		this.resources = resources;
 
 		this.frameScheduler = coreConfig.frameScheduler ?? browserFrameScheduler;
 		this.visualModuleLivePreviewRenderLoop = new VisualModuleLivePreviewRenderLoop({
@@ -154,7 +160,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			timeFactor: this.dynamicOptions.visualModuleLivePreviewTimeFactor,
 		});
 		this.gpuDevice = coreConfig.gpuDevice;
-		this.assetTextures = new AssetTextures(this.gpuDevice);
 		this.outputTextures = new UniformOrTextureToTextureResolver(this.gpuDevice, this.staticOptions.enable32bitDataTextures);
 		this.gpuContext = coreConfig.gpuContext;
 		this.effectDefinitions = coreConfig.effectDefinitions;
@@ -201,6 +206,27 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		if (gpuMemory != null) this.gpuMemoryReportIntervalId = setInterval(() => {
 			this.emit('ev', { type: 'gpuMemory', ctx: { usage: gpuMemory.getUsage() } });
 		}, 1000);
+		this.assetTextures = new AssetTextures(this.gpuDevice, resources.assets);
+	}
+
+	/** 準備済みのManagerだけを返す。渡されたGPUDeviceは、生成失敗・中断時にもここで解放する。 */
+	public static async create(coreConfig: VisualModuleRendererManagerCoreConfig, staticOptions: VisualModuleRendererManagerStaticOptions,
+		resources: VisualModuleRendererManagerResources, signal?: AbortSignal): Promise<VisualModuleRendererManager> {
+		let manager: VisualModuleRendererManager | null = null;
+		try {
+			signal?.throwIfAborted();
+			manager = new VisualModuleRendererManager(coreConfig, staticOptions, resources);
+			coreConfig.gpuDevice.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
+			void coreConfig.gpuDevice.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
+			await manager.assetTextures.waitUntilReady(signal);
+			signal?.throwIfAborted();
+			return manager;
+		} catch (error) {
+			// 生成中のManagerを外へ渡さず、遅れて完了するデコードもGPUを使えない状態にする。
+			if (manager != null) manager.destroy();
+			else coreConfig.gpuDevice.destroy();
+			throw error;
+		}
 	}
 
 	private reportRenderError(message: string) {
@@ -242,8 +268,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		}
 	}
 
-	public updateVideoFrame(playerId: Player['id'], videoFrame: VideoFrame | null, error: string | null = null) {
-		if (error == null) this.videoFrameErrors.delete(playerId); else this.videoFrameErrors.set(playerId, error);
+	public updateVideoFrame(playerId: Player['id'], videoFrame: VideoFrame | null) {
 		// 同じtimestampでも別のフレームとして扱う。削除・再追加でも更新番号を戻さない。
 		this.videoFrameVersions.set(playerId, (this.videoFrameVersions.get(playerId) ?? 0) + 1);
 		this.videoFrames.get(playerId)?.close();
@@ -259,12 +284,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public async updateDynamicOptions(newOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
-		const { assets, ...synchronousOptions } = newOptions;
-		// 通常の設定は呼び出し順に反映する。画像のデコード完了を待ってから反映すると、
-		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
-		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
-		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
+	public updateDynamicOptions(newOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
+		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
@@ -287,9 +308,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule);
 			}
 		}
-
-		const assetsCommitted = Object.hasOwn(newOptions, 'assets') ? await this.updateAssets(assets!) : null;
-		return { assetsCommitted };
 	}
 
 	public replaceProjectState(state: RendererProjectState) {
@@ -310,17 +328,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		if (visualModuleLivePreviewChanges.length > 0 && this.visualModuleLivePreviewVisualModuleRenderer != null) {
 			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId);
 			if (visualModule == null) this.stopRenderLoop();
-			else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule, visualModuleLivePreviewChanges.every(change => change.type === 'node' && canPreserveNodeOutputCache(change.changes)));
+			else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule, {
+				preserveStaticState: visualModuleLivePreviewChanges.every(change => change.type === 'node' && canPreserveNodeStaticState(change.changes)),
+			});
 		}
-	}
-
-	private updateAssets(assets: Asset[]): Promise<boolean> {
-		return this.assetTextures.update(assets, () => {
-			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
-			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
-			this.dynamicOptions.assets = assets;
-			this.visualModuleLivePreviewVisualModuleRenderer?.updateAssets(assets);
-		});
 	}
 
 	public updateVisualModuleLivePreviewParamValues(paramValues: VisualModuleArgumentBindings) {
@@ -344,6 +355,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			fallbackTexture: this.fallbackTexture,
 			resolution: this.dynamicOptions.resolution,
 			resolutionScale: this.dynamicOptions.resolutionScale,
+			getPlayerResolution: playerId => getPlayerIntrinsicResolution(playerId, this.resources.players, this.resources.assets),
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: this.staticOptions.enableStats,
@@ -351,18 +363,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
-			videoFrameErrors: this.videoFrameErrors,
-			assets: this.dynamicOptions.assets,
+			assets: this.resources.assets,
 			visualModule,
 			assetTextures: this.assetTextures.textures,
-			audioSources: this.audioSources,
-			resolveAudioSource: selection => {
-				if (selection != null && typeof selection === 'object' && 'playerId' in selection && typeof selection.playerId === 'string') {
-					const error = this.videoFrameErrors.get(selection.playerId);
-					if (error != null) throw new Error(error);
-				}
-				return this.playerAudioInputs.resolve(selection);
-			},
+			resolveAudioSource: selection => this.playerAudioInputs.resolve(selection),
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
 		});
@@ -487,7 +491,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();
 		this.videoFrameVersions.clear();
-		this.videoFrameErrors.clear();
 		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();
 	}
@@ -504,6 +507,7 @@ export async function createManager(options: {
 	waveformVerticalCanvas: OffscreenCanvas;
 	staticOptions: VisualModuleRendererManagerStaticOptions;
 	dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>;
+	resources: VisualModuleRendererManagerResources;
 	effectDefinitions: Record<string, EffectDefinition>;
 	effectImplementations: Record<string, EffectImplementation>;
 }) {
@@ -522,34 +526,31 @@ export async function createManager(options: {
 	}
 
 	let manager: VisualModuleRendererManager | null = null;
+	let coreConfig: VisualModuleRendererManagerCoreConfig;
 	try {
 		const displayMode = options.staticOptions.previewDisplayMode ?? 'gpu';
 		const createContext = (canvas: OffscreenCanvas, target: CpuPreviewCanvasTarget) => createPreviewCanvasContext(canvas, displayMode,
 			frame => manager?.emit('ev', { type: 'cpuPreviewFrame', ctx: { ...frame, target } }));
-		const context = createContext(options.canvas, 'canvas');
-		const histogramContext = createContext(options.histogramCanvas, 'histogramCanvas');
-		const waveformHorizontalContext = createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas');
-		const waveformVerticalContext = createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas');
-
-		manager = new VisualModuleRendererManager({
+		coreConfig = {
 			gpuDevice: device,
-			gpuContext: context,
-			histogramGpuContext: histogramContext,
-			waveformHorizontalGpuContext: waveformHorizontalContext,
-			waveformVerticalGpuContext: waveformVerticalContext,
+			gpuContext: createContext(options.canvas, 'canvas'),
+			histogramGpuContext: createContext(options.histogramCanvas, 'histogramCanvas'),
+			waveformHorizontalGpuContext: createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas'),
+			waveformVerticalGpuContext: createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas'),
 			effectDefinitions: options.effectDefinitions,
 			effectImplementations: options.effectImplementations,
-		}, options.staticOptions);
-		device.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
-		void device.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
-
-		await manager.updateDynamicOptions(options.dynamicOptions);
-
+		};
+	} catch (error) {
+		// Managerへ渡す前の失敗だけは、GPUDeviceを取得したこの呼び出し元が回収する。
+		device.destroy();
+		throw error;
+	}
+	manager = await VisualModuleRendererManager.create(coreConfig, options.staticOptions, options.resources);
+	try {
+		manager.updateDynamicOptions(options.dynamicOptions);
 		return manager;
 	} catch (error) {
-		// 呼び出し元にはまだmanagerを返していないため、ここでリソースを回収する。
-		if (manager != null) manager.destroy();
-		else device.destroy();
+		manager.destroy();
 		throw error;
 	}
 }

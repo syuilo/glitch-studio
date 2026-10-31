@@ -25,12 +25,13 @@ function frame(name) {
 	return { name, closed: 0, close() { ++this.closed; } };
 }
 
-function setup() {
+function setup(fileSource = new Blob()) {
 	const sources = [];
 	const requests = [];
 	const published = [];
 	const statuses = [];
 	const loader = createVideoFrameLoader({
+		fileSource,
 		open(blob) {
 			const source = {
 				blob, disposed: 0,
@@ -85,9 +86,8 @@ test('maps positions over the full presentation interval', () => {
 // 同一要求は取得中・完了後とも重複せず、GPUへの引き渡し後にサンプルを閉じる
 test('deduplicates requests and closes the published sample', async () => {
 	const h = setup();
-	const blob = new Blob();
-	h.loader.prepare(blob, 0.25, 'clamp');
-	h.loader.prepare(blob, 0.25, 'clamp');
+	h.loader.prepare(0.25, 'clamp');
+	h.loader.prepare(0.25, 'clamp');
 	assert.equal(h.requests.length, 1);
 	assert.deepEqual(h.statuses, [{ type: 'loading' }]);
 	const sample = frame('quarter');
@@ -96,7 +96,7 @@ test('deduplicates requests and closes the published sample', async () => {
 	assert.equal(sample.closed, 1);
 	assert.deepEqual(h.published, [null, 'quarter']);
 	assert.equal(h.statuses.at(-1).type, 'ready');
-	h.loader.prepare(blob, 0.25, 'clamp');
+	h.loader.prepare(0.25, 'clamp');
 	assert.equal(h.requests.length, 1);
 	h.loader.dispose();
 });
@@ -104,10 +104,9 @@ test('deduplicates requests and closes the published sample', async () => {
 // シーク中に何度変更しても最新だけを処理し、古い完了でreadyを通知しない
 test('coalesces seeks and discards stale results', async () => {
 	const h = setup();
-	const blob = new Blob();
-	h.loader.prepare(blob, 0, 'clamp');
-	h.loader.prepare(blob, 0.2, 'clamp');
-	h.loader.prepare(blob, 0.8, 'clamp');
+	h.loader.prepare(0, 'clamp');
+	h.loader.prepare(0.2, 'clamp');
+	h.loader.prepare(0.8, 'clamp');
 	assert.equal(h.requests.length, 1);
 	const stale = frame('stale');
 	h.requests[0].resolve(stale);
@@ -125,30 +124,33 @@ test('coalesces seeks and discards stale results', async () => {
 	h.loader.dispose();
 });
 
-// 同じAsset IDでもBlobが差し替わった場合は古いデコーダーと結果を使わない
-test('reopens replaced assets and ignores stale failures', async () => {
-	const h = setup();
+// 【素材変更で破棄したデコーダーの失敗を新しいローダーへ持ち越さない】
+// 静的設定変更はローダーの寿命を区切るため、旧要求の失敗と新素材の成功を独立して扱う。
+test('isolates decoder failures when fixed-source loaders are recreated', async () => {
 	const firstBlob = new Blob(['old']);
 	const nextBlob = new Blob(['new']);
-	h.loader.prepare(firstBlob, 0.5, 'clamp');
-	h.loader.prepare(nextBlob, 0.5, 'clamp');
-	assert.equal(h.sources[0].disposed, 1);
-	h.requests[0].reject(new Error('old decoder cancelled'));
+	const previous = setup(firstBlob);
+	previous.loader.prepare(0.5, 'clamp');
+	previous.loader.dispose();
+	const current = setup(nextBlob);
+	current.loader.prepare(0.5, 'clamp');
+	assert.equal(previous.sources[0].disposed, 1);
+	previous.requests[0].reject(new Error('old decoder cancelled'));
 	await setImmediate();
-	assert.equal(h.requests[1].blob, nextBlob);
-	assert.ok(h.statuses.every(s => s.type !== 'error'));
-	h.requests[1].resolve(frame('new'));
+	assert.equal(current.requests[0].blob, nextBlob);
+	assert.ok(previous.statuses.every(status => status.type !== 'error'));
+	current.requests[0].resolve(frame('new'));
 	await setImmediate();
-	assert.equal(h.published.at(-1), 'new');
-	h.loader.dispose();
+	assert.equal(current.published.at(-1), 'new');
+	current.loader.dispose();
 });
 
-// Assetの解除は待機中でも即座に透明・readyにし、遅れた結果を閉じる
-test('clears removed assets without waiting for decoding', async () => {
+// 【範囲外へ移動した要求は直ちに透明になり、古い完了を描画しない】
+// 素材が固定でも時刻変更は動的なので、取得中のサンプルを破棄しつつ同じデコーダーを再利用する。
+test('clears out of range seeks and reuses the decoder when seeking back', async () => {
 	const h = setup();
-	h.loader.prepare(new Blob(), 0.5, 'clamp');
-	h.loader.prepare(null, 0.5, 'clamp');
-	assert.equal(h.sources[0].disposed, 1);
+	h.loader.prepare(0.5, 'clamp');
+	h.loader.prepare(2, 'transparent');
 	assert.equal(h.statuses.at(-1).type, 'ready');
 	const statusCount = h.statuses.length;
 	const stale = frame('removed');
@@ -157,13 +159,29 @@ test('clears removed assets without waiting for decoding', async () => {
 	assert.equal(stale.closed, 1);
 	assert.equal(h.statuses.length, statusCount);
 	assert.ok(h.published.every(s => s === null));
+	h.loader.prepare(0.25, 'clamp');
+	assert.equal(h.sources.length, 1);
+	h.requests[1].resolve(frame('quarter'));
+	await setImmediate();
+	assert.equal(h.published.at(-1), 'quarter');
+	h.loader.dispose();
+});
+
+// 【素材未選択では時刻にかかわらずデコーダーを作らない】
+// nullはローダー生成時に固定し、透明な準備完了として扱う。
+test('does not open a decoder for an unselected source', () => {
+	const h = setup(null);
+	h.loader.prepare(0.5, 'clamp');
+	assert.equal(h.sources.length, 0);
+	assert.deepEqual(h.published, [null]);
+	assert.deepEqual(h.statuses, [{ type: 'ready' }]);
 	h.loader.dispose();
 });
 
 // Transparentの範囲外ではフレーム取得を開始しない
 test('does not decode transparent out of range positions', () => {
 	const h = setup();
-	h.loader.prepare(new Blob(), 2, 'transparent');
+	h.loader.prepare(2, 'transparent');
 	assert.equal(h.sources.length, 0);
 	assert.deepEqual(h.statuses, [{ type: 'ready' }]);
 	h.loader.dispose();
@@ -172,13 +190,12 @@ test('does not decode transparent out of range positions', () => {
 // 取得失敗は書き出しの準備待ちを止めるためerrorにし、別の位置で回復できる
 test('reports decode failures and recovers on a new request', async () => {
 	const h = setup();
-	const blob = new Blob();
-	h.loader.prepare(blob, 0, 'clamp');
+	h.loader.prepare(0, 'clamp');
 	h.requests[0].reject(new Error('decode failed'));
 	await setImmediate();
 	assert.deepEqual(h.statuses.at(-1), { type: 'error', message: 'decode failed' });
 	assert.equal(h.sources[0].disposed, 1);
-	h.loader.prepare(blob, 0.25, 'clamp');
+	h.loader.prepare(0.25, 'clamp');
 	h.requests[1].resolve(frame('recovered'));
 	await setImmediate();
 	assert.equal(h.published.at(-1), 'recovered');
@@ -189,7 +206,7 @@ test('reports decode failures and recovers on a new request', async () => {
 // 取得できるサンプルがない場合も準備待ちを永久に残さない
 test('publishes a transparent result when the source returns no sample', async () => {
 	const h = setup();
-	h.loader.prepare(new Blob(), 0, 'clamp');
+	h.loader.prepare(0, 'clamp');
 	h.requests[0].resolve(null);
 	await setImmediate();
 	assert.equal(h.published.at(-1), null);
@@ -200,7 +217,7 @@ test('publishes a transparent result when the source returns no sample', async (
 // ノード破棄後はGPUやステータスを更新せず、取得済みサンプルを解放する
 test('closes late samples after disposal without publishing', async () => {
 	const h = setup();
-	h.loader.prepare(new Blob(), 0, 'clamp');
+	h.loader.prepare(0, 'clamp');
 	h.loader.dispose();
 	h.loader.dispose();
 	const statusCount = h.statuses.length;
@@ -219,11 +236,12 @@ test('closes samples when uploading fails', async () => {
 	const statuses = [];
 	let disposed = 0;
 	const loader = createVideoFrameLoader({
+		fileSource: new Blob(),
 		open: () => ({ getSample: async () => sample, dispose: () => { ++disposed; } }),
-		publish(value) { if (value) throw new Error('upload failed'); },
+		publish(value) { if (value != null) throw new Error('upload failed'); },
 		reportStatus: status => statuses.push(status),
 	});
-	loader.prepare(new Blob(), 0, 'clamp');
+	loader.prepare(0, 'clamp');
 	await setImmediate();
 	assert.equal(sample.closed, 1);
 	assert.equal(disposed, 1);

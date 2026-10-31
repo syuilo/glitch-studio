@@ -134,6 +134,7 @@ export async function newProject() {
 		}, {
 			id: initialEffectNodeId,
 			type: 'effect',
+			staticSettings: {},
 			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'fill',
 			displayName: '',
@@ -279,28 +280,29 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 		}, result.type.startsWith('image/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
+			staticSettings: { image: asset.id },
 			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'image',
 			displayName: '',
 			params: {
-				image: { inputSource: 'literal', value: asset.id },
 				fit: deepClone(imageEffectDef.paramDefs.fit.defaultValue),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof imageEffectDef> : result.type.startsWith('video/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
+			staticSettings: { player: player!.id },
 			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'video',
 			displayName: '',
 			params: {
-				player: { inputSource: 'literal', value: player!.id },
 				fit: deepClone(videoEffectDef.paramDefs.fit.defaultValue),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof videoEffectDef> : result.type.startsWith('audio/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
+			staticSettings: {},
 			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'audioWaveform',
 			displayName: '',
@@ -316,6 +318,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 		} satisfies EffectNodeOf<typeof audioWaveformEffectDef> : {
 			id: initialEffectNodeId,
 			type: 'effect',
+			staticSettings: {},
 			resolution: { mode: 'auto', scale: 1 },
 			effectId: 'fill',
 			displayName: '',

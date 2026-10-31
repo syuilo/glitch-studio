@@ -4,10 +4,6 @@ import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
-	getIntrinsicResolution: params => params.player?.videoFrame == null ? null : {
-		width: params.player.videoFrame.displayWidth,
-		height: params.player.videoFrame.displayHeight,
-	},
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -15,7 +11,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu }) => {
+	init: ({ wgpu, resources }) => {
 		const shaderModule = wgpu.device.createShaderModule({
 			code: code,
 		});
@@ -56,7 +52,7 @@ export default implementEffect<typeof definition>({
 
 		return {
 			render: (ctx) => {
-				const frame = ctx.params.player?.videoFrame;
+				const frame = resources.player?.getVideoFrame();
 				if (!frame) {
 					// フレーム削除後に以前の映像がキャッシュとして残らないよう透明にする。
 					ctx.createPassEncoder(ctx.commandEncoder, {

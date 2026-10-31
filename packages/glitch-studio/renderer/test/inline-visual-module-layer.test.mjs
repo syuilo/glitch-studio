@@ -62,7 +62,7 @@ function layer(id, module, overrides = {}) {
 	};
 }
 
-function fixture(t, { present = false, disableCache = true, timelineFps = 60, timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16 } } = {}) {
+async function fixture(t, { present = false, disableCache = true, timelineFps = 60, timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16 } } = {}) {
 	const calls = { instances: [], renders: [], outputs: [], presented: [], statuses: [], errors: [], passes: [], writes: [] };
 	const texture = ({ size = [16, 16], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], format,
@@ -84,11 +84,11 @@ function fixture(t, { present = false, disableCache = true, timelineFps = 60, ti
 			calls.writes.push(new Uint8Array(data).slice());
 		} },
 	};
-	const manager = new TimelineRendererManager({
+	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: { probe: {
 			paramDefs: probeParamDefs,
-			primaryInputParameter: 'input', resolutionInputParameter: 'input', primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
+			primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
 		} },
 		effectImplementations: { probe: {
 			disableCache,
@@ -102,7 +102,7 @@ function fixture(t, { present = false, disableCache = true, timelineFps = 60, ti
 				};
 			},
 		} },
-	}, { timelineFps, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	}, { timelineFps, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [] });
 	manager.on('ev', event => {
 		if (event.type === 'effectState') calls.statuses.push(event.ctx);
 		if (event.type === 'renderError') calls.errors.push(event.ctx.message);
@@ -120,7 +120,7 @@ for (const samples of [1, 4]) {
 	// 単発・モーションブラーとも送信済みの先行処理を最大2件に制限し、空き枠がない間の
 	// 中間位置を捨てることを、実際のレイヤー評価とManagerを通して確認する。
 	test(`waits for GPU completion and coalesces preview requests with a sample count of ${samples}`, async t => {
-		const { manager, calls } = fixture(t, { present: true, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples } });
+		const { manager, calls } = await fixture(t, { present: true, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples } });
 		await manager.updateDynamicOptions({
 			timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 				layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } })),
@@ -165,7 +165,7 @@ for (const samples of [1, 4]) {
 	// 書き出しは呼び出し側が描画・エンコードを直列に進める。プレビューの
 	// 要求統合を共有すると、出力動画のフレームやブラーのサンプルが欠落する。
 	test(`renders every export frame without preview scheduling with a sample count of ${samples}`, async t => {
-		const { manager, calls } = fixture(t, { present: true, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples } });
+		const { manager, calls } = await fixture(t, { present: true, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples } });
 		await manager.updateDynamicOptions({
 			timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 				layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } })),
@@ -190,7 +190,7 @@ for (const isExport of [false, true]) {
 			if (reason === 'zero samples' || reason === 'one sample') {
 				settings.samples = reason === 'zero samples' ? 0 : 1;
 			}
-			const { manager, calls } = fixture(t, { present: true, timelineMotionBlur: settings });
+			const { manager, calls } = await fixture(t, { present: true, timelineMotionBlur: settings });
 			await manager.updateDynamicOptions({
 				timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 					layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } })),
@@ -221,7 +221,7 @@ for (const isExport of [false, true]) {
 		// 旧フレームの再開による表示の巻き戻りや、後続サンプルによる新しい描画の中断を防ぐ。
 		test(`disposes pending ${isExport ? 'export' : 'preview'} before recreating with motion blur ${initiallyEnabled ? 'disabled' : 'enabled'}`, async t => {
 			const settings = { enabled: initiallyEnabled, shutterAngle: 180, samples: 4 };
-			const { manager, calls } = fixture(t, { timelineMotionBlur: settings });
+			const { manager, calls } = await fixture(t, { timelineMotionBlur: settings });
 			const pending = Promise.withResolvers();
 			const entered = Promise.withResolvers();
 			const evaluated = [];
@@ -247,7 +247,7 @@ for (const isExport of [false, true]) {
 			manager.destroy();
 			assert.equal(oldSignal.aborted, true);
 			assert.equal(manager.motionBlurAccumulator, null);
-			const replacement = fixture(t, { timelineMotionBlur: { ...settings, enabled: !initiallyEnabled } });
+			const replacement = await fixture(t, { timelineMotionBlur: { ...settings, enabled: !initiallyEnabled } });
 			await replacement.manager.updateDynamicOptions(dynamicOptions);
 			await render(replacement.manager, 700);
 			const newOutput = replacement.calls.outputs[0];
@@ -271,7 +271,7 @@ for (const isExport of [false, true]) {
 // 基準fpsが既定値と異なる場合も、そのfpsに対応する露光時間で評価する。
 test('keeps initial motion blur settings and derives exposure from the static timeline fps', async t => {
 	const settings = { enabled: true, shutterAngle: 180, samples: 4 };
-	const { manager, calls } = fixture(t, { timelineFps: 24, timelineMotionBlur: settings });
+	const { manager, calls } = await fixture(t, { timelineFps: 24, timelineMotionBlur: settings });
 	settings.enabled = false;
 	settings.shutterAngle = 360;
 	await manager.updateDynamicOptions({
@@ -290,8 +290,8 @@ test('keeps initial motion blur settings and derives exposure from the static ti
 // 【子Sceneを各時刻で評価しても、露光の平均は最上位だけで行う】
 // Sceneの入れ子ごとにサンプル数が掛け合わされたり、プレビュー用サンプル数が書き出しへ漏れたりしない。
 test('samples nested scenes once per root sample and uses the export frame rate', async t => {
-	const { manager, calls } = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
-	const exporting = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 8 } });
+	const { manager, calls } = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const exporting = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 8 } });
 	const child = layer('child-layer', visualModule({ params: { localTime: expression('TIME_MS') } }));
 	const { visualModule: _, visualModuleParamValues: __, ...base } = layer('parent', visualModule());
 	const parent = { ...base, layerType: 'scene', audioParamValues: {}, clips: [{ id: 'clip', startMs: 100, durationMs: 1000, contentOffsetMs: 250, sceneId: 'child' }] };
@@ -327,7 +327,7 @@ test('samples nested scenes once per root sample and uses the export frame rate'
 // 【クリップ編集後は境界を再収集する】
 // 古い境界がキャッシュに残ると、編集済みカットの前後が混ざったり無関係な位置で露光が切れる。
 test('invalidates cut boundaries after edits', async t => {
-	const { manager, calls } = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 360, samples: 4 } });
+	const { manager, calls } = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 360, samples: 4 } });
 	const entry = layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } }));
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineAt(200);
@@ -346,7 +346,7 @@ for (const layerType of ['inlineVisualModule', 'visualModule']) {
 	// 未使用の値でもインスタンスを破棄するとFeedbackの蓄積が失われる。
 	// 使用中の値の変更は、同じインスタンスの次の評価へ新しい参照環境で反映する。
 	test(`preserves ${layerType} instances and updates custom inputs after value edits`, async t => {
-		const { manager, calls } = fixture(t, { disableCache: false });
+		const { manager, calls } = await fixture(t, { disableCache: false });
 		const module = { ...visualModule({ params: { amount: expression('PARAM("amount")') } }), id: 'registered', name: 'Visual Module' };
 		module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 		const entry = layer('layer', module, {
@@ -382,7 +382,7 @@ for (const layerType of ['inlineVisualModule', 'visualModule']) {
 // 作成時のコンテキストを固定すると、値編集で保持された子が古い親の値を参照し続ける。
 // 別のコンテナへ移動した後は、移動先の祖先を参照することも確認する。
 test('refreshes custom parameter scopes after parent value edits and hierarchy changes', async t => {
-	const { manager, calls } = fixture(t, { disableCache: false });
+	const { manager, calls } = await fixture(t, { disableCache: false });
 	const module = visualModule({ params: { amount: expression('PARAM("amount")') } });
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	const definition = { ...scalar, id: 'speed', nameForReference: 'speed' };
@@ -409,7 +409,7 @@ test('refreshes custom parameter scopes after parent value edits and hierarchy c
 // 同じModuleの二つのクリップは別インスタンスだが、定義編集は両方へ届く必要がある。
 // 引数だけを変えた配置のために、他の配置や上流のエフェクトを再生成してはいけない。
 test('updates shared definitions and module arguments without recreating placements', async t => {
-	const { manager, calls } = fixture(t, { disableCache: false });
+	const { manager, calls } = await fixture(t, { disableCache: false });
 	const module = { ...visualModule({ params: { amount: expression('PARAM("amount")') } }), id: 'registered', name: 'Module' };
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	const entries = ['first', 'second'].map(id => {
@@ -444,7 +444,7 @@ test('updates shared definitions and module arguments without recreating placeme
 // UIから届いたdisabled通知がWorker側で無視されることを防ぐ。兄弟の履歴と親Sceneの
 // インスタンスは維持し、再表示時は現在の内容時刻で対象のエフェクトだけを再生成する。
 test('applies visibility patches to nested layers while retaining parent and sibling instances', async t => {
-	const { manager, calls } = fixture(t, { disableCache: false });
+	const { manager, calls } = await fixture(t, { disableCache: false });
 	const first = layer('first', visualModule({ params: { amount: literal(1) } }));
 	const second = layer('second', visualModule({ params: { amount: literal(2) } }));
 	const { visualModule: _, visualModuleParamValues: __, ...base } = layer('parent', visualModule());
@@ -483,7 +483,7 @@ test('applies visibility patches to nested layers while retaining parent and sib
 // 親の移動量を編集するたびに子のEffectやVisual Moduleを破棄すると履歴が途切れる。
 // 無効化の場合だけ子を解放し、子の木を設定差分で失わないことも確認する。
 test('preserves Transform child instances and outside inputs across project patches', async t => {
-	const { manager, calls } = fixture(t, { disableCache: false });
+	const { manager, calls } = await fixture(t, { disableCache: false });
 	const child = layer('child', visualModule({ primaryInput: true, params: { amount: literal(1) } }));
 	const background = layer('background', visualModule());
 	const parent = { id: 'parent', name: 'Transform', layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false,
@@ -512,7 +512,7 @@ test('preserves Transform child instances and outside inputs across project patc
 // 通知から保持フラグを外しても、通常の値編集では上流を描き直さず、接続変更を含む
 // 編集ではModule全体のキャッシュを更新する。どちらも既存のエフェクトインスタンスは保つ。
 test('derives module cache invalidation from all node edit kinds', async t => {
-	const { manager, calls } = fixture(t, { disableCache: false });
+	const { manager, calls } = await fixture(t, { disableCache: false });
 	const module = visualModule({ params: { amount: literal(1) } });
 	const upstream = module.nodes[1];
 	const downstream = { ...structuredClone(upstream), id: 'downstream', params: { ...upstream.params, input: connection(upstream.id), amount: literal(2) } };
@@ -539,7 +539,7 @@ test('derives module cache invalidation from all node edit kinds', async t => {
 // 最終値だけでは途中のリセットを識別できない。集約された編集内容から履歴の扱いを決め、
 // 通常の引数編集とは区別しつつ、同じSceneの無関係な配置は維持する。
 test('recreates only the module placement whose argument edits include a reset', async t => {
-	const { manager, calls } = fixture(t, { disableCache: false });
+	const { manager, calls } = await fixture(t, { disableCache: false });
 	const module = visualModule({ params: { amount: expression('PARAM("amount")') } });
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	const entries = ['first', 'second'].map(id => layer(id, structuredClone(module), { visualModuleParamValues: { amount: literal(1) } }));
@@ -562,7 +562,7 @@ test('recreates only the module placement whose argument edits include a reset',
 // 親が古いSceneの配列を捕まえていると差分が表示されず、親ごと再生成すると全レイヤーの履歴を失う。
 // 子の最新版を評価し、寿命の変更は対象レイヤーに限定することをインスタンスの同一性で確認する。
 test('updates nested scene content while preserving parent and sibling instances', async t => {
-	const { manager, calls } = fixture(t, { disableCache: false });
+	const { manager, calls } = await fixture(t, { disableCache: false });
 	const first = layer('first', visualModule({ params: { amount: literal(1) } }));
 	const second = layer('second', visualModule({ params: { amount: literal(2) } }));
 	const { visualModule: _, visualModuleParamValues: __, ...base } = layer('parent', visualModule());
@@ -606,7 +606,7 @@ test('updates nested scene content while preserving parent and sibling instances
 // 【登録済みモジュールがなくてもインライン定義を描画する】
 // IDによる検索を残すとインラインだけのプロジェクトが描画できず、境界での再乗算は半透明色を暗くする。
 test('renders inline definitions without a registry and matches referenced modules', async t => {
-	const { manager, calls } = fixture(t);
+	const { manager, calls } = await fixture(t);
 	const module = visualModule();
 	const inline = layer('inline', module);
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [inline] }], sceneId: 'scene', visualModules: [] });
@@ -624,7 +624,7 @@ test('renders inline definitions without a registry and matches referenced modul
 // 【参照型とインライン型を混在させても背景をそのまま引き渡す】
 // 下層のテクスチャを主入力に渡し、replaceで余分なテクスチャ化や所有権の移動を起こさない。
 test('passes the referenced layer output through an inline primary input', async t => {
-	const { manager, calls } = fixture(t);
+	const { manager, calls } = await fixture(t);
 	const source = visualModule({ params: { amount: literal(3) } });
 	const { visualModule: _, ...bottom } = layer('bottom', source);
 	const top = layer('top', visualModule({ primaryInput: true }));
@@ -643,7 +643,7 @@ test('passes the referenced layer output through an inline primary input', async
 // 【モジュール内部とレイヤー引数の評価スコープを分離する】
 // 同名グラフ・同名変数があっても所有者の値だけを使い、内部の時刻はレイヤー開始を基準にする。
 test('isolates inline module scopes and passes local time and export context', async t => {
-	const { manager, calls } = fixture(t);
+	const { manager, calls } = await fixture(t);
 	const module = visualModule({ params: {
 		amount: expression('PARAM("amount")'), local: expression('GRAPH("graph", 0, "clamp")'),
 		caller: expression('TEST_SAME_NAME'), localTime: expression('TIME_MS'), duration: expression('END_TIME_MS'),
@@ -669,7 +669,7 @@ test('isolates inline module scopes and passes local time and export context', a
 // 【同じノードIDでもインラインレイヤーごとに履歴と寿命を分離する】
 // 複製した定義のインスタンスを共有すると、一方の描画や削除が他方の履歴を進めたり破棄したりする。
 test('retains independent instances and disposes inactive or edited inline layers', async t => {
-	const { manager, calls } = fixture(t);
+	const { manager, calls } = await fixture(t);
 	const first = layer('first', visualModule({ params: { amount: literal(1) } }), { clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 0, durationMs: 400 }] });
 	const second = layer('second', visualModule({ params: { amount: literal(2) } }));
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [first, second] }], sceneId: 'scene' });
@@ -702,7 +702,7 @@ test('retains independent instances and disposes inactive or edited inline layer
 // 【インライン出力にも通常の合成設定を適用する】
 // 分岐追加時に合成処理を迂回しないことを、opacity=0の背景維持と変形時のGPU送信の両方で確認する。
 test('applies opacity and the same transform uniforms to inline and referenced layers', async t => {
-	const { manager, calls } = fixture(t);
+	const { manager, calls } = await fixture(t);
 	const bottom = layer('bottom', visualModule());
 	const top = layer('top', visualModule());
 	top.compositingParamValues.opacity = literal(0);
@@ -739,7 +739,7 @@ const sceneLayer = (id, sceneId, positionMs = 0) => ({
 // 【同じSceneの複数配置は内容時刻・履歴・通知の参照経路を分離する】
 // Scene定義を共有してもGPUの出力先や履歴を共有してはいけない。二回目の描画でも配置ごとに状態を維持する。
 test('isolates repeated scene instances and reports their placement paths', async t => {
-	const { manager, calls } = fixture(t);
+	const { manager, calls } = await fixture(t);
 	const child = layer('inner', visualModule({ params: { localTime: expression('TIME_MS') } }), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
 	await manager.updateDynamicOptions({ sceneId: 'root', timelineScenes: [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [sceneLayer('first', 'child'), sceneLayer('second', 'child', 50)] },
@@ -759,7 +759,7 @@ test('isolates repeated scene instances and reports their placement paths', asyn
 // 親背景を取り込むと通常合成で背景が二重になる。定数を無寸法のまま返すと、
 // 異なる縦横比の親へ配置したときに子Sceneの画面サイズを失ってしまう。
 test('starts nested scenes on transparent backgrounds and materializes their canvas', async t => {
-	const { manager, calls } = fixture(t);
+	const { manager, calls } = await fixture(t);
 	await manager.updateDynamicOptions({ sceneId: 'root', timelineScenes: [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [sceneLayer('nested', 'child'), layer('background', visualModule(), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] })] },
 		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [layer('input', visualModule({ primaryInput: true }), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] })] },
@@ -772,10 +772,10 @@ test('starts nested scenes on transparent backgrounds and materializes their can
 
 // 【入れ子のノードは所属Sceneの基準を使い、単独表示でも同じサイズになる】
 // 親のcustom寸法をproject指定の孫へ流さず、プレビュー・書き出し倍率を一度だけ適用する。
-// WIDTH/HEIGHT・Canvasの更新・解像度変更時の履歴破棄も同じ境界で確認する。
+// RESOLUTION[0]/RESOLUTION[1]・Canvasの更新・解像度変更時の履歴破棄も同じ境界で確認する。
 test('uses each containing scene for context nodes and preserves project references through nesting', async t => {
-	const { manager, calls } = fixture(t, { present: true });
-	const probe = id => layer(id, visualModule({ params: { amount: expression('WIDTH'), local: expression('HEIGHT') } }), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
+	const { manager, calls } = await fixture(t, { present: true });
+	const probe = id => layer(id, visualModule({ params: { amount: expression('RESOLUTION[0]'), local: expression('RESOLUTION[1]') } }), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
 	const scenes = [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [sceneLayer('child-placement', 'child')] },
 		{ id: 'child', name: 'Child', resolution: { mode: 'customAbsolute', width: 512, height: 256 }, layers: [probe('child-probe'), sceneLayer('leaf-placement', 'leaf')] },
@@ -801,7 +801,7 @@ test('uses each containing scene for context nodes and preserves project referen
 // 画面の確定は単独プレビューと親への配置で共通にする。すでに指定サイズの出力は
 // 再利用し、MP4用の最終寸法補正はノードやSceneのサイズへ混ぜない。
 test('finalizes uniform and replace outputs at scene size before final canvas adjustment', async t => {
-	const { manager, calls } = fixture(t, { present: true });
+	const { manager, calls } = await fixture(t, { present: true });
 	const entry = layer('constant', visualModule(), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'customAbsolute', width: 513, height: 257 }, layers: [entry] };
 	await manager.updateDynamicOptions({ timelineScenes: [scene], sceneId: 'scene', outputResolution: { width: 514, height: 258 } });
@@ -824,7 +824,7 @@ test('finalizes uniform and replace outputs at scene size before final canvas ad
 // 親の内容オフセットを子Sceneの時刻へ変換し、その子のレイヤー引数とモジュール内部を
 // さらに別の時計で評価する。隣接クリップへ移ると、子の履歴も新しく開始する。
 test('restarts child scene state between adjacent clips and uses the child scene clock', async t => {
-	const { manager, calls } = fixture(t);
+	const { manager, calls } = await fixture(t);
 	const module = visualModule({ params: { localTime: expression('TIME_MS'), amount: expression('PARAM("scene_time")') } });
 	module.paramDefs.push({ ...scalar, id: 'scene-time', nameForReference: 'scene_time' });
 	const child = layer('inner', module, {

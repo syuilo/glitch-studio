@@ -48,11 +48,11 @@ function probe(g, { history = false, lazy = false, loading = false, disableCache
 	const renders = [];
 	const definition = {
 		paramDefs, primaryInputParameter: Object.keys(paramDefs).find(key => paramDefs[key].canNode) ?? null,
-		resolutionInputParameter: null, primaryOutput: 'output',
+		resolutionInputParameters: [], primaryOutput: 'output',
 		outputDefs: { output: { dataType: { kind: 'color' } }, extra: { dataType: { kind: 'color' }, canLazyAllocation: lazy } },
 	};
 	const implementation = {
-		needsPreviousFrame: history, disableCache, getIntrinsicResolution: intrinsic,
+		needsPreviousFrame: history, disableCache,
 		outputTextureFactories: Object.fromEntries(['output', 'extra'].map(port => [port, ({ resolution }) => g.device.createTexture({ size: resolution, port })])),
 		init(args) {
 			const record = { args, version: 0, disposed: 0, prepares: [], renders: [] };
@@ -74,7 +74,7 @@ function single(t, options = {}) {
 	const p = probe(g, options);
 	const states = [];
 	const fallbackTexture = g.device.createTexture({ size: { width: 1, height: 1 } });
-	const renderer = new EffectRenderer({ ...p, wgpu: g.wgpu, fallbackTexture, resolution: { width: 16, height: 9 }, onState: state => states.push(state), ...options.rendererOptions });
+	const renderer = new EffectRenderer({ ...p, wgpu: g.wgpu, fallbackTexture, staticResources: {}, resolution: { width: 16, height: 9 }, onState: state => states.push(state), ...options.rendererOptions });
 	t.after(() => renderer.dispose());
 	const frame = (params = {}, extra = {}) => ({ params, time: 1.25, timeDelta: 20, pointerPosition: { x: 0.5, y: 0 }, pointerVector: { x: 0.1, y: 0 }, commandEncoder: g.encoder, ...extra });
 	return { ...g, ...p, renderer, states, fallbackTexture, frame };
@@ -87,7 +87,7 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 	const renderer = new VisualModuleRenderer({
 		gpuDevice: g.device, fallbackTexture: {}, enableStats: false, timingHelper: null,
 		resolution: { width: 16, height: 9 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
-		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(),
+		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
 		effectDefinitions: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.definition])),
 		effectImplementations: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.implementation])), visualModule: module,
 		onEffectState: (id, state) => states.push({ id, state }),
@@ -124,28 +124,6 @@ test('evaluates pointer positions as vectors and redraws when the pointer moves'
 		assert.equal(p.renders.length, renderCount);
 	}
 	assert.equal(p.renders.length, 3);
-});
-
-// 【使用中のPlayerの原本が欠落した場合だけ、準備と描画の両方を失敗させる】
-// キャッシュ無効のエフェクトでも検出し、未接続のノードの参照切れで正常な出力を妨げない。
-// 書き出しの準備段階でも失敗させ、欠落フレームを含む動画を完成させない。
-test('fails preparation and rendering only for player sources used by the requested output', async t => {
-	for (const disableCache of [false, true]) {
-		const g = gpu();
-		const source = probe(g, { disableCache, paramDefs: { player: { dataType: { kind: 'playerReference' }, defaultValue: literal(null) } } });
-		const errors = new Map([['unused-player', 'Unused file is unavailable']]);
-		const f = graph(t, g, { source }, [node('unused', 'source', { player: literal('unused-player') }), node('used', 'source', { player: literal('used-player') })],
-			{ out: { nodeId: 'used', outputPort: 'output' } }, { videoFrameErrors: errors });
-		await f.prepare();
-		f.render();
-		assert.equal(source.renders.length, 1);
-		errors.set('used-player', 'Used file is unavailable');
-		await assert.rejects(f.prepare(f.context({ isExport: true })), /Used file is unavailable/);
-		assert.throws(() => f.render(), /Used file is unavailable/);
-		errors.delete('used-player');
-		await f.prepare();
-		f.render();
-	}
 });
 
 // 【解決済み入力と描画コンテキストを変更せず渡し、借用リソースを破棄しない】
@@ -245,7 +223,6 @@ test('advances history only after a successful render', t => {
 	assert.notEqual(second, first);
 	assert.equal(f.renders[0].outputDataMap.output.previousFrameTexture, first);
 	f.renderer.prepare({});
-	f.renderer.clearOutputState();
 	assert.equal(f.renderer.getOutputTexture('output'), second);
 	fail = true;
 	assert.throws(() => f.renderer.render(f.frame()), /draw failed/);
@@ -278,35 +255,32 @@ test('aborts only the selected wait while preserving the instance and history', 
 	assert.equal(f.instances.length, 1);
 });
 
-// 【実寸法が変わったときだけ履歴を作り直し、古い通知・待機を無効化する】
-// dispose自身からの同期通知や、再初期化後に遅れて届く通知が新しい状態を上書きしてはいけない。
-test('reinitializes on resize and ignores notifications from released instances', async t => {
-	const f = single(t, { history: true, loading: true, lazy: true });
+// 【生成時の解像度を固定し、破棄後の通知・待機を無効化する】
+// 呼び出し元やinitに渡した寸法を書き換えても、後から確保する遅延出力と寸法がずれてはいけない。
+// 解像度変更は所有者による再生成で行い、破棄したエフェクトの遅延通知は公開しない。
+test('keeps constructor resolution fixed and ignores notifications after disposal', async t => {
+	const resolution = { width: 16, height: 9 };
+	const f = single(t, { history: true, loading: true, lazy: true, rendererOptions: { resolution } });
 	f.renderer.prepare({});
 	const old = f.instances[0];
 	const output = f.renderer.getOutputTexture('output');
-	const allocations = f.textures.length;
-	f.renderer.setResolution({ width: 16, height: 9 });
-	assert.equal(f.textures.length, allocations);
-	assert.equal(old.disposed, 0);
+	resolution.width = 32;
+	old.args.resolution.height = 18;
+	f.renderer.setUsedOutputPorts(new Set(['output', 'extra']));
+	assert.deepEqual(f.renderer.resolution, { width: 16, height: 9 });
+	const extra = f.renderer.getOutputTexture('extra');
+	assert.deepEqual([extra.width, extra.height], [16, 9]);
 	const pending = f.renderer.waitUntilReady(new AbortController().signal);
-	f.renderer.setResolution({ width: 32, height: 18 });
+	f.renderer.dispose();
 	assert.equal(await pending, false);
 	assert.equal(output.destroyed, 1);
 	assert.equal(old.disposed, 1);
 	assert.equal(f.renderer.getOutputTexture('extra'), null);
-	f.renderer.prepare({});
-	assert.deepEqual(f.instances[1].args.resolution, { width: 32, height: 18 });
 	const count = f.states.length;
 	old.args.reportStatus({ type: 'ready' });
+	old.args.reportStatus({ type: 'error', message: 'late' });
+	f.renderer.dispose();
 	assert.equal(f.states.length, count);
-	const destroyedWait = f.renderer.waitUntilReady(new AbortController().signal);
-	f.renderer.dispose();
-	assert.equal(await destroyedWait, false);
-	const disposedCount = f.states.length;
-	f.instances[1].args.reportStatus({ type: 'error', message: 'late' });
-	f.renderer.dispose();
-	assert.equal(f.states.length, disposedCount);
 	assert.ok(f.textures.filter(texture => texture !== f.fallbackTexture).every(texture => texture.destroyed === 1));
 	assert.throws(() => f.renderer.prepare({}), /disposed/);
 });
@@ -356,24 +330,87 @@ test('cleans up partially allocated output and history textures', () => {
 	assert.ok(g.textures.every(texture => texture.destroyed === 1));
 });
 
-// 【リサイズ途中の確保失敗後は描画を止め、再試行で全出力の寸法をそろえる】
-// ポート単位の交換でピークメモリを抑えつつ、新旧サイズが混在した状態をエフェクトに渡さない。
-test('retries a failed resize without rendering mixed output dimensions', t => {
-	const f = single(t, { history: true });
-	f.renderer.render(f.frame());
-	const factory = f.implementation.outputTextureFactories.extra;
-	f.implementation.outputTextureFactories.extra = () => { throw new Error('resize failed'); };
-	assert.throws(() => f.renderer.setResolution({ width: 32, height: 18 }), /resize failed/);
-	assert.throws(() => f.renderer.render(f.frame()), /resolution has not been resolved/);
-	f.implementation.outputTextureFactories.extra = factory;
-	f.renderer.setResolution({ width: 32, height: 18 });
-	f.renderer.render(f.frame());
-	for (const output of Object.values(f.renders.at(-1).outputDataMap)) {
+// 【全再生成の途中で確保に失敗したら、旧出力と新しい部分出力をすべて解放する】
+// 複数ノードの一部だけが新しくなったグラフを描画したり、生成済みのGPU出力を漏らしたりしない。
+// 復旧はVisualModuleRendererの再生成で行い、破棄後の古い通知も無視する。
+test('releases every graph output after failed resize and recovers with a new renderer', t => {
+	const g = gpu();
+	const source = probe(g, { history: true });
+	const consumer = probe(g, { history: true, paramDefs: { input: color } });
+	const effects = { source, consumer };
+	const nodes = [node('source'), node('consumer', 'consumer', { input: connection('source') })];
+	const f = graph(t, g, effects, nodes);
+	f.render();
+	const factory = consumer.implementation.outputTextureFactories.extra;
+	consumer.implementation.outputTextureFactories.extra = () => { throw new Error('resize failed'); };
+	assert.throws(() => f.renderer.resize({ width: 32, height: 18 }), /resize failed/);
+	assert.ok(g.textures.every(texture => texture.destroyed === 1));
+	assert.equal(source.instances[0].disposed, 1);
+	assert.equal(consumer.instances[0].disposed, 1);
+	assert.equal(f.render(), null);
+	const notices = f.states.length;
+	source.instances[0].args.reportStatus({ type: 'ready' });
+	assert.equal(f.states.length, notices);
+	consumer.implementation.outputTextureFactories.extra = factory;
+	const replacement = graph(t, g, effects, nodes, undefined, { resolution: { width: 32, height: 18 } });
+	replacement.render();
+	for (const output of Object.values(consumer.renders.at(-1).outputDataMap)) {
 		assert.equal(output.texture.width, 32);
 		assert.equal(output.previousFrameTexture.width, 32);
 	}
-	f.renderer.dispose();
-	assert.ok(f.textures.filter(texture => texture !== f.fallbackTexture).every(texture => texture.destroyed === 1));
+	replacement.renderer.destroy();
+	assert.ok(g.textures.every(texture => texture.destroyed === 1));
+});
+
+// 【描画基準の変更で実寸法が同じノードも作り直し、同値通知では履歴を維持する】
+// 固定寸法ノードを含めて同じ寿命規則を使い、待機中の旧エフェクトを新しい描画へ持ち越さない。
+// 呼び出し側から同じ解像度が通知されても、準備やキャッシュを無駄に捨てないことを確認する。
+test('recreates all graph effects on resize and preserves equal rendering settings', async t => {
+	const g = gpu();
+	const fixed = probe(g, { history: true });
+	const changing = probe(g, { history: true });
+	const fixedNode = { ...node('fixed'), resolution: { mode: 'customAbsolute', width: 16, height: 9 } };
+	const f = graph(t, g, { fixed, changing }, [fixedNode, node('changing')], {
+		out: { nodeId: 'changing', outputPort: 'output' }, fixed: { nodeId: 'fixed', outputPort: 'output' },
+	});
+	const context = f.context({ outputIds: ['out', 'fixed'] });
+	f.render(context);
+	const oldFixed = f.renderer.effectRenderers.get('fixed').getOutputTexture('output');
+	const allocated = g.textures.length;
+	f.renderer.resize({ width: 16, height: 9 });
+	f.render(context);
+	assert.equal(g.textures.length, allocated);
+	assert.deepEqual([fixed, changing].map(effect => effect.renders.length), [1, 1]);
+	fixed.instances[0].args.reportStatus({ type: 'loading' });
+	const pending = f.prepare(context);
+	f.renderer.resize({ width: 32, height: 18 });
+	await pending;
+	assert.equal(oldFixed.destroyed, 1);
+	assert.ok([fixed, changing].every(effect => effect.instances[0].disposed === 1));
+	const notices = f.states.length;
+	fixed.instances[0].args.reportStatus({ type: 'error', message: 'obsolete' });
+	assert.equal(f.states.length, notices);
+	f.render(context);
+	assert.deepEqual(fixed.instances[1].args.resolution, { width: 16, height: 9 });
+	assert.deepEqual(changing.instances[1].args.resolution, { width: 32, height: 18 });
+	assert.deepEqual([fixed, changing].map(effect => effect.renders.length), [2, 2]);
+});
+
+// 【描画基準の実寸法が同じでも倍率変更を素材・固定寸法へ反映する】
+// 基準サイズと倍率を逆方向へ変えるとcontext寸法は一致するが、customAbsoluteの寸法は変わる。
+// contextだけの同値判定で全再生成を省略すると、倍率を反映しない出力が残ってしまう。
+test('recreates effects when the scale changes without changing context dimensions', t => {
+	const g = gpu();
+	const effect = probe(g);
+	const fixed = { ...node('fixed', 'effect'), resolution: { mode: 'customAbsolute', width: 80, height: 40 } };
+	const f = graph(t, g, { effect }, [fixed], undefined, { resolution: { width: 32, height: 18 }, resolutionScale: 0.5 });
+	const first = f.render();
+	assert.deepEqual([first.texture.width, first.texture.height], [40, 20]);
+	f.renderer.resize({ width: 16, height: 9 }, 1);
+	const resized = f.render();
+	assert.equal(first.texture.destroyed, 1);
+	assert.deepEqual([resized.texture.width, resized.texture.height], [80, 40]);
+	assert.equal(effect.instances.length, 2);
 });
 
 // 【同一インスタンス内の動画要求の競合管理を維持する】
@@ -384,14 +421,14 @@ test('retains the video loader request ordering within one effect instance', asy
 	let cacheVersion = 0;
 	const f = single(t, { init: ({ reportStatus }) => {
 		const loader = createVideoFrameLoader({
+			fileSource: new Blob(),
 			open: () => ({ getSample(time) { const request = { time, ...deferred() }; requests.push(request); return request.promise; }, dispose() {} }),
 			reportStatus, publish(sample) { published.push(sample?.name); cacheVersion++; },
 		});
-		return { prepare: params => loader.prepare(params.asset, params.time, 'clamp'), get cacheVersion() { return cacheVersion; }, render() {}, dispose: () => loader.dispose() };
+		return { prepare: params => loader.prepare(params.time, 'clamp'), get cacheVersion() { return cacheVersion; }, render() {}, dispose: () => loader.dispose() };
 	} });
-	const asset = new Blob();
-	f.renderer.prepare({ asset, time: 0.2 });
-	f.renderer.prepare({ asset, time: 0.8 });
+	f.renderer.prepare({ time: 0.2 });
+	f.renderer.prepare({ time: 0.8 });
 	const ready = f.renderer.waitUntilReady(new AbortController().signal);
 	const a = { name: 'A', closed: 0, close() { this.closed++; } };
 	requests[0].resolve(a);
@@ -406,9 +443,9 @@ test('retains the video loader request ordering within one effect instance', asy
 	assert.equal(f.renderer.cacheVersion, cacheVersion);
 });
 
-// 【フォントの新しい準備結果を古い読み込み完了で上書きしない】
-// フォントローダー自身の要求世代が、レンダラーの通知世代から独立して働くことを確認する。
-test('retains the font loader request ordering within one effect instance', async t => {
+// 【静的設定変更で破棄されたフォントの読み込みを公開しない】
+// 素材ごとにローダーを作り直す境界を通し、旧フォントの遅い完了で登録やキャッシュが戻らないことを確認する。
+test('discards obsolete font loads when static settings recreate the graph effects', async t => {
 	const requests = [];
 	const fonts = new Set();
 	const previousGlobals = ['FontFace', 'fonts'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
@@ -423,23 +460,32 @@ test('retains the font loader request ordering within one effect instance', asyn
 		load() { const request = { face: this, ...deferred() }; requests.push(request); return request.promise; }
 	};
 	globalThis.fonts = fonts;
-	let font;
-	const f = single(t, { init: ({ reportStatus }) => {
-		font = createTextFontLoader(reportStatus);
-		return { prepare: params => font.prepare(params.font), get cacheVersion() { return font.cacheVersion; }, render() {}, dispose: () => font.dispose() };
+	const g = gpu();
+	const effect = probe(g, { init: ({ reportStatus, resources }) => {
+		const font = createTextFontLoader(resources.font, reportStatus);
+		return { get cacheVersion() { return font.cacheVersion; }, render() {}, dispose: () => font.dispose() };
 	} });
-	f.renderer.prepare({ font: new Blob(['A']) });
+	effect.definition.staticSettingDefs = { font: { dataType: { kind: 'assetReference', assetType: 'font' }, defaultValue: null } };
+	const source = { ...node('text'), staticSettings: { font: 'first' } };
+	const f = graph(t, g, { text: effect }, [source], undefined, { assets: ['first', 'second'].map(id => ({
+		id, fileDataType: 'font/ttf', fileData: new Blob([id]),
+	})) });
+	const obsoletePreparation = f.prepare();
 	await tick();
-	f.renderer.prepare({ font: new Blob(['B']) });
+	source.staticSettings.font = 'second';
+	f.renderer.updateNodes(f.module.nodes);
+	const ready = f.prepare();
 	await tick();
-	const ready = f.renderer.waitUntilReady(new AbortController().signal);
 	requests[1].resolve(requests[1].face);
-	assert.equal(await ready, true);
-	const version = f.renderer.cacheVersion;
+	await ready;
+	await obsoletePreparation;
+	const renderer = f.renderer.effectRenderers.get('text');
+	const version = renderer.cacheVersion;
 	requests[0].resolve(requests[0].face);
 	await tick();
 	assert.deepEqual([...fonts], [requests[1].face]);
-	assert.equal(f.renderer.cacheVersion, version);
+	assert.equal(renderer.cacheVersion, version);
+	assert.equal(effect.instances.length, 2);
 });
 
 // 【複数の出力を要求しても同じ履歴ノードを一度だけ実行する】
@@ -488,7 +534,7 @@ test('keeps graph caches stable and propagates parameter and cacheVersion change
 	assert.equal(consumer.renders.length, 2);
 	assert.equal(consumer.renders[1].params.input.texture, texture);
 	raw.params.amount = literal(2);
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.module.nodes, true);
 	f.render();
 	assert.equal(source.renders.length, 3);
 	assert.equal(consumer.renders.length, 3);
@@ -510,10 +556,10 @@ test('retains upstream caches and instances across literal expression keyframe a
 	const counts = () => [a, b, c, d].map(effect => effect.renders.length);
 	f.render(ctx);
 	let module = f.module;
-	const edit = (update, preserveCache = true) => {
+	const edit = (update, preserveStaticState = true) => {
 		module = structuredClone(module);
 		update(module.nodes.find(node => node.id === 'b').params);
-		f.renderer.updateVisualModule(module, preserveCache);
+		f.renderer.updateVisualModule(module, { preserveStaticState });
 		f.render(ctx);
 	};
 	edit(params => { params.amount = literal(2); });
@@ -533,6 +579,44 @@ test('retains upstream caches and instances across literal expression keyframe a
 	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [1, 1, 1, 1]);
 	edit(params => { params.input = connection('a', 'extra'); }, false);
 	assert.deepEqual(counts(), [2, 7, 7, 2]);
+	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [2, 2, 2, 2]);
+});
+
+// 【通常の値編集では素材寸法を読み直さず、静的設定の編集では再計画する】
+// スライダー操作のたびに全ノードの解像度計画を作り直さず、評価値だけを更新する。
+// Playerの選択変更は別の寸法になり得るため、値編集とは区別し、
+// 解像度を計画し直して全エフェクト・キャッシュ・履歴を再作成する。
+test('reuses static planning for value edits and replans when the selected player changes', t => {
+	const g = gpu();
+	const effect = probe(g, { paramDefs: { amount: { dataType: { kind: 'scalar' } } } });
+	effect.definition.staticSettingDefs = { player: { dataType: { kind: 'playerReference' }, defaultValue: null } };
+	effect.definition.intrinsicResolutionSetting = 'player';
+	const source = { ...node('effect', 'effect', { amount: literal(1) }), staticSettings: { player: 'first' }, resolution: { mode: 'auto', scale: 1 } };
+	let resolutionRequests = 0;
+	const f = graph(t, g, { effect }, [source], { out: { nodeId: source.id, outputPort: 'output' } }, {
+		getPlayerResolution: playerId => {
+			resolutionRequests++;
+			return playerId === 'first' ? { width: 16, height: 9 } : { width: 32, height: 18 };
+		},
+	});
+	f.render();
+	assert.equal(resolutionRequests, 1);
+	const allocated = g.textures.length;
+	const edited = structuredClone(f.module);
+	edited.nodes[0].params.amount = literal(2);
+	f.renderer.updateVisualModule(edited, { preserveStaticState: true });
+	f.render();
+	assert.equal(resolutionRequests, 1);
+	assert.equal(g.textures.length, allocated);
+	assert.equal(effect.instances.length, 1);
+	assert.equal(effect.renders.at(-1).params.amount, 2);
+	const changedPlayer = structuredClone(edited);
+	changedPlayer.nodes[0].staticSettings.player = 'second';
+	f.renderer.updateVisualModule(changedPlayer);
+	f.render();
+	assert.equal(resolutionRequests, 2);
+	assert.equal(effect.instances.length, 2);
+	assert.deepEqual(effect.instances.at(-1).args.resolution, { width: 32, height: 18 });
 });
 
 // 【Inの別ポートを使う枝は、無関係な引数や外部テクスチャに依存しない】
@@ -580,21 +664,21 @@ test('invalidates downstream caches when lazy outputs are released and reacquire
 // prepareのみでA→B→Aとリサイズすると値ベースのキーは元に戻るが、履歴・出力は新しくなっている。
 test('invalidates downstream caches after resizing away and back without rendering', async t => {
 	const g = gpu();
-	const source = probe(g, { paramDefs: { size: { dataType: { kind: 'scalar' } } }, intrinsic: params => ({ width: params.size, height: 9 }) });
+	const source = probe(g);
 	const consumer = probe(g, { paramDefs: { input: color } });
-	const raw = { ...node('source', 'source', { size: literal(16) }), resolution: { mode: 'auto', scale: 1 } };
+	const raw = { ...node('source', 'source'), resolution: { mode: 'customAbsolute', width: 16, height: 9 } };
 	const f = graph(t, g, { source, consumer }, [raw, node('consumer', 'consumer', { input: connection('source') })]);
 	f.render();
 	const first = consumer.renders[0].params.input.texture;
 	for (const size of [32, 16]) {
-		raw.params.size = literal(size);
+		raw.resolution.width = size;
 		f.renderer.updateNodes(f.module.nodes);
 		await f.prepare();
 	}
 	assert.equal(consumer.renders.length, 1);
 	f.render();
 	assert.equal(source.instances.length, 3);
-	assert.equal(consumer.instances.length, 1);
+	assert.equal(consumer.instances.length, 3);
 	assert.equal(consumer.renders.length, 2);
 	assert.equal(first.destroyed, 1);
 	assert.notEqual(consumer.renders[1].params.input.texture, first);
@@ -607,7 +691,7 @@ test('propagates local resolution scales through graph updates and preview resiz
 	const g = gpu();
 	const source = probe(g, { intrinsic: () => ({ width: 1920, height: 1080 }) });
 	const consumer = probe(g, { paramDefs: { input: color } });
-	consumer.definition.resolutionInputParameter = 'input';
+	consumer.definition.resolutionInputParameters = ['input'];
 	const sourceNode = { ...node('source'), resolution: { mode: 'auto', scale: 0.5 } };
 	const consumerNode = { ...node('consumer', 'consumer', { input: connection('source') }), resolution: { mode: 'auto', scale: 0.5 } };
 	const f = graph(t, g, { source, consumer }, [sourceNode, consumerNode], undefined, { resolution: { width: 1920, height: 1080 }, resolutionScale: 0.5 });
@@ -653,29 +737,30 @@ test('invalidates downstream caches when an upstream renderer is recreated with 
 	assert.notEqual(consumer.renders[1].params.input.texture, consumer.renders[0].params.input.texture);
 });
 
-// 【バイパス中は入力を通し、再有効化時は保持していた履歴から再開する】
-// 借用した上流出力を履歴に取り込んだり、バイパス中に履歴テクスチャを交換したりしない。
-test('preserves effect history while bypassing and resumes it without reinitialization', async t => {
+// 【バイパス中は入力を通し、切り替え時には全エフェクトの履歴を作り直す】
+// 借用した上流出力を履歴に取り込まず、再有効化時も破棄済みの履歴を読み直さない。
+test('passes through bypassed effects and recreates history when bypass changes', async t => {
 	const g = gpu();
 	const source = probe(g);
 	const history = probe(g, { history: true, disableCache: true, paramDefs: { input: color } });
 	const accumulation = node('history', 'history', { input: connection('source') });
 	const f = graph(t, g, { source, history }, [node('source'), accumulation]);
 	const first = f.render();
-	const allocated = g.textures.length;
 	accumulation.isBypass = true;
 	f.renderer.updateNodes(f.module.nodes);
 	await f.prepare();
-	assert.equal(f.render().texture, source.renders[0].outputDataMap.output.texture);
+	assert.equal(f.render().texture, source.renders.at(-1).outputDataMap.output.texture);
 	assert.equal(history.renders.length, 1);
-	assert.equal(f.states.filter(item => item.id === 'history').at(-1).state.outputs.output, null);
+	assert.equal(history.instances[0].disposed, 1);
+	assert.equal(first.texture.destroyed, 1);
+	assert.equal(f.states.filter(item => item.id === 'history').at(-1).state, null);
 	accumulation.isBypass = false;
 	f.renderer.updateNodes(f.module.nodes);
 	await f.prepare();
 	f.render();
-	assert.equal(history.instances.length, 1);
-	assert.equal(history.renders[1].outputDataMap.output.previousFrameTexture, first.texture);
-	assert.equal(g.textures.length, allocated);
+	assert.equal(history.instances.length, 2);
+	assert.notEqual(history.renders[1].outputDataMap.output.previousFrameTexture, first.texture);
+	assert.equal(history.renders[1].outputDataMap.output.previousFrameTexture.destroyed, 0);
 });
 
 // 【実際のモジュールを使うシークの中断後に描画・履歴更新を行わない】
@@ -741,4 +826,74 @@ test('ends aggregate preparation on failure without disposing other pending effe
 	assert.equal(source.instances.length, 1);
 	assert.equal(consumer.instances.length, 1);
 	assert.equal(consumer.renders.length, 1);
+});
+
+// 【静的設定の編集は全エフェクトのインスタンス・履歴・キャッシュを作り直す】
+// 差分によるリソース更新を持たず、独立した枝も含めて破棄する契約を確認する。
+// 同じ寸法・同じIDでも旧出力や非同期通知を新しいエフェクトへ引き継がない。
+test('recreates every graph effect and invalidates caches after static setting edits', t => {
+	const g = gpu();
+	const a = probe(g);
+	const b = probe(g, { history: true, paramDefs: { input: color } });
+	b.definition.staticSettingDefs = { mode: { dataType: { kind: 'string' }, ui: { label: 'Mode' }, defaultValue: 'first' } };
+	const c = probe(g, { paramDefs: { input: color } });
+	const d = probe(g);
+	const edited = { ...node('b', 'b', { input: connection('a') }), staticSettings: { mode: 'first' } };
+	const f = graph(t, g, { a, b, c, d }, [node('a'), edited, node('c', 'c', { input: connection('b') }), node('d')],
+		{ out: { nodeId: 'c', outputPort: 'output' }, independent: { nodeId: 'd', outputPort: 'output' } });
+	const context = f.context({ outputIds: ['out', 'independent'] });
+	f.render(context);
+	const previous = b.instances[0];
+	const history = f.renderer.effectRenderers.get('b').getOutputTexture('output');
+	edited.staticSettings.mode = 'second';
+	f.renderer.updateNodes(f.module.nodes);
+	assert.equal(previous.disposed, 1);
+	assert.equal(history.destroyed, 1);
+	f.render(context);
+	assert.equal(b.instances[1].args.resources.mode, 'second');
+	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [2, 2, 2, 2]);
+	assert.deepEqual([a, b, c, d].map(effect => effect.renders.length), [2, 2, 2, 2]);
+	assert.ok([a, b, c, d].every(effect => effect.instances[0].disposed === 1));
+});
+
+// 【各ノードの最初の式評価から倍率適用後のRESOLUTIONを渡す】
+// initや描画結果から解像度を知る構成では、初回だけcontext寸法を式が参照してしまう。
+// 同じエフェクトを異なる寸法で配置し、単独変数と環境変数の両経路を確認する。
+test('evaluates RESOLUTION with each planned node size before initialization', t => {
+	const g = gpu();
+	const effect = probe(g, { paramDefs: { size: { dataType: { kind: 'vector' }, ui: { label: 'Size', control: {} } } } });
+	const first = node('first', 'effect', { size: { inputSource: 'expression', expression: 'RESOLUTION' } });
+	first.resolution = { mode: 'customAbsolute', width: 81, height: 31 };
+	const second = node('second', 'effect', { size: { inputSource: 'envVariable', variable: 'RESOLUTION' } });
+	const f = graph(t, g, { effect }, [first, second], { out: { nodeId: 'first', outputPort: 'output' }, other: { nodeId: 'second', outputPort: 'output' } }, { resolutionScale: 0.5 });
+	assert.equal(effect.instances.length, 0);
+	const context = f.context({ outputIds: ['out', 'other'] });
+	f.render(context);
+	assert.deepEqual(effect.renders.map(render => render.params.size), [[41, 16], [8, 5]]);
+	first.params.size = { inputSource: 'expression', expression: '[WIDTH, HEIGHT]' };
+	f.renderer.updateNodes(f.module.nodes);
+	assert.throws(() => f.render(context), /WIDTH|HEIGHT/);
+});
+
+// 【公開入力の追加と宣言寸法を同時に反映する】
+// 描画ごとの寸法更新に頼らず、追加ノードの最初の確保と式評価から新しい入力の寸法を使う。
+// 古い宣言で一度確保してからリサイズすると、余分なGPU確保と初期化が発生する。
+test('applies new public input dimensions before allocating added nodes', t => {
+	const g = gpu();
+	const effect = probe(g, { paramDefs: { input: color, size: { dataType: { kind: 'vector' }, ui: { label: 'Size', control: {} } } } });
+	effect.definition.resolutionInputParameters = ['input'];
+	const f = graph(t, g, { effect }, [], {});
+	const consumer = node('consumer', 'effect', {
+		input: connection('in', 'image'), size: { inputSource: 'expression', expression: 'RESOLUTION' },
+	});
+	consumer.resolution = { mode: 'auto', scale: 1 };
+	const visualModule = { ...f.module,
+		paramDefs: [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, canNode: true }],
+		outputDefs: [{ id: 'out' }],
+		nodes: [{ id: 'in', type: 'globalIn' }, consumer, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'consumer', outputPort: 'output' } } }],
+	};
+	f.renderer.updateVisualModule(visualModule, { inputResolutions: new Map([['image', { width: 321, height: 123 }]]) });
+	assert.deepEqual(g.textures.map(texture => [texture.width, texture.height]), [[321, 123], [321, 123]]);
+	f.render(f.context({ paramInputs: new Map([['image', uniform]]) }));
+	assert.deepEqual(effect.renders[0].params.size, [321, 123]);
 });

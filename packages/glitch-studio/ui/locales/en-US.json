@@ -141,8 +141,7 @@
 		"END_TIME": "Time of End (s)",
 		"END_TIME_MS": "Time of End (ms)",
 		"PROGRESS": "Progress",
-		"WIDTH": "Rendering Width",
-		"HEIGHT": "Rendering Height",
+		"RESOLUTION": "Effect rendering resolution [width, height]",
 		"IS_EXPORT": "Whether it is an export rendering"
 	},
 	"_FitModes": {
@@ -768,9 +767,6 @@
 		"Definition": "Definition",
 		"UiLabel": "UI Label",
 		"ReferenceName": "Reference Name",
-		"VideoAsset": "Video asset",
-		"FontAsset": "Font asset",
-		"LutAsset": "LUT Asset",
 		"DataType": "Data Type",
 		"Number": "Number",
 		"Range": "Range",

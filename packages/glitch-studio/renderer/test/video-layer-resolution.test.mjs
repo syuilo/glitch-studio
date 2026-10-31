@@ -103,7 +103,7 @@ function gpuFixture(t) {
 	return { device, texture, sample, calls };
 }
 
-function timelineFixture(t, { enableStats = false, timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16 }, readSample } = {}) {
+async function timelineFixture(t, { enableStats = false, timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16 }, readSample } = {}) {
 	const fixture = gpuFixture(t);
 	const { device, texture, sample, calls } = fixture;
 	const module = { exports: {} };
@@ -119,15 +119,15 @@ function timelineFixture(t, { enableStats = false, timelineMotionBlur = { enable
 		} }
 		: require(name), module, module.exports);
 	const input = { dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
-	const manager = new module.exports.TimelineRendererManager({
+	const manager = await module.exports.TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
-		effectDefinitions: { pass: { paramDefs: { input }, primaryInputParameter: 'input', resolutionInputParameter: 'input',
+		effectDefinitions: { pass: { paramDefs: { input }, primaryInputParameter: 'input', resolutionInputParameters: ['input'],
 			primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } } } },
 		effectImplementations: { pass: {
 			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
 			init: () => ({ render: ctx => calls.renders.push(ctx), dispose() {} }),
 		} },
-	}, { enableStats, timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	}, { enableStats, timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }] });
 	calls.compositing = [];
 	manager.createCompositingObserver = (_sceneId, layerId) => (foreground, settings) => calls.compositing.push({ layerId, foreground, settings });
 	manager.on('ev', event => { if (event.type === 'renderError') calls.errors.push(event.ctx.message); });
@@ -141,7 +141,7 @@ async function timingFixture(t, { enableStats = true, videoLayers = 1, motionBlu
 	let clockReads = 0;
 	t.mock.method(performance, 'now', () => { clockReads++; return elapsedMs; });
 	const costs = { sampleMs: 7, uploadMs: 3, gpuWaitMs: 5, otherMs: 2, sampleError: null, sampleGate: null, sampleStarted: null };
-	const fixture = timelineFixture(t, {
+	const fixture = await timelineFixture(t, {
 		enableStats,
 		timelineMotionBlur: { enabled: motionBlurSamples > 1, shutterAngle: 180, samples: motionBlurSamples },
 		readSample: async time => {
@@ -167,7 +167,7 @@ async function timingFixture(t, { enableStats = true, videoLayers = 1, motionBlu
 		clips: [{ id: `clip-${index}`, startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000,
 			playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }],
 	}));
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 16, height: 8 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: videos }] });
 	return { ...fixture, costs, statistics, get gpuWaits() { return gpuWaits; }, get clockReads() { return clockReads; } };
@@ -260,12 +260,12 @@ test('discards stale, cancelled and failed preview measurements', async t => {
 // フレーム取得だけを止める実装ではデコーダーやGPU資源が残る。生成時点から映像を
 // 無効にした配置が動画ソースも合成処理も使わないことを確認する。
 test('does not open video sources or composite audio-only clips in preview or export', async t => {
-	const { manager, calls, device } = timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const { manager, calls, device } = await timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [],
 		compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 3000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: -1, loop: true,
 			assetId: 'asset', audioEnabled: true, videoEnabled: false }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	// 動画レイヤー単体の生成で、空のレンダラーにGPU資源が紛れ込まないことも保証する。
@@ -291,13 +291,13 @@ test('does not open video sources or composite audio-only clips in preview or ex
 // 透明画像を返すとReplaceやマスクで下層が消え、グループも出力ありと誤判定する。
 // 同じ下層の動画フレームを基準に、音声のみの配置を追加しても合成結果が変わらないことを確認する。
 test('preserves lower layers beneath audio-only replace and mask clips including groups', async t => {
-	const { manager, calls } = timelineFixture(t);
+	const { manager, calls } = await timelineFixture(t);
 	const background = { id: 'background', name: 'Background', layerType: 'video', isDisabled: false,
 		automationGraphs: [], coordinateSpace: 'screen', mask: null, forceDisableMotionBlur: false,
 		compositingParamValues: { blendMode: literal('replace') }, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'background-clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false,
 			assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [background] }] });
 	await manager.renderTimelineAt(500);
@@ -326,12 +326,12 @@ test('preserves lower layers beneath audio-only replace and mask clips including
 // clips差分の再生成経路を通して確認し、設定だけ変わって古い動画フレームを表示したり
 // 無効中もソースを保持したりする回帰を防ぐ。
 test('releases decoded video resources when disabling video and recreates them when enabled', async t => {
-	const { manager, calls } = timelineFixture(t);
+	const { manager, calls } = await timelineFixture(t);
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [],
 		compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false,
 			assetId: 'asset', audioEnabled: true, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	await manager.renderTimelineAt(100);
@@ -362,13 +362,13 @@ for (const reversePlayback of [false, true]) {
 	// 素材時刻ではなく実際のtimestampで転送を省き、次フレームへの更新・戻りシークでは転送する。
 	// 逆再生でも同じ条件を守り、再利用のためにデコーダーのフレームを保持し続けないことも確認する。
 	test(`reuses uploaded frames across different source times during ${reversePlayback ? 'reverse' : 'forward'} playback`, async t => {
-		const { manager, calls, sample } = timelineFixture(t, {
+		const { manager, calls, sample } = await timelineFixture(t, {
 			readSample: time => sample(3840, 2160, time < 0.25 ? 0 : time < 0.75 ? 0.25 : 0.75),
 		});
 		const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false,
 			automationGraphs: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
 			clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: reversePlayback ? -1 : 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-		await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+		await manager.updateDynamicOptions({
 			resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 			timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 		const sourceTimesMs = [100, 200, 300, 600, 800, 100];
@@ -395,12 +395,12 @@ for (const reversePlayback of [false, true]) {
 // フリーズをレイヤー全体の描画停止で実装すると不透明度や変形まで止まってしまう。
 // 先頭以外からの描画と戻りシークでも、動画の読み出しとGPU転送は一度だけで済む。
 test('holds the same source frame across seeks and export while animating composition', async t => {
-	const { manager, calls } = timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const { manager, calls } = await timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
 		automationGraphs: [], coordinateSpace: 'screen',
 		compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME / 10' } }, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'hold', startMs: 1000, durationMs: 10000, sourceTimeMs: 2000.25, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	await manager.renderTimelineAt(5000);
@@ -423,11 +423,11 @@ test('holds the same source frame across seeks and export while animating compos
 // 読み出し側のデコードキャッシュだけでは動画フレームの取り込みとGPU描画がサンプル数倍残る。
 // プレビューと書き出しの両方で前景を再利用し、合成自体を省略しないことを確認する。
 test('uploads frozen video once per source time while compositing every motion blur sample', async t => {
-	const { manager, calls } = timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const { manager, calls } = await timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: true,
 		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 2000, sourceInMs: 0, sourceOutMs: 2000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 0.5, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	await manager.renderTimelineAt(500);
@@ -450,11 +450,11 @@ test('uploads frozen video once per source time while compositing every motion b
 // 前景の再利用を合成結果の再利用にするとScene時刻の式が止まる。映像のない時刻も
 // 独立した結果として保持し、再び映像へ戻るときは上書き済みの一枚を読み直す必要がある。
 test('refreshes composition at repeated video times and caches transparent foregrounds', async t => {
-	const { manager, calls, sample } = timelineFixture(t, { readSample: time => time === 0.6 ? null : sample(3840, 2160) });
+	const { manager, calls, sample } = await timelineFixture(t, { readSample: time => time === 0.6 ? null : sample(3840, 2160) });
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
 		automationGraphs: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 3000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: true, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	for (const time of [500, 1500, 1600, 2600, 1500]) await manager.renderTimelineFrame(time, 0);
@@ -470,10 +470,10 @@ test('refreshes composition at repeated video times and caches transparent foreg
 // 時間計算単体が正しくても、動画レイヤーが評価済みの素材時刻を使わなければ映像だけが直進する。
 // 実際の差分同期も通し、周期・倍率の編集で素材時刻が変わり、再生成時に方向も反映されることを確認する。
 test('loops decoded video timestamps in preview and export and applies clip edits', async t => {
-	const { manager, calls } = timelineFixture(t);
+	const { manager, calls } = await timelineFixture(t);
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 1000, sourceInMs: 2000.25, sourceOutMs: 5000.25, playbackRate: 1, loop: true, durationMs: 8000, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
 	for (const time of [3999, 4000, 8000, 1000]) {
@@ -505,7 +505,7 @@ test('loops decoded video timestamps in preview and export and applies clip edit
 // プロジェクトより大きい素材を使い、プロジェクト寸法への強制変換・二重縮小も検出する。
 // 通常合成では画面寸法を使い、倍率1の書き出しでは素材の原寸を維持する。
 test('scales video sources once through replace composition and automatic processing', async t => {
-	const { manager, calls } = timelineFixture(t);
+	const { manager, calls } = await timelineFixture(t);
 	const timing = { name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], automationGraphs: [] };
 	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
 	const processing = { ...timing, id: 'processing', layerType: 'inlineVisualModule', visualModuleParamValues: {},
@@ -521,12 +521,11 @@ test('scales video sources once through replace composition and automatic proces
 			],
 		},
 	};
-	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }] });
 	for (const [resolutionScale, blendMode, expectedOutput] of [
-		[0.5, 'replace', [1920, 1080]],
-		[0.25, 'replace', [960, 540]],
+		[0.5, 'replace', [960, 540]],
+		[0.25, 'replace', [480, 270]],
 		[0.5, 'normal', [960, 540]],
-		[1, 'replace', [3840, 2160]],
+		[1, 'replace', [1920, 1080]],
 	]) {
 		video.compositingParamValues.blendMode = literal(blendMode);
 		await manager.updateDynamicOptions({ resolution: { width: 1920, height: 1080 }, resolutionScale,

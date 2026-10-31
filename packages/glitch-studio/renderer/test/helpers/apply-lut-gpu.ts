@@ -56,9 +56,10 @@ export async function run() {
 	const identity = 'LUT_3D_SIZE 3\n' + rows3d(3, (r, g, b) => [r, g, b]);
 	try {
 		for (const use32bit of supports32 ? [false, true] : [false]) {
-			const renderer = new EffectRenderer({
+			const createRenderer = (lut: Blob | null) => new EffectRenderer({
 				definition,
 				implementation,
+				staticResources: { lut },
 				resolution: { width: 1, height: 1 },
 				fallbackTexture,
 				wgpu: {
@@ -68,12 +69,17 @@ export async function run() {
 					intermediateTextureFormat: 'rgba16float',
 				},
 			});
+			let renderer = createRenderer(null);
+			const replaceRenderer = (lut: Blob | null) => {
+				renderer.dispose();
+				renderer = createRenderer(lut);
+			};
 			let inputTexture: GPUTexture | null = null;
 			const draw = async (name: string, text: string | null, rgba: number[], expected: number[], input?: ShaderInput) => {
 				const params = {
 					input: input ?? { kind: 'uniform' as const, value: rgba },
-					lut: text == null ? null : { id: 'same-asset', fileData: new Blob([text]) },
 				};
+				replaceRenderer(text == null ? null : new Blob([text]));
 				renderer.prepare(params);
 				if (!await renderer.waitUntilReady(new AbortController().signal)) throw new Error('LUT preparation cancelled');
 				const encoder = device.createCommandEncoder();
@@ -100,7 +106,8 @@ export async function run() {
 					class DelayedBlob extends Blob {
 						override text() { return pendingText; }
 					}
-					const params = { input: { kind: 'uniform' as const, value: [0.2, 0.6, 0.4, 1] }, lut: { id: 'same-asset', fileData: new DelayedBlob(['pending']) } };
+					replaceRenderer(new DelayedBlob(['pending']));
+					const params = { input: { kind: 'uniform' as const, value: [0.2, 0.6, 0.4, 1] } };
 					const renderVisualModuleLivePreview = () => {
 						const encoder = device.createCommandEncoder();
 						renderer.render({

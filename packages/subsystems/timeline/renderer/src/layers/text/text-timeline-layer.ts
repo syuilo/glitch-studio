@@ -1,4 +1,3 @@
-import type { FileSource } from '@gs/shared/file-source.ts';
 import { createTextRenderer } from '../../text-rendering/text-renderer.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
@@ -8,7 +7,7 @@ import type { TimelineTextLayer } from '@gs/subsystems_timeline_shared/types.ts'
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-export function createTextTimelineLayer(layer: TimelineTextLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => FileSource | null; onCompositing?: TimelineCompositingObserver | null }): TimelineLayerRenderer<TimelineImage> {
+export function createTextTimelineLayer(layer: TimelineTextLayer, options: Parameters<typeof createTextRenderer>[0] & { onCompositing?: TimelineCompositingObserver | null }): TimelineLayerRenderer<TimelineImage> {
 	const renderer = createTextRenderer(options);
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TextParameters();
@@ -19,7 +18,7 @@ export function createTextTimelineLayer(layer: TimelineTextLayer, options: Param
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = { time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs };
 			const text = parameters.evaluate(layer.textParamValues, scope);
-			if (!await renderer.prepare(text.font == null ? null : options.getFont(text.font), signal) || disposed || signal.aborted) return { gpuTime: 0 };
+			if (!await renderer.waitUntilReady(signal) || disposed || signal.aborted) return { gpuTime: 0 };
 			const settings = compositing.evaluate({
 				...scope,
 				coordinateSpace: layer.coordinateSpace,

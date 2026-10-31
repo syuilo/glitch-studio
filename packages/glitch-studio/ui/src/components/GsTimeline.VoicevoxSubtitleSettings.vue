@@ -3,6 +3,7 @@
 	<template #icon><i class="ti ti-typography"></i></template>
 	<template #label>{{ i18n.ts.Subtitle }}</template>
 	<div style="padding: 8px 0;">
+		<GsStaticSettings :definitions="voicevoxSubtitleStaticSettingDefs" :values="layer.subtitleStaticSettings" @change="emit('staticSetting', $event)"/>
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(voicevoxSubtitleParamDefs)"
 			:key="key"
@@ -24,15 +25,16 @@
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { computed } from 'vue';
-import { voicevoxSubtitleParamDefs } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle.ts';
+import { voicevoxSubtitleParamDefs, voicevoxSubtitleStaticSettingDefs } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsVisualParam from './GsVisualParam.vue';
+import GsStaticSettings from './GsStaticSettings.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 
 const props = defineProps<{ layer: TimelineVoicevoxLayer }>();
-const emit = defineEmits<{ edit: [event: ParamEdit] }>();
+const emit = defineEmits<{ staticSetting: [edit: { key: string; value: string | number | boolean | null }]; edit: [event: ParamEdit] }>();
 const values = computed<Record<string, TimelineParameterBinding>>(() => props.layer.subtitleParamValues);
 </script>
