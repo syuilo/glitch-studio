@@ -28,7 +28,7 @@ export default defineEffect({
 		},
 		position: {
 			dataType: { kind: 'vector' },
-			ui: { label: 'Position', control: { controlType: 'xy', min: -1, max: 1, step: 0.01 } },
+			ui: { label: 'Position', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
 		align: {
@@ -49,7 +49,7 @@ export default defineEffect({
 		},
 		translation: {
 			dataType: { kind: 'vector' },
-			ui: { label: 'Translation', control: { controlType: 'vector', min: -2, max: 2, step: 0.01 } },
+			ui: { label: 'Translation', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } },
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},

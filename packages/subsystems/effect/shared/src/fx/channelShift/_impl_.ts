@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -32,6 +33,7 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				uniformValues.set({
+					displacementScale: spatialToNormalizedCoordinates([1, 1], ctx.outputDataMap.output.texture),
 					channelBlendMode: blendModes[ctx.params.channelBlendMode] ?? 0,
 					inputBlendMode: blendModes[ctx.params.inputBlendMode] ?? blendModes.replace,
 					leftSignal: ctx.params.leftSignal.slice(0, 3).map(Number),

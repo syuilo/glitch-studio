@@ -1,3 +1,4 @@
+import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -39,14 +40,14 @@ export default implementEffect<typeof definition>({
 				// それぞれの入力領域の矩形との共通部分にすることで、領域外の距離も残す。
 				const distanceInputA = transparentA ? { ...inputA, wrapMode: 'clamp' as const } : inputA;
 				const distanceInputB = transparentB ? { ...inputB, wrapMode: 'clamp' as const } : inputB;
-				// 入力距離は再スケールせず、指定した幅だけをSDFの高さ単位へ変換する。
-				const referenceScale = getSizeReferenceLength(ctx.params.sizeReference, output) / output.height;
+				// 入力距離は再スケールせず、指定した幅だけをSDFの共通単位へ変換する。
+				const referenceScale = getSizeReferenceLength(ctx.params.sizeReference, output) / Math.max(output.width, output.height);
 				uniformValues.set({
 					inputScaleA: transparentA ? inputUvScale(inputA.texture, output, inputA.fitMode) : [1, 1],
 					inputScaleB: transparentB ? inputUvScale(inputB.texture, output, inputB.fitMode) : [1, 1],
 					transparentA: transparentA ? 1 : 0,
 					transparentB: transparentB ? 1 : 0,
-					aspectRatio: output.width / output.height,
+					halfExtent: getSpatialHalfExtent(output),
 					operation: { union: 0, intersection: 1, difference: 2 }[ctx.params.operation],
 					smoothing: Math.max(0, Math.min(ctx.params.smoothing * referenceScale, 3.4028234663852886e38)),
 				});

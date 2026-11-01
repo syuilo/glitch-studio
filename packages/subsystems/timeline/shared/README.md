@@ -28,11 +28,11 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 音声計画の`sourceTiming`は`TimelineMediaSourceTiming`として最上位Scene上の再生原点・素材範囲・倍率・ループを持つ。親Sceneのトリムは表示区間だけに適用し、時計の原点を変更しない。生成音声も準備後に同じ契約へ変換する。全周期の配置は展開しない。`getTimelineMotionBlurLoops()`は映像クリップの倍率を反映した周期を収集し、各フレームではループの前後の境界だけで露光区間を狭める。
 
-`TimelineTextLayer`は本文・サイズ・最大幅とoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、フォントAsset IDは`textStaticSettings.font`に直接保存し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有し、既存のTextエフェクトとは定義・描画処理を共有しない。サイズはScene高さ比、最大幅はScene幅比、輪郭・影・行間は文字サイズ比。入力はTimelineの値Bindingを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
+`TimelineTextLayer`は本文・サイズ・最大幅とoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、フォントAsset IDは`textStaticSettings.font`に直接保存し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有し、既存のTextエフェクトとは定義・描画処理を共有しない。サイズはScene長辺比、最大幅はScene幅比、輪郭・影・行間は文字サイズ比。入力はTimelineの値Bindingを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
 
 `TimelineShapeLayer`は一つの形状を所有し、クリップは時間情報だけを持つ。初期対応は楕円と角丸を含む長方形で、作成後に種類は変更しない。`layers/shape/shape.ts`が形状の種類別パラメータ定義と保存用・評価済みの型を所有し、Sceneやレイヤーの情報には依存しない。将来の多角形・シンボル・パスも同じレイヤー種別へ追加する。
 
-シェイプの位置・寸法・回転・塗り・輪郭は合成設定から独立したBindingで、式・automation・キーを所属Scene時刻で評価する。寸法は輪郭を付ける前の全幅・全高。寸法・輪郭幅・角丸半径は縦横ともScene高さを1とし、位置は画面中央が[0, 0]、画面端が±1。回転の1は形状中心を支点とした時計回り360度（1周）。輪郭は内側・中央（既定）・外側から選び、寸法を変えても輪郭幅は保つ。非正の寸法は透明、非正の輪郭幅は輪郭なし、角丸半径は0から短辺の半分までに制限する。塗り・輪郭は個別に有効化できるRGBA色で、輪郭を塗りの上へ合成する。
+シェイプの位置・寸法・回転・塗り・輪郭は合成設定から独立したBindingで、式・automation・キーを所属Scene時刻で評価する。寸法は輪郭を付ける前の全幅・全高。寸法・輪郭幅・角丸半径・位置はSceneの長辺全体を1とする共通単位。中央が[0, 0]、正方形の端は各軸±0.5。回転の1は形状中心を支点とした時計回り360度（1周）。輪郭は内側・中央（既定）・外側から選び、寸法を変えても輪郭幅は保つ。非正の寸法は透明、非正の輪郭幅は輪郭なし、角丸半径は0から短辺の半分までに制限する。塗り・輪郭は個別に有効化できるRGBA色で、輪郭を塗りの上へ合成する。
 
 シェイプの初期値は中央、寸法[0.5, 0.5]、白い塗り、輪郭無効（色は黒、幅0.01）。`layers/shape/shape-layer.ts`はTimelineの値Bindingを受け入れ、ノード・下層画像・音声入力を拒否する。複数形状・グラデーション・任意パス・プレビュー上の直接編集は未対応。
 
@@ -116,3 +116,5 @@ Groupを祖先に持つカメラはUIの静的検証で診断する。無効な�
 画像入力はエフェクトとVisual Moduleレイヤーの公開画像入力に`lowerLayerOutput` / `anotherLayerOutput`を許可する。`anotherLayerOutput`は`layerId`と`outputStage: source | rendered | composited`を持つ。公開入力のBindingにはサンプリングを持たせず、エフェクト用Bindingにだけfit・wrap・filterを組み合わせる。公開主入力の既定値・リセットは`lowerLayerOutput`とする。`layer-output.ts`は同じScene内の画像参照と、素材・合成境界・Group以外のコンテナの透過を区別した依存グラフを所有する。静的な循環は無効化・クリップ期間にかかわらず拒否する。
 
 `layer-static-settings.ts`はEffect・Text・VOICEVOXの独立した静的設定の定義と保存値を組み合わせる。エフェクトレイヤーは`effectStaticSettings`を持ち、共通の`StaticSettingValues`へIDや値を直接保存する。素材参照型は通常・公開パラメータから除外する。
+
+公開する位置・移動・距離・CameraのXY/Zは[共通空間単位](../../../../docs/spatial-coordinate.md)です。Originは透明余白を含む素材の長辺単位、Positionは配置先のScene単位です。画像合成・クリップ・行列は内部の各軸[-1,+1]で扱い、`layer-transform.ts`が境界の換算を担当します。カメラ作成時の既定ZはScene比率から求め、縦画角45°でZ=0が初期画面に収まる値にします。

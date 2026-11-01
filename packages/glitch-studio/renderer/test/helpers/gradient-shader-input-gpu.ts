@@ -70,7 +70,7 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			// 全128入力構成でscalar単独と複数出力を比較する。最後は退避した構成へ戻す。
 			const baseline = await render(params, true);
 			check('linear gradient values', baseline.scalar, [0.875, 0.625, 0.375, 0.125].flatMap(v => [v, v, v, v]));
-			check('linear gradient derivatives', baseline.vector, Array.from({ length: 16 }, () => [0, 0.5]).flat());
+			check('linear gradient derivatives', baseline.vector, Array.from({ length: 16 }, () => [0, 1]).flat());
 			for (let iteration = 0; iteration <= 128; iteration++) {
 				const mask = iteration % 128;
 				inputs.forEach((input, index) => { params[input.name] = mask & (1 << index) ? input.texture : input.uniform; });
@@ -85,7 +85,7 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			params.sizeReference = 'longSide';
 			const radial = await render(params, true);
 			const radius = Math.hypot(-0.25, 0.25);
-			check('radial value and derivative', [radial.scalar[5], ...radial.vector.slice(10, 12)], [radius, -0.25 / radius, 0.25 / radius]);
+			check('radial value and derivative', [radial.scalar[5], ...radial.vector.slice(10, 12)], [radius, -0.5 / radius, 0.5 / radius]);
 			params.mode = 'linear';
 			// 同じ空間入力を両端値へ渡すと、結果と微分は入力そのものになる。
 			// 異なる比率の入力でfitと全wrapを確認し、透明境界の1x1も含める。
@@ -114,7 +114,7 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 							const ix = Math.floor(px), iy = Math.floor(py), wx = px - ix, wy = py - iy;
 							const a = sample(ix, iy), b = sample(ix + 1, iy), c = sample(ix, iy + 1), d = sample(ix + 1, iy + 1);
 							expectedScalar.push((a * (1 - wx) + b * wx) * (1 - wy) + (c * (1 - wx) + d * wx) * wy);
-							expectedVector.push(((b - a) * (1 - wy) + (d - c) * wy) * width * scale[0] / 2, -((c - a) * (1 - wx) + (d - b) * wx) * height * scale[1] / 2);
+							expectedVector.push(((b - a) * (1 - wy) + (d - c) * wy) * width * scale[0], -((c - a) * (1 - wx) + (d - b) * wx) * height * scale[1]);
 						}
 						check(`gradient ${width} ${fitMode} ${wrapMode} value`, result.scalar, expectedScalar);
 						check(`gradient ${width} ${fitMode} ${wrapMode} derivative`, result.vector, expectedVector);
@@ -129,7 +129,7 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			check('nearest input derivatives are zero', nearest.vector, Array(32).fill(0));
 			params.startValue = params.endValue = textureShaderInput(stepSource, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 			const linear = await render(params, true);
-			check('restores linear input derivative', linear.vector.slice(2, 4), [0.75, 0]);
+			check('restores linear input derivative', linear.vector.slice(2, 4), [1.5, 0]);
 			const error = await device.popErrorScope();
 			if (error) throw new Error(error.message);
 			completed.push(`gradient inputs and derivatives ${enable32bitDataTextures ? 32 : 16}bit`);

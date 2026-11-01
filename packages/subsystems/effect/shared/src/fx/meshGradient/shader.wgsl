@@ -49,7 +49,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// 色がないときはグレインだけの画像を生成せず、透明を返す。
 	if (count_colors == 0u) { return vec4f(0.0); }
 
-	// offsetは画面の半幅・半高さを1とする。回転前に縦横の単位を揃え、
+	// offsetはCPU側で共通単位から画像参照座標へ換算済み。回転前に縦横の単位を揃え、
 	// Angle=1で模様が時計回りに1周回転するよう、参照座標を逆変換する。
 	var uv = rotate((position - uniforms.offset) * uniforms.coordinateScale * 0.5, uniforms.angle) / uniforms.scale + vec2f(0.5);
 	// ピクセル座標ではなく模様の座標で粒を作り、解像度によらず粒の大きさを保つ。

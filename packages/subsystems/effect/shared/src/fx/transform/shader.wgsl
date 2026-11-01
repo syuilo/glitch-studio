@@ -1,4 +1,5 @@
 struct Uniforms {
+	displacementScale: vec2f,
 	aspectRatio: f32,
 };
 
@@ -8,7 +9,7 @@ struct Uniforms {
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// パラメータ場は出力先の座標で読む。画像と一緒に逆変換しないことで、
 	// 定数なら通常の変形、位置ごとに異なる値なら局所的な歪みとして扱える。
-	let translation = read_translation(position);
+	let translation = read_translation(position) * uniforms.displacementScale;
 	let scale = read_scale(position);
 	// +Yが上の座標系なので、時計回りの角度は符号を反転する。
 	let rotation = -read_rotation(position) * 6.283185307179586;
@@ -17,7 +18,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		return vec4f(0.0);
 	}
 
-	// Translationの+1は画面幅/高さの半分。ScaleやRotationを変えても
+	// Translationは長辺全体=1の変位を画像参照座標へ換算済み。ScaleやRotationを変えても
 	// 中心位置が動かないよう、入力画像の寸法には依存させない。
 	let outputExtent = vec2f(uniforms.aspectRatio, 1.0);
 	let translated = (position - translation) * outputExtent;

@@ -1,18 +1,26 @@
-import { getTimelineFittedExtent, getTimelineLayerCorners, rotateTimelineVector, timelineSourceToScene } from '@gs/subsystems_timeline_shared/layer-transform.ts';
+import { getSpatialHalfExtent, normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
+import { getTimelineFittedScale, getTimelineLayerCorners, rotateTimelineVector, timelineSourceToScene } from '@gs/subsystems_timeline_shared/layer-transform.ts';
 import type { TimelineLayerGeometry, TimelineLayerTransform, TimelinePoint } from '@gs/subsystems_timeline_shared/layer-transform.ts';
 
 export type PreviewCanvasRect = { left: number; top: number; width: number; height: number };
 
 export const previewResizeHandles: TimelinePoint[] = [[-1, 1], [0, 1], [1, 1], [1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0]];
 
+/** ハンドルの±1は矩形内の比率。公開する素材内位置へ変換してから幾何計算する。 */
+export function previewHandlePosition(handle: TimelinePoint, geometry: TimelineLayerGeometry): TimelinePoint {
+	return normalizedToSpatialCoordinates(handle, geometry.sourceSize);
+}
+
 export function sceneToPreview(point: TimelinePoint, rect: PreviewCanvasRect, parentGeometries: readonly TimelineLayerGeometry[] = []): TimelinePoint {
 	// 祖先は外側から並ぶため、子の座標は内側のグループから順に画面へ変換する。
 	for (let index = parentGeometries.length - 1; index >= 0; index--) point = timelineSourceToScene(point, parentGeometries[index]);
-	return [rect.left + (point[0] + 1) * rect.width / 2, rect.top + (1 - point[1]) * rect.height / 2];
+	const longSide = Math.max(rect.width, rect.height);
+	return [rect.left + rect.width / 2 + point[0] * longSide, rect.top + rect.height / 2 - point[1] * longSide];
 }
 
 export function previewDeltaToScene(delta: TimelinePoint, rect: PreviewCanvasRect): TimelinePoint {
-	return [delta[0] * 2 / rect.width, -delta[1] * 2 / rect.height];
+	const longSide = Math.max(rect.width, rect.height);
+	return [delta[0] / longSide, -delta[1] / longSide];
 }
 
 const clampScale = (value: number, previous: number) => Math.sign(previous) * Math.max(0.000001, value * Math.sign(previous));
@@ -30,16 +38,16 @@ function positionForFixedPoint(geometry: TimelineLayerGeometry, fixedPoint: Time
  */
 export function resizePreviewLayer(geometry: TimelineLayerGeometry, handle: TimelinePoint, delta: TimelinePoint, keepRatio: boolean, fromOrigin: boolean): TimelineLayerTransform {
 	const initial = geometry.transform;
-	const fixed: TimelinePoint = fromOrigin ? initial.origin : [-handle[0], -handle[1]];
-	const extent = getTimelineFittedExtent(geometry.sourceSize, geometry.sceneSize, initial.fitMode);
-	const localDelta = rotateTimelineVector(delta, -initial.rotation, geometry.sceneSize);
-	const denominator = handle.map((value, axis) => (value - fixed[axis]) * extent[axis]);
+	const handlePoint = previewHandlePosition(handle, geometry);
+	const fixed: TimelinePoint = fromOrigin ? initial.origin : [-handlePoint[0], -handlePoint[1]];
+	const extent = getTimelineFittedScale(geometry.sourceSize, geometry.sceneSize, initial.fitMode);
+	const localDelta = rotateTimelineVector(delta, -initial.rotation);
+	const denominator = handlePoint.map((value, axis) => (value - fixed[axis]) * extent[axis]);
 	let scale: TimelinePoint = [...initial.scale];
 	if (keepRatio && handle[0] !== 0 && handle[1] !== 0) {
-		const aspect = geometry.sceneSize.width / geometry.sceneSize.height;
-		const before = [denominator[0] * initial.scale[0] * aspect, denominator[1] * initial.scale[1]];
+		const before = [denominator[0] * initial.scale[0], denominator[1] * initial.scale[1]];
 		const squared = before[0] ** 2 + before[1] ** 2;
-		const factor = squared === 0 ? 1 : Math.max(0.000001, 1 + (localDelta[0] * aspect * before[0] + localDelta[1] * before[1]) / squared);
+		const factor = squared === 0 ? 1 : Math.max(0.000001, 1 + (localDelta[0] * before[0] + localDelta[1] * before[1]) / squared);
 		scale = [initial.scale[0] * factor, initial.scale[1] * factor];
 	} else {
 		for (const axis of [0, 1] as const) {
@@ -62,7 +70,7 @@ export function snapPreviewLayerMove(geometry: TimelineLayerGeometry, rect: Prev
 		let best = threshold;
 		let snappedPosition = position[axis];
 		for (const bound of [Math.min(...corners.map(point => point[axis])), Math.max(...corners.map(point => point[axis]))]) {
-			for (const edge of [-1, 1]) {
+			for (const edge of [-getSpatialHalfExtent(geometry.sceneSize)[axis], getSpatialHalfExtent(geometry.sceneSize)[axis]]) {
 				const candidate: TimelinePoint = [...geometry.transform.position];
 				candidate[axis] = edge - bound;
 				// 親の非等方拡縮・回転を合成すると、子の軸方向と画面の軸方向は一致しない。
@@ -83,7 +91,8 @@ export function snapPreviewLayerMove(geometry: TimelineLayerGeometry, rect: Prev
  */
 export function snapPreviewLayerResize(initial: TimelineLayerGeometry, transform: TimelineLayerTransform, handle: TimelinePoint,
 	keepRatio: boolean, fromOrigin: boolean, rect: PreviewCanvasRect, parentGeometries: readonly TimelineLayerGeometry[] = []): TimelineLayerTransform {
-	const fixed: TimelinePoint = fromOrigin ? initial.transform.origin : [-handle[0], -handle[1]];
+	const handlePoint = previewHandlePosition(handle, initial);
+	const fixed: TimelinePoint = fromOrigin ? initial.transform.origin : [-handlePoint[0], -handlePoint[1]];
 	const toTransform = (scale: TimelinePoint): TimelineLayerTransform => ({
 		...transform,
 		scale,
@@ -91,7 +100,7 @@ export function snapPreviewLayerResize(initial: TimelineLayerGeometry, transform
 	});
 	const current = { ...initial, transform };
 	const corners = getTimelineLayerCorners(current);
-	const currentHandle = sceneToPreview(timelineSourceToScene(handle, current), rect, parentGeometries);
+	const currentHandle = sceneToPreview(timelineSourceToScene(handlePoint, current), rect, parentGeometries);
 	let result = transform;
 	let nearest = 6;
 	const variables = keepRatio && handle.every(value => value !== 0) ? ['ratio'] as const : [0, 1] as const;
@@ -100,14 +109,14 @@ export function snapPreviewLayerResize(initial: TimelineLayerGeometry, transform
 		const increment: TimelinePoint = variable === 'ratio' ? [...transform.scale] : variable === 0 ? [1, 0] : [0, 1];
 		const next = toTransform([transform.scale[0] + increment[0], transform.scale[1] + increment[1]]);
 		const nextCorners = getTimelineLayerCorners({ ...initial, transform: next });
-		for (let corner = 0; corner < 4; corner++) for (const axis of [0, 1] as const) for (const edge of [-1, 1]) {
+		for (let corner = 0; corner < 4; corner++) for (const axis of [0, 1] as const) for (const edge of [-getSpatialHalfExtent(initial.sceneSize)[axis], getSpatialHalfExtent(initial.sceneSize)[axis]]) {
 			const slope = nextCorners[corner][axis] - corners[corner][axis];
 			if (Math.abs(slope) < 0.000001) continue;
 			const amount = (edge - corners[corner][axis]) / slope;
 			const scale: TimelinePoint = [transform.scale[0] + increment[0] * amount, transform.scale[1] + increment[1] * amount];
 			if (scale.some((value, index) => value * Math.sign(initial.transform.scale[index]) < 0.000001)) continue;
 			const candidate = toTransform(scale);
-			const candidateHandle = sceneToPreview(timelineSourceToScene(handle, { ...initial, transform: candidate }), rect, parentGeometries);
+			const candidateHandle = sceneToPreview(timelineSourceToScene(handlePoint, { ...initial, transform: candidate }), rect, parentGeometries);
 			const distance = Math.hypot(candidateHandle[0] - currentHandle[0], candidateHandle[1] - currentHandle[1]);
 			if (distance < nearest) { nearest = distance; result = candidate; }
 		}

@@ -1,3 +1,4 @@
+import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -40,7 +41,7 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
-				uniformValues.set({ aspectRatio: resolution.width / resolution.height, strength: ctx.params.strength, normalize: ctx.params.normalize ? 1 : 0 });
+				uniformValues.set({ halfExtent: getSpatialHalfExtent(resolution), strength: ctx.params.strength, normalize: ctx.params.normalize ? 1 : 0 });
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);

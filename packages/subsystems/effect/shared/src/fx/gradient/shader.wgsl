@@ -2,7 +2,7 @@
 override CALCULATE_GRADIENT: bool = false;
 
 struct Uniforms {
-	aspectRatio: f32,
+	halfExtent: vec2f,
 	coordinateScale: vec2f,
 	angle: f32,
 	interpolation: u32,
@@ -38,7 +38,7 @@ fn evaluateGradient(fragData: FragmentIn) -> vec3f {
 	let direction = vec2f(sin(uniforms.angle), cos(uniforms.angle));
 	var position = fragData.uv;
 	let positionScale = uniforms.coordinateScale;
-	// Centerは画面座標（左下-1,-1、右上+1,+1）。比率補正前に引いて中心位置を保つ。
+	// CenterはCPU側で共通単位から画像参照座標へ換算済み。比率補正前に引く。
 	if (uniforms.mode == 1u) {
 		position -= uniforms.center;
 	}
@@ -170,8 +170,8 @@ struct GradientOutputs {
 @fragment
 fn fsWithGradient(fragData: FragmentIn) -> GradientOutputs {
 	let result = evaluateGradient(fragData);
-	// 等方座標での勾配をVector Displacementの変位座標へ変換する。
+	// 内部の画像参照座標に対する微分を、共通単位の勾配へ換算する。
 	// Scalar Gradient（Normalize=false、Strength=1）と同じ規約。
-	let vector = result.yz / vec2f(uniforms.aspectRatio * uniforms.aspectRatio, 1.0);
+	let vector = result.yz / uniforms.halfExtent;
 	return GradientOutputs(result.x, vector);
 }

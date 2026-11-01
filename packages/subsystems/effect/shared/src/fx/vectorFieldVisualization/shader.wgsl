@@ -3,7 +3,6 @@ struct Uniforms {
 	cellSize: f32,
 	maximumMagnitude: f32,
 	lineWidth: f32,
-	directionSpace: u32,
 	gridWidth: f32,
 	padding: u32,
 	overflowColor: vec4f,
@@ -46,7 +45,6 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		overflow = componentScale > maximumScale;
 		ratio = min(componentScale, maximumScale) / maximumScale;
 		var displayVector = scaledVector;
-		if (uniforms.directionSpace == 1u) { displayVector *= uniforms.aspect; }
 		direction = normalize(displayVector);
 	}
 	var arrowColor = vec4f(0.0);

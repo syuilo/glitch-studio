@@ -5,7 +5,7 @@ struct Uniforms {
 	inputScaleA: vec2f,
 	inputScaleB: vec2f,
 	smoothing: f32,
-	aspectRatio: f32,
+	halfExtent: vec2f,
 	operation: u32,
 	transparentA: u32,
 	transparentB: u32,
@@ -15,8 +15,8 @@ struct Uniforms {
 
 fn clipInput(distance: f32, position: vec2f, scale: vec2f, transparent: u32) -> f32 {
 	if (distance == EMPTY_DISTANCE || transparent == 0u) { return distance; }
-	let extent = vec2f(uniforms.aspectRatio, 1.0) * 0.5;
-	// 入力UVの0〜1に対応する矩形を、出力の高さを1とする等方座標へ写す。
+	let extent = uniforms.halfExtent;
+	// 入力UVの0〜1に対応する矩形を、出力の長辺全体を1とする共通座標へ写す。
 	// 単に領域外を65504へ置換せず、切り抜いた輪郭までの連続した距離を生成する。
 	return max(distance, rectangleDistance(position * extent, extent / scale, 0.0));
 }

@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import type definition from './_def_.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -13,8 +14,8 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const device = wgpu.device;
-		const uniformBuffer = device.createBuffer({ size: 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([resolution.width / resolution.height]));
+		const uniformBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([...spatialToNormalizedCoordinates([1, 1], resolution), resolution.width / resolution.height, 0]));
 		const layout = device.createBindGroupLayout({
 			entries: [
 				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },

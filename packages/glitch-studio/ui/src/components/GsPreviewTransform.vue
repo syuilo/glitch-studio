@@ -48,7 +48,7 @@ import GsButton from '@/components/common/GsButton.vue';
 import { appContext } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
-import { previewResizeHandles, sceneToPreview, previewDeltaToScene, resizePreviewLayer, snapPreviewLayerMove, snapPreviewLayerResize, unwrapPreviewRotation } from '@/utility/preview-transform.ts';
+import { previewResizeHandles, previewHandlePosition, sceneToPreview, previewDeltaToScene, resizePreviewLayer, snapPreviewLayerMove, snapPreviewLayerResize, unwrapPreviewRotation } from '@/utility/preview-transform.ts';
 import { canEditTimelineTransform, prepareTimelineTransformBindings, updateTimelineTransformBindings } from '@/utility/timeline-transform-edit.ts';
 
 const props = defineProps<{ canvasRect: PreviewCanvasRect }>();
@@ -103,7 +103,7 @@ const editable = computed(() => {
 });
 const zeroScale = computed(() => geometry.value?.transform.scale.some(value => Math.abs(value) < 0.000001) ?? false);
 const toScreen = (point: TimelinePoint) => sceneToPreview(point, props.canvasRect, geometry.value?.parents);
-const handlePositions = computed(() => geometry.value ? previewResizeHandles.map(point => toScreen(timelineSourceToScene(point, geometry.value!))) : []);
+const handlePositions = computed(() => geometry.value ? previewResizeHandles.map(point => toScreen(timelineSourceToScene(previewHandlePosition(point, geometry.value!), geometry.value!))) : []);
 const polygon = computed(() => geometry.value ? getTimelineLayerCorners(geometry.value).map(point => toScreen(point).join(',')).join(' ') : '');
 const origin = computed(() => geometry.value ? toScreen(geometry.value.transform.position) : [0, 0]);
 const topHandle = computed(() => handlePositions.value[1] ?? [0, 0]);
@@ -166,7 +166,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	let lastBindings: TimelineTransformBindings | null = null;
 	// 保存値は子の座標系のまま編集する。祖先の非等方拡縮・回転・反転も順に逆変換する。
 	const localPointer = (x: number, y: number): TimelinePoint => {
-		let point: TimelinePoint = [(x - overlayRect.left - rect.left) * 2 / rect.width - 1, 1 - (y - overlayRect.top - rect.top) * 2 / rect.height];
+		let point: TimelinePoint = [(x - overlayRect.left - rect.left - rect.width / 2) / Math.max(rect.width, rect.height), (rect.height / 2 - (y - overlayRect.top - rect.top)) / Math.max(rect.width, rect.height)];
 		for (const parent of initial?.parents ?? []) point = timelineSceneToSource(point, parent) ?? point;
 		const result = sceneToPreview(point, rect);
 		return [result[0] + overlayRect.left, result[1] + overlayRect.top];

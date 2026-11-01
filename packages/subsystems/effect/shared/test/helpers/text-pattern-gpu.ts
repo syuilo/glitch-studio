@@ -151,7 +151,7 @@ export async function run() {
 				checks.push(`${effectKind}: ${width}x${height} size references and cache invalidation`);
 			}
 		}
-		const translated = metrics(await effect.render({ translation: vector([0.5, -0.25]) }), 256);
+		const translated = metrics(await effect.render({ translation: vector([0.25, -0.0625]) }), 256);
 		close(translated.x - originalMetrics.x, 64, 0.2, 'translation x');
 		close(translated.y - originalMetrics.y, 16, 0.2, 'translation y');
 		checks.push('translation');
@@ -213,7 +213,7 @@ export async function run() {
 		equalPixels(await effect.render({ text: 'FF', scale: rightOnly }), rightOpacity);
 		checks.push('opacity node', 'scale node');
 		const leftVisible = metrics(await effect.render({ text: 'FF', opacity: leftOnly }), 256);
-		const movedLeft = metrics(await effect.render({ text: 'FF', opacity: leftOnly, translation: vector([0.6, 0]) }), 256);
+		const movedLeft = metrics(await effect.render({ text: 'FF', opacity: leftOnly, translation: vector([0.3, 0]) }), 256);
 		close(movedLeft.area, leftVisible.area, 2, 'sample before translation');
 		assert(movedLeft.minX > 128, 'translated glyph must cross field boundary');
 		checks.push('stable sampling anchor');
@@ -231,7 +231,7 @@ export async function run() {
 		const distributedEndpoints = await effect.render({ text: 'FFF', align: 'distribute', opacity: edgesOnly });
 		for (const [tracking, direction] of [[leftTracking, 1], [rightTracking, -1]] as const) {
 			equalPixels(await effect.render({ text: 'FFF', align: 'distribute', opacity: edgesOnly, tracking }), distributedEndpoints);
-			equalPixels(await effect.render({ text: 'FFF', align: 'distribute', opacity: middleOnly, tracking }), await effect.render({ text: 'FFF', align: 'distribute', opacity: middleOnly, translation: vector([direction * (64 / 255) * fontSize / 256, 0]) }));
+			equalPixels(await effect.render({ text: 'FFF', align: 'distribute', opacity: middleOnly, tracking }), await effect.render({ text: 'FFF', align: 'distribute', opacity: middleOnly, translation: vector([direction * (64 / 255) * fontSize / 512, 0]) }));
 		}
 		checks.push('distributed node tracking pins endpoints', 'distributed tracking moves interior characters');
 		const distributedBlock = { text: 'F F F\nFFF\nF', align: 'distribute', repetitions: [1, 2], opacity: edgesOnly } as const;
@@ -240,7 +240,7 @@ export async function run() {
 		equalPixels(await effect.render({ align: 'distribute', tracking: leftTracking }), original);
 		checks.push('distributed multiline endpoint constraints', 'distributed short rows with tracking');
 		// 字間を負にして文字が入力場の境界を越えても、Opacityの評価点は元の位置に残る。
-		equalPixels(await effect.render({ text: 'FF', opacity: leftOnly, tracking: scalar(-1) }), await effect.render({ text: 'FF', opacity: leftOnly, translation: vector([fontSize / 256, 0]) }));
+		equalPixels(await effect.render({ text: 'FF', opacity: leftOnly, tracking: scalar(-1) }), await effect.render({ text: 'FF', opacity: leftOnly, translation: vector([fontSize / 512, 0]) }));
 		checks.push('sampling before tracking');
 		assert(metrics(await effect.render({ text: 'F'.repeat(130), size: 0.01, repetitions: [1, 3], tracking: scalar(0.1) }), 256).area > 10, 'long tracking rows');
 		checks.push('tracking across long rows');
@@ -272,7 +272,7 @@ export async function run() {
 			let rejected = false;
 			try { await effect.render(overrides); } catch { rejected = true; }
 			assert(rejected, 'oversized layout must fail');
-			equalPixels(await effect.render({ position: [0.5, -0.25] }), await effect.render({ translation: vector([0.5, -0.25]) }));
+			equalPixels(await effect.render({ position: [0.25, -0.0625] }), await effect.render({ translation: vector([0.25, -0.0625]) }));
 		}
 		checks.push('resource limit recovery');
 		for (const format of ['bgra8unorm', 'rgba16float'] as const) {

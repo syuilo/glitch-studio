@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { timelineTextureSize } from '../../timeline-image.ts';
 import shapeDistanceCode from '@gs/shared/gpu/shape-distance.wgsl?raw';
@@ -26,7 +27,14 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 	let result: TimelineImage;
 	let previousKey: string | null = null;
 	return {
-		render(encoder: GPUCommandEncoder, shape: EvaluatedShape): TimelineImage {
+		render(encoder: GPUCommandEncoder, values: EvaluatedShape): TimelineImage {
+			// 既存の輪郭・部分描画モデルは内部の高さ単位で計算し、公開値だけを境界で換算する。
+			const distanceToHeight = Math.max(resolution.width, resolution.height) / resolution.height;
+			const shape: EvaluatedShape = { ...values, position: spatialToNormalizedCoordinates(values.position, resolution),
+				size: [values.size[0] * distanceToHeight, values.size[1] * distanceToHeight],
+				strokeWidth: values.strokeWidth * distanceToHeight,
+				...(values.type === 'rectangle' ? { cornerRadius: values.cornerRadius * distanceToHeight } : {}),
+			};
 			// 背景を含まない自前の出力だけを再利用する。背景の動画が変化した場合も、
 			// 呼び出し側の合成は毎回行うため、静止シェイプが下層を凍結させない。
 			const key = JSON.stringify(shape);

@@ -214,7 +214,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		check('EffectRenderer scalar output', await read(single.getOutputTexture('scalar')!), [223, 159, 96, 32].flatMap(value => Array(4).fill([value, 0, 0, 255]).flat()));
 		for (let i = 0; i < 2; i++) {
 			drawGradient(both);
-			check(`EffectRenderer lazy MRT ${i}`, await read(single.getOutputTexture('vector')!), Array(16).fill([0, 128, 0, 255]).flat());
+			check(`EffectRenderer lazy MRT ${i}`, await read(single.getOutputTexture('vector')!), Array(16).fill([0, 255, 0, 255]).flat());
 			single.setUsedOutputPorts(scalarOnly);
 			if (single.getOutputTexture('vector') != null) throw new Error('Unused lazy output was retained');
 		}

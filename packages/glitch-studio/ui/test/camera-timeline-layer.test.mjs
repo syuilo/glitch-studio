@@ -37,7 +37,7 @@ const literal = value => ({ inputSource: 'literal', value });
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
-	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, resolution: { value: { width: 1000, height: 1000 } }, visualModules: { value: [] }, assets: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
@@ -49,6 +49,39 @@ function fixture(t) {
 		edit(key, edit, mergeKey) { history.commit('editTimelineLayerParam', { ...target, paramPath: [key], edit }, mergeKey); },
 	};
 }
+
+// 【カメラZのリセット・Literalへの切り替えは所属Sceneの現在の比率を使う】
+// Inspectorと新規作成だけで既定距離を換算しても、Commandが固定定義を使うと、
+// 横長Sceneでリセットするだけで表示が縮小する。プロジェクト継承・Scene独自解像度・
+// Transform配下のカメラを通し、保存値とUndo/Redoにも同じ既定距離が反映されることを確認する。
+test('uses the owning scene camera distance for reset and literal input with undo and redo', t => {
+	const squareDistance = 0.5 / Math.tan(Math.PI / 8);
+	for (const { projectResolution, sceneResolution, expectedDistance } of [
+		{ projectResolution: { width: 2000, height: 1000 }, sceneResolution: { mode: 'project' }, expectedDistance: squareDistance / 2 },
+		{ projectResolution: { width: 1000, height: 2000 }, sceneResolution: { mode: 'customAbsolute', width: 4000, height: 1000 }, expectedDistance: squareDistance / 4 },
+		{ projectResolution: { width: 2000, height: 1000 }, sceneResolution: { mode: 'customAbsolute', width: 1000, height: 2000 }, expectedDistance: squareDistance },
+	]) {
+		const f = fixture(t);
+		f.state.resolution.value = projectResolution;
+		f.scene.resolution = sceneResolution;
+		const cameraId = f.layer.id;
+		f.history.commit('transformTimelineLayers', { sceneId: f.scene.id, layerIds: [cameraId], transform: createTransformTimelineLayer() });
+		const camera = () => findTimelineLayer(f.scene.layers, cameraId);
+		const assertDefaultDistance = () => {
+			assert.equal(camera().cameraParamValues.z.inputSource, 'literal');
+			assert.ok(Math.abs(camera().cameraParamValues.z.value - expectedDistance) < 1e-12);
+		};
+		for (const edit of [{ kind: 'reset' }, { kind: 'inputSource', inputSource: 'literal' }]) {
+			f.edit('z', { kind: 'expression', value: 'TIME + 3' });
+			f.edit('z', edit);
+			assertDefaultDistance();
+			f.history.undo();
+			assert.deepEqual(camera().cameraParamValues.z, { inputSource: 'expression', expression: 'TIME + 3' });
+			f.history.redo();
+			assertDefaultDistance();
+		}
+	}
+});
 
 // 【カメラのキーを通常のレーンで移動・コピーし、Undo/Redoで復元する】
 // 設定ダイアログだけでキーを編集できても、タイムラインの選択・ドラッグ・貼り付けから

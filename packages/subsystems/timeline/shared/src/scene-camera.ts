@@ -1,3 +1,4 @@
+import { normalizedToSpatialCoordinates, spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getTimelineLayerCustomParameterContext } from './custom-parameters.ts';
 import { isTimelineNonCompositingContainerLayer } from './types.ts';
 import { getTimelineClipEnd, isTimelineClipActive } from './timing.ts';
@@ -85,7 +86,7 @@ export class TimelineSceneCamera {
 		// 有効なカメラがない区間は2D合成とし、Zによる拡縮・近接面での非表示を行わない。
 		if (!active) return null;
 		const settings = { paramValues: active.layer.cameraParamValues, automationGraphs: active.layer.automationGraphs };
-		const camera = this.parameters.evaluate(settings, active.time, isExport, getTimelineLayerCustomParameterContext([...layers], active.layer.id));
+		const camera = this.parameters.evaluate(settings, active.time, isExport, getTimelineLayerCustomParameterContext([...layers], active.layer.id), frame);
 		let ancestorTime = time;
 		let space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0 };
 		for (const parent of active.ancestors) {
@@ -98,7 +99,7 @@ export class TimelineSceneCamera {
 			// 行列から角度を抽出せず、親のrotationだけを独立して積み重ねる。
 			camera.roll += transform.rotation;
 		}
-		camera.position = transformTimelinePoint(space.parent, camera.position);
+		camera.position = normalizedToSpatialCoordinates(transformTimelinePoint(space.parent, spatialToNormalizedCoordinates(camera.position, frame)), frame);
 		camera.z += space.depth;
 		return camera;
 	}

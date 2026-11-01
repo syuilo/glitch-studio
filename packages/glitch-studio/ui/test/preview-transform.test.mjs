@@ -62,9 +62,9 @@ test('edits base transform values while retaining modifiers and unmodified inser
 // 【非正方形Sceneのfitと回転は画素空間の距離を保つ】
 // 正規化座標をそのまま回すと、プレビューの枠だけが長方形Sceneで歪む。
 test('maps fitted source bounds and clockwise rotation on a rectangular scene', () => {
-	near(timelineSourceToScene([1, 1], geometry()), [0.5625, 1]);
-	near(timelineSourceToScene([1, 1], geometry({ fitMode: 'cover' })), [1, 1600 / 900]);
-	near(timelineSourceToScene([1, 0], geometry({ rotation: 0.25 })), [0, -1]);
+	near(timelineSourceToScene([0.5, 0.5], geometry()), [0.28125, 0.28125]);
+	near(timelineSourceToScene([0.5, 0.5], geometry({ fitMode: 'cover' })), [0.5, 0.5]);
+	near(timelineSourceToScene([0.5, 0], geometry({ rotation: 0.25 })), [0, -0.28125]);
 	near(timelineSourceToScene([0.4, -0.6], geometry({ origin: [0.4, -0.6], position: [0.2, -0.1], rotation: 0.4 })), [0.2, -0.1]);
 });
 
@@ -75,7 +75,7 @@ test('keeps the opposite corner fixed while resizing rotated and mirrored layers
 		const initial = geometry({ fitMode, scale, origin: [0.4, -0.6], rotation: 0.37, position: [0.2, 0.3] });
 		for (const keepRatio of [false, true]) {
 			const result = resizePreviewLayer(initial, [1, 1], [0.1, -0.07], keepRatio, false);
-			near(timelineSourceToScene([-1, -1], { ...initial, transform: result }), timelineSourceToScene([-1, -1], initial));
+			near(timelineSourceToScene([-0.5, -0.5], { ...initial, transform: result }), timelineSourceToScene([-0.5, -0.5], initial));
 			if (keepRatio) assert.ok(Math.abs(result.scale[0] / result.scale[1] - scale[0] / scale[1]) < 1e-9);
 		}
 	}
@@ -97,16 +97,16 @@ test('preserves origin and the other scale axis for edge resizing', () => {
 // 素材解像度やScene座標の固定距離を使うと、拡大時と縮小時で操作感が変わる。
 test('snaps frame edges with a screen pixel threshold and keeps the resize anchor', () => {
 	const rect = { left: 100, top: 80, width: 800, height: 450 };
-	const initial = geometry({ position: [0.43, 0], scale: [1, 0.5] });
+	const initial = geometry({ position: [0.215, 0], scale: [1, 0.5] });
 	const snapped = snapPreviewLayerMove(initial, rect);
-	assert.equal(Math.max(...getTimelineLayerCorners({ ...initial, transform: snapped }).map(point => point[0])), 1);
+	assert.equal(Math.max(...getTimelineLayerCorners({ ...initial, transform: snapped }).map(point => point[0])), 0.5);
 	const bigger = { ...rect, width: 8000, height: 4500 };
 	near(snapPreviewLayerMove(initial, bigger).position, initial.transform.position);
 	const start = geometry({ fitMode: 'stretch', scale: [0.5, 0.5] });
-	const resized = resizePreviewLayer(start, [1, 1], [0.49, 0.49], true, false);
+	const resized = resizePreviewLayer(start, [1, 1], [0.245, 0.1378125], true, false);
 	const result = snapPreviewLayerResize(start, resized, [1, 1], true, false, rect);
-	near(timelineSourceToScene([-1, -1], { ...start, transform: result }), [-0.5, -0.5]);
-	near(timelineSourceToScene([1, 1], { ...start, transform: result }), [1, 1]);
+	near(timelineSourceToScene([-0.5, -0.5], { ...start, transform: result }), [-0.25, -0.140625]);
+	near(timelineSourceToScene([0.5, 0.5], { ...start, transform: result }), [0.5, 0.28125]);
 });
 
 // 【スナップ中はポインター位置に依存しない同じpositionを保存する】
@@ -117,28 +117,28 @@ test('keeps snapped positions exact and independent of pointer movement', t => {
 	const rect = { left: 100, top: 80, width: 800, height: 450 };
 	const prepared = prepareTimelineTransformBindings(layer.compositingParamValues, ['position'], 0);
 	const session = history.beginEdit('editTimelineLayerTransform');
-	for (const x of [0.001, 0.002, -0.003, 0.007, -0.01]) {
+	for (const x of [0.0005, 0.001, -0.0015, 0.0035, -0.005]) {
 		const snapped = snapPreviewLayerMove(geometry({ fitMode: 'stretch', position: [x, x] }), rect);
 		session.update(update(updateTimelineTransformBindings(prepared, snapped, 0)));
 		assert.deepEqual(layer.compositingParamValues.position.value, [0, 0]);
 	}
-	for (const x of [0.431, 0.434, 0.44, 0.445]) {
+	for (const x of [0.2155, 0.217, 0.22, 0.2225]) {
 		const snapped = snapPreviewLayerMove(geometry({ position: [x, 0], scale: [1, 0.5] }), rect);
 		session.update(update(updateTimelineTransformBindings(prepared, snapped, 0)));
-		assert.deepEqual(layer.compositingParamValues.position.value, [0.4375, 0]);
+		assert.deepEqual(layer.compositingParamValues.position.value, [0.21875, 0]);
 	}
 	session.finish();
 	history.undo();
 	assert.deepEqual(layer.compositingParamValues.position.value, [0, 0]);
 	history.redo();
-	assert.deepEqual(layer.compositingParamValues.position.value, [0.4375, 0]);
+	assert.deepEqual(layer.compositingParamValues.position.value, [0.21875, 0]);
 });
 
 // 【表示移動やズームを含む画面座標とScene座標を対応させる】
 // 中ボタンでの表示移動を、レイヤーのpositionへ混入させない。
 test('maps preview coordinates independently of pan and unwraps rotations across the branch cut', () => {
-	near(sceneToPreview([0.5, -0.5], { left: 200, top: 100, width: 800, height: 400 }), [800, 400]);
-	near(previewDeltaToScene([40, 20], { left: 200, top: 100, width: 800, height: 400 }), [0.1, -0.1]);
+	near(sceneToPreview([0.25, -0.125], { left: 200, top: 100, width: 800, height: 400 }), [800, 400]);
+	near(previewDeltaToScene([40, 20], { left: 200, top: 100, width: 800, height: 400 }), [0.05, -0.025]);
 	assert.ok(Math.abs(unwrapPreviewRotation(Math.PI - 0.1, -Math.PI + 0.1) - 0.2) < 1e-9);
 });
 
@@ -147,20 +147,20 @@ test('maps preview coordinates independently of pan and unwraps rotations across
 // 入れ子の回転で子のX軸が祖先のY軸へ移る場合も、移動と辺ハンドルの両方で同じ閾値を守る。
 test('uses screen distances through ancestor transforms for move and resize snapping', () => {
 	const rect = { left: 100, top: 80, width: 800, height: 450 };
-	const parent = transform => geometry({ fitMode: 'stretch', ...transform });
+	const parent = transform => geometry({ fitMode: 'stretch', ...transform }, { width: 1600, height: 900 });
 	const cases = [
-		{ parents: [parent({ scale: [10, 10] })], pixelsPerX: 4000 },
-		{ parents: [parent({ scale: [0.1, 0.1] })], pixelsPerX: 40 },
-		{ parents: [parent({ scale: [10, 0.1], rotation: 0.135 }), parent({ scale: [-1, 1], rotation: 0.25 })], pixelsPerX: 40 },
+		{ parents: [parent({ scale: [10, 10] })], pixelsPerX: 8000 },
+		{ parents: [parent({ scale: [0.1, 0.1] })], pixelsPerX: 80 },
+		{ parents: [parent({ scale: [10, 0.1], rotation: 0.135 }), parent({ scale: [-1, 1], rotation: 0.25 })], pixelsPerX: 80 },
 	];
 	for (const { parents, pixelsPerX } of cases) for (const distance of [5, 7]) {
-		const initial = geometry({ fitMode: 'stretch', scale: [0.4, 0.3], position: [0.6 - distance / pixelsPerX, 0.13] });
+		const initial = geometry({ fitMode: 'stretch', scale: [0.4, 0.3], position: [0.3 - distance / pixelsPerX, 0.1] });
 		const moved = snapPreviewLayerMove(initial, rect, parents);
 		const resized = snapPreviewLayerResize(initial, initial.transform, [1, 0], false, false, rect, parents);
 		if (distance < 6) {
-			near(timelineSourceToScene([1, 0], { ...initial, transform: moved }), [1, 0.13]);
-			near(timelineSourceToScene([1, 0], { ...initial, transform: resized }), [1, 0.13]);
-			near(timelineSourceToScene([-1, 0], { ...initial, transform: resized }), timelineSourceToScene([-1, 0], initial));
+			near(timelineSourceToScene([0.5, 0], { ...initial, transform: moved }), [0.5, 0.1]);
+			near(timelineSourceToScene([0.5, 0], { ...initial, transform: resized }), [0.5, 0.1]);
+			near(timelineSourceToScene([-0.5, 0], { ...initial, transform: resized }), timelineSourceToScene([-0.5, 0], initial));
 		} else {
 			assert.deepEqual(moved, initial.transform);
 			assert.deepEqual(resized, initial.transform);

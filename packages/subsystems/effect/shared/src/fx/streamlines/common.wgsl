@@ -6,7 +6,6 @@ struct Uniforms {
 	stepSize: f32,
 	minimumMagnitude: f32,
 	stepCount: u32,
-	directionSpace: u32,
 	lineWidth: f32,
 	arrowSpacing: f32,
 	arrowSize: f32,

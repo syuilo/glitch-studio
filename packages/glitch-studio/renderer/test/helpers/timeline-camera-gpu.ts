@@ -12,7 +12,7 @@ import { createSceneOutput } from '@gs/subsystems_timeline_renderer/scene-output
 import { createShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { createTextParameterValues } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import { timelineCompositingParamDefs, type TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import { createTimelineCameraParameterValues, DEFAULT_CAMERA_DISTANCE } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
+import { createTimelineCameraParameterValues, getDefaultCameraDistance } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { TimelineSceneCamera } from '@gs/subsystems_timeline_shared/scene-camera.ts';
 import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { TIMELINE_IDENTITY, TIMELINE_FRAME } from '@gs/subsystems_timeline_shared/spatial.ts';
@@ -28,6 +28,7 @@ export async function run() {
 	const device = await adapter.requestDevice();
 	device.pushErrorScope('validation');
 	const frame = { width: 128, height: 64 };
+	const DEFAULT_CAMERA_DISTANCE = getDefaultCameraDistance(frame);
 	const vertex = device.createShaderModule({ code: vertexCode });
 	const options = {
 		device,
@@ -216,7 +217,7 @@ export async function run() {
 		id: 'camera' + nextId++,
 		name: 'Camera',
 		layerType: 'camera',
-		cameraParamValues: { ...createTimelineCameraParameterValues(), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) },
+		cameraParamValues: { ...createTimelineCameraParameterValues(frame), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) },
 	});
 	try {
 		const baseline = await render([shape()]);

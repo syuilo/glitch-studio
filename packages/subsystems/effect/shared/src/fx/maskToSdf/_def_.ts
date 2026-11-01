@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'maskToSdf',
 	displayName: 'Mask to SDF',
 	description: {
-		'ja-JP': 'スカラー場の閾値輪郭から符号付き距離を生成します。内側は負、外側は正で、描画領域の高さを1とします。画面外は背景として扱い、距離はJFAで近似します。',
-		'en-US': 'Approximates signed distances to a scalar field threshold contour using JFA. Negative inside, positive outside, in render-height units. Treats the area outside the render bounds as background.',
+		'ja-JP': 'スカラー場の閾値輪郭から符号付き距離を生成します。内側は負、外側は正で、描画領域の長辺全体を1とします。画面外は背景として扱い、距離はJFAで近似します。',
+		'en-US': 'Approximates signed distances to a scalar field threshold contour using JFA. Negative inside, positive outside, in common units with one full render long side. Treats the area outside the render bounds as background.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

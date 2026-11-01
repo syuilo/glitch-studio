@@ -74,7 +74,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline inverted referenced mask retains its inverse area', blue, red, { layerMask: { ...layerMask, inverted: true } }, pixels(x => x < 4 ? [0, 0, 255, 255] : [255, 0, 0, 255]), undefined, leftMask);
 		// 【マスク元の配置を対象の変形へ追従させず、描画済みの座標範囲で読む】
 		// テクスチャ寸法から再Fitしたり対象の逆変換を掛けると、別々に動く2枚の位置がずれる。
-		await check('timeline referenced mask stays independent from target placement', blue, red, { layerMask, position: [1, 0] }, solid([0, 0, 255, 255]), undefined, leftMask);
+		await check('timeline referenced mask stays independent from target placement', blue, red, { layerMask, position: [0.5, 0] }, solid([0, 0, 255, 255]), undefined, leftMask);
 		await check('timeline referenced mask honors placed image bounds', blue, red, { layerMask }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]), undefined,
 			{
 				...uniform([1, 1, 1, 1]),
@@ -95,7 +95,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline referenced mask intersects application regions', blue, red, {
 			layerMask,
 			transformTarget: 'region',
-			position: [0.5, 0],
+			position: [0.25, 0],
 			scale: [0.5, 1],
 		}, solid([0, 0, 255, 255]), undefined, leftMask);
 		await check('timeline referenced mask limits lower-layer masking', blue, transparent, { layerMask, mask: alphaMask }, pixels(x => x < 4 ? [0, 0, 0, 0] : [0, 0, 255, 255]), undefined, leftMask);
@@ -116,8 +116,8 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline mask ignores replace fast path', blue, red, { mask: alphaMask, blendMode: 19 }, solid([0, 0, 255, 255]));
 		// 【配置後の素材範囲外は0とし、反転はその範囲外にも作用する】
 		// 素材の矩形だけ描画すると、通常マスクの外側が残ったり反転の外側まで消えてしまう。
-		await check('timeline mask uses transformed source bounds', blue, red, { mask: alphaMask, position: [1, 0] }, pixels(x => x < 4 ? [0, 0, 0, 0] : [0, 0, 255, 255]));
-		await check('timeline inverted mask retains outside source bounds', blue, red, { mask: { ...alphaMask, inverted: true }, position: [1, 0] }, pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 0, 0, 0]));
+		await check('timeline mask uses transformed source bounds', blue, red, { mask: alphaMask, position: [0.5, 0] }, pixels(x => x < 4 ? [0, 0, 0, 0] : [0, 0, 255, 255]));
+		await check('timeline inverted mask retains outside source bounds', blue, red, { mask: { ...alphaMask, inverted: true }, position: [0.5, 0] }, pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 0, 0, 0]));
 		// 【倍率0は区間外ではなく、有効な透明マスクとして扱う】
 		// 透明な生成結果・素材が画面外へ出た場合も同じ被覆率の規則で処理できる。
 		await check('timeline zero scale mask clears background', blue, red, { mask: alphaMask, scale: [0, 1] }, solid([0, 0, 0, 0]));
@@ -132,27 +132,27 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline multiply blends straight colors', uniform([0.8, 0.4, 0.2, 1]), uniform([0.5, 1, 0.5, 1]), { blendMode: 3 }, solid([102, 102, 26, 255]));
 		// 置き換えでは素材のalpha=0も採用し、opacityは背景からの補間量となる。
 		await check('timeline replace interpolates transparent output', blue, transparent, { blendMode: 19, opacity: 0.5 }, solid([0, 0, 128, 128]));
-		await check('timeline translated source keeps background stationary', blue, red, { position: [1, 0] }, pixels(x => x < 4 ? [0, 0, 255, 255] : [255, 0, 0, 255]));
-		await check('timeline replace clears translated margins', blue, red, { blendMode: 19, position: [1, 0] }, pixels(x => x < 4 ? [0, 0, 0, 0] : [255, 0, 0, 255]));
-		await check('timeline replace opacity includes translated margins', blue, red, { blendMode: 19, position: [1, 0], opacity: 0.5 }, pixels(x => x < 4 ? [0, 0, 128, 128] : [128, 0, 128, 255]));
+		await check('timeline translated source keeps background stationary', blue, red, { position: [0.5, 0] }, pixels(x => x < 4 ? [0, 0, 255, 255] : [255, 0, 0, 255]));
+		await check('timeline replace clears translated margins', blue, red, { blendMode: 19, position: [0.5, 0] }, pixels(x => x < 4 ? [0, 0, 0, 0] : [255, 0, 0, 255]));
+		await check('timeline replace opacity includes translated margins', blue, red, { blendMode: 19, position: [0.5, 0], opacity: 0.5 }, pixels(x => x < 4 ? [0, 0, 128, 128] : [128, 0, 128, 255]));
 		// 正のYは上方向。上下反転の取り違えを検出する。
-		await check('timeline positive y moves source upward', blue, red, { position: [0, 1] }, pixels((_, y) => y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline positive y moves source upward', blue, red, { position: [0, 0.25] }, pixels((_, y) => y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		await check('timeline scale shrinks around canvas center', blue, red, { scale: [0.5, 0.5] }, pixels((x, y) => x >= 2 && x < 6 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		await check('timeline rotation respects rectangular aspect ratio', blue, red, { rotation: 0.25 }, pixels(x => x >= 2 && x < 6 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【素材の右端を画面中央に配置する】
 		// 定数には画面サイズの素材枠を与える。originだけを変えても配置が動くことを確認する。
-		await check('timeline anchors the right edge of a uniform source at the center', blue, red, { origin: [1, 0] }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline anchors the right edge of a uniform source at the center', blue, red, { origin: [0.5, 0] }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【支点の配置先を維持して拡縮する】
 		// 拡縮を戻した後にoriginへ戻さないと、倍率に応じて右端が画面中央からずれる。
-		await check('timeline scales around the positioned source anchor', blue, red, { origin: [1, 0], scale: [0.5, 0.5] }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline scales around the positioned source anchor', blue, red, { origin: [0.5, 0], scale: [0.5, 0.5] }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【長方形の素材を端の支点で回転する】
 		// 右端を中央に固定して時計回り90度回すと、素材は支点の上側へ伸びる。
-		await check('timeline rotates around the positioned source anchor', blue, red, { origin: [1, 0], rotation: 0.25 }, pixels((x, y) => x >= 2 && x < 6 && y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline rotates around the positioned source anchor', blue, red, { origin: [0.5, 0], rotation: 0.25 }, pixels((x, y) => x >= 2 && x < 6 && y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【fit後も画面端ではなく素材端を支点にする】
 		// coverでは画面外の端、containでは余白を除いた素材端を中央へ配置する。
 		const wideRed = texture(16, 4, Array.from({ length: 64 }, () => [255, 0, 0, 255]).flat());
-		await check('timeline anchors the covered source edge at the center', blue, wideRed, { origin: [1, 0], fitMode: 'cover' }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
-		await check('timeline anchors the contained source edge at the center', blue, wideRed, { origin: [1, 0], fitMode: 'contain' }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline anchors the covered source edge at the center', blue, wideRed, { origin: [0.5, 0], fitMode: 'cover' }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline anchors the contained source edge at the center', blue, wideRed, { origin: [0.5, 0], fitMode: 'contain' }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		await check('timeline zero scale produces transparent source', blue, red, { scale: [0, 1] }, solid([0, 0, 255, 255]));
 		await check('timeline replace with zero scale clears background', blue, red, { blendMode: 19, scale: [0, 1] }, solid([0, 0, 0, 0]));
 		// テクスチャ入力の左右反転と、uniform/texture切り替え時のpipeline更新を確認する。
@@ -163,7 +163,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		const regionSettings = {
 			transformTarget: 'region' as const,
 			blendMode: 19,
-			position: [0.5, 0] as [number, number],
+			position: [0.25, 0] as [number, number],
 			scale: [0.5, 1] as [number, number],
 		};
 		const rightGreen = pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 255, 0, 255]);
@@ -175,7 +175,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		// 範囲判定をalphaに依存させたり、既存のReplaceの全域置換をそのまま使う退行を検出する。
 		await check('timeline region replaces transparent pixels only inside the window', blue, transparent, regionSettings, pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 0, 0, 0]));
 		await check('timeline zero scale region preserves the background', blue, transparent, { ...regionSettings, scale: [0, 1] }, solid([0, 0, 255, 255]));
-		await check('timeline offscreen region preserves the background', blue, transparent, { ...regionSettings, position: [3, 0] }, solid([0, 0, 255, 255]));
+		await check('timeline offscreen region preserves the background', blue, transparent, { ...regionSettings, position: [1.5, 0] }, solid([0, 0, 255, 255]));
 		// 【通常合成・マスク・反転マスクでも範囲外へ作用を漏らさない】
 		// 画像モードと異なり、透明マスクを移動した先以外の背景まで消してはいけない。
 		await check('timeline region normal blending preserves fixed image coordinates', blue, striped, { ...regionSettings, blendMode: 0 }, rightGreen);
@@ -184,7 +184,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline region inverted mask preserves the outside background', blue, red, { ...regionSettings, mask: { ...alphaMask, inverted: true } }, pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 0, 0, 0]));
 		// 【端が画素の中心を通る矩形は、画像のalphaとは独立した被覆率で合成する】
 		// 硬い二値判定では移動時に輪郭が1画素ずつ飛ぶため、半画素の被覆を実画素で確認する。
-		await check('timeline region antialiases subpixel window edges', blue, red, { ...regionSettings, position: [0.125, 0] }, pixels(x => x === 2 || x === 6 ? [128, 0, 128, 255] : x > 2 && x < 6 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline region antialiases subpixel window edges', blue, red, { ...regionSettings, position: [0.0625, 0] }, pixels(x => x === 2 || x === 6 ? [128, 0, 128, 255] : x > 2 && x < 6 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【祖先のTransformも枠だけへ反映する】
 		// 子のpositionだけで補正すると、親を動かしたときに背景の模様まで移動してしまう。
 		await check('timeline region inherits parent placement without transforming pixels', blue, striped, { ...regionSettings, position: [0, 0] }, rightGreen, {
@@ -201,8 +201,8 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 			parent: [1, 0, 0, 1, 0, 0],
 			depth: 0,
 			camera: {
-				position: [-0.5, 0],
-				z: 1,
+				position: [-0.25, 0],
+				z: 0.25,
 				roll: 0,
 				fieldOfView: 90,
 			},

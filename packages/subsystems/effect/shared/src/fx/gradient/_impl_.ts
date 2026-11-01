@@ -1,3 +1,4 @@
+import { getSpatialHalfExtent, spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -61,9 +62,9 @@ export default implementEffect<typeof definition>({
 			render: (ctx) => {
 				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, resolution);
 				uniformValues.set({
-					aspectRatio: resolution.width / resolution.height,
+					halfExtent: getSpatialHalfExtent(resolution),
 					mode: ctx.params.mode === 'radial' ? 1 : 0,
-					center: ctx.params.center,
+					center: spatialToNormalizedCoordinates(ctx.params.center, resolution),
 					coordinateScale: [resolution.width / referenceLength, resolution.height / referenceLength],
 					angle: ctx.params.angle * (2 * Math.PI), // turnをラジアンへ変換。正の角度で時計回り。
 					clampEdge: ctx.params.clampEdge ? 1 : 0,

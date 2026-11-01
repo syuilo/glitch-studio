@@ -12,7 +12,7 @@ fn prepareCharacters(@builtin(global_invocation_id) invocation: vec3u) {
 	// 全属性をTrackingも変形も適用する前の配置枠の中心で一度だけ並列に読む。
 	// 字間の変化で入力の参照先が動くことや、前フレームへの依存を防ぐ。
 	trackingOffsets[index] = read_tracking(anchor) * uniforms.trackingScale;
-	let translation = read_translation(anchor);
+	let translation = read_translation(anchor) * uniforms.translationScale;
 	let opacity = clamp(read_opacity(anchor), 0.0, 1.0);
 	let scale = read_scale(anchor);
 	let rotation = -read_rotation(anchor) * 6.283185307179586;

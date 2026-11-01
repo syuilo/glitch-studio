@@ -1,3 +1,4 @@
+import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
@@ -175,6 +176,11 @@ export class VisualModuleRenderer {
 		// Inノード用の評価済み値は保持し、式へ渡す値と参照名だけを絞り込む。
 		const expressionParamDefs = this.paramDefs.filter(def => !def.canNode && def.dataType.kind !== 'audioSource');
 
+		// 式の位置とPointer Trailが同じ単位になるよう、各評価対象の描画領域で換算する。
+		// 未入力の予約値は座標ではないため維持する。
+		const pointerPositionFor = (resolution: Resolution) => context.pointerPosition.x <= -999 && context.pointerPosition.y <= -999
+			? [context.pointerPosition.x, context.pointerPosition.y]
+			: normalizedToSpatialCoordinates([context.pointerPosition.x, context.pointerPosition.y], resolution);
 		const evalCtx = {
 			variables: {
 				TIME: context.time / 1000,
@@ -183,7 +189,7 @@ export class VisualModuleRenderer {
 				END_TIME_MS: context.endTime,
 				PROGRESS: context.progress ?? context.time / context.endTime,
 				IS_EXPORT: context.isExport,
-				POINTER_POSITION: [context.pointerPosition.x, context.pointerPosition.y],
+				POINTER_POSITION: pointerPositionFor(this.contextResolution),
 				TEST_ONLY_VM: true,
 				TEST_SAME_NAME: 1,
 			},
@@ -203,6 +209,7 @@ export class VisualModuleRenderer {
 				variables: {
 					...evalCtx.variables,
 					...createResolutionExpressionVariables(resolution),
+					POINTER_POSITION: pointerPositionFor(resolution),
 				} satisfies Record<typeof IN_VISUAL_MODULE_VAR_DEFS[number], unknown>,
 			};
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;

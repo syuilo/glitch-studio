@@ -176,7 +176,7 @@ export async function run() {
 			const cutout = await bounded({ inputA: scalar(-2), inputB: clipped, operation: 'difference' });
 			for (let y = 0; y < 16; y++) for (let x = 0; x < 32; x++) {
 				const px = x + 0.5;
-				const expected = px < 8 ? (8 - px) / 16 : px > 24 ? (px - 24) / 16 : -Math.min(px - 8, 24 - px, y + 0.5, 16 - y - 0.5) / 16;
+				const expected = px < 8 ? (8 - px) / 32 : px > 24 ? (px - 24) / 32 : -Math.min(px - 8, 24 - px, y + 0.5, 16 - y - 0.5) / 32;
 				near(fromA[y * 32 + x], expected, 'clipped A rectangle');
 				near(fromB[y * 32 + x], expected, 'clipped B rectangle');
 				near(cutout[y * 32 + x], -expected, 'difference with clipped B');
@@ -184,7 +184,7 @@ export async function run() {
 			if (clipped.kind !== 'texture') throw new Error('Expected texture fixture');
 			assert((await bounded({ inputA: { ...clipped, wrapMode: 'clamp' } })).every(value => value === -2), 'clamp must extend distances');
 			const cover = await bounded({ inputA: { ...clipped, fitMode: 'cover' } });
-			near(cover[8 * 32 + 16], -0.96875, 'cover clipping in height units');
+			near(cover[8 * 32 + 16], -0.484375, 'cover clipping in common units');
 			const positive = inputTexture(4, 4, Array(16).fill(0.125), { fitMode: 'contain', wrapMode: 'transparent' });
 			assert((await bounded({ inputA: positive })).every(value => value >= 0.125), 'transparent must not create a zero contour');
 			checks.push(`${label}: transparent clipping in both operands and cover clamp modes`);
@@ -219,7 +219,7 @@ export async function run() {
 			const resolution = { width: 65, height: 65 };
 			const wgpu = gpuContext(precise);
 			const shapeInputs = [];
-			for (const center of [-0.5, 0.5]) {
+			for (const center of [-0.25, 0.25]) {
 				const params: RuntimeEffectParameters<typeof shapeDefinition.paramDefs> = { sizeReference: 'height', shape: 'ellipse', position: [center, 0], size: [0.4, 0.4], rotation: 0, cornerRadius: 0 };
 				const output = shapeImplementation.outputTextureFactories.output({ wgpu, resolution });
 				const effect = shapeImplementation.init({ wgpu, resolution, params, fallbackTexture: output, reportStatus: () => {} });
@@ -252,8 +252,8 @@ export async function run() {
 		const referenceRenderer = createEffect(64, 32, false);
 		for (const sizeReference of ['height', 'width', 'shortSide', 'longSide'] as const) {
 			const result = await referenceRenderer({ sizeReference, inputA: scalar(0), inputB: scalar(0), smoothing: 0.2 });
-			const expected = sizeReference === 'height' || sizeReference === 'shortSide' ? -0.05 : -0.1;
-			assert(Math.abs(result[0] - expected) < 0.0001, `${sizeReference}: smoothing in height distance units`);
+			const expected = sizeReference === 'height' || sizeReference === 'shortSide' ? -0.025 : -0.05;
+			assert(Math.abs(result[0] - expected) < 0.0001, `${sizeReference}: smoothing in common distance units`);
 		}
 		checks.push('smoothing size reference preserves input distance units');
 		return { checks };

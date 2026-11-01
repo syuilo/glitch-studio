@@ -26,7 +26,7 @@ export async function run() {
 	const defaults: Parameters = { sizeReference: 'shortSide',
 		vector: constantShaderInput('vector', [1, 0]), density: 1, maximumLength: 0.3, stepSize: 0.01, maximumSteps: 256,
 		minimumMagnitude: 0.000001, lineWidth: 0.01, arrowSpacing: 0.2, arrowSize: 0.04, maximumMagnitude: 1,
-		ramp, zeroColor: [0, 1, 0, 0.5], overflowColor: [0.2, 0.6, 0.8, 0.25], directionSpace: 'component',
+		ramp, zeroColor: [0, 1, 0, 0.5], overflowColor: [0.2, 0.6, 0.8, 0.25],
 	};
 	const nearColor = (actual: number[], expected: number[], label: string) => assert(actual.every((value, channel) => Math.abs(value - expected[channel] * 255) <= 2), `${label}: ${actual}`);
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: wgpu.defaultVertexShaderModule }, fragment: { module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
@@ -161,12 +161,10 @@ export async function run() {
 		assert(stalled.at(-0.2, 0)[3] > 100 && stalled.at(0.16, 0)[3] === 0, 'tracing terminates when it reaches a zero region');
 
 		// 【縦横比・解像度・時刻とリソース再利用】
-		// 座標モードで方向だけを切り替え、設定の増減や入力の種類を戻しても残像を残さない。
+		// 共通単位の方向を使い、設定の増減や入力の種類を戻しても残像を残さない。
 		const diagonal = await wide.render({ vector: constantShaderInput('vector', [0.5, 0.5]), arrowSize: 0 });
 		assert(diagonal.at(0.14, 0.14)[3] > 100 && diagonal.at(0.2, 0.1)[3] === 0, 'component tracing preserves 45 degree screen directions');
-		const displacement = await wide.render({ vector: constantShaderInput('vector', [0.5, 0.5]), directionSpace: 'displacement', arrowSize: 0 });
-		assert(displacement.at(0.2, 0.1)[3] > 100 && displacement.at(0.14, 0.14)[3] === 0, 'displacement tracing reflects the output aspect ratio');
-		nearColor(displacement.at(0, 0), diagonal.at(0, 0).map(value => value / 255), 'direction space does not change magnitude colors');
+		assert(!('directionSpace' in definition.paramDefs), 'spatial vectors have one fixed isotropic direction contract');
 		const scaled = await larger.render({ arrowSize: 0 });
 		assert(scaled.at(0.25, 0)[3] > 100 && scaled.at(0.33, 0)[3] === 0 && scaled.at(0, 0.03)[3] === 0, 'streamline geometry scales with rendering resolution');
 		const repeated = await square.render({ arrowSize: 0 }, 100);

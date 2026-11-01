@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
@@ -33,6 +34,7 @@ export default implementEffect<typeof definition>({
 		const uniforms = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformData = new ArrayBuffer(32);
 		new Float32Array(uniformData)[0] = resolution.width / resolution.height;
+		new Float32Array(uniformData).set(spatialToNormalizedCoordinates([1, 1], resolution), 6);
 		const computeLayout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
@@ -153,7 +155,7 @@ export default implementEffect<typeof definition>({
 			}
 			const nextLayoutKey = JSON.stringify([values.repetitions, values.position, values.align, values.lineHeight]);
 			if (layoutKey === nextLayoutKey) return characterCount;
-			const { characters: placements, rows } = layoutTextPattern(measurements!, { fontSize, repetitions: values.repetitions, position: values.position, alignment: values.align, lineHeight: values.lineHeight, resolution, maxInstances });
+			const { characters: placements, rows } = layoutTextPattern(measurements!, { fontSize, repetitions: values.repetitions, position: spatialToNormalizedCoordinates(values.position, resolution), alignment: values.align, lineHeight: values.lineHeight, resolution, maxInstances });
 			characterCount = placements.length;
 			rowCount = rows.length;
 			if (characterCount > 0) {

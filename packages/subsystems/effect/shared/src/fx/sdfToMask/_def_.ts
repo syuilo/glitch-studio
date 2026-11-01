@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'sdfToMask',
 	displayName: 'SDF to Mask',
 	description: {
-		'ja-JP': '内側が負の符号付き距離場から、塗り・輪郭の0〜1のマスクを生成します。距離・線幅・フェザーは描画領域の高さを1とし、画素に応じたアンチエイリアスにも対応します。',
-		'en-US': 'Converts a negative-inside signed distance field into a fill or stroke mask in the range 0–1. Offset, stroke width, and feather use render-height units. Supports pixel-adaptive anti-aliasing.',
+		'ja-JP': '内側が負の符号付き距離場から、塗り・輪郭の0〜1のマスクを生成します。距離は長辺全体を1とし、線幅・フェザーにはSize Referenceを適用します。画素に応じたアンチエイリアスにも対応します。',
+		'en-US': 'Converts a negative-inside signed distance field into a fill or stroke mask in the range 0–1. Distances use one full render long side; offset, stroke width, and feather use Size Reference. Supports pixel-adaptive anti-aliasing.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

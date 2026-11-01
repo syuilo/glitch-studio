@@ -8,7 +8,6 @@ fn directionAt(point: vec2f) -> vec2f {
 	// 大きいベクトルでも二乗でオーバーフローさせず、元の成分の大きさで停止判定する。
 	var scaled = vector / scale;
 	if (scale <= uniforms.minimumMagnitude / length(scaled)) { return vec2f(0.0); }
-	if (uniforms.directionSpace == 1u) { scaled *= uniforms.aspect; }
 	return normalize(scaled);
 }
 

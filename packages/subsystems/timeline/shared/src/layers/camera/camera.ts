@@ -3,10 +3,17 @@ import { validateTimelineParameterTree } from '../../parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineParameterBinding } from '../../parameter-binding.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 
-// Zの1はSceneの半分の高さ。+Zはカメラ側で、初期視点ではZ=0の画面が従来と一致する。
-export const DEFAULT_CAMERA_DISTANCE = 1 / Math.tan(Math.PI / 8);
-export const CAMERA_NEAR_DISTANCE = 0.001;
+// XY・ZともSceneの長辺全体を1とする。+Zはカメラ側。定義単体の既定値は正方形に対応する。
+export const DEFAULT_CAMERA_DISTANCE = 0.5 / Math.tan(Math.PI / 8);
+// 16384:1のような極端な横長でも既定Zを除外しない、共通単位の数値的な近接限界。
+export const CAMERA_NEAR_DISTANCE = 0.000001;
+
+/** 垂直画角を維持し、Z=0のScene全体が初期視点の画面へ一致する距離。 */
+export function getDefaultCameraDistance(resolution: Resolution): number {
+	return DEFAULT_CAMERA_DISTANCE * resolution.height / Math.max(resolution.width, resolution.height);
+}
 export const timelineCameraParamDefs = {
 	position: {
 		dataType: { kind: 'vector' },
@@ -14,8 +21,8 @@ export const timelineCameraParamDefs = {
 			label: 'Camera XY',
 			control: {
 				controlType: 'xy',
-				min: -2,
-				max: 2,
+				min: -0.5,
+				max: 0.5,
 				step: 0.01,
 			},
 		},
@@ -60,8 +67,12 @@ export const timelineCameraParamDefs = {
 
 export type TimelineCameraParameterValues = Record<keyof typeof timelineCameraParamDefs, TimelineParameterBinding>;
 
-export function createTimelineCameraParameterValues(): TimelineCameraParameterValues {
-	return Object.fromEntries(Object.entries(timelineCameraParamDefs).map(([key, def]) => [key, deepClone(def.defaultValue)])) as TimelineCameraParameterValues;
+export function getTimelineCameraParameterDefinitions(resolution: Resolution) {
+	return { ...timelineCameraParamDefs, z: { ...timelineCameraParamDefs.z, defaultValue: { inputSource: 'literal' as const, value: getDefaultCameraDistance(resolution) } } };
+}
+
+export function createTimelineCameraParameterValues(resolution: Resolution = { width: 1, height: 1 }): TimelineCameraParameterValues {
+	return Object.fromEntries(Object.entries(getTimelineCameraParameterDefinitions(resolution)).map(([key, def]) => [key, deepClone(def.defaultValue)])) as TimelineCameraParameterValues;
 }
 
 /** 評価器へ渡す設定。カメラ選択・クリップの有効期間はScene側で解決する。 */

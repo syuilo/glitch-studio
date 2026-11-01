@@ -10,7 +10,7 @@ export const textParamDefs = {
 	size: {
 		dataType: { kind: 'scalar' },
 		ui: {
-			label: 'Size (height ratio)',
+			label: 'Size (long-side ratio)',
 			control: {
 				controlType: 'range',
 				min: 0.0001,
@@ -88,8 +88,8 @@ export const textParamDefs = {
 			label: 'Position',
 			control: {
 				controlType: 'xy',
-				min: -1,
-				max: 1,
+				min: -0.5,
+				max: 0.5,
 				step: 0.01,
 			},
 		},

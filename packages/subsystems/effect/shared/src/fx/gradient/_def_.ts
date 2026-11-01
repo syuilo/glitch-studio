@@ -19,8 +19,8 @@ export default defineEffect({
 				label: 'Center',
 				control: {
 					controlType: 'vector',
-					min: -1,
-					max: 1,
+					min: -0.5,
+					max: 0.5,
 					step: 0.01,
 				},
 			},

@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -45,7 +46,7 @@ export default implementEffect<typeof definition>({
 				const pixelGradientStep = sdf.kind === 'texture'
 					? [Math.max(2 / output.width, 2 / (sdf.texture.width * sdfScale[0])), Math.max(2 / output.height, 2 / (sdf.texture.height * sdfScale[1]))]
 					: [2 / output.width, 2 / output.height];
-				// SDFの高さ単位は維持し、ガラスの寸法指定を同じ単位へ変換する。
+				// 屈折モデル内部の高さ単位へ、共通SDFとガラスの寸法指定をそれぞれ換算する。
 				const referenceScale = getSizeReferenceLength(params.sizeReference, output) / output.height;
 				const normalSmoothing = Number.isFinite(params.normalSmoothing) ? Math.max(0, params.normalSmoothing) * referenceScale : 0;
 				uniformValues.set({
@@ -55,6 +56,7 @@ export default implementEffect<typeof definition>({
 					// 0では従来の差分幅を維持し、サンプル数・パス・中間テクスチャも増やさない。
 					gradientStep: [Math.max(pixelGradientStep[0], 2 * normalSmoothing / aspectRatio), Math.max(pixelGradientStep[1], 2 * normalSmoothing)],
 					aspectRatio,
+					distanceToHeight: Math.max(output.width, output.height) / output.height,
 					transparentSdf: transparentSdf ? 1 : 0,
 					refractionModel: { quadratic: 0, curvedSurface: 1 }[params.refractionModel],
 					refraction: Math.max(0, params.refraction),
@@ -69,7 +71,7 @@ export default implementEffect<typeof definition>({
 					aberrationSamples: Number.isFinite(params.aberrationSamples)
 						? Math.max(3, Math.min(64, Math.round(params.aberrationSamples))) : 3,
 					innerZoom: Math.max(0.001, params.innerZoom),
-					innerZoomCenter: params.innerZoomCenter,
+					innerZoomCenter: spatialToNormalizedCoordinates(params.innerZoomCenter, output),
 					lightDirection: [Math.cos(angle), -Math.sin(angle)],
 					highlight: Math.max(0, params.highlight),
 					highlightColor: params.highlightColor,

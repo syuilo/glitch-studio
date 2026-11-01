@@ -77,8 +77,8 @@ export default implementEffect<typeof definition>({
 				});
 			}
 			context!.clearRect(0, 0, width, height);
-			const x = (values.position[0] + 1) * width / 2;
-			const y = (1 - values.position[1]) * height / 2;
+			const x = width / 2 + values.position[0] * Math.max(width, height);
+			const y = height / 2 - values.position[1] * Math.max(width, height);
 			let layout: ReturnType<typeof layoutText> = null;
 			if ([x, y].every(Number.isFinite)) {
 				context!.fillStyle = '#ffffff';

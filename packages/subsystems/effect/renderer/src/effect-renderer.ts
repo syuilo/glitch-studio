@@ -1,3 +1,4 @@
+import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters, EffectStaticResources } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { EffectInstanceState, EffectStatus } from '@gs/subsystems_effect_shared/effect-status.ts';
@@ -8,6 +9,7 @@ import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 // インスタンスからの通知を無効化する世代とは独立し、描画のたびには更新しない。
 let nextResourceVersion = 0;
 
+/** プレビューのポインターは内部の画像参照座標。実装へ渡す直前に共通単位へ換算する。 */
 type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs'>> = Omit<
 	EffectRenderContext<Definition['paramDefs'], Definition['outputDefs']>,
 	'outputDataMap' | 'createPassEncoderFor' | 'createPassEncoder' | 'createComputePassEncoder'
@@ -185,8 +187,14 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 				textureView: needsPreviousFrame ? output.previousFrameTextureView! : output.textureView,
 			};
 		}
+		// 呼び出し元のプレビュー入力は各軸[-1,+1]。エフェクトへ渡す境界で共通単位にする。
+		// ポインター未入力の予約値は座標ではないため、倍率を掛けずに維持する。
+		const pointerPosition = normalizedToSpatialCoordinates([context.pointerPosition.x, context.pointerPosition.y], this.resolution);
+		const pointerVector = normalizedToSpatialCoordinates([context.pointerVector.x, context.pointerVector.y], this.resolution);
 		this.instance!.render({
 			...context,
+			pointerPosition: context.pointerPosition.x <= -999 && context.pointerPosition.y <= -999 ? context.pointerPosition : { x: pointerPosition[0], y: pointerPosition[1] },
+			pointerVector: { x: pointerVector[0], y: pointerVector[1] },
 			outputDataMap: outputDataMap as EffectOutputDataMap<Definition['outputDefs']>,
 			createPassEncoderFor: this.createPassEncoderFor,
 			createPassEncoder: this.createPassEncoder,

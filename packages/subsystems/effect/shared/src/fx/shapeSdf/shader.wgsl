@@ -2,6 +2,7 @@ struct Uniforms {
 	position: vec2f,
 	halfSize: vec2f,
 	aspectRatio: f32,
+	distanceScale: f32,
 	rotation: f32,
 	cornerRadius: f32,
 	shapeType: u32,
@@ -19,6 +20,6 @@ fn fs(@location(0) position: vec2f) -> @location(0) f32 {
 	let s = sin(uniforms.rotation);
 	// 時計回りに回転した形状のローカル座標へ戻す。
 	let point = vec2f(c * translated.x - s * translated.y, s * translated.x + c * translated.y);
-	if (uniforms.shapeType == 0u) { return ellipseDistance(point, uniforms.halfSize).distance; }
-	return rectangleDistance(point, uniforms.halfSize, uniforms.cornerRadius);
+	if (uniforms.shapeType == 0u) { return ellipseDistance(point, uniforms.halfSize).distance * uniforms.distanceScale; }
+	return rectangleDistance(point, uniforms.halfSize, uniforms.cornerRadius) * uniforms.distanceScale;
 }

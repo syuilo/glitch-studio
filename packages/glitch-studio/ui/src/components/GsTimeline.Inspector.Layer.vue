@@ -63,6 +63,7 @@
 			v-if="layer.layerType === 'camera'"
 			:key="layer.id"
 			:layer="layer"
+			:contextResolution="getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value)"
 			@edit="event => onTimelineLayerParamEdit(event, 'camera')"
 			@motionBlur="forceDisableMotionBlur => stateManager.commit('setTimelineLayerMotionBlurDisabled', { sceneId, layerId: layer.id, forceDisableMotionBlur })"
 		/>

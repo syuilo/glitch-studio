@@ -1,3 +1,4 @@
+import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -40,12 +41,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 		const bindGroups = new Map<GPUTextureView, GPUBindGroup>();
-		const longDimension = Math.max(resolution.width, resolution.height);
-		const isotropicVectorOutputScale = [resolution.width / longDimension, resolution.height / longDimension] as const;
-		// 出力テクスチャを履歴にも使うため、前回の出力単位を記録する。
-		// 初回の履歴は0なので、Screenとして扱っても換算結果は変わらない。
-		let previousVectorOutputScale: readonly [number, number] = [1, 1];
-		// 初回には移動元がないため、原点からの移動として扱わない。
+
 		let previousPosition: readonly [number, number] | null = null;
 
 		return {
@@ -67,17 +63,14 @@ export default implementEffect<typeof definition>({
 
 				const position = ctx.params.position;
 				const positionDelta = previousPosition == null ? [0, 0] : [position[0] - previousPosition[0], position[1] - previousPosition[1]];
-				const vectorOutputScale = ctx.params.vectorCoordinateSystem === 'isotropic' ? isotropicVectorOutputScale : [1, 1] as const;
 				uniformValues.set({
-					aspectRatio: resolution.width / resolution.height,
+					halfExtent: getSpatialHalfExtent(resolution),
 					timeDelta: ctx.timeDelta,
-					radius: 2 * ctx.params.radius * getSizeReferenceLength(ctx.params.sizeReference, resolution) / longDimension,
+					radius: ctx.params.radius * getSizeReferenceLength(ctx.params.sizeReference, resolution) / Math.max(resolution.width, resolution.height),
 					strength: ctx.params.strength,
 					halfLife: Math.max(1, ctx.params.halfLife),
 					position,
 					positionDelta,
-					vectorOutputScale,
-					vectorHistoryScale: [vectorOutputScale[0] / previousVectorOutputScale[0], vectorOutputScale[1] / previousVectorOutputScale[1]],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 
@@ -93,7 +86,6 @@ export default implementEffect<typeof definition>({
 				passEncoder.setBindGroup(0, bindGroup);
 				passEncoder.draw(6);
 				passEncoder.end();
-				previousVectorOutputScale = vectorOutputScale;
 				// パラメータ配列そのものを保持すると、呼び出し側の更新で移動元まで変わる可能性がある。
 				previousPosition = [position[0], position[1]];
 			},

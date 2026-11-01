@@ -133,7 +133,7 @@ export async function run() {
 			const width = 64;
 			const height = 32;
 			const render = createEffect(width, height, precise);
-			const rampValues = Array.from({ length: width * height }, (_, index) => (index % width + 0.5 - 32.25) / height);
+			const rampValues = Array.from({ length: width * height }, (_, index) => (index % width + 0.5 - 32.25) / width);
 			const ramp = inputTexture(width, height, rampValues);
 			const original = await render({ input: ramp });
 			near(original[16 * width + 32], 0.15625, 'pixel-adaptive AA');
@@ -144,7 +144,7 @@ export async function run() {
 			const soft = await render({ input: ramp, feather: 0.125 });
 			near(soft[16 * width + 32], 0.40673828125, 'feather dominates AA');
 			assert((await render({ input: ramp, feather: 0.125, antiAlias: false })).every((value, index) => value === soft[index]), 'large feather is independent of AA');
-			const centeredRamp = inputTexture(width, height, rampValues.map(value => value - 0.25 / height));
+			const centeredRamp = inputTexture(width, height, rampValues.map(value => value - 0.25 / width));
 			near((await render({ input: centeredRamp, mode: 'stroke', strokeWidth: 0.25 / height }))[16 * width + 32], 0.3671875, 'subpixel stroke coverage');
 			assert((await render({ input: centeredRamp, mode: 'stroke', strokeWidth: 0 })).every(value => value === 0), 'AA must not leave a zero-width line');
 			checks.push(`${label}: adaptive AA feather maximum and subpixel lines`);
@@ -222,7 +222,7 @@ export async function run() {
 		// 同じ0.15の距離に対し、高さの0.1では届かず、幅の0.1では届く横長の出力を使う。
 		const referenceRenderer = createEffect(64, 32, false);
 		for (const sizeReference of ['height', 'width', 'shortSide', 'longSide'] as const) {
-			const result = await referenceRenderer({ sizeReference, input: constantShaderInput('scalar', 0.15), offset: 0.1, antiAlias: false });
+			const result = await referenceRenderer({ sizeReference, input: constantShaderInput('scalar', 0.075), offset: 0.1, antiAlias: false });
 			assert(result[0] === (sizeReference === 'height' || sizeReference === 'shortSide' ? 0 : 1), `${sizeReference}: offset length`);
 		}
 		checks.push('mask offset uses the selected size reference');

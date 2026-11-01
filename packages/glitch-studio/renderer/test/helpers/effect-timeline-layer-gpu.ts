@@ -44,7 +44,7 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 		effectParamValues: Object.fromEntries(Object.keys(blurDefinition.paramDefs).map(key => [key, getEffectLayerParameterDefault(blurDefinition, key)])),
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineEffectLayer['compositingParamValues'],
-			position: { inputSource: 'literal', value: [0.5, 0] },
+			position: { inputSource: 'literal', value: [0.25, 0] },
 			scale: { inputSource: 'literal', value: [0.5, 1] },
 			blendMode: { inputSource: 'literal', value: 'replace' },
 		},
@@ -96,7 +96,7 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 		if (source[4 * 4] <= 0 || source[4 * 4 + 1] <= 0) throw new Error('Blur must sample colors outside the application region');
 		// 【範囲を移動してもBlur自身の計算結果・半径は変えない】
 		// positionを入力側へ混ぜるとノイズの位置やサンプル範囲まで動き、素材参照の結果も変わってしまう。
-		layer.compositingParamValues.position = { inputSource: 'literal', value: [-0.5, 0] };
+		layer.compositingParamValues.position = { inputSource: 'literal', value: [-0.25, 0] };
 		const moved = await renderer.evaluate(context, new AbortController().signal);
 		check('blur source stays fixed when its application region moves', await pixels(moved.source), source);
 		check('blur region moves to the other half without moving the background', await pixels(await moved.composite?.(image, signal)), source.map((value, index) => Math.floor(index / 4) % 8 < 4 ? value : backgroundPixels[index]));

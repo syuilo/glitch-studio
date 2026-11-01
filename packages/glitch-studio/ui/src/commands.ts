@@ -39,7 +39,7 @@ import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveTimelineAnotherLayerAudioReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
+import { getSceneBaseResolution, validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { timelineCompositingParamDefs, validateTimelineMask, validateTimelineLayerMask, isTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask, TimelineLayerMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { getTimelineLayerMaskSources } from '@gs/subsystems_timeline_shared/layer-output.ts';
@@ -243,7 +243,9 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			execute(state) {
 				const layer = getLayer(state);
 				const values = getLayerParameterValues(layer, target);
-				const defs = getLayerParameterDefinitions(state, layer, target);
+				const contextResolution = target === 'camera'
+					? getSceneBaseResolution(getScene(state, payload.sceneId).resolution, state.resolution.value) : null;
+				const defs = getLayerParameterDefinitions(state, layer, target, contextResolution);
 				const rootDef = defs[rootKey];
 				if (rootDef == null) throw new Error('Timeline parameter not found');
 				const module = target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')

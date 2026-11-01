@@ -109,11 +109,11 @@ test('matches preview transforms across flat, preserved and screen spaces', () =
 	const root = { parent: TIMELINE_IDENTITY, depth: 0, camera: view };
 	const transform = { ...identityTransform, position: [0.3, 0.2], z: 0.5 };
 	const preview = (ancestors, own = settings) => getTimelinePreviewParent(ancestors, own, frame, root);
-	near(preview([{ transform }]), projectTimelineMatrix([1, 0, 0, 1, 0.3, 0.2], 0.5, frame, view));
-	near(preview([{ transform }], { ...settings, coordinateSpace: 'screen' }), [1, 0, 0, 1, 0.3, 0.2]);
+	near(preview([{ transform }]), projectTimelineMatrix([1, 0, 0, 1, 0.6, 0.4 * frame.width / frame.height], 0.5, frame, view));
+	near(preview([{ transform }], { ...settings, coordinateSpace: 'screen' }), [1, 0, 0, 1, 0.6, 0.4 * frame.width / frame.height]);
 	const flat = { settings: { ...settings, position: [-0.3, 0], depth: 0.25 }, compositingMode: 'flat' };
 	near(preview([{ transform }, flat, { transform: { ...identityTransform, position: [0.1, 0], z: 100 } }]),
-		multiplyTimelineAffine(projectTimelineMatrix([1, 0, 0, 1, 0, 0.2], 0.75, frame, view), [1, 0, 0, 1, 0.1, 0]));
+		multiplyTimelineAffine(projectTimelineMatrix([1, 0, 0, 1, 0, 0.4 * frame.width / frame.height], 0.75, frame, view), [1, 0, 0, 1, 0.2, 0]));
 });
 
 // 【Transformの式はレイヤー共通の評価変数を使い、不正数値を座標へ流さない】
@@ -137,7 +137,7 @@ test('preserves shear and child positions when composing nonuniform scale and ro
 	const outer = getTimelineTransformSpace({ ...identityTransform, position: [0.2, 0.3], scale: [2, 1] }, wide);
 	const inner = getTimelineTransformSpace({ ...identityTransform, position: [0.1, 0.2], rotation: 0.125 }, wide, outer);
 	const c = Math.SQRT1_2;
-	near(inner.parent, [2 * c, -2 * c, c, c, 0.4, 0.5]);
+	near(inner.parent, [2 * c, -2 * c, c, c, 0.8, 2]);
 	near(inner.screenParent, inner.parent);
 	const [a, b, x, y] = inner.parent;
 	assert.ok(Math.abs((a * 2) * (x * 2) + b * y) > 1, 'Transformed axes must not remain perpendicular');
@@ -188,7 +188,7 @@ test('freezes animated scale, rotation and camera roll at the correct hierarchy 
 	near(evaluate().position, [-1.5, 0]);
 	assert.equal(evaluate().roll, 0.9);
 	parent.forceDisableMotionBlur = true;
-	near(evaluate().position, [1.4 * Math.cos(0.4 * 2 * Math.PI), -1.4 * Math.sin(0.4 * 2 * Math.PI) * frame.width / frame.height]);
+	near(evaluate().position, [1.4 * Math.cos(0.4 * 2 * Math.PI), -1.4 * Math.sin(0.4 * 2 * Math.PI)]);
 	assert.equal(evaluate().roll, 0.8);
 });
 

@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -36,7 +37,7 @@ export default implementEffect<typeof definition>({
 				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, output);
 				uniformValues.set({
 					aspect: [output.width / referenceLength * 0.5, output.height / referenceLength * 0.5],
-					position: ctx.params.position,
+					position: spatialToNormalizedCoordinates(ctx.params.position, output),
 					// 元のUIと同じ頻度の変化にする。時間・seedは元の固定値を維持する。
 					frequency: Math.max(0, ctx.params.frequency) ** 2,
 					density: Math.min(1, Math.max(0, ctx.params.density)),
