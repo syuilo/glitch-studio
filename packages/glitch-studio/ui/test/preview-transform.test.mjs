@@ -27,7 +27,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { timelineSourceToScene, getTimelineLayerCorners, resizePreviewLayer, snapPreviewLayerMove, snapPreviewLayerResize,
-	sceneToPreview, previewDeltaToScene, unwrapPreviewRotation, prepareTimelineTransformBindings, updateTimelineTransformBindings,
+	sceneToPreview, unwrapPreviewRotation, prepareTimelineTransformBindings, updateTimelineTransformBindings,
 	canEditTimelineTransform, createInlineKeyframesTimeline, timelineCompositingParamDefs, UndoRedo, COMMAND_DEFS, createShapeTimelineLayer,
 	getSelectedTimelineLayerId, getTimelineEditorState } = module.exports;
 
@@ -138,7 +138,6 @@ test('keeps snapped positions exact and independent of pointer movement', t => {
 // 中ボタンでの表示移動を、レイヤーのpositionへ混入させない。
 test('maps preview coordinates independently of pan and unwraps rotations across the branch cut', () => {
 	near(sceneToPreview([0.25, -0.125], { left: 200, top: 100, width: 800, height: 400 }), [800, 400]);
-	near(previewDeltaToScene([40, 20], { left: 200, top: 100, width: 800, height: 400 }), [0.05, -0.025]);
 	assert.ok(Math.abs(unwrapPreviewRotation(Math.PI - 0.1, -Math.PI + 0.1) - 0.2) < 1e-9);
 });
 

@@ -200,7 +200,6 @@ export class VisualModuleRenderer {
 				END_TIME_MS: context.endTime,
 				PROGRESS: context.progress ?? context.time / context.endTime,
 				IS_EXPORT: context.isExport,
-				POINTER_POSITION: pointerPositionFor(this.contextResolution),
 				TEST_ONLY_VM: true,
 				TEST_SAME_NAME: 1,
 			},

@@ -28,6 +28,10 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 	let previousKey: string | null = null;
 	return {
 		render(encoder: GPUCommandEncoder, values: EvaluatedShape): TimelineImage {
+			// 解像度はインスタンス内で固定なので、換算前の公開値だけで同じ描画を判定できる。
+			// 背景は含めず、呼び出し側の合成を毎回行うことで下層の動画も更新する。
+			const key = JSON.stringify(values);
+			if (key === previousKey) return result;
 			// 既存の輪郭・部分描画モデルは内部の高さ単位で計算し、公開値だけを境界で換算する。
 			const distanceToHeight = Math.max(resolution.width, resolution.height) / resolution.height;
 			const shape: EvaluatedShape = { ...values, position: spatialToNormalizedCoordinates(values.position, resolution),
@@ -35,10 +39,6 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 				strokeWidth: values.strokeWidth * distanceToHeight,
 				...(values.type === 'rectangle' ? { cornerRadius: values.cornerRadius * distanceToHeight } : {}),
 			};
-			// 背景を含まない自前の出力だけを再利用する。背景の動画が変化した場合も、
-			// 呼び出し側の合成は毎回行うため、静止シェイプが下層を凍結させない。
-			const key = JSON.stringify(shape);
-			if (key === previousKey) return result;
 			const inside = shape.strokeAlignment === 'inside' ? shape.strokeWidth : shape.strokeAlignment === 'center' ? shape.strokeWidth / 2 : 0;
 			// 回転前の外周を囲う矩形を回転する。Scene外の位置でも同じ画素密度で描く。
 			const outside = shape.strokeWidth - inside + 2 / resolution.height;
@@ -64,8 +64,9 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 			const startAngle = Math.atan2(start.point[0], start.point[1]);
 			const sweepAngle = (Math.atan2(end.point[0], end.point[1]) - startAngle + 2 * Math.PI) % (2 * Math.PI);
 			uniforms.set({
-				bounds: [shape.position[0], shape.position[1], extentX, extentY],
-				position: shape.position,
+				// 配置位置はregion.boundsだけが所有する。GPUでは中心原点の局所座標を使い、
+				// 大きい配置位置を足してから引く際の桁落ちと、画素ごとの座標補正を避ける。
+				localHalfExtent: [extentX * resolution.width / resolution.height * 0.5, extentY * 0.5],
 				halfSize: shape.size.map(value => value / 2),
 				fillColor: shape.fillColor,
 				strokeColor: shape.strokeColor,
@@ -80,7 +81,6 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 				strokeEndTangent: end.tangent,
 				strokeStartAngle: startAngle,
 				strokeSweepAngle: sweepAngle,
-				aspectRatio: resolution.width / resolution.height,
 				pixelSize: extentY / size.height,
 				shapeType: shape.type === 'ellipse' ? 0 : 1,
 			});

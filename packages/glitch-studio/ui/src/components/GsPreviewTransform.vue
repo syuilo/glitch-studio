@@ -48,7 +48,7 @@ import GsButton from '@/components/common/GsButton.vue';
 import { appContext } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
-import { previewResizeHandles, previewHandlePosition, sceneToPreview, previewDeltaToScene, resizePreviewLayer, snapPreviewLayerMove, snapPreviewLayerResize, unwrapPreviewRotation } from '@/utility/preview-transform.ts';
+import { previewResizeHandles, previewHandlePosition, sceneToPreview, resizePreviewLayer, snapPreviewLayerMove, snapPreviewLayerResize, unwrapPreviewRotation } from '@/utility/preview-transform.ts';
 import { canEditTimelineTransform, prepareTimelineTransformBindings, updateTimelineTransformBindings } from '@/utility/timeline-transform-edit.ts';
 
 const props = defineProps<{ canvasRect: PreviewCanvasRect }>();
@@ -135,6 +135,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	if (!isTimelineVisualLayer(layer)) return;
 	const view = (event.currentTarget as Element).ownerDocument.defaultView!;
 	const rect = { ...props.canvasRect };
+	const previewLongSide = Math.max(rect.width, rect.height);
 	const overlayRect = overlay.value!.getBoundingClientRect();
 	const start: TimelinePoint = [event.clientX, event.clientY];
 	const pendingGeometry = deepClone(renderedGeometry.value);
@@ -166,22 +167,22 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	let lastBindings: TimelineTransformBindings | null = null;
 	// 保存値は子の座標系のまま編集する。祖先の非等方拡縮・回転・反転も順に逆変換する。
 	const localPointer = (x: number, y: number): TimelinePoint => {
-		let point: TimelinePoint = [(x - overlayRect.left - rect.left - rect.width / 2) / Math.max(rect.width, rect.height), (rect.height / 2 - (y - overlayRect.top - rect.top)) / Math.max(rect.width, rect.height)];
+		let point: TimelinePoint = [(x - overlayRect.left - rect.left - rect.width / 2) / previewLongSide, (rect.height / 2 - (y - overlayRect.top - rect.top)) / previewLongSide];
 		for (const parent of initial?.parents ?? []) point = timelineSceneToSource(point, parent) ?? point;
-		const result = sceneToPreview(point, rect);
-		return [result[0] + overlayRect.left, result[1] + overlayRect.top];
+		return point;
 	};
 	const angleAt = (x: number, y: number) => {
-		const center = sceneToPreview(initial!.transform.position, rect);
-		[x, y] = localPointer(x, y);
-		return Math.atan2(y - overlayRect.top - center[1], x - overlayRect.left - center[0]);
+		const center = initial!.transform.position;
+		const point = localPointer(x, y);
+		// 共通単位は+Yが上なので、時計回りを正とする操作角ではY差分を反転する。
+		return Math.atan2(center[1] - point[1], point[0] - center[0]);
 	};
 	const update = () => {
 		frame = null;
 		if (!initial || !session?.active) return;
 		const currentPointer = localPointer(latest.x, latest.y);
 		const initialPointer = localPointer(start[0], start[1]);
-		const delta = previewDeltaToScene([currentPointer[0] - initialPointer[0], currentPointer[1] - initialPointer[1]], rect);
+		const delta: TimelinePoint = [currentPointer[0] - initialPointer[0], currentPointer[1] - initialPointer[1]];
 		if (delta[0] === 0 && delta[1] === 0 && accumulatedAngle === 0 && lastBindings == null) return;
 		let transform: TimelineLayerTransform;
 		if (handle === 'move') {

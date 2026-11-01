@@ -18,11 +18,6 @@ export function sceneToPreview(point: TimelinePoint, rect: PreviewCanvasRect, pa
 	return [rect.left + rect.width / 2 + point[0] * longSide, rect.top + rect.height / 2 - point[1] * longSide];
 }
 
-export function previewDeltaToScene(delta: TimelinePoint, rect: PreviewCanvasRect): TimelinePoint {
-	const longSide = Math.max(rect.width, rect.height);
-	return [delta[0] / longSide, -delta[1] / longSide];
-}
-
 const clampScale = (value: number, previous: number) => Math.sign(previous) * Math.max(0.000001, value * Math.sign(previous));
 
 function positionForFixedPoint(geometry: TimelineLayerGeometry, fixedPoint: TimelinePoint, scale: TimelinePoint): TimelinePoint {

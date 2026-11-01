@@ -1,6 +1,5 @@
 struct Uniforms {
-	bounds: vec4f,
-	position: vec2f,
+	localHalfExtent: vec2f,
 	halfSize: vec2f,
 	fillColor: vec4f,
 	strokeColor: vec4f,
@@ -8,7 +7,6 @@ struct Uniforms {
 	cornerRadius: f32,
 	strokeInside: f32,
 	strokeOutside: f32,
-	aspectRatio: f32,
 	pixelSize: f32,
 	shapeType: u32,
 	strokeProgress: f32,
@@ -67,9 +65,9 @@ fn coverage(distance: f32) -> f32 {
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	if (any(uniforms.halfSize <= vec2f(0.0))) { return vec4f(0.0); }
-	// Positionだけは既存の画面座標（端が±1）。寸法・輪郭幅には縦横共通の
-	// Scene高さ単位を使い、時計回りの回転を逆変換して形状の座標へ戻す。
-	let translated = (uniforms.bounds.xy + position * uniforms.bounds.zw - uniforms.position) * vec2f(uniforms.aspectRatio, 1.0) * 0.5;
+	// 配置位置はCPU側のregion.boundsで扱い、テクスチャ内では中心原点の局所座標だけを使う。
+	// 寸法・輪郭幅と同じScene高さ単位へ換算し、時計回りの回転を逆変換する。
+	let translated = position * uniforms.localHalfExtent;
 	let c = cos(uniforms.rotation);
 	let s = sin(uniforms.rotation);
 	let point = vec2f(c * translated.x - s * translated.y, s * translated.x + c * translated.y);

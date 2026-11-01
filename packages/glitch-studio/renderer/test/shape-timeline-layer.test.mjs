@@ -178,20 +178,21 @@ test('renders all stroke alignments at scene resolution and evaluates subframe s
 	})));
 	await f.manager.renderTimelineFrame(350.25, 0);
 	const draws = f.shapeDraws();
+	const composites = f.calls.draws.filter(draw => draw.isCompositing);
 	assert.equal(draws.length, 3);
 	for (const [index, draw] of draws.entries()) {
 		assert.equal(draw.texture.format, 'rgba16float');
 		assert.ok(draw.texture.width < 800 && draw.texture.height < 450);
-		near(draw.uniforms.bounds[2] * 800 / draw.texture.width, 1, 0.01);
-		near(draw.uniforms.position[0], 0.7005);
+		near(draw.uniforms.localHalfExtent[0] * 900 / draw.texture.width, 1, 0.01);
+		// 配置位置は描画用uniformではなく、合成へ渡す素材の範囲で確認する。
+		near(composites[index].uniforms.sourceBounds[0], 0.7005);
 		near(draw.uniforms.halfSize[0], 0.3);
 		near(draw.uniforms.halfSize[1], 0.15);
 		near(draw.uniforms.cornerRadius[0], 0.15);
 		near(draw.uniforms.rotation[0], Math.PI / 2);
 		near(draw.uniforms.strokeInside[0], index * 0.01);
 		near(draw.uniforms.strokeOutside[0], 0.02 - index * 0.01);
-		near(draw.uniforms.pixelSize[0], draw.uniforms.bounds[3] / draw.texture.height);
-		near(draw.uniforms.aspectRatio[0], 1600 / 900);
+		near(draw.uniforms.pixelSize[0], 2 * draw.uniforms.localHalfExtent[1] / draw.texture.height);
 	}
 });
 
@@ -244,7 +245,7 @@ test('preserves transparent replace output and releases resources across clip ga
 	await f.manager.renderTimelineFrame(450, 250);
 	const second = f.shapeDraws()[1];
 	assert.notEqual(second.texture, first.texture);
-	near(second.uniforms.position[0], 0.9);
+	near(f.calls.draws.findLast(draw => draw.isCompositing).uniforms.sourceBounds[0], 0.9);
 	f.manager.destroy();
 	assert.equal(second.texture.destroyed, true);
 });
@@ -262,9 +263,9 @@ test('uses the owning child scene resolution and time when nested', async t => {
 	await f.setup([], { timelineScenes: [parent, child] });
 	await f.manager.renderTimelineFrame(350.25, 0);
 	const draw = f.shapeDraws()[0];
-	near(draw.uniforms.aspectRatio[0], 1.5);
-	near(draw.uniforms.bounds[3] / draw.texture.height, 1 / 200);
-	near(draw.uniforms.position[0], 0.9005);
+	near(2 * draw.uniforms.localHalfExtent[0] / draw.texture.width, 1 / 200);
+	near(2 * draw.uniforms.localHalfExtent[1] / draw.texture.height, 1 / 200);
+	near(f.calls.draws.find(draw => draw.isCompositing).uniforms.sourceBounds[0], 0.9005);
 });
 
 // 【起点をまたぐ輪郭と進行率0・1を、通常の描画・キャッシュへ反映する】
