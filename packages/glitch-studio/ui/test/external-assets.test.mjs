@@ -13,7 +13,7 @@ new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createR
 const { encodeProjectFile, decodeProjectFile, mapProjectAssetPaths, encodeVisualModuleFile, decodeVisualModuleFile, resolveExternalAssets, createProjectBackupFingerprint } = module.exports;
 const asset = () => ({ id: 'asset', name: 'video.mp4', isExternalReference: true, sourceFilePath: 'assets/video.mp4',
 	width: 1920, height: 1080, fileDataType: 'video/mp4', fileData: { url: null, size: 0, error: 'missing' }, thumbnailSequence: null });
-const project = assets => ({ assets, generatedSpeech: [], timelineScenes: [] });
+const project = assets => ({ assets, generatedSpeech: [], visualModules: [], timelineScenes: [] });
 
 // 【保存先ごとにパスを相対化し、読み込み時にはそのプロジェクトの場所で解決する】
 // 実行中の絶対パスを変更すると、Save As後の再保存やUndoで参照先がずれてしまう。

@@ -83,7 +83,7 @@ test('undoes and persists audio-only clip settings through clipboard and source 
 	f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips: paste,
 		sourceDurationsMs: { video: { [paste[0].clip.id]: 6000.25 } } });
 	assert.deepEqual(f.layer.clips.at(-1), { ...original, videoEnabled: false, id: paste[0].clip.id, startMs: 16000 });
-	const encoded = await api.encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
+	const encoded = await api.encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60,
 		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
 	assert.deepEqual(api.decodeProjectFile(encoded).timelineScenes[0], f.scene);
 	f.history.commit('changeTimelineClipSource', { ...target, assetId: 'movie', sourceDurationMs: 4000 });
@@ -150,7 +150,7 @@ test('preserves loops in clipboard and project files and resets them on source r
 	f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips: paste, sourceDurationsMs: { video: { [paste[0].clip.id]: 6000.25 } } });
 	assert.equal((f.layer.clips.at(-1).sourceOutMs - f.layer.clips.at(-1).sourceInMs), 3000);
 	assert.equal(f.layer.clips.at(-1).durationMs, 8000);
-	const encoded = await api.encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
+	const encoded = await api.encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
 	assert.deepEqual(api.decodeProjectFile(encoded).timelineScenes[0], f.scene);
 	f.history.commit('changeTimelineClipSource', { ...target, assetId: 'movie', sourceDurationMs: 4000 });
 	assert.deepEqual([f.clip.sourceInMs, f.clip.durationMs, (f.clip.loop ? f.clip.sourceOutMs - f.clip.sourceInMs : null)], [0, 4000, null]);
@@ -223,7 +223,7 @@ test('persists and pastes held video and removes hold timing during source repla
 	f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips: paste,
 		sourceDurationsMs: { video: { [paste[0].clip.id]: 6000.25 } } });
 	assert.deepEqual(f.layer.clips.at(-1), { ...held, id: paste[0].clip.id, startMs: 16000 });
-	const encoded = await api.encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
+	const encoded = await api.encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60,
 		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
 	assert.deepEqual(api.decodeProjectFile(encoded).timelineScenes[0], f.scene);
 	f.history.commit('changeTimelineClipSource', { ...target, assetId: 'movie', sourceDurationMs: 4000 });

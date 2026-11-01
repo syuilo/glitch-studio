@@ -213,7 +213,7 @@ test('round trips thumbnail bytes timestamps and actual MIME without leaking the
 	const thumbnailSequence = await f.generateVideoThumbnails(new Blob());
 	const asset = { id: 'video', name: 'movie', width: 1920, height: 1080, fileDataType: 'video/mp4',
 		fileData: new Blob(['original video'], { type: 'video/mp4' }), sourceFilePath: 'C:/movie.mp4', thumbnailSequence };
-	const encoded = await f.encodeProjectFile({ gsVersion: '2.0.0-alpha', assets: [asset], generatedSpeech: [], timelineScenes: [] });
+	const encoded = await f.encodeProjectFile({ gsVersion: '2.0.0-alpha', assets: [asset], generatedSpeech: [], visualModules: [], timelineScenes: [] });
 	const stored = decode(encoded).assets[0];
 	assert.ok(stored.thumbnailSequence.frames.every(frame => frame.fileData instanceof Uint8Array));
 	const restored = f.decodeProjectFile(encoded).assets[0];

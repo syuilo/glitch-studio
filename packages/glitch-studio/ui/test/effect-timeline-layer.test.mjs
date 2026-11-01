@@ -428,11 +428,11 @@ test('round trips effect layers and changes resolution and clips with undo', asy
 // インラインのVisual Moduleも登録済みと同じCommand経路で編集できる必要がある。
 test('saves local resolution scales and validates undoable edits for nodes and effect layers', async () => {
 	const f = fixture();
-	const node = { id: 'node', type: 'effect', effectId: 'testStructArray', resolution: { mode: 'auto', scale: 1 }, params: {} };
-	const visualModule = { id: 'visual', nodes: [node] };
+	const node = { id: 'node', type: 'effect', effectId: 'testStructArray', resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, params: {} };
+	const visualModule = { id: 'visual', nodes: [node], paramDefs: [] };
 	f.state.visualModules.value.push(visualModule);
 	const inlineNode = structuredClone(node);
-	f.state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: { nodes: [inlineNode] } });
+	f.state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: { nodes: [inlineNode], paramDefs: [] } });
 	for (const [definition, target, owner] of [
 		[COMMAND_DEFS.changeNodeResolution, { visualModuleId: 'visual', nodeId: node.id }, node],
 		[COMMAND_DEFS.changeNodeResolution, { sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: inlineNode.id }, inlineNode],
