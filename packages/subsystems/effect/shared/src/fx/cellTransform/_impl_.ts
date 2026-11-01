@@ -50,7 +50,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					aspect,
 					cellSize,
-					translationUnitScale: translationUnit === 'screen' ? [Math.max(width, height) / shortDimension, Math.max(width, height) / shortDimension] : cellSize,
+					translationUnitScale: translationUnit === 'canvas' ? [Math.max(width, height) / shortDimension, Math.max(width, height) / shortDimension] : cellSize,
 					phase: phase.map(value => Number.isFinite(value) ? value : 0),
 					angle: Number.isFinite(angle) ? angle * 2 * Math.PI : 0,
 					controlSamples: Number.isFinite(controlSamples) ? Math.min(256, Math.max(1, Math.round(controlSamples))) : 1,

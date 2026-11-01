@@ -55,10 +55,10 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
 		translationUnit: {
-			dataType: { kind: 'enum', options: ['cell', 'screen'] },
+			dataType: { kind: 'enum', options: ['cell', 'canvas'] },
 			ui: {
 				label: 'Translation Unit',
-				control: { labels: { cell: 'Cell', screen: 'Canvas' } },
+				control: { labels: { cell: 'Cell', canvas: 'Canvas' } },
 			},
 			defaultValue: { inputSource: 'literal', value: 'cell' },
 		},

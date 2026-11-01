@@ -76,7 +76,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 
 	// 入力単位を、格子の計算と同じ短辺基準の物理座標へ変換する。
 	// Cellでは1を変形前のセル幅／高さ1つ分とし、セルに対する移動量の比率を保つ。
-	// Screenでは1を画面幅／高さの半分とし、FrequencyやFit Modeで感度を変えない。
+	// Canvasでは1を描画領域の長辺全体とし、FrequencyやSize Referenceで移動の単位を変えない。
 	// 格子のAngleを変えても、正のXは画面右、正のYは画面上へ移動する。
 	let physicalTranslation = controls.translation * uniforms.translationUnitScale;
 	let gridTranslation = vec2f(
