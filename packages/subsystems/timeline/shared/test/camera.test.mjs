@@ -3,15 +3,15 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
-const { DEFAULT_CAMERA_DISTANCE } = await loadSource(fileURLToPath(new URL('../src/layers/camera/camera.ts', import.meta.url)));
+const { DEFAULT_CAMERA_DISTANCE, CAMERA_NEAR_DISTANCE, createTimelineCameraParameterValues, getDefaultCameraDistance } = await loadSource(fileURLToPath(new URL('../src/layers/camera/camera.ts', import.meta.url)));
 const { projectTimelineMatrix, TIMELINE_IDENTITY, timelineGeometryMatrix, multiplyTimelineAffine, transformTimelinePoint, invertTimelineAffine } = await loadSource(fileURLToPath(new URL('../src/spatial.ts', import.meta.url)));
 const { getTimelinePreviewParent } = await loadSource(fileURLToPath(new URL('../src/group-space.ts', import.meta.url)));
 const { TimelineCameraParameters } = await loadSource(fileURLToPath(new URL('../src/layers/camera/camera-parameters.ts', import.meta.url)));
 const evaluator = new TimelineCameraParameters();
 const { TimelineSceneCamera, TimelineCameraCuts, getActiveTimelineCamera } = await loadSource(fileURLToPath(new URL('../src/scene-camera.ts', import.meta.url)));
 const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineSampleTimes } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
-const camera = evaluator.evaluate(undefined, 0, false);
 const frame = { width: 1920, height: 1080 };
+const camera = evaluator.evaluate(undefined, 0, false, undefined, frame);
 const settings = { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'contain', coordinateSpace: 'world', depth: 0 };
 const near = (actual, expected) => actual.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-9, `${actual} != ${expected}`));
 const parent = (ancestors, own = settings) => getTimelinePreviewParent(ancestors, own, frame, { parent: TIMELINE_IDENTITY, depth: 0, camera });
@@ -169,7 +169,7 @@ test('maps child camera cuts through placement offsets and skips frozen or disab
 // 解像度・横長比率や支点を含む既存の2D変形に、暗黙の拡大や平行移動を加えない。
 test('keeps the reference plane unchanged and projects positive depth toward the camera', () => {
 	near(projectTimelineMatrix(TIMELINE_IDENTITY, 0, frame, camera), TIMELINE_IDENTITY);
-	near(projectTimelineMatrix(TIMELINE_IDENTITY, DEFAULT_CAMERA_DISTANCE / 2, frame, camera), [2, 0, 0, 2, 0, 0]);
+	near(projectTimelineMatrix(TIMELINE_IDENTITY, camera.z / 2, frame, camera), [2, 0, 0, 2, 0, 0]);
 	const matrix = timelineGeometryMatrix({ sourceSize: { width: 1000, height: 1000 }, sceneSize: frame, transform: { ...settings, position: [0.3, -0.2], origin: [1, 0], scale: [-2, 0.4], rotation: 0.2 } });
 	near(projectTimelineMatrix(matrix, 0, frame, camera), matrix);
 	near(transformTimelinePoint(invertTimelineAffine(matrix), transformTimelinePoint(matrix, [0.2, 0.4])), [0.2, 0.4]);
@@ -178,7 +178,7 @@ test('keeps the reference plane unchanged and projects positive depth toward the
 // 【カメラと重なった平面や背後の平面を投影しない】
 // 距離0による無限大テクスチャや、背後の左右反転像を発生させない。
 test('excludes planes at the near limit and behind the camera', () => {
-	for (const depth of [camera.z, camera.z + 1, camera.z - 0.0001]) assert.equal(projectTimelineMatrix(TIMELINE_IDENTITY, depth, frame, camera), null);
+	for (const depth of [camera.z, camera.z + 1, camera.z - CAMERA_NEAR_DISTANCE / 2]) assert.equal(projectTimelineMatrix(TIMELINE_IDENTITY, depth, frame, camera), null);
 });
 
 // 【式とキーは所属Sceneの時計・書き出し状態で評価する】
@@ -213,20 +213,20 @@ test('uses the shared layer variables for camera expressions and environment bin
 // 【平面化境界より内側のZを無視し、外側のZだけで投影する】
 // 入れ子の内部を再投影すると二重に拡大され、ドラッグ枠も描画位置からずれる。
 test('matches preview coordinates across flat and preserved depth boundaries', () => {
-	const outer = { compositingMode: 'preserveDepth', settings: { ...settings, position: [0.2, 0], depth: 0.5 } };
-	const flat = { compositingMode: 'flat', settings: { ...settings, position: [-0.2, 0.4], depth: 0.5 } };
+	const outer = { compositingMode: 'preserveDepth', settings: { ...settings, position: [0.2, 0], depth: camera.z / 4 } };
+	const flat = { compositingMode: 'flat', settings: { ...settings, position: [-0.2, 0.4], depth: camera.z / 4 } };
 	const inner = { compositingMode: 'preserveDepth', settings: { ...settings, position: [0.5, 0], depth: 100 } };
-	const expected = multiplyTimelineAffine(projectTimelineMatrix([1, 0, 0, 1, 0, 0.4], 1, frame, camera), [1, 0, 0, 1, 0.5, 0]);
+	const expected = multiplyTimelineAffine(projectTimelineMatrix([1, 0, 0, 1, 0, 0.4 * 2 * frame.width / frame.height], camera.z / 2, frame, camera), [1, 0, 0, 1, 1, 0]);
 	near(parent([outer, flat, inner], { ...settings, depth: 200 }), expected);
-	near(parent([outer], { ...settings, depth: 0.5 }), projectTimelineMatrix([1, 0, 0, 1, 0.2, 0], 1, frame, camera));
+	near(parent([outer], { ...settings, depth: camera.z / 4 }), projectTimelineMatrix([1, 0, 0, 1, 0.4, 0], camera.z / 2, frame, camera));
 });
 
 // 【画面配置は投影済みの親変形を二重に受けない】
 // 画面フィルターは奥行き維持グループ内でも画面座標を使う。一方、平面化境界の外側の配置は残す。
 test('resets preserved transforms for screen placement inside the current flat boundary', () => {
-	const outer = { compositingMode: 'preserveDepth', settings: { ...settings, depth: 1, position: [0.3, 0.5] } };
+	const outer = { compositingMode: 'preserveDepth', settings: { ...settings, depth: camera.z / 2, position: [0.3, 0.5] } };
 	near(parent([outer], { ...settings, coordinateSpace: 'screen' }), TIMELINE_IDENTITY);
-	near(parent([{ ...outer, compositingMode: 'flat' }], { ...settings, coordinateSpace: 'screen' }), projectTimelineMatrix([1, 0, 0, 1, 0.3, 0.5], 1, frame, camera));
+	near(parent([{ ...outer, compositingMode: 'flat' }], { ...settings, coordinateSpace: 'screen' }), projectTimelineMatrix([1, 0, 0, 1, 0.6, 0.5 * 2 * frame.width / frame.height], camera.z / 2, frame, camera));
 });
 
 // 【カメラのロールは視点を中心とした逆回転で、Sceneの縦横比によって歪まない】
@@ -235,10 +235,11 @@ test('resets preserved transforms for screen placement inside the current flat b
 test('projects camera roll as an inverse rotation around its position at every aspect ratio', () => {
 	const position = [0.3, -0.2];
 	for (const size of [{ width: 200, height: 100 }, { width: 100, height: 200 }, { width: 100, height: 100 }]) {
-		const view = { ...camera, position, roll: 0.25 };
+		const view = { ...camera, z: DEFAULT_CAMERA_DISTANCE * size.height / Math.max(size.width, size.height), position, roll: 0.25 };
+		const normalizedPosition = position.map((value, axis) => value * 2 * Math.max(size.width, size.height) / (axis === 0 ? size.width : size.height));
 		const projection = projectTimelineMatrix(TIMELINE_IDENTITY, 0, size, view);
-		near(transformTimelinePoint(projection, position), [0, 0]);
-		near(transformTimelinePoint(projection, [position[0] + 0.5, position[1]]), [0, 0.5 * size.width / size.height]);
+		near(transformTimelinePoint(projection, normalizedPosition), [0, 0]);
+		near(transformTimelinePoint(projection, [normalizedPosition[0] + 0.5, normalizedPosition[1]]), [0, 0.5 * size.width / size.height]);
 		const placement = timelineGeometryMatrix({ sourceSize: size, sceneSize: size,
 			transform: { ...settings, fitMode: 'stretch', position, rotation: 0.25 } });
 		near(projectTimelineMatrix(placement, 0, size, view), TIMELINE_IDENTITY);
@@ -259,4 +260,15 @@ test('evaluates roll keyframes and expressions without clamping complete turns',
 	assert.equal(evaluate(binding), 3);
 	assert.equal(evaluate({ inputSource: 'expression', expression: 'TIME * 4' }), 3);
 	assert.equal(evaluate({ inputSource: 'literal', value: NaN }), 0);
+});
+
+// 【カメラの初期距離は所属Sceneの比率で求め、Z=0の画面全体を保つ】
+// 正方形の定数を横長へ流用すると初期状態で縮小される。極端な横長でも近接限界に入れない。
+test('fits the reference plane with scene-specific camera defaults at every aspect ratio', () => {
+	for (const size of [{ width: 1920, height: 1080 }, { width: 1080, height: 1920 }, { width: 100, height: 100 }, { width: 16384, height: 1 }]) {
+		const params = createTimelineCameraParameterValues(size);
+		const view = evaluator.evaluate({ paramValues: params, automationGraphs: [] }, 0, false, undefined, size);
+		near([view.z], [getDefaultCameraDistance(size)]);
+		near(projectTimelineMatrix(TIMELINE_IDENTITY, 0, size, view), TIMELINE_IDENTITY);
+	}
 });

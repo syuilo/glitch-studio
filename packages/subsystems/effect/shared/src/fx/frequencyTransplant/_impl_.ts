@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, inputUvScale, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
@@ -131,7 +132,7 @@ export default implementEffect<typeof definition>({
 					virtualSize: geometry.virtualSize,
 					inputSamplingGrid: getSamplingGrid(params.input, geometry.virtualSize),
 					donorSamplingGrid: getSamplingGrid(params.donor, geometry.virtualSize),
-					donorOffset: params.donorOffset,
+					donorOffset: spatialToNormalizedCoordinates(params.donorOffset, resolution),
 					blockColumns: geometry.columns,
 					minFrequency: Math.min(minFrequency, maxFrequency),
 					maxFrequency: Math.max(minFrequency, maxFrequency),

@@ -124,7 +124,6 @@ export default implementEffect<typeof definition>({
 				}
 				uniformValues.set({ aspect, seedCount, seedSpacing: referenceScale / density, maximumLength, stepSize, stepCount, arrowSpacing, arrowCount,
 					minimumMagnitude: Math.max(0, ctx.params.minimumMagnitude),
-					directionSpace: ctx.params.directionSpace === 'displacement' ? 1 : 0,
 					lineWidth: Math.max(0, ctx.params.lineWidth) * referenceScale, arrowSize: Math.max(0, ctx.params.arrowSize) * referenceScale, pixelSize: 1 / shortDimension,
 					maximumMagnitude: Math.max(0.000001, ctx.params.maximumMagnitude), zeroColor: ctx.params.zeroColor, overflowColor: ctx.params.overflowColor,
 				});

@@ -300,7 +300,7 @@ test('keeps background sampling unchanged when the composite bounds expand', () 
 	const { device, calls, encoder } = gpuFixture();
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
 	const background = { kind: 'texture', texture: device.createTexture({ size: [8, 4], format: 'rgba16float' }) };
-	const settings = { blendMode: 0, opacity: 1, fitMode: 'contain', position: [2, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
+	const settings = { blendMode: 0, opacity: 1, fitMode: 'contain', position: [1, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
 	const output = compositor.render(encoder, background, { kind: 'uniform', value: [0, 0, 0, 0] }, settings, { parent: [1, 0, 0, 1, 0, 0], depth: 0 });
 	assert.deepEqual([output.texture.width, output.texture.height], [16, 4]);
 	assert.deepEqual([...calls.writes.at(-1).slice(4, 6)], [1, 1]);
@@ -342,8 +342,9 @@ test('maps source-relative origins through fit while keeping positions in output
 		compositor.render(encoder, background, source, { ...settings, fitMode: fit });
 		const uniforms = calls.writes[writeIndex];
 		// 逆行列へPositionを渡すと、fit前の素材支点に戻る。
-		const mapped = [uniforms[0] * settings.position[0] + uniforms[1] * settings.position[1] + uniforms[2], uniforms[4] * settings.position[0] + uniforms[5] * settings.position[1] + uniforms[6]];
-		assert.deepEqual(mapped, settings.origin);
+		const mapped = [uniforms[0] * settings.position[0] * 2 + uniforms[1] * settings.position[1] * 2 + uniforms[2], uniforms[4] * settings.position[0] * 2 + uniforms[5] * settings.position[1] * 2 + uniforms[6]];
+		const sourceSize = source.kind === 'texture' ? [source.texture.width, source.texture.height] : [100, 100];
+		assert.deepEqual(mapped, settings.origin.map((value, axis) => value * 2 * Math.max(...sourceSize) / sourceSize[axis]));
 		assert.equal(1 / uniforms[0], Math.abs(expectedOrigin[0]));
 		assert.equal(1 / uniforms[5], Math.abs(expectedOrigin[1]));
 	}

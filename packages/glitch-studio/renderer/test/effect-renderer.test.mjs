@@ -118,7 +118,9 @@ test('evaluates pointer positions as vectors and redraws when the pointer moves'
 		const context = f.context({ pointerPosition: { x, y } });
 		await f.prepare(context);
 		f.render(context);
-		assert.deepEqual(p.renders.at(-1).params, { position: [x, y], x, selected: [x, y], modified: [x, -y] });
+		const common = x <= -999 && y <= -999 ? [x, y] : [x / 2, y * 9 / 32];
+		assert.deepEqual(p.renders.at(-1).params, { position: common, x: common[0], selected: common, modified: [common[0], -common[1]] });
+		assert.deepEqual(p.renders.at(-1).pointerPosition, { x: common[0], y: common[1] });
 		const renderCount = p.renders.length;
 		f.render(f.context({ pointerPosition: { x, y } }));
 		assert.equal(p.renders.length, renderCount);
@@ -128,6 +130,7 @@ test('evaluates pointer positions as vectors and redraws when the pointer moves'
 
 // 【解決済み入力と描画コンテキストを変更せず渡し、借用リソースを破棄しない】
 // ノードやSceneを用意せず利用でき、配列・構造体内のShaderInputもそのまま渡ることを保証する。
+// ポインターも呼び出し側で解決した共通単位のまま渡し、描画領域による二重換算を防ぐ。
 // submitや入力テクスチャの寿命を奪わず、繰り返し描画でも初期化・確保を増やさない。
 test('executes a standalone effect with resolved borrowed inputs and reusable resources', t => {
 	const f = single(t, { lazy: true });
@@ -147,7 +150,7 @@ test('executes a standalone effect with resolved borrowed inputs and reusable re
 	assert.equal(f.instances.length, 1);
 	assert.equal(f.renderer.resourceVersion, version);
 	assert.equal(f.renders[0].params, params);
-	for (const key of ['time', 'timeDelta', 'pointerPosition', 'pointerVector', 'commandEncoder']) assert.equal(f.renders[0][key], frame[key]);
+	for (const key of ['time', 'timeDelta', 'commandEncoder', 'pointerPosition', 'pointerVector']) assert.equal(f.renders[0][key], frame[key]);
 	assert.deepEqual(f.states.at(-1).outputs, { output: { width: 16, height: 9 }, extra: null });
 	f.renderer.dispose();
 	assert.equal(input.destroyed, 0);

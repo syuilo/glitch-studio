@@ -33,7 +33,6 @@ export default implementEffect<typeof definition>({
 					cellSize: getSizeReferenceLength(ctx.params.sizeReference, output) / shortDimension / Math.max(1, ctx.params.density),
 					maximumMagnitude: Math.max(0.000001, ctx.params.maximumMagnitude),
 					lineWidth: Math.min(0.5, Math.max(0, ctx.params.lineWidth)),
-					directionSpace: ctx.params.directionSpace === 'displacement' ? 1 : 0,
 					gridWidth: Math.min(0.5, Math.max(0, ctx.params.gridWidth)),
 					zeroColor: ctx.params.zeroColor,
 					overflowColor: ctx.params.overflowColor,

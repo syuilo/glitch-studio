@@ -228,7 +228,7 @@ async function checkChromaticAspectRatio(device: GPUDevice, vertex: GPUShaderMod
 				gStrength: 1.5,
 				bStrength: 2,
 				samples: 4,
-				vector: [0.2, -0.15],
+				vector: [0.1 * scale / Math.max(width, height), -0.075 * scale / Math.max(width, height)],
 			};
 			const encoder = device.createCommandEncoder();
 			instance.render({

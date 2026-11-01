@@ -31,11 +31,7 @@ export default defineEffect({
 		},
 		zeroColor: { dataType: { kind: 'color' }, ui: { label: 'Zero Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 		overflowColor: { dataType: { kind: 'color' }, ui: { label: 'Overflow Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0.1, 0.25, 1] } },
-		directionSpace: {
-			dataType: { kind: 'enum', options: ['component', 'displacement'] },
-			ui: { label: 'Direction Space', control: { labels: { component: 'Vector Components', displacement: 'Image Displacement' } } },
-			defaultValue: { inputSource: 'literal', value: 'component' },
-		},
+
 	},
 	primaryInputParameter: 'vector',
 	resolutionInputParameters: ['vector'],

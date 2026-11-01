@@ -39,7 +39,7 @@ export default implementEffect<typeof definition>({
 					bStrength: ctx.params.bStrength,
 					samples: ctx.params.samples,
 					start: ctx.params.start,
-					vector: ctx.params.vector,
+					vector: ctx.params.vector.map(value => value * 2 * Math.max(ctx.outputDataMap.output.texture.width, ctx.outputDataMap.output.texture.height) / referenceLength),
 					normalize: ctx.params.normalize ? 1 : 0,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);

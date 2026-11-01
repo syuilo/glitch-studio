@@ -33,8 +33,8 @@ export default implementEffect<typeof definition>({
 				// 通常のtransparent入力は数値0を混ぜるが、SDFの0は背景ではなく境界を表す。
 				// 距離は端を延長して読み、元の透明領域は変換後のマスクへ適用する。
 				const distanceInput = transparent ? { ...input, wrapMode: 'clamp' as const } : input;
-				// 入力距離は再スケールせず、指定した幅だけをSDFの高さ単位へ変換する。
-				const referenceScale = getSizeReferenceLength(ctx.params.sizeReference, output) / output.height;
+				// 入力距離は再スケールせず、指定した幅だけをSDFの共通単位へ変換する。
+				const referenceScale = getSizeReferenceLength(ctx.params.sizeReference, output) / Math.max(output.width, output.height);
 				uniformValues.set({
 					inputScale: transparent ? inputUvScale(input.texture, output, input.fitMode) : [1, 1],
 					inputSize: transparent ? [input.texture.width, input.texture.height] : [1, 1],

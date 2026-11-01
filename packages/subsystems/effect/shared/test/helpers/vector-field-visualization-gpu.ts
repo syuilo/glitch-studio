@@ -25,7 +25,7 @@ export async function run() {
 	] };
 	const defaults: Parameters = {
 		vector: constantShaderInput('vector', [0, 0]), density: 1, sizeReference: 'shortSide', maximumMagnitude: 1, lineWidth: 0.04,
-		ramp, zeroColor: [0, 1, 0, 0.5], overflowColor: [0.2, 0.6, 0.8, 0.25], directionSpace: 'component', gridWidth: 0, gridColor: [1, 1, 1, 0.5],
+		ramp, zeroColor: [0, 1, 0, 0.5], overflowColor: [0.2, 0.6, 0.8, 0.25], gridWidth: 0, gridColor: [1, 1, 1, 0.5],
 	};
 	const nearColor = (actual: number[], expected: number[], label: string) => assert(actual.every((value, channel) => Math.abs(value - expected[channel] * 255) <= 2), `${label}: ${actual}`);
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: wgpu.defaultVertexShaderModule }, fragment: { module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
@@ -140,13 +140,11 @@ export async function run() {
 		nearColor(thickGrid.at(0.25, 0), [0.2, 0.4, 0.5, 0.5], 'grid color is premultiplied once');
 		nearColor(thickGrid.at(0.25, 0.25), [0.2, 0.4, 0.5, 0.5], 'grid intersections do not accumulate alpha');
 
-		// 【解像度と縦横比に依存しない図形・方向モード】
+		// 【解像度と縦横比に依存しない図形・等方的な方向】
 		// 長方形でも点とセルを歪めず、変位方向の補正が大きさや配色へ混入しないことを確認する。
 		const diagonal = await wide.render({ vector: constantShaderInput('vector', [0.5, 0.5]) });
 		assert(diagonal.at(-0.13, -0.13)[3] > 100 && diagonal.at(-0.2, -0.1)[3] === 0, 'component direction stays at 45 degrees on a wide output');
-		const displacement = await wide.render({ vector: constantShaderInput('vector', [0.5, 0.5]), directionSpace: 'displacement' });
-		assert(displacement.at(-0.2, -0.1)[3] > 100 && displacement.at(-0.13, -0.13)[3] === 0, 'displacement direction reflects the output aspect ratio');
-		nearColor(displacement.at(0, 0), diagonal.at(0, 0).map(value => value / 255), 'direction space preserves the magnitude color');
+		assert(!('directionSpace' in definition.paramDefs), 'spatial vectors have one fixed isotropic direction contract');
 		const wideDot = await wide.render({ lineWidth: 0.1 });
 		assert(wideDot.at(0.04, 0)[3] > 100 && wideDot.at(0, 0.04)[3] > 100 && wideDot.at(0.06, 0)[3] === 0, 'dots remain circular on a wide output');
 		const scaled = await larger.render({ vector: constantShaderInput('vector', [1, 0]) });

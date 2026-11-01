@@ -10,8 +10,8 @@ export const timelineTransformParamDefs = {
 			label: 'Position XY',
 			control: {
 				controlType: 'xy',
-				min: -2,
-				max: 2,
+				min: -0.5,
+				max: 0.5,
 				step: 0.01,
 			},
 		},

@@ -16,7 +16,7 @@ export default defineEffect({
 		// Positionは画面座標で指定し、移動量も同じ座標系で前回描画値との差分から求める。
 		position: {
 			dataType: { kind: 'vector' },
-			ui: { label: 'Position', control: { controlType: 'xy', min: -1, max: 1, step: 0.01 } },
+			ui: { label: 'Position', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.01 } },
 			canNode: false,
 			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
@@ -28,16 +28,7 @@ export default defineEffect({
 			},
 			defaultValue: { inputSource: 'literal', value: 0.3 },
 		},
-		// Screenは各軸の画面寸法、Isotropicは長辺を共通の距離単位とする。
-		// scalarは常に長辺基準で測り、この選択によって強さの意味を変えない。
-		vectorCoordinateSystem: {
-			dataType: { kind: 'enum', options: ['screen', 'isotropic'] },
-			ui: {
-				label: 'Vector Coordinates',
-				control: { labels: { screen: 'Screen', isotropic: 'Isotropic (Long Side)' } },
-			},
-			defaultValue: { inputSource: 'literal', value: 'screen' },
-		},
+
 		radius: {
 			dataType: { kind: 'scalar' },
 			ui: {

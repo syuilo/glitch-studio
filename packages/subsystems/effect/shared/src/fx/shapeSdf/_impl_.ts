@@ -1,3 +1,4 @@
+import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -27,14 +28,12 @@ export default implementEffect<typeof definition>({
 		const group = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		return {
 			render: ctx => {
-				// 公開する寸法だけを換算する。出力SDFは後段と共有する高さ=1の距離を維持する。
-				const referenceScale = getSizeReferenceLength(ctx.params.sizeReference, resolution) / resolution.height;
+				// Size Referenceは見た目の寸法だけに適用し、位置・形状計算・出力距離は共通単位で揃える。
+				const referenceScale = getSizeReferenceLength(ctx.params.sizeReference, resolution) / Math.max(resolution.width, resolution.height);
 				uniformValues.set({
 					position: ctx.params.position,
 					halfSize: ctx.params.size.map(value => value * 0.5 * referenceScale),
-					// 位置は画面座標、距離は縦横とも描画領域の高さを1とする。
-					// 比率補正は形状を移動してから行い、横長・縦長でも円を歪ませない。
-					aspectRatio: resolution.width / resolution.height,
+					halfExtent: getSpatialHalfExtent(resolution),
 					rotation: (ctx.params.rotation % 1) * (2 * Math.PI),
 					cornerRadius: Math.max(0, Math.min(ctx.params.cornerRadius * referenceScale, ...ctx.params.size.map(value => value * 0.5 * referenceScale))),
 					shapeType: ctx.params.shape === 'ellipse' ? 0 : 1,

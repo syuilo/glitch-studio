@@ -54,8 +54,8 @@ export default implementEffect<typeof definition>({
 		const frameViews = frames.map(texture => texture.createView());
 		const flow = createTexture(vectorFormat);
 		const flowView = flow.createView();
-		const values = new Float32Array(6);
-		values.set([1 / size.width, 1 / size.height]);
+		const values = new Float32Array(8);
+		values.set([1 / size.width, 1 / size.height, resolution.width / Math.max(resolution.width, resolution.height), resolution.height / Math.max(resolution.width, resolution.height)]);
 		const uniforms = device.createBuffer({
 			size: values.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -110,7 +110,7 @@ export default implementEffect<typeof definition>({
 				// A pause or invalid interval starts a new history instead of emitting a jump.
 				if (!Number.isFinite(ctx.timeDelta) || ctx.timeDelta <= 0 || ctx.timeDelta > 250) hasPrevious = false;
 				values.set([Math.max(0.001, ctx.timeDelta / 1000), Math.max(0, ctx.params.strength),
-																Math.max(0.000001, ctx.params.confidence), Math.max(0, ctx.params.smoothing)], 2);
+																Math.max(0.000001, ctx.params.confidence), Math.max(0, ctx.params.smoothing)], 4);
 				device.queue.writeBuffer(uniforms, 0, values);
 				// 履歴解像度の丸めに左右されず、最終出力に配置された画像の動きを測る。
 				const capture = capturePipelines.update({ input }, ctx.outputDataMap.output.texture);

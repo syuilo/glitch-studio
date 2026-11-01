@@ -113,9 +113,9 @@ test('exposes exactly the declared variables for each scope', async () => {
 		effectDefinitions: { probe: { paramDefs: { value: def('value') } } },
 		parameterEvaluator: { evaluate(binding, context) { moduleVariables = context.variables; return 0; } },
 	});
-	renderer.evaluateParameters({ ...frame, evaluatedParamValues: new Map() });
+	renderer.evaluateParameters({ ...frame, pointerPositionPrev: frame.pointerPosition, evaluatedParamValues: new Map() });
 	assert.deepEqual(Object.keys(moduleVariables).sort(), [...IN_VISUAL_MODULE_VAR_DEFS].sort());
-	assert.deepEqual(moduleVariables, moduleScope.variables);
+	assert.deepEqual(moduleVariables, { ...moduleScope.variables, POINTER_POSITION: [0.125, -0.1875], ASPECT_RATIO: 2 });
 	assert.deepEqual(Object.keys(layerScope.variables).sort(), [...LAYER_VAR_DEFS].sort());
 	// モジュール専用変数も照会し、レイヤーへ漏れていないことを確認する。
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;

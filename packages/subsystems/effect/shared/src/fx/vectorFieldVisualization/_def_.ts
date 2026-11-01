@@ -46,11 +46,7 @@ export default defineEffect({
 		zeroColor: { dataType: { kind: 'color' }, ui: { label: 'Zero Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 		overflowColor: { dataType: { kind: 'color' }, ui: { label: 'Overflow Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0.1, 0.25, 1] } },
 		// 数値の大きさと、画像上の変位方向の確認を切り替えられるよう、方向の解釈だけを分離する。
-		directionSpace: {
-			dataType: { kind: 'enum', options: ['component', 'displacement'] },
-			ui: { label: 'Direction Space', control: { labels: { component: 'Vector Components', displacement: 'Image Displacement' } } },
-			defaultValue: { inputSource: 'literal', value: 'component' },
-		},
+
 		gridWidth: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Grid Width', control: { controlType: 'range', min: 0, max: 0.5, step: 0.001 } },

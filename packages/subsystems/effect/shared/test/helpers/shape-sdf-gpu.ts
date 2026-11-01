@@ -75,7 +75,7 @@ export async function run() {
 			};
 			const render = createEffect(129, 129, precise);
 			const sample = createEffect(1, 1, precise);
-			const at = async (point: [number, number], settings: Partial<Parameters>) => (await sample({ ...settings, position: [-point[0] * 2, -point[1] * 2] }))[0];
+			const at = async (point: [number, number], settings: Partial<Parameters>) => (await sample({ ...settings, position: [-point[0], -point[1]] }))[0];
 
 			// 【円の内外と中心の距離】中心・境界・外側を数値で確認する。
 			// 画面中心からの半径が寸法の半分であることも、既知の距離と照合する。
@@ -129,9 +129,9 @@ export async function run() {
 			near(await at([0.2, 0.2], rotated), Math.hypot(0.2, 0.2) - 0.1, 'clockwise short axis');
 			near(await at([0.2, -0.2], { ...rotated, rotation: -0.875 }), Math.hypot(0.2, 0.2) - 0.3, 'negative turn');
 			near(await at([0.2, -0.2], { ...rotated, rotation: 1000.125 }), Math.hypot(0.2, 0.2) - 0.3, 'whole turns');
-			const shifted = await render({ position: [0, 64 / 129] });
+			const shifted = await render({ position: [0, 32 / 129] });
 			near(shifted[32 * 129 + 64], -0.25, 'positive y moves upwards');
-			near((await sample({ position: [3, 0] }))[0], 1.25, 'offscreen shape and unclamped distance');
+			near((await sample({ position: [3, 0] }))[0], 2.75, 'offscreen shape and unclamped distance');
 			near((await sample({ size: [10, 10] }))[0], -5, 'shape crosses screen boundary');
 			checks.push(`${label}: position rotation and offscreen geometry`);
 
@@ -145,27 +145,27 @@ export async function run() {
 			for (const y of [0, 16, 32, 48, 64]) for (const x of [16, 24, 32, 40, 48]) {
 				const expected = small[y * 65 + x];
 				near(large[(y * 3 + 1) * 195 + x * 3 + 1], expected, `resolution-independent distance at ${x},${y}`);
-				near(wide[y * 129 + x + 32], expected, 'landscape distance');
+				near(wide[y * 129 + x + 32], expected * 65 / 129, 'landscape common distance');
 				near(tall[y * 33 + x - 16], expected, 'portrait distance');
 			}
 			checks.push(`${label}: resolution and aspect ratio independence`);
 
-			// 【サイズ基準を変えてもSDFの出力距離は高さ単位を保つ】
+			// 【サイズ基準を変えてもSDFの出力距離は共通単位を保つ】
 			// SizeだけでなくCorner Radiusも同じ倍率で換算されることを、角丸矩形の角で確認する。
 			for (const [width, height] of [[129, 65], [65, 129]]) {
 				const referenceRenderer = createEffect(width, height, precise);
 				for (const sizeReference of ['height', 'width', 'shortSide', 'longSide'] as const) {
 					const basis = sizeReference === 'height' ? height : sizeReference === 'width' ? width : sizeReference === 'shortSide' ? Math.min(width, height) : Math.max(width, height);
-					const radius = 0.1 * basis / height;
+					const radius = 0.1 * basis / Math.max(width, height);
 					const field = await referenceRenderer({ sizeReference, size: [0.2, 0.2] });
 					const center = Math.floor(height / 2) * width + Math.floor(width / 2);
-					near(field[center], -radius, `${sizeReference} physical radius and height distance unit`);
-					near(field[center + 20], 20 / height - radius, `${sizeReference} outer distance`);
+					near(field[center], -radius, `${sizeReference} physical radius and common distance unit`);
+					near(field[center + 20], 20 / Math.max(width, height) - radius, `${sizeReference} outer distance`);
 					const rounded = await referenceRenderer({ sizeReference, shape: 'rectangle', size: [0.2, 0.2], cornerRadius: 0.1 });
 					near(rounded[center + 20], field[center + 20], `${sizeReference} corner radius conversion`);
 				}
 			}
-			checks.push(`${label}: four size references preserve height distance units`);
+			checks.push(`${label}: four size references preserve common distance units`);
 
 			// 【空形状・パラメータ変更・時刻非依存】寸法が消えてもNaNや古い画素を残さず、
 			// 有効な寸法へ戻した描画と別時刻の描画が初回出力に一致することを確認する。

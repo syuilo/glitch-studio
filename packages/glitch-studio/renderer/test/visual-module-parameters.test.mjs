@@ -34,8 +34,8 @@ function evaluate(evaluator, input) {
 		nodes: input.nodes, paramDefs: input.paramDefs, effectDefinitions: input.effectDefinitions,
 		automationGraphs: input.automationGraphs, contextResolution: input.resolution, parameterEvaluator: evaluator,
 	});
-	renderer.evaluateParameters({ pointerPosition: { x: 0, y: 0 }, ...input, isExport: input.isExport ?? false, evaluatedParamValues: paramValues });
-	return { paramValues, nodeParams: renderer.evaledNodeParams };
+	renderer.evaluateParameters({ pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, ...input, isExport: input.isExport ?? false, evaluatedParamValues: paramValues });
+	return { paramValues, nodeParams: new Map([...renderer.evaluatedEffectNodes].map(([id, evaluated]) => [id, evaluated.params])) };
 }
 
 const literal = value => ({ inputSource: 'literal', value });

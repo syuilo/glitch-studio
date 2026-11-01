@@ -74,7 +74,7 @@ test('keeps transform space and frozen time across folders and parameter contain
 	const f = fixture([parent]);
 	try {
 		await f.render(500, { timeMs: 400, timeDelta: 16 });
-		assert.deepEqual(f.calls.at(-1).renderSpace.parent.slice(4), [0.2, 0.3]);
+		assert.deepEqual(f.calls.at(-1).renderSpace.parent.slice(4), [0.4, 0.3 * 32 / 9]);
 		assert.equal(f.calls.at(-1).renderSpace.depth, 0.4);
 		assert.equal(f.calls.at(-1).sceneTimeMs, 400);
 	} finally { f.renderer.clear(); }
@@ -92,7 +92,7 @@ test('passes the outside background through nested transforms in timeline order'
 		assert.equal(result.gpuTime, 8);
 		const lower = f.calls.find(call => call.id === 'lower');
 		assert.deepEqual(lower.input, ['background']);
-		assert.deepEqual(lower.renderSpace.parent, [1, 0, 0, 1, 0.7, 0]);
+		assert.deepEqual(lower.renderSpace.parent, [1, 0, 0, 1, 1.4, 0]);
 		assert.equal(lower.renderSpace.depth, 0.7);
 		assert.deepEqual(f.calls.find(call => call.id === 'top').input, result.output.slice(0, -1));
 		assert.equal(f.calls.find(call => call.id === 'top').renderSpace, undefined);
@@ -109,7 +109,7 @@ test('keeps children alive across transform edits and skips empty or disabled su
 		parent.transformParamValues.position = literal([1, 2]);
 		await f.render(600);
 		assert.deepEqual(f.created, ['background', 'parent', 'child']);
-		assert.deepEqual(f.calls.at(-1).renderSpace.parent.slice(4), [1, 2]);
+		assert.deepEqual(f.calls.at(-1).renderSpace.parent.slice(4), [2, 64 / 9]);
 		parent.isDisabled = true;
 		assert.deepEqual((await f.render(700)).output, ['background']);
 		assert.deepEqual(f.destroyed, ['child']);
@@ -131,13 +131,13 @@ test('inherits frozen clocks without freezing motion from higher ancestors', asy
 	try {
 		await f.render(500, { timeMs: 400, timeDelta: 16 });
 		assert.equal(f.calls.at(-1).sceneTimeMs, 400);
-		assert.equal(f.calls.at(-1).renderSpace.parent[4], 1);
+		assert.equal(f.calls.at(-1).renderSpace.parent[4], 2);
 		inner.forceDisableMotionBlur = true;
 		await f.render(500, { timeMs: 400, timeDelta: 16 });
-		assert.equal(f.calls.at(-1).renderSpace.parent[4], 0.9);
+		assert.equal(f.calls.at(-1).renderSpace.parent[4], 1.8);
 		outer.forceDisableMotionBlur = true;
 		await f.render(500, { timeMs: 400, timeDelta: 16 });
-		assert.equal(f.calls.at(-1).renderSpace.parent[4], 0.8);
+		assert.equal(f.calls.at(-1).renderSpace.parent[4], 1.6);
 		assert.equal(f.calls.at(-1).timeDelta, 16);
 		assert.equal((await f.render(101, { timeMs: 99, timeDelta: 16 })).hasOutput, false);
 	} finally { f.renderer.clear(); }
@@ -156,11 +156,11 @@ test('passes composed scale and rotation to existing children without additional
 		await f.render(500);
 		const c = Math.SQRT1_2;
 		const near = (actual, expected) => actual.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-9));
-		near(f.calls.at(-1).renderSpace.parent, [2 * c, -c * 16 / 9, c * 9 / 8, c, 0.2, 0.2]);
+		near(f.calls.at(-1).renderSpace.parent, [2 * c, -c * 16 / 9, c * 9 / 8, c, 0.4, 0.2 * 32 / 9]);
 		near(f.calls.at(-1).renderSpace.screenParent, f.calls.at(-1).renderSpace.parent);
 		outer.transformParamValues.scale = literal([0, -1]);
 		const result = await f.render(600);
-		near(f.calls.at(-1).renderSpace.parent, [0, c * 16 / 9, 0, -c, 0, -0.2]);
+		near(f.calls.at(-1).renderSpace.parent, [0, c * 16 / 9, 0, -c, 0, -0.2 * 32 / 9]);
 		assert.deepEqual(f.created, ['outer', 'inner', 'child']);
 		assert.deepEqual(result.output, ['child']);
 		assert.equal(result.gpuTime, 2);

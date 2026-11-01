@@ -5,6 +5,8 @@ fn modVec2f(a: vec2f, b: vec2f) -> vec2f {
 
 struct Uniforms {
 	coordinateScale: vec2f,
+	displacementScale: vec2f,
+	vectorToPatternScale: f32,
 	density: f32,
 	margin: f32,
 	symbolTexturesCount: u32,
@@ -40,7 +42,7 @@ fn getSourceColor(uv: vec2f) -> vec4f {
 	// セルの座標を入力参照の座標へ戻せば、ベクトル値はそのまま変位に使える。
 	var position = toOutputCoordinates(uv, uniforms.coordinateScale);
 	if (uniforms.forceFieldWarp == 1) {
-		position -= read_forceField(position);
+		position -= read_forceField(position) * uniforms.displacementScale;
 	}
 	return read_input(position);
 }
@@ -48,7 +50,7 @@ fn getSourceColor(uv: vec2f) -> vec4f {
 fn getForceFieldAspectVector(aspectUv: vec2f) -> vec2f {
 	let position = toOutputCoordinates(aspectUv, uniforms.coordinateScale);
 	// 参照位置のfitとは別に、ベクトル値をセルの座標系へ変換する。
-	return toPatternCoordinates(read_forceField(position), uniforms.coordinateScale);
+	return read_forceField(position) * uniforms.vectorToPatternScale;
 }
 
 fn isSimilar(a: vec4f, b: vec4f, c: vec4f, d: vec4f, threshold: f32) -> bool {

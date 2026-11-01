@@ -8,6 +8,7 @@ struct Uniforms {
 	fresnelColor: vec4f,
 	tintColor: vec4f,
 	aspectRatio: f32,
+	distanceToHeight: f32,
 	refraction: f32,
 	thickness: f32,
 	curvature: f32,
@@ -32,7 +33,10 @@ struct Uniforms {
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 fn distanceAt(position: vec2f) -> f32 {
-	let distance = read_sdf(position);
+	let inputDistance = read_sdf(position);
+	// SDFの公開単位は長辺全体=1。屈折モデル内部の高さ単位へ一度だけ換算する。
+	if (inputDistance == 65504.0) { return inputDistance; }
+	let distance = inputDistance * uniforms.distanceToHeight;
 	if (distance == 65504.0 || uniforms.transparentSdf == 0u) { return distance; }
 	let extent = vec2f(uniforms.aspectRatio, 1.0) * 0.5;
 	return max(distance, rectangleDistance(position * extent, extent / uniforms.sdfScale, 0.0));

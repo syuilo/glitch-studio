@@ -46,7 +46,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// 空配列では剰余の0除算を避け、Size=0では背景をそのまま返す。
 	if (count_colors == 0u || uniforms.size == 0.0) { return background; }
 
-	// offsetは画面の半幅・半高さを1とする。回転前に縦横の単位を揃えて歪みを防ぐ。
+	// offsetはCPU側で共通単位から画像参照座標へ換算済み。回転前に縦横の単位を揃えて歪みを防ぐ。
 	// 正のAngleで模様を時計回りに回すため、参照座標を反時計回りに回転する。
 	let shapeUV = rotate((position - uniforms.offset) * uniforms.coordinateScale * 0.5, uniforms.angle) / uniforms.scale + vec2f(0.5);
 	let time = 0.2 * (uniforms.time + 2503.4);

@@ -146,7 +146,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 		context!.direction = 'ltr';
 		const layout = layoutText({
 			text: values.text,
-			fontSize: values.size * frame.height,
+			fontSize: values.size * Math.max(frame.width, frame.height),
 			outlineWidth: values.outlineWidth,
 			lineHeight: values.lineHeight,
 			alignment: values.align,
@@ -158,8 +158,8 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 		});
 		if (layout) context!.font = `${layout.fontSize}px ${font.family}`;
 		const ink = layout && measureTextInkBounds(layout, line => context!.measureText(line));
-		const positionX = (values.position[0] + 1) * frame.width / 2;
-		const positionY = (1 - values.position[1]) * frame.height / 2;
+		const positionX = frame.width / 2 + values.position[0] * Math.max(frame.width, frame.height);
+		const positionY = frame.height / 2 - values.position[1] * Math.max(frame.width, frame.height);
 		let pixels = {
 			left: 0,
 			top: 0,

@@ -68,7 +68,9 @@ export type EffectRenderContext<Options extends Record<string, ParameterDefiniti
 	time: number;
 	/** 前回描画からの経過時間（ミリ秒）。 */
 	timeDelta: number;
+	/** 中央原点・+Yが上・長辺全体=1の位置。両軸<=-999は未入力の予約値。 */
 	pointerPosition: { x: number; y: number; };
+	/** ポインター位置と同じ共通単位で測った移動量。 */
 	pointerVector: { x: number; y: number; };
 	outputDataMap: EffectOutputDataMap<Outputs>;
 	// この描画で必要な出力。定義済みのポート名だけを許可する。省略時は全出力を必要とする。

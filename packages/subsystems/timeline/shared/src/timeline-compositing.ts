@@ -79,8 +79,8 @@ export const timelineCompositingParamDefs = {
 			label: 'Position',
 			control: {
 				controlType: 'xy',
-				min: -2,
-				max: 2,
+				min: -0.5,
+				max: 0.5,
 				step: 0.01,
 			},
 		},
@@ -95,8 +95,8 @@ export const timelineCompositingParamDefs = {
 			label: 'Origin',
 			control: {
 				controlType: 'xy',
-				min: -2,
-				max: 2,
+				min: -0.5,
+				max: 0.5,
 				step: 0.01,
 			},
 		},

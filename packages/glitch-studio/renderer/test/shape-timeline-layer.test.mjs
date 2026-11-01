@@ -119,7 +119,7 @@ test('freezes layer content and compositing in preview and export and refreshes 
 		assert.ok(moving[0].context.sceneTimeMs < 100 && moving.at(-1).context.sceneTimeMs > 100);
 		const composites = f.calls.draws.filter(draw => draw.isCompositing);
 		assert.equal(composites.length, 8);
-		for (let index = 1; index < composites.length; index += 2) near(composites[index].uniforms.inverseX[2], -0.1);
+		for (let index = 1; index < composites.length; index += 2) near(composites[index].uniforms.inverseX[2], -0.2);
 		const edited = { ...foreground, forceDisableMotionBlur: false };
 		f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: edited.id, layer: edited, changes: [{ type: 'motionBlur' }] }]);
 		f.calls.evaluations.length = 0;
@@ -167,31 +167,32 @@ test('propagates frame reference times through nested groups and trimmed scenes 
 	assert.equal(child.layers[0].forceDisableMotionBlur, false);
 });
 
-// 【描画範囲を切り出してもScene高さの単位と輪郭配置を維持する】
+// 【描画範囲を切り出してもScene長辺の単位と輪郭配置を維持する】
 // 画面外も描くためテクスチャ寸法は変わるが、形状・輪郭・回転の基準寸法は変えない。
 // プレビュー倍率の二重適用とScene時刻の小数の喪失を防ぐ。
 test('renders all stroke alignments at scene resolution and evaluates subframe scene time', async t => {
 	const f = await fixture(t);
 	await f.setup(['inside', 'center', 'outside'].map(alignment => layer(alignment, 'rectangle', {
-		position: expression('[TIME, 0]'), size: literal([0.6, 0.3]), rotation: literal(0.25),
-		strokeEnabled: literal(true), strokeWidth: literal(0.02), strokeAlignment: literal(alignment), cornerRadius: literal(10),
+		position: expression('[TIME, 0]'), size: literal([0.6 * 9 / 16, 0.3 * 9 / 16]), rotation: literal(0.25),
+		strokeEnabled: literal(true), strokeWidth: literal(0.02 * 9 / 16), strokeAlignment: literal(alignment), cornerRadius: literal(10),
 	})));
 	await f.manager.renderTimelineFrame(350.25, 0);
 	const draws = f.shapeDraws();
+	const composites = f.calls.draws.filter(draw => draw.isCompositing);
 	assert.equal(draws.length, 3);
 	for (const [index, draw] of draws.entries()) {
 		assert.equal(draw.texture.format, 'rgba16float');
 		assert.ok(draw.texture.width < 800 && draw.texture.height < 450);
-		near(draw.uniforms.bounds[2] * 800 / draw.texture.width, 1, 0.01);
-		near(draw.uniforms.position[0], 0.35025);
+		near(draw.uniforms.localHalfExtent[0] * 900 / draw.texture.width, 1, 0.01);
+		// 配置位置は描画用uniformではなく、合成へ渡す素材の範囲で確認する。
+		near(composites[index].uniforms.sourceBounds[0], 0.7005);
 		near(draw.uniforms.halfSize[0], 0.3);
 		near(draw.uniforms.halfSize[1], 0.15);
 		near(draw.uniforms.cornerRadius[0], 0.15);
 		near(draw.uniforms.rotation[0], Math.PI / 2);
 		near(draw.uniforms.strokeInside[0], index * 0.01);
 		near(draw.uniforms.strokeOutside[0], 0.02 - index * 0.01);
-		near(draw.uniforms.pixelSize[0], draw.uniforms.bounds[3] / draw.texture.height);
-		near(draw.uniforms.aspectRatio[0], 1600 / 900);
+		near(draw.uniforms.pixelSize[0], 2 * draw.uniforms.localHalfExtent[1] / draw.texture.height);
 	}
 });
 
@@ -244,7 +245,7 @@ test('preserves transparent replace output and releases resources across clip ga
 	await f.manager.renderTimelineFrame(450, 250);
 	const second = f.shapeDraws()[1];
 	assert.notEqual(second.texture, first.texture);
-	near(second.uniforms.position[0], 0.45);
+	near(f.calls.draws.findLast(draw => draw.isCompositing).uniforms.sourceBounds[0], 0.9);
 	f.manager.destroy();
 	assert.equal(second.texture.destroyed, true);
 });
@@ -262,9 +263,9 @@ test('uses the owning child scene resolution and time when nested', async t => {
 	await f.setup([], { timelineScenes: [parent, child] });
 	await f.manager.renderTimelineFrame(350.25, 0);
 	const draw = f.shapeDraws()[0];
-	near(draw.uniforms.aspectRatio[0], 1.5);
-	near(draw.uniforms.bounds[3] / draw.texture.height, 1 / 200);
-	near(draw.uniforms.position[0], 0.45025);
+	near(2 * draw.uniforms.localHalfExtent[0] / draw.texture.width, 1 / 200);
+	near(2 * draw.uniforms.localHalfExtent[1] / draw.texture.height, 1 / 200);
+	near(f.calls.draws.find(draw => draw.isCompositing).uniforms.sourceBounds[0], 0.9005);
 });
 
 // 【起点をまたぐ輪郭と進行率0・1を、通常の描画・キャッシュへ反映する】
@@ -284,9 +285,9 @@ test('updates animated wrapped stroke intervals without changing fill or texture
 	await f.manager.renderTimelineFrame(500, 0);
 	const partial = f.shapeDraws().at(-1);
 	near(partial.uniforms.strokeProgress[0], 0.5);
-	near(partial.uniforms.strokeStartPoint[0], -0.5);
+	near(partial.uniforms.strokeStartPoint[0], -8 / 9);
 	near(partial.uniforms.strokeStartPoint[1], 0);
-	near(partial.uniforms.strokeEndPoint[0], 0.5);
+	near(partial.uniforms.strokeEndPoint[0], 8 / 9);
 	near(partial.uniforms.strokeEndPoint[1], 0);
 	near(partial.uniforms.strokeSweepAngle[0], Math.PI);
 	assert.deepEqual(Array.from(partial.uniforms.fillColor), [0.5, 0.25, 0.75, 0.5]);
@@ -299,9 +300,9 @@ test('updates animated wrapped stroke intervals without changing fill or texture
 	await f.manager.renderTimelineFrame(500, 0);
 	const wrapped = f.shapeDraws().at(-1);
 	near(wrapped.uniforms.strokeStartPoint[0], 0);
-	near(wrapped.uniforms.strokeStartPoint[1], 0.5);
+	near(wrapped.uniforms.strokeStartPoint[1], 8 / 9);
 	near(wrapped.uniforms.strokeEndPoint[0], 0);
-	near(wrapped.uniforms.strokeEndPoint[1], -0.5);
+	near(wrapped.uniforms.strokeEndPoint[1], -8 / 9);
 });
 
 // 【グループ設定の変更で子の描画履歴を捨てず、入れ子の枠を現在の変形で返す】
@@ -320,7 +321,7 @@ test('updates group transforms while retaining child resources and reporting anc
 	await f.manager.renderTimelineAt(200);
 	const childTexture = f.shapeDraws()[0].texture;
 	assert.equal(previews.at(-1).clipId, 'clip');
-	assert.deepEqual(previews.at(-1).parentGeometries[0].matrix.map(value => Math.round(value * 1e6) / 1e6), [1, 0, 0, 1, -0.3, 0.3]);
+	assert.deepEqual(previews.at(-1).parentGeometries[0].matrix.map(value => Math.round(value * 1e6) / 1e6), [1, 0, 0, 1, -0.6, 1.066667]);
 	assert.deepEqual(previews.at(-1).geometry.sourceSize, { width: 800, height: 450 });
 	const editedOuter = structuredClone(outer);
 	editedOuter.compositingParamValues.position = literal([0.5, 0]);
@@ -329,7 +330,7 @@ test('updates group transforms while retaining child resources and reporting anc
 	await f.manager.renderTimelineAt(200);
 	assert.equal(childTexture.destroyed, false);
 	assert.equal(f.shapeDraws().length, 1);
-	assert.deepEqual(previews.at(-1).parentGeometries[0].matrix.map(value => Math.round(value * 1e6) / 1e6), [1, 0, 0, 1, 0.7, 0.3]);
+	assert.deepEqual(previews.at(-1).parentGeometries[0].matrix.map(value => Math.round(value * 1e6) / 1e6), [1, 0, 0, 1, 1.4, 1.066667]);
 	await f.manager.updateDynamicOptions({ transformObserver: { sceneId: 'scene', layerId: 'inner', requestId: 2 } });
 	await f.manager.renderTimelineAt(200);
 	assert.equal(previews.at(-1).clipId, null);
@@ -357,7 +358,7 @@ test('samples camera motion independently of frozen layer content and keeps cach
 	assert.equal(f.shapeDraws().length, 1);
 	const positions = f.calls.draws.filter(draw => draw.isCompositing).map(draw => draw.uniforms.inverseX[2]);
 	assert.equal(new Set(positions).size, 4);
-	assert.ok(positions[0] < 0.2 && positions.at(-1) > 0.2);
+	assert.ok(positions[0] < 0.4 && positions.at(-1) > 0.4);
 	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: camera.id, changes: [{ type: 'parameter', target: 'camera', kind: 'value' }],
 		layer: { ...camera, cameraParamValues: { ...camera.cameraParamValues, position: literal([0.4, 0]) } } }]);
 	await f.manager.renderTimelineFrame(200, 0);

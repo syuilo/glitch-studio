@@ -155,7 +155,7 @@ test('renders text at scene resolution with scene-time expressions and premultip
 	assert.equal(draw.texture.format, 'rgba16float');
 	assert.ok(draw.texture.width < 800 && draw.texture.height < 450);
 	assert.equal(f.calls.glyphs[0].text, '350.25');
-	assert.equal(f.calls.glyphs[0].font, '45px sans-serif');
+	assert.equal(f.calls.glyphs[0].font, '80px sans-serif');
 	for (const [index, value] of [0.4, 0.2, 0.1, 0.5].entries()) near(draw.uniforms.value_color[index], value);
 	assert.deepEqual(f.calls.uploads.map(upload => upload.origin.z), [0, 1, 2]);
 });
@@ -224,6 +224,6 @@ test('uses child scene time and resolution when nested', async t => {
 	await f.manager.renderTimelineFrame(350.25, 0);
 	const draw = f.textDraws()[0];
 	assert.ok(draw.texture.width < 300 && draw.texture.height < 200);
-	assert.equal(f.calls.glyphs[0].font, '20px sans-serif');
+	assert.equal(f.calls.glyphs[0].font, '30px sans-serif');
 	assert.equal(f.calls.glyphs[0].text, '450.25');
 });

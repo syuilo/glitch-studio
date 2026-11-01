@@ -1,4 +1,5 @@
 struct Uniforms {
+	displacementScale: vec2f,
 	channelBlendMode: u32,
 	inputBlendMode: u32,
 	leftSignal: vec3u,
@@ -10,7 +11,7 @@ struct Uniforms {
 @fragment
 fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	let input = read_input(uv);
-	let amount = read_amount(uv);
+	let amount = read_amount(uv) * uniforms.displacementScale;
 	let left = read_input(uv + amount);
 	let right = read_input(uv - amount);
 	let useLeft = uniforms.leftSignal != vec3u(0u);

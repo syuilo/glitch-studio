@@ -12,8 +12,8 @@ const commonShapeParamDefs = {
 			label: 'Position',
 			control: {
 				controlType: 'xy',
-				min: -2,
-				max: 2,
+				min: -0.5,
+				max: 0.5,
 				step: 0.01,
 			},
 		},
@@ -100,7 +100,7 @@ const commonShapeParamDefs = {
 	},
 } as const satisfies Record<string, ParameterDefinition>;
 
-// 寸法は輪郭を付ける前の全幅・全高。縦横とも描画先の高さを1とするため、
+// 寸法は輪郭を付ける前の全幅・全高。縦横とも描画先の長辺全体を1とするため、
 // 正方形や真円が横長のSceneで歪まず、プレビュー倍率によって大きさも変わらない。
 const sizeParamDef = {
 	dataType: { kind: 'vector' },

@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -65,7 +66,7 @@ export default implementEffect<typeof definition>({
 				}
 				uniformValues.set({
 					coordinateScale: [output.width / extent, output.height / extent],
-					offset: ctx.params.offset,
+					offset: spatialToNormalizedCoordinates(ctx.params.offset, output),
 					density: Math.max(1, ctx.params.density),
 					angle: ctx.params.angle * fullTurn,
 					brightness: Math.max(0, Math.min(1, ctx.params.brightness)),

@@ -29,7 +29,7 @@ let color = read_input(position);
 let amount = read_amount(position);
 ```
 
-- 入力名と型はエフェクト側のschemaで指定します。`position` は `vec2f` で、中央が `[0, 0]`、左下が `[-1, -1]`、右上が `[1, 1]` の座標です。戻り値はscalarなら `f32`、vectorなら `vec2f`、color/anyなら `vec4f` です。
+- 入力名と型はエフェクト側のschemaで指定します。`position` は `vec2f` で、中央が `[0, 0]`、左下が `[-1, -1]`、右上が `[1, 1]` の内部画像参照座標です。公開する位置・変位・距離は長辺全体=1の共通単位で、実装境界で換算します。`readGradient_*`の偏微分もこの内部座標に対する値なので、公開する勾配は各軸の共通単位の半幅で割ります。戻り値はscalarなら `f32`、vectorなら `vec2f`、color/anyなら `vec4f` です。
 - テクスチャ入力では、参照関数が入力自身と出力先のサイズに基づくfit補正と、接続のwrap/filterを適用します。`NodeOutputReference` の必須設定を使い、通常の接続作成時の初期値は `cover` / `repeatMirrored` / `linear` です。containの余白もwrapに従い、自動で透明にはしません。定数入力は位置によらず同じ値を返し、fit/wrap/filterの影響を受けません。
 - 共通化するのは入力の参照座標とサンプリングです。エフェクト固有の変形や、ベクトル値の成分変換まで自動で行うものではありません。
 - 通常のfragmentではimplicit samplingを使います。computeや画素ごとに異なる分岐から参照する場合は、生成時に `sampling: 'level0'` を指定します。これはLODの指定であり、nearestの指定ではありません。

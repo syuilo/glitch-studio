@@ -41,6 +41,6 @@ fn distanceField(frag: FragmentIn) -> @location(0) f32 {
 	let inside = insideMask(textureLoad(maskTexture, pixel, 0).r);
 	let identifier = textureLoad(identifierTexture, pixel, 0).r;
 	if (identifier == 0u) { return select(65504.0, -65504.0, inside); }
-	let distance = length(boundaryPosition(identifier) - (vec2f(pixel) + 0.5)) / f32(uniforms.size.y);
+	let distance = length(boundaryPosition(identifier) - (vec2f(pixel) + 0.5)) / f32(max(uniforms.size.x, uniforms.size.y));
 	return select(distance, -distance, inside);
 }

@@ -1,13 +1,15 @@
 import { transformTimelinePoint, multiplyTimelineAffine } from './affine.ts';
 import { CAMERA_NEAR_DISTANCE } from './layers/camera/camera.ts';
 import type { EvaluatedTimelineCamera } from './layers/camera/camera.ts';
-import { timelineSourceToScene } from './layer-transform.ts';
+import { timelineNormalizedGeometryMatrix } from './layer-transform.ts';
+import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import type { TimelineLayerGeometry, TimelinePoint } from './layer-transform.ts';
 import type { TimelineAffine } from './affine.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 export { transformTimelinePoint, multiplyTimelineAffine, invertTimelineAffine } from './affine.ts';
 export type { TimelineAffine } from './affine.ts';
 
+/** GPU合成用の画像参照座標。公開する位置・距離の共通単位とは区別する。 */
 export type TimelineBounds = { left: number; bottom: number; right: number; top: number };
 export const TIMELINE_FRAME: TimelineBounds = {
 	left: -1,
@@ -18,12 +20,7 @@ export const TIMELINE_FRAME: TimelineBounds = {
 export const TIMELINE_IDENTITY: TimelineAffine = [1, 0, 0, 1, 0, 0];
 
 export function timelineGeometryMatrix(geometry: TimelineLayerGeometry): TimelineAffine {
-	// 原点と2つの基底を既存の2D変換へ通す。fitや回転の縦横比補正を別実装にせず、
-	// プレビューのアンカーポイントとGPUの逆写像が同じ規則になるようにする。
-	const origin = timelineSourceToScene([0, 0], geometry);
-	const x = timelineSourceToScene([1, 0], geometry);
-	const y = timelineSourceToScene([0, 1], geometry);
-	return [x[0] - origin[0], x[1] - origin[1], y[0] - origin[0], y[1] - origin[1], ...origin];
+	return timelineNormalizedGeometryMatrix(geometry);
 }
 export function transformTimelineBounds(bounds: TimelineBounds, matrix: TimelineAffine): TimelineBounds {
 	const points = [[bounds.left, bounds.bottom], [bounds.right, bounds.bottom], [bounds.right, bounds.top], [bounds.left, bounds.top]].map(point => transformTimelinePoint(matrix, point as TimelinePoint));
@@ -65,9 +62,9 @@ export function projectTimelineMatrix(matrix: TimelineAffine, depth: number, fra
 	if (camera == null) return matrix;
 	const distance = camera.z - depth;
 	if (distance < CAMERA_NEAR_DISTANCE) return null;
-	// 縦の半画角と距離から、画面の半高を1とした倍率を求める。平面を傾けないため
+	// 縦の半画角と共通単位の距離から、Sceneの半高に対する投影倍率を求める。平面を傾けないため
 	// 平面内の全点で距離が等しく、透視投影も1枚につき1つの2D変換として扱える。
-	const scale = 1 / (Math.tan(camera.fieldOfView * Math.PI / 360) * distance);
+	const scale = getSpatialHalfExtent(frame)[1] / (Math.tan(camera.fieldOfView * Math.PI / 360) * distance);
 	// カメラ位置を引いてからロールの逆回転を適用する。映像と同じ縦横比補正を使い、
 	// 横長のSceneでもロールで映像が歪まないようにする。親のscaleは視点の位置にのみ反映済み。
 	const view = timelineGeometryMatrix({

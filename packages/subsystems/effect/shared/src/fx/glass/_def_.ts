@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'glass',
 	displayName: 'Glass',
 	description: {
-		'ja-JP': '2Dの符号付き距離場を形状として、入力画像にガラスの屈折・ぼかし・色収差・ハイライトを加えます。二次減衰または曲面のCurvature・IORによる屈折を選べます。SDFは内側が負、距離の単位は描画領域の高さを1とします。',
-		'en-US': 'Refracts, blurs, and lights an image through a negative-inside 2D SDF in render-height units. Choose quadratic falloff or a curved surface controlled by curvature and IOR.',
+		'ja-JP': '2Dの符号付き距離場を形状として、入力画像にガラスの屈折・ぼかし・色収差・ハイライトを加えます。二次減衰または曲面のCurvature・IORによる屈折を選べます。SDFは内側が負、距離の単位は描画領域の長辺全体を1とします。',
+		'en-US': 'Refracts, blurs, and lights an image through a negative-inside 2D SDF in common units with one full render long side. Choose quadratic falloff or a curved surface controlled by curvature and IOR.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
@@ -86,7 +86,7 @@ export default defineEffect({
 		},
 		innerZoomCenter: {
 			dataType: { kind: 'vector' },
-			ui: { label: 'Inner Zoom Center', control: { controlType: 'xy', min: -2, max: 2, step: 0.01 } },
+			ui: { label: 'Inner Zoom Center', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
 		lightAngle: {

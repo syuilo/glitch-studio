@@ -17,15 +17,15 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		// ±2で画面幅/高さ1つ分の移動。これはUIの操作範囲であり、入力値自体は制限しない。
+		// ±1で長辺全体1つ分の移動。これはUIの操作範囲であり、入力値自体は制限しない。
 		translation: {
 			dataType: { kind: 'vector' },
 			ui: {
 				label: 'Translation',
 				control: {
 					controlType: 'vector',
-					min: -2,
-					max: 2,
+					min: -1,
+					max: 1,
 					step: 0.01,
 				},
 			},

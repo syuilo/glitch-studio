@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -34,7 +35,7 @@ export default implementEffect<typeof definition>({
 					rotation: -(ctx.params.rotation ?? 0) * (2 * Math.PI),
 					flipX: ctx.params.flipX ? -1 : 1,
 					flipY: ctx.params.flipY ? -1 : 1,
-					aspectRatio: resolution.width / resolution.height,
+					displacementScale: spatialToNormalizedCoordinates([1, 1], resolution),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = pipelines.update({ input: ctx.params.input, vector: ctx.params.vector }, ctx.outputDataMap.output.texture);

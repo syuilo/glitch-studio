@@ -17,8 +17,8 @@ fn traceRay(origin: vec2f, direction: vec2f) -> vec3f {
 		// 衝突・歩幅は補間しない。細い壁や異なる物体の間に仮の値を作らないため。
 		let surface = textureLoad(sceneTexture, pixel, 0);
 		if (occupied(surface)) {
-			// 最短辺を2とする等方的な距離。解像度や縦横比で減衰の形を歪めない。
-			let distance = traveled * 2.0 / min(uniforms.sceneSize.x, uniforms.sceneSize.y);
+			// 長辺全体を1とする共通距離。解像度や縦横比で減衰の形を歪めない。
+			let distance = traveled / max(uniforms.sceneSize.x, uniforms.sceneSize.y);
 			return max(surface.rgb, vec3f(0.0)) * exp(-uniforms.absorption * distance);
 		}
 		let distance = textureLoad(distanceTexture, pixel, 0).r;

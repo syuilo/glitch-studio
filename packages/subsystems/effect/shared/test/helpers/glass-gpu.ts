@@ -199,14 +199,14 @@ export async function run() {
 			const image = gradientImage(64, 64);
 			const zoomBase = { ...neutral, input: image, sdf: scalar(-1), innerZoom: 2 };
 			const centered = pixel(await render(zoomBase), 64, 32, 32);
-			const shifted = pixel(await render({ ...zoomBase, innerZoomCenter: [0.5, -0.5] }), 64, 32, 32);
+			const shifted = pixel(await render({ ...zoomBase, innerZoomCenter: [0.25, -0.25] }), 64, 32, 32);
 			near(centered[0], 0.50390625, 'zoom around screen center X');
 			near(centered[1], 0.50390625, 'zoom around screen center Y');
 			near(shifted[0], 0.62890625, 'independent center moves X');
 			near(shifted[1], 0.62890625, 'negative screen Y moves down in image');
 			const circle = shape([0.6, 0.6], precise);
 			const firstShape = await render({ ...zoomBase, sdf: circle, cutout: true });
-			const secondShape = await render({ ...zoomBase, sdf: circle, cutout: true, innerZoomCenter: [0.5, -0.5] });
+			const secondShape = await render({ ...zoomBase, sdf: circle, cutout: true, innerZoomCenter: [0.25, -0.25] });
 			assert(firstShape.every((value, index) => index % 4 !== 3 || value === secondShape[index]), 'zoom center must not move shape coverage');
 			checks.push(`${label}: zoom scale center coordinates and fixed silhouette`);
 
@@ -226,7 +226,7 @@ export async function run() {
 			for (const [width, height] of [[128, 64], [128, 128]]) {
 				const wideRender = createEffect(width, height, precise, format);
 				const centerU = (width / 2 + 0.5) / width;
-				const widePlane = field(width, height, precise, u => (u - centerU) * width / height - depth);
+				const widePlane = field(width, height, precise, u => ((u - centerU) * width / height - depth) * height / Math.max(width, height));
 				const result = await wideRender({ ...refractParams, input: gradientImage(width, height), sdf: widePlane });
 				near(pixel(result, width, width / 2, height / 2)[0], centerU - strength * height / width, 'resolution and aspect invariant refraction');
 			}
@@ -289,7 +289,7 @@ export async function run() {
 			for (const [width, height] of [[128, 64], [128, 128]]) {
 				const sizedRender = createEffect(width, height, precise, format);
 				const centerU = (width / 2 + 0.5) / width;
-				const sizedPlane = field(width, height, precise, u => (u - centerU) * width / height - depth);
+				const sizedPlane = field(width, height, precise, u => ((u - centerU) * width / height - depth) * height / Math.max(width, height));
 				near(pixel(await sizedRender({ ...curvedParams, input: gradientImage(width, height), sdf: sizedPlane }), width, width / 2, height / 2)[0], centerU - curvedStrength * height / width, 'curved resolution and aspect invariance');
 			}
 			const switchedBack = await render(refractParams, 12.5);
@@ -328,7 +328,7 @@ export async function run() {
 					const rippledPlane = field(width, height, precise, (u, v) => {
 						const horizontal = (u - centerU) * width / height;
 						const vertical = centerV - v;
-						return (verticalNormal ? vertical : horizontal) - depth + rippleAmplitude * Math.sin(2 * Math.PI * (verticalNormal ? horizontal : vertical) / ripplePeriod);
+						return ((verticalNormal ? vertical : horizontal) - depth + rippleAmplitude * Math.sin(2 * Math.PI * (verticalNormal ? horizontal : vertical) / ripplePeriod)) * height / Math.max(width, height);
 					});
 					for (const refractionModel of ['quadratic', 'curvedSurface'] as const) {
 						const displacementStrength = refractionModel === 'quadratic' ? strength : curvedStrength;
@@ -384,7 +384,7 @@ export async function run() {
 			const whiteDomain = inputTexture(1, 1, 4, [1, 1, 1, 1], false, { wrapMode: 'transparent', filterMode: 'nearest' }).input;
 			const offsetPosition = -strength * 2;
 			const zoomCenterX = 2 * (1.005 - offsetPosition) - 0.015625;
-			const separated = pixel(await render({ ...refractParams, input: whiteDomain, aberration: 1, innerZoom: 2, innerZoomCenter: [zoomCenterX, 0] }), 64, 32, 32);
+			const separated = pixel(await render({ ...refractParams, input: whiteDomain, aberration: 1, innerZoom: 2, innerZoomCenter: [zoomCenterX / 2, 0] }), 64, 32, 32);
 			rgbaNear(separated, [1, 0, 0, 1], 'red coverage survives transparent green and blue');
 			checks.push(`${label}: RGB separation and independent alpha coverage`);
 
@@ -409,7 +409,7 @@ export async function run() {
 			const stripeSource = inputTexture(64, 1, 4, Array.from({ length: 64 }, (_, index) => index % 2 === 0 ? [0.5, 0.5, 0.5, 0.5] : [0, 0, 0, 0]).flat(), false, { filterMode: 'nearest' }).input;
 			const targetU = 0.5145;
 			const spectralZoomCenter = 2 * ((targetU * 2 - 1) + strength * 2) - 0.015625;
-			const stripeParams = { ...refractParams, input: stripeSource, aberration: 8, innerZoom: 2, innerZoomCenter: [spectralZoomCenter, 0] as const };
+			const stripeParams = { ...refractParams, input: stripeSource, aberration: 8, innerZoom: 2, innerZoomCenter: [spectralZoomCenter / 2, 0] as const };
 			const separationU = -strength * 8 * 0.06;
 			const stripeExpectation = (count: number) => {
 				const covered = [0, 0, 0];
@@ -574,7 +574,7 @@ export async function run() {
 
 			// 【新方式でも合成SDFの穴・透明余白・独立したズーム支点を保つ】
 			// 屈折モデルの変更が形状のマスク処理や画像の乗算済みRGBAを変えてしまわないことを確認する。
-			const curvedRing = await render({ ...neutral, refractionModel: 'curvedSurface', input: image, sdf: ring, refraction: 1, blur: 0.01, aberration: 1, innerZoom: 2, innerZoomCenter: [0.5, -0.5], cutout: true });
+			const curvedRing = await render({ ...neutral, refractionModel: 'curvedSurface', input: image, sdf: ring, refraction: 1, blur: 0.01, aberration: 1, innerZoom: 2, innerZoomCenter: [0.25, -0.25], cutout: true });
 			assert(curvedRing.every((value, index) => index % 4 !== 3 || value === ringResult[index]), 'curved mode preserves the boolean silhouette');
 			const curvedMask = await render({ ...full, sdf: maskDistance(precise), refractionModel: 'curvedSurface', cutout: true });
 			assert(curvedMask.every((value, index) => value === maskResult[index]), 'curved mode supports mask-derived distances');

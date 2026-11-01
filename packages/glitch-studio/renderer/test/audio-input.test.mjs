@@ -132,8 +132,8 @@ test('shares player snapshots across nodes, public inputs, and unchanged frames'
 	// すでに取得したPCMを再利用できれば、履歴へ再アクセスする必要はない。
 	history.sample = () => { throw new Error('Unchanged history must not be copied again'); };
 	for (let frame = 0; frame < 2; frame++) {
-		renderer.evaluateParameters({ time: frame, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, evaluatedParamValues: new Map([[publicAudio.id, selection]]) });
-		for (const node of nodes) assert.equal(renderer.resolveParams(node, renderer.evaledNodeParams.get(node.id)).audio, publicInput);
+		renderer.evaluateParameters({ time: frame, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map([[publicAudio.id, selection]]) });
+		for (const node of nodes) assert.equal(renderer.resolveParams(node, renderer.evaluatedEffectNodes.get(node.id).params).audio, publicInput);
 	}
 	renderer.destroy();
 });
@@ -192,11 +192,11 @@ test('resolves public audio inputs independently of PARAM and image parameters',
 	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'visualModuleCustomParameterReference', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PARAM("sound")' } } };
 	renderer.nodeResolutions = new Map([[node.id, { width: 640, height: 360 }]]);
 	Object.assign(renderer, { nodes: [node], paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef, amount: scalar } } } });
-	const context = { time: 50, endTime: 100, isExport: false, pointerPosition: { x: 0, y: 0 }, evaluatedParamValues: new Map([[publicAudio.id, 123]]), audioParamInputs: new Map([[publicAudio.id, source]]) };
+	const context = { time: 50, endTime: 100, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map([[publicAudio.id, 123]]), audioParamInputs: new Map([[publicAudio.id, source]]) };
 	assert.throws(() => renderer.evaluateParameters(context), /Unknown or unavailable parameter/);
 	node.params.amount = literal(0);
 	renderer.evaluateParameters(context);
-	const params = renderer.resolveParams(node, renderer.evaledNodeParams.get(node.id));
+	const params = renderer.resolveParams(node, renderer.evaluatedEffectNodes.get(node.id).params);
 	assert.equal(params.audio, source);
 	assert.equal(params.amount, 0);
 	renderer.destroy();
@@ -216,8 +216,8 @@ test('delegates literal audio selections without knowing their source domain', (
 	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: literal(selection) } };
 	renderer.nodeResolutions = new Map([[node.id, { width: 640, height: 360 }]]);
 	Object.assign(renderer, { nodes: [node], effectDefinitions: { probe: { paramDefs: { audio: audioDef } } } });
-	renderer.evaluateParameters({ time: 0, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, evaluatedParamValues: new Map() });
-	assert.equal(renderer.resolveParams(node, renderer.evaledNodeParams.get(node.id)).audio, input);
+	renderer.evaluateParameters({ time: 0, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map() });
+	assert.equal(renderer.resolveParams(node, renderer.evaluatedEffectNodes.get(node.id).params).audio, input);
 	renderer.destroy();
 });
 

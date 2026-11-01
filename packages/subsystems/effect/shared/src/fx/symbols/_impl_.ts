@@ -1,3 +1,4 @@
+import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { createTextureFromImages, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -195,6 +196,8 @@ export default implementEffect<typeof definition>({
 				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, output);
 				uniformValues.set({
 					coordinateScale: [output.width / referenceLength, output.height / referenceLength],
+					displacementScale: spatialToNormalizedCoordinates([1, 1], output),
+					vectorToPatternScale: 2 * Math.max(output.width, output.height) / referenceLength,
 					highlightClipThreshold: ctx.params.highlightClipThreshold,
 					shadowClipThreshold: ctx.params.shadowClipThreshold,
 					density: Math.max(1, ctx.params.density),

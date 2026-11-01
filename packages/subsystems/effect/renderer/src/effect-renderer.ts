@@ -8,6 +8,7 @@ import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 // インスタンスからの通知を無効化する世代とは独立し、描画のたびには更新しない。
 let nextResourceVersion = 0;
 
+/** ポインターを含む入力は、エフェクト実装と同じ共通単位で受け取る。 */
 type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs'>> = Omit<
 	EffectRenderContext<Definition['paramDefs'], Definition['outputDefs']>,
 	'outputDataMap' | 'createPassEncoderFor' | 'createPassEncoder' | 'createComputePassEncoder'

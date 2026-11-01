@@ -34,7 +34,7 @@ export default implementEffect<typeof definition>({
 			render: ctx => {
 				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, ctx.outputDataMap.output.texture);
 				uniformValues.set({
-					coordinateScale: [ctx.outputDataMap.output.texture.width / referenceLength, ctx.outputDataMap.output.texture.height / referenceLength],
+					coordinateScale: [ctx.outputDataMap.output.texture.width / (2 * referenceLength), ctx.outputDataMap.output.texture.height / (2 * referenceLength)],
 					amount: ctx.params.amount,
 					rStrength: ctx.params.rStrength,
 					gStrength: ctx.params.gStrength,

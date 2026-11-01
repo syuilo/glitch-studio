@@ -1,5 +1,6 @@
 struct Params {
 	texelSize: vec2f,
+	spatialExtent: vec2f,
 	seconds: f32,
 	strength: f32,
 	confidence: f32,
@@ -63,8 +64,8 @@ fn estimate(@builtin(position) position: vec4f) -> @location(0) vec2f {
 	let residual = max(0.0, tt + 2.0 * dot(velocity, vec2f(xt, yt))
 		+ xx * velocity.x * velocity.x + 2.0 * xy * velocity.x * velocity.y + yy * velocity.y * velocity.y);
 	let confidence = smoothstep(params.confidence, params.confidence * 4.0, eigenvalue) * exp(-residual / 0.0025);
-	// Shared vector coordinates per second: R rightward, G upward, two units across each axis.
-	return velocity * params.texelSize * vec2f(2.0, -2.0) / params.seconds * confidence;
+	// 画素/秒を長辺全体=1の共通単位/秒へ換算する。Rは右向き、Gは上向き。
+	return velocity * params.texelSize * params.spatialExtent * vec2f(1.0, -1.0) / params.seconds * confidence;
 }
 
 @fragment

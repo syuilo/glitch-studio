@@ -31,7 +31,7 @@ function referenceDistances(width: number, height: number, values: number[], thr
 		if (points.length === 0) return 65504;
 		const x = index % width + 0.5;
 		const y = Math.floor(index / width) + 0.5;
-		const distance = Math.min(...points.map(([px, py]) => Math.hypot(px - x, py - y))) / height;
+		const distance = Math.min(...points.map(([px, py]) => Math.hypot(px - x, py - y))) / Math.max(width, height);
 		return inside[index] ? -distance : distance;
 	});
 }
@@ -140,7 +140,7 @@ export async function run(benchmarkEnabled = false) {
 			assert(empty.every(value => value === 65504), 'empty mask');
 			const solid = await render(constantShaderInput('scalar', 1));
 			for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-				near(solid[y * width + x], -Math.min(x + 0.5, width - x - 0.5, y + 0.5, height - y - 0.5) / height, 'solid frame distance');
+				near(solid[y * width + x], -Math.min(x + 0.5, width - x - 0.5, y + 0.5, height - y - 0.5) / Math.max(width, height), 'solid frame distance');
 			}
 			assert((await render(constantShaderInput('scalar', 0.5))).every(value => value === 65504), 'threshold equality is outside');
 			assert((await render(constantShaderInput('scalar', 0.5), { invert: true })).every((value, index) => value === solid[index]), 'inverted equality and bounded background');
@@ -156,7 +156,7 @@ export async function run(benchmarkEnabled = false) {
 				for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
 					const px = x + 0.5;
 					const inside = (px > boundary) !== invert;
-					const expected = inside ? -Math.min(Math.abs(px - boundary), invert ? px : width - px, y + 0.5, height - y - 0.5) / height : Math.abs(px - boundary) / height;
+					const expected = inside ? -Math.min(Math.abs(px - boundary), invert ? px : width - px, y + 0.5, height - y - 0.5) / Math.max(width, height) : Math.abs(px - boundary) / Math.max(width, height);
 					near(pixels[y * width + x], expected, 'subpixel straight boundary');
 				}
 			}
@@ -171,7 +171,7 @@ export async function run(benchmarkEnabled = false) {
 			if (supports32bit) {
 				const delicate = inputTexture(width, height, Array.from({ length: width * height }, (_, index) => 0.5 + (index % width + 0.5 - boundary) / 32768));
 				const delicatePixels = await render(delicate);
-				near(delicatePixels[9 * width + 12], -0.25 / height, 'small threshold difference');
+				near(delicatePixels[9 * width + 12], -0.25 / Math.max(width, height), 'small threshold difference');
 			}
 			const extremeMagnitude = supports32bit ? 1e6 : 65504;
 			const extreme = inputTexture(width, height, Array.from({ length: width * height }, (_, index) => index % width < 12 ? -extremeMagnitude : extremeMagnitude));
@@ -194,7 +194,7 @@ export async function run(benchmarkEnabled = false) {
 				const expected = referenceDistances(width, height, values);
 				for (let index = 0; index < pixels.length; index++) {
 					assert((pixels[index] <= 0) === (expected[index] <= 0), `${name}: incorrect sign at ${index}`);
-					near(pixels[index], expected[index], `${name}: exhaustive boundary oracle at ${index}`, 1 / height);
+					near(pixels[index], expected[index], `${name}: exhaustive boundary oracle at ${index}`, 1 / Math.max(width, height));
 				}
 				assert((await render(input, {}, 1000)).every((value, index) => value === pixels[index]), 'time and history independence');
 			}
@@ -208,18 +208,18 @@ export async function run(benchmarkEnabled = false) {
 			const repeatingInput = inputTexture(2, 1, [0, 1], { wrapMode: 'repeat' });
 			const nearest = await smallRender(smallInput);
 			assert((await smallRender(repeatingInput)).every((value, index) => value === nearest[index]), 'JFA must not wrap');
-			near(nearest[8 * 32], 15.5 / 16, 'stretched input boundary');
+			near(nearest[8 * 32], 15.5 / 32, 'stretched input boundary');
 			const linear = await smallRender(inputTexture(2, 1, [0, 1], { filterMode: 'linear' }), { threshold: 0.25 });
-			near(linear[8 * 32 + 11], 0.5 / 16, 'linear filtered threshold contour');
+			near(linear[8 * 32 + 11], 0.5 / 32, 'linear filtered threshold contour');
 			const contained = await smallRender(inputTexture(1, 1, [1], { fitMode: 'contain', wrapMode: 'transparent' }));
-			near(contained[8 * 32], 7.5 / 16, 'contain transparent margin');
+			near(contained[8 * 32], 7.5 / 32, 'contain transparent margin');
 			checks.push(`${label}: input resolution fit filter and bounded wrap`);
 
-			// 【縦横比と計算解像度】等方的な画素距離を高さで割り、
+			// 【縦横比と計算解像度】等方的な画素距離を長辺で割り、
 			// 同じ輪郭の同じ画素中心を3倍解像度でも同じ距離として扱う。
 			for (const [w, h] of [[65, 33], [17, 33], [1, 1]]) {
 				const pixels = await createEffect(w, h, precise)(constantShaderInput('scalar', 1));
-				for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) near(pixels[y * w + x], -Math.min(x + 0.5, w - x - 0.5, y + 0.5, h - y - 0.5) / h, 'height-based distance');
+				for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) near(pixels[y * w + x], -Math.min(x + 0.5, w - x - 0.5, y + 0.5, h - y - 0.5) / Math.max(w, h), 'long-side distance');
 			}
 			const renderRamp = async (w: number, h: number) => createEffect(w, h, precise)(inputTexture(w, h, Array.from({ length: w * h }, (_, index) => (index % w + 0.5) / h)), { threshold: 0.625 });
 			const low = await renderRamp(33, 21);
@@ -232,9 +232,9 @@ export async function run(benchmarkEnabled = false) {
 			const wide = createEffect(4096, 8, precise);
 			const wideInput = inputTexture(4096, 8, Array.from({ length: 4096 * 8 }, (_, index) => index % 4096 >= 3002 ? 1 : 0));
 			const widePixels = await wide(wideInput, { threshold: 0.25 });
-			near(widePixels[4 * 4096 + 3001], 0.25 / 8, 'large coordinate subpixel distance');
-			near(widePixels[4 * 4096 + 3002], -0.75 / 8, 'large coordinate inside distance');
-			assert(widePixels[4 * 4096] > 1, 'distances above one must not clamp');
+			near(widePixels[4 * 4096 + 3001], 0.25 / 4096, 'large coordinate subpixel distance');
+			near(widePixels[4 * 4096 + 3002], -0.75 / 4096, 'large coordinate inside distance');
+			assert(widePixels[4 * 4096] > 0.7, 'long spatial distances must not clamp');
 			checks.push(`${label}: exact large identifiers and subpixel offsets`);
 
 			if (benchmarkEnabled) {
