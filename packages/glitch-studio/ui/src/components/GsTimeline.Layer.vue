@@ -1,6 +1,6 @@
 <template>
 <div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.groupExpanded]: isTimelineContainerLayer(layer) && !collapsed, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox', [$style.type_group]: isTimelineContainerLayer(layer) }]" :style="{ '--LAYER_COLOR': layer.color == null ? '' : colorCss(layer.color) }" :data-timeline-layer-id="layer.id">
-	<div :class="$style.mainLane" data-timeline-clip-lane>
+	<div :class="$style.mainLane" data-timeline-clip-lane data-test-timeline-main-lane>
 		<div :class="$style.side">
 			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
 			<div :class="$style.sideBody">
@@ -10,7 +10,7 @@
 							<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
 						</svg>
 					</div>
-					<button class="_button" :class="[$style.collapseButton]" @click.stop="emit('toggleCollapse')"><i :class="collapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-down'"></i></button>
+					<button class="_button" :class="[$style.collapseButton]" data-test-timeline-layer-toggle :aria-expanded="!collapsed" @click.stop="emit('toggleCollapse')"><i :class="collapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-down'"></i></button>
 					<i :class="'ti ' + layerIcon"></i>
 					<span :class="$style.layerHeaderTitle">
 						<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
@@ -34,10 +34,10 @@
 				</div>
 			</div>
 		</div>
-		<div :class="$style.tl" @dblclick.stop.prevent="onBackgroundDoubleClick">
+		<div :class="$style.tl" data-test-timeline-lane-background @dblclick.stop.prevent="onBackgroundDoubleClick">
 			<button v-if="offscreenClips.previous" class="_button" :class="$style.stickyArrow" style="left: 0;" @click.stop="look(offscreenClips.previous)" @dblclick.stop><i class="ti ti-arrow-left"></i></button>
 			<button v-if="offscreenClips.next" class="_button" :class="$style.stickyArrow" style="right: 0;" @click.stop="look(offscreenClips.next)" @dblclick.stop><i class="ti ti-arrow-right"></i></button>
-			<div :class="$style.scrollingContent" :style="scrollingStyle">
+			<div :class="$style.scrollingContent" data-test-timeline-scrolling-content :style="scrollingStyle">
 				<button
 					v-if="groupRange" type="button" class="_button" :class="[$style.groupClip, { [$style.groupClipSelected]: selected }]"
 					:style="{ left: groupRange.startMs * pixelsPerMs + 'px', width: groupRange.durationMs * pixelsPerMs + 'px' }"
@@ -60,7 +60,7 @@
 			</div>
 		</div>
 	</div>
-	<div v-if="!collapsed && !isTimelineContainerLayer(layer)" :class="$style.localTicksLane">
+	<div v-if="!collapsed && !isTimelineContainerLayer(layer)" :class="$style.localTicksLane" data-test-timeline-local-ticks-lane>
 		<div :class="$style.side">
 			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
 			<div :class="$style.sideBody">
@@ -74,7 +74,7 @@
 			</div>
 		</div>
 	</div>
-	<div v-if="!collapsed && layer.layerType === 'voicevox'" :class="$style.speechLane" data-parameter-target="utterance" :data-param-path="JSON.stringify(['utterances'])">
+	<div v-if="!collapsed && layer.layerType === 'voicevox'" :class="$style.speechLane" data-test-timeline-speech-lane data-parameter-target="utterance" :data-param-path="JSON.stringify(['utterances'])">
 		<div :class="$style.side">
 			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
 			<div :class="$style.sideBody">
@@ -89,15 +89,15 @@
 			@subtitleTrimStart="(event, utteranceId, clipId) => emit('subtitleTrimStart', event, layer.id, utteranceId, clipId)"
 		/>
 	</div>
-	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
+	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" data-test-timeline-keyframes-lane :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
 		<div :class="$style.side">
 			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
 			<div :class="$style.sideBody">
 				<div style="padding-right: 6px;">{{ param.label }}</div>
 			</div>
 		</div>
-		<div :class="$style.tl" @dblclick.stop.prevent="onKeyframeBackgroundDoubleClick(param, $event)">
-			<div :class="$style.scrollingContent" :style="scrollingStyle">
+		<div :class="$style.tl" data-test-timeline-lane-background @dblclick.stop.prevent="onKeyframeBackgroundDoubleClick(param, $event)">
+			<div :class="$style.scrollingContent" data-test-timeline-scrolling-content :style="scrollingStyle">
 				<XKeyframes
 					:keyframes="param.binding.keyframesTimeline.keyframes"
 					:paramDef="param.def"

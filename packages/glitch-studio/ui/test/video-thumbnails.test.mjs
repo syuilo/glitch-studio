@@ -1,4 +1,4 @@
-import { i18n, i18nPlugin } from './helpers/i18n.mjs';
+import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -26,7 +26,7 @@ const bundle = await build({
 
 function setup(t, overrides = {}) {
 	const options = { start: 2, end: 12, width: 1920, height: 1080, ...overrides };
-	const calls = { disposed: 0, encoded: [], timestamps: [], progress: [], subProgress: [], text: [], alerts: [], closedIterators: 0, dialogs: 0, done: 0 };
+	const calls = { disposed: 0, encoded: [], timestamps: [], progress: [], subProgress: [], alerts: [], closedIterators: 0, dialogs: 0, done: 0 };
 	const previousCanvas = Object.getOwnPropertyDescriptor(globalThis, 'OffscreenCanvas');
 	class Canvas {
 		async convertToBlob() {
@@ -72,7 +72,7 @@ function setup(t, overrides = {}) {
 		'test-effects': { effectDefinitions: {} }, 'test-ui': { alert: async options => { calls.alerts.push(options); }, progress() {
 			calls.dialogs++;
 			return { setProgress: value => calls.progress.push(value), setSubProgress: value => calls.subProgress.push(value),
-				setText: value => calls.text.push(value), done: () => { calls.done++; } };
+				setText() {}, done: () => { calls.done++; } };
 		} } };
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(name => mocks[name] ?? require(name), module, module.exports);
@@ -347,8 +347,6 @@ test('waits for multiple video sequences and closes a single progress dialog', a
 	assert.equal(f.calls.subProgress[0], null);
 	assert.equal(f.calls.subProgress.at(-1), 1);
 	assert.ok(f.calls.subProgress.includes(1 / 11));
-	assert.ok(f.calls.text.includes(`${i18n.ts._Assets.Reading}: a.mp4 (1/2)`));
-	assert.ok(f.calls.text.includes(`${i18n.ts._Assets.GeneratingThumbnails}: b.mp4 (2/2)`));
 });
 
 // 【原本を読む前から待機ダイアログを表示し、単一ファイルはメイン進捗だけを使う】

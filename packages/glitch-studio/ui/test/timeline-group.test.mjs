@@ -202,7 +202,7 @@ test('preserves mask settings and inactive blend keys when duplicating or moving
 	assert.notEqual(copy.mask, layer.mask);
 	assert.deepEqual(copy.compositingParamValues, layer.compositingParamValues);
 	const parameters = module.exports.getLayerKeyframeParameters(state, layer);
-	assert.equal(parameters.find(parameter => parameter.paramPath[0] === 'opacity').def.ui.label, 'Mask strength');
+	assert.deepEqual(parameters.find(parameter => parameter.target === 'compositing' && parameter.paramPath[0] === 'opacity').binding, layer.compositingParamValues.opacity);
 });
 
 // 【別Sceneに静的エラーがあっても、階層編集とScene追加を妨げない】
@@ -215,7 +215,7 @@ test('edits a tree and adds a scene without revalidating unrelated scene paramet
 	f.state.timelineScenes.value.push({ id: 'broken', name: 'Broken', resolution: { mode: 'project' }, layers: [brokenLayer] });
 	const validation = observeValidation(f);
 	const diagnostic = validation.errorMessage.value;
-	assert.match(diagnostic, /Unsupported layer parameter input source/);
+	assert.ok(validation.diagnostics.value.some(diagnostic => diagnostic.target === 'scene:broken/layer:broken-layer'));
 	let reads = 0;
 	const brokenParameters = brokenLayer.compositingParamValues;
 	Object.defineProperty(brokenLayer, 'compositingParamValues', { get() { reads++; return brokenParameters; } });
@@ -333,7 +333,7 @@ test('diagnoses camera placement after Group conversion without losing descendan
 	const validation = observeValidation(f);
 	assert.equal(validation.errorMessage.value, null);
 	f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'group' });
-	assert.match(validation.errorMessage.value, /Camera is inside a Group/);
+	assert.ok(validation.diagnostics.value.some(diagnostic => diagnostic.target === 'scene:scene/layer:camera'));
 	assert.equal(f.scene.layers[0].layers[0].id, camera.id);
 	f.history.undo();
 	assert.equal(validation.errorMessage.value, null);

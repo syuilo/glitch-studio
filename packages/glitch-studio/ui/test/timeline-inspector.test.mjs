@@ -352,12 +352,12 @@ test('edits layer masks through the inspector without losing normal compositing 
 	const control = attribute => descendants(f.root).find(node => attribute in node.props);
 	const parameter = id => descendants(f.root).find(node => node.props['data-test-timeline-compositing-parameter'] === id);
 	assert.equal(layer.mask, null);
-	assert.equal(parameter('opacity').props.paramDef.ui.label, 'Opacity');
+	assert.deepEqual(parameter('opacity').props.paramValue, layer.compositingParamValues.opacity);
 	assert.ok(parameter('blendMode'));
 	control('data-test-timeline-mask-enabled').props['onUpdate:modelValue'](true);
 	await nextTick();
 	assert.deepEqual(layer.mask, { channel: 'alpha', inverted: false });
-	assert.equal(parameter('opacity').props.paramDef.ui.label, 'Mask strength');
+	assert.deepEqual(parameter('opacity').props.paramValue, layer.compositingParamValues.opacity);
 	assert.equal(parameter('blendMode'), undefined);
 	control('data-test-timeline-mask-channel').props['onUpdate:modelValue']('luminance');
 	await nextTick();
@@ -371,7 +371,7 @@ test('edits layer masks through the inspector without losing normal compositing 
 	control('data-test-timeline-mask-enabled').props['onUpdate:modelValue'](false);
 	await nextTick();
 	assert.equal(layer.mask, null);
-	assert.equal(parameter('opacity').props.paramDef.ui.label, 'Opacity');
+	assert.deepEqual(parameter('opacity').props.paramValue, layer.compositingParamValues.opacity);
 	assert.equal(parameter('blendMode').props.paramValue.value, 'multiply');
 	assert.deepEqual(layer.compositingParamValues.opacity, { inputSource: 'expression', expression: 'TIME_MS / 1000' });
 	f.history.undo();

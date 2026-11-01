@@ -72,9 +72,10 @@ test('loads scoped translations and interpolates text in the saved language', as
 	configureStorage(t, 'ja-JP');
 	const { i18n, lang } = await loadI18n();
 	assert.equal(lang, 'ja-JP');
-	assert.equal(i18n.ts._App.File, 'ファイル');
-	assert.equal(i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }), '3個のキーフレームを選択中');
-	assert.equal(i18n.tsx._Export.RenderingFrames({ completed: 2, total: 10, percent: 20 }), '2 / 10フレームをレンダリング中 (20%)');
+	assert.equal(i18n.ts._App.File, locales['ja-JP']._App.File);
+	assert.equal(i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }), locales['ja-JP']._TimelineKeyframe.SelectedCount.replace('{count}', '3'));
+	assert.equal(i18n.tsx._Export.RenderingFrames({ completed: 2, total: 10, percent: 20 }),
+		locales['ja-JP']._Export.RenderingFrames.replace('{completed}', '2').replace('{total}', '10').replace('{percent}', '20'));
 });
 
 // 【言語選択の保存先と次回起動の読み込み先を一致させる】
@@ -84,12 +85,12 @@ test('preserves the selected language across initialization', async t => {
 	globalThis.localeTestAlerts = [];
 	t.after(() => { delete globalThis.localeTestAlerts; });
 	const initial = await loadI18n(settingsBundle);
-	assert.equal(initial.i18n.ts._App.File, 'File');
+	assert.equal(initial.i18n.ts._App.File, locales['en-US']._App.File);
 	await initial.configureLocale();
 	assert.equal(storage.get('locale'), 'ja-JP');
 	assert.equal(globalThis.localeTestAlerts[0].title, locales['ja-JP'].LocaleChangedTitle);
 	const reloaded = await loadI18n();
-	assert.equal(reloaded.i18n.ts._App.File, 'ファイル');
+	assert.equal(reloaded.i18n.ts._App.File, locales['ja-JP']._App.File);
 });
 
 // 【環境設定で選んだ言語を保存し、実行中の表示は再起動まで維持する】
@@ -100,17 +101,17 @@ test('saves a language change while keeping current translations until restart',
 	globalThis.localeTestAlerts = [];
 	t.after(() => { delete globalThis.localeTestAlerts; });
 	const initial = await loadI18n(settingsBundle);
-	assert.equal(initial.i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }), '3個のキーフレームを選択中');
+	assert.equal(initial.i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }), locales['ja-JP']._TimelineKeyframe.SelectedCount.replace('{count}', '3'));
 	await initial.changeLocale('en-US');
 	assert.equal(storage.get('locale'), 'en-US');
 	assert.deepEqual(globalThis.localeTestAlerts, [{
 		title: locales['en-US'].LocaleChangedTitle,
 		text: locales['en-US'].LocaleChangedDescription,
 	}]);
-	assert.equal(initial.i18n.ts._App.File, 'ファイル');
-	assert.equal(initial.i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }), '3個のキーフレームを選択中');
+	assert.equal(initial.i18n.ts._App.File, locales['ja-JP']._App.File);
+	assert.equal(initial.i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }), locales['ja-JP']._TimelineKeyframe.SelectedCount.replace('{count}', '3'));
 	const reloaded = await loadI18n();
-	assert.equal(reloaded.i18n.ts._App.File, 'File');
+	assert.equal(reloaded.i18n.ts._App.File, locales['en-US']._App.File);
 	assert.equal(reloaded.i18n.tsx._TimelineKeyframe.SelectedCount({ count: 3 }),
 		locales['en-US']._TimelineKeyframe.SelectedCount.replace('{count}', '3'));
 });

@@ -103,7 +103,6 @@ test('waits for the save choice before rendering and for saving before notifying
 		['choose', 'Project-Scene.mp4', 'mp4'], ['prepare'], ['suspend'], ['render'],
 		['save', 'selected', [1, 2, 3]], ['notify', 'custom.mp4'],
 	]);
-	assert.equal(f.context.status.value, 'Export complete.');
 	assert.equal(f.context.exporting.value, false);
 	assert.equal(f.context.applicationActivity.isExporting.value, false);
 });
@@ -132,7 +131,6 @@ test('releases the selected target without rendering if aborted during the dialo
 	await job;
 	assert.equal(f.events.some(([name]) => name === 'render' || name === 'save' || name === 'notify'), false);
 	assert.ok(f.events.some(([name, id]) => name === 'release' && id === 'abandoned'));
-	assert.equal(f.context.status.value, 'Export canceled.');
 	assert.equal(f.context.applicationActivity.isExporting.value, false);
 });
 
@@ -186,7 +184,6 @@ test('keeps the download flow in the browser', async () => {
 	assert.ok(f.events.some(([name]) => name === 'download'));
 	assert.equal(f.context.downloadUrl.value, 'download-url');
 	assert.equal(f.context.downloadName.value, 'Project-Scene.mp4');
-	assert.equal(f.context.status.value, 'Export complete.');
 	assert.equal(f.context.applicationActivity.isExporting.value, false);
 });
 

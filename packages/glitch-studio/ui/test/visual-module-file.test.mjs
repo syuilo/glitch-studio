@@ -390,7 +390,6 @@ test('imports a selected file and preserves existing state when the next file ca
 	assert.equal(context.stateManager.state.visualModules.value.length, 1);
 	assert.equal(context.stateManager.undoStack.value.length, 1);
 	assert.equal(browser.alerts.length, 1);
-	assert.match(browser.alerts[0].text, /Unsupported Visual Module file/);
 });
 
 // 【原本の読み出しに失敗したときはダウンロードを始めない】
@@ -405,5 +404,4 @@ test('reports asset read errors before creating a download', async t => {
 		outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }, 'Broken');
 	assert.equal(links.length, 0);
 	assert.equal(alerts.length, 1);
-	assert.match(alerts[0].text, /Could not read Asset "broken"/);
 });

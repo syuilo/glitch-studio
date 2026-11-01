@@ -1,14 +1,16 @@
 <template>
-<div :class="$style.root" :data-timeline-clip-id="clip.id">
+<div :class="$style.root" :data-timeline-clip-id="clip.id" :data-test-timeline-clip-id="clip.id">
 	<div :class="$style.topLane">
 		<div v-if="mediaClip" :style="{ left: clip.startMs * pixelsPerMs + 'px', width: clip.durationMs * pixelsPerMs + 'px' }" :class="$style.clipTopHandleArea">
-			<div v-tooltip.bottom="i18n.ts._TimelineClip.TrimSourceEnd" :class="[$style.topTrimHandle]" :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
+			<div v-tooltip.bottom="i18n.ts._TimelineClip.TrimSourceEnd" :class="[$style.topTrimHandle]" data-test-timeline-clip-trim-end :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
 		</div>
 	</div>
 	<div :class="$style.mainLane">
-		<div v-if="selected && sourceGhost" :class="$style.sourceGhost" :style="{ left: sourceGhost.startMs * pixelsPerMs + 'px', width: sourceGhost.durationMs * pixelsPerMs + 'px' }"></div>
+		<div v-if="selected && sourceGhost" :class="$style.sourceGhost" data-test-timeline-clip-source-ghost :style="{ left: sourceGhost.startMs * pixelsPerMs + 'px', width: sourceGhost.durationMs * pixelsPerMs + 'px' }"></div>
 		<div
 			:class="[$style.clip, { [$style.selected]: selected, [$style.active]: active, [$style.moving]: moving }]"
+			data-test-timeline-clip
+			:data-test-timeline-clip-active="active"
 			:style="{ left: clip.startMs * pixelsPerMs + 'px', width: clip.durationMs * pixelsPerMs + 'px' }"
 			@pointerdown.stop="emit('moveStart', $event)"
 			@click.stop
@@ -16,17 +18,17 @@
 			@contextmenu.stop.prevent="emit('contextMenu', $event)"
 		>
 			<div :class="$style.clipInner">
-				<div v-if="mediaClip?.loop" :class="$style.loopFill" :style="{ left: periodMs * pixelsPerMs + 'px', '--loopPeriod': Math.max(6, periodMs * pixelsPerMs) + 'px', '--loopLine': periodMs * pixelsPerMs >= 6 ? '#fff8' : 'transparent' }"></div>
+				<div v-if="mediaClip?.loop" :class="$style.loopFill" data-test-timeline-clip-loop-fill :style="{ left: periodMs * pixelsPerMs + 'px', '--loopPeriod': Math.max(6, periodMs * pixelsPerMs) + 'px', '--loopLine': periodMs * pixelsPerMs >= 6 ? '#fff8' : 'transparent' }"></div>
 				<div :class="$style.clipInnerLeft">
-					<div v-tooltip.bottom="i18n.ts._TimelineClip.TrimSourceStart" :class="[$style.trimStart]" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
+					<div v-tooltip.bottom="i18n.ts._TimelineClip.TrimSourceStart" :class="[$style.trimStart]" data-test-timeline-clip-trim-start @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
 				</div>
 				<div :class="$style.clipInnerCenter">
 					<div :class="$style.clipLabel"><GsCondensedLine>{{ label }}</GsCondensedLine></div>
 					<div v-if="mediaClip" :class="$style.clipLabel"><GsCondensedLine><template v-if="'sourceTimeMs' in clip"> {{ i18n.ts._TimelineClip.HoldBadge }} {{ formatTimelineTimecode(clip.sourceTimeMs) }}</template><template v-else-if="mediaClip && mediaClip.playbackRate !== 1"> · {{ mediaClip.playbackRate < 0 ? i18n.tsx._TimelineClip.ReverseSpeed({ speed: Math.abs(mediaClip.playbackRate) }) : `${Math.abs(mediaClip.playbackRate)}×` }}</template></GsCondensedLine></div>
 				</div>
 				<div :class="$style.clipInnerRight">
-					<div v-if="!mediaClip" v-tooltip.bottom="i18n.ts._TimelineClip.TrimSourceEnd" :class="[$style.trimEnd]" :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
-					<div v-if="mediaClip" v-tooltip.bottom="i18n.ts._TimelineClip.ExtendLoopHint" :class="[ $style.loopEnd]" @pointerdown.stop="emit('trimStart', $event, 'loop')"><i class="ti ti-repeat"></i></div>
+					<div v-if="!mediaClip" v-tooltip.bottom="i18n.ts._TimelineClip.TrimSourceEnd" :class="[$style.trimEnd]" data-test-timeline-clip-trim-end :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
+					<div v-if="mediaClip" v-tooltip.bottom="i18n.ts._TimelineClip.ExtendLoopHint" :class="[ $style.loopEnd]" data-test-timeline-clip-loop-end @pointerdown.stop="emit('trimStart', $event, 'loop')"><i class="ti ti-repeat"></i></div>
 				</div>
 			</div>
 		</div>

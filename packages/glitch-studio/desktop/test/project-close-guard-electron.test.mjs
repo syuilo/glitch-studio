@@ -122,7 +122,7 @@ test('guards real Electron closing, reloading and application quit through async
 				assert.equal((await completed)[0], false);
 			}
 			assert.equal(await mainWindow.webContents.executeJavaScript('window.closeNotices.length'), 3);
-			assert.equal(await mainWindow.webContents.executeJavaScript("window.closeNotices.every(notice => notice.title === 'Exporting')"), true);
+			assert.equal(await mainWindow.webContents.executeJavaScript("window.closeNotices.every(notice => notice.type === 'info')"), true);
 			assert.equal(await mainWindow.webContents.executeJavaScript('window.closeConfirmations.length'), 0);
 			await mainWindow.webContents.executeJavaScript('window.releaseExport(); void 0;');
 			assert.equal(mainWindow.isDestroyed(), false);

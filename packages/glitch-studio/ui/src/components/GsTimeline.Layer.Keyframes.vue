@@ -12,6 +12,8 @@
 		:class="[$style.keyframe, { [$style.selected]: selectedIds.has(keyframe.id) }]"
 		:style="{ left: timelineKeyframePosition(keyframe.x, pixelsPerMs) + 'px' }"
 		:data-timeline-keyframe-id="keyframe.id"
+		:data-test-timeline-keyframe-id="keyframe.id"
+		:data-test-timeline-keyframe-selected="selectedIds.has(keyframe.id)"
 		@pointerdown.stop="emit('dragStart', $event, keyframe.id)"
 		@click.stop.prevent
 		@dblclick.stop.prevent

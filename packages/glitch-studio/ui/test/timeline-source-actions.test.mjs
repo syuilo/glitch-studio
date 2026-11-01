@@ -1,4 +1,4 @@
-import { i18n, i18nPlugin } from './helpers/i18n.mjs';
+import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -248,12 +248,14 @@ test('adds video layers without audio only after confirmation and honors cancell
 		const f = fixture(t, []);
 		f.asset.fileDataType = 'video/mp4';
 		f.options.inspectMedia = async () => ({ durationMs: 3000, audioAvailable: false, audioError: 'Unsupported audio' });
-		f.options.ui.confirm = async warning => {
-			assert.equal(warning.okText, i18n.ts._Timeline.AddWithoutAudio);
+		let confirmations = 0;
+		f.options.ui.confirm = async () => {
+			confirmations++;
 			return { canceled };
 		};
 		addLayerMenu(f.create());
 		await f.menu.find(item => item.id === 'video').action();
+		assert.equal(confirmations, 1);
 		assert.equal(f.history.undoStack.value.length, canceled ? 0 : 1);
 		if (!canceled) {
 			const layer = f.scene.layers[0];

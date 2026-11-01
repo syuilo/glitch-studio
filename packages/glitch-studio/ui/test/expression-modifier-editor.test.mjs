@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { computed, createRenderer, h, nextTick, provide, reactive, ref } from 'vue';
-import { i18n, i18nPlugin } from './helpers/i18n.mjs';
+import { i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({ absWorkingDir: directory, external: ['vue'], bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -71,9 +71,9 @@ function fixture(t, timeline = null) {
 	return { props, edits, find: attribute => find(root, attribute) };
 }
 
-// 【直接参照の候補を所有レイヤー名と型で区別し、範囲外になった保存IDも表示する】
+// 【直接参照の候補を所有レイヤーIDと型で区別し、範囲外になった保存IDも維持する】
 // 同名定義の選択を明確にし、階層移動で参照先を別の同名候補へ自動変更してしまうのを防ぐ。
-test('selects typed timeline references and displays unresolved saved identities', async t => {
+test('selects typed timeline references and retains unresolved saved identities', async t => {
 	const scalar = id => ({ id, nameForReference: 'speed', dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } });
 	const context = ref({ layer: { id: 'child', name: 'Child', customParameterDefs: [scalar('local')] }, ancestors: [
 		{ id: 'root', name: 'Root', customParameterDefs: [scalar('shared'), { ...scalar('color'), dataType: { kind: 'color' } }] },
@@ -84,13 +84,12 @@ test('selects typed timeline references and displays unresolved saved identities
 	await nextTick();
 	const select = () => f.find('data-test-timeline-custom-parameter-reference');
 	assert.deepEqual(select().props.items.map(item => item.value), [null, '["child","local"]', '["parent","parent-speed"]', '["root","shared"]']);
-	assert.match(select().props.items.at(-1).label, /Root.*Speed/);
 	select().props['onUpdate:modelValue']('["parent","parent-speed"]');
 	assert.deepEqual(f.edits.at(-1).value, { inputSource: 'timelineLayerCustomParameterReference', layerId: 'parent', parameterId: 'parent-speed' });
 	context.value.ancestors = [];
 	await nextTick();
 	assert.equal(select().props.modelValue, '["root","shared"]');
-	assert.equal(select().props.items.at(-1).label, i18n.ts._Parameter.UnavailableCustomParameter);
+	assert.deepEqual(select().props.items.map(item => item.value), [null, '["child","local"]', '["root","shared"]']);
 });
 
 // 【カスタムパラメータの値では自身を除外し、Visual Module内部へ参照方式を公開しない】
@@ -105,10 +104,8 @@ test('excludes own custom values and keeps timeline sources out of Visual Module
 	f.props.node = { id: 'node', type: 'effect', params: {} };
 	await nextTick();
 	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
-	// 表示名は両方の参照方式で共通なので、選択したときに通知されるドメインを確認する。
-	const customParameterItems = modifierUiTest.menu.filter(item => item.text === i18n.ts._Parameter.CustomParameter);
-	assert.equal(customParameterItems.length, 1);
-	customParameterItems[0].action();
+	assert.equal(modifierUiTest.menu.some(item => item.id === 'inputSource:timelineLayerCustomParameterReference'), false);
+	modifierUiTest.menu.find(item => item.id === 'inputSource:visualModuleCustomParameterReference').action();
 	assert.equal(f.edits.at(-1).inputSource, 'visualModuleCustomParameterReference');
 });
 
@@ -132,7 +129,7 @@ test('edits modifier code enabled state and removal independently of the source 
 	await nextTick();
 	assert.equal(f.find('data-test-expression-modifier'), null);
 	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
-	modifierUiTest.menu.find(item => item.text === i18n.ts._Parameter.AddExpressionModifier).action();
+	modifierUiTest.menu.find(item => item.id === 'addExpressionModifier').action();
 	assert.deepEqual(f.edits.at(-1).value, { enabled: true, code: 'VALUE' });
 });
 

@@ -522,6 +522,7 @@ function getMenu() {
 			if (props.paramDef.dataType.kind === 'colorRamp' && ['automationGraphReference', 'automationGraphInline'].includes(inputSource)) continue;
 			if (inputSource === 'keyframesTimelineInline' && (!props.keyframesEnabled || !isKeyframesDataType(props.paramDef.dataType))) continue;
 			menuItems.push({
+				id: `inputSource:${inputSource}`,
 				text,
 				icon,
 				active: props.paramValue.inputSource === inputSource,
@@ -533,6 +534,7 @@ function getMenu() {
 				type: 'divider',
 			});
 			menuItems.push({
+				id: 'addExpressionModifier',
 				text: i18n.ts._Parameter.AddExpressionModifier,
 				icon: 'ti ti-math-function',
 				action: () => emit('edit', { kind: 'expressionModifier', ...target(), value: { enabled: true, code: 'VALUE' } }),

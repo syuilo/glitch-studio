@@ -34,11 +34,10 @@ const result = await build({
 			const source = await readFile(path, 'utf8');
 			const descriptor = parse(source, { filename: path }).descriptor;
 			const script = compileScript(descriptor, { id: path, inlineTemplate: true, genDefaultAs: 'component' }).content;
-			const classes = Object.fromEntries([...source.matchAll(/\.([A-Za-z]\w*)\s*\{/g)].map(match => [match[1], match[1]]));
 			const name = JSON.stringify(basename(path));
 			return { loader: 'ts', resolveDir: dirname(path), contents: `${script}
 				import { updates, mounts } from 'test:metrics';
-				component.__cssModules = { $style: ${JSON.stringify(classes)} };
+				component.__cssModules = { $style: {} };
 				component.beforeUpdate = () => updates.set(${name}, (updates.get(${name}) ?? 0) + 1);
 				component.beforeMount = () => mounts.set(${name}, (mounts.get(${name}) ?? 0) + 1);
 				export default component;` };
@@ -65,6 +64,7 @@ const renderer = createRenderer({
 	nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 });
 function descendants(root) { return [root, ...root.children.flatMap(descendants)]; }
+function findByAttribute(root, attribute) { return descendants(root).find(node => Object.hasOwn(node.props, attribute)) ?? null; }
 const components = ['GsTimeline.Layer.Clips.vue', 'GsTimeline.Clip.vue', 'GsTimeline.Layer.Keyframes.vue'];
 
 // 【動画の二つの右ハンドルが、素材トリムとループ延長を別々に通知する】
@@ -72,20 +72,20 @@ const components = ['GsTimeline.Layer.Clips.vue', 'GsTimeline.Clip.vue', 'GsTime
 // 動画・音声の素材クリップで同じループ操作を使えることも実際のSFCで確認する。
 test('routes source trim and loop handles separately through the layer components', async t => {
 	const f = await fixture(t);
-	assert.ok(descendants(f.root).some(node => node.props.class?.includes('loopEnd')));
+	assert.ok(findByAttribute(f.root, 'data-test-timeline-clip-loop-end'));
 	f.layers[0].layerType = 'video';
 	f.layers[0].compositingParamValues = {};
 	for (const clip of f.layers[0].clips) Object.assign(clip, { audioEnabled: false, videoEnabled: true });
 	await nextTick();
-	const clip = descendants(f.root).find(node => node.props['data-timeline-clip-id'] === 'clip-0');
-	const handle = name => descendants(clip).find(node => node.props.class?.includes(name));
-	handle('loopEnd').props.onPointerdown({ stopPropagation() {} });
-	handle('topTrimHandle').props.onPointerdown({ stopPropagation() {} });
+	const clip = descendants(f.root).find(node => node.props['data-test-timeline-clip-id'] === 'clip-0');
+	const handle = edge => findByAttribute(clip, `data-test-timeline-clip-${edge}`);
+	handle('loop-end').props.onPointerdown({ stopPropagation() {} });
+	handle('trim-end').props.onPointerdown({ stopPropagation() {} });
 	assert.deepEqual(f.events, [['trim', { layerId: 'a', clipId: 'clip-0' }, 'loop'], ['trim', { layerId: 'a', clipId: 'clip-0' }, 'end']]);
 	Object.assign(f.layers[0].clips[0], { loop: true, durationMs: 180 });
 	await nextTick();
-	assert.equal(handle('topTrimHandle').props.style.right, '160px');
-	assert.equal(descendants(clip).find(node => node.props.class === 'loopFill').props.style.left, '200px');
+	assert.equal(handle('trim-end').props.style.right, '160px');
+	assert.equal(findByAttribute(clip, 'data-test-timeline-clip-loop-fill').props.style.left, '200px');
 });
 
 async function fixture(t) {
@@ -148,30 +148,30 @@ test('applies custom layer and ancestor colors and removes overrides when cleare
 
 // 【通常レイヤーを折りたたんでもクリップを維持し、再展開でキーと目盛りを復元する】
 // キーを隠すだけの操作でデータや選択を失ったり、クリップまで再生成してはならない。
-// 実際の開閉ボタンを通してレーンの表示と開閉アイコンが連動することも確認する。
+// 実際の開閉ボタンを通して、レーンの表示と公開する開閉状態が連動することも確認する。
 test('collapses ordinary layers to the main lane and restores keyframes on expansion', async t => {
 	const state = await fixture(t);
 	state.props.selectedKeyframes = [{ layerId: 'a', target: 'audio', paramPath: ['volume'], keyframeId: 'key-0' }];
 	await nextTick();
 	const nodes = () => descendants(state.root);
-	const toggle = nodes().find(node => node.props.class?.includes('collapseButton'));
-	const toggleIcon = () => descendants(toggle).find(node => node.tag === 'i');
-	const clip = nodes().find(node => node.props['data-timeline-clip-id'] === 'clip-0');
+	const toggle = findByAttribute(state.root, 'data-test-timeline-layer-toggle');
+	const clip = nodes().find(node => node.props['data-test-timeline-clip-id'] === 'clip-0');
 	const originalKeys = structuredClone(state.layers[0].audioParamValues.volume.keyframesTimeline.keyframes.map(point => ({ ...point, interpolation: { ...point.interpolation } })));
-	assert.equal(toggleIcon().props.class, 'ti ti-chevron-down');
-	assert.ok(nodes().some(node => node.props.class === 'localTicksLane'));
+	assert.equal(toggle.props['aria-expanded'], true);
+	assert.ok(findByAttribute(state.root, 'data-test-timeline-local-ticks-lane'));
 	toggle.props.onClick({ stopPropagation() {} });
 	await nextTick();
-	assert.equal(toggleIcon().props.class, 'ti ti-chevron-right');
-	assert.equal(nodes().find(node => node.props['data-timeline-clip-id'] === 'clip-0'), clip);
-	assert.ok(!nodes().some(node => node.props.class === 'localTicksLane' || node.props.class === 'keyframesLane'));
-	assert.ok(!nodes().some(node => node.props['data-timeline-keyframe-id']));
+	assert.equal(toggle.props['aria-expanded'], false);
+	assert.equal(nodes().find(node => node.props['data-test-timeline-clip-id'] === 'clip-0'), clip);
+	assert.equal(findByAttribute(state.root, 'data-test-timeline-local-ticks-lane'), null);
+	assert.equal(findByAttribute(state.root, 'data-test-timeline-keyframes-lane'), null);
+	assert.equal(findByAttribute(state.root, 'data-test-timeline-keyframe-id'), null);
 	assert.equal(mounts.get('GsTimeline.Clip.vue') ?? 0, 0);
 	toggle.props.onClick({ stopPropagation() {} });
 	await nextTick();
-	assert.equal(toggleIcon().props.class, 'ti ti-chevron-down');
-	assert.ok(nodes().some(node => node.props.class === 'localTicksLane'));
-	assert.ok(nodes().some(node => node.props['data-timeline-keyframe-id'] === 'key-0' && node.props.class.includes('selected')));
+	assert.equal(toggle.props['aria-expanded'], true);
+	assert.ok(findByAttribute(state.root, 'data-test-timeline-local-ticks-lane'));
+	assert.equal(nodes().find(node => node.props['data-test-timeline-keyframe-id'] === 'key-0').props['data-test-timeline-keyframe-selected'], true);
 	assert.deepEqual(state.layers[0].audioParamValues.volume.keyframesTimeline.keyframes, originalKeys);
 	assert.equal(commits.length, 0);
 });
@@ -183,19 +183,19 @@ test('hides the speech lane and local ruler when a voicevox layer is collapsed',
 	const state = await fixture(t);
 	Object.assign(state.layers[0], { layerType: 'voicevox', voicevox: {}, utterances: [], compositingParamValues: {}, subtitleParamValues: {} });
 	await nextTick();
-	const hasLane = className => descendants(state.root).some(node => node.props.class === className);
-	assert.ok(hasLane('speechLane'));
-	assert.ok(hasLane('localTicksLane'));
+	const hasLane = lane => findByAttribute(state.root, `data-test-timeline-${lane}-lane`) != null;
+	assert.ok(hasLane('speech'));
+	assert.ok(hasLane('local-ticks'));
 	state.props.collapsed = true;
 	await nextTick();
-	assert.ok(hasLane('mainLane'));
-	assert.ok(!hasLane('speechLane'));
-	assert.ok(!hasLane('localTicksLane'));
-	assert.ok(!hasLane('keyframesLane'));
+	assert.ok(hasLane('main'));
+	assert.ok(!hasLane('speech'));
+	assert.ok(!hasLane('local-ticks'));
+	assert.ok(!hasLane('keyframes'));
 	state.props.collapsed = false;
 	await nextTick();
-	assert.ok(hasLane('speechLane'));
-	assert.ok(hasLane('localTicksLane'));
+	assert.ok(hasLane('speech'));
+	assert.ok(hasLane('local-ticks'));
 	assert.equal(commits.length, 0);
 });
 
@@ -205,7 +205,7 @@ test('hides the speech lane and local ruler when a voicevox layer is collapsed',
 // 移動の開始・終了で描画のヒントを切り替えても、子の再評価を発生させない。
 test('pans by updating parent transforms without rerendering clips or keyframes', async t => {
 	const state = await fixture(t);
-	const translated = descendants(state.root).filter(node => node.props.class === 'scrollingContent');
+	const translated = descendants(state.root).filter(node => Object.hasOwn(node.props, 'data-test-timeline-scrolling-content'));
 	assert.equal(translated.length, 2);
 	assert.ok(translated.every(node => node.props.style.willChange === 'auto'));
 	state.props.optimizeHorizontalMovement = true;
@@ -249,10 +249,10 @@ test('updates selection, clip timing and playback while positioning source ghost
 	state.props.selectedClipIds = ['clip-0'];
 	await nextTick();
 	assert.equal(updates.get('GsTimeline.Clip.vue'), 1);
-	const ghost = descendants(state.root).find(node => node.props.class === 'sourceGhost');
+	const ghost = findByAttribute(state.root, 'data-test-timeline-clip-source-ghost');
 	assert.deepEqual(ghost.props.style, { left: '140px', width: '2000px' });
-	const clipRoot = descendants(state.root).find(node => node.props['data-timeline-clip-id'] === 'clip-0');
-	const clip = descendants(clipRoot).find(node => node.props.class?.split(' ').includes('clip'));
+	const clipRoot = descendants(state.root).find(node => node.props['data-test-timeline-clip-id'] === 'clip-0');
+	const clip = findByAttribute(clipRoot, 'data-test-timeline-clip');
 	assert.equal(clip.props.style.left, '200px');
 	state.layers[0].clips[0].startMs = 120;
 	await nextTick();
@@ -260,7 +260,7 @@ test('updates selection, clip timing and playback while positioning source ghost
 	assert.equal(ghost.props.style.left, '180px');
 	state.props.sceneTimeMs = 150;
 	await nextTick();
-	assert.ok(clip.props.class.includes('active'));
+	assert.equal(clip.props['data-test-timeline-clip-active'], true);
 	state.props.selectedKeyframes = [{ layerId: 'a', target: 'audio', paramPath: ['volume'], keyframeId: 'key-0' }];
 	await nextTick();
 	assert.ok(updates.get('GsTimeline.Layer.Keyframes.vue') > 0);
@@ -275,7 +275,7 @@ test('converts background gestures at the viewport and preserves clip and key ev
 	await nextTick();
 	const nodes = descendants(state.root);
 	const event = currentTarget => ({ button: 0, clientX: 250, currentTarget, stopPropagation() {}, preventDefault() {} });
-	const backgrounds = nodes.filter(node => node.props.class === 'tl' && node.props.onDblclick);
+	const backgrounds = nodes.filter(node => Object.hasOwn(node.props, 'data-test-timeline-lane-background'));
 	assert.equal(backgrounds.length, 2);
 	backgrounds[0].props.onDblclick(event(backgrounds[0]));
 	assert.deepEqual(state.events.at(-1), ['addClip', 115]);
@@ -283,14 +283,14 @@ test('converts background gestures at the viewport and preserves clip and key ev
 	const edit = commits.at(-1);
 	assert.equal(edit[0], 'editTimelineLayerParam');
 	assert.ok(edit[1].edit.value.keyframesTimeline.keyframes.some(point => point.x === 115));
-	const clipRoot = nodes.find(node => node.props['data-timeline-clip-id'] === 'clip-0');
-	const clip = descendants(clipRoot).find(node => node.props.class?.split(' ').includes('clip'));
+	const clipRoot = nodes.find(node => node.props['data-test-timeline-clip-id'] === 'clip-0');
+	const clip = findByAttribute(clipRoot, 'data-test-timeline-clip');
 	clip.props.onPointerdown(event(clip));
 	assert.deepEqual(state.events.at(-1), ['move', { layerId: 'a', clipId: 'clip-0' }]);
-	const trim = descendants(clip).find(node => node.props.class?.includes('trimStart'));
+	const trim = findByAttribute(clip, 'data-test-timeline-clip-trim-start');
 	trim.props.onPointerdown(event(trim));
 	assert.deepEqual(state.events.at(-1), ['trim', { layerId: 'a', clipId: 'clip-0' }, 'start']);
-	const key = nodes.find(node => node.props['data-timeline-keyframe-id'] === 'key-0');
+	const key = nodes.find(node => node.props['data-test-timeline-keyframe-id'] === 'key-0');
 	key.props.onPointerdown(event(key));
 	assert.deepEqual(state.events.at(-1), ['keyMove', { layerId: 'a', target: 'audio', paramPath: ['volume'], keyframeId: 'key-0' }]);
 });

@@ -40,6 +40,12 @@ function fixture(visualModules = [], timelineScenes = []) {
 }
 const nodeChange = nodeId => [{ type: 'node', target: { visualModuleId: 'visualModule' }, nodeId, changes: [{ type: 'parameter', kind: 'value' }] }];
 
+// 診断文は表示や翻訳に合わせて調整されるため、検証に失敗した対象の識別子を確認する。
+// 各ケースで不正な設定と修正後の解除を組み合わせ、文言に依存せず検証の動作を保証する。
+function assertDiagnosticTarget(validation, target) {
+	assert.ok(validation.diagnostics.value.some(diagnostic => diagnostic.target === target), `Missing diagnostic for ${target}`);
+}
+
 // 【LUTの参照先変更と同じIDの種類変更を再検証する】
 // 通常値の変更を省略する静的shapeにLUT IDを含めないと、別Assetへの切替を見落とす。
 // Asset差し替えの依存通知でも再検証し、誤った種類を描画へ渡さない。
@@ -55,7 +61,7 @@ test('revalidates LUT selection and asset replacement', () => {
 	assert.equal(validation.errorMessage.value, null);
 	selected.staticSettings.lut = 'second';
 	validation.update(nodeChange('lut'));
-	assert.match(validation.errorMessage.value, /Incompatible Asset/);
+	assertDiagnosticTarget(validation, '["module","visualModule"]/node:lut');
 	state.assets.value[1].fileDataType = 'application/x-cube-lut';
 	validation.update([{ type: 'asset', assetId: 'second' }]);
 	assert.equal(validation.errorMessage.value, null);
@@ -149,7 +155,7 @@ test('reuses static validation for ordinary literal edits', () => {
 // 描画経路やバイパスによって検証範囲を変えると、再有効化した時に初めて失敗する。
 test('detects cycles in unused and bypassed nodes and clears them after editing', () => {
 	const { state, validation } = fixture([visualModule([node('first', connection('second')), { ...node('second', connection('first')), isBypass: true }])]);
-	assert.match(validation.errorMessage.value, /Circular node reference/);
+	assertDiagnosticTarget(validation, '["module","visualModule"]/connections');
 	state.visualModules.value[0].nodes[1].params.amount = literal(1);
 	validation.update(nodeChange('second'));
 	assert.equal(validation.errorMessage.value, null);
@@ -159,7 +165,7 @@ test('detects cycles in unused and bypassed nodes and clears them after editing'
 // 音声計画や参照先Sceneの生成に入ってから無限再帰することを防ぐ。
 test('updates scene cycles when a referenced scene clip changes', () => {
 	const { state, validation } = fixture([], [scene('first', [sceneLayer('child', 'second')]), scene('second', [sceneLayer('child', 'first')])]);
-	assert.match(validation.errorMessage.value, /Circular scene reference/);
+	assertDiagnosticTarget(validation, 'Scene references');
 	state.timelineScenes.value[1].layers[0].clips = [];
 	validation.update([{ type: 'layer', sceneId: 'second', layerId: 'child', changes: [{ type: 'clips' }] }]);
 	assert.equal(validation.errorMessage.value, null);
@@ -183,7 +189,7 @@ for (const cycle of ['direct', 'indirect', 'disabled group']) {
 		const scenes = cycle === 'indirect' ? [root, scene('child', [sceneLayer('back', 'root')])] : [root];
 		if (cycle === 'disabled group') root.layers = [{ ...groupLayer('group', root.layers), isDisabled: true }];
 		const { validation } = fixture([], scenes);
-		assert.ok(validation.diagnostics.value.some(diagnostic => /Circular scene reference/.test(diagnostic.message)));
+		assertDiagnosticTarget(validation, 'Scene references');
 	});
 }
 
@@ -192,13 +198,13 @@ for (const cycle of ['direct', 'indirect', 'disabled group']) {
 // 復旧と再度の欠落までを、新しいUI検証の入口で確認する。
 test('diagnoses missing scenes and updates references after scene registration changes', () => {
 	const { state, validation } = fixture([], [scene('root', [sceneLayer('placement', 'missing')])]);
-	assert.match(validation.errorMessage.value, /Scene not found/);
+	assertDiagnosticTarget(validation, 'scene:root/layer:placement');
 	state.timelineScenes.value.push(scene('missing'));
 	validation.update([{ type: 'scene', sceneId: 'missing' }]);
 	assert.equal(validation.errorMessage.value, null);
 	state.timelineScenes.value.pop();
 	validation.update([{ type: 'scene', sceneId: 'missing' }]);
-	assert.match(validation.errorMessage.value, /Scene not found/);
+	assertDiagnosticTarget(validation, 'scene:root/layer:placement');
 });
 
 // 【Scene IDとグループをまたぐレイヤーIDの重複をUIで診断する】
@@ -206,9 +212,9 @@ test('diagnoses missing scenes and updates references after scene registration c
 // グループ内のIDを修正した際に診断を解除できることも保証する。
 test('diagnoses duplicate scene and nested layer IDs in UI validation', () => {
 	const duplicates = fixture([], [scene('same'), scene('same')]);
-	assert.match(duplicates.validation.errorMessage.value, /Duplicate scene ID/);
+	assertDiagnosticTarget(duplicates.validation, 'Scene references');
 	const { state, validation } = fixture([], [scene('root', [groupLayer('same', []), groupLayer('parent', [groupLayer('same', [])])])]);
-	assert.match(validation.errorMessage.value, /Duplicate layer ID/);
+	assertDiagnosticTarget(validation, 'scene:root');
 	state.timelineScenes.value[0].layers[1].layers[0].id = 'unique';
 	validation.update([{ type: 'layerTree', sceneId: 'root' }]);
 	assert.equal(validation.errorMessage.value, null);
@@ -220,7 +226,7 @@ test('diagnoses duplicate scene and nested layer IDs in UI validation', () => {
 test('diagnoses invalid scene resolutions and clears them after correction', () => {
 	const root = { ...scene('root'), resolution: { mode: 'customAbsolute', width: 0, height: 16 } };
 	const { state, validation } = fixture([], [root]);
-	assert.match(validation.errorMessage.value, /Scene resolution/);
+	assertDiagnosticTarget(validation, 'scene:root');
 	state.timelineScenes.value[0].resolution.width = 16;
 	validation.update([{ type: 'scene', sceneId: 'root' }]);
 	assert.equal(validation.errorMessage.value, null);
@@ -236,7 +242,7 @@ test('accepts cameras under transforms and diagnoses cameras under groups in UI 
 	const transform = { id: 'transform', name: 'Transform', layerType: 'transform', layers: [camera], automationGraphs: [],
 		transformParamValues: createTimelineTransformParameterValues() };
 	assert.equal(fixture([], [scene('root', [transform])]).validation.errorMessage.value, null);
-	assert.match(fixture([], [scene('root', [groupLayer('group', [transform])])]).validation.errorMessage.value, /Camera is inside a Group/);
+	assertDiagnosticTarget(fixture([], [scene('root', [groupLayer('group', [transform])])]).validation, 'scene:root/layer:camera');
 });
 
 // 【参照先の追加・削除では利用単位だけ再検証する】
@@ -244,13 +250,13 @@ test('accepts cameras under transforms and diagnoses cameras under groups in UI 
 test('revalidates references after registration and deletion', () => {
 	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'visualModule', visualModuleId: 'missing', visualModuleParamValues: {} };
 	const { state, validation } = fixture([], [scene('scene', [layer])]);
-	assert.match(validation.errorMessage.value, /Visual Module not found/);
+	assertDiagnosticTarget(validation, 'scene:scene/layer:layer');
 	state.visualModules.value = [visualModule([], 'missing')];
 	validation.update([{ type: 'visualModuleRegistration', visualModuleId: 'missing' }]);
 	assert.equal(validation.errorMessage.value, null);
 	state.visualModules.value = [];
 	validation.update([{ type: 'visualModuleRegistration', visualModuleId: 'missing' }]);
-	assert.match(validation.errorMessage.value, /Visual Module not found/);
+	assertDiagnosticTarget(validation, 'scene:scene/layer:layer');
 });
 
 // 【Inline Visual Moduleの公開型変更では、同じ形の引数も所有レイヤーで再検証する】
@@ -267,7 +273,7 @@ test('revalidates inline arguments when the public parameter type changes', () =
 	const changes = [{ type: 'visualModule', target: { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } }];
 	current.paramDefs[0] = { ...parameter, dataType: { kind: 'audioSource' }, defaultValue: literal(null) };
 	validation.update(changes);
-	assert.match(validation.errorMessage.value, /static input/);
+	assertDiagnosticTarget(validation, 'scene:scene/layer:inline');
 	current.paramDefs[0] = parameter;
 	validation.update(changes);
 	assert.equal(validation.errorMessage.value, null);
@@ -284,7 +290,7 @@ test('rejects retained inline audio arguments after changing their public type',
 	assert.equal(validation.errorMessage.value, null);
 	state.timelineScenes.value[0].layers[0].visualModule.paramDefs[0] = { ...audio, dataType: { kind: 'scalar' }, defaultValue: literal(0) };
 	validation.update([{ type: 'visualModule', target: { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } }]);
-	assert.match(validation.errorMessage.value, /Layer audio is not available/);
+	assertDiagnosticTarget(validation, 'scene:scene/layer:inline');
 });
 
 // 【静的エラー中はエンジンを持たず、修正後に最新設定で生成する】
@@ -394,7 +400,7 @@ test('invalidates an old creation even if static errors are already corrected', 
 test('diagnoses invalid layer audio bindings before rendering', () => {
 	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect', resolution: { mode: 'context', scale: 1 }, effectParamValues: { amount: { inputSource: 'lowerLayerAudio' } } };
 	const { state, validation } = fixture([], [scene('scene', [layer])]);
-	assert.match(validation.errorMessage.value, /Layer audio is not available/);
+	assertDiagnosticTarget(validation, 'scene:scene/layer:layer');
 	state.timelineScenes.value[0].layers[0].effectParamValues.amount = literal(1);
 	validation.update([{ type: 'layer', sceneId: 'scene', layerId: 'layer', changes: [{ type: 'parameter', target: 'effect', kind: 'inputSource' }] }]);
 	assert.equal(validation.errorMessage.value, null);
@@ -417,13 +423,13 @@ test('revalidates mask cycles and compositing boundaries after edits and tree ch
 	assert.equal(f.validation.errorMessage.value, null);
 	source.effectParamValues.amount = outputReference('target', 'rendered');
 	f.validation.update(imageLayerChange('source'));
-	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 	source.effectParamValues.amount = outputReference('target');
 	f.validation.update(imageLayerChange('source'));
 	assert.equal(f.validation.errorMessage.value, null);
 	root.layers = [groupLayer('group', [source]), target];
 	f.validation.update([{ type: 'layerTree', sceneId: 'scene' }]);
-	assert.match(f.validation.errorMessage.value, /compositing boundary/);
+	assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 	root.layers = [target];
 	f.validation.update([{ type: 'layerTree', sceneId: 'scene' }]);
 	assert.equal(f.validation.errorMessage.value, null);
@@ -431,7 +437,7 @@ test('revalidates mask cycles and compositing boundaries after edits and tree ch
 	source.layerMask = { sourceLayerId: 'target', channel: 'alpha', inverted: false };
 	source.isDisabled = true;
 	f.validation.update([{ type: 'layerTree', sceneId: 'scene' }]);
-	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 });
 
 // 【上層素材の参照と、下層合成を経由する循環を区別する】
@@ -444,13 +450,13 @@ test('revalidates output stages lower inputs and layer order for image cycles', 
 	assert.equal(f.validation.errorMessage.value, null);
 	lower.effectParamValues.amount = outputReference('upper', 'composited');
 	f.validation.update(imageLayerChange('lower'));
-	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 	lower.effectParamValues.amount = outputReference('upper');
 	f.validation.update(imageLayerChange('lower'));
 	assert.equal(f.validation.errorMessage.value, null);
 	upper.effectParamValues.amount = { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
 	f.validation.update(imageLayerChange('upper'));
-	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 	f.state.timelineScenes.value[0].layers.reverse();
 	f.validation.update([{ type: 'layerOrder', sceneId: 'scene' }]);
 	assert.equal(f.validation.errorMessage.value, null);
@@ -463,7 +469,7 @@ test('detects ancestor and inactive image cycles across group boundaries', () =>
 	const child = imageEffectLayer('child', outputReference('group'));
 	const group = { ...groupLayer('group', [child]), isDisabled: true };
 	const f = fixture([], [scene('scene', [group])]);
-	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 	child.effectParamValues.amount = literal(0);
 	f.validation.update(imageLayerChange('child'));
 	assert.equal(f.validation.errorMessage.value, null);
@@ -474,7 +480,7 @@ test('detects ancestor and inactive image cycles across group boundaries', () =>
 	child.effectParamValues.amount = outputReference('other');
 	other.clips[0].startMs = 2000;
 	f.validation.update(imageLayerChange('child'));
-	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 });
 
 // 【公開主入力の既定の下層入力も画像依存に含め、明示的な未選択で解除できる】
@@ -487,7 +493,7 @@ test('includes default public primary inputs in the image dependency graph', () 
 	const publicLayer = { ...imageEffectLayer('public'), layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {} };
 	const source = imageEffectLayer('source', outputReference('public'));
 	const f = fixture([visual], [scene('scene', [publicLayer, source])]);
-	assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+	assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 	publicLayer.visualModuleParamValues.image = { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' };
 	f.validation.update(imageLayerChange('public'));
 	assert.equal(f.validation.errorMessage.value, null);
@@ -507,7 +513,7 @@ test('revalidates image cycles when an inline Visual Module primary input change
 		inline.visualModule.primaryInputId = primaryInputId;
 		f.validation.update([{ type: 'visualModule', target }]);
 		if (primaryInputId == null) assert.equal(f.validation.errorMessage.value, null);
-		else assert.match(f.validation.errorMessage.value, /Circular layer output reference/);
+		else assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 	}
 });
 
@@ -522,5 +528,5 @@ test('rejects image references in nonpublic nested Visual Module arguments', () 
 	const layer = { ...imageEffectLayer('public'), layerType: 'visualModule', visualModuleId: 'visual',
 		visualModuleParamValues: { settings: literal({ image: { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' } }) } };
 	const f = fixture([visual], [scene('scene', [layer])]);
-	assert.match(f.validation.errorMessage.value, /Timeline image input is only available/);
+	assertDiagnosticTarget(f.validation, 'scene:scene/layer:public');
 });

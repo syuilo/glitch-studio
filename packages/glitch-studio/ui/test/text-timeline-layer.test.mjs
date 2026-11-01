@@ -52,11 +52,12 @@ test('merges text edits and resets with independent defaults and compositing', t
 	assert.equal(f.layer.clips[0].startMs, 100);
 	assert.equal(f.layer.clips[0].durationMs, 5000);
 	const compositing = structuredClone(f.layer.compositingParamValues);
+	const initialText = structuredClone(f.layer.textParamValues.text);
 	f.edit('text', { kind: 'literal', value: 'Hello' }, 'typing');
 	f.edit('text', { kind: 'literal', value: 'Hello, timeline!' }, 'typing');
 	assert.equal(f.history.undoStack.value.length, 2);
 	f.history.undo();
-	assert.deepEqual(f.layer.textParamValues.text, literal('Hello, world!'));
+	assert.deepEqual(f.layer.textParamValues.text, initialText);
 	f.history.redo();
 	assert.deepEqual(f.layer.textParamValues.text, literal('Hello, timeline!'));
 	for (const change of f.changes.slice(1)) assert.deepEqual(change, [{ type: 'layer', sceneId: 'scene', layerId: f.layer.id,
@@ -64,10 +65,10 @@ test('merges text edits and resets with independent defaults and compositing', t
 	f.edit('position', { kind: 'literal', value: [0.3, 0.4] });
 	assert.deepEqual(f.layer.compositingParamValues, compositing);
 	f.edit('text', { kind: 'reset' });
-	assert.deepEqual(f.layer.textParamValues.text, literal('Hello, world!'));
+	assert.deepEqual(f.layer.textParamValues.text, initialText);
 	f.history.undo();
 	assert.deepEqual(f.layer.textParamValues.text, literal('Hello, timeline!'));
-	assert.deepEqual(f.initial.textParamValues.text, literal('Hello, world!'));
+	assert.deepEqual(f.initial.textParamValues.text, initialText);
 });
 
 // 【Textのキーはクリップを削除しても残り、専用レーンで編集できる】

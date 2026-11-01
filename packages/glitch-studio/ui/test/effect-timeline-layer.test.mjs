@@ -270,10 +270,10 @@ test('edits and restores LUT assets and references through commands', async () =
 	assert.equal(f.state.assets.value[0].id, 'lut');
 });
 
-// 【キーの行名は所有者を区別し、配列の並び替え後も同じIDを指す】
-// エフェクトと合成設定が同じ表示名を持っても、どちらを編集する行か分かるようにする。
-// 配列のindexは表示だけに使い、並び替えで選択キーや参照先のIDを変更しない。
-test('labels keyframe rows by owner and current array order while preserving path identity', t => {
+// 【キーの行は編集対象を区別し、配列の並び替え後も同じIDを指す】
+// エフェクトと合成設定が同じ表示名を持っても、対象とパスで独立して識別する。
+// 配列の並び替えで選択キーや参照先のIDを変更しない。
+test('identifies keyframe rows by owner and stable parameter paths after reordering', t => {
 	effectDefinitions.labelProbe = { ...effectDefinitions.testStructArray, id: 'labelProbe', paramDefs: {
 		...effectDefinitions.testStructArray.paramDefs,
 		opacity: { dataType: { kind: 'scalar' }, ui: { label: 'Opacity', control: { controlType: 'number' } }, defaultValue: literal(1) },
@@ -286,14 +286,18 @@ test('labels keyframe rows by owner and current array order while preserving pat
 	const path = ['buzzs', 'first', 'x'];
 	f.edit(path, { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
 	const rows = getLayerKeyframeParameters(f.state, f.layer);
-	assert.deepEqual(rows.map(row => row.label), ['Compositing / Opacity', 'Effect / Buzzs [0] / X', 'Effect / Opacity']);
+	assert.deepEqual(rows.map(({ target, paramPath }) => ({ target, paramPath })), [
+		{ target: 'compositing', paramPath: ['opacity'] },
+		{ target: 'effect', paramPath: path },
+		{ target: 'effect', paramPath: ['opacity'] },
+	]);
 	const original = rows.find(row => row.paramPath.length > 1);
 	f.edit(['buzzs'], { kind: 'addElement' });
 	f.read(['buzzs']).value.reverse();
 	const moved = getLayerKeyframeParameters(f.state, f.layer).find(row => row.key === original.key);
 	assert.deepEqual(moved.paramPath, path);
 	assert.deepEqual(moved.binding, original.binding);
-	assert.equal(moved.label, 'Effect / Buzzs [1] / X');
+	assert.equal(f.read(['buzzs']).value[1].id, path[1]);
 });
 
 // 【主入力がある生成系と加工系で初期入力・合成を分ける】

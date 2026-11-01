@@ -108,7 +108,10 @@ test('edits scene-time shape keyframes independently of composition and clip lif
 	f.edit('size', { kind: 'keyframesTimelineInline', value: keyed });
 	assert.equal(f.layer.shape.paramValues.size.keyframesTimeline.keyframes[0].x, 151);
 	f.history.commit('editTimelineLayerParam', { ...f.target, target: 'compositing', paramPath: ['position'], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
-	assert.deepEqual(getLayerKeyframeParameters(f.state, f.layer).map(row => row.label), ['Compositing / Position', 'Shape / Size']);
+	assert.deepEqual(getLayerKeyframeParameters(f.state, f.layer).map(({ target, paramPath }) => ({ target, paramPath })), [
+		{ target: 'compositing', paramPath: ['position'] },
+		{ target: 'shape', paramPath: ['size'] },
+	]);
 	f.history.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...f.target, paramPath: ['size'], keyframeId: 'size-key', x: 400 }] });
 	assert.equal(f.layer.shape.paramValues.size.keyframesTimeline.keyframes[0].x, 400);
 	f.history.undo();
@@ -193,7 +196,9 @@ test('edits and resets stroke progress and start through ordinary shape commands
 	f.history.redo();
 	assert.deepEqual(f.layer.shape.paramValues.strokeProgress, literal(0.25));
 	for (const key of ['strokeStart', 'strokeProgress']) f.edit(key, { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
-	assert.deepEqual(getLayerKeyframeParameters(f.state, f.layer).map(row => row.label).sort(), ['Shape / Stroke progress', 'Shape / Stroke start']);
+	const rows = getLayerKeyframeParameters(f.state, f.layer);
+	assert.ok(rows.every(row => row.target === 'shape'));
+	assert.deepEqual(rows.map(row => row.paramPath).sort(), [['strokeProgress'], ['strokeStart']]);
 	f.edit('strokeProgress', { kind: 'reset' });
 	f.edit('strokeStart', { kind: 'reset' });
 	assert.deepEqual(f.layer.shape.paramValues.strokeProgress, literal(1));

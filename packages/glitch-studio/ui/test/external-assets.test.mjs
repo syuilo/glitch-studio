@@ -47,7 +47,8 @@ test('round trips unavailable references without reading their contents', async 
 	globalThis.window = {};
 	t.after(() => { globalThis.window = previous; });
 	await resolveExternalAssets(restored.assets);
-	assert.match(restored.assets[0].fileData.error, /Electron/);
+	assert.equal(restored.assets[0].fileData.url, null);
+	assert.equal(typeof restored.assets[0].fileData.error, 'string');
 	assert.equal(decodeProjectFile(await encodeProjectFile(restored)).assets[0].sourceFilePath, 'assets/video.mp4');
 });
 

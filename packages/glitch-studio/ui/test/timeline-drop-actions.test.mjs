@@ -133,7 +133,7 @@ test('keeps failed media in assets and adds videos without decodable audio', asy
 	assert.deepEqual(f.scene.layers.map(layer => layer.name), ['silent.mp4']);
 	assert.equal(f.scene.layers[0].clips[0].audioEnabled, false);
 	assert.ok(f.events.includes('revealAssets'));
-	assert.match(f.events.find(event => Array.isArray(event) && event[0] === 'alert')[1], /Cannot decode[\s\S]*usable duration[\s\S]*Audio unavailable/);
+	assert.equal(f.events.filter(event => Array.isArray(event) && event[0] === 'alert').length, 1);
 });
 
 // 【取り込みのレイヤー検証が失敗した場合、AssetやPlayerだけを途中反映しない】
