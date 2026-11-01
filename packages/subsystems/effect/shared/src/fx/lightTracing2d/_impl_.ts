@@ -82,7 +82,7 @@ export default implementEffect<typeof definition>({
 		const draw = (pass: GPURenderPassEncoder, renderPipeline: GPURenderPipeline, group: GPUBindGroup) => {
 			pass.setPipeline(renderPipeline);
 			pass.setBindGroup(0, group);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 		};
 		return {
@@ -110,7 +110,7 @@ export default implementEffect<typeof definition>({
 				preparePass.setPipeline(prepared.pipeline);
 				preparePass.setBindGroup(0, prepareGroup);
 				preparePass.setBindGroup(1, prepared.bindGroup);
-				preparePass.draw(6);
+				preparePass.draw(3);
 				preparePass.end();
 				if (emissionStrength > 0) {
 					for (const { group, target } of jumpPasses) draw(ctx.createPassEncoderFor(ctx.commandEncoder, target), jumpPipeline, group);

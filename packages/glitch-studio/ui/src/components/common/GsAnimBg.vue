@@ -290,7 +290,7 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 					});
 					passEncoder.setPipeline(pointerTrailPipeline);
 					passEncoder.setBindGroup(1, pointerTrailBindGroups[pointerTrailReadBufferIndex]);
-					passEncoder.draw(6);
+					passEncoder.draw(3);
 					passEncoder.end();
 				}
 				currentPointerTrailBufferIndex = pointerTrailWriteBufferIndex;
@@ -304,7 +304,7 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 				const passEncoder = ctx.createPassEncoder(ctx.commandEncoder);
 				passEncoder.setPipeline(pipeline);
 				passEncoder.setBindGroup(0, bindGroups[currentPointerTrailBufferIndex]);
-				passEncoder.draw(6);
+				passEncoder.draw(3);
 				passEncoder.end();
 			},
 			dispose() {
@@ -320,6 +320,7 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 
 <script lang="ts" setup>
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
+import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 
 const canvas = useTemplateRef('canvas');
 
@@ -377,31 +378,7 @@ onMounted(async () => {
 	});
 
 	const defaultVertexShaderModule = device.createShaderModule({
-		code: `struct VertexOut {
-	@builtin(position) position: vec4f,
-	@location(0) uv: vec2f,
-};
-
-const vertices = array(
-	// 1st triangle
-	vec2f(-1.0, -1.0),  // center
-	vec2f( 1.0, -1.0),  // right, center
-	vec2f(-1.0,  1.0),  // center, top
-
-	// 2st triangle
-	vec2f(-1.0,  1.0),  // center, top
-	vec2f( 1.0, -1.0),  // right, center
-	vec2f( 1.0,  1.0),  // right, top
-);
-
-@vertex
-fn vs(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
-	let pos = vertices[vertexIndex];
-	var output: VertexOut;
-	output.position = vec4f(pos, 0.0, 1.0);
-	output.uv = pos.xy;
-	return output;
-}`,
+		code: defaultVertexShaderCode,
 	});
 
 	const initialTime = (Date.now() % (1000 * 60 * 60 * 24));

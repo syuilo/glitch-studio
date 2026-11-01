@@ -257,13 +257,13 @@ export default implementEffect<typeof definition>({
 				analysisPass.setPipeline(motionCapture.pipeline);
 				analysisPass.setBindGroup(0, captureGroup);
 				analysisPass.setBindGroup(captureMotion.inputGroup, motionCapture.bindGroup);
-				analysisPass.draw(6);
+				analysisPass.draw(3);
 				analysisPass.end();
 				for (let level = 1; level < mipLevelCount; level++) {
 					const downsamplePass = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [attachment(mipViews[currentIndex][level])] });
 					downsamplePass.setPipeline(downsample);
 					downsamplePass.setBindGroup(0, downsampleGroups[currentIndex][level - 1]);
-					downsamplePass.draw(6);
+					downsamplePass.draw(3);
 					downsamplePass.end();
 				}
 				const update = getUpdateVariant(params.spawnMask);
@@ -277,14 +277,14 @@ export default implementEffect<typeof definition>({
 				const snapshotPass = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [attachment(snapshotsView, 'load')] });
 				snapshotPass.setPipeline(captureSnapshots);
 				snapshotPass.setBindGroup(0, blockResources.snapshotGroups[currentIndex]);
-				snapshotPass.draw(6);
+				snapshotPass.draw(3);
 				snapshotPass.end();
 				const backgroundVariant = background.update({ input: params.input }, ctx.outputDataMap.output.texture);
 				const outputPass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				outputPass.setPipeline(backgroundVariant.pipeline);
 				outputPass.setBindGroup(0, blockResources.backgroundGroups[currentIndex]);
 				outputPass.setBindGroup(background.inputGroup, backgroundVariant.bindGroup);
-				outputPass.draw(6);
+				outputPass.draw(3);
 				outputPass.setPipeline(renderBlocks);
 				outputPass.setBindGroup(0, blockResources.renderGroups[currentIndex]);
 				outputPass.draw(6, geometry.blockCount);
@@ -296,7 +296,7 @@ export default implementEffect<typeof definition>({
 				saveInputPass.setPipeline(inputCapture.pipeline);
 				saveInputPass.setBindGroup(0, captureGroup);
 				saveInputPass.setBindGroup(captureInput.inputGroup, inputCapture.bindGroup);
-				saveInputPass.draw(6);
+				saveInputPass.draw(3);
 				saveInputPass.end();
 				hasAnalysis = true;
 				hasBlockState = true;

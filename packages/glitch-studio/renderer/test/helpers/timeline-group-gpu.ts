@@ -152,7 +152,7 @@ export async function run() {
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(variant.pipeline);
 			pass.setBindGroup(copy.inputGroup, variant.bindGroup);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow: 256 }, [8, 4]);
 			device.queue.submit([encoder.finish()]);

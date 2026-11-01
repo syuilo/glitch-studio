@@ -244,7 +244,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 			pass.setPipeline(current.pipeline);
 			pass.setBindGroup(0, maskBinding);
 			pass.setBindGroup(pipeline.inputGroup, current.bindGroup);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			outputKey = key;
 			return result = { kind: 'texture', texture: output, region: { bounds: plan.bounds, frameSize: options.resolution } };

@@ -42,7 +42,7 @@ export default implementEffect<typeof definition>({
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(pipeline);
 				pass.setBindGroup(0, group);
-				pass.draw(6);
+				pass.draw(3);
 				pass.end();
 			},
 			dispose: () => uniformBuffer.destroy(),

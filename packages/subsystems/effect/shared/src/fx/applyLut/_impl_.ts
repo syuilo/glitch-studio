@@ -49,7 +49,7 @@ export default implementEffect<typeof definition>({
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, (loader.resource ?? bypass).bindGroup);
 				pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
-				pass.draw(6);
+				pass.draw(3);
 				pass.end();
 			},
 			dispose: () => {

@@ -130,7 +130,7 @@ export default implementEffect<typeof definition>({
 					});
 					save.setPipeline(captured.pipeline);
 					save.setBindGroup(capture.inputGroup, captured.bindGroup);
-					save.draw(6);
+					save.draw(3);
 					save.end();
 					history.captureTimes[newestLayer] = elapsedSeconds;
 					lastCaptureTime = elapsedSeconds;
@@ -172,7 +172,7 @@ export default implementEffect<typeof definition>({
 				render.setPipeline(sorted.pipeline);
 				render.setBindGroup(0, history.bindGroup);
 				render.setBindGroup(history.output.inputGroup, sorted.bindGroup);
-				render.draw(6);
+				render.draw(3);
 				render.end();
 			},
 			dispose: () => {

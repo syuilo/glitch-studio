@@ -118,20 +118,20 @@ export default implementEffect<typeof definition>({
 				save.setPipeline(capture.pipeline);
 				save.setBindGroup(0, captureGroup);
 				save.setBindGroup(capturePipelines.inputGroup, capture.bindGroup);
-				save.draw(6);
+				save.draw(3);
 				save.end();
 				if (hasPrevious) {
 					const solve = ctx.createPassEncoder(ctx.commandEncoder, attachment(flowView));
 					solve.setPipeline(estimate);
 					solve.setBindGroup(0, estimateGroups[current]);
-					solve.draw(6);
+					solve.draw(3);
 					solve.end();
 				}
 				const render = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				if (hasPrevious) {
 					render.setPipeline(output);
 					render.setBindGroup(0, outputGroup);
-					render.draw(6);
+					render.draw(3);
 				}
 				render.end();
 				current = 1 - current;

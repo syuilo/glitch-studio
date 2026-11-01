@@ -117,7 +117,7 @@ export function createWaveform(options: {
 			if (!drawable || renderPipeline == null || outputGroup == null) return;
 			pass.setPipeline(renderPipeline);
 			pass.setBindGroup(0, outputGroup);
-			pass.draw(6);
+			pass.draw(3);
 		},
 		dispose() {
 			for (const variant of variants.values()) variant.bindings.dispose();

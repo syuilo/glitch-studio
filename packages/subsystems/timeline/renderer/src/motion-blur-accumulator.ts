@@ -67,7 +67,7 @@ export function createMotionBlurAccumulator(options: {
 			pass.setPipeline(variant.pipeline);
 			pass.setBindGroup(0, groups[1 - target]);
 			pass.setBindGroup(pipeline.inputGroup, variant.bindGroup);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			return { kind: 'texture', texture: textures[target] };
 		},

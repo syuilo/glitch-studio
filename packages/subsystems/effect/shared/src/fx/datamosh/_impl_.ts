@@ -278,19 +278,19 @@ export default implementEffect<typeof definition>({
 				save.setPipeline(captured.pipeline);
 				save.setBindGroup(0, uniformGroup);
 				save.setBindGroup(capture.inputGroup, captured.bindGroup);
-				save.draw(6);
+				save.draw(3);
 				save.end();
 				for (let level = 1; level < mipLevelCount; level++) {
 					const downsample = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [attachment(mipViews[current][level])] });
 					downsample.setPipeline(reduce);
 					downsample.setBindGroup(0, reduceGroups[current][level - 1]);
-					downsample.draw(6);
+					downsample.draw(3);
 					downsample.end();
 				}
 				const solve = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [attachment(motionResources.views[current])] });
 				solve.setPipeline(estimate);
 				solve.setBindGroup(0, motionResources.estimateGroups[current]);
-				solve.draw(6);
+				solve.draw(3);
 				solve.end();
 				const composed = compose.update({ input: params.input, recoveryMask: params.recoveryMask }, ctx.outputDataMap.output.texture);
 				const render = ctx.createPassEncoder(ctx.commandEncoder, {
@@ -299,7 +299,7 @@ export default implementEffect<typeof definition>({
 				render.setPipeline(composed.pipeline);
 				render.setBindGroup(0, motionResources.composeGroup(current, params.historyWrap));
 				render.setBindGroup(compose.inputGroup, composed.bindGroup);
-				render.draw(6);
+				render.draw(3);
 				render.end();
 
 				// 時刻からの再構築は行わない。シーク・逆再生も含め、実際に描画した順序を履歴とする。

@@ -84,7 +84,7 @@ export default implementEffect<typeof definition>({
 				});
 				passEncoder.setPipeline(pipeline);
 				passEncoder.setBindGroup(0, bindGroup);
-				passEncoder.draw(6);
+				passEncoder.draw(3);
 				passEncoder.end();
 				// パラメータ配列そのものを保持すると、呼び出し側の更新で移動元まで変わる可能性がある。
 				previousPosition = [position[0], position[1]];

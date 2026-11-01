@@ -37,7 +37,7 @@ export default implementEffect<typeof definition>({
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
-				pass.draw(6);
+				pass.draw(3);
 				pass.end();
 			},
 			dispose: () => {

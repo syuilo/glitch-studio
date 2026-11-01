@@ -76,7 +76,7 @@ export default implementEffect<typeof definition>({
 		const draw = (pass: GPURenderPassEncoder, pipeline: GPURenderPipeline, group: GPUBindGroup) => {
 			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, group);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 		};
 		return {
@@ -88,7 +88,7 @@ export default implementEffect<typeof definition>({
 				preparePass.setPipeline(prepared.pipeline);
 				preparePass.setBindGroup(0, prepareGroup);
 				preparePass.setBindGroup(preparePipelines.inputGroup, prepared.bindGroup);
-				preparePass.draw(6);
+				preparePass.draw(3);
 				preparePass.end();
 				const seedPass = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [identifiers[0].view, offsets.view].map(view => ({ view, loadOp: 'clear', storeOp: 'store' })) });
 				draw(seedPass, seedPipeline, seedGroup);

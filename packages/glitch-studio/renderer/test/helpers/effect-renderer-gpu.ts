@@ -62,7 +62,7 @@ async function runGpuChecks(check: typeof checkTimelineCompositor) {
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: output.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: texture.createView() }] }));
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			encoder.copyTextureToBuffer({ texture: output }, { buffer, bytesPerRow }, [width, height]);
 			device.queue.submit([encoder.finish()]);

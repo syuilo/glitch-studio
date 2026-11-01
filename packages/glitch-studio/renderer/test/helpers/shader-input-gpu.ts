@@ -80,7 +80,7 @@ export async function run() {
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: arrayOutput.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(variant.pipeline);
 			pass.setBindGroup(0, variant.bindGroup);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			return (await read(arrayOutput, encoder))[0];
 		};
@@ -111,7 +111,7 @@ export async function run() {
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: arrayOutput.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(variant.pipeline);
 			pass.setBindGroup(0, variant.bindGroup);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			check('scalar array derivatives and empty typed selectors', (await read(arrayOutput, encoder))[0], [64, 0, 0, 255, 128, 255, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
 		} finally { gradientArrayPipelines.dispose(); }
@@ -260,7 +260,7 @@ export async function run() {
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: output.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, bindings.update(inputs, output));
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			check(`wrap ${wrapMode}`, (await read(output, encoder))[0], expected);
 			bindings.dispose();
@@ -283,7 +283,7 @@ export async function run() {
 					const pass = encoder.beginRenderPass({ colorAttachments: [{ view: output.createView(), loadOp: 'clear', storeOp: 'store' }] });
 					pass.setPipeline(pipeline);
 					pass.setBindGroup(0, bindings.update({ source: input }, output));
-					pass.draw(6);
+					pass.draw(3);
 					pass.end();
 					check(`filter ${filterMode} at ${x}`, (await read(output, encoder))[0], filterMode === 'linear' ? linear : nearest);
 				}

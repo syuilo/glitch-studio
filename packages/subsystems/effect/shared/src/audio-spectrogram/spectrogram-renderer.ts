@@ -165,7 +165,7 @@ export function createSpectrogramRenderer(options: SpectrogramRendererOptions) {
 			options.device.queue.writeBuffer(uniformBuffer, 0, uniforms);
 			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, bindGroup!);
-			pass.draw(6);
+			pass.draw(3);
 		},
 		dispose() { texture?.destroy(); uniformBuffer.destroy(); },
 	};

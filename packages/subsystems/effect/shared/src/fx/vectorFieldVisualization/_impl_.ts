@@ -46,7 +46,7 @@ export default implementEffect<typeof definition>({
 				pass.setBindGroup(0, bindGroup);
 				pass.setBindGroup(1, rampBindGroup);
 				pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
-				pass.draw(6);
+				pass.draw(3);
 				pass.end();
 			},
 			dispose: () => { pipelines.dispose(); colorRamp.dispose(); uniformBuffer.destroy(); },

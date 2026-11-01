@@ -58,6 +58,7 @@ export type EffectOutputDataMap<Outputs extends EffectOutputDefinitions> = {
 
 export type EffectGpuContext = {
 	device: GPUDevice;
+	/** triangle-listとdraw(3)で全画面を覆い、location(0)に各軸[-1,+1]の画像参照座標を渡す。 */
 	defaultVertexShaderModule: GPUShaderModule;
 	enable32bitDataTextures: boolean;
 	intermediateTextureFormat: IntermediateTextureFormat;

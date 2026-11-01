@@ -246,7 +246,7 @@ export default implementEffect<typeof definition>({
 				output.setPipeline(variant.output);
 				output.setBindGroup(0, resources.outputGroup);
 				output.setBindGroup(1, inputGroup);
-				output.draw(6);
+				output.draw(3);
 				output.end();
 			},
 			dispose: () => {

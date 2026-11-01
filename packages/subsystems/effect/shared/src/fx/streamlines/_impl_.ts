@@ -157,7 +157,7 @@ export default implementEffect<typeof definition>({
 				colorPass.setBindGroup(0, colorGroup);
 				colorPass.setBindGroup(1, rampGroup);
 				colorPass.setBindGroup(2, inputGroup);
-				colorPass.draw(6);
+				colorPass.draw(3);
 				colorPass.end();
 			},
 			dispose: () => {

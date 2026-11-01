@@ -1,4 +1,5 @@
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
+import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createAudioSpectrogram } from '@gs/subsystems_effect_shared/audio-spectrogram/audio-spectrogram.ts';
 import { createPreviewSpectrum } from './audio-preview-spectrum.ts';
 import { createPreviewWaveform } from './audio-preview-waveform.ts';
@@ -70,12 +71,7 @@ function gpu() {
 			send({ type: 'error', message: event.error.message });
 		});
 		vertex = created.createShaderModule({
-			code: `
-struct VertexOut { @builtin(position) position: vec4f, @location(0) uv: vec2f };
-@vertex fn vs(@builtin(vertex_index) index: u32) -> VertexOut {
-	let positions = array(vec2f(-1, -1), vec2f(1, -1), vec2f(-1, 1), vec2f(-1, 1), vec2f(1, -1), vec2f(1, 1));
-	return VertexOut(vec4f(positions[index], 0, 1), positions[index]);
-}`,
+			code: defaultVertexShaderCode,
 		});
 		void created.lost.then(info => {
 			if (device !== created) return;

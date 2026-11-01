@@ -184,7 +184,7 @@ export default implementEffect<typeof definition>({
 					render.setScissorRect(vertical ? batch.lineOffset : 0, vertical ? 0 : batch.lineOffset,
 						vertical ? batch.count : resolution.width, vertical ? resolution.height : batch.count);
 					render.setBindGroup(0, batchGroups[batchIndex].outputGroups[passes % 2]);
-					render.draw(6);
+					render.draw(3);
 				}
 				render.end();
 			},

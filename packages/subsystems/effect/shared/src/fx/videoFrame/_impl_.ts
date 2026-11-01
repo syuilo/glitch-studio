@@ -81,7 +81,7 @@ export default implementEffect<typeof definition>({
 					wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniforms.arrayBuffer);
 					pass.setPipeline(pipeline);
 					pass.setBindGroup(0, bindGroup);
-					pass.draw(6);
+					pass.draw(3);
 				}
 				pass.end();
 			},

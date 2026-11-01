@@ -84,7 +84,7 @@ export default implementEffect<typeof definition>({
 					render.setPipeline(variant.pipeline);
 					render.setBindGroup(0, historyGroup);
 					render.setBindGroup(difference.inputGroup, variant.bindGroup);
-					render.draw(6);
+					render.draw(3);
 				}
 				render.end();
 				// Save the input only after the previous input has been used for comparison.
@@ -105,7 +105,7 @@ export default implementEffect<typeof definition>({
 				save.setPipeline(variant.pipeline);
 				save.setBindGroup(0, emptyGroup);
 				save.setBindGroup(capture.inputGroup, variant.bindGroup);
-				save.draw(6);
+				save.draw(3);
 				save.end();
 				hasPrevious = true;
 			},

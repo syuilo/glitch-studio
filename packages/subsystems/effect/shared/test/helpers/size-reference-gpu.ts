@@ -213,7 +213,7 @@ export async function run() {
 						const pass = copy.beginRenderPass({ colorAttachments: [{ view: copyTarget.createView(), loadOp: 'clear', storeOp: 'store' }] });
 						pass.setPipeline(reader);
 						pass.setBindGroup(0, device.createBindGroup({ layout: reader.getBindGroupLayout(0), entries: [{ binding: 0, resource: output.textureView }] }));
-						pass.draw(6); pass.end();
+						pass.draw(3); pass.end();
 						copy.copyTextureToBuffer({ texture: copyTarget }, { buffer, bytesPerRow }, resolution);
 						device.queue.submit([copy.finish()]);
 						await buffer.mapAsync(GPUMapMode.READ);

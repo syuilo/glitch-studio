@@ -48,7 +48,7 @@ export default implementEffect<typeof definition>({
 				passEncoder.setPipeline(variant.pipeline);
 				passEncoder.setBindGroup(pipelines.inputGroup, variant.bindGroup);
 				passEncoder.setBindGroup(0, bindGroup);
-				passEncoder.draw(6);
+				passEncoder.draw(3);
 				passEncoder.end();
 			},
 			dispose: () => {

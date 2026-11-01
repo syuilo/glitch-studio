@@ -7,6 +7,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	entryPoints: [fileURLToPath(new URL('../src/audio/audio-preview.worker.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
+	loader: { '.wgsl': 'text' },
 	plugins: [{ name: 'audio-monitor-platform', setup(build) {
 		build.onResolve({ filter: /audio-history\.ts$|audio-spectrogram\.ts$|audio-preview-(?:spectrum|waveform)\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `

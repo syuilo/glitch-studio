@@ -63,6 +63,14 @@ test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PA
 // 実GPUでの読み戻しとCanvas 2Dのalpha変換はモックだけでは検証できない。
 test('presents preview and analysis canvases through CPU readback', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/cpu-preview-gpu.ts', 4));
 
+// 【全画面三角形への変更で座標・微分・透明度・画面端の被覆を変えない】
+// 移行前の2枚の三角形と全画素を比較する。通常のサイズに加え、奇数寸法と1画素幅も確認し、
+// 頂点数だけを変更した際の描画欠落や、UVの範囲・上下方向・対角線での重複を検出する。
+test('preserves fullscreen coordinates and coverage with a single triangle on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, async t => {
+	const checks = await runGpuTest('./helpers/fullscreen-triangle-gpu.ts', 28);
+	t.diagnostic(`${checks.length} full-image comparisons completed`);
+});
+
 // 【キャッシュの実GPUコピーが元画像の更新に影響されず、alphaとHDRの精度を維持する】
 // 容量やLRUのモックでは、WGSL・binding・RGBA/BGRAの取り違えを検出できない。
 test('preserves timeline frame cache pixels on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/timeline-preview-frame-cache-gpu.ts', 8));

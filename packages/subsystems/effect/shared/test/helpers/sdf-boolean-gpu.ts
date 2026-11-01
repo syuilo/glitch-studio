@@ -64,7 +64,7 @@ export async function run() {
 			const encoder = device.createCommandEncoder();
 			effect.render(renderContext(encoder, output, { ...defaults, ...overrides }, time));
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: copyTarget.createView(), loadOp: 'clear', storeOp: 'store' }] });
-			pass.setPipeline(reader); pass.setBindGroup(0, readGroup); pass.draw(6); pass.end();
+			pass.setPipeline(reader); pass.setBindGroup(0, readGroup); pass.draw(3); pass.end();
 			encoder.copyTextureToBuffer({ texture: copyTarget }, { buffer, bytesPerRow }, resolution);
 			device.queue.submit([encoder.finish()]);
 			await buffer.mapAsync(GPUMapMode.READ);

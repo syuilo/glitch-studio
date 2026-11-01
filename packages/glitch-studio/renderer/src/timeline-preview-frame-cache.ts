@@ -68,7 +68,7 @@ export class TimelinePreviewFrameCache<Metadata> {
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: texture.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
 			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, group);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			return { texture, metadata, bytes };
 		} catch (error) {

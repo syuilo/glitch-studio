@@ -87,7 +87,7 @@ export default implementEffect<typeof definition>({
 				render.setPipeline(variant.pipeline);
 				render.setBindGroup(0, groups[previousIndex]);
 				render.setBindGroup(pipelines.inputGroup, variant.bindGroup);
-				render.draw(6);
+				render.draw(3);
 				render.end();
 				previousIndex = nextIndex;
 				hasPrevious = true;

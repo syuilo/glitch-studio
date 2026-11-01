@@ -95,7 +95,7 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 			});
 			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, group);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			previousKey = key;
 			return result = { kind: 'texture', texture, region: { bounds, frameSize: resolution } };

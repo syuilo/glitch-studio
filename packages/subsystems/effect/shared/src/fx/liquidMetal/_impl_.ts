@@ -148,7 +148,7 @@ export default implementEffect<typeof definition>({
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, renderGroup);
 				pass.setBindGroup(1, inputGroup);
-				pass.draw(6);
+				pass.draw(3);
 				pass.end();
 			},
 			dispose: () => {

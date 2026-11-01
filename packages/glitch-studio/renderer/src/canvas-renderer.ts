@@ -128,7 +128,7 @@ export class CanvasRenderer {
 		});
 		passEncoder.setPipeline(this.finalRenderPipeline);
 		passEncoder.setBindGroup(0, this.finalRenderBindGroup);
-		passEncoder.draw(6);
+		passEncoder.draw(3);
 		passEncoder.end();
 
 		this.gpuHistogram?.render(commandEncoder, tex);

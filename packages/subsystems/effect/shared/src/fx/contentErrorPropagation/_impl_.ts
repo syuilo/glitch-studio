@@ -203,13 +203,13 @@ export default implementEffect<typeof definition>({
 					capturePass.setPipeline(capture.pipeline);
 					capturePass.setBindGroup(0, captureGroup);
 					capturePass.setBindGroup(capturePipelines.inputGroup, capture.bindGroup);
-					capturePass.draw(6);
+					capturePass.draw(3);
 					capturePass.end();
 					const draw = (pipeline: GPURenderPipeline, group: GPUBindGroup, view: GPUTextureView) => {
 						const pass = ctx.createPassEncoder(ctx.commandEncoder, attachment(view));
 						pass.setPipeline(pipeline);
 						pass.setBindGroup(0, group);
-						pass.draw(6);
+						pass.draw(3);
 						pass.end();
 					};
 					draw(initialize, resources.colorGroup, resources.errorViews[0]);
@@ -228,7 +228,7 @@ export default implementEffect<typeof definition>({
 				pass.setPipeline(output.pipeline);
 				pass.setBindGroup(0, resources.outputGroups[current]);
 				pass.setBindGroup(outputPipelines.inputGroup, output.bindGroup);
-				pass.draw(6);
+				pass.draw(3);
 				pass.end();
 			},
 			dispose: () => {

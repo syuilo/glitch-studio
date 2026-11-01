@@ -73,7 +73,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 					});
 					pass.setPipeline(variant.pipeline);
 					pass.setBindGroup(scalingPipeline.inputGroup, variant.bindGroup);
-					pass.draw(6);
+					pass.draw(3);
 					pass.end();
 				}
 				const foreground: TimelineImage = { kind: 'texture', texture: scaledTexture ?? sourceTexture };

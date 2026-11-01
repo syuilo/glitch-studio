@@ -196,7 +196,7 @@ export async function run() {
 		const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store' }] });
 		pass.setPipeline(copy);
 		pass.setBindGroup(0, device.createBindGroup({ layout: copy.getBindGroupLayout(0), entries: [{ binding: 0, resource: texture.createView() }] }));
-		pass.draw(6); pass.end();
+		pass.draw(3); pass.end();
 		encoder.copyTextureToBuffer({ texture: target }, { buffer: readback, bytesPerRow: 1024 }, [128, 64]);
 		device.queue.submit([encoder.finish()]);
 		await readback.mapAsync(GPUMapMode.READ);

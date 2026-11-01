@@ -181,7 +181,7 @@ export default implementEffect<typeof definition>({
 				pass.setPipeline(current.pipeline);
 				pass.setBindGroup(0, maskBinding);
 				pass.setBindGroup(pipeline.inputGroup, current.bindGroup);
-				pass.draw(6);
+				pass.draw(3);
 				pass.end();
 			},
 			dispose: () => {

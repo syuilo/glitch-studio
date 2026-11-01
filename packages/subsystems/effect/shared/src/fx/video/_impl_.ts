@@ -92,7 +92,7 @@ export default implementEffect<typeof definition>({
 				const passEncoder = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				passEncoder.setPipeline(pipeline);
 				passEncoder.setBindGroup(0, bindGroup);
-				passEncoder.draw(6);
+				passEncoder.draw(3);
 				passEncoder.end();
 			},
 			dispose: () => {

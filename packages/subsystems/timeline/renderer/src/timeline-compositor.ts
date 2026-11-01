@@ -157,7 +157,7 @@ export function createTimelineCompositor(options: {
 			pass.setPipeline(variant.pipeline);
 			pass.setBindGroup(0, group);
 			pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
-			pass.draw(6);
+			pass.draw(3);
 			pass.end();
 			return { kind: 'texture', texture, region: { bounds: outputBounds, frameSize: resolution } };
 		},

@@ -261,7 +261,7 @@ export default implementEffect<typeof definition>({
 					save.setPipeline(captured.pipeline);
 					save.setBindGroup(0, uniformGroup);
 					save.setBindGroup(captureHistory.inputGroup, captured.bindGroup);
-					save.draw(6);
+					save.draw(3);
 					save.end();
 				}
 				const analyzed = captureAnalysis.update({ input }, ctx.outputDataMap.output.texture);
@@ -269,14 +269,14 @@ export default implementEffect<typeof definition>({
 				analyze.setPipeline(analyzed.pipeline);
 				analyze.setBindGroup(0, uniformGroup);
 				analyze.setBindGroup(captureAnalysis.inputGroup, analyzed.bindGroup);
-				analyze.draw(6);
+				analyze.draw(3);
 				analyze.end();
 				const updated = updateBlocks.update({ delayMap: params.delayMap }, ctx.outputDataMap.output.texture);
 				const update = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [attachment(blockResources.views[currentIndex])] });
 				update.setPipeline(updated.pipeline);
 				update.setBindGroup(0, blockResources.updateGroups[currentIndex]);
 				update.setBindGroup(updateBlocks.inputGroup, updated.bindGroup);
-				update.draw(6);
+				update.draw(3);
 				update.end();
 				const composed = compose.update({ input }, ctx.outputDataMap.output.texture);
 				const render = ctx.createPassEncoder(ctx.commandEncoder, {
@@ -285,7 +285,7 @@ export default implementEffect<typeof definition>({
 				render.setPipeline(composed.pipeline);
 				render.setBindGroup(0, blockResources.composeGroup(currentIndex, history.view));
 				render.setBindGroup(compose.inputGroup, composed.bindGroup);
-				render.draw(6);
+				render.draw(3);
 				render.end();
 				hasAnalysis = true;
 				hasBlockState = true;
