@@ -25,7 +25,7 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { VisualModuleEffectNode, VisualModuleNode, VisualModule, VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
-import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
+import type { EffectImplementation, EffectRenderContext } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
 import type { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
 
@@ -43,9 +43,16 @@ export type VisualModuleRenderContext = {
 	progress?: number;
 	paramInputs?: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture>;
 	audioParamInputs?: ReadonlyMap<VisualModuleCustomParameterId, AudioInput | null>;
+	/** プレビューからの各軸[-1,+1]の位置。両軸<=-999は未入力の予約値。 */
 	pointerPosition: { x: number; y: number };
+	/** pointerPositionと同じ画像参照座標で測った前回位置。 */
 	pointerPositionPrev: { x: number; y: number };
 	evaluatedParamValues: VisualModuleEvaluatedParameterValues;
+};
+
+type EvaluatedVisualModuleEffectNode = {
+	params: Record<string, any>;
+	pointerContext: Pick<EffectRenderContext, 'pointerPosition' | 'pointerVector'>;
 };
 
 export class VisualModuleRenderer {
@@ -72,7 +79,7 @@ export class VisualModuleRenderer {
 	private preparationVersion = 0;
 	private destroyed = false;
 	private allNodeIdMap: Map<VisualModuleNode['id'], VisualModuleNode> = new Map(); // モジュール内のノードをIDで解決する。
-	private evaledNodeParams: Map<VisualModuleNode['id'], Record<string, any>> = new Map();
+	private evaluatedEffectNodes = new Map<VisualModuleEffectNode['id'], EvaluatedVisualModuleEffectNode>();
 	private effectRenderers = new Map<string, EffectRenderer>();
 	private effectCacheKeys: Map<VisualModuleEffectNode['id'], string> = new Map();
 	private lazyEffectRenderers = new Map<string, EffectRenderer>();
@@ -181,6 +188,10 @@ export class VisualModuleRenderer {
 		const pointerPositionFor = (resolution: Resolution) => context.pointerPosition.x <= -999 && context.pointerPosition.y <= -999
 			? [context.pointerPosition.x, context.pointerPosition.y]
 			: normalizedToSpatialCoordinates([context.pointerPosition.x, context.pointerPosition.y], resolution);
+		const normalizedPointerVector: [number, number] = [
+			context.pointerPositionPrev.x === -99999 ? 0 : context.pointerPosition.x - context.pointerPositionPrev.x,
+			context.pointerPositionPrev.y === -99999 ? 0 : context.pointerPosition.y - context.pointerPositionPrev.y,
+		];
 		const evalCtx = {
 			variables: {
 				TIME: context.time / 1000,
@@ -201,15 +212,23 @@ export class VisualModuleRenderer {
 			paramIdsByName: new Map(expressionParamDefs.map(def => [def.nameForReference, def.id])),
 		} satisfies VisualModuleParameterEvaluationContext;
 
-		const evaluated = new Map<VisualModuleNode['id'], Record<string, any>>();
+		const evaluated = new Map<VisualModuleEffectNode['id'], EvaluatedVisualModuleEffectNode>();
 		for (const node of this.nodes.filter((n): n is VisualModuleEffectNode => n.type === 'effect')) {
 			const resolution = this.nodeResolutions.get(node.id)!;
+			// 式の評価と実際の描画で同じ換算結果を使い、EffectRendererへは
+			// プレビュー固有の画像参照座標やその変換規則を持ち込まない。
+			const pointerPosition = pointerPositionFor(resolution);
+			const pointerVector = normalizedToSpatialCoordinates(normalizedPointerVector, resolution);
+			const pointerContext = {
+				pointerPosition: { x: pointerPosition[0], y: pointerPosition[1] },
+				pointerVector: { x: pointerVector[0], y: pointerVector[1] },
+			};
 			const nodeEvalCtx = {
 				...evalCtx,
 				variables: {
 					...evalCtx.variables,
 					...createResolutionExpressionVariables(resolution),
-					POINTER_POSITION: pointerPositionFor(resolution),
+					POINTER_POSITION: pointerPosition,
 				} satisfies Record<typeof IN_VISUAL_MODULE_VAR_DEFS[number], unknown>,
 			};
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
@@ -222,11 +241,11 @@ export class VisualModuleRenderer {
 						def.dataType.kind === 'enum' ? null : genEmptyValue(def), def))); // TODO: genEmptyValueを遅延評価したい
 				});
 			}
-			evaluated.set(node.id, evaluatedParamsPerNode);
+			evaluated.set(node.id, { params: evaluatedParamsPerNode, pointerContext });
 		}
 
 		this.paramValues = context.evaluatedParamValues;
-		this.evaledNodeParams = evaluated;
+		this.evaluatedEffectNodes = evaluated;
 	}
 
 	private evalCacheKey(node: VisualModuleNode, outputPort?: string | null): string | null {
@@ -261,7 +280,7 @@ export class VisualModuleRenderer {
 
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
 
-			const params = this.evaledNodeParams.get(node.id)!;
+			const params = this.evaluatedEffectNodes.get(node.id)!.params;
 			// 空配列・空structや要素数の変化もキーに含める。
 			key += JSON.stringify(params);
 			for (const [setting, definition] of Object.entries(this.effectDefinitions[node.effectId].staticSettingDefs ?? {})) {
@@ -452,7 +471,7 @@ export class VisualModuleRenderer {
 			});
 		}
 
-		const params = this.evaledNodeParams.get(node.id)!;
+		const { params, pointerContext } = this.evaluatedEffectNodes.get(node.id)!;
 
 		for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
 			if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
@@ -476,11 +495,7 @@ export class VisualModuleRenderer {
 		renderer.render({
 			time: context.time / 1000,
 			timeDelta: context.timeDelta,
-			pointerPosition: context.pointerPosition,
-			pointerVector: {
-				x: context.pointerPositionPrev.x === -99999 ? 0 : context.pointerPosition.x - context.pointerPositionPrev.x,
-				y: context.pointerPositionPrev.y === -99999 ? 0 : context.pointerPosition.y - context.pointerPositionPrev.y,
-			},
+			...pointerContext,
 			params: resolvedParams,
 			usedOutputPorts: this.usedOutputPorts.get(node.id),
 			commandEncoder,
@@ -534,7 +549,7 @@ export class VisualModuleRenderer {
 				const source = this.allNodeIdMap.get(param.nodeId);
 				visit(source!, param.outputPort ?? null);
 			}
-			const params = this.resolveParams(effectNode, this.evaledNodeParams.get(effectNode.id)!);
+			const params = this.resolveParams(effectNode, this.evaluatedEffectNodes.get(effectNode.id)!.params);
 			this.effectRenderers.get(effectNode.id)!.prepare(params, signal);
 			prepared.add(effectNode.id);
 		};

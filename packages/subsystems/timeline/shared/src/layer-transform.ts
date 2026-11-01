@@ -77,5 +77,8 @@ export function timelineSceneToSource(point: TimelinePoint, geometry: TimelineLa
 }
 
 export function getTimelineLayerCorners(geometry: TimelineLayerGeometry): TimelinePoint[] {
-	return ([[-1, 1], [1, 1], [1, -1], [-1, -1]] as TimelinePoint[]).map(point => timelineSourceToScene(normalizedToSpatialCoordinates(point, geometry.sourceSize), geometry));
+	const matrix = timelineNormalizedGeometryMatrix(geometry);
+	// 角は素材の画像参照座標で既知なので、素材側の共通単位への往復変換を省く。
+	return ([[-1, 1], [1, 1], [1, -1], [-1, -1]] as TimelinePoint[])
+		.map(point => normalizedToSpatialCoordinates(transformTimelinePoint(matrix, point), geometry.sceneSize));
 }

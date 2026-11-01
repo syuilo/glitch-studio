@@ -130,6 +130,7 @@ test('evaluates pointer positions as vectors and redraws when the pointer moves'
 
 // 【解決済み入力と描画コンテキストを変更せず渡し、借用リソースを破棄しない】
 // ノードやSceneを用意せず利用でき、配列・構造体内のShaderInputもそのまま渡ることを保証する。
+// ポインターも呼び出し側で解決した共通単位のまま渡し、描画領域による二重換算を防ぐ。
 // submitや入力テクスチャの寿命を奪わず、繰り返し描画でも初期化・確保を増やさない。
 test('executes a standalone effect with resolved borrowed inputs and reusable resources', t => {
 	const f = single(t, { lazy: true });
@@ -149,9 +150,7 @@ test('executes a standalone effect with resolved borrowed inputs and reusable re
 	assert.equal(f.instances.length, 1);
 	assert.equal(f.renderer.resourceVersion, version);
 	assert.equal(f.renders[0].params, params);
-	for (const key of ['time', 'timeDelta', 'commandEncoder']) assert.equal(f.renders[0][key], frame[key]);
-	assert.deepEqual(f.renders[0].pointerPosition, { x: frame.pointerPosition.x / 2, y: frame.pointerPosition.y * 9 / 32 });
-	assert.deepEqual(f.renders[0].pointerVector, { x: frame.pointerVector.x / 2, y: frame.pointerVector.y * 9 / 32 });
+	for (const key of ['time', 'timeDelta', 'commandEncoder', 'pointerPosition', 'pointerVector']) assert.equal(f.renders[0][key], frame[key]);
 	assert.deepEqual(f.states.at(-1).outputs, { output: { width: 16, height: 9 }, extra: null });
 	f.renderer.dispose();
 	assert.equal(input.destroyed, 0);
