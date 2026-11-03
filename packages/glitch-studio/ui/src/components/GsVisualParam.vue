@@ -75,11 +75,11 @@
 							:items="[{ label: i18n.ts.None, value: null }, ...nodeOutputItems]"
 							@update:modelValue="updateParamAsNode"
 						/>
-						<button class="_button" style="padding: 4px; flex-shrink: 0;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
+						<button class="_button" style="padding: 2px; flex-shrink: 0;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<div v-else-if="paramValue.inputSource === 'lowerLayerOutput'" style="display: flex; gap: 4px; align-items: center;">
 						<span style="flex: 1; min-width: 0;">{{ i18n.ts._Parameter.LowerLayerOutput }}</span>
-						<button v-if="imageInputSamplingEnabled" class="_button" style="padding: 4px; flex-shrink: 0;" @click="showLowerLayerOutputSamplingMenu"><i class="ti ti-dots"></i></button>
+						<button v-if="imageInputSamplingEnabled" class="_button" style="padding: 2px; flex-shrink: 0;" @click="showLowerLayerOutputSamplingMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<div v-else-if="paramValue.inputSource === 'anotherLayerOutput'" style="display: flex; gap: 4px; align-items: center;">
 						<GsSelect data-test-image-layer-reference :modelValue="paramValue.layerId" :items="imageLayerItems" @update:modelValue="value => updateAnotherLayerOutput({ layerId: value })"/>
