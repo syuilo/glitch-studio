@@ -13,9 +13,9 @@
 				</button>
 			</div>
 			<div :class="$style.right">
-				<div :class="$style.zoom">{{ i18n.ts._Preview.Zoom }}: {{ Math.round(zoom * 100) }}%</div>
-				<button :class="$style.iconButton" class="_button" @click="zoomTo100"><i class="ti ti-number-100-small"></i></button>
-				<button :class="$style.iconButton" class="_button" @click="fitZoom"><i class="ti ti-maximize"></i></button>
+				<div :class="$style.zoom" data-test-preview-zoom>{{ i18n.ts._Preview.Zoom }}: {{ Math.round(zoom * 100) }}%</div>
+				<button :class="$style.iconButton" class="_button" data-test-preview-zoom-to-100 @click="zoomTo100"><i class="ti ti-number-100-small"></i></button>
+				<button :class="$style.iconButton" class="_button" data-test-preview-fit-zoom @click="fitZoom"><i class="ti ti-maximize"></i></button>
 				<div :class="$style.divider"></div>
 				<button v-tooltip="i18n.ts._Preview.ShowGrid" :class="[$style.iconButton, showGridInPreview ? '_buttonPrimaryFg' : '_button']" @click="toggleGrid"><i class="ti ti-grid-3x3"></i></button>
 				<div :class="$style.divider"></div>
@@ -23,8 +23,8 @@
 			</div>
 		</div>
 
-		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
-			<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :class="[$style.canvasContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" :style="{ scale: zoom, translate: `${pan[0]}px ${pan[1]}px` }"></div>
+		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" data-test-preview-viewport @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
+			<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :class="[$style.canvasContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" :style="{ scale: zoom / previewDevicePixelRatio, translate: `${pan[0]}px ${pan[1]}px` }" data-test-preview-canvas-container></div>
 			<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
 				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 			</div>
@@ -53,7 +53,6 @@
 
 <script lang="ts" setup>
 import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } from 'vue';
-import { genId } from '@gs/shared/utility/id.ts';
 import { scaleResolution } from '@gs/shared/resolution.js';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.js';
 import GsDetachableView from './GsDetachableView.vue';
@@ -66,7 +65,6 @@ import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { formatRenderFailureOrigin } from '@/utility/render-failure.ts';
 import { appContext } from '@/app.ts';
-import { openMediaFile } from '@/utility/open-media-file.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -85,7 +83,9 @@ const gridOverlay = useTemplateRef('gridOverlay');
 const gridLines = shallowRef<CSSProperties[]>([]);
 const ZOOM_STEP = 1.25;
 const gridLinePositions = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
+// 100%は出力の1pxが画面の物理1pxに対応する倍率。CSSのscaleへ渡すときだけDPRで割る。
 const zoom = ref(1 / ZOOM_STEP / ZOOM_STEP / ZOOM_STEP);
+const previewDevicePixelRatio = ref(window.devicePixelRatio);
 const pan = ref<[number, number]>([0, 0]);
 const panning = ref(false);
 const previewCanvasRect = shallowRef<PreviewCanvasRect>({
@@ -127,6 +127,7 @@ function update(t: number) {
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
 	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') visualModuleLivePreviewTime.value += delta * visualModuleLivePreviewTimeFactor.value;
+	updatePreviewDevicePixelRatio();
 	updateGridLines();
 	updatePreviewCanvasRect();
 	timecodeRaf = animationWindow.requestAnimationFrame(update);
@@ -145,7 +146,13 @@ function updateTimecodeLoop() {
 	timecodeRaf = null;
 	// 休止中の実時間をLive Previewの表示時刻へ加算しない。
 	latestTime = null;
+	updatePreviewDevicePixelRatio();
 	if (!renderEngine.isSuspended.value) timecodeRaf = animationWindow.requestAnimationFrame(update);
+}
+
+function updatePreviewDevicePixelRatio() {
+	// 別ウィンドウやDPRの異なる画面へ移しても、物理ピクセル基準の倍率を維持する。
+	previewDevicePixelRatio.value = canvasContainer.value?.ownerDocument.defaultView?.devicePixelRatio ?? window.devicePixelRatio;
 }
 
 function onPreviewWindowChanged() {
@@ -249,6 +256,28 @@ function onViewWheel(ev: WheelEvent) {
 		];
 	}
 	zoom.value = nextZoom;
+}
+
+function zoomTo100() {
+	cancelPan();
+	updatePreviewDevicePixelRatio();
+	zoom.value = 1;
+	pan.value = [0, 0];
+}
+
+function fitZoom() {
+	const canvas = canvasContainer.value;
+	const container = containerContainer.value;
+	if (canvas == null || container == null) return;
+	const available = container.getBoundingClientRect();
+	if (canvas.clientWidth <= 0 || canvas.clientHeight <= 0 || available.width <= 0 || available.height <= 0) return;
+
+	cancelPan();
+	updatePreviewDevicePixelRatio();
+	// Canvasの未変形の実寸と、ヘッダー・フッターを除いた表示領域を比較する。
+	// CSS上で収まる最大倍率を物理ピクセル基準へ換算し、100%を超える拡大も許可する。
+	zoom.value = Math.min(available.width / canvas.clientWidth, available.height / canvas.clientHeight) * previewDevicePixelRatio.value;
+	pan.value = [0, 0];
 }
 
 function formatTime(timeMs: number): string {
