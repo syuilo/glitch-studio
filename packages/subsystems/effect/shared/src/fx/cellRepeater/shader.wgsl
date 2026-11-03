@@ -6,6 +6,8 @@ struct Uniforms {
 	angle: f32,
 	controlSamples: u32,
 	cellWrapMode: u32,
+	maxSubdivisionLevels: u32,
+	translationUsesCellUnits: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -34,7 +36,7 @@ fn wrapCellPosition(position: vec2f) -> vec2f {
 	}
 }
 
-fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls {
+fn sampleCellControls(cellCenter: vec2f, cellSize: vec2f, cosine: f32, sine: f32) -> CellControls {
 	// Pixelateと同じ等面積の層化サンプリング。行の高さを列数に比例させることで、
 	// 平方数以外でも指定数のサンプルを同じ重みで平均できる。1なら中心を読む。
 	let rowCount = u32(sqrt(f32(uniforms.controlSamples)));
@@ -51,7 +53,7 @@ fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls
 		let localY = (f32(completedSamples) + 0.5 * f32(columns)) / f32(uniforms.controlSamples) - 0.5;
 		for (var column = 0u; column < columns; column++) {
 			let localX = (f32(column) + 0.5) / f32(columns) - 0.5;
-			let gridSample = cellCenter + vec2f(localX, localY) * uniforms.cellSize;
+			let gridSample = cellCenter + vec2f(localX, localY) * cellSize;
 			// 格子の逆変換で出力座標へ戻す。個別の移動・拡縮・回転では評価領域を動かさず、
 			// 同じセルの全画素が同じ属性値を得るようにする。
 			let samplePosition = vec2f(
@@ -83,9 +85,14 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		cosine * physicalPosition.x - sine * physicalPosition.y,
 		sine * physicalPosition.x + cosine * physicalPosition.y,
 	);
-	let cellIndex = floor(gridPosition / uniforms.cellSize + uniforms.phase);
-	let cellCenter = (cellIndex + 0.5 - uniforms.phase) * uniforms.cellSize;
-	let controls = sampleCellControls(cellCenter, cosine, sine);
+	// 分割方法に依存する処理をここで完了させ、属性・変形・Wrapは確定した葉の寸法で行う。
+	let cellLayout = findCellLayout(
+		gridPosition, uniforms.cellSize, uniforms.phase, uniforms.aspect,
+		cosine, sine, uniforms.maxSubdivisionLevels,
+	);
+	let cellCenter = cellLayout.center;
+	let cellSize = cellLayout.size;
+	let controls = sampleCellControls(cellCenter, cellSize, cosine, sine);
 	let opacity = clamp(controls.opacity, 0.0, 1.0);
 	if (opacity == 0.0 || any(abs(controls.scale) < vec2f(0.000001))) { return vec4f(0.0); }
 
@@ -93,7 +100,9 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// Cellでは1を変形前のセル幅／高さ1つ分とし、セルに対する移動量の比率を保つ。
 	// Canvasでは1を描画領域の長辺全体とし、FrequencyやSize Referenceで移動の単位を変えない。
 	// 格子のAngleを変えても、正のXは画面右、正のYは画面上へ移動する。
-	let physicalTranslation = controls.translation * uniforms.translationUnitScale;
+	// Cell単位は細分化後の葉の幅／高さに合わせる。Canvas単位は分割深度に依存させない。
+	let translationUnitScale = select(uniforms.translationUnitScale, cellSize, uniforms.translationUsesCellUnits != 0u);
+	let physicalTranslation = controls.translation * translationUnitScale;
 	let gridTranslation = vec2f(
 		cosine * physicalTranslation.x - sine * physicalTranslation.y,
 		sine * physicalTranslation.x + cosine * physicalTranslation.y,
@@ -108,7 +117,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let sourcePosition = vec2f(
 		localCosine * localPosition.x - localSine * localPosition.y,
 		localSine * localPosition.x + localCosine * localPosition.y,
-	) / controls.scale * 2.0 / uniforms.cellSize;
+	) / controls.scale * 2.0 / cellSize;
 	// 描画先は所属セル内に限定したまま、変形で生じる余白を指定の方法で埋める。
 	// 入力接続のwrapより先に処理し、セル単位の反復と素材画像自体のfit/wrapを分ける。
 	if (uniforms.cellWrapMode == 0u && any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }

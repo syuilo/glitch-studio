@@ -1,11 +1,12 @@
 import { defineEffect } from '../../effect-definition.ts';
+import { cellSubdivisionParameterDefinitions } from '../../cell-subdivision.ts';
 
 export default defineEffect({
 	id: 'cellTransform',
 	displayName: 'Cell Transform',
 	description: {
-		'ja-JP': '入力画像を格子状のセルへ分割し、各セルの不透明度・移動・拡縮・回転を制御します。制御入力は変形前のセル内でサンプリングし、描画は元のセル境界で切り取ります。Angleは分割格子だけを回転します。',
-		'en-US': 'Splits the input image into grid cells with individual opacity, translation, scale, and rotation. Samples control inputs within each original cell and clips drawing to its boundaries. Angle rotates only the dividing grid.',
+		'ja-JP': '入力画像を格子状のセルへ分割し、各セルの不透明度・移動・拡縮・回転を制御します。AdaptiveではDensity Mapに応じてセルを四分割します。制御入力は変形前のセル内でサンプリングし、描画は元のセル境界で切り取ります。Angleは分割格子だけを回転します。',
+		'en-US': 'Splits the input image into grid cells with individual opacity, translation, scale, and rotation. Adaptive subdivision splits cells into four according to Density Map. Samples control inputs within each original cell and clips drawing to its boundaries. Angle rotates only the dividing grid.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
@@ -17,7 +18,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		// 格子の配置は全体共通。個別の変形がなければ、分割方法を変えても元画像を保つ。
+		// Frequencyは最も粗い格子の密度。個別の変形がなければ、分割方法を変えても元画像を保つ。
 		frequency: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Frequency', control: { controlType: 'dimension', min: 0.01, max: 1000, logarithmic: true } },
@@ -40,6 +41,7 @@ export default defineEffect({
 		},
 		// セル寸法の基準領域。入力画像のfitは接続設定で画面全体へ適用する。
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		...cellSubdivisionParameterDefinitions,
 		perCellOpacity: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Per Cell Opacity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },

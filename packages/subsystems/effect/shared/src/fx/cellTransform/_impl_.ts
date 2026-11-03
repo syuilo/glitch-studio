@@ -1,10 +1,14 @@
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
+import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
+import { getCellSubdivisionLevels } from '../../cell-subdivision.ts';
+import cellSubdivisionCode from '../../cell-subdivision.wgsl?raw';
 import type definition from './_def_.ts';
-import code from './shader.wgsl?raw';
+import shaderCode from './shader.wgsl?raw';
 
+const code = cellSubdivisionCode + '\n' + shaderCode;
 const cellWrapModes = { transparent: 0, clamp: 1, repeat: 2, repeatMirrored: 3 };
 
 export default implementEffect<typeof definition>({
@@ -17,6 +21,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
+		const inactiveDensityMap = constantShaderInput('scalar', 0);
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
@@ -27,6 +32,7 @@ export default implementEffect<typeof definition>({
 			code,
 			schema: {
 				input: 'color',
+				densityMap: 'scalar',
 				perCellOpacity: 'scalar',
 				perCellTranslation: 'vector',
 				perCellScale: 'vector',
@@ -40,6 +46,9 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const { input, frequency, phase, angle, sizeReference, controlSamples, perCellOpacity, perCellTranslation, translationUnit, perCellScale, perCellRotation } = ctx.params;
+				const maxSubdivisionLevels = getCellSubdivisionLevels(ctx.params.subdivisionMode, ctx.params.maxSubdivisionLevels);
+				// Uniform・深度0では密度のテクスチャ参照も四分木の探索も不要にする。
+				const densityMap = maxSubdivisionLevels > 0 ? ctx.params.densityMap : inactiveDensityMap;
 				const usesImageWrap = ctx.params.wrapReference === 'image';
 				// Imageではセルの切り出し範囲を越えて画像全体を読むため、入力テクスチャの
 				// samplerに選択したWrap Modeを渡す。Fit・Filterと透明境界の補間は共通処理を使う。
@@ -64,11 +73,13 @@ export default implementEffect<typeof definition>({
 					cellWrapMode: cellWrapModes[ctx.params.cellWrapMode],
 					wrapReference: Number(usesImageWrap),
 					imageInputIsConstant: Number(input.kind === 'uniform'),
+					maxSubdivisionLevels,
+					translationUsesCellUnits: Number(translationUnit === 'cell'),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				// 素材も制御用の場も出力画面を基準にfitする。素材をセルごとにfitし直すと
 				// 元画像の切り出しではなく複製になってしまうため、全体の座標対応を維持する。
-				const variant = pipelines.update({ input: sourceInput, perCellOpacity, perCellTranslation, perCellScale, perCellRotation }, output.texture);
+				const variant = pipelines.update({ input: sourceInput, densityMap, perCellOpacity, perCellTranslation, perCellScale, perCellRotation }, output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, bindGroup);
