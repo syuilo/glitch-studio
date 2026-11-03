@@ -105,14 +105,11 @@
 				</div>
 			</template>
 			<slot name="actions"></slot>
-			<!-- ラベルクリックで表示できるし要らなさそう
-			<button class="_button" :class="$style.menuButton" @click="showMenu"><i class="ti ti-dots"></i></button>
-			-->
 		</div>
 	</div>
 	<div v-if="expressionModifier != null" :class="$style.expressionModifier" data-test-expression-modifier>
 		<div :class="$style.modifierHeader">
-			<label>
+			<label style="display: flex; align-items: center; gap: 6px;">
 				<input data-test-expression-modifier-enabled type="checkbox" :checked="expressionModifier.enabled" @change="updateExpressionModifier({ enabled: ($event.target as HTMLInputElement).checked })">
 				{{ i18n.ts._Parameter.ExpressionModifier }}
 			</label>
@@ -672,10 +669,6 @@ function onReset() {
 
 	&:hover {
 		background: #ffffff08;
-
-		.menuButton {
-			opacity: 1; // TODO: opacityを使わない実装にする
-		}
 	}
 }
 
@@ -741,12 +734,6 @@ function onReset() {
 	align-items: center;
 	justify-content: space-between;
 	margin-bottom: 6px;
-
-	label {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
 }
 
 .count {
@@ -755,9 +742,5 @@ function onReset() {
 
 .typeWarning {
 	color: var(--THEME-warn);
-}
-
-.menuButton {
-	opacity: 0.3; // TODO: opacityを使わない実装にする
 }
 </style>

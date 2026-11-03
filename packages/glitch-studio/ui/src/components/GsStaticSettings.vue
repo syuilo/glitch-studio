@@ -1,15 +1,21 @@
 <template>
 <div class="_gaps_s">
-	<div v-for="[key, definition] in Object.entries(definitions)" :key="key" :data-test-static-setting="key">
-		<div>{{ definition.ui.label }}</div>
-		<div v-if="definition.dataType.kind === 'assetReference'" style="display: flex; gap: 4px;">
-			<GsButton style="flex: 1;" @click="chooseAsset(key, definition)">{{ assetName(resolvedValues[key]) }}</GsButton>
-			<GsButton v-if="resolvedValues[key] != null" iconOnly icon="ti ti-x" :title="i18n.ts.None" @click="emit('change', { key, value: null })"/>
+	<div v-for="[key, definition] in Object.entries(definitions)" :key="key" :data-test-static-setting="key" :class="$style.row">
+		<div :class="$style.paramHeader">
+			<div :class="$style.paramLabel">
+				<GsCondensedLine>{{ definition.ui.label }}</GsCondensedLine>
+			</div>
 		</div>
-		<GsSelect v-else-if="definition.dataType.kind === 'playerReference'" :modelValue="settingReferenceValue(key)" :items="playerItems" @update:modelValue="value => emit('change', { key, value })"/>
-		<GsSelect v-else-if="definition.dataType.kind === 'enum'" :modelValue="String(resolvedValues[key])" :items="definition.dataType.options.map(value => ({ value, label: value }))" @update:modelValue="value => emit('change', { key, value })"/>
-		<GsSwitch v-else-if="definition.dataType.kind === 'bool'" :modelValue="resolvedValues[key] === true" @update:modelValue="value => emit('change', { key, value })"/>
-		<GsInput v-else :type="definition.dataType.kind === 'scalar' ? 'number' : 'text'" :modelValue="settingInputValue(key)" @update:modelValue="value => { if (value != null) emit('change', { key, value }); }"/>
+		<div :class="$style.paramBody">
+			<div v-if="definition.dataType.kind === 'assetReference'" style="display: flex; gap: 4px;" :class="$style.control">
+				<GsButton style="flex: 1;" @click="chooseAsset(key, definition)">{{ assetName(resolvedValues[key]) }}</GsButton>
+				<GsButton v-if="resolvedValues[key] != null" iconOnly icon="ti ti-x" :title="i18n.ts.None" @click="emit('change', { key, value: null })"/>
+			</div>
+			<GsSelect v-else-if="definition.dataType.kind === 'playerReference'" :modelValue="settingReferenceValue(key)" :items="playerItems" @update:modelValue="value => emit('change', { key, value })"/>
+			<GsSelect v-else-if="definition.dataType.kind === 'enum'" :modelValue="String(resolvedValues[key])" :items="definition.dataType.options.map(value => ({ value, label: value }))" @update:modelValue="value => emit('change', { key, value })"/>
+			<GsSwitch v-else-if="definition.dataType.kind === 'bool'" :modelValue="resolvedValues[key] === true" @update:modelValue="value => emit('change', { key, value })"/>
+			<GsInput v-else :type="definition.dataType.kind === 'scalar' ? 'number' : 'text'" :modelValue="settingInputValue(key)" @update:modelValue="value => { if (value != null) emit('change', { key, value }); }"/>
+		</div>
 	</div>
 </div>
 </template>
@@ -22,6 +28,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsSwitch from './common/GsSwitch.vue';
+import GsCondensedLine from './common/GsCondensedLine.vue';
 import type { StaticSettingDefinition, StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { appContext } from '@/app.ts';
 import { selectAsset } from '@/ui.ts';
@@ -52,3 +59,57 @@ async function chooseAsset(key: string, definition: StaticSettingDefinition) {
 	emit('change', { key, value: asset.id });
 }
 </script>
+
+<style module lang="scss">
+.root {
+}
+
+.row {
+	display: flex;
+	padding: 3px 10px;
+	box-sizing: border-box;
+	min-height: 30px;
+
+	&:hover {
+		background: #ffffff08;
+
+		.menuButton {
+			opacity: 1; // TODO: opacityを使わない実装にする
+		}
+	}
+}
+
+.paramHeader {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	place-content: center left;
+	width: 35%;
+	box-sizing: border-box;
+	padding-right: 12px;
+	flex-shrink: 0;
+}
+
+.paramLabel {
+	flex: 1;
+	min-width: 0;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: clip;
+}
+
+.paramBody {
+	display: flex;
+	width: 65%;
+	min-width: 0;
+	flex-shrink: 1;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.control {
+	flex: 1;
+	min-width: 0;
+}
+</style>
