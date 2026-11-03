@@ -518,12 +518,17 @@ function getMenu() {
 			});
 		}
 
-		menuItems.push({ type: 'parent', text: i18n.ts._Parameter.InputSource + '...', children: children });
+		menuItems.push({
+			type: 'parent',
+			icon: 'ti ti-adjustments-horizontal',
+			text: i18n.ts._Parameter.InputSource + '...',
+			children: children,
+		});
 
 		if (expressionModifier.value == null && supportsParameterExpressionModifier(props.paramDef, props.paramValue)) {
 			menuItems.push({
 				id: 'addExpressionModifier',
-				text: i18n.ts._Parameter.AddExpressionModifier,
+				text: i18n.ts._Parameter.ExpressionModifier,
 				icon: 'ti ti-math-function',
 				action: () => emit('edit', { kind: 'expressionModifier', ...target(), value: { enabled: true, code: 'VALUE' } }),
 			});
@@ -538,6 +543,18 @@ function getMenu() {
 		text: i18n.ts._Parameter.Edit,
 		icon: 'ti ti-forms',
 		action: () => controlComponent.value?.directEdit?.(),
+	}, {
+		text: i18n.ts.Copy,
+		icon: 'ti ti-copy',
+		action: () => {
+			// TODO
+		},
+	}, {
+		text: i18n.ts.Paste,
+		icon: 'ti ti-clipboard',
+		action: () => {
+			// TODO
+		},
 	}, {
 		text: i18n.ts.Reset,
 		icon: 'ti ti-refresh',
