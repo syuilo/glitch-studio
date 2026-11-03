@@ -479,20 +479,11 @@ function selectAutomationGraph(ev: PointerEvent) {
 }
 
 function getMenu() {
-	const menuItems: MenuItem[] = [{
-		text: i18n.ts._Parameter.DirectEdit,
-		icon: 'ti ti-forms',
-		action: () => controlComponent.value?.directEdit?.(),
-	}, {
-		text: i18n.ts.Reset,
-		icon: 'ti ti-refresh',
-		danger: true,
-		action: () => emit('edit', { kind: 'reset', ...target() }),
-	}];
+	const menuItems: MenuItem[] = [];
 
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
 	if (props.paramDef.dataType.kind !== 'array' && props.paramDef.dataType.kind !== 'struct') {
-		menuItems.push({ type: 'label', text: i18n.ts._Parameter.InputSource });
+		const children: MenuItem[] = [];
 		const types: { text: string; inputSource: EditableParameterBinding['inputSource']; icon: string }[] = [
 			{ text: i18n.ts._Parameter.Literal, inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
 			{ text: i18n.ts._Parameter.EnvironmentVariable, inputSource: 'envVariable', icon: 'ti ti-variable' },
@@ -518,7 +509,7 @@ function getMenu() {
 		for (const { text, inputSource, icon } of types) {
 			if (props.paramDef.dataType.kind === 'colorRamp' && ['automationGraphReference', 'automationGraphInline'].includes(inputSource)) continue;
 			if (inputSource === 'keyframesTimelineInline' && (!props.keyframesEnabled || !isKeyframesDataType(props.paramDef.dataType))) continue;
-			menuItems.push({
+			children.push({
 				id: `inputSource:${inputSource}`,
 				text,
 				icon,
@@ -526,10 +517,10 @@ function getMenu() {
 				action: () => emit('edit', { kind: 'inputSource', ...target(), inputSource }),
 			});
 		}
+
+		menuItems.push({ type: 'parent', text: i18n.ts._Parameter.InputSource + '...', children: children });
+
 		if (expressionModifier.value == null && supportsParameterExpressionModifier(props.paramDef, props.paramValue)) {
-			menuItems.push({
-				type: 'divider',
-			});
 			menuItems.push({
 				id: 'addExpressionModifier',
 				text: i18n.ts._Parameter.AddExpressionModifier,
@@ -538,6 +529,22 @@ function getMenu() {
 			});
 		}
 	}
+
+	if (menuItems.length > 0) {
+		menuItems.push({ type: 'divider' });
+	}
+
+	menuItems.push(...[{
+		text: i18n.ts._Parameter.Edit,
+		icon: 'ti ti-forms',
+		action: () => controlComponent.value?.directEdit?.(),
+	}, {
+		text: i18n.ts.Reset,
+		icon: 'ti ti-refresh',
+		danger: true,
+		action: () => emit('edit', { kind: 'reset', ...target() }),
+	}]);
+
 	return menuItems;
 }
 

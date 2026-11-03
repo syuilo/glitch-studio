@@ -731,7 +731,7 @@
 		"UnavailableCustomParameter": "参照先が存在しないか、参照範囲外または型が一致しません",
 		"NormalizedTime": "正規化 (0〜1)",
 		"Milliseconds": "ミリ秒",
-		"DirectEdit": "値を直接編集",
+		"Edit": "編集",
 		"InputSource": "制御方法",
 		"Literal": "リテラル",
 		"EnvironmentVariable": "環境変数",

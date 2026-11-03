@@ -731,7 +731,7 @@
 		"UnavailableCustomParameter": "Reference is missing, out of scope, or has an incompatible type",
 		"NormalizedTime": "Normalized (0–1)",
 		"Milliseconds": "Milliseconds",
-		"DirectEdit": "Direct Edit",
+		"Edit": "Edit",
 		"InputSource": "Input source",
 		"Literal": "Literal",
 		"EnvironmentVariable": "Environment Variable",
