@@ -217,6 +217,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 		await this.callAndWaitReturn('applyProjectChanges', [deepClone(changes), this.invalidateTransformPreview()]);
 	}
 
+	public resetRenderHistory() {
+		this.cancelSeek();
+		if (this.isReady.value) this.call('resetRenderHistory', []);
+	}
+
 	public renderTimelineAt(time: number, isManualSeek = false, seekMode: TimelinePreviewSeekMode = 'frame') {
 		this.finishFrameCompletion(false);
 		if (!this.isReady.value) return;

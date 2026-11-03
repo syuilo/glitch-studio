@@ -35,6 +35,7 @@ export function createTransformTimelineLayer<Output>(getTransform: () => Timelin
 			if (signal.aborted) return { gpuTime: 0 };
 			return { output: result.hasOutput ? result.output : null, gpuTime: 0 };
 		},
+		resetRenderHistory: () => renderer.resetRenderHistory(),
 		destroy() { renderer.clear(); },
 	};
 }

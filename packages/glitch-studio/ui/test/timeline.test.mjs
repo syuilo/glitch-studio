@@ -227,6 +227,7 @@ for (const [name, action] of [
 	['play', playback => playback.playTimeline()],
 	['pause', playback => playback.pauseTimeline()],
 	['edit redraw', playback => playback.refresh()],
+	['render history reset', playback => playback.resetRenderHistory()],
 	['frame step', playback => playback.stepTimelineFrame(1)],
 	['FPS change', playback => playback.updateTimelinePreviewFps()],
 	['audio edit', playback => playback.refreshAudio()],
@@ -482,6 +483,29 @@ test('uses timeline duration and does not play an empty timeline', t => {
 	assert.equal(empty.playback.isTimelinePlaying.value, false);
 });
 
+for (const mode of ['paused', 'playing', 'visualModuleLivePreview']) {
+	// 【表示モードによらず両方の描画履歴を消し、時刻・再生状態を維持する】
+	// 非表示のTimelineにも履歴と画像キャッシュが残り得る。モード切替や再生の再起動を
+	// 行わず、停止中のTimelineだけでも現在位置を再描画する必要がある。
+	test(`resets both preview histories while preserving ${mode} playback`, t => {
+		const { playback, calls, callbacks } = setup(t);
+		playback.seekTimeline(1234);
+		if (mode === 'playing') playback.playTimeline();
+		if (mode === 'visualModuleLivePreview') playback.startVisualModuleLivePreview('module');
+		const state = { ...playback.state.value };
+		const callbackIds = [...callbacks.keys()];
+		calls.length = 0;
+		playback.resetRenderHistory();
+		assert.deepEqual(calls, [
+			['resetTimelineRenderHistory'], ['resetRenderHistory'],
+			...(mode === 'visualModuleLivePreview' ? [] : [['renderTimelineAt', 1234]]),
+		]);
+		assert.deepEqual(playback.state.value, state);
+		assert.equal(playback.currentTimelineTime.value, 1234);
+		assert.deepEqual([...callbacks.keys()], callbackIds);
+	});
+}
+
 function setup(t, fpsLimit = null, audio, duration = Infinity) {
 	const callbacks = new Map();
 	const calls = [];
@@ -494,9 +518,9 @@ function setup(t, fpsLimit = null, audio, duration = Infinity) {
 		},
 		cancelAnimationFrame(id) { callbacks.delete(id); },
 	};
-	const visualModuleLivePreviewRenderer = Object.fromEntries(['startVisualModuleLivePreviewRenderLoopFor', 'updateVisualModuleLivePreviewParamValues', 'stopRenderLoop']
+	const visualModuleLivePreviewRenderer = Object.fromEntries(['startVisualModuleLivePreviewRenderLoopFor', 'updateVisualModuleLivePreviewParamValues', 'stopRenderLoop', 'resetRenderHistory']
 		.map(name => [name, (...args) => calls.push([name, ...args])]));
-	const timelineRenderer = { isReady: { value: true }, errorMessage: { value: null }, cancelSeek() {}, renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
+	const timelineRenderer = { isReady: { value: true }, errorMessage: { value: null }, cancelSeek() {}, resetRenderHistory: () => calls.push(['resetTimelineRenderHistory']), renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
 	const playback = new PreviewPlaybackController(visualModuleLivePreviewRenderer, timelineRenderer, () => typeof fpsLimit === 'function' ? fpsLimit() : fpsLimit, () => duration, audio);
 	t.after(() => {
 		playback.dispose();

@@ -122,6 +122,21 @@ function start(controller) { return controller.initialize(initialOptions.get(con
 function restart(controller) { controller.disposeManager(); return start(controller); }
 
 for (const kind of ['VisualModule', 'Timeline']) {
+	// 【履歴リセットを現在のWorkerへ送り、未起動時には起動や再生成を要求しない】
+	// PlayerやCanvasを作り直す操作として扱うと、再生位置やWebcam接続まで失われる。
+	// 履歴はWorker内の実行時状態だけなので、次の初期化へ予約する必要もない。
+	test(`resets ${kind} history in the existing worker without reinitializing it`, async t => {
+		const { controller, workers } = fixture(t, kind);
+		controller.resetRenderHistory();
+		assert.equal(workers.length, 0);
+		const worker = await initialize(controller, workers);
+		controller.resetRenderHistory();
+		assert.equal(worker.calls('resetRenderHistory').length, 1);
+		assert.deepEqual(Array.from(worker.calls('resetRenderHistory')[0].args), []);
+		assert.equal(workers.length, 1);
+		assert.equal(worker.terminated, false);
+	});
+
 	// 【Canvas準備の同期通知で破棄された場合も、古い起動からWorkerを生成しない】
 	// 再生成の無効化は任意の初期化段階で起きる。CanvasをUIへ通知した後に世代を作ると、
 	// 既に取り消された起動が新しいWorkerを所有してしまい、次回の生成も妨げる。

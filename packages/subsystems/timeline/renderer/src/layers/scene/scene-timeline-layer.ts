@@ -73,6 +73,7 @@ export function createSceneTimelineLayer(
 				options.device.queue.submit([encoder.finish()]);
 			}
 		},
+		resetRenderHistory: () => renderer.resetRenderHistory(),
 		destroy: () => {
 			renderer.clear();
 			compositor.dispose();

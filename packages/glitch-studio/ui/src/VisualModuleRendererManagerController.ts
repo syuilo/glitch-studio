@@ -227,6 +227,10 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		if (this.isReady.value) this.call('updateVisualModuleLivePreviewParamValues', [deepClone(paramValues)]);
 	}
 
+	public resetRenderHistory() {
+		if (this.isReady.value) this.call('resetRenderHistory', []);
+	}
+
 	public stopRenderLoop() {
 		if (this.isReady.value) this.call('stopRenderLoop', []);
 		this.outputResolution.value = null;

@@ -226,6 +226,7 @@
 	"_App": {
 		"File": "File",
 		"Edit": "Edit",
+		"ResetRenderHistory": "Reset Render History",
 		"View": "View",
 		"ShowAdvancedParameters": "Show advanced parameters",
 		"Window": "Window",

@@ -33,6 +33,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	private publishedStateKey: string | null = null;
 	private readonly statusWaiters = new Set<() => void>();
 	private disposed = false;
+	private renderHistoryResetPending = false;
 
 	constructor(private readonly options: {
 		definition: Definition;
@@ -65,6 +66,24 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	get resourceVersion(): number { return this.resourceVersionValue; }
 	get cacheVersion(): number { return this.instance?.cacheVersion ?? 0; }
 	get hasLazyOutputs(): boolean { return this.lazyPorts.length > 0; }
+
+	/** 呼び出し側が履歴依存のあるエフェクトに対して実行する。借用リソース・解像度は維持する。 */
+	resetRenderHistory() {
+		this.assertAlive();
+		// 履歴は共通の前フレームだけでなく、実装内のGPU資源・カウンター等にも存在する。
+		// 実行インスタンスごと初期化し、個々のエフェクトの履歴管理方式に依存しない。
+		this.releaseInstance();
+		const allocatedPorts = [...this.outputs.keys()];
+		for (const output of this.outputs.values()) this.destroyOutput(output);
+		this.outputs.clear();
+		try {
+			for (const port of allocatedPorts) this.outputs.set(port, this.createOutput(port));
+		} catch (error) {
+			this.dispose();
+			throw error;
+		}
+		this.renderHistoryResetPending = true;
+	}
 
 	/** 出力は借用。準備中は未描画のテクスチャも返し、上流の寸法・入力を解決できる。 */
 	getOutputTexture(port: Extract<keyof Definition['outputDefs'], string>): GPUTexture | null {
@@ -188,11 +207,15 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		}
 		this.instance!.render({
 			...context,
+			// リセット前からの時間・移動量を新しい履歴へ積算しない。絶対時刻は保持する。
+			timeDelta: this.renderHistoryResetPending ? 0 : context.timeDelta,
+			pointerVector: this.renderHistoryResetPending ? { x: 0, y: 0 } : context.pointerVector,
 			outputDataMap: outputDataMap as EffectOutputDataMap<Definition['outputDefs']>,
 			createPassEncoderFor: this.createPassEncoderFor,
 			createPassEncoder: this.createPassEncoder,
 			createComputePassEncoder: this.createComputePassEncoder,
 		});
+		this.renderHistoryResetPending = false;
 		if (needsPreviousFrame) {
 			for (const [port, output] of Object.entries(outputDataMap)) this.outputs.set(port, output);
 		}

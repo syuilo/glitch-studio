@@ -11,14 +11,14 @@ export type PreviewPlaybackState =
 	| { mode: 'visualModuleLivePreview'; visualModuleId: ProjectVisualModule['id'] }
 	| { mode: 'timeline'; playing: boolean };
 
-type VisualModuleLivePreviewRenderer = Pick<VisualModuleRendererManagerController, 'startVisualModuleLivePreviewRenderLoopFor' | 'updateVisualModuleLivePreviewParamValues' | 'stopRenderLoop'>;
+type VisualModuleLivePreviewRenderer = Pick<VisualModuleRendererManagerController, 'startVisualModuleLivePreviewRenderLoopFor' | 'updateVisualModuleLivePreviewParamValues' | 'stopRenderLoop' | 'resetRenderHistory'>;
 type TimelineAudio = {
 	start(time: number, duration: number): void;
 	stop(): void;
 	currentTime(): number;
 	error: { value: string | null };
 };
-type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'renderTimelineAtAndWait' | 'cancelSeek' | 'isReady' | 'errorMessage' | 'isFrameCacheEnabled' | 'frameCacheUsageRatio'>;
+type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'renderTimelineAtAndWait' | 'cancelSeek' | 'isReady' | 'errorMessage' | 'isFrameCacheEnabled' | 'frameCacheUsageRatio' | 'resetRenderHistory'>;
 
 /** プレビューの切り替えと時刻更新を所有し、Visual Module Live Previewとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
@@ -230,6 +230,14 @@ export class PreviewPlaybackController {
 		if (this.getDuration() <= 0) { this.pauseTimeline(); return; }
 		if (this.audio) this.timelineTime.value = this.audio.currentTime() % this.getDuration();
 		this.audio?.start(this.timelineTime.value, this.getDuration());
+	}
+
+	/** 表示モードによらず両プレビューの履歴を初期化し、現在位置から描画を再開する。 */
+	public resetRenderHistory() {
+		this.cancelTimelineBake();
+		this.timelineRenderer.resetRenderHistory();
+		this.visualModuleLivePreviewRenderer.resetRenderHistory();
+		this.refresh();
 	}
 
 	/** 編集による再描画では表示モードを切り替えない。Visual Module Live PreviewはWorkerのループが描画する。 */

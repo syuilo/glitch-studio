@@ -623,6 +623,18 @@ export class VisualModuleRenderer {
 		this.recreateEffectRenderers();
 	}
 
+	public resetRenderHistory() {
+		if (this.destroyed) return;
+		this.preparedContext = null;
+		++this.preparationVersion;
+		for (const [id, renderer] of this.effectRenderers) {
+			const node = this.allNodeIdMap.get(id)!;
+			if (node.type === 'effect' && this.effectDefinitions[node.effectId].dependsOnRenderHistory) renderer.resetRenderHistory();
+		}
+		// 履歴の変化が下流の静的ノードへも反映されるよう、描画結果のキーを破棄する。
+		this.effectCacheKeys.clear();
+	}
+
 	public destroy() {
 		this.destroyed = true;
 		this.preparedContext = null;

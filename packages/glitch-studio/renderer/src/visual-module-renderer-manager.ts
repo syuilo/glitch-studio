@@ -463,6 +463,14 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.emit('ev', { type: 'outputResolution', ctx: this.displayedResolution });
 	}
 
+	public resetRenderHistory() {
+		this.previewRenderGeneration++;
+		this.visualModuleLivePreviewVisualModuleRenderer?.resetRenderHistory();
+		this.pointerPositionPrev = { ...this.pointerPosition };
+		this.skippedCpuTimeDelta = 0;
+		this.skippedCpuRealTimeDelta = 0;
+	}
+
 	public stopRenderLoop() {
 		this.skippedCpuTimeDelta = 0;
 		this.skippedCpuRealTimeDelta = 0;

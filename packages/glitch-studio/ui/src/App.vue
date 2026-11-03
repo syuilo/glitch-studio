@@ -366,6 +366,13 @@ function openHeaderFileMenu(ev: PointerEvent) {
 
 function openHeaderEditMenu(ev: PointerEvent) {
 	ui.popupMenu([{
+		id: 'reset-render-history',
+		text: i18n.ts._App.ResetRenderHistory,
+		icon: 'ti ti-refresh',
+		action: () => previewPlayback.resetRenderHistory(),
+	}, {
+		type: 'divider',
+	}, {
 		text: `${i18n.ts._App.ProjectSettings}...`,
 		icon: 'ti ti-file-settings',
 		action: openProjectSettings,

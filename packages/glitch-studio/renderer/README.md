@@ -1,5 +1,7 @@
 Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
+両Managerの`resetRenderHistory()`は、保持中の全エフェクトの描画履歴を初期化する。Timelineは準備中の描画・モーションブラーを中断し、スケジューラーと画像キャッシュの世代を進める。リセット前に送信したフレームのGPU完了を待ってから次の評価へ進み、古い完了によるキャッシュ登録・シーク完了通知を無効化する。キャッシュ消去は直ちにUIへ通知する。Visual Module Live Previewは描画ループの時計・Player・素材を保持し、次のフレームから新しい履歴で描画する。Playerの入力PCM履歴や解析モニターの履歴は消去しない。
+
 `CanvasRenderer`は完成画像と映像解析の描画を担当する。`previewDisplayMode`が`gpu`の場合はGPUCanvasContextへ直接出力し、`cpu`の場合は`CpuPreviewCanvasContext`の通常GPUTextureへ出力して読み戻す。どちらも同じ描画・集計パスを使う。CPU方式では行padding・BGRA/RGBA・乗算済みalphaをImageData用へ変換し、`cpuPreviewFrame`イベントでピクセルの所有権をUIへ転送する。UIはCanvas 2Dへ表示してから`recycleCpuPreviewPixels`で領域を返却し、GPU読み戻し・CPUピクセル領域を再利用する。古いサイズ・世代・完了順の画像は送信しない。
 
 CPU表示の画素変換では、little endianかつ4byte境界のメモリ配置なら、不透明画素を32bit単位でコピーし、BGRAの赤青交換もビット演算で行う。半透明画素の未乗算RGBへの補正は従来と同じ丸め・clampを保つ。32bitで扱えない配置やエンディアンではbyte単位の変換へ戻る。転送量・表示解像度は変えない。

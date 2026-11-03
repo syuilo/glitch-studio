@@ -177,6 +177,9 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 				device.queue.submit([encoder.finish()]);
 			}
 		},
+		resetRenderHistory() {
+			if (definition.dependsOnRenderHistory) renderer.resetRenderHistory();
+		},
 		destroy() {
 			disposed = true;
 			renderer.dispose();

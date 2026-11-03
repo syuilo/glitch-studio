@@ -53,6 +53,8 @@ export type TimelineLayerRenderer<Output> = {
 	// 中断されていれば次の描画へ進まない。送信済みのGPU処理は取り消せない。
 	evaluate: (context: TimelineLayerContext<Output>, signal: AbortSignal) => Promise<TimelineLayerEvaluation<Output>>;
 	createChildren?: (context: TimelineLayerContext<Output>, options: TimelineEvaluationOptions<Output>) => TimelineEvaluation<Output>;
+	/** 自身と子孫の履歴を初期化する。履歴を持たないレイヤーは省略できる。 */
+	resetRenderHistory?: () => void;
 	destroy: () => void;
 };
 
@@ -79,6 +81,12 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	public cancelPendingRender() {
 		this.controller?.abort();
 		this.controller = null;
+	}
+
+	public resetRenderHistory() {
+		// 準備中の評価へ古い履歴や出力を渡さない。送信済みGPU処理との直列化は所有者が行う。
+		this.cancelPendingRender();
+		for (const layer of this.layers.values()) layer.renderer.resetRenderHistory?.();
 	}
 
 	public clear() {

@@ -518,6 +518,18 @@ export class TimelineRendererManager extends EventEmitter<{
 																									childId == null ? 0 : this.projectVersions.scene(childId)]);
 	}
 
+	public resetRenderHistory() {
+		// リセット前に送信したフレームの後処理で、画像キャッシュや完了通知を復活させない。
+		// Schedulerの世代も進め、次の評価は旧フレームのGPU完了後に行う。
+		this.previewRenderGeneration++;
+		this.previewScheduler.clear();
+		this.frameRenderer.clear();
+		this.timelineRenderer.resetRenderHistory();
+		this.frameRenderedRequestId = null;
+		this.invalidateFrameCache();
+		this.reportFrameCache();
+	}
+
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
 	public renderTimelineAt(time: number, frameRenderedRequestId: number | null = null, seekMode: TimelinePreviewSeekMode = 'frame'): Promise<void> {
 		// Schedulerが最新の待機位置だけを保持するのに合わせ、通知対象も置き換える。
@@ -1027,6 +1039,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				}
 				return { ...result, gpuTime };
 			},
+			resetRenderHistory: () => renderer.resetRenderHistory(),
 			destroy: () => {
 				compositor.dispose();
 				for (const frame of inputFrames.values()) frame.dispose();
@@ -1057,6 +1070,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				}
 				return instance.evaluate(context, signal);
 			},
+			resetRenderHistory: () => instance.resetRenderHistory?.(),
 			destroy: () => instance.destroy(),
 		};
 	}

@@ -25,6 +25,7 @@ export function createVisualModuleTimelineLayer(
 		getImageInput?: (input: TimelineImage, parameterId: VisualModuleCustomParameterId) => TimelineImage;
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
 		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<TimelineImage>) => ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>;
+		resetRenderHistory?: () => void;
 		destroy: () => void;
 	},
 ): TimelineLayerRenderer<TimelineImage> {
@@ -83,6 +84,7 @@ export function createVisualModuleTimelineLayer(
 			if (signal.aborted) return { gpuTime: 0 };
 			return renderer.render(resolved, context);
 		},
+		resetRenderHistory: () => renderer.resetRenderHistory?.(),
 		destroy: () => renderer.destroy(),
 	};
 }

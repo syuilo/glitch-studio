@@ -62,6 +62,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 			// 子のGPU時間は共有セッションが集計する。投影も子へ適用済みなので重ねない。
 			return compositor.evaluate(context, result.output, settings, preserveDepth);
 		},
+		resetRenderHistory: () => renderer.resetRenderHistory(),
 		destroy() { renderer.clear(); compositor.dispose(); },
 	};
 }

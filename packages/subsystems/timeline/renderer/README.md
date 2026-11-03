@@ -1,5 +1,7 @@
 # Timeline Renderer
 
+`TimelineRenderer.resetRenderHistory()`は準備中の評価を中断し、保持中の全レイヤーへ履歴リセットを伝える。Effectレイヤーは`dependsOnRenderHistory: true`の実行インスタンスを初期化し、Visual Module・Group・Transform・子Sceneは配下へ再帰的に伝える。履歴を持たないレイヤーの素材・出力は保持する。自動リセットや最終画像キャッシュはこのパッケージでは扱わず、呼び出し側が送信済みフレームとの直列化と再描画を管理する。
+
 エフェクトとVisual Moduleの`transformTarget: region`では、処理済み画像を現在の合成先の座標に固定し、Scene基準の矩形だけを変形する。ぼかし半径・方向や画像の模様をレイヤーの変形で動かさない。範囲の被覆率は出力alphaと分離し、Replaceは透明画素も範囲内だけ置換する。その他の合成・下層切り抜きマスクも範囲外を保持し、矩形の端は画素幅でアンチエイリアスする。Group内部の下層入力は従来どおり隔離される。素材参照の`source`は処理結果全体、`rendered`は範囲を適用した単独描画、`composited`は下層との合成結果を返す。
 
 動画クリップの`videoEnabled`がfalseなら、動画レイヤーは動画ソース・GPU資源を生成せず、映像出力なしを返す。透明画像の合成も行わず、Replace・マスク・グループの`hasOutput`に影響を与えない。音声計画は独立して動作する。

@@ -405,6 +405,122 @@ test('publishes one base-time transform for a motion-blurred frame', async t => 
 	assert.equal(events[0].geometry.transform.rotation, 0.2);
 });
 
+function installRenderHistoryEffect(renderer) {
+	const instances = [];
+	renderer.effectDefinitions.history = { dependsOnRenderHistory: true, kind: 'generate', paramDefs: {},
+		primaryInputParameter: null, resolutionInputParameters: [], primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } } };
+	renderer.effectImplementations.history = {
+		disableCache: true, needsPreviousFrame: true,
+		outputTextureFactories: { output: ({ resolution }) => renderer.gpuDevice.createTexture({ size: [resolution.width, resolution.height] }) },
+		init() {
+			const instance = { disposed: 0, frames: [] };
+			instances.push(instance);
+			return {
+				render(context) { instance.frames.push({ time: context.time, timeDelta: context.timeDelta }); },
+				dispose() { instance.disposed++; },
+			};
+		},
+	};
+	const visualModule = { ...constantVisualModule(), paramDefs: [], nodes: [
+		{ id: 'history', type: 'effect', effectId: 'history', params: {}, isBypass: false, resolution: { mode: 'context', scale: 1 } },
+		{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'history', outputPort: 'output' } } },
+	] };
+	return { instances, visualModule };
+}
+
+for (const placement of ['effect', 'visualModule', 'inlineVisualModule', 'group', 'transform', 'scene']) {
+	// 【Timeline内の全配置へ手動リセットを伝え、レイヤーの時計を維持する】
+	// Group・Transform・子Sceneの境界やVisual Moduleのラッパーで通知が欠けると、
+	// 最上位だけ初期化されて内部の蓄積が残る。実Managerと各レイヤーの評価経路を通して確認する。
+	test(`resets timeline render history through ${placement} placements`, async t => {
+		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+		const { instances, visualModule } = installRenderHistoryEffect(renderer);
+		const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
+		const base = scene.layers[0];
+		const effect = { ...base, id: 'effect', layerType: 'effect', effectId: 'history', effectParamValues: {}, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 } };
+		const { clips, ...containerBase } = base;
+		let layer;
+		switch (placement) {
+			case 'effect': layer = effect; break;
+			case 'visualModule': layer = base; break;
+			case 'inlineVisualModule': layer = { ...base, layerType: 'inlineVisualModule', visualModule }; break;
+			case 'group': layer = { ...containerBase, layerType: 'group', layers: [effect], compositingMode: 'flat' }; break;
+			case 'transform': layer = { ...containerBase, layerType: 'transform', layers: [effect], transformParamValues: {
+				position: { inputSource: 'literal', value: [0, 0] }, z: { inputSource: 'literal', value: 0 },
+				scale: { inputSource: 'literal', value: [1, 1] }, rotation: { inputSource: 'literal', value: 0 },
+			} }; break;
+			case 'scene': layer = { ...base, layerType: 'scene', clips: clips.map(clip => ({ ...clip, sceneId: 'child' })) }; break;
+		}
+		scene.layers = [layer];
+		await renderer.updateDynamicOptions({ visualModules: [visualModule], timelineScenes: [scene,
+			...(placement === 'scene' ? [{ ...scene, id: 'child', layers: [effect] }] : []),
+		] });
+		await renderer.renderTimelineAt(0);
+		await renderer.renderTimelineAt(100);
+		assert.deepEqual(errors, []);
+		assert.equal(instances.length, 1);
+		assert.equal(instances[0].frames.length, 2);
+		renderer.resetRenderHistory();
+		assert.equal(instances[0].disposed, 1);
+		await renderer.renderTimelineAt(100);
+		assert.deepEqual(errors, []);
+		assert.equal(instances.length, 2);
+		assert.deepEqual(instances[1].frames, [{ time: 0.1, timeDelta: 0 }]);
+	});
+}
+
+// 【Live Previewの時計と描画予約を維持したまま履歴を初期化する】
+// ループやWorkerを再起動すると絶対時刻やPlayerまで変わるため、蓄積状態だけを捨てる。
+// 最初の描画は時間差0で再開し、その後は通常のフレーム間隔を受け取ることも確認する。
+test('resets Live Preview history without restarting its clock or frame loop', async t => {
+	const { renderer, errors, frames, frame } = await fixture(t);
+	const { instances, visualModule } = installRenderHistoryEffect(renderer);
+	await renderer.updateDynamicOptions({ visualModules: [visualModule] });
+	renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+	frame(16);
+	frame(32);
+	const reservations = [...frames.keys()];
+	renderer.resetRenderHistory();
+	assert.equal(instances[0].disposed, 1);
+	assert.deepEqual([...frames.keys()], reservations);
+	frame(48);
+	frame(64);
+	assert.equal(instances.length, 2);
+	assert.deepEqual(instances[1].frames, [{ time: 0.048, timeDelta: 0 }, { time: 0.064, timeDelta: 16 }]);
+	assert.deepEqual(errors, []);
+});
+
+// 【履歴リセットで画像キャッシュを消し、古いGPU完了による再登録を防ぐ】
+// リセット後に完了するコピーを採用すると、内部履歴を消しても過去の蓄積画像が戻る。
+// キャッシュされていた同じ位置の再表示で、新しい評価が必要になることを確認する。
+test('clears cached images and rejects in-flight snapshots after resetting history', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
+	await renderer.renderTimelineAt(0);
+	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 4);
+	const gate = Promise.withResolvers();
+	const waiting = Promise.withResolvers();
+	const waitForGpu = renderer.gpuDevice.queue.onSubmittedWorkDone;
+	renderer.gpuDevice.queue.onSubmittedWorkDone = () => { waiting.resolve(); return gate.promise; };
+	const completed = [];
+	renderer.on('ev', event => { if (event.type === 'frameRendered') completed.push(event.ctx); });
+	const pending = renderer.renderTimelineAt(1000 / 30, 1);
+	await waiting.promise;
+	renderer.resetRenderHistory();
+	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 0);
+	gate.resolve();
+	await pending;
+	assert.deepEqual(completed, []);
+	assert.deepEqual(renderer.frameCache.snapshot().frameRanges, []);
+	renderer.gpuDevice.queue.onSubmittedWorkDone = waitForGpu;
+	await renderer.renderTimelineAt(0, 2);
+	assert.equal(evaluations.mock.callCount(), 3);
+	assert.equal(completed.at(-1).requestId, 2);
+	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 4);
+	assert.deepEqual(errors, []);
+});
+
 async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererManager, waveformAndHistogramCanvases = {}) {
 	const errors = [];
 	const frames = new Map();

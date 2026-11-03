@@ -226,6 +226,7 @@
 	"_App": {
 		"File": "ファイル",
 		"Edit": "編集",
+		"ResetRenderHistory": "描画履歴をリセット",
 		"View": "表示",
 		"ShowAdvancedParameters": "高度なパラメータを表示",
 		"Window": "ウィンドウ",

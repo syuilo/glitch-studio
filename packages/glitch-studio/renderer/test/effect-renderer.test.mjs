@@ -47,6 +47,7 @@ function probe(g, { history = false, lazy = false, loading = false, disableCache
 	const instances = [];
 	const renders = [];
 	const definition = {
+		dependsOnRenderHistory: history,
 		paramDefs, primaryInputParameter: Object.keys(paramDefs).find(key => paramDefs[key].canNode) ?? null,
 		resolutionInputParameters: [], primaryOutput: 'output',
 		outputDefs: { output: { dataType: { kind: 'color' } }, extra: { dataType: { kind: 'color' }, canLazyAllocation: lazy } },
@@ -99,6 +100,83 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 	return { renderer, module, states, context, render: (ctx = context()) => renderer.render(ctx, g.encoder),
 		prepare: (ctx = context(), signal = new AbortController().signal) => renderer.prepare(ctx, signal) };
 }
+
+// 【共通テクスチャと実行インスタンスを初期化し、現在時刻から履歴を再開する】
+// 前フレームだけを消すと、実装内のカウンターや初回判定が残る。遅延出力の未確保状態と
+// 借用リソースは維持し、リセット前の時間差・ポインター移動を初回へ持ち越さない。
+test('resets effect instances and allocated history outputs while retaining borrowed resources and time', t => {
+	const f = single(t, { history: true, lazy: true });
+	const ports = new Set(['output']);
+	f.renderer.render(f.frame({}, { usedOutputPorts: ports }));
+	f.renderer.render(f.frame({}, { usedOutputPorts: ports }));
+	const previousTextures = f.textures.filter(texture => texture.port === 'output');
+	const version = f.renderer.resourceVersion;
+	f.renderer.resetRenderHistory();
+	assert.equal(f.instances[0].disposed, 1);
+	assert.equal(f.instances.length, 1, 'initialize only when the next frame is prepared');
+	assert.ok(f.renderer.resourceVersion > version);
+	assert.ok(previousTextures.every(texture => texture.destroyed === 1));
+	assert.equal(f.renderer.getOutputTexture('extra'), null);
+	assert.equal(f.fallbackTexture.destroyed, 0);
+	assert.equal(f.states.at(-1), null);
+	f.renderer.render(f.frame({}, { time: 7, timeDelta: 200, usedOutputPorts: ports }));
+	assert.equal(f.instances.length, 2);
+	assert.equal(f.renders.at(-1).time, 7);
+	assert.equal(f.renders.at(-1).timeDelta, 0);
+	assert.deepEqual(f.renders.at(-1).pointerVector, { x: 0, y: 0 });
+	assert.ok(!previousTextures.includes(f.renders.at(-1).outputDataMap.output.previousFrameTexture));
+	f.renderer.render(f.frame({}, { time: 7.2, timeDelta: 200, usedOutputPorts: ports }));
+	assert.equal(f.renders.at(-1).timeDelta, 200);
+	assert.deepEqual(f.renders.at(-1).pointerVector, { x: 0.1, y: 0 });
+});
+
+// 【準備中の履歴リセットは待機を解除し、古い実装からの通知を無効化する】
+// シークや音声解析の準備が終わる前でも手動リセットでき、古いready通知が新しい
+// インスタンスの準備完了として採用されてしまわないことを確認する。
+test('invalidates pending preparation and late status reports when resetting history', async t => {
+	const f = single(t, { history: true, loading: true });
+	f.renderer.prepare({});
+	const waiting = f.renderer.waitUntilReady(new AbortController().signal);
+	f.renderer.resetRenderHistory();
+	assert.equal(await waiting, false);
+	f.renderer.prepare({});
+	const state = f.states.at(-1);
+	f.instances[0].args.reportStatus({ type: 'ready' });
+	assert.equal(f.states.at(-1), state);
+	assert.equal(state.status.type, 'loading');
+	f.instances[1].args.reportStatus({ type: 'ready' });
+	assert.equal(f.states.at(-1).status.type, 'ready');
+});
+
+// 【Visual Module全体の履歴依存インスタンスだけを初期化し、下流の出力を更新する】
+// needsPreviousFrameを使わない独自履歴も対象にし、選択状態や現在の出力への接続有無で
+// リセット対象を狭めない。一方で履歴のない素材・処理のインスタンスは保持する。
+test('resets all history-dependent Visual Module effects including disconnected internal histories', t => {
+	const g = gpu();
+	const source = probe(g);
+	const history = probe(g, { paramDefs: { input: color } });
+	history.definition.dependsOnRenderHistory = true;
+	const detached = probe(g, { history: true });
+	const sink = probe(g, { paramDefs: { input: color } });
+	const f = graph(t, g, { source, history, detached, sink }, [node('source'), node('history', 'history', { input: connection('source') }), node('detached'), node('sink', 'sink', { input: connection('history') })], {
+		out: { nodeId: 'sink', outputPort: 'output' }, other: { nodeId: 'detached', outputPort: 'output' },
+	});
+	f.render(f.context({ outputIds: ['out', 'other'] }));
+	f.render();
+	const previous = sink.renders.at(-1).params.input.texture;
+	f.renderer.resetRenderHistory();
+	assert.equal(history.instances[0].disposed, 1);
+	assert.equal(detached.instances[0].disposed, 1);
+	assert.equal(sink.instances[0].disposed, 0);
+	assert.equal(source.instances[0].disposed, 0);
+	f.render();
+	assert.equal(history.instances.length, 2);
+	assert.equal(sink.instances.length, 1);
+	assert.equal(sink.renders.length, 2);
+	assert.notEqual(sink.renders.at(-1).params.input.texture, previous);
+	assert.equal(history.renders.at(-1).timeDelta, 0);
+	assert.equal(source.instances.length, 1);
+});
 
 // 【ポインタ位置を配列として評価し、移動に応じて描画キャッシュを更新する】
 // 位置パラメータへの直接指定・成分参照・環境変数指定・加工式のどれでも同じ座標を利用できる。
