@@ -204,6 +204,11 @@
 		}
 	}
 
+	._buttonPrimaryFg {
+		@extend ._button;
+		color: var(--THEME-accent);
+	}
+
 	._textButton {
 		@extend ._button;
 		color: var(--THEME-accent);

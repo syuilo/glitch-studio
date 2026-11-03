@@ -1,26 +1,28 @@
 <template>
 <GsDetachableView :title="i18n.ts.Preview" :suspended="renderEngine.isSuspended.value" @changeWindow="onPreviewWindowChanged">
 	<div :class="$style.root">
-		<div :class="$style.topLeft">
-			<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">
-				<div>{{ formatTime(time) }}</div>
-				<div v-if="currentFrameNumber != null">{{ currentFrameNumber }}</div>
+		<div :class="$style.header">
+			<div :class="$style.left">
+				<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">
+					<span>T: {{ formatTime(time) }}<span v-if="currentFrameNumber != null"> F: {{ currentFrameNumber }}</span></span>
+				</div>
+			</div>
+			<div :class="$style.center">
+				<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
+					<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
+				</button>
+			</div>
+			<div :class="$style.right">
+				<div :class="$style.zoom">{{ i18n.ts._Preview.Zoom }}: {{ Math.round(zoom * 100) }}%</div>
+				<button :class="$style.iconButton" class="_button" @click="zoomTo100"><i class="ti ti-number-100-small"></i></button>
+				<button :class="$style.iconButton" class="_button" @click="fitZoom"><i class="ti ti-maximize"></i></button>
+				<div :class="$style.divider"></div>
+				<button v-tooltip="i18n.ts._Preview.ShowGrid" :class="[$style.iconButton, showGridInPreview ? '_buttonPrimaryFg' : '_button']" @click="toggleGrid"><i class="ti ti-grid-3x3"></i></button>
+				<div :class="$style.divider"></div>
+				<button :class="$style.iconButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
 			</div>
 		</div>
-		<div :class="$style.topCenter">
-			<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
-				<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
-			</button>
-			<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s _selectable">
-				<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
-				<div>{{ renderEngine.errorMessage.value }}</div>
-				<button type="button" class="_button" :disabled="renderValidationErrorMessage != null" @click="renderEngine.retry()">{{ i18n.ts._Preview.Retry }}</button>
-			</div>
-		</div>
-		<div :class="$style.topRight">
-			<div :class="$style.zoom">{{ i18n.ts._Preview.Zoom }}: {{ Math.round(zoom * 100) }}%</div>
-			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
-		</div>
+
 		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
 			<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :class="[$style.canvasContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" :style="{ scale: zoom, translate: `${pan[0]}px ${pan[1]}px` }"></div>
 			<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
@@ -31,10 +33,19 @@
 				<GsLoading :colored="false" :mini="true"/>
 			</div>
 		</div>
-		<div :class="$style.bottomLeft">
-			<div :class="$style.resolution" class="_monospace">
-				<div>{{ previewResolution?.width ?? '-' }} x {{ previewResolution?.height ?? '-' }} px</div>
+
+		<div :class="$style.footer">
+			<div :class="$style.left">
+				<div :class="$style.resolution" class="_monospace">
+					<div>{{ previewResolution?.width ?? '-' }} x {{ previewResolution?.height ?? '-' }} px</div>
+				</div>
 			</div>
+		</div>
+
+		<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s _selectable">
+			<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
+			<div>{{ renderEngine.errorMessage.value }}</div>
+			<button type="button" class="_button" :disabled="renderValidationErrorMessage != null" @click="renderEngine.retry()">{{ i18n.ts._Preview.Retry }}</button>
 		</div>
 	</div>
 </GsDetachableView>
@@ -282,6 +293,10 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 	}], ev.currentTarget ?? ev.target);
 }
 
+function toggleGrid() {
+	showGridInPreview.value = !showGridInPreview.value;
+}
+
 function showMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		text: i18n.ts._Preview.HighlightClipping,
@@ -299,38 +314,36 @@ function showMenu(ev: PointerEvent) {
 		type: 'switch',
 		ref: showTimecodeInPreview,
 	}, {
-		text: i18n.ts._Preview.ShowGrid,
-		icon: 'ti ti-grid-3x3',
-		type: 'switch',
-		ref: showGridInPreview,
-	}, {
 		text: i18n.ts._Preview.ShowLayerTransform,
 		icon: 'ti ti-transform',
 		type: 'switch',
 		ref: showTransformInPreview,
-	}, {
-		text: i18n.ts._Preview.CenterView,
-		icon: 'ti ti-focus-centered',
-		action: () => { pan.value = [0, 0]; },
 	}], ev.currentTarget ?? ev.target);
 }
 </script>
 
 <style module lang="scss">
 .root {
-	width: 100%;
-	height: 100%;
-}
+	--headerHeight: 25px;
+	--footerHeight: 25px;
 
-.containerContainer {
 	position: relative;
 	width: 100%;
 	height: 100%;
-	display: grid;
-	place-content: center;
 	overflow: clip;
 	contain: content;
 	background: #080808;
+}
+
+.containerContainer {
+	position: absolute;
+	width: 100%;
+	height: calc(100% - var(--headerHeight) - var(--footerHeight));
+	top: 0;
+	bottom: 0;
+	margin: auto;
+	display: grid;
+	place-content: center;
 }
 
 .canvasContainer {
@@ -357,11 +370,6 @@ function showMenu(ev: PointerEvent) {
 	pointer-events: none;
 }
 
-.canvasContainer,
-.canvasContainer > canvas {
-	display: block;
-}
-
 //.panning, .panning * {
 //	cursor: grabbing !important;
 //}
@@ -377,73 +385,107 @@ function showMenu(ev: PointerEvent) {
 	background: #ffffff80;
 }
 
-.topLeft {
-	position: absolute;
-	top: 0;
-	left: 0;
-	z-index: 1;
-	background: #0008;
-}
-
-.topCenter {
+.header {
 	position: absolute;
 	top: 0;
 	left: 0;
 	right: 0;
-	margin: 0 auto;
 	z-index: 1;
+	width: 100%;
+	height: var(--headerHeight);
+	line-height: var(--headerHeight);
+	background: #0008;
+}
+
+.footer {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	z-index: 1;
+	width: 100%;
+	height: var(--footerHeight);
+	line-height: var(--footerHeight);
+	background: #0008;
+}
+
+.left {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 100%;
+
 	display: flex;
-	flex-direction: column;
-	width: 300px;
+	flex-direction: row;
 	align-items: center;
 	justify-content: center;
 }
 
-.renderError {
-	padding: 8px;
-	background: #000c;
-	color: #fff;
-	overflow-wrap: anywhere;
+.center {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 100%;
+	margin: 0 auto;
+
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
 }
 
-.previewTargetName {
-	padding: 4px 8px;
-	background: #0008;
-}
-
-.topRight {
+.right {
 	position: absolute;
 	top: 0;
 	right: 0;
-	z-index: 1;
+	height: 100%;
+
 	display: flex;
-	background: #0008;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+}
+
+.divider {
+	width: 1px;
+	height: 100%;
+	margin: 0 4px;
+	background-color: #fff2;
+}
+
+.previewTargetName {
 }
 
 .time {
-	padding: 4px 8px;
+	padding: 0 8px;
 	color: var(--THEME-accent);
 	font-variant-numeric: tabular-nums;
 	text-align: right;
 }
 
 .zoom {
-	padding: 4px 8px;
+	padding: 0 8px;
 }
 
-.menuButton {
-}
-
-.bottomLeft {
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	z-index: 1;
-	background: #0008;
+.iconButton {
+	height: 100%;
+	aspect-ratio: 1;
 }
 
 .resolution {
-	padding: 4px 8px;
+	padding: 0 8px;
+}
+
+.renderError {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	translate: -50% -50%;
+	padding: 8px;
+	background: #000c;
+	color: #fff;
+	overflow-wrap: anywhere;
 }
 
 @keyframes bg {

@@ -124,20 +124,24 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		);
 
 		this.canvas = window.document.createElement('canvas');
+		this.canvas.style.display = 'block';
 		this.canvas.style.imageRendering = 'pixelated';
 		this.histogramCanvas = window.document.createElement('canvas');
 		this.histogramCanvas.width = 256;
 		this.histogramCanvas.height = 150;
+		this.histogramCanvas.style.display = 'block';
 		this.histogramCanvas.style.width = '100%';
 		this.histogramCanvas.style.height = '100%';
 		this.waveformHorizontalCanvas = window.document.createElement('canvas');
 		this.waveformHorizontalCanvas.width = 512;
 		this.waveformHorizontalCanvas.height = 256;
+		this.waveformHorizontalCanvas.style.display = 'block';
 		this.waveformHorizontalCanvas.style.width = '100%';
 		this.waveformHorizontalCanvas.style.height = '100%';
 		this.waveformVerticalCanvas = window.document.createElement('canvas');
 		this.waveformVerticalCanvas.width = 256;
 		this.waveformVerticalCanvas.height = 512;
+		this.waveformVerticalCanvas.style.display = 'block';
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
 	}

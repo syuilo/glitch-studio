@@ -1,15 +1,15 @@
 import { computed, ref, shallowRef } from 'vue';
-import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { createTimelineRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
+import { getTimelinePreviewFrameIndex } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
+import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
+import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { TimelineRendererManager, TimelineRendererManagerResources, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
-import { getTimelinePreviewFrameIndex } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 
 export type TimelineRendererManagerInitialOptions = {
 	staticOptions: TimelineRendererManagerStaticOptions;
@@ -116,20 +116,24 @@ export class TimelineRendererManagerController extends RendererManagerController
 		});
 
 		this.canvas = window.document.createElement('canvas');
+		this.canvas.style.display = 'block';
 		this.canvas.style.imageRendering = 'pixelated';
 		this.histogramCanvas = window.document.createElement('canvas');
 		this.histogramCanvas.width = 256;
 		this.histogramCanvas.height = 150;
+		this.histogramCanvas.style.display = 'block';
 		this.histogramCanvas.style.width = '100%';
 		this.histogramCanvas.style.height = '100%';
 		this.waveformHorizontalCanvas = window.document.createElement('canvas');
 		this.waveformHorizontalCanvas.width = 512;
 		this.waveformHorizontalCanvas.height = 256;
+		this.waveformHorizontalCanvas.style.display = 'block';
 		this.waveformHorizontalCanvas.style.width = '100%';
 		this.waveformHorizontalCanvas.style.height = '100%';
 		this.waveformVerticalCanvas = window.document.createElement('canvas');
 		this.waveformVerticalCanvas.width = 256;
 		this.waveformVerticalCanvas.height = 512;
+		this.waveformVerticalCanvas.style.display = 'block';
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
 	}
