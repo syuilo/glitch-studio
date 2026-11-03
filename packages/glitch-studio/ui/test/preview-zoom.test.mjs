@@ -88,10 +88,11 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		timelineRendererManagerController: { isSeeking: ref(false) },
 		previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
 		highlightClipping: ref(false), resolutionFactor: ref(resolutionFactor), visualModuleLivePreviewTimeFactor: ref(1),
-		activeScene: ref(null), activeSceneId: ref(null), timelinePreviewFpsFactor: ref(1),
+		activeScene: ref({ id: 'scene', name: 'Scene', resolution: { mode: 'project' } }), activeSceneId: ref('scene'), timelinePreviewFpsFactor: ref(1),
 		renderEngine: { isSuspended: ref(false), runtimeDiagnostic: ref(null), errorMessage: ref(null) },
 		renderValidation: { errorMessage: ref(null) },
-		projectContext: { stateManager: { state: { visualModules: ref([]), timelineScenes: ref([]), timelineFps: ref(60) } } },
+		projectContext: { stateManager: { state: { visualModules: ref([]), timelineScenes: ref([]), timelineFps: ref(60),
+			resolution: ref({ width: width / resolutionFactor, height: height / resolutionFactor }) } } },
 	};
 	const preferences = { r: { animatedBgInPreview: ref(false) }, model: () => ref(false) };
 	const module = { exports: {} };
@@ -125,6 +126,72 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		get style() { return find('canvas-container').props.style; },
 	};
 }
+
+// 【初期表示は実寸と表示先DPRを使い、縦横どちらもはみ出さない最大倍率にする】
+// 固定の初期倍率では高解像度画像が切れたり、小さい画像で表示領域を使い切れなかったりする。
+// 初期化時点で設定されているレンダリング解像度倍率にも対応する。
+test('fits the initial preview once its output dimensions are available', async t => {
+	for (const options of [
+		{ width: 1920, height: 1080, devicePixelRatio: 1 },
+		{ width: 600, height: 1200, devicePixelRatio: 1.25 },
+		{ width: 100, height: 50, devicePixelRatio: 2 },
+		{ width: 960, height: 540, devicePixelRatio: 2, resolutionFactor: 0.5 },
+	]) {
+		const f = await fixture(t, options);
+		await f.frame();
+		const expectedScale = Math.min(800 / options.width, 450 / options.height);
+		assert.equal(f.style.scale, expectedScale);
+		assert.equal(f.find('zoom').text, `ZOOM: ${Math.round(expectedScale * options.devicePixelRatio * 100)}%`);
+		assert.equal(f.style.translate, '0px 0px');
+	}
+});
+
+// 【Worker初期化前の仮Canvasや非表示パネルでは初期フィットを完了しない】
+// 300x150などの仮寸法で倍率を確定すると、後から本来の出力が届いてもはみ出したままになる。
+test('waits for the real canvas size and a visible viewport before applying the initial fit', async t => {
+	const f = await fixture(t, { devicePixelRatio: 2 });
+	f.canvas.width = 300;
+	f.canvas.height = 150;
+	await f.frame();
+	assert.equal(f.find('zoom').text, 'ZOOM: 100%');
+	await f.replaceCanvas(1920, 1080);
+	f.viewport.height = 0;
+	await f.frame();
+	assert.equal(f.find('zoom').text, 'ZOOM: 100%');
+	f.viewport.height = 450;
+	await f.frame();
+	assert.equal(f.style.scale, 800 / 1920);
+});
+
+// 【Live Previewは出力解像度の通知を待って初期表示をフィットする】
+// Visual Moduleの出力はScene解像度とは異なるため、通知前にSceneの寸法で確定しない。
+test('waits for live preview output resolution before fitting its initial view', async t => {
+	const f = await fixture(t, { devicePixelRatio: 2 });
+	f.appContext.previewPlayback.state.value = { mode: 'visualModuleLivePreview', visualModuleId: 'visual-module' };
+	await f.frame();
+	assert.equal(f.find('zoom').text, 'ZOOM: 100%');
+	f.appContext.visualModuleRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
+	await f.replaceCanvas(600, 1200);
+	await f.frame();
+	assert.equal(f.style.scale, 450 / 1200);
+});
+
+// 【初期フィット後のリサイズ・出力変更・休止復帰で表示倍率を再初期化しない】
+// 初期化用の処理を毎フレーム適用すると、ユーザーが選んだ拡大率や注目位置が維持できない。
+test('preserves subsequent zoom and pan after the initial fit', async t => {
+	const f = await fixture(t);
+	await f.frame();
+	await f.wheel(600, 400, -1);
+	const style = { ...f.style };
+	f.viewport.width = 400;
+	await f.replaceCanvas(960, 540);
+	f.appContext.renderEngine.isSuspended.value = true;
+	await nextTick();
+	f.appContext.renderEngine.isSuspended.value = false;
+	await nextTick();
+	await f.frame();
+	assert.deepEqual(f.style, style);
+});
 
 // 【100%はOSの表示倍率によらず出力1pxを画面の物理1pxへ対応させる】
 // CSSのscaleを単に1へ戻すと、高DPI画面では拡大表示になる。パンも中央へ戻して確認しやすくする。
@@ -179,6 +246,7 @@ test('fits changed output dimensions and a replacement live preview canvas', asy
 // 切り離したウィンドウや異なる画面でメインwindowのDPRを使い続けると、100%の意味が変わる。
 test('keeps physical zoom when the window DPR changes or the preview is detached', async t => {
 	const f = await fixture(t);
+	await f.frame();
 	await f.click('zoom-to-100');
 	f.view.devicePixelRatio = 1.25;
 	await f.frame();

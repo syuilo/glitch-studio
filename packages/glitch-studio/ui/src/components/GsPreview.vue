@@ -84,8 +84,9 @@ const gridLines = shallowRef<CSSProperties[]>([]);
 const ZOOM_STEP = 1.25;
 const gridLinePositions = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 // 100%は出力の1pxが画面の物理1pxに対応する倍率。CSSのscaleへ渡すときだけDPRで割る。
-const zoom = ref(1 / ZOOM_STEP / ZOOM_STEP / ZOOM_STEP);
+const zoom = ref(1);
 const previewDevicePixelRatio = ref(window.devicePixelRatio);
+let initialZoomPending = true;
 const pan = ref<[number, number]>([0, 0]);
 const panning = ref(false);
 const previewCanvasRect = shallowRef<PreviewCanvasRect>({
@@ -128,6 +129,7 @@ function update(t: number) {
 	latestTime = t;
 	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') visualModuleLivePreviewTime.value += delta * visualModuleLivePreviewTimeFactor.value;
 	updatePreviewDevicePixelRatio();
+	fitInitialZoom();
 	updateGridLines();
 	updatePreviewCanvasRect();
 	timecodeRaf = animationWindow.requestAnimationFrame(update);
@@ -153,6 +155,16 @@ function updateTimecodeLoop() {
 function updatePreviewDevicePixelRatio() {
 	// 別ウィンドウやDPRの異なる画面へ移しても、物理ピクセル基準の倍率を維持する。
 	previewDevicePixelRatio.value = canvasContainer.value?.ownerDocument.defaultView?.devicePixelRatio ?? window.devicePixelRatio;
+}
+
+function fitInitialZoom() {
+	if (!initialZoomPending) return;
+	const resolution = previewResolution.value;
+	const canvas = canvasContainer.value;
+	// Workerの初期化前には仮のCanvas寸法が見えるため、実際の出力寸法が反映されるまで待つ。
+	// 非表示パネルの表示領域が0の場合も、fitZoomが成功するまで次のフレームで再試行する。
+	if (resolution == null || canvas == null || canvas.clientWidth !== resolution.width || canvas.clientHeight !== resolution.height) return;
+	if (fitZoom()) initialZoomPending = false;
 }
 
 function onPreviewWindowChanged() {
@@ -268,9 +280,9 @@ function zoomTo100() {
 function fitZoom() {
 	const canvas = canvasContainer.value;
 	const container = containerContainer.value;
-	if (canvas == null || container == null) return;
+	if (canvas == null || container == null) return false;
 	const available = container.getBoundingClientRect();
-	if (canvas.clientWidth <= 0 || canvas.clientHeight <= 0 || available.width <= 0 || available.height <= 0) return;
+	if (canvas.clientWidth <= 0 || canvas.clientHeight <= 0 || available.width <= 0 || available.height <= 0) return false;
 
 	cancelPan();
 	updatePreviewDevicePixelRatio();
@@ -278,6 +290,7 @@ function fitZoom() {
 	// CSS上で収まる最大倍率を物理ピクセル基準へ換算し、100%を超える拡大も許可する。
 	zoom.value = Math.min(available.width / canvas.clientWidth, available.height / canvas.clientHeight) * previewDevicePixelRatio.value;
 	pan.value = [0, 0];
+	return true;
 }
 
 function formatTime(timeMs: number): string {
