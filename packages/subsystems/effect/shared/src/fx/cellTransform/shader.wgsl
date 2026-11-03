@@ -5,6 +5,9 @@ struct Uniforms {
 	phase: vec2f,
 	angle: f32,
 	controlSamples: u32,
+	cellWrapMode: u32,
+	wrapReference: u32,
+	imageInputIsConstant: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -15,6 +18,21 @@ struct CellControls {
 	scale: vec2f,
 	rotation: f32,
 };
+
+fn wrapCellPosition(position: vec2f) -> vec2f {
+	// 元画像全体ではなく、各セルに含まれる画像片の[-1,+1]を基準に処理する。
+	// fractで負の座標も同じ周期に揃え、移動方向による反復・鏡像の違いをなくす。
+	let uv = position * 0.5 + 0.5;
+	switch uniforms.cellWrapMode {
+		case 1u: { return clamp(position, vec2f(-1.0), vec2f(1.0)); }
+		case 2u: { return fract(uv) * 2.0 - 1.0; }
+		case 3u: {
+			let mirroredUv = 1.0 - abs(fract(uv * 0.5) * 2.0 - 1.0);
+			return mirroredUv * 2.0 - 1.0;
+		}
+		default: { return position; }
+	}
+}
 
 fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls {
 	// セルを指定数の等面積領域へ分割して各中心を読む。行の高さを列数に比例させ、
@@ -84,7 +102,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		sine * physicalTranslation.x + cosine * physicalTranslation.y,
 	);
 	// セル中心を原点に、拡縮→時計回りの個別回転→移動の逆変換を適用する。
-	// 移動後も描画先は元のセル内とし、切り出す元画像の領域や制御入力の評価点は動かさない。
+	// 移動後も描画先は元のセル内とし、制御入力の評価点は動かさない。
 	// 回転中も物理的な距離の単位を揃え、長方形のセルや出力でも歪ませない。
 	let localPosition = gridPosition - cellCenter - gridTranslation;
 	let rotation = controls.rotation * 6.283185307179586;
@@ -94,19 +112,33 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		localCosine * localPosition.x - localSine * localPosition.y,
 		localSine * localPosition.x + localCosine * localPosition.y,
 	) / controls.scale;
-	// 描画先は所属セル内に限り、参照元も元のセル内だけに限る。
-	// 参照元の切り取りがないと、縮小・回転で空いた場所に隣のセルの画像が入り込む。
-	if (any(abs(sourceLocalPosition) > uniforms.cellSize * 0.5)) { return vec4f(0.0); }
+	// Cellでは画像片の範囲で折り返す。Imageではセル外の元画像も参照できるよう、
+	// 局所座標では切り取りも折り返しもせず、画像全体の座標へ戻してから処理する。
+	var wrappedSourceLocalPosition = sourceLocalPosition;
+	if (uniforms.wrapReference == 0u) {
+		if (uniforms.cellWrapMode == 0u) {
+			// Transparentでは座標の正規化・復元を省き、従来の参照位置をそのまま保つ。
+			if (any(abs(sourceLocalPosition) > uniforms.cellSize * 0.5)) { return vec4f(0.0); }
+		} else {
+			wrappedSourceLocalPosition = wrapCellPosition(sourceLocalPosition * 2.0 / uniforms.cellSize) * uniforms.cellSize * 0.5;
+		}
+	}
 
 	// 各セルへ画像全体を複製せず、元のセル中心を足して画面全体の参照座標に戻す。
-	let sourceGridPosition = cellCenter + sourceLocalPosition;
+	let sourceGridPosition = cellCenter + wrappedSourceLocalPosition;
 	let sourcePosition = vec2f(
 		cosine * sourceGridPosition.x + sine * sourceGridPosition.y,
 		-sine * sourceGridPosition.x + cosine * sourceGridPosition.y,
 	) * 2.0 / uniforms.aspect;
-	// 画面端の部分的なセルでも、元画像の表示領域外は破片に含めない。
-	// 接続のwrapで反対側の画像が現れることを防ぎ、空いた部分は透明にする。
-	if (any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
+	if (uniforms.wrapReference == 0u) {
+		// Cellでは画面端で途切れたセルの表示領域外を画像片に含めない。
+		if (any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
+	} else if (uniforms.imageInputIsConstant != 0u && uniforms.cellWrapMode == 0u) {
+		// 定数色にはテクスチャの端がないため、Image・Transparentだけは画面全体を
+		// 有限の画像領域として扱う。ほかのモードは一様な色で埋まる。
+		if (any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
+	}
+	// Imageのテクスチャ入力は、Fit後の画像端に対して共通のWrap・Filter処理を適用する。
 	// 入力は既にpremultiplied RGBAなので、OpacityはRGBA全体へ一度だけ掛ける。
 	return read_input(sourcePosition) * opacity;
 }

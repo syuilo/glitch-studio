@@ -74,6 +74,20 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
+		// Cellでは各セルの画像片、Imageでは入力画像全体を基準に余白を埋める。
+		wrapReference: {
+			dataType: { kind: 'enum', options: ['cell', 'image'] },
+			ui: {
+				label: 'Wrap Reference',
+				control: { labels: { cell: 'Cell', image: 'Image' } },
+			},
+			defaultValue: { inputSource: 'literal', value: 'cell' },
+		},
+		cellWrapMode: {
+			dataType: { kind: 'wrapMode' },
+			ui: { label: 'Wrap Mode', control: {} },
+			defaultValue: { inputSource: 'literal', value: 'transparent' },
+		},
 		controlSamples: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Control Samples', control: { controlType: 'range', min: 1, max: 256, step: 1 } },

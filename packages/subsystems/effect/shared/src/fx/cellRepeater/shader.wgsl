@@ -5,6 +5,7 @@ struct Uniforms {
 	phase: vec2f,
 	angle: f32,
 	controlSamples: u32,
+	cellWrapMode: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -16,6 +17,22 @@ struct CellControls {
 	scale: vec2f,
 	rotation: f32,
 };
+
+fn wrapCellPosition(position: vec2f) -> vec2f {
+	// セル内の[-1,+1]を[0,1]へ移して折り返す。fractを使うことで、
+	// 負方向への移動でも正方向と同じ周期になり、描画先のセルや属性の参照先は変わらない。
+	let uv = position * 0.5 + 0.5;
+	switch uniforms.cellWrapMode {
+		case 1u: { return clamp(position, vec2f(-1.0), vec2f(1.0)); }
+		case 2u: { return fract(uv) * 2.0 - 1.0; }
+		case 3u: {
+			let mirroredUv = 1.0 - abs(fract(uv * 0.5) * 2.0 - 1.0);
+			return mirroredUv * 2.0 - 1.0;
+		}
+		// Transparentの範囲外判定は呼び出し側で行い、範囲内の座標は加工せず保つ。
+		default: { return position; }
+	}
+}
 
 fn sampleCellControls(cellCenter: vec2f, cosine: f32, sine: f32) -> CellControls {
 	// Pixelateと同じ等面積の層化サンプリング。行の高さを列数に比例させることで、
@@ -92,14 +109,15 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		localCosine * localPosition.x - localSine * localPosition.y,
 		localSine * localPosition.x + localCosine * localPosition.y,
 	) / controls.scale * 2.0 / uniforms.cellSize;
-	// 描画先は所属セルだけに限定する。さらに素材の配置枠外も透明にし、
-	// 縮小時に接続のwrap設定で同じ素材が繰り返されることを防ぐ。
-	if (any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
+	// 描画先は所属セル内に限定したまま、変形で生じる余白を指定の方法で埋める。
+	// 入力接続のwrapより先に処理し、セル単位の反復と素材画像自体のfit/wrapを分ける。
+	if (uniforms.cellWrapMode == 0u && any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
+	let wrappedSourcePosition = wrapCellPosition(sourcePosition);
 
 	// まず制御値を平均し、その結果を0〜1へ制限して素材数で均等分割する。
 	// 1は最後の素材を選ぶ。空配列のvariantでも定数式の符号なし減算が負にならないようにする。
 	let selection = clamp(controls.selection, 0.0, 1.0);
 	let inputIndex = min(u32(floor(selection * f32(count_inputs))), max(count_inputs, 1u) - 1u);
 	// 素材は既にpremultiplied RGBAなので、OpacityはRGBとalphaの両方へ一度だけ掛ける。
-	return read_inputs(inputIndex, sourcePosition) * opacity;
+	return read_inputs(inputIndex, wrappedSourcePosition) * opacity;
 }

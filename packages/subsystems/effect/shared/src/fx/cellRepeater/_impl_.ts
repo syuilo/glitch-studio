@@ -5,6 +5,8 @@ import { implementEffect } from '../../effect-implementation.ts';
 import definition from './_def_.ts';
 import code from './shader.wgsl?raw';
 
+const cellWrapModes = { transparent: 0, clamp: 1, repeat: 2, repeatMirrored: 3 };
+
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
@@ -56,6 +58,7 @@ export default implementEffect<typeof definition>({
 					phase: phase.map(value => Number.isFinite(value) ? value : 0),
 					angle: Number.isFinite(angle) ? angle * 2 * Math.PI : 0,
 					controlSamples: Number.isFinite(controlSamples) ? Math.min(256, Math.max(1, Math.round(controlSamples))) : 1,
+					cellWrapMode: cellWrapModes[ctx.params.cellWrapMode],
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = pipelines.update({

@@ -5,6 +5,8 @@ import { implementEffect } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
 import code from './shader.wgsl?raw';
 
+const cellWrapModes = { transparent: 0, clamp: 1, repeat: 2, repeatMirrored: 3 };
+
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
@@ -38,6 +40,11 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const { input, frequency, phase, angle, sizeReference, controlSamples, perCellOpacity, perCellTranslation, translationUnit, perCellScale, perCellRotation } = ctx.params;
+				const usesImageWrap = ctx.params.wrapReference === 'image';
+				// Imageではセルの切り出し範囲を越えて画像全体を読むため、入力テクスチャの
+				// samplerに選択したWrap Modeを渡す。Fit・Filterと透明境界の補間は共通処理を使う。
+				// 借用した入力自体は変更せず、制御用の場のサンプリング設定も維持する。
+				const sourceInput = usesImageWrap && input.kind === 'texture' ? { ...input, wrapMode: ctx.params.cellWrapMode } : input;
 				const output = ctx.outputDataMap.output;
 				const { width, height } = output.texture;
 				const shortDimension = Math.min(width, height);
@@ -54,11 +61,14 @@ export default implementEffect<typeof definition>({
 					phase: phase.map(value => Number.isFinite(value) ? value : 0),
 					angle: Number.isFinite(angle) ? angle * 2 * Math.PI : 0,
 					controlSamples: Number.isFinite(controlSamples) ? Math.min(256, Math.max(1, Math.round(controlSamples))) : 1,
+					cellWrapMode: cellWrapModes[ctx.params.cellWrapMode],
+					wrapReference: Number(usesImageWrap),
+					imageInputIsConstant: Number(input.kind === 'uniform'),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				// 素材も制御用の場も出力画面を基準にfitする。素材をセルごとにfitし直すと
 				// 元画像の切り出しではなく複製になってしまうため、全体の座標対応を維持する。
-				const variant = pipelines.update({ input, perCellOpacity, perCellTranslation, perCellScale, perCellRotation }, output.texture);
+				const variant = pipelines.update({ input: sourceInput, perCellOpacity, perCellTranslation, perCellScale, perCellRotation }, output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, bindGroup);

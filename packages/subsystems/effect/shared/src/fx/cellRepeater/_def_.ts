@@ -82,6 +82,12 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
+		// 接続先画像のwrapとは別に、セル内の変形で生じる余白の描画方法を指定する。
+		cellWrapMode: {
+			dataType: { kind: 'wrapMode' },
+			ui: { label: 'Cell Wrap Mode', control: {} },
+			defaultValue: { inputSource: 'literal', value: 'transparent' },
+		},
 		controlSamples: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Control Samples', control: { controlType: 'range', min: 1, max: 256, step: 1 } },
