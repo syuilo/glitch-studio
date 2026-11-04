@@ -21,7 +21,6 @@
 					<button
 						v-if="isTimelineVisualLayer(layer)"
 						v-tooltip="i18n.tsx._TimelineLayer.CoordinateSpaceHint({ space: layer.coordinateSpace === 'world' ? i18n.ts._TimelineLayer.WorldSpace : i18n.ts._TimelineLayer.ScreenSpace })"
-						type="button"
 						class="_button"
 						:class="[$style.layerSwitch, { [$style.active]: layer.coordinateSpace === 'world' }]"
 						@click.stop="toggleCoordinateSpace"

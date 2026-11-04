@@ -1,5 +1,5 @@
 <template>
-<button type="button" class="_button" :class="[$style.root, { [$style.detailed]: detailed }]" @click="emit('click', $event)">
+<button class="_button" :class="[$style.root, { [$style.detailed]: detailed }]" @click="emit('click', $event)">
 	<span :class="$style.title">{{ effect.displayName }}</span>
 	<span v-if="detailed" :class="$style.description">{{ effect.description['ja-JP'] }}</span>
 	<div v-if="detailed" :class="$style.footer">

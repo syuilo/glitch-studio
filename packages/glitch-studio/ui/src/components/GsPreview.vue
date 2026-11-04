@@ -8,7 +8,7 @@
 				</div>
 			</div>
 			<div :class="$style.center">
-				<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
+				<button v-if="previewTargetName" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
 					<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
 				</button>
 			</div>
@@ -45,7 +45,7 @@
 		<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s _selectable">
 			<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
 			<div>{{ renderEngine.errorMessage.value }}</div>
-			<button type="button" class="_button" :disabled="renderValidationErrorMessage != null" @click="renderEngine.retry()">{{ i18n.ts._Preview.Retry }}</button>
+			<button class="_button" :disabled="renderValidationErrorMessage != null" @click="renderEngine.retry()">{{ i18n.ts._Preview.Retry }}</button>
 		</div>
 	</div>
 </GsDetachableView>

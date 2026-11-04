@@ -20,7 +20,7 @@
 						<div>
 							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.InputType }}</div>
 							<div :class="$style.tags">
-								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedInputType === value }]" @click="selectedInputType = value">
+								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" class="_button" :class="[$style.tag, { [$style.selected]: selectedInputType === value }]" @click="selectedInputType = value">
 									<GsNodePort v-if="value != null" :dataType="{ kind: value }" :class="$style.typePort"/>
 									<span>{{ label }}</span>
 								</button>
@@ -29,7 +29,7 @@
 						<div>
 							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.OutputType }}</div>
 							<div :class="$style.tags">
-								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedOutputType === value }]" @click="selectedOutputType = value">
+								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" class="_button" :class="[$style.tag, { [$style.selected]: selectedOutputType === value }]" @click="selectedOutputType = value">
 									<GsNodePort v-if="value != null" output :dataType="{ kind: value }" :class="$style.typePort"/>
 									<span>{{ label }}</span>
 								</button>
@@ -41,11 +41,11 @@
 					<template #icon><i class="ti ti-tags"></i></template>
 					<template #label>{{ i18n.ts._EffectPicker.Tags }}</template>
 					<div :class="$style.tags">
-						<button type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.length === 0 }]" @click="selectedTags = []">
+						<button class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.length === 0 }]" @click="selectedTags = []">
 							<span>{{ i18n.ts._EffectPicker.All }}</span>
 							<span :class="$style.count">{{ effects.length }}</span>
 						</button>
-						<button v-for="{ tag, count } in tags" :key="tag" type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.includes(tag) }]" @click="toggleTag(tag)">
+						<button v-for="{ tag, count } in tags" :key="tag" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.includes(tag) }]" @click="toggleTag(tag)">
 							<span>{{ i18n.ts._EffectTags[tag] }}</span>
 							<span :class="$style.count">{{ count }}</span>
 						</button>
