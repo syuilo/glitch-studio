@@ -223,6 +223,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'anotherLayerAudio'; value: string | null }
 	| { kind: 'timelineLayerCustomParameterReference'; value: TimelineLayerCustomParameterReferenceBinding }
 	| { kind: 'visualModuleCustomParameterReference'; value: VisualModuleCustomParameterId }
+	| { kind: 'createCustomParameter' }
 	| ParameterInputSourceEdit<'timelineLayerCustomParameterReference' | 'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'visualModuleCustomParameterReference'>
 );
 </script>
@@ -264,6 +265,7 @@ import { preferences } from '@/preferences.ts';
 import { getAvailableAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHandle.ts';
+import { canCreateCustomParameterFromBinding } from '@/utility/custom-parameter-creation.ts';
 
 const wireMap = useVisualModuleWires();
 const timelineEditor = inject(timelineParameterEditorContextKey, null);
@@ -548,6 +550,17 @@ function getMenu() {
 				action: () => emit('edit', { kind: 'expressionModifier', ...target(), value: { enabled: true, code: 'VALUE' } }),
 			});
 		}
+	}
+
+	const hasCustomParameterOwner = props.node != null ? props.visualModule != null
+		: timelineEditor?.context.value != null && !timelineEditor.isCustomParameterValue;
+	if (hasCustomParameterOwner && canCreateCustomParameterFromBinding(props.paramDef, props.paramValue)) {
+		menuItems.push({
+			id: 'createCustomParameter',
+			text: i18n.ts._Parameter.CreateCustomParameter,
+			icon: 'ti ti-wifi',
+			action: () => emit('edit', { kind: 'createCustomParameter', ...target() }),
+		});
 	}
 
 	if (menuItems.length > 0) {

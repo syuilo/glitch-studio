@@ -862,6 +862,28 @@ test('edits layer parameters through commands and identifies the inline Visual M
 	assert.deepEqual(f.events, [['addEffect', layer.id]]);
 });
 
+// 【Inspectorの公開アクションを選択レイヤーのCommandへ接続する】
+// 音量のイベントから作成先を確定し、別レイヤーへ変更を漏らさず、
+// 定義追加と参照への置き換えを一回のUndo/Redoで往復できることを保証する。
+test('creates and connects a layer custom parameter through the Inspector in one undo step', async t => {
+	const f = await fixture(t);
+	f.scene.layers[1].audioParamValues.volume = { inputSource: 'literal', value: 0.5 };
+	f.props.selection = { kind: 'layers', ids: ['b'] };
+	await nextTick();
+	const before = JSON.parse(JSON.stringify(f.scene.layers));
+	f.control('GsVisualParam', 'layer-volume').props.onEdit({ kind: 'createCustomParameter', paramPath: ['volume'] });
+	const layer = f.scene.layers[1];
+	assert.deepEqual(layer.customParameterDefs[0].defaultValue, { inputSource: 'literal', value: 0.5 });
+	assert.deepEqual(layer.audioParamValues.volume, { inputSource: 'timelineLayerCustomParameterReference', layerId: 'b', parameterId: layer.customParameterDefs[0].id });
+	assert.equal(f.scene.layers[0].customParameterDefs, undefined);
+	assert.equal(f.history.undoStack.value.length, 1);
+	const after = JSON.parse(JSON.stringify(f.scene.layers));
+	f.history.undo();
+	assert.deepEqual(JSON.parse(JSON.stringify(f.scene.layers)), before);
+	f.history.redo();
+	assert.deepEqual(JSON.parse(JSON.stringify(f.scene.layers)), after);
+});
+
 // 【インラインEditorの素材ドロップを、詳細パネルが正しい保存先のCommandへ接続する】
 // 共通Editorへ渡した処理が登録済みVisual Moduleを編集したり、新しいタイムラインレイヤーを作らない。
 // Assetと対応Player・音声ノードの関係を実際の親SFCとCommandで確認する。

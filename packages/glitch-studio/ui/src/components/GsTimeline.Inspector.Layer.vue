@@ -205,6 +205,7 @@
 					:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 					:paramPath="['volume']"
 					:paramDef="timelineAudioParamDefs.volume"
+					data-test-layer-volume
 					:paramValue="layer.audioParamValues.volume"
 					@edit="event => onTimelineLayerParamEdit(event, 'audio')"
 				/>
@@ -409,6 +410,12 @@ function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 
 function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTarget) {
 	const layer = props.layer;
+	if (event.kind === 'createCustomParameter') {
+		if (target !== 'customParameter') stateManager.commit('createTimelineLayerCustomParameterFromParam', {
+			sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath,
+		});
+		return;
+	}
 	if (event.kind === 'node' || event.kind === 'visualModuleCustomParameterReference') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'visualModuleCustomParameterReference')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;

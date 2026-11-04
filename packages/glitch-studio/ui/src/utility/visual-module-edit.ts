@@ -84,6 +84,7 @@ function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualMod
 		case 'lowerLayerOutput':
 		case 'timelineLayerCustomParameterReference':
 		case 'anotherLayerAudio': throw new Error('Timeline input is only available in timeline layer parameters');
+		case 'createCustomParameter': manager.commit('createVisualModuleCustomParameterFromParam', target); break;
 		case 'literal': manager.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
 		case 'automationGraphInline': manager.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'envVariable': manager.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;

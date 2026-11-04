@@ -71,6 +71,68 @@ function fixture(t, timeline = null) {
 	return { props, edits, find: attribute => find(root, attribute) };
 }
 
+// 【固定値を公開するアクションは、作成先のある通常パラメータだけに表示する】
+// Preview Params・カスタム値・式や加工式へ誤って公開を提供すると、保存先や評価の
+// 意味が曖昧になる。実際のメニューから対象パスを持つ編集通知が出ることも確認する。
+test('offers custom parameter creation only for literal leaves with an owning scope', async t => {
+	const f = fixture(t);
+	const action = () => {
+		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
+		return modifierUiTest.menu.find(item => item.id === 'createCustomParameter');
+	};
+	f.props.paramValue = { inputSource: 'literal', value: 0.3 };
+	await nextTick();
+	assert.equal(action(), undefined);
+	f.props.visualModule = { paramDefs: [], nodes: [], automationGraphs: [] };
+	f.props.node = { id: 'node', type: 'effect', params: {} };
+	f.props.paramPath = ['settings', 'amount'];
+	await nextTick();
+	action().action();
+	assert.deepEqual(f.edits, [{ kind: 'createCustomParameter', paramPath: ['settings', 'amount'] }]);
+	for (const binding of [
+		{ inputSource: 'expression', expression: 'TIME' },
+		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
+		{ inputSource: 'automationGraphReference', automationGraphId: null },
+		{ inputSource: 'visualModuleCustomParameterReference', parameterId: '' },
+		{ inputSource: 'node', nodeId: null, outputPort: null },
+		{ inputSource: 'literal', value: 0.3, expressionModifier: { enabled: false, code: 'VALUE' } },
+	]) {
+		f.props.paramValue = binding;
+		await nextTick();
+		assert.equal(action(), undefined);
+	}
+	f.props.paramValue = { inputSource: 'literal', value: null };
+	f.props.paramDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } };
+	await nextTick();
+	assert.equal(action(), undefined);
+	for (const kind of ['array', 'struct']) {
+		f.props.paramDef = kind === 'array'
+			? { dataType: { kind, elementType: { kind: 'scalar' } }, element: { defaultValue: { inputSource: 'literal', value: 0 } }, ui: { label: 'Array', control: { element: { controlType: 'number' } } }, defaultValue: { inputSource: 'literal', value: [] } }
+			: { dataType: { kind, fields: {} }, fields: {}, ui: { label: 'Struct', control: { fields: {} } }, defaultValue: { inputSource: 'literal', value: {} } };
+		f.props.paramValue = f.props.paramDef.defaultValue;
+		await nextTick();
+		assert.equal(action(), undefined);
+	}
+});
+
+// 【Timelineの同じレイヤーへの作成は通常の値だけに提供する】
+// カスタムパラメータの値から同じ所有者へ公開すると自己参照になるため、
+// 同じ共用コンポーネントでも利用場所ごとにメニューを区別する。
+test('offers timeline custom parameter creation without offering it for custom parameter values', async t => {
+	for (const isCustomParameterValue of [false, true]) {
+		const f = fixture(t, { context: computed(() => ({ layer: { id: 'layer' }, ancestors: [] })), isCustomParameterValue });
+		f.props.paramValue = { inputSource: 'literal', value: 0.3 };
+		await nextTick();
+		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
+		const action = modifierUiTest.menu.find(item => item.id === 'createCustomParameter');
+		assert.equal(action != null, !isCustomParameterValue);
+		if (action != null) {
+			action.action();
+			assert.deepEqual(f.edits, [{ kind: 'createCustomParameter', paramPath: ['amount'] }]);
+		}
+	}
+});
+
 // 【直接参照の候補を所有レイヤーIDと型で区別し、範囲外になった保存IDも維持する】
 // 同名定義の選択を明確にし、階層移動で参照先を別の同名候補へ自動変更してしまうのを防ぐ。
 test('selects typed timeline references and retains unresolved saved identities', async t => {
@@ -104,8 +166,9 @@ test('excludes own custom values and keeps timeline sources out of Visual Module
 	f.props.node = { id: 'node', type: 'effect', params: {} };
 	await nextTick();
 	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
-	assert.equal(modifierUiTest.menu.some(item => item.id === 'inputSource:timelineLayerCustomParameterReference'), false);
-	modifierUiTest.menu.find(item => item.id === 'inputSource:visualModuleCustomParameterReference').action();
+	const inputSourceItems = modifierUiTest.menu.find(item => item.type === 'parent').children;
+	assert.equal(inputSourceItems.some(item => item.id === 'inputSource:timelineLayerCustomParameterReference'), false);
+	inputSourceItems.find(item => item.id === 'inputSource:visualModuleCustomParameterReference').action();
 	assert.equal(f.edits.at(-1).inputSource, 'visualModuleCustomParameterReference');
 });
 
