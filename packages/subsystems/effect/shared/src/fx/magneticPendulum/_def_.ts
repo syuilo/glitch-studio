@@ -134,7 +134,7 @@ export default defineEffect({
 		maximumSteps: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Maximum Steps', control: { controlType: 'range', min: 1, max: 2048, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: 600 },
+			defaultValue: { inputSource: 'literal', value: 1024 },
 		},
 		captureRadius: {
 			dataType: { kind: 'scalar' },
@@ -144,7 +144,7 @@ export default defineEffect({
 		captureSpeed: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Capture Speed', control: { controlType: 'range', min: 0, max: 0.25, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: 0.065 },
+			defaultValue: { inputSource: 'literal', value: 0.045 },
 		},
 		antialiasing: {
 			dataType: { kind: 'bool' },
