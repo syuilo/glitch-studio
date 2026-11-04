@@ -15,6 +15,11 @@ export default defineEffect({
 	},
 	paramDefs: {
 		text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: { inputSource: 'literal', value: 'Hello, world!' } },
+		writingMode: {
+			dataType: { kind: 'enum', options: ['horizontal-tb', 'vertical-rl'] },
+			ui: { label: 'Writing Mode', control: { labels: { 'horizontal-tb': 'Horizontal', 'vertical-rl': 'Vertical (right to left)' } } },
+			defaultValue: { inputSource: 'literal', value: 'horizontal-tb' },
+		},
 		size: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -32,13 +37,13 @@ export default defineEffect({
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		overflow: {
 			dataType: { kind: 'enum', options: ['none', 'shrink', 'compress'] },
-			ui: { label: 'Overflow', control: { labels: { none: 'Do Nothing', shrink: 'Shrink Font Size', compress: 'Compress Horizontally' } } },
+			ui: { label: 'Overflow', control: { labels: { none: 'Do Nothing', shrink: 'Shrink Font Size', compress: 'Compress Along Writing Direction' } } },
 			defaultValue: { inputSource: 'literal', value: 'compress' },
 		},
 		maxWidth: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Max Width (Width Ratio)',
+				label: 'Max Width (Width Ratio, Horizontal)',
 				control: {
 					controlType: 'range',
 					min: 0,
@@ -46,6 +51,11 @@ export default defineEffect({
 					step: 0.01,
 				},
 			},
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
+		maxHeight: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Max Height (Height Ratio, Vertical)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 		color: {
@@ -121,12 +131,12 @@ export default defineEffect({
 		},
 		align: {
 			dataType: { kind: 'enum', options: ['left', 'center', 'right'] },
-			ui: { label: 'Alignment', control: { labels: { left: 'Left', center: 'Center', right: 'Right' } } },
+			ui: { label: 'Alignment', control: { labels: { left: 'Left / Top', center: 'Center', right: 'Right / Bottom' } } },
 			defaultValue: { inputSource: 'literal', value: 'center' },
 		},
 		lineHeight: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Line Height (Size Ratio)', control: { controlType: 'range', min: 0, max: 3 } },
+			ui: { label: 'Line / Column Spacing (Size Ratio)', control: { controlType: 'range', min: 0, max: 3 } },
 			defaultValue: { inputSource: 'literal', value: 1.2 },
 		},
 	},

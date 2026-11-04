@@ -7,14 +7,16 @@ export function measureTextInkBounds(layout: TextLayout, measure: (line: string)
 	let right = -Infinity;
 	let bottom = -Infinity;
 	for (const [index, line] of layout.lines.entries()) {
-		const metrics = measure(line);
+		const metrics = layout.verticalLines?.[index].metrics ?? measure(line);
 		if (!(metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight > 0)) continue;
 		const baseline = layout.firstBaselineOffset + index * layout.lineAdvance;
-		left = Math.min(left, (-metrics.actualBoundingBoxLeft - layout.outlineWidth) * layout.horizontalScale);
-		right = Math.max(right, (metrics.actualBoundingBoxRight + layout.outlineWidth) * layout.horizontalScale);
+		left = Math.min(left, (-metrics.actualBoundingBoxLeft - layout.outlineWidth) * layout.inlineScale);
+		right = Math.max(right, (metrics.actualBoundingBoxRight + layout.outlineWidth) * layout.inlineScale);
 		top = Math.min(top, baseline - metrics.actualBoundingBoxAscent - layout.outlineWidth);
 		bottom = Math.max(bottom, baseline + metrics.actualBoundingBoxDescent + layout.outlineWidth);
 	}
+	// 論理座標の外接矩形を、実際のCanvasと同じ時計回り90度で変換する。
+	if (layout.verticalLines != null) [left, top, right, bottom] = [-bottom, left, -top, right];
 	return Number.isFinite(left) ? {
 		left,
 		top,

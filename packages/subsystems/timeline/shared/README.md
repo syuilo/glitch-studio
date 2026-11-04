@@ -30,7 +30,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 音声計画の`sourceTiming`は`TimelineMediaSourceTiming`として最上位Scene上の再生原点・素材範囲・倍率・ループを持つ。親Sceneのトリムは表示区間だけに適用し、時計の原点を変更しない。生成音声も準備後に同じ契約へ変換する。全周期の配置は展開しない。`getTimelineMotionBlurLoops()`は映像クリップの倍率を反映した周期を収集し、各フレームではループの前後の境界だけで露光区間を狭める。
 
-`TimelineTextLayer`は本文・サイズ・最大幅とoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、フォントAsset IDは`textStaticSettings.font`に直接保存し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有し、既存のTextエフェクトとは定義・描画処理を共有しない。サイズはScene長辺比、最大幅はScene幅比、輪郭・影・行間は文字サイズ比。入力はTimelineの値Bindingを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
+`TimelineTextLayer`は本文・組み方向・サイズ・最大幅／最大高さとoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、フォントAsset IDは`textStaticSettings.font`に直接保存し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有し、既存のTextエフェクトとは定義・描画処理を共有しない。サイズはScene長辺比、最大幅はScene幅比、縦書きの最大高さはScene高さ比、輪郭・影・行間は文字サイズ比。横書きが既定で、`writingMode: vertical-rl`では上から下へ文字を送り、改行で右から左へ列を送る。入力はTimelineの値Bindingを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
 
 `TimelineShapeLayer`は一つの形状を所有し、クリップは時間情報だけを持つ。初期対応は楕円と角丸を含む長方形で、作成後に種類は変更しない。`layers/shape/shape.ts`が形状の種類別パラメータ定義と保存用・評価済みの型を所有し、Sceneやレイヤーの情報には依存しない。将来の多角形・シンボル・パスも同じレイヤー種別へ追加する。
 

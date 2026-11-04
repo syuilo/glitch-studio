@@ -31,6 +31,8 @@ export class VoicevoxSubtitleParameters {
 		};
 		return {
 			text: text.trim(),
+			writingMode: 'horizontal-tb',
+			maxHeight: 1,
 			size: Math.max(0, number(values.size)),
 			maxWidth: number(values.maxWidth),
 			overflow: values.overflow as TextRenderValues['overflow'],

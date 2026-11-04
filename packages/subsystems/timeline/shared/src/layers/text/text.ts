@@ -7,6 +7,11 @@ import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter
 // Textレイヤー固有の定義。Textエフェクトとは独立して変更できるようにする。
 export const textParamDefs = {
 	text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: { inputSource: 'literal', value: 'Hello, world!' } },
+	writingMode: {
+		dataType: { kind: 'enum', options: ['horizontal-tb', 'vertical-rl'] },
+		ui: { label: 'Writing Mode', control: { labels: { 'horizontal-tb': 'Horizontal', 'vertical-rl': 'Vertical (right to left)' } } },
+		defaultValue: { inputSource: 'literal', value: 'horizontal-tb' },
+	},
 	size: {
 		dataType: { kind: 'scalar' },
 		ui: {
@@ -23,13 +28,13 @@ export const textParamDefs = {
 	},
 	overflow: {
 		dataType: { kind: 'enum', options: ['none', 'shrink', 'compress'] },
-		ui: { label: 'Overflow', control: { labels: { none: 'Do nothing', shrink: 'Shrink font size', compress: 'Compress horizontally' } } },
+		ui: { label: 'Overflow', control: { labels: { none: 'Do nothing', shrink: 'Shrink font size', compress: 'Compress along writing direction' } } },
 		defaultValue: { inputSource: 'literal', value: 'compress' },
 	},
 	maxWidth: {
 		dataType: { kind: 'scalar' },
 		ui: {
-			label: 'Max width (width ratio)',
+			label: 'Max width (width ratio, horizontal)',
 			control: {
 				controlType: 'range',
 				min: 0,
@@ -37,6 +42,11 @@ export const textParamDefs = {
 				step: 0.01,
 			},
 		},
+		defaultValue: { inputSource: 'literal', value: 1 },
+	},
+	maxHeight: {
+		dataType: { kind: 'scalar' },
+		ui: { label: 'Max Height (Height Ratio, Vertical)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: 1 },
 	},
 	color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
@@ -97,12 +107,12 @@ export const textParamDefs = {
 	},
 	align: {
 		dataType: { kind: 'enum', options: ['left', 'center', 'right'] },
-		ui: { label: 'Alignment', control: { labels: { left: 'Left', center: 'Center', right: 'Right' } } },
+		ui: { label: 'Alignment', control: { labels: { left: 'Left / Top', center: 'Center', right: 'Right / Bottom' } } },
 		defaultValue: { inputSource: 'literal', value: 'center' },
 	},
 	lineHeight: {
 		dataType: { kind: 'scalar' },
-		ui: { label: 'Line height (size ratio)', control: { controlType: 'range', min: 0, max: 3 } },
+		ui: { label: 'Line / column spacing (size ratio)', control: { controlType: 'range', min: 0, max: 3 } },
 		defaultValue: { inputSource: 'literal', value: 1.2 },
 	},
 } satisfies Record<string, ParameterDefinition>;

@@ -1,3 +1,4 @@
+import { drawVerticalTextLine } from '@gs/shared/text/vertical-text.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -46,7 +47,7 @@ export default implementEffect<typeof definition>({
 			// 色のアニメーションや接続先の更新では、Canvas描画と転送を繰り返さない。
 			const key = JSON.stringify([
 				width, height, text, values.size, values.sizeReference, values.outlineWidth,
-				values.position, values.align, values.lineHeight, values.overflow, values.maxWidth,
+				values.position, values.align, values.lineHeight, values.overflow, values.maxWidth, values.writingMode, values.maxHeight,
 				values.shadowEnabled ? [values.shadowBlur, values.shadowOffset] : null,
 			]);
 			if (maskKey === key) return;
@@ -90,12 +91,13 @@ export default implementEffect<typeof definition>({
 				context!.direction = 'ltr';
 				layout = layoutText({
 					text,
+					writingMode: values.writingMode,
 					fontSize: values.size * getSizeReferenceLength(values.sizeReference, { width, height }),
 					outlineWidth: values.outlineWidth,
 					lineHeight: values.lineHeight,
 					alignment: values.align,
 					overflow: values.overflow,
-					maxWidth: values.maxWidth * width,
+					maxInlineSize: values.writingMode === 'vertical-rl' ? values.maxHeight * height : values.maxWidth * width,
 				}, (line, size) => {
 					context!.font = `${size}px ${font.family}`;
 					return context!.measureText(line);
@@ -110,13 +112,16 @@ export default implementEffect<typeof definition>({
 					if (layout.outlineWidth > 0) context!.lineWidth = layout.outlineWidth * 2;
 					// Positionを拡縮しないよう、基準点へ移動してから全行を同じ倍率で圧縮する。
 					context!.translate(x, y);
-					context!.scale(layout.horizontalScale, 1);
+					if (layout.verticalLines != null) context!.rotate(Math.PI / 2);
+					context!.scale(layout.inlineScale, 1);
 				}
 				for (let layer = 0; layer < Math.min(maskLayerCount, 2); layer++) {
 					if (layout != null) {
 						for (let index = 0; index < layout.lines.length; index++) {
 							const baseline = layout.firstBaselineOffset + index * layout.lineAdvance;
-							if (layer === 0) {
+							if (layout.verticalLines != null) {
+								if (layer === 0 || layout.outlineWidth > 0) drawVerticalTextLine(context!, layout.verticalLines[index], layout.fontSize, baseline, layer !== 0);
+							} else if (layer === 0) {
 								context!.fillText(layout.lines[index], 0, baseline);
 							} else if (layout.outlineWidth > 0) {
 								context!.strokeText(layout.lines[index], 0, baseline);

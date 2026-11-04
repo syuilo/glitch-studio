@@ -8,6 +8,21 @@ const { createTextParameterValues } = await loadSource(fileURLToPath(import.meta
 const literal = value => ({ inputSource: 'literal', value });
 const scope = { time: 1500, isExport: true, automationGraphs: [] };
 
+// 【縦書きの方向と最大高さを通常のパラメータとして評価する】
+// UIのリテラル編集に加え、式による切り替えも描画側へ伝える。
+// 初期状態は横書きで、最大高さはSceneの高さ全体を使う。
+test('evaluates writing mode and vertical height while defaulting to horizontal text', () => {
+	const bindings = createTextParameterValues();
+	const evaluator = new TextParameters();
+	assert.equal(evaluator.evaluate(bindings, scope).writingMode, 'horizontal-tb');
+	assert.equal(evaluator.evaluate(bindings, scope).maxHeight, 1);
+	bindings.writingMode = { inputSource: 'expression', expression: '"vertical-rl"' };
+	bindings.maxHeight = literal(0.6);
+	const result = evaluator.evaluate(bindings, scope);
+	assert.equal(result.writingMode, 'vertical-rl');
+	assert.equal(result.maxHeight, 0.6);
+});
+
 // 【本文・装飾の式とキーは所属Sceneの時刻を使う】
 // クリップの内容オフセットに引きずられず、Textエフェクトの評価スコープも継承しない。
 test('evaluates text expressions, keyframes and export variables at scene time', () => {

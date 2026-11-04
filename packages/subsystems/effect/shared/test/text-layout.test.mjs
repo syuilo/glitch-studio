@@ -21,8 +21,8 @@ function createMeasurer(alignment, measureWidth = (text, size) => text.length * 
 
 function layout(overrides = {}, measureText) {
 	const options = {
-		text: 'abcd\nab', fontSize: 100, outlineWidth: 0, lineHeight: 1.2,
-		alignment: 'center', overflow: 'none', maxWidth: 300,
+		writingMode: 'horizontal-tb', text: 'abcd\nab', fontSize: 100, outlineWidth: 0, lineHeight: 1.2,
+		alignment: 'center', overflow: 'none', maxInlineSize: 300,
 		...overrides,
 	};
 	return layoutText(options, measureText ?? createMeasurer(options.alignment));
@@ -34,12 +34,12 @@ function layout(overrides = {}, measureText) {
 test('ignores the limit in none mode and never enlarges fitting text', () => {
 	const original = layout();
 	assert.equal(original.fontSize, 100);
-	assert.equal(original.horizontalScale, 1);
+	assert.equal(original.inlineScale, 1);
 	assert.equal(original.lineAdvance, 120);
 	assert.equal(original.firstBaselineOffset, -30);
-	for (const maxWidth of [0, -1, NaN, Infinity]) assert.deepEqual(layout({ maxWidth }), original);
+	for (const maxInlineSize of [0, -1, NaN, Infinity]) assert.deepEqual(layout({ maxInlineSize }), original);
 	for (const overflow of ['shrink', 'compress']) {
-		assert.deepEqual(layout({ overflow, maxWidth: 800 }), original);
+		assert.deepEqual(layout({ overflow, maxInlineSize: 800 }), original);
 	}
 });
 
@@ -50,7 +50,7 @@ test('shrinks the whole block and its line spacing using the widest line', () =>
 	for (const alignment of ['left', 'center', 'right']) {
 		const result = layout({ overflow: 'shrink', alignment });
 		assert.deepEqual(result, {
-			lines: ['abcd', 'ab'], fontSize: 75, outlineWidth: 0, horizontalScale: 1,
+			lines: ['abcd', 'ab'], fontSize: 75, outlineWidth: 0, inlineScale: 1,
 			lineAdvance: 90, firstBaselineOffset: -22.5,
 		});
 	}
@@ -62,7 +62,7 @@ test('shrinks the whole block and its line spacing using the widest line', () =>
 test('compresses all lines uniformly without changing vertical layout', () => {
 	for (const alignment of ['left', 'center', 'right']) {
 		assert.deepEqual(layout({ overflow: 'compress', alignment }), {
-			...layout({ alignment }), horizontalScale: 0.75,
+			...layout({ alignment }), inlineScale: 0.75,
 		});
 	}
 });
@@ -97,7 +97,7 @@ test('centers the complete multiline ink bounds for every overflow mode', () => 
 	const heights = { A: [0.5, 0], g: [0.375, 0.5], É: [1.125, 0] };
 	for (const overflow of ['none', 'shrink', 'compress']) {
 		for (const [lineHeight, topRatio, bottomRatio] of [[0, -1.125, 0.5], [0.25, -0.625, 0.75], [1.25, -0.5, 2.5]]) {
-			const result = layout({ text: 'A\ng\nÉ', fontSize: 128, lineHeight, overflow, maxWidth: 64 }, (text, size) => ({
+			const result = layout({ text: 'A\ng\nÉ', fontSize: 128, lineHeight, overflow, maxInlineSize: 64 }, (text, size) => ({
 				...measure(text, size),
 				actualBoundingBoxAscent: size * heights[text][0],
 				actualBoundingBoxDescent: size * heights[text][1],
@@ -132,12 +132,12 @@ test('retains leading and trailing blank line spacing around visible text', () =
 // 左へ20張り出し、advanceが400、描画の右端が300なら必要幅は420になる。
 test('includes both whitespace and ink overhang for every alignment', () => {
 	for (const [alignment, anchor] of [['left', 0], ['center', 200], ['right', 400]]) {
-		const result = layout({ text: 'text ', alignment, overflow: 'compress', maxWidth: 210 }, () => ({
+		const result = layout({ text: 'text ', alignment, overflow: 'compress', maxInlineSize: 210 }, () => ({
 			width: 400, actualBoundingBoxLeft: 20 + anchor, actualBoundingBoxRight: 300 - anchor,
 			actualBoundingBoxAscent: 80, actualBoundingBoxDescent: 20,
 			fontBoundingBoxAscent: 80, fontBoundingBoxDescent: 20,
 		}));
-		assert.equal(result.horizontalScale, 0.5);
+		assert.equal(result.inlineScale, 0.5);
 	}
 });
 
@@ -146,10 +146,10 @@ test('includes both whitespace and ink overhang for every alignment', () => {
 // 幅制限に引っかかってテキスト全体を縮めることを防ぐ。
 test('preserves empty lines without fitting the placeholder glyphs', () => {
 	for (const overflow of ['shrink', 'compress']) {
-		const result = layout({ text: '\r\n\r', overflow, maxWidth: 1 });
+		const result = layout({ text: '\r\n\r', overflow, maxInlineSize: 1 });
 		assert.deepEqual(result.lines, ['', '', '']);
 		assert.equal(result.fontSize, 100);
-		assert.equal(result.horizontalScale, 1);
+		assert.equal(result.inlineScale, 1);
 		assert.equal(result.lineAdvance, 120);
 		assert.equal(result.firstBaselineOffset, -90);
 	}
@@ -160,10 +160,10 @@ test('preserves empty lines without fitting the placeholder glyphs', () => {
 // 幅が100×sqrt(size)となる計測を使い、上限500に収まるsize=25へ近づくことを確認する。
 test('remeasures and bounds the font search when widths are not proportional', () => {
 	const measure = createMeasurer('center', (_text, size) => 100 * Math.sqrt(size));
-	const result = layout({ overflow: 'shrink', maxWidth: 500 }, measure);
+	const result = layout({ overflow: 'shrink', maxInlineSize: 500 }, measure);
 	assert.ok(result.fontSize <= 25 && result.fontSize > 24.999);
 	assert.ok(measure('abcd', result.fontSize).width <= 500);
-	assert.equal(result.horizontalScale, 1);
+	assert.equal(result.inlineScale, 1);
 	assert.equal(result.lineAdvance, result.fontSize * 1.2);
 });
 
@@ -175,7 +175,7 @@ test('rejects invalid dimensions before measuring', () => {
 	for (const value of [0, -1, NaN, Infinity]) {
 		assert.equal(layout({ fontSize: value }, unexpectedMeasurement), null);
 		for (const overflow of ['shrink', 'compress']) {
-			assert.equal(layout({ overflow, maxWidth: value }, unexpectedMeasurement), null);
+			assert.equal(layout({ overflow, maxInlineSize: value }, unexpectedMeasurement), null);
 		}
 	}
 });
@@ -187,10 +187,10 @@ test('preserves relative layout when rendering resolution changes', () => {
 	for (const overflow of ['shrink', 'compress']) {
 		for (const outlineWidth of [0, 0.1]) {
 			const original = layout({ overflow, outlineWidth });
-			const doubled = layout({ overflow, outlineWidth, fontSize: 200, maxWidth: 600 });
+			const doubled = layout({ overflow, outlineWidth, fontSize: 200, maxInlineSize: 600 });
 			assert.equal(doubled.fontSize, original.fontSize * 2);
 			assert.equal(doubled.outlineWidth, original.outlineWidth * 2);
-			assert.equal(doubled.horizontalScale, original.horizontalScale);
+			assert.equal(doubled.inlineScale, original.inlineScale);
 			assert.equal(doubled.lineAdvance, original.lineAdvance * 2);
 			assert.equal(doubled.firstBaselineOffset, original.firstBaselineOffset * 2);
 		}
@@ -202,10 +202,10 @@ test('preserves relative layout when rendering resolution changes', () => {
 // 幅210へ収める場合、全行のフォントと輪郭の太さをともに半分にする必要がある。
 test('fits and shrinks the outer outline together with every line', () => {
 	for (const alignment of ['left', 'center', 'right']) {
-		const result = layout({ alignment, overflow: 'shrink', maxWidth: 210, outlineWidth: 0.1 });
+		const result = layout({ alignment, overflow: 'shrink', maxInlineSize: 210, outlineWidth: 0.1 });
 		assert.equal(result.fontSize, 50);
 		assert.equal(result.outlineWidth, 5);
-		assert.equal(result.horizontalScale, 1);
+		assert.equal(result.inlineScale, 1);
 		assert.equal(result.lineAdvance, 60);
 		assert.equal(result.firstBaselineOffset, -15);
 	}
@@ -216,10 +216,10 @@ test('fits and shrinks the outer outline together with every line', () => {
 // fontSizeや外側幅そのものを縮めてしまうと、縦方向まで細くなる。
 test('includes the outline in horizontal compression without shrinking its height', () => {
 	for (const alignment of ['left', 'center', 'right']) {
-		const result = layout({ alignment, overflow: 'compress', maxWidth: 210, outlineWidth: 0.1 });
+		const result = layout({ alignment, overflow: 'compress', maxInlineSize: 210, outlineWidth: 0.1 });
 		assert.equal(result.fontSize, 100);
 		assert.equal(result.outlineWidth, 10);
-		assert.equal(result.horizontalScale, 0.5);
+		assert.equal(result.inlineScale, 0.5);
 		assert.equal(result.lineAdvance, 120);
 		assert.equal(result.firstBaselineOffset, -30);
 	}
@@ -234,13 +234,13 @@ test('expands ink bounds without adding outline margins to whitespace', () => {
 		actualBoundingBoxAscent: 80, actualBoundingBoxDescent: 20,
 		fontBoundingBoxAscent: 80, fontBoundingBoxDescent: 20,
 	});
-	const result = layout({ text: ' text ', alignment: 'left', overflow: 'compress', maxWidth: 400, outlineWidth: 0.1 }, measure);
-	assert.equal(result.horizontalScale, 1);
-	const whitespace = layout({ text: '    ', overflow: 'compress', maxWidth: 400, outlineWidth: 0.1 }, () => ({
+	const result = layout({ text: ' text ', alignment: 'left', overflow: 'compress', maxInlineSize: 400, outlineWidth: 0.1 }, measure);
+	assert.equal(result.inlineScale, 1);
+	const whitespace = layout({ text: '    ', overflow: 'compress', maxInlineSize: 400, outlineWidth: 0.1 }, () => ({
 		...measure(), actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0,
 	}));
-	assert.equal(whitespace.horizontalScale, 1);
-	assert.equal(layout({ text: '\n', overflow: 'shrink', maxWidth: 1, outlineWidth: 0.1 }).fontSize, 100);
+	assert.equal(whitespace.inlineScale, 1);
+	assert.equal(layout({ text: '\n', overflow: 'shrink', maxInlineSize: 1, outlineWidth: 0.1 }).fontSize, 100);
 });
 
 // 【追加のサイズ探索でも候補サイズに応じた輪郭の太さで判定する】
@@ -248,7 +248,7 @@ test('expands ink bounds without adding outline margins to whitespace', () => {
 // size=25で文字幅500と左右2.5ずつの輪郭を合わせて505になる計測を使う。
 test('recalculates outline thickness while searching for a fitting font size', () => {
 	const measure = createMeasurer('center', (_text, size) => 100 * Math.sqrt(size));
-	const result = layout({ overflow: 'shrink', maxWidth: 505, outlineWidth: 0.1 }, measure);
+	const result = layout({ overflow: 'shrink', maxInlineSize: 505, outlineWidth: 0.1 }, measure);
 	assert.ok(result.fontSize <= 25 && result.fontSize > 24.999);
 	assert.equal(result.outlineWidth, result.fontSize * 0.1);
 	assert.ok(measure('abcd', result.fontSize).width + result.outlineWidth * 2 <= 505);
@@ -262,4 +262,35 @@ test('disables nonpositive outlines and rejects nonfinite stroke widths', () => 
 	for (const outlineWidth of [NaN, Infinity, Number.MAX_VALUE]) {
 		assert.equal(layout({ outlineWidth }, () => assert.fail('Invalid widths must not be measured')), null);
 	}
+});
+
+// 【縦書きでは列を右から左へ送り、文字送り方向だけを圧縮する】
+// 横組みの幅制限と同じ計算を論理座標で使い、描画時に軸を回転させる。
+// 輪郭を含む列の長さが制限へ収まり、列間隔はフォント縮小時だけ変わることを確認する。
+test('lays out vertical columns and fits their outlined inline extent', () => {
+	const options = { writingMode: 'vertical-rl', text: '日本語文\n縦書', outlineWidth: 0.1, maxInlineSize: 210 };
+	const original = layout(options);
+	assert.equal(original.verticalLines.length, 2);
+	assert.equal(original.lineAdvance, 120);
+	assert.equal(original.firstBaselineOffset, -60);
+	const compressed = layout({ ...options, overflow: 'compress' });
+	assert.equal(compressed.fontSize, 100);
+	assert.equal(compressed.inlineScale, 0.5);
+	assert.equal(compressed.lineAdvance, 120);
+	const shrunk = layout({ ...options, overflow: 'shrink' });
+	assert.equal(shrunk.fontSize, 50);
+	assert.equal(shrunk.outlineWidth, 5);
+	assert.equal(shrunk.lineAdvance, 60);
+	assert.equal(shrunk.verticalLines[0].fontSize, 50);
+});
+
+// 【縦書きの空列と空白には字形や輪郭の余白を足さない】
+// 先頭・末尾の改行の余白を維持し、空列を代用文字の長さで縮小させない。
+// 空白だけの列は送り幅を持つが、実際に描かれる文字としては扱わない。
+test('preserves blank vertical columns without fitting placeholder glyphs', () => {
+	const empty = layout({ writingMode: 'vertical-rl', text: '\n', overflow: 'shrink', maxInlineSize: 1 });
+	assert.equal(empty.fontSize, 100);
+	assert.equal(empty.verticalLines.length, 2);
+	assert.equal(empty.lineAdvance, 120);
+	assert.deepEqual(empty.verticalLines.map(line => line.runs), [[], []]);
 });

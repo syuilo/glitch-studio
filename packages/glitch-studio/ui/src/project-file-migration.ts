@@ -7,6 +7,7 @@ import stripe from '@gs/subsystems_effect_shared/fx/stripe/_def_.ts';
 import sineWaveWarp from '@gs/subsystems_effect_shared/fx/sineWaveWarp/_def_.ts';
 import decoderCorruption from '@gs/subsystems_effect_shared/fx/decoderCorruption/_def_.ts';
 import textPattern from '@gs/subsystems_effect_shared/fx/textPattern/_def_.ts';
+import text from '@gs/subsystems_effect_shared/fx/text/_def_.ts';
 import kaleidoscope from '@gs/subsystems_effect_shared/fx/kaleidoscope/_def_.ts';
 import glass from '@gs/subsystems_effect_shared/fx/glass/_def_.ts';
 import cellRepeater from '@gs/subsystems_effect_shared/fx/cellRepeater/_def_.ts';
@@ -18,14 +19,15 @@ import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { textParamDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { Project } from './gsproj.ts';
 
-// 2026-10-22〜31の開発中の形式変更だけを救済する一時処理。
+// 2026-10-22〜11-04の開発中の形式変更だけを救済する一時処理。
 // 同じgsVersion内にも変更があるため、旧名と不足フィールドで判定する。
 // 角度の単位変更、WIDTH・HEIGHTの廃止、削除済みliquidGlassの復元・置換は対象外とする。
 const changedEffectDefinitions: Record<string, { paramDefs: Record<string, ParameterDefinition> }> = Object.fromEntries(
-	[checker, grid, hexGrid, polkadot, stripe, sineWaveWarp, decoderCorruption, textPattern, kaleidoscope, glass,
+	[checker, grid, hexGrid, polkadot, stripe, sineWaveWarp, decoderCorruption, textPattern, text, kaleidoscope, glass,
 		cellRepeater, cellTransform, pointerTrail]
 		.map(definition => [definition.id, definition]),
 );
@@ -114,6 +116,9 @@ function migrateTimelineLayer(layer: TimelineLayer, removedVisualModuleParameter
 		removedParameterIds = removedVisualModuleParameterIds.get(layer.visualModuleId) ?? null;
 	} else if (layer.layerType === 'text') {
 		layer.textStaticSettings = { font: migrateStaticReference(layer.textParamValues, 'font', layer.textStaticSettings ?? {}) };
+		// 縦書き対応前のファイルは横書きを維持し、追加した最大高さも独立した既定値で補う。
+		layer.textParamValues.writingMode ??= deepClone(textParamDefs.writingMode.defaultValue);
+		layer.textParamValues.maxHeight ??= deepClone(textParamDefs.maxHeight.defaultValue);
 	} else if (layer.layerType === 'voicevox') {
 		layer.subtitleStaticSettings = { font: migrateStaticReference(layer.subtitleParamValues, 'font', layer.subtitleStaticSettings ?? {}) };
 	}

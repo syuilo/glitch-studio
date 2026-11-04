@@ -1,3 +1,4 @@
+import { drawVerticalTextLine } from '@gs/shared/text/vertical-text.ts';
 import type { TextLayout } from './layout.ts';
 
 type TextShadowSettings = {
@@ -67,11 +68,17 @@ export function createTextShadowMaskRenderer() {
 				// 移動後の字形を、影が表示される画面とその周囲へ直接描く。
 				// 本体の画面内マスクをコピーすると、画面外へ出た文字の影が欠けてしまう。
 				context.translate(options.x + shadow.offsetX + shadow.padding, options.y + shadow.offsetY + shadow.padding);
-				context.scale(layout.horizontalScale, 1);
+				if (layout.verticalLines != null) context.rotate(Math.PI / 2);
+				context.scale(layout.inlineScale, 1);
 				for (let index = 0; index < layout.lines.length; index++) {
 					const baseline = layout.firstBaselineOffset + index * layout.lineAdvance;
-					context.fillText(layout.lines[index], 0, baseline);
-					if (layout.outlineWidth > 0) context.strokeText(layout.lines[index], 0, baseline);
+					if (layout.verticalLines != null) {
+						drawVerticalTextLine(context, layout.verticalLines[index], layout.fontSize, baseline, false);
+						if (layout.outlineWidth > 0) drawVerticalTextLine(context, layout.verticalLines[index], layout.fontSize, baseline, true);
+					} else {
+						context.fillText(layout.lines[index], 0, baseline);
+						if (layout.outlineWidth > 0) context.strokeText(layout.lines[index], 0, baseline);
+					}
 				}
 			} finally {
 				context.restore();

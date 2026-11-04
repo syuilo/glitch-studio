@@ -1,3 +1,4 @@
+import { drawVerticalTextLine } from '@gs/shared/text/vertical-text.ts';
 import type { FileSource } from '@gs/shared/file-source.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -44,7 +45,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 		// 色のアニメーションでは、Canvas描画と転送を繰り返さない。
 		const key = JSON.stringify([
 			width, height, text, values.size, values.outlineWidth,
-			values.position, values.align, values.lineHeight, values.overflow, values.maxWidth,
+			values.position, values.align, values.lineHeight, values.overflow, values.maxWidth, values.writingMode, values.maxHeight,
 			values.shadowEnabled ? [values.shadowBlur, values.shadowOffset] : null,
 		]);
 		if (maskKey === key) return;
@@ -91,13 +92,16 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 				if (layout.outlineWidth > 0) context!.lineWidth = layout.outlineWidth * 2;
 				// Positionを拡縮しないよう、基準点へ移動してから全行を同じ倍率で圧縮する。
 				context!.translate(x, y);
-				context!.scale(layout.horizontalScale, 1);
+				if (layout.verticalLines != null) context!.rotate(Math.PI / 2);
+				context!.scale(layout.inlineScale, 1);
 			}
 			for (let layer = 0; layer < Math.min(maskLayerCount, 2); layer++) {
 				if (layout != null) {
 					for (let index = 0; index < layout.lines.length; index++) {
 						const baseline = layout.firstBaselineOffset + index * layout.lineAdvance;
-						if (layer === 0) {
+						if (layout.verticalLines != null) {
+							if (layer === 0 || layout.outlineWidth > 0) drawVerticalTextLine(context!, layout.verticalLines[index], layout.fontSize, baseline, layer !== 0);
+						} else if (layer === 0) {
 							context!.fillText(layout.lines[index], 0, baseline);
 						} else if (layout.outlineWidth > 0) {
 							context!.strokeText(layout.lines[index], 0, baseline);
@@ -146,12 +150,13 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 		context!.direction = 'ltr';
 		const layout = layoutText({
 			text: values.text,
+			writingMode: values.writingMode,
 			fontSize: values.size * Math.max(frame.width, frame.height),
 			outlineWidth: values.outlineWidth,
 			lineHeight: values.lineHeight,
 			alignment: values.align,
 			overflow: values.overflow,
-			maxWidth: values.maxWidth * frame.width,
+			maxInlineSize: values.writingMode === 'vertical-rl' ? values.maxHeight * frame.height : values.maxWidth * frame.width,
 		}, (line, size) => {
 			context!.font = `${size}px ${font.family}`;
 			return context!.measureText(line);
@@ -196,7 +201,9 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 			bottom: 1 - pixels.bottom * 2 / frame.height,
 		};
 		const size = timelineTextureSize(bounds, frame, options.device.limits.maxTextureDimension2D);
-		const density = Math.min(size.width / (pixels.right - pixels.left), size.height / (pixels.bottom - pixels.top));
+		// 正規化座標の丸めで両辺に1px増えた場合も、元の字形より高い密度で描き直さない。
+		// 拡大するとフォントのヒンティングと圧縮結果が変わり、全画面の描画と一致しなくなる。
+		const density = Math.min(1, size.width / (pixels.right - pixels.left), size.height / (pixels.bottom - pixels.top));
 		// 丸めによる微小な縦横比差を座標範囲へ戻す。字形自体を歪ませない。
 		bounds.right = bounds.left + size.width / density * 2 / frame.width;
 		bounds.bottom = bounds.top - size.height / density * 2 / frame.height;

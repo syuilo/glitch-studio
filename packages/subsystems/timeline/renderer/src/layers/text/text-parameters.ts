@@ -31,6 +31,8 @@ export class TextParameters {
 		};
 		return {
 			text: String(values.text).trim(),
+			writingMode: values.writingMode as TextRenderValues['writingMode'],
+			maxHeight: number(values.maxHeight),
 			size: Math.max(0, number(values.size)),
 			maxWidth: number(values.maxWidth),
 			overflow: values.overflow as TextRenderValues['overflow'],
