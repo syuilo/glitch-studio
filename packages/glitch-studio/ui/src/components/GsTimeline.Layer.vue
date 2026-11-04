@@ -39,7 +39,7 @@
 						@dblclick.stop
 						@dragstart.stop.prevent
 					>
-						S
+						<i class="ti ti-square-letter-s"></i>
 					</button>
 					<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" :data-test-timeline-layer-output-enabled="effectiveOutputEnabled" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 				</div>
