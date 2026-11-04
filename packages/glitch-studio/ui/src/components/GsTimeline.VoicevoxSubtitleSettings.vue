@@ -7,6 +7,7 @@
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(voicevoxSubtitleParamDefs)"
 			:key="key"
+			previewParameterGroup="voicevoxSubtitle"
 			keyframesEnabled
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"

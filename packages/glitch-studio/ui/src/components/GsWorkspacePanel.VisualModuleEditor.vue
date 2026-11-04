@@ -29,6 +29,7 @@
 		:class="$style.editor"
 		:visualModule="visualModule"
 		:visualModuleName="visualModule.name"
+		:previewTarget="{ visualModuleId: visualModule.id }"
 		:assetDropActions="assetDropActions"
 		:effectStates="effectStates"
 		:exporting="exporting"
@@ -43,7 +44,7 @@
 <script lang="ts" setup>
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
-import { computed, ref, watch, onBeforeUnmount, inject } from 'vue';
+import { computed, ref, watch, onBeforeUnmount, inject, provide } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { preserveParameterExpressionModifier, validateParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
@@ -70,6 +71,7 @@ import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { exportVisualModuleFile, importVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
 import { createProjectVisualModule } from '@/utility/project-visual-module.ts';
+import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 
 const { previewPlayback, visualModuleRendererManagerController } = appContext;
@@ -115,6 +117,30 @@ const effectStates = computed(() => {
 
 const previewParamValues = ref<VisualModuleArgumentBindings>({});
 const editedPreviewParamIds = new Set<VisualModuleCustomParameterId>();
+// Preview Paramsは保存データではないため、取消しだけを既存の一時値へ適用する。
+provide(previewParameterContextKey, {
+	scope: computed(() => visualModule.value == null ? null : { kind: 'livePreview' as const, visualModuleId: visualModule.value.id }),
+	label: computed(() => visualModule.value?.name ?? ''),
+	beginLivePreviewEdit(path) {
+		const visualModuleId = visualModule.value?.id ?? null;
+		const id = path[0] as VisualModuleCustomParameterId;
+		const before = deepClone(previewParamValues.value[id]);
+		const wasEdited = editedPreviewParamIds.has(id);
+		let active = true;
+		return {
+			get active() { return active && visualModule.value?.id === visualModuleId; },
+			update(edit) { if (active && visualModule.value?.id === visualModuleId) onPreviewParamEdit({ ...edit, paramPath: path }); },
+			finish() { active = false; },
+			cancel() {
+				if (!active || visualModule.value?.id !== visualModuleId) return;
+				active = false;
+				previewParamValues.value[id] = before;
+				if (!wasEdited) editedPreviewParamIds.delete(id);
+				if (visualModule.value != null) previewPlayback.updateVisualModuleLivePreviewParamValues(visualModule.value.id, previewParamValues.value);
+			},
+		};
+	},
+});
 let previewModuleId: string | null = null;
 let previewParamTypes = new Map<string, VisualModuleParamDef['dataType']>();
 

@@ -28,7 +28,8 @@
 			<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
 				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 			</div>
-			<GsPreviewTransform :canvasRect="previewCanvasRect"/>
+			<GsPreviewTransform v-if="appContext.previewParameterEditing.handles.value.length === 0" :canvasRect="previewCanvasRect"/>
+			<GsPreviewParameterPositions :canvasRect="previewCanvasRect" :showGrid="showGridInPreview"/>
 			<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" data-test-timeline-seek-loading>
 				<GsLoading :colored="false" :mini="true"/>
 			</div>
@@ -57,11 +58,13 @@ import { scaleResolution } from '@gs/shared/resolution.js';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.js';
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
+import GsPreviewParameterPositions from './GsPreviewParameterPositions.vue';
 import GsLoading from './common/GsLoading.vue';
 import type { CSSProperties } from 'vue';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import { i18n } from '@/i18n.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
+import { previewGridLinePositions } from '@/utility/preview-parameter-position.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { formatRenderFailureOrigin } from '@/utility/render-failure.ts';
 import { appContext } from '@/app.ts';
@@ -82,7 +85,6 @@ const containerContainer = useTemplateRef('containerContainer');
 const gridOverlay = useTemplateRef('gridOverlay');
 const gridLines = shallowRef<CSSProperties[]>([]);
 const ZOOM_STEP = 1.25;
-const gridLinePositions = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 // 100%は出力の1pxが画面の物理1pxに対応する倍率。CSSのscaleへ渡すときだけDPRで割る。
 const zoom = ref(1);
 const previewDevicePixelRatio = ref(window.devicePixelRatio);
@@ -96,6 +98,26 @@ const previewCanvasRect = shallowRef<PreviewCanvasRect>({
 	height: 0,
 });
 let stopPan: (() => void) | null = null;
+let mainEditingDocument: Document | null = null;
+let editingDocuments = new Set<Document>();
+
+function onEditingKeydown(event: KeyboardEvent) {
+	if (event.key !== 'Escape' || event.defaultPrevented || appContext.previewParameterEditing.handles.value.length === 0) return;
+	appContext.previewParameterEditing.clear();
+	event.preventDefault();
+}
+
+function updateEditingDocument() {
+	for (const doc of editingDocuments) doc.removeEventListener('keydown', onEditingKeydown);
+	const currentDocument = containerContainer.value?.ownerDocument ?? null;
+	mainEditingDocument ??= currentDocument;
+	// プレビューを切り離した場合も、数値欄のある元ウィンドウから解除できるようにする。
+	editingDocuments = new Set([mainEditingDocument, currentDocument].filter((doc): doc is Document => doc != null));
+	for (const doc of editingDocuments) doc.addEventListener('keydown', onEditingKeydown);
+}
+
+watch(containerContainer, updateEditingDocument);
+onBeforeUnmount(() => { for (const doc of editingDocuments) doc.removeEventListener('keydown', onEditingKeydown); });
 const visualModuleLivePreviewTime = ref(0);
 const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : visualModuleLivePreviewTime.value);
 const currentFrameNumber = computed(() => {
@@ -128,6 +150,7 @@ function update(t: number) {
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
 	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') visualModuleLivePreviewTime.value += delta * visualModuleLivePreviewTimeFactor.value;
+	appContext.previewParameterEditing.time.value = visualModuleLivePreviewTime.value;
 	updatePreviewDevicePixelRatio();
 	fitInitialZoom();
 	updateGridLines();
@@ -169,6 +192,7 @@ function fitInitialZoom() {
 
 function onPreviewWindowChanged() {
 	cancelPan();
+	updateEditingDocument();
 	// 元のウィンドウが非表示でも、切り離したプレビューの寸法・DPRを更新し続ける。
 	if (timecodeRaf != null) animationWindow.cancelAnimationFrame(timecodeRaf);
 	animationWindow = canvasContainer.value?.ownerDocument.defaultView ?? window;
@@ -226,7 +250,7 @@ function updateGridLines() {
 	const top = snap(canvasRect.top) - overlayRect.top;
 	const width = snap(canvasRect.right) - snap(canvasRect.left);
 	const height = snap(canvasRect.bottom) - snap(canvasRect.top);
-	gridLines.value = gridLinePositions.flatMap(position => [{
+	gridLines.value = previewGridLinePositions.flatMap(position => [{
 		left: `${snap(canvasRect.left + canvasRect.width * position - lineWidth / 2) - overlayRect.left}px`,
 		top: `${top}px`,
 		width: `${lineWidth}px`,

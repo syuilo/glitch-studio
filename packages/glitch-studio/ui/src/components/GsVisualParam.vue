@@ -104,6 +104,15 @@
 					/>
 				</div>
 			</template>
+			<GsButton
+				v-if="isParameterType(paramDef, 'vector') && paramDef.ui.control.controlType === 'xy'"
+				data-test-preview-parameter-toggle
+				iconOnly
+				icon="ti ti-pointer"
+				:primary="previewParameterHandle.enabled.value"
+				:disabled="!previewParameterHandle.available.value"
+				@click="previewParameterHandle.toggle"
+			/>
 			<slot name="actions"></slot>
 		</div>
 	</div>
@@ -145,6 +154,7 @@
 			:projectAutomationGraphs="projectAutomationGraphs"
 			:availableVariables="availableVariables"
 			:automationGraphEndEnabled="automationGraphEndEnabled"
+			:previewParameterGroup="previewParameterGroup"
 			:keyframesEnabled="keyframesEnabled"
 			:imageInputEnabled="imageInputEnabled"
 			:imageLayerOptions="imageLayerOptions"
@@ -172,6 +182,7 @@
 			:projectAutomationGraphs="projectAutomationGraphs"
 			:availableVariables="availableVariables"
 			:automationGraphEndEnabled="automationGraphEndEnabled"
+			:previewParameterGroup="previewParameterGroup"
 			:keyframesEnabled="keyframesEnabled"
 			:imageInputEnabled="imageInputEnabled"
 			:imageLayerOptions="imageLayerOptions"
@@ -238,6 +249,7 @@ import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint
 import type { EditableParameterBinding, ParameterInputSourceEdit, ValueParameterEdit } from '@/types/parameter-edit.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { TimelineLayerCustomParameterReferenceBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
@@ -251,6 +263,7 @@ import { appContext } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import { getAvailableAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
+import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHandle.ts';
 
 const wireMap = useVisualModuleWires();
 const timelineEditor = inject(timelineParameterEditorContextKey, null);
@@ -274,9 +287,11 @@ const props = defineProps<{
 	/** 指定された場合、Timelineの音声入力を有効にする。候補は呼び出し元Sceneが所有する。 */
 	anotherLayerAudioOptions?: readonly AnotherLayerAudioOption[];
 	automationGraphEndEnabled?: boolean;
+	previewParameterGroup?: TimelineParameterTarget;
 }>();
 
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
+const previewParameterHandle = usePreviewParameterHandle(appContext, props);
 
 const timelineCustomParameterItems = computed(() => {
 	const context = timelineEditor?.context.value;

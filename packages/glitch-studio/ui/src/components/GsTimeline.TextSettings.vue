@@ -7,6 +7,7 @@
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(textParamDefs)"
 			:key="key"
+			previewParameterGroup="text"
 			keyframesEnabled
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"

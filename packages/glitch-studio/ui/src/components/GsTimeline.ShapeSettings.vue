@@ -6,6 +6,7 @@
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(definitions)"
 			:key="key"
+			previewParameterGroup="shape"
 			keyframesEnabled
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"

@@ -6,6 +6,7 @@
 		<GsFolder v-for="definition in layer.customParameterDefs ?? []" :key="definition.id" defaultOpen :data-test-timeline-custom-parameter="definition.id">
 			<template #label>{{ definition.ui.label }}</template>
 			<GsVisualParam
+				previewParameterGroup="customParameter"
 				keyframesEnabled
 				:automationGraphEndEnabled="false"
 				:availableVariables="LAYER_VAR_DEFS"

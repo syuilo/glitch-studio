@@ -6,6 +6,7 @@
 		<GsVisualParam
 			v-for="(def, key) in timelineCameraParamDefs"
 			:key="key"
+			previewParameterGroup="camera"
 			keyframesEnabled
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"

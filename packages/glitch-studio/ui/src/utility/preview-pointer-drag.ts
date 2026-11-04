@@ -8,7 +8,7 @@ export function startPreviewPointerDrag(event: PointerEvent, handlers: { move(ev
 	const finish = (cancelled: boolean) => {
 		if (ended) return;
 		ended = true;
-		doc.removeEventListener('pointermove', move);
+		doc.removeEventListener('pointermove', move, { capture: true });
 		doc.removeEventListener('pointerup', up);
 		doc.removeEventListener('pointercancel', cancelPointer);
 		target.removeEventListener('lostpointercapture', cancel);
@@ -30,7 +30,9 @@ export function startPreviewPointerDrag(event: PointerEvent, handlers: { move(ev
 	};
 	event.preventDefault();
 	target.setPointerCapture(pointerId);
-	doc.addEventListener('pointermove', move);
+	// 編集用オーバーレイは通常のプレビュー入力へ伝えないためpointermoveを止める。
+	// Documentのcaptureで先に追跡し、pointerup時だけ値が反映されるのを防ぐ。
+	doc.addEventListener('pointermove', move, { capture: true });
 	doc.addEventListener('pointerup', up);
 	doc.addEventListener('pointercancel', cancelPointer);
 	target.addEventListener('lostpointercapture', cancel);

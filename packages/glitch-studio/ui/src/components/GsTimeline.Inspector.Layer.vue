@@ -83,6 +83,7 @@
 					:class="$style.inlineVisualModuleEditor"
 					:visualModule="layer.visualModule"
 					:visualModuleName="layer.name"
+					:previewTarget="{ sceneId, inlineVisualModuleLayerId: layer.id }"
 					:assetDropActions="inlineAssetDropActions"
 					:effectStates="inlineEffectStates"
 					:exporting="exportingVisualModule"
@@ -112,6 +113,7 @@
 						:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
 						:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
 						:data-test-visual-module-argument="paramDef.id"
+						previewParameterGroup="module"
 						:paramPath="[paramDef.id]"
 						:paramDef="paramDef"
 						imageInputEnabled
@@ -133,6 +135,7 @@
 						<GsVisualParam
 							v-if="(paramId !== 'blendMode' || layer.mask == null) && (getTimelineLayerTransformTarget(layer) !== 'region' || (paramId !== 'fitMode' && paramId !== 'clipToFrame'))"
 							:data-test-timeline-compositing-parameter="paramId"
+							previewParameterGroup="compositing"
 							keyframesEnabled
 							:automationGraphEndEnabled="false"
 							:availableVariables="LAYER_VAR_DEFS"
@@ -264,10 +267,15 @@ import { appContext } from '@/app.ts';
 import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { getLayerParameterValues, resolveLayerParameter } from '@/utility/timeline-scene.ts';
+import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
 
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
 provide(timelineParameterEditorContextKey, { context: computed(() => getTimelineLayerCustomParameterContext(props.scene.layers, props.layer.id)), isCustomParameterValue: false });
+provide(previewParameterContextKey, {
+	scope: computed(() => ({ kind: 'timelineLayer' as const, sceneId: props.scene.id, layerId: props.layer.id })),
+	label: computed(() => props.layer.name),
+});
 const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection]; expandRequested: [layerId: string]; requestAddInlineEffectNode: [layerId: string]; revealAssets: [] }>();
 const { previewPlayback, timelineRendererManagerController } = appContext;
 const groupModes = [{ value: 'flat' as const, label: i18n.ts._TimelineLayer.SinglePlane }, { value: 'preserveDepth' as const, label: i18n.ts._TimelineLayer.PreserveDepth }];

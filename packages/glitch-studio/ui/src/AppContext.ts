@@ -21,6 +21,7 @@ import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
 import { ProjectRenderValidation } from './ProjectRenderValidation.ts';
 import { PreviewRenderEngine } from './PreviewRenderEngine.ts';
+import { PreviewParameterEditingController } from './utility/preview-parameter-editing.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
 import { applicationActivity } from './application-activity.ts';
 import { getRendererAssets } from './utility/renderer-assets.ts';
@@ -48,6 +49,7 @@ function getRendererIntermediateTextureFormat(): IntermediateTextureFormat {
 export const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
 
 export class AppContext {
+	public readonly previewParameterEditing = markRaw(new PreviewParameterEditingController());
 	public readonly projectContext: ProjectContext;
 	public activeSceneId = ref<string | null>(null);
 	public timelineEvaluationScenes = computed(() => getTimelineScenesWithProjectAutomationGraphs(
@@ -129,6 +131,8 @@ export class AppContext {
 				this.renderEngine.notifyContentChange();
 			},
 		));
+		watch(() => JSON.stringify([this.previewPlayback.state.value.mode, this.previewPlayback.visualModuleLivePreviewVisualModuleId.value, this.activeSceneId.value]),
+			() => this.previewParameterEditing.clear(), { flush: 'sync' });
 		this.renderEngine = markRaw(new PreviewRenderEngine({
 			dispose: reason => {
 				this.previewPlayback.suspend();
@@ -351,6 +355,7 @@ export class AppContext {
 	}
 
 	private async loadProject(project: Project, fileName: string | null, fileHandle: ProjectFileHandle | null) {
+		this.previewParameterEditing.clear();
 		const waiting = ui.waiting({ text: i18n.ts._App.InitializingProject });
 
 		await this.suspendPreview();

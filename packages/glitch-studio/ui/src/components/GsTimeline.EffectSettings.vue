@@ -15,6 +15,7 @@
 		<GsVisualParam
 			v-for="[key, def] in Object.entries(definition.paramDefs)"
 			:key="key"
+			previewParameterGroup="effect"
 			keyframesEnabled
 			imageInputEnabled
 			imageInputSamplingEnabled

@@ -87,7 +87,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, useTemplateRef } from 'vue';
+import { computed, ref, useTemplateRef, provide } from 'vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
@@ -106,16 +106,24 @@ import { i18n } from '@/i18n.ts';
 import { provideVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { useAssetDrop } from '@/composables/useAssetDrop.ts';
 import * as ui from '@/ui.ts';
+import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
+import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 
 provideVisualModuleWires();
 
 const props = defineProps<{
 	visualModule: VisualModule;
 	visualModuleName: string;
+	previewTarget?: VisualModuleTarget;
 	effectStates?: ReadonlyMap<string, EffectInstanceState> | null;
 	exporting?: boolean;
 	assetDropActions: VisualModuleAssetDropActions | null;
 }>();
+
+provide(previewParameterContextKey, {
+	scope: computed(() => props.previewTarget == null ? null : { kind: 'visualModule' as const, target: props.previewTarget }),
+	label: computed(() => props.visualModuleName),
+});
 
 const emit = defineEmits<{
 	edit: [event: VisualModuleEdit];
