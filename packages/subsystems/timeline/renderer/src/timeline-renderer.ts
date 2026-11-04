@@ -6,6 +6,7 @@ import type { TimelineEvaluation, TimelineEvaluationResult } from './timeline-ev
 import type { TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import type { TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
+import type { TimelineLayerActivityMap } from '@gs/subsystems_timeline_shared/solo.ts';
 
 // 制御に必要なID・期間・有効状態だけを要求し、レイヤー固有のデータは生成関数にそのまま渡す。
 // clipsの省略は同じ時計を使うコンテナ。空配列はクリップのない通常レイヤーを表す。
@@ -46,6 +47,7 @@ export type TimelineEvaluationOptions<Output> = {
 	time: number; timeDelta: number; isExport: boolean; signal: AbortSignal;
 	referenceTime?: TimelineFrameReferenceTime; renderSpace?: TimelineRenderSpace;
 	getInput: () => Promise<Output>; session: TimelineEvaluationSession<Output>;
+	layerActivity?: TimelineLayerActivityMap;
 };
 
 export type TimelineLayerRenderer<Output> = {
@@ -59,6 +61,7 @@ export type TimelineLayerRenderer<Output> = {
 };
 
 type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
+	getLayerActivity?: () => TimelineLayerActivityMap | undefined;
 	getRenderSpace?: (time: number, isExport: boolean, referenceTime?: TimelineFrameReferenceTime) => TimelineRenderSpace;
 	fallbackOutput: Output;
 	createLayer: (entry: Entry, clipId: string | null) => TimelineLayerRenderer<Output>;
@@ -132,6 +135,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				renderSpace: renderSpace ?? this.options.getRenderSpace?.(time, isExport, referenceTime),
 				getInput: async () => input,
 				session,
+				layerActivity: this.options.getLayerActivity?.(),
 			});
 			const result = await evaluation.evaluate();
 			if (result == null || isCancelled()) return null;
@@ -161,7 +165,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	public createEvaluation(timeline: readonly Entry[], options: TimelineEvaluationOptions<Output>): TimelineEvaluation<Output> {
 		const { time, timeDelta, isExport, signal, referenceTime, renderSpace, session } = options;
 		const entries = timeline.flatMap<{ entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }>(entry => {
-			if (entry.isDisabled) return [];
+			if (!(options.layerActivity?.get(entry.id)?.isEnabled ?? !entry.isDisabled)) return [];
 			const evaluationTime = entry.forceDisableMotionBlur && referenceTime != null ? referenceTime.timeMs : time;
 			if (entry.clips == null) return [{
 				entry,
@@ -180,6 +184,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		this.releaseUnusedLayers(new Set(entries.map(entry => entry.instanceKey)));
 		let previous: () => Promise<TimelineEvaluationResult<Output>> = async () => ({ output: await options.getInput(), hasOutput: false, gpuTime: 0 });
 		for (const { entry, clip, instanceKey, time: evaluationTime } of entries) {
+			const isIncludedInComposite = options.layerActivity?.get(entry.id)?.isIncludedInComposite ?? entry.isIncludedInComposite !== false;
 			let layer = this.layers.get(instanceKey) ?? null;
 			const version = this.options.getLayerVersion?.(entry, clip?.id ?? null) ?? null;
 			if (layer != null && layer.version !== version) {
@@ -235,7 +240,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			const composite = () => session.memoize(entry.id, 'prefix', async () => {
 				const background = await getPrevious();
 				// 通常合成から除外しても登録は残す。参照されたときだけ素材と単独描画を評価する。
-				if (entry.isIncludedInComposite === false) return background;
+				if (!isIncludedInComposite) return background;
 				const result = await prepare();
 				signal.throwIfAborted();
 				const output = result.composite != null ? await result.composite(background.output, signal) : result.output;
@@ -243,7 +248,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				return { output: output ?? background.output, hasOutput: background.hasOutput || output != null, gpuTime: 0 };
 			});
 			session.register(entry.id, stage => session.memoize(entry.id, stage, async () => {
-				if (stage === 'composited' && entry.isIncludedInComposite === false) return (await composite()).output;
+				if (stage === 'composited' && !isIncludedInComposite) return (await composite()).output;
 				const result = await prepare();
 				signal.throwIfAborted();
 				if (result.source == null && result.output == null) return session.fallbackOutput;

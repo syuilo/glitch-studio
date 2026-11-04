@@ -19,7 +19,7 @@ export function createTransformTimelineLayer<Output>(getTransform: () => Timelin
 		createChildren(context, evaluation) {
 			const layer = getTransform();
 			const transform = parameters.evaluate(layer.transformParamValues, layer.automationGraphs, context.sceneTimeMs, context.isExport, context.customParameters);
-			return renderer.createEvaluation(getTimelineRenderLayers(layer.layers), {
+			return renderer.createEvaluation(getTimelineRenderLayers(layer.layers, evaluation.layerActivity), {
 				...evaluation,
 				time: context.sceneTimeMs,
 				timeDelta: context.timeDelta,

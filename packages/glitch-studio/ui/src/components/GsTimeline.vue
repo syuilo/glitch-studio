@@ -71,6 +71,7 @@
 			<div style="direction: ltr;">
 				<div :class="$style.layersActions">
 					<GsButton v-tooltip="i18n.ts._Timeline.AddLayer" iconOnly icon="ti ti-plus" @click="showAddLayerMenu"/>
+					<GsButton v-if="soloState.hasSolo" data-test-timeline-clear-solo primary @click="stateManager.commit('clearTimelineSolo', { sceneId })">{{ i18n.ts._Timeline.ClearSolo }}</GsButton>
 				</div>
 			</div>
 			<GsVirtualScroll
@@ -98,6 +99,7 @@
 						:ancestors="layerAncestors.get(layer.id)"
 						:nextLayerDepth="index + 1 < visibleLayers.length ? (layerAncestors.get(visibleLayers[index + 1].id)?.length ?? 0) : 0"
 						:ancestorDisabled="layerAncestors.get(layer.id)?.some(group => group.isDisabled) ?? false"
+						:outputEnabled="soloState.layers.get(layer.id)?.isOutputEnabled"
 						:collapsed="!expandedLayers.has(layer.id)"
 						:selected="selection.kind === 'layers' && selection.ids.includes(layer.id)"
 						:moving="movingSelection"
@@ -163,6 +165,7 @@
 <script lang="ts" setup>
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { getTimelineSoloState } from '@gs/subsystems_timeline_shared/solo.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.js';
@@ -326,6 +329,7 @@ const editedScene = stateManager.state.timelineScenes.value.find(scene => scene.
 const editorState = getTimelineEditorState(editedScene);
 let disposed = false;
 const rootLayers = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
+const soloState = computed(() => getTimelineSoloState(rootLayers.value));
 const sceneLayers = computed(() => flattenTimelineLayers(rootLayers.value));
 const clipLayers = computed(() => sceneLayers.value.filter(layer => !isTimelineContainerLayer(layer)));
 // 展開したレイヤーだけを保持し、既存・新規レイヤーとも初期状態は折りたたみにする。

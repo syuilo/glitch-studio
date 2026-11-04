@@ -4,6 +4,7 @@ import { getSceneDuration, getTimelineScene } from './scenes.ts';
 import { getTimelineClipEnd, getTimelineLoopCycle } from './timing.ts';
 import { getTimelineMediaPeriod } from './media-timing.ts';
 import { TimelineCameraCuts } from './scene-camera.ts';
+import { getTimelineSoloState } from './solo.ts';
 import type { TimelineClipLayer, TimelineLayer, TimelineScene } from './types.ts';
 
 export type TimelineMotionBlurSettings = {
@@ -27,10 +28,11 @@ export function validateTimelineMotionBlur(settings: TimelineMotionBlurSettings)
 }
 
 /** 固定する枝は除外する。カメラは優先順位も必要なため別途計画し、Scene参照は呼び出し側で辿る。 */
-function* getMotionBlurLayers(layers: readonly TimelineLayer[]): Generator<TimelineClipLayer> {
+function* getMotionBlurLayers(layers: readonly TimelineLayer[], solo = getTimelineSoloState(layers)): Generator<TimelineClipLayer> {
 	for (const layer of layers) {
-		if (layer.isDisabled || layer.layerType === 'audio' || layer.layerType === 'camera' || ('forceDisableMotionBlur' in layer && layer.forceDisableMotionBlur)) continue;
-		if (isTimelineContainerLayer(layer)) yield* getMotionBlurLayers(layer.layers);
+		const isEnabled = solo.hasSolo ? solo.layers.get(layer.id)?.isEnabled === true : !layer.isDisabled;
+		if (!isEnabled || layer.layerType === 'audio' || layer.layerType === 'camera' || ('forceDisableMotionBlur' in layer && layer.forceDisableMotionBlur)) continue;
+		if (isTimelineContainerLayer(layer)) yield* getMotionBlurLayers(layer.layers, solo);
 		else yield layer;
 	}
 }

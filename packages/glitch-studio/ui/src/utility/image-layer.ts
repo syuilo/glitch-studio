@@ -10,6 +10,7 @@ export function createImageLayer(assetId: string, startMs: number, name = 'Image
 		name,
 		layerType: 'image',
 		isDisabled: false,
+		isSolo: false,
 		color: null,
 		forceDisableMotionBlur: false,
 		clips: [{ id: genId(), assetId, ...createTimelineClipTiming(startMs, 5000) }],

@@ -10,6 +10,7 @@ export function createCameraTimelineLayer(startMs: number, resolution: Resolutio
 		name: 'Camera',
 		layerType: 'camera',
 		isDisabled: false,
+		isSolo: false,
 		color: null,
 		automationGraphs: [],
 		forceDisableMotionBlur: false,

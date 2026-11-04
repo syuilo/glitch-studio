@@ -68,6 +68,39 @@ function observeValidation(f) {
 	return validation;
 }
 
+// 【ソロ変更と全解除をUndo/Redoでき、解除後にもWorkerへの変更通知を届ける】
+// 全解除後の状態から対象を探すと通知が空になり、プレビューだけソロが残ってしまう。
+// 他Sceneと既存の表示設定を保持し、保存用のレイヤーデータにも状態を残す。
+test('undoes solo toggles and scene-wide clearing with complete synchronization notifications', t => {
+	const child = { ...sound('child'), isDisabled: true, isSolo: false };
+	const parent = { ...group('parent', [child]), isSolo: false };
+	const f = fixture(t, [parent]);
+	const other = { id: 'other', layers: [{ ...sound('other-sound'), isSolo: true }] };
+	f.state.timelineScenes.value.push(other);
+	const changes = [];
+	f.history.onChange(change => changes.push(change));
+	f.history.commit('setTimelineLayerSolo', { sceneId: 'scene', layerId: 'child', isSolo: true });
+	assert.equal(child.isSolo, true);
+	assert.deepEqual(changes.at(-1), [{ type: 'layer', sceneId: 'scene', layerId: 'child', changes: [{ type: 'solo' }] }]);
+	f.history.undo();
+	assert.equal(child.isSolo, false);
+	f.history.redo();
+	assert.equal(child.isSolo, true);
+	parent.isSolo = true;
+	assert.equal(JSON.parse(JSON.stringify(f.scene)).layers[0].layers[0].isSolo, true);
+	f.history.commit('clearTimelineSolo', { sceneId: 'scene' });
+	assert.equal(child.isSolo, false);
+	assert.equal(parent.isSolo, false);
+	assert.deepEqual(changes.at(-1), [{ type: 'layerTree', sceneId: 'scene' }]);
+	f.history.undo();
+	assert.equal(child.isSolo, true);
+	assert.equal(parent.isSolo, true);
+	f.history.redo();
+	assert.equal(child.isSolo, false);
+	assert.equal(child.isDisabled, true);
+	assert.equal(other.layers[0].isSolo, true);
+});
+
 const customScalar = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: literal(0), canNode: false });
 
 // 【カスタムパラメータの型変更では旧型の保存値を外し、Undoで定義と値を一緒に復元する】

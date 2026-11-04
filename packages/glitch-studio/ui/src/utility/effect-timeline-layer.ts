@@ -15,6 +15,7 @@ export function createEffectTimelineLayer(definition: EffectDefinition, startMs:
 		transformTarget: definition.kind === 'modify' ? 'region' : 'image',
 		effectId: definition.id,
 		isDisabled: false,
+		isSolo: false,
 		color: null,
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		resolution: { mode: 'auto', scale: 1 },

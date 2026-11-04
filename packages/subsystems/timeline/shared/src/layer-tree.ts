@@ -1,18 +1,19 @@
 import { isTimelineContainerLayer, isTimelineRenderLayer } from './types.ts';
 import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer, TimelineVisualLayer, TimelineTransformLayer } from './types.ts';
+import type { TimelineLayerActivityMap } from './solo.ts';
 
 /**
  * 整理用コンテナは描画列へ展開する。レンダラーの境界を増やさないため、フォルダへ
  * まとめるだけで既存の子の履歴・GPUリソースが破棄されることもない。
  * 参照スコープは保存ツリーから別途作り、ここでは描画順と一括無効化だけを扱う。
  */
-export function getTimelineRenderLayers(layers: readonly TimelineLayer[]): (TimelineVisualLayer | TimelineTransformLayer)[] {
+export function getTimelineRenderLayers(layers: readonly TimelineLayer[], activity?: TimelineLayerActivityMap): (TimelineVisualLayer | TimelineTransformLayer)[] {
 	const renderLayers: (TimelineVisualLayer | TimelineTransformLayer)[] = [];
 	// 入れ子ごとに子孫の配列を作り直さず、表示順で一つの結果配列へ追加する。
 	const visit = (layers: readonly TimelineLayer[]) => {
 		for (const layer of layers) {
 			if (layer.layerType === 'folder' || layer.layerType === 'parameterContainer') {
-				if (!layer.isDisabled) visit(layer.layers);
+				if (activity?.get(layer.id)?.isEnabled ?? !layer.isDisabled) visit(layer.layers);
 			} else if (isTimelineRenderLayer(layer)) renderLayers.push(layer);
 		}
 	};

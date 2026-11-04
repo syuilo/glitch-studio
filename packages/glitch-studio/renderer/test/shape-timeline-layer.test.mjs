@@ -91,6 +91,45 @@ async function fixture(t, staticOptions = {}) {
 }
 const near = (actual, expected, tolerance = 1e-6) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
 
+// 【実ManagerからGroup・Folderを経由して非表示の子をソロ表示し、差分と書き出しへ反映する】
+// UIの判定だけを変えてもWorker内のフォルダ展開・Groupの子評価には届かない。
+// 親の変形を維持し、ソロ解除時に元の無効設定へ戻ることを実描画経路で確認する。
+test('propagates solo activity through disabled containers and renderer project changes', async t => {
+	const f = await fixture(t);
+	const selected = { ...layer('selected'), isDisabled: true, isSolo: true };
+	const parent = { id: 'parent', name: 'Parent', layerType: 'group', isDisabled: true, isSolo: false,
+		layers: [{ id: 'folder', name: 'Folder', layerType: 'folder', isDisabled: true, isSolo: false, layers: [selected, layer('sibling')] }],
+		automationGraphs: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } };
+	parent.compositingParamValues.position = literal([0.2, 0.1]);
+	await f.setup([parent, layer('outside')]);
+	await f.manager.renderFrame(200, false);
+	assert.deepEqual(f.calls.evaluations.map(call => call.layerId), ['parent', 'selected']);
+	assert.equal(f.shapeDraws().length, 1);
+	f.calls.evaluations.length = 0;
+	await f.manager.renderTimelineFrame(200, 0);
+	assert.deepEqual(f.calls.evaluations.map(call => call.layerId), ['parent', 'selected']);
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: selected.id,
+		layer: { ...selected, isSolo: false }, changes: [{ type: 'solo' }] }]);
+	f.calls.evaluations.length = 0;
+	await f.manager.renderTimelineFrame(200, 0);
+	assert.deepEqual(f.calls.evaluations.map(call => call.layerId), ['outside']);
+});
+
+// 【子Sceneのソロは配置内部だけに適用し、親Sceneの通常レイヤーを消さない】
+// Scene内の独立した評価セッションでもソロ状態を作り、親から選択IDを引き継がないことを確認する。
+test('isolates nested scene solo output without affecting parent scene layers', async t => {
+	const f = await fixture(t);
+	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [
+		{ ...layer('child-selected'), isSolo: true, isDisabled: true }, layer('child-other'),
+	] };
+	const placement = { id: 'placement', name: 'Placement', layerType: 'scene', isDisabled: false, isSolo: false,
+		clips: [{ ...clip('clip', 0, 1000), sceneId: 'child' }], automationGraphs: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } };
+	const root = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [placement, layer('outside')] };
+	await f.setup([], { timelineScenes: [root, child] });
+	await f.manager.renderTimelineFrame(200, 0);
+	assert.deepEqual(f.calls.evaluations.map(call => call.layerId), ['outside', 'placement', 'child-selected']);
+});
+
 // 【プレビュー・書き出しで固定レイヤーの内容と合成設定を揃え、設定変更時に境界を再収集する】
 // レイヤー自身の生成値だけを止めてもCompositingが動けばぼける。逆に合成後の出力を
 // 固定すると下層の動きが止まるため、実Managerの評価順とGPUへ渡す値を合わせて確認する。

@@ -13,6 +13,7 @@ export function createVoicevoxTimelineLayer(startMs: number): TimelineVoicevoxLa
 		subtitleStaticSettings: { font: null },
 		subtitleParamValues: createVoicevoxSubtitleParameterValues(),
 		isDisabled: false,
+		isSolo: false,
 		color: null,
 		automationGraphs: [],
 		voicevox: { speedScale: 1 },

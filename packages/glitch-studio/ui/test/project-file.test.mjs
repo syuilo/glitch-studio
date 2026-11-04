@@ -279,6 +279,20 @@ function project(overrides = {}) {
 	};
 }
 
+// 【ソロと通常の表示設定を独立して保存・復元する】
+// 子のソロやグループの非表示を保存時に実効表示へ置き換えると、開き直した後に
+// ソロを解除しても編集前の表示へ戻れなくなる。実際のバイナリ形式で往復させる。
+test('round-trips nested solo flags independently of normal layer visibility', async () => {
+	const original = project({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
+		{ id: 'group', name: 'Group', layerType: 'group', isDisabled: true, isSolo: false, layers: [
+			{ id: 'image', name: 'Image', layerType: 'image', isDisabled: true, isSolo: true, clips: [] },
+		] },
+		{ id: 'other', name: 'Other', layerType: 'image', isDisabled: false, isSolo: false, clips: [] },
+	] }] });
+	const restored = decodeProjectFile(await encodeProjectFile(original));
+	assert.deepEqual(restored.timelineScenes, original.timelineScenes);
+});
+
 for (const [label, fileDataType, isExternalReference] of [
 	['embedded image', 'image/png', false], ['external image', 'image/png', true], ['external video', 'video/mp4', true],
 ]) {

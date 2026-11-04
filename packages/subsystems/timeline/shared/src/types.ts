@@ -23,7 +23,7 @@ export type TimelineParameterTarget = 'customParameter' | 'module' | 'effect' | 
 // 実行インスタンスの扱いは利用側へ委ねる。
 export type TimelineLayerChange =
 	| { type: 'parameter'; target: TimelineParameterTarget; kind: ParameterChangeKind }
-	| { type: 'staticSetting' | 'definition' | 'clips' | 'resolution' | 'disabled' | 'motionBlur' | 'coordinateSpace' | 'mask' | 'layerMask' | 'compositeInclusion' | 'transformTarget' };
+	| { type: 'staticSetting' | 'definition' | 'clips' | 'resolution' | 'disabled' | 'solo' | 'motionBlur' | 'coordinateSpace' | 'mask' | 'layerMask' | 'compositeInclusion' | 'transformTarget' };
 
 type TimelineLayerCommon = {
 	id: string;
@@ -32,6 +32,8 @@ type TimelineLayerCommon = {
 	color: [number, number, number, number] | null;
 	/** 無効時は映像・音声とも評価せず、クリップの配置やSceneの長さは維持する。 */
 	isDisabled: boolean;
+	/** Scene内の映像・音声をこのレイヤーへ絞る。カメラには適用しない。 */
+	isSolo: boolean;
 };
 
 type TimelineLayerParameters = {

@@ -13,6 +13,7 @@ export function createShapeTimelineLayer(type: ShapeType, startMs: number): Time
 		layerType: 'shape',
 		shape: createShape(type),
 		isDisabled: false,
+		isSolo: false,
 		color: null,
 		automationGraphs: [],
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],

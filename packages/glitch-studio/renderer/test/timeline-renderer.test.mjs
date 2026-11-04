@@ -1,12 +1,48 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
+import { getTimelineSoloState } from '@gs/subsystems_timeline_shared/solo.ts';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts')));
 
 const entry = (id, positionMs = 0, endTimeMs = 1000, type = 'test') => ({
 	id, isDisabled: false, clips: [{ id: 'clip', startMs: positionMs, contentOffsetMs: 0, durationMs: endTimeMs - positionMs }], layer: { type },
+});
+
+// 【ソロ対象だけを合成し、必要な非ソロ入力は評価し、無関係の素材は評価しない】
+// 最終合成前の単なる配列フィルターではマスク・画像入力が失われ、全素材の事前評価では
+// ソロで軽く確認する目的を満たせない。非表示のソロと解除後の復帰を両方の描画モードで確認する。
+test('isolates solo composites while lazily evaluating referenced non-solo sources in preview and export', async () => {
+	for (const isExport of [false, true]) {
+		const selected = { ...entry('selected'), layerType: 'image', isSolo: true, isDisabled: true };
+		const source = { ...entry('source'), layerType: 'image' };
+		const unused = { ...entry('unused'), layerType: 'image' };
+		const layers = [selected, source, unused];
+		const evaluated = [];
+		const renderer = new TimelineRenderer({ fallbackOutput: [], getLayerActivity: () => getTimelineSoloState(layers).layers,
+			createLayer: layer => ({
+				async evaluate(context) {
+					evaluated.push(layer.id);
+					const value = layer.id === 'selected' ? await context.getLayerOutput('source', 'rendered') : layer.id;
+					return { source: value, rendered: () => value, composite: background => [...background, `${layer.id}:${value}`], gpuTime: 1 };
+				}, destroy() {},
+			}),
+		});
+		const result = await renderer.evaluateAt(100, layers, 0, isExport);
+		assert.deepEqual(result.output, ['selected:source']);
+		assert.deepEqual(evaluated, ['selected', 'source']);
+		assert.equal(result.gpuTime, 2);
+		selected.isSolo = false;
+		evaluated.length = 0;
+		assert.deepEqual((await renderer.evaluateAt(100, layers, 0, isExport)).output, ['unused:unused', 'source:source']);
+		assert.deepEqual(evaluated, ['unused', 'source']);
+		assert.equal(selected.isDisabled, true);
+		selected.isSolo = true;
+		selected.clips = [];
+		assert.deepEqual((await renderer.evaluateAt(100, layers, 0, isExport)).output, []);
+		renderer.clear();
+	}
 });
 
 // 【固定レイヤーの内容と表示区間を基準時刻に揃え、下層入力だけは各サンプルで更新する】

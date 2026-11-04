@@ -198,6 +198,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			name: source.scene.name,
 			automationGraphs: [],
 			isDisabled: false,
+			isSolo: false,
 			color: null,
 		};
 		const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
@@ -234,6 +235,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			coordinateSpace: 'screen',
 			forceDisableMotionBlur: false,
 			isDisabled: false,
+			isSolo: false,
 			color: null,
 			visualModuleId: visualModule.id,
 			clips: [{ id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) }],

@@ -8,6 +8,7 @@ import { basename, dirname } from 'node:path';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, nextTick, reactive, ref } from 'vue';
+import { createTimelineCameraParameterValues } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 
 // ブラウザーを起動せず、本物のSFCの更新回数・生成する座標・イベントを検証する。
 // 外部アプリ状態と文字の縮小表示だけを置き換え、一覧・クリップ・キー・目盛りは実装を使う。
@@ -120,6 +121,31 @@ async function fixture(t) {
 	updates.clear(); mounts.clear(); commits.length = 0;
 	return { props, layers, visible, root, events };
 }
+
+// 【ソロの操作を通常表示の操作と分け、保存された非表示状態と実際の出力状態を区別する】
+// ソロで強制表示されても目の設定は変更せず、カメラにはソロボタンを出さない。
+// 要素は専用data属性で参照し、見た目のクラス名へ依存しない。
+test('routes solo switches independently from visibility and keeps camera controls separate', async t => {
+	const f = await fixture(t);
+	f.layers[0].isDisabled = true;
+	f.layers[0].isSolo = false;
+	f.props.outputEnabled = true;
+	await nextTick();
+	const button = findByAttribute(f.root, 'data-test-timeline-layer-solo');
+	assert.equal(button.props['aria-pressed'], false);
+	button.props.onClick({ stopPropagation() {} });
+	assert.deepEqual(commits.at(-1), ['setTimelineLayerSolo', { sceneId: 'scene', layerId: 'a', isSolo: true }]);
+	assert.equal(f.layers[0].isDisabled, true);
+	assert.equal(findByAttribute(f.root, 'data-test-timeline-layer-output-enabled').props['data-test-timeline-layer-output-enabled'], true);
+	f.layers[0].isSolo = true;
+	await nextTick();
+	assert.equal(button.props['aria-pressed'], true);
+	button.props.onClick({ stopPropagation() {} });
+	assert.equal(commits.at(-1)[1].isSolo, false);
+	Object.assign(f.layers[0], { layerType: 'camera', cameraParamValues: createTimelineCameraParameterValues() });
+	await nextTick();
+	assert.equal(findByAttribute(f.root, 'data-test-timeline-layer-solo'), null);
+});
 
 // 【識別色を全レーンに反映し、未設定に戻すとテーマのデフォルト色を使う】
 // 子自身の色と祖先の色を区別し、グループ内の色バーが別のレイヤーの色にならないようにする。

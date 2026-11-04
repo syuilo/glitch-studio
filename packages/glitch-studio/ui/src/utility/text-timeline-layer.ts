@@ -13,6 +13,7 @@ export function createTextTimelineLayer(startMs: number): TimelineTextLayer {
 		textStaticSettings: { font: null },
 		textParamValues: createTextParameterValues(),
 		isDisabled: false,
+		isSolo: false,
 		color: null,
 		automationGraphs: [],
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],

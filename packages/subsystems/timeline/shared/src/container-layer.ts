@@ -10,7 +10,7 @@ type ContainerOf<Type extends TimelineContainerLayerType> = Extract<TimelineCont
 
 /** 新規作成と変換で同じ既定値を使い、変換経路によって設定が変わることを防ぐ。 */
 export function createTimelineContainerLayer<Type extends TimelineContainerLayerType>(type: Type, id: string, name: string): ContainerOf<Type> {
-	const identity = { id, name, color: null, isDisabled: false, layers: [] };
+	const identity = { id, name, color: null, isDisabled: false, isSolo: false, layers: [] };
 	let layer: TimelineContainerLayer;
 	switch (type) {
 		case 'folder': layer = { ...identity, layerType: 'folder' }; break;
@@ -49,6 +49,7 @@ export function convertTimelineContainerLayer(layer: TimelineContainerLayer, tar
 	const converted = createTimelineContainerLayer(target, layer.id, layer.name);
 	converted.color = deepClone(layer.color);
 	converted.isDisabled = layer.isDisabled;
+	converted.isSolo = layer.isSolo;
 	converted.layers = layer.layers;
 	if (hasTimelineLayerParameters(layer) && hasTimelineLayerParameters(converted)) {
 		converted.automationGraphs = deepClone(layer.automationGraphs);

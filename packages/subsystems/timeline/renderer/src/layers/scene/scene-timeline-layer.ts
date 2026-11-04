@@ -1,5 +1,6 @@
 import { TimelineSceneCamera } from '@gs/subsystems_timeline_shared/scene-camera.ts';
 import { getTimelineRenderLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { getTimelineSoloState, type TimelineLayerActivityMap } from '@gs/subsystems_timeline_shared/solo.ts';
 import { TIMELINE_IDENTITY, TIMELINE_FRAME } from '@gs/subsystems_timeline_shared/spatial.ts';
 import { TimelineRenderer } from '../../timeline-renderer.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
@@ -28,7 +29,9 @@ export function createSceneTimelineLayer(
 ): TimelineLayerRenderer<TimelineImage> {
 	// 定義が同じでも履歴・出力の所有者は配置ごとに分ける。親背景は子に渡さない。
 	const camera = new TimelineSceneCamera();
+	let layerActivity: TimelineLayerActivityMap | undefined;
 	const renderer = new TimelineRenderer<TimelineImage, TimelineLayer>({
+		getLayerActivity: () => layerActivity,
 		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
 		createLayer: options.createLayer,
 		getLayerVersion: options.getLayerVersion,
@@ -45,9 +48,10 @@ export function createSceneTimelineLayer(
 	return {
 		evaluate: async (context, signal) => {
 			const scene = typeof sceneSource === 'function' ? sceneSource() : sceneSource;
+			layerActivity = getTimelineSoloState(scene.layers).layers;
 			// 参照先Sceneの時計へ両方の時刻を変換する。配置ごとの無効化は保存された子の設定を変更しない。
 			const referenceTime = context.referenceTime && { timeMs: context.referenceTime.contentTimeMs, timeDelta: context.referenceTime.timeDelta };
-			const result = await renderer.evaluateAt(context.contentTimeMs, getTimelineRenderLayers(scene.layers), context.timeDelta, context.isExport, signal, referenceTime,
+			const result = await renderer.evaluateAt(context.contentTimeMs, getTimelineRenderLayers(scene.layers, layerActivity), context.timeDelta, context.isExport, signal, referenceTime,
 				{
 					parent: TIMELINE_IDENTITY,
 					depth: 0,

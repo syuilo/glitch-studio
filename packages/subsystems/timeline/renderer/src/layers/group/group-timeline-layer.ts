@@ -41,7 +41,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 				customParameters: context.customParameters,
 				automationGraphs: group.automationGraphs,
 			});
-			const childEvaluation = renderer.createEvaluation(getTimelineRenderLayers(group.layers), {
+			const childEvaluation = renderer.createEvaluation(getTimelineRenderLayers(group.layers, evaluation.layerActivity), {
 				...evaluation,
 				time: context.sceneTimeMs,
 				timeDelta: context.timeDelta,

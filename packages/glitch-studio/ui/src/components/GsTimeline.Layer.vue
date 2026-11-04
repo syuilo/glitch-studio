@@ -1,5 +1,5 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.groupExpanded]: isTimelineContainerLayer(layer) && !collapsed, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox', [$style.type_group]: isTimelineContainerLayer(layer) }]" :style="{ '--LAYER_COLOR': layer.color == null ? '' : colorCss(layer.color) }" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: !effectiveOutputEnabled, [$style.groupExpanded]: isTimelineContainerLayer(layer) && !collapsed, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox', [$style.type_group]: isTimelineContainerLayer(layer) }]" :style="{ '--LAYER_COLOR': layer.color == null ? '' : colorCss(layer.color) }" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane" data-timeline-clip-lane data-test-timeline-main-lane>
 		<div :class="$style.side">
 			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]" :style="{ background: colorBarColors[i - 1] }" :data-test-timeline-color-bar="i - 1"></div>
@@ -30,7 +30,19 @@
 					>
 						<i :class="layer.coordinateSpace === 'world' ? 'ti ti-cube' : 'ti ti-cube-off'"></i>
 					</button>
-					<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
+					<button
+						v-if="layer.layerType !== 'camera'"
+						v-tooltip="i18n.ts._TimelineLayer.Solo"
+						class="_button"
+						:class="[$style.layerSwitch, { [$style.active]: layer.isSolo }]"
+						data-test-timeline-layer-solo
+						@click.stop="toggleSolo"
+						@dblclick.stop
+						@dragstart.stop.prevent
+					>
+						S
+					</button>
+					<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" :data-test-timeline-layer-output-enabled="effectiveOutputEnabled" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 				</div>
 			</div>
 		</div>
@@ -39,9 +51,12 @@
 			<button v-if="offscreenClips.next" class="_button" :class="$style.stickyArrow" style="right: 0;" @click.stop="look(offscreenClips.next)" @dblclick.stop><i class="ti ti-arrow-right"></i></button>
 			<div :class="$style.scrollingContent" data-test-timeline-scrolling-content :style="scrollingStyle">
 				<button
-					v-if="groupRange" type="button" class="_button" :class="[$style.groupClip, { [$style.groupClipSelected]: selected }]"
+					v-if="groupRange"
+					class="_button"
+					:class="[$style.groupClip, { [$style.groupClipSelected]: selected }]"
 					:style="{ left: groupRange.startMs * pixelsPerMs + 'px', width: groupRange.durationMs * pixelsPerMs + 'px' }"
-					@pointerdown.stop="emit('groupMoveStart', $event)" @dblclick.stop
+					@pointerdown.stop="emit('groupMoveStart', $event)"
+					@dblclick.stop
 				>
 					<span>{{ layer.name }}</span>
 				</button>
@@ -150,6 +165,7 @@ const props = defineProps<{
 	depth: number;
 	ancestors?: TimelineContainerLayer[];
 	ancestorDisabled?: boolean;
+	outputEnabled?: boolean;
 	collapsed?: boolean;
 	tlElWidth: number;
 	tlRangeX: number;
@@ -238,6 +254,16 @@ const offscreenClips = computed(() => {
 
 function look(clip: TimelineClip) {
 	emit('look', clip.startMs + clip.durationMs / 2);
+}
+
+const effectiveOutputEnabled = computed(() => props.outputEnabled ?? (!props.layer.isDisabled && props.ancestorDisabled !== true));
+
+function toggleSolo() {
+	stateManager.commit('setTimelineLayerSolo', {
+		sceneId: props.sceneId,
+		layerId: props.layer.id,
+		isSolo: props.layer.isSolo !== true,
+	});
 }
 
 function toggleDisabled() {

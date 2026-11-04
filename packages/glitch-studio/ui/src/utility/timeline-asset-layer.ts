@@ -29,6 +29,7 @@ export function createTimelineAssetLayer(asset: Asset, startMs: number, media: T
 		name: asset.name,
 		automationGraphs: [],
 		isDisabled: false,
+		isSolo: false,
 		color: null,
 	};
 	const clip = {

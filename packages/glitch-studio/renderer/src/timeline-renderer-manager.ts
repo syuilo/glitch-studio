@@ -4,6 +4,7 @@ import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/l
 import { TimelineTransformParameters } from '@gs/subsystems_timeline_shared/layers/transform/transform-parameters.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelineRenderLayers, flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { getTimelineSoloState, type TimelineLayerActivityMap } from '@gs/subsystems_timeline_shared/solo.ts';
 import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/group/group-timeline-layer.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineMotionBlurLoops, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
@@ -196,6 +197,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	private projectVersions = new ProjectStateVersions();
 	private evaluationScenes: TimelineScene[] = [];
+	private layerActivityBySceneId = new Map<string, TimelineLayerActivityMap>();
 	private customParameterContextsBySceneId = new Map<string, ReadonlyMap<string, TimelineLayerCustomParameterContext>>();
 	private pendingTransformPreview: TimelineTransformPreview | null = null;
 	private lastTransformPreview: TimelineTransformPreview | null = null;
@@ -266,6 +268,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		const camera = new TimelineSceneCamera();
 		this.timelineRenderer = new TimelineRenderer<TimelineImage, TimelineLayer>({
+			getLayerActivity: () => this.dynamicOptions.sceneId == null ? undefined : this.layerActivityBySceneId.get(this.dynamicOptions.sceneId),
 			getRenderSpace: (time, isExport, referenceTime) => ({
 				parent: TIMELINE_IDENTITY,
 				depth: 0,
@@ -488,6 +491,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private refreshEvaluationScenes() {
 		this.evaluationScenes = getTimelineScenesWithProjectAutomationGraphs(this.dynamicOptions.timelineScenes, this.dynamicOptions.automationGraphs);
+		this.layerActivityBySceneId = new Map(this.evaluationScenes.map(scene => [scene.id, getTimelineSoloState(scene.layers).layers]));
 		// 祖先の値変更や階層移動も環境へ反映する。レンダラーの寿命とは分けて更新し、
 		// インスタンスを維持する値編集でも古い所有レイヤーを参照し続けないようにする。
 		this.customParameterContextsBySceneId = new Map(this.evaluationScenes.map(scene => [scene.id, createTimelineLayerCustomParameterContextIndex(scene.layers)]));
@@ -568,7 +572,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		const revision = this.dynamicOptions.previewRevision;
 		const request = this.dynamicOptions.transformObserver;
 		const location = request?.sceneId === this.dynamicOptions.sceneId ? findTimelineLayerLocation(this.getSceneLayers(), request.layerId) : null;
-		const layer = location && !location.layer.isDisabled && !location.ancestors.some(group => group.isDisabled) && isTimelineVisualLayer(location.layer) ? location.layer : null;
+		const layer = location != null && this.layerActivityBySceneId.get(request!.sceneId)?.get(location.layer.id)?.isOutputEnabled === true && isTimelineVisualLayer(location.layer) ? location.layer : null;
 		const clip = layer && !isTimelineContainerLayer(layer) ? layer.clips.find(clip => isTimelineClipActive(clip, time)) : null;
 		const preview: TimelineTransformPreview | null = request ? {
 			request,
@@ -784,7 +788,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private getSceneLayers() {
-		return this.dynamicOptions.sceneId == null ? [] : getTimelineRenderLayers(getTimelineScene(this.evaluationScenes, this.dynamicOptions.sceneId).layers);
+		return this.dynamicOptions.sceneId == null ? [] : getTimelineRenderLayers(getTimelineScene(this.evaluationScenes, this.dynamicOptions.sceneId).layers, this.layerActivityBySceneId.get(this.dynamicOptions.sceneId));
 	}
 
 	private createTimelineLayer(layer: TimelineLayer, clipId: string | null, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<TimelineImage> {

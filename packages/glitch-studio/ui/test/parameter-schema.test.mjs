@@ -13,8 +13,8 @@ test('checks parameter controls and infers values independently of controls', ()
 import type { KeyframesTimelineData, KeyframesTimelineKeyframe } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { TimelineFolderLayer, TimelineParameterContainerLayer, TimelineLayerWithParameters } from '@gs/subsystems_timeline_shared/types.ts';
-const folder: TimelineFolderLayer = { id: 'folder', name: 'Folder', layerType: 'folder', color: null, isDisabled: false, layers: [] };
-const parameterContainer: TimelineParameterContainerLayer = { id: 'parameters', name: 'Parameters', layerType: 'parameterContainer', color: null, isDisabled: false, automationGraphs: [], layers: [] };
+const folder: TimelineFolderLayer = { id: 'folder', name: 'Folder', layerType: 'folder', color: null, isDisabled: false, isSolo: false, layers: [] };
+const parameterContainer: TimelineParameterContainerLayer = { id: 'parameters', name: 'Parameters', layerType: 'parameterContainer', color: null, isDisabled: false, isSolo: false, automationGraphs: [], layers: [] };
 // @ts-expect-error フォルダは整理だけを担当し、パラメータの定義を持てない
 const folderWithParameters: TimelineFolderLayer = { ...folder, customParameterDefs: [] };
 // @ts-expect-error フォルダにAutomation Graphを追加してパラメータのスコープを作らない

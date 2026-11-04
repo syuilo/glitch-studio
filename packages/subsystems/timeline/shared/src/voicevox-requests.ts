@@ -1,4 +1,5 @@
-import { flattenTimelineLayers, getEnabledTimelineLayers } from './layer-tree.ts';
+import { flattenTimelineLayers } from './layer-tree.ts';
+import { getTimelineSoloState } from './solo.ts';
 import { getVoicevoxRequest, getVoicevoxRequestKey } from './layers/voicevox/voicevox.ts';
 import { getSceneAudioPlacements } from './scene-audio.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
@@ -36,8 +37,9 @@ export function getRequiredVoicevoxRequestsForRendering(scenes: readonly Timelin
 		for (const request of getRequiredVoicevoxRequests(scenes, id, 0, end)) {
 			requests.set(getVoicevoxRequestKey(request), request);
 		}
-		for (const layer of getEnabledTimelineLayers(scene.layers)) {
-			if (layer.isDisabled || layer.layerType !== 'scene') continue;
+		const activity = getTimelineSoloState(scene.layers).layers;
+		for (const layer of flattenTimelineLayers(scene.layers)) {
+			if (activity.get(layer.id)?.isEnabled !== true || layer.layerType !== 'scene') continue;
 			for (const clip of layer.clips) {
 				const visibleStart = Math.max(start, clip.startMs);
 				const visibleEnd = Math.min(end, getTimelineClipEnd(clip));

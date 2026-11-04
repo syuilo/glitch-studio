@@ -12,6 +12,7 @@ export function canPreserveNodeStaticState(changes: readonly VisualModuleNodeCha
 export function canPreserveTimelineLayerInstance(changes: readonly TimelineLayerChange[]): boolean {
 	// Visual Module引数とカスタムパラメータの値は次の評価で読み直す。
 	// 値だけの編集でインスタンスを破棄すると、未使用の値でもFeedbackの履歴を失う。
-	return changes.length > 0 && changes.every(change => change.type === 'parameter'
-		&& (change.target === 'module' || change.target === 'customParameter') && change.kind === 'value');
+	// ソロも評価時の参加判定だけを変え、描画定義や静的リソースは変更しない。
+	return changes.length > 0 && changes.every(change => change.type === 'solo' || (change.type === 'parameter'
+		&& (change.target === 'module' || change.target === 'customParameter') && change.kind === 'value'));
 }

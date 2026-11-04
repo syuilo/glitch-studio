@@ -1676,6 +1676,40 @@ const setTimelineLayerDisabledCommandDef = defineCommand<{ sceneId: string; laye
 	},
 });
 
+const setTimelineLayerSoloCommandDef = defineCommand<{ sceneId: string; layerId: string; isSolo: boolean }>({
+	label: 'Change timeline layer solo',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'solo' }] }],
+	create: payload => {
+		let before: boolean;
+		return {
+			execute(state) {
+				const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+				if (layer.layerType === 'camera') throw new Error('Camera layers cannot be soloed');
+				before = layer.isSolo;
+				layer.isSolo = payload.isSolo;
+			},
+			undo(state) { getTimelineLayer(state, payload.sceneId, payload.layerId).isSolo = before; },
+		};
+	},
+});
+
+const clearTimelineSoloCommandDef = defineCommand<{ sceneId: string }>({
+	label: 'Clear timeline solo',
+	// 全解除後にも対象を通知でき、Undoでも同じ経路で階層内の設定を同期する。
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
+	create: payload => {
+		let before: string[];
+		return {
+			execute(state) {
+				before = flattenTimelineLayers(getScene(state, payload.sceneId).layers)
+					.filter(layer => layer.isSolo === true).map(layer => layer.id);
+				for (const id of before) getTimelineLayer(state, payload.sceneId, id).isSolo = false;
+			},
+			undo(state) { for (const id of before) getTimelineLayer(state, payload.sceneId, id).isSolo = true; },
+		};
+	},
+});
+
 const setTimelineLayerCoordinateSpaceCommandDef = defineCommand<{ sceneId: string; layerId: string; coordinateSpace: TimelineLayerCoordinateSpace }>({
 	label: 'Change timeline layer coordinate space',
 	changes: (_state, payload) => [{
@@ -2887,6 +2921,8 @@ export const COMMAND_DEFS = {
 	renameTimelineLayer: renameTimelineLayerCommandDef,
 	setTimelineLayerColor: setTimelineLayerColorCommandDef,
 	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
+	setTimelineLayerSolo: setTimelineLayerSoloCommandDef,
+	clearTimelineSolo: clearTimelineSoloCommandDef,
 	setTimelineLayerCoordinateSpace: setTimelineLayerCoordinateSpaceCommandDef,
 	setTimelineLayerTransformTarget: setTimelineLayerTransformTargetCommandDef,
 	setTimelineLayerMask: setTimelineLayerMaskCommandDef,

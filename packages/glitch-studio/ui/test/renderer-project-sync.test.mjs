@@ -59,6 +59,37 @@ function fixture(t, count = 1, overrides = {}) {
 	return { manager, sync, target, batches, errors, value: () => value(replica), get replica() { return replica; } };
 }
 
+// 【ソロ変更と全解除をWorkerの複製状態へ反映し、Undo/Redoでも表示設定を保持する】
+// コマンドだけが正しく動いても、全解除後に通知が空になったり通信で設定が落ちると
+// プレビューと保存状態が食い違うため、実際の差分生成・複製・適用を通して確認する。
+test('synchronizes solo toggles and clearing through undo and redo', async t => {
+	const f = fixture(t);
+	f.manager.state.assets.value = [{ id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob([], { type: 'image/png' }) }];
+	const child = createImageLayer('asset', 0);
+	child.isDisabled = true;
+	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: child });
+	await f.sync.flush();
+	assert.equal(f.replica.timelineScenes[0].layers[0].isSolo, false);
+	f.manager.commit('setTimelineLayerSolo', { sceneId: 'scene', layerId: child.id, isSolo: true });
+	await f.sync.flush();
+	assert.equal(f.replica.timelineScenes[0].layers[0].isSolo, true);
+	assert.deepEqual(f.batches.at(-1)[0].changes, [{ type: 'solo' }]);
+	f.manager.undo();
+	await f.sync.flush();
+	assert.equal(f.replica.timelineScenes[0].layers[0].isSolo, false);
+	f.manager.redo();
+	await f.sync.flush();
+	assert.equal(f.replica.timelineScenes[0].layers[0].isSolo, true);
+	f.manager.commit('clearTimelineSolo', { sceneId: 'scene' });
+	await f.sync.flush();
+	assert.equal(f.replica.timelineScenes[0].layers[0].isSolo, false);
+	f.manager.undo();
+	await f.sync.flush();
+	assert.equal(f.replica.timelineScenes[0].layers[0].isSolo, true);
+	assert.equal(f.replica.timelineScenes[0].layers[0].isDisabled, true);
+	assert.deepEqual(f.errors, []);
+});
+
 // 【ブラー無効化をレイヤー差分として同期し、Undo・Redoでも子の保存値を変更しない】
 // グループの配下への適用は描画時の規則であり、子のbooleanを書き換えるとグループ解除や
 // 別配置で元の設定へ戻れない。音声レイヤーには映像専用の設定を持ち込まない。

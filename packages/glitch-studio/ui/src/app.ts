@@ -172,6 +172,7 @@ export async function newProject() {
 				layerType: 'visualModule',
 				transformTarget: 'image',
 				isDisabled: false,
+				isSolo: false,
 				color: null,
 				visualModuleId: initialVisualModule.id,
 				visualModuleParamValues: {},
@@ -355,6 +356,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 			layers: [{
 				id: genId(),
 				isDisabled: false,
+				isSolo: false,
 				color: null,
 				...(videoMedia != null ? {
 					layerType: 'video' as const,

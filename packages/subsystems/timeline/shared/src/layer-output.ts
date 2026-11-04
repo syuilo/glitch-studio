@@ -1,5 +1,6 @@
 import { isTimelineVisualLayer, isTimelineNonCompositingContainerLayer } from './types.ts';
 import { findTimelineLayer, findTimelineLayerLocation, flattenTimelineLayers } from './layer-tree.ts';
+import { getTimelineSoloState } from './solo.ts';
 import type { TimelineLayer, TimelineVisualLayer } from './types.ts';
 import type { TimelineAnotherLayerOutputBinding } from './parameter-binding.ts';
 
@@ -40,6 +41,7 @@ export function resolveTimelineImageLayerReference(layers: readonly TimelineLaye
  */
 export function getTimelineLayerOutputDependencyGraph(layers: readonly TimelineLayer[], getInputs: (layerId: string) => readonly TimelineImageInputReference[]): Map<string, readonly string[]> {
 	const graph = new Map<string, readonly string[]>();
+	const activity = getTimelineSoloState(layers).layers;
 	const key = (id: string, stage: string) => JSON.stringify([id, stage]);
 	const visit = (entries: readonly TimelineLayer[], initial: string | null): string | null => {
 		let lower = initial;
@@ -71,7 +73,10 @@ export function getTimelineLayerOutputDependencyGraph(layers: readonly TimelineL
 			}
 			graph.set(key(layer.id, 'rendered'), renderedDependencies);
 			const composited = key(layer.id, 'composited');
-			graph.set(composited, [...(lower == null ? [] : [lower]), ...(layer.isIncludedInComposite === false ? [] : renderedDependencies)]);
+			// ソロは通常合成からの除外も上書きする。ソロ解除後の配線も成立するよう、
+			// 元の辺は除かず、ソロで新しく有効になる依存だけを追加する。
+			const included = layer.isIncludedInComposite !== false || activity.get(layer.id)?.isIncludedInComposite === true;
+			graph.set(composited, [...(lower == null ? [] : [lower]), ...(included ? renderedDependencies : [])]);
 			lower = composited;
 		}
 		return lower;
