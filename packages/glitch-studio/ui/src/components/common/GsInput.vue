@@ -2,34 +2,37 @@
 <div class="_selectable" :class="[$style.root, { [$style.small]: small, [$style.large]: large }]">
 	<div :class="$style.label" @click="focus"><slot name="label"></slot></div>
 	<div :class="[$style.input, { [$style.inline]: inline, [$style.disabled]: disabled, [$style.focused]: focused }]" :style="{ anchorName: inputAnchorName }">
-		<div ref="prefixEl" :class="$style.prefix"><slot name="prefix"></slot></div>
-		<input
-			ref="inputEl"
-			v-model="v"
-			:class="[$style.inputCore, { '_monospace': monospace }]"
-			:type="inputType"
-			:disabled="disabled"
-			:required="required"
-			:readonly="readonly"
-			:placeholder="placeholder"
-			:pattern="pattern"
-			:autocomplete="autocomplete"
-			:autocapitalize="autocapitalize"
-			:spellcheck="spellcheck"
-			:inputmode="inputmode"
-			:step="step"
-			:list="id"
-			:min="min"
-			:max="max"
-			@focus="focused = true"
-			@blur="focused = false"
-			@keydown="onKeydown($event)"
-			@input="onInput"
-		>
-		<datalist v-if="datalist" :id="id">
-			<option v-for="data in datalist" :key="data" :value="data"></option>
-		</datalist>
-		<div ref="suffixEl" :class="$style.suffix"><slot name="suffix"></slot></div>
+		<div :class="$style.nativeInputWrapper">
+			<div ref="prefixEl" :class="$style.prefix"><slot name="prefix"></slot></div>
+			<input
+				ref="inputEl"
+				v-model="v"
+				:class="[$style.nativeInput, { '_monospace': monospace }]"
+				:type="inputType"
+				:disabled="disabled"
+				:required="required"
+				:readonly="readonly"
+				:placeholder="placeholder"
+				:pattern="pattern"
+				:autocomplete="autocomplete"
+				:autocapitalize="autocapitalize"
+				:spellcheck="spellcheck"
+				:inputmode="inputmode"
+				:step="step"
+				:list="id"
+				:min="min"
+				:max="max"
+				@focus="focused = true"
+				@blur="focused = false"
+				@keydown="onKeydown($event)"
+				@input="onInput"
+			>
+			<datalist v-if="datalist" :id="id">
+				<option v-for="data in datalist" :key="data" :value="data"></option>
+			</datalist>
+			<div ref="suffixEl" :class="$style.suffix"><slot name="suffix"></slot></div>
+		</div>
+		<div :class="$style.stepper"><i class="ti ti-caret-up-down"></i></div>
 	</div>
 	<div :class="$style.caption"><slot name="caption" :value="v"></slot></div>
 
@@ -309,6 +312,11 @@ defineExpose({
 
 .input {
 	position: relative;
+	display: flex;
+	box-sizing: border-box;
+	height: var(--height);
+	background: var(--THEME-input);
+	border-radius: 6px;
 
 	&.inline {
 		display: inline-block;
@@ -316,27 +324,34 @@ defineExpose({
 	}
 
 	&.focused {
-		> .inputCore {
-			border-color: var(--THEME-accent) !important;
-			//box-shadow: 0 0 0 4px var(--THEME-focus);
-		}
+		box-shadow: 0 0 0 1px var(--THEME-accent);
 	}
 
 	&.disabled {
 		opacity: 0.7;
 
 		&,
-		> .inputCore {
+		> .nativeInput {
 			cursor: not-allowed !important;
 		}
 	}
+
+	&:hover {
+		background: hsl(from var(--THEME-input) h s calc(l + 5));
+	}
 }
 
-.inputCore {
+.nativeInputWrapper {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+}
+
+.nativeInput {
 	appearance: none;
 	-webkit-appearance: none;
 	display: block;
-	height: var(--height);
+	height: 100%;
 	width: 100%;
 	margin: 0;
 	padding: 0 10px;
@@ -344,17 +359,12 @@ defineExpose({
 	font-weight: normal;
 	font-size: 1em;
 	color: var(--THEME-fg);
-	background: var(--THEME-input);
-	border: solid 1px var(--THEME-input);
-	border-radius: 6px;
+	background: transparent;
+	border: none;
+	border-radius: 0;
 	outline: none;
 	box-shadow: none;
 	box-sizing: border-box;
-	transition: border-color 0.1s ease-out;
-
-	&:hover {
-		background: hsl(from var(--THEME-input) h s calc(l + 5));
-	}
 }
 
 .prefix,
@@ -364,8 +374,7 @@ defineExpose({
 	position: absolute;
 	z-index: 1;
 	top: 0;
-	padding: 0 12px;
-	font-size: 1em;
+	padding: 0 8px;
 	height: var(--height);
 	min-width: 16px;
 	max-width: 150px;
@@ -373,6 +382,7 @@ defineExpose({
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	box-sizing: border-box;
+	color: color(from var(--THEME-fg) srgb r g b / 0.7);
 	pointer-events: none;
 
 	&:empty {
@@ -382,12 +392,20 @@ defineExpose({
 
 .prefix {
 	left: 0;
-	padding-right: 6px;
+	padding-right: 5px;
 }
 
 .suffix {
 	right: 0;
-	padding-left: 6px;
+	padding-left: 5px;
+}
+
+.stepper {
+	height: var(--height);
+	width: var(--height);
+	display: grid;
+	place-content: center;
+	cursor: ns-resize;
 }
 
 .manualSaveActions {
