@@ -18,12 +18,12 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
-import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { hasTimelineLayerParameters, isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { textParamDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
-import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineLayer, TimelineLayerWithParameters } from '@gs/subsystems_timeline_shared/types.ts';
 import type { Project } from './gsproj.ts';
 
-// 2026-10-22〜11-04の開発中の形式変更だけを救済する一時処理。
+// 2026-10-22〜11-05の開発中の形式変更だけを救済する一時処理。
 // 同じgsVersion内にも変更があるため、旧名と不足フィールドで判定する。
 // 角度の単位変更、WIDTH・HEIGHTの廃止、削除済みliquidGlassの復元・置換は対象外とする。
 const changedEffectDefinitions: Record<string, { paramDefs: Record<string, ParameterDefinition> }> = Object.fromEntries(
@@ -77,7 +77,44 @@ function migrateEffectParameters(effectId: string, parameters: Record<string, Pa
 	return effectId;
 }
 
+function migratePublicParameterReferences(value: unknown): void {
+	if (value == null || typeof value !== 'object') return;
+	if (Array.isArray(value)) {
+		for (const item of value) migratePublicParameterReferences(item);
+		return;
+	}
+	const record = value as Record<string, unknown>;
+	if (record.inputSource === 'visualModuleCustomParameterReference' || record.inputSource === 'externalCustomParameterInput') {
+		record.inputSource = 'visualModulePublicParameterReference';
+	} else if (record.inputSource === 'timelineLayerCustomParameterReference') {
+		record.inputSource = 'timelineLayerPublicParameterReference';
+	}
+	// 配列・構造体のliteral内にもBindingがある。識別子だけを変更し、
+	// ID・参照名・式・文字列の値に含まれる旧名称はユーザーのデータとして保持する。
+	for (const child of Object.values(record)) migratePublicParameterReferences(child);
+}
+
+function migrateTimelineLayerPublicParameters(layer: TimelineLayerWithParameters): void {
+	const storedLayer = layer as TimelineLayerWithParameters & {
+		customParameterDefs?: TimelineLayerWithParameters['publicParameterDefs'];
+		customParameterValues?: TimelineLayerWithParameters['publicParameterValues'];
+	};
+	// 新旧フィールドが併存している場合は明示された新形式を優先する。
+	// 旧フィールドを削除し、再保存や再読込で古い値へ戻ることを防ぐ。
+	if (Object.hasOwn(storedLayer, 'customParameterDefs')) {
+		if (!Object.hasOwn(storedLayer, 'publicParameterDefs')) storedLayer.publicParameterDefs = storedLayer.customParameterDefs;
+		delete storedLayer.customParameterDefs;
+	}
+	if (Object.hasOwn(storedLayer, 'customParameterValues')) {
+		if (!Object.hasOwn(storedLayer, 'publicParameterValues')) storedLayer.publicParameterValues = storedLayer.customParameterValues;
+		delete storedLayer.customParameterValues;
+	}
+	migratePublicParameterReferences(layer.publicParameterDefs);
+	migratePublicParameterReferences(layer.publicParameterValues);
+}
+
 function migrateVisualModule(visualModule: VisualModule): Set<string> {
+	migratePublicParameterReferences(visualModule.paramDefs);
 	// 素材参照型そのものが通常パラメータから廃止されたため、公開定義も取り除く。
 	// 呼び出し側へIDを返し、Timelineに保存された対応する引数だけを除去する。
 	const removedParameterIds = new Set(visualModule.paramDefs
@@ -86,6 +123,7 @@ function migrateVisualModule(visualModule: VisualModule): Set<string> {
 	visualModule.paramDefs = visualModule.paramDefs.filter(definition => !removedParameterIds.has(definition.id));
 	for (const node of visualModule.nodes) {
 		if (node.type !== 'effect') continue;
+		migratePublicParameterReferences(node.params);
 		node.staticSettings ??= {};
 		node.effectId = migrateEffectParameters(node.effectId, node.params, node.resolution, node.staticSettings);
 	}
@@ -93,8 +131,17 @@ function migrateVisualModule(visualModule: VisualModule): Set<string> {
 }
 
 function migrateTimelineLayer(layer: TimelineLayer, removedVisualModuleParameterIds: ReadonlyMap<string, ReadonlySet<string>>): void {
+	if (hasTimelineLayerParameters(layer)) migrateTimelineLayerPublicParameters(layer);
+	// 静的設定や任意のパラメータ名を誤って書き換えないよう、Bindingを持つ領域だけを辿る。
+	if ('compositingParamValues' in layer) migratePublicParameterReferences(layer.compositingParamValues);
+	if ('audioParamValues' in layer) migratePublicParameterReferences(layer.audioParamValues);
+	if ('visualModuleParamValues' in layer) migratePublicParameterReferences(layer.visualModuleParamValues);
+	if ('cameraParamValues' in layer) migratePublicParameterReferences(layer.cameraParamValues);
+	if ('transformParamValues' in layer) migratePublicParameterReferences(layer.transformParamValues);
+	if ('shape' in layer) migratePublicParameterReferences(layer.shape);
 	let removedParameterIds: ReadonlySet<string> | null = null;
 	if (layer.layerType === 'effect') {
+		migratePublicParameterReferences(layer.effectParamValues);
 		layer.effectStaticSettings ??= {};
 		layer.effectId = migrateEffectParameters(layer.effectId, layer.effectParamValues, layer.resolution, layer.effectStaticSettings);
 	} else if (layer.layerType === 'inlineVisualModule') {
@@ -102,11 +149,13 @@ function migrateTimelineLayer(layer: TimelineLayer, removedVisualModuleParameter
 	} else if (layer.layerType === 'visualModule') {
 		removedParameterIds = removedVisualModuleParameterIds.get(layer.visualModuleId) ?? null;
 	} else if (layer.layerType === 'text') {
+		migratePublicParameterReferences(layer.textParamValues);
 		layer.textStaticSettings = { font: migrateStaticReference(layer.textParamValues, 'font', layer.textStaticSettings ?? {}) };
 		// 縦書き対応前のファイルは横書きを維持し、追加した最大高さも独立した既定値で補う。
 		layer.textParamValues.writingMode ??= deepClone(textParamDefs.writingMode.defaultValue);
 		layer.textParamValues.maxHeight ??= deepClone(textParamDefs.maxHeight.defaultValue);
 	} else if (layer.layerType === 'voicevox') {
+		migratePublicParameterReferences(layer.subtitleParamValues);
 		layer.subtitleStaticSettings = { font: migrateStaticReference(layer.subtitleParamValues, 'font', layer.subtitleStaticSettings ?? {}) };
 	}
 	if (removedParameterIds != null && 'visualModuleParamValues' in layer) {
