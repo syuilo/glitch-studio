@@ -2,13 +2,13 @@
 <div ref="rootEl" :class="$style.root">
 	<GsButton :class="$style.open" :primary="gridPadOpened" iconOnly icon="ti ti-arrows-move" @click="openGridPad"/>
 
-	<GsInput :class="$style.input" type="number" :modelValue="value[0]" :min="min" :max="max" :step="step" @update:modelValue="setValue(Number($event), value[1], 'x')">
+	<GsInput :class="$style.input" type="number" manualSave :modelValue="value[0]" :min="min" :max="max" :step="step" @update:modelValue="setValue(Number($event), value[1], 'x')">
 		<template #prefix>X:</template>
 	</GsInput>
 
 	<GsButton v-tooltip="i18n.ts._Xy.LockRatio" :class="$style.lock" iconOnly :primary="lockedRatio != null" icon="ti ti-link" @click="lockedRatio != null ? disableRatioLock() : enableRatioLock()"/>
 
-	<GsInput :class="$style.input" type="number" :modelValue="value[1]" :min="min" :max="max" :step="step" @update:modelValue="setValue(value[0], Number($event), 'y')">
+	<GsInput :class="$style.input" type="number" manualSave :modelValue="value[1]" :min="min" :max="max" :step="step" @update:modelValue="setValue(value[0], Number($event), 'y')">
 		<template #prefix>Y:</template>
 	</GsInput>
 
@@ -32,11 +32,11 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import GsButton from './GsButton.vue';
 import GsInput from './GsInput.vue';
 import XGrid from './GsXy.Grid.vue';
+import { i18n } from '@/i18n.ts';
 
 const props = withDefaults(defineProps<{
 	modelValue: [number, number];

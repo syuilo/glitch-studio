@@ -127,10 +127,11 @@ const onKeydown = (ev: KeyboardEvent) => {
 		return;
 	}
 
-	// 手動保存では、入力中のドラフトだけを明示的に確定する。ブラウザや親画面の
-	// 保存処理へ伝播させず、IME確定や通常のEnterでは編集中の値を適用しない。
-	if (props.manualSave && !props.disabled && !props.readonly && (ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey
-		&& (ev.key === 'Enter' || ev.key.toLowerCase() === 's')) {
+	// 手動保存ではEnterまたは保存ショートカットでドラフトを確定する。
+	// 親画面の操作やフォーム送信も同時に実行されないよう、保存操作をここで消費する。
+	// IME変換の確定は冒頭で除外し、日本語入力の途中で値を適用しない。
+	if (props.manualSave && !props.disabled && !props.readonly && !ev.altKey && !ev.shiftKey
+		&& (ev.key === 'Enter' || ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's'))) {
 		ev.preventDefault();
 		ev.stopPropagation();
 		if (!ev.repeat) updated();

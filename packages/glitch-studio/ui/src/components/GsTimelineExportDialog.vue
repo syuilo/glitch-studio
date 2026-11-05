@@ -20,14 +20,14 @@
 			<template #caption>{{ resolution.width }} × {{ resolution.height }} px</template>
 		</GsSelect>
 		<div v-if="resolutionScale === 'custom'" :class="$style.row">
-			<GsInput v-model="customResolution.width" large type="number" :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-			<GsInput v-model="customResolution.height" large type="number" :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="customResolution.width" large type="number" manualSave :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="customResolution.height" large type="number" manualSave :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 		<GsSelect v-if="mode === 'video'" v-model="fpsScale" large :items="scaleOptions" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.FrameRate }}</template>
 			<template #caption>{{ fps }} fps</template>
 		</GsSelect>
-		<GsInput v-if="mode === 'video' && fpsScale === 'custom'" v-model="customFps" large type="number" :min="1" :max="120" :step="'any'" :disabled="exporting"><template #label>{{ i18n.ts._Export.FrameRate }}</template><template #suffix>fps</template></GsInput>
+		<GsInput v-if="mode === 'video' && fpsScale === 'custom'" v-model="customFps" large type="number" manualSave :min="1" :max="120" :step="'any'" :disabled="exporting"><template #label>{{ i18n.ts._Export.FrameRate }}</template><template #suffix>fps</template></GsInput>
 		<div :class="$style.row">
 			<GsInput v-model="startTime" large placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ mode === 'video' ? i18n.ts._Export.StartTime : i18n.ts._Export.StillTime }}</template></GsInput>
 			<GsInput v-if="mode === 'video'" v-model="endTime" large placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ i18n.ts._Export.EndTime }}</template></GsInput>

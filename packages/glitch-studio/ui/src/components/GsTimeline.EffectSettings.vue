@@ -38,21 +38,20 @@
 			<template v-if="layer.resolution.mode === 'context'" #caption>{{ i18n.ts._TimelineLayer.ResolutionHint }}</template>
 			<template v-else-if="layer.resolution.mode === 'auto'" #caption>{{ i18n.ts._Node.AutoResolutionHint }}</template>
 		</GsSelect>
-		<GsInput v-if="layer.resolution.mode !== 'customAbsolute'" data-test-effect-layer-resolution-scale large type="number" :modelValue="layer.resolution.scale" :min="0" step="any" :debounce="400" @update:modelValue="setResolutionScale">
+		<GsInput v-if="layer.resolution.mode !== 'customAbsolute'" data-test-effect-layer-resolution-scale large type="number" :modelValue="layer.resolution.scale" :min="0" step="any" manualSave @update:modelValue="setResolutionScale">
 			<template #label>{{ i18n.ts._Node.ResolutionScale }}</template>
 			<template #suffix>×</template>
 			<template #caption>{{ i18n.ts._Node.ResolutionScaleHint }}</template>
 		</GsInput>
 		<div v-if="layer.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
-			<GsInput large style="flex: 1;" type="number" :modelValue="layer.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-			<GsInput large style="flex: 1;" type="number" :modelValue="layer.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+			<GsInput large style="flex: 1;" type="number" manualSave :modelValue="layer.resolution.width" :min="1" :step="1" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput large style="flex: 1;" type="number" manualSave :modelValue="layer.resolution.height" :min="1" :step="1" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 	</div>
 </GsFolder>
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { computed } from 'vue';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { EFFECT_LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
@@ -68,6 +67,7 @@ import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.t
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; imageLayerOptions: readonly { value: string; label: string }[]; anotherLayerAudioOptions: readonly AnotherLayerAudioOption[] }>();

@@ -4,8 +4,8 @@
 		<div>{{ i18n.tsx._Timeline.SceneResolutionTitle({ name: scene?.name ?? '' }) }}</div>
 		<GsSelect v-model="mode" large :items="modes"><template #label>{{ i18n.ts.Resolution }}</template></GsSelect>
 		<div v-if="mode === 'customAbsolute'" :class="$style.row">
-			<GsInput v-model="width" large style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-			<GsInput v-model="height" large style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="width" large style="flex: 1; min-width: 0;" type="number" manualSave :min="1" :step="1"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="height" large style="flex: 1; min-width: 0;" type="number" manualSave :min="1" :step="1"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 		<div v-else>{{ projectResolution.width }} × {{ projectResolution.height }} px</div>
 		<div>{{ i18n.ts._Project.CustomResolutionHint }}</div>
@@ -19,7 +19,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import { getSceneBaseResolution, validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import GsModal from './common/GsModal.vue';
@@ -27,6 +26,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 
 const { stateManager } = appContext.projectContext;

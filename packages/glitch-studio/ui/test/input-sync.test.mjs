@@ -95,14 +95,47 @@ function keyEvent(key, options = {}) {
 		preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.propagationStopped = true; }, ...options };
 }
 
+// 【手動保存の入力欄ではEnterでドラフトを確定し、未保存表示を解除する】
+// フォーム送信や親画面のEnter操作が同時に実行されず、保存後の値が再編集として返されないことを確認する。
+test('saves manual-save input drafts with Enter', async t => {
+	const { props, edits, input } = fixture(t, { manualSave: true });
+	input.v = 'complete';
+	await nextTick();
+	const event = keyEvent('Enter');
+	input.onKeydown(event);
+	await nextTick();
+	assert.deepEqual(edits, ['complete']);
+	assert.equal(props.modelValue, 'complete');
+	assert.equal(input.changed, false);
+	assert.equal(event.defaultPrevented, true);
+	assert.equal(event.propagationStopped, true);
+});
+
+// 【読み取り専用・無効状態の入力欄ではEnterでドラフトを保存しない】
+// 編集途中に入力欄が操作不可へ切り替わっても、保存ボタンと同じ制約を適用する。
+test('does not save manual-save input drafts with Enter when readonly or disabled', async t => {
+	const { props, edits, input } = fixture(t, { manualSave: true });
+	input.v = 'draft';
+	await nextTick();
+	props.readonly = true;
+	await nextTick();
+	input.onKeydown(keyEvent('Enter'));
+	props.readonly = false;
+	props.disabled = true;
+	await nextTick();
+	input.onKeydown(keyEvent('Enter'));
+	assert.deepEqual(edits, []);
+	assert.equal(input.changed, true);
+});
+
 for (const [name, component] of [['GsInput', Input], ['GsTextarea', Textarea]]) {
-	// 【手動保存の入力途中や通常のEnterでは親の値を変更せず、明示保存だけで通知する】
+	// 【手動保存の入力途中では親の値を変更せず、明示保存だけで通知する】
 	// 未完成の式をプロジェクトへ反映しないことと、保存後の外部同期を再編集として通知しないことを守る。
 	test(`keeps manual-save drafts local until a button save or save shortcut in ${name}`, async t => {
 		const { props, edits, input } = fixture(t, { manualSave: true }, component);
 		input.v = 'unfinished +';
 		await nextTick();
-		input.onKeydown(keyEvent('Enter'));
+		if (component === Textarea) input.onKeydown(keyEvent('Enter'));
 		assert.deepEqual(edits, []);
 		assert.equal(props.modelValue, 'before');
 		input.v = 'complete';
@@ -128,6 +161,7 @@ for (const [name, component] of [['GsInput', Input], ['GsTextarea', Textarea]]) 
 		input.v = 'draft';
 		await nextTick();
 		for (const options of [{ isComposing: true }, { keyCode: 229 }, { repeat: true }]) {
+			input.onKeydown(keyEvent('Enter', options));
 			input.onKeydown(keyEvent('Enter', { ctrlKey: true, ...options }));
 		}
 		input.onKeydown(keyEvent('Escape', { isComposing: true }));

@@ -49,7 +49,7 @@
 						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
 							<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
 						</GsSelect>
-						<GsInput v-if="paramValue.inputSource === 'automationGraphInline' ? paramValue.automationGraph.isNormalized : selectedAutomationGraph?.isNormalized" type="number" :min="1" :modelValue="paramValue.trimmedDurationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
+						<GsInput v-if="paramValue.inputSource === 'automationGraphInline' ? paramValue.automationGraph.isNormalized : selectedAutomationGraph?.isNormalized" type="number" manualSave :min="1" :modelValue="paramValue.trimmedDurationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
 							<template #label>{{ i18n.ts._Parameter.DurationMs }}</template>
 						</GsInput>
 						<GsSelect :modelValue="paramValue.wrapMode" :items="graphWrapModeItems" @update:modelValue="wrapMode => updateAutomationGraphOptions({ wrapMode })">

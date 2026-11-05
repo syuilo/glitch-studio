@@ -24,7 +24,7 @@
 				<template #label>{{ i18n.ts.Settings }}</template>
 
 				<div class="_gaps_s">
-					<GsInput large :modelValue="node.displayName" :debounce="400" @update:modelValue="emit('setDisplayName', $event)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
+					<GsInput large :modelValue="node.displayName" manualSave @update:modelValue="emit('setDisplayName', $event)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
 					<GsSelect data-test-node-resolution-mode large :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
 						<template #label>{{ i18n.ts.Resolution }}</template>
 						<template v-if="node.resolution.mode === 'context'" #caption>{{ i18n.ts._Node.ResolutionHint }}</template>
@@ -36,8 +36,8 @@
 						<template #caption>{{ i18n.ts._Node.ResolutionScaleHint }}</template>
 					</GsInput>
 					<div v-if="node.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
-						<GsInput large style="flex: 1" type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-						<GsInput large style="flex: 1" type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+						<GsInput large style="flex: 1" type="number" manualSave :modelValue="node.resolution.width" :min="1" :step="1" @update:modelValue="setDimension('width', $event)"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+						<GsInput large style="flex: 1" type="number" manualSave :modelValue="node.resolution.height" :min="1" :step="1" @update:modelValue="setDimension('height', $event)"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 					</div>
 				</div>
 			</GsFolder>
@@ -67,11 +67,11 @@
 import { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { prettyId } from '@gs/shared/utility/id.ts';
+import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsStaticSettings from './GsStaticSettings.vue';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';

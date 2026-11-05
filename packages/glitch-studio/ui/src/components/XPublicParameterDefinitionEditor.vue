@@ -9,7 +9,8 @@
 		</GsInput>
 	</div>
 	<div :class="$style.fields">
-		<GsSelect large
+		<GsSelect
+			large
 			style="flex: 1"
 			:class="$style.field"
 			:modelValue="parameterType"
@@ -28,7 +29,8 @@
 		>
 			<template #label>{{ i18n.ts._ParameterEditor.DataType }}</template>
 		</GsSelect>
-		<GsSelect v-if="isParameterType(def, 'scalar')"
+		<GsSelect
+			v-if="isParameterType(def, 'scalar')"
 			large :class="$style.field" :modelValue="def.ui.control.controlType"
 			style="flex: 1"
 			:items="[{ label: i18n.ts._ParameterEditor.Number, value: 'number' }, { label: i18n.ts._ParameterEditor.Range, value: 'range' }, { label: i18n.ts._ParameterEditor.Angle, value: 'angle' }, { label: i18n.ts._ParameterEditor.Seed, value: 'seed' }]"
@@ -41,14 +43,14 @@
 	<div v-if="isParameterType(def, 'scalar') && (def.ui.control.controlType === 'number' || def.ui.control.controlType === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">{{ i18n.ts._ParameterEditor.MinMax }}</label>
 		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.ui.control.controlType === 'range' }]">
-			<GsInput large type="number" :modelValue="def.ui.control.min ?? null" @update:modelValue="updateUiOption('min', Number($event))"/>
-			<GsInput large type="number" :modelValue="def.ui.control.max ?? null" @update:modelValue="updateUiOption('max', Number($event))"/>
+			<GsInput large type="number" manualSave :modelValue="def.ui.control.min ?? null" @update:modelValue="updateUiOption('min', Number($event))"/>
+			<GsInput large type="number" manualSave :modelValue="def.ui.control.max ?? null" @update:modelValue="updateUiOption('max', Number($event))"/>
 		</div>
 	</div>
 	<div v-if="isParameterType(def, 'scalar') && (def.ui.control.controlType === 'number' || def.ui.control.controlType === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">{{ i18n.ts._ParameterEditor.Step }}</label>
 		<div :class="$style.optionControl">
-			<GsInput large type="number" :modelValue="def.ui.control.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
+			<GsInput large type="number" manualSave :modelValue="def.ui.control.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
 		</div>
 	</div>
 	<div v-if="isParameterType(def, 'enum')" :class="$style.option">

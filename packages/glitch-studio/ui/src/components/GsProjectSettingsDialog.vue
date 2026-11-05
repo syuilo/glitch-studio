@@ -4,9 +4,9 @@
 		<div>{{ i18n.ts._Project.Settings }}</div>
 		<div>{{ i18n.ts._Project.BaseResolution }}</div>
 		<div style="display: flex; gap: 12px;">
-			<GsInput large style="flex: 1; min-width: 0;" :modelValue="width" type="number" :min="1" :step="1" @update:modelValue="updateWidth"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput large style="flex: 1; min-width: 0;" :modelValue="width" type="number" manualSave :min="1" :step="1" @update:modelValue="updateWidth"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
 			<GsButton iconOnly :primary="lockedAspectRatio != null" icon="ti ti-link" @click="toggleAspectRatioLock"/>
-			<GsInput large style="flex: 1; min-width: 0;" :modelValue="height" type="number" :min="1" :step="1" @update:modelValue="updateHeight"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+			<GsInput large style="flex: 1; min-width: 0;" :modelValue="height" type="number" manualSave :min="1" :step="1" @update:modelValue="updateHeight"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 		<div v-if="!isResolutionValid">{{ i18n.ts._Project.InvalidResolution }}</div>
 		<GsInput v-model="timelineFps" large type="number" :min="1" :max="120" :step="'any'"><template #label>{{ i18n.ts._Project.BaseTimelineFps }}</template><template #suffix>fps</template></GsInput>
@@ -35,7 +35,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
@@ -47,6 +46,7 @@ import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import GsModal from './common/GsModal.vue';
 import GsFolder from './common/GsFolder.vue';
+import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 
 const { stateManager } = appContext.projectContext;
