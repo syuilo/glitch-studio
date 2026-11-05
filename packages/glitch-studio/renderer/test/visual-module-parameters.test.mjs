@@ -89,12 +89,12 @@ test('keyframes evaluate in nested node parameters and module arguments', () => 
 	assert.deepEqual(result.nodeParams.get('node').values, [2]);
 });
 
-// 【PARAMの参照名とVisual Module公開パラメータ参照のIDを区別する】
-// IDと参照名が異なっても、PARAMは参照名、Visual Module公開パラメータ参照はIDで同じ評価済み値を読む。
-test('resolves PARAM names separately from visualModulePublicParameterReference IDs', () => {
+// 【PUBLICの参照名とVisual Module公開パラメータ参照のIDを区別する】
+// IDと参照名が異なっても、PUBLICは参照名、Visual Module公開パラメータ参照はIDで同じ評価済み値を読む。
+test('resolves PUBLIC names separately from visualModulePublicParameterReference IDs', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const result = evaluate(evaluator, context({ named: number, direct: number }, {
-		named: expression('PARAM("gain")'),
+		named: expression('PUBLIC("gain")'),
 		direct: { inputSource: 'visualModulePublicParameterReference', parameterId: 'gain-id' },
 	}, {
 		paramDefs: [{ ...paramDef('gain-id'), nameForReference: 'gain' }],
@@ -102,7 +102,7 @@ test('resolves PARAM names separately from visualModulePublicParameterReference 
 	}));
 	assert.deepEqual([...result.paramValues], [['gain-id', 23]]);
 	assert.deepEqual(result.nodeParams.get('node'), { named: 23, direct: 23 });
-	assert.throws(() => evaluate(evaluator, context({ invalid: number }, { invalid: expression('PARAM("gain-id")') })), /Unknown or unavailable parameter/);
+	assert.throws(() => evaluate(evaluator, context({ invalid: number }, { invalid: expression('PUBLIC("gain-id")') })), /Unknown or unavailable parameter/);
 });
 
 const rampGraph = (isNormalized = true) => ({
@@ -152,7 +152,7 @@ test('evaluates GRAPH by nameForReference in module and node expressions', () =>
 			expression('GRAPH("ramp", 0.25, "clamp")'),
 			expression('GRAPH("ramp", 1.25, "repeat")'),
 			expression('GRAPH("ramp", -0.25, "repeatMirrored")'),
-			expression('GRAPH("milliseconds", TIME_MS, "clamp") + PARAM("gain")'),
+			expression('GRAPH("milliseconds", TIME_MS, "clamp") + PUBLIC("gain")'),
 		]),
 	}, { automationGraphs: [graph, msGraph], callerGraphs: [graph], paramDefs: [paramDef('gain')], paramValues: { gain: expression('GRAPH("ramp", 0.5, "clamp")') } }));
 	assertClose(result.paramValues.get('gain'), 5);
@@ -206,7 +206,7 @@ test('reads single scope variables without parsing or executing AiScript', t => 
 test('uses AiScript for complex expressions and unknown variables', t => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const parse = t.mock.method(evaluator.valueEvaluator.expressionEvaluator.parser, 'parse');
-	const expressions = ['TIME + 1', 'TIME // comment', 'PARAM("gain")'];
+	const expressions = ['TIME + 1', 'TIME // comment', 'PUBLIC("gain")'];
 	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
 		values: arrayBinding(expressions.map(expression)),
 	}, { paramDefs: [paramDef('gain', 4)] }));
@@ -235,13 +235,13 @@ test('evaluates nested values, expressions and node references without a GPU', (
 	});
 });
 
-// 【呼び出し側の評価結果をVisual Module公開パラメータ参照とPARAMで共有する】
-// 内部で既定値や式を再評価せず、Visual Module公開パラメータ参照とPARAMから呼び出し側で確定した値を読む。
-test('reads caller evaluated values through visualModulePublicParameterReferences and PARAM', () => {
+// 【呼び出し側の評価結果をVisual Module公開パラメータ参照とPUBLICで共有する】
+// 内部で既定値や式を再評価せず、Visual Module公開パラメータ参照とPUBLICから呼び出し側で確定した値を読む。
+test('reads caller evaluated values through visualModulePublicParameterReferences and PUBLIC', () => {
 	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ a: number, b: number, c: number }, {
 		a: { inputSource: 'visualModulePublicParameterReference', parameterId: 'gain' },
-		b: expression('PARAM("gain") + PARAM("offset")'),
-		c: expression('PARAM("literal")'),
+		b: expression('PUBLIC("gain") + PUBLIC("offset")'),
+		c: expression('PUBLIC("literal")'),
 	}, {
 		paramDefs: [paramDef('gain'), paramDef('offset', 3), paramDef('literal')],
 		paramValues: { gain: expression('TIME * 4'), literal: literal(11) },
@@ -255,8 +255,8 @@ test('reads caller evaluated values through visualModulePublicParameterReference
 test('defaults unassigned direct references and rejects invalid expressions', () => {
 	const params = {
 		textureVisualModulePublicParameterReference: { inputSource: 'visualModulePublicParameterReference', parameterId: 'texture' },
-		textureExpression: expression('PARAM("texture")'),
-		missing: expression('PARAM("missing")'),
+		textureExpression: expression('PUBLIC("texture")'),
+		missing: expression('PUBLIC("missing")'),
 		invalid: expression('1 +'),
 		empty: expression(''),
 		missingVisualModulePublicParameterReference: { inputSource: 'visualModulePublicParameterReference', parameterId: 'missing' },

@@ -20,7 +20,7 @@ export class TimelineParameterBindingEvaluator {
 			if (cache.has(key)) return cache.get(key)!;
 			const ownerIndex = context.ancestors.findIndex(ancestor => ancestor.id === owner.id);
 			// 所有レイヤーを基準に必ず祖先方向へ進める。呼び出した子の環境を再利用すると、
-			// 同名のPARAMが子自身へ戻り、階層だけで保証できる非循環性を失ってしまう。
+			// 同名のPUBLICが子自身へ戻り、階層だけで保証できる非循環性を失ってしまう。
 			const ownerContext = { layer: owner, ancestors: ownerIndex < 0 ? context.ancestors : context.ancestors.slice(0, ownerIndex) };
 			const ownerScope = createTimelineLayerEvaluationScope({ time: scope.time, isExport: scope.variables.IS_EXPORT === true, automationGraphs: owner.automationGraphs, publicParameters: ownerContext });
 			const value = evaluate(owner.publicParameterValues?.[publicParameterDefinition.id] ?? publicParameterDefinition.defaultValue, ownerScope, publicParameterDefinition.defaultValue.value, publicParameterDefinition, true);
@@ -42,8 +42,8 @@ export class TimelineParameterBindingEvaluator {
 				...environment,
 				functions: {
 					...environment.functions,
-					PARAM: (...args) => {
-						if (args.length !== 1 || typeof args[0] !== 'string') throw new Error('PARAM requires a parameter name');
+					PUBLIC: (...args) => {
+						if (args.length !== 1 || typeof args[0] !== 'string') throw new Error('PUBLIC requires a parameter name');
 						const owner = isPublicParameterValue ? context?.ancestors.at(-1) : context?.layer;
 						const source = owner?.publicParameterDefs?.find(definition => definition.nameForReference === args[0]);
 						if (owner == null || source == null || context == null) throw new Error(`Unknown or unavailable timeline public parameter: ${args[0]}`);

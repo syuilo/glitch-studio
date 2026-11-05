@@ -85,7 +85,7 @@ function createVisualModule(id) {
 					input: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'parameter-id' },
 				}) }]),
 				customParameterDefs: literal('visualModuleCustomParameterReference'),
-				expression: { inputSource: 'expression', expression: 'PARAM("customParameterValues")' },
+				expression: { inputSource: 'expression', expression: 'PUBLIC("customParameterValues")' },
 			},
 		}],
 	};

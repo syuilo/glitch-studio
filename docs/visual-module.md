@@ -4,7 +4,7 @@
 
 Visual Moduleは、In/Outノードを含むほか、外部に対するパラメータ定義(Public Parameter)も行えるので、タイムライン上でレイヤーとして使用可能です。
 
-Public Parameterは、`canNode: true` ならInノード経由で配線し、`canNode: false` ならVisual Module内のノードのパラメータに直接アサインしたり、expression上からPARAM関数を通じて参照したりできます。
+Public Parameterは、`canNode: true` ならInノード経由で配線し、`canNode: false` ならVisual Module内のノードのパラメータに直接アサインしたり、expression上からPUBLIC関数を通じて参照したりできます。
 
 Visual Module内で別のVisual Moduleを通常のエフェクトのように使用するなど、再帰的な使用も将来実装予定です。
 

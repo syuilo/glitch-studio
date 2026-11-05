@@ -50,7 +50,7 @@ export function createTimelineLayerPublicParameterContextIndex(layers: readonly 
 	const contexts = new Map<string, TimelineLayerPublicParameterContext>();
 	const visit = (layers: readonly TimelineLayer[], ancestors: readonly TimelineLayerPublicParameterOwner[]) => {
 		for (const layer of layers) {
-			// フォルダ挿入でPARAMの親が変わらないよう、階層だけを透過する。
+			// フォルダ挿入でPUBLICの親が変わらないよう、階層だけを透過する。
 			// 空のパラメータコンテナはここを通らず、明示的なスコープとして残す。
 			if (layer.layerType === 'folder') { visit(layer.layers, ancestors); continue; }
 			const owner = createTimelineLayerPublicParameterOwner(layer);

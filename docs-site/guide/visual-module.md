@@ -193,20 +193,20 @@ Outノードは内部の結果を外へ渡す出口です。上記のSamplingメ
 例えば、Reference Nameを `amount` とした数値パラメータは、内部の式で次のように使えます。
 
 ```text
-PARAM("amount") * 2
+PUBLIC("amount") * 2
 ```
 
-`PARAM` に渡すのはUI LabelではなくReference Nameです。この例では、外から渡した値の2倍を内部パラメータに使います。
+`PUBLIC` に渡すのはUI LabelではなくReference Nameです。この例では、外から渡した値の2倍を内部パラメータに使います。
 
 ### Inノードから渡す
 
-Allow node inputを有効にしたパラメータは、Inノードから配線して使います。`PARAM` やPublic Parameterによる直接参照の対象にはなりません。受け取るものが一様な色や数値であっても、この使い分けは同じです。
+Allow node inputを有効にしたパラメータは、Inノードから配線して使います。`PUBLIC` やPublic Parameterによる直接参照の対象にはなりません。受け取るものが一様な色や数値であっても、この使い分けは同じです。
 
 主画像入力を内部の加工ノードへ繋ぐと、タイムラインでは下層までの合成映像を加工できます。
 
 ### 音声を渡す
 
-Audio型の公開パラメータは、内部ノードの **Public Parameter** から受け取ります。Inへの画像配線や`PARAM`式では扱いません。Primary audio inputに指定すると、タイムライン配置時の初期入力が下層音声になります。
+Audio型の公開パラメータは、内部ノードの **Public Parameter** から受け取ります。Inへの画像配線や`PUBLIC`式では扱いません。Primary audio inputに指定すると、タイムライン配置時の初期入力が下層音声になります。
 
 ## Visual Module Live Previewで確認する
 

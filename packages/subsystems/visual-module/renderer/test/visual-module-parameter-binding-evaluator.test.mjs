@@ -20,12 +20,12 @@ const context = (overrides = {}) => ({
 	evaluatedParamValues: new Map(), paramIdsByName: new Map(), ...overrides,
 });
 
-// 【Visual Moduleの式でも共通の乱数・ノイズとPARAMを組み合わせる】
+// 【Visual Moduleの式でも共通の乱数・ノイズとPUBLICを組み合わせる】
 // Timeline専用の登録や別の乱数実装にせず、公開パラメータをseedとして使えるようにする。
 // 評価器やASTを再利用してseedを変更しても、前回の系列を保持しないことを確認する。
 test('combines shared random and noise functions with evaluated public parameters', () => {
 	const evaluator = new VisualModuleParameterBindingEvaluator();
-	const binding = expression('[RANDOM(0, PARAM("seed")), NOISE(0.25, PARAM("seed"))]');
+	const binding = expression('[RANDOM(0, PUBLIC("seed")), NOISE(0.25, PUBLIC("seed"))]');
 	const at = seed => evaluator.evaluate(binding, context({
 		evaluatedParamValues: new Map([['seed-id', seed]]), paramIdsByName: new Map([['seed', 'seed-id']]),
 	}), null, vectorDefinition);
@@ -42,18 +42,18 @@ test('evaluates node references directly', () => {
 	assert.equal(evaluator.evaluate({ inputSource: 'node', nodeId: null }, context(), -1, scalarDefinition), null);
 });
 
-// 【PARAMの名前と直接参照のID】
+// 【PUBLICの名前と直接参照のID】
 // 評価済みの値と名前の対応を直接渡し、Visual Moduleの生成やレンダラーに依存しない。
 test('resolves parameter names separately from IDs and rejects invalid expressions', () => {
 	const evaluator = new VisualModuleParameterBindingEvaluator();
 	const scope = context({ evaluatedParamValues: new Map([['gain-id', 0]]), paramIdsByName: new Map([['gain', 'gain-id']]) });
-	assert.equal(evaluator.evaluate(expression('PARAM("gain")'), scope, -1, scalarDefinition), 0);
+	assert.equal(evaluator.evaluate(expression('PUBLIC("gain")'), scope, -1, scalarDefinition), 0);
 	assert.equal(evaluator.evaluate({ inputSource: 'visualModulePublicParameterReference', parameterId: 'gain-id' }, scope, -1, scalarDefinition), 0);
-	for (const text of ['PARAM("gain-id")', 'PARAM("missing")', 'PARAM(1)', 'PARAM()', 'PARAM("gain", 1)', '1 +', '']) {
+	for (const text of ['PUBLIC("gain-id")', 'PUBLIC("missing")', 'PUBLIC(1)', 'PUBLIC()', 'PUBLIC("gain", 1)', '1 +', '']) {
 		assert.throws(() => evaluator.evaluate(expression(text), scope, -1, scalarDefinition), /Base expression/);
 	}
 	for (const empty of [context(), context({ evaluatedParamValues: new Map(), paramIdsByName: scope.paramIdsByName })]) {
-		assert.throws(() => evaluator.evaluate(expression('PARAM("gain")'), empty, -1, scalarDefinition), /Unknown or unavailable parameter/);
+		assert.throws(() => evaluator.evaluate(expression('PUBLIC("gain")'), empty, -1, scalarDefinition), /Unknown or unavailable parameter/);
 		assert.equal(evaluator.evaluate({ inputSource: 'visualModulePublicParameterReference', parameterId: 'gain-id' }, empty, -1, scalarDefinition), -1);
 	}
 });
@@ -64,7 +64,7 @@ test('clones values read from variables and evaluated parameters', () => {
 	const evaluator = new VisualModuleParameterBindingEvaluator();
 	const value = [1, 0.5, 0, 0.25];
 	const scope = context({ variables: { COLOR: value }, evaluatedParamValues: new Map([['color-id', value]]), paramIdsByName: new Map([['color', 'color-id']]) });
-	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }, expression('PARAM("color")'), { inputSource: 'visualModulePublicParameterReference', parameterId: 'color-id' }]) {
+	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }, expression('PUBLIC("color")'), { inputSource: 'visualModulePublicParameterReference', parameterId: 'color-id' }]) {
 		const result = evaluator.evaluate(binding, scope, null, colorDefinition);
 		assert.deepEqual(result, value);
 		result[0] = 99;

@@ -70,10 +70,10 @@ VALUE
 
 ## パラメータの参照スコープ
 
-- Visual Moduleの公開パラメータの `id` は接続・引数・直接参照の識別子、`nameForReference` は `PARAM` 式から参照する名前、`ui.label` は表示名です。IDと参照名のブランド型を相互に代用せず、表示名を接続のキーにしないでください。Timelineの公開パラメータIDはTimeline固有の型で、Visual ModuleのIDとは区別します。
+- Visual Moduleの公開パラメータの `id` は接続・引数・直接参照の識別子、`nameForReference` は `PUBLIC` 式から参照する名前、`ui.label` は表示名です。IDと参照名のブランド型を相互に代用せず、表示名を接続のキーにしないでください。Timelineの公開パラメータIDはTimeline固有の型で、Visual ModuleのIDとは区別します。
 - コードで用意する `nameForReference` の初期値・自動生成名・テストデータは、`my_input`・`my_param_2`・`scene_time` のようなsnake caseに統一します。
 - `AutomationGraph` の `nameForReference` は `GRAPH("graph_name", 座標, "clamp")` で照合する参照名で、UIのグラフ選択にも表示します。`automationGraphReference` は `automationGraphId` とグラフの `id` で参照するため、参照名を変更してもその接続は維持されます。インラインの `AutomationGraphData` は参照名・IDを持ちません。
-- Visual Moduleの公開パラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`visualModulePublicParameterReference` や `PARAM` による直接参照は `canNode: false` の公開パラメータに限定する仕様です。ただし音声は`visualModulePublicParameterReference`だけで参照し、`PARAM`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
+- Visual Moduleの公開パラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`visualModulePublicParameterReference` や `PUBLIC` による直接参照は `canNode: false` の公開パラメータに限定する仕様です。ただし音声は`visualModulePublicParameterReference`だけで参照し、`PUBLIC`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
 - レイヤーの引数・合成設定と、モジュール内部の式は別の評価スコープです。変数・automation graph・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。グラフの再生時刻を渡すことと、同名の変数を式に公開することも別です。
 
 ## Timelineレイヤーの公開パラメータ
@@ -84,14 +84,14 @@ VALUE
 
 型の種類を変更すると、所有する保存Bindingを外して新しい定義の既定値へ戻します。Undo/Redoでは定義と保存Bindingをまとめて復元します。表示名・編集UI・既定値だけの変更では保存Bindingを維持し、enumの選択肢の削除・改名も既存の値を残して評価時に検証します。Visual Moduleレイヤーの公開パラメータ値だけを編集する場合は、内部の履歴とインスタンスを維持します。
 
-| 参照する場所 | 式の`PARAM("reference_name")` | 入力方式からの直接参照 |
+| 参照する場所 | 式の`PUBLIC("reference_name")` | 入力方式からの直接参照 |
 | --- | --- | --- |
 | 公開パラメータの値・加工式 | 直上の親だけ | すべての祖先 |
 | 通常のパラメータの値・加工式 | 自身だけ | 自身とすべての祖先 |
 
-親は、同じScene内でフォルダを除いた直近の祖先（パラメータコンテナ・Transform・Group）です。フォルダはスコープを作らず、その挿入で式の親が変わることはありません。空のパラメータコンテナもスコープとなり、目的の定義がなければ外側へ探索せずエラーです。Scene最上位には親がなく、同じレイヤーの別公開パラメータも参照できないため、公開パラメータ間の循環は構造的に発生しません。親の値を子で加工する場合、子の公開パラメータの式を`PARAM("speed") * 2`とし、子の通常のパラメータからその子自身の定義を参照できます。
+親は、同じScene内でフォルダを除いた直近の祖先（パラメータコンテナ・Transform・Group）です。フォルダはスコープを作らず、その挿入で式の親が変わることはありません。空のパラメータコンテナもスコープとなり、目的の定義がなければ外側へ探索せずエラーです。Scene最上位には親がなく、同じレイヤーの別公開パラメータも参照できないため、公開パラメータ間の循環は構造的に発生しません。親の値を子で加工する場合、子の公開パラメータの式を`PUBLIC("speed") * 2`とし、子の通常のパラメータからその子自身の定義を参照できます。
 
-直接参照は`{ inputSource: 'timelineLayerPublicParameterReference', layerId, parameterId }`を保存し、Visual Module内部の参照とは共有しません。未選択では両IDをnullにします。UIには所有レイヤーと表示名・参照名を表示し、型が一致する定義だけを候補にします。参照名はレイヤー内で一意とし、名前変更でも直接参照は維持します。`PARAM`内の文字列は自動変更せず、未知の名前・不正な引数は式エラーです。
+直接参照は`{ inputSource: 'timelineLayerPublicParameterReference', layerId, parameterId }`を保存し、Visual Module内部の参照とは共有しません。未選択では両IDをnullにします。UIには所有レイヤーと表示名・参照名を表示し、型が一致する定義だけを候補にします。参照名はレイヤー内で一意とし、名前変更でも直接参照は維持します。`PUBLIC`内の文字列は自動変更せず、未知の名前・不正な引数は式エラーです。
 
 直接参照先の削除・階層移動ではIDを保持し、UIに欠落・範囲外を表示します。未選択・未解決の参照は受け取り側のパラメータ定義の既定値を使い、存在する参照先の型不一致は評価エラーにします。Group複製では範囲内のレイヤーIDだけを付け替えます。直接参照Binding自体への加工式は提供せず、加工したい値は公開パラメータへ受けて通常の式から参照します。
 

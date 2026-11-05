@@ -49,7 +49,7 @@ let amount = read_amount(position);
 Visual ModuleのIn/Out・バイパス・タイムラインのレイヤー間では、定数またはテクスチャを表す `UniformOrTexture` を受け渡します。モジュールの境界だけを理由に定数をテクスチャ化しません。エフェクトが描画した出力はtexture、Inから渡された定数はuniformのままです。
 
 - `UniformOrTexture` 自体はサンプリング設定を持ちません。エフェクトやタイムラインの合成などでシェーダー入力になるときに `toShaderInput()` が受け取り側の設定を付け、`ShaderInput` にします。色の再乗算は行いません。scalar/vectorの不足成分はr/rgテクスチャと同じくRGBを0、alphaを1で補います。
-- モジュールの `paramValues` はCPUで評価する通常のパラメータ値、`paramInputs` は上流から渡された `UniformOrTexture` です。`paramInputs` はuniformでも `PARAM` 式からは参照せず、Inノードや `canNode` 入力から読みます。上流の出力種別によって式の可否を変えないためです。
+- モジュールの `paramValues` はCPUで評価する通常のパラメータ値、`paramInputs` は上流から渡された `UniformOrTexture` です。`paramInputs` はuniformでも `PUBLIC` 式からは参照せず、Inノードや `canNode` 入力から読みます。上流の出力種別によって式の可否を変えないためです。
 - 最終表示・集計など、`GPUTexture` が必要な境界では `UniformOrTextureToTextureResolver` が定数だけを1x1テクスチャへ変換します。成分数ごとに再利用し、同値の転送を省略します。保存精度は `enable32bitDataTextures` に従います。
 - 借用した出力テクスチャは変換・破棄しません。resolver自身の定数テクスチャは `dispose()` で破棄します。再利用するテクスチャを上書きするため、そのテクスチャを読むコマンドをsubmitしてから次の `resolve()` を呼んでください。
 

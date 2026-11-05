@@ -26,8 +26,8 @@ export class VisualModuleParameterBindingEvaluator {
 			...context,
 			functions: {
 				...context.functions,
-				PARAM: (...args) => {
-					if (args.length !== 1 || typeof args[0] !== 'string') throw new Error('PARAM requires a parameter name');
+				PUBLIC: (...args) => {
+					if (args.length !== 1 || typeof args[0] !== 'string') throw new Error('PUBLIC requires a parameter name');
 					const id = context.paramIdsByName.get(visualModulePublicParameterName(args[0]));
 					if (id == null || !context.evaluatedParamValues.has(id)) throw new Error(`Unknown or unavailable parameter: ${args[0]}`);
 					return deepClone(context.evaluatedParamValues.get(id));

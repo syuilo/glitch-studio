@@ -39,24 +39,24 @@ test('indexes owner scopes and refreshes ancestors after reparenting', () => {
 
 // 【通常の式は自身だけ、公開パラメータの式は直接の親だけを参照する】
 // 同名の定義が階層に並んでも、所有レイヤーの環境で評価を進めれば循環せず値を加工できる。
-test('resolves PARAM in the owning layer and forwards only from the immediate parent', () => {
-	const child = layer('child', [scalar('child-speed', 'speed')], { 'child-speed': expression('PARAM("speed") * 3') });
-	const parent = layer('parent', [scalar('parent-speed', 'speed')], { 'parent-speed': expression('PARAM("speed") + 1') }, [child]);
+test('resolves PUBLIC in the owning layer and forwards only from the immediate parent', () => {
+	const child = layer('child', [scalar('child-speed', 'speed')], { 'child-speed': expression('PUBLIC("speed") * 3') });
+	const parent = layer('parent', [scalar('parent-speed', 'speed')], { 'parent-speed': expression('PUBLIC("speed") + 1') }, [child]);
 	const root = layer('root', [scalar('root-speed', 'speed')], { 'root-speed': literal(2) }, [parent]);
-	assert.equal(evaluate([root], child, expression('PARAM("speed")')), 9);
-	assert.equal(evaluate([root], parent, expression('PARAM("speed")')), 3);
-	assert.equal(evaluate([root], root, expression('PARAM("speed")')), 2);
+	assert.equal(evaluate([root], child, expression('PUBLIC("speed")')), 9);
+	assert.equal(evaluate([root], parent, expression('PUBLIC("speed")')), 3);
+	assert.equal(evaluate([root], root, expression('PUBLIC("speed")')), 2);
 });
 
 // 【直接の親に定義がなければ祖父母の同名定義を自動探索しない】
 // 自身の別公開パラメータも不可とし、暗黙の継承や同一レイヤー内の循環を作らない。
 test('does not search grandparents or siblings for expression names', () => {
-	const child = layer('child', [scalar('speed'), scalar('local')], { speed: expression('PARAM("local")'), local: literal(10) });
+	const child = layer('child', [scalar('speed'), scalar('local')], { speed: expression('PUBLIC("local")'), local: literal(10) });
 	const parent = layer('parent', [], {}, [child]);
 	const root = layer('root', [scalar('local')], { local: literal(2) }, [parent]);
-	assert.throws(() => evaluate([root], child, expression('PARAM("speed")')), /Unknown or unavailable/);
+	assert.throws(() => evaluate([root], child, expression('PUBLIC("speed")')), /Unknown or unavailable/);
 	child.publicParameterDefs = [];
-	assert.throws(() => evaluate([root], child, expression('PARAM("local")')), /Unknown or unavailable/);
+	assert.throws(() => evaluate([root], child, expression('PUBLIC("local")')), /Unknown or unavailable/);
 });
 
 // 【直接参照は祖先を選べるが公開パラメータの値から自身へは戻れない】
@@ -70,7 +70,7 @@ test('allows explicit ancestor references and excludes self references in public
 	const context = getTimelineLayerPublicParameterContext([root], child.id);
 	assert.deepEqual(getTimelineLayerPublicParameterSources(context, true).map(source => source.id), ['parent', 'root']);
 	child.publicParameterValues.forward = reference('child', 'forward');
-	assert.equal(evaluate([root], child, expression('PARAM("forward")')), 0);
+	assert.equal(evaluate([root], child, expression('PUBLIC("forward")')), 0);
 });
 
 // 【参照先の名前変更・削除・階層移動で別の同名定義へ切り替えない】
@@ -106,7 +106,7 @@ test('uses owner graphs and scene time and does not retain values across seeks',
 test('copies referenced values and validates explicit reference types', () => {
 	const definition = { ...scalar('color'), dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: literal([1, 0, 0, 1]) };
 	const owner = layer('owner', [definition]);
-	assert.deepEqual(evaluate([owner], owner, expression('let color = PARAM("color")\ncolor[0] = 0\ncolor'), 0, definition), [0, 0, 0, 1]);
+	assert.deepEqual(evaluate([owner], owner, expression('let color = PUBLIC("color")\ncolor[0] = 0\ncolor'), 0, definition), [0, 0, 0, 1]);
 	assert.deepEqual(definition.defaultValue.value, [1, 0, 0, 1]);
 	assert.throws(() => evaluate([owner], owner, reference('owner', 'color')), /type mismatch/);
 });
@@ -118,9 +118,9 @@ test('validates local definitions and keeps timeline references separate from Vi
 	assert.throws(() => validateTimelineLayerPublicParameterDefinitions([{ ...scalar('one'), canNode: true }]), /node inputs/);
 	assert.doesNotThrow(() => validateTimelineParameterTree(scalar('one'), reference(null, null)));
 	assert.throws(() => validateTimelineParameterTree(scalar('one'), { inputSource: 'visualModulePublicParameterReference', parameterId: 'one' }), /Unsupported/);
-	const root = layer('root', [scalar('one')], { one: expression('PARAM("one")') });
-	assert.throws(() => evaluate([root], root, expression('PARAM("one")')), /Unknown or unavailable/);
-	assert.throws(() => evaluate([root], root, expression('PARAM(1)')), /requires a parameter name/);
+	const root = layer('root', [scalar('one')], { one: expression('PUBLIC("one")') });
+	assert.throws(() => evaluate([root], root, expression('PUBLIC("one")')), /Unknown or unavailable/);
+	assert.throws(() => evaluate([root], root, expression('PUBLIC(1)')), /requires a parameter name/);
 });
 
 // 【未選択・削除済みの直接参照は定義の既定値へ戻し、enumでも不正なnullを返さない】

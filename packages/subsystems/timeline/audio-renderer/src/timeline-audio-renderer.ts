@@ -80,7 +80,7 @@ export class TimelineAudioRenderer {
 		const canReferencePublicParameters = binding.inputSource === 'expression' || binding.inputSource === 'timelineLayerPublicParameterReference'
 			|| ('expressionModifier' in binding && binding.expressionModifier?.enabled === true);
 		const context = canReferencePublicParameters ? getScope(0).publicParameters : null;
-		// 参照やPARAMの奥にあるholdキーも、通常の音量キーと同じ境界で切り替える。
+		// 参照やPUBLICの奥にあるholdキーも、通常の音量キーと同じ境界で切り替える。
 		// 名前が式で計算される場合もあるため、公開範囲のキーを保守的に調べる。
 		// 公開パラメータ値を参照できない音量は、無関係なキーで毎サンプル評価へ切り替えない。
 		const hasPublicParameterKeyframes = context != null && [context.layer, ...context.ancestors].some(owner =>

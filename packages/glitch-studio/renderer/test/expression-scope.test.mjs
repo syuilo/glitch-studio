@@ -153,19 +153,19 @@ test('isolates variables across repeated layer and module evaluations', () => {
 	}
 });
 
-// レイヤーで評価した値は内部の同名変数で再評価しない。PARAMは外から渡された値だけを読む。
+// レイヤーで評価した値は内部の同名変数で再評価しない。PUBLICは外から渡された値だけを読む。
 test('passes evaluated values across the boundary without reinterpreting them', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const defs = [def('amount'), def('text', '', 'string')];
 	const values = externalValues(evaluator, defs, { amount: expression('TEST_SAME_NAME'), text: literal('TEST_SAME_NAME') }, layerScope);
-	assert.deepEqual(nodes(evaluator, { amount: expression('PARAM("amount")'), local: expression('TEST_SAME_NAME'), text: expression('PARAM("text")'), direct: { inputSource: 'visualModulePublicParameterReference', parameterId: 'amount' } }, moduleScope, values, defs), { amount: 2, local: 1, text: 'TEST_SAME_NAME', direct: 2 });
+	assert.deepEqual(nodes(evaluator, { amount: expression('PUBLIC("amount")'), local: expression('TEST_SAME_NAME'), text: expression('PUBLIC("text")'), direct: { inputSource: 'visualModulePublicParameterReference', parameterId: 'amount' } }, moduleScope, values, defs), { amount: 2, local: 1, text: 'TEST_SAME_NAME', direct: 2 });
 });
 
-// PARAMや式内の変数が次の式へ残ると、自己参照や別スコープの値を読む経路になる。
-test('does not retain PARAM functions or local declarations between expressions', () => {
+// PUBLICや式内の変数が次の式へ残ると、自己参照や別スコープの値を読む経路になる。
+test('does not retain PUBLIC functions or local declarations between expressions', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
-	assert.equal(nodes(evaluator, { value: expression('PARAM("amount")') }, moduleScope, new Map([['amount', 99]]), [def('amount')]).value, 99);
-	assert.throws(() => externalValues(evaluator, [def('amount')], { amount: expression('PARAM("amount")') }, layerScope), /PARAM/);
+	assert.equal(nodes(evaluator, { value: expression('PUBLIC("amount")') }, moduleScope, new Map([['amount', 99]]), [def('amount')]).value, 99);
+	assert.throws(() => externalValues(evaluator, [def('amount')], { amount: expression('PUBLIC("amount")') }, layerScope), /PUBLIC/);
 	assert.equal(nodes(evaluator, { value: expression('let privateValue = 23\nprivateValue') }).value, 23);
 	assert.throws(() => nodes(evaluator, { value: expression('privateValue') }), /privateValue/);
 	assert.throws(() => externalValues(evaluator, [def('value')], { value: expression('privateValue') }, layerScope), /privateValue/);
@@ -179,18 +179,18 @@ test('isolates graph references and GRAPH functions without inheriting graphs', 
 	const defs = [def('ref'), def('named')];
 	const external = externalValues(evaluator, defs, params, { ...layerScope, automationGraphs: [graph(2)] });
 	assert.deepEqual([...external.values()], [2, 2]);
-	assert.deepEqual(nodes(evaluator, { ...params, external: expression('PARAM("ref")') }, { ...moduleScope, automationGraphs: [graph(1)] }, external, defs), { ref: 1, named: 1, external: 2 });
+	assert.deepEqual(nodes(evaluator, { ...params, external: expression('PUBLIC("ref")') }, { ...moduleScope, automationGraphs: [graph(1)] }, external, defs), { ref: 1, named: 1, external: 2 });
 	assert.throws(() => externalValues(evaluator, defs, params, layerScope), /Unknown automation graph/);
 	assert.throws(() => nodes(evaluator, params), /Unknown automation graph/);
 });
 
-// 定数のノード入力もPARAMでは参照不可。入力種別で式の可否を変えない。
+// 定数のノード入力もPUBLICでは参照不可。入力種別で式の可否を変えない。
 test('rejects input parameters and does not mutate external arrays', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const value = [1, 2];
 	const external = new Map([['array', value], ['input', 5]]);
-	assert.throws(() => nodes(evaluator, { input: expression('PARAM("input")') }, moduleScope, external, [def('input')], new Set(['input'])), /Unknown or unavailable parameter/);
-	const result = nodes(evaluator, { array: expression('PARAM("array")') }, moduleScope, external, [def('array')]);
+	assert.throws(() => nodes(evaluator, { input: expression('PUBLIC("input")') }, moduleScope, external, [def('input')], new Set(['input'])), /Unknown or unavailable parameter/);
+	const result = nodes(evaluator, { array: expression('PUBLIC("array")') }, moduleScope, external, [def('array')]);
 	result.array[0] = 99;
 	assert.deepEqual(value, [1, 2]);
 });

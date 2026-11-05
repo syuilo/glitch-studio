@@ -32,7 +32,7 @@ description: パラメータについて
 
 式は[AiScript](https://aiscript-dev.github.io/)として解釈されます。
 
-Visual Module内部では、公開パラメータを `PARAM("amount")` のように参照できます。引数には対象の公開パラメータのReference Nameを指定します。
+Visual Module内部では、公開パラメータを `PUBLIC("amount")` のように参照できます。引数には対象の公開パラメータのReference Nameを指定します。
 
 Uniformな公開パラメータ(ノード入力不能な公開パラメータ)のみ参照できます。
 

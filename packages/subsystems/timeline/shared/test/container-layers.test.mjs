@@ -91,7 +91,7 @@ test('converts only in the allowed directions and preserves identity and saved b
 	assert.equal(Object.hasOwn(group, 'transformParamValues'), false);
 });
 
-// 【フォルダはPARAMの親探索を透過し、空のパラメータコンテナはスコープを作る】
+// 【フォルダはPUBLICの親探索を透過し、空のパラメータコンテナはスコープを作る】
 // 整理だけで既存の式を壊さず、明示的なスコープの追加では外側の定義へ暗黙にフォールバックしない。
 test('skips folders in parameter scope and stops at empty parameter containers', () => {
 	const parent = container('transform');
@@ -101,10 +101,10 @@ test('skips folders in parameter scope and stops at empty parameter containers',
 	const child = container('parameterContainer');
 	child.id = 'child';
 	child.publicParameterDefs = [scalar('speed')];
-	child.publicParameterValues = { speed: { inputSource: 'expression', expression: 'PARAM("speed") * 2' } };
+	child.publicParameterValues = { speed: { inputSource: 'expression', expression: 'PUBLIC("speed") * 2' } };
 	folder.layers = [child];
 	parent.layers = [folder];
-	const read = () => new TimelineParameterBindingEvaluator().evaluate({ inputSource: 'expression', expression: 'PARAM("speed")' }, createTimelineLayerEvaluationScope({ time: 100, isExport: false, automationGraphs: [], publicParameters: getTimelineLayerPublicParameterContext([parent], child.id) }), 0, scalar('result'));
+	const read = () => new TimelineParameterBindingEvaluator().evaluate({ inputSource: 'expression', expression: 'PUBLIC("speed")' }, createTimelineLayerEvaluationScope({ time: 100, isExport: false, automationGraphs: [], publicParameters: getTimelineLayerPublicParameterContext([parent], child.id) }), 0, scalar('result'));
 	const index = createTimelineLayerPublicParameterContextIndex([parent]);
 	assert.equal(index.has(folder.id), false);
 	assert.deepEqual(index.get(child.id).ancestors.map(owner => owner.id), [parent.id]);

@@ -37,7 +37,7 @@ test('evaluates IS_EXPORT in module and node expressions without leaking state',
 		const scope = { variables: { IS_EXPORT: isExport }, automationGraphs: [], time: 0, endTime: 1000 };
 		const value = evaluator.valueEvaluator.evaluate({ inputSource: 'expression', expression: 'IS_EXPORT' }, scope, false, definition);
 		assert.equal(value, isExport);
-		for (const expression of ['IS_EXPORT', 'IS_EXPORT == true', 'PARAM("export")']) {
+		for (const expression of ['IS_EXPORT', 'IS_EXPORT == true', 'PUBLIC("export")']) {
 			assert.equal(evaluator.evaluate({ inputSource: 'expression', expression }, {
 				...scope, evaluatedParamValues: new Map([['export-id', value]]), paramIdsByName: new Map([['export', 'export-id']]),
 			}, false, definition), isExport);

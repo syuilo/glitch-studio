@@ -181,15 +181,15 @@ test('invalidates player snapshots on append, reset, replacement, and disconnect
 	assert.equal(inputs.resolve(null), null);
 });
 
-// 【音声公開パラメータは専用入力として渡し、PARAM式には公開しない】
+// 【音声公開パラメータは専用入力として渡し、PUBLIC式には公開しない】
 // 下層入力の解決をVisual Moduleの外側に保ち、内部エフェクトはSceneやレイヤーを知らずに使える。
 // canNodeを無効にしても、音声リソースを通常の数値・画像の参照へ流してはいけない。
-test('resolves public audio inputs independently of PARAM and image parameters', () => {
+test('resolves public audio inputs independently of PUBLIC and image parameters', () => {
 	const renderer = createVisualModuleRenderer(VisualModuleRenderer);
 	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'sound' };
 	const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Number', control: { controlType: 'number' } }, defaultValue: literal(0) };
 	const source = { cacheKey: 'lower', readWindow: () => window() };
-	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'visualModulePublicParameterReference', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PARAM("sound")' } } };
+	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'visualModulePublicParameterReference', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PUBLIC("sound")' } } };
 	renderer.nodeResolutions = new Map([[node.id, { width: 640, height: 360 }]]);
 	Object.assign(renderer, { nodes: [node], paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef, amount: scalar } } } });
 	const context = { time: 50, endTime: 100, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map([[publicAudio.id, 123]]), audioParamInputs: new Map([[publicAudio.id, source]]) };

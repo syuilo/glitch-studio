@@ -14,7 +14,7 @@
 
 Scene・レイヤー・クリップと、その時間・合成・音声設定の契約を定義する。キーフレームの補間や式エンジンは共通基盤を利用し、Scene時刻で評価することや許可するBindingなどの規約をこのドメインで決める。
 
-`public-parameters.ts`はフォルダ以外のレイヤーの公開パラメータの定義・ID・評価情報・祖先参照を所有する。`publicParameterDefs`と`publicParameterValues`を分け、数値・真理値・文字列・色・ベクトル・enum・Color Rampを扱う。`parameter-binding-evaluator.ts`が`timelineLayerPublicParameterReference`と`PARAM`を解決して共通の値評価器へ渡す。`PARAM`は通常のパラメータでは自身だけ、公開パラメータの値ではフォルダを除いた直上の親だけを参照する。直接参照は自身と祖先を選べるが、公開パラメータの値では自身を除外する。Scene参照を跨がず、参照先は所有レイヤーのグラフと所属Scene時刻で評価する。
+`public-parameters.ts`はフォルダ以外のレイヤーの公開パラメータの定義・ID・評価情報・祖先参照を所有する。`publicParameterDefs`と`publicParameterValues`を分け、数値・真理値・文字列・色・ベクトル・enum・Color Rampを扱う。`parameter-binding-evaluator.ts`が`timelineLayerPublicParameterReference`と`PUBLIC`を解決して共通の値評価器へ渡す。`PUBLIC`は通常のパラメータでは自身だけ、公開パラメータの値ではフォルダを除いた直上の親だけを参照する。直接参照は自身と祖先を選べるが、公開パラメータの値では自身を除外する。Scene参照を跨がず、参照先は所有レイヤーのグラフと所属Scene時刻で評価する。
 
 `timeline-compositing.ts`は画像を持つレイヤーの静的な`TimelineMask`（Alpha／輝度・反転）を定義する。nullでは通常描画、設定時は同じ合成境界の下層を切り抜く。opacityのBindingはマスク強度として再利用し、表示名だけをInspector・キーフレームで切り替える。素材の種類・時計・音声の契約は変更しない。
 

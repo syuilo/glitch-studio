@@ -142,7 +142,7 @@ test('uses the owning scene resolution when promoting an unset camera distance',
 test('rejects nonliteral bindings modifiers and containers without changing state or history', () => {
 	for (const scope of ['visualModule', 'timeline']) {
 		for (const binding of [
-			{ inputSource: 'expression', expression: 'PARAM("amount")' },
+			{ inputSource: 'expression', expression: 'PUBLIC("amount")' },
 			{ inputSource: 'node', nodeId: 'other', outputPort: 'output' },
 			{ ...literal(0.3), expressionModifier: { enabled: true, code: 'VALUE' } },
 			{ ...literal(0.3), expressionModifier: { enabled: false, code: 'VALUE' } },

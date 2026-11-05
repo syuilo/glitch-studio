@@ -347,12 +347,12 @@ for (const layerType of ['inlineVisualModule', 'visualModule']) {
 	// 使用中の値の変更は、同じインスタンスの次の評価へ新しい参照環境で反映する。
 	test(`preserves ${layerType} instances and updates public parameter inputs after value edits`, async t => {
 		const { manager, calls } = await fixture(t, { disableCache: false });
-		const module = { ...visualModule({ params: { amount: expression('PARAM("amount")') } }), id: 'registered', name: 'Visual Module' };
+		const module = { ...visualModule({ params: { amount: expression('PUBLIC("amount")') } }), id: 'registered', name: 'Visual Module' };
 		module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 		const entry = layer('layer', module, {
 			publicParameterDefs: ['speed', 'unused'].map(id => ({ ...scalar, id, nameForReference: id })),
 			publicParameterValues: { speed: literal(1), unused: literal(0) },
-			visualModuleParamValues: { amount: expression('PARAM("speed")') },
+			visualModuleParamValues: { amount: expression('PUBLIC("speed")') },
 		});
 		if (layerType === 'visualModule') {
 			delete entry.visualModule;
@@ -383,10 +383,10 @@ for (const layerType of ['inlineVisualModule', 'visualModule']) {
 // 別のコンテナへ移動した後は、移動先の祖先を参照することも確認する。
 test('refreshes public parameter scopes after parent value edits and hierarchy changes', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
-	const module = visualModule({ params: { amount: expression('PARAM("amount")') } });
+	const module = visualModule({ params: { amount: expression('PUBLIC("amount")') } });
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	const definition = { ...scalar, id: 'speed', nameForReference: 'speed' };
-	const entry = layer('layer', module, { publicParameterDefs: [definition], publicParameterValues: { speed: expression('PARAM("speed")') }, visualModuleParamValues: { amount: expression('PARAM("speed")') } });
+	const entry = layer('layer', module, { publicParameterDefs: [definition], publicParameterValues: { speed: expression('PUBLIC("speed")') }, visualModuleParamValues: { amount: expression('PUBLIC("speed")') } });
 	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, automationGraphs: [], transformParamValues: createTimelineTransformParameterValues(),
 		layers: [entry], publicParameterDefs: [definition], publicParameterValues: { speed: literal(1) } };
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [parent] }], sceneId: 'scene' });
@@ -410,7 +410,7 @@ test('refreshes public parameter scopes after parent value edits and hierarchy c
 // 引数だけを変えた配置のために、他の配置や上流のエフェクトを再生成してはいけない。
 test('updates shared definitions and module arguments without recreating placements', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
-	const module = { ...visualModule({ params: { amount: expression('PARAM("amount")') } }), id: 'registered', name: 'Module' };
+	const module = { ...visualModule({ params: { amount: expression('PUBLIC("amount")') } }), id: 'registered', name: 'Module' };
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	const entries = ['first', 'second'].map(id => {
 		const { visualModule: _, ...entry } = layer(id, module);
@@ -551,7 +551,7 @@ test('preserves instances for value edits and recreates all effects for batches 
 // 通常の引数編集とは区別しつつ、同じSceneの無関係な配置は維持する。
 test('recreates only the module placement whose argument edits include a reset', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
-	const module = visualModule({ params: { amount: expression('PARAM("amount")') } });
+	const module = visualModule({ params: { amount: expression('PUBLIC("amount")') } });
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	const entries = ['first', 'second'].map(id => layer(id, structuredClone(module), { visualModuleParamValues: { amount: literal(1) } }));
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: entries }], sceneId: 'scene' });
@@ -656,7 +656,7 @@ test('passes the referenced layer output through an inline primary input', async
 test('isolates inline module scopes and passes local time and export context', async t => {
 	const { manager, calls } = await fixture(t);
 	const module = visualModule({ params: {
-		amount: expression('PARAM("amount")'), local: expression('GRAPH("graph", 0, "clamp")'),
+		amount: expression('PUBLIC("amount")'), local: expression('GRAPH("graph", 0, "clamp")'),
 		caller: expression('TEST_SAME_NAME'), localTime: expression('TIME_MS'), duration: expression('END_TIME_MS'),
 		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: literal(0),
 		directForbidden: { inputSource: 'visualModulePublicParameterReference', parameterId: 'input' },
@@ -672,7 +672,7 @@ test('isolates inline module scopes and passes local time and export context', a
 	await manager.renderTimelineAt(400);
 	assert.equal(calls.renders.at(-1).params.exported, 0);
 	assert.equal(calls.renders.at(-1).params.localTime, 300);
-	module.nodes.find(node => node.type === 'effect').params.forbidden = expression('PARAM("input")');
+	module.nodes.find(node => node.type === 'effect').params.forbidden = expression('PUBLIC("input")');
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
 	await assert.rejects(manager.renderTimelineFrame(400, 0), /Unknown or unavailable parameter/);
 });
@@ -836,7 +836,7 @@ test('finalizes uniform and replace outputs at scene size before final canvas ad
 // さらに別の時計で評価する。隣接クリップへ移ると、子の履歴も新しく開始する。
 test('restarts child scene state between adjacent clips and uses the child scene clock', async t => {
 	const { manager, calls } = await fixture(t);
-	const module = visualModule({ params: { localTime: expression('TIME_MS'), amount: expression('PARAM("scene_time")') } });
+	const module = visualModule({ params: { localTime: expression('TIME_MS'), amount: expression('PUBLIC("scene_time")') } });
 	module.paramDefs.push({ ...scalar, id: 'scene-time', nameForReference: 'scene_time' });
 	const child = layer('inner', module, {
 		clips: [{ id: 'inner-clip', startMs: 500, durationMs: 200, contentOffsetMs: 20 }],

@@ -391,7 +391,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					if (def.dataType.kind === 'audioSource') {
 						const binding = this.visualModuleLivePreviewParamValues[def.id] ?? def.defaultValue;
 						// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
-						// 注入したresolveAudioSourceで取得する。音声の指定はPARAMへ公開されない。
+						// 注入したresolveAudioSourceで取得する。音声の指定はPUBLICへ公開されない。
 						evaluatedParamValues.set(def.id, (binding as { value: unknown }).value);
 						continue;
 					}

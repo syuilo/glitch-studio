@@ -7,7 +7,7 @@ type PublicParameterDataType = Extract<DataType, { kind: 'scalar' | 'bool' | 'st
 
 export function canCreatePublicParameterFromBinding(definition: ParameterDefinition, binding: EditableParameterBinding): boolean {
 	// 加工式は無効でも本文を保持しているため対象外にする。別スコープへの移動で
-	// PARAMの意味を変えたり、現在は無効な設定を黙って捨てたりしないため。
+	// PUBLICの意味を変えたり、現在は無効な設定を黙って捨てたりしないため。
 	return ['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp', 'sizeReference'].includes(definition.dataType.kind)
 		&& binding.inputSource === 'literal' && binding.expressionModifier == null;
 }
