@@ -114,6 +114,11 @@ function migrateTimelineLayerPublicParameters(layer: TimelineLayerWithParameters
 }
 
 function migrateVisualModule(visualModule: VisualModule): Set<string> {
+	// カスタムパラメータの追加前や省略可能だった形式では、空の定義・値を保存していない。
+	// 読み込み境界でだけ補い、以降のUI・レンダラーは必須フィールドとして扱う。
+	// 片方だけ欠けていても、保存済みのもう片方や明示的な空の設定は維持する。
+	visualModule.customParameterDefs ??= [];
+	visualModule.customParameterValues ??= {};
 	migratePublicParameterReferences(visualModule.paramDefs);
 	// 素材参照型そのものが通常パラメータから廃止されたため、公開定義も取り除く。
 	// 呼び出し側へIDを返し、Timelineに保存された対応する引数だけを除去する。
