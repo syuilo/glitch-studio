@@ -100,6 +100,9 @@ import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { createCustomParameterFromLiteral } from '@/utility/custom-parameter-creation.ts';
 import { preferences } from '@/preferences.ts';
+import { prepareProjectParameterPaste } from './utility/parameter-clipboard.ts';
+import type { ProjectParameterClipboardTarget, ParameterClipboardData } from './utility/parameter-clipboard.ts';
+import type { EditableParameterBinding } from './types/parameter-edit.ts';
 
 export type CommandDef<Payload> = UndoRedoCommandDef<ProjectState, Payload, AppStateChange>;
 
@@ -149,6 +152,42 @@ const stateUtility = {
 		return getVisualModule(state, target).nodes.find(node => node.id === target.nodeId) ?? null;
 	},
 };
+
+const pasteParameterCommandDef = defineCommand<{ target: ProjectParameterClipboardTarget; projectId: string; clipboard: ParameterClipboardData }>({
+	label: 'Paste parameter',
+	changes: (_state, { target }) => target.kind === 'node'
+		? [{ type: 'node', target: target.visualModuleTarget, nodeId: target.nodeId, changes: [{ type: 'parameter', kind: 'value' }] }]
+		: [{ type: 'layer', sceneId: target.sceneId, layerId: target.layerId, changes: [{ type: 'parameter', target: target.parameterTarget, kind: 'value' }] }],
+	create: payload => {
+		let update: { before: EditableParameterBinding | null; after: EditableParameterBinding } | null = null;
+
+		function apply(state: ProjectState, binding: EditableParameterBinding | null): void {
+			const target = payload.target;
+			const rootKey = target.paramPath[0];
+			if (target.kind === 'node') {
+				const node = getVisualModule(state, target.visualModuleTarget).nodes.find(node => node.id === target.nodeId);
+				if (node?.type !== 'effect' || binding == null) throw new Error('Parameter node not found');
+				// 初回の準備でVisual ModuleのBindingとして検証済み。Redoも同じスナップショットを使う。
+				node.params[rootKey] = deepClone(binding as VisualModuleParameterBinding);
+			} else {
+				const layer = findTimelineLayer(getScene(state, target.sceneId).layers, target.layerId);
+				if (layer == null) throw new Error('Parameter layer not found');
+				setTimelineLayerParameterRoot(layer, target.parameterTarget, rootKey, binding as EditableTimelineParameterBinding | null);
+			}
+		}
+
+		return {
+			execute(state) {
+				if (update == null) {
+					update = prepareProjectParameterPaste(state, payload.projectId, payload.target, payload.clipboard);
+					if (update == null) throw new Error('Incompatible parameter paste');
+				}
+				apply(state, update.after);
+			},
+			undo(state) { if (update != null) apply(state, update.before); },
+		};
+	},
+});
 
 const editTimelineLayerTransformCommandDef = defineCommand<{ sceneId: string; layerId: string; bindings: TimelineTransformBindings }>({
 	label: 'Transform timeline layer',
@@ -3044,6 +3083,7 @@ export const COMMAND_DEFS = {
 	removeTimelineLayer: removeTimelineLayerCommandDef,
 	removeTimelineLayers: removeTimelineLayersCommandDef,
 	editTimelineLayerParam: editTimelineLayerParamCommandDef,
+	pasteParameter: pasteParameterCommandDef,
 	editTimelineLayerTransform: editTimelineLayerTransformCommandDef,
 	setVisualModulePrimaryOutput: setVisualModulePrimaryOutputCommandDef,
 	setVisualModulePrimaryInput: setVisualModulePrimaryInputCommandDef,

@@ -65,6 +65,7 @@ import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import * as ui from '@/ui.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
+import { handleProjectParameterClipboard, handlePreviewParameterClipboard } from '@/utility/parameter-clipboard-actions.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createResetParameterBinding } from '@/utility/parameter-default.ts';
@@ -171,6 +172,18 @@ watch(visualModule, module => {
 }, { deep: true, immediate: true });
 
 function onPreviewParamEdit(event: ParamEdit) {
+	if (event.kind === 'copy' || event.kind === 'paste') {
+		const currentVisualModule = visualModule.value;
+		if (currentVisualModule == null) return;
+		void handlePreviewParameterClipboard(appContext.projectContext, currentVisualModule.id, event.paramPath, event.kind,
+			() => previewParamValues.value, () => !disposed && visualModule.value === currentVisualModule,
+			(id, binding) => {
+				previewParamValues.value[id] = binding;
+				editedPreviewParamIds.add(id);
+				previewPlayback.updateVisualModuleLivePreviewParamValues(currentVisualModule.id, previewParamValues.value);
+			}).catch(error => ui.alert({ type: 'error', text: String(error) }));
+		return;
+	}
 	// TODO: struct / arrayの子の編集・要素操作。型定義では許可しているが、現在の編集UIは未対応。
 	if (event.paramPath.length !== 1) return;
 	const def = visualModule.value?.paramDefs.find(def => def.id === event.paramPath[0]);
@@ -322,6 +335,12 @@ function showAddEffectNodeMenu() {
 function onEdit(event: VisualModuleEdit) {
 	const module = visualModule.value;
 	if (module == null) return;
+	if (event.kind === 'editNodeParam' && (event.edit.kind === 'copy' || event.edit.kind === 'paste')) {
+		void handleProjectParameterClipboard(appContext.projectContext,
+			{ kind: 'node', visualModuleTarget: { visualModuleId: module.id }, nodeId: event.nodeId, paramPath: event.edit.paramPath },
+			event.edit.kind, () => !disposed && visualModule.value === module).catch(error => ui.alert({ type: 'error', text: String(error) }));
+		return;
+	}
 	commitVisualModuleEdit(stateManager, { visualModuleId: module.id }, event);
 }
 </script>

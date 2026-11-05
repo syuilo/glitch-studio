@@ -71,6 +71,7 @@ export type AppStateChange = ProjectContentChange
 export class ProjectContext {
 	private projectId = ref<Project['id'] | null>(null);
 	private loadGeneration = 0;
+	public get id() { return this.projectId.value; }
 	public get generation() { return this.loadGeneration; }
 	public get hasProject() { return this.projectId.value != null; }
 	public readonly stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;

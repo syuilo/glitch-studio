@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, Notification, protocol, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, Notification, protocol, shell } from 'electron';
 import electronUpdater from 'electron-updater';
 import { registerVoicevoxIpc } from './voicevox.mjs';
 import { createAppProtocolHandler } from './app-protocol.mjs';
@@ -17,6 +17,7 @@ import { DesktopInstances } from './desktop-instances.mjs';
 import { DesktopUpdateController, registerDesktopUpdateIpc } from './desktop-update.mjs';
 import { findGitHubUpdate } from './github-updates.mjs';
 import { registerEditCommandIpc } from './edit-command-ipc.mjs';
+import { registerClipboardIpc } from './clipboard-ipc.mjs';
 import { createStartupSplash } from './startup-splash.mjs';
 
 // 小さなパスのGPU時間が量子化で0になることを避ける。
@@ -242,6 +243,7 @@ app.whenReady().then(async () => {
 	registerDesktopUpdateIpc(ipcMain, desktopUpdateController, getTrustedMainWindow);
 	registerProjectCloseIpc(ipcMain, getTrustedMainWindow, window => editorWindows.contexts.get(window.webContents.id)?.closeController);
 	registerEditCommandIpc(ipcMain, getTrustedMainWindow);
+	registerClipboardIpc(ipcMain, clipboard, getTrustedMainWindow);
 	Menu.setApplicationMenu(null);
 	if (process.platform === 'win32') app.setAppUserModelId(windowsAppUserModelId);
 	if (process.platform === 'darwin') app.dock.setIcon(iconPath);

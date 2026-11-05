@@ -17,6 +17,7 @@ const applicationFiles = [
 	'project-file-ipc.mjs',
 	'project-close-guard.mjs',
 	'edit-command-ipc.mjs',
+	'clipboard-ipc.mjs',
 	'external-assets.mjs',
 	'recent-projects.mjs',
 	'startup-files.mjs',

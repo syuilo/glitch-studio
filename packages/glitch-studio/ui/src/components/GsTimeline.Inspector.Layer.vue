@@ -267,6 +267,8 @@ import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
+import { handleProjectParameterClipboard } from '@/utility/parameter-clipboard-actions.ts';
+import * as ui from '@/ui.ts';
 import { getLayerParameterValues, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
@@ -405,6 +407,13 @@ function renameInlineVisualModule(name: string) {
 function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 	const layer = props.layer;
 	if (layer.layerType !== 'inlineVisualModule') return;
+	if (event.kind === 'editNodeParam' && (event.edit.kind === 'copy' || event.edit.kind === 'paste')) {
+		const scene = props.scene;
+		void handleProjectParameterClipboard(appContext.projectContext,
+			{ kind: 'node', visualModuleTarget: { sceneId: scene.id, inlineVisualModuleLayerId: layer.id }, nodeId: event.nodeId, paramPath: event.edit.paramPath },
+			event.edit.kind, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
+		return;
+	}
 	commitVisualModuleEdit(stateManager, { sceneId: props.scene.id, inlineVisualModuleLayerId: layer.id }, event);
 }
 
@@ -414,6 +423,13 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 		if (target !== 'customParameter') stateManager.commit('createTimelineLayerCustomParameterFromParam', {
 			sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath,
 		});
+		return;
+	}
+	if (event.kind === 'copy' || event.kind === 'paste') {
+		const scene = props.scene;
+		void handleProjectParameterClipboard(appContext.projectContext,
+			{ kind: 'timeline', sceneId: scene.id, layerId: layer.id, parameterTarget: target, paramPath: event.paramPath },
+			event.kind, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
 	if (event.kind === 'node' || event.kind === 'visualModuleCustomParameterReference') return;

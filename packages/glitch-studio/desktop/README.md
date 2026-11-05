@@ -44,6 +44,8 @@ UIが終了・再読み込み時に未保存の変更を判定して`beforeunloa
 
 ## 編集コマンド
 
+パラメータメニューのコピー・ペーストでは、`clipboard-ipc.mjs`が送信元の編集ウィンドウを検証し、mainの`clipboard.readText()`／`writeText()`を呼ぶ。preloadはテキストの読み書きだけを公開する。型情報付きのJSON形式と参照スコープの検査はUIが所有し、全ウィンドウでOSクリップボードを共有する。
+
 `edit-command-ipc.mjs`は送信元のメインウィンドウを検証し、`copy`・`paste`・`cut`・`delete`だけを`webContents`の対応する編集メソッドへ渡します。preloadは`executeEditCommand`を公開します。文字列の読み書きやキーイベントの合成は行わず、入力欄の選択範囲・入力通知・Undo履歴はChromiumが管理します。タイムラインやグラフのcopy・paste・cutは、発生したDOMイベントをUI側で処理します。
 
 ## 最近使用したプロジェクト

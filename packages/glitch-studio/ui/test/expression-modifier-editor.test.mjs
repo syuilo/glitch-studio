@@ -44,6 +44,18 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Parameter, modifierUiTest, timelineParameterEditorContextKey } = module.exports;
 
+// 【パラメータメニューからコピーとペーストの対象パスを所有者へ通知する】
+// 共用コンポーネント内では参照先を解決できないため、値を直接書き換えず親の編集経路へ渡す。
+test('requests copying and pasting the parameter from its menu without changing the binding', t => {
+	const f = fixture(t);
+	const before = JSON.parse(JSON.stringify(f.props.paramValue));
+	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
+	modifierUiTest.menu.find(item => item.id === 'copyParameter').action();
+	modifierUiTest.menu.find(item => item.id === 'pasteParameter').action();
+	assert.deepEqual(f.edits, [{ kind: 'copy', paramPath: ['amount'] }, { kind: 'paste', paramPath: ['amount'] }]);
+	assert.deepEqual(f.props.paramValue, before);
+});
+
 function fixture(t, timeline = null) {
 	const element = tag => ({ tag, props: {}, children: [], parent: null });
 	const renderer = createRenderer({ createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => element('body'),

@@ -80,6 +80,8 @@ export function commitVisualModuleEdit(manager: ProjectCommands, target: VisualM
 function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualModuleTarget, nodeId: string, event: ParamEdit) {
 	const target = { ...visualModuleTarget, nodeId, paramPath: event.paramPath };
 	switch (event.kind) {
+		case 'copy':
+		case 'paste': return; // クリップボード操作は所有者側で非同期に処理する。
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput':
 		case 'timelineLayerCustomParameterReference':

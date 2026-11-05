@@ -32,6 +32,16 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 `PreviewParameterEditingController`がUI内のハンドル登録と有効状態を管理する。パラメータの所在は`previewParameterContextKey`で親から渡し、再帰する配列・構造体には`paramPath`と`previewParameterGroup`を引き継ぐ。ドラッグは既存のCommandと`beginEdit()`を通し、一操作を一つのUndoにする。Preview Paramsは従来どおり保存・Undo対象外の一時入力とし、ドラッグの取消しでは開始値へ戻す。
 
+## パラメータ値のコピーとペースト
+
+`GsVisualParam`のメニューはコピー・ペーストの操作要求を親へ通知する。`utility/parameter-clipboard-actions.ts`が所有者・対象パスを捕捉し、`utility/clipboard-text.ts`を通してOSクリップボードのテキストを読み書きする。Web版はClipboard API、Electron版は送信元を検証するmainの専用IPCを使い、別ウィンドウ間でも同じJSON形式を受け渡す。メニューを開くだけではクリップボードを読み取らない。
+
+`utility/parameter-clipboard.ts`が型情報・Binding全体・参照元のプロジェクト／所有者を保存する。固定値、式、加工式、インラインのキーフレーム／Automation Graph、接続とサンプリング設定を保持し、型・入力方式・配列の要素数・参照先を検査する。配列・構造体は子まで含めて一括適用し、一つでも非互換なら履歴を増やさず全体を無視する。値の型変換・式の書き換え・キーフレーム時刻の移動は行わない。
+
+通常の値とインライン設定は別プロジェクトにも貼り付けられる。ノードとVisual Moduleカスタムパラメータの参照は同じプロジェクト・同じVisual Module、特定レイヤーの参照は同じプロジェクト・同じSceneで、貼り付け先から利用できる場合だけ受け入れる。Player参照も同じプロジェクト内に限定する。下位レイヤー入力は貼り付け先を基準とする相対入力として扱う。参照先のノード・レイヤー・素材は複製しない。Automation Graph参照はコピー時の所有先を保持し、Visual Module内部ではローカル定義、Live Preview引数ではプロジェクト定義、Timelineでは所属レイヤーまたはプロジェクト定義の利用範囲を守る。
+
+保存状態への適用は`pasteParameter` Commandで行い、貼り付け先の加工式も含めて置き換える。Undoでは未設定だったルートを未設定へ戻し、Redoでは確定済みのBindingとIDを復元する。Binding内の配列要素・キー・インラインのグラフ点・Color Ramp stopには貼り付けごとに新しいIDを発行する。Live Preview引数は既存のプレビュー編集と同様に保存状態・履歴へ含めない。非同期の読み取り中にプロジェクト読込・対象の削除や置換・型変更が発生した場合は適用しない。
+
 ## ポップアップの配置
 
 `ui.popup()`で登録したポップアップは、`App.vue`の一覧全体をTeleportし、各ポップアップの実DOMを`body`直下へ配置する。モーダルだけでなく、選択メニュー・コンテキストメニュー・ツールチップ・入力補完もこの描画先を共有する。

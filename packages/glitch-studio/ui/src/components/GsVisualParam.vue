@@ -217,6 +217,8 @@ export type AnotherLayerAudioOption = { value: string; label: string };
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| ValueParameterEdit
+	| { kind: 'copy' }
+	| { kind: 'paste' }
 	| { kind: 'node'; value: NodeOutputReference | null; preserveSampling: boolean }
 	| { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding }
 	| { kind: 'anotherLayerOutput'; value: Extract<EditableParameterBinding, { inputSource: 'anotherLayerOutput' }> }
@@ -573,16 +575,14 @@ function getMenu() {
 		action: () => controlComponent.value?.directEdit?.(),
 	}, {
 		text: i18n.ts.Copy,
+		id: 'copyParameter',
 		icon: 'ti ti-copy',
-		action: () => {
-			// TODO
-		},
+		action: () => emit('edit', { kind: 'copy', ...target() }),
 	}, {
 		text: i18n.ts.Paste,
+		id: 'pasteParameter',
 		icon: 'ti ti-clipboard',
-		action: () => {
-			// TODO
-		},
+		action: () => emit('edit', { kind: 'paste', ...target() }),
 	}, {
 		text: i18n.ts.Reset,
 		icon: 'ti ti-refresh',
