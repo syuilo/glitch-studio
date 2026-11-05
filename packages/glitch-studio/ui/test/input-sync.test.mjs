@@ -18,7 +18,8 @@ async function loadInputComponent(fileName) {
 		plugins: [{
 			name: 'input-test-dependencies',
 			setup(build) {
-				build.onResolve({ filter: /^@/ }, args => ({ path: args.path, namespace: 'stub' }));
+				// 式の評価はモックせず、本番と同じパーサー・インタープリターで検証する。
+				build.onResolve({ filter: /^@\/|^@gs\/shared\/utility\/id\.ts$/ }, args => ({ path: args.path, namespace: 'stub' }));
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({
 					contents: 'export default {}; export const genId = () => "test"; export const claimZIndex = () => 3000100; export const i18n = {}; export class Autocomplete {}',
 				}));
@@ -94,6 +95,86 @@ function keyEvent(key, options = {}) {
 		repeat: false, isComposing: false, keyCode: 0, defaultPrevented: false, propagationStopped: false,
 		preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.propagationStopped = true; }, ...options };
 }
+
+// 【式入力は手動保存の数値欄だけで既定で有効にする】
+// HTMLのnumber入力では式が消されるためtextへ切り替える一方、明示的な無効化や通常の入力形式は維持する。
+test('enables expressions by default only for manual-save number inputs', async t => {
+	const { props, input } = fixture(t, { type: 'number', modelValue: 2, manualSave: true });
+	assert.equal(input.expressionEnabled, true);
+	assert.equal(input.inputType, 'text');
+	props.allowExpression = false;
+	await nextTick();
+	assert.equal(input.expressionEnabled, false);
+	assert.equal(input.inputType, 'number');
+	props.allowExpression = true;
+	props.manualSave = false;
+	await nextTick();
+	assert.equal(input.expressionEnabled, false);
+	assert.equal(input.inputType, 'number');
+	props.manualSave = true;
+	props.type = 'text';
+	await nextTick();
+	assert.equal(input.expressionEnabled, false);
+});
+
+// 【式は確定時にだけ評価し、入力内容と親の値を数値の評価結果へ置き換える】
+// 編集途中の式をプロジェクトへ送らず、保存後は式そのものではなく数値として扱う。
+test('evaluates numeric expressions on save and replaces the draft with the result', async t => {
+	const { props, edits, input } = fixture(t, { type: 'number', modelValue: 2, manualSave: true });
+	input.v = 'Math:floor(7 / 2) * 4';
+	await nextTick();
+	assert.deepEqual(edits, []);
+	assert.equal(props.modelValue, 2);
+	input.onKeydown(keyEvent('Enter'));
+	await nextTick();
+	assert.deepEqual(edits, [12]);
+	assert.equal(props.modelValue, 12);
+	assert.equal(input.v, 12);
+	assert.equal(input.changed, false);
+	assert.equal(input.invalid, false);
+});
+
+// 【適用済みの値と同じ結果になる式も数値表示へ戻す】
+// 親への変更通知が不要な場合でも、式や未保存ボタンを残さず、Undo履歴も増やさない。
+test('normalizes expressions without emitting when their result matches the applied value', async t => {
+	const { edits, input } = fixture(t, { type: 'number', modelValue: 2, manualSave: true });
+	input.v = '1 + 1';
+	await nextTick();
+	input.updated();
+	await nextTick();
+	assert.deepEqual(edits, []);
+	assert.equal(input.v, 2);
+	assert.equal(input.changed, false);
+	assert.equal(input.invalid, false);
+});
+
+// 【構文・実行・結果の型に問題がある式は適用せず、修正やキャンセルができる状態に保つ】
+// 部分的な数値のparseFloatや暗黙変換で誤った値を保存せず、空入力や非有限値も親へ送らない。
+test('preserves failed numeric expression drafts and allows correction or cancellation', async t => {
+	const { props, edits, input } = fixture(t, { type: 'number', modelValue: 2, manualSave: true });
+	for (const expression of ['1 +', 'missing', '"42"', 'true', 'null', '[1, 2]', '1 / 0', 'Math:sqrt(-1)', '', '// comment']) {
+		input.v = expression;
+		await nextTick();
+		input.updated();
+		await nextTick();
+		assert.deepEqual(edits, [], expression);
+		assert.equal(props.modelValue, 2, expression);
+		assert.equal(input.v, expression);
+		assert.equal(input.changed, true, expression);
+		assert.equal(input.invalid, true, expression);
+	}
+	input.cancelEditing();
+	await nextTick();
+	assert.equal(input.v, 2);
+	assert.equal(input.changed, false);
+	input.v = '3 + 4';
+	await nextTick();
+	input.updated();
+	await nextTick();
+	assert.deepEqual(edits, [7]);
+	assert.equal(input.v, 7);
+	assert.equal(input.invalid, false);
+});
 
 // 【手動保存の入力欄ではEnterでドラフトを確定し、未保存表示を解除する】
 // フォーム送信や親画面のEnter操作が同時に実行されず、保存後の値が再編集として返されないことを確認する。

@@ -7,7 +7,7 @@
 			ref="inputEl"
 			v-model="v"
 			:class="[$style.inputCore, { '_monospace': monospace }]"
-			:type="type"
+			:type="inputType"
 			:disabled="disabled"
 			:required="required"
 			:readonly="readonly"
@@ -53,6 +53,7 @@ type ModelValueType<T extends SupportedTypes> =
 <script lang="ts" setup generic="T extends SupportedTypes = 'text'">
 import { onMounted, onUnmounted, nextTick, ref, useTemplateRef, watch, computed, toRefs } from 'vue';
 import { throttle, debounce } from 'throttle-debounce';
+import * as AiScript from '@syuilo/aiscript';
 import { genId } from '@gs/shared/utility/id.ts';
 import type { InputHTMLAttributes } from 'vue';
 import type { SuggestionType } from '@/utility/autocomplete.ts';
@@ -61,7 +62,7 @@ import { i18n } from '@/i18n.ts';
 import { Autocomplete } from '@/utility/autocomplete.ts';
 import * as ui from '@/ui.ts';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
 	modelValue: ModelValueType<T> | null;
 	type?: T;
 	required?: boolean;
@@ -82,10 +83,13 @@ const props = defineProps<{
 	debounce?: boolean | number;
 	throttle?: boolean | number;
 	manualSave?: boolean;
+	allowExpression?: boolean;
 	small?: boolean;
 	large?: boolean;
 	monospace?: boolean;
-}>();
+}>(), {
+	allowExpression: true,
+});
 
 const emit = defineEmits<{
 	(ev: 'change', _ev: InputEvent): void;
@@ -96,7 +100,11 @@ const emit = defineEmits<{
 }>();
 
 const { modelValue } = toRefs(props);
-const v = ref<ModelValueType<T> | null>(modelValue.value);
+// 数値のmodelValueとは別に、確定前の式もドラフトとして保持する。
+const v = ref<string | number | null>(modelValue.value);
+const expressionEnabled = computed(() => props.type === 'number' && props.allowExpression && props.manualSave === true);
+const inputType = computed(() => expressionEnabled.value ? 'text' : props.type);
+const expressionParser = new AiScript.Parser();
 const id = genId();
 // Teleport先ではコンポーネント内のスコープを共有できないため、入力欄ごとに名前を分ける。
 const inputAnchorName = `--gs-input-${id}`;
@@ -146,13 +154,32 @@ const onKeydown = (ev: KeyboardEvent) => {
 };
 
 const updated = () => {
+	if (expressionEnabled.value) {
+		try {
+			const ast = expressionParser.parse(String(v.value ?? ''));
+			// 前回確定した式の変数や実行状態を引き継がず、数値欄内だけで評価を完結させる。
+			const interpreter = new AiScript.Interpreter({});
+			const result = interpreter.execSync(ast);
+			// 数値欄には有限の数値だけを適用し、文字列やnullを暗黙に数値へ変換しない。
+			if (result == null || result.type !== 'num' || !Number.isFinite(result.value)) {
+				invalid.value = true;
+				return;
+			}
+			v.value = result.value;
+			invalid.value = false;
+		} catch {
+			// 入力を残して修正できるよう、失敗時は未保存状態も維持する。
+			invalid.value = true;
+			return;
+		}
+	}
 	changed.value = false;
 	// Undo/Redoなどで親から同期された値を編集として返すと、Redo履歴が消えてしまう。
 	if (Object.is(v.value, modelValue.value)) return;
 	if (props.type === 'number') {
 		emit('update:modelValue', typeof v.value === 'number' ? v.value as ModelValueType<T> : parseFloat(v.value ?? '0') as ModelValueType<T>);
 	} else {
-		emit('update:modelValue', v.value ?? '');
+		emit('update:modelValue', (v.value ?? '') as ModelValueType<T>);
 	}
 };
 
@@ -176,6 +203,7 @@ watch(modelValue, newValue => {
 	v.value = newValue;
 });
 
+// 式を評価結果に置き換えた変更もupdated内で同期的に処理し、その後の未保存解除を上書きしない。
 watch(v, () => {
 	if (props.manualSave) {
 		changed.value = !Object.is(v.value, modelValue.value);
@@ -190,7 +218,7 @@ watch(v, () => {
 	}
 
 	invalid.value = inputEl.value?.validity.badInput ?? true;
-});
+}, { flush: 'sync' });
 
 watch([changed, invalid], ([newChanged, newInvalid]) => {
 	emit('savingStateChange', newChanged, newInvalid);
