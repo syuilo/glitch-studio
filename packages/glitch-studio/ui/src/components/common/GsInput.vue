@@ -32,7 +32,7 @@
 			</datalist>
 			<div ref="suffixEl" :class="$style.suffix"><slot name="suffix"></slot></div>
 		</div>
-		<div :class="$style.stepper"><i class="ti ti-caret-up-down"></i></div>
+		<div v-if="type === 'number' && inputType !== 'number'" :class="$style.stepper"><i class="ti ti-caret-up-down"></i></div>
 	</div>
 	<div :class="$style.caption"><slot name="caption" :value="v"></slot></div>
 
