@@ -13,7 +13,7 @@
 			</div>
 		</template>
 		<div v-else>{{ i18n.ts._Voicevox.DesktopGenerationHint }}</div>
-		<GsInput type="number" :min="0.5" :max="2" :step="0.05" :debounce="400" :modelValue="layer.voicevox.speedScale" @update:modelValue="speedScale => changeSettings({ speedScale })">
+		<GsInput type="number" :min="0.5" :max="2" :step="0.05" manualSave :modelValue="layer.voicevox.speedScale" @update:modelValue="speedScale => changeSettings({ speedScale })">
 			<template #label>{{ i18n.ts._Voicevox.SpeechSpeed }}</template>
 		</GsInput>
 		<hr>
@@ -25,7 +25,6 @@
 </template>
 
 <script setup lang="ts">
-import { i18n } from '@/i18n.ts';
 import { ref } from 'vue';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { assignPreparedSpeech, getVoicevoxUtteranceIntervals } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
@@ -34,6 +33,7 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { i18n } from '@/i18n.ts';
 import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { appContext } from '@/app.ts';
 

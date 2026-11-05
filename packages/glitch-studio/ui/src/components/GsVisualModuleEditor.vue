@@ -82,7 +82,7 @@
 		</div>
 
 		<div v-else-if="tab === 'other'" class="_spacer _gaps_m" style="height: 100%; overflow: auto;">
-			<GsInput large :modelValue="visualModuleName" :debounce="400" @update:modelValue="name => emit('rename', name)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
+			<GsInput large :modelValue="visualModuleName" manualSave @update:modelValue="name => emit('rename', name)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
 			<GsButton large :disabled="exporting" :wait="exporting" icon="ti ti-download" @click="emit('requestExport')">{{ `${i18n.ts._VisualModule.Export}...` }}</GsButton>
 		</div>
 	</div>

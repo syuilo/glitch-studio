@@ -30,7 +30,7 @@
 						<template v-if="node.resolution.mode === 'context'" #caption>{{ i18n.ts._Node.ResolutionHint }}</template>
 						<template v-else-if="node.resolution.mode === 'auto'" #caption>{{ i18n.ts._Node.AutoResolutionHint }}</template>
 					</GsSelect>
-					<GsInput v-if="node.resolution.mode !== 'customAbsolute'" data-test-node-resolution-scale large type="number" :modelValue="node.resolution.scale" :min="0" step="any" :debounce="400" @update:modelValue="setResolutionScale">
+					<GsInput v-if="node.resolution.mode !== 'customAbsolute'" data-test-node-resolution-scale large type="number" :modelValue="node.resolution.scale" :min="0" step="any" manualSave @update:modelValue="setResolutionScale">
 						<template #label>{{ i18n.ts._Node.ResolutionScale }}</template>
 						<template #suffix>×</template>
 						<template #caption>{{ i18n.ts._Node.ResolutionScaleHint }}</template>
