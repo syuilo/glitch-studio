@@ -12,7 +12,7 @@
 			<div :class="$style.headerButtons">
 				<GsButton transparent :class="[$style.headerButton]" inline iconOnly :icon="'ti ' + (expanded ? 'ti-chevron-up' : 'ti-chevron-down')" @click="expanded = !expanded"/>
 				<GsButton data-test-node-settings :transparent="!showSettings" :class="[$style.headerButton]" inline iconOnly :primary="showSettings" icon="ti ti-settings" @click="showSettings = !showSettings"/>
-				<GsButton :transparent="node.isBypass" :class="[$style.headerButton]" inline iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts._Node.ClickToEnable : i18n.ts._Node.ClickToDisable" :icon="'ti ' + (node.isBypass ? 'ti-eye-off' : 'ti-eye')" @click="toggleBypass()"/>
+				<GsButton :transparent="node.isBypass" :class="[$style.headerButton]" inline iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts._Node.ClickToEnable : i18n.ts._Node.ClickToDisable" :icon="'ti ' + (node.isBypass ? 'ti-eye-closed' : 'ti-eye')" @click="toggleBypass()"/>
 				<GsButton transparent :class="[$style.headerButton]" inline iconOnly :title="i18n.ts._Node.RemoveEffect" icon="ti ti-x" @click="remove()"/>
 			</div>
 		</div>
