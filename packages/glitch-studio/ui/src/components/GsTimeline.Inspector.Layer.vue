@@ -407,6 +407,13 @@ function renameInlineVisualModule(name: string) {
 function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 	const layer = props.layer;
 	if (layer.layerType !== 'inlineVisualModule') return;
+	if (event.kind === 'customParameterClipboard') {
+		const scene = props.scene;
+		void handleProjectParameterClipboard(appContext.projectContext,
+			{ kind: 'customParameter', visualModuleTarget: { sceneId: scene.id, inlineVisualModuleLayerId: layer.id }, paramPath: [event.parameterId] },
+			event.operation, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
+		return;
+	}
 	if (event.kind === 'editNodeParam' && (event.edit.kind === 'copy' || event.edit.kind === 'paste')) {
 		const scene = props.scene;
 		void handleProjectParameterClipboard(appContext.projectContext,
@@ -419,6 +426,7 @@ function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 
 function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTarget) {
 	const layer = props.layer;
+	if (event.kind === 'createCustomParameter') return;
 	if (event.kind === 'createPublicParameter') {
 		if (target !== 'publicParameter') stateManager.commit('createTimelineLayerPublicParameterFromParam', {
 			sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath,
@@ -432,8 +440,8 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 			event.kind, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
-	if (event.kind === 'node' || event.kind === 'visualModulePublicParameterReference') return;
-	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'visualModulePublicParameterReference')) return;
+	if (event.kind === 'node' || event.kind === 'visualModulePublicParameterReference' || event.kind === 'visualModuleCustomParameterValueReference') return;
+	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'visualModulePublicParameterReference' || event.inputSource === 'visualModuleCustomParameterValueReference')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;
 	if (event.kind === 'anotherLayerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio'))) {
 		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', {

@@ -731,6 +731,10 @@
 		"UnassignedInputs": "External inputs were left unassigned: {names}. Camera inputs can be selected from the Player menu. Microphone and live stream inputs are not yet supported."
 	},
 	"_Parameter": {
+		"CreateCustomParameter": "Create and connect custom parameter",
+		"AddKeyframe": "Add Keyframe",
+		"CustomParameter": "Custom Parameter",
+		"DuplicateCustomParameterName": "Custom parameter reference names must be unique.",
 		"CreatePublicParameter": "Create and connect public parameter",
 		"UnavailablePublicParameter": "Reference is missing, out of scope, or has an incompatible type",
 		"NormalizedTime": "Normalized (0–1)",

@@ -24,6 +24,8 @@ const { TimelineRendererManager, createManager: createTimelineManager } = await 
 
 function visualModule(circular) {
 	return {
+		customParameterDefs: [],
+		customParameterValues: {},
 		id: 'module', name: 'Test', automationGraphs: [],
 		paramDefs: [],
 		outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
@@ -1042,6 +1044,8 @@ test('renders transparent Visual Module Live Preview output after disconnecting 
 	await renderer.updateDynamicOptions({
 		resolution: { width: 320, height: 180 }, resolutionScale: 0.5,
 		visualModules: [{
+			customParameterDefs: [],
+			customParameterValues: {},
 			id: 'module', automationGraphs: [],
 			paramDefs: [{ id: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } }],
 			outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
@@ -1086,6 +1090,8 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 	test(`${Manager.name} applies and resets canvas output settings`, async t => {
 		const { renderer, frame } = await fixture(t, {}, Manager);
 		await renderer.updateDynamicOptions({ visualModules: [{
+			customParameterDefs: [],
+			customParameterValues: {},
 			id: 'module', automationGraphs: [],
 			paramDefs: [{ id: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 0.5] } }],
 			outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',

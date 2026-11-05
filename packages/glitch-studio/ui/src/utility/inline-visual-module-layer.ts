@@ -36,6 +36,8 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 			rotation: timelineCompositingParamDefs.rotation.defaultValue,
 		}),
 		visualModule: {
+			customParameterDefs: [],
+			customParameterValues: {},
 			paramDefs: [{
 				id: inputId,
 				nameForReference: visualModulePublicParameterName('input'),

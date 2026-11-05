@@ -83,24 +83,59 @@ function fixture(t, timeline = null) {
 	return { props, edits, find: attribute => find(root, attribute) };
 }
 
-// 【固定値を公開するアクションは、作成先のある通常パラメータだけに表示する】
+// 【ノードとカスタム値の両方から、種類とIDを指定して内部の共通値を選べる】
+// 公開引数のエディタへ内部参照を漏らさず、型変更・削除後も元の参照IDを表示して修正できるようにする。
+test('offers custom references only inside Visual Modules and preserves unavailable selections', async t => {
+	const f = fixture(t, { context: computed(() => ({ layer: { id: 'layer', publicParameterDefs: [] }, ancestors: [] })), isPublicParameterValue: false });
+	f.props.paramValue = { inputSource: 'literal', value: 1 };
+	const custom = { ...f.props.paramDef, id: 'custom-id', nameForReference: 'speed', canNode: false };
+	f.props.visualModule = { customParameterValues: {}, nodes: [], paramDefs: [], customParameterDefs: [custom, { ...custom, id: 'text', dataType: { kind: 'string' } }], automationGraphs: [] };
+	await nextTick();
+	const menu = () => {
+		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
+		return modifierUiTest.menu.find(item => item.type === 'parent').children;
+	};
+	assert.equal(menu().some(item => item.id === 'inputSource:visualModuleCustomParameterValueReference'), false);
+	f.props.visualModuleParameterReferencesEnabled = true;
+	await nextTick();
+	assert.equal(menu().some(item => item.id === 'inputSource:timelineLayerPublicParameterReference'), false);
+	assert.equal(modifierUiTest.menu.some(item => item.id === 'createPublicParameter'), false);
+	menu().find(item => item.id === 'inputSource:visualModuleCustomParameterValueReference').action();
+	assert.equal(f.edits.at(-1).inputSource, 'visualModuleCustomParameterValueReference');
+	f.props.paramValue = { inputSource: 'visualModuleCustomParameterValueReference', parameterId: 'custom-id' };
+	await nextTick();
+	let select = f.find('data-test-visual-module-custom-parameter-reference');
+	assert.deepEqual(select.props.items.map(item => item.value), ['', 'custom-id']);
+	select.props['onUpdate:modelValue']('custom-id');
+	assert.equal(f.edits.at(-1).value, 'custom-id');
+	f.props.visualModule.customParameterDefs = [];
+	await nextTick();
+	select = f.find('data-test-visual-module-custom-parameter-reference');
+	assert.equal(select.props.modelValue, 'custom-id');
+	assert.equal(select.props.items.at(-1).value, 'custom-id');
+});
+
+// 【固定値を公開・カスタム化するアクションは、作成先のある通常パラメータだけに表示する】
 // Preview Params・公開パラメータ値・式や加工式へ誤って公開を提供すると、保存先や評価の
 // 意味が曖昧になる。実際のメニューから対象パスを持つ編集通知が出ることも確認する。
-test('offers public parameter creation only for literal leaves with an owning scope', async t => {
+test('offers named parameter creation only for literal leaves with an owning scope', async t => {
 	const f = fixture(t);
-	const action = () => {
+	const action = (id = 'createPublicParameter') => {
 		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
-		return modifierUiTest.menu.find(item => item.id === 'createPublicParameter');
+		return modifierUiTest.menu.find(item => item.id === id);
 	};
 	f.props.paramValue = { inputSource: 'literal', value: 0.3 };
 	await nextTick();
 	assert.equal(action(), undefined);
-	f.props.visualModule = { paramDefs: [], nodes: [], automationGraphs: [] };
+	assert.equal(action('createCustomParameter'), undefined);
+	f.props.visualModule = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], nodes: [], automationGraphs: [] };
 	f.props.node = { id: 'node', type: 'effect', params: {} };
 	f.props.paramPath = ['settings', 'amount'];
 	await nextTick();
 	action().action();
 	assert.deepEqual(f.edits, [{ kind: 'createPublicParameter', paramPath: ['settings', 'amount'] }]);
+	action('createCustomParameter').action();
+	assert.deepEqual(f.edits.at(-1), { kind: 'createCustomParameter', paramPath: ['settings', 'amount'] });
 	for (const binding of [
 		{ inputSource: 'expression', expression: 'TIME' },
 		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
@@ -112,11 +147,13 @@ test('offers public parameter creation only for literal leaves with an owning sc
 		f.props.paramValue = binding;
 		await nextTick();
 		assert.equal(action(), undefined);
+		assert.equal(action('createCustomParameter'), undefined);
 	}
 	f.props.paramValue = { inputSource: 'literal', value: null };
 	f.props.paramDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } };
 	await nextTick();
 	assert.equal(action(), undefined);
+	assert.equal(action('createCustomParameter'), undefined);
 	for (const kind of ['array', 'struct']) {
 		f.props.paramDef = kind === 'array'
 			? { dataType: { kind, elementType: { kind: 'scalar' } }, element: { defaultValue: { inputSource: 'literal', value: 0 } }, ui: { label: 'Array', control: { element: { controlType: 'number' } } }, defaultValue: { inputSource: 'literal', value: [] } }
@@ -124,6 +161,7 @@ test('offers public parameter creation only for literal leaves with an owning sc
 		f.props.paramValue = f.props.paramDef.defaultValue;
 		await nextTick();
 		assert.equal(action(), undefined);
+		assert.equal(action('createCustomParameter'), undefined);
 	}
 });
 
@@ -137,6 +175,7 @@ test('offers timeline public parameter creation without offering it for public p
 		await nextTick();
 		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
 		const action = modifierUiTest.menu.find(item => item.id === 'createPublicParameter');
+		assert.equal(modifierUiTest.menu.some(item => item.id === 'createCustomParameter'), false);
 		assert.equal(action != null, !isPublicParameterValue);
 		if (action != null) {
 			action.action();

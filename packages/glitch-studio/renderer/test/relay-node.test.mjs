@@ -40,6 +40,8 @@ function fixture(t, nodes, { kind = 'color', paramDefs = {}, lazy = false, disab
 		}),
 	};
 	const module = {
+		customParameterDefs: [],
+		customParameterValues: {},
 		id: 'module', name: 'module', automationGraphs: [],
 		paramDefs: [{ id: 'input', nameForReference: 'input', dataType: { kind }, canNode: true }],
 		primaryInputId: 'input',

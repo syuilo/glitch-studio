@@ -114,7 +114,7 @@ test('keeps rendering transparent video while player frames are missing and resu
 		enableStats: false, timingHelper: null, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
 		assets: [], assetTextures: new Map(), videoFrames, videoFrameVersions,
 		effectDefinitions: { video: videoDefinition }, effectImplementations: { video: videoEffect },
-		visualModule: { paramDefs: [], primaryInputId: null, primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], automationGraphs: [],
+		visualModule: { customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null, primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], automationGraphs: [],
 			nodes: [{ id: 'video', type: 'effect', effectId: 'video', staticSettings: { player: 'player' }, params: { fit: literal('stretch') }, resolution: { mode: 'auto', scale: 1 }, isBypass: false },
 				{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'video', outputPort: 'output' } } }] },
 	});
@@ -375,6 +375,8 @@ test('only bypasses anchor placement when position cancels the fitted origin', (
 test('renders the selected module primary output after updates', () => {
 	const { device, encoder } = gpuFixture();
 	const module = {
+		customParameterDefs: [],
+		customParameterValues: {},
 		paramDefs: ['a', 'b'].map(id => ({ id, dataType: { kind: 'color' }, canNode: true, defaultValue: literal(id === 'a' ? [1, 0, 0, 1] : [0, 1, 0, 1]) })),
 		automationGraphs: [], outputDefs: [{ id: 'a' }, { id: 'b' }], primaryInputId: null, primaryOutputId: 'b',
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: {
@@ -451,6 +453,8 @@ test('publishes output resolutions only after drawing and when state changes', a
 		init: ({ reportStatus }) => { reports.push(reportStatus); return { render() {}, dispose() {} }; },
 	};
 	const renderer = createRenderer(device, {
+		customParameterDefs: [],
+		customParameterValues: {},
 		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }, { id: 'extra' }], primaryInputId: null, primaryOutputId: 'out', nodes,
 	}, {
 		effectDefinitions: { colorMix: { ...definition, outputDefs: { output: { dataType: { kind: 'color' } }, extra: { dataType: { kind: 'color' }, canLazyAllocation: true } } } },
@@ -509,6 +513,8 @@ test('preserves constant outputs across timeline module layers', async () => {
 	const { device, calls, encoder } = gpuFixture();
 	const presented = [];
 	const module = {
+		customParameterDefs: [],
+		customParameterValues: {},
 		paramDefs: [{ id: 'input', nameForReference: 'input', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) }], primaryInputId: 'input',
 		automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'in', outputPort: 'input' } } }],
@@ -547,6 +553,8 @@ test('passes module constants through bypasses without allocating input textures
 	} };
 	const probe = { ...effect, init: () => ({ prepare: params => captured.push(['prepare', params]), render: ctx => captured.push(['render', ctx.params]), dispose() {} }) };
 	const renderer = createRenderer(device, {
+		customParameterDefs: [],
+		customParameterValues: {},
 		paramDefs: [
 			{ id: 'color', nameForReference: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([1, 0.5, 0, 0.25]) },
 			{ id: 'vector', nameForReference: 'vector', dataType: { kind: 'vector' }, canNode: true, defaultValue: literal([0.123456789, -2]) },
@@ -586,6 +594,8 @@ test('switches module outputs between constants and borrowed textures', () => {
 	} };
 	const out = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } };
 	const renderer = createRenderer(device, {
+		customParameterDefs: [],
+		customParameterValues: {},
 		paramDefs: [
 			{ id: 'color', nameForReference: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) },
 			{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0) },
@@ -662,6 +672,8 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 		]),
 	} };
 	const renderer = createRenderer(device, {
+		customParameterDefs: [],
+		customParameterValues: {},
 		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out',
 		nodes: [source, arrayNode, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'array', outputPort: 'output' } } }],
 	}, { effectDefinitions: { colorMix: definition, testStructArray: structArrayDefinition }, effectImplementations: { colorMix: effect, testStructArray: probe } });
@@ -762,7 +774,7 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'colorMix', isBypass: false, params: {
 		inputA: literal([1, 0, 0, 0.5]), inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'expression', expression: '0.25' },
 	} };
-	const visualModule = { paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out', nodes: [mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }] };
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out', nodes: [mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }] };
 	const renderer = createRenderer(device, visualModule);
 	const context = renderContext();
 	renderer.render(context, encoder);
@@ -803,6 +815,8 @@ test('refreshes external textures and restores constants after disconnecting the
 		inputA: { inputSource: 'node', nodeId: null, outputPort: null }, inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'node', nodeId: 'in', outputPort: 'gain', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 	} };
 	const renderer = createRenderer(device, {
+		customParameterDefs: [],
+		customParameterValues: {},
 		paramDefs: [{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0) }],
 		automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
@@ -842,7 +856,7 @@ test('resizes automatic image outputs to the selected asset and preserves borrow
 	const assets = new Map([['asset', asset], ['replacement', device.createTexture({ size: [4, 9], format: 'rgba8unorm' })]]);
 	const raw = { id: 'raw', type: 'effect', resolution: { mode: 'auto', scale: 1 }, effectId: 'image', staticSettings: { image: 'asset' }, params: { fit: literal('cover') } };
 	const output = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'raw', outputPort: 'output' } } };
-	const visualModule = { nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out' };
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out' };
 	const metadata = { id: 'asset', width: 7, height: 3, fileDataType: 'image/png', fileData: new Blob() };
 	const renderer = createRenderer(device, visualModule, { assets: [metadata, { ...metadata, id: 'replacement', width: 4, height: 9 }], assetTextures: assets });
 	const initial = renderer.render(renderContext(), encoder).texture;

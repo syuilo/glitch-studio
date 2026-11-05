@@ -26,7 +26,7 @@ export function getRendererLayerState(layer: TimelineLayer): RendererLayerState 
 export type RendererProjectChange =
 	| { type: 'automationGraphs'; automationGraphs: AutomationGraph[] }
 	| { type: 'node'; target: VisualModuleTarget; node: VisualModuleNode; changes: VisualModuleNodeChange[] }
-	| { type: 'visualModule'; target: VisualModuleTarget; visualModule: VisualModule }
+	| { type: 'visualModule'; target: VisualModuleTarget; visualModule: VisualModule; customParameterValuesOnly?: boolean }
 	| { type: 'visualModuleRegistration'; visualModuleId: string; visualModule: ProjectVisualModule | null }
 	| { type: 'layer'; sceneId: string; layerId: string; layer: RendererLayerState | null; changes: TimelineLayerChange[] }
 	// 階層の最終状態を一度だけ送る。同時に編集した設定・ノードの変更種別は別の差分に残す。

@@ -40,7 +40,7 @@ test('preserves the dedicated size-reference type through edits undo redo and sa
 	assert.equal('fitMode' in definition.paramDefs, false);
 	const node = { id: 'node', type: 'effect', effectId: 'checker', resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, isBypass: false, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, structuredClone(def.defaultValue)])) };
 	const publicParameterDefinition = { id: 'reference', nameForReference: 'size_reference', ...structuredClone(definition.paramDefs.sizeReference) };
-	const visualModule = { id: 'visual-module', nodes: [node], paramDefs: [publicParameterDefinition] };
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual-module', nodes: [node], paramDefs: [publicParameterDefinition] };
 	const state = { visualModules: { value: [visualModule] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const target = { visualModuleId: visualModule.id, nodeId: node.id, paramPath: ['sizeReference'] };

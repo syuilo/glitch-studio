@@ -76,6 +76,8 @@ VALUE
 - Visual Moduleの公開パラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`visualModulePublicParameterReference` や `PUBLIC` による直接参照は `canNode: false` の公開パラメータに限定する仕様です。ただし音声は`visualModulePublicParameterReference`だけで参照し、`PUBLIC`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
 - レイヤーの引数・合成設定と、モジュール内部の式は別の評価スコープです。変数・automation graph・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。グラフの再生時刻を渡すことと、同名の変数を式に公開することも別です。
 
+Visual Module内部の共通値には、公開入力と独立したカスタムパラメータを使います。`PUBLIC(name)`と`CUSTOM(name)`で参照先を明示し、`PARAM`による優先順位の探索は行いません。カスタム同士の参照・評価環境・エラーの扱いは[Visual Module](./visual-module.md#カスタムパラメータ)を参照してください。Timelineの公開パラメータも関数名は`PUBLIC`とし、以下の参照スコープは維持します。Timelineに`CUSTOM`は公開しません。
+
 ## Timelineレイヤーの公開パラメータ
 
 フォルダ以外の全レイヤーに、`publicParameterDefs`（定義）と`publicParameterValues`（IDをキーにしたBinding）を持たせられます。未定義のレイヤーでは省略できます。Inspectorの「レイヤーの公開パラメータ」から追加し、定義内で表示名・参照名・型・編集UI・初期値を設定します。値は通常のパラメータと同じ方式で編集し、キーの表示・選択・コピー・コンテナ全体の時間移動にも含めます。

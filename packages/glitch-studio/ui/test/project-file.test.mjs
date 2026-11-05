@@ -302,7 +302,7 @@ for (const [label, fileDataType, isExternalReference] of [
 	test(`rebuilds previews with matching assets and nodes after importing an ${label}`, async t => {
 		const window = setup(t);
 		const { appContext, createVisualModuleAssetNode } = evaluate(appBundle);
-		await appContext.ready(project({ visualModules: [{ id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+		await appContext.ready(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
 		t.after(() => appContext.previewPlayback.dispose());
 		const gate = Promise.withResolvers();
 		const source = { url: 'app://external-assets/imported', size: 100, error: null };
@@ -358,7 +358,7 @@ for (const [label, fileDataType, isExternalReference] of [
 test('restarts both previews after content and settings change during initialization and keeps live edits incremental', async t => {
 	const window = setup(t);
 	const { appContext } = evaluate(appBundle);
-	await appContext.ready(project({ visualModules: [{ id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+	await appContext.ready(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
 	t.after(() => appContext.previewPlayback.dispose());
 	await appContext.suspendPreview();
 	const gate = Promise.withResolvers();
@@ -408,7 +408,7 @@ test('restarts both previews after content and settings change during initializa
 test('ignores obsolete asset preparation after undo and rebuilds the latest state on redo', async t => {
 	const window = setup(t);
 	const { appContext, createVisualModuleAssetNode } = evaluate(appBundle);
-	await appContext.ready(project({ visualModules: [{ id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+	await appContext.ready(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
 	t.after(() => appContext.previewPlayback.dispose());
 	const gate = Promise.withResolvers();
 	const source = { url: 'app://external-assets/imported', size: 100, error: null };
@@ -486,7 +486,7 @@ test('cancels baking synchronously on metadata edits without adding bake history
 test('keeps invalid projects editable and recreates both previews after correction', async t => {
 	setup(t);
 	const { appContext } = evaluate(appBundle);
-	await appContext.ready(project({ visualModules: [{ id: 'invalid', paramDefs: [], nodes: [
+	await appContext.ready(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'invalid', paramDefs: [], nodes: [
 		{ id: 'effect', type: 'effect', effectId: 'fill', resolution: { mode: 'invalid' }, params: { color: { inputSource: 'literal', value: [1, 0, 0, 1] } } },
 	] }] }));
 	assert.ok(appContext.renderValidation.diagnostics.value.length > 0);
@@ -506,7 +506,7 @@ test('keeps invalid projects editable and recreates both previews after correcti
 test('recreates previews after switching away from invalid visualModuleLivePreview inputs', async t => {
 	setup(t);
 	const { appContext } = evaluate(appBundle);
-	await appContext.ready(project({ visualModules: [{ id: 'visualModule', nodes: [], paramDefs: [{
+	await appContext.ready(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', nodes: [], paramDefs: [{
 		id: 'audio', nameForReference: 'audio', dataType: { kind: 'audioSource' }, canNode: false,
 		ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: { inputSource: 'literal', value: null },
 	}] }] }));
@@ -620,7 +620,7 @@ test('leaves Visual Module Live Preview when an imported Visual Module is undone
 	const { appContext } = evaluate(appBundle);
 	await appContext.ready(project());
 	const manager = appContext.projectContext.stateManager;
-	const visualModule = { id: 'imported', name: 'Imported Visual Module', nodes: [], paramDefs: [], outputDefs: [],
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'imported', name: 'Imported Visual Module', nodes: [], paramDefs: [], outputDefs: [],
 		primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
 	manager.commit('importVisualModule', { visualModule, assets: [], players: [], unassignedPlayerNames: [] });
 	await setImmediate();
@@ -1962,7 +1962,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
 	const { appContext } = app;
-	const first = project({ visualModules: [{ id: 'first', nodes: [], paramDefs: [] }] });
+	const first = project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'first', nodes: [], paramDefs: [] }] });
 	await appContext.ready(first);
 	const visualModuleLivePreview = appContext.visualModuleRendererManagerController;
 	const timeline = appContext.timelineRendererManagerController;
@@ -2005,7 +2005,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	const app = evaluate(appBundle);
 	const { appContext } = app;
 	await appContext.ready(project({
-		visualModules: [{ id: 'module', nodes: [], paramDefs: [] }],
+		visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'module', nodes: [], paramDefs: [] }],
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 			{ id: 'visual', isDisabled: false, layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },

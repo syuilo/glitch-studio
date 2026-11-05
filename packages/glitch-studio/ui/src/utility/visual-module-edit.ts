@@ -12,6 +12,16 @@ export function commitVisualModuleEdit(manager: ProjectCommands, target: VisualM
 	const module = findVisualModule(manager.state, target);
 	if (module == null) return;
 	switch (event.kind) {
+		case 'customParameterClipboard': return; // 非同期のクリップボード操作は所有者が処理する。
+		case 'updateCustomParameter':
+			manager.commit('updateVisualModuleCustomParameter', { ...target, definition: event.definition }, event.mergeKey);
+			break;
+		case 'removeCustomParameter':
+			manager.commit('removeVisualModuleCustomParameter', { ...target, parameterId: event.parameterId });
+			break;
+		case 'editCustomParameter':
+			manager.commit('editVisualModuleCustomParameter', { ...target, parameterId: event.parameterId, edit: event.edit }, event.mergeKey);
+			break;
 		case 'setNodeDisplayName':
 			manager.commit('changeNodeDisplayName', { ...target, nodeId: event.nodeId, displayName: event.displayName });
 			break;
@@ -87,6 +97,7 @@ function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualMod
 		case 'timelineLayerPublicParameterReference':
 		case 'anotherLayerAudio': throw new Error('Timeline input is only available in timeline layer parameters');
 		case 'createPublicParameter': manager.commit('createVisualModulePublicParameterFromParam', target); break;
+		case 'createCustomParameter': manager.commit('createVisualModuleCustomParameterFromParam', target); break;
 		case 'literal': manager.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
 		case 'automationGraphInline': manager.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'envVariable': manager.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;
@@ -96,6 +107,7 @@ function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualMod
 		case 'keyframesTimelineInline': manager.commit('updateParamAsKeyframesTimelineInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'node': manager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
 		case 'visualModulePublicParameterReference': manager.commit('updateParamAsVisualModulePublicParameterReference', { ...target, value: event.value }); break;
+		case 'visualModuleCustomParameterValueReference': manager.commit('updateParamAsVisualModuleCustomParameterReference', { ...target, value: event.value }); break;
 		case 'inputSource':
 			if (event.inputSource === 'timelineLayerPublicParameterReference' || event.inputSource === 'anotherLayerOutput' || event.inputSource === 'lowerLayerOutput' || event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio') throw new Error('Timeline input is only available in timeline layer parameters');
 			manager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource });

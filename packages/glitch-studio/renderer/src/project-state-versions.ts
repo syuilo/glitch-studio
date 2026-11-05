@@ -28,7 +28,7 @@ export class ProjectStateVersions {
 				const previous = this.module(change.target);
 				this.modules.set(visualModuleTargetKey(change.target), {
 					revision,
-					staticResetRevision: change.type === 'node' && canPreserveNodeStaticState(change.changes) ? previous.staticResetRevision : revision,
+					staticResetRevision: (change.type === 'node' ? canPreserveNodeStaticState(change.changes) : change.customParameterValuesOnly === true) ? previous.staticResetRevision : revision,
 				});
 			} else if (change.type === 'layerTree') {
 				// 並び・親だけの変更では既存配置の履歴を捨てない。ただし削除後に描画せず

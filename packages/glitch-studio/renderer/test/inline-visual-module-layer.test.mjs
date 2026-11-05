@@ -34,6 +34,8 @@ const graph = value => ({ id: 'graph', nameForReference: 'graph', isNormalized: 
 
 function visualModule({ primaryInput = false, params } = {}) {
 	return {
+		customParameterDefs: [],
+		customParameterValues: {},
 		automationGraphs: [],
 		paramDefs: [{ ...color, id: 'input', nameForReference: 'input' }],
 		primaryInputId: primaryInput ? 'input' : null,

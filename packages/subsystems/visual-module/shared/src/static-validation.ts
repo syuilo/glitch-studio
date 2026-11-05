@@ -5,6 +5,7 @@ import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { validateVisualModuleAudioBinding } from './audio-parameters.ts';
 import { getNodeOutputs } from './node-outputs.ts';
+import { validateVisualModuleCustomParameters } from './custom-parameters.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { VisualModule, VisualModuleNode } from './types.ts';
@@ -15,8 +16,10 @@ export function visualModuleNodeStaticShape(node: VisualModuleNode, definitions:
 }
 
 export function validateVisualModuleInterface(visualModule: VisualModule): void {
+	validateVisualModuleCustomParameters(visualModule);
 	if (new Set(visualModule.nodes.map(node => node.id)).size !== visualModule.nodes.length) throw new Error('Duplicate node ID');
 	if (new Set(visualModule.paramDefs.map(def => def.id)).size !== visualModule.paramDefs.length) throw new Error('Duplicate public parameter ID');
+	if (new Set(visualModule.paramDefs.map(def => def.nameForReference)).size !== visualModule.paramDefs.length) throw new Error('Duplicate public parameter name');
 	for (const definition of visualModule.paramDefs) validateParameterDefaultValues(definition);
 	if (new Set(visualModule.outputDefs.map(def => def.id)).size !== visualModule.outputDefs.length) throw new Error('Duplicate output ID');
 	if (visualModule.primaryInputId != null && !visualModule.paramDefs.some(def => def.id === visualModule.primaryInputId && def.canNode && def.dataType.kind === 'color')) throw new Error('Invalid primary image input');
@@ -54,6 +57,9 @@ export function inspectVisualModuleNode(node: VisualModuleNode, visualModule: Vi
 				if (!visualModule.paramDefs.some(def => def.id === binding.parameterId)) throw new Error('Public parameter not found');
 				const publicParameterDefinition = visualModule.paramDefs.find(def => def.id === binding.parameterId)!;
 				if ((leaf.dataType.kind === 'colorRamp' || publicParameterDefinition.dataType.kind === 'colorRamp') && !areDataTypesEqual(leaf.dataType, publicParameterDefinition.dataType)) throw new Error('Color Ramp public parameter type mismatch');
+			} else if (binding.inputSource === 'visualModuleCustomParameterValueReference') {
+				// 欠落・型変更は参照を消さず、実際に評価されたときに所在付きで報告する。
+				if (typeof binding.parameterId !== 'string') throw new Error('Invalid custom parameter reference');
 			} else if (!isValueParameterBinding(binding)) throw new Error('Unsupported visual module parameter input source');
 		});
 	}

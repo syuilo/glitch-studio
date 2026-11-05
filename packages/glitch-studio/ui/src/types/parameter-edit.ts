@@ -2,6 +2,7 @@ import type { ValueParameterBinding, ParameterExpressionModifier } from '@gs/sha
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleCustomParameterId, VisualModulePublicParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineEffectParameterBinding, TimelineVisualModuleParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
@@ -36,3 +37,8 @@ export type ValueParameterEdit =
 	| { kind: 'reset' }
 	| { kind: 'addElement' }
 	| { kind: 'removeElement'; elementId: string };
+
+export type VisualModuleValueParameterEdit = ValueParameterEdit
+	| { kind: 'visualModulePublicParameterReference'; value: VisualModulePublicParameterId }
+	| { kind: 'visualModuleCustomParameterValueReference'; value: VisualModuleCustomParameterId }
+	| ParameterInputSourceEdit<'visualModulePublicParameterReference' | 'visualModuleCustomParameterValueReference'>;

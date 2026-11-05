@@ -127,7 +127,7 @@ test('shares player snapshots across nodes, public inputs, and unchanged frames'
 	const publicAudio = { ...audioDef, id: 'sound', nameForReference: 'sound' };
 	nodes[1].params.audio = { inputSource: 'visualModulePublicParameterReference', parameterId: publicAudio.id };
 	renderer.nodeResolutions = new Map(nodes.map(node => [node.id, { width: 640, height: 360 }]));
-	Object.assign(renderer, { nodes, paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef } } } });
+	Object.assign(renderer, { customParameterDefs: [], customParameterValues: {}, nodes, paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef } } } });
 	const publicInput = inputs.resolve(selection);
 	// すでに取得したPCMを再利用できれば、履歴へ再アクセスする必要はない。
 	history.sample = () => { throw new Error('Unchanged history must not be copied again'); };
@@ -191,7 +191,7 @@ test('resolves public audio inputs independently of PUBLIC and image parameters'
 	const source = { cacheKey: 'lower', readWindow: () => window() };
 	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'visualModulePublicParameterReference', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PUBLIC("sound")' } } };
 	renderer.nodeResolutions = new Map([[node.id, { width: 640, height: 360 }]]);
-	Object.assign(renderer, { nodes: [node], paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef, amount: scalar } } } });
+	Object.assign(renderer, { customParameterDefs: [], customParameterValues: {}, nodes: [node], paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef, amount: scalar } } } });
 	const context = { time: 50, endTime: 100, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map([[publicAudio.id, 123]]), audioParamInputs: new Map([[publicAudio.id, source]]) };
 	assert.throws(() => renderer.evaluateParameters(context), /Unknown or unavailable parameter/);
 	node.params.amount = literal(0);
@@ -226,7 +226,7 @@ test('delegates literal audio selections without knowing their source domain', (
 // Noneを明示した場合は自動割り当てを上書きし、音声の読み出しも行わない。
 test('anchors module audio to scene time while preserving content time and explicit none', async () => {
 	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'sound' };
-	const visualModule = { paramDefs: [publicAudio], primaryInputId: null, primaryAudioInputId: publicAudio.id };
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, paramDefs: [publicAudio], primaryInputId: null, primaryAudioInputId: publicAudio.id };
 	const layer = { visualModuleParamValues: {}, automationGraphs: [] };
 	const calls = [];
 	const input = { cacheKey: 'lower', readWindow: () => window() };
@@ -258,7 +258,7 @@ test('resolves independent public audio sources and shares only matching frame i
 		missing: { inputSource: 'anotherLayerAudio', layerId: 'missing' }, missing_again: { inputSource: 'anotherLayerAudio', layerId: 'missing' },
 		none: { inputSource: 'anotherLayerAudio', layerId: null },
 	};
-	const visualModule = { primaryInputId: null, primaryAudioInputId: null,
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, primaryInputId: null, primaryAudioInputId: null,
 		paramDefs: Object.keys(bindings).map(id => ({ ...audioDef, id, nameForReference: id })) };
 	const calls = [];
 	let prepared;

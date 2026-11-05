@@ -377,7 +377,7 @@ test('accepts files and assets across the Visual Module editor and selects nodes
 	const actions = { dropFiles: async files => { calls.push(files.map(file => file.name)); return true; },
 		dropAsset: async assetId => { calls.push(assetId); return false; } };
 	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
-		visualModule: { nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions,
+		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions,
 	})]));
 	const editor = f.find('data-test-visual-module-editor');
 	const tabs = f.find('data-test-visual-module-tabs');
@@ -429,7 +429,7 @@ test('applies shared locking and disabled state to the Vue asset drop target', a
 		dropAsset: async assetId => { calls.push(assetId); return true; } });
 	const asset = { id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob() };
 	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
-		visualModule: { nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions.value,
+		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions.value,
 	})]));
 	const editor = f.find('data-test-visual-module-editor');
 	const files = transfer();

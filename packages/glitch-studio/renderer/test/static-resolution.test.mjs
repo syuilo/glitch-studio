@@ -24,7 +24,7 @@ test('plans graph resolutions before any frames textures or expressions exist', 
 		node('source', { input: literal([0, 0, 0, 0]) }),
 		node('external', { input: { inputSource: 'visualModulePublicParameterReference', parameterId: 'image' } }),
 		node('constant', { input: connection('in', 'constant') }), { id: 'in', type: 'globalIn' }];
-	const options = { visualModule: { nodes, paramDefs: ['image', 'constant'].map(id => ({ ...input, id })), outputDefs: [], primaryInputId: 'image', primaryOutputId: null }, effectDefinitions: { filter: definition },
+	const options = { visualModule: { customParameterDefs: [], customParameterValues: {}, nodes, paramDefs: ['image', 'constant'].map(id => ({ ...input, id })), outputDefs: [], primaryInputId: 'image', primaryOutputId: null }, effectDefinitions: { filter: definition },
 		contextResolution: { width: 960, height: 540 }, resolutionScale: 0.5, maxDimension: 8192,
 		inputResolutions: new Map([['image', { width: 800, height: 200 }], ['constant', null]]),
 		getIntrinsicResolution: node => node.id === 'source' ? { width: 301, height: 101 } : null };
@@ -42,7 +42,7 @@ test('plans graph resolutions before any frames textures or expressions exist', 
 // 同画素数では先頭の縦横比を維持し、独立した軸ごとの最大値を作らない。
 test('uses every nested input candidate and preserves the first aspect ratio on equal areas', () => {
 	const candidates = { dataType: { kind: 'array', elementType: input.dataType }, ui: { label: 'Candidates', control: { element: input.ui.control } }, element: { canNode: true, defaultValue: input.defaultValue }, defaultValue: literal([]) };
-	const options = { visualModule: { nodes: [{ id: 'in', type: 'globalIn' }, node('selector', { candidates: literal([
+	const options = { visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [{ id: 'in', type: 'globalIn' }, node('selector', { candidates: literal([
 			{ id: 'a', binding: connection('in', 'landscape') }, { id: 'b', binding: connection('in', 'portrait') },
 		]), index: { inputSource: 'expression', expression: 'TIME' } })], paramDefs: ['landscape', 'portrait'].map(id => ({ ...input, id })), outputDefs: [], primaryInputId: null, primaryOutputId: null },
 		effectDefinitions: { filter: { ...definition, paramDefs: { candidates }, resolutionInputParameters: ['candidates'], primaryInputParameter: null } },
@@ -69,7 +69,7 @@ test('resolves declared output sources consistently through relay bypass and glo
 	const output = { id: 'out', type: 'globalOut', inputs: { result: { nodeId: 'relay', outputPort: 'output' } } };
 	const consumer = node('consumer', { input: connection('out', 'result') });
 	const options = {
-		visualModule: { nodes: [{ id: 'in', type: 'globalIn' }, bypass, relay, output, consumer],
+		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [{ id: 'in', type: 'globalIn' }, bypass, relay, output, consumer],
 			paramDefs: [{ ...input, id: 'image' }], outputDefs: [{ id: 'result' }], primaryInputId: 'image', primaryOutputId: 'result' },
 		effectDefinitions: { filter: definition }, contextResolution: { width: 100, height: 100 }, resolutionScale: 1,
 		maxDimension: 8192, inputResolutions: new Map([['image', { width: 80, height: 40 }], ['unknown', { width: 200, height: 200 }]]),

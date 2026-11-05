@@ -50,7 +50,7 @@ export type ProjectState = {
 export type ProjectContentChange =
 	| { type: 'automationGraphs' }
 	| { type: 'node'; target: VisualModuleTarget; nodeId: string; changes: VisualModuleNodeChange[] }
-	| { type: 'visualModule'; target: VisualModuleTarget }
+	| { type: 'visualModule'; target: VisualModuleTarget; customParameterValuesOnly?: boolean }
 	| { type: 'visualModuleRegistration'; visualModuleId: string }
 	| { type: 'layer'; sceneId: string; layerId: string; changes: TimelineLayerChange[] }
 	| { type: 'layerTree'; sceneId: string }

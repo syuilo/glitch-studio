@@ -511,6 +511,8 @@ test('scales video sources once through replace composition and automatic proces
 	const processing = { ...timing, id: 'processing', layerType: 'inlineVisualModule', visualModuleParamValues: {},
 		compositingParamValues: { blendMode: literal('replace') },
 		visualModule: {
+			customParameterDefs: [],
+			customParameterValues: {},
 			automationGraphs: [], paramDefs: [{ id: 'output', nameForReference: 'input', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) }],
 			primaryInputId: 'output', primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }],
 			nodes: [

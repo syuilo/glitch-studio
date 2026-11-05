@@ -82,7 +82,7 @@ function single(t, options = {}) {
 }
 
 function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id, outputPort: 'output' } }, rendererOptions = {}) {
-	const module = { paramDefs: [], primaryInputId: null, automationGraphs: [], outputDefs: Object.keys(outputs).map(id => ({ id })), primaryOutputId: 'out',
+	const module = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null, automationGraphs: [], outputDefs: Object.keys(outputs).map(id => ({ id })), primaryOutputId: 'out',
 		nodes: [...nodes, { id: 'out', type: 'globalOut', inputs: outputs }] };
 	const states = [];
 	const renderer = new VisualModuleRenderer({

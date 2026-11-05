@@ -43,7 +43,7 @@ function fixture(t, count = 1, overrides = {}) {
 		id: 'node-' + i, type: 'effect', effectId: definition.id, pos: { x: 0, y: 0 }, isBypass: false, resolution: { mode: 'auto', scale: 1 },
 		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 	}));
-	const visualModule = { id: 'module', name: 'Module', nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'module', name: 'Module', nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
 	manager.state.visualModules.value = [visualModule];
 	manager.state.timelineScenes.value = [scene];
@@ -58,6 +58,38 @@ function fixture(t, count = 1, overrides = {}) {
 	const value = state => state.visualModules[0].nodes[0].params.buzzs.value[0].binding.value.x.value;
 	return { manager, sync, target, batches, errors, value: () => value(replica), get replica() { return replica; } };
 }
+
+// 【カスタム値だけの同期でも、同時に行ったノードの構造変更を失わない】
+// 値編集のスナップショットが接続・解像度変更の通知を吸収すると、GPU履歴の破棄範囲を誤る。
+// 定義変更との合流でも、最後の値編集だけを理由に静的状態を維持しないことを確認する。
+test('synchronizes custom values without hiding structural edits in the same batch', async t => {
+	const f = fixture(t);
+	const definition = { id: 'speed', nameForReference: 'speed', canNode: false, dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 1 } };
+	f.manager.commit('updateVisualModuleCustomParameter', { visualModuleId: 'module', definition });
+	await f.sync.flush();
+	f.manager.commit('editVisualModuleCustomParameter', { visualModuleId: 'module', parameterId: 'speed', edit: { kind: 'literal', value: 2 } });
+	await f.sync.flush();
+	assert.equal(f.batches.at(-1)[0].customParameterValuesOnly, true);
+	assert.equal(f.replica.visualModules[0].customParameterValues.speed.value, 2);
+	f.manager.commit('changeNodeResolution', { ...f.target, resolution: { mode: 'context', scale: 0.5 } });
+	f.manager.commit('editVisualModuleCustomParameter', { visualModuleId: 'module', parameterId: 'speed', edit: { kind: 'literal', value: 3 } });
+	await f.sync.flush();
+	assert.ok(f.batches.at(-1).some(change => change.type === 'node' && change.changes.some(edit => edit.type === 'resolution')));
+	assert.equal(f.replica.visualModules[0].nodes[0].resolution.scale, 0.5);
+	f.manager.commit('updateVisualModuleCustomParameter', { visualModuleId: 'module', definition: { ...definition, nameForReference: 'renamed' } });
+	f.manager.commit('editVisualModuleCustomParameter', { visualModuleId: 'module', parameterId: 'speed', edit: { kind: 'literal', value: 4 } });
+	await f.sync.flush();
+	assert.notEqual(f.batches.at(-1)[0].customParameterValuesOnly, true);
+	assert.equal(f.replica.visualModules[0].customParameterDefs[0].nameForReference, 'renamed');
+	f.manager.commit('updateParamAsVisualModuleCustomParameterReference', { ...f.target, value: 'speed' });
+	await f.sync.flush();
+	const decoded = decodeProjectFile(await encodeProjectFile({ assets: [], generatedSpeech: [], automationGraphs: [],
+		visualModules: f.manager.state.visualModules.value, timelineScenes: f.manager.state.timelineScenes.value }));
+	assert.deepEqual(decoded.visualModules[0].customParameterDefs, f.replica.visualModules[0].customParameterDefs);
+	assert.deepEqual(decoded.visualModules[0].customParameterValues, f.replica.visualModules[0].customParameterValues);
+	assert.equal(decoded.visualModules[0].nodes[0].params.buzzs.value[0].binding.value.x.inputSource, 'visualModuleCustomParameterValueReference');
+	assert.deepEqual(f.errors, []);
+});
 
 // 【ソロ変更と全解除をWorkerの複製状態へ反映し、Undo/Redoでも表示設定を保持する】
 // コマンドだけが正しく動いても、全解除後に通知が空になったり通信で設定が落ちると
@@ -157,6 +189,10 @@ test('sends one node regardless of graph size and synchronizes merged edits undo
 test('creates image effect and inline visual module layers enabled by default', () => {
 	for (const layer of [createImageLayer('asset', 100), createEffectTimelineLayer(definition, 100), createInlineVisualModuleLayer(100)]) {
 		assert.equal(layer.isDisabled, false);
+		if (layer.layerType === 'inlineVisualModule') {
+			assert.deepEqual(layer.visualModule.customParameterDefs, []);
+			assert.deepEqual(layer.visualModule.customParameterValues, {});
+		}
 	}
 });
 

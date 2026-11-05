@@ -208,12 +208,14 @@ function onPreviewParamEdit(event: ParamEdit) {
 			...event.options,
 		}; break;
 		case 'createPublicParameter':
+		case 'createCustomParameter':
 		case 'timelineLayerPublicParameterReference':
 		case 'node':
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput':
 		case 'anotherLayerAudio':
 		case 'visualModulePublicParameterReference': return;
+		case 'visualModuleCustomParameterValueReference': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
 		case 'inputSource':
 			switch (event.inputSource) {
@@ -234,6 +236,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 					previewParamValues.value[id] = createInlineKeyframesTimeline(def, current);
 					break;
 				case 'visualModulePublicParameterReference':
+				case 'visualModuleCustomParameterValueReference':
 				case 'anotherLayerOutput':
 		case 'lowerLayerOutput':
 				case 'lowerLayerAudio':
@@ -335,6 +338,12 @@ function showAddEffectNodeMenu() {
 function onEdit(event: VisualModuleEdit) {
 	const module = visualModule.value;
 	if (module == null) return;
+	if (event.kind === 'customParameterClipboard') {
+		void handleProjectParameterClipboard(appContext.projectContext,
+			{ kind: 'customParameter', visualModuleTarget: { visualModuleId: module.id }, paramPath: [event.parameterId] },
+			event.operation, () => !disposed && visualModule.value === module).catch(error => ui.alert({ type: 'error', text: String(error) }));
+		return;
+	}
 	if (event.kind === 'editNodeParam' && (event.edit.kind === 'copy' || event.edit.kind === 'paste')) {
 		void handleProjectParameterClipboard(appContext.projectContext,
 			{ kind: 'node', visualModuleTarget: { visualModuleId: module.id }, nodeId: event.nodeId, paramPath: event.edit.paramPath },
