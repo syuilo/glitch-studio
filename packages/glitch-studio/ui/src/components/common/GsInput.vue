@@ -32,7 +32,17 @@
 			</datalist>
 			<div ref="suffixEl" :class="$style.suffix"><slot name="suffix"></slot></div>
 		</div>
-		<div v-if="type === 'number' && inputType !== 'number'" :class="$style.stepper"><i class="ti ti-caret-up-down"></i></div>
+		<div
+			v-if="type === 'number' && inputType !== 'number'"
+			:class="$style.stepper"
+			@pointerdown="onStepperPointerDown"
+			@pointermove="onStepperPointerMove"
+			@pointerup="onStepperPointerUp"
+			@pointercancel="onStepperPointerCancel"
+			@lostpointercapture="onStepperPointerCancel"
+		>
+			<i class="ti ti-caret-up-down"></i>
+		</div>
 	</div>
 	<div :class="$style.caption"><slot name="caption" :value="v"></slot></div>
 
@@ -86,12 +96,15 @@ const props = withDefaults(defineProps<{
 	debounce?: boolean | number;
 	throttle?: boolean | number;
 	manualSave?: boolean;
+	/** stepperの変更をmanualSave・debounce・throttleに関わらず即時反映する。 */
+	stepperImmediateUpdate?: boolean;
 	allowExpression?: boolean;
 	small?: boolean;
 	large?: boolean;
 	monospace?: boolean;
 }>(), {
 	allowExpression: true,
+	stepperImmediateUpdate: true,
 });
 
 const emit = defineEmits<{
@@ -120,6 +133,79 @@ const inputEl = useTemplateRef('inputEl');
 const prefixEl = useTemplateRef('prefixEl');
 const suffixEl = useTemplateRef('suffixEl');
 let autocompleteWorker: Autocomplete | null = null;
+let stepperDrag: { pointerId: number; element: HTMLElement; clientY: number; step: number } | null = null;
+let updatingFromStepper = false;
+
+function getStepperValue(): number | null {
+	// 空欄や式の途中を0や部分的な数値として扱うと、入力内容を意図せず失ってしまう。
+	if (v.value == null || (typeof v.value === 'string' && v.value.trim() === '')) return null;
+	const value = Number(v.value);
+	return Number.isFinite(value) ? value : null;
+}
+
+function onStepperPointerDown(event: PointerEvent) {
+	if (event.button !== 0 || stepperDrag != null || props.disabled || props.readonly || getStepperValue() == null) return;
+	focus();
+	const step = props.step == null ? 1 : Number(props.step);
+	if (!Number.isFinite(step) || step <= 0) return;
+	event.preventDefault();
+	event.stopPropagation();
+	const element = event.currentTarget as HTMLElement;
+	stepperDrag = { pointerId: event.pointerId, element, clientY: event.clientY, step };
+	element.setPointerCapture(event.pointerId);
+}
+
+function onStepperPointerMove(event: PointerEvent) {
+	if (stepperDrag == null || stepperDrag.pointerId !== event.pointerId) return;
+	if (props.disabled || props.readonly) {
+		finishStepperDrag();
+		return;
+	}
+	const value = getStepperValue();
+	if (value == null) {
+		finishStepperDrag();
+		return;
+	}
+	// 上方向を増加とし、10px未満の移動は次のイベントに持ち越す。
+	const steps = Math.trunc((stepperDrag.clientY - event.clientY) / 10);
+	if (steps === 0) return;
+	stepperDrag.clientY -= steps * 10;
+	// 小数stepを繰り返し足した際の浮動小数点誤差が、表示に蓄積しないようにする。
+	const nextValue = Math.min(props.max ?? Infinity, Math.max(props.min ?? -Infinity,
+		Number((value + steps * stepperDrag.step).toPrecision(15))));
+	if (!Number.isFinite(nextValue) || nextValue === value) return;
+	// vの同期watchによる通常の通知を抑え、即時反映時の二重通知・遅延通知を防ぐ。
+	updatingFromStepper = true;
+	try {
+		v.value = nextValue;
+	} finally {
+		updatingFromStepper = false;
+	}
+	if (props.stepperImmediateUpdate) {
+		throttledUpdated.cancel({ upcomingOnly: true });
+		debouncedUpdated.cancel({ upcomingOnly: true });
+		updated();
+	} else if (!props.manualSave) {
+		scheduleUpdated();
+	}
+}
+
+function onStepperPointerUp(event: PointerEvent) {
+	if (stepperDrag?.pointerId !== event.pointerId) return;
+	onStepperPointerMove(event);
+	finishStepperDrag();
+}
+
+function onStepperPointerCancel(event: PointerEvent) {
+	if (stepperDrag?.pointerId === event.pointerId) finishStepperDrag();
+}
+
+function finishStepperDrag() {
+	if (stepperDrag == null) return;
+	const { element, pointerId } = stepperDrag;
+	stepperDrag = null;
+	if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+}
 
 const focus = () => inputEl.value?.focus();
 const onInput = (event: InputEvent) => {
@@ -159,16 +245,27 @@ const onKeydown = (ev: KeyboardEvent) => {
 const updated = () => {
 	if (expressionEnabled.value) {
 		try {
-			const ast = expressionParser.parse(String(v.value ?? ''));
-			// 前回確定した式の変数や実行状態を引き継がず、数値欄内だけで評価を完結させる。
-			const interpreter = new AiScript.Interpreter({});
-			const result = interpreter.execSync(ast);
-			// 数値欄には有限の数値だけを適用し、文字列やnullを暗黙に数値へ変換しない。
-			if (result == null || result.type !== 'num' || !Number.isFinite(result.value)) {
+			let numericValue: number;
+			if (typeof v.value === 'number') {
+				// stepperで生成した数値は式へ戻さず扱う。指数表記でもパーサーの構文に依存しない。
+				numericValue = v.value;
+			} else {
+				const ast = expressionParser.parse(String(v.value ?? ''));
+				// 前回確定した式の変数や実行状態を引き継がず、数値欄内だけで評価を完結させる。
+				const interpreter = new AiScript.Interpreter({});
+				const result = interpreter.execSync(ast);
+				// 文字列やnullを暗黙に数値へ変換しない。
+				if (result == null || result.type !== 'num') {
+					invalid.value = true;
+					return;
+				}
+				numericValue = result.value;
+			}
+			if (!Number.isFinite(numericValue)) {
 				invalid.value = true;
 				return;
 			}
-			v.value = result.value;
+			v.value = numericValue;
 			invalid.value = false;
 		} catch {
 			// 入力を残して修正できるよう、失敗時は未保存状態も維持する。
@@ -189,6 +286,16 @@ const updated = () => {
 const throttledUpdated = throttle(typeof props.throttle === 'number' ? props.throttle : 1000, updated);
 const debouncedUpdated = debounce(typeof props.debounce === 'number' ? props.debounce : 1000, updated);
 
+function scheduleUpdated() {
+	if (props.throttle === true || typeof props.throttle === 'number') {
+		throttledUpdated();
+	} else if (props.debounce === true || typeof props.debounce === 'number') {
+		debouncedUpdated();
+	} else {
+		updated();
+	}
+}
+
 function cancelEditing() {
 	// 破棄した入力を後から遅延通知せず、現在の適用済み値へローカルだけを戻す。
 	throttledUpdated.cancel({ upcomingOnly: true });
@@ -208,16 +315,10 @@ watch(modelValue, newValue => {
 
 // 式を評価結果に置き換えた変更もupdated内で同期的に処理し、その後の未保存解除を上書きしない。
 watch(v, () => {
-	if (props.manualSave) {
+	if (props.manualSave || updatingFromStepper) {
 		changed.value = !Object.is(v.value, modelValue.value);
 	} else if (!Object.is(v.value, modelValue.value)) {
-		if (props.throttle === true || typeof props.throttle === 'number') {
-			throttledUpdated();
-		} else if (props.debounce === true || typeof props.debounce === 'number') {
-			debouncedUpdated();
-		} else {
-			updated();
-		}
+		scheduleUpdated();
 	}
 
 	invalid.value = inputEl.value?.validity.badInput ?? true;
@@ -262,6 +363,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+	finishStepperDrag();
 	throttledUpdated.cancel({ upcomingOnly: true });
 	debouncedUpdated.cancel({ upcomingOnly: true });
 	paddingObserver?.disconnect();
@@ -406,6 +508,8 @@ defineExpose({
 	display: grid;
 	place-content: center;
 	cursor: ns-resize;
+	touch-action: none;
+	user-select: none;
 }
 
 .manualSaveActions {

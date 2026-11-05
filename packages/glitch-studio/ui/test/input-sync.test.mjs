@@ -96,6 +96,143 @@ function keyEvent(key, options = {}) {
 		preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.propagationStopped = true; }, ...options };
 }
 
+function stepperPointer() {
+	const captures = new Set();
+	const element = {
+		setPointerCapture: pointerId => captures.add(pointerId),
+		hasPointerCapture: pointerId => captures.has(pointerId),
+		releasePointerCapture: pointerId => captures.delete(pointerId),
+	};
+	return { captures, event: (clientY, options = {}) => ({
+		button: 0, pointerId: 1, clientY, currentTarget: element,
+		preventDefault() {}, stopPropagation() {}, ...options,
+	}) };
+}
+
+// 【stepperは縦10pxごとにstep分だけ変更し、手動保存でも即時反映する】
+// 小さな移動を持ち越し、横移動や押しただけの操作では変更しない。
+// 小数stepの誤差を表示せず、ドラッグ終了後の移動を受け付けないことも確認する。
+test('steps every ten vertical pixels and applies manual-save changes immediately by default', async t => {
+	const { edits, input } = fixture(t, { type: 'number', modelValue: 0.1, manualSave: true, step: '0.1' });
+	const { captures, event } = stepperPointer();
+	input.onStepperPointerDown(event(100));
+	assert.deepEqual(edits, []);
+	input.onStepperPointerMove(event(100, { clientX: 200 }));
+	input.onStepperPointerMove(event(91));
+	assert.deepEqual(edits, []);
+	input.onStepperPointerMove(event(90));
+	await nextTick();
+	assert.deepEqual(edits, [0.2]);
+	assert.equal(input.changed, false);
+	input.onStepperPointerMove(event(76));
+	await nextTick();
+	assert.deepEqual(edits, [0.2, 0.3]);
+	input.onStepperPointerUp(event(100));
+	await nextTick();
+	assert.deepEqual(edits, [0.2, 0.3, 0.1]);
+	assert.equal(captures.size, 0);
+	input.onStepperPointerMove(event(50));
+	assert.equal(edits.length, 3);
+});
+
+// 【指数表記になる小さなstepでも数値のまま確定する】
+// stepperが生成した数値を再び式として解析すると、式言語の構文次第で正しい数値も適用できなくなる。
+test('applies small stepper values without reparsing them as expressions', async t => {
+	const { edits, input } = fixture(t, { type: 'number', modelValue: 0, manualSave: true, step: 1e-7 });
+	const { event } = stepperPointer();
+	input.onStepperPointerDown(event(100));
+	input.onStepperPointerUp(event(90));
+	await nextTick();
+	assert.deepEqual(edits, [1e-7]);
+	assert.equal(input.invalid, false);
+});
+
+// 【即時反映を無効にしたstepperは手動保存のドラフトとして扱う】
+// 数値文字列から操作でき、既存の保存とキャンセルをそのまま利用できるようにする。
+test('keeps stepper changes as saveable and cancellable drafts when immediate updates are disabled', async t => {
+	const { edits, input } = fixture(t, { type: 'number', modelValue: 2, manualSave: true, stepperImmediateUpdate: false });
+	const { event } = stepperPointer();
+	input.v = '3';
+	input.onStepperPointerDown(event(100));
+	input.onStepperPointerUp(event(90));
+	assert.equal(input.v, 4);
+	assert.equal(input.changed, true);
+	assert.deepEqual(edits, []);
+	input.cancelEditing();
+	assert.equal(input.v, 2);
+	input.onStepperPointerDown(event(100));
+	input.onStepperPointerUp(event(90));
+	input.updated();
+	await nextTick();
+	assert.deepEqual(edits, [3]);
+	assert.equal(input.changed, false);
+});
+
+// 【数値として解釈できないドラフトにstepperで変更を加えない】
+// 数式・空欄・部分的な数値を評価やparseFloatで取り込まず、修正中の入力を保持する。
+test('ignores stepper operations for nonnumeric and nonfinite drafts', async t => {
+	const { edits, input } = fixture(t, { type: 'number', modelValue: 2, manualSave: true });
+	const { captures, event } = stepperPointer();
+	for (const draft of ['text', '12px', '1 + 2', '', ' ', null, 'Infinity', 'NaN']) {
+		input.v = draft;
+		input.onStepperPointerDown(event(100));
+		input.onStepperPointerUp(event(80));
+		assert.equal(input.v, draft);
+		assert.equal(captures.size, 0);
+	}
+	assert.deepEqual(edits, []);
+});
+
+// 【stepperも編集可否・上下限とポインターの中断を守る】
+// 別ポインターや右ボタンで値が動いたり、キャンセル後の移動で再び変更されたりしないようにする。
+test('respects stepper bounds, editability and pointer cancellation', async t => {
+	const { props, edits, input } = fixture(t, { type: 'number', modelValue: 2, manualSave: true, min: 1, max: 3 });
+	const { captures, event } = stepperPointer();
+	input.onStepperPointerDown(event(100, { button: 2 }));
+	assert.equal(captures.size, 0);
+	for (const property of ['readonly', 'disabled']) {
+		props[property] = true;
+		await nextTick();
+		input.onStepperPointerDown(event(100));
+		assert.equal(captures.size, 0);
+		props[property] = false;
+		await nextTick();
+	}
+	input.onStepperPointerDown(event(100));
+	input.onStepperPointerMove(event(80, { pointerId: 2 }));
+	assert.deepEqual(edits, []);
+	input.onStepperPointerMove(event(70));
+	await nextTick();
+	assert.deepEqual(edits, [3]);
+	input.onStepperPointerMove(event(100));
+	await nextTick();
+	assert.deepEqual(edits, [3, 1]);
+	input.onStepperPointerCancel(event(100));
+	assert.equal(captures.size, 0);
+	input.onStepperPointerMove(event(50));
+	assert.deepEqual(edits, [3, 1]);
+});
+
+// 【即時反映するstepperは入力欄の遅延設定より優先する】
+// debounce待ちで見た目とモデルがずれたり、同じ操作を後から重複通知したりしないようにする。
+test('bypasses debounce for immediate stepper changes and otherwise follows normal input timing', async t => {
+	const { props, edits, input } = fixture(t, { type: 'number', modelValue: 2, debounce: 10 });
+	const { event } = stepperPointer();
+	input.onStepperPointerDown(event(100));
+	input.onStepperPointerUp(event(90));
+	assert.deepEqual(edits, [3]);
+	await nextTick();
+	await new Promise(resolve => setTimeout(resolve, 30));
+	assert.deepEqual(edits, [3]);
+	props.stepperImmediateUpdate = false;
+	await nextTick();
+	input.onStepperPointerDown(event(100));
+	input.onStepperPointerUp(event(90));
+	assert.deepEqual(edits, [3]);
+	await new Promise(resolve => setTimeout(resolve, 30));
+	assert.deepEqual(edits, [3, 4]);
+});
+
 // 【式入力は手動保存の数値欄だけで既定で有効にする】
 // HTMLのnumber入力では式が消されるためtextへ切り替える一方、明示的な無効化や通常の入力形式は維持する。
 test('enables expressions by default only for manual-save number inputs', async t => {
