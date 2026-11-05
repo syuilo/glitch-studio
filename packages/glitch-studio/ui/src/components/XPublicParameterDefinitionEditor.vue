@@ -14,14 +14,14 @@
 			:class="$style.field"
 			:modelValue="parameterType"
 			:items="[
-				{ label: i18n.ts._CustomParameterInput._Types.Number, value: 'scalar' },
-				{ label: i18n.ts._CustomParameterInput._Types.Flag, value: 'bool' },
-				{ label: i18n.ts._CustomParameterInput._Types.String, value: 'string' },
-				{ label: i18n.ts._CustomParameterInput._Types.Color, value: 'color' },
+				{ label: i18n.ts._PublicParameterInput._Types.Number, value: 'scalar' },
+				{ label: i18n.ts._PublicParameterInput._Types.Flag, value: 'bool' },
+				{ label: i18n.ts._PublicParameterInput._Types.String, value: 'string' },
+				{ label: i18n.ts._PublicParameterInput._Types.Color, value: 'color' },
 				{ label: i18n.ts._ColorRamp.Title, value: 'colorRamp' },
-				{ label: i18n.ts._CustomParameterInput._Types.Vector, value: 'vector' },
-				{ label: i18n.ts._CustomParameterInput._Types.Enum, value: 'enum' },
-				{ label: i18n.ts._CustomParameterInput._Types.SizeReference, value: 'sizeReference' },
+				{ label: i18n.ts._PublicParameterInput._Types.Vector, value: 'vector' },
+				{ label: i18n.ts._PublicParameterInput._Types.Enum, value: 'enum' },
+				{ label: i18n.ts._PublicParameterInput._Types.SizeReference, value: 'sizeReference' },
 				{ label: i18n.ts.Audio, value: 'audioSource' },
 			].filter(item => supportedTypes == null || supportedTypes.includes(item.value))"
 			@update:modelValue="updateType"
@@ -52,11 +52,11 @@
 		</div>
 	</div>
 	<div v-if="isParameterType(def, 'enum')" :class="$style.option">
-		<label :class="$style.optionLabel">{{ i18n.ts._CustomParameterInput.Options }}</label>
+		<label :class="$style.optionLabel">{{ i18n.ts._PublicParameterInput.Options }}</label>
 		<XEnumOptionsEditor :class="$style.optionControl" :options="def.dataType.options" :labels="def.ui.control.labels" :defaultValue="def.defaultValue.value" @update="updateEnumOptions"/>
 	</div>
 	<div v-if="def.dataType.kind !== 'array' && def.dataType.kind !== 'struct' && def.dataType.kind !== 'any' && def.dataType.kind !== 'enum' && def.dataType.kind !== 'audioSource'" :class="$style.option">
-		<label :class="$style.optionLabel">{{ i18n.ts._CustomParameterInput.DefaultValue }}</label>
+		<label :class="$style.optionLabel">{{ i18n.ts._PublicParameterInput.DefaultValue }}</label>
 		<GsLiteralLeafValueControl
 			:key="parameterType"
 			:class="$style.optionControl"
@@ -91,23 +91,23 @@ import GsSwitch from './common/GsSwitch.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import XEnumOptionsEditor from './XEnumOptionsEditor.vue';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { CustomParameterDefinitionEdit } from '@/types/parameter-edit.ts';
+import type { PublicParameterDefinitionEdit } from '@/types/parameter-edit.ts';
 import { i18n } from '@/i18n.ts';
 
-type CustomParameterDefinition = ParameterDefinition & { nameForReference: string };
-type EditableDataType = CustomParameterDefinition['dataType']['kind'];
+type PublicParameterDefinition = ParameterDefinition & { nameForReference: string };
+type EditableDataType = PublicParameterDefinition['dataType']['kind'];
 const props = defineProps<{
 	supportedTypes?: readonly string[];
 	nodeInputEnabled?: boolean;
-	def: CustomParameterDefinition;
+	def: PublicParameterDefinition;
 }>();
 
 const emit = defineEmits<{
-	update: [changes: CustomParameterDefinitionEdit, mergeKey?: string | null];
+	update: [changes: PublicParameterDefinitionEdit, mergeKey?: string | null];
 	remove: [];
 }>();
 
-function update(changes: CustomParameterDefinitionEdit) {
+function update(changes: PublicParameterDefinitionEdit) {
 	emit('update', changes);
 }
 

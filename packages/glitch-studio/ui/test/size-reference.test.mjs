@@ -39,8 +39,8 @@ test('preserves the dedicated size-reference type through edits undo redo and sa
 	assert.equal(definition.paramDefs.sizeReference.defaultValue.value, 'longSide');
 	assert.equal('fitMode' in definition.paramDefs, false);
 	const node = { id: 'node', type: 'effect', effectId: 'checker', resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, isBypass: false, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, structuredClone(def.defaultValue)])) };
-	const customDefinition = { id: 'reference', nameForReference: 'size_reference', ...structuredClone(definition.paramDefs.sizeReference) };
-	const visualModule = { id: 'visual-module', nodes: [node], paramDefs: [customDefinition] };
+	const publicParameterDefinition = { id: 'reference', nameForReference: 'size_reference', ...structuredClone(definition.paramDefs.sizeReference) };
+	const visualModule = { id: 'visual-module', nodes: [node], paramDefs: [publicParameterDefinition] };
 	const state = { visualModules: { value: [visualModule] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const target = { visualModuleId: visualModule.id, nodeId: node.id, paramPath: ['sizeReference'] };
@@ -52,7 +52,7 @@ test('preserves the dedicated size-reference type through edits undo redo and sa
 	assert.equal(node.params.sizeReference.value, 'height');
 	const encoded = await encodeProjectFile({ assets: [], generatedSpeech: [], timelineScenes: [], visualModules: state.visualModules.value, gsVersion: '2.0.0-alpha.31' });
 	const restored = decodeProjectFile(encoded).visualModules[0];
-	assert.deepEqual(restored.paramDefs[0], customDefinition);
+	assert.deepEqual(restored.paramDefs[0], publicParameterDefinition);
 	assert.deepEqual(restored.nodes[0].params.sizeReference, node.params.sizeReference);
 });
 

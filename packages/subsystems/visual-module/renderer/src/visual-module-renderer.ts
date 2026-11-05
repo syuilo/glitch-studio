@@ -2,7 +2,7 @@ import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
-import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import { visualModulePublicParameterId, type VisualModulePublicParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { constantShaderInput, toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
@@ -41,8 +41,8 @@ export type VisualModuleRenderContext = {
 	endTime: number; // 終了時刻という概念がないコンテキスト(例: Visual Module Live Preview)の場合はInfinityとすること。
 	/** 内容時刻と独立した表示区間の進行率。タイムラインの呼び出し側で計算する。 */
 	progress?: number;
-	paramInputs?: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture>;
-	audioParamInputs?: ReadonlyMap<VisualModuleCustomParameterId, AudioInput | null>;
+	paramInputs?: ReadonlyMap<VisualModulePublicParameterId, UniformOrTexture>;
+	audioParamInputs?: ReadonlyMap<VisualModulePublicParameterId, AudioInput | null>;
 	/** プレビューからの各軸[-1,+1]の位置。両軸<=-999は未入力の予約値。 */
 	pointerPosition: { x: number; y: number };
 	/** pointerPositionと同じ画像参照座標で測った前回位置。 */
@@ -69,10 +69,10 @@ export class VisualModuleRenderer {
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
 	private primaryOutputId: string | null = null;
-	private primaryInputId: VisualModuleCustomParameterId | null = null;
+	private primaryInputId: VisualModulePublicParameterId | null = null;
 	private paramValues: VisualModuleEvaluatedParameterValues = new Map();
-	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture> = new Map();
-	private audioParamInputs: ReadonlyMap<VisualModuleCustomParameterId, AudioInput | null> = new Map();
+	private paramInputs: ReadonlyMap<VisualModulePublicParameterId, UniformOrTexture> = new Map();
+	private audioParamInputs: ReadonlyMap<VisualModulePublicParameterId, AudioInput | null> = new Map();
 	private resolvedAudioInputs = new Map<string, AudioInput | null>();
 	private resolveAudioSource: ((selection: unknown) => AudioInput | null) | null = null;
 	private preparedContext: VisualModuleRenderContext | null = null;
@@ -165,7 +165,7 @@ export class VisualModuleRenderer {
 		this.updateNodes(visualModule.nodes, options.preserveStaticState === true);
 	}
 
-	private getParamOutput(paramId: VisualModuleCustomParameterId): UniformOrTexture | null {
+	private getParamOutput(paramId: VisualModulePublicParameterId): UniformOrTexture | null {
 		const def = this.paramDefs.find(def => def.id === paramId);
 		if (def == null || !def.canNode) return null;
 		const input = this.paramInputs.get(paramId);
@@ -235,7 +235,7 @@ export class VisualModuleRenderer {
 			for (const [key, def] of Object.entries(paramDefs)) {
 				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
 				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
-					if (def.dataType.kind === 'audioSource' && param.inputSource === 'visualModuleCustomParameterReference') return null;
+					if (def.dataType.kind === 'audioSource' && param.inputSource === 'visualModulePublicParameterReference') return null;
 					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, nodeEvalCtx,
 						def.dataType.kind === 'enum' ? null : genEmptyValue(def), def))); // TODO: genEmptyValueを遅延評価したい
 				});
@@ -252,7 +252,7 @@ export class VisualModuleRenderer {
 			// 定数は値でキャッシュできる。借用テクスチャは同一オブジェクトでも内容が変わり得る。
 			// 別の公開入力の値変更を、このポートだけを読む枝へ伝播させない。
 			const ids = outputPort == null ? Object.keys(getNodeOutputs(node, this.paramDefs)) : [outputPort];
-			const outputs = ids.map(id => this.getParamOutput(visualModuleCustomParameterId(id)));
+			const outputs = ids.map(id => this.getParamOutput(visualModulePublicParameterId(id)));
 			return outputs.some(output => output?.kind === 'texture') ? null : JSON.stringify([node.id, ids, outputs]);
 		}
 		if (node.type === 'globalOut') return null;
@@ -294,7 +294,7 @@ export class VisualModuleRenderer {
 					key += JSON.stringify([param.fitMode, param.wrapMode, param.filterMode]);
 				}
 				// 外部から渡されたテクスチャは同じオブジェクトの内容が毎フレーム変わり得る。
-				if (def.canNode && param.inputSource === 'visualModuleCustomParameterReference') {
+				if (def.canNode && param.inputSource === 'visualModulePublicParameterReference') {
 					const input = this.paramInputs.get(param.parameterId);
 					if (input?.kind === 'texture') return null;
 					key += JSON.stringify(input);
@@ -334,10 +334,10 @@ export class VisualModuleRenderer {
 		const key = JSON.stringify([nodeId, path]);
 		if (this.resolvedAudioInputs.has(key)) return this.resolvedAudioInputs.get(key)!;
 		let input: AudioInput | null = null;
-		if (binding.inputSource === 'visualModuleCustomParameterReference' && this.audioParamInputs.has(binding.parameterId)) {
+		if (binding.inputSource === 'visualModulePublicParameterReference' && this.audioParamInputs.has(binding.parameterId)) {
 			input = this.audioParamInputs.get(binding.parameterId)!;
 		} else {
-			const selection = binding.inputSource === 'visualModuleCustomParameterReference'
+			const selection = binding.inputSource === 'visualModulePublicParameterReference'
 				? this.paramValues.get(binding.parameterId) ?? this.paramDefs.find(def => def.id === binding.parameterId)?.defaultValue.value ?? null : value;
 			if (selection != null) input = this.resolveAudioSource?.(selection) ?? null;
 		}
@@ -439,7 +439,7 @@ export class VisualModuleRenderer {
 	private getOutputValue(node: VisualModuleNode, outputPort: string): UniformOrTexture | null {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return null;
-		if (output.node.type === 'globalIn') return this.getParamOutput(visualModuleCustomParameterId(output.outputPort));
+		if (output.node.type === 'globalIn') return this.getParamOutput(visualModulePublicParameterId(output.outputPort));
 		const texture = this.effectRenderers.get(output.node.id)?.getOutputTexture(output.outputPort);
 		return texture == null ? null : { kind: 'texture', texture };
 	}

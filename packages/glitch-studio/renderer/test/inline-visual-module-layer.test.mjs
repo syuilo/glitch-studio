@@ -342,16 +342,16 @@ test('invalidates cut boundaries after edits', async t => {
 });
 
 for (const layerType of ['inlineVisualModule', 'visualModule']) {
-	// 【レイヤーのカスタム値だけの編集ではVisual Moduleの履歴とキャッシュを維持する】
+	// 【レイヤーの公開パラメータ値だけの編集ではVisual Moduleの履歴とキャッシュを維持する】
 	// 未使用の値でもインスタンスを破棄するとFeedbackの蓄積が失われる。
 	// 使用中の値の変更は、同じインスタンスの次の評価へ新しい参照環境で反映する。
-	test(`preserves ${layerType} instances and updates custom inputs after value edits`, async t => {
+	test(`preserves ${layerType} instances and updates public parameter inputs after value edits`, async t => {
 		const { manager, calls } = await fixture(t, { disableCache: false });
 		const module = { ...visualModule({ params: { amount: expression('PARAM("amount")') } }), id: 'registered', name: 'Visual Module' };
 		module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 		const entry = layer('layer', module, {
-			customParameterDefs: ['speed', 'unused'].map(id => ({ ...scalar, id, nameForReference: id })),
-			customParameterValues: { speed: literal(1), unused: literal(0) },
+			publicParameterDefs: ['speed', 'unused'].map(id => ({ ...scalar, id, nameForReference: id })),
+			publicParameterValues: { speed: literal(1), unused: literal(0) },
 			visualModuleParamValues: { amount: expression('PARAM("speed")') },
 		});
 		if (layerType === 'visualModule') {
@@ -365,8 +365,8 @@ for (const layerType of ['inlineVisualModule', 'visualModule']) {
 		assert.equal(calls.renders.at(-1).params.amount, 1);
 		let edited = structuredClone(entry);
 		for (const [id, value] of [['unused', 3], ['speed', 2]]) {
-			edited = { ...edited, customParameterValues: { ...edited.customParameterValues, [id]: literal(value) } };
-			manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: edited.id, layer: edited, changes: [{ type: 'parameter', target: 'customParameter', kind: 'value' }] }]);
+			edited = { ...edited, publicParameterValues: { ...edited.publicParameterValues, [id]: literal(value) } };
+			manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: edited.id, layer: edited, changes: [{ type: 'parameter', target: 'publicParameter', kind: 'value' }] }]);
 			await manager.renderTimelineFrame(350, 20);
 			assert.equal(calls.instances.length, 1);
 			assert.equal(instance.disposed, false);
@@ -381,24 +381,24 @@ for (const layerType of ['inlineVisualModule', 'visualModule']) {
 // 【祖先の値変更と階層移動で索引を更新する】
 // 作成時のコンテキストを固定すると、値編集で保持された子が古い親の値を参照し続ける。
 // 別のコンテナへ移動した後は、移動先の祖先を参照することも確認する。
-test('refreshes custom parameter scopes after parent value edits and hierarchy changes', async t => {
+test('refreshes public parameter scopes after parent value edits and hierarchy changes', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
 	const module = visualModule({ params: { amount: expression('PARAM("amount")') } });
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	const definition = { ...scalar, id: 'speed', nameForReference: 'speed' };
-	const entry = layer('layer', module, { customParameterDefs: [definition], customParameterValues: { speed: expression('PARAM("speed")') }, visualModuleParamValues: { amount: expression('PARAM("speed")') } });
+	const entry = layer('layer', module, { publicParameterDefs: [definition], publicParameterValues: { speed: expression('PARAM("speed")') }, visualModuleParamValues: { amount: expression('PARAM("speed")') } });
 	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, automationGraphs: [], transformParamValues: createTimelineTransformParameterValues(),
-		layers: [entry], customParameterDefs: [definition], customParameterValues: { speed: literal(1) } };
+		layers: [entry], publicParameterDefs: [definition], publicParameterValues: { speed: literal(1) } };
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [parent] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.at(-1).params.amount, 1);
-	const changed = { ...parent, customParameterValues: { speed: literal(2) } };
-	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: parent.id, layer: changed, changes: [{ type: 'parameter', target: 'customParameter', kind: 'value' }] }]);
+	const changed = { ...parent, publicParameterValues: { speed: literal(2) } };
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: parent.id, layer: changed, changes: [{ type: 'parameter', target: 'publicParameter', kind: 'value' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.at(-1).params.amount, 2);
 	assert.equal(calls.instances.length, 1);
 	assert.equal(calls.instances[0].disposed, false);
-	const nextParent = { ...parent, id: 'next-parent', customParameterValues: { speed: literal(4) } };
+	const nextParent = { ...parent, id: 'next-parent', publicParameterValues: { speed: literal(4) } };
 	manager.applyProjectChanges([{ type: 'layerTree', sceneId: 'scene', layers: [{ ...changed, layers: [] }, nextParent] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.at(-1).params.amount, 4);
@@ -659,7 +659,7 @@ test('isolates inline module scopes and passes local time and export context', a
 		amount: expression('PARAM("amount")'), local: expression('GRAPH("graph", 0, "clamp")'),
 		caller: expression('TEST_SAME_NAME'), localTime: expression('TIME_MS'), duration: expression('END_TIME_MS'),
 		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: literal(0),
-		directForbidden: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'input' },
+		directForbidden: { inputSource: 'visualModulePublicParameterReference', parameterId: 'input' },
 	} });
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
 	module.automationGraphs = [graph(7)];

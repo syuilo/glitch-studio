@@ -96,7 +96,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const baseScope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs });
+			const baseScope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, automationGraphs: layer.automationGraphs });
 			const scope = { ...baseScope, variables: { ...baseScope.variables, ...createResolutionExpressionVariables(effectResolution) } };
 			const resolveAudioInput = createTimelineAudioInputResolver(options.getAudioInput, context.sceneTimeMs, context.isExport);
 			const references = new Map<string, TimelineImage>();
@@ -168,7 +168,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 					layerMask: layer.layerMask,
 					transformTarget: layer.transformTarget,
 					paramValues: layer.compositingParamValues,
-					customParameters: context.customParameters,
+					publicParameters: context.publicParameters,
 					automationGraphs: layer.automationGraphs,
 				});
 				return { ...compositor.evaluate(context, { kind: 'texture', texture }, settings), gpuTime: 0 };

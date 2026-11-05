@@ -48,7 +48,7 @@
 	<div v-else-if="dataType.kind === 'enum'">
 		<GsSelect :modelValue="value" :items="enumItems" @update:modelValue="v => changeValue(v)"/>
 		<div v-if="typeof value !== 'string' || !dataType.options.includes(value)" :class="$style.enumError">
-			{{ i18n.t('_CustomParameterInput.InvalidEnumValue', { value: JSON.stringify(value) ?? String(value) }) }}
+			{{ i18n.t('_PublicParameterInput.InvalidEnumValue', { value: JSON.stringify(value) ?? String(value) }) }}
 		</div>
 	</div>
 	<div v-else-if="dataType.kind === 'sizeReference'">

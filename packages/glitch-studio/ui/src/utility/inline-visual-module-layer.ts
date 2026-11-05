@@ -1,12 +1,12 @@
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import { visualModulePublicParameterId, visualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVisualModuleLayer {
-	const inputId = visualModuleCustomParameterId(genId());
+	const inputId = visualModulePublicParameterId(genId());
 	const outputId = genId();
 	return {
 		id: genId(),
@@ -38,7 +38,7 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 		visualModule: {
 			paramDefs: [{
 				id: inputId,
-				nameForReference: visualModuleCustomParameterName('input'),
+				nameForReference: visualModulePublicParameterName('input'),
 				dataType: { kind: 'color' },
 				ui: { label: 'Input', control: {} },
 				defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },

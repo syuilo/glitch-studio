@@ -8,7 +8,7 @@ import { isTimelineAudioInputBinding } from '@gs/subsystems_timeline_shared/para
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
 import type { TimelineAudioInputProvider } from '../../timeline-audio-input-resolver.ts';
-import type { VisualModuleCustomParameterId, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModulePublicParameterId, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -22,7 +22,7 @@ export function createVisualModuleTimelineLayer(
 	layerSource: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | (() => TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer),
 	renderer: {
 		getAudioInput?: TimelineAudioInputProvider;
-		getImageInput?: (input: TimelineImage, parameterId: VisualModuleCustomParameterId) => TimelineImage;
+		getImageInput?: (input: TimelineImage, parameterId: VisualModulePublicParameterId) => TimelineImage;
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
 		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<TimelineImage>) => ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>;
 		resetRenderHistory?: () => void;
@@ -35,13 +35,13 @@ export function createVisualModuleTimelineLayer(
 			if (signal.aborted) return { gpuTime: 0 };
 			const visualModule = typeof moduleSource === 'function' ? moduleSource() : moduleSource;
 			const layer = typeof layerSource === 'function' ? layerSource() : layerSource;
-			const paramInputs = new Map<VisualModuleCustomParameterId, TimelineImage>();
+			const paramInputs = new Map<VisualModulePublicParameterId, TimelineImage>();
 			// 同じ画像を複数ポートへ渡す場合も、Scene枠への確定は一度だけ行う。
 			// GPUTextureの内容は次のサンプルで変わるため、共有は今回の評価内に限る。
 			const framedImageInputs = new Map<TimelineImage, TimelineImage>();
-			const evaluationContext = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs });
-			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
-			const audioParamInputs = new Map<VisualModuleCustomParameterId, AudioInput | null>();
+			const evaluationContext = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, automationGraphs: layer.automationGraphs });
+			const evaluatedParamValues = new Map<VisualModulePublicParameterId, any>();
+			const audioParamInputs = new Map<VisualModulePublicParameterId, AudioInput | null>();
 			const resolveAudioInput = createTimelineAudioInputResolver(renderer.getAudioInput, context.sceneTimeMs, context.isExport);
 			for (const def of visualModule.paramDefs) {
 				const value = layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def);

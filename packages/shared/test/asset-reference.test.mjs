@@ -10,7 +10,7 @@ test('stores static asset IDs directly and rejects binding sources', () => {
 	const definitions = { image: { dataType: { kind: 'assetReference', assetType: 'image' }, ui: { label: 'Image' }, defaultValue: null } };
 	assert.deepEqual(createStaticSettingValues(definitions), { image: null });
 	for (const image of [null, 'asset']) assert.doesNotThrow(() => validateStaticSettings(definitions, { image }));
-	for (const image of [{ inputSource: 'literal', value: 'asset' }, { inputSource: 'expression', expression: 'TIME' }, { inputSource: 'visualModuleCustomParameterReference', parameterId: 'image' }]) assert.throws(() => validateStaticSettings(definitions, { image }), /Invalid static setting/);
+	for (const image of [{ inputSource: 'literal', value: 'asset' }, { inputSource: 'expression', expression: 'TIME' }, { inputSource: 'visualModulePublicParameterReference', parameterId: 'image' }]) assert.throws(() => validateStaticSettings(definitions, { image }), /Invalid static setting/);
 });
 
 // 【選択候補と読み込み処理で同じ素材カテゴリの制約を使う】

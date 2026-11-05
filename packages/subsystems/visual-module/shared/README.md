@@ -8,10 +8,10 @@ Visual Moduleのノード間の接続は、deterministic・静的です。つま
 
 ノードの入力が前回のレンダリング時から変化がない場合は、そのノードの処理をスキップしてパフォーマンスを向上させる仕組みがあります。
 
-Visual Moduleのノード・入出力・公開カスタムパラメータ・接続の契約を定義する。パラメータ自体の定義とBindingは共通基盤を組み合わせ、カスタムパラメータのID・参照名・主入力などの役割はこのドメインが所有する。
+Visual Moduleのノード・入出力・公開パラメータ・接続の契約を定義する。パラメータ自体の定義とBindingは共通基盤を組み合わせ、公開パラメータのID・参照名・主入力などの役割はこのドメインが所有する。
 
-`expression.ts`はVisual Module内で公開する変数名、`parameter-evaluation.ts`は呼び出し側から受け取る評価済みカスタムパラメータのCPU値を定義する。`PARAM`・Visual Moduleカスタムパラメータ参照（`visualModuleCustomParameterReference`）・ノード参照の評価はVisual Module Rendererが担当する。
+`expression.ts`はVisual Module内で公開する変数名、`parameter-evaluation.ts`は呼び出し側から受け取る評価済み公開パラメータのCPU値を定義する。`PARAM`・Visual Module公開パラメータ参照（`visualModulePublicParameterReference`）・ノード参照の評価はVisual Module Rendererが担当する。
 
-内部の`VisualModuleParameterBinding`は`ValueParameterBinding`にノード接続とカスタムパラメータ参照を加える。接続先の`NodeOutputReference`とブランド型の`VisualModuleCustomParameterId`もこのドメインが所有し、`lowerLayerOutput`は含めない。
+内部の`VisualModuleParameterBinding`は`ValueParameterBinding`にノード接続と公開パラメータ参照を加える。接続先の`NodeOutputReference`とブランド型の`VisualModulePublicParameterId`もこのドメインが所有し、`lowerLayerOutput`は含めない。
 
-レイヤーやVisual Module Live Previewから渡される`VisualModuleArgumentBindings`の値は`ValueParameterBinding`に限定する。内部のBindingとは参照スコープが異なるため、型名でも引数と区別する。`canNode: true`のカスタムパラメータはInノードで参照し、`PARAM`と直接参照の対象には含めない。
+レイヤーやVisual Module Live Previewから渡される`VisualModuleArgumentBindings`の値は`ValueParameterBinding`に限定する。内部のBindingとは参照スコープが異なるため、型名でも引数と区別する。`canNode: true`の公開パラメータはInノードで参照し、`PARAM`と直接参照の対象には含めない。

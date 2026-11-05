@@ -5,7 +5,7 @@ import { loadSource } from './helpers/load-source.mjs';
 
 const load = name => loadSource(fileURLToPath(new URL('../src/' + name, import.meta.url)));
 const { createTimelineContainerLayer, convertTimelineContainerLayer, getTimelineContainerConversionTargets } = await load('container-layer.ts');
-const { createTimelineLayerCustomParameterContextIndex, getTimelineLayerCustomParameterContext } = await load('custom-parameters.ts');
+const { createTimelineLayerPublicParameterContextIndex, getTimelineLayerPublicParameterContext } = await load('public-parameters.ts');
 const { TimelineParameterBindingEvaluator } = await load('parameter-binding-evaluator.ts');
 const { createTimelineLayerEvaluationScope } = await load('evaluation-scope.ts');
 const { getTimelineLayerMaskSources, getTimelineLayerOutputDependencyGraph } = await load('layer-output.ts');
@@ -50,7 +50,7 @@ test('collects render layers in order without crossing render boundaries or muta
 test('creates organizing containers with only their supported capabilities', () => {
 	const folder = container('folder');
 	const parameters = container('parameterContainer');
-	for (const key of ['automationGraphs', 'customParameterDefs', 'customParameterValues', 'compositingParamValues', 'audioParamValues', 'transformParamValues', 'forceDisableMotionBlur']) assert.equal(Object.hasOwn(folder, key), false);
+	for (const key of ['automationGraphs', 'publicParameterDefs', 'publicParameterValues', 'compositingParamValues', 'audioParamValues', 'transformParamValues', 'forceDisableMotionBlur']) assert.equal(Object.hasOwn(folder, key), false);
 	assert.deepEqual(parameters.automationGraphs, []);
 	for (const key of ['compositingParamValues', 'audioParamValues', 'transformParamValues', 'forceDisableMotionBlur']) assert.equal(Object.hasOwn(parameters, key), false);
 });
@@ -65,8 +65,8 @@ test('converts only in the allowed directions and preserves identity and saved b
 		source.isDisabled = true;
 		source.layers = [sound()];
 		if (type !== 'folder') {
-			source.customParameterDefs = [scalar('speed')];
-			source.customParameterValues = { speed: { inputSource: 'expression', expression: 'TIME', expressionModifier: { enabled: true, code: 'VALUE * 2' } } };
+			source.publicParameterDefs = [scalar('speed')];
+			source.publicParameterValues = { speed: { inputSource: 'expression', expression: 'TIME', expressionModifier: { enabled: true, code: 'VALUE * 2' } } };
 		}
 		assert.deepEqual(getTimelineContainerConversionTargets(source), expected[type]);
 		for (const target of Object.keys(expected)) {
@@ -77,7 +77,7 @@ test('converts only in the allowed directions and preserves identity and saved b
 			assert.deepEqual(result.color, source.color);
 			assert.equal(result.isDisabled, true);
 			assert.equal(result.layers, source.layers);
-			if (type !== 'folder') assert.deepEqual(result.customParameterValues, source.customParameterValues);
+			if (type !== 'folder') assert.deepEqual(result.publicParameterValues, source.publicParameterValues);
 			if (target === 'group') assert.equal(result.compositingMode, 'flat');
 		}
 	}
@@ -95,20 +95,20 @@ test('converts only in the allowed directions and preserves identity and saved b
 // 整理だけで既存の式を壊さず、明示的なスコープの追加では外側の定義へ暗黙にフォールバックしない。
 test('skips folders in parameter scope and stops at empty parameter containers', () => {
 	const parent = container('transform');
-	parent.customParameterDefs = [scalar('speed')];
-	parent.customParameterValues = { speed: literal(4) };
+	parent.publicParameterDefs = [scalar('speed')];
+	parent.publicParameterValues = { speed: literal(4) };
 	const folder = container('folder');
 	const child = container('parameterContainer');
 	child.id = 'child';
-	child.customParameterDefs = [scalar('speed')];
-	child.customParameterValues = { speed: { inputSource: 'expression', expression: 'PARAM("speed") * 2' } };
+	child.publicParameterDefs = [scalar('speed')];
+	child.publicParameterValues = { speed: { inputSource: 'expression', expression: 'PARAM("speed") * 2' } };
 	folder.layers = [child];
 	parent.layers = [folder];
-	const read = () => new TimelineParameterBindingEvaluator().evaluate({ inputSource: 'expression', expression: 'PARAM("speed")' }, createTimelineLayerEvaluationScope({ time: 100, isExport: false, automationGraphs: [], customParameters: getTimelineLayerCustomParameterContext([parent], child.id) }), 0, scalar('result'));
-	const index = createTimelineLayerCustomParameterContextIndex([parent]);
+	const read = () => new TimelineParameterBindingEvaluator().evaluate({ inputSource: 'expression', expression: 'PARAM("speed")' }, createTimelineLayerEvaluationScope({ time: 100, isExport: false, automationGraphs: [], publicParameters: getTimelineLayerPublicParameterContext([parent], child.id) }), 0, scalar('result'));
+	const index = createTimelineLayerPublicParameterContextIndex([parent]);
 	assert.equal(index.has(folder.id), false);
 	assert.deepEqual(index.get(child.id).ancestors.map(owner => owner.id), [parent.id]);
-	assert.deepEqual(index.get(child.id), getTimelineLayerCustomParameterContext([parent], child.id));
+	assert.deepEqual(index.get(child.id), getTimelineLayerPublicParameterContext([parent], child.id));
 	assert.equal(read(), 8);
 	const empty = container('parameterContainer');
 	empty.id = 'empty';

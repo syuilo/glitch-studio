@@ -1,16 +1,16 @@
 import { genId } from '@gs/shared/utility/id.ts';
-import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import { visualModulePublicParameterId, visualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 
 export function createProjectVisualModule(currentVisualModuleCount: number): ProjectVisualModule {
-	const inputId = visualModuleCustomParameterId(genId());
+	const inputId = visualModulePublicParameterId(genId());
 	const outputId = genId();
 	return {
 		id: genId(),
 		name: `VM${currentVisualModuleCount + 1}`,
 		paramDefs: [{
 			id: inputId,
-			nameForReference: visualModuleCustomParameterName('input'),
+			nameForReference: visualModulePublicParameterName('input'),
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },

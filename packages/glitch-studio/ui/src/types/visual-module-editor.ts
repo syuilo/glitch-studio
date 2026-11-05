@@ -1,5 +1,5 @@
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
-import type { NodeOutputReference, VisualModuleCustomParameterId, VisualModuleOutputDef, VisualModuleParamDef } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { NodeOutputReference, VisualModulePublicParameterId, VisualModuleOutputDef, VisualModuleParamDef } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
 
 export type VisualModuleAssetDropActions = {
@@ -18,11 +18,11 @@ export type VisualModuleEdit =
 	| { kind: 'reorderNodes'; nodeIds: string[] }
 	| { kind: 'setOutputConnection'; nodeId: string; outputId: string; value: NodeOutputReference | null }
 	| { kind: 'addParamDef'; def: VisualModuleParamDef }
-	| { kind: 'updateParamDef'; defId: VisualModuleCustomParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>>; mergeKey?: string | null }
-	| { kind: 'removeParamDef'; defId: VisualModuleCustomParameterId }
+	| { kind: 'updateParamDef'; defId: VisualModulePublicParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>>; mergeKey?: string | null }
+	| { kind: 'removeParamDef'; defId: VisualModulePublicParameterId }
 	| { kind: 'addOutputDef'; def: VisualModuleOutputDef }
 	| { kind: 'updateOutputDef'; defId: string; changes: Partial<Omit<VisualModuleOutputDef, 'id'>> }
 	| { kind: 'removeOutputDef'; defId: string }
 	| { kind: 'setPrimaryOutput'; outputId: string | null }
-	| { kind: 'setPrimaryAudioInput'; inputId: VisualModuleCustomParameterId | null }
-	| { kind: 'setPrimaryInput'; inputId: VisualModuleCustomParameterId | null };
+	| { kind: 'setPrimaryAudioInput'; inputId: VisualModulePublicParameterId | null }
+	| { kind: 'setPrimaryInput'; inputId: VisualModulePublicParameterId | null };

@@ -101,23 +101,23 @@ test('undoes solo toggles and scene-wide clearing with complete synchronization 
 	assert.equal(other.layers[0].isSolo, true);
 });
 
-const customScalar = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: literal(0), canNode: false });
+const publicScalarParameter = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: literal(0), canNode: false });
 
-// 【カスタムパラメータの型変更では旧型の保存値を外し、Undoで定義と値を一緒に復元する】
+// 【公開パラメータの型変更では旧型の保存値を外し、Undoで定義と値を一緒に復元する】
 // 固定値だけでなく式やキーも旧型に依存するため、新型の既定値へ戻す。
 // 同じレイヤーの別の値を消さず、未編集だった保存状態もUndoで正確に戻す必要がある。
-test('resets custom values on type changes and restores definitions and bindings with undo', t => {
+test('resets public parameter values on type changes and restores definitions and bindings with undo', t => {
 	for (const binding of [literal(0.7), { inputSource: 'expression', expression: 'TIME' }, keys([100, 800]), null]) {
 		const owner = group('owner');
-		const original = customScalar('speed');
-		owner.customParameterDefs = [original, customScalar('other')];
-		if (binding != null) owner.customParameterValues = { speed: binding, other: literal(0.2) };
+		const original = publicScalarParameter('speed');
+		owner.publicParameterDefs = [original, publicScalarParameter('other')];
+		if (binding != null) owner.publicParameterValues = { speed: binding, other: literal(0.2) };
 		const before = structuredClone(owner);
 		const f = fixture(t, [owner]);
 		const definition = { ...original, dataType: { kind: 'vector' }, ui: { label: 'Speed', control: { controlType: 'vector' } }, defaultValue: literal([0, 0]) };
-		f.history.commit('updateTimelineLayerCustomParameter', { sceneId: 'scene', layerId: owner.id, definition });
-		assert.deepEqual(module.exports.resolveLayerParameter(f.state, owner, 'customParameter', ['speed']).value, literal([0, 0]));
-		assert.deepEqual(owner.customParameterValues?.other, before.customParameterValues?.other);
+		f.history.commit('updateTimelineLayerPublicParameter', { sceneId: 'scene', layerId: owner.id, definition });
+		assert.deepEqual(module.exports.resolveLayerParameter(f.state, owner, 'publicParameter', ['speed']).value, literal([0, 0]));
+		assert.deepEqual(owner.publicParameterValues?.other, before.publicParameterValues?.other);
 		const changed = structuredClone(owner);
 		f.history.undo();
 		assert.deepEqual(owner, before);
@@ -128,76 +128,76 @@ test('resets custom values on type changes and restores definitions and bindings
 
 // 【表示設定やenumの選択肢だけの変更では所有Bindingを維持する】
 // 型変更時のリセットを広げすぎて、ラベル変更や選択肢編集でアニメーションを失わないようにする。
-test('preserves custom bindings when editing labels controls and enum options', t => {
+test('preserves public parameter bindings when editing labels controls and enum options', t => {
 	const owner = group('owner');
-	const original = customScalar('speed');
-	owner.customParameterDefs = [original];
-	owner.customParameterValues = { speed: keys([100, 800]) };
+	const original = publicScalarParameter('speed');
+	owner.publicParameterDefs = [original];
+	owner.publicParameterValues = { speed: keys([100, 800]) };
 	const f = fixture(t, [owner]);
 	const target = { sceneId: 'scene', layerId: owner.id };
-	const before = structuredClone(owner.customParameterValues);
-	f.history.commit('updateTimelineLayerCustomParameter', { ...target, definition: { ...original, ui: { label: 'Renamed', control: { controlType: 'range', min: 0, max: 2 } } } });
-	assert.deepEqual(owner.customParameterValues, before);
+	const before = structuredClone(owner.publicParameterValues);
+	f.history.commit('updateTimelineLayerPublicParameter', { ...target, definition: { ...original, ui: { label: 'Renamed', control: { controlType: 'range', min: 0, max: 2 } } } });
+	assert.deepEqual(owner.publicParameterValues, before);
 	const enumDefinition = { ...original, dataType: { kind: 'enum', options: ['left', 'right'] }, ui: { label: 'Direction', control: { labels: {} } }, defaultValue: literal('left') };
-	f.history.commit('updateTimelineLayerCustomParameter', { ...target, definition: enumDefinition });
-	f.history.commit('editTimelineLayerParam', { ...target, target: 'customParameter', paramPath: ['speed'], edit: { kind: 'literal', value: 'right' } });
-	f.history.commit('updateTimelineLayerCustomParameter', { ...target, definition: { ...enumDefinition, dataType: { kind: 'enum', options: ['left'] } } });
-	assert.deepEqual(owner.customParameterValues.speed, literal('right'));
+	f.history.commit('updateTimelineLayerPublicParameter', { ...target, definition: enumDefinition });
+	f.history.commit('editTimelineLayerParam', { ...target, target: 'publicParameter', paramPath: ['speed'], edit: { kind: 'literal', value: 'right' } });
+	f.history.commit('updateTimelineLayerPublicParameter', { ...target, definition: { ...enumDefinition, dataType: { kind: 'enum', options: ['left'] } } });
+	assert.deepEqual(owner.publicParameterValues.speed, literal('right'));
 });
 
-// 【カスタムパラメータの定義・値・削除をUndo/Redoし、Groupの時間移動にもキーを含める】
+// 【公開パラメータの定義・値・削除をUndo/Redoし、Groupの時間移動にもキーを含める】
 // 新しい保存先だけを特別扱いすると、履歴やコンテナ移動で定義・値・キーが取り残されてしまう。
-test('edits custom definitions and bindings with history and includes custom keyframe lanes', t => {
+test('edits public parameter definitions and bindings with history and includes public parameter keyframe lanes', t => {
 	const child = group('child');
 	const parent = group('parent', [child]);
 	const f = fixture(t, [parent]);
 	const target = { sceneId: 'scene', layerId: child.id };
-	f.history.commit('updateTimelineLayerCustomParameter', { ...target, definition: customScalar('speed') });
-	assert.equal(child.customParameterDefs[0].nameForReference, 'speed');
+	f.history.commit('updateTimelineLayerPublicParameter', { ...target, definition: publicScalarParameter('speed') });
+	assert.equal(child.publicParameterDefs[0].nameForReference, 'speed');
 	f.history.undo();
-	assert.equal(child.customParameterDefs, undefined);
+	assert.equal(child.publicParameterDefs, undefined);
 	f.history.redo();
-	f.history.commit('editTimelineLayerParam', { ...target, target: 'customParameter', paramPath: ['speed'], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } });
-	assert.equal(module.exports.getLayerKeyframeParameters(f.state, child).find(parameter => parameter.target === 'customParameter').paramPath[0], 'speed');
-	assert.deepEqual(prepareTimelineContainerMove(f.state, parent).keyframes.filter(key => key.target === 'customParameter').map(key => key.x), [100, 800]);
-	f.history.commit('removeTimelineLayerCustomParameter', { ...target, parameterId: 'speed' });
-	assert.deepEqual(child.customParameterDefs, []);
-	assert.equal(child.customParameterValues.speed, undefined);
+	f.history.commit('editTimelineLayerParam', { ...target, target: 'publicParameter', paramPath: ['speed'], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } });
+	assert.equal(module.exports.getLayerKeyframeParameters(f.state, child).find(parameter => parameter.target === 'publicParameter').paramPath[0], 'speed');
+	assert.deepEqual(prepareTimelineContainerMove(f.state, parent).keyframes.filter(key => key.target === 'publicParameter').map(key => key.x), [100, 800]);
+	f.history.commit('removeTimelineLayerPublicParameter', { ...target, parameterId: 'speed' });
+	assert.deepEqual(child.publicParameterDefs, []);
+	assert.equal(child.publicParameterValues.speed, undefined);
 	f.history.undo();
-	assert.equal(child.customParameterValues.speed.inputSource, 'keyframesTimelineInline');
+	assert.equal(child.publicParameterValues.speed.inputSource, 'keyframesTimelineInline');
 	f.history.undo();
-	assert.equal(child.customParameterValues, undefined);
+	assert.equal(child.publicParameterValues, undefined);
 	f.history.redo();
-	assert.deepEqual(child.customParameterValues.speed.keyframesTimeline.keyframes.map(key => key.x), [100, 800]);
+	assert.deepEqual(child.publicParameterValues.speed.keyframesTimeline.keyframes.map(key => key.x), [100, 800]);
 });
 
-// 【直接参照は祖先へ接続できるがカスタムパラメータから自身への接続は保存しない】
+// 【直接参照は祖先へ接続できるが公開パラメータから自身への接続は保存しない】
 // CommandでもUIと同じ範囲を守り、Group複製では内部の参照IDだけを付け替える必要がある。
-test('validates custom reference scope and remaps internal references when duplicating groups', t => {
+test('validates public parameter reference scope and remaps internal references when duplicating groups', t => {
 	const child = group('child');
-	child.customParameterDefs = [customScalar('forward')];
+	child.publicParameterDefs = [publicScalarParameter('forward')];
 	const root = group('root', [group('parent', [child])]);
-	root.customParameterDefs = [customScalar('speed')];
-	root.customParameterValues = { speed: literal(0.25) };
+	root.publicParameterDefs = [publicScalarParameter('speed')];
+	root.publicParameterValues = { speed: literal(0.25) };
 	const f = fixture(t, [root]);
-	const target = { sceneId: 'scene', layerId: child.id, target: 'customParameter', paramPath: ['forward'] };
-	const reference = { inputSource: 'timelineLayerCustomParameterReference', layerId: root.id, parameterId: 'speed' };
-	f.history.commit('editTimelineLayerParam', { ...target, edit: { kind: 'timelineLayerCustomParameterReference', value: reference } });
-	f.history.commit('editTimelineLayerParam', { ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'timelineLayerCustomParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } });
+	const target = { sceneId: 'scene', layerId: child.id, target: 'publicParameter', paramPath: ['forward'] };
+	const reference = { inputSource: 'timelineLayerPublicParameterReference', layerId: root.id, parameterId: 'speed' };
+	f.history.commit('editTimelineLayerParam', { ...target, edit: { kind: 'timelineLayerPublicParameterReference', value: reference } });
+	f.history.commit('editTimelineLayerParam', { ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'timelineLayerPublicParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } });
 	assert.equal(child.compositingParamValues.opacity.layerId, child.id);
-	assert.throws(() => COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'timelineLayerCustomParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } }).execute(f.state), /available layer/);
+	assert.throws(() => COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'timelineLayerPublicParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } }).execute(f.state), /available layer/);
 	const [copy] = duplicateTimelineLayers([root]);
 	const copiedChild = copy.layers[0].layers[0];
-	assert.equal(copiedChild.customParameterValues.forward.layerId, copy.id);
-	assert.equal(copiedChild.customParameterValues.forward.parameterId, 'speed');
+	assert.equal(copiedChild.publicParameterValues.forward.layerId, copy.id);
+	assert.equal(copiedChild.publicParameterValues.forward.parameterId, 'speed');
 	assert.equal(copiedChild.compositingParamValues.opacity.layerId, copiedChild.id);
 	const [externalCopy] = duplicateTimelineLayers([child]);
-	assert.equal(externalCopy.customParameterValues.forward.layerId, root.id);
+	assert.equal(externalCopy.publicParameterValues.forward.layerId, root.id);
 	f.history.undo();
 	f.history.undo();
-	assert.equal(child.customParameterValues, undefined);
+	assert.equal(child.publicParameterValues, undefined);
 	f.history.redo();
-	assert.deepEqual(child.customParameterValues.forward, reference);
+	assert.deepEqual(child.publicParameterValues.forward, reference);
 });
 
 // 【マスク参照は複製範囲内だけIDを付け替え、削除のUndoでは元の参照を復元する】
@@ -311,9 +311,9 @@ test('wraps and converts containers with stable identities references and atomic
 	f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: ['a', 'b'], container: folder });
 	const wrapped = structuredClone(f.scene.layers);
 	f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'parameterContainer' });
-	f.history.commit('updateTimelineLayerCustomParameter', { sceneId: 'scene', layerId: folder.id, definition: customScalar('speed') });
-	f.history.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: folder.id, target: 'customParameter', paramPath: ['speed'], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } });
-	f.history.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'a', target: 'audio', paramPath: ['volume'], edit: { kind: 'timelineLayerCustomParameterReference', value: { inputSource: 'timelineLayerCustomParameterReference', layerId: folder.id, parameterId: 'speed' } } });
+	f.history.commit('updateTimelineLayerPublicParameter', { sceneId: 'scene', layerId: folder.id, definition: publicScalarParameter('speed') });
+	f.history.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: folder.id, target: 'publicParameter', paramPath: ['speed'], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } });
+	f.history.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'a', target: 'audio', paramPath: ['volume'], edit: { kind: 'timelineLayerPublicParameterReference', value: { inputSource: 'timelineLayerPublicParameterReference', layerId: folder.id, parameterId: 'speed' } } });
 	const parameters = structuredClone(f.scene.layers);
 	f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'transform' });
 	const transform = structuredClone(f.scene.layers);
@@ -323,7 +323,7 @@ test('wraps and converts containers with stable identities references and atomic
 	assert.equal(converted.name, folder.name);
 	assert.equal(converted.compositingMode, 'flat');
 	assert.deepEqual(converted.color, folder.color);
-	assert.deepEqual(converted.customParameterValues, parameters[0].customParameterValues);
+	assert.deepEqual(converted.publicParameterValues, parameters[0].publicParameterValues);
 	assert.equal(converted.layers[0].audioParamValues.volume.layerId, folder.id);
 	assert.deepEqual(converted.layers.map(layer => layer.id), ['a', 'b']);
 	f.history.undo();
@@ -344,7 +344,7 @@ test('wraps and converts containers with stable identities references and atomic
 test('restricts folder capabilities and exposes only forward conversion actions', t => {
 	const folder = { id: 'folder', name: 'Folder', layerType: 'folder', color: null, isDisabled: false, layers: [] };
 	const f = fixture(t, [folder]);
-	assert.throws(() => f.history.commit('updateTimelineLayerCustomParameter', { sceneId: 'scene', layerId: folder.id, definition: customScalar('speed') }), /cannot own/);
+	assert.throws(() => f.history.commit('updateTimelineLayerPublicParameter', { sceneId: 'scene', layerId: folder.id, definition: publicScalarParameter('speed') }), /cannot own/);
 	assert.throws(() => f.history.commit('setTimelineLayerMotionBlurDisabled', { sceneId: 'scene', layerId: folder.id, forceDisableMotionBlur: true }), /visual layer/);
 	const controls = layerMenuFixture(f, [folder.id]);
 	const conversion = controls.open(folder.id).find(item => item.type === 'parent');

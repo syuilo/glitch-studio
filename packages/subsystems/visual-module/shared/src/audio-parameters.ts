@@ -4,10 +4,10 @@ import type { VisualModuleParameterBinding, VisualModuleParamDef } from './types
 
 /** 音声だけはCPU式・画像接続へ流さず、同じ型の公開パラメータを静的に参照する。 */
 export function validateVisualModuleAudioBinding(def: ParameterDefinition, binding: VisualModuleParameterBinding, paramDefs: readonly VisualModuleParamDef[]): void {
-	if (binding.inputSource === 'visualModuleCustomParameterReference') {
+	if (binding.inputSource === 'visualModulePublicParameterReference') {
 		const source = paramDefs.find(source => source.id === binding.parameterId);
 		if (def.dataType.kind === 'audioSource') {
-			if (binding.parameterId && (!source || source.canNode || source.dataType.kind !== 'audioSource')) throw new Error('Invalid custom audio parameter');
+			if (binding.parameterId && (!source || source.canNode || source.dataType.kind !== 'audioSource')) throw new Error('Invalid public audio parameter');
 		} else if (source?.dataType.kind === 'audioSource') throw new Error('Audio sources require an audio parameter');
 	} else if (def.dataType.kind === 'audioSource') validateLiteralAudioSourceBinding(binding);
 }

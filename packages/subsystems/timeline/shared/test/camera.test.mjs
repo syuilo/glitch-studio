@@ -22,15 +22,15 @@ const cameraLayer = (id, startMs, durationMs, paramValues = {}) => ({
 	clips: [{ id: 'view', startMs, durationMs, contentOffsetMs: 300 }],
 });
 
-// 【カメラと祖先Transformも、通常のレイヤーと同じカスタムパラメータの参照規則を使う】
+// 【カメラと祖先Transformも、通常のレイヤーと同じ公開パラメータの参照規則を使う】
 // カメラは映像レイヤーの描画走査とは別に評価するため、Scene側でも所有レイヤーの環境を渡す必要がある。
-test('evaluates camera and ancestor transforms with custom parameter scopes', () => {
+test('evaluates camera and ancestor transforms with public parameter scopes', () => {
 	const definition = { id: 'offset', nameForReference: 'offset', dataType: { kind: 'scalar' }, ui: { label: 'Offset', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
 	const camera = cameraLayer('view', 0, 1000, { position: { inputSource: 'expression', expression: '[PARAM("offset"), 0]' } });
-	camera.customParameterDefs = [definition];
-	camera.customParameterValues = { offset: { inputSource: 'expression', expression: 'PARAM("offset") * 2' } };
+	camera.publicParameterDefs = [definition];
+	camera.publicParameterValues = { offset: { inputSource: 'expression', expression: 'PARAM("offset") * 2' } };
 	const transform = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false, layers: [camera], automationGraphs: [],
-		customParameterDefs: [definition], customParameterValues: { offset: { inputSource: 'expression', expression: 'TIME' } },
+		publicParameterDefs: [definition], publicParameterValues: { offset: { inputSource: 'expression', expression: 'TIME' } },
 		transformParamValues: { position: { inputSource: 'expression', expression: '[PARAM("offset"), 0]' }, z: { inputSource: 'literal', value: 0 }, scale: { inputSource: 'literal', value: [1, 1] }, rotation: { inputSource: 'literal', value: 0 } },
 	};
 	assert.deepEqual(new TimelineSceneCamera().evaluate([transform], 500, false, frame).position, [1.5, 0]);

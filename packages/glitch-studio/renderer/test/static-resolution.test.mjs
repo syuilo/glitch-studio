@@ -22,7 +22,7 @@ test('plans graph resolutions before any frames textures or expressions exist', 
 		{ id: 'relay', type: 'relay', input: { nodeId: 'bypass', outputPort: 'output' } },
 		node('bypass', { input: connection('source') }, { isBypass: true, resolution: { mode: 'customAbsolute', width: 9, height: 9 } }),
 		node('source', { input: literal([0, 0, 0, 0]) }),
-		node('external', { input: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'image' } }),
+		node('external', { input: { inputSource: 'visualModulePublicParameterReference', parameterId: 'image' } }),
 		node('constant', { input: connection('in', 'constant') }), { id: 'in', type: 'globalIn' }];
 	const options = { visualModule: { nodes, paramDefs: ['image', 'constant'].map(id => ({ ...input, id })), outputDefs: [], primaryInputId: 'image', primaryOutputId: null }, effectDefinitions: { filter: definition },
 		contextResolution: { width: 960, height: 540 }, resolutionScale: 0.5, maxDimension: 8192,

@@ -38,7 +38,7 @@ export class TimelineAudioRenderer {
 				evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({
 					time,
 					automationGraphs: gain.automationGraphs,
-					customParameters: gain.customParameters,
+					publicParameters: gain.publicParameters,
 					isExport,
 				})),
 			}));
@@ -77,14 +77,14 @@ export class TimelineAudioRenderer {
 
 	private createGain(binding: TimelineParameterBinding, getScope: (time: number) => TimelineLayerEvaluationScope) {
 		const cache = new Map<number, number>();
-		const canReferenceCustomParameters = binding.inputSource === 'expression' || binding.inputSource === 'timelineLayerCustomParameterReference'
+		const canReferencePublicParameters = binding.inputSource === 'expression' || binding.inputSource === 'timelineLayerPublicParameterReference'
 			|| ('expressionModifier' in binding && binding.expressionModifier?.enabled === true);
-		const context = canReferenceCustomParameters ? getScope(0).customParameters : null;
+		const context = canReferencePublicParameters ? getScope(0).publicParameters : null;
 		// 参照やPARAMの奥にあるholdキーも、通常の音量キーと同じ境界で切り替える。
 		// 名前が式で計算される場合もあるため、公開範囲のキーを保守的に調べる。
-		// カスタム値を参照できない音量は、無関係なキーで毎サンプル評価へ切り替えない。
-		const hasCustomParameterKeyframes = context != null && [context.layer, ...context.ancestors].some(owner =>
-			Object.values(owner.customParameterValues ?? {}).some(value => value.inputSource === 'keyframesTimelineInline'));
+		// 公開パラメータ値を参照できない音量は、無関係なキーで毎サンプル評価へ切り替えない。
+		const hasPublicParameterKeyframes = context != null && [context.layer, ...context.ancestors].some(owner =>
+			Object.values(owner.publicParameterValues ?? {}).some(value => value.inputSource === 'keyframesTimelineInline'));
 		const evaluate = (time: number) => {
 			const value = coerceParameterValue(timelineAudioParamDefs.volume, this.evaluator.evaluate(binding, getScope(time), 0, timelineAudioParamDefs.volume));
 			return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -95,7 +95,7 @@ export class TimelineAudioRenderer {
 		};
 		return (time: number) => {
 			// 固定200HzグリッドはチャンクやFPSに依存しない。holdキーはサンプル時刻で直接評価する。
-			if (binding.inputSource === 'keyframesTimelineInline' || hasCustomParameterKeyframes) return evaluate(time);
+			if (binding.inputSource === 'keyframesTimelineInline' || hasPublicParameterKeyframes) return evaluate(time);
 			const index = Math.floor(time / 5);
 			const fraction = time / 5 - index;
 			return control(index) * (1 - fraction) + control(index + 1) * fraction;

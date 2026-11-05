@@ -9,13 +9,13 @@ import type { FitMode, WrapMode } from '@gs/shared/types.js';
 
 export type VisualModuleNodeParameterBinding = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
-export type VisualModuleCustomParameterReferenceBinding = {
-	inputSource: 'visualModuleCustomParameterReference';
-	parameterId: VisualModuleCustomParameterId;
+export type VisualModulePublicParameterReferenceBinding = {
+	inputSource: 'visualModulePublicParameterReference';
+	parameterId: VisualModulePublicParameterId;
 };
 
 // Visual Module内部でだけ解決できる参照を、共通の値入力に加える。
-export type VisualModuleParameterBinding = ValueParameterBinding | VisualModuleNodeParameterBinding | VisualModuleCustomParameterReferenceBinding;
+export type VisualModuleParameterBinding = ValueParameterBinding | VisualModuleNodeParameterBinding | VisualModulePublicParameterReferenceBinding;
 
 export type VisualModuleEffectNode = {
 	id: string;
@@ -67,19 +67,19 @@ export type VisualModuleNodeChange =
 	| { type: 'parameter'; kind: ParameterChangeKind }
 	| { type: 'bypass' | 'resolution' | 'staticSetting' };
 
-declare const visualModuleCustomParameterIdentity: unique symbol;
+declare const visualModulePublicParameterIdentity: unique symbol;
 
-export type VisualModuleCustomParameterId = string & { readonly [visualModuleCustomParameterIdentity]: 'id' };
-export type VisualModuleCustomParameterName = string & { readonly [visualModuleCustomParameterIdentity]: 'name' };
+export type VisualModulePublicParameterId = string & { readonly [visualModulePublicParameterIdentity]: 'id' };
+export type VisualModulePublicParameterName = string & { readonly [visualModulePublicParameterIdentity]: 'name' };
 
 // 生成・入力・式との境界でのみ使う。既に分類済みのID/名前を相互変換させない。
 // 実在性やスコープ内での可用性を保証する型ではなく、保存形式は通常の文字列のまま。
-type UnbrandedString = string & { readonly [visualModuleCustomParameterIdentity]?: never };
-export function visualModuleCustomParameterId(value: UnbrandedString): VisualModuleCustomParameterId {
-	return value as unknown as VisualModuleCustomParameterId;
+type UnbrandedString = string & { readonly [visualModulePublicParameterIdentity]?: never };
+export function visualModulePublicParameterId(value: UnbrandedString): VisualModulePublicParameterId {
+	return value as unknown as VisualModulePublicParameterId;
 }
-export function visualModuleCustomParameterName(value: UnbrandedString): VisualModuleCustomParameterName {
-	return value as unknown as VisualModuleCustomParameterName;
+export function visualModulePublicParameterName(value: UnbrandedString): VisualModulePublicParameterName {
+	return value as unknown as VisualModulePublicParameterName;
 }
 
 export type VisualModuleOutputDef = {
@@ -90,8 +90,8 @@ export type VisualModuleOutputDef = {
 };
 
 export type VisualModuleParamDef = ParameterDefinition & {
-	id: VisualModuleCustomParameterId;
-	nameForReference: VisualModuleCustomParameterName; // expressionから参照するとき用
+	id: VisualModulePublicParameterId;
+	nameForReference: VisualModulePublicParameterName; // expressionから参照するとき用
 	// ParameterDefinitionでノード入力を許可する型だけ、Inノードの出力として公開できる。
 	canNode: boolean;
 };
@@ -101,14 +101,14 @@ export type VisualModule = {
 	outputDefs: VisualModuleOutputDef[];
 	primaryOutputId: string | null;
 	paramDefs: VisualModuleParamDef[];
-	primaryInputId: VisualModuleCustomParameterId | null;
+	primaryInputId: VisualModulePublicParameterId | null;
 	/** 音声の自動割当先。Inノードの画像入力とは独立する。 */
-	primaryAudioInputId?: VisualModuleCustomParameterId | null;
+	primaryAudioInputId?: VisualModulePublicParameterId | null;
 	automationGraphs: AutomationGraph[];
 };
 
 // レイヤー・Visual Module Live Previewからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleArgumentBindings = Record<VisualModuleCustomParameterId, ValueParameterBinding>;
+export type VisualModuleArgumentBindings = Record<VisualModulePublicParameterId, ValueParameterBinding>;
 
 export type EffectNodeOf<DEF extends Pick<EffectDefinition, 'id' | 'paramDefs' | 'staticSettingDefs'>> =
 	Omit<VisualModuleEffectNode, 'effectId' | 'params' | 'staticSettings'> & {

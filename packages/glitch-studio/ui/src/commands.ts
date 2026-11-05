@@ -1,7 +1,7 @@
 import { createStaticSettingValues, validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
 import { convertTimelineContainerLayer } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import { getTimelineLayerCustomParameterContext, resolveTimelineLayerCustomParameterReference, areTimelineCustomParameterTypesCompatible, validateTimelineLayerCustomParameterDefinitions, timelineLayerCustomParameterId } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference, areTimelinePublicParameterTypesCompatible, validateTimelineLayerPublicParameterDefinitions, timelineLayerPublicParameterId } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { isTimelineContainerLayer, hasTimelineLayerParameters, isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
@@ -26,7 +26,7 @@ import { getTimelineVideoHoldTrimBounds, trimTimelineVideoHold, validateTimeline
 import type { TimelineVideoHoldTiming } from '@gs/subsystems_timeline_shared/layers/video/video-hold.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
-import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import { visualModulePublicParameterId, visualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -57,7 +57,7 @@ import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { TimelineContainerMove } from './utility/timeline-container.ts';
-import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModulePublicParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterChangeKind, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AppStateChange, ProjectState, ProjectAsset } from './Project.ts';
@@ -70,8 +70,8 @@ import type { Player } from '@gs/shared/types.ts';
 import { validateProjectAutomationGraphName } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import type { TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { EditableTimelineParameterBinding } from './types/parameter-edit.ts';
-import type { TimelineLayerCustomParameterReferenceBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import type { TimelineLayerCustomParameterDefinition, TimelineLayerCustomParameterId } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import type { TimelineLayerPublicParameterReferenceBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineLayerPublicParameterDefinition, TimelineLayerPublicParameterId } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import type { TimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
@@ -98,7 +98,7 @@ import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
-import { createCustomParameterFromLiteral } from '@/utility/custom-parameter-creation.ts';
+import { createPublicParameterFromLiteral } from '@/utility/public-parameter-creation.ts';
 import { preferences } from '@/preferences.ts';
 import { prepareProjectParameterPaste } from './utility/parameter-clipboard.ts';
 import type { ProjectParameterClipboardTarget, ParameterClipboardData } from './utility/parameter-clipboard.ts';
@@ -115,12 +115,12 @@ type NodeParamTarget = EffectNodeParamTarget & VisualModuleTarget;
 
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelineParameterTarget, rootKey: string, binding: EditableTimelineParameterBinding | null | undefined) {
-	if (target === 'customParameter') {
+	if (target === 'publicParameter') {
 		if (!hasTimelineLayerParameters(layer)) throw new Error('Folder layers cannot own parameters');
 		if (binding == null) {
-			delete layer.customParameterValues?.[rootKey];
-			if (Object.keys(layer.customParameterValues ?? {}).length === 0) delete layer.customParameterValues;
-		} else (layer.customParameterValues ??= {})[rootKey] = deepClone(binding as TimelineParameterBinding);
+			delete layer.publicParameterValues?.[rootKey];
+			if (Object.keys(layer.publicParameterValues ?? {}).length === 0) delete layer.publicParameterValues;
+		} else (layer.publicParameterValues ??= {})[rootKey] = deepClone(binding as TimelineParameterBinding);
 	} else if (target === 'effect') {
 		const values = getLayerParameterValues(layer, target);
 		if (binding == null) delete values[rootKey];
@@ -140,7 +140,7 @@ function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelinePar
 		const values = getLayerParameterValues(layer, target);
 		if (binding == null) delete values[rootKey];
 		else {
-			if (!isValueParameterBinding(binding) && binding.inputSource !== 'timelineLayerCustomParameterReference') throw new Error('Unsupported layer parameter input source');
+			if (!isValueParameterBinding(binding) && binding.inputSource !== 'timelineLayerPublicParameterReference') throw new Error('Unsupported layer parameter input source');
 			values[rootKey] = deepClone(binding);
 		}
 	}
@@ -243,7 +243,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 	layerId: string;
 	paramPath: ParamPath;
 } & (
-	| { target?: TimelineParameterTarget; edit: ValueParameterEdit | { kind: 'timelineLayerCustomParameterReference'; value: TimelineLayerCustomParameterReferenceBinding } | { kind: 'inputSource'; inputSource: 'timelineLayerCustomParameterReference' } }
+	| { target?: TimelineParameterTarget; edit: ValueParameterEdit | { kind: 'timelineLayerPublicParameterReference'; value: TimelineLayerPublicParameterReferenceBinding } | { kind: 'inputSource'; inputSource: 'timelineLayerPublicParameterReference' } }
 	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'anotherLayerAudio' } | { kind: 'anotherLayerAudio'; value: string | null } }
 	| { target: 'effect' | 'module'; edit: { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding } | { kind: 'inputSource'; inputSource: 'lowerLayerOutput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
 )>({
@@ -257,7 +257,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			case 'inputSource': kind = 'inputSource'; break;
 			case 'lowerLayerOutput':
 			case 'anotherLayerOutput':
-			case 'timelineLayerCustomParameterReference':
+			case 'timelineLayerPublicParameterReference':
 			case 'anotherLayerAudio': kind = 'connection'; break;
 			default: kind = 'value'; break;
 		}
@@ -320,10 +320,10 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							next = { inputSource: 'anotherLayerAudio', layerId: edit.value };
 							break;
 						}
-						case 'timelineLayerCustomParameterReference': {
-							const context = getTimelineLayerCustomParameterContext(getScene(state, payload.sceneId).layers, layer.id)!;
-							const source = resolveTimelineLayerCustomParameterReference(context, edit.value.layerId, edit.value.parameterId, target === 'customParameter');
-							if (edit.value.layerId != null && (source == null || !areTimelineCustomParameterTypesCompatible(def, source.definition))) throw new Error('Custom parameter must have a compatible type and belong to an available layer');
+						case 'timelineLayerPublicParameterReference': {
+							const context = getTimelineLayerPublicParameterContext(getScene(state, payload.sceneId).layers, layer.id)!;
+							const source = resolveTimelineLayerPublicParameterReference(context, edit.value.layerId, edit.value.parameterId, target === 'publicParameter');
+							if (edit.value.layerId != null && (source == null || !areTimelinePublicParameterTypesCompatible(def, source.definition))) throw new Error('Public parameter must have a compatible type and belong to an available layer');
 							next = deepClone(edit.value);
 							break;
 						}
@@ -384,7 +384,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 									layerId: null,
 									outputStage: 'source',
 								}; break;
-								case 'timelineLayerCustomParameterReference': next = { inputSource: 'timelineLayerCustomParameterReference', layerId: null, parameterId: null }; break;
+								case 'timelineLayerPublicParameterReference': next = { inputSource: 'timelineLayerPublicParameterReference', layerId: null, parameterId: null }; break;
 								case 'lowerLayerAudio': next = { inputSource: 'lowerLayerAudio' }; break;
 								case 'anotherLayerAudio': next = { inputSource: 'anotherLayerAudio', layerId: null }; break;
 								default: throw new Error('Unsupported layer parameter input source');
@@ -980,7 +980,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'automationGraphInline': return createInlineAutomationGraph();
 			case 'keyframesTimelineInline':
 				return createInlineKeyframesTimeline(target.def, currentValue);
-			case 'visualModuleCustomParameterReference': return { inputSource: 'visualModuleCustomParameterReference', parameterId: visualModuleCustomParameterId('') };
+			case 'visualModulePublicParameterReference': return { inputSource: 'visualModulePublicParameterReference', parameterId: visualModulePublicParameterId('') };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
 				return { inputSource: 'node', nodeId: null, outputPort: null };
@@ -1057,11 +1057,11 @@ const updateParamAsKeyframesTimelineInlineCommandDef = defineNodeParamCommand<No
 	},
 );
 
-const updateParamAsVisualModuleCustomParameterReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: VisualModuleCustomParameterId }>(
-	'Update param as visualModuleCustomParameterReference',
+const updateParamAsVisualModulePublicParameterReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: VisualModulePublicParameterId }>(
+	'Update param as visualModulePublicParameterReference',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { inputSource: 'visualModuleCustomParameterReference', parameterId: payload.value };
+		return { inputSource: 'visualModulePublicParameterReference', parameterId: payload.value };
 	},
 	'connection',
 );
@@ -1269,7 +1269,7 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 	},
 });
 
-function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: VisualModuleCustomParameterId) {
+function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: VisualModulePublicParameterId) {
 	validateParameterDefaultValues(def);
 	if (def.dataType.kind === 'audioSource') {
 		validateLiteralAudioSourceBinding(def.defaultValue);
@@ -1292,11 +1292,11 @@ function validateVisualModuleParamDef(module: VisualModule, def: VisualModulePar
 	}
 }
 
-const setVisualModulePrimaryInputCommandDef = defineCommand<VisualModuleTarget & { primaryInputId: VisualModuleCustomParameterId | null }>({
+const setVisualModulePrimaryInputCommandDef = defineCommand<VisualModuleTarget & { primaryInputId: VisualModulePublicParameterId | null }>({
 	label: 'Set visual module primary input',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
-		let before: VisualModuleCustomParameterId | null;
+		let before: VisualModulePublicParameterId | null;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
@@ -1314,11 +1314,11 @@ const setVisualModulePrimaryInputCommandDef = defineCommand<VisualModuleTarget &
 	},
 });
 
-const setVisualModulePrimaryAudioInputCommandDef = defineCommand<VisualModuleTarget & { primaryAudioInputId: VisualModuleCustomParameterId | null }>({
+const setVisualModulePrimaryAudioInputCommandDef = defineCommand<VisualModuleTarget & { primaryAudioInputId: VisualModulePublicParameterId | null }>({
 	label: 'Set visual module primary audio input',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
-		let before: VisualModuleCustomParameterId | null = null;
+		let before: VisualModulePublicParameterId | null = null;
 		return {
 			execute(state) {
 				const visualModule = stateUtility.getVisualModule(state, payload);
@@ -1352,12 +1352,12 @@ const addVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { d
 	}),
 });
 
-const createVisualModuleCustomParameterFromParamCommandDef = defineCommand<NodeParamTarget>({
-	label: 'Create and connect Visual Module custom parameter',
+const createVisualModulePublicParameterFromParamCommandDef = defineCommand<NodeParamTarget>({
+	label: 'Create and connect Visual Module public parameter',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		// IDはCommandの生成時に一度だけ発行し、Undo/Redoで参照先を変えない。
-		const parameterId = visualModuleCustomParameterId(genId());
+		const parameterId = visualModulePublicParameterId(genId());
 		let before: VisualModuleParameterBinding;
 		const getNode = (state: ProjectState) => {
 			const node = stateUtility.findNode(state, payload);
@@ -1368,12 +1368,12 @@ const createVisualModuleCustomParameterFromParamCommandDef = defineCommand<NodeP
 			execute(state) {
 				const visualModule = getVisualModule(state, payload);
 				const parameter = resolveNodeParam(getNode(state), payload.paramPath);
-				const definition = createCustomParameterFromLiteral(parameter.def, parameter.value, visualModule.paramDefs);
-				const customDefinition: VisualModuleParamDef = { ...definition, id: parameterId, nameForReference: visualModuleCustomParameterName(definition.nameForReference) };
-				validateVisualModuleParamDef(visualModule, customDefinition);
+				const definition = createPublicParameterFromLiteral(parameter.def, parameter.value, visualModule.paramDefs);
+				const publicParameterDefinition: VisualModuleParamDef = { ...definition, id: parameterId, nameForReference: visualModulePublicParameterName(definition.nameForReference) };
+				validateVisualModuleParamDef(visualModule, publicParameterDefinition);
 				before = deepClone(parameter.value);
-				visualModule.paramDefs.push(customDefinition);
-				parameter.setValue({ inputSource: 'visualModuleCustomParameterReference', parameterId });
+				visualModule.paramDefs.push(publicParameterDefinition);
+				parameter.setValue({ inputSource: 'visualModulePublicParameterReference', parameterId });
 			},
 			undo(state) {
 				resolveNodeParam(getNode(state), payload.paramPath).setValue(deepClone(before));
@@ -1384,14 +1384,14 @@ const createVisualModuleCustomParameterFromParamCommandDef = defineCommand<NodeP
 	},
 });
 
-const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { defId: VisualModuleCustomParameterId }>({
+const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { defId: VisualModulePublicParameterId }>({
 	label: 'Remove visual module parameter',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: VisualModuleParamDef;
 		let index: number;
-		let primaryInputId: VisualModuleCustomParameterId | null;
-		let primaryAudioInputId: VisualModuleCustomParameterId | null = null;
+		let primaryInputId: VisualModulePublicParameterId | null;
+		let primaryAudioInputId: VisualModulePublicParameterId | null = null;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
@@ -1416,14 +1416,14 @@ const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 });
 
 const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & {
-	defId: VisualModuleCustomParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>>;
+	defId: VisualModulePublicParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>>;
 }>({
 	label: 'Update visual module parameter',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: VisualModuleParamDef;
-		let primaryInputId: VisualModuleCustomParameterId | null;
-		let primaryAudioInputId: VisualModuleCustomParameterId | null = null;
+		let primaryInputId: VisualModulePublicParameterId | null;
+		let primaryAudioInputId: VisualModulePublicParameterId | null = null;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
@@ -2890,24 +2890,24 @@ const removeProjectAutomationGraphCommandDef = defineCommand<{ automationGraphId
 	},
 });
 
-const createTimelineLayerCustomParameterFromParamCommandDef = defineCommand<{
-	sceneId: string; layerId: string; target: Exclude<TimelineParameterTarget, 'customParameter'>; paramPath: ParamPath;
+const createTimelineLayerPublicParameterFromParamCommandDef = defineCommand<{
+	sceneId: string; layerId: string; target: Exclude<TimelineParameterTarget, 'publicParameter'>; paramPath: ParamPath;
 }>({
-	label: 'Create and connect timeline layer custom parameter',
+	label: 'Create and connect timeline layer public parameter',
 	changes: (_state, payload) => [{
 		type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId,
 		changes: [{ type: 'definition' }, { type: 'parameter', target: payload.target, kind: 'connection' }],
 	}],
 	create: payload => {
-		const parameterId = timelineLayerCustomParameterId(genId());
+		const parameterId = timelineLayerPublicParameterId(genId());
 		const rootKey = payload.paramPath[0];
-		let beforeDefinitions: TimelineLayerCustomParameterDefinition[] | null = null;
+		let beforeDefinitions: TimelineLayerPublicParameterDefinition[] | null = null;
 		let beforeRoot: EditableTimelineParameterBinding | null = null;
 		const getLayer = (state: ProjectState) => {
 			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
-			if (layer == null || !hasTimelineLayerParameters(layer)) throw new Error('Layer cannot own custom parameters');
-			// 実行時にも同一レイヤーのカスタム値からの公開を禁止し、自己参照を作らせない。
-			if ((payload.target as TimelineParameterTarget) === 'customParameter') throw new Error('Custom parameter values cannot be promoted in the same layer');
+			if (layer == null || !hasTimelineLayerParameters(layer)) throw new Error('Layer cannot own public parameters');
+			// 実行時にも同一レイヤーの公開パラメータ値からの公開を禁止し、自己参照を作らせない。
+			if ((payload.target as TimelineParameterTarget) === 'publicParameter') throw new Error('Public parameter values cannot be promoted in the same layer');
 			return layer;
 		};
 		return {
@@ -2925,108 +2925,108 @@ const createTimelineLayerCustomParameterFromParamCommandDef = defineCommand<{
 					: payload.target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(effectDefinitions[layer.effectId], rootKey) : rootDefinition.defaultValue;
 				const draft = { [rootKey]: deepClone(values[rootKey] ?? defaultBinding) };
 				const parameter = resolveParameter<EditableTimelineParameterBinding>(definitions, draft, payload.paramPath);
-				const definition: TimelineLayerCustomParameterDefinition = { ...createCustomParameterFromLiteral(parameter.def, parameter.value, layer.customParameterDefs ?? []), id: parameterId };
-				const customDefinitions = [...layer.customParameterDefs ?? [], definition];
-				validateTimelineLayerCustomParameterDefinitions(customDefinitions);
-				parameter.setValue({ inputSource: 'timelineLayerCustomParameterReference', layerId: layer.id, parameterId });
+				const definition: TimelineLayerPublicParameterDefinition = { ...createPublicParameterFromLiteral(parameter.def, parameter.value, layer.publicParameterDefs ?? []), id: parameterId };
+				const publicParameterDefinitions = [...layer.publicParameterDefs ?? [], definition];
+				validateTimelineLayerPublicParameterDefinitions(publicParameterDefinitions);
+				parameter.setValue({ inputSource: 'timelineLayerPublicParameterReference', layerId: layer.id, parameterId });
 				// 子のBindingだけを置き換えたツリーを準備してから確定し、検証失敗時に
 				// 定義や配列の一部だけが書き換わることを防ぐ。未保存の既定値もUndoで元に戻す。
-				beforeDefinitions = deepClone(layer.customParameterDefs ?? null);
+				beforeDefinitions = deepClone(layer.publicParameterDefs ?? null);
 				beforeRoot = deepClone(values[rootKey] ?? null);
 				setTimelineLayerParameterRoot(layer, payload.target, rootKey, draft[rootKey]);
-				layer.customParameterDefs = customDefinitions;
+				layer.publicParameterDefs = publicParameterDefinitions;
 			},
 			undo(state) {
 				const layer = getLayer(state);
 				setTimelineLayerParameterRoot(layer, payload.target, rootKey, beforeRoot);
-				if (beforeDefinitions == null) delete layer.customParameterDefs;
-				else layer.customParameterDefs = deepClone(beforeDefinitions);
+				if (beforeDefinitions == null) delete layer.publicParameterDefs;
+				else layer.publicParameterDefs = deepClone(beforeDefinitions);
 			},
 		};
 	},
 });
 
-const updateTimelineLayerCustomParameterCommandDef = defineCommand<{ sceneId: string; layerId: string; definition: TimelineLayerCustomParameterDefinition }>({
-	label: 'Update timeline layer custom parameter',
+const updateTimelineLayerPublicParameterCommandDef = defineCommand<{ sceneId: string; layerId: string; definition: TimelineLayerPublicParameterDefinition }>({
+	label: 'Update timeline layer public parameter',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'definition' }] }],
 	create: payload => {
-		let before: TimelineLayerCustomParameterDefinition[] | null = null;
+		let before: TimelineLayerPublicParameterDefinition[] | null = null;
 		let beforeValues: Record<string, TimelineParameterBinding> | null = null;
 		let changesDataType = false;
 		const getLayer = (state: ProjectState) => {
 			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
-			if (layer == null || !hasTimelineLayerParameters(layer)) throw new Error('Layer cannot own custom parameters');
+			if (layer == null || !hasTimelineLayerParameters(layer)) throw new Error('Layer cannot own public parameters');
 			return layer;
 		};
 		return {
 			execute(state) {
 				const layer = getLayer(state);
-				const definitions = [...layer.customParameterDefs ?? []];
+				const definitions = [...layer.publicParameterDefs ?? []];
 				const index = definitions.findIndex(definition => definition.id === payload.definition.id);
 				const previousDefinition = definitions[index];
 				if (index < 0) definitions.push(deepClone(payload.definition));
 				else definitions[index] = deepClone(payload.definition);
-				validateTimelineLayerCustomParameterDefinitions(definitions);
-				before = deepClone(layer.customParameterDefs ?? null);
+				validateTimelineLayerPublicParameterDefinitions(definitions);
+				before = deepClone(layer.publicParameterDefs ?? null);
 				changesDataType = previousDefinition != null && previousDefinition.dataType.kind !== payload.definition.dataType.kind;
 				if (changesDataType) {
 					// 旧型の固定値・式・キーを新型で評価すると失敗するため、未設定へ戻して
 					// 新しい既定値を使う。UI設定やenumの選択肢だけの変更では保存値を維持する。
-					beforeValues = deepClone(layer.customParameterValues ?? null);
-					setTimelineLayerParameterRoot(layer, 'customParameter', payload.definition.id, null);
+					beforeValues = deepClone(layer.publicParameterValues ?? null);
+					setTimelineLayerParameterRoot(layer, 'publicParameter', payload.definition.id, null);
 				}
-				layer.customParameterDefs = definitions;
+				layer.publicParameterDefs = definitions;
 			},
 			undo(state) {
 				const layer = getLayer(state);
-				if (before == null) delete layer.customParameterDefs;
-				else layer.customParameterDefs = deepClone(before);
+				if (before == null) delete layer.publicParameterDefs;
+				else layer.publicParameterDefs = deepClone(before);
 				if (changesDataType) {
-					if (beforeValues == null) delete layer.customParameterValues;
-					else layer.customParameterValues = deepClone(beforeValues);
+					if (beforeValues == null) delete layer.publicParameterValues;
+					else layer.publicParameterValues = deepClone(beforeValues);
 				}
 			},
 		};
 	},
 });
 
-const removeTimelineLayerCustomParameterCommandDef = defineCommand<{ sceneId: string; layerId: string; parameterId: TimelineLayerCustomParameterId }>({
-	label: 'Remove timeline layer custom parameter',
+const removeTimelineLayerPublicParameterCommandDef = defineCommand<{ sceneId: string; layerId: string; parameterId: TimelineLayerPublicParameterId }>({
+	label: 'Remove timeline layer public parameter',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'definition' }] }],
 	create: payload => {
-		let definitions: TimelineLayerCustomParameterDefinition[] = [];
+		let definitions: TimelineLayerPublicParameterDefinition[] = [];
 		let values: Record<string, TimelineParameterBinding> | null = null;
 		const getLayer = (state: ProjectState) => {
 			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
-			if (layer == null || !hasTimelineLayerParameters(layer)) throw new Error('Layer cannot own custom parameters');
+			if (layer == null || !hasTimelineLayerParameters(layer)) throw new Error('Layer cannot own public parameters');
 			return layer;
 		};
 		return {
 			execute(state) {
 				const layer = getLayer(state);
-				definitions = deepClone(layer.customParameterDefs ?? []);
-				values = deepClone(layer.customParameterValues ?? null);
-				if (!definitions.some(definition => definition.id === payload.parameterId)) throw new Error('Timeline custom parameter not found');
-				layer.customParameterDefs = definitions.filter(definition => definition.id !== payload.parameterId);
-				delete layer.customParameterValues?.[payload.parameterId];
+				definitions = deepClone(layer.publicParameterDefs ?? []);
+				values = deepClone(layer.publicParameterValues ?? null);
+				if (!definitions.some(definition => definition.id === payload.parameterId)) throw new Error('Timeline public parameter not found');
+				layer.publicParameterDefs = definitions.filter(definition => definition.id !== payload.parameterId);
+				delete layer.publicParameterValues?.[payload.parameterId];
 			},
 			undo(state) {
 				const layer = getLayer(state);
-				layer.customParameterDefs = deepClone(definitions);
-				if (values == null) delete layer.customParameterValues;
-				else layer.customParameterValues = deepClone(values);
+				layer.publicParameterDefs = deepClone(definitions);
+				if (values == null) delete layer.publicParameterValues;
+				else layer.publicParameterValues = deepClone(values);
 			},
 		};
 	},
 });
 
 export const COMMAND_DEFS = {
-	createTimelineLayerCustomParameterFromParam: createTimelineLayerCustomParameterFromParamCommandDef,
-	createVisualModuleCustomParameterFromParam: createVisualModuleCustomParameterFromParamCommandDef,
+	createTimelineLayerPublicParameterFromParam: createTimelineLayerPublicParameterFromParamCommandDef,
+	createVisualModulePublicParameterFromParam: createVisualModulePublicParameterFromParamCommandDef,
 	wrapTimelineLayers: wrapTimelineLayersCommandDef,
 	convertTimelineContainer: convertTimelineContainerCommandDef,
-	updateTimelineLayerCustomParameter: updateTimelineLayerCustomParameterCommandDef,
-	removeTimelineLayerCustomParameter: removeTimelineLayerCustomParameterCommandDef,
+	updateTimelineLayerPublicParameter: updateTimelineLayerPublicParameterCommandDef,
+	removeTimelineLayerPublicParameter: removeTimelineLayerPublicParameterCommandDef,
 	addProjectAutomationGraph: addProjectAutomationGraphCommandDef,
 	updateProjectAutomationGraph: updateProjectAutomationGraphCommandDef,
 	removeProjectAutomationGraph: removeProjectAutomationGraphCommandDef,
@@ -3117,7 +3117,7 @@ export const COMMAND_DEFS = {
 	updateParamAsAutomationGraphInline: updateParamAsAutomationGraphInlineCommandDef,
 	updateParamAsKeyframesTimelineInline: updateParamAsKeyframesTimelineInlineCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
-	updateParamAsVisualModuleCustomParameterReference: updateParamAsVisualModuleCustomParameterReferenceCommandDef,
+	updateParamAsVisualModulePublicParameterReference: updateParamAsVisualModulePublicParameterReferenceCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,
 	resetNodeParam: resetNodeParamCommandDef,
 	addArrayParamElement: addArrayParamElementCommandDef,

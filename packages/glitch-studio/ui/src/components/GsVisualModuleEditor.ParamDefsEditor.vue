@@ -7,7 +7,7 @@
 		</template>
 
 		<div>
-			<!-- TODO: struct / array / anyのカスタムパラメータ定義編集UI。共通の型定義からは除外しない。 -->
+			<!-- TODO: struct / array / anyの公開パラメータ定義編集UI。共通の型定義からは除外しない。 -->
 			<div v-if="def.dataType.kind === 'struct' || def.dataType.kind === 'array' || def.dataType.kind === 'any'">{{ def.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
 			<XVisualModuleParamDefEditor
 				v-else
@@ -27,12 +27,12 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/i18n.ts';
-import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import { visualModulePublicParameterId, visualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 import { genId } from '@gs/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import XVisualModuleParamDefEditor from './XVisualModuleParamDefEditor.vue';
 import GsFolder from './common/GsFolder.vue';
-import type { VisualModule, VisualModuleCustomParameterId, VisualModuleParamDef } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModule, VisualModulePublicParameterId, VisualModuleParamDef } from '@gs/subsystems_visual-module_shared/types.ts';
 
 const props = defineProps<{
 	visualModule: VisualModule;
@@ -40,18 +40,18 @@ const props = defineProps<{
 
 const emit = defineEmits<{
 	add: [def: VisualModuleParamDef];
-	update: [defId: VisualModuleCustomParameterId, changes: Partial<Omit<VisualModuleParamDef, 'id'>>, mergeKey?: string | null];
-	remove: [defId: VisualModuleCustomParameterId];
-	setPrimaryInput: [inputId: VisualModuleCustomParameterId | null];
-	setPrimaryAudioInput: [inputId: VisualModuleCustomParameterId | null];
+	update: [defId: VisualModulePublicParameterId, changes: Partial<Omit<VisualModuleParamDef, 'id'>>, mergeKey?: string | null];
+	remove: [defId: VisualModulePublicParameterId];
+	setPrimaryInput: [inputId: VisualModulePublicParameterId | null];
+	setPrimaryAudioInput: [inputId: VisualModulePublicParameterId | null];
 }>();
 
 function add() {
 	let nameForReference = 'my_param';
 	for (let suffix = 2; props.visualModule.paramDefs.some(def => def.nameForReference === nameForReference); suffix++) nameForReference = `my_param_${suffix}`;
 	emit('add', {
-		id: visualModuleCustomParameterId(genId()),
-		nameForReference: visualModuleCustomParameterName(nameForReference),
+		id: visualModulePublicParameterId(genId()),
+		nameForReference: visualModulePublicParameterName(nameForReference),
 		dataType: { kind: 'scalar' },
 		ui: {
 			label: 'My Parameter',

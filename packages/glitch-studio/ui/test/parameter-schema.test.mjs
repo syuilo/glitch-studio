@@ -16,7 +16,7 @@ import type { TimelineFolderLayer, TimelineParameterContainerLayer, TimelineLaye
 const folder: TimelineFolderLayer = { id: 'folder', name: 'Folder', layerType: 'folder', color: null, isDisabled: false, isSolo: false, layers: [] };
 const parameterContainer: TimelineParameterContainerLayer = { id: 'parameters', name: 'Parameters', layerType: 'parameterContainer', color: null, isDisabled: false, isSolo: false, automationGraphs: [], layers: [] };
 // @ts-expect-error フォルダは整理だけを担当し、パラメータの定義を持てない
-const folderWithParameters: TimelineFolderLayer = { ...folder, customParameterDefs: [] };
+const folderWithParameters: TimelineFolderLayer = { ...folder, publicParameterDefs: [] };
 // @ts-expect-error フォルダにAutomation Graphを追加してパラメータのスコープを作らない
 const folderWithGraphs: TimelineFolderLayer = { ...folder, automationGraphs: [] };
 // @ts-expect-error フォルダは値の編集・評価の所有者として扱わない
@@ -43,7 +43,7 @@ import { defineEffect, type EffectOutputDefinitions } from '@gs/subsystems_effec
 import type { ParameterDefinition, ParameterDefaultValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { colorBlendModes, type BlendMode } from '@gs/shared/color-blend.ts';
 import type { EffectInstance } from '@gs/subsystems_effect_shared/effect-implementation.ts';
-import { visualModuleCustomParameterId, visualModuleCustomParameterName, type VisualModule, type VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
+import { visualModulePublicParameterId, visualModulePublicParameterName, type VisualModule, type VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 type VisualModuleParamDef = VisualModule['paramDefs'][number];
@@ -122,7 +122,7 @@ const badRuntimeBlend: BlendValues['blend'] = 'invalid';
 defineEffect({ id: 'invalid-color', displayName: 'Invalid', description, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { color: { ...color, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Invalid' } } }, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null });
 // @ts-expect-error rangeの範囲は必須
 const missingBounds: ParameterDefinition = { ...number, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
-const external = { ...color, id: visualModuleCustomParameterId('c'), nameForReference: visualModuleCustomParameterName('color'), defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] }, canNode: true } satisfies VisualModuleParamDef;
+const external = { ...color, id: visualModulePublicParameterId('c'), nameForReference: visualModulePublicParameterName('color'), defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] }, canNode: true } satisfies VisualModuleParamDef;
 // @ts-expect-error 外部パラメータでも同じ組み合わせ制約を適用する
 const badExternal: VisualModuleParamDef = { ...external, dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
 const schemas = {
@@ -159,8 +159,8 @@ const missingSampling: NodeOutputReference = { nodeId: 'node', outputPort: 'outp
 const externalValues: VisualModuleArgumentBindings = {};
 // @ts-expect-error モジュールの外から内部ノードを参照できない
 externalValues[external.id] = { inputSource: 'node', nodeId: null, outputPort: null };
-// @ts-expect-error モジュールの外から内部カスタムパラメータを参照できない
-externalValues[external.id] = { inputSource: 'visualModuleCustomParameterReference', parameterId: external.id };
+// @ts-expect-error モジュールの外から内部公開パラメータを参照できない
+externalValues[external.id] = { inputSource: 'visualModulePublicParameterReference', parameterId: external.id };
 `;
 	const options = {
 		strict: true, noEmit: true, skipLibCheck: true, types: ['@webgpu/types', '@types/web'],

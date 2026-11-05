@@ -24,7 +24,7 @@ import type { FrameScheduler, VisualModuleLivePreviewFrameTiming } from '@gs/sub
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { VisualModuleCustomParameterId, VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModulePublicParameterId, VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { AudioSourceId } from '@gs/shared/audio.ts';
 import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capture.ts';
@@ -386,7 +386,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			const commandEncoder = this.gpuDevice.createCommandEncoder();
 
 			try {
-				const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
+				const evaluatedParamValues = new Map<VisualModulePublicParameterId, any>();
 				for (const def of visualModule.paramDefs) {
 					if (def.dataType.kind === 'audioSource') {
 						const binding = this.visualModuleLivePreviewParamValues[def.id] ?? def.defaultValue;

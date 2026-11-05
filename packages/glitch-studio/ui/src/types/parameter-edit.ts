@@ -7,7 +7,7 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 
 // 型変更は型・UI・初期値をまとめて差し替える。編集差分ではフィールド間の対応を緩め、
 // 保存先のCommandで完成した定義を検証する。
-export type CustomParameterDefinitionEdit = Partial<{
+export type PublicParameterDefinitionEdit = Partial<{
 	dataType: ParameterDefinition['dataType'];
 	ui: ParameterDefinition['ui'];
 	defaultValue: ParameterDefinition['defaultValue'];

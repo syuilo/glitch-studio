@@ -1,23 +1,23 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.headings">
-		<span>{{ i18n.ts._CustomParameterInput.OptionValue }}</span>
-		<span>{{ i18n.ts._CustomParameterInput.Label }}</span>
+		<span>{{ i18n.ts._PublicParameterInput.OptionValue }}</span>
+		<span>{{ i18n.ts._PublicParameterInput.Label }}</span>
 	</div>
 	<div v-for="(option, index) in draft" :key="option.id" :class="$style.row">
 		<GsInput v-model="option.value" :class="$style.field" type="text"/>
 		<GsInput v-model="option.label" :class="$style.field" type="text"/>
-		<GsButton iconOnly danger :disabled="draft.length === 1" :title="i18n.ts._CustomParameterInput.RemoveOption" icon="ti ti-trash" @click="draft.splice(index, 1)"/>
+		<GsButton iconOnly danger :disabled="draft.length === 1" :title="i18n.ts._PublicParameterInput.RemoveOption" icon="ti ti-trash" @click="draft.splice(index, 1)"/>
 	</div>
-	<div v-if="invalid" :class="$style.error">{{ i18n.ts._CustomParameterInput.InvalidOptions }}</div>
+	<div v-if="invalid" :class="$style.error">{{ i18n.ts._PublicParameterInput.InvalidOptions }}</div>
 	<GsSelect v-model="draftDefaultValue" large :items="draft.map(option => ({ value: option.value, label: option.label || option.value }))" :disabled="invalid">
-		<template #label>{{ i18n.ts._CustomParameterInput.DefaultValue }}</template>
+		<template #label>{{ i18n.ts._PublicParameterInput.DefaultValue }}</template>
 	</GsSelect>
-	<div v-if="invalidDefault" :class="$style.error">{{ i18n.ts._CustomParameterInput.SelectValidDefault }}</div>
+	<div v-if="invalidDefault" :class="$style.error">{{ i18n.ts._PublicParameterInput.SelectValidDefault }}</div>
 	<div :class="$style.actions">
-		<GsButton @click="add">{{ i18n.ts._CustomParameterInput.AddOption }}</GsButton>
-		<GsButton primary :disabled="!changed || invalid || invalidDefault" @click="apply">{{ i18n.ts._CustomParameterInput.ApplyOptions }}</GsButton>
-		<GsButton v-if="changed" @click="reset">{{ i18n.ts._CustomParameterInput.DiscardOptions }}</GsButton>
+		<GsButton @click="add">{{ i18n.ts._PublicParameterInput.AddOption }}</GsButton>
+		<GsButton primary :disabled="!changed || invalid || invalidDefault" @click="apply">{{ i18n.ts._PublicParameterInput.ApplyOptions }}</GsButton>
+		<GsButton v-if="changed" @click="reset">{{ i18n.ts._PublicParameterInput.DiscardOptions }}</GsButton>
 	</div>
 </div>
 </template>

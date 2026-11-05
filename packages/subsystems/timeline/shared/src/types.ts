@@ -14,10 +14,10 @@ import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.js'
 import type { VoicevoxSubtitleParameterValues } from './layers/voicevox/voicevox-subtitle.ts';
 import type { TextParameterValues } from './layers/text/text.ts';
 import type { Shape } from './layers/shape/shape.ts';
-import type { TimelineLayerCustomParameterDefinition } from './custom-parameters.ts';
+import type { TimelineLayerPublicParameterDefinition } from './public-parameters.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from './layers/voicevox/voicevox.ts';
 
-export type TimelineParameterTarget = 'customParameter' | 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'transform' | 'compositing' | 'audio';
+export type TimelineParameterTarget = 'publicParameter' | 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'transform' | 'compositing' | 'audio';
 
 // definitionはレイヤー全体の追加・削除・置換。部分編集では変更した内容を列挙し、
 // 実行インスタンスの扱いは利用側へ委ねる。
@@ -38,8 +38,8 @@ type TimelineLayerCommon = {
 
 type TimelineLayerParameters = {
 	automationGraphs: AutomationGraph[];
-	customParameterDefs?: TimelineLayerCustomParameterDefinition[];
-	customParameterValues?: Record<string, TimelineParameterBinding>;
+	publicParameterDefs?: TimelineLayerPublicParameterDefinition[];
+	publicParameterValues?: Record<string, TimelineParameterBinding>;
 };
 
 type TimelineLayerBase<Clip extends TimelineClip> = TimelineLayerCommon & TimelineLayerParameters & { clips: Clip[] };

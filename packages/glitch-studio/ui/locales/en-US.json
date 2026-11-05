@@ -107,7 +107,7 @@
 		"Emission": "Emission",
 		"Subtract": "Subtract"
 	},
-	"_CustomParameterInput": {
+	"_PublicParameterInput": {
 		"Name": "Name",
 		"Label": "Label",
 		"Type": "Type",
@@ -731,8 +731,8 @@
 		"UnassignedInputs": "External inputs were left unassigned: {names}. Camera inputs can be selected from the Player menu. Microphone and live stream inputs are not yet supported."
 	},
 	"_Parameter": {
-		"CreateCustomParameter": "Create and connect custom parameter",
-		"UnavailableCustomParameter": "Reference is missing, out of scope, or has an incompatible type",
+		"CreatePublicParameter": "Create and connect public parameter",
+		"UnavailablePublicParameter": "Reference is missing, out of scope, or has an incompatible type",
 		"NormalizedTime": "Normalized (0–1)",
 		"Milliseconds": "Milliseconds",
 		"Edit": "Edit",
@@ -751,7 +751,7 @@
 		"AutomationGraphInline": "Graph (Inline)",
 		"LowerLayerAudio": "Audio From Layers Below",
 		"AnotherLayerAudio": "Audio From Another Layer",
-		"CustomParameter": "Custom Parameter",
+		"PublicParameter": "Public Parameter",
 		"Node": "Node",
 		"AnotherLayerOutput": "Another Layer Output",
 		"LayerSourceOutput": "Source Output",

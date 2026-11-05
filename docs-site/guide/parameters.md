@@ -21,7 +21,7 @@ description: パラメータについて
 | **Graph (Inline)** | すべて | カーブを使う |
 | **Graph (Reference)** | すべて | カーブを参照する |
 | **Node** | Visual Module | 別ノードの出力を受け取る |
-| **Custom Parameter** | Visual Module | カスタムパラメータを受け取る |
+| **Public Parameter** | Visual Module | 公開パラメータを受け取る |
 | **Keyframes** | タイムライン | 時刻ごとに値を設定する |
 | **Layers below** | タイムライン | 下層の合成画像を受け取る |
 | **Audio from layers below / Audio from layer** | タイムライン | 下層全体または指定レイヤーの音声を使う |
@@ -32,9 +32,9 @@ description: パラメータについて
 
 式は[AiScript](https://aiscript-dev.github.io/)として解釈されます。
 
-Visual Module内部では、カスタムパラメータを `PARAM("amount")` のように参照できます。引数には対象のカスタムパラメータのReference Nameを指定します。
+Visual Module内部では、公開パラメータを `PARAM("amount")` のように参照できます。引数には対象の公開パラメータのReference Nameを指定します。
 
-Uniformなカスタムパラメータ(ノード入力不能なカスタムパラメータ)のみ参照できます。
+Uniformな公開パラメータ(ノード入力不能な公開パラメータ)のみ参照できます。
 
 ## キーフレーム {#keyframes}
 

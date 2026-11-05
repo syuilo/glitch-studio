@@ -89,13 +89,13 @@ test('keyframes evaluate in nested node parameters and module arguments', () => 
 	assert.deepEqual(result.nodeParams.get('node').values, [2]);
 });
 
-// 【PARAMの参照名とVisual Moduleカスタムパラメータ参照のIDを区別する】
-// IDと参照名が異なっても、PARAMは参照名、Visual Moduleカスタムパラメータ参照はIDで同じ評価済み値を読む。
-test('resolves PARAM names separately from visualModuleCustomParameterReference IDs', () => {
+// 【PARAMの参照名とVisual Module公開パラメータ参照のIDを区別する】
+// IDと参照名が異なっても、PARAMは参照名、Visual Module公開パラメータ参照はIDで同じ評価済み値を読む。
+test('resolves PARAM names separately from visualModulePublicParameterReference IDs', () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const result = evaluate(evaluator, context({ named: number, direct: number }, {
 		named: expression('PARAM("gain")'),
-		direct: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'gain-id' },
+		direct: { inputSource: 'visualModulePublicParameterReference', parameterId: 'gain-id' },
 	}, {
 		paramDefs: [{ ...paramDef('gain-id'), nameForReference: 'gain' }],
 		paramValues: { 'gain-id': literal(23) },
@@ -111,7 +111,7 @@ const rampGraph = (isNormalized = true) => ({
 	points: [graphPoint(isNormalized ? 1 : 2000, 10), graphPoint(0, 0)],
 });
 // 【呼び出し側とVisual Module内部のグラフ参照を分離する】
-// 同じID・nameForReferenceでも、Visual Moduleのカスタムパラメータ引数と内部ノードはそれぞれの所有者のグラフを読む。
+// 同じID・nameForReferenceでも、Visual Moduleの公開パラメータ引数と内部ノードはそれぞれの所有者のグラフを読む。
 test('isolates caller and module graphs for references and GRAPH expressions', () => {
 	const internal = { ...rampGraph(), points: [graphPoint(0, 9)] };
 	const external = { ...internal, points: [graphPoint(0, 3)] };
@@ -235,11 +235,11 @@ test('evaluates nested values, expressions and node references without a GPU', (
 	});
 });
 
-// 【呼び出し側の評価結果をVisual Moduleカスタムパラメータ参照とPARAMで共有する】
-// 内部で既定値や式を再評価せず、Visual Moduleカスタムパラメータ参照とPARAMから呼び出し側で確定した値を読む。
-test('reads caller evaluated values through visualModuleCustomParameterReferences and PARAM', () => {
+// 【呼び出し側の評価結果をVisual Module公開パラメータ参照とPARAMで共有する】
+// 内部で既定値や式を再評価せず、Visual Module公開パラメータ参照とPARAMから呼び出し側で確定した値を読む。
+test('reads caller evaluated values through visualModulePublicParameterReferences and PARAM', () => {
 	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ a: number, b: number, c: number }, {
-		a: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'gain' },
+		a: { inputSource: 'visualModulePublicParameterReference', parameterId: 'gain' },
 		b: expression('PARAM("gain") + PARAM("offset")'),
 		c: expression('PARAM("literal")'),
 	}, {
@@ -254,12 +254,12 @@ test('reads caller evaluated values through visualModuleCustomParameterReference
 // 直接参照の未設定は既定値を使い、式で参照できない値や構文の誤りはレンダリング失敗へ伝える。
 test('defaults unassigned direct references and rejects invalid expressions', () => {
 	const params = {
-		textureVisualModuleCustomParameterReference: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'texture' },
+		textureVisualModulePublicParameterReference: { inputSource: 'visualModulePublicParameterReference', parameterId: 'texture' },
 		textureExpression: expression('PARAM("texture")'),
 		missing: expression('PARAM("missing")'),
 		invalid: expression('1 +'),
 		empty: expression(''),
-		missingVisualModuleCustomParameterReference: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'missing' },
+		missingVisualModulePublicParameterReference: { inputSource: 'visualModulePublicParameterReference', parameterId: 'missing' },
 		missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' },
 	};
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
@@ -301,18 +301,18 @@ test('keeps previous results and clones module defaults between evaluations', ()
 });
 
 // 【UIコントロールに依存せず数値パラメータを評価する】
-// UIの範囲やコントロールの種類は式・Visual Moduleカスタムパラメータ参照・接続の数値型に影響しない。
+// UIの範囲やコントロールの種類は式・Visual Module公開パラメータ参照・接続の数値型に影響しない。
 test('evaluates numeric parameters independently of their UI controls', async () => {
 	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	for (const control of [{ controlType: 'number' }, { controlType: 'range', min: 10, max: 20, step: 1 }, { controlType: 'seed' }, { controlType: 'angle' }]) {
 		const ui = { label: 'Value', control };
 		const def = { ...number, ui, canNode: true };
-		const visualModuleCustomParameterDefinition = { ...paramDef('amount'), ui };
-		const result = evaluate(evaluator, context({ amount: def, visualModuleCustomParameterReference: def }, {
+		const visualModulePublicParameterDefinition = { ...paramDef('amount'), ui };
+		const result = evaluate(evaluator, context({ amount: def, visualModulePublicParameterReference: def }, {
 			amount: expression('TIME + 100'),
-			visualModuleCustomParameterReference: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'amount' },
-		}, { paramDefs: [visualModuleCustomParameterDefinition], paramValues: { amount: literal(-5.25) } }));
-		assert.deepEqual(result.nodeParams.get('node'), { amount: 100.5, visualModuleCustomParameterReference: -5.25 });
+			visualModulePublicParameterReference: { inputSource: 'visualModulePublicParameterReference', parameterId: 'amount' },
+		}, { paramDefs: [visualModulePublicParameterDefinition], paramValues: { amount: literal(-5.25) } }));
+		assert.deepEqual(result.nodeParams.get('node'), { amount: 100.5, visualModulePublicParameterReference: -5.25 });
 		assert.throws(() => evaluate(evaluator, context({ invalid: def }, { invalid: expression('missing') })), /Base expression/);
 		assert.deepEqual(getNodeInputDataType(def), { kind: 'scalar' });
 	}

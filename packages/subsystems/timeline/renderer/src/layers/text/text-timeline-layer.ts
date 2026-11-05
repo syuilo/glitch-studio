@@ -16,7 +16,7 @@ export function createTextTimelineLayer(layer: TimelineTextLayer, options: Param
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const scope = { time: context.sceneTimeMs, isExport: context.isExport, customParameters: context.customParameters, automationGraphs: layer.automationGraphs };
+			const scope = { time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, automationGraphs: layer.automationGraphs };
 			const text = parameters.evaluate(layer.textParamValues, scope);
 			if (!await renderer.waitUntilReady(signal) || disposed || signal.aborted) return { gpuTime: 0 };
 			const settings = compositing.evaluate({

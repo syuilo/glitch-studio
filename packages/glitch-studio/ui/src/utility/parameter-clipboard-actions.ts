@@ -5,7 +5,7 @@ import { createParameterClipboard, createVisualModuleClipboardSource, parseParam
 import { clipboardText } from './clipboard-text.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
-import type { VisualModuleArgumentBindings, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleArgumentBindings, VisualModulePublicParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ClipboardTextAccess } from './clipboard-text.ts';
 import type { ProjectParameterClipboardTarget } from './parameter-clipboard.ts';
 import type { ProjectContext } from '../Project.ts';
@@ -53,7 +53,7 @@ export async function handlePreviewParameterClipboard(
 	operation: 'copy' | 'paste',
 	values: () => VisualModuleArgumentBindings,
 	isActive: () => boolean,
-	apply: (id: VisualModuleCustomParameterId, binding: ValueParameterBinding) => void,
+	apply: (id: VisualModulePublicParameterId, binding: ValueParameterBinding) => void,
 	clipboard: ClipboardTextAccess = clipboardText,
 ): Promise<void> {
 	const projectId = context.id;

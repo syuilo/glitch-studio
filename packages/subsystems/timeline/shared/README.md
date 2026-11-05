@@ -14,7 +14,7 @@
 
 Scene・レイヤー・クリップと、その時間・合成・音声設定の契約を定義する。キーフレームの補間や式エンジンは共通基盤を利用し、Scene時刻で評価することや許可するBindingなどの規約をこのドメインで決める。
 
-`custom-parameters.ts`はフォルダ以外のレイヤーのカスタムパラメータの定義・ID・評価情報・祖先参照を所有する。`customParameterDefs`と`customParameterValues`を分け、数値・真理値・文字列・色・ベクトル・enum・Color Rampを扱う。`parameter-binding-evaluator.ts`が`timelineLayerCustomParameterReference`と`PARAM`を解決して共通の値評価器へ渡す。`PARAM`は通常のパラメータでは自身だけ、カスタムパラメータの値ではフォルダを除いた直上の親だけを参照する。直接参照は自身と祖先を選べるが、カスタムパラメータの値では自身を除外する。Scene参照を跨がず、参照先は所有レイヤーのグラフと所属Scene時刻で評価する。
+`public-parameters.ts`はフォルダ以外のレイヤーの公開パラメータの定義・ID・評価情報・祖先参照を所有する。`publicParameterDefs`と`publicParameterValues`を分け、数値・真理値・文字列・色・ベクトル・enum・Color Rampを扱う。`parameter-binding-evaluator.ts`が`timelineLayerPublicParameterReference`と`PARAM`を解決して共通の値評価器へ渡す。`PARAM`は通常のパラメータでは自身だけ、公開パラメータの値ではフォルダを除いた直上の親だけを参照する。直接参照は自身と祖先を選べるが、公開パラメータの値では自身を除外する。Scene参照を跨がず、参照先は所有レイヤーのグラフと所属Scene時刻で評価する。
 
 `timeline-compositing.ts`は画像を持つレイヤーの静的な`TimelineMask`（Alpha／輝度・反転）を定義する。nullでは通常描画、設定時は同じ合成境界の下層を切り抜く。opacityのBindingはマスク強度として再利用し、表示名だけをInspector・キーフレームで切り替える。素材の種類・時計・音声の契約は変更しない。
 
@@ -40,9 +40,9 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `strokeProgress`は輪郭の描画割合で、0は輪郭なし、0.5は半周、1（既定値）は閉じた輪郭。`strokeStart`は描き始める位置で、0（既定値）と1が上中央、0.25が右中央、0.5が下中央、0.75が左中央。どちらも輪郭を付ける前の形状の周長を基準に時計回りに数え、評価値は0〜1へ制限する。起点を越える区間も連続して描き、部分描画の両端は輪郭の接線に垂直に切る。塗り・輪郭幅・輪郭配置は変えない。両パラメータとも通常の式・automation・キーを使う。
 
-`expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Visual Module内部の変数・カスタムパラメータ・グラフ一覧は継承しない。
+`expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Visual Module内部の変数・公開パラメータ・グラフ一覧は継承しない。
 
-`parameter-binding.ts`は共通方式とカスタムパラメータ直接参照を扱う`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`lowerLayerOutput` / `anotherLayerOutput`を加えた`TimelineVisualModuleParameterBinding`、画像入力にサンプリングを組み合わせた`TimelineEffectParameterBinding`を定義する。合成設定・音量にも同じカスタムパラメータ参照を使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
+`parameter-binding.ts`は共通方式と公開パラメータ直接参照を扱う`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`lowerLayerOutput` / `anotherLayerOutput`を加えた`TimelineVisualModuleParameterBinding`、画像入力にサンプリングを組み合わせた`TimelineEffectParameterBinding`を定義する。合成設定・音量にも同じ公開パラメータ参照を使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
 
 `timeline-audio.ts`の`resolveTimelineAnotherLayerAudioReference()`は、所属Scene内のグループを含む探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
 
@@ -100,7 +100,7 @@ Scene直下またはGroup以外のコンテナ配下の`camera`レイヤーは`c
 
 描画には`getTimelineRenderLayers()`で子を同じ描画列へ展開する。中間画像や専用レンダラーを作らず、整理用の階層を追加するだけでは既存の子の描画履歴やGPUリソースを作り直さない。描画順・下層入力・マスクの参照境界・カメラ・音声は透過し、無効な枝だけを除外する。子の保存された無効状態は変更しない。通常のコンテナと同じ折り畳み・複製・解除・親子移動・仮想クリップによる一括時間移動を使う。
 
-`container-layer.ts`は新規作成時の既定値と、フォルダ→パラメータコンテナ／Transform／Group、パラメータコンテナ→Transform／Group、Transform→Groupの変換を定義する。逆方向は許可しない。ID・子の順序・識別情報・カスタムパラメータ・保存Bindingを維持し、Transformのposition・scale・rotation・zをGroupのposition・scale・rotation・depthへ移す。Groupの初期合成モードは通常作成と同じ`flat`とし、追加される音量や合成設定は既定値を使う。
+`container-layer.ts`は新規作成時の既定値と、フォルダ→パラメータコンテナ／Transform／Group、パラメータコンテナ→Transform／Group、Transform→Groupの変換を定義する。逆方向は許可しない。ID・子の順序・識別情報・公開パラメータ・保存Bindingを維持し、Transformのposition・scale・rotation・zをGroupのposition・scale・rotation・depthへ移す。Groupの初期合成モードは通常作成と同じ`flat`とし、追加される音量や合成設定は既定値を使う。
 
 変換は一つのCommandでUndo/Redoする。フォルダからの変換では新しいパラメータスコープが生まれ、Group化では合成境界も生まれるため、描画結果が変わる場合がある。式の書き換え・転送パラメータの生成・子の削除は行わない。Group内のカメラや新たな参照制約の違反は、保存データを残したまま既存の静的検証で診断する。
 

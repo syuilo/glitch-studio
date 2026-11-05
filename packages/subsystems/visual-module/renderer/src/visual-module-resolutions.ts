@@ -36,7 +36,7 @@ export function resolveVisualModuleResolutions(options: {
 			intrinsicResolution: node.resolution.mode === 'auto' ? options.getIntrinsicResolution(node) : null,
 			inputResolution: node.resolution.mode === 'auto' ? getEffectInputResolution<VisualModuleParameterBinding>(definition, node.params, binding =>
 				binding.inputSource === 'node' ? connectionResolution(binding.nodeId, binding.outputPort)
-					: binding.inputSource === 'visualModuleCustomParameterReference' ? options.inputResolutions.get(binding.parameterId) ?? null : null) : null,
+					: binding.inputSource === 'visualModulePublicParameterReference' ? options.inputResolutions.get(binding.parameterId) ?? null : null) : null,
 			maxDimension: options.maxDimension,
 		});
 		resolutions.set(node.id, resolution);

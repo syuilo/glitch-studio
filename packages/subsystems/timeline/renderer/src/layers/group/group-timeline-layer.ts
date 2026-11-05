@@ -38,7 +38,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 				mask: group.mask,
 				layerMask: group.layerMask,
 				paramValues: group.compositingParamValues,
-				customParameters: context.customParameters,
+				publicParameters: context.publicParameters,
 				automationGraphs: group.automationGraphs,
 			});
 			const childEvaluation = renderer.createEvaluation(getTimelineRenderLayers(group.layers, evaluation.layerActivity), {

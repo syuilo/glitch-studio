@@ -1,5 +1,5 @@
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import type { TimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import type { TimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import type { TextRenderValues } from '../../text-rendering/text-render-values.ts';
 import { textParamDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
@@ -13,7 +13,7 @@ import type { AutomationGraph } from '@gs/shared/automation-graph/automation-gra
 export class TextParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(bindings: TextParameterValues<TimelineParameterBinding>, context: { time: number; isExport: boolean; automationGraphs: AutomationGraph[]; customParameters?: TimelineLayerCustomParameterContext | null }): TextRenderValues {
+	evaluate(bindings: TextParameterValues<TimelineParameterBinding>, context: { time: number; isExport: boolean; automationGraphs: AutomationGraph[]; publicParameters?: TimelineLayerPublicParameterContext | null }): TextRenderValues {
 		const scope = createTimelineLayerEvaluationScope(context);
 		const values: Record<string, unknown> = {};
 		for (const [key, def] of Object.entries(textParamDefs)) {

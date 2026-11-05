@@ -12,7 +12,7 @@
 			<div style="height: 100%; place-content: center;">
 				<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="i18n.ts._Parameter.EnvironmentVariable" class="ti ti-variable" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="i18n.ts._Parameter.Expression" class="ti ti-math-function" :class="$style.typeIcon"></i>
-				<i v-else-if="(paramValue.inputSource === 'visualModuleCustomParameterReference' || paramValue.inputSource === 'timelineLayerCustomParameterReference')" v-tooltip="i18n.ts._Parameter.Title" class="ti ti-wifi" :class="$style.typeIcon"></i>
+				<i v-else-if="(paramValue.inputSource === 'visualModulePublicParameterReference' || paramValue.inputSource === 'timelineLayerPublicParameterReference')" v-tooltip="i18n.ts._Parameter.Title" class="ti ti-wifi" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="i18n.ts._Parameter.Node" class="ti ti-plug" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'anotherLayerOutput'" v-tooltip="i18n.ts._Parameter.AnotherLayerOutput" class="ti ti-stack" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'lowerLayerOutput'" v-tooltip="i18n.ts._Parameter.LowerLayerOutput" class="ti ti-stack-2" :class="$style.typeIcon"></i>
@@ -61,12 +61,12 @@
 					<div v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" style="display: grid; gap: 6px;">
 						{{ paramValue.keyframesTimeline.keyframes.length }} {{ i18n.ts._Parameter.InlineKeyframes }}
 					</div>
-					<GsSelect v-else-if="paramValue.inputSource === 'timelineLayerCustomParameterReference'" data-test-timeline-custom-parameter-reference :modelValue="timelineCustomParameterKey" :items="timelineCustomParameterItems" @update:modelValue="updateTimelineCustomParameterReference"/>
+					<GsSelect v-else-if="paramValue.inputSource === 'timelineLayerPublicParameterReference'" data-test-timeline-public-parameter-reference :modelValue="timelinePublicParameterKey" :items="timelinePublicParameterItems" @update:modelValue="updateTimelinePublicParameterReference"/>
 					<GsSelect
-						v-else-if="paramValue.inputSource === 'visualModuleCustomParameterReference'"
+						v-else-if="paramValue.inputSource === 'visualModulePublicParameterReference'"
 						:modelValue="paramValue.parameterId"
-						:items="[{ label: i18n.ts.None, value: visualModuleCustomParameterId('') }, ...visualModuleCustomParameterReferenceItems]"
-						@update:modelValue="value => emit('edit', { kind: 'visualModuleCustomParameterReference', ...target(), value })"
+						:items="[{ label: i18n.ts.None, value: visualModulePublicParameterId('') }, ...visualModulePublicParameterReferenceItems]"
+						@update:modelValue="value => emit('edit', { kind: 'visualModulePublicParameterReference', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
 						<GsSelect
@@ -223,10 +223,10 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding }
 	| { kind: 'anotherLayerOutput'; value: Extract<EditableParameterBinding, { inputSource: 'anotherLayerOutput' }> }
 	| { kind: 'anotherLayerAudio'; value: string | null }
-	| { kind: 'timelineLayerCustomParameterReference'; value: TimelineLayerCustomParameterReferenceBinding }
-	| { kind: 'visualModuleCustomParameterReference'; value: VisualModuleCustomParameterId }
-	| { kind: 'createCustomParameter' }
-	| ParameterInputSourceEdit<'timelineLayerCustomParameterReference' | 'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'visualModuleCustomParameterReference'>
+	| { kind: 'timelineLayerPublicParameterReference'; value: TimelineLayerPublicParameterReferenceBinding }
+	| { kind: 'visualModulePublicParameterReference'; value: VisualModulePublicParameterId }
+	| { kind: 'createPublicParameter' }
+	| ParameterInputSourceEdit<'timelineLayerPublicParameterReference' | 'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'visualModulePublicParameterReference'>
 );
 </script>
 
@@ -237,7 +237,7 @@ import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.
 import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { isParameterBindingDefault } from '@gs/shared/parameter/parameter-default.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
-import { visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import { visualModulePublicParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { computed, inject, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
@@ -245,18 +245,18 @@ import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import * as AiScript from '@syuilo/aiscript';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Ref } from 'vue';
-import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { NodeOutputReference, VisualModule, VisualModulePublicParameterId, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { EditableParameterBinding, ParameterInputSourceEdit, ValueParameterEdit } from '@/types/parameter-edit.ts';
 import type { MenuItem } from '@/types/menu.ts';
-import type { TimelineLayerCustomParameterReferenceBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineLayerPublicParameterReferenceBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
-import { getTimelineLayerCustomParameterSources, areTimelineCustomParameterTypesCompatible } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import { getTimelineLayerPublicParameterSources, areTimelinePublicParameterTypesCompatible } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey, canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
@@ -267,7 +267,7 @@ import { preferences } from '@/preferences.ts';
 import { getAvailableAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHandle.ts';
-import { canCreateCustomParameterFromBinding } from '@/utility/custom-parameter-creation.ts';
+import { canCreatePublicParameterFromBinding } from '@/utility/public-parameter-creation.ts';
 
 const wireMap = useVisualModuleWires();
 const timelineEditor = inject(timelineParameterEditorContextKey, null);
@@ -297,25 +297,25 @@ const props = defineProps<{
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 const previewParameterHandle = usePreviewParameterHandle(appContext, props);
 
-const timelineCustomParameterItems = computed(() => {
+const timelinePublicParameterItems = computed(() => {
 	const context = timelineEditor?.context.value;
 	const items: { value: string | null; label: string }[] = [{ value: null, label: i18n.ts.None }];
 	if (context != null && props.node == null) {
-		for (const owner of getTimelineLayerCustomParameterSources(context, timelineEditor!.isCustomParameterValue)) {
-			for (const definition of owner.customParameterDefs ?? []) {
-				if (areTimelineCustomParameterTypesCompatible(props.paramDef, definition)) items.push({ value: JSON.stringify([owner.id, definition.id]), label: `${owner.name} / ${definition.ui.label} (${definition.nameForReference})` });
+		for (const owner of getTimelineLayerPublicParameterSources(context, timelineEditor!.isPublicParameterValue)) {
+			for (const definition of owner.publicParameterDefs ?? []) {
+				if (areTimelinePublicParameterTypesCompatible(props.paramDef, definition)) items.push({ value: JSON.stringify([owner.id, definition.id]), label: `${owner.name} / ${definition.ui.label} (${definition.nameForReference})` });
 			}
 		}
 	}
-	const key = timelineCustomParameterKey.value;
-	if (key != null && !items.some(item => item.value === key)) items.push({ value: key, label: i18n.ts._Parameter.UnavailableCustomParameter });
+	const key = timelinePublicParameterKey.value;
+	if (key != null && !items.some(item => item.value === key)) items.push({ value: key, label: i18n.ts._Parameter.UnavailablePublicParameter });
 	return items;
 });
-const timelineCustomParameterKey = computed(() => props.paramValue.inputSource === 'timelineLayerCustomParameterReference' && props.paramValue.layerId != null && props.paramValue.parameterId != null ? JSON.stringify([props.paramValue.layerId, props.paramValue.parameterId]) : null);
+const timelinePublicParameterKey = computed(() => props.paramValue.inputSource === 'timelineLayerPublicParameterReference' && props.paramValue.layerId != null && props.paramValue.parameterId != null ? JSON.stringify([props.paramValue.layerId, props.paramValue.parameterId]) : null);
 
-function updateTimelineCustomParameterReference(key: string | null) {
+function updateTimelinePublicParameterReference(key: string | null) {
 	const [layerId, parameterId] = key == null ? [null, null] : JSON.parse(key);
-	emit('edit', { kind: 'timelineLayerCustomParameterReference', ...target(), value: { inputSource: 'timelineLayerCustomParameterReference', layerId, parameterId } });
+	emit('edit', { kind: 'timelineLayerPublicParameterReference', ...target(), value: { inputSource: 'timelineLayerPublicParameterReference', layerId, parameterId } });
 }
 
 const rowEl = useTemplateRef('rowEl');
@@ -397,7 +397,7 @@ const envVariableItems = computed(() => props.availableVariables.map(variable =>
 		: variable;
 	return { label, value: variable };
 }));
-const visualModuleCustomParameterReferenceItems = computed(() => (props.node == null ? [] : paramDefs.value)
+const visualModulePublicParameterReferenceItems = computed(() => (props.node == null ? [] : paramDefs.value)
 	.filter(def => !def.canNode && (def.dataType.kind === 'audioSource') === (props.paramDef.dataType.kind === 'audioSource'))
 	.filter(def => def.dataType.kind !== 'colorRamp' && props.paramDef.dataType.kind !== 'colorRamp' || areDataTypesEqual(def.dataType, props.paramDef.dataType))
 	.map(def => ({ label: `${def.ui.label} (${def.nameForReference})`, value: def.id })));
@@ -518,8 +518,8 @@ function getMenu() {
 				{ text: i18n.ts._Parameter.AnotherLayerAudio, inputSource: 'anotherLayerAudio', icon: 'ti ti-wave-sine' },
 			);
 		}
-		if (timelineEditor != null && props.node == null && props.paramDef.dataType.kind !== 'audioSource') types.push({ text: i18n.ts._Parameter.CustomParameter, inputSource: 'timelineLayerCustomParameterReference', icon: 'ti ti-wifi' });
-		if (props.node != null) types.push({ text: i18n.ts._Parameter.CustomParameter, inputSource: 'visualModuleCustomParameterReference', icon: 'ti ti-wifi' });
+		if (timelineEditor != null && props.node == null && props.paramDef.dataType.kind !== 'audioSource') types.push({ text: i18n.ts._Parameter.PublicParameter, inputSource: 'timelineLayerPublicParameterReference', icon: 'ti ti-wifi' });
+		if (props.node != null) types.push({ text: i18n.ts._Parameter.PublicParameter, inputSource: 'visualModulePublicParameterReference', icon: 'ti ti-wifi' });
 		if (canNode.value && props.node != null) types.push({ text: i18n.ts._Parameter.Node, inputSource: 'node', icon: 'ti ti-plug' });
 		if (props.imageInputEnabled && canNode.value && canConnectNodeDataTypes({ kind: 'color' }, inputDataType.value)) {
 			types.push({ text: i18n.ts._Parameter.LowerLayerOutput, inputSource: 'lowerLayerOutput', icon: 'ti ti-stack-2' });
@@ -554,14 +554,14 @@ function getMenu() {
 		}
 	}
 
-	const hasCustomParameterOwner = props.node != null ? props.visualModule != null
-		: timelineEditor?.context.value != null && !timelineEditor.isCustomParameterValue;
-	if (hasCustomParameterOwner && canCreateCustomParameterFromBinding(props.paramDef, props.paramValue)) {
+	const hasPublicParameterOwner = props.node != null ? props.visualModule != null
+		: timelineEditor?.context.value != null && !timelineEditor.isPublicParameterValue;
+	if (hasPublicParameterOwner && canCreatePublicParameterFromBinding(props.paramDef, props.paramValue)) {
 		menuItems.push({
-			id: 'createCustomParameter',
-			text: i18n.ts._Parameter.CreateCustomParameter,
+			id: 'createPublicParameter',
+			text: i18n.ts._Parameter.CreatePublicParameter,
 			icon: 'ti ti-wifi',
-			action: () => emit('edit', { kind: 'createCustomParameter', ...target() }),
+			action: () => emit('edit', { kind: 'createPublicParameter', ...target() }),
 		});
 	}
 

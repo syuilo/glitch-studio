@@ -1,5 +1,5 @@
-import { createTimelineLayerCustomParameterContextIndex } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
-import type { TimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import { createTimelineLayerPublicParameterContextIndex } from '@gs/subsystems_timeline_shared/public-parameters.ts';
+import type { TimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/transform/transform-timeline-layer.ts';
 import { TimelineTransformParameters } from '@gs/subsystems_timeline_shared/layers/transform/transform-parameters.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -67,7 +67,7 @@ import type { TimelineLayerRenderer } from '@gs/subsystems_timeline_renderer/tim
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { VisualModule, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModule, VisualModulePublicParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
 
@@ -198,7 +198,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private projectVersions = new ProjectStateVersions();
 	private evaluationScenes: TimelineScene[] = [];
 	private layerActivityBySceneId = new Map<string, TimelineLayerActivityMap>();
-	private customParameterContextsBySceneId = new Map<string, ReadonlyMap<string, TimelineLayerCustomParameterContext>>();
+	private publicParameterContextsBySceneId = new Map<string, ReadonlyMap<string, TimelineLayerPublicParameterContext>>();
 	private pendingTransformPreview: TimelineTransformPreview | null = null;
 	private lastTransformPreview: TimelineTransformPreview | null = null;
 	private transformPreviewParameters = new TimelineCompositingParameters();
@@ -494,11 +494,11 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.layerActivityBySceneId = new Map(this.evaluationScenes.map(scene => [scene.id, getTimelineSoloState(scene.layers).layers]));
 		// 祖先の値変更や階層移動も環境へ反映する。レンダラーの寿命とは分けて更新し、
 		// インスタンスを維持する値編集でも古い所有レイヤーを参照し続けないようにする。
-		this.customParameterContextsBySceneId = new Map(this.evaluationScenes.map(scene => [scene.id, createTimelineLayerCustomParameterContextIndex(scene.layers)]));
+		this.publicParameterContextsBySceneId = new Map(this.evaluationScenes.map(scene => [scene.id, createTimelineLayerPublicParameterContextIndex(scene.layers)]));
 	}
 
-	private getLayerCustomParameterContext(sceneId: string | null, layerId: string): TimelineLayerCustomParameterContext | null {
-		return sceneId == null ? null : this.customParameterContextsBySceneId.get(sceneId)?.get(layerId) ?? null;
+	private getLayerPublicParameterContext(sceneId: string | null, layerId: string): TimelineLayerPublicParameterContext | null {
+		return sceneId == null ? null : this.publicParameterContextsBySceneId.get(sceneId)?.get(layerId) ?? null;
 	}
 
 	private resolveProjectOutputResolution(state: RendererProjectState): Resolution {
@@ -646,7 +646,7 @@ export class TimelineRendererManager extends EventEmitter<{
 						transformTarget: getTimelineLayerTransformTarget(layer),
 						paramValues: layer.compositingParamValues,
 						automationGraphs: layer.automationGraphs,
-						customParameters: this.getLayerCustomParameterContext(sceneId, layer.id),
+						publicParameters: this.getLayerPublicParameterContext(sceneId, layer.id),
 					});
 					preview.geometry.transform = {
 						position,
@@ -718,7 +718,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				transformTarget: getTimelineLayerTransformTarget(entry),
 				paramValues: entry.compositingParamValues,
 				automationGraphs: entry.automationGraphs,
-				customParameters: this.getLayerCustomParameterContext(sceneId, entry.id),
+				publicParameters: this.getLayerPublicParameterContext(sceneId, entry.id),
 			});
 			const settings = evaluate(layer);
 			const cameraEvaluation = capture?.cameraEvaluation ?? {
@@ -726,7 +726,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			};
 			if (capture != null) capture.cameraEvaluation = cameraEvaluation;
 			const parent = getTimelinePreviewParent(location.ancestors.filter(parent => parent.layerType === 'group' || parent.layerType === 'transform').map(parent => parent.layerType === 'transform'
-				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, time, false, this.getLayerCustomParameterContext(sceneId, parent.id)) }
+				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.automationGraphs, time, false, this.getLayerPublicParameterContext(sceneId, parent.id)) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
 			{
 				parent: TIMELINE_IDENTITY,
@@ -793,11 +793,11 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private createTimelineLayer(layer: TimelineLayer, clipId: string | null, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<TimelineImage> {
 		const renderer = this.createTimelineLayerRenderer(layer, clipId, layerPath, sceneBaseResolution, sceneId);
-		const customParameters = () => this.getLayerCustomParameterContext(sceneId, layer.id);
+		const publicParameters = () => this.getLayerPublicParameterContext(sceneId, layer.id);
 		return {
 			...renderer,
-			evaluate: (context, signal) => renderer.evaluate({ ...context, customParameters: customParameters() }, signal),
-			createChildren: renderer.createChildren == null ? undefined : (context, options) => renderer.createChildren!({ ...context, customParameters: customParameters() }, options),
+			evaluate: (context, signal) => renderer.evaluate({ ...context, publicParameters: publicParameters() }, signal),
+			createChildren: renderer.createChildren == null ? undefined : (context, options) => renderer.createChildren!({ ...context, publicParameters: publicParameters() }, options),
 		};
 	}
 
@@ -1000,7 +1000,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			format: this.staticOptions.intermediateTextureFormat,
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
-		const inputFrames = new Map<VisualModuleCustomParameterId, ReturnType<typeof createSceneOutput>>();
+		const inputFrames = new Map<VisualModulePublicParameterId, ReturnType<typeof createSceneOutput>>();
 		const instance = createVisualModuleTimelineLayer(getModule, getLayer, {
 			getImageInput: (input, parameterId) => {
 				let inputFrame = inputFrames.get(parameterId);
@@ -1033,7 +1033,7 @@ export class TimelineRendererManager extends EventEmitter<{
 							transformTarget: getLayer().transformTarget,
 							paramValues: getLayer().compositingParamValues,
 							automationGraphs: getLayer().automationGraphs,
-							customParameters: layerContext.customParameters,
+							publicParameters: layerContext.publicParameters,
 						});
 						result = compositor.evaluate(layerContext, output, settings);
 					}

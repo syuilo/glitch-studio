@@ -32,7 +32,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 				mask: layer.mask,
 				layerMask: layer.layerMask,
 				paramValues: layer.compositingParamValues,
-				customParameters: context.customParameters,
+				publicParameters: context.publicParameters,
 				automationGraphs: layer.automationGraphs,
 			});
 			const encoder = options.device.createCommandEncoder();

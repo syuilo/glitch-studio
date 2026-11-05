@@ -41,7 +41,7 @@ function visitResourceReferences(visualModule: VisualModule, definitions: Effect
 	visit: (reference: ResourceReference, replaceId: (id: string) => void) => void) {
 	const visitAudioBindings = (defs: Record<string, ParameterDefinition>, bindings: Record<string, VisualModuleParameterBinding>) => {
 		for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(defs, bindings)) {
-			if (def.dataType.kind !== 'audioSource' || param.inputSource === 'visualModuleCustomParameterReference') continue;
+			if (def.dataType.kind !== 'audioSource' || param.inputSource === 'visualModulePublicParameterReference') continue;
 			if (param.inputSource !== 'literal') throw new Error('Audio sources must use a static input');
 			validatePlayerAudioSourceSelection(param.value);
 			if (param.value != null) visit({ kind: 'player', id: param.value.playerId }, id => { param.value = { type: 'player', playerId: id }; });

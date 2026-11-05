@@ -1,4 +1,4 @@
-import type { TimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import type { TimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { getTimelineClipContentTime, isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getTimelineMediaSourceTime } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { TimelineEvaluationSession } from './timeline-evaluation.ts';
@@ -16,7 +16,7 @@ export type TimelineRenderEntry = { id: string; clips?: readonly TimelineClip[];
 export type TimelineFrameReferenceTime = { timeMs: number; timeDelta: number };
 
 export type TimelineLayerContext<Output> = {
-	customParameters?: TimelineLayerCustomParameterContext | null;
+	publicParameters?: TimelineLayerPublicParameterContext | null;
 	renderSpace?: TimelineRenderSpace;
 	isExport: boolean;
 	/** レイヤー設定・キーは所属Scene上、素材・モジュールは内容時刻で評価する。 */

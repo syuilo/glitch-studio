@@ -183,6 +183,6 @@ test('does not roll back another command when an old drag is cancelled', () => {
 // ボタン表示と編集可否を分け、式やノード接続を固定値へ暗黙に変更しない。
 test('rejects driven inputs and vector controls without evaluating expressions', () => {
 	for (const binding of [{ inputSource: 'expression', expression: 'invalid' }, { inputSource: 'node', nodeId: 'other', outputPort: 'output' },
-		{ inputSource: 'visualModuleCustomParameterReference', parameterId: 'parameter' }]) assert.equal(getPreviewParameterPosition(definition, binding, 0, 1000), null);
+		{ inputSource: 'visualModulePublicParameterReference', parameterId: 'parameter' }]) assert.equal(getPreviewParameterPosition(definition, binding, 0, 1000), null);
 	assert.equal(getPreviewParameterPosition({ ...definition, ui: { ...definition.ui, control: { controlType: 'vector' } } }, literal([0, 0]), 0, 1000), null);
 });

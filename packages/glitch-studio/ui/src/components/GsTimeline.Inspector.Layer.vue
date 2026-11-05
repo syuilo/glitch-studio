@@ -24,7 +24,7 @@
 				<template #label>{{ i18n.ts._TimelineLayer.GroupCompositing }}</template>
 			</GsSelect>
 		</div>
-		<GsTimelineCustomParameters v-if="hasTimelineLayerParameters(layer)" :key="layer.id" :scene="scene" :layer="layer" @edit="event => onTimelineLayerParamEdit(event, 'customParameter')"/>
+		<GsTimelinePublicParameters v-if="hasTimelineLayerParameters(layer)" :key="layer.id" :scene="scene" :layer="layer" @edit="event => onTimelineLayerParamEdit(event, 'publicParameter')"/>
 		<GsTimelineEffectSettings
 			v-if="layer.layerType === 'effect'"
 			:key="layer.id"
@@ -99,7 +99,7 @@
 			<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
 			<template #label>{{ i18n.ts._TimelineLayer.VisualModuleParameters }}</template>
 			<div style="padding: 8px 0;">
-				<!-- TODO: struct / arrayのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
+				<!-- TODO: struct / arrayの公開パラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
 				<template
 					v-for="paramDef of visualModule?.paramDefs ?? []"
 					:key="`${layer.id}:${paramDef.id}`"
@@ -246,8 +246,8 @@ import GsInput from './common/GsInput.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsVisualParam from './GsVisualParam.vue';
-import GsTimelineCustomParameters from './GsTimeline.CustomParameters.vue';
-import { getTimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import GsTimelinePublicParameters from './GsTimeline.PublicParameters.vue';
+import { getTimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
@@ -274,7 +274,7 @@ import { previewParameterContextKey } from '@/utility/preview-parameter-editing.
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
 
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
-provide(timelineParameterEditorContextKey, { context: computed(() => getTimelineLayerCustomParameterContext(props.scene.layers, props.layer.id)), isCustomParameterValue: false });
+provide(timelineParameterEditorContextKey, { context: computed(() => getTimelineLayerPublicParameterContext(props.scene.layers, props.layer.id)), isPublicParameterValue: false });
 provide(previewParameterContextKey, {
 	scope: computed(() => ({ kind: 'timelineLayer' as const, sceneId: props.scene.id, layerId: props.layer.id })),
 	label: computed(() => props.layer.name),
@@ -419,8 +419,8 @@ function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 
 function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTarget) {
 	const layer = props.layer;
-	if (event.kind === 'createCustomParameter') {
-		if (target !== 'customParameter') stateManager.commit('createTimelineLayerCustomParameterFromParam', {
+	if (event.kind === 'createPublicParameter') {
+		if (target !== 'publicParameter') stateManager.commit('createTimelineLayerPublicParameterFromParam', {
 			sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath,
 		});
 		return;
@@ -432,8 +432,8 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 			event.kind, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
-	if (event.kind === 'node' || event.kind === 'visualModuleCustomParameterReference') return;
-	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'visualModuleCustomParameterReference')) return;
+	if (event.kind === 'node' || event.kind === 'visualModulePublicParameterReference') return;
+	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'visualModulePublicParameterReference')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;
 	if (event.kind === 'anotherLayerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio'))) {
 		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', {

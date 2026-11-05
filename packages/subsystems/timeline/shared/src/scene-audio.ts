@@ -1,5 +1,5 @@
-import { createTimelineLayerCustomParameterContextIndex } from './custom-parameters.ts';
-import type { TimelineLayerCustomParameterContext } from './custom-parameters.ts';
+import { createTimelineLayerPublicParameterContextIndex } from './public-parameters.ts';
+import type { TimelineLayerPublicParameterContext } from './public-parameters.ts';
 import { findTimelineLayerLocation } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
@@ -13,7 +13,7 @@ import type { TimelineParameterBinding, TimelineLayer, TimelineScene } from './t
 import type { TimelineMediaSourceTiming } from './media-timing.ts';
 
 export type SceneAudioGain = {
-	customParameters?: TimelineLayerCustomParameterContext | null;
+	publicParameters?: TimelineLayerPublicParameterContext | null;
 	/** 最上位Scene上で、音量を所有するSceneの時刻0が置かれる位置。 */
 	sceneStartMs: number;
 	volume: TimelineParameterBinding;
@@ -70,12 +70,12 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 		}
 	}
 	const placements: SceneAudioPlacement[] = [];
-	const customParameterContextsBySceneId = new Map<string, ReadonlyMap<string, TimelineLayerCustomParameterContext>>();
-	const getCustomParameterContexts = (scene: TimelineScene) => {
-		let contexts = customParameterContextsBySceneId.get(scene.id);
+	const publicParameterContextsBySceneId = new Map<string, ReadonlyMap<string, TimelineLayerPublicParameterContext>>();
+	const getPublicParameterContexts = (scene: TimelineScene) => {
+		let contexts = publicParameterContextsBySceneId.get(scene.id);
 		if (contexts == null) {
-			contexts = createTimelineLayerCustomParameterContextIndex(scene.layers);
-			customParameterContextsBySceneId.set(scene.id, contexts);
+			contexts = createTimelineLayerPublicParameterContextIndex(scene.layers);
+			publicParameterContextsBySceneId.set(scene.id, contexts);
 		}
 		return contexts;
 	};
@@ -89,13 +89,13 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 			if (!isTimelineAudioOutputLayer(layer)) continue;
 			// 選択範囲が別々のTransformの子を含む場合も、Scene全体の索引なら
 			// 各レイヤーの本来の祖先を保てる。同じSceneの複数配置でも索引を再利用する。
-			const parameterContext = getCustomParameterContexts(scene).get(layer.id)!;
-			const hasCustomParameters = [parameterContext.layer, ...parameterContext.ancestors].some(owner => (owner.customParameterDefs?.length ?? 0) > 0);
+			const parameterContext = getPublicParameterContexts(scene).get(layer.id)!;
+			const hasPublicParameters = [parameterContext.layer, ...parameterContext.ancestors].some(owner => (owner.publicParameterDefs?.length ?? 0) > 0);
 			const layerGains = [...gains, {
 				sceneStartMs,
 				volume: layer.audioParamValues.volume,
 				automationGraphs: layer.automationGraphs,
-				...hasCustomParameters ? { customParameters: parameterContext } : {},
+				...hasPublicParameters ? { publicParameters: parameterContext } : {},
 			}];
 			if (layer.layerType === 'group') {
 				// 出力対象Groupの参照は、画像と同様に内部のソロ結果を返す。出力から

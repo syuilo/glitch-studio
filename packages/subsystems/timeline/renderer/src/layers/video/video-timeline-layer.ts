@@ -81,7 +81,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 					mask: layer.mask,
 					layerMask: layer.layerMask,
 					paramValues: layer.compositingParamValues,
-					customParameters: context.customParameters,
+					publicParameters: context.publicParameters,
 					automationGraphs: layer.automationGraphs,
 				});
 				return compositor.evaluate(context, cachedFrame.foreground, settings);

@@ -84,13 +84,13 @@ function fixture(t, timeline = null) {
 }
 
 // 【固定値を公開するアクションは、作成先のある通常パラメータだけに表示する】
-// Preview Params・カスタム値・式や加工式へ誤って公開を提供すると、保存先や評価の
+// Preview Params・公開パラメータ値・式や加工式へ誤って公開を提供すると、保存先や評価の
 // 意味が曖昧になる。実際のメニューから対象パスを持つ編集通知が出ることも確認する。
-test('offers custom parameter creation only for literal leaves with an owning scope', async t => {
+test('offers public parameter creation only for literal leaves with an owning scope', async t => {
 	const f = fixture(t);
 	const action = () => {
 		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
-		return modifierUiTest.menu.find(item => item.id === 'createCustomParameter');
+		return modifierUiTest.menu.find(item => item.id === 'createPublicParameter');
 	};
 	f.props.paramValue = { inputSource: 'literal', value: 0.3 };
 	await nextTick();
@@ -100,12 +100,12 @@ test('offers custom parameter creation only for literal leaves with an owning sc
 	f.props.paramPath = ['settings', 'amount'];
 	await nextTick();
 	action().action();
-	assert.deepEqual(f.edits, [{ kind: 'createCustomParameter', paramPath: ['settings', 'amount'] }]);
+	assert.deepEqual(f.edits, [{ kind: 'createPublicParameter', paramPath: ['settings', 'amount'] }]);
 	for (const binding of [
 		{ inputSource: 'expression', expression: 'TIME' },
 		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
 		{ inputSource: 'automationGraphReference', automationGraphId: null },
-		{ inputSource: 'visualModuleCustomParameterReference', parameterId: '' },
+		{ inputSource: 'visualModulePublicParameterReference', parameterId: '' },
 		{ inputSource: 'node', nodeId: null, outputPort: null },
 		{ inputSource: 'literal', value: 0.3, expressionModifier: { enabled: false, code: 'VALUE' } },
 	]) {
@@ -128,19 +128,19 @@ test('offers custom parameter creation only for literal leaves with an owning sc
 });
 
 // 【Timelineの同じレイヤーへの作成は通常の値だけに提供する】
-// カスタムパラメータの値から同じ所有者へ公開すると自己参照になるため、
+// 公開パラメータの値から同じ所有者へ公開すると自己参照になるため、
 // 同じ共用コンポーネントでも利用場所ごとにメニューを区別する。
-test('offers timeline custom parameter creation without offering it for custom parameter values', async t => {
-	for (const isCustomParameterValue of [false, true]) {
-		const f = fixture(t, { context: computed(() => ({ layer: { id: 'layer' }, ancestors: [] })), isCustomParameterValue });
+test('offers timeline public parameter creation without offering it for public parameter values', async t => {
+	for (const isPublicParameterValue of [false, true]) {
+		const f = fixture(t, { context: computed(() => ({ layer: { id: 'layer' }, ancestors: [] })), isPublicParameterValue });
 		f.props.paramValue = { inputSource: 'literal', value: 0.3 };
 		await nextTick();
 		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
-		const action = modifierUiTest.menu.find(item => item.id === 'createCustomParameter');
-		assert.equal(action != null, !isCustomParameterValue);
+		const action = modifierUiTest.menu.find(item => item.id === 'createPublicParameter');
+		assert.equal(action != null, !isPublicParameterValue);
 		if (action != null) {
 			action.action();
-			assert.deepEqual(f.edits, [{ kind: 'createCustomParameter', paramPath: ['amount'] }]);
+			assert.deepEqual(f.edits, [{ kind: 'createPublicParameter', paramPath: ['amount'] }]);
 		}
 	}
 });
@@ -149,39 +149,39 @@ test('offers timeline custom parameter creation without offering it for custom p
 // 同名定義の選択を明確にし、階層移動で参照先を別の同名候補へ自動変更してしまうのを防ぐ。
 test('selects typed timeline references and retains unresolved saved identities', async t => {
 	const scalar = id => ({ id, nameForReference: 'speed', dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } });
-	const context = ref({ layer: { id: 'child', name: 'Child', customParameterDefs: [scalar('local')] }, ancestors: [
-		{ id: 'root', name: 'Root', customParameterDefs: [scalar('shared'), { ...scalar('color'), dataType: { kind: 'color' } }] },
-		{ id: 'parent', name: 'Parent', customParameterDefs: [scalar('parent-speed')] },
+	const context = ref({ layer: { id: 'child', name: 'Child', publicParameterDefs: [scalar('local')] }, ancestors: [
+		{ id: 'root', name: 'Root', publicParameterDefs: [scalar('shared'), { ...scalar('color'), dataType: { kind: 'color' } }] },
+		{ id: 'parent', name: 'Parent', publicParameterDefs: [scalar('parent-speed')] },
 	] });
-	const f = fixture(t, { context: computed(() => context.value), isCustomParameterValue: false });
-	f.props.paramValue = { inputSource: 'timelineLayerCustomParameterReference', layerId: 'root', parameterId: 'shared' };
+	const f = fixture(t, { context: computed(() => context.value), isPublicParameterValue: false });
+	f.props.paramValue = { inputSource: 'timelineLayerPublicParameterReference', layerId: 'root', parameterId: 'shared' };
 	await nextTick();
-	const select = () => f.find('data-test-timeline-custom-parameter-reference');
+	const select = () => f.find('data-test-timeline-public-parameter-reference');
 	assert.deepEqual(select().props.items.map(item => item.value), [null, '["child","local"]', '["parent","parent-speed"]', '["root","shared"]']);
 	select().props['onUpdate:modelValue']('["parent","parent-speed"]');
-	assert.deepEqual(f.edits.at(-1).value, { inputSource: 'timelineLayerCustomParameterReference', layerId: 'parent', parameterId: 'parent-speed' });
+	assert.deepEqual(f.edits.at(-1).value, { inputSource: 'timelineLayerPublicParameterReference', layerId: 'parent', parameterId: 'parent-speed' });
 	context.value.ancestors = [];
 	await nextTick();
 	assert.equal(select().props.modelValue, '["root","shared"]');
 	assert.deepEqual(select().props.items.map(item => item.value), [null, '["child","local"]', '["root","shared"]']);
 });
 
-// 【カスタムパラメータの値では自身を除外し、Visual Module内部へ参照方式を公開しない】
+// 【公開パラメータの値では自身を除外し、Visual Module内部へ参照方式を公開しない】
 // 共用エディタの利用でも各スコープの制約を保ち、UIから循環やドメイン越境する接続を作らせない。
-test('excludes own custom values and keeps timeline sources out of Visual Module nodes', async t => {
+test('excludes own public parameter values and keeps timeline sources out of Visual Module nodes', async t => {
 	const scalar = { id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
-	const context = computed(() => ({ layer: { id: 'child', name: 'Child', customParameterDefs: [scalar] }, ancestors: [{ id: 'root', name: 'Root', customParameterDefs: [scalar] }] }));
-	const f = fixture(t, { context, isCustomParameterValue: true });
-	f.props.paramValue = { inputSource: 'timelineLayerCustomParameterReference', layerId: null, parameterId: null };
+	const context = computed(() => ({ layer: { id: 'child', name: 'Child', publicParameterDefs: [scalar] }, ancestors: [{ id: 'root', name: 'Root', publicParameterDefs: [scalar] }] }));
+	const f = fixture(t, { context, isPublicParameterValue: true });
+	f.props.paramValue = { inputSource: 'timelineLayerPublicParameterReference', layerId: null, parameterId: null };
 	await nextTick();
-	assert.deepEqual(f.find('data-test-timeline-custom-parameter-reference').props.items.map(item => item.value), [null, '["root","speed"]']);
+	assert.deepEqual(f.find('data-test-timeline-public-parameter-reference').props.items.map(item => item.value), [null, '["root","speed"]']);
 	f.props.node = { id: 'node', type: 'effect', params: {} };
 	await nextTick();
 	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
 	const inputSourceItems = modifierUiTest.menu.find(item => item.type === 'parent').children;
-	assert.equal(inputSourceItems.some(item => item.id === 'inputSource:timelineLayerCustomParameterReference'), false);
-	inputSourceItems.find(item => item.id === 'inputSource:visualModuleCustomParameterReference').action();
-	assert.equal(f.edits.at(-1).inputSource, 'visualModuleCustomParameterReference');
+	assert.equal(inputSourceItems.some(item => item.id === 'inputSource:timelineLayerPublicParameterReference'), false);
+	inputSourceItems.find(item => item.id === 'inputSource:visualModulePublicParameterReference').action();
+	assert.equal(f.edits.at(-1).inputSource, 'visualModulePublicParameterReference');
 });
 
 // 【加工式の本文・無効化・削除を基準式とは独立した編集として通知する】

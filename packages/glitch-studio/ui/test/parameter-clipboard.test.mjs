@@ -193,23 +193,23 @@ test('rejects a whole container when one nested binding is incompatible', () => 
 	assert.deepEqual(f.node.params, before);
 });
 
-// 【カスタムパラメータは所有者・型・参照可能な階層を満たす場合だけ貼り付ける】
-// 同名IDの別定義や、祖先以外のレイヤー、自分のカスタム値への参照を持ち込まない。
-test('validates custom parameter references against their destination types and visible owners', () => {
+// 【公開パラメータは所有者・型・参照可能な階層を満たす場合だけ貼り付ける】
+// 同名IDの別定義や、祖先以外のレイヤー、自分の公開パラメータ値への参照を持ち込まない。
+test('validates public parameter references against their destination types and visible owners', () => {
 	const f = fixture();
-	const definition = { ...scalarDefinition, id: 'custom', nameForReference: 'custom', canNode: false };
+	const definition = { ...scalarDefinition, id: 'public_parameter', nameForReference: 'public_parameter', canNode: false };
 	f.visualModule.paramDefs.push(definition);
 	const nodeContext = f.resolve().context;
-	const reference = createParameterClipboard(scalarDefinition, { inputSource: 'visualModuleCustomParameterReference', parameterId: 'custom' }, nodeContext.source);
+	const reference = createParameterClipboard(scalarDefinition, { inputSource: 'visualModulePublicParameterReference', parameterId: 'public_parameter' }, nodeContext.source);
 	assert.ok(prepareParameterBindingPaste(scalarDefinition, reference, nodeContext));
 	assert.equal(prepareParameterBindingPaste(f.resolve().def, { ...reference, dataType: f.resolve().def.dataType }, nodeContext), null);
 	f.visualModule.paramDefs = [];
 	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, nodeContext), null);
-	f.layer.customParameterDefs = [definition];
+	f.layer.publicParameterDefs = [definition];
 	const timelineContext = f.resolve(f.timelineTarget).context;
-	const timelineReference = createParameterClipboard(scalarDefinition, { inputSource: 'timelineLayerCustomParameterReference', layerId: f.layer.id, parameterId: 'custom' }, timelineContext.source);
+	const timelineReference = createParameterClipboard(scalarDefinition, { inputSource: 'timelineLayerPublicParameterReference', layerId: f.layer.id, parameterId: 'public_parameter' }, timelineContext.source);
 	assert.ok(prepareParameterBindingPaste(scalarDefinition, timelineReference, timelineContext));
-	assert.equal(prepareParameterBindingPaste(scalarDefinition, timelineReference, { ...timelineContext, parameterTarget: 'customParameter' }), null);
+	assert.equal(prepareParameterBindingPaste(scalarDefinition, timelineReference, { ...timelineContext, parameterTarget: 'publicParameter' }), null);
 	assert.equal(prepareParameterBindingPaste(scalarDefinition, timelineReference, f.resolve({ ...f.timelineTarget, layerId: f.shape.id, parameterTarget: 'compositing', paramPath: ['opacity'] }).context), null);
 });
 

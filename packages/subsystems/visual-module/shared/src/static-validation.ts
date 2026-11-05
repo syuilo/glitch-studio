@@ -16,7 +16,7 @@ export function visualModuleNodeStaticShape(node: VisualModuleNode, definitions:
 
 export function validateVisualModuleInterface(visualModule: VisualModule): void {
 	if (new Set(visualModule.nodes.map(node => node.id)).size !== visualModule.nodes.length) throw new Error('Duplicate node ID');
-	if (new Set(visualModule.paramDefs.map(def => def.id)).size !== visualModule.paramDefs.length) throw new Error('Duplicate custom parameter ID');
+	if (new Set(visualModule.paramDefs.map(def => def.id)).size !== visualModule.paramDefs.length) throw new Error('Duplicate public parameter ID');
 	for (const definition of visualModule.paramDefs) validateParameterDefaultValues(definition);
 	if (new Set(visualModule.outputDefs.map(def => def.id)).size !== visualModule.outputDefs.length) throw new Error('Duplicate output ID');
 	if (visualModule.primaryInputId != null && !visualModule.paramDefs.some(def => def.id === visualModule.primaryInputId && def.canNode && def.dataType.kind === 'color')) throw new Error('Invalid primary image input');
@@ -50,10 +50,10 @@ export function inspectVisualModuleNode(node: VisualModuleNode, visualModule: Vi
 			if (binding.inputSource === 'node') {
 				if (!leaf.canNode) throw new Error('Parameter does not accept node input: ' + key);
 				connection(binding);
-			} else if (binding.inputSource === 'visualModuleCustomParameterReference') {
-				if (!visualModule.paramDefs.some(def => def.id === binding.parameterId)) throw new Error('Custom parameter not found');
-				const customDefinition = visualModule.paramDefs.find(def => def.id === binding.parameterId)!;
-				if ((leaf.dataType.kind === 'colorRamp' || customDefinition.dataType.kind === 'colorRamp') && !areDataTypesEqual(leaf.dataType, customDefinition.dataType)) throw new Error('Color Ramp custom parameter type mismatch');
+			} else if (binding.inputSource === 'visualModulePublicParameterReference') {
+				if (!visualModule.paramDefs.some(def => def.id === binding.parameterId)) throw new Error('Public parameter not found');
+				const publicParameterDefinition = visualModule.paramDefs.find(def => def.id === binding.parameterId)!;
+				if ((leaf.dataType.kind === 'colorRamp' || publicParameterDefinition.dataType.kind === 'colorRamp') && !areDataTypesEqual(leaf.dataType, publicParameterDefinition.dataType)) throw new Error('Color Ramp public parameter type mismatch');
 			} else if (!isValueParameterBinding(binding)) throw new Error('Unsupported visual module parameter input source');
 		});
 	}

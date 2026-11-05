@@ -53,8 +53,8 @@ export function convertTimelineContainerLayer(layer: TimelineContainerLayer, tar
 	converted.layers = layer.layers;
 	if (hasTimelineLayerParameters(layer) && hasTimelineLayerParameters(converted)) {
 		converted.automationGraphs = deepClone(layer.automationGraphs);
-		if (layer.customParameterDefs != null) converted.customParameterDefs = deepClone(layer.customParameterDefs);
-		if (layer.customParameterValues != null) converted.customParameterValues = deepClone(layer.customParameterValues);
+		if (layer.publicParameterDefs != null) converted.publicParameterDefs = deepClone(layer.publicParameterDefs);
+		if (layer.publicParameterValues != null) converted.publicParameterValues = deepClone(layer.publicParameterValues);
 	}
 	if (layer.layerType === 'transform' && converted.layerType === 'group') {
 		const values = layer.transformParamValues;

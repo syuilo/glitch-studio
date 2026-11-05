@@ -2,13 +2,13 @@
 
 画像処理用の、ノードを組み合わせてカプセル化したものを「Visual Module」と呼びます。
 
-Visual Moduleは、In/Outノードを含むほか、外部に対するパラメータ定義(Custom Parameter)も行えるので、タイムライン上でレイヤーとして使用可能です。
+Visual Moduleは、In/Outノードを含むほか、外部に対するパラメータ定義(Public Parameter)も行えるので、タイムライン上でレイヤーとして使用可能です。
 
-Custom Parameterは、`canNode: true` ならInノード経由で配線し、`canNode: false` ならVisual Module内のノードのパラメータに直接アサインしたり、expression上からPARAM関数を通じて参照したりできます。
+Public Parameterは、`canNode: true` ならInノード経由で配線し、`canNode: false` ならVisual Module内のノードのパラメータに直接アサインしたり、expression上からPARAM関数を通じて参照したりできます。
 
 Visual Module内で別のVisual Moduleを通常のエフェクトのように使用するなど、再帰的な使用も将来実装予定です。
 
-Visual Module内の式では、`POINTER_POSITION`でポインタ位置を2要素の配列`[x, y]`として参照できます。位置パラメータの式にそのまま指定でき、成分は`POINTER_POSITION[0]`（X）・`POINTER_POSITION[1]`（Y）で取得できます。入力元を「環境変数」に切り替え、「ポインタ位置 (POINTER_POSITION)」を選ぶことでも直接指定できます。座標は評価対象の描画領域の長辺全体を1とする共通単位で、中央が`[0, 0]`、正方形の端が各軸±0.5です。横長2:1ではXが±0.5、Yが±0.25です。Visual Module Live Previewではプレビュー領域内のポインタ移動に追従し、画像の外側では`-1`〜`1`を超える値も取ります。プレビュー領域を離れると最後の位置を保持します。Timeline内のVisual Moduleでは、既存のポインタ未指定値`[-99999, -99999]`になります。TimelineレイヤーやVisual Module Live PreviewのCustom Parameterを設定する式には公開しません。
+Visual Module内の式では、`POINTER_POSITION`でポインタ位置を2要素の配列`[x, y]`として参照できます。位置パラメータの式にそのまま指定でき、成分は`POINTER_POSITION[0]`（X）・`POINTER_POSITION[1]`（Y）で取得できます。入力元を「環境変数」に切り替え、「ポインタ位置 (POINTER_POSITION)」を選ぶことでも直接指定できます。座標は評価対象の描画領域の長辺全体を1とする共通単位で、中央が`[0, 0]`、正方形の端が各軸±0.5です。横長2:1ではXが±0.5、Yが±0.25です。Visual Module Live Previewではプレビュー領域内のポインタ移動に追従し、画像の外側では`-1`〜`1`を超える値も取ります。プレビュー領域を離れると最後の位置を保持します。Timeline内のVisual Moduleでは、既存のポインタ未指定値`[-99999, -99999]`になります。TimelineレイヤーやVisual Module Live PreviewのPublic Parameterを設定する式には公開しません。
 
 レイヤーとして使う場合、下のレイヤーまでの合成結果がInノードの出力になります。Outノードの出力は、タイムライン側でレイヤーのtransform・opacity・合成方法を適用してから、上のレイヤーへの入力になります。
 
@@ -39,4 +39,4 @@ Visual Module内の式では、`POINTER_POSITION`でポインタ位置を2要素
 
 `EffectDefinition.staticSettingDefs`は通常の`paramDefs`と独立した定義で、各ノードは`staticSettings`に値を直接保存する。Imageの画像、Video Frameの動画素材、VideoのPlayer、Apply LUTのLUT、Text・Text Patternのフォントをここに指定する。Imageは通常のエフェクトとして維持する。
 
-静的設定は式・キー・Automation Graph・加工式・Custom Parameter参照・公開引数を持たない。素材参照型は通常パラメータとCustom Parameterから除外する。編集はCommand経由で保存・Undo/Redoされ、Visual Module内の全エフェクト・非同期準備・履歴・出力キャッシュを再作成する。通常パラメータの値だけの編集ではこれらを維持するが、接続・Bypass・解像度・構造の変更では未編集のノードも含めて再作成する。素材一覧・メタデータ・画像テクスチャはレンダラーの寿命中に固定する。同じ一覧からの素材選択変更はノード編集で扱い、素材自体の差し替え・再読み込み・追加・削除では両プレビューを再生成する。選択済み画像のテクスチャ欠落は読み込み失敗とし、準備待ちの透明表示にはしない。
+静的設定は式・キー・Automation Graph・加工式・Public Parameter参照・公開引数を持たない。素材参照型は通常パラメータとPublic Parameterから除外する。編集はCommand経由で保存・Undo/Redoされ、Visual Module内の全エフェクト・非同期準備・履歴・出力キャッシュを再作成する。通常パラメータの値だけの編集ではこれらを維持するが、接続・Bypass・解像度・構造の変更では未編集のノードも含めて再作成する。素材一覧・メタデータ・画像テクスチャはレンダラーの寿命中に固定する。同じ一覧からの素材選択変更はノード編集で扱い、素材自体の差し替え・再読み込み・追加・削除では両プレビューを再生成する。選択済み画像のテクスチャ欠落は読み込み失敗とし、準備待ちの透明表示にはしない。

@@ -1,4 +1,4 @@
-import type { TimelineLayerCustomParameterContext } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import type { TimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { colorBlendModes, isBlendMode } from '@gs/shared/color-blend.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
@@ -28,7 +28,7 @@ export type TimelineCompositingSettings = {
 export class TimelineCompositingParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(context: { time: number; isExport: boolean; coordinateSpace: TimelineLayerCoordinateSpace; mask: TimelineMask | null; layerMask: TimelineLayerMask | null; transformTarget?: TimelineLayerTransformTarget; paramValues: Record<string, TimelineParameterBinding>; automationGraphs: AutomationGraph[]; customParameters?: TimelineLayerCustomParameterContext | null }): TimelineCompositingSettings {
+	evaluate(context: { time: number; isExport: boolean; coordinateSpace: TimelineLayerCoordinateSpace; mask: TimelineMask | null; layerMask: TimelineLayerMask | null; transformTarget?: TimelineLayerTransformTarget; paramValues: Record<string, TimelineParameterBinding>; automationGraphs: AutomationGraph[]; publicParameters?: TimelineLayerPublicParameterContext | null }): TimelineCompositingSettings {
 		const evaluationContext = createTimelineLayerEvaluationScope(context);
 		const values = new Map<string, any>();
 		for (const [key, def] of Object.entries(timelineCompositingParamDefs)) {

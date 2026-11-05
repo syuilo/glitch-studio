@@ -77,18 +77,6 @@ function migrateEffectParameters(effectId: string, parameters: Record<string, Pa
 	return effectId;
 }
 
-function migrateVisualModuleCustomParameterReferences(value: unknown): void {
-	if (value == null || typeof value !== 'object') return;
-	if (Array.isArray(value)) {
-		for (const item of value) migrateVisualModuleCustomParameterReferences(item);
-		return;
-	}
-	const record = value as Record<string, unknown>;
-	if (record.inputSource === 'externalCustomParameterInput') record.inputSource = 'visualModuleCustomParameterReference';
-	// struct・array内のBindingにも旧参照が保存されるため、パラメータの木を辿る。
-	for (const child of Object.values(record)) migrateVisualModuleCustomParameterReferences(child);
-}
-
 function migrateVisualModule(visualModule: VisualModule): Set<string> {
 	// 素材参照型そのものが通常パラメータから廃止されたため、公開定義も取り除く。
 	// 呼び出し側へIDを返し、Timelineに保存された対応する引数だけを除去する。
@@ -100,7 +88,6 @@ function migrateVisualModule(visualModule: VisualModule): Set<string> {
 		if (node.type !== 'effect') continue;
 		node.staticSettings ??= {};
 		node.effectId = migrateEffectParameters(node.effectId, node.params, node.resolution, node.staticSettings);
-		migrateVisualModuleCustomParameterReferences(node.params);
 	}
 	return removedParameterIds;
 }

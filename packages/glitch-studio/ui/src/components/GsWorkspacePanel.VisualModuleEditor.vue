@@ -7,7 +7,7 @@
 	</div>
 
 	<div v-if="visualModule && previewParamsShowing" :key="visualModule.id" :class="$style.previewParams">
-		<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義の制約ではなく、現在のUIの対応範囲。 -->
+		<!-- TODO: struct / array / anyの公開パラメータ編集UI。型定義の制約ではなく、現在のUIの対応範囲。 -->
 		<template v-for="paramDef of visualModule.paramDefs" :key="paramDef.id">
 			<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
 			<GsVisualParam
@@ -56,7 +56,7 @@ import GsEffectPicker from './GsEffectPicker.vue';
 import GsButton from './common/GsButton.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { VisualModuleParamDef, VisualModuleArgumentBindings, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleParamDef, VisualModuleArgumentBindings, VisualModulePublicParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
@@ -117,14 +117,14 @@ const effectStates = computed(() => {
 });
 
 const previewParamValues = ref<VisualModuleArgumentBindings>({});
-const editedPreviewParamIds = new Set<VisualModuleCustomParameterId>();
+const editedPreviewParamIds = new Set<VisualModulePublicParameterId>();
 // Preview Paramsは保存データではないため、取消しだけを既存の一時値へ適用する。
 provide(previewParameterContextKey, {
 	scope: computed(() => visualModule.value == null ? null : { kind: 'livePreview' as const, visualModuleId: visualModule.value.id }),
 	label: computed(() => visualModule.value?.name ?? ''),
 	beginLivePreviewEdit(path) {
 		const visualModuleId = visualModule.value?.id ?? null;
-		const id = path[0] as VisualModuleCustomParameterId;
+		const id = path[0] as VisualModulePublicParameterId;
 		const before = deepClone(previewParamValues.value[id]);
 		const wasEdited = editedPreviewParamIds.has(id);
 		let active = true;
@@ -190,7 +190,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	if (def == null) return;
 	const id = def.id;
 	const current = previewParamValues.value[id];
-	const reset = (): VisualModuleArgumentBindings[VisualModuleCustomParameterId] => createResetParameterBinding(def);
+	const reset = (): VisualModuleArgumentBindings[VisualModulePublicParameterId] => createResetParameterBinding(def);
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'automationGraphInline': previewParamValues.value[id] = deepClone(event.value); break;
@@ -207,13 +207,13 @@ function onPreviewParamEdit(event: ParamEdit) {
 			automationGraphId: event.value,
 			...event.options,
 		}; break;
-		case 'createCustomParameter':
-		case 'timelineLayerCustomParameterReference':
+		case 'createPublicParameter':
+		case 'timelineLayerPublicParameterReference':
 		case 'node':
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput':
 		case 'anotherLayerAudio':
-		case 'visualModuleCustomParameterReference': return;
+		case 'visualModulePublicParameterReference': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
 		case 'inputSource':
 			switch (event.inputSource) {
@@ -233,7 +233,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				case 'keyframesTimelineInline':
 					previewParamValues.value[id] = createInlineKeyframesTimeline(def, current);
 					break;
-				case 'visualModuleCustomParameterReference':
+				case 'visualModulePublicParameterReference':
 				case 'anotherLayerOutput':
 		case 'lowerLayerOutput':
 				case 'lowerLayerAudio':

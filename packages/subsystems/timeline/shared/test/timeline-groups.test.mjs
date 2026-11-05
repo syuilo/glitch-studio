@@ -17,19 +17,19 @@ const group = (id, layers) => ({ id, name: id, layerType: 'group', layers, isDis
 	compositingParamValues: {}, audioParamValues: { volume: literal(0.5) } });
 const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 
-// 【Transform境界を越える下層音声でも各レイヤー本来のカスタム参照範囲を保つ】
+// 【Transform境界を越える下層音声でも各レイヤー本来の公開パラメータ参照範囲を保つ】
 // 選択した枝だけで索引を作ったり、最初の枝の祖先を全候補へ渡したりすると、外側の音声が誤った親を参照する。
-test('retains distinct custom parameter ancestors for lower audio across Transform boundaries', () => {
+test('retains distinct public parameter ancestors for lower audio across Transform boundaries', () => {
 	const inside = sound('inside');
 	const outside = sound('outside');
 	const visual = { id: 'visual', layerType: 'visualModule', name: '', clips: [], automationGraphs: [] };
 	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: literal(1) };
-	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, automationGraphs: [], layers: [visual, inside], customParameterDefs: [definition] };
-	outside.customParameterDefs = [definition];
+	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, automationGraphs: [], layers: [visual, inside], publicParameterDefs: [definition] };
+	outside.publicParameterDefs = [definition];
 	const root = scene('root', [parent, outside]);
 	const clips = getSceneAudioClips([root], root.id, { type: 'belowLayer', layerId: visual.id });
 	assert.deepEqual(clips.map(clip => clip.sourceId), ['inside', 'outside']);
-	assert.deepEqual(clips.map(clip => clip.gains.at(-1).customParameters.ancestors.map(owner => owner.id)), [['parent'], []]);
+	assert.deepEqual(clips.map(clip => clip.gains.at(-1).publicParameters.ancestors.map(owner => owner.id)), [['parent'], []]);
 	assert.deepEqual(clips.map(clip => clip.gains.map(gain => gain.volume.value)), [[0.8], [0.8]]);
 });
 

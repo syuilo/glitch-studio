@@ -68,7 +68,7 @@ App.vueの全体受付でも、ファイルのホバー中は「Drop here」を�
 
 画像の`assetReference`は実行時にGPUTextureへ解決します。`imageAssetTextureReference`は廃止しました。動画の`assetReference`は素材を直接参照し、Playerの再生状態を参照しません。
 
-素材・PlayerのIDは静的設定に直接保存し、通常パラメータ・Custom Parameterでは公開しません。Textレイヤーのフォントは`textStaticSettings.font`、VOICEVOX字幕は`subtitleStaticSettings.font`に保存します。
+素材・PlayerのIDは静的設定に直接保存し、通常パラメータ・Public Parameterでは公開しません。Textレイヤーのフォントは`textStaticSettings.font`、VOICEVOX字幕は`subtitleStaticSettings.font`に保存します。
 
 ## LUT Asset
 

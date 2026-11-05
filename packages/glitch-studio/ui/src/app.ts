@@ -1,7 +1,7 @@
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import { visualModulePublicParameterId, visualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 import { computed, markRaw, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -106,7 +106,7 @@ async function confirmProjectReplacement(): Promise<boolean> {
 export async function newProject() {
 	if (!await confirmProjectReplacement()) return;
 	const initialEffectNodeId = genId();
-	const initialInputParamId = visualModuleCustomParameterId(genId());
+	const initialInputParamId = visualModulePublicParameterId(genId());
 	const initialOutputId = genId();
 	const initialVisualModule: ProjectVisualModule = {
 		id: genId(),
@@ -122,7 +122,7 @@ export async function newProject() {
 		primaryInputId: initialInputParamId,
 		paramDefs: [{
 			id: initialInputParamId,
-			nameForReference: visualModuleCustomParameterName('my_input'),
+			nameForReference: visualModulePublicParameterName('my_input'),
 			dataType: { kind: 'color' },
 			ui: { label: 'My Input', control: {} },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
@@ -253,7 +253,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 	} satisfies Player : null;
 
 	const initialEffectNodeId = genId();
-	const initialInputParamId = visualModuleCustomParameterId(genId());
+	const initialInputParamId = visualModulePublicParameterId(genId());
 	const initialOutputId = genId();
 	const initialVisualModule: ProjectVisualModule = {
 		id: genId(),
@@ -269,7 +269,7 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 		primaryInputId: initialInputParamId,
 		paramDefs: [{
 			id: initialInputParamId,
-			nameForReference: visualModuleCustomParameterName('my_input'),
+			nameForReference: visualModulePublicParameterName('my_input'),
 			dataType: { kind: 'color' },
 			ui: { label: 'My Input', control: {} },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },

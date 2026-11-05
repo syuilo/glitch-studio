@@ -17,7 +17,7 @@ import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts'
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { resolveTimelineAnotherLayerAudioReference } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { getTimelineLayerCustomParameterContext, resolveTimelineLayerCustomParameterReference } from '@gs/subsystems_timeline_shared/custom-parameters.ts';
+import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import { getVisualModule } from './visual-module-target.ts';
@@ -187,8 +187,8 @@ function validateBinding(dataType: DataType, value: unknown): asserts value is E
 			requireValid(binding.nodeId === null ? binding.outputPort === null : nonemptyString(binding.nodeId) && nonemptyString(binding.outputPort));
 			if (binding.nodeId != null) validateSampling(binding);
 			break;
-		case 'visualModuleCustomParameterReference': requireValid(typeof binding.parameterId === 'string'); break;
-		case 'timelineLayerCustomParameterReference':
+		case 'visualModulePublicParameterReference': requireValid(typeof binding.parameterId === 'string'); break;
+		case 'timelineLayerPublicParameterReference':
 			requireValid(binding.layerId === null && binding.parameterId === null || nonemptyString(binding.layerId) && nonemptyString(binding.parameterId));
 			break;
 		case 'anotherLayerOutput':
@@ -248,8 +248,8 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 		const allowInputs = context.parameterTarget === 'effect' || context.parameterTarget === 'module';
 		validateTimelineParameterTree(definition, binding, allowInputs, allowInputs);
 	} else {
-		requireValid(isValueParameterBinding(binding) || binding.inputSource === 'node' || binding.inputSource === 'visualModuleCustomParameterReference');
-		if (context.kind === 'preview') requireValid(binding.inputSource !== 'node' && binding.inputSource !== 'visualModuleCustomParameterReference');
+		requireValid(isValueParameterBinding(binding) || binding.inputSource === 'node' || binding.inputSource === 'visualModulePublicParameterReference');
+		if (context.kind === 'preview') requireValid(binding.inputSource !== 'node' && binding.inputSource !== 'visualModulePublicParameterReference');
 		validateVisualModuleAudioBinding(definition, binding, context.visualModule.paramDefs);
 	}
 	switch (binding.inputSource) {
@@ -277,18 +277,18 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 			requireValid(output != null && areNodeDataTypesCompatible(output.dataType, getNodeInputDataType(definition)));
 			break;
 		}
-		case 'visualModuleCustomParameterReference': {
+		case 'visualModulePublicParameterReference': {
 			requireValid(context.kind === 'node');
 			if (binding.parameterId === '') break;
 			const parameter = context.visualModule.paramDefs.find(candidate => candidate.id === binding.parameterId);
 			requireValid(sameOwner(source, context.source) && parameter != null && parameter.canNode !== true && areDataTypesEqual(parameter.dataType, definition.dataType));
 			break;
 		}
-		case 'timelineLayerCustomParameterReference': {
+		case 'timelineLayerPublicParameterReference': {
 			requireValid(context.kind === 'timeline');
 			if (binding.layerId == null && binding.parameterId == null) break;
-			const parameters = getTimelineLayerCustomParameterContext(context.scene.layers, context.layer.id);
-			const reference = parameters == null ? null : resolveTimelineLayerCustomParameterReference(parameters, binding.layerId, binding.parameterId, context.parameterTarget === 'customParameter');
+			const parameters = getTimelineLayerPublicParameterContext(context.scene.layers, context.layer.id);
+			const reference = parameters == null ? null : resolveTimelineLayerPublicParameterReference(parameters, binding.layerId, binding.parameterId, context.parameterTarget === 'publicParameter');
 			requireValid(sameScene(source, context.source) && reference != null && areDataTypesEqual(reference.definition.dataType, definition.dataType));
 			break;
 		}

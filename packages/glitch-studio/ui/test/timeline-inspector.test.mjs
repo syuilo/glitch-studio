@@ -580,7 +580,7 @@ async function fixture(t, component = Inspector) {
 	return { props, scene, history, events, root, controls, control };
 }
 
-// 【Inspectorの種類選択からコンテナを変換し、フォルダにはカスタムパラメータを表示しない】
+// 【Inspectorの種類選択からコンテナを変換し、フォルダには公開パラメータを表示しない】
 // 同一IDの型変更でも詳細パネルが追従し、変換後の機能とUndo後の表示を反映する必要がある。
 test('converts container types through the Inspector and hides parameter controls on folders', async t => {
 	const f = await fixture(t);
@@ -588,12 +588,12 @@ test('converts container types through the Inspector and hides parameter control
 	f.scene.layers = [{ id: 'folder', name: 'Folder', layerType: 'folder', isDisabled: false, color: null, layers: [child] }];
 	f.props.selection = { kind: 'layers', ids: ['folder'] };
 	await nextTick();
-	assert.equal(f.controls('GsTimeline.CustomParameters').length, 0);
+	assert.equal(f.controls('GsTimeline.PublicParameters').length, 0);
 	const control = () => f.control('GsSelect', 'timeline-container-type');
 	assert.deepEqual(control().props.items.map(item => item.value), ['folder', 'parameterContainer', 'transform', 'group']);
 	control().props['onUpdate:modelValue']('parameterContainer');
 	await nextTick();
-	assert.equal(f.controls('GsTimeline.CustomParameters').length, 1);
+	assert.equal(f.controls('GsTimeline.PublicParameters').length, 1);
 	assert.equal(f.scene.layers[0].layers[0].id, child.id);
 	control().props['onUpdate:modelValue']('group');
 	await nextTick();
@@ -603,7 +603,7 @@ test('converts container types through the Inspector and hides parameter control
 	f.history.undo();
 	await nextTick();
 	assert.equal(f.scene.layers[0].layerType, 'folder');
-	assert.equal(f.controls('GsTimeline.CustomParameters').length, 0);
+	assert.equal(f.controls('GsTimeline.PublicParameters').length, 0);
 });
 
 // 【識別色は未設定から指定・解除でき、連続した色選択を一回のUndoで戻せる】
@@ -865,17 +865,17 @@ test('edits layer parameters through commands and identifies the inline Visual M
 // 【Inspectorの公開アクションを選択レイヤーのCommandへ接続する】
 // 音量のイベントから作成先を確定し、別レイヤーへ変更を漏らさず、
 // 定義追加と参照への置き換えを一回のUndo/Redoで往復できることを保証する。
-test('creates and connects a layer custom parameter through the Inspector in one undo step', async t => {
+test('creates and connects a layer public parameter through the Inspector in one undo step', async t => {
 	const f = await fixture(t);
 	f.scene.layers[1].audioParamValues.volume = { inputSource: 'literal', value: 0.5 };
 	f.props.selection = { kind: 'layers', ids: ['b'] };
 	await nextTick();
 	const before = JSON.parse(JSON.stringify(f.scene.layers));
-	f.control('GsVisualParam', 'layer-volume').props.onEdit({ kind: 'createCustomParameter', paramPath: ['volume'] });
+	f.control('GsVisualParam', 'layer-volume').props.onEdit({ kind: 'createPublicParameter', paramPath: ['volume'] });
 	const layer = f.scene.layers[1];
-	assert.deepEqual(layer.customParameterDefs[0].defaultValue, { inputSource: 'literal', value: 0.5 });
-	assert.deepEqual(layer.audioParamValues.volume, { inputSource: 'timelineLayerCustomParameterReference', layerId: 'b', parameterId: layer.customParameterDefs[0].id });
-	assert.equal(f.scene.layers[0].customParameterDefs, undefined);
+	assert.deepEqual(layer.publicParameterDefs[0].defaultValue, { inputSource: 'literal', value: 0.5 });
+	assert.deepEqual(layer.audioParamValues.volume, { inputSource: 'timelineLayerPublicParameterReference', layerId: 'b', parameterId: layer.publicParameterDefs[0].id });
+	assert.equal(f.scene.layers[0].publicParameterDefs, undefined);
 	assert.equal(f.history.undoStack.value.length, 1);
 	const after = JSON.parse(JSON.stringify(f.scene.layers));
 	f.history.undo();

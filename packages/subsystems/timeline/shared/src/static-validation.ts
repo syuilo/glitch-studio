@@ -1,6 +1,6 @@
 import { validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from './layer-static-settings.ts';
-import { validateTimelineLayerCustomParameterDefinitions } from './custom-parameters.ts';
+import { validateTimelineLayerPublicParameterDefinitions } from './public-parameters.ts';
 import { hasTimelineLayerParameters } from './types.ts';
 import { staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
 import { validateTimelineLayerStructure } from './scenes.ts';
@@ -25,11 +25,11 @@ type ParameterGroup = { name: string; definitions: Record<string, ParameterDefin
 function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule | null, effect?: EffectDefinition | null): ParameterGroup[] {
 	const groups: ParameterGroup[] = [];
 	if (!hasTimelineLayerParameters(layer)) return groups;
-	const customParameterDefs = layer.customParameterDefs ?? [];
-	if (customParameterDefs.length > 0) groups.push({
-		name: 'customParameterValues',
-		definitions: Object.fromEntries(customParameterDefs.map(definition => [definition.id, definition])),
-		values: Object.fromEntries(customParameterDefs.map(definition => [definition.id, layer.customParameterValues?.[definition.id] ?? definition.defaultValue])),
+	const publicParameterDefs = layer.publicParameterDefs ?? [];
+	if (publicParameterDefs.length > 0) groups.push({
+		name: 'publicParameterValues',
+		definitions: Object.fromEntries(publicParameterDefs.map(definition => [definition.id, definition])),
+		values: Object.fromEntries(publicParameterDefs.map(definition => [definition.id, layer.publicParameterValues?.[definition.id] ?? definition.defaultValue])),
 	});
 	const add = (name: string, definitions: Record<string, ParameterDefinition>, values: Record<string, ParameterBindingBase>) => groups.push({ name, definitions, values });
 	if ('compositingParamValues' in layer) add('compositingParamValues', timelineCompositingParamDefs, layer.compositingParamValues);
@@ -76,7 +76,7 @@ export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualM
 	validateTimelineLayerStructure(layer);
 	const staticSettings = getTimelineLayerStaticSettings(layer, effect);
 	validateStaticSettings(staticSettings.definitions, staticSettings.values ?? {});
-	if (hasTimelineLayerParameters(layer)) validateTimelineLayerCustomParameterDefinitions(layer.customParameterDefs ?? []);
+	if (hasTimelineLayerParameters(layer)) validateTimelineLayerPublicParameterDefinitions(layer.publicParameterDefs ?? []);
 	if (layer.layerType === 'effect' && !effect) throw new Error('Effect not found: ' + layer.effectId);
 	if ('visualModuleParamValues' in layer && !visualModule) throw new Error('Visual Module not found');
 	for (const group of parameterGroups(layer, visualModule, effect)) {
