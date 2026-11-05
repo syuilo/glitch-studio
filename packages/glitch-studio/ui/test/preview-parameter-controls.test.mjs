@@ -162,14 +162,19 @@ test('shows buttons only for XY controls and enables overlapping handles indepen
 // 【プレビューの実イベントからスナップとCommand・Undo/Redoまで接続する】
 // 画面のY反転やpointerupの最終座標を取り落とすと、数式だけのテストでは検出できない。
 // オーバーレイ内で伝播が停止しても、ボタンを離す前の各フレームで保存値を反映する。
+// ラベルの二行目も同じフレームの基準値を表示し、ドラッグ中の座標を確認できるようにする。
 test('drags one handle to snapped coordinates through commands and undo and redo', async t => {
 	const f = await fixture(t);
 	for (const toggle of f.toggles()) toggle.props.onClick(); await nextTick();
+	const coordinateLabel = () => findAll(f.handles()[0], node => Object.hasOwn(node.props, 'data-test-preview-parameter-position'))[0].text;
+	assert.equal(coordinateLabel(), 'X: 0  Y: 0');
 	f.begin(); f.pointer('pointermove', 799, 198); await f.frame();
 	assert.deepEqual(f.node.params.first.value, [0.5, 0]);
+	assert.equal(coordinateLabel(), 'X: 0.5  Y: 0');
 	assert.equal(f.manager.undoStack.value.length, 0);
 	f.pointer('pointermove', 600, 100); await f.frame();
 	assert.deepEqual(f.node.params.first.value, [0.25, 0.125]);
+	assert.equal(coordinateLabel(), 'X: 0.25  Y: 0.125');
 	f.pointer('pointerup', 799, 2); await nextTick();
 	assert.deepEqual(f.node.params.first.value, [0.5, 0.25]);
 	assert.deepEqual(f.node.params.second.value, [0, 0]);

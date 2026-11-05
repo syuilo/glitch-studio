@@ -4,7 +4,10 @@
 		<circle :cx="handle.point[0]" :cy="handle.point[1]" r="9" :class="$style.handle" @pointerdown="startDrag($event, handle)"/>
 		<path :d="`M ${handle.point[0] - 5} ${handle.point[1]} h 10 M ${handle.point[0]} ${handle.point[1] - 5} v 10`" :class="$style.cross"/>
 		<line :x1="handle.point[0] + 9" :y1="handle.point[1]" :x2="handle.point[0] + 16" :y2="handle.labelY - 4" :class="$style.cross"/>
-		<text :x="handle.point[0] + 18" :y="handle.labelY" :class="$style.label" @pointerdown="startDrag($event, handle)">{{ handle.label() }}</text>
+		<text :x="handle.point[0] + 18" :y="handle.labelY" :class="$style.label">
+			<tspan :x="handle.point[0] + 18">{{ handle.label() }}</tspan>
+			<tspan :x="handle.point[0] + 18" dy="16" :class="$style.coordinates" data-test-preview-parameter-position>{{ handle.positionLabel }}</tspan>
+		</text>
 	</g>
 </svg>
 </template>
@@ -29,10 +32,13 @@ const handles = computed(() => {
 		const position = draft.value?.key === handle.key ? draft.value.position : handle.position();
 		if (position == null) return [];
 		const point = previewParameterToScreen(position, props.canvasRect);
-		// 初期位置が同じ複数点も、ずらしたラベルを掴んで個別に編集できるようにする。
+		// 近い位置のハンドルはラベルをずらし、名前や座標が重ならないようにする。
 		const overlapCount = positions.filter(previous => Math.hypot(point[0] - previous[0], point[1] - previous[1]) < 24).length;
 		positions.push(point);
-		return [{ ...handle, point, labelY: point[1] - 12 + overlapCount * 22 }];
+		return [{
+			...handle, point, labelY: point[1] - 12 + overlapCount * 36,
+			positionLabel: `X: ${Number(position[0].toFixed(4))}  Y: ${Number(position[1].toFixed(4))}`,
+		}];
 	});
 });
 
@@ -111,9 +117,11 @@ onBeforeUnmount(() => stopDrag?.());
 	stroke-width: 3;
 	paint-order: stroke;
 	font-size: 12px;
-	pointer-events: all;
-	cursor: move;
-	touch-action: none;
+	pointer-events: none;
 	user-select: none;
+}
+.coordinates {
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
 }
 </style>
