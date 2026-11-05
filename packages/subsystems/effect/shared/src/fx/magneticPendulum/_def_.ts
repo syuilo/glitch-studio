@@ -6,8 +6,8 @@ export default defineEffect({
 	id: 'magneticPendulum',
 	displayName: 'Magnetic Pendulum',
 	description: {
-		'ja-JP': '各位置から放した磁気振り子の収束先を色分けし、フラクタル模様を生成します。位置・高さは長辺全体=1の共通単位です。計算上限までに収束しない点はUnconverged Colorで描画します。',
-		'en-US': 'Generates fractal basins by coloring each release position by the magnet that captures the pendulum. Positions and height use one full render long side. Points that do not settle within the step limit use Unconverged Color.',
+		'ja-JP': '各位置から放した磁気振り子の収束先を色分けし、フラクタル模様を生成します。Basin Valueは磁石のValue、Settling Timeは正規化前の収束時間、Travel Distanceは追跡した折れ線の長さです。位置・高さ・距離は長辺全体=1の共通単位です。未収束点の時間・距離は0で、Converged Maskで区別できます。',
+		'en-US': 'Generates fractal basins and outputs each magnet\'s Value, raw simulation settling time, piecewise-linear travel distance, and a convergence mask. Positions, heights, and distances use one full render long side. Unconverged points output zero time and distance; use Converged Mask to distinguish them.',
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
@@ -16,7 +16,7 @@ export default defineEffect({
 		magnets: {
 			dataType: {
 				kind: 'array',
-				elementType: { kind: 'struct', fields: { position: { kind: 'vector' }, height: { kind: 'scalar' }, strength: { kind: 'scalar' }, color: { kind: 'color' } } },
+				elementType: { kind: 'struct', fields: { position: { kind: 'vector' }, height: { kind: 'scalar' }, strength: { kind: 'scalar' }, color: { kind: 'color' }, value: { kind: 'scalar' } } },
 			},
 			ui: {
 				label: 'Magnets',
@@ -27,6 +27,7 @@ export default defineEffect({
 							height: { label: 'Height', control: { controlType: 'range', min: 0.005, max: 0.25, step: 0.001 } },
 							strength: { label: 'Strength', control: { controlType: 'range', min: 0, max: 5, step: 0.01 } },
 							color: { label: 'Color', control: {} },
+							value: { label: 'Value', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 						},
 					},
 				},
@@ -44,6 +45,7 @@ export default defineEffect({
 								height: { inputSource: 'literal', value: 0.08 },
 								strength: { inputSource: 'literal', value: 1 },
 								color: { inputSource: 'literal', value: [1, 0, 0, 1] },
+								value: { inputSource: 'literal', value: 0.1 },
 							},
 						},
 					},
@@ -56,6 +58,7 @@ export default defineEffect({
 								height: { inputSource: 'literal', value: 0.08 },
 								strength: { inputSource: 'literal', value: 1 },
 								color: { inputSource: 'literal', value: [0, 1, 0, 1] },
+								value: { inputSource: 'literal', value: 0.2 },
 							},
 						},
 					},
@@ -68,6 +71,7 @@ export default defineEffect({
 								height: { inputSource: 'literal', value: 0.08 },
 								strength: { inputSource: 'literal', value: 1 },
 								color: { inputSource: 'literal', value: [0, 0, 1, 1] },
+								value: { inputSource: 'literal', value: 0.3 },
 							},
 						},
 					},
@@ -81,6 +85,7 @@ export default defineEffect({
 						height: { inputSource: 'literal', value: 0.08 },
 						strength: { inputSource: 'literal', value: 1 },
 						color: { inputSource: 'literal', value: [1, 1, 1, 1] },
+						value: { inputSource: 'literal', value: 1 },
 					},
 				},
 				fields: {
@@ -88,6 +93,7 @@ export default defineEffect({
 					height: { defaultValue: { inputSource: 'literal', value: 0.08 } },
 					strength: { defaultValue: { inputSource: 'literal', value: 1 } },
 					color: { canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+					value: { defaultValue: { inputSource: 'literal', value: 1 } },
 				},
 			},
 		},
@@ -129,6 +135,11 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] },
 		},
+		unconvergedValue: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Unconverged Value', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
 		timeStep: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Time Step', control: { controlType: 'range', min: 0.001, max: 0.1, step: 0.001 } },
@@ -157,6 +168,12 @@ export default defineEffect({
 	},
 	primaryInputParameter: null,
 	resolutionInputParameters: [],
-	outputDefs: { output: { dataType: { kind: 'color' } } },
+	outputDefs: {
+		output: { dataType: { kind: 'color' } },
+		basinValue: { dataType: { kind: 'scalar' }, canLazyAllocation: true },
+		settlingTime: { dataType: { kind: 'scalar' }, canLazyAllocation: true },
+		convergedMask: { dataType: { kind: 'scalar' }, canLazyAllocation: true },
+		travelDistance: { dataType: { kind: 'scalar' }, canLazyAllocation: true },
+	},
 	primaryOutput: 'output',
 });

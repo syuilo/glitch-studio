@@ -1,3 +1,7 @@
+override RENDER_COLOR: bool = true;
+override CALCULATE_SCALARS: bool = false;
+override CALCULATE_TRAVEL_DISTANCE: bool = false;
+
 struct Uniforms {
 	spatialHalfExtent: vec2f,
 	pixelStep: vec2f,
@@ -10,9 +14,34 @@ struct Uniforms {
 	settlingShading: f32,
 	maximumSteps: u32,
 	antialiasing: u32,
+	unconvergedValue: f32,
+	travelDistanceScale: f32,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var<storage, read> magnets: array<vec4f>;
+@group(0) @binding(2) var<storage, read> basinValues: array<f32>;
+
+struct PendulumSimulationResult {
+	magnetIndex: u32,
+	settlingTime: f32,
+	travelDistance: f32,
+};
+
+struct PendulumSample {
+	color: vec4f,
+	basinValue: f32,
+	settlingTime: f32,
+	convergedMask: f32,
+	travelDistance: f32,
+};
+
+struct PendulumOutputs {
+	@location(0) color: vec4f,
+	@location(1) basinValue: f32,
+	@location(2) settlingTime: f32,
+	@location(3) convergedMask: f32,
+	@location(4) travelDistance: f32,
+};
 
 struct PendulumCoefficients {
 	damping: f32,
@@ -66,8 +95,8 @@ fn captureCandidate(state: vec4f) -> u32 {
 	return candidate;
 }
 
-fn basinColor(position: vec2f) -> vec4f {
-	if (count_magnetColors == 0u) { return read_unconvergedColor(position); }
+fn simulatePendulum(position: vec2f) -> PendulumSimulationResult {
+	if (count_magnetColors == 0u) { return PendulumSimulationResult(count_magnetColors, 0.0, 0.0); }
 	// 減衰と復元力は出力画像上の各サンプル点で一度だけ読み、その振り子の計算中は固定する。
 	// 移動中の位置で読み直すと「場所で力が変わる運動」になり、出発点ごとに係数を変える意味と
 	// 異なってしまう。積分の外で参照することで、反復数に比例するテクスチャ参照も避ける。
@@ -77,40 +106,81 @@ fn basinColor(position: vec2f) -> vec4f {
 	var state = vec4f(initialPosition, uniforms.initialVelocity);
 	var previousCandidate = count_magnetColors;
 	var capturedDuration = 0.0;
+	var travelDistance = 0.0;
 	for (var step = 0u; step < uniforms.maximumSteps; step++) {
-		state = advanceState(state, coefficients);
+		let nextState = advanceState(state, coefficients);
 		// 極端な力や粗い刻みで積分が発散した点は、確定していない磁石へ割り当てない。
-		if (!all(abs(state) < vec4f(1e6))) { break; }
+		if (!all(abs(nextState) < vec4f(1e6))) { break; }
+		if (CALCULATE_TRAVEL_DISTANCE) {
+			// 既に求めたステップ端点を結ぶ折れ線の長さ。追加の引力評価は行わない。
+			// 生の距離を保ち、公開座標への換算は積分を終えたときに一度だけ行う。
+			travelDistance += length(nextState.xy - state.xy);
+		}
+		state = nextState;
 		let candidate = captureCandidate(state);
 		if (candidate < count_magnetColors) {
 			capturedDuration = select(uniforms.timeStep, capturedDuration + uniforms.timeStep, candidate == previousCandidate);
 			// 軌道の折り返しで瞬間的に遅くなるだけの点を収束と誤認しないよう、
 			// 同じ磁石の近くで低速な状態が0.5時間単位続いたことを確認する。
 			if (capturedDuration >= 0.5) {
-				let color = read_magnetColors(candidate, position);
 				let settlingTime = f32(step + 1u) * uniforms.timeStep;
-				// 最大ステップ数で正規化せず、計算上限だけを増やしても既収束点の明るさを変えない。
-				let brightness = mix(1.0, 0.15 + 0.85 * exp(-settlingTime * 0.15), uniforms.settlingShading);
-				// 入力色は乗算済み。陰影ではRGBだけを暗くし、指定した透明度を保つ。
-				return vec4f(color.rgb * brightness, color.a);
+				return PendulumSimulationResult(candidate, settlingTime, travelDistance * uniforms.travelDistanceScale);
 			}
 		} else {
 			capturedDuration = 0.0;
 		}
 		previousCandidate = candidate;
 	}
-	return read_unconvergedColor(position);
+	// 未収束の時間・距離は未確定なので0とし、Converged Maskで有効な値と区別する。
+	return PendulumSimulationResult(count_magnetColors, 0.0, 0.0);
+}
+
+fn evaluateSample(position: vec2f) -> PendulumSample {
+	let simulation = simulatePendulum(position);
+	var sample = PendulumSample(vec4f(0.0), uniforms.unconvergedValue, 0.0, 0.0, 0.0);
+	if (simulation.magnetIndex < count_magnetColors) {
+		if (CALCULATE_SCALARS) {
+			// 色・透明度・Settling Shadingから独立した値を、そのまま後段のノードへ渡す。
+			sample.basinValue = basinValues[simulation.magnetIndex];
+			sample.settlingTime = simulation.settlingTime;
+			sample.convergedMask = 1.0;
+			sample.travelDistance = simulation.travelDistance;
+		}
+		if (RENDER_COLOR) {
+			let color = read_magnetColors(simulation.magnetIndex, position);
+			// 最大ステップ数で正規化せず、計算上限だけを増やしても既収束点の明るさを変えない。
+			let brightness = mix(1.0, 0.15 + 0.85 * exp(-simulation.settlingTime * 0.15), uniforms.settlingShading);
+			// 入力色は乗算済み。陰影ではRGBだけを暗くし、指定した透明度を保つ。
+			sample.color = vec4f(color.rgb * brightness, color.a);
+		}
+	} else if (RENDER_COLOR) {
+		sample.color = read_unconvergedColor(position);
+	}
+	return sample;
 }
 
 @fragment
-fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
-	if (uniforms.antialiasing == 0u) { return basinColor(position); }
+fn fs(@location(0) position: vec2f) -> PendulumOutputs {
+	if (uniforms.antialiasing == 0u) {
+		let sample = evaluateSample(position);
+		return PendulumOutputs(sample.color, sample.basinValue, sample.settlingTime, sample.convergedMask, sample.travelDistance);
+	}
 	// フラクタル境界を画素内の4点で積分して平均する。乱数や描画履歴は使わない。
 	let offset = uniforms.pixelStep * 0.25;
-	return (
-		basinColor(position + vec2f(-offset.x, -offset.y))
-		+ basinColor(position + vec2f(offset.x, -offset.y))
-		+ basinColor(position + vec2f(-offset.x, offset.y))
-		+ basinColor(position + vec2f(offset.x, offset.y))
-	) * 0.25;
+	let first = evaluateSample(position + vec2f(-offset.x, -offset.y));
+	let second = evaluateSample(position + vec2f(offset.x, -offset.y));
+	let third = evaluateSample(position + vec2f(-offset.x, offset.y));
+	let fourth = evaluateSample(position + vec2f(offset.x, offset.y));
+	let convergedSamples = first.convergedMask + second.convergedMask + third.convergedMask + fourth.convergedMask;
+	// 値と色は画素内の平均、maskは収束したサンプルの割合にする。
+	// 時間・距離は収束したサンプルだけで平均し、未収束の0を混ぜて短く見せない。
+	// 全サンプル未収束なら分子は0なので、分母を1へ制限して0を返す。
+	let validSampleCount = max(1.0, convergedSamples);
+	return PendulumOutputs(
+		(first.color + second.color + third.color + fourth.color) * 0.25,
+		(first.basinValue + second.basinValue + third.basinValue + fourth.basinValue) * 0.25,
+		(first.settlingTime + second.settlingTime + third.settlingTime + fourth.settlingTime) / validSampleCount,
+		convergedSamples * 0.25,
+		(first.travelDistance + second.travelDistance + third.travelDistance + fourth.travelDistance) / validSampleCount,
+	);
 }

@@ -7,7 +7,8 @@ export function createShaderInputPipeline<const Schema extends ShaderInputSchema
 	vertex: GPUShaderModule;
 	code: string;
 	schema: Schema;
-	targets: GPUColorTargetState[];
+	// 未使用の出力locationにはnullを渡し、対応するテクスチャを確保せずに描画できる。
+	targets: (GPUColorTargetState | null)[];
 	internalLayouts?: GPUBindGroupLayout[];
 	sampling?: 'implicit' | 'level0';
 	scalarGradients?: boolean;
