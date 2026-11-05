@@ -4,7 +4,6 @@ struct Uniforms {
 	viewCenter: vec2f,
 	initialVelocity: vec2f,
 	zoom: f32,
-	magnetHeightSquared: f32,
 	damping: f32,
 	restoringStrength: f32,
 	timeStep: f32,
@@ -25,7 +24,8 @@ fn acceleration(position: vec2f, velocity: vec2f) -> vec2f {
 		let displacement = magnet.xy - position;
 		// 磁石との高さを分母に含め、真上を通過したときにも引力が発散しないようにする。
 		// これは平面上の運動を扱う近似モデルで、振り子の3D拘束や磁気双極子を解くものではない。
-		let distanceSquared = dot(displacement, displacement) + uniforms.magnetHeightSquared;
+		// wには、この磁石の高さを内部モデルの単位へ換算して二乗した値が入っている。
+		let distanceSquared = dot(displacement, displacement) + magnet.w;
 		let inverseDistance = inverseSqrt(distanceSquared);
 		result += magnet.z * displacement * inverseDistance * inverseDistance * inverseDistance;
 	}

@@ -16,7 +16,7 @@ export default defineEffect({
 		magnets: {
 			dataType: {
 				kind: 'array',
-				elementType: { kind: 'struct', fields: { position: { kind: 'vector' }, strength: { kind: 'scalar' }, color: { kind: 'color' } } },
+				elementType: { kind: 'struct', fields: { position: { kind: 'vector' }, height: { kind: 'scalar' }, strength: { kind: 'scalar' }, color: { kind: 'color' } } },
 			},
 			ui: {
 				label: 'Magnets',
@@ -24,6 +24,7 @@ export default defineEffect({
 					element: {
 						fields: {
 							position: { label: 'Position', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.01 } },
+							height: { label: 'Height', control: { controlType: 'range', min: 0.005, max: 0.25, step: 0.001 } },
 							strength: { label: 'Strength', control: { controlType: 'range', min: 0, max: 5, step: 0.01 } },
 							color: { label: 'Color', control: {} },
 						},
@@ -40,6 +41,7 @@ export default defineEffect({
 							inputSource: 'literal',
 							value: {
 								position: { inputSource: 'literal', value: [0, 0.25] },
+								height: { inputSource: 'literal', value: 0.08 },
 								strength: { inputSource: 'literal', value: 1 },
 								color: { inputSource: 'literal', value: [1, 0, 0, 1] },
 							},
@@ -51,6 +53,7 @@ export default defineEffect({
 							inputSource: 'literal',
 							value: {
 								position: { inputSource: 'literal', value: [-Math.sqrt(3) / 8, -0.125] },
+								height: { inputSource: 'literal', value: 0.08 },
 								strength: { inputSource: 'literal', value: 1 },
 								color: { inputSource: 'literal', value: [0, 1, 0, 1] },
 							},
@@ -62,6 +65,7 @@ export default defineEffect({
 							inputSource: 'literal',
 							value: {
 								position: { inputSource: 'literal', value: [Math.sqrt(3) / 8, -0.125] },
+								height: { inputSource: 'literal', value: 0.08 },
 								strength: { inputSource: 'literal', value: 1 },
 								color: { inputSource: 'literal', value: [0, 0, 1, 1] },
 							},
@@ -74,12 +78,14 @@ export default defineEffect({
 					inputSource: 'literal',
 					value: {
 						position: { inputSource: 'literal', value: [0, 0] },
+						height: { inputSource: 'literal', value: 0.08 },
 						strength: { inputSource: 'literal', value: 1 },
 						color: { inputSource: 'literal', value: [1, 1, 1, 1] },
 					},
 				},
 				fields: {
 					position: { defaultValue: { inputSource: 'literal', value: [0, 0] } },
+					height: { defaultValue: { inputSource: 'literal', value: 0.08 } },
 					strength: { defaultValue: { inputSource: 'literal', value: 1 } },
 					color: { canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 				},
@@ -94,11 +100,6 @@ export default defineEffect({
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Restoring Strength', control: { controlType: 'range', min: 0, max: 5, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 1 },
-		},
-		magnetHeight: {
-			dataType: { kind: 'scalar' },
-			ui: { label: 'Magnet Height', control: { controlType: 'range', min: 0.005, max: 0.25, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: 0.08 },
 		},
 		initialVelocity: {
 			dataType: { kind: 'vector' },

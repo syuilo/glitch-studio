@@ -22,7 +22,8 @@ export default implementEffect<typeof definition>({
 		const device = wgpu.device;
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		// 1磁石をvec4f(position.xy, strength, unused)で格納し、CPUとGPUのalignmentを揃える。
+		// 1磁石をvec4f(position.xy, strength, heightSquared)で格納し、CPUとGPUのalignmentを揃える。
+		// 高さの二乗はCPUで計算し、従来の未使用成分へ格納して転送量とGPUの演算数を増やさない。
 		const magnetValues = new Float32Array(MAXIMUM_MAGNET_COUNT * 4);
 		const magnetBuffer = device.createBuffer({ size: magnetValues.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 		const layout = device.createBindGroupLayout({ entries: [
@@ -50,14 +51,14 @@ export default implementEffect<typeof definition>({
 					throw new Error(`Magnetic Pendulum supports at most ${MAXIMUM_MAGNET_COUNT} magnets.`);
 				}
 				for (const [index, magnet] of ctx.params.magnets.entries()) {
+					const magnetHeight = Math.max(0.005, magnet.height) * SIMULATION_UNITS_PER_SPATIAL_UNIT;
 					magnetValues.set([
 						magnet.position[0] * SIMULATION_UNITS_PER_SPATIAL_UNIT,
 						magnet.position[1] * SIMULATION_UNITS_PER_SPATIAL_UNIT,
 						Math.max(0, magnet.strength),
-						0,
+						magnetHeight * magnetHeight,
 					], index * 4);
 				}
-				const magnetHeight = Math.max(0.005, ctx.params.magnetHeight) * SIMULATION_UNITS_PER_SPATIAL_UNIT;
 				const captureRadius = Math.max(0.001, ctx.params.captureRadius) * SIMULATION_UNITS_PER_SPATIAL_UNIT;
 				const captureSpeed = Math.max(0, ctx.params.captureSpeed) * SIMULATION_UNITS_PER_SPATIAL_UNIT;
 				uniformValues.set({
@@ -66,7 +67,6 @@ export default implementEffect<typeof definition>({
 					viewCenter: ctx.params.viewCenter.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
 					initialVelocity: ctx.params.initialVelocity.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
 					zoom: Math.max(0.001, ctx.params.zoom),
-					magnetHeightSquared: magnetHeight * magnetHeight,
 					damping: Math.max(0, ctx.params.damping),
 					restoringStrength: Math.max(0, ctx.params.restoringStrength),
 					timeStep: Math.min(0.1, Math.max(0.001, ctx.params.timeStep)),
