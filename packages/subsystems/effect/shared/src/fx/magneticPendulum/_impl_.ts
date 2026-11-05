@@ -38,7 +38,7 @@ export default implementEffect<typeof definition>({
 			device,
 			vertex: wgpu.defaultVertexShaderModule,
 			code,
-			schema: { magnetColors: { array: 'color' }, unconvergedColor: 'color' },
+			schema: { magnetColors: { array: 'color' }, unconvergedColor: 'color', damping: 'scalar', restoringStrength: 'scalar' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 			// 収束先や終了ステップは画素ごとに異なるため、配色も明示LODで読む。
@@ -67,8 +67,6 @@ export default implementEffect<typeof definition>({
 					viewCenter: ctx.params.viewCenter.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
 					initialVelocity: ctx.params.initialVelocity.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
 					zoom: Math.max(0.001, ctx.params.zoom),
-					damping: Math.max(0, ctx.params.damping),
-					restoringStrength: Math.max(0, ctx.params.restoringStrength),
 					timeStep: Math.min(0.1, Math.max(0.001, ctx.params.timeStep)),
 					captureRadiusSquared: captureRadius * captureRadius,
 					captureSpeedSquared: captureSpeed * captureSpeed,
@@ -81,6 +79,8 @@ export default implementEffect<typeof definition>({
 				const variant = pipelines.update({
 					magnetColors: ctx.params.magnets.map(magnet => magnet.color),
 					unconvergedColor: ctx.params.unconvergedColor,
+					damping: ctx.params.damping,
+					restoringStrength: ctx.params.restoringStrength,
 				}, resolution);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);

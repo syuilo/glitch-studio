@@ -94,11 +94,13 @@ export default defineEffect({
 		damping: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Damping', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0.14 },
 		},
 		restoringStrength: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Restoring Strength', control: { controlType: 'range', min: 0, max: 5, step: 0.01 } },
+			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 		initialVelocity: {

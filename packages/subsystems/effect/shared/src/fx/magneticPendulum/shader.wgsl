@@ -4,8 +4,6 @@ struct Uniforms {
 	viewCenter: vec2f,
 	initialVelocity: vec2f,
 	zoom: f32,
-	damping: f32,
-	restoringStrength: f32,
 	timeStep: f32,
 	captureRadiusSquared: f32,
 	captureSpeedSquared: f32,
@@ -16,8 +14,13 @@ struct Uniforms {
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var<storage, read> magnets: array<vec4f>;
 
-fn acceleration(position: vec2f, velocity: vec2f) -> vec2f {
-	var result = -uniforms.restoringStrength * position - uniforms.damping * velocity;
+struct PendulumCoefficients {
+	damping: f32,
+	restoringStrength: f32,
+};
+
+fn acceleration(position: vec2f, velocity: vec2f, coefficients: PendulumCoefficients) -> vec2f {
+	var result = -coefficients.restoringStrength * position - coefficients.damping * velocity;
 	for (var index = 0u; index < count_magnetColors; index++) {
 		let magnet = magnets[index];
 		if (magnet.z <= 0.0) { continue; }
@@ -32,17 +35,17 @@ fn acceleration(position: vec2f, velocity: vec2f) -> vec2f {
 	return result;
 }
 
-fn stateDerivative(state: vec4f) -> vec4f {
-	return vec4f(state.zw, acceleration(state.xy, state.zw));
+fn stateDerivative(state: vec4f, coefficients: PendulumCoefficients) -> vec4f {
+	return vec4f(state.zw, acceleration(state.xy, state.zw, coefficients));
 }
 
-fn advanceState(state: vec4f) -> vec4f {
+fn advanceState(state: vec4f, coefficients: PendulumCoefficients) -> vec4f {
 	// 位置と速度をまとめた1階の系にRK4を適用する。刻みは描画間隔から独立させ、
 	// シークや異なるフレームレートで描画しても同じ初期条件から同じ計算を行う。
-	let firstDerivative = stateDerivative(state);
-	let secondDerivative = stateDerivative(state + firstDerivative * (uniforms.timeStep * 0.5));
-	let thirdDerivative = stateDerivative(state + secondDerivative * (uniforms.timeStep * 0.5));
-	let fourthDerivative = stateDerivative(state + thirdDerivative * uniforms.timeStep);
+	let firstDerivative = stateDerivative(state, coefficients);
+	let secondDerivative = stateDerivative(state + firstDerivative * (uniforms.timeStep * 0.5), coefficients);
+	let thirdDerivative = stateDerivative(state + secondDerivative * (uniforms.timeStep * 0.5), coefficients);
+	let fourthDerivative = stateDerivative(state + thirdDerivative * uniforms.timeStep, coefficients);
 	return state + (firstDerivative + 2.0 * secondDerivative + 2.0 * thirdDerivative + fourthDerivative) * (uniforms.timeStep / 6.0);
 }
 
@@ -65,13 +68,17 @@ fn captureCandidate(state: vec4f) -> u32 {
 
 fn basinColor(position: vec2f) -> vec4f {
 	if (count_magnetColors == 0u) { return read_unconvergedColor(position); }
+	// 減衰と復元力は出力画像上の各サンプル点で一度だけ読み、その振り子の計算中は固定する。
+	// 移動中の位置で読み直すと「場所で力が変わる運動」になり、出発点ごとに係数を変える意味と
+	// 異なってしまう。積分の外で参照することで、反復数に比例するテクスチャ参照も避ける。
+	let coefficients = PendulumCoefficients(max(0.0, read_damping(position)), max(0.0, read_restoringStrength(position)));
 	// 画像参照座標を等方的な公開座標へ換算してから拡大するため、縦横比で軌道を歪ませない。
 	let initialPosition = uniforms.viewCenter + position * uniforms.spatialHalfExtent / uniforms.zoom;
 	var state = vec4f(initialPosition, uniforms.initialVelocity);
 	var previousCandidate = count_magnetColors;
 	var capturedDuration = 0.0;
 	for (var step = 0u; step < uniforms.maximumSteps; step++) {
-		state = advanceState(state);
+		state = advanceState(state, coefficients);
 		// 極端な力や粗い刻みで積分が発散した点は、確定していない磁石へ割り当てない。
 		if (!all(abs(state) < vec4f(1e6))) { break; }
 		let candidate = captureCandidate(state);
