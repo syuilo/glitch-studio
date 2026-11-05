@@ -3,10 +3,10 @@
 	<g v-for="handle in handles" :key="handle.key" :data-test-preview-parameter-handle="handle.key">
 		<circle :cx="handle.point[0]" :cy="handle.point[1]" r="9" :class="$style.handle" @pointerdown="startDrag($event, handle)"/>
 		<path :d="`M ${handle.point[0] - 5} ${handle.point[1]} h 10 M ${handle.point[0]} ${handle.point[1] - 5} v 10`" :class="$style.cross"/>
-		<line :x1="handle.point[0] + 9" :y1="handle.point[1]" :x2="handle.point[0] + 16" :y2="handle.labelY - 4" :class="$style.cross"/>
-		<text :x="handle.point[0] + 18" :y="handle.labelY" :class="$style.label">
-			<tspan :x="handle.point[0] + 18">{{ handle.label() }}</tspan>
-			<tspan :x="handle.point[0] + 18" dy="16" :class="$style.coordinates" data-test-preview-parameter-position>{{ handle.positionLabel }}</tspan>
+		<line :x1="handle.point[0]" :y1="handle.point[1] - 9" :x2="handle.point[0]" :y2="handle.point[1] - 16" :class="$style.cross"/>
+		<text :x="handle.point[0]" :y="handle.labelY" text-anchor="middle" :class="$style.label">
+			<tspan :x="handle.point[0]">{{ handle.label() }}</tspan>
+			<tspan :x="handle.point[0]" dy="16" :class="$style.coordinates" data-test-preview-parameter-position>{{ handle.positionLabel }}</tspan>
 		</text>
 	</g>
 </svg>
@@ -32,11 +32,11 @@ const handles = computed(() => {
 		const position = draft.value?.key === handle.key ? draft.value.position : handle.position();
 		if (position == null) return [];
 		const point = previewParameterToScreen(position, props.canvasRect);
-		// 近い位置のハンドルはラベルをずらし、名前や座標が重ならないようにする。
+		// 近い位置のハンドルはラベルを上へずらし、名前や座標が重ならないようにする。
 		const overlapCount = positions.filter(previous => Math.hypot(point[0] - previous[0], point[1] - previous[1]) < 24).length;
 		positions.push(point);
 		return [{
-			...handle, point, labelY: point[1] - 12 + overlapCount * 36,
+			...handle, point, labelY: point[1] - 36 - overlapCount * 36,
 			positionLabel: `X: ${Number(position[0].toFixed(4))}  Y: ${Number(position[1].toFixed(4))}`,
 		}];
 	});
