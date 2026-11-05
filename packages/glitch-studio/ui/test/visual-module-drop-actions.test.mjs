@@ -36,7 +36,7 @@ function fixture(t, inline = false) {
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(path => /\/api\.ts$/.test(path) ? api : /ui\.ts$/.test(path) ? ui
 		: /preferences\.ts$/.test(path) ? { preferences: { s: { forceTypeSafety: true } } } : /effect-definitions\.[jt]s$/.test(path) ? { effectDefinitions: {} } : require(path), module, module.exports);
 	const { createVisualModuleDropActions, createVisualModuleAssetNode, COMMAND_DEFS, UndoRedo } = module.exports;
-	const visualModule = { id: 'visual-module', name: 'Visual Module', paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null,
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual-module', name: 'Visual Module', paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null,
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'old', type: 'effect', effectId: 'fill', params: {} },
 			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'old', outputPort: 'output' } } }] };
 	const state = { assets: ref([]), players: ref([]), visualModules: ref(inline ? [] : [visualModule]),

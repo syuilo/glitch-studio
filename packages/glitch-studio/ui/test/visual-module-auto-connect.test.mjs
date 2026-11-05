@@ -31,7 +31,7 @@ function fixture(enabled = false, inline = false) {
 	const require = createRequire(import.meta.url);
 	new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(path => /preferences\.ts$/.test(path)
 		? { preferences } : /effect-definitions\.[jt]s$/.test(path) ? { effectDefinitions } : require(path), module, module.exports);
-	const visualModule = { id: 'visual-module', paramDefs: [], primaryOutputId: 'primary', outputDefs: [
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual-module', paramDefs: [], primaryOutputId: 'primary', outputDefs: [
 		{ id: 'primary', dataType: { kind: 'color' } }, { id: 'other', dataType: { kind: 'color' } },
 	], nodes: [
 		{ id: 'previous', type: 'effect', effectId: 'previous', params: {} },

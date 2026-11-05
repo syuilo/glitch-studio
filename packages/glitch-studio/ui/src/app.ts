@@ -111,6 +111,8 @@ export async function newProject() {
 	const initialVisualModule: ProjectVisualModule = {
 		id: genId(),
 		name: 'VM1',
+		customParameterDefs: [],
+		customParameterValues: {},
 		automationGraphs: [],
 		outputDefs: [{
 			id: initialOutputId,
@@ -258,6 +260,8 @@ async function loadMediaProject(result: OpenedMediaFile | null) {
 	const initialVisualModule: ProjectVisualModule = {
 		id: genId(),
 		name: 'VM1',
+		customParameterDefs: [],
+		customParameterValues: {},
 		automationGraphs: [],
 		outputDefs: [{
 			id: initialOutputId,

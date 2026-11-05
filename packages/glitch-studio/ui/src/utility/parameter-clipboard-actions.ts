@@ -31,14 +31,16 @@ export async function handleProjectParameterClipboard(
 		return;
 	}
 	const initialContext = initial.context;
-	const originalOwner = initialContext.kind === 'node' ? initialContext.visualModule.nodes.find(node => node.id === initialContext.nodeId) : initialContext.layer;
+	const originalOwner = initialContext.kind === 'node' ? initialContext.visualModule.nodes.find(node => node.id === initialContext.nodeId)
+		: initialContext.kind === 'customParameter' ? initialContext.visualModule.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : initialContext.layer;
 	const originalType = deepClone(initial.def.dataType);
 	const data = parseParameterClipboard(await clipboard.readText());
 	if (data == null || !isActive() || context.generation !== generation || context.id !== projectId) return;
 	try {
 		const current = resolveProjectClipboardTarget(state, projectId, target);
 		const currentContext = current.context;
-		const currentOwner = currentContext.kind === 'node' ? currentContext.visualModule.nodes.find(node => node.id === currentContext.nodeId) : currentContext.layer;
+		const currentOwner = currentContext.kind === 'node' ? currentContext.visualModule.nodes.find(node => node.id === currentContext.nodeId)
+			: currentContext.kind === 'customParameter' ? currentContext.visualModule.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : currentContext.layer;
 		if (currentOwner !== originalOwner || !areDataTypesEqual(originalType, current.def.dataType)) return;
 	} catch { return; }
 	if (prepareProjectParameterPaste(state, projectId, target, data) == null) return;

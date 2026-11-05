@@ -8,6 +8,8 @@ export function createVisualModuleRenderer(VisualModuleRenderer, options = {}) {
 		videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(),
 		assets: [], effectDefinitions: {}, effectImplementations: {},
 		visualModule: {
+			customParameterDefs: [],
+			customParameterValues: {},
 			nodes: [], paramDefs: [], outputDefs: [], automationGraphs: [],
 			primaryInputId: null, primaryOutputId: null,
 		},

@@ -73,6 +73,8 @@ test('migrates stored layer parameters across nested containers and scenes and s
 
 function createVisualModule(id) {
 	return {
+		customParameterDefs: [],
+		customParameterValues: {},
 		id, name: id, automationGraphs: [], outputDefs: [], primaryOutputId: null, primaryInputId: null,
 		paramDefs: [{ ...createParameterDefinition(), nameForReference: 'customParameterValues', ui: { label: 'Custom Parameter', control: {} } }],
 		nodes: [{

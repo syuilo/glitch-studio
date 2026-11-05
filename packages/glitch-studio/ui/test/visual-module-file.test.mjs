@@ -47,6 +47,8 @@ function fixture() {
 		image: setting('image'), video: setting('video'), player: setting('player'), nestedImage: setting('image'), font: setting('font'), templateImage: setting('image'), templateFont: setting('font'),
 	}, paramDefs: { audio: parameter('audioSource'), amount: parameter('scalar', 1), input: { ...parameter('color', [0, 0, 0, 0]), canNode: true } } } };
 	const visualModule = {
+		customParameterDefs: [],
+		customParameterValues: {},
 		id: 'source-visual-module', name: 'Source Visual Module',
 		nodes: [
 			{ id: 'in', type: 'globalIn' },
@@ -71,6 +73,22 @@ function fixture() {
 	return { input, definitions, visualModule, file: () => collectVisualModuleFile(input, definitions) };
 }
 function ids(prefix) { let index = 0; return () => `${prefix}-${++index}`; }
+
+// 【カスタムの式・加工式・直接参照はVisual Module単体ファイルでも維持する】
+// プロジェクト保存だけでなく.gsvmの明示的なフィールド抽出でも定義と値を落とさず、
+// 過去の公開パラメータ移行処理が新しい内部参照を書き換えないことを確認する。
+test('round trips custom parameter definitions, values and references without exposing arguments', async () => {
+	const f = fixture();
+	f.visualModule.customParameterDefs = [{ ...parameter('scalar', 0.5), id: 'custom-speed', nameForReference: 'amount', canNode: false }];
+	f.visualModule.customParameterValues = { 'custom-speed': { inputSource: 'expression', expression: 'PUBLIC("amount") * 2', expressionModifier: { enabled: true, code: 'VALUE + TIME' } } };
+	f.visualModule.nodes[1].params.amount = { inputSource: 'visualModuleCustomParameterValueReference', parameterId: 'custom-speed' };
+	const decoded = decodeVisualModuleFile(await encodeVisualModuleFile(f.file()), f.input.gsVersion);
+	const imported = prepareVisualModuleImport(decoded, f.definitions, ids('custom'));
+	assert.deepEqual(imported.visualModule.customParameterDefs, f.visualModule.customParameterDefs);
+	assert.deepEqual(imported.visualModule.customParameterValues, f.visualModule.customParameterValues);
+	assert.deepEqual(imported.visualModule.nodes[1].params.amount, f.visualModule.nodes[1].params.amount);
+	assert.equal(imported.visualModule.paramDefs.some(definition => definition.id === 'custom-speed'), false);
+});
 
 // 【LUTの直接参照と公開パラメータの既定値を同梱し、読み込み時にIDを書き換える】
 // .gsprojだけ動いてもVisual Module単体の配布でLUTが欠落すると見た目を再現できない。
@@ -251,6 +269,10 @@ test('keeps newly created Visual Modules independent and rejects duplicate regis
 	const manager = new ProjectContext().stateManager;
 	const first = createProjectVisualModule(0);
 	const second = createProjectVisualModule(0);
+	assert.deepEqual(first.customParameterDefs, []);
+	assert.deepEqual(first.customParameterValues, {});
+	assert.notEqual(first.customParameterDefs, second.customParameterDefs);
+	assert.notEqual(first.customParameterValues, second.customParameterValues);
 	const collectIds = visualModule => [visualModule.id, ...visualModule.nodes.map(node => node.id), ...visualModule.paramDefs.map(def => def.id), ...visualModule.outputDefs.map(def => def.id)];
 	const ids = [...collectIds(first), ...collectIds(second)];
 	assert.equal(new Set(ids).size, ids.length);
@@ -356,7 +378,7 @@ test('cancels file selection and rejects an import after the project generation 
 	assert.equal(await importVisualModuleFile(context), null);
 	assert.equal(context.stateManager.undoStack.value.length, 0);
 	const file = { kind: 'glitch-studio-visual-module', formatVersion: 1, gsVersion: '2.0.0-alpha.1', name: 'Empty',
-		visualModule: { nodes: [], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }, assets: [], players: [] };
+		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }, assets: [], players: [] };
 	const data = await encodeVisualModuleFile(file);
 	const reading = Promise.withResolvers();
 	browser.selectFile({ arrayBuffer: () => reading.promise });
@@ -376,7 +398,7 @@ test('cancels file selection and rejects an import after the project generation 
 test('imports a selected file and preserves existing state when the next file cannot be decoded', async t => {
 	const context = new ProjectContext();
 	const file = { kind: 'glitch-studio-visual-module', formatVersion: 1, gsVersion: '2.0.0-alpha.1', name: 'Imported Visual Module',
-		visualModule: { nodes: [], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }, assets: [], players: [] };
+		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }, assets: [], players: [] };
 	const data = await encodeVisualModuleFile(file);
 	const browser = platform(t, new File([new Uint8Array(data)], 'import.gsvm'));
 	const id = await importVisualModuleFile(context);
@@ -400,7 +422,7 @@ test('reports asset read errors before creating a download', async t => {
 	const broken = asset('broken');
 	broken.fileData = new class extends Blob { async arrayBuffer() { throw new Error('Unreadable'); } }();
 	context.stateManager.state.assets.value = [broken];
-	await exportVisualModuleFile(context, { nodes: [{ id: 'image', type: 'effect', effectId: 'image', staticSettings: { image: 'broken' }, params: { fit: literal('contain') } }], paramDefs: [],
+	await exportVisualModuleFile(context, { customParameterDefs: [], customParameterValues: {}, nodes: [{ id: 'image', type: 'effect', effectId: 'image', staticSettings: { image: 'broken' }, params: { fit: literal('contain') } }], paramDefs: [],
 		outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }, 'Broken');
 	assert.equal(links.length, 0);
 	assert.equal(alerts.length, 1);

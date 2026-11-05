@@ -12,6 +12,8 @@ Visual Moduleのノード・入出力・公開パラメータ・接続の契約�
 
 `expression.ts`はVisual Module内で公開する変数名、`parameter-evaluation.ts`は呼び出し側から受け取る評価済み公開パラメータのCPU値を定義する。`PUBLIC`・Visual Module公開パラメータ参照（`visualModulePublicParameterReference`）・ノード参照の評価はVisual Module Rendererが担当する。
 
-内部の`VisualModuleParameterBinding`は`ValueParameterBinding`にノード接続と公開パラメータ参照を加える。接続先の`NodeOutputReference`とブランド型の`VisualModulePublicParameterId`もこのドメインが所有し、`lowerLayerOutput`は含めない。
+内部の`VisualModuleParameterBinding`は`ValueParameterBinding`にノード接続と公開・カスタムパラメータ参照を加える。接続先の`NodeOutputReference`とブランド型の`VisualModulePublicParameterId`もこのドメインが所有し、`lowerLayerOutput`は含めない。
+
+`customParameterDefs`と`customParameterValues`は内部の共通CPU値を定義する。どちらも必須で、未使用時はそれぞれ空の配列と空のオブジェクトを保持する。公開定義とは別のID・参照名を所有し、型とUIの定義には共通の`ParameterDefinition`を組み合わせる。`VisualModuleValueParameterBinding`は共通の値入力に公開参照とカスタム参照（`visualModuleCustomParameterValueReference`）を加え、ノード配線を含めない。ノード内部ではこのBindingに画像接続を追加する。公開とカスタムの名前空間は独立し、`PUBLIC`・`CUSTOM`で明示的に参照する。`custom-parameters.ts`が型・定義・静的な入力制約を検査し、評価時の依存・循環はRendererが扱う。
 
 レイヤーやVisual Module Live Previewから渡される`VisualModuleArgumentBindings`の値は`ValueParameterBinding`に限定する。内部のBindingとは参照スコープが異なるため、型名でも引数と区別する。`canNode: true`の公開パラメータはInノードで参照し、`PUBLIC`と直接参照の対象には含めない。

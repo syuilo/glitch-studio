@@ -83,10 +83,12 @@ export function collectVisualModuleFile(input: {
 	name: string; gsVersion: string; visualModule: VisualModule; assets: Asset[]; players: Player[];
 }, definitions: EffectDefinitions): VisualModuleFile {
 	// ProjectVisualModuleやインラインのレイヤーから渡されても、所属先のID・設定はファイルへ持ち込まない。
-	const { nodes, paramDefs, outputDefs, primaryInputId, primaryOutputId, primaryAudioInputId, automationGraphs } = input.visualModule;
+	const { nodes, paramDefs, customParameterDefs, customParameterValues, outputDefs, primaryInputId, primaryOutputId, primaryAudioInputId, automationGraphs } = input.visualModule;
 	const visualModule = deepClone({
 		nodes,
 		paramDefs,
+		customParameterDefs,
+		customParameterValues,
 		outputDefs,
 		primaryInputId,
 		primaryOutputId,

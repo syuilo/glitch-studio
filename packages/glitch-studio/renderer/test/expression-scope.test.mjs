@@ -43,7 +43,7 @@ test('passes discrete layer keyframes to modules consistently during preview exp
 		text: animated(definitions[0], 'Hello\n世界', ''), enabled: animated(definitions[1], true, false), mode: animated(definitions[2], 'a', 'b'),
 	} };
 	let resolved;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: null }, layer, {
+	const adapter = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: definitions, primaryInputId: null }, layer, {
 		async prepare(context) { resolved = context.evaluatedParamValues; }, render() {}, destroy() {},
 	});
 	for (const isExport of [false, true]) {
@@ -62,7 +62,7 @@ test('uses current enum defaults only for empty timelines and rejects obsolete k
 	const input = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 		keyframesTimeline: { dataType: { kind: 'enum', options: ['obsolete', 'a'] }, isNormalized: false, keyframes: [] } };
 	let resolved;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: [definition], primaryInputId: null }, {
+	const adapter = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [definition], primaryInputId: null }, {
 		automationGraphs: [], visualModuleParamValues: { mode: input },
 	}, { async prepare(context) { resolved = context.evaluatedParamValues.get('mode'); }, render() {}, destroy() {} });
 	const evaluate = () => adapter.evaluate({ ...clipFrame, timeDelta: 0 }, new AbortController().signal);
@@ -107,6 +107,8 @@ function externalValues(evaluator, defs, params, scope) {
 test('exposes exactly the declared variables for each scope', async () => {
 	let moduleVariables;
 	const renderer = Object.assign(Object.create(VisualModuleRenderer.prototype), {
+		customParameterDefs: [],
+		customParameterValues: {},
 		nodeResolutions: new Map([['probe', { width: 800, height: 400 }]]),
 		contextResolution: { width: 800, height: 400 }, paramDefs: [], automationGraphs: [],
 		nodes: [{ id: 'probe', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'probe', params: { value: literal(0) } }],
@@ -124,7 +126,7 @@ test('exposes exactly the declared variables for each scope', async () => {
 	}
 	const names = [...LAYER_VAR_DEFS];
 	let layerValues;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: names.map(name => ({ ...def(name), dataType: { kind: typeof layerScope.variables[name] === 'boolean' ? 'bool' : 'scalar' } })), primaryInputId: null }, {
+	const adapter = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: names.map(name => ({ ...def(name), dataType: { kind: typeof layerScope.variables[name] === 'boolean' ? 'bool' : 'scalar' } })), primaryInputId: null }, {
 		automationGraphs: [], visualModuleParamValues: Object.fromEntries(names.map(name => [name, expression(name)])),
 	}, {
 		async prepare(context) { layerValues = context.evaluatedParamValues; }, render() {}, destroy() {},
@@ -200,7 +202,7 @@ test('rejects input parameters and does not mutate external arrays', () => {
 test('snapshots layer values once for prepare and render', async () => {
 	const layer = { visualModuleParamValues: { amount: expression('TEST_SAME_NAME'), array: literal([1, 2]) }, automationGraphs: [] };
 	let prepared;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: [def('amount'), def('array')], primaryInputId: null }, layer, {
+	const adapter = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [def('amount'), def('array')], primaryInputId: null }, layer, {
 		async prepare(context) {
 			prepared = context;
 			layer.visualModuleParamValues.amount = literal(99);
@@ -229,7 +231,7 @@ test('keeps layer defaults and excludes primary inputs from evaluated values', a
 		def('missing', 9), { ...def('export'), dataType: { kind: 'bool' } },
 	];
 	let resolved;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: 'input' }, {
+	const adapter = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: definitions, primaryInputId: 'input' }, {
 		automationGraphs: [], visualModuleParamValues: {
 			missing: { inputSource: 'automationGraphReference', automationGraphId: 'absent', offsetMode: 'start', wrapMode: 'repeat', trimmedDurationMs: 1000 },
 			export: expression('IS_EXPORT'),
@@ -251,7 +253,7 @@ test('shares framed public image inputs only within the current evaluation', asy
 	const reference = outputStage => ({ inputSource: 'anotherLayerOutput', layerId: 'source', outputStage });
 	const converted = [];
 	let resolved;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: null }, {
+	const adapter = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: definitions, primaryInputId: null }, {
 		automationGraphs: [], visualModuleParamValues: { left: reference('rendered'), right: reference('rendered'), background: { inputSource: 'lowerLayerOutput' }, raw: reference('source') },
 	}, {
 		getImageInput(input) { assert.strictEqual(input, image); const framed = { kind: 'texture', texture: {} }; converted.push(framed); return framed; },

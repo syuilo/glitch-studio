@@ -121,7 +121,7 @@ test('routes region transforms through both Visual Module layer render paths', a
 	const f = await fixture(t);
 	const observations = [];
 	f.manager.createCompositingObserver = () => (_source, settings) => observations.push(settings);
-	const visualModule = { id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'color', nameForReference: 'color' }], primaryOutputId: 'output', automationGraphs: [],
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'color', nameForReference: 'color' }], primaryOutputId: 'output', automationGraphs: [],
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } }] };
 	for (const layerType of ['visualModule', 'inlineVisualModule']) {
@@ -583,7 +583,7 @@ test('resolves nested source references across groups and skips unavailable targ
 // 同じ縦横比の素材も入口で正規化し、クリップの切り替えで入力寸法が変化しないようにする。
 test('normalizes an explicit public primary input before routing it through a Visual Module', async t => {
 	const f = await fixture(t);
-	const visualModule = { id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'image' }],
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'image' }],
 		primaryInputId: 'image', primaryOutputId: 'output', automationGraphs: [],
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'image', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };
@@ -606,7 +606,7 @@ test('normalizes an explicit public primary input before routing it through a Vi
 // 未接続の主入力を削除しても、同じ画像を使う別の公開入力は新しいテクスチャで描画を続ける。
 test('releases deleted public input frames while preserving the placement and remaining inputs', async t => {
 	const f = await fixture(t);
-	const visualModule = { id: 'visual', name: 'Visual', paramDefs: ['unused', 'kept'].map(id => ({ ...color, id, nameForReference: id })),
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: ['unused', 'kept'].map(id => ({ ...color, id, nameForReference: id })),
 		primaryInputId: 'unused', primaryOutputId: 'output', automationGraphs: [],
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'kept', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };

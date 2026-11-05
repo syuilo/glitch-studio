@@ -39,6 +39,7 @@ export class RendererProjectSynchronizer {
 				// 最終値と全ての変更種別を渡し、破棄範囲の判断はレンダラーへ委ねる。
 				if (target.type === 'node' && previous?.type === 'node') target = { ...target, changes: mergeChanges(previous.changes, target.changes) };
 				if (target.type === 'layer' && previous?.type === 'layer') target = { ...target, changes: mergeChanges(previous.changes, target.changes) };
+				if (target.type === 'visualModule' && previous?.type === 'visualModule') target = { ...target, customParameterValuesOnly: target.customParameterValuesOnly === true && previous.customParameterValuesOnly === true };
 				this.pending.set(key, target);
 			}
 			if (this.scheduled || targets.length === 0) return;
@@ -56,7 +57,7 @@ export class RendererProjectSynchronizer {
 		// 追加・削除・置換されたレイヤーでは、内部Moduleもレイヤーの最終状態に含まれる。
 		// 部分編集同士ならModuleの変更種別も残すため、個別通知を吸収しない。
 		const layers = new Set(targets.flatMap(target => target.type === 'layer' && target.changes.some(change => change.type === 'definition') ? [JSON.stringify([target.sceneId, target.layerId])] : []));
-		const modules = new Set(targets.filter(target => target.type === 'visualModule').map(target => visualModuleTargetKey(target.target)));
+		const modules = new Set(targets.flatMap(target => target.type === 'visualModule' && target.customParameterValuesOnly !== true ? [visualModuleTargetKey(target.target)] : []));
 		const registeredVisualModuleIds = new Set(targets.filter(target => target.type === 'visualModuleRegistration').map(target => target.visualModuleId));
 		const changes: RendererProjectChange[] = [];
 		for (const target of targets) {
@@ -78,7 +79,7 @@ export class RendererProjectSynchronizer {
 				// コマンドpayloadには新しい値等も含まれる。通信では所在を示すIDだけを使う。
 				const address: VisualModuleTarget = 'visualModuleId' in moduleTarget ? { visualModuleId: moduleTarget.visualModuleId }
 					: { sceneId: moduleTarget.sceneId, inlineVisualModuleLayerId: moduleTarget.inlineVisualModuleLayerId };
-				if (target.type === 'visualModule') changes.push({ type: 'visualModule', target: address, visualModule });
+				if (target.type === 'visualModule') changes.push({ type: 'visualModule', target: address, visualModule, ...(target.customParameterValuesOnly === true ? { customParameterValuesOnly: true } : {}) });
 				else {
 					const node = visualModule.nodes.find(node => node.id === target.nodeId);
 					if (!node) throw new Error('Changed node not found');

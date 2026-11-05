@@ -8,6 +8,8 @@ export function createProjectVisualModule(currentVisualModuleCount: number): Pro
 	return {
 		id: genId(),
 		name: `VM${currentVisualModuleCount + 1}`,
+		customParameterDefs: [],
+		customParameterValues: {},
 		paramDefs: [{
 			id: inputId,
 			nameForReference: visualModulePublicParameterName('input'),

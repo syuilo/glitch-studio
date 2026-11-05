@@ -100,7 +100,7 @@ test('preserves dangling anotherLayerAudio references through deletion, saving, 
 test('validates player audio selections at the application command boundary', () => {
 	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound' };
 	const node = { id: 'waveform', type: 'effect', effectId: 'audioWaveform', params: { audio: literal(null) } };
-	const state = { visualModules: { value: [{ id: 'visual', paramDefs: [audio], nodes: [node] }] } };
+	const state = { visualModules: { value: [{ customParameterDefs: [], customParameterValues: {}, id: 'visual', paramDefs: [audio], nodes: [node] }] } };
 	const target = { visualModuleId: 'visual', nodeId: node.id, paramPath: ['audio'] };
 	const command = value => COMMAND_DEFS.updateParamAsLiteral.create({ ...target, value });
 	const selection = { type: 'player', playerId: 'player' };
@@ -172,7 +172,7 @@ test('validates and edits nested audio bindings using stable parameter paths', t
 test('edits primary audio parameters and timeline arguments with independent undo history', () => {
 	const f = fixture('audioWaveform');
 	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound' };
-	const visualModule = { id: 'visual', nodes: [], outputDefs: [], primaryOutputId: null, primaryInputId: null, primaryAudioInputId: null,
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', nodes: [], outputDefs: [], primaryOutputId: null, primaryInputId: null, primaryAudioInputId: null,
 		paramDefs: [audio], automationGraphs: [] };
 	f.state.visualModules.value.push(visualModule);
 	const command = (name, payload) => COMMAND_DEFS[name].create({ visualModuleId: visualModule.id, ...payload });
@@ -433,10 +433,10 @@ test('round trips effect layers and changes resolution and clips with undo', asy
 test('saves local resolution scales and validates undoable edits for nodes and effect layers', async () => {
 	const f = fixture();
 	const node = { id: 'node', type: 'effect', effectId: 'testStructArray', resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, params: {} };
-	const visualModule = { id: 'visual', nodes: [node], paramDefs: [] };
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', nodes: [node], paramDefs: [] };
 	f.state.visualModules.value.push(visualModule);
 	const inlineNode = structuredClone(node);
-	f.state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: { nodes: [inlineNode], paramDefs: [] } });
+	f.state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [inlineNode], paramDefs: [] } });
 	for (const [definition, target, owner] of [
 		[COMMAND_DEFS.changeNodeResolution, { visualModuleId: 'visual', nodeId: node.id }, node],
 		[COMMAND_DEFS.changeNodeResolution, { sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: inlineNode.id }, inlineNode],
@@ -494,7 +494,7 @@ test('edits nested image references and preserves their stages through undo and 
 // 通常引数と同じCommand・Undo/Redoを使いつつ、共有Visual Moduleの定義は変更しない。
 test('edits public primary image inputs and resets them to lower layers', () => {
 	const f = fixture();
-	const visual = { id: 'visual', primaryInputId: 'image', primaryAudioInputId: null,
+	const visual = { customParameterDefs: [], customParameterValues: {}, id: 'visual', primaryInputId: 'image', primaryAudioInputId: null,
 		paramDefs: [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }] };
 	f.state.visualModules.value.push(visual);
 	const publicLayer = { id: 'public', layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {}, automationGraphs: [] };

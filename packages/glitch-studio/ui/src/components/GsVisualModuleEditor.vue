@@ -56,6 +56,10 @@
 			</div>
 		</div>
 
+		<div v-else-if="tab === 'customParameters'" style="height: 100%; overflow: auto;">
+			<XCustomParameters :visualModule="visualModule" @edit="emit('edit', $event)"/>
+		</div>
+
 		<div v-else-if="tab === 'inputs'" style="height: 100%; overflow: auto;">
 			<XParamDefsEditor
 				:visualModule="visualModule"
@@ -97,17 +101,18 @@ import XEffectNode from './GsEffectNode.vue';
 import XGlobalInNode from './GsGlobalInNode.vue';
 import XGlobalOutNode from './GsGlobalOutNode.vue';
 import XParamDefsEditor from './GsVisualModuleEditor.ParamDefsEditor.vue';
+import XCustomParameters from './GsVisualModuleEditor.CustomParameters.vue';
 import XOutputDefsEditor from './GsVisualModuleEditor.OutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { VisualModule, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode, NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { VisualModuleEdit, VisualModuleAssetDropActions } from '@/types/visual-module-editor.ts';
+import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 import { i18n } from '@/i18n.ts';
 import { provideVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { useAssetDrop } from '@/composables/useAssetDrop.ts';
 import * as ui from '@/ui.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
-import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 
 provideVisualModuleWires();
 
@@ -143,6 +148,7 @@ const assetDrop = useAssetDrop({
 const tab = ref('nodes');
 const tabs = [
 	{ id: 'nodes', label: i18n.ts._VisualModule.Nodes },
+	{ id: 'customParameters', label: i18n.ts._Parameter.CustomParameter },
 	{ id: 'inputs', label: i18n.ts._VisualModule.InputDefs },
 	{ id: 'outputs', label: i18n.ts._VisualModule.OutputDefs },
 	{ id: 'other', label: i18n.ts.Other },

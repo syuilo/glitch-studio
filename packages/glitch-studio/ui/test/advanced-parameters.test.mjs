@@ -94,7 +94,7 @@ for (const target of ['node', 'layer']) {
 		if (target === 'layer') params.input = { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 		const owner = { id: 'effect', type: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, automationGraphs: [], params, effectParamValues: params, isBypass: false };
 		const f = fixture(t, target === 'node' ? NodeSettings : LayerSettings, target === 'node'
-			? { node: owner, visualModule: { nodes: [owner], paramDefs: [], automationGraphs: [] } }
+			? { node: owner, visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [owner], paramDefs: [], automationGraphs: [] } }
 			: { layer: owner, contextResolution: { width: 1920, height: 1080 }, imageLayerOptions: [], anotherLayerAudioOptions: [] });
 		const saved = structuredClone(params);
 		assert.deepEqual(f.paths(), [['amount'], ['end']]);

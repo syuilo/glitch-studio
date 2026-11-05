@@ -17,7 +17,7 @@ const bundle = await build({
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { commitVisualModuleEdit } from './src/utility/visual-module-edit.ts';
-		export { createPublicParameterFromLiteral } from './src/utility/public-parameter-creation.ts';
+		export { createNamedParameterFromLiteral } from './src/utility/named-parameter-creation.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'public-parameter-platform', setup(build) {
 		build.onResolve({ filter: /effect-definitions\.[jt]s$|preferences\.ts$/ }, ({ path }) => ({ path: path.includes('preferences') ? 'preferences' : 'effects', namespace: 'platform' }));
@@ -28,11 +28,11 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, UndoRedo, commitVisualModuleEdit, createPublicParameterFromLiteral } = module.exports;
+const { COMMAND_DEFS, UndoRedo, commitVisualModuleEdit, createNamedParameterFromLiteral } = module.exports;
 
 function fixture() {
 	const node = { id: 'node', type: 'effect', effectId: 'test', params: { amount: literal(0.3), weights: structuredClone(array.defaultValue) } };
-	const visualModule = { id: 'visual-module', nodes: [node], paramDefs: [], primaryInputId: null, primaryAudioInputId: null, automationGraphs: [] };
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual-module', nodes: [node], paramDefs: [], primaryInputId: null, primaryAudioInputId: null, automationGraphs: [] };
 	const layer = { id: 'layer', name: 'Layer', layerType: 'effect', effectId: 'test', automationGraphs: [], effectParamValues: structuredClone(node.params) };
 	const scene = { id: 'scene', resolution: { mode: 'customAbsolute', width: 1600, height: 800 }, layers: [layer] };
 	const state = { visualModules: { value: [visualModule] }, timelineScenes: { value: [scene] }, resolution: { value: { width: 1600, height: 800 } } };
@@ -40,6 +40,122 @@ function fixture() {
 	const changes = [];
 	history.onChange(value => changes.push(value));
 	return { node, visualModule, layer, scene, state, history, changes };
+}
+
+for (const inline of [false, true]) {
+	// 【カスタム化の作成と接続を一回のUndoで戻し、Redoでも同じIDを使う】
+	// メニュー由来の編集通知をCommandまで通し、公開と同名を許可しつつ
+	// 元の固定値・型・UIを保持し、空だった定義・値もUndoで元に戻す。
+	test(`creates and connects a custom parameter in an inline Visual Module: ${inline}`, () => {
+		const f = fixture();
+		const target = inline ? { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } : { visualModuleId: f.visualModule.id };
+		if (inline) f.scene.layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: f.visualModule });
+		f.visualModule.paramDefs.push({ ...structuredClone(scalar), id: 'public-amount', nameForReference: 'amount', canNode: false });
+		const before = structuredClone(f.visualModule);
+		commitVisualModuleEdit(f.history, target, { kind: 'editNodeParam', nodeId: f.node.id, edit: { kind: 'createCustomParameter', paramPath: ['amount'] } });
+		const definition = f.visualModule.customParameterDefs[0];
+		assert.deepEqual(definition.dataType, scalar.dataType);
+		assert.deepEqual(definition.ui, { label: 'Amount', control: scalar.ui.control });
+		assert.notEqual(definition.ui.control, scalar.ui.control);
+		assert.deepEqual(definition.defaultValue, literal(0.3));
+		assert.equal(definition.canNode, false);
+		assert.equal(definition.nameForReference, 'amount');
+		assert.deepEqual(f.node.params.amount, { inputSource: 'visualModuleCustomParameterValueReference', parameterId: definition.id });
+		assert.equal(f.visualModule.paramDefs.length, 1);
+		assert.equal(f.history.undoStack.value.length, 1);
+		assert.deepEqual(f.changes[0].map(change => change.type), ['visualModule']);
+		const after = structuredClone(f.visualModule);
+		f.history.undo();
+		assert.deepEqual(f.visualModule, before);
+		f.history.redo();
+		assert.deepEqual(f.visualModule, after);
+	});
+}
+
+// 【配列の末端をカスタム化し、既存の定義・値・兄弟Bindingを維持する】
+// 名前の重複はカスタムの中だけで避け、公開と同名の参照名でも作成できるようにする。
+test('promotes an array leaf without replacing existing custom definitions or values', () => {
+	const f = fixture();
+	const existing = { ...structuredClone(scalar), id: 'existing', nameForReference: 'weights', canNode: false };
+	f.visualModule.customParameterDefs = [existing];
+	f.visualModule.customParameterValues = { existing: { inputSource: 'expression', expression: 'TIME' } };
+	f.visualModule.paramDefs = [{ ...existing, id: 'public-weights', nameForReference: 'weights_2' }];
+	const before = structuredClone(f.visualModule);
+	f.history.commit('createVisualModuleCustomParameterFromParam', { visualModuleId: f.visualModule.id, nodeId: f.node.id, paramPath: ['weights', 'second'] });
+	const definition = f.visualModule.customParameterDefs[1];
+	assert.equal(definition.nameForReference, 'weights_2');
+	assert.deepEqual(definition.defaultValue, literal(0.8));
+	assert.deepEqual(f.visualModule.customParameterValues, before.customParameterValues);
+	assert.deepEqual(f.node.params.weights.value[0], before.nodes[0].params.weights.value[0]);
+	assert.deepEqual(f.node.params.weights.value[1], { id: 'second', binding: { inputSource: 'visualModuleCustomParameterValueReference', parameterId: definition.id } });
+	const after = structuredClone(f.visualModule);
+	f.history.undo();
+	assert.deepEqual(f.visualModule, before);
+	f.history.redo();
+	assert.deepEqual(f.visualModule, after);
+});
+
+// 【移動できない入力はカスタム化のCommandからも拒否し、部分的な作成を残さない】
+// メニュー表示後に入力が変わった場合も、ノード固有の式・接続・加工式を別スコープへ移さない。
+test('rejects unsupported custom parameter promotion without changing state or history', () => {
+	for (const binding of [
+		{ inputSource: 'expression', expression: 'RESOLUTION[0]' },
+		{ inputSource: 'node', nodeId: 'other', outputPort: 'output' },
+		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
+		{ ...literal(0.3), expressionModifier: { enabled: true, code: 'VALUE' } },
+		{ ...literal(0.3), expressionModifier: { enabled: false, code: 'VALUE' } },
+		array.defaultValue,
+	]) {
+		const f = fixture();
+		const path = binding === array.defaultValue ? ['weights'] : ['amount'];
+		f.node.params[path[0]] = structuredClone(binding);
+		const before = structuredClone(f.state);
+		assert.throws(() => f.history.commit('createVisualModuleCustomParameterFromParam', {
+			visualModuleId: f.visualModule.id, nodeId: f.node.id, paramPath: path,
+		}), /Only literal/);
+		assert.deepEqual(f.state, before);
+		assert.equal(f.history.undoStack.value.length, 0);
+		assert.deepEqual(f.changes, []);
+	}
+});
+
+for (const inline of [false, true]) {
+	// 【カスタムの定義・値・参照を、通常配置とインライン配置の両方でUndoできる】
+	// 公開と同名でも作成でき、名前変更でID参照を失わず、削除・復元・型変更が同じ履歴で戻ることを確認する。
+	test(`edits custom parameter definitions and bindings with undo in an inline Visual Module: ${inline}`, () => {
+		const f = fixture();
+		const target = inline ? { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } : { visualModuleId: f.visualModule.id };
+		if (inline) f.scene.layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: f.visualModule });
+		const definition = { ...scalar, id: 'custom-id', nameForReference: 'speed', canNode: false };
+		f.visualModule.paramDefs.push({ ...definition, id: 'public-id' });
+		const before = structuredClone(f.visualModule);
+		commitVisualModuleEdit(f.history, target, { kind: 'updateCustomParameter', definition });
+		const afterCreation = structuredClone(f.visualModule);
+		f.history.undo();
+		assert.deepEqual(f.visualModule, before);
+		f.history.redo();
+		assert.deepEqual(f.visualModule, afterCreation);
+		commitVisualModuleEdit(f.history, target, { kind: 'editCustomParameter', parameterId: definition.id, edit: { kind: 'expression', value: 'PUBLIC("speed") * 2' } });
+		commitVisualModuleEdit(f.history, target, { kind: 'editCustomParameter', parameterId: definition.id, edit: { kind: 'expressionModifier', value: { enabled: true, code: 'VALUE + TIME' } } });
+		const binding = structuredClone(f.visualModule.customParameterValues[definition.id]);
+		commitVisualModuleEdit(f.history, target, { kind: 'editNodeParam', nodeId: f.node.id, edit: { kind: 'visualModuleCustomParameterValueReference', paramPath: ['amount'], value: definition.id } });
+		commitVisualModuleEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, nameForReference: 'renamed' } });
+		assert.equal(f.node.params.amount.parameterId, definition.id);
+		assert.deepEqual(f.visualModule.customParameterValues[definition.id], binding);
+		assert.equal(f.visualModule.paramDefs.length, 1);
+		commitVisualModuleEdit(f.history, target, { kind: 'removeCustomParameter', parameterId: definition.id });
+		assert.equal(f.node.params.amount.parameterId, definition.id);
+		assert.equal(f.visualModule.customParameterDefs.length, 0);
+		f.history.undo();
+		assert.equal(f.visualModule.customParameterDefs[0].nameForReference, 'renamed');
+		assert.deepEqual(f.visualModule.customParameterValues[definition.id], binding);
+		commitVisualModuleEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: literal('initial') } });
+		assert.equal(f.visualModule.customParameterValues[definition.id], undefined);
+		f.history.undo();
+		assert.deepEqual(f.visualModule.customParameterValues[definition.id], binding);
+		assert.throws(() => commitVisualModuleEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, id: 'duplicate', nameForReference: 'renamed' } }), /unique/);
+		assert.ok(f.changes.some(changes => changes.some(change => change.type === 'visualModule' && change.customParameterValuesOnly === true)));
+	});
 }
 
 for (const inline of [false, true]) {
@@ -169,13 +285,13 @@ test('rejects nonliteral bindings modifiers and containers without changing stat
 // 表示名と式用の識別子を混同せず、自動生成後も既存の定義編集UIで変更できるようにする。
 test('generates valid unique reference names without altering labels or sharing mutable values', () => {
 	for (const [label, expected] of [['ぼかし量', 'my_param_3'], ['2D Offset', 'param_2_d_offset'], ['Size Reference', 'size_reference']]) {
-		const definition = createPublicParameterFromLiteral({ ...scalar, ui: { ...scalar.ui, label } }, literal(0.3), [{ nameForReference: 'my_param' }, { nameForReference: 'my_param_2' }]);
+		const definition = createNamedParameterFromLiteral({ ...scalar, ui: { ...scalar.ui, label } }, literal(0.3), [{ nameForReference: 'my_param' }, { nameForReference: 'my_param_2' }]);
 		assert.equal(definition.nameForReference, expected);
 		assert.equal(definition.ui.label, label);
 	}
 	const color = { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: literal([0, 0, 0, 0]), canNode: true };
 	const value = literal([1, 0.5, 0, 0.25]);
-	const definition = createPublicParameterFromLiteral(color, value, []);
+	const definition = createNamedParameterFromLiteral(color, value, []);
 	definition.defaultValue.value[0] = 0;
 	assert.deepEqual(value.value, [1, 0.5, 0, 0.25]);
 	assert.equal(definition.canNode, false);

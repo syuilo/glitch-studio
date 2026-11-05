@@ -33,6 +33,7 @@ function evaluate(evaluator, input) {
 		nodeResolutions: new Map(input.nodes.map(node => [node.id, input.resolution])),
 		nodes: input.nodes, paramDefs: input.paramDefs, effectDefinitions: input.effectDefinitions,
 		automationGraphs: input.automationGraphs, contextResolution: input.resolution, parameterEvaluator: evaluator,
+		customParameterDefs: input.customParameterDefs, customParameterValues: input.customParameterValues,
 	});
 	renderer.evaluateParameters({ pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, ...input, isExport: input.isExport ?? false, evaluatedParamValues: paramValues });
 	return { paramValues, nodeParams: new Map([...renderer.evaluatedEffectNodes].map(([id, evaluated]) => [id, evaluated.params])) };
@@ -55,9 +56,28 @@ function structParameter(fields) {
 }
 
 const number = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
+
+// 【内部の共通値を、実際のノード評価経路から公開入力と同時に利用する】
+// 単体の名前解決だけでなく、ノード間の値共有と、描画ごとの時刻・公開引数の取り込みを確認する。
+test('evaluates custom values through the renderer with per-sample public arguments', () => {
+	const custom = { ...number, id: 'custom', nameForReference: 'gain', canNode: false };
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
+	const input = context({ amount: number, direct: number }, { amount: expression('PUBLIC("gain") + CUSTOM("gain")'), direct: { inputSource: 'visualModuleCustomParameterValueReference', parameterId: custom.id } }, {
+		paramDefs: [{ ...number, id: 'public', nameForReference: 'gain', canNode: false }], paramValues: { public: literal(3) },
+		customParameterDefs: [custom], customParameterValues: { custom: expression('PUBLIC("gain") * 2 + TIME') },
+	});
+	assert.deepEqual(evaluate(evaluator, input).nodeParams.get('node'), { amount: 9.5, direct: 6.5 });
+	input.time = 1000;
+	input.paramValues.public = literal(4);
+	assert.deepEqual(evaluate(evaluator, input).nodeParams.get('node'), { amount: 13, direct: 9 });
+	const unselectedDefinition = { ...number, defaultValue: literal(7) };
+	assert.equal(evaluate(evaluator, context({ amount: unselectedDefinition }, { amount: { inputSource: 'visualModuleCustomParameterValueReference', parameterId: '' } })).nodeParams.get('node').amount, 7);
+});
 const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'test', isBypass, params });
 const paramDef = (id, defaultValue = 7, dataType = 'scalar', nameForReference = id.replaceAll('-', '_')) => ({ id, nameForReference, dataType: { kind: dataType }, ui: { label: id, control: dataType === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(defaultValue), canNode: false });
 const context = (defs, params, overrides = {}) => ({
+	customParameterDefs: [],
+	customParameterValues: {},
 	nodes: [node(params)],
 	paramDefs: [],
 	effectDefinitions: { test: { id: 'test', displayName: 'Test', description: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null } },
@@ -392,6 +412,8 @@ for (const enable32bitDataTextures of [false, true]) {
 				init: () => ({ render: ({ params }) => renderedValues.push(params.group), dispose() {} }),
 			} },
 			visualModule: {
+				customParameterDefs: [],
+				customParameterValues: {},
 				id: 'module', name: 'Test', paramDefs: [], automationGraphs: [],
 				outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out',
 				nodes: [node({ group: literal({ amount: expression('TIME + 1'), vector: literal([0.123456789, -1]), color: literal([1, 0.5, 0, 0.25]) }) }),

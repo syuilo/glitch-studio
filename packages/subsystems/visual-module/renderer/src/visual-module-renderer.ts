@@ -8,6 +8,7 @@ import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { VisualModuleParameterBindingEvaluator } from './visual-module-parameter-binding-evaluator.ts';
+import { VisualModuleCustomParameterEvaluator } from './visual-module-custom-parameter-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
@@ -67,6 +68,8 @@ export class VisualModuleRenderer {
 	private getPlayerResolution: ((playerId: string) => Resolution | null) | null;
 	private nodes: VisualModuleNode[] = [];
 	private paramDefs: VisualModule['paramDefs'];
+	private customParameterDefs: VisualModule['customParameterDefs'];
+	private customParameterValues: VisualModule['customParameterValues'];
 	private outputDefs: VisualModule['outputDefs'] = [];
 	private primaryOutputId: string | null = null;
 	private primaryInputId: VisualModulePublicParameterId | null = null;
@@ -127,6 +130,8 @@ export class VisualModuleRenderer {
 		this.gpuDevice = options.gpuDevice;
 		this.fallbackTexture = options.fallbackTexture;
 		this.paramDefs = options.visualModule.paramDefs;
+		this.customParameterDefs = options.visualModule.customParameterDefs;
+		this.customParameterValues = options.visualModule.customParameterValues;
 		this.onEffectState = options.onEffectState ?? null;
 		this.enableStats = options.enableStats;
 		this.resolutionScale = options.resolutionScale ?? 1;
@@ -157,6 +162,8 @@ export class VisualModuleRenderer {
 		this.primaryOutputId = visualModule.primaryOutputId;
 		this.primaryInputId = visualModule.primaryInputId;
 		this.paramDefs = visualModule.paramDefs;
+		this.customParameterDefs = visualModule.customParameterDefs;
+		this.customParameterValues = visualModule.customParameterValues;
 		// 公開定義と入力寸法を同じスナップショットとして取り込み、仮の寸法で出力を確保しない。
 		if (options.preserveStaticState !== true) this.inputResolutions = new Map(options.inputResolutions ?? this.inputResolutions);
 		this.preparedContext = null;
@@ -210,6 +217,8 @@ export class VisualModuleRenderer {
 				.map(def => [def.id, context.evaluatedParamValues.get(def.id)])),
 			paramIdsByName: new Map(expressionParamDefs.map(def => [def.nameForReference, def.id])),
 		} satisfies VisualModuleParameterEvaluationContext;
+		const customParameters = new VisualModuleCustomParameterEvaluator({ paramDefs: this.paramDefs,
+			customParameterDefs: this.customParameterDefs, customParameterValues: this.customParameterValues }, evalCtx, this.parameterEvaluator);
 
 		const evaluated = new Map<VisualModuleEffectNode['id'], EvaluatedVisualModuleEffectNode>();
 		for (const node of this.nodes.filter((n): n is VisualModuleEffectNode => n.type === 'effect')) {
@@ -224,6 +233,7 @@ export class VisualModuleRenderer {
 			};
 			const nodeEvalCtx = {
 				...evalCtx,
+				customParameters,
 				variables: {
 					...evalCtx.variables,
 					...createResolutionExpressionVariables(resolution),
@@ -236,7 +246,9 @@ export class VisualModuleRenderer {
 				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
 				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
 					if (def.dataType.kind === 'audioSource' && param.inputSource === 'visualModulePublicParameterReference') return null;
-					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, nodeEvalCtx,
+					// 未選択は定義の初期値へ戻す。選択済みIDの欠落・型違いは評価側で報告し、初期値で隠さない。
+					const binding = param.inputSource === 'visualModuleCustomParameterValueReference' && param.parameterId === '' ? def.defaultValue : param;
+					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(binding, nodeEvalCtx,
 						def.dataType.kind === 'enum' ? null : genEmptyValue(def), def))); // TODO: genEmptyValueを遅延評価したい
 				});
 			}

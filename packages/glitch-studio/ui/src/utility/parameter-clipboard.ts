@@ -12,6 +12,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
+import { validateVisualModuleCustomParameterBinding } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
@@ -27,7 +28,7 @@ import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
-import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModule, VisualModuleValueParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineScene, TimelineLayer, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { EditableParameterBinding } from '../types/parameter-edit.ts';
@@ -53,11 +54,13 @@ export type ParameterClipboardData = {
 
 export type ProjectParameterClipboardTarget = { paramPath: ParamPath } & (
 	| { kind: 'node'; visualModuleTarget: VisualModuleTarget; nodeId: string }
+	| { kind: 'customParameter'; visualModuleTarget: VisualModuleTarget }
 	| { kind: 'timeline'; sceneId: string; layerId: string; parameterTarget: TimelineParameterTarget }
 );
 
 export type ParameterPasteContext = { state: ProjectState; source: ParameterClipboardSource } & (
 	| { kind: 'node'; visualModule: VisualModule; nodeId: string }
+	| { kind: 'customParameter'; visualModule: VisualModule }
 	| { kind: 'preview'; visualModule: VisualModule }
 	| { kind: 'timeline'; scene: TimelineScene; layer: Exclude<TimelineLayer, { layerType: 'folder' }>; parameterTarget: TimelineParameterTarget }
 );
@@ -188,6 +191,7 @@ function validateBinding(dataType: DataType, value: unknown): asserts value is E
 			if (binding.nodeId != null) validateSampling(binding);
 			break;
 		case 'visualModulePublicParameterReference': requireValid(typeof binding.parameterId === 'string'); break;
+		case 'visualModuleCustomParameterValueReference': requireValid(typeof binding.parameterId === 'string'); break;
 		case 'timelineLayerPublicParameterReference':
 			requireValid(binding.layerId === null && binding.parameterId === null || nonemptyString(binding.layerId) && nonemptyString(binding.parameterId));
 			break;
@@ -248,8 +252,9 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 		const allowInputs = context.parameterTarget === 'effect' || context.parameterTarget === 'module';
 		validateTimelineParameterTree(definition, binding, allowInputs, allowInputs);
 	} else {
-		requireValid(isValueParameterBinding(binding) || binding.inputSource === 'node' || binding.inputSource === 'visualModulePublicParameterReference');
-		if (context.kind === 'preview') requireValid(binding.inputSource !== 'node' && binding.inputSource !== 'visualModulePublicParameterReference');
+		requireValid(isValueParameterBinding(binding) || binding.inputSource === 'node' || binding.inputSource === 'visualModulePublicParameterReference' || binding.inputSource === 'visualModuleCustomParameterValueReference');
+		if (context.kind === 'preview') requireValid(binding.inputSource !== 'node' && binding.inputSource !== 'visualModulePublicParameterReference' && binding.inputSource !== 'visualModuleCustomParameterValueReference');
+		if (context.kind === 'customParameter') validateVisualModuleCustomParameterBinding(definition, binding as VisualModuleValueParameterBinding);
 		validateVisualModuleAudioBinding(definition, binding, context.visualModule.paramDefs);
 	}
 	switch (binding.inputSource) {
@@ -262,10 +267,10 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 		case 'automationGraphReference': {
 			if (binding.automationGraphId == null) break;
 			requireValid(sameProject);
-			const localGraphs = context.kind === 'timeline' ? context.layer.automationGraphs : context.kind === 'node' ? context.visualModule.automationGraphs : [];
+			const localGraphs = context.kind === 'timeline' ? context.layer.automationGraphs : context.kind === 'node' || context.kind === 'customParameter' ? context.visualModule.automationGraphs : [];
 			if (source.localAutomationGraphIds.includes(binding.automationGraphId)) {
 				requireValid(sameOwner(source, context.source) && localGraphs.some(graph => graph.id === binding.automationGraphId));
-			} else requireValid(context.kind !== 'node' && context.state.automationGraphs.value.some(graph => graph.id === binding.automationGraphId));
+			} else requireValid(context.kind !== 'node' && context.kind !== 'customParameter' && context.state.automationGraphs.value.some(graph => graph.id === binding.automationGraphId));
 			break;
 		}
 		case 'node': {
@@ -278,10 +283,17 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 			break;
 		}
 		case 'visualModulePublicParameterReference': {
-			requireValid(context.kind === 'node');
+			requireValid(context.kind === 'node' || context.kind === 'customParameter');
 			if (binding.parameterId === '') break;
 			const parameter = context.visualModule.paramDefs.find(candidate => candidate.id === binding.parameterId);
 			requireValid(sameOwner(source, context.source) && parameter != null && parameter.canNode !== true && areDataTypesEqual(parameter.dataType, definition.dataType));
+			break;
+		}
+		case 'visualModuleCustomParameterValueReference': {
+			requireValid(context.kind === 'node' || context.kind === 'customParameter');
+			if (binding.parameterId === '') break;
+			const parameter = context.visualModule.customParameterDefs.find(candidate => candidate.id === binding.parameterId);
+			requireValid(sameOwner(source, context.source) && parameter != null && areDataTypesEqual(parameter.dataType, definition.dataType));
 			break;
 		}
 		case 'timelineLayerPublicParameterReference': {
@@ -352,6 +364,13 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectId: st
 		root = resolveNodeParam(node, [rootKey]);
 		before = root.value;
 		context = { kind: 'node', state, nodeId: node.id, visualModule, source: createVisualModuleClipboardSource(projectId, target.visualModuleTarget, visualModule) };
+	} else if (target.kind === 'customParameter') {
+		const visualModule = getVisualModule(state, target.visualModuleTarget);
+		const definition = visualModule.customParameterDefs.find(candidate => candidate.id === rootKey);
+		requireValid(definition != null);
+		before = visualModule.customParameterValues[definition.id] ?? null;
+		root = { def: definition, value: before ?? definition.defaultValue };
+		context = { kind: 'customParameter', state, visualModule, source: createVisualModuleClipboardSource(projectId, target.visualModuleTarget, visualModule) };
 	} else {
 		const scene = getScene(state, target.sceneId);
 		const layer = findTimelineLayer(scene.layers, target.layerId);

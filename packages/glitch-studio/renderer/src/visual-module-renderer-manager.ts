@@ -322,7 +322,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId);
 			if (visualModule == null) this.stopRenderLoop();
 			else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule, {
-				preserveStaticState: visualModuleLivePreviewChanges.every(change => change.type === 'node' && canPreserveNodeStaticState(change.changes)),
+				preserveStaticState: visualModuleLivePreviewChanges.every(change => change.type === 'node' ? canPreserveNodeStaticState(change.changes) : change.type === 'visualModule' && change.customParameterValuesOnly === true),
 			});
 		}
 	}

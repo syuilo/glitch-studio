@@ -6,12 +6,18 @@ import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
 import type { ExpressionParameterDefinition } from '@gs/shared/parameter/expression-parameter-value.ts';
 import type { VisualModuleEvaluatedParameterValues } from '@gs/subsystems_visual-module_shared/parameter-evaluation.ts';
-import type { VisualModulePublicParameterId, VisualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleCustomParameterId, VisualModulePublicParameterId, VisualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+
+export interface VisualModuleCustomParameterResolver {
+	readByName(name: string): unknown;
+	readById(id: VisualModuleCustomParameterId, definition: ExpressionParameterDefinition): unknown;
+}
 
 export type VisualModuleParameterEvaluationContext = ParameterEvaluationScope & {
 	// canNode: falseだけを公開する。uniform入力でもInノード用の値は含めない。
 	evaluatedParamValues: VisualModuleEvaluatedParameterValues;
 	paramIdsByName: ReadonlyMap<VisualModulePublicParameterName, VisualModulePublicParameterId>;
+	customParameters?: VisualModuleCustomParameterResolver;
 };
 
 export class VisualModuleParameterBindingEvaluator {
@@ -22,6 +28,11 @@ export class VisualModuleParameterBindingEvaluator {
 		if (binding.inputSource === 'visualModulePublicParameterReference') {
 			return context.evaluatedParamValues.has(binding.parameterId) ? deepClone(context.evaluatedParamValues.get(binding.parameterId)) : fallback;
 		}
+		if (binding.inputSource === 'visualModuleCustomParameterValueReference') {
+			if (binding.parameterId === '') return deepClone(fallback);
+			if (context.customParameters == null) throw new Error('Custom parameters are unavailable');
+			return context.customParameters.readById(binding.parameterId, definition);
+		}
 		return this.valueEvaluator.evaluate(binding as ValueParameterBinding, {
 			...context,
 			functions: {
@@ -31,6 +42,11 @@ export class VisualModuleParameterBindingEvaluator {
 					const id = context.paramIdsByName.get(visualModulePublicParameterName(args[0]));
 					if (id == null || !context.evaluatedParamValues.has(id)) throw new Error(`Unknown or unavailable parameter: ${args[0]}`);
 					return deepClone(context.evaluatedParamValues.get(id));
+				},
+				CUSTOM: (...args) => {
+					if (args.length !== 1 || typeof args[0] !== 'string') throw new Error('CUSTOM requires a parameter name');
+					if (context.customParameters == null) throw new Error('Custom parameters are unavailable');
+					return context.customParameters.readByName(args[0]);
 				},
 			},
 		}, fallback, definition);

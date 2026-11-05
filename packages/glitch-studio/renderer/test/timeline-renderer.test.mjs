@@ -277,7 +277,7 @@ for (const outsideTime of [99, 200]) {
 					destroy() { this.destroyCount++; },
 				};
 				instances.push(instance);
-				return createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, entry.layer, instance);
+				return createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, entry.layer, instance);
 			},
 			present() {},
 		});
@@ -452,7 +452,7 @@ test('chains different layer types without requiring visual module fields', asyn
 						destroy() { destroyed.push('video'); },
 					};
 				case 'visualModule':
-					return createVisualModuleTimelineLayer({ primaryInputId: 'main', paramDefs: [
+					return createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, primaryInputId: 'main', paramDefs: [
 						{ id: 'main' },
 						{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } },
 					] }, entry.layer, {
@@ -484,7 +484,7 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 	const layerContexts = [];
 	const pending = deferred();
 	const signals = [];
-	const layer = createVisualModuleTimelineLayer({ paramDefs: [{ id: 'input' }], primaryInputId: 'input' }, { visualModuleParamValues: {}, automationGraphs: [] }, {
+	const layer = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [{ id: 'input' }], primaryInputId: 'input' }, { visualModuleParamValues: {}, automationGraphs: [] }, {
 		async prepare(context, signal) {
 			prepared.push(context);
 			signals.push(signal);
@@ -515,7 +515,7 @@ test('provides the background for compositing modules without a primary input', 
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const context = { sceneTimeMs: 800, contentTimeMs: 500, clipElapsedTimeMs: 500, clipDurationMs: 2000, contentEndTimeMs: 2000, timeDelta: 16, isExport: true, getInput: async () => background };
 	const graphs = [{ id: 'layer-graph', nameForReference: 'layer', isNormalized: true, points: [] }];
-	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: graphs }, {
+	const layer = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: graphs }, {
 		async prepare() {},
 		async render(moduleContext, layerContext) {
 			assert.deepEqual([...moduleContext.evaluatedParamValues], []);
@@ -537,7 +537,7 @@ test('skips visual module drawing when evaluation is aborted before or during pr
 	const pending = deferred();
 	const prepared = [];
 	const rendered = [];
-	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: [] }, {
+	const layer = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: [] }, {
 		async prepare(context) { prepared.push(context.time); await pending.promise; },
 		async render(context) { rendered.push(context.time); return { output: 'frame', gpuTime: 3 }; },
 		destroy() {},
@@ -616,7 +616,7 @@ test('separates clip instances and distinguishes transparent output from a gap',
 // TIME / END_TIMEで進行率を再計算する実装へ戻さないための契約。
 test('passes clip progress separately from module content time and scene arguments', async () => {
 	const contexts = [];
-	const adapter = createVisualModuleTimelineLayer({ primaryInputId: null, paramDefs: [
+	const adapter = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, primaryInputId: null, paramDefs: [
 		{ id: 'time', nameForReference: 'time', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 }, canNode: false },
 	] }, { visualModuleParamValues: { time: { inputSource: 'expression', expression: 'TIME_MS' } }, automationGraphs: [] }, {
 		async prepare(context) { contexts.push(context); }, async render() { return { gpuTime: 0 }; }, destroy() {},

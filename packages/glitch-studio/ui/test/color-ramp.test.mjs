@@ -37,7 +37,7 @@ const commands = evaluate(await build({
 test('preserves Color Ramp values and modifiers through merged edits, undo, redo and saving', async () => {
 	const { definition, COMMAND_DEFS, UndoRedo, encodeProjectFile, decodeProjectFile } = commands;
 	const node = { id: 'node', type: 'effect', effectId: 'colorRamp', resolution: { mode: 'context', scale: 1 }, staticSettings: {}, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, structuredClone(def.defaultValue)])) };
-	const visualModule = { id: 'visual-module', nodes: [node], paramDefs: [] };
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual-module', nodes: [node], paramDefs: [] };
 	const state = { visualModules: { value: [visualModule] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const target = { visualModuleId: visualModule.id, nodeId: node.id, paramPath: ['ramp'] };

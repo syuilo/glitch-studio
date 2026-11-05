@@ -26,7 +26,11 @@ import { getTimelineVideoHoldTrimBounds, trimTimelineVideoHold, validateTimeline
 import type { TimelineVideoHoldTiming } from '@gs/subsystems_timeline_shared/layers/video/video-hold.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
-import { visualModulePublicParameterId, visualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import { visualModulePublicParameterId, visualModulePublicParameterName, visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleCustomParameterDefinition, VisualModuleCustomParameterId, VisualModuleValueParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
+import { validateVisualModuleCustomParameterDefinition, validateVisualModuleCustomParameterBinding } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
+import type { VisualModuleValueParameterEdit } from './types/parameter-edit.ts';
+import { editVisualModuleCustomParameterBinding } from './utility/visual-module-custom-parameter-edit.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -98,7 +102,7 @@ import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
-import { createPublicParameterFromLiteral } from '@/utility/public-parameter-creation.ts';
+import { createNamedParameterFromLiteral } from '@/utility/named-parameter-creation.ts';
 import { preferences } from '@/preferences.ts';
 import { prepareProjectParameterPaste } from './utility/parameter-clipboard.ts';
 import type { ProjectParameterClipboardTarget, ParameterClipboardData } from './utility/parameter-clipboard.ts';
@@ -157,6 +161,7 @@ const pasteParameterCommandDef = defineCommand<{ target: ProjectParameterClipboa
 	label: 'Paste parameter',
 	changes: (_state, { target }) => target.kind === 'node'
 		? [{ type: 'node', target: target.visualModuleTarget, nodeId: target.nodeId, changes: [{ type: 'parameter', kind: 'value' }] }]
+		: target.kind === 'customParameter' ? [{ type: 'visualModule', target: target.visualModuleTarget, customParameterValuesOnly: true }]
 		: [{ type: 'layer', sceneId: target.sceneId, layerId: target.layerId, changes: [{ type: 'parameter', target: target.parameterTarget, kind: 'value' }] }],
 	create: payload => {
 		let update: { before: EditableParameterBinding | null; after: EditableParameterBinding } | null = null;
@@ -169,6 +174,12 @@ const pasteParameterCommandDef = defineCommand<{ target: ProjectParameterClipboa
 				if (node?.type !== 'effect' || binding == null) throw new Error('Parameter node not found');
 				// 初回の準備でVisual ModuleのBindingとして検証済み。Redoも同じスナップショットを使う。
 				node.params[rootKey] = deepClone(binding as VisualModuleParameterBinding);
+			} else if (target.kind === 'customParameter') {
+				const visualModule = getVisualModule(state, target.visualModuleTarget);
+				const definition = visualModule.customParameterDefs.find(candidate => candidate.id === rootKey);
+				if (definition == null) throw new Error('Custom parameter not found');
+				if (binding == null) delete visualModule.customParameterValues[definition.id];
+				else visualModule.customParameterValues = { ...visualModule.customParameterValues, [definition.id]: deepClone(binding as VisualModuleValueParameterBinding) };
 			} else {
 				const layer = findTimelineLayer(getScene(state, target.sceneId).layers, target.layerId);
 				if (layer == null) throw new Error('Parameter layer not found');
@@ -981,6 +992,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'keyframesTimelineInline':
 				return createInlineKeyframesTimeline(target.def, currentValue);
 			case 'visualModulePublicParameterReference': return { inputSource: 'visualModulePublicParameterReference', parameterId: visualModulePublicParameterId('') };
+			case 'visualModuleCustomParameterValueReference': return { inputSource: 'visualModuleCustomParameterValueReference', parameterId: visualModuleCustomParameterId('') };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
 				return { inputSource: 'node', nodeId: null, outputPort: null };
@@ -1062,6 +1074,15 @@ const updateParamAsVisualModulePublicParameterReferenceCommandDef = defineNodePa
 	(target, payload) => {
 		assertLeafParam(target);
 		return { inputSource: 'visualModulePublicParameterReference', parameterId: payload.value };
+	},
+	'connection',
+);
+
+const updateParamAsVisualModuleCustomParameterReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: VisualModuleCustomParameterId }>(
+	'Update param as Visual Module custom parameter reference',
+	(target, payload) => {
+		assertLeafParam(target);
+		return { inputSource: 'visualModuleCustomParameterValueReference', parameterId: payload.value };
 	},
 	'connection',
 );
@@ -1368,7 +1389,7 @@ const createVisualModulePublicParameterFromParamCommandDef = defineCommand<NodeP
 			execute(state) {
 				const visualModule = getVisualModule(state, payload);
 				const parameter = resolveNodeParam(getNode(state), payload.paramPath);
-				const definition = createPublicParameterFromLiteral(parameter.def, parameter.value, visualModule.paramDefs);
+				const definition = createNamedParameterFromLiteral(parameter.def, parameter.value, visualModule.paramDefs);
 				const publicParameterDefinition: VisualModuleParamDef = { ...definition, id: parameterId, nameForReference: visualModulePublicParameterName(definition.nameForReference) };
 				validateVisualModuleParamDef(visualModule, publicParameterDefinition);
 				before = deepClone(parameter.value);
@@ -1379,6 +1400,43 @@ const createVisualModulePublicParameterFromParamCommandDef = defineCommand<NodeP
 				resolveNodeParam(getNode(state), payload.paramPath).setValue(deepClone(before));
 				const visualModule = getVisualModule(state, payload);
 				visualModule.paramDefs = visualModule.paramDefs.filter(definition => definition.id !== parameterId);
+			},
+		};
+	},
+});
+
+const createVisualModuleCustomParameterFromParamCommandDef = defineCommand<NodeParamTarget>({
+	label: 'Create and connect Visual Module custom parameter',
+	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
+	create: payload => {
+		// 作成と参照切り替えを一つの履歴にし、Redoでも同じIDを使う。
+		const parameterId = visualModuleCustomParameterId(genId());
+		let before: VisualModuleParameterBinding;
+		let beforeDefinitions: VisualModule['customParameterDefs'];
+		const getParameter = (state: ProjectState) => {
+			const node = stateUtility.findNode(state, payload);
+			if (node?.type !== 'effect') throw new Error('Effect node not found');
+			return resolveNodeParam(node, payload.paramPath);
+		};
+		return {
+			execute(state) {
+				const visualModule = getVisualModule(state, payload);
+				const parameter = getParameter(state);
+				// 公開とは名前空間が異なるので、カスタムの定義だけから重複を避ける。
+				const definition = createNamedParameterFromLiteral(parameter.def, parameter.value, visualModule.customParameterDefs);
+				const customParameterDefinition: VisualModuleCustomParameterDefinition = {
+					...definition, id: parameterId, nameForReference: visualModuleCustomParameterName(definition.nameForReference),
+				};
+				validateVisualModuleCustomParameterDefinition(customParameterDefinition);
+				before = deepClone(parameter.value);
+				beforeDefinitions = deepClone(visualModule.customParameterDefs);
+				visualModule.customParameterDefs = [...visualModule.customParameterDefs, customParameterDefinition];
+				parameter.setValue({ inputSource: 'visualModuleCustomParameterValueReference', parameterId });
+			},
+			undo(state) {
+				getParameter(state).setValue(deepClone(before));
+				const visualModule = getVisualModule(state, payload);
+				visualModule.customParameterDefs = deepClone(beforeDefinitions);
 			},
 		};
 	},
@@ -1446,6 +1504,88 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 				module.paramDefs[index] = deepClone(before);
 				module.primaryInputId = primaryInputId;
 				module.primaryAudioInputId = primaryAudioInputId;
+			},
+		};
+	},
+});
+
+const updateVisualModuleCustomParameterCommandDef = defineCommand<VisualModuleTarget & { definition: VisualModuleCustomParameterDefinition }>({
+	label: 'Update Visual Module custom parameter',
+	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
+	create: payload => {
+		let beforeDefinitions: VisualModule['customParameterDefs'];
+		let beforeValues: VisualModule['customParameterValues'];
+		return {
+			execute(state) {
+				const visualModule = getVisualModule(state, payload);
+				const definition = deepClone(payload.definition);
+				validateVisualModuleCustomParameterDefinition(definition);
+				const definitions = visualModule.customParameterDefs;
+				if (definitions.some(candidate => candidate.id !== definition.id && candidate.nameForReference === definition.nameForReference)) throw new Error('Custom parameter name must be unique');
+				beforeDefinitions = deepClone(visualModule.customParameterDefs);
+				beforeValues = deepClone(visualModule.customParameterValues);
+				const previous = definitions.find(candidate => candidate.id === definition.id);
+				const values = { ...visualModule.customParameterValues };
+				// UIや既定値の編集では現在値を維持し、型の種類を変えた場合だけ初期状態へ戻す。
+				if (previous != null && previous.dataType.kind !== definition.dataType.kind) delete values[definition.id];
+				validateVisualModuleCustomParameterBinding(definition, values[definition.id] ?? definition.defaultValue);
+				visualModule.customParameterDefs = previous == null ? [...definitions, definition] : definitions.map(candidate => candidate.id === definition.id ? definition : candidate);
+				visualModule.customParameterValues = values;
+			},
+			undo(state) {
+				const visualModule = getVisualModule(state, payload);
+				visualModule.customParameterDefs = deepClone(beforeDefinitions);
+				visualModule.customParameterValues = deepClone(beforeValues);
+			},
+		};
+	},
+});
+
+const removeVisualModuleCustomParameterCommandDef = defineCommand<VisualModuleTarget & { parameterId: VisualModuleCustomParameterId }>({
+	label: 'Remove Visual Module custom parameter',
+	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
+	create: payload => {
+		let beforeDefinitions: VisualModule['customParameterDefs'];
+		let beforeValues: VisualModule['customParameterValues'];
+		return {
+			execute(state) {
+				const visualModule = getVisualModule(state, payload);
+				if (!visualModule.customParameterDefs.some(definition => definition.id === payload.parameterId)) throw new Error('Custom parameter not found');
+				beforeDefinitions = deepClone(visualModule.customParameterDefs);
+				beforeValues = deepClone(visualModule.customParameterValues);
+				visualModule.customParameterDefs = visualModule.customParameterDefs.filter(definition => definition.id !== payload.parameterId);
+				delete visualModule.customParameterValues[payload.parameterId];
+			},
+			undo(state) {
+				const visualModule = getVisualModule(state, payload);
+				visualModule.customParameterDefs = deepClone(beforeDefinitions);
+				visualModule.customParameterValues = deepClone(beforeValues);
+			},
+		};
+	},
+});
+
+const editVisualModuleCustomParameterCommandDef = defineCommand<VisualModuleTarget & { parameterId: VisualModuleCustomParameterId; edit: VisualModuleValueParameterEdit }>({
+	label: 'Edit Visual Module custom parameter',
+	changes: (_state, payload) => [{ type: 'visualModule', target: payload, customParameterValuesOnly: true }],
+	create: payload => {
+		let before: VisualModuleValueParameterBinding | null = null;
+		let after: VisualModuleValueParameterBinding | null = null;
+		return {
+			execute(state) {
+				const visualModule = getVisualModule(state, payload);
+				const definition = visualModule.customParameterDefs.find(candidate => candidate.id === payload.parameterId);
+				if (definition == null) throw new Error('Custom parameter not found');
+				if (after == null) {
+					before = deepClone(visualModule.customParameterValues[payload.parameterId] ?? null);
+					after = editVisualModuleCustomParameterBinding(definition, before ?? definition.defaultValue, payload.edit);
+				}
+				visualModule.customParameterValues = { ...visualModule.customParameterValues, [payload.parameterId]: deepClone(after) };
+			},
+			undo(state) {
+				const visualModule = getVisualModule(state, payload);
+				if (before == null) delete visualModule.customParameterValues[payload.parameterId];
+				else visualModule.customParameterValues = { ...visualModule.customParameterValues, [payload.parameterId]: deepClone(before) };
 			},
 		};
 	},
@@ -2925,7 +3065,7 @@ const createTimelineLayerPublicParameterFromParamCommandDef = defineCommand<{
 					: payload.target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(effectDefinitions[layer.effectId], rootKey) : rootDefinition.defaultValue;
 				const draft = { [rootKey]: deepClone(values[rootKey] ?? defaultBinding) };
 				const parameter = resolveParameter<EditableTimelineParameterBinding>(definitions, draft, payload.paramPath);
-				const definition: TimelineLayerPublicParameterDefinition = { ...createPublicParameterFromLiteral(parameter.def, parameter.value, layer.publicParameterDefs ?? []), id: parameterId };
+				const definition: TimelineLayerPublicParameterDefinition = { ...createNamedParameterFromLiteral(parameter.def, parameter.value, layer.publicParameterDefs ?? []), id: parameterId };
 				const publicParameterDefinitions = [...layer.publicParameterDefs ?? [], definition];
 				validateTimelineLayerPublicParameterDefinitions(publicParameterDefinitions);
 				parameter.setValue({ inputSource: 'timelineLayerPublicParameterReference', layerId: layer.id, parameterId });
@@ -3021,8 +3161,12 @@ const removeTimelineLayerPublicParameterCommandDef = defineCommand<{ sceneId: st
 });
 
 export const COMMAND_DEFS = {
+	updateVisualModuleCustomParameter: updateVisualModuleCustomParameterCommandDef,
+	removeVisualModuleCustomParameter: removeVisualModuleCustomParameterCommandDef,
+	editVisualModuleCustomParameter: editVisualModuleCustomParameterCommandDef,
 	createTimelineLayerPublicParameterFromParam: createTimelineLayerPublicParameterFromParamCommandDef,
 	createVisualModulePublicParameterFromParam: createVisualModulePublicParameterFromParamCommandDef,
+	createVisualModuleCustomParameterFromParam: createVisualModuleCustomParameterFromParamCommandDef,
 	wrapTimelineLayers: wrapTimelineLayersCommandDef,
 	convertTimelineContainer: convertTimelineContainerCommandDef,
 	updateTimelineLayerPublicParameter: updateTimelineLayerPublicParameterCommandDef,
@@ -3118,6 +3262,7 @@ export const COMMAND_DEFS = {
 	updateParamAsKeyframesTimelineInline: updateParamAsKeyframesTimelineInlineCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
 	updateParamAsVisualModulePublicParameterReference: updateParamAsVisualModulePublicParameterReferenceCommandDef,
+	updateParamAsVisualModuleCustomParameterReference: updateParamAsVisualModuleCustomParameterReferenceCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,
 	resetNodeParam: resetNodeParamCommandDef,
 	addArrayParamElement: addArrayParamElementCommandDef,

@@ -39,7 +39,7 @@ function fixture(projectId = 'project') {
 	const makeNode = id => ({ id, type: 'effect', effectId: definition.id, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, clone(def.defaultValue)])) });
 	const node = makeNode('destination');
 	const upstream = makeNode('upstream');
-	const visualModule = { id: 'visualModule', nodes: [node, upstream], automationGraphs: [], paramDefs: [], outputDefs: [] };
+	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visualModule', nodes: [node, upstream], automationGraphs: [], paramDefs: [], outputDefs: [] };
 	const layer = { id: 'effect', layerType: 'effect', effectId: definition.id, automationGraphs: [], effectParamValues: {} };
 	const shape = createShapeTimelineLayer('rectangle', 0);
 	shape.id = 'shape';
@@ -61,6 +61,30 @@ const sampling = { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nea
 const connected = { inputSource: 'node', nodeId: 'upstream', outputPort: 'output', ...sampling };
 const playback = { trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'clamp' };
 const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Scalar', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
+
+// 【カスタム値のコピー・貼り付けと内部参照を、所有Visual Moduleの範囲に限定する】
+// 同じIDの別Visual Moduleや外部公開引数へ内部参照を持ち込まず、値の貼り付けはUndoできるようにする。
+test('copies custom values with undo and confines custom references to their owning Visual Module', async () => {
+	const f = fixture();
+	f.visualModule.customParameterDefs = ['source', 'destination'].map(id => ({ ...scalarDefinition, id, nameForReference: id, canNode: false }));
+	f.visualModule.customParameterValues = { source: { inputSource: 'expression', expression: 'PUBLIC("speed") * 2', expressionModifier: { enabled: true, code: 'VALUE + TIME' } } };
+	const source = { kind: 'customParameter', visualModuleTarget: f.target.visualModuleTarget, paramPath: ['source'] };
+	const destination = { ...source, paramPath: ['destination'] };
+	let text = '';
+	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
+	await handleProjectParameterClipboard(f.context, source, 'copy', () => true, clipboard);
+	await handleProjectParameterClipboard(f.context, destination, 'paste', () => true, clipboard);
+	assert.deepEqual(f.visualModule.customParameterValues.destination, f.visualModule.customParameterValues.source);
+	f.history.undo();
+	assert.equal(f.visualModule.customParameterValues.destination, undefined);
+	f.history.redo();
+	assert.deepEqual(f.visualModule.customParameterValues.destination, f.visualModule.customParameterValues.source);
+	const reference = f.copy({ inputSource: 'visualModuleCustomParameterValueReference', parameterId: 'source' }, source);
+	const context = f.resolve(destination).context;
+	assert.ok(prepareParameterBindingPaste(scalarDefinition, reference, context));
+	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, { ...context, source: { ...context.source, owner: { kind: 'visualModule', target: { visualModuleId: 'other' } } } }), null);
+	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, { ...context, kind: 'preview' }), null);
+});
 
 // 【別ウィンドウへのコピーで式・キー・グラフ・加工設定を独立したスナップショットとして保持する】
 // コンテナの一部だけを移したり、コピー後の編集がクリップボードを変更すると設定を再現できない。
