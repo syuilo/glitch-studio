@@ -22,6 +22,10 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 プロジェクトの操作はCommandを通し、Undo/Redoとレンダラー同期を同じ変更通知から行う。
 
+通常のパラメータの固定値・式入力は、同じCommandの種類・編集対象・パラメータパス・編集種別への更新が前回から2000ms以内なら、一つのUndo履歴へ自動でまとめる。対象はノード、Timelineレイヤー、Visual Moduleのカスタム値。公開・カスタムパラメータの定義編集、キー・Automation Graphの編集、接続・入力方式変更・リセットなどは自動マージしない。`CommandDef.getAutoMergeKey`が対象と項目の同一性を定義し、`UndoRedo`が直前の履歴と経過時間を判定する。値の反映と変更通知は更新ごとに行い、Undoでは最初の状態、Redoでは最後の状態を復元する。
+
+通常入力ではドラッグ中・ポップアップ表示中・フォーカス中も時間で履歴を区切るため、2000msを超えて更新が止まれば次の更新は別履歴になる。Undo/Redo、別のCommand、明示的な`mergeKey`による操作、`beginEdit()`を挟んだ場合も自動マージの連続性を切る。Timelineのドラッグやキー・グラフ編集の明示キー、プレビュー編集などの`beginEdit()`による確定・取消しは維持し、自動マージとは結合しない。
+
 ## 数値入力の式による確定
 
 `GsInput`の`allowExpression`は既定で`true`。`type="number"`かつ`allowExpression`かつ`manualSave`の場合、AiScriptの式を入力できる。式はドラフトとして保持し、保存ボタン・Enter・保存ショートカットで確定するときに評価する。成功時は入力内容を評価結果の数値へ置き換え、`update:modelValue`にも数値だけを通知する。解析・評価は`GsInput.vue`内でAiScriptのParser・Interpreterを直接使用し、確定ごとに新しいInterpreterを作る。通常の四則演算やAiScriptの標準関数を利用できるが、プロジェクトや再生時刻の変数は渡さない。

@@ -101,14 +101,13 @@
 					<GsLiteralLeafValueControl
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
+						data-test-parameter-value-control
 						:dataType="paramDef.dataType"
 						:control="paramDef.ui.control"
 						:title="label ?? paramDef.ui.label"
 						:value="paramValue.value"
 						@input="updateParamAsLiteral"
-						@beginChanging="onBeginChanging"
-						@changeContinuous="changeContinuous"
-						@changeFinished="onFinishChanging"
+						@changeContinuous="updateParamAsLiteral"
 						@reset="onReset"
 					/>
 				</div>
@@ -251,7 +250,6 @@ import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-par
 import { visualModulePublicParameterId, visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { VISUAL_MODULE_CUSTOM_PARAMETER_TYPES } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
 import { computed, inject, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
-import { genId } from '@gs/shared/utility/id.ts';
 import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import * as AiScript from '@syuilo/aiscript';
@@ -433,11 +431,9 @@ const nodeConnection = computed<NodeOutputReference | null>(() => props.paramVal
 const controlComponent = useTemplateRef('controlComponent');
 const inlineGraphEditorOpen = ref(false);
 
-let commandMergeKey: string | null = null;
 let mounted = true;
 onBeforeUnmount(() => { mounted = false; });
 watch([() => props.visualModule, () => JSON.stringify([props.node?.id, props.paramPath, props.paramValue.inputSource])], () => {
-	commandMergeKey = null;
 	inlineGraphEditorOpen.value = false;
 });
 
@@ -676,23 +672,6 @@ function showLowerLayerOutputSamplingMenu(ev: PointerEvent) {
 
 function onRowContextmenu(ev: PointerEvent) {
 	ui.contextMenu(getMenu(), ev);
-}
-
-function onBeginChanging() {
-	commandMergeKey = genId();
-}
-
-function changeContinuous(value: any) {
-	if (mounted) emit('edit', {
-		kind: 'literal',
-		...target(),
-		value,
-		mergeKey: commandMergeKey,
-	});
-}
-
-function onFinishChanging() {
-	commandMergeKey = null;
 }
 
 function updateParamAsLiteral(value: any) {

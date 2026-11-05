@@ -5,6 +5,9 @@ import { deepClone } from '@gs/shared/utility/deep-clone.js';
 
 export type CommandDef<S, Payload, Change> = {
 	label: string;
+	// 最後のexecuteだけで連続編集の最終状態を再現できる操作に限り許可する。
+	// 同じ種類でも対象や編集項目が異なる場合は、別のキーを返すこと。
+	getAutoMergeKey?: (payload: Payload) => string | null;
 	// 確定した状態の変更対象・内容を宣言する。どの通知を同期するか、キャッシュや
 	// 実行インスタンスを保持するかは購読側の責務とし、履歴操作でも同じ通知を使う。
 	changes: (state: S, payload: Payload) => Change[];
@@ -32,6 +35,7 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 	private changeListeners = new Set<(changes: Change[]) => void>();
 	private commandDefs: Commands;
 	private activeEdit: { finish(): void; cancel(): void } | null = null;
+	private autoMergeCandidate: { command: CommandLog<S, Change, Commands>; key: string; lastUpdatedAt: number } | null = null;
 
 	public onChange(listener: (changes: Change[]) => void): () => void {
 		this.changeListeners.add(listener);
@@ -66,6 +70,8 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 	 */
 	public beginEdit<T extends keyof Commands>(type: T) {
 		this.activeEdit?.finish();
+		// 確定も取消しも独立した操作の境界とし、前後の通常入力をつなげない。
+		this.autoMergeCandidate = null;
 		let active = true;
 		let pending: CommandLog<S, Change, Commands> | null = null;
 		const end = () => { active = false; this.activeEdit = null; };
@@ -101,32 +107,39 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 
 	public commit<T extends keyof Commands>(type: T, payload: Parameters<Commands[T]['create']>[0], mergeKey?: string | null) {
 		this.activeEdit?.finish();
+		const commandDef = this.commandDefs[type] as CommandDef<S, Parameters<Commands[T]['create']>[0], Change>;
+		// 明示キーのある操作と自動マージは互いに独立させ、別ドラッグまで吸収しない。
+		const autoMergeKey = mergeKey == null ? commandDef.getAutoMergeKey?.(payload) ?? null : null;
+		const now = performance.now();
 		const command = this.createCommand(type, payload);
 		command.execute(this.state);
 
 		const latest = this.undoStack.value.at(-1);
-		if (latest != null && mergeKey != null && latest.mergeKey === mergeKey) {
-			latest.execute = command.execute;
+		const candidate = this.autoMergeCandidate;
+		const canAutoMerge = candidate != null && candidate.command === latest && candidate.key === autoMergeKey
+			&& now - candidate.lastUpdatedAt <= 2000;
+		const canMerge = latest != null && latest.type === type
+			&& (mergeKey != null ? latest.mergeKey === mergeKey : canAutoMerge);
+		const commandLog: CommandLog<S, Change, Commands> = canMerge ? latest : { type, date: Date.now(), ...command, mergeKey };
+		if (canMerge) {
+			commandLog.execute = command.execute;
 		} else {
-			this.undoStack.value.push({
-				type,
-				date: Date.now(),
-				execute: command.execute,
-				undo: command.undo,
-				mergeKey,
-			});
+			this.undoStack.value.push(commandLog);
 			if (this.undoStack.value.length > this.maxUndoStackSize) {
 				this.undoStack.value.shift();
 			}
 			triggerRef(this.undoStack);
 			console.log('Committed command:', type, deepClone(payload));
 		}
+		// 作成時刻ではなく直前の更新から測るため、マージできた場合も時刻を進める。
+		this.autoMergeCandidate = autoMergeKey == null ? null : { command: commandLog, key: autoMergeKey, lastUpdatedAt: now };
 
 		this.redoStack.value = [];
 		triggerRef(this.redoStack);
 	}
 
 	public undo() {
+		this.autoMergeCandidate = null;
 		if (this.activeEdit != null) { this.activeEdit.cancel(); return; }
 		const command = this.undoStack.value.pop();
 		triggerRef(this.undoStack);
@@ -137,6 +150,7 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 	}
 
 	public redo() {
+		this.autoMergeCandidate = null;
 		if (this.activeEdit != null) this.activeEdit.cancel();
 		const command = this.redoStack.value.pop();
 		triggerRef(this.redoStack);

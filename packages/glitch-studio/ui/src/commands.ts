@@ -17,6 +17,7 @@ import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
+import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import { createLowerLayerOutputBinding, getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { canReferenceScene, validateTimelineLayer } from '@gs/subsystems_timeline_shared/scenes.ts';
@@ -259,6 +260,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 	| { target: 'effect' | 'module'; edit: { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding } | { kind: 'inputSource'; inputSource: 'lowerLayerOutput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
 )>({
 	label: 'Edit timeline layer param',
+	getAutoMergeKey: payload => payload.edit.kind === 'literal' || payload.edit.kind === 'expression'
+		? JSON.stringify([payload.sceneId, payload.layerId, payload.target ?? 'module', payload.paramPath, payload.edit.kind]) : null,
 	changes: (_state, payload) => {
 		let kind: ParameterChangeKind;
 		switch (payload.edit.kind) {
@@ -919,10 +922,12 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 	label: string,
 	update: (target: ReturnType<typeof resolveNodeParam>, payload: Payload) => VisualModuleParameterBinding,
 	kind: ParameterChangeKind = 'value',
-	options: { preserveExpressionModifier?: boolean } = {},
+	options: { preserveExpressionModifier?: boolean; autoMerge?: boolean } = {},
 ) {
 	return defineCommand<Payload>({
 		label,
+		getAutoMergeKey: payload => options.autoMerge === true
+			? JSON.stringify([visualModuleTargetKey(payload), payload.nodeId, payload.paramPath]) : null,
 		changes: (_state, payload) => [{
 			type: 'node',
 			target: payload,
@@ -1009,6 +1014,8 @@ const updateParamAsLiteralCommandDef = defineNodeParamCommand<NodeParamTarget & 
 		assertLeafParam(target);
 		return { inputSource: 'literal', value: payload.value };
 	},
+	'value',
+	{ autoMerge: true },
 );
 
 const updateParamAsEnvVariableCommandDef = defineNodeParamCommand<NodeParamTarget & { value: ExpressionVariableName }>(
@@ -1025,6 +1032,8 @@ const updateParamAsExpressionCommandDef = defineNodeParamCommand<NodeParamTarget
 		assertLeafParam(target);
 		return { inputSource: 'expression', expression: payload.value };
 	},
+	'value',
+	{ autoMerge: true },
 );
 
 const updateParamExpressionModifierCommandDef = defineNodeParamCommand<NodeParamTarget & { value: ParameterExpressionModifier | null }>(
@@ -1567,6 +1576,8 @@ const removeVisualModuleCustomParameterCommandDef = defineCommand<VisualModuleTa
 
 const editVisualModuleCustomParameterCommandDef = defineCommand<VisualModuleTarget & { parameterId: VisualModuleCustomParameterId; edit: VisualModuleValueParameterEdit }>({
 	label: 'Edit Visual Module custom parameter',
+	getAutoMergeKey: payload => payload.edit.kind === 'literal' || payload.edit.kind === 'expression'
+		? JSON.stringify([visualModuleTargetKey(payload), payload.parameterId, payload.edit.kind]) : null,
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload, customParameterValuesOnly: true }],
 	create: payload => {
 		let before: VisualModuleValueParameterBinding | null = null;

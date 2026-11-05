@@ -21,6 +21,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export * from './src/utility/preview-parameter-editing.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
+		export { commitVisualModuleEdit } from './src/utility/visual-module-edit.ts';
 		export { appContext } from './src/app.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'preview-parameter-controls', setup(build) {
@@ -47,7 +48,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Parameter, Positions, PreviewParameterEditingController, previewParameterContextKey, UndoRedo, COMMAND_DEFS, appContext } = module.exports;
+const { Parameter, Positions, PreviewParameterEditingController, previewParameterContextKey, UndoRedo, COMMAND_DEFS, commitVisualModuleEdit, appContext } = module.exports;
 
 function findAll(root, predicate) {
 	return [root, ...root.children.flatMap(child => findAll(child, predicate))].filter(predicate);
@@ -112,6 +113,7 @@ async function fixture(t, { showGrid = false } = {}) {
 	const app = renderer.createApp({ render: () => h('main', [
 		...(showParameters.value ? Object.entries(effect.paramDefs).map(([key, definition]) => h(Parameter, {
 			key, node, automationGraphs: [], availableVariables: [], paramDef: definition, paramValue: node.params[key], paramPath: [key],
+			onEdit: edit => commitVisualModuleEdit(manager, { visualModuleId: visualModule.id }, { kind: 'editNodeParam', nodeId: node.id, edit }),
 		})) : []),
 		h(Positions, { canvasRect, showGrid }),
 	]) });
@@ -145,6 +147,29 @@ async function fixture(t, { showGrid = false } = {}) {
 	const frame = async () => { const pending = [...frames.values()]; frames.clear(); for (const callback of pending) callback(); await nextTick(); };
 	return { root, doc, manager, node, editing, scope, showParameters, toggles, handles, begin, pointer, frame };
 }
+
+// 【通常入力は操作開始通知に依存せず、ドラッグ中の休止でも時間で履歴を分ける】
+// GsVisualParamが明示キーを発行し続けると、Command側に時間判定を追加しても常に
+// ドラッグ全体がまとまる。実コンポーネントの値通知からCommand・Undo/Redoまで確認する。
+test('automatically merges ordinary value controls and splits an idle continuous input', async t => {
+	let now = 0;
+	t.mock.method(performance, 'now', () => now);
+	t.mock.method(console, 'log', () => {});
+	const f = await fixture(t);
+	const control = () => findAll(f.root, node => Object.hasOwn(node.props, 'data-test-parameter-value-control'))[0];
+	control().props.onBeginChanging?.();
+	control().props.onChangeContinuous([0.1, 0.2]); await nextTick();
+	now = 2000;
+	control().props.onChangeContinuous([0.2, 0.3]); await nextTick();
+	assert.equal(f.manager.undoStack.value.length, 1);
+	now = 4001;
+	control().props.onChangeContinuous([0.3, 0.4]); await nextTick();
+	control().props.onChangeFinished?.();
+	assert.equal(f.manager.undoStack.value.length, 2);
+	f.manager.undo(); assert.deepEqual(f.node.params.first.value, [0.2, 0.3]);
+	f.manager.undo(); assert.deepEqual(f.node.params.first.value, [0, 0]);
+	f.manager.redo(); f.manager.redo(); assert.deepEqual(f.node.params.first.value, [0.3, 0.4]);
+});
 
 // 【全XYコントロールにボタンを表示し、複数を有効にして重なる位置も区別する】
 // 一つを選ぶと他が解除される実装や、Scaleなど別コントロールへの誤表示を防ぐ。
