@@ -20,7 +20,7 @@ async function loadInputComponent(fileName) {
 			setup(build) {
 				build.onResolve({ filter: /^@/ }, args => ({ path: args.path, namespace: 'stub' }));
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({
-					contents: 'export default {}; export const genId = () => "test"; export const i18n = {}; export class Autocomplete {}',
+					contents: 'export default {}; export const genId = () => "test"; export const claimZIndex = () => 3000100; export const i18n = {}; export class Autocomplete {}',
 				}));
 			},
 		}],

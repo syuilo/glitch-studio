@@ -1,7 +1,7 @@
 <template>
 <div class="_selectable" :class="[$style.root, { [$style.small]: small, [$style.large]: large }]">
 	<div :class="$style.label" @click="focus"><slot name="label"></slot></div>
-	<div :class="[$style.input, { [$style.inline]: inline, [$style.disabled]: disabled, [$style.focused]: focused }]">
+	<div :class="[$style.input, { [$style.inline]: inline, [$style.disabled]: disabled, [$style.focused]: focused }]" :style="{ anchorName: inputAnchorName }">
 		<div ref="prefixEl" :class="$style.prefix"><slot name="prefix"></slot></div>
 		<input
 			ref="inputEl"
@@ -33,10 +33,12 @@
 	</div>
 	<div :class="$style.caption"><slot name="caption" :value="v"></slot></div>
 
-	<div v-if="manualSave && changed" :class="$style.manualSaveActions">
-		<GsButton data-test-input-save small primary :disabled="disabled || readonly" icon="ti ti-check" @click="updated">{{ i18n.ts.Save }}</GsButton>
-		<GsButton data-test-input-cancel small :disabled="disabled || readonly" icon="ti ti-x" @click="cancelEditing">{{ i18n.ts.Cancel }}</GsButton>
-	</div>
+	<Teleport to="body">
+		<div v-if="manualSave && changed" :class="$style.manualSaveActions" class="_popup _shadow" :style="{ positionAnchor: inputAnchorName, zIndex: manualSaveActionsZIndex }">
+			<GsButton iconOnly data-test-input-save small primary :disabled="disabled || readonly" icon="ti ti-check" @click="updated"></GsButton>
+			<GsButton iconOnly data-test-input-cancel small :disabled="disabled || readonly" icon="ti ti-x" @click="cancelEditing"></GsButton>
+		</div>
+	</Teleport>
 </div>
 </template>
 
@@ -57,6 +59,7 @@ import type { SuggestionType } from '@/utility/autocomplete.ts';
 import GsButton from '@/components/common/GsButton.vue';
 import { i18n } from '@/i18n.ts';
 import { Autocomplete } from '@/utility/autocomplete.ts';
+import * as ui from '@/ui.ts';
 
 const props = defineProps<{
 	modelValue: ModelValueType<T> | null;
@@ -95,6 +98,9 @@ const emit = defineEmits<{
 const { modelValue } = toRefs(props);
 const v = ref<ModelValueType<T> | null>(modelValue.value);
 const id = genId();
+// Teleport先ではコンポーネント内のスコープを共有できないため、入力欄ごとに名前を分ける。
+const inputAnchorName = `--gs-input-${id}`;
+const manualSaveActionsZIndex = ui.claimZIndex('high');
 const focused = ref(false);
 const changed = ref(false);
 const invalid = ref(false);
@@ -354,9 +360,15 @@ defineExpose({
 	right: 0;
 	padding-left: 6px;
 }
+
 .manualSaveActions {
+	position: fixed;
+	top: anchor(bottom);
+	left: anchor(left);
 	display: flex;
-	gap: 8px;
-	margin: 8px 0 0 0;
+	gap: 6px;
+	padding: 6px;
+	border-radius: 0 0 5px 5px;
+	box-sizing: border-box;
 }
 </style>
