@@ -135,6 +135,29 @@ test('steps every ten vertical pixels and applies manual-save changes immediatel
 	assert.equal(edits.length, 3);
 });
 
+// 【Shiftを押したドラッグではstepの1/10で増減し、途中でも切り替えられる】
+// 微調整中も10pxの移動単位と即時反映を維持し、Shiftを離した後は通常の増減幅へ戻す。
+test('uses one tenth of the step while Shift is held and switches during a drag', async t => {
+	const { edits, input } = fixture(t, { type: 'number', modelValue: 1, manualSave: true, step: '0.1' });
+	const { event } = stepperPointer();
+	input.onStepperPointerDown(event(100, { shiftKey: true }));
+	input.onStepperPointerMove(event(91, { shiftKey: true }));
+	assert.deepEqual(edits, []);
+	input.onStepperPointerMove(event(90, { shiftKey: true }));
+	await nextTick();
+	assert.deepEqual(edits, [1.01]);
+	input.onStepperPointerMove(event(100, { shiftKey: true }));
+	await nextTick();
+	assert.deepEqual(edits, [1.01, 1]);
+	input.onStepperPointerMove(event(90, { shiftKey: false }));
+	await nextTick();
+	assert.deepEqual(edits, [1.01, 1, 1.1]);
+	input.onStepperPointerUp(event(80, { shiftKey: true }));
+	await nextTick();
+	assert.deepEqual(edits, [1.01, 1, 1.1, 1.11]);
+	assert.equal(input.changed, false);
+});
+
 // 【指数表記になる小さなstepでも数値のまま確定する】
 // stepperが生成した数値を再び式として解析すると、式言語の構文次第で正しい数値も適用できなくなる。
 test('applies small stepper values without reparsing them as expressions', async t => {

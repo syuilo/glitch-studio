@@ -170,9 +170,11 @@ function onStepperPointerMove(event: PointerEvent) {
 	const steps = Math.trunc((stepperDrag.clientY - event.clientY) / 10);
 	if (steps === 0) return;
 	stepperDrag.clientY -= steps * 10;
+	// ドラッグ途中でもShiftによる微調整へ切り替えられるよう、移動イベントごとに判定する。
+	const step = event.shiftKey ? stepperDrag.step / 10 : stepperDrag.step;
 	// 小数stepを繰り返し足した際の浮動小数点誤差が、表示に蓄積しないようにする。
 	const nextValue = Math.min(props.max ?? Infinity, Math.max(props.min ?? -Infinity,
-		Number((value + steps * stepperDrag.step).toPrecision(15))));
+		Number((value + steps * step).toPrecision(15))));
 	if (!Number.isFinite(nextValue) || nextValue === value) return;
 	// vの同期watchによる通常の通知を抑え、即時反映時の二重通知・遅延通知を防ぐ。
 	updatingFromStepper = true;
