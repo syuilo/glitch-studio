@@ -8,7 +8,7 @@ import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
-// 【Fractal Noiseの座標場・fBm・時間・出力範囲を実際のWebGPUで確認する】
+// 【Fractal Noiseの全ノイズ方式・合成モード・座標場・時間・出力範囲を実際のWebGPUで確認する】
 // WGSLのコンパイルだけでは座標の倍率・回転方向・入力bindingの誤りは分からない。
 // 単発ノイズとの加重平均や座標場の恒等変換を使い、hashの実装をテスト側へ複製せずに検証する。
 test('renders deterministic fractal noise with absolute coordinate fields on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
@@ -42,7 +42,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'Fractal Noise GPU test timed out' }), 75000);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
-		assert.ok(output.checks.length >= 12);
+		assert.ok(output.checks.length >= 37);
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {
 		clearTimeout(timer);

@@ -12,9 +12,20 @@ export default defineEffect({
 	tags: ['noise', 'utility'],
 	paramDefs: {
 		noiseType: {
-			dataType: { kind: 'enum', options: ['value', 'simplex'] },
-			ui: { label: 'Noise Type', control: { labels: { value: 'Value Noise', simplex: 'Simplex Noise' } } },
+			dataType: { kind: 'enum', options: ['value', 'simplex', 'perlin', 'worley'] },
+			ui: { label: 'Noise Type', control: { labels: { value: 'Value Noise', simplex: 'Simplex Noise', perlin: 'Perlin Noise', worley: 'Worley Noise' } } },
 			defaultValue: { inputSource: 'literal', value: 'value' },
+		},
+		fractalMode: {
+			dataType: { kind: 'enum', options: ['fbm', 'turbulence', 'ridged', 'pingPong'] },
+			ui: { label: 'Fractal Mode', control: { labels: { fbm: 'fBm', turbulence: 'Turbulence', ridged: 'Ridged', pingPong: 'Ping Pong' } } },
+			defaultValue: { inputSource: 'literal', value: 'fbm' },
+		},
+		pingPongStrength: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Ping Pong Strength', isAdvanced: true, control: { controlType: 'number', min: 0, max: 10, step: 0.1 } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 2 },
 		},
 		coordinateSource: {
 			dataType: { kind: 'enum', options: ['screen', 'input'] },

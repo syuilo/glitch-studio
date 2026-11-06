@@ -10,6 +10,10 @@ import type definition from './_def_.ts';
 
 const code = simplexNoiseCode + '\n' + shaderCode;
 
+// shader.wgslの分岐と対応する。方式やモードの変更ではpipelineを作り直さない。
+const noiseTypes = { value: 0, simplex: 1, perlin: 2, worley: 3 } as const;
+const fractalModes = { fbm: 0, turbulence: 1, ridged: 2, pingPong: 3 } as const;
+
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
@@ -28,7 +32,7 @@ export default implementEffect<typeof definition>({
 			device,
 			vertex: wgpu.defaultVertexShaderModule,
 			code,
-			schema: { coordinates: 'vector', density: 'vector', offset: 'vector', gain: 'scalar', lacunarity: 'scalar', outputMin: 'scalar', outputMax: 'scalar' },
+			schema: { coordinates: 'vector', density: 'vector', offset: 'vector', gain: 'scalar', lacunarity: 'scalar', pingPongStrength: 'scalar', outputMin: 'scalar', outputMax: 'scalar' },
 			targets: [{ format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' }],
 			internalLayouts: [layout],
 			sampling: 'level0',
@@ -48,7 +52,8 @@ export default implementEffect<typeof definition>({
 					halfExtent: getSpatialHalfExtent(resolution),
 					referenceScale: Math.max(resolution.width, resolution.height) / referenceLength,
 					coordinateSource: ctx.params.coordinateSource === 'input' ? 1 : 0,
-					noiseType: ctx.params.noiseType === 'simplex' ? 1 : 0,
+					noiseType: noiseTypes[ctx.params.noiseType],
+					fractalMode: fractalModes[ctx.params.fractalMode],
 					octaves: Number.isFinite(ctx.params.octaves) ? Math.min(16, Math.max(1, Math.round(ctx.params.octaves))) : 4,
 					octaveRotation: [Math.cos(rotation), Math.sin(rotation)],
 					time: ctx.params.time,
@@ -60,6 +65,7 @@ export default implementEffect<typeof definition>({
 					offset: ctx.params.offset,
 					gain: ctx.params.gain,
 					lacunarity: ctx.params.lacunarity,
+					pingPongStrength: ctx.params.pingPongStrength,
 					outputMin: ctx.params.outputMin,
 					outputMax: ctx.params.outputMax,
 				}, ctx.outputDataMap.output.texture);

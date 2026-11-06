@@ -6,6 +6,7 @@ import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import seedrandom from 'seedrandom';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 const scalar = (value: number) => constantShaderInput('scalar', value);
@@ -94,7 +95,7 @@ export async function run() {
 			};
 			const render = createEffect(9, 5, precise);
 			const sample = createEffect(1, 1, precise);
-			for (const noiseType of ['value', 'simplex'] as const) {
+			for (const noiseType of ['value', 'simplex', 'perlin', 'worley'] as const) {
 				const settings: Partial<Parameters> = { noiseType, seed: 31, time: 0.37 };
 				const label = `${precisionLabel}/${noiseType}`;
 
@@ -121,9 +122,11 @@ export async function run() {
 				let amplitude = 1;
 				let weightedSum = 0;
 				let totalWeight = 0;
+				const octaveValues: number[] = [];
 				for (let octave = 0; octave < 4; octave++) {
 					const value = (await sample({ ...settings, coordinateSource: 'input', coordinates: vector(octavePoint as [number, number]), density: vector([1, 1]), time: octaveTime, octaves: 1 }))[0];
 					weightedSum += amplitude * value;
+					octaveValues.push(value);
 					totalWeight += amplitude;
 					amplitude *= gain;
 					octavePoint = [octavePoint[1] * lacunarity, -octavePoint[0] * lacunarity];
@@ -137,6 +140,30 @@ export async function run() {
 				compare(await sample({ ...fBmSettings, octaves: 2.4 }), await sample({ ...fBmSettings, octaves: 2 }), `${label} rounded octaves`);
 				compare(await sample({ ...fBmSettings, octaves: 16, gain: scalar(1), lacunarity: scalar(1), octaveRotation: 0 }), await sample({ ...fBmSettings, octaves: 1 }), `${label} amplitude normalization`);
 				checks.push(`${label} normalized rotated octaves`);
+
+				// 【Fractal Modeは合成前の各段を加工する】
+				// 単発ノイズの値から求めた4段の加重平均と比較し、合成後に絶対値や
+				// 折り返しを適用してしまう誤りを防ぐ。同じinstanceで全モードを切り替える。
+				for (const fractalMode of ['turbulence', 'ridged', 'pingPong'] as const) {
+					const strength = 2.3;
+					const shapedValues = octaveValues.map(value => {
+						if (fractalMode === 'turbulence') return Math.abs(2 * value - 1);
+						if (fractalMode === 'ridged') return (1 - Math.abs(2 * value - 1)) ** 2;
+						const trianglePosition = (2 * value * strength) % 2;
+						return trianglePosition <= 1 ? trianglePosition : 2 - trianglePosition;
+					});
+					const expected = shapedValues.reduce((sum, value, octave) => sum + value * gain ** octave, 0) / totalWeight;
+					near((await sample({ ...fBmSettings, fractalMode, pingPongStrength: scalar(strength) }))[0], expected, `${label}/${fractalMode} weighted octaves`, precise ? 0.0003 : 0.004);
+					const once = await render({ ...settings, fractalMode });
+					await render({ ...settings, fractalMode, time: 3.1 });
+					compare(await render({ ...settings, fractalMode }, 1000), once, `${label}/${fractalMode} deterministic seek`);
+					checks.push(`${label}/${fractalMode} per-octave shaping and deterministic time`);
+				}
+				compare(await render(settings), initial, `${label} restored fBm`);
+				for (const strength of [0, -1]) {
+					const flat = await render({ ...settings, fractalMode: 'pingPong', pingPongStrength: scalar(strength) });
+					flat.forEach(value => near(value, 0, `${label} nonpositive ping pong strength`));
+				}
 
 				// 【座標場の恒等写像はScreenと一致する】
 				// 横長・縦長と全サイズ基準で、座標場の値をUVや変位と取り違えないことを確認する。
@@ -167,36 +194,66 @@ export async function run() {
 					offset: createField(3, 2, precise, (x, y) => [x * 0.25, -y * 0.5]),
 					gain: createField(3, 2, precise, x => [x * 0.5]),
 					lacunarity: createField(3, 2, precise, (_x, y) => [1.5 + y]),
+					pingPongStrength: createField(3, 2, precise, x => [0.5 + 1.25 * x]),
 					outputMin: createField(3, 2, precise, x => [-3 + x]),
 					outputMax: createField(3, 2, precise, (_x, y) => [2 + y]),
 				};
 				const fieldInputs = Object.fromEntries(Object.entries(fields).map(([name, field]) => [name, field.input]));
-				const pixels = await createEffect(3, 2, precise)({ ...settings, coordinateSource: 'input', ...fieldInputs });
-				for (let index = 0; index < 6; index++) {
-					const uniformInputs: Record<string, ShaderInput> = {};
-					for (const [name, field] of Object.entries(fields)) {
-						uniformInputs[name] = ['coordinates', 'density', 'offset'].includes(name)
-							? vector([field.values[index * 4], field.values[index * 4 + 1]])
-							: scalar(field.values[index * 4]);
+				const renderFields = createEffect(3, 2, precise);
+				for (const fractalMode of ['fbm', 'pingPong'] as const) {
+					const pixels = await renderFields({ ...settings, fractalMode, coordinateSource: 'input', ...fieldInputs });
+					for (let index = 0; index < 6; index++) {
+						const uniformInputs: Record<string, ShaderInput> = {};
+						for (const [name, field] of Object.entries(fields)) {
+							uniformInputs[name] = ['coordinates', 'density', 'offset'].includes(name)
+								? vector([field.values[index * 4], field.values[index * 4 + 1]])
+								: scalar(field.values[index * 4]);
+						}
+						near(pixels[index], (await sample({ ...settings, fractalMode, coordinateSource: 'input', ...uniformInputs }))[0], `${label}/${fractalMode} field inputs ${index}`);
 					}
-					near(pixels[index], (await sample({ ...settings, coordinateSource: 'input', ...uniformInputs }))[0], `${label} field inputs ${index}`);
 				}
 				checks.push(`${label} all texture inputs and unbounded coordinates`);
 
 				// 【指定範囲は負値・1超・逆順を含めて保つ】
 				// 色としてclampしたり、段数を増やすほど値が増えたりする実装を検出する。
-				const expanded = await render({ ...settings, outputMin: scalar(-2), outputMax: scalar(3) });
-				const reversed = await render({ ...settings, outputMin: scalar(3), outputMax: scalar(-2) });
-				initial.forEach((value, index) => {
-					// 16bitでは比較元の0〜1出力の丸め誤差も5倍される。
-					const tolerance = precise ? 0.0002 : 0.004;
-					near(expanded[index], -2 + value * 5, `${label} expanded range`, tolerance);
-					near(reversed[index], 3 - value * 5, `${label} reversed range`, tolerance);
-				});
-				const flat = await render({ ...settings, outputMin: scalar(-2), outputMax: scalar(-2) });
-				flat.forEach(value => near(value, -2, `${label} flat range`));
+				for (const fractalMode of ['fbm', 'turbulence', 'ridged', 'pingPong'] as const) {
+					const modeSettings = { ...settings, fractalMode };
+					const normalized = await render(modeSettings);
+					const expanded = await render({ ...modeSettings, outputMin: scalar(-2), outputMax: scalar(3) });
+					const reversed = await render({ ...modeSettings, outputMin: scalar(3), outputMax: scalar(-2) });
+					normalized.forEach((value, index) => {
+						assert(Number.isFinite(value) && value >= 0 && value <= 1, `${label}/${fractalMode} normalized range`);
+						// 16bitでは比較元の0〜1出力の丸め誤差も5倍される。
+						const tolerance = precise ? 0.0002 : 0.004;
+						near(expanded[index], -2 + value * 5, `${label}/${fractalMode} expanded range`, tolerance);
+						near(reversed[index], 3 - value * 5, `${label}/${fractalMode} reversed range`, tolerance);
+					});
+					const flat = await render({ ...modeSettings, outputMin: scalar(-2), outputMax: scalar(-2) });
+					flat.forEach(value => near(value, -2, `${label}/${fractalMode} flat range`));
+				}
 				checks.push(`${label} output ranges`);
 			}
+
+			// 【Perlinの格子点は中立値、Worleyは既知の最近点までのユークリッド距離になる】
+			// hashや探索ループをテストへ複製せず、既知の格子点と固定の距離標本で
+			// 別方式への誤った分岐・距離の二乗の返却・負のセルの取り扱いを検出する。
+			const random = seedrandom('31');
+			const seedOffset = [Math.fround(random() * 256), Math.fround(random() * 256), Math.fround(random() * 256)];
+			const at = async (noiseType: Parameters['noiseType'], point: readonly [number, number, number]) => (await sample({
+				noiseType, seed: 31, coordinateSource: 'input', density: vector([1, 1]), octaves: 1,
+				coordinates: vector([point[0] - seedOffset[0], point[1] - seedOffset[1]]), time: point[2] - seedOffset[2],
+			}))[0];
+			for (const point of [[0, 0, 0], [1, 0, 0], [1, -2, 3]] as const) near(await at('perlin', point), 0.5, 'Perlin lattice point');
+			for (const [point, expected] of [
+				[[0, 0, 0], 0],
+				[[0.25, 0.5, 0.75], 0.31347554841476677],
+				[[-1.25, 2.5, -0.75], 0.2065008314360721],
+				[[1.5, -2.25, 3.75], 0.3389173721545002],
+			] as const) near(await at('worley', point), expected, 'Worley reference distance');
+			const beforeBoundary = await at('worley', [0.3, 0.7, 0.9999]);
+			const afterBoundary = await at('worley', [0.3, 0.7, 1.0001]);
+			near(beforeBoundary, afterBoundary, 'Worley continuity across time cells');
+			checks.push(`${precisionLabel} Perlin lattice and Worley distance samples`);
 		}
 
 		// 【Simplex Noise共通化後も既存のSnoiseを描画できる】
