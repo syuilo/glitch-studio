@@ -87,7 +87,7 @@ export default defineEffect({
 		},
 		bailoutRadius: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Bailout Radius', isAdvanced: true, control: { controlType: 'range', min: 2, max: 1e12, logarithmic: true } },
+			ui: { label: 'Bailout Radius', control: { controlType: 'range', min: 2, max: 1e12, logarithmic: true } },
 			// 参考実装の「二乗ノルムの閾値1e20」に相当する半径。
 			// 全彩色モードで同じ値を使い、反復回数・未発散判定の意味を切り替えない。
 			defaultValue: { inputSource: 'literal', value: 1e10 },
