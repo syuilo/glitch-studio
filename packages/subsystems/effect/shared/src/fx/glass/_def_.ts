@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'glass',
 	displayName: 'Glass',
 	description: {
-		'ja-JP': '2Dの符号付き距離場を形状として、入力画像にガラスの屈折・ぼかし・色収差・ハイライトを加えます。二次減衰または曲面のCurvature・IORによる屈折を選べます。SDFは内側が負、距離の単位は描画領域の長辺全体を1とします。',
-		'en-US': 'Refracts, blurs, and lights an image through a negative-inside 2D SDF in common units with one full render long side. Choose quadratic falloff or a curved surface controlled by curvature and IOR.',
+		'ja-JP': '符号付き距離場の形に沿って、入力画像にガラスのような屈折・ぼかし・色収差・ハイライトを加えます。',
+		'en-US': 'Adds glass-like refraction, blur, chromatic aberration, and highlights to an image using a signed distance field as the shape.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

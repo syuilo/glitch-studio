@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'frequencyTransplant',
 	displayName: 'Frequency Transplant',
 	description: {
-		'ja-JP': '別の画像から指定した周波数帯のDCT係数を移植し、元画像の形と別画像の模様を組み合わせます。',
-		'en-US': 'Transplants a selected band of DCT coefficients from another image to combine the original structure with donor textures.',
+		'ja-JP': '別の画像の模様や細部を取り込み、元画像の形と組み合わせます。',
+		'en-US': 'Combines the original image structure with textures or details from another image.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

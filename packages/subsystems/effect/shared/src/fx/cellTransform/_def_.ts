@@ -5,8 +5,8 @@ export default defineEffect({
 	id: 'cellTransform',
 	displayName: 'Cell Transform',
 	description: {
-		'ja-JP': '入力画像を格子状のセルへ分割し、各セルの不透明度・移動・拡縮・回転を制御します。AdaptiveではDensity Mapに応じてセルを四分割します。制御入力は変形前のセル内でサンプリングし、描画は元のセル境界で切り取ります。Angleは分割格子だけを回転します。',
-		'en-US': 'Splits the input image into grid cells with individual opacity, translation, scale, and rotation. Adaptive subdivision splits cells into four according to Density Map. Samples control inputs within each original cell and clips drawing to its boundaries. Angle rotates only the dividing grid.',
+		'ja-JP': '入力画像を格子状に分割し、各部分を移動・拡縮・回転させます。',
+		'en-US': 'Splits the input image into grid cells and translates, scales, and rotates each part.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

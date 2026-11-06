@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'dilateErode',
 	displayName: 'Dilate / Erode',
 	description: {
-		'ja-JP': '正方形の範囲の最大値・最小値でスカラーマスクを膨張・収縮させます。半径は出力の短辺に対する割合で指定し、画素単位へ切り上げます。出力範囲外は端の値を延長します。',
-		'en-US': 'Dilates or erodes a scalar mask using the maximum or minimum over a square neighborhood. Radius is a fraction of the output short side, rounded up to pixels. Output edges are extended.',
+		'ja-JP': 'スカラーマスクの領域を広げたり狭めたりします。',
+		'en-US': 'Expands or shrinks regions in a scalar mask.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

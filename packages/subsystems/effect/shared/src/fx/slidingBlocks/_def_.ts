@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'slidingBlocks',
 	displayName: 'Sliding Blocks',
 	description: {
-		'ja-JP': '動いた領域を過去画像のブロックとして切り出し、その画像を保持したまま滑らせます。発生率、速度、寿命、減衰を調整できます。',
-		'en-US': 'Detaches moving regions as frozen image blocks and lets them slide independently. Controls emission, velocity, lifetime, and drag.',
+		'ja-JP': '動いた領域を過去画像のブロックとして切り出し、その画像を保持したまま滑らせます。',
+		'en-US': 'Detaches moving regions as frozen image blocks and lets them slide independently.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: true,

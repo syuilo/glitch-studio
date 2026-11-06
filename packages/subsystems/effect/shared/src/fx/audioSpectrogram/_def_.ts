@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'audioSpectrogram',
 	displayName: 'Audio Spectrogram',
 	description: {
-		'ja-JP': '入力音声の周波数成分と時間変化をスペクトログラムで表示します。表示は描画履歴に依存します。',
-		'en-US': 'Visualizes input audio as a spectrogram showing frequency content over time. The display depends on render history.',
+		'ja-JP': '入力音声の周波数成分と時間変化をスペクトログラムで表示します。',
+		'en-US': 'Visualizes input audio as a spectrogram showing frequency content over time.',
 	},
 	kind: 'generate',
 	// 入力音声の履歴に加え、過去の描画で解析したスペクトラムを内部に蓄積する。

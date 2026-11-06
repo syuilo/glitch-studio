@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'multiscaleGlitch',
 	displayName: 'Multiscale Glitch',
 	description: {
-		'ja-JP': '画像を細部・中間の模様・大きな形に分解し、それぞれを独立してずらしたり変色させたりします。元画像の透明度と、加工していない部分の細部を保持します。',
-		'en-US': 'Separates an image into fine detail, medium structures, and coarse shapes, then independently displaces and corrupts their colors. Preserves input alpha and unaffected detail.',
+		'ja-JP': '画像の細部・中間の模様・大きな形をそれぞれずらしたり変色させたりし、大小のグリッチを重ねます。',
+		'en-US': 'Displaces and recolors fine details, medium structures, and coarse shapes to layer glitches at different scales.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

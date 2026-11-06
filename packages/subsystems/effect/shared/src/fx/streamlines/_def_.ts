@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'streamlines',
 	displayName: 'Streamlines',
 	description: {
-		'ja-JP': '現在のベクトル場を固定した格子状の開始点から前後に追跡し、流線を描きます。各地点の大きさをColor Rampで表し、一定間隔の矢印で方向を示します。',
-		'en-US': 'Traces the current vector field forward and backward from fixed grid seeds. Streamlines use a magnitude color ramp and regularly spaced direction arrows.',
+		'ja-JP': 'ベクトル場の流れを線で描き、向きや強さを可視化します。',
+		'en-US': 'Draws streamlines to visualize the direction and magnitude of a vector field.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

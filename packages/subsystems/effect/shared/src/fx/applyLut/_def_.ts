@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'applyLut',
 	displayName: 'Apply LUT',
 	description: {
-		'ja-JP': '.cubeの1D・3D LUTをRGBへ直接適用します。色空間変換は行いません。',
-		'en-US': 'Applies a .cube 1D or 3D LUT directly to RGB without color space conversion.',
+		'ja-JP': 'LUTを使って入力画像の色調を変換します。',
+		'en-US': 'Transforms the colors of the input image using a LUT.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

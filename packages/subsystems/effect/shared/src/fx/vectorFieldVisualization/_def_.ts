@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'vectorFieldVisualization',
 	displayName: 'Vector Field Visualization',
 	description: {
-		'ja-JP': 'ベクトル場をセル中心の矢印で可視化します。大きさに応じた長さとColor Ramp、ゼロ・上限超過の専用色、グリッドの太さを設定できます。ゼロベクトルは点として描画します。',
-		'en-US': 'Visualizes a vector field with centered arrows. Magnitude controls length and a color ramp, with dedicated zero and overflow colors and adjustable grid width. Zero vectors appear as dots.',
+		'ja-JP': 'ベクトル場の向きと大きさを矢印や色で可視化します。',
+		'en-US': 'Visualizes the direction and magnitude of a vector field with arrows and colors.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

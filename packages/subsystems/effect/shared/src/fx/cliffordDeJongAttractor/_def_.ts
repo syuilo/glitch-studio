@@ -8,8 +8,8 @@ export default defineEffect({
 	id: 'cliffordDeJongAttractor',
 	displayName: 'Clifford / De Jong Attractor',
 	description: {
-		'ja-JP': 'Clifford・De Jongアトラクターの点密度から、煙や織物のような模様を生成します。A〜Dで形を変更します。DensityはExposure・Gammaを適用した0〜1の密度です。位置は長辺全体=1の共通単位で、描画履歴には依存しません。',
-		'en-US': 'Generates smoke-like or woven patterns from Clifford or De Jong attractor point density. A–D control the shape. Density is mapped to 0–1 using Exposure and Gamma. Position uses one full render long side. Does not depend on render history.',
+		'ja-JP': 'Clifford・De Jongアトラクターから、煙や織物のような模様を生成します。',
+		'en-US': 'Generates smoke-like or woven patterns from Clifford or De Jong attractors.',
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,

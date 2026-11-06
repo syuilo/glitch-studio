@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'shapeSdf',
 	displayName: 'Shape SDF',
 	description: {
-		'ja-JP': '楕円・角丸矩形の境界までの符号付き距離を生成します。内側は負、外側は正で、距離は描画領域の長辺全体を1とします。寸法と角丸半径にはSize Referenceを適用します。',
-		'en-US': 'Generates signed distances to an ellipse or rounded rectangle. Negative inside and positive outside. Distance uses one full render long side; size and corner radius use Size Reference.',
+		'ja-JP': '楕円や角丸矩形の符号付き距離場を生成します。',
+		'en-US': 'Generates a signed distance field for an ellipse or rounded rectangle.',
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,

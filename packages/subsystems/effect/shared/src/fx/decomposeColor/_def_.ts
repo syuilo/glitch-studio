@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'decomposeColor',
 	displayName: 'Decompose Color',
 	description: {
-		'ja-JP': '色を未乗算の赤・緑・青とアルファのスカラー値に分解します。アルファが0の画素のRGBは0になります。',
-		'en-US': 'Splits a color into straight red, green, blue, and alpha scalar values. RGB is zero for fully transparent pixels.',
+		'ja-JP': '色を赤・緑・青とアルファのスカラー値に分解します。',
+		'en-US': 'Splits a color into red, green, blue, and alpha scalar values.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'jpegGlitch',
 	displayName: 'JPEG Glitch',
 	description: {
-		'ja-JP': 'JPEGのDCT係数の破損、色の誤差の伝播、ブロックのずれと再同期を再現します。ブロックの大きさは出力解像度によらず一定です。',
-		'en-US': 'Simulates corrupted JPEG DCT coefficients, propagating color errors, displaced blocks, and restart synchronization. Block size is independent of output resolution.',
+		'ja-JP': 'JPEGデータの破損による色の乱れやにじみ、ブロックのずれを再現します。',
+		'en-US': 'Simulates color corruption, bleeding, and displaced blocks caused by damaged JPEG data.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

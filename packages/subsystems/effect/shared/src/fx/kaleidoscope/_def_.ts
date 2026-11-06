@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'kaleidoscope',
 	displayName: 'Kaleidoscope',
 	description: {
-		'ja-JP': '入力画像の扇形領域を円周方向に反復し、鏡映の有無を切り替えられる万華鏡のような模様を作ります。',
-		'en-US': 'Repeats a wedge of the input image around a center, with optional mirroring, to create a kaleidoscope pattern.',
+		'ja-JP': '入力画像を円周方向に繰り返し、万華鏡のような模様を作ります。',
+		'en-US': 'Repeats the input image around a center to create a kaleidoscope pattern.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

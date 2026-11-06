@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'threshold',
 	displayName: 'Threshold',
 	description: {
-		'ja-JP': '入力画像の赤・緑・青それぞれの成分を、個別の閾値以上なら1、未満なら0に二値化します。透明度は維持します。',
-		'en-US': 'Binarizes each red, green, and blue channel to 1 at or above its individual threshold, or 0 below it. Preserves alpha.',
+		'ja-JP': '入力画像のRGB成分をそれぞれ二値化し、色をくっきりと分けます。',
+		'en-US': 'Binarizes each RGB channel of the input image to create stark color separation.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

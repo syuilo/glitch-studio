@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'grayscale',
 	displayName: 'Grayscale',
 	description: {
-		'ja-JP': '入力画像をグレースケールに変換します。ValueはRGBの最大値、IntensityはRGBの平均値、LuminanceはRGBの重み付き和を使用します。',
-		'en-US': 'Converts the input image to grayscale using value (the maximum RGB channel), intensity (the RGB average), or luminance (a weighted RGB sum).',
+		'ja-JP': '入力画像をグレースケールに変換します。',
+		'en-US': 'Converts the input image to grayscale.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

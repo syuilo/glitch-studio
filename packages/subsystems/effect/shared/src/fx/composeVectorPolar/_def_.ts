@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'composeVectorPolar',
 	displayName: 'Compose Vector (Polar)',
 	description: {
-		'ja-JP': '角度と長さから2次元ベクトルを作ります。上向きが0、時計回りに1で1周です。負の長さは0として扱います。',
-		'en-US': 'Creates a two-dimensional vector from angle and length. Zero points up; one turn is clockwise. Negative lengths are treated as zero.',
+		'ja-JP': '角度と長さから2次元ベクトルを作ります。',
+		'en-US': 'Creates a two-dimensional vector from angle and length.',
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,

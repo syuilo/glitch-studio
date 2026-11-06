@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'vectorLength',
 	displayName: 'Vector Length',
 	description: {
-		'ja-JP': '2次元ベクトルのユークリッド長をスカラー値として出力します。各成分の値から計算します。空間ベクトルは長辺全体を1とする共通の等方座標で扱います。',
-		'en-US': 'Outputs the Euclidean length of a two-dimensional vector. Spatial vectors use common isotropic units, with one unit spanning the full longest side.',
+		'ja-JP': '2次元ベクトルの長さをスカラー値として出力します。',
+		'en-US': 'Outputs the length of a two-dimensional vector as a scalar value.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

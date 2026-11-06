@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'feedbackColor',
 	displayName: 'Feedback (Color)',
 	description: {
-		'ja-JP': 'RGBを時間とともに加算・減衰、または過去の値と補間します。補間ではHalf-lifeに応じてStrength適用後の入力に近づきます。アルファ値は現在の入力値を維持します。',
-		'en-US': 'Adds and fades RGB over time, or interpolates history toward the strength-scaled input using the half-life. Preserves the current input alpha.',
+		'ja-JP': '入力画像の色を時間とともに蓄積・減衰させ、残像やなめらかな色の変化を作ります。',
+		'en-US': 'Accumulates and fades image colors over time to create trails and smooth color transitions.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: true,

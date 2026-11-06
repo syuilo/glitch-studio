@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'textPattern',
 	displayName: 'Text Pattern',
 	description: {
-		'ja-JP': '文字列を反復配置し、各文字の字間・位置・透明度・大きさ・回転・色を入力で変化させます。',
-		'en-US': 'Repeats text and controls each character’s tracking, position, opacity, scale, rotation, and color using inputs.',
+		'ja-JP': '文字列を繰り返し配置し、文字ごとに動きや色の変化を加えた模様を作ります。',
+		'en-US': 'Repeats text to create patterns with motion and color variation for each character.',
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,

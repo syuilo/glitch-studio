@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'positionTrail',
 	displayName: 'Position Trail',
 	description: {
-		'ja-JP': 'Positionの移動を、時間とともに減衰するベクトル場と軌跡の強さを表すスカラー場として出力します。移動量は前回描画時のPositionとの差分から求めます。',
-		'en-US': 'Outputs changes in Position as a vector field and a scalar trail intensity that fade over time. Motion is measured from Position in the previous render.',
+		'ja-JP': '位置の移動から、時間とともに薄れる動きのベクトル場と軌跡のスカラー場を生成します。',
+		'en-US': 'Generates a motion vector field and a scalar trail from position changes, both fading over time.',
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: true,

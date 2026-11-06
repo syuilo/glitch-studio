@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'rasterDesync',
 	displayName: 'Raster Desync',
 	description: {
-		'ja-JP': '画像を画素列として読み直し、行幅の誤りや読み取り位置のずれ、再同期によるグリッチを加えます。元画像の細部を保持します。',
-		'en-US': 'Reinterprets the image as a raster stream with incorrect row strides, read offsets, and synchronization loss while preserving input detail.',
+		'ja-JP': '画像の読み取りの同期が乱れたような、行のずれや画像の崩れを加えます。',
+		'en-US': 'Creates shifted rows and scrambled imagery resembling a loss of raster synchronization.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

@@ -5,8 +5,8 @@ export default defineEffect({
 	id: 'decoderCorruption',
 	displayName: 'Decoder Corruption',
 	description: {
-		'ja-JP': '周辺ブロックからの予測と残差を意図的に壊し、動画の復号エラーのような色の破綻や模様の引き伸ばしを作ります。描画履歴には依存しません。',
-		'en-US': 'Corrupts spatial block prediction and residuals to simulate video decoding errors, with spreading color errors and stretched imagery. Does not depend on render history.',
+		'ja-JP': '動画の復号エラーのような色の破綻や模様の引き伸ばしを加えます。',
+		'en-US': 'Creates spreading color errors and stretched imagery resembling video decoding errors.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

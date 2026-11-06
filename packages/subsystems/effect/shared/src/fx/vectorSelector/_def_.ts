@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'vectorSelector',
 	displayName: 'Selector (Vector)',
 	description: {
-		'ja-JP': 'ベクトルの一覧から0始まりのインデックスで入力を選択します。小数では隣接する入力を線形補間し、範囲外は先頭または末尾に固定します。',
-		'en-US': 'Selects from vector inputs using a zero-based index. Fractional indices linearly interpolate adjacent inputs; out-of-range indices clamp to the first or last input.',
+		'ja-JP': '複数のベクトル入力を切り替えたり、なめらかに混ぜ合わせたりします。',
+		'en-US': 'Switches or smoothly blends between multiple vector inputs.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

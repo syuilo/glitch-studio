@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'colorClamp',
 	displayName: 'Color Clamp',
 	description: {
-		'ja-JP': '入力画像の赤・緑・青それぞれの成分を、指定した下限と上限の範囲に制限します。',
-		'en-US': 'Limits the red, green, and blue channels of the input image to individually specified minimum and maximum values.',
+		'ja-JP': '入力画像のRGB成分の範囲を制限し、色や明るさを抑えます。',
+		'en-US': 'Limits the range of RGB channels to constrain colors and brightness in the input image.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

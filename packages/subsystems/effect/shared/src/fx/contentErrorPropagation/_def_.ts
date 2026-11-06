@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'contentErrorPropagation',
 	displayName: 'Content Error Propagation',
 	description: {
-		'ja-JP': '画像の輪郭や色の変化に沿って色の誤差を伝播させます。元画像の細部と透明度を保ち、強い境界で伝播を抑えます。',
-		'en-US': 'Propagates color errors along image contours and color changes while preserving input detail and alpha. Strong boundaries can block propagation.',
+		'ja-JP': '画像の輪郭や色の変化に沿って色の誤差を広げ、色がにじみ出すようなグリッチを加えます。',
+		'en-US': 'Spreads color errors along image contours and color changes to create bleeding glitch patterns.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

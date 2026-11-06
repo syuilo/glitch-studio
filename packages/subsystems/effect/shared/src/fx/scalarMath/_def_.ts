@@ -5,8 +5,8 @@ export default defineEffect({
 	id: 'scalarMath',
 	displayName: 'Scalar Math',
 	description: {
-		'ja-JP': 'スカラー場を画素ごとに計算します。演算に応じてA・B・Cを使い、三角関数の角度は1で1周です。StepはAと閾値B、SmoothstepはAと境界B・Cを使います。0除算・負数の平方根・実数で定義できない累乗・Tangentの特異点は0になります。自動解像度は演算で未使用の入力も含め、A・B・Cの全接続から決まります。',
-		'en-US': 'Evaluates scalar fields per pixel using A, B, and C as needed. Trigonometric angles use turns. Step compares A against B; Smoothstep maps A between B and C. Division by zero, negative square roots, non-real powers, and tangent singularities return zero. Automatic resolution considers all connections to A, B, and C, including inputs unused by the operation.',
+		'ja-JP': 'スカラー場に四則演算や数学関数を適用し、値や模様を加工します。',
+		'en-US': 'Applies arithmetic and mathematical functions to scalar fields to modify values and patterns.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'datamosh',
 	displayName: 'Datamoshing',
 	description: {
-		'ja-JP': 'ブロックごとの動きで過去の映像を変形し、Datamoshingのような色の引きずりや映像の残留を作ります。動き用の映像を別に指定できます。',
-		'en-US': 'Warps accumulated frames with block motion to create datamoshing trails and persistent imagery. Supports a separate motion source.',
+		'ja-JP': 'ブロックごとの動きで過去の映像を変形し、Datamoshingのような色の引きずりや映像の残留を作ります。',
+		'en-US': 'Warps accumulated frames with block motion to create datamoshing trails and persistent imagery.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: true,

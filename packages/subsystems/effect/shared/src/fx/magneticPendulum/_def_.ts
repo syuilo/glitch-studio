@@ -6,8 +6,8 @@ export default defineEffect({
 	id: 'magneticPendulum',
 	displayName: 'Magnetic Pendulum',
 	description: {
-		'ja-JP': '各位置から放した磁気振り子の収束先を色分けし、フラクタル模様を生成します。Basin Valueは磁石のValue、Settling Timeは正規化前の収束時間、Travel Distanceは追跡した折れ線の長さです。位置・高さ・距離は長辺全体=1の共通単位です。未収束点の時間・距離は0で、Converged Maskで区別できます。',
-		'en-US': 'Generates fractal basins and outputs each magnet\'s Value, raw simulation settling time, piecewise-linear travel distance, and a convergence mask. Positions, heights, and distances use one full render long side. Unconverged points output zero time and distance; use Converged Mask to distinguish them.',
+		'ja-JP': '磁気振り子の収束先を色分けし、フラクタル模様を生成します。',
+		'en-US': 'Generates fractal patterns by coloring where magnetic pendulums settle.',
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,

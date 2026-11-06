@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'decomposeColorHsl',
 	displayName: 'Decompose Color (HSL)',
 	description: {
-		'ja-JP': '未乗算のRGBを0〜1へ制限し、色相（1で1周）・彩度・明度・アルファのスカラー値に分解します。無彩色の色相と、完全に透明な画素のHSLは0になります。',
-		'en-US': 'Clamps straight RGB to 0–1 and splits it into hue in turns, saturation, lightness, and alpha scalar values. Achromatic hue and fully transparent HSL are zero.',
+		'ja-JP': '色を色相・彩度・明度・アルファのスカラー値に分解します。',
+		'en-US': 'Splits a color into hue, saturation, lightness, and alpha scalar values.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

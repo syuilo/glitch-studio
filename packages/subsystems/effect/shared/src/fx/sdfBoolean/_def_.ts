@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'sdfBoolean',
 	displayName: 'SDF Boolean',
 	description: {
-		'ja-JP': '内側が負の符号付き距離場を和集合・共通部分・差分（AからBを除く）で合成します。Smoothingで接合部を滑らかにします。合成後の最短距離は再計算しません。',
-		'en-US': 'Combines negative-inside signed distance fields using union, intersection, or difference (A minus B). Smoothing blends the junctions. Does not recalculate exact distances after combining.',
+		'ja-JP': '符号付き距離場の形状を結合したり、重なりを取り出したり、くり抜いたりします。接合部をなめらかに繋ぐこともできます。',
+		'en-US': 'Combines, intersects, or subtracts shapes defined by signed distance fields, with smooth blending at the junctions.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

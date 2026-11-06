@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'thinFilmInterference',
 	displayName: 'Thin Film Interference',
 	description: {
-		'ja-JP': '0〜1のスカラー入力を膜厚へ変換し、薄膜の干渉による反射色・透過色を生成します。膜厚の単位はnmです。空気中の吸収・分散のない誘電体を扱い、入射角は法線から0〜90度の範囲で指定します。',
-		'en-US': 'Maps a scalar input from 0–1 to film thickness and generates thin-film reflection or transmission colors. Thickness is in nm. Models non-absorbing, non-dispersive dielectrics in air, with incidence angles from 0–90 degrees relative to the normal.',
+		'ja-JP': '薄膜の干渉による反射色や透過色を生成し、シャボン玉のような虹色を作ります。',
+		'en-US': 'Generates thin-film reflection or transmission colors to create soap-bubble-like iridescence.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

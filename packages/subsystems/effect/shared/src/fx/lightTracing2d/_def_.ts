@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'lightTracing2d',
 	displayName: '2D Light Tracing',
 	description: {
-		'ja-JP': '入力画像の不透明部分を光源・遮蔽物として、2Dの光の広がりと影を描画します。黒背景の不透明な画像を出力します。',
-		'en-US': 'Traces 2D light and shadows using opaque input pixels as emitters and occluders. Outputs an opaque image on black.',
+		'ja-JP': '入力画像の不透明部分を光源・遮蔽物として、2Dの光の広がりと影を描画します。',
+		'en-US': 'Draws 2D light and shadows using opaque parts of the input image as emitters and occluders.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

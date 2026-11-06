@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'mandelbrot',
 	displayName: 'Mandelbrot',
 	description: {
-		'ja-JP': 'マンデルブロ集合を反復回数またはTriangle Inequality Averageで彩色します。Complex Centerは複素平面の値、Coordinate Offsetは長辺全体=1の共通単位で、拡大・回転前に加算します。数値出力は配色設定から独立し、未発散点では0になります。Escaped Maskで区別できます。',
-		'en-US': 'Colors the Mandelbrot set using escape iterations or Triangle Inequality Average. Complex Center uses complex-plane values; Coordinate Offset uses one full render long side and is added before zoom and rotation. Scalar outputs are independent of palette settings and are zero for unescaped points; use Escaped Mask to distinguish them.',
+		'ja-JP': 'マンデルブロ集合のフラクタル模様を生成します。',
+		'en-US': 'Generates fractal patterns of the Mandelbrot set.',
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,

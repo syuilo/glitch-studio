@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'temporalPixelSort',
 	displayName: 'Temporal Pixel Sort',
 	description: {
-		'ja-JP': '位置ごとに現在と過去の入力画素を明るさなどで並べ替え、Rankで指定した順位の色を表示します。Rankは0で先頭、1で末尾です。描画履歴に依存します。',
-		'en-US': 'Sorts current and historical input pixels at each position by brightness or another key, then selects a color by Rank: 0 selects the first, 1 the last. Depends on render history.',
+		'ja-JP': '現在と過去の画素を明るさなどで並べ替え、時間をまたいだ色の再配置を行います。',
+		'en-US': 'Sorts current and historical pixels by brightness or other properties to rearrange colors across time.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: true,

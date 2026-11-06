@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'bitPlaneCorruption',
 	displayName: 'Bit Plane Corruption',
 	description: {
-		'ja-JP': '色の指定したビットを反転・固定・交換して破損を再現します。ビット番号は0が最下位で、交換では指定範囲の両端を入れ替えます。透明度は保持します。',
-		'en-US': 'Corrupts selected color bits by inverting, forcing, swapping, or randomizing them. Bit 0 is the least significant bit; Swap exchanges the range endpoints. Preserves alpha.',
+		'ja-JP': '色のビットを壊し、デジタルデータの破損のような色の乱れを加えます。',
+		'en-US': 'Corrupts color bits to create glitches resembling damaged digital data.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

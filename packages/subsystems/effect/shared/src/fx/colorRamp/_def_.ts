@@ -5,8 +5,8 @@ export default defineEffect({
 	id: 'colorRamp',
 	displayName: 'Color Ramp',
 	description: {
-		'ja-JP': 'スカラー値を、複数の色と位置で定義した対応表に従って色へ変換します。',
-		'en-US': 'Maps scalar values to colors using a ramp of color stops.',
+		'ja-JP': 'スカラー値をグラデーションに沿った色に変換します。',
+		'en-US': 'Maps scalar values to colors along a gradient.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

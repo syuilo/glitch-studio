@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'jpegCompression',
 	displayName: 'JPEG Compression',
 	description: {
-		'ja-JP': 'JPEG圧縮による細部の消失、色のにじみ、ブロック模様を再現します。Qualityにノードを接続すると、ブロックごとに圧縮の強さを変えられます。',
-		'en-US': 'Simulates detail loss, chroma bleeding, and block artifacts from JPEG compression. Connect a node to Quality to control compression per block.',
+		'ja-JP': 'JPEG圧縮による細部の消失、色のにじみ、ブロック模様を再現します。',
+		'en-US': 'Simulates detail loss, chroma bleeding, and block artifacts from JPEG compression.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

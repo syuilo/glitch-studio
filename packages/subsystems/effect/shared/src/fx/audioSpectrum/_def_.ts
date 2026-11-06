@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'audioSpectrum',
 	displayName: 'Audio Spectrum',
 	description: {
-		'ja-JP': '入力音声を周波数ごとの強さで表示します。平滑化は描画履歴に依存します。',
-		'en-US': 'Visualizes input audio as a frequency spectrum. Smoothing depends on render history.',
+		'ja-JP': '入力音声を周波数ごとの強さで表示します。',
+		'en-US': 'Visualizes input audio as a frequency spectrum.',
 	},
 	kind: 'generate',
 	// 解析は音声サンプル間隔で進むが、過去の描画で更新した平滑化状態を保持する。

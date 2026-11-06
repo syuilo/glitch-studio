@@ -5,8 +5,8 @@ export default defineEffect({
 	id: 'cellRepeater',
 	displayName: 'Cell Repeater',
 	description: {
-		'ja-JP': '最大10個の入力画像・色を格子状のセルへ反復配置します。AdaptiveではDensity Mapに応じてセルを四分割します。各セル内で制御入力をサンプリングし、素材の選択・不透明度・移動・拡縮・回転を設定します。描画はセル境界で切り取ります。',
-		'en-US': 'Repeats up to 10 input images or colors in grid cells. Adaptive subdivision splits cells into four according to Density Map. Samples control inputs within each cell to select its input, opacity, translation, scale, and rotation. Clips drawing to cell boundaries.',
+		'ja-JP': '画像や色を格子状に繰り返し配置し、タイル状の模様を作ります。',
+		'en-US': 'Repeats images or colors in a grid to create tiled patterns.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,

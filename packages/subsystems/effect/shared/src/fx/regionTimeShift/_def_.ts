@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'regionTimeShift',
 	displayName: 'Region Time Shift',
 	description: {
-		'ja-JP': '描画済みの入力を保存し、ブロックや帯ごとに異なる時刻の画像を表示します。RGBを別々に遅延させることもできます。描画履歴に依存し、シーク時は履歴をリセットします。',
-		'en-US': 'Stores rendered input frames and displays different times in blocks or bands, optionally delaying RGB separately. Depends on render history and resets when seeking.',
+		'ja-JP': 'ブロックや帯、RGBチャンネルごとに映像を遅らせ、異なる時刻が混在する画像を作ります。',
+		'en-US': 'Delays blocks, bands, or RGB channels to combine different moments in one image.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: true,

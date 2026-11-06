@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'feedback',
 	displayName: 'Feedback',
 	description: {
-		'ja-JP': '入力を時間とともに加算・減衰、または過去の値と補間します。補間ではHalf-lifeに応じてStrength適用後の入力に近づきます。全チャンネルをデータとして扱います。',
-		'en-US': 'Adds and fades input over time, or interpolates history toward the strength-scaled input using the half-life. Treats all channels as data.',
+		'ja-JP': '入力データを時間とともに蓄積・減衰させたり、変化をなめらかにしたりします。',
+		'en-US': 'Accumulates and fades input data over time or smooths its changes.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: true,
