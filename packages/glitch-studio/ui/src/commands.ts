@@ -83,6 +83,7 @@ import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { AutomationGraph, AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineEffectParameterBinding, TimelineLowerLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ValueParameterEdit } from '@/types/parameter-edit.ts';
+import { CUSTOM_SHADER_EFFECT_COMMAND_DEFS } from './commands/custom-shader-effect.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
@@ -3172,6 +3173,7 @@ const removeTimelineLayerPublicParameterCommandDef = defineCommand<{ sceneId: st
 });
 
 export const COMMAND_DEFS = {
+	...CUSTOM_SHADER_EFFECT_COMMAND_DEFS,
 	updateVisualModuleCustomParameter: updateVisualModuleCustomParameterCommandDef,
 	removeVisualModuleCustomParameter: removeVisualModuleCustomParameterCommandDef,
 	editVisualModuleCustomParameter: editVisualModuleCustomParameterCommandDef,

@@ -24,6 +24,7 @@
 				{ label: i18n.ts._PublicParameterInput._Types.Enum, value: 'enum' },
 				{ label: i18n.ts._PublicParameterInput._Types.SizeReference, value: 'sizeReference' },
 				{ label: i18n.ts.Audio, value: 'audioSource' },
+				...(supportedTypes?.includes('any') === true ? [{ label: i18n.ts._EffectPicker._DataTypes.any, value: 'any' }] : []),
 			].filter(item => supportedTypes == null || supportedTypes.includes(item.value))"
 			@update:modelValue="updateType"
 		>
@@ -142,7 +143,7 @@ function updateEnumOptions(options: string[], labels: Record<string, string>, de
 function updateType(dataType: EditableDataType) {
 	if (dataType === parameterType.value) return;
 	defaultValueMergeKey = null;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'colorRamp' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'sizeReference' && dataType !== 'audioSource') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'colorRamp' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'sizeReference' && dataType !== 'audioSource' && dataType !== 'any') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
@@ -154,6 +155,7 @@ function updateType(dataType: EditableDataType) {
 		vector: { dataType: { kind: 'vector' }, ui: { label: props.def.ui.label, control: { controlType: 'vector' } } },
 		enum: { dataType: { kind: 'enum', options: ['option1', 'option2'] }, ui: { label: props.def.ui.label, control: { labels: { option1: 'Option 1', option2: 'Option 2' } } } },
 		audioSource: { dataType: { kind: 'audioSource' }, ui: { label: props.def.ui.label, control: {} } },
+		any: { dataType: { kind: 'any' }, ui: { label: props.def.ui.label, control: {} } },
 	} as const;
 
 	const schema = schemas[dataType];

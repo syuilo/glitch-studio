@@ -18,6 +18,7 @@ import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import XAssets from '@/components/GsWorkspacePanel.Assets.vue';
 import XAutomationGraphs from '@/components/GsWorkspacePanel.AutomationGraphs.vue';
+import XCustomShaderEffects from '@/components/GsWorkspacePanel.CustomShaderEffects.vue';
 import XProjectInfo from '@/components/GsWorkspacePanel.ProjectInfo.vue';
 import XTimelineInspectorPanel from '@/components/GsWorkspacePanel.TimelineInspectorPanel.vue';
 
@@ -39,6 +40,7 @@ const panelDefinitions = {
 	projectInfo: { label: i18n.ts._Workspace.ProjectInfo, icon: 'ti ti-file-description', component: XProjectInfo },
 	timelineInspectorPanel: { label: i18n.ts._Workspace.TimelineInspectorPanel, icon: 'ti ti-layout-sidebar-right', component: XTimelineInspectorPanel },
 	automationGraphs: { label: i18n.ts._Workspace.AutomationGraphs, icon: 'ti ti-ease-in-out-control-points', component: XAutomationGraphs },
+	customShaderEffects: { label: i18n.ts._CustomShaderEffect.Title, icon: 'ti ti-code', component: XCustomShaderEffects },
 } as const;
 
 export const workspacePanelDefinitions: typeof panelDefinitions = markRaw(panelDefinitions);

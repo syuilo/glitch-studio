@@ -13,7 +13,7 @@ import type { Ref } from 'vue';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { Asset, Player } from '@gs/shared/types.js';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { ProjectCustomShaderEffect, ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.js';
 import type { VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.ts';
@@ -30,6 +30,7 @@ export type ProjectAsset = Asset & {
 };
 
 export type ProjectState = {
+	customShaderEffects: Ref<ProjectCustomShaderEffect[]>;
 	automationGraphs: Ref<AutomationGraph[]>;
 	exportSettings: Ref<ExportDialogSettings | null>;
 	name: Ref<string>;
@@ -58,6 +59,7 @@ export type ProjectContentChange =
 	| { type: 'scene'; sceneId: string };
 
 export type AppStateChange = ProjectContentChange
+	| { type: 'customShaderEffect'; customShaderEffectId: string }
 	| { type: 'asset'; assetId: string }
 	| { type: 'player'; playerId: string }
 	| { type: 'projectResolution' }
@@ -79,6 +81,7 @@ export class ProjectContext {
 
 	constructor() {
 		this.stateManager = new UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>({
+			customShaderEffects: ref<ProjectCustomShaderEffect[]>([]),
 			automationGraphs: ref<AutomationGraph[]>([]),
 			exportSettings: ref<ExportDialogSettings | null>(null),
 			name: ref(DEFAULT_PROJECT_NAME),
@@ -104,6 +107,7 @@ export class ProjectContext {
 		this.loadGeneration++;
 		this.stateManager.cancelEdit();
 		this.externalAssetMetadata.reset(project.assets);
+		this.stateManager.state.customShaderEffects.value = project.customShaderEffects;
 		this.stateManager.state.exportSettings.value = deepClone(project.exportSettings);
 		this.stateManager.state.name.value = project.name;
 		this.stateManager.state.description.value = project.description;
@@ -134,6 +138,7 @@ export class ProjectContext {
 		// 保存・バックアップで同じ完全な状態を使う。非同期のエンコードや保存先選択の間に
 		// 編集されても、取得済みのスナップショットへ変更が混入しないよう切り離す。
 		return deepClone({
+			customShaderEffects: state.customShaderEffects.value,
 			automationGraphs: state.automationGraphs.value,
 			exportSettings: state.exportSettings.value,
 			id: this.projectId.value,
