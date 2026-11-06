@@ -51,7 +51,7 @@ export default defineEffect({
 		},
 		lightWrap: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Light Wrap', isAdvanced: true, control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			ui: { label: 'Light Wrap', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		ambientFrontColor: {

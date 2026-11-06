@@ -23,7 +23,7 @@ export default defineEffect({
 		},
 		pingPongStrength: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Ping Pong Strength', isAdvanced: true, control: { controlType: 'number', min: 0, max: 10, step: 0.1 } },
+			ui: { label: 'Ping Pong Strength', control: { controlType: 'number', min: 0, max: 10, step: 0.1 } },
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 2 },
 		},
