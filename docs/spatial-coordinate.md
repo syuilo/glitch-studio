@@ -18,6 +18,8 @@ Pointer Trail・Position Trailも同じ単位を使い、Vector Coordinatesを�
 
 SnoiseのOffsetはノイズ内部の座標をずらす値で、画面上の移動距離ではありません。旧座標への変換関数`ISOTROPIC_TO_SCREEN`は廃止します。
 
+Fractal NoiseのCoordinatesは共通単位の絶対座標です。Coordinate SourceがScreenの場合も同じ共通座標を使います。Size Referenceはノイズの密度を換算し、入力座標の単位は変更しません。Offsetはノイズ内部の座標単位です。
+
 ベクトル型そのものは任意の数値の組も表せるため、すべてのvector値を位置と解釈するわけではありません。拡大率、周波数、反復回数、セル内比率などは、それぞれのパラメータ固有の意味を維持します。
 
 ## Size Reference
