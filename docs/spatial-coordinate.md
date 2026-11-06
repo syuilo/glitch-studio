@@ -14,6 +14,8 @@
 
 位置Aから位置Bへの移動は、そのまま`B-A`です。例えば`(0.1,0)`は、位置なら中央から右へ長辺の10%、移動ベクトルなら右へ長辺の10%を表します。Vector Displacement、Transform、Channel Shift、Text PatternのTranslationなどはこの移動単位を受け取ります。ベクトルの回転・長さ・極座標分解にも縦横比補正は必要ありません。
 
+Positionエフェクトは各画素の中心の共通座標をvectorの場として生成します。Vector Mathで座標や変位の加減算・スカラー倍・回転を行い、NoiseのCoordinatesなどへ接続できます。Rotateは数値を時計回りへ直接回転し、画像Transformの逆変換や再サンプリングとは異なります。Vector Dot Productは同じ共通単位のベクトルから内積をscalarとして出力します。
+
 Pointer Trail・Position Trailも同じ単位を使い、Vector Coordinatesを持ちません。軌跡のStrengthや減衰は効果の係数として適用します。Optical Flowの出力は共通単位/秒であり、1フレーム分の移動として使う場合は経過秒数を掛けます。Gradient・Scalar Gradientは共通座標に対する偏微分を返します。Normalize後の勾配は長さ1です。
 
 旧座標への変換関数`ISOTROPIC_TO_SCREEN`は廃止します。
