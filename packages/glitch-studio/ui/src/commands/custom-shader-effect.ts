@@ -1,3 +1,4 @@
+import { isCustomShaderEffectUsed, snapshotCustomShaderEffectUsages, reconcileCustomShaderEffectUsages } from '../utility/custom-shader-effect-usages.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { validateCustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
@@ -21,6 +22,7 @@ const updateCustomShaderEffect = {
 	changes: (_state, { customShaderEffect }) => [{ type: 'customShaderEffect', customShaderEffectId: customShaderEffect.id }],
 	create: ({ customShaderEffect }) => {
 		let before: ProjectCustomShaderEffect;
+		let beforeUsages: ReturnType<typeof snapshotCustomShaderEffectUsages>;
 		return {
 			execute(state) {
 				validateCustomShaderEffectDefinition(customShaderEffect);
@@ -28,11 +30,17 @@ const updateCustomShaderEffect = {
 				if (index < 0) throw new Error('Custom Shader Effect not found');
 				// コードと入出力を一つの履歴で交換し、Undoで異なる世代の組み合わせを作らない。
 				before = deepClone(state.customShaderEffects.value[index]);
+				beforeUsages = snapshotCustomShaderEffectUsages(state);
+				const usages = reconcileCustomShaderEffectUsages(state, before, customShaderEffect);
 				state.customShaderEffects.value[index] = deepClone(customShaderEffect);
+				if (state.visualModules != null) state.visualModules.value = usages.visualModules;
+				if (state.timelineScenes != null) state.timelineScenes.value = usages.timelineScenes;
 			},
 			undo(state) {
 				const index = state.customShaderEffects.value.findIndex(definition => definition.id === customShaderEffect.id);
 				state.customShaderEffects.value[index] = deepClone(before);
+				if (state.visualModules != null) state.visualModules.value = deepClone(beforeUsages.visualModules);
+				if (state.timelineScenes != null) state.timelineScenes.value = deepClone(beforeUsages.timelineScenes);
 			},
 		};
 	},
@@ -46,6 +54,7 @@ const removeCustomShaderEffect = {
 		let index: number;
 		return {
 			execute(state) {
+				if (isCustomShaderEffectUsed(state, customShaderEffectId)) throw new Error('Custom Shader Effect is in use. Remove its Nodes and Layers first.');
 				index = state.customShaderEffects.value.findIndex(definition => definition.id === customShaderEffectId);
 				if (index < 0) throw new Error('Custom Shader Effect not found');
 				before = deepClone(state.customShaderEffects.value[index]);

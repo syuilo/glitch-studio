@@ -2,7 +2,7 @@
 <div ref="inputRow" :class="$style.inputRow" data-wire-input-row>
 	<GsNodePort :dataType="def.dataType" @update:element="inputPortEl = $event"/>
 	<span>{{ def.label }}</span>
-	<i v-if="hasNodeInputTypeMismatch(nodes, connection, def.dataType, paramDefs)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+	<i v-if="hasNodeInputTypeMismatch(nodes, connection, def.dataType, paramDefs, effectDefinitions)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 	<GsSelect
 		:modelValue="nodeOutputKey(connection)"
 		:items="[{ label: i18n.ts.None, value: null }, ...outputItems]"
@@ -12,6 +12,8 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { computed, shallowRef, useTemplateRef, watchEffect } from 'vue';
 import GsNodePort from './GsNodePort.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -20,6 +22,8 @@ import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { i18n } from '@/i18n.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
+
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
 
 const wireMap = useVisualModuleWires();
 
@@ -39,7 +43,7 @@ const connection = computed(() => {
 	const input = props.node.inputs[props.def.id];
 	return input?.nodeId == null ? null : input;
 });
-const outputItems = computed(() => getNodeOutputItems(nodes.value, props.node.id, props.def.dataType, paramDefs.value));
+const outputItems = computed(() => getNodeOutputItems(nodes.value, props.node.id, props.def.dataType, paramDefs.value, effectDefinitions.value));
 
 function connect(value: NodeOutputReference | null) {
 	if (value != null && !outputItems.value.some(item => item.value === nodeOutputKey(value))) return;

@@ -107,3 +107,11 @@ test('renders timeline cameras and unbounded groups on WebGPU', { skip: !process
 test('benchmarks timeline plane compositing', { skip: !process.env.CHROME_PATH || !process.env.GS_CAMERA_BENCHMARK, timeout: 60000 }, async t => {
 	for (const result of await runGpuTest('./helpers/timeline-camera-benchmark.ts', 2)) t.diagnostic(result);
 });
+
+// 【Custom Shader Effectの複数出力と共通座標・透明度・診断を実GPUで検証する】
+// WGSL生成とbindingは型チェックだけでは保証できず、uniformとtextureの切替も描画結果で確認する。
+test('renders project Custom Shader Effects on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/effect-renderer-gpu.ts', 12, 'runCustomShaderEffects'));
+
+// 【ライブプレビューの入口で準備中のフレームをスキップし、コンパイル後に実画素まで描画する】
+// Renderer.prepareをテスト側で呼ぶだけでは、Managerが準備を省略する不具合を検出できない。
+test('skips Visual Module Live Preview frames during shader compilation', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/custom-shader-effect-gpu.ts', 2, 'runCustomShaderEffectLivePreview'));

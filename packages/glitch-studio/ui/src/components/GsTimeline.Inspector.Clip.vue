@@ -45,7 +45,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { changeTimelineMediaPlaybackRate, getTimelineMediaSourceTime, getTimelineMediaSingleDuration, timelineMediaMinPlaybackSpeed, timelineMediaMaxPlaybackSpeed } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { isTimelineClipActive, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
@@ -59,6 +59,8 @@ import { formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline
 import { readTimelineVideoHoldFrame } from '@/utility/timeline-video-hold.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
+
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
 
 const props = defineProps<{ sceneId: string; layer: TimelineClipLayer; clipId: string; mediaInfo: ReadonlyMap<string, TimelineClipMediaInfo> }>();
 const emit = defineEmits<{ remove: []; changeSource: [target: TimelineClipSelection] }>();
@@ -124,7 +126,7 @@ const selectedClipLabel = computed(() => {
 	if ('sceneId' in entry.clip) { const id = entry.clip.sceneId; return stateManager.state.timelineScenes.value.find(scene => scene.id === id)?.name ?? i18n.ts._TimelineClip.MissingScene; }
 	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return stateManager.state.visualModules.value.find(visualModule => visualModule.id === id)?.name ?? i18n.ts._TimelineClip.MissingVisualModule; }
 	if (entry.layer.layerType === 'inlineVisualModule') return i18n.ts._TimelineClip.InlineVisualModule;
-	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? i18n.ts._TimelineClip.MissingEffect; }
+	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions.value).find(([key, effect]) => key === id)?.[1].displayName ?? i18n.ts._TimelineClip.MissingEffect; }
 	if (entry.layer.layerType === 'voicevox') return 'VOICEVOX';
 	if (entry.layer.layerType === 'text') return i18n.ts.Text;
 	if (entry.layer.layerType === 'shape') return shapeDefinitions[entry.layer.shape.type].label;

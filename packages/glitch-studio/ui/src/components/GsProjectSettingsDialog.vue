@@ -40,7 +40,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { MAX_MOTION_BLUR_SAMPLES, validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { findTimelineHistoryEffects } from '@gs/subsystems_timeline_shared/render-history-effects.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import GsSwitch from './common/GsSwitch.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
@@ -48,6 +48,8 @@ import GsModal from './common/GsModal.vue';
 import GsFolder from './common/GsFolder.vue';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
+
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
 
 const { stateManager } = appContext.projectContext;
 
@@ -71,8 +73,8 @@ const renderSettingsError = computed(() => {
 });
 const exposureMs = computed(() => renderSettingsError.value ? '—' : (1000 / timelineFps.value * timelineMotionBlur.value.shutterAngle / 360).toFixed(2));
 const historyEffects = computed(() => findTimelineHistoryEffects(stateManager.state.timelineScenes.value,
-	id => stateManager.state.visualModules.value.find(visualModule => visualModule.id === id) ?? null, effectDefinitions)
-	.map(id => effectDefinitions[id].displayName));
+	id => stateManager.state.visualModules.value.find(visualModule => visualModule.id === id) ?? null, effectDefinitions.value)
+	.map(id => effectDefinitions.value[id].displayName));
 const lockedAspectRatio = ref<number | null>(width.value / height.value);
 const isResolutionValid = computed(() => isValidDimension(width.value) && isValidDimension(height.value));
 

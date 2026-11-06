@@ -146,7 +146,7 @@ export class AppContext {
 				const state = this.projectContext.stateManager.state;
 				const staticOptions = this.getPreviewStaticOptions();
 				const snapshot = deepClone({
-					assets: getRendererAssets(state.assets.value), players: state.players.value,
+					assets: getRendererAssets(state.assets.value), players: state.players.value, customShaderEffects: state.customShaderEffects.value,
 					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
 					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value },
 					visualModuleOptions: { fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
@@ -159,12 +159,12 @@ export class AppContext {
 						staticOptions: staticOptions.visualModule,
 						dynamicOptions: { ...snapshot.commonOptions, ...snapshot.visualModuleOptions,
 							automationGraphs: snapshot.project.automationGraphs, visualModules: snapshot.project.visualModules },
-						resources: { assets: snapshot.assets, players: snapshot.players },
+						resources: { assets: snapshot.assets, players: snapshot.players, customShaderEffects: snapshot.customShaderEffects },
 					}),
 					isCurrent() ? this.timelineRendererManagerController.initialize({
 						staticOptions: staticOptions.timeline,
 						dynamicOptions: { ...snapshot.project, ...snapshot.commonOptions, ...snapshot.timelineOptions },
-						resources: { assets: snapshot.assets },
+						resources: { assets: snapshot.assets, customShaderEffects: snapshot.customShaderEffects },
 					}) : Promise.resolve(),
 				]);
 				const failure = results.find(result => result.status === 'rejected');
@@ -197,6 +197,7 @@ export class AppContext {
 		});
 		projectContext.stateManager.onChange(changes => {
 			this.renderValidation.update(changes);
+			if (changes.some(change => change.type === 'customShaderEffect')) this.renderEngine.requestRestart();
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 			if (changes.some(change => ['automationGraphs', 'node', 'visualModule', 'visualModuleRegistration', 'layer', 'layerTree', 'layerOrder', 'scene'].includes(change.type))) {
 				this.renderEngine.notifyContentChange();

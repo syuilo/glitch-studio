@@ -1,3 +1,5 @@
+import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 import { prettyId } from '@gs/shared/utility/id.js';
@@ -23,11 +25,11 @@ export function nodeOutputKey(connection: { nodeId: string; outputPort: string }
 }
 
 // 接続済みの警告は、forceTypeSafetyによる候補の絞り込みとは独立して判定する。
-export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: { nodeId: string; outputPort: string } | null, inputDataType: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): boolean {
+export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: { nodeId: string; outputPort: string } | null, inputDataType: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = [], definitions: Readonly<Record<string, EffectDefinition>> = effectDefinitions): boolean {
 	if (connection == null || inputDataType == null) return false;
 	return nodes.some(node => {
 		if (node.id === connection.nodeId) {
-			const output = getNodeOutputs(node, paramDefs)[connection.outputPort];
+			const output = getNodeOutputs(node, paramDefs, definitions)[connection.outputPort];
 			return output != null && !areNodeDataTypesCompatible(output.dataType, inputDataType);
 		}
 		return false;
@@ -36,11 +38,11 @@ export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: 
 
 // undefinedは入力型による絞り込みを省略、nullは接続可能な入力型がないことを表す。
 // getNodeInputDataTypeのnullを「全型を許可」に変えないため、ここでは省略と明示的なnullを区別する。
-export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string | null }[] {
+export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = [], definitions: Readonly<Record<string, EffectDefinition>> = effectDefinitions): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string | null }[] {
 	return nodes.flatMap(node => {
 		if (node.id === excludedNodeId) return [];
-		const name = node.type === 'effect' ? getEffectNodeName(node) : node.type === 'globalIn' ? 'In' : 'Out';
-		const outputs = Object.entries(getNodeOutputs(node, paramDefs)).filter(([, output]) => inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType)).map(([outputPort, output]) => {
+		const name = node.type === 'effect' ? getEffectNodeName(node, definitions) : node.type === 'globalIn' ? 'In' : 'Out';
+		const outputs = Object.entries(getNodeOutputs(node, paramDefs, definitions)).filter(([, output]) => inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType)).map(([outputPort, output]) => {
 			const connection: NodeOutputReference = {
 				nodeId: node.id,
 				outputPort,
@@ -50,7 +52,7 @@ export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: s
 			};
 			const typeCompatible = inputDataType === undefined || areNodeDataTypesCompatible(output.dataType, inputDataType);
 			return {
-				label: `${name} [${prettyId(node.id)}]: ${node.type === 'globalIn' ? paramDefs.find(def => def.id === outputPort)?.ui.label ?? outputPort : outputPort}`,
+				label: `${name} [${prettyId(node.id)}]: ${node.type === 'globalIn' ? paramDefs.find(def => def.id === outputPort)?.ui.label ?? outputPort : output.label ?? outputPort}`,
 				value: nodeOutputKey(connection)!,
 				connection,
 				dataType: output.dataType,

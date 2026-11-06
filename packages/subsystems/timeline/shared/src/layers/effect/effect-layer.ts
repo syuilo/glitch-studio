@@ -1,4 +1,5 @@
 import { validateStaticSettings } from '@gs/shared/static-setting.ts';
+import { isCustomShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { createLowerLayerOutputBinding, validateTimelineParameterTree } from '../../parameter-binding.ts';
@@ -6,6 +7,14 @@ import type { TimelineEffectParameterBinding } from '../../types.ts';
 import type { TimelineEffectLayer } from '../../types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
 export { createLowerLayerOutputBinding } from '../../parameter-binding.ts';
+
+export function validateEffectLayerOutput(layer: TimelineEffectLayer, definition: EffectDefinition | null | undefined): void {
+	if (definition == null) throw new Error(`Effect not found: ${layer.effectId}`);
+	// データ出力だけのCustom Shader EffectはNodeから使う。Layerの出力を別ポートへ暗黙に切り替えない。
+	if (isCustomShaderEffectReference(layer.effectId) && (definition.primaryOutput == null || definition.outputDefs[definition.primaryOutput]?.dataType.kind !== 'color')) {
+		throw new Error('Custom Shader Effect Layer requires a primary color output');
+	}
+}
 
 // エフェクト定義の既定値は変更しない。レイヤーとしての作成・リセットだけで上書きする。
 export function getEffectLayerParameterDefault(definition: EffectDefinition, key: string): TimelineEffectParameterBinding {
@@ -17,6 +26,7 @@ export function getEffectLayerParameterDefault(definition: EffectDefinition, key
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 export function validateTimelineEffectLayer(layer: TimelineEffectLayer, definition: EffectDefinition | null | undefined): void {
 	if (definition == null) throw new Error(`Effect not found: ${layer.effectId}`);
+	validateEffectLayerOutput(layer, definition);
 	validateEffectResolution(layer.resolution);
 	validateStaticSettings(definition.staticSettingDefs ?? {}, layer.effectStaticSettings ?? {});
 	for (const [key, def] of Object.entries(definition.paramDefs)) {

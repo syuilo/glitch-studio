@@ -554,6 +554,128 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	} };
 }
 
+async function deferredVisualModuleLivePreview(t) {
+	const f = await fixture(t, { enableWaveformAndHistogram: false });
+	const instances = [];
+	f.renderer.effectImplementations.pass = {
+		disableCache: true,
+		outputTextureFactories: { output: ({ resolution }) => f.renderer.gpuDevice.createTexture({ size: resolution }) },
+		init(args) {
+			const instance = { args, prepares: 0, renders: [], disposed: false };
+			instances.push(instance);
+			args.reportStatus({ type: 'loading' });
+			return {
+				prepare() { instance.prepares++; },
+				render(context) { instance.renders.push(context); },
+				dispose() { instance.disposed = true; },
+			};
+		},
+	};
+	const definition = visualModule(false);
+	definition.nodes = [
+		{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'literal', value: [1, 0, 1, 1] } } },
+		definition.nodes[2],
+	];
+	f.renderer.updateDynamicOptions({ visualModules: [definition] });
+	f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+	return { ...f, instances, definition };
+}
+
+// 【ライブプレビューは準備中のフレームを同期的にスキップし、準備後は最新の入力で描く】
+// Custom Shader Effectのpipelineは初期化後に完成するため、renderを直接呼ぶと未コンパイルで失敗する。
+// Promiseを保持して旧フレームを再開せず、経過時間だけを引き継いで次のフレームを描画する。
+test('skips Visual Module Live Preview frames synchronously while effects are preparing', async t => {
+	const f = await deferredVisualModuleLivePreview(t);
+	const encoders = t.mock.method(f.renderer.gpuDevice, 'createCommandEncoder');
+	f.renderer.updatePointerPosition({ x: 0, y: 0 });
+	assert.equal(f.frame(16), undefined);
+	assert.equal(f.instances.length, 1);
+	assert.equal(f.instances[0].prepares, 1);
+	assert.equal(f.instances[0].renders.length, 0);
+	f.frame(32);
+	f.renderer.updatePointerPosition({ x: 0.25, y: 0.5 });
+	assert.equal(f.instances[0].prepares, 2);
+	assert.equal(encoders.mock.callCount(), 0);
+	f.instances[0].args.reportStatus({ type: 'ready' });
+	assert.equal(f.instances[0].renders.length, 0);
+	f.frame(48);
+	assert.equal(f.instances[0].renders.length, 1);
+	assert.equal(f.instances[0].renders[0].timeDelta, 48);
+	assert.equal(f.instances[0].renders[0].time, 0.048);
+	assert.deepEqual(f.renderer.pointerPositionPrev, { x: 0.25, y: 0.5 });
+	f.frame(64);
+	assert.equal(f.instances[0].renders.length, 2);
+	assert.equal(f.instances[0].renders[1].timeDelta, 16);
+	f.instances[0].args.reportStatus({ type: 'loading' });
+	f.frame(80);
+	assert.equal(f.instances[0].renders.length, 2);
+	f.instances[0].args.reportStatus({ type: 'ready' });
+	f.frame(96);
+	assert.equal(f.instances[0].renders.length, 3);
+	assert.equal(f.instances[0].renders[2].timeDelta, 32);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【準備中にCPU表示枠を返し、次の準備確認と描画を止めない】
+// スキップ時に表示枠を返し忘れると、2フレームで枠が尽きてコンパイル後も描画できなくなる。
+test('releases CPU Live Preview capacity when skipping frames during preparation', async t => {
+	const f = await deferredVisualModuleLivePreview(t);
+	Object.defineProperty(f.renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
+	const { CpuPreviewFrameQueue } = await loadShaderSource(fileURLToPath(new URL('../src/cpu-preview-frame-queue.ts', import.meta.url)));
+	let readbacks = 0;
+	const queue = new CpuPreviewFrameQueue([{ prepareReadback(encoder, release) {
+		readbacks++;
+		return { async complete() {}, cancel: release };
+	} }]);
+	t.after(() => queue.destroy());
+	t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => queue.tryReserveFrame());
+	f.frame(16); f.frame(32); f.frame(48);
+	assert.equal(f.instances[0].prepares, 3);
+	assert.equal(readbacks, 0);
+	f.instances[0].args.reportStatus({ type: 'ready' });
+	f.frame(64);
+	assert.equal(f.instances[0].renders.length, 1);
+	assert.equal(f.instances[0].renders[0].timeDelta, 64);
+	assert.equal(readbacks, 1);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【準備失敗は次のフレームで確認し、その診断のままライブプレビューへ通知する】
+// 準備失敗後に描画を始めると、具体的なコンパイル診断が汎用の未コンパイルエラーで隠れる。
+test('reports Live Preview preparation failures on the next frame without rendering', async t => {
+	const f = await deferredVisualModuleLivePreview(t);
+	f.frame(16);
+	f.instances[0].args.reportStatus({ type: 'error', message: '2:9: unresolved value' });
+	assert.deepEqual(f.errors, []);
+	f.frame(32);
+	assert.equal(f.instances[0].renders.length, 0);
+	assert.deepEqual(f.errors, ['2:9: unresolved value']);
+});
+
+// 【準備中に停止・編集しても旧インスタンスの完了では描画を再開しない】
+// 準備完了時のフレーム継続を持たず、次のフレームで現在のインスタンスだけを確認する。
+for (const operation of ['stop', 'edit']) {
+	test(`ignores obsolete Visual Module Live Preview preparation after ${operation}`, async t => {
+		const f = await deferredVisualModuleLivePreview(t);
+		f.frame(16);
+		const previous = f.instances[0];
+		if (operation === 'stop') f.renderer.stopRenderLoop();
+		else f.renderer.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: f.definition }]);
+		previous.args.reportStatus({ type: 'error', message: 'obsolete compilation' });
+		assert.equal(previous.renders.length, 0);
+		assert.equal(previous.disposed, true);
+		assert.deepEqual(f.errors, []);
+		if (operation === 'stop') f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+		f.frame(32);
+		f.instances[1].args.reportStatus({ type: 'ready' });
+		assert.equal(f.instances[1].renders.length, 0);
+		f.frame(48);
+		assert.equal(f.instances[1].renders.length, 1);
+		if (operation === 'edit') assert.equal(f.instances[1].renders[0].timeDelta, 48);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
 for (const Manager of [TimelineRendererManager, VisualModuleRendererManager]) {
 	for (const enableWaveformAndHistogram of [false, true]) {
 		// 【波形・ヒストグラムを無効にすると通常描画だけを残し、解析用のGPU処理を生成しない】
@@ -1004,6 +1126,7 @@ test('finishes partial Visual Module Live Preview frames before retrying', async
 		collected++;
 		return 0;
 	};
+	renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
 	renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 	let fail = true;
 	renderer.visualModuleLivePreviewVisualModuleRenderer.render = () => {

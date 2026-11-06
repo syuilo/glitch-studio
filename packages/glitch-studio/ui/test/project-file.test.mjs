@@ -553,6 +553,36 @@ test('recreates previews after switching away from invalid visualModuleLivePrevi
 	assert.equal(appContext.timelineRendererManagerController.renders.at(-1), 0);
 });
 
+// 【Custom Shader Effectの適用・Undoごとに、両プレビューを最新定義から作り直す】
+// 素材と同じ寿命で保持する定義を差分だけで変更すると、Workerに古いWGSLや入出力が残る。
+test('recreates both previews from project shader definitions on apply and undo', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const { appContext } = app;
+	await appContext.ready(project());
+	const manager = appContext.projectContext.stateManager;
+	const customShaderEffect = app.createProjectCustomShaderEffect([]);
+	manager.commit('addCustomShaderEffect', { customShaderEffect });
+	await setImmediate();
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.options.customShaderEffects[0].code, customShaderEffect.code);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 2);
+	}
+	const updated = { ...customShaderEffect, code: 'unfinished WGSL is still saved' };
+	manager.commit('updateCustomShaderEffect', { customShaderEffect: updated });
+	await setImmediate();
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.options.customShaderEffects[0].code, updated.code);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 3);
+	}
+	manager.undo();
+	await setImmediate();
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.options.customShaderEffects[0].code, customShaderEffect.code);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 4);
+	}
+});
+
 // 【プレビュー固有設定の修正でも、実行時失敗後に最新設定から再生成する】
 // これらの値はProjectのCommand通知を出さないため、編集通知だけに再試行を任せると復帰できない。
 // 解像度・サンプル数・GPU設定を含む各経路が、正常な最新設定を持つ両エンジンへ反映されることを確認する。

@@ -1,3 +1,5 @@
+import { createProjectEffects } from './custom-shader-effects.ts';
+import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { createTimelineLayerPublicParameterContextIndex } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import type { TimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/transform/transform-timeline-layer.ts';
@@ -118,7 +120,7 @@ export type TimelineRendererManagerDynamicOptions = {
 };
 
 /** 素材一覧はManagerの寿命中に固定し、変更時はManagerを再生成する。 */
-export type TimelineRendererManagerResources = { assets: readonly Asset[] };
+export type TimelineRendererManagerResources = { customShaderEffects?: readonly ProjectCustomShaderEffect[]; assets: readonly Asset[] };
 
 /** Managerが所有するGPU環境と、注入する描画機能。 */
 export type TimelineRendererManagerCoreConfig = {
@@ -235,8 +237,9 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.gpuContext = coreConfig.gpuContext;
-		this.effectDefinitions = coreConfig.effectDefinitions;
-		this.effectImplementations = coreConfig.effectImplementations;
+		const effects = createProjectEffects(resources.customShaderEffects ?? [], coreConfig.effectDefinitions, coreConfig.effectImplementations);
+		this.effectDefinitions = effects.definitions;
+		this.effectImplementations = effects.implementations;
 
 		this.gpuContext.configure({
 			device: this.gpuDevice,

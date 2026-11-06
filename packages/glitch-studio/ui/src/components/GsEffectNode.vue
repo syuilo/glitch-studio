@@ -46,7 +46,7 @@
 		<GsStaticSettings :definitions="effectDefinitions[node.effectId].staticSettingDefs ?? {}" :values="node.staticSettings" @change="emit('staticSetting', $event)"/>
 
 		<GsVisualParam
-			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))"
+			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node, effectDefinitions))"
 			:key="param"
 			:availableVariables="IN_VISUAL_MODULE_VAR_DEFS"
 			:visualModule="visualModule"
@@ -67,7 +67,7 @@
 import { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { prettyId } from '@gs/shared/utility/id.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';
@@ -86,6 +86,8 @@ import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
 import { getEffectNodeName } from '@/utility/node-name.ts';
 import * as ui from '@/ui.ts';
+
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
 
 const { stateManager } = appContext.projectContext;
 
@@ -107,7 +109,7 @@ const emit = defineEmits<{
 	(ev: 'setDisplayName', displayName: string): void;
 }>();
 
-const name = computed(() => getEffectNodeName(props.node));
+const name = computed(() => getEffectNodeName(props.node, effectDefinitions.value));
 const expanded = ref(true);
 const showSettings = ref(false);
 const allInPortEl = shallowRef<HTMLElement | null>(null);

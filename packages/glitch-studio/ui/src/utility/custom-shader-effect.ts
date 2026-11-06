@@ -29,7 +29,7 @@ export function createProjectCustomShaderEffect(definitions: readonly ProjectCus
 		shaderApiVersion: 1,
 		kind: 'modify',
 		codeLanguage: 'wgsl',
-		code: 'fn main(position: vec2f) -> CustomShaderEffectOutput {\n\tvar output: CustomShaderEffectOutput;\n\toutput.color = read_source(position);\n\treturn output;\n}\n',
+		code: 'fn main(position: vec2f) -> Output {\n\tvar output: Output;\n\toutput.color = read_source(position);\n\treturn output;\n}\n',
 		paramDefs: [{ id: inputId, nameForReference: 'source', canNode: true, dataType: { kind: 'color' }, ui: { label: 'Source', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }],
 		outputDefs: [{ id: outputId, nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }],
 		primaryInputId: inputId, primaryOutputId: outputId, resolutionInputIds: [inputId],

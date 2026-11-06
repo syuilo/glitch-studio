@@ -82,12 +82,14 @@ export function validateCustomShaderEffectDefinition(definition: CustomShaderEff
 export function describeCustomShaderEffectInterface(definition: CustomShaderEffectDefinition): string {
 	const shaderType = (dataType: TextureDataType) => dataType.kind === 'scalar' ? 'f32' : dataType.kind === 'vector' ? 'vec2f' : 'vec4f';
 	return [
-		'struct CustomShaderEffectOutput {',
+		'struct Output {',
 		...definition.outputDefs.map(output => `\t${output.nameForReference}: ${shaderType(output.dataType)},`),
 		'};',
 		'',
 		...definition.paramDefs.map(parameter => `// read_${parameter.nameForReference}(position: vec2f) -> ${shaderType(parameter.dataType)}`),
 		'',
-		'// main(position: vec2f) -> CustomShaderEffectOutput',
+		'// main(position: vec2f) -> Output',
+		'// get_resolution() -> vec2f (pixels)',
+		'// get_pixel_size() -> f32 (spatial units)',
 	].join('\n');
 }

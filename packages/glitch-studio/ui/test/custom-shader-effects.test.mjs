@@ -14,12 +14,22 @@ const bundle = await build({
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { default as Editor } from './src/components/GsCustomShaderEffectEditor.vue';
+		export { COMMAND_DEFS } from './src/commands.ts';
+		export { getEffectDefinitions } from './src/utility/project-effects.ts';
+		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
+		export { collectVisualModuleFile } from './src/gsvm.ts';
+		export { ProjectRenderValidation } from './src/ProjectRenderValidation.ts';
+		export { customShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 		export { CUSTOM_SHADER_EFFECT_COMMAND_DEFS } from './src/commands/custom-shader-effect.ts';
 		export { createProjectCustomShaderEffect } from './src/utility/custom-shader-effect.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export * from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'custom-shader-effect-controls', setup(build) {
+		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'custom-shader-effect-preferences' }));
+		build.onLoad({ filter: /.*/, namespace: 'custom-shader-effect-preferences' }, () => ({ contents: 'export const preferences = { s: { forceTypeSafety: true, visualModuleAutoConnectOnNodeAdd: false } };', loader: 'ts' }));
+		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'custom-shader-effect-builtins' }));
+		build.onLoad({ filter: /.*/, namespace: 'custom-shader-effect-builtins' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsCustomShaderEffectEditor.vue') ? null : { path: basename(path), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
 			import { h } from 'vue';
@@ -34,7 +44,97 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Editor, CUSTOM_SHADER_EFFECT_COMMAND_DEFS, createProjectCustomShaderEffect, UndoRedo, validateCustomShaderEffectDefinition, describeCustomShaderEffectInterface } = module.exports;
+const { ProjectRenderValidation, COMMAND_DEFS, getEffectDefinitions, createEffectTimelineLayer, collectVisualModuleFile, customShaderEffectReference, Editor, CUSTOM_SHADER_EFFECT_COMMAND_DEFS, createProjectCustomShaderEffect, UndoRedo, validateCustomShaderEffectDefinition, describeCustomShaderEffectInterface } = module.exports;
+
+function usageFixture() {
+	const definition = createProjectCustomShaderEffect([]);
+	definition.paramDefs.push({ id: 'amount', nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0.25 } });
+	definition.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
+	const visualModule = { id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [], outputDefs: [{ id: 'out', name: 'out', label: 'Out', dataType: { kind: 'scalar' } }], primaryInputId: null, primaryOutputId: null, customParameterDefs: [], customParameterValues: {}, automationGraphs: [] };
+	const state = { customShaderEffects: ref([definition]), visualModules: ref([visualModule]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }]), resolution: ref({ width: 16, height: 8 }), assets: ref([]), players: ref([]), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
+	const manager = new UndoRedo(state, COMMAND_DEFS);
+	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'custom-node', effectId: customShaderEffectReference(definition.id) });
+	const layer = createEffectTimelineLayer(getEffectDefinitions(state)[customShaderEffectReference(definition.id)], 0);
+	state.timelineScenes.value[0].layers.push(layer);
+	return { definition, state, manager, visualModule: state.visualModules.value[0], layer: state.timelineScenes.value[0].layers[0] };
+}
+
+// 【Custom Shader Effectを既存のNode・Layer操作から作成し、使用箇所ごとの値を所有する】
+// 名前空間付き参照をUI・Command・Timelineの既定値生成で同じ定義へ解決できる必要がある。
+test('creates project shader nodes and layers with stable parameter IDs and independent bindings', () => {
+	const { definition, state, manager, visualModule, layer } = usageFixture();
+	const node = visualModule.nodes[0];
+	assert.equal(node.effectId, customShaderEffectReference(definition.id));
+	assert.deepEqual(node.params.amount, { inputSource: 'literal', value: 0.25 });
+	assert.equal(layer.effectParamValues[definition.primaryInputId].inputSource, 'lowerLayerOutput');
+	assert.equal(layer.transformTarget, 'region');
+	node.params.amount.value = 0.75;
+	assert.equal(layer.effectParamValues.amount.value, 0.25);
+	assert.equal(state.customShaderEffects.value[0].paramDefs[1].defaultValue.value, 0.25);
+	assert.throws(() => manager.commit('removeCustomShaderEffect', { customShaderEffectId: definition.id }), /in use/);
+	manager.undo();
+	assert.equal(state.visualModules.value[0].nodes.length, 0);
+});
+
+// 【定義の削除と型変更を全使用箇所へ適用し、配線と値を定義と一緒にUndoする】
+// Nodeだけを更新するとLayerやInline Visual Moduleに古い値が残るため、全配置を同じ履歴で扱う。
+test('preserves compatible values and disconnects removed outputs atomically across all shader usages', () => {
+	const { definition, state, manager, visualModule, layer } = usageFixture();
+	visualModule.nodes[0].params.amount = { inputSource: 'expression', value: 'TIME' };
+	visualModule.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: 'custom-node', outputPort: 'mask' } });
+	visualModule.nodes.push({ id: 'out-node', type: 'globalOut', inputs: { out: { nodeId: 'custom-node', outputPort: 'mask' } } });
+	const inline = JSON.parse(JSON.stringify(visualModule));
+	state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: inline });
+	layer.effectParamValues.amount = { inputSource: 'literal', value: 0.8 };
+	const updated = structuredClone(definition);
+	updated.name = 'Renamed';
+	updated.paramDefs[1].nameForReference = 'strength';
+	updated.paramDefs[1].defaultValue.value = 0.1;
+	updated.outputDefs = updated.outputDefs.filter(output => output.id !== 'mask');
+	manager.commit('updateCustomShaderEffect', { customShaderEffect: updated });
+	for (const current of [state.visualModules.value[0], state.timelineScenes.value[0].layers[1].visualModule]) {
+		assert.equal(current.nodes[0].params.amount.value, 'TIME');
+		assert.deepEqual(JSON.parse(JSON.stringify(current.nodes[1].input)), { nodeId: null, outputPort: null });
+		assert.deepEqual(JSON.parse(JSON.stringify(current.nodes[2].inputs.out)), { nodeId: null, outputPort: null });
+	}
+	assert.equal(state.timelineScenes.value[0].layers[0].effectParamValues.amount.value, 0.8);
+	manager.undo();
+	assert.equal(state.visualModules.value[0].nodes[1].input.outputPort, 'mask');
+	assert.equal(state.timelineScenes.value[0].layers[1].visualModule.nodes[2].inputs.out.outputPort, 'mask');
+	manager.redo();
+	const changedType = structuredClone(updated);
+	changedType.paramDefs[1].dataType = { kind: 'vector' };
+	changedType.paramDefs[1].ui.control = {};
+	changedType.paramDefs[1].defaultValue.value = [0.2, 0.4];
+	manager.commit('updateCustomShaderEffect', { customShaderEffect: changedType });
+	assert.deepEqual(JSON.parse(JSON.stringify(state.visualModules.value[0].nodes[0].params.amount.value)), [0.2, 0.4]);
+	assert.deepEqual(JSON.parse(JSON.stringify(state.timelineScenes.value[0].layers[0].effectParamValues.amount.value)), [0.2, 0.4]);
+	manager.undo();
+	assert.equal(state.visualModules.value[0].nodes[0].params.amount.value, 'TIME');
+});
+
+// 【未接続・バイパス中のCustom Shader Effect NodeもVisual Module単体exportを拒否する】
+// 描画に使われないNodeでも参照先の定義はファイルに同梱されないため、欠落した成果物を作らない。
+test('rejects standalone Visual Module export even for bypassed disconnected shader nodes', () => {
+	const { state, visualModule } = usageFixture();
+	visualModule.nodes[0].isBypass = true;
+	assert.throws(() => collectVisualModuleFile({ name: 'Test', gsVersion: '2.0.0', visualModule, assets: [], players: [] }, getEffectDefinitions(state)), /Custom Shader Effect Node.*export/);
+});
+
+// 【Layerで使用中の主出力を解除すると描画を停止し、定義のUndoで検証を復旧する】
+// 出力選択を自動で別ポートへ移すと適用前後で別の画像になり、静かに合成結果を失ってしまう。
+test('revalidates shader layers after primary output changes and undo', () => {
+	const { state, definition, manager } = usageFixture();
+	const validation = new ProjectRenderValidation(state, {});
+	validation.reset();
+	assert.equal(validation.errorMessage.value, null);
+	manager.commit('updateCustomShaderEffect', { customShaderEffect: { ...definition, primaryOutputId: null } });
+	validation.update([{ type: 'customShaderEffect', customShaderEffectId: definition.id }]);
+	assert.match(validation.errorMessage.value, /primary color output/);
+	manager.undo();
+	validation.update([{ type: 'customShaderEffect', customShaderEffectId: definition.id }]);
+	assert.equal(validation.errorMessage.value, null);
+});
 
 function fixture(t) {
 	const element = type => ({ type, props: {}, children: [], parent: null });

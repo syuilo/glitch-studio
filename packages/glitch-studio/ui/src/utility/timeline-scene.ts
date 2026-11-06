@@ -5,7 +5,7 @@ import { isTimelineVisualLayer, hasTimelineLayerParameters } from '@gs/subsystem
 import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getEffectDefinitions } from './project-effects.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { voicevoxSubtitleParamDefs } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle.ts';
@@ -72,14 +72,14 @@ export function getLayerParameterValues(layer: TimelineLayer, target: TimelinePa
  * 型・ラベルだけの参照では解像度は不要。既定値を書き込む編集では、
  * Camera Zを正方形用の値へ戻さないよう、所属Sceneの基準解像度を渡す。
  */
-export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, contextResolution: Resolution | null = null): Record<string, ParameterDefinition> {
+export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualModules'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget, contextResolution: Resolution | null = null): Record<string, ParameterDefinition> {
 	if (!getLayerParameterTargets(layer).includes(target)) throw new Error('Invalid layer parameter target');
 	if (target === 'publicParameter' && hasTimelineLayerParameters(layer)) return Object.fromEntries((layer.publicParameterDefs ?? []).map(def => [def.id, def]));
 	if (target === 'audio') return timelineAudioParamDefs;
 	if (target === 'transform') return timelineTransformParamDefs;
 	if (target === 'camera') return contextResolution == null ? timelineCameraParamDefs : getTimelineCameraParameterDefinitions(contextResolution);
 	if (target === 'compositing' && isTimelineVisualLayer(layer)) return getTimelineCompositingParameterDefinitions(layer.mask);
-	if (target === 'effect' && layer.layerType === 'effect') return effectDefinitions[layer.effectId].paramDefs;
+	if (target === 'effect' && layer.layerType === 'effect') return getEffectDefinitions(state)[layer.effectId].paramDefs;
 	if (target === 'text' && layer.layerType === 'text') return textParamDefs;
 	if (target === 'voicevoxSubtitle' && layer.layerType === 'voicevox') return voicevoxSubtitleParamDefs;
 	if (target === 'shape' && layer.layerType === 'shape') return getShapeParameterDefinitions(layer.shape.type);
@@ -88,7 +88,7 @@ export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualMo
 	return Object.fromEntries(module?.paramDefs.map(def => [def.id, def]) ?? []);
 }
 
-export function resolveLayerParameter(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath) {
+export function resolveLayerParameter(state: Pick<ProjectState, 'visualModules'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath) {
 	const defs = getLayerParameterDefinitions(state, layer, target);
 	const values = getLayerParameterValues(layer, target);
 	// 未編集のモジュール引数は定義の既定値を参照する。参照だけでは保存値を増やさない。
@@ -99,18 +99,18 @@ export function resolveLayerParameter(state: Pick<ProjectState, 'visualModules'>
 			const def = visualModule?.paramDefs.find(def => def.id === path[0]);
 			if (visualModule && def) return { def, value: getTimelineVisualModuleArgumentDefault(visualModule, def) };
 		}
-		if (target === 'effect' && layer.layerType === 'effect') return { def: defs[path[0]], value: getEffectLayerParameterDefault(effectDefinitions[layer.effectId], path[0]) };
+		if (target === 'effect' && layer.layerType === 'effect') return { def: defs[path[0]], value: getEffectLayerParameterDefault(getEffectDefinitions(state)[layer.effectId], path[0]) };
 		return { def: defs[path[0]], value: defs[path[0]].defaultValue };
 	}
 	const { def, value } = resolveParameter<EditableTimelineParameterBinding>(defs, values, path);
 	return { def, value };
 }
 
-export function getLayerParameterDefinition(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath): ParameterDefinition | null {
+export function getLayerParameterDefinition(state: Pick<ProjectState, 'visualModules'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath): ParameterDefinition | null {
 	try { return resolveLayerParameter(state, layer, target, path).def; } catch { return null; }
 }
 
-export function getLayerKeyframeParameters(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer) {
+export function getLayerKeyframeParameters(state: Pick<ProjectState, 'visualModules'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer) {
 	const targetLabels: Record<TimelineParameterTarget, string> = {
 		publicParameter: 'Public Parameters',
 		module: 'Module',

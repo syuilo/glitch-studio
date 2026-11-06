@@ -1,6 +1,7 @@
 {
 	"Add": "Add",
 	"_CustomShaderEffect": {
+		"InUse": "Remove the Custom Shader Effect Nodes and Layers before deleting this definition.",
 		"Title": "Custom Shader Effects",
 		"Add": "Add Custom Shader Effect",
 		"Discard": "Discard changes",

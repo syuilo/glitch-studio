@@ -13,19 +13,19 @@ Custom Shader Effect(カスタムシェーダーエフェクト)は、WGSLコー
 
 入力と出力には、保存値・接続用の固定ID、表示名、WGSLから使う参照名を別々に持たせます。表示名・参照名・型・並び順の変更でもIDは維持します。参照名の変更や入出力の削除ではWGSLコードを自動修正しません。参照名には英字で始まる英数字と`_`を使い、`__`と`gs_`接頭辞は予約します。WGSLの予約語など、コンパイル時にしか検出しない名前の問題は、この段階では検査しません。
 
-初期の入出力型は`scalar`・`vector`・`color`・`any`だけです。すべての入力は定数と接続の両方を受ける契約です。入力定義に保存する既定値はliteralだけとし、式・キーフレーム・配線などのBindingは将来の使用箇所が所有します。数値の編集UIには既存のnumber・range・angle・seedを使えます。`any`の既定値編集UIはなく、初期値はnull（ゼロ値）です。
+初期の入出力型は`scalar`・`vector`・`color`・`any`だけです。すべての入力は定数と接続の両方を受けます。入力定義に保存する既定値はliteralだけとし、式・キーフレーム・配線などのBindingは使用箇所のNode・Layerが所有します。数値の編集UIには既存のnumber・range・angle・seedを使えます。`any`の既定値編集UIはなく、初期値はnull（ゼロ値）です。
 
 生成系／加工系、主入力・主出力、自動解像度の参照入力も定義に保存します。主入力と主出力は色型だけを指定でき、未指定はnullです。入力・出力の削除や型変更で主入出力の条件を失った場合は指定を解除し、入力削除では自動解像度の参照も解除します。出力は1つ以上必要です。
 
 ## シェーダーAPIの契約
 
-`shaderApiVersion: 1`で、全画面・単一パス・履歴なしの処理関数を定義します。複数出力は同じ解像度で描画する想定です。GPUリソース・binding・実際のGPUエントリポイントは実行側が管理します。
+`shaderApiVersion: 1`で、全画面・単一パス・履歴なしの処理関数を定義します。複数出力を同じ解像度で描画します。GPUリソース・binding・実際のGPUエントリポイントは実行側が管理します。
 
-ユーザーの入口は通常のWGSL関数`main(position: vec2f) -> CustomShaderEffectOutput`で固定します。単一出力でも同じ戻り値形式です。出力UIから構造体を生成する契約で、入力は`read_<参照名>(position)`から読みます。エディタにはそのAPIリファレンスを表示しますが、実行用シェーダーは生成しません。
+ユーザーの入口は通常のWGSL関数`main(position: vec2f) -> Output`で固定します。単一出力でも同じ戻り値形式です。出力UIから構造体を生成し、入力は`read_<参照名>(position)`から読みます。エディタにAPIリファレンスを表示し、実行側がユーザーコードと入出力のラッパーを組み合わせます。
 
 ```wgsl
-fn main(position: vec2f) -> CustomShaderEffectOutput {
-	var output: CustomShaderEffectOutput;
+fn main(position: vec2f) -> Output {
+	var output: Output;
 	output.color = read_source(position);
 	return output;
 }
@@ -35,12 +35,41 @@ fn main(position: vec2f) -> CustomShaderEffectOutput {
 
 座標は[共通の空間座標](spatial-coordinate.md)に従い、長辺全体を1、中央原点、右を+X、上を+Yとします。色の読み取り値・出力値は[premultiplied alpha](renderer.md#アルファの扱い)です。スカラー・ベクトル・anyには色としてのalpha処理を行いません。
 
-時間は暗黙に公開しません。必要な場合は通常の入力として`time`などを定義し、使用箇所の式やキーフレームから値を与える想定です。`time`という参照名自体には特別な意味はありません。
+時間は暗黙に公開しません。必要な場合は通常の入力として`time`などを定義し、使用箇所の式やキーフレームから値を与えます。`time`という参照名自体には特別な意味はありません。
+
+`get_resolution() -> vec2f`は出力のピクセル寸法、`get_pixel_size() -> f32`は共通座標での1pxの距離（長辺ピクセル数の逆数）を返します。入力の読み取りは既存のFit／Wrap／Filterに従い、LOD 0を明示するため、画素ごとに異なる条件分岐内からも呼び出せます。LOD 0はnearestを意味しません。
+
+## Node・Layerでの使用
+
+Visual ModuleのEffect追加画面にプロジェクトのCustom Shader Effectも表示します。TimelineのEffect追加画面では主出力がcolorの定義を選べます。加工系のLayerは主入力へ下層の合成結果を割り当て、生成系では定義の既定値を使います。式・キー・サンプリング・解像度・バイパス・合成は既存Effectの規則に従います。
+
+保存形式と実行基盤には既存のEffect Node・Effect Layerを使い、`effectId: "customShaderEffect:<登録ID>"`で定義を参照します。パラメータと出力のキーは固定IDです。WGSL参照名や表示名を変更してもBindingと配線は変わりません。組み込みEffectの登録一覧は変更せず、プロジェクトごとの定義と実装を呼び出し側から注入します。
+
+定義の適用時には、登録済みVisual Module、Inline Visual Module、Timeline Layerの使用箇所をまとめて更新します。同じ型の保存値は維持し、入力・出力の接続には既存の型互換規則を使います。型間の値変換は行いません。非互換の値は新しい既定値へ戻し、削除された入力の保存値と、削除・非互換になった出力への接続は解除します。既定値だけの編集では保存値を変更しません。これらの変更は定義と同じUndo単位で復元します。
+
+既存Layerが参照する主color出力を削除・解除した場合は描画前の検証エラーにし、別出力へ暗黙に切り替えません。
+
+使用中の定義そのものは削除できません。先に参照するNode・Layerを削除します。
+
+## コンパイルと描画
+
+適用時は両プレビューのManagerを再生成し、使用箇所ごとに独立したpipelineを作ります。使用中の定義間でpipelineを共有したり、GPUリソースへ細かな差分を適用したりしません。未使用の出力も含めて確保し、一つの描画パスで全出力を書き込みます。出力の形式は既存の画像形式・データ精度設定に従い、GPUの出力数・容量・入力bindingの上限を超えた場合はエラーです。
+
+WGSLの構文・型検査はWebGPUコンパイラに任せます。ユーザーコードを生成コードの先頭へ置き、取得できた診断の行・列を編集画面と一致させます。生成部分やpipelineのエラーは区別して表示します。予約した内部名に依存するコードや、独自GPUリソースの割り当てはサポートしません。
+
+コンパイル中は既存のloading表示を使います。失敗時はエラーを通知して描画・書き出しを失敗させ、直前の成功版へフォールバックしません。不正なWGSLもプロジェクトへ保存でき、コードを修正して再適用すると再生成します。
+
+## import／export
+
+プロジェクト保存・読み込みには定義と参照するNode・Layerを含めます。画像・動画の書き出しにも同じ定義を渡します。
+
+初期実装では、Custom Shader Effect Nodeを含むVisual Moduleの単体exportはエラーにします。未接続・バイパス中も対象で、部分的なファイルを作成しません。Custom Shader Effect単体のimport／exportは未対応です。
 
 ## 責務
 
 - Effect Sharedの`CustomShaderEffectDefinition`が、プロジェクトから独立したコード・入出力・実行契約を所有します。
 - Glitch Studio Sharedの`ProjectCustomShaderEffect`が登録ID・名前・説明を加えます。
 - UIのProjectContextが定義一覧と保存を所有し、専用Commandが更新・履歴・変更通知を担当します。
+- Effect RendererがWGSL生成・コンパイル・複数出力の描画を所有します。Nodeの配線・Timelineの時計・Projectは知りません。
 
 プロジェクトファイルには定義のデータだけを保存します。GPUオブジェクト、コンパイル結果、編集中のドラフトは含めません。

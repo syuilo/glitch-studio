@@ -4,7 +4,7 @@
 		<GsButton v-tooltip="i18n.ts._CustomShaderEffect.Add" data-test-add-custom-shader-effect icon="ti ti-plus" @click="add()">{{ i18n.ts.Add }}</GsButton>
 		<GsSelect v-if="definitions.length > 0" :modelValue="selected?.id ?? null" :items="definitionItems" data-test-select-custom-shader-effect @update:modelValue="selectedId = $event"/>
 		<GsButton v-if="selected != null" data-test-duplicate-custom-shader-effect icon="ti ti-copy" @click="add(selected)">{{ i18n.ts.Duplicate }}</GsButton>
-		<GsButton v-if="selected != null" data-test-delete-custom-shader-effect danger icon="ti ti-trash" @click="remove">{{ i18n.ts.Delete }}</GsButton>
+		<GsButton v-if="selected != null" :disabled="isCustomShaderEffectUsed(stateManager.state, selected.id)" :title="i18n.ts._CustomShaderEffect.InUse" data-test-delete-custom-shader-effect danger icon="ti ti-trash" @click="remove">{{ i18n.ts.Delete }}</GsButton>
 	</div>
 	<GsCustomShaderEffectEditor v-if="selected != null" :key="`${projectContext.generation}:${selected.id}`" :customShaderEffect="selected" @apply="apply"/>
 </div>
@@ -19,6 +19,7 @@ import type { WorkspacePanel } from '@/workspace.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
+import { isCustomShaderEffectUsed } from '@/utility/custom-shader-effect-usages.ts';
 import { createProjectCustomShaderEffect } from '@/utility/custom-shader-effect.ts';
 
 defineProps<{ panel: WorkspacePanel }>();

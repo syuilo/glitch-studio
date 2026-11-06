@@ -1,6 +1,7 @@
 {
 	"Add": "追加",
 	"_CustomShaderEffect": {
+		"InUse": "この定義を削除する前に、参照するCustom Shader Effect NodeとLayerを削除してください。",
 		"Title": "カスタムシェーダーエフェクト",
 		"Add": "カスタムシェーダーエフェクトを追加",
 		"Discard": "変更を破棄",

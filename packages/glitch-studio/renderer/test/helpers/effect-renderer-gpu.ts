@@ -13,6 +13,11 @@ import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { checkEffectTimelineLayers, checkBlurRegionTimelineLayer } from './effect-timeline-layer-gpu.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
+import { checkCustomShaderEffects } from './custom-shader-effect-gpu.ts';
+
+export async function runCustomShaderEffects() {
+	return runGpuChecks(checkCustomShaderEffects);
+}
 
 export async function run() {
 	return runGpuChecks(async (device, vertex, read) => {
@@ -135,6 +140,8 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		},
 	};
 	const module: VisualModule = {
+		customParameterDefs: [],
+		customParameterValues: {},
 		automationGraphs: [],
 		paramDefs: [],
 		primaryInputId: null,

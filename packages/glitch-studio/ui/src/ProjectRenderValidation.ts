@@ -1,3 +1,4 @@
+import { getProjectEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
 import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
@@ -46,7 +47,9 @@ export class ProjectRenderValidation {
 	public readonly diagnostics = shallowRef<readonly RenderValidationDiagnostic[]>([]);
 	public readonly errorMessage = computed(() => this.diagnostics.value[0]?.message ?? null);
 
-	constructor(private state: ProjectState, private definitions: Readonly<Record<string, EffectDefinition>>) {}
+	constructor(private state: ProjectState, private builtinDefinitions: Readonly<Record<string, EffectDefinition>>) {}
+
+	private get definitions() { return getProjectEffectDefinitions(this.state.customShaderEffects?.value ?? [], this.builtinDefinitions); }
 
 	public reset(): void {
 		this.units.clear(); this.errors.clear(); this.dependents.clear();
@@ -60,6 +63,12 @@ export class ProjectRenderValidation {
 	}
 
 	public update(changes: readonly AppStateChange[]): void {
+		if (changes.some(change => change.type === 'customShaderEffect')) {
+			const previewInputs = this.visualModuleLivePreviewInputs;
+			this.reset();
+			if (previewInputs != null) this.setVisualModuleLivePreviewInputs(previewInputs.visualModuleId, previewInputs.bindings);
+			return;
+		}
 		// 削除・追加が同じCommandに含まれても、最終状態と最終参照先だけを検査する。
 		for (const change of changes) {
 			if (change.type === 'visualModuleRegistration') {

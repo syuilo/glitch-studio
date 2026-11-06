@@ -6,6 +6,7 @@ import type { CheckedParameterDefinition, ParameterDefinition } from '@gs/shared
 
 export type EffectOutputDefinitions = Record<string, {
 	dataType: TextureDataType;
+	label?: string;
 
 	// trueの出力のみ、必要になるまで確保を遅らせ、未使用になったら解放する。
 	canLazyAllocation?: boolean;

@@ -71,8 +71,9 @@
 </template>
 
 <script setup lang="ts">
+import { appContext } from '@/app.ts';
 import { computed, ref, useTemplateRef } from 'vue';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { EFFECT_TAGS } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import GsEffectPickerEffect from './GsEffectPicker.Effect.vue';
 import GsNodePort from './GsNodePort.vue';
@@ -80,16 +81,19 @@ import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { EffectDefinition, EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { i18n } from '@/i18n.ts';
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
 
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+
 const props = defineProps<{
 	selectedOutputType?: TextureDataType['kind'] | null;
+	requirePrimaryColorOutput?: boolean;
 }>();
 
 const emit = defineEmits<{
-	(ev: 'chosen', effect: typeof effectDefinitions[keyof typeof effectDefinitions]): void;
+	(ev: 'chosen', effect: EffectDefinition): void;
 	(ev: 'closed'): void;
 }>();
 
@@ -107,31 +111,31 @@ const dataTypeItems: { value: TextureDataType['kind'] | null; label: string }[] 
 	{ value: 'vector', label: i18n.ts._EffectPicker._DataTypes.vector },
 	{ value: 'any', label: i18n.ts._EffectPicker._DataTypes.any },
 ];
-const effects = Object.entries(effectDefinitions);
-const searchableEffects = effects.map(([key, effect]) => ({
+const effects = computed(() => Object.entries(effectDefinitions.value).filter(([, definition]) => !props.requirePrimaryColorOutput || definition.primaryOutput != null && definition.outputDefs[definition.primaryOutput]?.dataType.kind === 'color'));
+const searchableEffects = computed(() => effects.value.map(([key, effect]) => ({
 	key,
 	effect,
 	inputPorts: getEffectInputPorts(effect),
 	outputPorts: getEffectOutputPorts(effect),
-}));
+})));
 
 // 検索条件でタグの件数や順番が動かないよう、登録済みの全エフェクトから集計する。
 // 同数のタグはEFFECT_TAGSの定義順を保つ。
-const tags = EFFECT_TAGS.map(tag => ({
+const tags = computed(() => EFFECT_TAGS.map(tag => ({
 	tag,
-	count: effects.filter(([, effect]) => effect.tags.includes(tag)).length,
-})).sort((a, b) => b.count - a.count);
+	count: effects.value.filter(([, effect]) => effect.tags.includes(tag)).length,
+})).sort((a, b) => b.count - a.count));
 
 const recentEffectsStorageKey = 'glitch-studio:recent-effects';
 const maxRecentEffects = 10;
 const recentEffectKeys = ref(readRecentEffectKeys());
-const recentEffects = computed(() => recentEffectKeys.value.map(key => [key, effectDefinitions[key]] as const));
+const recentEffects = computed(() => recentEffectKeys.value.flatMap(key => effects.value.filter(([id]) => id === key)));
 
 const results = computed(() => {
 	const keyword = query.value.toLowerCase();
 	const inputType = selectedInputType.value;
 	const outputType = selectedOutputType.value;
-	return searchableEffects.filter(({ effect, inputPorts, outputPorts }) => {
+	return searchableEffects.value.filter(({ effect, inputPorts, outputPorts }) => {
 		// 接続互換性ではなく定義された型で検索する。any型と「指定なし」も区別する。
 		return effect.displayName.toLowerCase().includes(keyword)
 			&& selectedTags.value.every(tag => effect.tags.includes(tag))
@@ -158,7 +162,7 @@ function readRecentEffectKeys(): string[] {
 		const stored: unknown = JSON.parse(localStorage.getItem(recentEffectsStorageKey) ?? '[]');
 		if (!Array.isArray(stored)) return [];
 		// 保存後に削除されたエフェクトを除外し、登録キーごとに最新の1件だけを残す。
-		const keys = stored.filter((key): key is string => typeof key === 'string' && Object.hasOwn(effectDefinitions, key));
+		const keys = stored.filter((key): key is string => typeof key === 'string' && Object.hasOwn(effectDefinitions.value, key));
 		return [...new Set(keys)].slice(0, maxRecentEffects);
 	} catch {
 		return [];
@@ -175,7 +179,7 @@ function chooseFirstResult(event: KeyboardEvent) {
 	if (firstResult) choose(firstResult[0], firstResult[1]);
 }
 
-function choose(key: string, effect: typeof effectDefinitions[keyof typeof effectDefinitions]) {
+function choose(key: string, effect: EffectDefinition) {
 	recentEffectKeys.value = [key, ...recentEffectKeys.value.filter(value => value !== key)].slice(0, maxRecentEffects);
 	try {
 		localStorage.setItem(recentEffectsStorageKey, JSON.stringify(recentEffectKeys.value));

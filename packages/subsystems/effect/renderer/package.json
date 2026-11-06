@@ -10,6 +10,7 @@
 	},
 	"exports": {
 		"./effect-static-settings.ts": "./src/effect-static-settings.ts",
+		"./custom-shader-effect.ts": "./src/custom-shader-effect.ts",
 		"./effect-renderer.ts": "./src/effect-renderer.ts",
 		"./effect-parameter-value.ts": "./src/effect-parameter-value.ts"
 	},

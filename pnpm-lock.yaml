@@ -190,6 +190,9 @@ importers:
 
   packages/glitch-studio/renderer:
     dependencies:
+      '@gs/subsystems_effect_renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/effect/renderer
       '@gs/glitch-studio_shared':
         specifier: workspace:*
         version: link:../shared
@@ -227,9 +230,6 @@ importers:
         specifier: 2.1.1
         version: 2.1.1
     devDependencies:
-      '@gs/subsystems_effect_renderer':
-        specifier: workspace:*
-        version: link:../../subsystems/effect/renderer
       '@types/web':
         specifier: 0.0.359
         version: 0.0.359
