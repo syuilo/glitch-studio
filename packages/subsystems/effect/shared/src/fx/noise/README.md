@@ -1,4 +1,4 @@
-# Fractal Noise
+# Noise
 
 Value Noise・Simplex Noise・Perlin Noise・Worley Noise・Flow Noiseを複数の周波数・振幅で重ねる生成エフェクト。fBm・Turbulence・Ridged・Ping Pongの合成モードを選べる。出力はスカラー場で、描画履歴には依存しない。同じ座標・Time・Flow Phase・Seed・設定なら、描画順序やフレームレートによらず同じ値になる。
 
@@ -16,7 +16,7 @@ noisePosition.xy = coordinates * (L / B) * Density + Offset
 noisePosition.z = Time
 ```
 
-Size ReferenceはDensityの見た目の基準を変え、Coordinatesの共通単位は変えない。OffsetはSnoiseと同様にノイズ内部の座標単位で、画面上の移動距離ではない。
+Size ReferenceはDensityの見た目の基準を変え、Coordinatesの共通単位は変えない。Offsetはノイズ内部の座標単位で、画面上の移動距離ではない。
 
 ## パラメータ
 
@@ -46,7 +46,7 @@ Coordinates・Density・Offset・Gain・Lacunarity・Ping Pong Strength・Flow S
 全方式は3Dで評価し、Timeを第3軸として使う。各段の基礎ノイズを0〜1へ揃え、その後でFractal Modeの加工を適用する。
 
 - Value Noise: 格子点の値を3次関数で補間する。
-- Simplex Noise: Snoiseと共通のSimplex Noiseを使う。
+- Simplex Noise: 3D Simplex Noiseを使う。
 - Perlin Noise: 格子点の勾配を5次関数で補間する。置換表の代わりに整数hashを使うため、Ken Perlinの参照実装と同じ配置にはならない。
 - Worley Noise: 各格子セルに1個の特徴点を置き、最も近い点へのユークリッド距離F1を返す。自セルの点への距離の上限sqrt(3)で割り、0〜1へ揃える。Timeによる変化は固定の3D点群の断面であり、2Dの点自体を動かす方式ではない。
 
@@ -92,8 +92,8 @@ Flow Strength: 0.1
 ## 接続例
 
 - 色を付ける: 出力をColor RampのInputへ接続する。
-- 変位を作る: Offsetの異なるFractal Noiseを2個作り、Output Min / Maxを-1 / 1にしてCompose VectorのX・Yへ接続する。
-- ドメインワープ: そのCompose Vectorを別のFractal NoiseのCoordinatesへ接続し、Coordinate SourceをInputにする。入力座標の倍率は受け側のDensityでも調整できる。
+- 変位を作る: Offsetの異なるNoiseを2個作り、Output Min / Maxを-1 / 1にしてCompose VectorのX・Yへ接続する。
+- ドメインワープ: そのCompose Vectorを別のNoiseのCoordinatesへ接続し、Coordinate SourceをInputにする。入力座標の倍率は受け側のDensityでも調整できる。
 - 元の位置からの変位にする場合は、元の位置場と変位場を上流で加算してCoordinatesへ渡す。
 
 ## 解像度・実行
@@ -104,4 +104,4 @@ Flow Strength: 0.1
 
 Worleyは最近点の探索が必要になる。探索半径を自セルの点までの距離に限定し、セルまでの最短距離で候補を除外して、評価する特徴点を減らす。特徴点をセル内の全域へ配置するため、固定の3×3×3近傍だけには制限しない。
 
-`CHROME_PATH`を指定し、`node --test packages/subsystems/effect/shared/test/fractal-noise.gpu.test.mjs`で実際のWebGPU描画を検証する。Flowでは解析勾配とXYZの有限差分の一致、PSRDの基準格子点、位相の周期と継ぎ目、Timeとの独立性、加工前の勾配による段間ワープも確認する。
+`CHROME_PATH`を指定し、`node --test packages/subsystems/effect/shared/test/noise.gpu.test.mjs`で実際のWebGPU描画を検証する。Flowでは解析勾配とXYZの有限差分の一致、PSRDの基準格子点、位相の周期と継ぎ目、Timeとの独立性、加工前の勾配による段間ワープも確認する。

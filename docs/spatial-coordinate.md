@@ -16,9 +16,9 @@
 
 Pointer Trail・Position Trailも同じ単位を使い、Vector Coordinatesを持ちません。軌跡のStrengthや減衰は効果の係数として適用します。Optical Flowの出力は共通単位/秒であり、1フレーム分の移動として使う場合は経過秒数を掛けます。Gradient・Scalar Gradientは共通座標に対する偏微分を返します。Normalize後の勾配は長さ1です。
 
-SnoiseのOffsetはノイズ内部の座標をずらす値で、画面上の移動距離ではありません。旧座標への変換関数`ISOTROPIC_TO_SCREEN`は廃止します。
+旧座標への変換関数`ISOTROPIC_TO_SCREEN`は廃止します。
 
-Fractal NoiseのCoordinatesは共通単位の絶対座標です。Coordinate SourceがScreenの場合も同じ共通座標を使います。Size Referenceはノイズの密度を換算し、入力座標の単位は変更しません。Offsetはノイズ内部の座標単位です。
+NoiseのCoordinatesは共通単位の絶対座標です。Coordinate SourceがScreenの場合も同じ共通座標を使います。Size Referenceはノイズの密度を換算し、入力座標の単位は変更しません。Offsetはノイズ内部の座標単位です。
 
 ベクトル型そのものは任意の数値の組も表せるため、すべてのvector値を位置と解釈するわけではありません。拡大率、周波数、反復回数、セル内比率などは、それぞれのパラメータ固有の意味を維持します。
 

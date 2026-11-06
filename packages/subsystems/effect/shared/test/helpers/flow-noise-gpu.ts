@@ -1,4 +1,4 @@
-import flowNoiseCode from '../../src/fx/fractalNoise/flow-noise.wgsl?raw';
+import flowNoiseCode from '../../src/fx/noise/flow-noise.wgsl?raw';
 
 export async function verifyFlowNoiseKernel(device: GPUDevice) {
 	// 【PSRDの解析勾配はXYZの有限差分と一致する】

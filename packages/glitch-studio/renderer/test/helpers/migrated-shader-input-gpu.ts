@@ -14,8 +14,6 @@ import multiply from '@gs/subsystems_effect_shared/fx/multiply/_impl_.ts';
 import multiplyDefinition from '@gs/subsystems_effect_shared/fx/multiply/_def_.ts';
 import rgbTo from '@gs/subsystems_effect_shared/fx/rgbTo/_impl_.ts';
 import rgbToDefinition from '@gs/subsystems_effect_shared/fx/rgbTo/_def_.ts';
-import snoise from '@gs/subsystems_effect_shared/fx/snoise/_impl_.ts';
-import snoiseDefinition from '@gs/subsystems_effect_shared/fx/snoise/_def_.ts';
 import channelShift from '@gs/subsystems_effect_shared/fx/channelShift/_impl_.ts';
 import channelShiftDefinition from '@gs/subsystems_effect_shared/fx/channelShift/_def_.ts';
 import chromaticAberration from '@gs/subsystems_effect_shared/fx/chromaticAberration/_impl_.ts';
@@ -36,7 +34,7 @@ import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts
 // 同じ値のuniformとtextureを全組合せで切り替える。
 // WGSLの型だけでなく、binding位置・チャンネル・premultiplyの違いも検出する。
 export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderModule, readOutput: (output: GPUTexture) => Promise<number[]>) {
-	const effects = [[blockShuffleDefinition, blockShuffle], [dataMixDefinition, dataMix], [colorBlendDefinition, colorBlend], [dataBlendDefinition, dataBlend], [composeVectorDefinition, composeVector], [remapDefinition, remap], [multiplyDefinition, multiply], [rgbToDefinition, rgbTo], [snoiseDefinition, snoise], [channelShiftDefinition, channelShift], [chromaticAberrationDefinition, chromaticAberration], [colorBlocksDefinition, colorBlocks], [lcdDefinition, lcd], [rainDropsOnWindow1Definition, rainDropsOnWindow1], [rainDropsOnWindow2Definition, rainDropsOnWindow2], [vectorDisplacementDefinition, vectorDisplacement]] as const;
+	const effects = [[blockShuffleDefinition, blockShuffle], [dataMixDefinition, dataMix], [colorBlendDefinition, colorBlend], [dataBlendDefinition, dataBlend], [composeVectorDefinition, composeVector], [remapDefinition, remap], [multiplyDefinition, multiply], [rgbToDefinition, rgbTo], [channelShiftDefinition, channelShift], [chromaticAberrationDefinition, chromaticAberration], [colorBlocksDefinition, colorBlocks], [lcdDefinition, lcd], [rainDropsOnWindow1Definition, rainDropsOnWindow1], [rainDropsOnWindow2Definition, rainDropsOnWindow2], [vectorDisplacementDefinition, vectorDisplacement]] as const;
 	const completed: string[] = [];
 	for (const enable32bitDataTextures of [false, true]) {
 		if (enable32bitDataTextures && !device.features.has('float32-filterable')) continue;

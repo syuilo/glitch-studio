@@ -84,8 +84,8 @@ import sineWaveWarpDefinition from '../../src/fx/sineWaveWarp/_def_.ts';
 import sineWaveWarpImplementation from '../../src/fx/sineWaveWarp/_impl_.ts';
 import slidingBlocksDefinition from '../../src/fx/slidingBlocks/_def_.ts';
 import slidingBlocksImplementation from '../../src/fx/slidingBlocks/_impl_.ts';
-import snoiseDefinition from '../../src/fx/snoise/_def_.ts';
-import snoiseImplementation from '../../src/fx/snoise/_impl_.ts';
+import noiseDefinition from '../../src/fx/noise/_def_.ts';
+import noiseImplementation from '../../src/fx/noise/_impl_.ts';
 import streamlinesDefinition from '../../src/fx/streamlines/_def_.ts';
 import streamlinesImplementation from '../../src/fx/streamlines/_impl_.ts';
 import stripeDefinition from '../../src/fx/stripe/_def_.ts';
@@ -146,7 +146,7 @@ const effects = [
 	[shapeSdfDefinition, shapeSdfImplementation],
 	[sineWaveWarpDefinition, sineWaveWarpImplementation],
 	[slidingBlocksDefinition, slidingBlocksImplementation],
-	[snoiseDefinition, snoiseImplementation],
+	[noiseDefinition, noiseImplementation],
 	[streamlinesDefinition, streamlinesImplementation],
 	[stripeDefinition, stripeImplementation],
 	[tearingsDefinition, tearingsImplementation],

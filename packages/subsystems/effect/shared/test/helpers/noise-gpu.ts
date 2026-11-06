@@ -1,7 +1,5 @@
-import definition from '../../src/fx/fractalNoise/_def_.ts';
-import implementation from '../../src/fx/fractalNoise/_impl_.ts';
-import snoiseDefinition from '../../src/fx/snoise/_def_.ts';
-import snoiseImplementation from '../../src/fx/snoise/_impl_.ts';
+import definition from '../../src/fx/noise/_def_.ts';
+import implementation from '../../src/fx/noise/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
@@ -327,27 +325,8 @@ export async function run() {
 			checks.push(`${precisionLabel} Perlin lattice and Worley distance samples`);
 		}
 
-		// 【Simplex Noise共通化後も既存のSnoiseを描画できる】
-		// 既存エフェクトのシェーダー結合とuniformの配置に回帰がないことを実GPUで確認する。
-		const resolution = { width: 1, height: 1 };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' as const, enable32bitDataTextures: false };
-		const output = snoiseImplementation.outputTextureFactories.output({ wgpu, resolution });
-		const snoiseDefaults = Object.fromEntries(Object.entries(snoiseDefinition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value]));
-		const snoise = snoiseImplementation.init({ wgpu, resolution, params: snoiseDefaults, resources: {}, reportStatus: () => {}, fallbackTexture: output });
-		const encoder = device.createCommandEncoder();
-		snoise.render({ params: snoiseDefaults, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
-			outputDataMap: { output: { texture: output, textureView: output.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
-			createPassEncoder: (commandEncoder, descriptor) => commandEncoder.beginRenderPass(descriptor),
-			createComputePassEncoder: commandEncoder => commandEncoder.beginComputePass(),
-			createPassEncoderFor: (commandEncoder, view) => commandEncoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
-		});
-		device.queue.submit([encoder.finish()]);
-		await device.queue.onSubmittedWorkDone();
-		snoise.dispose();
-		output.destroy();
 		const error = await device.popErrorScope();
 		if (error != null) throw new Error(error.message);
-		checks.push('existing Snoise shader');
 		return { checks };
 	} finally {
 		for (const dispose of disposables.reverse()) dispose();

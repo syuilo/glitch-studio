@@ -8,11 +8,11 @@ import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
-// 【Fractal Noiseの全ノイズ方式・合成モード・座標場・時間・出力範囲を実際のWebGPUで確認する】
+// 【Noiseの全ノイズ方式・合成モード・座標場・時間・出力範囲を実際のWebGPUで確認する】
 // WGSLのコンパイルだけでは座標の倍率・回転方向・入力bindingの誤りは分からない。
 // 単発ノイズとの加重平均や座標場の恒等変換を使い、hashの実装をテスト側へ複製せずに検証する。
-test('renders deterministic fractal noise with absolute coordinate fields on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/fractal-noise-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+test('renders deterministic noise with absolute coordinate fields on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
+	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/noise-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {
@@ -32,14 +32,14 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		}
 	});
 	const temporaryRoot = resolve(tmpdir());
-	const profile = await mkdtemp(join(temporaryRoot, 'glitch-fractal-noise-test-'));
+	const profile = await mkdtemp(join(temporaryRoot, 'glitch-noise-test-'));
 	let browser;
 	let timer;
 	try {
 		await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 		browser = spawn(process.env.CHROME_PATH, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--enable-unsafe-webgpu', `--user-data-dir=${profile}`, `http://127.0.0.1:${server.address().port}`], { windowsHide: true, stdio: 'ignore' });
 		browser.on('error', error => result.resolve({ error: error.message }));
-		timer = setTimeout(() => result.resolve({ error: 'Fractal Noise GPU test timed out' }), 75000);
+		timer = setTimeout(() => result.resolve({ error: 'Noise GPU test timed out' }), 75000);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
 		assert.ok(output.checks.length >= 51);
@@ -55,7 +55,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		await new Promise(resolve => server.close(resolve));
 		// このテストで作成した一時プロファイルだけを削除する。
 		assert.equal(dirname(resolve(profile)), temporaryRoot);
-		assert.ok(basename(profile).startsWith('glitch-fractal-noise-test-'));
+		assert.ok(basename(profile).startsWith('glitch-noise-test-'));
 		await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	}
 });

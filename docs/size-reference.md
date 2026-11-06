@@ -33,7 +33,7 @@
 | --- | --- |
 | Stripe、Polkadot、Hex Grid、Cell Transform、Cell Repeater | Frequency。パターン用のFit Modeを廃止。Phaseやセルに対する比率は維持 |
 | Pixelate、Block Shuffle、Block Shift Glitch、Bit Plane Corruption、Region Time Shift、Color Blocks、LCD、Symbols | Densityによるセル寸法。画像のFit Modeとは独立 |
-| Snoise、Neuro Noise、Mesh Gradient、Metaballs | DensityまたはScaleによる模様の空間的な大きさ。模様内部の比率は維持 |
+| Noise、Neuro Noise、Mesh Gradient、Metaballs | DensityまたはScaleによる模様の空間的な大きさ。模様内部の比率は維持 |
 | Gradient | 線形勾配の幅・放射状勾配の半径。Start/End Positionは勾配の基準区間に対する値、Centerは共通空間座標。Vector出力は共通座標に対する偏微分 |
 | Chromatic Aberration、Vector Chromatic Aberration | 色ずれを計算する等方的な基準領域。入力ベクトルは共通空間単位 |
 | Shape SDF | Size・Corner Radius |
