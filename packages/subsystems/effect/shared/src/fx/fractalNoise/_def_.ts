@@ -12,8 +12,8 @@ export default defineEffect({
 	tags: ['noise', 'utility'],
 	paramDefs: {
 		noiseType: {
-			dataType: { kind: 'enum', options: ['value', 'simplex', 'perlin', 'worley'] },
-			ui: { label: 'Noise Type', control: { labels: { value: 'Value Noise', simplex: 'Simplex Noise', perlin: 'Perlin Noise', worley: 'Worley Noise' } } },
+			dataType: { kind: 'enum', options: ['value', 'simplex', 'perlin', 'worley', 'flow'] },
+			ui: { label: 'Noise Type', control: { labels: { value: 'Value Noise', simplex: 'Simplex Noise', perlin: 'Perlin Noise', worley: 'Worley Noise', flow: 'Flow Noise' } } },
 			defaultValue: { inputSource: 'literal', value: 'value' },
 		},
 		fractalMode: {
@@ -26,6 +26,19 @@ export default defineEffect({
 			ui: { label: 'Ping Pong Strength', isAdvanced: true, control: { controlType: 'number', min: 0, max: 10, step: 0.1 } },
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 2 },
+		},
+		// Timeとは独立した回転位相。全段で共有して1 turnの周期を保ち、
+		// CPUで折り返してからuniformへ渡すため、canNodeにはしない。
+		flowPhase: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Flow Phase (Turns)', control: { controlType: 'number', step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		flowStrength: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Flow Strength', control: { controlType: 'number', min: 0, max: 2, step: 0.01 } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0.1 },
 		},
 		coordinateSource: {
 			dataType: { kind: 'enum', options: ['screen', 'input'] },

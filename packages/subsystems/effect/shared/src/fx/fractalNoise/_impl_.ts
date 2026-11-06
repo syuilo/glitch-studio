@@ -5,13 +5,14 @@ import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import simplexNoiseCode from '../../noise/simplex-noise.wgsl?raw';
+import flowNoiseCode from './flow-noise.wgsl?raw';
 import shaderCode from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
-const code = simplexNoiseCode + '\n' + shaderCode;
+const code = simplexNoiseCode + '\n' + flowNoiseCode + '\n' + shaderCode;
 
 // shader.wgslの分岐と対応する。方式やモードの変更ではpipelineを作り直さない。
-const noiseTypes = { value: 0, simplex: 1, perlin: 2, worley: 3 } as const;
+const noiseTypes = { value: 0, simplex: 1, perlin: 2, worley: 3, flow: 4 } as const;
 const fractalModes = { fbm: 0, turbulence: 1, ridged: 2, pingPong: 3 } as const;
 
 export default implementEffect<typeof definition>({
@@ -32,7 +33,7 @@ export default implementEffect<typeof definition>({
 			device,
 			vertex: wgpu.defaultVertexShaderModule,
 			code,
-			schema: { coordinates: 'vector', density: 'vector', offset: 'vector', gain: 'scalar', lacunarity: 'scalar', pingPongStrength: 'scalar', outputMin: 'scalar', outputMax: 'scalar' },
+			schema: { coordinates: 'vector', density: 'vector', offset: 'vector', gain: 'scalar', lacunarity: 'scalar', pingPongStrength: 'scalar', flowStrength: 'scalar', outputMin: 'scalar', outputMax: 'scalar' },
 			targets: [{ format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' }],
 			internalLayouts: [layout],
 			sampling: 'level0',
@@ -48,12 +49,16 @@ export default implementEffect<typeof definition>({
 				}
 				const referenceLength = getSizeReferenceLength(ctx.params.sizeReference, resolution);
 				const rotation = ctx.params.octaveRotation * 2 * Math.PI;
+				// f32へ変換する前に周期を折り返し、大きな位相でも小数部の精度を保つ。
+				const flowPhase = ctx.params.flowPhase - Math.floor(ctx.params.flowPhase);
+				const flowRotation = flowPhase * 2 * Math.PI;
 				uniformValues.set({
 					halfExtent: getSpatialHalfExtent(resolution),
 					referenceScale: Math.max(resolution.width, resolution.height) / referenceLength,
 					coordinateSource: ctx.params.coordinateSource === 'input' ? 1 : 0,
 					noiseType: noiseTypes[ctx.params.noiseType],
 					fractalMode: fractalModes[ctx.params.fractalMode],
+					flowRotation: [Math.cos(flowRotation), Math.sin(flowRotation)],
 					octaves: Number.isFinite(ctx.params.octaves) ? Math.min(16, Math.max(1, Math.round(ctx.params.octaves))) : 4,
 					octaveRotation: [Math.cos(rotation), Math.sin(rotation)],
 					time: ctx.params.time,
@@ -66,6 +71,7 @@ export default implementEffect<typeof definition>({
 					gain: ctx.params.gain,
 					lacunarity: ctx.params.lacunarity,
 					pingPongStrength: ctx.params.pingPongStrength,
+					flowStrength: ctx.params.flowStrength,
 					outputMin: ctx.params.outputMin,
 					outputMax: ctx.params.outputMax,
 				}, ctx.outputDataMap.output.texture);

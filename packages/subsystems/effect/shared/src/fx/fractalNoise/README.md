@@ -1,6 +1,6 @@
 # Fractal Noise
 
-Value Noise・Simplex Noise・Perlin Noise・Worley Noiseを複数の周波数・振幅で重ねる生成エフェクト。fBm・Turbulence・Ridged・Ping Pongの合成モードを選べる。出力はスカラー場で、描画履歴には依存しない。同じ座標・Time・Seed・設定なら、描画順序やフレームレートによらず同じ値になる。
+Value Noise・Simplex Noise・Perlin Noise・Worley Noise・Flow Noiseを複数の周波数・振幅で重ねる生成エフェクト。fBm・Turbulence・Ridged・Ping Pongの合成モードを選べる。出力はスカラー場で、描画履歴には依存しない。同じ座標・Time・Flow Phase・Seed・設定なら、描画順序やフレームレートによらず同じ値になる。
 
 ## 座標
 
@@ -22,9 +22,11 @@ Size ReferenceはDensityの見た目の基準を変え、Coordinatesの共通単
 
 | パラメータ | 初期値 | 意味 |
 | --- | --- | --- |
-| Noise Type | Value Noise | Value Noise・Simplex Noise・Perlin Noise・Worley Noiseから選択 |
+| Noise Type | Value Noise | Value Noise・Simplex Noise・Perlin Noise・Worley Noise・Flow Noiseから選択 |
 | Fractal Mode | fBm | 各段の加工方法。fBm・Turbulence・Ridged・Ping Pongから選択 |
 | Ping Pong Strength | 2 | Ping Pongの折り返しの細かさ。0以上。定数・式・スカラー場に対応し、他のモードでは使わない。Advanced設定 |
+| Flow Phase (Turns) | 0 | Flow Noiseの勾配の回転位相。1で1周。Timeとは独立し、全段で同じ位相を使う |
+| Flow Strength | 0.1 | Flow Noiseで前段の勾配が後段の座標を曲げる強さ。0以上の無次元係数。定数・式・スカラー場に対応し、他のノイズ方式では使わない |
 | Density | [4, 4] | 基準寸法内のノイズの密度。各成分の負値は0とする |
 | Offset | [0, 0] | 第1段のノイズ座標のXYオフセット |
 | Octaves | 4 | 重ねる段数。四捨五入して1〜16に制限し、非有限値は4とする |
@@ -35,7 +37,7 @@ Size ReferenceはDensityの見た目の基準を変え、Coordinatesの共通単
 | Seed | 0 | ノイズの配置を決める値 |
 | Output Min / Max | 0 / 1 | 正規化したノイズの出力範囲。負値・1超・逆順にも対応する |
 
-Coordinates・Density・Offset・Gain・Lacunarity・Ping Pong Strength・Output Min / Maxは画素ごとのノード入力に対応する。他は画面全体で共通の通常パラメータで、式・アニメーションを使える。Timeは長時間の再生でも16bitの場へ丸めないよう、32bitのuniformとして渡す。SeedもCPU上で扱い、32bitへ丸める前にノイズ座標のオフセットへ変換する。
+Coordinates・Density・Offset・Gain・Lacunarity・Ping Pong Strength・Flow Strength・Output Min / Maxは画素ごとのノード入力に対応する。他は画面全体で共通の通常パラメータで、式・アニメーションを使える。Timeは長時間の再生でも16bitの場へ丸めないよう、32bitのuniformとして渡す。Flow PhaseもCPUで1 turn以内へ折り返してから回転のcos/sinを計算し、32bitのuniformとして渡す。SeedもCPU上で扱い、32bitへ丸める前にノイズ座標のオフセットへ変換する。
 
 第1段の振幅を1とし、各段の値を加重平均する。実際の振幅の総和で正規化するため、Octaves・Gainを変えても指定した出力範囲を保つ。Seedによるオフセットは各段の周波数変換後に加える。Value Noiseのhash・正規化・周波数倍率は汎用の仕様であり、特定のシェーダーとの完全一致は目的としない。
 
@@ -59,6 +61,34 @@ Coordinates・Density・Offset・Gain・Lacunarity・Ping Pong Strength・Output
 
 どのモードも加工後の各段は0〜1を保つため、出力範囲の正規化は共通。合成後にScalar Mathを適用した場合とは異なる。Noise Type・Fractal Modeの切り替えではパイプラインを再作成しない。
 
+## Flow Noise
+
+回転する勾配と解析的な偏微分を持つ3D PSRD Noiseを使い、前段までの勾配で後段の評価座標を曲げる。Timeは他の方式と同じ第3軸で、Flow Phaseはそれとは独立した勾配の回転位相。位相を1進めると各格子点の勾配が1周する。
+
+各段では、次の順に計算する。
+
+1. 基準の3Dノイズ座標へ、前段までに蓄積した勾配×Flow StrengthとSeedのオフセットを加える。第1段には蓄積した勾配がないのでワープしない。
+2. PSRD Noiseの値とXYZの解析勾配を同時に求める。0〜1へ正規化した基礎ノイズの勾配を、その段の振幅で重み付けして蓄積する。
+3. 値だけにFractal Modeを適用し、加重平均へ加える。ワープは加工前の基礎ノイズの勾配に基づくため、Fractal ModeやOutput Min / Maxから独立する。
+4. 次の段へ進む際に、基準座標をOctave Rotation・Lacunarityで変換する。蓄積した勾配もXYの向きを次段へ揃えるが、周波数倍率は掛けない。Flow Strengthを各段の模様に対する係数として扱い、細かな段で変位が増幅し続けることを防ぐ。
+
+ワープはXYだけでなくTimeに対応する第3軸も含む。Flow Strengthが0なら、回転する基礎ノイズを通常どおり重ねる。Octavesが1、またはGainが0の場合も後段がないため、Flow Strengthによる変化はない。Flow PhaseとFlow Strengthは他のノイズ方式には影響しない。
+
+時間ループを作る例:
+
+```text
+Noise Type: Flow Noise
+Time: 0
+Flow Phase: 式 TIME / 8
+Flow Strength: 0.1
+```
+
+全段で同じ位相を使うため、Lacunarityが非整数でも8秒周期で戻る。ほかのパラメータや上流の座標場も固定、または同じ周期で戻る必要がある。Timeも同時に動かす場合、その第3軸の移動はこの位相周期に含まれない。
+
+フレーム履歴や経過時間の積分は使わず、指定された値から1描画パスで評価する。PSRDの空間タイル設定は公開しない。任意のOctave Rotation・Lacunarity・入力座標・段間ワープを組み合わせた結果の空間タイル化は保証しない。
+
+[Stefan Gustavson・Ian McEwanのpsrdnoise3.glsl](https://github.com/stegu/psrdnoise/blob/main/src/psrdnoise3.glsl)の非タイル部分をWGSLへ移植し、回転をcos/sinで受け取り、値と勾配を構造体で返す形に変更している。MIT Licenseの著作権・許諾表示を同梱のLICENSEに保持する。段間ワープは[作者のFlow Noise解説](https://stegu.github.io/psrdnoise/2d-tutorial/2d-psrdnoise-tutorial-15.html)に基づき、このエフェクトのGain・回転・正規化へ合わせている。
+
 ## 接続例
 
 - 色を付ける: 出力をColor RampのInputへ接続する。
@@ -74,4 +104,4 @@ Coordinates・Density・Offset・Gain・Lacunarity・Ping Pong Strength・Output
 
 Worleyは最近点の探索が必要になる。探索半径を自セルの点までの距離に限定し、セルまでの最短距離で候補を除外して、評価する特徴点を減らす。特徴点をセル内の全域へ配置するため、固定の3×3×3近傍だけには制限しない。
 
-`CHROME_PATH`を指定し、`node --test packages/subsystems/effect/shared/test/fractal-noise.gpu.test.mjs`で実際のWebGPU描画を検証する。
+`CHROME_PATH`を指定し、`node --test packages/subsystems/effect/shared/test/fractal-noise.gpu.test.mjs`で実際のWebGPU描画を検証する。Flowでは解析勾配とXYZの有限差分の一致、PSRDの基準格子点、位相の周期と継ぎ目、Timeとの独立性、加工前の勾配による段間ワープも確認する。

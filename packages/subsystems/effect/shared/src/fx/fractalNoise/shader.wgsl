@@ -8,6 +8,7 @@ struct Uniforms {
 	coordinateSource: u32,
 	noiseType: u32,
 	fractalMode: u32,
+	flowRotation: vec2f,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -148,15 +149,30 @@ fn fs(@location(0) position: vec2f) -> @location(0) f32 {
 	let gain = clamp(read_gain(position), 0.0, 1.0);
 	let lacunarity = clamp(read_lacunarity(position), 0.0, 8.0);
 	let pingPongStrength = max(read_pingPongStrength(position), 0.0);
+	let flowStrength = max(read_flowStrength(position), 0.0);
 	let cosine = uniforms.octaveRotation.x;
 	let sine = uniforms.octaveRotation.y;
 	var total = 0.0;
 	var totalWeight = 0.0;
 	var amplitude = 1.0;
+	var accumulatedGradient = vec3f(0.0);
 	for (var octave = 0u; octave < uniforms.octaves; octave++) {
 		// Seedは周波数変換の後で足す。各段で同じノイズを評価する契約にすることで、
 		// Octaves=1のノイズを重ねた場合と同じfBmになる。
-		let value = sampleNoise(noisePosition + uniforms.seedOffset);
+		var value: f32;
+		if (uniforms.noiseType == 4u) {
+			// ワープは全段の基準座標へ加え、Seed自体を曲げたり、過去フレームの
+			// 値を積み上げたりしない。同じ位相・時刻なら描画順序によらず再現できる。
+			let sample = flowNoise(noisePosition + flowStrength * accumulatedGradient + uniforms.seedOffset, uniforms.flowRotation);
+			value = clamp(sample.value * 0.5 + 0.5, 0.0, 1.0);
+			// 合成モードや出力範囲とは独立した、0〜1の基礎ノイズの勾配を蓄積する。
+			// 正規化で切り詰めた領域は一定値なので、その勾配も0にする。
+			if (sample.value > -1.0 && sample.value < 1.0) {
+				accumulatedGradient += amplitude * 0.5 * sample.gradient;
+			}
+		} else {
+			value = sampleNoise(noisePosition + uniforms.seedOffset);
+		}
 		total += amplitude * shapeOctave(value, pingPongStrength);
 		totalWeight += amplitude;
 		amplitude *= gain;
@@ -164,6 +180,12 @@ fn fs(@location(0) position: vec2f) -> @location(0) f32 {
 		// Angleの共通規約に合わせて時計回りに回転する。時間軸にも同じ周波数倍率を掛ける。
 		let rotated = vec2f(cosine * noisePosition.x + sine * noisePosition.y, -sine * noisePosition.x + cosine * noisePosition.y);
 		noisePosition = vec3f(rotated, noisePosition.z) * lacunarity;
+		// 過去の勾配を次段のローカル座標の向きへ揃える。周波数倍率は掛けず、
+		// Flow Strengthを各段の模様に対する無次元の係数として保つ。
+		accumulatedGradient = vec3f(
+			cosine * accumulatedGradient.x + sine * accumulatedGradient.y,
+			-sine * accumulatedGradient.x + cosine * accumulatedGradient.y,
+			accumulatedGradient.z);
 	}
 	// 実際の振幅和で正規化し、OctavesやGainを変えても出力範囲を維持する。
 	let normalizedNoise = clamp(total / totalWeight, 0.0, 1.0);

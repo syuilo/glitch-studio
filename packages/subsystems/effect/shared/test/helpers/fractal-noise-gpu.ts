@@ -7,6 +7,7 @@ import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-i
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import seedrandom from 'seedrandom';
+import { verifyFlowNoiseKernel } from './flow-noise-gpu.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 const scalar = (value: number) => constantShaderInput('scalar', value);
@@ -84,6 +85,7 @@ export async function run() {
 	}
 
 	try {
+		checks.push(...await verifyFlowNoiseKernel(device));
 		for (const precise of supports32bit ? [false, true] : [false]) {
 			const precisionLabel = precise ? '32bit' : '16bit';
 			const near = (actual: number, expected: number, label: string, tolerance = precise ? 0.0002 : 0.002) => {
@@ -95,8 +97,10 @@ export async function run() {
 			};
 			const render = createEffect(9, 5, precise);
 			const sample = createEffect(1, 1, precise);
-			for (const noiseType of ['value', 'simplex', 'perlin', 'worley'] as const) {
-				const settings: Partial<Parameters> = { noiseType, seed: 31, time: 0.37 };
+			for (const noiseType of ['value', 'simplex', 'perlin', 'worley', 'flow'] as const) {
+				// 単発ノイズの加重平均との比較ではFlowの段間ワープを0にする。
+				// ワープを有効にした構成は後の専用ケースと場入力の比較で確認する。
+				const settings: Partial<Parameters> = { noiseType, seed: 31, time: 0.37, flowPhase: 0.173, flowStrength: scalar(0) };
 				const label = `${precisionLabel}/${noiseType}`;
 
 				// 【同じ設定なら描画順序・呼び出し側の時刻に依存しない】
@@ -167,9 +171,10 @@ export async function run() {
 
 				// 【座標場の恒等写像はScreenと一致する】
 				// 横長・縦長と全サイズ基準で、座標場の値をUVや変位と取り違えないことを確認する。
-				for (const [width, height] of [[9, 5], [5, 9]]) {
+				// 画素中心を16bitでも正確に表せる寸法にし、座標場の量子化誤差を混ぜない。
+				for (const [width, height] of [[8, 4], [4, 8]]) {
 					const renderCoordinates = createEffect(width, height, precise);
-					const identity = createField(width, height, precise, (x, y) => [(x + 0.5 - width / 2) / 9, (height / 2 - y - 0.5) / 9]);
+					const identity = createField(width, height, precise, (x, y) => [(x + 0.5 - width / 2) / 8, (height / 2 - y - 0.5) / 8]);
 					for (const sizeReference of ['height', 'width', 'shortSide', 'longSide'] as const) {
 						const screen = await renderCoordinates({ ...settings, sizeReference, coordinateSource: 'screen', coordinates: vector([99, -99]) });
 						const input = await renderCoordinates({ ...settings, sizeReference, coordinateSource: 'input', coordinates: identity.input });
@@ -195,6 +200,7 @@ export async function run() {
 					gain: createField(3, 2, precise, x => [x * 0.5]),
 					lacunarity: createField(3, 2, precise, (_x, y) => [1.5 + y]),
 					pingPongStrength: createField(3, 2, precise, x => [0.5 + 1.25 * x]),
+					flowStrength: createField(3, 2, precise, (_x, y) => [0.15 * y]),
 					outputMin: createField(3, 2, precise, x => [-3 + x]),
 					outputMax: createField(3, 2, precise, (_x, y) => [2 + y]),
 				};
@@ -233,6 +239,71 @@ export async function run() {
 				}
 				checks.push(`${label} output ranges`);
 			}
+
+			// 【全段で共通のFlow Phaseは1 turnで同じ模様へ戻る】
+			// 非整数のLacunarityや座標の回転があっても、時間軸と位相を混ぜずに周期を保つ。
+			// f32へ丸める前に位相を折り返すことを、大きい値と負値でも検証する。
+			const flowSettings: Partial<Parameters> = { noiseType: 'flow', seed: 31, time: 0.37, flowPhase: 0.25, flowStrength: scalar(0.2), lacunarity: scalar(1.7) };
+			const flowInitial = await render(flowSettings);
+			for (const phase of [-1.75, 1.25, 16777216.25]) compare(await render({ ...flowSettings, flowPhase: phase }), flowInitial, 'Flow phase periodicity');
+			const flowLater = await render({ ...flowSettings, flowPhase: 0.5 });
+			assert(flowInitial.some((value, index) => Math.abs(value - flowLater[index]) > 0.01), 'Flow phase changes pattern');
+			const flowOtherTime = await render({ ...flowSettings, time: 1.43 });
+			assert(flowInitial.some((value, index) => Math.abs(value - flowOtherTime[index]) > 0.01), 'Flow Time is independent of phase');
+			compare(await render(flowSettings, 9000), flowInitial, 'Flow deterministic seek with warp');
+			compare(await render({ ...flowSettings, flowPhase: 1 - 0.00001 }), await render({ ...flowSettings, flowPhase: 0.00001 }), 'Flow phase seam continuity');
+			checks.push(`${precisionLabel} Flow phase loops and independent Time`);
+
+			// 【段間ワープは2段目以降だけに適用し、Flow以外のノイズには影響しない】
+			// Gainが0のときも第1段だけなので、Strengthを変えても結果は変化しない。
+			const unwarped = await render({ ...flowSettings, flowStrength: scalar(0) });
+			assert(flowInitial.some((value, index) => Math.abs(value - unwarped[index]) > 0.002), 'Flow Strength warps later octaves');
+			compare(await render({ ...flowSettings, octaves: 1 }), await render({ ...flowSettings, octaves: 1, flowStrength: scalar(0) }), 'Flow first octave is unwarped');
+			compare(await render({ ...flowSettings, gain: scalar(0) }), await render({ ...flowSettings, octaves: 1 }), 'Flow zero gain is unwarped');
+			compare(await render({ ...flowSettings, flowStrength: scalar(-1) }), unwarped, 'Flow negative strength becomes zero');
+			for (const noiseType of ['value', 'simplex', 'perlin', 'worley'] as const) {
+				compare(await render({ noiseType, flowPhase: 0.731, flowStrength: scalar(1) }), await render({ noiseType, flowPhase: 0, flowStrength: scalar(0) }), `${noiseType} ignores Flow parameters`);
+			}
+			checks.push(`${precisionLabel} Flow warp scope and strength`);
+
+			// 【段間ワープは加工前の基礎ノイズの勾配を使い、回転後の座標系で適用する】
+			// 単発ノイズの有限差分で勾配を独立に求め、2段の結果を全Fractal Modeで比較する。
+			// これにより解析勾配の正規化、XYZ成分、回転の符号、モードへの不適切な依存を検出する。
+			const referenceSample = createEffect(1, 1, supports32bit);
+			const baseSettings: Partial<Parameters> = { ...flowSettings, coordinateSource: 'input', density: vector([1, 1]), octaves: 1 };
+			const basePoint: [number, number, number] = [-0.17, 0.23, 0.37];
+			const baseAt = async (point: readonly number[]) => (await referenceSample({ ...baseSettings, coordinates: vector([point[0], point[1]]), time: point[2] }))[0];
+			const first = await baseAt(basePoint);
+			const gradient: number[] = [];
+			const differenceStep = supports32bit ? 0.005 : 0.02;
+			for (let axis = 0; axis < 3; axis++) {
+				const before = [...basePoint];
+				const after = [...basePoint];
+				before[axis] -= differenceStep;
+				after[axis] += differenceStep;
+				gradient.push((await baseAt(after) - await baseAt(before)) / (2 * differenceStep));
+			}
+			const warpStrength = 0.2;
+			const frequency = 1.7;
+			const second = await baseAt([
+				basePoint[1] * frequency + warpStrength * gradient[1],
+				-basePoint[0] * frequency - warpStrength * gradient[0],
+				basePoint[2] * frequency + warpStrength * gradient[2],
+			]);
+			for (const fractalMode of ['fbm', 'turbulence', 'ridged', 'pingPong'] as const) {
+				const transformed = [first, second].map(value => {
+					if (fractalMode === 'fbm') return value;
+					if (fractalMode === 'turbulence') return Math.abs(2 * value - 1);
+					if (fractalMode === 'ridged') return (1 - Math.abs(2 * value - 1)) ** 2;
+					const trianglePosition = (2 * value * 2.3) % 2;
+					return trianglePosition <= 1 ? trianglePosition : 2 - trianglePosition;
+				});
+				const settings: Partial<Parameters> = { ...baseSettings, coordinates: vector([basePoint[0], basePoint[1]]), time: basePoint[2],
+					fractalMode, flowStrength: scalar(warpStrength), octaves: 2, gain: scalar(0.6), lacunarity: scalar(frequency), octaveRotation: 0.25, pingPongStrength: scalar(2.3) };
+				// 有限差分による参照値の近似誤差も含める。32bit非対応環境では差分元も16bitとなる。
+				near((await sample(settings))[0], (transformed[0] + 0.6 * transformed[1]) / 1.6, `Flow warped ${fractalMode} octaves`, supports32bit ? 0.003 : 0.015);
+			}
+			checks.push(`${precisionLabel} Flow raw-gradient warp across fractal modes`);
 
 			// 【Perlinの格子点は中立値、Worleyは既知の最近点までのユークリッド距離になる】
 			// hashや探索ループをテストへ複製せず、既知の格子点と固定の距離標本で
