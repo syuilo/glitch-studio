@@ -14,6 +14,11 @@ export default defineEffect({
 	paramDefs: {
 		input: { dataType: { kind: 'scalar' }, ui: { label: 'Input', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 		ramp: { dataType: { kind: 'colorRamp' }, ui: { label: 'Ramp', control: {} }, defaultValue: { inputSource: 'literal', value: createDefaultColorRamp() } },
+		mode: {
+			dataType: { kind: 'enum', options: ['clamp', 'wrap', 'pingPong'] },
+			ui: { label: 'Mode', control: { labels: { clamp: 'Clamp', wrap: 'Wrap', pingPong: 'Ping-pong' } } },
+			defaultValue: { inputSource: 'literal', value: 'clamp' },
+		},
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

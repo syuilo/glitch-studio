@@ -6,6 +6,8 @@ import { COLOR_RAMP_INTERPOLATIONS, createDefaultColorRamp, evaluatePreparedColo
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 
+type ColorRampInputMode = typeof definition.paramDefs.mode.dataType.options[number];
+
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
 	if (adapter == null) throw new Error('WebGPU adapter unavailable');
@@ -20,17 +22,18 @@ export async function run() {
 	const readGroup = device.createBindGroup({ layout: reader.getBindGroupLayout(0), entries: [{ binding: 0, resource: output.createView() }] });
 	const buffer = device.createBuffer({ size: 256, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 	const scalarTexture = device.createTexture({ size: resolution, format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+	const rangeTexture = device.createTexture({ size: resolution, format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 	const pixels = new Uint8Array(resolution.width * 4);
 	const positions = Array.from({ length: resolution.width }, (_, index) => Math.round(index / 16 * 255) / 255);
 	positions.forEach((value, index) => { pixels[index * 4] = Math.round(value * 255); pixels[index * 4 + 3] = 255; });
 	device.queue.writeTexture({ texture: scalarTexture }, pixels, { bytesPerRow: resolution.width * 4 }, resolution);
 	const input = textureShaderInput(scalarTexture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' });
-	const defaults = { ramp: createDefaultColorRamp(), input: constantShaderInput('scalar', 0) };
+	const defaults = { ramp: createDefaultColorRamp(), input: constantShaderInput('scalar', 0), mode: 'clamp' as const };
 	const effect = implementation.init({ wgpu, resolution, params: defaults, reportStatus: () => {}, fallbackTexture: output });
 	const checks: string[] = [];
-	async function compare(ramp: ColorRamp, shaderInput: ShaderInput, coordinates: number[], label: string) {
+	async function compare(ramp: ColorRamp, shaderInput: ShaderInput, coordinates: number[], label: string, mode: ColorRampInputMode = 'clamp') {
 		const commandEncoder = device.createCommandEncoder();
-		effect.render({ params: { ramp, input: shaderInput }, commandEncoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+		effect.render({ params: { ramp, input: shaderInput, mode }, commandEncoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
 			outputDataMap: { output: { texture: output, textureView: output.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
 			createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor), createComputePassEncoder: encoder => encoder.beginComputePass(),
 			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
@@ -53,6 +56,7 @@ export async function run() {
 		checks.push(label);
 	}
 	try {
+		if (definition.paramDefs.mode.defaultValue.value !== 'clamp' || definition.paramDefs.mode.dataType.options.join(',') !== 'clamp,wrap,pingPong') throw new Error('Color Ramp input mode contract');
 		for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch'] as const) for (const interpolation of COLOR_RAMP_INTERPOLATIONS) {
 			const ramp: ColorRamp = { colorSpace, interpolation, stops: [
 				{ id: 'start', position: 0, color: [1, 0, 0, 0.8] }, { id: 'middle', position: 0.5, color: [0, 1, 0, 0.3] }, { id: 'end', position: 1, color: [0, 0, 1, 0] },
@@ -84,8 +88,42 @@ export async function run() {
 		await compare(ramp, input, positions, 'buffer shrink and single stop');
 		ramp.stops = Array.from({ length: 100 }, (_, index) => ({ id: `stop-${index}`, position: index / 99, color: [index / 99, 0.25, 1 - index / 99, 1] }));
 		await compare(ramp, input, positions, 'buffer growth without pipeline replacement');
+
+		// 【入力値の境界処理は0〜1固定で、負値と複数周期にも対応する】
+		// 期待座標を既知の値として並べ、GPUと同じ式で計算して誤りを隠さないようにする。
+		// 端が0・1でないRampも使い、stopの最小・最大位置で折り返す実装を検出する。
+		const modeCases = [
+			[-4.25, 0, 0.75, 0.25], [-3, 0, 0, 1], [-2, 0, 0, 0],
+			[-1.25, 0, 0.75, 0.75], [-1, 0, 0, 1], [-0.25, 0, 0.75, 0.25],
+			[0, 0, 0, 0], [0.25, 0.25, 0.25, 0.25], [0.5, 0.5, 0.5, 0.5],
+			[0.75, 0.75, 0.75, 0.75], [1, 1, 0, 1], [1.25, 1, 0.25, 0.75],
+			[2, 1, 0, 0], [2.25, 1, 0.25, 0.25], [3, 1, 0, 1],
+			[4.25, 1, 0.25, 0.25], [5, 1, 0, 1],
+		];
+		// alpha=0の入力場でもR成分のスカラーを参照し、色として扱わないことも確認する。
+		device.queue.writeTexture({ texture: rangeTexture }, new Float16Array(modeCases.flatMap(([value]) => [value, 0, 0, 0])), { bytesPerRow: resolution.width * 8 }, resolution);
+		const rangeInput = textureShaderInput(rangeTexture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' });
+		const insetRamp: ColorRamp = { colorSpace: 'srgb', interpolation: 'linear', stops: [
+			{ id: 'start', position: 0.125, color: [1, 0, 0, 0.75] },
+			{ id: 'middle', position: 0.5, color: [0, 1, 0, 0.25] },
+			{ id: 'end', position: 0.875, color: [0, 0, 1, 0.5] },
+		] };
+		for (const interpolation of COLOR_RAMP_INTERPOLATIONS) {
+			for (const [index, mode] of definition.paramDefs.mode.dataType.options.entries()) {
+				await compare({ ...insetRamp, interpolation }, rangeInput, modeCases.map(values => values[index + 1]), `${mode}/${interpolation}/range texture`, mode);
+			}
+		}
+
+		// 【定数入力にも同じ方式を適用し、Modeの切り替え後も更新したRampを使う】
+		// 全方式をキャッシュした後で対応表を変更し、古いbufferや方式が残る不具合を防ぐ。
+		for (const [value, ...coordinates] of modeCases) {
+			for (const [index, mode] of definition.paramDefs.mode.dataType.options.entries()) {
+				await compare(ramp, constantShaderInput('scalar', value), positions.map(() => coordinates[index]), `${mode}/range uniform ${value}`, mode);
+			}
+		}
+		await compare(insetRamp, rangeInput, modeCases.map(values => values[1]), 'restored clamp with updated ramp');
 		return { checks };
 	} finally {
-		effect.dispose(); buffer.destroy(); output.destroy(); copyTarget.destroy(); scalarTexture.destroy(); device.destroy();
+		effect.dispose(); buffer.destroy(); output.destroy(); copyTarget.destroy(); scalarTexture.destroy(); rangeTexture.destroy(); device.destroy();
 	}
 }
