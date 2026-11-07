@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'pixelSort',
 	displayName: 'Pixel Sort',
 	description: {
-		'ja-JP': '入力画像の画素を明るさ順に並べ替え、色が流れるような模様を作ります。',
-		'en-US': 'Sorts pixels of the input image by luminance to create streaks of color.',
+		'ja-JP': '指定した輝度範囲内の画素を並べ替え、色が流れるような模様を作ります。',
+		'en-US': 'Sorts pixels within a luminance range to create streaks of color.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
@@ -17,10 +17,23 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		threshold: {
+		thresholdMin: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Threshold',
+				label: 'Threshold Min',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.001,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		thresholdMax: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Threshold Max',
 				control: {
 					controlType: 'range',
 					min: 0,
@@ -30,7 +43,6 @@ export default defineEffect({
 			},
 			defaultValue: { inputSource: 'literal', value: 0.5 },
 		},
-		shadow: { dataType: { kind: 'bool' }, ui: { label: 'Shadow', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		direction: {
 			dataType: { kind: 'enum', options: ['horizontal', 'vertical'] },
 			ui: { label: 'Direction', control: { labels: { 'horizontal': 'Horizontal', 'vertical': 'Vertical' } } },

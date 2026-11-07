@@ -153,12 +153,16 @@ export default implementEffect<typeof definition>({
 				const inputGroup = variant.bindings.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
 				const length = vertical ? resolution.height : resolution.width;
 				const passes = Math.ceil(Math.log2(length));
+				// HDRの輝度にも範囲を指定できるよう0〜1へ制限しない。
+				// 上下限の逆転・非有限値はCell Sortと同じ規則で正規化する。
+				const lower = Number.isFinite(ctx.params.thresholdMin) ? ctx.params.thresholdMin : 0;
+				const upper = Number.isFinite(ctx.params.thresholdMax) ? ctx.params.thresholdMax : 0.5;
 				for (const [batchIndex, batch] of batches.entries()) {
 					for (let pass = 0; pass <= passes; pass++) {
 						const offset = (batchIndex * (maxPasses + 1) + pass) * stride / 4;
 						integers.set([resolution.width, resolution.height, length, batch.count, Number(vertical), Number(ctx.params.order === 'descending'), 2 ** Math.max(0, pass - 1)], offset);
-						floats[offset + 7] = Math.min(1, Math.max(0, ctx.params.shadow ? ctx.params.threshold : 1 - ctx.params.threshold));
-						integers[offset + 8] = ctx.params.shadow ? 1 : 0;
+						floats[offset + 7] = Math.min(lower, upper);
+						floats[offset + 8] = Math.max(lower, upper);
 						integers[offset + 9] = batch.lineOffset;
 					}
 				}

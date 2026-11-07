@@ -6,8 +6,8 @@ struct Uniforms {
 	vertical: u32,
 	descending: u32,
 	run: u32,
-	threshold: f32,
-	shadow: u32,
+	thresholdMin: f32,
+	thresholdMax: f32,
 	lineOffset: u32,
 };
 
@@ -32,8 +32,8 @@ fn samplePixel(index: u32, line: u32) -> vec4f {
 	return read_input((uv * 2.0 - 1.0) * vec2f(1.0, -1.0));
 }
 
-// One linear scan per line labels runs. Pixels outside the selected range get singleton
-// segments, so sorting never moves pixels across a threshold boundary.
+// 行ごとに連続した対象区間へ番号を付ける。範囲外と完全透明の画素は固有の区間にし、
+// その位置に固定するとともに、前後の画素が境界を越えて交換されることを防ぐ。
 @compute @workgroup_size(64)
 fn initialize(@builtin(global_invocation_id) id: vec3u) {
 	let line = id.x;
@@ -41,8 +41,13 @@ fn initialize(@builtin(global_invocation_id) id: vec3u) {
 	var segment = 0u;
 	for (var i = 0u; i < uniforms.length; i++) {
 		let color = samplePixel(i, line + uniforms.lineOffset);
-		let luminance = dot(color.rgb, vec3f(0.2126, 0.7152, 0.0722));
-		let boundary = select((luminance < uniforms.threshold), (luminance > uniforms.threshold), uniforms.shadow != 0u);
+		var luminance = 0.0;
+		if (color.a > 0.0) {
+			// 輝度だけ未乗算の色から計算し、半透明の白を暗い色として扱わない。
+			// 出力は元のpremultiplied RGBAを読むため、透明度を再乗算しない。
+			luminance = dot(color.rgb / color.a, vec3f(0.2126, 0.7152, 0.0722));
+		}
+		let boundary = !(color.a > 0.0 && luminance >= uniforms.thresholdMin && luminance <= uniforms.thresholdMax);
 		if (boundary) { segment++; }
 		output[line * uniforms.length + i] = Pixel(segment, luminance, i);
 		if (boundary) { segment++; }
