@@ -2,84 +2,90 @@
 <GsModal ref="modal" zPriority="high" :anchorElement="anchorElement" :transparentBg="true" @click="closeEditor" @esc="closeEditor" @close="onClosing" @closed="emit('closed')">
 	<div class="_shadow _popup" :class="$style.root" data-test-color-ramp-editor tabindex="-1" @keydown.stop="onKeydown">
 		<div :class="$style.header">
-			<b>{{ title ?? i18n.ts._ColorRamp.Title }}</b>
-			<button v-tooltip="i18n.ts.Close" class="_button" :class="$style.close" data-test-color-ramp-close tabindex="0" @click="closeEditor" @keydown.enter.prevent="closeEditor" @keydown.space.prevent="closeEditor"><i class="ti ti-x"></i></button>
-		</div>
-		<div ref="track" :class="$style.track" data-test-color-ramp-track @dblclick="addAtPointer">
-			<div style="height: 24px;">
-				<GsColorRampPreview :ramp="modelValue"/>
+			<div :class="$style.headerLeft">
+				<b>{{ title ?? i18n.ts._ColorRamp.Title }}</b>
 			</div>
-			<div :class="$style.stops">
-				<div
-					v-for="stop in modelValue.stops"
-					:key="stop.id"
-					:class="[$style.stop, { [$style.selected]: selectedId === stop.id }]"
-					data-test-color-ramp-stop
-					:data-stop-id="stop.id"
-					:style="{ left: `${stop.position * 100}%`, '--color': colorCss(stop.color) }"
-					tabindex="0"
-					@pointerdown.stop.prevent="startDrag($event, stop.id)"
-					@dblclick.stop
-					@click="selectedId = stop.id"
-					@focus="selectedId = stop.id"
-					@keydown="onStopKeydown($event, stop.id)"
-				></div>
+			<div :class="$style.headerRight">
+				<GsButton v-tooltip="i18n.ts._ColorRamp.ReverseStops" data-test-color-ramp-reverse iconOnly icon="ti ti-flip-horizontal" @click="reverseStops"/>
+				<div :class="$style.headerDivider"></div>
+				<button v-tooltip="i18n.ts.Close" class="_button" :class="$style.close" data-test-color-ramp-close tabindex="0" @click="closeEditor" @keydown.enter.prevent="closeEditor" @keydown.space.prevent="closeEditor"><i class="ti ti-x"></i></button>
 			</div>
 		</div>
-		<div :class="$style.actions">
-			<GsSelect data-test-color-ramp-selection :modelValue="selectedId" :items="stopChoices" @update:modelValue="selectedId = $event"/>
-			<GsButton v-tooltip="i18n.ts._ColorRamp.AddStop" data-test-color-ramp-add iconOnly icon="ti ti-plus" @click="addStop(0.5)"/>
-			<GsButton v-tooltip="i18n.ts._ColorRamp.RemoveStop" data-test-color-ramp-remove iconOnly danger icon="ti ti-minus" :disabled="modelValue.stops.length <= 1" @click="removeStop"/>
-			<GsButton v-tooltip="i18n.ts._ColorRamp.ReverseStops" data-test-color-ramp-reverse :aria-label="i18n.ts._ColorRamp.ReverseStops" iconOnly icon="ti ti-flip-horizontal" @click="reverseStops"/>
-		</div>
-		<template v-if="selectedStop != null">
-			<GsInput data-test-color-ramp-position type="number" :modelValue="selectedStop.position" :min="0" :max="1" :step="0.01" @update:modelValue="updatePosition($event)">
-				<template #label>{{ i18n.ts._ColorRamp.Position }}</template>
-			</GsInput>
-			<GsColorInput :key="selectedStop.id" :modelValue="normalizeColor(selectedStop.color)" :title="title" @update:modelValue="updateStop({ color: $event })"/>
-		</template>
-		<hr>
-		<GsSelect
-			data-test-color-ramp-interpolation :modelValue="modelValue.interpolation" :items="[
-				{ value: 'constant', label: i18n.ts._ColorRamp.Constant }, { value: 'linear', label: i18n.ts._ColorRamp.Linear }, { value: 'smoothstep', label: i18n.ts._ColorRamp.Smoothstep },
-				{ value: 'smootherstep', label: i18n.ts._ColorRamp.Smootherstep }, { value: 'easeIn', label: i18n.ts._ColorRamp.EaseIn }, { value: 'easeOut', label: i18n.ts._ColorRamp.EaseOut },
-			]" @update:modelValue="updateRamp({ interpolation: $event })"
-		>
-			<template #label>{{ i18n.ts._ColorRamp.Interpolation }}</template>
-		</GsSelect>
-		<GsSelect
-			data-test-color-ramp-color-space :modelValue="modelValue.colorSpace" :items="[
-				{ value: 'srgb', label: 'sRGB' }, { value: 'linearSrgb', label: 'Linear sRGB' }, { value: 'oklab', label: 'Oklab' }, { value: 'oklch', label: 'OKLCH' },
-			]" @update:modelValue="updateRamp({ colorSpace: $event })"
-		>
-			<template #label>{{ i18n.ts._ColorRamp.ColorSpace }}</template>
-		</GsSelect>
-		<GsSelect
-			v-if="modelValue.colorSpace === 'oklch'"
-			data-test-color-ramp-hue-interpolation :modelValue="modelValue.hueInterpolation ?? 'shorter'" :items="[
-				{ value: 'shorter', label: i18n.ts._ColorRamp.ShorterHue }, { value: 'longer', label: i18n.ts._ColorRamp.LongerHue },
-				{ value: 'increasing', label: i18n.ts._ColorRamp.IncreasingHue }, { value: 'decreasing', label: i18n.ts._ColorRamp.DecreasingHue },
-			]" @update:modelValue="updateRamp({ hueInterpolation: $event })"
-		>
-			<template #label>{{ i18n.ts._ColorRamp.HueInterpolation }}</template>
-		</GsSelect>
-		<GsFolder data-test-color-ramp-presets :maxHeight="240">
-			<template #label>{{ i18n.ts._ColorRamp.Presets }}</template>
-			<div :class="$style.presets">
-				<button
-					v-for="{ preset, ramp } in presetPreviews"
-					:key="preset.id"
-					type="button"
-					class="_button"
-					:class="$style.preset"
-					data-test-color-ramp-preset
-					:data-preset-id="preset.id"
-					@click="applyPreset(preset)"
+		<div :class="$style.body">
+			<div :class="$style.leftArea" class="_gaps_m">
+				<div ref="track" :class="$style.track" data-test-color-ramp-track @dblclick="addAtPointer">
+					<div style="height: 24px;">
+						<GsColorRampPreview :ramp="modelValue"/>
+					</div>
+					<div :class="$style.stops">
+						<div
+							v-for="stop in modelValue.stops"
+							:key="stop.id"
+							:class="[$style.stop, { [$style.selected]: selectedId === stop.id }]"
+							data-test-color-ramp-stop
+							:data-stop-id="stop.id"
+							:style="{ left: `${stop.position * 100}%`, '--color': colorCss(stop.color) }"
+							tabindex="0"
+							@pointerdown.stop.prevent="startDrag($event, stop.id)"
+							@dblclick.stop
+							@click="selectedId = stop.id"
+							@focus="selectedId = stop.id"
+							@keydown="onStopKeydown($event, stop.id)"
+						></div>
+					</div>
+				</div>
+				<template v-if="selectedStop != null">
+					<GsInput data-test-color-ramp-position type="number" :modelValue="selectedStop.position" :min="0" :max="1" :step="0.01" @update:modelValue="updatePosition($event)">
+						<template #prefix>Pos:</template>
+					</GsInput>
+					<GsColorInput :key="selectedStop.id" :modelValue="normalizeColor(selectedStop.color)" :title="title" @update:modelValue="updateStop({ color: $event })"/>
+				</template>
+				<hr>
+				<GsSelect
+					data-test-color-ramp-interpolation :modelValue="modelValue.interpolation" :items="[
+						{ value: 'constant', label: i18n.ts._ColorRamp.Constant }, { value: 'linear', label: i18n.ts._ColorRamp.Linear }, { value: 'smoothstep', label: i18n.ts._ColorRamp.Smoothstep },
+						{ value: 'smootherstep', label: i18n.ts._ColorRamp.Smootherstep }, { value: 'easeIn', label: i18n.ts._ColorRamp.EaseIn }, { value: 'easeOut', label: i18n.ts._ColorRamp.EaseOut },
+					]" @update:modelValue="updateRamp({ interpolation: $event })"
 				>
-					<GsColorRampPreview :ramp="ramp" data-test-color-ramp-preset-preview/>
-				</button>
+					<template #label>{{ i18n.ts._ColorRamp.Interpolation }}</template>
+				</GsSelect>
+				<GsSelect
+					data-test-color-ramp-color-space :modelValue="modelValue.colorSpace" :items="[
+						{ value: 'srgb', label: 'sRGB' }, { value: 'linearSrgb', label: 'Linear sRGB' }, { value: 'oklab', label: 'Oklab' }, { value: 'oklch', label: 'OKLCH' },
+					]" @update:modelValue="updateRamp({ colorSpace: $event })"
+				>
+					<template #label>{{ i18n.ts._ColorRamp.ColorSpace }}</template>
+				</GsSelect>
+				<GsSelect
+					v-if="modelValue.colorSpace === 'oklch'"
+					data-test-color-ramp-hue-interpolation :modelValue="modelValue.hueInterpolation ?? 'shorter'" :items="[
+						{ value: 'shorter', label: i18n.ts._ColorRamp.ShorterHue }, { value: 'longer', label: i18n.ts._ColorRamp.LongerHue },
+						{ value: 'increasing', label: i18n.ts._ColorRamp.IncreasingHue }, { value: 'decreasing', label: i18n.ts._ColorRamp.DecreasingHue },
+					]" @update:modelValue="updateRamp({ hueInterpolation: $event })"
+				>
+					<template #label>{{ i18n.ts._ColorRamp.HueInterpolation }}</template>
+				</GsSelect>
 			</div>
-		</GsFolder>
+			<div :class="$style.rightArea">
+				<GsFolder data-test-color-ramp-presets defaultOpen :maxHeight="240">
+					<template #label>{{ i18n.ts._ColorRamp.Presets }}</template>
+					<div :class="$style.presets">
+						<button
+							v-for="{ preset, ramp } in presetPreviews"
+							:key="preset.id"
+							type="button"
+							class="_button"
+							:class="$style.preset"
+							data-test-color-ramp-preset
+							:data-preset-id="preset.id"
+							@click="applyPreset(preset)"
+						>
+							<GsColorRampPreview :ramp="ramp" data-test-color-ramp-preset-preview/>
+						</button>
+					</div>
+				</GsFolder>
+			</div>
+		</div>
 	</div>
 </GsModal>
 </template>
@@ -229,15 +235,14 @@ onBeforeUnmount(() => stopDrag?.());
 
 <style module lang="scss">
 .root {
-	display: grid;
-	gap: 12px;
 	box-sizing: border-box;
-	width: 400px;
+	width: 800px;
 	max-width: 100vw;
-	max-height: calc(100dvh - 32px);
+	height: 350px;
 	overflow: auto;
 	padding: 14px;
 	border-radius: 10px;
+	outline: none;
 }
 
 .header {
@@ -245,11 +250,43 @@ onBeforeUnmount(() => stopDrag?.());
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
+	margin-bottom: 6px;
+}
+
+.headerLeft {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+}
+
+.headerRight {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+}
+
+.headerDivider {
+	width: 1px;
+	height: 20px;
+	margin: 0 10px;
+	background-color: #fff2;
 }
 
 .close {
 	padding: 6px;
 	border-radius: 6px;
+}
+
+.body {
+	display: flex;
+	flex-direction: row;
+	gap: 16px;
+}
+.leftArea {
+	flex: 0.5;
+}
+.rightArea {
+	flex: 0.5;
 }
 
 .track {
@@ -307,13 +344,6 @@ onBeforeUnmount(() => stopDrag?.());
 	&:after {
 		border-color: var(--THEME-accent);
 	}
-}
-
-.actions {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto auto;
-	align-items: end;
-	gap: 6px;
 }
 
 .presets {
