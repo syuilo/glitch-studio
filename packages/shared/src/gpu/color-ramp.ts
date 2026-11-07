@@ -2,11 +2,11 @@ import { prepareColorRamp } from '../color-ramp.ts';
 import shaderCode from './color-ramp.wgsl?raw';
 import type { ColorRamp } from '../color-ramp.ts';
 
-/** fragment shaderで使う1つのColor Rampのbindingとbufferを所有する。 */
-export function createColorRampBindings(device: GPUDevice, group: number) {
+/** 指定したshader stageで使う1つのColor Rampのbindingとbufferを所有する。 */
+export function createColorRampBindings(device: GPUDevice, group: number, visibility: GPUShaderStageFlags = GPUShaderStage.FRAGMENT) {
 	const layout = device.createBindGroupLayout({ entries: [
-		{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+		{ binding: 0, visibility, buffer: { type: 'uniform' } },
+		{ binding: 1, visibility, buffer: { type: 'read-only-storage' } },
 	] });
 	const settings = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	let capacity = 48;
