@@ -14,8 +14,6 @@
 		<GsTextarea :modelValue="interfaceDescription" readonly code pre adaptiveHeight data-test-custom-shader-effect-interface>
 			<template #label>{{ i18n.ts._CustomShaderEffect.Interface }}</template>
 		</GsTextarea>
-		<div>{{ i18n.ts._CustomShaderEffect.Coordinates }}</div>
-		<div>{{ i18n.ts._CustomShaderEffect.ColorAndTime }}</div>
 	</template>
 	<template v-else-if="tab === 'inputs'">
 		<div>{{ i18n.ts._CustomShaderEffect.ReferenceNames }}</div>

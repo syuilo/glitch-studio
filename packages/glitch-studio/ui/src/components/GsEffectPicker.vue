@@ -60,10 +60,23 @@
 				</GsFolder>
 			</div>
 			<div :class="$style.rightArea">
-				<div :class="$style.effects">
-					<GsEffectPickerEffect v-for="[key, effect] in results" :key="key" :effect="effect" detailed @click="choose(key, effect)"/>
-				</div>
-				<div v-if="results.length === 0">{{ i18n.ts._EffectPicker.NoResults }}</div>
+				<template v-if="isInitialView">
+					<GsFolder v-for="section in effectSections" :key="section.id" defaultOpen asSection>
+						<template #label>{{ section.label }}</template>
+						<div :class="$style.effects">
+							<GsEffectPickerEffect v-for="[key, effect] in section.effects" :key="key" :effect="effect" detailed @click="choose(key, effect)"/>
+						</div>
+					</GsFolder>
+				</template>
+				<template v-else>
+					<GsFolder defaultOpen asSection>
+						<template #label>{{ i18n.ts.SearchResults }}</template>
+						<div :class="$style.effects">
+							<GsEffectPickerEffect v-for="[key, effect] in results" :key="key" :effect="effect" detailed @click="choose(key, effect)"/>
+						</div>
+						<div v-if="results.length === 0">{{ i18n.ts._EffectPicker.NoResults }}</div>
+					</GsFolder>
+				</template>
 			</div>
 		</div>
 	</div>
@@ -71,10 +84,9 @@
 </template>
 
 <script setup lang="ts">
-import { appContext } from '@/app.ts';
 import { computed, ref, useTemplateRef } from 'vue';
-import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { EFFECT_TAGS } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import { isCustomShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 import GsEffectPickerEffect from './GsEffectPicker.Effect.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsModal from './common/GsModal.vue';
@@ -82,6 +94,8 @@ import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { EffectDefinition, EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
+import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
 
@@ -150,6 +164,14 @@ const results = computed(() => {
 	})).sort((a, b) => b.primaryMatches - a.primaryMatches)
 		.map(({ key, effect }) => [key, effect] as const);
 });
+
+const isInitialView = computed(() => query.value === '' && selectedTags.value.length === 0
+	&& selectedInputType.value == null && selectedOutputType.value === (props.selectedOutputType ?? null));
+
+const effectSections = computed(() => [
+	{ id: 'customShaderEffects', label: i18n.ts._CustomShaderEffect.Title, effects: results.value.filter(([key]) => isCustomShaderEffectReference(key)) },
+	{ id: 'builtin', label: i18n.ts._EffectPicker.BuiltinEffects, effects: results.value.filter(([key]) => !isCustomShaderEffectReference(key)) },
+].filter(section => section.effects.length > 0));
 
 function toggleTag(tag: EffectTags) {
 	selectedTags.value = selectedTags.value.includes(tag)
@@ -243,7 +265,6 @@ function choose(key: string, effect: EffectDefinition) {
 .rightArea {
 	flex: 0.7;
 	min-width: 0;
-	padding: 16px;
 	overflow: auto;
 }
 
@@ -303,5 +324,4 @@ function choose(key: string, effect: EffectDefinition) {
 	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 	gap: 8px;
 }
-
 </style>
