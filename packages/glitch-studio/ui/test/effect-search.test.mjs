@@ -24,7 +24,34 @@ function search(names, text) {
 // 【名前全体の完全一致を登録順や名前内の出現位置によらず優先する】
 // Neuro Noiseがキー順で先に登録されていても、Noiseを探したときに先頭で選択できる必要がある。
 test('ranks the exact effect name before names containing the same word', () => {
-	assert.deepEqual(search(['Neuro Noise', 'Noise', 'Noise Field'], 'noise'), ['Noise', 'Neuro Noise', 'Noise Field']);
+	assert.deepEqual(search(['Neuro Noise', 'Noise', 'Noise Field'], 'noise'), ['Noise', 'Noise Field', 'Neuro Noise']);
+});
+
+// 【前方一致の強さが同じ場合は一致位置、次に名前の短さを優先する】
+// 入力途中のnoiでもNoiseを先頭で選べるようにし、Noise FieldもNeuro Noiseより上に並べる。
+// 名前の短さだけで比較すると、途中で一致する短い名前が先頭で一致する名前を追い越してしまう。
+test('ranks earlier prefix matches before shorter names and then registration order', () => {
+	assert.deepEqual(search(['Neuro Noise', 'Noise Field', 'Noise'], 'noi'), ['Noise', 'Noise Field', 'Neuro Noise']);
+	assert.deepEqual(search(['X Noise', 'Noise Generator'], 'noi'), ['Noise Generator', 'X Noise']);
+});
+
+// 【一致位置は最も強い一致から選び、typo候補でも補正先の単語の位置を比較する】
+// 名前先頭の前方一致を、後ろで成立した単語一致の位置として使うと、一致度と位置の対応が崩れる。
+// 同じ強さの一致が複数ある場合には、最初に現れた位置で比較する。
+test('uses the earliest position of the strongest match including typo corrections', () => {
+	assert.deepEqual(search(['Noiseish Noise', 'X Noise'], 'noise'), ['X Noise', 'Noiseish Noise']);
+	assert.deepEqual(search(['X Noise', 'Noise Generator'], 'niose'), ['Noise Generator', 'X Noise']);
+	assert.deepEqual(search(['AA Noise', 'X Noise Noise'], 'noi'), ['X Noise Noise', 'AA Noise']);
+	assert.deepEqual(search(['Shortoise', 'OiseVeryLongName'], 'ise'), ['OiseVeryLongName', 'Shortoise']);
+});
+
+// 【複数語の一致位置を合算し、入力の語順や重複で順位を変えない】
+// AND検索では検索語の並びを変えても同じ候補を探しているため、最初の検索語だけの位置で比較しない。
+test('sums match positions independently of query term order and repetition', () => {
+	const names = ['X Noise Blur', 'Noise Blur Long', 'Noise Blur'];
+	for (const query of ['noi blu', 'blu noi', 'noi blu noi']) {
+		assert.deepEqual(search(names, query), ['Noise Blur', 'Noise Blur Long', 'X Noise Blur']);
+	}
 });
 
 // 【全検索語を語順によらず要求し、1語でも一致しなければ候補から除外する】
@@ -41,7 +68,7 @@ test('requires every query term independently of order and repeated terms', () =
 // 【全角英数字・大文字・連続空白を名前と入力の両方で正規化する】
 // IMEで入力された全角スペースや英数字、コピーしたタブ等で同じ名前が見つからなくなるのを防ぐ。
 test('normalizes width, case and whitespace on both names and queries', () => {
-	assert.deepEqual(search(['Neuro Noise', ' ＮＯＩＳＥ ', 'Noise Field'], ' \tＮＯＩＳＥ　\n'), [' ＮＯＩＳＥ ', 'Neuro Noise', 'Noise Field']);
+	assert.deepEqual(search(['Neuro Noise', ' ＮＯＩＳＥ ', 'Noise Field'], ' \tＮＯＩＳＥ　\n'), [' ＮＯＩＳＥ ', 'Noise Field', 'Neuro Noise']);
 	const match = matchEffectName('ＮＥＵＲＯ　\tＮＯＩＳＥ', createEffectSearchQuery(' neuro   noise '));
 	assert.equal(match.isExactName, true);
 });
@@ -100,10 +127,13 @@ test('supports word boundaries at punctuation and preserves literal non-Latin se
 	assert.deepEqual(search(['Noise + Blur'], '+ blur'), ['Noise + Blur']);
 });
 
-// 【typoの文字数はUTF-16の長さではなくUnicodeのコードポイント数で判断する】
+// 【typoの文字数・一致位置・名前の長さはUnicodeのコードポイント数で判断する】
 // サロゲートペアを含む3文字の検索語でtypoが有効になったり、1文字の置換が2回と数えられるのを防ぐ。
-test('counts Unicode code points for typo limits and edits', () => {
+// 名前の長さや一致位置の比較でも、サロゲートペアを含む文字だけが不利にならないようにする。
+test('counts Unicode code points for typo limits, edits, match positions and name lengths', () => {
 	assert.deepEqual(search(['a𠮷b'], 'a𠮷c'), []);
 	assert.deepEqual(search(['ab𠮷d'], 'ab𠮷e'), ['ab𠮷d']);
 	assert.deepEqual(search(['ab𠮷d'], 'ab𠮶d'), ['ab𠮷d']);
+	assert.deepEqual(search(['abc Noise', '𠮷𠮷 Noise'], 'noi'), ['𠮷𠮷 Noise', 'abc Noise']);
+	assert.deepEqual(search(['Noiabc', 'Noi𠮷𠮷'], 'noi'), ['Noi𠮷𠮷', 'Noiabc']);
 });

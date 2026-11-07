@@ -110,11 +110,13 @@ function fixture(t, definitions) {
 // 純粋関数だけが正しくても、Pickerが元の登録順を使ったままでは誤ったエフェクトを選んでしまう。
 // 空白だけの入力に戻したときも、検索結果ではなく初期のセクション表示へ戻す。
 test('updates ranked results from the input and selects the first result with Enter', async t => {
-	const f = fixture(t, { neuroNoise: effect('Neuro Noise'), noise: effect('Noise'), blur: effect('Blur') });
+	const f = fixture(t, { neuroNoise: effect('Neuro Noise'), noiseField: effect('Noise Field'), noise: effect('Noise'), blur: effect('Blur') });
 	await f.search('　 \t');
 	assert.equal(f.find('data-test-effect-picker-results'), null);
-	await f.search(' ＮＯＩＳＥ ');
-	assert.deepEqual(f.results(), ['noise', 'neuroNoise']);
+	for (const query of [' ＮＯＩＳＥ ', 'noi']) {
+		await f.search(query);
+		assert.deepEqual(f.results(), ['noise', 'noiseField', 'neuroNoise']);
+	}
 	f.find('data-test-effect-picker-search').props.onKeydown({ key: 'Enter', repeat: false, preventDefault() {}, stopPropagation() {} });
 	assert.equal(f.chosen.length, 1);
 	assert.equal(f.chosen[0].displayName, 'Noise');
