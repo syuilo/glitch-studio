@@ -4,7 +4,7 @@ import type { FlameTransform } from '../../src/fx/fractalFlame/flame-settings.ts
 import type { EffectOutputDataMap, RuntimeEffectParameters } from '../../src/effect-implementation.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
-import { prepareColorRamp, evaluatePreparedColorRamp } from '@gs/shared/color-ramp.ts';
+import { COLOR_RAMP_INTERPOLATIONS, prepareColorRamp, evaluatePreparedColorRamp } from '@gs/shared/color-ramp.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
@@ -119,7 +119,7 @@ export async function run() {
 		near(half.pixel('output')[3], intensity * 0.5, 'palette opacity preserved');
 		// 【Computeからも既存のRampの全補間方式・色空間を同じ規則で使う】
 		// 端点だけのPaletteでは見つからないGPU stageの変更や、色空間・alphaの不一致を検出する。
-		for (const interpolation of ['constant', 'linear', 'smoothstep'] as const) for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch'] as const) {
+		for (const interpolation of COLOR_RAMP_INTERPOLATIONS) for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch'] as const) {
 			const ramp: ColorRamp = { interpolation, colorSpace, stops: [{ id: 'a', position: 0, color: [0.9, 0.1, 0.3, 0.5] }, { id: 'b', position: 1, color: [0.1, 0.7, 0.9, 0.5] }] };
 			const pixels = await single.render({ ramp });
 			const expected = evaluatePreparedColorRamp(prepareColorRamp(ramp), 0.5);

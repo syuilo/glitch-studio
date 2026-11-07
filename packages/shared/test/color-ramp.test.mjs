@@ -14,6 +14,11 @@ const hue180 = [0.3225405424, 0.624848172, 0.5683289785, 1];
 const circularRamp = { interpolation: 'linear', colorSpace: 'oklch', stops: [
 	{ id: 'start', position: 0, color: hue350 }, { id: 'end', position: 1, color: hue10 },
 ] };
+const easedInterpolationSamples = [
+	{ interpolation: 'smootherstep', amounts: [0.103515625, 0.5, 0.896484375] },
+	{ interpolation: 'easeIn', amounts: [0.0625, 0.25, 0.5625] },
+	{ interpolation: 'easeOut', amounts: [0.4375, 0.75, 0.9375] },
+];
 
 // 【端点・範囲外・単一stopと補間方法の意味を維持する】
 // CPUプレビューとGPUが共有する仕様の基準。停止点の色を厳密に保持し、初期値を別のパラメータと共有しない。
@@ -28,6 +33,37 @@ test('evaluates endpoints, extension, interpolation modes and single stops', () 
 	assert.deepEqual(sample({ ...ramp, stops: [ramp.stops[1]] }, 0.1), [1, 1, 1, 1]);
 	ramp.stops[0].color[0] = 1;
 	assert.equal(createDefaultColorRamp().stops[0].color[0], 0);
+});
+
+// 【追加した補間方法の変化量を固定し、端点・範囲外・同位置のstopを保持する】
+// 数式をテスト内で再実装せず、区間の1/4・1/2・3/4における既知の値を使う。
+// Ease InとEase Outの向きが逆転したり、補間の追加で既存の境界規則が変わることを防ぐ。
+test('evaluates smootherstep and quadratic easing while preserving ramp boundaries', () => {
+	for (const { interpolation, amounts } of easedInterpolationSamples) {
+		const ramp = { ...createDefaultColorRamp(), interpolation };
+		for (const [index, position] of [0.25, 0.5, 0.75].entries()) near(sample(ramp, position), [amounts[index], amounts[index], amounts[index], 1]);
+		for (const position of [-1, 0]) assert.deepEqual(sample(ramp, position), [0, 0, 0, 1]);
+		for (const position of [1, 2]) assert.deepEqual(sample(ramp, position), [1, 1, 1, 1]);
+		assert.deepEqual(sample({ ...ramp, stops: [ramp.stops[1]] }, 0.25), [1, 1, 1, 1]);
+		ramp.stops.push({ id: 'firstJump', position: 0.5, color: hue0 }, { id: 'lastJump', position: 0.5, color: hue180 });
+		assert.deepEqual(sample(ramp, 0.5), hue180);
+	}
+});
+
+// 【各stop区間の進行率を変換し、色・alpha・OKLCHの色相に同じ補間率を適用する】
+// ランプ全体の座標を変換すると、0〜1以外に置いたstopの位置まで動いてしまう。
+// 半透明の異なる色を使い、色空間変換や色相だけが線形のまま残る誤りも検出する。
+test('applies local easing consistently to colors alpha and all OKLCH hue arcs', () => {
+	for (const { interpolation, amounts } of easedInterpolationSamples) {
+		for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch']) {
+			for (const hueInterpolation of ['shorter', 'longer', 'increasing', 'decreasing']) {
+				const ramp = { interpolation, colorSpace, hueInterpolation, stops: [
+					{ id: 'start', position: 0.25, color: [...hue350.slice(0, 3), 0.8] }, { id: 'end', position: 0.75, color: [...hue10.slice(0, 3), 0.2] },
+				] };
+				for (const [index, position] of [0.375, 0.5, 0.625].entries()) near(sample(ramp, position), sample({ ...ramp, interpolation: 'linear' }, 0.25 + 0.5 * amounts[index]));
+			}
+		}
+	}
 });
 
 // 【重複位置の最後を優先し、入力の保存順と値を変更しない】

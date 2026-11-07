@@ -2,7 +2,7 @@ import definition from '../../src/fx/colorRamp/_def_.ts';
 import implementation from '../../src/fx/colorRamp/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import { createDefaultColorRamp, evaluatePreparedColorRamp, prepareColorRamp } from '@gs/shared/color-ramp.ts';
+import { COLOR_RAMP_INTERPOLATIONS, createDefaultColorRamp, evaluatePreparedColorRamp, prepareColorRamp } from '@gs/shared/color-ramp.ts';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 
@@ -53,7 +53,7 @@ export async function run() {
 		checks.push(label);
 	}
 	try {
-		for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch'] as const) for (const interpolation of ['constant', 'linear', 'smoothstep'] as const) {
+		for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch'] as const) for (const interpolation of COLOR_RAMP_INTERPOLATIONS) {
 			const ramp: ColorRamp = { colorSpace, interpolation, stops: [
 				{ id: 'start', position: 0, color: [1, 0, 0, 0.8] }, { id: 'middle', position: 0.5, color: [0, 1, 0, 0.3] }, { id: 'end', position: 1, color: [0, 0, 1, 0] },
 			] };

@@ -1,4 +1,4 @@
-import { prepareColorRamp } from '../color-ramp.ts';
+import { COLOR_RAMP_INTERPOLATIONS, prepareColorRamp } from '../color-ramp.ts';
 import shaderCode from './color-ramp.wgsl?raw';
 import type { ColorRamp } from '../color-ramp.ts';
 
@@ -43,7 +43,7 @@ export function createColorRampBindings(device: GPUDevice, group: number, visibi
 				values.set(stop.srgbColor, index * 12 + 8);
 			}
 			device.queue.writeBuffer(stops, 0, values);
-			device.queue.writeBuffer(settings, 0, new Uint32Array([prepared.stops.length, ['constant', 'linear', 'smoothstep'].indexOf(prepared.interpolation), ['srgb', 'linearSrgb', 'oklab', 'oklch'].indexOf(prepared.colorSpace), 0]));
+			device.queue.writeBuffer(settings, 0, new Uint32Array([prepared.stops.length, COLOR_RAMP_INTERPOLATIONS.indexOf(prepared.interpolation), ['srgb', 'linearSrgb', 'oklab', 'oklch'].indexOf(prepared.colorSpace), 0]));
 			previousRamp = rampKey;
 			return bindGroup;
 		},

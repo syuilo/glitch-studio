@@ -45,9 +45,11 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	const ramp = createDefaultColorRamp();
 	ramp.colorSpace = 'oklch';
 	ramp.hueInterpolation = 'decreasing';
+	ramp.interpolation = 'smootherstep';
 	ramp.stops.push({ id: 'middle', position: 0.5, color: [1, 0, 0, 0.5] });
 	history.commit('updateParamAsLiteral', { ...target, value: ramp }, 'drag');
 	ramp.stops[2].position = 0.75;
+	ramp.interpolation = 'easeOut';
 	history.commit('updateParamAsLiteral', { ...target, value: ramp }, 'drag');
 	assert.equal(history.undoStack.value.length, 1);
 	history.undo();
@@ -56,6 +58,7 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	assert.equal(node.params.ramp.value.stops[2].position, 0.75);
 	assert.equal(node.params.ramp.value.colorSpace, 'oklch');
 	assert.equal(node.params.ramp.value.hueInterpolation, 'decreasing');
+	assert.equal(node.params.ramp.value.interpolation, 'easeOut');
 	const modifier = { enabled: true, code: 'VALUE.colorSpace = "oklab"\nVALUE' };
 	history.commit('updateParamExpressionModifier', { ...target, value: modifier });
 	history.commit('changeParamValueInputSource', { ...target, inputSource: 'expression' });
@@ -138,6 +141,26 @@ async function fixture(t, component = ColorRampEditor) {
 	await nextTick();
 	return { state, events, find, findAll, unmount };
 }
+
+// 【追加した補間方法を選び、stop追加時も表示中の補間色を使う】
+// 選択肢への追加だけでなく、モデル更新から追加色の評価まで同じ設定が届くことを確認する。
+test('inserts stops using the selected smootherstep or quadratic interpolation', async t => {
+	const { state, find } = await fixture(t);
+	for (const [interpolation, expected] of [['smootherstep', 0.103515625], ['easeIn', 0.0625], ['easeOut', 0.4375]]) {
+		state.modelValue = createDefaultColorRamp();
+		await nextTick();
+		const control = find('data-test-color-ramp-interpolation');
+		assert.ok(control.props.items.some(item => item.value === interpolation));
+		control.props.onInput(interpolation);
+		await nextTick();
+		assert.equal(state.modelValue.interpolation, interpolation);
+		const track = find('data-test-color-ramp-track');
+		track.getBoundingClientRect = () => ({ left: 100, width: 200 });
+		track.props.onDblclick({ clientX: 150 });
+		await nextTick();
+		assert.deepEqual(Array.from(state.modelValue.stops[2].color), [expected, expected, expected, 1]);
+	}
+});
 
 // 【OKLCHの選択時だけ色相経路を表示し、色空間の切替でもRGBAと経路を保持する】
 // 設定の切替で保存色を再変換せず、式が経路を省略した場合も既定のShorterを表示する。

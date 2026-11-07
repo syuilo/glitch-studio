@@ -42,7 +42,8 @@
 - stopは1個以上。IDはランプ内で一意な空でない文字列、位置は0〜1の有限値とします。RGBAは未乗算sRGBの有限値で、alphaは0〜1です。
 - 初期値は位置0の黒と位置1の白（不透明）、Linear・sRGBです。RGBの有限な範囲外値は保存できますが、描画結果はsRGBへ戻した後に0〜1へclampします。
 - 評価では位置をGPUと同じf32へ丸め、保存順を保って位置順に並べます。同位置では保存順で最後のstopを採用し、左から近づく区間には最初のstopを使います。範囲外は端の色、単一stopは全域でその色です。保存値の順序・位置は変更しません。
-- 補間は`constant`・`linear`・`smoothstep`、補間色空間は`srgb`・`linearSrgb`・`oklab`・`oklch`です。色空間の設定変更で保存済みのRGBAを書き換えません。
+- 補間は`constant`・`linear`・`smoothstep`・`smootherstep`・`easeIn`・`easeOut`、補間色空間は`srgb`・`linearSrgb`・`oklab`・`oklch`です。色空間の設定変更で保存済みのRGBAを書き換えません。
+- `linear`以外の連続補間は、隣接stop間の進行率`t`（0〜1）を変換してから色・alpha・OKLCHの色相へ同じ進行率を適用します。`smoothstep`は`t²(3−2t)`、`smootherstep`は`t³(6t²−15t＋10)`で、後者は両端の1階・2階微分が0です。`easeIn`は`t²`で始点の色を長く保ち、`easeOut`は`t(2−t)`で早めに終点の色へ移る二次補間です。
 - 選択した色空間へ変換してからalphaを乗算して補間します。OKLCHではCSS Color 4と同様にL・Cだけへalphaを乗算し、色相はalphaと独立に補間します。完全透明な有彩色stopも色相を保持するため、alphaの0と微小な正値で色相の経路が切り替わりません。補間後は乗算した成分を未乗算へ戻し、sRGBへ変換・clampして再びalphaを乗算します。alphaが0の場合は透明色を返します。端点とConstantでは色空間変換の往復を省略します。
 - OKLCHの色相経路は省略可能な`hueInterpolation`で指定します。`shorter`（既定）・`longer`・`increasing`・`decreasing`に対応し、他の色空間ではこの設定を使いません。変換後のCが0.000004以下の場合は無彩色としてCを0に揃え、補間区間の相手の色相を借ります。色相経路はalphaを乗算する前に区間ごとに準備し、CPUプレビューとGPUで共有します。
 - 固定値・環境変数・ランプ全体を返す基準式と加工式・Visual Moduleの公開入力で利用できます。キーフレーム・Automation Graph・テクスチャとしてのノード接続は扱いません。

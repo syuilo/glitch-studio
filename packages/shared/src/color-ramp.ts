@@ -1,8 +1,10 @@
 export type ColorRampColor = [number, number, number, number];
 export type ColorRampStop = { id: string; position: number; color: ColorRampColor };
+/** 配列の順序はWGSLのColorRampSettings.interpolationへ渡す番号と対応する。 */
+export const COLOR_RAMP_INTERPOLATIONS = ['constant', 'linear', 'smoothstep', 'smootherstep', 'easeIn', 'easeOut'] as const;
 export type ColorRamp = {
 	stops: ColorRampStop[];
-	interpolation: 'constant' | 'linear' | 'smoothstep';
+	interpolation: typeof COLOR_RAMP_INTERPOLATIONS[number];
 	colorSpace: 'srgb' | 'linearSrgb' | 'oklab' | 'oklch';
 	/** OKLCHの色相経路。省略時はCSSと同じshorterで、他の色空間には影響しない。 */
 	hueInterpolation?: 'shorter' | 'longer' | 'increasing' | 'decreasing';
@@ -19,7 +21,7 @@ export function createDefaultColorRamp(): ColorRamp {
 export function validateColorRamp(value: unknown): asserts value is ColorRamp {
 	if (value == null || typeof value !== 'object') throw new Error('Expected a Color Ramp object');
 	const ramp = value as Record<string, unknown>;
-	if (typeof ramp.interpolation !== 'string' || !['constant', 'linear', 'smoothstep'].includes(ramp.interpolation)) throw new Error('Invalid Color Ramp interpolation');
+	if (typeof ramp.interpolation !== 'string' || !COLOR_RAMP_INTERPOLATIONS.some(interpolation => interpolation === ramp.interpolation)) throw new Error('Invalid Color Ramp interpolation');
 	if (typeof ramp.colorSpace !== 'string' || !['srgb', 'linearSrgb', 'oklab', 'oklch'].includes(ramp.colorSpace)) throw new Error('Invalid Color Ramp color space');
 	if (ramp.hueInterpolation != null && (typeof ramp.hueInterpolation !== 'string' || !['shorter', 'longer', 'increasing', 'decreasing'].includes(ramp.hueInterpolation))) throw new Error('Invalid Color Ramp hue interpolation');
 	if (!Array.isArray(ramp.stops) || ramp.stops.length === 0) throw new Error('Color Ramp requires at least one stop');
@@ -142,7 +144,17 @@ export function evaluatePreparedColorRamp(ramp: PreparedColorRamp, position: num
 	if (lower === stops.length || position === left.position || ramp.interpolation === 'constant') return [...left.srgbColor];
 	const right = stops[lower];
 	let amount = (position - left.position) / (right.position - left.position);
-	if (ramp.interpolation === 'smoothstep') amount = amount * amount * (3 - 2 * amount);
+	if (ramp.interpolation === 'smoothstep') {
+		amount = amount * amount * (3 - 2 * amount);
+	} else if (ramp.interpolation === 'smootherstep') {
+		// 両端で1階・2階微分が0になる5次式。stop付近をより長く保ち、中央で速く変化させる。
+		amount = amount * amount * amount * (amount * (amount * 6 - 15) + 10);
+	} else if (ramp.interpolation === 'easeIn') {
+		amount = amount * amount;
+	} else if (ramp.interpolation === 'easeOut') {
+		// 1 - (1 - t)^2と等価だが、小さなtで1同士の減算による桁落ちを避ける。
+		amount = amount * (2 - amount);
+	}
 	const color = left.color.map((component, index) => component + (right.color[index] - component) * amount) as ColorRampColor;
 	if (left.segmentHues != null) color[2] = left.segmentHues[0] + (left.segmentHues[1] - left.segmentHues[0]) * amount;
 	return toOutputColor(color, ramp.colorSpace);

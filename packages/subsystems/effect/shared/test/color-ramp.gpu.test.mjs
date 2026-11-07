@@ -42,7 +42,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'Color Ramp GPU test timed out' }), 75000);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
-		assert.ok(output.checks.length >= 64);
+		assert.ok(output.checks.length >= 88);
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {
 		clearTimeout(timer);

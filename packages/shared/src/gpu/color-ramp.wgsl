@@ -49,7 +49,16 @@ fn evaluateColorRamp(value: f32) -> vec4f {
 	if (lower == colorRampSettings.count || value == left.position.x || colorRampSettings.interpolation == 0u) { return left.srgbColor; }
 	let right = colorRampStops[lower];
 	var amount = (value - left.position.x) / (right.position.x - left.position.x);
-	if (colorRampSettings.interpolation == 2u) { amount = amount * amount * (3.0 - 2.0 * amount); }
+	if (colorRampSettings.interpolation == 2u) {
+		amount = amount * amount * (3.0 - 2.0 * amount);
+	} else if (colorRampSettings.interpolation == 3u) {
+		// CPUと同じ5次式。端点で1階・2階微分を0にし、stop付近の変化を緩やかにする。
+		amount = amount * amount * amount * (amount * (amount * 6.0 - 15.0) + 10.0);
+	} else if (colorRampSettings.interpolation == 4u) {
+		amount = amount * amount;
+	} else if (colorRampSettings.interpolation == 5u) {
+		amount = amount * (2.0 - amount);
+	}
 	var color = mix(left.color, right.color, amount);
 	if (colorRampSettings.colorSpace == 3u) {
 		// 無彩色の色相補完と経路の展開はCPUで済ませ、区間内では線形補間だけを行う。

@@ -31,6 +31,7 @@
 		<GsSelect
 			data-test-color-ramp-interpolation :modelValue="modelValue.interpolation" :items="[
 				{ value: 'constant', label: i18n.ts._ColorRamp.Constant }, { value: 'linear', label: i18n.ts._ColorRamp.Linear }, { value: 'smoothstep', label: i18n.ts._ColorRamp.Smoothstep },
+				{ value: 'smootherstep', label: i18n.ts._ColorRamp.Smootherstep }, { value: 'easeIn', label: i18n.ts._ColorRamp.EaseIn }, { value: 'easeOut', label: i18n.ts._ColorRamp.EaseOut },
 			]" @update:modelValue="updateRamp({ interpolation: $event })"
 		>
 			<template #label>{{ i18n.ts._ColorRamp.Interpolation }}</template>

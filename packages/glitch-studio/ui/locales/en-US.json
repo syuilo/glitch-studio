@@ -347,7 +347,10 @@
 		"DecreasingHue": "Decreasing",
 		"Constant": "Constant",
 		"Linear": "Linear",
-		"Smoothstep": "Smoothstep"
+		"Smoothstep": "Smoothstep",
+		"Smootherstep": "Smootherstep",
+		"EaseIn": "Ease In",
+		"EaseOut": "Ease Out"
 	},
 	"_ColorPicker": {
 		"PickFromScreen": "Pick a color from the screen",

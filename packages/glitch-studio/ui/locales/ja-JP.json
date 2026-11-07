@@ -347,7 +347,10 @@
 		"DecreasingHue": "色相の減少方向",
 		"Constant": "一定",
 		"Linear": "線形",
-		"Smoothstep": "Smoothstep"
+		"Smoothstep": "Smoothstep",
+		"Smootherstep": "Smootherstep",
+		"EaseIn": "Ease In",
+		"EaseOut": "Ease Out"
 	},
 	"_ColorPicker": {
 		"PickFromScreen": "画面から色を取得",
