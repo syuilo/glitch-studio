@@ -25,6 +25,7 @@ export const PREF_DEF = definePreferences({
 	visualModuleAutoConnectOnNodeAdd: { default: () => false },
 	showTimecodeInPreview: { default: () => true },
 	showGridInPreview: { default: () => false },
+	showRulersInPreview: { default: () => true },
 	showAdvancedParameters: { default: () => false },
 	showTransformInPreview: { default: () => true },
 	previewTransformSnap: { default: () => true },

@@ -1,6 +1,6 @@
 <template>
 <GsDetachableView :title="i18n.ts.Preview" :suspended="renderEngine.isSuspended.value" @changeWindow="onPreviewWindowChanged">
-	<div :class="$style.root">
+	<div :class="[$style.root, { [$style.withRulers]: showRulersInPreview }]">
 		<div :class="$style.header">
 			<div :class="$style.left">
 				<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">
@@ -19,20 +19,23 @@
 				<div :class="$style.divider"></div>
 				<button v-tooltip="i18n.ts._Preview.ShowGrid" :class="[$style.iconButton, showGridInPreview ? '_buttonPrimaryFg' : '_button']" @click="toggleGrid"><i class="ti ti-grid-3x3"></i></button>
 				<div :class="$style.divider"></div>
-				<button :class="$style.iconButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
+				<button :class="$style.iconButton" class="_button" data-test-preview-menu @click="showMenu"><i class="ti ti-dots"></i></button>
 			</div>
 		</div>
 
-		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" data-test-preview-viewport @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
-			<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :class="[$style.canvasContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" :style="{ scale: zoom / previewDevicePixelRatio, translate: `${pan[0]}px ${pan[1]}px` }" data-test-preview-canvas-container></div>
-			<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
-				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
+		<div :class="$style.previewArea">
+			<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" data-test-preview-viewport @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
+				<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :class="[$style.canvasContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" :style="{ scale: zoom / previewDevicePixelRatio, translate: `${pan[0]}px ${pan[1]}px` }" data-test-preview-canvas-container></div>
+				<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
+					<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
+				</div>
+				<GsPreviewTransform v-if="appContext.previewParameterEditing.handles.value.length === 0" :canvasRect="previewCanvasRect"/>
+				<GsPreviewParameterPositions :canvasRect="previewCanvasRect" :showGrid="showGridInPreview"/>
+				<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" data-test-timeline-seek-loading>
+					<GsLoading :colored="false" :mini="true"/>
+				</div>
 			</div>
-			<GsPreviewTransform v-if="appContext.previewParameterEditing.handles.value.length === 0" :canvasRect="previewCanvasRect"/>
-			<GsPreviewParameterPositions :canvasRect="previewCanvasRect" :showGrid="showGridInPreview"/>
-			<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" data-test-timeline-seek-loading>
-				<GsLoading :colored="false" :mini="true"/>
-			</div>
+			<GsPreviewRulers v-if="showRulersInPreview && !renderEngine.isSuspended.value" :canvasRect="previewCanvasRect" :viewportSize="previewViewportSize"/>
 		</div>
 
 		<div :class="$style.footer">
@@ -59,9 +62,11 @@ import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-res
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
 import GsPreviewParameterPositions from './GsPreviewParameterPositions.vue';
+import GsPreviewRulers from './GsPreviewRulers.vue';
 import GsLoading from './common/GsLoading.vue';
 import type { CSSProperties } from 'vue';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
+import type { PreviewViewportSize } from '@/utility/preview-rulers.ts';
 import { i18n } from '@/i18n.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { previewGridLinePositions } from '@/utility/preview-parameter-position.ts';
@@ -97,6 +102,7 @@ const previewCanvasRect = shallowRef<PreviewCanvasRect>({
 	width: 0,
 	height: 0,
 });
+const previewViewportSize = shallowRef<PreviewViewportSize>({ width: 0, height: 0 });
 let stopPan: (() => void) | null = null;
 let mainEditingDocument: Document | null = null;
 let editingDocuments = new Set<Document>();
@@ -200,9 +206,12 @@ function onPreviewWindowChanged() {
 }
 
 function updatePreviewCanvasRect() {
-	if (!canvasContainer.value || !containerContainer.value) return;
+	if (canvasContainer.value == null || containerContainer.value == null) return;
 	const canvas = canvasContainer.value.getBoundingClientRect();
 	const container = containerContainer.value.getBoundingClientRect();
+	if (container.width !== previewViewportSize.value.width || container.height !== previewViewportSize.value.height) {
+		previewViewportSize.value = { width: container.width, height: container.height };
+	}
 	const next = {
 		left: canvas.left - container.left,
 		top: canvas.top - container.top,
@@ -329,6 +338,7 @@ function formatTime(timeMs: number): string {
 const animatedBgInPreview = preferences.model('animatedBgInPreview');
 const showTimecodeInPreview = preferences.model('showTimecodeInPreview');
 const showGridInPreview = preferences.model('showGridInPreview');
+const showRulersInPreview = preferences.model('showRulersInPreview');
 const showTransformInPreview = preferences.model('showTransformInPreview');
 
 function showPreviewTargetMenu(ev: PointerEvent) {
@@ -380,6 +390,11 @@ function showMenu(ev: PointerEvent) {
 		type: 'switch',
 		ref: showTimecodeInPreview,
 	}, {
+		text: i18n.ts._Preview.ShowRulers,
+		icon: 'ti ti-ruler',
+		type: 'switch',
+		ref: showRulersInPreview,
+	}, {
 		text: i18n.ts._Preview.ShowLayerTransform,
 		icon: 'ti ti-transform',
 		type: 'switch',
@@ -392,6 +407,8 @@ function showMenu(ev: PointerEvent) {
 .root {
 	--headerHeight: 25px;
 	--footerHeight: 25px;
+	--previewRulerSize: 0px;
+	--previewOverlayBackground: #0008;
 
 	position: relative;
 	width: 100%;
@@ -401,13 +418,20 @@ function showMenu(ev: PointerEvent) {
 	background: #080808;
 }
 
+.withRulers {
+	--previewRulerSize: 24px;
+}
+
+.previewArea {
+	position: absolute;
+	inset: var(--headerHeight) 0 var(--footerHeight);
+}
+
 .containerContainer {
 	position: absolute;
-	width: 100%;
-	height: calc(100% - var(--headerHeight) - var(--footerHeight));
-	top: 0;
-	bottom: 0;
-	margin: auto;
+	inset: var(--previewRulerSize) 0 0 var(--previewRulerSize);
+	// フィットの基準領域は保ち、拡大・パン時の画像は半透明のバーの背後にも表示する。
+	// パネル外へのはみ出しはrootで切り取る。
 	display: grid;
 	place-content: center;
 }
@@ -460,7 +484,7 @@ function showMenu(ev: PointerEvent) {
 	width: 100%;
 	height: var(--headerHeight);
 	line-height: var(--headerHeight);
-	background: #0008;
+	background: var(--previewOverlayBackground);
 }
 
 .footer {
@@ -472,7 +496,7 @@ function showMenu(ev: PointerEvent) {
 	width: 100%;
 	height: var(--footerHeight);
 	line-height: var(--footerHeight);
-	background: #0008;
+	background: var(--previewOverlayBackground);
 }
 
 .left {

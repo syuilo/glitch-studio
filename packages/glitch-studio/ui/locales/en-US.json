@@ -437,6 +437,7 @@
 		"AnimatedBackground": "Animated Background",
 		"ShowTimecode": "Show Timecode",
 		"ShowGrid": "Show Grid",
+		"ShowRulers": "Show Rulers",
 		"ShowLayerTransform": "Show Layer Transform",
 		"CenterView": "Center View",
 		"Retry": "Retry rendering",

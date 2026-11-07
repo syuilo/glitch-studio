@@ -18,11 +18,16 @@ const bundle = await build({
 		loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'preview-context', setup(build) {
-		build.onResolve({ filter: /^@\/(app|preferences|ui)\.ts$|\.vue$/ }, args => ({ path: args.path, namespace: 'preview-context' }));
+		build.onResolve({ filter: /^@\/(app|preferences|ui)\.ts$|\.vue$/ }, args => args.path.endsWith('GsPreviewRulers.vue') ? null : { path: args.path, namespace: 'preview-context' });
+		build.onLoad({ filter: /GsPreviewRulers\.vue$/ }, async ({ path }) => {
+			const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
+			const script = compileScript(descriptor, { id: 'preview-rulers', inlineTemplate: true, genDefaultAs: 'component' }).content;
+			return { contents: `${script}\ncomponent.__cssModules = { $style: {} }; export default component;`, loader: 'ts' };
+		});
 		build.onLoad({ filter: /.*/, namespace: 'preview-context' }, ({ path }) => ({ contents: {
 			'@/app.ts': 'export const appContext = dependencies.appContext;',
 			'@/preferences.ts': 'export const preferences = dependencies.preferences;',
-			'@/ui.ts': 'export function popupMenu() {}',
+			'@/ui.ts': 'export const popupMenu = dependencies.popupMenu;',
 			'./GsDetachableView.vue': `import { h } from 'vue'; export default {
 				props: ['title', 'suspended'], emits: ['changeWindow'],
 				setup(_, { slots, emit }) { return () => h('section', {
@@ -95,10 +100,13 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		projectContext: { stateManager: { state: { visualModules: ref([]), timelineScenes: ref([]), timelineFps: ref(60),
 			resolution: ref({ width: width / resolutionFactor, height: height / resolutionFactor }) } } },
 	};
-	const preferences = { r: { animatedBgInPreview: ref(false) }, model: () => ref(false) };
+	const preferenceValues = { animatedBgInPreview: ref(false) };
+	const preferences = { r: preferenceValues, model: name => preferenceValues[name] ??= ref(false) };
+	const menuItems = [];
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', 'window', 'dependencies', bundle.outputFiles[0].text)(
-		createRequire(import.meta.url), module, module.exports, view, { appContext, preferences });
+		createRequire(import.meta.url), module, module.exports, view, { appContext, preferences,
+			popupMenu: items => { menuItems.splice(0, menuItems.length, ...items); } });
 	const root = element('root');
 	const app = renderer.createApp({ render: () => h(module.exports.default) });
 	app.directive('tooltip', {});
@@ -107,8 +115,8 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 	await nextTick();
 	const descendants = node => [node, ...node.children.flatMap(descendants)];
 	const find = name => descendants(root).find(node => `data-test-preview-${name}` in node.props);
-	return { view, viewport, canvas, controller, appContext, find,
-		async click(name) { find(name).props.onClick(); await nextTick(); },
+	return { view, viewport, canvas, controller, appContext, preferences, menuItems, find,
+		async click(name) { find(name).props.onClick({ currentTarget: find(name) }); await nextTick(); },
 		async replaceCanvas(width, height) {
 			controller.canvas = Object.assign(element('canvas'), { width, height });
 			controller.canvasRevision.value++;
@@ -292,4 +300,68 @@ test('ignores fit requests for an empty canvas or a zero sized viewport', async 
 	f.viewport.height = 0;
 	await f.click('fit-zoom');
 	assert.equal(f.style.scale, 1);
+});
+
+function rulerTick(fixture, axis, coordinate) {
+	return fixture.find(`${axis}-ruler`).children.find(node => node.props['data-test-preview-ruler-coordinate'] === coordinate);
+}
+
+// 【座標目盛りはメニューで独立して表示でき、画像端の数値も欠けない】
+// 設定値だけ追加して実表示に接続し忘れたり、構図グリッドの表示・吸着まで変えたりしないことを確認する。
+// 実際のルーラーSFCを描画し、中央原点・Y方向・端ラベルの配置を検証する。
+test('toggles coordinate rulers through the preview menu independently of the grid', async t => {
+	const f = await fixture(t);
+	assert.equal(f.find('rulers'), undefined);
+	await f.click('menu');
+	const rulerSwitch = f.menuItems.find(item => item.text === 'Show Coordinate Rulers');
+	assert.equal(rulerSwitch.type, 'switch');
+	assert.equal(rulerSwitch.ref.value, false);
+	rulerSwitch.ref.value = true;
+	await nextTick();
+	await f.frame();
+	await f.frame();
+	assert.ok(f.find('rulers'));
+	assert.equal(f.preferences.r.showGridInPreview.value, false);
+	assert.equal(rulerTick(f, 'x', 0).children[0].props.x1, 400);
+	assert.equal(rulerTick(f, 'x', 0.25).children[0].props.x1, 600);
+	assert.equal(rulerTick(f, 'y', 0.25).children[0].props.y1, 25);
+	const edge = rulerTick(f, 'x', 0.5);
+	assert.equal(edge.children[0].props.x1, 800);
+	assert.ok(edge.children[1].props.x < 800);
+	rulerSwitch.ref.value = false;
+	await nextTick();
+	assert.equal(f.find('rulers'), undefined);
+});
+
+// 【ルーラーも実寸の更新を受け取り、ズーム・パン・別ウィンドウ・休止復帰に追従する】
+// Canvasの寸法だけ更新されてルーラーに古い矩形が残ると、表示値と編集ハンドルの位置がずれてしまう。
+test('updates ruler coordinates after zooming, resizing and detaching the preview', async t => {
+	const f = await fixture(t, { devicePixelRatio: 2 });
+	f.preferences.r.showRulersInPreview.value = true;
+	await f.click('zoom-to-100');
+	await f.wheel(600, 400, -1);
+	const detached = previewWindow(3);
+	f.find('canvas-container').ownerDocument = { defaultView: detached };
+	Object.assign(f.viewport, { width: 500, height: 300 });
+	f.find('window').props.onChangeWindow();
+	await nextTick();
+	await f.frame(detached);
+	await f.frame(detached);
+	const rect = f.find('canvas-container').getBoundingClientRect();
+	const longSide = Math.max(rect.width, rect.height);
+	for (const [axis, origin, direction] of [['x', rect.left - f.viewport.left + rect.width / 2, 1], ['y', rect.top - f.viewport.top + rect.height / 2, -1]]) {
+		const groups = f.find(`${axis}-ruler`).children.filter(node => 'data-test-preview-ruler-coordinate' in node.props);
+		assert.ok(groups.length > 0);
+		for (const group of groups) {
+			const value = group.props['data-test-preview-ruler-coordinate'];
+			assert.equal(group.children[0].props[`${axis}1`], origin + direction * value * longSide);
+		}
+	}
+	f.appContext.renderEngine.isSuspended.value = true;
+	await nextTick();
+	assert.equal(f.find('rulers'), undefined);
+	f.appContext.renderEngine.isSuspended.value = false;
+	await nextTick();
+	await f.frame(detached);
+	assert.ok(f.find('rulers'));
 });

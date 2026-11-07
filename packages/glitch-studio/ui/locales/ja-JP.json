@@ -437,6 +437,7 @@
 		"AnimatedBackground": "背景をアニメーション",
 		"ShowTimecode": "タイムコードを表示",
 		"ShowGrid": "グリッドを表示",
+		"ShowRulers": "ルーラーを表示",
 		"ShowLayerTransform": "レイヤーの変形を表示",
 		"CenterView": "表示を中央に戻す",
 		"Retry": "レンダリングを再試行",
