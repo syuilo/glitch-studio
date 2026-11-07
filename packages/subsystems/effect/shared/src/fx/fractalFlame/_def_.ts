@@ -58,7 +58,7 @@ export default defineEffect({
 				position: { label: 'Position', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.01 } },
 				rotation: { label: 'Rotation', control: { controlType: 'angle' } },
 				scale: { label: 'Scale', control: { controlType: 'vector', min: -2, max: 2, step: 0.01 } },
-				shear: { label: 'Shear', isAdvanced: true, control: { controlType: 'range', min: -2, max: 2, step: 0.01 } },
+				shear: { label: 'Shear', control: { controlType: 'range', min: -2, max: 2, step: 0.01 } },
 				colorPosition: { label: 'Color Position', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 				variations: { label: 'Variations', control: variationControls },
 			} } } },
@@ -124,24 +124,24 @@ export default defineEffect({
 		},
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		orbitCount: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Orbit Count', isAdvanced: true, control: { controlType: 'range', min: 1, max: MAXIMUM_ORBIT_COUNT, step: 1 } },
+			dataType: { kind: 'scalar' }, ui: { label: 'Orbit Count', control: { controlType: 'range', min: 1, max: MAXIMUM_ORBIT_COUNT, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 512 },
 		},
 		iterations: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Iterations', isAdvanced: true, control: { controlType: 'range', min: 1, max: MAXIMUM_ITERATIONS, step: 1 } },
+			dataType: { kind: 'scalar' }, ui: { label: 'Iterations', control: { controlType: 'range', min: 1, max: MAXIMUM_ITERATIONS, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 512 },
 		},
 		burnIn: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Burn In', isAdvanced: true, control: { controlType: 'range', min: 0, max: MAXIMUM_BURN_IN, step: 1 } },
+			dataType: { kind: 'scalar' }, ui: { label: 'Burn In', control: { controlType: 'range', min: 0, max: MAXIMUM_BURN_IN, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 64 },
 		},
 		densityResolution: {
 			dataType: { kind: 'enum', options: ['256', '512', '1024', '2048'] },
-			ui: { label: 'Density Resolution', isAdvanced: true, control: { labels: { '256': '256', '512': '512', '1024': '1024', '2048': '2048' } } },
+			ui: { label: 'Density Resolution', control: { labels: { '256': '256', '512': '512', '1024': '1024', '2048': '2048' } } },
 			defaultValue: { inputSource: 'literal', value: '512' },
 		},
 		densityRadius: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Density Radius', isAdvanced: true, control: { controlType: 'range', min: 0.125, max: 2, logarithmic: true } },
+			dataType: { kind: 'scalar' }, ui: { label: 'Density Radius', control: { controlType: 'range', min: 0.125, max: 2, logarithmic: true } },
 			defaultValue: { inputSource: 'literal', value: 0.5 },
 		},
 	},
