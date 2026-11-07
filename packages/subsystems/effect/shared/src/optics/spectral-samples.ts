@@ -1,6 +1,8 @@
 // 380〜780nmを5nm刻みで積分する。RGBの3波長だけで評価すると光路差を変えたときの
 // 色の繰り返しが強く出るため、可視域の応答を合算して干渉色を求める。
 export const SPECTRAL_SAMPLE_COUNT = 81;
+export const SPECTRAL_MINIMUM_WAVELENGTH_NM = 380;
+export const SPECTRAL_WAVELENGTH_STEP_NM = 5;
 
 function asymmetricGaussian(wavelength: number, center: number, leftScale: number, rightScale: number): number {
 	const normalizedDistance = (wavelength - center) * (wavelength < center ? leftScale : rightScale);
@@ -11,7 +13,7 @@ export function createSpectralSamples(): Float32Array {
 	const samples = new Float32Array(SPECTRAL_SAMPLE_COUNT * 4);
 	const whiteResponse = [0, 0, 0];
 	for (let index = 0; index < SPECTRAL_SAMPLE_COUNT; index++) {
-		const wavelength = 380 + index * 5;
+		const wavelength = SPECTRAL_MINIMUM_WAVELENGTH_NM + index * SPECTRAL_WAVELENGTH_STEP_NM;
 		// Wyman・Sloan・Shirley (2013) の式(4)・表1によるCIE 1931等色関数の近似。
 		// 数値係数をCPUで評価し、画素ごとに同じGaussianを再計算しない。
 		// https://jcgt.org/published/0002/02/01/
