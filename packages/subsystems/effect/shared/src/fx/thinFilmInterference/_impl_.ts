@@ -1,7 +1,7 @@
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createSpectralSamples, SPECTRAL_SAMPLE_COUNT } from './spectral-samples.ts';
+import { createSpectralSamples, SPECTRAL_SAMPLE_COUNT } from '../../optics/spectral-samples.ts';
 import shaderCode from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
