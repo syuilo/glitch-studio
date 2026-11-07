@@ -11,7 +11,7 @@
 			</div>
 			<div :class="$style.stops">
 				<div
-					v-for="(stop, index) in modelValue.stops"
+					v-for="stop in modelValue.stops"
 					:key="stop.id"
 					:class="[$style.stop, { [$style.selected]: selectedId === stop.id }]"
 					data-test-color-ramp-stop
@@ -62,6 +62,23 @@
 		>
 			<template #label>{{ i18n.ts._ColorRamp.HueInterpolation }}</template>
 		</GsSelect>
+		<GsFolder data-test-color-ramp-presets :maxHeight="240">
+			<template #label>{{ i18n.ts._ColorRamp.Presets }}</template>
+			<div :class="$style.presets">
+				<button
+					v-for="{ preset, ramp } in presetPreviews"
+					:key="preset.id"
+					type="button"
+					class="_button"
+					:class="$style.preset"
+					data-test-color-ramp-preset
+					:data-preset-id="preset.id"
+					@click="applyPreset(preset)"
+				>
+					<GsColorRampPreview :ramp="ramp" data-test-color-ramp-preset-preview/>
+				</button>
+			</div>
+		</GsFolder>
 	</div>
 </GsModal>
 </template>
@@ -76,7 +93,10 @@ import GsColorInput from './GsColorInput.vue';
 import GsInput from './GsInput.vue';
 import GsSelect from './GsSelect.vue';
 import GsButton from './GsButton.vue';
+import GsFolder from './GsFolder.vue';
 import type { ColorRamp, ColorRampColor, ColorRampStop } from '@gs/shared/color-ramp.ts';
+import type { ColorRampPreset } from '@/color-ramp-presets.ts';
+import { COLOR_RAMP_PRESETS } from '@/color-ramp-presets.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import { colorCss, normalizeColor } from '@/utility/color-input.ts';
 import { i18n } from '@/i18n.ts';
@@ -93,6 +113,21 @@ const selectedStop = computed(() => props.modelValue.stops.find(stop => stop.id 
 const stopChoices = computed(() => props.modelValue.stops.map((stop, index) => ({
 	value: stop.id,
 	label: i18n.tsx._ColorRamp.StopLabel({ index: index + 1, position: stop.position.toFixed(3) }),
+})));
+// stopのドラッグでは一覧を再描画せず、補間設定が変わった場合だけプレビューを作り直す。
+// 各設定をスカラーのcomputedに分け、modelValueの置き換えだけでは依存先を更新しない。
+const presetPreviewInterpolation = computed(() => props.modelValue.interpolation);
+const presetPreviewColorSpace = computed(() => props.modelValue.colorSpace);
+const presetPreviewHueInterpolation = computed(() => props.modelValue.hueInterpolation);
+const presetPreviews = computed(() => COLOR_RAMP_PRESETS.map(preset => ({
+	preset,
+	ramp: {
+		interpolation: presetPreviewInterpolation.value,
+		colorSpace: presetPreviewColorSpace.value,
+		hueInterpolation: presetPreviewHueInterpolation.value,
+		// プレビューにも有効なstop IDが必要だが、編集用のIDは適用時に発行する。
+		stops: preset.stops.map((stop, index) => ({ id: String(index), position: stop.position, color: [...stop.color] as ColorRampColor })),
+	},
 })));
 const track = useTemplateRef('track');
 let stopDrag: (() => void) | null = null;
@@ -114,6 +149,13 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 function updateRamp(changes: Partial<ColorRamp>) { emit('update:modelValue', { ...props.modelValue, ...changes }); }
+
+function applyPreset(preset: ColorRampPreset) {
+	stopDrag?.();
+	const stops: ColorRampStop[] = preset.stops.map(stop => ({ id: genId(), position: stop.position, color: [...stop.color] }));
+	updateRamp({ stops });
+	selectedId.value = stops[0].id;
+}
 
 function updateStop(changes: Partial<Pick<ColorRampStop, 'position' | 'color'>>) {
 	updateRamp({ stops: props.modelValue.stops.map(stop => stop.id === selectedId.value ? { ...stop, ...changes } : stop) });
@@ -265,5 +307,23 @@ onBeforeUnmount(() => stopDrag?.());
 	grid-template-columns: minmax(0, 1fr) auto auto;
 	align-items: end;
 	gap: 6px;
+}
+
+.presets {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.preset {
+	min-width: 0;
+	height: 28px;
+	border-radius: 4px;
+	outline-offset: 2px;
+
+	&:hover,
+	&:focus-visible {
+		outline: 2px solid var(--THEME-accent);
+	}
 }
 </style>

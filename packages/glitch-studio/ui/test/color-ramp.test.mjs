@@ -7,6 +7,7 @@ import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, markRaw, nextTick, reactive } from 'vue';
 import { createDefaultColorRamp } from '@gs/shared/color-ramp.ts';
+import { COLOR_RAMP_PRESETS } from '../src/color-ramp-presets.ts';
 import { i18nPlugin } from './helpers/i18n.mjs';
 
 const uiDirectory = fileURLToPath(new URL('../', import.meta.url));
@@ -76,7 +77,7 @@ async function buildComponent(name) {
 		stdin: { contents: compileScript(descriptor, { id: name, inlineTemplate: true }).content, loader: 'ts', resolveDir: componentDirectory },
 		bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 		plugins: [i18nPlugin, { name: 'color-ramp-controls', setup(build) {
-			build.onResolve({ filter: /^@\/utility\// }, args => ({ path: fileURLToPath(new URL(`../src/utility/${args.path.split('/').at(-1)}`, import.meta.url)) }));
+			build.onResolve({ filter: /^@\// }, args => ({ path: fileURLToPath(new URL(`../src/${args.path.slice(2)}`, import.meta.url)) }));
 			build.onResolve({ filter: /\.vue$/ }, args => ({ path: args.path, namespace: 'control' }));
 			build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ contents: path.endsWith('GsColorRampEditor.vue') ? `
 				import { h } from 'vue'; export default {
@@ -95,10 +96,10 @@ async function buildComponent(name) {
 					},
 				};
 			` : `import { h } from 'vue'; export default {
-				props: ['modelValue', 'items', 'disabled'], emits: ['update:modelValue', 'click', 'beginChanging', 'changeFinished'],
-				setup(props, { emit, attrs }) { return () => h('div', { ...attrs, value: props.modelValue, items: props.items, disabled: props.disabled,
+				props: ['modelValue', 'items', 'disabled', 'ramp'], emits: ['update:modelValue', 'click', 'beginChanging', 'changeFinished'],
+				setup(props, { emit, attrs, slots }) { return () => h('div', { ...attrs, value: props.modelValue, items: props.items, disabled: props.disabled, ramp: props.ramp,
 					onInput: value => emit('update:modelValue', value), onClick: () => emit('click'),
-				}); },
+				}, slots.default?.()); },
 			};` }));
 		} }],
 	});
@@ -185,6 +186,63 @@ test('edits OKLCH hue interpolation without rewriting stop colors', async t => {
 	await nextTick();
 	assert.equal(find('data-test-color-ramp-hue-interpolation').props.value, 'increasing');
 	assert.deepEqual(JSON.parse(JSON.stringify(state.modelValue.stops)), originalStops);
+});
+
+// 【プリセットの適用は補間設定を維持し、配色を共有しない新しいstopへ置き換える】
+// 適用後の色編集が組み込み定義へ漏れると、別のランプでもプリセットの結果が変わってしまう。
+// 同じプリセットの再適用で元の色と透明度を復元でき、IDと選択も新しいstopへ移ることを確認する。
+test('applies independent preset stops while preserving interpolation settings', async t => {
+	const { state, events, find, findAll } = await fixture(t);
+	state.modelValue = { ...state.modelValue, interpolation: 'smootherstep', colorSpace: 'oklch', hueInterpolation: 'decreasing' };
+	await nextTick();
+	const originalStopIds = state.modelValue.stops.map(stop => stop.id);
+	const preset = COLOR_RAMP_PRESETS.find(preset => preset.id === 'white-alpha-pulse');
+	const button = findAll('data-test-color-ramp-preset').find(element => element.props['data-preset-id'] === preset.id);
+	const stopValues = () => state.modelValue.stops.map(stop => ({ position: stop.position, color: Array.from(stop.color) }));
+	button.props.onClick();
+	await nextTick();
+	assert.deepEqual(stopValues(), preset.stops);
+	assert.equal(state.modelValue.interpolation, 'smootherstep');
+	assert.equal(state.modelValue.colorSpace, 'oklch');
+	assert.equal(state.modelValue.hueInterpolation, 'decreasing');
+	assert.equal(new Set(state.modelValue.stops.map(stop => stop.id)).size, preset.stops.length);
+	assert.ok(state.modelValue.stops.every(stop => !originalStopIds.includes(stop.id)));
+	assert.equal(find('data-test-color-ramp-selection').props.value, state.modelValue.stops[0].id);
+	const firstAppliedStopIds = state.modelValue.stops.map(stop => stop.id);
+	state.modelValue.stops[0].color[0] = 0.25;
+	button.props.onClick();
+	await nextTick();
+	assert.deepEqual(stopValues(), preset.stops);
+	assert.ok(state.modelValue.stops.every(stop => !firstAppliedStopIds.includes(stop.id)));
+	assert.equal(find('data-test-color-ramp-selection').props.value, state.modelValue.stops[0].id);
+	assert.deepEqual(events, ['value', 'value']);
+});
+
+// 【プリセット一覧は現在の補間設定を使い、stop編集だけでは再描画しない】
+// 一覧と適用結果で見た目が変わらないように色空間とOKLCHの経路も同期する。
+// stopドラッグ中に多数のcanvasを毎回更新すると編集が重くなるため、プレビューの参照を維持する。
+test('updates all preset previews only when interpolation settings change', async t => {
+	const { find, findAll } = await fixture(t);
+	assert.deepEqual(findAll('data-test-color-ramp-preset').map(element => element.props['data-preset-id']), COLOR_RAMP_PRESETS.map(preset => preset.id));
+	find('data-test-color-ramp-interpolation').props.onInput('constant');
+	await nextTick();
+	find('data-test-color-ramp-color-space').props.onInput('oklch');
+	await nextTick();
+	find('data-test-color-ramp-hue-interpolation').props.onInput('longer');
+	await nextTick();
+	const previews = findAll('data-test-color-ramp-preset-preview').map(element => element.props.ramp);
+	assert.equal(previews.length, COLOR_RAMP_PRESETS.length);
+	for (const [index, ramp] of previews.entries()) {
+		assert.equal(ramp.interpolation, 'constant');
+		assert.equal(ramp.colorSpace, 'oklch');
+		assert.equal(ramp.hueInterpolation, 'longer');
+		assert.deepEqual(ramp.stops.map(stop => ({ position: stop.position, color: Array.from(stop.color) })), COLOR_RAMP_PRESETS[index].stops);
+	}
+	find('data-test-color-ramp-position').props.onInput(0.2);
+	await nextTick();
+	for (const [index, element] of findAll('data-test-color-ramp-preset-preview').entries()) {
+		assert.equal(element.props.ramp, previews[index]);
+	}
 });
 
 // 【ストップを選択するだけでは値を変えず、掴んだ位置からの移動量でドラッグする】

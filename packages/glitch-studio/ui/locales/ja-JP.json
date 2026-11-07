@@ -334,6 +334,7 @@
 	},
 	"_ColorRamp": {
 		"Title": "Color Ramp",
+		"Presets": "プリセット",
 		"StopLabel": "ストップ {index} ({position})",
 		"AddStop": "ストップを追加",
 		"RemoveStop": "ストップを削除",
