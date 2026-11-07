@@ -37,6 +37,7 @@
 			</GsInput>
 			<GsColorInput :key="selectedStop.id" :modelValue="normalizeColor(selectedStop.color)" :title="title" @update:modelValue="updateStop({ color: $event })"/>
 		</template>
+		<hr>
 		<GsSelect
 			data-test-color-ramp-interpolation :modelValue="modelValue.interpolation" :items="[
 				{ value: 'constant', label: i18n.ts._ColorRamp.Constant }, { value: 'linear', label: i18n.ts._ColorRamp.Linear }, { value: 'smoothstep', label: i18n.ts._ColorRamp.Smoothstep },
