@@ -15,10 +15,6 @@ export default defineEffect({
 			dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		amount: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 1 },
-		},
 		time: {
 			dataType: { kind: 'scalar' }, ui: { label: 'Time (s)', control: { controlType: 'number', step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0 },

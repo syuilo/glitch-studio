@@ -86,11 +86,6 @@ export async function run() {
 			headContact: 1, headSpacingLoss: 0, headSwitching: false, dropoutRate: 0,
 			rfNoiseFloor: -100, dropoutCompensation: false, timeBaseCorrection: 1,
 		};
-		// 【Amount=0は映像信号の値域制限を通さず、透明度・HDRも含めて入力を返す】
-		// 無効化したエフェクトによる色変換や二重premultiplyを防ぐ。
-		checkColor(await sample({ input: color([-0.5, 2, 0.5, 0.5]), amount: 0 }), [-0.25, 1, 0.25, 0.5], 'amount-zero identity', 0, 0);
-		checks.push('amount-zero identity');
-
 		// 【正常なFM記録・復調では、振幅や搬送波の位相を画素値と取り違えない】
 		// 異なる明るさの無彩色を往復し、FM変換の定数・符号・帯域抽出を実際に検証する。
 		for (const gray of [0.15, 0.45, 0.8]) {
@@ -111,12 +106,10 @@ export async function run() {
 		checkColor(await sample({ input: color([1, 0.5, 0.25, 0]) }), [0, 0, 0, 0], 'transparent signal', 0, 0);
 		checks.push('premultiplied coverage');
 
-		// 【不透明モードでは背景色へ合成してから録画し、Amountは最後にRGBAを合成する】
-		// 背景が復調後に貼られたり、Amountが損傷の発生率を変える問題を防ぐ。
+		// 【不透明モードでは背景色へ合成してから録画する】
+		// 背景が復調後に貼られ、信号処理を通らない問題を防ぐ。
 		checkColor(await sample({ ...clean, input: color([0.8, 0.2, 0.2, 0]), alphaMode: 'opaque', backgroundColor: [0.4, 0.4, 0.4, 1] }), [0.4, 0.4, 0.4, 1], 'background before recording', 0, 0.025);
-		const halfAmount = await sample({ ...clean, input: color([0.25, 0.5, 0.75, 0.5]), amount: 0.5 });
-		checkColor(halfAmount, Array.from(translucent, (value, channel) => value * 0.5 + [0.125, 0.25, 0.375, 0.5][channel] * 0.5), 'premultiplied amount');
-		checks.push('background and amount');
+		checks.push('background before recording');
 
 		const render = createEffect(64, 48);
 		const image = field(64, 48, 4, (x, y) => {
@@ -216,18 +209,24 @@ export async function run() {
 		const previewWidth = 512;
 		const previewHeight = 384;
 		const bars = [[1, 1, 1], [1, 1, 0], [0, 1, 1], [0, 1, 0], [1, 0, 1], [1, 0, 0], [0, 0, 1], [0.05, 0.05, 0.05]];
-		const previewInput = field(previewWidth, previewHeight, 4, (x, y) => {
+		const previewColorAt = (x: number, y: number) => {
 			if (y < 144) return [...bars[Math.floor(x / 64)], 1];
 			if (y < 240) return [x / 511, x / 511, x / 511, 1];
 			if ((x - 256) ** 2 + (y - 306) ** 2 < 45 ** 2) return [0.1, 0.8, 1, 1];
 			const value = (Math.floor(x / 8) + Math.floor(y / 8)) % 2 === 0 ? 0.1 : 0.8;
 			return [value, value, value, 1];
-		});
+		};
+		const previewInput = field(previewWidth, previewHeight, 4, previewColorAt);
 		const previewEffect = createEffect(previewWidth, previewHeight);
 		const canvas = new OffscreenCanvas(previewWidth * 3, previewHeight);
 		const context = canvas.getContext('2d')!;
-		for (const [index, values] of [await previewEffect({ input: previewInput, amount: 0 }), await previewEffect({ input: previewInput, time: 1.25, seed: 37 }), await previewEffect({ input: previewInput, time: 1.25, seed: 37, trackingOffset: 0.4, trackAlignmentError: 2, dropoutRate: 1200 })].entries()) {
-			context.putImageData(new ImageData(Uint8ClampedArray.from(values, value => Math.round(value * 255)), previewWidth, previewHeight), index * previewWidth, 0);
+		const original = new ImageData(previewWidth, previewHeight);
+		for (let y = 0; y < previewHeight; y++) for (let x = 0; x < previewWidth; x++) {
+			original.data.set(previewColorAt(x, y).map(value => Math.round(value * 255)), (y * previewWidth + x) * 4);
+		}
+		context.putImageData(original, 0, 0);
+		for (const [index, values] of [await previewEffect({ input: previewInput, time: 1.25, seed: 37 }), await previewEffect({ input: previewInput, time: 1.25, seed: 37, trackingOffset: 0.4, trackAlignmentError: 2, dropoutRate: 1200 })].entries()) {
+			context.putImageData(new ImageData(Uint8ClampedArray.from(values, value => Math.round(value * 255)), previewWidth, previewHeight), (index + 1) * previewWidth, 0);
 		}
 		const bytes = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer());
 		return { checks, preview: btoa(Array.from(bytes, value => String.fromCharCode(value)).join('')) };

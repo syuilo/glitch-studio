@@ -142,7 +142,6 @@ export default implementEffect<typeof definition>({
 				const params = ctx.params;
 				if (!Object.entries(params).every(([name, value]) => name === 'input' || typeof value !== 'number' || Number.isFinite(value))
 					|| !params.backgroundColor.every(Number.isFinite)) throw new Error('VHS Playback: parameters must be finite.');
-				const amount = clamp(params.amount, 0, 1);
 				let samplingGrid = [1, 1];
 				if (params.input.kind === 'texture') {
 					const scale = inputUvScale(params.input.texture, resolution, params.input.fitMode);
@@ -161,7 +160,7 @@ export default implementEffect<typeof definition>({
 				});
 				device.queue.writeBuffer(buffers.get(10)!, 0, transport.lineStates);
 				uniformValues.set({
-					samplingGrid, amount, opaque: Number(params.alphaMode === 'opaque'), compensate: Number(params.dropoutCompensation),
+					samplingGrid, opaque: Number(params.alphaMode === 'opaque'), compensate: Number(params.dropoutCompensation),
 					spacingLoss: clamp(params.headSpacingLoss, 0, 1),
 					dropoutProbability: clamp(params.dropoutRate, 0, 5000) * VHS_SIGNAL.linePeriod,
 					dropoutSamples: clamp(params.dropoutDuration, 0.1, 30) * 1e-6 / VHS_SIGNAL.linePeriod * VHS_SIGNAL.rfSamples,
@@ -179,20 +178,18 @@ export default implementEffect<typeof definition>({
 					variants.set(key, variant);
 				}
 				const inputGroup = variant.bindings.update(inputs, ctx.outputDataMap.output.texture);
-				if (amount > 0) {
-					const capture = ctx.createComputePassEncoder(ctx.commandEncoder);
-					capture.setPipeline(variant.capture);
-					capture.setBindGroup(0, captureStage.group);
-					capture.setBindGroup(1, inputGroup);
-					capture.dispatchWorkgroups(8, VHS_SIGNAL.lineCount);
-					capture.end();
-					for (const stage of stages) {
-						const pass = ctx.createComputePassEncoder(ctx.commandEncoder);
-						pass.setPipeline(stage.pipeline);
-						pass.setBindGroup(0, stage.group);
-						pass.dispatchWorkgroups(...stage.dispatch);
-						pass.end();
-					}
+				const capture = ctx.createComputePassEncoder(ctx.commandEncoder);
+				capture.setPipeline(variant.capture);
+				capture.setBindGroup(0, captureStage.group);
+				capture.setBindGroup(1, inputGroup);
+				capture.dispatchWorkgroups(8, VHS_SIGNAL.lineCount);
+				capture.end();
+				for (const stage of stages) {
+					const pass = ctx.createComputePassEncoder(ctx.commandEncoder);
+					pass.setPipeline(stage.pipeline);
+					pass.setBindGroup(0, stage.group);
+					pass.dispatchWorkgroups(...stage.dispatch);
+					pass.end();
 				}
 				const output = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				output.setPipeline(variant.output);

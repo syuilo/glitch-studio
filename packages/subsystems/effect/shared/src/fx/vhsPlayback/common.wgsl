@@ -2,7 +2,6 @@ struct Uniforms {
 	samplingGrid: vec2u,
 	opaque: u32,
 	compensate: u32,
-	amount: f32,
 	spacingLoss: f32,
 	dropoutProbability: f32,
 	dropoutSamples: f32,

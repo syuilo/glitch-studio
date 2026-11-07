@@ -22,12 +22,9 @@ fn sampleLine(line: u32, horizontal: f32) -> vec4f {
 
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
-	let original = read_input(position);
-	if (uniforms.amount <= 0.0) { return original; }
 	let uv = position * vec2f(0.5, -0.5) + 0.5;
 	let vertical = clamp(uv.y * f32(ACTIVE_LINE_COUNT) - 0.5, 0.0, f32(ACTIVE_LINE_COUNT - 1u));
 	let upper = u32(vertical) + ACTIVE_LINE_START;
 	let lower = min(upper + 1u, ACTIVE_LINE_START + ACTIVE_LINE_COUNT - 1u);
-	let processed = mix(sampleLine(upper, uv.x), sampleLine(lower, uv.x), fract(vertical));
-	return mix(original, processed, uniforms.amount);
+	return mix(sampleLine(upper, uv.x), sampleLine(lower, uv.x), fract(vertical));
 }

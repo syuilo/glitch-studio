@@ -42,7 +42,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'VHS Playback GPU test timed out' }), 75000);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
-		assert.equal(output.checks.length, 13);
+		assert.equal(output.checks.length, 12);
 		if (process.env.VHS_PLAYBACK_PREVIEW != null) await writeFile(process.env.VHS_PLAYBACK_PREVIEW, Buffer.from(output.preview, 'base64'));
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {
