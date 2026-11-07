@@ -1,5 +1,5 @@
 import { i18n } from '@/i18n.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getEffectDefinitions } from './project-effects.ts';
 import { collectVisualModuleFile, encodeVisualModuleFile, decodeVisualModuleFile, prepareVisualModuleImport } from '../gsvm.ts';
 import * as ui from '../ui.ts';
 import { applicationActivity } from '../application-activity.ts';
@@ -29,7 +29,7 @@ export async function exportVisualModuleFile(context: ProjectContext, visualModu
 			gsVersion: _VERSION_,
 			assets: state.assets.value,
 			players: state.players.value,
-		}, effectDefinitions);
+		}, getEffectDefinitions(state));
 		const data = await encodeVisualModuleFile(file);
 		const url = URL.createObjectURL(new Blob([new Uint8Array(data)], { type: 'application/octet-stream' }));
 		const link = window.document.createElement('a');
@@ -53,7 +53,7 @@ export async function importVisualModuleFile(context: ProjectContext): Promise<s
 		const file = await pickVisualModuleFile();
 		if (file == null) return null;
 		const decoded = decodeVisualModuleFile(new Uint8Array(await file.arrayBuffer()), _VERSION_);
-		const prepared = prepareVisualModuleImport(decoded, effectDefinitions);
+		const prepared = prepareVisualModuleImport(decoded, getEffectDefinitions(context.stateManager.state));
 		// 同じプロジェクトの再読込でも世代が変わる。古いファイル選択を別の読み込み状態へ適用しない。
 		if (context.generation !== generation) return null;
 		context.stateManager.commit('importVisualModule', prepared);

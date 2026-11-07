@@ -29,7 +29,7 @@
 				<GsButton v-tooltip="i18n.ts._Parameter.AddElement" iconOnly icon="ti ti-plus" :disabled="!canAddArrayElement" @click="addElement"/>
 			</template>
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
-				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs, effectDefinitions) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsTextarea v-if="paramValue.inputSource === 'expression'" :key="paramPathKey(paramPath)" adaptiveHeight data-test-base-expression-code manualSave class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
 						<template #caption="{ value }">
@@ -241,6 +241,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 </script>
 
 <script lang="ts" setup>
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
@@ -278,6 +279,8 @@ import { getAvailableAutomationGraphs } from '@gs/glitch-studio_shared/project/a
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHandle.ts';
 import { canCreateNamedParameterFromBinding } from '@/utility/named-parameter-creation.ts';
+
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
 
 const wireMap = useVisualModuleWires();
 const timelineEditor = inject(timelineParameterEditorContextKey, null);
@@ -426,7 +429,7 @@ const visualModuleCustomParameterValueReferenceItems = computed(() => {
 	if (id != null && id !== '' && !items.some(item => item.value === id)) items.push({ label: i18n.ts._Parameter.UnavailablePublicParameter, value: id });
 	return items;
 });
-const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
+const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value, effectDefinitions.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const controlComponent = useTemplateRef('controlComponent');
 const inlineGraphEditorOpen = ref(false);

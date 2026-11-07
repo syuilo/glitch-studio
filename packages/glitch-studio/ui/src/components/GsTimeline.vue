@@ -810,6 +810,7 @@ function showEffectPicker(chosen: (definition: EffectDefinition) => void) {
 	disposeEffectPicker?.();
 	const { dispose } = ui.popup(GsEffectPicker, {
 		selectedOutputType: 'color',
+		requirePrimaryColorOutput: true,
 	}, {
 		chosen,
 		closed: () => {

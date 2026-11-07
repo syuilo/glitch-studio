@@ -122,6 +122,23 @@ function start(controller) { return controller.initialize(initialOptions.get(con
 function restart(controller) { controller.disposeManager(); return start(controller); }
 
 for (const kind of ['VisualModule', 'Timeline']) {
+	// 【定義と配置の一括更新を既存Workerへ送り、CanvasやControllerを再生成しない】
+	// Visual Module側の差分フィルターで更新を落としたり、再初期化へ戻したりしないことを確認する。
+	test(`sends Custom Shader Effect snapshots through the existing ${kind} worker`, async t => {
+		const { controller, workers } = fixture(t, kind);
+		const worker = await initialize(controller, workers);
+		const canvas = controller.canvas;
+		const changes = [{ type: 'customShaderEffects', customShaderEffects: [], project: { automationGraphs: [], visualModules: [], timelineScenes: [] } }];
+		const update = controller.applyProjectChanges(changes);
+		const call = worker.calls('applyProjectChanges').at(-1);
+		assert.deepEqual(call.args[0], changes);
+		worker.returnValue(call, {});
+		await update;
+		assert.equal(workers.length, 1);
+		assert.equal(worker.terminated, false);
+		assert.equal(controller.canvas, canvas);
+	});
+
 	// 【履歴リセットを現在のWorkerへ送り、未起動時には起動や再生成を要求しない】
 	// PlayerやCanvasを作り直す操作として扱うと、再生位置やWebcam接続まで失われる。
 	// 履歴はWorker内の実行時状態だけなので、次の初期化へ予約する必要もない。

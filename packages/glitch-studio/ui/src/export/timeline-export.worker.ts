@@ -27,7 +27,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 	let finished = false;
 	try {
 		const { settings: requestedSettings, project, resolutionScale, renderer: rendererSettings } = event.data;
-		const { timelineFps, timelineMotionBlur, assets, ...dynamicProjectOptions } = project;
+		const { timelineFps, timelineMotionBlur, assets, customShaderEffects, ...dynamicProjectOptions } = project;
 		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
 		const scene = getTimelineScene(project.timelineScenes, project.sceneId);
 		const settings = {
@@ -72,7 +72,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			timelineMotionBlur,
 			enableStats: false,
 			enableWaveformAndHistogram: false,
-		}, { assets }, controller.signal);
+		}, { assets, customShaderEffects }, controller.signal);
 		renderer.on('ev', event => {
 			if (event.type !== 'effectState' && event.type !== 'effectLayerState') return;
 			const status = event.ctx.status?.status;

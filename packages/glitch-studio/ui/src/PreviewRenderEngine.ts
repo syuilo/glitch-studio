@@ -59,9 +59,11 @@ export class PreviewRenderEngine {
 	}
 
 	/** Worker破棄で失敗した旧RPCを、新しい世代の描画エラーとして扱わない。 */
-	public async runRendererUpdate(update: () => Promise<unknown>): Promise<void> {
-		if (!this.canRender.value) return;
+	public async runRendererUpdate(update: () => Promise<unknown>, options: { waitForInitialization?: boolean } = {}): Promise<void> {
 		const generation = this.generation;
+		// 定義と全配置のスナップショットは初期化後にも適用できる。通常の部分差分は予約しない。
+		if (options.waitForInitialization === true && this.initializing != null) await this.initializing;
+		if (!this.canRender.value || generation !== this.generation) return;
 		try {
 			await update();
 		} catch (error) {

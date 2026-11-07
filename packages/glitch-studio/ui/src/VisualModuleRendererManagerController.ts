@@ -344,7 +344,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
 		if (!this.isReady.value) return;
-		const patch = deepClone(changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
+		const patch = deepClone(changes.filter(change => change.type === 'customShaderEffects' || change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
 			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
 		if (patch.length > 0) await this.callAndWaitReturn('applyProjectChanges', [patch]);
 	}

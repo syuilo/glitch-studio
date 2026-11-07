@@ -1,4 +1,39 @@
 {
+	"Add": "追加",
+	"SearchResults": "検索結果",
+	"_CustomShaderEffect": {
+		"InUse": "この定義を削除する前に、参照するCustom Shader Effect NodeとLayerを削除してください。",
+		"Title": "カスタムシェーダーエフェクト",
+		"Add": "カスタムシェーダーエフェクトを追加",
+		"Discard": "変更を破棄",
+		"Unapplied": "未適用の変更は保存されません。別の定義に切り替えると破棄されます。",
+		"Interface": "シェーダーAPIリファレンス",
+		"ReferenceNames": "参照名には英字で始まる英数字とアンダースコアを使います。連続するアンダースコアとgs_接頭辞は予約されています。名前を変更してもWGSLコードは書き換えません。",
+		"Inputs": "入力",
+		"Outputs": "出力",
+		"AddInput": "入力を追加",
+		"AddOutput": "出力を追加",
+		"ResolutionInput": "自動解像度の参照元にする",
+		"MoveUp": "上へ移動",
+		"MoveDown": "下へ移動",
+		"Kind": "エフェクトの種類",
+		"Modify": "加工系",
+		"Generate": "生成系",
+		"None": "なし",
+		"EmptyName": "カスタムシェーダーエフェクトの名前を入力してください。",
+		"Errors": {
+			"invalidReferenceName": "参照名が不正です。",
+			"duplicateParameter": "入力のIDと参照名は、それぞれ重複しないようにしてください。",
+			"duplicateOutput": "出力のIDと参照名は、それぞれ重複しないようにしてください。",
+			"invalidParameter": "入力の型または既定値が不正です。",
+			"invalidOutput": "出力の型が不正です。",
+			"missingOutput": "出力を1つ以上定義してください。",
+			"invalidPrimaryInput": "主入力には色の入力を指定してください。",
+			"invalidPrimaryOutput": "主出力には色の出力を指定してください。",
+			"invalidResolutionInput": "自動解像度の参照元には、存在する入力を重複なく指定してください。",
+			"unsupportedShaderApi": "このシェーダーAPIのバージョンには対応していません。"
+		}
+	},
 	"Folder": "フォルダ",
 	"ParameterContainer": "パラメータコンテナ",
 	"_DesktopUpdate": {
@@ -21,6 +56,7 @@
 		"Retry": "再試行"
 	},
 	"_EffectPicker": {
+		"BuiltinEffects": "標準エフェクト",
 		"Close": "閉じる",
 		"DataType": "型",
 		"InputType": "入力の型",

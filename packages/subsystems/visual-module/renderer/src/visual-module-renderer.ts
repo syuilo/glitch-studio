@@ -263,7 +263,7 @@ export class VisualModuleRenderer {
 		if (node.type === 'globalIn') {
 			// 定数は値でキャッシュできる。借用テクスチャは同一オブジェクトでも内容が変わり得る。
 			// 別の公開入力の値変更を、このポートだけを読む枝へ伝播させない。
-			const ids = outputPort == null ? Object.keys(getNodeOutputs(node, this.paramDefs)) : [outputPort];
+			const ids = outputPort == null ? Object.keys(getNodeOutputs(node, this.paramDefs, this.effectDefinitions)) : [outputPort];
 			const outputs = ids.map(id => this.getParamOutput(visualModulePublicParameterId(id)));
 			return outputs.some(output => output?.kind === 'texture') ? null : JSON.stringify([node.id, ids, outputs]);
 		}
@@ -536,18 +536,16 @@ export class VisualModuleRenderer {
 		});
 	}
 
-	// 描画せずに初期化・パラメータ変更の準備を行い、履歴を余分に進めない。
-	public async prepare(context: VisualModuleRenderContext, signal: AbortSignal): Promise<void> {
-		if (signal.aborted || this.destroyed) return;
-		const preparationVersion = ++this.preparationVersion;
+	// 同期の確認と非同期の待機で、入力評価・依存するエフェクトの準備を同じ順序で行う。
+	private prepareEffects(context: VisualModuleRenderContext, signal?: AbortSignal): EffectRenderer[] {
 		this.preparedContext = null;
 		const node = this.renderNodeId == null ? null : this.allNodeIdMap.get(this.renderNodeId);
-		if (node == null) return;
+		if (node == null) return [];
 
 		this.evaluateParameters(context);
 		this.prepareOutputPorts(node, this.getRequestedOutputIds(context));
 
-		const prepared = new Set<string>();
+		const prepared = new Map<string, EffectRenderer>();
 
 		const visit = (target: VisualModuleNode, port?: string) => {
 			if (prepared.has(target.id)) return;
@@ -561,20 +559,43 @@ export class VisualModuleRenderer {
 				visit(source!, param.outputPort ?? null);
 			}
 			const params = this.resolveParams(effectNode, this.evaluatedEffectNodes.get(effectNode.id)!.params);
-			this.effectRenderers.get(effectNode.id)!.prepare(params, signal);
-			prepared.add(effectNode.id);
+			const renderer = this.effectRenderers.get(effectNode.id)!;
+			renderer.prepare(params, signal);
+			prepared.set(effectNode.id, renderer);
 		};
 
 		for (const id of this.getRequestedOutputIds(context)) {
 			visit(node, id);
 		}
+		return [...prepared.values()];
+	}
+
+	/** 準備を開始・更新し、全エフェクトが描画可能ならtrueを返す。履歴は進めない。 */
+	public tryPrepare(context: VisualModuleRenderContext): boolean {
+		if (this.destroyed) return false;
+		this.preparationVersion++;
+		const prepared = this.prepareEffects(context);
+		let ready = true;
+		for (const renderer of prepared) {
+			// 準備中の枝があっても全て確認し、別の枝の失敗をそのまま通知する。
+			if (!renderer.checkReady()) ready = false;
+		}
+		if (ready) this.preparedContext = context;
+		return ready;
+	}
+
+	// 描画せずに初期化・パラメータ変更の準備を行い、履歴を余分に進めない。
+	public async prepare(context: VisualModuleRenderContext, signal: AbortSignal): Promise<void> {
+		if (signal.aborted || this.destroyed) return;
+		const preparationVersion = ++this.preparationVersion;
+		const prepared = this.prepareEffects(context, signal);
 
 		// 各エフェクトの準備は先に開始し、待機だけをまとめる。失敗時には他の待機も
 		// 終了させるが、エフェクト自体は破棄せず、次の要求でリソース・履歴を再利用する。
 		const waitController = new AbortController();
 		const waitSignal = AbortSignal.any([signal, waitController.signal]);
 		try {
-			const ready = await Promise.all([...prepared].map(id => this.effectRenderers.get(id)!.waitUntilReady(waitSignal).then(ready => {
+			const ready = await Promise.all(prepared.map(renderer => renderer.waitUntilReady(waitSignal).then(ready => {
 				if (!ready) waitController.abort();
 				return ready;
 			})));

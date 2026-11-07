@@ -4,7 +4,7 @@ import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/
 import type { Asset } from '@gs/shared/types.ts';
 import type { TimelineRendererManagerStaticOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { ProjectCustomShaderEffect, ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { ExportProgress, TimelineExportSettings } from './timeline-export.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 
@@ -12,7 +12,7 @@ export type ExportRequest = {
 	settings: TimelineExportSettings;
 	/** nullは出力寸法をSceneの基準サイズに使うカスタム指定。 */
 	resolutionScale: number | null;
-	project: { automationGraphs: AutomationGraph[]; timelineFps: number; timelineMotionBlur: TimelineMotionBlurSettings; assets: Asset[]; generatedSpeech: GeneratedSpeech[]; visualModules: ProjectVisualModule[]; timelineScenes: TimelineScene[]; sceneId: string; resolution: Resolution };
+	project: { customShaderEffects: ProjectCustomShaderEffect[]; automationGraphs: AutomationGraph[]; timelineFps: number; timelineMotionBlur: TimelineMotionBlurSettings; assets: Asset[]; generatedSpeech: GeneratedSpeech[]; visualModules: ProjectVisualModule[]; timelineScenes: TimelineScene[]; sceneId: string; resolution: Resolution };
 	renderer: Pick<TimelineRendererManagerStaticOptions, 'enable32bitDataTextures' | 'intermediateTextureFormat'>;
 };
 

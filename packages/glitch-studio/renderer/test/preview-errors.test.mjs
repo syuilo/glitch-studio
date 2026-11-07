@@ -554,6 +554,176 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	} };
 }
 
+async function deferredVisualModuleLivePreview(t) {
+	const f = await fixture(t, { enableWaveformAndHistogram: false });
+	const instances = [];
+	f.renderer.effectImplementations.pass = {
+		disableCache: true,
+		outputTextureFactories: { output: ({ resolution }) => f.renderer.gpuDevice.createTexture({ size: resolution }) },
+		init(args) {
+			const instance = { args, prepares: 0, renders: [], disposed: false };
+			instances.push(instance);
+			args.reportStatus({ type: 'loading' });
+			return {
+				prepare() { instance.prepares++; },
+				render(context) { instance.renders.push(context); },
+				dispose() { instance.disposed = true; },
+			};
+		},
+	};
+	const definition = visualModule(false);
+	definition.nodes = [
+		{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'literal', value: [1, 0, 1, 1] } } },
+		definition.nodes[2],
+	];
+	f.renderer.updateDynamicOptions({ visualModules: [definition] });
+	f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+	return { ...f, instances, definition };
+}
+
+for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
+	// 【Custom Shader Effectの一括更新で描画配置だけを作り直し、GPU・素材・ライブ入力を維持する】
+	// 同じManagerへ定義の追加・変更・削除を反映し、旧配置やTimelineキャッシュを再利用しないことを確認する。
+	test(`${Manager.name} replaces shader definitions and placements while retaining fixed resources`, async t => {
+		const f = await fixture(t, { enableWaveformAndHistogram: false }, Manager);
+		const initial = constantVisualModule();
+		f.renderer.updateDynamicOptions({ visualModules: [initial], ...(Manager === TimelineRendererManager ? { frameCacheMaxBytes: 64 } : {}) });
+		if (Manager === VisualModuleRendererManager) {
+			f.renderer.startVisualModuleLivePreviewRenderLoopFor('module', {}, 'same-preview');
+			f.frame(16);
+		} else await f.renderer.renderTimelineAt(0);
+		const device = f.renderer.gpuDevice;
+		const assets = f.renderer.assetTextures;
+		const disposedAssets = t.mock.method(assets, 'dispose');
+		const destroyedDevice = t.mock.method(device, 'destroy');
+		const previous = Manager === VisualModuleRendererManager ? f.renderer.visualModuleLivePreviewVisualModuleRenderer
+			: f.renderer.timelineRenderer.layers.values().next().value.renderer;
+		const destroyedPlacement = t.mock.method(previous, 'destroy');
+		const updated = structuredClone(initial);
+		updated.paramDefs[0].defaultValue.value = [0, 1, 0, 1];
+		const customShaderEffect = { id: 'shader', name: 'Shader', description: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate',
+			paramDefs: [], outputDefs: [{ id: 'color', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }],
+			primaryInputId: null, primaryOutputId: 'color', resolutionInputIds: [], code: '' };
+		const project = { automationGraphs: [], visualModules: [updated], timelineScenes: f.renderer.dynamicOptions.timelineScenes ?? [] };
+		f.renderer.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [customShaderEffect], project }]);
+		assert.equal(destroyedPlacement.mock.callCount(), 1);
+		assert.equal(f.renderer.effectDefinitions['customShaderEffect:shader'].displayName, 'Shader');
+		assert.equal(f.renderer.effectDefinitions.pass != null, true);
+		assert.equal(f.renderer.dynamicOptions.visualModules[0].paramDefs[0].defaultValue.value[1], 1);
+		if (Manager === VisualModuleRendererManager) {
+			assert.equal(f.renderer.visualModuleLivePreviewStatusInstanceId, 'same-preview');
+			assert.notEqual(f.renderer.visualModuleLivePreviewVisualModuleRenderer, previous);
+			f.frame(32);
+		} else {
+			assert.equal(f.renderer.timelineRenderer.layers.size, 0);
+			assert.equal(f.renderer.frameCache.snapshot().estimatedBytes, 0);
+			await f.renderer.renderTimelineAt(0);
+		}
+		f.renderer.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [], project }]);
+		assert.equal(f.renderer.effectDefinitions['customShaderEffect:shader'], undefined);
+		assert.equal(f.renderer.gpuDevice, device);
+		assert.equal(f.renderer.assetTextures, assets);
+		assert.equal(destroyedDevice.mock.callCount(), 0);
+		assert.equal(disposedAssets.mock.callCount(), 0);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
+// 【ライブプレビューは準備中のフレームを同期的にスキップし、準備後は最新の入力で描く】
+// Custom Shader Effectのpipelineは初期化後に完成するため、renderを直接呼ぶと未コンパイルで失敗する。
+// Promiseを保持して旧フレームを再開せず、経過時間だけを引き継いで次のフレームを描画する。
+test('skips Visual Module Live Preview frames synchronously while effects are preparing', async t => {
+	const f = await deferredVisualModuleLivePreview(t);
+	const encoders = t.mock.method(f.renderer.gpuDevice, 'createCommandEncoder');
+	f.renderer.updatePointerPosition({ x: 0, y: 0 });
+	assert.equal(f.frame(16), undefined);
+	assert.equal(f.instances.length, 1);
+	assert.equal(f.instances[0].prepares, 1);
+	assert.equal(f.instances[0].renders.length, 0);
+	f.frame(32);
+	f.renderer.updatePointerPosition({ x: 0.25, y: 0.5 });
+	assert.equal(f.instances[0].prepares, 2);
+	assert.equal(encoders.mock.callCount(), 0);
+	f.instances[0].args.reportStatus({ type: 'ready' });
+	assert.equal(f.instances[0].renders.length, 0);
+	f.frame(48);
+	assert.equal(f.instances[0].renders.length, 1);
+	assert.equal(f.instances[0].renders[0].timeDelta, 48);
+	assert.equal(f.instances[0].renders[0].time, 0.048);
+	assert.deepEqual(f.renderer.pointerPositionPrev, { x: 0.25, y: 0.5 });
+	f.frame(64);
+	assert.equal(f.instances[0].renders.length, 2);
+	assert.equal(f.instances[0].renders[1].timeDelta, 16);
+	f.instances[0].args.reportStatus({ type: 'loading' });
+	f.frame(80);
+	assert.equal(f.instances[0].renders.length, 2);
+	f.instances[0].args.reportStatus({ type: 'ready' });
+	f.frame(96);
+	assert.equal(f.instances[0].renders.length, 3);
+	assert.equal(f.instances[0].renders[2].timeDelta, 32);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【準備中にCPU表示枠を返し、次の準備確認と描画を止めない】
+// スキップ時に表示枠を返し忘れると、2フレームで枠が尽きてコンパイル後も描画できなくなる。
+test('releases CPU Live Preview capacity when skipping frames during preparation', async t => {
+	const f = await deferredVisualModuleLivePreview(t);
+	Object.defineProperty(f.renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
+	const { CpuPreviewFrameQueue } = await loadShaderSource(fileURLToPath(new URL('../src/cpu-preview-frame-queue.ts', import.meta.url)));
+	let readbacks = 0;
+	const queue = new CpuPreviewFrameQueue([{ prepareReadback(encoder, release) {
+		readbacks++;
+		return { async complete() {}, cancel: release };
+	} }]);
+	t.after(() => queue.destroy());
+	t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => queue.tryReserveFrame());
+	f.frame(16); f.frame(32); f.frame(48);
+	assert.equal(f.instances[0].prepares, 3);
+	assert.equal(readbacks, 0);
+	f.instances[0].args.reportStatus({ type: 'ready' });
+	f.frame(64);
+	assert.equal(f.instances[0].renders.length, 1);
+	assert.equal(f.instances[0].renders[0].timeDelta, 64);
+	assert.equal(readbacks, 1);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【準備失敗は次のフレームで確認し、その診断のままライブプレビューへ通知する】
+// 準備失敗後に描画を始めると、具体的なコンパイル診断が汎用の未コンパイルエラーで隠れる。
+test('reports Live Preview preparation failures on the next frame without rendering', async t => {
+	const f = await deferredVisualModuleLivePreview(t);
+	f.frame(16);
+	f.instances[0].args.reportStatus({ type: 'error', message: '2:9: unresolved value' });
+	assert.deepEqual(f.errors, []);
+	f.frame(32);
+	assert.equal(f.instances[0].renders.length, 0);
+	assert.deepEqual(f.errors, ['2:9: unresolved value']);
+});
+
+// 【準備中に停止・編集しても旧インスタンスの完了では描画を再開しない】
+// 準備完了時のフレーム継続を持たず、次のフレームで現在のインスタンスだけを確認する。
+for (const operation of ['stop', 'edit']) {
+	test(`ignores obsolete Visual Module Live Preview preparation after ${operation}`, async t => {
+		const f = await deferredVisualModuleLivePreview(t);
+		f.frame(16);
+		const previous = f.instances[0];
+		if (operation === 'stop') f.renderer.stopRenderLoop();
+		else f.renderer.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: f.definition }]);
+		previous.args.reportStatus({ type: 'error', message: 'obsolete compilation' });
+		assert.equal(previous.renders.length, 0);
+		assert.equal(previous.disposed, true);
+		assert.deepEqual(f.errors, []);
+		if (operation === 'stop') f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+		f.frame(32);
+		f.instances[1].args.reportStatus({ type: 'ready' });
+		assert.equal(f.instances[1].renders.length, 0);
+		f.frame(48);
+		assert.equal(f.instances[1].renders.length, 1);
+		if (operation === 'edit') assert.equal(f.instances[1].renders[0].timeDelta, 48);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
 for (const Manager of [TimelineRendererManager, VisualModuleRendererManager]) {
 	for (const enableWaveformAndHistogram of [false, true]) {
 		// 【波形・ヒストグラムを無効にすると通常描画だけを残し、解析用のGPU処理を生成しない】
@@ -1004,6 +1174,7 @@ test('finishes partial Visual Module Live Preview frames before retrying', async
 		collected++;
 		return 0;
 	};
+	renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
 	renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 	let fail = true;
 	renderer.visualModuleLivePreviewVisualModuleRenderer.render = () => {

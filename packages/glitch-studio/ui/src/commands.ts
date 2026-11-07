@@ -32,7 +32,7 @@ import type { VisualModuleCustomParameterDefinition, VisualModuleCustomParameter
 import { validateVisualModuleCustomParameterDefinition, validateVisualModuleCustomParameterBinding } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
 import type { VisualModuleValueParameterEdit } from './types/parameter-edit.ts';
 import { editVisualModuleCustomParameterBinding } from './utility/visual-module-custom-parameter-edit.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getEffectDefinitions } from './utility/project-effects.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -83,6 +83,7 @@ import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { AutomationGraph, AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineEffectParameterBinding, TimelineLowerLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ValueParameterEdit } from '@/types/parameter-edit.ts';
+import { CUSTOM_SHADER_EFFECT_COMMAND_DEFS } from './commands/custom-shader-effect.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
@@ -307,7 +308,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 				if (after == null) {
 					before = deepClone(values[rootKey] ?? null);
 					const defaultBinding = module ? getTimelineVisualModuleArgumentDefault(module, module.paramDefs.find(def => def.id === rootKey)!)
-						: target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(effectDefinitions[layer.effectId], rootKey) : rootDef.defaultValue;
+						: target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(getEffectDefinitions(state)[layer.effectId], rootKey) : rootDef.defaultValue;
 					const draft = { [rootKey]: deepClone(before ?? defaultBinding) };
 					const resolved = resolveParameter<EditableTimelineParameterBinding>(defs, draft, payload.paramPath);
 					const { def, value: current } = resolved;
@@ -361,7 +362,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'reset':
 							if (payload.paramPath.length === 1 && (def.dataType.kind === 'audioSource' || module?.primaryInputId === rootKey)) { next = deepClone(defaultBinding); break; }
 							next = target === 'effect' && layer.layerType === 'effect' && payload.paramPath.length === 1
-							&& effectDefinitions[layer.effectId].kind === 'modify' && effectDefinitions[layer.effectId].primaryInputParameter === rootKey
+							&& getEffectDefinitions(state)[layer.effectId].kind === 'modify' && getEffectDefinitions(state)[layer.effectId].primaryInputParameter === rootKey
 								? createLowerLayerOutputBinding() : createResetParameterBinding(def); break;
 						case 'addElement':
 						case 'removeElement': {
@@ -522,7 +523,7 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 			execute(state) {
 				const visualModule = stateUtility.getVisualModule(state, payload);
 				if (addedNode == null) {
-					const paramDefs = effectDefinitions[payload.effectId].paramDefs as Record<string, ParameterDefinition>;
+					const paramDefs = getEffectDefinitions(state)[payload.effectId].paramDefs as Record<string, ParameterDefinition>;
 					// 初回実行時だけ設定を参照し、設定変更後のRedoでも追加時の配線を再現する。
 					const autoConnect = preferences.s.visualModuleAutoConnectOnNodeAdd;
 					const globalOut = autoConnect ? visualModule.nodes.find(node => node.type === 'globalOut') : null;
@@ -532,9 +533,9 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 					const params: VisualModuleEffectNode['params'] = {};
 					for (const [key, def] of Object.entries(paramDefs)) {
 						params[key] = deepClone(def.defaultValue);
-						if (key === effectDefinitions[payload.effectId].primaryInputParameter && previousInput?.nodeId != null) {
+						if (key === getEffectDefinitions(state)[payload.effectId].primaryInputParameter && previousInput?.nodeId != null) {
 							// 元の接続が副出力でも、その出力ポートをそのまま引き継ぐ。
-							const output = getNodeOutputs(previous, visualModule.paramDefs)[previousInput.outputPort];
+							const output = getNodeOutputs(previous, visualModule.paramDefs, getEffectDefinitions(state))[previousInput.outputPort];
 							if (canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(def))) {
 								params[key] = {
 									inputSource: 'node',
@@ -554,12 +555,12 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 						displayName: '',
 						isBypass: false,
 						resolution: { mode: 'auto', scale: 1 },
-						staticSettings: createStaticSettingValues(effectDefinitions[payload.effectId].staticSettingDefs ?? {}, payload.staticSettings),
+						staticSettings: createStaticSettingValues(getEffectDefinitions(state)[payload.effectId].staticSettingDefs ?? {}, payload.staticSettings),
 						params: { ...params, ...deepClone(payload.params ?? {}) },
 						pos: { x: 0, y: 0 },
 					};
-					const primaryPort = effectDefinitions[payload.effectId].primaryOutput;
-					const outputPort = primaryPort != null && canConnectNodeDataTypes(effectDefinitions[payload.effectId].outputDefs[primaryPort].dataType, { kind: 'color' }) ? primaryPort : null;
+					const primaryPort = getEffectDefinitions(state)[payload.effectId].primaryOutput;
+					const outputPort = primaryPort != null && canConnectNodeDataTypes(getEffectDefinitions(state)[payload.effectId].outputDefs[primaryPort].dataType, { kind: 'color' }) ? primaryPort : null;
 					if (globalOut != null && primaryOutput != null && outputPort != null) {
 						outputConnection = {
 							nodeId: globalOut.id,
@@ -630,11 +631,11 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				const removedNode = stateUtility.findNode(state, payload);
 				if (removedNode == null) return;
 				if (removedNode.type !== 'effect') throw new Error('In/Out nodes cannot be removed');
-				const primary = effectDefinitions[removedNode.effectId].primaryInputParameter;
+				const primary = getEffectDefinitions(state)[removedNode.effectId].primaryInputParameter;
 				const input = primary == null ? null : removedNode.params[primary];
 				const replacement: Pick<NodeOutputReference, 'nodeId' | 'outputPort'> | null = input?.inputSource === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
 					? { nodeId: input.nodeId, outputPort: input.outputPort } : null;
-				const replacementOutput = replacement == null ? null : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId), visualModule.paramDefs)[replacement.outputPort];
+				const replacementOutput = replacement == null ? null : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId), visualModule.paramDefs, getEffectDefinitions(state))[replacement.outputPort];
 				// 削除したノードの主入力へ接続し直す。globalOutの参照も同じ操作で復元可能にする。
 				for (const node of visualModule.nodes) {
 					if (node.id === payload.nodeId) continue;
@@ -648,11 +649,11 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 						continue;
 					}
 					if (node.type !== 'effect') continue;
-					for (const { path, def, value } of walkNodeParams(node)) {
+					for (const { path, def, value } of walkNodeParams(node, getEffectDefinitions(state))) {
 						if (!def.canNode || value.inputSource !== 'node' || value.nodeId !== payload.nodeId) continue;
 						const compatible = replacement != null && canConnectNodeDataTypes(replacementOutput?.dataType, getNodeInputDataType(def));
 						// サンプリング設定は受け取り側の入力に属するため、削除後も維持して配線元だけを置き換える。
-						resolveNodeParam(node, path).setValue(compatible
+						resolveNodeParam(node, path, getEffectDefinitions(state)).setValue(compatible
 							? { ...deepClone(value), ...deepClone(replacement) }
 							: { inputSource: 'node', nodeId: null, outputPort: null });
 					}
@@ -821,7 +822,7 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 				for (const { visualModule } of listVisualModules(state)) {
 					for (const node of visualModule.nodes) {
 						if (node.type !== 'effect') continue;
-						for (const [key, definition] of Object.entries(effectDefinitions[node.effectId].staticSettingDefs ?? {})) {
+						for (const [key, definition] of Object.entries(getEffectDefinitions(state)[node.effectId].staticSettingDefs ?? {})) {
 							if (definition.dataType.kind === 'assetReference' && node.staticSettings[key] === payload.assetId) node.staticSettings[key] = null;
 						}
 					}
@@ -941,7 +942,7 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 				execute(state) {
 					const node = stateUtility.findNode(state, payload);
 					if (node?.type !== 'effect') throw new Error('Effect node not found');
-					const target = resolveNodeParam(node, payload.paramPath);
+					const target = resolveNodeParam(node, payload.paramPath, getEffectDefinitions(state));
 					if (after == null) {
 						before = deepClone(target.value);
 						// 追加・リセットで発行した要素IDも、Redoでは同じ状態に戻す。
@@ -959,7 +960,7 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 				undo(state) {
 					const node = stateUtility.findNode(state, payload);
 					if (node?.type !== 'effect') throw new Error('Effect node not found');
-					resolveNodeParam(node, payload.paramPath).setValue(deepClone(before));
+					resolveNodeParam(node, payload.paramPath, getEffectDefinitions(state)).setValue(deepClone(before));
 				},
 			};
 		},
@@ -1199,7 +1200,7 @@ const changeNodeStaticSettingCommandDef = defineCommand<NodeTarget & { key: stri
 		return {
 			execute(state) {
 				const node = getNode(state);
-				const definition = effectDefinitions[node.effectId].staticSettingDefs?.[payload.key];
+				const definition = getEffectDefinitions(state)[node.effectId].staticSettingDefs?.[payload.key];
 				if (definition == null) throw new Error('Static setting not found');
 				validateStaticSettingValue(definition, payload.value);
 				before = { ...node.staticSettings };
@@ -1217,7 +1218,7 @@ const changeTimelineStaticSettingCommandDef = defineCommand<{ sceneId: string; l
 		let before: StaticSettingValues;
 		const getSettings = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
-			return getTimelineLayerStaticSettings(layer, layer.layerType === 'effect' ? effectDefinitions[layer.effectId] : null);
+			return getTimelineLayerStaticSettings(layer, layer.layerType === 'effect' ? getEffectDefinitions(state)[layer.effectId] : null);
 		};
 		return {
 			execute(state) {
@@ -1283,7 +1284,7 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 				if (!module.outputDefs.some(def => def.id === payload.outputId)) throw new Error('Module output not found');
 				if (payload.value != null) {
 					const source = stateUtility.findNode(state, { ...payload, nodeId: payload.value.nodeId });
-					if (getNodeOutputs(source, stateUtility.getVisualModule(state, payload).paramDefs)[payload.value.outputPort] == null) throw new Error('Node output not found in this visualModule');
+					if (getNodeOutputs(source, stateUtility.getVisualModule(state, payload).paramDefs, getEffectDefinitions(state))[payload.value.outputPort] == null) throw new Error('Node output not found in this visualModule');
 				}
 				before = deepClone(node.inputs[payload.outputId] ?? null);
 				node.inputs[payload.outputId] = payload.value == null ? { nodeId: null, outputPort: null }
@@ -1397,7 +1398,7 @@ const createVisualModulePublicParameterFromParamCommandDef = defineCommand<NodeP
 		return {
 			execute(state) {
 				const visualModule = getVisualModule(state, payload);
-				const parameter = resolveNodeParam(getNode(state), payload.paramPath);
+				const parameter = resolveNodeParam(getNode(state), payload.paramPath, getEffectDefinitions(state));
 				const definition = createNamedParameterFromLiteral(parameter.def, parameter.value, visualModule.paramDefs);
 				const publicParameterDefinition: VisualModuleParamDef = { ...definition, id: parameterId, nameForReference: visualModulePublicParameterName(definition.nameForReference) };
 				validateVisualModuleParamDef(visualModule, publicParameterDefinition);
@@ -1406,7 +1407,7 @@ const createVisualModulePublicParameterFromParamCommandDef = defineCommand<NodeP
 				parameter.setValue({ inputSource: 'visualModulePublicParameterReference', parameterId });
 			},
 			undo(state) {
-				resolveNodeParam(getNode(state), payload.paramPath).setValue(deepClone(before));
+				resolveNodeParam(getNode(state), payload.paramPath, getEffectDefinitions(state)).setValue(deepClone(before));
 				const visualModule = getVisualModule(state, payload);
 				visualModule.paramDefs = visualModule.paramDefs.filter(definition => definition.id !== parameterId);
 			},
@@ -1425,7 +1426,7 @@ const createVisualModuleCustomParameterFromParamCommandDef = defineCommand<NodeP
 		const getParameter = (state: ProjectState) => {
 			const node = stateUtility.findNode(state, payload);
 			if (node?.type !== 'effect') throw new Error('Effect node not found');
-			return resolveNodeParam(node, payload.paramPath);
+			return resolveNodeParam(node, payload.paramPath, getEffectDefinitions(state));
 		};
 		return {
 			execute(state) {
@@ -1783,7 +1784,7 @@ function validateAddedTimelineLayer(state: ProjectState, sceneId: string, layer:
 	}
 	validateTimelineLayer(layer);
 	for (const child of getTimelineClipLayers([layer])) {
-		if (child.layerType === 'effect') validateTimelineEffectLayer(child, effectDefinitions[child.effectId]);
+		if (child.layerType === 'effect') validateTimelineEffectLayer(child, getEffectDefinitions(state)[child.effectId]);
 		if ((child.layerType === 'video' || child.layerType === 'audio') && child.clips.length > 0 && !sourceDurationsMs) throw new Error('Media duration is required');
 		validateLayerClips(state, sceneId, child, child.clips, sourceDurationsMs);
 	}
@@ -3073,7 +3074,7 @@ const createTimelineLayerPublicParameterFromParamCommandDef = defineCommand<{
 				const visualModule = payload.target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')
 					? layer.layerType === 'inlineVisualModule' ? layer.visualModule : getVisualModule(state, layer) : null;
 				const defaultBinding = visualModule != null ? getTimelineVisualModuleArgumentDefault(visualModule, visualModule.paramDefs.find(definition => definition.id === rootKey)!)
-					: payload.target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(effectDefinitions[layer.effectId], rootKey) : rootDefinition.defaultValue;
+					: payload.target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(getEffectDefinitions(state)[layer.effectId], rootKey) : rootDefinition.defaultValue;
 				const draft = { [rootKey]: deepClone(values[rootKey] ?? defaultBinding) };
 				const parameter = resolveParameter<EditableTimelineParameterBinding>(definitions, draft, payload.paramPath);
 				const definition: TimelineLayerPublicParameterDefinition = { ...createNamedParameterFromLiteral(parameter.def, parameter.value, layer.publicParameterDefs ?? []), id: parameterId };
@@ -3172,6 +3173,7 @@ const removeTimelineLayerPublicParameterCommandDef = defineCommand<{ sceneId: st
 });
 
 export const COMMAND_DEFS = {
+	...CUSTOM_SHADER_EFFECT_COMMAND_DEFS,
 	updateVisualModuleCustomParameter: updateVisualModuleCustomParameterCommandDef,
 	removeVisualModuleCustomParameter: removeVisualModuleCustomParameterCommandDef,
 	editVisualModuleCustomParameter: editVisualModuleCustomParameterCommandDef,

@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div v-for="(output, port) in ports" :key="port" :class="$style.output" @pointerdown="startDrag($event, port)">
 		<span v-if="outputResolutions" :class="$style.resolution">{{ outputResolutions[port] ? `${outputResolutions[port].width}px × ${outputResolutions[port].height}px` : '—' }}</span>
-		<span style="flex: 1; text-align: right;">{{ node.type === 'globalIn' ? paramDefs?.find(def => def.id === port)?.ui.label ?? port : port }}</span>
+		<span style="flex: 1; text-align: right;">{{ node.type === 'globalIn' ? paramDefs?.find(def => def.id === port)?.ui.label ?? port : output.label ?? port }}</span>
 		<span :class="$style.dataType" style="margin-right: 4px;" :style="{ color: getNodeDataTypeColor(output.dataType) }">{{ output.dataType.kind }}</span>
 		<GsNodePort style="place-self: center;" output :dataType="output.dataType" @update:element="el => setPort(port, el)"/>
 	</div>
@@ -10,6 +10,8 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { computed, onUnmounted } from 'vue';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import GsNodePort from './GsNodePort.vue';
@@ -19,6 +21,8 @@ import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+
 const wireMap = useVisualModuleWires();
 
 const props = defineProps<{
@@ -27,7 +31,7 @@ const props = defineProps<{
 	outputResolutions?: EffectInstanceState['outputs'] | null
 }>();
 
-const ports = computed(() => getNodeOutputs(props.node, props.paramDefs));
+const ports = computed(() => getNodeOutputs(props.node, props.paramDefs, effectDefinitions.value));
 const elements = new Map<string, HTMLElement>();
 let cancelDrag: (() => void) | null = null;
 

@@ -1,3 +1,4 @@
+import { getEffectDefinitions } from './project-effects.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { areNodeDataTypesCompatible, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
@@ -278,7 +279,7 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 			if (binding.nodeId == null) break;
 			requireValid(sameOwner(source, context.source) && binding.nodeId !== context.nodeId);
 			const node = context.visualModule.nodes.find(candidate => candidate.id === binding.nodeId);
-			const output = node == null ? null : getNodeOutputs(node, context.visualModule.paramDefs)[binding.outputPort];
+			const output = node == null ? null : getNodeOutputs(node, context.visualModule.paramDefs, getEffectDefinitions(context.state))[binding.outputPort];
 			requireValid(output != null && areNodeDataTypesCompatible(output.dataType, getNodeInputDataType(definition)));
 			break;
 		}
@@ -361,7 +362,7 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectId: st
 		const visualModule = getVisualModule(state, target.visualModuleTarget);
 		const node = visualModule.nodes.find(candidate => candidate.id === target.nodeId);
 		requireValid(node?.type === 'effect');
-		root = resolveNodeParam(node, [rootKey]);
+		root = resolveNodeParam(node, [rootKey], getEffectDefinitions(state));
 		before = root.value;
 		context = { kind: 'node', state, nodeId: node.id, visualModule, source: createVisualModuleClipboardSource(projectId, target.visualModuleTarget, visualModule) };
 	} else if (target.kind === 'customParameter') {

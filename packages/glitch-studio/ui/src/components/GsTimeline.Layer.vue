@@ -135,7 +135,7 @@ import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_
 import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { computed } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
@@ -154,6 +154,8 @@ import { appContext } from '@/app.ts';
 import { formatTimelineTimecode, getTimelineVisibleClipTicks, getTimelineTickCount } from '@/utility/timeline-ticks.ts';
 import { resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
+
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
 
 const { stateManager } = appContext.projectContext;
 
@@ -287,7 +289,7 @@ function clipLabel(clip: Clip): string {
 	if ('sceneId' in clip) return stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? i18n.ts._TimelineClip.MissingScene;
 	const layer = props.layer;
 	if (layer.layerType === 'visualModule') return stateManager.state.visualModules.value.find(module => module.id === layer.visualModuleId)?.name ?? i18n.ts._TimelineClip.MissingVisualModule;
-	return layer.layerType === 'inlineVisualModule' ? i18n.ts._TimelineClip.InlineVisualModule : layer.layerType === 'effect' ? effectDefinitions[layer.effectId].displayName : layer.name;
+	return layer.layerType === 'inlineVisualModule' ? i18n.ts._TimelineClip.InlineVisualModule : layer.layerType === 'effect' ? effectDefinitions.value[layer.effectId].displayName : layer.name;
 }
 
 function sourceDuration(clip: Clip): number | null {

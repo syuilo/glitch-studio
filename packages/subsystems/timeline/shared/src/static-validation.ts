@@ -5,7 +5,7 @@ import { hasTimelineLayerParameters } from './types.ts';
 import { staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
 import { validateTimelineLayerStructure } from './scenes.ts';
 import { validateTimelineParameterTree } from './parameter-binding.ts';
-import { getEffectLayerParameterDefault } from './layers/effect/effect-layer.ts';
+import { getEffectLayerParameterDefault, validateEffectLayerOutput } from './layers/effect/effect-layer.ts';
 import { getTimelineVisualModuleArgumentDefault } from './layers/visual-module/visual-module-arguments.ts';
 import { timelineCompositingParamDefs } from './timeline-compositing.ts';
 import { timelineAudioParamDefs } from './timeline-audio.ts';
@@ -77,7 +77,7 @@ export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualM
 	const staticSettings = getTimelineLayerStaticSettings(layer, effect);
 	validateStaticSettings(staticSettings.definitions, staticSettings.values ?? {});
 	if (hasTimelineLayerParameters(layer)) validateTimelineLayerPublicParameterDefinitions(layer.publicParameterDefs ?? []);
-	if (layer.layerType === 'effect' && !effect) throw new Error('Effect not found: ' + layer.effectId);
+	if (layer.layerType === 'effect') validateEffectLayerOutput(layer, effect);
 	if ('visualModuleParamValues' in layer && !visualModule) throw new Error('Visual Module not found');
 	for (const group of parameterGroups(layer, visualModule, effect)) {
 		for (const [key, binding] of Object.entries(group.values)) {

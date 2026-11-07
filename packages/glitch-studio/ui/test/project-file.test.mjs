@@ -1,11 +1,11 @@
-import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { build } from 'esbuild';
 import { setImmediate } from 'node:timers/promises';
+import { build } from 'esbuild';
 import { nextTick } from 'vue';
+import { i18nPlugin } from './helpers/i18n.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -33,6 +33,7 @@ const appBundle = await build({
 		export { recentProjects } from './src/recent-projects.ts';
 		export { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './src/AppContext.ts';
 		export { createVisualModuleAssetNode } from './src/utility/visual-module-asset-node.ts';
+		export { createProjectCustomShaderEffect } from './src/utility/custom-shader-effect.ts';
 	` },
 	plugins: [i18nPlugin, {
 		name: 'project-test-platform',
@@ -57,7 +58,7 @@ const appBundle = await build({
 			// 別々に生成すると、クラスへの分離でimport順が変わっただけでテスト側の設定変更が届かなくなる。
 			build.onResolve({ filter: /RendererManagerController\.ts$|\.vue$|(?:^|\/)ui\.ts$|effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({
 				path: /preferences\.ts$/.test(args.path) ? 'preferences.ts'
-					: /effect-definitions\.[jt]s$/.test(args.path) ? 'effect-definitions.ts' : args.path,
+				: /effect-definitions\.[jt]s$/.test(args.path) ? 'effect-definitions.ts' : args.path,
 				namespace: 'platform',
 			}));
 			build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({
@@ -105,12 +106,14 @@ const appBundle = await build({
 							Object.assign(this.options, options);
 						}
 						async applyProjectChanges(changes) {
-							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
+							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'customShaderEffects' || change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
 								|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
 							if (!patch.length) return;
 							this.patches.push(patch);
 							const next = applyRendererProjectChanges({ automationGraphs: this.options.automationGraphs, visualModules: this.options.visualModules, timelineScenes: this.options.timelineScenes ?? [] }, patch);
 							Object.assign(this.options, this.timeline ? next : { automationGraphs: next.automationGraphs, visualModules: next.visualModules });
+							const shaders = patch.findLast(change => change.type === 'customShaderEffects');
+							if (shaders != null) this.options.customShaderEffects = shaders.customShaderEffects;
 						}
 						startVisualModuleLivePreviewRenderLoopFor() { this.lifecycle.push('start'); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
@@ -228,7 +231,7 @@ test('preserves precise seek positions when changing motion blur without changin
 	await setImmediate();
 	assert.equal(playback.currentTimelineTime.value, 120);
 	manager.commit('changeTimelineRenderSettings', { timelineFps: 30,
-		timelineMotionBlur: { ...manager.state.timelineMotionBlur.value, enabled: true, shutterAngle: 90 } });
+																																																		timelineMotionBlur: { ...manager.state.timelineMotionBlur.value, enabled: true, shutterAngle: 90 } });
 	await setImmediate();
 	assert.equal(playback.currentTimelineTime.value, 120);
 	manager.undo();
@@ -268,6 +271,7 @@ for (const desktop of [false, true]) {
 
 function project(overrides = {}) {
 	return {
+		customShaderEffects: [],
 		automationGraphs: [],
 		exportSettings: null,
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
@@ -278,6 +282,33 @@ function project(overrides = {}) {
 		assets: (overrides.assets ?? []).map(asset => ({ fileDataType: asset.fileData?.type || (asset.id === 'audio' ? 'audio/wav' : 'image/png'), ...asset })),
 	};
 }
+
+// 【カスタムシェーダーエフェクトの定義は未完成コードも含めて保存・復元し、新規プロジェクトで初期化する】
+// 定義エディタだけの段階でも、ProjectContextのスナップショットと実際のファイル形式を経由して
+// コード・固定ID・複数出力・主入出力の参照が欠けず、別プロジェクトへ漏れないことを確認する。
+test('persists Custom Shader Effect definitions through project snapshots and files', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	const context = app.appContext.projectContext;
+	const manager = context.stateManager;
+	assert.deepEqual(manager.state.customShaderEffects.value, []);
+	const customShaderEffect = app.createProjectCustomShaderEffect([]);
+	customShaderEffect.code = 'unfinished WGSL';
+	customShaderEffect.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
+	manager.commit('addCustomShaderEffect', { customShaderEffect });
+	const snapshot = context.snapshot();
+	const restored = decodeProjectFile(await encodeProjectFile(snapshot));
+	assert.deepEqual(restored.customShaderEffects, [customShaderEffect]);
+	await app.appContext.ready(restored);
+	assert.deepEqual(JSON.parse(JSON.stringify(manager.state.customShaderEffects.value)), [customShaderEffect]);
+	manager.commit('removeCustomShaderEffect', { customShaderEffectId: customShaderEffect.id });
+	manager.undo();
+	assert.deepEqual(context.snapshot().customShaderEffects, [customShaderEffect]);
+	assert.deepEqual(snapshot.customShaderEffects, [customShaderEffect]);
+	await app.newProject();
+	assert.deepEqual(manager.state.customShaderEffects.value, []);
+});
 
 // 【ソロと通常の表示設定を独立して保存・復元する】
 // 子のソロやグループの非表示を保存時に実効表示へ置き換えると、開き直した後に
@@ -308,7 +339,7 @@ for (const [label, fileDataType, isExternalReference] of [
 		const source = { url: 'app://external-assets/imported', size: 100, error: null };
 		window.desktop = { resolveExternalAsset: () => gate.promise };
 		const asset = { id: 'imported', name: 'Imported', width: 1920, height: 1080, fileDataType,
-			fileData: isExternalReference ? source : new Blob(['image'], { type: fileDataType }), sourceFilePath: 'C:/assets/imported', isExternalReference };
+																		fileData: isExternalReference ? source : new Blob(['image'], { type: fileDataType }), sourceFilePath: 'C:/assets/imported', isExternalReference };
 		const { node, player } = createVisualModuleAssetNode(asset, []);
 		const players = player == null ? [] : [player];
 		const manager = appContext.projectContext.stateManager;
@@ -414,7 +445,7 @@ test('ignores obsolete asset preparation after undo and rebuilds the latest stat
 	const source = { url: 'app://external-assets/imported', size: 100, error: null };
 	window.desktop = { resolveExternalAsset: () => gate.promise };
 	const asset = { id: 'imported', name: 'Imported', width: 640, height: 480, fileDataType: 'image/png',
-		fileData: source, sourceFilePath: 'C:/assets/imported', isExternalReference: true };
+																	fileData: source, sourceFilePath: 'C:/assets/imported', isExternalReference: true };
 	const { node } = createVisualModuleAssetNode(asset, []);
 	const manager = appContext.projectContext.stateManager;
 	const controllers = [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController];
@@ -524,6 +555,50 @@ test('recreates previews after switching away from invalid visualModuleLivePrevi
 	assert.equal(appContext.timelineRendererManagerController.renders.at(-1), 0);
 });
 
+// 【Custom Shader Effectの通常適用・Undoでは両プレビューを維持し、失敗後の修正では再生成する】
+// AppContextの購読・同期・復旧を通し、定義が最新になることとWorkerの生成回数を同時に確認する。
+test('updates shader definitions in both existing previews and restarts only after failure', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const { appContext } = app;
+	await appContext.ready(project());
+	t.after(() => appContext.previewPlayback.dispose());
+	const controllers = [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController];
+	const initialLifecycles = controllers.map(controller => [...controller.lifecycle]);
+	const manager = appContext.projectContext.stateManager;
+	const customShaderEffect = app.createProjectCustomShaderEffect([]);
+	manager.commit('addCustomShaderEffect', { customShaderEffect });
+	await setImmediate();
+	for (const [index, controller] of controllers.entries()) {
+		assert.equal(controller.options.customShaderEffects[0].code, customShaderEffect.code);
+		assert.deepEqual(controller.patches.at(-1).map(change => change.type), ['customShaderEffects']);
+		assert.deepEqual(controller.lifecycle, initialLifecycles[index]);
+	}
+	const updated = { ...customShaderEffect, code: 'unfinished WGSL is still saved' };
+	manager.commit('updateCustomShaderEffect', { customShaderEffect: updated });
+	await setImmediate();
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.options.customShaderEffects[0].code, updated.code);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
+	}
+	manager.undo();
+	await setImmediate();
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.options.customShaderEffects[0].code, customShaderEffect.code);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
+	}
+	appContext.renderEngine.fail(new Error('Shader compilation failed'));
+	assert.ok(controllers.every(controller => controller.isReady.value === false));
+	manager.commit('updateCustomShaderEffect', { customShaderEffect: { ...customShaderEffect, code: 'corrected shader' } });
+	await setImmediate();
+	assert.equal(appContext.renderEngine.errorMessage.value, null);
+	for (const controller of controllers) {
+		assert.equal(controller.isReady.value, true);
+		assert.equal(controller.options.customShaderEffects[0].code, 'corrected shader');
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 2);
+	}
+});
+
 // 【プレビュー固有設定の修正でも、実行時失敗後に最新設定から再生成する】
 // これらの値はProjectのCommand通知を出さないため、編集通知だけに再試行を任せると復帰できない。
 // 解像度・サンプル数・GPU設定を含む各経路が、正常な最新設定を持つ両エンジンへ反映されることを確認する。
@@ -568,9 +643,9 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 	const key = JSON.stringify([1, 1, 'Hello']);
 	const speech = { key, sourceId: 'first', durationMs: 1000, fileData: new Blob(['first']), engineVersion: 'test', audioQuery: { accent_phrases: [{ moras: [{ text: 'ハ', vowel_length: 0.1 }] }] } };
 	const layer = { id: 'speech', name: 'Speech', layerType: 'voicevox', isDisabled: false, automationGraphs: [],
-		voicevox: { speedScale: 1 }, utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }],
-		clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0 }],
-		subtitleParamValues: {}, compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
+																	voicevox: { speedScale: 1 }, utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }],
+																	clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0 }],
+																	subtitleParamValues: {}, compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	await appContext.ready(project({ generatedSpeech: [speech], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }] }));
 	await nextTick();
 	const manager = appContext.projectContext.stateManager;
@@ -589,7 +664,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 		playback.playTimeline();
 		assert.equal(audio.projects.at(-1).generatedSpeech[0].sourceId, 'second');
 		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
-			utterances: [{ id: 'key', timeMs: 0, text: 'Edited', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }] });
+																																								utterances: [{ id: 'key', timeMs: 0, text: 'Edited', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }] });
 		assert.equal(playback.isTimelinePlaying.value, false);
 		// Webでも旧結果を保存対象から外し、同じ操作のUndoで即座に再利用できるようにする。
 		assert.deepEqual(manager.state.generatedSpeech.value, []);
@@ -603,7 +678,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 		await nextTick();
 		playback.playTimeline();
 		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
-			utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 7, subtitleDuration: { mode: 'fill' } }] });
+																																								utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 7, subtitleDuration: { mode: 'fill' } }] });
 		assert.equal(playback.isTimelinePlaying.value, false);
 		await nextTick();
 		playback.playTimeline();
@@ -621,7 +696,7 @@ test('leaves Visual Module Live Preview when an imported Visual Module is undone
 	await appContext.ready(project());
 	const manager = appContext.projectContext.stateManager;
 	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'imported', name: 'Imported Visual Module', nodes: [], paramDefs: [], outputDefs: [],
-		primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
+																								primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
 	manager.commit('importVisualModule', { visualModule, assets: [], players: [], unassignedPlayerNames: [] });
 	await setImmediate();
 	const visualModuleLivePreview = appContext.visualModuleRendererManagerController;
@@ -894,7 +969,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 	for (const samples of [2, 4, 8, 0]) {
 		appContext.timelinePreviewMotionBlurSamples.value = samples;
 		await nextTick();
-	await appContext.renderEngine.retry();
+		await appContext.renderEngine.retry();
 		assert.deepEqual(timeline.staticOptions.timelineMotionBlur, { ...settings.timelineMotionBlur, samples });
 		assert.deepEqual(manager.state.timelineMotionBlur.value, settings.timelineMotionBlur);
 		assert.equal(manager.undoStack.value.length, historyLength);
@@ -977,8 +1052,8 @@ test('applies timeline preview factors independently of the Visual Module Live P
 test('round-trips scene references without changing their source origins', async () => {
 	const original = project({ timelineScenes: [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [{ id: 'nested', layerType: 'scene',
-			name: 'Layer', clips: [{ id: 'clip', startMs: 50, contentOffsetMs: 100, durationMs: 200, sceneId: 'child' }],
-			compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, automationGraphs: [] }] },
+																																																																										name: 'Layer', clips: [{ id: 'clip', startMs: 50, contentOffsetMs: 100, durationMs: 200, sceneId: 'child' }],
+																																																																										compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, automationGraphs: [] }] },
 		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [] },
 	] });
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(original)), original);
@@ -1149,7 +1224,7 @@ test('preserves the current project when replacement of unsaved changes is cance
 // 表示用の情報だけが保存対象から漏れたり、改行や日本語が失われたりすることを防ぐ。
 test('round trips project information and original assets', async () => {
 	const original = project({ assets: [{ id: 'asset', name: 'font.ttf', width: 0, height: 0,
-		fileDataType: 'font/ttf', fileData: new Blob([new Uint8Array([0, 42, 255])], { type: 'font/ttf' }) }] });
+																																							fileDataType: 'font/ttf', fileData: new Blob([new Uint8Array([0, 42, 255])], { type: 'font/ttf' }) }] });
 	const restored = decodeProjectFile(await encodeProjectFile(original));
 	assert.deepEqual({ ...restored, assets: [] }, { ...original, assets: [] });
 	assert.deepEqual(new Uint8Array(await restored.assets[0].fileData.arrayBuffer()), new Uint8Array([0, 42, 255]));
@@ -1168,7 +1243,7 @@ test('preserves asset source paths through commands and project save and reload'
 	const manager = appContext.projectContext.stateManager;
 	const path = 'C:\\素材 フォルダ\\original.png';
 	manager.commit('addAsset', { id: 'asset', name: 'original.png', width: 4, height: 2,
-		fileDataType: 'image/png', fileData: new Blob(['original image'], { type: 'image/png' }), sourceFilePath: path });
+																														fileDataType: 'image/png', fileData: new Blob(['original image'], { type: 'image/png' }), sourceFilePath: path });
 	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
 	manager.undo();
 	assert.equal(manager.state.assets.value.length, 0);
@@ -1203,14 +1278,14 @@ test('updates or clears source paths when replacing assets', async t => {
 	await app.newProject();
 	const manager = appContext.projectContext.stateManager;
 	const asset = { id: 'asset', name: 'Display name', width: 4, height: 2, fileDataType: 'image/png',
-		fileData: new Blob(['original']), sourceFilePath: 'C:\\original.png' };
+																	fileData: new Blob(['original']), sourceFilePath: 'C:\\original.png' };
 	manager.commit('addAsset', asset);
 	const handle = fileHandle('replacement.gsproj');
 	window.selectProjectSaveFile = async () => handle;
 	for (const path of ['D:\\new source.png', null, '/home/artist/another.png']) {
 		const content = `replacement from ${path}`;
 		manager.commit('replaceAsset', { ...asset, assetId: asset.id, name: 'Replacement file',
-			fileData: new Blob([content]), sourceFilePath: path });
+																																			fileData: new Blob([content]), sourceFilePath: path });
 		assert.equal(manager.state.assets.value[0].sourceFilePath, path);
 		assert.equal(manager.state.assets.value[0].name, asset.name);
 		await appContext.saveProject();
@@ -2264,7 +2339,7 @@ test('backs up the Save as destination and keeps automatic backups separate from
 	const app = evaluate(appBundle);
 	const { appContext } = app;
 	Object.assign(window.testPreferences, { projectBackupAutoEnabled: true, projectBackupAutoIntervalMinutes: 3,
-		projectBackupAutoRetentionDays: 1, projectBackupSaveEnabled: true, projectBackupSaveRetentionDays: 7 });
+																																									projectBackupAutoRetentionDays: 1, projectBackupSaveEnabled: true, projectBackupSaveRetentionDays: 7 });
 	await appContext.ready(project(), original.name, desktopProjectFile({ id: original.name, name: original.name }));
 	appContext.projectContext.stateManager.state.name.value = 'Saving as second';
 	window.selectProjectSaveFile = async () => destination;
@@ -2317,7 +2392,7 @@ test('retains the Chrome save folder and starts backups only after the first sav
 	const app = evaluate(appBundle);
 	const { appContext } = app;
 	Object.assign(window.testPreferences, { projectBackupAutoEnabled: true, projectBackupAutoIntervalMinutes: 2,
-		projectBackupAutoRetentionDays: 1, projectBackupSaveEnabled: true, projectBackupSaveRetentionDays: 7 });
+																																									projectBackupAutoRetentionDays: 1, projectBackupSaveEnabled: true, projectBackupSaveRetentionDays: 7 });
 	await app.newProject();
 	await appContext.projectBackupController.tick();
 	assert.equal(appContext.projectBackupAccess.value, 'unsaved');
@@ -2465,9 +2540,9 @@ test('rejects update preparation after a save fails during reservation cleanup a
 // 再開後の画面が変わる。式Bindingを含むScene全体を実際のMessagePack経由で確認する。
 test('round-trips camera layers and group compositing modes', async () => {
 	const original = project({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' },
-		layers: [{ id: 'camera', name: 'Camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
-			clips: [{ id: 'view', startMs: 0, durationMs: 5000, contentOffsetMs: 0 }], cameraParamValues: { z: { inputSource: 'expression', expression: '3 + TIME' }, position: { inputSource: 'literal', value: [0.2, 0.4] } } }, { id: 'group', name: 'Group', layerType: 'group', compositingMode: 'preserveDepth', layers: [], isDisabled: false,
-			forceDisableMotionBlur: false, coordinateSpace: 'world', automationGraphs: [], compositingParamValues: { depth: { inputSource: 'literal', value: 0.5 }, clipToFrame: { inputSource: 'literal', value: true } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } }],
+																																															layers: [{ id: 'camera', name: 'Camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
+																																																										clips: [{ id: 'view', startMs: 0, durationMs: 5000, contentOffsetMs: 0 }], cameraParamValues: { z: { inputSource: 'expression', expression: '3 + TIME' }, position: { inputSource: 'literal', value: [0.2, 0.4] } } }, { id: 'group', name: 'Group', layerType: 'group', compositingMode: 'preserveDepth', layers: [], isDisabled: false,
+																																																																																																																																																																																																																																																																																			forceDisableMotionBlur: false, coordinateSpace: 'world', automationGraphs: [], compositingParamValues: { depth: { inputSource: 'literal', value: 0.5 }, clipToFrame: { inputSource: 'literal', value: true } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } }],
 	}] });
 	const decoded = decodeProjectFile(await encodeProjectFile(original));
 	assert.deepEqual(decoded.timelineScenes, original.timelineScenes);
@@ -2487,7 +2562,7 @@ test('reloads without undo and preserves modes paths and embedded bytes through 
 	const app = evaluate(appBundle);
 	const { appContext, getAssetMenu } = app;
 	await appContext.ready(project({ assets: [{ id: 'asset', name: 'Original display name', width: 0, height: 0,
-		fileDataType: 'application/octet-stream', isExternalReference: false, sourceFilePath: 'C:/original/source.bin', fileData: new Blob(['old']), thumbnailSequence: null }] }));
+																																													fileDataType: 'application/octet-stream', isExternalReference: false, sourceFilePath: 'C:/original/source.bin', fileData: new Blob(['old']), thumbnailSequence: null }] }));
 	const manager = appContext.projectContext.stateManager;
 	const current = () => manager.state.assets.value[0];
 	// 翻訳や省略記号の変更で操作の検証が壊れないよう、表示文言ではなくIDで選ぶ。

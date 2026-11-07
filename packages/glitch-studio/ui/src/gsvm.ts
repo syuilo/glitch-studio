@@ -1,3 +1,4 @@
+import { isCustomShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import { createStaticSettingValues, validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { readFileSource } from '@gs/shared/file-source.ts';
@@ -15,7 +16,7 @@ import type { VisualModule, VisualModuleParameterBinding } from '@gs/subsystems_
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { ProjectAsset } from './Project.ts';
 
-type EffectDefinitions = Readonly<Record<string, Pick<EffectDefinition, 'paramDefs' | 'staticSettingDefs'>>>;
+type EffectDefinitions = Readonly<Record<string, Pick<EffectDefinition, 'paramDefs' | 'staticSettingDefs'> & Partial<Pick<EffectDefinition, 'displayName'>>>>;
 
 export type VisualModuleFile = {
 	kind: 'glitch-studio-visual-module';
@@ -83,6 +84,9 @@ export function collectVisualModuleFile(input: {
 	name: string; gsVersion: string; visualModule: VisualModule; assets: Asset[]; players: Player[];
 }, definitions: EffectDefinitions): VisualModuleFile {
 	// ProjectVisualModuleやインラインのレイヤーから渡されても、所属先のID・設定はファイルへ持ち込まない。
+	for (const node of input.visualModule.nodes) {
+		if (node.type === 'effect' && isCustomShaderEffectReference(node.effectId)) throw new Error(`Custom Shader Effect Node is not supported in Visual Module export: ${definitions[node.effectId]?.displayName ?? node.effectId}`);
+	}
 	const { nodes, paramDefs, customParameterDefs, customParameterValues, outputDefs, primaryInputId, primaryOutputId, primaryAudioInputId, automationGraphs } = input.visualModule;
 	const visualModule = deepClone({
 		nodes,

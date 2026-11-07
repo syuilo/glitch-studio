@@ -7,7 +7,7 @@ import type { AutomationGraph } from '@gs/shared/automation-graph/automation-gra
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { Player } from '@gs/shared/types.js';
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { ProjectCustomShaderEffect, ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { ProjectAsset } from './Project.ts';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
@@ -45,6 +45,7 @@ export type ProjectInfo = {
 };
 
 export type Project = ProjectInfo & {
+	customShaderEffects: ProjectCustomShaderEffect[];
 	automationGraphs: AutomationGraph[];
 	exportSettings: ExportDialogSettings | null;
 	timelineFps: number;

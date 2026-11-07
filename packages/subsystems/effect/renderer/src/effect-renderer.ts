@@ -169,6 +169,13 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		this.instance!.prepare?.(params, signal);
 	}
 
+	/** 同期の描画ループ用。準備中はfalse、準備失敗は元の診断で通知する。 */
+	checkReady(): boolean {
+		if (this.disposed || this.instance == null) return false;
+		if (this.status?.type === 'error') throw new Error(this.status.message);
+		return this.status?.type !== 'loading';
+	}
+
 	/** falseは待機の中断または対象インスタンスの破棄・再初期化。中断だけでdisposeはしない。 */
 	waitUntilReady(signal: AbortSignal): Promise<boolean> {
 		// 同期エフェクトには待機リスナーを作らない。非同期準備を持つものだけ監視する。

@@ -22,7 +22,10 @@ export class ProjectStateVersions {
 	apply(changes: readonly RendererProjectChange[], previousState: RendererProjectState) {
 		const revision = ++this.revision;
 		for (const change of changes) {
-			if (change.type === 'visualModuleRegistration') {
+			if (change.type === 'customShaderEffects') {
+				// 全配置の再生成と同時に反映するため、旧スナップショットの差分履歴を残さない。
+				this.modules.clear(); this.layers.clear(); this.scenes.clear();
+			} else if (change.type === 'visualModuleRegistration') {
 				this.modules.set(visualModuleTargetKey({ visualModuleId: change.visualModuleId }), { revision, staticResetRevision: revision });
 			} else if (change.type === 'node' || change.type === 'visualModule') {
 				const previous = this.module(change.target);

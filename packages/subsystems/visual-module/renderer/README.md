@@ -1,5 +1,7 @@
 # Visual Module Renderer
 
+描画前の準備には、同期の`tryPrepare(context)`と非同期の`prepare(context, signal)`を使える。どちらも必要なエフェクトの入力を評価して準備を開始するが、描画・履歴更新は行わない。`tryPrepare()`は準備中ならfalseを返し、呼び出し側は次のフレームで最新のcontextを渡して再確認する。準備完了ならtrueを返し、そのcontextで`render()`できる。`prepare()`は準備完了を待つ書き出し等に使う。どちらも準備失敗を元の診断で通知し、描画では準備時の評価結果を再利用する。
+
 `resetRenderHistory()`は、出力への接続有無によらず`dependsOnRenderHistory: true`の全エフェクトへ履歴リセットを伝え、描画キャッシュと準備済みコンテキストを無効化する。履歴のないエフェクトや借用リソースは再作成しない。自動的なシーク判定は行わず、実行のタイミングは呼び出し側が決める。
 
 呼び出し側は、静的な設定検証が成功したVisual Moduleだけを渡す。循環参照・Binding構造・音声指定の形式は`visual-module/shared/static-validation.ts`等で設定変更時に検証し、準備・描画・キャッシュ計算では再検証しない。式やenumなどの評価済み値と、素材・GPUの実行時検証は残す。

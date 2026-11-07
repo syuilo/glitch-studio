@@ -237,6 +237,7 @@ async function doExport() {
 			timelineMotionBlur: stateManager.state.timelineMotionBlur.value,
 			assets: getRendererAssets(stateManager.state.assets.value),
 			generatedSpeech: stateManager.state.generatedSpeech.value,
+			customShaderEffects: stateManager.state.customShaderEffects.value,
 			visualModules: stateManager.state.visualModules.value,
 			automationGraphs: stateManager.state.automationGraphs.value,
 			timelineScenes: stateManager.state.timelineScenes.value,

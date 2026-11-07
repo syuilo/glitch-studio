@@ -1,3 +1,5 @@
+import { createProjectEffects } from './custom-shader-effects.ts';
+import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { getPlayerIntrinsicResolution } from '@gs/glitch-studio_shared/player-resolution.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -64,8 +66,8 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	automationGraphs: AutomationGraph[];
 };
 
-/** 素材・Playerの定義はManagerの寿命中に固定する。フレームや音声の内容は個別に更新できる。 */
-export type VisualModuleRendererManagerResources = { assets: readonly Asset[]; players: readonly Player[] };
+/** 素材・Playerは寿命中に固定する。Custom Shader Effectは初期値で、配置と一括更新できる。 */
+export type VisualModuleRendererManagerResources = { customShaderEffects?: readonly ProjectCustomShaderEffect[]; assets: readonly Asset[]; players: readonly Player[] };
 
 /** Managerが所有するGPU環境と、注入する描画機能。 */
 export type VisualModuleRendererManagerCoreConfig = {
@@ -95,8 +97,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 }> {
 	private previewRenderGeneration = 0;
 	private gpuContext: PreviewCanvasContext;
-	private skippedCpuTimeDelta = 0;
-	private skippedCpuRealTimeDelta = 0;
+	private skippedFrameTimeDelta = 0;
+	private skippedFrameRealTimeDelta = 0;
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
 	private fallbackTexture: GPUTexture;
@@ -107,6 +109,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewParamValues: VisualModuleArgumentBindings = {};
 	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator();
 	private visualModuleLivePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
+	private visualModuleLivePreviewStatusInstanceId: string | null = null;
 	private assetTextures: AssetTextures;
 	private readonly resources: VisualModuleRendererManagerResources;
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
@@ -119,6 +122,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
+	private readonly builtinEffectDefinitions: Record<string, EffectDefinition<any>>;
+	private readonly builtinEffectImplementations: Record<string, EffectImplementation<any>>;
 	private gpuAverageFast = new NonNegativeRollingAverage(10);
 	private gpuAverageMedium = new NonNegativeRollingAverage(100);
 	private gpuAverageSlow = new NonNegativeRollingAverage(1000);
@@ -162,8 +167,11 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.outputTextures = new UniformOrTextureToTextureResolver(this.gpuDevice, this.staticOptions.enable32bitDataTextures);
 		this.gpuContext = coreConfig.gpuContext;
-		this.effectDefinitions = coreConfig.effectDefinitions;
-		this.effectImplementations = coreConfig.effectImplementations;
+		this.builtinEffectDefinitions = coreConfig.effectDefinitions;
+		this.builtinEffectImplementations = coreConfig.effectImplementations;
+		const effects = createProjectEffects(resources.customShaderEffects ?? [], coreConfig.effectDefinitions, coreConfig.effectImplementations);
+		this.effectDefinitions = effects.definitions;
+		this.effectImplementations = effects.implementations;
 
 		const gpuMemory = this.staticOptions.enableStats ? new GpuMemoryTracker(this.gpuDevice) : null;
 		this.timingHelper = this.staticOptions.enableStats ? new TimingHelper(this.gpuDevice) : null;
@@ -311,11 +319,23 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const relevant = changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
+		const relevant = changes.filter(change => change.type === 'customShaderEffects' || change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
 			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target);
 		const next = applyRendererProjectChanges({ automationGraphs: this.dynamicOptions.automationGraphs, visualModules: this.dynamicOptions.visualModules, timelineScenes: [] }, relevant);
+		const customShaderEffects = relevant.findLast(change => change.type === 'customShaderEffects');
+		const effects = customShaderEffects == null ? null : createProjectEffects(customShaderEffects.customShaderEffects, this.builtinEffectDefinitions, this.builtinEffectImplementations);
 		this.dynamicOptions.visualModules = next.visualModules;
 		this.dynamicOptions.automationGraphs = next.automationGraphs;
+		if (effects != null) {
+			this.effectDefinitions = effects.definitions;
+			this.effectImplementations = effects.implementations;
+			// 全配置を作り直しても、Workerの素材・Player・GPUDeviceは維持する。
+			// 状態通知のIDも維持し、Controllerが新しいインスタンスの通知を受け取れるようにする。
+			if (this.visualModuleLivePreviewVisualModuleId != null && this.visualModuleLivePreviewStatusInstanceId != null) {
+				this.startVisualModuleLivePreviewRenderLoopFor(this.visualModuleLivePreviewVisualModuleId, this.visualModuleLivePreviewParamValues, this.visualModuleLivePreviewStatusInstanceId);
+			}
+			return;
+		}
 		const visualModuleLivePreviewChanges = relevant.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.visualModuleLivePreviewVisualModuleId
 			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.visualModuleLivePreviewVisualModuleId);
 		if (visualModuleLivePreviewChanges.length > 0 && this.visualModuleLivePreviewVisualModuleRenderer != null) {
@@ -342,6 +362,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 		this.visualModuleLivePreviewVisualModuleId = visualModuleId;
 		this.visualModuleLivePreviewParamValues = paramValues;
+		this.visualModuleLivePreviewStatusInstanceId = statusInstanceId;
 		const statusSource: VisualModuleLivePreviewEffectStatusSource = { type: 'visualModuleLivePreview', instanceId: statusInstanceId, visualModuleId };
 		this.visualModuleLivePreviewVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
@@ -369,57 +390,64 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	private renderVisualModuleLivePreviewFrame(timing: VisualModuleLivePreviewFrameTiming) {
 		if (this.visualModuleLivePreviewVisualModuleRenderer == null) return;
+		// 準備待ち・CPU表示待ちでスキップした時間を保持し、描画に進む時点でまとめて消費する。
+		this.skippedFrameTimeDelta += timing.timeDelta;
+		this.skippedFrameRealTimeDelta += timing.realTimeDelta;
 		const cpuFrame = this.canvasRenderer.tryReserveCpuPreviewFrame();
 		if (this.canvasRenderer.usesCpuDisplay && cpuFrame == null) {
 			// 画面更新より読み戻しが遅い時にバッファと表示遅延を積み上げない。
-			// 間引いた時間は次の描画へ加え、TIME_DELTAを使うエフェクトの時計も進める。
-			this.skippedCpuTimeDelta += timing.timeDelta;
-			this.skippedCpuRealTimeDelta += timing.realTimeDelta;
 			return;
 		}
-		timing = { ...timing, timeDelta: timing.timeDelta + this.skippedCpuTimeDelta, realTimeDelta: timing.realTimeDelta + this.skippedCpuRealTimeDelta };
-		this.skippedCpuTimeDelta = 0;
-		this.skippedCpuRealTimeDelta = 0;
+		timing = { ...timing, timeDelta: this.skippedFrameTimeDelta, realTimeDelta: this.skippedFrameRealTimeDelta };
 		const generation = ++this.previewRenderGeneration;
 		const visualModule = this.dynamicOptions.visualModules.find(module => module.id === this.visualModuleLivePreviewVisualModuleId)!;
 		try {
+			const evaluatedParamValues = new Map<VisualModulePublicParameterId, any>();
+			for (const def of visualModule.paramDefs) {
+				if (def.dataType.kind === 'audioSource') {
+					const binding = this.visualModuleLivePreviewParamValues[def.id] ?? def.defaultValue;
+					// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
+					// 注入したresolveAudioSourceで取得する。音声の指定はPUBLICへ公開されない。
+					evaluatedParamValues.set(def.id, (binding as { value: unknown }).value);
+					continue;
+				}
+				if (this.visualModuleLivePreviewParamValues[def.id] == null) {
+					evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, def.defaultValue.value)));
+					continue;
+				}
+				evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.visualModuleLivePreviewParamEvaluator.evaluate(this.visualModuleLivePreviewParamValues[def.id], {
+					variables: {
+						TIME: timing.time / 1000,
+						TIME_MS: timing.time,
+					} satisfies Record<typeof VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS[number], unknown>,
+					automationGraphs: this.dynamicOptions.automationGraphs,
+					time: timing.time,
+					endTime: Infinity,
+				}, def.dataType.kind === 'enum' ? null : genEmptyValue(def), def)))); // TODO: genEmptyValueを遅延評価したい
+			}
+
+			const context = {
+				evaluatedParamValues,
+				time: timing.time,
+				timeDelta: timing.timeDelta,
+				endTime: Infinity,
+				pointerPosition: this.pointerPosition,
+				pointerPositionPrev: this.pointerPositionPrev,
+				isExport: false,
+			};
+			// 準備中は描画・履歴更新を行わず、次のフレームで最新の入力と準備状態を確認する。
+			if (!this.visualModuleLivePreviewVisualModuleRenderer.tryPrepare(context)) {
+				cpuFrame?.cancel();
+				return;
+			}
+			this.skippedFrameTimeDelta = 0;
+			this.skippedFrameRealTimeDelta = 0;
+
 			const commandEncoder = this.gpuDevice.createCommandEncoder();
 
 			try {
-				const evaluatedParamValues = new Map<VisualModulePublicParameterId, any>();
-				for (const def of visualModule.paramDefs) {
-					if (def.dataType.kind === 'audioSource') {
-						const binding = this.visualModuleLivePreviewParamValues[def.id] ?? def.defaultValue;
-						// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
-						// 注入したresolveAudioSourceで取得する。音声の指定はPUBLICへ公開されない。
-						evaluatedParamValues.set(def.id, (binding as { value: unknown }).value);
-						continue;
-					}
-					if (this.visualModuleLivePreviewParamValues[def.id] == null) {
-						evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, def.defaultValue.value)));
-						continue;
-					}
-					evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.visualModuleLivePreviewParamEvaluator.evaluate(this.visualModuleLivePreviewParamValues[def.id], {
-						variables: {
-							TIME: timing.time / 1000,
-							TIME_MS: timing.time,
-						} satisfies Record<typeof VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS[number], unknown>,
-						automationGraphs: this.dynamicOptions.automationGraphs,
-						time: timing.time,
-						endTime: Infinity,
-					}, def.dataType.kind === 'enum' ? null : genEmptyValue(def), def)))); // TODO: genEmptyValueを遅延評価したい
-				}
-
 				// Outが未接続でも透明な出力を描画し、前の映像や集計結果を残さない。
-				const nodeOutput = this.visualModuleLivePreviewVisualModuleRenderer.render({
-					evaluatedParamValues: evaluatedParamValues,
-					time: timing.time,
-					timeDelta: timing.timeDelta,
-					endTime: Infinity,
-					pointerPosition: this.pointerPosition,
-					pointerPositionPrev: this.pointerPositionPrev,
-					isExport: false,
-				}, commandEncoder) ?? { kind: 'uniform', value: [0, 0, 0, 0] };
+				const nodeOutput = this.visualModuleLivePreviewVisualModuleRenderer.render(context, commandEncoder) ?? { kind: 'uniform', value: [0, 0, 0, 0] };
 
 				// 定数を表示用に1x1へ変換しても、表示枠の寸法は1x1にしない。
 				this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
@@ -467,17 +495,18 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.previewRenderGeneration++;
 		this.visualModuleLivePreviewVisualModuleRenderer?.resetRenderHistory();
 		this.pointerPositionPrev = { ...this.pointerPosition };
-		this.skippedCpuTimeDelta = 0;
-		this.skippedCpuRealTimeDelta = 0;
+		this.skippedFrameTimeDelta = 0;
+		this.skippedFrameRealTimeDelta = 0;
 	}
 
 	public stopRenderLoop() {
-		this.skippedCpuTimeDelta = 0;
-		this.skippedCpuRealTimeDelta = 0;
+		this.skippedFrameTimeDelta = 0;
+		this.skippedFrameRealTimeDelta = 0;
 		this.previewRenderGeneration++;
 		this.canvasRenderer.clear();
 		this.visualModuleLivePreviewRenderLoop.stop();
 		this.visualModuleLivePreviewVisualModuleId = null;
+		this.visualModuleLivePreviewStatusInstanceId = null;
 		this.visualModuleLivePreviewVisualModuleRenderer?.destroy();
 		this.visualModuleLivePreviewVisualModuleRenderer = null;
 	}

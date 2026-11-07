@@ -16,7 +16,7 @@ const bundle = await build({ absWorkingDir: directory, external: ['vue'], bundle
 																														build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'preferences' }));
 																														build.onLoad({ filter: /.*/, namespace: 'preferences' }, () => ({ contents: 'export const preferences = { s: { forceTypeSafety: false } };', loader: 'ts' }));
 																														build.onResolve({ filter: /^@\/(app|ui|utility\/visual-module-wires)\.ts$/ }, ({ path }) => ({ path, namespace: 'stub' }));
-																														build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: path.endsWith('app.ts') ? 'export const appContext = {};'
+																														build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: path.endsWith('app.ts') ? 'export const appContext = { projectContext: { stateManager: { state: {} } } };'
 																															: path.endsWith('ui.ts') ? 'export const modifierUiTest = { menu: [] }; export function popupMenu(menu) { modifierUiTest.menu = menu; } export function popup() {} export function contextMenu() {}'
 																															: 'export function useVisualModuleWires() { return { in: {} }; }', loader: 'ts' }));
 																														build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'effects' }));

@@ -53,7 +53,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { EFFECT_LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import GsFolder from './common/GsFolder.vue';
@@ -70,9 +70,11 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+
 const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; imageLayerOptions: readonly { value: string; label: string }[]; anotherLayerAudioOptions: readonly AnotherLayerAudioOption[] }>();
 const emit = defineEmits<{ staticSetting: [edit: { key: string; value: string | number | boolean | null }]; edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
-const definition = computed(() => effectDefinitions[props.layer.effectId]);
+const definition = computed(() => effectDefinitions.value[props.layer.effectId]);
 const parameterDefaults = computed(() => Object.fromEntries(Object.keys(definition.value.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition.value, key)])));
 const outputResolution = computed(() => definition.value.primaryOutput == null ? null : props.effectState?.outputs[definition.value.primaryOutput]);
 const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [

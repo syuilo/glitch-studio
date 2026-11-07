@@ -33,7 +33,7 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 	const ref = value => ({ value });
 	const state = Object.fromEntries(Object.entries({
 		resolution: { width: 1920, height: 1080 }, timelineFps: 30, timelineMotionBlur: {},
-		automationGraphs: [], assets: [], generatedSpeech: [], visualModules: [], timelineScenes: [],
+		customShaderEffects: [], automationGraphs: [], assets: [], generatedSpeech: [], visualModules: [], timelineScenes: [],
 	}).map(([key, value]) => [key, ref(value)]));
 	const desktop = {
 		async chooseExportSaveFile(name, format) {

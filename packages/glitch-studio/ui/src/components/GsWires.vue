@@ -37,6 +37,8 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef, useId, useTemplateRef, watch } from 'vue';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
@@ -47,6 +49,8 @@ import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
+
+const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
 
 const wireMap = useVisualModuleWires();
 
@@ -104,13 +108,13 @@ const connections = computed(() => {
 					from,
 					input: wireMap.in[node.id]?.[def.id] ?? null,
 					allIn: null,
-					...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value)[outputPort]?.dataType ?? { kind: 'any' }, def.dataType),
+					...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value, effectDefinitions.value)[outputPort]?.dataType ?? { kind: 'any' }, def.dataType),
 				});
 			}
 			continue;
 		}
 		if (node.type !== 'effect') continue;
-		for (const { path, def, value } of walkNodeParams(node)) {
+		for (const { path, def, value } of walkNodeParams(node, effectDefinitions.value)) {
 			if (value.inputSource !== 'node' || value.nodeId == null || def.dataType.kind === 'struct' || def.dataType.kind === 'array') continue;
 			if (!nodesById.value.has(value.nodeId)) continue;
 			const from = wireMap.out[value.nodeId]?.[value.outputPort];
@@ -120,7 +124,7 @@ const connections = computed(() => {
 				from,
 				input: wireMap.in[node.id]?.[paramPathKey(path)] ?? null,
 				allIn: wireMap.allIn[node.id] ?? null,
-				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId), paramDefs.value)[value.outputPort]?.dataType ?? { kind: 'any' }, getNodeInputDataType(def) ?? { kind: 'any' }),
+				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId), paramDefs.value, effectDefinitions.value)[value.outputPort]?.dataType ?? { kind: 'any' }, getNodeInputDataType(def) ?? { kind: 'any' }),
 			});
 		}
 	}
