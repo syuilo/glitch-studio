@@ -41,6 +41,8 @@ features:
     details: タイムライン上に画像、動画、音声、エフェクトなどのクリップをレイヤー状に配置し、動画の作成・加工が可能。
     link: /guide/timeline
     linkText: タイムラインについて
+  - title: 豊富なエフェクト
+    details: 標準で100種類以上の多彩なエフェクトを収録。エフェクトの自作も可能です。
   - title: VOICEVOX連携
     details: "VOICEVOXエンジンと連携し、タイムライン上で直接読み上げと字幕のレンダリングを行えます。\n外部で音声ファイルを生成し、それを取り込んで…といった手間がありません。"
     link: /guide/timeline/layers/voicevox
