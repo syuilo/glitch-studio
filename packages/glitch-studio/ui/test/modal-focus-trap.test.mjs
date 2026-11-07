@@ -15,7 +15,9 @@ const bundle = await build({
 	plugins: [{ name: 'modal-focus-platform', setup(build) {
 		// ライフサイクルとfocusTrapは本物を使い、端末設定・アニメーション・レイアウトだけを置き換える。
 		const dependencies = {
-			'@/ui.ts': 'export const DI = { inModal: Symbol() }; let index = 0; export const claimZIndex = () => ++index;',
+			'@/ui.ts': `export const DI = { inModal: Symbol() };
+				const indexes = { low: 1000000, middle: 2000000, high: 3000000 };
+				export const claimZIndex = (priority = 'low') => indexes[priority] += 100;`,
 			'@/preferences.ts': "export const preferences = { s: { animation: false, menuStyle: 'auto' } };",
 			'@/utility/touch.ts': 'export const isTouchUsing = false;',
 			'@/utility/device-kind.ts': "export const deviceKind = 'desktop';",
@@ -52,6 +54,7 @@ const PopupList = {
 function fixture(t, renderApplicationContent = null) {
 	const previousGlobals = new Map(['window', 'HTMLElement', 'ResizeObserver'].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
 	const document = { body: null, activeElement: null };
+	let computedStyleReadCount = 0;
 	class TestElement {
 		constructor(tag) {
 			this.tagName = tag.toUpperCase(); this.childNodes = []; this.parentElement = null; this.style = {}; this.inert = false;
@@ -77,7 +80,10 @@ function fixture(t, renderApplicationContent = null) {
 		nextSibling: element => element.parentElement?.childNodes[element.parentElement.childNodes.indexOf(element) + 1] ?? null,
 	});
 	Object.defineProperties(globalThis, {
-		window: { configurable: true, value: { document, getComputedStyle: element => ({ zIndex: String(element.style.zIndex ?? 0) }) } },
+		window: { configurable: true, value: { document, getComputedStyle: element => {
+			computedStyleReadCount++;
+			return { zIndex: String(element.style.zIndex ?? 0) };
+		} } },
 		HTMLElement: { configurable: true, value: TestElement },
 		ResizeObserver: { configurable: true, value: class { observe() {} disconnect() {} } },
 	});
@@ -102,8 +108,103 @@ function fixture(t, renderApplicationContent = null) {
 			else Object.defineProperty(globalThis, name, descriptor);
 		}
 	});
-	return { showingUpdate, showingConfirmation, document, editor: () => editor, confirmation: () => confirmation };
+	return { showingUpdate, showingConfirmation, document, editor: () => editor, confirmation: () => confirmation,
+		computedStyleReadCount: () => computedStyleReadCount };
 }
+
+// 【モーダルを開閉してもフォーカス制御のために計算済みスタイルを取得しない】
+// inert変更後のgetComputedStyleは、内容の多いモーダルで同期的なスタイル再計算を引き起こし得る。
+// GsModalが持つzIndexを登録から解除まで使い、親への伝播でもDOMから再取得しないことを保証する。
+test('opens and closes stacked modals without reading computed styles', async t => {
+	const f = fixture(t);
+	await nextTick();
+	f.showingConfirmation.value = true;
+	await nextTick();
+	assert.equal(f.editor().inert, true);
+	assert.equal(f.confirmation().getRootElement().inert, false);
+	f.confirmation().close();
+	await nextTick();
+	f.showingConfirmation.value = false;
+	f.showingUpdate.value = false;
+	await nextTick();
+	assert.equal(f.editor().inert, false);
+	assert.equal(f.computedStyleReadCount(), 0);
+});
+
+for (const removedPriority of ['high', 'low']) {
+	// 【低い優先度のモーダルを後から開いても、最前面のモーダルを操作可能に保つ】
+	// 登録順だけで最前面を決めると、先に開いていた高優先度のモーダルがinertになってしまう。
+	// 前面・背面のどちらを先に破棄しても、残るモーダルと背景のロックが正しく復元される必要がある。
+	test(`preserves modal priority when a lower priority modal opens later and ${removedPriority} is removed first`, async t => {
+		const showingHighPriority = ref(true);
+		const showingLowPriority = ref(false);
+		let highPriorityModal = null;
+		let lowPriorityModal = null;
+		const f = fixture(t, editorElement => [
+			editorElement,
+			...(showingHighPriority.value ? [h(Modal, {
+				key: 'high', preferType: 'dialog', zPriority: 'high', ref: modal => { highPriorityModal = modal; },
+			})] : []),
+			...(showingLowPriority.value ? [h(Modal, {
+				key: 'low', preferType: 'dialog', zPriority: 'low', ref: modal => { lowPriorityModal = modal; },
+			})] : []),
+		]);
+		await nextTick();
+		showingLowPriority.value = true;
+		await nextTick();
+		assert.equal(highPriorityModal.getRootElement().inert, false);
+		assert.equal(lowPriorityModal.getRootElement().inert, true);
+		assert.equal(f.editor().inert, true);
+
+		if (removedPriority === 'high') {
+			showingHighPriority.value = false;
+		} else {
+			showingLowPriority.value = false;
+		}
+		await nextTick();
+		const remainingModal = removedPriority === 'high' ? lowPriorityModal : highPriorityModal;
+		assert.equal(remainingModal.getRootElement().inert, false);
+		assert.equal(f.editor().inert, true);
+		showingHighPriority.value = false;
+		showingLowPriority.value = false;
+		await nextTick();
+		assert.equal(f.editor().inert, false);
+	});
+}
+
+// 【他のモーダルとの操作を許可した場合は、そのモーダルを含む祖先も操作禁止にしない】
+// 最前面の判定と祖先の処理を分離しても、hasInteractionWithOtherFocusTrappedElsの設定を維持する。
+// モーダル自体だけでなく、それを含む兄弟コンテナがinertにならないことも確認する。
+test('keeps other trapped modals and their containers interactive when requested', async t => {
+	const showingFirstModal = ref(true);
+	const showingSecondModal = ref(false);
+	let firstModal = null;
+	let secondModal = null;
+	const f = fixture(t, editorElement => [
+		editorElement,
+		...(showingFirstModal.value ? [h('div', { key: 'first-container' }, [h(Modal, {
+			preferType: 'dialog', ref: modal => { firstModal = modal; },
+		})])] : []),
+		...(showingSecondModal.value ? [h(Modal, {
+			key: 'second', preferType: 'dialog', hasInteractionWithOtherFocusTrappedEls: true,
+			ref: modal => { secondModal = modal; },
+		})] : []),
+	]);
+	await nextTick();
+	showingSecondModal.value = true;
+	await nextTick();
+	assert.equal(firstModal.getRootElement().inert, false);
+	assert.equal(firstModal.getRootElement().parentElement.inert, false);
+	assert.equal(secondModal.getRootElement().inert, false);
+	assert.equal(f.editor().inert, true);
+	showingSecondModal.value = false;
+	await nextTick();
+	assert.equal(firstModal.getRootElement().inert, false);
+	assert.equal(f.editor().inert, true);
+	showingFirstModal.value = false;
+	await nextTick();
+	assert.equal(f.editor().inert, false);
+});
 
 // 【失敗画面を直接破棄して確認をキャンセルしても、編集画面の操作ロックを残さない】
 // 再試行では旧モーダルをcloseせずpopupから取り除くため、通常の閉じる経路だけの解除では不十分。

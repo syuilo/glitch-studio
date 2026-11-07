@@ -344,7 +344,10 @@ onMounted(() => {
 	watch([showing, () => props.manualShowing], ([showing, manualShowing]) => {
 		if (manualShowing === true || (manualShowing == null && showing === true)) {
 			if (modalRootEl.value != null) {
-				const { release } = focusTrap(modalRootEl.value, props.hasInteractionWithOtherFocusTrappedEls);
+				const { release } = focusTrap(modalRootEl.value, {
+					zIndex,
+					hasInteractionWithOtherFocusTrappedEls: props.hasInteractionWithOtherFocusTrappedEls,
+				});
 
 				releaseFocusTrap = release;
 				modalRootEl.value.focus();

@@ -1,31 +1,24 @@
 import { getHTMLElementOrNull } from '@/utility/get-dom-node-or-null.ts';
 
-const focusTrapElements = new Set<HTMLElement>();
+// 描画側が持つz-indexを登録し、inertの変更後にgetComputedStyleでスタイル再計算を強制しない。
+const focusTrapElements = new Map<HTMLElement, number>();
 const ignoreElements = [
 	'script',
 	'style',
 ];
 
 function containsFocusTrappedElements(el: HTMLElement): boolean {
-	return Array.from(focusTrapElements).some((focusTrapElement) => {
-		return el.contains(focusTrapElement);
-	});
-}
-
-function getZIndex(el: HTMLElement): number {
-	const zIndex = parseInt(window.getComputedStyle(el).zIndex || '0', 10);
-	if (isNaN(zIndex)) {
-		return 0;
+	for (const focusTrapElement of focusTrapElements.keys()) {
+		if (el.contains(focusTrapElement)) return true;
 	}
-	return zIndex;
+	return false;
 }
 
 function getHighestZIndexElement(): { el: HTMLElement; zIndex: number; } | null {
 	let highestZIndexElement: HTMLElement | null = null;
 	let highestZIndex = -Infinity;
 
-	focusTrapElements.forEach((el) => {
-		const zIndex = getZIndex(el);
+	focusTrapElements.forEach((zIndex, el) => {
 		if (zIndex > highestZIndex) {
 			highestZIndex = zIndex;
 			highestZIndexElement = el;
@@ -38,31 +31,28 @@ function getHighestZIndexElement(): { el: HTMLElement; zIndex: number; } | null 
 	};
 }
 
-function releaseFocusTrap(el: HTMLElement): void {
-	focusTrapElements.delete(el);
+function restoreFocusTrap(el: HTMLElement, highestZIndexElement: HTMLElement | null): void {
 	if (el.inert === true) {
 		el.inert = false;
 	}
 
-	const highestZIndexElement = getHighestZIndexElement();
-
 	if (el.parentElement != null && el !== window.document.body) {
 		el.parentElement.childNodes.forEach((siblingNode) => {
 			const siblingEl = getHTMLElementOrNull(siblingNode);
-			if (!siblingEl) return;
+			if (siblingEl == null) return;
 			if (
 				siblingEl !== el &&
 				(
 					highestZIndexElement == null ||
-					siblingEl === highestZIndexElement.el ||
-					siblingEl.contains(highestZIndexElement.el)
+					siblingEl === highestZIndexElement ||
+					siblingEl.contains(highestZIndexElement)
 				)
 			) {
 				siblingEl.inert = false;
 			} else if (
 				highestZIndexElement != null &&
-				siblingEl !== highestZIndexElement.el &&
-				!siblingEl.contains(highestZIndexElement.el) &&
+				siblingEl !== highestZIndexElement &&
+				!siblingEl.contains(highestZIndexElement) &&
 				!ignoreElements.includes(siblingEl.tagName.toLowerCase())
 			) {
 				siblingEl.inert = true;
@@ -70,32 +60,11 @@ function releaseFocusTrap(el: HTMLElement): void {
 				siblingEl.inert = false;
 			}
 		});
-		releaseFocusTrap(el.parentElement);
+		restoreFocusTrap(el.parentElement, highestZIndexElement);
 	}
 }
 
-export function focusTrap(el: HTMLElement, hasInteractionWithOtherFocusTrappedEls: boolean, parent: true): void;
-export function focusTrap(el: HTMLElement, hasInteractionWithOtherFocusTrappedEls?: boolean, parent?: false): { release: () => void; };
-export function focusTrap(el: HTMLElement, hasInteractionWithOtherFocusTrappedEls = false, parent = false): { release: () => void; } | void {
-	const highestZIndexElement = getHighestZIndexElement();
-
-	const highestZIndex = highestZIndexElement == null ? -Infinity : highestZIndexElement.zIndex;
-	const zIndex = getZIndex(el);
-
-	// If the element has a lower z-index than the highest z-index element, focus trap the highest z-index element instead
-	// Focus trapping for this element will be done in the release function
-	if (!parent && zIndex < highestZIndex) {
-		focusTrapElements.add(el);
-		if (highestZIndexElement) {
-			focusTrap(highestZIndexElement.el, hasInteractionWithOtherFocusTrappedEls);
-		}
-		return {
-			release: () => {
-				releaseFocusTrap(el);
-			},
-		};
-	}
-
+function applyFocusTrap(el: HTMLElement, hasInteractionWithOtherFocusTrappedEls: boolean): void {
 	if (el.inert === true) {
 		el.inert = false;
 	}
@@ -103,7 +72,7 @@ export function focusTrap(el: HTMLElement, hasInteractionWithOtherFocusTrappedEl
 	if (el.parentElement != null && el !== window.document.body) {
 		el.parentElement.childNodes.forEach((siblingNode) => {
 			const siblingEl = getHTMLElementOrNull(siblingNode);
-			if (!siblingEl) return;
+			if (siblingEl == null) return;
 			if (
 				siblingEl !== el &&
 				(
@@ -115,16 +84,28 @@ export function focusTrap(el: HTMLElement, hasInteractionWithOtherFocusTrappedEl
 				siblingEl.inert = true;
 			}
 		});
-		focusTrap(el.parentElement, hasInteractionWithOtherFocusTrappedEls, true);
+		applyFocusTrap(el.parentElement, hasInteractionWithOtherFocusTrappedEls);
 	}
+}
 
-	if (!parent) {
-		focusTrapElements.add(el);
+export function focusTrap(el: HTMLElement, options: {
+	zIndex: number;
+	hasInteractionWithOtherFocusTrappedEls?: boolean;
+}): { release: () => void; } {
+	const highestZIndexElement = getHighestZIndexElement();
+	focusTrapElements.set(el, options.zIndex);
 
-		return {
-			release: () => {
-				releaseFocusTrap(el);
-			},
-		};
-	}
+	// 背後の要素が後から開かれても最前面の制御を維持し、同じz-indexなら今回の要素を優先する。
+	const activeElement = highestZIndexElement != null && options.zIndex < highestZIndexElement.zIndex
+		? highestZIndexElement.el
+		: el;
+	applyFocusTrap(activeElement, options.hasInteractionWithOtherFocusTrappedEls ?? false);
+
+	return {
+		release: () => {
+			focusTrapElements.delete(el);
+			// 登録の解除と祖先の復元を分け、解除後の最前面を一度だけ選んでinertを復元する。
+			restoreFocusTrap(el, getHighestZIndexElement()?.el ?? null);
+		},
+	};
 }
