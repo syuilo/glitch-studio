@@ -17,54 +17,42 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, onUnmounted, provide, inject, ref, watch, useTemplateRef } from 'vue';
+import { computed, onMounted, onUnmounted, provide, inject, ref, useTemplateRef } from 'vue';
 import { DI } from '@/ui.ts';
 
 const rootEl = useTemplateRef('rootEl');
 const headerEl = useTemplateRef('headerEl');
 const footerEl = useTemplateRef('footerEl');
 
-const headerHeight = ref<string | undefined>();
-const childStickyTop = ref(0);
+const headerHeight = ref(0);
 const parentStickyTop = inject(DI.currentStickyTop, ref(0));
+const childStickyTop = computed(() => parentStickyTop.value + headerHeight.value);
 provide(DI.currentStickyTop, childStickyTop);
 
-const footerHeight = ref<string | undefined>();
-const childStickyBottom = ref(0);
+const footerHeight = ref(0);
 const parentStickyBottom = inject(DI.currentStickyBottom, ref(0));
+const childStickyBottom = computed(() => parentStickyBottom.value + footerHeight.value);
 provide(DI.currentStickyBottom, childStickyBottom);
 
-const calc = () => {
-	// コンポーネントが表示されてないけどKeepAliveで残ってる場合などは null になる
-	if (headerEl.value != null) {
-		childStickyTop.value = parentStickyTop.value + headerEl.value.offsetHeight;
-		headerHeight.value = headerEl.value.offsetHeight.toString();
+// マウント時や親のsticky位置の変更時にDOMを再計測すると、同期レイアウトを発生させてしまう。
+// 初回の高さもResizeObserverに任せ、padding・borderを含む計算済みのサイズから位置を求める。
+const observer = new ResizeObserver((entries) => {
+	for (const entry of entries) {
+		if (entry.target === headerEl.value) {
+			headerHeight.value = entry.borderBoxSize[0].blockSize;
+		} else if (entry.target === footerEl.value) {
+			footerHeight.value = entry.borderBoxSize[0].blockSize;
+		}
 	}
-
-	// コンポーネントが表示されてないけどKeepAliveで残ってる場合などは null になる
-	if (footerEl.value != null) {
-		childStickyBottom.value = parentStickyBottom.value + footerEl.value.offsetHeight;
-		footerHeight.value = footerEl.value.offsetHeight.toString();
-	}
-};
-
-const observer = new ResizeObserver(() => {
-	window.setTimeout(() => {
-		calc();
-	}, 100);
 });
 
 onMounted(() => {
-	calc();
-
-	watch([parentStickyTop, parentStickyBottom], calc);
-
 	if (headerEl.value != null) {
-		observer.observe(headerEl.value);
+		observer.observe(headerEl.value, { box: 'border-box' });
 	}
 
 	if (footerEl.value != null) {
-		observer.observe(footerEl.value);
+		observer.observe(footerEl.value, { box: 'border-box' });
 	}
 });
 
