@@ -70,7 +70,7 @@ export default implementEffect<typeof definition>({
 				for (const name of ['lengthRatio', 'massRatio', 'zoom', 'angularVelocityRange'] as const) {
 					if (Math.fround(params[name]) <= 0) throw new Error(`Double Pendulum Fractal requires a positive ${name}.`);
 				}
-				const coloringMethod = outputs[0] == null ? 0 : ['original', 'angle1', 'angle2', 'angularVelocity1', 'angularVelocity2'].indexOf(params.coloringMethod);
+				const coloringMethod = outputs[0] == null ? 0 : ['sphericalRgb', 'angle1', 'angle2', 'angularVelocity1', 'angularVelocity2'].indexOf(params.coloringMethod);
 				uniformValues.set({
 					spatialHalfExtent,
 					pixelStep: [2 / resolution.width, 2 / resolution.height],

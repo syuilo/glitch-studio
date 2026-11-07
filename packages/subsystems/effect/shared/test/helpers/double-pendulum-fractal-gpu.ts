@@ -134,7 +134,7 @@ export async function run(benchmark = false) {
 		const angle1 = colored.pixel('angle1')[0];
 		const angle2 = colored.pixel('angle2')[0];
 		const expectedColor = [0.5 + 0.5 * Math.sin(angle1) * Math.cos(angle2), 0.5 + 0.5 * Math.sin(angle1) * Math.sin(angle2), 0.5 + 0.5 * Math.cos(angle1), 1];
-		expectedColor.forEach((value, channel) => near(colored.pixel('output')[channel], value, `original color channel ${channel}`, 0.001));
+		expectedColor.forEach((value, channel) => near(colored.pixel('output')[channel], value, `spherical RGB color channel ${channel}`, 0.001));
 		// 【シーク・FPS・時計から独立し、配色変更が数値出力を変えない】
 		// 同じインスタンスを異なる順序・描画間隔で呼び、積算した状態や前回の端数が混ざらないことを実画素で確認する。
 		await single.render({ simulationTime: 1.25 }, 100, 1000 / 30);

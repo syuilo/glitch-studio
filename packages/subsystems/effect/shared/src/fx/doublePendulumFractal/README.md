@@ -18,8 +18,8 @@
 | Length Ratio | 1 | 上側の長さを1とした下側の長さ。正数を指定します。画像上の距離ではありません。 |
 | Mass Ratio | 1 | 上側の質量を1とした下側の質量。正数を指定します。 |
 | Gravity | 9.81 | 上側の長さを1としたモデル内の重力加速度。0なら無重力、負値なら重力方向が逆転します。 |
-| Coloring | Original | Original・Angle 1・Angle 2・Angular Velocity 1・Angular Velocity 2。 |
-| Color Ramp | 青→緑→ピンク | Original以外の配色。透明度・補間・色空間は共通のColor Ramp仕様に従います。 |
+| Coloring | Spherical RGB | Spherical RGB・Angle 1・Angle 2・Angular Velocity 1・Angular Velocity 2。 |
+| Color Ramp | 青→緑→ピンク | Spherical RGB以外の配色。透明度・補間・色空間は共通のColor Ramp仕様に従います。 |
 | Angular Velocity Range (rad/s) | 10 | 角速度配色の±範囲。`-Range → 0`、`0 → 0.5`、`+Range → 1`へ対応させ、範囲外は端の色に固定します。正数を指定します。 |
 | Time Step | 0.01 | 数値積分の刻み秒。正数を指定し、描画FPSには依存しません。細かくすると計算負荷が増え、カオス領域では模様も変わります。 |
 | Antialiasing | Off | 画素内の固定4点を独立に計算して平均します。積分の負荷も約4倍になります。 |
@@ -30,7 +30,7 @@ UIの範囲は操作用であり、式の値をその範囲へclampしません�
 共通等方座標の長辺全体=1を、Zoom=1で角度2πへ対応させます。Xは右向きにAngle 1が増加し、Yは元動画に合わせて下向きにAngle 2が増加します。
 正方形では各軸が概ね−π〜π、横長2:1ではAngle 1が−π〜π、Angle 2が−π/2〜π/2になります。解像度で模様を伸縮させません。
 
-Originalは、時刻評価後の角度から次の不透明なRGBを生成します。
+Spherical RGBは、時刻評価後の2つの角度を球面上の方向へ変換し、そのXYZ成分から次の不透明なRGBを生成します。
 
 ```text
 R = 0.5 + 0.5 * sin(angle1) * cos(angle2)
@@ -44,7 +44,7 @@ B = 0.5 + 0.5 * cos(angle1)
 
 | ポート | 型・単位 |
 | --- | --- |
-| Output | 乗算済みRGBA。Originalは不透明、ほかはRampの透明度を保持します。 |
+| Output | 乗算済みRGBA。Spherical RGBは不透明、ほかはRampの透明度を保持します。 |
 | Angle 1 / 2 (rad) | scalar。`[-π, π)`へ折り返した絶対角度。 |
 | Angular Velocity 1 / 2 (rad/s) | scalar。符号付き角速度。 |
 

@@ -58,12 +58,12 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 9.81 },
 		},
 		coloringMethod: {
-			dataType: { kind: 'enum', options: ['original', 'angle1', 'angle2', 'angularVelocity1', 'angularVelocity2'] },
+			dataType: { kind: 'enum', options: ['sphericalRgb', 'angle1', 'angle2', 'angularVelocity1', 'angularVelocity2'] },
 			ui: { label: 'Coloring', control: { labels: {
-				original: 'Original', angle1: 'Angle 1', angle2: 'Angle 2',
+				sphericalRgb: 'Spherical RGB', angle1: 'Angle 1', angle2: 'Angle 2',
 				angularVelocity1: 'Angular Velocity 1', angularVelocity2: 'Angular Velocity 2',
 			} } },
-			defaultValue: { inputSource: 'literal', value: 'original' },
+			defaultValue: { inputSource: 'literal', value: 'sphericalRgb' },
 		},
 		ramp: {
 			dataType: { kind: 'colorRamp' },
