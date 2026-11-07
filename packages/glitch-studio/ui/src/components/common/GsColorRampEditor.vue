@@ -19,12 +19,12 @@
 					</div>
 					<div :class="$style.stops">
 						<div
-							v-for="stop in modelValue.stops"
+							v-for="stop in displayedStops"
 							:key="stop.id"
 							:class="[$style.stop, { [$style.selected]: selectedId === stop.id }]"
 							data-test-color-ramp-stop
 							:data-stop-id="stop.id"
-							:style="{ left: `${stop.position * 100}%`, '--color': colorCss(stop.color) }"
+							:style="{ left: `${stop.position * 100}%`, '--color': colorCss(stop.color), visibility: removedStopDuringDrag?.stop.id === stop.id ? 'hidden' : 'visible' }"
 							tabindex="0"
 							@pointerdown.stop.prevent="startDrag($event, stop.id)"
 							@dblclick.stop
@@ -91,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { evaluatePreparedColorRamp, prepareColorRamp } from '@gs/shared/color-ramp.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import GsModal from './GsModal.vue';
@@ -137,6 +137,17 @@ const presetPreviews = computed(() => COLOR_RAMP_PRESETS.map(preset => ({
 	},
 })));
 const track = useTemplateRef('track');
+const STOP_DRAG_REMOVAL_DISTANCE = 40;
+const removedStopDuringDrag = shallowRef<{ stop: ColorRampStop; index: number; remainingStopIds: string[] } | null>(null);
+const displayedStops = computed(() => {
+	const removed = removedStopDuringDrag.value;
+	if (removed == null || props.modelValue.stops.some(stop => stop.id === removed.stop.id)) return props.modelValue.stops;
+	// Capture先のDOMを削除すると追跡が終了し、範囲内へ戻しても復元できなくなる。
+	// モデルからは即座に取り除き、ハンドルだけを元の順序で非表示のまま残す。
+	const stops = [...props.modelValue.stops];
+	stops.splice(removed.index, 0, removed.stop);
+	return stops;
+});
 let stopDrag: (() => void) | null = null;
 
 function closeEditor() {
@@ -214,7 +225,38 @@ function startDrag(event: PointerEvent, id: string) {
 	// 押下位置からの移動量を使い、ハンドルの端を選択しただけでは位置を変えない。
 	// pointerupでも更新されるため、絶対座標を使うとドラッグしなくても色の対応が変わってしまう。
 	// 並び替えずIDで編集する。stopが交差・重複しても選択中の色を維持する。
-	stopDrag = listenPointerDrag(event, current => updatePosition(initialStopPosition + (current.clientX - event.clientX) / trackWidth), () => { stopDrag = null; });
+	stopDrag = listenPointerDrag(event, current => {
+		const position = Math.min(1, Math.max(0, initialStopPosition + (current.clientX - event.clientX) / trackWidth));
+		const removed = removedStopDuringDrag.value;
+		const outsideRemovalRange = Math.abs(current.clientY - event.clientY) >= STOP_DRAG_REMOVAL_DISTANCE;
+		if (outsideRemovalRange && (removed != null || props.modelValue.stops.length > 1)) {
+			if (removed != null) return;
+			const index = props.modelValue.stops.findIndex(stop => stop.id === id);
+			if (index < 0) return;
+			const stops = props.modelValue.stops.filter(stop => stop.id !== id);
+			removedStopDuringDrag.value = { stop: props.modelValue.stops[index], index, remainingStopIds: stops.map(stop => stop.id) };
+			updateRamp({ stops });
+			return;
+		}
+		if (removed != null) {
+			const stops = [...props.modelValue.stops];
+			// 同位置のstopは保存順で優先度が変わるため、末尾へ追加せず元の位置へ復元する。
+			stops.splice(removed.index, 0, { ...removed.stop, position });
+			removedStopDuringDrag.value = null;
+			updateRamp({ stops });
+		} else {
+			const stop = props.modelValue.stops.find(stop => stop.id === id);
+			if (stop != null && stop.position !== position) {
+				updateRamp({ stops: props.modelValue.stops.map(stop => stop.id === id ? { ...stop, position } : stop) });
+			}
+		}
+	}, () => {
+		stopDrag = null;
+		// pointerupで復元した値はまだ親のpropsへ反映されていないため、
+		// 一時削除が残っている場合だけ、生きている別のstopへ選択を移す。
+		if (removedStopDuringDrag.value != null) selectedId.value = props.modelValue.stops.find(stop => stop.id !== id)?.id ?? props.modelValue.stops[0].id;
+		removedStopDuringDrag.value = null;
+	});
 }
 
 function onStopKeydown(event: KeyboardEvent, id: string) {
@@ -228,6 +270,13 @@ function onStopKeydown(event: KeyboardEvent, id: string) {
 }
 
 watch(() => props.modelValue.stops.map(stop => stop.id), ids => {
+	const removed = removedStopDuringDrag.value;
+	if (removed != null) {
+		// 自分の一時削除では選択・Captureを維持する。外部からstop構成が変わった場合は
+		// ドラッグを終了し、別のランプへ削除前のstopを復元しない。
+		if (ids.length === removed.remainingStopIds.length && ids.every((id, index) => id === removed.remainingStopIds[index])) return;
+		stopDrag?.();
+	}
 	if (!ids.includes(selectedId.value)) { stopDrag?.(); selectedId.value = ids[0]; }
 }, { immediate: true });
 onBeforeUnmount(() => stopDrag?.());

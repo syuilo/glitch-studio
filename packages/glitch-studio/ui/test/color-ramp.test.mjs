@@ -143,6 +143,28 @@ async function fixture(t, component = ColorRampEditor) {
 	return { state, events, find, findAll, unmount };
 }
 
+function createStopDrag({ find, findAll }, id) {
+	const track = find('data-test-color-ramp-track');
+	track.getBoundingClientRect = () => ({ left: 100, width: 200 });
+	const stop = findAll('data-test-color-ramp-stop').find(element => element.props['data-stop-id'] === id);
+	const ownerWindow = new EventTarget();
+	const pointerTarget = new EventTarget();
+	const captures = new Set();
+	Object.assign(stop, {
+		ownerDocument: { defaultView: ownerWindow },
+		addEventListener: pointerTarget.addEventListener.bind(pointerTarget),
+		removeEventListener: pointerTarget.removeEventListener.bind(pointerTarget),
+		setPointerCapture: id => captures.add(id),
+		hasPointerCapture: id => captures.has(id),
+		releasePointerCapture: id => captures.delete(id),
+	});
+	return {
+		stop, captures,
+		press: () => stop.props.onPointerdown({ button: 0, pointerId: 1, clientX: 105, clientY: 100, currentTarget: stop, stopPropagation() {}, preventDefault() {} }),
+		dispatch: (type, clientX, clientY = 100) => ownerWindow.dispatchEvent(Object.assign(new Event(type), { pointerId: 1, clientX, clientY })),
+	};
+}
+
 // 【追加した補間方法を選び、stop追加時も表示中の補間色を使う】
 // 選択肢への追加だけでなく、モデル更新から追加色の評価まで同じ設定が届くことを確認する。
 test('inserts stops using the selected smootherstep or quadratic interpolation', async t => {
@@ -207,14 +229,14 @@ test('applies independent preset stops while preserving interpolation settings',
 	assert.equal(state.modelValue.hueInterpolation, 'decreasing');
 	assert.equal(new Set(state.modelValue.stops.map(stop => stop.id)).size, preset.stops.length);
 	assert.ok(state.modelValue.stops.every(stop => !originalStopIds.includes(stop.id)));
-	assert.equal(find('data-test-color-ramp-selection').props.value, state.modelValue.stops[0].id);
+	assert.equal(find('data-test-color-ramp-position').props.value, state.modelValue.stops[0].position);
 	const firstAppliedStopIds = state.modelValue.stops.map(stop => stop.id);
 	state.modelValue.stops[0].color[0] = 0.25;
 	button.props.onClick();
 	await nextTick();
 	assert.deepEqual(stopValues(), preset.stops);
 	assert.ok(state.modelValue.stops.every(stop => !firstAppliedStopIds.includes(stop.id)));
-	assert.equal(find('data-test-color-ramp-selection').props.value, state.modelValue.stops[0].id);
+	assert.equal(find('data-test-color-ramp-position').props.value, state.modelValue.stops[0].position);
 	assert.deepEqual(events, ['value', 'value']);
 });
 
@@ -249,23 +271,9 @@ test('updates all preset previews only when interpolation settings change', asyn
 // ハンドルの中心以外を押しても、移動のないpointerupで位置や履歴を変更しない。
 // 同じ押下位置からドラッグした場合も、最初のクリック位置へ飛ばず移動距離だけを反映する。
 test('preserves stop positions on selection and drags relative to the grabbed position', async t => {
-	const { state, events, find, findAll } = await fixture(t);
-	const track = find('data-test-color-ramp-track');
-	track.getBoundingClientRect = () => ({ left: 100, width: 200 });
-	const stop = findAll('data-test-color-ramp-stop')[0];
-	const ownerWindow = new EventTarget();
-	const pointerTarget = new EventTarget();
-	const captures = new Set();
-	Object.assign(stop, {
-		ownerDocument: { defaultView: ownerWindow },
-		addEventListener: pointerTarget.addEventListener.bind(pointerTarget),
-		removeEventListener: pointerTarget.removeEventListener.bind(pointerTarget),
-		setPointerCapture: id => captures.add(id),
-		hasPointerCapture: id => captures.has(id),
-		releasePointerCapture: id => captures.delete(id),
-	});
-	const press = () => stop.props.onPointerdown({ button: 0, pointerId: 1, clientX: 105, currentTarget: stop, stopPropagation() {}, preventDefault() {} });
-	const dispatch = (type, clientX) => ownerWindow.dispatchEvent(Object.assign(new Event(type), { pointerId: 1, clientX }));
+	const editor = await fixture(t);
+	const { state, events } = editor;
+	const { press, dispatch, captures } = createStopDrag(editor, state.modelValue.stops[0].id);
 	press();
 	dispatch('pointerup', 105);
 	await nextTick();
@@ -282,11 +290,123 @@ test('preserves stop positions on selection and drags relative to the grabbed po
 	assert.equal(captures.size, 0);
 });
 
+// 【上下へ離して削除しても追跡を続け、戻すと同じストップを元の保存順へ復元する】
+// モデルからの削除でCapture先や選択まで失うと、押したまま戻す操作ができなくなる。
+// 境界の往復・透明度・横移動も確認し、復元で別IDや別色のストップへ化けることを防ぐ。
+test('restores temporarily removed stops while preserving capture, identity and save order', async t => {
+	const editor = await fixture(t);
+	const { state, events, find, findAll } = editor;
+	const middle = { id: 'middle', position: 0.25, color: [1, 0.25, 0, 0.4] };
+	state.modelValue.stops.splice(1, 0, middle);
+	await nextTick();
+	const { stop, press, dispatch, captures } = createStopDrag(editor, middle.id);
+	press();
+	dispatch('pointermove', 155, 139);
+	await nextTick();
+	assert.equal(state.modelValue.stops.length, 3);
+	assert.equal(state.modelValue.stops[1].position, 0.5);
+	dispatch('pointermove', 155, 140);
+	await nextTick();
+	assert.deepEqual(state.modelValue.stops.map(stop => stop.id), ['start', 'end']);
+	assert.equal(stop.props.style.visibility, 'hidden');
+	assert.equal(captures.size, 1);
+	const removalEventCount = events.length;
+	dispatch('pointermove', 205, 180);
+	await nextTick();
+	assert.equal(events.length, removalEventCount);
+	dispatch('pointermove', 205, 61);
+	await nextTick();
+	assert.deepEqual(state.modelValue.stops.map(stop => stop.id), ['start', 'middle', 'end']);
+	assert.deepEqual(Array.from(state.modelValue.stops[1].color), middle.color);
+	assert.equal(state.modelValue.stops[1].position, 0.75);
+	assert.equal(find('data-test-color-ramp-position').props.value, 0.75);
+	assert.equal(findAll('data-test-color-ramp-stop')[1], stop);
+	assert.notEqual(stop.props.style.visibility, 'hidden');
+	dispatch('pointermove', 205, 60);
+	await nextTick();
+	assert.equal(state.modelValue.stops.length, 2);
+	dispatch('pointerup', 155, 100);
+	await nextTick();
+	assert.deepEqual(state.modelValue.stops.map(stop => stop.id), ['start', 'middle', 'end']);
+	assert.equal(state.modelValue.stops[1].position, 0.5);
+	assert.equal(find('data-test-color-ramp-position').props.value, 0.5);
+	assert.equal(captures.size, 0);
+});
+
+// 【上下どちらへ離しても削除を確定し、その後の移動で復元しない】
+// pointerup後まで追跡が残ると、別の操作で削除済みのストップを復元してしまう。
+// 位置欄も残っているストップへ切り替え、削除済みの値を編集し続けないようにする。
+test('commits stop removal on release above or below the drag origin', async t => {
+	for (const clientY of [60, 140]) {
+		const editor = await fixture(t);
+		const { state, events, find, findAll } = editor;
+		const { press, dispatch, captures } = createStopDrag(editor, 'start');
+		press();
+		dispatch('pointermove', 105, clientY);
+		await nextTick();
+		dispatch('pointerup', 105, clientY);
+		await nextTick();
+		assert.deepEqual(state.modelValue.stops.map(stop => stop.id), ['end']);
+		assert.deepEqual(findAll('data-test-color-ramp-stop').map(element => element.props['data-stop-id']), ['end']);
+		assert.equal(find('data-test-color-ramp-position').props.value, 1);
+		assert.equal(captures.size, 0);
+		dispatch('pointermove', 105, 100);
+		await nextTick();
+		assert.deepEqual(events, ['value']);
+	}
+});
+
+// 【最後のストップは上下へ離しても残し、横方向の編集を継続する】
+// 空のColor Rampは無効なため、ドラッグ削除にもキーボード削除と同じ制約を適用する。
+test('keeps the final stop while dragging outside the removal range', async t => {
+	const editor = await fixture(t);
+	const { state } = editor;
+	state.modelValue.stops = [{ id: 'only', position: 0.25, color: [1, 0, 0, 1] }];
+	await nextTick();
+	const { press, dispatch, captures } = createStopDrag(editor, 'only');
+	press();
+	dispatch('pointermove', 155, 200);
+	await nextTick();
+	dispatch('pointerup', 155, 200);
+	await nextTick();
+	assert.equal(state.modelValue.stops.length, 1);
+	assert.equal(state.modelValue.stops[0].position, 0.5);
+	assert.equal(captures.size, 0);
+});
+
+// 【一時削除中のキャンセル・フォーカス喪失・外部置換で追跡を終了する】
+// 終了後の移動で古いストップを復元したり、置換済みのランプへ混入させたりしない。
+test('cleans up temporary removal when capture ends or the ramp is replaced', async t => {
+	for (const ending of ['pointercancel', 'blur', 'replacement']) {
+		const editor = await fixture(t);
+		const { state, events, findAll } = editor;
+		const { press, dispatch, captures } = createStopDrag(editor, 'start');
+		press();
+		dispatch('pointermove', 105, 140);
+		await nextTick();
+		if (ending === 'replacement') {
+			state.modelValue = { ...createDefaultColorRamp(), stops: [{ id: 'replacement', position: 0.4, color: [1, 0, 0, 1] }] };
+		} else {
+			dispatch(ending, 105, 140);
+		}
+		await nextTick();
+		const expectedIds = ending === 'replacement' ? ['replacement'] : ['end'];
+		assert.deepEqual(findAll('data-test-color-ramp-stop').map(element => element.props['data-stop-id']), expectedIds);
+		assert.equal(captures.size, 0);
+		dispatch('pointermove', 105, 100);
+		await nextTick();
+		assert.deepEqual(state.modelValue.stops.map(stop => stop.id), expectedIds);
+		assert.deepEqual(events, ['value']);
+	}
+});
+
 // 【追加色を現在の補間色で初期化し、交差・削除後もIDで選択する】
 // 実際のSFCテンプレートを使い、クラス名に依存せずstopの選択・数値編集・最後のstop保護を確認する。
 test('edits stable stop IDs and initializes inserted colors from the current ramp', async t => {
 	const { state, find, findAll } = await fixture(t);
-	find('data-test-color-ramp-add').props.onClick();
+	const track = find('data-test-color-ramp-track');
+	track.getBoundingClientRect = () => ({ left: 100, width: 200 });
+	track.props.onDblclick({ clientX: 200 });
 	await nextTick();
 	assert.equal(state.modelValue.stops.length, 3);
 	assert.deepEqual(Array.from(state.modelValue.stops[2].color), [0.5, 0.5, 0.5, 1]);
@@ -300,12 +420,14 @@ test('edits stable stop IDs and initializes inserted colors from the current ram
 	findAll('data-test-color-ramp-stop').find(element => element.props['data-stop-id'] === id).props.onKeydown({ key: 'ArrowLeft', shiftKey: true, preventDefault() {} });
 	await nextTick();
 	assert.equal(state.modelValue.stops.find(stop => stop.id === id).position, 0.9);
-	find('data-test-color-ramp-remove').props.onClick();
+	findAll('data-test-color-ramp-stop').find(element => element.props['data-stop-id'] === id).props.onKeydown({ key: 'Delete', preventDefault() {} });
 	await nextTick();
 	assert.equal(state.modelValue.stops.some(stop => stop.id === id), false);
-	find('data-test-color-ramp-remove').props.onClick();
+	findAll('data-test-color-ramp-stop')[0].props.onKeydown({ key: 'Delete', preventDefault() {} });
 	await nextTick();
-	assert.equal(find('data-test-color-ramp-remove').props.disabled, true);
+	assert.equal(state.modelValue.stops.length, 1);
+	findAll('data-test-color-ramp-stop')[0].props.onKeydown({ key: 'Delete', preventDefault() {} });
+	await nextTick();
 	assert.equal(state.modelValue.stops.length, 1);
 });
 
@@ -315,7 +437,6 @@ test('synchronizes replacement ramps and selects an existing stop without emitti
 	const { state, events, find } = await fixture(t);
 	state.modelValue = { colorSpace: 'oklab', interpolation: 'constant', stops: [{ id: 'replacement', position: 0.4, color: [1, 0, 0, 1] }] };
 	await nextTick();
-	assert.equal(find('data-test-color-ramp-selection').props.value, 'replacement');
 	assert.equal(find('data-test-color-ramp-position').props.value, 0.4);
 	assert.deepEqual(events, []);
 });
