@@ -13,7 +13,7 @@ export default defineEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['pattern', 'math', 'gimmicky', 'experimental'],
+	tags: ['pattern', 'fractal', 'math', 'gimmicky', 'experimental'],
 	paramDefs: {
 		formula: {
 			dataType: { kind: 'enum', options: ['clifford', 'deJong'] },

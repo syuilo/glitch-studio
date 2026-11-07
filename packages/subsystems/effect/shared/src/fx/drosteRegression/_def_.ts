@@ -9,7 +9,7 @@ export default defineEffect({
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
-	tags: ['distortion', 'gimmicky', 'experimental'],
+	tags: ['distortion', 'fractal', 'gimmicky', 'experimental'],
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

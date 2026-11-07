@@ -9,7 +9,7 @@ export default defineEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['noise', 'utility'],
+	tags: ['fractal', 'noise', 'utility'],
 	paramDefs: {
 		noiseType: {
 			dataType: { kind: 'enum', options: ['value', 'simplex', 'perlin', 'worley', 'flow'] },
