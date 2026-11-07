@@ -14,7 +14,7 @@ export default defineEffect({
 		simulationTime: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Simulation Time', control: { controlType: 'number', min: 0, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: { inputSource: 'literal', value: 3 },
 		},
 		// Angleコントロールはturn単位なので、物理量として公開するradには数値入力を使う。
 		angleCenter1: {
