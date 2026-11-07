@@ -338,6 +338,7 @@
 		"StopLabel": "Stop {index} ({position})",
 		"AddStop": "Add Stop",
 		"RemoveStop": "Remove Stop",
+		"ReverseStops": "Reverse Stops",
 		"Position": "Position",
 		"Interpolation": "Interpolation",
 		"ColorSpace": "Interpolation Color Space",

@@ -338,6 +338,7 @@
 		"StopLabel": "ストップ {index} ({position})",
 		"AddStop": "ストップを追加",
 		"RemoveStop": "ストップを削除",
+		"ReverseStops": "ストップを反転",
 		"Position": "位置",
 		"Interpolation": "補間方法",
 		"ColorSpace": "補間の色空間",

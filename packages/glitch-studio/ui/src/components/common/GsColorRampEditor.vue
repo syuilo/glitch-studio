@@ -30,6 +30,7 @@
 			<GsSelect data-test-color-ramp-selection :modelValue="selectedId" :items="stopChoices" @update:modelValue="selectedId = $event"/>
 			<GsButton v-tooltip="i18n.ts._ColorRamp.AddStop" data-test-color-ramp-add iconOnly icon="ti ti-plus" @click="addStop(0.5)"/>
 			<GsButton v-tooltip="i18n.ts._ColorRamp.RemoveStop" data-test-color-ramp-remove iconOnly danger icon="ti ti-minus" :disabled="modelValue.stops.length <= 1" @click="removeStop"/>
+			<GsButton v-tooltip="i18n.ts._ColorRamp.ReverseStops" data-test-color-ramp-reverse :aria-label="i18n.ts._ColorRamp.ReverseStops" iconOnly icon="ti ti-flip-horizontal" @click="reverseStops"/>
 		</div>
 		<template v-if="selectedStop != null">
 			<GsInput data-test-color-ramp-position type="number" :modelValue="selectedStop.position" :min="0" :max="1" :step="0.01" @update:modelValue="updatePosition($event)">
@@ -183,6 +184,12 @@ function removeStop() {
 	updateRamp({ stops });
 }
 
+function reverseStops() {
+	stopDrag?.();
+	// 保存順とIDを保ち、同位置のstopの優先順位や選択対象を変えずに位置だけを反転する。
+	updateRamp({ stops: props.modelValue.stops.map(stop => ({ ...stop, position: 1 - stop.position })) });
+}
+
 function positionAtPointer(event: MouseEvent) {
 	const bounds = track.value?.getBoundingClientRect();
 	return bounds == null || bounds.width <= 0 ? 0.5 : Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
@@ -304,7 +311,7 @@ onBeforeUnmount(() => stopDrag?.());
 
 .actions {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
+	grid-template-columns: minmax(0, 1fr) auto auto auto;
 	align-items: end;
 	gap: 6px;
 }
