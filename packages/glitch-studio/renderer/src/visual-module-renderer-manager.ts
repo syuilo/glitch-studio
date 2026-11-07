@@ -11,7 +11,7 @@ import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-bindin
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
-import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
+import { VisualModuleRenderer, type VisualModuleRenderContext } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import { browserFrameScheduler, VisualModuleLivePreviewRenderLoop } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 import { canPreserveNodeStaticState } from './project-change-policy.ts';
@@ -109,6 +109,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewParamValues: VisualModuleArgumentBindings = {};
 	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator();
 	private visualModuleLivePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
+	private pendingVisualModuleLivePreviewFrame: VisualModuleRenderContext | null = null;
 	private visualModuleLivePreviewStatusInstanceId: string | null = null;
 	private assetTextures: AssetTextures;
 	private readonly resources: VisualModuleRendererManagerResources;
@@ -294,6 +295,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateDynamicOptions(newOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
 		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
+		if (['resolution', 'resolutionScale', 'visualModules', 'automationGraphs'].some(key => Object.hasOwn(newOptions, key))) {
+			this.pendingVisualModuleLivePreviewFrame = null;
+		}
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
@@ -326,6 +330,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		const effects = customShaderEffects == null ? null : createProjectEffects(customShaderEffects.customShaderEffects, this.builtinEffectDefinitions, this.builtinEffectImplementations);
 		this.dynamicOptions.visualModules = next.visualModules;
 		this.dynamicOptions.automationGraphs = next.automationGraphs;
+		if (relevant.some(change => change.type === 'automationGraphs')) this.pendingVisualModuleLivePreviewFrame = null;
 		if (effects != null) {
 			this.effectDefinitions = effects.definitions;
 			this.effectImplementations = effects.implementations;
@@ -339,6 +344,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		const visualModuleLivePreviewChanges = relevant.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.visualModuleLivePreviewVisualModuleId
 			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.visualModuleLivePreviewVisualModuleId);
 		if (visualModuleLivePreviewChanges.length > 0 && this.visualModuleLivePreviewVisualModuleRenderer != null) {
+			this.pendingVisualModuleLivePreviewFrame = null;
 			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId);
 			if (visualModule == null) this.stopRenderLoop();
 			else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule, {
@@ -348,6 +354,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public updateVisualModuleLivePreviewParamValues(paramValues: VisualModuleArgumentBindings) {
+		this.pendingVisualModuleLivePreviewFrame = null;
 		this.visualModuleLivePreviewParamValues = paramValues;
 	}
 
@@ -388,9 +395,45 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.visualModuleLivePreviewRenderLoop.start();
 	}
 
+	private createVisualModuleLivePreviewRenderContext(timing: VisualModuleLivePreviewFrameTiming): VisualModuleRenderContext {
+		const visualModule = this.dynamicOptions.visualModules.find(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId)!;
+		const evaluatedParamValues = new Map<VisualModulePublicParameterId, any>();
+		for (const def of visualModule.paramDefs) {
+			if (def.dataType.kind === 'audioSource') {
+				const binding = this.visualModuleLivePreviewParamValues[def.id] ?? def.defaultValue;
+				// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
+				// 注入したresolveAudioSourceで取得する。音声の指定はPUBLICへ公開されない。
+				evaluatedParamValues.set(def.id, (binding as { value: unknown }).value);
+				continue;
+			}
+			if (this.visualModuleLivePreviewParamValues[def.id] == null) {
+				evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, def.defaultValue.value)));
+				continue;
+			}
+			evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.visualModuleLivePreviewParamEvaluator.evaluate(this.visualModuleLivePreviewParamValues[def.id], {
+				variables: {
+					TIME: timing.time / 1000,
+					TIME_MS: timing.time,
+				} satisfies Record<typeof VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS[number], unknown>,
+				automationGraphs: this.dynamicOptions.automationGraphs,
+				time: timing.time,
+				endTime: Infinity,
+			}, def.dataType.kind === 'enum' ? null : genEmptyValue(def), def)))); // TODO: genEmptyValueを遅延評価したい
+		}
+		return {
+			evaluatedParamValues,
+			time: timing.time,
+			timeDelta: timing.timeDelta,
+			endTime: Infinity,
+			pointerPosition: { ...this.pointerPosition },
+			pointerPositionPrev: { ...this.pointerPositionPrev },
+			isExport: false,
+		};
+	}
+
 	private renderVisualModuleLivePreviewFrame(timing: VisualModuleLivePreviewFrameTiming) {
 		if (this.visualModuleLivePreviewVisualModuleRenderer == null) return;
-		// 準備待ち・CPU表示待ちでスキップした時間を保持し、描画に進む時点でまとめて消費する。
+		// 準備待ち・CPU表示待ちの時間を保持し、各フレームが評価した分だけ描画時に消費する。
 		this.skippedFrameTimeDelta += timing.timeDelta;
 		this.skippedFrameRealTimeDelta += timing.realTimeDelta;
 		const cpuFrame = this.canvasRenderer.tryReserveCpuPreviewFrame();
@@ -400,47 +443,18 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		}
 		timing = { ...timing, timeDelta: this.skippedFrameTimeDelta, realTimeDelta: this.skippedFrameRealTimeDelta };
 		const generation = ++this.previewRenderGeneration;
-		const visualModule = this.dynamicOptions.visualModules.find(module => module.id === this.visualModuleLivePreviewVisualModuleId)!;
 		try {
-			const evaluatedParamValues = new Map<VisualModulePublicParameterId, any>();
-			for (const def of visualModule.paramDefs) {
-				if (def.dataType.kind === 'audioSource') {
-					const binding = this.visualModuleLivePreviewParamValues[def.id] ?? def.defaultValue;
-					// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
-					// 注入したresolveAudioSourceで取得する。音声の指定はPUBLICへ公開されない。
-					evaluatedParamValues.set(def.id, (binding as { value: unknown }).value);
-					continue;
-				}
-				if (this.visualModuleLivePreviewParamValues[def.id] == null) {
-					evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, def.defaultValue.value)));
-					continue;
-				}
-				evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.visualModuleLivePreviewParamEvaluator.evaluate(this.visualModuleLivePreviewParamValues[def.id], {
-					variables: {
-						TIME: timing.time / 1000,
-						TIME_MS: timing.time,
-					} satisfies Record<typeof VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS[number], unknown>,
-					automationGraphs: this.dynamicOptions.automationGraphs,
-					time: timing.time,
-					endTime: Infinity,
-				}, def.dataType.kind === 'enum' ? null : genEmptyValue(def), def)))); // TODO: genEmptyValueを遅延評価したい
-			}
-
-			const context = {
-				evaluatedParamValues,
-				time: timing.time,
-				timeDelta: timing.timeDelta,
-				endTime: Infinity,
-				pointerPosition: this.pointerPosition,
-				pointerPositionPrev: this.pointerPositionPrev,
-				isExport: false,
-			};
-			// 準備中は描画・履歴更新を行わず、次のフレームで最新の入力と準備状態を確認する。
+			// 毎フレーム最新の時刻や入力でprepareし直すと、Video Frameなどの非同期取得が
+			// 完了する前に次の要求へ置き換わり続ける。評価済みの1フレームを描画まで維持する。
+			const context = this.pendingVisualModuleLivePreviewFrame ??= this.createVisualModuleLivePreviewRenderContext(timing);
 			if (!this.visualModuleLivePreviewVisualModuleRenderer.tryPrepare(context)) {
 				cpuFrame?.cancel();
 				return;
 			}
-			this.skippedFrameTimeDelta = 0;
+			this.pendingVisualModuleLivePreviewFrame = null;
+			// 待機中に進んだ時計は次のフレームへ渡す。古い評価時刻の描画へ加算すると、
+			// 絶対時刻と履歴の積算時間が食い違い、次の描画でも同じ時間を二重に消費する。
+			this.skippedFrameTimeDelta -= context.timeDelta;
 			this.skippedFrameRealTimeDelta = 0;
 
 			const commandEncoder = this.gpuDevice.createCommandEncoder();
@@ -454,7 +468,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				const tex = this.outputTextures.resolve(nodeOutput);
 				this.canvasRenderer.renderToCanvas(tex, commandEncoder);
 
-				this.pointerPositionPrev = { ...this.pointerPosition };
+				this.pointerPositionPrev = { ...context.pointerPosition };
 
 				if (this.staticOptions.enableStats) this.fpsAverage.addSample(1000 / timing.realTimeDelta);
 			} catch (error) {
@@ -492,6 +506,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public resetRenderHistory() {
+		this.pendingVisualModuleLivePreviewFrame = null;
 		this.previewRenderGeneration++;
 		this.visualModuleLivePreviewVisualModuleRenderer?.resetRenderHistory();
 		this.pointerPositionPrev = { ...this.pointerPosition };
@@ -500,6 +515,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public stopRenderLoop() {
+		this.pendingVisualModuleLivePreviewFrame = null;
 		this.skippedFrameTimeDelta = 0;
 		this.skippedFrameRealTimeDelta = 0;
 		this.previewRenderGeneration++;

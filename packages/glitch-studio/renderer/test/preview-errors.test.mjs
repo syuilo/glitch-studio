@@ -629,9 +629,9 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 	});
 }
 
-// 【ライブプレビューは準備中のフレームを同期的にスキップし、準備後は最新の入力で描く】
+// 【ライブプレビューは準備中の入力を維持し、そのフレームを描いてから最新の時刻へ進む】
 // Custom Shader Effectのpipelineは初期化後に完成するため、renderを直接呼ぶと未コンパイルで失敗する。
-// Promiseを保持して旧フレームを再開せず、経過時間だけを引き継いで次のフレームを描画する。
+// 準備中の再評価で要求を置き換えず、待機中の時間・ポインター移動も次の描画へ一度だけ引き継ぐ。
 test('skips Visual Module Live Preview frames synchronously while effects are preparing', async t => {
 	const f = await deferredVisualModuleLivePreview(t);
 	const encoders = t.mock.method(f.renderer.gpuDevice, 'createCommandEncoder');
@@ -642,25 +642,91 @@ test('skips Visual Module Live Preview frames synchronously while effects are pr
 	assert.equal(f.instances[0].renders.length, 0);
 	f.frame(32);
 	f.renderer.updatePointerPosition({ x: 0.25, y: 0.5 });
-	assert.equal(f.instances[0].prepares, 2);
+	assert.equal(f.instances[0].prepares, 1);
 	assert.equal(encoders.mock.callCount(), 0);
 	f.instances[0].args.reportStatus({ type: 'ready' });
 	assert.equal(f.instances[0].renders.length, 0);
 	f.frame(48);
 	assert.equal(f.instances[0].renders.length, 1);
-	assert.equal(f.instances[0].renders[0].timeDelta, 48);
-	assert.equal(f.instances[0].renders[0].time, 0.048);
-	assert.deepEqual(f.renderer.pointerPositionPrev, { x: 0.25, y: 0.5 });
+	assert.equal(f.instances[0].renders[0].timeDelta, 16);
+	assert.equal(f.instances[0].renders[0].time, 0.016);
+	assert.deepEqual(f.renderer.pointerPositionPrev, { x: 0, y: 0 });
 	f.frame(64);
 	assert.equal(f.instances[0].renders.length, 2);
-	assert.equal(f.instances[0].renders[1].timeDelta, 16);
+	assert.equal(f.instances[0].renders[1].timeDelta, 48);
+	assert.equal(f.instances[0].renders[1].time, 0.064);
+	assert.deepEqual(f.renderer.pointerPositionPrev, { x: 0.25, y: 0.5 });
 	f.instances[0].args.reportStatus({ type: 'loading' });
 	f.frame(80);
 	assert.equal(f.instances[0].renders.length, 2);
 	f.instances[0].args.reportStatus({ type: 'ready' });
 	f.frame(96);
 	assert.equal(f.instances[0].renders.length, 3);
-	assert.equal(f.instances[0].renders[2].timeDelta, 32);
+	assert.equal(f.instances[0].renders[2].timeDelta, 16);
+	assert.equal(f.instances[0].renders[2].time, 0.08);
+	f.frame(112);
+	assert.equal(f.instances[0].renders[3].timeDelta, 32);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【時刻に連動する動画の非同期準備が完了したフレームを確実に描画する】
+// 実際のVideo Frame loaderを使い、毎RAFでTIMEが変化しても完了済みの要求を
+// 次の要求で上書きせず、待機時間を含めて次の評価時刻へ追いつくことを確認する。
+test('renders time-driven video frames after asynchronous preparation without starvation', async t => {
+	const f = await fixture(t, { enableWaveformAndHistogram: false });
+	const { createVideoFrameLoader } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/fx/videoFrame/frame-loader.ts')));
+	const requests = [];
+	const rendered = [];
+	f.renderer.effectImplementations.pass = {
+		disableCache: true,
+		outputTextureFactories: { output: ({ resolution }) => f.renderer.gpuDevice.createTexture({ size: resolution }) },
+		init(args) {
+			let sample = null;
+			const loader = createVideoFrameLoader({
+				fileSource: new Blob(),
+				open: () => ({
+					getSample(time) {
+						const request = { time, ...Promise.withResolvers() };
+						requests.push(request);
+						return request.promise;
+					},
+					dispose() {},
+				}),
+				publish(value) { sample = value; },
+				reportStatus: args.reportStatus,
+			});
+			const prepare = params => loader.prepare(params.input.value[0], 'loop');
+			prepare(args.params);
+			return {
+				prepare,
+				render(context) {
+					prepare(context.params);
+					rendered.push({ time: context.time, timeDelta: context.timeDelta, sampleTime: sample?.time ?? null });
+				},
+				dispose() { loader.dispose(); },
+			};
+		},
+	};
+	const definition = visualModule(false);
+	definition.nodes = [
+		{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'expression', expression: '[TIME, 0, 0, 1]' } } },
+		definition.nodes[2],
+	];
+	f.renderer.updateDynamicOptions({ visualModules: [definition] });
+	f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+	f.frame(16); f.frame(32);
+	assert.deepEqual(requests.map(request => request.time), [0.016]);
+	assert.deepEqual(rendered, []);
+	requests[0].resolve({ time: requests[0].time, close() {} });
+	await new Promise(resolve => setImmediate(resolve));
+	f.frame(48);
+	assert.deepEqual(rendered, [{ time: 0.016, timeDelta: 16, sampleTime: 0.016 }]);
+	f.frame(64); f.frame(80);
+	assert.deepEqual(requests.map(request => request.time), [0.016, 0.064]);
+	requests[1].resolve({ time: requests[1].time, close() {} });
+	await new Promise(resolve => setImmediate(resolve));
+	f.frame(96);
+	assert.deepEqual(rendered[1], { time: 0.064, timeDelta: 48, sampleTime: 0.064 });
 	assert.deepEqual(f.errors, []);
 });
 
@@ -678,12 +744,12 @@ test('releases CPU Live Preview capacity when skipping frames during preparation
 	t.after(() => queue.destroy());
 	t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => queue.tryReserveFrame());
 	f.frame(16); f.frame(32); f.frame(48);
-	assert.equal(f.instances[0].prepares, 3);
+	assert.equal(f.instances[0].prepares, 1);
 	assert.equal(readbacks, 0);
 	f.instances[0].args.reportStatus({ type: 'ready' });
 	f.frame(64);
 	assert.equal(f.instances[0].renders.length, 1);
-	assert.equal(f.instances[0].renders[0].timeDelta, 64);
+	assert.equal(f.instances[0].renders[0].timeDelta, 16);
 	assert.equal(readbacks, 1);
 	assert.deepEqual(f.errors, []);
 });
@@ -701,7 +767,7 @@ test('reports Live Preview preparation failures on the next frame without render
 });
 
 // 【準備中に停止・編集しても旧インスタンスの完了では描画を再開しない】
-// 準備完了時のフレーム継続を持たず、次のフレームで現在のインスタンスだけを確認する。
+// 停止・編集時に保留中の評価結果も破棄し、次のフレームで現在のインスタンスだけを確認する。
 for (const operation of ['stop', 'edit']) {
 	test(`ignores obsolete Visual Module Live Preview preparation after ${operation}`, async t => {
 		const f = await deferredVisualModuleLivePreview(t);
@@ -719,7 +785,31 @@ for (const operation of ['stop', 'edit']) {
 		assert.equal(f.instances[1].renders.length, 0);
 		f.frame(48);
 		assert.equal(f.instances[1].renders.length, 1);
-		if (operation === 'edit') assert.equal(f.instances[1].renders[0].timeDelta, 48);
+		if (operation === 'edit') assert.equal(f.instances[1].renders[0].timeDelta, 32);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
+for (const operation of ['parameters', 'resolution', 'history reset']) {
+	// 【引数・解像度・履歴の変更では準備中の古いフレームを破棄する】
+	// 同じcontextを待ち続ける実装でも、明示的な編集やリセット後に変更前の
+	// 時刻・ポインター位置を描画したり、破棄済みの準備状態を使ったりしてはならない。
+	test(`discards the pending Live Preview frame after changing ${operation}`, async t => {
+		const f = await deferredVisualModuleLivePreview(t);
+		f.renderer.updatePointerPosition({ x: 0, y: 0 });
+		f.frame(16);
+		f.renderer.updatePointerPosition({ x: 0.25, y: 0.5 });
+		if (operation === 'parameters') f.renderer.updateVisualModuleLivePreviewParamValues({});
+		else if (operation === 'resolution') f.renderer.updateDynamicOptions({ resolution: { width: 2, height: 2 } });
+		else f.renderer.resetRenderHistory();
+		f.frame(32);
+		const current = f.instances.at(-1);
+		current.args.reportStatus({ type: 'ready' });
+		f.frame(48);
+		assert.equal(current.renders.length, 1);
+		assert.equal(current.renders[0].time, 0.032);
+		assert.equal(current.renders[0].timeDelta, operation === 'history reset' ? 16 : 32);
+		assert.deepEqual(f.renderer.pointerPositionPrev, { x: 0.25, y: 0.5 });
 		assert.deepEqual(f.errors, []);
 	});
 }

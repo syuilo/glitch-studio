@@ -79,6 +79,7 @@ export class VisualModuleRenderer {
 	private resolvedAudioInputs = new Map<string, AudioInput | null>();
 	private resolveAudioSource: ((selection: unknown) => AudioInput | null) | null = null;
 	private preparedContext: VisualModuleRenderContext | null = null;
+	private pendingPreparation: { context: VisualModuleRenderContext; renderers: EffectRenderer[] } | null = null;
 	private preparationVersion = 0;
 	private destroyed = false;
 	private allNodeIdMap: Map<VisualModuleNode['id'], VisualModuleNode> = new Map(); // モジュール内のノードをIDで解決する。
@@ -166,7 +167,6 @@ export class VisualModuleRenderer {
 		this.customParameterValues = visualModule.customParameterValues;
 		// 公開定義と入力寸法を同じスナップショットとして取り込み、仮の寸法で出力を確保しない。
 		if (options.preserveStaticState !== true) this.inputResolutions = new Map(options.inputResolutions ?? this.inputResolutions);
-		this.preparedContext = null;
 		this.paramValues = new Map();
 		this.paramInputs = new Map();
 		this.updateNodes(visualModule.nodes, options.preserveStaticState === true);
@@ -385,8 +385,7 @@ export class VisualModuleRenderer {
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateNodes(newNodes: VisualModuleNode[], preserveStaticState = false) {
 		if (this.destroyed) return;
-		this.preparedContext = null;
-		++this.preparationVersion;
+		this.invalidatePreparation();
 		// 保存済みスナップショットを変更せず、解像度・資源・キャッシュが同じ補完済み設定を使う。
 		this.nodes = newNodes.map(node => node.type === 'effect' ? {
 			...node,
@@ -536,6 +535,12 @@ export class VisualModuleRenderer {
 		});
 	}
 
+	private invalidatePreparation() {
+		this.preparedContext = null;
+		this.pendingPreparation = null;
+		++this.preparationVersion;
+	}
+
 	// 同期の確認と非同期の待機で、入力評価・依存するエフェクトの準備を同じ順序で行う。
 	private prepareEffects(context: VisualModuleRenderContext, signal?: AbortSignal): EffectRenderer[] {
 		this.preparedContext = null;
@@ -570,13 +575,15 @@ export class VisualModuleRenderer {
 		return [...prepared.values()];
 	}
 
-	/** 準備を開始・更新し、全エフェクトが描画可能ならtrueを返す。履歴は進めない。 */
+	/** 同じcontextでは入力評価を維持して準備の完了だけを確認する。履歴は進めない。 */
 	public tryPrepare(context: VisualModuleRenderContext): boolean {
 		if (this.destroyed) return false;
-		this.preparationVersion++;
-		const prepared = this.prepareEffects(context);
+		if (this.pendingPreparation?.context !== context) {
+			this.invalidatePreparation();
+			this.pendingPreparation = { context, renderers: this.prepareEffects(context) };
+		}
 		let ready = true;
-		for (const renderer of prepared) {
+		for (const renderer of this.pendingPreparation.renderers) {
 			// 準備中の枝があっても全て確認し、別の枝の失敗をそのまま通知する。
 			if (!renderer.checkReady()) ready = false;
 		}
@@ -587,7 +594,8 @@ export class VisualModuleRenderer {
 	// 描画せずに初期化・パラメータ変更の準備を行い、履歴を余分に進めない。
 	public async prepare(context: VisualModuleRenderContext, signal: AbortSignal): Promise<void> {
 		if (signal.aborted || this.destroyed) return;
-		const preparationVersion = ++this.preparationVersion;
+		this.invalidatePreparation();
+		const preparationVersion = this.preparationVersion;
 		const prepared = this.prepareEffects(context, signal);
 
 		// 各エフェクトの準備は先に開始し、待機だけをまとめる。失敗時には他の待機も
@@ -621,7 +629,7 @@ export class VisualModuleRenderer {
 		if (this.preparedContext !== context) {
 			this.evaluateParameters(context);
 		}
-		this.preparedContext = null;
+		this.invalidatePreparation();
 
 		this.prepareOutputPorts(node, this.getRequestedOutputIds(context));
 
@@ -651,15 +659,13 @@ export class VisualModuleRenderer {
 			&& this.contextResolution.height === contextResolution.height) return;
 		this.resolutionScale = resolutionScale;
 		this.contextResolution = contextResolution;
-		this.preparedContext = null;
-		++this.preparationVersion;
+		this.invalidatePreparation();
 		this.recreateEffectRenderers();
 	}
 
 	public resetRenderHistory() {
 		if (this.destroyed) return;
-		this.preparedContext = null;
-		++this.preparationVersion;
+		this.invalidatePreparation();
 		for (const [id, renderer] of this.effectRenderers) {
 			const node = this.allNodeIdMap.get(id)!;
 			if (node.type === 'effect' && this.effectDefinitions[node.effectId].dependsOnRenderHistory) renderer.resetRenderHistory();
@@ -670,8 +676,7 @@ export class VisualModuleRenderer {
 
 	public destroy() {
 		this.destroyed = true;
-		this.preparedContext = null;
-		++this.preparationVersion;
+		this.invalidatePreparation();
 		for (const renderer of this.effectRenderers.values()) renderer.dispose();
 		this.effectRenderers.clear();
 		this.effectCacheKeys.clear();
