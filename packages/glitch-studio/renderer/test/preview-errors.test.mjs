@@ -581,6 +581,54 @@ async function deferredVisualModuleLivePreview(t) {
 	return { ...f, instances, definition };
 }
 
+for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
+	// 【Custom Shader Effectの一括更新で描画配置だけを作り直し、GPU・素材・ライブ入力を維持する】
+	// 同じManagerへ定義の追加・変更・削除を反映し、旧配置やTimelineキャッシュを再利用しないことを確認する。
+	test(`${Manager.name} replaces shader definitions and placements while retaining fixed resources`, async t => {
+		const f = await fixture(t, { enableWaveformAndHistogram: false }, Manager);
+		const initial = constantVisualModule();
+		f.renderer.updateDynamicOptions({ visualModules: [initial], ...(Manager === TimelineRendererManager ? { frameCacheMaxBytes: 64 } : {}) });
+		if (Manager === VisualModuleRendererManager) {
+			f.renderer.startVisualModuleLivePreviewRenderLoopFor('module', {}, 'same-preview');
+			f.frame(16);
+		} else await f.renderer.renderTimelineAt(0);
+		const device = f.renderer.gpuDevice;
+		const assets = f.renderer.assetTextures;
+		const disposedAssets = t.mock.method(assets, 'dispose');
+		const destroyedDevice = t.mock.method(device, 'destroy');
+		const previous = Manager === VisualModuleRendererManager ? f.renderer.visualModuleLivePreviewVisualModuleRenderer
+			: f.renderer.timelineRenderer.layers.values().next().value.renderer;
+		const destroyedPlacement = t.mock.method(previous, 'destroy');
+		const updated = structuredClone(initial);
+		updated.paramDefs[0].defaultValue.value = [0, 1, 0, 1];
+		const customShaderEffect = { id: 'shader', name: 'Shader', description: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate',
+			paramDefs: [], outputDefs: [{ id: 'color', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }],
+			primaryInputId: null, primaryOutputId: 'color', resolutionInputIds: [], code: '' };
+		const project = { automationGraphs: [], visualModules: [updated], timelineScenes: f.renderer.dynamicOptions.timelineScenes ?? [] };
+		f.renderer.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [customShaderEffect], project }]);
+		assert.equal(destroyedPlacement.mock.callCount(), 1);
+		assert.equal(f.renderer.effectDefinitions['customShaderEffect:shader'].displayName, 'Shader');
+		assert.equal(f.renderer.effectDefinitions.pass != null, true);
+		assert.equal(f.renderer.dynamicOptions.visualModules[0].paramDefs[0].defaultValue.value[1], 1);
+		if (Manager === VisualModuleRendererManager) {
+			assert.equal(f.renderer.visualModuleLivePreviewStatusInstanceId, 'same-preview');
+			assert.notEqual(f.renderer.visualModuleLivePreviewVisualModuleRenderer, previous);
+			f.frame(32);
+		} else {
+			assert.equal(f.renderer.timelineRenderer.layers.size, 0);
+			assert.equal(f.renderer.frameCache.snapshot().estimatedBytes, 0);
+			await f.renderer.renderTimelineAt(0);
+		}
+		f.renderer.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [], project }]);
+		assert.equal(f.renderer.effectDefinitions['customShaderEffect:shader'], undefined);
+		assert.equal(f.renderer.gpuDevice, device);
+		assert.equal(f.renderer.assetTextures, assets);
+		assert.equal(destroyedDevice.mock.callCount(), 0);
+		assert.equal(disposedAssets.mock.callCount(), 0);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
 // 【ライブプレビューは準備中のフレームを同期的にスキップし、準備後は最新の入力で描く】
 // Custom Shader Effectのpipelineは初期化後に完成するため、renderを直接呼ぶと未コンパイルで失敗する。
 // Promiseを保持して旧フレームを再開せず、経過時間だけを引き継いで次のフレームを描画する。

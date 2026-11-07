@@ -28,9 +28,9 @@ export class RendererProjectSynchronizer {
 			// Assets・Players・プロジェクト解像度・タイムライン描画設定は専用同期経路が扱い、表示名は送らない。
 			// どの通知を描画へ送るかは、状態管理ではなくこの購読側で選ぶ。
 			const targets = changes.filter((change): change is ProjectContentChange =>
-				change.type === 'automationGraphs' || change.type === 'node' || change.type === 'visualModule' || change.type === 'visualModuleRegistration' || change.type === 'layer' || change.type === 'layerTree' || change.type === 'layerOrder' || change.type === 'scene');
+				change.type === 'customShaderEffect' || change.type === 'automationGraphs' || change.type === 'node' || change.type === 'visualModule' || change.type === 'visualModuleRegistration' || change.type === 'layer' || change.type === 'layerTree' || change.type === 'layerOrder' || change.type === 'scene');
 			for (let target of targets) {
-				const key = target.type === 'automationGraphs' ? target.type : target.type === 'node' ? JSON.stringify([target.type, visualModuleTargetKey(target.target), target.nodeId])
+				const key = target.type === 'customShaderEffect' || target.type === 'automationGraphs' ? target.type : target.type === 'node' ? JSON.stringify([target.type, visualModuleTargetKey(target.target), target.nodeId])
 					: target.type === 'visualModule' ? JSON.stringify([target.type, visualModuleTargetKey(target.target)])
 					: target.type === 'visualModuleRegistration' ? JSON.stringify([target.type, target.visualModuleId])
 					: JSON.stringify([target.type, target.sceneId, target.type === 'layer' ? target.layerId : null]);
@@ -48,10 +48,14 @@ export class RendererProjectSynchronizer {
 		});
 	}
 
-	public async flush(): Promise<void> {
-		if (this.disposed || this.pending.size === 0) return this.inFlight;
-		const targets = [...this.pending.values()];
-		this.pending.clear();
+	private createChanges(targets: readonly ProjectContentChange[]): RendererProjectChange[] {
+		if (targets.some(target => target.type === 'customShaderEffect')) {
+			// コマンドが補正した全配置を含め、同じターンの他の編集も最終状態へまとめる。
+			const state = this.manager.state;
+			return [{ type: 'customShaderEffects', customShaderEffects: state.customShaderEffects.value, project: {
+				automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value,
+			} }];
+		}
 		const scenes = new Set(targets.filter(target => target.type === 'scene').map(target => target.sceneId));
 		const layerTrees = new Set(targets.filter(target => target.type === 'layerTree').map(target => target.sceneId));
 		// 追加・削除・置換されたレイヤーでは、内部Moduleもレイヤーの最終状態に含まれる。
@@ -61,6 +65,7 @@ export class RendererProjectSynchronizer {
 		const registeredVisualModuleIds = new Set(targets.filter(target => target.type === 'visualModuleRegistration').map(target => target.visualModuleId));
 		const changes: RendererProjectChange[] = [];
 		for (const target of targets) {
+			if (target.type === 'customShaderEffect') continue;
 			if (target.type === 'automationGraphs') {
 				changes.push({ type: 'automationGraphs', automationGraphs: this.manager.state.automationGraphs.value });
 			} else if (target.type === 'visualModuleRegistration') {
@@ -105,6 +110,14 @@ export class RendererProjectSynchronizer {
 		// 階層を先に反映し、新しい所属先へのノード編集→引数更新→順序の順で適用する。
 		const rank = (change: RendererProjectChange) => change.type === 'layerTree' ? -1 : change.type === 'layerOrder' ? 2 : change.type === 'layer' ? 1 : 0;
 		changes.sort((a, b) => rank(a) - rank(b));
+		return changes;
+	}
+
+	public async flush(): Promise<void> {
+		if (this.disposed || this.pending.size === 0) return this.inFlight;
+		const targets = [...this.pending.values()];
+		this.pending.clear();
+		const changes = this.createChanges(targets);
 		const update = this.destination.apply(deepClone(changes)).then(() => {
 			if (!this.disposed) this.destination.onUpdated();
 		}, error => {

@@ -197,9 +197,11 @@ export class AppContext {
 		});
 		projectContext.stateManager.onChange(changes => {
 			this.renderValidation.update(changes);
-			if (changes.some(change => change.type === 'customShaderEffect')) this.renderEngine.requestRestart();
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
-			if (changes.some(change => ['automationGraphs', 'node', 'visualModule', 'visualModuleRegistration', 'layer', 'layerTree', 'layerOrder', 'scene'].includes(change.type))) {
+			if (changes.some(change => change.type === 'customShaderEffect')) {
+				// 全量更新を起動後に送るため、初期化中でもWorkerを破棄しない。エラー中は従来どおり再生成する。
+				this.renderEngine.requestRetry();
+			} else if (changes.some(change => ['automationGraphs', 'node', 'visualModule', 'visualModuleRegistration', 'layer', 'layerTree', 'layerOrder', 'scene'].includes(change.type))) {
 				this.renderEngine.notifyContentChange();
 			}
 		});
@@ -466,7 +468,7 @@ export class AppContext {
 			apply: changes => this.renderEngine.runRendererUpdate(() => Promise.all([
 				this.visualModuleRendererManagerController.applyProjectChanges(changes),
 				this.timelineRendererManagerController.applyProjectChanges(changes),
-			])),
+			]), { waitForInitialization: changes.some(change => change.type === 'customShaderEffects') }),
 			onUpdated: () => this.previewPlayback.refresh(),
 			onError: error => {
 				if (this.renderEngine.canRender.value) this.renderEngine.fail(error);

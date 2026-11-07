@@ -106,12 +106,14 @@ const appBundle = await build({
 							Object.assign(this.options, options);
 						}
 						async applyProjectChanges(changes) {
-							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
+							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'customShaderEffects' || change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
 								|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
 							if (!patch.length) return;
 							this.patches.push(patch);
 							const next = applyRendererProjectChanges({ automationGraphs: this.options.automationGraphs, visualModules: this.options.visualModules, timelineScenes: this.options.timelineScenes ?? [] }, patch);
 							Object.assign(this.options, this.timeline ? next : { automationGraphs: next.automationGraphs, visualModules: next.visualModules });
+							const shaders = patch.findLast(change => change.type === 'customShaderEffects');
+							if (shaders != null) this.options.customShaderEffects = shaders.customShaderEffects;
 						}
 						startVisualModuleLivePreviewRenderLoopFor() { this.lifecycle.push('start'); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
@@ -553,33 +555,47 @@ test('recreates previews after switching away from invalid visualModuleLivePrevi
 	assert.equal(appContext.timelineRendererManagerController.renders.at(-1), 0);
 });
 
-// 【Custom Shader Effectの適用・Undoごとに、両プレビューを最新定義から作り直す】
-// 素材と同じ寿命で保持する定義を差分だけで変更すると、Workerに古いWGSLや入出力が残る。
-test('recreates both previews from project shader definitions on apply and undo', async t => {
+// 【Custom Shader Effectの通常適用・Undoでは両プレビューを維持し、失敗後の修正では再生成する】
+// AppContextの購読・同期・復旧を通し、定義が最新になることとWorkerの生成回数を同時に確認する。
+test('updates shader definitions in both existing previews and restarts only after failure', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
 	const { appContext } = app;
 	await appContext.ready(project());
+	t.after(() => appContext.previewPlayback.dispose());
+	const controllers = [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController];
+	const initialLifecycles = controllers.map(controller => [...controller.lifecycle]);
 	const manager = appContext.projectContext.stateManager;
 	const customShaderEffect = app.createProjectCustomShaderEffect([]);
 	manager.commit('addCustomShaderEffect', { customShaderEffect });
 	await setImmediate();
-	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+	for (const [index, controller] of controllers.entries()) {
 		assert.equal(controller.options.customShaderEffects[0].code, customShaderEffect.code);
-		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 2);
+		assert.deepEqual(controller.patches.at(-1).map(change => change.type), ['customShaderEffects']);
+		assert.deepEqual(controller.lifecycle, initialLifecycles[index]);
 	}
 	const updated = { ...customShaderEffect, code: 'unfinished WGSL is still saved' };
 	manager.commit('updateCustomShaderEffect', { customShaderEffect: updated });
 	await setImmediate();
 	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
 		assert.equal(controller.options.customShaderEffects[0].code, updated.code);
-		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 3);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
 	}
 	manager.undo();
 	await setImmediate();
 	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
 		assert.equal(controller.options.customShaderEffects[0].code, customShaderEffect.code);
-		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 4);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
+	}
+	appContext.renderEngine.fail(new Error('Shader compilation failed'));
+	assert.ok(controllers.every(controller => controller.isReady.value === false));
+	manager.commit('updateCustomShaderEffect', { customShaderEffect: { ...customShaderEffect, code: 'corrected shader' } });
+	await setImmediate();
+	assert.equal(appContext.renderEngine.errorMessage.value, null);
+	for (const controller of controllers) {
+		assert.equal(controller.isReady.value, true);
+		assert.equal(controller.options.customShaderEffects[0].code, 'corrected shader');
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 2);
 	}
 });
 

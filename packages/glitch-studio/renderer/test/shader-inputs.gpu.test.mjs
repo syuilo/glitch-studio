@@ -114,4 +114,8 @@ test('renders project Custom Shader Effects on WebGPU', { skip: !process.env.CHR
 
 // 【ライブプレビューの入口で準備中のフレームをスキップし、コンパイル後に実画素まで描画する】
 // Renderer.prepareをテスト側で呼ぶだけでは、Managerが準備を省略する不具合を検出できない。
-test('skips Visual Module Live Preview frames during shader compilation', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/custom-shader-effect-gpu.ts', 2, 'runCustomShaderEffectLivePreview'));
+test('skips Visual Module Live Preview frames during shader compilation', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/custom-shader-effect-gpu.ts', 4, 'runCustomShaderEffectLivePreview'));
+
+// 【Timelineも同じManagerとGPUDeviceへ定義を更新し、同一時刻の旧キャッシュを使わない】
+// Layerの主出力を変更しても新しいpipelineへ解決し、更新後の画素が表示されることを確認する。
+test('updates Custom Shader Effects in the existing Timeline manager', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/custom-shader-effect-gpu.ts', 2, 'runCustomShaderEffectTimelineUpdates'));

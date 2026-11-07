@@ -21,6 +21,9 @@ const bundle = await build({
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
 		export { createInlineVisualModuleLayer } from './src/utility/inline-visual-module-layer.ts';
 		export { createCameraTimelineLayer } from './src/utility/camera-timeline-layer.ts';
+		export { createProjectCustomShaderEffect } from './src/utility/custom-shader-effect.ts';
+		export { getEffectDefinitions } from './src/utility/project-effects.ts';
+		export { customShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 		export { createImageLayer } from './src/utility/image-layer.ts';
 	` },
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -35,7 +38,8 @@ const bundle = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', 'console', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, { ...console, log() {} });
 const { ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, definition,
-	createEffectTimelineLayer, createInlineVisualModuleLayer, createImageLayer, createCameraTimelineLayer } = module.exports;
+	createEffectTimelineLayer, createInlineVisualModuleLayer, createImageLayer, createCameraTimelineLayer,
+	createProjectCustomShaderEffect, getEffectDefinitions, customShaderEffectReference } = module.exports;
 
 function fixture(t, count = 1, overrides = {}) {
 	const manager = new ProjectContext().stateManager;
@@ -58,6 +62,52 @@ function fixture(t, count = 1, overrides = {}) {
 	const value = state => state.visualModules[0].nodes[0].params.buzzs.value[0].binding.value.x.value;
 	return { manager, sync, target, batches, errors, value: () => value(replica), get replica() { return replica; } };
 }
+
+// 【Custom Shader Effectの定義と補正済みの全配置を一つの更新で同期する】
+// 定義だけ送ると旧Bindingが残り、配置だけ送ると新しい型・出力へ解決できない。
+// 同じターンの通常編集も全量へ含め、Undo/Redoでも新旧の組み合わせを作らないことを確認する。
+test('synchronizes shader definitions and reconciled placements atomically through undo and redo', async t => {
+	const f = fixture(t);
+	const customShaderEffect = createProjectCustomShaderEffect([]);
+	customShaderEffect.paramDefs.push({ id: 'amount', nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0.25 } });
+	customShaderEffect.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
+	f.manager.commit('addCustomShaderEffect', { customShaderEffect });
+	f.manager.commit('addEffectNode', { visualModuleId: 'module', id: 'shader', effectId: customShaderEffectReference(customShaderEffect.id) });
+	await f.sync.flush();
+	assert.equal(f.batches.length, 1);
+	assert.deepEqual(f.batches[0].map(change => change.type), ['customShaderEffects']);
+	const visualModule = f.manager.state.visualModules.value[0];
+	visualModule.nodes.find(node => node.id === 'shader').params.amount.value = 0.75;
+	visualModule.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: 'shader', outputPort: 'mask' } });
+	const layer = createEffectTimelineLayer(getEffectDefinitions(f.manager.state)[customShaderEffectReference(customShaderEffect.id)], 0);
+	layer.effectParamValues.amount = { inputSource: 'literal', value: 0.8 };
+	const inline = createInlineVisualModuleLayer(0);
+	inline.visualModule = JSON.parse(JSON.stringify(visualModule));
+	f.manager.state.timelineScenes.value[0].layers.push(layer, inline);
+	const updated = structuredClone(customShaderEffect);
+	updated.paramDefs[1] = { ...updated.paramDefs[1], dataType: { kind: 'vector' }, ui: { label: 'Amount', control: {} }, defaultValue: { inputSource: 'literal', value: [0.1, 0.2] } };
+	updated.outputDefs = updated.outputDefs.filter(output => output.id !== 'mask');
+	f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.6 });
+	f.manager.commit('updateCustomShaderEffect', { customShaderEffect: updated });
+	await f.sync.flush();
+	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['customShaderEffects']);
+	assert.equal(f.batches.at(-1)[0].customShaderEffects[0].paramDefs[1].dataType.kind, 'vector');
+	assert.equal(f.value(), 0.6);
+	for (const current of [f.replica.visualModules[0], f.replica.timelineScenes[0].layers[1].visualModule]) {
+		assert.deepEqual(current.nodes.find(node => node.id === 'shader').params.amount.value, [0.1, 0.2]);
+		assert.deepEqual(current.nodes.find(node => node.id === 'relay').input, { nodeId: null, outputPort: null });
+	}
+	assert.deepEqual(f.replica.timelineScenes[0].layers[0].effectParamValues.amount.value, [0.1, 0.2]);
+	f.manager.undo();
+	await f.sync.flush();
+	assert.equal(f.batches.at(-1)[0].customShaderEffects[0].paramDefs[1].dataType.kind, 'scalar');
+	assert.equal(f.replica.visualModules[0].nodes.find(node => node.id === 'shader').params.amount.value, 0.75);
+	assert.equal(f.replica.timelineScenes[0].layers[0].effectParamValues.amount.value, 0.8);
+	f.manager.redo();
+	await f.sync.flush();
+	assert.equal(f.batches.at(-1)[0].customShaderEffects[0].paramDefs[1].dataType.kind, 'vector');
+	assert.deepEqual(f.errors, []);
+});
 
 // 【カスタム値だけの同期でも、同時に行ったノードの構造変更を失わない】
 // 値編集のスナップショットが接続・解像度変更の通知を吸収すると、GPU履歴の破棄範囲を誤る。

@@ -1,7 +1,7 @@
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { ProjectVisualModule } from './types.ts';
+import type { ProjectCustomShaderEffect, ProjectVisualModule } from './types.ts';
 import type { VisualModule, VisualModuleNode, VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleTarget } from './visual-module-target.ts';
@@ -24,6 +24,8 @@ export function getRendererLayerState(layer: TimelineLayer): RendererLayerState 
 }
 
 export type RendererProjectChange =
+	// 入出力の編集で補正した配置も同時に交換し、新旧の定義・Bindingを混在させない。
+	| { type: 'customShaderEffects'; customShaderEffects: ProjectCustomShaderEffect[]; project: RendererProjectState }
 	| { type: 'automationGraphs'; automationGraphs: AutomationGraph[] }
 	| { type: 'node'; target: VisualModuleTarget; node: VisualModuleNode; changes: VisualModuleNodeChange[] }
 	| { type: 'visualModule'; target: VisualModuleTarget; visualModule: VisualModule; customParameterValuesOnly?: boolean }
@@ -57,6 +59,10 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 	};
 	for (const change of changes) {
 		switch (change.type) {
+			case 'customShaderEffects': {
+				({ automationGraphs, visualModules, timelineScenes } = change.project);
+				break;
+			}
 			case 'automationGraphs': automationGraphs = change.automationGraphs; break;
 			case 'visualModuleRegistration': {
 				if (change.visualModule == null) visualModules = visualModules.filter(visualModule => visualModule.id !== change.visualModuleId);

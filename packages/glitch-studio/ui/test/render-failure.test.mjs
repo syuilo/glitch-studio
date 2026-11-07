@@ -76,6 +76,43 @@ test('coalesces static setting restarts and keeps them suspended until explicit 
 	assert.deepEqual(snapshots, [1, 3, 4]);
 });
 
+// 【Custom Shader Effectの全量更新は初期化完了後に同じエンジンへ適用する】
+// 初期スナップショット送信後の編集もWorkerを作り直さず反映する。
+test('applies complete snapshots after initialization without restarting the engine', async () => {
+	const ready = Promise.withResolvers();
+	let created = 0, disposed = 0, applied = 0;
+	const engine = new PreviewRenderEngine({ create: async () => { created++; await ready.promise; }, dispose: () => { disposed++; } });
+	const starting = engine.enable();
+	await Promise.resolve();
+	engine.requestRetry();
+	const update = engine.runRendererUpdate(async () => { applied++; }, { waitForInitialization: true });
+	assert.equal(applied, 0);
+	assert.equal(created, 1);
+	assert.equal(disposed, 0);
+	ready.resolve();
+	await Promise.all([starting, update]);
+	assert.equal(applied, 1);
+	assert.equal(created, 1);
+	assert.equal(disposed, 0);
+	assert.equal(engine.canRender.value, true);
+});
+
+// 【起動を取り消した場合は、その完了を待っていた全量更新も送らない】
+// 素材変更・休止等で破棄されたWorkerへ、遅れて定義を適用して再開してはいけない。
+test('discards complete snapshots waiting for an obsolete initialization', async () => {
+	const ready = Promise.withResolvers();
+	let applied = 0;
+	const engine = new PreviewRenderEngine({ create: () => ready.promise, dispose() {} });
+	const starting = engine.enable();
+	await Promise.resolve();
+	const update = engine.runRendererUpdate(async () => { applied++; }, { waitForInitialization: true });
+	engine.suspend();
+	ready.resolve();
+	await Promise.all([starting, update]);
+	assert.equal(applied, 0);
+	assert.equal(engine.canRender.value, false);
+});
+
 // 【破棄されたWorkerのRPC失敗が遅れて届いても新しいプレビューを停止しない】
 // Worker破棄は未完了RPCをrejectするが、その拒否は複数の非同期呼び出しを経由して届く。
 // 素材準備が先に終わって描画可能に戻った後も、失敗した更新の世代で判定する必要がある。

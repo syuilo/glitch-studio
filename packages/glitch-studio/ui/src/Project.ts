@@ -49,6 +49,7 @@ export type ProjectState = {
 
 // 状態を所有する側の通知契約。通知先やキャッシュ・実行インスタンスの方針には依存しない。
 export type ProjectContentChange =
+	| { type: 'customShaderEffect'; customShaderEffectId: string }
 	| { type: 'automationGraphs' }
 	| { type: 'node'; target: VisualModuleTarget; nodeId: string; changes: VisualModuleNodeChange[] }
 	| { type: 'visualModule'; target: VisualModuleTarget; customParameterValuesOnly?: boolean }
@@ -59,7 +60,6 @@ export type ProjectContentChange =
 	| { type: 'scene'; sceneId: string };
 
 export type AppStateChange = ProjectContentChange
-	| { type: 'customShaderEffect'; customShaderEffectId: string }
 	| { type: 'asset'; assetId: string }
 	| { type: 'player'; playerId: string }
 	| { type: 'projectResolution' }

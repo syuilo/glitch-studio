@@ -11,9 +11,22 @@ import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/l
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { VisualModuleRendererManager } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
+import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import fillDefinition from '@gs/subsystems_effect_shared/fx/fill/_def_.ts';
 import fillImplementation from '@gs/subsystems_effect_shared/fx/fill/_impl_.ts';
+
+async function checkCanvasPixel(device: GPUDevice, canvas: OffscreenCanvas, expected: number[]) {
+	await device.queue.onSubmittedWorkDone();
+	const bitmap = await createImageBitmap(canvas);
+	try {
+		const readback = new OffscreenCanvas(canvas.width, canvas.height).getContext('2d');
+		if (readback == null) throw new Error('Readback canvas unavailable');
+		readback.drawImage(bitmap, 0, 0);
+		const pixel = [...readback.getImageData(0, 0, 1, 1).data];
+		if (pixel.join(',') !== expected.join(',')) throw new Error(`Unexpected preview pixel: ${pixel}, expected ${expected}`);
+	} finally { bitmap.close(); }
+}
 
 /** Rendererを直接prepareせず、実際のライブプレビューと同じフレーム入口から検証する。 */
 export async function runCustomShaderEffectLivePreview() {
@@ -42,7 +55,7 @@ export async function runCustomShaderEffectLivePreview() {
 	const manager = await VisualModuleRendererManager.create({
 		gpuDevice: device, gpuContext, effectDefinitions: { [fillDefinition.id]: fillDefinition }, effectImplementations: { [fillDefinition.id]: fillImplementation },
 	}, { enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [], players: [], customShaderEffects: [customShaderEffect] });
-	const completed = Promise.withResolvers<void>();
+	let completed = Promise.withResolvers<void>();
 	const errors: string[] = [];
 	let started = false;
 	manager.on('ev', event => {
@@ -54,17 +67,71 @@ export async function runCustomShaderEffectLivePreview() {
 		started = true;
 		manager.startVisualModuleLivePreviewRenderLoopFor(visualModule.id);
 		await completed.promise;
-		await device.queue.onSubmittedWorkDone();
-		const bitmap = await createImageBitmap(canvas);
-		try {
-			const readback = new OffscreenCanvas(8, 4).getContext('2d');
-			if (readback == null) throw new Error('Readback canvas unavailable');
-			readback.drawImage(bitmap, 0, 0);
-			const pixel = [...readback.getImageData(0, 0, 1, 1).data];
-			if (pixel.join(',') !== '255,0,255,255') throw new Error(`Unexpected Live Preview pixel: ${pixel}`);
-		} finally { bitmap.close(); }
+		await checkCanvasPixel(device, canvas, [255, 0, 255, 255]);
+		const updated: ProjectCustomShaderEffect = { ...customShaderEffect,
+			paramDefs: [{ ...customShaderEffect.paramDefs[0], id: 'next-source' }], primaryInputId: 'next-source', resolutionInputIds: ['next-source'],
+			outputDefs: [{ ...customShaderEffect.outputDefs[0], id: 'next-color' }], primaryOutputId: 'next-color',
+			code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(0.0, 1.0, 0.0, 1.0); return output; }',
+		};
+		const updatedVisualModule = structuredClone(visualModule);
+		for (const node of updatedVisualModule.nodes) {
+			if (node.type === 'effect' && node.effectId === definition.id) {
+				const source = node.params['source-id'];
+				if (source.inputSource !== 'node') throw new Error('Expected connected shader source');
+				node.params = { 'next-source': { ...source, outputPort: source.nodeId === 'fill' ? 'output' : 'next-color' } };
+			} else if (node.type === 'globalOut') node.inputs.color.outputPort = 'next-color';
+		}
+		completed = Promise.withResolvers<void>();
+		manager.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [updated], project: { automationGraphs: [], visualModules: [updatedVisualModule], timelineScenes: [] } }]);
+		await completed.promise;
+		await checkCanvasPixel(device, canvas, [0, 255, 0, 255]);
+		completed = Promise.withResolvers<void>();
+		manager.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [customShaderEffect], project: { automationGraphs: [], visualModules: [visualModule], timelineScenes: [] } }]);
+		await completed.promise;
+		await checkCanvasPixel(device, canvas, [255, 0, 255, 255]);
 		if (errors.length > 0) throw new Error(errors.join('\n'));
-		return ['Live Preview skips frames during shader compilation', 'Live Preview presents compiled shader pixels'];
+		return ['Live Preview skips frames during shader compilation', 'Live Preview presents compiled shader pixels', 'Live Preview updates code and ports in the existing manager', 'Live Preview restores the previous definition in the existing manager'];
+	} finally { manager.destroy(); }
+}
+
+/** Layerのpipelineとキャッシュも同じGPUDevice上で交換できることを実画素で確認する。 */
+export async function runCustomShaderEffectTimelineUpdates() {
+	const adapter = await navigator.gpu.requestAdapter();
+	if (adapter == null) throw new Error('WebGPU adapter unavailable');
+	const device = await adapter.requestDevice();
+	const canvas = new OffscreenCanvas(8, 4);
+	const gpuContext = canvas.getContext('webgpu');
+	if (gpuContext == null) throw new Error('WebGPU canvas unavailable');
+	const customShaderEffect: ProjectCustomShaderEffect = {
+		id: 'timeline-shader', name: 'Timeline Shader', description: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate',
+		paramDefs: [], outputDefs: [{ id: 'color-id', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }],
+		primaryInputId: null, primaryOutputId: 'color-id', resolutionInputIds: [],
+		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(1.0, 0.0, 1.0, 1.0); return output; }',
+	};
+	const layer: TimelineEffectLayer = {
+		id: 'shader-layer', name: 'Shader Layer', layerType: 'effect', effectId: createCustomShaderEffectDefinition(customShaderEffect, customShaderEffect).id, transformTarget: 'region',
+		isDisabled: false, isSolo: false, color: null, forceDisableMotionBlur: false, mask: null, layerMask: null, isIncludedInComposite: true, coordinateSpace: 'screen',
+		clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], resolution: { mode: 'context', scale: 1 }, automationGraphs: [], effectParamValues: {},
+		compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, parameter]) => [key, structuredClone(parameter.defaultValue)])) as TimelineEffectLayer['compositingParamValues'],
+	};
+	const project = { automationGraphs: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' as const }, layers: [layer] }] };
+	const manager = await TimelineRendererManager.create({ gpuDevice: device, gpuContext, effectDefinitions: {}, effectImplementations: {} }, {
+		enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
+		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 1 },
+	}, { assets: [], customShaderEffects: [customShaderEffect] });
+	const errors: string[] = [];
+	manager.on('ev', event => { if (event.type === 'renderError') errors.push(event.ctx.message); });
+	try {
+		manager.updateDynamicOptions({ ...project, sceneId: 'scene', resolution: { width: 8, height: 4 }, frameCacheMaxBytes: 1024 });
+		await manager.renderTimelineAt(0);
+		await checkCanvasPixel(device, canvas, [255, 0, 255, 255]);
+		const updated = { ...customShaderEffect, primaryOutputId: 'next-color', outputDefs: [{ ...customShaderEffect.outputDefs[0], id: 'next-color' }],
+			code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(0.0, 1.0, 0.0, 1.0); return output; }' };
+		manager.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [updated], project }]);
+		await manager.renderTimelineAt(0);
+		await checkCanvasPixel(device, canvas, [0, 255, 0, 255]);
+		if (errors.length > 0) throw new Error(errors.join('\n'));
+		return ['Timeline presents initial shader pixels', 'Timeline updates shader code and primary output in the existing manager'];
 	} finally { manager.destroy(); }
 }
 

@@ -66,7 +66,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	automationGraphs: AutomationGraph[];
 };
 
-/** 素材・Playerの定義はManagerの寿命中に固定する。フレームや音声の内容は個別に更新できる。 */
+/** 素材・Playerは寿命中に固定する。Custom Shader Effectは初期値で、配置と一括更新できる。 */
 export type VisualModuleRendererManagerResources = { customShaderEffects?: readonly ProjectCustomShaderEffect[]; assets: readonly Asset[]; players: readonly Player[] };
 
 /** Managerが所有するGPU環境と、注入する描画機能。 */
@@ -109,6 +109,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewParamValues: VisualModuleArgumentBindings = {};
 	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator();
 	private visualModuleLivePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
+	private visualModuleLivePreviewStatusInstanceId: string | null = null;
 	private assetTextures: AssetTextures;
 	private readonly resources: VisualModuleRendererManagerResources;
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
@@ -121,6 +122,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
+	private readonly builtinEffectDefinitions: Record<string, EffectDefinition<any>>;
+	private readonly builtinEffectImplementations: Record<string, EffectImplementation<any>>;
 	private gpuAverageFast = new NonNegativeRollingAverage(10);
 	private gpuAverageMedium = new NonNegativeRollingAverage(100);
 	private gpuAverageSlow = new NonNegativeRollingAverage(1000);
@@ -164,6 +167,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.outputTextures = new UniformOrTextureToTextureResolver(this.gpuDevice, this.staticOptions.enable32bitDataTextures);
 		this.gpuContext = coreConfig.gpuContext;
+		this.builtinEffectDefinitions = coreConfig.effectDefinitions;
+		this.builtinEffectImplementations = coreConfig.effectImplementations;
 		const effects = createProjectEffects(resources.customShaderEffects ?? [], coreConfig.effectDefinitions, coreConfig.effectImplementations);
 		this.effectDefinitions = effects.definitions;
 		this.effectImplementations = effects.implementations;
@@ -314,11 +319,23 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const relevant = changes.filter(change => change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
+		const relevant = changes.filter(change => change.type === 'customShaderEffects' || change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
 			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target);
 		const next = applyRendererProjectChanges({ automationGraphs: this.dynamicOptions.automationGraphs, visualModules: this.dynamicOptions.visualModules, timelineScenes: [] }, relevant);
+		const customShaderEffects = relevant.findLast(change => change.type === 'customShaderEffects');
+		const effects = customShaderEffects == null ? null : createProjectEffects(customShaderEffects.customShaderEffects, this.builtinEffectDefinitions, this.builtinEffectImplementations);
 		this.dynamicOptions.visualModules = next.visualModules;
 		this.dynamicOptions.automationGraphs = next.automationGraphs;
+		if (effects != null) {
+			this.effectDefinitions = effects.definitions;
+			this.effectImplementations = effects.implementations;
+			// 全配置を作り直しても、Workerの素材・Player・GPUDeviceは維持する。
+			// 状態通知のIDも維持し、Controllerが新しいインスタンスの通知を受け取れるようにする。
+			if (this.visualModuleLivePreviewVisualModuleId != null && this.visualModuleLivePreviewStatusInstanceId != null) {
+				this.startVisualModuleLivePreviewRenderLoopFor(this.visualModuleLivePreviewVisualModuleId, this.visualModuleLivePreviewParamValues, this.visualModuleLivePreviewStatusInstanceId);
+			}
+			return;
+		}
 		const visualModuleLivePreviewChanges = relevant.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.visualModuleLivePreviewVisualModuleId
 			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.visualModuleLivePreviewVisualModuleId);
 		if (visualModuleLivePreviewChanges.length > 0 && this.visualModuleLivePreviewVisualModuleRenderer != null) {
@@ -345,6 +362,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 		this.visualModuleLivePreviewVisualModuleId = visualModuleId;
 		this.visualModuleLivePreviewParamValues = paramValues;
+		this.visualModuleLivePreviewStatusInstanceId = statusInstanceId;
 		const statusSource: VisualModuleLivePreviewEffectStatusSource = { type: 'visualModuleLivePreview', instanceId: statusInstanceId, visualModuleId };
 		this.visualModuleLivePreviewVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
@@ -488,6 +506,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.canvasRenderer.clear();
 		this.visualModuleLivePreviewRenderLoop.stop();
 		this.visualModuleLivePreviewVisualModuleId = null;
+		this.visualModuleLivePreviewStatusInstanceId = null;
 		this.visualModuleLivePreviewVisualModuleRenderer?.destroy();
 		this.visualModuleLivePreviewVisualModuleRenderer = null;
 	}

@@ -119,7 +119,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	frameCacheMaxBytes: number;
 };
 
-/** 素材一覧はManagerの寿命中に固定し、変更時はManagerを再生成する。 */
+/** 素材は寿命中に固定する。Custom Shader Effectは初期値で、配置と一括更新できる。 */
 export type TimelineRendererManagerResources = { customShaderEffects?: readonly ProjectCustomShaderEffect[]; assets: readonly Asset[] };
 
 /** Managerが所有するGPU環境と、注入する描画機能。 */
@@ -197,6 +197,8 @@ export class TimelineRendererManager extends EventEmitter<{
 	private audioInputs: TimelineAudioInputs;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
+	private readonly builtinEffectDefinitions: Record<string, EffectDefinition<any>>;
+	private readonly builtinEffectImplementations: Record<string, EffectImplementation<any>>;
 	private projectVersions = new ProjectStateVersions();
 	private evaluationScenes: TimelineScene[] = [];
 	private layerActivityBySceneId = new Map<string, TimelineLayerActivityMap>();
@@ -237,6 +239,8 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.gpuContext = coreConfig.gpuContext;
+		this.builtinEffectDefinitions = coreConfig.effectDefinitions;
+		this.builtinEffectImplementations = coreConfig.effectImplementations;
 		const effects = createProjectEffects(resources.customShaderEffects ?? [], coreConfig.effectDefinitions, coreConfig.effectImplementations);
 		this.effectDefinitions = effects.definitions;
 		this.effectImplementations = effects.implementations;
@@ -464,7 +468,9 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = this.dynamicOptions.previewRevision + 1) {
 		const next = applyRendererProjectChanges(this.dynamicOptions, changes);
-		const changesRootScene = changes.some(change => change.type === 'scene' && change.sceneId === this.dynamicOptions.sceneId);
+		const customShaderEffects = changes.findLast(change => change.type === 'customShaderEffects');
+		const effects = customShaderEffects == null ? null : createProjectEffects(customShaderEffects.customShaderEffects, this.builtinEffectDefinitions, this.builtinEffectImplementations);
+		const changesRootScene = customShaderEffects != null || changes.some(change => change.type === 'scene' && change.sceneId === this.dynamicOptions.sceneId);
 		const resolution = changesRootScene ? this.resolveProjectOutputResolution(next) : null;
 		// 差分の検証が成功するまで公開状態を変更しない。編集中の非同期フレームは
 		// 中断するが、履歴とキャッシュの破棄は変更された配置だけが次の評価で行う。
@@ -477,7 +483,12 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.projectVersions.apply(changes, this.dynamicOptions);
 		Object.assign(this.dynamicOptions, next);
 		this.refreshEvaluationScenes();
-		if (changes.some(change => change.type === 'automationGraphs')) this.clearTimelineRenderers();
+		if (effects != null) {
+			this.effectDefinitions = effects.definitions;
+			this.effectImplementations = effects.implementations;
+		}
+		// 定義変更では参照先の探索をせず、全描画インスタンスとキャッシュを再生成する。
+		if (effects != null || changes.some(change => change.type === 'automationGraphs')) this.clearTimelineRenderers();
 		this.dynamicOptions.previewRevision = previewRevision;
 		if (!next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) {
 			this.dynamicOptions.sceneId = null;
