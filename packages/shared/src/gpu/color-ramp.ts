@@ -31,16 +31,19 @@ export function createColorRampBindings(device: GPUDevice, group: number, visibi
 				capacity = required;
 				bindGroup = createBindGroup();
 			}
-			// positionは16byte、補間用の色と端点用のsRGBはそれぞれvec4fで48byte/stop。
+			// positionは位置・区間の開始色相・終了色相・未使用の16byte、
+			// 補間用の色と端点用のsRGBはそれぞれvec4fで48byte/stop。
 			// 端点とConstantでは変換を往復せず、設定した色をそのまま保つ。
 			const values = new Float32Array(required / 4);
 			for (const [index, stop] of prepared.stops.entries()) {
 				values[index * 12] = stop.position;
+				values[index * 12 + 1] = stop.segmentHues?.[0] ?? 0;
+				values[index * 12 + 2] = stop.segmentHues?.[1] ?? 0;
 				values.set(stop.color, index * 12 + 4);
 				values.set(stop.srgbColor, index * 12 + 8);
 			}
 			device.queue.writeBuffer(stops, 0, values);
-			device.queue.writeBuffer(settings, 0, new Uint32Array([prepared.stops.length, ['constant', 'linear', 'smoothstep'].indexOf(prepared.interpolation), ['srgb', 'linearSrgb', 'oklab'].indexOf(prepared.colorSpace), 0]));
+			device.queue.writeBuffer(settings, 0, new Uint32Array([prepared.stops.length, ['constant', 'linear', 'smoothstep'].indexOf(prepared.interpolation), ['srgb', 'linearSrgb', 'oklab', 'oklch'].indexOf(prepared.colorSpace), 0]));
 			previousRamp = rampKey;
 			return bindGroup;
 		},

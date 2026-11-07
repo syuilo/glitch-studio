@@ -340,6 +340,11 @@
 		"Position": "位置",
 		"Interpolation": "補間方法",
 		"ColorSpace": "補間の色空間",
+		"HueInterpolation": "色相の補間経路",
+		"ShorterHue": "短い経路",
+		"LongerHue": "長い経路",
+		"IncreasingHue": "色相の増加方向",
+		"DecreasingHue": "色相の減少方向",
 		"Constant": "一定",
 		"Linear": "線形",
 		"Smoothstep": "Smoothstep"

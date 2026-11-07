@@ -340,6 +340,11 @@
 		"Position": "Position",
 		"Interpolation": "Interpolation",
 		"ColorSpace": "Interpolation Color Space",
+		"HueInterpolation": "Hue Interpolation",
+		"ShorterHue": "Shorter",
+		"LongerHue": "Longer",
+		"IncreasingHue": "Increasing",
+		"DecreasingHue": "Decreasing",
 		"Constant": "Constant",
 		"Linear": "Linear",
 		"Smoothstep": "Smoothstep"

@@ -53,12 +53,28 @@ export async function run() {
 		checks.push(label);
 	}
 	try {
-		for (const colorSpace of ['srgb', 'linearSrgb', 'oklab'] as const) for (const interpolation of ['constant', 'linear', 'smoothstep'] as const) {
+		for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch'] as const) for (const interpolation of ['constant', 'linear', 'smoothstep'] as const) {
 			const ramp: ColorRamp = { colorSpace, interpolation, stops: [
 				{ id: 'start', position: 0, color: [1, 0, 0, 0.8] }, { id: 'middle', position: 0.5, color: [0, 1, 0, 0.3] }, { id: 'end', position: 1, color: [0, 0, 1, 0] },
 			] };
 			await compare(ramp, input, positions, `${colorSpace}/${interpolation}/texture`);
 			await compare(ramp, constantShaderInput('scalar', 0.25), positions.map(() => 0.25), `${colorSpace}/${interpolation}/uniform`);
+		}
+		// 全経路で、alphaの0と微小値・無彩色の区間ごとの色相補完・同色相の一周を
+		// 実際のWGSLで評価する。alpha乗算後のCから無彩色を判定すると透明な有彩色で失敗する。
+		const hueCases: { label: string; colors: ColorRamp['stops'][number]['color'][] }[] = [
+			{ label: 'hue wrap', colors: [[0.7090230868, 0.4824507734, 0.5882349397, 1], [0.7300260394, 0.4811885705, 0.5173839076, 1]] },
+			{ label: 'transparent hue', colors: [[1, 0, 0, 1], [0, 0, 1, 0]] },
+			{ label: 'tiny alpha hue', colors: [[1, 0, 0, 1], [0, 0, 1, 1e-6]] },
+			{ label: 'transparent start', colors: [[0, 0, 1, 0], [1, 0, 0, 1]] },
+			{ label: 'achromatic segments', colors: [[1, 0, 0, 1], [0.5, 0.5, 0.5, 1], [0, 0, 1, 1]] },
+			{ label: 'grayscale', colors: [[0, 0, 0, 1], [1, 1, 1, 1]] },
+			{ label: 'same hue', colors: [[1, 0, 0, 1], [1, 0, 0, 1]] },
+			{ label: 'fully transparent', colors: [[1, 0, 0, 0], [0, 0, 1, 0]] },
+		];
+		for (const hueInterpolation of ['shorter', 'longer', 'increasing', 'decreasing'] as const) for (const { label, colors } of hueCases) {
+			const ramp: ColorRamp = { interpolation: 'linear', colorSpace: 'oklch', hueInterpolation, stops: colors.map((color, index) => ({ id: `stop-${index}`, position: index / (colors.length - 1), color })) };
+			await compare(ramp, input, positions, `oklch/${hueInterpolation}/${label}`);
 		}
 		const ramp = createDefaultColorRamp();
 		for (const value of [-1, 0, 0.5, 1, 2]) await compare(ramp, constantShaderInput('scalar', value), positions.map(() => value), `extension ${value}`);

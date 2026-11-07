@@ -43,6 +43,8 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	const target = { visualModuleId: visualModule.id, nodeId: node.id, paramPath: ['ramp'] };
 	const initial = structuredClone(node.params.ramp);
 	const ramp = createDefaultColorRamp();
+	ramp.colorSpace = 'oklch';
+	ramp.hueInterpolation = 'decreasing';
 	ramp.stops.push({ id: 'middle', position: 0.5, color: [1, 0, 0, 0.5] });
 	history.commit('updateParamAsLiteral', { ...target, value: ramp }, 'drag');
 	ramp.stops[2].position = 0.75;
@@ -52,6 +54,8 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	assert.deepEqual(node.params.ramp, initial);
 	history.redo();
 	assert.equal(node.params.ramp.value.stops[2].position, 0.75);
+	assert.equal(node.params.ramp.value.colorSpace, 'oklch');
+	assert.equal(node.params.ramp.value.hueInterpolation, 'decreasing');
 	const modifier = { enabled: true, code: 'VALUE.colorSpace = "oklab"\nVALUE' };
 	history.commit('updateParamExpressionModifier', { ...target, value: modifier });
 	history.commit('changeParamValueInputSource', { ...target, inputSource: 'expression' });
@@ -89,7 +93,7 @@ async function buildComponent(name) {
 				};
 			` : `import { h } from 'vue'; export default {
 				props: ['modelValue', 'items', 'disabled'], emits: ['update:modelValue', 'click', 'beginChanging', 'changeFinished'],
-				setup(props, { emit, attrs }) { return () => h('div', { ...attrs, value: props.modelValue, disabled: props.disabled,
+				setup(props, { emit, attrs }) { return () => h('div', { ...attrs, value: props.modelValue, items: props.items, disabled: props.disabled,
 					onInput: value => emit('update:modelValue', value), onClick: () => emit('click'),
 				}); },
 			};` }));
@@ -134,6 +138,31 @@ async function fixture(t, component = ColorRampEditor) {
 	await nextTick();
 	return { state, events, find, findAll, unmount };
 }
+
+// 【OKLCHの選択時だけ色相経路を表示し、色空間の切替でもRGBAと経路を保持する】
+// 設定の切替で保存色を再変換せず、式が経路を省略した場合も既定のShorterを表示する。
+test('edits OKLCH hue interpolation without rewriting stop colors', async t => {
+	const { state, find } = await fixture(t);
+	const originalStops = structuredClone(createDefaultColorRamp().stops);
+	const colorSpace = find('data-test-color-ramp-color-space');
+	assert.ok(colorSpace.props.items.some(item => item.value === 'oklch'));
+	assert.equal(find('data-test-color-ramp-hue-interpolation'), undefined);
+	colorSpace.props.onInput('oklch');
+	await nextTick();
+	const hueInterpolation = find('data-test-color-ramp-hue-interpolation');
+	assert.equal(hueInterpolation.props.value, 'shorter');
+	assert.deepEqual(Array.from(hueInterpolation.props.items, item => item.value), ['shorter', 'longer', 'increasing', 'decreasing']);
+	hueInterpolation.props.onInput('increasing');
+	await nextTick();
+	assert.equal(state.modelValue.hueInterpolation, 'increasing');
+	colorSpace.props.onInput('oklab');
+	await nextTick();
+	assert.equal(find('data-test-color-ramp-hue-interpolation'), undefined);
+	colorSpace.props.onInput('oklch');
+	await nextTick();
+	assert.equal(find('data-test-color-ramp-hue-interpolation').props.value, 'increasing');
+	assert.deepEqual(JSON.parse(JSON.stringify(state.modelValue.stops)), originalStops);
+});
 
 // 【ストップを選択するだけでは値を変えず、掴んだ位置からの移動量でドラッグする】
 // ハンドルの中心以外を押しても、移動のないpointerupで位置や履歴を変更しない。

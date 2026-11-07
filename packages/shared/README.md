@@ -13,6 +13,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `src/data-type`: 値の型と、その型に対応する編集UIのメタデータ。UIメタデータは`data-type-ui.ts`に分け、Vueコンポーネントやパラメータの初期値を含めない。
 - `src/spatial-coordinate.ts`: 長辺全体=1の等方的な位置・変位と、内部の各軸[-1,+1]の画像参照座標との換算。Size Referenceによらず空間データの単位を固定する。
 - `src/size-reference.ts`: Height・Width・Short Side・Long Sideを表す`SizeReference`と基準寸法の換算。専用の`sizeReference`型として使用し、パラメータの既定値はLong Side。各パラメータをどのように換算するかは利用側が決める。
+- `src/color-ramp.ts`: Color Rampの値・検証・CPU評価とGPU転送用の準備。sRGB・Linear sRGB・Oklab・OKLCHの補間を扱い、OKLCHの色相経路は区間ごとに準備してGPUと共有する。alphaと色相の規約は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#color-ramp)を参照。
 - `src/parameter`: パラメータ定義・Binding・初期値・ツリー操作・CPU値の評価。`parameter-path.ts`は編集対象を識別するIDパス、`parameter-tree.ts`は評価後の配列をたどるindexのパスを扱う。
 - `src/expression`: AiScriptの構文・ASTキャッシュ・式の実行。変数と関数は呼び出し側から明示し、Visual ModuleやTimelineを参照しない。
 - `src/automation-graph`: グラフの定義・再生設定・補間。`GRAPH`への公開はパラメータ評価器が担当する。

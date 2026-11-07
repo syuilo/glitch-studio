@@ -3,7 +3,9 @@ export type ColorRampStop = { id: string; position: number; color: ColorRampColo
 export type ColorRamp = {
 	stops: ColorRampStop[];
 	interpolation: 'constant' | 'linear' | 'smoothstep';
-	colorSpace: 'srgb' | 'linearSrgb' | 'oklab';
+	colorSpace: 'srgb' | 'linearSrgb' | 'oklab' | 'oklch';
+	/** OKLCHの色相経路。省略時はCSSと同じshorterで、他の色空間には影響しない。 */
+	hueInterpolation?: 'shorter' | 'longer' | 'increasing' | 'decreasing';
 };
 
 export function createDefaultColorRamp(): ColorRamp {
@@ -18,7 +20,8 @@ export function validateColorRamp(value: unknown): asserts value is ColorRamp {
 	if (value == null || typeof value !== 'object') throw new Error('Expected a Color Ramp object');
 	const ramp = value as Record<string, unknown>;
 	if (typeof ramp.interpolation !== 'string' || !['constant', 'linear', 'smoothstep'].includes(ramp.interpolation)) throw new Error('Invalid Color Ramp interpolation');
-	if (typeof ramp.colorSpace !== 'string' || !['srgb', 'linearSrgb', 'oklab'].includes(ramp.colorSpace)) throw new Error('Invalid Color Ramp color space');
+	if (typeof ramp.colorSpace !== 'string' || !['srgb', 'linearSrgb', 'oklab', 'oklch'].includes(ramp.colorSpace)) throw new Error('Invalid Color Ramp color space');
+	if (ramp.hueInterpolation != null && (typeof ramp.hueInterpolation !== 'string' || !['shorter', 'longer', 'increasing', 'decreasing'].includes(ramp.hueInterpolation))) throw new Error('Invalid Color Ramp hue interpolation');
 	if (!Array.isArray(ramp.stops) || ramp.stops.length === 0) throw new Error('Color Ramp requires at least one stop');
 	const ids = new Set<string>();
 	for (const candidate of ramp.stops as unknown[]) {
@@ -45,32 +48,77 @@ function toWorkingColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace
 	const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
 	const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
 	const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-	return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s, color[3]];
+	const lightness = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+	const opponentA = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+	const opponentB = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+	if (colorSpace === 'oklab') return [lightness, opponentA, opponentB, color[3]];
+	const chroma = Math.hypot(opponentA, opponentB);
+	// CSS Color 4のpowerless hueと同じ閾値。グレーの変換誤差に由来する色相を
+	// 補間に混ぜないよう、微小なchromaを0へ揃える。色相は1周を1とする。
+	if (chroma <= 0.000004) return [lightness, 0, 0, color[3]];
+	return [lightness, chroma, (Math.atan2(opponentB, opponentA) / (2 * Math.PI) + 1) % 1, color[3]];
 }
 
 export type PreparedColorRamp = Pick<ColorRamp, 'interpolation' | 'colorSpace'> & {
-	stops: { position: number; color: ColorRampColor; srgbColor: ColorRampColor }[];
+	stops: { position: number; color: ColorRampColor; srgbColor: ColorRampColor; segmentHues: [number, number] | null }[];
 };
+
+/** 区間ごとに色相を補い、CSS Color 4の経路に従って連続した角度へ展開する。 */
+function prepareSegmentHues(left: ColorRampColor, right: ColorRampColor, method: NonNullable<ColorRamp['hueInterpolation']>): [number, number] {
+	// 無彩色は相手の色相を借りる。有彩色のalpha=0は無彩色とは異なり、
+	// 色相を保持する。alphaの0と微小な正値で経路が切り替わらないため。
+	let start = left[1] === 0 ? right[2] : left[2];
+	let end = right[1] === 0 ? start : right[2];
+	const difference = end - start;
+	switch (method) {
+		case 'shorter':
+			if (difference > 0.5) start += 1;
+			else if (difference < -0.5) end += 1;
+			break;
+		case 'longer':
+			if (difference > 0 && difference < 0.5) start += 1;
+			else if (difference > -0.5 && difference <= 0) end += 1;
+			break;
+		case 'increasing':
+			if (end < start) end += 1;
+			break;
+		case 'decreasing':
+			if (start < end) start += 1;
+			break;
+	}
+	return [start, end];
+}
 
 /** UIとGPU転送で共有する。保存順を保ったstable sortで、同位置では後のstopを優先する。 */
 export function prepareColorRamp(ramp: ColorRamp): PreparedColorRamp {
 	validateColorRamp(ramp);
-	return { interpolation: ramp.interpolation, colorSpace: ramp.colorSpace, stops: ramp.stops.map(stop => {
-		const color = toWorkingColor(stop.color, ramp.colorSpace);
+	const stops = ramp.stops.map(stop => ({ position: Math.fround(stop.position), color: toWorkingColor(stop.color, ramp.colorSpace), srgbColor: stop.color })).sort((a, b) => a.position - b.position);
+	return { interpolation: ramp.interpolation, colorSpace: ramp.colorSpace, stops: stops.map((stop, index) => {
+		const color = stop.color;
 		const alpha = color[3];
 		// alpha=0を分岐して、極端なRGBの変換結果によるInfinity * 0を避ける。
 		const working: ColorRampColor = alpha === 0 ? [0, 0, 0, 0] : [color[0] * alpha, color[1] * alpha, color[2] * alpha, alpha];
+		// OKLCHではL・Cだけを乗算する。色相の補間区間はCPUで一度だけ準備し、
+		// GPUでも同じ値を使うことで無彩色・経路・alphaの規則を二重実装しない。
+		const segmentHues = ramp.colorSpace === 'oklch' ? prepareSegmentHues(color, stops[index + 1]?.color ?? color, ramp.hueInterpolation ?? 'shorter') : null;
+		if (ramp.colorSpace === 'oklch') working[2] = color[2];
 		if (!working.every(component => Number.isFinite(Math.fround(component)))) throw new Error('Color Ramp color exceeds GPU float32 range');
-		return { position: Math.fround(stop.position), color: working, srgbColor: [clamp(stop.color[0]) * alpha, clamp(stop.color[1]) * alpha, clamp(stop.color[2]) * alpha, alpha] as ColorRampColor };
-	}).sort((a, b) => a.position - b.position) };
+		const srgbColor = stop.srgbColor;
+		return { position: stop.position, color: working, srgbColor: [clamp(srgbColor[0]) * alpha, clamp(srgbColor[1]) * alpha, clamp(srgbColor[2]) * alpha, alpha] as ColorRampColor, segmentHues };
+	}) };
 }
 
 /** 補間用の乗算済み色を、出力用の乗算済みsRGBへ戻す。GPU側も同じ順序で変換する。 */
 function toOutputColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace']): ColorRampColor {
 	const alpha = color[3];
 	if (alpha <= 0) return [0, 0, 0, 0];
-	let [r, g, b] = color.slice(0, 3).map(component => component / alpha);
-	if (colorSpace === 'oklab') {
+	let [r, g, b] = [color[0] / alpha, color[1] / alpha, colorSpace === 'oklch' ? color[2] : color[2] / alpha];
+	if (colorSpace === 'oklch') {
+		// 色相はalphaを乗算していないため、補間後もそのまま角度へ戻す。
+		const angle = color[2] * 2 * Math.PI;
+		[g, b] = [g * Math.cos(angle), g * Math.sin(angle)];
+	}
+	if (colorSpace === 'oklab' || colorSpace === 'oklch') {
 		const l = (r + 0.3963377774 * g + 0.2158037573 * b) ** 3;
 		const m = (r - 0.1055613458 * g - 0.0638541728 * b) ** 3;
 		const s = (r - 0.0894841775 * g - 1.291485548 * b) ** 3;
@@ -95,5 +143,7 @@ export function evaluatePreparedColorRamp(ramp: PreparedColorRamp, position: num
 	const right = stops[lower];
 	let amount = (position - left.position) / (right.position - left.position);
 	if (ramp.interpolation === 'smoothstep') amount = amount * amount * (3 - 2 * amount);
-	return toOutputColor(left.color.map((component, index) => component + (right.color[index] - component) * amount) as ColorRampColor, ramp.colorSpace);
+	const color = left.color.map((component, index) => component + (right.color[index] - component) * amount) as ColorRampColor;
+	if (left.segmentHues != null) color[2] = left.segmentHues[0] + (left.segmentHues[1] - left.segmentHues[0]) * amount;
+	return toOutputColor(color, ramp.colorSpace);
 }

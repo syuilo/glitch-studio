@@ -35,12 +35,14 @@ test('evaluates complete Color Ramp expressions and modifiers without mutating s
 	const evaluator = new ParameterBindingEvaluator();
 	const ramp = { colorSpace: 'srgb', interpolation: 'linear', stops: [{ id: 'start', position: 0, color: [1, 0, 0, 1] }, { id: 'end', position: 1, color: [0, 0, 1, 1] }] };
 	const definition = { dataType: { kind: 'colorRamp' }, ui: { label: 'Ramp' } };
-	const source = modified(literal(ramp), 'VALUE.colorSpace = "oklab"\nVALUE.stops[0].position = TIME\nVALUE');
+	const source = modified(literal(ramp), 'VALUE.colorSpace = "oklch"\nVALUE.hueInterpolation = "increasing"\nVALUE.stops[0].position = TIME\nVALUE');
 	for (const time of [0.5, 0, 0.5]) {
 		const value = evaluator.evaluate(source, context({ variables: { TIME: time } }), null, definition);
-		assert.equal(value.colorSpace, 'oklab');
+		assert.equal(value.colorSpace, 'oklch');
+		assert.equal(value.hueInterpolation, 'increasing');
 		assert.equal(value.stops[0].position, time);
 		assert.equal(ramp.colorSpace, 'srgb');
+		assert.equal(ramp.hueInterpolation, undefined);
 		assert.equal(ramp.stops[0].position, 0);
 	}
 	const code = '{ colorSpace: "linearSrgb", interpolation: "constant", stops: [{ id: "only", position: 0, color: [TIME, 0, 0, 1] }] }';

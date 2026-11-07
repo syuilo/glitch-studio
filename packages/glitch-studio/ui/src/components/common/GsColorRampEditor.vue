@@ -37,10 +37,19 @@
 		</GsSelect>
 		<GsSelect
 			data-test-color-ramp-color-space :modelValue="modelValue.colorSpace" :items="[
-				{ value: 'srgb', label: 'sRGB' }, { value: 'linearSrgb', label: 'Linear sRGB' }, { value: 'oklab', label: 'Oklab' },
+				{ value: 'srgb', label: 'sRGB' }, { value: 'linearSrgb', label: 'Linear sRGB' }, { value: 'oklab', label: 'Oklab' }, { value: 'oklch', label: 'OKLCH' },
 			]" @update:modelValue="updateRamp({ colorSpace: $event })"
 		>
 			<template #label>{{ i18n.ts._ColorRamp.ColorSpace }}</template>
+		</GsSelect>
+		<GsSelect
+			v-if="modelValue.colorSpace === 'oklch'"
+			data-test-color-ramp-hue-interpolation :modelValue="modelValue.hueInterpolation ?? 'shorter'" :items="[
+				{ value: 'shorter', label: i18n.ts._ColorRamp.ShorterHue }, { value: 'longer', label: i18n.ts._ColorRamp.LongerHue },
+				{ value: 'increasing', label: i18n.ts._ColorRamp.IncreasingHue }, { value: 'decreasing', label: i18n.ts._ColorRamp.DecreasingHue },
+			]" @update:modelValue="updateRamp({ hueInterpolation: $event })"
+		>
+			<template #label>{{ i18n.ts._ColorRamp.HueInterpolation }}</template>
 		</GsSelect>
 	</div>
 </GsModal>

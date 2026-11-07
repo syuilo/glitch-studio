@@ -11,8 +11,15 @@ fn encodeColorRampSrgb(value: vec3f) -> vec3f {
 fn colorRampOutputColor(color: vec4f) -> vec4f {
 	if (color.a <= 0.0) { return vec4f(0.0); }
 	// 非線形の色空間変換は未乗算で行う。変換前後にalphaを戻さないと半透明色が暗くなる。
-	var rgb = color.rgb / color.a;
-	if (colorRampSettings.colorSpace == 2u) {
+	var rgb = vec3f(color.rg / color.a, color.b);
+	if (colorRampSettings.colorSpace == 3u) {
+		// OKLCHの色相にはalphaを乗算しない。L・Cだけを未乗算へ戻し、Labへ変換する。
+		let angle = color.b * 6.283185307179586;
+		rgb = vec3f(rgb.x, rgb.y * cos(angle), rgb.y * sin(angle));
+	} else {
+		rgb.b /= color.a;
+	}
+	if (colorRampSettings.colorSpace == 2u || colorRampSettings.colorSpace == 3u) {
 		let lmsRoot = vec3f(rgb.x + 0.3963377774 * rgb.y + 0.2158037573 * rgb.z,
 			rgb.x - 0.1055613458 * rgb.y - 0.0638541728 * rgb.z,
 			rgb.x - 0.0894841775 * rgb.y - 1.291485548 * rgb.z);
@@ -43,5 +50,10 @@ fn evaluateColorRamp(value: f32) -> vec4f {
 	let right = colorRampStops[lower];
 	var amount = (value - left.position.x) / (right.position.x - left.position.x);
 	if (colorRampSettings.interpolation == 2u) { amount = amount * amount * (3.0 - 2.0 * amount); }
-	return colorRampOutputColor(mix(left.color, right.color, amount));
+	var color = mix(left.color, right.color, amount);
+	if (colorRampSettings.colorSpace == 3u) {
+		// 無彩色の色相補完と経路の展開はCPUで済ませ、区間内では線形補間だけを行う。
+		color.b = mix(left.position.y, left.position.z, amount);
+	}
+	return colorRampOutputColor(color);
 }
