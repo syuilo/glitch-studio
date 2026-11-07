@@ -1143,9 +1143,8 @@ export const COLOR_RAMP_PRESETS: readonly ColorRampPreset[] = [
 		],
 	},
 
-	// 各エフェクトの初期配色。位置・RGBAだけを複製し、エフェクト定義への実行時依存を作らない。
 	{
-		id: 'clifford-de-jong-attractor',
+		id: 'cyan-gold-glow',
 		stops: [
 			{ position: 0, color: [0, 0, 0, 0] },
 			{ position: 0.2, color: [0.1, 0.25, 0.6, 0.6] },
@@ -1154,7 +1153,7 @@ export const COLOR_RAMP_PRESETS: readonly ColorRampPreset[] = [
 		],
 	},
 	{
-		id: 'double-pendulum-fractal',
+		id: 'blue-mint-magenta',
 		stops: [
 			{ position: 0, color: [0.05, 0.15, 0.6, 1] },
 			{ position: 0.5, color: [0.1, 0.9, 0.8, 1] },
@@ -1162,7 +1161,7 @@ export const COLOR_RAMP_PRESETS: readonly ColorRampPreset[] = [
 		],
 	},
 	{
-		id: 'fractal-flame',
+		id: 'neon-prism',
 		stops: [
 			{ position: 0, color: [0.08, 0.15, 0.8, 1] },
 			{ position: 0.35, color: [0.05, 0.9, 1, 1] },
@@ -1171,7 +1170,7 @@ export const COLOR_RAMP_PRESETS: readonly ColorRampPreset[] = [
 		],
 	},
 	{
-		id: 'mandelbrot',
+		id: 'sapphire-amber-cycle',
 		stops: [
 			{ position: 0, color: [0.025, 0.04, 0.14, 1] },
 			{ position: 0.25, color: [0.05, 0.3, 0.85, 1] },
