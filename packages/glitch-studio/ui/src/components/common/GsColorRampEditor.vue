@@ -3,18 +3,27 @@
 	<div class="_shadow _popup" :class="$style.root" data-test-color-ramp-editor tabindex="-1" @keydown.stop="onKeydown">
 		<div :class="$style.header">
 			<b>{{ title ?? i18n.ts._ColorRamp.Title }}</b>
-			<div v-tooltip="i18n.ts.Close" class="_button" :class="$style.close" data-test-color-ramp-close tabindex="0" @click="closeEditor" @keydown.enter.prevent="closeEditor" @keydown.space.prevent="closeEditor"><i class="ti ti-x"></i></div>
+			<button v-tooltip="i18n.ts.Close" class="_button" :class="$style.close" data-test-color-ramp-close tabindex="0" @click="closeEditor" @keydown.enter.prevent="closeEditor" @keydown.space.prevent="closeEditor"><i class="ti ti-x"></i></button>
 		</div>
 		<div ref="track" :class="$style.track" data-test-color-ramp-track @dblclick="addAtPointer">
 			<div style="height: 24px;">
 				<GsColorRampPreview :ramp="modelValue"/>
 			</div>
-			<div
-				v-for="(stop, index) in modelValue.stops" :key="stop.id" v-tooltip="i18n.tsx._ColorRamp.StopLabel({ index: index + 1, position: stop.position })" class="_button" :class="[$style.stop, { [$style.selected]: selectedId === stop.id }]"
-				data-test-color-ramp-stop :data-stop-id="stop.id" :style="{ left: `${stop.position * 100}%`, background: colorCss(stop.color) }"
-				tabindex="0"
-				@pointerdown.stop.prevent="startDrag($event, stop.id)" @dblclick.stop @click="selectedId = stop.id" @focus="selectedId = stop.id" @keydown="onStopKeydown($event, stop.id)"
-			>
+			<div :class="$style.stops">
+				<div
+					v-for="(stop, index) in modelValue.stops"
+					:key="stop.id"
+					:class="[$style.stop, { [$style.selected]: selectedId === stop.id }]"
+					data-test-color-ramp-stop
+					:data-stop-id="stop.id"
+					:style="{ left: `${stop.position * 100}%`, '--color': colorCss(stop.color) }"
+					tabindex="0"
+					@pointerdown.stop.prevent="startDrag($event, stop.id)"
+					@dblclick.stop
+					@click="selectedId = stop.id"
+					@focus="selectedId = stop.id"
+					@keydown="onStopKeydown($event, stop.id)"
+				></div>
 			</div>
 		</div>
 		<div :class="$style.actions">
@@ -173,7 +182,7 @@ onBeforeUnmount(() => stopDrag?.());
 	display: grid;
 	gap: 12px;
 	box-sizing: border-box;
-	width: 360px;
+	width: 400px;
 	max-width: 100vw;
 	max-height: calc(100dvh - 32px);
 	overflow: auto;
@@ -194,27 +203,60 @@ onBeforeUnmount(() => stopDrag?.());
 }
 
 .track {
+	--stopLineHeight: 8px;
+	--stopHandleSize: 20px;
+
 	position: relative;
-	margin: 0 9px 12px;
+	margin: 0 calc(var(--stopHandleSize) / 2);
 	touch-action: none;
+}
+
+.stops {
+	position: relative;
+	height: calc(var(--stopLineHeight) + var(--stopHandleSize));
 }
 
 .stop {
 	position: absolute;
-	top: 18px;
-	width: 16px;
-	height: 20px;
-	border: 2px solid #aaa;
-	border-radius: 3px;
+	top: 0px;
 	transform: translateX(-50%);
-	box-shadow: 0 1px 3px #0008;
 	touch-action: none;
+
+	&:before {
+		content: '';
+		display: block;
+		position: relative;
+		top: 0;
+		left: 50%;
+		width: 1px;
+		height: var(--stopLineHeight);
+		background: #fffa;
+		transform: translateX(-50%);
+	}
+
+	&:after {
+		content: '';
+		display: block;
+		position: relative;
+		width: var(--stopHandleSize);
+		height: var(--stopHandleSize);
+		box-sizing: border-box;
+		background: var(--color);
+		border: 2px solid #fffa;
+		border-radius: 999px;
+	}
 }
 
 .selected {
-	border-color: #fff;
-	outline: 2px solid var(--THEME-accent);
 	z-index: 1;
+
+	&:before {
+		background: var(--THEME-accent);
+	}
+
+	&:after {
+		border-color: var(--THEME-accent);
+	}
 }
 
 .actions {
