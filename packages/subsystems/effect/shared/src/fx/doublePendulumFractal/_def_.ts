@@ -9,7 +9,7 @@ export default defineEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['pattern', 'fractal', 'math', 'gimmicky', 'experimental'],
+	tags: ['pattern', 'fractal', 'simulation', 'math', 'gimmicky', 'experimental'],
 	paramDefs: {
 		simulationTime: {
 			dataType: { kind: 'scalar' },
