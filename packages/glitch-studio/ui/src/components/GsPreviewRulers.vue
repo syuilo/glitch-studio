@@ -1,5 +1,5 @@
 <template>
-<div :class="$style.root" aria-hidden="true" data-test-preview-rulers>
+<div :class="$style.root" class="_monospace" data-test-preview-rulers>
 	<svg :class="$style.xRuler" data-test-preview-x-ruler>
 		<g v-for="tick in ticks.x" :key="tick.coordinate" :class="{ [$style.origin]: tick.coordinate === 0 }" :data-test-preview-ruler-coordinate="tick.coordinate">
 			<line :x1="tick.position" y1="18" :x2="tick.position" y2="24"/>
@@ -38,7 +38,6 @@ function labelPosition(tick: PreviewRulerTick, length: number): number {
 	inset: 0;
 	pointer-events: none;
 	user-select: none;
-	font-family: monospace;
 	font-size: 11px;
 }
 
