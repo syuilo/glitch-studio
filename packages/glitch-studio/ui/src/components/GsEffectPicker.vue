@@ -2,7 +2,7 @@
 <GsModal ref="modal" @opened="searchInput?.focus()" @closed="emit('closed')" @click="close">
 	<div :class="$style.root" class="_shadow _popup">
 		<div :class="$style.header">
-			<GsInput ref="searchInput" v-model="query" large type="search" :placeholder="i18n.ts.Search" :class="$style.searchInput" @keydown.enter.stop.prevent="chooseFirstResult">
+			<GsInput ref="searchInput" v-model="query" data-test-effect-picker-search large type="search" :placeholder="i18n.ts.Search" :class="$style.searchInput" @keydown.enter.stop.prevent="chooseFirstResult">
 				<template #prefix>
 					<i class="ti ti-search"></i>
 				</template>
@@ -20,7 +20,7 @@
 						<div>
 							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.InputType }}</div>
 							<div :class="$style.tags">
-								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" class="_button" :class="[$style.tag, { [$style.selected]: selectedInputType === value }]" @click="selectedInputType = value">
+								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" :data-test-effect-picker-input-type="value ?? 'all'" class="_button" :class="[$style.tag, { [$style.selected]: selectedInputType === value }]" @click="selectedInputType = value">
 									<GsNodePort v-if="value != null" :dataType="{ kind: value }" :class="$style.typePort"/>
 									<span>{{ label }}</span>
 								</button>
@@ -29,7 +29,7 @@
 						<div>
 							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.OutputType }}</div>
 							<div :class="$style.tags">
-								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" class="_button" :class="[$style.tag, { [$style.selected]: selectedOutputType === value }]" @click="selectedOutputType = value">
+								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" :data-test-effect-picker-output-type="value ?? 'all'" class="_button" :class="[$style.tag, { [$style.selected]: selectedOutputType === value }]" @click="selectedOutputType = value">
 									<GsNodePort v-if="value != null" output :dataType="{ kind: value }" :class="$style.typePort"/>
 									<span>{{ label }}</span>
 								</button>
@@ -45,7 +45,7 @@
 							<span>{{ i18n.ts._EffectPicker.All }}</span>
 							<span :class="$style.count">{{ effects.length }}</span>
 						</button>
-						<button v-for="{ tag, count } in tags" :key="tag" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.includes(tag) }]" @click="toggleTag(tag)">
+						<button v-for="{ tag, count } in tags" :key="tag" :data-test-effect-picker-tag="tag" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.includes(tag) }]" @click="toggleTag(tag)">
 							<span>{{ i18n.ts._EffectTags[tag] }}</span>
 							<span :class="$style.count">{{ count }}</span>
 						</button>
@@ -71,8 +71,8 @@
 				<template v-else>
 					<GsFolder defaultOpen asSection>
 						<template #label>{{ i18n.ts.SearchResults }}</template>
-						<div :class="$style.effects">
-							<GsEffectPickerEffect v-for="[key, effect] in results" :key="key" :effect="effect" detailed @click="choose(key, effect)"/>
+						<div data-test-effect-picker-results :class="$style.effects">
+							<GsEffectPickerEffect v-for="[key, effect] in results" :key="key" :data-test-effect-picker-effect="key" :effect="effect" detailed @click="choose(key, effect)"/>
 						</div>
 						<div v-if="results.length === 0">{{ i18n.ts._EffectPicker.NoResults }}</div>
 					</GsFolder>
@@ -98,6 +98,7 @@ import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
+import { createEffectSearchQuery, matchEffectName, compareEffectNameSearchMatches } from '@/utility/effect-search.ts';
 
 const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
 
@@ -115,6 +116,7 @@ const modal = useTemplateRef('modal');
 const searchInput = useTemplateRef('searchInput');
 
 const query = ref('');
+const effectSearchQuery = computed(() => createEffectSearchQuery(query.value));
 const selectedTags = ref<EffectTags[]>([]);
 const selectedInputType = ref<TextureDataType['kind'] | null>(null);
 const selectedOutputType = ref<TextureDataType['kind'] | null>(props.selectedOutputType ?? null);
@@ -146,26 +148,29 @@ const recentEffectKeys = ref(readRecentEffectKeys());
 const recentEffects = computed(() => recentEffectKeys.value.flatMap(key => effects.value.filter(([id]) => id === key)));
 
 const results = computed(() => {
-	const keyword = query.value.toLowerCase();
 	const inputType = selectedInputType.value;
 	const outputType = selectedOutputType.value;
 	return searchableEffects.value.filter(({ effect, inputPorts, outputPorts }) => {
 		// 接続互換性ではなく定義された型で検索する。any型と「指定なし」も区別する。
-		return effect.displayName.toLowerCase().includes(keyword)
-			&& selectedTags.value.every(tag => effect.tags.includes(tag))
+		return selectedTags.value.every(tag => effect.tags.includes(tag))
 			&& (inputType == null || inputPorts.some(port => port.dataType.kind === inputType))
 			&& (outputType == null || outputPorts.some(port => port.dataType.kind === outputType));
-	}).map(item => ({
-		...item,
-		// 両方指定した場合は主入出力の両方が一致、片方が一致、どちらも一致しない順。
-		// 同点では元の登録順を保ち、型が未指定なら従来の並び順を維持する。
-		primaryMatches: Number(item.inputPorts.some(port => port.isPrimary && port.dataType.kind === inputType))
-			+ Number(item.outputPorts.some(port => port.isPrimary && port.dataType.kind === outputType)),
-	})).sort((a, b) => b.primaryMatches - a.primaryMatches)
+	}).flatMap(item => {
+		const nameMatch = matchEffectName(item.effect.displayName, effectSearchQuery.value);
+		if (nameMatch == null) return [];
+		return [{
+			...item,
+			nameMatch,
+			// 検索の一致度が同じ場合、主入出力の両方が一致、片方が一致、どちらも一致しない順。
+			// 空の検索では全候補が同点になり、型が未指定なら元の登録順を維持する。
+			primaryMatches: Number(item.inputPorts.some(port => port.isPrimary && port.dataType.kind === inputType))
+				+ Number(item.outputPorts.some(port => port.isPrimary && port.dataType.kind === outputType)),
+		}];
+	}).sort((a, b) => compareEffectNameSearchMatches(a.nameMatch, b.nameMatch) || b.primaryMatches - a.primaryMatches)
 		.map(({ key, effect }) => [key, effect] as const);
 });
 
-const isInitialView = computed(() => query.value === '' && selectedTags.value.length === 0
+const isInitialView = computed(() => effectSearchQuery.value.terms.length === 0 && selectedTags.value.length === 0
 	&& selectedInputType.value == null && selectedOutputType.value === (props.selectedOutputType ?? null));
 
 const effectSections = computed(() => [
