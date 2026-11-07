@@ -11,8 +11,8 @@ import { build } from 'esbuild';
 // 【TN液晶の光学的な極限条件と、視野角による色・階調変化を実際のWebGPUで確認する】
 // 単一波長の見た目だけでは複屈折・屈折・透過光量の誤りを見落とすため、
 // Malusの法則と一様な複屈折板の解析解に照合し、校正・透明度・GPUキャッシュも検証する。
-test('simulates TN LCD spectral transmission and off-axis grayscale on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 120000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/lcd-viewing-angle-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+test('renders LCD Viewing Angle (Advanced) spectral transmission and off-axis grayscale on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 120000 }, async t => {
+	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/lcd-viewing-angle-advanced-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {
@@ -32,18 +32,18 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		}
 	});
 	const temporaryRoot = resolve(tmpdir());
-	const profile = await mkdtemp(join(temporaryRoot, 'glitch-lcd-viewing-angle-test-'));
+	const profile = await mkdtemp(join(temporaryRoot, 'glitch-lcd-viewing-angle-advanced-test-'));
 	let browser = null;
 	let timer = null;
 	try {
 		await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 		browser = spawn(process.env.CHROME_PATH, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--enable-unsafe-webgpu', `--user-data-dir=${profile}`, `http://127.0.0.1:${server.address().port}`], { windowsHide: true, stdio: 'ignore' });
 		browser.on('error', error => result.resolve({ error: error.message }));
-		timer = setTimeout(() => result.resolve({ error: 'LCD Viewing Angle GPU test timed out' }), 105000);
+		timer = setTimeout(() => result.resolve({ error: 'LCD Viewing Angle (Advanced) GPU test timed out' }), 105000);
 		const output = await result.promise;
 		assert.ok(output.error == null, output.error);
 		assert.ok(output.checks.length >= 20);
-		if (process.env.LCD_VIEWING_ANGLE_PREVIEW != null) await writeFile(process.env.LCD_VIEWING_ANGLE_PREVIEW, Buffer.from(output.preview, 'base64'));
+		if (process.env.LCD_VIEWING_ANGLE_ADVANCED_PREVIEW != null) await writeFile(process.env.LCD_VIEWING_ANGLE_ADVANCED_PREVIEW, Buffer.from(output.preview, 'base64'));
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {
 		clearTimeout(timer);
@@ -56,7 +56,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		await new Promise(resolve => server.close(resolve));
 		// このテストで作った一時プロファイルだけを削除する。実ユーザーのプロファイルへ触れない。
 		assert.equal(dirname(resolve(profile)), temporaryRoot);
-		assert.ok(basename(profile).startsWith('glitch-lcd-viewing-angle-test-'));
+		assert.ok(basename(profile).startsWith('glitch-lcd-viewing-angle-advanced-test-'));
 		await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	}
 });

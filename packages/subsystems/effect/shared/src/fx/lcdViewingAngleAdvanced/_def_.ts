@@ -1,8 +1,8 @@
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
-	id: 'lcdViewingAngle',
-	displayName: 'LCD Viewing Angle',
+	id: 'lcdViewingAngleAdvanced',
+	displayName: 'LCD Viewing Angle (Advanced)',
 	description: {
 		'ja-JP': 'TN型液晶内の分光偏光伝搬を計算し、斜めから見たときの色・コントラスト・階調の変化を再現します。',
 		'en-US': 'Simulates spectral polarization propagation through a TN LCD to reproduce off-axis color, contrast, and grayscale changes.',

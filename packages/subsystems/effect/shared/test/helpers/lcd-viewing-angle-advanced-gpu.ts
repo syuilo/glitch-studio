@@ -1,5 +1,5 @@
-import definition from '../../src/fx/lcdViewingAngle/_def_.ts';
-import implementation from '../../src/fx/lcdViewingAngle/_impl_.ts';
+import definition from '../../src/fx/lcdViewingAngleAdvanced/_def_.ts';
+import implementation from '../../src/fx/lcdViewingAngleAdvanced/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
