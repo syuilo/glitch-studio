@@ -109,7 +109,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '00750e466cda4f1bb501f4a2c42dc0eb',
 												type: 'panel',
-												direction: 'horizontal',
+												direction: 'vertical',
 												contentType: 'preview',
 											},
 										}],
