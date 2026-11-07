@@ -59,7 +59,6 @@ function labelPosition(tick: PreviewRulerTick, length: number): number {
 	left: var(--previewRulerSize);
 	width: calc(100% - var(--previewRulerSize));
 	height: var(--previewRulerSize);
-	border-bottom: 1px solid #ffffff20;
 	box-sizing: border-box;
 }
 
@@ -68,7 +67,6 @@ function labelPosition(tick: PreviewRulerTick, length: number): number {
 	left: 0;
 	width: var(--previewRulerSize);
 	height: calc(100% - var(--previewRulerSize));
-	border-right: 1px solid #ffffff20;
 	box-sizing: border-box;
 }
 
