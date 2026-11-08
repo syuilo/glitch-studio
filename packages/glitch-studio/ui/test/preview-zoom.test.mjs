@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, markRaw, nextTick, ref, shallowRef } from 'vue';
-import { i18nPlugin } from './helpers/i18n.mjs';
+import { i18n, i18nPlugin } from './helpers/i18n.mjs';
 
 // 実際のSFCとCanvasの付け替えを使い、外部のアプリ状態とDOMの寸法測定だけを置き換える。
 // ボタンの接続・表示倍率・DPR変更をまとめて検証し、CSS pxへの換算漏れを検出する。
@@ -313,7 +313,8 @@ test('toggles coordinate rulers through the preview menu independently of the gr
 	const f = await fixture(t);
 	assert.equal(f.find('rulers'), undefined);
 	await f.click('menu');
-	const rulerSwitch = f.menuItems.find(item => item.text === 'Show Coordinate Rulers');
+	const rulerSwitch = f.menuItems.find(item => item.text === i18n.ts._Preview.ShowRulers);
+	assert.ok(rulerSwitch, 'preview menu includes the coordinate ruler switch');
 	assert.equal(rulerSwitch.type, 'switch');
 	assert.equal(rulerSwitch.ref.value, false);
 	rulerSwitch.ref.value = true;
