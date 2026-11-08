@@ -23,7 +23,7 @@
 
 ## 適用するパラメータ
 
-画面基準の寸法・間隔を持つ53エフェクトに適用しています。全てのSize Referenceの既定値をLong Sideに揃えます。
+画面基準の寸法・間隔を持つエフェクトに適用しています。全てのSize Referenceの既定値をLong Sideに揃えます。
 
 - Text / Text Pattern: フォントサイズのSizeを基準寸法へ換算します。輪郭幅・影・字間・行間などのフォントサイズ比は、換算後のサイズへ追従します。TextのMax Widthは引き続き出力幅の比率です。
 - Checker / Grid: パターン用のFit Modeを廃止し、周波数の基準をSize Referenceへ置き換えます。Stretchによる各軸別の基準は使用しません。Frequencyの各成分を異なる値にすると長方形のマスを作れます。Phaseは従来どおり周期単位です。
@@ -32,6 +32,7 @@
 | エフェクト | 基準を適用する設定 |
 | --- | --- |
 | Stripe、Polkadot、Hex Grid、Cell Transform、Cell Repeater | Frequency。パターン用のFit Modeを廃止。Phaseやセルに対する比率は維持 |
+| Cell Sort、Cell Match | Frequencyによるセル寸法。Phaseはセル周期単位 |
 | Pixelate、Block Shuffle、Block Shift Glitch、Bit Plane Corruption、Region Time Shift、Color Blocks、LCD、Symbols | Densityによるセル寸法。画像のFit Modeとは独立 |
 | Noise、Neuro Noise、Mesh Gradient、Metaballs | DensityまたはScaleによる模様の空間的な大きさ。模様内部の比率は維持 |
 | Gradient | 線形勾配の幅・放射状勾配の半径。Start/End Positionは勾配の基準区間に対する値、Centerは共通空間座標。Vector出力は共通座標に対する偏微分 |
