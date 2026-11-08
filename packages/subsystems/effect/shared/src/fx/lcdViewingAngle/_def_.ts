@@ -41,7 +41,7 @@ export default defineEffect({
 		},
 		inversion: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Inversion', isAdvanced: true, control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			ui: { label: 'Inversion', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 		amount: {
