@@ -35,6 +35,55 @@ fn assignmentError(source: u32, destination: u32) -> f32 {
 	return visibility * colorError + alphaDifference * alphaDifference + uniforms.positionBias * dot(displacement, displacement);
 }
 
+var<workgroup> candidateErrors: array<f32, 64>;
+var<workgroup> candidateSources: array<u32, 64>;
+
+fn prefersCandidate(error: f32, source: u32, bestError: f32, bestSource: u32, destination: u32) -> bool {
+	if (error < bestError) { return true; }
+	if (error != bestError) { return false; }
+	// 同点では元位置を優先し、それ以外は上から下・左から右のセル番号で決める。
+	// 並列の集約順や実行順が変わっても同じ参照元を選ぶため、比較順序を全体で揃える。
+	if (source == destination) { return bestSource != destination; }
+	return bestSource != destination && source < bestSource;
+}
+
+@compute @workgroup_size(64)
+fn matchWithReuse(
+	@builtin(workgroup_id) workgroup: vec3u,
+	@builtin(num_workgroups) workgroups: vec3u,
+	@builtin(local_invocation_index) lane: u32,
+) {
+	// 配置先ごとに一つのworkgroupを使い、全候補を64laneへ分担する。
+	// 割当bufferは他の配置先から読まないため、同じ画像片を何度選んでも競合しない。
+	let destination = workgroup.x + workgroup.y * workgroups.x;
+	if (destination >= uniforms.cellCount) { return; }
+	var bestSource = destination;
+	var bestError = assignmentError(destination, destination);
+	for (var source = lane; source < uniforms.cellCount; source += 64u) {
+		let error = assignmentError(source, destination);
+		if (prefersCandidate(error, source, bestError, bestSource, destination)) {
+			bestSource = source;
+			bestError = error;
+		}
+	}
+	candidateErrors[lane] = bestError;
+	candidateSources[lane] = bestSource;
+	workgroupBarrier();
+	for (var stride = 32u; stride > 0u; stride /= 2u) {
+		if (lane < stride) {
+			let error = candidateErrors[lane + stride];
+			let source = candidateSources[lane + stride];
+			if (prefersCandidate(error, source, candidateErrors[lane], candidateSources[lane], destination)) {
+				candidateErrors[lane] = error;
+				candidateSources[lane] = source;
+			}
+		}
+		// 集約先のlaneは次の段で別laneの結果を読むため、全laneで同期する。
+		workgroupBarrier();
+	}
+	if (lane == 0u) { assignments[destination] = candidateSources[0]; }
+}
+
 @compute @workgroup_size(64)
 fn improve(@builtin(global_invocation_id) invocation: vec3u, @builtin(num_workgroups) workgroups: vec3u) {
 	let pairIndex = invocationIndex(invocation, workgroups);

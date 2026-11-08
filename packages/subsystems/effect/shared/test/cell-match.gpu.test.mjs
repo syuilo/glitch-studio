@@ -10,10 +10,10 @@ import process from 'node:process';
 import { setTimeout, clearTimeout } from 'node:timers';
 import { build } from 'esbuild';
 
-// 【参照画像へのセル割当・一対一対応・端の反射・透明度を実際のWebGPUで検証する】
+// 【参照画像への一対一・再利用のセル割当・端の反射・透明度を実際のWebGPUで検証する】
 // 複数dispatchのuniformやstorage bufferの対応は型チェックでは検出できない。
 // 実装をWorkerで実行し、画像片の既知の並びとRGBAを全画素で読み戻す。
-test('matches cells to a reference with bijective assignments mirrored edges and alpha awareness on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
+test('matches cells with one-to-one or reusable assignments mirrored edges and alpha awareness on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
 	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/cell-match-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {

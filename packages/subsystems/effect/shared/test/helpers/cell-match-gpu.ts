@@ -28,7 +28,7 @@ export async function run() {
 	});
 	const defaults: Parameters = {
 		input: constantShaderInput('color', [0, 0, 0, 0]), frequency: [4, 4], phase: [0, 0.5], sizeReference: 'longSide',
-		reference: constantShaderInput('color', [0, 0, 0, 0]), matchBy: 'color', positionBias: 0,
+		reference: constantShaderInput('color', [0, 0, 0, 0]), placementMode: 'oneToOne', matchBy: 'color', positionBias: 0,
 		samplesPerCell: 16, iterations: 128,
 	};
 	const checks: string[] = [];
@@ -246,6 +246,70 @@ export async function run() {
 		compare(await render({ ...base, iterations: 1024 }), expectedFragments, 'iteration buffer capacity grows safely');
 		compare(await render({ ...base, iterations: NaN, samplesPerCell: NaN, positionBias: NaN, phase: [NaN, NaN] }), expectedFragments, 'nonfinite controls use finite defaults');
 		compare(await render(base, 100), expectedFragments, 'time and previous input changes do not affect matching');
+
+		// 【再利用では各配置先の最適セルを独立に選び、細部を保ったまま何度でも配置する】
+		// 同じ画像片を二度使う参照を用い、一対一の交換や平均色の塗りつぶしで代用する実装を防ぐ。
+		const reuseBase: Partial<Parameters> = {
+			...base, placementMode: 'reuse', reference: texture(2, 2, [0.8125, 0.8125, 0.0625, 0.5625].map(value => gray(value))),
+		};
+		const reusedFragments = [
+			0.75, 0.875, 0.75, 0.875,
+			0.75, 0.875, 0.75, 0.875,
+			0, 0.125, 0.5, 0.625,
+			0, 0.125, 0.5, 0.625,
+		].map(value => gray(value));
+		compare(await render(reuseBase), reusedFragments, 'reuse independently selects the best fragment at every destination');
+		compare(await render({ ...reuseBase, iterations: 0 }), reusedFragments, 'reuse searches every candidate even with zero one-to-one iterations');
+		compare(await render({ ...reuseBase, iterations: 1024 }), reusedFragments, 'one-to-one iteration count does not change reusable placement');
+		compare(await render({ ...base, placementMode: 'oneToOne' }), expectedFragments, 'switching from reuse restores bijective placement');
+		compare(await render(reuseBase, 100), reusedFragments, 'reusable placement is independent of previous modes and time');
+		compare(await render({ ...reuseBase, frequency: [1, 1], phase: [0.5, 0.5] }), fragmentPixels, 'reuse with a single cell retains the original image');
+
+		// 【再利用でも同点の元セルを優先し、他の候補はセル番号で安定させる】
+		// 平均色が同じで細部だけが異なる画像片を使い、集約laneの順序に依存した選択を検出する。
+		compare(await edgeRender({
+			input: texture(6, 2, rowImage([0, 1, 0.875, 0.875, 1, 0])), reference: constantShaderInput('color', [0.5, 0.5, 0.5, 1]),
+			placementMode: 'reuse', frequency: [3, 3], phase: [0.5, 0.5],
+		}), rowImage([0, 1, 0, 1, 1, 0]), 'reuse prefers original ties then the lowest candidate index');
+		compare(await render({ ...base, reference: input, placementMode: 'reuse' }), fragmentPixels, 'reuse with self reference preserves original fragments');
+
+		// 【再利用でも色・輝度・位置の重みを同じ基準で評価する】
+		// 一対一方式の候補評価を共用し、方式の切替で一部の設定だけが無視される不具合を防ぐ。
+		compare(await pairRender({ ...pairBase, placementMode: 'reuse' }), [red, green], 'reuse evaluates average RGB differences');
+		compare(await pairRender({ ...pairBase, placementMode: 'reuse', matchBy: 'luminance' }), [green, red], 'reuse evaluates average luminance differences');
+		const uniformWhiteReference = constantShaderInput('color', [1, 1, 1, 1]);
+		compare(await pairRender({ ...positionBase, placementMode: 'reuse', reference: uniformWhiteReference }), [gray(1), gray(1)], 'reuse can choose the same source for a uniform reference');
+		compare(await pairRender({ ...positionBase, placementMode: 'reuse', reference: uniformWhiteReference, positionBias: 10 }), [gray(0), gray(1)], 'reuse honors the original position bias');
+
+		// 【再利用は透明セルも繰り返せ、セル内の透明画素をそのまま保持する】
+		// RGBの代表色だけで透明セルを黒と取り違えたり、複製時にalphaを二重乗算する処理を検出する。
+		const reusedAlpha = [alphaPixels[2], alphaPixels[2], alphaPixels[1]];
+		compare(await alphaRender({
+			input: texture(3, 1, alphaPixels), reference: texture(3, 1, reusedAlpha), placementMode: 'reuse', frequency: [3, 3], phase: [0.5, 0.5],
+		}), reusedAlpha, 'reuse selects opaque and fully transparent fragments by alpha');
+		compare(await meanRender({
+			...meanBase, placementMode: 'reuse',
+			input: texture(4, 2, Array.from({ length: 2 }, () => [gray(0.5), gray(0.5), gray(1), gray(0, 0)]).flat()),
+			reference: constantShaderInput('color', [1, 1, 1, 0.5]),
+		}), Array.from({ length: 2 }, () => [gray(1), gray(0, 0), gray(1), gray(0, 0)]).flat(), 'reuse preserves transparent pixels inside repeated fragments');
+		compare(await render({ ...reuseBase, input: constantInput }), constantPixels, 'reuse supports constant color inputs');
+
+		// 【再利用する端セルも反射した本来の寸法を保ち、副入力も同じ領域で解析する】
+		// 欠けた端を拡大して配置したり、副入力だけ接続のrepeatで読む実装を防ぐ。
+		compare(await edgeRender({
+			...edgeBase, placementMode: 'reuse', reference: constantShaderInput('color', [0.0625, 0.0625, 0.0625, 1]),
+		}), rowImage([0, 0.0625, 0.0625, 0.125, 0, 0.0625]), 'reused edge fragments retain mirrored hidden parts without stretching');
+		compare(await edgeRender({
+			...edgeBase, placementMode: 'reuse', reference: texture(6, 2, rowImage([1, 0, 0, 0.25, 0.25, 0]), { wrapMode: 'repeat' }),
+		}), rowImage(edgeRow), 'reuse analyzes mirrored reference edges');
+
+		// 【64laneを超える候補と非2冪のセル数でも、全候補から最小誤差を選ぶ】
+		// 131番目の候補だけが一致する参照で、先頭64件だけを探す打ち切りや集約の端処理を検出する。
+		compare(await longRender({
+			...longBase, placementMode: 'reuse', reference: constantShaderInput('color', [130 / 256, 130 / 256, 130 / 256, 1]),
+		}), Array.from({ length: longPixels.length }, () => gray(130 / 256)), 'reuse searches candidates beyond the first two lane batches');
+		const scaledReusedFragments = Array.from({ length: 8 }, (_, y) => Array.from({ length: 8 }, (_, x) => reusedFragments[Math.floor(y / 2) * 4 + Math.floor(x / 2)])).flat();
+		compare(await scaledRender(reuseBase), scaledReusedFragments, 'reusable placement is resolution independent');
 
 		// 【GPU上限を超える格子は精度を落とさず拒否する】
 		// プレビューと書き出しでセル数が変わる自動間引きや、不正なbuffer確保を防ぐ。

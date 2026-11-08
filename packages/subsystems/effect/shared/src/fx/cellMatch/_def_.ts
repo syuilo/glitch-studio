@@ -4,8 +4,8 @@ export default defineEffect({
 	id: 'cellMatch',
 	displayName: 'Cell Match',
 	description: {
-		'ja-JP': '主入力をセルに分割し、副入力の平均色や明暗に近づくように画像片を一度ずつ使って並べ替えます。',
-		'en-US': 'Rearranges cells from the input to resemble the reference, using every image fragment exactly once.',
+		'ja-JP': '主入力をセルに分割し、副入力の平均色や明暗に近づくように画像片を配置します。セルの再利用も選択できます。',
+		'en-US': 'Places image fragments from the input to resemble the reference, with optional cell reuse.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
@@ -35,6 +35,11 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		placementMode: {
+			dataType: { kind: 'enum', options: ['oneToOne', 'reuse'] },
+			ui: { label: 'Placement Mode', control: { labels: { oneToOne: 'One-to-One', reuse: 'Allow Reuse' } } },
+			defaultValue: { inputSource: 'literal', value: 'oneToOne' },
+		},
 		matchBy: {
 			dataType: { kind: 'enum', options: ['color', 'luminance'] },
 			ui: { label: 'Match By', control: { labels: { color: 'Average Color', luminance: 'Average Luminance' } } },
@@ -52,7 +57,7 @@ export default defineEffect({
 		},
 		iterations: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Iterations', control: { controlType: 'range', min: 0, max: 1024, step: 1 } },
+			ui: { label: 'One-to-One Iterations', control: { controlType: 'range', min: 0, max: 1024, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 128 },
 		},
 	},

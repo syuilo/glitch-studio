@@ -44,6 +44,7 @@ export default implementEffect<typeof definition>({
 		const matchPipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [matchLayout] });
 		const initialize = device.createComputePipeline({ layout: matchPipelineLayout, compute: { module: matchModule, entryPoint: 'initialize' } });
 		const improve = device.createComputePipeline({ layout: matchPipelineLayout, compute: { module: matchModule, entryPoint: 'improve' } });
+		const matchWithReuse = device.createComputePipeline({ layout: matchPipelineLayout, compute: { module: matchModule, entryPoint: 'matchWithReuse' } });
 		const createVariant = (inputs: Inputs) => {
 			const generated = generateShaderInputs(inputSchema, inputs, 1, 'level0');
 			const bindings = createShaderInputBindings(device, generated);
@@ -97,7 +98,8 @@ export default implementEffect<typeof definition>({
 			// 統計32byte/セルと割当4byte/セル。解像度に応じて格子や解析精度を間引かない。
 			if (!Number.isSafeInteger(cellCount) || columns < 1 || rows < 1 || cellCount * 32 > storageLimit
 				|| participantCount > 0xffffffff || Math.ceil(columns / 8) > dispatchLimit || Math.ceil(rows / 8) > dispatchLimit
-				|| Math.ceil(cellCount / 64) > dispatchLimit ** 2 || Math.ceil(participantCount / 128) > dispatchLimit ** 2) {
+				|| Math.ceil(cellCount / 64) > dispatchLimit ** 2 || Math.ceil(participantCount / 128) > dispatchLimit ** 2
+				|| (params.placementMode === 'reuse' && cellCount > dispatchLimit ** 2)) {
 				throw new Error('Cell Match: cell grid exceeds GPU resource limits. Decrease Frequency or change Size Reference.');
 			}
 			return {
@@ -139,17 +141,19 @@ export default implementEffect<typeof definition>({
 				throw error;
 			}
 		};
-		const dispatchLinear = (compute: GPUComputePassEncoder, count: number) => {
-			const workgroups = Math.ceil(count / 64);
-			const columns = Math.min(workgroups, device.limits.maxComputeWorkgroupsPerDimension);
-			compute.dispatchWorkgroups(columns, Math.ceil(workgroups / columns));
+		const dispatchWorkgroupsLinear = (compute: GPUComputePassEncoder, workgroupCount: number) => {
+			const columns = Math.min(workgroupCount, device.limits.maxComputeWorkgroupsPerDimension);
+			compute.dispatchWorkgroups(columns, Math.ceil(workgroupCount / columns));
 		};
 		let resources: ReturnType<typeof createResources> | null = null;
 		return {
 			render: ctx => {
 				const params = ctx.params;
 				const grid = getGrid(params);
-				const iterations = grid.cellCount === 1 ? 0 : Number.isFinite(params.iterations) ? Math.min(1024, Math.max(0, Math.round(params.iterations))) : 128;
+				const allowReuse = params.placementMode === 'reuse';
+				// 再利用では全候補から直接選ぶため、一対一方式の反復用uniformも確保しない。
+				const iterations = allowReuse || grid.cellCount === 1 ? 0 : Number.isFinite(params.iterations) ? Math.min(1024, Math.max(0, Math.round(params.iterations))) : 128;
+				const needsAnalysis = grid.cellCount > 1 && (allowReuse || iterations > 0);
 				if (resources == null || resources.columns !== grid.columns || resources.rows !== grid.rows || resources.iterationsCapacity < iterations) {
 					const nextResources = createResources(grid, iterations);
 					resources?.dispose();
@@ -187,19 +191,24 @@ export default implementEffect<typeof definition>({
 				const variant = getVariant(inputs);
 				const inputGroup = variant.bindings.update(inputs, ctx.outputDataMap.output.texture);
 				const compute = ctx.createComputePassEncoder(ctx.commandEncoder);
-				if (iterations > 0) {
+				if (needsAnalysis) {
 					compute.setPipeline(variant.analyze);
 					compute.setBindGroup(0, resources.analyzeGroup);
 					compute.setBindGroup(1, inputGroup);
 					compute.dispatchWorkgroups(Math.ceil(grid.columns / 8), Math.ceil(grid.rows / 8));
 				}
-				compute.setPipeline(initialize);
 				compute.setBindGroup(0, resources.matchGroup, [0]);
-				dispatchLinear(compute, grid.cellCount);
-				compute.setPipeline(improve);
-				for (let iteration = 0; iteration < iterations; iteration++) {
-					compute.setBindGroup(0, resources.matchGroup, [(iteration + 1) * uniformStride]);
-					dispatchLinear(compute, grid.participantCount / 2);
+				if (allowReuse && grid.cellCount > 1) {
+					compute.setPipeline(matchWithReuse);
+					dispatchWorkgroupsLinear(compute, grid.cellCount);
+				} else {
+					compute.setPipeline(initialize);
+					dispatchWorkgroupsLinear(compute, Math.ceil(grid.cellCount / 64));
+					compute.setPipeline(improve);
+					for (let iteration = 0; iteration < iterations; iteration++) {
+						compute.setBindGroup(0, resources.matchGroup, [(iteration + 1) * uniformStride]);
+						dispatchWorkgroupsLinear(compute, Math.ceil(grid.participantCount / 128));
+					}
 				}
 				compute.end();
 				const output = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
