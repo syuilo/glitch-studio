@@ -2,10 +2,10 @@ import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import type { EffectOutputData } from '../../effect-implementation.ts';
 import { MAXIMUM_MAGNET_COUNT } from './_def_.ts';
-import type definition from './_def_.ts';
 import code from './shader.wgsl?raw';
+import type { EffectOutputData } from '../../effect-implementation.ts';
+import type definition from './_def_.ts';
 
 // 公開座標の0.25を内部モデルの長さ1に対応させる。磁石の既定配置を半径1で計算しつつ、
 // UIの位置・高さ・速度は他のエフェクトと同じ長辺全体=1の共通単位で扱う。
@@ -59,6 +59,7 @@ export default implementEffect<typeof definition>({
 			{ binding: 1, resource: { buffer: magnetBuffer } },
 			{ binding: 2, resource: { buffer: basinValueBuffer } },
 		] });
+
 		function createPipelines(outputs: (EffectOutputData | null)[]) {
 			return createShaderInputPipeline({
 				device,
@@ -78,6 +79,7 @@ export default implementEffect<typeof definition>({
 				sampling: 'level0',
 			});
 		}
+
 		const pipelinesByOutputs = new Map<number, ReturnType<typeof createPipelines>>();
 		const spatialHalfExtent = getSpatialHalfExtent(resolution);
 		return {

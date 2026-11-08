@@ -3,9 +3,9 @@ import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { implementEffect } from '../../effect-implementation.ts';
+import code from './shader.wgsl?raw';
 import type { EffectOutputData } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
-import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -63,6 +63,7 @@ export default implementEffect<typeof definition>({
 				sampling: 'level0',
 			});
 		}
+
 		const pipelinesByOutputsAndColoring = new Map<number, ReturnType<typeof createPipelines>>();
 
 		return {

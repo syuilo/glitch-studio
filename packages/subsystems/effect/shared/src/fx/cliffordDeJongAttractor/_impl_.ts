@@ -3,10 +3,10 @@ import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { MAXIMUM_ORBIT_COUNT, MAXIMUM_ITERATIONS, MAXIMUM_BURN_IN } from './_def_.ts';
-import type definition from './_def_.ts';
 import commonCode from './common.wgsl?raw';
 import accumulateCode from './accumulate.wgsl?raw';
 import renderCode from './render.wgsl?raw';
+import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -52,6 +52,7 @@ export default implementEffect<typeof definition>({
 			{ format: wgpu.intermediateTextureFormat },
 			{ format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' },
 		]);
+
 		function createHistogramResources(size: number) {
 			const byteLength = size * size * Uint32Array.BYTES_PER_ELEMENT;
 			if (!Number.isSafeInteger(byteLength) || byteLength > Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize)) {
@@ -66,6 +67,7 @@ export default implementEffect<typeof definition>({
 				renderGroup: device.createBindGroup({ layout: renderLayout, entries }),
 			};
 		}
+
 		let histogram = createHistogramResources(Number(params.densityResolution));
 		let previousHistogramKey: string | null = null;
 		return {
