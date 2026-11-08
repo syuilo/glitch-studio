@@ -9,9 +9,10 @@ struct Uniforms {
 	matchBy: u32,
 	positionBias: f32,
 	matchRound: u32,
+	regionGridSize: u32,
 };
 
-struct CellStatistics {
+struct CellRegionStatistics {
 	inputColor: vec4f,
 	referenceColor: vec4f,
 };
@@ -24,4 +25,8 @@ fn cellCoordinates(index: u32) -> vec2u {
 
 fn cellOffset(cell: vec2u) -> u32 {
 	return cell.y * uniforms.gridSize.x + cell.x;
+}
+
+fn cellRegionOffset(cellIndex: u32, regionIndex: u32) -> u32 {
+	return cellIndex * uniforms.regionGridSize * uniforms.regionGridSize + regionIndex;
 }

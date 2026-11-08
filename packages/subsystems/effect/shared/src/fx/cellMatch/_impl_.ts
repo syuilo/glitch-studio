@@ -93,10 +93,13 @@ export default implementEffect<typeof definition>({
 			const rows = lastRow - firstRow;
 			const cellCount = columns * rows;
 			const participantCount = 2 ** Math.ceil(Math.log2(Math.max(2, cellCount)));
+			const regionGridSize = params.matchBy === 'structure' ? (params.structureGrid === '4x4' ? 4 : 2) : 1;
+			const statisticsBytes = cellCount * regionGridSize ** 2 * 32;
 			const storageLimit = Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize);
 			const dispatchLimit = device.limits.maxComputeWorkgroupsPerDimension;
-			// 統計32byte/セルと割当4byte/セル。解像度に応じて格子や解析精度を間引かない。
-			if (!Number.isSafeInteger(cellCount) || columns < 1 || rows < 1 || cellCount * 32 > storageLimit
+			// 統計32byte/領域と割当4byte/セル。構造比較の領域数も容量制限へ含め、
+			// 解像度やGPU上限に応じて格子・解析精度を自動で間引かない。
+			if (!Number.isSafeInteger(cellCount) || columns < 1 || rows < 1 || statisticsBytes > storageLimit
 				|| participantCount > 0xffffffff || Math.ceil(columns / 8) > dispatchLimit || Math.ceil(rows / 8) > dispatchLimit
 				|| Math.ceil(cellCount / 64) > dispatchLimit ** 2 || Math.ceil(participantCount / 128) > dispatchLimit ** 2
 				|| (params.placementMode === 'reuse' && cellCount > dispatchLimit ** 2)) {
@@ -107,6 +110,8 @@ export default implementEffect<typeof definition>({
 				rows,
 				cellCount,
 				participantCount,
+				regionGridSize,
+				statisticsBytes,
 				cellSize: [cellPixels[0] / resolution.width, cellPixels[1] / resolution.height],
 				// 格子は中央原点・+Yが上。bufferの行と画像参照だけを上から下へ並べる。
 				origin: [(firstColumn - phase[0]) / horizontalPeriods + 0.5, 0.5 - (lastRow - phase[1]) / verticalPeriods],
@@ -115,7 +120,7 @@ export default implementEffect<typeof definition>({
 		const createResources = (grid: ReturnType<typeof getGrid>, iterationsCapacity: number) => {
 			const uniformBytes = new Uint8Array(uniformStride * (iterationsCapacity + 1));
 			const uniformBuffer = device.createBuffer({ size: uniformBytes.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-			const statistics = device.createBuffer({ size: grid.cellCount * 32, usage: GPUBufferUsage.STORAGE });
+			const statistics = device.createBuffer({ size: grid.statisticsBytes, usage: GPUBufferUsage.STORAGE });
 			const assignments = device.createBuffer({ size: grid.cellCount * 4, usage: GPUBufferUsage.STORAGE });
 			const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer, size: uniformSize } };
 			const statisticsEntry = { binding: 1, resource: { buffer: statistics } };
@@ -128,6 +133,7 @@ export default implementEffect<typeof definition>({
 				return {
 					columns: grid.columns,
 					rows: grid.rows,
+					regionGridSize: grid.regionGridSize,
 					iterationsCapacity,
 					uniformBuffer,
 					uniformBytes,
@@ -154,7 +160,8 @@ export default implementEffect<typeof definition>({
 				// 再利用では全候補から直接選ぶため、一対一方式の反復用uniformも確保しない。
 				const iterations = allowReuse || grid.cellCount === 1 ? 0 : Number.isFinite(params.iterations) ? Math.min(1024, Math.max(0, Math.round(params.iterations))) : 128;
 				const needsAnalysis = grid.cellCount > 1 && (allowReuse || iterations > 0);
-				if (resources == null || resources.columns !== grid.columns || resources.rows !== grid.rows || resources.iterationsCapacity < iterations) {
+				if (resources == null || resources.columns !== grid.columns || resources.rows !== grid.rows
+					|| resources.regionGridSize !== grid.regionGridSize || resources.iterationsCapacity < iterations) {
 					const nextResources = createResources(grid, iterations);
 					resources?.dispose();
 					resources = nextResources;
@@ -170,6 +177,7 @@ export default implementEffect<typeof definition>({
 					matchBy: Number(params.matchBy === 'luminance'),
 					positionBias: Number.isFinite(params.positionBias) ? Math.max(0, params.positionBias) : 0,
 					matchRound: 0,
+					regionGridSize: grid.regionGridSize,
 				});
 				resources.uniformBytes.set(new Uint8Array(uniformValues.arrayBuffer), 0);
 				const roundBits = Math.log2(grid.participantCount);

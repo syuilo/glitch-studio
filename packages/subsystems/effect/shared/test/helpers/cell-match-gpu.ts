@@ -9,6 +9,7 @@ type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 type Color = [number, number, number, number];
 const gray = (value: number, alpha = 1): Color => [value * alpha, value * alpha, value * alpha, alpha];
 const rowImage = (values: number[], height = 2) => Array.from({ length: height }, () => values.map(value => gray(value))).flat();
+const cellImage = (cells: Color[][], cellWidth: number, cellHeight: number) => Array.from({ length: cellHeight }, (_, row) => cells.flatMap(cell => cell.slice(row * cellWidth, (row + 1) * cellWidth))).flat();
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -29,7 +30,7 @@ export async function run() {
 	const defaults: Parameters = {
 		input: constantShaderInput('color', [0, 0, 0, 0]), frequency: [4, 4], phase: [0, 0.5], sizeReference: 'longSide',
 		reference: constantShaderInput('color', [0, 0, 0, 0]), placementMode: 'oneToOne', matchBy: 'color', positionBias: 0,
-		samplesPerCell: 16, iterations: 128,
+		structureGrid: '2x2', samplesPerCell: 16, iterations: 128,
 	};
 	const checks: string[] = [];
 	const disposables: (() => void)[] = [];
@@ -310,6 +311,96 @@ export async function run() {
 		}), Array.from({ length: longPixels.length }, () => gray(130 / 256)), 'reuse searches candidates beyond the first two lane batches');
 		const scaledReusedFragments = Array.from({ length: 8 }, (_, y) => Array.from({ length: 8 }, (_, x) => reusedFragments[Math.floor(y / 2) * 4 + Math.floor(x / 2)])).flat();
 		compare(await scaledRender(reuseBase), scaledReusedFragments, 'reusable placement is resolution independent');
+
+		// 【平均色が同じでも左右・上下の配置を区別し、両配置方式で画像片を交換する】
+		// 全体平均だけでは区別できない縦横の白黒模様を使い、領域の対応とY方向を確認する。
+		const verticalPattern = [0, 1, 0, 1].map(value => gray(value));
+		const horizontalPattern = [0, 0, 1, 1].map(value => gray(value));
+		const structurePixels = cellImage([verticalPattern, horizontalPattern], 2, 2);
+		const structureExpected = cellImage([horizontalPattern, verticalPattern], 2, 2);
+		const structureRender = createEffect(4, 2);
+		const structureBase: Partial<Parameters> = {
+			input: texture(4, 2, structurePixels), reference: texture(4, 2, structureExpected), frequency: [2, 2], phase: [0, 0.5],
+		};
+		for (const placementMode of ['oneToOne', 'reuse'] as const) {
+			compare(await structureRender({ ...structureBase, placementMode }), structurePixels, `${placementMode} whole averages cannot distinguish spatial patterns`);
+			for (const structureGrid of ['2x2', '4x4'] as const) {
+				compare(await structureRender({ ...structureBase, placementMode, matchBy: 'structure', structureGrid }), structureExpected, `${placementMode} ${structureGrid} matches vertical and horizontal structures`);
+			}
+		}
+
+		// 【4×4では2×2領域内の模様を比較し、モード切替で解析bufferを作り直す】
+		// 各2×2領域の平均まで同じな反転チェッカーで、全体平均や2×2での代用を検出する。
+		const checkerPattern = Array.from({ length: 16 }, (_, index) => gray((Math.floor(index / 4) + index % 4) % 2));
+		const invertedCheckerPattern = checkerPattern.map(color => gray(1 - color[0]));
+		const detailPixels = cellImage([checkerPattern, invertedCheckerPattern], 4, 4);
+		const detailExpected = cellImage([invertedCheckerPattern, checkerPattern], 4, 4);
+		const detailRender = createEffect(8, 4);
+		const detailBase: Partial<Parameters> = {
+			input: texture(8, 4, detailPixels), reference: texture(8, 4, detailExpected), frequency: [2, 2], phase: [0, 0.5], matchBy: 'structure',
+		};
+		for (const placementMode of ['oneToOne', 'reuse'] as const) {
+			compare(await detailRender({ ...detailBase, placementMode, structureGrid: '2x2' }), detailPixels, `${placementMode} 2x2 retains tied region means`);
+			compare(await detailRender({ ...detailBase, placementMode, structureGrid: '4x4' }), detailExpected, `${placementMode} 4x4 distinguishes fine checker structure`);
+			compare(await detailRender({ ...detailBase, placementMode, structureGrid: '4x4', positionBias: 10 }), detailPixels, `${placementMode} structure errors are normalized before position bias`);
+			compare(await detailRender({ ...detailBase, placementMode, matchBy: 'color', structureGrid: '4x4' }), detailPixels, `${placementMode} average color ignores the structure grid`);
+			compare(await detailRender({ ...detailBase, placementMode, matchBy: 'luminance', structureGrid: '4x4' }), detailPixels, `${placementMode} switching back to average luminance clears structural features`);
+		}
+
+		// 【領域数より少ない解析数でも全領域を読み、非2冪の予算も空領域を作らず配分する】
+		// Samples Per Cell=1で一部の領域が未解析になることや、0除算で比較できなくなることを防ぐ。
+		for (const samplesPerCell of [1, 3, 7, 17, 31, 256]) {
+			compare(await detailRender({ ...detailBase, structureGrid: '4x4', samplesPerCell }), detailExpected, `4x4 structure uses every region with ${samplesPerCell} requested samples`);
+		}
+		compare(await detailRender({ ...detailBase, structureGrid: '4x4', reference: detailBase.input }), detailPixels, 'structural self reference preserves source pixels');
+		compare(await detailRender({ ...detailBase, structureGrid: '4x4', iterations: 0 }), detailPixels, 'zero one-to-one iterations bypass structural matching');
+		compare(await detailRender({ ...detailBase, structureGrid: '4x4' }, 100), detailExpected, 'structural matching is independent of render history and time');
+
+		// 【再利用では構造が一致する画像片を複数の配置先へ置く】
+		// 平均色が同じ候補から、参照の構造だけを根拠に同じ画像片を繰り返し選べることを確認する。
+		const repeatedPattern = cellImage([horizontalPattern, horizontalPattern], 2, 2);
+		compare(await structureRender({
+			...structureBase, matchBy: 'structure', placementMode: 'reuse', reference: texture(4, 2, repeatedPattern), iterations: 0,
+		}), repeatedPattern, 'reusable structural matching repeats the correct pattern');
+
+		// 【透明度の位置関係も領域ごとに比較し、透明な画像片を黒として扱わない】
+		// 同じ平均RGBAを持つ半透明・透明の縦横模様で、alphaの構造と元のRGBAの保持を確認する。
+		const verticalAlphaPattern = [gray(1, 0.25), gray(0, 0), gray(1, 0.25), gray(0, 0)];
+		const horizontalAlphaPattern = [gray(1, 0.25), gray(1, 0.25), gray(0, 0), gray(0, 0)];
+		const alphaStructurePixels = cellImage([verticalAlphaPattern, horizontalAlphaPattern], 2, 2);
+		const alphaStructureExpected = cellImage([horizontalAlphaPattern, verticalAlphaPattern], 2, 2);
+		for (const placementMode of ['oneToOne', 'reuse'] as const) {
+			compare(await structureRender({
+				...structureBase, input: texture(4, 2, alphaStructurePixels), reference: texture(4, 2, alphaStructureExpected), matchBy: 'structure', placementMode,
+			}), alphaStructureExpected, `${placementMode} structure matches translucent and transparent regions`);
+		}
+
+		// 【構造を比較する端セルでも画面外の反射部分を解析・描画へ含める】
+		// 平均色が同じな二つの欠けたセルに対し、反射で補った左右の構造を入れ替える。
+		const structuralEdgePixels = rowImage([1, 0, 0, 0, 0, 1]);
+		const structuralEdgeExpected = rowImage([0, 1, 1, 1, 1, 0]);
+		for (const placementMode of ['oneToOne', 'reuse'] as const) {
+			for (const structureGrid of ['2x2', '4x4'] as const) {
+				compare(await edgeRender({
+					...edgeBase, input: texture(6, 2, structuralEdgePixels), reference: texture(6, 2, structuralEdgeExpected), matchBy: 'structure', placementMode, structureGrid,
+				}), structuralEdgeExpected, `${placementMode} ${structureGrid} compares mirrored edge structures`);
+			}
+		}
+		const scaledDetailRender = createEffect(16, 8);
+		const scaledDetailExpected = Array.from({ length: 8 }, (_, y) => Array.from({ length: 16 }, (_, x) => detailExpected[Math.floor(y / 2) * 8 + Math.floor(x / 2)])).flat();
+		compare(await scaledDetailRender({ ...detailBase, structureGrid: '4x4', placementMode: 'reuse' }), scaledDetailExpected, 'structural matching is resolution independent');
+		compare(await structureRender({ ...structureBase, matchBy: 'structure', input: constantInput }), Array.from({ length: 8 }, () => [0.25, 0.125, 0.5, 0.5] as Color), 'structural matching supports constant inputs without double premultiplication');
+
+		// 【構造比較の領域数をGPUの統計buffer容量へ含める】
+		// 全体平均なら収まる格子でも4×4の特徴量で上限を超えたら、領域を間引かず拒否する。
+		const statisticsLimit = Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize);
+		const oversizedStructureFrequency = 2 * Math.ceil(Math.sqrt(statisticsLimit / 512) / 2) + 2;
+		let structureRejected = false;
+		try {
+			await render({ ...base, matchBy: 'structure', structureGrid: '4x4', frequency: [oversizedStructureFrequency, oversizedStructureFrequency] });
+		} catch (error) { structureRejected = error instanceof Error && error.message.includes('GPU resource limits'); }
+		if (!structureRejected) throw new Error('Oversized structural statistics were not rejected');
+		checks.push('structural feature storage limits are enforced');
 
 		// 【GPU上限を超える格子は精度を落とさず拒否する】
 		// プレビューと書き出しでセル数が変わる自動間引きや、不正なbuffer確保を防ぐ。

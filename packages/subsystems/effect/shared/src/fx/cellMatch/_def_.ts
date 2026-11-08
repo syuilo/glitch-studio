@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'cellMatch',
 	displayName: 'Cell Match',
 	description: {
-		'ja-JP': '主入力をセルに分割し、副入力の平均色や明暗に近づくように画像片を配置します。セルの再利用も選択できます。',
+		'ja-JP': '主入力をセルに分割し、副入力の平均色・明暗・セル内構造に近づくように画像片を配置します。セルの再利用も選択できます。',
 		'en-US': 'Places image fragments from the input to resemble the reference, with optional cell reuse.',
 	},
 	kind: 'modify',
@@ -41,9 +41,14 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 'oneToOne' },
 		},
 		matchBy: {
-			dataType: { kind: 'enum', options: ['color', 'luminance'] },
-			ui: { label: 'Match By', control: { labels: { color: 'Average Color', luminance: 'Average Luminance' } } },
+			dataType: { kind: 'enum', options: ['color', 'luminance', 'structure'] },
+			ui: { label: 'Match By', control: { labels: { color: 'Average Color', luminance: 'Average Luminance', structure: 'Cell Structure' } } },
 			defaultValue: { inputSource: 'literal', value: 'color' },
+		},
+		structureGrid: {
+			dataType: { kind: 'enum', options: ['2x2', '4x4'] },
+			ui: { label: 'Structure Grid', control: { labels: { '2x2': '2×2', '4x4': '4×4' } } },
+			defaultValue: { inputSource: 'literal', value: '2x2' },
 		},
 		positionBias: {
 			dataType: { kind: 'scalar' },

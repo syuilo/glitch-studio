@@ -1,4 +1,4 @@
-@group(0) @binding(1) var<storage, read> statistics: array<CellStatistics>;
+@group(0) @binding(1) var<storage, read> statistics: array<CellRegionStatistics>;
 @group(0) @binding(2) var<storage, read_write> assignments: array<u32>;
 
 fn invocationIndex(invocation: vec3u, workgroups: vec3u) -> u32 {
@@ -12,9 +12,7 @@ fn initialize(@builtin(global_invocation_id) invocation: vec3u, @builtin(num_wor
 	assignments[index] = index;
 }
 
-fn assignmentError(source: u32, destination: u32) -> f32 {
-	let inputColor = statistics[source].inputColor;
-	let referenceColor = statistics[destination].referenceColor;
+fn appearanceError(inputColor: vec4f, referenceColor: vec4f) -> f32 {
 	var inputRgb = vec3f(0.0);
 	var referenceRgb = vec3f(0.0);
 	// 透明部分を黒として平均しない。両者に可視部分があるときだけ代表色を比較し、
@@ -29,10 +27,23 @@ fn assignmentError(source: u32, destination: u32) -> f32 {
 	}
 	let visibility = clamp(min(inputColor.a, referenceColor.a), 0.0, 1.0);
 	let alphaDifference = inputColor.a - referenceColor.a;
+	return visibility * colorError + alphaDifference * alphaDifference;
+}
+
+fn assignmentError(source: u32, destination: u32) -> f32 {
+	let regionCount = uniforms.regionGridSize * uniforms.regionGridSize;
+	let sourceOffset = cellRegionOffset(source, 0u);
+	let destinationOffset = cellRegionOffset(destination, 0u);
+	var appearanceErrorSum = 0.0;
+	for (var regionIndex = 0u; regionIndex < regionCount; regionIndex++) {
+		appearanceErrorSum += appearanceError(statistics[sourceOffset + regionIndex].inputColor, statistics[destinationOffset + regionIndex].referenceColor);
+	}
+	// 等面積の領域を同じ重みで比較する。領域数で正規化し、構造の細かさを変えても
+	// 色・透明度に対するPosition Biasの相対的な強さが変わらないようにする。
 	// 長辺全体=1の共通単位で距離を測り、解像度や縦横比で移動の重みを変えない。
 	let displacement = (vec2f(cellCoordinates(source)) - vec2f(cellCoordinates(destination)))
 		* uniforms.cellSize * uniforms.resolution / max(uniforms.resolution.x, uniforms.resolution.y);
-	return visibility * colorError + alphaDifference * alphaDifference + uniforms.positionBias * dot(displacement, displacement);
+	return appearanceErrorSum / f32(regionCount) + uniforms.positionBias * dot(displacement, displacement);
 }
 
 var<workgroup> candidateErrors: array<f32, 64>;
