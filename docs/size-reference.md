@@ -44,6 +44,7 @@
 | Dilate / Erode、Blur、Pointer Trail、Position Trail | Radius。TrailのVector Coordinatesは廃止し、位置・ベクトル出力を共通単位に統一 |
 | Streamlines | Seed Density・Maximum Length・Step Size・Line Width・Arrow Spacing・Arrow Size。大きさによる色と追跡方向の規約は維持 |
 | Adaptive Block Glitch、Decoder Corruption、Frequency Transplant、JPEG Compression、JPEG Glitch、Time Patchwork | ブロックの寸法を基準寸法の百分率で指定 |
+| Phase Scramble、Phase Transfer | Block Sizeは基準寸法の百分率、周波数とFrequency Softnessは基準寸法あたりの周期数。解析解像度は出力画素数から独立 |
 | Datamoshing、Sliding Blocks | ブロック寸法・Motion Search Range。Sliding BlocksのMotion Speed ThresholdとRandom Drift Speedは基準寸法の百分率/秒 |
 | Content Error Propagation | Source Spacing・Guidance Radius・Propagation Length。内部解析の解像度は引き続き短辺基準 |
 | Multiscale Glitch | Fine Scale・Coarse Scaleによるぼかしのsigma |
