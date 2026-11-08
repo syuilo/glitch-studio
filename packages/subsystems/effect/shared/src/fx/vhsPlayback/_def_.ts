@@ -40,7 +40,7 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 		headSpacingLoss: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Head Spacing Loss', isAdvanced: true, control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			dataType: { kind: 'scalar' }, ui: { label: 'Head Spacing Loss', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0.1 },
 		},
 		headSwitching: {
