@@ -39,6 +39,15 @@
 									<template #suffix>GiB</template>
 									<template #caption>{{ i18n.ts._Settings.TimelineFrameCacheCapacityHint }}</template>
 								</GsInput>
+								<GsSelect
+									v-model="timelineFrameCachePrecision" large :items="[
+										{ value: 'original', label: i18n.ts._Settings.TimelineFrameCachePrecisionOriginal },
+										{ value: '8bit', label: i18n.ts._Settings.TimelineFrameCachePrecision8bit },
+									]" data-test-timeline-frame-cache-precision
+								>
+									<template #label>{{ i18n.ts._Settings.TimelineFrameCachePrecision }}</template>
+									<template #caption>{{ i18n.ts._Settings.TimelineFrameCachePrecisionHint }}</template>
+								</GsSelect>
 								<GsSelect v-model="effectRenderTileDivisionLevel" large :items="effectRenderTileDivisionItems" data-test-effect-render-tile-division-level>
 									<template #label>{{ i18n.ts._Settings.EffectRenderTileDivisionLevel }}</template>
 									<template #caption>{{ i18n.ts._Settings.EffectRenderTileDivisionLevelHint }}</template>
@@ -134,6 +143,7 @@ const effectRenderTileDivisionItems = [0, 1, 2, 3, 4].map(value => ({ value, lab
 const effectRenderTileDivisionLevel = preferences.model('effectRenderTileDivisionLevel');
 const enable32bitDataTextures = preferences.model('enable32bitDataTextures');
 const timelineFrameCacheMaxGiB = preferences.model('timelineFrameCacheMaxGiB');
+const timelineFrameCachePrecision = preferences.model('timelineFrameCachePrecision');
 const timelinePreviewFramesAhead = preferences.model('timelinePreviewFramesAhead');
 const previewDisplayMode = preferences.model('previewDisplayMode');
 const visualModuleAutoConnectOnNodeAdd = preferences.model('visualModuleAutoConnectOnNodeAdd');

@@ -71,7 +71,7 @@ const appBundle = await build({
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, effectRenderTileDivisionLevel: 0,
-							renderingStatsEnabled: false, analysisMonitorsEnabled: true, timelineFrameCacheMaxGiB: 2, previewDisplayMode: 'gpu', timelinePreviewFramesAhead: 1,
+							renderingStatsEnabled: false, analysisMonitorsEnabled: true, timelineFrameCacheMaxGiB: 2, timelineFrameCachePrecision: 'original', previewDisplayMode: 'gpu', timelinePreviewFramesAhead: 1,
 							projectBackupAutoEnabled: false, projectBackupAutoIntervalMinutes: 1, projectBackupAutoRetentionDays: 1,
 							projectBackupSaveEnabled: false, projectBackupSaveRetentionDays: 7,
 							...window.initialTestPreferences });
@@ -248,24 +248,42 @@ test('preserves precise seek positions when changing motion blur without changin
 });
 
 for (const desktop of [false, true]) {
-	// 【フレームキャッシュはブラウザー版とElectron版で有効にし、容量の変更をプロジェクト編集に含めない】
-	// どちらも同じ初期容量と設定変更の経路を使い、上限変更でWorkerを再起動して全消去したりしない。
-	test(`applies the per-window frame cache capacity on browser and desktop: ${desktop}`, async t => {
+	// 【キャッシュの容量・精度を静的設定で渡し、変更時は両プレビューを再生成する】
+	// ブラウザー版・Electron版で同じ既定値と再生成経路を使う。0への無効化と再有効化、
+	// 精度だけの変更も検出し、これらの環境設定をプロジェクトの保存内容やUndoへ含めない。
+	test(`rebuilds previews with static frame cache settings on browser and desktop: ${desktop}`, async t => {
 		const window = setup(t);
 		if (desktop) window.desktop = {};
 		const { appContext } = evaluate(appBundle);
 		await appContext.ready(project());
 		const timeline = appContext.timelineRendererManagerController;
-		assert.equal(timeline.initialDynamicOptions.frameCacheMaxBytes, 2 * 1024 ** 3);
+		const visualModule = appContext.visualModuleRendererManagerController;
+		assert.equal(timeline.initialStaticOptions.frameCacheMaxBytes, 2 * 1024 ** 3);
+		assert.equal(timeline.initialStaticOptions.frameCachePrecision, 'original');
+		assert.equal(Object.hasOwn(timeline.initialDynamicOptions, 'frameCacheMaxBytes'), false);
 		const historyLength = appContext.projectContext.stateManager.undoStack.value.length;
 		const staticUpdates = timeline.staticUpdates.length;
+		const visualModuleStaticUpdates = visualModule.staticUpdates.length;
 		timeline.updates.length = 0;
-		window.testPreferences.timelineFrameCacheMaxGiB = 0;
-		await setImmediate();
-		assert.deepEqual(timeline.updates, [{ frameCacheMaxBytes: 0 }]);
-		assert.equal(timeline.staticUpdates.length, staticUpdates);
+		for (const [index, capacity] of [0, 1, 3].entries()) {
+			window.testPreferences.timelineFrameCacheMaxGiB = capacity;
+			await setImmediate();
+			assert.equal(timeline.staticUpdates.length, staticUpdates + index + 1);
+			assert.equal(visualModule.staticUpdates.length, visualModuleStaticUpdates + index + 1);
+			assert.equal(timeline.initialStaticOptions.frameCacheMaxBytes, capacity * 1024 ** 3);
+		}
+		for (const [index, precision] of ['8bit', 'original'].entries()) {
+			window.testPreferences.timelineFrameCachePrecision = precision;
+			await setImmediate();
+			assert.equal(timeline.staticUpdates.length, staticUpdates + 4 + index);
+			assert.equal(visualModule.staticUpdates.length, visualModuleStaticUpdates + 4 + index);
+			assert.equal(timeline.initialStaticOptions.frameCachePrecision, precision);
+			assert.equal(timeline.initialStaticOptions.frameCacheMaxBytes, 3 * 1024 ** 3);
+		}
+		assert.equal(timeline.updates.some(options => Object.hasOwn(options, 'frameCacheMaxBytes') || Object.hasOwn(options, 'frameCachePrecision')), false);
 		assert.equal(appContext.projectContext.stateManager.undoStack.value.length, historyLength);
 		assert.equal('timelineFrameCacheMaxGiB' in appContext.projectContext.snapshot(), false);
+		assert.equal('timelineFrameCachePrecision' in appContext.projectContext.snapshot(), false);
 	});
 }
 
@@ -447,12 +465,16 @@ test('restarts both previews after content and settings change during initializa
 	appContext.highlightClipping.value = true;
 	appContext.previewExposure.value = 2;
 	window.testPreferences.timelinePreviewFramesAhead = 0;
+	window.testPreferences.timelineFrameCacheMaxGiB = 1;
+	window.testPreferences.timelineFrameCachePrecision = '8bit';
 	await appContext.flushRendererProjectChanges();
 	assert.equal(appContext.renderEngine.canRender.value, false);
 	assert.ok(controllers.every(controller => controller.patches.length === 0));
 	gate.resolve();
 	await starting;
 	assert.ok(attempts.every(snapshots => snapshots.length === 2));
+	assert.equal(controllers[1].initialStaticOptions.frameCacheMaxBytes, 1024 ** 3);
+	assert.equal(controllers[1].initialStaticOptions.frameCachePrecision, '8bit');
 	for (const controller of controllers) {
 		assert.equal(controller.options.visualModules[0].nodes[0].id, 'during-initialization');
 		assert.equal(controller.options.highlightClipping, true);

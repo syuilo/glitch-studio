@@ -89,9 +89,9 @@ test('preserves fullscreen coordinates and coverage with a single triangle on We
 	t.diagnostic(`${checks.length} full-image comparisons completed`);
 });
 
-// 【キャッシュの実GPUコピーが元画像の更新に影響されず、alphaとHDRの精度を維持する】
-// 容量やLRUのモックでは、WGSL・binding・RGBA/BGRAの取り違えを検出できない。
-test('preserves timeline frame cache pixels on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/timeline-preview-frame-cache-gpu.ts', 8));
+// 【キャッシュの実GPUコピーで元の精度と8bitの量子化を確認し、元画像の更新から独立させる】
+// 容量やLRUのモックでは、sRGB変換・alpha・HDR制限やRGBA/BGRAの取り違えを検出できない。
+test('preserves timeline frame cache pixels on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/timeline-preview-frame-cache-gpu.ts', 16));
 
 // 【合成と適用範囲の実画素を、他のエフェクトのテスト素材に依存せず確認する】
 // 固定された画像座標と変形する枠、透明結果のReplace、マスク、祖先・カメラを実WGSLで検証する。

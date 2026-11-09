@@ -93,6 +93,18 @@ test('saves settings individually', async t => {
 	await nextTick();
 	assert.equal(preferences.s.timelineFrameCacheMaxGiB, 1);
 	assert.equal(storage.get('preferences:timelineFrameCacheMaxGiB'), '1');
+	// 【保存精度は元の精度を既定とし、8bitとの切替を環境設定へ保存する】
+	// 表示用モデルだけが変わる実装を防ぎ、次回のWorker生成にも同じ選択値を渡せるようにする。
+	const precision = find('data-test-timeline-frame-cache-precision');
+	assert.equal(precision.props.modelValue, 'original');
+	assert.deepEqual(precision.props.items.map(item => item.value), ['original', '8bit']);
+	assert.equal(storage.has('preferences:timelineFrameCachePrecision'), false);
+	for (const value of ['8bit', 'original']) {
+		precision.props['onUpdate:modelValue'](value);
+		await nextTick();
+		assert.equal(preferences.s.timelineFrameCachePrecision, value);
+		assert.equal(storage.get('preferences:timelineFrameCachePrecision'), JSON.stringify(value));
+	}
 	// 【先行フレーム数を0・1・2・3から選択し、即時保存する】
 	// 自由入力を使わず、先行レンダリングを無効にする0も含めて選択・保存できるようにする。
 	const framesAhead = find('data-test-timeline-preview-frames-ahead');

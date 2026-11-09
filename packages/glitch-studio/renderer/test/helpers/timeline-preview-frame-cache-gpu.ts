@@ -1,5 +1,6 @@
 import { TimelinePreviewFrameCache } from '../../src/timeline-preview-frame-cache.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
+import { linearChannelToSrgb, srgbChannelToLinear } from '@gs/shared/color-space.ts';
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -36,20 +37,42 @@ export async function run() {
 
 	const checks: string[] = [];
 	try {
-		for (const format of ['rgba8unorm', 'bgra8unorm', 'rgba16float', 'rgba32float', 'r16float', 'rg16float', 'r32float', 'rg32float'] as const) {
+		for (const precision of ['original', '8bit'] as const) for (const format of ['rgba8unorm', 'bgra8unorm', 'rgba16float', 'rgba32float', 'r16float', 'rg16float', 'r32float', 'rg32float'] as const) {
 			device.pushErrorScope('validation');
-			const cache = new TimelinePreviewFrameCache<null>(device, vertex);
-			cache.setMaxBytes(1024);
+			const cache = new TimelinePreviewFrameCache<null>(device, vertex, 1024, precision);
 			const source = device.createTexture({ size: [2, 2], format, usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
 			try {
-				const pixels = format.endsWith('16float') ? new Uint16Array([0x3400, 0x3800, 0, 0x3800, 0x4000, 0, 0x3800, 0x3400, 0, 0x3c00, 0x3800, 0, 0x3800, 0x3800, 0x3800, 0x3c00])
-					: format.endsWith('32float') ? new Float32Array([0.25, 0.5, 0, 0.5, 2, 0, 0.5, 0.25, 0, 1, 0.5, 0, 0.5, 0.5, 0.5, 1])
+				// 【暗部・半透明・HDR・負値・alpha=0の発光を保存方針に応じて保持または量子化する】
+				// linearのまま8bitへ丸めたり、sRGB変換の前後に余分なalpha乗除算を加える実装を検出する。
+				const pixels = format.endsWith('16float') ? new Uint16Array([0x1400, 0x3400, 0x3800, 0x3800, 0x4000, 0xb800, 0x3800, 0x3400, 0x3400, 0x3c00, 0x3800, 0, 0x3800, 0x3800, 0x3800, 0x3c00])
+					: format.endsWith('32float') ? new Float32Array([1 / 1024, 0.25, 0.5, 0.5, 2, -0.5, 0.5, 0.25, 0.25, 1, 0.5, 0, 0.5, 0.5, 0.5, 1])
 						: new Uint8Array([64, 128, 0, 128, 255, 0, 128, 64, 0, 255, 128, 0, 128, 128, 128, 255]);
 				device.queue.writeTexture({ texture: source }, pixels, { bytesPerRow: pixels.byteLength / 2 }, [2, 2]);
-				const expected = await read(source);
+				const original = await read(source);
+				const expected = original.map((value, index) => {
+					if (precision === 'original') return value;
+					const encoded = index % 4 === 3 ? value : linearChannelToSrgb(value);
+					const quantized = Math.round(Math.max(0, Math.min(1, encoded)) * 255) / 255;
+					return index % 4 === 3 ? quantized : srgbChannelToLinear(quantized);
+				});
+				const pixelsDiffer = (values: number[]) => values.some((value, index) => {
+					if (precision === '8bit') {
+						if (index % 4 === 3) {
+							// UNORMのちょうど中間の丸め方向は固定せず、線形8bitの半段階までを許容する。
+							return Math.abs(value - Math.max(0, Math.min(1, original[index]))) > 0.5 / 255 + 1e-6;
+						}
+						// 固定機能のsRGB変換はCPUの式と完全には一致しないため、保存値の1段階を許容する。
+						// linear側で一律の許容差を広げると、暗部を誤ってlinearの8bitへ丸めても通ってしまう。
+						return Math.abs(linearChannelToSrgb(value) - linearChannelToSrgb(expected[index])) > 1 / 255;
+					}
+					return Math.abs(value - expected[index]) > 1e-6;
+				});
 				const encoder = device.createCommandEncoder();
 				const captured = cache.capture(encoder, source, null);
 				if (captured == null) throw new Error('Frame was not captured');
+				const destinationFormat = precision === '8bit' ? 'rgba8unorm-srgb' : format;
+				if (captured.texture.format !== destinationFormat) throw new Error(`${precision}/${format}: unexpected cache format`);
+				if (precision === '8bit' && captured.bytes !== 16) throw new Error('RGBA8 capacity must be four bytes per pixel');
 				device.queue.submit([encoder.finish()]);
 				await device.queue.onSubmittedWorkDone();
 				cache.commit(0, captured);
@@ -58,7 +81,7 @@ export async function run() {
 				const saved = cache.get(0);
 				if (saved == null) throw new Error('Cached frame disappeared');
 				const actual = await read(saved.texture);
-				if (actual.some((value, index) => Math.abs(value - expected[index]) > 1e-6)) throw new Error(`${format}: cached pixels differ`);
+				if (pixelsDiffer(actual)) throw new Error(`${precision}/${format}: cached pixels differ: ${actual} / ${expected}`);
 				// 【GPU完了を待たずに次の画像を送っても、各フレームの画素を独立して保持する】
 				// プレビューの先行処理では同じ作業用画像を次のフレームが更新する。
 				// submit順の依存関係でコピーが保護され、透明度・HDR値も混ざらないことを実GPUで確認する。
@@ -78,10 +101,10 @@ export async function run() {
 				const restored = await read(cache.get(2)!.texture);
 				const hasAlpha = format.startsWith('rgba') || format.startsWith('bgra');
 				if (blank.some((value, index) => Math.abs(value - (!hasAlpha && index % 4 === 3 ? 1 : 0)) > 1e-6)) throw new Error(`${format}: submitted frames mixed`);
-				if (restored.some((value, index) => Math.abs(value - expected[index]) > 1e-6)) throw new Error(`${format}: following frame pixels differ`);
+				if (pixelsDiffer(restored)) throw new Error(`${precision}/${format}: following frame pixels differ`);
 				const error = await device.popErrorScope();
 				if (error != null) throw new Error(error.message);
-				checks.push(format);
+				checks.push(`${precision}/${format}`);
 			} finally { cache.dispose(); source.destroy(); }
 		}
 		return checks;

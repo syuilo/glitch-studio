@@ -1,5 +1,6 @@
 /** プレビューだけの時計とキャッシュ状態。プロジェクトの保存fpsや書き出しには適用しない。 */
 export type TimelinePreviewSeekMode = 'frame' | 'precise';
+export type TimelinePreviewFrameCachePrecision = 'original' | '8bit';
 export type TimelinePreviewFrameRange = { startFrame: number; endFrame: number };
 export type TimelinePreviewFrameCacheState = {
 	sceneId: string | null;

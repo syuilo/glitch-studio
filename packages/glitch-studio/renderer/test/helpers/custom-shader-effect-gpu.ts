@@ -118,11 +118,12 @@ export async function runCustomShaderEffectTimelineUpdates() {
 	const manager = await TimelineRendererManager.create({ gpuDevice: device, gpuContext, effectDefinitions: {}, effectImplementations: {} }, {
 		enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false,
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 1 },
+		frameCacheMaxBytes: 1024,
 	}, { assets: [], customShaderEffects: [customShaderEffect] });
 	const errors: string[] = [];
 	manager.on('ev', event => { if (event.type === 'renderError') errors.push(event.ctx.message); });
 	try {
-		manager.updateDynamicOptions({ ...project, sceneId: 'scene', resolution: { width: 8, height: 4 }, frameCacheMaxBytes: 1024 });
+		manager.updateDynamicOptions({ ...project, sceneId: 'scene', resolution: { width: 8, height: 4 } });
 		await manager.renderTimelineAt(0);
 		await checkCanvasPixel(device, canvas, [255, 0, 255, 255]);
 		const updated = { ...customShaderEffect, primaryOutputId: 'next-color', outputDefs: [{ ...customShaderEffect.outputDefs[0], id: 'next-color' }],

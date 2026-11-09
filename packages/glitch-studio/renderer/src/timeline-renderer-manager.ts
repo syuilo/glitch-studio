@@ -56,7 +56,7 @@ import { TimelineAudioInputs } from './timeline-audio-inputs.ts';
 import { TimelinePreviewStatisticsCollector } from './timeline-preview-statistics.ts';
 import { TimelinePreviewFrameCache } from './timeline-preview-frame-cache.ts';
 import { getTimelinePreviewFrameIndex } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
-import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
+import type { TimelinePreviewFrameCachePrecision, TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { TimelinePreviewCachedFrame } from './timeline-preview-frame-cache.ts';
 import type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from './timeline-preview-statistics.ts';
 import type { TimelineTransformObservation, TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
@@ -93,6 +93,10 @@ export type TimelineRendererManagerStaticOptions = {
 	effectRenderTileDivisionLevel?: number;
 	/** 処理中の1件に追加できる先行数。省略時は1、0ではGPU完了まで直列に処理する。 */
 	previewFramesAhead?: number;
+	/** プレビュー用の容量上限。省略時・0では複製・保持・定期通知を行わない。 */
+	frameCacheMaxBytes?: number;
+	/** キャッシュだけの保存精度。省略時は元の形式を保持する。 */
+	frameCachePrecision?: TimelinePreviewFrameCachePrecision;
 };
 
 /**
@@ -125,8 +129,6 @@ export type TimelineRendererManagerDynamicOptions = {
 	previewRevision: number;
 	/** nullではプロジェクト基準fpsを使用する。露光時間とは独立したプレビューの時計。 */
 	previewFps: number | null;
-	/** プレビュー用の容量上限。0では複製・保持・通知を行わない。 */
-	frameCacheMaxBytes: number;
 };
 
 /** 素材は寿命中に固定する。Custom Shader Effectは初期値で、配置と一括更新できる。 */
@@ -188,7 +190,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private previewSeekMode: TimelinePreviewSeekMode = 'frame';
 	private frameCache: TimelinePreviewFrameCache<ReadonlyMap<string, CachedLayerTransform>>;
 	private frameCacheRevision = 0;
-	private frameCacheReportIntervalId: ReturnType<typeof setInterval> | null = null;
+	private readonly frameCacheReportIntervalId: ReturnType<typeof setInterval> | null = null;
 	private activePreviewFrame: PreviewFrameCapture | null = null;
 	private pendingVisualModuleValueChanges = new Map<string, VisualModuleValueChange>();
 	private pendingVisualModuleValueRevision: number | null = null;
@@ -241,7 +243,6 @@ export class TimelineRendererManager extends EventEmitter<{
 		transformObserver: null,
 		previewRevision: 0,
 		previewFps: null,
-		frameCacheMaxBytes: 0,
 	};
 
 	private constructor(coreConfig: TimelineRendererManagerCoreConfig, staticOptions: TimelineRendererManagerStaticOptions, resources: TimelineRendererManagerResources) {
@@ -274,7 +275,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
 			code: defaultVertexShaderCode,
 		});
-		this.frameCache = new TimelinePreviewFrameCache(this.gpuDevice, this.defaultVertexShaderModule);
+		this.frameCache = new TimelinePreviewFrameCache(this.gpuDevice, this.defaultVertexShaderModule,
+			this.staticOptions.frameCacheMaxBytes ?? 0, this.staticOptions.frameCachePrecision ?? 'original');
 
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
@@ -322,6 +324,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 		if (this.staticOptions.enableStats) this.telemetryReportIntervalId = setInterval(() => this.reportPreviewStatistics(), 100);
 		this.assetTextures = new AssetTextures(this.gpuDevice, resources.assets);
+		if (this.frameCache.enabled) this.frameCacheReportIntervalId = setInterval(() => this.reportFrameCache(), 100);
 	}
 
 	/** 準備済みのManagerだけを返す。渡されたGPUDeviceは、生成失敗・中断時にもここで解放する。 */
@@ -440,11 +443,6 @@ export class TimelineRendererManager extends EventEmitter<{
 			this.applyPendingVisualModuleValues();
 		}
 		if (Object.hasOwn(newOptions, 'previewFps') && newOptions.previewFps != null && (!Number.isFinite(newOptions.previewFps) || newOptions.previewFps <= 0)) throw new RangeError('Invalid preview FPS');
-		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes')) {
-			this.frameCache.setMaxBytes(newOptions.frameCacheMaxBytes!);
-			if (this.frameCacheReportIntervalId != null) clearInterval(this.frameCacheReportIntervalId);
-			this.frameCacheReportIntervalId = this.frameCache.enabled ? setInterval(() => this.reportFrameCache(), 100) : null;
-		}
 		if (newOptions.generatedSpeech) {
 			this.invalidateFrameCache();
 			this.frameRenderer.clear();
@@ -483,8 +481,6 @@ export class TimelineRendererManager extends EventEmitter<{
 				throw error;
 			}
 		}
-
-		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes') && !this.frameCache.enabled) this.reportFrameCache();
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = (this.pendingVisualModuleValueRevision ?? this.dynamicOptions.previewRevision) + 1) {

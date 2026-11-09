@@ -146,7 +146,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 			const transformObserver = this.dynamicOptions.transformObserver ?? null;
 			this.dynamicOptions = { sceneId: snapshot.dynamicOptions.sceneId, previewFps: snapshot.dynamicOptions.previewFps, transformObserver, previewRevision };
 			this.timelineFps = snapshot.staticOptions.timelineFps;
-			this.frameCacheMaxBytes.value = snapshot.dynamicOptions.frameCacheMaxBytes ?? 0;
+			this.frameCacheMaxBytes.value = snapshot.staticOptions.frameCacheMaxBytes ?? 0;
 			snapshot.dynamicOptions = { ...snapshot.dynamicOptions, ...this.dynamicOptions };
 			// 転送済みcanvasは再転送できないため、起動ごとに属性を引き継いだcanvasを用意する。
 			// 初回も同じ手順に揃え、表示先への付け替えはUIに通知する。
@@ -190,7 +190,6 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerRuntimeOptions>) {
 		const options = deepClone(newDynamicOptions);
-		if (options.frameCacheMaxBytes != null) this.frameCacheMaxBytes.value = options.frameCacheMaxBytes;
 		if (Object.hasOwn(options, 'sceneId') && options.sceneId !== this.dynamicOptions.sceneId) {
 			this.cancelSeek();
 			this.previewStatistics.value = null;

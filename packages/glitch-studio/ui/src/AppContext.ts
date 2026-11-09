@@ -151,8 +151,7 @@ export class AppContext {
 					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value, previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value },
 					visualModuleOptions: { previewActive: previewDisplayMode === 'visualModuleLivePreview', fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
 					timelineOptions: { previewActive: previewDisplayMode === 'timeline', sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
-						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value,
-						frameCacheMaxBytes: Math.floor(preferences.s.timelineFrameCacheMaxGiB * 1024 ** 3) },
+						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value },
 				});
 				this.synchronizedPreviewDisplayMode = previewDisplayMode;
 				const results = await Promise.allSettled([
@@ -290,10 +289,6 @@ export class AppContext {
 			await this.updateTimelinePreviewOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
 			this.previewPlayback.updateTimelinePreviewFps();
 		}, { flush: 'sync' });
-		watch(preferences.r.timelineFrameCacheMaxGiB, async value => {
-			await this.updateTimelinePreviewOptions({ frameCacheMaxBytes: Math.floor(value * 1024 ** 3) });
-			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
 
 		watch([this.projectContext.stateManager.state.resolution, this.resolutionFactor], async () => {
 			await this.updatePreviewOptions({
@@ -328,7 +323,9 @@ export class AppContext {
 			timeline: { ...common, timelineFps: state.timelineFps.value,
 				// 保存する書き出しサンプル数とプレビュー品質は別の設定として扱う。
 				timelineMotionBlur: { ...state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
-				previewFramesAhead: preferences.r.timelinePreviewFramesAhead.value },
+				previewFramesAhead: preferences.r.timelinePreviewFramesAhead.value,
+				frameCacheMaxBytes: Math.floor(preferences.r.timelineFrameCacheMaxGiB.value * 1024 ** 3),
+				frameCachePrecision: preferences.r.timelineFrameCachePrecision.value },
 		};
 	}
 

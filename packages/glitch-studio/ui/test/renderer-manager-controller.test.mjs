@@ -176,10 +176,10 @@ async function initialize(controller, workers) {
 	return worker;
 }
 
-// 【使用率も最後の通知を使い、容量変更では保持しWorker破棄で解除する】
-// UIが保持する新しい容量と古い使用量を混ぜず、同じ通知内の比率を表示とBAKE判定で共有する。
+// 【使用率も最後の通知を使い、表示設定の変更では保持しWorker破棄で解除する】
+// 表示用設定から使用量を推測せず、同じ通知内の比率を表示とBAKE判定で共有する。
 // 通知の最大容量が0の場合は除算せず、未通知と同じく不明として扱う。
-test('reports the last notified cache usage ratio across capacity changes until disposal', async t => {
+test('reports the last notified cache usage ratio across display changes until disposal', async t => {
 	const { controller, workers } = fixture(t, 'Timeline');
 	const worker = await initialize(controller, workers);
 	assert.equal(controller.frameCacheUsageRatio.value, null);
@@ -190,7 +190,7 @@ test('reports the last notified cache usage ratio across capacity changes until 
 	assert.equal(controller.frameCacheUsageRatio.value, 0);
 	notify({ ...state, estimatedBytes: 900001 });
 	assert.equal(controller.frameCacheUsageRatio.value, 0.900001);
-	const update = controller.updateDynamicOptions({ frameCacheMaxBytes: 0 });
+	const update = controller.updateDynamicOptions({ previewExposure: -1 });
 	assert.equal(controller.frameCacheUsageRatio.value, 0.900001);
 	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
 	await update;
@@ -258,24 +258,25 @@ for (const action of ['redraw', 'cancel', 'dynamic options', 'project edit', 'di
 // BAKE開始可否は間引かれるキャッシュ通知に依存させず、保持している設定から判断する。
 test('cancels bake waits on owner disposal and tracks configured cache availability', async t => {
 	const { controller, workers } = fixture(t, 'Timeline');
-	const worker = await initialize(controller, workers);
 	assert.equal(controller.isFrameCacheEnabled.value, false);
-	const capacity = controller.updateDynamicOptions({ frameCacheMaxBytes: 100 });
+	initialOptions.get(controller).staticOptions.frameCacheMaxBytes = 100;
+	initialOptions.get(controller).staticOptions.frameCachePrecision = '8bit';
+	const worker = await initialize(controller, workers);
 	assert.equal(controller.isFrameCacheEnabled.value, true);
-	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
-	await capacity;
+	const snapshot = await worker.initialization.promise;
+	assert.equal(snapshot.staticOptions.frameCacheMaxBytes, 100);
+	assert.equal(snapshot.staticOptions.frameCachePrecision, '8bit');
+	assert.equal(Object.hasOwn(snapshot.dynamicOptions, 'frameCacheMaxBytes'), false);
 	const waiting = controller.renderTimelineAtAndWait(0);
-	initialOptions.get(controller).staticOptions.enableStats = true;
+	initialOptions.get(controller).staticOptions.frameCacheMaxBytes = 0;
 	const changing = restart(controller);
 	assert.equal(await waiting, false);
 	const next = workers.at(-1);
 	await next.initialization.promise;
+	assert.equal(controller.isFrameCacheEnabled.value, false);
 	next.reply({ type: 'inited' });
 	await changing;
-	const disabled = controller.updateDynamicOptions({ frameCacheMaxBytes: 0 });
 	assert.equal(controller.isFrameCacheEnabled.value, false);
-	next.returnValue(next.calls('updateDynamicOptions').at(-1), {});
-	await disabled;
 });
 
 // 【現在のScene・編集世代の計測結果だけを表示し、Scene変更とWorker破棄で消去する】
@@ -396,8 +397,8 @@ test('retains completion requests for precise and off-grid seeks even when a fra
 	assert.equal(worker.calls('renderTimelineAt').at(-1).args.length, 2);
 });
 
-// 【シークの待機表示は設定変更を推測せず、最後のキャッシュ通知から判断する】
-// 容量縮小後も通知までは以前の範囲を使い、削除が通知されたフレームから待機表示へ戻す。
+// 【シークの待機表示は編集の影響を推測せず、最後のキャッシュ通知から判断する】
+// 編集後も通知までは以前の範囲を使い、削除が通知されたフレームから待機表示へ戻す。
 // 実際のキャッシュ検索はWorkerが行うため、この遅れで描画結果が古くなることはない。
 test('keeps cached seek feedback until the worker reports evicted frames', async t => {
 	const { controller, workers } = fixture(t, 'Timeline');
@@ -412,13 +413,13 @@ test('keeps cached seek feedback until the worker reports evicted frames', async
 	controller.renderTimelineAt(0, true);
 	assert.equal(controller.isSeeking.value, false);
 	assert.deepEqual(worker.calls('renderTimelineAt').at(-1).args, [0]);
-	const capacityUpdate = controller.updateDynamicOptions({ frameCacheMaxBytes: 4 });
+	const editing = controller.applyProjectChanges([]);
 	assert.equal(controller.frameCacheState.value, state);
-	worker.returnValue(worker.calls('updateDynamicOptions').at(-1), {});
-	await capacityUpdate;
+	worker.returnValue(worker.calls('applyProjectChanges').at(-1), {});
+	await editing;
 	controller.renderTimelineAt(1000 / 60, true);
 	assert.equal(controller.isSeeking.value, false);
-	notify({ ...state, previewRevision: 2, maxBytes: 4, frameRanges: [{ startFrame: 0, endFrame: 1 }], estimatedBytes: 4 });
+	notify({ ...state, previewRevision: 2, frameRanges: [{ startFrame: 0, endFrame: 1 }], estimatedBytes: 4 });
 	controller.renderTimelineAt(1000 / 60, true);
 	assert.equal(controller.isSeeking.value, true);
 	controller.renderTimelineAt(0);

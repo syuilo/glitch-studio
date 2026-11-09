@@ -78,10 +78,10 @@ for (const framesAhead of [undefined, 0, 1, 2, 3]) {
 // 最新フレームで旧結果をすべて無効化するとキャッシュや統計を失い、逆に全通知を許すと
 // 選択枠が古い時刻へ戻る。GPU完了前の登録・シーク完了通知も同時に防ぐ。
 test('keeps out-of-order frame results and starts new previews before older cache checks finish', async t => {
-	const { renderer, errors } = await fixture(t, { enableStats: true }, TimelineRendererManager);
+	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 64, enableStats: true }, TimelineRendererManager);
 	const scenes = structuredClone(renderer.dynamicOptions.timelineScenes);
 	scenes[0].layers[0].compositingParamValues.rotation = { inputSource: 'expression', expression: 'TIME_MS / 1000' };
-	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], timelineScenes: scenes, previewFps: 30, frameCacheMaxBytes: 64,
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], timelineScenes: scenes, previewFps: 30,
 		transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
 	const firstGpu = Promise.withResolvers();
 	const secondGpu = Promise.withResolvers();
@@ -135,6 +135,28 @@ test('keeps out-of-order frame results and starts new previews before older cach
 	assert.deepEqual(errors, []);
 });
 
+for (const options of [{}, { frameCacheMaxBytes: 0 }, { frameCacheMaxBytes: 8, frameCachePrecision: 'original' }, { frameCacheMaxBytes: 8, frameCachePrecision: '8bit' }]) {
+	// 【静的な容量・精度はキャッシュだけへ適用し、通常描画と書き出しのfloat精度を維持する】
+	// 初期化時に設定を受け取っても、8bitが作業画像や書き出しまで波及してはならない。
+	// 省略時と明示的な容量0では複製も定期通知も開始せず、書き出し用Managerの既定動作を保つ。
+	test(`applies static cache settings without quantizing rendering or export: ${JSON.stringify(options)}`, async t => {
+		const { renderer, errors } = await fixture(t, options, TimelineRendererManager);
+		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30 });
+		const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
+		const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+		await renderer.renderTimelineAt(0);
+		await renderer.renderTimelineAt(0);
+		await renderer.renderTimelineFrame(0, 0);
+		const enabled = (options.frameCacheMaxBytes ?? 0) > 0;
+		const cachedFormat = enabled && options.frameCachePrecision === '8bit' ? 'rgba8unorm-srgb' : 'rgba16float';
+		assert.equal(evaluations.mock.callCount(), enabled ? 2 : 3);
+		assert.deepEqual(present.mock.calls.map(call => call.arguments[0].format), ['rgba16float', cachedFormat, 'rgba16float']);
+		assert.equal(renderer.frameCache.snapshot().estimatedBytes, enabled ? options.frameCachePrecision === '8bit' ? 4 : 8 : 0);
+		assert.equal(renderer.frameCacheReportIntervalId != null, enabled);
+		assert.deepEqual(errors, []);
+	});
+}
+
 function gpuFixture() {
 	const texture = ({ size = [1, 1], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], depthOrArrayLayers: 1, mipLevelCount: 1, sampleCount: 1,
@@ -160,8 +182,8 @@ function gpuFixture() {
 // 生成・削除したフレームの範囲と容量通知も、実Managerの経路を通して確認する。
 // rgba16floatは1画素8byteなので、16byteの上限で2フレームだけ保持する。
 test('reuses timeline frames with LRU while bypassing the cache for precise seeks and export', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
 	const states = [];
@@ -179,18 +201,14 @@ test('reuses timeline frames with LRU while bypassing the cache for precise seek
 	renderer.reportFrameCache();
 	assert.equal(states.at(-1).estimatedBytes, 16);
 	assert.equal(states.at(-1).fps, 30);
-	await renderer.updateDynamicOptions({ frameCacheMaxBytes: 0 });
-	assert.deepEqual(states.at(-1).frameRanges, []);
-	await renderer.renderTimelineAt(0);
-	assert.equal(evaluations.mock.callCount(), 6);
 	assert.deepEqual(errors, []);
 });
 
 // 【未選択で保存した画像からも、後で選んだレイヤーの変形ハンドルを復元する】
 // 選択変更だけで全フレームを捨てたり、画像だけを再利用して枠を消したりしてはならない。
 test('restores transform metadata on cache hits after changing the observation', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	await renderer.renderTimelineAt(0);
 	const transforms = [];
@@ -209,8 +227,8 @@ test('restores transform metadata on cache hits after changing the observation',
 // 【露出の変更では補正前のフレームキャッシュを維持し、再表示時だけ新しい値を使う】
 // 表示補正を作品の編集と扱うと、ドラッグのたびにキャッシュを全消去して再評価してしまう。
 test('reuses cached frames while applying updated preview exposure', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	await renderer.renderTimelineAt(0);
 	const cached = renderer.frameCache.get(0);
@@ -225,8 +243,8 @@ test('reuses cached frames while applying updated preview exposure', async t => 
 // 【編集・fps・素材などの変更で保存済み画像と古い非同期結果を無効化する】
 // GPUへ送ったコピーの完了を待つ間にも編集RPCが届くため、世代確認は登録直前に必要となる。
 test('invalidates cached frames and rejects snapshots completed after an edit', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30 });
 	await renderer.renderTimelineAt(0);
 	const gate = Promise.withResolvers();
 	const entered = Promise.withResolvers();
@@ -250,8 +268,8 @@ test('invalidates cached frames and rejects snapshots completed after an edit', 
 // 【キャッシュ用GPU確保が失敗しても通常画像の表示は完了する】
 // 空き容量の推定だけで確保成功は保証できない。失敗した画像を採用せず、通常再生を維持する。
 test('keeps rendering when a cache allocation reports out of memory', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30 });
 	renderer.gpuDevice.pushErrorScope = () => {};
 	renderer.gpuDevice.popErrorScope = async () => ({ message: 'out of memory' });
 	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
@@ -266,8 +284,8 @@ for (const failure of ['out-of-memory', 'exception']) {
 	// renderToCanvasの呼び出し回数だけでは、同じencoderの無効化を検出できない。
 	// 非同期OOMに伴うvalidation errorと同期例外の両方で、表示用command bufferの送信を確認する。
 	test(`isolates ${failure} in frame capture from submitted preview work`, async t => {
-		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+		const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
+		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30 });
 		const device = renderer.gpuDevice;
 		const scopes = [];
 		let failCapture = true;
@@ -318,12 +336,12 @@ for (const hasCamera of [false, true]) {
 	// カメラなしのnullを未評価扱いにすると毎回Sceneを走査してしまう。
 	// 露光サンプル間は共有し、次のフレームでは時刻に合わせて評価し直す。
 	test(`shares transform-preview camera evaluation across layers and blur samples with camera ${hasCamera}`, async t => {
-		const { renderer, errors } = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } }, TimelineRendererManager);
+		const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 64, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } }, TimelineRendererManager);
 		const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
 		scene.layers = ['a', 'b', 'c'].map(id => ({ ...structuredClone(scene.layers[0]), id }));
 		if (hasCamera) scene.layers.unshift({ id: 'camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false,
 			automationGraphs: [], cameraParamValues: {}, clips: [{ id: 'camera-clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] });
-		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], timelineScenes: [scene], previewFps: 30, frameCacheMaxBytes: 64 });
+		await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], timelineScenes: [scene], previewFps: 30 });
 		const camera = t.mock.method(renderer.transformPreviewCamera, 'evaluate');
 		const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 		await renderer.renderTimelineAt(200);
@@ -515,8 +533,8 @@ test('resets Live Preview history without restarting its clock or frame loop', a
 // リセット後に完了するコピーを採用すると、内部履歴を消しても過去の蓄積画像が戻る。
 // キャッシュされていた同じ位置の再表示で、新しい評価が必要になることを確認する。
 test('clears cached images and rejects in-flight snapshots after resetting history', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	await renderer.renderTimelineAt(0);
 	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 8);
@@ -641,9 +659,9 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 	// 【Custom Shader Effectの一括更新で描画配置だけを作り直し、GPU・素材・ライブ入力を維持する】
 	// 同じManagerへ定義の追加・変更・削除を反映し、旧配置やTimelineキャッシュを再利用しないことを確認する。
 	test(`${Manager.name} replaces shader definitions and placements while retaining fixed resources`, async t => {
-		const f = await fixture(t, { enableWaveformAndHistogram: false }, Manager);
+		const f = await fixture(t, { enableWaveformAndHistogram: false, frameCacheMaxBytes: 64 }, Manager);
 		const initial = constantVisualModule();
-		f.renderer.updateDynamicOptions({ visualModules: [initial], ...(Manager === TimelineRendererManager ? { frameCacheMaxBytes: 64 } : {}) });
+		f.renderer.updateDynamicOptions({ visualModules: [initial] });
 		if (Manager === VisualModuleRendererManager) {
 			f.renderer.startVisualModuleLivePreviewRenderLoopFor('module', {}, 'same-preview');
 			f.frame(16);
