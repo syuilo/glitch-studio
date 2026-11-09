@@ -4,8 +4,8 @@ import imageValueScaleShader from '../../gpu/image-value-scale.wgsl?raw';
 import imageAnalysisShader from '../../gpu/image-analysis.wgsl?raw';
 import { IMAGE_ANALYSIS_MODES, resolveImageAnalysisValueScale } from '../image-analysis.ts';
 import type { ImageAnalysisMode } from '../image-analysis.ts';
-import { IMAGE_VALUE_SCALES } from '../image-value-scale.ts';
-import type { ImageValueScale } from '../image-value-scale.ts';
+import { DEFAULT_IMAGE_VALUE_RANGE, IMAGE_VALUE_SCALES, isDrawableImageValueRange } from '../image-value-scale.ts';
+import type { ImageValueRange, ImageValueScale } from '../image-value-scale.ts';
 import { createShaderInputBindings, generateShaderInputs } from '../../gpu/shader-input.ts';
 import type { ShaderInput } from '../../gpu/shader-input.ts';
 
@@ -15,6 +15,7 @@ export type WaveformSettings = {
 	direction: 'horizontal' | 'vertical';
 	intensity: number;
 	valueScale?: ImageValueScale;
+	valueRange?: ImageValueRange;
 	// fitを適用する画像領域。集計の間引きやグラフの縦横切替とは独立させる。
 	fitSize: { width: number; height: number };
 	// 波形の位置・強度の分解能と、入力を読むサンプル数は別々に指定できる。
@@ -53,7 +54,7 @@ export function createWaveform(options: {
 	const variants = new Map<ShaderInput['kind'], ReturnType<typeof createVariant>>();
 	let activeVariant: ReturnType<typeof createVariant> | null = null;
 	let renderPipeline: GPURenderPipeline | null = null;
-	const values = new ArrayBuffer(32);
+	const values = new ArrayBuffer(48);
 	const integers = new Uint32Array(values);
 	const floats = new Float32Array(values);
 	const uniforms = device.createBuffer({ size: values.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -71,8 +72,10 @@ export function createWaveform(options: {
 			drawable = false;
 			const { width, height } = p.size;
 			const samples = p.sampleSize ?? p.size;
+			const valueRange = p.valueRange ?? DEFAULT_IMAGE_VALUE_RANGE;
 			const byteLength = width * height * 3 * Uint32Array.BYTES_PER_ELEMENT;
-			if (![width, height, samples.width, samples.height, p.fitSize.width, p.fitSize.height].every(value => Number.isSafeInteger(value) && value > 0)
+			if (!isDrawableImageValueRange(valueRange)
+				|| ![width, height, samples.width, samples.height, p.fitSize.width, p.fitSize.height].every(value => Number.isSafeInteger(value) && value > 0)
 				|| !Number.isSafeInteger(byteLength)
 				|| byteLength > Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize)
 				|| Math.ceil(samples.width / 16) > device.limits.maxComputeWorkgroupsPerDimension
@@ -110,6 +113,7 @@ export function createWaveform(options: {
 			floats[1] = Math.max(0, p.intensity);
 			integers.set([width, height, samples.width, samples.height, Number(p.direction === 'vertical')], 2);
 			integers[7] = IMAGE_VALUE_SCALES.indexOf(resolveImageAnalysisValueScale(p.mode, p.valueScale ?? 'srgb'));
+			floats.set([valueRange.minimum, valueRange.maximum], 8);
 			device.queue.writeBuffer(uniforms, 0, values);
 			encoder.clearBuffer(counts!);
 			drawable = true;

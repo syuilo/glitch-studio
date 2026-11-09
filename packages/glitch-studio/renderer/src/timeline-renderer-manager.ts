@@ -1,4 +1,4 @@
-import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
 import { isVisualModuleValueChange } from './project-change-policy.ts';
@@ -121,6 +121,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	previewActive: boolean;
 	analysisValueScale: ImageValueScale;
 	analysisTarget: ImageAnalysisTarget;
+	analysisValueRange: ImageValueRange;
 	generatedSpeech: GeneratedSpeech[];
 	visualModules: ProjectVisualModule[];
 	timelineScenes: TimelineScene[];
@@ -238,6 +239,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		previewActive: false,
 		analysisValueScale: 'srgb',
 		analysisTarget: 'rgb',
+		analysisValueRange: { minimum: 0, maximum: 1 },
 		generatedSpeech: [],
 		visualModules: [],
 		timelineScenes: [],
@@ -463,6 +465,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.configureCanvas(this.dynamicOptions.opaqueOutput || this.dynamicOptions.previewBackground != null ? 'opaque' : 'premultiplied');
 		this.canvasRenderer.analysisValueScale = this.dynamicOptions.analysisValueScale;
 		this.canvasRenderer.analysisTarget = this.dynamicOptions.analysisTarget;
+		this.canvasRenderer.analysisValueRange = this.dynamicOptions.analysisValueRange;
 
 		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。

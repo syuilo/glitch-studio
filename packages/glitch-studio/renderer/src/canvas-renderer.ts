@@ -9,7 +9,7 @@ import { CpuPreviewFrameQueue } from './cpu-preview-frame-queue.ts';
 import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
 import { PreviewBackgroundScheduler } from './preview-background-scheduler.ts';
 import type { PreviewCanvasContext, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
-import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
@@ -49,6 +49,7 @@ export class CanvasRenderer {
 	}
 	public analysisValueScale: ImageValueScale = 'srgb';
 	public analysisTarget: ImageAnalysisTarget = 'rgb';
+	public analysisValueRange: ImageValueRange = { minimum: 0, maximum: 1 };
 	public get previewBackground() { return this.currentPreviewBackground; }
 	public set previewBackground(value: 'black' | 'checker' | null) {
 		if (value === this.currentPreviewBackground) return;
@@ -174,10 +175,11 @@ export class CanvasRenderer {
 		if (this.gpuHistogram != null) {
 			this.gpuHistogram.valueScale = this.analysisValueScale;
 			this.gpuHistogram.target = this.analysisTarget;
+			this.gpuHistogram.valueRange = this.analysisValueRange;
 			this.gpuHistogram.render(commandEncoder, tex);
 		}
-		this.gpuWaveformHorizontal?.render(commandEncoder, tex, this.analysisValueScale, this.analysisTarget);
-		this.gpuWaveformVertical?.render(commandEncoder, tex, this.analysisValueScale, this.analysisTarget);
+		this.gpuWaveformHorizontal?.render(commandEncoder, tex, this.analysisValueScale, this.analysisTarget, this.analysisValueRange);
+		this.gpuWaveformVertical?.render(commandEncoder, tex, this.analysisValueScale, this.analysisTarget, this.analysisValueRange);
 		this.backgroundScheduler.notifyFrameRendered();
 	}
 

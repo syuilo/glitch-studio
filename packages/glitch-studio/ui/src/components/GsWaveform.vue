@@ -44,7 +44,7 @@ import { appContext } from '@/app.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { createImagePositionAxisTicks, createImageValueAxisTicks, selectImageAnalysisAxisTicks } from '@/utility/image-analysis-axis.ts';
 
-const { activePreviewRenderer, analysisValueScale } = appContext;
+const { activePreviewRenderer, analysisValueScale, analysisValueRange } = appContext;
 
 const props = defineProps<{
 	direction: 'horizontal' | 'vertical';
@@ -56,7 +56,7 @@ const scopeSize = shallowRef({ width: 0, height: 0 });
 const axisTicks = computed(() => {
 	const horizontal = props.direction === 'horizontal';
 	const positionTicks = createImagePositionAxisTicks();
-	const valueTicks = createImageValueAxisTicks(analysisValueScale.value);
+	const valueTicks = createImageValueAxisTicks(analysisValueScale.value, analysisValueRange.value);
 	return {
 		x: selectImageAnalysisAxisTicks(horizontal ? positionTicks : valueTicks, scopeSize.value.width, 48),
 		// Waveform Xの値は下から上へ増える。Waveform Yの画像位置は上端が0%。

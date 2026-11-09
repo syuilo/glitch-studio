@@ -5,8 +5,8 @@ import imageValueScaleShaderCode from '@gs/shared/gpu/image-value-scale.wgsl?raw
 import imageAnalysisShaderCode from '@gs/shared/gpu/image-analysis.wgsl?raw';
 import { IMAGE_ANALYSIS_MODES, resolveImageAnalysisValueScale } from '@gs/shared/utility/image-analysis.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
-import { IMAGE_VALUE_SCALES } from '@gs/shared/utility/image-value-scale.ts';
-import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import { DEFAULT_IMAGE_VALUE_RANGE, IMAGE_VALUE_SCALES, isDrawableImageValueRange } from '@gs/shared/utility/image-value-scale.ts';
+import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
 
 const BIN_COUNT = 256;
@@ -16,6 +16,7 @@ const HISTOGRAM_VALUE_COUNT = (BIN_COUNT * CHANNEL_COUNT) + 1;
 export class GpuHistogram {
 	public valueScale: ImageValueScale = 'srgb';
 	public target: ImageAnalysisTarget = 'rgb';
+	public valueRange: ImageValueRange = { ...DEFAULT_IMAGE_VALUE_RANGE };
 	private readonly valueScaleBuffer: GPUBuffer;
 	private readonly context: PreviewCanvasContext;
 	private readonly histogramBuffer: GPUBuffer;
@@ -142,9 +143,10 @@ export class GpuHistogram {
 	}
 
 	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture) {
-		this.device.queue.writeBuffer(this.valueScaleBuffer, 0, new Uint32Array([
-			IMAGE_VALUE_SCALES.indexOf(resolveImageAnalysisValueScale(this.target, this.valueScale)), IMAGE_ANALYSIS_MODES.indexOf(this.target), 0, 0,
-		]));
+		const settings = new ArrayBuffer(16);
+		new Uint32Array(settings).set([IMAGE_VALUE_SCALES.indexOf(resolveImageAnalysisValueScale(this.target, this.valueScale)), IMAGE_ANALYSIS_MODES.indexOf(this.target)]);
+		new Float32Array(settings).set([this.valueRange.minimum, this.valueRange.maximum], 2);
+		this.device.queue.writeBuffer(this.valueScaleBuffer, 0, settings);
 		if (this.sourceTexture !== sourceTexture) {
 			this.sourceTexture = sourceTexture;
 			this.accumulateBindGroup = this.device.createBindGroup({
@@ -160,21 +162,23 @@ export class GpuHistogram {
 
 		commandEncoder.clearBuffer(this.histogramBuffer);
 
-		const accumulatePass = commandEncoder.beginComputePass({
-			label: 'accumulate histogram',
-		});
-		accumulatePass.setPipeline(this.accumulatePipeline);
-		accumulatePass.setBindGroup(0, this.accumulateBindGroup!);
-		accumulatePass.dispatchWorkgroups(10, 10);
-		accumulatePass.end();
+		if (isDrawableImageValueRange(this.valueRange)) {
+			const accumulatePass = commandEncoder.beginComputePass({
+				label: 'accumulate histogram',
+			});
+			accumulatePass.setPipeline(this.accumulatePipeline);
+			accumulatePass.setBindGroup(0, this.accumulateBindGroup!);
+			accumulatePass.dispatchWorkgroups(10, 10);
+			accumulatePass.end();
 
-		const maxPass = commandEncoder.beginComputePass({
-			label: 'find histogram maximum',
-		});
-		maxPass.setPipeline(this.maxPipeline);
-		maxPass.setBindGroup(0, this.maxBindGroup);
-		maxPass.dispatchWorkgroups(1);
-		maxPass.end();
+			const maxPass = commandEncoder.beginComputePass({
+				label: 'find histogram maximum',
+			});
+			maxPass.setPipeline(this.maxPipeline);
+			maxPass.setBindGroup(0, this.maxBindGroup);
+			maxPass.dispatchWorkgroups(1);
+			maxPass.end();
+		}
 
 		const renderPass = commandEncoder.beginRenderPass({
 			label: 'render histogram',

@@ -664,26 +664,28 @@ test('synchronizes analysis targets and valid value scales across both previews 
 	for (const target of ['alpha', 'vectorX', 'vectorY', 'vectorLength']) {
 		appContext.analysisTarget.value = target;
 		await setImmediate();
-		assert.equal(appContext.analysisValueScale.value, 'linearZeroToOne');
+		assert.equal(appContext.analysisValueScale.value, 'linear');
 		for (const controller of controllers) {
 			assert.equal(controller.options.analysisTarget, target);
-			assert.equal(controller.options.analysisValueScale, 'linearZeroToOne');
+			assert.equal(controller.options.analysisValueScale, 'linear');
 		}
 	}
-	appContext.analysisValueScale.value = 'linearMinusOneToOne';
+	appContext.analysisRangePreset.value = 'minusOneToOne';
 	appContext.analysisTarget.value = 'vectorX';
 	await setImmediate();
-	assert.equal(appContext.analysisValueScale.value, 'linearMinusOneToOne');
+	assert.equal(appContext.analysisValueScale.value, 'linear');
+	assert.deepEqual(appContext.analysisValueRange.value, { minimum: -1, maximum: 1 });
 	appContext.renderEngine.fail(new Error('draw failed'));
 	appContext.analysisTarget.value = 'vectorLength';
 	await setImmediate();
 	for (const controller of controllers) {
 		assert.equal(controller.initialDynamicOptions.analysisTarget, 'vectorLength');
-		assert.equal(controller.initialDynamicOptions.analysisValueScale, 'linearMinusOneToOne');
+		assert.equal(controller.initialDynamicOptions.analysisValueScale, 'linear');
+		assert.deepEqual(controller.initialDynamicOptions.analysisValueRange, { minimum: -1, maximum: 1 });
 	}
 	appContext.analysisValueScale.value = 'ev';
 	await setImmediate();
-	assert.equal(appContext.analysisValueScale.value, 'linearZeroToOne');
+	assert.equal(appContext.analysisValueScale.value, 'linear');
 	appContext.analysisTarget.value = 'rgb';
 	appContext.analysisValueScale.value = 'ev';
 	await setImmediate();
@@ -692,6 +694,39 @@ test('synchronizes analysis targets and valid value scales across both previews 
 		assert.equal(controller.options.analysisValueScale, 'ev');
 		assert.ok(controller.updates.every(options => options.analysisTarget == null || options.analysisTarget === 'rgb'
 			|| !['srgb', 'ev'].includes(options.analysisValueScale)));
+	}
+});
+
+// 【表示範囲を変換方式から独立して同期し、Customの反転・幅0も復旧後に保持する】
+// Min・MaxはVueのオブジェクトなので、Workerへ渡せる通常のオブジェクトとして送る必要がある。
+// 全プリセットとCustomが両プレビューへ反映され、sRGB・EVの切替でも範囲が変わらないことを確認する。
+test('synchronizes independent preset and custom analysis ranges across scales and recovery', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	const controllers = [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController];
+	for (const scale of ['srgb', 'linear', 'ev']) {
+		appContext.analysisValueScale.value = scale;
+		for (const [preset, minimum, maximum] of [['zeroToOne', 0, 1], ['minusOneToOne', -1, 1], ['minusOneToFour', -1, 4], ['minusHalfToHalf', -0.5, 0.5], ['minusTenToTen', -10, 10], ['custom', 0, 1]]) {
+			appContext.analysisRangePreset.value = preset;
+			await setImmediate();
+			for (const controller of controllers) {
+				assert.equal(controller.options.analysisValueScale, scale);
+				assert.deepEqual(structuredClone(controller.options.analysisValueRange), { minimum, maximum });
+			}
+		}
+	}
+	for (const [minimum, maximum] of [[-0.01, 0.02], [2, -2], [0, 0]]) {
+		appContext.analysisCustomRange.value = { minimum, maximum };
+		await setImmediate();
+		for (const controller of controllers) assert.deepEqual(structuredClone(controller.options.analysisValueRange), { minimum, maximum });
+	}
+	appContext.renderEngine.fail(new Error('draw failed'));
+	appContext.analysisCustomRange.value = { minimum: -10, maximum: 10 };
+	await setImmediate();
+	for (const controller of controllers) {
+		assert.deepEqual(controller.initialDynamicOptions.analysisValueRange, { minimum: -10, maximum: 10 });
+		assert.equal(controller.initialDynamicOptions.analysisValueScale, 'ev');
 	}
 });
 

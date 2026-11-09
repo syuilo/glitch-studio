@@ -115,42 +115,52 @@ export async function run() {
 				}
 			} finally { renderer.destroy(); context.unconfigure(); source.destroy(); output.destroy(); }
 		}
-		const target = device.createTexture({ size: [IMAGE_VALUE_SCALES.length, 2], format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+		// 【変換方式と表示範囲を独立に組み合わせ、sRGB・EVも任意範囲と反転に対応する】
+		// Linearだけの検証では、非線形変換より前に範囲を適用する誤りを検出できない。
+		const scaleCases = [
+			{ scale: 'srgb', minimum: 0, maximum: 1, expected: [0, 0.46135613, 1] },
+			{ scale: 'linear', minimum: 0, maximum: 1, expected: [0, 0.18, 1] },
+			{ scale: 'ev', minimum: -10, maximum: 10, expected: [0, 0.5, 0.62369656] },
+			{ scale: 'srgb', minimum: 0.25, maximum: 0.75, expected: [-0.5, 0.42271226, 1.5] },
+			{ scale: 'linear', minimum: 1, maximum: -1, expected: [0.5, 0.41, 0] },
+			{ scale: 'ev', minimum: 10, maximum: -10, expected: [0, 0.5, 0.37630344] },
+		] as const;
+		const target = device.createTexture({ size: [scaleCases.length, 2], format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 		const buffer = device.createBuffer({ size: 512, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 		try {
 			const pipeline = device.createRenderPipeline({ layout: 'auto', vertex: { module: device.createShaderModule({ code: vertexCode }) }, fragment: {
 				module: device.createShaderModule({ code: colorSpaceCode + '\n' + valueScaleCode + '\n' + `
 @fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f {
 	let input = select(vec3f(0.0, 0.18, 1.0), vec3f(-1.0, -0.5, 0.0), p.y > 1.0);
-	return vec4f(imageValueForScope(input, u32(p.x)), 1.0);
+	let cases = array(${scaleCases.map(({ scale, minimum, maximum }) => `vec3f(${IMAGE_VALUE_SCALES.indexOf(scale)}, ${minimum}, ${maximum})`).join(', ')});
+	let settings = cases[u32(p.x)];
+	return vec4f(imageValueForScope(input, u32(settings.x), settings.yz), 1.0);
 }` }),
 				targets: [{ format: 'rgba32float' }],
 			} });
 			const encoder = device.createCommandEncoder();
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(pipeline); pass.draw(3); pass.end();
-			encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow: 256 }, [IMAGE_VALUE_SCALES.length, 2]);
+			encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow: 256 }, [scaleCases.length, 2]);
 			device.queue.submit([encoder.finish()]);
 			await buffer.mapAsync(GPUMapMode.READ);
 			const values = new Float32Array(buffer.getMappedRange());
-			for (const [scale, expected] of [['srgb', 0.46135613], ['linear', 0.236], ['ev', 0.5], ['linearZeroToOne', 0.18], ['linearMinusOneToOne', 0.59]] as const) {
-				const index = IMAGE_VALUE_SCALES.indexOf(scale);
-				if (Math.abs(values[index * 4 + 1] - expected) > 0.00001) throw new Error(`scope scale ${index} has the wrong middle gray`);
-				checks.push(`scope scale ${index} middle gray`);
+			for (const [index, { scale, minimum, maximum, expected }] of scaleCases.entries()) {
+				const actual = values.slice(index * 4, index * 4 + 3);
+				if (expected.some((value, channel) => Math.abs(actual[channel] - value) > 0.00001)) throw new Error(`scope ${scale} ${minimum}..${maximum}: ${actual}, expected ${expected}`);
+				checks.push(`scope ${scale} independent range ${minimum}..${maximum}`);
 			}
 			// 【データ用Linear軸は正負の値をsRGB変換せず、固定範囲へ配置する】
 			// 中間調だけでは、符号の消失や0基準のずれ、端点だけに合わせた誤変換を検出できない。
 			// clamp前の実GPU出力を比較し、0〜1軸でも負値を途中で失わないことを確認する。
-			for (const { scale, row, expected } of [
-				{ scale: 'linearZeroToOne', row: 0, expected: [0, 0.18, 1] },
-				{ scale: 'linearZeroToOne', row: 1, expected: [-1, -0.5, 0] },
-				{ scale: 'linearMinusOneToOne', row: 0, expected: [0.5, 0.59, 1] },
-				{ scale: 'linearMinusOneToOne', row: 1, expected: [0, 0.25, 0.5] },
+			for (const { index, expected } of [
+				{ index: 1, expected: [-1, -0.5, 0] },
+				{ index: 4, expected: [1, 0.75, 0.5] },
 			] as const) {
-				const offset = row * 64 + IMAGE_VALUE_SCALES.indexOf(scale) * 4;
+				const offset = 64 + index * 4;
 				const actual = values.slice(offset, offset + 3);
-				if (expected.some((value, channel) => Math.abs(actual[channel] - value) > 0.00001)) throw new Error(`scope scale ${scale} row ${row}: ${actual}, expected ${expected}`);
-				checks.push(`scope scale ${scale} fixed linear range row ${row}`);
+				if (expected.some((value, channel) => Math.abs(actual[channel] - value) > 0.00001)) throw new Error(`scope linear negative inputs ${index}: ${actual}, expected ${expected}`);
+				checks.push(`scope linear negative inputs ${index}`);
 			}
 			buffer.unmap();
 		} finally { buffer.destroy(); target.destroy(); }

@@ -16,10 +16,10 @@ const { createImageValueAxisTicks, selectImageAnalysisAxisTicks } = module.expor
 // GPU側だけが新しい範囲へ切り替わると、波形やヒストグラムの正しい位置に誤った値を表示してしまう。
 // 端点・中間値の位置とラベルを確認し、sRGB用の非線形な位置への変換も防ぐ。
 test('labels data ranges with evenly spaced linear values and a centered zero reference', () => {
-	const unsigned = createImageValueAxisTicks('linearZeroToOne');
+	const unsigned = createImageValueAxisTicks('linear', { minimum: 0, maximum: 1 });
 	assert.deepEqual(unsigned.map(tick => tick.position), [0, 0.25, 0.5, 0.75, 1]);
 	assert.deepEqual(unsigned.map(tick => tick.label), ['0', '0.25', '0.5', '0.75', '1']);
-	const signed = createImageValueAxisTicks('linearMinusOneToOne');
+	const signed = createImageValueAxisTicks('linear', { minimum: -1, maximum: 1 });
 	assert.deepEqual(signed.map(tick => tick.position), [0, 0.25, 0.5, 0.75, 1]);
 	assert.deepEqual(signed.map(tick => tick.label), ['−1', '−0.5', '0', '0.5', '1']);
 	assert.deepEqual(signed.filter(tick => tick.isReference).map(tick => tick.value), [0]);
@@ -29,7 +29,7 @@ test('labels data ranges with evenly spaced linear values and a centered zero re
 // 0の基準が消えると正負を見分けにくいため、目盛りを間引いても基準線とラベルを一緒に残す。
 // 縦波形の値軸と横波形の反転した値軸の両方で、同じ意味を保つことを確認する。
 test('keeps the signed zero reference when thinning either axis direction', () => {
-	const ticks = createImageValueAxisTicks('linearMinusOneToOne');
+	const ticks = createImageValueAxisTicks('linear', { minimum: -1, maximum: 1 });
 	for (const reversed of [false, true]) {
 		const directedTicks = ticks.map(tick => ({ ...tick, position: reversed ? 1 - tick.position : tick.position }));
 		const selected = selectImageAnalysisAxisTicks(directedTicks, 100, 48);
@@ -37,4 +37,30 @@ test('keeps the signed zero reference when thinning either axis direction', () =
 		assert.equal(selected[1].position, 0.5);
 		assert.equal(selected[1].isReference, true);
 	}
+});
+
+// 【任意範囲と反転範囲でも、端点と0の目盛りがGPUの正規化位置へ一致する】
+// 固定プリセットの表を参照するだけではCustomに追従せず、Min > Maxではラベルの順序も逆になる。
+// 小数の丸め誤差をラベルへ出さず、EVも独立した範囲の単位で表示することを確認する。
+test('positions readable custom ticks for all scales and reversed ranges', () => {
+	for (const valueScale of ['srgb', 'linear', 'ev']) {
+		for (const [minimum, maximum] of [[-1, 4], [-0.5, 0.5], [-0.1, 0.9], [0.9, -0.1], [-10, 10]]) {
+			const ticks = createImageValueAxisTicks(valueScale, { minimum, maximum });
+			assert.equal(ticks[0].value, minimum);
+			assert.equal(ticks[0].position, 0);
+			assert.equal(ticks.at(-1).value, maximum);
+			assert.equal(ticks.at(-1).position, 1);
+			assert.ok(ticks.every(tick => tick.position >= 0 && tick.position <= 1));
+			assert.equal(ticks.find(tick => tick.value === 0).position, (0 - minimum) / (maximum - minimum));
+		}
+	}
+	assert.deepEqual(createImageValueAxisTicks('linear', { minimum: 0.001, maximum: 0.002 }).map(tick => tick.label), ['0.001', '0.00125', '0.0015', '0.00175', '0.002']);
+	assert.equal(createImageValueAxisTicks('ev', { minimum: -10, maximum: 10 }).at(-1).label, '+10');
+});
+
+// 【幅0の範囲では、GPUの空表示に対応して目盛りと基準線も表示しない】
+// 両端をクリックで0へ戻す操作は通常の状態なので、0除算による不正な位置を生成しない。
+test('returns no ticks for collapsed ranges including float32 rounding', () => {
+	assert.deepEqual(createImageValueAxisTicks('linear', { minimum: 0, maximum: 0 }), []);
+	assert.deepEqual(createImageValueAxisTicks('linear', { minimum: 1, maximum: 1 + Number.EPSILON }), []);
 });

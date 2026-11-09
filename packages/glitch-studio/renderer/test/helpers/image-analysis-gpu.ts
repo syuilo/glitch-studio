@@ -1,7 +1,7 @@
 import { CanvasRenderer } from '../../src/canvas-renderer.ts';
 import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
-import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { PreviewCanvasContext } from '../../src/preview-canvas-context.ts';
 
 export async function run() {
@@ -24,13 +24,14 @@ export async function run() {
 		return { texture, bytesPerRow, buffer: device.createBuffer({ size: bytesPerRow * texture.height, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) };
 	});
 	const checks: string[] = [];
-	async function check(target: ImageAnalysisTarget, valueScale: ImageValueScale, components: number[], expectedValue: number, sourceFormat: GPUTextureFormat = 'rgba16float') {
+	async function check(target: ImageAnalysisTarget, valueScale: ImageValueScale, components: number[], expectedValue: number, sourceFormat: GPUTextureFormat = 'rgba16float', valueRange: ImageValueRange = { minimum: 0, maximum: 1 }) {
 		const source = device.createTexture({ size: [1, 1], format: sourceFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		try {
 			const data = sourceFormat.includes('32') ? new Float32Array(components) : new Uint16Array(components.map(float32ToFloat16Bits));
 			device.queue.writeTexture({ texture: source }, data, { bytesPerRow: data.byteLength }, [1, 1]);
 			renderer.analysisTarget = target;
 			renderer.analysisValueScale = valueScale;
+			renderer.analysisValueRange = valueRange;
 			const encoder = device.createCommandEncoder();
 			renderer.renderToCanvas(source, encoder);
 			for (const { texture, buffer, bytesPerRow } of readbacks) encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow }, [texture.width, texture.height]);
@@ -42,8 +43,12 @@ export async function run() {
 				return result;
 			}));
 			if (errors.length > 0) throw new Error(errors.join('\n'));
-			const normalized = Math.max(0, Math.min(1, valueScale === 'linearMinusOneToOne' ? (expectedValue + 1) / 2
-				: valueScale === 'linear' ? (expectedValue + 1) / 5 : expectedValue));
+			if (valueRange.minimum === valueRange.maximum) {
+				if (pixels.some(image => image.some((value, offset) => offset % 4 !== 3 && value !== 0))) throw new Error('Equal range endpoints retained stale analysis pixels');
+				checks.push(`${target}: equal range endpoints clear all analysis canvases`);
+				return pixels;
+			}
+			const normalized = Math.max(0, Math.min(1, (expectedValue - valueRange.minimum) / (valueRange.maximum - valueRange.minimum)));
 			const expectedBin = Math.round(normalized * 255);
 			const visibleBins = Array.from({ length: 256 }, (_, bin) => bin).filter(bin => pixels[0][(75 * 256 + bin) * 4] > 0);
 			if (visibleBins.length !== 1 || visibleBins[0] !== expectedBin) throw new Error(`${target} ${valueScale} ${sourceFormat}: histogram bins ${visibleBins}, expected ${expectedBin}`);
@@ -71,28 +76,30 @@ export async function run() {
 		// alphaで割る・重みを掛ける処理が混入すると、成分やベクトル長が変化してしまう。
 		// (-0.375, 0.5)の長さは厳密に0.625であり、半精度の丸めにも依存しない期待値を使う。
 		for (const [target, value] of [['alpha', 0.25], ['vectorX', -0.375], ['vectorY', 0.5], ['vectorLength', 0.625]] as const) {
-			for (const scale of ['linearZeroToOne', 'linearMinusOneToOne', 'linear'] as const) await check(target, scale, [-0.375, 0.5, 0.125, 0.25], value);
+			for (const [minimum, maximum] of [[0, 1], [-1, 1], [-1, 4], [-0.5, 0.5], [-0.1, 0.9], [1, -1], [0, 0]]) {
+				await check(target, 'linear', [-0.375, 0.5, 0.125, 0.25], value, 'rgba16float', { minimum, maximum });
+			}
 		}
 		// 【透明黒の0も消さず、alpha=0のベクトル成分も同じ重みで集計する】
 		// ヒストグラムの下端をRGBの明度で暗くすると、alpha=0の分布だけ見えなくなる。
-		for (const target of ['alpha', 'vectorX', 'vectorY', 'vectorLength'] as const) await check(target, 'linearZeroToOne', [0, 0, 0, 0], 0);
-		await check('vectorLength', 'linearZeroToOne', [-0.375, 0.5, 0, 0], 0.625);
+		for (const target of ['alpha', 'vectorX', 'vectorY', 'vectorLength'] as const) await check(target, 'linear', [0, 0, 0, 0], 0);
+		await check('vectorLength', 'linear', [-0.375, 0.5, 0, 0], 0.625);
 		// 【同じベクトルはalphaだけ変わっても波形の密度とヒストグラムが一致する】
 		// ピークの位置だけではalphaによる誤った重み付けを検出できないため、全画素を比較する。
-		const reference = await check('vectorLength', 'linearZeroToOne', [-0.375, 0.5, 0, 0.25], 0.625);
+		const reference = await check('vectorLength', 'linear', [-0.375, 0.5, 0, 0.25], 0.625);
 		for (const alpha of [0, 0.5, 1]) {
-			const actual = await check('vectorLength', 'linearZeroToOne', [-0.375, 0.5, 0, alpha], 0.625);
+			const actual = await check('vectorLength', 'linear', [-0.375, 0.5, 0, alpha], 0.625);
 			if (actual.some((pixels, index) => pixels.some((value, offset) => value !== reference[index][offset]))) throw new Error(`Data analysis was weighted by alpha ${alpha}`);
 		}
-		await check('vectorLength', 'linear', [3, 4, 0, 0], 5);
+		await check('vectorLength', 'linear', [3, 4, 0, 0], 5, 'rgba16float', { minimum: -1, maximum: 4 });
 		// 【ベクトルのRG形式とスカラーのR形式をRGBAへ変換せず直接解析する】
 		// 欠けている成分はGPUの既定値に従い、半精度・対応GPUでは単精度でも確認する。
 		for (const sourceFormat of device.features.has('float32-filterable') ? ['rg16float', 'rg32float'] as const : ['rg16float'] as const) {
-			await check('vectorX', 'linearMinusOneToOne', [-0.375, 0.5], -0.375, sourceFormat);
-			await check('vectorY', 'linearZeroToOne', [-0.375, 0.5], 0.5, sourceFormat);
-			await check('vectorLength', 'linearZeroToOne', [-0.375, 0.5], 0.625, sourceFormat);
+			await check('vectorX', 'linear', [-0.375, 0.5], -0.375, sourceFormat, { minimum: -1, maximum: 1 });
+			await check('vectorY', 'linear', [-0.375, 0.5], 0.5, sourceFormat);
+			await check('vectorLength', 'linear', [-0.375, 0.5], 0.625, sourceFormat);
 		}
-		await check('vectorLength', 'linearZeroToOne', [0.5], 0.5, 'r16float');
+		await check('vectorLength', 'linear', [0.5], 0.5, 'r16float');
 		// 【UIを経由しない設定でも、データにsRGBやEVを適用しない】
 		// Rendererの設定境界でもLinear 0〜1へ補正し、見た目と目盛りの誤解釈を防ぐ。
 		await check('alpha', 'srgb', [0, 0, 0, 0.25], 0.25);

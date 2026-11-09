@@ -1,4 +1,4 @@
-import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
@@ -69,6 +69,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	previewActive: boolean;
 	analysisValueScale: ImageValueScale;
 	analysisTarget: ImageAnalysisTarget;
+	analysisValueRange: ImageValueRange;
 	visualModuleLivePreviewTimeFactor: number;
 	/** Visual Module Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
@@ -159,6 +160,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		previewActive: false,
 		analysisValueScale: 'srgb',
 		analysisTarget: 'rgb',
+		analysisValueRange: { minimum: 0, maximum: 1 },
 		visualModules: [],
 		automationGraphs: [],
 	};
@@ -327,6 +329,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.configureCanvas(this.dynamicOptions.opaqueOutput || this.dynamicOptions.previewBackground != null ? 'opaque' : 'premultiplied');
 		this.canvasRenderer.analysisValueScale = this.dynamicOptions.analysisValueScale;
 		this.canvasRenderer.analysisTarget = this.dynamicOptions.analysisTarget;
+		this.canvasRenderer.analysisValueRange = this.dynamicOptions.analysisValueRange;
 
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
 		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale')) {

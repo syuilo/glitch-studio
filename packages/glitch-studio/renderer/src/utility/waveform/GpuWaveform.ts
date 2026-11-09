@@ -2,7 +2,8 @@ import { createWaveform } from '@gs/shared/utility/waveform/waveform.ts';
 import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import vertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
-import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import { DEFAULT_IMAGE_VALUE_RANGE } from '@gs/shared/utility/image-value-scale.ts';
+import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 
 const MAX_SAMPLE_EDGE = 1024;
@@ -34,7 +35,7 @@ export class GpuWaveform {
 		this.waveform = createWaveform({ device, vertexShaderModule: device.createShaderModule({ code: vertexShaderCode }), format });
 	}
 
-	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture, valueScale: ImageValueScale = 'srgb', target: ImageAnalysisTarget = 'rgb') {
+	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture, valueScale: ImageValueScale = 'srgb', target: ImageAnalysisTarget = 'rgb', valueRange: ImageValueRange = DEFAULT_IMAGE_VALUE_RANGE) {
 		const vertical = this.positionAxis === 'y';
 		// パネルの縦横比で画像を切り取らず、常に元画像全体を解析する。
 		const input = textureShaderInput(sourceTexture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' });
@@ -42,6 +43,7 @@ export class GpuWaveform {
 			fitSize: sourceTexture,
 			mode: target,
 			valueScale,
+			valueRange,
 			direction: vertical ? 'vertical' : 'horizontal',
 			intensity: 0.22,
 			size: vertical ? { width: 256, height: 512 } : { width: 512, height: 256 },

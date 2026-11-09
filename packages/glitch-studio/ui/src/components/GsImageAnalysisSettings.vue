@@ -6,18 +6,30 @@
 	<button class="_button" :class="$style.controlButton" data-test-image-analysis-scale @click="showAnalysisValueScaleMenu">
 		{{ analysisValueScaleLabels[effectiveValueScale] }} <i class="ti ti-chevron-down"></i>
 	</button>
+	<button class="_button" :class="$style.controlButton" data-test-image-analysis-range @click="showAnalysisRangeMenu">
+		Range: {{ analysisRangePreset === 'custom' ? 'Custom' : IMAGE_ANALYSIS_RANGE_PRESETS[analysisRangePreset].label }} <i class="ti ti-chevron-down"></i>
+	</button>
+	<template v-if="analysisRangePreset === 'custom'">
+		<button class="_button" :class="[$style.controlButton, $style.rangeValue]" data-test-image-analysis-min @pointerdown="onRangePointerdown($event, 'minimum')" @click="onRangeClick($event, 'minimum')" @keydown="onRangeKeydown($event, 'minimum')">{{ analysisCustomRange.minimum }}</button>
+		<span>~</span>
+		<button class="_button" :class="[$style.controlButton, $style.rangeValue]" data-test-image-analysis-max @pointerdown="onRangePointerdown($event, 'maximum')" @click="onRangeClick($event, 'maximum')" @keydown="onRangeKeydown($event, 'maximum')">{{ analysisCustomRange.maximum }}</button>
+	</template>
 </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import { computed, onBeforeUnmount, watch } from 'vue';
 import { getImageAnalysisValueScales, resolveImageAnalysisValueScale } from '@gs/shared/utility/image-analysis.ts';
+import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
+import type { ImageValueRange } from '@gs/shared/utility/image-value-scale.ts';
+import type { ImageAnalysisRangePreset } from '@/utility/image-analysis-range.ts';
+import { IMAGE_ANALYSIS_RANGE_PRESETS } from '@/utility/image-analysis-range.ts';
+import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { appContext } from '@/app.ts';
 import * as ui from '@/ui.ts';
 
-const { analysisTarget, analysisValueScale } = appContext;
+const { analysisTarget, analysisValueScale, analysisRangePreset, analysisCustomRange } = appContext;
 const effectiveValueScale = computed(() => resolveImageAnalysisValueScale(analysisTarget.value, analysisValueScale.value));
 const analysisTargetLabels = {
 	rgb: 'RGB',
@@ -27,12 +39,58 @@ const analysisTargetLabels = {
 	vectorLength: 'Vector Length',
 } satisfies Record<ImageAnalysisTarget, string>;
 const analysisValueScaleLabels = {
-	srgb: 'sRGB · 0 ~ +1',
-	linearZeroToOne: 'Linear · 0 ~ +1',
-	linearMinusOneToOne: 'Linear · −1 ~ +1',
-	linear: 'Linear · −1 ~ +4',
-	ev: 'EV · −10 ~ +10 · 0 EV = 0.18',
+	srgb: 'sRGB',
+	linear: 'Linear',
+	ev: 'EV · 0 EV = 0.18',
 } satisfies Record<ImageValueScale, string>;
+
+let stopRangeDrag: (() => void) | null = null;
+let suppressRangeClick: keyof ImageValueRange | null = null;
+
+function setRangeBound(bound: keyof ImageValueRange, value: number) {
+	// 表示値と実際の範囲を0.01単位に揃え、負の0も保存しない。
+	const rounded = Math.round(value * 100) / 100;
+	analysisCustomRange.value = { ...analysisCustomRange.value, [bound]: rounded === 0 ? 0 : rounded };
+}
+
+function onRangePointerdown(event: PointerEvent, bound: keyof ImageValueRange) {
+	if (event.button !== 0 || stopRangeDrag != null) return;
+	const initialValue = analysisCustomRange.value[bound];
+	let moved = false;
+	suppressRangeClick = null;
+	stopRangeDrag = startPreviewPointerDrag(event, {
+		move: next => {
+			if (Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) >= 3) moved = true;
+			if (moved) {
+				// 開始位置の近くでは微調整し、離れるほど1pxあたりの変化を大きくする。
+				// 常に開始値と累積距離から求め、イベントの頻度や移動経路によって値がずれないようにする。
+				const scaledVerticalDistance = (event.clientY - next.clientY) / 100;
+				const valueDelta = scaledVerticalDistance * (1 + Math.abs(scaledVerticalDistance));
+				setRangeBound(bound, initialValue + valueDelta);
+			}
+		},
+		end: cancelled => {
+			if (cancelled) analysisCustomRange.value = { ...analysisCustomRange.value, [bound]: initialValue };
+			suppressRangeClick = moved || cancelled ? bound : null;
+			stopRangeDrag = null;
+		},
+	});
+}
+
+function onRangeClick(event: MouseEvent, bound: keyof ImageValueRange) {
+	// ドラッグ直後のclickだけを抑止し、別のコントロールやキーボードのクリックはリセットする。
+	if (suppressRangeClick !== bound || event.detail === 0) setRangeBound(bound, 0);
+	suppressRangeClick = null;
+}
+
+function onRangeKeydown(event: KeyboardEvent, bound: keyof ImageValueRange) {
+	if (stopRangeDrag != null || !['ArrowUp', 'ArrowDown', 'Home'].includes(event.key)) return;
+	event.preventDefault();
+	setRangeBound(bound, event.key === 'Home' ? 0 : analysisCustomRange.value[bound] + (event.key === 'ArrowUp' ? 0.01 : -0.01));
+}
+
+watch(analysisRangePreset, () => stopRangeDrag?.(), { flush: 'sync' });
+onBeforeUnmount(() => stopRangeDrag?.());
 
 function showAnalysisTargetMenu(ev: PointerEvent) {
 	ui.popupMenu((['rgb', 'alpha', 'vectorX', 'vectorY', 'vectorLength'] as const).map(target => ({
@@ -51,6 +109,15 @@ function showAnalysisValueScaleMenu(ev: PointerEvent) {
 		action: () => { analysisValueScale.value = valueScale; },
 	})), ev.currentTarget ?? ev.target);
 }
+
+function showAnalysisRangeMenu(ev: PointerEvent) {
+	ui.popupMenu((['zeroToOne', 'minusOneToOne', 'minusOneToFour', 'minusHalfToHalf', 'minusTenToTen', 'custom'] as const).map((preset: ImageAnalysisRangePreset) => ({
+		type: 'radioOption' as const,
+		text: preset === 'custom' ? 'Custom' : IMAGE_ANALYSIS_RANGE_PRESETS[preset].label,
+		active: computed(() => analysisRangePreset.value === preset),
+		action: () => { analysisRangePreset.value = preset; },
+	})), ev.currentTarget ?? ev.target);
+}
 </script>
 
 <style module lang="scss">
@@ -66,8 +133,11 @@ function showAnalysisValueScaleMenu(ev: PointerEvent) {
 	align-items: center;
 	gap: 4px;
 	padding: 2px 4px;
-	background: var(--THEME-panel);
-	border: 1px solid var(--THEME-divider);
-	border-radius: 4px;
+}
+
+.rangeValue {
+	cursor: ns-resize;
+	touch-action: none;
+	font-variant-numeric: tabular-nums;
 }
 </style>

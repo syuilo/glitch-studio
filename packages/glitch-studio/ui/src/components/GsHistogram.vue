@@ -32,12 +32,12 @@ import { appContext } from '@/app.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { createImageValueAxisTicks, selectImageAnalysisAxisTicks } from '@/utility/image-analysis-axis.ts';
 
-const { activePreviewRenderer, analysisValueScale } = appContext;
+const { activePreviewRenderer, analysisValueScale, analysisValueRange } = appContext;
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const scope = useTemplateRef('scope');
 const scopeWidth = ref(0);
-const xAxisTicks = computed(() => selectImageAnalysisAxisTicks(createImageValueAxisTicks(analysisValueScale.value), scopeWidth.value, 48));
+const xAxisTicks = computed(() => selectImageAnalysisAxisTicks(createImageValueAxisTicks(analysisValueScale.value, analysisValueRange.value), scopeWidth.value, 48));
 const gridTicks = computed(() => xAxisTicks.value.filter(tick => tick.position > 0 && tick.position < 1));
 
 let scopeResizeObserver: ResizeObserver | null = null;

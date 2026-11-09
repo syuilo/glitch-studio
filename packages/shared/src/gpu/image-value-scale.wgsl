@@ -1,10 +1,11 @@
-// RGBは未乗算linear値で受け取る。SDRのsRGB軸と、負値・HDRを観察する軸を区別する。
-// clampは集計先の範囲へ収めるためにだけ行い、作業画像には書き戻さない。
-fn imageValueForScope(rgb: vec3f, scale: u32) -> vec3f {
-	if (scale == 1u) { return (rgb + 1.0) / 5.0; } // linear -1〜4
-	if (scale == 2u) { return (log2(max(rgb / 0.18, vec3f(0.00000001))) + 10.0) / 20.0; }
-	// データの振幅をそのまま読めるよう、どちらの範囲もsRGBの伝達関数を通さない。
-	if (scale == 3u) { return rgb; } // linear 0〜1
-	if (scale == 4u) { return (rgb + 1.0) / 2.0; } // linear -1〜1
-	return colorLinearToSrgb(rgb);
+// 軸の変換と表示範囲は独立。rangeはsRGB値・作業値・EVのそれぞれの単位で指定する。
+// minimum > maximumなら分母が負になり、値の大小を保ったまま表示方向だけを反転できる。
+fn imageValueForScope(values: vec3f, scale: u32, range: vec2f) -> vec3f {
+	var displayed = values;
+	if (scale == 0u) { displayed = colorLinearToSrgb(values); }
+	if (scale == 2u) { displayed = log2(max(values / 0.18, vec3f(0.00000001))); }
+	let normalized = (displayed - range.x) / (range.y - range.x);
+	// EVで対数を取れない値は、Customの範囲によらず開始側の端へ集計する。
+	if (scale == 2u) { return select(vec3f(0.0), normalized, values > vec3f(0.0)); }
+	return normalized;
 }

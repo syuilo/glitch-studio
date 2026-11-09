@@ -13,7 +13,12 @@ struct VertexOut {
 };
 
 @group(0) @binding(0) var<storage, read> histogram: Histogram;
-@group(0) @binding(1) var<uniform> valueScale: vec4u;
+struct AnalysisSettings {
+	valueScale: u32,
+	mode: u32,
+	valueRange: vec2f,
+};
+@group(0) @binding(1) var<uniform> settings: AnalysisSettings;
 
 const quad = array(
 	vec2f(0.0, 0.0),
@@ -50,7 +55,7 @@ fn barsVs(
 
 	// 単一の数値は白で表示する。binに比例して暗くすると、alpha=0などの下端が見えなくなる。
 	var color = vec3f(1.0);
-	if (valueScale.y == 0u) {
+	if (settings.mode == 0u) {
 		color = vec3f(0.0);
 		if (channel == 0u) {
 			color.r = intensity;

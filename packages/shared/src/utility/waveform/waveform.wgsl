@@ -5,6 +5,7 @@ struct Params {
 	sampleSize: vec2u,
 	verticalPosition: u32,
 	valueScale: u32,
+	valueRange: vec2f,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -49,7 +50,7 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 	if (weight == 0.0) {
 		return;
 	}
-	let scaledValues = imageValueForScope(sample.values, params.valueScale);
+	let scaledValues = imageValueForScope(sample.values, params.valueScale, params.valueRange);
 	// サンプル解像度と表示の位置分解能は独立。fit後の画像領域の位置を集計する。
 	let samplePosition = select(id.x, id.y, params.verticalPosition == 1u);
 	let positionSamples = select(params.sampleSize.x, params.sampleSize.y, params.verticalPosition == 1u);
