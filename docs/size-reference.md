@@ -38,6 +38,7 @@
 | Gradient | 線形勾配の幅・放射状勾配の半径。Start/End Positionは勾配の基準区間に対する値、Centerは共通空間座標。Vector出力は共通座標に対する偏微分 |
 | Chromatic Aberration、Vector Chromatic Aberration | 色ずれを計算する等方的な基準領域。入力ベクトルは共通空間単位 |
 | Shape SDF | Size・Corner Radius |
+| Vignette | Size・Feather。Centerは共通座標を維持 |
 | SDF Boolean | Smoothing |
 | SDF to Mask | Offset・Stroke Width・Feather |
 | Glass | Thickness・Edge Softness・Normal Smoothing・Blur Radius |
