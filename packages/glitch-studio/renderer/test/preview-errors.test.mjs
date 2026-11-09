@@ -1571,3 +1571,277 @@ for (const stage of ['base', 'modifier']) {
 		await assert.doesNotReject(renderer.renderTimelineFrame(0, 0));
 	});
 }
+
+function installTiledEffect(f) {
+	const renders = [];
+	const createEncoder = f.renderer.gpuDevice.createCommandEncoder;
+	f.renderer.gpuDevice.createCommandEncoder = () => {
+		const encoder = createEncoder();
+		const begin = encoder.beginRenderPass;
+		encoder.beginRenderPass = descriptor => ({ ...begin(descriptor), setScissorRect() {} });
+		return encoder;
+	};
+	f.renderer.effectImplementations.pass = {
+		disableCache: true,
+		outputTextureFactories: { output: ({ resolution, wgpu }) => wgpu.device.createTexture({ size: resolution }) },
+		init: () => ({ render(context) {
+			renders.push({ time: context.time, timeDelta: context.timeDelta, input: context.params.input });
+			const pass = context.createPassEncoderFor(context.commandEncoder, context.outputDataMap.output.textureView);
+			pass.draw(3); pass.end();
+		}, dispose() {} }),
+	};
+	const definition = visualModule(false);
+	definition.nodes = [{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'expression', expression: '[TIME, 0, 0, 1]' } } }, definition.nodes[2]];
+	return { definition, renders };
+}
+
+// 【タイル待機中は次の描画とVideoFrameの交換を保留し、編集時は旧結果を表示しない】
+// 実Managerの時計・動画の所有権・世代管理まで含め、単体の描画Promiseだけでは防げない競合を検証する。
+test('serializes tiled Live Preview frames and retains borrowed video frames until completion', async t => {
+	const f = await fixture(t, { effectRenderTileDivisionLevel: 1, enableWaveformAndHistogram: false });
+	const { definition, renders } = installTiledEffect(f);
+	f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, visualModules: [definition] });
+	f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+	const waits = [];
+	f.renderer.gpuDevice.queue.onSubmittedWorkDone = () => new Promise(resolve => waits.push(resolve));
+	const present = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
+	const frame = () => ({ closed: 0, close() { this.closed++; } });
+	const old = frame(), replaced = frame(), latest = frame();
+	f.renderer.updateVideoFrame('player', old);
+	f.frame(16); f.frame(32); f.frame(64);
+	f.renderer.updateVideoFrame('player', replaced);
+	f.renderer.updateVideoFrame('player', latest);
+	assert.equal(old.closed, 0);
+	assert.equal(replaced.closed, 1);
+	assert.equal(renders.length, 1);
+	assert.equal(present.mock.callCount(), 0);
+	for (let index = 0; index < 4; index++) { waits.shift()(); await new Promise(resolve => setImmediate(resolve)); }
+	assert.equal(present.mock.callCount(), 1);
+	assert.equal(old.closed, 1);
+	assert.equal(f.renderer.videoFrames.get('player'), latest);
+	f.frame(96);
+	assert.equal(renders.length, 2);
+	assert.equal(renders[1].time, 0.096);
+	assert.equal(renders[1].timeDelta, 80);
+	f.renderer.updateDynamicOptions({ resolution: { width: 8, height: 4 } });
+	waits.shift()();
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(waits.length, 0);
+	assert.equal(present.mock.callCount(), 1);
+	assert.deepEqual(f.errors, []);
+});
+
+for (const kind of ['effect', 'visualModule']) {
+	// 【書き出しの両レイヤー経路へ分割設定を伝え、完成した画像だけを表示する】
+	// Effect単体の対応だけではTimelineやVisual Moduleレイヤーの呼び出しで設定が失われ得る。
+	test(`renders tiled ${kind} layers through the timeline export path`, async t => {
+		const f = await fixture(t, { effectRenderTileDivisionLevel: 1, enableWaveformAndHistogram: false }, TimelineRendererManager);
+		const { definition, renders } = installTiledEffect(f);
+		const scenes = structuredClone(f.renderer.dynamicOptions.timelineScenes);
+		if (kind === 'effect') scenes[0].layers[0] = { ...scenes[0].layers[0], layerType: 'effect', effectId: 'pass', effectStaticSettings: {},
+			resolution: { mode: 'context', scale: 1 }, effectParamValues: { input: { inputSource: 'literal', value: [1, 0, 0, 1] } } };
+		f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, visualModules: [definition], timelineScenes: scenes });
+		const submitted = t.mock.method(f.renderer.gpuDevice.queue, 'submit');
+		await f.renderer.renderTimelineFrame(0, 0);
+		assert.equal(renders.length, 1);
+		assert.ok(submitted.mock.callCount() >= 5);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
+function editTiledVisualModuleValue(renderer, value, kind = 'node') {
+	if (kind === 'public') {
+		renderer.updateVisualModuleLivePreviewParamValues({ gain: { inputSource: 'literal', value } });
+		return;
+	}
+	const visualModule = renderer.dynamicOptions.visualModules.find(entry => entry.id === 'module');
+	if (kind === 'custom') {
+		renderer.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, customParameterValuesOnly: true,
+			visualModule: { ...visualModule, customParameterValues: { gain: { inputSource: 'literal', value } } } }]);
+	} else {
+		const node = visualModule.nodes.find(entry => entry.id === 'a');
+		renderer.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, changes: [{ type: 'parameter', kind: 'value' }],
+			node: { ...node, params: { ...node.params, input: { inputSource: 'literal', value: [value, 0, 0, 1] } } } }]);
+	}
+}
+
+async function finishTiledWork(waits, count) {
+	for (let index = 0; index < count; index++) {
+		await new Promise(resolve => setImmediate(resolve));
+		assert.ok(waits.length > 0, `Missing GPU wait ${index + 1} of ${count}`);
+		waits.shift()();
+	}
+	await new Promise(resolve => setImmediate(resolve));
+}
+
+async function tiledValueFixture(t, kind = 'node', Manager = VisualModuleRendererManager) {
+	const f = await fixture(t, { effectRenderTileDivisionLevel: 1, enableWaveformAndHistogram: false }, Manager);
+	const { definition, renders } = installTiledEffect(f);
+	f.renderer.effectDefinitions.pass.dependsOnRenderHistory = true;
+	f.renderer.effectImplementations.pass.needsPreviousFrame = true;
+	const init = t.mock.method(f.renderer.effectImplementations.pass, 'init');
+	definition.nodes[0].params.input = { inputSource: 'literal', value: [0.1, 0, 0, 1] };
+	if (kind !== 'node') {
+		const parameter = { id: 'gain', nameForReference: 'gain', canNode: false, dataType: { kind: 'scalar' },
+			ui: { label: 'Gain', control: {} }, defaultValue: { inputSource: 'literal', value: 0.1 } };
+		if (kind === 'public') definition.paramDefs = [parameter];
+		else { definition.customParameterDefs = [parameter]; definition.customParameterValues = { gain: parameter.defaultValue }; }
+		definition.nodes[0].params.input = { inputSource: 'expression', expression: `[${kind === 'public' ? 'PUBLIC' : 'CUSTOM'}("gain"), 0, 0, 1]` };
+	}
+	f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, visualModules: [definition] });
+	if (Manager === VisualModuleRendererManager) f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+	const waits = [];
+	f.renderer.gpuDevice.queue.onSubmittedWorkDone = () => new Promise(resolve => waits.push(resolve));
+	const states = [];
+	f.renderer.on('ev', event => { if (event.type === 'effectState') states.push(event.ctx.status); });
+	return { ...f, definition, renders, init, waits, states };
+}
+
+for (const kind of ['node', 'custom', 'public']) {
+	// 【値だけの連続変更ではタイル描画を完成させ、最新値だけを次フレームへ渡す】
+	// 中断による再初期化は、解像度表示の点滅だけでなくGPU資源の再確保と履歴消失も起こす。
+	// ノード・カスタムパラメータ・公開入力の各入口で、同じインスタンスと履歴を維持する。
+	test(`coalesces ${kind} values after a tiled Live Preview frame without clearing resolution or history`, async t => {
+		const f = await tiledValueFixture(t, kind);
+		f.frame(16);
+		await finishTiledWork(f.waits, 4);
+		const effect = f.renderer.visualModuleLivePreviewVisualModuleRenderer.effectRenderers.get('a');
+		const destroyOutput = t.mock.method(effect.getOutputTexture('output'), 'destroy');
+		f.states.length = 0;
+		f.frame(32);
+		editTiledVisualModuleValue(f.renderer, 0.3, kind);
+		editTiledVisualModuleValue(f.renderer, 0.7, kind);
+		f.frame(48);
+		await finishTiledWork(f.waits, 4);
+		assert.equal(f.renders.length, 2);
+		assert.equal(f.renders[1].input.value[0], 0.1);
+		f.frame(64);
+		await finishTiledWork(f.waits, 4);
+		assert.equal(f.renders.length, 3);
+		assert.equal(f.renders[2].input.value[0], 0.7);
+		assert.equal(f.renders[2].timeDelta, 32);
+		assert.equal(f.init.mock.callCount(), 1);
+		assert.equal(destroyOutput.mock.callCount(), 0);
+		assert.ok(f.states.every(state => state?.outputs.output != null));
+		assert.deepEqual(f.errors, []);
+	});
+}
+
+// 【保留中の値を失わずに解像度変更を優先する】
+// 構造変更では中断が必要だが、その前に受け取った値を古いノード設定へ戻してはならない。
+test('retains queued values when resizing a tiled Live Preview', async t => {
+	const f = await tiledValueFixture(t);
+	f.frame(16);
+	editTiledVisualModuleValue(f.renderer, 0.7);
+	f.renderer.updateDynamicOptions({ resolution: { width: 8, height: 4 } });
+	await finishTiledWork(f.waits, 1);
+	f.frame(32);
+	await finishTiledWork(f.waits, 4);
+	assert.equal(f.renders.at(-1).input.value[0], 0.7);
+	assert.deepEqual(f.states.at(-1).outputs.output, { width: 8, height: 4 });
+	assert.deepEqual(f.errors, []);
+});
+
+for (const kind of ['node', 'custom']) {
+	// 【Timelineでもノードの値変更で履歴を消さず、待機中の最新シークを実行する】
+	// 旧フレーム完了時にScheduler.clearを呼ぶと、UIが既に送った再描画要求まで消えてしまう。
+	// 複数の編集をまとめても最新の編集世代と値で完了通知が届くことを確認する。
+	test(`coalesces tiled Timeline ${kind} values without losing the pending seek or effect state`, async t => {
+		const f = await tiledValueFixture(t, kind, TimelineRendererManager);
+		const initial = f.renderer.renderTimelineAt(0);
+		await finishTiledWork(f.waits, 5);
+		await initial;
+		f.states.length = 0;
+		const completed = [];
+		f.renderer.on('ev', event => { if (event.type === 'frameRendered') completed.push(event.ctx); });
+		const drawing = f.renderer.renderTimelineAt(100, 1);
+		await new Promise(resolve => setImmediate(resolve));
+		editTiledVisualModuleValue(f.renderer, 0.3, kind);
+		await f.renderer.renderTimelineAt(100, 2);
+		editTiledVisualModuleValue(f.renderer, 0.7, kind);
+		await f.renderer.renderTimelineAt(100, 3);
+		await finishTiledWork(f.waits, 10);
+		await drawing;
+		assert.equal(f.renders.length, 3);
+		assert.equal(f.renders[1].input.value[0], 0.1);
+		assert.equal(f.renders[2].input.value[0], 0.7);
+		assert.equal(f.init.mock.callCount(), 1);
+		assert.ok(f.states.every(state => state?.outputs.output != null));
+		assert.deepEqual(completed.map(frame => frame.requestId), [3]);
+		assert.equal(completed[0].revision, f.renderer.dynamicOptions.previewRevision);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
+// 【停止時は保留していた旧プレビューの値を、新しく開始した対象へ適用しない】
+// GPUの待機Promiseはstop後にも完了するため、保留した更新にもプレビューの寿命が必要になる。
+test('does not replay queued values into another Live Preview after stopping', async t => {
+	const f = await tiledValueFixture(t);
+	f.frame(16);
+	editTiledVisualModuleValue(f.renderer, 0.7);
+	f.renderer.stopRenderLoop();
+	const other = structuredClone(f.definition);
+	other.id = 'other';
+	other.nodes[0].params.input = { inputSource: 'literal', value: [0.9, 0, 0, 1] };
+	f.renderer.updateDynamicOptions({ visualModules: [...f.renderer.dynamicOptions.visualModules, other] });
+	f.renderer.startVisualModuleLivePreviewRenderLoopFor('other');
+	await finishTiledWork(f.waits, 1);
+	f.frame(32);
+	await finishTiledWork(f.waits, 4);
+	assert.equal(f.renders.at(-1).input.value[0], 0.9);
+	assert.equal(f.renderer.visualModuleLivePreviewVisualModuleId, 'other');
+	assert.deepEqual(f.errors, []);
+});
+
+// 【ノードとカスタムパラメータを交互に編集しても、両方の最新値を維持する】
+// Visual Module全体のスナップショットが、より後に届いた同一ノードの値を上書きしない。
+test('preserves the order of coalesced node and custom parameter changes in Timeline', async t => {
+	const f = await tiledValueFixture(t, 'custom', TimelineRendererManager);
+	const definition = structuredClone(f.definition);
+	definition.customParameterValues.gain.value = 0.25;
+	definition.nodes[0].params.input.expression = '[CUSTOM("gain") + 0.25, 0, 0, 1]';
+	f.renderer.updateDynamicOptions({ visualModules: [definition] });
+	const initial = f.renderer.renderTimelineAt(0);
+	await finishTiledWork(f.waits, 5);
+	await initial;
+	const drawing = f.renderer.renderTimelineAt(100);
+	await new Promise(resolve => setImmediate(resolve));
+	const nodeChange = node => ({ type: 'node', target: { visualModuleId: 'module' }, node, changes: [{ type: 'parameter', kind: 'value' }] });
+	const first = { ...definition.nodes[0], params: { input: { inputSource: 'expression', expression: '[CUSTOM("gain") + 0.125, 0, 0, 1]' } } };
+	f.renderer.applyProjectChanges([nodeChange(first)]);
+	const snapshot = { ...definition, nodes: [first, definition.nodes[1]], customParameterValues: { gain: { inputSource: 'literal', value: 0.5 } } };
+	f.renderer.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: snapshot, customParameterValuesOnly: true }]);
+	f.renderer.applyProjectChanges([nodeChange({ ...first, params: definition.nodes[0].params })]);
+	await f.renderer.renderTimelineAt(100);
+	await finishTiledWork(f.waits, 10);
+	await drawing;
+	assert.equal(f.renders.at(-1).input.value[0], 0.75);
+	assert.equal(f.init.mock.callCount(), 1);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【保留前のフレームが失敗しても、最新値の再描画を失わない】
+// 完了境界で値を反映した後の旧失敗をSchedulerが現行の失敗として扱うと、
+// スライダーを止めた最後の値が描画されないままになる。
+test('retries queued Timeline values after an obsolete tiled frame fails', async t => {
+	const f = await tiledValueFixture(t, 'node', TimelineRendererManager);
+	const initial = f.renderer.renderTimelineAt(0);
+	await finishTiledWork(f.waits, 5);
+	await initial;
+	const oldCompletion = Promise.withResolvers();
+	const wait = f.renderer.gpuDevice.queue.onSubmittedWorkDone;
+	let first = true;
+	f.renderer.gpuDevice.queue.onSubmittedWorkDone = () => {
+		if (first) { first = false; return oldCompletion.promise; }
+		return wait();
+	};
+	const drawing = f.renderer.renderTimelineAt(100, 1);
+	await new Promise(resolve => setImmediate(resolve));
+	editTiledVisualModuleValue(f.renderer, 0.7);
+	await f.renderer.renderTimelineAt(100, 2);
+	oldCompletion.reject(new Error('obsolete sample failed'));
+	await finishTiledWork(f.waits, 6);
+	await drawing;
+	assert.equal(f.renders.at(-1).input.value[0], 0.7);
+	assert.deepEqual(f.errors, []);
+});

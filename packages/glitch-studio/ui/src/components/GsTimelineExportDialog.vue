@@ -267,6 +267,7 @@ async function doExport() {
 			// プレビュー用Controllerの初期化・再読み込み状態には依存しない。
 			renderer: {
 				enable32bitDataTextures: preferences.s.enable32bitDataTextures,
+				effectRenderTileDivisionLevel: preferences.s.effectRenderTileDivisionLevel,
 				intermediateTextureFormat: preferences.s.intermediateTextureFormat
 					?? (preferredFormat === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm'),
 			},

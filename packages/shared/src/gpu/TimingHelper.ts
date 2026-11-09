@@ -172,4 +172,19 @@ export default class TimingHelper {
 		this.#resultBuffers.push(resultBuffer);
 		return Number(duration);
 	}
+	/** 計測完了後に所有者が呼ぶ。分割描画の計測器も再生成時にGPU資源を残さない。 */
+	dispose() {
+		if (this.#commandBuffer != null) s_unsubmittedCommandBuffer.delete(this.#commandBuffer);
+		this.#commandBuffer = null;
+		this.#commandEncoder = null;
+		this.#state = 'free';
+		for (const batch of this.#queryBatches) {
+			batch.querySet.destroy();
+			batch.resolveBuffer.destroy();
+		}
+		for (const buffer of new Set([...this.#resultBuffers, this.#resultBuffer])) buffer?.destroy();
+		this.#queryBatches = [];
+		this.#resultBuffers = [];
+		this.#resultBuffer = null;
+	}
 }

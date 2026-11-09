@@ -30,6 +30,8 @@ import type { EffectImplementation, EffectRenderContext } from '@gs/subsystems_e
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
 import type { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
 
+type VisualModuleNodeRenderRequest = { renderer: EffectRenderer; context: Omit<EffectRenderContext, 'commandEncoder' | 'outputDataMap' | 'createPassEncoderFor' | 'createPassEncoder' | 'createComputePassEncoder'> };
+
 const NO_OUTPUT_PORTS: ReadonlySet<string> = new Set();
 
 export type VisualModuleRenderContext = {
@@ -101,11 +103,15 @@ export class VisualModuleRenderer {
 	private renderNodeId: VisualModuleNode['id'] | null = null;
 	private effectDefinitions: Record<string, EffectDefinition>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
+	private readonly effectRenderTileDivisionLevel: number;
+	private tiledRenderController: AbortController | null = null;
+	public lastTiledGpuTime = 0;
 	private parameterEvaluator = new VisualModuleParameterBindingEvaluator();
 
 	constructor(options: {
 		onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
 		enableStats: boolean;
+		effectRenderTileDivisionLevel?: number;
 		timingHelper: TimingHelper | null;
 		gpuDevice: GPUDevice;
 		fallbackTexture: GPUTexture;
@@ -126,6 +132,7 @@ export class VisualModuleRenderer {
 		effectDefinitions: Record<string, EffectDefinition>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
+		this.effectRenderTileDivisionLevel = options.effectRenderTileDivisionLevel ?? 0;
 		this.inputResolutions = options.inputResolutions ?? new Map();
 		this.getPlayerResolution = options.getPlayerResolution ?? null;
 		this.gpuDevice = options.gpuDevice;
@@ -158,6 +165,7 @@ export class VisualModuleRenderer {
 		preserveStaticState?: boolean;
 		inputResolutions?: ReadonlyMap<string, Resolution | null>;
 	} = {}) {
+		this.tiledRenderController?.abort();
 		this.automationGraphs = visualModule.automationGraphs;
 		this.outputDefs = visualModule.outputDefs;
 		this.primaryOutputId = visualModule.primaryOutputId;
@@ -385,6 +393,7 @@ export class VisualModuleRenderer {
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateNodes(newNodes: VisualModuleNode[], preserveStaticState = false) {
 		if (this.destroyed) return;
+		this.tiledRenderController?.abort();
 		this.invalidatePreparation();
 		// 保存済みスナップショットを変更せず、解像度・資源・キャッシュが同じ補完済み設定を使う。
 		this.nodes = newNodes.map(node => node.type === 'effect' ? {
@@ -423,6 +432,7 @@ export class VisualModuleRenderer {
 					},
 					fallbackTexture: this.fallbackTexture,
 					enableStats: this.enableStats,
+					effectRenderTileDivisionLevel: this.effectRenderTileDivisionLevel,
 					timingHelper: this.timingHelper,
 					onState: state => this.onEffectState?.(node.id, state),
 				});
@@ -455,14 +465,14 @@ export class VisualModuleRenderer {
 		return texture == null ? null : { kind: 'texture', texture };
 	}
 
-	private renderNode(node: VisualModuleNode, commandEncoder: GPUCommandEncoder, context: VisualModuleRenderContext & {
+	private *renderNode(node: VisualModuleNode, context: VisualModuleRenderContext & {
 		rendered: Set<VisualModuleNode['id']>;
-	}): void {
+	}): Generator<VisualModuleNodeRenderRequest, void> {
 		if (node.type === 'globalIn') return;
 		if (node.type === 'globalOut') {
 			for (const id of this.getRequestedOutputIds(context)) {
 				const output = this.getOutputNode(node, id);
-				if (output != null) this.renderNode(output.node, commandEncoder, context);
+				if (output != null) yield* this.renderNode(output.node, context);
 			}
 			return;
 		}
@@ -475,7 +485,7 @@ export class VisualModuleRenderer {
 			// バイパスの切り替えは静的更新として扱い、描画履歴も再作成する。
 			const output = this.getOutputNode(node);
 			if (output == null) return;
-			return this.renderNode(output.node, commandEncoder, {
+			return yield* this.renderNode(output.node, {
 				...context,
 				rendered: context.rendered,
 			});
@@ -486,7 +496,7 @@ export class VisualModuleRenderer {
 		for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
 			if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 			const targetNode = this.allNodeIdMap.get(param.nodeId);
-			this.renderNode(targetNode!, commandEncoder, {
+			yield* this.renderNode(targetNode!, {
 				...context,
 				rendered: context.rendered,
 			});
@@ -502,14 +512,13 @@ export class VisualModuleRenderer {
 		}
 
 		const renderer = this.effectRenderers.get(node.id)!;
-		renderer.render({
+		yield { renderer, context: {
 			time: context.time / 1000,
 			timeDelta: context.timeDelta,
 			...pointerContext,
 			params: resolvedParams,
 			usedOutputPorts: this.usedOutputPorts.get(node.id),
-			commandEncoder,
-		});
+		} };
 		context.rendered.add(node.id);
 		if (key != null) this.effectCacheKeys.set(node.id, key);
 		else this.effectCacheKeys.delete(node.id);
@@ -619,7 +628,7 @@ export class VisualModuleRenderer {
 		return context.outputIds ?? (this.primaryOutputId == null ? [] : [this.primaryOutputId]);
 	}
 
-	private renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, UniformOrTexture> {
+	private *renderOutputNodes(context: VisualModuleRenderContext): Generator<VisualModuleNodeRenderRequest, Map<string, UniformOrTexture>> {
 		const outputs = new Map<string, UniformOrTexture>();
 		if (this.destroyed || this.renderNodeId == null) return outputs;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
@@ -633,7 +642,7 @@ export class VisualModuleRenderer {
 
 		this.prepareOutputPorts(node, this.getRequestedOutputIds(context));
 
-		this.renderNode(node, commandEncoder, {
+		yield* this.renderNode(node, {
 			...context,
 			rendered: new Set<VisualModuleNode['id']>(),
 		});
@@ -645,13 +654,51 @@ export class VisualModuleRenderer {
 		return outputs;
 	}
 
+	private renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, UniformOrTexture> {
+		const evaluation = this.renderOutputNodes(context);
+		let step = evaluation.next();
+		while (!step.done) {
+			step.value.renderer.render({ ...step.value.context, commandEncoder });
+			step = evaluation.next();
+		}
+		return step.value;
+	}
+
 	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): UniformOrTexture | null {
 		const outputs = this.renderOutputs(context, commandEncoder);
 		return this.primaryOutputId == null ? null : outputs.get(this.primaryOutputId) ?? null;
 	}
 
+	/** 同期経路と同じ走査を、エフェクト単位のGPU完了境界で進める。 */
+	public async renderTiled(context: VisualModuleRenderContext, signal?: AbortSignal): Promise<UniformOrTexture | null> {
+		if (this.tiledRenderController != null) throw new Error('Visual Module tiled render is already running.');
+		const controller = new AbortController();
+		this.tiledRenderController = controller;
+		const renderSignal = signal == null ? controller.signal : AbortSignal.any([controller.signal, signal]);
+		const evaluation = this.renderOutputNodes(context);
+		this.lastTiledGpuTime = 0;
+		try {
+			renderSignal.throwIfAborted();
+			let step = evaluation.next();
+			while (!step.done) {
+				this.lastTiledGpuTime += await step.value.renderer.renderTiled(step.value.context, renderSignal);
+				renderSignal.throwIfAborted();
+				step = evaluation.next();
+			}
+			return this.primaryOutputId == null ? null : step.value.get(this.primaryOutputId) ?? null;
+		} catch (error) {
+			// 上流が部分更新された可能性もあるので、以前の静的キャッシュを流用しない。
+			this.effectCacheKeys.clear();
+			throw error;
+		} finally {
+			evaluation.return(new Map());
+			this.tiledRenderController = null;
+		}
+	}
+
 	public resize(resolution: Resolution, resolutionScale = 1) {
 		if (this.destroyed) return;
+		this.tiledRenderController?.abort();
 		const contextResolution = scaleResolution(resolution, resolutionScale);
 		// contextの寸法が同じでも倍率が変われば素材原寸・customAbsoluteの計画は変わる。
 		// 同じ描画基準の再通知だけは、履歴や非同期準備を失わないようにする。
@@ -665,6 +712,7 @@ export class VisualModuleRenderer {
 
 	public resetRenderHistory() {
 		if (this.destroyed) return;
+		this.tiledRenderController?.abort();
 		this.invalidatePreparation();
 		for (const [id, renderer] of this.effectRenderers) {
 			const node = this.allNodeIdMap.get(id)!;
@@ -675,6 +723,7 @@ export class VisualModuleRenderer {
 	}
 
 	public destroy() {
+		this.tiledRenderController?.abort();
 		this.destroyed = true;
 		this.invalidatePreparation();
 		for (const renderer of this.effectRenderers.values()) renderer.dispose();

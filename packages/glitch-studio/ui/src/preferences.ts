@@ -42,6 +42,7 @@ export const PREF_DEF = definePreferences({
 	timelineSnapLocalTicks: { default: () => false },
 	timelineSnapSeekBar: { default: () => false },
 	enable32bitDataTextures: { default: () => false },
+	effectRenderTileDivisionLevel: { default: () => 0 },
 	intermediateTextureFormat: { default: () => null as IntermediateTextureFormat | null },
 	renderingStatsEnabled: { default: () => true },
 	previewDisplayMode: { default: (): PreviewDisplayMode => 'gpu' },

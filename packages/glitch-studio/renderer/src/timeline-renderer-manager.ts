@@ -1,4 +1,7 @@
 import { createProjectEffects } from './custom-shader-effects.ts';
+import { isVisualModuleValueChange } from './project-change-policy.ts';
+import type { VisualModuleValueChange } from './project-change-policy.ts';
+import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { createTimelineLayerPublicParameterContextIndex } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import type { TimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
@@ -86,6 +89,7 @@ export type TimelineRendererManagerStaticOptions = {
 	timelineFps: number;
 	timelineMotionBlur: TimelineMotionBlurSettings;
 	enable32bitDataTextures: boolean;
+	effectRenderTileDivisionLevel?: number;
 	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
 	intermediateTextureFormat: IntermediateTextureFormat;
 	/** 処理中の1件に追加できる先行数。省略時は1、0ではGPU完了まで直列に処理する。 */
@@ -180,6 +184,8 @@ export class TimelineRendererManager extends EventEmitter<{
 	private frameCacheRevision = 0;
 	private frameCacheReportIntervalId: ReturnType<typeof setInterval> | null = null;
 	private activePreviewFrame: PreviewFrameCapture | null = null;
+	private pendingVisualModuleValueChanges = new Map<string, VisualModuleValueChange>();
+	private pendingVisualModuleValueRevision: number | null = null;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | null = null;
 	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[]; cameras: TimelineMotionBlurCameraCuts[] } | null = null;
@@ -424,6 +430,10 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
+		if (['generatedSpeech', 'resolution', 'resolutionScale', 'visualModules', 'automationGraphs', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key))) {
+			// 描画を作り直す要求では、保留していた値も現在の状態へ反映してから切り替える。
+			this.applyPendingVisualModuleValues();
+		}
 		if (Object.hasOwn(newOptions, 'previewFps') && newOptions.previewFps != null && (!Number.isFinite(newOptions.previewFps) || newOptions.previewFps <= 0)) throw new RangeError('Invalid preview FPS');
 		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes')) {
 			this.frameCache.setMaxBytes(newOptions.frameCacheMaxBytes!);
@@ -466,19 +476,52 @@ export class TimelineRendererManager extends EventEmitter<{
 		if (Object.hasOwn(newOptions, 'frameCacheMaxBytes') && !this.frameCache.enabled) this.reportFrameCache();
 	}
 
-	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = this.dynamicOptions.previewRevision + 1) {
+	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = (this.pendingVisualModuleValueRevision ?? this.dynamicOptions.previewRevision) + 1) {
+		if ((this.staticOptions.effectRenderTileDivisionLevel ?? 0) > 0 && this.activePreviewFrame != null
+			&& changes.length > 0 && changes.every(isVisualModuleValueChange)) {
+			// 呼び出し時の検証は維持し、描画中の状態はまだ変更しない。
+			applyRendererProjectChanges(this.dynamicOptions, [...this.pendingVisualModuleValueChanges.values(), ...changes]);
+			for (const change of changes) {
+				const key = JSON.stringify([visualModuleTargetKey(change.target), change.type, change.type === 'node' ? change.node.id : null]);
+				// 同じノードの値は最新だけ残す。Visual Module全体の更新と混在しても
+				// 最後に届いたスナップショットが後から適用されるよう、順序も更新する。
+				this.pendingVisualModuleValueChanges.delete(key);
+				this.pendingVisualModuleValueChanges.set(key, change);
+			}
+			this.pendingVisualModuleValueRevision = previewRevision;
+			return;
+		}
+		const combined = [...this.pendingVisualModuleValueChanges.values(), ...changes];
+		this.applyProjectChangesNow(combined, previewRevision);
+		this.pendingVisualModuleValueChanges.clear();
+		this.pendingVisualModuleValueRevision = null;
+	}
+
+	private applyPendingVisualModuleValues() {
+		if (this.pendingVisualModuleValueChanges.size === 0) return;
+		const changes = [...this.pendingVisualModuleValueChanges.values()];
+		const revision = this.pendingVisualModuleValueRevision!;
+		this.pendingVisualModuleValueChanges.clear();
+		this.pendingVisualModuleValueRevision = null;
+		// 待機中の最新シークを消さず、完成した旧フレームだけをキャッシュ・通知から除外する。
+		this.applyProjectChangesNow(changes, revision, true);
+	}
+
+	private applyProjectChangesNow(changes: readonly RendererProjectChange[], previewRevision: number, keepPendingRender = false) {
 		const next = applyRendererProjectChanges(this.dynamicOptions, changes);
 		const customShaderEffects = changes.findLast(change => change.type === 'customShaderEffects');
 		const effects = customShaderEffects == null ? null : createProjectEffects(customShaderEffects.customShaderEffects, this.builtinEffectDefinitions, this.builtinEffectImplementations);
 		const changesRootScene = customShaderEffects != null || changes.some(change => change.type === 'scene' && change.sceneId === this.dynamicOptions.sceneId);
 		const resolution = changesRootScene ? this.resolveProjectOutputResolution(next) : null;
-		// 差分の検証が成功するまで公開状態を変更しない。編集中の非同期フレームは
-		// 中断するが、履歴とキャッシュの破棄は変更された配置だけが次の評価で行う。
-		this.previewScheduler.clear();
+		// 差分の検証が成功するまで公開状態を変更しない。即時反映の変更は描画を中断し、
+		// 値だけの変更を完了境界から反映する場合は、待機中の描画要求を維持する。
+		if (!keepPendingRender) this.previewScheduler.clear();
 		this.invalidateFrameCache();
 		this.previewRenderGeneration++;
-		this.timelineRenderer.cancelPendingRender();
-		this.frameRenderer.cancel();
+		if (!keepPendingRender) {
+			this.timelineRenderer.cancelPendingRender();
+			this.frameRenderer.cancel();
+		}
 		this.motionBlurTiming = null;
 		this.projectVersions.apply(changes, this.dynamicOptions);
 		Object.assign(this.dynamicOptions, next);
@@ -537,6 +580,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public resetRenderHistory() {
+		this.applyPendingVisualModuleValues();
 		// リセット前に送信したフレームの後処理で、画像キャッシュや完了通知を復活させない。
 		// Schedulerの世代も進め、次の評価は旧フレームのGPU完了後に行う。
 		this.previewRenderGeneration++;
@@ -619,7 +663,10 @@ export class TimelineRendererManager extends EventEmitter<{
 			} finally {
 				// 送信後は設定された上限まで次の準備を許可する。GPU完了を待つこの関数の寿命と、
 				// CPU側の評価で使う参照の寿命を分け、前フレームの後始末で次の参照を消さない。
-				if (this.activePreviewFrame === capture) this.activePreviewFrame = null;
+				if (this.activePreviewFrame === capture) {
+					this.activePreviewFrame = null;
+					this.applyPendingVisualModuleValues();
+				}
 				if (this.previewFrameTiming === timing) this.previewFrameTiming = null;
 				if (this.pendingTransformPreview === preview) this.pendingTransformPreview = null;
 				const gpuWaitStartedAt = timing != null ? performance.now() : 0;
@@ -692,7 +739,9 @@ export class TimelineRendererManager extends EventEmitter<{
 				this.reportRenderError(error instanceof Error ? error.message : String(error));
 				if (preview != null && this.dynamicOptions.transformObserver === request) this.publishTransformPreview({ ...preview, geometry: null, outputResolution: null });
 			}
-			return false;
+			// 値の保留を完了境界で反映した場合、Schedulerの待機要求は同じ世代に残る。
+			// 旧内容の失敗でその要求まで取り消さず、最新の値で再試行させる。
+			return generation !== this.previewRenderGeneration;
 		} finally {
 			if (capture.cpuPresentation == null) capture.cpuFrame?.cancel();
 			capture.snapshot?.texture.destroy();
@@ -884,6 +933,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (!definition || !implementation) throw new Error(`Effect not found: ${layer.effectId}`);
 				const source = this.createLayerStatusSource(layer.id, clipId, layerPath);
 				return createEffectTimelineLayer(layer, definition, implementation, {
+					effectRenderTileDivisionLevel: this.staticOptions.effectRenderTileDivisionLevel,
 					onCompositing,
 					wgpu: {
 						device: this.gpuDevice,
@@ -993,6 +1043,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolution: sceneBaseResolution,
 			resolutionScale: this.dynamicOptions.resolutionScale,
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
+			effectRenderTileDivisionLevel: this.staticOptions.effectRenderTileDivisionLevel,
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: false,
 			timingHelper: null,
@@ -1031,12 +1082,14 @@ export class TimelineRendererManager extends EventEmitter<{
 			},
 			getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
 			prepare: (context, signal) => renderer.prepare(context, signal),
-			render: async (context, layerContext) => {
+			render: async (context, layerContext, signal) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
 				let result: Awaited<ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>> = { gpuTime: 0 };
 				const gpuTime = 0;
 				try {
-					const output = renderer.render(context, commandEncoder);
+					const output = (this.staticOptions.effectRenderTileDivisionLevel ?? 0) > 0
+						? await renderer.renderTiled(context, signal) : renderer.render(context, commandEncoder);
+					signal.throwIfAborted();
 					if (output != null) {
 						const settings = compositingParameters.evaluate({
 							time: layerContext.sceneTimeMs,
@@ -1094,6 +1147,8 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public destroy() {
+		this.pendingVisualModuleValueChanges.clear();
+		this.pendingVisualModuleValueRevision = null;
 		if (this.frameCacheReportIntervalId != null) clearInterval(this.frameCacheReportIntervalId);
 		this.frameCache.dispose();
 		if (this.telemetryReportIntervalId != null) clearInterval(this.telemetryReportIntervalId);

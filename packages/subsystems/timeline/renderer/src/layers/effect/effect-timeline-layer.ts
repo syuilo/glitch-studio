@@ -35,6 +35,7 @@ import type { TimelineAudioInputProvider } from '../../timeline-audio-input-reso
 /** レイヤーの評価スコープ・入力・合成を所有し、エフェクト自身の実行はEffectRendererへ委ねる。 */
 export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition: EffectDefinition, implementation: EffectImplementation, options: {
 	wgpu: EffectGpuContext;
+	effectRenderTileDivisionLevel?: number;
 	fallbackTexture: GPUTexture;
 	/** 倍率適用済みの所属Sceneの寸法。 */
 	resolution: Resolution;
@@ -67,6 +68,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 		wgpu: options.wgpu,
 		fallbackTexture: options.fallbackTexture,
 		onState: options.onState,
+		effectRenderTileDivisionLevel: options.effectRenderTileDivisionLevel,
 	});
 	const compositor = createTimelineCompositor({
 		device,
@@ -149,7 +151,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			const encoder = device.createCommandEncoder();
 			try {
 				// キー・式はScene時刻だが、エフェクト固有のアニメーションには内容時刻（秒）を渡す。
-				renderer.render({
+				const renderContext = {
 					params,
 					time: context.contentTimeMs / 1000,
 					timeDelta: context.timeDelta,
@@ -157,7 +159,10 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 					pointerVector: { x: 0, y: 0 },
 					usedOutputPorts,
 					commandEncoder: encoder,
-				});
+				};
+				if ((options.effectRenderTileDivisionLevel ?? 0) > 0) await renderer.renderTiled(renderContext, signal);
+				else renderer.render(renderContext);
+				signal.throwIfAborted();
 				const texture = renderer.getOutputTexture(port);
 				if (texture == null) return { gpuTime: 0 };
 				const settings = compositing.evaluate({

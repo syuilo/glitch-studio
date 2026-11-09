@@ -1,3 +1,4 @@
+import { checkEffectRenderTiles } from './effect-render-tiles-gpu.ts';
 import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import gradientDefinition from '@gs/subsystems_effect_shared/fx/gradient/_def_.ts';
@@ -14,6 +15,10 @@ import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { checkEffectTimelineLayers, checkBlurRegionTimelineLayer } from './effect-timeline-layer-gpu.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
 import { checkCustomShaderEffects } from './custom-shader-effect-gpu.ts';
+
+export async function runTiledEffects() {
+	return runGpuChecks(checkEffectRenderTiles, true);
+}
 
 export async function runCustomShaderEffects() {
 	return runGpuChecks(checkCustomShaderEffects);
@@ -34,10 +39,10 @@ export async function runTimelineCompositor() {
 	]);
 }
 
-async function runGpuChecks(check: typeof checkTimelineCompositor) {
+async function runGpuChecks(check: typeof checkTimelineCompositor, enableTiming = false) {
 	const adapter = await navigator.gpu.requestAdapter();
 	if (adapter == null) throw new Error('WebGPU adapter unavailable');
-	const device = await adapter.requestDevice();
+	const device = await adapter.requestDevice({ requiredFeatures: enableTiming && adapter.features.has('timestamp-query') ? ['timestamp-query'] : [] });
 	device.pushErrorScope('validation');
 	const vertex = device.createShaderModule({ code: vertexCode });
 	// エフェクトの出力はCOPY_SRCを持たない。画素の検証用にだけRGBA8へコピーする。

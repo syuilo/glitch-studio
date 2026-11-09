@@ -14,7 +14,7 @@ import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-tex
 import { VisualModuleRenderer, type VisualModuleRenderContext } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import { browserFrameScheduler, VisualModuleLivePreviewRenderLoop } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
-import { canPreserveNodeStaticState } from './project-change-policy.ts';
+import { isVisualModuleValueChange } from './project-change-policy.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { PlayerAudioInputs } from './player-audio-inputs.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
@@ -41,6 +41,7 @@ import type { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shar
 export type VisualModuleRendererManagerStaticOptions = {
 	previewDisplayMode?: PreviewDisplayMode;
 	enable32bitDataTextures: boolean;
+	effectRenderTileDivisionLevel?: number;
 	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
 	intermediateTextureFormat: IntermediateTextureFormat;
 	enableStats: boolean;
@@ -95,6 +96,8 @@ export type VisualModuleRendererManagerEvents = {
 export class VisualModuleRendererManager extends EventEmitter<{
 	'ev': (ctx: { [K in keyof VisualModuleRendererManagerEvents]: { type: K; ctx: Parameters<VisualModuleRendererManagerEvents[K]>[0] } }[keyof VisualModuleRendererManagerEvents]) => void;
 }> {
+	private previewTiledFrameController: AbortController | null = null;
+	private pendingVideoFrames = new Map<Player['id'], VideoFrame | null>();
 	private previewRenderGeneration = 0;
 	private gpuContext: PreviewCanvasContext;
 	private skippedFrameTimeDelta = 0;
@@ -110,6 +113,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator();
 	private visualModuleLivePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private pendingVisualModuleLivePreviewFrame: VisualModuleRenderContext | null = null;
+	private pendingVisualModuleLivePreviewValueUpdate = false;
 	private visualModuleLivePreviewStatusInstanceId: string | null = null;
 	private assetTextures: AssetTextures;
 	private readonly resources: VisualModuleRendererManagerResources;
@@ -157,10 +161,16 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			onFrame: timing => {
 				// 描画失敗は所有者へ通知する。エンジンの破棄と再生成は所有者が行う。
 				try {
-					this.renderVisualModuleLivePreviewFrame(timing);
+					const pending = this.renderVisualModuleLivePreviewFrame(timing);
+					return pending?.catch(error => this.reportRenderError(error instanceof Error ? error.message : String(error)));
 				} catch (error) {
 					this.reportRenderError(error instanceof Error ? error.message : String(error));
+					return;
 				}
+			},
+			onSkippedFrame: timing => {
+				this.skippedFrameTimeDelta += timing.timeDelta;
+				this.skippedFrameRealTimeDelta += timing.realTimeDelta;
 			},
 			fpsLimit: this.dynamicOptions.fpsLimit,
 			timeFactor: this.dynamicOptions.visualModuleLivePreviewTimeFactor,
@@ -278,6 +288,12 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public updateVideoFrame(playerId: Player['id'], videoFrame: VideoFrame | null) {
+		if (this.previewTiledFrameController != null) {
+			// 実行中フレームが借用しているVideoFrameは閉じない。待機中の更新は最新だけ保持する。
+			this.pendingVideoFrames.get(playerId)?.close();
+			this.pendingVideoFrames.set(playerId, videoFrame);
+			return;
+		}
 		// 同じtimestampでも別のフレームとして扱う。削除・再追加でも更新番号を戻さない。
 		this.videoFrameVersions.set(playerId, (this.videoFrameVersions.get(playerId) ?? 0) + 1);
 		this.videoFrames.get(playerId)?.close();
@@ -294,6 +310,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateDynamicOptions(newOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
+		this.cancelTiledPreviewFrame();
 		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
 		if (['resolution', 'resolutionScale', 'visualModules', 'automationGraphs'].some(key => Object.hasOwn(newOptions, key))) {
 			this.pendingVisualModuleLivePreviewFrame = null;
@@ -330,7 +347,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		const effects = customShaderEffects == null ? null : createProjectEffects(customShaderEffects.customShaderEffects, this.builtinEffectDefinitions, this.builtinEffectImplementations);
 		this.dynamicOptions.visualModules = next.visualModules;
 		this.dynamicOptions.automationGraphs = next.automationGraphs;
-		if (relevant.some(change => change.type === 'automationGraphs')) this.pendingVisualModuleLivePreviewFrame = null;
+		if (relevant.some(change => change.type === 'automationGraphs')) {
+			this.cancelTiledPreviewFrame();
+			this.pendingVisualModuleLivePreviewFrame = null;
+		}
 		if (effects != null) {
 			this.effectDefinitions = effects.definitions;
 			this.effectImplementations = effects.implementations;
@@ -346,14 +366,22 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		if (visualModuleLivePreviewChanges.length > 0 && this.visualModuleLivePreviewVisualModuleRenderer != null) {
 			this.pendingVisualModuleLivePreviewFrame = null;
 			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId);
+			const preserveStaticState = visualModuleLivePreviewChanges.every(isVisualModuleValueChange);
+			if (preserveStaticState && this.previewTiledFrameController != null) {
+				// 差分をためず、上で更新した最新スナップショットだけを次の描画へ渡す。
+				// 値の編集で描画を中断すると、復旧時にインスタンスと出力寸法まで初期化される。
+				this.pendingVisualModuleLivePreviewValueUpdate = true;
+				return;
+			}
+			this.cancelTiledPreviewFrame();
+			this.pendingVisualModuleLivePreviewValueUpdate = false;
 			if (visualModule == null) this.stopRenderLoop();
-			else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule, {
-				preserveStaticState: visualModuleLivePreviewChanges.every(change => change.type === 'node' ? canPreserveNodeStaticState(change.changes) : change.type === 'visualModule' && change.customParameterValuesOnly === true),
-			});
+			else this.visualModuleLivePreviewVisualModuleRenderer.updateVisualModule(visualModule, { preserveStaticState });
 		}
 	}
 
 	public updateVisualModuleLivePreviewParamValues(paramValues: VisualModuleArgumentBindings) {
+		// 実行中フレームは評価済みのContextを使う。公開入力も最新値だけを次回の評価へ渡す。
 		this.pendingVisualModuleLivePreviewFrame = null;
 		this.visualModuleLivePreviewParamValues = paramValues;
 	}
@@ -378,6 +406,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			resolutionScale: this.dynamicOptions.resolutionScale,
 			getPlayerResolution: playerId => getPlayerIntrinsicResolution(playerId, this.resources.players, this.resources.assets),
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
+			effectRenderTileDivisionLevel: this.staticOptions.effectRenderTileDivisionLevel,
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: this.staticOptions.enableStats,
 			timingHelper: this.timingHelper,
@@ -431,68 +460,93 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		};
 	}
 
-	private renderVisualModuleLivePreviewFrame(timing: VisualModuleLivePreviewFrameTiming) {
-		if (this.visualModuleLivePreviewVisualModuleRenderer == null) return;
-		// 準備待ち・CPU表示待ちの時間を保持し、各フレームが評価した分だけ描画時に消費する。
+	private cancelTiledPreviewFrame() {
+		if (this.previewTiledFrameController == null) return;
+		this.previewRenderGeneration++;
+		this.previewTiledFrameController.abort();
+	}
+
+	private applyPendingVisualModuleLivePreviewValues() {
+		if (!this.pendingVisualModuleLivePreviewValueUpdate) return;
+		this.pendingVisualModuleLivePreviewValueUpdate = false;
+		const visualModule = this.dynamicOptions.visualModules.find(entry => entry.id === this.visualModuleLivePreviewVisualModuleId);
+		if (visualModule != null) this.visualModuleLivePreviewVisualModuleRenderer?.updateVisualModule(visualModule, { preserveStaticState: true });
+	}
+
+	private renderVisualModuleLivePreviewFrame(timing: VisualModuleLivePreviewFrameTiming): void | Promise<void> {
+		const renderer = this.visualModuleLivePreviewVisualModuleRenderer;
+		if (renderer == null) return;
 		this.skippedFrameTimeDelta += timing.timeDelta;
 		this.skippedFrameRealTimeDelta += timing.realTimeDelta;
 		const cpuFrame = this.canvasRenderer.tryReserveCpuPreviewFrame();
-		if (this.canvasRenderer.usesCpuDisplay && cpuFrame == null) {
-			// 画面更新より読み戻しが遅い時にバッファと表示遅延を積み上げない。
-			return;
-		}
+		if (this.canvasRenderer.usesCpuDisplay && cpuFrame == null) return;
 		timing = { ...timing, timeDelta: this.skippedFrameTimeDelta, realTimeDelta: this.skippedFrameRealTimeDelta };
 		const generation = ++this.previewRenderGeneration;
 		try {
-			// 毎フレーム最新の時刻や入力でprepareし直すと、Video Frameなどの非同期取得が
-			// 完了する前に次の要求へ置き換わり続ける。評価済みの1フレームを描画まで維持する。
+			// 非同期準備を最新時刻で置き換え続けないよう、開始したフレームを描画まで維持する。
 			const context = this.pendingVisualModuleLivePreviewFrame ??= this.createVisualModuleLivePreviewRenderContext(timing);
-			if (!this.visualModuleLivePreviewVisualModuleRenderer.tryPrepare(context)) {
+			if (!renderer.tryPrepare(context)) {
 				cpuFrame?.cancel();
 				return;
 			}
 			this.pendingVisualModuleLivePreviewFrame = null;
-			// 待機中に進んだ時計は次のフレームへ渡す。古い評価時刻の描画へ加算すると、
-			// 絶対時刻と履歴の積算時間が食い違い、次の描画でも同じ時間を二重に消費する。
+			// 準備・GPU待機中に進んだ時間は次のフレームへ渡し、二重に消費しない。
 			this.skippedFrameTimeDelta -= context.timeDelta;
 			this.skippedFrameRealTimeDelta = 0;
-
-			const commandEncoder = this.gpuDevice.createCommandEncoder();
-
-			try {
-				// Outが未接続でも透明な出力を描画し、前の映像や集計結果を残さない。
-				const nodeOutput = this.visualModuleLivePreviewVisualModuleRenderer.render(context, commandEncoder) ?? { kind: 'uniform', value: [0, 0, 0, 0] };
-
-				// 定数を表示用に1x1へ変換しても、表示枠の寸法は1x1にしない。
-				this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
-				const tex = this.outputTextures.resolve(nodeOutput);
-				this.canvasRenderer.renderToCanvas(tex, commandEncoder);
-
-				this.pointerPositionPrev = { ...context.pointerPosition };
-
-				if (this.staticOptions.enableStats) this.fpsAverage.addSample(1000 / timing.realTimeDelta);
-			} catch (error) {
-				cpuFrame?.cancel();
-				throw error;
-			} finally {
-				// 部分的に描画して失敗しても計測を完了する。未完了のencoderを残すと、
-				// 次のフレームでTimingHelperが別のencoderを受け付けず、修正後も復旧できない。
-				cpuFrame?.prepareReadback(commandEncoder);
-				this.gpuDevice.queue.submit([commandEncoder.finish()]);
-				if (cpuFrame != null) void cpuFrame.complete().catch(error => {
-					cpuFrame.cancel();
-					if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
-				});
-				if (this.timingHelper != null) {
-					this.timingHelper.getResult().then(gpuTime => {
-						this.gpuAverageFast.addSample(gpuTime / 1000);
-						this.gpuAverageMedium.addSample(gpuTime / 1000);
-						this.gpuAverageSlow.addSample(gpuTime / 1000);
+			const encoder = this.gpuDevice.createCommandEncoder();
+			const present = (output: ReturnType<VisualModuleRenderer['render']>, tiledGpuTime = 0) => {
+				try {
+					const nodeOutput = output ?? { kind: 'uniform' as const, value: [0, 0, 0, 0] as [number, number, number, number] };
+					this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
+					this.canvasRenderer.renderToCanvas(this.outputTextures.resolve(nodeOutput), encoder);
+					this.pointerPositionPrev = { ...context.pointerPosition };
+					if (this.staticOptions.enableStats) this.fpsAverage.addSample(1000 / timing.realTimeDelta);
+				} catch (error) {
+					cpuFrame?.cancel();
+					throw error;
+				} finally {
+					cpuFrame?.prepareReadback(encoder);
+					this.gpuDevice.queue.submit([encoder.finish()]);
+					if (cpuFrame != null) void cpuFrame.complete().catch(error => {
+						cpuFrame.cancel();
+						if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
+					});
+					if (this.timingHelper != null) void this.timingHelper.getResult().then(gpuTime => {
+						if (generation !== this.previewRenderGeneration) return;
+						this.gpuAverageFast.addSample((gpuTime + tiledGpuTime) / 1000);
+						this.gpuAverageMedium.addSample((gpuTime + tiledGpuTime) / 1000);
+						this.gpuAverageSlow.addSample((gpuTime + tiledGpuTime) / 1000);
 					}).catch(error => {
 						if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
 					});
 				}
+			};
+			if ((this.staticOptions.effectRenderTileDivisionLevel ?? 0) === 0) {
+				// 分割なしでは従来どおり全ノードと表示を同じencoderへ記録して一度だけ送信する。
+				let output: ReturnType<VisualModuleRenderer['render']>;
+				try { output = renderer.render(context, encoder); } catch (error) {
+					this.gpuDevice.queue.submit([encoder.finish()]);
+					if (this.timingHelper != null) void this.timingHelper.getResult().catch(() => {});
+					throw error;
+				}
+				present(output);
+				return;
 			}
+			const controller = new AbortController();
+			this.previewTiledFrameController = controller;
+			return renderer.renderTiled(context, controller.signal).then(output => {
+				if (generation !== this.previewRenderGeneration || controller.signal.aborted) { cpuFrame?.cancel(); return; }
+				present(output, renderer.lastTiledGpuTime);
+			}).catch(error => {
+				cpuFrame?.cancel();
+				if (!controller.signal.aborted && generation === this.previewRenderGeneration) throw error;
+			}).finally(() => {
+				if (this.previewTiledFrameController === controller) this.previewTiledFrameController = null;
+				this.applyPendingVisualModuleLivePreviewValues();
+				const pending = this.pendingVideoFrames;
+				this.pendingVideoFrames = new Map();
+				for (const [playerId, videoFrame] of pending) this.updateVideoFrame(playerId, videoFrame);
+			});
 		} catch (error) { cpuFrame?.cancel(); throw error; }
 	}
 
@@ -506,6 +560,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public resetRenderHistory() {
+		this.cancelTiledPreviewFrame();
 		this.pendingVisualModuleLivePreviewFrame = null;
 		this.previewRenderGeneration++;
 		this.visualModuleLivePreviewVisualModuleRenderer?.resetRenderHistory();
@@ -515,6 +570,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public stopRenderLoop() {
+		this.cancelTiledPreviewFrame();
+		this.pendingVisualModuleLivePreviewValueUpdate = false;
 		this.pendingVisualModuleLivePreviewFrame = null;
 		this.skippedFrameTimeDelta = 0;
 		this.skippedFrameRealTimeDelta = 0;
@@ -536,6 +593,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		for (const id of this.audioPorts.keys()) this.resetAudioSource(id, null);
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();
+		for (const videoFrame of this.pendingVideoFrames.values()) videoFrame?.close();
+		this.pendingVideoFrames.clear();
 		this.videoFrameVersions.clear();
 		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();

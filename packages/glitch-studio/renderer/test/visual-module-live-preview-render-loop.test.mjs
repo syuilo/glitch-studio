@@ -183,3 +183,48 @@ test('keeps scheduling after a frame error without double-counting time', () => 
 	assert.deepEqual(frames, [{ time: 32, timeDelta: 16, realTimeDelta: 16 }]);
 	f.loop.stop();
 });
+
+// 【GPU待機中も時計を進め、同じプレビューの描画を重ねない】
+// 待機中の要求を蓄積して再生すると遅延が増える。次回は最新時刻で一度だけ描画する。
+test('skips overlapping async frames while preserving elapsed time and speed changes', async () => {
+	let complete;
+	const frames = [];
+	const skipped = [];
+	const f = createFixture({ onSkippedFrame: timing => skipped.push(timing), onFrame(timing) {
+		frames.push(timing);
+		return new Promise(resolve => { complete = resolve; });
+	} });
+	f.loop.start();
+	f.fire(10);
+	f.fire(20);
+	f.loop.timeFactor = 2;
+	f.fire(30);
+	assert.equal(frames.length, 1);
+	assert.deepEqual(skipped.map(frame => frame.timeDelta), [10, 20]);
+	complete();
+	await new Promise(resolve => setImmediate(resolve));
+	f.fire(40);
+	assert.equal(frames.length, 2);
+	assert.deepEqual(frames[1], { time: 60, timeDelta: 20, realTimeDelta: 10 });
+	complete();
+	f.loop.stop();
+});
+
+// 【停止・再開しても旧描画が終わるまでは新しい描画を開始しない】
+// 予約コールバックの世代管理だけでは、既に待機中のPromiseとの競合を防げない。
+test('waits for an old async frame across stop and restart and recovers after rejection', async () => {
+	let reject;
+	let calls = 0;
+	const f = createFixture({ onFrame() {
+		calls++;
+		if (calls === 1) return new Promise((_, fail) => { reject = fail; });
+	} });
+	f.loop.start(); f.fire(10); f.loop.stop();
+	f.setTime(1000); f.loop.start(); f.fire(1010);
+	assert.equal(calls, 1);
+	reject(new Error('cancelled old frame'));
+	await new Promise(resolve => setImmediate(resolve));
+	f.fire(1020);
+	assert.equal(calls, 2);
+	f.loop.stop();
+});

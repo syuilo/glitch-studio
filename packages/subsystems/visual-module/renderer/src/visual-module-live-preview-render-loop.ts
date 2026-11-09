@@ -21,7 +21,9 @@ export class VisualModuleLivePreviewRenderLoop {
 	public fpsLimit: number | null;
 	public timeFactor: number;
 	private scheduler: FrameScheduler;
-	private onFrame: (timing: VisualModuleLivePreviewFrameTiming) => void;
+	private onFrame: (timing: VisualModuleLivePreviewFrameTiming) => void | Promise<void>;
+	private onSkippedFrame: ((timing: VisualModuleLivePreviewFrameTiming) => void) | null;
+	private frameInFlight: Promise<void> | null = null;
 	private frameId: number | null = null;
 	private running = false;
 	private generation = 0;
@@ -31,12 +33,14 @@ export class VisualModuleLivePreviewRenderLoop {
 
 	constructor(options: {
 		scheduler: FrameScheduler;
-		onFrame: (timing: VisualModuleLivePreviewFrameTiming) => void;
+		onFrame: (timing: VisualModuleLivePreviewFrameTiming) => void | Promise<void>;
+		onSkippedFrame?: (timing: VisualModuleLivePreviewFrameTiming) => void;
 		fpsLimit: number | null;
 		timeFactor: number;
 	}) {
 		this.scheduler = options.scheduler;
 		this.onFrame = options.onFrame;
+		this.onSkippedFrame = options.onSkippedFrame ?? null;
 		this.fpsLimit = options.fpsLimit;
 		this.timeFactor = options.timeFactor;
 	}
@@ -83,6 +87,18 @@ export class VisualModuleLivePreviewRenderLoop {
 		this.time += timeDelta;
 		// スキップしたフレームの時間も含め、出力の有無によらず描画前に時刻を更新する。
 		this.latestTimestamp = timestamp;
-		this.onFrame({ time: this.time, timeDelta, realTimeDelta });
+		const timing = { time: this.time, timeDelta, realTimeDelta };
+		if (this.frameInFlight != null) {
+			this.onSkippedFrame?.(timing);
+			return;
+		}
+		const result = this.onFrame(timing);
+		if (result != null && typeof result.then === 'function') {
+			this.frameInFlight = result;
+			// stop/startの世代をまたいでも、旧描画と新描画を重ねない。
+			// エラーの通知はonFrameを提供する所有者が担当する。
+			const settled = () => { if (this.frameInFlight === result) this.frameInFlight = null; };
+			void result.then(settled, settled);
+		}
 	}
 }

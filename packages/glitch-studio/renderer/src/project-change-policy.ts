@@ -1,5 +1,14 @@
 import type { VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.ts';
+import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+
+export type VisualModuleValueChange = Extract<RendererProjectChange, { type: 'node' | 'visualModule' }>;
+
+/** 描画資源と配線を変えず、実行中フレームの完了後にまとめて反映できる変更。 */
+export function isVisualModuleValueChange(change: RendererProjectChange): change is VisualModuleValueChange {
+	return change.type === 'node' ? canPreserveNodeStaticState(change.changes)
+		: change.type === 'visualModule' && change.customParameterValuesOnly === true;
+}
 
 // 通知は編集内容だけを伝える。キャッシュと履歴をどこまで残すかは、Visual Module Live Previewと
 // タイムラインが共通で使うレンダラー側の方針としてここに集約する。

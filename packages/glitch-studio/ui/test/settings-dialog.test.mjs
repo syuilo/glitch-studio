@@ -107,6 +107,18 @@ test('saves settings individually', async t => {
 	}
 	// 【表示方式を設定から保存し、GPUとCPUを相互に切り替える】
 	// 設定画面を開いただけでは既定値を書き込まず、選択した方式を次回起動にも保持する。
+	// 【タイル分割レベルは環境設定だけに保存し、0へ戻す操作も扱う】
+	// 設定を増やしても画面を開いただけで値を書き戻さず、選択した分割数だけを永続化する。
+	const tileDivision = find('data-test-effect-render-tile-division-level');
+	assert.equal(tileDivision.props.modelValue, 0);
+	assert.deepEqual(tileDivision.props.items.map(item => item.value), [0, 1, 2, 3, 4]);
+	tileDivision.props['onUpdate:modelValue'](2);
+	await nextTick();
+	assert.equal(storage.get('preferences:effectRenderTileDivisionLevel'), '2');
+	tileDivision.props['onUpdate:modelValue'](0);
+	await nextTick();
+	assert.equal(preferences.s.effectRenderTileDivisionLevel, 0);
+	assert.equal(storage.get('preferences:effectRenderTileDivisionLevel'), '0');
 	const displayMode = find('data-test-preview-display-mode');
 	assert.equal(displayMode.props.modelValue, 'gpu');
 	assert.equal(storage.has('preferences:previewDisplayMode'), false);

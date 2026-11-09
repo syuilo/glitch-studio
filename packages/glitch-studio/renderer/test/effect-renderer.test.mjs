@@ -978,3 +978,56 @@ test('applies new public input dimensions before allocating added nodes', t => {
 	f.render(f.context({ paramInputs: new Map([['image', uniform]]) }));
 	assert.deepEqual(effect.renders[0].params.size, [321, 123]);
 });
+
+function enableControlledTiledGpu(g) {
+	const waits = [];
+	const submissions = [];
+	g.device.queue = { submit: commands => submissions.push(commands), onSubmittedWorkDone: () => new Promise(resolve => waits.push(resolve)) };
+	g.device.createCommandEncoder = () => ({
+		beginRenderPass: () => ({ setScissorRect() {}, draw() {}, end() {} }),
+		finish: () => ({}),
+	});
+	return { waits, submissions, finish: async () => { waits.shift()(); await tick(); } };
+}
+
+// 【上流のタイルを完了してから下流を開始し、共有ノードは一回だけ描画する】
+// 同期・非同期の両経路で同じ接続走査を使い、GPU待機により共有履歴が余分に進まないことを確認する。
+test('renders tiled graph dependencies once and publishes caches only after completion', async t => {
+	const g = gpu();
+	const controlled = enableControlledTiledGpu(g);
+	const render = ctx => { const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView); pass.draw(3); pass.end(); };
+	const a = probe(g, { render });
+	const b = probe(g, { render, paramDefs: { left: color, right: color } });
+	const f = graph(t, g, { a, b }, [node('a'), node('b', 'b', { left: connection('a'), right: connection('a') })], undefined, { effectRenderTileDivisionLevel: 1 });
+	const running = f.renderer.renderTiled(f.context());
+	assert.equal(a.renders.length, 1);
+	assert.equal(b.renders.length, 0);
+	for (let index = 0; index < 4; index++) await controlled.finish();
+	assert.equal(b.renders.length, 1);
+	for (let index = 0; index < 4; index++) await controlled.finish();
+	assert.equal((await running).kind, 'texture');
+	await f.renderer.renderTiled(f.context());
+	assert.equal(a.renders.length, 1);
+	assert.equal(b.renders.length, 1);
+	assert.equal(controlled.submissions.length, 8);
+});
+
+// 【中断・破棄は送信済みタイルを待ち、履歴を公開せず資源を回収する】
+// 途中の画像を前回値として交換したり、待機中のGPUリソースを破棄したりしない。
+test('defers tiled effect disposal until submitted work finishes without publishing history', async t => {
+	const f = single(t, { history: true, rendererOptions: { effectRenderTileDivisionLevel: 1 }, render(ctx) {
+		const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView); pass.draw(3); pass.end();
+	} });
+	const controlled = enableControlledTiledGpu(f);
+	const output = f.renderer.getOutputTexture('output');
+	const running = f.renderer.renderTiled(f.frame());
+	const rejected = assert.rejects(running, { name: 'AbortError' });
+	assert.equal(f.renderer.getOutputTexture('output'), output);
+	f.renderer.dispose();
+	assert.equal(output.destroyed, 0);
+	await controlled.finish();
+	await rejected;
+	assert.equal(output.destroyed, 1);
+	assert.equal(controlled.submissions.length, 1);
+	assert.equal(f.instances[0].disposed, 1);
+});

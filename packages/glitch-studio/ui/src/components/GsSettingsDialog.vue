@@ -39,6 +39,10 @@
 									<template #suffix>GiB</template>
 									<template #caption>{{ i18n.ts._Settings.TimelineFrameCacheCapacityHint }}</template>
 								</GsInput>
+								<GsSelect v-model="effectRenderTileDivisionLevel" large :items="effectRenderTileDivisionItems" data-test-effect-render-tile-division-level>
+									<template #label>{{ i18n.ts._Settings.EffectRenderTileDivisionLevel }}</template>
+									<template #caption>{{ i18n.ts._Settings.EffectRenderTileDivisionLevelHint }}</template>
+								</GsSelect>
 								<GsSwitch v-model="enable32bitDataTextures">
 									{{ i18n.ts._Settings.Use32bitDataTextures }}
 									<template #caption>{{ i18n.ts._Settings.DataTexturesHint }}</template>
@@ -137,6 +141,8 @@ const projectBackupSaveEnabled = preferences.model('projectBackupSaveEnabled');
 const projectBackupSaveRetentionDays = preferences.model('projectBackupSaveRetentionDays');
 const importAssetsAsExternalReferences = preferences.model('importAssetsAsExternalReferences');
 const importLargeAssetsAsExternalReferences = preferences.model('importLargeAssetsAsExternalReferences');
+const effectRenderTileDivisionItems = [0, 1, 2, 3, 4].map(value => ({ value, label: value === 0 ? i18n.ts._Settings.EffectRenderTilesDisabled : `${value} (${4 ** value})` }));
+const effectRenderTileDivisionLevel = preferences.model('effectRenderTileDivisionLevel');
 const enable32bitDataTextures = preferences.model('enable32bitDataTextures');
 const intermediateTextureFormat = preferences.model('intermediateTextureFormat');
 const timelineFrameCacheMaxGiB = preferences.model('timelineFrameCacheMaxGiB');

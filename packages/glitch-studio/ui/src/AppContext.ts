@@ -299,6 +299,7 @@ export class AppContext {
 			enableStats: preferences.r.renderingStatsEnabled.value,
 			enableWaveformAndHistogram: preferences.r.analysisMonitorsEnabled.value,
 			enable32bitDataTextures: preferences.r.enable32bitDataTextures.value,
+			effectRenderTileDivisionLevel: preferences.r.effectRenderTileDivisionLevel.value,
 			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 		};
 		return {

@@ -1,8 +1,10 @@
+import { EffectGpuCommandRecorder } from './effect-gpu-command-recorder.ts';
+import { createEffectRenderDevice, trackEffectRenderTexture } from './effect-render-texture-views.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters, EffectStaticResources } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { EffectInstanceState, EffectStatus } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
+import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 
 // 同じ呼び出し元のIDでレンダラーを作り直しても、過去の出力と同じキーに戻さない。
 // インスタンスからの通知を無効化する世代とは独立し、描画のたびには更新しない。
@@ -16,7 +18,8 @@ type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outp
 
 /**
  * エフェクト1個の実行と、生成した出力・履歴の所有者。
- * 入力・fallback・GPU環境は借用し、評価スコープ・接続・描画順序・submitを扱わない。
+ * 入力・fallback・GPU環境は借用し、評価スコープ・接続は扱わない。
+ * 通常描画のsubmitは呼び出し側が所有し、タイル描画だけはエフェクト単位で送信・完了待ちを行う。
  * 解像度と借用リソースは生成時に固定する。キャッシュする呼び出し側は必要ポートの適用とinitializeを済ませてから
  * resourceVersion/cacheVersionを読む。入力の内容更新は呼び出し側のキーで扱う。
  * 返した出力を読むコマンドは、次の描画・再確保・破棄より前に呼び出し側でsubmitする。
@@ -34,6 +37,10 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	private readonly statusWaiters = new Set<() => void>();
 	private disposed = false;
 	private renderHistoryResetPending = false;
+	private readonly effectGpuContext: EffectGpuContext;
+	private tiledRenderController: AbortController | null = null;
+	private tiledTimingHelper: TimingHelper | null = null;
+	private pendingHistoryReset = false;
 
 	constructor(private readonly options: {
 		definition: Definition;
@@ -47,7 +54,10 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		onState?: (state: EffectInstanceState | null) => void;
 		timingHelper?: TimingHelper | null;
 		enableStats?: boolean;
+		effectRenderTileDivisionLevel?: number;
 	}) {
+		this.effectGpuContext = (options.effectRenderTileDivisionLevel ?? 0) > 0
+			? { ...options.wgpu, device: createEffectRenderDevice(options.wgpu.device) } : options.wgpu;
 		this.resolution = { ...options.resolution };
 		this.lazyPorts = Object.keys(options.definition.outputDefs).filter(port => options.definition.outputDefs[port].canLazyAllocation);
 		this.outputState = this.emptyOutputState();
@@ -70,6 +80,11 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	/** 呼び出し側が履歴依存のあるエフェクトに対して実行する。借用リソース・解像度は維持する。 */
 	resetRenderHistory() {
 		this.assertAlive();
+		if (this.tiledRenderController != null) {
+			this.pendingHistoryReset = true;
+			this.tiledRenderController.abort();
+			return;
+		}
 		// 履歴は共通の前フレームだけでなく、実装内のGPU資源・カウンター等にも存在する。
 		// 実行インスタンスごと初期化し、個々のエフェクトの履歴管理方式に依存しない。
 		this.releaseInstance();
@@ -96,7 +111,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 
 	private createOutput(port: string): EffectOutputData {
 		const createTexture = this.options.implementation.outputTextureFactories[port];
-		const args = { resolution: { ...this.resolution }, wgpu: this.options.wgpu };
+		const args = { resolution: { ...this.resolution }, wgpu: this.effectGpuContext };
 		let texture: GPUTexture | null = null;
 		let previousFrameTexture: GPUTexture | null = null;
 		try {
@@ -104,9 +119,9 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 			previousFrameTexture = this.options.implementation.needsPreviousFrame ? createTexture(args) : null;
 			return {
 				texture,
-				textureView: texture.createView(),
+				textureView: ((this.options.effectRenderTileDivisionLevel ?? 0) > 0 ? trackEffectRenderTexture(texture) : texture).createView(),
 				previousFrameTexture,
-				previousFrameTextureView: previousFrameTexture?.createView() ?? null,
+				previousFrameTextureView: previousFrameTexture == null ? null : ((this.options.effectRenderTileDivisionLevel ?? 0) > 0 ? trackEffectRenderTexture(previousFrameTexture) : previousFrameTexture).createView(),
 			};
 		} catch (error) {
 			texture?.destroy();
@@ -151,7 +166,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 					if (!this.disposed && this.instanceGeneration === generation) this.setStatus(status);
 				},
 				resolution: { ...this.resolution },
-				wgpu: this.options.wgpu,
+				wgpu: this.effectGpuContext,
 				params,
 				resources: this.options.staticResources,
 				fallbackTexture: this.options.fallbackTexture,
@@ -199,6 +214,43 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	}
 
 	render(context: RenderContext<Definition>) {
+		this.recordRender(context)();
+	}
+
+	/** エフェクト実装は同期のまま一度だけ呼び、GPU実行の成功後に出力と履歴を公開する。 */
+	async renderTiled(context: Omit<RenderContext<Definition>, 'commandEncoder'>, signal?: AbortSignal): Promise<number> {
+		this.assertAlive();
+		signal?.throwIfAborted();
+		if (this.tiledRenderController != null) throw new Error('Effect tiled render is already running.');
+		const controller = new AbortController();
+		this.tiledRenderController = controller;
+		const renderSignal = signal == null ? controller.signal : AbortSignal.any([signal, controller.signal]);
+		try {
+			renderSignal.throwIfAborted();
+			const recorder = new EffectGpuCommandRecorder();
+			const commit = this.recordRender({ ...context, commandEncoder: recorder.encoder }, recorder);
+			if (this.options.enableStats === true) this.tiledTimingHelper ??= new TimingHelper(this.options.wgpu.device);
+			const gpuTime = await recorder.execute(this.options.wgpu.device, this.options.effectRenderTileDivisionLevel ?? 0, renderSignal, this.tiledTimingHelper);
+			renderSignal.throwIfAborted();
+			commit();
+			return gpuTime;
+		} catch (error) {
+			// CPUカウンターや中間画像も変更され得るため、中断された実装を次回に再利用しない。
+			this.pendingHistoryReset = true;
+			this.tiledTimingHelper?.dispose();
+			this.tiledTimingHelper = null;
+			throw error;
+		} finally {
+			this.tiledRenderController = null;
+			if (this.disposed) this.releaseResources();
+			else if (this.pendingHistoryReset) {
+				this.pendingHistoryReset = false;
+				this.resetRenderHistory();
+			}
+		}
+	}
+
+	private recordRender(context: RenderContext<Definition>, recorder: EffectGpuCommandRecorder | null = null): () => void {
 		this.initialize(context.params);
 		this.setUsedOutputPorts(context.usedOutputPorts);
 		const outputDataMap: Record<string, EffectOutputData> = {};
@@ -218,19 +270,23 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 			timeDelta: this.renderHistoryResetPending ? 0 : context.timeDelta,
 			pointerVector: this.renderHistoryResetPending ? { x: 0, y: 0 } : context.pointerVector,
 			outputDataMap: outputDataMap as EffectOutputDataMap<Definition['outputDefs']>,
-			createPassEncoderFor: this.createPassEncoderFor,
-			createPassEncoder: this.createPassEncoder,
-			createComputePassEncoder: this.createComputePassEncoder,
+			createPassEncoderFor: recorder == null ? this.createPassEncoderFor : (_encoder, view) => recorder.beginRenderPass({
+				colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
+			}),
+			createPassEncoder: recorder == null ? this.createPassEncoder : (_encoder, descriptor) => recorder.beginRenderPass(descriptor),
+			createComputePassEncoder: recorder == null ? this.createComputePassEncoder : (_encoder, descriptor) => recorder.beginComputePass(descriptor),
 		});
-		this.renderHistoryResetPending = false;
-		if (needsPreviousFrame) {
-			for (const [port, output] of Object.entries(outputDataMap)) this.outputs.set(port, output);
-		}
-		this.outputState = Object.fromEntries(Object.keys(this.options.definition.outputDefs).map(port => {
-			const texture = this.outputs.get(port)?.texture;
-			return [port, texture == null ? null : { width: texture.width, height: texture.height }];
-		}));
-		this.publishState();
+		return () => {
+			this.renderHistoryResetPending = false;
+			if (needsPreviousFrame) {
+				for (const [port, output] of Object.entries(outputDataMap)) this.outputs.set(port, output);
+			}
+			this.outputState = Object.fromEntries(Object.keys(this.options.definition.outputDefs).map(port => {
+				const texture = this.outputs.get(port)?.texture;
+				return [port, texture == null ? null : { width: texture.width, height: texture.height }];
+			}));
+			this.publishState();
+		};
 	}
 
 	private createPassEncoderFor = (encoder: GPUCommandEncoder, view: GPUTextureView): GPURenderPassEncoder => this.createPassEncoder(encoder, {
@@ -296,6 +352,16 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	dispose() {
 		if (this.disposed) return;
 		this.disposed = true;
+		if (this.tiledRenderController != null) {
+			this.tiledRenderController.abort();
+			return;
+		}
+		this.releaseResources();
+	}
+
+	private releaseResources() {
+		this.tiledTimingHelper?.dispose();
+		this.tiledTimingHelper = null;
 		this.releaseInstance();
 		for (const output of this.outputs.values()) this.destroyOutput(output);
 		this.outputs.clear();

@@ -119,3 +119,11 @@ test('skips Visual Module Live Preview frames during shader compilation', { skip
 // 【Timelineも同じManagerとGPUDeviceへ定義を更新し、同一時刻の旧キャッシュを使わない】
 // Layerの主出力を変更しても新しいpipelineへ解決し、更新後の画素が表示されることを確認する。
 test('updates Custom Shader Effects in the existing Timeline manager', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/custom-shader-effect-gpu.ts', 2, 'runCustomShaderEffectTimelineUpdates'));
+
+// 【分割レベルを変えても実エフェクトの全画素と履歴を維持する】
+// モックではScissor、clear、MRT、異なる中間解像度、Computeとの同期の誤りを検出できない。
+// 奇数寸法と1画素幅で、分割なしと各分割レベルの出力を画素比較する。
+test('preserves effect pixels across render tile division levels on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, async t => {
+	const checks = await runGpuTest('./helpers/effect-renderer-gpu.ts', 30, 'runTiledEffects');
+	t.diagnostic(`${checks.length} tiled output comparisons completed`);
+});

@@ -24,7 +24,7 @@ export function createVisualModuleTimelineLayer(
 		getAudioInput?: TimelineAudioInputProvider;
 		getImageInput?: (input: TimelineImage, parameterId: VisualModulePublicParameterId) => TimelineImage;
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
-		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<TimelineImage>) => ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>;
+		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<TimelineImage>, signal: AbortSignal) => ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>;
 		resetRenderHistory?: () => void;
 		destroy: () => void;
 	},
@@ -82,7 +82,7 @@ export function createVisualModuleTimelineLayer(
 			};
 			await renderer.prepare(resolved, signal);
 			if (signal.aborted) return { gpuTime: 0 };
-			return renderer.render(resolved, context);
+			return renderer.render(resolved, context, signal);
 		},
 		resetRenderHistory: () => renderer.resetRenderHistory?.(),
 		destroy: () => renderer.destroy(),
