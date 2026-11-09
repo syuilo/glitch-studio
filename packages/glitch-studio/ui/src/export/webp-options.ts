@@ -1,6 +1,6 @@
-import type { StillExportSettings } from './timeline-export.ts';
+import type { WebpStillExportSettings } from './timeline-export.ts';
 
-export function getWebpOptions(quality: StillExportSettings['quality']) {
+export function getWebpOptions(quality: WebpStillExportSettings['quality']) {
 	return {
 		lossless: quality === 'lossless' ? 1 : 0,
 		quality: quality === 'lossless' ? 75 : {

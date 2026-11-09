@@ -6,6 +6,7 @@
 	"workspaces": [
 		"docs-site",
 		"packages/shared",
+		"packages/subsystems/image-codec",
 		"packages/subsystems/audio/shared",
 		"packages/subsystems/audio/renderer",
 		"packages/subsystems/effect/shared",

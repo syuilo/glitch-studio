@@ -9,10 +9,14 @@
 		<GsSelect v-if="mode === 'video'" v-model="videoFormat" large :items="[{ value: 'mp4', label: 'MP4 (H.264)' }]" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.FileFormat }}</template>
 		</GsSelect>
-		<GsSelect v-else v-model="stillFormat" large :items="[{ value: 'webp', label: 'WebP' }]" :disabled="exporting">
+		<GsSelect v-else v-model="stillFormat" data-test-export-still-format large :items="[{ value: 'webp', label: 'WebP' }, { value: 'exr', label: 'OpenEXR' }]" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.FileFormat }}</template>
 		</GsSelect>
-		<GsSelect v-model="quality" large :items="qualityOptions" :disabled="exporting">
+		<GsSelect v-if="mode === 'still' && stillFormat === 'exr'" v-model="openExrCompression" data-test-export-exr-compression large :items="[{ value: 'zip', label: i18n.ts._Export.ZipCompression }, { value: 'none', label: i18n.ts._Export.NoCompression }]" :disabled="exporting">
+			<template #label>{{ i18n.ts._Export.Compression }}</template>
+			<template #caption>{{ i18n.ts._Export.OpenExrDescription }}</template>
+		</GsSelect>
+		<GsSelect v-else v-model="quality" large :items="qualityOptions" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.Quality }}</template>
 		</GsSelect>
 		<GsSelect v-model="resolutionScale" large :items="scaleOptions" :disabled="exporting">
@@ -36,7 +40,7 @@
 		<div>{{ i18n.ts._Export.EstimatedSize }}: {{ estimatedSize }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting && !choosingSaveFile" class="_gaps_m">
-			<div :class="$style.progress"><div :class="$style.progressFill" :style="{ width: `${progressPercent}%` }"></div></div>
+			<div data-test-export-progress :class="$style.progress" role="progressbar" :aria-label="progressText" v-bind="progressFraction == null ? {} : { 'aria-valuenow': Math.floor(progressPercent) }" aria-valuemin="0" aria-valuemax="100"><div :class="[$style.progressFill, { [$style.indeterminate]: progressFraction == null }]" :style="{ width: `${progressFraction == null ? 100 : progressPercent}%` }"></div></div>
 			<div>{{ progressText }}<GsEllipsis static/></div>
 		</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
@@ -69,7 +73,7 @@ import { preferences } from '@/preferences.ts';
 import { appContext } from '@/app.ts';
 import { applicationActivity } from '@/application-activity.ts';
 import { exportTimeline } from '@/export/client.ts';
-import { validateExportSettings } from '@/export/timeline-export.ts';
+import { getExportProgressFraction, validateExportSettings } from '@/export/timeline-export.ts';
 import { adjustExportResolution, createDefaultExportDialogSettings, estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
 import { hasExportAudio, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
 import { i18n } from '@/i18n.ts';
@@ -105,7 +109,7 @@ if (!stateManager.state.timelineScenes.value.some(scene => scene.id === dialogSe
 	dialogSettings.startTime = formatExportTime(0);
 	dialogSettings.endTime = formatExportTime(fallbackScene == null ? 0 : getSceneDuration(fallbackScene));
 }
-const { sceneId, mode, videoFormat, stillFormat, videoQuality, stillQuality, resolutionScale, customResolution,
+const { sceneId, mode, videoFormat, stillFormat, videoQuality, stillQuality, openExrCompression, resolutionScale, customResolution,
 								fpsScale, customFps, startTime, endTime } = toRefs(dialogSettings);
 const sceneItems = computed(() => [{ label: i18n.ts._Export.ChooseScene, value: '' }, ...stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
 const scene = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
@@ -142,7 +146,8 @@ let abortController: AbortController | null = null;
 const settings = computed<TimelineExportSettings>(() => {
 	const common = { ...resolution.value, positionMs: parseExportTime(startTime.value) };
 	return mode.value === 'still'
-		? { ...common, format: 'webp', quality: stillQuality.value }
+		? stillFormat.value === 'exr' ? { ...common, format: 'exr', compression: openExrCompression.value }
+			: { ...common, format: 'webp', quality: stillQuality.value }
 		: {
 			...common,
 			format: 'mp4',
@@ -166,12 +171,16 @@ const estimatedSize = computed(() => {
 	if (bytes < 1024 ** 3) return `≈ ${(bytes / 1024 ** 2).toFixed(1)} MiB`;
 	return `≈ ${(bytes / 1024 ** 3).toFixed(2)} GiB`;
 });
-const progressPercent = computed(() => progress.value.totalFrames === 0 ? 0 : Math.min(99, progress.value.completedFrames / progress.value.totalFrames * 100));
+const progressFraction = computed(() => getExportProgressFraction(progress.value));
+const progressPercent = computed(() => Math.min(99, (progressFraction.value ?? 0) * 100));
 const progressText = computed(() => {
+	const value = progress.value;
+	if (value.phase === 'saving') return i18n.tsx._Export.SavingBytes({ completed: (value.completedBytes / 1024 ** 2).toFixed(1), total: (value.totalBytes / 1024 ** 2).toFixed(1), percent: Math.floor(progressPercent.value) });
+	if (value.phase === 'encoding-exr') return i18n.tsx._Export.EncodingOpenExr({ completed: value.completedBlocks, total: value.totalBlocks, percent: Math.floor(progressPercent.value) });
 	if (savingFile.value) return i18n.ts._Export.Saving;
 	if (progress.value.phase === 'preparing') return i18n.ts._Export.Preparing;
 	if (progress.value.phase === 'finalizing') return mode.value === 'still' ? i18n.ts._Export.EncodingWebp : i18n.ts._Export.FinalizingMp4;
-	return i18n.tsx._Export.RenderingFrames({ completed: progress.value.completedFrames, total: progress.value.totalFrames, percent: Math.floor(progressPercent.value) });
+	return i18n.tsx._Export.RenderingFrames({ completed: value.completedFrames, total: value.totalFrames, percent: Math.floor(progressPercent.value) });
 });
 
 function saveExportSettings() {
@@ -270,23 +279,33 @@ async function doExport() {
 			},
 		}, signal, value => {
 			progress.value = value;
-			setTaskbarProgress(value.phase === 'rendering' && value.totalFrames > 0
-				? Math.min(0.99, value.completedFrames / value.totalFrames)
-				: 2);
+			const fraction = getExportProgressFraction(value);
+			setTaskbarProgress(fraction == null ? 2 : Math.min(0.99, fraction));
 		});
 		signal.throwIfAborted();
 		if (desktop != null && exportSaveFile != null) {
 			savingFile.value = true;
-			setTaskbarProgress(2);
-			await desktop.writeExportFile(exportSaveFile.id, new Uint8Array(buffer));
+			progress.value = { phase: 'saving', completedBytes: 0, totalBytes: buffer.byteLength };
+			setTaskbarProgress(0);
+			const targetId = exportSaveFile.id;
+			const stopProgress = desktop.onExportFileProgress(value => {
+				if (value.id !== targetId) return;
+				progress.value = { phase: 'saving', completedBytes: value.completedBytes, totalBytes: value.totalBytes };
+				setTaskbarProgress(Math.min(0.99, getExportProgressFraction(progress.value) ?? 0));
+			});
+			try {
+				await desktop.writeExportFile(targetId, new Uint8Array(buffer));
+			} finally {
+				stopProgress();
+			}
 		} else {
-			downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: exportSettings.format === 'mp4' ? 'video/mp4' : 'image/webp' }));
+			downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: { mp4: 'video/mp4', webp: 'image/webp', exr: 'image/x-exr' }[exportSettings.format] }));
 			const link = window.document.createElement('a');
 			link.href = downloadUrl.value;
 			link.download = downloadName.value;
 			link.click();
 		}
-		status.value = i18n.ts._Export.Complete;
+		status.value = desktop == null ? i18n.ts._Export.DownloadStarted : i18n.ts._Export.Complete;
 		// Electron版では保存の成功後に通知し、通知の失敗をエクスポート失敗として扱わない。
 		void desktop?.notifyExportComplete(downloadName.value).catch(console.error);
 	} catch (cause) {
@@ -360,5 +379,8 @@ onBeforeUnmount(() => {
 	background: var(--THEME-accent);
 	// 補間で毎画面更新すると、軽い進捗UIだけでも映像取り込みのGPU待ちが増える。
 	// Workerの進捗通知に合わせて直接反映し、書き出し中の連続的な画面合成を避ける。
+}
+.indeterminate {
+	opacity: 0.35;
 }
 </style>

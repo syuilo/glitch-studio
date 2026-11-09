@@ -1,6 +1,7 @@
 import { scaleResolution } from '@gs/shared/resolution.ts';
 import type { ExportQuality, TimelineExportSettings } from './timeline-export.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
+import type { OpenExrCompression } from '@gs/subsystems_image-codec/openexr-encoder.ts';
 
 export type ExportScale = 0.25 | 0.5 | 1 | 2 | 4 | 'custom';
 
@@ -9,9 +10,10 @@ export type ExportDialogSettings = {
 	sceneId: string;
 	mode: 'video' | 'still';
 	videoFormat: 'mp4';
-	stillFormat: 'webp';
+	stillFormat: 'webp' | 'exr';
 	videoQuality: ExportQuality;
 	stillQuality: ExportQuality | 'lossless';
+	openExrCompression: OpenExrCompression;
 	resolutionScale: ExportScale;
 	customResolution: Resolution;
 	fpsScale: ExportScale;
@@ -28,6 +30,7 @@ export function createDefaultExportDialogSettings(sceneId: string, resolution: R
 		stillFormat: 'webp',
 		videoQuality: 'high',
 		stillQuality: 'high',
+		openExrCompression: 'zip',
 		resolutionScale: 1,
 		customResolution: { ...resolution },
 		fpsScale: 1,
@@ -68,6 +71,10 @@ export function scaleExportResolution(resolution: { width: number; height: numbe
 /** 平均的な複雑さの画像を想定する目安。実測や上限ではなく、ノイズ・動き・透過で大きく変わる。 */
 export function estimateExportBytes(settings: TimelineExportSettings, audioBitrate = 0): number {
 	const pixels = settings.width * settings.height;
+	if (settings.format === 'exr') {
+		// ZIPの比率は画像に依存する。無圧縮はHALF RGBAと各行のoffset・chunk headerで見積もる。
+		return Math.round(1024 + pixels * 8 * (settings.compression === 'zip' ? 0.6 : 1) + settings.height * 16);
+	}
 	if (settings.format === 'webp') {
 		// 圧縮後の1画素あたりのバイト数。losslessは写真程度の細かさを想定する。
 		const bytesPerPixel = {

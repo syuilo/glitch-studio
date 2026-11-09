@@ -55,6 +55,11 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 	}
 }
 
+// 【EXR用の読み戻しでHDR・負値・透明発光・行方向を保持し、Scene描画も表示設定から独立する】
+// 奇数幅の行padding、GPUバッチ境界と末尾行、途中中断を実GPUで検証する。
+// モーションブラーを有効にしたManagerも通し、表示用Canvasへの誤接続を検出する。
+test('reads linear HALF scene images without applying display transforms', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/linear-image-export-gpu.ts', 4));
+
 // 【ChromeのWebGPUで生成WGSLの実画素を比較する】
 // モックでは検出できないシェーダーとbindingの不整合を検出する。CIではChromeのパスを明示する。
 test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20));

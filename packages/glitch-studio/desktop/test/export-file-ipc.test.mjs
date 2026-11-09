@@ -31,6 +31,23 @@ async function fixture(t) {
 		invoke: (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args) };
 }
 
+// 【EXRを複数チャンクで保存し、完了したバイト数を通知する】
+// 4MiBの境界を越える実データで欠落や進捗の逆行を検出する。
+// 保存後に一時ファイルだけが残ったり、末尾のデータが失われたりしないようにする。
+test('saves EXR files in chunks with byte progress', async t => {
+	const h = await fixture(t);
+	const file = path.join(h.directory, 'still.exr');
+	h.dialogs.showSaveDialog = async () => ({ canceled: false, filePath: file });
+	const target = await h.invoke('choose-export-save-file', 'still.exr', 'exr');
+	const data = new Uint8Array(4 * 1024 * 1024 + 7).fill(0x71);
+	const progress = [];
+	await h.exportFiles.write(target.id, data, value => progress.push(value));
+	assert.deepEqual(progress.map(value => value.completedBytes), [0, 4 * 1024 * 1024, data.length]);
+	assert.ok(progress.every(value => value.totalBytes === data.length));
+	assert.deepEqual(new Uint8Array(await fs.readFile(file)), data);
+	assert.deepEqual(await fs.readdir(h.directory), ['still.exr']);
+});
+
 // 【保存先を選ぶだけではファイルを変更せず、完成したデータで一度だけ保存する】
 // 先にダイアログを出す方式では、描画のキャンセルや失敗でも以前の書き出しを失わないことが必要。
 // UIにはパスの代わりにIDを返し、そのIDを使った二重書き込みも防ぐ。

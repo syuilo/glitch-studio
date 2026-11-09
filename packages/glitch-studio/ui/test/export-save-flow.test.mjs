@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'vue/compiler-sfc';
 import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
 import { build, transform } from 'esbuild';
+import { getExportProgressFraction } from '../src/export/timeline-export.ts';
 
 const activityBundle = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)), entryPoints: ['./src/application-activity.ts'],
@@ -35,7 +36,9 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 		resolution: { width: 1920, height: 1080 }, timelineFps: 30, timelineMotionBlur: {},
 		customShaderEffects: [], automationGraphs: [], assets: [], generatedSpeech: [], visualModules: [], timelineScenes: [],
 	}).map(([key, value]) => [key, ref(value)]));
+	let progressListener = null;
 	const desktop = {
+		onExportFileProgress(listener) { progressListener = listener; return () => { progressListener = null; }; },
 		async chooseExportSaveFile(name, format) {
 			events.push(['choose', name, format]);
 			return choose == null ? { id: 'target', name: 'chosen.mp4' } : choose();
@@ -45,6 +48,7 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 		async notifyExportComplete(name) { events.push(['notify', name]); },
 	};
 	const context = {
+		getExportProgressFraction,
 		saveExportSettings() {},
 		applicationActivity: new ApplicationActivity(),
 		i18n,
@@ -77,8 +81,27 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 	};
 	const actions = new Function('context', `const { ${Object.keys(context).join(', ')} } = context;
 		let abortController = null; ${code}; return { doExport, abort: () => abortController?.abort() };`)(context);
-	return { events, context, ...actions };
+	return { events, context, ...actions, sendSaveProgress: value => progressListener?.(value), get hasProgressListener() { return progressListener != null; } };
 }
+
+// 【保存中の進捗は現在の保存先IDだけを採用し、完了後に購読を解除する】
+// 別ウィンドウの通知や前回の遅延通知で表示が書き換わらず、繰り返し書き出しても
+// preloadのIPCリスナーが増え続けないことを確認する。
+test('tracks only the current save target and unsubscribes after saving', async () => {
+	const saving = Promise.withResolvers();
+	const saved = Promise.withResolvers();
+	const f = fixture({ save: () => { saving.resolve(); return saved.promise; } });
+	const job = f.doExport();
+	await saving.promise;
+	f.sendSaveProgress({ id: 'other', completedBytes: 8, totalBytes: 10 });
+	assert.equal(f.context.progress.value.completedBytes, 0);
+	f.sendSaveProgress({ id: 'target', completedBytes: 2, totalBytes: 3 });
+	assert.equal(f.context.progress.value.completedBytes, 2);
+	assert.equal(f.hasProgressListener, true);
+	saved.resolve();
+	await job;
+	assert.equal(f.hasProgressListener, false);
+});
 
 // 【保存ダイアログが閉じるまで音声生成・描画を開始せず、保存成功後にだけ通知する】
 // ダイアログを先に出しても裏で描画を始めたり、ディスク書き込み前に完了通知を出したりしない。

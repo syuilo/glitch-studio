@@ -1,5 +1,7 @@
 # Electron版
 
+SceneのエクスポートはMP4・WebP・OpenEXRを保存できる。保存ダイアログで選択した宛先だけを一度限りのIDで公開し、一時ファイルへ4MiBずつ書き込む。保存済みバイト数は要求元だけへID付きで通知し、fsync・宛先への置換が成功してから完了を通知する。選択・描画・圧縮の中断や保存失敗で既存ファイルを切り詰めない。
+
 Windows x64向けのNSISインストーラーと、macOSのApple Silicon（arm64）・Intel（x64）向けのDMGを配布します。開発起動はルートで`pnpm dev:desktop`を実行します。公開しない配布ビルドは、Windows上では`pnpm dist:desktop:win`、macOS上では`pnpm dist:desktop:mac`を実行します。macOSのコマンドは両アーキテクチャを生成します。出力先はルートの`release/`です。
 
 desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`では、ASAR内のnpmの実行時依存に加え、エントリ・preload・配布対象ファイルから静的にたどれる相対import・require先の存在も再帰的に検査します。新しい実装ファイルを追加した場合は、`electron-builder.config.cjs`の`applicationFiles`へ追加してください。実際の設定とソースをASARに詰める回帰テストでも、配布対象への追加漏れを検出します。

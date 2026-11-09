@@ -2,9 +2,9 @@ import encode, { init } from '@jsquash/webp/encode.js';
 import encoderUrl from '@jsquash/webp/codec/enc/webp_enc.wasm?url';
 import simdEncoderUrl from '@jsquash/webp/codec/enc/webp_enc_simd.wasm?url';
 import { getWebpOptions } from './webp-options.ts';
-import type { StillExportSettings } from './timeline-export.ts';
+import type { WebpStillExportSettings } from './timeline-export.ts';
 
-export async function encodeStillWebp(canvas: OffscreenCanvas, settings: StillExportSettings): Promise<ArrayBuffer> {
+export async function encodeStillWebp(canvas: OffscreenCanvas, settings: WebpStillExportSettings): Promise<ArrayBuffer> {
 	// WASMのロードを待つ前に描画結果をコピーする。WebGPUのCanvasの有効期間を越えて読まない。
 	const copy = new OffscreenCanvas(canvas.width, canvas.height);
 	const context = copy.getContext('2d', { willReadFrequently: true });

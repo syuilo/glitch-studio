@@ -1,0 +1,17 @@
+{
+	"name": "@gs/subsystems_image-codec",
+	"type": "module",
+	"private": true,
+	"exports": { "./*": "./src/*" },
+	"scripts": {
+		"build:codec": "node native/build.mjs",
+		"test": "node --test test/*.test.mjs",
+		"typecheck": "tsc6 --noEmit",
+		"eslint": "eslint --quiet src/**/*.ts",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"devDependencies": {
+		"@types/web": "0.0.359",
+		"vite": "8.3.5"
+	}
+}

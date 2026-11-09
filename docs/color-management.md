@@ -108,6 +108,14 @@ sRGB・EVはRGBでだけ選べる。数値データの解析対象へ切り替�
 
 範囲外はグラフの端へ集計し、EVで対数を取れない非正値は範囲の開始側（通常は下端、反転時は高いEV側）へ寄せる。これは解析表示の範囲制限であり、作業画像の値は変更しない。作品内のWaveformエフェクトが持つRGB・Luminanceの動作は維持し、プレビューの解析対象・範囲によって変更しない。
 
-## 将来のOpenEXR対応
+## OpenEXRの書き出し
 
-EXRのデコーダー・エンコーダー・チャンネル選択は未実装。追加時はCanvasや8bit画素を経由せず、linearのfloat画像を読み書きする。入力の`colorInteropID`・chromaticities等に従って作業空間へ変換し、不明な素材の入力色空間を指定できるようにする。データチャンネルには色変換を適用しない。出力は実際の色空間・alpha規約に合うメタデータを付け、入力元のACES等のタグをそのまま引き継がない。
+静止画のOpenEXR出力は、選択したScene・時刻の合成済み画像をsingle-part・scanline・HALF RGBAで保存する。ZIP（可逆）または無圧縮を選べる。`TimelineRendererManager.renderTimelineLinearFrame()`が通常の静止画と同じモーションブラーと書き出し評価を行い、`CanvasRenderer`へ渡す前の画像を読み戻し専用`rgba16float`ターゲットへ確定する。表示用Canvas・8bit画素・表示露出・背景合成・sRGB encodeを経由しない。
+
+RGBはlinear sRGB、alphaは乗算済みのまま保存する。HDR・負値・alpha=0の発光を保持し、`chromaticities`と`colorInteropID=lin_rec709_scene`を付ける。ACESのタグは付けない。内部画像と同じHALFを使うため、FLOATへの拡張による見かけ上の精度設定は持たない。
+
+Image Codec subsystemがTinyEXR/WASMのエンコーダーを所有する。GPU読み戻しは最大256行ずつで行paddingを除去し、圧縮ブロックごとに渡す。全画像分のCPU配列やfloat32画像を複製せず、既定のGPUバッファサイズ上限を超えない。進捗は取得・圧縮の両方が完了したブロック数で表示する。
+
+## 将来のOpenEXR読み込み
+
+EXRの読み込み・チャンネル選択は未実装。追加時はCanvasや8bit画素を経由せず、linearのfloat画像を読む。入力の`colorInteropID`・chromaticities等に従って作業空間へ変換し、不明な素材の入力色空間を指定できるようにする。データチャンネルには色変換を適用しない。出力は実際の色空間・alpha規約に合うメタデータを付け、入力元のACES等のタグをそのまま引き継がない。

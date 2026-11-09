@@ -45,6 +45,8 @@ features:
     linkText: タイムラインについて
   - title: 豊富なエフェクト
     details: 標準で100種類以上の多彩なエフェクトを収録。エフェクトの自作も可能です。
+  - title: OpenEXR対応
+    details: "OpenEXRでのエクスポートに対応していて、広い色域の画像データを劣化することなく保存・他ソフトへ受け渡し可能。"
   - title: VOICEVOX連携
     details: "VOICEVOXエンジンと連携し、タイムライン上で直接読み上げと字幕のレンダリングを行えます。\n外部で音声ファイルを生成し、それを取り込んで…といった手間がありません。"
     link: /guide/timeline/layers/voicevox

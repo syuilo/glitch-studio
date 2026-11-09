@@ -190,9 +190,6 @@ importers:
 
   packages/glitch-studio/renderer:
     dependencies:
-      '@gs/subsystems_effect_renderer':
-        specifier: workspace:*
-        version: link:../../subsystems/effect/renderer
       '@gs/glitch-studio_shared':
         specifier: workspace:*
         version: link:../shared
@@ -205,6 +202,9 @@ importers:
       '@gs/subsystems_audio_shared':
         specifier: workspace:*
         version: link:../../subsystems/audio/shared
+      '@gs/subsystems_effect_renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/effect/renderer
       '@gs/subsystems_effect_shared':
         specifier: workspace:*
         version: link:../../subsystems/effect/shared
@@ -291,6 +291,9 @@ importers:
       '@gs/subsystems_effect_shared':
         specifier: workspace:*
         version: link:../../subsystems/effect/shared
+      '@gs/subsystems_image-codec':
+        specifier: workspace:*
+        version: link:../../subsystems/image-codec
       '@gs/subsystems_timeline_audio-renderer':
         specifier: workspace:*
         version: link:../../subsystems/timeline/audio-renderer
@@ -503,6 +506,15 @@ importers:
       '@webgpu/types':
         specifier: 0.1.74
         version: 0.1.74
+      vite:
+        specifier: 8.3.5
+        version: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.106.0)
+
+  packages/subsystems/image-codec:
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.359
+        version: 0.0.359
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.106.0)

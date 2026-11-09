@@ -3,6 +3,18 @@ import { test } from 'node:test';
 import { adjustExportResolution, estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '../src/export/export-settings.ts';
 import { validateExportSettings } from '../src/export/timeline-export.ts';
 
+// 【EXRは品質・FPS・偶数寸法を要求せず、圧縮方式と静止画の寸法・時刻を検証する】
+// 動画用の検証や容量計算へ流れると、奇数寸法のEXRを保存できず概算もNaNになる。
+test('validates OpenEXR compression and estimates HALF image sizes', () => {
+	const settings = { format: 'exr', compression: 'zip', width: 5, height: 19, positionMs: 0 };
+	assert.equal(validateExportSettings(settings), null);
+	assert.equal(validateExportSettings({ ...settings, compression: 'none' }), null);
+	assert.equal(typeof validateExportSettings({ ...settings, compression: 'jpeg' }), 'string');
+	assert.equal(typeof validateExportSettings({ ...settings, positionMs: -1 }), 'string');
+	assert.ok(estimateExportBytes(settings) > 0);
+	assert.ok(estimateExportBytes(settings) < estimateExportBytes({ ...settings, compression: 'none' }));
+});
+
 // ミリ秒を失わず、24時間を越えるタイムラインも時刻として扱う。
 test('round trips millisecond timecodes including more than 24 hours', () => {
 	assert.equal(parseExportTime('12:34:56.789'), 45296789);

@@ -39,6 +39,33 @@ const context = globalThis.exportDialogContext;
 delete globalThis.exportDialogContext;
 const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {}, parentNode: () => null, nextSibling: () => null });
 
+// 【EXRの圧縮方式を保存・復元し、WebPの品質と独立した設定として扱う】
+// 形式切替時の品質の上書きや、再表示でEXRがWebPへ戻る不具合を防ぐ。
+// GPU取得・圧縮と保存の進捗も、それぞれの単位で表示することを確認する。
+test('restores OpenEXR settings and displays block and byte progress', t => {
+	const f = fixture(t);
+	f.input.mode = 'still';
+	f.input.stillFormat = 'exr';
+	f.input.openExrCompression = 'none';
+	f.input.resolutionScale = 'custom';
+	f.input.customResolution = { width: 5, height: 19 };
+	assert.deepEqual(f.input.settings, { format: 'exr', compression: 'none', width: 5, height: 19, positionMs: 0 });
+	assert.equal(f.input.validationError, null);
+	f.input.progress = { phase: 'encoding-exr', completedBlocks: 2, totalBlocks: 5 };
+	assert.equal(f.input.progressPercent, 40);
+	assert.match(f.input.progressText, /2 \/ 5 blocks \(40%\)/);
+	f.input.progress = { phase: 'saving', completedBytes: 1048576, totalBytes: 2097152 };
+	assert.equal(f.input.progressPercent, 50);
+	assert.match(f.input.progressText, /1.0 \/ 2.0 MiB \(50%\)/);
+	f.input.closeDialog();
+	f.close();
+	const reopened = f.open();
+	assert.equal(reopened.input.stillFormat, 'exr');
+	assert.equal(reopened.input.openExrCompression, 'none');
+	reopened.input.stillFormat = 'webp';
+	assert.equal(reopened.input.settings.quality, 'high');
+});
+
 function fixture(t, savedSettings = null) {
 	const stateManager = context.projectContext.stateManager;
 	context.projectContext.generation = 1;

@@ -60,5 +60,10 @@ contextBridge.exposeInMainWorld('desktop', {
 	notifyExportComplete: (fileName) => ipcRenderer.invoke('desktop:notify-export-complete', fileName),
 	chooseExportSaveFile: (name, format) => ipcRenderer.invoke('desktop:choose-export-save-file', name, format),
 	writeExportFile: (id, data) => ipcRenderer.invoke('desktop:write-export-file', id, data),
+	onExportFileProgress: listener => {
+		const handler = (_event, progress) => listener(progress);
+		ipcRenderer.on('desktop:export-file-progress', handler);
+		return () => ipcRenderer.removeListener('desktop:export-file-progress', handler);
+	},
 	releaseExportFile: (id) => ipcRenderer.invoke('desktop:release-export-file', id),
 });

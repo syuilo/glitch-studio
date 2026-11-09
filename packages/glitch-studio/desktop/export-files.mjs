@@ -8,7 +8,7 @@ export class ExportFiles {
 
 	register(filePath) {
 		if (typeof filePath !== 'string' || !path.isAbsolute(filePath)
-			|| !['.mp4', '.webp'].includes(path.extname(filePath).toLowerCase())) {
+			|| !['.mp4', '.webp', '.exr'].includes(path.extname(filePath).toLowerCase())) {
 			throw new Error('Invalid export file path');
 		}
 		const id = randomUUID();
@@ -19,7 +19,7 @@ export class ExportFiles {
 	clear() { this.#targets.clear(); }
 	release(id) { this.#targets.delete(id); }
 
-	async write(id, data) {
+	async write(id, data, onProgress = () => {}) {
 		const destination = this.#targets.get(id);
 		if (destination == null) throw new Error('Unknown export save target');
 		if (!(data instanceof Uint8Array) || data.byteLength === 0) throw new Error('The export contains no save data');
@@ -29,7 +29,15 @@ export class ExportFiles {
 		let file = null;
 		try {
 			file = await fs.open(temporary, 'wx');
-			await file.writeFile(data);
+			onProgress({ completedBytes: 0, totalBytes: data.byteLength });
+			// 大きなEXRも一時ファイルへ順次書き込み、完了したバイト数を通知する。
+			// 宛先への置換はfsync後なので、失敗しても以前のファイルを失わない。
+			const chunkSize = 4 * 1024 * 1024;
+			for (let offset = 0; offset < data.byteLength; offset += chunkSize) {
+				const end = Math.min(offset + chunkSize, data.byteLength);
+				await file.writeFile(data.subarray(offset, end));
+				onProgress({ completedBytes: end, totalBytes: data.byteLength });
+			}
 			await file.sync();
 			await file.close();
 			file = null;

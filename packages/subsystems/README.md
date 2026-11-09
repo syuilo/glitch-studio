@@ -3,3 +3,5 @@
 Glitch Studioとは関係ないライブラリとして提供できるレベルで、Glitch Studioのコンテキストから分離されているのが理想。
 
 もちろんglitch-studio層へは依存しないが、他のsubsystemへの一方向への依存や、トップレベルのsharedへの依存はあってもいい。
+
+`image-codec`はGPU・Canvas・Asset・Sceneに依存しない画像形式の入出力を担当する。現在はTinyEXR/WASMによるHALF RGBAのOpenEXRエンコードを提供する。呼び出し側がブロック単位で画素を渡し、進捗や中断を管理する。

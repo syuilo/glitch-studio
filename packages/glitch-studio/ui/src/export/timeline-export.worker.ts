@@ -6,6 +6,7 @@ import { effectImplementations } from '@gs/subsystems_effect_shared/effect-imple
 import { createMp4Writer } from './mp4-writer.ts';
 import { adjustExportResolution, scaleExportResolution } from './export-settings.ts';
 import { encodeStillWebp } from './still-webp.ts';
+import { encodeStillOpenExr } from './still-openexr.ts';
 import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
 import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { getExportAudioClips } from './audio-export-settings.ts';
@@ -96,6 +97,18 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			opaqueOutput: settings.format === 'mp4',
 		});
 		controller.signal.throwIfAborted();
+		if (settings.format === 'exr') {
+			send({ type: 'progress', progress: { phase: 'rendering', completedFrames: 0, totalFrames: 1 } });
+			const image = await renderer.renderTimelineLinearFrame(settings.positionMs, controller.signal);
+			try {
+				const buffer = await encodeStillOpenExr(image, settings, controller.signal,
+					progress => send({ type: 'progress', progress }));
+				controller.signal.throwIfAborted();
+				finished = true;
+				send({ type: 'complete', buffer }, [buffer]);
+			} finally { image.dispose(); }
+			return;
+		}
 		if (settings.format === 'webp') {
 			await renderer.renderTimelineFrame(settings.positionMs, 0);
 			controller.signal.throwIfAborted();

@@ -1,6 +1,7 @@
 import { getTimelineClipLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { OpenExrCompression } from '@gs/subsystems_image-codec/openexr-encoder.ts';
 export type ExportQuality = 'low' | 'medium' | 'high' | 'very-high';
 
 type ExportImageSettings = {
@@ -16,31 +17,50 @@ export type VideoExportSettings = ExportImageSettings & {
 	endTimeMs: number;
 };
 
-export type StillExportSettings = ExportImageSettings & {
+export type WebpStillExportSettings = ExportImageSettings & {
 	format: 'webp';
 	quality: ExportQuality | 'lossless';
 };
 
+export type OpenExrStillExportSettings = ExportImageSettings & {
+	format: 'exr';
+	compression: OpenExrCompression;
+};
+
+export type StillExportSettings = WebpStillExportSettings | OpenExrStillExportSettings;
+
 export type TimelineExportSettings = VideoExportSettings | StillExportSettings;
 
-export type ExportProgress = {
+type FrameExportProgress = {
 	phase: 'preparing' | 'rendering' | 'finalizing';
 	completedFrames: number;
 	totalFrames: number;
 };
+
+export type ExportProgress = FrameExportProgress | { phase: 'encoding-exr'; completedBlocks: number; totalBlocks: number }
+	| { phase: 'saving'; completedBytes: number; totalBytes: number };
+
+export function getExportProgressFraction(progress: ExportProgress): number | null {
+	const fraction = progress.phase === 'encoding-exr' ? progress.completedBlocks / progress.totalBlocks
+		: progress.phase === 'saving' ? progress.completedBytes / progress.totalBytes
+			: progress.phase === 'rendering' && progress.totalFrames > 0 ? progress.completedFrames / progress.totalFrames : null;
+	return fraction == null || !Number.isFinite(fraction) ? null : Math.max(0, Math.min(1, fraction));
+}
 
 export function getTimelineEnd(timeline: readonly TimelineLayer[]): number {
 	return getTimelineClipLayers(timeline).reduce((end, entry) => entry.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), end), 0);
 }
 
 export function validateExportSettings(settings: TimelineExportSettings): string | null {
-	if (settings.format !== 'mp4' && settings.format !== 'webp') return 'Unsupported export format.';
-	if (!['low', 'medium', 'high', 'very-high', ...(settings.format === 'webp' ? ['lossless'] : [])].includes(settings.quality)) return 'Invalid quality setting.';
+	if (settings.format !== 'mp4' && settings.format !== 'webp' && settings.format !== 'exr') return 'Unsupported export format.';
+	if (settings.format === 'exr') {
+		if (settings.compression !== 'none' && settings.compression !== 'zip') return 'Invalid OpenEXR compression setting.';
+	} else if (!['low', 'medium', 'high', 'very-high', ...(settings.format === 'webp' ? ['lossless'] : [])].includes(settings.quality)) return 'Invalid quality setting.';
 	if (![settings.width, settings.height].every(value => Number.isInteger(value) && value >= 1 && value <= 8192)) {
 		return 'Output width and height must be integers between 1 and 8192.';
 	}
 	if (!Number.isSafeInteger(settings.positionMs) || settings.positionMs < 0) return 'Enter a valid start time (HH:MM:SS.mmm).';
-	if (settings.format === 'webp') return null;
+	if (settings.format !== 'mp4') return null;
 	if (settings.width % 2 !== 0 || settings.height % 2 !== 0) return 'MP4 requires even dimensions. Choose another resolution scale or change the scene resolution.';
 	if (!Number.isFinite(settings.fps) || settings.fps < 1 || settings.fps > 120) return 'Frame rate must be between 1 and 120 fps.';
 	if (!Number.isFinite(settings.positionMs) || !Number.isFinite(settings.endTimeMs)
@@ -66,7 +86,7 @@ export async function renderExportFrames(settings: VideoExportSettings, callback
 	addFrame: (frame: ExportFrame) => Promise<void>;
 	addAudioUntil?: ((timeSeconds: number) => Promise<void>) | null;
 	finalize: () => Promise<void>;
-	onProgress: (progress: ExportProgress) => void;
+	onProgress: (progress: FrameExportProgress) => void;
 	signal: AbortSignal;
 }): Promise<void> {
 	const error = validateExportSettings(settings);

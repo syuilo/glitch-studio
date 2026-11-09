@@ -32,6 +32,7 @@ import { createVoicevoxTimelineLayer } from '@gs/subsystems_timeline_renderer/la
 import { createTextTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/text/text-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/shape/shape-timeline-layer.ts';
 import { createSceneOutput } from '@gs/subsystems_timeline_renderer/scene-output.ts';
+import { LinearImageReadback } from './linear-image-readback.ts';
 import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import { createTimelineCompositor } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
@@ -210,6 +211,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
 	private sceneOutput: ReturnType<typeof createSceneOutput> | null = null;
+	private linearExportOutput: LinearImageReadback | null = null;
 	private assetTextures: AssetTextures;
 	private readonly resources: TimelineRendererManagerResources;
 	private audioInputs: TimelineAudioInputs;
@@ -367,6 +369,11 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolution: this.renderResolution,
 		});
 		const texture = this.sceneOutput.render(encoder, output);
+		if (this.linearExportOutput != null) {
+			this.linearExportOutput.capture(texture, encoder);
+			this.gpuDevice.queue.submit([encoder.finish()]);
+			return;
+		}
 		this.canvasRenderer.renderToCanvas(texture, encoder);
 		this.submitPreviewOutput(encoder);
 
@@ -834,6 +841,26 @@ export class TimelineRendererManager extends EventEmitter<{
 	public async renderTimelineFrame(time: number, timeDelta: number, fps = this.staticOptions.timelineFps): Promise<void> {
 		// 書き出しfpsはプロジェクト基準とは別に指定できるため、呼び出し境界で検証する。
 		await this.renderFrame(time, true, fps, timeDelta);
+	}
+
+	/** 専用の書き出しManagerで呼ぶ。戻り値の画像は呼び出し側がdisposeする。 */
+	public async renderTimelineLinearFrame(time: number, signal: AbortSignal): Promise<LinearImageReadback> {
+		if (this.linearExportOutput != null) throw new Error('A linear frame export is already running.');
+		const { width, height } = this.renderResolution;
+		const output = new LinearImageReadback(this.gpuDevice, width, height);
+		this.linearExportOutput = output;
+		try {
+			signal.throwIfAborted();
+			// 通常の静止画と同じ描画・モーションブラー・IS_EXPORT評価を使う。
+			await this.renderFrame(time, true);
+			signal.throwIfAborted();
+			return output;
+		} catch (error) {
+			output.dispose();
+			throw error;
+		} finally {
+			this.linearExportOutput = null;
+		}
 	}
 
 	private async renderFrame(time: number, isExport: boolean, fps = this.staticOptions.timelineFps, initialTimeDelta = 0) {

@@ -14,6 +14,7 @@
 		"@gs/glitch-studio_renderer": "workspace:*",
 		"@gs/glitch-studio_shared": "workspace:*",
 		"@gs/shared": "workspace:*",
+		"@gs/subsystems_image-codec": "workspace:*",
 		"@gs/subsystems_audio_renderer": "workspace:*",
 		"@gs/subsystems_audio_shared": "workspace:*",
 		"@gs/subsystems_effect_shared": "workspace:*",

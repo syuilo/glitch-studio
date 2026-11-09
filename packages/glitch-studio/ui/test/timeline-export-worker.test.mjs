@@ -9,13 +9,14 @@ const bundled = await build({
 	entryPoints: [fileURLToPath(new URL('../src/export/timeline-export.worker.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'export-worker-platform', setup(build) {
-		build.onResolve({ filter: /^@gs\/glitch-studio_renderer\/|^@gs\/subsystems_effect_shared\/effect-(?:definitions|implementations)\.ts$|\/mp4-writer\.ts$|\/still-webp\.ts$|\/timeline-audio-export\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
+		build.onResolve({ filter: /^@gs\/glitch-studio_renderer\/|^@gs\/subsystems_effect_shared\/effect-(?:definitions|implementations)\.ts$|\/mp4-writer\.ts$|\/still-(?:webp|openexr)\.ts$|\/timeline-audio-export\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `
 			export const TimelineRendererManager = dependencies.TimelineRendererManager;
 			export const TimelineAudioExport = dependencies.TimelineAudioExport;
 			export const effectDefinitions = {}, effectImplementations = {};
 			export const createMp4Writer = dependencies.createMp4Writer;
 			export const encodeStillWebp = dependencies.encodeStillWebp;
+			export const encodeStillOpenExr = dependencies.encodeStillOpenExr;
 		` }));
 	} }],
 });
@@ -62,6 +63,12 @@ function fixture() {
 				if (this.renderErrorEvent != null) { this.handler(this.renderErrorEvent); return; }
 				frames.push([time, delta]);
 			}
+			async renderTimelineLinearFrame(time) {
+				frames.push([time, 0]);
+				this.linearImage = { width: this.dynamicOptions.outputResolution.width, height: this.dynamicOptions.outputResolution.height,
+					dispose: () => { this.imageDisposed = true; } };
+				return this.linearImage;
+			}
 			destroy() { destroyed = true; }
 		},
 		async createMp4Writer(canvas, settings) {
@@ -70,6 +77,13 @@ function fixture() {
 		},
 		async encodeStillWebp(canvas, settings) {
 			encodings.push({ canvas, settings });
+			return new ArrayBuffer(4);
+		},
+		async encodeStillOpenExr(image, settings, signal, onProgress) {
+			encodings.push({ image, settings });
+			signal.throwIfAborted();
+			if (instance.encodingError != null) throw instance.encodingError;
+			onProgress({ phase: 'encoding-exr', completedBlocks: 1, totalBlocks: 2 });
 			return new ArrayBuffer(4);
 		},
 	};
@@ -90,6 +104,32 @@ function fixture() {
 		get deviceSettings() { return deviceSettings; },
 		get destroyed() { return destroyed; },
 	};
+}
+
+// 【EXRはlinear画像を取得して進捗を中継し、成功・圧縮失敗の両方で画像を解放する】
+// Canvas経由へ誤って接続した場合や、エンコード例外でGPU画像を保持し続ける回帰を防ぐ。
+for (const failing of [false, true]) {
+	test(`exports OpenEXR through linear readback and releases resources with failure=${failing}`, async () => {
+		const f = fixture();
+		const job = f.run({ resolutionScale: 1, settings: { format: 'exr', compression: 'zip', width: 3, height: 19, positionMs: 250 },
+			renderer: { enable32bitDataTextures: false }, project: { timelineFps: 60,
+				timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, customShaderEffects: [], automationGraphs: [],
+				resolution: { width: 3, height: 19 }, assets: [], visualModules: [], sceneId: 'scene',
+				timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect',
+					clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] }] }],
+			} });
+		await f.preparing.promise;
+		if (failing) f.instance.encodingError = new Error('EXR encoding failed');
+		f.prepared.resolve();
+		await job;
+		assert.deepEqual(f.frames, [[250, 0]]);
+		assert.equal(f.encodings[0].image, f.instance.linearImage);
+		assert.equal(f.instance.dynamicOptions.opaqueOutput, false);
+		assert.equal(f.instance.imageDisposed, true);
+		assert.equal(f.destroyed, true);
+		assert.equal(f.messages.at(-1).type, failing ? 'error' : 'complete');
+		if (!failing) assert.ok(f.messages.some(message => message.progress?.phase === 'encoding-exr' && message.progress.completedBlocks === 1));
+	});
 }
 
 // 【基準解像度を維持し、最終出力だけをエンコード用寸法へ補正する】

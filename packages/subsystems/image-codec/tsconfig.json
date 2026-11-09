@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"noEmit": true,
+		"allowImportingTsExtensions": true,
+		"strict": true,
+		"noImplicitReturns": true,
+		"verbatimModuleSyntax": true,
+		"lib": ["esnext"],
+		"types": ["@types/web", "vite/client"]
+	},
+	"include": ["src/**/*"]
+}
