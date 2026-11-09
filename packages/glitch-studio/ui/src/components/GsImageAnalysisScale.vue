@@ -31,6 +31,7 @@ function showAnalysisValueScaleMenu(ev: PointerEvent) {
 <style module lang="scss">
 .root {
 	display: block;
+	font-size: 90%;
 }
 
 .scaleButton {
