@@ -61,6 +61,8 @@ export class AppContext {
 	public visualModuleLivePreviewTimeFactor = ref(1);
 	public resolutionFactor = ref(1);
 	public highlightClipping = ref(false);
+	/** 作品・保存データとは独立した、両プレビュー共通の表示用露出（EV）。 */
+	public previewExposure = ref(0);
 	public audioOutput = markRaw(new AudioOutput());
 	public visualModuleRendererManagerController: VisualModuleRendererManagerController;
 	public timelineRendererManagerController: TimelineRendererManagerController;
@@ -141,7 +143,7 @@ export class AppContext {
 				const snapshot = deepClone({
 					assets: getRendererAssets(state.assets.value), players: state.players.value, customShaderEffects: state.customShaderEffects.value,
 					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
-					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value },
+					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value },
 					visualModuleOptions: { fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
 					timelineOptions: { sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
 						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value,
@@ -249,6 +251,10 @@ export class AppContext {
 			await this.updatePreviewOptions({ highlightClipping: value });
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
+		watch(this.previewExposure, async value => {
+			await this.updatePreviewOptions({ previewExposure: value });
+			this.previewPlayback.refresh();
+		}, { flush: 'sync' });
 
 		watch(this.visualModuleLivePreviewFpsLimit, async value => {
 			await this.updateVisualModulePreviewOptions({ fpsLimit: value });
@@ -303,7 +309,7 @@ export class AppContext {
 		};
 	}
 
-	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
+	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewExposure'>>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),

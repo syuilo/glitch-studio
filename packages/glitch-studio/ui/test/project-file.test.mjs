@@ -415,6 +415,7 @@ test('restarts both previews after content and settings change during initializa
 	assert.deepEqual(controllers.map(controller => controller.generation), generations);
 	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'during-initialization', effectId: 'fill' });
 	appContext.highlightClipping.value = true;
+	appContext.previewExposure.value = 2;
 	window.testPreferences.timelinePreviewFramesAhead = 0;
 	await appContext.flushRendererProjectChanges();
 	assert.equal(appContext.renderEngine.canRender.value, false);
@@ -425,6 +426,7 @@ test('restarts both previews after content and settings change during initializa
 	for (const controller of controllers) {
 		assert.equal(controller.options.visualModules[0].nodes[0].id, 'during-initialization');
 		assert.equal(controller.options.highlightClipping, true);
+		assert.equal(controller.options.previewExposure, 2);
 	}
 	assert.equal(appContext.timelineRendererManagerController.staticOptions.previewFramesAhead, 0);
 	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'after-initialization', effectId: 'fill' });
@@ -620,6 +622,7 @@ for (const [setting, change, inspect] of [
 	['visualModuleLivePreview fps limit', appContext => { appContext.visualModuleLivePreviewFpsLimit.value = 24; }],
 	['visualModuleLivePreview time factor', appContext => { appContext.visualModuleLivePreviewTimeFactor.value = 0.5; }],
 	['clipping display', appContext => { appContext.highlightClipping.value = true; }],
+	['preview exposure', appContext => { appContext.previewExposure.value = 2; }],
 ]) test(`retries runtime failures after changing ${setting}`, async t => {
 	setup(t);
 	const { appContext } = evaluate(appBundle);
@@ -2066,6 +2069,17 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	assert.equal(visualModuleLivePreview.options.highlightClipping, true);
 	assert.equal(timeline.options.highlightClipping, true);
 	assert.equal(timeline.renders.at(-1), 500);
+	const snapshotBeforeExposure = appContext.projectContext.snapshot();
+	const initializationsBeforeExposure = [visualModuleLivePreview, timeline].map(controller => controller.lifecycle.filter(event => event === 'initialize').length);
+	appContext.previewExposure.value = -2;
+	await nextTick();
+	await setImmediate();
+	for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+		assert.equal(controller.options.previewExposure, -2);
+		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
+	}
+	assert.equal(timeline.renders.at(-1), 500);
+	assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
 	await appContext.ready(project());
 	assert.deepEqual(visualModuleLivePreview.options.visualModules, []);
 	assert.deepEqual(timeline.options.visualModules, []);

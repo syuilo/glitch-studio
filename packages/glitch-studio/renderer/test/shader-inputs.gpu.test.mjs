@@ -63,6 +63,11 @@ test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PA
 // 実GPUでの読み戻しとCanvas 2Dのalpha変換はモックだけでは検証できない。
 test('presents preview and analysis canvases through CPU readback', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/cpu-preview-gpu.ts', 4));
 
+// 【GPU・CPU表示とも露出を線形光で適用し、alpha・解析・元画像の警告を保つ】
+// 半透明やHDRの補正は8bit画像やuniformのモックだけでは検証できない。
+// 実際の表示経路で0 EV、増減、範囲端を比較し、解析Canvasに補正が混入しないことも確認する。
+test('adjusts preview exposure without changing alpha, analysis or clipping warnings', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/preview-exposure-gpu.ts', 12));
+
 // 【全画面三角形への変更で座標・微分・透明度・画面端の被覆を変えない】
 // 移行前の2枚の三角形と全画素を比較する。通常のサイズに加え、奇数寸法と1画素幅も確認し、
 // 頂点数だけを変更した際の描画欠落や、UVの範囲・上下方向・対角線での重複を検出する。

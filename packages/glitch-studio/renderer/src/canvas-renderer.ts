@@ -24,6 +24,7 @@ export class CanvasRenderer {
 	private gpuWaveformHorizontal: GpuWaveform | null = null;
 	private gpuWaveformVertical: GpuWaveform | null = null;
 	public highlightClipping = false;
+	public previewExposure = 0;
 	public opaqueOutput = false;
 
 	constructor(options: {
@@ -109,6 +110,7 @@ export class CanvasRenderer {
 
 		this.finalRenderUniformValues.set({
 			highlightClipping: this.highlightClipping ? 1 : 0,
+			previewExposure: this.previewExposure,
 			opaqueOutput: this.opaqueOutput ? 1 : 0,
 		});
 		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);

@@ -105,6 +105,8 @@ export type TimelineRendererManagerDynamicOptions = {
 	outputResolution: Resolution | null;
 	/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 	highlightClipping: boolean;
+	/** 表示用の露出（EV）。作品内の画像・解析には適用せず、書き出しでは0を使う。 */
+	previewExposure: number;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
 	generatedSpeech: GeneratedSpeech[];
@@ -219,6 +221,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		resolutionScale: 1,
 		outputResolution: null,
 		highlightClipping: false,
+		previewExposure: 0,
 		opaqueOutput: false,
 		generatedSpeech: [],
 		visualModules: [],
@@ -446,6 +449,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
 		if (Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'automationGraphs')) this.refreshEvaluationScenes();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
+		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
 		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。

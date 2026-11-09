@@ -445,6 +445,7 @@
 		"OpenFailed": "Could not open {title}"
 	},
 	"_Preview": {
+		"ExposureDescription": "Preview exposure: drag up or down to adjust; click to reset to 0 EV. Exports, analysis and clipping warnings are unaffected.",
 		"HighlightClipping": "Highlight Clipping",
 		"AnimatedBackground": "Animated Background",
 		"ShowTimecode": "Show Timecode",

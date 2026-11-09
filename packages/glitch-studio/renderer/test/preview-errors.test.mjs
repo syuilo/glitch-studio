@@ -206,6 +206,22 @@ test('restores transform metadata on cache hits after changing the observation',
 	assert.deepEqual(errors, []);
 });
 
+// 【露出の変更では補正前のフレームキャッシュを維持し、再表示時だけ新しい値を使う】
+// 表示補正を作品の編集と扱うと、ドラッグのたびにキャッシュを全消去して再評価してしまう。
+test('reuses cached frames while applying updated preview exposure', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
+	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
+	await renderer.renderTimelineAt(0);
+	const cached = renderer.frameCache.get(0);
+	await renderer.updateDynamicOptions({ previewExposure: -2 });
+	await renderer.renderTimelineAt(0);
+	assert.equal(evaluations.mock.callCount(), 1);
+	assert.equal(renderer.frameCache.get(0), cached);
+	assert.equal(renderer.canvasRenderer.previewExposure, -2);
+	assert.deepEqual(errors, []);
+});
+
 // 【編集・fps・素材などの変更で保存済み画像と古い非同期結果を無効化する】
 // GPUへ送ったコピーの完了を待つ間にも編集RPCが届くため、世代確認は登録直前に必要となる。
 test('invalidates cached frames and rejects snapshots completed after an edit', async t => {
@@ -1403,15 +1419,15 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		if (Manager === VisualModuleRendererManager) renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 		let timestamp = 0;
 		const render = () => Manager === VisualModuleRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
-		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true });
+		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true, previewExposure: 2 });
 		await render();
-		assert.deepEqual(writes.at(-1), [1, 1]);
+		assert.deepEqual(writes.at(-1), [1, 1, 0x40000000]);
 		await renderer.updateDynamicOptions({ highlightClipping: false });
 		await render();
-		assert.deepEqual(writes.at(-1), [0, 1]);
-		await renderer.updateDynamicOptions({ opaqueOutput: false });
+		assert.deepEqual(writes.at(-1), [0, 1, 0x40000000]);
+		await renderer.updateDynamicOptions({ opaqueOutput: false, previewExposure: 0 });
 		await render();
-		assert.deepEqual(writes.at(-1), [0, 0]);
+		assert.deepEqual(writes.at(-1), [0, 0, 0]);
 	});
 }
 

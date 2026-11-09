@@ -56,6 +56,8 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	resolutionScale: number;
 	/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 	highlightClipping: boolean;
+	/** 表示用の露出（EV）。作品内の画像・解析には適用せず、書き出しでは0を使う。 */
+	previewExposure: number;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
 	visualModuleLivePreviewTimeFactor: number;
@@ -140,6 +142,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		resolution: { width: 1, height: 1 },
 		resolutionScale: 1,
 		highlightClipping: false,
+		previewExposure: 0,
 		visualModuleLivePreviewTimeFactor: 1.0,
 		fpsLimit: null,
 		opaqueOutput: false,
@@ -314,6 +317,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			this.pendingVisualModuleLivePreviewFrame = null;
 		}
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
+		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。

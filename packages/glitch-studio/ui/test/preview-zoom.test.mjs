@@ -59,7 +59,12 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		node.parent = parent;
 	}
 	function element(tag) {
+		const events = new EventTarget();
+		let capturedPointer = null;
 		return markRaw({ tag, props: {}, style: { display: '' }, children: [], parent: null, ownerDocument: document, text: '',
+			addEventListener: events.addEventListener.bind(events), removeEventListener: events.removeEventListener.bind(events),
+			setPointerCapture(id) { capturedPointer = id; }, hasPointerCapture: id => capturedPointer === id,
+			releasePointerCapture() { capturedPointer = null; events.dispatchEvent(new Event('lostpointercapture')); },
 			appendChild(node) { insert(node, this); },
 			removeChild(node) { this.children.splice(this.children.indexOf(node), 1); node.parent = null; },
 			get parentNode() { return this.parent; },
@@ -93,7 +98,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		visualModuleRendererManagerController: { outputResolution: ref(null) },
 		timelineRendererManagerController: { isSeeking: ref(false) },
 		previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
-		highlightClipping: ref(false), resolutionFactor: ref(resolutionFactor), visualModuleLivePreviewTimeFactor: ref(1),
+		highlightClipping: ref(false), previewExposure: ref(0), resolutionFactor: ref(resolutionFactor), visualModuleLivePreviewTimeFactor: ref(1),
 		activeScene: ref({ id: 'scene', name: 'Scene', resolution: { mode: 'project' } }), activeSceneId: ref('scene'), timelinePreviewFpsFactor: ref(1),
 		renderEngine: { isSuspended: ref(false), runtimeDiagnostic: ref(null), errorMessage: ref(null) },
 		renderValidation: { errorMessage: ref(null) },
@@ -115,8 +120,8 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 	await nextTick();
 	const descendants = node => [node, ...node.children.flatMap(descendants)];
 	const find = name => descendants(root).find(node => `data-test-preview-${name}` in node.props);
-	return { view, viewport, canvas, controller, appContext, preferences, menuItems, find,
-		async click(name) { find(name).props.onClick({ currentTarget: find(name) }); await nextTick(); },
+	return { view, document, viewport, canvas, controller, appContext, preferences, menuItems, find,
+		async click(name) { find(name).props.onClick({ currentTarget: find(name), detail: 1 }); await nextTick(); },
 		async replaceCanvas(width, height) {
 			controller.canvas = Object.assign(element('canvas'), { width, height });
 			controller.canvasRevision.value++;
@@ -305,6 +310,113 @@ test('ignores fit requests for an empty canvas or a zero sized viewport', async 
 function rulerTick(fixture, axis, coordinate) {
 	return fixture.find(`${axis}-ruler`).children.find(node => node.props['data-test-preview-ruler-coordinate'] === coordinate);
 }
+
+function exposurePointer(type, clientY = 200, properties = {}) {
+	return Object.assign(new Event(type, { cancelable: true }), { pointerId: 7, button: 0, clientX: 100, clientY, ...properties });
+}
+
+function startExposureDrag(fixture, properties = {}) {
+	fixture.find('exposure').props.onPointerdown({ currentTarget: fixture.find('exposure'),
+		pointerId: 7, button: 0, clientX: 100, clientY: 200, preventDefault() {}, ...properties });
+}
+
+function elementText(element) {
+	return element.text + element.children.map(elementText).join('');
+}
+
+// 【フッターの露出は符号付きで表示し、補正中だけ着色してクリックで解除できる】
+// 書き出しとの明るさの違いをユーザーが認識できるよう、補正の有無を常時示す。
+// クリック判定の手ぶれでは露出を変えず、負の露出も正しく表示する。
+test('shows signed preview exposure and resets it on a click with minor pointer jitter', async t => {
+	const f = await fixture(t);
+	const exposure = f.find('exposure');
+	assert.equal(elementText(exposure), '0.0 EV');
+	assert.equal(exposure.props['data-test-preview-exposure-active'], false);
+	f.appContext.previewExposure.value = 2;
+	await nextTick();
+	assert.equal(elementText(exposure), '+2.0 EV');
+	assert.equal(exposure.props['data-test-preview-exposure-active'], true);
+	startExposureDrag(f);
+	f.document.dispatchEvent(exposurePointer('pointerup', 201));
+	assert.equal(f.appContext.previewExposure.value, 2);
+	await f.click('exposure');
+	assert.equal(elementText(exposure), '0.0 EV');
+	assert.equal(exposure.props['data-test-preview-exposure-active'], false);
+	f.appContext.previewExposure.value = -1.5;
+	await nextTick();
+	assert.equal(elementText(exposure), '-1.5 EV');
+});
+
+// 【上下ドラッグは開始位置からの差で露出を変え、直後のclickではリセットしない】
+// 移動ごとの加算による加速と、pointerupの後に発生するclickによる意図しない解除を防ぐ。
+// 別ポインターの操作を混ぜず、最後のpointerup位置まで0.1 EV単位で反映する。
+test('adjusts exposure vertically without resetting on the click following a drag', async t => {
+	const f = await fixture(t);
+	startExposureDrag(f);
+	f.document.dispatchEvent(exposurePointer('pointermove', 160, { pointerId: 8 }));
+	assert.equal(f.appContext.previewExposure.value, 0);
+	f.document.dispatchEvent(exposurePointer('pointermove', 160));
+	assert.equal(f.appContext.previewExposure.value, 1);
+	f.document.dispatchEvent(exposurePointer('pointermove', 140));
+	assert.equal(f.appContext.previewExposure.value, 1.5);
+	f.document.dispatchEvent(exposurePointer('pointerup', 120));
+	await f.click('exposure');
+	assert.equal(elementText(f.find('exposure')), '+2.0 EV');
+	startExposureDrag(f);
+	f.document.dispatchEvent(exposurePointer('pointerup', 320));
+	await f.click('exposure');
+	assert.equal(elementText(f.find('exposure')), '-1.0 EV');
+	startExposureDrag(f);
+	f.document.dispatchEvent(exposurePointer('pointerup'));
+	await f.click('exposure');
+	assert.equal(elementText(f.find('exposure')), '0.0 EV');
+});
+
+// 【別ウィンドウでも露出を操作でき、Escや中断では開始値へ戻す】
+// 切り離したプレビューでメインDocumentにだけ追跡を登録すると、ドラッグを終えられない。
+// 中断時は元の露出に戻し、遅れて届くpointerupで再確定しない。
+test('tracks exposure in the detached document and restores it when interrupted', async t => {
+	for (const reason of ['escape', 'pointercancel', 'blur', 'window change']) {
+		const f = await fixture(t);
+		const detached = new EventTarget();
+		detached.defaultView = previewWindow(1);
+		f.find('exposure').ownerDocument = detached;
+		f.appContext.previewExposure.value = 1;
+		startExposureDrag(f);
+		detached.dispatchEvent(exposurePointer('pointermove', 120));
+		assert.equal(f.appContext.previewExposure.value, 3);
+		if (reason === 'escape') detached.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { key: 'Escape' }));
+		else if (reason === 'pointercancel') detached.dispatchEvent(exposurePointer('pointercancel', 120));
+		else if (reason === 'blur') detached.defaultView.dispatchEvent(new Event('blur'));
+		else f.find('window').props.onChangeWindow();
+		detached.dispatchEvent(exposurePointer('pointerup', 80));
+		assert.equal(f.appContext.previewExposure.value, 1, reason);
+		assert.equal(f.find('exposure').hasPointerCapture(7), false);
+	}
+});
+
+// 【極端なドラッグでも露出の範囲と小数精度を保ち、キーボードでも調整・解除できる】
+// 指数の無制限な増大や、負のゼロ・丸め誤差による着色の残留を防ぐ。
+test('bounds exposure and supports arrow keys and keyboard reset', async t => {
+	const f = await fixture(t);
+	startExposureDrag(f, { button: 1 });
+	assert.equal(f.find('exposure').hasPointerCapture(7), false);
+	for (const [clientY, expected] of [[-10000, 20], [10000, -20]]) {
+		startExposureDrag(f);
+		f.document.dispatchEvent(exposurePointer('pointerup', clientY));
+		await f.click('exposure');
+		assert.equal(f.appContext.previewExposure.value, expected);
+	}
+	f.find('exposure').props.onClick({ detail: 0 });
+	assert.equal(f.appContext.previewExposure.value, 0);
+	for (const key of ['ArrowDown', 'ArrowUp', 'ArrowUp']) f.find('exposure').props.onKeydown({ key, preventDefault() {} });
+	await nextTick();
+	assert.equal(elementText(f.find('exposure')), '+0.1 EV');
+	f.find('exposure').props.onKeydown({ key: 'Home', preventDefault() {} });
+	await nextTick();
+	assert.equal(elementText(f.find('exposure')), '0.0 EV');
+	assert.equal(f.find('exposure').props['data-test-preview-exposure-active'], false);
+});
 
 // 【座標目盛りはメニューで独立して表示でき、画像端の数値も欠けない】
 // 設定値だけ追加して実表示に接続し忘れたり、構図グリッドの表示・吸着まで変えたりしないことを確認する。

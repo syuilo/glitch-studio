@@ -445,6 +445,7 @@
 		"OpenFailed": "{title}を開けませんでした"
 	},
 	"_Preview": {
+		"ExposureDescription": "プレビューの露出：上下にドラッグで調整、クリックで0 EVに戻す。書き出し・解析・クリッピング警告には影響しません。",
 		"HighlightClipping": "クリッピングを強調表示",
 		"AnimatedBackground": "背景をアニメーション",
 		"ShowTimecode": "タイムコードを表示",

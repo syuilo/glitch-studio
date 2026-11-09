@@ -44,6 +44,9 @@
 					<div>{{ previewResolution?.width ?? '-' }} x {{ previewResolution?.height ?? '-' }} px</div>
 				</div>
 			</div>
+			<div :class="$style.right">
+				<button v-tooltip="i18n.ts._Preview.ExposureDescription" :class="[$style.exposure, previewExposure !== 0 ? '_buttonPrimaryFg' : '_button']" class="_monospace" data-test-preview-exposure :data-test-preview-exposure-active="previewExposure !== 0" @pointerdown="onExposurePointerdown" @click="onExposureClick" @keydown="onExposureKeydown"><i class="ti ti-exposure"></i><span style="white-space: pre-wrap;">{{ previewExposure > 0 ? '+' : previewExposure < 0 ? '' : ' ' }}{{ previewExposure.toFixed(1) }} EV</span></button>
+			</div>
 		</div>
 
 		<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s _selectable">
@@ -76,7 +79,7 @@ import { appContext } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
 const { stateManager } = appContext.projectContext;
 const renderValidationErrorMessage = renderValidation.errorMessage;
 const renderFailureLocation = computed(() => {
@@ -90,6 +93,8 @@ const containerContainer = useTemplateRef('containerContainer');
 const gridOverlay = useTemplateRef('gridOverlay');
 const gridLines = shallowRef<CSSProperties[]>([]);
 const ZOOM_STEP = 1.25;
+const PREVIEW_EXPOSURE_LIMIT = 20;
+const PREVIEW_EXPOSURE_PIXELS_PER_EV = 40;
 // 100%は出力の1pxが画面の物理1pxに対応する倍率。CSSのscaleへ渡すときだけDPRで割る。
 const zoom = ref(1);
 const previewDevicePixelRatio = ref(window.devicePixelRatio);
@@ -104,6 +109,8 @@ const previewCanvasRect = shallowRef<PreviewCanvasRect>({
 });
 const previewViewportSize = shallowRef<PreviewViewportSize>({ width: 0, height: 0 });
 let stopPan: (() => void) | null = null;
+let stopExposureDrag: (() => void) | null = null;
+let suppressExposureClick = false;
 let mainEditingDocument: Document | null = null;
 let editingDocuments = new Set<Document>();
 
@@ -170,7 +177,7 @@ watch(resolutionFactor, (newFactor, oldFactor) => {
 
 useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'canvas', renderEngine.isSuspended);
 watch(renderEngine.isSuspended, updateTimecodeLoop, { immediate: true });
-onBeforeUnmount(() => { if (timecodeRaf != null) animationWindow.cancelAnimationFrame(timecodeRaf); cancelPan(); });
+onBeforeUnmount(() => { if (timecodeRaf != null) animationWindow.cancelAnimationFrame(timecodeRaf); cancelPan(); stopExposureDrag?.(); });
 
 function updateTimecodeLoop() {
 	if (timecodeRaf != null) animationWindow.cancelAnimationFrame(timecodeRaf);
@@ -198,6 +205,7 @@ function fitInitialZoom() {
 
 function onPreviewWindowChanged() {
 	cancelPan();
+	stopExposureDrag?.();
 	updateEditingDocument();
 	// 元のウィンドウが非表示でも、切り離したプレビューの寸法・DPRを更新し続ける。
 	if (timecodeRaf != null) animationWindow.cancelAnimationFrame(timecodeRaf);
@@ -223,6 +231,44 @@ function updatePreviewCanvasRect() {
 }
 
 function cancelPan() { stopPan?.(); }
+
+function setPreviewExposure(value: number) {
+	// 表示と実際の補正を0.1 EVに揃え、-0.0や無制限な指数の増大を避ける。
+	const rounded = Math.round(Math.max(-PREVIEW_EXPOSURE_LIMIT, Math.min(PREVIEW_EXPOSURE_LIMIT, value)) * 10) / 10;
+	previewExposure.value = rounded === 0 ? 0 : rounded;
+}
+
+function onExposurePointerdown(event: PointerEvent) {
+	if (event.button !== 0 || stopExposureDrag != null) return;
+	const initialExposure = previewExposure.value;
+	let moved = false;
+	suppressExposureClick = false;
+	stopExposureDrag = startPreviewPointerDrag(event, {
+		move: next => {
+			// クリック時の小さな手ぶれは無視する。横へ外れた操作もドラッグ扱いにし、
+			// 値を調整した直後のclickで意図せず0 EVへ戻ることを防ぐ。
+			if (Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) >= 3) moved = true;
+			if (moved) setPreviewExposure(initialExposure + (event.clientY - next.clientY) / PREVIEW_EXPOSURE_PIXELS_PER_EV);
+		},
+		end: cancelled => {
+			if (cancelled) previewExposure.value = initialExposure;
+			suppressExposureClick = moved || cancelled;
+			stopExposureDrag = null;
+		},
+	});
+}
+
+function onExposureClick(event: MouseEvent) {
+	// キーボードによるbuttonの操作は、前回のドラッグの有無に関係なくリセットする。
+	if (!suppressExposureClick || event.detail === 0) previewExposure.value = 0;
+	suppressExposureClick = false;
+}
+
+function onExposureKeydown(event: KeyboardEvent) {
+	if (stopExposureDrag != null || !['ArrowUp', 'ArrowDown', 'Home'].includes(event.key)) return;
+	event.preventDefault();
+	setPreviewExposure(event.key === 'Home' ? 0 : previewExposure.value + (event.key === 'ArrowUp' ? 0.1 : -0.1));
+}
 
 function onViewPointerdown(event: PointerEvent) {
 	if (event.button !== 1 || stopPan) return;
@@ -497,6 +543,16 @@ function showMenu(ev: PointerEvent) {
 	height: var(--footerHeight);
 	line-height: var(--footerHeight);
 	background: var(--previewOverlayBackground);
+}
+
+.exposure {
+	height: 100%;
+	min-width: 8em;
+	padding: 0 12px;
+	cursor: ns-resize;
+	touch-action: none;
+	user-select: none;
+	font-variant-numeric: tabular-nums;
 }
 
 .left {
