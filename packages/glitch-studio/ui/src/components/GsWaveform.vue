@@ -104,6 +104,8 @@ useRendererCanvas(canvasContainer, activePreviewRenderer, () => props.direction 
 	position: relative;
 	min-width: 0;
 	min-height: 0;
+	box-sizing: border-box;
+	border: 1px solid #fff2;
 	overflow: clip;
 }
 
@@ -176,12 +178,10 @@ useRendererCanvas(canvasContainer, activePreviewRenderer, () => props.direction 
 	height: 100%;
 }
 
-// 表示用の目盛りはCanvasの上に重ね、レンダラーの出力には含めない。
 .grid {
 	position: absolute;
 	inset: 0;
 	box-sizing: border-box;
-	border: 1px solid rgb(76 76 76 / 75%);
 	pointer-events: none;
 }
 
