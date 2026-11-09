@@ -58,6 +58,7 @@ export async function run(benchmark = false) {
 		module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
 @fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(position.xy), 0); }` }), targets: [{ format: 'rgba32float' }],
 	} });
+
 	function createRenderer(width: number, height: number, useFloat32 = true, ports = allPorts) {
 		const resolution = { width, height };
 		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: useFloat32 };
@@ -109,6 +110,7 @@ export async function run(benchmark = false) {
 			},
 		};
 	}
+
 	try {
 		const single = createRenderer(1, 1);
 		// 【無重力で両方が同じ速度で回る解析解を、端数時刻と周回をまたいで再現する】
@@ -147,26 +149,35 @@ export async function run(benchmark = false) {
 		for (const port of statePorts) near(ramped.pixel(port)[0], colored.pixel(port)[0], `${port} unaffected by coloring`);
 		// 【角度の正規化と符号付き角速度のRampを、乗算済み透明度で出力する】
 		// 角速度は絶対値にせず、負・0・正をRampの0・0.5・1へ対応させる。AAでも透明度を二重乗算しない。
+		// 初期値の配色を調べるため時刻を0に固定する。エフェクトの既定時刻では運動後の別の値になる。
 		for (const coloringMethod of ['angle1', 'angle2', 'angularVelocity1', 'angularVelocity2'] as const) {
-			const midpoint = await single.render({ coloringMethod, ramp, antialiasing: true });
+			const midpoint = await single.render({ simulationTime: 0, coloringMethod, ramp, antialiasing: true });
 			[0.25, 0, 0.25, 0.5].forEach((value, channel) => near(midpoint.pixel('output')[channel], value, `${coloringMethod} transparent midpoint channel ${channel}`, 0.001));
 		}
-		for (const [coloringMethod, expected] of [['angularVelocity1', [0, 0, 0.5, 0.5]], ['angularVelocity2', [0.5, 0, 0, 0.5]]] as const) {
-			const velocityColor = await single.render({ coloringMethod, ramp, initialAngularVelocity1: 20, initialAngularVelocity2: -20 });
-			expected.forEach((value, channel) => near(velocityColor.pixel('output')[channel], value, `${coloringMethod} signed endpoint channel ${channel}`, 0.001));
+		// 範囲の端と範囲外を両方調べ、上下の振り子で正負を入れ替えてポートや符号の取り違えも検出する。
+		for (const initialAngularVelocity1 of [-20, -10, 10, 20]) {
+			const initialAngularVelocity2 = -initialAngularVelocity1;
+			for (const coloringMethod of ['angularVelocity1', 'angularVelocity2'] as const) {
+				const velocityColor = await single.render({ simulationTime: 0, coloringMethod, ramp, angularVelocityRange: 10, initialAngularVelocity1, initialAngularVelocity2 });
+				near(velocityColor.pixel('angularVelocity1')[0], initialAngularVelocity1, `${coloringMethod} preserves first initial velocity ${initialAngularVelocity1}`);
+				near(velocityColor.pixel('angularVelocity2')[0], initialAngularVelocity2, `${coloringMethod} preserves second initial velocity ${initialAngularVelocity2}`);
+				const velocity = coloringMethod === 'angularVelocity1' ? initialAngularVelocity1 : initialAngularVelocity2;
+				const expected = velocity > 0 ? [0, 0, 0.5, 0.5] : [0.5, 0, 0, 0.5];
+				expected.forEach((value, channel) => near(velocityColor.pixel('output')[channel], value, `${coloringMethod} signed endpoint ${velocity} channel ${channel}`, 0.001));
+			}
 		}
 		// 【縦横比と解像度が違っても共通座標の同じ位置を同じ角度へ変換する】
 		// 画像の各軸を別々に2piへ伸ばす実装では、横長・縦長の短辺側だけが変わる。
 		for (const [width, height] of [[9, 9], [9, 5], [5, 9], [27, 27]]) {
 			const renderer = createRenderer(width, height);
-			const pixels = await renderer.render();
+			const pixels = await renderer.render({ simulationTime: 0 });
 			const offset = width === 27 ? 3 : 1;
 			near(pixels.pixel('angle1', (width - 1) / 2 + offset, (height - 1) / 2)[0], 2 * Math.PI / 9, `${width}x${height} isotropic X`);
 			near(pixels.pixel('angle2', (width - 1) / 2, (height - 1) / 2 + offset)[0], 2 * Math.PI / 9, `${width}x${height} isotropic Y points downward`);
 		}
 		// 【周期境界のAAはpi付近を0付近へ反転させない】
 		// 角度のデータには円周平均を使い、色の4点平均や角速度の算術平均とは区別する。
-		const antialiased = await createRenderer(9, 9).render({ angleCenter1: Math.PI, angleCenter2: Math.PI, antialiasing: true });
+		const antialiased = await createRenderer(9, 9).render({ simulationTime: 0, angleCenter1: Math.PI, angleCenter2: Math.PI, antialiasing: true });
 		for (const port of ['angle1', 'angle2'] as const) near(Math.abs(antialiased.pixel(port)[0]), Math.PI, `${port} circular AA across pi`);
 		// 【画像が不要な疎なattachmentと、16bitのデータ出力でも同じ物理量を返す】
 		// 未確保のポートを参照したり、単独出力時にlocationを詰めたりする不具合を検出する。
