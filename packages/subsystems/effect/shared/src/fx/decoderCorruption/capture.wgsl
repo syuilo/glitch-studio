@@ -15,6 +15,6 @@ fn capture(@builtin(global_invocation_id) invocation: vec3u) {
 	// 未乗算の色を個別に平均すると透明部分の色が漏れるため、RGBAを平均してから色を取り出す。
 	let coverage = clamp(color.a / f32(uniforms.samplingGrid.x * uniforms.samplingGrid.y), 0.0, 1.0);
 	var rgb = vec3f(0.0);
-	if (color.a > 0.0) { rgb = clamp(color.rgb / color.a, vec3f(0.0), vec3f(1.0)); }
+	if (color.a > 0.0) { rgb = clamp(colorLinearToSrgb(color.rgb / color.a), vec3f(0.0), vec3f(1.0)); }
 	originalSamples[sample_index(invocation.xy)] = vec4f(rgb_to_ycbcr(rgb), coverage);
 }

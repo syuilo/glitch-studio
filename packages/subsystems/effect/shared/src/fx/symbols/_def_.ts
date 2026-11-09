@@ -1,3 +1,4 @@
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
@@ -113,8 +114,8 @@ export default defineEffect({
 		},
 		bgColor: { dataType: { kind: 'color' }, ui: { label: 'Background Color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },
 		colorA: { dataType: { kind: 'color' }, ui: { label: 'Color A', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
-		colorB: { dataType: { kind: 'color' }, ui: { label: 'Color B', control: {} }, defaultValue: { inputSource: 'literal', value: [0.8, 1, 0, 1] } },
-		colorC: { dataType: { kind: 'color' }, ui: { label: 'Color C', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0.3, 0, 1] } },
+		colorB: { dataType: { kind: 'color' }, ui: { label: 'Color B', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([0.8, 1, 0, 1]) } },
+		colorC: { dataType: { kind: 'color' }, ui: { label: 'Color C', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([1, 0.3, 0, 1]) } },
 		similarityThresholdFactor: {
 			dataType: { kind: 'scalar' },
 			ui: {

@@ -16,11 +16,12 @@ export async function run() {
 	const resolution = { width: 17, height: 1 };
 	const wgpu = { device, enable32bitDataTextures: false, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }) };
 	const output = implementation.outputTextureFactories.output({ wgpu, resolution });
-	const copyTarget = device.createTexture({ size: resolution, format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+	// 色域外も比較するため、表示用8bitへ変換せずfloatで読み戻す。
+	const copyTarget = device.createTexture({ size: resolution, format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: wgpu.defaultVertexShaderModule }, fragment: { module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
-@fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(p.xy), 0); }` }), targets: [{ format: 'rgba8unorm' }] } });
+@fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(p.xy), 0); }` }), targets: [{ format: 'rgba32float' }] } });
 	const readGroup = device.createBindGroup({ layout: reader.getBindGroupLayout(0), entries: [{ binding: 0, resource: output.createView() }] });
-	const buffer = device.createBuffer({ size: 256, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+	const buffer = device.createBuffer({ size: 512, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 	const scalarTexture = device.createTexture({ size: resolution, format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 	const rangeTexture = device.createTexture({ size: resolution, format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 	const pixels = new Uint8Array(resolution.width * 4);
@@ -40,14 +41,14 @@ export async function run() {
 		});
 		const pass = commandEncoder.beginRenderPass({ colorAttachments: [{ view: copyTarget.createView(), loadOp: 'clear', storeOp: 'store' }] });
 		pass.setPipeline(reader); pass.setBindGroup(0, readGroup); pass.draw(3); pass.end();
-		commandEncoder.copyTextureToBuffer({ texture: copyTarget }, { buffer, bytesPerRow: 256 }, resolution);
+		commandEncoder.copyTextureToBuffer({ texture: copyTarget }, { buffer, bytesPerRow: 512 }, resolution);
 		device.queue.submit([commandEncoder.finish()]);
 		await buffer.mapAsync(GPUMapMode.READ);
 		try {
-			const actual = new Uint8Array(buffer.getMappedRange());
+			const actual = new Float32Array(buffer.getMappedRange());
 			const prepared = prepareColorRamp(ramp);
 			coordinates.forEach((value, index) => evaluatePreparedColorRamp(prepared, value).forEach((component, channel) => {
-				if (Math.abs(actual[index * 4 + channel] - component * 255) > 1.5) throw new Error(`${label}: pixel ${index} channel ${channel}: ${actual[index * 4 + channel]} != ${component * 255}`);
+				if (!Number.isFinite(actual[index * 4 + channel]) || Math.abs(actual[index * 4 + channel] - component) > Math.max(0.001, Math.abs(component) * 0.002)) throw new Error(`${label}: pixel ${index} channel ${channel}: ${actual[index * 4 + channel]} != ${component}`);
 			}));
 		} finally { buffer.unmap(); }
 		const error = await device.popErrorScope();

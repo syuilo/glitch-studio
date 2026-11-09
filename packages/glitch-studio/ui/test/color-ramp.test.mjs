@@ -465,11 +465,11 @@ test('opens an anchored popup and groups its edits until closing', async t => {
 	await nextTick();
 	assert.equal(editor.props.value, state.modelValue);
 	editor.props.onClosing();
-	editor.props.onInput({ ...state.modelValue, colorSpace: 'linearSrgb' });
+	editor.props.onInput({ ...state.modelValue, colorSpace: 'srgb' });
 	preview.props.onClick();
 	await nextTick();
 	assert.deepEqual(events, ['begin', 'value', 'value', 'finish']);
-	assert.equal(state.modelValue.colorSpace, 'srgb');
+	assert.equal(state.modelValue.colorSpace, 'linearSrgb');
 	assert.equal(find('data-test-color-ramp-editor-stub'), editor);
 	editor.props.onClosed();
 	editor.props.onClosed();

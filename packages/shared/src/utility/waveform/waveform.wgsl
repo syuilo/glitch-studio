@@ -4,6 +4,7 @@ struct Params {
 	size: vec2u,
 	sampleSize: vec2u,
 	verticalPosition: u32,
+	valueScale: u32,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -44,23 +45,24 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 	let uv = (vec2f(id.xy) + 0.5) / vec2f(params.sampleSize);
 	let position = vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
 	let color = read_input(position);
-	let weight = clamp(color.a, 0.0, 1.0) * 65535.0;
+	let weight = select(clamp(color.a, 0.0, 1.0), 1.0, color.a == 0.0 && any(color.rgb != vec3f(0.0))) * 65535.0;
 	if (weight == 0.0) {
 		return;
 	}
 	// 入力はpremultiplied alpha。色の強度を復元し、透明度は集計の重みに使う。
-	let rgb = color.rgb / color.a;
+	let rgb = colorUnpremultiply(color);
+	let scaledRgb = imageValueForScope(rgb, params.valueScale);
 	// サンプル解像度と表示の位置分解能は独立。fit後の画像領域の位置を集計する。
 	let samplePosition = select(id.x, id.y, params.verticalPosition == 1u);
 	let positionSamples = select(params.sampleSize.x, params.sampleSize.y, params.verticalPosition == 1u);
 	let column = min(samplePosition * waveformSize().x / positionSamples, waveformSize().x - 1u);
 	if (params.mode == 1u) {
 		let luminance = dot(rgb, vec3f(0.2126, 0.7152, 0.0722));
-		addSample(column, luminance, 0u, weight);
+		addSample(column, imageValueForScope(vec3f(luminance), params.valueScale).x, 0u, weight);
 	} else {
-		addSample(column, rgb.r, 0u, weight);
-		addSample(column, rgb.g, 1u, weight);
-		addSample(column, rgb.b, 2u, weight);
+		addSample(column, scaledRgb.r, 0u, weight);
+		addSample(column, scaledRgb.g, 1u, weight);
+		addSample(column, scaledRgb.b, 2u, weight);
 	}
 }
 

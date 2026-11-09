@@ -23,8 +23,6 @@ export async function run() {
 	const near = (actual: number, expected: number, label: string, tolerance = 0.001) => assert(Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance, `${label}: ${actual} != ${expected}`);
 	const scalar = (value: number) => constantShaderInput('scalar', value);
 	const half = (value: number) => new Float16Array([value])[0];
-	const encodeSrgb = (value: number) => value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055;
-	const decodeSrgb = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 	const samples = createSpectralSamples();
 	// GPUの半位相の実部・虚部の式とは独立に、速軸・遅軸の複素振幅を足して強度を求める。
 	function expectedColor(retardation: number, fastAxisAngle = 0.125, polarizerAngle = 0, analyzerAngle = 0.25) {
@@ -38,7 +36,7 @@ export async function run() {
 			const transmission = 0.5 * (real * real + imaginary * imaginary);
 			for (let channel = 0; channel < 3; channel++) linear[channel] += samples[index + channel] * transmission;
 		}
-		return linear.map(value => encodeSrgb(Math.max(0, Math.min(0.5, value))));
+		return linear;
 	}
 	const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }] });
 	const reader = device.createRenderPipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }), vertex: { module: vertex },
@@ -106,7 +104,7 @@ export async function run() {
 		// 最初の偏光板の1/2を含め、厚みや屈折率差を0にする操作を単なる色変化にしない。
 		for (const settings of [{ input: scalar(0) }, { maximumThickness: 0 }, { birefringence: scalar(0) }]) checkColor(await effect.render(settings), [0, 0, 0, 1], 'zero-retardation extinction');
 		for (const angle of [0, 0.125, 0.25]) {
-			const expected = encodeSrgb(0.5 * Math.cos(angle * 2 * Math.PI) ** 2);
+			const expected = 0.5 * Math.cos(angle * 2 * Math.PI) ** 2;
 			checkColor(await effect.render({ birefringence: scalar(0), analyzerAngle: angle }), [expected, expected, expected, 1], 'Malus law');
 		}
 		checks.push('zero thickness', 'zero birefringence', 'Malus law and first polarizer loss');
@@ -130,7 +128,7 @@ export async function run() {
 		// 【直交・平行の検光子で取り出す光量の和が、最初の偏光板を通った光量と一致する】
 		// 波長で位相が変わっても複屈折板が光を増やさず、色計算をlinear RGBで行うことを確認する。
 		const parallel = await effect.render({ analyzerAngle: 0 });
-		for (let channel = 0; channel < 3; channel++) near(decodeSrgb(baseline[channel]) + decodeSrgb(parallel[channel]), 0.5, 'complementary analyzer energy');
+		for (let channel = 0; channel < 3; channel++) near(baseline[channel] + parallel[channel], 0.5, 'complementary analyzer energy');
 		checks.push('complementary analyzer energy');
 
 		// 【厚み・複屈折量・速軸・不透明度の場を同時にノード入力する】
@@ -148,7 +146,7 @@ export async function run() {
 		// RGBの非線形変換へ乗算済み色を直接渡すと、半透明の素材で暗い縁が生じる。
 		const lightColor = [0.4, 0.2, 0.1, 0.5] as const;
 		const tinted = await effect.render({ lightColor: constantShaderInput('color', lightColor), opacity: scalar(0.4), birefringence: scalar(0), analyzerAngle: 0 });
-		const expectedTint = [...lightColor.slice(0, 3).map(value => encodeSrgb(decodeSrgb(value) * 0.5) * 0.2), 0.2];
+		const expectedTint = [...lightColor.slice(0, 3).map(value => value * 0.5 * 0.2), 0.2];
 		checkColor(tinted, expectedTint, 'premultiplied light color');
 		const colorTexture = device.createTexture({ size: [1, 1], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		owned.push(() => colorTexture.destroy());
@@ -156,8 +154,12 @@ export async function run() {
 		checkColor(await effect.render({ lightColor: textureShaderInput(colorTexture, { fitMode: 'stretch', filterMode: 'nearest', wrapMode: 'clamp' }), opacity: scalar(0.4), birefringence: scalar(0), analyzerAngle: 0 }), expectedTint, 'premultiplied light texture');
 		checkColor(await effect.render({ opacity: scalar(0) }), [0, 0, 0, 0], 'zero opacity');
 		checkColor(await effect.render({ lightColor: constantShaderInput('color', [0, 0, 0, 0]) }), [0, 0, 0, 0], 'transparent light');
+		// 【ゼロRGBの短絡でも被覆率を保ち、alpha=0の発光を短絡しない】
+		// alphaだけで短絡すると発光を失い、黒を常に透明として返すと入力の被覆率を失う。
+		checkColor(await effect.render({ lightColor: constantShaderInput('color', [0, 0, 0, 0.5]), opacity: scalar(0.4) }), [0, 0, 0, 0.2], 'black light preserves coverage');
+		checkColor(await effect.render({ lightColor: { kind: 'uniform', value: [0.25, 0.125, 0.0625, 0] }, birefringence: scalar(0), analyzerAngle: 0 }), [0.125, 0.0625, 0.03125, 0], 'zero-alpha emission');
 		checkColor(await effect.render({ brightness: 0 }), [0, 0, 0, 1], 'zero brightness preserves coverage');
-		checks.push('premultiplied light and opacity', 'premultiplied light texture', 'transparent light', 'zero brightness');
+		checks.push('premultiplied light and opacity', 'premultiplied light texture', 'transparent light', 'black light coverage', 'zero-alpha emission', 'zero brightness');
 
 		// 【厚みの範囲制限・逆向きの対応と、時間・解像度・形式の独立性】
 		// 再描画やpipeline切り替えで前の入力を残さず、物理的な厚みを画面寸法で換算しない。
@@ -176,15 +178,23 @@ export async function run() {
 		const output = thinFilmImplementation.outputTextureFactories.output({ wgpu, resolution });
 		const thinFilm = thinFilmImplementation.init({ wgpu, resolution, params: thinFilmDefaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
 		owned.push(() => { thinFilm.dispose(); output.destroy(); });
-		const encoder = device.createCommandEncoder();
-		thinFilm.render({ params: { ...thinFilmDefaults, filmIor: 1, substrateIor: 1, mode: 'transmission' }, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
-			outputDataMap: { output: { texture: output, textureView: output.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
-			createPassEncoder: (commandEncoder, descriptor) => commandEncoder.beginRenderPass(descriptor), createComputePassEncoder: commandEncoder => commandEncoder.beginComputePass(),
-			createPassEncoderFor: (commandEncoder, view) => commandEncoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
-		});
-		device.queue.submit([encoder.finish()]);
-		checkColor(await read(output), [1, 1, 1, 1], 'thin-film shared spectrum');
-		checks.push('thin-film shared spectrum regression');
+		async function renderThinFilm(overrides: Partial<typeof thinFilmDefaults> = {}) {
+			const encoder = device.createCommandEncoder();
+			thinFilm.render({ params: { ...thinFilmDefaults, filmIor: 1, substrateIor: 1, mode: 'transmission', ...overrides }, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				outputDataMap: { output: { texture: output, textureView: output.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
+				createPassEncoder: (commandEncoder, descriptor) => commandEncoder.beginRenderPass(descriptor), createComputePassEncoder: commandEncoder => commandEncoder.beginComputePass(),
+				createPassEncoderFor: (commandEncoder, view) => commandEncoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			});
+			device.queue.submit([encoder.finish()]);
+			return read(output);
+		}
+		checkColor(await renderThinFilm(), [1, 1, 1, 1], 'thin-film shared spectrum');
+		// 【Thin Filmの同じ短絡経路も、透明黒・半透明の黒・透明な発光を区別する】
+		// Birefringenceだけを確認しても、独立したエフェクト実装の戻り値は保証できない。
+		checkColor(await renderThinFilm({ lightColor: constantShaderInput('color', [0, 0, 0, 0]) }), [0, 0, 0, 0], 'thin-film transparent light');
+		checkColor(await renderThinFilm({ lightColor: constantShaderInput('color', [0, 0, 0, 0.5]), opacity: scalar(0.4) }), [0, 0, 0, 0.2], 'thin-film black coverage');
+		checkColor(await renderThinFilm({ lightColor: { kind: 'uniform', value: [0.25, 0.125, 0.0625, 0] } }), [0.25, 0.125, 0.0625, 0], 'thin-film emission');
+		checks.push('thin-film shared spectrum regression', 'thin-film transparent light', 'thin-film black coverage', 'thin-film zero-alpha emission');
 
 		const width = 512;
 		const height = 256;

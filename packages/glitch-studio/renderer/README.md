@@ -4,6 +4,8 @@ Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
 `CanvasRenderer`は完成画像と映像解析の描画を担当する。`previewDisplayMode`が`gpu`の場合はGPUCanvasContextへ直接出力し、`cpu`の場合は`CpuPreviewCanvasContext`の通常GPUTextureへ出力して読み戻す。どちらも同じ描画・集計パスを使う。CPU方式では行padding・BGRA/RGBA・乗算済みalphaをImageData用へ変換し、`cpuPreviewFrame`イベントでピクセルの所有権をUIへ転送する。UIはCanvas 2Dへ表示してから`recycleCpuPreviewPixels`で領域を返却し、GPU読み戻し・CPUピクセル領域を再利用する。古いサイズ・世代・完了順の画像は送信しない。
 
+主Canvasの構成は`createPreviewCanvasConfigurator()`で共有する。黒・チェック背景を合成するプレビューと`opaqueOutput`は`alphaMode: 'opaque'`、背景のない透明書き出しは`premultiplied`を使う。alphaModeが変わるときだけconfigureし、表示設定の適用だけでCanvasの画像やCPU読み戻しを繰り返し破棄しない。
+
 CPU表示の画素変換では、little endianかつ4byte境界のメモリ配置なら、不透明画素を32bit単位でコピーし、BGRAの赤青交換もビット演算で行う。半透明画素の未乗算RGBへの補正は従来と同じ丸め・clampを保つ。32bitで扱えない配置やエンディアンではbyte単位の変換へ戻る。転送量・表示解像度は変えない。
 
 CPU表示の上限は`CpuPreviewFrameQueue`で一元管理する。ノード評価・描画の前に最大2フレーム分を予約し、読み戻し完了後も主映像・解析用の全出力がUIから返却されるまで保持する。Timelineは満杯なら予約を待ち、シーク先やBAKEの最終画像を省略しない。Visual Module Live Previewは満杯なら評価・GPU描画・映像解析の前に間引き、経過時間を次のTIME_DELTAへ加算する。予約後に出力寸法が変わっても、そのフレームの予約は維持する。編集・停止・破棄では未完了の予約を解放し、旧画像の送信や意図した破棄によるエラー通知を防ぐ。
@@ -46,7 +48,7 @@ GPUを所有するManagerが、最終表示とモーションブラーの全サ�
 
 プレビューのヒストグラム・縦横の波形は、両Managerのstatic optionsの`enableWaveformAndHistogram`でまとめて制御する。`CanvasRenderer`は無効時に解析用インスタンスを生成せず、バッファ・pipelineの確保もcompute/render passも省く。通常のCanvas出力や計測の有効・無効とは独立し、エフェクトとして配置した波形・ヒストグラムには適用しない。書き出しWorkerでは常に無効を指定する。
 
-表示用の露出は両Managerのdynamic optionsの`previewExposure`（EV、既定0）を`CanvasRenderer`へ渡す。乗算済みsRGBを未乗算へ戻し、符号対称に拡張したsRGB伝達関数で線形光へ変換して`2^EV`を乗算し、sRGB・乗算済みalphaへ戻す。内部画像はclampせず、0 EVでは変換を省略して従来の画素を保持する。GPU方式・CPU方式とも読み戻し前の同じ最終パスで適用する。ヒストグラム・波形・クリッピング警告は補正前の画像を参照し、警告色は露出で変えない。フレームキャッシュは補正前の画像を保持し、露出変更で消去しない。書き出し側は露出を渡さず0 EVを使う。
+表示用の露出は両Managerのdynamic optionsの`previewExposure`（EV、既定0）を`CanvasRenderer`へ渡す。乗算済みlinear RGBへ`2^EV`を乗算し、黒・チェック背景の合成をlinearで済ませてからsRGBへencodeする。GPU方式・CPU方式は同じ出力パスを使う。`previewBackground`は表示専用で、透明なSDR書き出しではnull、不透明出力では黒背景を使う。チェック背景は表示用に所有するlinear画像で再描画し、ノード・履歴・解析を進めない。ヒストグラム・波形・クリッピング警告は露出補正前の画像を参照する。`analysisValueScale`はsRGB 0〜1／Linear −1〜4／EV −10〜+10（0 EV=0.18）を選ぶ。露出・背景・解析軸はキャッシュへ焼き込まず、書き出しへ暗黙に反映しない。[色空間の規約](../../../docs/color-management.md)を参照。
 
 有効時のタイムラインのプレビュー計測は`performance.now()`の実経過時間を使い、フレーム全体・動画取得待ち・動画取り込みのCPU側処理・GPU完了待ちを分ける。フレーム全体は処理開始からGPU完了（CPU表示方式では読み戻し・RGBA変換・UIへの送信）までで、Scheduler内の順番待ちとUIでのCanvas描画は含めない。動画取得はファイル読み取り・初期化・デコード・キャッシュ待ちを含む。取り込みは変換・転送API・submitのCPU側時間で、GPU完了待ちは最終submit後の残りのキュー待ちであり、どちらもGPUの総実行時間ではない。計測のためだけのGPU同期や画像読み戻しは追加しない。
 

@@ -7,6 +7,7 @@ import type { ColorRamp } from '@gs/shared/color-ramp.ts';
 import type { SizeReference } from '@gs/shared/size-reference.ts';
 import type { FileSource } from '@gs/shared/file-source.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import type { VideoFrameTexture } from '@gs/shared/media/video-texture.ts';
 import type { FitMode, WrapMode } from '@gs/shared/types.ts';
 import type { EffectOutputDefinitions, EffectDefinition } from './effect-definition.ts';
 import type { EffectStatus } from './effect-status.ts';
@@ -125,7 +126,7 @@ export function implementEffect<Definition extends Pick<EffectDefinition, 'param
 type EffectStaticResource<T extends StaticSettingDataType> =
 	T extends { kind: 'assetReference'; assetType: 'image' } ? GPUTexture | null :
 	T extends { kind: 'assetReference' } ? FileSource | null :
-	T extends { kind: 'playerReference' } ? { getVideoFrame: () => VideoFrame | null } | null : StaticSettingValue<T>;
+	T extends { kind: 'playerReference' } ? { getVideoTexture: () => VideoFrameTexture | null } | null : StaticSettingValue<T>;
 export type EffectStaticResources<Definition extends { staticSettingDefs?: StaticSettingDefinitions }> = {
 	readonly [Key in keyof NonNullable<Definition['staticSettingDefs']>]: EffectStaticResource<NonNullable<Definition['staticSettingDefs']>[Key]['dataType']>;
 };

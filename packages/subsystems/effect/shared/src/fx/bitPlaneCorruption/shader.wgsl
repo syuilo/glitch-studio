@@ -64,7 +64,8 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	let original = read_input(fragment.uv);
 	let probability = clamp(read_probability(fragment.uv), 0.0, 1.0);
 	if (probability <= 0.0 || uniforms.channels == 0u) { return original; }
-	if (original.a <= 0.0) { return vec4f(0.0); }
+	// alpha=0のRGBは発光成分を持ち得る。未乗算が必要な処理では、その値を消さずに通す。
+	if (original.a <= 0.0) { return original; }
 
 	let region = cell_hash(fragment.uv);
 	let maximum = (1u << uniforms.bitDepth) - 1u;

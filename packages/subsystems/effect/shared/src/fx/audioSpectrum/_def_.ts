@@ -1,3 +1,4 @@
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
@@ -133,8 +134,8 @@ export default defineEffect({
 			},
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
-		color: { dataType: { kind: 'color' }, ui: { label: 'Color (L)', control: {} }, defaultValue: { inputSource: 'literal', value: [0.2, 0.9, 1, 1] } },
-		rightColor: { dataType: { kind: 'color' }, ui: { label: 'Color (R)', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0.3, 0.6, 1] } },
+		color: { dataType: { kind: 'color' }, ui: { label: 'Color (L)', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([0.2, 0.9, 1, 1]) } },
+		rightColor: { dataType: { kind: 'color' }, ui: { label: 'Color (R)', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([1, 0.3, 0.6, 1]) } },
 	},
 	primaryInputParameter: null,
 	primaryAudioInputParameter: 'audio',

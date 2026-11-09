@@ -1,4 +1,5 @@
 import definition from '../../src/fx/lcdViewingAngle/_def_.ts';
+import { linearChannelToSrgb, srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import implementation from '../../src/fx/lcdViewingAngle/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -97,7 +98,7 @@ export async function run() {
 		checks.push('frontal and amount-zero identity');
 
 		const rampWidth = 65;
-		const rampInput = field(rampWidth, 1, 4, x => [x / 64, x / 64, x / 64, 1]);
+		const rampInput = field(rampWidth, 1, 4, x => srgbToLinearSrgb([x / 64, x / 64, x / 64, 1]));
 		const ramp = createEffect(rampWidth, 1);
 		const rampSettings = { input: rampInput, horizontalViewingAngle: scalar(0), colorShift: 0, contrastLoss: 0 };
 		const below = await ramp({ ...rampSettings, verticalViewingAngle: scalar(55 / 360) });
@@ -110,12 +111,13 @@ export async function run() {
 		}
 		// 黒の端点はsin²の偶対称性で同じになるため、方向差は中間調で比較する。
 		assert(Math.abs(below[32 * 4] - above[32 * 4]) > 0.1, 'vertical viewing direction');
-		for (let x = 0; x < rampWidth; x++) near(below[x * 4] + above[(64 - x) * 4], 1, 'complementary signed response');
-		const right = await sample({ input: color([0.5, 0.5, 0.5, 1]), contrastLoss: 0, colorShift: 0 });
-		const left = await sample({ input: color([0.5, 0.5, 0.5, 1]), horizontalViewingAngle: scalar(-0.125), contrastLoss: 0, colorShift: 0 });
+		for (let x = 0; x < rampWidth; x++) near(linearChannelToSrgb(below[x * 4]) + linearChannelToSrgb(above[(64 - x) * 4]), 1, 'complementary signed response');
+		const middleGray = color(srgbToLinearSrgb([0.5, 0.5, 0.5, 1]));
+		const right = await sample({ input: middleGray, contrastLoss: 0, colorShift: 0 });
+		const left = await sample({ input: middleGray, horizontalViewingAngle: scalar(-0.125), contrastLoss: 0, colorShift: 0 });
 		assert(Math.abs(right[0] - left[0]) > 0.1, 'horizontal viewing direction');
-		const vertical = await sample({ input: color([0.5, 0.5, 0.5, 1]), horizontalViewingAngle: scalar(0), verticalViewingAngle: scalar(0.125), contrastLoss: 0, colorShift: 0 });
-		assert(Math.abs(vertical[0] - 0.5) > Math.abs(right[0] - 0.5), 'stronger vertical response');
+		const vertical = await sample({ input: middleGray, horizontalViewingAngle: scalar(0), verticalViewingAngle: scalar(0.125), contrastLoss: 0, colorShift: 0 });
+		assert(Math.abs(linearChannelToSrgb(vertical[0]) - 0.5) > Math.abs(linearChannelToSrgb(right[0]) - 0.5), 'stronger vertical response');
 		checks.push('partial inversion and signed directions');
 
 		// 【Inversion=0では明暗の順序を保つ】

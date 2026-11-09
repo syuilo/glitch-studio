@@ -1,4 +1,7 @@
-export type ColorRampColor = [number, number, number, number];
+import { linearSrgbToSrgb, srgbChannelToLinear } from './color-space.ts';
+import type { LinearSrgbColor } from './color-space.ts';
+
+export type ColorRampColor = LinearSrgbColor;
 export type ColorRampStop = { id: string; position: number; color: ColorRampColor };
 /** 配列の順序はWGSLのColorRampSettings.interpolationへ渡す番号と対応する。 */
 export const COLOR_RAMP_INTERPOLATIONS = ['constant', 'linear', 'smoothstep', 'smootherstep', 'easeIn', 'easeOut'] as const;
@@ -11,7 +14,7 @@ export type ColorRamp = {
 };
 
 export function createDefaultColorRamp(): ColorRamp {
-	return { interpolation: 'linear', colorSpace: 'srgb', stops: [
+	return { interpolation: 'linear', colorSpace: 'linearSrgb', stops: [
 		{ id: 'start', position: 0, color: [0, 0, 0, 1] },
 		{ id: 'end', position: 1, color: [1, 1, 1, 1] },
 	] };
@@ -37,16 +40,12 @@ export function validateColorRamp(value: unknown): asserts value is ColorRamp {
 	}
 }
 
-const clamp = (value: number) => Math.min(1, Math.max(0, value));
-const decodeSrgb = (value: number) => Math.abs(value) <= 0.04045 ? value / 12.92 : Math.sign(value) * ((Math.abs(value) + 0.055) / 1.055) ** 2.4;
-const encodeSrgb = (value: number) => Math.abs(value) <= 0.0031308 ? value * 12.92 : Math.sign(value) * (1.055 * Math.abs(value) ** (1 / 2.4) - 0.055);
-
 function toWorkingColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace']): ColorRampColor {
-	if (colorSpace === 'srgb') return [...color];
-	const [r, g, b] = color.slice(0, 3).map(decodeSrgb);
-	if (colorSpace === 'linearSrgb') return [r, g, b, color[3]];
+	if (colorSpace === 'srgb') return linearSrgbToSrgb(color);
+	if (colorSpace === 'linearSrgb') return [...color];
+	const [r, g, b] = color;
 	// Oklabはlinear sRGBからLMSへ変換し、各成分の立方根を取ってからLabへ変換する。
-	// 符号付きの立方根にして、式が返したsRGB範囲外の有限値もNaNにしない。
+	// 符号付きの立方根にして、式が返したlinear RGBの負値もNaNにしない。
 	const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
 	const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
 	const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
@@ -62,7 +61,7 @@ function toWorkingColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace
 }
 
 export type PreparedColorRamp = Pick<ColorRamp, 'interpolation' | 'colorSpace'> & {
-	stops: { position: number; color: ColorRampColor; srgbColor: ColorRampColor; segmentHues: [number, number] | null }[];
+	stops: { position: number; color: ColorRampColor; linearColor: ColorRampColor; segmentHues: [number, number] | null }[];
 };
 
 /** 区間ごとに色相を補い、CSS Color 4の経路に従って連続した角度へ展開する。 */
@@ -94,7 +93,7 @@ function prepareSegmentHues(left: ColorRampColor, right: ColorRampColor, method:
 /** UIとGPU転送で共有する。保存順を保ったstable sortで、同位置では後のstopを優先する。 */
 export function prepareColorRamp(ramp: ColorRamp): PreparedColorRamp {
 	validateColorRamp(ramp);
-	const stops = ramp.stops.map(stop => ({ position: Math.fround(stop.position), color: toWorkingColor(stop.color, ramp.colorSpace), srgbColor: stop.color })).sort((a, b) => a.position - b.position);
+	const stops = ramp.stops.map(stop => ({ position: Math.fround(stop.position), color: toWorkingColor(stop.color, ramp.colorSpace), linearColor: stop.color })).sort((a, b) => a.position - b.position);
 	return { interpolation: ramp.interpolation, colorSpace: ramp.colorSpace, stops: stops.map((stop, index) => {
 		const color = stop.color;
 		const alpha = color[3];
@@ -105,12 +104,12 @@ export function prepareColorRamp(ramp: ColorRamp): PreparedColorRamp {
 		const segmentHues = ramp.colorSpace === 'oklch' ? prepareSegmentHues(color, stops[index + 1]?.color ?? color, ramp.hueInterpolation ?? 'shorter') : null;
 		if (ramp.colorSpace === 'oklch') working[2] = color[2];
 		if (!working.every(component => Number.isFinite(Math.fround(component)))) throw new Error('Color Ramp color exceeds GPU float32 range');
-		const srgbColor = stop.srgbColor;
-		return { position: stop.position, color: working, srgbColor: [clamp(srgbColor[0]) * alpha, clamp(srgbColor[1]) * alpha, clamp(srgbColor[2]) * alpha, alpha] as ColorRampColor, segmentHues };
+		const linearColor = stop.linearColor;
+		return { position: stop.position, color: working, linearColor: [linearColor[0] * alpha, linearColor[1] * alpha, linearColor[2] * alpha, alpha] as ColorRampColor, segmentHues };
 	}) };
 }
 
-/** 補間用の乗算済み色を、出力用の乗算済みsRGBへ戻す。GPU側も同じ順序で変換する。 */
+/** 補間空間によらず、出力は乗算済みlinear sRGBへ戻す。GPU側も同じ順序で変換する。 */
 function toOutputColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace']): ColorRampColor {
 	const alpha = color[3];
 	if (alpha <= 0) return [0, 0, 0, 0];
@@ -126,14 +125,14 @@ function toOutputColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace'
 		const s = (r - 0.0894841775 * g - 1.291485548 * b) ** 3;
 		[r, g, b] = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s];
 	}
-	if (colorSpace !== 'srgb') [r, g, b] = [r, g, b].map(encodeSrgb);
-	return [clamp(r) * alpha, clamp(g) * alpha, clamp(b) * alpha, alpha];
+	if (colorSpace === 'srgb') [r, g, b] = [r, g, b].map(srgbChannelToLinear);
+	return [r * alpha, g * alpha, b * alpha, alpha];
 }
 
-/** 戻り値は乗算済みsRGB。同位置の最後のstopを選び、幅0の区間を補間しない。 */
+/** 戻り値は乗算済みlinear sRGB。同位置の最後のstopを選び、幅0の区間を補間しない。 */
 export function evaluatePreparedColorRamp(ramp: PreparedColorRamp, position: number): ColorRampColor {
 	const stops = ramp.stops;
-	if (Number.isNaN(position) || position < stops[0].position) return [...stops[0].srgbColor];
+	if (Number.isNaN(position) || position < stops[0].position) return [...stops[0].linearColor];
 	let lower = 0;
 	let upper = stops.length;
 	while (lower < upper) {
@@ -141,7 +140,7 @@ export function evaluatePreparedColorRamp(ramp: PreparedColorRamp, position: num
 		if (stops[middle].position <= position) lower = middle + 1; else upper = middle;
 	}
 	const left = stops[lower - 1];
-	if (lower === stops.length || position === left.position || ramp.interpolation === 'constant') return [...left.srgbColor];
+	if (lower === stops.length || position === left.position || ramp.interpolation === 'constant') return [...left.linearColor];
 	const right = stops[lower];
 	let amount = (position - left.position) / (right.position - left.position);
 	if (ramp.interpolation === 'smoothstep') {

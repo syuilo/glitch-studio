@@ -8,6 +8,7 @@
 import { useTemplateRef, watchEffect } from 'vue';
 import { evaluatePreparedColorRamp, prepareColorRamp } from '@gs/shared/color-ramp.ts';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
+import { linearChannelToSrgb } from '@gs/shared/color-space.ts';
 
 const props = defineProps<{ ramp: ColorRamp }>();
 const canvas = useTemplateRef('canvas');
@@ -20,7 +21,7 @@ watchEffect(() => {
 		const color = evaluatePreparedColorRamp(ramp, x / 511);
 		// ImageDataは未乗算RGBAを受け取る。補間結果は乗算済みなので描画境界で一度だけ戻す。
 		const alpha = color[3];
-		for (let channel = 0; channel < 3; channel++) pixels.data[x * 4 + channel] = alpha > 0 ? color[channel] / alpha * 255 : 0;
+		for (let channel = 0; channel < 3; channel++) pixels.data[x * 4 + channel] = alpha > 0 ? linearChannelToSrgb(color[channel] / alpha) * 255 : 0;
 		pixels.data[x * 4 + 3] = alpha * 255;
 	}
 	context.putImageData(pixels, 0, 0);

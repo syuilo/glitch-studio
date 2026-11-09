@@ -14,7 +14,7 @@ fn fs(@location(0) position: vec2f) -> DecomposeColorHslOutputs {
 	}
 	// RGBの成分比をalphaで変えないよう、未乗算へ戻してからHSLへ変換する。
 	// Compose Color (HSL)と同じ0〜1の定義域に揃え、範囲外のRGBも変換前に制限する。
-	let color = clamp(input.rgb / input.a, vec3f(0.0), vec3f(1.0));
+	let color = clamp(colorLinearToSrgb(input.rgb / input.a), vec3f(0.0), vec3f(1.0));
 	let maximum = max(max(color.r, color.g), color.b);
 	let minimum = min(min(color.r, color.g), color.b);
 	let lightness = (maximum + minimum) * 0.5;

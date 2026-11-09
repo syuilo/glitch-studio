@@ -8,7 +8,7 @@
 
 | パラメータ | 初期値 | 意味 |
 | --- | --- | --- |
-| Input | 透明 | 液晶へ表示するsRGB画像 |
+| Input | 透明 | 液晶へ表示するlinear sRGB画像 |
 | Horizontal Viewing Angle | 0 | 正面の法線からの水平角。正で観察者が右側、負で左側 |
 | Vertical Viewing Angle | 0 | 正面の法線からの垂直角。正で観察者が上側、負で下側 |
 | Amount | 1 | 未加工画像とのlinear RGBでの混合量。0〜1へ制限 |
@@ -46,7 +46,7 @@ Calibrate Front Viewが有効な場合、各原色の正面応答から最小・
 
 校正を無効にした場合は、入力のlinear RGB値を`u = 1 - input`として駆動へ直接対応させ、光学モデルの透過率へBrightnessを掛ける。Brightness=1でバックライトに対する透過光量を確認できる。
 
-入力はpremultiplied sRGBとして読み、alphaが0なら透明色を返す。未乗算へ戻してlinear RGBへ変換し、光学応答の適用・Amountによる混合・sRGBへの変換後に、元のalphaを乗算する。光学的な暗さで被覆率を変えない。Amount=0は変換の往復を省略して入力をそのまま返す。校正で扱う画像のRGB範囲は0〜1とする。
+入力はpremultiplied linear sRGBとして読み、alphaが0なら発光RGBも含めてそのまま返す。未乗算linear RGBへ光学応答を適用し、Amountで混合した後に元のalphaを乗算する。光学的な暗さで被覆率を変えない。Amount=0は変換の往復を省略して入力をそのまま返す。校正で扱う画像のRGB範囲は0〜1とする。
 
 ## GPU上の処理と制約
 

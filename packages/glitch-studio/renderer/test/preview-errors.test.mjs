@@ -1402,8 +1402,9 @@ test('renders transparent Visual Module Live Preview output after disconnecting 
 });
 
 for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
-	// 【最終表示の設定をGPUへ反映する】
-	// 設定の保存だけでは描画に届かないため、最終パスのuniform転送まで確認する。
+	// 【最終表示とCanvasの透過設定をGPUへ反映する】
+	// uniformだけの変更ではブラウザーの合成設定は変わらない。背景合成済みのプレビューは
+	// 不透明にし、透明書き出しではalphaを保持する。設定が同じ間は再configureして画像を消さない。
 	test(`${Manager.name} applies and resets canvas output settings`, async t => {
 		const { renderer, frame } = await fixture(t, {}, Manager);
 		await renderer.updateDynamicOptions({ visualModules: [{
@@ -1415,19 +1416,32 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 			nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } }],
 		}] });
 		const writes = [];
+		const configurations = t.mock.method(renderer.gpuContext, 'configure');
 		renderer.gpuDevice.queue.writeBuffer = (buffer, offset, data) => writes.push(Array.from(new Uint32Array(data.slice(0))));
 		if (Manager === VisualModuleRendererManager) renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 		let timestamp = 0;
 		const render = () => Manager === VisualModuleRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
-		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true, previewExposure: 2 });
+		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true, previewExposure: 2, previewBackground: 'black', analysisValueScale: 'ev' });
 		await render();
-		assert.deepEqual(writes.at(-1), [1, 1, 0x40000000]);
+		assert.deepEqual(writes.at(-1), [1, 1, 0x40000000, 1, 0]);
+		assert.equal(renderer.canvasRenderer.analysisValueScale, 'ev');
+		assert.equal(configurations.mock.calls.at(-1).arguments[0].alphaMode, 'opaque');
 		await renderer.updateDynamicOptions({ highlightClipping: false });
 		await render();
-		assert.deepEqual(writes.at(-1), [0, 1, 0x40000000]);
-		await renderer.updateDynamicOptions({ opaqueOutput: false, previewExposure: 0 });
+		assert.deepEqual(writes.at(-1), [0, 1, 0x40000000, 1, 0]);
+		assert.equal(configurations.mock.callCount(), 1);
+		await renderer.updateDynamicOptions({ opaqueOutput: false, previewExposure: 0, previewBackground: null, analysisValueScale: 'srgb' });
 		await render();
-		assert.deepEqual(writes.at(-1), [0, 0, 0]);
+		assert.deepEqual(writes.at(-1), [0, 0, 0, 0, 0]);
+		assert.equal(renderer.canvasRenderer.analysisValueScale, 'srgb');
+		assert.equal(configurations.mock.calls.at(-1).arguments[0].alphaMode, 'premultiplied');
+		await renderer.updateDynamicOptions({ previewBackground: 'black' });
+		await renderer.updateDynamicOptions({ previewBackground: 'checker' });
+		await renderer.updateDynamicOptions({ opaqueOutput: true, previewBackground: null });
+		await renderer.updateDynamicOptions({ previewExposure: 1 });
+		assert.equal(configurations.mock.callCount(), 3);
+		await renderer.updateDynamicOptions({ opaqueOutput: false });
+		assert.deepEqual(configurations.mock.calls.map(call => call.arguments[0].alphaMode), ['opaque', 'premultiplied', 'opaque', 'premultiplied']);
 	});
 }
 
@@ -1674,7 +1688,8 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	for (let index = 0; index < 4; index++) { waits.shift()(); await new Promise(resolve => setImmediate(resolve)); }
 	assert.equal(present.mock.callCount(), 1);
 	assert.equal(old.closed, 1);
-	assert.equal(f.renderer.videoFrames.get('player'), latest);
+	assert.equal(latest.closed, 0);
+	assert.equal(f.renderer.playerVideoTextures.frameVersions.get('player'), 2);
 	f.frame(96);
 	assert.equal(renders.length, 2);
 	assert.equal(renders[1].time, 0.096);

@@ -3,6 +3,7 @@ import type definition from './_def_.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
+import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -16,7 +17,7 @@ export default implementEffect<typeof definition>({
 		const pipelines = createShaderInputPipeline({
 			device: wgpu.device,
 			vertex: wgpu.defaultVertexShaderModule,
-			code,
+			code: colorSpaceShaderCode + '\n' + code,
 			schema: {
 				input: 'color',
 				lightness: 'scalar',

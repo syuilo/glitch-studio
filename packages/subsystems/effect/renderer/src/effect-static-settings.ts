@@ -3,6 +3,7 @@ import { getFileSourceError } from '@gs/shared/file-source.ts';
 import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
+import type { VideoFrameTexture } from '@gs/shared/media/video-texture.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectStaticResources } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 
@@ -10,7 +11,7 @@ export type EffectStaticResourceContext = {
 	assets: readonly Asset[];
 	assetTextures: ReadonlyMap<string, GPUTexture>;
 	getPlayerResolution?: (playerId: string) => Resolution | null;
-	getPlayerVideoFrame?: (playerId: string) => VideoFrame | null;
+	getPlayerVideoTexture?: (playerId: string) => VideoFrameTexture | null;
 };
 
 /** 既定値補完済みの設定と保存済みメタデータから、GPUやフレームの到着を待たず原寸を求める。 */
@@ -36,8 +37,8 @@ export function resolveEffectStaticResources<Definition extends { staticSettingD
 		const value = values[key];
 		if (value == null) return [key, null];
 		if (setting.dataType.kind === 'playerReference') {
-			// フレームそのものを初期化時に固定しない。再生状態は注入元が所有する。
-			return [key, { getVideoFrame: () => context.getPlayerVideoFrame?.(value as string) ?? null }];
+			// 正規化画像の所有者から最新の画像を借りる。ノードごとには変換・破棄しない。
+			return [key, { getVideoTexture: () => context.getPlayerVideoTexture?.(value as string) ?? null }];
 		}
 		if (setting.dataType.kind !== 'assetReference') return [key, value];
 		const asset = context.assets.find(asset => asset.id === value);

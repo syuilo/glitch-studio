@@ -3,6 +3,7 @@ import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
+import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -22,7 +23,7 @@ export default implementEffect<typeof definition>({
 		const pipelines = createShaderInputPipeline({
 			device,
 			vertex: wgpu.defaultVertexShaderModule,
-			code,
+			code: colorSpaceShaderCode + '\n' + code,
 			schema: { input: 'color', horizontalViewingAngle: 'scalar', verticalViewingAngle: 'scalar', amount: 'scalar' },
 			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 			internalLayouts: [layout],

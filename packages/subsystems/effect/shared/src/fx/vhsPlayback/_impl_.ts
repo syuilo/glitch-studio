@@ -3,12 +3,15 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, inputUvScale, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createVhsFilterCoefficients, createVhsTransport, VHS_SIGNAL } from './signal.ts';
-import commonCode from './common.wgsl?raw';
+import commonShaderCode from './common.wgsl?raw';
+import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import recordCode from './record.wgsl?raw';
 import playbackCode from './playback.wgsl?raw';
 import outputCode from './output.wgsl?raw';
 import type { ShaderInputValues } from '@gs/shared/gpu/shader-input.ts';
 import type definition from './_def_.ts';
+
+const commonCode = colorSpaceShaderCode + '\n' + commonShaderCode;
 
 const inputSchema = { input: 'color' } as const;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));

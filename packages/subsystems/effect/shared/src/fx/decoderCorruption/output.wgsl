@@ -36,9 +36,9 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	if (uniforms.preserveDetails != 0u) {
 		// 残差を欠落させた葉へ細部を丸ごと戻すと破損が消えるため、高解像度の差分にも
 		// 同じ残差倍率を使う。符号反転・増幅も仮想画像と細部の両方へ一貫して反映する。
-		rgb += (original.rgb / original.a - ycbcr_to_rgb(sample.original)) * sample.detailGain;
+		rgb += (colorLinearToSrgb(original.rgb / original.a) - ycbcr_to_rgb(sample.original)) * sample.detailGain;
 	}
 	rgb = clamp(rgb, vec3f(0.0), vec3f(1.0));
 	// 画像の透明度は元の位置の値を保持する。色を復号した後に一度だけpremultiplyする。
-	return vec4f(rgb * original.a, original.a);
+	return vec4f(colorSrgbToLinear(rgb) * original.a, original.a);
 }

@@ -48,7 +48,7 @@ Boundaryは素材テクスチャではなく描画領域に適用し、その後
 
 ## 出力・決定性
 
-出力は`original.rgb + reconstructedDifference.rgb × original.alpha`、alphaは主入力のまま。元のRGBを二重にpremultiplyせず、完全透明の画素はRGBA=0にする。負のRGB・HDRを含めてclampしない。Referenceのalphaで主入力のalphaを置き換えない。
+出力は`original.rgb + reconstructedDifference.rgb × original.alpha`、alphaは主入力のまま。元のRGBを二重にpremultiplyせず、alpha=0の画素は発光RGBも含めて入力のまま保持する。負のRGB・HDRを含めてclampしない。Referenceのalphaで主入力のalphaを置き換えない。
 
 位相回転は解析領域の振幅を保持する。不透明・等倍・Repeatでは最終画像でも振幅を数値誤差の範囲で保持するが、Mirrorの切り出し、Blocksの窓合成、解析差分の補間、高解像度の細部保持、alphaによる差分制限後の最終画像全体で厳密な振幅保持は保証しない。
 

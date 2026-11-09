@@ -1,4 +1,8 @@
 import shader from './waveform.wgsl?raw';
+import colorSpaceShader from '../../gpu/color-space.wgsl?raw';
+import imageValueScaleShader from '../../gpu/image-value-scale.wgsl?raw';
+import { IMAGE_VALUE_SCALES } from '../image-value-scale.ts';
+import type { ImageValueScale } from '../image-value-scale.ts';
 import { createShaderInputBindings, generateShaderInputs } from '../../gpu/shader-input.ts';
 import type { ShaderInput } from '../../gpu/shader-input.ts';
 
@@ -7,6 +11,7 @@ export type WaveformSettings = {
 	mode: 'rgb' | 'luminance';
 	direction: 'horizontal' | 'vertical';
 	intensity: number;
+	valueScale?: ImageValueScale;
 	// fitを適用する画像領域。集計の間引きやグラフの縦横切替とは独立させる。
 	fitSize: { width: number; height: number };
 	// 波形の位置・強度の分解能と、入力を読むサンプル数は別々に指定できる。
@@ -30,7 +35,7 @@ export function createWaveform(options: {
 		const generated = generateShaderInputs({ input: 'color' }, { input }, 1, 'level0');
 		const bindings = createShaderInputBindings(device, generated);
 		try {
-			const module = device.createShaderModule({ code: generated.code + '\n' + shader });
+			const module = device.createShaderModule({ code: generated.code + '\n' + colorSpaceShader + '\n' + imageValueScaleShader + '\n' + shader });
 			const pipeline = device.createComputePipeline({
 				layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout, bindings.layout] }),
 				compute: { module, entryPoint: 'accumulate' },
@@ -101,6 +106,7 @@ export function createWaveform(options: {
 			integers[0] = Number(p.mode === 'luminance');
 			floats[1] = Math.max(0, p.intensity);
 			integers.set([width, height, samples.width, samples.height, Number(p.direction === 'vertical')], 2);
+			integers[7] = IMAGE_VALUE_SCALES.indexOf(p.valueScale ?? 'srgb');
 			device.queue.writeBuffer(uniforms, 0, values);
 			encoder.clearBuffer(counts!);
 			drawable = true;

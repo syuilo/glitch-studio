@@ -71,7 +71,7 @@ function gpuFixture(t) {
 					if (pipeline.fragment?.entryPoint === 'renderExternalVideo') {
 						videoFrames.push(bindGroup.entries.find(entry => entry.binding === 0).resource.frame);
 						videoOutput = descriptor.colorAttachments[0].view.texture;
-					} else if (pipeline.fragment?.entryPoint === 'renderCopiedVideo') videoOutput = descriptor.colorAttachments[0].view.texture;
+					} else if (pipeline.fragment?.entryPoint === 'renderCopiedVideo' || pipeline.label === 'normalize external image to linear sRGB') videoOutput = descriptor.colorAttachments[0].view.texture;
 				} };
 			} };
 		},
@@ -80,7 +80,6 @@ function gpuFixture(t) {
 				for (const command of commands) {
 					for (const frame of command.videoFrames ?? []) assert.equal(frame.closed, false, 'submit must precede VideoFrame.close');
 					if (command.videoOutput != null) {
-						calls.uploads.push({ destination: { texture: command.videoOutput } });
 						calls.draws.push(dimensions(command.videoOutput));
 					}
 				}
@@ -89,13 +88,14 @@ function gpuFixture(t) {
 				assert.equal(source.source.closed, false);
 				assert.equal(destination.premultipliedAlpha, true);
 				calls.frameCopies.push({ source: source.source, destination });
+				calls.uploads.push({ source: source.source, destination });
 			},
 		},
 	};
 	const sample = (width, height, timestamp = 0, format = 'RGBX') => ({ displayWidth: width, displayHeight: height, timestamp, rotation: 0,
 		close() { calls.closedSampleTimestamps.push(timestamp); },
 		toVideoFrame() {
-			const frame = { displayWidth: width, displayHeight: height, format, closed: false, close() { this.closed = true; } };
+			const frame = { displayWidth: width, displayHeight: height, codedWidth: width, codedHeight: height, format, closed: false, close() { this.closed = true; } };
 			calls.videoFrames.push(frame);
 			return frame;
 		},
@@ -153,8 +153,8 @@ async function timingFixture(t, { enableStats = true, videoLayers = 1, motionBlu
 		},
 	});
 	const { manager, device } = fixture;
-	const importExternalTexture = device.importExternalTexture;
-	device.importExternalTexture = source => { elapsedMs += costs.uploadMs; return importExternalTexture(source); };
+	const copyExternalImageToTexture = device.queue.copyExternalImageToTexture;
+	device.queue.copyExternalImageToTexture = (...args) => { elapsedMs += costs.uploadMs; return copyExternalImageToTexture(...args); };
 	const presentOutput = manager.presentOutput;
 	manager.presentOutput = output => { elapsedMs += costs.otherMs; presentOutput(output); };
 	let gpuWaits = 0;
@@ -433,7 +433,7 @@ test('uploads frozen video once per source time while compositing every motion b
 	await manager.renderTimelineAt(500);
 	assert.deepEqual(calls.sampleTimes, [0.5]);
 	assert.equal(calls.uploads.length, 1);
-	assert.equal(calls.draws.length, 1);
+	assert.equal(calls.draws.length, 2); // 原寸でlinear化した後に縮小する。
 	assert.equal(calls.compositing.length, 4);
 	await manager.renderTimelineFrame(500, 0);
 	assert.deepEqual(calls.sampleTimes, [0.5]);
@@ -537,7 +537,7 @@ test('scales video sources once through replace composition and automatic proces
 		assert.deepEqual(calls.errors, []);
 		const expectedSource = [3840 * resolutionScale, 2160 * resolutionScale];
 		assert.deepEqual(calls.draws.at(-1), expectedSource);
-		assert.deepEqual(dimensions(calls.uploads.at(-1).destination.texture), expectedSource);
+		assert.deepEqual(dimensions(calls.uploads.at(-1).destination.texture), [3840, 2160]);
 		assert.deepEqual(calls.renders.slice(-2).map(ctx => dimensions(ctx.outputDataMap.output.texture)), [expectedOutput, expectedOutput]);
 		assert.deepEqual(dimensions(calls.outputs.at(-1).texture), expectedOutput);
 	}
@@ -557,15 +557,14 @@ test('preserves native uploads by default and reuses textures at the same scaled
 	const original = uploader.upload(frame);
 	assert.deepEqual(dimensions(original), [7, 1]);
 	assert.equal(small.destroyed, true);
-	assert.deepEqual(calls.draws, [[2, 1], [2, 1], [7, 1]]);
+	assert.deepEqual(calls.draws, [[7, 1], [2, 1], [7, 1], [2, 1], [7, 1]]);
 	assert.ok(calls.videoFrames.every(frame => frame.closed));
 });
 
 for (const format of ['RGBA', null]) {
-	// 【alphaを持ち得る形式と形式非公開の動画は補間前に直接コピーし、不要な中間画像を解放する】
-	// 透明画素のある外部テクスチャへalphaを再乗算せず、形式が不明でも不透明と決めつけない。
-	// 原寸へ戻ると追加描画も不要になるため、前の縮小用テクスチャを保持し続けないことを確認する。
-	test(`copies ${format ?? 'undisclosed format'} frames before resizing and releases intermediate textures at native size`, t => {
+	// 【alphaを持つ形式も不明な形式も、原寸でlinear化してから縮小する】
+	// 原寸へ戻ったときもlinear変換を省かず、変換用bufferは再利用して縮小出力だけ解放する。
+	test(`converts ${format ?? 'undisclosed format'} frames before resizing and reuses native conversion buffers`, t => {
 		const { device, sample, calls } = gpuFixture(t);
 		const uploader = createVideoTexture(device);
 		t.after(() => uploader.dispose());
@@ -576,14 +575,16 @@ for (const format of ['RGBA', null]) {
 		assert.deepEqual(dimensions(intermediate), [16, 8]);
 		assert.equal(calls.uploads.length, 1);
 		const native = uploader.upload(source);
-		assert.equal(calls.frameCopies[1].destination.texture, native);
-		assert.equal(calls.uploads.length, 1, 'native copy must not add a render pass');
-		assert.equal(intermediate.destroyed, true);
+		assert.equal(calls.frameCopies[1].destination.texture, intermediate);
+		assert.equal(calls.uploads.length, 2, 'native frames must also be converted to linear');
+		assert.equal(resized.destroyed, true);
+		assert.equal(intermediate.destroyed, false);
+		assert.deepEqual(dimensions(native), [16, 8]);
 		assert.ok(calls.videoFrames.every(frame => frame.closed));
 	});
 }
 
-for (const operation of ['import', 'copy']) {
+for (const operation of ['conversion', 'copy']) {
 	// 【動画のGPU取り込みに失敗しても、変換用VideoFrameは解放して元サンプルの所有権を守る】
 	// 失敗のたびにデコーダーの出力面を保持すると次のフレーム取得が停止する可能性がある。
 	// sample自体は呼び出し側が管理するため、取り込み処理が先にcloseしてはいけない。
@@ -591,9 +592,9 @@ for (const operation of ['import', 'copy']) {
 		const { device, sample, calls } = gpuFixture(t);
 		const uploader = createVideoTexture(device);
 		t.after(() => uploader.dispose());
-		if (operation === 'import') device.importExternalTexture = () => { throw new Error('GPU upload failed'); };
+		if (operation === 'conversion') device.createCommandEncoder = () => { throw new Error('GPU upload failed'); };
 		else device.queue.copyExternalImageToTexture = () => { throw new Error('GPU upload failed'); };
-		assert.throws(() => uploader.upload(sample(16, 8, 0, operation === 'import' ? 'RGBX' : 'RGBA')), /GPU upload failed/);
+		assert.throws(() => uploader.upload(sample(16, 8, 0, operation === 'conversion' ? 'RGBX' : 'RGBA')), /GPU upload failed/);
 		assert.equal(calls.videoFrames.length, 1);
 		assert.equal(calls.videoFrames[0].closed, true);
 		assert.deepEqual(calls.closedSampleTimestamps, []);

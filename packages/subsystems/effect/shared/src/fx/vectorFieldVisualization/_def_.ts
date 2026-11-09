@@ -1,3 +1,4 @@
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
@@ -38,13 +39,13 @@ export default defineEffect({
 			ui: { label: 'Ramp', control: {} },
 			defaultValue: { inputSource: 'literal', value: {
 				interpolation: 'linear', colorSpace: 'srgb', stops: [
-					{ id: 'start', position: 0, color: [0.1, 0.6, 1, 1] },
-					{ id: 'end', position: 1, color: [1, 0.85, 0.1, 1] },
+					{ id: 'start', position: 0, color: srgbToLinearSrgb([0.1, 0.6, 1, 1]) },
+					{ id: 'end', position: 1, color: srgbToLinearSrgb([1, 0.85, 0.1, 1]) },
 				],
 			} },
 		},
 		zeroColor: { dataType: { kind: 'color' }, ui: { label: 'Zero Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
-		overflowColor: { dataType: { kind: 'color' }, ui: { label: 'Overflow Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0.1, 0.25, 1] } },
+		overflowColor: { dataType: { kind: 'color' }, ui: { label: 'Overflow Color', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([1, 0.1, 0.25, 1]) } },
 		// 数値の大きさと、画像上の変位方向の確認を切り替えられるよう、方向の解釈だけを分離する。
 
 		gridWidth: {

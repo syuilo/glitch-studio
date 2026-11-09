@@ -100,6 +100,9 @@ fn blendColor(mode: u32, a: vec4f, b: vec4f) -> vec4f {
 	// RGBはHDR・負値も後段へ渡す。HSL等の定義域の制限は各ブレンド関数が所有する。
 	// ここで一律に制限すると、通常合成や加算でも後段で露出を下げる前に階調を失う。
 	let blended = blendRgb(mode, straightA, straightB);
-	let rgb = (1.0 - b.a) * a.rgb + (1.0 - a.a) * b.rgb + a.a * b.a * blended;
+	var rgb = (1.0 - b.a) * a.rgb + (1.0 - a.a) * b.rgb + a.a * b.a * blended;
+	// alpha=0の前景RGBは被覆を持たない発光成分。未乗算できないが、背景のalphaで
+	// 減衰させてはいけないため、上式で欠ける分を足して通常のsource-overと一致させる。
+	if (b.a == 0.0) { rgb += a.a * b.rgb; }
 	return vec4f(rgb, b.a + a.a * (1.0 - b.a));
 }

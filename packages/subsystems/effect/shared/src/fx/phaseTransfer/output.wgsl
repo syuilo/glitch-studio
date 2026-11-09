@@ -22,7 +22,8 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
 	let uv = position.xy / uniforms.resolution;
 	let original = read_input(uv * vec2f(2.0, -2.0) + vec2f(-1.0, 1.0));
 	if (uniforms.processingEnabled == 0u) { return original; }
-	if (original.a <= 0.0) { return vec4f(0.0); }
+	// alpha=0のRGBは発光成分を持ち得る。未乗算が必要な処理では、その値を消さずに通す。
+	if (original.a <= 0.0) { return original; }
 	var difference = vec3f(0.0);
 	if (uniforms.processing == 0u) {
 		difference = sampleDifference(uv / uniforms.tileSize, 0u);

@@ -4,6 +4,7 @@ import { implementEffect } from '../../effect-implementation.ts';
 import { createLutLoader } from './lut-loader.ts';
 import { createLutLayout, createLutResources } from './lut-resources.ts';
 import code from './shader.wgsl?raw';
+import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -20,7 +21,7 @@ export default implementEffect<typeof definition>({
 		const pipelines = createShaderInputPipeline({
 			device: wgpu.device,
 			vertex: wgpu.defaultVertexShaderModule,
-			code,
+			code: colorSpaceShaderCode + '\n' + code,
 			schema: { input: 'color' },
 			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 			internalLayouts: [layout],
@@ -46,9 +47,11 @@ export default implementEffect<typeof definition>({
 					return;
 				}
 				const variant = pipelines.update({ input: ctx.params.input }, output.texture);
+				const resource = loader.resource ?? bypass;
+				resource.setColorSpaces(ctx.params.inputColorSpace, ctx.params.outputColorSpace);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, output.textureView);
 				pass.setPipeline(variant.pipeline);
-				pass.setBindGroup(0, (loader.resource ?? bypass).bindGroup);
+				pass.setBindGroup(0, resource.bindGroup);
 				pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
 				pass.draw(3);
 				pass.end();

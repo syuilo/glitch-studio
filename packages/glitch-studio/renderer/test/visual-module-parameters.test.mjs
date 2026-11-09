@@ -405,7 +405,7 @@ for (const enable32bitDataTextures of [false, true]) {
 			gpuDevice: device, timingHelper: null,
 			enableStats: false, enable32bitDataTextures,
 			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(),
-			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), assets: [],
+			videoFrameVersions: new Map(), assetTextures: new Map(), assets: [],
 			effectDefinitions: definitions,
 			effectImplementations: { test: {
 				outputTextureFactories: { image: () => output },

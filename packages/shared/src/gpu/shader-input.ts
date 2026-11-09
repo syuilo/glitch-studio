@@ -31,7 +31,7 @@ export function toShaderInput(source: UniformOrTexture, sampling: ShaderInputSam
 	return { kind: 'uniform', value: [source.value[0] ?? 0, source.value[1] ?? 0, source.value[2] ?? 0, source.value[3] ?? 1] };
 }
 
-/** 色のリテラルは未乗算。画像入力と同じ意味になる境界で一度だけ乗算する。 */
+/** 色のリテラルは未乗算linear sRGB。画像入力と同じ意味になる境界で一度だけ乗算する。 */
 export function constantShaderInput(dataType: string, value: any): ShaderInput {
 	if (dataType === 'color') {
 		const alpha = value?.[3] ?? 0;

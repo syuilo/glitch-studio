@@ -5,11 +5,14 @@ import { createShaderInputBindings, generateShaderInputs, inputUvScale } from '@
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createDecoderPartition, maximumPredictionBlockSamples, maximumSubdivisionLevels } from './partition.ts';
-import commonCode from './common.wgsl?raw';
+import commonShaderCode from './common.wgsl?raw';
+import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import captureCode from './capture.wgsl?raw';
 import decodeCode from './decode.wgsl?raw';
 import outputCode from './output.wgsl?raw';
 import type definition from './_def_.ts';
+
+const commonCode = colorSpaceShaderCode + '\n' + commonShaderCode;
 
 const predictionModes = { automatic: 0, horizontal: 1, vertical: 2, dc: 3, planar: 4 };
 const residualModes = { mixed: 0, drop: 1, invert: 2, amplify: 3 };

@@ -1,3 +1,4 @@
+import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
 import { isVisualModuleValueChange } from './project-change-policy.ts';
 import type { VisualModuleValueChange } from './project-change-policy.ts';
@@ -46,7 +47,7 @@ import { TimelinePreviewScheduler } from '@gs/subsystems_timeline_renderer/timel
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
-import { createPreviewCanvasContext } from './preview-canvas-context.ts';
+import { createPreviewCanvasContext, createPreviewCanvasConfigurator } from './preview-canvas-context.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 export type { PreviewDisplayMode, CpuPreviewFrame } from './preview-canvas-context.ts';
 import { ProjectStateVersions } from './project-state-versions.ts';
@@ -109,6 +110,11 @@ export type TimelineRendererManagerDynamicOptions = {
 	previewExposure: number;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
+	/** 表示用背景。nullは透明出力で、書き出しではプレビュー背景を使わない。 */
+	previewBackground: 'black' | 'checker' | null;
+	/** 表示中のプレビューだけが、停止中の背景アニメーションを駆動する。 */
+	previewActive: boolean;
+	analysisValueScale: ImageValueScale;
 	generatedSpeech: GeneratedSpeech[];
 	visualModules: ProjectVisualModule[];
 	timelineScenes: TimelineScene[];
@@ -193,6 +199,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler: TimelinePreviewScheduler;
 	private gpuContext: PreviewCanvasContext;
+	private configureCanvas: ReturnType<typeof createPreviewCanvasConfigurator>;
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
 	private defaultVertexShaderModule: GPUShaderModule;
@@ -223,6 +230,9 @@ export class TimelineRendererManager extends EventEmitter<{
 		highlightClipping: false,
 		previewExposure: 0,
 		opaqueOutput: false,
+		previewBackground: null,
+		previewActive: false,
+		analysisValueScale: 'srgb',
 		generatedSpeech: [],
 		visualModules: [],
 		timelineScenes: [],
@@ -252,13 +262,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.effectDefinitions = effects.definitions;
 		this.effectImplementations = effects.implementations;
 
-		this.gpuContext.configure({
-			device: this.gpuDevice,
-			format: navigator.gpu.getPreferredCanvasFormat(),
-			alphaMode: 'premultiplied',
-			colorSpace: 'srgb',
-			usage: GPUTextureUsage.RENDER_ATTACHMENT,
-		});
+		this.configureCanvas = createPreviewCanvasConfigurator(this.gpuDevice, this.gpuContext);
+		this.configureCanvas('premultiplied');
 
 		this.fallbackTexture = this.gpuDevice.createTexture({
 			size: [1, 1],
@@ -451,6 +456,11 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
+		this.canvasRenderer.previewBackground = this.dynamicOptions.previewBackground;
+		this.canvasRenderer.previewActive = this.dynamicOptions.previewActive;
+		// 背景合成後は不透明。背景を持たない透明書き出しだけ、Canvasのalphaも維持する。
+		this.configureCanvas(this.dynamicOptions.opaqueOutput || this.dynamicOptions.previewBackground != null ? 'opaque' : 'premultiplied');
+		this.canvasRenderer.analysisValueScale = this.dynamicOptions.analysisValueScale;
 
 		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
@@ -1040,7 +1050,6 @@ export class TimelineRendererManager extends EventEmitter<{
 			enableStats: false,
 			timingHelper: null,
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
-			videoFrames: new Map(),
 			videoFrameVersions: new Map(),
 			assets: this.resources.assets,
 			visualModule,

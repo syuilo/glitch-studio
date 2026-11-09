@@ -17,7 +17,7 @@ export async function run() {
 	const straightPixels = [[0.5, 0.25, 0.0625, 0.5], [2, 1, 0.5, 1], [1 / 1024, 1 / 256, 1 / 128, 1], [0, 0, 0, 0]];
 
 	function expose(value: number, ev: number) {
-		const light = (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4) * 2 ** ev;
+		const light = value * 2 ** ev;
 		return light <= 0.0031308 ? light * 12.92 : 1.055 * light ** (1 / 2.4) - 0.055;
 	}
 
@@ -91,6 +91,21 @@ export async function run() {
 				const warned = (await render(-4))[0];
 				if ([255, 0, 255, 255].some((value, index) => warned[index] !== value)) throw new Error(`${mode}: clipping warning changed`);
 				checks.push(`${mode} unexposed clipping warning`);
+				// 【背景との合成はsRGB化より前に行い、alpha=0の発光も表示する】
+				// 透明Canvasの上でブラウザーに合成させると、線形光の合成と一致しない。
+				// 不透明出力は半透明の光量をそのまま使い、発光RGBを消してはならない。
+				renderer.highlightClipping = false;
+				renderer.previewBackground = 'black';
+				device.queue.writeTexture({ texture: source }, new Uint16Array([0x3400, 0x3000, 0x2800, 0x3800, ...new Array(12).fill(0)]), { bytesPerRow: 16 }, [2, 2]);
+				const composed = (await render(0))[0];
+				for (const [channel, value] of [0.25, 0.125, 0.03125, 1].entries()) {
+					const expected = channel === 3 ? 255 : expose(value, 0) * 255;
+					if (Math.abs(composed[channel] - expected) > 2) throw new Error(`${mode}: background was composed after sRGB encoding`);
+				}
+				device.queue.writeTexture({ texture: source }, new Uint16Array([0x3800, 0x3400, 0, 0, ...new Array(12).fill(0)]), { bytesPerRow: 16 }, [2, 2]);
+				const emitted = (await render(-1))[0];
+				if (Math.abs(emitted[0] - expose(0.5, -1) * 255) > 2 || emitted[3] !== 255) throw new Error(`${mode}: zero-alpha emission was discarded`);
+				checks.push(`${mode} linear background and zero-alpha emission`);
 			} finally {
 				renderer.destroy();
 				context.unconfigure();

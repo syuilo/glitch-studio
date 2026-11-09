@@ -54,15 +54,22 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let hue = read_hue(position);
 	let saturation = read_saturation(position);
 	// 色調整は未乗算RGBで行う。透明画素は除算せず、明度の加算で色が漏れることも防ぐ。
-	if (input.a <= 0.0) { return vec4f(0.0); }
-	var color = input.rgb / input.a;
-	color *= brightness;
+	if (input.a <= 0.0) { return input; }
+	// Brightnessは光量の倍率。知覚的な明度・コントラスト・HSLだけをsRGBで計算する。
+	let linearColor = input.rgb / input.a * brightness;
+	if (lightness == 0.0 && contrast == 1.0 && hue == 0.0 && saturation == 1.0) {
+		return vec4f(input.rgb * brightness, input.a);
+	}
+	var color = colorLinearToSrgb(linearColor);
 	color += vec3f(lightness);
 	color = (color - vec3f(0.5)) * contrast + vec3f(0.5);
-	var hsl = rgbToHsl(color);
-	// fractはGLSLのmod(x, 1)と同様に、負の色相も0〜1へ折り返す。
-	hsl.x = fract(hsl.x + hue);
-	hsl.y = clamp(hsl.y * saturation, 0.0, 1.0);
-	color = hslToRgb(hsl);
-	return vec4f(color * input.a, input.a);
+	if (hue != 0.0 || saturation != 1.0) {
+		// HSLの定義域だけを制限する。HSLを使わない調整ではHDR・負値も残す。
+		var hsl = rgbToHsl(clamp(color, vec3f(0.0), vec3f(1.0)));
+		// fractはGLSLのmod(x, 1)と同様に、負の色相も0〜1へ折り返す。
+		hsl.x = fract(hsl.x + hue);
+		hsl.y = clamp(hsl.y * saturation, 0.0, 1.0);
+		color = hslToRgb(hsl);
+	}
+	return vec4f(colorSrgbToLinear(color) * input.a, input.a);
 }

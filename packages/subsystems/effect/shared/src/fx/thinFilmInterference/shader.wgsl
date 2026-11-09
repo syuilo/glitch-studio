@@ -10,15 +10,6 @@ struct Uniforms {
 // xyzはlinear sRGBへの積分重み、wはnm単位の波長。重みには負の成分も含まれる。
 @group(0) @binding(1) var<uniform> spectralSamples: array<vec4f, SPECTRAL_SAMPLE_COUNT>;
 
-fn decodeSrgb(value: vec3f) -> vec3f {
-	let magnitude = abs(value);
-	return select(sign(value) * pow((magnitude + 0.055) / 1.055, vec3f(2.4)), value / 12.92, magnitude <= vec3f(0.04045));
-}
-
-fn encodeSrgb(value: vec3f) -> vec3f {
-	return select(1.055 * pow(value, vec3f(1.0 / 2.4)) - 0.055, value * 12.92, value <= vec3f(0.0031308));
-}
-
 fn polarizedReflectance(firstAmplitude: vec2f, secondAmplitude: vec2f, phase: f32) -> vec2f {
 	// 空気→膜、膜→下地の符号付き振幅からAiryの反射率を求める。
 	// 振幅の符号に反射時の位相反転を含め、s/p偏光のBrewster角も別々に扱う。
@@ -37,8 +28,12 @@ fn polarizedReflectance(firstAmplitude: vec2f, secondAmplitude: vec2f, phase: f3
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let lightColor = read_lightColor(position);
-	let alpha = lightColor.a * clamp(read_opacity(position), 0.0, 1.0);
-	if (alpha <= 0.0) { return vec4f(0.0); }
+	let opacity = clamp(read_opacity(position), 0.0, 1.0);
+	let alpha = lightColor.a * opacity;
+	if (opacity == 0.0) { return vec4f(0.0); }
+	// RGBがゼロなら分光積分の結果もゼロ。被覆率は保持し、alpha=0の発光は
+	// RGBが非ゼロなので通常の積分へ進める。
+	if (all(lightColor.rgb == vec3f(0.0))) { return vec4f(0.0, 0.0, 0.0, alpha); }
 	// 膜厚は光の波長と比較する光学量なので、画面の解像度・縦横比・Size Referenceでは換算しない。
 	let thickness = mix(uniforms.minimumThickness, uniforms.maximumThickness, clamp(read_input(position), 0.0, 1.0));
 	// 共通のangle入力はturn単位。法線からの角度として0〜1/4周を使う。
@@ -71,10 +66,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		let response = select(reflectance, 1.0 - reflectance, uniforms.transmission != 0u);
 		linearResponse += sample.xyz * response;
 	}
-	// スペクトルからRGBへの変換で生じる色域外の値は、全波長の積分後に制限する。
-	// Light Colorの非線形変換は未乗算で行い、最後に一度だけalphaを掛け直す。
-	linearResponse = clamp(linearResponse, vec3f(0.0), vec3f(1.0));
-	let linearLightColor = max(decodeSrgb(lightColor.rgb / lightColor.a), vec3f(0.0));
-	let color = encodeSrgb(linearResponse * linearLightColor * uniforms.brightness);
-	return vec4f(color * alpha, alpha);
+	// 分光積分と入射光はともにlinear RGB。色域外の負値も保持し、
+	// 光量・不透明度だけを乗算することでalpha=0の発光も失わない。
+	return vec4f(linearResponse * lightColor.rgb * uniforms.brightness * opacity, alpha);
 }

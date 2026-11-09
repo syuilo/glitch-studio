@@ -2,6 +2,7 @@ import { createWaveform } from '@gs/shared/utility/waveform/waveform.ts';
 import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import vertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
+import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 
 const MAX_SAMPLE_EDGE = 1024;
 
@@ -32,13 +33,14 @@ export class GpuWaveform {
 		this.waveform = createWaveform({ device, vertexShaderModule: device.createShaderModule({ code: vertexShaderCode }), format });
 	}
 
-	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture) {
+	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture, valueScale: ImageValueScale = 'srgb') {
 		const vertical = this.positionAxis === 'y';
 		// パネルの縦横比で画像を切り取らず、常に元画像全体を解析する。
 		const input = textureShaderInput(sourceTexture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' });
 		if (this.waveform.prepare(input, {
 			fitSize: sourceTexture,
 			mode: 'rgb',
+			valueScale,
 			direction: vertical ? 'vertical' : 'horizontal',
 			intensity: 0.22,
 			size: vertical ? { width: 256, height: 512 } : { width: 512, height: 256 },

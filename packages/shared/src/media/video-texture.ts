@@ -1,120 +1,86 @@
 import { scaleResolution } from '../resolution.ts';
+import type { Resolution } from '../resolution.ts';
 import code from './video-texture.wgsl?raw';
 import type { VideoSample } from 'mediabunny';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '../types.ts';
+import { createExternalImageToLinearTextureConverter } from './external-image-texture.ts';
 
-const opaqueVideoFormats = new Set<VideoPixelFormat>(['I420', 'I422', 'I444', 'NV12', 'RGBX', 'BGRX']);
+/** 借用する乗算済みlinear sRGB画像。非正方形ピクセルの表示比率は画素寸法と分ける。 */
+export type VideoFrameTexture = { texture: GPUTexture; displayResolution: Readonly<Resolution> };
 
-/** 動画の表示寸法に指定倍率を適用してGPUへ転送する。fitやレイヤーの変形は呼び出し側で行う。 */
+/** 動画の回転・表示寸法・描画倍率を、linear化した後の画像へ適用する。 */
 export function createVideoTexture(device: GPUDevice) {
+	const source = createVideoFrameTexture(device);
 	const shader = device.createShaderModule({ code });
-	const createPipeline = (entryPoint: string) => device.createRenderPipeline({
+	const pipeline = device.createRenderPipeline({
 		layout: 'auto',
 		vertex: { module: shader, entryPoint: 'vs' },
-		fragment: { module: shader, entryPoint, targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
+		fragment: { module: shader, entryPoint: 'renderCopiedVideo', targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 		primitive: { topology: 'triangle-list' },
 	});
-	const externalVideoPipeline = createPipeline('renderExternalVideo');
-	const copiedVideoPipeline = createPipeline('renderCopiedVideo');
 	const rotationBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-	const rotationValues = new Uint32Array(4);
 	const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
-	let texture: GPUTexture | null = null;
-	let copiedFrameTexture: GPUTexture | null = null;
-	let copiedFrameBindGroup: GPUBindGroup | null = null;
-	const createTexture = (width: number, height: number) => device.createTexture({
-		size: { width, height },
-		format: INTERMEDIATE_TEXTURE_FORMAT,
-		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
-	});
-	const clearCopiedFrame = () => {
-		copiedFrameTexture?.destroy();
-		copiedFrameTexture = null;
-		copiedFrameBindGroup = null;
-	};
-	const draw = (encoder: GPUCommandEncoder, target: GPUTexture, pipeline: GPURenderPipeline, bindGroup: GPUBindGroup) => {
-		const pass = encoder.beginRenderPass({
-			colorAttachments: [{
-				view: target.createView(),
-				loadOp: 'clear',
-				storeOp: 'store',
-				clearValue: [0, 0, 0, 0],
-			}],
-		});
-		pass.setPipeline(pipeline);
-		pass.setBindGroup(0, bindGroup);
-		pass.draw(3);
-		pass.end();
-	};
+	let output: GPUTexture | null = null;
 	return {
 		upload(sample: VideoSample, resolutionScale = 1): GPUTexture {
-			const nativeResolution = {
-				width: Math.max(1, Math.round(sample.displayWidth)),
-				height: Math.max(1, Math.round(sample.displayHeight)),
-			};
-			const { width, height } = scaleResolution(nativeResolution, resolutionScale);
-			if (texture == null || texture.width !== width || texture.height !== height) {
-				texture?.destroy();
-				texture = createTexture(width, height);
-			}
-			// toVideoFrame()の戻り値はsampleとは別の所有物。変換済みテクスチャだけを保持し、
-			// デコーダーの出力面をキャッシュしない。例外時もこのフレームは必ず解放する。
 			const frame = sample.toVideoFrame();
 			try {
-				const isOpaque = frame.format != null && opaqueVideoFormats.has(frame.format);
-				const canCopyToOutput = !isOpaque && sample.rotation === 0 && width === frame.displayWidth && height === frame.displayHeight;
-				if (isOpaque || canCopyToOutput) clearCopiedFrame();
-				if (canCopyToOutput) {
-					// 回転もサイズ変更もなければ原寸を直接出力へコピーし、追加描画を省く。
-					device.queue.copyExternalImageToTexture({ source: frame }, { texture, colorSpace: 'srgb', premultipliedAlpha: true }, { width, height });
+				const texture = source.upload(frame);
+				const { width, height } = scaleResolution({ width: sample.displayWidth, height: sample.displayHeight }, resolutionScale);
+				if (sample.rotation === 0 && width === texture.width && height === texture.height) {
+					output?.destroy();
+					output = null;
 					return texture;
 				}
-				rotationValues[0] = sample.rotation / 90;
-				device.queue.writeBuffer(rotationBuffer, 0, rotationValues);
-				let pipeline: GPURenderPipeline;
-				let bindGroup: GPUBindGroup;
-				if (isOpaque) {
-					pipeline = externalVideoPipeline;
-					const externalTexture = device.importExternalTexture({ source: frame, colorSpace: 'srgb' });
-					bindGroup = device.createBindGroup({
-						layout: pipeline.getBindGroupLayout(0),
-						entries: [
-							{ binding: 0, resource: externalTexture }, { binding: 1, resource: { buffer: rotationBuffer } }, { binding: 3, resource: sampler },
-						],
-					});
-				} else {
-					// ChromeにはRGBAのexternalTextureをpremultiply済みで返す経路があり、シェーダーで
-					// 再乗算すると半透明が暗くなる。alphaを持ち得る形式と形式非公開のフレームは、
-					// 明示的にpremultiplyして直接コピーする。補間前の変換なので透明画素の色も混ざらない。
-					if (copiedFrameTexture == null || copiedFrameBindGroup == null || copiedFrameTexture.width !== frame.displayWidth || copiedFrameTexture.height !== frame.displayHeight) {
-						clearCopiedFrame();
-						copiedFrameTexture = createTexture(frame.displayWidth, frame.displayHeight);
-						copiedFrameBindGroup = device.createBindGroup({
-							layout: copiedVideoPipeline.getBindGroupLayout(0),
-							entries: [
-								{ binding: 1, resource: { buffer: rotationBuffer } }, { binding: 2, resource: copiedFrameTexture.createView() }, { binding: 3, resource: sampler },
-							],
-						});
-					}
-					device.queue.copyExternalImageToTexture({ source: frame }, { texture: copiedFrameTexture, colorSpace: 'srgb', premultipliedAlpha: true }, { width: frame.displayWidth, height: frame.displayHeight });
-					pipeline = copiedVideoPipeline;
-					bindGroup = copiedFrameBindGroup!;
+				if (output == null || output.width !== width || output.height !== height) {
+					output?.destroy();
+					output = device.createTexture({ size: [width, height], format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
 				}
+				device.queue.writeBuffer(rotationBuffer, 0, new Uint32Array([sample.rotation / 90, 0, 0, 0]));
+				const group = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
+					{ binding: 1, resource: { buffer: rotationBuffer } }, { binding: 2, resource: texture.createView() }, { binding: 3, resource: sampler },
+				] });
 				const encoder = device.createCommandEncoder();
-				draw(encoder, texture, pipeline, bindGroup);
-				// VideoFrameをcloseするとexternalTextureも失効する。参照するコマンドを先にsubmitし、
-				// 後段は同じqueue上の通常テクスチャを読むため、ここでGPU完了待ちは追加しない。
+				const pass = encoder.beginRenderPass({ colorAttachments: [{ view: output.createView(), loadOp: 'clear', storeOp: 'store' }] });
+				pass.setPipeline(pipeline);
+				pass.setBindGroup(0, group);
+				pass.draw(3);
+				pass.end();
 				device.queue.submit([encoder.finish()]);
-			} finally {
-				frame.close();
+				return output;
+			} finally { frame.close(); }
+		},
+		dispose() {
+			source.dispose();
+			output?.destroy();
+			output = null;
+			rotationBuffer.destroy();
+		},
+	};
+}
+
+/** Player等から借りたVideoFrameを、補間前にlinear・乗算済みの通常テクスチャへ正規化する。 */
+export function createVideoFrameTexture(device: GPUDevice) {
+	let texture: GPUTexture | null = null;
+	const converter = createExternalImageToLinearTextureConverter(device);
+	return {
+		upload(frame: VideoFrame): GPUTexture {
+			const width = frame.visibleRect?.width ?? frame.codedWidth;
+			const height = frame.visibleRect?.height ?? frame.codedHeight;
+			if (texture == null || texture.width !== width || texture.height !== height) {
+				texture?.destroy();
+				texture = device.createTexture({ size: [width, height], format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
 			}
+			// 非正方形ピクセルの表示倍率もlinear化より前に適用しない。画素を複製せず
+			// 表示寸法だけを上書きしたFrameを使い、表示比率は後段の画像変形へ委ねる。
+			const nativeFrame = frame.displayWidth === width && frame.displayHeight === height ? frame : new VideoFrame(frame, { displayWidth: width, displayHeight: height });
+			try { converter.copy(nativeFrame, texture); } finally { if (nativeFrame !== frame) nativeFrame.close(); }
 			return texture;
 		},
 		dispose() {
+			converter.dispose();
 			texture?.destroy();
 			texture = null;
-			clearCopiedFrame();
-			rotationBuffer.destroy();
 		},
 	};
 }

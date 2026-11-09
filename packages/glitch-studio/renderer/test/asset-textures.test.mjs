@@ -18,12 +18,16 @@ function fixture(t, assets) {
 		return request.promise;
 	};
 	const device = {
+		createShaderModule: options => options,
+		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
+		createBindGroup: options => options,
+		createCommandEncoder: () => ({ beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }), finish: () => ({}) }),
 		createTexture(options) {
-			const texture = { ...options, destroyed: 0, destroy() { this.destroyed++; } };
+			const texture = { ...options, width: options.size[0], height: options.size[1], createView: () => ({}), destroyed: 0, destroy() { this.destroyed++; } };
 			textures.push(texture);
 			return texture;
 		},
-		queue: { copyExternalImageToTexture(...args) { copies.push(args); } },
+		queue: { copyExternalImageToTexture(...args) { copies.push(args); }, submit() {} },
 	};
 	const store = new AssetTextures(device, assets);
 	t.after(() => {
@@ -57,6 +61,7 @@ test('prepares the fixed image assets sequentially before becoming ready', async
 	assert.equal(first.closed, 1);
 	assert.equal(second.closed, 1);
 	assert.ok(f.copies.every(([, destination]) => destination.premultipliedAlpha === true));
+	assert.ok([...f.store.textures.values()].every(texture => texture.format === 'rgba16float'));
 });
 
 for (const failure of ['decode', 'upload']) {
@@ -93,7 +98,7 @@ test('disposes partial resources and ignores a late decode after destruction', a
 	f.requests[1].resolve(late);
 	await f.store.ready;
 	assert.equal(late.closed, 1);
-	assert.equal(f.textures.length, 1);
+	assert.equal(f.textures.length, 2); // 作業画像と変換用の原寸staging。
 	assert.equal(f.store.textures.size, 0);
 });
 

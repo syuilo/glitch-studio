@@ -43,6 +43,7 @@
 							:class="[$style.editor, { [$style.invalid]: invalid === field.key }]"
 							class="_monospace"
 							contenteditable="plaintext-only" :spellcheck="false" :inputmode="row.name === 'HEX' ? 'text' : 'decimal'"
+							:data-test-color-picker-field="field.key"
 							@focus="editing = field.key" @input="editField($event, row.name, field.index, field.key)"
 							@blur="finishEdit($event, field.key)" @keydown.enter.prevent="blurEditor" @keydown.esc.stop.prevent="blurEditor"
 							v-text="drafts[field.key]"
@@ -66,6 +67,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import type { RgbaColor } from '@/utility/color-input.ts';
+import { linearSrgbToSrgb, srgbChannelToLinear } from '@gs/shared/color-space.ts';
 import { i18n } from '@/i18n.ts';
 import { clampColorValue, colorCss, colorHex, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv } from '@/utility/color-input.ts';
 import GsModal from '@/components/common/GsModal.vue';
@@ -105,14 +107,14 @@ const EyeDropper = (window as Window & {
 	EyeDropper?: new () => { open(options: { signal: AbortSignal }): Promise<{ sRGBHex: string }> };
 }).EyeDropper;
 
-type Format = 'RGB' | 'HSL' | 'HEX' | '0~1';
+type Format = 'sRGB' | 'HSL' | 'HEX' | 'Linear';
 const rows = computed(() => {
 	const hsl = hsvToHsl(hue.value, saturation.value, brightness.value);
 	const definitions: { name: Format; labels: string[]; values: (string | number)[] }[] = [
-		{ name: 'RGB', labels: ['R', 'G', 'B', 'A'], values: [...color.value.slice(0, 3).map(v => Math.round(v * 255)), color.value[3]] },
+		{ name: 'sRGB', labels: ['R', 'G', 'B', 'A'], values: [...linearSrgbToSrgb(color.value).slice(0, 3).map(v => Math.round(clampColorValue(v) * 255)), color.value[3]] },
 		{ name: 'HSL', labels: ['H°', 'S%', 'L%', 'A'], values: [hsl[0], hsl[1] * 100, hsl[2] * 100, color.value[3]] },
 		{ name: 'HEX', labels: ['#RRGGBBAA'], values: [colorHex(color.value)] },
-		{ name: '0~1', labels: ['R', 'G', 'B', 'A'], values: color.value },
+		{ name: 'Linear', labels: ['R', 'G', 'B', 'A'], values: color.value },
 	];
 	return definitions.map(row => ({
 		name: row.name,
@@ -160,10 +162,11 @@ function editField(event: Event, format: Format, index: number, key: string) {
 	let next: RgbaColor | null = null;
 	if (format === 'HEX') {
 		next = parseColorHex(text, color.value[3]);
-	} else if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) {
+	} else if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text)) {
 		const value = Number(text);
-		const max = index === 3 || format === '0~1' ? 1 : format === 'RGB' ? 255 : index === 0 ? 360 : 100;
-		if (Number.isFinite(value) && value >= 0 && value <= max) {
+		const max = index === 3 ? 1 : format === 'sRGB' ? 255 : format === 'Linear' ? Infinity : index === 0 ? 360 : 100;
+		const min = format === 'Linear' && index < 3 ? -Infinity : 0;
+		if (Number.isFinite(value) && value >= min && value <= max) {
 			next = [...color.value];
 			if (format === 'HSL' && index < 3) {
 				const hsl = hsvToHsl(hue.value, saturation.value, brightness.value);
@@ -174,7 +177,7 @@ function editField(event: Event, format: Format, index: number, key: string) {
 				brightness.value = v;
 				next = hsvToRgb(hue.value, saturation.value, brightness.value, color.value[3]);
 			} else {
-				next[index] = value / max;
+				next[index] = format === 'sRGB' && index < 3 ? srgbChannelToLinear(value / 255) : value;
 			}
 		}
 	}
@@ -234,7 +237,7 @@ function readRecent(): RgbaColor[] {
 	try {
 		const stored: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
 		if (!Array.isArray(stored)) return [];
-		return stored.filter((value): value is RgbaColor => Array.isArray(value) && value.length === 4 && value.every(channel => typeof channel === 'number' && Number.isFinite(channel) && channel >= 0 && channel <= 1)).slice(0, 16);
+		return stored.filter((value): value is RgbaColor => Array.isArray(value) && value.length === 4 && value.every(channel => typeof channel === 'number' && Number.isFinite(channel)) && value[3] >= 0 && value[3] <= 1).slice(0, 16);
 	} catch {
 		return [];
 	}
@@ -243,8 +246,8 @@ function readRecent(): RgbaColor[] {
 function remember() {
 	if (!changed) return;
 	changed = false;
-	const key = colorHex(color.value);
-	recent.value = [[...color.value], ...readRecent().filter(value => colorHex(value) !== key)].slice(0, 16) as RgbaColor[];
+	// HEXで重複判定すると、表示域外の異なるHDR色が同じ白・黒として失われる。
+	recent.value = [[...color.value], ...readRecent().filter(value => !value.every((channel, index) => channel === color.value[index]))].slice(0, 16) as RgbaColor[];
 	try {
 		localStorage.setItem(storageKey, JSON.stringify(recent.value));
 	} catch {
@@ -401,7 +404,7 @@ function close() {
 	margin-top: 8px;
 }
 .format {
-	width: 30px;
+	width: 40px;
 	flex-shrink: 0;
 }
 .field {

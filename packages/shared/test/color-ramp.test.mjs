@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { srgbToLinearSrgb } from '../src/color-space.ts';
 import { createDefaultColorRamp, evaluatePreparedColorRamp, prepareColorRamp, validateColorRamp } from '../src/color-ramp.ts';
 
 const sample = (ramp, position) => evaluatePreparedColorRamp(prepareColorRamp(ramp), position);
@@ -7,10 +8,10 @@ const near = (actual, expected, epsilon = 1e-6) => actual.forEach((component, in
 
 // L=0.65・C=0.08のOKLCHをsRGBへ変換した参照色。すべて色域内なので、
 // gamut処理に依存せず色相の経路とchromaの保持を画素値で検証できる。
-const hue350 = [0.7090230868, 0.4824507734, 0.5882349397, 1];
-const hue10 = [0.7300260394, 0.4811885705, 0.5173839076, 1];
-const hue0 = [0.7216633302, 0.4807007626, 0.5531313216, 1];
-const hue180 = [0.3225405424, 0.624848172, 0.5683289785, 1];
+const hue350 = srgbToLinearSrgb([0.7090230868, 0.4824507734, 0.5882349397, 1]);
+const hue10 = srgbToLinearSrgb([0.7300260394, 0.4811885705, 0.5173839076, 1]);
+const hue0 = srgbToLinearSrgb([0.7216633302, 0.4807007626, 0.5531313216, 1]);
+const hue180 = srgbToLinearSrgb([0.3225405424, 0.624848172, 0.5683289785, 1]);
 const circularRamp = { interpolation: 'linear', colorSpace: 'oklch', stops: [
 	{ id: 'start', position: 0, color: hue350 }, { id: 'end', position: 1, color: hue10 },
 ] };
@@ -82,8 +83,8 @@ test('keeps stable duplicate positions and never mutates the authored ramp', () 
 // linear sRGBを乗算済みのままsRGBへ変換すると半透明色の明るさが変わるため、alpha込みで確認する。
 test('interpolates in sRGB, linear sRGB and Oklab with premultiplied alpha', () => {
 	const ramp = createDefaultColorRamp();
-	near(sample({ ...ramp, colorSpace: 'linearSrgb' }, 0.5), [0.735356983, 0.735356983, 0.735356983, 1]);
-	near(sample({ ...ramp, colorSpace: 'oklab' }, 0.5), [0.38857286, 0.38857286, 0.38857286, 1]);
+	near(sample({ ...ramp, colorSpace: 'linearSrgb' }, 0.5), [0.5, 0.5, 0.5, 1]);
+	near(sample({ ...ramp, colorSpace: 'oklab' }, 0.5), [0.125, 0.125, 0.125, 1]);
 	for (const colorSpace of ['srgb', 'linearSrgb', 'oklab']) {
 		const stops = [{ id: 'red', position: 0, color: [1, 0, 0, 1] }, { id: 'hidden', position: 1, color: [0, 1, 1, 0] }];
 		near(sample({ ...ramp, stops, colorSpace }, 0.5), [0.5, 0, 0, 0.5]);
@@ -98,7 +99,7 @@ test('interpolates in sRGB, linear sRGB and Oklab with premultiplied alpha', () 
 // 逆向きの区間と同色相のLongerによる一周も確認し、経路の符号や等値の扱いを固定する。
 test('interpolates OKLCH hue arcs and preserves chroma across the hue boundary', () => {
 	near(sample(circularRamp, 0.5), hue0);
-	near(sample(circularRamp, 0.25), [0.7158661683, 0.4813031433, 0.5708173039, 1]);
+	near(sample(circularRamp, 0.25), srgbToLinearSrgb([0.7158661683, 0.4813031433, 0.5708173039, 1]));
 	for (const hueInterpolation of ['shorter', 'longer', 'increasing', 'decreasing']) {
 		near(sample({ ...circularRamp, hueInterpolation }, 0.5), ['shorter', 'increasing'].includes(hueInterpolation) ? hue0 : hue180);
 		const reversed = { ...circularRamp, hueInterpolation, stops: circularRamp.stops.map((stop, index) => ({ ...stop, color: circularRamp.stops[1 - index].color })) };
@@ -112,12 +113,12 @@ test('interpolates OKLCH hue arcs and preserves chroma across the hue boundary',
 // alphaが0のときだけ色相を無視すると、0から微小な正値への編集で区間全体が変わる。
 // 両端それぞれを透明にして全経路で連続性を確認し、CSS方式の明度・chromaの重みも検証する。
 test('keeps OKLCH hue independent of alpha and remains continuous at zero alpha', () => {
-	const darkHue10 = [0.4135776253, 0.2989692214, 0.3141089205, 0]; // L=0.45・C=0.04・h=10度
+	const darkHue10 = srgbToLinearSrgb([0.4135776253, 0.2989692214, 0.3141089205, 0]); // L=0.45・C=0.04・h=10度
 	const transparentRamp = { ...circularRamp, stops: [circularRamp.stops[0], { ...circularRamp.stops[1], color: darkHue10 }] };
 	near(sample(transparentRamp, 0.5), hue0.map(component => component * 0.5));
 	// alpha=0.25の終点との中間は、L=0.61・C=0.072・h=0度・alpha=0.625。
 	const translucent = { ...transparentRamp, stops: transparentRamp.stops.map((stop, index) => index === 0 ? stop : { ...stop, color: [...stop.color.slice(0, 3), 0.25] }) };
-	near(sample(translucent, 0.5), [0.6569327254 * 0.625, 0.4432434793 * 0.625, 0.5070055934 * 0.625, 0.625]);
+	near(sample(translucent, 0.5), srgbToLinearSrgb([0.6569327254, 0.4432434793, 0.5070055934, 1]).map(component => component * 0.625));
 	for (const hueInterpolation of ['shorter', 'longer', 'increasing', 'decreasing']) {
 		for (const transparentIndex of [0, 1]) {
 			const atAlpha = alpha => ({ ...circularRamp, hueInterpolation, stops: circularRamp.stops.map((stop, index) => ({ ...stop, color: [...stop.color.slice(0, 3), index === transparentIndex ? alpha : 1] })) });
@@ -157,12 +158,12 @@ test('preserves authored OKLCH stops and exact boundaries', () => {
 });
 
 // 【式や直接編集からの不正な対応表を明示的に拒否する】
-// 不正なIDや非有限値をGPUへ送ると選択が壊れたり描画が不定になる。RGBの有限な範囲外値は許可し出力でclampする。
-test('rejects malformed ramps and clips out-of-gamut output without clipping stored values', () => {
+// 不正なIDや非有限値をGPUへ送ると選択が壊れたり描画が不定になる。RGBの有限な範囲外値は、補間後の出力にも保持する。
+test('rejects malformed ramps and preserves extended linear RGB in output', () => {
 	const ramp = createDefaultColorRamp();
 	for (const hueInterpolation of ['unknown', 0, {}]) assert.throws(() => validateColorRamp({ ...circularRamp, hueInterpolation }), /hue interpolation/);
 	for (const invalid of [null, {}, { ...ramp, colorSpace: 'unknown' }, { ...ramp, interpolation: 'unknown' }, { ...ramp, stops: [] }, { ...ramp, stops: [ramp.stops[0], ramp.stops[0]] }, ...[NaN, Infinity, -0.1, 1.1].map(position => ({ ...ramp, stops: [{ ...ramp.stops[0], position }] })), ...[[1, 0], [NaN, 0, 0, 1], [1, 0, 0, 2]].map(color => ({ ...ramp, stops: [{ ...ramp.stops[0], color }] }))]) assert.throws(() => validateColorRamp(invalid));
 	const extended = { ...ramp, stops: [{ id: 'extended', position: 0, color: [2, -1, 0.5, 1] }] };
-	assert.deepEqual(sample(extended, 0.5), [1, 0, 0.5, 1]);
+	assert.deepEqual(sample(extended, 0.5), [2, -1, 0.5, 1]);
 	assert.deepEqual(extended.stops[0].color, [2, -1, 0.5, 1]);
 });

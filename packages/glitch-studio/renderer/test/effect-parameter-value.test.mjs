@@ -42,10 +42,10 @@ test('resolves file sources separately from asset metadata', () => {
 test('reads changing frames through a fixed player while keeping dimensions static', () => {
 	const definition = { staticSettingDefs: { player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player' }, defaultValue: null } }, intrinsicResolutionSetting: 'player' };
 	let frame = null;
-	const context = { assets: [], assetTextures: new Map(), getPlayerVideoFrame: () => frame, getPlayerResolution: () => ({ width: 1920, height: 1080 }) };
+	const context = { assets: [], assetTextures: new Map(), getPlayerVideoTexture: () => frame, getPlayerResolution: () => ({ width: 1920, height: 1080 }) };
 	const resource = resolveEffectStaticResources(definition, { player: 'player' }, context).player;
-	assert.equal(resource.getVideoFrame(), null);
-	frame = { displayWidth: 320, displayHeight: 240 };
-	assert.equal(resource.getVideoFrame(), frame);
+	assert.equal(resource.getVideoTexture(), null);
+	frame = { texture: {}, displayResolution: { width: 320, height: 240 } };
+	assert.equal(resource.getVideoTexture(), frame);
 	assert.deepEqual(getEffectIntrinsicResolution(definition, { player: 'player' }, context), { width: 1920, height: 1080 });
 });

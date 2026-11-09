@@ -58,7 +58,7 @@ fn compose(fragment: FragmentIn) -> FragmentOutput {
 	} else {
 		patchwork = delayed_color(uv, block.x, current);
 	}
-	if (patchwork.a <= 0.0) { patchwork = vec4f(0.0); }
+	// alpha=0でもRGBは発光を持ち得る。履歴と表示の両方へRGBAをそのまま渡し、光を失わない。
 	// Amountは表示への合成だけに適用し、停止画像のキャッシュへ入力を混ぜ続けない。
 	// どちらもpremultiplied RGBAなので、全チャンネルをまとめて補間して返す。
 	return FragmentOutput(mix(current, patchwork, uniforms.amount), patchwork);

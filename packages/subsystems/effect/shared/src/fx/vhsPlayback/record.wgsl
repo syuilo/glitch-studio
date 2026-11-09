@@ -25,7 +25,7 @@ fn capture(@builtin(global_invocation_id) id: vec3u) {
 		// 透明画素の黒が半透明の輪郭へ混ざることを防ぐ。
 		let coverage = clamp(color.a, 0.0, 1.0);
 		var rgb = vec3f(0.0);
-		if (coverage > 0.0) { rgb = clamp(color.rgb / coverage, vec3f(0.0), vec3f(1.0)); }
+		if (coverage > 0.0) { rgb = clamp(colorLinearToSrgb(color.rgb / coverage), vec3f(0.0), vec3f(1.0)); }
 		signal = vec4f(toYiq(rgb) * coverage, coverage);
 	}
 	captured[id.y * BASEBAND_SAMPLES + id.x] = signal;

@@ -65,7 +65,7 @@ test('accumulates motion blur using separate floating point targets and normaliz
 });
 
 function gpuFixture() {
-	const calls = { textures: [], buffers: [], shaders: [], groups: [], samplers: [], writes: [], draws: 0, uploads: 0 };
+	const calls = { textures: [], buffers: [], shaders: [], groups: [], samplers: [], writes: [], externalCopies: [], draws: 0, uploads: 0 };
 	const device = {
 		limits: { maxTextureDimension2D: 8192 },
 		createTexture(options) {
@@ -88,9 +88,12 @@ function gpuFixture() {
 		queue: {
 			writeBuffer(buffer, offset, values) { calls.writes.push(new Float32Array(values)); },
 			writeTexture() { calls.uploads++; },
+			copyExternalImageToTexture(source) { calls.externalCopies.push(source.source); },
+			submit() {},
 		},
 	};
-	const encoder = { beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() { calls.draws++; }, end() {} }) };
+	const encoder = { beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() { calls.draws++; }, end() {} }), finish: () => ({}) };
+	device.createCommandEncoder = () => encoder;
 	return { device, calls, encoder };
 }
 const literal = value => ({ inputSource: 'literal', value });
@@ -100,19 +103,17 @@ const literal = value => ({ inputSource: 'literal', value });
 // 実際のVideo実装を通し、取得不能の間に古い映像が残らず、復旧時に設定の再編集も不要なことを確認する。
 test('keeps rendering transparent video while player frames are missing and resumes after recovery', async t => {
 	const { device, calls } = gpuFixture();
-	const importedFrames = [];
-	device.importExternalTexture = ({ source }) => { importedFrames.push(source); return {}; };
 	const passes = [];
 	const encoder = { beginRenderPass(descriptor) {
 		passes.push(descriptor);
 		return { setPipeline() {}, setBindGroup() {}, draw() { calls.draws++; }, end() {} };
 	} };
-	const videoFrames = new Map();
+	const videoTextures = new Map();
 	const videoFrameVersions = new Map();
 	const renderer = new VisualModuleRenderer({
 		gpuDevice: device, fallbackTexture: {}, resolution: { width: 16, height: 9 },
 		enableStats: false, timingHelper: null, enable32bitDataTextures: false,
-		assets: [], assetTextures: new Map(), videoFrames, videoFrameVersions,
+		assets: [], assetTextures: new Map(), getPlayerVideoTexture: id => videoTextures.get(id) ?? null, videoFrameVersions,
 		effectDefinitions: { video: videoDefinition }, effectImplementations: { video: videoEffect },
 		visualModule: { customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null, primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], automationGraphs: [],
 			nodes: [{ id: 'video', type: 'effect', effectId: 'video', staticSettings: { player: 'player' }, params: { fit: literal('stretch') }, resolution: { mode: 'auto', scale: 1 }, isBypass: false },
@@ -130,22 +131,22 @@ test('keeps rendering transparent video while player frames are missing and resu
 	};
 	await render();
 	assertTransparent();
-	const first = {};
-	videoFrames.set('player', first);
+	const first = { texture: device.createTexture({ size: [16, 9] }), displayResolution: { width: 16, height: 9 } };
+	videoTextures.set('player', first);
 	videoFrameVersions.set('player', 1);
 	await render();
-	assert.deepEqual(importedFrames, [first]);
+	assert.deepEqual(calls.externalCopies, []);
 	assert.equal(calls.draws, 1);
-	videoFrames.delete('player');
+	videoTextures.delete('player');
 	videoFrameVersions.set('player', 2);
 	await render();
 	assertTransparent();
 	assert.equal(calls.draws, 1);
-	const recovered = {};
-	videoFrames.set('player', recovered);
+	const recovered = { texture: device.createTexture({ size: [16, 9] }), displayResolution: { width: 16, height: 9 } };
+	videoTextures.set('player', recovered);
 	videoFrameVersions.set('player', 3);
 	const output = await render();
-	assert.deepEqual(importedFrames, [first, recovered]);
+	assert.deepEqual(calls.externalCopies, []);
 	assert.equal(calls.draws, 2);
 	assert.deepEqual([output.texture.width, output.texture.height], [16, 9]);
 });
@@ -699,7 +700,7 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 });
 
 function createRenderer(device, visualModule, overrides = {}) {
-	return new VisualModuleRenderer({ gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
+	return new VisualModuleRenderer({ gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
 }
 
 function renderContext(overrides = {}) {
