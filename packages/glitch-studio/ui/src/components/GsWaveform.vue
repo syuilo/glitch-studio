@@ -1,12 +1,34 @@
 <template>
-<GsDetachableView :title="direction === 'horizontal' ? i18n.ts._Workspace.WaveformX : i18n.ts._Workspace.WaveformY" :suspended="appContext.renderEngine.isSuspended.value">
+<GsDetachableView :title="direction === 'horizontal' ? i18n.ts._Workspace.WaveformX : i18n.ts._Workspace.WaveformY" :suspended="appContext.renderEngine.isSuspended.value" @changeWindow="observeScope">
 	<div :class="$style.root">
 		<GsImageAnalysisScale/>
-		<div :class="$style.scope">
+		<div ref="scope" :class="$style.scope" data-test-waveform-plot>
 			<div ref="canvasContainer" :class="$style.canvas"></div>
 			<div :class="$style.grid">
-				<div v-for="position in gridLinePositions" :key="`horizontal-${position}`" :class="$style.gridHorizontalLine" :style="{ top: `${position}%` }"></div>
-				<div v-for="position in gridLinePositions" :key="`vertical-${position}`" :class="$style.gridVerticalLine" :style="{ left: `${position}%` }"></div>
+				<div
+					v-for="tick in horizontalGridTicks" :key="tick.value"
+					:class="[$style.gridHorizontalLine, { [$style.referenceLine]: tick.isReference }]"
+					:style="{ top: `${tick.position * 100}%` }"
+				></div>
+				<div
+					v-for="tick in verticalGridTicks" :key="tick.value"
+					:class="[$style.gridVerticalLine, { [$style.referenceLine]: tick.isReference }]"
+					:style="{ left: `${tick.position * 100}%` }"
+				></div>
+			</div>
+			<div :class="$style.yAxisTicks" data-test-waveform-y-axis>
+				<span
+					v-for="tick in axisTicks.y" :key="tick.value"
+					:class="[$style.tickLabel, { [$style.startTick]: tick.position === 0, [$style.endTick]: tick.position === 1, [$style.referenceLabel]: tick.isReference }]"
+					:style="{ top: `${tick.position * 100}%` }"
+				>{{ tick.label }}</span>
+			</div>
+			<div :class="$style.xAxisTicks" data-test-waveform-x-axis>
+				<span
+					v-for="tick in axisTicks.x" :key="tick.value"
+					:class="[$style.tickLabel, { [$style.startTick]: tick.position === 0, [$style.endTick]: tick.position === 1, [$style.referenceLabel]: tick.isReference }]"
+					:style="{ left: `${tick.position * 100}%` }"
+				>{{ tick.label }}</span>
 			</div>
 		</div>
 	</div>
@@ -14,21 +36,54 @@
 </template>
 
 <script lang="ts" setup>
-import { useTemplateRef } from 'vue';
+import { computed, onMounted, onUnmounted, shallowRef, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import GsImageAnalysisScale from './GsImageAnalysisScale.vue';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
+import { createImagePositionAxisTicks, createImageValueAxisTicks, selectImageAnalysisAxisTicks } from '@/utility/image-analysis-axis.ts';
 
-const { activePreviewRenderer } = appContext;
+const { activePreviewRenderer, analysisValueScale } = appContext;
 
 const props = defineProps<{
 	direction: 'horizontal' | 'vertical';
 }>();
 
 const canvasContainer = useTemplateRef('canvasContainer');
-const gridLinePositions = [25, 50, 75];
+const scope = useTemplateRef('scope');
+const scopeSize = shallowRef({ width: 0, height: 0 });
+const axisTicks = computed(() => {
+	const horizontal = props.direction === 'horizontal';
+	const positionTicks = createImagePositionAxisTicks();
+	const valueTicks = createImageValueAxisTicks(analysisValueScale.value);
+	return {
+		x: selectImageAnalysisAxisTicks(horizontal ? positionTicks : valueTicks, scopeSize.value.width, 48),
+		// Waveform Xの値は下から上へ増える。Waveform Yの画像位置は上端が0%。
+		// 左下のY軸ラベルはX軸のラベルより上へ寄せるため、その移動分も含めて間隔を空ける。
+		y: selectImageAnalysisAxisTicks(horizontal ? valueTicks.map(tick => ({ ...tick, position: 1 - tick.position })) : positionTicks, scopeSize.value.height, 40),
+	};
+});
+const horizontalGridTicks = computed(() => axisTicks.value.y.filter(tick => tick.position > 0 && tick.position < 1));
+const verticalGridTicks = computed(() => axisTicks.value.x.filter(tick => tick.position > 0 && tick.position < 1));
+
+let scopeResizeObserver: ResizeObserver | null = null;
+
+function observeScope() {
+	scopeResizeObserver?.disconnect();
+	const element = scope.value;
+	if (element == null) return;
+	// 別ウィンドウへ移した後も、その表示先のレイアウト更新で目盛りを再計算する。
+	const scopeWindow = element.ownerDocument.defaultView ?? window;
+	scopeResizeObserver = new scopeWindow.ResizeObserver(([entry]) => {
+		scopeSize.value = { width: entry.contentRect.width, height: entry.contentRect.height };
+	});
+	scopeResizeObserver.observe(element);
+}
+
+onMounted(observeScope);
+// GsDetachableViewの破棄時にもchangeWindowが発生するため、子の片付け後に監視を解除する。
+onUnmounted(() => scopeResizeObserver?.disconnect());
 
 useRendererCanvas(canvasContainer, activePreviewRenderer, () => props.direction === 'horizontal' ? 'waveformHorizontalCanvas' : 'waveformVerticalCanvas', appContext.renderEngine.isSuspended);
 </script>
@@ -39,22 +94,77 @@ useRendererCanvas(canvasContainer, activePreviewRenderer, () => props.direction 
 	flex-direction: column;
 	box-sizing: border-box;
 	height: 100%;
+	min-width: 0;
 	min-height: 0;
-	box-sizing: border-box;
-}
-
-.header {
-	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	padding: 2px 4px 10px;
+	overflow: clip;
 }
 
 .scope {
 	flex: 1;
 	position: relative;
-	width: 100%;
+	min-width: 0;
+	min-height: 0;
 	overflow: clip;
+}
+
+.yAxisTicks {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	pointer-events: none;
+
+	> .tickLabel {
+		left: 0;
+		transform: translateY(-50%);
+
+		&.startTick {
+			transform: translateY(0px);
+		}
+
+		&.endTick {
+			// 下端の値はX軸のラベルの直上に置き、左下で二つのラベルが重ならないようにする。
+			transform: translateY(calc(-100% - 14px));
+		}
+	}
+}
+
+.xAxisTicks {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	height: 14px;
+	pointer-events: none;
+
+	> .tickLabel {
+		top: 0;
+		transform: translateX(-50%);
+
+		&.startTick {
+			transform: translateX(0px);
+		}
+
+		&.endTick {
+			transform: translateX(-100%);
+		}
+	}
+}
+
+.tickLabel {
+	position: absolute;
+	padding: 0 2px;
+	font-size: 10px;
+	line-height: 14px;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+	color: color-mix(in srgb, var(--THEME-fg) 80%, transparent);
+	// 明るい波形の上でも数値を読めるよう、文字の背後だけを暗くする。
+	background: rgb(0 0 0 / 60%);
+}
+
+.referenceLabel {
+	color: var(--THEME-fg);
 }
 
 .canvas {
@@ -91,5 +201,9 @@ useRendererCanvas(canvasContainer, activePreviewRenderer, () => props.direction 
 	top: 0;
 	bottom: 0;
 	width: 1px;
+}
+
+.referenceLine {
+	background: rgb(160 160 160 / 65%);
 }
 </style>
