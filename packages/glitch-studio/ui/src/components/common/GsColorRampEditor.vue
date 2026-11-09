@@ -73,7 +73,6 @@
 						<button
 							v-for="{ preset, ramp } in presetPreviews"
 							:key="preset.id"
-							type="button"
 							class="_button"
 							:class="$style.preset"
 							data-test-color-ramp-preset
