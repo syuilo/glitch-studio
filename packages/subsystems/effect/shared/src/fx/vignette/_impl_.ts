@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -13,7 +14,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 		mask: ({ wgpu, resolution }) => wgpu.device.createTexture({
@@ -31,7 +32,7 @@ export default implementEffect<typeof definition>({
 		const createPipelines = (includeMask: boolean) => createShaderInputPipeline({
 			device, vertex: wgpu.defaultVertexShaderModule, code,
 			schema: { input: 'color' }, sampling: 'level0', internalLayouts: [layout],
-			targets: [{ format: wgpu.intermediateTextureFormat }, includeMask ? { format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' } : null],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }, includeMask ? { format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' } : null],
 		});
 		const colorPipelines = createPipelines(false);
 		let maskPipelines: typeof colorPipelines | null = null;

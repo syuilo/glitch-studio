@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/shader-input.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -8,11 +9,11 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution, params }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule }, resolution, params }) => {
 		// バッチごとのソートbufferはgroup 0、全バッチ共通の生成入力はgroup 1。
 		const initializeLayout = device.createBindGroupLayout({
 			entries: [
@@ -39,7 +40,7 @@ export default implementEffect<typeof definition>({
 				const output = device.createRenderPipeline({
 					layout: device.createPipelineLayout({ bindGroupLayouts: [outputLayout, bindings.layout] }),
 					vertex: { module: defaultVertexShaderModule },
-					fragment: { module, entryPoint: 'fs', targets: [{ format: intermediateTextureFormat }] },
+					fragment: { module, entryPoint: 'fs', targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 					primitive: { topology: 'triangle-list' },
 				});
 				return {

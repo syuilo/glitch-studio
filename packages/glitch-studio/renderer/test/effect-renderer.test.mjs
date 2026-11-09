@@ -40,7 +40,7 @@ function gpu() {
 		beginRenderPass(descriptor) { const pass = { type: 'render', descriptor }; passes.push(pass); return pass; },
 		beginComputePass(descriptor) { const pass = { type: 'compute', descriptor }; passes.push(pass); return pass; },
 	};
-	return { textures, passes, device, encoder, wgpu: { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' } };
+	return { textures, passes, device, encoder, wgpu: { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false } };
 }
 
 function probe(g, { history = false, lazy = false, loading = false, disableCache = false, paramDefs = {}, init, render, prepare, intrinsic } = {}) {
@@ -87,7 +87,7 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 	const states = [];
 	const renderer = new VisualModuleRenderer({
 		gpuDevice: g.device, fallbackTexture: {}, enableStats: false, timingHelper: null,
-		resolution: { width: 16, height: 9 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
+		resolution: { width: 16, height: 9 }, enable32bitDataTextures: false,
 		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
 		effectDefinitions: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.definition])),
 		effectImplementations: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.implementation])), visualModule: module,

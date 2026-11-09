@@ -7,7 +7,6 @@ import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import { createSceneOutput } from '../../scene-output.ts';
 import type { TimelineLayer, TimelineScene, TimelineSceneLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
@@ -21,7 +20,6 @@ export function createSceneTimelineLayer(
 		vertex: GPUShaderModule;
 		resolution: { width: number; height: number };
 		sceneResolution: { width: number; height: number };
-		format: IntermediateTextureFormat;
 		onCompositing?: TimelineCompositingObserver | null;
 		createLayer: (entry: TimelineLayer, clipId: string | null) => TimelineLayerRenderer<TimelineImage>;
 		getLayerVersion?: (entry: TimelineLayer, clipId: string | null) => string | number;
@@ -40,7 +38,6 @@ export function createSceneTimelineLayer(
 		device: options.device,
 		vertex: options.vertex,
 		resolution: options.resolution,
-		format: options.format,
 		onCompositing: options.onCompositing,
 	});
 	const parameters = new TimelineCompositingParameters();

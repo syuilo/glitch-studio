@@ -30,7 +30,7 @@ Thickness Input・Birefringence・Fast Axis Angle・Light Color・Opacityは定�
 
 GPU上の入力色・出力色は乗算済みRGBA（色のリテラルは共通の入力処理で乗算する）。光学的な消光はRGBの暗さに反映し、alphaはLight ColorのalphaとOpacityだけで決めるため、消光した部分は不透明な黒になる。材質の切り抜きにはOpacityへマスクを接続する。
 
-物理的な厚みは画面の解像度・縦横比・Size Referenceに依存しない。入力は通常のFit / Wrap / Filterで参照し、自動解像度はノード接続可能な入力から決まる。描画履歴・時刻・乱数を使わない1パスの処理で、出力形式は`intermediateTextureFormat`に従う。
+物理的な厚みは画面の解像度・縦横比・Size Referenceに依存しない。入力は通常のFit / Wrap / Filterで参照し、自動解像度はノード接続可能な入力から決まる。描画履歴・時刻・乱数を使わない1パスの処理で、出力形式は`INTERMEDIATE_TEXTURE_FORMAT`に従う。
 
 ## 使用例
 

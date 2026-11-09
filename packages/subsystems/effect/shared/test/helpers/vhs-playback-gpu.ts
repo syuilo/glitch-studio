@@ -3,7 +3,7 @@ import implementation from '../../src/fx/vhsPlayback/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -39,10 +39,11 @@ export async function run() {
 		disposables.push(() => texture.destroy());
 		return textureShaderInput(texture, { fitMode: 'stretch', filterMode: 'nearest', wrapMode: 'clamp' });
 	}
-	function createEffect(width: number, height: number, format: IntermediateTextureFormat = 'rgba16float') {
+	function createEffect(width: number, height: number) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: format, enable32bitDataTextures: false };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
+		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		const effect = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
 		const target = device.createTexture({ size: resolution, format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 		const bytesPerRow = Math.ceil(width * 16 / 256) * 256;
@@ -201,10 +202,9 @@ export async function run() {
 		assert(noSwitch.slice(46 * 64 * 4).some((value, index) => value !== switched[46 * 64 * 4 + index]), 'head switching affects lower lines');
 		checks.push('head switching location');
 
-		// 【8bit画像出力でも符号付きの信号計算とWGSLの構成が成立する】
-		// 中間信号を画像用の0〜1テクスチャに保存する実装や、出力形式の固定を防ぐ。
-		checkColor(await createEffect(1, 1, 'rgba8unorm')({ ...clean, input: color([0.45, 0.45, 0.45, 1]) }), [0.45, 0.45, 0.45, 1], '8-bit output', 0, 0.03);
-		checks.push('8-bit image output');
+		// 【信号計算と画像出力の保存形式を分離する】
+		// 信号の符号や振幅を保持する検証に加え、画像の固定形式はcreateEffectの生成時に確認する。
+		checks.push('16-bit float image output');
 
 		const previewWidth = 512;
 		const previewHeight = 384;

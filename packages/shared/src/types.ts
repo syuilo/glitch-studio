@@ -17,8 +17,8 @@ export type Player = {
 	assetId?: Asset['id'] | null;
 };
 
-// 画像の中間処理でフィルタリング・ブレンド可能なRGBA形式。
-export type IntermediateTextureFormat = 'rgba8unorm' | 'bgra8unorm' | 'rgba16float';
+// 通常の画像出力は、0〜1の範囲外も保持し、フィルタリング・ブレンド可能な16bit floatに統一する。
+export const INTERMEDIATE_TEXTURE_FORMAT = 'rgba16float';
 
 export type WrapMode = 'clamp' | 'repeat' | 'repeatMirrored' | 'transparent';
 

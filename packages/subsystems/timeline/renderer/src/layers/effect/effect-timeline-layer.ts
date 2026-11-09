@@ -75,13 +75,11 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 		vertex: options.wgpu.defaultVertexShaderModule,
 		onCompositing: options.onCompositing,
 		resolution: options.resolution,
-		format: options.wgpu.intermediateTextureFormat,
 	});
 	const inputFrame = createSceneOutput({
 		device,
 		vertex: options.wgpu.defaultVertexShaderModule,
 		resolution: options.resolution,
-		format: options.wgpu.intermediateTextureFormat,
 	});
 	// 出力段階ごとに別の確定画像を保持する。同じ変換先を使うと、複数入力の最後の画像で
 	// 先に解決した入力まで上書きされてしまう。
@@ -117,7 +115,6 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 							device,
 							vertex: options.wgpu.defaultVertexShaderModule,
 							resolution: options.resolution,
-							format: options.wgpu.intermediateTextureFormat,
 						});
 						referenceFrames.set(key, frame);
 					}

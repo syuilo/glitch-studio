@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -12,7 +13,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -27,7 +28,7 @@ export default implementEffect<typeof definition>({
 			return { texture: image, view: image.createView() };
 		};
 		// 遮蔽物と光源を縮小すると細線を失うため、幾何情報は出力と同じ解像度で保持する。
-		const scene = texture(resolution, wgpu.intermediateTextureFormat);
+		const scene = texture(resolution, INTERMEDIATE_TEXTURE_FORMAT);
 		const seeds = [texture(resolution, dataFormat), texture(resolution, dataFormat)];
 		const distance = texture(resolution, distanceFormat);
 		const clampParameter = (value: number, min: number, max: number, fallback: number) => Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
@@ -50,7 +51,7 @@ export default implementEffect<typeof definition>({
 			sampling: 'level0',
 			internalLayouts: [prepareLayout],
 			entryPoint: 'prepare',
-			targets: [{ format: wgpu.intermediateTextureFormat }, { format: dataFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }, { format: dataFormat }],
 		});
 		const pipeline = (code: string, entryPoint: string, layout: GPUBindGroupLayout, format: GPUTextureFormat) => device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
@@ -61,7 +62,7 @@ export default implementEffect<typeof definition>({
 		const jumpPipeline = pipeline(jumpCode, 'jumpFlood', jumpLayout, dataFormat);
 		const distancePipeline = pipeline(jumpCode, 'distanceField', jumpLayout, distanceFormat);
 		const tracePipeline = pipeline(traceCode, 'trace', traceLayout, dataFormat);
-		const compositePipeline = pipeline(compositeCode, 'composite', compositeLayout, wgpu.intermediateTextureFormat);
+		const compositePipeline = pipeline(compositeCode, 'composite', compositeLayout, INTERMEDIATE_TEXTURE_FORMAT);
 		const uniformResource = { binding: 0, resource: { buffer: uniformBuffer } };
 		const prepareGroup = device.createBindGroup({ layout: prepareLayout, entries: [uniformResource] });
 		const jumpSteps: number[] = [];

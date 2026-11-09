@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
@@ -12,7 +13,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 		density: ({ wgpu, resolution }) => wgpu.device.createTexture({
@@ -47,9 +48,9 @@ export default implementEffect<typeof definition>({
 			fragment: { module: renderModule, entryPoint, targets },
 			primitive: { topology: 'triangle-list' },
 		});
-		const colorPipeline = createRenderPipeline('colorFragment', [{ format: wgpu.intermediateTextureFormat }]);
+		const colorPipeline = createRenderPipeline('colorFragment', [{ format: INTERMEDIATE_TEXTURE_FORMAT }]);
 		const colorAndDensityPipeline = createRenderPipeline('colorAndDensityFragment', [
-			{ format: wgpu.intermediateTextureFormat },
+			{ format: INTERMEDIATE_TEXTURE_FORMAT },
 			{ format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' },
 		]);
 

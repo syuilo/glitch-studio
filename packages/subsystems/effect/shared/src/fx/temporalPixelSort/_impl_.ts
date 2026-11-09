@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -16,11 +17,11 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(uniformCode).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -58,7 +59,7 @@ export default implementEffect<typeof definition>({
 					// 保存画像は最大layers-1枚だけ参照するので、全候補がこの容量へ収まる。
 					code: `const SORT_CAPACITY: u32 = ${sortCapacity}u;\n` + uniformCode + '\n' + sortCode,
 					schema: { input: 'color', rank: 'scalar', amount: 'scalar' },
-					internalLayouts: [historyLayout], targets: [{ format: intermediateTextureFormat }],
+					internalLayouts: [historyLayout], targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 					sampling: 'level0', entryPoint: 'sort_history',
 				});
 				return {

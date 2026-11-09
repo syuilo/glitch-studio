@@ -7,19 +7,19 @@ import { getShapeStrokeEndpoint } from './shape-stroke-progress.ts';
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { EvaluatedShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 const code = shapeDistanceCode + '\n' + shapeRendererCode;
 
 /** 評価済みの形状だけを受け取り、配置先やBindingを知らずに透明背景へ描画する。 */
-export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat }) {
-	const { device, resolution, format } = options;
+export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution }) {
+	const { device, resolution } = options;
 	const uniforms = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 	const buffer = device.createBuffer({ size: uniforms.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	const pipeline = device.createRenderPipeline({
 		layout: 'auto',
 		vertex: { module: options.vertex, entryPoint: 'vs' },
-		fragment: { module: device.createShaderModule({ code }), entryPoint: 'fs', targets: [{ format }] },
+		fragment: { module: device.createShaderModule({ code }), entryPoint: 'fs', targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 		primitive: { topology: 'triangle-list' },
 	});
 	const group = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer } }] });
@@ -56,7 +56,7 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 			const size = timelineTextureSize(bounds, resolution, device.limits.maxTextureDimension2D);
 			if (!texture || texture.width !== size.width || texture.height !== size.height) {
 				texture?.destroy();
-				texture = device.createTexture({ size, format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+				texture = device.createTexture({ size, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
 			}
 			const partialStroke = shape.strokeProgress > 0 && shape.strokeProgress < 1;
 			const start = getShapeStrokeEndpoint(shape, partialStroke ? shape.strokeStart % 1 : 0);

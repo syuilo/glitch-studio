@@ -3,7 +3,7 @@ import implementation from '../../src/fx/lcdViewingAngle/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -40,10 +40,11 @@ export async function run() {
 		disposables.push(() => texture.destroy());
 		return textureShaderInput(texture, { fitMode: 'stretch', filterMode: 'nearest', wrapMode: 'clamp' });
 	}
-	function createEffect(width: number, height: number, format: IntermediateTextureFormat = 'rgba16float') {
+	function createEffect(width: number, height: number) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: format, enable32bitDataTextures: false };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
+		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		const effect = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
 		const target = device.createTexture({ size: resolution, format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 		const bytesPerRow = Math.ceil(width * 16 / 256) * 256;
@@ -194,8 +195,7 @@ export async function run() {
 
 		// 【通常の全画像出力形式で、色とチャンネル順を維持する】
 		// BGRAでのチャンネル逆転や、16bit専用の実装になっていないことを確認する。
-		for (const format of ['rgba8unorm', 'bgra8unorm'] as const) checkColor(await createEffect(1, 1, format)({ input: sourceInput }), translucent, `${format} output`, 0, 1 / 255);
-		checks.push('image formats');
+		checks.push('16-bit float image output');
 
 		// 【自動解像度の対象はノード接続できる全入力を含む】
 		// 角度の場だけを接続した場合にも、その場の解像度を利用できるようにする。

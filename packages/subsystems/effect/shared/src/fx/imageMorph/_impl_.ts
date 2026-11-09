@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -20,12 +21,12 @@ const clamp = (value: number, lower: number, upper: number) => Math.min(upper, M
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
-		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: wgpu.intermediateTextureFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
 		warpA: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
 		warpB: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
 		confidence: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const dataFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const vectorFormat = enable32bitDataTextures ? 'rg32float' : 'rg16float';
 		const scalarFormat = enable32bitDataTextures ? 'r32float' : 'r16float';
@@ -50,7 +51,7 @@ export default implementEffect<typeof definition>({
 			schema: { inputA: 'color', inputB: 'color' }, targets: [{ format: dataFormat }, { format: dataFormat }],
 			internalLayouts: [captureLayout], sampling: 'level0', entryPoint: 'capture',
 		});
-		const outputFormats: Record<typeof outputPorts[number], GPUTextureFormat> = { output: intermediateTextureFormat, warpA: vectorFormat, warpB: vectorFormat, confidence: scalarFormat };
+		const outputFormats: Record<typeof outputPorts[number], GPUTextureFormat> = { output: INTERMEDIATE_TEXTURE_FORMAT, warpA: vectorFormat, warpB: vectorFormat, confidence: scalarFormat };
 		const outputEntryPoints = { output: 'fs', warpA: 'warpA', warpB: 'warpB', confidence: 'confidence' };
 		const outputPipelines = Object.fromEntries(outputPorts.map(port => [port, createShaderInputPipeline({
 			device, vertex: defaultVertexShaderModule, code: commonCode + '\n' + outputCode,

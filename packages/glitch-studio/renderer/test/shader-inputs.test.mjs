@@ -111,7 +111,7 @@ test('keeps rendering transparent video while player frames are missing and resu
 	const videoFrameVersions = new Map();
 	const renderer = new VisualModuleRenderer({
 		gpuDevice: device, fallbackTexture: {}, resolution: { width: 16, height: 9 },
-		enableStats: false, timingHelper: null, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
+		enableStats: false, timingHelper: null, enable32bitDataTextures: false,
 		assets: [], assetTextures: new Map(), videoFrames, videoFrameVersions,
 		effectDefinitions: { video: videoDefinition }, effectImplementations: { video: videoEffect },
 		visualModule: { customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null, primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], automationGraphs: [],
@@ -156,7 +156,7 @@ test('cancels compositing while awaiting a referenced mask image', async () => {
 	const { device, calls } = gpuFixture();
 	let submissions = 0;
 	device.queue.submit = () => { submissions++; };
-	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 } });
 	let resolveMask;
 	const mask = new Promise(resolve => { resolveMask = resolve; });
 	const source = { kind: 'uniform', value: [1, 0, 0, 1] };
@@ -189,7 +189,7 @@ test('scales image layer sources once and preserves borrowed asset textures', as
 		const source = device.createTexture({ size: [3840, 2160], format: 'rgba8unorm' });
 		const layer = { compositingParamValues: { blendMode: literal('replace') }, automationGraphs: [] };
 		const renderer = createImageTimelineLayer(layer, source, {
-			device, vertex: {}, resolution: { width: 1920 * resolutionScale, height: 1080 * resolutionScale }, resolutionScale, format: 'rgba16float',
+			device, vertex: {}, resolution: { width: 1920 * resolutionScale, height: 1080 * resolutionScale }, resolutionScale
 		});
 		const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 		const context = { sceneTimeMs: 0, contentTimeMs: 0, contentEndTimeMs: 5000, clipElapsedTimeMs: 0, clipDurationMs: 5000, isExport: resolutionScale === 1 };
@@ -221,7 +221,7 @@ test('composites native-resolution sources with the selected fit before replacin
 	const { device, calls, encoder } = gpuFixture();
 	const texture = device.createTexture({ size: [3840, 2160], format: 'rgba16float' });
 	const source = { kind: 'texture', texture };
-	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 }, format: 'rgba16float' });
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 } });
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const contained = compositor.render(encoder, background, source, settings);
@@ -242,7 +242,7 @@ test('composites native-resolution sources with the selected fit before replacin
 test('keeps stretched replace outputs in scene coordinates without copying the source texture', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const resolution = { width: 8, height: 4 };
-	const compositor = createTimelineCompositor({ device, vertex: {}, resolution, format: 'rgba16float' });
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution });
 	const source = { kind: 'texture', texture: device.createTexture({ size: [16, 16], format: 'rgba16float' }) };
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'stretch', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
@@ -268,7 +268,7 @@ test('normalizes node inputs to declared scene dimensions while borrowing alread
 	encoder.finish = () => ({});
 	device.queue.submit = () => { submissions++; };
 	const resolution = { width: 8, height: 4 };
-	const output = createSceneOutput({ device, vertex: {}, resolution, format: 'rgba16float' });
+	const output = createSceneOutput({ device, vertex: {}, resolution });
 	const region = { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: resolution };
 	const uniform = { kind: 'uniform', value: [0, 0, 0, 0] };
 	assert.equal(output.renderInput(uniform), uniform);
@@ -298,7 +298,7 @@ test('normalizes node inputs to declared scene dimensions while borrowing alread
 // 実際の入力bindingへ渡すUV倍率を調べ、描画先の物理比率が背景へ混入しないことを保証する。
 test('keeps background sampling unchanged when the composite bounds expand', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 } });
 	const background = { kind: 'texture', texture: device.createTexture({ size: [8, 4], format: 'rgba16float' }) };
 	const settings = { blendMode: 0, opacity: 1, fitMode: 'contain', position: [1, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
 	const output = compositor.render(encoder, background, { kind: 'uniform', value: [0, 0, 0, 0] }, settings, { parent: [1, 0, 0, 1, 0, 0], depth: 0 });
@@ -312,7 +312,7 @@ test('keeps background sampling unchanged when the composite bounds expand', () 
 test('preserves background bounds and frame size when applying an oversized mask', () => {
 	const { device, encoder } = gpuFixture();
 	const resolution = { width: 8, height: 4 };
-	const compositor = createTimelineCompositor({ device, vertex: {}, resolution, format: 'rgba16float' });
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution });
 	const region = { bounds: { left: -2, right: 3, bottom: -1, top: 2 }, frameSize: resolution };
 	const background = { kind: 'uniform', value: [0, 0, 1, 1], region };
 	const settings = { mask: { channel: 'alpha', inverted: false }, coordinateSpace: 'screen', blendMode: 0, opacity: 1,
@@ -329,7 +329,7 @@ test('preserves background bounds and frame size when applying an oversized mask
 // 同じcompositorへの入力サイズ・fit・uniform切り替えでも毎回換算し、Positionは保持する。
 test('maps source-relative origins through fit while keeping positions in output space', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 }, format: 'rgba16float' });
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 } });
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const wide = { kind: 'texture', texture: device.createTexture({ size: [400, 200], format: 'rgba16float' }) };
 	const tall = { kind: 'texture', texture: device.createTexture({ size: [200, 400], format: 'rgba16float' }) };
@@ -356,7 +356,7 @@ test('maps source-relative origins through fit while keeping positions in output
 // positionが同じ点を指す場合は変換が相殺されるので、借用出力の最適化を維持する。
 test('only bypasses anchor placement when position cancels the fitted origin', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 } });
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const textureSource = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [1, -1], scale: [1, 1], rotation: 0 };
@@ -399,7 +399,7 @@ test('renders the selected module primary output after updates', () => {
 // 置き換え後の座標情報は更新するが、借用した画素の所有権は取得せず破棄もしない。
 test('passes through timeline outputs without taking ownership', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 } });
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const source = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
@@ -416,7 +416,7 @@ test('passes through timeline outputs without taking ownership', () => {
 // 各レイヤーが別々の出力を所有し、値の変更時には再利用、破棄時には所有物だけを解放する。
 test('owns separate timeline targets and reuses pipelines across parameter changes', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const options = { device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' };
+	const options = { device, vertex: {}, resolution: { width: 8, height: 4 } };
 	const first = createTimelineCompositor(options);
 	const second = createTimelineCompositor(options);
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
@@ -699,7 +699,7 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 });
 
 function createRenderer(device, visualModule, overrides = {}) {
-	return new VisualModuleRenderer({ gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
+	return new VisualModuleRenderer({ gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
 }
 
 function renderContext(overrides = {}) {
@@ -729,7 +729,7 @@ test('maps each input aspect ratio independently of its pixel resolution', () =>
 // 接続切替時だけvariantを作り、値・fit・wrapの更新ではpipelineを再利用する。
 test('reuses colorMix variants and releases all owned buffers', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const instance = effect.init({ wgpu: { device, intermediateTextureFormat: 'rgba8unorm', defaultVertexShaderModule: {} } });
+	const instance = effect.init({ wgpu: { device, defaultVertexShaderModule: {} } });
 	const output = device.createTexture({ size: [100, 100] });
 	const params = { inputA: constantShaderInput('color', [1, 0, 0, 1]), inputB: constantShaderInput('color', [0, 0, 1, 1]), amount: constantShaderInput('scalar', 0.25) };
 	const render = () => instance.render({ params, outputDataMap: { output: { texture: output, textureView: output.createView() } }, commandEncoder: encoder, createPassEncoderFor: () => encoder.beginRenderPass() });

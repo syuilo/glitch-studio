@@ -1,6 +1,5 @@
 import { VideoSample } from 'mediabunny';
 import { createVideoTexture } from '../../src/media/video-texture.ts';
-import type { IntermediateTextureFormat } from '../../src/types.ts';
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -73,19 +72,19 @@ export async function run() {
 		completed.push(name);
 	};
 	try {
-		for (const format of ['rgba8unorm', 'bgra8unorm', 'rgba16float'] satisfies IntermediateTextureFormat[]) {
-			const uploader = createVideoTexture(device, format);
+		{
+			const uploader = createVideoTexture(device);
 			try {
 				// 【画素コピー由来のフレームも、回転後の寸法・向き・色を維持する】
 				// 逆再生キャッシュはデコーダー由来ではない。非正方形の非対称パターンで
-				// 上下反転・回転方向・縦横の取り違えをすべての中間形式で検出する。
+				// 上下反転・回転方向・縦横の取り違えを16bit floatの中間形式で検出する。
 				for (const pixelFormat of ['RGBA', 'RGBX'] as const) for (const [rotation, indices] of [[0, [0, 1, 2, 3, 4, 5]], [90, [3, 0, 4, 1, 5, 2]], [180, [5, 4, 3, 2, 1, 0]], [270, [2, 5, 1, 4, 0, 3]]] as const) {
 					const sample = rawSample(colors, 3, 2, rotation, pixelFormat);
 					let texture: GPUTexture;
 					try { texture = uploader.upload(sample); } finally { sample.close(); }
 					const expectedWidth = rotation % 180 === 0 ? 3 : 2;
 					if (texture.width !== expectedWidth || texture.height !== 6 / expectedWidth) throw new Error('Wrong rotated video size');
-					assertPixels(`${format} ${pixelFormat} rotation ${rotation}`, await read(texture), indices.flatMap(index => colors[index].map(value => value / 255)));
+					assertPixels(`rgba16float ${pixelFormat} rotation ${rotation}`, await read(texture), indices.flatMap(index => colors[index].map(value => value / 255)));
 				}
 				// 【透明画素の色は縮小後の輪郭へ混ぜず、alphaは一度だけ乗算する】
 				// 線形補間後に乗算すると透明な緑が残り、二重乗算すると半透明の赤が暗くなる。
@@ -96,7 +95,7 @@ export async function run() {
 					const sample = rawSample(pixels.map(color => [...color]), 2, 1);
 					let texture: GPUTexture;
 					try { texture = uploader.upload(sample, 0.5); } finally { sample.close(); }
-					assertPixels(`${format} ${name}`, await read(texture), [...expected]);
+					assertPixels(`rgba16float ${name}`, await read(texture), [...expected]);
 				}
 				// 【VideoFrameの切り抜き・表示比率と、Mediabunnyの回転をそれぞれ一度だけ適用する】
 				// coded領域には余白を置き、visibleRectと非正方形ピクセルの補正が失われる回帰を検出する。
@@ -125,7 +124,7 @@ export async function run() {
 				let croppedTexture: GPUTexture;
 				try { croppedTexture = uploader.upload(cropped); } finally { cropped.close(); }
 				if (croppedTexture.width !== 2 || croppedTexture.height !== 4) throw new Error('Wrong cropped video display size');
-				assertPixels(`${format} crop and pixel aspect ratio`, await read(croppedTexture), expectedCrop);
+				assertPixels(`rgba16float crop and pixel aspect ratio`, await read(croppedTexture), expectedCrop);
 			} finally { uploader.dispose(); }
 		}
 		// 【実デコーダーが返すYUVフレームを、元フレームの解放後も通常テクスチャとして読める】
@@ -136,7 +135,7 @@ export async function run() {
 		const encoder = new VideoEncoder({ output(chunk, metadata) { chunks.push(chunk); decoderConfig = metadata.decoderConfig ?? decoderConfig; }, error(error) { codecError = error; } });
 		const decoded: VideoSample[] = [];
 		const decoder = new VideoDecoder({ output(frame) { decoded.push(new VideoSample(frame)); }, error(error) { codecError = error; } });
-		const uploader = createVideoTexture(device, 'rgba8unorm');
+		const uploader = createVideoTexture(device);
 		try {
 			encoder.configure({
 				codec: 'avc1.42001f',

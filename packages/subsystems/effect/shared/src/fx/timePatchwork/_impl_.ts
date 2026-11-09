@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -17,11 +18,11 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const analysisFormat = enable32bitDataTextures ? 'rg32float' : 'rg16float';
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
@@ -62,7 +63,7 @@ export default implementEffect<typeof definition>({
 			device, vertex: defaultVertexShaderModule, code: commonCode + '\n' + composeCode,
 			schema: { input: 'color' }, internalLayouts: [composeLayout],
 			sampling: 'level0', entryPoint: 'compose',
-			targets: [{ format: intermediateTextureFormat }, { format: historyFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }, { format: historyFormat }],
 		});
 		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
 		const createTexture = (size: { width: number; height: number }, format: GPUTextureFormat) => device.createTexture({

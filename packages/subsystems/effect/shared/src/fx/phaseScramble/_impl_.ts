@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -18,9 +19,9 @@ const finiteNumber = (value: number, fallback: number) => Number.isFinite(value)
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
-		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: wgpu.intermediateTextureFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule }, resolution }) => {
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(effectCommonCode).uniforms.uniforms);
 		const uniformSize = uniformValues.arrayBuffer.byteLength;
 		const uniformStride = Math.ceil(uniformSize / device.limits.minUniformBufferOffsetAlignment) * device.limits.minUniformBufferOffsetAlignment;
@@ -50,7 +51,7 @@ export default implementEffect<typeof definition>({
 					output: device.createRenderPipeline({
 						layout: device.createPipelineLayout({ bindGroupLayouts: [outputLayout, bindings.layout] }),
 						vertex: { module: defaultVertexShaderModule },
-						fragment: { module: device.createShaderModule({ code: prefix + outputCode }), entryPoint: 'fs', targets: [{ format: intermediateTextureFormat }] },
+						fragment: { module: device.createShaderModule({ code: prefix + outputCode }), entryPoint: 'fs', targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 						primitive: { topology: 'triangle-list' },
 					}),
 				};

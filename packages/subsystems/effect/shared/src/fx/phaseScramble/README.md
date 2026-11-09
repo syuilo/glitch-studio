@@ -39,7 +39,7 @@ GPU上のradix-2 FFTで、行・列の順に前向き変換し、係数へ次の
 F_processed(k) = F_input(k) × exp(i × Amount × frequencyWeight(k) × phaseOffset(k))
 ```
 
-実際には`F_processed - F_input`だけを逆FFTし、元の高解像度画像へ差分を戻す。解析解像度まで元画像の細部を縮小せず、帯域外の差分は厳密に0となる。逆FFTは各段で1/2に正規化する。計算bufferは精度設定によらずf32で、出力はintermediateTextureFormatに従う。
+実際には`F_processed - F_input`だけを逆FFTし、元の高解像度画像へ差分を戻す。解析解像度まで元画像の細部を縮小せず、帯域外の差分は厳密に0となる。逆FFTは各段で1/2に正規化する。計算bufferは精度設定によらずf32で、出力はINTERMEDIATE_TEXTURE_FORMATに従う。
 
 DCと自己共役のNyquist成分は変更しない。他の周波数は共役対の片側から乱数を生成し、対へ逆符号の位相差を適用する。これにより、各周波数振幅を保ちつつ逆変換を実数に保つ。RGB Linkedではチャンネル間の相対位相を保ち、RGB Independentではチャンネルごとに異なる位相差を使う。
 

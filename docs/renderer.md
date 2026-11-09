@@ -57,13 +57,13 @@ Visual ModuleのIn/Out・バイパス・タイムラインのレイヤー間で�
 
 ### 画像形式・データ精度・GPU機能の役割
 
-`intermediateTextureFormat` と `enable32bitDataTextures` は、目的が異なる独立した設定です。
+通常の画像出力は `rgba16float` に固定し、データ用テクスチャの精度だけを `enable32bitDataTextures` で選択します。
 
-- **`wgpu.intermediateTextureFormat`** は通常の画像出力の保存形式です。`IntermediateTextureFormat` はアプリ側の型で、現在は `rgba8unorm` / `bgra8unorm` / `rgba16float` を許可します。画像の階調・保存範囲・メモリ使用量と、ハードウェアブレンディングへの対応を考慮して選びます。
+- **`INTERMEDIATE_TEXTURE_FORMAT`**（`@gs/shared/types.ts`）は通常の画像出力の保存形式を表す定数で、値は `rgba16float` です。エフェクトを含む各生成処理がこの定数を直接参照し、GPUコンテキストには画像形式の設定を持たせません。0〜1の範囲外の値を保持し、フィルタリングとハードウェアブレンディングに対応します。プレビュー・Timeline・書き出しで同じ形式を使い、環境設定やManagerの初期化オプションには含めません。Timelineの合成・Scene出力・文字・シェイプ・動画転送も形式の引数を持たず、生成側で同じ定数を参照します。Canvasの表示形式と素材・マスク等の取り込み用テクスチャは、それぞれの用途に応じた形式を使います。
 - **`wgpu.enable32bitDataTextures`** はデータ用・内部計算用の浮動小数点テクスチャの保存精度を選ぶアプリ側の設定です。falseなら16bit float、trueなら32bit floatを使います。GPUの対応可否や、フィルタリングを行うかどうかを直接表す設定ではありません。
 - **`float32-filterable`** は32bit floatテクスチャのフィルタリング読み取りを可能にするWebGPUの追加機能です。有効化してもテクスチャの保存形式は自動で変わりません。形式はテクスチャ作成時に指定します。
 
-例えば、画像出力を `rgba8unorm`、変形に使うベクトル場を `rg32float` にする構成は正常です。`enable32bitDataTextures` がtrueでも通常の画像出力を32bitに変更せず、逆にfalseでも画像用に `rgba16float` を選べます。
+例えば、画像出力を `rgba16float`、変形に使うベクトル場を `rg32float` にする構成は正常です。`enable32bitDataTextures` がtrueでもfalseでも、通常の画像出力は `rgba16float` のままです。
 
 **レンダラー側から見ると、`enable32bitDataTextures === true` なら、そのレンダラーが使用するGPUDeviceでは必ず `float32-filterable` が有効です。** デバイス初期化側が `requiredFeatures` に含めて要求し、この前提を保証します。アダプターが対応しているだけでは不十分で、使用するデバイスで有効化済みである必要があります。非workerなど別の経路でレンダラーを初期化する場合も、呼び出し側が同じ前提を守ります。
 
@@ -83,7 +83,7 @@ Visual ModuleのIn/Out・バイパス・タイムラインのレイヤー間で�
 | 2成分ベクトル場 | `rg16float` | `rg32float` |
 | 4成分データ・浮動小数点の履歴 | `rgba16float` | `rgba32float` |
 
-- falseのときに32bit floatのノード出力を生成してはいけません。通常の画像出力は `wgpu.intermediateTextureFormat` に従います。
+- falseのときに32bit floatのノード出力を生成してはいけません。通常の画像出力は `INTERMEDIATE_TEXTURE_FORMAT` に従います。
 - 出力だけでなく、内部の一時テクスチャ・履歴・compute shaderのstorage textureにも精度設定を適用します。テクスチャの生成形式、render pipelineのtarget、bind group layoutのstorage形式、WGSLのstorage texture宣言は必ず一致させます。出力チャンネル数も合わせてください。
 - CPUから16bit floatへアップロードするときは、数値をhalfのビット表現に変換します。`Float32Array` のバイト列をそのまま渡してはいけません。`bytesPerRow` も保存形式に合わせます。共通の変換処理は `packages/shared/src/utility/float32ToFloat16Bits.ts` にあります。
 - 16bit化では丸めと表現範囲の縮小が発生します。履歴との差分を計算する処理では、現在値と履歴値を同じ保存精度に揃えて、静止入力に丸め由来の差分が出ないようにします。蓄積では保存可能な範囲への制限などによりオーバーフローを防ぎます。

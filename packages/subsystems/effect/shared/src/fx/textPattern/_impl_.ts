@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -22,11 +23,11 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, intermediateTextureFormat }, resolution, reportStatus, resources }) => {
+	init: ({ wgpu: { device }, resolution, reportStatus, resources }) => {
 		const canvas = new OffscreenCanvas(1, 1);
 		const canvasContext = canvas.getContext('2d');
 		if (canvasContext == null) throw new Error('Could not create a Text Pattern canvas.');
@@ -57,7 +58,7 @@ export default implementEffect<typeof definition>({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [renderLayout] }),
 			vertex: { module: renderModule, entryPoint: 'vs' },
 			fragment: { module: renderModule, entryPoint: 'fs', targets: [{
-				format: intermediateTextureFormat,
+				format: INTERMEDIATE_TEXTURE_FORMAT,
 				blend: {
 					color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
 					alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },

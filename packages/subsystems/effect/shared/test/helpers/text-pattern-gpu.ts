@@ -6,7 +6,7 @@ import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import type { EffectImplementation } from '../../src/effect-implementation.ts';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -54,12 +54,13 @@ export async function run() {
 		} finally { buffer.destroy(); target.destroy(); }
 	}
 
-	function createEffect(width: number, height: number, format: IntermediateTextureFormat = 'rgba8unorm', effectKind: 'text' | 'textPattern' = 'textPattern') {
+	function createEffect(width: number, height: number, effectKind: 'text' | 'textPattern' = 'textPattern') {
 		const selectedDefinition = effectKind === 'text' ? textDefinition : definition;
 		const selectedImplementation: EffectImplementation = effectKind === 'text' ? textImplementation : implementation;
 		const resolution = { width, height };
-		const wgpu = { device, intermediateTextureFormat: format, enable32bitDataTextures: false, defaultVertexShaderModule };
+		const wgpu = { device, enable32bitDataTextures: false, defaultVertexShaderModule };
 		const output = selectedImplementation.outputTextureFactories.output({ wgpu, resolution });
+		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		owned.push(output);
 		const selectedDefaults = Object.fromEntries(Object.entries(selectedDefinition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value]));
 		const base = { ...selectedDefaults, text: 'F', size: 0.22, sizeReference: 'height', ...(effectKind === 'text' ? { overflow: 'none' } : { repetitions: [1, 1] }) } as Parameters;
@@ -137,7 +138,7 @@ export async function run() {
 		// TextとText Patternの両方で、縦長・横長の固定軸と長辺・短辺の対応を保つ。
 		for (const effectKind of ['text', 'textPattern'] as const) {
 			for (const [width, height] of [[256, 128], [128, 256]]) {
-				const target = createEffect(width, height, 'rgba8unorm', effectKind);
+				const target = createEffect(width, height, effectKind);
 				const heightImage = await target.render({ sizeReference: 'height' });
 				const widthImage = await target.render({ sizeReference: 'width' });
 				const shortImage = await target.render({ sizeReference: 'shortSide' });
@@ -275,11 +276,7 @@ export async function run() {
 			equalPixels(await effect.render({ position: [0.25, -0.0625] }), await effect.render({ translation: vector([0.25, -0.0625]) }));
 		}
 		checks.push('resource limit recovery');
-		for (const format of ['bgra8unorm', 'rgba16float'] as const) {
-			const other = createEffect(256, 128, format);
-			equalPixels(await other.render(), original);
-		}
-		checks.push('intermediate formats');
+		checks.push('16-bit float intermediate output');
 		const fontResponse = await fetch('/font');
 		if (fontResponse.ok) {
 			await effect.loadFont(await fontResponse.blob());

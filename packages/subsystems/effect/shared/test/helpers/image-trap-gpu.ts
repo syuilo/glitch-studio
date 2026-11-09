@@ -12,7 +12,7 @@ export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
 	if (adapter == null) throw new Error('WebGPU adapter unavailable');
 	const device = await adapter.requestDevice();
-	const wgpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }), intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: false };
+	const wgpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }), enable32bitDataTextures: false };
 	const checks: string[] = [];
 	const resources: (() => void)[] = [];
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,

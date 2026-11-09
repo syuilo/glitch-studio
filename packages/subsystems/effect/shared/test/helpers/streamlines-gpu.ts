@@ -13,7 +13,7 @@ export async function run() {
 	if (adapter == null) throw new Error('WebGPU adapter unavailable');
 	const supportsFloat32 = adapter.features.has('float32-filterable');
 	const device = await adapter.requestDevice({ requiredFeatures: supportsFloat32 ? ['float32-filterable'] : [] });
-	const wgpu = { device, intermediateTextureFormat: 'rgba8unorm' as const, enable32bitDataTextures: false, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }) };
+	const wgpu = { device, enable32bitDataTextures: false, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }) };
 	const checks: string[] = [];
 	const assert = (condition: boolean, label: string) => {
 		if (!condition) throw new Error(label);

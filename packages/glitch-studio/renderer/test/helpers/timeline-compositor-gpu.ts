@@ -12,7 +12,6 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		device,
 		vertex,
 		resolution,
-		format: 'rgba8unorm',
 	});
 	const textures: GPUTexture[] = [];
 	const completed: string[] = [];

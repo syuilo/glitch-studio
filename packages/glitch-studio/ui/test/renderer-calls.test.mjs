@@ -121,7 +121,7 @@ async function fixture(t, options = {}) {
 	runInNewContext(controllerCode, context);
 	const controller = new context.module.exports.VisualModuleRendererManagerController({});
 	const initialOptions = {
-		staticOptions: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false },
+		staticOptions: { enable32bitDataTextures: false, enableStats: false },
 		dynamicOptions: { fpsLimit: null, resolution: { width: 1, height: 1 }, resolutionScale: 1 },
 		resources: { assets: [], players: [] },
 	};
@@ -343,16 +343,14 @@ test('reports resource preparation failures during initialization', async t => {
 	assert.equal(controller.isReady.value, false);
 });
 
-// プレビューの静的設定を変更すると、新しい設定でWorkerを再生成する。
-// 既存GPUリソースの形式は途中で変えられないため、設定の保持だけで更新を終えてはいけない。
+// 【データ精度の静的設定を変更すると、新しい設定でWorkerを再生成する】
+// 既存GPUリソースの精度は途中で変えられないため、設定の保持だけで更新を終えてはいけない。
 test('reloads the preview worker with updated static settings', async t => {
 	const { controller, instances, initialOptions, start, restart } = await fixture(t);
-	Object.assign(initialOptions.staticOptions, { intermediateTextureFormat: 'rgba16float', enable32bitDataTextures: true });
+	initialOptions.staticOptions.enable32bitDataTextures = true;
 	await restart();
 	assert.equal(instances.length, 2);
-	assert.equal(instances[0].staticOptions.intermediateTextureFormat, 'rgba8unorm');
 	assert.equal(instances[0].staticOptions.enable32bitDataTextures, false);
-	assert.equal(instances[1].staticOptions.intermediateTextureFormat, 'rgba16float');
 	assert.equal(instances[1].staticOptions.enable32bitDataTextures, true);
 });
 

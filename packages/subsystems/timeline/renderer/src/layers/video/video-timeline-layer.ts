@@ -5,7 +5,6 @@ import { TimelineCompositingParameters } from '../../timeline-compositing-parame
 import type { FileSource } from '@gs/shared/file-source.ts';
 import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import type { TimelineVideoLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
@@ -24,7 +23,6 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 	vertex: GPUShaderModule;
 	resolution: { width: number; height: number };
 	resolutionScale: number;
-	format: IntermediateTextureFormat;
 	onCompositing?: TimelineCompositingObserver | null;
 	onTiming?: ((timing: VideoTimelineLayerTiming) => void) | null;
 }): TimelineLayerRenderer<TimelineImage> {
@@ -32,7 +30,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 	// Replaceやマスクが下層を消すため、画像を返さず「映像出力なし」として扱う。
 	if (!options.videoEnabled) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };
 	const source = openVideoSource(fileSource);
-	const texture = createVideoTexture(options.device, options.format);
+	const texture = createVideoTexture(options.device);
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();
 	let disposed = false;

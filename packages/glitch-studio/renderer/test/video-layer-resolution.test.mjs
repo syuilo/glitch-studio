@@ -127,7 +127,7 @@ async function timelineFixture(t, { enableStats = false, timelineMotionBlur = { 
 			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
 			init: () => ({ render: ctx => calls.renders.push(ctx), dispose() {} }),
 		} },
-	}, { enableStats, timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }] });
+	}, { enableStats, timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, }, { assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }] });
 	calls.compositing = [];
 	manager.createCompositingObserver = (_sceneId, layerId) => (foreground, settings) => calls.compositing.push({ layerId, foreground, settings });
 	manager.on('ev', event => { if (event.type === 'renderError') calls.errors.push(event.ctx.message); });
@@ -548,7 +548,7 @@ test('scales video sources once through replace composition and automatic proces
 // 小さい素材の丸めと、転送寸法の切り替え時に旧リソースを回収することも確認する。
 test('preserves native uploads by default and reuses textures at the same scaled size', t => {
 	const { device, sample, calls } = gpuFixture(t);
-	const uploader = createVideoTexture(device, 'rgba8unorm');
+	const uploader = createVideoTexture(device);
 	t.after(() => uploader.dispose());
 	const frame = sample(7, 1);
 	const small = uploader.upload(frame, 0.25);
@@ -567,7 +567,7 @@ for (const format of ['RGBA', null]) {
 	// 原寸へ戻ると追加描画も不要になるため、前の縮小用テクスチャを保持し続けないことを確認する。
 	test(`copies ${format ?? 'undisclosed format'} frames before resizing and releases intermediate textures at native size`, t => {
 		const { device, sample, calls } = gpuFixture(t);
-		const uploader = createVideoTexture(device, 'rgba8unorm');
+		const uploader = createVideoTexture(device);
 		t.after(() => uploader.dispose());
 		const source = sample(16, 8, 0, format);
 		const resized = uploader.upload(source, 0.5);
@@ -589,7 +589,7 @@ for (const operation of ['import', 'copy']) {
 	// sample自体は呼び出し側が管理するため、取り込み処理が先にcloseしてはいけない。
 	test(`closes conversion frames on GPU ${operation} failure without closing the source sample`, t => {
 		const { device, sample, calls } = gpuFixture(t);
-		const uploader = createVideoTexture(device, 'rgba8unorm');
+		const uploader = createVideoTexture(device);
 		t.after(() => uploader.dispose());
 		if (operation === 'import') device.importExternalTexture = () => { throw new Error('GPU upload failed'); };
 		else device.queue.copyExternalImageToTexture = () => { throw new Error('GPU upload failed'); };

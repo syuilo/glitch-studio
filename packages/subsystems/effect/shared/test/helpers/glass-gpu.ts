@@ -7,7 +7,7 @@ import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { ShaderInput, ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -60,7 +60,7 @@ export async function run() {
 	const checks: string[] = [];
 	const disposables: (() => void)[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
-	const gpuContext = (precise: boolean, format: IntermediateTextureFormat = 'rgba16float') => ({ device, defaultVertexShaderModule: vertex, intermediateTextureFormat: format, enable32bitDataTextures: precise });
+	const gpuContext = (precise: boolean) => ({ device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise });
 	const sampling = (overrides: Partial<ShaderInputSampling> = {}): ShaderInputSampling => ({ fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear', ...overrides });
 
 	function inputTexture(width: number, height: number, components: 1 | 4, values: number[], precise = false, settings: Partial<ShaderInputSampling> = {}) {
@@ -80,11 +80,11 @@ export async function run() {
 		return inputTexture(width, height, 4, Array.from({ length: width * height }, (_, index) => [(index % width + 0.5) / width, (Math.floor(index / width) + 0.5) / height, (index % width + 0.5) / width, 1]).flat()).input;
 	}
 
-	function createEffect(width: number, height: number, precise: boolean, format: IntermediateTextureFormat) {
+	function createEffect(width: number, height: number, precise: boolean) {
 		const resolution = { width, height };
-		const wgpu = gpuContext(precise, format);
+		const wgpu = gpuContext(precise);
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
-		assert(output.format === format, 'color format must be independent of data precision');
+		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'color format must be independent of data precision');
 		const effect = implementation.init({ wgpu, resolution, params: defaults, fallbackTexture: output, reportStatus: () => {} });
 		const copyTarget = device.createTexture({ size: resolution, format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 		const bytesPerRow = Math.ceil(width * 16 / 256) * 256;
@@ -166,13 +166,13 @@ export async function run() {
 		assert(Object.entries(definition.paramDefs).filter(([, param]) => 'canNode' in param && param.canNode).map(([name]) => name).join(',') === 'input,sdf', 'only image and SDF are node inputs');
 		checks.push('color and scalar ports independent zoom center and resolution contract');
 
-		for (const precise of supports32bit ? [false, true] : [false]) for (const format of ['rgba8unorm', 'rgba16float'] as const) {
-			const label = `${precise ? '32bit' : '16bit'} SDF / ${format}`;
-			const tolerance = format === 'rgba8unorm' ? 0.0041 : 0.001;
+		for (const precise of supports32bit ? [false, true] : [false]) {
+			const label = `${precise ? '32bit' : '16bit'} SDF / rgba16float`;
+			const tolerance = 0.001;
 			const near = (actual: number, expected: number, message: string) => assert(Math.abs(actual - expected) <= tolerance, `${label} ${message}: ${actual} != ${expected}`);
 			const pixel = (pixels: Float32Array, width: number, x: number, y: number) => Array.from(pixels.subarray((y * width + x) * 4, (y * width + x + 1) * 4));
 			const rgbaNear = (actual: number[], expected: number[], message: string) => actual.forEach((value, channel) => near(value, expected[channel], `${message} channel ${channel}`));
-			const sample = createEffect(1, 1, precise, format);
+			const sample = createEffect(1, 1, precise);
 			const opaque = color([0.25, 0.5, 0.75, 1]);
 			const full = { ...neutral, sdf: scalar(-1), input: opaque };
 
@@ -195,7 +195,7 @@ export async function run() {
 
 			// 【ズームの支点を形状と独立させ、画面座標のY方向も確認する】
 			// 色勾配の画像は参照UVをそのまま表すため、倍率と支点の取り違えを検出できる。
-			const render = createEffect(64, 64, precise, format);
+			const render = createEffect(64, 64, precise);
 			const image = gradientImage(64, 64);
 			const zoomBase = { ...neutral, input: image, sdf: scalar(-1), innerZoom: 2 };
 			const centered = pixel(await render(zoomBase), 64, 32, 32);
@@ -224,7 +224,7 @@ export async function run() {
 			const vertical = field(64, 64, precise, (_u, v) => 0.5078125 - v - depth);
 			near(pixel(await render({ ...refractParams, sdf: vertical }), 64, 32, 32)[1], 0.5078125 + strength, 'upward normal samples downward');
 			for (const [width, height] of [[128, 64], [128, 128]]) {
-				const wideRender = createEffect(width, height, precise, format);
+				const wideRender = createEffect(width, height, precise);
 				const centerU = (width / 2 + 0.5) / width;
 				const widePlane = field(width, height, precise, u => ((u - centerU) * width / height - depth) * height / Math.max(width, height));
 				const result = await wideRender({ ...refractParams, input: gradientImage(width, height), sdf: widePlane });
@@ -256,7 +256,7 @@ export async function run() {
 			const nearUnitIndex = pixel(await render({ ...curvedParams, ior: 1.01 }), 64, 32, 32)[0];
 			const glassIndex = pixel(await render({ ...curvedParams, ior: 1.5 }), 64, 32, 32)[0];
 			// 縁の最大値で正規化するため、IORと内側の強さは単調関係ではない。
-			// 8bitでも識別できる十分に異なる2つのIORで、パラメータが作用することを確認する。
+			// 十分に異なる2つのIORで、パラメータが作用することを確認する。
 			assert(Math.abs(nearUnitIndex - glassIndex) > 0.01, 'IOR changes the depth profile');
 			checks.push(`${label}: curved profiles against independent Snell reference`);
 
@@ -287,7 +287,7 @@ export async function run() {
 			near(pixel(await render({ ...curvedParams, sdf: shallowGradient }), 64, 32, 32)[0], 0.5078125 - curvedStrength, 'curved displacement uses unit gradient direction');
 			near(pixel(await render({ ...curvedParams, sdf: vertical }), 64, 32, 32)[1], 0.5078125 + curvedStrength, 'curved vertical direction');
 			for (const [width, height] of [[128, 64], [128, 128]]) {
-				const sizedRender = createEffect(width, height, precise, format);
+				const sizedRender = createEffect(width, height, precise);
 				const centerU = (width / 2 + 0.5) / width;
 				const sizedPlane = field(width, height, precise, u => ((u - centerU) * width / height - depth) * height / Math.max(width, height));
 				near(pixel(await sizedRender({ ...curvedParams, input: gradientImage(width, height), sdf: sizedPlane }), width, width / 2, height / 2)[0], centerU - curvedStrength * height / width, 'curved resolution and aspect invariance');
@@ -321,7 +321,7 @@ export async function run() {
 			const ripplePeriod = 0.125;
 			const tangentialSlope = rippleAmplitude * Math.sin(2 * Math.PI * normalRadius / ripplePeriod) / normalRadius;
 			for (const [width, height] of [[64, 64], [128, 64], [128, 128]]) {
-				const sizedRender = createEffect(width, height, precise, format);
+				const sizedRender = createEffect(width, height, precise);
 				const centerU = (width / 2 + 0.5) / width;
 				const centerV = (height / 2 + 0.5) / height;
 				for (const verticalNormal of [false, true]) {
@@ -451,7 +451,7 @@ export async function run() {
 
 			// 【ぼかしは乗算済みRGBAのまま計算し、時間によって揺れない】
 			// 半透明の小さな光点を広げ、黒い縁やalphaの二重乗算が出ないことを確認する。
-			const impulseRender = createEffect(33, 33, precise, format);
+			const impulseRender = createEffect(33, 33, precise);
 			const impulse = inputTexture(33, 33, 4, Array.from({ length: 33 * 33 }, (_, index) => index === 16 * 33 + 16 ? [0.5, 0.5, 0.5, 0.5] : [0, 0, 0, 0]).flat()).input;
 			const blurParams = { ...neutral, sdf: scalar(-1), input: impulse, blur: 0.08 };
 			const blurred = await impulseRender(blurParams);
@@ -514,7 +514,7 @@ export async function run() {
 
 			// 【境界AAとFeatherはRGBA全体へ適用する】
 			// Cutout時にRGBだけが残らず、境界ちょうどが半分の被覆率になることを確認する。
-			const edgeRender = createEffect(16, 4, precise, format);
+			const edgeRender = createEffect(16, 4, precise);
 			const edgePlane = field(16, 4, precise, u => u - 0.53125);
 			const edge = await edgeRender({ ...neutral, input: color([1, 1, 1, 0.5]), sdf: edgePlane, cutout: true });
 			rgbaNear(pixel(edge, 16, 8, 2), [0.25, 0.25, 0.25, 0.25], 'AA boundary coverage');
@@ -539,7 +539,7 @@ export async function run() {
 
 			// 【画像のwrapは屈折・ズーム後の各サンプル位置へ適用する】
 			// 上流画像を事前に切り抜くことで、Repeatや透明余白の意味を変えてしまわない。
-			const wrappedRender = createEffect(8, 1, precise, format);
+			const wrappedRender = createEffect(8, 1, precise);
 			const expectedRed = { repeat: [0, 0, 1, 1, 0, 0, 1, 1], repeatMirrored: [1, 1, 1, 1, 0, 0, 0, 0], clamp: [1, 1, 1, 1, 0, 0, 0, 0], transparent: [0, 0, 1, 1, 0, 0, 0, 0] };
 			for (const wrapMode of ['repeat', 'repeatMirrored', 'clamp', 'transparent'] as const) {
 				const wrapped = inputTexture(2, 1, 4, [1, 0, 0, 1, 0, 1, 0, 1], false, { wrapMode, filterMode: 'nearest' }).input;

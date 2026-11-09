@@ -3,7 +3,7 @@ import implementation from '../../src/fx/lightTracing2d/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -49,10 +49,11 @@ export async function run() {
 			return pixels;
 		} finally { buffer.destroy(); target.destroy(); }
 	}
-	function createEffect(width: number, height: number, format: IntermediateTextureFormat = 'rgba8unorm', enable32bitDataTextures = false) {
+	function createEffect(width: number, height: number, enable32bitDataTextures = false) {
 		const resolution = { width, height };
-		const wgpu = { device, intermediateTextureFormat: format, enable32bitDataTextures, defaultVertexShaderModule: vertex };
+		const wgpu = { device, enable32bitDataTextures, defaultVertexShaderModule: vertex };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
+		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		owned.push(output);
 		const effect = implementation.init({ wgpu, resolution, params: defaults, reportStatus: () => {}, fallbackTexture: output });
 		effects.push(effect);
@@ -145,18 +146,14 @@ export async function run() {
 		const bounded = await effect.render({ input: edgeEmitter, absorption: 10, resolutionScale: 1 });
 		assert(at(bounded, 96, 2, 32)[0] === 0, 'ray wrapped around the scene boundary');
 		checks.push('bounded lighting space');
-		for (const format of ['bgra8unorm', 'rgba16float'] as const) {
-			const formatted = await createEffect(96, 64, format).render(settings);
-			assert(at(formatted, 96, 48, 32).every((value, index) => Math.abs(value - center[index]) <= 1), `output format ${format}`);
-		}
 		if (supports32bit) {
-			const precise = await createEffect(96, 64, 'rgba8unorm', true).render(settings);
+			const precise = await createEffect(96, 64, true).render(settings);
 			assert(at(precise, 96, 48, 32).every((value, index) => Math.abs(value - center[index]) <= 1), '32bit internal data');
 			checks.push('32bit internal textures');
 		}
 		const small = await createEffect(1, 1).render({ input: constantShaderInput('color', [1, 0, 0, 1]) });
 		assert(small[0] === 255 && small[3] === 255, 'one-pixel output');
-		checks.push('output formats', 'one-pixel output');
+		checks.push('16-bit float output', 'one-pixel output');
 
 		// 【大きな座標】16bit floatの連続整数範囲を超える位置の細線でも、光源・壁の位置を混同しない。
 		const wideScene = image(4096, 8, x => x === 3001 ? red : x === 3003 ? black : transparent);

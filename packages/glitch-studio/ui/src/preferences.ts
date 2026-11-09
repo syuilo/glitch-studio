@@ -5,7 +5,6 @@ import { DEFAULT_PROJECT_BACKUP_SETTINGS } from './project-backups.ts';
 import type { Ref } from 'vue';
 import type { WorkspaceElement } from './workspace.ts';
 import type { MenuItem } from './types/menu.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { TimelineTickMode } from './utility/timeline-ticks.ts';
 import type { PreviewDisplayMode } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 
@@ -43,7 +42,6 @@ export const PREF_DEF = definePreferences({
 	timelineSnapSeekBar: { default: () => false },
 	enable32bitDataTextures: { default: () => false },
 	effectRenderTileDivisionLevel: { default: () => 0 },
-	intermediateTextureFormat: { default: () => null as IntermediateTextureFormat | null },
 	renderingStatsEnabled: { default: () => true },
 	previewDisplayMode: { default: (): PreviewDisplayMode => 'gpu' },
 	analysisMonitorsEnabled: { default: () => true },

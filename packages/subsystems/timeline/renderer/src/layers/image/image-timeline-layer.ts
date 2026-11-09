@@ -4,7 +4,7 @@ import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import type { TimelineImageLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
@@ -13,7 +13,6 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 	vertex: GPUShaderModule;
 	resolution: { width: number; height: number };
 	resolutionScale: number;
-	format: IntermediateTextureFormat;
 	onCompositing?: TimelineCompositingObserver | null;
 }): TimelineLayerRenderer<TimelineImage> {
 	const compositor = createTimelineCompositor(options);
@@ -43,14 +42,14 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 				if (!scaledTexture && (sourceResolution.width !== sourceTexture.width || sourceResolution.height !== sourceTexture.height)) {
 					scaledTexture = options.device.createTexture({
 						size: sourceResolution,
-						format: options.format,
+						format: INTERMEDIATE_TEXTURE_FORMAT,
 						usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 					});
 					scalingPipeline = createShaderInputPipeline({
 						device: options.device,
 						vertex: options.vertex,
 						schema: { source: 'color' },
-						targets: [{ format: options.format }],
+						targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 						code: '@fragment fn fs(@location(0) position: vec2f) -> @location(0) vec4f { return read_source(position); }',
 					});
 					// Asset側で既にpremultiply済みなので、RGBAをそのまま補間する。

@@ -253,7 +253,6 @@ async function doExport() {
 			status.value = '';
 		}
 		signal.throwIfAborted();
-		const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
 		// 映像・音声モニターとUI表示の休止完了を待つ。途中で失敗しても復帰を試みる。
 		previewDisposed = true;
 		await appContext.suspendPreview();
@@ -268,8 +267,6 @@ async function doExport() {
 			renderer: {
 				enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 				effectRenderTileDivisionLevel: preferences.s.effectRenderTileDivisionLevel,
-				intermediateTextureFormat: preferences.s.intermediateTextureFormat
-					?? (preferredFormat === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm'),
 			},
 		}, signal, value => {
 			progress.value = value;

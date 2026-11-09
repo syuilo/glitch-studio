@@ -66,7 +66,6 @@ export async function run() {
 					device,
 					defaultVertexShaderModule: vertex,
 					enable32bitDataTextures: use32bit,
-					intermediateTextureFormat: 'rgba16float',
 				},
 			});
 			let renderer = createRenderer(null);

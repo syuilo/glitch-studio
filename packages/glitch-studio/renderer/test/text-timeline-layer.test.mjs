@@ -81,7 +81,7 @@ async function fixture(t) {
 	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: {}, effectImplementations: {},
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float' }, { assets: [] });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, }, { assets: [] });
 	manager.presentOutput = output => calls.outputs.push(output);
 	t.after(() => manager.destroy());
 	const setup = (layers, extra = {}) => manager.updateDynamicOptions({

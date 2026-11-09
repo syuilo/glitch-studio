@@ -43,7 +43,7 @@ GPUで重み付き平均と共分散を求める。差し引きによる桁落�
 
 ## 色と出力
 
-転送前後のOklabのLをLightness Match、a・bをChroma Matchでそれぞれ補間してからsRGBへ戻す。主入力のalphaを一度だけ乗算し、位置や被覆率は変えない。符号付きのsRGB変換・立方根を使い、RGBを0〜1へclampせずHDR・負値を保持する。f32の色空間変換で有限範囲を超える画素は元の値を保持する。最終的な保存範囲・精度はintermediateTextureFormatに従う。
+転送前後のOklabのLをLightness Match、a・bをChroma Matchでそれぞれ補間してからsRGBへ戻す。主入力のalphaを一度だけ乗算し、位置や被覆率は変えない。符号付きのsRGB変換・立方根を使い、RGBを0〜1へclampせずHDR・負値を保持する。f32の色空間変換で有限範囲を超える画素は元の値を保持する。最終的な保存範囲・精度はINTERMEDIATE_TEXTURE_FORMATに従う。
 
 同じ色には同じ変換を適用し、被写体の意味や画像間の空間的な対応は解析しない。例えばReferenceに空の青が多いと人物へも青みが移り得る。解析マスクで対象の色を絞り込める。動画もその描画の入力から毎回解析し、履歴による時間方向の平滑化や変換の固定は行わない。
 
@@ -56,6 +56,6 @@ GPUで重み付き平均と共分散を求める。差し引きによる桁落�
 
 統計は常にf32のstorage buffer。入力・参照の部分統計は一組96byteで、最大65536点では1024組・96KiB。色変換は96byte。解析点数の増加で必要な容量が増えた場合だけbufferを再作成する。解析・色変換計算・出力描画の順に実行し、CPUへの読み戻しは行わない。GPUのbuffer・dispatch上限を超える場合はエラーにする。
 
-`CHROME_PATH`を設定して`node --test packages/subsystems/effect/shared/test/palette-match.gpu.test.mjs`を実行すると、既知の対称な色変換・全共分散成分・独立調整・主軸の増幅上限・alpha重み・解析マスク・空の統計・解析容量変更・Fit・解像度独立性・HDRと負値・16bit/32bit出力を実際のWebGPUで確認する。
+`CHROME_PATH`を設定して`node --test packages/subsystems/effect/shared/test/palette-match.gpu.test.mjs`を実行すると、既知の対称な色変換・全共分散成分・独立調整・主軸の増幅上限・alpha重み・解析マスク・空の統計・解析容量変更・Fit・解像度独立性・HDRと負値・データ精度に依存しないrgba16floatの画像出力を実際のWebGPUで確認する。
 
 計算の参考：[Oklabの原典](https://bottosson.github.io/posts/oklab/)、[Gaussianの対称転送行列](https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/)。

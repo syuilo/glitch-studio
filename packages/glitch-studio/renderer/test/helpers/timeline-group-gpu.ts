@@ -65,7 +65,6 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 				device,
 				vertex,
 				resolution,
-				format: 'rgba8unorm',
 				createLayer,
 				getLayerVersion: () => 0,
 			});

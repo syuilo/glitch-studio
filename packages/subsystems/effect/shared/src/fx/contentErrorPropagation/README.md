@@ -11,7 +11,7 @@
 - `propagation.wgsl`：構造テンソルによる方向の解析、誤差の初期化、1ステップの伝播。
 - `output.wgsl`：元の入力へ伝播した誤差を加算し、元のalphaを保持して出力する。
 
-解析用の入力、方向の場、2枚の誤差の場を保持する。内部テクスチャは`enable32bitDataTextures`に従って`rgba16float`または`rgba32float`を使用し、サンプラーによる補間で読む。方向と誤差は符号付きのデータであり、画像のalphaとしては解釈しない。画像出力は`intermediateTextureFormat`に従う。
+解析用の入力、方向の場、2枚の誤差の場を保持する。内部テクスチャは`enable32bitDataTextures`に従って`rgba16float`または`rgba32float`を使用し、サンプラーによる補間で読む。方向と誤差は符号付きのデータであり、画像のalphaとしては解釈しない。画像出力は`INTERMEDIATE_TEXTURE_FORMAT`に従う。
 
 ## 解像度と入力
 

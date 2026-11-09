@@ -5,7 +5,7 @@ import blendCode from '@gs/shared/color-blend.wgsl?raw';
 import { TIMELINE_FRAME, TIMELINE_IDENTITY, intersectTimelineBounds, invertTimelineAffine, multiplyTimelineAffine, projectTimelineMatrix, timelineGeometryMatrix, transformTimelineBounds, unionTimelineBounds } from '@gs/subsystems_timeline_shared/spatial.ts';
 import code from './timeline-compositor.wgsl?raw';
 import { timelineImageBounds, timelineImageFrame, timelineTextureSize } from './timeline-image.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
 import type { TimelineAffine, TimelineBounds, TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
 import type { TimelineImage } from './timeline-image.ts';
@@ -27,7 +27,7 @@ export function getTimelinePlacement(source: TimelineImage, resolution: { width:
 
 // 合成先の画素範囲は可変でも、fit・origin・位置の基準となるScene寸法は変えない。
 export function createTimelineCompositor(options: {
-	device: GPUDevice; vertex: GPUShaderModule; resolution: { width: number; height: number }; format: IntermediateTextureFormat;
+	device: GPUDevice; vertex: GPUShaderModule; resolution: { width: number; height: number };
 	beginPass?: (encoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder;
 	onCompositing?: TimelineCompositingObserver | null;
 }) {
@@ -41,7 +41,7 @@ export function createTimelineCompositor(options: {
 		vertex: options.vertex,
 		code: blendCode + code,
 		schema: { background: 'color', source: 'color', layerMask: 'color' },
-		targets: [{ format: options.format }],
+		targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 		internalLayouts: [layout],
 		sampling: 'level0',
 	});
@@ -113,7 +113,7 @@ export function createTimelineCompositor(options: {
 			const size = timelineTextureSize(outputBounds, resolution, device.limits.maxTextureDimension2D);
 			if (!texture || texture.width !== size.width || texture.height !== size.height) {
 				texture?.destroy();
-				texture = device.createTexture({ size, format: options.format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+				texture = device.createTexture({ size, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
 			}
 			const inverseRows = rows(inverse ?? TIMELINE_IDENTITY);
 			const clipRows = rows(clipInverse ?? TIMELINE_IDENTITY);

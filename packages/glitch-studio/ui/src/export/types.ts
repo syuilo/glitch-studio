@@ -13,7 +13,7 @@ export type ExportRequest = {
 	/** nullは出力寸法をSceneの基準サイズに使うカスタム指定。 */
 	resolutionScale: number | null;
 	project: { customShaderEffects: ProjectCustomShaderEffect[]; automationGraphs: AutomationGraph[]; timelineFps: number; timelineMotionBlur: TimelineMotionBlurSettings; assets: Asset[]; generatedSpeech: GeneratedSpeech[]; visualModules: ProjectVisualModule[]; timelineScenes: TimelineScene[]; sceneId: string; resolution: Resolution };
-	renderer: Pick<TimelineRendererManagerStaticOptions, 'enable32bitDataTextures' | 'intermediateTextureFormat' | 'effectRenderTileDivisionLevel'>;
+	renderer: Pick<TimelineRendererManagerStaticOptions, 'enable32bitDataTextures' | 'effectRenderTileDivisionLevel'>;
 };
 
 export type ExportResponse =

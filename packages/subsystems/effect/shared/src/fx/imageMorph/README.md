@@ -50,7 +50,7 @@ Warpは速度ではなく、このProgress・Warp Strength・Confidence Guardで
 
 ## GPUリソースと制約
 
-解析用の色・フロー・逆変位は`enable32bitDataTextures`に従ってrgba16floatまたはrgba32floatを使う。信頼度はrg16float/rg32floatとr16float/r32float。画像出力は`intermediateTextureFormat`、公開Warpはrg16float/rg32float、Confidenceはr16float/r32floatとなる。32bitモードでは共通のdevice設定がfloat32-filterableを提供する。
+解析用の色・フロー・逆変位は`enable32bitDataTextures`に従ってrgba16floatまたはrgba32floatを使う。信頼度はrg16float/rg32floatとr16float/r32float。画像出力は`INTERMEDIATE_TEXTURE_FORMAT`、公開Warpはrg16float/rg32float、Confidenceはr16float/r32floatとなる。32bitモードでは共通のdevice設定がfloat32-filterableを提供する。
 
 各階層に二つの色textureと二つのフローtexture、最も細かい階層に双方向の信頼度・中間逆変位・中間信頼度を保持する。解析解像度・階層数・必要なuniform容量が変わったら作り直す。階層・反復ごとに別のuniform領域を保持し、コマンド投入前の上書きで他のpassの設定を変えない。CPUへの画像・フローの読み戻しは行わない。
 
@@ -58,7 +58,7 @@ Warpは速度ではなく、このProgress・Warp Strength・Confidence Guardで
 
 ## 検証
 
-`CHROME_PATH`を指定して`node --test packages/subsystems/effect/shared/test/image-morph.gpu.test.mjs`を実行する。実際のWebGPUで端点・独立Blend・premultiplied alpha・Fit・既知の平行移動・共通単位・解像度独立性・描画履歴からの独立・遅延出力・16bit/32bitの出力を検証する。公開WarpをVector Displacementへ接続した再構成も確認する。
+`CHROME_PATH`を指定して`node --test packages/subsystems/effect/shared/test/image-morph.gpu.test.mjs`を実行する。実際のWebGPUで端点・独立Blend・premultiplied alpha・Fit・既知の平行移動・共通単位・解像度独立性・描画履歴からの独立・遅延出力・rgba16floatの画像出力と16bit/32bitのデータ出力を検証する。公開WarpをVector Displacementへ接続した再構成も確認する。
 
 逆写像は、既知の非一様なアフィン変位を直接与え、対応推定とは独立に中間拡縮の逆とConfidence Guardの有効・無効を検証する。
 

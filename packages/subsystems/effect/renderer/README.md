@@ -4,7 +4,7 @@
 
 `prepare()`は準備の開始・更新だけを行う。同期の描画ループは`checkReady()`で描画可能か確認し、準備中のフレームをスキップできる。準備失敗では元の診断をthrowする。準備完了を待つ呼び出し側は`waitUntilReady(signal)`を使う。
 
-`custom-shader-effect.ts`は、Custom Shader Effectの入出力定義とユーザーWGSLから単一パスの実装を生成する。共通座標と内部の画像参照座標を境界で換算し、各入力は既存のShaderInputのFit／Wrap／Filterで読む。全出力を同じ解像度で確保・描画し、形式は画像形式・データ精度の設定に従う。コンパイルは使用箇所ごとに行い、loading／error／readyをEffectRendererへ通知する。ユーザー本文を先頭へ置いて診断の行・列を保ち、失敗時に旧pipelineへフォールバックしない。登録一覧・Project・Node・Layer・時計は所有しない。
+`custom-shader-effect.ts`は、Custom Shader Effectの入出力定義とユーザーWGSLから単一パスの実装を生成する。共通座標と内部の画像参照座標を境界で換算し、各入力は既存のShaderInputのFit／Wrap／Filterで読む。全出力を同じ解像度で確保・描画し、画像出力は`rgba16float`、データ出力はデータ精度の設定に従う。コンパイルは使用箇所ごとに行い、loading／error／readyをEffectRendererへ通知する。ユーザー本文を先頭へ置いて診断の行・列を保ち、失敗時に旧pipelineへフォールバックしない。登録一覧・Project・Node・Layer・時計は所有しない。
 
 `resetRenderHistory()`は実行インスタンスと確保済みの出力・前フレームテクスチャを作り直す。呼び出し側が`dependsOnRenderHistory`を調べて対象を選び、リセットのタイミングを決める。実装内に独自に保持する履歴も初期化し、未確保の遅延出力・解像度・借用リソースは維持する。準備中の待機と古い状態通知を無効化し、`resourceVersion`で出力の変更を伝える。次の描画だけ経過時間・ポインター移動量を0にし、絶対時刻は呼び出し側が渡した値を使う。
 
