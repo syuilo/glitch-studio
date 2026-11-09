@@ -90,14 +90,16 @@ fn blendColor(mode: u32, a: vec4f, b: vec4f) -> vec4f {
 	if (mode == 20u) {
 		// Emissionは乗算済みRGBを光の量として直接加える。未乗算RGBのAddとは区別する。
 		// alphaは光の強さではなく被覆率なので、単純加算せず重なりを考慮する。
-		let rgb = clamp(a.rgb + b.rgb, vec3f(0.0), vec3f(1.0));
+		let rgb = a.rgb + b.rgb;
 		return vec4f(rgb, b.a + a.a * (1.0 - b.a));
 	}
 	var straightA = vec3f(0.0);
 	var straightB = vec3f(0.0);
 	if (a.a > 0.0) { straightA = a.rgb / a.a; }
 	if (b.a > 0.0) { straightB = b.rgb / b.a; }
-	let blended = clamp(blendRgb(mode, straightA, straightB), vec3f(0.0), vec3f(1.0));
+	// RGBはHDR・負値も後段へ渡す。HSL等の定義域の制限は各ブレンド関数が所有する。
+	// ここで一律に制限すると、通常合成や加算でも後段で露出を下げる前に階調を失う。
+	let blended = blendRgb(mode, straightA, straightB);
 	let rgb = (1.0 - b.a) * a.rgb + (1.0 - a.a) * b.rgb + a.a * b.a * blended;
 	return vec4f(rgb, b.a + a.a * (1.0 - b.a));
 }

@@ -33,7 +33,9 @@ fn composite(frag: FragmentIn) -> @location(0) vec4f {
 	// Replaceなら透明を返せるよう、効果を0にしてから選択したモードで合成する。
 	var bloom = vec4f(0.0);
 	if (uniforms.strength > 0.0) {
-		bloom = clamp(textureSampleLevel(bloomTexture, bloomSampler, uv, 0.0) * uniforms.strength, vec4f(0.0), vec4f(1.0));
+		let glow = textureSampleLevel(bloomTexture, bloomSampler, uv, 0.0) * uniforms.strength;
+		// 発光のRGBは1を超える強度を保持する。被覆率として合成するalphaだけを制限する。
+		bloom = vec4f(glow.rgb, clamp(glow.a, 0.0, 1.0));
 	}
 	return blendColor(uniforms.inputBlendMode, source, bloom);
 }

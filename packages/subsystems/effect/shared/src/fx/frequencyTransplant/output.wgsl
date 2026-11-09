@@ -34,8 +34,8 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	let originalRgb = original.rgb / original.a;
 	var baseRgb = components_to_rgb(reconstruction.base.rgb);
 	if (uniforms.preserveDetails != 0u) { baseRgb = originalRgb; }
-	let transplanted = baseRgb + components_to_rgb(reconstruction.difference.rgb);
-	let rgb = clamp(transplanted, vec3f(0.0), vec3f(1.0));
+	// 周波数成分の差は負にもなる。復元後のオーバーシュートや元画像のHDRを保持する。
+	let rgb = baseRgb + components_to_rgb(reconstruction.difference.rgb);
 	// 入力の透明度と形を保持し、未乗算での加工が終わってから一度だけpremultiplyする。
 	return vec4f(rgb * original.a, original.a);
 }

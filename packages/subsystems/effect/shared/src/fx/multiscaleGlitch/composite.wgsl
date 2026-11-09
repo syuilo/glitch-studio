@@ -85,7 +85,8 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	}
 	// 破損していない画素は色変換や再乗算も省き、入力の値をそのまま返す。
 	if (!changed) { return original; }
-	let rgb = clamp(inputRgb + change, vec3f(0.0), vec3f(1.0));
+	// 帯域の差分を戻した色をそのまま保持し、破損領域だけHDRが失われることを防ぐ。
+	let rgb = inputRgb + change;
 	// 符号付きの帯域を別々に移動するとalphaまで負になり得るため、透明度は元位置で保持する。
 	// ぼかしは乗算済みRGBAで行い、帯域の合成時だけ除算して、最後に一度だけpremultiplyする。
 	return vec4f(rgb * original.a, original.a);

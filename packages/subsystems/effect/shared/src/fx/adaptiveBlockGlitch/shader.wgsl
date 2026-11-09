@@ -49,7 +49,8 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 			rgb.b = straight_rgb(read_input(input_position(sourcePosition + blueOffset))).b;
 		}
 		let colorError = vec3f(block_random(cell, level, 7u), block_random(cell, level, 8u), block_random(cell, level, 9u)) * 2.0 - 1.0;
-		rgb = clamp(rgb + colorError * uniforms.colorShift, vec3f(0.0), vec3f(1.0));
+		// 色ずれを0にしたときも、処理対象のブロックのHDR・負値をそのまま保持する。
+		rgb += colorError * uniforms.colorShift;
 		let alpha = select(source.a, original.a, uniforms.preserveAlpha != 0u);
 		// 各チャンネルの加工は未乗算の色で行い、元画像との補間はpremultiplied RGBAで行う。
 		result = mix(original, vec4f(rgb * alpha, alpha), uniforms.strength);

@@ -35,5 +35,6 @@ fn difference(@location(0) uv: vec2f, @builtin(position) position: vec4f) -> @lo
 		let weights = vec3f(0.2126, 0.7152, 0.0722);
 		delta = vec3f(abs(dot(current, weights) - dot(before, weights)));
 	}
-	return vec4f(clamp((delta - params.threshold) * params.gain, vec3f(0.0), vec3f(1.0)), 1.0);
+	// 閾値以下の差分は0にするが、差の大きさやgainによる1を超える値は保持する。
+	return vec4f(max((delta - params.threshold) * params.gain, vec3f(0.0)), 1.0);
 }
