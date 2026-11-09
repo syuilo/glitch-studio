@@ -17,7 +17,7 @@ fn sampleLine(line: u32, horizontal: f32) -> vec4f {
 			coverage = clamp(read_input(uv * vec2f(2.0, -2.0) + vec2f(-1.0, 1.0)).a, 0.0, 1.0);
 		}
 	}
-	return vec4f(rgb * coverage, coverage);
+	return vec4f(colorSrgbToLinear(rgb) * coverage, coverage);
 }
 
 @fragment

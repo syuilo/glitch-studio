@@ -33,7 +33,7 @@ fn main(position: vec2f) -> Output {
 
 `scalar`は`f32`、`vector`は`vec2f`、`color`と`any`は`vec4f`です。出力はメンバー名で代入することで並び順へ依存せず、初期化した構造体の未代入メンバーはゼロ値になります。
 
-座標は[共通の空間座標](spatial-coordinate.md)に従い、長辺全体を1、中央原点、右を+X、上を+Yとします。色の読み取り値・出力値は[premultiplied alpha](renderer.md#アルファの扱い)です。スカラー・ベクトル・anyには色としてのalpha処理を行いません。
+座標は[共通の空間座標](spatial-coordinate.md)に従い、長辺全体を1、中央原点、右を+X、上を+Yとします。色の読み取り値・出力値はlinear sRGBの[premultiplied alpha](renderer.md#アルファの扱い)です。スカラー・ベクトル・anyには色としてのalpha処理を行いません。
 
 時間は暗黙に公開しません。必要な場合は通常の入力として`time`などを定義し、使用箇所の式やキーフレームから値を与えます。`time`という参照名自体には特別な意味はありません。
 

@@ -61,7 +61,7 @@ fn compose(@location(0) position: vec2f) -> FragmentOutput {
 		// 入力と履歴はどちらもpremultiplied RGBA。alphaも含めて補間し、再乗算はしない。
 		color = mix(warped, current, recovery);
 	}
-	if (color.a <= 0.0) { color = vec4f(0.0); }
+	// alpha=0でもRGBは発光を持ち得る。リセット時も履歴の再生時も、被覆率だけでRGBを消さない。
 	// 表示と浮動小数点の履歴へ同時に出力し、画像形式の量子化誤差を履歴へ繰り返し蓄積しない。
 	return FragmentOutput(color, color);
 }

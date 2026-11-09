@@ -25,7 +25,7 @@
 
 		<div :class="$style.previewArea">
 			<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" data-test-preview-viewport @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
-				<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :class="[$style.canvasContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" :style="{ scale: zoom / previewDevicePixelRatio, translate: `${pan[0]}px ${pan[1]}px` }" data-test-preview-canvas-container></div>
+				<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :style="{ scale: zoom / previewDevicePixelRatio, translate: `${pan[0]}px ${pan[1]}px` }" data-test-preview-canvas-container></div>
 				<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
 					<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 				</div>
@@ -482,19 +482,6 @@ function showMenu(ev: PointerEvent) {
 	place-content: center;
 }
 
-.canvasContainer {
-	background: #000;
-
-	&.animatedBg {
-		$color1: #1a1a1a;
-		$color2: #101010;
-		background-color: $color1;
-		background-image: linear-gradient(45deg, $color2 25%, transparent 25%, transparent 75%, $color2 75%, $color2), linear-gradient(-45deg, $color2 25%, transparent 25%, transparent 75%, $color2 75%, $color2);
-		background-size: 64px 64px;
-		animation: bg 0.7s linear infinite;
-	}
-}
-
 .seekLoading {
 	position: absolute;
 	top: 50%;
@@ -634,13 +621,4 @@ function showMenu(ev: PointerEvent) {
 	overflow-wrap: anywhere;
 }
 
-@keyframes bg {
-	0% {
-		background-position: 0 0;
-	}
-
-	100% {
-		background-position: -64px -64px;
-	}
-}
 </style>

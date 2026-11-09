@@ -54,7 +54,7 @@ output.rgb = original.rgb + reconstructedDifference.rgb × original.alpha
 output.alpha = original.alpha
 ```
 
-差分だけを元のalphaで制限して透明領域への漏れを防ぎ、元のRGBを二重にpremultiplyしない。完全透明な領域はRGBA=0とする。HDR・負のRGBを含め、処理結果は0〜1へclampしない。
+差分だけを元のalphaで制限して透明領域への漏れを防ぎ、元のRGBを二重にpremultiplyしない。alpha=0の画素は、発光RGBも含めて入力のまま保持する。HDR・負のRGBを含め、処理結果は0〜1へclampしない。
 
 振幅保持はFFT解析領域での位相回転の性質である。不透明・Repeat・解析と一致する画素格子なら、最終画像でも周波数振幅・DCを数値誤差の範囲で保持する。Mirrorの切り出し、Blocksの重なり合成、解析差分の補間、元画像の高周波の保持、alphaでの差分制限を行った最終画像全体では厳密な振幅保持は保証しない。色のヒストグラムや画素値の範囲も保存しない。
 

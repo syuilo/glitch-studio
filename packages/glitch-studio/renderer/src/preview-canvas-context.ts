@@ -7,6 +7,22 @@ export type CpuPreviewFrame = CpuPreviewPixels & { target: CpuPreviewCanvasTarge
 /** GPUCanvasContextと、通常テクスチャへ描くCPU表示経路に必要な描画先の契約。 */
 export type PreviewCanvasContext = Pick<GPUCanvasContext, 'canvas' | 'configure' | 'getCurrentTexture' | 'unconfigure'>;
 
+/** 主Canvasの表示設定。不要な再configureによる画像消去やCPU読み戻しの破棄を避ける。 */
+export function createPreviewCanvasConfigurator(device: GPUDevice, context: PreviewCanvasContext) {
+	let configuredAlphaMode: GPUCanvasAlphaMode | null = null;
+	return (alphaMode: GPUCanvasAlphaMode) => {
+		if (alphaMode === configuredAlphaMode) return;
+		context.configure({
+			device,
+			format: navigator.gpu.getPreferredCanvasFormat(),
+			alphaMode,
+			colorSpace: 'srgb',
+			usage: GPUTextureUsage.RENDER_ATTACHMENT,
+		});
+		configuredAlphaMode = alphaMode;
+	};
+}
+
 type ReadbackBuffer = { buffer: GPUBuffer; size: number };
 export type CpuPreviewReadback = { complete(): Promise<void>; cancel(): void };
 

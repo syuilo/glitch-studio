@@ -1,3 +1,4 @@
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 // Adapted from Paper Design's Liquid Metal (Apache-2.0; see ../../../renderer/src/effect-implementations/liquidMetal/LICENSE).
 // Modified for WebGPU and live node inputs; no uploaded-image or shape selector.
 import { defineEffect } from '../../effect-definition.ts';
@@ -19,7 +20,7 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
-		colorBack: { dataType: { kind: 'color' }, ui: { label: 'Background Color', control: {} }, defaultValue: { inputSource: 'literal', value: [170 / 255, 170 / 255, 172 / 255, 0] } },
+		colorBack: { dataType: { kind: 'color' }, ui: { label: 'Background Color', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([170 / 255, 170 / 255, 172 / 255, 0]) } },
 		colorTint: { dataType: { kind: 'color' }, ui: { label: 'Tint Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 		repetition: {
 			dataType: { kind: 'scalar' },

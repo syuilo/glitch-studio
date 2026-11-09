@@ -22,7 +22,7 @@ fn capture_component(origin: vec2u, samplePosition: vec2u, stride: u32, componen
 	}
 	// premultiplied RGBAを平均してから除算し、透明画素の黒が色に混ざることを防ぐ。
 	var rgb = vec3f(0.0);
-	if (color.a > 0.0) { rgb = clamp(color.rgb / color.a, vec3f(0.0), vec3f(1.0)); }
+	if (color.a > 0.0) { rgb = clamp(colorLinearToSrgb(color.rgb / color.a), vec3f(0.0), vec3f(1.0)); }
 	if (component == 0u) { return dot(rgb, vec3f(0.299, 0.587, 0.114)) * 255.0 - 128.0; }
 	if (component == 1u) { return dot(rgb, vec3f(-0.168736, -0.331264, 0.5)) * 255.0; }
 	return dot(rgb, vec3f(0.5, -0.418688, -0.081312)) * 255.0;

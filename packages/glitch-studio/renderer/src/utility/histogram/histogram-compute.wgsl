@@ -9,6 +9,7 @@ struct Histogram {
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> histogram: Histogram;
+@group(0) @binding(2) var<uniform> valueScale: vec4u;
 
 @compute @workgroup_size(10, 10)
 fn accumulate(@builtin(global_invocation_id) id: vec3u) {
@@ -24,12 +25,15 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 	);
 	// 補間で分布を変えないよう、集計対象の画素を直接読む。
 	let color = textureLoad(sourceTexture, vec2i(coord), 0);
-	let displayedRgb = clamp(color.rgb * color.a, vec3f(0.0), vec3f(1.0));
+	let weight = select(clamp(color.a, 0.0, 1.0), 1.0, color.a == 0.0 && any(color.rgb != vec3f(0.0)));
+	if (weight == 0.0) { return; }
+	let displayedRgb = clamp(imageValueForScope(colorUnpremultiply(color), valueScale.x), vec3f(0.0), vec3f(1.0));
 	let bins = vec3u(displayedRgb * 255.0 + vec3f(0.5));
+	let count = u32(round(weight * 65535.0));
 
-	atomicAdd(&histogram.values[bins.r], 1u);
-	atomicAdd(&histogram.values[BIN_COUNT + bins.g], 1u);
-	atomicAdd(&histogram.values[BIN_COUNT * 2u + bins.b], 1u);
+	atomicAdd(&histogram.values[bins.r], count);
+	atomicAdd(&histogram.values[BIN_COUNT + bins.g], count);
+	atomicAdd(&histogram.values[BIN_COUNT * 2u + bins.b], count);
 }
 
 @compute @workgroup_size(1)

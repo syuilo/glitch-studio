@@ -65,7 +65,7 @@ test('accumulates motion blur using separate floating point targets and normaliz
 });
 
 function gpuFixture() {
-	const calls = { textures: [], buffers: [], shaders: [], groups: [], samplers: [], writes: [], draws: 0, uploads: 0 };
+	const calls = { textures: [], buffers: [], shaders: [], groups: [], samplers: [], writes: [], externalCopies: [], draws: 0, uploads: 0 };
 	const device = {
 		limits: { maxTextureDimension2D: 8192 },
 		createTexture(options) {
@@ -88,9 +88,12 @@ function gpuFixture() {
 		queue: {
 			writeBuffer(buffer, offset, values) { calls.writes.push(new Float32Array(values)); },
 			writeTexture() { calls.uploads++; },
+			copyExternalImageToTexture(source) { calls.externalCopies.push(source.source); },
+			submit() {},
 		},
 	};
-	const encoder = { beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() { calls.draws++; }, end() {} }) };
+	const encoder = { beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() { calls.draws++; }, end() {} }), finish: () => ({}) };
+	device.createCommandEncoder = () => encoder;
 	return { device, calls, encoder };
 }
 const literal = value => ({ inputSource: 'literal', value });
@@ -100,8 +103,6 @@ const literal = value => ({ inputSource: 'literal', value });
 // 実際のVideo実装を通し、取得不能の間に古い映像が残らず、復旧時に設定の再編集も不要なことを確認する。
 test('keeps rendering transparent video while player frames are missing and resumes after recovery', async t => {
 	const { device, calls } = gpuFixture();
-	const importedFrames = [];
-	device.importExternalTexture = ({ source }) => { importedFrames.push(source); return {}; };
 	const passes = [];
 	const encoder = { beginRenderPass(descriptor) {
 		passes.push(descriptor);
@@ -130,23 +131,23 @@ test('keeps rendering transparent video while player frames are missing and resu
 	};
 	await render();
 	assertTransparent();
-	const first = {};
+	const first = { codedWidth: 16, codedHeight: 9, displayWidth: 16, displayHeight: 9 };
 	videoFrames.set('player', first);
 	videoFrameVersions.set('player', 1);
 	await render();
-	assert.deepEqual(importedFrames, [first]);
-	assert.equal(calls.draws, 1);
+	assert.deepEqual(calls.externalCopies, [first]);
+	assert.equal(calls.draws, 2);
 	videoFrames.delete('player');
 	videoFrameVersions.set('player', 2);
 	await render();
 	assertTransparent();
-	assert.equal(calls.draws, 1);
-	const recovered = {};
+	assert.equal(calls.draws, 2);
+	const recovered = { codedWidth: 16, codedHeight: 9, displayWidth: 16, displayHeight: 9 };
 	videoFrames.set('player', recovered);
 	videoFrameVersions.set('player', 3);
 	const output = await render();
-	assert.deepEqual(importedFrames, [first, recovered]);
-	assert.equal(calls.draws, 2);
+	assert.deepEqual(calls.externalCopies, [first, recovered]);
+	assert.equal(calls.draws, 4);
 	assert.deepEqual([output.texture.width, output.texture.height], [16, 9]);
 });
 

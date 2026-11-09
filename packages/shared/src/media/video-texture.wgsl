@@ -13,7 +13,6 @@ fn vs(@builtin(vertex_index) index: u32) -> VertexOut {
 	return output;
 }
 
-@group(0) @binding(0) var sourceVideo: texture_external;
 @group(0) @binding(1) var<uniform> quarterTurns: vec4u;
 
 fn sourceCoordinates(uv: vec2f) -> vec2f {
@@ -31,12 +30,6 @@ fn sourceCoordinates(uv: vec2f) -> vec2f {
 
 @group(0) @binding(2) var convertedVideo: texture_2d<f32>;
 @group(0) @binding(3) var videoSampler: sampler;
-
-@fragment
-fn renderExternalVideo(input: VertexOut) -> @location(0) vec4f {
-	// alphaなしの形式だけがこの経路を使うため、そのまま補間できる。
-	return textureSampleBaseClampToEdge(sourceVideo, videoSampler, sourceCoordinates(input.uv));
-}
 
 @fragment
 fn renderCopiedVideo(input: VertexOut) -> @location(0) vec4f {

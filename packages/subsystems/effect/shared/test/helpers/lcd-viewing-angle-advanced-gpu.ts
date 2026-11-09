@@ -21,8 +21,6 @@ export async function run() {
 	const equal = (actual: Float32Array, expected: Float32Array, label: string) => assert(actual.every((value, index) => value === expected[index]), label);
 	const scalar = (value: number) => constantShaderInput('scalar', value);
 	const color = (value: readonly [number, number, number, number]) => constantShaderInput('color', value);
-	const encode = (value: number) => value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055;
-	const decode = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 	const checkColor = (pixels: Float32Array, expected: number[], label: string, offset = 0, tolerance = 0.001) => expected.forEach((value, channel) => near(pixels[offset + channel], value, label, tolerance));
 	const readLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }] });
 	const reader = device.createRenderPipeline({
@@ -106,7 +104,7 @@ export async function run() {
 				response += transmission * weight;
 				total += weight;
 			}
-			return encode(response / total);
+			return response / total;
 		});
 	}
 	function twistedCell() {
@@ -122,7 +120,7 @@ export async function run() {
 				response += transmission * weight;
 				total += weight;
 			}
-			return encode(response / total);
+			return response / total;
 		});
 	}
 	try {
@@ -147,7 +145,7 @@ export async function run() {
 		for (const material of [{ cellThickness: 0 }, { ordinaryIor: 1.5, extraordinaryIor: 1.5 }]) {
 			for (const angle of [0, 0.125, 0.25]) {
 				const rendered = await effect.render({ ...material, input: opaque, analyzerAngle: angle, brightness: 1 });
-				const expected = encode(0.5 * Math.cos(angle * 2 * Math.PI) ** 2);
+				const expected = 0.5 * Math.cos(angle * 2 * Math.PI) ** 2;
 				checkColor(rendered.pixels, [expected, expected, expected, 1], 'Malus law and degenerate calibration');
 			}
 		}
@@ -167,7 +165,7 @@ export async function run() {
 		checks.push('continuous twisted-cell analytical solution');
 		const crossed = await effect.render({ input: opaque, calibrateFrontView: false, brightness: 1 });
 		const parallel = await effect.render({ input: opaque, calibrateFrontView: false, brightness: 1, analyzerAngle: 0 });
-		for (let channel = 0; channel < 3; channel++) near(decode(crossed.pixels[channel]) + decode(parallel.pixels[channel]), 0.5, 'conservation of transmitted energy');
+		for (let channel = 0; channel < 3; channel++) near(crossed.pixels[channel] + parallel.pixels[channel], 0.5, 'conservation of transmitted energy');
 		checks.push('lossless-layer energy conservation');
 
 		// 【視線の正負で応答が異なり、RGBの差と非単調な階調が光学計算から現れる】
@@ -201,7 +199,7 @@ export async function run() {
 		const mixed = await effect.render({ input: opaque, amount: amountField(33), verticalViewingAngle: 0.1 });
 		for (let x = 0; x < 33; x++) {
 			const amount = x / 32;
-			const expected = [0.7, 0.4, 0.2].map((value, channel) => encode(decode(value) * (1 - amount) + decode(opaqueAngle.pixels[channel]) * amount));
+			const expected = [0.7, 0.4, 0.2].map((value, channel) => value * (1 - amount) + opaqueAngle.pixels[channel] * amount);
 			checkColor(mixed.pixels, [...expected, 1], 'spatial amount and linear-light mixing', x * 4, 0.0015);
 		}
 		checks.push('premultiplied alpha', 'literal and texture agreement', 'transparent input', 'zero brightness', 'zero amount', 'spatial amount and linear-light mixing');

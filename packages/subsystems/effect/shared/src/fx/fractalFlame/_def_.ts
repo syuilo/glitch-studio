@@ -1,3 +1,4 @@
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { defineEffect } from '../../effect-definition.ts';
 import { MAXIMUM_TRANSFORM_COUNT, MAXIMUM_ORBIT_COUNT, MAXIMUM_ITERATIONS, MAXIMUM_BURN_IN } from './flame-settings.ts';
 import type { FlameTransform } from './flame-settings.ts';
@@ -104,10 +105,10 @@ export default defineEffect({
 		ramp: {
 			dataType: { kind: 'colorRamp' }, ui: { label: 'Palette', control: {} },
 			defaultValue: { inputSource: 'literal', value: { interpolation: 'linear', colorSpace: 'srgb', stops: [
-				{ id: 'blue', position: 0, color: [0.08, 0.15, 0.8, 1] },
-				{ id: 'cyan', position: 0.35, color: [0.05, 0.9, 1, 1] },
-				{ id: 'pink', position: 0.7, color: [1, 0.1, 0.5, 1] },
-				{ id: 'gold', position: 1, color: [1, 0.8, 0.25, 1] },
+				{ id: 'blue', position: 0, color: srgbToLinearSrgb([0.08, 0.15, 0.8, 1]) },
+				{ id: 'cyan', position: 0.35, color: srgbToLinearSrgb([0.05, 0.9, 1, 1]) },
+				{ id: 'pink', position: 0.7, color: srgbToLinearSrgb([1, 0.1, 0.5, 1]) },
+				{ id: 'gold', position: 1, color: srgbToLinearSrgb([1, 0.8, 0.25, 1]) },
 			] } },
 		},
 		colorPhase: {

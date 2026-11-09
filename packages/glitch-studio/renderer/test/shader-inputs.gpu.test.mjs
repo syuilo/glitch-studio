@@ -63,6 +63,15 @@ test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PA
 // 実GPUでの読み戻しとCanvas 2Dのalpha変換はモックだけでは検証できない。
 test('presents preview and analysis canvases through CPU readback', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/cpu-preview-gpu.ts', 4));
 
+// 【linearの表示背景は停止中も動作し、解析軸は表示sRGBと作業値を区別する】
+// CSS合成への逆戻りや、借用テクスチャ破棄後のGPU参照・CPU表示枠の漏れを検出する。
+test('animates owned linear preview backgrounds and distinguishes analysis scales', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/linear-display-gpu.ts', 9));
+
+// 【半透明の広色域素材も、正しいlinear RGBの光量とalphaで読み込む】
+// 不透明のDisplay P3と半透明のsRGBが個別に通っても、デコード指定によって両者の組み合わせだけが暗くなり得る。
+// AssetTexturesによる実際のPNGデコードからGPU転送までを通し、浮動小数点の画素で検証する。
+test('imports opaque and translucent Display P3 assets without darkening', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/linear-display-gpu.ts', 3, 'runWideGamutAssetImport'));
+
 // 【GPU・CPU表示とも露出を線形光で適用し、alpha・解析・元画像の警告を保つ】
 // 半透明やHDRの補正は8bit画像やuniformのモックだけでは検証できない。
 // 実際の表示経路で0 EV、増減、範囲端を比較し、解析Canvasに補正が混入しないことも確認する。

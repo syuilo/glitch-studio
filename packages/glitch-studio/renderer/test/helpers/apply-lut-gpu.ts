@@ -4,6 +4,7 @@ import implementation from '@gs/subsystems_effect_shared/fx/applyLut/_impl_.ts';
 import { createLutLayout, createLutResources } from '@gs/subsystems_effect_shared/fx/applyLut/lut-resources.ts';
 import { parseCubeLut } from '@gs/subsystems_effect_shared/fx/applyLut/cube.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { linearSrgbToSrgb, srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 
 export async function run() {
@@ -74,9 +75,13 @@ export async function run() {
 				renderer = createRenderer(lut);
 			};
 			let inputTexture: GPUTexture | null = null;
-			const draw = async (name: string, text: string | null, rgba: number[], expected: number[], input?: ShaderInput) => {
+			const draw = async (name: string, text: string | null, rgba: number[], expected: number[], input?: ShaderInput,
+				colorSpaces: Partial<Record<'inputColorSpace' | 'outputColorSpace', 'linearSrgb' | 'srgb'>> = {}) => {
 				const params = {
 					input: input ?? { kind: 'uniform' as const, value: rgba },
+					inputColorSpace: 'linearSrgb' as const,
+					outputColorSpace: 'linearSrgb' as const,
+					...colorSpaces,
 				};
 				replaceRenderer(text == null ? null : new Blob([text]));
 				renderer.prepare(params);
@@ -134,6 +139,16 @@ export async function run() {
 				// テクセル中心のずれやpremultiplyの二重適用は、格子の間にある半透明色で検出する。
 				await draw('identity translucent', identity, [0.1, 0.3, 0.4, 0.5], [0.1, 0.3, 0.4, 0.5]);
 				await draw('transparent', identity, [0, 0, 0, 0], [0, 0, 0, 0]);
+				// 【LUTの入力と出力の色空間を独立して変換し、alphaを伝達関数に含めない】
+				// 半透明の恒等LUTで片側だけの指定も検証し、両側の誤変換が相殺される見逃しを防ぐ。
+				const straight = [0.18, 0.36, 0.72, 0.5];
+				const premultiply = (color: number[]) => color.map((value, index) => index < 3 ? value * color[3] : value);
+				await draw('sRGB LUT input', identity, premultiply(straight), premultiply(linearSrgbToSrgb(straight)), undefined, { inputColorSpace: 'srgb' });
+				await draw('sRGB LUT output', identity, premultiply(straight), premultiply(srgbToLinearSrgb(straight)), undefined, { outputColorSpace: 'srgb' });
+				await draw('sRGB LUT round trip', identity, premultiply(straight), premultiply(straight), undefined, { inputColorSpace: 'srgb', outputColorSpace: 'srgb' });
+				// 【alphaが0の発光も独立した光の量としてLUTへ渡す】
+				// 通常の透明黒の扱いを変えず、unpremultiplyの0除算や再乗算による消失を防ぐ。
+				await draw('zero-alpha emission', identity, [0.18, 0.36, 0.72, 0], [0.18, 0.36, 0.72, 0]);
 				await draw('bypass preserves HDR', null, [-0.5, 2, 0.25, 1], [-0.5, 2, 0.25, 1]);
 				await draw('3D channel order', 'LUT_3D_SIZE 2\n' + rows3d(2, (r, g, b) => [b, r, g]), [0.1, 0.3, 0.4, 0.5], [0.4, 0.1, 0.3, 0.5]);
 				await draw('1D independent channels', 'LUT_1D_SIZE 2\n0 1 0\n1 0 2', [0.2, 0.6, 0.4, 1], [0.2, 0.4, 0.8, 1]);

@@ -178,6 +178,18 @@ export async function run() {
 			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
 		} as any);
 		check('image interpolation preserves premultiplied transparent edges', (await read(edgeOutput, edgeEncoder))[0], [128, 0, 0, 128]);
+		// 【sRGBの中間調を原寸でlinear化してから補間する】
+		// 原色だけでは伝達関数の抜けを検出できない。半透明グレーと不透明グレーを
+		// 平均し、alphaの二重乗算とencoded RGBのままの補間も合わせて検出する。
+		const graySource = await loadImageAsset(2, 1, [128, 128, 128, 255, 128, 128, 128, 128]);
+		raw.dispose();
+		raw = imageEffect.init({ resources: { image: graySource }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
+		const grayEncoder = device.createCommandEncoder();
+		raw.render({ params: { fit: 'stretch' }, commandEncoder: grayEncoder,
+			outputDataMap: { output: { texture: edgeOutput, textureView: edgeOutput.createView() } },
+			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+		} as any);
+		check('image midtones are linear before interpolation', (await read(edgeOutput, grayEncoder))[0], [41, 41, 41, 192]);
 		raw.dispose();
 		raw = imageEffect.init({ resources: { image: null }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
 		const emptyEncoder = device.createCommandEncoder();

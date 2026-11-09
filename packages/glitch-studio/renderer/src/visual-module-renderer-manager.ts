@@ -1,3 +1,4 @@
+import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { getPlayerIntrinsicResolution } from '@gs/glitch-studio_shared/player-resolution.ts';
@@ -20,7 +21,7 @@ import { PlayerAudioInputs } from './player-audio-inputs.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
-import { createPreviewCanvasContext } from './preview-canvas-context.ts';
+import { createPreviewCanvasContext, createPreviewCanvasConfigurator } from './preview-canvas-context.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { FrameScheduler, VisualModuleLivePreviewFrameTiming } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -60,6 +61,9 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	previewExposure: number;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
+	/** 表示用背景。nullは透明出力で、書き出しではプレビュー背景を使わない。 */
+	previewBackground: 'black' | 'checker' | null;
+	analysisValueScale: ImageValueScale;
 	visualModuleLivePreviewTimeFactor: number;
 	/** Visual Module Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
@@ -100,6 +104,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private pendingVideoFrames = new Map<Player['id'], VideoFrame | null>();
 	private previewRenderGeneration = 0;
 	private gpuContext: PreviewCanvasContext;
+	private configureCanvas: ReturnType<typeof createPreviewCanvasConfigurator>;
 	private skippedFrameTimeDelta = 0;
 	private skippedFrameRealTimeDelta = 0;
 	private gpuDevice: GPUDevice;
@@ -146,6 +151,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		visualModuleLivePreviewTimeFactor: 1.0,
 		fpsLimit: null,
 		opaqueOutput: false,
+		previewBackground: null,
+		analysisValueScale: 'srgb',
 		visualModules: [],
 		automationGraphs: [],
 	};
@@ -188,13 +195,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		const gpuMemory = this.staticOptions.enableStats ? new GpuMemoryTracker(this.gpuDevice) : null;
 		this.timingHelper = this.staticOptions.enableStats ? new TimingHelper(this.gpuDevice) : null;
 
-		this.gpuContext.configure({
-			device: this.gpuDevice,
-			format: navigator.gpu.getPreferredCanvasFormat(),
-			alphaMode: 'premultiplied',
-			colorSpace: 'srgb',
-			usage: GPUTextureUsage.RENDER_ATTACHMENT,
-		});
+		this.configureCanvas = createPreviewCanvasConfigurator(this.gpuDevice, this.gpuContext);
+		this.configureCanvas('premultiplied');
 
 		this.fallbackTexture = this.gpuDevice.createTexture({
 			size: [1, 1],
@@ -319,6 +321,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
+		this.canvasRenderer.previewBackground = this.dynamicOptions.previewBackground;
+		// 背景合成後は不透明。背景を持たない透明書き出しだけ、Canvasのalphaも維持する。
+		this.configureCanvas(this.dynamicOptions.opaqueOutput || this.dynamicOptions.previewBackground != null ? 'opaque' : 'premultiplied');
+		this.canvasRenderer.analysisValueScale = this.dynamicOptions.analysisValueScale;
 
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
 		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale')) {

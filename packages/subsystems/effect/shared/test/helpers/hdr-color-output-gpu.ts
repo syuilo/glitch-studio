@@ -1,7 +1,8 @@
 import blendCode from '@gs/shared/color-blend.wgsl?raw';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
-import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import adaptiveBlockGlitchDefinition from '../../src/fx/adaptiveBlockGlitch/_def_.ts';
 import adaptiveBlockGlitch from '../../src/fx/adaptiveBlockGlitch/_impl_.ts';
 import bloomDefinition from '../../src/fx/bloom/_def_.ts';
@@ -10,12 +11,16 @@ import colorClampDefinition from '../../src/fx/colorClamp/_def_.ts';
 import colorClamp from '../../src/fx/colorClamp/_impl_.ts';
 import contentErrorPropagationDefinition from '../../src/fx/contentErrorPropagation/_def_.ts';
 import contentErrorPropagation from '../../src/fx/contentErrorPropagation/_impl_.ts';
+import datamoshDefinition from '../../src/fx/datamosh/_def_.ts';
+import datamosh from '../../src/fx/datamosh/_impl_.ts';
 import frameDifferenceDefinition from '../../src/fx/frameDifference/_def_.ts';
 import frameDifference from '../../src/fx/frameDifference/_impl_.ts';
 import frequencyTransplantDefinition from '../../src/fx/frequencyTransplant/_def_.ts';
 import frequencyTransplant from '../../src/fx/frequencyTransplant/_impl_.ts';
 import multiscaleGlitchDefinition from '../../src/fx/multiscaleGlitch/_def_.ts';
 import multiscaleGlitch from '../../src/fx/multiscaleGlitch/_impl_.ts';
+import timePatchworkDefinition from '../../src/fx/timePatchwork/_def_.ts';
+import timePatchwork from '../../src/fx/timePatchwork/_impl_.ts';
 import type { EffectDefinition } from '../../src/effect-definition.ts';
 import type { EffectImplementation } from '../../src/effect-implementation.ts';
 
@@ -67,6 +72,15 @@ export async function run() {
 
 	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING });
 	disposers.push(() => fallbackTexture.destroy());
+	const emissionColor = [2, 0.25, -0.5, 0];
+	const emissionTexture = device.createTexture({ size: [1, 1], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+	device.queue.writeTexture({ texture: emissionTexture }, new Float16Array(emissionColor), { bytesPerRow: 8 }, [1, 1]);
+	disposers.push(() => emissionTexture.destroy());
+	// 画像・uniform出力は既にpremultiplied。未乗算リテラル用の変換でalpha=0を掛け直さない。
+	const emissionInputs: [string, ShaderInput][] = [
+		['uniform', { kind: 'uniform', value: emissionColor }],
+		['texture', textureShaderInput(emissionTexture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' })],
+	];
 
 	function createEffect(definition: EffectDefinition, implementation: EffectImplementation, enable32bitDataTextures: boolean, overrides: Record<string, unknown>) {
 		const params = { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
@@ -123,6 +137,10 @@ struct Colors { background: vec4f, foreground: vec4f, mode: u32 };
 		// 【通常合成・四則演算・EmissionはHDRと負値を保持し、alphaを色の強さとして扱わない】
 		// 半透明色や負の差分が途中で失われると、後段で露出を下げても元の階調へ戻せない。
 		checkPixels('normal preserves premultiplied HDR and negative RGB', await blend('normal', [2, -1, 0.5, 1], [1.5, -0.25, 0.125, 0.5]), [2.5, -0.75, 0.375, 1]);
+		// 【alpha=0の発光は不透明な背景への通常合成でも失われない】
+		// 未乗算RGBを0と置く一般式だけでは、背景alpha=1のとき前景の発光が消える。
+		checkPixels('normal preserves zero-alpha foreground emission', await blend('normal', [0.25, 0.5, 0.75, 1], [2, 1, -0.5, 0]), [2.25, 1.5, 0.25, 1]);
+		checkPixels('normal attenuates zero-alpha background emission by coverage', await blend('normal', [2, 1, -0.5, 0], [0.25, 0.125, 0.0625, 0.5]), [1.25, 0.625, -0.1875, 0.5]);
 		for (const [mode, expected] of [['add', [2.5, -0.75, -1.5, 1]], ['subtract', [1.5, -1.25, 2.5, 1]], ['multiply', [1, -0.25, -1, 1]]] as const) {
 			checkPixels(`${mode} preserves extended RGB`, await blend(mode, [2, -1, 0.5, 1], [0.5, 0.25, -2, 1]), expected);
 		}
@@ -134,6 +152,22 @@ struct Colors { background: vec4f, foreground: vec4f, mode: u32 };
 
 		for (const enable32bitDataTextures of supports32bit ? [false, true] : [false]) {
 			const label = `${enable32bitDataTextures ? 32 : 16}bit data`;
+			for (const [inputKind, emissionInput] of emissionInputs) {
+				// 【Time Patchworkは遅延0でも、履歴からの再生でもalpha=0の発光RGBを保持する】
+				// 透明画素を一律にゼロ化すると、エフェクトを通しただけでHDR・負値の発光が失われる。
+				const patchwork = createEffect(timePatchworkDefinition, timePatchwork, enable32bitDataTextures, {
+					input: emissionInput, amount: 1, maxDelay: 0, freezeEnabled: false, motionMode: 'off',
+				});
+				checkPixels(`${label} time patchwork preserves zero-alpha ${inputKind} emission`, await patchwork(), emissionColor);
+				checkPixels(`${label} time patchwork history preserves zero-alpha ${inputKind} emission`, await patchwork({ maxDelay: 1000 }), emissionColor);
+				// 【Datamoshはリセットした発光RGBを履歴に保存し、入力が透明黒へ変わっても再生できる】
+				// 表示だけを修正して履歴への保存で発光を消す変更も、次のフレームを読み戻して検出する。
+				const datamoshed = createEffect(datamoshDefinition, datamosh, enable32bitDataTextures, {
+					input: emissionInput, reset: true, recoveryRate: 0, blockRefreshRate: 0, motionStrength: 0,
+				});
+				checkPixels(`${label} datamosh reset preserves zero-alpha ${inputKind} emission`, await datamoshed(), emissionColor);
+				checkPixels(`${label} datamosh history preserves zero-alpha ${inputKind} emission`, await datamoshed({ reset: false, input: constantShaderInput('color', [0, 0, 0, 0]) }), emissionColor);
+			}
 			const input = constantShaderInput('color', [4, -3, 2, 0.5]);
 			const expected = [2, -1.5, 1, 0.5];
 			// 【処理対象となったブロック・帯域も、色の変化が0ならHDR入力をそのまま保つ】

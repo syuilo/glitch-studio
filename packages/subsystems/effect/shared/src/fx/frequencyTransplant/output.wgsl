@@ -29,7 +29,8 @@ fn sample_reconstruction(position: vec2f) -> ReconstructedSample {
 @fragment
 fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	let original = read_input(fragment.uv);
-	if (original.a <= 0.0) { return vec4f(0.0); }
+	// alpha=0のRGBは発光成分を持ち得る。未乗算が必要な処理では、その値を消さずに通す。
+	if (original.a <= 0.0) { return original; }
 	let reconstruction = sample_reconstruction(fragment.uv * vec2f(0.5, -0.5) + 0.5);
 	let originalRgb = original.rgb / original.a;
 	var baseRgb = components_to_rgb(reconstruction.base.rgb);

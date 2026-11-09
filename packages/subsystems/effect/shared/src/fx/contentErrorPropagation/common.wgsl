@@ -20,7 +20,8 @@ struct Uniforms {
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 fn straight_color(color: vec4f) -> vec4f {
-	if (color.a <= 0.0) { return vec4f(0.0); }
+	// alpha=0のRGBは発光成分を持ち得る。未乗算が必要な処理では、その値を消さずに通す。
+	if (color.a <= 0.0) { return color; }
 	return vec4f(color.rgb / color.a, color.a);
 }
 

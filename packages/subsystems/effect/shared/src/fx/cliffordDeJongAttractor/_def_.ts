@@ -1,3 +1,4 @@
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { defineEffect } from '../../effect-definition.ts';
 
 export const MAXIMUM_ORBIT_COUNT = 4096;
@@ -75,9 +76,9 @@ export default defineEffect({
 					colorSpace: 'srgb',
 					stops: [
 						{ id: 'empty', position: 0, color: [0, 0, 0, 0] },
-						{ id: 'low', position: 0.2, color: [0.1, 0.25, 0.6, 0.6] },
-						{ id: 'middle', position: 0.6, color: [0.15, 0.75, 1, 1] },
-						{ id: 'high', position: 1, color: [1, 0.9, 0.65, 1] },
+						{ id: 'low', position: 0.2, color: srgbToLinearSrgb([0.1, 0.25, 0.6, 0.6]) },
+						{ id: 'middle', position: 0.6, color: srgbToLinearSrgb([0.15, 0.75, 1, 1]) },
+						{ id: 'high', position: 1, color: srgbToLinearSrgb([1, 0.9, 0.65, 1]) },
 					],
 				},
 			},

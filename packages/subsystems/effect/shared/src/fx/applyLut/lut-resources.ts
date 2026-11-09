@@ -77,7 +77,18 @@ export function createLutResources(device: GPUDevice, layout: GPUBindGroupLayout
 				{ binding: 3, resource: sampler },
 			],
 		});
-		return { bindGroup, dispose };
+		let colorSpaceFlags = 0;
+		return {
+			bindGroup,
+			setColorSpaces(input: 'linearSrgb' | 'srgb', output: 'linearSrgb' | 'srgb') {
+				const next = Number(input === 'srgb') + Number(output === 'srgb') * 2;
+				if (next === colorSpaceFlags) return;
+				colorSpaceFlags = next;
+				// sizes.wの予約領域を使う。数値表自体のデータと保存精度は変更しない。
+				device.queue.writeBuffer(buffer!, 19 * Float32Array.BYTES_PER_ELEMENT, new Float32Array([next]));
+			},
+			dispose,
+		};
 	} catch (error) {
 		dispose();
 		throw error;

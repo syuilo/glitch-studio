@@ -13,6 +13,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `src/data-type`: 値の型と、その型に対応する編集UIのメタデータ。UIメタデータは`data-type-ui.ts`に分け、Vueコンポーネントやパラメータの初期値を含めない。
 - `src/spatial-coordinate.ts`: 長辺全体=1の等方的な位置・変位と、内部の各軸[-1,+1]の画像参照座標との換算。Size Referenceによらず空間データの単位を固定する。
 - `src/size-reference.ts`: Height・Width・Short Side・Long Sideを表す`SizeReference`と基準寸法の換算。専用の`sizeReference`型として使用し、パラメータの既定値はLong Side。各パラメータをどのように換算するかは利用側が決める。
+- `src/color-space.ts`: 未乗算linear sRGBの保存色型と、HDR・負値を保持するsRGB伝達関数。GPU側の同じ規約は`src/gpu/color-space.wgsl`で提供する。入出力境界は[色空間のドキュメント](../../docs/color-management.md)を参照。
 - `src/color-ramp.ts`: Color Rampの値・検証・CPU評価とGPU転送用の準備。sRGB・Linear sRGB・Oklab・OKLCHの補間を扱い、OKLCHの色相経路は区間ごとに準備してGPUと共有する。alphaと色相の規約は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#color-ramp)を参照。
 - `src/parameter`: パラメータ定義・Binding・初期値・ツリー操作・CPU値の評価。`parameter-path.ts`は編集対象を識別するIDパス、`parameter-tree.ts`は評価後の配列をたどるindexのパスを扱う。
 - `src/expression`: AiScriptの構文・ASTキャッシュ・式の実行。変数と関数は呼び出し側から明示し、Visual ModuleやTimelineを参照しない。
@@ -41,7 +42,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `shader-input.ts`: `UniformOrTexture`と受け取り側のサンプリング設定から`ShaderInput`を作る`toShaderInput()`、およびWGSLの読み取り関数とbindingの生成。
 - `shader-input-pipeline.ts`: シェーダー入力の構成に応じたpipelineとbindingの管理。
 - `vertex.wgsl`: 全画面パス用の頂点シェーダー。`triangle-list`と`draw(3)`で大きな三角形を描き、対角線上の余分なfragment実行を避ける。`@location(0) uv`は描画領域内で各軸`[-1,+1]`の内部画像参照座標を渡す。文字・線・棒などの個別形状の描画には専用の頂点シェーダーを使う。
-- `color-ramp.ts` / `color-ramp.wgsl`: fragment描画用のColor Rampのbuffer・binding・乗算済みsRGBへの評価。呼び出し側がbind group番号を指定し、`shaderCode`をシェーダーへ組み込み、`update()`が返すbind groupを使用する。stop数の変更はbufferの拡張で扱い、pipelineの再生成を要求しない。
+- `color-ramp.ts` / `color-ramp.wgsl`: fragment描画用のColor Rampのbuffer・binding・乗算済みlinear sRGBへの評価。呼び出し側がbind group番号を指定し、`shaderCode`をシェーダーへ組み込み、`update()`が返すbind groupを使用する。stop数の変更はbufferの拡張で扱い、pipelineの再生成を要求しない。
 - `shape-distance.wgsl`: 楕円・角丸矩形の境界への距離と、楕円の最近点を求める数学処理。座標の単位・配置・描画方式は呼び出し側が決める。
 - `uniform-or-texture-to-texture-resolver.ts`: `GPUTexture`が必要な境界で定数だけをテクスチャ化する`UniformOrTextureToTextureResolver`。借用テクスチャの所有権は持たず、自身が作った定数テクスチャだけを管理する。
 
@@ -49,7 +50,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 
 ## 動画の読み出し
 
-`src/media/video-texture.ts`は`VideoSample`を`VideoFrame`へ変換し、Canvasを経由せず通常のGPUテクスチャへ転送する。出力とコピー用の中間テクスチャは`INTERMEDIATE_TEXTURE_FORMAT`（rgba16float）に固定し、呼び出し側から形式を受け取らない。不透明と判明するピクセル形式は`importExternalTexture()`から回転・サイズ変更を一度の描画で行う。alphaを持ち得る形式と形式非公開のフレームは、`copyExternalImageToTexture()`でpremultiplyを明示して原寸コピーし、その後に回転・サイズ変更を行う。回転もサイズ変更もなければ出力へ直接コピーする。ChromeのRGBA外部テクスチャではalphaの二重乗算が起き得るため、alphaなしと判明する形式だけを外部テクスチャで扱う。透明部分も補間前にpremultiplyし、輪郭へ透明画素の色を混ぜない。Mediabunnyの回転情報はシェーダーで適用し、表示寸法・切り抜き・色空間はVideoFrameとWebGPUに従う。変換用VideoFrameはコピー・submit後に閉じ、呼び出し側が所有する元サンプルと変換済みテクスチャの寿命を分離する。GPU完了待ちは追加せず、後段も同じqueueで出力を読む。
+`src/media/external-image-texture.ts`は通常の外部画像を原寸でlinear sRGB・premultiplied alphaへ正規化する。`src/media/video-texture.ts`はVideoSampleから借りたVideoFrameを同じ経路へ渡し、変換後に回転・表示比率・描画倍率を適用する。非正方形ピクセルもlinear化より前に拡縮しない。すべての画像はINTERMEDIATE_TEXTURE_FORMAT（rgba16float）を使い、stagingと変換済み画像を再利用する。CanvasやGPU完了待ちは追加せず、変換用フレームは転送・submit後にcloseする。詳細は[色空間の規約](../../docs/color-management.md)を参照。
 
 `src/file-source.ts`の`FileSource`はBlobまたはURLでファイルの読み取り口を表します。プロジェクトの保存方法や実ファイルのパスを持ちません。`src/media/media-input.ts`は動画・音声の共通入力を作り、URL入力を原本全体のBlobに変換せず、Mediabunnyの範囲読み取りと8MiBのキャッシュ上限を使います。デコード済みのフレーム・PCMのキャッシュは、それぞれの読み取り側が管理します。
 

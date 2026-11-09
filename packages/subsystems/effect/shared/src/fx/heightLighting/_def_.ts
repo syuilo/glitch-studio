@@ -1,3 +1,4 @@
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
@@ -62,7 +63,7 @@ export default defineEffect({
 		ambientBackColor: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Ambient Back Color', control: {} },
-			defaultValue: { inputSource: 'literal', value: [0.2, 0.25, 0.3, 1] },
+			defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([0.2, 0.25, 0.3, 1]) },
 		},
 		ambientIntensity: {
 			dataType: { kind: 'scalar' },

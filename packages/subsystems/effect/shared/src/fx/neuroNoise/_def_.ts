@@ -1,3 +1,4 @@
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 // Adapted from Paper Design's Neuro Noise (Apache-2.0; see LICENSE and NOTICE).
 // Modified: evolving time, node colors/background and Glitch Studio sizing.
 import { defineEffect } from '../../effect-definition.ts';
@@ -29,7 +30,7 @@ export default defineEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Main Color', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [71 / 255, 166 / 255, 1, 1] },
+			defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([71 / 255, 166 / 255, 1, 1]) },
 		},
 		brightness: {
 			dataType: { kind: 'scalar' },

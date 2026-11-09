@@ -71,7 +71,7 @@ fn detail_source(imagePosition: vec2f, original: vec4f) -> vec4f {
 @fragment
 fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	let original = read_input(fragment.uv);
-	if (original.a <= 0.0) { return vec4f(0.0); }
+	if (original.a <= 0.0) { return original; }
 	let imagePosition = fragment.uv * vec2f(0.5, -0.5) + 0.5;
 	let y = sample_component(imagePosition, 0u);
 	let cb = sample_component(imagePosition, 1u);
@@ -80,7 +80,7 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	if (uniforms.preserveDetails != 0u) {
 		let source = detail_source(imagePosition, original);
 		var sourceRgb = vec3f(0.0);
-		if (source.a > 0.0) { sourceRgb = source.rgb / source.a; }
+		if (source.a > 0.0) { sourceRgb = colorLinearToSrgb(source.rgb / source.a); }
 		let referenceRgb = ycbcr_to_rgb(vec3f(y.y, cb.y, cr.y));
 		// 元画像 + (JPEG処理後 - 未圧縮の縮小画像) とし、リサンプリングで失った
 		// 細部を維持する。比較する両画像に同じ補間を使い、差分計算後にだけRGBを飽和させる。
@@ -88,5 +88,5 @@ fn fs(fragment: FragmentIn) -> @location(0) vec4f {
 	}
 	rgb = clamp(rgb, vec3f(0.0), vec3f(1.0));
 	// JPEGはalphaを持たない。元の透明度を保持し、色の復号後に一度だけpremultiplyする。
-	return vec4f(rgb * original.a, original.a);
+	return vec4f(colorSrgbToLinear(rgb) * original.a, original.a);
 }

@@ -20,6 +20,16 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
+		inputColorSpace: {
+			dataType: { kind: 'enum', options: ['linearSrgb', 'srgb'] },
+			ui: { label: 'LUT Input Color Space', control: { labels: { linearSrgb: 'Linear sRGB', srgb: 'sRGB' } } },
+			defaultValue: { inputSource: 'literal', value: 'linearSrgb' },
+		},
+		outputColorSpace: {
+			dataType: { kind: 'enum', options: ['linearSrgb', 'srgb'] },
+			ui: { label: 'LUT Output Color Space', control: { labels: { linearSrgb: 'Linear sRGB', srgb: 'sRGB' } } },
+			defaultValue: { inputSource: 'literal', value: 'linearSrgb' },
+		},
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

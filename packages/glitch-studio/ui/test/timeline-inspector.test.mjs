@@ -8,6 +8,7 @@ import { basename, dirname } from 'node:path';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, markRaw, nextTick, reactive, ref } from 'vue';
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 
 // 親とInspectorの実際のSFCを使い、共通コントロール・外部アプリ状態・DOMだけを置き換える。
 // Commandも本物を使うことで、分割後のイベント接続とUndoの単位を一緒に確認する。
@@ -621,7 +622,7 @@ test('edits and clears layer identification colors with grouped undo and redo', 
 	assert.equal(f.control('GsColorInput', 'layer-color'), undefined);
 	f.control('GsSwitch', 'layer-custom-color').props['onUpdate:modelValue'](true);
 	await nextTick();
-	assert.deepEqual(layer.color, [0.5, 0.5, 0.5, 1]);
+	assert.deepEqual(layer.color, srgbToLinearSrgb([0.5, 0.5, 0.5, 1]));
 	const input = f.control('GsColorInput', 'layer-color');
 	input.props.onBeginChanging();
 	input.props['onUpdate:modelValue']([1, 0, 0, 1]);
@@ -630,7 +631,7 @@ test('edits and clears layer identification colors with grouped undo and redo', 
 	assert.equal(f.history.undoStack.value.length, 2);
 	assert.deepEqual(layer.color, [0, 1, 0, 1]);
 	f.history.undo();
-	assert.deepEqual(layer.color, [0.5, 0.5, 0.5, 1]);
+	assert.deepEqual(layer.color, srgbToLinearSrgb([0.5, 0.5, 0.5, 1]));
 	f.history.redo();
 	assert.deepEqual(layer.color, [0, 1, 0, 1]);
 	f.control('GsSwitch', 'layer-custom-color').props['onUpdate:modelValue'](false);

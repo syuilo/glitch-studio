@@ -8,7 +8,7 @@
 			<GsInput data-test-layer-name :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
 		</div>
 		<div class="_spacer _gaps_m">
-			<GsSwitch data-test-layer-custom-color :modelValue="layer.color != null" @update:modelValue="enabled => setColor(enabled ? [0.5, 0.5, 0.5, 1] : null)">
+			<GsSwitch data-test-layer-custom-color :modelValue="layer.color != null" @update:modelValue="enabled => setColor(enabled ? srgbToLinearSrgb([0.5, 0.5, 0.5, 1]) : null)">
 				<template #label>{{ i18n.ts._TimelineLayer.LayerColor }}</template>
 			</GsSwitch>
 			<GsColorInput v-if="layer.color != null" :key="layer.id" data-test-layer-color :modelValue="layer.color" :title="i18n.ts._TimelineLayer.LayerColor" @beginChanging="beginColorEdit" @update:modelValue="setColor" @changeFinished="finishColorEdit"/>
@@ -227,6 +227,7 @@
 </template>
 
 <script lang="ts" setup>
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { computed, ref, onBeforeUnmount, provide } from 'vue';
 import { isTimelineVisualLayer, isTimelineContainerLayer, hasTimelineLayerParameters, isTimelineEffectOrVisualModuleLayer, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';

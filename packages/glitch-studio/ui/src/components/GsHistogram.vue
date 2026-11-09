@@ -1,6 +1,7 @@
 <template>
 <GsDetachableView :title="i18n.ts._Workspace.Histogram" :suspended="appContext.renderEngine.isSuspended.value">
 <div :class="$style.root">
+	<GsImageAnalysisScale/>
 	<div ref="canvasContainer" :class="$style.canvas"></div>
 </div>
 </GsDetachableView>
@@ -12,6 +13,7 @@ import { appContext } from '@/app.ts';
 import { useTemplateRef } from 'vue';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
+import GsImageAnalysisScale from './GsImageAnalysisScale.vue';
 
 const { activePreviewRenderer } = appContext;
 
@@ -22,15 +24,16 @@ useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'histogramCanvas
 
 <style lang="scss" module>
 .root {
+	display: flex;
+	flex-direction: column;
 	position: relative;
 	width: 100%;
 	height: 100%;
 }
 
 .canvas {
-	position: absolute;
-	top: 0;
-	left: 0;
+	flex: 1;
+	min-height: 0;
 	display: block;
 	width: 100%;
 	height: 100%;

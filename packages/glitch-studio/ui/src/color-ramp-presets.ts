@@ -1,4 +1,5 @@
 import type { ColorRampStop } from '@gs/shared/color-ramp.ts';
+import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 
 export type ColorRampPreset = {
 	readonly id: string;
@@ -9,9 +10,10 @@ export type ColorRampPreset = {
 };
 
 // プリセットは配色だけを所有し、補間方法・補間色空間・色相経路は適用先の設定を使う。
-// RGBAはColorRampStopと同じ未乗算sRGB。透明なstopにも色を残して色相経路を保つ。
+// 原典の色を読みやすい未乗算sRGBで記述し、公開時に一度だけlinear保存値へ変換する。
+// 透明なstopにも色を残して色相経路を保つ。
 // 定義を編集値と共有しないよう、適用時に色配列までコピーしてstop IDを新規発行する。
-export const COLOR_RAMP_PRESETS: readonly ColorRampPreset[] = [
+const SRGB_COLOR_RAMP_PRESETS: readonly ColorRampPreset[] = [
 	// 無彩色
 	{
 		id: 'black-white',
@@ -1644,3 +1646,8 @@ export const COLOR_RAMP_PRESETS: readonly ColorRampPreset[] = [
 		],
 	},
 ];
+
+export const COLOR_RAMP_PRESETS: readonly ColorRampPreset[] = SRGB_COLOR_RAMP_PRESETS.map(preset => ({
+	...preset,
+	stops: preset.stops.map(stop => ({ ...stop, color: srgbToLinearSrgb(stop.color) })),
+}));

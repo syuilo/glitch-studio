@@ -1,5 +1,7 @@
 import type { Asset } from '@gs/shared/types.ts';
 import { getFileSourceError, readFileSource } from '@gs/shared/file-source.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
+import { createExternalImageToLinearTextureConverter } from '@gs/shared/media/external-image-texture.ts';
 
 /** 素材一覧は生成時に固定し、ready完了後のGPUテクスチャをレンダラーへ貸し出す。 */
 export class AssetTextures {
@@ -28,6 +30,7 @@ export class AssetTextures {
 	}
 
 	private async prepare(assets: readonly Asset[]): Promise<void> {
+		let converter: ReturnType<typeof createExternalImageToLinearTextureConverter> | null = null;
 		try {
 			// 大きな画像を同時にすべてデコードすると、一時メモリが膨らむため順番に処理する。
 			for (const asset of assets) {
@@ -35,6 +38,8 @@ export class AssetTextures {
 				if (!asset.fileDataType.startsWith('image/')) continue;
 				if (getFileSourceError(asset.fileData) != null) continue;
 				let bitmap: ImageBitmap;
+				// Chrome 157ではpremultiplyAlpha: 'none'にすると、半透明の広色域PNGを後段で
+				// sRGBへ変換する際に暗くなる。既定のデコードを使い、原色変換とalphaの整合性を保つ。
 				try { bitmap = await createImageBitmap(asset.fileData instanceof Blob ? asset.fileData : await readFileSource(asset.fileData)); } catch (error) {
 					// 未使用の外部画像の障害で全体を停止しない。使用時にはテクスチャの欠落をエラーにする。
 					if (asset.fileData instanceof Blob) throw error;
@@ -45,16 +50,14 @@ export class AssetTextures {
 					if (this.disposed) return;
 					const texture = this.device.createTexture({
 						size: [bitmap.width, bitmap.height],
-						format: 'rgba8unorm',
+						format: INTERMEDIATE_TEXTURE_FORMAT,
 						usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
 					});
 					this.preparedTextures.set(asset.id, texture);
-					// 補間より前にpremultiplyする。画像ノードではこのRGBAをそのまま読む。
-					this.device.queue.copyExternalImageToTexture(
-						{ source: bitmap },
-						{ texture, premultipliedAlpha: true, colorSpace: 'srgb' },
-						[bitmap.width, bitmap.height],
-					);
+					// 原色・伝達関数の変換とpremultiplyを補間より前に済ませる。
+					// float保存により、広色域素材からの変換で生じるHDR・負値も保持する。
+					converter ??= createExternalImageToLinearTextureConverter(this.device);
+					converter.copy(bitmap, texture);
 				} finally {
 					bitmap.close();
 				}
@@ -63,6 +66,8 @@ export class AssetTextures {
 			if (this.disposed) return;
 			this.dispose();
 			throw error;
+		} finally {
+			converter?.dispose();
 		}
 	}
 

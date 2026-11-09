@@ -1,5 +1,9 @@
 import computeShaderCode from './histogram-compute.wgsl?raw';
 import renderShaderCode from './histogram-render.wgsl?raw';
+import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
+import imageValueScaleShaderCode from '@gs/shared/gpu/image-value-scale.wgsl?raw';
+import { IMAGE_VALUE_SCALES } from '@gs/shared/utility/image-value-scale.ts';
+import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
 
 const BIN_COUNT = 256;
@@ -7,6 +11,8 @@ const CHANNEL_COUNT = 3;
 const HISTOGRAM_VALUE_COUNT = (BIN_COUNT * CHANNEL_COUNT) + 1;
 
 export class GpuHistogram {
+	public valueScale: ImageValueScale = 'srgb';
+	private readonly valueScaleBuffer: GPUBuffer;
 	private readonly context: PreviewCanvasContext;
 	private readonly histogramBuffer: GPUBuffer;
 	private readonly accumulatePipeline: GPUComputePipeline;
@@ -25,6 +31,7 @@ export class GpuHistogram {
 		format: GPUTextureFormat,
 	) {
 		this.context = context;
+		this.valueScaleBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		this.context.configure({
 			device,
 			format,
@@ -40,11 +47,12 @@ export class GpuHistogram {
 
 		const computeModule = device.createShaderModule({
 			label: 'histogram compute shader',
-			code: computeShaderCode,
+			code: colorSpaceShaderCode + '\n' + imageValueScaleShaderCode + '\n' + computeShaderCode,
 		});
 		this.accumulateBindGroupLayout = device.createBindGroupLayout({
 			label: 'histogram accumulation bind group layout',
 			entries: [
+				{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
 				{
 					binding: 0,
 					visibility: GPUShaderStage.COMPUTE,
@@ -143,6 +151,7 @@ export class GpuHistogram {
 	}
 
 	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture) {
+		this.device.queue.writeBuffer(this.valueScaleBuffer, 0, new Uint32Array([IMAGE_VALUE_SCALES.indexOf(this.valueScale), 0, 0, 0]));
 		if (this.sourceTexture !== sourceTexture) {
 			this.sourceTexture = sourceTexture;
 			this.accumulateBindGroup = this.device.createBindGroup({
@@ -151,6 +160,7 @@ export class GpuHistogram {
 				entries: [
 					{ binding: 0, resource: sourceTexture.createView() },
 					{ binding: 1, resource: { buffer: this.histogramBuffer } },
+					{ binding: 2, resource: { buffer: this.valueScaleBuffer } },
 				],
 			});
 		}
@@ -196,6 +206,7 @@ export class GpuHistogram {
 	}
 
 	public dispose() {
+		this.valueScaleBuffer.destroy();
 		this.histogramBuffer.destroy();
 		this.context.unconfigure();
 	}

@@ -1,3 +1,4 @@
+import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -63,6 +64,7 @@ export class AppContext {
 	public highlightClipping = ref(false);
 	/** 作品・保存データとは独立した、両プレビュー共通の表示用露出（EV）。 */
 	public previewExposure = ref(0);
+	public analysisValueScale = ref<ImageValueScale>('srgb');
 	public audioOutput = markRaw(new AudioOutput());
 	public visualModuleRendererManagerController: VisualModuleRendererManagerController;
 	public timelineRendererManagerController: TimelineRendererManagerController;
@@ -143,7 +145,7 @@ export class AppContext {
 				const snapshot = deepClone({
 					assets: getRendererAssets(state.assets.value), players: state.players.value, customShaderEffects: state.customShaderEffects.value,
 					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
-					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value },
+					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value, previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value },
 					visualModuleOptions: { fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
 					timelineOptions: { sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
 						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value,
@@ -251,6 +253,16 @@ export class AppContext {
 			await this.updatePreviewOptions({ highlightClipping: value });
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
+		watch(preferences.r.animatedBgInPreview, async value => {
+			await this.updatePreviewOptions({ previewBackground: value ? 'checker' : 'black' });
+			this.previewPlayback.refresh();
+		}, { flush: 'sync' });
+
+		watch(this.analysisValueScale, async value => {
+			await this.updatePreviewOptions({ analysisValueScale: value });
+			this.previewPlayback.refresh();
+		}, { flush: 'sync' });
+
 		watch(this.previewExposure, async value => {
 			await this.updatePreviewOptions({ previewExposure: value });
 			this.previewPlayback.refresh();
@@ -309,7 +321,7 @@ export class AppContext {
 		};
 	}
 
-	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewExposure'>>) {
+	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewExposure' | 'previewBackground' | 'analysisValueScale'>>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),

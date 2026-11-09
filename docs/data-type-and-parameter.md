@@ -33,18 +33,22 @@
 
 サイズ指定には専用型`{ kind: 'sizeReference' }`を使用できます。Height・Width・Short Side・Long Sideから選び、共通の既定値はLong Sideです。汎用enumへ変換せずに保存・式評価・公開パラメータ・Holdのキーで扱います。[サイズ基準の規約と対象パラメータ](./size-reference.md)を参照してください。
 
+## Color
+
+`color`の保存値・式の戻り値・キーフレームは、未乗算linear sRGBのRGBAです。RGBはHDR・負値を許し、alphaは0〜1の被覆率として扱います。HEX・sRGB 0〜255・HSL・スポイトはUIの境界で変換します。`[0.5, 0.5, 0.5, 1]`はlinearの0.5で、標準sRGB表示では約`#BCBCBC`です。[色空間の規約](color-management.md)も参照してください。
+
 ## Color Ramp
 
 `{ kind: 'colorRamp' }`は、scalarからcolorへの対応表を一つの末端値として扱います。
 `packages/shared/src/color-ramp.ts`の`ColorRamp`は`stops`・`interpolation`・`colorSpace`を持ち、
 各stopは`{ id, position, color }`です。stop内部にはBindingを持たせません。
 
-- stopは1個以上。IDはランプ内で一意な空でない文字列、位置は0〜1の有限値とします。RGBAは未乗算sRGBの有限値で、alphaは0〜1です。
-- 初期値は位置0の黒と位置1の白（不透明）、Linear・sRGBです。RGBの有限な範囲外値は保存できますが、描画結果はsRGBへ戻した後に0〜1へclampします。
+- stopは1個以上。IDはランプ内で一意な空でない文字列、位置は0〜1の有限値とします。RGBAは未乗算linear sRGBの有限値で、alphaは0〜1です。
+- 初期値は位置0の黒と位置1の白（不透明）、Linear・Linear sRGBです。RGBの有限な範囲外値は保存・描画結果の両方に保持します。
 - 評価では位置をGPUと同じf32へ丸め、保存順を保って位置順に並べます。同位置では保存順で最後のstopを採用し、左から近づく区間には最初のstopを使います。範囲外は端の色、単一stopは全域でその色です。保存値の順序・位置は変更しません。
 - 補間は`constant`・`linear`・`smoothstep`・`smootherstep`・`easeIn`・`easeOut`、補間色空間は`srgb`・`linearSrgb`・`oklab`・`oklch`です。色空間の設定変更で保存済みのRGBAを書き換えません。
 - `linear`以外の連続補間は、隣接stop間の進行率`t`（0〜1）を変換してから色・alpha・OKLCHの色相へ同じ進行率を適用します。`smoothstep`は`t²(3−2t)`、`smootherstep`は`t³(6t²−15t＋10)`で、後者は両端の1階・2階微分が0です。`easeIn`は`t²`で始点の色を長く保ち、`easeOut`は`t(2−t)`で早めに終点の色へ移る二次補間です。
-- 選択した色空間へ変換してからalphaを乗算して補間します。OKLCHではCSS Color 4と同様にL・Cだけへalphaを乗算し、色相はalphaと独立に補間します。完全透明な有彩色stopも色相を保持するため、alphaの0と微小な正値で色相の経路が切り替わりません。補間後は乗算した成分を未乗算へ戻し、sRGBへ変換・clampして再びalphaを乗算します。alphaが0の場合は透明色を返します。端点とConstantでは色空間変換の往復を省略します。
+- 選択した色空間へ変換してからalphaを乗算して補間します。OKLCHではCSS Color 4と同様にL・Cだけへalphaを乗算し、色相はalphaと独立に補間します。完全透明な有彩色stopも色相を保持するため、alphaの0と微小な正値で色相の経路が切り替わりません。補間後は乗算した成分を未乗算へ戻し、linear sRGBへ変換して再びalphaを乗算します。RGBはclampしません。alphaが0の場合は透明色を返します。端点とConstantでは色空間変換の往復を省略します。
 - OKLCHの色相経路は省略可能な`hueInterpolation`で指定します。`shorter`（既定）・`longer`・`increasing`・`decreasing`に対応し、他の色空間ではこの設定を使いません。変換後のCが0.000004以下の場合は無彩色としてCを0に揃え、補間区間の相手の色相を借ります。色相経路はalphaを乗算する前に区間ごとに準備し、CPUプレビューとGPUで共有します。
 - 固定値・環境変数・ランプ全体を返す基準式と加工式・Visual Moduleの公開入力で利用できます。キーフレーム・Automation Graph・テクスチャとしてのノード接続は扱いません。
 - 式は各stopのIDを安定した文字列で返してください。加工式の`VALUE`もランプ全体で、式の内部変更は保存値へ書き戻されません。不正な構造や非有限値はエラーとして報告します。

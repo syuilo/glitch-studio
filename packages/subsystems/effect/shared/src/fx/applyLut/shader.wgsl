@@ -32,9 +32,11 @@ fn apply1d(color: vec3f) -> vec3f {
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let input = read_input(position);
 	if (lut.sizes.x == 0.0 && lut.sizes.y == 0.0) { return input; }
-	if (input.a == 0.0) { return vec4f(0.0); }
+	if (input.a == 0.0 && all(input.rgb == vec3f(0.0))) { return input; }
 	// LUTは未乗算RGBを変換する表。元のアルファは変えず、最後に一度だけ戻す。
-	var color = input.rgb / input.a;
+	var color = colorUnpremultiply(input);
+	let colorSpaceFlags = u32(lut.sizes.w);
+	if ((colorSpaceFlags & 1u) != 0u) { color = colorLinearToSrgb(color); }
 	if (lut.sizes.x > 0.0) { color = apply1d(color); }
 	if (lut.sizes.y > 0.0) {
 		let normalized = (clamp(color, lut.min3d.rgb, lut.max3d.rgb) - lut.min3d.rgb) / (lut.max3d.rgb - lut.min3d.rgb);
@@ -42,5 +44,6 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		let coordinate = (normalized * (lut.sizes.y - 1.0) + 0.5) / lut.sizes.y;
 		color = textureSampleLevel(table3d, lutSampler, coordinate, 0.0).rgb;
 	}
-	return vec4f(color * input.a, input.a);
+	if ((colorSpaceFlags & 2u) != 0u) { color = colorSrgbToLinear(color); }
+	return colorReplaceRgb(input, color);
 }
