@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -8,7 +9,7 @@ import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
-		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: wgpu.intermediateTextureFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
 	},
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
@@ -19,7 +20,7 @@ export default implementEffect<typeof definition>({
 		const colorRamp = createColorRampBindings(device, 1);
 		const pipelines = createShaderInputPipeline({
 			device, vertex: wgpu.defaultVertexShaderModule, code: colorRamp.shaderCode + '\n' + code,
-			schema: { vector: 'vector' }, targets: [{ format: wgpu.intermediateTextureFormat }],
+			schema: { vector: 'vector' }, targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 			internalLayouts: [layout, colorRamp.layout],
 			// セル中心への量子化と、画素ごとに異なるセルの参照はimplicit LODの微分に依存させない。
 			sampling: 'level0',

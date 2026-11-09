@@ -53,7 +53,7 @@ export async function run() {
 	}
 	function createEffect(width: number, height: number) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: false };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		const instance = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });

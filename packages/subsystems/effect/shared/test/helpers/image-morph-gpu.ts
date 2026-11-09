@@ -89,7 +89,7 @@ export async function run({ benchmark = false }: { benchmark?: boolean } = {}) {
 	}
 	function createEffect(width: number, height: number, data32 = false, allocatedPorts: readonly Port[] = ports) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: data32 };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: data32 };
 		const textures = Object.fromEntries(ports.filter(port => port === 'output' || allocatedPorts.includes(port)).map(port => [port, implementation.outputTextureFactories[port]({ wgpu, resolution })])) as Record<Port, GPUTexture>;
 		const outputDataMap = Object.fromEntries(Object.entries(textures).map(([port, image]) => [port, { texture: image, textureView: image.createView(), previousFrameTexture: null, previousFrameTextureView: null }])) as EffectOutputDataMap<typeof definition.outputDefs>;
 		const effect = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: textures.output, reportStatus: () => {} });
@@ -108,7 +108,7 @@ export async function run({ benchmark = false }: { benchmark?: boolean } = {}) {
 	}
 	async function displace(input: ShaderInput, vector: GPUTexture, width: number, height: number) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: false };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
 		const params = { input, vector: textureShaderInput(vector, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' }), amount: 1, flipX: false, flipY: false, rotation: 0 };
 		const output = displacementImplementation.outputTextureFactories.output({ wgpu, resolution });
 		const effect = displacementImplementation.init({ wgpu, resolution, params, resources: {}, fallbackTexture: output, reportStatus: () => {} });
@@ -300,7 +300,7 @@ export async function run({ benchmark = false }: { benchmark?: boolean } = {}) {
 		let benchmarkResult: { resolution: string; analysisResolution: number; milliseconds: number[] } | null = null;
 		if (benchmark) {
 			const resolution = { width: 1920, height: 1080 };
-			const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: false };
+			const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
 			const params = { ...defaults, ...motionBase, analysisResolution: 128, pyramidLevels: 4, iterations: 8 };
 			const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 			const effect = implementation.init({ wgpu, resolution, params, resources: {}, fallbackTexture: output, reportStatus: () => {} });

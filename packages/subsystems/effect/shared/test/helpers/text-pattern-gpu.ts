@@ -58,7 +58,7 @@ export async function run() {
 		const selectedDefinition = effectKind === 'text' ? textDefinition : definition;
 		const selectedImplementation: EffectImplementation = effectKind === 'text' ? textImplementation : implementation;
 		const resolution = { width, height };
-		const wgpu = { device, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: false, defaultVertexShaderModule };
+		const wgpu = { device, enable32bitDataTextures: false, defaultVertexShaderModule };
 		const output = selectedImplementation.outputTextureFactories.output({ wgpu, resolution });
 		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		owned.push(output);

@@ -91,7 +91,7 @@ async function fixture(t, options = {}) {
 		resolution: { width: 320, height: 180 }, ...extra,
 	});
 	return { manager, calls, setup, implementation, directOptions: {
-		wgpu: { device, defaultVertexShaderModule: {}, intermediateTextureFormat: 'rgba16float', enable32bitDataTextures: false },
+		wgpu: { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false },
 		fallbackTexture: texture(), resolution: { width: 160, height: 90 }, resolutionScale: 0.5, assets: [], assetTextures: new Map(),
 	} };
 }

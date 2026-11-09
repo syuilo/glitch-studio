@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -17,7 +18,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -45,10 +46,10 @@ export default implementEffect<typeof definition>({
 			primitive: { topology: 'triangle-list' },
 		});
 		// 縮小・拡大の各段階もrendererで指定された画像形式に揃える。
-		const downsamplePipeline = makePipeline('downsample', wgpu.intermediateTextureFormat);
+		const downsamplePipeline = makePipeline('downsample', INTERMEDIATE_TEXTURE_FORMAT);
 		// Blend into the finer level in place; no second pyramid or detail sample.
 		const blend: GPUBlendComponent = { srcFactor: 'constant', dstFactor: 'one-minus-constant' };
-		const upsamplePipeline = makePipeline('upsample', wgpu.intermediateTextureFormat, { color: blend, alpha: blend });
+		const upsamplePipeline = makePipeline('upsample', INTERMEDIATE_TEXTURE_FORMAT, { color: blend, alpha: blend });
 		const prefilterLayout = device.createBindGroupLayout({
 			entries: [
 				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
@@ -71,13 +72,13 @@ export default implementEffect<typeof definition>({
 			...inputPipelineOptions,
 			internalLayouts: [prefilterLayout],
 			entryPoint: 'prefilter',
-			targets: [{ format: wgpu.intermediateTextureFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 		});
 		const compositePipelines = createShaderInputPipeline({
 			...inputPipelineOptions,
 			internalLayouts: [bindGroupLayout],
 			entryPoint: 'composite',
-			targets: [{ format: wgpu.intermediateTextureFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 		});
 		const longestSide = Math.max(resolution.width, resolution.height);
 		const clamp = (value: number, max: number, fallback: number) => Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : fallback;
@@ -118,7 +119,7 @@ export default implementEffect<typeof definition>({
 				const height = resolution.height * workingSize / longestSide / (1 + reduction * scaleY);
 				const texture = device.createTexture({
 					size: [Math.max(1, Math.round(width)), Math.max(1, Math.round(height))],
-					format: wgpu.intermediateTextureFormat,
+					format: INTERMEDIATE_TEXTURE_FORMAT,
 					usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 				});
 				return { texture, view: texture.createView() };

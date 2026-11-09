@@ -59,7 +59,7 @@ Visual ModuleのIn/Out・バイパス・タイムラインのレイヤー間で�
 
 通常の画像出力は `rgba16float` に固定し、データ用テクスチャの精度だけを `enable32bitDataTextures` で選択します。
 
-- **`INTERMEDIATE_TEXTURE_FORMAT`**（`@gs/shared/types.ts`）は通常の画像出力の保存形式を表す定数で、値は `rgba16float` です。`IntermediateTextureFormat` もこの値だけを許可し、エフェクトには読み取り専用の `wgpu.intermediateTextureFormat` として渡します。0〜1の範囲外の値を保持し、フィルタリングとハードウェアブレンディングに対応します。プレビュー・Timeline・書き出しで同じ形式を使い、環境設定やManagerの初期化オプションには含めません。Timelineの合成・Scene出力・文字・シェイプ・動画転送も形式の引数を持たず、生成側で同じ定数を参照します。Canvasの表示形式と素材・マスク等の取り込み用テクスチャは、それぞれの用途に応じた形式を使います。
+- **`INTERMEDIATE_TEXTURE_FORMAT`**（`@gs/shared/types.ts`）は通常の画像出力の保存形式を表す定数で、値は `rgba16float` です。エフェクトを含む各生成処理がこの定数を直接参照し、GPUコンテキストには画像形式の設定を持たせません。0〜1の範囲外の値を保持し、フィルタリングとハードウェアブレンディングに対応します。プレビュー・Timeline・書き出しで同じ形式を使い、環境設定やManagerの初期化オプションには含めません。Timelineの合成・Scene出力・文字・シェイプ・動画転送も形式の引数を持たず、生成側で同じ定数を参照します。Canvasの表示形式と素材・マスク等の取り込み用テクスチャは、それぞれの用途に応じた形式を使います。
 - **`wgpu.enable32bitDataTextures`** はデータ用・内部計算用の浮動小数点テクスチャの保存精度を選ぶアプリ側の設定です。falseなら16bit float、trueなら32bit floatを使います。GPUの対応可否や、フィルタリングを行うかどうかを直接表す設定ではありません。
 - **`float32-filterable`** は32bit floatテクスチャのフィルタリング読み取りを可能にするWebGPUの追加機能です。有効化してもテクスチャの保存形式は自動で変わりません。形式はテクスチャ作成時に指定します。
 
@@ -83,7 +83,7 @@ Visual ModuleのIn/Out・バイパス・タイムラインのレイヤー間で�
 | 2成分ベクトル場 | `rg16float` | `rg32float` |
 | 4成分データ・浮動小数点の履歴 | `rgba16float` | `rgba32float` |
 
-- falseのときに32bit floatのノード出力を生成してはいけません。通常の画像出力は `wgpu.intermediateTextureFormat` に従います。
+- falseのときに32bit floatのノード出力を生成してはいけません。通常の画像出力は `INTERMEDIATE_TEXTURE_FORMAT` に従います。
 - 出力だけでなく、内部の一時テクスチャ・履歴・compute shaderのstorage textureにも精度設定を適用します。テクスチャの生成形式、render pipelineのtarget、bind group layoutのstorage形式、WGSLのstorage texture宣言は必ず一致させます。出力チャンネル数も合わせてください。
 - CPUから16bit floatへアップロードするときは、数値をhalfのビット表現に変換します。`Float32Array` のバイト列をそのまま渡してはいけません。`bytesPerRow` も保存形式に合わせます。共通の変換処理は `packages/shared/src/utility/float32ToFloat16Bits.ts` にあります。
 - 16bit化では丸めと表現範囲の縮小が発生します。履歴との差分を計算する処理では、現在値と履歴値を同じ保存精度に揃えて、静止入力に丸め由来の差分が出ないようにします。蓄積では保存可能な範囲への制限などによりオーバーフローを防ぎます。

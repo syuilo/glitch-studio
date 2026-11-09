@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { AudioInputSpectrogram } from '@gs/subsystems_audio_renderer/audio-input-spectrogram.ts';
 import { createSpectrogramRenderer, getSpectrogramHistoryKey, resolveSpectrogramSettings } from '../../audio-spectrogram/spectrogram-renderer.ts';
 import { createAudioWindowLoader } from '../../audio-window-loader.ts';
@@ -23,17 +24,17 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, reportStatus }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, reportStatus }) => {
 		const loader = createAudioWindowLoader(reportStatus);
 		const analysis = new AudioInputSpectrogram();
 		const spectrogram = createSpectrogramRenderer({
 			device,
 			vertexShaderModule: defaultVertexShaderModule,
-			format: intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			enable32bitDataTextures,
 		});
 		let request: SpectrogramAnalysisRequest | null = null;

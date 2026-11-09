@@ -39,7 +39,7 @@ export async function run() {
 	const checks: string[] = [];
 	const disposables: (() => void)[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
-	const gpuContext = (precise: boolean) => ({ device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: precise });
+	const gpuContext = (precise: boolean) => ({ device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise });
 
 	function inputTexture(width: number, height: number, values: number[], sampling: Partial<ShaderInputSampling> = {}) {
 		const texture = device.createTexture({ size: [width, height], format: supports32bit ? 'r32float' : 'r16float', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });

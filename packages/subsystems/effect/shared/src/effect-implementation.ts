@@ -7,7 +7,7 @@ import type { ColorRamp } from '@gs/shared/color-ramp.ts';
 import type { SizeReference } from '@gs/shared/size-reference.ts';
 import type { FileSource } from '@gs/shared/file-source.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import type { FitMode, IntermediateTextureFormat, WrapMode } from '@gs/shared/types.ts';
+import type { FitMode, WrapMode } from '@gs/shared/types.ts';
 import type { EffectOutputDefinitions, EffectDefinition } from './effect-definition.ts';
 import type { EffectStatus } from './effect-status.ts';
 
@@ -61,7 +61,6 @@ export type EffectGpuContext = {
 	/** triangle-listとdraw(3)で全画面を覆い、location(0)に各軸[-1,+1]の画像参照座標を渡す。 */
 	defaultVertexShaderModule: GPUShaderModule;
 	enable32bitDataTextures: boolean;
-	readonly intermediateTextureFormat: IntermediateTextureFormat;
 };
 
 export type EffectRenderContext<Options extends Record<string, ParameterDefinition> = any, Outputs extends EffectOutputDefinitions = any> = {
@@ -102,7 +101,6 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 			wgpu: {
 				device: GPUDevice;
 				enable32bitDataTextures: boolean;
-				readonly intermediateTextureFormat: IntermediateTextureFormat;
 			};
 		}) => GPUTexture;
 	};

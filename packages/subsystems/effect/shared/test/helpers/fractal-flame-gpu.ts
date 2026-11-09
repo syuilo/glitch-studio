@@ -41,7 +41,7 @@ export async function run() {
 	} });
 	function createRenderer(width: number, height: number, useFloat32 = true, ports: OutputPort[] = ['output', 'density']) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: useFloat32, intermediateTextureFormat: 'rgba16float' as const };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: useFloat32 };
 		const outputDataMap: Partial<EffectOutputDataMap<typeof definition.outputDefs>> = {};
 		const readbacks = new Map<OutputPort, { buffer: GPUBuffer; texture: GPUTexture; group: GPUBindGroup }>();
 		const rowBytes = Math.ceil(width * 16 / 256) * 256;

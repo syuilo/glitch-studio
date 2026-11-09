@@ -113,7 +113,6 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			device,
 			defaultVertexShaderModule: vertex,
 			enable32bitDataTextures: false,
-			intermediateTextureFormat: 'rgba16float',
 		},
 	});
 	let single = createGradientRenderer({ width: 4, height: 4 });

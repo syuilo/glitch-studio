@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
@@ -8,11 +9,11 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures, intermediateTextureFormat }, resolution }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		// 出力のアルファが0でもRGBの履歴を失わないよう、未乗算のRGBを別の履歴に保持する。
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const historyTextures = Array.from({ length: 2 }, () => device.createTexture({
@@ -35,9 +36,10 @@ export default implementEffect<typeof definition>({
 			internalLayouts: [layout],
 			constants: {
 				MAX_VALUE: enable32bitDataTextures ? 3.402823466e38 : 65504,
-				MAX_OUTPUT_VALUE: intermediateTextureFormat === 'rgba16float' ? 65504 : 1,
+				// 画像出力はrgba16float固定なので、履歴の精度とは独立にhalfの有限最大値へ制限する。
+				MAX_OUTPUT_VALUE: 65504,
 			},
-			targets: [{ format: intermediateTextureFormat }, { format: historyFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }, { format: historyFormat }],
 		});
 		const values = new Float32Array(5);
 		const uniforms = device.createBuffer({

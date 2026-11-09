@@ -44,7 +44,6 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 			const wgpu = {
 				device,
 				defaultVertexShaderModule: vertex,
-				intermediateTextureFormat: 'rgba16float',
 				enable32bitDataTextures,
 			};
 			const context = { wgpu, resolution: { width: 8, height: 4 } } as any;
@@ -103,7 +102,7 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 	// LCDの中央原点化で、入力の上下やセル内のRGB順が反転しないことを確認する。
 	const lcdSource = device.createTexture({ size: [3, 3], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 	const lcdOutput = device.createTexture({ size: [18, 18], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
-	const lcdInstance = lcd.init({ resolution: { width: 18, height: 18 }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
+	const lcdInstance = lcd.init({ resolution: { width: 18, height: 18 }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
 	try {
 		const colors = [[200, 100, 50, 255], [60, 180, 240, 255], [80, 160, 40, 255], [220, 120, 180, 255],
 			[120, 200, 60, 255], [40, 80, 160, 255], [180, 60, 120, 255], [100, 220, 80, 255], [240, 40, 200, 255]];
@@ -139,7 +138,6 @@ async function checkChannelBlends(device: GPUDevice, vertex: GPUShaderModule, re
 		wgpu: {
 			device,
 			defaultVertexShaderModule: vertex,
-			intermediateTextureFormat: 'rgba16float',
 			enable32bitDataTextures: false,
 		},
 	} as any;
@@ -203,7 +201,7 @@ async function checkChannelBlends(device: GPUDevice, vertex: GPUShaderModule, re
 // 定数画像では検出できないStart・Normalize・Vectorの方向依存を実画素で検証する。
 async function checkChromaticAspectRatio(device: GPUDevice, vertex: GPUShaderModule, readOutput: (output: GPUTexture) => Promise<number[]>) {
 	const completed: string[] = [];
-	const instance = chromaticAberration.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
+	const instance = chromaticAberration.init({ wgpu: { device, defaultVertexShaderModule: vertex } } as any);
 	async function draw(width: number, height: number, scale: number, sizeReference: string, normalize: boolean, start = 0.2) {
 		const source = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		const output = device.createTexture({ size: [width, height], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });

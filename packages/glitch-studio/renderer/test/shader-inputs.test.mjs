@@ -729,7 +729,7 @@ test('maps each input aspect ratio independently of its pixel resolution', () =>
 // 接続切替時だけvariantを作り、値・fit・wrapの更新ではpipelineを再利用する。
 test('reuses colorMix variants and releases all owned buffers', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const instance = effect.init({ wgpu: { device, intermediateTextureFormat: 'rgba16float', defaultVertexShaderModule: {} } });
+	const instance = effect.init({ wgpu: { device, defaultVertexShaderModule: {} } });
 	const output = device.createTexture({ size: [100, 100] });
 	const params = { inputA: constantShaderInput('color', [1, 0, 0, 1]), inputB: constantShaderInput('color', [0, 0, 1, 1]), amount: constantShaderInput('scalar', 0.25) };
 	const render = () => instance.render({ params, outputDataMap: { output: { texture: output, textureView: output.createView() } }, commandEncoder: encoder, createPassEncoderFor: () => encoder.beginRenderPass() });

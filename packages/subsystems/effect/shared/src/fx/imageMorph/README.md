@@ -50,7 +50,7 @@ Warpは速度ではなく、このProgress・Warp Strength・Confidence Guardで
 
 ## GPUリソースと制約
 
-解析用の色・フロー・逆変位は`enable32bitDataTextures`に従ってrgba16floatまたはrgba32floatを使う。信頼度はrg16float/rg32floatとr16float/r32float。画像出力は`intermediateTextureFormat`、公開Warpはrg16float/rg32float、Confidenceはr16float/r32floatとなる。32bitモードでは共通のdevice設定がfloat32-filterableを提供する。
+解析用の色・フロー・逆変位は`enable32bitDataTextures`に従ってrgba16floatまたはrgba32floatを使う。信頼度はrg16float/rg32floatとr16float/r32float。画像出力は`INTERMEDIATE_TEXTURE_FORMAT`、公開Warpはrg16float/rg32float、Confidenceはr16float/r32floatとなる。32bitモードでは共通のdevice設定がfloat32-filterableを提供する。
 
 各階層に二つの色textureと二つのフローtexture、最も細かい階層に双方向の信頼度・中間逆変位・中間信頼度を保持する。解析解像度・階層数・必要なuniform容量が変わったら作り直す。階層・反復ごとに別のuniform領域を保持し、コマンド投入前の上書きで他のpassの設定を変えない。CPUへの画像・フローの読み戻しは行わない。
 

@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 // Adapted from Paper Design's Liquid Metal (Apache-2.0; see LICENSE).
 // Modified for WebGPU and live node inputs; no uploaded-image or shape selector.
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
@@ -12,7 +13,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -54,7 +55,7 @@ export default implementEffect<typeof definition>({
 				const pipeline = device.createRenderPipeline({
 					layout: device.createPipelineLayout({ bindGroupLayouts: [renderLayout, bindings.layout] }),
 					vertex: { module: wgpu.defaultVertexShaderModule },
-					fragment: { module: device.createShaderModule({ code: generated.code + '\n' + code }), targets: [{ format: wgpu.intermediateTextureFormat }] },
+					fragment: { module: device.createShaderModule({ code: generated.code + '\n' + code }), targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 					primitive: { topology: 'triangle-list' },
 				});
 				return {

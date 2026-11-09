@@ -56,6 +56,6 @@ Boundaryは素材テクスチャではなく描画領域に適用し、その後
 
 ## リソースと検証
 
-複素RGBは実部・虚部の各vec4f、32byte/解析点。三つのstorage bufferを使い、主入力のスペクトルを保持したまま副入力を変換する。移植後は主入力bufferを逆FFTに再利用する。各段に独立したuniform領域を割り当てる。計算はf32、出力はintermediateTextureFormatに従う。buffer・dispatch上限を超える設定は精度を落とさずエラーにする。
+複素RGBは実部・虚部の各vec4f、32byte/解析点。三つのstorage bufferを使い、主入力のスペクトルを保持したまま副入力を変換する。移植後は主入力bufferを逆FFTに再利用する。各段に独立したuniform領域を割り当てる。計算はf32、出力はINTERMEDIATE_TEXTURE_FORMATに従う。buffer・dispatch上限を超える設定は精度を落とさずエラーにする。
 
 `test/phase-transfer.test.mjs`でスペクトルのbuffer寿命・長方形の段数・物理単位・リソース上限を検証する。`CHROME_PATH`を指定して`node --test packages/subsystems/effect/shared/test/phase-transfer.gpu.test.mjs`を実行すると、CPU直接DFT・正弦波の解析解との一致、振幅保持、参照位相、180°補間、弱い係数、独立したFit、透明度、両Processing方式、再現性、解像度独立性を実WebGPUで検証する。

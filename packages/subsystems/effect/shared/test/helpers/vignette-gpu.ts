@@ -3,7 +3,6 @@ import implementation from '../../src/fx/vignette/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -49,7 +48,7 @@ export async function run() {
 	}
 	function createEffect(width: number, height: number, precise: boolean) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: precise };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		const mask = implementation.outputTextureFactories.mask({ wgpu, resolution });
 		assert(mask.format === (precise ? 'r32float' : 'r16float'), 'mask precision');

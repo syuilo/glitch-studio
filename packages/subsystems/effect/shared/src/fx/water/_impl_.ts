@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 // Adapted from Paper Design's Water (Apache-2.0; see LICENSE).
 // Modified for WebGPU node inputs, without background or image layout controls.
@@ -11,7 +12,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -26,7 +27,7 @@ export default implementEffect<typeof definition>({
 			vertex: wgpu.defaultVertexShaderModule,
 			code,
 			schema: { input: 'color' },
-			targets: [{ format: wgpu.intermediateTextureFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 			internalLayouts: [layout],
 			sampling: 'level0',
 		});

@@ -17,10 +17,12 @@
 schemaに `{ images: { array: 'color' } }` と指定すると、`update()`へ `ShaderInput[]` を渡せる。scalar/vector/color/anyの配列と固定入力を混在できる。構造体配列はエフェクト側で必要なフィールドを取り出す（例: `ctx.params.buzzs.map(item => item.image)`）。レンダラーは構造体・配列内のcanNodeも再帰的にShaderInputへ解決する。
 
 ```ts
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
+
 const pipelines = createShaderInputPipeline({
 	device, vertex, code,
 	schema: { images: { array: 'color' }, selector: 'scalar' },
-	targets: [{ format: wgpu.intermediateTextureFormat }],
+	targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 	sampling: 'level0',
 });
 const variant = pipelines.update({ images: ctx.params.images, selector: ctx.params.selector }, outputTexture);

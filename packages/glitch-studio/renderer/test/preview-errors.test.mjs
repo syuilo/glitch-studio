@@ -21,6 +21,8 @@ after(() => {
 });
 const { VisualModuleRendererManager, createManager: createVisualModuleLivePreviewManager } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-renderer-manager.ts', import.meta.url)));
 const { TimelineRendererManager, createManager: createTimelineManager } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-renderer-manager.ts', import.meta.url)));
+const { default: fillDefinition } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/fx/fill/_def_.ts')));
+const { default: fillImplementation } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/fx/fill/_impl_.ts')));
 
 function visualModule(circular) {
 	return {
@@ -562,16 +564,17 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) fo
 	test(`${Manager.name} uses rgba16float images with 32bit data=${enable32bitDataTextures}`, async t => {
 		const f = await fixture(t, { enableWaveformAndHistogram: false, enable32bitDataTextures }, Manager);
 		const gpuContexts = [];
+		f.renderer.effectDefinitions.pass = fillDefinition;
 		f.renderer.effectImplementations.pass = {
 			outputTextureFactories: { output: ({ wgpu, resolution }) => {
 				gpuContexts.push(wgpu);
-				return wgpu.device.createTexture({ size: resolution, format: wgpu.intermediateTextureFormat });
+				return fillImplementation.outputTextureFactories.output({ wgpu, resolution });
 			} },
-			init({ wgpu }) { gpuContexts.push(wgpu); return { render() {}, dispose() {} }; },
+			init(args) { gpuContexts.push(args.wgpu); return fillImplementation.init(args); },
 		};
 		const definition = visualModule(false);
 		definition.nodes = [
-			{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'literal', value: [2, -0.5, 0, 1] } } },
+			{ ...definition.nodes[0], isBypass: false, params: { color: { inputSource: 'literal', value: [2, -0.5, 0, 1] } } },
 			definition.nodes[2],
 		];
 		await f.renderer.updateDynamicOptions({ visualModules: [definition] });
@@ -583,12 +586,10 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) fo
 		}
 		assert.equal(gpuContexts.length, 2);
 		for (const wgpu of gpuContexts) {
-			assert.equal(wgpu.intermediateTextureFormat, 'rgba16float');
 			assert.equal(wgpu.enable32bitDataTextures, enable32bitDataTextures);
 		}
 		assert.equal(present.mock.callCount(), 1);
 		assert.equal(present.mock.calls[0].arguments[0].format, 'rgba16float');
-		assert.equal('intermediateTextureFormat' in f.renderer.staticOptions, false);
 		assert.deepEqual(f.errors, []);
 	});
 }

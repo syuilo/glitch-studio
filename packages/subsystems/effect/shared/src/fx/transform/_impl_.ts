@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import type definition from './_def_.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -8,7 +9,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -33,7 +34,7 @@ export default implementEffect<typeof definition>({
 				scale: 'vector',
 				rotation: 'scalar',
 			},
-			targets: [{ format: wgpu.intermediateTextureFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 			// Scaleによる画素ごとの早期return後にも入力を読むため、微分不要のlevel0を使う。
 			internalLayouts: [layout],
 			sampling: 'level0',

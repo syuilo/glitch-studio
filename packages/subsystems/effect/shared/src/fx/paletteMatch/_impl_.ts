@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -19,11 +20,11 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat } }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule } }) => {
 		const definitions = makeShaderDataDefinitions(commonCode);
 		const uniformValues = makeStructuredView(definitions.uniforms.uniforms);
 		const partialStride = makeStructuredView(definitions.structs.StatisticsPair).arrayBuffer.byteLength;
@@ -59,7 +60,7 @@ export default implementEffect<typeof definition>({
 					output: device.createRenderPipeline({
 						layout: device.createPipelineLayout({ bindGroupLayouts: [outputLayout, bindings.layout] }),
 						vertex: { module: defaultVertexShaderModule },
-						fragment: { module: device.createShaderModule({ code: prefix + outputCode }), entryPoint: 'fs', targets: [{ format: intermediateTextureFormat }] },
+						fragment: { module: device.createShaderModule({ code: prefix + outputCode }), entryPoint: 'fs', targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 						primitive: { topology: 'triangle-list' },
 					}),
 				};

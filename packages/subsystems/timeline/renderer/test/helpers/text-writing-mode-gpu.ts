@@ -50,7 +50,7 @@ export async function run() {
 	try {
 		for (const [width, height] of [[480, 320], [320, 480]]) {
 			const resolution = { width, height };
-			const wgpu = { device, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: false, defaultVertexShaderModule: vertex };
+			const wgpu = { device, enable32bitDataTextures: false, defaultVertexShaderModule: vertex };
 			const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 			const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as RuntimeEffectParameters<typeof definition.paramDefs>;
 			const effect = implementation.init({ wgpu, resolution, params: defaults, resources: { font: null }, reportStatus: () => {}, fallbackTexture: output });

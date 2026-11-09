@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
@@ -10,7 +11,7 @@ import code from './shader.wgsl?raw';
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
-			size: resolution, format: wgpu.intermediateTextureFormat,
+			size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 		angle1: ({ wgpu, resolution }) => wgpu.device.createTexture({

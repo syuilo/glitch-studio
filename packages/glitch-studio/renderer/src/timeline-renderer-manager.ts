@@ -932,7 +932,6 @@ export class TimelineRendererManager extends EventEmitter<{
 						device: this.gpuDevice,
 						defaultVertexShaderModule: this.defaultVertexShaderModule,
 						enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
-						intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT,
 					},
 					fallbackTexture: this.fallbackTexture,
 					resolution: renderResolution,

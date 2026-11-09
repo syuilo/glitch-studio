@@ -17,7 +17,7 @@ export async function run() {
 	device.pushErrorScope('validation');
 	const textures: GPUTexture[] = [];
 	const vertex = device.createShaderModule({ code: vertexCode });
-	const instance = effect.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
+	const instance = effect.init({ wgpu: { device, defaultVertexShaderModule: vertex } } as any);
 	const completed: string[] = [];
 	function check(name: string, actual: readonly number[], expected: readonly number[], tolerance = 2) {
 		if (actual.some((v, i) => Math.abs(v - expected[i]) > tolerance)) throw new Error(`${name}: ${actual} != ${expected}`);
@@ -153,7 +153,7 @@ export async function run() {
 		}
 		const rawSource = await loadImageAsset(2, 2, [255, 0, 0, 128, 0, 255, 0, 255, 0, 0, 255, 64, 255, 255, 255, 0]);
 		const rawOutput = texture(2, 2, null, 'rgba16float');
-		let raw = imageEffect.init({ resources: { image: rawSource }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
+		let raw = imageEffect.init({ resources: { image: rawSource }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
 		const rawEncoder = device.createCommandEncoder();
 		raw.render({
 			params: { fit: 'stretch' },
@@ -169,7 +169,7 @@ export async function run() {
 		const edgeSource = await loadImageAsset(2, 1, [255, 0, 0, 255, 0, 0, 0, 0]);
 		const edgeOutput = texture(1, 1, null, 'rgba16float');
 		raw.dispose();
-		raw = imageEffect.init({ resources: { image: edgeSource }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
+		raw = imageEffect.init({ resources: { image: edgeSource }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
 		const edgeEncoder = device.createCommandEncoder();
 		raw.render({
 			params: { fit: 'stretch' },
@@ -179,7 +179,7 @@ export async function run() {
 		} as any);
 		check('image interpolation preserves premultiplied transparent edges', (await read(edgeOutput, edgeEncoder))[0], [128, 0, 0, 128]);
 		raw.dispose();
-		raw = imageEffect.init({ resources: { image: null }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
+		raw = imageEffect.init({ resources: { image: null }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
 		const emptyEncoder = device.createCommandEncoder();
 		raw.render({
 			params: { fit: 'stretch' },
@@ -230,7 +230,7 @@ export async function run() {
 		const striped = texture(4, 2, Array.from({ length: 8 }, (_, i) => i < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]).flat());
 		// Block Shuffleの選択／非選択タイルのどちらでも、接続のfit/wrapを適用する。
 		// 変形を無効にしてColor Mixの入力参照と比較し、上下反転も検出する。
-		const blocks = blockShuffle.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' }, resolution: { width: 4, height: 4 } } as any);
+		const blocks = blockShuffle.init({ wgpu: { device, defaultVertexShaderModule: vertex }, resolution: { width: 4, height: 4 } } as any);
 		try {
 			for (const fitMode of ['stretch', 'cover', 'contain'] as const) {
 				for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored', 'transparent'] as const) {

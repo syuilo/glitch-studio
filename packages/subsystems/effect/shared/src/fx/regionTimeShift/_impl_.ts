@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -14,11 +15,11 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const historyLayout = device.createBindGroupLayout({
 			entries: [
@@ -34,7 +35,7 @@ export default implementEffect<typeof definition>({
 			schema: { input: 'color', density: 'vector' },
 			internalLayouts: [historyLayout],
 			sampling: 'level0',
-			targets: [{ format: intermediateTextureFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 		});
 		// 保存時には同じtexture arrayを読み取りbindingへ含めず、書き込みとの重複を避ける。
 		const emptyLayout = device.createBindGroupLayout({ entries: [] });

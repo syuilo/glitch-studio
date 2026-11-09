@@ -60,7 +60,7 @@ export async function run() {
 	const checks: string[] = [];
 	const disposables: (() => void)[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
-	const gpuContext = (precise: boolean) => ({ device, defaultVertexShaderModule: vertex, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: precise });
+	const gpuContext = (precise: boolean) => ({ device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise });
 	const sampling = (overrides: Partial<ShaderInputSampling> = {}): ShaderInputSampling => ({ fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear', ...overrides });
 
 	function inputTexture(width: number, height: number, components: 1 | 4, values: number[], precise = false, settings: Partial<ShaderInputSampling> = {}) {

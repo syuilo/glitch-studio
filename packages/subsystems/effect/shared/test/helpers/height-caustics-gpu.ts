@@ -3,7 +3,6 @@ import implementation from '../../src/fx/heightCaustics/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -48,7 +47,7 @@ export async function run() {
 	}
 	function createEffect(width: number, height: number, precise = false, allocateIrradiance = true) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: precise };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		const irradiance = allocateIrradiance ? implementation.outputTextureFactories.irradiance({ wgpu, resolution }) : null;
 		const instance = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });

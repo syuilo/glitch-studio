@@ -40,7 +40,7 @@ function gpu() {
 		beginRenderPass(descriptor) { const pass = { type: 'render', descriptor }; passes.push(pass); return pass; },
 		beginComputePass(descriptor) { const pass = { type: 'compute', descriptor }; passes.push(pass); return pass; },
 	};
-	return { textures, passes, device, encoder, wgpu: { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float' } };
+	return { textures, passes, device, encoder, wgpu: { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false } };
 }
 
 function probe(g, { history = false, lazy = false, loading = false, disableCache = false, paramDefs = {}, init, render, prepare, intrinsic } = {}) {

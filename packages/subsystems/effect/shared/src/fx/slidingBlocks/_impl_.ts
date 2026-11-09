@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/shader-input.ts';
@@ -22,11 +23,11 @@ export default implementEffect<typeof definition>({
 	disableCache: true,
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
-			size: resolution, format: wgpu.intermediateTextureFormat,
+			size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const analysisFormat = enable32bitDataTextures ? 'rg32float' : 'rg16float';
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
@@ -69,7 +70,7 @@ export default implementEffect<typeof definition>({
 		const background = createShaderInputPipeline({
 			device, vertex: defaultVertexShaderModule, code: commonCode + '\n' + backgroundCode,
 			schema: { input: 'color' }, internalLayouts: [backgroundLayout], sampling: 'level0',
-			entryPoint: 'background', targets: [{ format: intermediateTextureFormat }],
+			entryPoint: 'background', targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 		});
 		const downsample = device.createRenderPipeline({
 			layout: 'auto', vertex: { module: defaultVertexShaderModule },
@@ -89,7 +90,7 @@ export default implementEffect<typeof definition>({
 			fragment: {
 				module: blockShader, entryPoint: 'block_fragment',
 				targets: [{
-					format: intermediateTextureFormat,
+					format: INTERMEDIATE_TEXTURE_FORMAT,
 					blend: {
 						color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
 						alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },

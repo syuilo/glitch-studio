@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { createWaveform } from '@gs/shared/utility/waveform/waveform.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
@@ -6,12 +7,12 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution }) => {
-		const waveform = createWaveform({ device, vertexShaderModule: defaultVertexShaderModule, format: intermediateTextureFormat });
+	init: ({ wgpu: { device, defaultVertexShaderModule }, resolution }) => {
+		const waveform = createWaveform({ device, vertexShaderModule: defaultVertexShaderModule, format: INTERMEDIATE_TEXTURE_FORMAT });
 		return {
 			render: ctx => {
 				const divisor = Number(ctx.params.resolution);

@@ -23,7 +23,7 @@ import type { VisualModuleEvaluatedParameterValues } from '@gs/subsystems_visual
 import type { VisualModuleParameterEvaluationContext } from './visual-module-parameter-binding-evaluator.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import { INTERMEDIATE_TEXTURE_FORMAT, type Asset } from '@gs/shared/types.ts';
+import type { Asset } from '@gs/shared/types.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { VisualModuleEffectNode, VisualModuleNode, VisualModule, VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectImplementation, EffectRenderContext } from '@gs/subsystems_effect_shared/effect-implementation.js';
@@ -425,7 +425,6 @@ export class VisualModuleRenderer {
 						device: this.gpuDevice,
 						defaultVertexShaderModule: this.defaultVertexShaderModule,
 						enable32bitDataTextures: this.enable32bitDataTextures,
-						intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT,
 					},
 					fallbackTexture: this.fallbackTexture,
 					enableStats: this.enableStats,

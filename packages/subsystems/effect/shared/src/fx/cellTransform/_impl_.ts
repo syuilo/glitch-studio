@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -15,7 +16,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -38,7 +39,7 @@ export default implementEffect<typeof definition>({
 				perCellScale: 'vector',
 				perCellRotation: 'scalar',
 			},
-			targets: [{ format: wgpu.intermediateTextureFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 			internalLayouts: [layout],
 			// セルごとの変形と切り取りで参照位置が不連続になるため、微分不要の明示LODで読む。
 			sampling: 'level0',

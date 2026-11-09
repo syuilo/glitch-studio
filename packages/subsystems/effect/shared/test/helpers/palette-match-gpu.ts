@@ -42,7 +42,7 @@ export async function run() {
 	}
 	function createEffect(width: number, height: number, enable32bitDataTextures = false) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		const effect = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
 		const copyTarget = device.createTexture({ size: resolution, format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });

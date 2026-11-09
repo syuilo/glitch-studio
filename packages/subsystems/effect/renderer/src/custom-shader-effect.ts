@@ -1,13 +1,14 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { generateShaderInputs, createShaderInputBindings, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { describeCustomShaderEffectInterface } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
 import type { ShaderInputSchema, ShaderInputValues } from '@gs/shared/gpu/shader-input.ts';
 import type { CustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
-import type { EffectImplementation, EffectGpuContext } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 
-function outputFormat(kind: string, wgpu: Pick<EffectGpuContext, 'enable32bitDataTextures' | 'intermediateTextureFormat'>): GPUTextureFormat {
-	if (kind === 'color') return wgpu.intermediateTextureFormat;
+function outputFormat(kind: string, enable32bitDataTextures: boolean): GPUTextureFormat {
+	if (kind === 'color') return INTERMEDIATE_TEXTURE_FORMAT;
 	const channels = kind === 'scalar' ? 'r' : kind === 'vector' ? 'rg' : 'rgba';
-	return `${channels}${wgpu.enable32bitDataTextures ? 32 : 16}float` as GPUTextureFormat;
+	return `${channels}${enable32bitDataTextures ? 32 : 16}float` as GPUTextureFormat;
 }
 
 /** ユーザー本文を先頭に置き、診断の行・列を編集画面と一致させる。独自のWGSL構文解析は行わない。 */
@@ -37,7 +38,7 @@ export function createCustomShaderEffectImplementation(definition: CustomShaderE
 	return {
 		outputTextureFactories: Object.fromEntries(definition.outputDefs.map(output => [output.id, ({ wgpu, resolution }) => {
 			if (definition.outputDefs.length > wgpu.device.limits.maxColorAttachments) throw new Error('Custom Shader Effect exceeds the GPU output limit');
-			return wgpu.device.createTexture({ size: resolution, format: outputFormat(output.dataType.kind, wgpu), usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+			return wgpu.device.createTexture({ size: resolution, format: outputFormat(output.dataType.kind, wgpu.enable32bitDataTextures), usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
 		}])),
 		init: ({ wgpu, resolution, params, reportStatus }) => {
 			const device = wgpu.device;
@@ -72,7 +73,7 @@ export function createCustomShaderEffectImplementation(definition: CustomShaderE
 						const pipeline = await device.createRenderPipelineAsync({
 							layout: device.createPipelineLayout({ bindGroupLayouts: [bindings.layout] }),
 							vertex: { module: wgpu.defaultVertexShaderModule },
-							fragment: { module, entryPoint: 'gs_fragment', targets: definition.outputDefs.map(output => ({ format: outputFormat(output.dataType.kind, wgpu) })) },
+							fragment: { module, entryPoint: 'gs_fragment', targets: definition.outputDefs.map(output => ({ format: outputFormat(output.dataType.kind, wgpu.enable32bitDataTextures) })) },
 							primitive: { topology: 'triangle-list' },
 						});
 						if (disposed || generation !== currentGeneration) return;

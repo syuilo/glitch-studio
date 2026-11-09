@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { audioChannel, finiteNumber } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
 import { AudioInputSpectrum } from '@gs/subsystems_audio_renderer/audio-input-spectrum.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -12,7 +13,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -24,7 +25,7 @@ export default implementEffect<typeof definition>({
 		const pipeline = device.createRenderPipeline({
 			layout: 'auto',
 			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: { module, targets: [{ format: wgpu.intermediateTextureFormat }] },
+			fragment: { module, targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 			primitive: { topology: 'triangle-list' },
 		});
 		const uniformBuffer = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });

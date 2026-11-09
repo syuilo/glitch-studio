@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
@@ -12,9 +13,9 @@ import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
-		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: wgpu.intermediateTextureFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule }, resolution }) => {
 		const shortDimension = Math.min(resolution.width, resolution.height);
 		const aspect = [resolution.width / shortDimension, resolution.height / shortDimension];
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
@@ -68,7 +69,7 @@ export default implementEffect<typeof definition>({
 				const color = device.createRenderPipeline({
 					layout: device.createPipelineLayout({ bindGroupLayouts: [colorLayout, colorRamp.layout, bindings.layout] }),
 					vertex: { module: defaultVertexShaderModule },
-					fragment: { module: device.createShaderModule({ code: colorInputs.code + '\n' + commonCode + '\n' + colorRamp.shaderCode + '\n' + colorCode }), targets: [{ format: intermediateTextureFormat }] },
+					fragment: { module: device.createShaderModule({ code: colorInputs.code + '\n' + commonCode + '\n' + colorRamp.shaderCode + '\n' + colorCode }), targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 					primitive: { topology: 'triangle-list' },
 				});
 				return { trace, color, bindings };

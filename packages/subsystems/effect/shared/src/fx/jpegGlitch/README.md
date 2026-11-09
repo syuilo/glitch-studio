@@ -12,7 +12,7 @@
 - `decode.wgsl`：配置ずれによる係数の参照先変更、AC破損、DC誤差の加算、逆量子化・IDCT。
 - `output.wgsl`：復元した成分の補間・RGB変換、細部の合成と、元のalphaを使った出力。
 
-係数と復元した成分はf32のstorage bufferで保持する。計算途中の係数は符号付きであり、通常の画像用の値域を超えるため、画像用の中間テクスチャには保存しない。画像出力は`intermediateTextureFormat`に従う。
+係数と復元した成分はf32のstorage bufferで保持する。計算途中の係数は符号付きであり、通常の画像用の値域を超えるため、画像用の中間テクスチャには保存しない。画像出力は`INTERMEDIATE_TEXTURE_FORMAT`に従う。
 
 ## 仮想解像度とMCU
 

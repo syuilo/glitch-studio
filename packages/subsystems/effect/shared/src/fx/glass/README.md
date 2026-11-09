@@ -79,7 +79,7 @@ Aberration Samples=3では赤・緑・青をそれぞれ1か所で読み、従�
 
 ## 解像度・サンプリング・制約
 
-自動解像度はInputを基準とし、定数なら描画先を使う。SDFは制御用の場なので、自動解像度の基準にしない。出力形式は画像用の`intermediateTextureFormat`に従い、`enable32bitDataTextures`から独立する。
+自動解像度はInputを基準とし、定数なら描画先を使う。SDFは制御用の場なので、自動解像度の基準にしない。出力形式は画像用の`INTERMEDIATE_TEXTURE_FORMAT`に従い、`enable32bitDataTextures`から独立する。
 
 両入力のfit・filter・wrapを利用する。SDFのTransparentだけは0へ混ぜず、端で延長した距離場と入力領域の矩形との共通部分を使う。これによりContainの余白にガラスが現れず、余白の境界も勾配に反映される。画像入力は通常の透明サンプリングを使用する。
 

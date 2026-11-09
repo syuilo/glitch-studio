@@ -1,7 +1,7 @@
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import type { WrapMode } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT, type WrapMode } from '@gs/shared/types.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import commonCode from './common.wgsl?raw';
 import captureCode from './capture.wgsl?raw';
@@ -17,11 +17,11 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const motionFormat = enable32bitDataTextures ? 'rg32float' : 'rg16float';
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
@@ -58,7 +58,7 @@ export default implementEffect<typeof definition>({
 			code: commonCode + '\n' + composeCode,
 			schema: { input: 'color', recoveryMask: 'scalar' },
 			internalLayouts: [composeLayout],
-			targets: [{ format: intermediateTextureFormat }, { format: historyFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }, { format: historyFormat }],
 			sampling: 'level0',
 			entryPoint: 'compose',
 		});

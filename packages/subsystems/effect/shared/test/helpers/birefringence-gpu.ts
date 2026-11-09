@@ -68,7 +68,7 @@ export async function run() {
 	}
 	function createEffect(width: number, height: number) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: false };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		const instance = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
@@ -171,7 +171,7 @@ export async function run() {
 		// 【分光重みを共通化したThin Film Interferenceも実際に描画する】
 		// 同じ屈折率の膜と下地は界面反射がなく、透過は全波長で1になる既知のケースを使う。
 		const resolution = { width: 1, height: 1 };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: false };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
 		const thinFilmDefaults = Object.fromEntries(Object.entries(thinFilmDefinition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as RuntimeEffectParameters<typeof thinFilmDefinition.paramDefs>;
 		const output = thinFilmImplementation.outputTextureFactories.output({ wgpu, resolution });
 		const thinFilm = thinFilmImplementation.init({ wgpu, resolution, params: thinFilmDefaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });

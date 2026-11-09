@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -8,7 +9,7 @@ type ColorRampInputMode = typeof definition.paramDefs.mode.dataType.options[numb
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
-		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: wgpu.intermediateTextureFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
 	},
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
@@ -18,7 +19,7 @@ export default implementEffect<typeof definition>({
 			vertex: wgpu.defaultVertexShaderModule,
 			code: colorRamp.shaderCode + '\n' + code,
 			schema: { input: 'scalar' },
-			targets: [{ format: wgpu.intermediateTextureFormat }],
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 			internalLayouts: [colorRamp.layout],
 			// Modeは描画全体で共通。不要な方式の計算を除去し、対応表のbufferは全方式で共有する。
 			constants: { MODE: { clamp: 0, wrap: 1, pingPong: 2 }[mode] },

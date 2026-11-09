@@ -1,3 +1,4 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createVideoFrameLoader } from './frame-loader.ts';
@@ -10,7 +11,7 @@ export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
@@ -18,7 +19,7 @@ export default implementEffect<typeof definition>({
 		const shaderModule = wgpu.device.createShaderModule({ code });
 		const pipeline = wgpu.device.createRenderPipeline({
 			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: { module: shaderModule, targets: [{ format: wgpu.intermediateTextureFormat }] },
+			fragment: { module: shaderModule, targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 			primitive: { topology: 'triangle-list' },
 			layout: 'auto',
 		});
