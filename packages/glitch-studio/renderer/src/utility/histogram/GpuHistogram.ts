@@ -17,7 +17,6 @@ export class GpuHistogram {
 	private readonly histogramBuffer: GPUBuffer;
 	private readonly accumulatePipeline: GPUComputePipeline;
 	private readonly maxPipeline: GPUComputePipeline;
-	private readonly gridPipeline: GPURenderPipeline;
 	private readonly barsPipeline: GPURenderPipeline;
 	private readonly accumulateBindGroupLayout: GPUBindGroupLayout;
 	private readonly maxBindGroup: GPUBindGroup;
@@ -35,7 +34,7 @@ export class GpuHistogram {
 		this.context.configure({
 			device,
 			format,
-			alphaMode: 'premultiplied',
+			alphaMode: 'opaque',
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 
@@ -104,18 +103,6 @@ export class GpuHistogram {
 			label: 'histogram render shader',
 			code: renderShaderCode,
 		});
-		this.gridPipeline = device.createRenderPipeline({
-			label: 'histogram grid pipeline',
-			layout: 'auto',
-			vertex: { module: renderModule, entryPoint: 'gridVs' },
-			fragment: {
-				module: renderModule,
-				entryPoint: 'fs',
-				targets: [{ format }],
-			},
-			primitive: { topology: 'triangle-list' },
-		});
-
 		const renderBindGroupLayout = device.createBindGroupLayout({
 			label: 'histogram render bind group layout',
 			entries: [{
@@ -191,14 +178,12 @@ export class GpuHistogram {
 					r: 0,
 					g: 0,
 					b: 0,
-					a: 0,
+					a: 1,
 				},
 				loadOp: 'clear',
 				storeOp: 'store',
 			}],
 		});
-		renderPass.setPipeline(this.gridPipeline);
-		renderPass.draw(6, 14);
 		renderPass.setPipeline(this.barsPipeline);
 		renderPass.setBindGroup(0, this.renderBindGroup);
 		renderPass.draw(6, BIN_COUNT * CHANNEL_COUNT);

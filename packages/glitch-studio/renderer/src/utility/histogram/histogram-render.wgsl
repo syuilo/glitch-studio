@@ -2,7 +2,6 @@ const BIN_COUNT = 256u;
 const CHANNEL_COUNT = 3u;
 const MAX_INDEX = BIN_COUNT * CHANNEL_COUNT;
 const CANVAS_SIZE = vec2f(256.0, 150.0);
-const GRID_LINE_COUNT = 7u;
 
 struct Histogram {
 	values: array<u32, 769>,
@@ -29,30 +28,6 @@ fn pixelToNdc(position: vec2f) -> vec2f {
 		(position.x / CANVAS_SIZE.x) * 2.0 - 1.0,
 		1.0 - (position.y / CANVAS_SIZE.y) * 2.0,
 	);
-}
-
-@vertex
-fn gridVs(
-	@builtin(vertex_index) vertexIndex: u32,
-	@builtin(instance_index) instanceIndex: u32,
-) -> VertexOut {
-	let local = quad[vertexIndex];
-	let horizontal = instanceIndex >= GRID_LINE_COUNT;
-	let lineIndex = instanceIndex % GRID_LINE_COUNT;
-	let axisSize = select(CANVAS_SIZE.x, CANVAS_SIZE.y, horizontal);
-	let lineCenter = floor(f32(lineIndex) * ((axisSize - 1.0) / 6.0)) + 0.5;
-
-	var pixelPosition: vec2f;
-	if (horizontal) {
-		pixelPosition = vec2f(local.x * CANVAS_SIZE.x, lineCenter - 0.5 + local.y);
-	} else {
-		pixelPosition = vec2f(lineCenter - 0.5 + local.x, local.y * CANVAS_SIZE.y);
-	}
-
-	var output: VertexOut;
-	output.position = vec4f(pixelToNdc(pixelPosition), 0.0, 1.0);
-	output.color = vec4f(0.07, 0.07, 0.07, 0.07);
-	return output;
 }
 
 @vertex
