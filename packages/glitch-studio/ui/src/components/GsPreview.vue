@@ -45,7 +45,7 @@
 				</div>
 			</div>
 			<div :class="$style.right">
-				<button v-tooltip="i18n.ts._Preview.ExposureDescription" :class="[$style.exposure, previewExposure !== 0 ? '_buttonPrimaryFg' : '_button']" class="_monospace" data-test-preview-exposure :data-test-preview-exposure-active="previewExposure !== 0" @pointerdown="onExposurePointerdown" @click="onExposureClick" @keydown="onExposureKeydown"><i class="ti ti-exposure"></i><span style="white-space: pre-wrap;">{{ previewExposure > 0 ? '+' : previewExposure < 0 ? '' : ' ' }}{{ previewExposure.toFixed(1) }} EV</span></button>
+				<button v-tooltip="i18n.ts._Preview.Exposure" :class="[$style.exposure, previewExposure !== 0 ? '_buttonPrimaryFg' : '_button']" class="_monospace" data-test-preview-exposure :data-test-preview-exposure-active="previewExposure !== 0" @pointerdown="onExposurePointerdown" @click="onExposureClick" @keydown="onExposureKeydown"><i class="ti ti-exposure"></i><span style="white-space: pre-wrap;">{{ previewExposure > 0 ? '+' : previewExposure < 0 ? '' : ' ' }}{{ previewExposure.toFixed(1) }} EV</span></button>
 			</div>
 		</div>
 

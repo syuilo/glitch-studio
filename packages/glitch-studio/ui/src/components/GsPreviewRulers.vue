@@ -1,14 +1,14 @@
 <template>
 <div :class="$style.root" class="_monospace" data-test-preview-rulers>
 	<svg :class="$style.xRuler" data-test-preview-x-ruler>
-		<line v-if="coordinateRange != null && hasVisibleRangeEndpoint(coordinateRange.left, coordinateRange.right, viewportSize.width)" :x1="coordinateRange.left" y1="23.5" :x2="coordinateRange.right" y2="23.5" data-test-preview-ruler-range/>
+		<line v-if="coordinateRange != null && hasVisibleRangeEndpoint(coordinateRange.left, coordinateRange.right, viewportSize.width)" :x1="coordinateRange.left" y1="18.5" :x2="coordinateRange.right" y2="18.5" data-test-preview-ruler-range/>
 		<g v-for="tick in ticks.x" :key="tick.coordinate" :class="{ [$style.origin]: tick.coordinate === 0 }" :data-test-preview-ruler-coordinate="tick.coordinate">
 			<line :x1="tick.position" y1="18" :x2="tick.position" y2="24"/>
 			<text :class="{ [$style.secondaryLabel]: tick.coordinate !== 0 && Math.abs(tick.coordinate) !== 0.5 }" :x="labelPosition(tick, viewportSize.width)" y="10" dominant-baseline="middle" text-anchor="middle">{{ tick.label }}</text>
 		</g>
 	</svg>
 	<svg :class="$style.yRuler" data-test-preview-y-ruler>
-		<line v-if="coordinateRange != null && hasVisibleRangeEndpoint(coordinateRange.top, coordinateRange.bottom, viewportSize.height)" x1="23.5" :y1="coordinateRange.top" x2="23.5" :y2="coordinateRange.bottom" data-test-preview-ruler-range/>
+		<line v-if="coordinateRange != null && hasVisibleRangeEndpoint(coordinateRange.top, coordinateRange.bottom, viewportSize.height)" x1="18.5" :y1="coordinateRange.top" x2="18.5" :y2="coordinateRange.bottom" data-test-preview-ruler-range/>
 		<g v-for="tick in ticks.y" :key="tick.coordinate" :class="{ [$style.origin]: tick.coordinate === 0 }" :data-test-preview-ruler-coordinate="tick.coordinate">
 			<line x1="18" :y1="tick.position" x2="24" :y2="tick.position"/>
 			<text :class="{ [$style.secondaryLabel]: tick.coordinate !== 0 && Math.abs(tick.coordinate) !== 0.5 }" :transform="`translate(10 ${labelPosition(tick, viewportSize.height)}) rotate(-90)`" dominant-baseline="middle" text-anchor="middle">{{ tick.label }}</text>
@@ -62,10 +62,10 @@ function labelPosition(tick: PreviewRulerTick, length: number): number {
 	position: absolute;
 	overflow: hidden;
 	background: var(--previewOverlayBackground);
-	fill: #ddd;
+	fill: #fffd;
 
 	line {
-		stroke: #888;
+		stroke: #fff4;
 		stroke-width: 1;
 	}
 }
@@ -91,11 +91,7 @@ function labelPosition(tick: PreviewRulerTick, length: number): number {
 }
 
 .origin {
-	fill: #fff;
 
-	line {
-		stroke: #fff;
-	}
 }
 
 .corner {
