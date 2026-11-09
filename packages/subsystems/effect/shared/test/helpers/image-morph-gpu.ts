@@ -87,9 +87,9 @@ export async function run({ benchmark = false }: { benchmark?: boolean } = {}) {
 		device.pushErrorScope('validation');
 		if (error != null) throw new Error(error.message);
 	}
-	function createEffect(width: number, height: number, data32 = false, colorFormat: 'rgba16float' | 'rgba32float' = 'rgba16float', allocatedPorts: readonly Port[] = ports) {
+	function createEffect(width: number, height: number, data32 = false, allocatedPorts: readonly Port[] = ports) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: colorFormat, enable32bitDataTextures: data32 };
+		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: data32 };
 		const textures = Object.fromEntries(ports.filter(port => port === 'output' || allocatedPorts.includes(port)).map(port => [port, implementation.outputTextureFactories[port]({ wgpu, resolution })])) as Record<Port, GPUTexture>;
 		const outputDataMap = Object.fromEntries(Object.entries(textures).map(([port, image]) => [port, { texture: image, textureView: image.createView(), previousFrameTexture: null, previousFrameTextureView: null }])) as EffectOutputDataMap<typeof definition.outputDefs>;
 		const effect = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: textures.output, reportStatus: () => {} });
@@ -250,10 +250,10 @@ export async function run({ benchmark = false }: { benchmark?: boolean } = {}) {
 
 		// 【遅延出力だけが接続されていても色出力や他ポートの割当へ依存しない】
 		// 未確保のConfidenceやWarp Bへアクセスせず、必要な解析結果を単独で描画できることを確認する。
-		const warpOnly = createEffect(width, height, false, 'rgba16float', ['warpA']);
+		const warpOnly = createEffect(width, height, false, ['warpA']);
 		const onlyWarp = await warpOnly(motionBase, ['warpA']);
 		compare(onlyWarp.pixels.warpA, Array.from({ length: width * height }, (_, index) => Array.from(middle.pixels.warpA.subarray(index * 4, index * 4 + 4)) as Color), 'lazy warp-only output matches the complete render', 0);
-		const confidenceOnly = createEffect(8, 4, false, 'rgba16float', ['confidence']);
+		const confidenceOnly = createEffect(8, 4, false, ['confidence']);
 		const onlyConfidence = await confidenceOnly({ ...base, inputB: base.inputA }, ['confidence']);
 		check(onlyConfidence.pixels.confidence.every((value, index) => index % 4 !== 0 || value > 0.99), 'lazy confidence-only output works with identical constants');
 
@@ -278,15 +278,13 @@ export async function run({ benchmark = false }: { benchmark?: boolean } = {}) {
 		const unguardedWarps = await inverseFixture(false, 0);
 		check(unguardedWarps.some(value => Math.abs(value) > 0.01), 'disabling confidence guard preserves expressive deformation');
 
-		// 【32bitのデータ・色出力でもalphaの規約と出力形式を保つ】
+		// 【32bitのデータ出力でも画像の固定形式とalphaの規約を保つ】
 		// float32-filterableを要求したdeviceで、入力・内部データ・出力の精度設定を明示的に切り替える。
 		if (supports32bit) {
-			for (const colorFormat of ['rgba16float', 'rgba32float'] as const) {
-				const preciseRender = createEffect(8, 4, true, colorFormat);
-				const precise = await preciseRender({ ...base, progress: 0.25, warpStrength: 0 });
-				compare(precise.pixels.output, Array.from({ length: 32 }, () => mixed), `32bit data with ${colorFormat} color preserves premultiplied mixing`);
-				check(precise.textures.warpA.format === 'rg32float' && precise.textures.confidence.format === 'r32float', `32bit data output formats with ${colorFormat} color`);
-			}
+			const preciseRender = createEffect(8, 4, true);
+			const precise = await preciseRender({ ...base, progress: 0.25, warpStrength: 0 });
+			compare(precise.pixels.output, Array.from({ length: 32 }, () => mixed), '32bit data with rgba16float color preserves premultiplied mixing');
+			check(precise.textures.output.format === 'rgba16float' && precise.textures.warpA.format === 'rg32float' && precise.textures.confidence.format === 'r32float', '32bit data preserves the fixed rgba16float image format');
 			const preciseMotion = await createEffect(width, height, true)(motionBase);
 			const preciseWarp = meanRegion(preciseMotion.pixels.warpA, width, 17, 10, 27, 17);
 			check(Math.abs(preciseWarp[0] - 4 / 64) < 0.015 && Math.abs(preciseWarp[1] - 2 / 64) < 0.015, '32bit data estimates and inverts moving image correspondences');

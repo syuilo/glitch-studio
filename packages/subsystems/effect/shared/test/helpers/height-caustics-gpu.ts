@@ -3,7 +3,7 @@ import implementation from '../../src/fx/heightCaustics/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -46,9 +46,9 @@ export async function run() {
 			return result;
 		} finally { target.destroy(); buffer.destroy(); }
 	}
-	function createEffect(width: number, height: number, precise = false, format: IntermediateTextureFormat = 'rgba16float', allocateIrradiance = true) {
+	function createEffect(width: number, height: number, precise = false, allocateIrradiance = true) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: format, enable32bitDataTextures: precise };
+		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: precise };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		const irradiance = allocateIrradiance ? implementation.outputTextureFactories.irradiance({ wgpu, resolution }) : null;
 		const instance = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
@@ -155,8 +155,8 @@ export async function run() {
 		// optional featureを要求せず、照度だけのMRTと遅延出力なしのカラー描画を確認する。
 		const precise = await createEffect(64, 64, true).render({ softness: 0 }, new Set(['irradiance']));
 		near(at(precise.irradiance!, 64, 32, 32), 1, 0.0001, '32bit irradiance');
-		const colorOnly = await createEffect(32, 16, false, 'rgba8unorm', false).render({ softness: 0, lightIntensity: 0.5 });
-		near(at(colorOnly.color, 32, 16, 8), 0.5, 1 / 255, '8bit color without lazy irradiance');
+		const colorOnly = await createEffect(32, 16, false, false).render({ softness: 0, lightIntensity: 0.5 });
+		near(at(colorOnly.color, 32, 16, 8), 0.5, 1 / 255, '16bit float color without lazy irradiance');
 		const tiny = await createEffect(1, 1).render({ samples: NaN, heightScale: Infinity, ior: -1, softness: -1, lightElevation: 0 });
 		assert(tiny.color.every(Number.isFinite) && tiny.irradiance!.every(Number.isFinite), 'degenerate settings produce non-finite pixels');
 		const below = await effect.render({ height: scalar(-1), heightScale: 1, receiverDistance: 0.2 });

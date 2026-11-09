@@ -104,7 +104,7 @@ async function fixture(t, { present = false, disableCache = true, timelineFps = 
 				};
 			},
 		} },
-	}, { timelineFps, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [] });
+	}, { timelineFps, timelineMotionBlur, enable32bitDataTextures: false, }, { assets: [] });
 	manager.on('ev', event => {
 		if (event.type === 'effectState') calls.statuses.push(event.ctx);
 		if (event.type === 'renderError') calls.errors.push(event.ctx.message);

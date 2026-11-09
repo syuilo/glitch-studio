@@ -54,7 +54,7 @@ export async function runCustomShaderEffectLivePreview() {
 	};
 	const manager = await VisualModuleRendererManager.create({
 		gpuDevice: device, gpuContext, effectDefinitions: { [fillDefinition.id]: fillDefinition }, effectImplementations: { [fillDefinition.id]: fillImplementation },
-	}, { enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [], players: [], customShaderEffects: [customShaderEffect] });
+	}, { enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, }, { assets: [], players: [], customShaderEffects: [customShaderEffect] });
 	let completed = Promise.withResolvers<void>();
 	const errors: string[] = [];
 	let started = false;
@@ -116,7 +116,7 @@ export async function runCustomShaderEffectTimelineUpdates() {
 	};
 	const project = { automationGraphs: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' as const }, layers: [layer] }] };
 	const manager = await TimelineRendererManager.create({ gpuDevice: device, gpuContext, effectDefinitions: {}, effectImplementations: {} }, {
-		enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
+		enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false,
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 1 },
 	}, { assets: [], customShaderEffects: [customShaderEffect] });
 	const errors: string[] = [];
@@ -172,7 +172,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 	const params = { 'source-id': constantShaderInput('color', [0.8, 0.4, 0.2, 0.5]), 'amount-id': constantShaderInput('scalar', 0.25) };
 	try {
 		for (const enable32bitDataTextures of [false, true]) {
-			const renderer = new EffectRenderer({ definition: effectDefinition, implementation, resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures, intermediateTextureFormat: 'rgba8unorm' } });
+			const renderer = new EffectRenderer({ definition: effectDefinition, implementation, resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures, intermediateTextureFormat: 'rgba16float' } });
 			const draw = async (source: ShaderInput) => {
 				const values = { ...params, 'source-id': source };
 				renderer.prepare(values, controller.signal);
@@ -196,7 +196,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 			nodes: [{ id: 'shader', type: 'effect', effectId: effectDefinition.id, isBypass: false, resolution: { mode: 'context', scale: 1 }, staticSettings: {}, displayName: '', params: Object.fromEntries(definition.paramDefs.map(parameter => [parameter.id, parameter.defaultValue])) }, { id: 'out', type: 'globalOut', inputs: { color: { nodeId: 'shader', outputPort: 'color-id' } } }],
 			paramDefs: [], outputDefs: [{ id: 'color', name: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'color', customParameterDefs: [], customParameterValues: {}, automationGraphs: [],
 		};
-		const renderer = new VisualModuleRenderer({ gpuDevice: device, fallbackTexture, resolution, enableStats: false, timingHelper: null, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', assets: [], assetTextures: new Map(), videoFrames: new Map(), videoFrameVersions: new Map(), effectDefinitions: { [effectDefinition.id]: effectDefinition }, effectImplementations: { [effectDefinition.id]: implementation }, visualModule: graph });
+		const renderer = new VisualModuleRenderer({ gpuDevice: device, fallbackTexture, resolution, enableStats: false, timingHelper: null, enable32bitDataTextures: false, assets: [], assetTextures: new Map(), videoFrames: new Map(), videoFrameVersions: new Map(), effectDefinitions: { [effectDefinition.id]: effectDefinition }, effectImplementations: { [effectDefinition.id]: implementation }, visualModule: graph });
 		try {
 			const context = { time: 0, timeDelta: 0, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map() };
 			await renderer.prepare(context, controller.signal);
@@ -216,7 +216,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 		// Timelineの入力はSceneへ合成済みの画像。低解像度素材の透明境界の補間を、この契約の検証へ混ぜない。
 		const timelineInput = device.createTexture({ size: resolution, format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		device.queue.writeTexture({ texture: timelineInput }, new Uint8Array(Array.from({ length: 32 }, () => [128, 0, 0, 128]).flat()), { bytesPerRow: 32 }, resolution);
-		const timeline = createEffectTimelineLayer(layer, effectDefinition, implementation, { wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, fallbackTexture, resolution, resolutionScale: 1, assets: [], assetTextures: new Map() });
+		const timeline = createEffectTimelineLayer(layer, effectDefinition, implementation, { wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float' }, fallbackTexture, resolution, resolutionScale: 1, assets: [], assetTextures: new Map() });
 		try {
 			const result = await timeline.evaluate({ sceneTimeMs: 0, contentTimeMs: 0, timeDelta: 0, isExport: true, clipElapsedTimeMs: 0, clipDurationMs: 1000, contentEndTimeMs: 1000, getInput: async () => ({ kind: 'texture', texture: timelineInput }), getLayerOutput: async () => null }, controller.signal);
 			if (result.source?.kind !== 'texture') throw new Error('Custom Shader Effect Layer has no output');
@@ -227,7 +227,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 	output.color = vec4f(position + vec2f(0.5, 0.25), get_pixel_size(), 1.0);
 	return output;
 }` };
-		const coordinateRenderer = new EffectRenderer({ definition: createCustomShaderEffectDefinition(coordinates, { id: 'coordinates', name: 'Coordinates', description: '' }), implementation: createCustomShaderEffectImplementation(coordinates), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' } });
+		const coordinateRenderer = new EffectRenderer({ definition: createCustomShaderEffectDefinition(coordinates, { id: 'coordinates', name: 'Coordinates', description: '' }), implementation: createCustomShaderEffectImplementation(coordinates), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float' } });
 		try {
 			coordinateRenderer.prepare({}, controller.signal);
 			await coordinateRenderer.waitUntilReady(controller.signal);
@@ -245,7 +245,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 			outputDefs: [{ id: 'raw-id', nameForReference: 'raw', label: 'Raw', dataType: { kind: 'any' } }],
 			code: 'fn main(position: vec2f) -> Output { var output: Output; output.raw = read_raw(position); return output; }',
 		};
-		const rawRenderer = new EffectRenderer({ definition: createCustomShaderEffectDefinition(rawDefinition, { id: 'raw', name: 'Raw', description: '' }), implementation: createCustomShaderEffectImplementation(rawDefinition), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' } });
+		const rawRenderer = new EffectRenderer({ definition: createCustomShaderEffectDefinition(rawDefinition, { id: 'raw', name: 'Raw', description: '' }), implementation: createCustomShaderEffectImplementation(rawDefinition), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float' } });
 		try {
 			const rawParams = { 'raw-id': constantShaderInput('any', [0.2, 0.4, 0.6, 0.5]) };
 			rawRenderer.prepare(rawParams, controller.signal);
@@ -256,7 +256,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 			check('any data is not premultiplied', (await read(rawRenderer.getOutputTexture('raw-id')!)).slice(0, 4), [51, 102, 153, 128]);
 		} finally { rawRenderer.dispose(); }
 		const invalid = { ...definition, code: 'fn main(position: vec2f) -> Output {\n return does_not_exist;\n}' };
-		const failed = new EffectRenderer({ definition: effectDefinition, implementation: createCustomShaderEffectImplementation(invalid), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' } });
+		const failed = new EffectRenderer({ definition: effectDefinition, implementation: createCustomShaderEffectImplementation(invalid), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float' } });
 		try {
 			failed.prepare(params, controller.signal);
 			let message: string | null = null;

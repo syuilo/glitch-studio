@@ -47,17 +47,6 @@
 									{{ i18n.ts._Settings.Use32bitDataTextures }}
 									<template #caption>{{ i18n.ts._Settings.DataTexturesHint }}</template>
 								</GsSwitch>
-								<GsSelect
-									v-model="intermediateTextureFormat" large :items="[
-										{ value: null, label: i18n.ts._Settings.AutoTextureFormat },
-										{ value: 'rgba8unorm', label: 'rgba8unorm' },
-										{ value: 'bgra8unorm', label: 'bgra8unorm' },
-										{ value: 'rgba16float', label: 'rgba16float' },
-									] as const"
-								>
-									<template #label>{{ i18n.ts._Settings.IntermediateTextureFormat }}</template>
-									<template #caption>{{ i18n.ts._Settings.IntermediateTextureFormatHint }}</template>
-								</GsSelect>
 								<GsSelect v-model="timelinePreviewFramesAhead" large :items="[0, 1, 2, 3].map(value => ({ value, label: String(value) }))" data-test-timeline-preview-frames-ahead>
 									<template #label>{{ i18n.ts._Settings.TimelinePreviewFramesAhead }}</template>
 									<template #caption>{{ i18n.ts._Settings.TimelinePreviewFramesAheadHint }}</template>
@@ -144,7 +133,6 @@ const importLargeAssetsAsExternalReferences = preferences.model('importLargeAsse
 const effectRenderTileDivisionItems = [0, 1, 2, 3, 4].map(value => ({ value, label: value === 0 ? i18n.ts._Settings.EffectRenderTilesDisabled : `${value} (${4 ** value})` }));
 const effectRenderTileDivisionLevel = preferences.model('effectRenderTileDivisionLevel');
 const enable32bitDataTextures = preferences.model('enable32bitDataTextures');
-const intermediateTextureFormat = preferences.model('intermediateTextureFormat');
 const timelineFrameCacheMaxGiB = preferences.model('timelineFrameCacheMaxGiB');
 const timelinePreviewFramesAhead = preferences.model('timelinePreviewFramesAhead');
 const previewDisplayMode = preferences.model('previewDisplayMode');

@@ -17,22 +17,40 @@ export async function run() {
 	device.pushErrorScope('validation');
 	const textures: GPUTexture[] = [];
 	const vertex = device.createShaderModule({ code: vertexCode });
-	const instance = effect.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
+	const instance = effect.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
 	const completed: string[] = [];
 	function check(name: string, actual: readonly number[], expected: readonly number[], tolerance = 2) {
 		if (actual.some((v, i) => Math.abs(v - expected[i]) > tolerance)) throw new Error(`${name}: ${actual} != ${expected}`);
 		completed.push(name);
 	}
-	function texture(width: number, height: number, pixels?: number[], format: GPUTextureFormat = 'rgba8unorm') {
+	function texture(width: number, height: number, pixels: number[] | null = null, format: GPUTextureFormat = 'rgba8unorm') {
 		const t = device.createTexture({ size: [width, height], format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT });
 		textures.push(t);
-		if (pixels) {
+		if (pixels != null) {
 			const data = format === 'r32float' ? new Float32Array(pixels) : format === 'r16float' ? new Uint16Array(pixels) : new Uint8Array(pixels);
 			device.queue.writeTexture({ texture: t }, data, { bytesPerRow: data.byteLength / height }, [width, height]);
 		}
 		return t;
 	}
 	async function read(output: GPUTexture, encoder: GPUCommandEncoder) {
+		// 画像出力はrgba16floatで描き、従来の8bit画素の期待値との比較は読み戻し時に変換する。
+		if (output.format !== 'rgba8unorm') {
+			const converted = texture(output.width, output.height);
+			const pipeline = device.createRenderPipeline({
+				layout: 'auto', vertex: { module: vertex },
+				fragment: { module: device.createShaderModule({ code: `
+@group(0) @binding(0) var image: texture_2d<f32>;
+@fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
+	return textureLoad(image, vec2i(position.xy), 0);
+}` }), targets: [{ format: 'rgba8unorm' }] },
+			});
+			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: converted.createView(), loadOp: 'clear', storeOp: 'store' }] });
+			pass.setPipeline(pipeline);
+			pass.setBindGroup(0, device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: output.createView() }] }));
+			pass.draw(3);
+			pass.end();
+			output = converted;
+		}
 		const bytesPerRow = Math.ceil(output.width * 4 / 256) * 256;
 		const buffer = device.createBuffer({ size: output.height * bytesPerRow, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 		encoder.copyTextureToBuffer({ texture: output }, { buffer, bytesPerRow }, [output.width, output.height]);
@@ -45,7 +63,7 @@ export async function run() {
 		return pixels;
 	}
 	async function mix(params: any, width = 1, height = 1) {
-		const output = texture(width, height);
+		const output = texture(width, height, null, 'rgba16float');
 		const encoder = device.createCommandEncoder();
 		instance.render({
 			params,
@@ -134,8 +152,8 @@ export async function run() {
 			return assetTextures.textures.get('image')!;
 		}
 		const rawSource = await loadImageAsset(2, 2, [255, 0, 0, 128, 0, 255, 0, 255, 0, 0, 255, 64, 255, 255, 255, 0]);
-		const rawOutput = texture(2, 2);
-		let raw = imageEffect.init({ resources: { image: rawSource }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
+		const rawOutput = texture(2, 2, null, 'rgba16float');
+		let raw = imageEffect.init({ resources: { image: rawSource }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
 		const rawEncoder = device.createCommandEncoder();
 		raw.render({
 			params: { fit: 'stretch' },
@@ -149,9 +167,9 @@ export async function run() {
 		check('original image bottom row and zero alpha', rawPixels[1], [0, 0, 64, 64, 0, 0, 0, 0]);
 		// 赤と透明黒の中間が暗くならないことを、実際の線形補間で確認する。
 		const edgeSource = await loadImageAsset(2, 1, [255, 0, 0, 255, 0, 0, 0, 0]);
-		const edgeOutput = texture(1, 1);
+		const edgeOutput = texture(1, 1, null, 'rgba16float');
 		raw.dispose();
-		raw = imageEffect.init({ resources: { image: edgeSource }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
+		raw = imageEffect.init({ resources: { image: edgeSource }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
 		const edgeEncoder = device.createCommandEncoder();
 		raw.render({
 			params: { fit: 'stretch' },
@@ -161,7 +179,7 @@ export async function run() {
 		} as any);
 		check('image interpolation preserves premultiplied transparent edges', (await read(edgeOutput, edgeEncoder))[0], [128, 0, 0, 128]);
 		raw.dispose();
-		raw = imageEffect.init({ resources: { image: null }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
+		raw = imageEffect.init({ resources: { image: null }, wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' } } as any);
 		const emptyEncoder = device.createCommandEncoder();
 		raw.render({
 			params: { fit: 'stretch' },
@@ -212,14 +230,14 @@ export async function run() {
 		const striped = texture(4, 2, Array.from({ length: 8 }, (_, i) => i < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]).flat());
 		// Block Shuffleの選択／非選択タイルのどちらでも、接続のfit/wrapを適用する。
 		// 変形を無効にしてColor Mixの入力参照と比較し、上下反転も検出する。
-		const blocks = blockShuffle.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' }, resolution: { width: 4, height: 4 } } as any);
+		const blocks = blockShuffle.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' }, resolution: { width: 4, height: 4 } } as any);
 		try {
 			for (const fitMode of ['stretch', 'cover', 'contain'] as const) {
 				for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored', 'transparent'] as const) {
 					const input = textureShaderInput(striped, { filterMode: 'linear', fitMode, wrapMode });
 					const expected = (await mix({ inputA: input, inputB: b, amount: zero }, 4, 4)).flat();
 					for (const selection of [0, 1]) {
-						const output = texture(4, 4);
+						const output = texture(4, 4, null, 'rgba16float');
 						const encoder = device.createCommandEncoder();
 						blocks.render({
 							params: {

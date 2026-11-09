@@ -65,7 +65,7 @@ export async function run(benchmarkEnabled = false) {
 
 	function createEffect(width: number, height: number, precise: boolean) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' as const, enable32bitDataTextures: precise };
+		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: precise };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		assert(output.format === (precise ? 'r32float' : 'r16float'), 'data texture precision');
 		const effect = implementation.init({ wgpu, resolution, params: defaults, fallbackTexture: output, reportStatus: () => {} });

@@ -70,7 +70,7 @@ const appBundle = await build({
 						export const effectDefinitions = { fill, image, video };`
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
-						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, effectRenderTileDivisionLevel: 0, intermediateTextureFormat: 'rgba8unorm',
+						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, effectRenderTileDivisionLevel: 0, intermediateTextureFormat: 'rgba16float',
 							renderingStatsEnabled: false, analysisMonitorsEnabled: true, timelineFrameCacheMaxGiB: 2, previewDisplayMode: 'gpu', timelinePreviewFramesAhead: 1,
 							projectBackupAutoEnabled: false, projectBackupAutoIntervalMinutes: 1, projectBackupAutoRetentionDays: 1,
 							projectBackupSaveEnabled: false, projectBackupSaveRetentionDays: 7,

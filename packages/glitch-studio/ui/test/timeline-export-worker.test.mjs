@@ -103,7 +103,7 @@ for (const format of ['mp4', 'webp']) {
 			resolutionScale: 1,
 			settings: { format, quality: 'high', width: 3, height: 5, positionMs: 1000,
 				...(format === 'mp4' ? { fps: 30, endTimeMs: 1010 } : {}) },
-			renderer: { enable32bitDataTextures: true, intermediateTextureFormat: 'rgba16float', enableStats: true },
+			renderer: { enable32bitDataTextures: true, enableStats: true },
 			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 3, height: 5 }, assets: [{ id: 'image' }], visualModules: [{ id: 'module' }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		};
 		const job = f.run(request);
@@ -138,7 +138,7 @@ test('reports asset preparation failures without rendering export frames', { tim
 	const job = f.run({
 		resolutionScale: 1,
 		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
-		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		renderer: { enable32bitDataTextures: false, },
 		project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 	});
 	await f.preparing.promise;
@@ -165,7 +165,7 @@ for (const [type, source, label] of [
 		const job = f.run({
 			resolutionScale: 1,
 			settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
-			renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+			renderer: { enable32bitDataTextures: false, },
 			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		});
 		await f.preparing.promise;
@@ -192,7 +192,7 @@ test('exports custom scene sizes with an explicit scale and unchanged project di
 	] };
 	const job = f.run({ project, resolutionScale: 2,
 		settings: { format: 'webp', quality: 'lossless', width: 1026, height: 514, positionMs: 0 },
-		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		renderer: { enable32bitDataTextures: false, },
 	});
 	await f.preparing.promise;
 	f.prepared.resolve();
@@ -220,7 +220,7 @@ for (const format of ['mp4', 'webp']) {
 			] };
 		const job = f.run({ project, resolutionScale: null,
 			settings: { format, quality: 'high', width: 501, height: 777, positionMs: 0, ...(format === 'mp4' ? { fps: 30, endTimeMs: 10 } : {}) },
-			renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+			renderer: { enable32bitDataTextures: false, },
 		});
 		await f.preparing.promise;
 		f.prepared.resolve();

@@ -11,10 +11,10 @@ import code from './text-renderer.wgsl?raw';
 import type { TimelineImage } from '../timeline-image.ts';
 import type { TextRenderValues } from './text-render-values.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 /** 呼び出し元のレイヤーを知らず、評価済みの文字・装飾を指定解像度のpremultiplied RGBAへ描く。 */
-export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat; fontFileSource: FileSource | null }) {
+export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; fontFileSource: FileSource | null }) {
 	let output: GPUTexture | null = null;
 	const canvas = new OffscreenCanvas(1, 1);
 	const context = canvas.getContext('2d');
@@ -31,7 +31,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 		vertex: options.vertex,
 		code,
 		schema: { color: 'color', outlineColor: 'color', shadowColor: 'color' },
-		targets: [{ format: options.format }],
+		targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 		internalLayouts: [maskLayout],
 	});
 	const sampler = options.device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
@@ -232,7 +232,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 			const plan = planSurface(values);
 			if (!output || output.width !== plan.size.width || output.height !== plan.size.height) {
 				output?.destroy();
-				output = options.device.createTexture({ size: plan.size, format: options.format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+				output = options.device.createTexture({ size: plan.size, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
 			}
 			updateMask(values, output.width, output.height, plan);
 			const current = pipeline.update({

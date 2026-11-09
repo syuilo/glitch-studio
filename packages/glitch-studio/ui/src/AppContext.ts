@@ -31,7 +31,6 @@ import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
-import type { IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { ProjectContext } from './Project.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { VisualModuleRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
@@ -39,12 +38,6 @@ import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
 const DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES = 0;
-
-function getRendererIntermediateTextureFormat(): IntermediateTextureFormat {
-	if (preferences.r.intermediateTextureFormat.value != null) return preferences.r.intermediateTextureFormat.value;
-	const preferred = navigator.gpu.getPreferredCanvasFormat();
-	return preferred === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm';
-}
 
 export const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
 
@@ -300,7 +293,6 @@ export class AppContext {
 			enableWaveformAndHistogram: preferences.r.analysisMonitorsEnabled.value,
 			enable32bitDataTextures: preferences.r.enable32bitDataTextures.value,
 			effectRenderTileDivisionLevel: preferences.r.effectRenderTileDivisionLevel.value,
-			intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 		};
 		return {
 			visualModule: common,

@@ -26,7 +26,7 @@
 | Softness | 0.004 | 受光面のGaussianの標準偏差。共通単位。0で追加のぼかしなし |
 | Samples | 512 | 長辺方向の光線サンプル数。整数へ丸め、32〜1024に制限 |
 
-- **Output**: 乗算済みRGBAの照明画像。初期値のalphaは1で、光が届かない場所は不透明な黒。Light ColorのalphaをRGBAへ適用する。HDRの集光を保持する場合は、画像の中間形式に16bit floatを使う。
+- **Output**: 乗算済みRGBAの照明画像。初期値のalphaは1で、光が届かない場所は不透明な黒。Light ColorのalphaをRGBAへ適用する。画像出力はrgba16floatに固定し、HDRの集光を保持する。
 - **Irradiance**: 色とalphaから独立した照度のscalar場。真上から強度1の光を平面へ当てると1になる。集光箇所は1を超える。未接続なら出力テクスチャを確保しない。
 
 Height以外は空間全体で共通の値だが、式・automationで変更できる。自動解像度はHeightの接続を基準にし、定数なら描画先の解像度を使う。

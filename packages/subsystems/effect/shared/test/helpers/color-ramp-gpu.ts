@@ -14,7 +14,7 @@ export async function run() {
 	const device = await adapter.requestDevice();
 	device.pushErrorScope('validation');
 	const resolution = { width: 17, height: 1 };
-	const wgpu = { device, intermediateTextureFormat: 'rgba8unorm' as const, enable32bitDataTextures: false, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }) };
+	const wgpu = { device, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: false, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }) };
 	const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 	const copyTarget = device.createTexture({ size: resolution, format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: wgpu.defaultVertexShaderModule }, fragment: { module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;

@@ -56,6 +56,6 @@ GPUで重み付き平均と共分散を求める。差し引きによる桁落�
 
 統計は常にf32のstorage buffer。入力・参照の部分統計は一組96byteで、最大65536点では1024組・96KiB。色変換は96byte。解析点数の増加で必要な容量が増えた場合だけbufferを再作成する。解析・色変換計算・出力描画の順に実行し、CPUへの読み戻しは行わない。GPUのbuffer・dispatch上限を超える場合はエラーにする。
 
-`CHROME_PATH`を設定して`node --test packages/subsystems/effect/shared/test/palette-match.gpu.test.mjs`を実行すると、既知の対称な色変換・全共分散成分・独立調整・主軸の増幅上限・alpha重み・解析マスク・空の統計・解析容量変更・Fit・解像度独立性・HDRと負値・16bit/32bit出力を実際のWebGPUで確認する。
+`CHROME_PATH`を設定して`node --test packages/subsystems/effect/shared/test/palette-match.gpu.test.mjs`を実行すると、既知の対称な色変換・全共分散成分・独立調整・主軸の増幅上限・alpha重み・解析マスク・空の統計・解析容量変更・Fit・解像度独立性・HDRと負値・データ精度に依存しないrgba16floatの画像出力を実際のWebGPUで確認する。
 
 計算の参考：[Oklabの原典](https://bottosson.github.io/posts/oklab/)、[Gaussianの対称転送行列](https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/)。

@@ -12,7 +12,8 @@ const gray = (value: number, alpha = 1): Color => [value * alpha, value * alpha,
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
 	if (adapter == null) throw new Error('WebGPU adapter unavailable');
-	const device = await adapter.requestDevice();
+	const supports32bit = adapter.features.has('float32-filterable');
+	const device = await adapter.requestDevice({ requiredFeatures: supports32bit ? ['float32-filterable'] : [] });
 	device.pushErrorScope('validation');
 	const vertex = device.createShaderModule({ code: vertexCode });
 	const readerLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }] });
@@ -39,9 +40,9 @@ export async function run() {
 		disposables.push(() => image.destroy());
 		return textureShaderInput(image, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest', ...sampling });
 	}
-	function createEffect(width: number, height: number, format: 'rgba16float' | 'rgba32float' = 'rgba16float') {
+	function createEffect(width: number, height: number, enable32bitDataTextures = false) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: format, enable32bitDataTextures: format === 'rgba32float' };
+		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		const effect = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
 		const copyTarget = device.createTexture({ size: resolution, format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
@@ -279,13 +280,13 @@ export async function run() {
 				Array.from({ length: 8 }, () => fromLab(equalMean)), `reference ${fitMode} fit and transparent margins`);
 		}
 
-		// 【HDR・負値を色域内へclampせず、16bitと32bitの出力形式を扱う】
+		// 【データ精度にかかわらず、16bit floatの画像出力でHDR・負値を保持する】
 		// 符号なしの立方根やsRGB変換では負値がNaNになり、範囲制限ではHDRの色調を失う。
-		for (const format of ['rgba16float', 'rgba32float'] as const) {
-			const rangeRender = createEffect(2, 1, format);
+		for (const enable32bitDataTextures of supports32bit ? [false, true] : [false]) {
+			const rangeRender = createEffect(2, 1, enable32bitDataTextures);
 			for (const target of [[2, -0.125, 0.5, 1], [0.1, -0.5, 0.05, 1]] as Color[]) {
 				compare(await rangeRender({ input: texture(2, 1, [gray(0.25), gray(0.75)]), reference: constantShaderInput('color', target), lightnessMatch: 1, analysisSamples: 2 }),
-					[target, target], `${format} preserves extended RGB values ${target.slice(0, 3).join(',')}`);
+					[target, target], `32bit data=${enable32bitDataTextures} preserves extended RGB values ${target.slice(0, 3).join(',')}`);
 			}
 		}
 

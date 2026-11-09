@@ -1,17 +1,17 @@
 import { scaleResolution } from '../resolution.ts';
 import code from './video-texture.wgsl?raw';
 import type { VideoSample } from 'mediabunny';
-import type { IntermediateTextureFormat } from '../types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '../types.ts';
 
 const opaqueVideoFormats = new Set<VideoPixelFormat>(['I420', 'I422', 'I444', 'NV12', 'RGBX', 'BGRX']);
 
 /** 動画の表示寸法に指定倍率を適用してGPUへ転送する。fitやレイヤーの変形は呼び出し側で行う。 */
-export function createVideoTexture(device: GPUDevice, format: IntermediateTextureFormat) {
+export function createVideoTexture(device: GPUDevice) {
 	const shader = device.createShaderModule({ code });
 	const createPipeline = (entryPoint: string) => device.createRenderPipeline({
 		layout: 'auto',
 		vertex: { module: shader, entryPoint: 'vs' },
-		fragment: { module: shader, entryPoint, targets: [{ format }] },
+		fragment: { module: shader, entryPoint, targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 		primitive: { topology: 'triangle-list' },
 	});
 	const externalVideoPipeline = createPipeline('renderExternalVideo');
@@ -24,7 +24,7 @@ export function createVideoTexture(device: GPUDevice, format: IntermediateTextur
 	let copiedFrameBindGroup: GPUBindGroup | null = null;
 	const createTexture = (width: number, height: number) => device.createTexture({
 		size: { width, height },
-		format,
+		format: INTERMEDIATE_TEXTURE_FORMAT,
 		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
 	});
 	const clearCopiedFrame = () => {

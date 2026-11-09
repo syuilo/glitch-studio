@@ -30,7 +30,7 @@ import type { VisualModulePublicParameterId, VisualModuleArgumentBindings } from
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { AudioSourceId } from '@gs/shared/audio.ts';
 import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capture.ts';
-import type { Asset, IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT, type Asset, type Player } from '@gs/shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
 import type { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/visual-module-live-preview-expression.js';
@@ -42,8 +42,6 @@ export type VisualModuleRendererManagerStaticOptions = {
 	previewDisplayMode?: PreviewDisplayMode;
 	enable32bitDataTextures: boolean;
 	effectRenderTileDivisionLevel?: number;
-	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
-	intermediateTextureFormat: IntermediateTextureFormat;
 	enableStats: boolean;
 	/** プレビュー用の波形・ヒストグラムのGPU処理を有効にする。 */
 	enableWaveformAndHistogram: boolean;
@@ -197,7 +195,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 		this.fallbackTexture = this.gpuDevice.createTexture({
 			size: [1, 1],
-			format: this.staticOptions.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING,
 		});
 
@@ -407,7 +405,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			getPlayerResolution: playerId => getPlayerIntrinsicResolution(playerId, this.resources.players, this.resources.assets),
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
 			effectRenderTileDivisionLevel: this.staticOptions.effectRenderTileDivisionLevel,
-			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: this.staticOptions.enableStats,
 			timingHelper: this.timingHelper,
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),

@@ -34,7 +34,7 @@ export async function run() {
 	// 各エフェクト固有の計算を持たず、実装そのものを描画して読み戻すための最小限の足場。
 	function createEffect(definition: any, implementation: any, width: number, height: number, precise: boolean) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise, intermediateTextureFormat: 'rgba8unorm' as const };
+		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise, intermediateTextureFormat: 'rgba16float' as const };
 		const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]: [string, any]) => [name,
 			parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value,
 		]));

@@ -93,6 +93,6 @@ Curved Surfaceの断面・屈折モデルは[gentpan/liquidglass](https://github
 
 Glitch StudioのSDF入力・座標・乗算済みRGBAへ適応し、距離の中央差分、独立したズーム支点、高さ基準の幅とぼかし、解像度に依存しない縁のハイライトへ変更している。元実装のGaussianブラー用事前パスは使わず、Vogel disk方式を採用する。
 
-`CHROME_PATH`を指定し、`node --test packages/subsystems/effect/shared/test/glass.gpu.test.mjs`で実際のWebGPU描画を検証する。両方式の参照値・切替・縁の極限・IOR=1・透明度・サンプル数の変更と丸め・既存SDF接続を、16bit/32bitのSDFと画像出力形式の組合せで確認する。Normal Smoothingでは0の描画維持・高さ基準の半径・Mask to SDFを経由した円形マスクでの方向誤差の減少と被覆率の一致も確認する。
+`CHROME_PATH`を指定し、`node --test packages/subsystems/effect/shared/test/glass.gpu.test.mjs`で実際のWebGPU描画を検証する。両方式の参照値・切替・縁の極限・IOR=1・透明度・サンプル数の変更と丸め・既存SDF接続を、16bit/32bitのSDFとrgba16floatの画像出力で確認する。Normal Smoothingでは0の描画維持・高さ基準の半径・Mask to SDFを経由した円形マスクでの方向誤差の減少と被覆率の一致も確認する。
 
 SDF入力とInner Zoom Centerは長辺全体=1の共通単位です。画像参照と屈折モデルは内部の座標へ換算して計算します。異なる描画領域へのFitではSDF値の倍率補正・再計算は行いません。

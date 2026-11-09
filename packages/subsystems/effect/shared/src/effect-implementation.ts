@@ -61,7 +61,7 @@ export type EffectGpuContext = {
 	/** triangle-listとdraw(3)で全画面を覆い、location(0)に各軸[-1,+1]の画像参照座標を渡す。 */
 	defaultVertexShaderModule: GPUShaderModule;
 	enable32bitDataTextures: boolean;
-	intermediateTextureFormat: IntermediateTextureFormat;
+	readonly intermediateTextureFormat: IntermediateTextureFormat;
 };
 
 export type EffectRenderContext<Options extends Record<string, ParameterDefinition> = any, Outputs extends EffectOutputDefinitions = any> = {
@@ -102,7 +102,7 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 			wgpu: {
 				device: GPUDevice;
 				enable32bitDataTextures: boolean;
-				intermediateTextureFormat: IntermediateTextureFormat;
+				readonly intermediateTextureFormat: IntermediateTextureFormat;
 			};
 		}) => GPUTexture;
 	};

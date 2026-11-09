@@ -18,7 +18,6 @@ export async function run() {
 		device,
 		vertex,
 		resolution: { width: 1920, height: 1080 },
-		format: 'rgba16float' as const,
 	};
 	const literal = (value: any) => ({ inputSource: 'literal' as const, value });
 	const compositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'];

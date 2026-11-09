@@ -108,7 +108,7 @@ function fixture(t, kind = 'VisualModule') {
 	});
 	const controller = new module.exports[kind + 'RendererManagerController']({});
 	initialOptions.set(controller, {
-		staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false },
+		staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, enableStats: false },
 		dynamicOptions: { fpsLimit: null, resolution: { width: 16, height: 16 }, resolutionScale: 1 },
 		resources: { assets: [], players: [] },
 	});

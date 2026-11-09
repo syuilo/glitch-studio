@@ -80,7 +80,7 @@ async function fixture(t, options = {}) {
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: { probe: definition, noOutput: { ...definition, id: 'noOutput', primaryOutput: null } },
 		effectImplementations: { probe: implementation, noOutput: implementation },
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' }, { assets: [{ id: 'intrinsic', width: 200, height: 100, fileDataType: 'video/mp4', fileData: new Blob() }] });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, }, { assets: [{ id: 'intrinsic', width: 200, height: 100, fileDataType: 'video/mp4', fileData: new Blob() }] });
 	manager.presentOutput = output => calls.outputs.push(output);
 	manager.on('ev', event => {
 		if (event.type === 'effectLayerState') calls.states.push(event.ctx);
@@ -91,7 +91,7 @@ async function fixture(t, options = {}) {
 		resolution: { width: 320, height: 180 }, ...extra,
 	});
 	return { manager, calls, setup, implementation, directOptions: {
-		wgpu: { device, defaultVertexShaderModule: {}, intermediateTextureFormat: 'rgba8unorm', enable32bitDataTextures: false },
+		wgpu: { device, defaultVertexShaderModule: {}, intermediateTextureFormat: 'rgba16float', enable32bitDataTextures: false },
 		fallbackTexture: texture(), resolution: { width: 160, height: 90 }, resolutionScale: 0.5, assets: [], assetTextures: new Map(),
 	} };
 }

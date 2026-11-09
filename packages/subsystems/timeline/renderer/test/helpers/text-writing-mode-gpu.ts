@@ -50,11 +50,11 @@ export async function run() {
 	try {
 		for (const [width, height] of [[480, 320], [320, 480]]) {
 			const resolution = { width, height };
-			const wgpu = { device, intermediateTextureFormat: 'rgba8unorm' as const, enable32bitDataTextures: false, defaultVertexShaderModule: vertex };
+			const wgpu = { device, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures: false, defaultVertexShaderModule: vertex };
 			const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 			const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as RuntimeEffectParameters<typeof definition.paramDefs>;
 			const effect = implementation.init({ wgpu, resolution, params: defaults, resources: { font: null }, reportStatus: () => {}, fallbackTexture: output });
-			const timeline = createTextRenderer({ device, vertex, resolution, format: 'rgba8unorm', fontFileSource: null });
+			const timeline = createTextRenderer({ device, vertex, resolution, fontFileSource: null });
 			await timeline.waitUntilReady(new AbortController().signal);
 			try {
 				for (const writingMode of ['horizontal-tb', 'vertical-rl'] as const) {

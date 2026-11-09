@@ -156,9 +156,10 @@ function gpuFixture() {
 // 【キャッシュヒットでは評価を省き、精密シークと書き出しでは必ず通常評価する】
 // 最終画像の保存をpresentだけへ追加すると、精密シークや書き出しまで既存画像を使い回し得る。
 // 生成・削除したフレームの範囲と容量通知も、実Managerの経路を通して確認する。
+// rgba16floatは1画素8byteなので、16byteの上限で2フレームだけ保持する。
 test('reuses timeline frames with LRU while bypassing the cache for precise seeks and export', async t => {
 	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 8 });
+	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
 	const states = [];
@@ -174,7 +175,7 @@ test('reuses timeline frames with LRU while bypassing the cache for precise seek
 	await renderer.renderTimelineFrame(0, 0);
 	assert.equal(evaluations.mock.callCount(), 5);
 	renderer.reportFrameCache();
-	assert.equal(states.at(-1).estimatedBytes, 8);
+	assert.equal(states.at(-1).estimatedBytes, 16);
 	assert.equal(states.at(-1).fps, 30);
 	await renderer.updateDynamicOptions({ frameCacheMaxBytes: 0 });
 	assert.deepEqual(states.at(-1).frameRanges, []);
@@ -222,7 +223,7 @@ test('invalidates cached frames and rejects snapshots completed after an edit', 
 	assert.deepEqual(renderer.frameCache.snapshot().frameRanges, []);
 	renderer.gpuDevice.queue.onSubmittedWorkDone = wait;
 	await renderer.renderTimelineAt(0);
-	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 4);
+	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 8);
 	await renderer.updateDynamicOptions({ previewFps: 15 });
 	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 0);
 	assert.deepEqual(errors, []);
@@ -289,7 +290,7 @@ for (const failure of ['out-of-memory', 'exception']) {
 		failCapture = false;
 		await renderer.renderTimelineAt(0);
 		assert.equal(displayedFrames, 2);
-		assert.equal(renderer.frameCache.snapshot().estimatedBytes, 4);
+		assert.equal(renderer.frameCache.snapshot().estimatedBytes, 8);
 		assert.deepEqual(errors, []);
 	});
 }
@@ -500,7 +501,7 @@ test('clears cached images and rejects in-flight snapshots after resetting histo
 	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30, frameCacheMaxBytes: 16 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	await renderer.renderTimelineAt(0);
-	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 4);
+	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 8);
 	const gate = Promise.withResolvers();
 	const waiting = Promise.withResolvers();
 	const waitForGpu = renderer.gpuDevice.queue.onSubmittedWorkDone;
@@ -519,7 +520,7 @@ test('clears cached images and rejects in-flight snapshots after resetting histo
 	await renderer.renderTimelineAt(0, 2);
 	assert.equal(evaluations.mock.callCount(), 3);
 	assert.equal(completed.at(-1).requestId, 2);
-	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 4);
+	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 8);
 	assert.deepEqual(errors, []);
 });
 
@@ -537,7 +538,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		}, primaryInputParameter: 'input', resolutionInputParameters: ['input'], outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions }, { assets: [], players: [] });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, ...staticOptions }, { assets: [], players: [] });
 	renderer.on('ev', event => {
 		if (event.type === 'renderError') errors.push(event.ctx.message);
 	});
@@ -552,6 +553,44 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 		frames.delete(id);
 		callback(timestamp);
 	} };
+}
+
+for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) for (const enable32bitDataTextures of [false, true]) {
+	// 【Canvasの推奨形式やデータ精度にかかわらず、画像出力は16bit floatに固定する】
+	// UIだけを変更するとManagerやVisual Moduleの生成経路に8bit形式が残り得るため、
+	// エフェクトの出力確保・初期化からCanvasへ渡す画像まで、両プレビューの実経路を確認する。
+	test(`${Manager.name} uses rgba16float images with 32bit data=${enable32bitDataTextures}`, async t => {
+		const f = await fixture(t, { enableWaveformAndHistogram: false, enable32bitDataTextures }, Manager);
+		const gpuContexts = [];
+		f.renderer.effectImplementations.pass = {
+			outputTextureFactories: { output: ({ wgpu, resolution }) => {
+				gpuContexts.push(wgpu);
+				return wgpu.device.createTexture({ size: resolution, format: wgpu.intermediateTextureFormat });
+			} },
+			init({ wgpu }) { gpuContexts.push(wgpu); return { render() {}, dispose() {} }; },
+		};
+		const definition = visualModule(false);
+		definition.nodes = [
+			{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'literal', value: [2, -0.5, 0, 1] } } },
+			definition.nodes[2],
+		];
+		await f.renderer.updateDynamicOptions({ visualModules: [definition] });
+		const present = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
+		if (Manager === TimelineRendererManager) await f.renderer.renderTimelineAt(0);
+		else {
+			f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+			f.frame(16);
+		}
+		assert.equal(gpuContexts.length, 2);
+		for (const wgpu of gpuContexts) {
+			assert.equal(wgpu.intermediateTextureFormat, 'rgba16float');
+			assert.equal(wgpu.enable32bitDataTextures, enable32bitDataTextures);
+		}
+		assert.equal(present.mock.callCount(), 1);
+		assert.equal(present.mock.calls[0].arguments[0].format, 'rgba16float');
+		assert.equal('intermediateTextureFormat' in f.renderer.staticOptions, false);
+		assert.deepEqual(f.errors, []);
+	});
 }
 
 async function deferredVisualModuleLivePreview(t) {
@@ -1385,7 +1424,7 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		const starting = Manager.create({
 			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 			effectDefinitions: {}, effectImplementations: {},
-		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, },
 		{ assets: [imageAsset('image')], players: [] }).then(manager => { returned = true; return manager; });
 		await new Promise(resolve => setImmediate(resolve));
 		assert.equal(returned, false);
@@ -1410,7 +1449,7 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		const starting = Manager.create({
 			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 			effectDefinitions: {}, effectImplementations: {},
-		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, },
 		{ assets: [imageAsset('image')], players: [] }, controller.signal);
 		assert.equal(requests.length, 1);
 		const rejected = assert.rejects(starting, /initialization cancelled/);
@@ -1455,7 +1494,7 @@ for (const [name, createManager] of [['visualModuleLivePreview', createVisualMod
 		let ready = false;
 		const starting = createManager({
 			canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
-			staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+			staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, },
 			dynamicOptions: { highlightClipping: true }, resources: { assets: [imageAsset('image')], players: [] },
 			effectDefinitions: {}, effectImplementations: {},
 		}).then(manager => { ready = true; return manager; });
@@ -1505,7 +1544,7 @@ for (const [name, createManager] of [['visualModuleLivePreview', createVisualMod
 			const canvas = { getContext: () => failure === 'context' ? null : new Context() };
 			await assert.rejects(createManager({
 				canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
-				staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+				staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, },
 				dynamicOptions: {},
 				resources: { assets: [{ id: 'broken', fileDataType: 'image/png', fileData: new Blob() }], players: [] },
 				effectDefinitions: {}, effectImplementations: {},

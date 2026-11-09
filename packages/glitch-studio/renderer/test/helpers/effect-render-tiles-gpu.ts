@@ -23,7 +23,7 @@ export async function checkEffectRenderTiles(device: GPUDevice, vertex: GPUShade
 			const params = { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key,
 				def.canNode ? constantShaderInput(def.dataType.kind, def.defaultValue.value) : def.defaultValue.value])), ...overrides } as RuntimeEffectParameters<Definition['paramDefs']>;
 			const create = (level: number) => new EffectRenderer({ definition, implementation, resolution, staticResources: {}, fallbackTexture: input,
-				enableStats: device.features.has('timestamp-query'), effectRenderTileDivisionLevel: level, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' } });
+				enableStats: device.features.has('timestamp-query'), effectRenderTileDivisionLevel: level, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float' } });
 			const baseline = create(0);
 			const divided = [1, 2, 4].map(level => create(level));
 			try {

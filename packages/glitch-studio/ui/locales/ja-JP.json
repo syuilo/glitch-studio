@@ -499,10 +499,7 @@
 		"EffectRenderTilesDisabled": "0（分割なし）",
 		"EffectRenderTileDivisionLevelHint": "1で4分割、2で16分割、3で64分割、4で256分割します。GPUの連続実行時間を短くするための設定で、処理速度は低下する場合があります。Compute Shaderは分割しません。プレビューと書き出しに適用されます。",
 		"Use32bitDataTextures": "データ用テクスチャを高精度にする",
-		"DataTexturesHint": "データと内部計算を、16ビット浮動小数点テクスチャの代わりに32ビット浮動小数点テクスチャに格納します。これにより精度が向上しますが、パフォーマンスに影響する場合があります。",
-		"AutoTextureFormat": "自動 (推奨の形式)",
-		"IntermediateTextureFormat": "中間画像テクスチャのフォーマット",
-		"IntermediateTextureFormatHint": "画像出力の精度と範囲を設定します。16ビット浮動小数点では精度が向上し、0〜1の範囲外の値を保持できますが、8ビット形式よりメモリ使用量が増えます。"
+		"DataTexturesHint": "データと内部計算を、16ビット浮動小数点テクスチャの代わりに32ビット浮動小数点テクスチャに格納します。これにより精度が向上しますが、パフォーマンスに影響する場合があります。"
 	},
 	"_ProjectBackups": {
 		"Title": "プロジェクトのバックアップ",

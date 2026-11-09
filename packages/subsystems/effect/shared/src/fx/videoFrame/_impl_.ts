@@ -31,7 +31,7 @@ export default implementEffect<typeof definition>({
 		let sourceTexture: GPUTexture | null = null;
 		let bindGroup: GPUBindGroup | null = null;
 		let cacheVersion = 0;
-		const videoTexture = createVideoTexture(wgpu.device, wgpu.intermediateTextureFormat);
+		const videoTexture = createVideoTexture(wgpu.device);
 		const loader = createVideoFrameLoader({
 			fileSource: resources.asset ?? null,
 			open: openVideoFrameSource,

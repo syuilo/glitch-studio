@@ -58,7 +58,7 @@ Warpは速度ではなく、このProgress・Warp Strength・Confidence Guardで
 
 ## 検証
 
-`CHROME_PATH`を指定して`node --test packages/subsystems/effect/shared/test/image-morph.gpu.test.mjs`を実行する。実際のWebGPUで端点・独立Blend・premultiplied alpha・Fit・既知の平行移動・共通単位・解像度独立性・描画履歴からの独立・遅延出力・16bit/32bitの出力を検証する。公開WarpをVector Displacementへ接続した再構成も確認する。
+`CHROME_PATH`を指定して`node --test packages/subsystems/effect/shared/test/image-morph.gpu.test.mjs`を実行する。実際のWebGPUで端点・独立Blend・premultiplied alpha・Fit・既知の平行移動・共通単位・解像度独立性・描画履歴からの独立・遅延出力・rgba16floatの画像出力と16bit/32bitのデータ出力を検証する。公開WarpをVector Displacementへ接続した再構成も確認する。
 
 逆写像は、既知の非一様なアフィン変位を直接与え、対応推定とは独立に中間拡縮の逆とConfidence Guardの有効・無効を検証する。
 

@@ -3,7 +3,7 @@ import implementation from '../../src/fx/vignette/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -47,9 +47,9 @@ export async function run() {
 			return pixels;
 		} finally { target.destroy(); buffer.destroy(); }
 	}
-	function createEffect(width: number, height: number, precise: boolean, format: IntermediateTextureFormat = 'rgba16float') {
+	function createEffect(width: number, height: number, precise: boolean) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: format, enable32bitDataTextures: precise };
+		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: precise };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		const mask = implementation.outputTextureFactories.mask({ wgpu, resolution });
 		assert(mask.format === (precise ? 'r32float' : 'r16float'), 'mask precision');
@@ -194,8 +194,8 @@ export async function run() {
 		const input = device.createTexture({ size: [2, 2], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		disposables.push(() => input.destroy());
 		device.queue.writeTexture({ texture: input }, new Uint8Array([128, 64, 32, 128, 0, 0, 0, 0, 255, 128, 64, 255, 0, 0, 0, 0]), { bytesPerRow: 8 }, [2, 2]);
-		for (const format of ['rgba8unorm', 'bgra8unorm', 'rgba16float'] as const) {
-			const render = createEffect(8, 4, false, format);
+		{
+			const render = createEffect(8, 4, false);
 			const image = textureShaderInput(input, { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' });
 			const before = await render({ input: image, strength: 0 });
 			const after = await render({ input: image, strength: 1, size: [0, 0] });
@@ -205,7 +205,7 @@ export async function run() {
 				if (index % 8 < 2 || index % 8 >= 6) colorAt(before.color, [0, 0, 0, 0], 'transparent fit margins', index * 4);
 			}
 		}
-		checks.push('texture sampling transparent fit and all color formats');
+		checks.push('texture sampling transparent fit and 16-bit float color output');
 		return { checks };
 	} finally {
 		for (const dispose of disposables) dispose();

@@ -34,7 +34,6 @@ export async function run() {
 		device,
 		vertex,
 		resolution: frame,
-		format: 'rgba16float' as const,
 	};
 	const output = createSceneOutput(options);
 	const cameraParameters = new TimelineSceneCamera();

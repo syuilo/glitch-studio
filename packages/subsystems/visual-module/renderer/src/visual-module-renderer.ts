@@ -23,7 +23,7 @@ import type { VisualModuleEvaluatedParameterValues } from '@gs/subsystems_visual
 import type { VisualModuleParameterEvaluationContext } from './visual-module-parameter-binding-evaluator.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT, type Asset } from '@gs/shared/types.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { VisualModuleEffectNode, VisualModuleNode, VisualModule, VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectImplementation, EffectRenderContext } from '@gs/subsystems_effect_shared/effect-implementation.js';
@@ -93,7 +93,6 @@ export class VisualModuleRenderer {
 	private onEffectState: ((nodeId: string, state: EffectInstanceState | null) => void) | null = null;
 	private automationGraphs: AutomationGraph[] = [];
 	private enable32bitDataTextures = false;
-	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private videoFrames: Map<string, VideoFrame>;
 	private videoFrameVersions: Map<string, number>;
 	private readonly assetTextures: ReadonlyMap<string, GPUTexture>;
@@ -120,7 +119,6 @@ export class VisualModuleRenderer {
 		inputResolutions?: ReadonlyMap<string, Resolution | null>;
 		getPlayerResolution?: (playerId: string) => Resolution | null;
 		enable32bitDataTextures: boolean;
-		intermediateTextureFormat: IntermediateTextureFormat;
 		videoFrames: Map<string, VideoFrame>;
 		videoFrameVersions: Map<string, number>;
 		/** 素材一覧とテクスチャはインスタンスの寿命中に変更しない。GPUへの準備完了後に渡す。 */
@@ -145,7 +143,6 @@ export class VisualModuleRenderer {
 		this.resolutionScale = options.resolutionScale ?? 1;
 		this.contextResolution = scaleResolution(options.resolution, this.resolutionScale);
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
-		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.videoFrames = options.videoFrames;
 		this.videoFrameVersions = options.videoFrameVersions;
 		this.assetTextures = options.assetTextures;
@@ -428,7 +425,7 @@ export class VisualModuleRenderer {
 						device: this.gpuDevice,
 						defaultVertexShaderModule: this.defaultVertexShaderModule,
 						enable32bitDataTextures: this.enable32bitDataTextures,
-						intermediateTextureFormat: this.intermediateTextureFormat,
+						intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT,
 					},
 					fallbackTexture: this.fallbackTexture,
 					enableStats: this.enableStats,

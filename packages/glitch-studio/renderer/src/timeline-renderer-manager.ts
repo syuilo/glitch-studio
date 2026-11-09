@@ -70,7 +70,7 @@ import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-im
 import type { FrameScheduler } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import type { TimelineLayerRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT, type Asset } from '@gs/shared/types.ts';
 import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModule, VisualModulePublicParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
@@ -90,8 +90,6 @@ export type TimelineRendererManagerStaticOptions = {
 	timelineMotionBlur: TimelineMotionBlurSettings;
 	enable32bitDataTextures: boolean;
 	effectRenderTileDivisionLevel?: number;
-	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
-	intermediateTextureFormat: IntermediateTextureFormat;
 	/** 処理中の1件に追加できる先行数。省略時は1、0ではGPU完了まで直列に処理する。 */
 	previewFramesAhead?: number;
 };
@@ -261,7 +259,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		this.fallbackTexture = this.gpuDevice.createTexture({
 			size: [1, 1],
-			format: this.staticOptions.intermediateTextureFormat,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
 			usage: GPUTextureUsage.TEXTURE_BINDING,
 		});
 
@@ -351,7 +349,6 @@ export class TimelineRendererManager extends EventEmitter<{
 			device: this.gpuDevice,
 			vertex: this.defaultVertexShaderModule,
 			resolution: this.renderResolution,
-			format: this.staticOptions.intermediateTextureFormat,
 		});
 		const texture = this.sceneOutput.render(encoder, output);
 		this.canvasRenderer.renderToCanvas(texture, encoder);
@@ -887,7 +884,6 @@ export class TimelineRendererManager extends EventEmitter<{
 				device: this.gpuDevice,
 				vertex: this.defaultVertexShaderModule,
 				resolution: renderResolution,
-				format: this.staticOptions.intermediateTextureFormat,
 				onCompositing: this.createCompositingObserver(sceneId, layer.id, null, renderResolution),
 				// グループは別Sceneの配置ではない。同じSceneの子レイヤーは従来どおり
 				// [Scene配置の経路, レイヤーID]で状態を通知し、詳細パネルから参照できるようにする。
@@ -907,7 +903,6 @@ export class TimelineRendererManager extends EventEmitter<{
 					device: this.gpuDevice,
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
-					format: this.staticOptions.intermediateTextureFormat,
 					fontFileSource: this.resources.assets.find(asset => asset.id === layer.subtitleStaticSettings.font && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
 				});
 			case 'text':
@@ -916,7 +911,6 @@ export class TimelineRendererManager extends EventEmitter<{
 					device: this.gpuDevice,
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
-					format: this.staticOptions.intermediateTextureFormat,
 					fontFileSource: this.resources.assets.find(asset => asset.id === layer.textStaticSettings.font && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
 				});
 			case 'shape':
@@ -925,7 +919,6 @@ export class TimelineRendererManager extends EventEmitter<{
 					device: this.gpuDevice,
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
-					format: this.staticOptions.intermediateTextureFormat,
 				});
 			case 'effect': {
 				const definition = this.effectDefinitions[layer.effectId];
@@ -939,7 +932,7 @@ export class TimelineRendererManager extends EventEmitter<{
 						device: this.gpuDevice,
 						defaultVertexShaderModule: this.defaultVertexShaderModule,
 						enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
-						intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
+						intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT,
 					},
 					fallbackTexture: this.fallbackTexture,
 					resolution: renderResolution,
@@ -961,7 +954,6 @@ export class TimelineRendererManager extends EventEmitter<{
 					device: this.gpuDevice,
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
-					format: this.staticOptions.intermediateTextureFormat,
 					resolutionScale: this.dynamicOptions.resolutionScale,
 				});
 			}
@@ -981,7 +973,6 @@ export class TimelineRendererManager extends EventEmitter<{
 					device: this.gpuDevice,
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
-					format: this.staticOptions.intermediateTextureFormat,
 					resolutionScale: this.dynamicOptions.resolutionScale,
 				});
 			}
@@ -996,7 +987,6 @@ export class TimelineRendererManager extends EventEmitter<{
 					resolution: renderResolution,
 					sceneResolution: resolveSceneResolution(scene.resolution, this.dynamicOptions.resolution,
 						this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D),
-					format: this.staticOptions.intermediateTextureFormat,
 					createLayer: (entry, childClipId) => this.createTimelineLayer(entry, childClipId, [...layerPath, clipId, entry.id], childBaseResolution, scene.id),
 					getLayerVersion: (entry, childClipId) => this.getLayerVersion(scene.id, entry, childClipId),
 				});
@@ -1044,7 +1034,6 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolutionScale: this.dynamicOptions.resolutionScale,
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
 			effectRenderTileDivisionLevel: this.staticOptions.effectRenderTileDivisionLevel,
-			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: false,
 			timingHelper: null,
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
@@ -1062,7 +1051,6 @@ export class TimelineRendererManager extends EventEmitter<{
 			device: this.gpuDevice,
 			vertex: this.defaultVertexShaderModule,
 			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale),
-			format: this.staticOptions.intermediateTextureFormat,
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
 		const inputFrames = new Map<VisualModulePublicParameterId, ReturnType<typeof createSceneOutput>>();
@@ -1074,7 +1062,6 @@ export class TimelineRendererManager extends EventEmitter<{
 						device: this.gpuDevice,
 						vertex: this.defaultVertexShaderModule,
 						resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale),
-						format: this.staticOptions.intermediateTextureFormat,
 					});
 					inputFrames.set(parameterId, inputFrame);
 				}

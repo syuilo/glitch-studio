@@ -16,7 +16,7 @@ const wgpu: EffectGpuContext = {
 	device,
 	defaultVertexShaderModule,
 	enable32bitDataTextures: false,
-	intermediateTextureFormat: 'rgba8unorm',
+	intermediateTextureFormat: 'rgba16float',
 };
 
 // 【エフェクトの定義に従う入力・出力だけを単体レンダラーへ渡せる】

@@ -6,7 +6,7 @@ import { createSpectralSamples } from '../../src/optics/spectral-samples.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -66,10 +66,11 @@ export async function run() {
 			return pixels;
 		} finally { target.destroy(); buffer.destroy(); }
 	}
-	function createEffect(width: number, height: number, format: IntermediateTextureFormat = 'rgba16float') {
+	function createEffect(width: number, height: number) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: format, enable32bitDataTextures: false };
+		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: false };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
+		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		const instance = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
 		owned.push(() => { instance.dispose(); output.destroy(); });
 		return {
@@ -165,8 +166,7 @@ export async function run() {
 		equal(await effect.render({ input: scalar(0.25) }), await effect.render({ input: scalar(0.75), minimumThickness: 100, maximumThickness: 0 }), 'reversed thickness range');
 		equal(baseline, await effect.render({}, 1000), 'history independence');
 		for (const [width, height] of [[1, 1], [8, 16], [32, 8]]) checkColor(await createEffect(width, height).render(), Array.from(baseline.slice(0, 4)), 'resolution and aspect independence');
-		checkColor(await createEffect(1, 1, 'rgba8unorm').render(), Array.from(baseline.slice(0, 4)), '8bit image format', 0, 1 / 255);
-		checks.push('thickness range', 'history independence', 'resolution and aspect independence', 'image formats');
+		checks.push('thickness range', 'history independence', 'resolution and aspect independence', '16-bit float image output');
 
 		// 【分光重みを共通化したThin Film Interferenceも実際に描画する】
 		// 同じ屈折率の膜と下地は界面反射がなく、透過は全波長で1になる既知のケースを使う。

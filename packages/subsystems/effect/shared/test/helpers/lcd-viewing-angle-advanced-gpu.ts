@@ -3,7 +3,7 @@ import implementation from '../../src/fx/lcdViewingAngleAdvanced/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
-import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -51,10 +51,11 @@ export async function run() {
 			return pixels;
 		} finally { target.destroy(); buffer.destroy(); }
 	}
-	function createEffect(width: number, height: number, format: IntermediateTextureFormat = 'rgba16float') {
+	function createEffect(width: number, height: number) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: format, enable32bitDataTextures: false };
+		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: INTERMEDIATE_TEXTURE_FORMAT, enable32bitDataTextures: false };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
+		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		const instance = implementation.init({ wgpu, resolution, params: defaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
 		owned.push(() => { instance.dispose(); output.destroy(); });
 		return {
@@ -209,12 +210,11 @@ export async function run() {
 		// 固定の応答表が画像サイズやサンプリング形式へ誤って依存することを防ぐ。
 		const baseline = await effect.render({ input: opaque, horizontalViewingAngle: 0.1 });
 		for (const [width, height] of [[1, 1], [8, 16], [32, 8]]) checkColor((await createEffect(width, height).render({ input: opaque, horizontalViewingAngle: 0.1 })).pixels, Array.from(baseline.pixels.slice(0, 4)), 'resolution and aspect independence');
-		checkColor((await createEffect(1, 1, 'rgba8unorm').render({ input: opaque, horizontalViewingAngle: 0.1 })).pixels, Array.from(baseline.pixels.slice(0, 4)), '8bit output', 0, 1 / 255);
 		equal(baseline.pixels, (await effect.render({ input: opaque, horizontalViewingAngle: 1.1 })).pixels, 'view angle periodicity');
 		checkColor((await effect.render({ input: opaque, panelRotation: 0.25, verticalViewingAngle: -0.1 })).pixels, Array.from(baseline.pixels.slice(0, 4)), 'panel and viewing-direction rotation');
 		const extreme = await effect.render({ input: opaque, horizontalViewingAngle: 0.25, verticalViewingAngle: -0.25 });
 		assert(extreme.pixels.every(Number.isFinite), 'grazing-angle finite values');
-		checks.push('resolution and aspect independence', 'image formats', 'angle periodicity', 'panel rotation', 'grazing-angle stability');
+		checks.push('resolution and aspect independence', '16-bit float image output', 'angle periodicity', 'panel rotation', 'grazing-angle stability');
 
 		const width = 384;
 		const height = 96;

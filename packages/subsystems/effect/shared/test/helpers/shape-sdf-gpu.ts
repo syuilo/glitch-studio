@@ -27,7 +27,7 @@ export async function run() {
 
 	function createEffect(width: number, height: number, enable32bitDataTextures: boolean) {
 		const resolution = { width, height };
-		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' as const, enable32bitDataTextures };
+		const wgpu = { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba16float' as const, enable32bitDataTextures };
 		const output = implementation.outputTextureFactories.output({ wgpu, resolution });
 		assert(output.format === (enable32bitDataTextures ? 'r32float' : 'r16float'), 'data texture format');
 		const effect = implementation.init({ wgpu, resolution, params: defaults, reportStatus: () => {}, fallbackTexture: output });
