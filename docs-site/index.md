@@ -33,6 +33,8 @@ features:
     details: "Glitch Studioは、原則<b>FPS-independent</b>な設計になっています。\nどのようなフレームレートでレンダリングしてもアニメーション速度が変わらず、一貫した映像が得られます。"
   - title: 決定論的
     details: "Glitch Studioは、原則<b>Deterministic</b>な設計になっています。\n同じ入力なら同じ出力が得られ、一貫した映像が得られます。"
+  - title: 高精度画像処理
+    details: "画像の内部処理を16bitに統一し、広範囲な色データを高精度に扱うことにより、劣化無しに画像加工が可能です。"
   - title: 画像編集
     details: ノードベースのエディタで「Visual Module」を構築し、画像を作成・加工できます。
     link: /guide/visual-module
