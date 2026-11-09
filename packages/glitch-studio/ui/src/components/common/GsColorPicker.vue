@@ -67,9 +67,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import type { RgbaColor } from '@/utility/color-input.ts';
-import { linearSrgbToSrgb, srgbChannelToLinear } from '@gs/shared/color-space.ts';
+import { linearSrgbToSrgb, oklchToLinearSrgb, srgbChannelToLinear } from '@gs/shared/color-space.ts';
 import { i18n } from '@/i18n.ts';
-import { clampColorValue, colorCss, colorHex, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv } from '@/utility/color-input.ts';
+import { clampColorValue, colorCss, colorHex, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv, rgbToOklch } from '@/utility/color-input.ts';
 import GsModal from '@/components/common/GsModal.vue';
 import * as ui from '@/ui.ts';
 
@@ -94,6 +94,7 @@ const initialHsv = rgbToHsv(color.value, 0);
 const hue = ref(initialHsv[0]);
 const saturation = ref(initialHsv[1]);
 const brightness = ref(initialHsv[2]);
+const oklch = ref(rgbToOklch(color.value, 0));
 const editing = ref<string | null>(null);
 const invalid = ref<string | null>(null);
 const drafts = ref<Record<string, string>>({});
@@ -107,12 +108,13 @@ const EyeDropper = (window as Window & {
 	EyeDropper?: new () => { open(options: { signal: AbortSignal }): Promise<{ sRGBHex: string }> };
 }).EyeDropper;
 
-type Format = 'sRGB' | 'HSL' | 'HEX' | 'Linear';
+type Format = 'sRGB' | 'HSL' | 'OKLCH' | 'HEX' | 'Linear';
 const rows = computed(() => {
 	const hsl = hsvToHsl(hue.value, saturation.value, brightness.value);
 	const definitions: { name: Format; labels: string[]; values: (string | number)[] }[] = [
 		{ name: 'sRGB', labels: ['R', 'G', 'B', 'A'], values: [...linearSrgbToSrgb(color.value).slice(0, 3).map(v => Math.round(clampColorValue(v) * 255)), color.value[3]] },
 		{ name: 'HSL', labels: ['H°', 'S%', 'L%', 'A'], values: [hsl[0], hsl[1] * 100, hsl[2] * 100, color.value[3]] },
+		{ name: 'OKLCH', labels: ['L%', 'C', 'H°', 'A'], values: [oklch.value[0] * 100, oklch.value[1], oklch.value[2], color.value[3]] },
 		{ name: 'HEX', labels: ['#RRGGBBAA'], values: [colorHex(color.value)] },
 		{ name: 'Linear', labels: ['R', 'G', 'B', 'A'], values: color.value },
 	];
@@ -140,14 +142,18 @@ watch(() => props.modelValue, value => {
 	setColor(next, false);
 }, { deep: true });
 
-function setColor(next: RgbaColor, notify = true, updateHsv = true) {
+function setColor(next: RgbaColor, notify = true, source: 'hsv' | 'oklch' | null = null) {
 	next = normalizeColor(next);
-	if (updateHsv && next.slice(0, 3).some((channel, index) => channel !== color.value[index])) {
-		const hsv = rgbToHsv(next, hue.value);
-		hue.value = hsv[0];
-		// 黒にした場合も彩度を保持し、明るさを戻せるようにする。
-		if (hsv[2] !== 0) saturation.value = hsv[1];
-		brightness.value = hsv[2];
+	if (next.slice(0, 3).some((channel, index) => channel !== color.value[index])) {
+		if (source !== 'hsv') {
+			const hsv = rgbToHsv(next, hue.value);
+			hue.value = hsv[0];
+			// 黒にした場合も彩度を保持し、明るさを戻せるようにする。
+			if (hsv[2] !== 0) saturation.value = hsv[1];
+			brightness.value = hsv[2];
+		}
+		// 入力したL・C・Hを逆変換で上書きすると、色相やchromaへ変換誤差が累積する。
+		if (source !== 'oklch') oklch.value = rgbToOklch(next, oklch.value[2]);
 	}
 	color.value = [...next];
 	if (notify) {
@@ -164,8 +170,20 @@ function editField(event: Event, format: Format, index: number, key: string) {
 		next = parseColorHex(text, color.value[3]);
 	} else if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text)) {
 		const value = Number(text);
-		const max = index === 3 ? 1 : format === 'sRGB' ? 255 : format === 'Linear' ? Infinity : index === 0 ? 360 : 100;
-		const min = format === 'Linear' && index < 3 ? -Infinity : 0;
+		let min = 0;
+		let max = 1;
+		if (index < 3) {
+			if (format === 'Linear') {
+				min = -Infinity;
+				max = Infinity;
+			} else if (format === 'OKLCH') {
+				// LはHDR・負値も表現する。Cに色域由来の固定上限を設けず、保存RGBもclampしない。
+				min = index === 0 ? -Infinity : 0;
+				max = index === 2 ? 360 : Infinity;
+			} else {
+				max = format === 'sRGB' ? 255 : index === 0 ? 360 : 100;
+			}
+		}
 		if (Number.isFinite(value) && value >= min && value <= max) {
 			next = [...color.value];
 			if (format === 'HSL' && index < 3) {
@@ -176,13 +194,21 @@ function editField(event: Event, format: Format, index: number, key: string) {
 				saturation.value = v === 0 ? 0 : 2 * (1 - hsl[2] / v);
 				brightness.value = v;
 				next = hsvToRgb(hue.value, saturation.value, brightness.value, color.value[3]);
+			} else if (format === 'OKLCH' && index < 3) {
+				const nextOklch: [number, number, number] = [...oklch.value];
+				nextOklch[index] = index === 0 ? value / 100 : value;
+				// 無彩色の色相だけを指定した場合は、元のRGBを変換誤差も含めて保持する。
+				next = index === 2 && nextOklch[1] === 0 ? [...color.value] : oklchToLinearSrgb([...nextOklch, color.value[3]]);
+				// 有限な入力でも逆変換の三乗がoverflowし得る。保存値へInfinityを入れない。
+				if (next.every(Number.isFinite)) oklch.value = nextOklch;
+				else next = null;
 			} else {
 				next[index] = format === 'sRGB' && index < 3 ? srgbChannelToLinear(value / 255) : value;
 			}
 		}
 	}
-	invalid.value = next ? null : key;
-	if (next) setColor(next, true, format !== 'HSL');
+	invalid.value = next != null ? null : key;
+	if (next != null) setColor(next, true, format === 'HSL' ? 'hsv' : format === 'OKLCH' ? 'oklch' : null);
 }
 
 function finishEdit(event: FocusEvent, key: string) {
@@ -215,14 +241,14 @@ function moveDrag(event: PointerEvent) {
 	const rect = drag.element.getBoundingClientRect();
 	const x = clampColorValue((event.clientX - rect.left) / rect.width);
 	if (drag.kind === 'alpha') {
-		setColor([color.value[0], color.value[1], color.value[2], x], true, false);
+		setColor([color.value[0], color.value[1], color.value[2], x]);
 	} else {
 		if (drag.kind === 'hue') hue.value = x * 360;
 		else {
 			saturation.value = x;
 			brightness.value = 1 - clampColorValue((event.clientY - rect.top) / rect.height);
 		}
-		setColor(hsvToRgb(hue.value, saturation.value, brightness.value, color.value[3]), true, false);
+		setColor(hsvToRgb(hue.value, saturation.value, brightness.value, color.value[3]), true, 'hsv');
 	}
 }
 
@@ -308,7 +334,7 @@ function close() {
 	box-sizing: border-box;
 	width: 600px;
 	max-width: 100vw;
-	height: 350px;
+	height: 400px;
 	overflow: auto;
 	padding: 14px;
 	border-radius: 10px;
@@ -404,7 +430,7 @@ function close() {
 	margin-top: 8px;
 }
 .format {
-	width: 40px;
+	width: 52px;
 	flex-shrink: 0;
 }
 .field {

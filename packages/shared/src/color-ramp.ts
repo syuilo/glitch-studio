@@ -1,4 +1,4 @@
-import { linearSrgbToSrgb, srgbChannelToLinear } from './color-space.ts';
+import { linearSrgbToOklab, linearSrgbToOklch, linearSrgbToSrgb, OKLCH_POWERLESS_CHROMA, oklabToLinearSrgb, oklchToLinearSrgb, srgbChannelToLinear } from './color-space.ts';
 import type { LinearSrgbColor } from './color-space.ts';
 
 export type ColorRampColor = LinearSrgbColor;
@@ -43,21 +43,12 @@ export function validateColorRamp(value: unknown): asserts value is ColorRamp {
 function toWorkingColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace']): ColorRampColor {
 	if (colorSpace === 'srgb') return linearSrgbToSrgb(color);
 	if (colorSpace === 'linearSrgb') return [...color];
-	const [r, g, b] = color;
-	// Oklabはlinear sRGBからLMSへ変換し、各成分の立方根を取ってからLabへ変換する。
-	// 符号付きの立方根にして、式が返したlinear RGBの負値もNaNにしない。
-	const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-	const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-	const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-	const lightness = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
-	const opponentA = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
-	const opponentB = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
-	if (colorSpace === 'oklab') return [lightness, opponentA, opponentB, color[3]];
-	const chroma = Math.hypot(opponentA, opponentB);
-	// CSS Color 4のpowerless hueと同じ閾値。グレーの変換誤差に由来する色相を
-	// 補間に混ぜないよう、微小なchromaを0へ揃える。色相は1周を1とする。
-	if (chroma <= 0.000004) return [lightness, 0, 0, color[3]];
-	return [lightness, chroma, (Math.atan2(opponentB, opponentA) / (2 * Math.PI) + 1) % 1, color[3]];
+	if (colorSpace === 'oklab') return linearSrgbToOklab(color);
+	const [lightness, chroma, hue, alpha] = linearSrgbToOklch(color);
+	// グレーの変換誤差に由来する色相を補間に混ぜないよう、微小なchromaを0へ揃える。
+	// Color Ramp内部とGPU転送では色相の1周を1とする。
+	if (chroma <= OKLCH_POWERLESS_CHROMA) return [lightness, 0, 0, alpha];
+	return [lightness, chroma, hue / 360, alpha];
 }
 
 export type PreparedColorRamp = Pick<ColorRamp, 'interpolation' | 'colorSpace'> & {
@@ -115,15 +106,10 @@ function toOutputColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace'
 	if (alpha <= 0) return [0, 0, 0, 0];
 	let [r, g, b] = [color[0] / alpha, color[1] / alpha, colorSpace === 'oklch' ? color[2] : color[2] / alpha];
 	if (colorSpace === 'oklch') {
-		// 色相はalphaを乗算していないため、補間後もそのまま角度へ戻す。
-		const angle = color[2] * 2 * Math.PI;
-		[g, b] = [g * Math.cos(angle), g * Math.sin(angle)];
-	}
-	if (colorSpace === 'oklab' || colorSpace === 'oklch') {
-		const l = (r + 0.3963377774 * g + 0.2158037573 * b) ** 3;
-		const m = (r - 0.1055613458 * g - 0.0638541728 * b) ** 3;
-		const s = (r - 0.0894841775 * g - 1.291485548 * b) ** 3;
-		[r, g, b] = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s];
+		// 色相はalphaを乗算していないため、補間後もそのまま度数法へ戻す。
+		[r, g, b] = oklchToLinearSrgb([r, g, b * 360, alpha]);
+	} else if (colorSpace === 'oklab') {
+		[r, g, b] = oklabToLinearSrgb([r, g, b, alpha]);
 	}
 	if (colorSpace === 'srgb') [r, g, b] = [r, g, b].map(srgbChannelToLinear);
 	return [r * alpha, g * alpha, b * alpha, alpha];

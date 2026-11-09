@@ -30,6 +30,8 @@ Playerの映像はGlitch Studioの`PlayerVideoTextures`がフレームと正規�
 
 HEX・sRGB 0〜255・HSL・スポイトはsRGB表記を維持し、保存時にlinearへ変換する。例えば`#808080`の保存RGBは約0.21586。Linear欄は保存値を直接編集でき、HDR・負値を許す。CSS・HEXのSDR見本だけをclampし、ピッカーの開閉・alphaの編集・最近使った色の保存では元のRGBを制限しない。
 
+ピッカーのOKLCH欄は`L% / C / H° / A`。Lは100%を基準白とし、HDR・負値も編集できる。Cは非負で固定上限を持たず、Hは0〜360度、Aは0〜1。未乗算linear RGBとの変換で色域外の値をclampせず、SDR見本は他の欄と同じ表示規則を使う。無彩色では直前に指定したOKLCHの色相を保持し、Cを戻したときに使う。OKLCH入力は編集上の表現であり、保存形式やキーフレーム・Color Rampの補間空間を変更しない。
+
 式の`[0.5, 0.5, 0.5, 1]`はlinearの0.5で、標準sRGB表示では約`#BCBCBC`になる。定義・プリセットをsRGBの数値で記述する場合は`srgbToLinearSrgb()`で明示的に変換してから公開する。既存プロジェクトの旧sRGB数値を変換するマイグレーションは持たない。
 
 Color Rampの新規既定値はLinear補間・Linear sRGB。補間空間にはsRGB・Linear sRGB・Oklab・OKLCHを選べるが、保存stopは常に未乗算linear、評価結果は常に乗算済みlinear。補間後のRGBをclampしない。補間空間の変更で保存色を書き換えない。キーフレームは保存された未乗算linear成分を補間する。

@@ -1,4 +1,4 @@
-import { linearSrgbToSrgb, srgbToLinearSrgb } from '@gs/shared/color-space.ts';
+import { linearSrgbToOklch, linearSrgbToSrgb, OKLCH_POWERLESS_CHROMA, srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import type { LinearSrgbColor } from '@gs/shared/color-space.ts';
 
 export type RgbaColor = LinearSrgbColor;
@@ -38,6 +38,12 @@ export function rgbToHsv(color: RgbaColor, previousHue: number): [number, number
 	// 無彩色でも直前の色相を保持し、彩度を戻したときに同じ色相を使う。
 	const hue = delta === 0 ? previousHue : ((max === r ? (g - b) / delta : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4) * 60 + 360) % 360;
 	return [hue, max === 0 ? 0 : delta / max, max];
+}
+
+export function rgbToOklch(color: RgbaColor, previousHue: number): [number, number, number] {
+	const [lightness, chroma, hue] = linearSrgbToOklch(color);
+	// 無彩色の丸め誤差から色相を作らず、Cを戻したときに直前の色相で編集を続けられるようにする。
+	return chroma <= OKLCH_POWERLESS_CHROMA ? [lightness, 0, previousHue] : [lightness, chroma, hue];
 }
 
 export function hsvToRgb(hue: number, saturation: number, value: number, alpha: number): RgbaColor {
