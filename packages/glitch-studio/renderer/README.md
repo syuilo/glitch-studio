@@ -52,7 +52,7 @@ GPUを所有するManagerが、最終表示とモーションブラーの全サ�
 
 プレビューのヒストグラム・縦横の波形は、両Managerのstatic optionsの`enableWaveformAndHistogram`でまとめて制御する。`CanvasRenderer`は無効時に解析用インスタンスを生成せず、バッファ・pipelineの確保もcompute/render passも省く。通常のCanvas出力や計測の有効・無効とは独立し、エフェクトとして配置した波形・ヒストグラムには適用しない。書き出しWorkerでは常に無効を指定する。
 
-表示用の露出は両Managerのdynamic optionsの`previewExposure`（EV、既定0）を`CanvasRenderer`へ渡す。乗算済みlinear RGBへ`2^EV`を乗算し、黒・チェック背景の合成をlinearで済ませてからsRGBへencodeする。GPU方式・CPU方式は同じ出力パスを使う。`previewBackground`は表示専用で、透明なSDR書き出しではnull、不透明出力では黒背景を使う。チェック背景は表示用に所有するlinear画像で再描画し、ノード・履歴・解析を進めない。ヒストグラム・波形・クリッピング警告は露出補正前の画像を参照する。`analysisValueScale`はsRGB 0〜1／Linear −1〜4／EV −10〜+10（0 EV=0.18）を選ぶ。露出・背景・解析軸はキャッシュへ焼き込まず、書き出しへ暗黙に反映しない。[色空間の規約](../../../docs/color-management.md)を参照。
+表示用の露出は両Managerのdynamic optionsの`previewExposure`（EV、既定0）を`CanvasRenderer`へ渡す。乗算済みlinear RGBへ`2^EV`を乗算し、黒・チェック背景の合成をlinearで済ませてからsRGBへencodeする。GPU方式・CPU方式は同じ出力パスを使う。`previewBackground`は表示専用で、透明なSDR書き出しではnull、不透明出力では黒背景を使う。チェック背景は表示用に所有するlinear画像で再描画し、ノード・履歴・解析を進めない。ヒストグラム・波形・クリッピング警告は露出補正前の画像を参照する。`analysisValueScale`は`sRGB · 0 ~ +1`／`Linear · 0 ~ +1`／`Linear · −1 ~ +1`／`Linear · −1 ~ +4`／`EV · −10 ~ +10 · 0 EV = 0.18`を選ぶ。Linearの各範囲はsRGBの伝達関数を適用せず、固定範囲で作業値を線形に配置する。露出・背景・解析軸はキャッシュへ焼き込まず、書き出しへ暗黙に反映しない。[色空間の規約](../../../docs/color-management.md)を参照。
 
 有効時のタイムラインのプレビュー計測は`performance.now()`の実経過時間を使い、フレーム全体・動画取得待ち・動画取り込みのCPU側処理・GPU完了待ちを分ける。フレーム全体は処理開始からGPU完了（CPU表示方式では読み戻し・RGBA変換・UIへの送信）までで、Scheduler内の順番待ちとUIでのCanvas描画は含めない。動画取得はファイル読み取り・初期化・デコード・キャッシュ待ちを含む。取り込みは変換・転送API・submitのCPU側時間で、GPU完了待ちは最終submit後の残りのキュー待ちであり、どちらもGPUの総実行時間ではない。計測のためだけのGPU同期や画像読み戻しは追加しない。
 

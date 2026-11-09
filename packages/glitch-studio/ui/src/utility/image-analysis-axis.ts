@@ -20,6 +20,8 @@ export function createImagePositionAxisTicks(): ImageAnalysisAxisTick[] {
 export function createImageValueAxisTicks(valueScale: ImageValueScale): ImageAnalysisAxisTick[] {
 	const { values, minimum, maximum } = {
 		srgb: { values: [0, 0.25, 0.5, 0.75, 1], minimum: 0, maximum: 1 },
+		linearZeroToOne: { values: [0, 0.25, 0.5, 0.75, 1], minimum: 0, maximum: 1 },
+		linearMinusOneToOne: { values: [-1, -0.5, 0, 0.5, 1], minimum: -1, maximum: 1 },
 		linear: { values: [-1, 0, 1, 2, 3, 4], minimum: -1, maximum: 4 },
 		ev: { values: [-10, -5, 0, 5, 10], minimum: -10, maximum: 10 },
 	}[valueScale];

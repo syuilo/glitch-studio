@@ -5,6 +5,7 @@ import type { PreviewCanvasContext } from '../../src/preview-canvas-context.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import colorSpaceCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import valueScaleCode from '@gs/shared/gpu/image-value-scale.wgsl?raw';
+import { IMAGE_VALUE_SCALES } from '@gs/shared/utility/image-value-scale.ts';
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -114,23 +115,42 @@ export async function run() {
 				}
 			} finally { renderer.destroy(); context.unconfigure(); source.destroy(); output.destroy(); }
 		}
-		const target = device.createTexture({ size: [3, 1], format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
-		const buffer = device.createBuffer({ size: 256, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+		const target = device.createTexture({ size: [IMAGE_VALUE_SCALES.length, 2], format: 'rgba32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+		const buffer = device.createBuffer({ size: 512, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 		try {
 			const pipeline = device.createRenderPipeline({ layout: 'auto', vertex: { module: device.createShaderModule({ code: vertexCode }) }, fragment: {
-				module: device.createShaderModule({ code: colorSpaceCode + '\n' + valueScaleCode + '\n' + '@fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f { return vec4f(imageValueForScope(vec3f(0.0, 0.18, 1.0), u32(p.x)), 1.0); }' }),
+				module: device.createShaderModule({ code: colorSpaceCode + '\n' + valueScaleCode + '\n' + `
+@fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f {
+	let input = select(vec3f(0.0, 0.18, 1.0), vec3f(-1.0, -0.5, 0.0), p.y > 1.0);
+	return vec4f(imageValueForScope(input, u32(p.x)), 1.0);
+}` }),
 				targets: [{ format: 'rgba32float' }],
 			} });
 			const encoder = device.createCommandEncoder();
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(pipeline); pass.draw(3); pass.end();
-			encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow: 256 }, [3, 1]);
+			encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow: 256 }, [IMAGE_VALUE_SCALES.length, 2]);
 			device.queue.submit([encoder.finish()]);
 			await buffer.mapAsync(GPUMapMode.READ);
 			const values = new Float32Array(buffer.getMappedRange());
-			for (const [index, expected] of [[0, 0.46135613], [1, 0.236], [2, 0.5]]) {
+			for (const [scale, expected] of [['srgb', 0.46135613], ['linear', 0.236], ['ev', 0.5], ['linearZeroToOne', 0.18], ['linearMinusOneToOne', 0.59]] as const) {
+				const index = IMAGE_VALUE_SCALES.indexOf(scale);
 				if (Math.abs(values[index * 4 + 1] - expected) > 0.00001) throw new Error(`scope scale ${index} has the wrong middle gray`);
 				checks.push(`scope scale ${index} middle gray`);
+			}
+			// 【データ用Linear軸は正負の値をsRGB変換せず、固定範囲へ配置する】
+			// 中間調だけでは、符号の消失や0基準のずれ、端点だけに合わせた誤変換を検出できない。
+			// clamp前の実GPU出力を比較し、0〜1軸でも負値を途中で失わないことを確認する。
+			for (const { scale, row, expected } of [
+				{ scale: 'linearZeroToOne', row: 0, expected: [0, 0.18, 1] },
+				{ scale: 'linearZeroToOne', row: 1, expected: [-1, -0.5, 0] },
+				{ scale: 'linearMinusOneToOne', row: 0, expected: [0.5, 0.59, 1] },
+				{ scale: 'linearMinusOneToOne', row: 1, expected: [0, 0.25, 0.5] },
+			] as const) {
+				const offset = row * 64 + IMAGE_VALUE_SCALES.indexOf(scale) * 4;
+				const actual = values.slice(offset, offset + 3);
+				if (expected.some((value, channel) => Math.abs(actual[channel] - value) > 0.00001)) throw new Error(`scope scale ${scale} row ${row}: ${actual}, expected ${expected}`);
+				checks.push(`scope scale ${scale} fixed linear range row ${row}`);
 			}
 			buffer.unmap();
 		} finally { buffer.destroy(); target.destroy(); }

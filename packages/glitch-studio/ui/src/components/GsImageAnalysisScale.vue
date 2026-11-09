@@ -8,18 +8,21 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import { appContext } from '@/app.ts';
 import * as ui from '@/ui.ts';
 
 const { analysisValueScale } = appContext;
 const analysisValueScaleLabels = {
-	srgb: 'sRGB · 0–1',
-	linear: 'Linear · −1–4',
-	ev: 'EV · −10–+10 · 0 EV = 0.18',
-};
+	srgb: 'sRGB · 0 ~ +1',
+	linearZeroToOne: 'Linear · 0 ~ +1',
+	linearMinusOneToOne: 'Linear · −1 ~ +1',
+	linear: 'Linear · −1 ~ +4',
+	ev: 'EV · −10 ~ +10 · 0 EV = 0.18',
+} satisfies Record<ImageValueScale, string>;
 
 function showAnalysisValueScaleMenu(ev: PointerEvent) {
-	ui.popupMenu((['srgb', 'linear', 'ev'] as const).map(valueScale => ({
+	ui.popupMenu((['srgb', 'linearZeroToOne', 'linearMinusOneToOne', 'linear', 'ev'] as const).map(valueScale => ({
 		type: 'radioOption' as const,
 		text: analysisValueScaleLabels[valueScale],
 		active: computed(() => analysisValueScale.value === valueScale),
