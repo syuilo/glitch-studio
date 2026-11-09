@@ -360,7 +360,6 @@
 		"HsvMap": "Saturation and value",
 		"OklchMap": "Chroma and lightness",
 		"Hue": "Hue",
-		"OutsideSrgb": "Hatched: outside sRGB",
 		"OutsideMapRange": "Current color is outside the map range",
 		"PickFromScreen": "Pick a color from the screen",
 		"RecentColors": "Recent colors",

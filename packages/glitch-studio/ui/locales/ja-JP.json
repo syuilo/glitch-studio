@@ -360,7 +360,6 @@
 		"HsvMap": "彩度と明るさ",
 		"OklchMap": "クロマと明度",
 		"Hue": "色相",
-		"OutsideSrgb": "斜線: sRGB表示範囲外",
 		"OutsideMapRange": "現在の色はマップの表示範囲外です",
 		"PickFromScreen": "画面から色を取得",
 		"RecentColors": "最近使った色",
