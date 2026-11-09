@@ -1,11 +1,11 @@
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
-	id: 'colorAdjust',
-	displayName: 'Color Adjust',
+	id: 'oklchAdjust',
+	displayName: 'OKLCH Adjust',
 	description: {
-		'ja-JP': '入力画像の明るさ・明度・コントラスト・色相・彩度を調整します。',
-		'en-US': 'Adjusts the brightness, lightness, contrast, hue, and saturation of the input image.',
+		'ja-JP': 'OKLCHの明度Lの加算・クロマCの倍率・色相Hの回転を調整します。色域外の値も保持します。',
+		'en-US': 'Adjusts OKLCH lightness offset, chroma multiplier, and hue rotation without clipping out-of-gamut values.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
@@ -20,7 +20,7 @@ export default defineEffect({
 		lightness: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Lightness',
+				label: 'Lightness Offset',
 				control: {
 					controlType: 'range',
 					min: -1,
@@ -31,10 +31,10 @@ export default defineEffect({
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
-		contrast: {
+		chroma: {
 			dataType: { kind: 'scalar' },
 			ui: {
-				label: 'Contrast',
+				label: 'Chroma',
 				control: {
 					controlType: 'range',
 					min: 0,
@@ -47,37 +47,12 @@ export default defineEffect({
 		},
 		hue: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Hue', control: { controlType: 'angle' } },
+			ui: {
+				label: 'Hue',
+				control: { controlType: 'angle' },
+			},
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0 },
-		},
-		brightness: {
-			dataType: { kind: 'scalar' },
-			ui: {
-				label: 'Brightness',
-				control: {
-					controlType: 'range',
-					min: 0,
-					max: 4,
-					step: 0.01,
-				},
-			},
-			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
-		},
-		saturation: {
-			dataType: { kind: 'scalar' },
-			ui: {
-				label: 'Saturation',
-				control: {
-					controlType: 'range',
-					min: 0,
-					max: 4,
-					step: 0.01,
-				},
-			},
-			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 	},
 	primaryInputParameter: 'input',

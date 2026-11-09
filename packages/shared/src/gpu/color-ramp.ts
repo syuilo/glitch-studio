@@ -1,5 +1,6 @@
 import { COLOR_RAMP_INTERPOLATIONS, prepareColorRamp } from '../color-ramp.ts';
 import shaderCode from './color-ramp.wgsl?raw';
+import oklabShaderCode from './oklab.wgsl?raw';
 import type { ColorRamp } from '../color-ramp.ts';
 
 /** 指定したshader stageで使う1つのColor Rampのbindingとbufferを所有する。 */
@@ -16,7 +17,7 @@ export function createColorRampBindings(device: GPUDevice, group: number, visibi
 	let previousRamp: string | null = null;
 	return {
 		layout,
-		shaderCode: shaderCode.replaceAll('__COLOR_RAMP_GROUP__', String(group)),
+		shaderCode: oklabShaderCode + '\n' + shaderCode.replaceAll('__COLOR_RAMP_GROUP__', String(group)),
 		update(ramp: ColorRamp): GPUBindGroup {
 			const rampKey = JSON.stringify(ramp);
 			if (rampKey === previousRamp) return bindGroup;

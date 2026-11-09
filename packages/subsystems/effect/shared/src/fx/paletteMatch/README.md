@@ -51,7 +51,7 @@ GPUで重み付き平均と共分散を求める。差し引きによる桁落�
 
 - `analyze.wgsl`：1workgroupあたり64点を解析し、部分統計へ集約する。
 - `transform.wgsl`・`matrix.wgsl`：1workgroupで部分統計を最終集約し、色変換を計算する。
-- `shader.wgsl`・`color.wgsl`：主入力へ変換を適用する。出力画像を解析解像度へ縮小しない。
+- `shader.wgsl`：主入力へ変換を適用する。Oklab変換は`@gs/shared/gpu/oklab.wgsl`を使い、出力画像を解析解像度へ縮小しない。
 - `_impl_.ts`：定数／テクスチャの入力構成ごとのpipelineとGPUリソースを所有する。
 
 統計は常にf32のstorage buffer。入力・参照の部分統計は一組96byteで、最大65536点では1024組・96KiB。色変換は96byte。解析点数の増加で必要な容量が増えた場合だけbufferを再作成する。解析・色変換計算・出力描画の順に実行し、CPUへの読み戻しは行わない。GPUのbuffer・dispatch上限を超える場合はエラーにする。

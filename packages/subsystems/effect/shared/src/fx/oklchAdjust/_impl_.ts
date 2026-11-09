@@ -1,0 +1,43 @@
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
+import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
+import oklabShaderCode from '@gs/shared/gpu/oklab.wgsl?raw';
+import { implementEffect } from '../../effect-implementation.ts';
+import code from './shader.wgsl?raw';
+import type definition from './_def_.ts';
+
+export default implementEffect<typeof definition>({
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
+			size: resolution,
+			format: INTERMEDIATE_TEXTURE_FORMAT,
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+		}),
+	},
+	init: ({ wgpu }) => {
+		const pipelines = createShaderInputPipeline({
+			device: wgpu.device,
+			vertex: wgpu.defaultVertexShaderModule,
+			code: oklabShaderCode + '\n' + code,
+			schema: {
+				input: 'color',
+				lightness: 'scalar',
+				chroma: 'scalar',
+				hue: 'scalar',
+			},
+			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
+		});
+		return {
+			render: ctx => {
+				const variant = pipelines.update(ctx.params, ctx.outputDataMap.output.texture);
+				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
+				pass.setPipeline(variant.pipeline);
+				pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
+				pass.draw(3);
+				pass.end();
+			},
+			dispose: () => {
+				pipelines.dispose();
+			},
+		};
+	},
+});

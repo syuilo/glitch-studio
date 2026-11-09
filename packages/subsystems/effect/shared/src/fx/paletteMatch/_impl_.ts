@@ -1,9 +1,9 @@
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
+import colorCode from '@gs/shared/gpu/oklab.wgsl?raw';
 import { implementEffect } from '../../effect-implementation.ts';
 import commonCode from './common.wgsl?raw';
-import colorCode from './color.wgsl?raw';
 import analyzeCode from './analyze.wgsl?raw';
 import matrixCode from './matrix.wgsl?raw';
 import transformCode from './transform.wgsl?raw';

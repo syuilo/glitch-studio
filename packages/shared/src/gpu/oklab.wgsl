@@ -1,4 +1,4 @@
-// Oklabの係数はBjörn Ottossonのlinear sRGB変換を使う。
+// CPUのcolor-space.tsと同じ、Björn Ottossonのlinear sRGB変換を使う。
 // https://bottosson.github.io/posts/oklab/
 // 入力は未乗算のlinear sRGB。作業色空間ですでにlinear化されているため、
 // sRGBの伝達関数を再適用すると解析する色と明度が変わってしまう。

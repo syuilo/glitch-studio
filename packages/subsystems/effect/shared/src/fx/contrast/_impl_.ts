@@ -1,9 +1,9 @@
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import type definition from './_def_.ts';
-import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import code from './shader.wgsl?raw';
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
+import { implementEffect } from '../../effect-implementation.ts';
+import code from './shader.wgsl?raw';
+import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -20,11 +20,8 @@ export default implementEffect<typeof definition>({
 			code: colorSpaceShaderCode + '\n' + code,
 			schema: {
 				input: 'color',
-				lightness: 'scalar',
 				contrast: 'scalar',
-				hue: 'scalar',
-				brightness: 'scalar',
-				saturation: 'scalar',
+				pivot: 'scalar',
 			},
 			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 		});

@@ -10,7 +10,7 @@
 - 画像は`INTERMEDIATE_TEXTURE_FORMAT`（`rgba16float`）。データ精度の`enable32bitDataTextures`とは独立している。FLOAT形式のEXRを読み書きできても、内部で失った32bit精度は復元できない。
 - scalar・vector・anyや、字形のalphaマスク・LUTの数値表は色変換の対象外。RGBAの4成分があることだけで色として解釈しない。
 
-`src/color-space.ts`はCPUの伝達関数と保存色型、`src/gpu/color-space.wgsl`はGPUの伝達関数とalpha境界を提供する。sRGBの伝達関数は単純なgamma 2.2ではなく、線形区間を持つ規定の式を使い、負値へ符号対称に拡張する。
+`src/color-space.ts`はCPUの色変換と保存色型、`src/gpu/color-space.wgsl`はGPUの伝達関数とalpha境界、`src/gpu/oklab.wgsl`はGPUのOklab変換を提供する。sRGBの伝達関数は単純なgamma 2.2ではなく、線形区間を持つ規定の式を使い、負値へ符号対称に拡張する。
 
 ## 通常の画像・動画の取り込み
 
@@ -42,7 +42,14 @@ Color Rampの新規既定値はLinear補間・Linear sRGB。補間空間にはsR
 
 ブラー・変形・縮小・モーションブラー・通常合成・Screen・Overlay等はlinear上で計算する。知覚的なHSL変換とJPEG・VHS等の信号モデルは、必要な区間だけsRGBへ変換し、出力をlinearへ戻す。
 
-Color AdjustのBrightnessはlinearの光量倍率。Lightness・Contrast・HSLはsRGB上で処理する。HSLを変更する場合だけ、その定義域0〜1へ制限する。光学系の分光積分・光量倍率はlinearで直接計算する。
+色調整はExposure・Contrast・RGB Offset・OKLCH Adjustに分け、接続順で処理順を指定する。各調整はRGBを0〜1へ制限せず、alphaを変更しない。
+
+- Exposureはlinear RGBへ`2^EV`を乗算する。0 EVは等倍、+1 EVは2倍、−1 EVは半分。alpha=0の発光にも同じ倍率を適用する。
+- Contrastは未乗算RGBをsRGBへ変換し、`(RGB - Pivot) * Contrast + Pivot`を適用する。PivotはsRGB値で、既定値0.5。Contrastの既定値1は入力をそのまま通し、0はPivotの無彩色にする。基準値も通常パラメータとしてノード・式から指定できる。
+- RGB Offsetは未乗算sRGBの全RGB成分へ同じOffsetを加算する。既定値0は入力をそのまま通す。これはlinearの光量倍率や、OKLCHのLの調整とは異なる。
+- OKLCH Adjustは未乗算linear RGBからOklabへ変換し、Lightness OffsetをLへ加算、ChromaをCへ乗算、HueをHへ加算する。既定値は順に0・1・0。Hueは他の角度パラメータと同じく1を1周とするturn単位。Chromaの負倍率は0として扱うが、Lと変換後のRGBは制限しない。クロマ倍率と色相回転はa/b平面でまとめて計算し、無彩色では色相を定義せずに扱う。変換に使うLMSの立方根は符号付きにして、負値の入力も保持する。
+
+旧Color Adjustは廃止する。旧LightnessはsRGB成分への加算だったためRGB Offsetに相当し、OKLCH AdjustのLightness Offsetとは同じ操作ではない。各調整パラメータは空間的なノード入力にも対応する。光学系の分光積分・光量倍率は引き続きlinearで直接計算する。
 
 Apply LUTは入力・出力色空間をそれぞれLinear sRGB／sRGBから指定する（既定は両方Linear sRGB）。`.cube`の拡張子から色空間を推測しない。LUTの数値表自体を色変換・premultiplyせず、表の入出力境界だけを変換する。参照domainへの制限はLUT固有の仕様として維持する。
 
@@ -50,7 +57,7 @@ Apply LUTは入力・出力色空間をそれぞれLinear sRGB／sRGBから指�
 
 画像の`A=0, RGB!=0`は、被覆を持たずに加算される発光成分として保持する。通常のsource-overでも背景alphaによって前景の発光を消さない。光量の乗算・露出・幾何変形・通常合成では、そのままRGBを扱える。
 
-未乗算を必要とする処理では0除算を避ける。Apply LUTと解析は、この場合のRGBを独立した光の量として扱う。Color Adjust・LCD・閾値・Color Clamp・一部の周波数処理等は、alpha=0の画素を変更せず通す。通常の透明色パラメータは未乗算なので、alpha=0の隠れたRGBから発光を生成しない。
+未乗算を必要とする処理では0除算を避ける。Apply LUTと解析は、この場合のRGBを独立した光の量として扱う。Contrast・RGB Offset・OKLCH Adjust・LCD・閾値・Color Clamp・一部の周波数処理等は、alpha=0の画素を変更せず通す。通常の透明色パラメータは未乗算なので、alpha=0の隠れたRGBから発光を生成しない。
 
 ## 表示・SDR書き出し・解析
 

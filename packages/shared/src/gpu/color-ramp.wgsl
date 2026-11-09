@@ -20,13 +20,7 @@ fn colorRampOutputColor(color: vec4f) -> vec4f {
 		rgb.b /= color.a;
 	}
 	if (colorRampSettings.colorSpace == 2u || colorRampSettings.colorSpace == 3u) {
-		let lmsRoot = vec3f(rgb.x + 0.3963377774 * rgb.y + 0.2158037573 * rgb.z,
-			rgb.x - 0.1055613458 * rgb.y - 0.0638541728 * rgb.z,
-			rgb.x - 0.0894841775 * rgb.y - 1.291485548 * rgb.z);
-		let lms = lmsRoot * lmsRoot * lmsRoot;
-		rgb = vec3f(dot(vec3f(4.0767416621, -3.3077115913, 0.2309699292), lms),
-			dot(vec3f(-1.2684380046, 2.6097574011, -0.3413193965), lms),
-			dot(vec3f(-0.0041960863, -0.7034186147, 1.707614701), lms));
+		rgb = oklabToLinearSrgb(rgb);
 	}
 	if (colorRampSettings.colorSpace == 0u) { rgb = decodeColorRampSrgb(rgb); }
 	// 補間空間だけを選択し、ノード間の作業空間はlinear sRGBへ固定する。色域外も保持する。
