@@ -327,10 +327,11 @@ function elementText(element) {
 // 【フッターの露出は符号付きで表示し、補正中だけ着色してクリックで解除できる】
 // 書き出しとの明るさの違いをユーザーが認識できるよう、補正の有無を常時示す。
 // クリック判定の手ぶれでは露出を変えず、負の露出も正しく表示する。
+// 0 EVでは符号位置を空白1文字で確保し、正負を切り替えても数値の桁位置を揃える。
 test('shows signed preview exposure and resets it on a click with minor pointer jitter', async t => {
 	const f = await fixture(t);
 	const exposure = f.find('exposure');
-	assert.equal(elementText(exposure), '0.0 EV');
+	assert.equal(elementText(exposure), ' 0.0 EV');
 	assert.equal(exposure.props['data-test-preview-exposure-active'], false);
 	f.appContext.previewExposure.value = 2;
 	await nextTick();
@@ -340,7 +341,7 @@ test('shows signed preview exposure and resets it on a click with minor pointer 
 	f.document.dispatchEvent(exposurePointer('pointerup', 201));
 	assert.equal(f.appContext.previewExposure.value, 2);
 	await f.click('exposure');
-	assert.equal(elementText(exposure), '0.0 EV');
+	assert.equal(elementText(exposure), ' 0.0 EV');
 	assert.equal(exposure.props['data-test-preview-exposure-active'], false);
 	f.appContext.previewExposure.value = -1.5;
 	await nextTick();
@@ -369,7 +370,7 @@ test('adjusts exposure vertically without resetting on the click following a dra
 	startExposureDrag(f);
 	f.document.dispatchEvent(exposurePointer('pointerup'));
 	await f.click('exposure');
-	assert.equal(elementText(f.find('exposure')), '0.0 EV');
+	assert.equal(elementText(f.find('exposure')), ' 0.0 EV');
 });
 
 // 【別ウィンドウでも露出を操作でき、Escや中断では開始値へ戻す】
@@ -414,7 +415,7 @@ test('bounds exposure and supports arrow keys and keyboard reset', async t => {
 	assert.equal(elementText(f.find('exposure')), '+0.1 EV');
 	f.find('exposure').props.onKeydown({ key: 'Home', preventDefault() {} });
 	await nextTick();
-	assert.equal(elementText(f.find('exposure')), '0.0 EV');
+	assert.equal(elementText(f.find('exposure')), ' 0.0 EV');
 	assert.equal(f.find('exposure').props['data-test-preview-exposure-active'], false);
 });
 
