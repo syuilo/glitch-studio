@@ -1688,7 +1688,8 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	for (let index = 0; index < 4; index++) { waits.shift()(); await new Promise(resolve => setImmediate(resolve)); }
 	assert.equal(present.mock.callCount(), 1);
 	assert.equal(old.closed, 1);
-	assert.equal(f.renderer.videoFrames.get('player'), latest);
+	assert.equal(latest.closed, 0);
+	assert.equal(f.renderer.playerVideoTextures.frameVersions.get('player'), 2);
 	f.frame(96);
 	assert.equal(renders.length, 2);
 	assert.equal(renders[1].time, 0.096);

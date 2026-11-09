@@ -5,7 +5,7 @@ export function createVisualModuleRenderer(VisualModuleRenderer, options = {}) {
 		gpuDevice: { limits: { maxTextureDimension2D: 8192 }, createShaderModule: () => ({}) }, fallbackTexture: {},
 		timingHelper: null, enableStats: false, enable32bitDataTextures: false,
 		resolution: { width: 640, height: 360 },
-		videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(),
+		videoFrameVersions: new Map(), assetTextures: new Map(),
 		assets: [], effectDefinitions: {}, effectImplementations: {},
 		visualModule: {
 			customParameterDefs: [],

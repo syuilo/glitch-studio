@@ -30,7 +30,14 @@ export async function run() {
 				(context as CpuPreviewCanvasContext).recyclePixels(frame.frameId, frame.pixels);
 			}) : { canvas: new OffscreenCanvas(64, 64), configure() {}, unconfigure() {}, getCurrentTexture: () => output };
 			context.configure({ device, format, alphaMode: 'premultiplied' });
-			const renderer = new CanvasRenderer({ gpuDevice: device, gpuContext: context, enableWaveformAndHistogram: false });
+			let analysisFrames = 0;
+			const analysisContexts = mode === 'cpu' ? [[256, 150], [512, 256], [256, 512]].map(([width, height], index) => new CpuPreviewCanvasContext(new OffscreenCanvas(width, height), frame => {
+				analysisFrames++;
+				analysisContexts[index].recyclePixels(frame.frameId, frame.pixels);
+			})) : [];
+			const renderer = new CanvasRenderer({ gpuDevice: device, gpuContext: context, enableWaveformAndHistogram: mode === 'cpu',
+				histogramGpuContext: analysisContexts[0], waveformHorizontalGpuContext: analysisContexts[1], waveformVerticalGpuContext: analysisContexts[2] });
+			renderer.previewActive = true;
 			const source = device.createTexture({ size: [1, 1], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 			const read = async () => {
 				if (mode === 'cpu') return pixels!;
@@ -55,6 +62,7 @@ export async function run() {
 				const offset = (4 * 64 + 20) * 4;
 				if ((await read())[offset] !== 26) throw new Error(`${mode}: wrong checker color`);
 				checks.push(`${mode} linear checker color`);
+				const initialAnalysisFrames = analysisFrames;
 				// 【停止中の背景は借用画像を破棄した後も、自分のlinear画像だけで再描画する】
 				// GPU参照の寿命違反や、停止中のアニメーション消失を実際のtimerとreadbackで検出する。
 				source.destroy();
@@ -62,11 +70,24 @@ export async function run() {
 				await pause();
 				if ((await read())[offset] !== 16) throw new Error(`${mode}: checker did not animate from the owned image`);
 				checks.push(`${mode} idle checker preserves source lifetime`);
+				// 【背景だけを更新する間は、実際の解析Canvasを読み戻し・転送しない】
+				// 主Canvasだけの構成では、全出力用予約への逆戻りを検出できない。
+				if (analysisFrames !== initialAnalysisFrames || (mode === 'cpu' && analysisFrames !== 3)) throw new Error('Idle checker transferred unchanged analysis canvases');
+				checks.push(`${mode} idle checker skips analysis readback`);
+				renderer.previewActive = false;
+				const hiddenFrameCount = frameCount;
+				clock = 350;
+				await pause();
+				if ((await read())[offset] !== 16 || frameCount !== hiddenFrameCount) throw new Error(`${mode}: hidden preview kept animating`);
+				renderer.previewActive = true;
+				await pause();
+				if ((await read())[offset] !== 26) throw new Error(`${mode}: active preview did not resume its background`);
+				checks.push(`${mode} preview activity stops and resumes background`);
 				renderer.clear();
 				const stoppedCount = frameCount;
 				clock = 0;
 				await pause();
-				if ((await read())[offset] !== 16 || (mode === 'cpu' && frameCount !== stoppedCount)) throw new Error(`${mode}: checker continued after clear`);
+				if ((await read())[offset] !== 26 || (mode === 'cpu' && frameCount !== stoppedCount)) throw new Error(`${mode}: checker continued after clear`);
 				checks.push(`${mode} checker stops and releases pending frames`);
 				// 【PNGの中間調は取り込みと表示を往復しても、元のsRGB値とalphaを保つ】
 				// 個々の伝達関数だけでは検出できない、入出力境界での二重変換を確認する。

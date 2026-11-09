@@ -310,6 +310,36 @@ test('persists Custom Shader Effect definitions through project snapshots and fi
 	assert.deepEqual(manager.state.customShaderEffects.value, []);
 });
 
+// 【表示を切り替えると現在のプレビューだけがアイドル描画を行い、Workerは再生成しない】
+// 背景スケジューラー単体が停止できても、UIから非表示のTimelineへ通知しなければ動き続ける。
+// 初期化・表示切替・エンジン復帰を通し、再生状態が持つ現在の表示先へ同期することを確認する。
+test('activates background presentation only for the selected preview without rebuilding workers', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+	t.after(() => appContext.previewPlayback.dispose());
+	const visualModule = appContext.visualModuleRendererManagerController;
+	const timeline = appContext.timelineRendererManagerController;
+	const check = expectedVisualModule => {
+		assert.equal(visualModule.options.previewActive, expectedVisualModule);
+		assert.equal(timeline.options.previewActive, !expectedVisualModule);
+	};
+	await setImmediate();
+	check(true);
+	appContext.previewPlayback.showTimeline();
+	await setImmediate();
+	check(false);
+	appContext.previewPlayback.startVisualModuleLivePreview('visualModule');
+	await setImmediate();
+	check(true);
+	for (const controller of [visualModule, timeline]) assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
+	await appContext.suspendPreview();
+	appContext.previewPlayback.showTimeline();
+	await appContext.resumePreview();
+	await setImmediate();
+	check(false);
+});
+
 // 【ソロと通常の表示設定を独立して保存・復元する】
 // 子のソロやグループの非表示を保存時に実効表示へ置き換えると、開き直した後に
 // ソロを解除しても編集前の表示へ戻れなくなる。実際のバイナリ形式で往復させる。

@@ -112,6 +112,8 @@ export type TimelineRendererManagerDynamicOptions = {
 	opaqueOutput: boolean;
 	/** 表示用背景。nullは透明出力で、書き出しではプレビュー背景を使わない。 */
 	previewBackground: 'black' | 'checker' | null;
+	/** 表示中のプレビューだけが、停止中の背景アニメーションを駆動する。 */
+	previewActive: boolean;
 	analysisValueScale: ImageValueScale;
 	generatedSpeech: GeneratedSpeech[];
 	visualModules: ProjectVisualModule[];
@@ -229,6 +231,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		previewExposure: 0,
 		opaqueOutput: false,
 		previewBackground: null,
+		previewActive: false,
 		analysisValueScale: 'srgb',
 		generatedSpeech: [],
 		visualModules: [],
@@ -454,6 +457,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 		this.canvasRenderer.previewBackground = this.dynamicOptions.previewBackground;
+		this.canvasRenderer.previewActive = this.dynamicOptions.previewActive;
 		// 背景合成後は不透明。背景を持たない透明書き出しだけ、Canvasのalphaも維持する。
 		this.configureCanvas(this.dynamicOptions.opaqueOutput || this.dynamicOptions.previewBackground != null ? 'opaque' : 'premultiplied');
 		this.canvasRenderer.analysisValueScale = this.dynamicOptions.analysisValueScale;
@@ -1046,7 +1050,6 @@ export class TimelineRendererManager extends EventEmitter<{
 			enableStats: false,
 			timingHelper: null,
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
-			videoFrames: new Map(),
 			videoFrameVersions: new Map(),
 			assets: this.resources.assets,
 			visualModule,

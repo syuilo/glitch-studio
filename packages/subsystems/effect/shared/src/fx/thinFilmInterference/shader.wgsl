@@ -31,6 +31,9 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let opacity = clamp(read_opacity(position), 0.0, 1.0);
 	let alpha = lightColor.a * opacity;
 	if (opacity == 0.0) { return vec4f(0.0); }
+	// RGBがゼロなら分光積分の結果もゼロ。被覆率は保持し、alpha=0の発光は
+	// RGBが非ゼロなので通常の積分へ進める。
+	if (all(lightColor.rgb == vec3f(0.0))) { return vec4f(0.0, 0.0, 0.0, alpha); }
 	// 膜厚は光の波長と比較する光学量なので、画面の解像度・縦横比・Size Referenceでは換算しない。
 	let thickness = mix(uniforms.minimumThickness, uniforms.maximumThickness, clamp(read_input(position), 0.0, 1.0));
 	// 共通のangle入力はturn単位。法線からの角度として0〜1/4周を使う。

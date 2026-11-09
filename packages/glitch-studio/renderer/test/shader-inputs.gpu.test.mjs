@@ -67,6 +67,10 @@ test('presents preview and analysis canvases through CPU readback', { skip: !pro
 // CSS合成への逆戻りや、借用テクスチャ破棄後のGPU参照・CPU表示枠の漏れを検出する。
 test('animates owned linear preview backgrounds and distinguishes analysis scales', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/linear-display-gpu.ts', 9));
 
+// 【複数VideoノードでPlayerの正規化画像を共有し、更新・切断・破棄でも正しい画素を保つ】
+// GPU資源の借用と更新はCPUのモックだけでは検証できず、コピー回数と実画素の両方を見る。
+test('shares normalized player images between Video nodes on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/player-video-textures-gpu.ts', 8));
+
 // 【半透明の広色域素材も、正しいlinear RGBの光量とalphaで読み込む】
 // 不透明のDisplay P3と半透明のsRGBが個別に通っても、デコード指定によって両者の組み合わせだけが暗くなり得る。
 // AssetTexturesによる実際のPNGデコードからGPU転送までを通し、浮動小数点の画素で検証する。

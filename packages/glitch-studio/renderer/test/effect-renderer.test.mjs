@@ -88,7 +88,7 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 	const renderer = new VisualModuleRenderer({
 		gpuDevice: g.device, fallbackTexture: {}, enableStats: false, timingHelper: null,
 		resolution: { width: 16, height: 9 }, enable32bitDataTextures: false,
-		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
+		videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
 		effectDefinitions: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.definition])),
 		effectImplementations: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.implementation])), visualModule: module,
 		onEffectState: (id, state) => states.push({ id, state }),

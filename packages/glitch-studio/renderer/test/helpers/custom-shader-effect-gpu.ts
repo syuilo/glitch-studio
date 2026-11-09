@@ -196,7 +196,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 			nodes: [{ id: 'shader', type: 'effect', effectId: effectDefinition.id, isBypass: false, resolution: { mode: 'context', scale: 1 }, staticSettings: {}, displayName: '', params: Object.fromEntries(definition.paramDefs.map(parameter => [parameter.id, parameter.defaultValue])) }, { id: 'out', type: 'globalOut', inputs: { color: { nodeId: 'shader', outputPort: 'color-id' } } }],
 			paramDefs: [], outputDefs: [{ id: 'color', name: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'color', customParameterDefs: [], customParameterValues: {}, automationGraphs: [],
 		};
-		const renderer = new VisualModuleRenderer({ gpuDevice: device, fallbackTexture, resolution, enableStats: false, timingHelper: null, enable32bitDataTextures: false, assets: [], assetTextures: new Map(), videoFrames: new Map(), videoFrameVersions: new Map(), effectDefinitions: { [effectDefinition.id]: effectDefinition }, effectImplementations: { [effectDefinition.id]: implementation }, visualModule: graph });
+		const renderer = new VisualModuleRenderer({ gpuDevice: device, fallbackTexture, resolution, enableStats: false, timingHelper: null, enable32bitDataTextures: false, assets: [], assetTextures: new Map(), videoFrameVersions: new Map(), effectDefinitions: { [effectDefinition.id]: effectDefinition }, effectImplementations: { [effectDefinition.id]: implementation }, visualModule: graph });
 		try {
 			const context = { time: 0, timeDelta: 0, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map() };
 			await renderer.prepare(context, controller.signal);

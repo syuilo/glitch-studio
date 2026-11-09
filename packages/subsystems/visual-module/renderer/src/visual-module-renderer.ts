@@ -24,6 +24,7 @@ import type { VisualModuleParameterEvaluationContext } from './visual-module-par
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { Asset } from '@gs/shared/types.ts';
+import type { VideoFrameTexture } from '@gs/shared/media/video-texture.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { VisualModuleEffectNode, VisualModuleNode, VisualModule, VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectImplementation, EffectRenderContext } from '@gs/subsystems_effect_shared/effect-implementation.js';
@@ -93,8 +94,8 @@ export class VisualModuleRenderer {
 	private onEffectState: ((nodeId: string, state: EffectInstanceState | null) => void) | null = null;
 	private automationGraphs: AutomationGraph[] = [];
 	private enable32bitDataTextures = false;
-	private videoFrames: Map<string, VideoFrame>;
-	private videoFrameVersions: Map<string, number>;
+	private readonly getPlayerVideoTexture: (playerId: string) => VideoFrameTexture | null;
+	private readonly videoFrameVersions: ReadonlyMap<string, number>;
 	private readonly assetTextures: ReadonlyMap<string, GPUTexture>;
 	private readonly assets: readonly Asset[];
 	private timingHelper: TimingHelper | null;
@@ -119,8 +120,8 @@ export class VisualModuleRenderer {
 		inputResolutions?: ReadonlyMap<string, Resolution | null>;
 		getPlayerResolution?: (playerId: string) => Resolution | null;
 		enable32bitDataTextures: boolean;
-		videoFrames: Map<string, VideoFrame>;
-		videoFrameVersions: Map<string, number>;
+		getPlayerVideoTexture?: (playerId: string) => VideoFrameTexture | null;
+		videoFrameVersions: ReadonlyMap<string, number>;
 		/** 素材一覧とテクスチャはインスタンスの寿命中に変更しない。GPUへの準備完了後に渡す。 */
 		assets: readonly Asset[];
 		visualModule: VisualModule;
@@ -143,7 +144,7 @@ export class VisualModuleRenderer {
 		this.resolutionScale = options.resolutionScale ?? 1;
 		this.contextResolution = scaleResolution(options.resolution, this.resolutionScale);
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
-		this.videoFrames = options.videoFrames;
+		this.getPlayerVideoTexture = options.getPlayerVideoTexture ?? (() => null);
 		this.videoFrameVersions = options.videoFrameVersions;
 		this.assetTextures = options.assetTextures;
 		this.assets = options.assets;
@@ -523,7 +524,7 @@ export class VisualModuleRenderer {
 	private resolveStaticResources(node: VisualModuleEffectNode) {
 		return resolveEffectStaticResources(this.effectDefinitions[node.effectId], node.staticSettings, {
 			assets: this.assets, assetTextures: this.assetTextures,
-			getPlayerVideoFrame: playerId => this.videoFrames.get(playerId) ?? null,
+			getPlayerVideoTexture: this.getPlayerVideoTexture,
 		});
 	}
 

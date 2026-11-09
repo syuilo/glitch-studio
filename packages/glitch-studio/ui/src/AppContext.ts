@@ -43,6 +43,7 @@ const DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES = 0;
 export const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
 
 export class AppContext {
+	private synchronizedPreviewDisplayMode: 'visualModuleLivePreview' | 'timeline' | null = null;
 	public readonly previewParameterEditing = markRaw(new PreviewParameterEditingController());
 	public readonly projectContext: ProjectContext;
 	public activeSceneId = ref<string | null>(null);
@@ -132,6 +133,7 @@ export class AppContext {
 			() => this.previewParameterEditing.clear(), { flush: 'sync' });
 		this.renderEngine = markRaw(new PreviewRenderEngine({
 			dispose: reason => {
+				this.synchronizedPreviewDisplayMode = null;
 				this.previewPlayback.suspend();
 				this.visualModuleRendererManagerController.disposeManager(reason);
 				this.timelineRendererManagerController.disposeManager(reason);
@@ -142,15 +144,17 @@ export class AppContext {
 				// 送信後の編集は差分を予約せず、この生成自体を破棄して取り込み直す。
 				const state = this.projectContext.stateManager.state;
 				const staticOptions = this.getPreviewStaticOptions();
+				const previewDisplayMode = this.previewPlayback.state.value.mode;
 				const snapshot = deepClone({
 					assets: getRendererAssets(state.assets.value), players: state.players.value, customShaderEffects: state.customShaderEffects.value,
 					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
 					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value, previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value },
-					visualModuleOptions: { fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
-					timelineOptions: { sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
+					visualModuleOptions: { previewActive: previewDisplayMode === 'visualModuleLivePreview', fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
+					timelineOptions: { previewActive: previewDisplayMode === 'timeline', sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
 						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value,
 						frameCacheMaxBytes: Math.floor(preferences.s.timelineFrameCacheMaxGiB * 1024 ** 3) },
 				});
+				this.synchronizedPreviewDisplayMode = previewDisplayMode;
 				const results = await Promise.allSettled([
 					this.visualModuleRendererManagerController.initialize({
 						staticOptions: staticOptions.visualModule,
@@ -167,8 +171,15 @@ export class AppContext {
 				const failure = results.find(result => result.status === 'rejected');
 				if (failure?.status === 'rejected') throw failure.reason;
 			},
-			onReady: () => this.previewPlayback.resume(),
+			onReady: () => {
+				// 初期化中の表示切替も、現在の再生状態から同期してから描画を再開する。
+				void this.updatePreviewDisplayActivity();
+				this.previewPlayback.resume();
+			},
 		}));
+		watch(() => this.previewPlayback.state.value.mode, () => {
+			void this.updatePreviewDisplayActivity();
+		}, { flush: 'sync' });
 		for (const controller of [this.visualModuleRendererManagerController, this.timelineRendererManagerController]) {
 			controller.onRenderFailure = (error, origin) => {
 				this.renderEngine.fail(error, origin);
@@ -327,6 +338,22 @@ export class AppContext {
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),
 			this.timelineRendererManagerController.updateDynamicOptions(options),
 		]));
+	}
+
+	private updatePreviewDisplayActivity() {
+		const mode = this.previewPlayback.state.value.mode;
+		// 表示の切替は作品の変更ではない。非表示側の画像・キャッシュを残したまま、
+		// 最終表示のアイドル更新だけを止め、両Workerの再生成も要求しない。
+		return this.renderEngine.runRendererUpdate(() => {
+			if (mode === this.synchronizedPreviewDisplayMode) return Promise.resolve();
+			this.synchronizedPreviewDisplayMode = mode;
+			// 初期値は生成時に渡す。同じ表示先への復帰では追加RPCを送らず、
+			// 初期化中に切り替わった場合にもonReadyから最新の表示先へ同期する。
+			return Promise.all([
+				this.visualModuleRendererManagerController.updateDynamicOptions({ previewActive: mode === 'visualModuleLivePreview' }),
+				this.timelineRendererManagerController.updateDynamicOptions({ previewActive: mode === 'timeline' }),
+			]);
+		});
 	}
 
 	private updateTimelinePreviewOptions(options: Partial<Omit<TimelineRendererManagerDynamicOptions, 'automationGraphs' | 'visualModules' | 'timelineScenes'>>) {

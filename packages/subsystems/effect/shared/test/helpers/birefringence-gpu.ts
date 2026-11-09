@@ -154,8 +154,12 @@ export async function run() {
 		checkColor(await effect.render({ lightColor: textureShaderInput(colorTexture, { fitMode: 'stretch', filterMode: 'nearest', wrapMode: 'clamp' }), opacity: scalar(0.4), birefringence: scalar(0), analyzerAngle: 0 }), expectedTint, 'premultiplied light texture');
 		checkColor(await effect.render({ opacity: scalar(0) }), [0, 0, 0, 0], 'zero opacity');
 		checkColor(await effect.render({ lightColor: constantShaderInput('color', [0, 0, 0, 0]) }), [0, 0, 0, 0], 'transparent light');
+		// 【ゼロRGBの短絡でも被覆率を保ち、alpha=0の発光を短絡しない】
+		// alphaだけで短絡すると発光を失い、黒を常に透明として返すと入力の被覆率を失う。
+		checkColor(await effect.render({ lightColor: constantShaderInput('color', [0, 0, 0, 0.5]), opacity: scalar(0.4) }), [0, 0, 0, 0.2], 'black light preserves coverage');
+		checkColor(await effect.render({ lightColor: { kind: 'uniform', value: [0.25, 0.125, 0.0625, 0] }, birefringence: scalar(0), analyzerAngle: 0 }), [0.125, 0.0625, 0.03125, 0], 'zero-alpha emission');
 		checkColor(await effect.render({ brightness: 0 }), [0, 0, 0, 1], 'zero brightness preserves coverage');
-		checks.push('premultiplied light and opacity', 'premultiplied light texture', 'transparent light', 'zero brightness');
+		checks.push('premultiplied light and opacity', 'premultiplied light texture', 'transparent light', 'black light coverage', 'zero-alpha emission', 'zero brightness');
 
 		// 【厚みの範囲制限・逆向きの対応と、時間・解像度・形式の独立性】
 		// 再描画やpipeline切り替えで前の入力を残さず、物理的な厚みを画面寸法で換算しない。
@@ -174,15 +178,23 @@ export async function run() {
 		const output = thinFilmImplementation.outputTextureFactories.output({ wgpu, resolution });
 		const thinFilm = thinFilmImplementation.init({ wgpu, resolution, params: thinFilmDefaults, resources: {}, fallbackTexture: output, reportStatus: () => {} });
 		owned.push(() => { thinFilm.dispose(); output.destroy(); });
-		const encoder = device.createCommandEncoder();
-		thinFilm.render({ params: { ...thinFilmDefaults, filmIor: 1, substrateIor: 1, mode: 'transmission' }, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
-			outputDataMap: { output: { texture: output, textureView: output.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
-			createPassEncoder: (commandEncoder, descriptor) => commandEncoder.beginRenderPass(descriptor), createComputePassEncoder: commandEncoder => commandEncoder.beginComputePass(),
-			createPassEncoderFor: (commandEncoder, view) => commandEncoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
-		});
-		device.queue.submit([encoder.finish()]);
-		checkColor(await read(output), [1, 1, 1, 1], 'thin-film shared spectrum');
-		checks.push('thin-film shared spectrum regression');
+		async function renderThinFilm(overrides: Partial<typeof thinFilmDefaults> = {}) {
+			const encoder = device.createCommandEncoder();
+			thinFilm.render({ params: { ...thinFilmDefaults, filmIor: 1, substrateIor: 1, mode: 'transmission', ...overrides }, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				outputDataMap: { output: { texture: output, textureView: output.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
+				createPassEncoder: (commandEncoder, descriptor) => commandEncoder.beginRenderPass(descriptor), createComputePassEncoder: commandEncoder => commandEncoder.beginComputePass(),
+				createPassEncoderFor: (commandEncoder, view) => commandEncoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			});
+			device.queue.submit([encoder.finish()]);
+			return read(output);
+		}
+		checkColor(await renderThinFilm(), [1, 1, 1, 1], 'thin-film shared spectrum');
+		// 【Thin Filmの同じ短絡経路も、透明黒・半透明の黒・透明な発光を区別する】
+		// Birefringenceだけを確認しても、独立したエフェクト実装の戻り値は保証できない。
+		checkColor(await renderThinFilm({ lightColor: constantShaderInput('color', [0, 0, 0, 0]) }), [0, 0, 0, 0], 'thin-film transparent light');
+		checkColor(await renderThinFilm({ lightColor: constantShaderInput('color', [0, 0, 0, 0.5]), opacity: scalar(0.4) }), [0, 0, 0, 0.2], 'thin-film black coverage');
+		checkColor(await renderThinFilm({ lightColor: { kind: 'uniform', value: [0.25, 0.125, 0.0625, 0] } }), [0.25, 0.125, 0.0625, 0], 'thin-film emission');
+		checks.push('thin-film shared spectrum regression', 'thin-film transparent light', 'thin-film black coverage', 'thin-film zero-alpha emission');
 
 		const width = 512;
 		const height = 256;

@@ -18,6 +18,7 @@ import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 import { isVisualModuleValueChange } from './project-change-policy.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { PlayerAudioInputs } from './player-audio-inputs.ts';
+import { PlayerVideoTextures } from './player-video-textures.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
@@ -63,6 +64,8 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	opaqueOutput: boolean;
 	/** 表示用背景。nullは透明出力で、書き出しではプレビュー背景を使わない。 */
 	previewBackground: 'black' | 'checker' | null;
+	/** 表示中のプレビューだけが、停止中の背景アニメーションを駆動する。 */
+	previewActive: boolean;
 	analysisValueScale: ImageValueScale;
 	visualModuleLivePreviewTimeFactor: number;
 	/** Visual Module Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
@@ -122,8 +125,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewStatusInstanceId: string | null = null;
 	private assetTextures: AssetTextures;
 	private readonly resources: VisualModuleRendererManagerResources;
-	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
-	private videoFrameVersions: Map<Player['id'], number> = new Map();
+	private readonly playerVideoTextures: PlayerVideoTextures;
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private playerAudioInputs = new PlayerAudioInputs(this.audioSources);
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
@@ -152,6 +154,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		fpsLimit: null,
 		opaqueOutput: false,
 		previewBackground: null,
+		previewActive: false,
 		analysisValueScale: 'srgb',
 		visualModules: [],
 		automationGraphs: [],
@@ -184,6 +187,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			timeFactor: this.dynamicOptions.visualModuleLivePreviewTimeFactor,
 		});
 		this.gpuDevice = coreConfig.gpuDevice;
+		this.playerVideoTextures = new PlayerVideoTextures(this.gpuDevice);
 		this.outputTextures = new UniformOrTextureToTextureResolver(this.gpuDevice, this.staticOptions.enable32bitDataTextures);
 		this.gpuContext = coreConfig.gpuContext;
 		this.builtinEffectDefinitions = coreConfig.effectDefinitions;
@@ -297,14 +301,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			this.pendingVideoFrames.set(playerId, videoFrame);
 			return;
 		}
-		// 同じtimestampでも別のフレームとして扱う。削除・再追加でも更新番号を戻さない。
-		this.videoFrameVersions.set(playerId, (this.videoFrameVersions.get(playerId) ?? 0) + 1);
-		this.videoFrames.get(playerId)?.close();
-		if (videoFrame) {
-			this.videoFrames.set(playerId, videoFrame);
-		} else {
-			this.videoFrames.delete(playerId);
-		}
+		this.playerVideoTextures.updateFrame(playerId, videoFrame);
 	}
 
 	public updatePointerPosition(newPointerPosition: { x: number; y: number }) {
@@ -322,6 +319,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 		this.canvasRenderer.previewBackground = this.dynamicOptions.previewBackground;
+		this.canvasRenderer.previewActive = this.dynamicOptions.previewActive;
 		// 背景合成後は不透明。背景を持たない透明書き出しだけ、Canvasのalphaも維持する。
 		this.configureCanvas(this.dynamicOptions.opaqueOutput || this.dynamicOptions.previewBackground != null ? 'opaque' : 'premultiplied');
 		this.canvasRenderer.analysisValueScale = this.dynamicOptions.analysisValueScale;
@@ -418,8 +416,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			enableStats: this.staticOptions.enableStats,
 			timingHelper: this.timingHelper,
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
-			videoFrames: this.videoFrames,
-			videoFrameVersions: this.videoFrameVersions,
+			getPlayerVideoTexture: playerId => this.playerVideoTextures.getTexture(playerId),
+			videoFrameVersions: this.playerVideoTextures.frameVersions,
 			assets: this.resources.assets,
 			visualModule,
 			assetTextures: this.assetTextures.textures,
@@ -598,11 +596,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.outputTextures.dispose();
 		this.assetTextures.dispose();
 		for (const id of this.audioPorts.keys()) this.resetAudioSource(id, null);
-		for (const frame of this.videoFrames.values()) frame.close();
-		this.videoFrames.clear();
+		this.playerVideoTextures.dispose();
 		for (const videoFrame of this.pendingVideoFrames.values()) videoFrame?.close();
 		this.pendingVideoFrames.clear();
-		this.videoFrameVersions.clear();
 		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();
 	}

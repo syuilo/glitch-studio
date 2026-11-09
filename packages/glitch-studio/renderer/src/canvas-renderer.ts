@@ -6,6 +6,8 @@ import finalRenderShaderCode from './render.wgsl?raw';
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import { CpuPreviewCanvasContext } from './preview-canvas-context.ts';
 import { CpuPreviewFrameQueue } from './cpu-preview-frame-queue.ts';
+import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
+import { PreviewBackgroundScheduler } from './preview-background-scheduler.ts';
 import type { PreviewCanvasContext, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
@@ -14,6 +16,7 @@ export class CanvasRenderer {
 	private gpuContext: PreviewCanvasContext;
 	private readonly cpuCanvasContexts: CpuPreviewCanvasContext[];
 	private readonly cpuFrameQueue: CpuPreviewFrameQueue | null;
+	private readonly cpuMainCanvasContexts: readonly CpuPreviewCanvasContext[];
 	private readonly canvasContexts: Partial<Record<CpuPreviewCanvasTarget, PreviewCanvasContext>>;
 	public get usesCpuDisplay() { return this.cpuCanvasContexts.length > 0; }
 	private gpuDevice: GPUDevice;
@@ -32,15 +35,24 @@ export class CanvasRenderer {
 	private currentPreviewBackground: 'black' | 'checker' | null = null;
 	private backgroundImage: GPUTexture | null = null;
 	private backgroundCopyPipeline: GPURenderPipeline | null = null;
-	private backgroundTimer: ReturnType<typeof setInterval> | null = null;
-	private backgroundFramePending = false;
+	private readonly backgroundScheduler = new PreviewBackgroundScheduler(() => this.renderBackgroundFrame());
+	private backgroundFrame: CpuPreviewFrameReservation | null = null;
 	private backgroundGeneration = 0;
+	private currentPreviewActive = false;
+	public get previewActive() { return this.currentPreviewActive; }
+	public set previewActive(value: boolean) {
+		if (value === this.currentPreviewActive) return;
+		this.currentPreviewActive = value;
+		if (!value) this.backgroundFrame?.cancel();
+		this.updateBackgroundScheduling();
+	}
 	public analysisValueScale: ImageValueScale = 'srgb';
 	public get previewBackground() { return this.currentPreviewBackground; }
 	public set previewBackground(value: 'black' | 'checker' | null) {
 		if (value === this.currentPreviewBackground) return;
 		this.currentPreviewBackground = value;
 		if (value !== 'checker') this.clearBackgroundAnimation();
+		else this.updateBackgroundScheduling();
 	}
 
 	constructor(options: {
@@ -57,6 +69,7 @@ export class CanvasRenderer {
 		this.cpuCanvasContexts = [options.gpuContext, options.histogramGpuContext, options.waveformHorizontalGpuContext, options.waveformVerticalGpuContext]
 			.filter((context): context is CpuPreviewCanvasContext => context instanceof CpuPreviewCanvasContext);
 		this.cpuFrameQueue = this.cpuCanvasContexts.length > 0 ? new CpuPreviewFrameQueue(this.cpuCanvasContexts) : null;
+		this.cpuMainCanvasContexts = options.gpuContext instanceof CpuPreviewCanvasContext ? [options.gpuContext] : [];
 
 		// 非表示にするだけでは集計パスが残る。無効時は解析用リソース自体を生成せず、
 		// renderToCanvasでも通常のプレビュー描画だけを実行する。
@@ -154,7 +167,7 @@ export class CanvasRenderer {
 	}
 
 	public renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
-		if (this.previewBackground === 'checker') this.captureBackgroundImage(tex, commandEncoder);
+		if (this.previewActive && this.previewBackground === 'checker') this.captureBackgroundImage(tex, commandEncoder);
 		this.renderFinalImage(tex, commandEncoder);
 		if (this.gpuHistogram != null) {
 			this.gpuHistogram.valueScale = this.analysisValueScale;
@@ -162,6 +175,7 @@ export class CanvasRenderer {
 		}
 		this.gpuWaveformHorizontal?.render(commandEncoder, tex, this.analysisValueScale);
 		this.gpuWaveformVertical?.render(commandEncoder, tex, this.analysisValueScale);
+		this.backgroundScheduler.notifyFrameRendered();
 	}
 
 	private captureBackgroundImage(tex: GPUTexture, encoder: GPUCommandEncoder) {
@@ -183,37 +197,42 @@ export class CanvasRenderer {
 		pass.end();
 		// 停止中も背景だけを動かす。借用中の作業画像を保持すると編集で破棄され得るため、
 		// 自前のlinear画像を使い、ノード・履歴・解析は再評価しない。CPU表示の上限も共用する。
-		this.backgroundTimer ??= setInterval(() => this.renderBackgroundFrame(), 1000 / 30);
+		this.updateBackgroundScheduling();
 	}
 
-	private renderBackgroundFrame() {
-		if (this.backgroundFramePending || this.backgroundImage == null) return;
-		const frame = this.cpuFrameQueue?.tryReserveFrame() ?? null;
-		if (this.cpuFrameQueue != null && frame == null) return;
+	private updateBackgroundScheduling() {
+		this.backgroundScheduler.setEnabled(this.previewActive && this.previewBackground === 'checker' && this.backgroundImage != null);
+	}
+
+	private async renderBackgroundFrame() {
+		if (!this.previewActive || this.backgroundImage == null) return;
+		const frame = this.cpuMainCanvasContexts.length > 0 ? this.cpuFrameQueue!.tryReserveFrame(this.cpuMainCanvasContexts) : null;
+		if (this.cpuMainCanvasContexts.length > 0 && frame == null) return;
 		const generation = this.backgroundGeneration;
-		this.backgroundFramePending = true;
+		this.backgroundFrame = frame;
 		try {
 			const encoder = this.gpuDevice.createCommandEncoder();
 			this.renderFinalImage(this.backgroundImage, encoder);
 			frame?.prepareReadback(encoder);
 			this.gpuDevice.queue.submit([encoder.finish()]);
 			// GPUが詰まっても背景の描画要求を積み増さない。
-			void (frame?.complete() ?? this.gpuDevice.queue.onSubmittedWorkDone()).catch(() => {
-				if (generation === this.backgroundGeneration) this.clearBackgroundAnimation();
-			}).finally(() => { if (generation === this.backgroundGeneration) this.backgroundFramePending = false; });
-		} catch {
+			await (frame?.complete() ?? this.gpuDevice.queue.onSubmittedWorkDone());
+		} catch (error) {
 			frame?.cancel();
-			this.clearBackgroundAnimation();
+			if (generation === this.backgroundGeneration) this.clearBackgroundAnimation();
+			throw error;
+		} finally {
+			if (this.backgroundFrame === frame) this.backgroundFrame = null;
 		}
 	}
 
 	private clearBackgroundAnimation() {
-		if (this.backgroundTimer != null) clearInterval(this.backgroundTimer);
-		this.backgroundTimer = null;
+		this.backgroundScheduler.setEnabled(false);
+		this.backgroundFrame?.cancel();
+		this.backgroundFrame = null;
 		this.backgroundImage?.destroy();
 		this.backgroundImage = null;
 		this.backgroundGeneration++;
-		this.backgroundFramePending = false;
 	}
 
 	public clear() {

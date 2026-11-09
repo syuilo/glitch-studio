@@ -55,9 +55,11 @@ export class CpuPreviewFrameQueue {
 
 	constructor(private readonly contexts: readonly CpuPreviewCanvasContext[]) {}
 
-	public tryReserveFrame(): CpuPreviewFrameReservation | null {
+	public tryReserveFrame(contexts: readonly CpuPreviewCanvasContext[] = this.contexts): CpuPreviewFrameReservation | null {
 		if (this.destroyed || this.frames.size >= 2) return null;
-		const frame = new CpuPreviewFrameReservation(this.contexts, () => {
+		// 背景だけの表示更新は主Canvasだけを読み戻す。通常描画と同じ上限を使いながら、
+		// 変化していない解析画像の転送・返却まで待機枠を占有することを避ける。
+		const frame = new CpuPreviewFrameReservation(contexts, () => {
 			this.frames.delete(frame);
 			this.notifyWaiters();
 		});

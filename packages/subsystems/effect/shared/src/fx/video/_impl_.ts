@@ -1,5 +1,4 @@
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { createVideoFrameTexture } from '@gs/shared/media/video-texture.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
@@ -14,7 +13,6 @@ export default implementEffect<typeof definition>({
 		}),
 	},
 	init: ({ wgpu, resources }) => {
-		const videoTexture = createVideoFrameTexture(wgpu.device);
 		const shaderModule = wgpu.device.createShaderModule({
 			code: code,
 		});
@@ -52,11 +50,13 @@ export default implementEffect<typeof definition>({
 			addressModeV: 'mirror-repeat',
 			addressModeW: 'mirror-repeat',
 		});
+		let sourceTexture: GPUTexture | null = null;
+		let bindGroup: GPUBindGroup | null = null;
 
 		return {
 			render: (ctx) => {
-				const frame = resources.player?.getVideoFrame();
-				if (!frame) {
+				const image = resources.player?.getVideoTexture();
+				if (image == null) {
 					// フレーム削除後に以前の映像がキャッシュとして残らないよう透明にする。
 					ctx.createPassEncoder(ctx.commandEncoder, {
 						colorAttachments: [{
@@ -73,19 +73,21 @@ export default implementEffect<typeof definition>({
 					}).end();
 					return;
 				}
-				const freshTex = videoTexture.upload(frame);
-				const bindGroup = wgpu.device.createBindGroup({
-					layout: pipeline.getBindGroupLayout(0),
-					entries: [
-						{ binding: 1, resource: { buffer: uniformBuffer } },
-						{ binding: 2, resource: sampler },
-						{ binding: 3, resource: freshTex.createView() },
-					],
-				});
+				if (bindGroup == null || sourceTexture !== image.texture) {
+					sourceTexture = image.texture;
+					bindGroup = wgpu.device.createBindGroup({
+						layout: pipeline.getBindGroupLayout(0),
+						entries: [
+							{ binding: 1, resource: { buffer: uniformBuffer } },
+							{ binding: 2, resource: sampler },
+							{ binding: 3, resource: image.texture.createView() },
+						],
+					});
+				}
 
 				uniformValues.set({
 					aspectRatio: ctx.outputDataMap.output.texture.width / ctx.outputDataMap.output.texture.height,
-					sourceAspectRatio: frame.displayWidth / frame.displayHeight,
+					sourceAspectRatio: image.displayResolution.width / image.displayResolution.height,
 					// 保存する選択肢名をシェーダーのモード番号へ変換する。
 					mode: { stretch: 0, cover: 1, contain: 2 }[ctx.params.fit],
 				});
@@ -98,7 +100,6 @@ export default implementEffect<typeof definition>({
 				passEncoder.end();
 			},
 			dispose: () => {
-				videoTexture.dispose();
 				uniformBuffer.destroy();
 			},
 		};

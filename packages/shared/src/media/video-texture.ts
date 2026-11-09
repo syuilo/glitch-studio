@@ -1,8 +1,12 @@
 import { scaleResolution } from '../resolution.ts';
+import type { Resolution } from '../resolution.ts';
 import code from './video-texture.wgsl?raw';
 import type { VideoSample } from 'mediabunny';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '../types.ts';
 import { createExternalImageToLinearTextureConverter } from './external-image-texture.ts';
+
+/** 借用する乗算済みlinear sRGB画像。非正方形ピクセルの表示比率は画素寸法と分ける。 */
+export type VideoFrameTexture = { texture: GPUTexture; displayResolution: Readonly<Resolution> };
 
 /** 動画の回転・表示寸法・描画倍率を、linear化した後の画像へ適用する。 */
 export function createVideoTexture(device: GPUDevice) {

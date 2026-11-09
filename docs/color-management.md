@@ -22,6 +22,8 @@ ImageBitmapの`premultiplyAlpha`は既定値を使う。Chrome 157では`none`�
 
 動画のvisibleRectと表示寸法が異なる場合、表示寸法だけを原寸へ合わせたVideoFrameから取り込む。非正方形ピクセルの拡縮もlinear化より前には行わず、回転・表示寸法・描画倍率を変換済みテクスチャへ適用する。元のサンプルと借用フレームの所有権は変えない。
 
+Playerの映像はGlitch Studioの`PlayerVideoTextures`がフレームと正規化画像を所有する。使用されたPlayerだけをフレーム更新ごとに一度linear化し、複数のVideoノード・Fit変更・ノードの再生成でも同じ原寸画像を借用する。ノードは変換済みテクスチャと表示寸法を受け取り、フレームや共有テクスチャを破棄しない。
+
 通常のPNG・JPEG等をlinear化しても、撮影時のトーン処理や失われたハイライトは復元されない。scene-linear素材との違いは残る。
 
 ## UIと色の補間
@@ -51,6 +53,8 @@ Time PatchworkとDatamoshでも、表示と履歴へこのRGBAをそのまま渡
 ## 表示・SDR書き出し・解析
 
 `CanvasRenderer`は表示直前にだけsRGBへencodeする。露出はlinear RGBへ`2^EV`を乗算する。プレビューの黒背景・チェック背景、不透明出力の黒背景とのsource-overをlinearで済ませ、その後にencode・SDRの範囲制限を行う。チェック背景のアニメーションは表示用に複製した画像を使い、停止中もノード・履歴・解析を再評価しない。
+
+背景の再描画は`PreviewBackgroundScheduler`が通常のフレーム描画から約1/30秒後に予約し、通常描画のたびに予約を延期する。両Managerの`previewActive`をUIの表示モードへ同期し、非表示のプレビューと書き出しではアイドル描画を行わない。CPU表示の背景更新は主Canvasだけを読み戻し、解析画像を再転送しない。通常描画と同じ最大2フレームの待機枠を使う。
 
 背景合成済みの主プレビューと不透明書き出しは、WebGPU Canvasの`alphaMode: 'opaque'`を使う。透明書き出しでは`premultiplied`へ切り替え、元のalphaを保持する。同じalphaModeの間は再configureしない。CSSのプレビュー背景・背景アニメーションは持たない。ヒストグラムの透過描画は引き続き`premultiplied`、波形は`opaque`を使う。
 
