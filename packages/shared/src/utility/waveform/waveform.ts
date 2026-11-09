@@ -1,6 +1,9 @@
 import shader from './waveform.wgsl?raw';
 import colorSpaceShader from '../../gpu/color-space.wgsl?raw';
 import imageValueScaleShader from '../../gpu/image-value-scale.wgsl?raw';
+import imageAnalysisShader from '../../gpu/image-analysis.wgsl?raw';
+import { IMAGE_ANALYSIS_MODES, resolveImageAnalysisValueScale } from '../image-analysis.ts';
+import type { ImageAnalysisMode } from '../image-analysis.ts';
 import { IMAGE_VALUE_SCALES } from '../image-value-scale.ts';
 import type { ImageValueScale } from '../image-value-scale.ts';
 import { createShaderInputBindings, generateShaderInputs } from '../../gpu/shader-input.ts';
@@ -8,7 +11,7 @@ import type { ShaderInput } from '../../gpu/shader-input.ts';
 
 // エフェクトのパラメータ定義やCanvasに依存しない共通設定。
 export type WaveformSettings = {
-	mode: 'rgb' | 'luminance';
+	mode: ImageAnalysisMode;
 	direction: 'horizontal' | 'vertical';
 	intensity: number;
 	valueScale?: ImageValueScale;
@@ -35,7 +38,7 @@ export function createWaveform(options: {
 		const generated = generateShaderInputs({ input: 'color' }, { input }, 1, 'level0');
 		const bindings = createShaderInputBindings(device, generated);
 		try {
-			const module = device.createShaderModule({ code: generated.code + '\n' + colorSpaceShader + '\n' + imageValueScaleShader + '\n' + shader });
+			const module = device.createShaderModule({ code: generated.code + '\n' + colorSpaceShader + '\n' + imageValueScaleShader + '\n' + imageAnalysisShader + '\n' + shader });
 			const pipeline = device.createComputePipeline({
 				layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout, bindings.layout] }),
 				compute: { module, entryPoint: 'accumulate' },
@@ -103,10 +106,10 @@ export function createWaveform(options: {
 					entries: [uniformEntry, { binding: 3, resource: { buffer: counts } }],
 				});
 			}
-			integers[0] = Number(p.mode === 'luminance');
+			integers[0] = IMAGE_ANALYSIS_MODES.indexOf(p.mode);
 			floats[1] = Math.max(0, p.intensity);
 			integers.set([width, height, samples.width, samples.height, Number(p.direction === 'vertical')], 2);
-			integers[7] = IMAGE_VALUE_SCALES.indexOf(p.valueScale ?? 'srgb');
+			integers[7] = IMAGE_VALUE_SCALES.indexOf(resolveImageAnalysisValueScale(p.mode, p.valueScale ?? 'srgb'));
 			device.queue.writeBuffer(uniforms, 0, values);
 			encoder.clearBuffer(counts!);
 			drawable = true;

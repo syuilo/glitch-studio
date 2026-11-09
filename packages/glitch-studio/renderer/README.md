@@ -54,6 +54,8 @@ GPUを所有するManagerが、最終表示とモーションブラーの全サ�
 
 表示用の露出は両Managerのdynamic optionsの`previewExposure`（EV、既定0）を`CanvasRenderer`へ渡す。乗算済みlinear RGBへ`2^EV`を乗算し、黒・チェック背景の合成をlinearで済ませてからsRGBへencodeする。GPU方式・CPU方式は同じ出力パスを使う。`previewBackground`は表示専用で、透明なSDR書き出しではnull、不透明出力では黒背景を使う。チェック背景は表示用に所有するlinear画像で再描画し、ノード・履歴・解析を進めない。ヒストグラム・波形・クリッピング警告は露出補正前の画像を参照する。`analysisValueScale`は`sRGB · 0 ~ +1`／`Linear · 0 ~ +1`／`Linear · −1 ~ +1`／`Linear · −1 ~ +4`／`EV · −10 ~ +10 · 0 EV = 0.18`を選ぶ。Linearの各範囲はsRGBの伝達関数を適用せず、固定範囲で作業値を線形に配置する。露出・背景・解析軸はキャッシュへ焼き込まず、書き出しへ暗黙に反映しない。[色空間の規約](../../../docs/color-management.md)を参照。
 
+`analysisTarget`はRGB・Alpha・Vector X・Vector Y・Vector Lengthを選び、両Managerから`CanvasRenderer`へ同期する。RGBは従来の未乗算・alpha重み付けを使い、他の対象はA・R・G・`length(RG)`を保存値のまま重み1で解析する。数値データの表示は白で、alpha=0や値域の下端も表示する。選べる軸はLinearの3範囲に限り、sRGB・EVの指定はGPUへの設定境界でもLinear 0〜1へ補正する。対象選択と集計用の値・重みの計算は、Waveformエフェクトも利用する`@gs/shared/utility/image-analysis.ts`・`@gs/shared/gpu/image-analysis.wgsl`へまとめる。
+
 有効時のタイムラインのプレビュー計測は`performance.now()`の実経過時間を使い、フレーム全体・動画取得待ち・動画取り込みのCPU側処理・GPU完了待ちを分ける。フレーム全体は処理開始からGPU完了（CPU表示方式では読み戻し・RGBA変換・UIへの送信）までで、Scheduler内の順番待ちとUIでのCanvas描画は含めない。動画取得はファイル読み取り・初期化・デコード・キャッシュ待ちを含む。取り込みは変換・転送API・submitのCPU側時間で、GPU完了待ちは最終submit後の残りのキュー待ちであり、どちらもGPUの総実行時間ではない。計測のためだけのGPU同期や画像読み戻しは追加しない。
 
 動画レイヤーの計測を子Scene・複数レイヤー・モーションブラーの全サンプルについて一つの出力フレームへ合算する。取得・取り込みのキャッシュヒットは省略した処理を0として扱う。書き出し・失敗・編集で無効になったフレームは集計しない。`TimelinePreviewStatisticsCollector`は通知間の正常完了フレームから平均と項目ごとの最大値を作り、約100msごとに`telemetry`で通知する。Scene・編集世代の異なるフレームは混ぜず、UI側も古い世代を採用しない。新しい完了フレームがなければ通知せず、破棄時に通知タイマーを停止する。

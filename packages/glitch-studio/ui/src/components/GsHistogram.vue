@@ -1,7 +1,7 @@
 <template>
 <GsDetachableView :title="i18n.ts._Workspace.Histogram" :suspended="appContext.renderEngine.isSuspended.value" @changeWindow="observeScope">
 	<div :class="$style.root">
-		<GsImageAnalysisScale/>
+		<GsImageAnalysisSettings/>
 		<div ref="scope" :class="$style.scope" data-test-histogram-plot>
 			<div ref="canvasContainer" :class="$style.canvas"></div>
 			<div :class="$style.grid">
@@ -26,7 +26,7 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
-import GsImageAnalysisScale from './GsImageAnalysisScale.vue';
+import GsImageAnalysisSettings from './GsImageAnalysisSettings.vue';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';

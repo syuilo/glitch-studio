@@ -1,4 +1,6 @@
 import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import { resolveImageAnalysisValueScale } from '@gs/shared/utility/image-analysis.ts';
+import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -66,6 +68,7 @@ export class AppContext {
 	/** 作品・保存データとは独立した、両プレビュー共通の表示用露出（EV）。 */
 	public previewExposure = ref(0);
 	public analysisValueScale = ref<ImageValueScale>('srgb');
+	public analysisTarget = ref<ImageAnalysisTarget>('rgb');
 	public audioOutput = markRaw(new AudioOutput());
 	public visualModuleRendererManagerController: VisualModuleRendererManagerController;
 	public timelineRendererManagerController: TimelineRendererManagerController;
@@ -148,7 +151,7 @@ export class AppContext {
 				const snapshot = deepClone({
 					assets: getRendererAssets(state.assets.value), players: state.players.value, customShaderEffects: state.customShaderEffects.value,
 					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
-					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value, previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value },
+					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value, previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value },
 					visualModuleOptions: { previewActive: previewDisplayMode === 'visualModuleLivePreview', fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
 					timelineOptions: { previewActive: previewDisplayMode === 'timeline', sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
 						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value },
@@ -268,8 +271,14 @@ export class AppContext {
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
 
-		watch(this.analysisValueScale, async value => {
-			await this.updatePreviewOptions({ analysisValueScale: value });
+		watch([this.analysisTarget, this.analysisValueScale], async ([target, valueScale]) => {
+			const resolvedValueScale = resolveImageAnalysisValueScale(target, valueScale);
+			if (resolvedValueScale !== valueScale) {
+				// 同期watchへ再入して、有効な対象・範囲の組だけをRendererへ渡す。
+				this.analysisValueScale.value = resolvedValueScale;
+				return;
+			}
+			await this.updatePreviewOptions({ analysisTarget: target, analysisValueScale: valueScale });
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
 
@@ -329,7 +338,7 @@ export class AppContext {
 		};
 	}
 
-	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewExposure' | 'previewBackground' | 'analysisValueScale'>>) {
+	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewExposure' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget'>>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),

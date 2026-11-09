@@ -1,7 +1,7 @@
 <template>
 <GsDetachableView :title="direction === 'horizontal' ? i18n.ts._Workspace.WaveformX : i18n.ts._Workspace.WaveformY" :suspended="appContext.renderEngine.isSuspended.value" @changeWindow="observeScope">
 	<div :class="$style.root">
-		<GsImageAnalysisScale/>
+		<GsImageAnalysisSettings/>
 		<div ref="scope" :class="$style.scope" data-test-waveform-plot>
 			<div ref="canvasContainer" :class="$style.canvas"></div>
 			<div :class="$style.grid">
@@ -38,7 +38,7 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, shallowRef, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
-import GsImageAnalysisScale from './GsImageAnalysisScale.vue';
+import GsImageAnalysisSettings from './GsImageAnalysisSettings.vue';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';

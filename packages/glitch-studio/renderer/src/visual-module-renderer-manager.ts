@@ -1,4 +1,5 @@
 import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { getPlayerIntrinsicResolution } from '@gs/glitch-studio_shared/player-resolution.ts';
@@ -67,6 +68,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	/** 表示中のプレビューだけが、停止中の背景アニメーションを駆動する。 */
 	previewActive: boolean;
 	analysisValueScale: ImageValueScale;
+	analysisTarget: ImageAnalysisTarget;
 	visualModuleLivePreviewTimeFactor: number;
 	/** Visual Module Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
@@ -156,6 +158,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		previewBackground: null,
 		previewActive: false,
 		analysisValueScale: 'srgb',
+		analysisTarget: 'rgb',
 		visualModules: [],
 		automationGraphs: [],
 	};
@@ -323,6 +326,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		// 背景合成後は不透明。背景を持たない透明書き出しだけ、Canvasのalphaも維持する。
 		this.configureCanvas(this.dynamicOptions.opaqueOutput || this.dynamicOptions.previewBackground != null ? 'opaque' : 'premultiplied');
 		this.canvasRenderer.analysisValueScale = this.dynamicOptions.analysisValueScale;
+		this.canvasRenderer.analysisTarget = this.dynamicOptions.analysisTarget;
 
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
 		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale')) {

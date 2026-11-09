@@ -653,6 +653,48 @@ test('updates shader definitions in both existing previews and restarts only aft
 	}
 });
 
+// 【解析対象の切替は両プレビューへ同期し、数値データの軸と復旧時の設定も一致させる】
+// UIだけを切り替えるとWorkerがRGBを集計し続けるため、実際のAppContextと同期処理を通す。
+// 色用の軸からの切替・Linearの保持・不正な軸の指定・復旧時の再生成も確認する。
+test('synchronizes analysis targets and valid value scales across both previews and recovery', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	const controllers = [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController];
+	for (const target of ['alpha', 'vectorX', 'vectorY', 'vectorLength']) {
+		appContext.analysisTarget.value = target;
+		await setImmediate();
+		assert.equal(appContext.analysisValueScale.value, 'linearZeroToOne');
+		for (const controller of controllers) {
+			assert.equal(controller.options.analysisTarget, target);
+			assert.equal(controller.options.analysisValueScale, 'linearZeroToOne');
+		}
+	}
+	appContext.analysisValueScale.value = 'linearMinusOneToOne';
+	appContext.analysisTarget.value = 'vectorX';
+	await setImmediate();
+	assert.equal(appContext.analysisValueScale.value, 'linearMinusOneToOne');
+	appContext.renderEngine.fail(new Error('draw failed'));
+	appContext.analysisTarget.value = 'vectorLength';
+	await setImmediate();
+	for (const controller of controllers) {
+		assert.equal(controller.initialDynamicOptions.analysisTarget, 'vectorLength');
+		assert.equal(controller.initialDynamicOptions.analysisValueScale, 'linearMinusOneToOne');
+	}
+	appContext.analysisValueScale.value = 'ev';
+	await setImmediate();
+	assert.equal(appContext.analysisValueScale.value, 'linearZeroToOne');
+	appContext.analysisTarget.value = 'rgb';
+	appContext.analysisValueScale.value = 'ev';
+	await setImmediate();
+	for (const controller of controllers) {
+		assert.equal(controller.options.analysisTarget, 'rgb');
+		assert.equal(controller.options.analysisValueScale, 'ev');
+		assert.ok(controller.updates.every(options => options.analysisTarget == null || options.analysisTarget === 'rgb'
+			|| !['srgb', 'ev'].includes(options.analysisValueScale)));
+	}
+});
+
 // 【プレビュー固有設定の修正でも、実行時失敗後に最新設定から再生成する】
 // これらの値はProjectのCommand通知を出さないため、編集通知だけに再試行を任せると復帰できない。
 // 解像度・サンプル数・GPU設定を含む各経路が、正常な最新設定を持つ両エンジンへ反映されることを確認する。

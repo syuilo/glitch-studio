@@ -67,6 +67,10 @@ test('presents preview and analysis canvases through CPU readback', { skip: !pro
 // CSS合成への逆戻りや、借用テクスチャ破棄後のGPU参照・CPU表示枠の漏れを検出する。
 test('animates owned linear preview backgrounds and distinguishes analysis scales', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/linear-display-gpu.ts', 9));
 
+// 【Alpha・ベクトル成分・長さを生の数値として、全ての映像解析Canvasへ表示する】
+// 実シェーダーの対象選択・透明画素の集計・範囲制限・白い描画と、両方向の座標を検証する。
+test('analyzes alpha and vector data in histograms and both waveforms on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/image-analysis-gpu.ts', 24));
+
 // 【複数VideoノードでPlayerの正規化画像を共有し、更新・切断・破棄でも正しい画素を保つ】
 // GPU資源の借用と更新はCPUのモックだけでは検証できず、コピー回数と実画素の両方を見る。
 test('shares normalized player images between Video nodes on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/player-video-textures-gpu.ts', 8));

@@ -2,6 +2,9 @@ import computeShaderCode from './histogram-compute.wgsl?raw';
 import renderShaderCode from './histogram-render.wgsl?raw';
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import imageValueScaleShaderCode from '@gs/shared/gpu/image-value-scale.wgsl?raw';
+import imageAnalysisShaderCode from '@gs/shared/gpu/image-analysis.wgsl?raw';
+import { IMAGE_ANALYSIS_MODES, resolveImageAnalysisValueScale } from '@gs/shared/utility/image-analysis.ts';
+import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { IMAGE_VALUE_SCALES } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
@@ -12,6 +15,7 @@ const HISTOGRAM_VALUE_COUNT = (BIN_COUNT * CHANNEL_COUNT) + 1;
 
 export class GpuHistogram {
 	public valueScale: ImageValueScale = 'srgb';
+	public target: ImageAnalysisTarget = 'rgb';
 	private readonly valueScaleBuffer: GPUBuffer;
 	private readonly context: PreviewCanvasContext;
 	private readonly histogramBuffer: GPUBuffer;
@@ -46,7 +50,7 @@ export class GpuHistogram {
 
 		const computeModule = device.createShaderModule({
 			label: 'histogram compute shader',
-			code: colorSpaceShaderCode + '\n' + imageValueScaleShaderCode + '\n' + computeShaderCode,
+			code: colorSpaceShaderCode + '\n' + imageValueScaleShaderCode + '\n' + imageAnalysisShaderCode + '\n' + computeShaderCode,
 		});
 		this.accumulateBindGroupLayout = device.createBindGroupLayout({
 			label: 'histogram accumulation bind group layout',
@@ -105,7 +109,7 @@ export class GpuHistogram {
 		});
 		const renderBindGroupLayout = device.createBindGroupLayout({
 			label: 'histogram render bind group layout',
-			entries: [{
+			entries: [{ binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } }, {
 				binding: 0,
 				visibility: GPUShaderStage.VERTEX,
 				buffer: { type: 'read-only-storage' },
@@ -133,12 +137,14 @@ export class GpuHistogram {
 		this.renderBindGroup = device.createBindGroup({
 			label: 'histogram render bind group',
 			layout: renderBindGroupLayout,
-			entries: [{ binding: 0, resource: { buffer: this.histogramBuffer } }],
+			entries: [{ binding: 0, resource: { buffer: this.histogramBuffer } }, { binding: 1, resource: { buffer: this.valueScaleBuffer } }],
 		});
 	}
 
 	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture) {
-		this.device.queue.writeBuffer(this.valueScaleBuffer, 0, new Uint32Array([IMAGE_VALUE_SCALES.indexOf(this.valueScale), 0, 0, 0]));
+		this.device.queue.writeBuffer(this.valueScaleBuffer, 0, new Uint32Array([
+			IMAGE_VALUE_SCALES.indexOf(resolveImageAnalysisValueScale(this.target, this.valueScale)), IMAGE_ANALYSIS_MODES.indexOf(this.target), 0, 0,
+		]));
 		if (this.sourceTexture !== sourceTexture) {
 			this.sourceTexture = sourceTexture;
 			this.accumulateBindGroup = this.device.createBindGroup({
@@ -186,7 +192,7 @@ export class GpuHistogram {
 		});
 		renderPass.setPipeline(this.barsPipeline);
 		renderPass.setBindGroup(0, this.renderBindGroup);
-		renderPass.draw(6, BIN_COUNT * CHANNEL_COUNT);
+		renderPass.draw(6, BIN_COUNT * (this.target === 'rgb' ? CHANNEL_COUNT : 1));
 		renderPass.end();
 	}
 
