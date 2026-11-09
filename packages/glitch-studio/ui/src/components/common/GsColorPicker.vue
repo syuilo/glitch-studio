@@ -19,19 +19,50 @@
 		</div>
 		<div :class="$style.body">
 			<div :class="$style.leftArea">
-				<div :class="$style.map" :style="{ backgroundColor: `hsl(${hue} 100% 50%)` }" @pointerdown="startDrag($event, 'map')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
-					<div :class="$style.thumb" :style="{ left: `${saturation * 100}%`, top: `${(1 - brightness) * 100}%`, background: colorCss(color) }"></div>
+				<div :class="$style.mapModes" role="group">
+					<button v-for="mode in ['hsv', 'oklch'] as const" :key="mode" class="_button" :class="[$style.mapMode, { [$style.active]: mapMode === mode }]" :data-test-color-picker-mode="mode" @click="setMapMode(mode)">{{ mode.toUpperCase() }}</button>
+				</div>
+				<div :class="$style.mapAxes">
+					<span>{{ mapMode === 'hsv' ? 'V ↑' : 'L ↑ 0–100%' }}</span>
+					<span>{{ mapMode === 'hsv' ? 'S →' : `C → 0–${OKLCH_MAP_MAX_CHROMA}` }}</span>
+				</div>
+				<div
+					:class="[$style.map, { [$style.hsvMap]: mapMode === 'hsv' }]" :style="mapMode === 'hsv' ? { backgroundColor: `hsl(${hue} 100% 50%)` } : {}"
+					data-test-color-picker-map
+					tabindex="0"
+					@pointerdown="startDrag($event, 'map')"
+					@pointermove="moveDrag"
+					@pointerup="endDrag"
+					@pointercancel="endDrag"
+					@lostpointercapture="endDrag"
+					@keydown="onMapKeydown"
+				>
+					<GsOklchColorMap v-if="mapMode === 'oklch'" :hue="oklch[2]"/>
+					<div :class="$style.thumb" :style="{ left: `${mapPosition[0] * 100}%`, top: `${mapPosition[1] * 100}%`, background: colorCss(color) }" data-test-color-picker-map-thumb></div>
 				</div>
 				<div :class="$style.sliderRow">
-					<div :class="[$style.track, $style.hue]" @pointerdown="startDrag($event, 'hue')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
-						<div :class="$style.thumb" :style="{ left: `${hue / 360 * 100}%` }"></div>
+					<div
+						:class="[$style.track, { [$style.hsvHue]: mapMode === 'hsv' }]" :style="mapMode === 'oklch' ? { backgroundImage: OKLCH_HUE_GRADIENT } : {}"
+						data-test-color-picker-hue role="slider"
+						tabindex="0"
+						@pointerdown="startDrag($event, 'hue')"
+						@pointermove="moveDrag"
+						@pointerup="endDrag"
+						@pointercancel="endDrag"
+						@lostpointercapture="endDrag"
+						@keydown="onHueKeydown"
+					>
+						<div :class="$style.thumb" :style="{ left: `${mapHue / 360 * 100}%` }" data-test-color-picker-hue-thumb></div>
 					</div>
 				</div>
 				<div :class="$style.sliderRow">
-					<div :class="[$style.track, $style.checker]" @pointerdown="startDrag($event, 'alpha')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
+					<div :class="[$style.track, $style.checker]" data-test-color-picker-alpha @pointerdown="startDrag($event, 'alpha')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
 						<div :class="$style.alpha" :style="{ background: `linear-gradient(to right, ${colorCss([color[0], color[1], color[2], 0])}, ${colorCss([color[0], color[1], color[2], 1])})` }"></div>
 						<div :class="$style.thumb" :style="{ left: `${color[3] * 100}%` }"></div>
 					</div>
+				</div>
+				<div v-if="mapMode === 'oklch'" :class="$style.mapHint">
+					<div v-if="outsideMapRange" data-test-color-picker-outside-map>{{ i18n.ts._ColorPicker.OutsideMapRange }}</div>
 				</div>
 			</div>
 			<div :class="$style.rightArea">
@@ -42,10 +73,15 @@
 						<div
 							:class="[$style.editor, { [$style.invalid]: invalid === field.key }]"
 							class="_monospace"
-							contenteditable="plaintext-only" :spellcheck="false" :inputmode="row.name === 'HEX' ? 'text' : 'decimal'"
+							contenteditable="plaintext-only"
+							:spellcheck="false"
+							:inputmode="row.name === 'HEX' ? 'text' : 'decimal'"
 							:data-test-color-picker-field="field.key"
-							@focus="editing = field.key" @input="editField($event, row.name, field.index, field.key)"
-							@blur="finishEdit($event, field.key)" @keydown.enter.prevent="blurEditor" @keydown.esc.stop.prevent="blurEditor"
+							@focus="editing = field.key"
+							@input="editField($event, row.name, field.index, field.key)"
+							@blur="finishEdit($event, field.key)"
+							@keydown.enter.prevent="blurEditor"
+							@keydown.esc.stop.prevent="blurEditor"
 							v-text="drafts[field.key]"
 						></div>
 					</div>
@@ -65,13 +101,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
-import type { RgbaColor } from '@/utility/color-input.ts';
+import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import { linearSrgbToSrgb, oklchToLinearSrgb, srgbChannelToLinear } from '@gs/shared/color-space.ts';
+import type { RgbaColor } from '@/utility/color-input.ts';
 import { i18n } from '@/i18n.ts';
 import { clampColorValue, colorCss, colorHex, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv, rgbToOklch } from '@/utility/color-input.ts';
+import { OKLCH_HUE_GRADIENT, OKLCH_MAP_MAX_CHROMA } from '@/utility/color-picker-map.ts';
 import GsModal from '@/components/common/GsModal.vue';
-import * as ui from '@/ui.ts';
+import GsOklchColorMap from '@/components/common/GsOklchColorMap.vue';
 
 const props = defineProps<{
 	modelValue: RgbaColor;
@@ -95,6 +132,12 @@ const hue = ref(initialHsv[0]);
 const saturation = ref(initialHsv[1]);
 const brightness = ref(initialHsv[2]);
 const oklch = ref(rgbToOklch(color.value, 0));
+const mapMode = ref<'hsv' | 'oklch'>('hsv');
+const mapHue = computed(() => mapMode.value === 'hsv' ? hue.value : oklch.value[2]);
+const mapPosition = computed(() => mapMode.value === 'hsv'
+	? [saturation.value, 1 - brightness.value]
+	: [clampColorValue(oklch.value[1] / OKLCH_MAP_MAX_CHROMA), 1 - clampColorValue(oklch.value[0])]);
+const outsideMapRange = computed(() => oklch.value[0] < 0 || oklch.value[0] > 1 || oklch.value[1] > OKLCH_MAP_MAX_CHROMA);
 const editing = ref<string | null>(null);
 const invalid = ref<string | null>(null);
 const drafts = ref<Record<string, string>>({});
@@ -162,6 +205,23 @@ function setColor(next: RgbaColor, notify = true, source: 'hsv' | 'oklch' | null
 	}
 }
 
+function setOklch(nextOklch: [number, number, number]): boolean {
+	// 無彩色の色相だけを指定した場合は、元のRGBを変換誤差も含めて保持する。
+	const onlyPowerlessHueChanged = nextOklch[0] === oklch.value[0] && nextOklch[1] === 0 && oklch.value[1] === 0;
+	const next = onlyPowerlessHueChanged ? [...color.value] as RgbaColor : oklchToLinearSrgb([...nextOklch, color.value[3]]);
+	// 有限な入力でも逆変換の三乗がoverflowし得る。入力欄・マップのどちらも保存値へInfinityを入れない。
+	if (!next.every(Number.isFinite)) return false;
+	oklch.value = nextOklch;
+	setColor(next, true, 'oklch');
+	return true;
+}
+
+function setMapMode(mode: 'hsv' | 'oklch') {
+	releaseDrag();
+	// 既存の各モデルの編集値を使い、表示切替では色の再変換や更新通知を行わない。
+	mapMode.value = mode;
+}
+
 function editField(event: Event, format: Format, index: number, key: string) {
 	if ((event as InputEvent).isComposing) return;
 	const text = (event.currentTarget as HTMLElement).textContent?.trim() ?? '';
@@ -197,11 +257,8 @@ function editField(event: Event, format: Format, index: number, key: string) {
 			} else if (format === 'OKLCH' && index < 3) {
 				const nextOklch: [number, number, number] = [...oklch.value];
 				nextOklch[index] = index === 0 ? value / 100 : value;
-				// 無彩色の色相だけを指定した場合は、元のRGBを変換誤差も含めて保持する。
-				next = index === 2 && nextOklch[1] === 0 ? [...color.value] : oklchToLinearSrgb([...nextOklch, color.value[3]]);
-				// 有限な入力でも逆変換の三乗がoverflowし得る。保存値へInfinityを入れない。
-				if (next.every(Number.isFinite)) oklch.value = nextOklch;
-				else next = null;
+				invalid.value = setOklch(nextOklch) ? null : key;
+				return;
 			} else {
 				next[index] = format === 'sRGB' && index < 3 ? srgbChannelToLinear(value / 255) : value;
 			}
@@ -227,7 +284,7 @@ function blurEditor(event: KeyboardEvent) {
 let drag: { id: number; element: HTMLElement; kind: 'map' | 'hue' | 'alpha' } | null = null;
 
 function startDrag(event: PointerEvent, kind: 'map' | 'hue' | 'alpha') {
-	if (event.button !== 0 || drag) return;
+	if (event.button !== 0 || drag != null) return;
 	const element = event.currentTarget as HTMLElement;
 	(window.document.activeElement as HTMLElement | null)?.blur();
 	event.preventDefault();
@@ -237,26 +294,63 @@ function startDrag(event: PointerEvent, kind: 'map' | 'hue' | 'alpha') {
 }
 
 function moveDrag(event: PointerEvent) {
-	if (!drag || drag.id !== event.pointerId) return;
+	if (drag == null || drag.id !== event.pointerId) return;
 	const rect = drag.element.getBoundingClientRect();
+	if (rect.width <= 0 || rect.height <= 0) return;
 	const x = clampColorValue((event.clientX - rect.left) / rect.width);
 	if (drag.kind === 'alpha') {
 		setColor([color.value[0], color.value[1], color.value[2], x]);
+	} else if (drag.kind === 'hue') {
+		setMapHue(x * 360);
 	} else {
-		if (drag.kind === 'hue') hue.value = x * 360;
-		else {
-			saturation.value = x;
-			brightness.value = 1 - clampColorValue((event.clientY - rect.top) / rect.height);
-		}
-		setColor(hsvToRgb(hue.value, saturation.value, brightness.value, color.value[3]), true, 'hsv');
+		setMapPosition(x, clampColorValue((event.clientY - rect.top) / rect.height));
 	}
 }
 
 function endDrag(event: PointerEvent) {
-	if (!drag || drag.id !== event.pointerId) return;
+	if (drag == null || drag.id !== event.pointerId) return;
+	releaseDrag();
+}
+
+function releaseDrag() {
+	if (drag == null) return;
 	const { element, id } = drag;
 	drag = null;
 	if (element.hasPointerCapture(id)) element.releasePointerCapture(id);
+}
+
+function setMapPosition(x: number, y: number) {
+	if (mapMode.value === 'oklch') {
+		setOklch([1 - y, x * OKLCH_MAP_MAX_CHROMA, oklch.value[2]]);
+	} else {
+		saturation.value = x;
+		brightness.value = 1 - y;
+		setColor(hsvToRgb(hue.value, saturation.value, brightness.value, color.value[3]), true, 'hsv');
+	}
+}
+
+function setMapHue(value: number) {
+	if (mapMode.value === 'oklch') setOklch([oklch.value[0], oklch.value[1], value]);
+	else {
+		hue.value = value;
+		setColor(hsvToRgb(hue.value, saturation.value, brightness.value, color.value[3]), true, 'hsv');
+	}
+}
+
+function onMapKeydown(event: KeyboardEvent) {
+	if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+	event.preventDefault();
+	const step = event.shiftKey ? 0.1 : 0.01;
+	const [x, y] = mapPosition.value;
+	setMapPosition(clampColorValue(x + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0)), clampColorValue(y + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0)));
+}
+
+function onHueKeydown(event: KeyboardEvent) {
+	if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+	event.preventDefault();
+	const step = event.shiftKey ? 10 : 1;
+	const value = event.key === 'Home' ? 0 : event.key === 'End' ? 360 : mapHue.value + (event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -step : step);
+	setMapHue(Math.min(360, Math.max(0, value)));
 }
 
 function readRecent(): RgbaColor[] {
@@ -302,11 +396,9 @@ function onKeydown(event: KeyboardEvent) {
 	}
 }
 
-let rafId = 0;
-
 onBeforeUnmount(() => {
 	eyeDropperAbort.abort();
-	cancelAnimationFrame(rafId);
+	releaseDrag();
 });
 
 function onModalClose() {
@@ -334,7 +426,7 @@ function close() {
 	box-sizing: border-box;
 	width: 600px;
 	max-width: 100vw;
-	height: 400px;
+	min-height: 400px;
 	overflow: auto;
 	padding: 14px;
 	border-radius: 10px;
@@ -373,19 +465,59 @@ function close() {
 }
 .leftArea {
 	flex: 0.4;
+	min-width: 0;
 }
 .rightArea {
 	flex: 0.6;
+	min-width: 0;
+}
+.mapModes {
+	display: flex;
+	gap: 4px;
+	margin: 6px;
+}
+.mapMode {
+	flex: 1;
+	padding: 4px 8px;
+	border-radius: 4px;
+	background: var(--THEME-buttonBg);
+	&:hover {
+		background: var(--THEME-buttonHoverBg);
+	}
+	&.active {
+		background: var(--THEME-accentedBg);
+		color: var(--THEME-accent);
+	}
+}
+.mapAxes {
+	display: flex;
+	justify-content: space-between;
+	margin: 8px 6px 0;
+	font-size: 10px;
+	opacity: 0.7;
 }
 .map {
 	position: relative;
 	height: 150px;
 	margin: 6px;
-	background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent);
 	cursor: crosshair;
 	touch-action: none;
 	user-select: none;
 }
+.hsvMap {
+	background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent);
+}
+.map:focus-visible, .track:focus-visible, .mapMode:focus-visible {
+	outline: 2px solid var(--THEME-accent);
+	outline-offset: 3px;
+}
+.mapHint {
+	margin: 6px;
+	font-size: 11px;
+	line-height: 1.6;
+	opacity: 0.7;
+}
+
 .thumb {
 	position: absolute;
 	box-sizing: border-box;
@@ -412,7 +544,7 @@ function close() {
 .track .thumb {
 	top: 50%;
 }
-.hue {
+.hsvHue {
 	background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
 }
 .checker {
@@ -430,7 +562,8 @@ function close() {
 	margin-top: 8px;
 }
 .format {
-	width: 52px;
+	width: 4em;
+	font-size: 90%;
 	flex-shrink: 0;
 }
 .field {
@@ -439,7 +572,8 @@ function close() {
 }
 .label {
 	display: block;
-	opacity: 0.6;
+	font-size: 90%;
+	color: color(from var(--THEME-fg) srgb r g b / 0.75);
 	margin-bottom: 3px;
 }
 .editor {

@@ -31,12 +31,18 @@ async function fixture(t, color) {
 	const restoreGlobals = [];
 	let app = null;
 	t.after(() => { app?.unmount(); restoreGlobals.forEach(restore => restore()); });
-	for (const [name, value] of Object.entries({ window: {}, localStorage: { getItem: () => null }, cancelAnimationFrame() {} })) {
+	for (const [name, value] of Object.entries({ window: { document: { activeElement: null } }, localStorage: { getItem: () => null } })) {
 		const previous = Object.getOwnPropertyDescriptor(globalThis, name);
 		Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
 		restoreGlobals.push(() => { if (previous != null) Object.defineProperty(globalThis, name, previous); else delete globalThis[name]; });
 	}
-	const element = () => markRaw({ children: [], props: {}, parent: null, textContent: '' });
+	const element = () => markRaw({
+		children: [], props: {}, parent: null, textContent: '', capturedPointer: null,
+		getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 100 }),
+		setPointerCapture(id) { this.capturedPointer = id; },
+		hasPointerCapture(id) { return this.capturedPointer === id; },
+		releasePointerCapture() { this.capturedPointer = null; },
+	});
 	const renderer = createRenderer({
 		createElement: element, createText: element, createComment: element, setText() {}, setElementText() {},
 		patchProp(element, key, _previous, value) { element.props[key] = value; if (key === 'textContent') element.textContent = value; },
@@ -53,10 +59,11 @@ async function fixture(t, color) {
 	app.directive('tooltip', {});
 	app.mount(root);
 	await nextTick();
-	const findField = key => {
-		const visit = element => element.props['data-test-color-picker-field'] === key ? element : element.children.map(visit).find(value => value != null);
+	const findElement = (attribute, value = null) => {
+		const visit = element => Object.hasOwn(element.props, attribute) && (value == null || element.props[attribute] === value) ? element : element.children.map(visit).find(value => value != null);
 		return visit(root);
 	};
+	const findField = key => findElement('data-test-color-picker-field', key);
 	const edit = async (key, text) => {
 		const field = findField(key);
 		field.props.onFocus();
@@ -66,7 +73,20 @@ async function fixture(t, color) {
 		field.props.onBlur({ currentTarget: field });
 		await nextTick();
 	};
-	return { state, changes, edit, findField };
+	const switchMode = async mode => {
+		findElement('data-test-color-picker-mode', mode).props.onClick();
+		await nextTick();
+	};
+	const pointer = async (kind, phase, x, y, id = 1) => {
+		const target = findElement(`data-test-color-picker-${kind}`);
+		target.props[`onPointer${phase}`]({ currentTarget: target, button: 0, pointerId: id, clientX: x, clientY: y, preventDefault() {} });
+		await nextTick();
+	};
+	const pressKey = async (kind, key, shiftKey = false) => {
+		findElement(`data-test-color-picker-${kind}`).props.onKeydown({ key, shiftKey, preventDefault() {} });
+		await nextTick();
+	};
+	return { state, changes, edit, findField, findElement, switchMode, pointer, pressKey };
 }
 
 // 【HDR色を開いても保存値を変更せず、alphaだけの編集でもRGBを保持する】
@@ -178,4 +198,137 @@ test('rejects invalid and overflowing OKLCH edits without changing colors', asyn
 		assert.notEqual(findField(key).textContent, text);
 	}
 	assert.deepEqual(changes, []);
+});
+
+// 【HSV・OKLCHの表示切替ではHDR・負値・透明色を書き換えず、範囲外のつまみを端へ表示する】
+// マップの座標を保存色へ戻す処理を切替時に実行すると、表示するだけで色が失われる。
+// 数値欄で入力したマップ範囲外のL・Cも維持し、操作したときだけ色を変更する。
+test('switches map modes without emitting edits or clipping extended colors', async t => {
+	const original = [4, -0.25, 0.5, 0];
+	const { state, changes, edit, findElement, switchMode } = await fixture(t, original);
+	assert.equal(findElement('data-test-color-picker-mode', 'hsv').props['aria-pressed'], true);
+	await switchMode('oklch');
+	assert.equal(findElement('data-test-color-picker-mode', 'oklch').props['aria-pressed'], true);
+	await switchMode('hsv');
+	assert.deepEqual(Array.from(state.color), original);
+	assert.deepEqual(changes, []);
+	await edit('OKLCH-0', '150');
+	await edit('OKLCH-1', '0.5');
+	const extended = Array.from(state.color);
+	const editsBeforeSwitch = changes.length;
+	await switchMode('oklch');
+	assert.equal(findElement('data-test-color-picker-map-thumb').props.style.left, '100%');
+	assert.equal(findElement('data-test-color-picker-map-thumb').props.style.top, '0%');
+	assert.ok(findElement('data-test-color-picker-outside-map') != null);
+	await switchMode('hsv');
+	assert.deepEqual(Array.from(state.color), extended);
+	assert.equal(changes.length, editsBeforeSwitch);
+});
+
+// 【OKLCHマップの横軸C・縦軸Lと色相バーを数値欄・保存値へ同期する】
+// HSVの色相や明るさを流用すると、見本と選んだ色が一致しなくなる。
+// 独立した参照色を使い、色相操作がL・C・alphaを変えないことも確認する。
+test('edits OKLCH map coordinates and hue while keeping lightness chroma and alpha', async t => {
+	const { state, findField, switchMode, pointer } = await fixture(t, [0.125, 0.125, 0.125, 0.25]);
+	await switchMode('oklch');
+	await pointer('map', 'down', 40, 35);
+	await pointer('map', 'up', 40, 35);
+	let expected = srgbToLinearSrgb([0.7216633302, 0.4807007626, 0.5531313216, 0.25]);
+	state.color.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-8));
+	assert.equal(findField('OKLCH-0').textContent, '65');
+	assert.equal(findField('OKLCH-1').textContent, '0.08');
+	await pointer('hue', 'down', 100, 0);
+	await pointer('hue', 'up', 100, 0);
+	expected = srgbToLinearSrgb([0.3225405424, 0.624848172, 0.5683289785, 0.25]);
+	state.color.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-8));
+	assert.equal(findField('OKLCH-0').textContent, '65');
+	assert.equal(findField('OKLCH-1').textContent, '0.08');
+	assert.equal(findField('OKLCH-2').textContent, '180');
+});
+
+// 【斜線の領域も選択でき、HDR色の色相・alpha編集では表示範囲へ制限しない】
+// 色域外の見本を表示するためのclampを保存値へ適用してはならない。
+// マップより広い数値入力の範囲を、色相バーの操作で失わないことも保証する。
+test('selects out-of-gamut map colors and preserves extended values while editing hue and alpha', async t => {
+	const { state, edit, findField, switchMode, pointer } = await fixture(t, [1, 0, 0, 0.75]);
+	await switchMode('oklch');
+	await pointer('map', 'down', 200, 50);
+	await pointer('map', 'up', 200, 50);
+	assert.ok(state.color.slice(0, 3).some(value => value < 0));
+	assert.equal(findField('OKLCH-1').textContent, '0.4');
+	await edit('OKLCH-0', '150');
+	await edit('OKLCH-1', '0.5');
+	await pointer('hue', 'down', 150, 0);
+	await pointer('hue', 'up', 150, 0);
+	assert.equal(findField('OKLCH-0').textContent, '150');
+	assert.equal(findField('OKLCH-1').textContent, '0.5');
+	assert.equal(findField('OKLCH-2').textContent, '270');
+	const rgb = Array.from(state.color.slice(0, 3));
+	await pointer('alpha', 'down', 100, 0);
+	await pointer('alpha', 'up', 100, 0);
+	assert.deepEqual(Array.from(state.color), [...rgb, 0.5]);
+});
+
+// 【HSVへ戻った後も従来のS・VとsRGBの色相を使って編集する】
+// OKLCHのマップを追加しても、既存のHSV操作へCやLの座標系を混入させない。
+// 外側へのドラッグでは座標を端へ収め、別ポインターの移動では色を変えない。
+test('retains HSV map behavior and clamps captured pointer positions', async t => {
+	const { state, changes, switchMode, pointer } = await fixture(t, [1, 0, 0, 0.75]);
+	await switchMode('oklch');
+	await switchMode('hsv');
+	await pointer('map', 'down', 200, 50);
+	const expected = srgbToLinearSrgb([0.5, 0, 0, 0.75]);
+	assert.deepEqual(Array.from(state.color), expected);
+	const editCount = changes.length;
+	await pointer('map', 'move', 0, 0, 2);
+	assert.equal(changes.length, editCount);
+	await pointer('map', 'move', 250, -10);
+	assert.deepEqual(Array.from(state.color), [1, 0, 0, 0.75]);
+	await pointer('map', 'up', 250, -10);
+});
+
+// 【モード切替やpointercancelでキャプチャを解放し、古いドラッグを再開しない】
+// タッチ操作やキーボードからのモード変更でも、別モデルにドラッグ状態が持ち越されると
+// 次の移動だけで色が変わる。再度ドラッグを始められることまで検証する。
+test('releases pointer capture on mode changes and cancellation', async t => {
+	const { changes, findElement, switchMode, pointer } = await fixture(t, [1, 0, 0, 1]);
+	await pointer('map', 'down', 100, 50);
+	const map = findElement('data-test-color-picker-map');
+	assert.equal(map.capturedPointer, 1);
+	await switchMode('oklch');
+	assert.equal(map.capturedPointer, null);
+	const editCount = changes.length;
+	await pointer('map', 'move', 0, 0);
+	assert.equal(changes.length, editCount);
+	await pointer('map', 'down', 50, 50, 3);
+	assert.equal(map.capturedPointer, 3);
+	await pointer('map', 'cancel', 50, 50, 3);
+	assert.equal(map.capturedPointer, null);
+	const afterCancel = changes.length;
+	await pointer('map', 'move', 100, 100, 3);
+	assert.equal(changes.length, afterCancel);
+});
+
+// 【無彩色の色相をOKLCHバーで選び、矢印キーでもC・L・Hを変更できる】
+// 無彩色での色相操作はRGBを変えずに記憶し、後でCを増やすときに使う。
+// マウスを使わず、モデルに対応した軸と刻み幅で編集できることも確認する。
+test('remembers neutral hue and supports map and hue keyboard controls', async t => {
+	const original = [0.125, 0.125, 0.125, 0.75];
+	const { state, findField, switchMode, pointer, pressKey } = await fixture(t, original);
+	await switchMode('oklch');
+	await pointer('hue', 'down', 100, 0);
+	await pointer('hue', 'up', 100, 0);
+	assert.deepEqual(Array.from(state.color), original);
+	assert.equal(findField('OKLCH-2').textContent, '180');
+	await pressKey('map', 'ArrowRight');
+	assert.equal(findField('OKLCH-1').textContent, '0.004');
+	await pressKey('map', 'ArrowUp', true);
+	assert.equal(findField('OKLCH-0').textContent, '60');
+	await pressKey('hue', 'ArrowRight', true);
+	assert.equal(findField('OKLCH-2').textContent, '190');
+	await pressKey('hue', 'End');
+	assert.equal(findField('OKLCH-2').textContent, '360');
+	await pressKey('hue', 'Home');
+	assert.equal(findField('OKLCH-2').textContent, '0');
+	assert.equal(state.color[3], 0.75);
 });
