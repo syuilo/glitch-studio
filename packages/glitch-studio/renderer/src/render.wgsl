@@ -64,13 +64,11 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		// 圧縮は合成後の表示色へ適用し、半透明やalpha=0の発光も同じ見え方で扱う。
 		// 警告は色域圧縮でもくすませず、作品の色と区別できる色を維持する。
 		if (!clippingWarning) { composed = compressPreviewGamut(composed); }
-		return vec4f(clamp(colorLinearToSrgb(composed), vec3f(0.0), vec3f(1.0)), 1.0);
+		return encodeCanvasOutput(vec4f(composed, 1.0));
 	}
 	if (!clippingWarning && exposed.a > 0.0) {
 		exposed = vec4f(compressPreviewGamut(exposed.rgb / exposed.a) * exposed.a, exposed.a);
 	}
 	// 警告色は露出・色域圧縮で変えず、判定も補正前の画像に揃える。
-	let displayed = colorLinearToSrgbPremultiplied(exposed);
-	// 可視CanvasのSDR範囲だけを制限する。元のfloat画像・履歴・キャッシュは変更しない。
-	return vec4f(clamp(displayed.rgb, vec3f(0.0), vec3f(displayed.a)), displayed.a);
+	return encodeCanvasOutput(exposed);
 }

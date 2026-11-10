@@ -61,7 +61,9 @@ Apply LUTは入力・出力色空間をそれぞれLinear sRGB／sRGBから指�
 
 ## 表示・SDR書き出し・解析
 
-`CanvasRenderer`は表示直前にだけsRGBへencodeする。露出はlinear RGBへ`2^EV`を乗算する。プレビューの黒背景・チェック背景、不透明出力の黒背景とのsource-overをlinearで済ませ、その後にencode・SDRの範囲制限を行う。チェック背景のアニメーションは表示用に複製した画像を使い、停止中もノード・履歴・解析を再評価しない。
+`CanvasRenderer`はlinear RGB上で表示用の露出・背景合成・色域圧縮を行い、`canvas-output.wgsl`が最終段でsRGB encodeとSDRの範囲制限を担当する。Canvasの形式・色空間は`CanvasOutputSettings`として、Canvasのconfigureと最終描画pipelineへ同じ値を渡す。プレビューのfactoryと書き出しWorkerはそれぞれ出力設定を生成し、現時点では両方とも従来の8bit sRGBを使う。
+
+露出はlinear RGBへ`2^EV`を乗算する。プレビューの黒背景・チェック背景、不透明出力の黒背景とのsource-overをlinearで済ませ、その後にencode・SDRの範囲制限を行う。チェック背景のアニメーションは表示用に複製した画像を使い、停止中もノード・履歴・解析を再評価しない。
 
 背景の再描画は`PreviewBackgroundScheduler`が通常のフレーム描画から約1/30秒後に予約し、通常描画のたびに予約を延期する。両Managerの`previewActive`をUIの表示モードへ同期し、非表示のプレビューと書き出しではアイドル描画を行わない。CPU表示の背景更新は主Canvasだけを読み戻し、解析画像を再転送しない。通常描画と同じ最大2フレームの待機枠を使う。
 
@@ -115,6 +117,21 @@ Customは上へのドラッグで増加、下で減少し、開始位置から�
 sRGB・EVはRGBでだけ選べる。数値データの解析対象へ切り替える際、選択中の方式がsRGB・EVならLinearへ変更する。表示範囲は解析対象・方式を切り替えても保持する。UIとGPUへの設定境界の両方で、数値データに色の伝達関数を適用しない制約を守る。
 
 範囲外はグラフの端へ集計し、EVで対数を取れない非正値は範囲の開始側（通常は下端、反転時は高いEV側）へ寄せる。これは解析表示の範囲制限であり、作業画像の値は変更しない。作品内のWaveformエフェクトが持つRGB・Luminanceの動作は維持し、プレビューの解析対象・範囲によって変更しない。
+
+## 広色域Canvasの検証
+
+`packages/glitch-studio/renderer/scripts/probe-canvas-color-output.mjs`は、sRGBの赤とDisplay P3の赤を並べた検証画面を生成する。8bit sRGBで同じ赤へ潰れる対照表示と、各色空間のfloat表示を比較できる。WebGPUの`rgba16float`から負値・1超の値を読み戻す検証と、float16のCanvas 2DへsRGB／P3としてコピーする色変換の検証を行う。モニターの大まかな能力判定は別に報告し、APIのenum対応と混同しない。
+
+2026-11-10のWindows上での検証結果は以下のとおり。対応欄は、WebGPU Canvasの指定を受理し、画素保持とCanvas 2Dへの色変換を通過したことを示す。
+
+| ランタイム | srgb / float16 | display-p3 / float16 | srgb-linear / float16 | display-p3-linear / float16 |
+| --- | --- | --- | --- | --- |
+| Chrome 157.0.8103.39 | 対応 | 対応 | 対応 | 対応 |
+| Electron 45.2.1 / Chromium 156.0.8078.75 | 対応 | 対応 | enum未対応 | enum未対応 |
+
+ChromeとElectronの両方で、sRGBのfloat出力にP3の赤の負値・1超の成分が保持されることを確認した。線形色空間を使わずに拡張範囲を運べる経路も存在するため、広色域表示を有効化する段階ではこの対応差を考慮する。現在のアプリ表示の設定は変更していない。
+
+検証時の`color-gamut: p3`・`rec2020`と`dynamic-range: high`はいずれもfalseだった。ここでの結果は数値・Canvas間の経路を検証したものであり、OSの最終合成後に実モニターへ表示される色の精度は未検証。
 
 ## OpenEXRの書き出し
 

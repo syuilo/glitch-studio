@@ -9,7 +9,8 @@ const bundled = await build({
 	entryPoints: [fileURLToPath(new URL('../src/export/timeline-export.worker.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'export-worker-platform', setup(build) {
-		build.onResolve({ filter: /^@gs\/glitch-studio_renderer\/|^@gs\/subsystems_effect_shared\/effect-(?:definitions|implementations)\.ts$|\/mp4-writer\.ts$|\/still-(?:webp|openexr)\.ts$|\/timeline-audio-export\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
+		build.onResolve({ filter: /^@gs\/glitch-studio_renderer\/|^@gs\/subsystems_effect_shared\/effect-(?:definitions|implementations)\.ts$|\/mp4-writer\.ts$|\/still-(?:webp|openexr)\.ts$|\/timeline-audio-export\.ts$/ }, args =>
+			args.path === '@gs/glitch-studio_renderer/canvas-output.ts' ? null : { path: args.path, namespace: 'platform' });
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `
 			export const TimelineRendererManager = dependencies.TimelineRendererManager;
 			export const TimelineAudioExport = dependencies.TimelineAudioExport;
@@ -94,7 +95,7 @@ function fixture() {
 			constructor(width, height) { this.width = width; this.height = height; }
 			getContext() { return new GPUCanvasContext(this); }
 		},
-		navigator: { gpu: { async requestAdapter() {
+		navigator: { gpu: { getPreferredCanvasFormat: () => 'bgra8unorm', async requestAdapter() {
 			return { async requestDevice(settings) { deviceSettings = settings; return device; } };
 		} } },
 	});
@@ -136,6 +137,7 @@ for (const failing of [false, true]) {
 // 書き出し用の静的・動的設定を分け、素材の準備完了まで描画を待つ。
 // プレビュー設定の転記漏れや旧コンストラクター呼び出しを防ぎ、MP4の黒背景と
 // WebPの透過を維持する。計測を無効にするためtimestamp-queryは要求しない。
+// Canvasの出力設定には実際の生成処理を使い、プレビューと独立したsRGB出力を指定することも確認する。
 for (const format of ['mp4', 'webp']) {
 	test(`initializes ${format} export with shared settings and waits for assets`, { timeout: 2000 }, async () => {
 		const f = fixture();
@@ -151,6 +153,7 @@ for (const format of ['mp4', 'webp']) {
 		assert.deepEqual(f.frames, []);
 		assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), ['float32-filterable']);
 		const { timelineFps, timelineMotionBlur, assets, customShaderEffects, ...dynamicProjectOptions } = request.project;
+		assert.deepEqual(structuredClone(f.instance.core.canvasOutput), { format: 'bgra8unorm', colorSpace: 'srgb' });
 		assert.deepEqual(structuredClone(f.instance.resources), { assets, customShaderEffects });
 		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer, timelineFps, timelineMotionBlur, enableStats: false, enableWaveformAndHistogram: false });
 		const resolution = format === 'mp4' ? { width: 4, height: 6 } : { width: 3, height: 5 };

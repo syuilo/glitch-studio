@@ -1,5 +1,7 @@
 Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
+`canvas-output.ts`はCanvasの画素形式・色空間を`CanvasOutputSettings`として定義する。`createCanvasOutputConfigurator()`と`CanvasRenderer`へ同じ設定を渡し、Canvas構成と最終描画pipelineの形式を一致させる。プレビューのfactoryと書き出しWorkerが出力設定をそれぞれ生成し、既定値も常に8bit sRGBとする。露出・背景・色域圧縮は表示変換としてlinear上で処理し、`canvas-output.wgsl`だけが最後にsRGB encode・SDRの範囲制限を行う。
+
 両Managerのdynamic optionsの`previewGamutCompression`は、`{ mode, customAmount }`でプレビュー専用の色域圧縮を指定する。modeは`none`・`displayP3`・`rec2020`・`adobeRgb`・`custom`、customAmountは0〜1のクロマ削減率。既定は通常表示で、書き出し用Managerにも圧縮を引き継がない。`CanvasRenderer`は露出・linear背景合成後に変換し、解析・フレームキャッシュ・クリッピング警告の色は変更しない。
 
 `preview-gamut-compression.ts`は各色域のOKLCH境界を三次式の全交点から求め、色相720分割・明度256分割のLUTをWorker内で共有する。プリセットを初めて使う際だけGPUへ転送し、通常表示・カスタムだけなら表の生成・確保を省く。最終表示は補間したsRGB／基準色域のクロマ比を使い、境界付近の補間誤差を補正する。HDRの明るさの圧縮は行わず、基準白より外側は既存の露出で確認する。[色空間の規約](../../../docs/color-management.md)を参照。
@@ -10,7 +12,7 @@ Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
 `CanvasRenderer`は完成画像と映像解析の描画を担当する。`previewDisplayMode`が`gpu`の場合はGPUCanvasContextへ直接出力し、`cpu`の場合は`CpuPreviewCanvasContext`の通常GPUTextureへ出力して読み戻す。どちらも同じ描画・集計パスを使う。CPU方式では行padding・BGRA/RGBA・乗算済みalphaをImageData用へ変換し、`cpuPreviewFrame`イベントでピクセルの所有権をUIへ転送する。UIはCanvas 2Dへ表示してから`recycleCpuPreviewPixels`で領域を返却し、GPU読み戻し・CPUピクセル領域を再利用する。古いサイズ・世代・完了順の画像は送信しない。
 
-主Canvasの構成は`createPreviewCanvasConfigurator()`で共有する。黒・チェック背景を合成するプレビューと`opaqueOutput`は`alphaMode: 'opaque'`、背景のない透明書き出しは`premultiplied`を使う。alphaModeが変わるときだけconfigureし、表示設定の適用だけでCanvasの画像やCPU読み戻しを繰り返し破棄しない。
+主Canvasの構成は`createCanvasOutputConfigurator()`で共有する。黒・チェック背景を合成するプレビューと`opaqueOutput`は`alphaMode: 'opaque'`、背景のない透明書き出しは`premultiplied`を使う。出力設定は生成時に固定し、alphaModeが変わるときだけconfigureする。表示設定の適用だけでCanvasの画像やCPU読み戻しを繰り返し破棄しない。
 
 CPU表示の画素変換では、little endianかつ4byte境界のメモリ配置なら、不透明画素を32bit単位でコピーし、BGRAの赤青交換もビット演算で行う。半透明画素の未乗算RGBへの補正は従来と同じ丸め・clampを保つ。32bitで扱えない配置やエンディアンではbyte単位の変換へ戻る。転送量・表示解像度は変えない。
 
@@ -90,3 +92,22 @@ Custom Shader Effectの初期定義はManager生成時の`resources.customShader
 Visual Module Live Previewは同期の描画ループから`VisualModuleRenderer.tryPrepare()`で準備を開始・確認する。コンパイル・動画取得等の準備中は同じ評価時刻・入力を保持し、準備が完了したフレームを描画してから最新の時刻へ進む。待機中の経過時間・ポインター移動は次の描画へ引き継ぐ。編集・解像度変更・履歴リセット・停止では保留中の評価結果を破棄する。準備完了後の再開処理は登録せず、次の描画コールバックで確認する。タイル実行のPromiseは描画ループが完了まで保持し、その間の描画を重ねない。
 
 環境設定の`effectRenderTileDivisionLevel`はVisual Module Live Preview・TimelineのEffect/Visual Moduleレイヤー・書き出しへ共通で渡す。0は従来の一括送信を維持し、1〜4はEffect Rendererが各Render Passを4〜256タイルへ分割して完了を待つ。最終Canvas・解析・キャッシュの表示経路は完成画像を受け取る。タイル実行中のPlayer VideoFrame更新は最新の一枚だけ保留し、借用中のフレームを閉じたり別ノードへ異なるフレームを渡したりしない。配線・解像度などの構造変更や停止による古い世代の結果は表示しない。通常パラメータの値変更では実行中のタイル描画を中断せず、最新値だけをフレーム完了後に反映する。公開入力・カスタムパラメータも同様に扱い、描画インスタンス・出力寸法・履歴を維持する。Timelineもノードとカスタムパラメータの変更を完了境界で反映し、旧内容のキャッシュ・完了通知を無効化しつつ、待機中の最新シークは維持する。Compute Passは分割しない。
+
+## Canvasの色空間検証
+
+`probe:canvas-color-output`は、アプリの設定を変更せずに独立した検証画面を生成する。WebGPUのfloat出力の色空間対応・負値と1超の保持・Canvas 2Dへの色変換を調べ、ランタイムと画面の大まかな能力判定をJSONで出力する。ChromeとElectronは、一時プロファイルと非表示のウィンドウでそれぞれ起動する。
+
+`CHROME_PATH`／`ELECTRON_PATH`で実行ファイルを指定するか、`--executable`を渡して以下を実行する。
+
+```sh
+pnpm --dir packages/glitch-studio/renderer probe:canvas-color-output --runtime chrome
+pnpm --dir packages/glitch-studio/renderer probe:canvas-color-output --runtime electron
+```
+
+画面を目視する場合は`--serve`でローカルサーバーだけを起動し、表示されたURLを対象ブラウザーで開く。sRGBの赤とP3の赤を左右に並べ、8bitの対照表示と各float表示を比較できる。物理モニターの色再現精度は、数値検証とは別に確認する。
+
+```sh
+pnpm --dir packages/glitch-studio/renderer probe:canvas-color-output --serve
+```
+
+`canvas-color-output.gpu.test.mjs`は同じ検証を自動実行する。対応する実行ファイルの環境変数がない場合はskipする。WindowsのChrome 157／Electron 45.2.1の結果と制約は[色空間の規約](../../../docs/color-management.md#広色域canvasの検証)を参照。

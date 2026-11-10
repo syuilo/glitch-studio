@@ -5,6 +5,9 @@ import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import finalRenderShaderCode from './render.wgsl?raw';
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
+import canvasOutputShaderCode from './canvas-output.wgsl?raw';
+import { createSrgbCanvasOutputSettings } from './canvas-output.ts';
+import type { CanvasOutputSettings } from './canvas-output.ts';
 import oklabShaderCode from '@gs/shared/gpu/oklab.wgsl?raw';
 import previewGamutCompressionShaderCode from './preview-gamut-compression.wgsl?raw';
 import { getPreviewGamutBoundaryLookup, getPreviewGamutCompressionModeIndex, PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS } from './preview-gamut-compression.ts';
@@ -18,7 +21,7 @@ import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
-const finalRenderShader = [colorSpaceShaderCode, oklabShaderCode, previewGamutCompressionShaderCode, finalRenderShaderCode].join('\n');
+const finalRenderShader = [colorSpaceShaderCode, oklabShaderCode, previewGamutCompressionShaderCode, canvasOutputShaderCode, finalRenderShaderCode].join('\n');
 
 export class CanvasRenderer {
 	private gpuContext: PreviewCanvasContext;
@@ -77,6 +80,8 @@ export class CanvasRenderer {
 	constructor(options: {
 		gpuDevice: GPUDevice;
 		gpuContext: PreviewCanvasContext;
+		/** Canvasの構成と同じ出力設定。省略時は常に8bit sRGB。 */
+		canvasOutput?: CanvasOutputSettings;
 		enableWaveformAndHistogram: boolean;
 		histogramGpuContext?: PreviewCanvasContext;
 		waveformHorizontalGpuContext?: PreviewCanvasContext;
@@ -84,6 +89,7 @@ export class CanvasRenderer {
 	}) {
 		this.gpuDevice = options.gpuDevice;
 		this.gpuContext = options.gpuContext;
+		const canvasOutput = options.canvasOutput ?? createSrgbCanvasOutputSettings();
 		this.canvasContexts = { canvas: options.gpuContext, histogramCanvas: options.histogramGpuContext, waveformHorizontalCanvas: options.waveformHorizontalGpuContext, waveformVerticalCanvas: options.waveformVerticalGpuContext };
 		this.cpuCanvasContexts = [options.gpuContext, options.histogramGpuContext, options.waveformHorizontalGpuContext, options.waveformVerticalGpuContext]
 			.filter((context): context is CpuPreviewCanvasContext => context instanceof CpuPreviewCanvasContext);
@@ -114,7 +120,7 @@ export class CanvasRenderer {
 				module: finalRenderShaderModule,
 				entryPoint: 'fs',
 				targets: [{
-					format: navigator.gpu.getPreferredCanvasFormat(),
+					format: canvasOutput.format,
 				}],
 			},
 			primitive: {

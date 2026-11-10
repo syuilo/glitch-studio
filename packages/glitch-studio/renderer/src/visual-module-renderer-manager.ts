@@ -26,7 +26,9 @@ import { PlayerVideoTextures } from './player-video-textures.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
-import { createPreviewCanvasContext, createPreviewCanvasConfigurator } from './preview-canvas-context.ts';
+import { createPreviewCanvasContext } from './preview-canvas-context.ts';
+import { createCanvasOutputConfigurator, createSrgbCanvasOutputSettings } from './canvas-output.ts';
+import type { CanvasOutputSettings } from './canvas-output.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { FrameScheduler, VisualModuleLivePreviewFrameTiming } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -92,6 +94,8 @@ export type VisualModuleRendererManagerResources = { customShaderEffects?: reado
 export type VisualModuleRendererManagerCoreConfig = {
 	gpuDevice: GPUDevice;
 	gpuContext: PreviewCanvasContext;
+	/** 出力側が指定するCanvas設定。省略時もプレビュー設定から独立した8bit sRGB。 */
+	canvasOutput?: CanvasOutputSettings;
 	frameScheduler?: FrameScheduler;
 	histogramGpuContext?: PreviewCanvasContext;
 	waveformHorizontalGpuContext?: PreviewCanvasContext;
@@ -118,7 +122,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private pendingVideoFrames = new Map<Player['id'], VideoFrame | null>();
 	private previewRenderGeneration = 0;
 	private gpuContext: PreviewCanvasContext;
-	private configureCanvas: ReturnType<typeof createPreviewCanvasConfigurator>;
+	private configureCanvas: ReturnType<typeof createCanvasOutputConfigurator>;
 	private skippedFrameTimeDelta = 0;
 	private skippedFrameRealTimeDelta = 0;
 	private gpuDevice: GPUDevice;
@@ -216,7 +220,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		const gpuMemory = this.staticOptions.enableStats ? new GpuMemoryTracker(this.gpuDevice) : null;
 		this.timingHelper = this.staticOptions.enableStats ? new TimingHelper(this.gpuDevice) : null;
 
-		this.configureCanvas = createPreviewCanvasConfigurator(this.gpuDevice, this.gpuContext);
+		const canvasOutput = coreConfig.canvasOutput ?? createSrgbCanvasOutputSettings();
+		this.configureCanvas = createCanvasOutputConfigurator(this.gpuDevice, this.gpuContext, canvasOutput);
 		this.configureCanvas('premultiplied');
 
 		this.fallbackTexture = this.gpuDevice.createTexture({
@@ -228,6 +233,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
+			canvasOutput,
 			enableWaveformAndHistogram: this.staticOptions.enableWaveformAndHistogram,
 			histogramGpuContext: coreConfig.histogramGpuContext,
 			waveformHorizontalGpuContext: coreConfig.waveformHorizontalGpuContext,
@@ -678,6 +684,7 @@ export async function createManager(options: {
 		coreConfig = {
 			gpuDevice: device,
 			gpuContext: createContext(options.canvas, 'canvas'),
+			canvasOutput: createSrgbCanvasOutputSettings(),
 			histogramGpuContext: createContext(options.histogramCanvas, 'histogramCanvas'),
 			waveformHorizontalGpuContext: createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas'),
 			waveformVerticalGpuContext: createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas'),

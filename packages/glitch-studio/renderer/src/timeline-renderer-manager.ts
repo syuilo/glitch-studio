@@ -52,7 +52,9 @@ import { TimelinePreviewScheduler } from '@gs/subsystems_timeline_renderer/timel
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
-import { createPreviewCanvasContext, createPreviewCanvasConfigurator } from './preview-canvas-context.ts';
+import { createPreviewCanvasContext } from './preview-canvas-context.ts';
+import { createCanvasOutputConfigurator, createSrgbCanvasOutputSettings } from './canvas-output.ts';
+import type { CanvasOutputSettings } from './canvas-output.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 export type { PreviewDisplayMode, CpuPreviewFrame } from './preview-canvas-context.ts';
 import { ProjectStateVersions } from './project-state-versions.ts';
@@ -150,6 +152,8 @@ export type TimelineRendererManagerResources = { customShaderEffects?: readonly 
 export type TimelineRendererManagerCoreConfig = {
 	gpuDevice: GPUDevice;
 	gpuContext: PreviewCanvasContext;
+	/** 出力側が指定するCanvas設定。省略時もプレビュー設定から独立した8bit sRGB。 */
+	canvasOutput?: CanvasOutputSettings;
 	frameScheduler?: FrameScheduler;
 	histogramGpuContext?: PreviewCanvasContext;
 	waveformHorizontalGpuContext?: PreviewCanvasContext;
@@ -213,7 +217,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler: TimelinePreviewScheduler;
 	private gpuContext: PreviewCanvasContext;
-	private configureCanvas: ReturnType<typeof createPreviewCanvasConfigurator>;
+	private configureCanvas: ReturnType<typeof createCanvasOutputConfigurator>;
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
 	private defaultVertexShaderModule: GPUShaderModule;
@@ -282,7 +286,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.effectDefinitions = effects.definitions;
 		this.effectImplementations = effects.implementations;
 
-		this.configureCanvas = createPreviewCanvasConfigurator(this.gpuDevice, this.gpuContext);
+		const canvasOutput = coreConfig.canvasOutput ?? createSrgbCanvasOutputSettings();
+		this.configureCanvas = createCanvasOutputConfigurator(this.gpuDevice, this.gpuContext, canvasOutput);
 		this.configureCanvas('premultiplied');
 
 		this.fallbackTexture = this.gpuDevice.createTexture({
@@ -300,6 +305,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
+			canvasOutput,
 			enableWaveformAndHistogram: this.staticOptions.enableWaveformAndHistogram,
 			histogramGpuContext: coreConfig.histogramGpuContext,
 			waveformHorizontalGpuContext: coreConfig.waveformHorizontalGpuContext,
@@ -1255,6 +1261,7 @@ export async function createManager(options: {
 		coreConfig = {
 			gpuDevice: device,
 			gpuContext: createContext(options.canvas, 'canvas'),
+			canvasOutput: createSrgbCanvasOutputSettings(),
 			histogramGpuContext: createContext(options.histogramCanvas, 'histogramCanvas'),
 			waveformHorizontalGpuContext: createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas'),
 			waveformVerticalGpuContext: createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas'),
