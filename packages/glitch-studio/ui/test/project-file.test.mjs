@@ -599,6 +599,7 @@ test('restarts both previews after content and settings change during initializa
 	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'during-initialization', effectId: 'fill' });
 	appContext.highlightClipping.value = true;
 	appContext.previewExposure.value = 2;
+	appContext.previewGamutCompression.value = { mode: 'rec2020', customAmount: 0.37 };
 	window.testPreferences.timelinePreviewFramesAhead = 0;
 	window.testPreferences.timelineFrameCacheMaxGiB = 1;
 	window.testPreferences.timelineFrameCachePrecision = '8bit';
@@ -614,6 +615,7 @@ test('restarts both previews after content and settings change during initializa
 		assert.equal(controller.options.visualModules[0].nodes[0].id, 'during-initialization');
 		assert.equal(controller.options.highlightClipping, true);
 		assert.equal(controller.options.previewExposure, 2);
+		assert.deepEqual(controller.options.previewGamutCompression, { mode: 'rec2020', customAmount: 0.37 });
 	}
 	assert.equal(appContext.timelineRendererManagerController.staticOptions.previewFramesAhead, 0);
 	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'after-initialization', effectId: 'fill' });
@@ -887,6 +889,7 @@ for (const [setting, change, inspect] of [
 	['visualModuleLivePreview time factor', appContext => { appContext.visualModuleLivePreviewTimeFactor.value = 0.5; }],
 	['clipping display', appContext => { appContext.highlightClipping.value = true; }],
 	['preview exposure', appContext => { appContext.previewExposure.value = 2; }],
+	['preview gamut compression', appContext => { appContext.previewGamutCompression.value = { mode: 'displayP3', customAmount: 0.5 }; }],
 ]) test(`retries runtime failures after changing ${setting}`, async t => {
 	setup(t);
 	const { appContext } = evaluate(appBundle);
@@ -2344,6 +2347,17 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	}
 	assert.equal(timeline.renders.at(-1), 500);
 	assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
+	// 色域圧縮も表示だけの変更であり、両Workerへ同期しても作品や描画資源を変更しない。
+	for (const mode of ['displayP3', 'rec2020', 'adobeRgb', 'custom', 'none']) {
+		appContext.previewGamutCompression.value = { mode, customAmount: 0.37 };
+		await nextTick();
+		await setImmediate();
+		for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+			assert.deepEqual(controller.options.previewGamutCompression, { mode, customAmount: 0.37 });
+			assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
+		}
+		assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
+	}
 	await appContext.ready(project());
 	assert.deepEqual(visualModuleLivePreview.options.visualModules, []);
 	assert.deepEqual(timeline.options.visualModules, []);

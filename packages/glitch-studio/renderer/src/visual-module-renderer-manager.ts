@@ -2,6 +2,7 @@ import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { getPlayerIntrinsicResolution } from '@gs/glitch-studio_shared/player-resolution.ts';
@@ -63,6 +64,8 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	highlightClipping: boolean;
 	/** 表示用の露出（EV）。作品内の画像・解析には適用せず、書き出しでは0を使う。 */
 	previewExposure: number;
+	/** プレビュー専用の色域圧縮。書き出しではnoneを使う。 */
+	previewGamutCompression: PreviewGamutCompressionSettings;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
 	/** 表示用背景。nullは透明出力で、書き出しではプレビュー背景を使わない。 */
@@ -158,6 +161,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		resolutionScale: 1,
 		highlightClipping: false,
 		previewExposure: 0,
+		previewGamutCompression: { mode: 'none', customAmount: 0.5 },
 		visualModuleLivePreviewTimeFactor: 1.0,
 		fpsLimit: null,
 		opaqueOutput: false,
@@ -330,6 +334,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		}
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
+		this.canvasRenderer.previewGamutCompression = this.dynamicOptions.previewGamutCompression;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 		this.canvasRenderer.previewBackground = this.dynamicOptions.previewBackground;
 		this.canvasRenderer.previewActive = this.dynamicOptions.previewActive;

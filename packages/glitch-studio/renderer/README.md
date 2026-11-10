@@ -1,5 +1,9 @@
 Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
+両Managerのdynamic optionsの`previewGamutCompression`は、`{ mode, customAmount }`でプレビュー専用の色域圧縮を指定する。modeは`none`・`displayP3`・`rec2020`・`adobeRgb`・`custom`、customAmountは0〜1のクロマ削減率。既定は通常表示で、書き出し用Managerにも圧縮を引き継がない。`CanvasRenderer`は露出・linear背景合成後に変換し、解析・フレームキャッシュ・クリッピング警告の色は変更しない。
+
+`preview-gamut-compression.ts`は各色域のOKLCH境界を三次式の全交点から求め、色相720分割・明度256分割のLUTをWorker内で共有する。プリセットを初めて使う際だけGPUへ転送し、通常表示・カスタムだけなら表の生成・確保を省く。最終表示は補間したsRGB／基準色域のクロマ比を使い、境界付近の補間誤差を補正する。HDRの明るさの圧縮は行わず、基準白より外側は既存の露出で確認する。[色空間の規約](../../../docs/color-management.md)を参照。
+
 `TimelineRendererManager.renderTimelineLinearFrame()`は専用の書き出しManagerで静止画を評価し、表示変換前の画像を所有する`LinearImageReadback`を返す。通常の書き出しと同じモーションブラー・IS_EXPORT・Scene出力を使う。呼び出し側は`readBlocks()`で上から順にHALF RGBAを取得し、最後に`dispose()`する。借用テクスチャにCOPY_SRCがなくても、表示処理を通さず読み戻し用ターゲットへ各画素を確定する。行paddingとGPUバッファの上限は読み戻し側で扱い、ファイル形式と圧縮はImage Codec subsystem・UIが担当する。
 
 両Managerの`resetRenderHistory()`は、保持中の全エフェクトの描画履歴を初期化する。Timelineは準備中の描画・モーションブラーを中断し、スケジューラーと画像キャッシュの世代を進める。リセット前に送信したフレームのGPU完了を待ってから次の評価へ進み、古い完了によるキャッシュ登録・シーク完了通知を無効化する。キャッシュ消去は直ちにUIへ通知する。Visual Module Live Previewは描画ループの時計・Player・素材を保持し、次のフレームから新しい履歴で描画する。Playerの入力PCM履歴や解析モニターの履歴は消去しない。

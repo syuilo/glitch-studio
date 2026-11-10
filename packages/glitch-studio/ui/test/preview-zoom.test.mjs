@@ -18,8 +18,8 @@ const bundle = await build({
 		loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'preview-context', setup(build) {
-		build.onResolve({ filter: /^@\/(app|preferences|ui)\.ts$|\.vue$/ }, args => args.path.endsWith('GsPreviewRulers.vue') ? null : { path: args.path, namespace: 'preview-context' });
-		build.onLoad({ filter: /GsPreviewRulers\.vue$/ }, async ({ path }) => {
+		build.onResolve({ filter: /^@\/(app|preferences|ui)\.ts$|\.vue$/ }, args => /GsPreview(Rulers|GamutCompression)\.vue$/.test(args.path) ? null : { path: args.path, namespace: 'preview-context' });
+		build.onLoad({ filter: /GsPreview(Rulers|GamutCompression)\.vue$/ }, async ({ path }) => {
 			const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
 			const script = compileScript(descriptor, { id: 'preview-rulers', inlineTemplate: true, genDefaultAs: 'component' }).content;
 			return { contents: `${script}\ncomponent.__cssModules = { $style: {} }; export default component;`, loader: 'ts' };
@@ -99,6 +99,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		timelineRendererManagerController: { isSeeking: ref(false) },
 		previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
 		highlightClipping: ref(false), previewExposure: ref(0), resolutionFactor: ref(resolutionFactor), visualModuleLivePreviewTimeFactor: ref(1),
+		previewGamutCompression: shallowRef({ mode: 'none', customAmount: 0.5 }),
 		activeScene: ref({ id: 'scene', name: 'Scene', resolution: { mode: 'project' } }), activeSceneId: ref('scene'), timelinePreviewFpsFactor: ref(1),
 		renderEngine: { isSuspended: ref(false), runtimeDiagnostic: ref(null), errorMessage: ref(null) },
 		renderValidation: { errorMessage: ref(null) },
@@ -319,6 +320,57 @@ function startExposureDrag(fixture, properties = {}) {
 	fixture.find('exposure').props.onPointerdown({ currentTarget: fixture.find('exposure'),
 		pointerId: 7, button: 0, clientX: 100, clientY: 200, preventDefault() {}, ...properties });
 }
+
+// 【色域圧縮の5モードを切り替え、カスタム量はプリセットを経由しても保持する】
+// カスタムの数値をプリセットの単一倍率へ置き換えたり、非表示中に初期化したりしない。
+// 実際のプレビューへ組み込んだSFCを操作し、0%では通常表示と同じ非着色状態になることも確認する。
+test('selects all gamut views and preserves the independent custom amount', async t => {
+	const f = await fixture(t);
+	assert.equal(f.find('gamut-amount'), undefined);
+	assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], false);
+	for (const mode of ['displayP3', 'rec2020', 'adobeRgb', 'custom']) {
+		await f.click('gamut-mode');
+		assert.equal(f.menuItems.filter(item => item.id != null).length, 5);
+		f.menuItems.find(item => item.id === `preview-gamut-${mode}`).action();
+		await nextTick();
+		assert.equal(f.appContext.previewGamutCompression.value.mode, mode);
+		assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], true);
+		assert.equal(f.find('gamut-amount') != null, mode === 'custom');
+	}
+	const input = f.find('gamut-amount');
+	input.props.onInput({ target: { valueAsNumber: 37, value: '37' } });
+	await nextTick();
+	assert.equal(f.appContext.previewGamutCompression.value.customAmount, 0.37);
+	for (const mode of ['none', 'rec2020', 'custom']) {
+		await f.click('gamut-mode');
+		f.menuItems.find(item => item.id === `preview-gamut-${mode}`).action();
+		await nextTick();
+		assert.equal(f.appContext.previewGamutCompression.value.customAmount, 0.37);
+	}
+	assert.equal(f.find('gamut-amount').props.value, 37);
+	f.find('gamut-amount').props.onInput({ target: { valueAsNumber: 0, value: '0' } });
+	await nextTick();
+	assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], false);
+});
+
+// 【カスタム量は0〜100%へ収め、未完成の入力では最後に適用した値を維持する】
+// NaNや空欄をWorkerへ送ると画面全体が壊れ、見かけの数値と圧縮量も一致しなくなる。
+test('bounds custom gamut compression and restores incomplete numeric input on blur', async t => {
+	const f = await fixture(t);
+	f.appContext.previewGamutCompression.value = { mode: 'custom', customAmount: 0.5 };
+	await nextTick();
+	const input = f.find('gamut-amount');
+	for (const [value, expected] of [[-10, 0], [150, 100], [42.3, 42]]) {
+		const target = { valueAsNumber: value, value: String(value) };
+		input.props.onInput({ target });
+		assert.equal(target.value, String(expected));
+		assert.equal(f.appContext.previewGamutCompression.value.customAmount, expected / 100);
+	}
+	const target = { valueAsNumber: NaN, value: '' };
+	input.props.onInput({ target });
+	input.props.onBlur({ target });
+	assert.equal(target.value, '42');
+});
 
 function elementText(element) {
 	return element.text + element.children.map(elementText).join('');

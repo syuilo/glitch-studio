@@ -49,6 +49,7 @@ export async function run() {
 		try {
 			manager.updateDynamicOptions({ resolution: { width, height }, outputResolution: { width, height }, sceneId: 'scene',
 				previewExposure: 10, previewBackground: 'checker', opaqueOutput: true, highlightClipping: true,
+				previewGamutCompression: { mode: 'custom', customAmount: 1 },
 				timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{
 					id: 'fill', name: 'Fill', layerType: 'effect', effectId: 'fill', resolution: { mode: 'auto', scale: 1 },
 					effectParamValues: { color: { inputSource: 'literal', value: [4, -1, 0.5, 0.5] } },

@@ -10,6 +10,9 @@ struct Uniforms {
 	previewExposure: f32,
 	previewBackground: u32,
 	backgroundPhase: f32,
+	previewGamutCompressionMode: u32,
+	previewGamutCompressionAmount: f32,
+	previewGamutLookupSteps: vec2u,
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
@@ -36,14 +39,17 @@ fn copyLinearImage(@builtin(position) position: vec4f) -> @location(0) vec4f {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let color = textureSample(sourceTexture, sourceSampler, convertTexCoords(fragData.uv));
 	var exposed = applyPreviewExposure(color);
+	var clippingWarning = false;
 	if (uniforms.highlightClipping != 0u && color.a > 0.0) {
 		// 乗算済みRGBでの白の境界はalpha。除算せずに未乗算色の0/1と比較する。
 		// 全成分が範囲外の黒・白だけを対象とし、元の透明度を保つ。
 		if (all(color.rgb <= vec3f(0.0))) {
 			exposed = vec4f(0.0, color.a, 0.0, color.a);
+			clippingWarning = true;
 		}
 		if (all(color.rgb >= vec3f(color.a))) {
 			exposed = vec4f(color.a, 0.0, color.a, color.a);
+			clippingWarning = true;
 		}
 	}
 	if (uniforms.opaqueOutput != 0u || uniforms.previewBackground != 0u) {
@@ -54,10 +60,16 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 			background = colorSrgbToLinear(vec3f(srgb));
 		}
 		// 背景へのsource-overもlinearで行う。alpha=0の発光はここでもRGBを失わない。
-		let composed = exposed.rgb + background * (1.0 - exposed.a);
+		var composed = exposed.rgb + background * (1.0 - exposed.a);
+		// 圧縮は合成後の表示色へ適用し、半透明やalpha=0の発光も同じ見え方で扱う。
+		// 警告は色域圧縮でもくすませず、作品の色と区別できる色を維持する。
+		if (!clippingWarning) { composed = compressPreviewGamut(composed); }
 		return vec4f(clamp(colorLinearToSrgb(composed), vec3f(0.0), vec3f(1.0)), 1.0);
 	}
-	// 警告色は露出で変えず、判定も補正前の画像に揃える。
+	if (!clippingWarning && exposed.a > 0.0) {
+		exposed = vec4f(compressPreviewGamut(exposed.rgb / exposed.a) * exposed.a, exposed.a);
+	}
+	// 警告色は露出・色域圧縮で変えず、判定も補正前の画像に揃える。
 	let displayed = colorLinearToSrgbPremultiplied(exposed);
 	// 可視CanvasのSDR範囲だけを制限する。元のfloat画像・履歴・キャッシュは変更しない。
 	return vec4f(clamp(displayed.rgb, vec3f(0.0), vec3f(displayed.a)), displayed.a);

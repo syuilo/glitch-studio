@@ -450,6 +450,11 @@
 		"OpenFailed": "{title}を開けませんでした"
 	},
 	"_Preview": {
+		"GamutCompression": "色域の圧縮",
+		"GamutCompressionHint": "色をsRGBの範囲へ圧縮して確認します。",
+		"GamutCompressionNormal": "RAW",
+		"GamutCompressionCustom": "カスタム",
+		"GamutCompressionAmountHint": "クロマの削減率。0%は無圧縮、50%はクロマを半分、100%は無彩色です。",
 		"Exposure": "プレビューの露出",
 		"HighlightClipping": "クリッピングを強調表示",
 		"AnimatedBackground": "背景をアニメーション",

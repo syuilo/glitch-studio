@@ -1,5 +1,7 @@
 Glitch Studioドメイン内で共通の型や処理などを置く
 
+`src/preview-gamut-compression.ts`は、UIとレンダラーで共有するプレビュー専用の色域圧縮モード・カスタム量を定義する。プロジェクトの保存色や作業色空間とは独立した表示設定で、変換処理と境界LUTはGlitch Studio rendererが所有する。
+
 `src/desktop-update.ts`はElectronのmainとUIが共有する更新状態を定義します。electron-updaterの型や配布URL・インストーラーのパスをUIへ公開しません。
 
 `src/visual-module-live-preview-expression.ts`はVisual Module Live Previewの公開パラメータプレビューに公開する変数名を定義する。Visual Module Live PreviewはGlitch Studio側の利用スコープであり、Visual Module自身の評価スコープとは分ける。

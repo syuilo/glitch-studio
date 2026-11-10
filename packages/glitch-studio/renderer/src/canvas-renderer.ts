@@ -5,6 +5,10 @@ import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import finalRenderShaderCode from './render.wgsl?raw';
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
+import oklabShaderCode from '@gs/shared/gpu/oklab.wgsl?raw';
+import previewGamutCompressionShaderCode from './preview-gamut-compression.wgsl?raw';
+import { getPreviewGamutBoundaryLookup, getPreviewGamutCompressionModeIndex, PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS } from './preview-gamut-compression.ts';
+import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import { CpuPreviewCanvasContext } from './preview-canvas-context.ts';
 import { CpuPreviewFrameQueue } from './cpu-preview-frame-queue.ts';
 import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
@@ -13,6 +17,8 @@ import type { PreviewCanvasContext, CpuPreviewCanvasTarget } from './preview-can
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
+
+const finalRenderShader = [colorSpaceShaderCode, oklabShaderCode, previewGamutCompressionShaderCode, finalRenderShaderCode].join('\n');
 
 export class CanvasRenderer {
 	private gpuContext: PreviewCanvasContext;
@@ -28,11 +34,14 @@ export class CanvasRenderer {
 	private finalRenderPipeline: GPURenderPipeline;
 	private finalRenderUniformBuffer: GPUBuffer;
 	private finalRenderBindGroup: GPUBindGroup | null = null;
+	private gamutBoundaryBuffer: GPUBuffer;
+	private gamutBoundariesUploaded = false;
 	private latestRenderedToCanasTexture: GPUTexture | null = null;
 	private readonly imageAnalysis: PreviewImageAnalysis | null;
 	private highResolutionAnalysisGeneration = 0;
 	public highlightClipping = false;
 	public previewExposure = 0;
+	public previewGamutCompression: PreviewGamutCompressionSettings = { mode: 'none', customAmount: 0.5 };
 	public opaqueOutput = false;
 	private currentPreviewBackground: 'black' | 'checker' | null = null;
 	private backgroundImage: GPUTexture | null = null;
@@ -89,7 +98,7 @@ export class CanvasRenderer {
 		}) : null;
 
 		const finalRenderShaderModule = this.gpuDevice.createShaderModule({
-			code: colorSpaceShaderCode + '\n' + finalRenderShaderCode,
+			code: finalRenderShader,
 		});
 
 		const finalRenderShaderDataDefinitions = makeShaderDataDefinitions(finalRenderShaderCode);
@@ -120,9 +129,20 @@ export class CanvasRenderer {
 			size: this.finalRenderUniformValues.arrayBuffer.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
+		// 通常表示・カスタムはLUTを参照しない。プリセットを使うまで大きな表を確保しない。
+		this.gamutBoundaryBuffer = this.gpuDevice.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 	}
 
 	private renderFinalImage(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
+		const gamutMode = getPreviewGamutCompressionModeIndex(this.previewGamutCompression.mode);
+		if (gamutMode > 0 && gamutMode < 4 && !this.gamutBoundariesUploaded) {
+			const boundaries = getPreviewGamutBoundaryLookup();
+			this.gamutBoundaryBuffer.destroy();
+			this.gamutBoundaryBuffer = this.gpuDevice.createBuffer({ size: boundaries.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+			this.gpuDevice.queue.writeBuffer(this.gamutBoundaryBuffer, 0, boundaries);
+			this.gamutBoundariesUploaded = true;
+			this.finalRenderBindGroup = null;
+		}
 		if (this.finalRenderBindGroup == null || this.latestRenderedToCanasTexture !== tex) {
 			this.latestRenderedToCanasTexture = tex;
 			this.finalRenderBindGroup = this.gpuDevice.createBindGroup({
@@ -131,6 +151,7 @@ export class CanvasRenderer {
 					{ binding: 1, resource: { buffer: this.finalRenderUniformBuffer } },
 					{ binding: 3, resource: this.finalRenderSampler },
 					{ binding: 2, resource: tex.createView() }, // TODO: cache view
+					{ binding: 4, resource: { buffer: this.gamutBoundaryBuffer } },
 				],
 			});
 		}
@@ -141,6 +162,9 @@ export class CanvasRenderer {
 			opaqueOutput: this.opaqueOutput ? 1 : 0,
 			previewBackground: this.previewBackground === 'checker' ? 2 : this.previewBackground === 'black' ? 1 : 0,
 			backgroundPhase: this.previewBackground === 'checker' ? (performance.now() / 700) % 1 : 0,
+			previewGamutCompressionMode: gamutMode,
+			previewGamutCompressionAmount: Math.max(0, Math.min(1, this.previewGamutCompression.customAmount)),
+			previewGamutLookupSteps: [PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS],
 		});
 		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);
 
@@ -178,7 +202,7 @@ export class CanvasRenderer {
 		}
 		this.backgroundCopyPipeline ??= this.gpuDevice.createRenderPipeline({ layout: 'auto',
 			vertex: { module: this.gpuDevice.createShaderModule({ code: defaultVertexShaderCode }) },
-			fragment: { module: this.gpuDevice.createShaderModule({ code: colorSpaceShaderCode + '\n' + finalRenderShaderCode }),
+			fragment: { module: this.gpuDevice.createShaderModule({ code: finalRenderShader }),
 				entryPoint: 'copyLinearImage', targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }] },
 			primitive: { topology: 'triangle-list' },
 		});
@@ -297,6 +321,7 @@ export class CanvasRenderer {
 		this.imageAnalysis?.dispose();
 		this.clearBackgroundAnimation();
 		this.cpuFrameQueue?.destroy();
+		this.gamutBoundaryBuffer.destroy();
 		for (const context of this.cpuCanvasContexts) context.unconfigure();
 	}
 }

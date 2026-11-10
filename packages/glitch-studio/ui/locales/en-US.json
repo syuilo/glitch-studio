@@ -450,6 +450,11 @@
 		"OpenFailed": "Could not open {title}"
 	},
 	"_Preview": {
+		"GamutCompression": "Gamut Compression View",
+		"GamutCompressionHint": "Compress colors into sRGB for inspection. This view does not affect export.",
+		"GamutCompressionNormal": "RAW",
+		"GamutCompressionCustom": "Custom",
+		"GamutCompressionAmountHint": "Chroma reduction: 0% is unchanged, 50% halves chroma, and 100% is grayscale.",
 		"Exposure": "Preview Exposure",
 		"HighlightClipping": "Highlight Clipping",
 		"AnimatedBackground": "Animated Background",

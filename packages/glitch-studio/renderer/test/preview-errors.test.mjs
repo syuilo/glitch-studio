@@ -224,9 +224,9 @@ test('restores transform metadata on cache hits after changing the observation',
 	assert.deepEqual(errors, []);
 });
 
-// 【露出の変更では補正前のフレームキャッシュを維持し、再表示時だけ新しい値を使う】
+// 【露出・色域圧縮の変更では補正前のフレームキャッシュを維持し、再表示時だけ新しい値を使う】
 // 表示補正を作品の編集と扱うと、ドラッグのたびにキャッシュを全消去して再評価してしまう。
-test('reuses cached frames while applying updated preview exposure', async t => {
+test('reuses cached frames while applying updated preview exposure and gamut compression', async t => {
 	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
 	await renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewFps: 30 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
@@ -237,6 +237,14 @@ test('reuses cached frames while applying updated preview exposure', async t => 
 	assert.equal(evaluations.mock.callCount(), 1);
 	assert.equal(renderer.frameCache.get(0), cached);
 	assert.equal(renderer.canvasRenderer.previewExposure, -2);
+	for (const mode of ['displayP3', 'rec2020', 'adobeRgb', 'custom', 'none']) {
+		const compression = { mode, customAmount: 0.37 };
+		await renderer.updateDynamicOptions({ previewGamutCompression: compression });
+		await renderer.renderTimelineAt(0);
+		assert.equal(evaluations.mock.callCount(), 1);
+		assert.equal(renderer.frameCache.get(0), cached);
+		assert.deepEqual(renderer.canvasRenderer.previewGamutCompression, compression);
+	}
 	assert.deepEqual(errors, []);
 });
 
@@ -1441,18 +1449,21 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		const render = () => Manager === VisualModuleRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
 		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true, previewExposure: 2, previewBackground: 'black', analysisValueScale: 'ev', analysisTarget: 'vectorLength', analysisValueRange: { minimum: 4, maximum: -1 } });
 		await render();
-		assert.deepEqual(writes.at(-1), [1, 1, 0x40000000, 1, 0]);
+		assert.deepEqual(writes.at(-1).slice(0, 5), [1, 1, 0x40000000, 1, 0]);
 		assert.equal(renderer.canvasRenderer.analysisValueScale, 'ev');
 		assert.equal(renderer.canvasRenderer.analysisTarget, 'vectorLength');
 		assert.deepEqual(renderer.canvasRenderer.analysisValueRange, { minimum: 4, maximum: -1 });
 		assert.equal(configurations.mock.calls.at(-1).arguments[0].alphaMode, 'opaque');
 		await renderer.updateDynamicOptions({ highlightClipping: false });
 		await render();
-		assert.deepEqual(writes.at(-1), [0, 1, 0x40000000, 1, 0]);
+		assert.deepEqual(writes.at(-1).slice(0, 5), [0, 1, 0x40000000, 1, 0]);
 		assert.equal(configurations.mock.callCount(), 1);
 		await renderer.updateDynamicOptions({ opaqueOutput: false, previewExposure: 0, previewBackground: null, analysisValueScale: 'srgb', analysisTarget: 'rgb', analysisValueRange: { minimum: 0, maximum: 1 } });
 		await render();
-		assert.deepEqual(writes.at(-1), [0, 0, 0, 0, 0]);
+		assert.deepEqual(writes.at(-1).slice(0, 5), [0, 0, 0, 0, 0]);
+		await renderer.updateDynamicOptions({ previewGamutCompression: { mode: 'custom', customAmount: 0.25 } });
+		await render();
+		assert.deepEqual(writes.at(-1).slice(5, 7), [4, 0x3e800000]);
 		assert.equal(renderer.canvasRenderer.analysisValueScale, 'srgb');
 		assert.equal(renderer.canvasRenderer.analysisTarget, 'rgb');
 		assert.deepEqual(renderer.canvasRenderer.analysisValueRange, { minimum: 0, maximum: 1 });
