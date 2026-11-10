@@ -66,6 +66,8 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	highlightClipping: boolean;
 	/** 表示用の露出（EV）。作品内の画像・解析には適用せず、書き出しでは0を使う。 */
 	previewExposure: number;
+	/** sRGB環境の見え方を確認する表示専用の範囲制限。色域圧縮は一時的に迂回する。 */
+	previewSrgbProof: boolean;
 	/** プレビュー専用の色域圧縮。書き出しではnoneを使う。 */
 	previewGamutCompression: PreviewGamutCompressionSettings;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
@@ -165,6 +167,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		resolutionScale: 1,
 		highlightClipping: false,
 		previewExposure: 0,
+		previewSrgbProof: false,
 		previewGamutCompression: { mode: 'none', customAmount: 0.5 },
 		visualModuleLivePreviewTimeFactor: 1.0,
 		fpsLimit: null,
@@ -340,6 +343,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		}
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
+		this.canvasRenderer.previewSrgbProof = this.dynamicOptions.previewSrgbProof;
 		this.canvasRenderer.previewGamutCompression = this.dynamicOptions.previewGamutCompression;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 		this.canvasRenderer.previewBackground = this.dynamicOptions.previewBackground;

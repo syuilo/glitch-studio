@@ -9,6 +9,7 @@ for (const [runtime, environmentName] of [['chrome', 'CHROME_PATH'], ['electron'
 	// 【実プレビューのWorker出力は広色域を保持し、CPU表示とSDR書き出しはsRGBのままにする】
 	// Canvas APIだけの検証ではアプリのshader・出力設定の接続ミスを検出できない。
 	// 線形Canvasが未対応のElectronも含め、同じ転送済みOffscreenCanvasの経路を通す。
+	// sRGB確認での範囲制限と圧縮の復帰も、同じ実表示shaderを通して調べる。
 	test(`renders wide-gamut GPU previews and keeps CPU and export in sRGB in ${runtime}`, {
 		skip: process.env[environmentName] == null, timeout: 60000,
 	}, async t => {
@@ -16,7 +17,7 @@ for (const [runtime, environmentName] of [['chrome', 'CHROME_PATH'], ['electron'
 			'--runtime', runtime, '--executable', process.env[environmentName], '--preview'], { windowsHide: true });
 		const report = JSON.parse(stdout);
 		assert.equal(report.error, undefined);
-		assert.equal(report.checks.length, 5);
+		assert.equal(report.checks.length, 7);
 		t.diagnostic(`${report.runtime}; ${report.checks.join(', ')}`);
 	});
 

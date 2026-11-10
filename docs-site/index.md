@@ -33,8 +33,6 @@ features:
     details: "Glitch Studioは、原則<b>FPS-independent</b>な設計になっています。\nどのようなフレームレートでレンダリングしてもアニメーション速度が変わらず、一貫した映像が得られます。"
   - title: 決定論的
     details: "Glitch Studioは、原則<b>Deterministic</b>な設計になっています。\n同じ入力なら同じ出力が得られ、一貫した映像が得られます。"
-  - title: 高精度画像処理
-    details: "画像の内部処理を16bitに統一し、広範囲な色データを高精度に扱うことにより、劣化無しに画像加工が可能です。HDRも対応。"
   - title: 画像編集
     details: ノードベースのエディタで「Visual Module」を構築し、画像を作成・加工できます。
     link: /guide/visual-module
@@ -45,6 +43,8 @@ features:
     linkText: タイムラインについて
   - title: 豊富なエフェクト
     details: 標準で100種類以上の多彩なエフェクトを収録。エフェクトの自作も可能です。
+  - title: 高精度・高色域画像処理
+    details: "画像の内部処理を16bitに統一し、広範囲な色データを高精度に扱うことにより、劣化無しに画像加工が可能です。sRGBを超える高色域でのプレビューやHDRも対応。"
   - title: OpenEXR対応
     details: "OpenEXRでのエクスポートに対応していて、広い色域の画像データを劣化することなく保存・他ソフトへ受け渡し可能。"
   - title: VOICEVOX連携

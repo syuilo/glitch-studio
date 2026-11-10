@@ -8,6 +8,7 @@ struct Uniforms {
 	highlightClipping: u32,
 	opaqueOutput: u32,
 	previewExposure: f32,
+	previewSrgbProof: u32,
 	previewBackground: u32,
 	backgroundPhase: f32,
 	previewGamutCompressionMode: u32,
@@ -27,6 +28,15 @@ struct FragmentIn {
 fn applyPreviewExposure(color: vec4f) -> vec4f {
 	// 内部はlinear。露出は乗算済みRGBにもそのまま適用でき、alpha=0の発光も保持する。
 	return vec4f(color.rgb * exp2(uniforms.previewExposure), color.a);
+}
+
+// sRGB確認は、元の表示色がsRGB環境で制限される様子を確認するための表示変換。
+// 色域圧縮との重ねがけでは元画像と異なる見え方になるため、確認中は圧縮を迂回する。
+// Canvasの色管理は維持し、制限済みのsRGB色をモニターの色空間へ正しく変換させる。
+fn applyPreviewGamutView(linear: vec3f, clippingWarning: bool) -> vec3f {
+	if (uniforms.previewSrgbProof != 0u) { return clamp(linear, vec3f(0.0), vec3f(1.0)); }
+	if (!clippingWarning) { return compressPreviewGamut(linear); }
+	return linear;
 }
 
 // 表示背景の再描画用に、表示変換前の画像だけを所有者のテクスチャへ複製する。
@@ -60,14 +70,12 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 			background = colorSrgbToLinear(vec3f(srgb));
 		}
 		// 背景へのsource-overもlinearで行う。alpha=0の発光はここでもRGBを失わない。
-		var composed = exposed.rgb + background * (1.0 - exposed.a);
-		// 圧縮は合成後の表示色へ適用し、半透明やalpha=0の発光も同じ見え方で扱う。
-		// 警告は色域圧縮でもくすませず、作品の色と区別できる色を維持する。
-		if (!clippingWarning) { composed = compressPreviewGamut(composed); }
-		return encodeCanvasOutput(vec4f(composed, 1.0));
+		let composed = exposed.rgb + background * (1.0 - exposed.a);
+		// 色域の表示変換は合成後に適用し、半透明やalpha=0の発光も同じ見え方で扱う。
+		return encodeCanvasOutput(vec4f(applyPreviewGamutView(composed, clippingWarning), 1.0));
 	}
-	if (!clippingWarning && exposed.a > 0.0) {
-		exposed = vec4f(compressPreviewGamut(exposed.rgb / exposed.a) * exposed.a, exposed.a);
+	if (exposed.a > 0.0) {
+		exposed = vec4f(applyPreviewGamutView(exposed.rgb / exposed.a, clippingWarning) * exposed.a, exposed.a);
 	}
 	// 警告色は露出・色域圧縮で変えず、判定も補正前の画像に揃える。
 	return encodeCanvasOutput(exposed);

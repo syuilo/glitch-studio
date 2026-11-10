@@ -245,6 +245,14 @@ test('reuses cached frames while applying updated preview exposure and gamut com
 		assert.equal(renderer.frameCache.get(0), cached);
 		assert.deepEqual(renderer.canvasRenderer.previewGamutCompression, compression);
 	}
+	// sRGB確認も最終表示だけを切り替え、ノード評価やfloatキャッシュを作り直さない。
+	for (const enabled of [true, false]) {
+		await renderer.updateDynamicOptions({ previewSrgbProof: enabled });
+		await renderer.renderTimelineAt(0);
+		assert.equal(evaluations.mock.callCount(), 1);
+		assert.equal(renderer.frameCache.get(0), cached);
+		assert.equal(renderer.canvasRenderer.previewSrgbProof, enabled);
+	}
 	assert.deepEqual(errors, []);
 });
 
@@ -1449,21 +1457,30 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		const render = () => Manager === VisualModuleRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
 		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true, previewExposure: 2, previewBackground: 'black', analysisValueScale: 'ev', analysisTarget: 'vectorLength', analysisValueRange: { minimum: 4, maximum: -1 } });
 		await render();
-		assert.deepEqual(writes.at(-1).slice(0, 5), [1, 1, 0x40000000, 1, 0]);
+		assert.deepEqual(writes.at(-1).slice(0, 6), [1, 1, 0x40000000, 0, 1, 0]);
 		assert.equal(renderer.canvasRenderer.analysisValueScale, 'ev');
 		assert.equal(renderer.canvasRenderer.analysisTarget, 'vectorLength');
 		assert.deepEqual(renderer.canvasRenderer.analysisValueRange, { minimum: 4, maximum: -1 });
 		assert.equal(configurations.mock.calls.at(-1).arguments[0].alphaMode, 'opaque');
 		await renderer.updateDynamicOptions({ highlightClipping: false });
 		await render();
-		assert.deepEqual(writes.at(-1).slice(0, 5), [0, 1, 0x40000000, 1, 0]);
+		assert.deepEqual(writes.at(-1).slice(0, 6), [0, 1, 0x40000000, 0, 1, 0]);
 		assert.equal(configurations.mock.callCount(), 1);
 		await renderer.updateDynamicOptions({ opaqueOutput: false, previewExposure: 0, previewBackground: null, analysisValueScale: 'srgb', analysisTarget: 'rgb', analysisValueRange: { minimum: 0, maximum: 1 } });
 		await render();
-		assert.deepEqual(writes.at(-1).slice(0, 5), [0, 0, 0, 0, 0]);
+		assert.deepEqual(writes.at(-1).slice(0, 6), [0, 0, 0, 0, 0, 0]);
 		await renderer.updateDynamicOptions({ previewGamutCompression: { mode: 'custom', customAmount: 0.25 } });
 		await render();
-		assert.deepEqual(writes.at(-1).slice(5, 7), [4, 0x3e800000]);
+		assert.deepEqual(writes.at(-1).slice(6, 8), [4, 0x3e800000]);
+		// 確認中のuniformだけを切り替え、圧縮の設定値とCanvasの構成を保持する。
+		for (const enabled of [true, false]) {
+			await renderer.updateDynamicOptions({ previewSrgbProof: enabled });
+			await render();
+			assert.equal(writes.at(-1)[3], enabled ? 1 : 0);
+			assert.equal(writes.at(-1)[6], enabled ? 0 : 4);
+			assert.deepEqual(renderer.canvasRenderer.previewGamutCompression, { mode: 'custom', customAmount: 0.25 });
+			assert.equal(configurations.mock.callCount(), 2);
+		}
 		assert.equal(renderer.canvasRenderer.analysisValueScale, 'srgb');
 		assert.equal(renderer.canvasRenderer.analysisTarget, 'rgb');
 		assert.deepEqual(renderer.canvasRenderer.analysisValueRange, { minimum: 0, maximum: 1 });

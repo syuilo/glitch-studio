@@ -81,6 +81,39 @@ async function render(canvas: OffscreenCanvas) {
 		checkFloatCanvas(canvas, 'srgb', compressed, 1);
 		checks.push('GPU preview retains gamut compression');
 
+		// 【sRGB確認は元画像をsRGBへ制限し、圧縮の設定値を変えずに一時的に迂回する】
+		// 広色域Canvasのまま、P3の赤もsRGBの赤と同じ値になることをP3へのコピーでも確認する。
+		renderer.previewSrgbProof = true;
+		draw(REDS, 1, 'black');
+		checkFloatCanvas(canvas, 'srgb', [REDS[0], REDS[0]], 1);
+		checkFloatCanvas(canvas, 'display-p3', [P3_REDS[0], P3_REDS[0]], 1);
+		if (context.getConfiguration()!.format !== 'rgba16float') throw new Error('sRGB proof reconfigured the GPU output');
+		// 元の作業テクスチャを書き直さずに復帰し、表示だけが変わっていたことを確認する。
+		renderer.previewSrgbProof = false;
+		const restored = device.createCommandEncoder();
+		renderer.renderToCanvas(source, restored);
+		device.queue.submit([restored.finish()]);
+		checkFloatCanvas(canvas, 'srgb', compressed, 1);
+		checks.push('sRGB proof suspends gamut compression and restores the original view');
+
+		// 【sRGB確認は露出・linear背景合成後に適用し、半透明や中間調も正しく保持する】
+		// 原色だけをclampするテストでは、露出前の制限やalphaへの誤適用を検出できない。
+		renderer.previewSrgbProof = true;
+		const bounded = (colors: number[][]) => colors.map(rgb => rgb.map(value => Math.max(0, Math.min(1, value))));
+		draw(REDS, 1, 'black', -1);
+		checkFloatCanvas(canvas, 'srgb', bounded(REDS.map(rgb => rgb.map(value => value / 2))), 1);
+		draw(REDS, 0.5, null);
+		checkFloatCanvas(canvas, 'srgb', [REDS[0], REDS[0]], 0.5);
+		draw(REDS, 0.5, 'black');
+		checkFloatCanvas(canvas, 'srgb', bounded(REDS.map(rgb => rgb.map(value => value / 2))), 1);
+		draw([[0.18, 0.18, 0.18], [0.5, 0.5, 0.5]], 1, 'black');
+		checkFloatCanvas(canvas, 'srgb', [[0.18, 0.18, 0.18], [0.5, 0.5, 0.5]], 1);
+		renderer.previewSrgbProof = false;
+		renderer.previewGamutCompression = { mode: 'none', customAmount: 0.5 };
+		draw(REDS, 1, 'black');
+		checkFloatCanvas(canvas, 'srgb', REDS, 1);
+		checks.push('sRGB proof preserves exposure, background composition, alpha and gray');
+
 		// 【CPU表示とSDR書き出しは広色域プレビューの設定を引き継がない】
 		// 同じ作業画像が8bit sRGBの赤へ制限されることを、CPU読み戻しと実Canvasの両方で確認する。
 		for (const mode of ['cpu', 'export'] as const) {
@@ -117,8 +150,7 @@ async function render(canvas: OffscreenCanvas) {
 // UIからWorkerへ転送されたOffscreenCanvasを使い、実際のプレビューと同じ所有関係で検証する。
 if (typeof document === 'undefined') {
 	self.onmessage = async (event: MessageEvent<OffscreenCanvas>) => {
-		try { self.postMessage({ checks: await render(event.data) }); }
-		catch (error) { self.postMessage({ error: String(error) }); }
+		try { self.postMessage({ checks: await render(event.data) }); } catch (error) { self.postMessage({ error: String(error) }); }
 	};
 }
 

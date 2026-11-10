@@ -18,8 +18,8 @@ const bundle = await build({
 		loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'preview-context', setup(build) {
-		build.onResolve({ filter: /^@\/(app|preferences|ui)\.ts$|\.vue$/ }, args => /GsPreview(Rulers|GamutCompression)\.vue$/.test(args.path) ? null : { path: args.path, namespace: 'preview-context' });
-		build.onLoad({ filter: /GsPreview(Rulers|GamutCompression)\.vue$/ }, async ({ path }) => {
+		build.onResolve({ filter: /^@\/(app|preferences|ui)\.ts$|\.vue$/ }, args => /GsPreview(Rulers|ColorView)\.vue$/.test(args.path) ? null : { path: args.path, namespace: 'preview-context' });
+		build.onLoad({ filter: /GsPreview(Rulers|ColorView)\.vue$/ }, async ({ path }) => {
 			const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
 			const script = compileScript(descriptor, { id: 'preview-rulers', inlineTemplate: true, genDefaultAs: 'component' }).content;
 			return { contents: `${script}\ncomponent.__cssModules = { $style: {} }; export default component;`, loader: 'ts' };
@@ -98,7 +98,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		visualModuleRendererManagerController: { outputResolution: ref(null) },
 		timelineRendererManagerController: { isSeeking: ref(false) },
 		previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
-		highlightClipping: ref(false), previewExposure: ref(0), resolutionFactor: ref(resolutionFactor), visualModuleLivePreviewTimeFactor: ref(1),
+		highlightClipping: ref(false), previewExposure: ref(0), previewSrgbProof: ref(false), resolutionFactor: ref(resolutionFactor), visualModuleLivePreviewTimeFactor: ref(1),
 		previewGamutCompression: shallowRef({ mode: 'none', customAmount: 0.5 }),
 		activeScene: ref({ id: 'scene', name: 'Scene', resolution: { mode: 'project' } }), activeSceneId: ref('scene'), timelinePreviewFpsFactor: ref(1),
 		renderEngine: { isSuspended: ref(false), runtimeDiagnostic: ref(null), errorMessage: ref(null) },
@@ -351,6 +351,51 @@ test('selects all gamut views and preserves the independent custom amount', asyn
 	f.find('gamut-amount').props.onInput({ target: { valueAsNumber: 0, value: '0' } });
 	await nextTick();
 	assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], false);
+});
+
+// 【sRGB確認中は色域圧縮を一時停止し、解除すると保存していたモードと量へ戻る】
+// 設定自体をnoneへ置き換えると復帰できず、操作可能なままだと確認している表示が曖昧になる。
+// 同じメニューから確認を解除でき、開いたままでも圧縮項目の無効・選択状態が追従する。
+// 別ウィンドウと共有する状態の変更や、既に開いていたメニューからの操作にも対応する。
+test('integrates sRGB proof in the color view menu and restores suspended compression', async t => {
+	const f = await fixture(t);
+	f.appContext.previewGamutCompression.value = { mode: 'custom', customAmount: 0.37 };
+	await nextTick();
+	assert.equal(f.find('srgb-proof'), undefined);
+	assert.equal(f.find('gamut-mode').props['data-test-preview-srgb-proof-active'], false);
+	await f.click('gamut-mode');
+	const proofSwitch = f.menuItems.find(item => item.type === 'switch');
+	const compressionItems = f.menuItems.filter(item => item.id != null);
+	assert.equal(proofSwitch.ref, f.appContext.previewSrgbProof);
+	assert.ok(f.menuItems.indexOf(proofSwitch) < f.menuItems.findIndex(item => item.type === 'divider'));
+	assert.equal(compressionItems.length, 5);
+	assert.ok(compressionItems.every(item => item.disabled.value === false));
+	const staleInput = f.find('gamut-amount');
+	const staleAction = f.menuItems.find(item => item.id === 'preview-gamut-rec2020').action;
+	proofSwitch.ref.value = true;
+	await nextTick();
+	assert.equal(f.appContext.previewSrgbProof.value, true);
+	assert.equal(f.find('gamut-mode').props['data-test-preview-srgb-proof-active'], true);
+	assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], true);
+	assert.ok(elementText(f.find('gamut-mode')).includes(i18n.ts._Preview.SrgbProof));
+	assert.equal(f.find('gamut-mode').props.disabled, undefined);
+	assert.equal(f.find('gamut-amount'), undefined);
+	assert.ok(compressionItems.every(item => item.disabled.value === true && item.active.value === false));
+	staleAction();
+	staleInput.props.onInput({ target: { valueAsNumber: 90, value: '90' } });
+	assert.deepEqual(f.appContext.previewGamutCompression.value, { mode: 'custom', customAmount: 0.37 });
+	// 確認中も同じメニューを開けるため、解除する入口を失わない。
+	await f.click('gamut-mode');
+	assert.equal(f.menuItems.find(item => item.type === 'switch').ref.value, true);
+	// 他のプレビューウィンドウからの切替も、同じAppContextの値でUIへ反映される。
+	f.appContext.previewSrgbProof.value = false;
+	await nextTick();
+	assert.equal(f.find('gamut-mode').props['data-test-preview-srgb-proof-active'], false);
+	assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], true);
+	assert.ok(elementText(f.find('gamut-mode')).includes(i18n.ts._Preview.GamutCompressionCustom));
+	assert.equal(f.find('gamut-amount').props.value, 37);
+	assert.ok(compressionItems.every(item => item.disabled.value === false));
+	assert.equal(compressionItems.find(item => item.id === 'preview-gamut-custom').active.value, true);
 });
 
 // 【カスタム量は0〜100%へ収め、未完成の入力では最後に適用した値を維持する】

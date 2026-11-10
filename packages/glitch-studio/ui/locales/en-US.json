@@ -450,6 +450,8 @@
 		"OpenFailed": "Could not open {title}"
 	},
 	"_Preview": {
+		"SrgbProof": "sRGB Proof",
+		"ColorView": "Color View",
 		"GamutCompression": "Gamut Compression View",
 		"GamutCompressionHint": "Compress colors into sRGB for inspection. This view does not affect export.",
 		"GamutCompressionNormal": "RAW",

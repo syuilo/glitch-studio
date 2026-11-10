@@ -75,6 +75,8 @@ export class AppContext {
 	public highlightClipping = ref(false);
 	/** 作品・保存データとは独立した、両プレビュー共通の表示用露出（EV）。 */
 	public previewExposure = ref(0);
+	/** 両プレビュー共通のsRGB確認。作品・保存データを変更せず、色域圧縮の設定値も保持する。 */
+	public previewSrgbProof = ref(false);
 	/** カスタム量はモード切替でも保持する。変更はオブジェクトを置き換えて両Workerへ同期する。 */
 	public previewGamutCompression = shallowRef<PreviewGamutCompressionSettings>({ mode: 'none', customAmount: 0.5 });
 	public analysisValueScale = ref<ImageValueScale>('srgb');
@@ -176,7 +178,7 @@ export class AppContext {
 				const snapshot = deepClone({
 					assets: getRendererAssets(state.assets.value), players: state.players.value, customShaderEffects: state.customShaderEffects.value,
 					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
-					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value, previewGamutCompression: { ...this.previewGamutCompression.value }, previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value },
+					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value, previewSrgbProof: this.previewSrgbProof.value, previewGamutCompression: { ...this.previewGamutCompression.value }, previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value },
 					visualModuleOptions: { previewActive: previewDisplayMode === 'visualModuleLivePreview', fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
 					timelineOptions: { previewActive: previewDisplayMode === 'timeline', sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
 						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value },
@@ -347,6 +349,10 @@ export class AppContext {
 			await this.updatePreviewOptions({ previewExposure: value });
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
+		watch(this.previewSrgbProof, async value => {
+			await this.updatePreviewOptions({ previewSrgbProof: value });
+			this.previewPlayback.refresh();
+		}, { flush: 'sync' });
 		watch(this.previewGamutCompression, async value => {
 			await this.updatePreviewOptions({ previewGamutCompression: { ...value } });
 			this.previewPlayback.refresh();
@@ -429,7 +435,7 @@ export class AppContext {
 		else this.waveformDisplayUpdate.flush();
 	}
 
-	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewExposure' | 'previewGamutCompression' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget' | 'analysisValueRange' | 'analysisPaused' | 'analysisWaveformCanvasSizes' | 'analysisWaveformViewports'>>) {
+	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewExposure' | 'previewSrgbProof' | 'previewGamutCompression' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget' | 'analysisValueRange' | 'analysisPaused' | 'analysisWaveformCanvasSizes' | 'analysisWaveformViewports'>>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),

@@ -44,6 +44,7 @@ export class CanvasRenderer {
 	private highResolutionAnalysisGeneration = 0;
 	public highlightClipping = false;
 	public previewExposure = 0;
+	public previewSrgbProof = false;
 	public previewGamutCompression: PreviewGamutCompressionSettings = { mode: 'none', customAmount: 0.5 };
 	public opaqueOutput = false;
 	private currentPreviewBackground: 'black' | 'checker' | null = null;
@@ -141,7 +142,8 @@ export class CanvasRenderer {
 	}
 
 	private renderFinalImage(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
-		const gamutMode = getPreviewGamutCompressionModeIndex(this.previewGamutCompression.mode);
+		// sRGB確認中は圧縮設定を保持したまま適用だけ止め、未使用のプリセットLUTも生成しない。
+		const gamutMode = this.previewSrgbProof ? 0 : getPreviewGamutCompressionModeIndex(this.previewGamutCompression.mode);
 		if (gamutMode > 0 && gamutMode < 4 && !this.gamutBoundariesUploaded) {
 			const boundaries = getPreviewGamutBoundaryLookup();
 			this.gamutBoundaryBuffer.destroy();
@@ -166,6 +168,7 @@ export class CanvasRenderer {
 		this.finalRenderUniformValues.set({
 			highlightClipping: this.highlightClipping ? 1 : 0,
 			previewExposure: this.previewExposure,
+			previewSrgbProof: this.previewSrgbProof ? 1 : 0,
 			opaqueOutput: this.opaqueOutput ? 1 : 0,
 			previewBackground: this.previewBackground === 'checker' ? 2 : this.previewBackground === 'black' ? 1 : 0,
 			backgroundPhase: this.previewBackground === 'checker' ? (performance.now() / 700) % 1 : 0,

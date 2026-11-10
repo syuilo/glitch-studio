@@ -63,11 +63,15 @@ Apply LUTは入力・出力色空間をそれぞれLinear sRGB／sRGBから指�
 
 ## 表示・SDR書き出し・解析
 
-`CanvasRenderer`はlinear RGB上で表示用の露出・背景合成・色域圧縮を行い、`canvas-output.wgsl`が最終段でsRGB encodeを担当する。Canvasの形式・色空間は`CanvasOutputSettings`として、Canvasのconfigureと最終描画pipelineへ同じ値を渡す。プレビューのfactoryはGPU表示なら`rgba16float`の拡張sRGB、CPU表示なら8bit sRGBを選ぶ。SDR書き出しは独立した設定で8bit sRGBを使い、8bit出力だけshader内でsRGBの範囲へ制限する。
+`CanvasRenderer`はlinear RGB上で表示用の露出・背景合成・色域圧縮を行い、`canvas-output.wgsl`が最終段でsRGB encodeを担当する。Canvasの形式・色空間は`CanvasOutputSettings`として、Canvasのconfigureと最終描画pipelineへ同じ値を渡す。プレビューのfactoryはGPU表示なら`rgba16float`の拡張sRGB、CPU表示なら8bit sRGBを選ぶ。SDR書き出しは独立した設定で8bit sRGBを使い、8bit出力は常にshader内でsRGBの範囲へ制限する。
 
-GPU表示では負値・1超のRGBをCanvasまで保持し、ブラウザーがOSの色管理を通じてモニターの色空間へ変換する。原色の指定がsRGBでもfloatの拡張範囲はsRGB色域に限定されず、Display P3を上限にする必要もない。ChromeとElectronで共通の経路にするため、線形Canvasのenumには依存せず、符号対称のsRGB伝達関数を使う。画面の色域を推定して設定を切り替えないため、別ウィンドウやモニター間の移動でも同じ出力規約を使う。
+GPUの通常表示では負値・1超のRGBをCanvasまで保持し、ブラウザーがOSの色管理を通じてモニターの色空間へ変換する。原色の指定がsRGBでもfloatの拡張範囲はsRGB色域に限定されず、Display P3を上限にする必要もない。ChromeとElectronで共通の経路にするため、線形Canvasのenumには依存せず、符号対称のsRGB伝達関数を使う。画面の色域を推定して設定を切り替えないため、別ウィンドウやモニター間の移動でも同じ出力規約を使う。
 
 `toneMapping: { mode: 'standard' }`を明示し、モニターのSDR範囲へ表示する。これはsRGB原色での事前clampとは異なり、モニター色空間へ変換した後の範囲制限である（[WebGPUのCanvas tone mapping](https://gpuweb.github.io/gpuweb/#enumdef-gpucanvastonemappingmode)を参照）。広色域表示とHDR輝度の表示は分け、HDR輝度拡張は有効にしない。CPU表示・SDR書き出し・解析Canvasは引き続き8bit sRGB。
+
+フッターの「色の表示」メニュー上部にある「sRGB確認」は、広色域モニター上でもsRGB色域に制限された見え方を確認する表示モード。既定はオフで、オンにすると露出・linear背景合成後の未乗算linear sRGBを各成分0〜1へ制限してからencodeする。Canvasの形式や色管理は変更しないため、sRGBの色をモニター上へ正しく表示したまま、色域外の差が失われる様子を確認できる。8bit量子化や、個々のモニターの白色点・黒レベル・周囲光の再現は行わない。
+
+確認中はボタンにも「sRGB確認」と表示し、区切り線の下にある色域圧縮の項目を一時的に無効にする。カスタム量の入力は非表示とし、圧縮のモード・量は保持する。同じメニューで確認をオフにすると元の圧縮設定へ戻る。`AppContext.previewSrgbProof`は両プレビューと別ウィンドウで共有する一時状態で、プロジェクト・Undo履歴・環境設定へ保存しない。切替は最終表示だけに作用し、作業画像・解析・フレームキャッシュ・書き出しを変更せず、Canvasやpipelineの再生成も行わない。CPU表示でも圧縮の一時停止は同じ動作とし、出力は従来どおり8bit sRGB。
 
 露出はlinear RGBへ`2^EV`を乗算する。プレビューの黒背景・チェック背景、不透明出力の黒背景とのsource-overをlinearで済ませ、その後にencode・SDRの範囲制限を行う。チェック背景のアニメーションは表示用に複製した画像を使い、停止中もノード・履歴・解析を再評価しない。
 
