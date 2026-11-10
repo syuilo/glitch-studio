@@ -163,7 +163,8 @@ externalValues[external.id] = { inputSource: 'node', nodeId: null, outputPort: n
 externalValues[external.id] = { inputSource: 'visualModulePublicParameterReference', parameterId: external.id };
 `;
 	const options = {
-		strict: true, noEmit: true, skipLibCheck: true, types: ['@webgpu/types', '@types/web'],
+		// 実際のUIと同じraw importの型宣言を読み込み、参照先のWGSLを未解決にしない。
+		strict: true, noEmit: true, skipLibCheck: true, types: ['@webgpu/types', '@types/web', 'vite/client'],
 		typeRoots: [fileURLToPath(new URL('../../renderer/node_modules', import.meta.url))],
 		target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext,
 		moduleResolution: ts.ModuleResolutionKind.Bundler, allowImportingTsExtensions: true,

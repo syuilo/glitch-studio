@@ -41,7 +41,7 @@ test('keeps the signed zero reference when thinning either axis direction', () =
 
 // 【任意範囲と反転範囲でも、端点と0の目盛りがGPUの正規化位置へ一致する】
 // 固定プリセットの表を参照するだけではCustomに追従せず、Min > Maxではラベルの順序も逆になる。
-// 小数の丸め誤差をラベルへ出さず、EVも独立した範囲の単位で表示することを確認する。
+// ラベルは有効数字2桁で表示しつつ、集計位置に使う値は丸めない。EVも独立した範囲の単位で表示する。
 test('positions readable custom ticks for all scales and reversed ranges', () => {
 	for (const valueScale of ['srgb', 'linear', 'ev']) {
 		for (const [minimum, maximum] of [[-1, 4], [-0.5, 0.5], [-0.1, 0.9], [0.9, -0.1], [-10, 10]]) {
@@ -54,7 +54,9 @@ test('positions readable custom ticks for all scales and reversed ranges', () =>
 			assert.equal(ticks.find(tick => tick.value === 0).position, (0 - minimum) / (maximum - minimum));
 		}
 	}
-	assert.deepEqual(createImageValueAxisTicks('linear', { minimum: 0.001, maximum: 0.002 }).map(tick => tick.label), ['0.001', '0.00125', '0.0015', '0.00175', '0.002']);
+	const smallRangeTicks = createImageValueAxisTicks('linear', { minimum: 0.001, maximum: 0.002 });
+	assert.deepEqual(smallRangeTicks.map(tick => tick.value), [0.001, 0.00125, 0.0015, 0.00175, 0.002]);
+	assert.deepEqual(smallRangeTicks.map(tick => tick.label), ['0.001', '0.0013', '0.0015', '0.0018', '0.002']);
 	assert.equal(createImageValueAxisTicks('ev', { minimum: -10, maximum: 10 }).at(-1).label, '+10');
 });
 
@@ -67,13 +69,15 @@ test('returns no ticks for collapsed ranges including float32 rounding', () => {
 
 // 【GPUの元範囲から導出したズーム範囲は、再度float32へ丸めずに目盛りを作る】
 // 描画では正規化した値の窓を使うため、表示単位の両端がfloat32で同じでも拡大領域は有効である。
-// 元のCustom範囲に対する空表示の規約は引き続き守る。
+// 表示用ラベルが有効数字2桁で同じになっても、値・位置は保持し、元のCustom範囲に対する空表示の規約も守る。
 test('retains derived viewport ticks within one float32 step', () => {
 	const range = { minimum: 1.00000004, maximum: 1.00000005 };
 	assert.deepEqual(createImageValueAxisTicks('linear', range), []);
 	const ticks = createImageValueAxisTicks('linear', range, 'float64');
-	assert.equal(ticks[0].label, '1.00000004');
-	assert.equal(ticks.at(-1).label, '1.00000005');
+	assert.equal(ticks[0].value, range.minimum);
+	assert.equal(ticks.at(-1).value, range.maximum);
+	assert.equal(ticks[0].label, '1');
+	assert.equal(ticks.at(-1).label, '1');
 	assert.equal(ticks[0].position, 0);
 	assert.equal(ticks.at(-1).position, 1);
 });

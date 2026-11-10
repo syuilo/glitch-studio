@@ -206,10 +206,12 @@ test('rejects invalid and overflowing OKLCH edits without changing colors', asyn
 test('switches map modes without emitting edits or clipping extended colors', async t => {
 	const original = [4, -0.25, 0.5, 0];
 	const { state, changes, edit, findElement, switchMode } = await fixture(t, original);
-	assert.equal(findElement('data-test-color-picker-mode', 'hsv').props['aria-pressed'], true);
+	const hsvMapStyle = { ...findElement('data-test-color-picker-map').props.style };
+	assert.match(hsvMapStyle.backgroundColor, /^hsl\(/);
 	await switchMode('oklch');
-	assert.equal(findElement('data-test-color-picker-mode', 'oklch').props['aria-pressed'], true);
+	assert.deepEqual(findElement('data-test-color-picker-map').props.style, {});
 	await switchMode('hsv');
+	assert.deepEqual(findElement('data-test-color-picker-map').props.style, hsvMapStyle);
 	assert.deepEqual(Array.from(state.color), original);
 	assert.deepEqual(changes, []);
 	await edit('OKLCH-0', '150');

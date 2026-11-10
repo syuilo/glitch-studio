@@ -105,17 +105,16 @@ for (const direction of ['horizontal', 'vertical']) {
 		f.wheel();
 		await nextTick();
 		assert.deepEqual(f.viewport, { x: 0.125, y: 0.375, width: 0.5, height: 0.5 });
-		assert.ok(f.text(f.find('data-test-waveform-zoom')).includes('200%'));
 		assert.ok(f.text(f.find('data-test-waveform-x-axis')).includes(direction === 'horizontal' ? '100%' : '1'));
 		f.apply();
 		await nextTick();
 		const xAxis = f.text(f.find('data-test-waveform-x-axis'));
 		const yAxis = f.text(f.find('data-test-waveform-y-axis'));
-		assert.ok(xAxis.includes(direction === 'horizontal' ? '12.5%' : '0.125'));
-		assert.ok(xAxis.includes(direction === 'horizontal' ? '62.5%' : '0.625'));
-		assert.ok(yAxis.includes(direction === 'horizontal' ? '0.625' : '37.5%'));
-		assert.ok(yAxis.includes(direction === 'horizontal' ? '0.125' : '87.5%'));
-		f.find('data-test-waveform-reset-view').props.onClick();
+		assert.ok(xAxis.includes(direction === 'horizontal' ? '13%' : '0.13'));
+		assert.ok(xAxis.includes(direction === 'horizontal' ? '63%' : '0.63'));
+		assert.ok(yAxis.includes(direction === 'horizontal' ? '0.63' : '38%'));
+		assert.ok(yAxis.includes(direction === 'horizontal' ? '0.13' : '88%'));
+		f.plot.props.onKeydown({ key: 'Home', preventDefault() {} });
 		await nextTick();
 		assert.deepEqual(f.viewport, { x: 0, y: 0, width: 1, height: 1 });
 		assert.equal(f.flushes, 1);
@@ -180,14 +179,14 @@ test('supports keyboard navigation and ignores navigation while suspended', t =>
 
 // 【ズームから導出した細い値域にも目盛りを表示し、元の範囲が無効な場合だけ空にする】
 // 元のMin/MaxはGPUでfloat32として扱うが、表示窓は正規化した別の範囲なので二重に丸めない。
+// 有効数字2桁のラベルが同じ値になっても両端の目盛りを残す。
 test('keeps sub-float32 viewport labels while respecting an invalid base range', async t => {
 	const f = fixture(t);
 	f.state.displayedImageAnalysisSettings.value = { ...f.state.displayedImageAnalysisSettings.value, valueRange: { minimum: 1, maximum: 1.0000001 } };
 	f.state.setWaveformViewport('horizontal', { x: 0.4, y: 0.5, width: 0.1, height: 0.1 });
 	f.apply();
 	await nextTick();
-	assert.ok(f.text(f.find('data-test-waveform-y-axis')).includes('1.00000004'));
-	assert.ok(f.text(f.find('data-test-waveform-y-axis')).includes('1.00000005'));
+	assert.match(f.text(f.find('data-test-waveform-y-axis')), /^11+$/);
 	f.state.displayedImageAnalysisSettings.value = { ...f.state.displayedImageAnalysisSettings.value, valueRange: { minimum: 1, maximum: 1 + Number.EPSILON } };
 	await nextTick();
 	assert.equal(f.text(f.find('data-test-waveform-y-axis')), '');
