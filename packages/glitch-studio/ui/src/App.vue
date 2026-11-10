@@ -489,7 +489,6 @@ onMounted(async () => {
 	height: 100%;
 	width: 100%;
 	overflow: clip;
-	gap: 4px;
 }
 
 .headerLeft {
@@ -553,7 +552,10 @@ onMounted(async () => {
 	display: flex;
 	flex: 2;
 	min-height: 0;
-	padding: 0 8px;
+	margin: 0 8px;
+	padding: 4px;
+	background: var(--THEME-globalBg);
+	border-radius: 8px;
 }
 
 .footer {
@@ -563,7 +565,6 @@ onMounted(async () => {
 	line-height: 28px;
 	font-size: 95%;
 	padding: 0 12px;
-	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
 }
 
 .footerLeft {
