@@ -1,15 +1,16 @@
 <template>
 <div :class="$style.root">
 	<button
-		v-tooltip="i18n.ts._Preview.GamutCompression"
+		v-tooltip="i18n.ts._Preview.ColorView"
 		:class="[$style.mode, active ? '_buttonPrimaryFg' : '_button']"
 		:data-test-preview-gamut-active="active"
+		:data-test-preview-srgb-proof-active="previewSrgbProof"
 		data-test-preview-gamut-mode
 		@click="showMenu"
 	>
 		<i class="ti ti-color-filter"></i> {{ modeLabel }} <i class="ti ti-chevron-down"></i>
 	</button>
-	<div v-if="previewGamutCompression.mode === 'custom'" :class="$style.amount">
+	<div v-if="!previewSrgbProof && previewGamutCompression.mode === 'custom'" :class="$style.amount">
 		<input
 			v-tooltip="i18n.ts._Preview.GamutCompressionAmountHint"
 			:class="$style.input"
@@ -35,7 +36,7 @@ import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
-const { previewGamutCompression } = appContext;
+const { previewGamutCompression, previewSrgbProof } = appContext;
 const modes: PreviewGamutCompressionMode[] = ['none', 'displayP3', 'rec2020', 'adobeRgb', 'custom'];
 const labels = computed<Record<PreviewGamutCompressionMode, string>>(() => ({
 	none: i18n.ts._Preview.GamutCompressionNormal,
@@ -44,19 +45,24 @@ const labels = computed<Record<PreviewGamutCompressionMode, string>>(() => ({
 	adobeRgb: 'Adobe RGB',
 	custom: i18n.ts._Preview.GamutCompressionCustom,
 }));
-const modeLabel = computed(() => labels.value[previewGamutCompression.value.mode]);
+const modeLabel = computed(() => previewSrgbProof.value ? i18n.ts._Preview.SrgbProof : labels.value[previewGamutCompression.value.mode]);
 const customPercentage = computed(() => Math.round(previewGamutCompression.value.customAmount * 100));
-const active = computed(() => previewGamutCompression.value.mode !== 'none'
-	&& (previewGamutCompression.value.mode !== 'custom' || previewGamutCompression.value.customAmount > 0));
+const active = computed(() => previewSrgbProof.value || (previewGamutCompression.value.mode !== 'none'
+	&& (previewGamutCompression.value.mode !== 'custom' || previewGamutCompression.value.customAmount > 0)));
 
 function showMenu(event: MouseEvent) {
 	ui.popupMenu([
+		{ type: 'switch', text: i18n.ts._Preview.SrgbProof, ref: previewSrgbProof },
+		{ type: 'divider' },
 		{ type: 'label', text: i18n.ts._Preview.GamutCompression },
 		...modes.map(mode => ({
 			id: `preview-gamut-${mode}`,
 			text: labels.value[mode],
-			active: previewGamutCompression.value.mode === mode,
+			// メニューを開いたまま確認を切り替えても、無効状態と選択表示が直ちに追従する。
+			disabled: previewSrgbProof,
+			active: computed(() => !previewSrgbProof.value && previewGamutCompression.value.mode === mode),
 			action: () => {
+				if (previewSrgbProof.value) return;
 				// プリセットは色相・明度ごとに倍率が異なるため、カスタム量へ換算しない。
 				previewGamutCompression.value = { ...previewGamutCompression.value, mode };
 			},
@@ -65,6 +71,7 @@ function showMenu(event: MouseEvent) {
 }
 
 function onAmountInput(event: Event) {
+	if (previewSrgbProof.value) return;
 	const input = event.target as HTMLInputElement;
 	if (!Number.isFinite(input.valueAsNumber)) return;
 	const percentage = Math.round(Math.max(0, Math.min(100, input.valueAsNumber)));

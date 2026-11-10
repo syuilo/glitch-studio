@@ -26,7 +26,9 @@ import { PlayerVideoTextures } from './player-video-textures.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
-import { createPreviewCanvasContext, createPreviewCanvasConfigurator } from './preview-canvas-context.ts';
+import { createPreviewCanvasContext } from './preview-canvas-context.ts';
+import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings, createSrgbCanvasOutputSettings } from './canvas-output.ts';
+import type { CanvasOutputSettings } from './canvas-output.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { FrameScheduler, VisualModuleLivePreviewFrameTiming } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -64,6 +66,8 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	highlightClipping: boolean;
 	/** 表示用の露出（EV）。作品内の画像・解析には適用せず、書き出しでは0を使う。 */
 	previewExposure: number;
+	/** sRGB環境の見え方を確認する表示専用の範囲制限。色域圧縮は一時的に迂回する。 */
+	previewSrgbProof: boolean;
 	/** プレビュー専用の色域圧縮。書き出しではnoneを使う。 */
 	previewGamutCompression: PreviewGamutCompressionSettings;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
@@ -92,6 +96,8 @@ export type VisualModuleRendererManagerResources = { customShaderEffects?: reado
 export type VisualModuleRendererManagerCoreConfig = {
 	gpuDevice: GPUDevice;
 	gpuContext: PreviewCanvasContext;
+	/** 出力側が指定するCanvas設定。省略時もプレビュー設定から独立した8bit sRGB。 */
+	canvasOutput?: CanvasOutputSettings;
 	frameScheduler?: FrameScheduler;
 	histogramGpuContext?: PreviewCanvasContext;
 	waveformHorizontalGpuContext?: PreviewCanvasContext;
@@ -118,7 +124,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private pendingVideoFrames = new Map<Player['id'], VideoFrame | null>();
 	private previewRenderGeneration = 0;
 	private gpuContext: PreviewCanvasContext;
-	private configureCanvas: ReturnType<typeof createPreviewCanvasConfigurator>;
+	private configureCanvas: ReturnType<typeof createCanvasOutputConfigurator>;
 	private skippedFrameTimeDelta = 0;
 	private skippedFrameRealTimeDelta = 0;
 	private gpuDevice: GPUDevice;
@@ -161,6 +167,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		resolutionScale: 1,
 		highlightClipping: false,
 		previewExposure: 0,
+		previewSrgbProof: false,
 		previewGamutCompression: { mode: 'none', customAmount: 0.5 },
 		visualModuleLivePreviewTimeFactor: 1.0,
 		fpsLimit: null,
@@ -216,7 +223,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		const gpuMemory = this.staticOptions.enableStats ? new GpuMemoryTracker(this.gpuDevice) : null;
 		this.timingHelper = this.staticOptions.enableStats ? new TimingHelper(this.gpuDevice) : null;
 
-		this.configureCanvas = createPreviewCanvasConfigurator(this.gpuDevice, this.gpuContext);
+		const canvasOutput = coreConfig.canvasOutput ?? createSrgbCanvasOutputSettings();
+		this.configureCanvas = createCanvasOutputConfigurator(this.gpuDevice, this.gpuContext, canvasOutput);
 		this.configureCanvas('premultiplied');
 
 		this.fallbackTexture = this.gpuDevice.createTexture({
@@ -228,6 +236,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
+			canvasOutput,
 			enableWaveformAndHistogram: this.staticOptions.enableWaveformAndHistogram,
 			histogramGpuContext: coreConfig.histogramGpuContext,
 			waveformHorizontalGpuContext: coreConfig.waveformHorizontalGpuContext,
@@ -334,6 +343,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		}
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
+		this.canvasRenderer.previewSrgbProof = this.dynamicOptions.previewSrgbProof;
 		this.canvasRenderer.previewGamutCompression = this.dynamicOptions.previewGamutCompression;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 		this.canvasRenderer.previewBackground = this.dynamicOptions.previewBackground;
@@ -678,6 +688,7 @@ export async function createManager(options: {
 		coreConfig = {
 			gpuDevice: device,
 			gpuContext: createContext(options.canvas, 'canvas'),
+			canvasOutput: displayMode === 'gpu' ? createGpuPreviewCanvasOutputSettings() : createSrgbCanvasOutputSettings(),
 			histogramGpuContext: createContext(options.histogramCanvas, 'histogramCanvas'),
 			waveformHorizontalGpuContext: createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas'),
 			waveformVerticalGpuContext: createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas'),

@@ -1,5 +1,6 @@
 import { CanvasRenderer } from '../../src/canvas-renderer.ts';
-import { CpuPreviewCanvasContext, createPreviewCanvasConfigurator } from '../../src/preview-canvas-context.ts';
+import { CpuPreviewCanvasContext } from '../../src/preview-canvas-context.ts';
+import { createCanvasOutputConfigurator, createSrgbCanvasOutputSettings } from '../../src/canvas-output.ts';
 import { AssetTextures } from '../../src/asset-textures.ts';
 import type { PreviewCanvasContext } from '../../src/preview-canvas-context.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
@@ -227,8 +228,10 @@ export async function runWideGamutAssetImport() {
 async function checkCanvasAlphaPresentation(device: GPUDevice): Promise<string[]> {
 	const canvas = new OffscreenCanvas(1, 1);
 	const context = canvas.getContext('webgpu')!;
-	const configure = createPreviewCanvasConfigurator(device, context);
-	const renderer = new CanvasRenderer({ gpuDevice: device, gpuContext: context, enableWaveformAndHistogram: false });
+	// 推奨形式と異なる出力先を指定し、Canvasとpipelineが同じ注入設定を使うことも実GPUで確認する。
+	const canvasOutput = createSrgbCanvasOutputSettings(navigator.gpu.getPreferredCanvasFormat() === 'rgba8unorm' ? 'bgra8unorm' : 'rgba8unorm');
+	const configure = createCanvasOutputConfigurator(device, context, canvasOutput);
+	const renderer = new CanvasRenderer({ gpuDevice: device, gpuContext: context, canvasOutput, enableWaveformAndHistogram: false });
 	const source = device.createTexture({ size: [1, 1], format: 'rgba16float', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
 	const snapshot = new OffscreenCanvas(1, 1).getContext('2d')!;
 	const read = () => {

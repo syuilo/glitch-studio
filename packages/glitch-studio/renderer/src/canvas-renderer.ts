@@ -5,6 +5,9 @@ import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import finalRenderShaderCode from './render.wgsl?raw';
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
+import canvasOutputShaderCode from './canvas-output.wgsl?raw';
+import { createSrgbCanvasOutputSettings } from './canvas-output.ts';
+import type { CanvasOutputSettings } from './canvas-output.ts';
 import oklabShaderCode from '@gs/shared/gpu/oklab.wgsl?raw';
 import previewGamutCompressionShaderCode from './preview-gamut-compression.wgsl?raw';
 import { getPreviewGamutBoundaryLookup, getPreviewGamutCompressionModeIndex, PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS } from './preview-gamut-compression.ts';
@@ -18,7 +21,7 @@ import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
-const finalRenderShader = [colorSpaceShaderCode, oklabShaderCode, previewGamutCompressionShaderCode, finalRenderShaderCode].join('\n');
+const finalRenderShader = [colorSpaceShaderCode, oklabShaderCode, previewGamutCompressionShaderCode, canvasOutputShaderCode, finalRenderShaderCode].join('\n');
 
 export class CanvasRenderer {
 	private gpuContext: PreviewCanvasContext;
@@ -41,6 +44,7 @@ export class CanvasRenderer {
 	private highResolutionAnalysisGeneration = 0;
 	public highlightClipping = false;
 	public previewExposure = 0;
+	public previewSrgbProof = false;
 	public previewGamutCompression: PreviewGamutCompressionSettings = { mode: 'none', customAmount: 0.5 };
 	public opaqueOutput = false;
 	private currentPreviewBackground: 'black' | 'checker' | null = null;
@@ -77,6 +81,8 @@ export class CanvasRenderer {
 	constructor(options: {
 		gpuDevice: GPUDevice;
 		gpuContext: PreviewCanvasContext;
+		/** Canvasの構成と同じ出力設定。省略時は常に8bit sRGB。 */
+		canvasOutput?: CanvasOutputSettings;
 		enableWaveformAndHistogram: boolean;
 		histogramGpuContext?: PreviewCanvasContext;
 		waveformHorizontalGpuContext?: PreviewCanvasContext;
@@ -84,6 +90,7 @@ export class CanvasRenderer {
 	}) {
 		this.gpuDevice = options.gpuDevice;
 		this.gpuContext = options.gpuContext;
+		const canvasOutput = options.canvasOutput ?? createSrgbCanvasOutputSettings();
 		this.canvasContexts = { canvas: options.gpuContext, histogramCanvas: options.histogramGpuContext, waveformHorizontalCanvas: options.waveformHorizontalGpuContext, waveformVerticalCanvas: options.waveformVerticalGpuContext };
 		this.cpuCanvasContexts = [options.gpuContext, options.histogramGpuContext, options.waveformHorizontalGpuContext, options.waveformVerticalGpuContext]
 			.filter((context): context is CpuPreviewCanvasContext => context instanceof CpuPreviewCanvasContext);
@@ -113,8 +120,9 @@ export class CanvasRenderer {
 			fragment: {
 				module: finalRenderShaderModule,
 				entryPoint: 'fs',
+				constants: { canvasOutputWideGamut: canvasOutput.format === 'rgba16float' ? 1 : 0 },
 				targets: [{
-					format: navigator.gpu.getPreferredCanvasFormat(),
+					format: canvasOutput.format,
 				}],
 			},
 			primitive: {
@@ -134,7 +142,8 @@ export class CanvasRenderer {
 	}
 
 	private renderFinalImage(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
-		const gamutMode = getPreviewGamutCompressionModeIndex(this.previewGamutCompression.mode);
+		// sRGB確認中は圧縮設定を保持したまま適用だけ止め、未使用のプリセットLUTも生成しない。
+		const gamutMode = this.previewSrgbProof ? 0 : getPreviewGamutCompressionModeIndex(this.previewGamutCompression.mode);
 		if (gamutMode > 0 && gamutMode < 4 && !this.gamutBoundariesUploaded) {
 			const boundaries = getPreviewGamutBoundaryLookup();
 			this.gamutBoundaryBuffer.destroy();
@@ -159,6 +168,7 @@ export class CanvasRenderer {
 		this.finalRenderUniformValues.set({
 			highlightClipping: this.highlightClipping ? 1 : 0,
 			previewExposure: this.previewExposure,
+			previewSrgbProof: this.previewSrgbProof ? 1 : 0,
 			opaqueOutput: this.opaqueOutput ? 1 : 0,
 			previewBackground: this.previewBackground === 'checker' ? 2 : this.previewBackground === 'black' ? 1 : 0,
 			backgroundPhase: this.previewBackground === 'checker' ? (performance.now() / 700) % 1 : 0,

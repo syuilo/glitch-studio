@@ -450,6 +450,8 @@
 		"OpenFailed": "{title}を開けませんでした"
 	},
 	"_Preview": {
+		"SrgbProof": "sRGB制限",
+		"ColorView": "色の表示",
 		"GamutCompression": "色域の圧縮",
 		"GamutCompressionHint": "sRGB環境において、選択した色域をカバーするように色の範囲を圧縮して表示します。",
 		"GamutCompressionNormal": "RAW",

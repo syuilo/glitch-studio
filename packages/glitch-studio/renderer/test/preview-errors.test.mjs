@@ -245,6 +245,14 @@ test('reuses cached frames while applying updated preview exposure and gamut com
 		assert.equal(renderer.frameCache.get(0), cached);
 		assert.deepEqual(renderer.canvasRenderer.previewGamutCompression, compression);
 	}
+	// sRGB確認も最終表示だけを切り替え、ノード評価やfloatキャッシュを作り直さない。
+	for (const enabled of [true, false]) {
+		await renderer.updateDynamicOptions({ previewSrgbProof: enabled });
+		await renderer.renderTimelineAt(0);
+		assert.equal(evaluations.mock.callCount(), 1);
+		assert.equal(renderer.frameCache.get(0), cached);
+		assert.equal(renderer.canvasRenderer.previewSrgbProof, enabled);
+	}
 	assert.deepEqual(errors, []);
 });
 
@@ -1449,21 +1457,30 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		const render = () => Manager === VisualModuleRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
 		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true, previewExposure: 2, previewBackground: 'black', analysisValueScale: 'ev', analysisTarget: 'vectorLength', analysisValueRange: { minimum: 4, maximum: -1 } });
 		await render();
-		assert.deepEqual(writes.at(-1).slice(0, 5), [1, 1, 0x40000000, 1, 0]);
+		assert.deepEqual(writes.at(-1).slice(0, 6), [1, 1, 0x40000000, 0, 1, 0]);
 		assert.equal(renderer.canvasRenderer.analysisValueScale, 'ev');
 		assert.equal(renderer.canvasRenderer.analysisTarget, 'vectorLength');
 		assert.deepEqual(renderer.canvasRenderer.analysisValueRange, { minimum: 4, maximum: -1 });
 		assert.equal(configurations.mock.calls.at(-1).arguments[0].alphaMode, 'opaque');
 		await renderer.updateDynamicOptions({ highlightClipping: false });
 		await render();
-		assert.deepEqual(writes.at(-1).slice(0, 5), [0, 1, 0x40000000, 1, 0]);
+		assert.deepEqual(writes.at(-1).slice(0, 6), [0, 1, 0x40000000, 0, 1, 0]);
 		assert.equal(configurations.mock.callCount(), 1);
 		await renderer.updateDynamicOptions({ opaqueOutput: false, previewExposure: 0, previewBackground: null, analysisValueScale: 'srgb', analysisTarget: 'rgb', analysisValueRange: { minimum: 0, maximum: 1 } });
 		await render();
-		assert.deepEqual(writes.at(-1).slice(0, 5), [0, 0, 0, 0, 0]);
+		assert.deepEqual(writes.at(-1).slice(0, 6), [0, 0, 0, 0, 0, 0]);
 		await renderer.updateDynamicOptions({ previewGamutCompression: { mode: 'custom', customAmount: 0.25 } });
 		await render();
-		assert.deepEqual(writes.at(-1).slice(5, 7), [4, 0x3e800000]);
+		assert.deepEqual(writes.at(-1).slice(6, 8), [4, 0x3e800000]);
+		// 確認中のuniformだけを切り替え、圧縮の設定値とCanvasの構成を保持する。
+		for (const enabled of [true, false]) {
+			await renderer.updateDynamicOptions({ previewSrgbProof: enabled });
+			await render();
+			assert.equal(writes.at(-1)[3], enabled ? 1 : 0);
+			assert.equal(writes.at(-1)[6], enabled ? 0 : 4);
+			assert.deepEqual(renderer.canvasRenderer.previewGamutCompression, { mode: 'custom', customAmount: 0.25 });
+			assert.equal(configurations.mock.callCount(), 2);
+		}
 		assert.equal(renderer.canvasRenderer.analysisValueScale, 'srgb');
 		assert.equal(renderer.canvasRenderer.analysisTarget, 'rgb');
 		assert.deepEqual(renderer.canvasRenderer.analysisValueRange, { minimum: 0, maximum: 1 });
@@ -1534,45 +1551,52 @@ for (const [name, createManager] of [['visualModuleLivePreview', createVisualMod
 	// 【Factoryは固定素材のGPU準備が完了してからManagerを公開する】
 	// 描画側の素材待機を廃止しても、初期化メッセージの完了時点で全画像が使える必要がある。
 	// 通常の設定適用とは別に素材の準備を待ち、素材を動的オプションへ混ぜないことを確認する。
-	test(`${name} factory waits for its fixed resources before returning the manager`, async t => {
-		const { device } = gpuFixture();
-		const requests = deferredImageDecodes(t);
-		class Context {
-			canvas = { width: 1, height: 1 };
-			configure() {}
-			unconfigure() {}
-		}
-		const previousContext = Object.getOwnPropertyDescriptor(globalThis, 'GPUCanvasContext');
-		const previousGpu = Object.getOwnPropertyDescriptor(navigator, 'gpu');
-		globalThis.GPUCanvasContext = Context;
-		Object.defineProperty(navigator, 'gpu', { configurable: true, value: {
-			getPreferredCanvasFormat: () => 'rgba8unorm',
-			requestAdapter: async () => ({ requestDevice: async () => device }),
-		} });
-		t.after(() => {
-			if (previousContext != null) Object.defineProperty(globalThis, 'GPUCanvasContext', previousContext);
-			else delete globalThis.GPUCanvasContext;
-			Object.defineProperty(navigator, 'gpu', previousGpu);
+	// GPUだけを広色域floatへ切り替え、CPUの8bit契約を壊さないことも両factoryで検証する。
+	for (const displayMode of ['gpu', 'cpu']) {
+		test(`${name} factory prepares resources and configures ${displayMode} output before returning`, async t => {
+			const { device } = gpuFixture();
+			const requests = deferredImageDecodes(t);
+			class Context {
+				canvas = { width: 1, height: 1 };
+				configuration = null;
+				configure(value) { this.configuration = value; }
+				unconfigure() {}
+			}
+			const previousContext = Object.getOwnPropertyDescriptor(globalThis, 'GPUCanvasContext');
+			const previousGpu = Object.getOwnPropertyDescriptor(navigator, 'gpu');
+			globalThis.GPUCanvasContext = Context;
+			Object.defineProperty(navigator, 'gpu', { configurable: true, value: {
+				getPreferredCanvasFormat: () => 'rgba8unorm',
+				requestAdapter: async () => ({ requestDevice: async () => device }),
+			} });
+			t.after(() => {
+				if (previousContext != null) Object.defineProperty(globalThis, 'GPUCanvasContext', previousContext);
+				else delete globalThis.GPUCanvasContext;
+				Object.defineProperty(navigator, 'gpu', previousGpu);
+			});
+			const canvas = { width: 1, height: 1, getContext: () => new Context() };
+			let ready = false;
+			const starting = createManager({
+				canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
+				staticOptions: { previewDisplayMode: displayMode, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, },
+				dynamicOptions: { highlightClipping: true }, resources: { assets: [imageAsset('image')], players: [] },
+				effectDefinitions: {}, effectImplementations: {},
+			}).then(manager => { ready = true; return manager; });
+			await new Promise(resolve => setImmediate(resolve));
+			assert.equal(ready, false);
+			assert.equal(requests.length, 1);
+			requests[0].resolve({ width: 4, height: 2, close() {} });
+			const manager = await starting;
+			t.after(() => manager.destroy());
+			assert.equal(manager.gpuContext.configuration.format, displayMode === 'gpu' ? 'rgba16float' : 'rgba8unorm');
+			assert.equal(manager.gpuContext.configuration.colorSpace, 'srgb');
+			assert.equal(manager.gpuContext.configuration.toneMapping.mode, 'standard');
+			assert.equal(manager.assetTextures.textures.has('image'), true);
+			assert.equal(manager.dynamicOptions.highlightClipping, true);
+			assert.equal('assets' in manager.dynamicOptions, false);
+			assert.equal('players' in manager.dynamicOptions, false);
 		});
-		const canvas = { getContext: () => new Context() };
-		let ready = false;
-		const starting = createManager({
-			canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
-			staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, },
-			dynamicOptions: { highlightClipping: true }, resources: { assets: [imageAsset('image')], players: [] },
-			effectDefinitions: {}, effectImplementations: {},
-		}).then(manager => { ready = true; return manager; });
-		await new Promise(resolve => setImmediate(resolve));
-		assert.equal(ready, false);
-		assert.equal(requests.length, 1);
-		requests[0].resolve({ width: 4, height: 2, close() {} });
-		const manager = await starting;
-		t.after(() => manager.destroy());
-		assert.equal(manager.assetTextures.textures.has('image'), true);
-		assert.equal(manager.dynamicOptions.highlightClipping, true);
-		assert.equal('assets' in manager.dynamicOptions, false);
-		assert.equal('players' in manager.dynamicOptions, false);
-	});
+	}
 
 	for (const failure of ['context', 'constructor', 'assets']) {
 		// 【初期化失敗時にデバイスと定期通知を回収する】

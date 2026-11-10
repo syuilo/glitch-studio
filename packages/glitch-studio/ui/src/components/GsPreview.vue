@@ -45,7 +45,7 @@
 				</div>
 			</div>
 			<div :class="$style.right">
-				<GsPreviewGamutCompression/>
+				<GsPreviewColorView/>
 				<button v-tooltip="i18n.ts._Preview.Exposure" :class="[$style.exposure, previewExposure !== 0 ? '_buttonPrimaryFg' : '_button']" class="_monospace" data-test-preview-exposure :data-test-preview-exposure-active="previewExposure !== 0" @pointerdown="onExposurePointerdown" @click="onExposureClick" @keydown="onExposureKeydown"><i class="ti ti-exposure"></i><span style="white-space: pre-wrap;">{{ previewExposure > 0 ? '+' : previewExposure < 0 ? '' : ' ' }}{{ previewExposure.toFixed(1) }} EV</span></button>
 			</div>
 		</div>
@@ -67,7 +67,7 @@ import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
 import GsPreviewParameterPositions from './GsPreviewParameterPositions.vue';
 import GsPreviewRulers from './GsPreviewRulers.vue';
-import GsPreviewGamutCompression from './GsPreviewGamutCompression.vue';
+import GsPreviewColorView from './GsPreviewColorView.vue';
 import GsLoading from './common/GsLoading.vue';
 import type { CSSProperties } from 'vue';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
@@ -610,6 +610,10 @@ function showMenu(ev: PointerEvent) {
 
 .resolution {
 	padding: 0 8px;
+	min-width: 0;
+	white-space: nowrap;
+	overflow: clip;
+	text-overflow: ellipsis;
 }
 
 .renderError {

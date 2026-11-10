@@ -52,7 +52,9 @@ import { TimelinePreviewScheduler } from '@gs/subsystems_timeline_renderer/timel
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
-import { createPreviewCanvasContext, createPreviewCanvasConfigurator } from './preview-canvas-context.ts';
+import { createPreviewCanvasContext } from './preview-canvas-context.ts';
+import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings, createSrgbCanvasOutputSettings } from './canvas-output.ts';
+import type { CanvasOutputSettings } from './canvas-output.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 export type { PreviewDisplayMode, CpuPreviewFrame } from './preview-canvas-context.ts';
 import { ProjectStateVersions } from './project-state-versions.ts';
@@ -117,6 +119,8 @@ export type TimelineRendererManagerDynamicOptions = {
 	highlightClipping: boolean;
 	/** 表示用の露出（EV）。作品内の画像・解析には適用せず、書き出しでは0を使う。 */
 	previewExposure: number;
+	/** sRGB環境の見え方を確認する表示専用の範囲制限。色域圧縮は一時的に迂回する。 */
+	previewSrgbProof: boolean;
 	/** プレビュー専用の色域圧縮。書き出しではnoneを使う。 */
 	previewGamutCompression: PreviewGamutCompressionSettings;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
@@ -150,6 +154,8 @@ export type TimelineRendererManagerResources = { customShaderEffects?: readonly 
 export type TimelineRendererManagerCoreConfig = {
 	gpuDevice: GPUDevice;
 	gpuContext: PreviewCanvasContext;
+	/** 出力側が指定するCanvas設定。省略時もプレビュー設定から独立した8bit sRGB。 */
+	canvasOutput?: CanvasOutputSettings;
 	frameScheduler?: FrameScheduler;
 	histogramGpuContext?: PreviewCanvasContext;
 	waveformHorizontalGpuContext?: PreviewCanvasContext;
@@ -213,7 +219,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler: TimelinePreviewScheduler;
 	private gpuContext: PreviewCanvasContext;
-	private configureCanvas: ReturnType<typeof createPreviewCanvasConfigurator>;
+	private configureCanvas: ReturnType<typeof createCanvasOutputConfigurator>;
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
 	private defaultVertexShaderModule: GPUShaderModule;
@@ -244,6 +250,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		outputResolution: null,
 		highlightClipping: false,
 		previewExposure: 0,
+		previewSrgbProof: false,
 		previewGamutCompression: { mode: 'none', customAmount: 0.5 },
 		opaqueOutput: false,
 		previewBackground: null,
@@ -282,7 +289,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.effectDefinitions = effects.definitions;
 		this.effectImplementations = effects.implementations;
 
-		this.configureCanvas = createPreviewCanvasConfigurator(this.gpuDevice, this.gpuContext);
+		const canvasOutput = coreConfig.canvasOutput ?? createSrgbCanvasOutputSettings();
+		this.configureCanvas = createCanvasOutputConfigurator(this.gpuDevice, this.gpuContext, canvasOutput);
 		this.configureCanvas('premultiplied');
 
 		this.fallbackTexture = this.gpuDevice.createTexture({
@@ -300,6 +308,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
+			canvasOutput,
 			enableWaveformAndHistogram: this.staticOptions.enableWaveformAndHistogram,
 			histogramGpuContext: coreConfig.histogramGpuContext,
 			waveformHorizontalGpuContext: coreConfig.waveformHorizontalGpuContext,
@@ -477,6 +486,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		if (Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'automationGraphs')) this.refreshEvaluationScenes();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
+		this.canvasRenderer.previewSrgbProof = this.dynamicOptions.previewSrgbProof;
 		this.canvasRenderer.previewGamutCompression = this.dynamicOptions.previewGamutCompression;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 		this.canvasRenderer.previewBackground = this.dynamicOptions.previewBackground;
@@ -1255,6 +1265,7 @@ export async function createManager(options: {
 		coreConfig = {
 			gpuDevice: device,
 			gpuContext: createContext(options.canvas, 'canvas'),
+			canvasOutput: displayMode === 'gpu' ? createGpuPreviewCanvasOutputSettings() : createSrgbCanvasOutputSettings(),
 			histogramGpuContext: createContext(options.histogramCanvas, 'histogramCanvas'),
 			waveformHorizontalGpuContext: createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas'),
 			waveformVerticalGpuContext: createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas'),

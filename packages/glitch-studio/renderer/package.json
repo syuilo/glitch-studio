@@ -3,12 +3,14 @@
 	"name": "@gs/glitch-studio_renderer",
 	"private": true,
 	"scripts": {
+		"probe:canvas-color-output": "node scripts/probe-canvas-color-output.mjs",
 		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
 		"test": "node --test test/*.test.mjs",
 		"typecheck": "tsc6 --noEmit",
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
+		"./canvas-output.ts": "./src/canvas-output.ts",
 		"./client.ts": "./src/client.ts",
 		"./visual-module-renderer-manager.ts": "./src/visual-module-renderer-manager.ts",
 		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts"

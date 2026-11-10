@@ -599,6 +599,7 @@ test('restarts both previews after content and settings change during initializa
 	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'during-initialization', effectId: 'fill' });
 	appContext.highlightClipping.value = true;
 	appContext.previewExposure.value = 2;
+	appContext.previewSrgbProof.value = true;
 	appContext.previewGamutCompression.value = { mode: 'rec2020', customAmount: 0.37 };
 	window.testPreferences.timelinePreviewFramesAhead = 0;
 	window.testPreferences.timelineFrameCacheMaxGiB = 1;
@@ -615,6 +616,7 @@ test('restarts both previews after content and settings change during initializa
 		assert.equal(controller.options.visualModules[0].nodes[0].id, 'during-initialization');
 		assert.equal(controller.options.highlightClipping, true);
 		assert.equal(controller.options.previewExposure, 2);
+		assert.equal(controller.options.previewSrgbProof, true);
 		assert.deepEqual(controller.options.previewGamutCompression, { mode: 'rec2020', customAmount: 0.37 });
 	}
 	assert.equal(appContext.timelineRendererManagerController.staticOptions.previewFramesAhead, 0);
@@ -889,6 +891,7 @@ for (const [setting, change, inspect] of [
 	['visualModuleLivePreview time factor', appContext => { appContext.visualModuleLivePreviewTimeFactor.value = 0.5; }],
 	['clipping display', appContext => { appContext.highlightClipping.value = true; }],
 	['preview exposure', appContext => { appContext.previewExposure.value = 2; }],
+	['sRGB proof', appContext => { appContext.previewSrgbProof.value = true; }],
 	['preview gamut compression', appContext => { appContext.previewGamutCompression.value = { mode: 'displayP3', customAmount: 0.5 }; }],
 ]) test(`retries runtime failures after changing ${setting}`, async t => {
 	setup(t);
@@ -2356,6 +2359,20 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 			assert.deepEqual(controller.options.previewGamutCompression, { mode, customAmount: 0.37 });
 			assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
 		}
+		assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
+	}
+	// sRGB確認は両Workerへ同期し、圧縮設定・作品・初期化回数を保持したまま元へ戻せる。
+	const compressionBeforeProof = { ...appContext.previewGamutCompression.value };
+	for (const enabled of [true, false]) {
+		appContext.previewSrgbProof.value = enabled;
+		await nextTick();
+		await setImmediate();
+		for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+			assert.equal(controller.options.previewSrgbProof, enabled);
+			assert.deepEqual(controller.options.previewGamutCompression, compressionBeforeProof);
+			assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
+		}
+		assert.equal(timeline.renders.at(-1), 500);
 		assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
 	}
 	await appContext.ready(project());

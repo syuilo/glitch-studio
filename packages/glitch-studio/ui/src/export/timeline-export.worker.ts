@@ -1,6 +1,7 @@
 import { getTimelineScene, getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
+import { createSrgbCanvasOutputSettings } from '@gs/glitch-studio_renderer/canvas-output.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { effectImplementations } from '@gs/subsystems_effect_shared/effect-implementations.ts';
 import { createMp4Writer } from './mp4-writer.ts';
@@ -65,6 +66,8 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		renderer = await TimelineRendererManager.create({
 			gpuDevice: device,
 			gpuContext: context,
+			// プレビューの広色域化とは独立して、SDRの書き出しをsRGBへ固定する。
+			canvasOutput: createSrgbCanvasOutputSettings(),
 			effectDefinitions,
 			effectImplementations,
 		}, {
