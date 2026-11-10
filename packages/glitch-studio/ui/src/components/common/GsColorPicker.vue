@@ -50,7 +50,7 @@
 			<div :class="$style.leftArea">
 				<div :class="$style.mapModes">
 					<button
-						v-for="mode in ['hsv', 'oklch'] as const"
+						v-for="mode in ['oklch', 'hsv'] as const"
 						:key="mode"
 						class="_button"
 						:class="[$style.mapMode, { [$style.active]: mapMode === mode }]"
@@ -219,9 +219,9 @@ type Format = 'sRGB' | 'HSL' | 'OKLCH' | 'HEX' | 'Linear';
 const rows = computed(() => {
 	const hsl = hsvToHsl(hue.value, saturation.value, brightness.value);
 	const definitions: { name: Format; labels: string[]; values: (string | number)[] }[] = [
+		{ name: 'OKLCH', labels: ['L%', 'C', 'H°', 'A'], values: [oklch.value[0] * 100, oklch.value[1], oklch.value[2], color.value[3]] },
 		{ name: 'sRGB', labels: ['R', 'G', 'B', 'A'], values: [...linearSrgbToSrgb(color.value).slice(0, 3).map(v => Math.round(clampColorValue(v) * 255)), color.value[3]] },
 		{ name: 'HSL', labels: ['H°', 'S%', 'L%', 'A'], values: [hsl[0], hsl[1] * 100, hsl[2] * 100, color.value[3]] },
-		{ name: 'OKLCH', labels: ['L%', 'C', 'H°', 'A'], values: [oklch.value[0] * 100, oklch.value[1], oklch.value[2], color.value[3]] },
 		{ name: 'HEX', labels: ['#RRGGBBAA'], values: [colorHex(color.value)] },
 		{ name: 'Linear', labels: ['R', 'G', 'B', 'A'], values: color.value },
 	];
