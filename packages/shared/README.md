@@ -14,6 +14,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `src/spatial-coordinate.ts`: 長辺全体=1の等方的な位置・変位と、内部の各軸[-1,+1]の画像参照座標との換算。Size Referenceによらず空間データの単位を固定する。
 - `src/size-reference.ts`: Height・Width・Short Side・Long Sideを表す`SizeReference`と基準寸法の換算。専用の`sizeReference`型として使用し、パラメータの既定値はLong Side。各パラメータをどのように換算するかは利用側が決める。
 - `src/color-space.ts`: 未乗算linear sRGBの保存色型と、HDR・負値を保持するsRGB伝達関数・Oklab／OKLCH変換。OKLCHの色相は度数法。GPU側の伝達関数・alpha境界は`src/gpu/color-space.wgsl`で提供する。入出力境界は[色空間のドキュメント](../../docs/color-management.md)を参照。
+- `src/rgb-gamut.ts`: sRGB・Display P3・Rec.2020・Adobe RGBのD65基準色域、linear RGB変換・色域判定とOKLCHの境界計算。固定色相での三次式の交点から、最大Cや指定C以下の境界を求める。プレビューの圧縮倍率とピッカーの選択制限で共有し、UI状態や表示先を所有しない。
 - `src/color-ramp.ts`: Color Rampの値・検証・CPU評価とGPU転送用の準備。sRGB・Linear sRGB・Oklab・OKLCHの補間を扱い、OKLCHの色相経路は区間ごとに準備してGPUと共有する。alphaと色相の規約は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#color-ramp)を参照。
 - `src/parameter`: パラメータ定義・Binding・初期値・ツリー操作・CPU値の評価。`parameter-path.ts`は編集対象を識別するIDパス、`parameter-tree.ts`は評価後の配列をたどるindexのパスを扱う。
 - `src/expression`: AiScriptの構文・ASTキャッシュ・式の実行。変数と関数は呼び出し側から明示し、Visual ModuleやTimelineを参照しない。

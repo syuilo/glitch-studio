@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { colorCss, colorHex, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv, rgbToOklch } from '../src/utility/color-input.ts';
+import { colorCss, colorHex, extendedColorCss, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv, rgbToOklch } from '../src/utility/color-input.ts';
 
 // 【HEX・CSS・HSVはsRGB表示を保ち、保存値だけをlinearにする】
 // HEXと数値配列が同じ色に見えることを確認し、alphaをガンマ変換する誤りも検出する。
@@ -26,6 +26,14 @@ test('preserves HDR and negative editing values while clamping only swatches', (
 	assert.deepEqual(original, [4, -0.25, 0.5, 0]);
 	assert.deepEqual(parseColorHex('#f008', 1), [1, 0, 0, 136 / 255]);
 	assert.equal(parseColorHex('#invalid', 1), null);
+});
+
+// 【広色域のCSS見本には未乗算linear sRGBの拡張値をそのまま渡す】
+// 広色域のマップとつまみ・最近使った色の見本が別の色にならないよう、
+// CSSの伝達関数やsRGBへのclampを重ねず、alphaだけを被覆率として扱う。
+test('formats extended CSS colors without clipping or applying the transfer function', () => {
+	assert.equal(extendedColorCss([4, -0.25, 0.5, 0.75]), 'color(srgb-linear 4 -0.25 0.5 / 0.75)');
+	assert.equal(extendedColorCss([1.22494017628056, -0.042056954709688, -0.019637554590334, 0]), 'color(srgb-linear 1.22494017628056 -0.042056954709688 -0.019637554590334 / 0)');
 });
 
 // 【OKLCHの無彩色では直前の色相を使い、HDRの明度は制限しない】

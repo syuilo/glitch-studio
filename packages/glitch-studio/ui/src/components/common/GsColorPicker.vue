@@ -10,17 +10,55 @@
 	@closed="onModalClosed"
 >
 	<div :class="$style.root" class="_shadow _popup" tabindex="-1" @keydown.stop="onKeydown">
-		<div :class="$style.header">
+		<div :class="$style.header" data-test-color-picker-header>
 			<b>{{ title ?? i18n.ts.Color }}</b>
 			<div :class="$style.actions">
-				<div v-if="EyeDropper" :class="[$style.button, { [$style.busy]: picking }]" :title="i18n.ts._ColorPicker.PickFromScreen" tabindex="0" @click="pickFromScreen" @keydown.enter.prevent="pickFromScreen"><i class="ti ti-color-picker"></i></div>
-				<div :class="$style.button" :title="i18n.ts.Close" tabindex="0" @click="close" @keydown.enter.prevent="close"><i class="ti ti-x"></i></div>
+				<button
+					class="_button"
+					:class="[$style.button, { [$style.active]: limitSelectionToGamut }]"
+					data-test-color-picker-gamut-limit
+					:data-enabled="limitSelectionToGamut"
+					@click="toggleGamutLimit"
+				>
+					<i :class="limitSelectionToGamut ? 'ti ti-lock' : 'ti ti-lock-open'"></i>
+					{{ i18n.ts._ColorPicker.LimitToGamut }}
+				</button>
+				<button
+					v-tooltip="i18n.ts._ColorPicker.ReferenceGamut"
+					class="_button"
+					:class="$style.button"
+					data-test-color-picker-gamut
+					:data-gamut="referenceGamut"
+					@click="openGamutMenu"
+				>
+					{{ COLOR_PICKER_GAMUT_LABELS[referenceGamut] }} <i class="ti ti-chevron-down"></i>
+				</button>
+				<button
+					v-if="EyeDropper"
+					v-tooltip="i18n.ts._ColorPicker.PickFromScreen"
+					class="_button"
+					:class="[$style.button, { [$style.busy]: picking }]"
+					data-test-color-picker-eyedropper
+					@click="pickFromScreen"
+				>
+					<i class="ti ti-color-picker"></i>
+				</button>
+				<button v-tooltip="i18n.ts.Close" class="_button" :class="$style.button" @click="close"><i class="ti ti-x"></i></button>
 			</div>
 		</div>
 		<div :class="$style.body">
 			<div :class="$style.leftArea">
-				<div :class="$style.mapModes" role="group">
-					<button v-for="mode in ['hsv', 'oklch'] as const" :key="mode" class="_button" :class="[$style.mapMode, { [$style.active]: mapMode === mode }]" :data-test-color-picker-mode="mode" @click="setMapMode(mode)">{{ mode.toUpperCase() }}</button>
+				<div :class="$style.mapModes">
+					<button
+						v-for="mode in ['hsv', 'oklch'] as const"
+						:key="mode"
+						class="_button"
+						:class="[$style.mapMode, { [$style.active]: mapMode === mode }]"
+						:data-test-color-picker-mode="mode"
+						@click="setMapMode(mode)"
+					>
+						{{ mode.toUpperCase() }}
+					</button>
 				</div>
 				<div :class="$style.mapAxes">
 					<span>{{ mapMode === 'hsv' ? 'V ↑' : 'L ↑ 0–100%' }}</span>
@@ -37,13 +75,17 @@
 					@lostpointercapture="endDrag"
 					@keydown="onMapKeydown"
 				>
-					<GsOklchColorMap v-if="mapMode === 'oklch'" :hue="oklch[2]"/>
-					<div :class="$style.thumb" :style="{ left: `${mapPosition[0] * 100}%`, top: `${mapPosition[1] * 100}%`, background: colorCss(color) }" data-test-color-picker-map-thumb></div>
+					<GsOklchColorMap v-if="mapMode === 'oklch'" :hue="oklch[2]" :gamut="referenceGamut"/>
+					<div
+						:class="$style.thumb"
+						:style="{ left: `${mapPosition[0] * 100}%`, top: `${mapPosition[1] * 100}%`, background: extendedColorCss(color) }"
+						data-test-color-picker-map-thumb
+					></div>
 				</div>
 				<div :class="$style.sliderRow">
 					<div
 						:class="[$style.track, { [$style.hsvHue]: mapMode === 'hsv' }]" :style="mapMode === 'oklch' ? { backgroundImage: OKLCH_HUE_GRADIENT } : {}"
-						data-test-color-picker-hue role="slider"
+						data-test-color-picker-hue
 						tabindex="0"
 						@pointerdown="startDrag($event, 'hue')"
 						@pointermove="moveDrag"
@@ -56,8 +98,16 @@
 					</div>
 				</div>
 				<div :class="$style.sliderRow">
-					<div :class="[$style.track, $style.checker]" data-test-color-picker-alpha @pointerdown="startDrag($event, 'alpha')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
-						<div :class="$style.alpha" :style="{ background: `linear-gradient(to right, ${colorCss([color[0], color[1], color[2], 0])}, ${colorCss([color[0], color[1], color[2], 1])})` }"></div>
+					<div
+						:class="[$style.track, $style.checker]"
+						data-test-color-picker-alpha
+						@pointerdown="startDrag($event, 'alpha')"
+						@pointermove="moveDrag"
+						@pointerup="endDrag"
+						@pointercancel="endDrag"
+						@lostpointercapture="endDrag"
+					>
+						<div :class="$style.alpha" :style="{ background: `linear-gradient(to right, ${extendedColorCss([color[0], color[1], color[2], 0])}, ${extendedColorCss([color[0], color[1], color[2], 1])})` }"></div>
 						<div :class="$style.thumb" :style="{ left: `${color[3] * 100}%` }"></div>
 					</div>
 				</div>
@@ -91,8 +141,17 @@
 		</div>
 		<div :class="$style.recentTitle">{{ i18n.ts._ColorPicker.RecentColors }}</div>
 		<div :class="$style.recent">
-			<div v-for="(recentColor, index) in recent" :key="index" :class="[$style.swatch, $style.checker]" :title="colorHex(recentColor)" tabindex="0" @click="setColor(recentColor)" @keydown.enter.prevent="setColor(recentColor)">
-				<div :class="$style.fill" :style="{ background: colorCss(recentColor) }"></div>
+			<div
+				v-for="(recentColor, index) in recent"
+				:key="index"
+				v-tooltip="colorHex(recentColor)"
+				:class="[$style.swatch, $style.checker]"
+				data-test-color-picker-recent
+				tabindex="0"
+				@click="setColor(recentColor)"
+				@keydown.enter.prevent="setColor(recentColor)"
+			>
+				<div :class="$style.fill" :style="{ background: extendedColorCss(recentColor) }"></div>
 			</div>
 			<span v-if="recent.length === 0" :class="$style.empty">{{ i18n.ts._ColorPicker.NoRecentColors }}</span>
 		</div>
@@ -103,10 +162,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import { linearSrgbToSrgb, oklchToLinearSrgb, srgbChannelToLinear } from '@gs/shared/color-space.ts';
+import { limitOklchToGamut, RGB_GAMUTS } from '@gs/shared/rgb-gamut.ts';
+import type { RgbGamut } from '@gs/shared/rgb-gamut.ts';
 import type { RgbaColor } from '@/utility/color-input.ts';
 import { i18n } from '@/i18n.ts';
-import { clampColorValue, colorCss, colorHex, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv, rgbToOklch } from '@/utility/color-input.ts';
-import { OKLCH_HUE_GRADIENT, OKLCH_MAP_MAX_CHROMA } from '@/utility/color-picker-map.ts';
+import { clampColorValue, colorHex, extendedColorCss, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv, rgbToOklch } from '@/utility/color-input.ts';
+import { COLOR_PICKER_GAMUT_LABELS, OKLCH_HUE_GRADIENT, OKLCH_MAP_MAX_CHROMA } from '@/utility/color-picker-map.ts';
 import GsModal from '@/components/common/GsModal.vue';
 import GsOklchColorMap from '@/components/common/GsOklchColorMap.vue';
 
@@ -133,6 +194,8 @@ const saturation = ref(initialHsv[1]);
 const brightness = ref(initialHsv[2]);
 const oklch = ref(rgbToOklch(color.value, 0));
 const mapMode = ref<'hsv' | 'oklch'>('hsv');
+const referenceGamut = ref<RgbGamut>('srgb');
+const limitSelectionToGamut = ref(false);
 const mapHue = computed(() => mapMode.value === 'hsv' ? hue.value : oklch.value[2]);
 const mapPosition = computed(() => mapMode.value === 'hsv'
 	? [saturation.value, 1 - brightness.value]
@@ -205,7 +268,11 @@ function setColor(next: RgbaColor, notify = true, source: 'hsv' | 'oklch' | null
 	}
 }
 
-function setOklch(nextOklch: [number, number, number]): boolean {
+function setOklch(nextOklch: [number, number, number], fromMap = false): boolean {
+	if (fromMap && limitSelectionToGamut.value) {
+		const [lightness, chroma, hue] = limitOklchToGamut([...nextOklch, color.value[3]], referenceGamut.value);
+		nextOklch = [lightness, chroma, hue];
+	}
 	// 無彩色の色相だけを指定した場合は、元のRGBを変換誤差も含めて保持する。
 	const onlyPowerlessHueChanged = nextOklch[0] === oklch.value[0] && nextOklch[1] === 0 && oklch.value[1] === 0;
 	const next = onlyPowerlessHueChanged ? [...color.value] as RgbaColor : oklchToLinearSrgb([...nextOklch, color.value[3]]);
@@ -220,6 +287,29 @@ function setMapMode(mode: 'hsv' | 'oklch') {
 	releaseDrag();
 	// 既存の各モデルの編集値を使い、表示切替では色の再変換や更新通知を行わない。
 	mapMode.value = mode;
+}
+
+function toggleGamutLimit() {
+	releaseDrag();
+	// 設定の切替だけでは現在色を変更せず、次のマップ・色相操作にだけ制限を適用する。
+	limitSelectionToGamut.value = !limitSelectionToGamut.value;
+}
+
+async function openGamutMenu(event: MouseEvent) {
+	// ui.tsは素材選択UIなどを通じてピッカーへも依存するため、起動時の循環評価を避ける。
+	// currentTargetはイベント処理後にnullへ戻るので、非同期importより前に保存する。
+	const anchorElement = event.currentTarget;
+	const ui = await import('@/ui.ts');
+	if (eyeDropperAbort.signal.aborted) return;
+	ui.popupMenu(RGB_GAMUTS.map(gamut => ({
+		id: gamut,
+		text: COLOR_PICKER_GAMUT_LABELS[gamut],
+		icon: referenceGamut.value === gamut ? 'ti ti-check' : null,
+		action: () => {
+			releaseDrag();
+			referenceGamut.value = gamut;
+		},
+	})), anchorElement, { abortSignal: eyeDropperAbort.signal });
 }
 
 function editField(event: Event, format: Format, index: number, key: string) {
@@ -321,7 +411,7 @@ function releaseDrag() {
 
 function setMapPosition(x: number, y: number) {
 	if (mapMode.value === 'oklch') {
-		setOklch([1 - y, x * OKLCH_MAP_MAX_CHROMA, oklch.value[2]]);
+		setOklch([1 - y, x * OKLCH_MAP_MAX_CHROMA, oklch.value[2]], true);
 	} else {
 		saturation.value = x;
 		brightness.value = 1 - y;
@@ -330,7 +420,7 @@ function setMapPosition(x: number, y: number) {
 }
 
 function setMapHue(value: number) {
-	if (mapMode.value === 'oklch') setOklch([oklch.value[0], oklch.value[1], value]);
+	if (mapMode.value === 'oklch') setOklch([oklch.value[0], oklch.value[1], value], true);
 	else {
 		hue.value = value;
 		setColor(hsvToRgb(hue.value, saturation.value, brightness.value, color.value[3]), true, 'hsv');
@@ -439,13 +529,18 @@ function close() {
 }
 .header {
 	justify-content: space-between;
+	flex-wrap: wrap;
 	margin-bottom: 6px;
 	padding-left: 4px;
 }
 .actions {
 	gap: 6px;
+	flex-wrap: wrap;
 }
 .button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
 	padding: 5px;
 	border-radius: 4px;
 	cursor: pointer;
@@ -453,6 +548,10 @@ function close() {
 }
 .button:hover {
 	background: var(--THEME-buttonHoverBg);
+}
+.button.active {
+	background: var(--THEME-accentedBg);
+	color: var(--THEME-accent);
 }
 .busy {
 	opacity: 0.5;
@@ -516,6 +615,17 @@ function close() {
 	font-size: 11px;
 	line-height: 1.6;
 	opacity: 0.7;
+}
+.gamutHint {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+.gamutLegend {
+	width: 14px;
+	height: 10px;
+	flex-shrink: 0;
+	background: repeating-linear-gradient(-45deg, #888 0 2px, #ddd 2px 4px, #555 4px 12px);
 }
 
 .thumb {

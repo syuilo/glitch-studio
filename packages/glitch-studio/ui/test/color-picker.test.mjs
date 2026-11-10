@@ -7,6 +7,7 @@ import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, markRaw, nextTick, reactive } from 'vue';
 import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
+import { isLinearSrgbInGamut, RGB_GAMUTS } from '@gs/shared/rgb-gamut.ts';
 import { i18nPlugin } from './helpers/i18n.mjs';
 
 const componentDirectory = fileURLToPath(new URL('../src/components/common/', import.meta.url));
@@ -18,7 +19,7 @@ const bundle = await build({
 		build.onResolve({ filter: /^@\/ui\.ts$/ }, () => ({ path: 'ui', namespace: 'picker' }));
 		build.onResolve({ filter: /\.vue$/ }, args => ({ path: args.path, namespace: 'picker' }));
 		build.onResolve({ filter: /^@\// }, args => ({ path: fileURLToPath(new URL(`../src/${args.path.slice(2)}`, import.meta.url)) }));
-		build.onLoad({ filter: /.*/, namespace: 'picker' }, ({ path }) => ({ loader: 'ts', contents: path === 'ui' ? 'export {};' :
+		build.onLoad({ filter: /.*/, namespace: 'picker' }, ({ path }) => ({ loader: 'ts', contents: path === 'ui' ? 'export function popupMenu(items) { window.colorPickerMenus.push(items); }' :
 			"import { h } from 'vue'; export default { setup(_, { slots, expose }) { expose({ close() {} }); return () => h('section', {}, slots.default?.()); } };" }));
 	} }],
 });
@@ -27,11 +28,14 @@ new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createR
 const ColorPicker = module.exports.default;
 ColorPicker.__cssModules = { $style: {} };
 
-async function fixture(t, color) {
+async function fixture(t, color, { recentColors = [], eyedropperHex = null } = {}) {
 	const restoreGlobals = [];
 	let app = null;
 	t.after(() => { app?.unmount(); restoreGlobals.forEach(restore => restore()); });
-	for (const [name, value] of Object.entries({ window: { document: { activeElement: null } }, localStorage: { getItem: () => null } })) {
+	const menus = [];
+	const windowState = { document: { activeElement: null }, colorPickerMenus: menus };
+	if (eyedropperHex != null) windowState.EyeDropper = class { async open() { return { sRGBHex: eyedropperHex }; } };
+	for (const [name, value] of Object.entries({ window: windowState, localStorage: { getItem: () => JSON.stringify(recentColors) } })) {
 		const previous = Object.getOwnPropertyDescriptor(globalThis, name);
 		Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
 		restoreGlobals.push(() => { if (previous != null) Object.defineProperty(globalThis, name, previous); else delete globalThis[name]; });
@@ -86,7 +90,17 @@ async function fixture(t, color) {
 		findElement(`data-test-color-picker-${kind}`).props.onKeydown({ key, shiftKey, preventDefault() {} });
 		await nextTick();
 	};
-	return { state, changes, edit, findField, findElement, switchMode, pointer, pressKey };
+	const toggleGamutLimit = async () => {
+		findElement('data-test-color-picker-gamut-limit').props.onClick();
+		await nextTick();
+	};
+	const selectGamut = async gamut => {
+		const button = findElement('data-test-color-picker-gamut');
+		await button.props.onClick({ currentTarget: button });
+		menus.at(-1).find(item => item.id === gamut).action();
+		await nextTick();
+	};
+	return { state, changes, edit, findField, findElement, switchMode, pointer, pressKey, toggleGamutLimit, selectGamut };
 }
 
 // 【HDR色を開いても保存値を変更せず、alphaだけの編集でもRGBを保持する】
@@ -233,8 +247,8 @@ test('switches map modes without emitting edits or clipping extended colors', as
 test('edits OKLCH map coordinates and hue while keeping lightness chroma and alpha', async t => {
 	const { state, findField, switchMode, pointer } = await fixture(t, [0.125, 0.125, 0.125, 0.25]);
 	await switchMode('oklch');
-	await pointer('map', 'down', 40, 35);
-	await pointer('map', 'up', 40, 35);
+	await pointer('map', 'down', 32, 35);
+	await pointer('map', 'up', 32, 35);
 	let expected = srgbToLinearSrgb([0.7216633302, 0.4807007626, 0.5531313216, 0.25]);
 	state.color.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-8));
 	assert.equal(findField('OKLCH-0').textContent, '65');
@@ -257,7 +271,7 @@ test('selects out-of-gamut map colors and preserves extended values while editin
 	await pointer('map', 'down', 200, 50);
 	await pointer('map', 'up', 200, 50);
 	assert.ok(state.color.slice(0, 3).some(value => value < 0));
-	assert.equal(findField('OKLCH-1').textContent, '0.4');
+	assert.equal(findField('OKLCH-1').textContent, '0.5');
 	await edit('OKLCH-0', '150');
 	await edit('OKLCH-1', '0.5');
 	await pointer('hue', 'down', 150, 0);
@@ -323,7 +337,7 @@ test('remembers neutral hue and supports map and hue keyboard controls', async t
 	assert.deepEqual(Array.from(state.color), original);
 	assert.equal(findField('OKLCH-2').textContent, '180');
 	await pressKey('map', 'ArrowRight');
-	assert.equal(findField('OKLCH-1').textContent, '0.004');
+	assert.equal(findField('OKLCH-1').textContent, '0.005');
 	await pressKey('map', 'ArrowUp', true);
 	assert.equal(findField('OKLCH-0').textContent, '60');
 	await pressKey('hue', 'ArrowRight', true);
@@ -333,4 +347,110 @@ test('remembers neutral hue and supports map and hue keyboard controls', async t
 	await pressKey('hue', 'Home');
 	assert.equal(findField('OKLCH-2').textContent, '0');
 	assert.equal(state.color[3], 0.75);
+});
+
+// 【ヘッダーに判定色域と制限トグルを置き、設定変更だけでは現在色を変えない】
+// 制限をオンにした瞬間や別の色域を確認するときに、既存のHDR・負値が書き換わってはならない。
+// 位置やメニューの識別には専用data属性・IDを使い、翻訳やCSSクラスへ依存しない。
+test('places gamut controls in the header and changes settings without editing the color', async t => {
+	const original = [4, -0.25, 0.5, 0];
+	const { state, changes, findElement, selectGamut, toggleGamutLimit } = await fixture(t, original);
+	const header = findElement('data-test-color-picker-header');
+	const gamutButton = findElement('data-test-color-picker-gamut');
+	const limitButton = findElement('data-test-color-picker-gamut-limit');
+	assert.equal(gamutButton.parent.parent, header);
+	assert.equal(limitButton.parent.parent, header);
+	assert.equal(gamutButton.props['data-gamut'], 'srgb');
+	assert.equal(limitButton.props['data-enabled'], false);
+	await toggleGamutLimit();
+	assert.equal(limitButton.props['data-enabled'], true);
+	for (const gamut of RGB_GAMUTS) {
+		await selectGamut(gamut);
+		assert.equal(gamutButton.props['data-gamut'], gamut);
+		assert.deepEqual(Array.from(state.color), original);
+	}
+	assert.deepEqual(changes, []);
+});
+
+for (const gamut of RGB_GAMUTS) {
+	// 【各判定色域でマップと色相バーの選択を制限し、オフにすると色域外も選べる】
+	// L・H・alphaを維持したクロマ削減を、実際の入力イベント経由で確認する。
+	// 色相バーも同じ制限を適用し、マップと異なる判定を使わないことを保証する。
+	test(`limits map and hue selections to ${gamut} only while enabled`, async t => {
+		const { state, findField, selectGamut, toggleGamutLimit, switchMode, pointer } = await fixture(t, [0.125, 0.125, 0.125, 0.75]);
+		await switchMode('oklch');
+		await selectGamut(gamut);
+		await toggleGamutLimit();
+		await pointer('map', 'down', 200, 50);
+		await pointer('map', 'up', 200, 50);
+		assert.ok(isLinearSrgbInGamut(state.color, gamut));
+		assert.equal(findField('OKLCH-0').textContent, '50');
+		assert.equal(findField('OKLCH-2').textContent, '0');
+		assert.ok(Number(findField('OKLCH-1').textContent) < 0.5);
+		assert.equal(state.color[3], 0.75);
+		await pointer('hue', 'down', 100, 0);
+		await pointer('hue', 'up', 100, 0);
+		assert.ok(isLinearSrgbInGamut(state.color, gamut));
+		assert.equal(findField('OKLCH-0').textContent, '50');
+		assert.equal(findField('OKLCH-2').textContent, '180');
+		await toggleGamutLimit();
+		await pointer('map', 'down', 200, 50);
+		await pointer('map', 'up', 200, 50);
+		assert.equal(isLinearSrgbInGamut(state.color, gamut), false);
+		assert.equal(findField('OKLCH-1').textContent, '0.5');
+	});
+}
+
+// 【制限オンでも数値欄・最近使った色・alpha・外部更新は元の拡張値を扱う】
+// 制限の対象はマップと色相バーだけ。共通のsetColorへ無条件の制限を入れると、
+// 数値でのHDR編集や既存の色の確認ができなくなってしまう。
+test('keeps numeric recent alpha and external edits unrestricted while the map limit is enabled', async t => {
+	const recent = [3, -0.5, 0.25, 0.6];
+	const { state, edit, findElement, switchMode, pointer, toggleGamutLimit, selectGamut } = await fixture(t, [0, 0, 0, 1], { recentColors: [recent] });
+	await switchMode('oklch');
+	await toggleGamutLimit();
+	await edit('Linear-0', '4');
+	await edit('Linear-1', '-0.25');
+	assert.deepEqual(Array.from(state.color), [4, -0.25, 0, 1]);
+	await edit('OKLCH-0', '150');
+	assert.ok(state.color.slice(0, 3).some(channel => channel > 1));
+	findElement('data-test-color-picker-recent').props.onClick();
+	await nextTick();
+	assert.deepEqual(Array.from(state.color), recent);
+	await pointer('alpha', 'down', 100, 0);
+	await pointer('alpha', 'up', 100, 0);
+	assert.deepEqual(Array.from(state.color), [...recent.slice(0, 3), 0.5]);
+	state.color = [8, -2, 0.25, 0];
+	await nextTick();
+	await selectGamut('displayP3');
+	assert.deepEqual(Array.from(state.color), [8, -2, 0.25, 0]);
+});
+
+// 【新しいヘッダーのスポイトは、制限の状態に関係なく取得色とalphaを反映する】
+// スポイトのボタン化や制限追加で、画面からの色取得が無効にならないことを確認する。
+// EyeDropperが返す色はsRGBなので、従来どおりlinearへ変換しalphaを引き継ぐ。
+test('keeps the header eyedropper working with the map limit enabled', async t => {
+	const { state, findElement, toggleGamutLimit } = await fixture(t, [4, -0.25, 0.5, 0.25], { eyedropperHex: '#808080' });
+	await toggleGamutLimit();
+	await findElement('data-test-color-picker-eyedropper').props.onClick();
+	await nextTick();
+	assert.deepEqual(Array.from(state.color), srgbToLinearSrgb([128 / 255, 128 / 255, 128 / 255, 0.25]));
+});
+
+// 【制限付きの色相操作は数値入力のHDR色を基準白までに収め、無彩色の色相は保持する】
+// 設定切替では保持する色域外の値も、新たなマップ選択では制限対象になる。
+// 白へ制限した後も色相を選び直し、明度・Cを戻したときにその色相で編集できる必要がある。
+test('limits extended lightness only when selecting through the hue bar and preserves neutral hue', async t => {
+	const { state, edit, findField, switchMode, toggleGamutLimit, pointer, pressKey } = await fixture(t, [0.125, 0.125, 0.125, 0.75]);
+	await switchMode('oklch');
+	await toggleGamutLimit();
+	await edit('OKLCH-0', '150');
+	await pointer('hue', 'down', 100, 0);
+	await pointer('hue', 'up', 100, 0);
+	assert.deepEqual(Array.from(state.color), [1, 1, 1, 0.75]);
+	assert.equal(findField('OKLCH-2').textContent, '180');
+	await edit('OKLCH-0', '50');
+	await pressKey('map', 'ArrowRight');
+	assert.equal(findField('OKLCH-2').textContent, '180');
+	assert.ok(isLinearSrgbInGamut(state.color, 'srgb'));
 });

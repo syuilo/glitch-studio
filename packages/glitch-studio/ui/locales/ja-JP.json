@@ -356,6 +356,8 @@
 		"EaseOut": "Ease Out"
 	},
 	"_ColorPicker": {
+		"ReferenceGamut": "判定色域",
+		"LimitToGamut": "色域内に制限",
 		"MapMode": "カラーマップのモード",
 		"HsvMap": "彩度と明るさ",
 		"OklchMap": "クロマと明度",

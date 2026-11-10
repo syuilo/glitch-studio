@@ -356,6 +356,8 @@
 		"EaseOut": "Ease Out"
 	},
 	"_ColorPicker": {
+		"ReferenceGamut": "Reference gamut",
+		"LimitToGamut": "Limit to gamut",
 		"MapMode": "Color map mode",
 		"HsvMap": "Saturation and value",
 		"OklchMap": "Chroma and lightness",

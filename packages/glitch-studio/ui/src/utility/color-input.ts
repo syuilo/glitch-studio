@@ -19,6 +19,12 @@ export function colorCss(color: readonly number[]): string {
 	return `rgb(${channel(r)} ${channel(g)} ${channel(b)} / ${a})`;
 }
 
+/** 色域の判定基準と表示先を分離する。広色域の色見本はブラウザーの色管理へ渡す。 */
+export function extendedColorCss(color: readonly number[]): string {
+	const [r, g, b, a] = normalizeColor(color);
+	return `color(srgb-linear ${r} ${g} ${b} / ${a})`;
+}
+
 export function colorHex(color: readonly number[]): string {
 	return '#' + linearSrgbToSrgb(normalizeColor(color)).map(channel => Math.round(clampColorValue(channel) * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 }
