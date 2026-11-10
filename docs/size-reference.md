@@ -39,6 +39,7 @@
 | Chromatic Aberration、Vector Chromatic Aberration | 色ずれを計算する等方的な基準領域。入力ベクトルは共通空間単位 |
 | Shape SDF | Size・Corner Radius |
 | Vignette | Size・Feather。Centerは共通座標を維持 |
+| Manga Print | Smoothing・Outline Width・Tone Frequency・Paper Grain Frequency |
 | SDF Boolean | Smoothing |
 | SDF to Mask | Offset・Stroke Width・Feather |
 | Glass | Thickness・Edge Softness・Normal Smoothing・Blur Radius |
