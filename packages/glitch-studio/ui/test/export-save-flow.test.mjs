@@ -31,6 +31,7 @@ const { getRendererAssets } = rendererAssetsModule.exports;
 
 function fixture({ browser = false, choose = null, save = null, suspend = null, resume = null, renderError = null } = {}) {
 	const events = [];
+	const exportRequests = [];
 	const ref = value => ({ value });
 	const state = Object.fromEntries(Object.entries({
 		resolution: { width: 1920, height: 1080 }, timelineFps: 30, timelineMotionBlur: {},
@@ -56,15 +57,16 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 		validationError: ref(null), error: ref(''), status: ref(''), progress: ref(null),
 		downloadUrl: ref('previous'), downloadName: ref('previous.mp4'),
 		settings: ref({ format: 'mp4', quality: 'high', width: 1920, height: 1080, positionMs: 0, endTimeMs: 100, fps: 30 }),
-		resolutionScale: ref(1), sceneId: ref('scene'), scene: ref({ name: 'Scene' }), projectName: ref('Project'),
-		stateManager: { state }, preferences: { s: {} }, deepClone: structuredClone, getRendererAssets,
+		resolutionScale: ref(1), effectRenderTileDivisionLevel: ref(0), sceneId: ref('scene'), scene: ref({ name: 'Scene' }), projectName: ref('Project'),
+		stateManager: { state }, preferences: { s: { enable32bitDataTextures: true, effectRenderTileDivisionLevel: 3 } }, deepClone: structuredClone, getRendererAssets,
 		getRequiredVoicevoxRequestsForRendering: () => [],
 		appContext: {
 			voicevoxGeneration: { async prepare() { events.push(['prepare']); return []; } },
 			async suspendPreview() { events.push(['suspend']); await suspend?.(); },
 			async resumePreview() { events.push(['resume']); await resume?.(); },
 		},
-		async exportTimeline(_request, _signal, onProgress) {
+		async exportTimeline(request, _signal, onProgress) {
+			exportRequests.push(request);
 			events.push(['render']);
 			if (renderError != null) throw renderError;
 			onProgress({ phase: 'finalizing', completedFrames: 3, totalFrames: 3 });
@@ -81,8 +83,33 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 	};
 	const actions = new Function('context', `const { ${Object.keys(context).join(', ')} } = context;
 		let abortController = null; ${code}; return { doExport, abort: () => abortController?.abort() };`)(context);
-	return { events, context, ...actions, sendSaveProgress: value => progressListener?.(value), get hasProgressListener() { return progressListener != null; } };
+	return { events, exportRequests, context, ...actions, sendSaveProgress: value => progressListener?.(value), get hasProgressListener() { return progressListener != null; } };
 }
+
+// 【全出力形式でダイアログのタイル分割を使い、書き出し開始時の設定を保持する】
+// 環境設定の値をそのまま渡すと、書き出しだけ分割を無効にしたり増やしたりできない。
+// 保存先を選ぶ間に設定が変わっても、受け付けた書き出しの設定へ混入しないことを確認する。
+test('passes the selected tile division to every export format using a snapshot', async () => {
+	for (const [format, divisionLevel] of [['mp4', 0], ['webp', 2], ['exr', 4]]) {
+		const choice = Promise.withResolvers();
+		const f = fixture({ choose: () => choice.promise });
+		if (format === 'webp') {
+			f.context.settings.value = { format, quality: 'high', width: 1920, height: 1080, positionMs: 0 };
+		} else if (format === 'exr') {
+			f.context.settings.value = { format, compression: 'zip', width: 1920, height: 1080, positionMs: 0 };
+		}
+		f.context.effectRenderTileDivisionLevel.value = divisionLevel;
+		const job = f.doExport();
+		f.context.effectRenderTileDivisionLevel.value = 1;
+		f.context.preferences.s.enable32bitDataTextures = false;
+		choice.resolve({ id: 'target', name: `chosen.${format}` });
+		await job;
+		assert.equal(f.context.error.value, '');
+		assert.equal(f.exportRequests.length, 1);
+		assert.deepEqual(f.exportRequests[0].renderer, { enable32bitDataTextures: true, effectRenderTileDivisionLevel: divisionLevel });
+		assert.equal(f.context.preferences.s.effectRenderTileDivisionLevel, 3);
+	}
+});
 
 // 【保存中の進捗は現在の保存先IDだけを採用し、完了後に購読を解除する】
 // 別ウィンドウの通知や前回の遅延通知で表示が書き換わらず、繰り返し書き出しても

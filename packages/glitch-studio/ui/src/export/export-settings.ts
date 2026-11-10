@@ -16,13 +16,14 @@ export type ExportDialogSettings = {
 	openExrCompression: OpenExrCompression;
 	resolutionScale: ExportScale;
 	customResolution: Resolution;
+	effectRenderTileDivisionLevel: number;
 	fpsScale: ExportScale;
 	customFps: number;
 	startTime: string;
 	endTime: string;
 };
 
-export function createDefaultExportDialogSettings(sceneId: string, resolution: Resolution, fps: number, endTimeMs: number): ExportDialogSettings {
+export function createDefaultExportDialogSettings(sceneId: string, resolution: Resolution, fps: number, endTimeMs: number, effectRenderTileDivisionLevel: number): ExportDialogSettings {
 	return {
 		sceneId,
 		mode: 'video',
@@ -33,6 +34,7 @@ export function createDefaultExportDialogSettings(sceneId: string, resolution: R
 		openExrCompression: 'zip',
 		resolutionScale: 1,
 		customResolution: { ...resolution },
+		effectRenderTileDivisionLevel,
 		fpsScale: 1,
 		customFps: fps,
 		startTime: formatExportTime(0),

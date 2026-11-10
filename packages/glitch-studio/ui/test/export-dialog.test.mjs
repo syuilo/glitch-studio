@@ -16,8 +16,10 @@ const bundle = await build({
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'export-dialog-platform', setup(build) {
 		build.onResolve({ filter: /\.vue$|(?:^|\/)(?:app|preferences|application-activity)\.ts$|\/export\/client\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
-		build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({ loader: 'ts', resolveDir: directory, contents: !args.path.endsWith('/app.ts')
-			? 'export default {}; export const preferences = { s: {} }; export const applicationActivity = {}; export function exportTimeline() {}'
+		build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({ loader: 'ts', resolveDir: directory, contents: args.path.endsWith('/preferences.ts')
+			? 'export const preferences = globalThis.exportDialogPreferences = { s: { effectRenderTileDivisionLevel: 0 } };'
+			: !args.path.endsWith('/app.ts')
+			? 'export default {}; export const applicationActivity = {}; export function exportTimeline() {}'
 			: `
 			import { ref } from 'vue';
 			import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -36,7 +38,9 @@ const bundled = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports);
 const Dialog = { ...bundled.exports.default, render: () => null };
 const context = globalThis.exportDialogContext;
+const preferences = globalThis.exportDialogPreferences;
 delete globalThis.exportDialogContext;
+delete globalThis.exportDialogPreferences;
 const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {}, parentNode: () => null, nextSibling: () => null });
 
 // 【EXRの圧縮方式を保存・復元し、WebPの品質と独立した設定として扱う】
@@ -66,8 +70,9 @@ test('restores OpenEXR settings and displays block and byte progress', t => {
 	assert.equal(reopened.input.settings.quality, 'high');
 });
 
-function fixture(t, savedSettings = null) {
+function fixture(t, savedSettings = null, preferredEffectRenderTileDivisionLevel = 0) {
 	const stateManager = context.projectContext.stateManager;
+	preferences.s.effectRenderTileDivisionLevel = preferredEffectRenderTileDivisionLevel;
 	context.projectContext.generation = 1;
 	context.previewPlayback.state.value = { mode: 'timeline' };
 	context.activeScene.value = { id: 'scene' };
@@ -87,6 +92,23 @@ function fixture(t, savedSettings = null) {
 	};
 	return { stateManager, open, ...open() };
 }
+
+// 【タイル分割の初期値を環境設定から取り込み、変更後は書き出し設定として復元する】
+// 書き出しだけ分割数を変えてもプレビュー用の環境設定を書き換えず、無効の選択も保持する。
+// 保存済みの値は、後から変更した環境設定より優先する。
+test('initializes tile division from preferences and restores the independent export choice', t => {
+	const f = fixture(t, null, 2);
+	assert.equal(f.input.effectRenderTileDivisionLevel, 2);
+	f.input.effectRenderTileDivisionLevel = 0;
+	assert.equal(preferences.s.effectRenderTileDivisionLevel, 2);
+	f.input.closeDialog();
+	assert.equal(f.stateManager.state.exportSettings.value.effectRenderTileDivisionLevel, 0);
+	f.close();
+	preferences.s.effectRenderTileDivisionLevel = 4;
+	const reopened = f.open();
+	assert.equal(reopened.input.effectRenderTileDivisionLevel, 0);
+	assert.equal(preferences.s.effectRenderTileDivisionLevel, 4);
+});
 
 // 【FPSの倍率はプロジェクトを基準にし、カスタム入力と出力の検証を切り替える】
 // 解像度だけが倍率へ追従したり、表示FPSと書き出しFPSが食い違ったりしないようにする。

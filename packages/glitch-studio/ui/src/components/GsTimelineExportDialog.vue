@@ -27,6 +27,10 @@
 			<GsInput v-model="customResolution.width" large type="number" manualSave :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
 			<GsInput v-model="customResolution.height" large type="number" manualSave :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
+		<GsSelect v-model="effectRenderTileDivisionLevel" large :items="effectRenderTileDivisionItems" :disabled="exporting" data-test-export-effect-render-tile-division-level>
+			<template #label>{{ i18n.ts._Settings.EffectRenderTileDivisionLevel }}</template>
+			<template #caption>{{ i18n.ts._Settings.EffectRenderTileDivisionLevelHint }}</template>
+		</GsSelect>
 		<GsSelect v-if="mode === 'video'" v-model="fpsScale" large :items="scaleOptions" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.FrameRate }}</template>
 			<template #caption>{{ fps }} fps</template>
@@ -100,7 +104,7 @@ const initialScene = (previewPlayback.state.value.mode === 'timeline'
 const initialSceneId = initialScene?.id ?? '';
 const dialogSettings = reactive(deepClone(savedSettings ?? createDefaultExportDialogSettings(initialSceneId,
 	getSceneBaseResolution(initialScene?.resolution ?? { mode: 'project' }, stateManager.state.resolution.value),
-	stateManager.state.timelineFps.value, initialScene == null ? 0 : getSceneDuration(initialScene))));
+	stateManager.state.timelineFps.value, initialScene == null ? 0 : getSceneDuration(initialScene), preferences.s.effectRenderTileDivisionLevel)));
 // 未選択なら先頭のSceneを使い、削除済みの参照は現在のSceneへ戻す。
 // どちらも以前の時間範囲を流用せず、選択したSceneの全範囲から始める。
 if (!stateManager.state.timelineScenes.value.some(scene => scene.id === dialogSettings.sceneId)) {
@@ -110,7 +114,8 @@ if (!stateManager.state.timelineScenes.value.some(scene => scene.id === dialogSe
 	dialogSettings.endTime = formatExportTime(fallbackScene == null ? 0 : getSceneDuration(fallbackScene));
 }
 const { sceneId, mode, videoFormat, stillFormat, videoQuality, stillQuality, openExrCompression, resolutionScale, customResolution,
-								fpsScale, customFps, startTime, endTime } = toRefs(dialogSettings);
+								effectRenderTileDivisionLevel, fpsScale, customFps, startTime, endTime } = toRefs(dialogSettings);
+const effectRenderTileDivisionItems = [0, 1, 2, 3, 4].map(value => ({ value, label: value === 0 ? i18n.ts._Settings.EffectRenderTilesDisabled : `${value} (${4 ** value})` }));
 const sceneItems = computed(() => [{ label: i18n.ts._Export.ChooseScene, value: '' }, ...stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
 const scene = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
 const quality = computed({
@@ -224,6 +229,12 @@ async function doExport() {
 	let previewDisposed = false;
 	try {
 		const exportSettings = { ...settings.value };
+		// 環境設定は初期値にだけ使い、書き出しにはダイアログで選んだ分割数を渡す。
+		// 保存先選択や音声準備の待機中にも変わらないよう、開始時点の設定を保持する。
+		const exportRendererSettings = {
+			enable32bitDataTextures: preferences.s.enable32bitDataTextures,
+			effectRenderTileDivisionLevel: effectRenderTileDivisionLevel.value,
+		};
 		const exportResolutionScale = resolutionScale.value === 'custom' ? null : resolutionScale.value;
 		const exportSceneId = sceneId.value;
 		const suggestedName = `${projectName.value || 'project'}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
@@ -271,12 +282,7 @@ async function doExport() {
 			settings: exportSettings,
 			resolutionScale: exportResolutionScale,
 			project: deepClone(exportProject),
-			// 書き出し開始時の環境設定から独立した設定を作る。
-			// プレビュー用Controllerの初期化・再読み込み状態には依存しない。
-			renderer: {
-				enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-				effectRenderTileDivisionLevel: preferences.s.effectRenderTileDivisionLevel,
-			},
+			renderer: exportRendererSettings,
 		}, signal, value => {
 			progress.value = value;
 			const fraction = getExportProgressFraction(value);
