@@ -451,7 +451,7 @@
 	},
 	"_Preview": {
 		"GamutCompression": "色域の圧縮",
-		"GamutCompressionHint": "色をsRGBの範囲へ圧縮して確認します。",
+		"GamutCompressionHint": "sRGB環境において、選択した色域をカバーするように色の範囲を圧縮して表示します。",
 		"GamutCompressionNormal": "RAW",
 		"GamutCompressionCustom": "カスタム",
 		"GamutCompressionAmountHint": "クロマの削減率。0%は無圧縮、50%はクロマを半分、100%は無彩色です。",
