@@ -169,7 +169,7 @@ function gpuFixture() {
 		createShaderModule: () => ({}), createSampler: () => ({}), createBindGroup: () => ({}),
 		createBindGroupLayout: () => ({}), createPipelineLayout: () => ({}),
 		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
-		createComputePipeline: () => ({}),
+		createComputePipeline: () => ({ getBindGroupLayout: () => ({}) }),
 		pushErrorScope() {}, async popErrorScope() { return null; },
 		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) }),
 		queue: { submit() {}, async onSubmittedWorkDone() {}, writeBuffer() {}, writeTexture() {}, copyExternalImageToTexture() {} },
@@ -895,7 +895,7 @@ for (const Manager of [TimelineRendererManager, VisualModuleRendererManager]) {
 		// 無効時は解析用の初期化とcompute passを省き、有効時は縦横の波形も処理する。
 		test(`renders the preview with optional waveform and histogram GPU work: ${Manager.name}, ${enableWaveformAndHistogram}`, async t => {
 			let configuredCanvases = 0;
-			const context = () => ({ configure() { configuredCanvases++; }, unconfigure() {}, getCurrentTexture: () => ({ createView: () => ({}) }) });
+			const context = () => ({ canvas: { width: 512, height: 256 }, configure() { configuredCanvases++; }, unconfigure() {}, getCurrentTexture: () => ({ createView: () => ({}) }) });
 			const f = await fixture(t, { enableWaveformAndHistogram }, Manager, {
 				histogramGpuContext: context(), waveformHorizontalGpuContext: context(), waveformVerticalGpuContext: context(),
 			});
@@ -1689,6 +1689,7 @@ function installTiledEffect(f) {
 
 // 【タイル待機中は次の描画とVideoFrameの交換を保留し、編集時は旧結果を表示しない】
 // 実Managerの時計・動画の所有権・世代管理まで含め、単体の描画Promiseだけでは防げない競合を検証する。
+// 波形の表示寸法の変更は作品の編集ではないため、実行中のタイル描画を中断しない。
 test('serializes tiled Live Preview frames and retains borrowed video frames until completion', async t => {
 	const f = await fixture(t, { effectRenderTileDivisionLevel: 1, enableWaveformAndHistogram: false });
 	const { definition, renders } = installTiledEffect(f);
@@ -1707,6 +1708,7 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	assert.equal(replaced.closed, 1);
 	assert.equal(renders.length, 1);
 	assert.equal(present.mock.callCount(), 0);
+	await f.renderer.setWaveformCanvasSizes({ horizontal: { width: 900, height: 450 }, vertical: { width: 450, height: 900 } }, true);
 	for (let index = 0; index < 4; index++) { waits.shift()(); await new Promise(resolve => setImmediate(resolve)); }
 	assert.equal(present.mock.callCount(), 1);
 	assert.equal(old.closed, 1);

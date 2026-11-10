@@ -1,6 +1,6 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
-import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
+import { PreviewImageAnalysis } from './preview-image-analysis.ts';
+import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import finalRenderShaderCode from './render.wgsl?raw';
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
@@ -18,6 +18,7 @@ export class CanvasRenderer {
 	private readonly cpuCanvasContexts: CpuPreviewCanvasContext[];
 	private readonly cpuFrameQueue: CpuPreviewFrameQueue | null;
 	private readonly cpuMainCanvasContexts: readonly CpuPreviewCanvasContext[];
+	private readonly cpuAnalysisCanvasContexts: readonly CpuPreviewCanvasContext[];
 	private readonly canvasContexts: Partial<Record<CpuPreviewCanvasTarget, PreviewCanvasContext>>;
 	public get usesCpuDisplay() { return this.cpuCanvasContexts.length > 0; }
 	private gpuDevice: GPUDevice;
@@ -27,9 +28,8 @@ export class CanvasRenderer {
 	private finalRenderUniformBuffer: GPUBuffer;
 	private finalRenderBindGroup: GPUBindGroup | null = null;
 	private latestRenderedToCanasTexture: GPUTexture | null = null;
-	private gpuHistogram: GpuHistogram | null = null;
-	private gpuWaveformHorizontal: GpuWaveform | null = null;
-	private gpuWaveformVertical: GpuWaveform | null = null;
+	private readonly imageAnalysis: PreviewImageAnalysis | null;
+	private highResolutionAnalysisGeneration = 0;
 	public highlightClipping = false;
 	public previewExposure = 0;
 	public opaqueOutput = false;
@@ -50,6 +50,11 @@ export class CanvasRenderer {
 	public analysisValueScale: ImageValueScale = 'srgb';
 	public analysisTarget: ImageAnalysisTarget = 'rgb';
 	public analysisValueRange: ImageValueRange = { minimum: 0, maximum: 1 };
+	public analysisWaveformCanvasSizes: PreviewWaveformCanvasSizes | null = null;
+	private get imageAnalysisSettings(): PreviewImageAnalysisSettings {
+		return { target: this.analysisTarget, valueScale: this.analysisValueScale, valueRange: this.analysisValueRange, waveformCanvasSizes: this.analysisWaveformCanvasSizes };
+	}
+	public set analysisPaused(value: boolean) { if (this.imageAnalysis != null) this.imageAnalysis.paused = value; }
 	public get previewBackground() { return this.currentPreviewBackground; }
 	public set previewBackground(value: 'black' | 'checker' | null) {
 		if (value === this.currentPreviewBackground) return;
@@ -73,26 +78,13 @@ export class CanvasRenderer {
 			.filter((context): context is CpuPreviewCanvasContext => context instanceof CpuPreviewCanvasContext);
 		this.cpuFrameQueue = this.cpuCanvasContexts.length > 0 ? new CpuPreviewFrameQueue(this.cpuCanvasContexts) : null;
 		this.cpuMainCanvasContexts = options.gpuContext instanceof CpuPreviewCanvasContext ? [options.gpuContext] : [];
+		this.cpuAnalysisCanvasContexts = this.cpuCanvasContexts.filter(context => context !== options.gpuContext);
 
 		// 非表示にするだけでは集計パスが残る。無効時は解析用リソース自体を生成せず、
 		// renderToCanvasでも通常のプレビュー描画だけを実行する。
-		if (options.enableWaveformAndHistogram && options.histogramGpuContext != null) this.gpuHistogram = new GpuHistogram(
-			this.gpuDevice,
-			options.histogramGpuContext,
-			navigator.gpu.getPreferredCanvasFormat(),
-		);
-		if (options.enableWaveformAndHistogram && options.waveformHorizontalGpuContext != null) this.gpuWaveformHorizontal = new GpuWaveform(
-			this.gpuDevice,
-			options.waveformHorizontalGpuContext,
-			navigator.gpu.getPreferredCanvasFormat(),
-		);
-
-		if (options.enableWaveformAndHistogram && options.waveformVerticalGpuContext != null) this.gpuWaveformVertical = new GpuWaveform(
-			this.gpuDevice,
-			options.waveformVerticalGpuContext,
-			navigator.gpu.getPreferredCanvasFormat(),
-			'y',
-		);
+		this.imageAnalysis = options.enableWaveformAndHistogram ? new PreviewImageAnalysis(this.gpuDevice, {
+			histogram: options.histogramGpuContext, horizontal: options.waveformHorizontalGpuContext, vertical: options.waveformVerticalGpuContext,
+		}) : null;
 
 		const finalRenderShaderModule = this.gpuDevice.createShaderModule({
 			code: colorSpaceShaderCode + '\n' + finalRenderShaderCode,
@@ -172,14 +164,7 @@ export class CanvasRenderer {
 	public renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
 		if (this.previewActive && this.previewBackground === 'checker') this.captureBackgroundImage(tex, commandEncoder);
 		this.renderFinalImage(tex, commandEncoder);
-		if (this.gpuHistogram != null) {
-			this.gpuHistogram.valueScale = this.analysisValueScale;
-			this.gpuHistogram.target = this.analysisTarget;
-			this.gpuHistogram.valueRange = this.analysisValueRange;
-			this.gpuHistogram.render(commandEncoder, tex);
-		}
-		this.gpuWaveformHorizontal?.render(commandEncoder, tex, this.analysisValueScale, this.analysisTarget, this.analysisValueRange);
-		this.gpuWaveformVertical?.render(commandEncoder, tex, this.analysisValueScale, this.analysisTarget, this.analysisValueRange);
+		this.imageAnalysis?.renderLive(tex, commandEncoder, this.imageAnalysisSettings);
 		this.backgroundScheduler.notifyFrameRendered();
 	}
 
@@ -241,6 +226,7 @@ export class CanvasRenderer {
 	}
 
 	public clear() {
+		this.imageAnalysis?.forgetSource();
 		this.clearBackgroundAnimation();
 		this.cpuFrameQueue?.clear();
 		for (const context of this.cpuCanvasContexts) context.invalidatePendingFrames();
@@ -248,9 +234,56 @@ export class CanvasRenderer {
 		this.latestRenderedToCanasTexture = null;
 	}
 
-	public tryReserveCpuPreviewFrame() { return this.cpuFrameQueue?.tryReserveFrame() ?? null; }
+	public tryReserveCpuPreviewFrame() { return this.cpuFrameQueue?.tryReserveFrame(this.imageAnalysis?.livePaused === true ? this.cpuMainCanvasContexts : this.cpuCanvasContexts) ?? null; }
 
-	public async reserveCpuPreviewFrame() { return this.cpuFrameQueue?.reserveFrame() ?? null; }
+	public async reserveCpuPreviewFrame() { return this.cpuFrameQueue?.reserveFrame(this.imageAnalysis?.livePaused === true ? this.cpuMainCanvasContexts : this.cpuCanvasContexts) ?? null; }
+
+	/** リサイズでは作品を再評価せず、最後に完成した画像の解析だけを描き直す。 */
+	public async refreshImageAnalysis() {
+		const analysis = this.imageAnalysis;
+		if (analysis == null || analysis.livePaused) return;
+		const frame = this.cpuAnalysisCanvasContexts.length > 0 ? await this.cpuFrameQueue!.reserveFrame(this.cpuAnalysisCanvasContexts) : null;
+		try {
+			const encoder = this.gpuDevice.createCommandEncoder();
+			if (!analysis.renderCurrent(encoder, this.imageAnalysisSettings)) { frame?.cancel(); return; }
+			frame?.prepareReadback(encoder);
+			this.gpuDevice.queue.submit([encoder.finish()]);
+			await (frame?.complete() ?? this.gpuDevice.queue.onSubmittedWorkDone());
+		} catch (error) { frame?.cancel(); throw error; }
+	}
+
+	public async setHighResolutionImageAnalysis(enabled: boolean, settings: PreviewImageAnalysisSettings): Promise<boolean> {
+		const analysis = this.imageAnalysis;
+		if (analysis == null) return false;
+		if (!enabled) {
+			this.highResolutionAnalysisGeneration++;
+			analysis.releaseSnapshot();
+			for (const context of this.cpuAnalysisCanvasContexts) context.invalidatePendingFrames();
+			return true;
+		}
+		if (!analysis.hasSnapshot) {
+			// CPU表示の空きを待つ前に元フレームを確定し、後続の動画フレームで置き換えない。
+			const encoder = this.gpuDevice.createCommandEncoder();
+			if (!analysis.capture(encoder)) return false;
+			this.gpuDevice.queue.submit([encoder.finish()]);
+			for (const context of this.cpuAnalysisCanvasContexts) context.invalidatePendingFrames();
+		}
+		const generation = this.highResolutionAnalysisGeneration;
+		while (generation === this.highResolutionAnalysisGeneration && analysis.hasSnapshot) {
+			const frame = this.cpuAnalysisCanvasContexts.length > 0 ? await this.cpuFrameQueue!.reserveFrame(this.cpuAnalysisCanvasContexts) : null;
+			if (generation !== this.highResolutionAnalysisGeneration || !analysis.hasSnapshot) { frame?.cancel(); return false; }
+			try {
+				const encoder = this.gpuDevice.createCommandEncoder();
+				analysis.renderSnapshot(encoder, settings);
+				frame?.prepareReadback(encoder);
+				this.gpuDevice.queue.submit([encoder.finish()]);
+				await (frame?.complete() ?? this.gpuDevice.queue.onSubmittedWorkDone());
+				if (frame?.isCancelled === true) continue;
+				return generation === this.highResolutionAnalysisGeneration && analysis.hasSnapshot;
+			} catch (error) { frame?.cancel(); throw error; }
+		}
+		return false;
+	}
 
 	public recycleCpuPreviewPixels(target: CpuPreviewCanvasTarget, frameId: number, pixels: ArrayBuffer) {
 		const context = this.canvasContexts[target];
@@ -258,11 +291,10 @@ export class CanvasRenderer {
 	}
 
 	public destroy() {
+		this.highResolutionAnalysisGeneration++;
+		this.imageAnalysis?.dispose();
 		this.clearBackgroundAnimation();
 		this.cpuFrameQueue?.destroy();
-		this.gpuHistogram?.dispose();
-		this.gpuWaveformHorizontal?.dispose();
-		this.gpuWaveformVertical?.dispose();
 		for (const context of this.cpuCanvasContexts) context.unconfigure();
 	}
 }

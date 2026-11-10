@@ -67,9 +67,9 @@ export class CpuPreviewFrameQueue {
 		return frame;
 	}
 
-	public async reserveFrame(): Promise<CpuPreviewFrameReservation | null> {
+	public async reserveFrame(contexts: readonly CpuPreviewCanvasContext[] = this.contexts): Promise<CpuPreviewFrameReservation | null> {
 		while (!this.destroyed) {
-			const frame = this.tryReserveFrame();
+			const frame = this.tryReserveFrame(contexts);
 			if (frame != null) return frame;
 			await new Promise<void>(resolve => this.waiters.add(resolve));
 		}

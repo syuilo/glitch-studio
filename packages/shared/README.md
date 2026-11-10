@@ -49,6 +49,10 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 
 色はpremultiply済みのまま受け渡し、変換時に再乗算しない。定数をいつテクスチャ化するかとresolverの寿命は呼び出し側が決める。ノードの接続解決、Effectの出力管理、Sceneの画面サイズ確定は、それぞれのドメインが担当する。
 
+## 波形の集計
+
+`src/utility/waveform`はエフェクトやプレビューに依存しない波形のGPU集計・描画を提供する。`image-analysis-accumulation.ts`は重みを65535倍したu32加算の上限を共有する。最大65537サンプルまでなら一つの集計バッファを描画でも読み、結果統合を省く。波形では全サンプル数ではなく、位置ビンへ入る最大数で判定する。上限を超える場合だけ8192サンプルごとの部分和・float結果のバッファ・統合pipelineを遅延生成し、安全な直接経路へ戻ると追加バッファを破棄する。入力のuniform/texture用リソースは両経路で共有する。
+
 ## 動画の読み出し
 
 `src/media/external-image-texture.ts`は通常の外部画像を原寸でlinear sRGB・premultiplied alphaへ正規化する。`src/media/video-texture.ts`はVideoSampleから借りたVideoFrameを同じ経路へ渡し、変換後に回転・表示比率・描画倍率を適用する。非正方形ピクセルもlinear化より前に拡縮しない。すべての画像はINTERMEDIATE_TEXTURE_FORMAT（rgba16float）を使い、stagingと変換済み画像を再利用する。CanvasやGPU完了待ちは追加せず、変換用フレームは転送・submit後にcloseする。詳細は[色空間の規約](../../docs/color-management.md)を参照。

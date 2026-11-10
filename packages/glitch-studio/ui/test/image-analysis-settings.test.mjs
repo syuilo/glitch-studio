@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, markRaw, nextTick, ref } from 'vue';
+import { i18nPlugin } from './helpers/i18n.mjs';
 
 const componentPath = new URL('../src/components/GsImageAnalysisSettings.vue', import.meta.url);
 const descriptor = parse(await readFile(componentPath, 'utf8'), { filename: fileURLToPath(componentPath) }).descriptor;
@@ -13,7 +14,7 @@ const script = compileScript(descriptor, { id: 'image-analysis-settings', inline
 const bundled = await build({
 	stdin: { contents: `${script}\ncomponent.__cssModules = { $style: {} }; export default component;`, loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
-	plugins: [{ name: 'image-analysis-context', setup(build) {
+	plugins: [i18nPlugin, { name: 'image-analysis-context', setup(build) {
 		build.onResolve({ filter: /^@\/(app|ui)\.ts$/ }, args => ({ path: args.path, namespace: 'context' }));
 		build.onLoad({ filter: /.*/, namespace: 'context' }, args => ({ contents: args.path.endsWith('app.ts')
 			? 'export const appContext = dependencies.state;'
@@ -42,6 +43,10 @@ function fixture(t) {
 		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
 	const state = { analysisTarget: ref('rgb'), analysisValueScale: ref('srgb'), analysisRangePreset: ref('zeroToOne'), analysisCustomRange: ref({ minimum: 0, maximum: 1 }) };
+	state.imageAnalysisAvailable = ref(true);
+	let flushes = 0;
+	state.highResolutionImageAnalysis = { active: ref(false), busy: ref(false), errorMessage: ref(null), flush() { flushes++; } };
+	state.toggleHighResolutionImageAnalysis = () => { state.highResolutionImageAnalysis.active.value = !state.highResolutionImageAnalysis.active.value; };
 	const dependencies = { menu: null, state };
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', 'dependencies', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, dependencies);
@@ -56,11 +61,39 @@ function fixture(t) {
 	const text = node => node.text + node.children.map(text).join('');
 	const pointer = (type, props = {}) => Object.assign(new Event(type, { cancelable: true }), { pointerId: 7, clientX: 100, clientY: 100, ...props });
 	return { state, doc, view, find, text, pointer, unmount,
+		get flushes() { return flushes; },
 		get menu() { return dependencies.menu; },
 		openMenu(attribute) { find(attribute).props.onClick({ currentTarget: find(attribute) }); return dependencies.menu; },
 		start(node) { node.props.onPointerdown({ currentTarget: node, pointerId: 7, button: 0, clientX: 100, clientY: 100, preventDefault() {} }); },
 	};
 }
+
+// 【High-resの処理中と保持中を区別し、解析画像がないときは開始できない】
+// 同じボタンから通常表示へ戻れ、元プレビューが使えなくなっても保持解除を妨げない。
+test('shows High-res progress and HOLD and keeps the active mode switch available', async t => {
+	const f = fixture(t);
+	const button = f.find('data-test-image-analysis-high-res');
+	assert.equal(button.props['aria-pressed'], false);
+	assert.equal(button.props.disabled, false);
+	f.state.imageAnalysisAvailable.value = false;
+	await nextTick();
+	assert.equal(button.props.disabled, true);
+	f.state.imageAnalysisAvailable.value = true;
+	button.props.onClick();
+	f.state.highResolutionImageAnalysis.busy.value = true;
+	await nextTick();
+	assert.equal(button.props['aria-pressed'], true);
+	assert.equal(button.props['aria-busy'], true);
+	assert.ok(f.text(button).includes('…'));
+	f.state.highResolutionImageAnalysis.busy.value = false;
+	f.state.imageAnalysisAvailable.value = false;
+	await nextTick();
+	assert.ok(f.text(button).includes('HOLD'));
+	assert.equal(button.props.disabled, false);
+	button.props.onClick();
+	await nextTick();
+	assert.equal(button.props['aria-pressed'], false);
+});
 
 // 【対象・変換方式・範囲は独立したメニューで選び、数値データの変換方式はLinearに限定する】
 // 以前の範囲込みのモードへ戻らず、sRGB・EVでも同じ範囲を選べることを実際のボタンから確認する。
@@ -105,6 +138,7 @@ test('drags each custom endpoint vertically and resets it on a subsequent click'
 		f.start(node);
 		f.doc.dispatchEvent(f.pointer('pointermove', { clientY: 70 }));
 		f.doc.dispatchEvent(f.pointer('pointerup', { clientY: 60 }));
+		assert.equal(f.flushes, 1);
 		node.props.onClick({ detail: 1 });
 		assert.equal(f.state.analysisCustomRange.value[bound], Math.round((initial + 0.56) * 100) / 100);
 		f.start(node);

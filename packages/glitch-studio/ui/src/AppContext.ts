@@ -1,6 +1,8 @@
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import { resolveImageAnalysisValueScale } from '@gs/shared/utility/image-analysis.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
+import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import { HighResolutionImageAnalysisController } from './HighResolutionImageAnalysisController.ts';
 import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -74,6 +76,12 @@ export class AppContext {
 	public analysisRangePreset = ref<ImageAnalysisRangePreset>('zeroToOne');
 	public analysisCustomRange = ref<ImageValueRange>({ minimum: 0, maximum: 1 });
 	public analysisValueRange = computed(() => getImageAnalysisValueRange(this.analysisRangePreset.value, this.analysisCustomRange.value));
+	public readonly highResolutionImageAnalysis: HighResolutionImageAnalysisController<VisualModuleRendererManagerController | TimelineRendererManagerController>;
+	public readonly analysisWaveformCanvasSizes = shallowRef<PreviewWaveformCanvasSizes | null>(null);
+	public readonly imageAnalysisSettings = computed<PreviewImageAnalysisSettings>(() => ({ target: this.analysisTarget.value, valueScale: this.analysisValueScale.value, valueRange: { ...this.analysisValueRange.value }, waveformCanvasSizes: this.analysisWaveformCanvasSizes.value }));
+	public readonly displayedImageAnalysisSettings = computed(() => this.highResolutionImageAnalysis.displayedSettings.value ?? this.imageAnalysisSettings.value);
+	public readonly imageAnalysisRenderer = computed(() => this.highResolutionImageAnalysis.source.value ?? this.activePreviewRenderer.value);
+	public readonly imageAnalysisAvailable = computed(() => preferences.r.analysisMonitorsEnabled.value && !this.renderEngine.isSuspended.value && this.activePreviewRenderer.value.isReady.value);
 	public audioOutput = markRaw(new AudioOutput());
 	public visualModuleRendererManagerController: VisualModuleRendererManagerController;
 	public timelineRendererManagerController: TimelineRendererManagerController;
@@ -141,6 +149,7 @@ export class AppContext {
 			() => this.previewParameterEditing.clear(), { flush: 'sync' });
 		this.renderEngine = markRaw(new PreviewRenderEngine({
 			dispose: reason => {
+				this.highResolutionImageAnalysis?.reset();
 				this.synchronizedPreviewDisplayMode = null;
 				this.previewPlayback.suspend();
 				this.visualModuleRendererManagerController.disposeManager(reason);
@@ -156,7 +165,7 @@ export class AppContext {
 				const snapshot = deepClone({
 					assets: getRendererAssets(state.assets.value), players: state.players.value, customShaderEffects: state.customShaderEffects.value,
 					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
-					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value, previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisValueRange: { ...this.analysisValueRange.value } },
+					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value, previewExposure: this.previewExposure.value, previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value },
 					visualModuleOptions: { previewActive: previewDisplayMode === 'visualModuleLivePreview', fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
 					timelineOptions: { previewActive: previewDisplayMode === 'timeline', sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
 						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value },
@@ -183,6 +192,13 @@ export class AppContext {
 				void this.updatePreviewDisplayActivity();
 				this.previewPlayback.resume();
 			},
+		}));
+		this.highResolutionImageAnalysis = markRaw(new HighResolutionImageAnalysisController({
+			setLivePaused: async paused => {
+				await this.updatePreviewOptions({ analysisPaused: paused, analysisTarget: this.analysisTarget.value, analysisValueScale: this.analysisValueScale.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value });
+			},
+			refreshLive: () => this.previewPlayback.refresh(),
+			onError: error => this.renderEngine.fail(error),
 		}));
 		watch(() => this.previewPlayback.state.value.mode, () => {
 			void this.updatePreviewDisplayActivity();
@@ -283,8 +299,28 @@ export class AppContext {
 				this.analysisValueScale.value = resolvedValueScale;
 				return;
 			}
+			if (this.highResolutionImageAnalysis.active.value) {
+				this.highResolutionImageAnalysis.update(this.imageAnalysisSettings.value);
+				return;
+			}
 			await this.updatePreviewOptions({ analysisTarget: target, analysisValueScale: valueScale, analysisValueRange: { ...valueRange } });
 			this.previewPlayback.refresh();
+		}, { flush: 'sync' });
+
+		watch(this.analysisWaveformCanvasSizes, async () => {
+			if (this.highResolutionImageAnalysis.active.value) {
+				this.highResolutionImageAnalysis.update(this.imageAnalysisSettings.value);
+				return;
+			}
+			await this.renderEngine.runRendererUpdate(() => {
+				if (this.highResolutionImageAnalysis.active.value) return Promise.resolve();
+				const sizes = this.analysisWaveformCanvasSizes.value;
+				const source = this.activePreviewRenderer.value;
+				return Promise.all([
+					this.visualModuleRendererManagerController.setWaveformCanvasSizes(sizes, source === this.visualModuleRendererManagerController),
+					this.timelineRendererManagerController.setWaveformCanvasSizes(sizes, source === this.timelineRendererManagerController),
+				]);
+			}, { waitForInitialization: true });
 		}, { flush: 'sync' });
 
 		watch(this.previewExposure, async value => {
@@ -343,7 +379,20 @@ export class AppContext {
 		};
 	}
 
-	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewExposure' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget' | 'analysisValueRange'>>) {
+	public async toggleHighResolutionImageAnalysis() {
+		try {
+			if (this.highResolutionImageAnalysis.active.value) await this.highResolutionImageAnalysis.disable();
+			else await this.highResolutionImageAnalysis.enable(this.activePreviewRenderer.value, this.imageAnalysisSettings.value);
+		} catch (error) { this.renderEngine.fail(error); }
+	}
+
+	public setWaveformCanvasSize(direction: keyof PreviewWaveformCanvasSizes, size: PreviewWaveformCanvasSizes['horizontal']) {
+		const previous = this.analysisWaveformCanvasSizes.value;
+		if (previous?.[direction].width === size.width && previous[direction].height === size.height) return;
+		this.analysisWaveformCanvasSizes.value = { horizontal: { width: 1, height: 1 }, vertical: { width: 1, height: 1 }, ...previous, [direction]: { ...size } };
+	}
+
+	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewExposure' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget' | 'analysisValueRange' | 'analysisPaused' | 'analysisWaveformCanvasSizes'>>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),

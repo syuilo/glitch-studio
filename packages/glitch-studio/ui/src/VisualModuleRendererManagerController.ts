@@ -9,6 +9,7 @@ import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
+import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
@@ -133,14 +134,14 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.histogramCanvas.style.width = '100%';
 		this.histogramCanvas.style.height = '100%';
 		this.waveformHorizontalCanvas = window.document.createElement('canvas');
-		this.waveformHorizontalCanvas.width = 512;
-		this.waveformHorizontalCanvas.height = 256;
+		this.waveformHorizontalCanvas.width = 1;
+		this.waveformHorizontalCanvas.height = 1;
 		this.waveformHorizontalCanvas.style.display = 'block';
 		this.waveformHorizontalCanvas.style.width = '100%';
 		this.waveformHorizontalCanvas.style.height = '100%';
 		this.waveformVerticalCanvas = window.document.createElement('canvas');
-		this.waveformVerticalCanvas.width = 256;
-		this.waveformVerticalCanvas.height = 512;
+		this.waveformVerticalCanvas.width = 1;
+		this.waveformVerticalCanvas.height = 1;
 		this.waveformVerticalCanvas.style.display = 'block';
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
@@ -340,6 +341,16 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		// 起動前・初期化中の変更は、所有者が最新スナップショットで生成し直す。
 		if (!this.isReady.value) return;
 		await this.callAndWaitReturn('updateDynamicOptions', [options]);
+	}
+
+	public async setHighResolutionImageAnalysis(enabled: boolean, settings: PreviewImageAnalysisSettings): Promise<boolean> {
+		if (!this.isReady.value) return false;
+		return this.callAndWaitReturn('setHighResolutionImageAnalysis', [enabled, deepClone(settings)]);
+	}
+
+	public async setWaveformCanvasSizes(sizes: PreviewWaveformCanvasSizes | null, refresh: boolean): Promise<void> {
+		if (!this.isReady.value) return;
+		await this.callAndWaitReturn('setWaveformCanvasSizes', [deepClone(sizes), refresh]);
 	}
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {

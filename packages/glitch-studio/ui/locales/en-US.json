@@ -909,5 +909,8 @@
 	"Search": "Search",
 	"Metadata": "Metadata",
 	"StatsDisabled": "Stats are disabled",
-	"AnalysisDisabled": "Analysis is disabled"
+	"AnalysisDisabled": "Analysis is disabled",
+	"_ImageAnalysis": {
+		"NoPreviewFrame": "No preview frame available"
+	}
 }

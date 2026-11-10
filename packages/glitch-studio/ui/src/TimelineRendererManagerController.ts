@@ -5,6 +5,7 @@ import { getTimelinePreviewFrameIndex } from '@gs/glitch-studio_shared/timeline-
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
+import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { TimelineRendererManager, TimelineRendererManagerResources, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
@@ -125,14 +126,14 @@ export class TimelineRendererManagerController extends RendererManagerController
 		this.histogramCanvas.style.width = '100%';
 		this.histogramCanvas.style.height = '100%';
 		this.waveformHorizontalCanvas = window.document.createElement('canvas');
-		this.waveformHorizontalCanvas.width = 512;
-		this.waveformHorizontalCanvas.height = 256;
+		this.waveformHorizontalCanvas.width = 1;
+		this.waveformHorizontalCanvas.height = 1;
 		this.waveformHorizontalCanvas.style.display = 'block';
 		this.waveformHorizontalCanvas.style.width = '100%';
 		this.waveformHorizontalCanvas.style.height = '100%';
 		this.waveformVerticalCanvas = window.document.createElement('canvas');
-		this.waveformVerticalCanvas.width = 256;
-		this.waveformVerticalCanvas.height = 512;
+		this.waveformVerticalCanvas.width = 1;
+		this.waveformVerticalCanvas.height = 1;
 		this.waveformVerticalCanvas.style.display = 'block';
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
@@ -186,6 +187,16 @@ export class TimelineRendererManagerController extends RendererManagerController
 		if (snapshot.dynamicOptions.previewRevision !== this.transformPreviewRevision) {
 			this.call('updateDynamicOptions', [{ transformObserver: this.dynamicOptions.transformObserver ?? null, previewRevision: this.transformPreviewRevision }]);
 		}
+	}
+
+	public async setHighResolutionImageAnalysis(enabled: boolean, settings: PreviewImageAnalysisSettings): Promise<boolean> {
+		if (!this.isReady.value) return false;
+		return this.callAndWaitReturn('setHighResolutionImageAnalysis', [enabled, deepClone(settings)]);
+	}
+
+	public async setWaveformCanvasSizes(sizes: PreviewWaveformCanvasSizes | null, refresh: boolean): Promise<void> {
+		if (!this.isReady.value) return;
+		await this.callAndWaitReturn('setWaveformCanvasSizes', [deepClone(sizes), refresh]);
 	}
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerRuntimeOptions>) {

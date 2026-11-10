@@ -909,5 +909,8 @@
 	"Search": "検索",
 	"Metadata": "メタデータ",
 	"StatsDisabled": "統計が無効になっています",
-	"AnalysisDisabled": "解析が無効になっています"
+	"AnalysisDisabled": "解析が無効になっています",
+	"_ImageAnalysis": {
+		"NoPreviewFrame": "解析できるプレビュー画像がありません"
+	}
 }

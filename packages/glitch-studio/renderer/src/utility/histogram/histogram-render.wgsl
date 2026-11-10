@@ -6,6 +6,13 @@ const CANVAS_SIZE = vec2f(256.0, 150.0);
 struct Histogram {
 	values: array<u32, 769>,
 };
+override usePartialSums: bool = false;
+
+fn histogramValue(index: u32) -> f32 {
+	let stored = histogram.values[index];
+	if (usePartialSums) { return bitcast<f32>(stored); }
+	return f32(stored);
+}
 
 struct VertexOut {
 	@builtin(position) position: vec4f,
@@ -17,6 +24,8 @@ struct AnalysisSettings {
 	valueScale: u32,
 	mode: u32,
 	valueRange: vec2f,
+	sampleSize: vec2u,
+	chunkCount: u32,
 };
 @group(0) @binding(1) var<uniform> settings: AnalysisSettings;
 
@@ -44,8 +53,8 @@ fn barsVs(
 	let local = quad[vertexIndex];
 	let channel = instanceIndex / BIN_COUNT;
 	let bin = instanceIndex % BIN_COUNT;
-	let maximum = max(histogram.values[MAX_INDEX], 1u);
-	let height = min(f32(histogram.values[instanceIndex]) / f32(maximum), 1.0);
+	let maximum = max(histogramValue(MAX_INDEX), select(1.0, 1.0 / 65535.0, usePartialSums));
+	let height = min(histogramValue(instanceIndex) / maximum, 1.0);
 	let top = CANVAS_SIZE.y * (1.0 - height);
 	let pixelPosition = vec2f(
 		f32(bin) + local.x,

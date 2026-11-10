@@ -36,15 +36,16 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, onUnmounted, shallowRef, useTemplateRef } from 'vue';
+import { computed, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import GsImageAnalysisSettings from './GsImageAnalysisSettings.vue';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
+import { useWaveformCanvasSize } from '@/use-waveform-canvas-size.ts';
 import { createImagePositionAxisTicks, createImageValueAxisTicks, selectImageAnalysisAxisTicks } from '@/utility/image-analysis-axis.ts';
 
-const { activePreviewRenderer, analysisValueScale, analysisValueRange } = appContext;
+const { imageAnalysisRenderer, displayedImageAnalysisSettings } = appContext;
 
 const props = defineProps<{
 	direction: 'horizontal' | 'vertical';
@@ -52,11 +53,11 @@ const props = defineProps<{
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const scope = useTemplateRef('scope');
-const scopeSize = shallowRef({ width: 0, height: 0 });
+const { size: scopeSize, changeWindow: observeScope } = useWaveformCanvasSize(scope, size => appContext.setWaveformCanvasSize(props.direction, size));
 const axisTicks = computed(() => {
 	const horizontal = props.direction === 'horizontal';
 	const positionTicks = createImagePositionAxisTicks();
-	const valueTicks = createImageValueAxisTicks(analysisValueScale.value, analysisValueRange.value);
+	const valueTicks = createImageValueAxisTicks(displayedImageAnalysisSettings.value.valueScale, displayedImageAnalysisSettings.value.valueRange);
 	return {
 		x: selectImageAnalysisAxisTicks(horizontal ? positionTicks : valueTicks, scopeSize.value.width, 48),
 		// Waveform Xの値は下から上へ増える。Waveform Yの画像位置は上端が0%。
@@ -67,25 +68,7 @@ const axisTicks = computed(() => {
 const horizontalGridTicks = computed(() => axisTicks.value.y.filter(tick => tick.position > 0 && tick.position < 1));
 const verticalGridTicks = computed(() => axisTicks.value.x.filter(tick => tick.position > 0 && tick.position < 1));
 
-let scopeResizeObserver: ResizeObserver | null = null;
-
-function observeScope() {
-	scopeResizeObserver?.disconnect();
-	const element = scope.value;
-	if (element == null) return;
-	// 別ウィンドウへ移した後も、その表示先のレイアウト更新で目盛りを再計算する。
-	const scopeWindow = element.ownerDocument.defaultView ?? window;
-	scopeResizeObserver = new scopeWindow.ResizeObserver(([entry]) => {
-		scopeSize.value = { width: entry.contentRect.width, height: entry.contentRect.height };
-	});
-	scopeResizeObserver.observe(element);
-}
-
-onMounted(observeScope);
-// GsDetachableViewの破棄時にもchangeWindowが発生するため、子の片付け後に監視を解除する。
-onUnmounted(() => scopeResizeObserver?.disconnect());
-
-useRendererCanvas(canvasContainer, activePreviewRenderer, () => props.direction === 'horizontal' ? 'waveformHorizontalCanvas' : 'waveformVerticalCanvas', appContext.renderEngine.isSuspended);
+useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => props.direction === 'horizontal' ? 'waveformHorizontalCanvas' : 'waveformVerticalCanvas', appContext.renderEngine.isSuspended);
 </script>
 
 <style module lang="scss">

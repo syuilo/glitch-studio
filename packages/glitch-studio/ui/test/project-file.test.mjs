@@ -86,6 +86,8 @@ const appBundle = await build({
 						isReady = ref(false); errorMessage = ref(null);
 						frameCacheUsageRatio = ref(null);
 						updates = []; renders = []; lifecycle = [];
+						highResolutionAnalysisRequests = [];
+						analysisRefreshes = 0;
 						staticUpdates = [];
 						patches = []; snapshots = [];
 						options = {};
@@ -118,6 +120,14 @@ const appBundle = await build({
 						startVisualModuleLivePreviewRenderLoopFor() { this.lifecycle.push('start'); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
 						renderTimelineAt(time) { this.renders.push(time); }
+						async setHighResolutionImageAnalysis(enabled, settings) {
+							this.highResolutionAnalysisRequests.push(deepClone({ enabled, settings }));
+							return this.isReady.value;
+						}
+						async setWaveformCanvasSizes(sizes, refresh) {
+							this.options.analysisWaveformCanvasSizes = deepClone(sizes);
+							if (refresh) this.analysisRefreshes++;
+						}
 						cancelSeek() {}
 						disposeManager() { this.generation++; this.lifecycle.push('dispose'); this.isReady.value = false; }
 					}
@@ -198,6 +208,85 @@ test('applies analysis monitor preferences without changing project data or undo
 	await setImmediate();
 	assert.equal(context.audioOutput.preview.analysisEnabled, true);
 	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === true));
+});
+
+// 【High-resは開始元の画像を保持し、設定変更ではシーンを再描画せず、解除時に最新の通常設定へ戻す】
+// プレビューの表示先を切り替えても別Workerの画像へ置き換えず、両Workerの通常解析を休止する。
+// Worker再生成時は失われた保持画像を新しいフレームへ黙って差し替えない。
+test('integrates held analysis with preview switching settings and worker recreation', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project({ visualModules: [{ id: 'visual-module', name: 'Visual Module', nodes: [], paramDefs: [], customParameterDefs: [], customParameterValues: {} }] }));
+	appContext.previewPlayback.showTimeline();
+	const timeline = appContext.timelineRendererManagerController;
+	const visualModule = appContext.visualModuleRendererManagerController;
+	const highResolution = appContext.highResolutionImageAnalysis;
+	await appContext.toggleHighResolutionImageAnalysis();
+	assert.equal(highResolution.active.value, true);
+	assert.equal(appContext.imageAnalysisRenderer.value, timeline);
+	assert.deepEqual([timeline.options.analysisPaused, visualModule.options.analysisPaused], [true, true]);
+	const renders = timeline.renders.length;
+	appContext.analysisTarget.value = 'vectorLength';
+	appContext.analysisRangePreset.value = 'minusHalfToHalf';
+	assert.equal(appContext.analysisValueScale.value, 'linear');
+	assert.equal(appContext.displayedImageAnalysisSettings.value.target, 'rgb');
+	highResolution.flush();
+	await setImmediate();
+	assert.equal(timeline.renders.length, renders);
+	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
+	assert.equal(visualModule.highResolutionAnalysisRequests.length, 0);
+	assert.deepEqual(appContext.displayedImageAnalysisSettings.value, { target: 'vectorLength', valueScale: 'linear', valueRange: { minimum: -0.5, maximum: 0.5 }, waveformCanvasSizes: null });
+	appContext.previewPlayback.startVisualModuleLivePreview('visual-module');
+	await setImmediate();
+	assert.equal(appContext.activePreviewRenderer.value, visualModule);
+	assert.equal(appContext.imageAnalysisRenderer.value, timeline);
+	await appContext.toggleHighResolutionImageAnalysis();
+	assert.equal(timeline.highResolutionAnalysisRequests.at(-1).enabled, false);
+	assert.equal(appContext.imageAnalysisRenderer.value, visualModule);
+	for (const controller of [timeline, visualModule]) {
+		assert.equal(controller.options.analysisPaused, false);
+		assert.equal(controller.options.analysisTarget, 'vectorLength');
+		assert.deepEqual(controller.options.analysisValueRange, { minimum: -0.5, maximum: 0.5 });
+	}
+	await appContext.toggleHighResolutionImageAnalysis();
+	assert.equal(highResolution.source.value, visualModule);
+	appContext.renderEngine.requestRestart();
+	await appContext.renderEngine.retry();
+	assert.equal(highResolution.active.value, false);
+	assert.equal(highResolution.source.value, null);
+	assert.ok([timeline, visualModule].every(controller => controller.initialDynamicOptions.analysisPaused !== true));
+});
+
+// 【波形パネルの実寸変更は通常時も保持中も作品を再描画せず、最新の解析寸法を反映する】
+// 通常時は最後の完成画像だけを描き直し、High-resでは同じ保持画像への要求へ集約する。
+// High-res解除やWorker再生成後に以前の固定解像度へ戻ってしまうことも防ぐ。
+test('resizes waveform analysis independently of scene rendering and retains sizes through HOLD and restart', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	const timeline = appContext.timelineRendererManagerController;
+	const visualModule = appContext.visualModuleRendererManagerController;
+	const renders = timeline.renders.length;
+	appContext.setWaveformCanvasSize('horizontal', { width: 900, height: 450 });
+	appContext.setWaveformCanvasSize('vertical', { width: 400, height: 800 });
+	await setImmediate();
+	assert.equal(timeline.renders.length, renders);
+	assert.equal(timeline.analysisRefreshes, 2);
+	assert.deepEqual(timeline.options.analysisWaveformCanvasSizes, { horizontal: { width: 900, height: 450 }, vertical: { width: 400, height: 800 } });
+	assert.deepEqual(visualModule.options.analysisWaveformCanvasSizes, timeline.options.analysisWaveformCanvasSizes);
+	await appContext.toggleHighResolutionImageAnalysis();
+	appContext.setWaveformCanvasSize('horizontal', { width: 1200, height: 600 });
+	appContext.setWaveformCanvasSize('vertical', { width: 600, height: 1200 });
+	appContext.highResolutionImageAnalysis.flush();
+	await setImmediate();
+	assert.equal(timeline.renders.length, renders);
+	assert.equal(timeline.analysisRefreshes, 2);
+	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
+	assert.deepEqual(timeline.highResolutionAnalysisRequests.at(-1).settings.waveformCanvasSizes, { horizontal: { width: 1200, height: 600 }, vertical: { width: 600, height: 1200 } });
+	await appContext.toggleHighResolutionImageAnalysis();
+	appContext.renderEngine.requestRestart();
+	await appContext.renderEngine.retry();
+	assert.deepEqual(timeline.initialDynamicOptions.analysisWaveformCanvasSizes, { horizontal: { width: 1200, height: 600 }, vertical: { width: 600, height: 1200 } });
 });
 
 // 【起動時に保存済みの計測・解析設定を両プレビューの初期設定へ反映する】

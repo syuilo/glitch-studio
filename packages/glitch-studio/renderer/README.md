@@ -58,6 +58,16 @@ GPUを所有するManagerが、最終表示とモーションブラーの全サ�
 
 `analysisTarget`はRGB・Alpha・Vector X・Vector Y・Vector Lengthを選び、両Managerから`CanvasRenderer`へ同期する。RGBは従来の未乗算・alpha重み付けを使い、他の対象はA・R・G・`length(RG)`を保存値のまま重み1で解析する。数値データの表示は白で、alpha=0や値域の下端も表示する。数値データはLinearに限り、sRGB・EVの指定はGPUへの設定境界でもLinearへ補正する。表示範囲はこの補正によって変更しない。対象選択と集計用の値・重みの計算は、Waveformエフェクトも利用する`@gs/shared/utility/image-analysis.ts`・`@gs/shared/gpu/image-analysis.wgsl`へまとめる。
 
+`PreviewImageAnalysis`は解析Canvas・直近の借用入力・High-res用の所有画像を管理する。両Managerの`setHighResolutionImageAnalysis(true, settings)`は最初の要求でだけ入力を同じ寸法・形式へ`textureLoad`で複製し、その後の要求では保持画像を全画素で再集計する。COPY_SRCを持たないR/RG/RGBA・float32入力も表示変換やRGBA16への量子化を通さない。シーンの編集による`CanvasRenderer.clear()`は借用参照だけを破棄し、保持画像を残す。falseの要求・破棄では所有画像を解放する。通常入力がなければfalseを返し、後のフレームを代わりに保持しない。
+
+High-res中の`analysisPaused`は通常解析だけを止める。保持側は所有画像がある間も通常解析を止め、明示的な再解析は休止状態にかかわらず実行する。CPU表示では通常フレームの予約を主Canvasへ限定し、再解析は解析Canvasだけを予約・転送する。保持開始前の未完了転送を無効化し、返り値はGPU完了・CPU画素送信の後に返す。シーン変更でCPU予約を取り消した場合も、同じ保持画像で再試行する。対象・方式・範囲は各要求の`PreviewImageAnalysisSettings`で固定し、UI側が間引きと反映済み設定を管理する。
+
+波形のCanvas寸法はUIが渡す`analysisWaveformCanvasSizes`に従い、通常時・High-resとも表示実寸×DPRにする。`GpuWaveform`の集計ビン数もCanvasに合わせる。位置ビンはサンプル数まで、値ビンはGPUのバッファ上限までとし、Canvas自体は最大テクスチャ寸法へ収める。通常時の入力は長辺1024以下を基準にし、位置方向だけは表示に必要な数まで増やす。両Managerの`setWaveformCanvasSizes()`は表示専用の更新で、タイル描画・履歴・キャッシュを無効化しない。表示中のManagerだけ`CanvasRenderer.refreshImageAnalysis()`で最後の完成画像を描き直し、主Canvasの描画やノード評価を行わない。High-resの寸法は`PreviewImageAnalysisSettings.waveformCanvasSizes`へ同梱して保持画像を再解析する。
+
+固定小数点の集計経路は`@gs/shared/utility/image-analysis-accumulation.ts`の上限判定で選ぶ。最大重み65535×65537サンプルがu32上限と一致するため、ヒストグラムは全サンプル数、波形は`ceil(位置サンプル数 / 位置ビン数) × 直交方向サンプル数`が65537以下なら従来の直接集計を使う。直接経路では一つのu32バッファを集計・描画で共有し、結果統合をdispatchしない。High-resの小さい入力も直接経路になり、通常モードでも極端に少ない位置ビンなら分割経路になる。
+
+上限を超える場合だけ8192サンプル単位のu32部分和をfloatへ集約する。分割用pipelineと追加バッファは遅延生成し、直接経路へ戻る際には追加バッファとそれを参照するbind groupを解放する。波形はpipeline定数で直接／分割を特殊化し、直接経路のサンプル処理では部分和番号の計算も省く。この共通波形処理は作品内のWaveformエフェクトにも適用される。波形の強度はサンプル数・集計ビン数の比率で補正する。
+
 有効時のタイムラインのプレビュー計測は`performance.now()`の実経過時間を使い、フレーム全体・動画取得待ち・動画取り込みのCPU側処理・GPU完了待ちを分ける。フレーム全体は処理開始からGPU完了（CPU表示方式では読み戻し・RGBA変換・UIへの送信）までで、Scheduler内の順番待ちとUIでのCanvas描画は含めない。動画取得はファイル読み取り・初期化・デコード・キャッシュ待ちを含む。取り込みは変換・転送API・submitのCPU側時間で、GPU完了待ちは最終submit後の残りのキュー待ちであり、どちらもGPUの総実行時間ではない。計測のためだけのGPU同期や画像読み戻しは追加しない。
 
 動画レイヤーの計測を子Scene・複数レイヤー・モーションブラーの全サンプルについて一つの出力フレームへ合算する。取得・取り込みのキャッシュヒットは省略した処理を0として扱う。書き出し・失敗・編集で無効になったフレームは集計しない。`TimelinePreviewStatisticsCollector`は通知間の正常完了フレームから平均と項目ごとの最大値を作り、約100msごとに`telemetry`で通知する。Scene・編集世代の異なるフレームは混ぜず、UI側も古い世代を採用しない。新しい完了フレームがなければ通知せず、破棄時に通知タイマーを停止する。

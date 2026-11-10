@@ -6,11 +6,15 @@ struct Params {
 	verticalPosition: u32,
 	valueScale: u32,
 	valueRange: vec2f,
+	chunkCount: u32,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(2) var<storage, read_write> counts: array<atomic<u32>>;
 @group(0) @binding(3) var<storage, read> waveform: array<u32>;
+@group(0) @binding(4) var<storage, read_write> reducedCounts: array<f32>;
+// pipeline作成時に特殊化し、直接集計ではchunkの除算やfloat出力バッファを使わない。
+override usePartialSums: bool = false;
 
 // バッファは常に「位置×強度」で扱い、縦位置モードでは幅と高さを交換する。
 fn waveformSize() -> vec2u {
@@ -21,7 +25,7 @@ fn index(column: u32, level: u32, channel: u32) -> u32 {
 	return (level * waveformSize().x + column) * 3u + channel;
 }
 
-fn addSample(column: u32, value: f32, channel: u32, weight: f32) {
+fn addSample(column: u32, chunk: u32, value: f32, channel: u32, weight: f32) {
 	let level = clamp(value, 0.0, 1.0) * f32(waveformSize().y - 1u);
 	// Cover at least one 8-bit step to fill quantization gaps at high resolutions.
 	let radius = max(1.0, f32(waveformSize().y - 1u) / 255.0);
@@ -34,7 +38,8 @@ fn addSample(column: u32, value: f32, channel: u32, weight: f32) {
 	// Normalize at the ends too, preserving the contribution of black and white.
 	for (var row = first; row <= last; row++) {
 		let coverage = max(0.0, 1.0 - abs(f32(row) - level) / radius);
-		atomicAdd(&counts[index(column, row, channel)], u32(round(weight * coverage / total)));
+		let offset = chunk * waveformSize().x * waveformSize().y * 3u;
+		atomicAdd(&counts[offset + index(column, row, channel)], u32(round(weight * coverage / total)));
 	}
 }
 
@@ -55,20 +60,42 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 	let samplePosition = select(id.x, id.y, params.verticalPosition == 1u);
 	let positionSamples = select(params.sampleSize.x, params.sampleSize.y, params.verticalPosition == 1u);
 	let column = min(samplePosition * waveformSize().x / positionSamples, waveformSize().x - 1u);
-	if (params.mode != 0u) {
-		addSample(column, scaledValues.x, 0u, weight);
-	} else {
-		addSample(column, scaledValues.r, 0u, weight);
-		addSample(column, scaledValues.g, 1u, weight);
-		addSample(column, scaledValues.b, 2u, weight);
+	var chunk = 0u;
+	if (usePartialSums) {
+		let firstPosition = (column * positionSamples + waveformSize().x - 1u) / waveformSize().x;
+		let otherPosition = select(id.y, id.x, params.verticalPosition == 1u);
+		let otherSamples = select(params.sampleSize.y, params.sampleSize.x, params.verticalPosition == 1u);
+		chunk = ((samplePosition - firstPosition) * otherSamples + otherPosition) / 8192u;
 	}
+	if (params.mode != 0u) {
+		addSample(column, chunk, scaledValues.x, 0u, weight);
+	} else {
+		addSample(column, chunk, scaledValues.r, 0u, weight);
+		addSample(column, chunk, scaledValues.g, 1u, weight);
+		addSample(column, chunk, scaledValues.b, 2u, weight);
+	}
+}
+
+@compute @workgroup_size(256)
+fn reduceCounts(@builtin(global_invocation_id) id: vec3u, @builtin(num_workgroups) groups: vec3u) {
+	let offset = id.x + id.y * groups.x * 256u;
+	let length = waveformSize().x * waveformSize().y * 3u;
+	if (offset >= length) { return; }
+	// 部分和をfloatで合計し、最終集計にはu32の上限を持ち込まない。
+	var total = 0.0;
+	for (var chunk = 0u; chunk < params.chunkCount; chunk++) {
+		total += f32(atomicLoad(&counts[chunk * length + offset])) / 65535.0;
+	}
+	reducedCounts[offset] = total;
 }
 
 fn density(column: u32, level: u32) -> vec3f {
 	let offset = index(column, level, 0u);
-	let rgb = vec3f(f32(waveform[offset]), f32(waveform[offset + 1u]), f32(waveform[offset + 2u]));
-	// 透明度で重み付けした画素数に戻す。表示の濃さは呼び出し側のintensityで指定する。
-	return select(rgb, vec3f(rgb.r), params.mode != 0u) / 65535.0;
+	let stored = vec3u(waveform[offset], waveform[offset + 1u], waveform[offset + 2u]);
+	// 直接集計ではu32固定小数点をそのまま読む。分割時だけ統合済みfloatのビット列として読む。
+	var rgb = vec3f(stored) / 65535.0;
+	if (usePartialSums) { rgb = bitcast<vec3f>(stored); }
+	return select(rgb, vec3f(rgb.r), params.mode != 0u);
 }
 
 @fragment

@@ -1,5 +1,6 @@
 <template>
 <div :class="$style.root">
+	<span v-if="highResolutionImageAnalysis.errorMessage.value != null">{{ highResolutionImageAnalysis.errorMessage.value }}</span>
 	<button class="_button" :class="$style.controlButton" data-test-image-analysis-target @click="showAnalysisTargetMenu">
 		{{ analysisTargetLabels[analysisTarget] }} <i class="ti ti-chevron-down"></i>
 	</button>
@@ -7,13 +8,26 @@
 		{{ analysisValueScaleLabels[effectiveValueScale] }} <i class="ti ti-chevron-down"></i>
 	</button>
 	<button class="_button" :class="$style.controlButton" data-test-image-analysis-range @click="showAnalysisRangeMenu">
-		Range: {{ analysisRangePreset === 'custom' ? 'Custom' : IMAGE_ANALYSIS_RANGE_PRESETS[analysisRangePreset].label }} <i class="ti ti-chevron-down"></i>
+		{{ analysisRangePreset === 'custom' ? 'Custom' : IMAGE_ANALYSIS_RANGE_PRESETS[analysisRangePreset].label }} <i class="ti ti-chevron-down"></i>
 	</button>
 	<template v-if="analysisRangePreset === 'custom'">
 		<button class="_button" :class="[$style.controlButton, $style.rangeValue]" data-test-image-analysis-min @pointerdown="onRangePointerdown($event, 'minimum')" @click="onRangeClick($event, 'minimum')" @keydown="onRangeKeydown($event, 'minimum')">{{ analysisCustomRange.minimum }}</button>
 		<span>~</span>
 		<button class="_button" :class="[$style.controlButton, $style.rangeValue]" data-test-image-analysis-max @pointerdown="onRangePointerdown($event, 'maximum')" @click="onRangeClick($event, 'maximum')" @keydown="onRangeKeydown($event, 'maximum')">{{ analysisCustomRange.maximum }}</button>
 	</template>
+	<div :class="$style.subButtons">
+		<button
+			v-tooltip="'High-Resolution'"
+			class="_button"
+			:class="[$style.subButton, { _buttonPrimaryFg: highResolutionImageAnalysis.active.value }]"
+			data-test-image-analysis-high-res
+			:disabled="!highResolutionImageAnalysis.active.value && !appContext.imageAnalysisAvailable.value"
+			@click="appContext.toggleHighResolutionImageAnalysis()"
+		>
+			<span v-if="highResolutionImageAnalysis.busy.value">…</span>
+			<span v-else class="ti ti-badge-hd"></span>
+		</button>
+	</div>
 </div>
 </template>
 
@@ -27,9 +41,10 @@ import type { ImageAnalysisRangePreset } from '@/utility/image-analysis-range.ts
 import { IMAGE_ANALYSIS_RANGE_PRESETS } from '@/utility/image-analysis-range.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { appContext } from '@/app.ts';
+import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
-const { analysisTarget, analysisValueScale, analysisRangePreset, analysisCustomRange } = appContext;
+const { analysisTarget, analysisValueScale, analysisRangePreset, analysisCustomRange, highResolutionImageAnalysis } = appContext;
 const effectiveValueScale = computed(() => resolveImageAnalysisValueScale(analysisTarget.value, analysisValueScale.value));
 const analysisTargetLabels = {
 	rgb: 'RGB',
@@ -73,6 +88,7 @@ function onRangePointerdown(event: PointerEvent, bound: keyof ImageValueRange) {
 			if (cancelled) analysisCustomRange.value = { ...analysisCustomRange.value, [bound]: initialValue };
 			suppressRangeClick = moved || cancelled ? bound : null;
 			stopRangeDrag = null;
+			highResolutionImageAnalysis.flush();
 		},
 	});
 }
@@ -123,7 +139,6 @@ function showAnalysisRangeMenu(ev: PointerEvent) {
 <style module lang="scss">
 .root {
 	display: flex;
-	flex-wrap: wrap;
 	gap: 4px;
 	font-size: 90%;
 }
@@ -132,6 +147,16 @@ function showAnalysisRangeMenu(ev: PointerEvent) {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
+	padding: 2px 4px;
+}
+
+.subButtons {
+	display: flex;
+	margin-left: auto;
+	gap: 4px;
+}
+
+.subButton {
 	padding: 2px 4px;
 }
 

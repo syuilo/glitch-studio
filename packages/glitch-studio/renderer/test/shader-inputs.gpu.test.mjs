@@ -76,6 +76,19 @@ test('animates owned linear preview backgrounds and distinguishes analysis scale
 // 実シェーダーの対象選択・透明画素の集計・範囲制限・白い描画と、両方向の座標を検証する。
 test('analyzes alpha and vector data in histograms and both waveforms on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/image-analysis-gpu.ts', 24));
 
+// 【全画素の保持解析は作業画像の変更・破棄から独立し、設定変更と通常表示への復帰に対応する】
+// 量子化前の保持精度、全画素のカウント、固定点カウンターのあふれ、CPU転送の休止は実GPUで検証する。
+test('holds and reanalyzes High-res snapshots without overflow on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/high-resolution-analysis-gpu.ts', 14));
+
+// 【波形のCanvas・集計ビンはパネル実寸へ追従し、停止中と保持中も最新の解像度で表示する】
+// GPU表示とCPU読み戻しの両方で、元画像の破棄後にも再解析でき、固定寸法や空の位置ビンへ戻らないことを確認する。
+test('resizes waveform canvases and held analysis to the panel resolution on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/waveform-canvas-size-gpu.ts', 8));
+
+// 【直接集計と分割集計を往復しても、色・数値データの表示結果とu32境界でのカウントを保つ】
+// 65537サンプルちょうどの不透明な重みはu32上限そのものとなるため、実GPUで境界の1つ上まで比較する。
+// 集計・描画pipelineの切り替え漏れや、同じ所有者で通常経路へ戻ったときの古い結果も検出する。
+test('preserves image analysis across direct and partial accumulation boundaries on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/image-analysis-accumulation-gpu.ts', 10));
+
 // 【複数VideoノードでPlayerの正規化画像を共有し、更新・切断・破棄でも正しい画素を保つ】
 // GPU資源の借用と更新はCPUのモックだけでは検証できず、コピー回数と実画素の両方を見る。
 test('shares normalized player images between Video nodes on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/player-video-textures-gpu.ts', 8));
