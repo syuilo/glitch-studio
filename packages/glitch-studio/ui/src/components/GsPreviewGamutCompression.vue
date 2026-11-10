@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<button
-		v-tooltip="i18n.ts._Preview.GamutCompressionHint"
+		v-tooltip="i18n.ts._Preview.GamutCompression"
 		:class="[$style.mode, active ? '_buttonPrimaryFg' : '_button']"
 		:data-test-preview-gamut-active="active"
 		data-test-preview-gamut-mode
