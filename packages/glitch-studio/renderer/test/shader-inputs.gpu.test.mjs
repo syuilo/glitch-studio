@@ -84,6 +84,10 @@ test('holds and reanalyzes High-res snapshots without overflow on WebGPU', { ski
 // GPU表示とCPU読み戻しの両方で、元画像の破棄後にも再解析でき、固定寸法や空の位置ビンへ戻らないことを確認する。
 test('resizes waveform canvases and held analysis to the panel resolution on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/waveform-canvas-size-gpu.ts', 8));
 
+// 【波形ズームでは拡大領域を再集計し、元画素の細部・値のクリップ・保持画像を正しく扱う】
+// Canvasを引き伸ばすだけでは区別できない交互画素が分離することを、GPU・CPU表示の実画素で比較する。
+test('reanalyzes waveform viewports at native detail on WebGPU and CPU displays', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/waveform-viewport-gpu.ts', 10));
+
 // 【直接集計と分割集計を往復しても、色・数値データの表示結果とu32境界でのカウントを保つ】
 // 65537サンプルちょうどの不透明な重みはu32上限そのものとなるため、実GPUで境界の1つ上まで比較する。
 // 集計・描画pipelineの切り替え漏れや、同じ所有者で通常経路へ戻ったときの古い結果も検出する。

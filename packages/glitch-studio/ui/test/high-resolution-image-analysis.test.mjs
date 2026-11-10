@@ -11,7 +11,7 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { HighResolutionImageAnalysisController } = module.exports;
 
-const settings = maximum => ({ target: 'vectorX', valueScale: 'linear', valueRange: { minimum: 0, maximum }, waveformCanvasSizes: null });
+const settings = maximum => ({ target: 'vectorX', valueScale: 'linear', valueRange: { minimum: 0, maximum }, waveformCanvasSizes: null, waveformViewports: null });
 function fixture(t, { delayed = false, captured = true } = {}) {
 	t.mock.timers.enable({ apis: ['setTimeout'] });
 	const calls = [];

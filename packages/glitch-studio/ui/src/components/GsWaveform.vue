@@ -2,7 +2,20 @@
 <GsDetachableView :title="direction === 'horizontal' ? i18n.ts._Workspace.WaveformX : i18n.ts._Workspace.WaveformY" :suspended="appContext.renderEngine.isSuspended.value" @changeWindow="observeScope">
 	<div :class="$style.root">
 		<GsImageAnalysisSettings/>
-		<div ref="scope" :class="$style.scope" data-test-waveform-plot>
+		<div
+			ref="scope"
+			:class="[$style.scope, { [$style.zoomed]: zoom > 1, [$style.panning]: panning }]"
+			data-test-waveform-plot
+			tabindex="0"
+			@wheel="onWheel"
+			@pointerdown="onPointerdown"
+			@pointerenter="updatePointerPosition"
+			@pointermove="updatePointerPosition"
+			@pointerleave="clearPointerPosition"
+			@pointercancel="clearPointerPosition"
+			@keydown="onKeydown"
+			@auxclick.prevent
+		>
 			<div ref="canvasContainer" :class="$style.canvas"></div>
 			<div :class="$style.grid">
 				<div
@@ -15,6 +28,16 @@
 					:class="[$style.gridVerticalLine, { [$style.referenceLine]: tick.isReference }]"
 					:style="{ left: `${tick.position * 100}%` }"
 				></div>
+				<div
+					v-if="pointerAxisTicks?.y != null"
+					:class="[$style.gridHorizontalLine, $style.pointerGuideLine]"
+					:style="{ top: `${pointerAxisTicks.y.position * 100}%` }"
+				></div>
+				<div
+					v-if="pointerAxisTicks?.x != null"
+					:class="[$style.gridVerticalLine, $style.pointerGuideLine]"
+					:style="{ left: `${pointerAxisTicks.x.position * 100}%` }"
+				></div>
 			</div>
 			<div :class="$style.yAxisTicks" data-test-waveform-y-axis>
 				<span
@@ -22,6 +45,11 @@
 					:class="[$style.tickLabel, { [$style.startTick]: tick.position === 0, [$style.endTick]: tick.position === 1, [$style.referenceLabel]: tick.isReference }]"
 					:style="{ top: `${tick.position * 100}%` }"
 				>{{ tick.label }}</span>
+				<span
+					v-if="pointerAxisTicks?.y != null"
+					:class="[$style.tickLabel, $style.pointerTickLabel]"
+					:style="{ top: `clamp(0px, calc(${pointerAxisTicks.y.position * 100}% - 7px), calc(100% - 28px))`, transform: 'none' }"
+				>{{ pointerAxisTicks.y.label }}</span>
 			</div>
 			<div :class="$style.xAxisTicks" data-test-waveform-x-axis>
 				<span
@@ -29,6 +57,11 @@
 					:class="[$style.tickLabel, { [$style.startTick]: tick.position === 0, [$style.endTick]: tick.position === 1, [$style.referenceLabel]: tick.isReference }]"
 					:style="{ left: `${tick.position * 100}%` }"
 				>{{ tick.label }}</span>
+				<span
+					v-if="pointerAxisTicks?.x != null"
+					:class="[$style.tickLabel, $style.pointerTickLabel]"
+					:style="{ left: `${pointerAxisTicks.x.position * 100}%`, transform: `translateX(-${pointerAxisTicks.x.position * 100}%)` }"
+				>{{ pointerAxisTicks.x.label }}</span>
 			</div>
 		</div>
 	</div>
@@ -36,14 +69,18 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, useTemplateRef } from 'vue';
+import { computed, shallowRef, useTemplateRef } from 'vue';
+import { FULL_PREVIEW_WAVEFORM_VIEWPORT, getPreviewWaveformViewportRanges } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import { isDrawableImageValueRange } from '@gs/shared/utility/image-value-scale.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import GsImageAnalysisSettings from './GsImageAnalysisSettings.vue';
+import type { ImageAnalysisAxisTick } from '@/utility/image-analysis-axis.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { useWaveformCanvasSize } from '@/use-waveform-canvas-size.ts';
-import { createImagePositionAxisTicks, createImageValueAxisTicks, selectImageAnalysisAxisTicks } from '@/utility/image-analysis-axis.ts';
+import { useWaveformViewport } from '@/use-waveform-viewport.ts';
+import { createImagePositionAxisTicks, createImageValueAxisTicks, formatImageAnalysisAxisValue, selectImageAnalysisAxisTicks } from '@/utility/image-analysis-axis.ts';
 
 const { imageAnalysisRenderer, displayedImageAnalysisSettings } = appContext;
 
@@ -53,11 +90,41 @@ const props = defineProps<{
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const scope = useTemplateRef('scope');
-const { size: scopeSize, changeWindow: observeScope } = useWaveformCanvasSize(scope, size => appContext.setWaveformCanvasSize(props.direction, size));
+const sizeObserver = useWaveformCanvasSize(scope, size => appContext.setWaveformCanvasSize(props.direction, size));
+const scopeSize = sizeObserver.size;
+const pointerPosition = shallowRef<{ x: number; y: number } | null>(null);
+const viewport = computed(() => appContext.analysisWaveformViewports.value?.[props.direction] ?? FULL_PREVIEW_WAVEFORM_VIEWPORT);
+const { panning, zoom, cancelPan, onWheel, onPointerdown, onKeydown } = useWaveformViewport(scope, viewport,
+	value => appContext.setWaveformViewport(props.direction, value), () => appContext.flushWaveformDisplay(), appContext.renderEngine.isSuspended);
+
+function observeScope() { clearPointerPosition(); cancelPan(); sizeObserver.changeWindow(); }
+
+function clearPointerPosition() { pointerPosition.value = null; }
+
+function updatePointerPosition(event: PointerEvent) {
+	const element = scope.value;
+	if (element == null || event.pointerType === 'touch' || element.clientWidth <= 0 || element.clientHeight <= 0) {
+		clearPointerPosition();
+		return;
+	}
+	const bounds = element.getBoundingClientRect();
+	const x = (event.clientX - bounds.left - element.clientLeft) / element.clientWidth;
+	const y = (event.clientY - bounds.top - element.clientTop) / element.clientHeight;
+	// ドラッグ中はポインターがcaptureされ、領域外でもmoveが届くため明示的に除外する。
+	pointerPosition.value = x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null;
+}
+
 const axisTicks = computed(() => {
 	const horizontal = props.direction === 'horizontal';
-	const positionTicks = createImagePositionAxisTicks();
-	const valueTicks = createImageValueAxisTicks(displayedImageAnalysisSettings.value.valueScale, displayedImageAnalysisSettings.value.valueRange);
+	const settings = displayedImageAnalysisSettings.value;
+	const displayedViewport = settings.waveformViewports?.[props.direction] ?? FULL_PREVIEW_WAVEFORM_VIEWPORT;
+	const { positionRange, valueWindow } = getPreviewWaveformViewportRanges(props.direction, displayedViewport);
+	const positionTicks = createImagePositionAxisTicks(positionRange);
+	const span = settings.valueRange.maximum - settings.valueRange.minimum;
+	const valueTicks = isDrawableImageValueRange(settings.valueRange) ? createImageValueAxisTicks(settings.valueScale, {
+		minimum: settings.valueRange.minimum + span * valueWindow.minimum,
+		maximum: settings.valueRange.minimum + span * valueWindow.maximum,
+	}, 'float64') : [];
 	return {
 		x: selectImageAnalysisAxisTicks(horizontal ? positionTicks : valueTicks, scopeSize.value.width, 48),
 		// Waveform Xの値は下から上へ増える。Waveform Yの画像位置は上端が0%。
@@ -67,6 +134,26 @@ const axisTicks = computed(() => {
 });
 const horizontalGridTicks = computed(() => axisTicks.value.y.filter(tick => tick.position > 0 && tick.position < 1));
 const verticalGridTicks = computed(() => axisTicks.value.x.filter(tick => tick.position > 0 && tick.position < 1));
+
+function createPointerAxisTick(ticks: readonly ImageAnalysisAxisTick[], position: number, imagePosition: boolean) {
+	const first = ticks.at(0);
+	const last = ticks.at(-1);
+	if (first == null || last == null || first.value === last.value) return null;
+	// 通常の目盛りは両端を残している。表示済みの両端から補間すれば、反転範囲や
+	// High-resの再解析待ちでも、現在の波形と同じ軸の単位・表示領域を参照できる。
+	const value = first.value + (last.value - first.value) * position;
+	const label = formatImageAnalysisAxisValue(value, imagePosition ? 'linear' : displayedImageAnalysisSettings.value.valueScale);
+	return { position, label: imagePosition ? `${label}%` : label };
+}
+
+const pointerAxisTicks = computed(() => {
+	const position = pointerPosition.value;
+	if (position == null || appContext.renderEngine.isSuspended.value) return null;
+	return {
+		x: createPointerAxisTick(axisTicks.value.x, position.x, props.direction === 'horizontal'),
+		y: createPointerAxisTick(axisTicks.value.y, position.y, props.direction === 'vertical'),
+	};
+});
 
 useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => props.direction === 'horizontal' ? 'waveformHorizontalCanvas' : 'waveformVerticalCanvas', appContext.renderEngine.isSuspended);
 </script>
@@ -90,6 +177,29 @@ useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => props.direction 
 	box-sizing: border-box;
 	border: 1px solid #fff2;
 	overflow: clip;
+	touch-action: none;
+	user-select: none;
+}
+
+.viewportControls {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 4px;
+	font-size: 90%;
+	font-variant-numeric: tabular-nums;
+}
+
+.resetButton {
+	padding: 2px 4px;
+}
+
+.zoomed {
+	cursor: grab;
+}
+
+.panning {
+	cursor: grabbing;
 }
 
 .yAxisTicks {
@@ -152,6 +262,12 @@ useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => props.direction 
 	color: var(--THEME-fg);
 }
 
+.pointerTickLabel {
+	z-index: 1;
+	color: var(--THEME-fgOnAccent);
+	background: var(--THEME-accent);
+}
+
 .canvas {
 	position: absolute;
 	top: 0;
@@ -188,5 +304,10 @@ useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => props.direction 
 
 .referenceLine {
 	background: rgb(160 160 160 / 65%);
+}
+
+.pointerGuideLine {
+	background: var(--THEME-accent);
+	opacity: 0.65;
 }
 </style>

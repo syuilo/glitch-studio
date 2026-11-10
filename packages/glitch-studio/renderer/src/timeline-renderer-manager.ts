@@ -1,6 +1,7 @@
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
-import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
 import { isVisualModuleValueChange } from './project-change-policy.ts';
 import type { VisualModuleValueChange } from './project-change-policy.ts';
@@ -126,6 +127,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	analysisValueRange: ImageValueRange;
 	analysisPaused: boolean;
 	analysisWaveformCanvasSizes: PreviewWaveformCanvasSizes | null;
+	analysisWaveformViewports: PreviewWaveformViewports | null;
 	generatedSpeech: GeneratedSpeech[];
 	visualModules: ProjectVisualModule[];
 	timelineScenes: TimelineScene[];
@@ -247,6 +249,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		analysisValueRange: { minimum: 0, maximum: 1 },
 		analysisPaused: false,
 		analysisWaveformCanvasSizes: null,
+		analysisWaveformViewports: null,
 		generatedSpeech: [],
 		visualModules: [],
 		timelineScenes: [],
@@ -480,6 +483,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer.analysisValueRange = this.dynamicOptions.analysisValueRange;
 		this.canvasRenderer.analysisPaused = this.dynamicOptions.analysisPaused;
 		this.canvasRenderer.analysisWaveformCanvasSizes = this.dynamicOptions.analysisWaveformCanvasSizes;
+		this.canvasRenderer.analysisWaveformViewports = this.dynamicOptions.analysisWaveformViewports;
 
 		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
@@ -1199,10 +1203,12 @@ export class TimelineRendererManager extends EventEmitter<{
 		return this.canvasRenderer.setHighResolutionImageAnalysis(enabled, settings);
 	}
 
-	public async setWaveformCanvasSizes(sizes: PreviewWaveformCanvasSizes | null, refresh: boolean) {
+	public async setWaveformDisplay(settings: PreviewWaveformDisplaySettings, refresh: boolean) {
 		// 表示領域の変更では描画内容・キャッシュ・実行中のフレームを無効化しない。
-		this.dynamicOptions.analysisWaveformCanvasSizes = sizes;
-		this.canvasRenderer.analysisWaveformCanvasSizes = sizes;
+		this.dynamicOptions.analysisWaveformCanvasSizes = settings.waveformCanvasSizes;
+		this.canvasRenderer.analysisWaveformCanvasSizes = settings.waveformCanvasSizes;
+		this.dynamicOptions.analysisWaveformViewports = settings.waveformViewports;
+		this.canvasRenderer.analysisWaveformViewports = settings.waveformViewports;
 		if (refresh) await this.canvasRenderer.refreshImageAnalysis();
 	}
 

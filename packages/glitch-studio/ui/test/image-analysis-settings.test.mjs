@@ -68,12 +68,12 @@ function fixture(t) {
 	};
 }
 
-// 【High-resの処理中と保持中を区別し、解析画像がないときは開始できない】
+// 【High-resの処理中を示し、解析画像がないときは開始できない】
 // 同じボタンから通常表示へ戻れ、元プレビューが使えなくなっても保持解除を妨げない。
-test('shows High-res progress and HOLD and keeps the active mode switch available', async t => {
+test('shows High-res progress and keeps the active mode switch available', async t => {
 	const f = fixture(t);
 	const button = f.find('data-test-image-analysis-high-res');
-	assert.equal(button.props['aria-pressed'], false);
+	assert.equal(f.state.highResolutionImageAnalysis.active.value, false);
 	assert.equal(button.props.disabled, false);
 	f.state.imageAnalysisAvailable.value = false;
 	await nextTick();
@@ -82,17 +82,16 @@ test('shows High-res progress and HOLD and keeps the active mode switch availabl
 	button.props.onClick();
 	f.state.highResolutionImageAnalysis.busy.value = true;
 	await nextTick();
-	assert.equal(button.props['aria-pressed'], true);
-	assert.equal(button.props['aria-busy'], true);
+	assert.equal(f.state.highResolutionImageAnalysis.active.value, true);
 	assert.ok(f.text(button).includes('…'));
 	f.state.highResolutionImageAnalysis.busy.value = false;
 	f.state.imageAnalysisAvailable.value = false;
 	await nextTick();
-	assert.ok(f.text(button).includes('HOLD'));
+	assert.equal(f.text(button).includes('…'), false);
 	assert.equal(button.props.disabled, false);
 	button.props.onClick();
 	await nextTick();
-	assert.equal(button.props['aria-pressed'], false);
+	assert.equal(f.state.highResolutionImageAnalysis.active.value, false);
 });
 
 // 【対象・変換方式・範囲は独立したメニューで選び、数値データの変換方式はLinearに限定する】

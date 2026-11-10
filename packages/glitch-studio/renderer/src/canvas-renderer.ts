@@ -1,6 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { PreviewImageAnalysis } from './preview-image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import finalRenderShaderCode from './render.wgsl?raw';
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
@@ -51,8 +52,9 @@ export class CanvasRenderer {
 	public analysisTarget: ImageAnalysisTarget = 'rgb';
 	public analysisValueRange: ImageValueRange = { minimum: 0, maximum: 1 };
 	public analysisWaveformCanvasSizes: PreviewWaveformCanvasSizes | null = null;
+	public analysisWaveformViewports: PreviewWaveformViewports | null = null;
 	private get imageAnalysisSettings(): PreviewImageAnalysisSettings {
-		return { target: this.analysisTarget, valueScale: this.analysisValueScale, valueRange: this.analysisValueRange, waveformCanvasSizes: this.analysisWaveformCanvasSizes };
+		return { target: this.analysisTarget, valueScale: this.analysisValueScale, valueRange: this.analysisValueRange, waveformCanvasSizes: this.analysisWaveformCanvasSizes, waveformViewports: this.analysisWaveformViewports };
 	}
 	public set analysisPaused(value: boolean) { if (this.imageAnalysis != null) this.imageAnalysis.paused = value; }
 	public get previewBackground() { return this.currentPreviewBackground; }

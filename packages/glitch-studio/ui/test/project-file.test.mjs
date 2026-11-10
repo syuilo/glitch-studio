@@ -83,7 +83,7 @@ const appBundle = await build({
 					import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 					import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 					export class VisualModuleRendererManagerController {
-						isReady = ref(false); errorMessage = ref(null);
+						isReady = ref(false); errorMessage = ref(null); canvasRevision = ref(0);
 						frameCacheUsageRatio = ref(null);
 						updates = []; renders = []; lifecycle = [];
 						highResolutionAnalysisRequests = [];
@@ -93,6 +93,7 @@ const appBundle = await build({
 						options = {};
 						generation = 0;
 						async initialize(snapshot) {
+							this.canvasRevision.value++;
 							this.staticOptions = deepClone(snapshot.staticOptions);
 							this.staticUpdates.push(deepClone(snapshot.staticOptions));
 							this.initialStaticOptions = deepClone(snapshot.staticOptions);
@@ -124,9 +125,10 @@ const appBundle = await build({
 							this.highResolutionAnalysisRequests.push(deepClone({ enabled, settings }));
 							return this.isReady.value;
 						}
-						async setWaveformCanvasSizes(sizes, refresh) {
-							this.options.analysisWaveformCanvasSizes = deepClone(sizes);
-							if (refresh) this.analysisRefreshes++;
+						async setWaveformDisplay(settings, refresh) {
+							this.options.analysisWaveformCanvasSizes = deepClone(settings.waveformCanvasSizes);
+							this.options.analysisWaveformViewports = deepClone(settings.waveformViewports);
+							if (refresh) { this.analysisRefreshes++; await this.waveformDisplayDelay?.(); }
 						}
 						cancelSeek() {}
 						disposeManager() { this.generation++; this.lifecycle.push('dispose'); this.isReady.value = false; }
@@ -235,7 +237,7 @@ test('integrates held analysis with preview switching settings and worker recrea
 	assert.equal(timeline.renders.length, renders);
 	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
 	assert.equal(visualModule.highResolutionAnalysisRequests.length, 0);
-	assert.deepEqual(appContext.displayedImageAnalysisSettings.value, { target: 'vectorLength', valueScale: 'linear', valueRange: { minimum: -0.5, maximum: 0.5 }, waveformCanvasSizes: null });
+	assert.deepEqual(appContext.displayedImageAnalysisSettings.value, { target: 'vectorLength', valueScale: 'linear', valueRange: { minimum: -0.5, maximum: 0.5 }, waveformCanvasSizes: null, waveformViewports: null });
 	appContext.previewPlayback.startVisualModuleLivePreview('visual-module');
 	await setImmediate();
 	assert.equal(appContext.activePreviewRenderer.value, visualModule);
@@ -287,6 +289,50 @@ test('resizes waveform analysis independently of scene rendering and retains siz
 	appContext.renderEngine.requestRestart();
 	await appContext.renderEngine.retry();
 	assert.deepEqual(timeline.initialDynamicOptions.analysisWaveformCanvasSizes, { horizontal: { width: 1200, height: 600 }, vertical: { width: 600, height: 1200 } });
+});
+
+// 【ズーム・移動の再集計は直列化し、目盛りは完了した範囲と一致させる】
+// 通常時に作品を再描画せず、処理中の操作は最新の一件へまとめる。
+// High-resでは元の保持画像の設定更新にだけ送り、解除・Worker再生成後も表示範囲を維持する。
+test('serializes waveform viewport updates and applies matching completed axes through HOLD and restart', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	const timeline = appContext.timelineRendererManagerController;
+	const visualModule = appContext.visualModuleRendererManagerController;
+	const renders = timeline.renders.length;
+	const first = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 };
+	const second = { x: 0.3, y: 0.4, width: 0.25, height: 0.25 };
+	const delayed = Promise.withResolvers();
+	timeline.waveformDisplayDelay = () => delayed.promise;
+	appContext.setWaveformViewport('horizontal', first);
+	appContext.flushWaveformDisplay();
+	await setImmediate();
+	assert.equal(timeline.analysisRefreshes, 1);
+	assert.equal(appContext.displayedImageAnalysisSettings.value.waveformViewports, null);
+	appContext.setWaveformViewport('horizontal', second);
+	appContext.flushWaveformDisplay();
+	await setImmediate();
+	assert.equal(timeline.analysisRefreshes, 1);
+	delayed.resolve();
+	await setImmediate();
+	assert.equal(timeline.analysisRefreshes, 2);
+	assert.equal(timeline.renders.length, renders);
+	assert.deepEqual(appContext.displayedImageAnalysisSettings.value.waveformViewports.horizontal, second);
+	assert.deepEqual(visualModule.options.analysisWaveformViewports.horizontal, second);
+	await appContext.toggleHighResolutionImageAnalysis();
+	appContext.setWaveformViewport('horizontal', first);
+	appContext.flushWaveformDisplay();
+	assert.deepEqual(appContext.displayedImageAnalysisSettings.value.waveformViewports.horizontal, second);
+	await setImmediate();
+	assert.deepEqual(appContext.displayedImageAnalysisSettings.value.waveformViewports.horizontal, first);
+	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
+	assert.equal(timeline.renders.length, renders);
+	await appContext.toggleHighResolutionImageAnalysis();
+	appContext.renderEngine.requestRestart();
+	await appContext.renderEngine.retry();
+	assert.deepEqual(timeline.initialDynamicOptions.analysisWaveformViewports.horizontal, first);
+	assert.deepEqual(appContext.displayedImageAnalysisSettings.value.waveformViewports.horizontal, first);
 });
 
 // 【起動時に保存済みの計測・解析設定を両プレビューの初期設定へ反映する】

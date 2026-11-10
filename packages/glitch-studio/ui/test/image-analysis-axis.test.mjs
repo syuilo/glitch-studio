@@ -64,3 +64,16 @@ test('returns no ticks for collapsed ranges including float32 rounding', () => {
 	assert.deepEqual(createImageValueAxisTicks('linear', { minimum: 0, maximum: 0 }), []);
 	assert.deepEqual(createImageValueAxisTicks('linear', { minimum: 1, maximum: 1 + Number.EPSILON }), []);
 });
+
+// 【GPUの元範囲から導出したズーム範囲は、再度float32へ丸めずに目盛りを作る】
+// 描画では正規化した値の窓を使うため、表示単位の両端がfloat32で同じでも拡大領域は有効である。
+// 元のCustom範囲に対する空表示の規約は引き続き守る。
+test('retains derived viewport ticks within one float32 step', () => {
+	const range = { minimum: 1.00000004, maximum: 1.00000005 };
+	assert.deepEqual(createImageValueAxisTicks('linear', range), []);
+	const ticks = createImageValueAxisTicks('linear', range, 'float64');
+	assert.equal(ticks[0].label, '1.00000004');
+	assert.equal(ticks.at(-1).label, '1.00000005');
+	assert.equal(ticks[0].position, 0);
+	assert.equal(ticks.at(-1).position, 1);
+});

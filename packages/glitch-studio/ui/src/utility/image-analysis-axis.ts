@@ -9,17 +9,22 @@ export type ImageAnalysisAxisTick = {
 	isReference: boolean;
 };
 
-export function createImagePositionAxisTicks(): ImageAnalysisAxisTick[] {
-	return [0, 25, 50, 75, 100].map(value => ({
-		value,
-		position: value / 100,
-		label: `${value}%`,
+export function formatImageAnalysisAxisValue(value: number, valueScale: ImageValueScale): string {
+	return value < 0 ? `−${Number(Math.abs(value).toPrecision(2))}` : valueScale === 'ev' && value > 0 ? `+${Number(value.toPrecision(2))}` : String(Number(value.toPrecision(2)));
+}
+
+export function createImagePositionAxisTicks(range: ImageValueRange = DEFAULT_IMAGE_VALUE_RANGE): ImageAnalysisAxisTick[] {
+	return createImageValueAxisTicks('linear', { minimum: range.minimum * 100, maximum: range.maximum * 100 }).map(tick => ({
+		...tick,
+		label: `${tick.label}%`,
 		isReference: false,
 	}));
 }
 
-export function createImageValueAxisTicks(valueScale: ImageValueScale, range: ImageValueRange = DEFAULT_IMAGE_VALUE_RANGE): ImageAnalysisAxisTick[] {
-	if (!isDrawableImageValueRange(range)) return [];
+export function createImageValueAxisTicks(valueScale: ImageValueScale, range: ImageValueRange = DEFAULT_IMAGE_VALUE_RANGE, rangePrecision: 'float32' | 'float64' = 'float32'): ImageAnalysisAxisTick[] {
+	// ズーム後の表示単位の範囲はGPUへ再転送するMin/Maxではない。検証済みの元範囲から
+	// 導出した範囲をfloat32へ丸めると、拡大時だけ目盛りが空になってしまうため区別する。
+	if (rangePrecision === 'float32' ? !isDrawableImageValueRange(range) : !Number.isFinite(range.minimum) || !Number.isFinite(range.maximum) || range.minimum === range.maximum) return [];
 	const { minimum, maximum } = range;
 	const span = Math.abs(maximum - minimum);
 	// Customでも読みやすい数値間隔を選び、端点は指定値のまま必ず残す。
@@ -39,7 +44,7 @@ export function createImageValueAxisTicks(valueScale: ImageValueScale, range: Im
 	return values.map(value => ({
 		value,
 		position: value === minimum ? 0 : value === maximum ? 1 : (value - minimum) / (maximum - minimum),
-		label: value < 0 ? `−${Number(Math.abs(value).toPrecision(12))}` : valueScale === 'ev' && value > 0 ? `+${Number(value.toPrecision(12))}` : String(Number(value.toPrecision(12))),
+		label: formatImageAnalysisAxisValue(value, valueScale),
 		isReference: valueScale !== 'srgb' && value === 0,
 	})).toSorted((first, second) => first.position - second.position);
 }

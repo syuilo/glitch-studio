@@ -53,6 +53,8 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 
 `src/utility/waveform`はエフェクトやプレビューに依存しない波形のGPU集計・描画を提供する。`image-analysis-accumulation.ts`は重みを65535倍したu32加算の上限を共有する。最大65537サンプルまでなら一つの集計バッファを描画でも読み、結果統合を省く。波形では全サンプル数ではなく、位置ビンへ入る最大数で判定する。上限を超える場合だけ8192サンプルごとの部分和・float結果のバッファ・統合pipelineを遅延生成し、安全な直接経路へ戻ると追加バッファを破棄する。入力のuniform/texture用リソースは両経路で共有する。
 
+`WaveformSettings.positionRange`は画像位置、`valueWindow`は元の解析範囲を正規化した値の表示窓を0〜1で指定する。省略時は全体。画像位置の境界にかかる画素セルを含め、値は元の解析範囲へclampしてから表示窓の外を除外する。表示窓の端へclampし直さない。切り出しの有無はpipeline定数で特殊化し、全体表示では従来の集計計算を使う。`getWaveformMaximumPositionSamplesPerBin()`は切り出しの境界と丸めも含む最大位置サンプル数を返し、分割集計の判定とメモリ予算の両方に使う。
+
 ## 動画の読み出し
 
 `src/media/external-image-texture.ts`は通常の外部画像を原寸でlinear sRGB・premultiplied alphaへ正規化する。`src/media/video-texture.ts`はVideoSampleから借りたVideoFrameを同じ経路へ渡し、変換後に回転・表示比率・描画倍率を適用する。非正方形ピクセルもlinear化より前に拡縮しない。すべての画像はINTERMEDIATE_TEXTURE_FORMAT（rgba16float）を使い、stagingと変換済み画像を再利用する。CanvasやGPU完了待ちは追加せず、変換用フレームは転送・submit後にcloseする。詳細は[色空間の規約](../../docs/color-management.md)を参照。

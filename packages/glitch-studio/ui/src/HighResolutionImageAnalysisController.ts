@@ -9,6 +9,8 @@ export interface HighResolutionImageAnalysisSource {
 function copySettings(settings: PreviewImageAnalysisSettings): PreviewImageAnalysisSettings {
 	return { ...settings, valueRange: { ...settings.valueRange }, waveformCanvasSizes: settings.waveformCanvasSizes == null ? null : {
 		horizontal: { ...settings.waveformCanvasSizes.horizontal }, vertical: { ...settings.waveformCanvasSizes.vertical },
+	}, waveformViewports: settings.waveformViewports == null ? null : {
+		horizontal: { ...settings.waveformViewports.horizontal }, vertical: { ...settings.waveformViewports.vertical },
 	} };
 }
 

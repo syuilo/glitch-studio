@@ -79,8 +79,8 @@ export class PreviewImageAnalysis {
 			this.histogram.valueRange = settings.valueRange;
 			this.histogram.render(encoder, source, fullResolution);
 		}
-		this.horizontal?.render(encoder, source, settings.valueScale, settings.target, settings.valueRange, fullResolution);
-		this.vertical?.render(encoder, source, settings.valueScale, settings.target, settings.valueRange, fullResolution);
+		this.horizontal?.render(encoder, source, settings.valueScale, settings.target, settings.valueRange, fullResolution, settings.waveformViewports?.horizontal);
+		this.vertical?.render(encoder, source, settings.valueScale, settings.target, settings.valueRange, fullResolution, settings.waveformViewports?.vertical);
 	}
 
 	public forgetSource() { this.source = null; }

@@ -13,7 +13,7 @@ export async function run() {
 	device.addEventListener('uncapturederror', event => errors.push(event.error.message));
 	const format = navigator.gpu.getPreferredCanvasFormat();
 	const checks: string[] = [];
-	const settings: PreviewImageAnalysisSettings = { target: 'vectorX', valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: null };
+	const settings: PreviewImageAnalysisSettings = { target: 'vectorX', valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: null, waveformViewports: null };
 	function fixture(cpu: boolean) {
 		const outputs: GPUTexture[] = [];
 		const pixels: Uint8Array[] = [];

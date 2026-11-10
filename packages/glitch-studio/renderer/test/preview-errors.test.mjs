@@ -1708,7 +1708,7 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	assert.equal(replaced.closed, 1);
 	assert.equal(renders.length, 1);
 	assert.equal(present.mock.callCount(), 0);
-	await f.renderer.setWaveformCanvasSizes({ horizontal: { width: 900, height: 450 }, vertical: { width: 450, height: 900 } }, true);
+	await f.renderer.setWaveformDisplay({ waveformCanvasSizes: { horizontal: { width: 900, height: 450 }, vertical: { width: 450, height: 900 } }, waveformViewports: null }, true);
 	for (let index = 0; index < 4; index++) { waits.shift()(); await new Promise(resolve => setImmediate(resolve)); }
 	assert.equal(present.mock.callCount(), 1);
 	assert.equal(old.closed, 1);

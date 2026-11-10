@@ -22,7 +22,17 @@ export type WaveformSettings = {
 	// 波形の位置・強度の分解能と、入力を読むサンプル数は別々に指定できる。
 	size: { width: number; height: number };
 	sampleSize?: { width: number; height: number };
+	// 画像の位置方向と、指定値域で正規化した後の値方向を、それぞれ0〜1で切り出す。
+	positionRange?: ImageValueRange;
+	valueWindow?: ImageValueRange;
 };
+
+export function getWaveformMaximumPositionSamplesPerBin(positionSamples: number, columns: number, range: ImageValueRange = DEFAULT_IMAGE_VALUE_RANGE): number {
+	if (range.minimum === 0 && range.maximum === 1) return Math.ceil(positionSamples / columns);
+	// 端の画素は画素中心が表示範囲外でも、そのセルが範囲と重なるなら含める。
+	// 部分的に重なる画素とfloat32の境界丸めを見込み、部分和の番号が上限を超えないようにする。
+	return Math.min(positionSamples, Math.ceil(positionSamples * (range.maximum - range.minimum) / columns) + 2);
+}
 
 export function createWaveform(options: {
 	device: GPUDevice;
@@ -42,7 +52,7 @@ export function createWaveform(options: {
 		const bindings = createShaderInputBindings(device, generated);
 		try {
 			const module = device.createShaderModule({ code: generated.code + '\n' + colorSpaceShader + '\n' + imageValueScaleShader + '\n' + imageAnalysisShader + '\n' + shader });
-			return { module, bindings, pipelines: new Map<boolean, GPUComputePipeline>() };
+			return { module, bindings, pipelines: new Map<number, GPUComputePipeline>() };
 		} catch (error) {
 			bindings.dispose();
 			throw error;
@@ -55,7 +65,7 @@ export function createWaveform(options: {
 	const renderPipelines = new Map<boolean, GPURenderPipeline>();
 	let renderPipeline: GPURenderPipeline | null = null;
 	let reducePipeline: GPUComputePipeline | null = null;
-	const values = new ArrayBuffer(48);
+	const values = new ArrayBuffer(64);
 	const integers = new Uint32Array(values);
 	const floats = new Float32Array(values);
 	const uniforms = device.createBuffer({ size: values.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -77,16 +87,22 @@ export function createWaveform(options: {
 			const { width, height } = p.size;
 			const samples = p.sampleSize ?? p.size;
 			const valueRange = p.valueRange ?? DEFAULT_IMAGE_VALUE_RANGE;
+			const positionRange = p.positionRange ?? DEFAULT_IMAGE_VALUE_RANGE;
+			const valueWindow = p.valueWindow ?? DEFAULT_IMAGE_VALUE_RANGE;
+			const usePositionRange = positionRange.minimum !== 0 || positionRange.maximum !== 1;
+			const useValueWindow = valueWindow.minimum !== 0 || valueWindow.maximum !== 1;
 			const byteLength = width * height * 3 * Uint32Array.BYTES_PER_ELEMENT;
 			const columns = p.direction === 'vertical' ? height : width;
 			const positionSamples = p.direction === 'vertical' ? samples.height : samples.width;
 			const otherSamples = p.direction === 'vertical' ? samples.width : samples.height;
 			// 一つの位置ビンに入る最大サンプル数から判定する。全画素数を使うと、
 			// 十分な位置ビンがある通常の画像まで分割集計にしてしまう。
-			const chunkCount = getImageAnalysisChunkCount(Math.ceil(positionSamples / columns) * otherSamples);
+			const chunkCount = getImageAnalysisChunkCount(getWaveformMaximumPositionSamplesPerBin(positionSamples, columns, positionRange) * otherSamples);
 			const usePartialSums = chunkCount > 1;
 			const partialByteLength = byteLength * chunkCount;
 			if (!isDrawableImageValueRange(valueRange)
+				|| ![positionRange, valueWindow].every(range => Number.isFinite(range.minimum) && Number.isFinite(range.maximum)
+					&& range.minimum >= 0 && range.maximum <= 1 && range.minimum < range.maximum)
 				|| ![width, height, samples.width, samples.height, p.fitSize.width, p.fitSize.height].every(value => Number.isSafeInteger(value) && value > 0)
 				|| !Number.isSafeInteger(byteLength)
 				|| byteLength > Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize)
@@ -98,13 +114,18 @@ export function createWaveform(options: {
 				variant = createVariant(input);
 				variants.set(input.kind, variant);
 			}
-			activePipeline = variant.pipelines.get(usePartialSums) ?? null;
+			// 直接/分割・位置の切り出し・値の切り出しをそれぞれpipeline定数で特殊化する。
+			// 全体表示の通常経路に、ズーム用の除算や分岐を残さない。
+			const pipelineVariant = Number(usePartialSums) | (Number(usePositionRange) << 1) | (Number(useValueWindow) << 2);
+			activePipeline = variant.pipelines.get(pipelineVariant) ?? null;
 			if (activePipeline == null) {
 				activePipeline = device.createComputePipeline({
 					layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout, variant.bindings.layout] }),
-					compute: { module: variant.module, entryPoint: 'accumulate', constants: { usePartialSums: Number(usePartialSums) } },
+					compute: { module: variant.module, entryPoint: 'accumulate', constants: {
+						usePartialSums: Number(usePartialSums), usePositionRange: Number(usePositionRange), useValueWindow: Number(useValueWindow),
+					} },
 				});
-				variant.pipelines.set(usePartialSums, activePipeline);
+				variant.pipelines.set(pipelineVariant, activePipeline);
 			}
 			if (usePartialSums) {
 				reduceLayout ??= device.createBindGroupLayout({ entries: [
@@ -153,6 +174,7 @@ export function createWaveform(options: {
 			integers[7] = IMAGE_VALUE_SCALES.indexOf(resolveImageAnalysisValueScale(p.mode, p.valueScale ?? 'srgb'));
 			floats.set([valueRange.minimum, valueRange.maximum], 8);
 			integers[10] = chunkCount;
+			floats.set([positionRange.minimum, positionRange.maximum, valueWindow.minimum, valueWindow.maximum], 12);
 			device.queue.writeBuffer(uniforms, 0, values);
 			if (counts == null) return false;
 			encoder.clearBuffer(counts);

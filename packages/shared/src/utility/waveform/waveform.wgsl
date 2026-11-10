@@ -7,6 +7,8 @@ struct Params {
 	valueScale: u32,
 	valueRange: vec2f,
 	chunkCount: u32,
+	positionRange: vec2f,
+	valueWindow: vec2f,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -15,6 +17,8 @@ struct Params {
 @group(0) @binding(4) var<storage, read_write> reducedCounts: array<f32>;
 // pipeline作成時に特殊化し、直接集計ではchunkの除算やfloat出力バッファを使わない。
 override usePartialSums: bool = false;
+override usePositionRange: bool = false;
+override useValueWindow: bool = false;
 
 // バッファは常に「位置×強度」で扱い、縦位置モードでは幅と高さを交換する。
 fn waveformSize() -> vec2u {
@@ -26,7 +30,14 @@ fn index(column: u32, level: u32, channel: u32) -> u32 {
 }
 
 fn addSample(column: u32, chunk: u32, value: f32, channel: u32, weight: f32) {
-	let level = clamp(value, 0.0, 1.0) * f32(waveformSize().y - 1u);
+	var visibleValue = clamp(value, 0.0, 1.0);
+	if (useValueWindow) {
+		// 元の解析範囲外を端へ集計する規約は維持し、その後で表示領域を切り出す。
+		// 拡大領域の外の値を新しい端へ寄せると、ズームで架空の帯ができてしまう。
+		if (visibleValue < params.valueWindow.x || visibleValue > params.valueWindow.y) { return; }
+		visibleValue = (visibleValue - params.valueWindow.x) / (params.valueWindow.y - params.valueWindow.x);
+	}
+	let level = visibleValue * f32(waveformSize().y - 1u);
 	// Cover at least one 8-bit step to fill quantization gaps at high resolutions.
 	let radius = max(1.0, f32(waveformSize().y - 1u) / 255.0);
 	let first = u32(max(0.0, ceil(level - radius)));
@@ -48,6 +59,13 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 	if (any(id.xy >= params.sampleSize)) {
 		return;
 	}
+	let samplePosition = select(id.x, id.y, params.verticalPosition == 1u);
+	let positionSamples = select(params.sampleSize.x, params.sampleSize.y, params.verticalPosition == 1u);
+	if (usePositionRange) {
+		let start = u32(floor(params.positionRange.x * f32(positionSamples)));
+		let end = u32(ceil(params.positionRange.y * f32(positionSamples)));
+		if (samplePosition < start || samplePosition >= end) { return; }
+	}
 	let uv = (vec2f(id.xy) + 0.5) / vec2f(params.sampleSize);
 	let position = vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
 	let sample = imageAnalysisSample(read_input(position), params.mode);
@@ -57,12 +75,22 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 	}
 	let scaledValues = imageValueForScope(sample.values, params.valueScale, params.valueRange);
 	// サンプル解像度と表示の位置分解能は独立。fit後の画像領域の位置を集計する。
-	let samplePosition = select(id.x, id.y, params.verticalPosition == 1u);
-	let positionSamples = select(params.sampleSize.x, params.sampleSize.y, params.verticalPosition == 1u);
-	let column = min(samplePosition * waveformSize().x / positionSamples, waveformSize().x - 1u);
+	// 全体表示では従来どおり、透明なサンプルを除外した後でだけ位置ビンを計算する。
+	var column = 0u;
+	if (usePositionRange) {
+		let position = clamp(((f32(samplePosition) + 0.5) / f32(positionSamples) - params.positionRange.x)
+			/ (params.positionRange.y - params.positionRange.x), 0.0, 1.0);
+		column = min(u32(position * f32(waveformSize().x)), waveformSize().x - 1u);
+	} else {
+		column = min(samplePosition * waveformSize().x / positionSamples, waveformSize().x - 1u);
+	}
 	var chunk = 0u;
 	if (usePartialSums) {
-		let firstPosition = (column * positionSamples + waveformSize().x - 1u) / waveformSize().x;
+		var firstPosition = (column * positionSamples + waveformSize().x - 1u) / waveformSize().x;
+		if (usePositionRange) {
+			let start = params.positionRange.x + f32(column) / f32(waveformSize().x) * (params.positionRange.y - params.positionRange.x);
+			firstPosition = min(samplePosition, u32(floor(start * f32(positionSamples))));
+		}
 		let otherPosition = select(id.y, id.x, params.verticalPosition == 1u);
 		let otherSamples = select(params.sampleSize.y, params.sampleSize.x, params.verticalPosition == 1u);
 		chunk = ((samplePosition - firstPosition) * otherSamples + otherPosition) / 8192u;

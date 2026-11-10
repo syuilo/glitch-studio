@@ -65,20 +65,24 @@ export async function run() {
 				const irregularSize = direction === 'horizontal' ? { width: 2, height: 256 } : { width: 256, height: 2 };
 				const irregularOutput = device.createTexture({ size: irregularSize, format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 				try {
-					const encoder = device.createCommandEncoder();
-					waveform.prepare({ kind: 'uniform', value: [0, 0, 0, 1] }, { mode: 'vectorX', direction, intensity: 1 / 65538,
-						valueScale: 'linear', size: irregularSize, fitSize: { width: 1, height: 1 },
-						sampleSize: direction === 'horizontal' ? { width: 3, height: 32769 } : { width: 32769, height: 3 } }, encoder);
-					const compute = encoder.beginComputePass(); waveform.accumulate(compute); compute.end();
-					const pass = encoder.beginRenderPass({ colorAttachments: [{ view: irregularOutput.createView(), loadOp: 'clear', storeOp: 'store' }] });
-					waveform.render(pass); pass.end();
-					const pixels = await read(irregularOutput, encoder);
-					for (const position of [0, 1]) {
-						const index = direction === 'horizontal' ? (255 * 2 + position) * 4 : position * 256 * 4;
-						const expected = Math.round((1 - Math.exp(-(position === 0 ? 1 : 0.5))) * 255);
-						if (Math.abs(pixels[index] - expected) > 1) throw new Error('Uneven position bins lost partial counts');
+					for (const cropped of [false, true]) {
+						const encoder = device.createCommandEncoder();
+						waveform.prepare({ kind: 'uniform', value: [0, 0, 0, 1] }, { mode: 'vectorX', direction, intensity: 1 / 65538,
+							valueScale: 'linear', size: irregularSize, fitSize: { width: 1, height: 1 },
+							positionRange: cropped ? { minimum: 0.125, maximum: 0.875 } : undefined,
+							valueWindow: cropped ? { minimum: 0, maximum: 0.5 } : undefined,
+							sampleSize: direction === 'horizontal' ? { width: cropped ? 4 : 3, height: 32769 } : { width: 32769, height: cropped ? 4 : 3 } }, encoder);
+						const compute = encoder.beginComputePass(); waveform.accumulate(compute); compute.end();
+						const pass = encoder.beginRenderPass({ colorAttachments: [{ view: irregularOutput.createView(), loadOp: 'clear', storeOp: 'store' }] });
+						waveform.render(pass); pass.end();
+						const pixels = await read(irregularOutput, encoder);
+						for (const position of [0, 1]) {
+							const index = direction === 'horizontal' ? (255 * 2 + position) * 4 : position * 256 * 4;
+							const expected = Math.round((1 - Math.exp(-(position === 0 || cropped ? 1 : 0.5))) * 255);
+							if (Math.abs(pixels[index] - expected) > 1) throw new Error('Uneven position bins lost partial counts');
+						}
+						checks.push(`${direction} ${cropped ? 'cropped' : 'uneven'} position bins retain all partial counts`);
 					}
-					checks.push(`${direction} uneven position bins retain all partial counts`);
 				} finally { irregularOutput.destroy(); }
 			} finally { waveform.dispose(); source.destroy(); output.destroy(); }
 		}
