@@ -23,11 +23,6 @@ const bundle = await build({
 			"import { h } from 'vue'; export default { setup(_, { slots, expose }) { expose({ close() {} }); return () => h('section', {}, slots.default?.()); } };" }));
 	} }],
 });
-const module = { exports: {} };
-new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const ColorPicker = module.exports.default;
-ColorPicker.__cssModules = { $style: {} };
-
 async function fixture(t, color, { recentColors = [], eyedropperHex = null } = {}) {
 	const restoreGlobals = [];
 	let app = null;
@@ -35,11 +30,19 @@ async function fixture(t, color, { recentColors = [], eyedropperHex = null } = {
 	const menus = [];
 	const windowState = { document: { activeElement: null }, colorPickerMenus: menus };
 	if (eyedropperHex != null) windowState.EyeDropper = class { async open() { return { sRGBHex: eyedropperHex }; } };
-	for (const [name, value] of Object.entries({ window: windowState, localStorage: { getItem: () => JSON.stringify(recentColors) } })) {
+	const storage = new Map([['glitch-studio:recent-colors', JSON.stringify(recentColors)]]);
+	const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
+	windowState.localStorage = localStorage;
+	for (const [name, value] of Object.entries({ window: windowState, localStorage })) {
 		const previous = Object.getOwnPropertyDescriptor(globalThis, name);
 		Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
 		restoreGlobals.push(() => { if (previous != null) Object.defineProperty(globalThis, name, previous); else delete globalThis[name]; });
 	}
+	// 本物の環境設定をストレージ初期化後に生成し、テスト間ではsingletonを共有しない。
+	const module = { exports: {} };
+	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
+	const ColorPicker = module.exports.default;
+	ColorPicker.__cssModules = { $style: {} };
 	const element = () => markRaw({
 		children: [], props: {}, parent: null, textContent: '', capturedPointer: null,
 		getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 100 }),
@@ -57,11 +60,14 @@ async function fixture(t, color, { recentColors = [], eyedropperHex = null } = {
 	const state = reactive({ color });
 	const changes = [];
 	const root = element();
-	app = renderer.createApp({ render: () => h(ColorPicker, { modelValue: state.color, anchorElement: root,
-		'onUpdate:modelValue': value => { changes.push(value); state.color = value; },
-	}) });
-	app.directive('tooltip', {});
-	app.mount(root);
+	function mount() {
+		app = renderer.createApp({ render: () => h(ColorPicker, { modelValue: state.color, anchorElement: root,
+			'onUpdate:modelValue': value => { changes.push(value); state.color = value; },
+		}) });
+		app.directive('tooltip', {});
+		app.mount(root);
+	}
+	mount();
 	await nextTick();
 	const findElement = (attribute, value = null) => {
 		const visit = element => Object.hasOwn(element.props, attribute) && (value == null || element.props[attribute] === value) ? element : element.children.map(visit).find(value => value != null);
@@ -100,7 +106,12 @@ async function fixture(t, color, { recentColors = [], eyedropperHex = null } = {
 		menus.at(-1).find(item => item.id === gamut).action();
 		await nextTick();
 	};
-	return { state, changes, edit, findField, findElement, switchMode, pointer, pressKey, toggleGamutLimit, selectGamut };
+	const reopen = async () => {
+		app.unmount();
+		mount();
+		await nextTick();
+	};
+	return { state, changes, edit, findField, findElement, switchMode, pointer, pressKey, toggleGamutLimit, selectGamut, reopen, storage };
 }
 
 // 【HDR色を開いても保存値を変更せず、alphaだけの編集でもRGBを保持する】
@@ -369,6 +380,32 @@ test('places gamut controls in the header and changes settings without editing t
 		assert.equal(gamutButton.props['data-gamut'], gamut);
 		assert.deepEqual(Array.from(state.color), original);
 	}
+	assert.deepEqual(changes, []);
+});
+
+// 【マップ・判定色域・制限トグルの前回値を、次のピッカーへ引き継ぐ】
+// 設定だけを切り替えて閉じた場合も即時保存し、新しいコンポーネントへ復元する。
+// 制限オンの復元で既存のHDR色が書き換わったり、未変更の設定が初期値へ戻ったりしてはならない。
+test('remembers picker settings across reopening without changing the selected color', async t => {
+	const original = [4, -0.25, 0.5, 0.75];
+	const { state, changes, storage, switchMode, selectGamut, toggleGamutLimit, reopen, findElement } = await fixture(t, original);
+	await switchMode('oklch');
+	await selectGamut('rec2020');
+	await toggleGamutLimit();
+	assert.equal(storage.get('preferences:colorPickerMapMode'), '"oklch"');
+	assert.equal(storage.get('preferences:colorPickerReferenceGamut'), '"rec2020"');
+	assert.equal(storage.get('preferences:colorPickerLimitSelectionToGamut'), 'true');
+	await reopen();
+	assert.equal(findElement('data-test-color-picker-map').props['data-mode'], 'oklch');
+	assert.equal(findElement('data-test-color-picker-gamut').props['data-gamut'], 'rec2020');
+	assert.equal(findElement('data-test-color-picker-gamut-limit').props['data-enabled'], true);
+	await switchMode('hsv');
+	await toggleGamutLimit();
+	await reopen();
+	assert.equal(findElement('data-test-color-picker-map').props['data-mode'], 'hsv');
+	assert.equal(findElement('data-test-color-picker-gamut').props['data-gamut'], 'rec2020');
+	assert.equal(findElement('data-test-color-picker-gamut-limit').props['data-enabled'], false);
+	assert.deepEqual(Array.from(state.color), original);
 	assert.deepEqual(changes, []);
 });
 

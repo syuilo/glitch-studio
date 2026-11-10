@@ -8,6 +8,41 @@ import { effectScope } from 'vue';
 const bundle = await build({ entryPoints: [fileURLToPath(new URL('../src/preferences.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'] });
 
+// 【ピッカー設定は初回のみ既定値を使い、再起動後には保存した3項目を独立して復元する】
+// マップ・判定色域・制限の状態をプロジェクトへ保存せず、同じ端末の次回起動へ引き継ぐ。
+// 一部の項目だけを戻しても、他の設定や無関係な環境設定を上書きしないことを確認する。
+test('persists independent color picker settings and restores them on restart', t => {
+	const storage = new Map([['preferences:previewVolume', '0.25']]);
+	const window = { localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } };
+	const module = { exports: {} };
+	new Function('require', 'module', 'exports', 'window', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, window);
+	const { preferences, PreferencesManager } = module.exports;
+	assert.equal(preferences.s.colorPickerMapMode, 'hsv');
+	assert.equal(preferences.s.colorPickerReferenceGamut, 'srgb');
+	assert.equal(preferences.s.colorPickerLimitSelectionToGamut, false);
+	const scope = effectScope();
+	t.after(() => scope.stop());
+	const models = scope.run(() => ({
+		mapMode: preferences.model('colorPickerMapMode'),
+		referenceGamut: preferences.model('colorPickerReferenceGamut'),
+		limitSelectionToGamut: preferences.model('colorPickerLimitSelectionToGamut'),
+	}));
+	models.mapMode.value = 'oklch';
+	models.referenceGamut.value = 'adobeRgb';
+	models.limitSelectionToGamut.value = true;
+	const restored = new PreferencesManager();
+	assert.equal(restored.s.colorPickerMapMode, 'oklch');
+	assert.equal(restored.s.colorPickerReferenceGamut, 'adobeRgb');
+	assert.equal(restored.s.colorPickerLimitSelectionToGamut, true);
+	models.mapMode.value = 'hsv';
+	models.limitSelectionToGamut.value = false;
+	const reset = new PreferencesManager();
+	assert.equal(reset.s.colorPickerMapMode, 'hsv');
+	assert.equal(reset.s.colorPickerReferenceGamut, 'adobeRgb');
+	assert.equal(reset.s.colorPickerLimitSelectionToGamut, false);
+	assert.equal(reset.s.previewVolume, 0.25);
+});
+
 // 【高度なパラメータの表示は既定でオフにし、アプリケーション設定として復元する】
 // 表示メニューの切り替えをプロジェクトへ保存せず、次回起動にも引き継ぐ。
 test('defaults advanced parameters to hidden and persists the display preference', t => {

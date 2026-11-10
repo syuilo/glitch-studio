@@ -8,6 +8,7 @@ import type { MenuItem } from './types/menu.ts';
 import type { TimelineTickMode } from './utility/timeline-ticks.ts';
 import type { PreviewDisplayMode } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { TimelinePreviewFrameCachePrecision } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
+import type { RgbGamut } from '@gs/shared/rgb-gamut.ts';
 
 export const PREF_DEF = definePreferences({
 	importAssetsAsExternalReferences: { default: () => false },
@@ -30,6 +31,9 @@ export const PREF_DEF = definePreferences({
 	showTransformInPreview: { default: () => true },
 	previewTransformSnap: { default: () => true },
 	previewTransformKeepRatio: { default: () => true },
+	colorPickerMapMode: { default: (): 'hsv' | 'oklch' => 'hsv' },
+	colorPickerReferenceGamut: { default: (): RgbGamut => 'srgb' },
+	colorPickerLimitSelectionToGamut: { default: () => false },
 	timelineFollowPlayhead: { default: () => false },
 	timelineTickMode: { default: (): TimelineTickMode => 'decimal125' },
 	timelineHalfTicks: { default: () => true },

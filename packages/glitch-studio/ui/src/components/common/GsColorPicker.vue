@@ -67,6 +67,7 @@
 				<div
 					:class="[$style.map, { [$style.hsvMap]: mapMode === 'hsv' }]" :style="mapMode === 'hsv' ? { backgroundColor: `hsl(${hue} 100% 50%)` } : {}"
 					data-test-color-picker-map
+					:data-mode="mapMode"
 					tabindex="0"
 					@pointerdown="startDrag($event, 'map')"
 					@pointermove="moveDrag"
@@ -163,9 +164,9 @@
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import { linearSrgbToSrgb, oklchToLinearSrgb, srgbChannelToLinear } from '@gs/shared/color-space.ts';
 import { limitOklchToGamut, RGB_GAMUTS } from '@gs/shared/rgb-gamut.ts';
-import type { RgbGamut } from '@gs/shared/rgb-gamut.ts';
 import type { RgbaColor } from '@/utility/color-input.ts';
 import { i18n } from '@/i18n.ts';
+import { preferences } from '@/preferences.ts';
 import { clampColorValue, colorHex, extendedColorCss, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv, rgbToOklch } from '@/utility/color-input.ts';
 import { COLOR_PICKER_GAMUT_LABELS, OKLCH_HUE_GRADIENT, OKLCH_MAP_MAX_CHROMA } from '@/utility/color-picker-map.ts';
 import GsModal from '@/components/common/GsModal.vue';
@@ -193,9 +194,9 @@ const hue = ref(initialHsv[0]);
 const saturation = ref(initialHsv[1]);
 const brightness = ref(initialHsv[2]);
 const oklch = ref(rgbToOklch(color.value, 0));
-const mapMode = ref<'hsv' | 'oklch'>('hsv');
-const referenceGamut = ref<RgbGamut>('srgb');
-const limitSelectionToGamut = ref(false);
+const mapMode = preferences.model('colorPickerMapMode');
+const referenceGamut = preferences.model('colorPickerReferenceGamut');
+const limitSelectionToGamut = preferences.model('colorPickerLimitSelectionToGamut');
 const mapHue = computed(() => mapMode.value === 'hsv' ? hue.value : oklch.value[2]);
 const mapPosition = computed(() => mapMode.value === 'hsv'
 	? [saturation.value, 1 - brightness.value]
