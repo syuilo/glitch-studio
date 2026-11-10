@@ -49,6 +49,8 @@ Color Rampの新規既定値はLinear補間・Linear sRGB。補間空間にはsR
 - RGB Offsetは未乗算sRGBの全RGB成分へ同じOffsetを加算する。既定値0は入力をそのまま通す。これはlinearの光量倍率や、OKLCHのLの調整とは異なる。
 - OKLCH Adjustは未乗算linear RGBからOklabへ変換し、Lightness OffsetをLへ加算、ChromaをCへ乗算、HueをHへ加算する。既定値は順に0・1・0。Hueは他の角度パラメータと同じく1を1周とするturn単位。Chromaの負倍率は0として扱うが、Lと変換後のRGBは制限しない。クロマ倍率と色相回転はa/b平面でまとめて計算し、無彩色では色相を定義せずに扱う。変換に使うLMSの立方根は符号付きにして、負値の入力も保持する。
 
+Film Colorは未乗算linear RGBをOklabへ変換し、Lの単調なトーンカーブ・高彩度部の圧縮・処理前のLに基づく明暗別の色付けを行う。範囲外のLは曲線の端点の接線で延長し、RGBを一律にclampしない。Amountは乗算済みlinear RGB上の混合量で、alphaを保持する。Amount=0／全項目が中立／alpha=0の場合は入力をそのまま通す。詳細は`packages/subsystems/effect/shared/src/fx/filmColor/README.md`を参照する。
+
 旧Color Adjustは廃止する。旧LightnessはsRGB成分への加算だったためRGB Offsetに相当し、OKLCH AdjustのLightness Offsetとは同じ操作ではない。各調整パラメータは空間的なノード入力にも対応する。光学系の分光積分・光量倍率は引き続きlinearで直接計算する。
 
 Apply LUTは入力・出力色空間をそれぞれLinear sRGB／sRGBから指定する（既定は両方Linear sRGB）。`.cube`の拡張子から色空間を推測しない。LUTの数値表自体を色変換・premultiplyせず、表の入出力境界だけを変換する。参照domainへの制限はLUT固有の仕様として維持する。
