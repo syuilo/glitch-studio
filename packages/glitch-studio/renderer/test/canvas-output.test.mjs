@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createCanvasOutputConfigurator, createSrgbCanvasOutputSettings } from '../src/canvas-output.ts';
+import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings, createSrgbCanvasOutputSettings } from '../src/canvas-output.ts';
 
 // 【SDRの出力設定は形式を明示でき、プレビュー設定から独立した不変値にする】
 // 書き出しが将来のプレビュー用float設定を暗黙に引き継いだり、構成後に設定を書き換えて
@@ -14,6 +14,15 @@ test('creates immutable sRGB outputs with explicitly selected 8-bit formats', ()
 	assert.throws(() => createSrgbCanvasOutputSettings('rgba16float'), /Unsupported 8-bit sRGB canvas format/);
 });
 
+// 【GPUプレビューはモニター固有の色域へ変換できる拡張sRGBのfloat出力を使う】
+// P3を上限にせず、sRGBモニターでも同じ出力経路を使うため、画面の能力判定には依存しない。
+// CPU表示や書き出し用のfactoryは引き続き8bitを返し、これを暗黙に共有しない。
+test('creates immutable extended sRGB float outputs for GPU previews', () => {
+	const output = createGpuPreviewCanvasOutputSettings();
+	assert.deepEqual(output, { format: 'rgba16float', colorSpace: 'srgb' });
+	assert.equal(Object.isFrozen(output), true);
+});
+
 // 【同じCanvas構成を再適用せず、透明出力を切り替えたときだけ再構成する】
 // configureのたびに表示画像や未完了の読み戻しが失われるため、通常の設定同期では呼ばない。
 // GPUの推奨形式を内部で選び直さず、呼び出し元がpipelineへ渡す設定をそのまま使う。
@@ -24,12 +33,13 @@ test('configures the supplied output only when its alpha mode changes', t => {
 		if (previous == null) delete globalThis.GPUTextureUsage;
 		else Object.defineProperty(globalThis, 'GPUTextureUsage', previous);
 	});
-	const configurations = [];
 	const device = {};
-	const output = createSrgbCanvasOutputSettings('rgba8unorm');
-	const configure = createCanvasOutputConfigurator(device, { configure: value => configurations.push(value) }, output);
-	configure('opaque'); configure('opaque'); configure('premultiplied'); configure('premultiplied'); configure('opaque');
-	assert.deepEqual(configurations, ['opaque', 'premultiplied', 'opaque'].map(alphaMode => ({
-		device, format: 'rgba8unorm', colorSpace: 'srgb', alphaMode, usage: 16,
-	})));
+	for (const output of [createSrgbCanvasOutputSettings('rgba8unorm'), createGpuPreviewCanvasOutputSettings()]) {
+		const configurations = [];
+		const configure = createCanvasOutputConfigurator(device, { configure: value => configurations.push(value) }, output);
+		configure('opaque'); configure('opaque'); configure('premultiplied'); configure('premultiplied'); configure('opaque');
+		assert.deepEqual(configurations, ['opaque', 'premultiplied', 'opaque'].map(alphaMode => ({
+			device, ...output, alphaMode, toneMapping: { mode: 'standard' }, usage: 16,
+		})));
+	}
 });

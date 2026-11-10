@@ -12,12 +12,13 @@ import { fileURLToPath, URL } from 'node:url';
 import { bundleSource } from '../test/helpers/load-shader-source.mjs';
 
 const { values } = parseArgs({ options: {
-	runtime: { type: 'string', default: 'chrome' }, executable: { type: 'string' }, serve: { type: 'boolean', default: false },
+	runtime: { type: 'string', default: 'chrome' }, executable: { type: 'string' }, serve: { type: 'boolean', default: false }, preview: { type: 'boolean', default: false },
 } });
 if (!['chrome', 'electron'].includes(values.runtime)) throw new Error('Runtime must be chrome or electron');
 const executable = values.executable ?? process.env[values.runtime === 'chrome' ? 'CHROME_PATH' : 'ELECTRON_PATH'];
 if (!values.serve && executable == null) throw new Error('Specify --executable, CHROME_PATH or ELECTRON_PATH');
-const bundle = await bundleSource(fileURLToPath(new URL('../test/helpers/canvas-color-output-probe.ts', import.meta.url)), 'browser');
+const entryPath = values.preview ? '../test/helpers/gpu-preview-output-gpu.ts' : '../test/helpers/canvas-color-output-probe.ts';
+const bundle = await bundleSource(fileURLToPath(new URL(entryPath, import.meta.url)), 'browser');
 const result = Promise.withResolvers();
 const server = createServer((request, response) => {
 	if (request.url === '/result' && request.method === 'POST') {

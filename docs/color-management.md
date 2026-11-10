@@ -61,7 +61,11 @@ Apply LUTは入力・出力色空間をそれぞれLinear sRGB／sRGBから指�
 
 ## 表示・SDR書き出し・解析
 
-`CanvasRenderer`はlinear RGB上で表示用の露出・背景合成・色域圧縮を行い、`canvas-output.wgsl`が最終段でsRGB encodeとSDRの範囲制限を担当する。Canvasの形式・色空間は`CanvasOutputSettings`として、Canvasのconfigureと最終描画pipelineへ同じ値を渡す。プレビューのfactoryと書き出しWorkerはそれぞれ出力設定を生成し、現時点では両方とも従来の8bit sRGBを使う。
+`CanvasRenderer`はlinear RGB上で表示用の露出・背景合成・色域圧縮を行い、`canvas-output.wgsl`が最終段でsRGB encodeを担当する。Canvasの形式・色空間は`CanvasOutputSettings`として、Canvasのconfigureと最終描画pipelineへ同じ値を渡す。プレビューのfactoryはGPU表示なら`rgba16float`の拡張sRGB、CPU表示なら8bit sRGBを選ぶ。SDR書き出しは独立した設定で8bit sRGBを使い、8bit出力だけshader内でsRGBの範囲へ制限する。
+
+GPU表示では負値・1超のRGBをCanvasまで保持し、ブラウザーがOSの色管理を通じてモニターの色空間へ変換する。原色の指定がsRGBでもfloatの拡張範囲はsRGB色域に限定されず、Display P3を上限にする必要もない。ChromeとElectronで共通の経路にするため、線形Canvasのenumには依存せず、符号対称のsRGB伝達関数を使う。画面の色域を推定して設定を切り替えないため、別ウィンドウやモニター間の移動でも同じ出力規約を使う。
+
+`toneMapping: { mode: 'standard' }`を明示し、モニターのSDR範囲へ表示する。これはsRGB原色での事前clampとは異なり、モニター色空間へ変換した後の範囲制限である（[WebGPUのCanvas tone mapping](https://gpuweb.github.io/gpuweb/#enumdef-gpucanvastonemappingmode)を参照）。広色域表示とHDR輝度の表示は分け、HDR輝度拡張は有効にしない。CPU表示・SDR書き出し・解析Canvasは引き続き8bit sRGB。
 
 露出はlinear RGBへ`2^EV`を乗算する。プレビューの黒背景・チェック背景、不透明出力の黒背景とのsource-overをlinearで済ませ、その後にencode・SDRの範囲制限を行う。チェック背景のアニメーションは表示用に複製した画像を使い、停止中もノード・履歴・解析を再評価しない。
 
@@ -129,7 +133,9 @@ sRGB・EVはRGBでだけ選べる。数値データの解析対象へ切り替�
 | Chrome 157.0.8103.39 | 対応 | 対応 | 対応 | 対応 |
 | Electron 45.2.1 / Chromium 156.0.8078.75 | 対応 | 対応 | enum未対応 | enum未対応 |
 
-ChromeとElectronの両方で、sRGBのfloat出力にP3の赤の負値・1超の成分が保持されることを確認した。線形色空間を使わずに拡張範囲を運べる経路も存在するため、広色域表示を有効化する段階ではこの対応差を考慮する。現在のアプリ表示の設定は変更していない。
+ChromeとElectronの両方で、sRGBのfloat出力にP3の赤の負値・1超の成分が保持されることを確認した。アプリのGPUプレビューは、この共通の拡張sRGB経路を使う。
+
+`--preview`を付けると、転送したOffscreenCanvasをWorkerで使い、実際の`CanvasRenderer`も検証する。P3の赤の保持と色変換・中間調・露出・半透明・linear背景合成・色域圧縮を確認し、同じ画像がCPU表示とSDR書き出しでは8bit sRGBへ制限されることも確認する。Chrome 157とElectron 45.2.1の両方で通過した。
 
 検証時の`color-gamut: p3`・`rec2020`と`dynamic-range: high`はいずれもfalseだった。ここでの結果は数値・Canvas間の経路を検証したものであり、OSの最終合成後に実モニターへ表示される色の精度は未検証。
 

@@ -1,6 +1,6 @@
 Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
-`canvas-output.ts`はCanvasの画素形式・色空間を`CanvasOutputSettings`として定義する。`createCanvasOutputConfigurator()`と`CanvasRenderer`へ同じ設定を渡し、Canvas構成と最終描画pipelineの形式を一致させる。プレビューのfactoryと書き出しWorkerが出力設定をそれぞれ生成し、既定値も常に8bit sRGBとする。露出・背景・色域圧縮は表示変換としてlinear上で処理し、`canvas-output.wgsl`だけが最後にsRGB encode・SDRの範囲制限を行う。
+`canvas-output.ts`はCanvasの画素形式・色空間を`CanvasOutputSettings`として定義する。`createCanvasOutputConfigurator()`と`CanvasRenderer`へ同じ設定を渡し、Canvas構成と最終描画pipelineの形式を一致させる。プレビューのfactoryはGPU表示なら`createGpuPreviewCanvasOutputSettings()`で拡張sRGBの`rgba16float`を選び、CPU表示と書き出しWorkerは8bit sRGBを使う。Managerへ直接渡す場合の既定値も8bit sRGBとする。露出・背景・色域圧縮は表示変換としてlinear上で処理し、`canvas-output.wgsl`が最後にsRGB encodeを行う。float出力ではRGBをclampせず、ブラウザーがモニターの色空間へ変換した後、`toneMapping: { mode: 'standard' }`によりSDR範囲へ表示する。8bit出力だけshaderでsRGBの範囲へ制限する。
 
 両Managerのdynamic optionsの`previewGamutCompression`は、`{ mode, customAmount }`でプレビュー専用の色域圧縮を指定する。modeは`none`・`displayP3`・`rec2020`・`adobeRgb`・`custom`、customAmountは0〜1のクロマ削減率。既定は通常表示で、書き出し用Managerにも圧縮を引き継がない。`CanvasRenderer`は露出・linear背景合成後に変換し、解析・フレームキャッシュ・クリッピング警告の色は変更しない。
 
@@ -111,3 +111,10 @@ pnpm --dir packages/glitch-studio/renderer probe:canvas-color-output --serve
 ```
 
 `canvas-color-output.gpu.test.mjs`は同じ検証を自動実行する。対応する実行ファイルの環境変数がない場合はskipする。WindowsのChrome 157／Electron 45.2.1の結果と制約は[色空間の規約](../../../docs/color-management.md#広色域canvasの検証)を参照。
+
+`--preview`を付けると、実際の`CanvasRenderer`を使うWorkerの検証へ切り替える。転送したOffscreenCanvasへの広色域出力・表示変換・CPU表示とSDR書き出しのsRGB維持を調べる。この検証も上記の自動テストで両ランタイムに対して実行する。
+
+```sh
+pnpm --dir packages/glitch-studio/renderer probe:canvas-color-output --runtime chrome --preview
+pnpm --dir packages/glitch-studio/renderer probe:canvas-color-output --runtime electron --preview
+```

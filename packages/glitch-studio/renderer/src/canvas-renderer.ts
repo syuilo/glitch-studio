@@ -119,6 +119,7 @@ export class CanvasRenderer {
 			fragment: {
 				module: finalRenderShaderModule,
 				entryPoint: 'fs',
+				constants: { canvasOutputWideGamut: canvasOutput.format === 'rgba16float' ? 1 : 0 },
 				targets: [{
 					format: canvasOutput.format,
 				}],

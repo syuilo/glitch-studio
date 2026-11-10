@@ -27,7 +27,7 @@ import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.t
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import { createPreviewCanvasContext } from './preview-canvas-context.ts';
-import { createCanvasOutputConfigurator, createSrgbCanvasOutputSettings } from './canvas-output.ts';
+import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings, createSrgbCanvasOutputSettings } from './canvas-output.ts';
 import type { CanvasOutputSettings } from './canvas-output.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { FrameScheduler, VisualModuleLivePreviewFrameTiming } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
@@ -684,7 +684,7 @@ export async function createManager(options: {
 		coreConfig = {
 			gpuDevice: device,
 			gpuContext: createContext(options.canvas, 'canvas'),
-			canvasOutput: createSrgbCanvasOutputSettings(),
+			canvasOutput: displayMode === 'gpu' ? createGpuPreviewCanvasOutputSettings() : createSrgbCanvasOutputSettings(),
 			histogramGpuContext: createContext(options.histogramCanvas, 'histogramCanvas'),
 			waveformHorizontalGpuContext: createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas'),
 			waveformVerticalGpuContext: createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas'),
