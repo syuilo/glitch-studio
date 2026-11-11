@@ -360,9 +360,6 @@ importers:
       '@gs/subsystems_visual-module_shared':
         specifier: workspace:*
         version: link:../../subsystems/visual-module/shared
-      '@jsquash/webp':
-        specifier: 1.5.0
-        version: 1.5.0
       '@msgpack/msgpack':
         specifier: 3.1.3
         version: 3.1.3
@@ -569,6 +566,9 @@ importers:
 
   packages/subsystems/image-codec:
     devDependencies:
+      '@jsquash/webp':
+        specifier: 1.5.0
+        version: 1.5.0
       '@types/web':
         specifier: 0.0.359
         version: 0.0.359

@@ -6,13 +6,13 @@ import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitio
 import { effectImplementations } from '@gs/subsystems_effect_shared/effect-implementations.ts';
 import { createMp4Writer } from './mp4-writer.ts';
 import { adjustExportResolution, scaleExportResolution } from './export-settings.ts';
-import { encodeStillWebp } from './still-webp.ts';
+import { prepareStillWebp } from './still-webp.ts';
 import { encodeStillOpenExr } from './still-openexr.ts';
 import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
 import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { getExportAudioClips } from './audio-export-settings.ts';
 import { TimelineAudioExport } from './timeline-audio-export.ts';
-import type { ExportRequest, ExportResponse } from './types.ts';
+import type { ExportRequest, ExportResponse, ExportChunkAcknowledgement } from './types.ts';
 
 function send(message: ExportResponse, transfer: Transferable[] = []) {
 	self.postMessage(message, { transfer });
@@ -20,13 +20,35 @@ function send(message: ExportResponse, transfer: Transferable[] = []) {
 
 // 1ジョブにつき1Worker。Playerのライブ入力は接続せず、専用のGPUDeviceと履歴を持つ。
 // キャンセル時は呼び出し元がWorkerを終了し、準備待ち・エンコード待ちも即座に中断する。
-self.onmessage = async (event: MessageEvent<ExportRequest>) => {
+let pendingChunk: { sequence: number; resolve: () => void } | null = null;
+let nextChunkSequence = 0;
+
+function writeChunk(chunk: Uint8Array, totalBytes: number): Promise<void> {
+	return new Promise(resolve => {
+		const sequence = nextChunkSequence++;
+		pendingChunk = { sequence, resolve };
+		// WASMの借用view自体はtransferしない。保存完了を待つ一チャンクだけコピーする。
+		const buffer = chunk.slice().buffer;
+		send({ type: 'chunk', sequence, buffer, totalBytes }, [buffer]);
+	});
+}
+
+self.onmessage = async (event: MessageEvent<ExportRequest | ExportChunkAcknowledgement>) => {
+	if ('type' in event.data) {
+		if (pendingChunk?.sequence === event.data.sequence) {
+			const pending = pendingChunk;
+			pendingChunk = null;
+			pending.resolve();
+		}
+		return;
+	}
 	let renderer: TimelineRendererManager | null = null;
 	let device: GPUDevice | null = null;
 	let writer: Awaited<ReturnType<typeof createMp4Writer>> | null = null;
 	let audio: TimelineAudioExport | null = null;
 	const controller = new AbortController();
 	let finished = false;
+	let gpuReleased = false;
 	try {
 		const { settings: requestedSettings, project, resolutionScale, renderer: rendererSettings } = event.data;
 		const { timelineFps, timelineMotionBlur, assets, customShaderEffects, ...dynamicProjectOptions } = project;
@@ -61,7 +83,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			requiredLimits: { maxTextureDimension2D: adapter.limits.maxTextureDimension2D },
 		});
 		const fail = (message: string) => {
-			if (finished) return;
+			if (finished || gpuReleased) return;
 			controller.abort(new Error(message));
 			// GPU障害で待機Promiseが解決しなくても、UIへ通知してWorkerを終了できるようにする。
 			send({ type: 'error', message });
@@ -120,15 +142,29 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			return;
 		}
 		if (settings.format === 'webp') {
-			await renderer.renderTimelineFrame(settings.positionMs, 0);
-			controller.signal.throwIfAborted();
-			// 呼び出し直後、最初のawaitより前にCanvasをコピーする。
-			const encoded = encodeStillWebp(canvas, settings);
-			send({ type: 'progress', progress: { phase: 'finalizing', completedFrames: 1, totalFrames: 1 } });
-			const buffer = await encoded;
-			controller.signal.throwIfAborted();
-			finished = true;
-			send({ type: 'complete', buffer }, [buffer]);
+			send({ type: 'progress', progress: { phase: 'rendering', completedFrames: 0, totalFrames: 1 } });
+			const image = await renderer.renderTimelineSrgbFrame(settings.positionMs, controller.signal);
+			let encoder: Awaited<ReturnType<typeof prepareStillWebp>>;
+			try {
+				encoder = await prepareStillWebp(image, settings, controller.signal);
+			} finally { image.dispose(); }
+			try {
+				controller.signal.throwIfAborted();
+				// 全画素の取り込み後はGPUを使わない。意図したdevice.destroy()のlost通知を
+				// 失敗として扱わず、圧縮の作業領域と描画資源を重ねない。
+				gpuReleased = true;
+				renderer.destroy();
+				renderer = null;
+				device = null;
+				context.unconfigure();
+				canvas.width = 1;
+				canvas.height = 1;
+				send({ type: 'progress', progress: { phase: 'finalizing', completedFrames: 1, totalFrames: 1 } });
+				await encoder.encode((chunk, _completedBytes, totalBytes) => writeChunk(chunk, totalBytes));
+				controller.signal.throwIfAborted();
+				finished = true;
+				send({ type: 'complete', buffer: new ArrayBuffer(0) });
+			} finally { encoder.dispose(); }
 			return;
 		}
 		let lastProgressTime = 0;

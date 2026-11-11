@@ -11,6 +11,7 @@
 	},
 	"exports": {
 		"./canvas-output.ts": "./src/canvas-output.ts",
+		"./srgb-image-readback.ts": "./src/srgb-image-readback.ts",
 		"./client.ts": "./src/client.ts",
 		"./visual-module-renderer-manager.ts": "./src/visual-module-renderer-manager.ts",
 		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts"

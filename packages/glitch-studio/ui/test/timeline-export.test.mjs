@@ -100,6 +100,7 @@ test('rejects invalid dimensions, frame rates, ranges and encoding settings', ()
 	]) assert.equal(typeof validateExportSettings({ ...settings, ...invalid }), 'string');
 });
 
+// 【中止・成功・失敗のいずれでも専用Workerを終了する】
 // 準備やエンコードが停止していても、キャンセルはWorkerを終了して待機Promiseを解決する。
 test('terminates the worker on abort, success, errors and postMessage failure', async t => {
 	let worker;
@@ -118,12 +119,75 @@ test('terminates the worker on abort, success, errors and postMessage failure', 
 	for (const mode of ['abort', 'complete', 'error', 'post-failure']) {
 		const controller = new AbortController();
 		if (mode === 'post-failure') FakeWorker.prototype.postMessage = () => { throw new Error('clone failed'); };
-		const job = exportTimeline({}, controller.signal, () => {});
+		const chunks = [];
+		const job = exportTimeline({}, controller.signal, () => {}, async chunk => { chunks.push(chunk); });
 		if (mode === 'abort') controller.abort();
 		if (mode === 'complete') worker.onmessage({ data: { type: 'complete', buffer: new ArrayBuffer(4) } });
 		if (mode === 'error') worker.onmessage({ data: { type: 'error', message: 'GPU failed' } });
-		if (mode === 'complete') assert.equal((await job).byteLength, 4);
+		if (mode === 'complete') { await job; assert.equal(chunks[0].byteLength, 4); }
 		else await assert.rejects(job);
 		assert.equal(worker.terminated, true);
+	}
+});
+
+// 【保存完了の応答を待ち、書き出しWorkerに一チャンクずつ進む許可を返す】
+// 非同期保存を待たずに応答すると、WASM側の出力が先行して巨大な通信キューを作ってしまう。
+test('acknowledges WebP chunks only after the output writer completes', async t => {
+	let worker;
+	class FakeWorker {
+		messages = [];
+		terminated = false;
+		constructor() { worker = this; }
+		postMessage(message) { this.messages.push(message); }
+		terminate() { this.terminated = true; }
+	}
+	const previous = Object.getOwnPropertyDescriptor(globalThis, 'Worker');
+	globalThis.Worker = FakeWorker;
+	t.after(() => { if (previous != null) Object.defineProperty(globalThis, 'Worker', previous); else delete globalThis.Worker; });
+	const release = Promise.withResolvers();
+	const writes = [];
+	const job = exportTimeline({}, new AbortController().signal, () => {}, async (chunk, totalBytes) => {
+		writes.push({ bytes: [...chunk], totalBytes });
+		await release.promise;
+	});
+	worker.onmessage({ data: { type: 'chunk', sequence: 7, totalBytes: 3, buffer: new Uint8Array([1, 2, 3]).buffer } });
+	assert.deepEqual(writes, [{ bytes: [1, 2, 3], totalBytes: 3 }]);
+	assert.equal(worker.messages.length, 1);
+	release.resolve();
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(worker.messages.at(-1), { type: 'chunk-written', sequence: 7 });
+	worker.onmessage({ data: { type: 'complete', buffer: new ArrayBuffer(0) } });
+	await job;
+	assert.equal(worker.terminated, true);
+});
+
+// 【保存失敗や保存待ち中の中断ではWorkerを破棄し、後から保存が解決しても続行させない】
+// 圧縮結果の保存に失敗した後で次のチャンクを生成すると、無駄なメモリを確保し続ける。
+test('terminates streamed exports on output failure or cancellation while writing', async t => {
+	let worker;
+	class FakeWorker {
+		messages = [];
+		terminated = false;
+		constructor() { worker = this; }
+		postMessage(message) { this.messages.push(message); }
+		terminate() { this.terminated = true; }
+	}
+	const previous = Object.getOwnPropertyDescriptor(globalThis, 'Worker');
+	globalThis.Worker = FakeWorker;
+	t.after(() => { if (previous != null) Object.defineProperty(globalThis, 'Worker', previous); else delete globalThis.Worker; });
+	for (const cancel of [false, true]) {
+		const controller = new AbortController();
+		const writing = Promise.withResolvers();
+		const job = exportTimeline({}, controller.signal, () => {}, async () => {
+			if (cancel) await writing.promise;
+			else throw new Error('disk full');
+		});
+		worker.onmessage({ data: { type: 'chunk', sequence: 0, totalBytes: 1, buffer: new ArrayBuffer(1) } });
+		if (cancel) controller.abort();
+		await assert.rejects(job, cancel ? { name: 'AbortError' } : /disk full/);
+		writing.resolve();
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(worker.terminated, true);
+		assert.equal(worker.messages.length, 1);
 	}
 });

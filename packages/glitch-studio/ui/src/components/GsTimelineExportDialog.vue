@@ -243,6 +243,7 @@ async function doExport() {
 	const desktop = window.desktop;
 	let exportSaveFile: { id: string; name: string } | null = null;
 	let previewDisposed = false;
+	const saveProgressSubscription: { stop: (() => void) | null } = { stop: null };
 	try {
 		const exportSettings = { ...settings.value };
 		// 環境設定は初期値にだけ使い、書き出しにはダイアログで選んだ分割数を渡す。
@@ -294,7 +295,9 @@ async function doExport() {
 		await appContext.suspendPreview();
 		signal.throwIfAborted();
 		// VueのProxyを外し、編集中の状態とWorkerの状態を独立させる。
-		const buffer = await exportTimeline({
+		const downloadParts: Blob[] = [];
+		let saveStarted = false;
+		await exportTimeline({
 			settings: exportSettings,
 			resolutionScale: exportResolutionScale,
 			project: deepClone(exportProject),
@@ -303,25 +306,35 @@ async function doExport() {
 			progress.value = value;
 			const fraction = getExportProgressFraction(value);
 			setTaskbarProgress(fraction == null ? 2 : Math.min(0.99, fraction));
+		}, async (chunk, totalBytes) => {
+			signal.throwIfAborted();
+			if (desktop != null && exportSaveFile != null) {
+				const targetId = exportSaveFile.id;
+				if (!saveStarted) {
+					savingFile.value = true;
+					progress.value = { phase: 'saving', completedBytes: 0, totalBytes };
+					setTaskbarProgress(0);
+					saveProgressSubscription.stop = desktop.onExportFileProgress(value => {
+						if (value.id !== targetId) return;
+						progress.value = { phase: 'saving', completedBytes: value.completedBytes, totalBytes: value.totalBytes };
+						setTaskbarProgress(Math.min(0.99, getExportProgressFraction(progress.value) ?? 0));
+					});
+					await desktop.beginExportFile(targetId, totalBytes);
+					saveStarted = true;
+				}
+				await desktop.appendExportFile(targetId, chunk);
+			} else {
+				// ブラウザーのダウンロードはBlobを必要とする。小さなBlobへ移しておき、
+				// 全ファイル分の連続したJavaScript配列やWorkerへのコピーを作らない。
+				downloadParts.push(new Blob([chunk]));
+			}
 		});
 		signal.throwIfAborted();
 		if (desktop != null && exportSaveFile != null) {
-			savingFile.value = true;
-			progress.value = { phase: 'saving', completedBytes: 0, totalBytes: buffer.byteLength };
-			setTaskbarProgress(0);
-			const targetId = exportSaveFile.id;
-			const stopProgress = desktop.onExportFileProgress(value => {
-				if (value.id !== targetId) return;
-				progress.value = { phase: 'saving', completedBytes: value.completedBytes, totalBytes: value.totalBytes };
-				setTaskbarProgress(Math.min(0.99, getExportProgressFraction(progress.value) ?? 0));
-			});
-			try {
-				await desktop.writeExportFile(targetId, new Uint8Array(buffer));
-			} finally {
-				stopProgress();
-			}
+			if (!saveStarted) throw new Error('The export contains no save data.');
+			await desktop.finishExportFile(exportSaveFile.id);
 		} else {
-			downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: { mp4: 'video/mp4', webp: 'image/webp', exr: 'image/x-exr' }[exportSettings.format] }));
+			downloadUrl.value = URL.createObjectURL(new Blob(downloadParts, { type: { mp4: 'video/mp4', webp: 'image/webp', exr: 'image/x-exr' }[exportSettings.format] }));
 			const link = window.document.createElement('a');
 			link.href = downloadUrl.value;
 			link.download = downloadName.value;
@@ -334,7 +347,8 @@ async function doExport() {
 		if (signal.aborted) status.value = i18n.ts._Export.Canceled;
 		else error.value = cause instanceof Error ? cause.message : String(cause);
 	} finally {
-		if (exportSaveFile != null) void desktop?.releaseExportFile(exportSaveFile.id).catch(console.error);
+		saveProgressSubscription.stop?.();
+		if (exportSaveFile != null) await desktop?.releaseExportFile(exportSaveFile.id).catch(console.error);
 		choosingSaveFile.value = false;
 		savingFile.value = false;
 		setTaskbarProgress(null);

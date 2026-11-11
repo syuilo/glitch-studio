@@ -45,7 +45,7 @@ test('routes project and export capabilities to their owner and preserves other 
 	const target = second.context.exportFiles.register(path.resolve('second.mp4'));
 	await assert.rejects(first.invoke('write-export-file', target.id, new Uint8Array([1])), /Unknown/);
 	first.window.destroy();
-	assert.equal(second.context.exportFiles.release(target.id), undefined);
+	assert.equal(await second.context.exportFiles.release(target.id), undefined);
 	assert.equal(second.context.projectFiles.getPath(retained.id), path.resolve('retained.gsproj'));
 });
 

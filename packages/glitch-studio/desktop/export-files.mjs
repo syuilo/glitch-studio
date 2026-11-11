@@ -5,6 +5,7 @@ import * as fs from 'node:fs/promises';
 // 保存ダイアログで選んだ書き出し先だけを、一回限りのIDでUIへ公開する。
 export class ExportFiles {
 	#targets = new Map();
+	#writes = new Map();
 
 	register(filePath) {
 		if (typeof filePath !== 'string' || !path.isAbsolute(filePath)
@@ -16,37 +17,120 @@ export class ExportFiles {
 		return { id, name: path.basename(filePath) };
 	}
 
-	clear() { this.#targets.clear(); }
-	release(id) { this.#targets.delete(id); }
+	async clear() {
+		this.#targets.clear();
+		await Promise.all(Array.from(this.#writes.keys(), id => this.release(id)));
+	}
+	async release(id) {
+		this.#targets.delete(id);
+		const write = this.#writes.get(id);
+		this.#writes.delete(id);
+		await write?.abort();
+	}
 
-	async write(id, data, onProgress = () => {}) {
+	async begin(id, totalBytes) {
 		const destination = this.#targets.get(id);
 		if (destination == null) throw new Error('Unknown export save target');
-		if (!(data instanceof Uint8Array) || data.byteLength === 0) throw new Error('The export contains no save data');
-		// 同じ保存先IDを使った並行書き込みや、完了後の再利用を許可しない。
+		if (!Number.isSafeInteger(totalBytes) || totalBytes <= 0) throw new Error('The export contains no save data');
 		this.#targets.delete(id);
-		const temporary = path.join(path.dirname(destination), `.glitch-studio-export-${randomUUID()}.tmp`);
-		let file = null;
+		const write = new ExportFileWriteSession(destination, totalBytes);
+		this.#writes.set(id, write);
+		try { await write.open(); }
+		catch (error) { await this.release(id); throw error; }
+	}
+
+	async append(id, data) {
+		const write = this.#writes.get(id);
+		if (write == null) throw new Error('Unknown export save target');
+		try { return await write.append(data); }
+		catch (error) { await this.release(id); throw error; }
+	}
+
+	async finish(id) {
+		const write = this.#writes.get(id);
+		if (write == null) throw new Error('Unknown export save target');
+		try { await write.finish(); }
+		finally { await this.release(id); }
+	}
+
+	async write(id, data, onProgress = () => {}) {
+		if (!(data instanceof Uint8Array) || data.byteLength === 0) throw new Error('The export contains no save data');
+		await this.begin(id, data.byteLength);
 		try {
-			file = await fs.open(temporary, 'wx');
 			onProgress({ completedBytes: 0, totalBytes: data.byteLength });
-			// 大きなEXRも一時ファイルへ順次書き込み、完了したバイト数を通知する。
-			// 宛先への置換はfsync後なので、失敗しても以前のファイルを失わない。
 			const chunkSize = 4 * 1024 * 1024;
 			for (let offset = 0; offset < data.byteLength; offset += chunkSize) {
 				const end = Math.min(offset + chunkSize, data.byteLength);
-				await file.writeFile(data.subarray(offset, end));
-				onProgress({ completedBytes: end, totalBytes: data.byteLength });
+				onProgress(await this.append(id, data.subarray(offset, end)));
 			}
-			await file.sync();
-			await file.close();
-			file = null;
-			// 選択時や描画中は保存先に触らず、書き込みも完成した一時ファイルで置き換える。
-			// エクスポートの失敗やディスク書き込みの失敗で、既存ファイルを空にしない。
-			await fs.rename(temporary, destination);
-		} finally {
-			await file?.close().catch(() => {});
-			await fs.unlink(temporary).catch(() => {});
-		}
+			await this.finish(id);
+		} finally { await this.release(id); }
+	}
+}
+
+/** 完成前の出力は一時ファイルだけへ保存し、明示的なfinishで一度だけ公開する。 */
+class ExportFileWriteSession {
+	#file = null;
+	#pending = Promise.resolve();
+	#busy = false;
+	#closed = false;
+	#completedBytes = 0;
+
+	constructor(destination, totalBytes) {
+		this.destination = destination;
+		this.totalBytes = totalBytes;
+		this.temporary = path.join(path.dirname(destination), `.glitch-studio-export-${randomUUID()}.tmp`);
+	}
+
+	open() {
+		return this.#run(async () => {
+			this.#file = await fs.open(this.temporary, 'wx');
+			this.#checkOpen();
+		});
+	}
+
+	append(data) {
+		return this.#run(async () => {
+			if (!(data instanceof Uint8Array) || data.byteLength === 0 || data.byteLength > 4 * 1024 * 1024
+				|| this.#completedBytes + data.byteLength > this.totalBytes) throw new Error('Invalid export data chunk');
+			await this.#file.writeFile(data);
+			this.#checkOpen();
+			this.#completedBytes += data.byteLength;
+			return { completedBytes: this.#completedBytes, totalBytes: this.totalBytes };
+		});
+	}
+
+	finish() {
+		return this.#run(async () => {
+			if (this.#completedBytes !== this.totalBytes) throw new Error('The export is incomplete');
+			await this.#file.sync();
+			await this.#file.close();
+			this.#file = null;
+			this.#checkOpen();
+			// 書き込みの中断・失敗で、以前の出力を切り詰めない。公開はfsync後の置換だけ。
+			await fs.rename(this.temporary, this.destination);
+			this.#closed = true;
+		});
+	}
+
+	async abort() {
+		this.#closed = true;
+		await this.#pending.catch(() => {});
+		const file = this.#file;
+		this.#file = null;
+		await file?.close().catch(() => {});
+		await fs.unlink(this.temporary).catch(() => {});
+	}
+
+	#checkOpen() { if (this.#closed) throw new Error('Export save session is closed'); }
+
+	async #run(action) {
+		this.#checkOpen();
+		if (this.#busy) throw new Error('An export write is already in progress');
+		this.#busy = true;
+		const pending = action();
+		this.#pending = pending;
+		try { return await pending; }
+		finally { this.#busy = false; }
 	}
 }

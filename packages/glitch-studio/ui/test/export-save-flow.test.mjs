@@ -45,6 +45,9 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 			return choose == null ? { id: 'target', name: 'chosen.mp4' } : choose();
 		},
 		async writeExportFile(id, data) { events.push(['save', id, [...data]]); await save?.(); },
+		async beginExportFile(id, totalBytes) { events.push(['begin-save', id, totalBytes]); },
+		async appendExportFile(id, data) { events.push(['save', id, [...data]]); await save?.(); },
+		async finishExportFile(id) { events.push(['finish-save', id]); },
 		async releaseExportFile(id) { events.push(['release', id]); },
 		async notifyExportComplete(name) { events.push(['notify', name]); },
 	};
@@ -65,12 +68,12 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 			async suspendPreview() { events.push(['suspend']); await suspend?.(); },
 			async resumePreview() { events.push(['resume']); await resume?.(); },
 		},
-		async exportTimeline(request, _signal, onProgress) {
+		async exportTimeline(request, _signal, onProgress, writeChunk) {
 			exportRequests.push(request);
 			events.push(['render']);
 			if (renderError != null) throw renderError;
 			onProgress({ phase: 'finalizing', completedFrames: 3, totalFrames: 3 });
-			return new Uint8Array([1, 2, 3]).buffer;
+			await writeChunk(new Uint8Array([1, 2, 3]), 3);
 		},
 		setTaskbarProgress: value => { events.push(['progress', value]); },
 		navigator: { gpu: { getPreferredCanvasFormat: () => 'bgra8unorm' } },

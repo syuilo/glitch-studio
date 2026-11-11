@@ -1,44 +1,62 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { createRequire } from 'node:module';
-import encode, { init as initEncode } from '@jsquash/webp/encode.js';
-import decode, { init as initDecode } from '@jsquash/webp/decode.js';
-import { getWebpOptions } from '../src/export/webp-options.ts';
+import { runInNewContext } from 'node:vm';
+import { build } from 'esbuild';
 
-const require = createRequire(import.meta.url);
+const bundled = await build({
+	entryPoints: [fileURLToPath(new URL('../src/export/still-webp.ts', import.meta.url))],
+	bundle: true, platform: 'node', format: 'cjs', write: false,
+	plugins: [{ name: 'webp-input-boundary', setup(build) {
+		build.onResolve({ filter: /^@gs\/subsystems_image-codec\/webp-encoder\.ts$/ }, args => ({ path: args.path, namespace: 'codec' }));
+		build.onLoad({ filter: /.*/, namespace: 'codec' }, () => ({ contents: 'export const WebpEncoder = { create: options => dependencies.create(options) };' }));
+	} }],
+});
 
-// Canvas品質1.0をロスレスと誤認しないよう、実際のWASMで符号化・復号して画素の一致を確認する。
-test('encodes lossless WebP preserving RGBA including transparent pixel colors', async t => {
-	const originalSelf = Object.getOwnPropertyDescriptor(globalThis, 'self');
-	const originalImageData = Object.getOwnPropertyDescriptor(globalThis, 'ImageData');
-	globalThis.self = globalThis;
-	globalThis.ImageData = class {
-		constructor(data, width, height) { this.data = data; this.width = width; this.height = height; }
-	};
-	t.after(() => {
-		if (originalSelf) Object.defineProperty(globalThis, 'self', originalSelf);
-		else delete globalThis.self;
-		if (originalImageData) Object.defineProperty(globalThis, 'ImageData', originalImageData);
-		else delete globalThis.ImageData;
-	});
-	// NodeではHTTP取得せず、選ばれたSIMD版/通常版をローカルから初期化する。
-	const { simd } = createRequire(require.resolve('@jsquash/webp/encode.js'))('wasm-feature-detect');
-	const encoderName = await simd() ? 'webp_enc_simd.wasm' : 'webp_enc.wasm';
-	await initEncode({ wasmBinary: await readFile(require.resolve(`@jsquash/webp/codec/enc/${encoderName}`)) });
-	await initDecode({ wasmBinary: await readFile(require.resolve('@jsquash/webp/codec/dec/webp_dec.wasm')) });
-	const pixels = new Uint8ClampedArray([
-		255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 0,
-		15, 77, 120, 255, 190, 42, 67, 64, 255, 255, 255, 255,
-	]);
-	const input = new ImageData(pixels, 3, 2);
-	const encoded = await encode(input, getWebpOptions('lossless'));
-	assert.equal(new TextDecoder().decode(encoded.slice(0, 4)), 'RIFF');
-	assert.equal(new TextDecoder().decode(encoded.slice(8, 12)), 'WEBP');
-	const output = await decode(encoded);
-	assert.equal(output.width, 3);
-	assert.equal(output.height, 2);
-	assert.deepEqual(output.data, pixels);
-	const lossy = await decode(await encode(input, getWebpOptions('high')));
-	assert.deepEqual(Array.from(lossy.data).filter((_, index) => index % 4 === 3), [255, 128, 0, 255, 64, 255]);
+function fixture() {
+	const blocks = [];
+	let options = null;
+	let disposed = false;
+	const encoder = { rowsPerBlock: 2, writeBlock: block => blocks.push(block), dispose: () => { disposed = true; } };
+	const context = { module: { exports: {} }, dependencies: { async create(value) { options = value; return encoder; } } };
+	runInNewContext(bundled.outputFiles[0].text, context);
+	return { prepare: context.module.exports.prepareStillWebp, blocks, encoder,
+		get options() { return options; }, get disposed() { return disposed; } };
+}
+
+// 【Canvasや全画像配列を要求せず、sRGBの行ブロックをそのままコーデックへ渡す】
+// 画像読み戻しとコーデックの境界で全画像を再構築すると、16Kでは約1GiBの余分なコピーが生じる。
+test('prepares the WebP encoder directly from sRGB blocks', async () => {
+	const f = fixture();
+	const blocks = [new Uint8Array(24), new Uint8Array(12)];
+	const controller = new AbortController();
+	const image = { width: 3, height: 3, async *readBlocks(rows, signal) {
+		assert.equal(rows, 2);
+		assert.equal(signal, controller.signal);
+		yield* blocks;
+	} };
+	assert.equal(await f.prepare(image, { quality: 'lossless' }, controller.signal), f.encoder);
+	assert.deepEqual(structuredClone(f.options), { width: 3, height: 3, lossless: true, quality: 75 });
+	assert.equal(f.blocks[0], blocks[0]);
+	assert.equal(f.blocks[1], blocks[1]);
+	assert.equal(f.disposed, false);
+});
+
+// 【GPU読み戻しや中断の失敗で、取り込み途中のWASM画像を必ず解放する】
+// 圧縮が始まらなかった場合も、1GiBに達し得る画像領域を次の試行まで残さない。
+test('disposes incomplete WebP input after readback failure or cancellation', async () => {
+	for (const abort of [false, true]) {
+		const f = fixture();
+		const controller = new AbortController();
+		const failure = new Error('readback failed');
+		const image = { width: 3, height: 3, async *readBlocks() {
+			yield new Uint8Array(24);
+			if (abort) { controller.abort(); controller.signal.throwIfAborted(); }
+			throw failure;
+		} };
+		await assert.rejects(f.prepare(image, { quality: 'high' }, controller.signal),
+			value => abort ? value.name === 'AbortError' : value === failure);
+		assert.equal(f.disposed, true);
+		assert.equal(f.blocks.length, 1);
+	}
 });

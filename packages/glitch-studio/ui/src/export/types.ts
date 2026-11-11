@@ -18,5 +18,8 @@ export type ExportRequest = {
 
 export type ExportResponse =
 	| { type: 'progress'; progress: ExportProgress }
+	| { type: 'chunk'; sequence: number; buffer: ArrayBuffer; totalBytes: number }
 	| { type: 'complete'; buffer: ArrayBuffer }
 	| { type: 'error'; message: string };
+
+export type ExportChunkAcknowledgement = { type: 'chunk-written'; sequence: number };

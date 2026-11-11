@@ -31,6 +31,55 @@ async function fixture(t) {
 		invoke: (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args) };
 }
 
+// 【複数回のIPCで受け取った出力を、全チャンクの保存完了後に一度だけ公開する】
+// 一ファイル分のUint8ArrayをIPCへ渡さなくても、以前の出力を完成まで保持し、
+// チャンクの順序・総バイト数・一時ファイルの後始末を保証する必要がある。
+test('commits streamed export chunks only after finishing the complete file', async t => {
+	const h = await fixture(t);
+	await fs.writeFile(h.file, new Uint8Array([9]));
+	const target = await h.invoke('choose-export-save-file', 'scene.mp4', 'mp4');
+	await h.invoke('begin-export-file', target.id, 5);
+	await h.invoke('append-export-file', target.id, new Uint8Array([1, 2]));
+	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([9]));
+	await h.invoke('append-export-file', target.id, new Uint8Array([3, 4, 5]));
+	await h.invoke('finish-export-file', target.id);
+	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([1, 2, 3, 4, 5]));
+	await assert.rejects(h.invoke('append-export-file', target.id, new Uint8Array([6])), /Unknown/);
+	assert.deepEqual(await fs.readdir(h.directory), ['export.mp4']);
+});
+
+// 【途中で中断・入力超過・入力不足が起きた出力は、保存先へ反映せず破棄する】
+// チャンクを書き始めた段階で宛先を更新すると、圧縮失敗や中断で既存ファイルが壊れてしまう。
+test('discards streamed exports on cancellation, excess data, and incomplete finish', async t => {
+	const h = await fixture(t);
+	await fs.writeFile(h.file, new Uint8Array([9]));
+	for (const mode of ['cancel', 'excess', 'incomplete']) {
+		const target = await h.invoke('choose-export-save-file', 'scene.mp4', 'mp4');
+		await h.invoke('begin-export-file', target.id, 4);
+		await h.invoke('append-export-file', target.id, new Uint8Array([1, 2]));
+		if (mode === 'cancel') await h.invoke('release-export-file', target.id);
+		else if (mode === 'excess') await assert.rejects(h.invoke('append-export-file', target.id, new Uint8Array([3, 4, 5])), /Invalid/);
+		else await assert.rejects(h.invoke('finish-export-file', target.id), /incomplete/);
+		assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([9]));
+		assert.deepEqual(await fs.readdir(h.directory), ['export.mp4']);
+	}
+});
+
+// 【ウィンドウ破棄とファイル書き込みが重なっても、完了を待って一時ファイルを回収する】
+// 書き込み中のhandleを先に閉じたり、画面が閉じた後に宛先へ反映したりしないようにする。
+test('cleans up an in-flight streamed write when its window is cleared', async t => {
+	const h = await fixture(t);
+	await fs.writeFile(h.file, new Uint8Array([9]));
+	const target = await h.invoke('choose-export-save-file', 'scene.mp4', 'mp4');
+	await h.invoke('begin-export-file', target.id, 4 * 1024 * 1024);
+	const writing = h.invoke('append-export-file', target.id, new Uint8Array(4 * 1024 * 1024));
+	const cleanup = h.exportFiles.clear();
+	await assert.rejects(writing, /closed/);
+	await cleanup;
+	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([9]));
+	assert.deepEqual(await fs.readdir(h.directory), ['export.mp4']);
+});
+
 // 【EXRを複数チャンクで保存し、完了したバイト数を通知する】
 // 4MiBの境界を越える実データで欠落や進捗の逆行を検出する。
 // 保存後に一時ファイルだけが残ったり、末尾のデータが失われたりしないようにする。

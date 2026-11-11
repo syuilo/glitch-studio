@@ -16,7 +16,7 @@ const bundled = await build({
 			export const TimelineAudioExport = dependencies.TimelineAudioExport;
 			export const effectDefinitions = {}, effectImplementations = {};
 			export const createMp4Writer = dependencies.createMp4Writer;
-			export const encodeStillWebp = dependencies.encodeStillWebp;
+			export const prepareStillWebp = dependencies.prepareStillWebp;
 			export const encodeStillOpenExr = dependencies.encodeStillOpenExr;
 		` }));
 	} }],
@@ -35,6 +35,7 @@ function fixture(maxTextureDimension2D = 16384) {
 	const device = { addEventListener() {}, lost: new Promise(() => {}), destroy() {} };
 	class GPUCanvasContext {
 		constructor(canvas) { this.canvas = canvas; }
+		unconfigure() {}
 	}
 	const dependencies = {
 		TimelineRendererManager: class {
@@ -71,15 +72,26 @@ function fixture(maxTextureDimension2D = 16384) {
 					dispose: () => { this.imageDisposed = true; } };
 				return this.linearImage;
 			}
+			async renderTimelineSrgbFrame(time, signal) {
+				await this.renderTimelineFrame(time, 0);
+				signal.throwIfAborted();
+				this.srgbImage = { ...this.dynamicOptions.outputResolution, dispose: () => { this.imageDisposed = true; } };
+				return this.srgbImage;
+			}
 			destroy() { destroyed = true; }
 		},
 		async createMp4Writer(canvas, settings) {
 			encodings.push({ canvas, settings });
 			return { async addFrame() {}, async finalize() {}, async cancel() {}, getBuffer: () => new ArrayBuffer(4) };
 		},
-		async encodeStillWebp(canvas, settings) {
-			encodings.push({ canvas, settings });
-			return new ArrayBuffer(4);
+		async prepareStillWebp(image, settings) {
+			encodings.push({ canvas: { width: image.width, height: image.height }, image, settings });
+			return { async encode(write) {
+				instance.destroyedBeforeEncoding = destroyed;
+				instance.imageDisposedBeforeEncoding = instance.imageDisposed;
+				if (instance.encodingError != null) throw instance.encodingError;
+				await write(new Uint8Array([1, 2, 3, 4]), 4, 4);
+			}, dispose() { instance.encoderDisposed = true; } };
 		},
 		async encodeStillOpenExr(image, settings, signal, onProgress) {
 			encodings.push({ image, settings });
@@ -89,7 +101,10 @@ function fixture(maxTextureDimension2D = 16384) {
 			return new ArrayBuffer(4);
 		},
 	};
-	const self = { postMessage(message) { messages.push(message); } };
+	const self = { postMessage(message) {
+		messages.push(message);
+		if (message.type === 'chunk') queueMicrotask(() => self.onmessage({ data: { type: 'chunk-written', sequence: message.sequence } }));
+	} };
 	runInNewContext(bundled.outputFiles[0].text, {
 		dependencies, self, AbortController, GPUCanvasContext, performance, Error,
 		OffscreenCanvas: class {
@@ -127,7 +142,15 @@ for (const format of ['webp', 'exr']) {
 			});
 			assert.deepEqual(structuredClone(f.deviceSettings.requiredLimits), { maxTextureDimension2D: 16384 });
 			assert.deepEqual(structuredClone(f.instance.dynamicOptions.outputResolution), resolution);
-			assert.deepEqual([f.canvases[0].width, f.canvases[0].height], [resolution.width, resolution.height]);
+			if (format === 'webp') {
+				assert.deepEqual([f.instance.srgbImage.width, f.instance.srgbImage.height], [resolution.width, resolution.height]);
+				assert.deepEqual([f.canvases[0].width, f.canvases[0].height], [1, 1]);
+				assert.equal(f.instance.destroyedBeforeEncoding, true);
+				assert.equal(f.instance.imageDisposedBeforeEncoding, true);
+				assert.equal(f.instance.encoderDisposed, true);
+			} else {
+				assert.deepEqual([f.canvases[0].width, f.canvases[0].height], [resolution.width, resolution.height]);
+			}
 			assert.equal(f.encodings[0].settings.width, resolution.width);
 			assert.equal(f.encodings[0].settings.height, resolution.height);
 			assert.equal(f.messages.at(-1).type, 'complete');

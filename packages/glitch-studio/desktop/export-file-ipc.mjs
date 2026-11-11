@@ -38,8 +38,21 @@ export function registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMa
 			if (event.sender != null && !event.sender.isDestroyed()) event.sender.send('desktop:export-file-progress', { id, ...progress });
 		});
 	});
+	ipcMain.handle('desktop:begin-export-file', (event, id, totalBytes) => {
+		getTrustedMainWindow(event);
+		return exportFiles.begin(id, totalBytes);
+	});
+	ipcMain.handle('desktop:append-export-file', async (event, id, data) => {
+		getTrustedMainWindow(event);
+		const progress = await exportFiles.append(id, data);
+		if (event.sender != null && !event.sender.isDestroyed()) event.sender.send('desktop:export-file-progress', { id, ...progress });
+	});
+	ipcMain.handle('desktop:finish-export-file', (event, id) => {
+		getTrustedMainWindow(event);
+		return exportFiles.finish(id);
+	});
 	ipcMain.handle('desktop:release-export-file', (event, id) => {
 		getTrustedMainWindow(event);
-		exportFiles.release(id);
+		return exportFiles.release(id);
 	});
 }

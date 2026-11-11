@@ -34,11 +34,17 @@ function getOpenExrResolution(buffer: ArrayBuffer) {
 	throw new Error('Missing EXR data window');
 }
 
+async function collectExport(job: ExportRequest, signal: AbortSignal, onProgress: (progress: ExportProgress) => void): Promise<ArrayBuffer> {
+	const chunks: Blob[] = [];
+	await exportTimeline(job, signal, onProgress, async chunk => { chunks.push(new Blob([chunk])); });
+	return new Blob(chunks).arrayBuffer();
+}
+
 async function exportAndReadStillResolution(format: 'exr' | 'webp', resolution: { width: number; height: number }, motionBlurEnabled: boolean) {
 	const job = request('zip', resolution);
 	job.project.timelineMotionBlur.enabled = motionBlurEnabled;
 	if (format === 'webp') job.settings = { format, quality: 'lossless', ...resolution, positionMs: 500 };
-	const buffer = await exportTimeline(job, new AbortController().signal, () => {});
+	const buffer = await collectExport(job, new AbortController().signal, () => {});
 	if (format === 'exr') return { format, ...getOpenExrResolution(buffer) };
 	const image = await createImageBitmap(new Blob([buffer], { type: 'image/webp' }));
 	try { return { format, width: image.width, height: image.height }; }
@@ -49,7 +55,7 @@ export async function run(largeSquare = false) {
 	const files: { compression: string; bytes: number[] }[] = [];
 	for (const compression of ['none', 'zip'] as const) {
 		const updates: ExportProgress[] = [];
-		const buffer = await exportTimeline(request(compression), new AbortController().signal, value => updates.push(value));
+		const buffer = await collectExport(request(compression), new AbortController().signal, value => updates.push(value));
 		const blocks = updates.filter(value => value.phase === 'encoding-exr');
 		const expected = compression === 'zip' ? Math.ceil(273 / 16) : 273;
 		if (blocks.length < 2 || blocks.at(-1)?.completedBlocks !== expected) throw new Error(`Missing ${compression} progress`);
@@ -59,7 +65,7 @@ export async function run(largeSquare = false) {
 	const controller = new AbortController();
 	let cancelled = false;
 	try {
-		await exportTimeline(request('zip'), controller.signal, value => { if (value.phase === 'encoding-exr') controller.abort(); });
+		await collectExport(request('zip'), controller.signal, value => { if (value.phase === 'encoding-exr') controller.abort(); });
 	} catch (error) { cancelled = error instanceof DOMException && error.name === 'AbortError'; }
 	if (!cancelled) throw new Error('EXR export ignored cancellation');
 	const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });

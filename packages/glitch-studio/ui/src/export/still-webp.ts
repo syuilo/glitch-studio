@@ -1,18 +1,17 @@
-import encode, { init } from '@jsquash/webp/encode.js';
-import encoderUrl from '@jsquash/webp/codec/enc/webp_enc.wasm?url';
-import simdEncoderUrl from '@jsquash/webp/codec/enc/webp_enc_simd.wasm?url';
+import { WebpEncoder } from '@gs/subsystems_image-codec/webp-encoder.ts';
 import { getWebpOptions } from './webp-options.ts';
+import type { SrgbImageReadback } from '@gs/glitch-studio_renderer/srgb-image-readback.ts';
 import type { WebpStillExportSettings } from './timeline-export.ts';
 
-export async function encodeStillWebp(canvas: OffscreenCanvas, settings: WebpStillExportSettings): Promise<ArrayBuffer> {
-	// WASMのロードを待つ前に描画結果をコピーする。WebGPUのCanvasの有効期間を越えて読まない。
-	const copy = new OffscreenCanvas(canvas.width, canvas.height);
-	const context = copy.getContext('2d', { willReadFrequently: true });
-	if (!context) throw new Error('Could not read the rendered image.');
-	context.drawImage(canvas, 0, 0);
-	// getImageDataは未乗算のRGBAを返すため、libwebpへ渡す前の追加unpremultiplyは不要。
-	const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-	// ViteがWASMを配布物に含め、アプリのbase URLに沿った場所から読み込めるよう明示する。
-	await init({ locateFile: (path: string) => path.endsWith('webp_enc_simd.wasm') ? simdEncoderUrl : encoderUrl });
-	return encode(pixels, getWebpOptions(settings.quality));
+/** 画像全体のJavaScript配列を作らず、コーデックが所有する一枚へ画素を取り込む。 */
+export async function prepareStillWebp(image: SrgbImageReadback, settings: WebpStillExportSettings, signal: AbortSignal): Promise<WebpEncoder> {
+	const encoder = await WebpEncoder.create({ width: image.width, height: image.height, ...getWebpOptions(settings.quality) });
+	try {
+		for await (const block of image.readBlocks(encoder.rowsPerBlock, signal)) encoder.writeBlock(block);
+		signal.throwIfAborted();
+		return encoder;
+	} catch (error) {
+		encoder.dispose();
+		throw error;
+	}
 }

@@ -1,4 +1,5 @@
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
+import { readImageBlocks } from './image-readback-blocks.ts';
 
 /** 表示変換前のHALF RGBA画像を所有する。読み戻したブロックは上から順に並ぶ。 */
 export class LinearImageReadback {
@@ -34,34 +35,9 @@ export class LinearImageReadback {
 	}
 
 	public async *readBlocks(rowsPerBlock: number, signal: AbortSignal): AsyncGenerator<Uint16Array> {
-		if (!Number.isInteger(rowsPerBlock) || rowsPerBlock < 1) throw new Error('Invalid image block height.');
-		const bytesPerRow = Math.ceil(this.width * 8 / 256) * 256;
-		// 全画像分のreadback bufferは8Kで既定のmaxBufferSizeを超える。
-		// GPU待機を1行ごとに発生させず、圧縮ブロックの整数倍をまとめて取得する。
-		const batchRows = Math.floor(Math.min(256, this.device.limits.maxBufferSize / bytesPerRow) / rowsPerBlock) * rowsPerBlock;
-		if (batchRows < rowsPerBlock) throw new Error('GPU readback buffer limit is too small.');
-		const buffer = this.device.createBuffer({ label: 'Linear image readback', size: bytesPerRow * Math.min(batchRows, this.height),
-			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-		try {
-			for (let start = 0; start < this.height; start += batchRows) {
-				signal.throwIfAborted();
-				if (this.disposed) throw new Error('Linear image is closed.');
-				const rows = Math.min(batchRows, this.height - start);
-				const encoder = this.device.createCommandEncoder();
-				encoder.copyTextureToBuffer({ texture: this.texture, origin: [0, start] }, { buffer, bytesPerRow }, [this.width, rows]);
-				this.device.queue.submit([encoder.finish()]);
-				await buffer.mapAsync(GPUMapMode.READ);
-				const pixels = new Uint16Array(this.width * rows * 4);
-				try {
-					const padded = new Uint16Array(buffer.getMappedRange());
-					for (let row = 0; row < rows; row++) pixels.set(padded.subarray(row * bytesPerRow / 2, row * bytesPerRow / 2 + this.width * 4), row * this.width * 4);
-				} finally { buffer.unmap(); }
-				for (let row = 0; row < rows; row += rowsPerBlock) {
-					signal.throwIfAborted();
-					yield pixels.subarray(row * this.width * 4, Math.min(row + rowsPerBlock, rows) * this.width * 4);
-				}
-			}
-		} finally { buffer.destroy(); }
+		for await (const block of readImageBlocks(this.device, this.texture, { bytesPerPixel: 8, rowsPerBlock, signal, isDisposed: () => this.disposed })) {
+			yield new Uint16Array(block.buffer, block.byteOffset, block.byteLength / 2);
+		}
 	}
 
 	public dispose(): void { this.disposed = true; this.texture.destroy(); }

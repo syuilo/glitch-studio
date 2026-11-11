@@ -38,6 +38,7 @@ import { createTextTimelineLayer } from '@gs/subsystems_timeline_renderer/layers
 import { createShapeTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/shape/shape-timeline-layer.ts';
 import { createSceneOutput } from '@gs/subsystems_timeline_renderer/scene-output.ts';
 import { LinearImageReadback } from './linear-image-readback.ts';
+import { SrgbImageReadback } from './srgb-image-readback.ts';
 import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import { createTimelineCompositor } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
@@ -232,7 +233,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
 	private sceneOutput: ReturnType<typeof createSceneOutput> | null = null;
-	private linearExportOutput: LinearImageReadback | null = null;
+	private imageExportOutput: LinearImageReadback | SrgbImageReadback | null = null;
 	private assetTextures: AssetTextures;
 	private readonly resources: TimelineRendererManagerResources;
 	private audioInputs: TimelineAudioInputs;
@@ -400,8 +401,8 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolution: this.renderResolution,
 		});
 		const texture = this.sceneOutput.render(encoder, output);
-		if (this.linearExportOutput != null) {
-			this.linearExportOutput.capture(texture, encoder);
+		if (this.imageExportOutput != null) {
+			this.imageExportOutput.capture(texture, encoder);
 			this.gpuDevice.queue.submit([encoder.finish()]);
 			return;
 		}
@@ -884,10 +885,21 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	/** 専用の書き出しManagerで呼ぶ。戻り値の画像は呼び出し側がdisposeする。 */
 	public async renderTimelineLinearFrame(time: number, signal: AbortSignal): Promise<LinearImageReadback> {
-		if (this.linearExportOutput != null) throw new Error('A linear frame export is already running.');
 		const { width, height } = this.renderResolution;
-		const output = new LinearImageReadback(this.gpuDevice, width, height);
-		this.linearExportOutput = output;
+		return this.renderTimelineImageFrame(() => new LinearImageReadback(this.gpuDevice, width, height), time, signal);
+	}
+
+	/** 表示用Canvasを経由せず、未乗算のsRGB画素をブロックで読み戻す。 */
+	public async renderTimelineSrgbFrame(time: number, signal: AbortSignal): Promise<SrgbImageReadback> {
+		const { width, height } = this.renderResolution;
+		return this.renderTimelineImageFrame(() => new SrgbImageReadback(this.gpuDevice, width, height), time, signal);
+	}
+
+	private async renderTimelineImageFrame<T extends LinearImageReadback | SrgbImageReadback>(createOutput: () => T, time: number, signal: AbortSignal): Promise<T> {
+		if (this.imageExportOutput != null) throw new Error('An image frame export is already running.');
+		signal.throwIfAborted();
+		const output = createOutput();
+		this.imageExportOutput = output;
 		try {
 			signal.throwIfAborted();
 			// 通常の静止画と同じ描画・モーションブラー・IS_EXPORT評価を使う。
@@ -898,7 +910,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			output.dispose();
 			throw error;
 		} finally {
-			this.linearExportOutput = null;
+			this.imageExportOutput = null;
 		}
 	}
 
