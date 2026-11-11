@@ -16,6 +16,10 @@ const crossOriginIsolationHeaders = {
 export default defineConfig({
 	base: isElectron ? '/' : '/glitch-studio/',
 	build: {
+		// 最新Chromeを対象とし、CSSとWorkerを含めて旧ブラウザー向けの構文変換を行わない。
+		target: 'esnext',
+		// Chromeのネイティブ実装を使い、先読み自体は維持したままポリフィルだけを除外する。
+		modulePreload: { polyfill: false },
 		outDir: isElectron ? 'dist-electron' : 'dist',
 		rolldownOptions: {
 			output: {
@@ -27,6 +31,14 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			'@': Path.resolve(import.meta.dirname, 'src'),
+		},
+	},
+	optimizeDeps: {
+		// 開発時の依存ライブラリも、本番ビルドと同じく互換性のための構文変換を避ける。
+		rolldownOptions: {
+			transform: {
+				target: 'esnext',
+			},
 		},
 	},
 	server: {
@@ -48,5 +60,7 @@ export default defineConfig({
 	define: {
 		_VERSION_: JSON.stringify(packageJson.version),
 		__ELECTRON__: JSON.stringify(isElectron),
+		// UIはComposition APIで実装しているため、未使用のOptions APIをビルドから除外する。
+		__VUE_OPTIONS_API__: 'false',
 	},
 })
