@@ -257,7 +257,8 @@ const rows = computed(() => {
 			key: `${row.name}-${index}`,
 			index,
 			label: row.labels[index],
-			value: typeof value === 'number' ? String(Number(value.toFixed(4))) : value,
+			// 表示だけを丸め、保存値や編集中の入力の精度を落とさない。
+			value: typeof value === 'number' ? String(Number(value.toFixed(2))) : value,
 		})),
 	}));
 });

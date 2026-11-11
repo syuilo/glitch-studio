@@ -127,11 +127,13 @@ test('opens HDR colors without edits and preserves RGB while editing alpha', asy
 
 // 【linear数値欄は負値・HDRを受け取り、sRGB欄は伝達関数を通して保存する】
 // 曖昧な0〜1欄へ別の色空間の数値を混ぜず、HEXとlinearの往復を実際の入力イベントで確認する。
+// 表示を小数2桁へ丸めても、入力した値の保存精度を落とさない。
 test('edits extended linear channels and decodes sRGB inputs', async t => {
-	const { state, edit } = await fixture(t, [0, 0, 0, 1]);
-	await edit('Linear-0', '-2.5');
+	const { state, edit, findField } = await fixture(t, [0, 0, 0, 1]);
+	await edit('Linear-0', '-2.54321');
 	await edit('Linear-1', '4e1');
-	assert.deepEqual(Array.from(state.color), [-2.5, 40, 0, 1]);
+	assert.deepEqual(Array.from(state.color), [-2.54321, 40, 0, 1]);
+	assert.equal(findField('Linear-0').textContent, '-2.54');
 	await edit('HEX-0', '#808080');
 	assert.ok(Math.abs(state.color[0] - 0.2158605) < 1e-7);
 	await edit('sRGB-0', '255');
@@ -144,9 +146,9 @@ test('edits extended linear channels and decodes sRGB inputs', async t => {
 // Lの100倍換算や透明色のalphaを失う問題を検出する。
 test('displays and edits OKLCH components while preserving straight alpha', async t => {
 	const { state, edit, findField } = await fixture(t, [1, 0, 0, 0.25]);
-	assert.equal(findField('OKLCH-0').textContent, '62.7955');
-	assert.equal(findField('OKLCH-1').textContent, '0.2577');
-	assert.equal(findField('OKLCH-2').textContent, '29.2339');
+	assert.equal(findField('OKLCH-0').textContent, '62.8');
+	assert.equal(findField('OKLCH-1').textContent, '0.26');
+	assert.equal(findField('OKLCH-2').textContent, '29.23');
 	await edit('OKLCH-0', '65');
 	await edit('OKLCH-1', '0.08');
 	await edit('OKLCH-2', '0');
@@ -199,16 +201,16 @@ test('remembers achromatic OKLCH hue across alpha and chroma edits', async t => 
 test('synchronizes OKLCH fields with other formats and external colors', async t => {
 	const { state, edit, findField } = await fixture(t, [0, 0, 0, 1]);
 	await edit('HEX-0', '#ff0000');
-	assert.equal(findField('OKLCH-2').textContent, '29.2339');
+	assert.equal(findField('OKLCH-2').textContent, '29.23');
 	await edit('HSL-0', '120');
-	assert.equal(findField('OKLCH-2').textContent, '142.4953');
+	assert.equal(findField('OKLCH-2').textContent, '142.5');
 	state.color = [0, 0, 1, 0.5];
 	await nextTick();
-	assert.equal(findField('OKLCH-2').textContent, '264.052');
+	assert.equal(findField('OKLCH-2').textContent, '264.05');
 	assert.equal(findField('Linear-3').textContent, '0.5');
 	await edit('HEX-0', '#808080');
 	assert.equal(findField('OKLCH-1').textContent, '0');
-	assert.equal(findField('OKLCH-2').textContent, '264.052');
+	assert.equal(findField('OKLCH-2').textContent, '264.05');
 });
 
 // 【不正なOKLCH入力と逆変換でoverflowする値を保存せず、blurで表示を戻す】
@@ -349,7 +351,9 @@ test('remembers neutral hue and supports map and hue keyboard controls', async t
 	assert.deepEqual(Array.from(state.color), original);
 	assert.equal(findField('OKLCH-2').textContent, '180');
 	await pressKey('map', 'ArrowRight');
-	assert.equal(findField('OKLCH-1').textContent, '0.005');
+	assert.equal(findField('OKLCH-1').textContent, '0.01');
+	const expected = oklchToLinearSrgb([0.5, 0.005, 180, 0.75]);
+	state.color.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-8));
 	await pressKey('map', 'ArrowUp', true);
 	assert.equal(findField('OKLCH-0').textContent, '60');
 	await pressKey('hue', 'ArrowRight', true);
