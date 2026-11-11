@@ -17,6 +17,17 @@
 	</template>
 	<div :class="$style.subButtons">
 		<button
+			v-tooltip="analysisImageSourceTooltip"
+			class="_button"
+			:class="[$style.subButton, { _buttonPrimaryFg: analyzeAdjustedImage }]"
+			:disabled="analysisTarget !== 'rgb'"
+			:data-test-image-analysis-adjusted-active="analyzeAdjustedImage"
+			data-test-image-analysis-source
+			@click="toggleAnalysisImageSource"
+		>
+			<span class="ti ti-adjustments"></span>
+		</button>
+		<button
 			v-tooltip="'High-Resolution'"
 			class="_button"
 			:class="[$style.subButton, { _buttonPrimaryFg: highResolutionImageAnalysis.active.value }]"
@@ -36,6 +47,8 @@ import { computed, onBeforeUnmount, watch } from 'vue';
 import { getImageAnalysisValueScales, resolveImageAnalysisValueScale } from '@gs/shared/utility/image-analysis.ts';
 import type { ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
+import { resolvePreviewAnalysisImageSource } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
 import type { ImageValueRange } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisRangePreset } from '@/utility/image-analysis-range.ts';
 import { IMAGE_ANALYSIS_RANGE_PRESETS } from '@/utility/image-analysis-range.ts';
@@ -44,7 +57,14 @@ import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
-const { analysisTarget, analysisValueScale, analysisRangePreset, analysisCustomRange, highResolutionImageAnalysis } = appContext;
+const { analysisTarget, analysisImageSource, analysisValueScale, analysisRangePreset, analysisCustomRange, highResolutionImageAnalysis } = appContext;
+const effectiveImageSource = computed(() => resolvePreviewAnalysisImageSource(analysisTarget.value, analysisImageSource.value));
+const analysisImageSourceLabels = computed<Record<PreviewImageSource, string>>(() => ({
+	original: i18n.ts._Preview.WarningImageSourceOriginal,
+	previewAdjusted: i18n.ts._Preview.WarningImageSourceAdjusted,
+}));
+const analyzeAdjustedImage = computed(() => effectiveImageSource.value === 'previewAdjusted');
+const analysisImageSourceTooltip = computed(() => `${i18n.ts._ImageAnalysis.ImageSource}: ${analysisImageSourceLabels.value[effectiveImageSource.value]}`);
 const effectiveValueScale = computed(() => resolveImageAnalysisValueScale(analysisTarget.value, analysisValueScale.value));
 const analysisTargetLabels = {
 	rgb: 'RGB',
@@ -108,6 +128,11 @@ function onRangeKeydown(event: KeyboardEvent, bound: keyof ImageValueRange) {
 watch(analysisRangePreset, () => stopRangeDrag?.(), { flush: 'sync' });
 onBeforeUnmount(() => stopRangeDrag?.());
 
+function toggleAnalysisImageSource() {
+	if (analysisTarget.value !== 'rgb') return;
+	analysisImageSource.value = analyzeAdjustedImage.value ? 'original' : 'previewAdjusted';
+}
+
 function showAnalysisTargetMenu(ev: PointerEvent) {
 	ui.popupMenu((['rgb', 'alpha', 'vectorX', 'vectorY', 'vectorLength'] as const).map(target => ({
 		type: 'radioOption' as const,
@@ -139,6 +164,8 @@ function showAnalysisRangeMenu(ev: PointerEvent) {
 <style module lang="scss">
 .root {
 	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
 	gap: 4px;
 	font-size: 90%;
 }
@@ -148,6 +175,7 @@ function showAnalysisRangeMenu(ev: PointerEvent) {
 	align-items: center;
 	gap: 4px;
 	padding: 2px 4px;
+	white-space: nowrap;
 }
 
 .subButtons {

@@ -4,7 +4,7 @@ import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewW
 import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
-import type { PreviewWarningImageSource } from '@gs/glitch-studio_shared/preview-warning-image-source.ts';
+import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
 import { isVisualModuleValueChange } from './project-change-policy.ts';
 import type { VisualModuleValueChange } from './project-change-policy.ts';
@@ -120,7 +120,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 	highlightClipping: boolean;
 	/** 黒・白と色域外の警告で共通に使う、表示補正前または補正後の判定画像。 */
-	previewWarningImageSource: PreviewWarningImageSource;
+	previewWarningImageSource: PreviewImageSource;
 	/** 選択された判定画像を、判定色域・判定範囲と比較する。 */
 	previewGamutWarning: PreviewGamutWarningSettings;
 	/** 表示用の露出（EV）。作品内の画像・解析には適用せず、書き出しでは0を使う。 */
@@ -137,6 +137,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	previewActive: boolean;
 	analysisValueScale: ImageValueScale;
 	analysisTarget: ImageAnalysisTarget;
+	analysisImageSource: PreviewImageSource;
 	analysisValueRange: ImageValueRange;
 	analysisPaused: boolean;
 	analysisWaveformCanvasSizes: PreviewWaveformCanvasSizes | null;
@@ -265,6 +266,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		previewActive: false,
 		analysisValueScale: 'srgb',
 		analysisTarget: 'rgb',
+		analysisImageSource: 'original',
 		analysisValueRange: { minimum: 0, maximum: 1 },
 		analysisPaused: false,
 		analysisWaveformCanvasSizes: null,
@@ -505,6 +507,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.configureCanvas(this.dynamicOptions.opaqueOutput || this.dynamicOptions.previewBackground != null ? 'opaque' : 'premultiplied');
 		this.canvasRenderer.analysisValueScale = this.dynamicOptions.analysisValueScale;
 		this.canvasRenderer.analysisTarget = this.dynamicOptions.analysisTarget;
+		this.canvasRenderer.analysisImageSource = this.dynamicOptions.analysisImageSource;
 		this.canvasRenderer.analysisValueRange = this.dynamicOptions.analysisValueRange;
 		this.canvasRenderer.analysisPaused = this.dynamicOptions.analysisPaused;
 		this.canvasRenderer.analysisWaveformCanvasSizes = this.dynamicOptions.analysisWaveformCanvasSizes;

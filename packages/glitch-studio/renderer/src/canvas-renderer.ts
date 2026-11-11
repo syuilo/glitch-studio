@@ -10,10 +10,13 @@ import { createSrgbCanvasOutputSettings } from './canvas-output.ts';
 import type { CanvasOutputSettings } from './canvas-output.ts';
 import oklabShaderCode from '@gs/shared/gpu/oklab.wgsl?raw';
 import previewGamutCompressionShaderCode from './preview-gamut-compression.wgsl?raw';
-import { getPreviewGamutBoundaryLookup, getPreviewGamutCompressionModeIndex, PREVIEW_GAMUT_COUNT, PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS } from './preview-gamut-compression.ts';
+import previewImageAdjustmentShaderCode from './preview-image-adjustment.wgsl?raw';
+import { getPreviewGamutCompressionModeIndex, PREVIEW_GAMUT_COUNT, PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS } from './preview-gamut-compression.ts';
+import { PreviewGamutCompressionResources } from './preview-gamut-compression-resources.ts';
+import { resolvePreviewAnalysisImageSource } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
-import type { PreviewWarningImageSource } from '@gs/glitch-studio_shared/preview-warning-image-source.ts';
+import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
 import { getLinearSrgbToGamutMatrix } from '@gs/shared/rgb-gamut.ts';
 import { CpuPreviewCanvasContext } from './preview-canvas-context.ts';
 import { CpuPreviewFrameQueue } from './cpu-preview-frame-queue.ts';
@@ -24,7 +27,7 @@ import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
-const finalRenderShader = [colorSpaceShaderCode, oklabShaderCode, previewGamutCompressionShaderCode, canvasOutputShaderCode, finalRenderShaderCode].join('\n');
+const finalRenderShader = [colorSpaceShaderCode, oklabShaderCode, previewGamutCompressionShaderCode, previewImageAdjustmentShaderCode, canvasOutputShaderCode, finalRenderShaderCode].join('\n');
 
 export class CanvasRenderer {
 	private gpuContext: PreviewCanvasContext;
@@ -40,13 +43,13 @@ export class CanvasRenderer {
 	private finalRenderPipeline: GPURenderPipeline;
 	private finalRenderUniformBuffer: GPUBuffer;
 	private finalRenderBindGroup: GPUBindGroup | null = null;
-	private gamutBoundaryBuffer: GPUBuffer;
-	private gamutBoundariesUploaded = false;
+	private readonly gamutResources: PreviewGamutCompressionResources;
+	private latestGamutBoundaryBuffer: GPUBuffer | null = null;
 	private latestRenderedToCanasTexture: GPUTexture | null = null;
 	private readonly imageAnalysis: PreviewImageAnalysis | null;
 	private highResolutionAnalysisGeneration = 0;
 	public highlightClipping = false;
-	public previewWarningImageSource: PreviewWarningImageSource = 'original';
+	public previewWarningImageSource: PreviewImageSource = 'original';
 	public previewGamutWarning: PreviewGamutWarningSettings = { enabled: false, referenceGamut: 'srgb', bounds: 'unit' };
 	public previewExposure = 0;
 	public previewSrgbProof = false;
@@ -68,11 +71,15 @@ export class CanvasRenderer {
 	}
 	public analysisValueScale: ImageValueScale = 'srgb';
 	public analysisTarget: ImageAnalysisTarget = 'rgb';
+	public analysisImageSource: PreviewImageSource = 'original';
 	public analysisValueRange: ImageValueRange = { minimum: 0, maximum: 1 };
 	public analysisWaveformCanvasSizes: PreviewWaveformCanvasSizes | null = null;
 	public analysisWaveformViewports: PreviewWaveformViewports | null = null;
 	private get imageAnalysisSettings(): PreviewImageAnalysisSettings {
-		return { target: this.analysisTarget, valueScale: this.analysisValueScale, valueRange: this.analysisValueRange, waveformCanvasSizes: this.analysisWaveformCanvasSizes, waveformViewports: this.analysisWaveformViewports };
+		return { target: this.analysisTarget, valueScale: this.analysisValueScale, valueRange: this.analysisValueRange,
+			imageSource: resolvePreviewAnalysisImageSource(this.analysisTarget, this.analysisImageSource),
+			imageAdjustments: { exposure: this.previewExposure, srgbProof: this.previewSrgbProof, gamutCompression: { ...this.previewGamutCompression } },
+			waveformCanvasSizes: this.analysisWaveformCanvasSizes, waveformViewports: this.analysisWaveformViewports };
 	}
 	public set analysisPaused(value: boolean) { if (this.imageAnalysis != null) this.imageAnalysis.paused = value; }
 	public get previewBackground() { return this.currentPreviewBackground; }
@@ -94,6 +101,7 @@ export class CanvasRenderer {
 		waveformVerticalGpuContext?: PreviewCanvasContext;
 	}) {
 		this.gpuDevice = options.gpuDevice;
+		this.gamutResources = new PreviewGamutCompressionResources(this.gpuDevice);
 		this.gpuContext = options.gpuContext;
 		const canvasOutput = options.canvasOutput ?? createSrgbCanvasOutputSettings();
 		this.canvasContexts = { canvas: options.gpuContext, histogramCanvas: options.histogramGpuContext, waveformHorizontalCanvas: options.waveformHorizontalGpuContext, waveformVerticalCanvas: options.waveformVerticalGpuContext };
@@ -107,7 +115,7 @@ export class CanvasRenderer {
 		// renderToCanvasでも通常のプレビュー描画だけを実行する。
 		this.imageAnalysis = options.enableWaveformAndHistogram ? new PreviewImageAnalysis(this.gpuDevice, {
 			histogram: options.histogramGpuContext, horizontal: options.waveformHorizontalGpuContext, vertical: options.waveformVerticalGpuContext,
-		}) : null;
+		}, this.gamutResources) : null;
 
 		const finalRenderShaderModule = this.gpuDevice.createShaderModule({
 			code: finalRenderShader,
@@ -142,30 +150,22 @@ export class CanvasRenderer {
 			size: this.finalRenderUniformValues.arrayBuffer.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
-		// 通常表示・カスタムはLUTを参照しない。プリセットを使うまで大きな表を確保しない。
-		this.gamutBoundaryBuffer = this.gpuDevice.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 	}
 
 	private renderFinalImage(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
 		// sRGB確認中は圧縮設定を保持したまま適用だけ止め、未使用のプリセットLUTも生成しない。
 		const gamutMode = this.previewSrgbProof ? 0 : getPreviewGamutCompressionModeIndex(this.previewGamutCompression.mode);
-		if (gamutMode > 0 && gamutMode < PREVIEW_GAMUT_COUNT && !this.gamutBoundariesUploaded) {
-			const boundaries = getPreviewGamutBoundaryLookup();
-			this.gamutBoundaryBuffer.destroy();
-			this.gamutBoundaryBuffer = this.gpuDevice.createBuffer({ size: boundaries.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-			this.gpuDevice.queue.writeBuffer(this.gamutBoundaryBuffer, 0, boundaries);
-			this.gamutBoundariesUploaded = true;
-			this.finalRenderBindGroup = null;
-		}
-		if (this.finalRenderBindGroup == null || this.latestRenderedToCanasTexture !== tex) {
+		const gamutBoundaryBuffer = this.gamutResources.getBuffer(gamutMode);
+		if (this.finalRenderBindGroup == null || this.latestRenderedToCanasTexture !== tex || this.latestGamutBoundaryBuffer !== gamutBoundaryBuffer) {
 			this.latestRenderedToCanasTexture = tex;
+			this.latestGamutBoundaryBuffer = gamutBoundaryBuffer;
 			this.finalRenderBindGroup = this.gpuDevice.createBindGroup({
 				layout: this.finalRenderPipeline.getBindGroupLayout(0),
 				entries: [
 					{ binding: 1, resource: { buffer: this.finalRenderUniformBuffer } },
 					{ binding: 3, resource: this.finalRenderSampler },
 					{ binding: 2, resource: tex.createView() }, // TODO: cache view
-					{ binding: 4, resource: { buffer: this.gamutBoundaryBuffer } },
+					{ binding: 4, resource: { buffer: gamutBoundaryBuffer } },
 				],
 			});
 		}
@@ -344,7 +344,7 @@ export class CanvasRenderer {
 		this.imageAnalysis?.dispose();
 		this.clearBackgroundAnimation();
 		this.cpuFrameQueue?.destroy();
-		this.gamutBoundaryBuffer.destroy();
+		this.gamutResources.dispose();
 		for (const context of this.cpuCanvasContexts) context.unconfigure();
 	}
 }

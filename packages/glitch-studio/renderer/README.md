@@ -2,13 +2,13 @@ Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
 両Managerの`previewGamutWarning`は`{ enabled, referenceGamut, bounds }`で、初期値は無効・sRGB・`unit`。Display P3・Rec.2020・Adobe RGB・ACEScg（AP1参照）も選べる。`bounds`は色域から独立し、`nonNegative`は負の成分のみ、`unit`は負値または1超の成分を警告する。ACEScgは白色点順応を含むAP1の参照であり、ACESの表示変換や保存値の有効性を調べるものではない。
 
-両Managerの`previewWarningImageSource`は黒・白と色域外に共通の判定対象で、既定の`original`は表示補正前のレンダリング画像、`previewAdjusted`は露出・背景合成・現在有効な色域圧縮の適用後を使う。sRGB確認のclampとCanvas出力は判定後に行う。確認中は表示と同じく色域圧縮を停止する。判定・通常の表示変換・警告色の重ね描きを分離し、警告色を判定や色域圧縮へ戻さない。
+両Managerの`previewWarningImageSource`は黒・白と色域外に共通の判定対象で、既定の`original`は表示補正前のレンダリング画像、`previewAdjusted`はalphaを保ったまま露出・現在有効な色域圧縮を適用した画像を使う。どちらもプレビュー背景を含めず、背景合成・sRGB確認のclamp・Canvas出力は判定後に行う。確認中は表示と同じく色域圧縮を停止する。判定・通常の表示変換・警告色の重ね描きを分離し、警告色を判定や色域圧縮へ戻さない。
 
 `CanvasRenderer`は範囲外なら表示補正後に不透明な黄色の斜線を重ね、黒・白の警告を優先する。判定行列は`@gs/shared/rgb-gamut.ts`と共有し、HALFの量子化誤差を行列の絶対値で伝播させて境界上の誤警告を避ける。最小刻みの誤差も表示調整後では露出に追従させる。判定画像のalpha>0は未乗算RGB、alpha=0の発光は保存RGBを使う。元画像が完全透明の黒なら、背景だけを警告しないよう判定対象によらず除外する。表示専用で、解析・キャッシュ・書き出しの元画像は変えない。
 
 `canvas-output.ts`はCanvasの画素形式・色空間を`CanvasOutputSettings`として定義する。`createCanvasOutputConfigurator()`と`CanvasRenderer`へ同じ設定を渡し、Canvas構成と最終描画pipelineの形式を一致させる。プレビューのfactoryはGPU表示なら`createGpuPreviewCanvasOutputSettings()`で拡張sRGBの`rgba16float`を選び、CPU表示と書き出しWorkerは8bit sRGBを使う。Managerへ直接渡す場合の既定値も8bit sRGBとする。露出・背景・色域圧縮は表示変換としてlinear上で処理し、`canvas-output.wgsl`が最後にsRGB encodeを行う。float出力ではRGBをclampせず、ブラウザーがモニターの色空間へ変換した後、`toneMapping: { mode: 'standard' }`によりSDR範囲へ表示する。8bit出力だけshaderでsRGBの範囲へ制限する。
 
-両Managerのdynamic optionsの`previewGamutCompression`は、`{ mode, customAmount }`でプレビュー専用の色域圧縮を指定する。modeは`none`・`displayP3`・`rec2020`・`adobeRgb`・`custom`、customAmountは0〜1のクロマ削減率。既定は通常表示で、書き出し用Managerにも圧縮を引き継がない。`CanvasRenderer`は露出・linear背景合成後に変換し、解析・フレームキャッシュ・クリッピング警告の色は変更しない。
+両Managerのdynamic optionsの`previewGamutCompression`は、`{ mode, customAmount }`でプレビュー専用の色域圧縮を指定する。modeは`none`・`displayP3`・`rec2020`・`adobeRgb`・`acescg`・`custom`、customAmountは0〜1のクロマ削減率。既定は通常表示で、書き出し用Managerにも圧縮を引き継がない。`preview-image-adjustment.wgsl`で露出後・背景合成前のRGBAを調整し、表示・解析・警告が同じ処理を使う。alpha>0は未乗算色を圧縮して乗算済みへ戻し、alpha=0の発光は独立したRGBとして圧縮する。元画像・フレームキャッシュ・警告色自体は変更しない。
 
 `previewSrgbProof`（既定false）はsRGB環境での見え方を確認する表示モード。露出・背景合成後にsRGB色域へclampし、元画像の見え方を確認するため色域圧縮は一時的に迂回する。圧縮設定自体は保持し、確認を解除すると復帰する。両Managerから`CanvasRenderer`のuniformへ渡し、未使用のプリセットLUTも生成しない。Canvas・pipeline・キャッシュを作り直さず、書き出しへは引き継がない。
 
@@ -68,11 +68,13 @@ GPUを所有するManagerが、最終表示とモーションブラーの全サ�
 
 プレビューのヒストグラム・縦横の波形は、両Managerのstatic optionsの`enableWaveformAndHistogram`でまとめて制御する。`CanvasRenderer`は無効時に解析用インスタンスを生成せず、バッファ・pipelineの確保もcompute/render passも省く。通常のCanvas出力や計測の有効・無効とは独立し、エフェクトとして配置した波形・ヒストグラムには適用しない。書き出しWorkerでは常に無効を指定する。
 
-表示用の露出は両Managerのdynamic optionsの`previewExposure`（EV、既定0）を`CanvasRenderer`へ渡す。乗算済みlinear RGBへ`2^EV`を乗算し、黒・チェック背景の合成をlinearで済ませてからsRGBへencodeする。GPU方式・CPU方式は同じ出力パスを使う。`previewBackground`は表示専用で、透明なSDR書き出しではnull、不透明出力では黒背景を使う。チェック背景は表示用に所有するlinear画像で再描画し、ノード・履歴・解析を進めない。ヒストグラム・波形は露出補正前の画像を参照し、警告は`previewWarningImageSource`に従う。`analysisValueScale`はsRGB・Linear・EV（0 EV=0.18）、`analysisValueRange`は各方式の単位での`{ minimum, maximum }`を独立して指定する。変換後の値を範囲で正規化し、minimum > maximumなら軸を反転する。同値（float32への丸め後も含む）なら集計を省いて空表示にする。露出・背景・解析設定はキャッシュへ焼き込まず、書き出しへ暗黙に反映しない。[色空間の規約](../../../docs/color-management.md)を参照。
+表示用の露出は両Managerのdynamic optionsの`previewExposure`（EV、既定0）を`CanvasRenderer`へ渡す。乗算済みlinear RGBへ`2^EV`を乗算し、色域圧縮・解析・警告判定の後に黒・チェック背景をlinearで合成してsRGBへencodeする。GPU方式・CPU方式は同じ出力パスを使う。`previewBackground`は表示専用で、透明なSDR書き出しではnull、不透明出力では黒背景を使う。チェック背景は表示用に所有するlinear画像で再描画し、ノード・履歴・解析を進めない。背景の種類や位相は全ての解析・警告判定から除外する。`analysisValueScale`はsRGB・Linear・EV（0 EV=0.18）、`analysisValueRange`は各方式の単位での`{ minimum, maximum }`を独立して指定する。変換後の値を範囲で正規化し、minimum > maximumなら軸を反転する。同値（float32への丸め後も含む）なら集計を省いて空表示にする。露出・背景・解析設定はキャッシュへ焼き込まず、書き出しへ暗黙に反映しない。[色空間の規約](../../../docs/color-management.md)を参照。
+
+`analysisImageSource`はヒストグラム・縦横の波形に共通の解析画像で、`original`（既定）と`previewAdjusted`から選ぶ。警告の判定対象からは独立させ、RGB以外の解析対象では元画像へ固定する。`PreviewAnalysisImageTransform`は集計時に元のfloatサンプルへ調整を適用し、背景・警告・表示clamp・encodeを通さない。中間の全画面画像やHALFへの追加の量子化は不要。色域境界LUTは主表示と解析で共有し、uniformバッファは別にして同じencoder内で互いの設定を上書きしない。汎用の波形は`GpuImageSampleTransform`を受け取り、Glitch Studioの表示設定へ依存しない。
 
 `analysisTarget`はRGB・Alpha・Vector X・Vector Y・Vector Lengthを選び、両Managerから`CanvasRenderer`へ同期する。RGBは従来の未乗算・alpha重み付けを使い、他の対象はA・R・G・`length(RG)`を保存値のまま重み1で解析する。数値データの表示は白で、alpha=0や値域の下端も表示する。数値データはLinearに限り、sRGB・EVの指定はGPUへの設定境界でもLinearへ補正する。表示範囲はこの補正によって変更しない。対象選択と集計用の値・重みの計算は、Waveformエフェクトも利用する`@gs/shared/utility/image-analysis.ts`・`@gs/shared/gpu/image-analysis.wgsl`へまとめる。
 
-`PreviewImageAnalysis`は解析Canvas・直近の借用入力・High-res用の所有画像を管理する。両Managerの`setHighResolutionImageAnalysis(true, settings)`は最初の要求でだけ入力を同じ寸法・形式へ`textureLoad`で複製し、その後の要求では保持画像を全画素で再集計する。COPY_SRCを持たないR/RG/RGBA・float32入力も表示変換やRGBA16への量子化を通さない。シーンの編集による`CanvasRenderer.clear()`は借用参照だけを破棄し、保持画像を残す。falseの要求・破棄では所有画像を解放する。通常入力がなければfalseを返し、後のフレームを代わりに保持しない。
+`PreviewImageAnalysis`は解析Canvas・直近の借用入力・High-res用の所有画像を管理する。両Managerの`setHighResolutionImageAnalysis(true, settings)`は最初の要求でだけ入力を同じ寸法・形式へ`textureLoad`で複製し、その後の要求では保持画像を全画素で再集計する。COPY_SRCを持たないR/RG/RGBA・float32入力も表示変換やRGBA16への量子化を通さない。画像の選択・露出・有効な色域圧縮を変えたときも、元の保持画像へ要求内の調整を適用する。背景やその位相は保持しない。シーンの編集による`CanvasRenderer.clear()`は借用参照だけを破棄し、保持画像を残す。falseの要求・破棄では所有画像を解放する。通常入力がなければfalseを返し、後のフレームを代わりに保持しない。
 
 High-res中の`analysisPaused`は通常解析だけを止める。保持側は所有画像がある間も通常解析を止め、明示的な再解析は休止状態にかかわらず実行する。CPU表示では通常フレームの予約を主Canvasへ限定し、再解析は解析Canvasだけを予約・転送する。保持開始前の未完了転送を無効化し、返り値はGPU完了・CPU画素送信の後に返す。シーン変更でCPU予約を取り消した場合も、同じ保持画像で再試行する。対象・方式・範囲は各要求の`PreviewImageAnalysisSettings`で固定し、UI側が間引きと反映済み設定を管理する。
 

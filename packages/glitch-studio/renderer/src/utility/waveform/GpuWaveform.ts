@@ -9,6 +9,7 @@ import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
+import type { GpuImageSampleTransform } from '@gs/shared/gpu/image-sample-transform.ts';
 
 const MAX_SAMPLE_EDGE = 1024;
 
@@ -29,6 +30,7 @@ export class GpuWaveform {
 		private readonly context: PreviewCanvasContext,
 		format: GPUTextureFormat,
 		private readonly positionAxis: 'x' | 'y' = 'x',
+		sampleTransform?: GpuImageSampleTransform,
 	) {
 		context.configure({
 			device,
@@ -36,7 +38,7 @@ export class GpuWaveform {
 			alphaMode: 'opaque',
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
 		});
-		this.waveform = createWaveform({ device, vertexShaderModule: device.createShaderModule({ code: vertexShaderCode }), format });
+		this.waveform = createWaveform({ device, vertexShaderModule: device.createShaderModule({ code: vertexShaderCode }), format, sampleTransform });
 	}
 
 	public resize(size: Resolution) {

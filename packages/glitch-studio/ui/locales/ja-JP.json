@@ -466,20 +466,14 @@
 		"Exposure": "プレビューの露出",
 		"HighlightClipping": "クリッピングを強調表示",
 		"HighlightSettings": "ハイライトの設定",
-		"WarningImageSource": "警告の判定対象",
+		"WarningImageSource": "ステージ",
 		"WarningImageSourceOriginal": "元画像",
 		"WarningImageSourceAdjusted": "表示調整後",
-		"WarningImageSourceOriginalHint": "プレビュー露出・背景合成・色域圧縮を適用する前の画像で判定します。",
-		"WarningImageSourceAdjustedHint": "露出・背景合成・有効な色域圧縮の適用後、sRGB確認の範囲制限前に判定します。",
 		"HighlightOutOfGamut": "色域外を強調表示",
 		"GamutWarningReference": "色域外の判定色域",
-		"GamutWarningAcescg": "ACEScg（AP1参照）",
-		"GamutWarningAcescgHint": "AP1原色を基準に比較します。ACESの表示変換は適用しません。",
 		"GamutWarningBounds": "色域外の判定範囲",
-		"GamutWarningBoundsPrimaries": "原色範囲",
-		"GamutWarningBoundsUnit": "0〜1の範囲",
-		"GamutWarningBoundsPrimariesHint": "負のRGB成分を検出します。明るさの上限は設けません。",
-		"GamutWarningBoundsUnitHint": "負値または1を超えるRGB成分を検出します。",
+		"GamutWarningBoundsPrimaries": "原色",
+		"GamutWarningBoundsUnit": "0〜1",
 		"AnimatedBackground": "背景をアニメーション",
 		"ShowTimecode": "タイムコードを表示",
 		"ShowGrid": "グリッドを表示",
@@ -939,6 +933,7 @@
 	"StatsDisabled": "統計が無効になっています",
 	"AnalysisDisabled": "解析が無効になっています",
 	"_ImageAnalysis": {
+		"ImageSource": "解析画像（RGBのみ切り替え可能・プレビュー背景を除外）",
 		"NoPreviewFrame": "解析できるプレビュー画像がありません"
 	}
 }

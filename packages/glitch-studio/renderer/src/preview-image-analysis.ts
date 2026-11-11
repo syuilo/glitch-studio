@@ -3,6 +3,8 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import type { PreviewImageAnalysisSettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { PreviewCanvasContext } from './preview-canvas-context.ts';
+import { PreviewAnalysisImageTransform } from './preview-analysis-image-transform.ts';
+import type { PreviewGamutCompressionResources } from './preview-gamut-compression-resources.ts';
 
 /** 解析Canvasと保持フレームを所有する。作品の描画・時刻・再生状態は所有しない。 */
 export class PreviewImageAnalysis {
@@ -12,16 +14,18 @@ export class PreviewImageAnalysis {
 	private readonly histogram: GpuHistogram | null;
 	private readonly horizontal: GpuWaveform | null;
 	private readonly vertical: GpuWaveform | null;
+	private readonly imageTransform: PreviewAnalysisImageTransform;
 	private readonly copyPipelines = new Map<GPUTextureFormat, GPURenderPipeline>();
 	private readonly copyLayout: GPUBindGroupLayout;
 	public get hasSnapshot() { return this.snapshot != null; }
 	public get livePaused() { return this.paused || this.hasSnapshot; }
 
-	constructor(private readonly device: GPUDevice, contexts: { histogram?: PreviewCanvasContext; horizontal?: PreviewCanvasContext; vertical?: PreviewCanvasContext }) {
+	constructor(private readonly device: GPUDevice, contexts: { histogram?: PreviewCanvasContext; horizontal?: PreviewCanvasContext; vertical?: PreviewCanvasContext }, gamutResources: PreviewGamutCompressionResources) {
 		const format = navigator.gpu.getPreferredCanvasFormat();
-		this.histogram = contexts.histogram == null ? null : new GpuHistogram(device, contexts.histogram, format);
-		this.horizontal = contexts.horizontal == null ? null : new GpuWaveform(device, contexts.horizontal, format);
-		this.vertical = contexts.vertical == null ? null : new GpuWaveform(device, contexts.vertical, format, 'y');
+		this.imageTransform = new PreviewAnalysisImageTransform(device, gamutResources);
+		this.histogram = contexts.histogram == null ? null : new GpuHistogram(device, contexts.histogram, format, this.imageTransform);
+		this.horizontal = contexts.horizontal == null ? null : new GpuWaveform(device, contexts.horizontal, format, 'x', this.imageTransform);
+		this.vertical = contexts.vertical == null ? null : new GpuWaveform(device, contexts.vertical, format, 'y', this.imageTransform);
 		this.copyLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }] });
 	}
 
@@ -69,6 +73,8 @@ export class PreviewImageAnalysis {
 	}
 
 	private render(source: GPUTexture, encoder: GPUCommandEncoder, settings: PreviewImageAnalysisSettings, fullResolution: boolean) {
+		// 数値データには表示補正を適用しない。保持画像も元の精度のまま、集計する時点だけ変換する。
+		this.imageTransform.update(settings.target === 'rgb' && settings.imageSource === 'previewAdjusted' ? settings.imageAdjustments : null);
 		if (settings.waveformCanvasSizes != null) {
 			this.horizontal?.resize(settings.waveformCanvasSizes.horizontal);
 			this.vertical?.resize(settings.waveformCanvasSizes.vertical);
@@ -91,5 +97,6 @@ export class PreviewImageAnalysis {
 		this.histogram?.dispose();
 		this.horizontal?.dispose();
 		this.vertical?.dispose();
+		this.imageTransform.dispose();
 	}
 }

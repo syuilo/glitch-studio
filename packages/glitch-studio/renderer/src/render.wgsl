@@ -26,16 +26,12 @@ struct Uniforms {
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
 @group(0) @binding(2) var sourceTexture: texture_2d<f32>;
 @group(0) @binding(3) var sourceSampler: sampler;
+@group(0) @binding(4) var<storage, read> previewGamutBoundaries: array<f32>;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
 	@builtin(position) position: vec4f,
 };
-
-fn applyPreviewExposure(color: vec4f) -> vec4f {
-	// 内部はlinear。露出は乗算済みRGBにもそのまま適用でき、alpha=0の発光も保持する。
-	return vec4f(color.rgb * exp2(uniforms.previewExposure), color.a);
-}
 
 fn isPreviewOutsideReferenceGamut(color: vec4f, minimumRgbTolerance: f32) -> bool {
 	if (uniforms.previewGamutWarningEnabled == 0u) { return false; }
@@ -73,12 +69,6 @@ fn encodePreviewOutput(linear: vec4f, position: vec2f, gamutWarning: bool) -> ve
 	return encodeCanvasOutput(linear);
 }
 
-// sRGB確認中は圧縮設定を保持したまま適用を止める。alpha=0の発光は背景合成後に変換する。
-fn applyPreviewGamutCompression(color: vec4f) -> vec4f {
-	if (uniforms.previewSrgbProof != 0u || color.a <= 0.0) { return color; }
-	return vec4f(compressPreviewGamut(color.rgb / color.a) * color.a, color.a);
-}
-
 // 色域外の情報を失うclampは警告判定の後に置く。Canvasの色管理自体は維持する。
 fn applyPreviewSrgbProof(color: vec4f) -> vec4f {
 	if (uniforms.previewSrgbProof == 0u || color.a <= 0.0) { return color; }
@@ -101,12 +91,10 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		let srgb = select(16.0 / 255.0, 26.0 / 255.0, (cell.x + cell.y) % 2u == 0u);
 		background = colorSrgbToLinear(vec3f(srgb));
 	}
-	var adjusted = applyPreviewExposure(color);
-	if (compositeBackground) {
-		// 背景合成と圧縮は実表示と同じ順序で一度だけ行い、透明発光も光量として残す。
-		adjusted = vec4f(adjusted.rgb + background * (1.0 - adjusted.a), 1.0);
-	}
-	adjusted = applyPreviewGamutCompression(adjusted);
+	// 背景はUIの補助表示。画像の調整と診断が終わるまで合成せず、alphaもそのまま保持する。
+	let compression = PreviewGamutCompressionUniforms(uniforms.previewGamutCompressionMode, uniforms.previewGamutCompressionAmount,
+		uniforms.previewGamutLookupSteps, uniforms.previewGamutCount);
+	let adjusted = adjustPreviewImage(color, uniforms.previewExposure, uniforms.previewSrgbProof != 0u, compression);
 
 	var warningColor = color;
 	var minimumRgbTolerance = 1.0 / 33554432.0;
@@ -114,7 +102,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		warningColor = adjusted;
 		minimumRgbTolerance *= exp2(uniforms.previewExposure);
 	}
-	// 表示調整後のalphaは背景合成で1になる。元画像が空なら背景だけを黒つぶれとして警告しない。
+	// 元画像が空なら、表示用背景だけを黒つぶれとして警告しない。
 	let hasSourceColor = color.a > 0.0 || any(color.rgb != vec3f(0.0));
 	var clippingWarning = 0u;
 	if (hasSourceColor && uniforms.highlightClipping != 0u && warningColor.a > 0.0) {
@@ -123,7 +111,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		if (all(warningColor.rgb >= vec3f(warningColor.a))) { clippingWarning = 2u; }
 	}
 	let gamutWarning = hasSourceColor && clippingWarning == 0u && isPreviewOutsideReferenceGamut(warningColor, minimumRgbTolerance);
-	var output = applyPreviewSrgbProof(adjusted);
+	var output = adjusted;
+	if (compositeBackground) { output = vec4f(output.rgb + background * (1.0 - output.a), 1.0); }
+	output = applyPreviewSrgbProof(output);
 	if (clippingWarning != 0u) {
 		// 判定が済んでから警告色へ置き換える。元画像を選んだ場合は、従来と同じalpha・背景合成を保つ。
 		let alpha = warningColor.a;

@@ -42,7 +42,7 @@ function fixture(t) {
 		remove(node) { node.parent.children.splice(node.parent.children.indexOf(node), 1); node.parent = null; },
 		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
-	const state = { analysisTarget: ref('rgb'), analysisValueScale: ref('srgb'), analysisRangePreset: ref('zeroToOne'), analysisCustomRange: ref({ minimum: 0, maximum: 1 }) };
+	const state = { analysisTarget: ref('rgb'), analysisImageSource: ref('original'), analysisValueScale: ref('srgb'), analysisRangePreset: ref('zeroToOne'), analysisCustomRange: ref({ minimum: 0, maximum: 1 }) };
 	state.imageAnalysisAvailable = ref(true);
 	let flushes = 0;
 	state.highResolutionImageAnalysis = { active: ref(false), busy: ref(false), errorMessage: ref(null), flush() { flushes++; } };
@@ -121,6 +121,36 @@ test('selects independent targets scales and the requested range presets', async
 		assert.deepEqual(f.openMenu('data-test-image-analysis-scale').map(item => item.text), index === 0 ? ['sRGB', 'Linear', 'EV · 0 EV = 0.18'] : ['Linear']);
 		assert.equal(f.state.analysisRangePreset.value, 'custom');
 	}
+});
+
+// 【RGBの解析画像を切り替え、数値データでは元画像へ固定する】
+// 数値データへ表示調整を混ぜず、RGBへ戻したときは選んでいた画像を復元する。
+// アイコントグルの表示は実際の解析画像に従い、無効時にハンドラーが呼ばれても設定を変えない。
+test('toggles the adjusted RGB analysis source and preserves it while numeric targets use the original image', async t => {
+	const f = fixture(t);
+	const button = f.find('data-test-image-analysis-source');
+	assert.equal(button.props['data-test-image-analysis-adjusted-active'], false);
+	button.props.onClick();
+	await nextTick();
+	assert.equal(f.state.analysisImageSource.value, 'previewAdjusted');
+	assert.equal(button.props['data-test-image-analysis-adjusted-active'], true);
+	assert.equal(f.menu, null);
+	for (const target of ['alpha', 'vectorX', 'vectorY', 'vectorLength']) {
+		f.state.analysisTarget.value = target;
+		await nextTick();
+		assert.equal(button.props.disabled, true);
+		assert.equal(button.props['data-test-image-analysis-adjusted-active'], false);
+		button.props.onClick();
+		assert.equal(f.state.analysisImageSource.value, 'previewAdjusted');
+	}
+	f.state.analysisTarget.value = 'rgb';
+	await nextTick();
+	assert.equal(button.props.disabled, false);
+	assert.equal(button.props['data-test-image-analysis-adjusted-active'], true);
+	button.props.onClick();
+	await nextTick();
+	assert.equal(f.state.analysisImageSource.value, 'original');
+	assert.equal(button.props['data-test-image-analysis-adjusted-active'], false);
 });
 
 // 【CustomのMin・Maxは上下の累積移動で変更し、ドラッグ直後のclickだけを抑止する】

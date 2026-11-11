@@ -2,13 +2,14 @@ import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-
 import { resolveImageAnalysisValueScale } from '@gs/shared/utility/image-analysis.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import { resolvePreviewAnalysisImageSource } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import { HighResolutionImageAnalysisController } from './HighResolutionImageAnalysisController.ts';
 import { CoalescedAsyncUpdate } from './utility/coalesced-async-update.ts';
 import { FULL_PREVIEW_WAVEFORM_VIEWPORT } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import type { PreviewWaveformViewport, PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
-import type { PreviewWarningImageSource } from '@gs/glitch-studio_shared/preview-warning-image-source.ts';
+import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
 import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -76,7 +77,7 @@ export class AppContext {
 	public resolutionFactor = ref(1);
 	public highlightClipping = ref(false);
 	/** 警告の判定対象だけを切り替え、作品・解析・保存データは変更しない。 */
-	public previewWarningImageSource = ref<PreviewWarningImageSource>('original');
+	public previewWarningImageSource = ref<PreviewImageSource>('original');
 	/** 判定色域も両プレビューで共有し、プロジェクトや環境設定には保存しない。 */
 	public previewGamutWarning = shallowRef<PreviewGamutWarningSettings>({ enabled: false, referenceGamut: 'srgb', bounds: 'unit' });
 	/** 作品・保存データとは独立した、両プレビュー共通の表示用露出（EV）。 */
@@ -87,6 +88,8 @@ export class AppContext {
 	public previewGamutCompression = shallowRef<PreviewGamutCompressionSettings>({ mode: 'none', customAmount: 0.5 });
 	public analysisValueScale = ref<ImageValueScale>('srgb');
 	public analysisTarget = ref<ImageAnalysisTarget>('rgb');
+	/** RGB以外では元画像へ固定するが、RGBへ戻った際の選択値は保持する。 */
+	public analysisImageSource = ref<PreviewImageSource>('original');
 	public analysisRangePreset = ref<ImageAnalysisRangePreset>('zeroToOne');
 	public analysisCustomRange = ref<ImageValueRange>({ minimum: 0, maximum: 1 });
 	public analysisValueRange = computed(() => getImageAnalysisValueRange(this.analysisRangePreset.value, this.analysisCustomRange.value));
@@ -95,7 +98,10 @@ export class AppContext {
 	public readonly analysisWaveformViewports = shallowRef<PreviewWaveformViewports | null>(null);
 	private readonly displayedWaveformViewports = shallowRef<PreviewWaveformViewports | null>(null);
 	private readonly waveformDisplayUpdate: CoalescedAsyncUpdate;
-	public readonly imageAnalysisSettings = computed<PreviewImageAnalysisSettings>(() => ({ target: this.analysisTarget.value, valueScale: this.analysisValueScale.value, valueRange: { ...this.analysisValueRange.value }, waveformCanvasSizes: this.analysisWaveformCanvasSizes.value, waveformViewports: this.analysisWaveformViewports.value }));
+	public readonly imageAnalysisSettings = computed<PreviewImageAnalysisSettings>(() => ({ target: this.analysisTarget.value, valueScale: this.analysisValueScale.value,
+		imageSource: resolvePreviewAnalysisImageSource(this.analysisTarget.value, this.analysisImageSource.value),
+		imageAdjustments: { exposure: this.previewExposure.value, srgbProof: this.previewSrgbProof.value, gamutCompression: { ...this.previewGamutCompression.value } },
+		valueRange: { ...this.analysisValueRange.value }, waveformCanvasSizes: this.analysisWaveformCanvasSizes.value, waveformViewports: this.analysisWaveformViewports.value }));
 	public readonly displayedImageAnalysisSettings = computed(() => this.highResolutionImageAnalysis.displayedSettings.value ?? { ...this.imageAnalysisSettings.value, waveformViewports: this.displayedWaveformViewports.value });
 	public readonly imageAnalysisRenderer = computed(() => this.highResolutionImageAnalysis.source.value ?? this.activePreviewRenderer.value);
 	public readonly imageAnalysisAvailable = computed(() => preferences.r.analysisMonitorsEnabled.value && !this.renderEngine.isSuspended.value && this.activePreviewRenderer.value.isReady.value);
@@ -186,7 +192,7 @@ export class AppContext {
 					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
 					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value,
 						previewWarningImageSource: this.previewWarningImageSource.value, previewGamutWarning: { ...this.previewGamutWarning.value }, previewExposure: this.previewExposure.value, previewSrgbProof: this.previewSrgbProof.value, previewGamutCompression: { ...this.previewGamutCompression.value },
-						previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value },
+						previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisImageSource: this.analysisImageSource.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value },
 					visualModuleOptions: { previewActive: previewDisplayMode === 'visualModuleLivePreview', fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
 					timelineOptions: { previewActive: previewDisplayMode === 'timeline', sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
 						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value },
@@ -217,7 +223,7 @@ export class AppContext {
 		}));
 		this.highResolutionImageAnalysis = markRaw(new HighResolutionImageAnalysisController({
 			setLivePaused: async paused => {
-				await this.updatePreviewOptions({ analysisPaused: paused, analysisTarget: this.analysisTarget.value, analysisValueScale: this.analysisValueScale.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value });
+				await this.updatePreviewOptions({ analysisPaused: paused, analysisTarget: this.analysisTarget.value, analysisImageSource: this.analysisImageSource.value, analysisValueScale: this.analysisValueScale.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value });
 				if (!paused) this.displayedWaveformViewports.value = this.analysisWaveformViewports.value;
 			},
 			refreshLive: () => this.previewPlayback.refresh(),
@@ -338,7 +344,7 @@ export class AppContext {
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
 
-		watch([this.analysisTarget, this.analysisValueScale, this.analysisValueRange], async ([target, valueScale, valueRange]) => {
+		watch([this.analysisTarget, this.analysisValueScale, this.analysisValueRange, this.analysisImageSource], async ([target, valueScale, valueRange, imageSource]) => {
 			const resolvedValueScale = resolveImageAnalysisValueScale(target, valueScale);
 			if (resolvedValueScale !== valueScale) {
 				// 同期watchへ再入して、有効な対象・範囲の組だけをRendererへ渡す。
@@ -349,7 +355,7 @@ export class AppContext {
 				this.highResolutionImageAnalysis.update(this.imageAnalysisSettings.value);
 				return;
 			}
-			await this.updatePreviewOptions({ analysisTarget: target, analysisValueScale: valueScale, analysisValueRange: { ...valueRange } });
+			await this.updatePreviewOptions({ analysisTarget: target, analysisImageSource: imageSource, analysisValueScale: valueScale, analysisValueRange: { ...valueRange } });
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
 
@@ -363,14 +369,17 @@ export class AppContext {
 
 		watch(this.previewExposure, async value => {
 			await this.updatePreviewOptions({ previewExposure: value });
+			this.refreshHeldDisplayAnalysis();
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
 		watch(this.previewSrgbProof, async value => {
 			await this.updatePreviewOptions({ previewSrgbProof: value });
+			this.refreshHeldDisplayAnalysis();
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
 		watch(this.previewGamutCompression, async value => {
 			await this.updatePreviewOptions({ previewGamutCompression: { ...value } });
+			this.refreshHeldDisplayAnalysis();
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
 
@@ -451,7 +460,13 @@ export class AppContext {
 		else this.waveformDisplayUpdate.flush();
 	}
 
-	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewWarningImageSource' | 'previewGamutWarning' | 'previewExposure' | 'previewSrgbProof' | 'previewGamutCompression' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget' | 'analysisValueRange' | 'analysisPaused' | 'analysisWaveformCanvasSizes' | 'analysisWaveformViewports'>>) {
+	private refreshHeldDisplayAnalysis() {
+		if (this.highResolutionImageAnalysis.active.value && this.imageAnalysisSettings.value.imageSource === 'previewAdjusted') {
+			this.highResolutionImageAnalysis.update(this.imageAnalysisSettings.value);
+		}
+	}
+
+	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewWarningImageSource' | 'previewGamutWarning' | 'previewExposure' | 'previewSrgbProof' | 'previewGamutCompression' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget' | 'analysisImageSource' | 'analysisValueRange' | 'analysisPaused' | 'analysisWaveformCanvasSizes' | 'analysisWaveformViewports'>>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),

@@ -138,7 +138,7 @@ export async function run() {
 				renderer.previewBackground = 'black';
 				renderer.previewGamutWarning = { enabled: true, referenceGamut: 'srgb', bounds: 'unit' };
 
-				// 【判定対象を切り替え、露出・背景合成・色域圧縮の効果を警告へ反映する】
+				// 【判定対象を切り替え、露出・色域圧縮を反映し、背景とその位相は判定から除外する】
 				// 調整後を選んでも元画像を調べ続けたり、sRGB確認のclamp後を調べたりする誤接続を検出する。
 				// 黒・白の警告も同じ画像を使い、警告色自体は圧縮や次の判定へ流さない。
 				for (const imageSource of ['original', 'previewAdjusted'] as const) {
@@ -161,15 +161,21 @@ export async function run() {
 					await check(`${imageSource} checks before proof clipping`, [2, 0.25, 0.125, 1], true);
 					renderer.previewSrgbProof = false;
 					renderer.previewGamutCompression = { mode: 'none', customAmount: 0.5 };
-					await check(`${imageSource} composes translucent HDR`, [0.75, 0.125, 0.0625, 0.5], imageSource === 'original');
+					await check(`${imageSource} retains translucent HDR before composition`, [0.75, 0.125, 0.0625, 0.5], true);
 					renderer.previewGamutWarning = { ...renderer.previewGamutWarning, bounds: 'nonNegative' };
 					await check(`${imageSource} negative translucent color over black`, [-0.001, 0.125, 0.125, 0.5], true);
 					renderer.previewBackground = 'checker';
-					const overChecker = await render(true);
-					// チェック背景の位相は時刻で変わるため、背景画素の一致ではなく警告線の有無を比較する。
-					const hasWarningStripe = YELLOW.every((value, channel) => Math.abs(overChecker[channel] - value) < 0.006);
-					if (hasWarningStripe !== (imageSource === 'original')) throw new Error(`${mode}: ${imageSource} ignored the composed background`);
-					checks.push(`${mode}: ${imageSource} checker background`);
+					const nowDescriptor = Object.getOwnPropertyDescriptor(performance, 'now');
+					try {
+						for (const time of [0, 400]) {
+							Object.defineProperty(performance, 'now', { configurable: true, value: () => time });
+							assertPixel(`${mode}: ${imageSource} ignores checker phase ${time}`, await render(true), 0, YELLOW);
+							checks.push(`${mode}: ${imageSource} checker phase ${time}`);
+						}
+					} finally {
+						if (nowDescriptor == null) Reflect.deleteProperty(performance, 'now');
+						else Object.defineProperty(performance, 'now', nowDescriptor);
+					}
 					renderer.previewBackground = 'black';
 					renderer.previewGamutWarning = { ...renderer.previewGamutWarning, bounds: 'unit' };
 					await check(`${imageSource} includes zero-alpha emission`, [2, 0.25, 0.125, 0], true);
@@ -191,12 +197,10 @@ export async function run() {
 					checks.push(`${mode}: ${imageSource} raises white clipping`);
 					renderer.previewExposure = 0;
 					writeSource([0.75, 0.75, 0.75, 0.5]);
-					assertPixel(`${mode}: ${imageSource} preserves warning alpha`, await render(true), 0,
-						imageSource === 'original' ? [0.735356983, 0, 0.735356983, 1] : [0.880825021, 0.880825021, 0.880825021, 1]);
+					assertPixel(`${mode}: ${imageSource} preserves warning alpha`, await render(true), 0, [0.735356983, 0, 0.735356983, 1]);
 					checks.push(`${mode}: ${imageSource} translucent white clipping`);
 					writeSource([2, 2, 2, 0]);
-					assertPixel(`${mode}: ${imageSource} classifies emission before warnings`, await render(true), 0,
-						imageSource === 'original' ? YELLOW : [1, 0, 1, 1]);
+					assertPixel(`${mode}: ${imageSource} classifies emission before warnings`, await render(true), 0, YELLOW);
 					checks.push(`${mode}: ${imageSource} emission warning priority`);
 					writeSource([0, 0, 0, 0]);
 					assertPixel(`${mode}: ${imageSource} keeps empty background unmarked`, await render(true), 0, [0, 0, 0, 1]);

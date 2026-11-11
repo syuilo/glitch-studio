@@ -9,6 +9,7 @@ import computeShaderCode from './histogram-compute.wgsl?raw';
 import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
+import type { GpuImageSampleTransform } from '@gs/shared/gpu/image-sample-transform.ts';
 
 const BIN_COUNT = 256;
 const VALUE_COUNT = BIN_COUNT * 3;
@@ -34,17 +35,18 @@ export class GpuHistogram {
 	private reduceBindGroup: GPUBindGroup | null = null;
 	private partialPipelines: ReturnType<GpuHistogram['createPartialPipelines']> | null = null;
 
-	constructor(private readonly device: GPUDevice, private readonly context: PreviewCanvasContext, private readonly format: GPUTextureFormat) {
+	constructor(private readonly device: GPUDevice, private readonly context: PreviewCanvasContext, private readonly format: GPUTextureFormat, private readonly sampleTransform: GpuImageSampleTransform | null = null) {
 		this.settingsBuffer = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		context.configure({ device, format, alphaMode: 'opaque', usage: GPUTextureUsage.RENDER_ATTACHMENT });
 		this.histogramBuffer = device.createBuffer({ label: 'histogram values', size: (VALUE_COUNT + 1) * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-		this.computeModule = device.createShaderModule({ code: colorSpaceShaderCode + '\n' + imageValueScaleShaderCode + '\n' + imageAnalysisShaderCode + '\n' + computeShaderCode });
+		const transformCode = sampleTransform?.getShaderCode(1) ?? 'fn transformImageSample(input: vec4f) -> vec4f { return input; }';
+		this.computeModule = device.createShaderModule({ code: [colorSpaceShaderCode, imageValueScaleShaderCode, imageAnalysisShaderCode, transformCode, computeShaderCode].join('\n') });
 		this.accumulateLayout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: 'unfilterable-float' } },
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
 			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
 		] });
-		this.accumulatePipeline = device.createComputePipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [this.accumulateLayout] }), compute: { module: this.computeModule, entryPoint: 'accumulateDirect' } });
+		this.accumulatePipeline = device.createComputePipeline({ layout: this.createAccumulateLayout(), compute: { module: this.computeModule, entryPoint: 'accumulateDirect' } });
 		this.maxPipeline = device.createComputePipeline({ layout: 'auto', compute: { module: this.computeModule, entryPoint: 'findDirectMax' } });
 		this.maxBindGroup = device.createBindGroup({ layout: this.maxPipeline.getBindGroupLayout(0), entries: [{ binding: 1, resource: { buffer: this.histogramBuffer } }] });
 		this.renderModule = device.createShaderModule({ code: renderShaderCode });
@@ -71,6 +73,10 @@ export class GpuHistogram {
 		});
 	}
 
+	private createAccumulateLayout() {
+		return this.device.createPipelineLayout({ bindGroupLayouts: [this.accumulateLayout, ...(this.sampleTransform == null ? [] : [this.sampleTransform.bindGroupLayout])] });
+	}
+
 	private createRenderBindGroup(pipeline: GPURenderPipeline) {
 		return this.device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
 			{ binding: 0, resource: { buffer: this.histogramBuffer } }, { binding: 1, resource: { buffer: this.settingsBuffer } },
@@ -80,7 +86,7 @@ export class GpuHistogram {
 	private createPartialPipelines() {
 		const device = this.device;
 		const module = this.computeModule;
-		const accumulate = device.createComputePipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [this.accumulateLayout] }), compute: { module, entryPoint: 'accumulate' } });
+		const accumulate = device.createComputePipeline({ layout: this.createAccumulateLayout(), compute: { module, entryPoint: 'accumulate' } });
 		const reduce = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'reduceCounts' } });
 		const maximum = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'findMax' } });
 		const bars = this.createBarsPipeline(true);
@@ -122,6 +128,7 @@ export class GpuHistogram {
 			const pass = encoder.beginComputePass({ label: 'accumulate and reduce histogram' });
 			pass.setPipeline(partial?.accumulate ?? this.accumulatePipeline);
 			pass.setBindGroup(0, this.accumulateBindGroup!);
+			if (this.sampleTransform != null) pass.setBindGroup(1, this.sampleTransform.getBindGroup());
 			if (partial == null) {
 				pass.dispatchWorkgroups(Math.ceil(sampleWidth / 10), Math.ceil(sampleHeight / 10));
 			} else {

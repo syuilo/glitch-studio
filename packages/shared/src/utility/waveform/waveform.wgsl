@@ -68,7 +68,7 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 	}
 	let uv = (vec2f(id.xy) + 0.5) / vec2f(params.sampleSize);
 	let position = vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
-	let sample = imageAnalysisSample(read_input(position), params.mode);
+	let sample = imageAnalysisSample(transformImageSample(read_input(position)), params.mode);
 	let weight = sample.weight * 65535.0;
 	if (weight == 0.0) {
 		return;

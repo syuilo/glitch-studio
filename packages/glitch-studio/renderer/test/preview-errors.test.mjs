@@ -1469,22 +1469,26 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		}] });
 		const writes = [];
 		const configurations = t.mock.method(renderer.gpuContext, 'configure');
-		renderer.gpuDevice.queue.writeBuffer = (buffer, offset, data) => writes.push(Array.from(new Uint32Array(data.slice(0))));
+		// 解析にも独立したuniformがあるので、書き込み順ではなく主表示のバッファを観測する。
+		renderer.gpuDevice.queue.writeBuffer = (buffer, offset, data) => {
+			if (buffer === renderer.canvasRenderer.finalRenderUniformBuffer) writes.push(Array.from(new Uint32Array(data.slice(0))));
+		};
 		if (Manager === VisualModuleRendererManager) renderer.startVisualModuleLivePreviewRenderLoopFor('module');
 		let timestamp = 0;
 		const render = () => Manager === VisualModuleRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
-		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true, previewExposure: 2, previewBackground: 'black', analysisValueScale: 'ev', analysisTarget: 'vectorLength', analysisValueRange: { minimum: 4, maximum: -1 } });
+		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true, previewExposure: 2, previewBackground: 'black', analysisImageSource: 'previewAdjusted', analysisValueScale: 'ev', analysisTarget: 'vectorLength', analysisValueRange: { minimum: 4, maximum: -1 } });
 		await render();
 		assert.deepEqual(writes.at(-1).slice(0, 6), [1, 1, 0x40000000, 0, 1, 0]);
 		assert.equal(renderer.canvasRenderer.analysisValueScale, 'ev');
 		assert.equal(renderer.canvasRenderer.analysisTarget, 'vectorLength');
+		assert.equal(renderer.canvasRenderer.analysisImageSource, 'previewAdjusted');
 		assert.deepEqual(renderer.canvasRenderer.analysisValueRange, { minimum: 4, maximum: -1 });
 		assert.equal(configurations.mock.calls.at(-1).arguments[0].alphaMode, 'opaque');
 		await renderer.updateDynamicOptions({ highlightClipping: false });
 		await render();
 		assert.deepEqual(writes.at(-1).slice(0, 6), [0, 1, 0x40000000, 0, 1, 0]);
 		assert.equal(configurations.mock.callCount(), 1);
-		await renderer.updateDynamicOptions({ opaqueOutput: false, previewExposure: 0, previewBackground: null, analysisValueScale: 'srgb', analysisTarget: 'rgb', analysisValueRange: { minimum: 0, maximum: 1 } });
+		await renderer.updateDynamicOptions({ opaqueOutput: false, previewExposure: 0, previewBackground: null, analysisImageSource: 'original', analysisValueScale: 'srgb', analysisTarget: 'rgb', analysisValueRange: { minimum: 0, maximum: 1 } });
 		await render();
 		assert.deepEqual(writes.at(-1).slice(0, 6), [0, 0, 0, 0, 0, 0]);
 		await renderer.updateDynamicOptions({ previewGamutCompression: { mode: 'custom', customAmount: 0.25 } });
@@ -1522,6 +1526,7 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		}
 		assert.equal(renderer.canvasRenderer.analysisValueScale, 'srgb');
 		assert.equal(renderer.canvasRenderer.analysisTarget, 'rgb');
+		assert.equal(renderer.canvasRenderer.analysisImageSource, 'original');
 		assert.deepEqual(renderer.canvasRenderer.analysisValueRange, { minimum: 0, maximum: 1 });
 		assert.equal(configurations.mock.calls.at(-1).arguments[0].alphaMode, 'premultiplied');
 		await renderer.updateDynamicOptions({ previewBackground: 'black' });

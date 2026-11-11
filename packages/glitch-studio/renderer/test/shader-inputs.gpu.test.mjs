@@ -102,19 +102,19 @@ test('shares normalized player images between Video nodes on WebGPU', { skip: pr
 // AssetTexturesによる実際のPNGデコードからGPU転送までを通し、浮動小数点の画素で検証する。
 test('imports opaque and translucent Display P3 assets without darkening', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/linear-display-gpu.ts', 3, 'runWideGamutAssetImport'));
 
-// 【GPU・CPU表示とも露出を線形光で適用し、alpha・解析・元画像の警告を保つ】
+// 【GPU・CPU表示とも露出を線形光で適用し、alphaを保ちながら解析画像を切り替える】
 // 半透明やHDRの補正は8bit画像やuniformのモックだけでは検証できない。
-// 実際の表示経路で0 EV、増減、範囲端を比較し、解析Canvasに補正が混入しないことも確認する。
+// 元画像解析への補正混入と、調整後解析への背景・警告・clampの混入を実画素で検出する。
 // 色域圧縮の全プリセット・カスタム・無圧縮と、通常表示では潰れる赤の分離も実画素で比較する。
 // ACEScgを最初に選んでLUTを生成し、AP1原色・基準白もGPU/CPUの両表示で比較する。
-test('adjusts preview exposure and gamut compression without changing alpha, analysis or clipping warnings', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/preview-exposure-gpu.ts', 38));
+test('adjusts preview exposure and gamut compression with selectable analysis sources and preserved alpha', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/preview-exposure-gpu.ts', 64));
 
 // 【GPU・CPU表示で判定色域を切り替え、半透明・透明発光・表示補正から独立した斜線を描く】
 // HALFで丸めたAP1を含む5色域の原色、2つの判定範囲、透明発光を実画素で確認する。
 // ACEScgでも0〜1の判定を選べ、他の色域でも原色範囲だけの判定ならHDRを許容する。
-// 判定対象の切替では露出・背景合成・圧縮を反映し、sRGB確認のclampと警告色は判定後に重ねる。
+// 判定対象の切替では露出・圧縮を反映し、背景・sRGB確認のclamp・警告色は判定後に重ねる。
 test('highlights reference gamut violations independently of preview display transforms', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
-	const checks = await runGpuTest('./helpers/preview-gamut-warning-gpu.ts', 380);
+	const checks = await runGpuTest('./helpers/preview-gamut-warning-gpu.ts', 384);
 	t.diagnostic(`${checks.length} gamut warning comparisons completed`);
 });
 

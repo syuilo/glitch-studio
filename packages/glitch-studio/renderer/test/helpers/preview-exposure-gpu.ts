@@ -99,6 +99,92 @@ export async function run() {
 					}
 					checks.push(`${mode} ${ev} EV color, alpha and analysis`);
 				}
+				// 【調整後のRGB解析は元のfloat画像へ補正を適用し、背景・警告・表示clampは集計しない】
+				// 補正済みの参照画像を元画像として集計した結果と、3つ全ての解析Canvasを比較する。
+				// 半透明・負値・HDR・alpha=0の発光を含め、表示用8bit画像への誤接続も検出する。
+				const analysisPixels = new Float16Array([0.125, 0.0625, 0.03125, 0.5, 2, -0.125, 0.25, 1,
+					0.125, 0.25, 0.0625, 0, 0, 0, 0, 0]);
+				const writeAnalysisPixels = (values: Float16Array) => device.queue.writeTexture({ texture: source }, values, { bytesPerRow: 16 }, [2, 2]);
+				const assertAnalysis = (name: string, actual: Uint8Array[], expected: Uint8Array[], tolerance = 0) => {
+					for (let index = 1; index < actual.length; index++) {
+						if (actual[index].some((value, offset) => Math.abs(value - expected[index][offset]) > tolerance)) throw new Error(`${mode}: ${name}, analysis Canvas ${index}`);
+					}
+				};
+				renderer.analysisValueScale = 'linear';
+				renderer.analysisValueRange = { minimum: -1, maximum: 5 };
+				writeAnalysisPixels(analysisPixels);
+				const originalAnalysis = await render(0);
+				writeAnalysisPixels(analysisPixels.map((value, index) => index % 4 === 3 ? value : value * 2));
+				const exposedAnalysis = await render(0);
+				writeAnalysisPixels(analysisPixels);
+				renderer.analysisImageSource = 'previewAdjusted';
+				const adjustedAnalysis = await render(1);
+				assertAnalysis('adjusted exposure differs from the transformed source', adjustedAnalysis, exposedAnalysis);
+				for (let index = 1; index < adjustedAnalysis.length; index++) {
+					if (adjustedAnalysis[index].every((value, offset) => value === originalAnalysis[index][offset])) throw new Error(`${mode}: adjusted exposure did not change analysis Canvas ${index}`);
+				}
+				checks.push(`${mode} analyzes exposed RGB including translucent HDR and emission`);
+				renderer.highlightClipping = true;
+				renderer.previewGamutWarning = { enabled: true, referenceGamut: 'srgb', bounds: 'unit' };
+				renderer.previewWarningImageSource = 'previewAdjusted';
+				const nowDescriptor = Object.getOwnPropertyDescriptor(performance, 'now');
+				try {
+					for (const background of [null, 'black', 'checker'] as const) {
+						renderer.previewBackground = background;
+						for (const time of [0, 400]) {
+							Object.defineProperty(performance, 'now', { configurable: true, value: () => time });
+							renderer.previewSrgbProof = true;
+							assertAnalysis('preview presentation changed analysis', await render(1), exposedAnalysis);
+							checks.push(`${mode} excludes ${background} background phase ${time}, warnings and proof clipping`);
+						}
+					}
+				} finally {
+					if (nowDescriptor == null) Reflect.deleteProperty(performance, 'now');
+					else Object.defineProperty(performance, 'now', nowDescriptor);
+				}
+				renderer.previewBackground = null;
+				renderer.highlightClipping = false;
+				renderer.previewGamutWarning = { ...renderer.previewGamutWarning, enabled: false };
+				renderer.previewWarningImageSource = 'original';
+				renderer.previewSrgbProof = false;
+				// 圧縮は未乗算色へ適用してalphaを戻す。alpha=0の発光は独立したRGBとして圧縮する。
+				for (const gamut of ['custom', 'acescg'] as const) {
+					const compressedPixels = analysisPixels.slice();
+					for (let pixel = 0; pixel < 4; pixel++) {
+						const offset = pixel * 4;
+						const alpha = analysisPixels[offset + 3];
+						const divisor = alpha > 0 ? alpha : 1;
+						const compressed = compressedReference(Array.from(analysisPixels.slice(offset, offset + 3), value => value / divisor), gamut, 0.5);
+						for (let channel = 0; channel < 3; channel++) compressedPixels[offset + channel] = compressed[channel] * divisor;
+					}
+					renderer.analysisImageSource = 'original';
+					writeAnalysisPixels(compressedPixels);
+					const compressedAnalysis = await render(0);
+					writeAnalysisPixels(analysisPixels);
+					renderer.analysisImageSource = 'previewAdjusted';
+					renderer.previewGamutCompression = { mode: gamut, customAmount: 0.5 };
+					// 参照画像だけはHALFへ保存するため、波形の隣接ビンへの重みには微差が出る。
+					// 調整後解析は中間画像へ丸めないので、8bitの描画値で2刻みだけを許容する。
+					assertAnalysis(`adjusted ${gamut} compression differs from the transformed source`, await render(0), compressedAnalysis, 2);
+					checks.push(`${mode} analyzes ${gamut} compressed RGB while preserving alpha and emission`);
+				}
+				renderer.previewSrgbProof = true;
+				assertAnalysis('proof did not suspend analysis compression', await render(0), originalAnalysis);
+				renderer.previewSrgbProof = false;
+				for (const target of ['alpha', 'vectorX', 'vectorY', 'vectorLength'] as const) {
+					renderer.analysisTarget = target;
+					renderer.analysisImageSource = 'original';
+					const numericAnalysis = await render(0);
+					renderer.analysisImageSource = 'previewAdjusted';
+					assertAnalysis(`${target} used display adjustments`, await render(8), numericAnalysis);
+					checks.push(`${mode} keeps ${target} analysis on the original values`);
+				}
+				renderer.analysisTarget = 'rgb';
+				renderer.analysisImageSource = 'original';
+				renderer.analysisValueScale = 'srgb';
+				renderer.analysisValueRange = { minimum: 0, maximum: 1 };
+				renderer.previewGamutCompression = { mode: 'none', customAmount: 0.5 };
+				device.queue.writeTexture({ texture: source }, pixels, { bytesPerRow: 16 }, [2, 2]);
 				// 【無圧縮は完全一致し、カスタムと各プリセットは明度・色相を保った参照変換へ一致する】
 				// LUT補間・uniform・GPU/CPU表示のいずれかを接続し忘れても、実画素で検出する。
 				// ACEScgを最初に使い、新規モードだけを選んだ場合もLUTを生成・転送することを確認する。
@@ -198,14 +284,14 @@ export async function run() {
 				const emitted = (await render(-1))[0];
 				if (Math.abs(emitted[0] - expose(0.5, -1) * 255) > 2 || emitted[3] !== 255) throw new Error(`${mode}: zero-alpha emission was discarded`);
 				checks.push(`${mode} linear background and zero-alpha emission`);
-				// 圧縮は背景合成後に一度だけ行い、alpha=0の発光にも同じ表示変換を使う。
+				// alpha=0の発光も背景へ合成する前に、独立したRGBとして同じ表示変換を使う。
 				renderer.previewGamutCompression = { mode: 'custom', customAmount: 0.5 };
 				const compressedEmission = (await render(-1))[0];
 				const expectedEmission = compressedReference([0.25, 0.125, 0], 'custom', 0.5);
 				for (let channel = 0; channel < 3; channel++) {
 					if (Math.abs(compressedEmission[channel] - linearChannelToSrgb(expectedEmission[channel]) * 255) > 2) throw new Error(`${mode}: zero-alpha emission compression failed`);
 				}
-				checks.push(`${mode} compresses composed zero-alpha emission`);
+				checks.push(`${mode} compresses zero-alpha emission before composition`);
 			} finally {
 				renderer.destroy();
 				context.unconfigure();

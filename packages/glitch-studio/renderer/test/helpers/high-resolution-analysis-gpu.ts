@@ -13,7 +13,7 @@ export async function run() {
 	device.addEventListener('uncapturederror', event => errors.push(event.error.message));
 	const format = navigator.gpu.getPreferredCanvasFormat();
 	const checks: string[] = [];
-	const settings: PreviewImageAnalysisSettings = { target: 'vectorX', valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: null, waveformViewports: null };
+	const settings: PreviewImageAnalysisSettings = { target: 'vectorX', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: null, waveformViewports: null };
 	function fixture(cpu: boolean) {
 		const outputs: GPUTexture[] = [];
 		const pixels: Uint8Array[] = [];
@@ -118,6 +118,21 @@ export async function run() {
 				await f.renderer.setHighResolutionImageAnalysis(true, { ...settings, valueRange: { minimum: 0.5, maximum: 0.5002 } });
 				if ((await f.read())[0][(75 * 256 + 128) * 4] !== 255) throw new Error('High-res reduced float32 precision');
 				checks.push('preserves float32 snapshot precision');
+				// 【元のfloat32保持画像を使い、画像の切替と最新の露出で再解析する】
+				// 表示補正を保持画像へ焼き込んだり、中間のHALF画像へ丸めたりすると、狭い範囲の中央から外れる。
+				const adjustedSettings: PreviewImageAnalysisSettings = { ...settings, target: 'rgb', imageSource: 'previewAdjusted',
+					imageAdjustments: { ...settings.imageAdjustments, exposure: 1 }, valueRange: { minimum: 1, maximum: 1.0004 } };
+				const redOffset = (75 * 256 + 128) * 4 + (format === 'bgra8unorm' ? 2 : 0);
+				await f.renderer.setHighResolutionImageAnalysis(true, adjustedSettings);
+				if ((await f.read())[0][redOffset] !== 128) throw new Error('Adjusted High-res lost exposure or float32 precision');
+				source.destroy();
+				f.renderer.clear();
+				await f.renderer.setHighResolutionImageAnalysis(true, { ...adjustedSettings, imageSource: 'original', valueRange: { minimum: 0.5, maximum: 0.5002 } });
+				if ((await f.read())[0][redOffset] !== 128) throw new Error('Switching High-res source did not restore the original values');
+				await f.renderer.setHighResolutionImageAnalysis(true, { ...adjustedSettings,
+					imageAdjustments: { ...adjustedSettings.imageAdjustments, exposure: 2 }, valueRange: { minimum: 2, maximum: 2.0008 } });
+				if ((await f.read())[0][redOffset] !== 128) throw new Error('High-res did not apply the latest exposure to the original snapshot');
+				checks.push('reanalyzes original and adjusted High-res snapshots with current exposure and float32 precision');
 			} finally { source.destroy(); f.dispose(); }
 		}
 		await checkWaveformOverflow(device);

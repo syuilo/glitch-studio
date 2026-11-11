@@ -98,7 +98,7 @@ export async function run() {
 				await check(resized, 0.25);
 				if (mainFrames !== mainBeforeResize) throw new Error('Waveform resize redrew the main preview');
 				checks.push(`${cpu ? 'CPU' : 'GPU'} resize redraws completed analysis without blank position bins`);
-				const settings: PreviewImageAnalysisSettings = { target: 'vectorX', valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: resized, waveformViewports: null };
+				const settings: PreviewImageAnalysisSettings = { target: 'vectorX', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: resized, waveformViewports: null };
 				await renderer.setHighResolutionImageAnalysis(true, settings);
 				values.fill(0x3a00); // 0.75。リサイズ後も保持した0.25を解析する。
 				device.queue.writeTexture({ texture: source }, values, { bytesPerRow: 1536 * 2 }, [1536, 768]);

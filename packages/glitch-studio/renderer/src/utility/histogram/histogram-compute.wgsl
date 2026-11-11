@@ -23,7 +23,7 @@ struct HistogramSample {
 fn readHistogramSample(samplePosition: vec2u) -> HistogramSample {
 	let sourceSize = textureDimensions(sourceTexture);
 	let coord = min(((samplePosition * 2u + vec2u(1u)) * sourceSize) / (settings.sampleSize * 2u), sourceSize - vec2u(1u));
-	let sample = imageAnalysisSample(textureLoad(sourceTexture, vec2i(coord), 0), settings.mode);
+	let sample = imageAnalysisSample(transformImageSample(textureLoad(sourceTexture, vec2i(coord), 0)), settings.mode);
 	if (sample.weight == 0.0) { return HistogramSample(vec3u(0u), 0u); }
 	let values = clamp(imageValueForScope(sample.values, settings.valueScale, settings.valueRange), vec3f(0.0), vec3f(1.0));
 	return HistogramSample(vec3u(values * 255.0 + vec3f(0.5)), u32(round(sample.weight * 65535.0)));

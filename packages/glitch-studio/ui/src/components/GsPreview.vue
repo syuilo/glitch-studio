@@ -72,16 +72,16 @@ import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } fro
 import { scaleResolution } from '@gs/shared/resolution.js';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.js';
 import { PREVIEW_GAMUT_WARNING_BOUNDS, PREVIEW_GAMUT_WARNING_REFERENCE_GAMUTS } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
-import type { PreviewGamutWarningReferenceGamut } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
-import { PREVIEW_WARNING_IMAGE_SOURCES } from '@gs/glitch-studio_shared/preview-warning-image-source.ts';
-import type { PreviewWarningImageSource } from '@gs/glitch-studio_shared/preview-warning-image-source.ts';
-import type { RgbGamutBounds } from '@gs/shared/rgb-gamut.ts';
+import { PREVIEW_IMAGE_SOURCES } from '@gs/glitch-studio_shared/preview-image-source.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
 import GsPreviewParameterPositions from './GsPreviewParameterPositions.vue';
 import GsPreviewRulers from './GsPreviewRulers.vue';
 import GsPreviewColorView from './GsPreviewColorView.vue';
 import GsLoading from './common/GsLoading.vue';
+import type { RgbGamutBounds } from '@gs/shared/rgb-gamut.ts';
+import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
+import type { PreviewGamutWarningReferenceGamut } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import type { CSSProperties } from 'vue';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import type { PreviewViewportSize } from '@/utility/preview-rulers.ts';
@@ -95,7 +95,7 @@ import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
 const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
-const previewWarningImageSourceLabels = computed<Record<PreviewWarningImageSource, string>>(() => ({
+const previewWarningImageSourceLabels = computed<Record<PreviewImageSource, string>>(() => ({
 	original: i18n.ts._Preview.WarningImageSourceOriginal,
 	previewAdjusted: i18n.ts._Preview.WarningImageSourceAdjusted,
 }));
@@ -104,8 +104,11 @@ const previewGamutWarningEnabled = computed({
 	set: enabled => { previewGamutWarning.value = { ...previewGamutWarning.value, enabled }; },
 });
 const previewGamutWarningReferenceLabels = computed<Record<PreviewGamutWarningReferenceGamut, string>>(() => ({
-	srgb: 'sRGB', displayP3: 'Display P3', rec2020: 'Rec.2020', adobeRgb: 'Adobe RGB',
-	acescg: i18n.ts._Preview.GamutWarningAcescg,
+	srgb: 'sRGB',
+	displayP3: 'Display P3',
+	rec2020: 'Rec.2020',
+	adobeRgb: 'Adobe RGB',
+	acescg: 'ACEScg（AP1 ref）',
 }));
 const previewGamutWarningBoundsLabels = computed<Record<RgbGamutBounds, string>>(() => ({
 	nonNegative: i18n.ts._Preview.GamutWarningBoundsPrimaries,
@@ -452,10 +455,23 @@ function toggleGrid() {
 
 function showHighlightMenu(ev: PointerEvent) {
 	ui.popupMenu([{
+		text: computed(() => `${i18n.ts._Preview.WarningImageSource}: ${previewWarningImageSourceLabels.value[previewWarningImageSource.value]}`),
+		type: 'parent',
+		children: PREVIEW_IMAGE_SOURCES.map(imageSource => ({
+			id: `preview-warning-image-source-${imageSource}`,
+			text: computed(() => previewWarningImageSourceLabels.value[imageSource]),
+			active: computed(() => previewWarningImageSource.value === imageSource),
+			action: () => { previewWarningImageSource.value = imageSource; },
+		})),
+	}, {
+		type: 'divider',
+	}, {
 		text: i18n.ts._Preview.HighlightClipping,
 		icon: 'ti ti-alert-triangle',
 		type: 'switch',
 		ref: highlightClipping,
+	}, {
+		type: 'divider',
 	}, {
 		id: 'preview-gamut-warning',
 		text: i18n.ts._Preview.HighlightOutOfGamut,
@@ -463,22 +479,11 @@ function showHighlightMenu(ev: PointerEvent) {
 		type: 'switch',
 		ref: previewGamutWarningEnabled,
 	}, {
-		text: computed(() => `${i18n.ts._Preview.WarningImageSource}: ${previewWarningImageSourceLabels.value[previewWarningImageSource.value]}`),
-		type: 'parent',
-		children: PREVIEW_WARNING_IMAGE_SOURCES.map(imageSource => ({
-			id: `preview-warning-image-source-${imageSource}`,
-			text: computed(() => previewWarningImageSourceLabels.value[imageSource]),
-			caption: imageSource === 'original' ? i18n.ts._Preview.WarningImageSourceOriginalHint : i18n.ts._Preview.WarningImageSourceAdjustedHint,
-			active: computed(() => previewWarningImageSource.value === imageSource),
-			action: () => { previewWarningImageSource.value = imageSource; },
-		})),
-	}, {
 		text: computed(() => `${i18n.ts._Preview.GamutWarningReference}: ${previewGamutWarningReferenceLabels.value[previewGamutWarning.value.referenceGamut]}`),
 		type: 'parent',
 		children: PREVIEW_GAMUT_WARNING_REFERENCE_GAMUTS.map(referenceGamut => ({
 			id: `preview-gamut-warning-${referenceGamut}`,
 			text: computed(() => previewGamutWarningReferenceLabels.value[referenceGamut]),
-			caption: referenceGamut === 'acescg' ? i18n.ts._Preview.GamutWarningAcescgHint : null,
 			active: computed(() => previewGamutWarning.value.referenceGamut === referenceGamut),
 			action: () => { previewGamutWarning.value = { ...previewGamutWarning.value, referenceGamut }; },
 		})),
@@ -488,7 +493,6 @@ function showHighlightMenu(ev: PointerEvent) {
 		children: PREVIEW_GAMUT_WARNING_BOUNDS.map(bounds => ({
 			id: `preview-gamut-warning-bounds-${bounds}`,
 			text: computed(() => previewGamutWarningBoundsLabels.value[bounds]),
-			caption: bounds === 'nonNegative' ? i18n.ts._Preview.GamutWarningBoundsPrimariesHint : i18n.ts._Preview.GamutWarningBoundsUnitHint,
 			active: computed(() => previewGamutWarning.value.bounds === bounds),
 			action: () => { previewGamutWarning.value = { ...previewGamutWarning.value, bounds }; },
 		})),

@@ -466,20 +466,14 @@
 		"Exposure": "Preview Exposure",
 		"HighlightClipping": "Highlight Clipping",
 		"HighlightSettings": "Highlight Settings",
-		"WarningImageSource": "Warning Image Source",
+		"WarningImageSource": "Stage",
 		"WarningImageSourceOriginal": "Original image",
 		"WarningImageSourceAdjusted": "After display adjustments",
-		"WarningImageSourceOriginalHint": "Evaluate the rendered image before preview exposure, background composition, and gamut compression.",
-		"WarningImageSourceAdjustedHint": "Evaluate after exposure, background composition, and active gamut compression, before sRGB proof clipping.",
 		"HighlightOutOfGamut": "Highlight Out-of-Gamut Colors",
 		"GamutWarningReference": "Gamut Warning Reference",
-		"GamutWarningAcescg": "ACEScg (AP1 reference)",
-		"GamutWarningAcescgHint": "Compare against AP1 primaries. No ACES display transform is applied.",
 		"GamutWarningBounds": "Gamut Warning Bounds",
 		"GamutWarningBoundsPrimaries": "Primary gamut",
-		"GamutWarningBoundsUnit": "0–1 range",
-		"GamutWarningBoundsPrimariesHint": "Detect negative RGB components without an upper brightness limit.",
-		"GamutWarningBoundsUnitHint": "Detect RGB components below 0 or above 1.",
+		"GamutWarningBoundsUnit": "0–1",
 		"AnimatedBackground": "Animated Background",
 		"ShowTimecode": "Show Timecode",
 		"ShowGrid": "Show Grid",
@@ -939,6 +933,7 @@
 	"StatsDisabled": "Stats are disabled",
 	"AnalysisDisabled": "Analysis is disabled",
 	"_ImageAnalysis": {
+		"ImageSource": "Analysis image (RGB only; excludes preview backgrounds)",
 		"NoPreviewFrame": "No preview frame available"
 	}
 }

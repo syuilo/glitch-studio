@@ -9,6 +9,7 @@ import shader from './waveform.wgsl?raw';
 import type { ImageValueRange, ImageValueScale } from '../image-value-scale.ts';
 import type { ImageAnalysisMode } from '../image-analysis.ts';
 import type { ShaderInput } from '../../gpu/shader-input.ts';
+import type { GpuImageSampleTransform } from '../../gpu/image-sample-transform.ts';
 
 // エフェクトのパラメータ定義やCanvasに依存しない共通設定。
 export type WaveformSettings = {
@@ -38,6 +39,8 @@ export function createWaveform(options: {
 	device: GPUDevice;
 	vertexShaderModule: GPUShaderModule;
 	format: GPUTextureFormat;
+	/** 色の用途は呼び出し側が所有し、集計器は任意のRGBA変換だけを受け取る。 */
+	sampleTransform?: GpuImageSampleTransform;
 }) {
 	const { device } = options;
 	const computeLayout = device.createBindGroupLayout({
@@ -51,7 +54,8 @@ export function createWaveform(options: {
 		const generated = generateShaderInputs({ input: 'color' }, { input }, 1, 'level0');
 		const bindings = createShaderInputBindings(device, generated);
 		try {
-			const module = device.createShaderModule({ code: generated.code + '\n' + colorSpaceShader + '\n' + imageValueScaleShader + '\n' + imageAnalysisShader + '\n' + shader });
+			const transformCode = options.sampleTransform?.getShaderCode(2) ?? 'fn transformImageSample(input: vec4f) -> vec4f { return input; }';
+			const module = device.createShaderModule({ code: [generated.code, colorSpaceShader, imageValueScaleShader, imageAnalysisShader, transformCode, shader].join('\n') });
 			return { module, bindings, pipelines: new Map<number, GPUComputePipeline>() };
 		} catch (error) {
 			bindings.dispose();
@@ -120,7 +124,7 @@ export function createWaveform(options: {
 			activePipeline = variant.pipelines.get(pipelineVariant) ?? null;
 			if (activePipeline == null) {
 				activePipeline = device.createComputePipeline({
-					layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout, variant.bindings.layout] }),
+					layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout, variant.bindings.layout, ...(options.sampleTransform == null ? [] : [options.sampleTransform.bindGroupLayout])] }),
 					compute: { module: variant.module, entryPoint: 'accumulate', constants: {
 						usePartialSums: Number(usePartialSums), usePositionRange: Number(usePositionRange), useValueWindow: Number(useValueWindow),
 					} },
@@ -186,6 +190,7 @@ export function createWaveform(options: {
 			pass.setPipeline(activePipeline);
 			pass.setBindGroup(0, computeGroup);
 			pass.setBindGroup(1, inputGroup);
+			if (options.sampleTransform != null) pass.setBindGroup(2, options.sampleTransform.getBindGroup());
 			pass.dispatchWorkgroups(Math.ceil(integers[4] / 16), Math.ceil(integers[5] / 16));
 			if (reduceGroup == null || reducePipeline == null) return;
 			pass.setPipeline(reducePipeline);

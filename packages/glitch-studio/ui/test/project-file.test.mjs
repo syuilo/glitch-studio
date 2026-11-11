@@ -237,7 +237,7 @@ test('integrates held analysis with preview switching settings and worker recrea
 	assert.equal(timeline.renders.length, renders);
 	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
 	assert.equal(visualModule.highResolutionAnalysisRequests.length, 0);
-	assert.deepEqual(appContext.displayedImageAnalysisSettings.value, { target: 'vectorLength', valueScale: 'linear', valueRange: { minimum: -0.5, maximum: 0.5 }, waveformCanvasSizes: null, waveformViewports: null });
+	assert.deepEqual(appContext.displayedImageAnalysisSettings.value, { target: 'vectorLength', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: -0.5, maximum: 0.5 }, waveformCanvasSizes: null, waveformViewports: null });
 	appContext.previewPlayback.startVisualModuleLivePreview('visual-module');
 	await setImmediate();
 	assert.equal(appContext.activePreviewRenderer.value, visualModule);
@@ -257,6 +257,65 @@ test('integrates held analysis with preview switching settings and worker recrea
 	assert.equal(highResolution.active.value, false);
 	assert.equal(highResolution.source.value, null);
 	assert.ok([timeline, visualModule].every(controller => controller.initialDynamicOptions.analysisPaused !== true));
+});
+
+// 【ヒストグラムと両波形の解析画像を共通に切り替え、保持画像には現在の表示調整だけを再適用する】
+// 警告の判定対象とは独立させ、Alpha・ベクトルは元画像の数値を使う。
+// 背景や警告表示の変更では保持解析をやり直さず、作品の保存内容とUndo履歴も変えない。
+test('shares the analysis image source and reanalyzes held RGB only for display adjustments', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	appContext.previewPlayback.showTimeline();
+	const controllers = [appContext.timelineRendererManagerController, appContext.visualModuleRendererManagerController];
+	const timeline = controllers[0];
+	const highResolution = appContext.highResolutionImageAnalysis;
+	const before = appContext.projectContext.snapshot();
+	const historyLength = appContext.projectContext.stateManager.undoStack.value.length;
+	assert.ok(controllers.every(controller => controller.initialDynamicOptions.analysisImageSource === 'original'));
+	appContext.analysisImageSource.value = 'previewAdjusted';
+	await setImmediate();
+	assert.ok(controllers.every(controller => controller.options.analysisImageSource === 'previewAdjusted'));
+	assert.equal(appContext.previewWarningImageSource.value, 'original');
+	for (const target of ['alpha', 'vectorX', 'vectorY', 'vectorLength', 'rgb']) {
+		appContext.analysisTarget.value = target;
+		await setImmediate();
+		assert.equal(appContext.displayedImageAnalysisSettings.value.imageSource, target === 'rgb' ? 'previewAdjusted' : 'original');
+		assert.equal(appContext.analysisImageSource.value, 'previewAdjusted');
+	}
+	await appContext.toggleHighResolutionImageAnalysis();
+	assert.equal(timeline.highResolutionAnalysisRequests.length, 1);
+	appContext.previewExposure.value = 2;
+	appContext.previewGamutCompression.value = { mode: 'custom', customAmount: 0.75 };
+	appContext.previewSrgbProof.value = true;
+	await setImmediate();
+	highResolution.flush();
+	await setImmediate();
+	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
+	assert.deepEqual(timeline.highResolutionAnalysisRequests.at(-1).settings.imageAdjustments, {
+		exposure: 2, srgbProof: true, gamutCompression: { mode: 'custom', customAmount: 0.75 },
+	});
+	window.testPreferences.animatedBgInPreview = !window.testPreferences.animatedBgInPreview;
+	appContext.highlightClipping.value = true;
+	appContext.previewWarningImageSource.value = 'previewAdjusted';
+	appContext.previewGamutWarning.value = { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' };
+	await setImmediate();
+	highResolution.flush();
+	await setImmediate();
+	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
+	appContext.analysisImageSource.value = 'original';
+	highResolution.flush();
+	await setImmediate();
+	assert.equal(timeline.highResolutionAnalysisRequests.length, 3);
+	appContext.previewExposure.value = -3;
+	await setImmediate();
+	highResolution.flush();
+	await setImmediate();
+	assert.equal(timeline.highResolutionAnalysisRequests.length, 3);
+	assert.equal(appContext.projectContext.stateManager.undoStack.value.length, historyLength);
+	assert.deepEqual(appContext.projectContext.snapshot(), before);
+	await appContext.toggleHighResolutionImageAnalysis();
+	assert.ok(controllers.every(controller => controller.options.analysisImageSource === 'original'));
 });
 
 // 【波形パネルの実寸変更は通常時も保持中も作品を再描画せず、最新の解析寸法を反映する】
