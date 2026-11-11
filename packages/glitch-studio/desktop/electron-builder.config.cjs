@@ -55,6 +55,8 @@ module.exports = {
 		{ from: 'resources/icon.ico', to: 'icon.ico' },
 	],
 	asar: true,
+	// UIの対応言語に合わせ、Electronの言語リソースも日英だけを同梱して配布サイズを抑える。
+	electronLanguages: ['en-US', 'ja'],
 	npmRebuild: false,
 	win: {
 		target: [{ target: 'nsis', arch: ['x64'] }],
