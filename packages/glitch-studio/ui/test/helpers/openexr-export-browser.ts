@@ -1,4 +1,5 @@
 import { exportTimeline } from '../../src/export/client.ts';
+import { BrowserExportFile } from '../../src/export/browser-export-file.ts';
 import type { ExportProgress } from '../../src/export/timeline-export.ts';
 import type { ExportRequest } from '../../src/export/types.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -35,9 +36,19 @@ function getOpenExrResolution(buffer: ArrayBuffer) {
 }
 
 async function collectExport(job: ExportRequest, signal: AbortSignal, onProgress: (progress: ExportProgress) => void): Promise<ArrayBuffer> {
-	const chunks: Blob[] = [];
-	await exportTimeline(job, signal, onProgress, async chunk => { chunks.push(new Blob([chunk])); });
-	return new Blob(chunks).arrayBuffer();
+	const root = await navigator.storage.getDirectory();
+	const directoryName = 'glitch-export-test-' + crypto.randomUUID();
+	const directory = await root.getDirectoryHandle(directoryName, { create: true });
+	const name = 'output.' + job.settings.format;
+	const writer = new BrowserExportFile({ directory, name, handle: null });
+	try {
+		const size = await exportTimeline(job, signal, onProgress, async (chunk, _totalBytes, position) => writer.write(chunk, position));
+		await writer.finish(size);
+		return await (await (await directory.getFileHandle(name)).getFile()).arrayBuffer();
+	} finally {
+		await writer.abort();
+		await root.removeEntry(directoryName, { recursive: true });
+	}
 }
 
 async function exportAndReadStillResolution(format: 'exr' | 'webp', resolution: { width: number; height: number }, motionBlurEnabled: boolean) {

@@ -234,6 +234,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private fallbackTexture: GPUTexture;
 	private sceneOutput: ReturnType<typeof createSceneOutput> | null = null;
 	private imageExportOutput: LinearImageReadback | SrgbImageReadback | null = null;
+	private renderingResourcesReleased = false;
 	private assetTextures: AssetTextures;
 	private readonly resources: TimelineRendererManagerResources;
 	private audioInputs: TimelineAudioInputs;
@@ -1226,7 +1227,10 @@ export class TimelineRendererManager extends EventEmitter<{
 		};
 	}
 
-	public destroy() {
+	/** 最後の描画後に呼ぶ。返却済みの書き出し画像はDeviceを借用し、読み戻しを続ける。 */
+	public releaseRenderingResources(): void {
+		if (this.renderingResourcesReleased) return;
+		this.renderingResourcesReleased = true;
 		this.pendingVisualModuleValueChanges.clear();
 		this.pendingVisualModuleValueRevision = null;
 		if (this.frameCacheReportIntervalId != null) clearInterval(this.frameCacheReportIntervalId);
@@ -1236,6 +1240,11 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.audioInputs.dispose();
 		this.assetTextures.dispose();
 		this.canvasRenderer.destroy();
+		this.fallbackTexture.destroy();
+	}
+
+	public destroy() {
+		this.releaseRenderingResources();
 		this.gpuDevice?.destroy();
 	}
 

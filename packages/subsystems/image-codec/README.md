@@ -14,11 +14,13 @@ WASM32のheapは最大4GiBまで成長します。Memory64は使いません。�
 
 ## OpenEXR
 
-`OpenExrEncoder.create()`でHALF RGBAのscanline encoderを作成し、上から順に`writeBlock()`へ画素を渡します。ZIPは16行、無圧縮は1行で、最終ブロックだけ残りの行数です。画素は未変換のhalfビット列（`Uint16Array`）、乗算済みlinear sRGBです。RGBのHDR・負値・alpha=0の発光を保持し、`chromaticities`と`colorInteropID=lin_rec709_scene`を記録します。
+`OpenExrEncoder.create({ width, height, compression }, writeChunk)`でHALF RGBAのscanline encoderを作成し、上から順に`await writeBlock()`へ画素を渡します。ZIPは16行、無圧縮は1行で、最終ブロックだけ残りの行数です。画素は未変換のhalfビット列（`Uint16Array`）、乗算済みlinear sRGBです。RGBのHDR・負値・alpha=0の発光を保持し、`chromaticities`と`colorInteropID=lin_rec709_scene`を記録します。
 
-`finish()`は独立した`ArrayBuffer`を返してnative資源を解放します。中断・失敗時は`dispose()`を呼びます。ブロックごとにJSへ戻るため、呼び出し側がGPU読み戻し・進捗・中断を管理できます。WASMのheapは成長し得るので、そのviewを呼び出し間で保持しません。実行は呼び出し側のWorkerで行い、Worker終了時にWASMメモリ全体も回収します。
+`writeChunk(chunk, position)`は最大1MiBの借用viewとファイル位置を受け取ります。初期ヘッダーの作成時から呼ばれ、Promiseが解決するまでJSPIでC側の処理を待ちます。保存完了前に次の出力を作らず、ファイル全体のバッファや未処理チャンクをWASMへ蓄積しません。offset tableの後書きも位置指定で渡すため、保存先は追記だけでなく任意の位置への書き込みが必要です。保存先・GPU・Canvas・Worker通信は呼び出し側が所有します。
 
-寸法はOpenEXRのwindow座標に合わせて正の符号付き32bit整数を受け付け、描画側の寸法制限は呼び出し側が扱います。8192pxの固定上限とTinyEXR既定の1GiBファイル制限は設けず、16K HALF RGBAの無圧縮出力も扱えるようWASM heapは最大4GiBまで成長を許可します。ブロック単位の画素制限は維持します。出力は1MiB単位のchunkに保持し、巨大な連続領域の再確保による一時的なメモリ倍増を避けます。offset tableは同じchunkへ書き戻し、`finish()`でJSの連続した`ArrayBuffer`へコピーします。ファイル全体はWASMとJSに一時的に存在するため、実際の出力サイズは利用可能なメモリにも依存します。
+`await finish()`はファイル長を返し、native資源を解放します。中断・失敗時は`dispose()`を呼びますが、保存待ち中の再入や破棄は拒否します。即時中断は呼び出し側でWorkerを終了して行います。保存先の例外は元の原因を返します。WASMのviewはwriterのPromiseが完了するまで有効で、保持・transferする側が必要なチャンクだけコピーします。
+
+寸法はOpenEXRのwindow座標に合わせて正の符号付き32bit整数を受け付け、GPUの上限は呼び出し側が扱います。TinyEXR既定の1GiBファイル制限は外し、ブロック単位の画素制限は維持します。圧縮用のWASM heapは最大4GiBですが、累積ファイル位置は64bitで管理し、JavaScriptの安全な整数範囲で受け渡します。出力全体をWASMやJavaScriptの連続配列へ保持しないため、ファイル長をWASMのアドレス空間に結び付けません。
 
 ## WASMの再ビルド
 
@@ -40,6 +42,6 @@ libwebpのBSD 3-Clauseライセンスと追加特許許諾を`src/codec/LICENSE.
 
 ブラウザテストは対応GPUで8192pxを超える各軸の寸法上限までEXRとWebPを保存し、出力の寸法を読み返します。`LARGE_STILL_EXPORT_TEST=1`も指定すると9000×9000のEXR・WebP書き出しを追加します。この追加検証は数GiBのVRAMを使用します。
 
-コーデックのテストに`LARGE_OPENEXR_CODEC_TEST=1`を指定すると、16384×16384の無圧縮EXRを実際に生成し、2GiBを超えるファイル長と最終scanlineを検証します。この追加検証は数GiBのRAMを使用します。
+コーデックのテストに`LARGE_OPENEXR_CODEC_TEST=1`を指定すると、16384×16384の無圧縮EXRを実際に生成し、2GiBを超えるファイル長・最終scanline・WASM heapが64MiB以下であることを検証します。入力も一行だけ保持し、一時ファイルへ逐次保存します。この追加検証は約2GiBのディスクを使用し、終了時に削除します。
 
 WebPのテストは別実装のデコーダーでRGBAを照合し、非同期writerの完了待ち、保存失敗、入力不備、配布WASMの4GiB宣言も検証します。`LARGE_WEBP_CODEC_TEST=1`で16383×16383の画像をブロック入力し、復号後の全画素のハッシュを照合します。この追加検証は数GiBのRAMを使用します。

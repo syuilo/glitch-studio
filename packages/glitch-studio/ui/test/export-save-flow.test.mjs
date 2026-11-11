@@ -8,6 +8,8 @@ import { parse } from 'vue/compiler-sfc';
 import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
 import { build, transform } from 'esbuild';
 import { getExportProgressFraction } from '../src/export/timeline-export.ts';
+import { BrowserExportFile } from '../src/export/browser-export-file.ts';
+import { createExportDirectory } from './helpers/export-directory.mjs';
 
 const activityBundle = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)), entryPoints: ['./src/application-activity.ts'],
@@ -29,7 +31,7 @@ const rendererAssetsModule = { exports: {} };
 new Function('module', 'exports', rendererAssetsCode)(rendererAssetsModule, rendererAssetsModule.exports);
 const { getRendererAssets } = rendererAssetsModule.exports;
 
-function fixture({ browser = false, choose = null, save = null, suspend = null, resume = null, renderError = null } = {}) {
+function fixture({ browser = false, choose = null, save = null, suspend = null, resume = null, renderError = null, encode = null } = {}) {
 	const events = [];
 	const exportRequests = [];
 	const ref = value => ({ value });
@@ -53,6 +55,8 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 	};
 	const context = {
 		getExportProgressFraction,
+		BrowserExportFile,
+		selectBrowserOpenExrSaveFile: async name => { events.push(['choose-browser', name]); return await choose?.() ?? null; },
 		saveExportSettings() {},
 		applicationActivity: new ApplicationActivity(),
 		i18n,
@@ -68,12 +72,14 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 			async suspendPreview() { events.push(['suspend']); await suspend?.(); },
 			async resumePreview() { events.push(['resume']); await resume?.(); },
 		},
-		async exportTimeline(request, _signal, onProgress, writeChunk) {
+		async exportTimeline(request, signal, onProgress, writeChunk) {
 			exportRequests.push(request);
 			events.push(['render']);
 			if (renderError != null) throw renderError;
+			if (encode != null) return encode(request, signal, onProgress, writeChunk);
 			onProgress({ phase: 'finalizing', completedFrames: 3, totalFrames: 3 });
-			await writeChunk(new Uint8Array([1, 2, 3]), 3);
+			await writeChunk(new Uint8Array([1, 2, 3]), 3, 0);
+			return 3;
 		},
 		setTaskbarProgress: value => { events.push(['progress', value]); },
 		navigator: { gpu: { getPreferredCanvasFormat: () => 'bgra8unorm' } },
@@ -146,7 +152,8 @@ test('waits for the save choice before rendering and for saving before notifying
 	assert.equal(f.context.applicationActivity.isExporting.value, true);
 	choice.resolve({ id: 'selected', name: 'custom.mp4' });
 	await saving.promise;
-	assert.equal(f.context.savingFile.value, true);
+	// 圧縮と保存が交互に進む間も中断を受け付け、最終コミットだけを中断不可にする。
+	assert.equal(f.context.savingFile.value, false);
 	assert.equal(f.context.applicationActivity.isExporting.value, true);
 	assert.equal(f.context.status.value, '');
 	assert.equal(f.events.some(([name]) => name === 'notify' || name === 'download'), false);
@@ -158,6 +165,46 @@ test('waits for the save choice before rendering and for saving before notifying
 	]);
 	assert.equal(f.context.exporting.value, false);
 	assert.equal(f.context.applicationActivity.isExporting.value, false);
+});
+
+// 【ブラウザー版EXRは保存先の選択後に描画し、後書きを反映してから確定する】
+// 全出力のBlobを組み立てず、フォルダーの既存ファイルを保存完了まで保持する。
+test('streams browser OpenEXR to the chosen file and commits its header patches', async () => {
+	const directory = createExportDirectory(new Uint8Array([9]));
+	const choice = Promise.withResolvers();
+	const f = fixture({ browser: true, choose: () => choice.promise,
+		encode: async (_request, _signal, _onProgress, write) => {
+			await write(new Uint8Array([1, 2, 3]), null, 0);
+			await write(new Uint8Array([7]), null, 1);
+			assert.deepEqual(directory.content, new Uint8Array([9]));
+			return 3;
+		} });
+	f.context.settings.value = { format: 'exr', compression: 'zip', width: 1, height: 1, positionMs: 0 };
+	const job = f.doExport();
+	assert.deepEqual(f.events, [['choose-browser', 'Project-Scene.exr']]);
+	choice.resolve({ directory: directory.directory, name: 'output.exr', handle: directory.handle });
+	await job;
+	assert.equal(f.context.error.value, '');
+	assert.deepEqual(directory.content, new Uint8Array([1, 7, 3]));
+	assert.equal(f.events.some(([event]) => event === 'download'), false);
+	assert.equal(f.context.downloadUrl.value, '');
+	assert.equal(f.context.status.value, i18n.ts._Export.Complete);
+});
+
+// 【ブラウザー版EXRの保存先選択の取り消しと書き込み失敗を、既存出力へ反映しない】
+// デスクトップ版と同じく、描画開始前の取り消しと圧縮中の失敗で確定を分ける。
+test('preserves browser export targets on canceled selection and encoding failure', async () => {
+	for (const cancel of [true, false]) {
+		const directory = createExportDirectory(new Uint8Array([9]));
+		const f = fixture({ browser: true, choose: async () => cancel ? null : { directory: directory.directory, name: 'output.exr', handle: directory.handle },
+			encode: async (_request, _signal, _onProgress, write) => { await write(new Uint8Array([1]), null, 0); throw new Error('encoding failed'); } });
+		f.context.settings.value = { format: 'exr', compression: 'zip', width: 1, height: 1, positionMs: 0 };
+		await f.doExport();
+		assert.deepEqual(directory.content, new Uint8Array([9]));
+		assert.equal(f.events.some(([event]) => event === 'download'), false);
+		assert.equal(f.events.some(([event]) => event === 'render'), !cancel);
+		assert.equal(directory.events.some(([event]) => event === 'close'), false);
+	}
 });
 
 // 【保存ダイアログをキャンセルしたら描画せず、前回のダウンロードも保持する】

@@ -38,11 +38,11 @@ type FrameExportProgress = {
 };
 
 export type ExportProgress = FrameExportProgress | { phase: 'encoding-exr'; completedBlocks: number; totalBlocks: number }
-	| { phase: 'saving'; completedBytes: number; totalBytes: number };
+	| { phase: 'saving'; completedBytes: number; totalBytes: number | null };
 
 export function getExportProgressFraction(progress: ExportProgress): number | null {
 	const fraction = progress.phase === 'encoding-exr' ? progress.completedBlocks / progress.totalBlocks
-		: progress.phase === 'saving' ? progress.completedBytes / progress.totalBytes
+		: progress.phase === 'saving' ? progress.totalBytes == null ? null : progress.completedBytes / progress.totalBytes
 			: progress.phase === 'rendering' && progress.totalFrames > 0 ? progress.completedFrames / progress.totalFrames : null;
 	return fraction == null || !Number.isFinite(fraction) ? null : Math.max(0, Math.min(1, fraction));
 }

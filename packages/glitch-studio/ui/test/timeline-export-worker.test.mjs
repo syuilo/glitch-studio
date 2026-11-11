@@ -32,7 +32,7 @@ function fixture(maxTextureDimension2D = 16384) {
 	let instance;
 	let deviceSettings;
 	let destroyed = false;
-	const device = { addEventListener() {}, lost: new Promise(() => {}), destroy() {} };
+	const device = { queue: { async onSubmittedWorkDone() {} }, addEventListener() {}, lost: new Promise(() => {}), destroy() {} };
 	class GPUCanvasContext {
 		constructor(canvas) { this.canvas = canvas; }
 		unconfigure() {}
@@ -79,6 +79,7 @@ function fixture(maxTextureDimension2D = 16384) {
 				return this.srgbImage;
 			}
 			destroy() { destroyed = true; }
+			releaseRenderingResources() { this.renderingResourcesReleased = true; }
 		},
 		async createMp4Writer(canvas, settings) {
 			encodings.push({ canvas, settings });
@@ -93,12 +94,15 @@ function fixture(maxTextureDimension2D = 16384) {
 				await write(new Uint8Array([1, 2, 3, 4]), 4, 4);
 			}, dispose() { instance.encoderDisposed = true; } };
 		},
-		async encodeStillOpenExr(image, settings, signal, onProgress) {
+		async encodeStillOpenExr(image, settings, signal, onProgress, writeChunk) {
 			encodings.push({ image, settings });
+			instance.renderingResourcesReleasedBeforeEncoding = instance.renderingResourcesReleased;
 			signal.throwIfAborted();
 			if (instance.encodingError != null) throw instance.encodingError;
 			onProgress({ phase: 'encoding-exr', completedBlocks: 1, totalBlocks: 2 });
-			return new ArrayBuffer(4);
+			await writeChunk(new Uint8Array([1, 2, 3, 4]), 0);
+			await writeChunk(new Uint8Array([9]), 1);
+			return 4;
 		},
 	};
 	const self = { postMessage(message) {
@@ -149,7 +153,7 @@ for (const format of ['webp', 'exr']) {
 				assert.equal(f.instance.imageDisposedBeforeEncoding, true);
 				assert.equal(f.instance.encoderDisposed, true);
 			} else {
-				assert.deepEqual([f.canvases[0].width, f.canvases[0].height], [resolution.width, resolution.height]);
+			assert.deepEqual([f.canvases[0].width, f.canvases[0].height], [1, 1]);
 			}
 			assert.equal(f.encodings[0].settings.width, resolution.width);
 			assert.equal(f.encodings[0].settings.height, resolution.height);
@@ -197,6 +201,7 @@ for (const failing of [false, true]) {
 		assert.equal(f.encodings[0].image, f.instance.linearImage);
 		assert.equal(f.instance.dynamicOptions.opaqueOutput, false);
 		assert.equal(f.instance.imageDisposed, true);
+		assert.equal(f.instance.renderingResourcesReleasedBeforeEncoding, true);
 		assert.equal(f.destroyed, true);
 		assert.equal(f.messages.at(-1).type, failing ? 'error' : 'complete');
 		if (!failing) assert.ok(f.messages.some(message => message.progress?.phase === 'encoding-exr' && message.progress.completedBlocks === 1));

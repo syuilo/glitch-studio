@@ -42,14 +42,14 @@ export function registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMa
 		getTrustedMainWindow(event);
 		return exportFiles.begin(id, totalBytes);
 	});
-	ipcMain.handle('desktop:append-export-file', async (event, id, data) => {
+	ipcMain.handle('desktop:append-export-file', async (event, id, data, position) => {
 		getTrustedMainWindow(event);
-		const progress = await exportFiles.append(id, data);
+		const progress = await exportFiles.append(id, data, position);
 		if (event.sender != null && !event.sender.isDestroyed()) event.sender.send('desktop:export-file-progress', { id, ...progress });
 	});
-	ipcMain.handle('desktop:finish-export-file', (event, id) => {
+	ipcMain.handle('desktop:finish-export-file', (event, id, totalBytes) => {
 		getTrustedMainWindow(event);
-		return exportFiles.finish(id);
+		return exportFiles.finish(id, totalBytes);
 	});
 	ipcMain.handle('desktop:release-export-file', (event, id) => {
 		getTrustedMainWindow(event);

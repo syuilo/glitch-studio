@@ -83,6 +83,8 @@ import { preferences } from '@/preferences.ts';
 import { appContext } from '@/app.ts';
 import { applicationActivity } from '@/application-activity.ts';
 import { exportTimeline } from '@/export/client.ts';
+import { BrowserExportFile } from '@/export/browser-export-file.ts';
+import { selectBrowserOpenExrSaveFile } from '@/export/select-browser-openexr-save-file.ts';
 import { getExportMaxDimension, getExportProgressFraction, validateExportSettings } from '@/export/timeline-export.ts';
 import { adjustExportResolution, createDefaultExportDialogSettings, estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
 import { hasExportAudio, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
@@ -196,7 +198,7 @@ const progressFraction = computed(() => getExportProgressFraction(progress.value
 const progressPercent = computed(() => Math.min(99, (progressFraction.value ?? 0) * 100));
 const progressText = computed(() => {
 	const value = progress.value;
-	if (value.phase === 'saving') return i18n.tsx._Export.SavingBytes({ completed: (value.completedBytes / 1024 ** 2).toFixed(1), total: (value.totalBytes / 1024 ** 2).toFixed(1), percent: Math.floor(progressPercent.value) });
+	if (value.phase === 'saving') return value.totalBytes == null ? i18n.ts._Export.Saving : i18n.tsx._Export.SavingBytes({ completed: (value.completedBytes / 1024 ** 2).toFixed(1), total: (value.totalBytes / 1024 ** 2).toFixed(1), percent: Math.floor(progressPercent.value) });
 	if (value.phase === 'encoding-exr') return i18n.tsx._Export.EncodingOpenExr({ completed: value.completedBlocks, total: value.totalBlocks, percent: Math.floor(progressPercent.value) });
 	if (savingFile.value) return i18n.ts._Export.Saving;
 	if (progress.value.phase === 'preparing') return i18n.ts._Export.Preparing;
@@ -242,6 +244,8 @@ async function doExport() {
 	const signal = abortController.signal;
 	const desktop = window.desktop;
 	let exportSaveFile: { id: string; name: string } | null = null;
+	let browserExportFile: BrowserExportFile | null = null;
+	let browserExportName: string | null = null;
 	let previewDisposed = false;
 	const saveProgressSubscription: { stop: (() => void) | null } = { stop: null };
 	try {
@@ -261,11 +265,20 @@ async function doExport() {
 			exportSaveFile = await desktop.chooseExportSaveFile(suggestedName, exportSettings.format);
 			choosingSaveFile.value = false;
 			if (exportSaveFile == null) return;
+		} else if (exportSettings.format === 'exr') {
+			// 保存ダイアログで既存ファイルを切り詰めないよう、プロジェクト保存と同じく
+			// フォルダーと名前を選ぶ。書き込み開始まで新規ファイルも作成しない。
+			choosingSaveFile.value = true;
+			const target = await selectBrowserOpenExrSaveFile(suggestedName);
+			choosingSaveFile.value = false;
+			if (target == null) return;
+			browserExportFile = new BrowserExportFile(target);
+			browserExportName = target.name;
 		}
 		signal.throwIfAborted();
 		if (downloadUrl.value) URL.revokeObjectURL(downloadUrl.value);
 		downloadUrl.value = '';
-		downloadName.value = exportSaveFile?.name ?? suggestedName;
+		downloadName.value = exportSaveFile?.name ?? browserExportName ?? suggestedName;
 		// 準備やエンコードは残り時間を計算できないため、Windowsでは処理中表示にする。
 		setTaskbarProgress(2);
 		const exportProject = deepClone({
@@ -297,7 +310,7 @@ async function doExport() {
 		// VueのProxyを外し、編集中の状態とWorkerの状態を独立させる。
 		const downloadParts: Blob[] = [];
 		let saveStarted = false;
-		await exportTimeline({
+		const totalBytes = await exportTimeline({
 			settings: exportSettings,
 			resolutionScale: exportResolutionScale,
 			project: deepClone(exportProject),
@@ -306,12 +319,11 @@ async function doExport() {
 			progress.value = value;
 			const fraction = getExportProgressFraction(value);
 			setTaskbarProgress(fraction == null ? 2 : Math.min(0.99, fraction));
-		}, async (chunk, totalBytes) => {
+		}, async (chunk, totalBytes, position) => {
 			signal.throwIfAborted();
 			if (desktop != null && exportSaveFile != null) {
 				const targetId = exportSaveFile.id;
 				if (!saveStarted) {
-					savingFile.value = true;
 					progress.value = { phase: 'saving', completedBytes: 0, totalBytes };
 					setTaskbarProgress(0);
 					saveProgressSubscription.stop = desktop.onExportFileProgress(value => {
@@ -322,7 +334,9 @@ async function doExport() {
 					await desktop.beginExportFile(targetId, totalBytes);
 					saveStarted = true;
 				}
-				await desktop.appendExportFile(targetId, chunk);
+				await desktop.appendExportFile(targetId, chunk, position);
+			} else if (browserExportFile != null) {
+				await browserExportFile.write(chunk, position);
 			} else {
 				// ブラウザーのダウンロードはBlobを必要とする。小さなBlobへ移しておき、
 				// 全ファイル分の連続したJavaScript配列やWorkerへのコピーを作らない。
@@ -332,7 +346,11 @@ async function doExport() {
 		signal.throwIfAborted();
 		if (desktop != null && exportSaveFile != null) {
 			if (!saveStarted) throw new Error('The export contains no save data.');
-			await desktop.finishExportFile(exportSaveFile.id);
+			savingFile.value = true;
+			await desktop.finishExportFile(exportSaveFile.id, totalBytes);
+		} else if (browserExportFile != null) {
+			savingFile.value = true;
+			await browserExportFile.finish(totalBytes);
 		} else {
 			downloadUrl.value = URL.createObjectURL(new Blob(downloadParts, { type: { mp4: 'video/mp4', webp: 'image/webp', exr: 'image/x-exr' }[exportSettings.format] }));
 			const link = window.document.createElement('a');
@@ -340,13 +358,14 @@ async function doExport() {
 			link.download = downloadName.value;
 			link.click();
 		}
-		status.value = desktop == null ? i18n.ts._Export.DownloadStarted : i18n.ts._Export.Complete;
+		status.value = desktop == null && browserExportFile == null ? i18n.ts._Export.DownloadStarted : i18n.ts._Export.Complete;
 		// Electron版では保存の成功後に通知し、通知の失敗をエクスポート失敗として扱わない。
 		void desktop?.notifyExportComplete(downloadName.value).catch(console.error);
 	} catch (cause) {
 		if (signal.aborted) status.value = i18n.ts._Export.Canceled;
 		else error.value = cause instanceof Error ? cause.message : String(cause);
 	} finally {
+		await browserExportFile?.abort().catch(console.error);
 		saveProgressSubscription.stop?.();
 		if (exportSaveFile != null) await desktop?.releaseExportFile(exportSaveFile.id).catch(console.error);
 		choosingSaveFile.value = false;

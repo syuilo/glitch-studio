@@ -48,6 +48,36 @@ test('commits streamed export chunks only after finishing the complete file', as
 	assert.deepEqual(await fs.readdir(h.directory), ['export.mp4']);
 });
 
+// 【長さ未確定のEXRを位置指定で保存し、offset tableの後書き後にだけ公開する】
+// 追記専用の保存ではヘッダーが壊れ、既知の総サイズを必須にするとZIPを逐次保存できない。
+test('commits unknown-length exports with positioned header patches', async t => {
+	const h = await fixture(t);
+	await fs.writeFile(h.file, new Uint8Array([9]));
+	const target = h.exportFiles.register(h.file);
+	await h.invoke('begin-export-file', target.id, null);
+	await h.invoke('append-export-file', target.id, new Uint8Array([1, 2, 3, 4]), 0);
+	await h.invoke('append-export-file', target.id, new Uint8Array([7, 8]), 1);
+	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([9]));
+	await h.invoke('finish-export-file', target.id, 4);
+	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([1, 7, 8, 4]));
+});
+
+// 【位置指定出力にも穴・不正な位置・最終長の不一致を許さず、失敗時は旧出力を守る】
+// 長さ未確定の経路で検証を緩めると、不完全なファイルを成功として置換してしまう。
+test('rejects holes and incomplete lengths in positioned export sessions', async t => {
+	const h = await fixture(t);
+	await fs.writeFile(h.file, new Uint8Array([9]));
+	for (const mode of ['hole', 'negative', 'incomplete', 'unknown']) {
+		const target = h.exportFiles.register(h.file);
+		await h.invoke('begin-export-file', target.id, null);
+		await h.invoke('append-export-file', target.id, new Uint8Array([1]), 0);
+		if (mode === 'hole' || mode === 'negative') await assert.rejects(h.invoke('append-export-file', target.id, new Uint8Array([2]), mode === 'hole' ? 2 : -1), /Invalid/);
+		else await assert.rejects(h.invoke('finish-export-file', target.id, mode === 'incomplete' ? 2 : null), /incomplete/);
+		assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([9]));
+	}
+	assert.deepEqual(await fs.readdir(h.directory), ['export.mp4']);
+});
+
 // 【途中で中断・入力超過・入力不足が起きた出力は、保存先へ反映せず破棄する】
 // チャンクを書き始めた段階で宛先を更新すると、圧縮失敗や中断で既存ファイルが壊れてしまう。
 test('discards streamed exports on cancellation, excess data, and incomplete finish', async t => {

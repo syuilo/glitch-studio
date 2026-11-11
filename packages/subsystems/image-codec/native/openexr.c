@@ -1,5 +1,6 @@
 #include "exr.h"
 #include "exr_internal.h"
+#include <emscripten.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,43 +13,26 @@ typedef struct {
 	exr_writer *writer;
 	uint16_t *pixels;
 	uint16_t *planes;
-	uint8_t **output_chunks;
-	size_t size, position, chunk_count;
+	uint64_t size, position;
 	int width, height, rows_per_block, next_row;
 } openexr_encoder;
 
-static exr_result reserve_output(openexr_encoder *encoder, size_t end) {
-	/* 巨大な連続領域をreallocすると旧領域と新領域が同時に必要になり、出力が
-	 * 1GiB程度でもWASM32の上限に達し得る。固定長のchunkで出力を保持し、
-	 * 最後にJSが独立したArrayBufferへコピーする。offset tableの書き戻しも
-	 * 同じchunkへ行うため、ストリーム出力のseek契約はそのまま維持できる。 */
-	size_t count = end / OUTPUT_CHUNK_SIZE + (end % OUTPUT_CHUNK_SIZE != 0);
-	if (count > encoder->chunk_count) {
-		void *chunks = realloc(encoder->output_chunks, count * sizeof(uint8_t *));
-		if (chunks == NULL) return EXR_ERROR_OUT_OF_MEMORY;
-		encoder->output_chunks = chunks;
-		while (encoder->chunk_count < count) {
-			uint8_t *chunk = malloc(OUTPUT_CHUNK_SIZE);
-			if (chunk == NULL) return EXR_ERROR_OUT_OF_MEMORY;
-			encoder->output_chunks[encoder->chunk_count++] = chunk;
-		}
-	}
-	return EXR_SUCCESS;
-}
+/* 保存完了を待ってから次のデータを作り、遅い保存先に対して未処理の出力を蓄積しない。
+ * ファイル位置はWASM32のポインターとは別の64bit値で持ち、2/4GiB境界で切り詰めない。 */
+EM_ASYNC_JS(int, openexr_write_chunk, (const uint8_t *data, size_t length, double position), {
+	data >>>= 0; length >>>= 0;
+	return await Module['writeChunk'](HEAPU8.subarray(data, data + length), position);
+});
 
 static exr_result write_output(void *user, const void *data, size_t length) {
 	openexr_encoder *encoder = user;
-	if (length > SIZE_MAX - encoder->position) return EXR_ERROR_LIMIT_EXCEEDED;
-	size_t end = encoder->position + length;
-	exr_result result = reserve_output(encoder, end);
-	if (!EXR_OK(result)) return result;
+	/* JSへ正確な位置を渡せる範囲を守り、累積ファイル長をWASM heapから分離する。 */
+	if (length > 9007199254740991ULL - encoder->position) return EXR_ERROR_LIMIT_EXCEEDED;
+	uint64_t end = encoder->position + length;
 	const uint8_t *source = data;
 	while (length > 0) {
-		size_t chunk = encoder->position / OUTPUT_CHUNK_SIZE;
-		size_t offset = encoder->position % OUTPUT_CHUNK_SIZE;
-		size_t bytes = OUTPUT_CHUNK_SIZE - offset;
-		if (bytes > length) bytes = length;
-		memcpy(encoder->output_chunks[chunk] + offset, source, bytes);
+		size_t bytes = length < OUTPUT_CHUNK_SIZE ? length : OUTPUT_CHUNK_SIZE;
+		if (!openexr_write_chunk(source, bytes, (double)encoder->position)) return EXR_ERROR_IO;
 		encoder->position += bytes;
 		source += bytes;
 		length -= bytes;
@@ -60,7 +44,7 @@ static exr_result write_output(void *user, const void *data, size_t length) {
 static exr_result seek_output(void *user, uint64_t position) {
 	openexr_encoder *encoder = user;
 	if (position > encoder->size) return EXR_ERROR_IO;
-	encoder->position = (size_t)position;
+	encoder->position = position;
 	return EXR_SUCCESS;
 }
 
@@ -70,8 +54,6 @@ void openexr_encoder_destroy(openexr_encoder *encoder) {
 	exr_context_destroy(encoder->context);
 	free(encoder->pixels);
 	free(encoder->planes);
-	for (size_t chunk = 0; chunk < encoder->chunk_count; chunk++) free(encoder->output_chunks[chunk]);
-	free(encoder->output_chunks);
 	free(encoder);
 }
 
@@ -115,7 +97,7 @@ openexr_encoder *openexr_encoder_create(int width, int height, int compression) 
 	if (EXR_OK(result) && encoder->pixels != NULL && encoder->planes != NULL) result = exr_context_create(NULL, &encoder->context);
 	else result = EXR_ERROR_OUT_OF_MEMORY;
 	/* ブロック単位の画素制限は維持し、既定の1GiBファイル制限だけを外す。
-	 * 出力長はwrite_outputのsize_t検証と、WASMの利用可能メモリで制限される。 */
+	 * 出力は保存先へ渡すため、ファイル長をWASM heapの上限には結び付けない。 */
 	if (EXR_OK(result)) result = exr_context_set_max_file_bytes(encoder->context, 0);
 	if (EXR_OK(result)) result = exr_writer_create_ctx(encoder->context, NULL, &encoder->writer);
 	if (EXR_OK(result)) result = exr_writer_add_part(encoder->writer, &header, NULL);
@@ -153,9 +135,4 @@ int openexr_encoder_finish(openexr_encoder *encoder) {
 	if (encoder->next_row != encoder->height) return EXR_ERROR_INVALID_ARGUMENT;
 	return exr_writer_end_stream(encoder->writer);
 }
-uint8_t *openexr_encoder_data(openexr_encoder *encoder, size_t offset) {
-	if (offset >= encoder->size) return NULL;
-	return encoder->output_chunks[offset / OUTPUT_CHUNK_SIZE] + offset % OUTPUT_CHUNK_SIZE;
-}
-size_t openexr_encoder_chunk_size(void) { return OUTPUT_CHUNK_SIZE; }
-size_t openexr_encoder_size(openexr_encoder *encoder) { return encoder->size; }
+double openexr_encoder_size(openexr_encoder *encoder) { return (double)encoder->size; }

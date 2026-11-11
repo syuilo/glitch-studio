@@ -2,68 +2,91 @@ import createTinyExrModule from './codec/tinyexr.mjs';
 import type { TinyExrModule } from './codec/tinyexr.mjs';
 
 export type OpenExrCompression = 'none' | 'zip';
+/** 借用viewはPromiseの完了まで有効。offset tableの後書きも同じ位置指定で受け取る。 */
+export type OpenExrOutputWriter = (chunk: Uint8Array, position: number) => Promise<void>;
 
-/** 上から順に並ぶ、乗算済みlinear sRGBのHALF RGBAを受け取る。 */
+/** 乗算済みlinear sRGBのHALF RGBAを行順に受け取り、出力は保存完了を待ちながら渡す。 */
 export class OpenExrEncoder {
-	private encoder: number;
 	private completedRows = 0;
+	private writing = false;
 	private readonly codec: TinyExrModule;
+	private encoder: number;
+	private readonly outputFailure: { error: unknown };
 	public readonly width: number;
 	public readonly height: number;
 	public readonly rowsPerBlock: number;
 
-	private constructor(codec: TinyExrModule, width: number, height: number, compression: OpenExrCompression) {
+	private constructor(codec: TinyExrModule, encoder: number, width: number, height: number,
+		compression: OpenExrCompression, outputFailure: { error: unknown }) {
 		this.codec = codec;
+		this.encoder = encoder;
 		this.width = width;
 		this.height = height;
+		this.outputFailure = outputFailure;
 		this.rowsPerBlock = compression === 'zip' ? 16 : 1;
-		this.encoder = codec._openexr_encoder_create(width, height, compression === 'zip' ? 3 : 0);
-		if (this.encoder === 0) throw new Error('Could not initialize the OpenEXR encoder.');
 	}
 
-	public static async create(options: { width: number; height: number; compression: OpenExrCompression }, wasmBinary?: ArrayBuffer): Promise<OpenExrEncoder> {
-		// OpenEXRのwindow座標とnative APIは符号付き32bit整数。GPUの上限は呼び出し側が扱う。
+	public static async create(options: { width: number; height: number; compression: OpenExrCompression },
+		writer: OpenExrOutputWriter, wasmBinary?: ArrayBuffer): Promise<OpenExrEncoder> {
 		if (![options.width, options.height].every(value => Number.isInteger(value) && value >= 1 && value <= 0x7fffffff)) throw new Error('Invalid OpenEXR dimensions.');
 		if (options.compression !== 'none' && options.compression !== 'zip') throw new Error('Unsupported OpenEXR compression.');
-		// ジョブごとにWASMメモリを所有し、Workerの終了とともに大きくなったheapも解放する。
-		const codec = await createTinyExrModule(wasmBinary == null ? {} : { wasmBinary });
-		return new OpenExrEncoder(codec, options.width, options.height, options.compression);
+		const outputFailure: { error: unknown } = { error: null };
+		// ヘッダーはcreate中にも出力される。保存先の例外をCのIO errorで置き換えず、
+		// 呼び出し元へ元の原因を返す。保存中はWASMを再入・破棄しない。
+		const codec = await createTinyExrModule({ ...(wasmBinary == null ? {} : { wasmBinary }),
+			writeChunk: async (chunk, position) => {
+				try { await writer(chunk, position); return true; } catch (error) { outputFailure.error = error; return false; }
+			},
+		});
+		const encoder = await codec._openexr_encoder_create(options.width, options.height, options.compression === 'zip' ? 3 : 0) >>> 0;
+		if (encoder === 0) {
+			if (outputFailure.error != null) throw outputFailure.error;
+			throw new Error('Could not initialize the OpenEXR encoder.');
+		}
+		return new OpenExrEncoder(codec, encoder, options.width, options.height, options.compression, outputFailure);
 	}
 
-	public writeBlock(pixels: Uint16Array): void {
-		if (this.encoder === 0) throw new Error('OpenEXR encoder is closed.');
+	public async writeBlock(pixels: Uint16Array): Promise<void> {
+		this.checkWritable();
 		const rows = Math.min(this.rowsPerBlock, this.height - this.completedRows);
 		if (rows <= 0 || pixels.length !== this.width * rows * 4) throw new Error('Invalid OpenEXR pixel block.');
-		// 前回の圧縮でWASMメモリが成長し得るため、heapのviewは毎回取得する。
-		this.codec.HEAPU16.set(pixels, this.codec._openexr_encoder_pixels(this.encoder) / 2);
-		this.check(this.codec._openexr_encoder_write(this.encoder));
-		this.completedRows += rows;
+		this.writing = true;
+		try {
+			const pointer = this.codec._openexr_encoder_pixels(this.encoder) >>> 0;
+			this.codec.HEAPU16.set(pixels, pointer / 2);
+			this.check(await this.codec._openexr_encoder_write(this.encoder));
+			this.completedRows += rows;
+		} finally { this.writing = false; }
 	}
 
-	public finish(): ArrayBuffer {
-		if (this.encoder === 0) throw new Error('OpenEXR encoder is closed.');
+	public async finish(): Promise<number> {
+		this.checkWritable();
+		if (this.completedRows !== this.height) throw new Error('OpenEXR image is incomplete.');
+		this.writing = true;
 		try {
-			if (this.completedRows !== this.height) throw new Error('OpenEXR image is incomplete.');
-			this.check(this.codec._openexr_encoder_finish(this.encoder));
-			// WASM32の戻り値は符号付きi32。2GiB以上の出力長・アドレスも正の値へ戻す。
-			const size = this.codec._openexr_encoder_size(this.encoder) >>> 0;
-			const chunkSize = this.codec._openexr_encoder_chunk_size();
-			const output = new Uint8Array(size);
-			for (let offset = 0; offset < size; offset += chunkSize) {
-				const pointer = this.codec._openexr_encoder_data(this.encoder, offset) >>> 0;
-				output.set(this.codec.HEAPU8.subarray(pointer, pointer + Math.min(chunkSize, size - offset)), offset);
-			}
-			return output.buffer;
-		} finally { this.dispose(); }
+			this.check(await this.codec._openexr_encoder_finish(this.encoder));
+			return this.codec._openexr_encoder_size(this.encoder);
+		} finally {
+			this.writing = false;
+			this.dispose();
+		}
 	}
 
 	public dispose(): void {
+		if (this.writing) throw new Error('Cannot dispose OpenEXR resources while writing.');
 		if (this.encoder === 0) return;
 		this.codec._openexr_encoder_destroy(this.encoder);
 		this.encoder = 0;
 	}
 
+	private checkWritable(): void {
+		if (this.encoder === 0) throw new Error('OpenEXR encoder is closed.');
+		if (this.writing) throw new Error('An OpenEXR write is already in progress.');
+		if (this.outputFailure.error != null) throw this.outputFailure.error;
+	}
+
 	private check(result: number): void {
-		if (result < 0) throw new Error(`OpenEXR: ${this.codec.UTF8ToString(this.codec._exr_result_string(result))}`);
+		if (this.outputFailure.error != null) throw this.outputFailure.error;
+		if (result < 0) throw new Error('OpenEXR: ' + this.codec.UTF8ToString(this.codec._exr_result_string(result)));
 	}
 }

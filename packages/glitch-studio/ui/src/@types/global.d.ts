@@ -57,10 +57,10 @@ interface Window {
 		notifyExportComplete(fileName: string): Promise<void>;
 		chooseExportSaveFile(name: string, format: 'mp4' | 'webp' | 'exr'): Promise<{ id: string; name: string } | null>;
 		writeExportFile(id: string, data: Uint8Array): Promise<void>;
-		beginExportFile(id: string, totalBytes: number): Promise<void>;
-		appendExportFile(id: string, data: Uint8Array): Promise<void>;
-		finishExportFile(id: string): Promise<void>;
-		onExportFileProgress(listener: (progress: { id: string; completedBytes: number; totalBytes: number }) => void): () => void;
+		beginExportFile(id: string, totalBytes: number | null): Promise<void>;
+		appendExportFile(id: string, data: Uint8Array, position?: number): Promise<void>;
+		finishExportFile(id: string, totalBytes?: number): Promise<void>;
+		onExportFileProgress(listener: (progress: { id: string; completedBytes: number; totalBytes: number | null }) => void): () => void;
 		releaseExportFile(id: string): Promise<void>;
 	};
 }

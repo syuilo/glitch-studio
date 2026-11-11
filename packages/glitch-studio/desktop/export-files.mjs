@@ -31,7 +31,7 @@ export class ExportFiles {
 	async begin(id, totalBytes) {
 		const destination = this.#targets.get(id);
 		if (destination == null) throw new Error('Unknown export save target');
-		if (!Number.isSafeInteger(totalBytes) || totalBytes <= 0) throw new Error('The export contains no save data');
+		if (totalBytes != null && (!Number.isSafeInteger(totalBytes) || totalBytes <= 0)) throw new Error('The export contains no save data');
 		this.#targets.delete(id);
 		const write = new ExportFileWriteSession(destination, totalBytes);
 		this.#writes.set(id, write);
@@ -39,17 +39,17 @@ export class ExportFiles {
 		catch (error) { await this.release(id); throw error; }
 	}
 
-	async append(id, data) {
+	async append(id, data, position = null) {
 		const write = this.#writes.get(id);
 		if (write == null) throw new Error('Unknown export save target');
-		try { return await write.append(data); }
+		try { return await write.append(data, position); }
 		catch (error) { await this.release(id); throw error; }
 	}
 
-	async finish(id) {
+	async finish(id, totalBytes = null) {
 		const write = this.#writes.get(id);
 		if (write == null) throw new Error('Unknown export save target');
-		try { await write.finish(); }
+		try { await write.finish(totalBytes); }
 		finally { await this.release(id); }
 	}
 
@@ -78,7 +78,7 @@ class ExportFileWriteSession {
 
 	constructor(destination, totalBytes) {
 		this.destination = destination;
-		this.totalBytes = totalBytes;
+		this.totalBytes = totalBytes ?? null;
 		this.temporary = path.join(path.dirname(destination), `.glitch-studio-export-${randomUUID()}.tmp`);
 	}
 
@@ -89,20 +89,32 @@ class ExportFileWriteSession {
 		});
 	}
 
-	append(data) {
+	append(data, position) {
 		return this.#run(async () => {
+			const start = position ?? this.#completedBytes;
+			const end = start + data?.byteLength;
 			if (!(data instanceof Uint8Array) || data.byteLength === 0 || data.byteLength > 4 * 1024 * 1024
-				|| this.#completedBytes + data.byteLength > this.totalBytes) throw new Error('Invalid export data chunk');
-			await this.#file.writeFile(data);
+				|| !Number.isSafeInteger(start) || start < 0 || start > this.#completedBytes || !Number.isSafeInteger(end)
+				|| (this.totalBytes != null && end > this.totalBytes)) throw new Error('Invalid export data chunk');
+			// EXRは長さが圧縮後に確定し、最後にoffset tableを書き戻す。穴を作る
+			// 書き込みは拒否し、完成までの全データを一時ファイルだけへ反映する。
+			let offset = 0;
+			while (offset < data.byteLength) {
+				const { bytesWritten } = await this.#file.write(data, offset, data.byteLength - offset, start + offset);
+				if (bytesWritten === 0) throw new Error('Could not write the export data');
+				offset += bytesWritten;
+			}
 			this.#checkOpen();
-			this.#completedBytes += data.byteLength;
+			this.#completedBytes = Math.max(this.#completedBytes, end);
 			return { completedBytes: this.#completedBytes, totalBytes: this.totalBytes };
 		});
 	}
 
-	finish() {
+	finish(totalBytes) {
 		return this.#run(async () => {
-			if (this.#completedBytes !== this.totalBytes) throw new Error('The export is incomplete');
+			const expectedBytes = totalBytes ?? this.totalBytes;
+			if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0 || this.#completedBytes !== expectedBytes
+				|| (this.totalBytes != null && expectedBytes !== this.totalBytes)) throw new Error('The export is incomplete');
 			await this.#file.sync();
 			await this.#file.close();
 			this.#file = null;

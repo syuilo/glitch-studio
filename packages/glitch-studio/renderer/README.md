@@ -130,3 +130,7 @@ pnpm --dir packages/glitch-studio/renderer probe:canvas-color-output --serve
 pnpm --dir packages/glitch-studio/renderer probe:canvas-color-output --runtime chrome --preview
 pnpm --dir packages/glitch-studio/renderer probe:canvas-color-output --runtime electron --preview
 ```
+
+## 静止画書き出しの資源管理
+
+`TimelineRendererManager.releaseRenderingResources()`は最後の描画後に中間画像・フレームキャッシュ・描画用資源を解放します。返却済みのOpenEXR読み戻し画像とGPUDeviceは残し、圧縮と保存をブロック単位で続けられます。この呼び出し後に再描画はしません。画像の読み戻しを終えたら画像をdisposeし、Managerの`destroy()`でGPUDeviceも破棄します。`destroy()`は描画資源が既に解放済みでも呼べます。書き出し側はキャプチャのGPU完了を待ってから描画資源を解放します。

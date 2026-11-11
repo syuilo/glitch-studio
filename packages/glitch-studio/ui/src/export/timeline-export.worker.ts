@@ -22,15 +22,17 @@ function send(message: ExportResponse, transfer: Transferable[] = []) {
 // キャンセル時は呼び出し元がWorkerを終了し、準備待ち・エンコード待ちも即座に中断する。
 let pendingChunk: { sequence: number; resolve: () => void } | null = null;
 let nextChunkSequence = 0;
+let outputBytes = 0;
 
-function writeChunk(chunk: Uint8Array, totalBytes: number): Promise<void> {
-	return new Promise(resolve => {
+async function writeChunk(chunk: Uint8Array, totalBytes: number | null, position = outputBytes): Promise<void> {
+	await new Promise<void>(resolve => {
 		const sequence = nextChunkSequence++;
 		pendingChunk = { sequence, resolve };
 		// WASMの借用view自体はtransferしない。保存完了を待つ一チャンクだけコピーする。
 		const buffer = chunk.slice().buffer;
-		send({ type: 'chunk', sequence, buffer, totalBytes }, [buffer]);
+		send({ type: 'chunk', sequence, buffer, position, totalBytes }, [buffer]);
 	});
+	outputBytes = Math.max(outputBytes, position + chunk.byteLength);
 }
 
 self.onmessage = async (event: MessageEvent<ExportRequest | ExportChunkAcknowledgement>) => {
@@ -133,11 +135,19 @@ self.onmessage = async (event: MessageEvent<ExportRequest | ExportChunkAcknowled
 			send({ type: 'progress', progress: { phase: 'rendering', completedFrames: 0, totalFrames: 1 } });
 			const image = await renderer.renderTimelineLinearFrame(settings.positionMs, controller.signal);
 			try {
-				const buffer = await encodeStillOpenExr(image, settings, controller.signal,
-					progress => send({ type: 'progress', progress }));
+				// 読み戻し用の画像とDeviceだけを残す。全画像をCPUへ複製せずに、
+				// 圧縮・保存の間は描画済みの中間画像やキャッシュのVRAMを解放する。
+				await device.queue.onSubmittedWorkDone();
+				controller.signal.throwIfAborted();
+				renderer.releaseRenderingResources();
+				context.unconfigure();
+				canvas.width = 1;
+				canvas.height = 1;
+				const totalBytes = await encodeStillOpenExr(image, settings, controller.signal,
+					progress => send({ type: 'progress', progress }), (chunk, position) => writeChunk(chunk, null, position));
 				controller.signal.throwIfAborted();
 				finished = true;
-				send({ type: 'complete', buffer }, [buffer]);
+				send({ type: 'complete', buffer: new ArrayBuffer(0), totalBytes });
 			} finally { image.dispose(); }
 			return;
 		}
@@ -163,7 +173,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest | ExportChunkAcknowled
 				await encoder.encode((chunk, _completedBytes, totalBytes) => writeChunk(chunk, totalBytes));
 				controller.signal.throwIfAborted();
 				finished = true;
-				send({ type: 'complete', buffer: new ArrayBuffer(0) });
+				send({ type: 'complete', buffer: new ArrayBuffer(0), totalBytes: outputBytes });
 			} finally { encoder.dispose(); }
 			return;
 		}
@@ -184,7 +194,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest | ExportChunkAcknowled
 		});
 		const buffer = writer!.getBuffer();
 		finished = true;
-		send({ type: 'complete', buffer }, [buffer]);
+		send({ type: 'complete', buffer, totalBytes: buffer.byteLength }, [buffer]);
 	} catch (error) {
 		finished = true;
 		try { await writer?.cancel(); } catch { /* 元のエラーを優先する。 */ }

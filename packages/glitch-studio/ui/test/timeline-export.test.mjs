@@ -122,7 +122,7 @@ test('terminates the worker on abort, success, errors and postMessage failure', 
 		const chunks = [];
 		const job = exportTimeline({}, controller.signal, () => {}, async chunk => { chunks.push(chunk); });
 		if (mode === 'abort') controller.abort();
-		if (mode === 'complete') worker.onmessage({ data: { type: 'complete', buffer: new ArrayBuffer(4) } });
+		if (mode === 'complete') worker.onmessage({ data: { type: 'complete', buffer: new ArrayBuffer(4), totalBytes: 4 } });
 		if (mode === 'error') worker.onmessage({ data: { type: 'error', message: 'GPU failed' } });
 		if (mode === 'complete') { await job; assert.equal(chunks[0].byteLength, 4); }
 		else await assert.rejects(job);
@@ -150,13 +150,13 @@ test('acknowledges WebP chunks only after the output writer completes', async t 
 		writes.push({ bytes: [...chunk], totalBytes });
 		await release.promise;
 	});
-	worker.onmessage({ data: { type: 'chunk', sequence: 7, totalBytes: 3, buffer: new Uint8Array([1, 2, 3]).buffer } });
+	worker.onmessage({ data: { type: 'chunk', sequence: 7, position: 0, totalBytes: 3, buffer: new Uint8Array([1, 2, 3]).buffer } });
 	assert.deepEqual(writes, [{ bytes: [1, 2, 3], totalBytes: 3 }]);
 	assert.equal(worker.messages.length, 1);
 	release.resolve();
 	await new Promise(resolve => setImmediate(resolve));
 	assert.deepEqual(worker.messages.at(-1), { type: 'chunk-written', sequence: 7 });
-	worker.onmessage({ data: { type: 'complete', buffer: new ArrayBuffer(0) } });
+	worker.onmessage({ data: { type: 'complete', buffer: new ArrayBuffer(0), totalBytes: 3 } });
 	await job;
 	assert.equal(worker.terminated, true);
 });
@@ -182,7 +182,7 @@ test('terminates streamed exports on output failure or cancellation while writin
 			if (cancel) await writing.promise;
 			else throw new Error('disk full');
 		});
-		worker.onmessage({ data: { type: 'chunk', sequence: 0, totalBytes: 1, buffer: new ArrayBuffer(1) } });
+		worker.onmessage({ data: { type: 'chunk', sequence: 0, position: 0, totalBytes: 1, buffer: new ArrayBuffer(1) } });
 		if (cancel) controller.abort();
 		await assert.rejects(job, cancel ? { name: 'AbortError' } : /disk full/);
 		writing.resolve();
