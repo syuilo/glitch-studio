@@ -321,16 +321,16 @@ function startExposureDrag(fixture, properties = {}) {
 		pointerId: 7, button: 0, clientX: 100, clientY: 200, preventDefault() {}, ...properties });
 }
 
-// 【色域圧縮の5モードを切り替え、カスタム量はプリセットを経由しても保持する】
+// 【色域圧縮の6モードを切り替え、カスタム量はプリセットを経由しても保持する】
 // カスタムの数値をプリセットの単一倍率へ置き換えたり、非表示中に初期化したりしない。
 // 実際のプレビューへ組み込んだSFCを操作し、0%では通常表示と同じ非着色状態になることも確認する。
 test('selects all gamut views and preserves the independent custom amount', async t => {
 	const f = await fixture(t);
 	assert.equal(f.find('gamut-amount'), undefined);
 	assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], false);
-	for (const mode of ['displayP3', 'rec2020', 'adobeRgb', 'custom']) {
+	for (const mode of ['displayP3', 'rec2020', 'adobeRgb', 'acescg', 'custom']) {
 		await f.click('gamut-mode');
-		assert.equal(f.menuItems.filter(item => item.id != null).length, 5);
+		assert.equal(f.menuItems.filter(item => item.id != null).length, 6);
 		f.menuItems.find(item => item.id === `preview-gamut-${mode}`).action();
 		await nextTick();
 		assert.equal(f.appContext.previewGamutCompression.value.mode, mode);
@@ -341,7 +341,7 @@ test('selects all gamut views and preserves the independent custom amount', asyn
 	input.props.onInput({ target: { valueAsNumber: 37, value: '37' } });
 	await nextTick();
 	assert.equal(f.appContext.previewGamutCompression.value.customAmount, 0.37);
-	for (const mode of ['none', 'rec2020', 'custom']) {
+	for (const mode of ['none', 'rec2020', 'acescg', 'custom']) {
 		await f.click('gamut-mode');
 		f.menuItems.find(item => item.id === `preview-gamut-${mode}`).action();
 		await nextTick();
@@ -368,7 +368,7 @@ test('integrates sRGB proof in the color view menu and restores suspended compre
 	const compressionItems = f.menuItems.filter(item => item.id != null);
 	assert.equal(proofSwitch.ref, f.appContext.previewSrgbProof);
 	assert.ok(f.menuItems.indexOf(proofSwitch) < f.menuItems.findIndex(item => item.type === 'divider'));
-	assert.equal(compressionItems.length, 5);
+	assert.equal(compressionItems.length, 6);
 	assert.ok(compressionItems.every(item => item.disabled.value === false));
 	const staleInput = f.find('gamut-amount');
 	const staleAction = f.menuItems.find(item => item.id === 'preview-gamut-rec2020').action;
@@ -396,6 +396,27 @@ test('integrates sRGB proof in the color view menu and restores suspended compre
 	assert.equal(f.find('gamut-amount').props.value, 37);
 	assert.ok(compressionItems.every(item => item.disabled.value === false));
 	assert.equal(compressionItems.find(item => item.id === 'preview-gamut-custom').active.value, true);
+});
+
+// 【ACEScgの圧縮表示もsRGB確認で一時停止し、解除後は選択と独立したカスタム量を復元する】
+// 追加プリセットが通常表示やカスタムへ誤って戻ると、確認の切替だけで見え方が変わってしまう。
+// 専用のメニューIDと状態で検証し、翻訳や表示名へ依存しない。
+test('restores the ACEScg preset after suspending it for sRGB proof', async t => {
+	const f = await fixture(t);
+	f.appContext.previewGamutCompression.value = { mode: 'acescg', customAmount: 0.37 };
+	await f.click('gamut-mode');
+	const acescg = f.menuItems.find(item => item.id === 'preview-gamut-acescg');
+	assert.equal(acescg.active.value, true);
+	assert.equal(f.find('gamut-amount'), undefined);
+	f.appContext.previewSrgbProof.value = true;
+	await nextTick();
+	assert.equal(acescg.disabled.value, true);
+	assert.equal(acescg.active.value, false);
+	f.appContext.previewSrgbProof.value = false;
+	await nextTick();
+	assert.equal(acescg.active.value, true);
+	assert.deepEqual(f.appContext.previewGamutCompression.value, { mode: 'acescg', customAmount: 0.37 });
+	assert.equal(f.find('gamut-amount'), undefined);
 });
 
 // 【カスタム量は0〜100%へ収め、未完成の入力では最後に適用した値を維持する】

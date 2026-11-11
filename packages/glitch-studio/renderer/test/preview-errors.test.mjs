@@ -237,7 +237,7 @@ test('reuses cached frames while applying updated preview exposure and gamut com
 	assert.equal(evaluations.mock.callCount(), 1);
 	assert.equal(renderer.frameCache.get(0), cached);
 	assert.equal(renderer.canvasRenderer.previewExposure, -2);
-	for (const mode of ['displayP3', 'rec2020', 'adobeRgb', 'custom', 'none']) {
+	for (const mode of ['displayP3', 'rec2020', 'adobeRgb', 'acescg', 'custom', 'none']) {
 		const compression = { mode, customAmount: 0.37 };
 		await renderer.updateDynamicOptions({ previewGamutCompression: compression });
 		await renderer.renderTimelineAt(0);
@@ -1471,13 +1471,14 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		assert.deepEqual(writes.at(-1).slice(0, 6), [0, 0, 0, 0, 0, 0]);
 		await renderer.updateDynamicOptions({ previewGamutCompression: { mode: 'custom', customAmount: 0.25 } });
 		await render();
-		assert.deepEqual(writes.at(-1).slice(6, 8), [4, 0x3e800000]);
+		assert.deepEqual(writes.at(-1).slice(6, 8), [5, 0x3e800000]);
+		assert.equal(writes.at(-1)[10], 5);
 		// 確認中のuniformだけを切り替え、圧縮の設定値とCanvasの構成を保持する。
 		for (const enabled of [true, false]) {
 			await renderer.updateDynamicOptions({ previewSrgbProof: enabled });
 			await render();
 			assert.equal(writes.at(-1)[3], enabled ? 1 : 0);
-			assert.equal(writes.at(-1)[6], enabled ? 0 : 4);
+			assert.equal(writes.at(-1)[6], enabled ? 0 : 5);
 			assert.deepEqual(renderer.canvasRenderer.previewGamutCompression, { mode: 'custom', customAmount: 0.25 });
 			assert.equal(configurations.mock.callCount(), 2);
 		}

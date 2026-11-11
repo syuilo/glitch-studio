@@ -113,7 +113,32 @@
 					</div>
 				</div>
 				<div v-if="mapMode === 'oklch'" :class="$style.mapHint">
+					<div v-tooltip="i18n.ts._ColorPicker.OutsidePrimariesHint" :class="$style.gamutHint">
+						<span :class="[$style.gamutLegend, $style.primariesLegend]"></span>
+						{{ i18n.ts._ColorPicker.OutsidePrimaries }}
+					</div>
+					<div v-tooltip="i18n.ts._ColorPicker.AboveReferenceRangeHint" :class="$style.gamutHint">
+						<span :class="[$style.gamutLegend, $style.rangeLegend]"></span>
+						{{ i18n.ts._ColorPicker.AboveReferenceRange }}
+					</div>
 					<div v-if="outsideMapRange" data-test-color-picker-outside-map>{{ i18n.ts._ColorPicker.OutsideMapRange }}</div>
+				</div>
+				<div v-if="gamutStatus.outsidePrimaries || gamutStatus.aboveReferenceRange" :class="$style.colorStatus">
+					<span>{{ i18n.ts._ColorPicker.CurrentColor }}:</span>
+					<span
+						v-if="gamutStatus.outsidePrimaries"
+						v-tooltip="i18n.ts._ColorPicker.OutsidePrimariesHint"
+						data-test-color-picker-outside-primaries
+					>
+						<i class="ti ti-alert-triangle"></i> {{ i18n.ts._ColorPicker.OutsidePrimaries }}
+					</span>
+					<span
+						v-if="gamutStatus.aboveReferenceRange"
+						v-tooltip="i18n.ts._ColorPicker.AboveReferenceRangeHint"
+						data-test-color-picker-above-range
+					>
+						<i class="ti ti-sun-high"></i> {{ i18n.ts._ColorPicker.AboveReferenceRange }}
+					</span>
 				</div>
 			</div>
 			<div :class="$style.rightArea">
@@ -163,7 +188,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import { linearSrgbToSrgb, oklchToLinearSrgb, srgbChannelToLinear } from '@gs/shared/color-space.ts';
-import { limitOklchToGamut, RGB_GAMUTS } from '@gs/shared/rgb-gamut.ts';
+import { getLinearSrgbGamutStatus, limitOklchToGamut, RGB_GAMUTS } from '@gs/shared/rgb-gamut.ts';
 import type { RgbaColor } from '@/utility/color-input.ts';
 import { i18n } from '@/i18n.ts';
 import { preferences } from '@/preferences.ts';
@@ -197,6 +222,7 @@ const oklch = ref(rgbToOklch(color.value, 0));
 const mapMode = preferences.model('colorPickerMapMode');
 const referenceGamut = preferences.model('colorPickerReferenceGamut');
 const limitSelectionToGamut = preferences.model('colorPickerLimitSelectionToGamut');
+const gamutStatus = computed(() => getLinearSrgbGamutStatus(color.value, referenceGamut.value));
 const mapHue = computed(() => mapMode.value === 'hsv' ? hue.value : oklch.value[2]);
 const mapPosition = computed(() => mapMode.value === 'hsv'
 	? [saturation.value, 1 - brightness.value]
@@ -271,7 +297,8 @@ function setColor(next: RgbaColor, notify = true, source: 'hsv' | 'oklch' | null
 
 function setOklch(nextOklch: [number, number, number], fromMap = false): boolean {
 	if (fromMap && limitSelectionToGamut.value) {
-		const [lightness, chroma, hue] = limitOklchToGamut([...nextOklch, color.value[3]], referenceGamut.value);
+		// 原色範囲への制限とHDRの明るさは独立させる。L>1の色相を変えても白へ潰さない。
+		const [lightness, chroma, hue] = limitOklchToGamut([...nextOklch, color.value[3]], referenceGamut.value, 'nonNegative');
 		nextOklch = [lightness, chroma, hue];
 	}
 	// 無彩色の色相だけを指定した場合は、元のRGBを変換誤差も含めて保持する。
@@ -626,7 +653,20 @@ function close() {
 	width: 14px;
 	height: 10px;
 	flex-shrink: 0;
+}
+.primariesLegend {
 	background: repeating-linear-gradient(-45deg, #888 0 2px, #ddd 2px 4px, #555 4px 12px);
+}
+.rangeLegend {
+	background: radial-gradient(circle at 2px 2px, #eee 0 1px, #555 1px 2px, transparent 2px) 0 0 / 8px 8px, #888;
+}
+.colorStatus {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 8px;
+	margin: 6px;
+	font-size: 11px;
+	line-height: 1.6;
 }
 
 .thumb {

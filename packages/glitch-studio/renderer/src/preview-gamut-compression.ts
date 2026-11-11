@@ -1,9 +1,13 @@
-import { createOklchGamutBoundary, RGB_GAMUTS } from '@gs/shared/rgb-gamut.ts';
+import { createOklchGamutBoundary } from '@gs/shared/rgb-gamut.ts';
 import type { RgbGamut } from '@gs/shared/rgb-gamut.ts';
+import { PREVIEW_GAMUT_COMPRESSION_PRESETS } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutCompressionMode } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 
 export const PREVIEW_GAMUT_HUE_STEPS = 720;
 export const PREVIEW_GAMUT_LIGHTNESS_STEPS = 256;
+// 各点はsRGBに続けて全プリセットの境界を持つ。vec4の成分数へ色域数を固定しない。
+const PREVIEW_GAMUT_LOOKUP_GAMUTS = ['srgb', ...PREVIEW_GAMUT_COMPRESSION_PRESETS] as const;
+export const PREVIEW_GAMUT_COUNT = PREVIEW_GAMUT_LOOKUP_GAMUTS.length;
 
 /**
  * 同一のOKLCH明度・色相における、指定色域の最大クロマ。
@@ -18,31 +22,35 @@ export function getPreviewGamutMaximumChroma(lightness: number, hue: number, gam
 let boundaryLookup: Float32Array | null = null;
 
 /**
- * 各点はsRGB・Display P3・Rec.2020・Adobe RGBの最大クロマを持つ。
+ * 各点はsRGB・全プリセットの最大クロマを順に持つ、点ごとのスカラー配列。
  * 境界探索を毎画素・毎フレーム行わないため、Worker内で一度だけ計算して共有する。
  * 色相の末尾には先頭を複製し、0/360度をまたぐ補間にも継ぎ目を作らない。
  */
 export function getPreviewGamutBoundaryLookup(): Float32Array {
 	if (boundaryLookup != null) return boundaryLookup;
 	const width = PREVIEW_GAMUT_HUE_STEPS + 1;
-	const values = new Float32Array(width * (PREVIEW_GAMUT_LIGHTNESS_STEPS + 1) * 4);
+	const values = new Float32Array(width * (PREVIEW_GAMUT_LIGHTNESS_STEPS + 1) * PREVIEW_GAMUT_COUNT);
 	for (let hueIndex = 0; hueIndex < PREVIEW_GAMUT_HUE_STEPS; hueIndex++) {
 		const hue = hueIndex / PREVIEW_GAMUT_HUE_STEPS * 360;
-		const boundaries = RGB_GAMUTS.map(gamut => createOklchGamutBoundary(hue, gamut));
+		// ピッカーの上限なし判定とは用途が異なる。圧縮は全色域でRGBの0〜1を基準にする。
+		const boundaries = PREVIEW_GAMUT_LOOKUP_GAMUTS.map(gamut => createOklchGamutBoundary(hue, gamut, 'unit'));
 		for (let lightnessIndex = 1; lightnessIndex < PREVIEW_GAMUT_LIGHTNESS_STEPS; lightnessIndex++) {
 			const lightness = lightnessIndex / PREVIEW_GAMUT_LIGHTNESS_STEPS;
-			const offset = (lightnessIndex * width + hueIndex) * 4;
+			const offset = (lightnessIndex * width + hueIndex) * PREVIEW_GAMUT_COUNT;
 			for (const [channel, boundary] of boundaries.entries()) values[offset + channel] = boundary(lightness);
 		}
 	}
 	for (let lightnessIndex = 1; lightnessIndex < PREVIEW_GAMUT_LIGHTNESS_STEPS; lightnessIndex++) {
-		const first = lightnessIndex * width * 4;
-		values.set(values.subarray(first, first + 4), first + PREVIEW_GAMUT_HUE_STEPS * 4);
+		const first = lightnessIndex * width * PREVIEW_GAMUT_COUNT;
+		values.set(values.subarray(first, first + PREVIEW_GAMUT_COUNT), first + PREVIEW_GAMUT_HUE_STEPS * PREVIEW_GAMUT_COUNT);
 	}
 	boundaryLookup = values;
 	return values;
 }
 
 export function getPreviewGamutCompressionModeIndex(mode: PreviewGamutCompressionMode): number {
-	return { none: 0, displayP3: 1, rec2020: 2, adobeRgb: 3, custom: 4 }[mode];
+	// 0は通常表示、1〜NはプリセットとLUT成分の番号、N+1はLUTを使わないカスタム。
+	if (mode === 'none') return 0;
+	if (mode === 'custom') return PREVIEW_GAMUT_COUNT;
+	return PREVIEW_GAMUT_COMPRESSION_PRESETS.indexOf(mode) + 1;
 }

@@ -101,7 +101,8 @@ export async function run() {
 				}
 				// 【無圧縮は完全一致し、カスタムと各プリセットは明度・色相を保った参照変換へ一致する】
 				// LUT補間・uniform・GPU/CPU表示のいずれかを接続し忘れても、実画素で検出する。
-				for (const gamut of ['custom', 'displayP3', 'rec2020', 'adobeRgb'] as const) {
+				// ACEScgを最初に使い、新規モードだけを選んだ場合もLUTを生成・転送することを確認する。
+				for (const gamut of ['acescg', 'custom', 'displayP3', 'rec2020', 'adobeRgb'] as const) {
 					renderer.previewGamutCompression = { mode: gamut, customAmount: 0 };
 					if (gamut === 'custom') {
 						const unchanged = (await render(0))[0];
@@ -141,8 +142,9 @@ export async function run() {
 					displayP3: [[1.2249401763, -0.0420569547, -0.0196375546], [-0.2249401763, 1.0420569547, -0.0786360456], [0, 0, 1.0982736001]],
 					rec2020: [[1.6604910021, -0.1245504745, -0.0181507634], [-0.5876411388, 1.1328998971, -0.1005788980], [-0.0728498633, -0.0083494226, 1.1187296614]],
 					adobeRgb: [[1.3983557440, 0, 0], [-0.3983557440, 1, -0.0429289893], [0, 0, 1.0429289893]],
+					acescg: [[1.7050509927, -0.1302564175, -0.0240033568], [-0.6217921207, 1.1408047366, -0.1289689761], [-0.0832588720, -0.0105483191, 1.1529723329]],
 				};
-				for (const gamut of ['displayP3', 'rec2020', 'adobeRgb'] as const) {
+				for (const gamut of ['displayP3', 'rec2020', 'adobeRgb', 'acescg'] as const) {
 					const primaries = new Float16Array([...gamutPrimaries[gamut].flatMap(rgb => [...rgb, 1]), 1, 1, 1, 1]);
 					device.queue.writeTexture({ texture: source }, primaries, { bytesPerRow: 16 }, [2, 2]);
 					renderer.previewGamutCompression = { mode: gamut, customAmount: 0.5 };

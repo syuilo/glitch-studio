@@ -31,18 +31,20 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
+import { PREVIEW_GAMUT_COMPRESSION_PRESETS } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutCompressionMode } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
 const { previewGamutCompression, previewSrgbProof } = appContext;
-const modes: PreviewGamutCompressionMode[] = ['none', 'displayP3', 'rec2020', 'adobeRgb', 'custom'];
+const modes: PreviewGamutCompressionMode[] = ['none', ...PREVIEW_GAMUT_COMPRESSION_PRESETS, 'custom'];
 const labels = computed<Record<PreviewGamutCompressionMode, string>>(() => ({
-	none: i18n.ts._Preview.GamutCompressionNormal,
+	none: 'RAW',
 	displayP3: 'Display P3',
 	rec2020: 'Rec.2020',
 	adobeRgb: 'Adobe RGB',
+	acescg: 'ACEScg (AP1 ref)',
 	custom: i18n.ts._Preview.GamutCompressionCustom,
 }));
 const modeLabel = computed(() => previewSrgbProof.value ? i18n.ts._Preview.SrgbProof : labels.value[previewGamutCompression.value.mode]);

@@ -1,13 +1,17 @@
 import { oklabToLinearSrgb, oklchToLinearSrgb } from './color-space.ts';
 import type { OklchColor } from './color-space.ts';
 
-export const RGB_GAMUTS = ['srgb', 'displayP3', 'rec2020', 'adobeRgb'] as const;
+export const RGB_GAMUTS = ['srgb', 'displayP3', 'rec2020', 'adobeRgb', 'acescg'] as const;
 export type RgbGamut = typeof RGB_GAMUTS[number];
+
+/** 原色・白色点と、RGB成分へ課す上下限を分ける。ACEScgの保存値の有効範囲を定義する型ではない。 */
+export type RgbGamutBounds = 'unit' | 'nonNegative';
+export type RgbGamutStatus = { outsidePrimaries: boolean; aboveReferenceRange: boolean };
 
 type GamutMatrix = readonly [readonly number[], readonly number[], readonly number[]];
 
-// 全色域ともD65。CSS Color 4の原色・白色点から得られるlinear sRGB→各色域の行列。
-// encode済みRGBへ適用せず、基準白までの0〜1のRGB立方体を色域の定義として使う。
+// CSS Color 4の原色・白色点から得られるlinear sRGB→各D65色域の行列。
+// encode済みRGBへ適用しない。原色の範囲と基準値1の上限は、変換後にそれぞれ判定する。
 // https://www.w3.org/TR/css-color-4/#color-conversion-code
 const LINEAR_SRGB_TO_GAMUT: Record<RgbGamut, GamutMatrix> = {
 	srgb: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
@@ -26,6 +30,15 @@ const LINEAR_SRGB_TO_GAMUT: Record<RgbGamut, GamutMatrix> = {
 		[0, 1, 0],
 		[0, 0.041161948477, 0.958838051523],
 	],
+	// AP1原色とACES白色点(x=0.32168, y=0.33767)を使う。
+	// D65→ACES白色点のlinear Bradford順応を行列へ含め、無彩色を無彩色のまま判定する。
+	// これは原色範囲を比較する相対的な変換であり、ACESの出力変換やトーンマッピングではない。
+	// https://docs.acescentral.com/encodings/acescg/
+	acescg: [
+		[0.6130974024011875, 0.3395231461841059, 0.0473794514147065],
+		[0.0701937224695817, 0.9163538790573443, 0.0134523984730741],
+		[0.0206155928822269, 0.1095697729381355, 0.8698146341796377],
+	],
 };
 
 /** 未乗算linear RGBへ変換する。色域外の成分をclampしない。alphaは判定に含めない。 */
@@ -38,14 +51,29 @@ export function linearSrgbToGamutRgb(color: readonly number[], gamut: RgbGamut):
 	];
 }
 
-export function isLinearSrgbInGamut(color: readonly number[], gamut: RgbGamut): boolean {
-	const [red, green, blue] = linearSrgbToGamutRgb(color, gamut);
-	// 暗部で固定の許容差を使うと、負の光量まで色域内になる。負側は光量に比例させる。
-	// マップでは全画素に適用するため、判定用の追加配列やコールバックを作らない。
-	const negativeTolerance = Math.min(1, Math.max(Math.abs(red), Math.abs(green), Math.abs(blue))) * 2e-7;
-	return red >= -negativeTolerance && red <= 1.0000002
-		&& green >= -negativeTolerance && green <= 1.0000002
-		&& blue >= -negativeTolerance && blue <= 1.0000002;
+function getGamutRgbStatus([red, green, blue]: readonly number[]): RgbGamutStatus {
+	// 負側の許容差は光量に比例させる。暗部の負値を見逃さず、同じ色の露出を変えても
+	// 原色範囲の判定が変わらないようにする。基準値1超はそれとは独立した通知に使う。
+	const magnitude = Math.max(Math.abs(red), Math.abs(green), Math.abs(blue));
+	const negativeTolerance = magnitude * 2e-7;
+	return {
+		outsidePrimaries: !Number.isFinite(magnitude) || red < -negativeTolerance || green < -negativeTolerance || blue < -negativeTolerance,
+		aboveReferenceRange: red > 1.0000002 || green > 1.0000002 || blue > 1.0000002,
+	};
+}
+
+/** 原色範囲外と基準値1超は同時に発生し得る。alpha・モニターの表示能力は判定に含めない。 */
+export function getLinearSrgbGamutStatus(color: readonly number[], gamut: RgbGamut): RgbGamutStatus {
+	return getGamutRgbStatus(linearSrgbToGamutRgb(color, gamut));
+}
+
+function isGamutRgbInBounds(color: readonly number[], bounds: RgbGamutBounds): boolean {
+	const status = getGamutRgbStatus(color);
+	return !status.outsidePrimaries && (bounds === 'nonNegative' || !status.aboveReferenceRange);
+}
+
+export function isLinearSrgbInGamut(color: readonly number[], gamut: RgbGamut, bounds: RgbGamutBounds = 'unit'): boolean {
+	return isGamutRgbInBounds(linearSrgbToGamutRgb(color, gamut), bounds);
 }
 
 type ChromaPolynomial = [constant: number, linear: number, quadratic: number, cubic: number];
@@ -81,9 +109,10 @@ function polynomialRoots(constant: number, linear: number, quadratic: number, cu
  * 固定色相（度数法）での境界関数を作る。返す関数はLと任意のC上限を受け取り、
  * その上限以下で色域内にある最大のCを返す。多くの明度を調べるLUT生成でも係数を再利用できる。
  * OKLCH断面は常に星形ではなく、Rec.2020の青などは灰色からの二分探索では外側を見落とす。
- * RGB各成分の三次式と6面との全交点を検査し、途中に色域外の区間があっても扱う。
+ * RGB各成分の三次式と境界面との全交点を検査し、途中に色域外の区間があっても扱う。
+ * unitは0〜1の6面、nonNegativeは0の3面を境界とし、HDRの光量には上限を課さない。
  */
-export function createOklchGamutBoundary(hue: number, gamut: RgbGamut): (lightness: number, chromaCeiling?: number) => number {
+export function createOklchGamutBoundary(hue: number, gamut: RgbGamut, bounds: RgbGamutBounds = 'unit'): (lightness: number, chromaCeiling?: number) => number {
 	const angle = hue / 180 * Math.PI;
 	const directionA = Math.cos(angle);
 	const directionB = Math.sin(angle);
@@ -99,33 +128,35 @@ export function createOklchGamutBoundary(hue: number, gamut: RgbGamut): (lightne
 			(convert(positive) + convert(negative)) / 2 - constant, cubicCoefficient];
 	});
 	return (lightness, chromaCeiling = Infinity) => {
-		if (lightness <= 0 || lightness >= 1) return 0;
+		if (lightness <= 0 || (bounds === 'unit' && lightness >= 1) || chromaCeiling <= 0) return 0;
+		// 非負の原色範囲は露出に依存しない。L=1でC/Lを探索してから戻すことで、
+		// HDRや極端な暗部でも三次式の係数を過大・過小にせず、同じ境界を選べる。
+		const chromaScale = bounds === 'nonNegative' ? lightness : 1;
+		lightness /= chromaScale;
+		chromaCeiling /= chromaScale;
 		const scaled = polynomials.map(([constant, linear, quadratic, cubic]) =>
 			[constant * lightness ** 3, linear * lightness ** 2, quadratic * lightness, cubic] as ChromaPolynomial);
 		const evaluate = ([constant, linear, quadratic, cubic]: ChromaPolynomial, chroma: number) => ((cubic * chroma + quadratic) * chroma + linear) * chroma + constant;
-		const negativeTolerance = 0.0000002 * lightness ** 3;
+		const inside = (chroma: number) => isGamutRgbInBounds(scaled.map(polynomial => evaluate(polynomial, chroma)), bounds);
+		if (Number.isFinite(chromaCeiling) && inside(chromaCeiling)) return chromaCeiling * chromaScale;
 		let maximum = 0;
 		for (const [constant, linear, quadratic, cubic] of scaled) {
-			for (const boundary of [0, 1]) {
+			for (const boundary of bounds === 'unit' ? [0, 1] : [0]) {
 				for (const chroma of polynomialRoots(constant - boundary, linear, quadratic, cubic)) {
 					if (!Number.isFinite(chroma) || chroma <= maximum || chroma > chromaCeiling) continue;
-					const inside = scaled.every(polynomial => {
-						const value = evaluate(polynomial, chroma);
-						return value >= -negativeTolerance && value <= 1.0000002;
-					});
-					if (inside) maximum = chroma;
+					if (inside(chroma)) maximum = chroma;
 				}
 			}
 		}
-		return maximum;
+		return maximum * chromaScale;
 	};
 }
 
-/** L・Hを保持してCを下げる。基準白の範囲外のLは黒・白へ制限し、alphaは変更しない。 */
-export function limitOklchToGamut(color: OklchColor, gamut: RgbGamut): OklchColor {
+/** L・Hを保持してCを下げる。unitだけはLの上限も制限し、alphaはどちらでも変更しない。 */
+export function limitOklchToGamut(color: OklchColor, gamut: RgbGamut, bounds: RgbGamutBounds = 'unit'): OklchColor {
 	const [lightness, chroma, hue, alpha] = color;
 	if (lightness <= 0) return [0, 0, hue, alpha];
-	if (lightness >= 1) return [1, 0, hue, alpha];
-	if (isLinearSrgbInGamut(oklchToLinearSrgb(color), gamut)) return [...color];
-	return [lightness, createOklchGamutBoundary(hue, gamut)(lightness, chroma), hue, alpha];
+	if (bounds === 'unit' && lightness >= 1) return [1, 0, hue, alpha];
+	if (isLinearSrgbInGamut(oklchToLinearSrgb(color), gamut, bounds)) return [...color];
+	return [lightness, createOklchGamutBoundary(hue, gamut, bounds)(lightness, chroma), hue, alpha];
 }

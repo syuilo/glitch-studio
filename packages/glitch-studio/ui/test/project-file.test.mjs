@@ -2351,7 +2351,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	assert.equal(timeline.renders.at(-1), 500);
 	assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
 	// 色域圧縮も表示だけの変更であり、両Workerへ同期しても作品や描画資源を変更しない。
-	for (const mode of ['displayP3', 'rec2020', 'adobeRgb', 'custom', 'none']) {
+	for (const mode of ['displayP3', 'rec2020', 'adobeRgb', 'acescg', 'custom', 'none']) {
 		appContext.previewGamutCompression.value = { mode, customAmount: 0.37 };
 		await nextTick();
 		await setImmediate();

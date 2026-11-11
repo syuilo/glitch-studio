@@ -106,7 +106,8 @@ test('imports opaque and translucent Display P3 assets without darkening', { ski
 // 半透明やHDRの補正は8bit画像やuniformのモックだけでは検証できない。
 // 実際の表示経路で0 EV、増減、範囲端を比較し、解析Canvasに補正が混入しないことも確認する。
 // 色域圧縮の全プリセット・カスタム・無圧縮と、通常表示では潰れる赤の分離も実画素で比較する。
-test('adjusts preview exposure and gamut compression without changing alpha, analysis or clipping warnings', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/preview-exposure-gpu.ts', 26));
+// ACEScgを最初に選んでLUTを生成し、AP1原色・基準白もGPU/CPUの両表示で比較する。
+test('adjusts preview exposure and gamut compression without changing alpha, analysis or clipping warnings', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/preview-exposure-gpu.ts', 38));
 
 // 【全画面三角形への変更で座標・微分・透明度・画面端の被覆を変えない】
 // 移行前の2枚の三角形と全画素を比較する。通常のサイズに加え、奇数寸法と1画素幅も確認し、

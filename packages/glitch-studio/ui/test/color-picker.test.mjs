@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, markRaw, nextTick, reactive } from 'vue';
-import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
+import { oklchToLinearSrgb, srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { isLinearSrgbInGamut, RGB_GAMUTS } from '@gs/shared/rgb-gamut.ts';
 import { i18nPlugin } from './helpers/i18n.mjs';
 
@@ -121,7 +121,7 @@ test('opens HDR colors without edits and preserves RGB while editing alpha', asy
 	assert.deepEqual(changes, []);
 	await edit('Linear-3', '0.25');
 	assert.deepEqual(Array.from(state.color), [4, -0.25, 0.5, 0.25]);
-	await edit('OKLCH-3', '0');
+	await edit('Linear-3', '0');
 	assert.deepEqual(Array.from(state.color), [4, -0.25, 0.5, 0]);
 });
 
@@ -181,7 +181,7 @@ test('remembers achromatic OKLCH hue across alpha and chroma edits', async t => 
 	const { state, edit, findField } = await fixture(t, original);
 	await edit('OKLCH-2', '240');
 	assert.deepEqual(Array.from(state.color), original);
-	await edit('HSL-3', '0');
+	await edit('Linear-3', '0');
 	await edit('OKLCH-1', '0.1');
 	assert.ok(state.color[2] > state.color[0]);
 	assert.equal(state.color[3], 0);
@@ -205,7 +205,7 @@ test('synchronizes OKLCH fields with other formats and external colors', async t
 	state.color = [0, 0, 1, 0.5];
 	await nextTick();
 	assert.equal(findField('OKLCH-2').textContent, '264.052');
-	assert.equal(findField('OKLCH-3').textContent, '0.5');
+	assert.equal(findField('Linear-3').textContent, '0.5');
 	await edit('HEX-0', '#808080');
 	assert.equal(findField('OKLCH-1').textContent, '0');
 	assert.equal(findField('OKLCH-2').textContent, '264.052');
@@ -217,7 +217,7 @@ test('synchronizes OKLCH fields with other formats and external colors', async t
 test('rejects invalid and overflowing OKLCH edits without changing colors', async t => {
 	const original = [0.125, 0.125, 0.125, 0.75];
 	const { state, changes, edit, findField } = await fixture(t, original);
-	for (const [key, text] of [['OKLCH-0', '1e308'], ['OKLCH-1', '-0.1'], ['OKLCH-1', '1e308'], ['OKLCH-2', '-1'], ['OKLCH-2', '361'], ['OKLCH-3', '1.1'], ['OKLCH-0', 'invalid']]) {
+	for (const [key, text] of [['OKLCH-0', '1e308'], ['OKLCH-1', '-0.1'], ['OKLCH-1', '1e308'], ['OKLCH-2', '-1'], ['OKLCH-2', '361'], ['Linear-3', '1.1'], ['OKLCH-0', 'invalid']]) {
 		await edit(key, text);
 		assert.deepEqual(Array.from(state.color), original);
 		assert.notEqual(findField(key).textContent, text);
@@ -231,6 +231,7 @@ test('rejects invalid and overflowing OKLCH edits without changing colors', asyn
 test('switches map modes without emitting edits or clipping extended colors', async t => {
 	const original = [4, -0.25, 0.5, 0];
 	const { state, changes, edit, findElement, switchMode } = await fixture(t, original);
+	await switchMode('hsv');
 	const hsvMapStyle = { ...findElement('data-test-color-picker-map').props.style };
 	assert.match(hsvMapStyle.backgroundColor, /^hsl\(/);
 	await switchMode('oklch');
@@ -371,7 +372,7 @@ test('places gamut controls in the header and changes settings without editing t
 	const limitButton = findElement('data-test-color-picker-gamut-limit');
 	assert.equal(gamutButton.parent.parent, header);
 	assert.equal(limitButton.parent.parent, header);
-	assert.equal(gamutButton.props['data-gamut'], 'srgb');
+	assert.equal(gamutButton.props['data-gamut'], 'displayP3');
 	assert.equal(limitButton.props['data-enabled'], false);
 	await toggleGamutLimit();
 	assert.equal(limitButton.props['data-enabled'], true);
@@ -389,21 +390,22 @@ test('places gamut controls in the header and changes settings without editing t
 test('remembers picker settings across reopening without changing the selected color', async t => {
 	const original = [4, -0.25, 0.5, 0.75];
 	const { state, changes, storage, switchMode, selectGamut, toggleGamutLimit, reopen, findElement } = await fixture(t, original);
+	await switchMode('hsv');
 	await switchMode('oklch');
-	await selectGamut('rec2020');
+	await selectGamut('acescg');
 	await toggleGamutLimit();
 	assert.equal(storage.get('preferences:colorPickerMapMode'), '"oklch"');
-	assert.equal(storage.get('preferences:colorPickerReferenceGamut'), '"rec2020"');
+	assert.equal(storage.get('preferences:colorPickerReferenceGamut'), '"acescg"');
 	assert.equal(storage.get('preferences:colorPickerLimitSelectionToGamut'), 'true');
 	await reopen();
 	assert.equal(findElement('data-test-color-picker-map').props['data-mode'], 'oklch');
-	assert.equal(findElement('data-test-color-picker-gamut').props['data-gamut'], 'rec2020');
+	assert.equal(findElement('data-test-color-picker-gamut').props['data-gamut'], 'acescg');
 	assert.equal(findElement('data-test-color-picker-gamut-limit').props['data-enabled'], true);
 	await switchMode('hsv');
 	await toggleGamutLimit();
 	await reopen();
 	assert.equal(findElement('data-test-color-picker-map').props['data-mode'], 'hsv');
-	assert.equal(findElement('data-test-color-picker-gamut').props['data-gamut'], 'rec2020');
+	assert.equal(findElement('data-test-color-picker-gamut').props['data-gamut'], 'acescg');
 	assert.equal(findElement('data-test-color-picker-gamut-limit').props['data-enabled'], false);
 	assert.deepEqual(Array.from(state.color), original);
 	assert.deepEqual(changes, []);
@@ -420,20 +422,20 @@ for (const gamut of RGB_GAMUTS) {
 		await toggleGamutLimit();
 		await pointer('map', 'down', 200, 50);
 		await pointer('map', 'up', 200, 50);
-		assert.ok(isLinearSrgbInGamut(state.color, gamut));
+		assert.ok(isLinearSrgbInGamut(state.color, gamut, 'nonNegative'));
 		assert.equal(findField('OKLCH-0').textContent, '50');
 		assert.equal(findField('OKLCH-2').textContent, '0');
 		assert.ok(Number(findField('OKLCH-1').textContent) < 0.5);
 		assert.equal(state.color[3], 0.75);
 		await pointer('hue', 'down', 100, 0);
 		await pointer('hue', 'up', 100, 0);
-		assert.ok(isLinearSrgbInGamut(state.color, gamut));
+		assert.ok(isLinearSrgbInGamut(state.color, gamut, 'nonNegative'));
 		assert.equal(findField('OKLCH-0').textContent, '50');
 		assert.equal(findField('OKLCH-2').textContent, '180');
 		await toggleGamutLimit();
 		await pointer('map', 'down', 200, 50);
 		await pointer('map', 'up', 200, 50);
-		assert.equal(isLinearSrgbInGamut(state.color, gamut), false);
+		assert.equal(isLinearSrgbInGamut(state.color, gamut, 'nonNegative'), false);
 		assert.equal(findField('OKLCH-1').textContent, '0.5');
 	});
 }
@@ -474,20 +476,79 @@ test('keeps the header eyedropper working with the map limit enabled', async t =
 	assert.deepEqual(Array.from(state.color), srgbToLinearSrgb([128 / 255, 128 / 255, 128 / 255, 0.25]));
 });
 
-// 【制限付きの色相操作は数値入力のHDR色を基準白までに収め、無彩色の色相は保持する】
-// 設定切替では保持する色域外の値も、新たなマップ選択では制限対象になる。
-// 白へ制限した後も色相を選び直し、明度・Cを戻したときにその色相で編集できる必要がある。
-test('limits extended lightness only when selecting through the hue bar and preserves neutral hue', async t => {
+// 【制限付きの色相操作でもHDRの明度を保ち、無彩色の色相を記憶する】
+// 原色範囲を制限する操作に基準値1の上限を混ぜると、数値入力したHDRが白へ潰れる。
+// RGBを変えずに色相だけを記憶し、マップへ戻った後もその色相で編集できる必要がある。
+test('preserves HDR lightness through limited hue selections and remembers neutral hue', async t => {
 	const { state, edit, findField, switchMode, toggleGamutLimit, pointer, pressKey } = await fixture(t, [0.125, 0.125, 0.125, 0.75]);
 	await switchMode('oklch');
 	await toggleGamutLimit();
 	await edit('OKLCH-0', '150');
+	const hdr = Array.from(state.color);
 	await pointer('hue', 'down', 100, 0);
 	await pointer('hue', 'up', 100, 0);
-	assert.deepEqual(Array.from(state.color), [1, 1, 1, 0.75]);
+	assert.deepEqual(Array.from(state.color), hdr);
+	assert.equal(findField('OKLCH-0').textContent, '150');
 	assert.equal(findField('OKLCH-2').textContent, '180');
 	await edit('OKLCH-0', '50');
 	await pressKey('map', 'ArrowRight');
 	assert.equal(findField('OKLCH-2').textContent, '180');
-	assert.ok(isLinearSrgbInGamut(state.color, 'srgb'));
+	assert.ok(isLinearSrgbInGamut(state.color, 'srgb', 'nonNegative'));
 });
+
+// 【現在色の原色範囲外と1超を別々に表示し、HSVでも判定先の変換結果を使う】
+// ACEScg内の青は保存sRGBでは負値・1超を持つ。保存成分の符号やalphaではなく、
+// 選択した原色と白色点で判定し、設定切替が色の補正を発生させないことを確認する。
+test('reports primary and reference range status independently in either map mode', async t => {
+	const { state, changes, edit, selectGamut, switchMode, findElement } = await fixture(t, [2, 2, 2, 0]);
+	await selectGamut('srgb');
+	assert.equal(findElement('data-test-color-picker-outside-primaries'), undefined);
+	assert.ok(findElement('data-test-color-picker-above-range') != null);
+	state.color = [0.5, -0.1, 0.2, 0];
+	await nextTick();
+	assert.ok(findElement('data-test-color-picker-outside-primaries') != null);
+	assert.equal(findElement('data-test-color-picker-above-range'), undefined);
+	state.color = [2, -0.1, 0.2, 0];
+	await nextTick();
+	await switchMode('hsv');
+	assert.ok(findElement('data-test-color-picker-outside-primaries') != null);
+	assert.ok(findElement('data-test-color-picker-above-range') != null);
+	// Bradford順応済みのAP1青の独立した参照値。
+	const ap1Blue = [-0.08325887200097841, -0.010548319068358028, 1.1529723328695887, 0];
+	state.color = ap1Blue;
+	await nextTick();
+	await selectGamut('acescg');
+	assert.equal(findElement('data-test-color-picker-outside-primaries'), undefined);
+	assert.equal(findElement('data-test-color-picker-above-range'), undefined);
+	assert.deepEqual(Array.from(state.color), ap1Blue);
+	assert.deepEqual(changes, []);
+	await edit('Linear-3', '1');
+	assert.equal(findElement('data-test-color-picker-outside-primaries'), undefined);
+	assert.equal(findElement('data-test-color-picker-above-range'), undefined);
+});
+
+for (const gamut of RGB_GAMUTS) {
+	// 【各判定色域の制限はHDRの色相操作でもLとalphaを維持し、負の成分だけを避ける】
+	// Cを下げる必要があるHDR色を選び、ポインター・矢印キーの両方で保証する。
+	// 1超の通知は残し、原色範囲外の通知だけが解消されることも確認する。
+	test(`preserves HDR brightness while limiting hue selections to ${gamut} primaries`, async t => {
+		const { state, changes, edit, findElement, findField, selectGamut, toggleGamutLimit, pointer, pressKey } = await fixture(t, oklchToLinearSrgb([1.5, 1.2, 0, 0.25]));
+		await selectGamut(gamut);
+		await toggleGamutLimit();
+		assert.deepEqual(changes, []);
+		await pointer('hue', 'down', 100, 0);
+		await pointer('hue', 'up', 100, 0);
+		assert.equal(findField('OKLCH-0').textContent, '150');
+		assert.equal(findField('OKLCH-2').textContent, '180');
+		assert.ok(Number(findField('OKLCH-1').textContent) < 1.2);
+		assert.equal(state.color[3], 0.25);
+		assert.ok(isLinearSrgbInGamut(state.color, gamut, 'nonNegative'));
+		assert.equal(findElement('data-test-color-picker-outside-primaries'), undefined);
+		assert.ok(findElement('data-test-color-picker-above-range') != null);
+		await edit('OKLCH-1', '1.2');
+		await pressKey('hue', 'End');
+		assert.equal(findField('OKLCH-0').textContent, '150');
+		assert.equal(findField('OKLCH-2').textContent, '360');
+		assert.ok(isLinearSrgbInGamut(state.color, gamut, 'nonNegative'));
+	});
+}

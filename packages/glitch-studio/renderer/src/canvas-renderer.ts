@@ -10,7 +10,7 @@ import { createSrgbCanvasOutputSettings } from './canvas-output.ts';
 import type { CanvasOutputSettings } from './canvas-output.ts';
 import oklabShaderCode from '@gs/shared/gpu/oklab.wgsl?raw';
 import previewGamutCompressionShaderCode from './preview-gamut-compression.wgsl?raw';
-import { getPreviewGamutBoundaryLookup, getPreviewGamutCompressionModeIndex, PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS } from './preview-gamut-compression.ts';
+import { getPreviewGamutBoundaryLookup, getPreviewGamutCompressionModeIndex, PREVIEW_GAMUT_COUNT, PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS } from './preview-gamut-compression.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import { CpuPreviewCanvasContext } from './preview-canvas-context.ts';
 import { CpuPreviewFrameQueue } from './cpu-preview-frame-queue.ts';
@@ -144,7 +144,7 @@ export class CanvasRenderer {
 	private renderFinalImage(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
 		// sRGB確認中は圧縮設定を保持したまま適用だけ止め、未使用のプリセットLUTも生成しない。
 		const gamutMode = this.previewSrgbProof ? 0 : getPreviewGamutCompressionModeIndex(this.previewGamutCompression.mode);
-		if (gamutMode > 0 && gamutMode < 4 && !this.gamutBoundariesUploaded) {
+		if (gamutMode > 0 && gamutMode < PREVIEW_GAMUT_COUNT && !this.gamutBoundariesUploaded) {
 			const boundaries = getPreviewGamutBoundaryLookup();
 			this.gamutBoundaryBuffer.destroy();
 			this.gamutBoundaryBuffer = this.gpuDevice.createBuffer({ size: boundaries.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
@@ -175,6 +175,7 @@ export class CanvasRenderer {
 			previewGamutCompressionMode: gamutMode,
 			previewGamutCompressionAmount: Math.max(0, Math.min(1, this.previewGamutCompression.customAmount)),
 			previewGamutLookupSteps: [PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS],
+			previewGamutCount: PREVIEW_GAMUT_COUNT,
 		});
 		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);
 
