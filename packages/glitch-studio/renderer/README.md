@@ -1,5 +1,7 @@
 Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
+両Managerの`previewGamutWarning`は`{ enabled, referenceGamut }`で、初期値は無効・sRGB。Display P3・Rec.2020・Adobe RGBも選べる。`CanvasRenderer`は表示変換前の画像を判定し、選択色域のlinear RGBに負値または1超の成分があれば、表示補正後に不透明な黄色の斜線を重ねる。既存の黒・白の警告を優先する。判定行列は`@gs/shared/rgb-gamut.ts`と共有し、HALFの量子化誤差を行列の絶対値で伝播させて境界上の誤警告を避ける。alpha>0は未乗算RGB、alpha=0の発光は保存RGBを使い、完全透明の黒は除外する。表示専用で、解析・キャッシュ・書き出しの元画像は変えない。
+
 `canvas-output.ts`はCanvasの画素形式・色空間を`CanvasOutputSettings`として定義する。`createCanvasOutputConfigurator()`と`CanvasRenderer`へ同じ設定を渡し、Canvas構成と最終描画pipelineの形式を一致させる。プレビューのfactoryはGPU表示なら`createGpuPreviewCanvasOutputSettings()`で拡張sRGBの`rgba16float`を選び、CPU表示と書き出しWorkerは8bit sRGBを使う。Managerへ直接渡す場合の既定値も8bit sRGBとする。露出・背景・色域圧縮は表示変換としてlinear上で処理し、`canvas-output.wgsl`が最後にsRGB encodeを行う。float出力ではRGBをclampせず、ブラウザーがモニターの色空間へ変換した後、`toneMapping: { mode: 'standard' }`によりSDR範囲へ表示する。8bit出力だけshaderでsRGBの範囲へ制限する。
 
 両Managerのdynamic optionsの`previewGamutCompression`は、`{ mode, customAmount }`でプレビュー専用の色域圧縮を指定する。modeは`none`・`displayP3`・`rec2020`・`adobeRgb`・`custom`、customAmountは0〜1のクロマ削減率。既定は通常表示で、書き出し用Managerにも圧縮を引き継がない。`CanvasRenderer`は露出・linear背景合成後に変換し、解析・フレームキャッシュ・クリッピング警告の色は変更しない。

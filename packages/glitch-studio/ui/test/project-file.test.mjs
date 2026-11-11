@@ -599,6 +599,7 @@ test('restarts both previews after content and settings change during initializa
 	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'during-initialization', effectId: 'fill' });
 	appContext.highlightClipping.value = true;
 	appContext.previewExposure.value = 2;
+	appContext.previewGamutWarning.value = { enabled: true, referenceGamut: 'displayP3' };
 	appContext.previewSrgbProof.value = true;
 	appContext.previewGamutCompression.value = { mode: 'rec2020', customAmount: 0.37 };
 	window.testPreferences.timelinePreviewFramesAhead = 0;
@@ -615,6 +616,7 @@ test('restarts both previews after content and settings change during initializa
 	for (const controller of controllers) {
 		assert.equal(controller.options.visualModules[0].nodes[0].id, 'during-initialization');
 		assert.equal(controller.options.highlightClipping, true);
+		assert.deepEqual(controller.options.previewGamutWarning, { enabled: true, referenceGamut: 'displayP3' });
 		assert.equal(controller.options.previewExposure, 2);
 		assert.equal(controller.options.previewSrgbProof, true);
 		assert.deepEqual(controller.options.previewGamutCompression, { mode: 'rec2020', customAmount: 0.37 });
@@ -890,6 +892,7 @@ for (const [setting, change, inspect] of [
 	['visualModuleLivePreview fps limit', appContext => { appContext.visualModuleLivePreviewFpsLimit.value = 24; }],
 	['visualModuleLivePreview time factor', appContext => { appContext.visualModuleLivePreviewTimeFactor.value = 0.5; }],
 	['clipping display', appContext => { appContext.highlightClipping.value = true; }],
+	['gamut warning', appContext => { appContext.previewGamutWarning.value = { enabled: true, referenceGamut: 'srgb' }; }],
 	['preview exposure', appContext => { appContext.previewExposure.value = 2; }],
 	['sRGB proof', appContext => { appContext.previewSrgbProof.value = true; }],
 	['preview gamut compression', appContext => { appContext.previewGamutCompression.value = { mode: 'displayP3', customAmount: 0.5 }; }],
@@ -2341,6 +2344,20 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	assert.equal(timeline.renders.at(-1), 500);
 	const snapshotBeforeExposure = appContext.projectContext.snapshot();
 	const initializationsBeforeExposure = [visualModuleLivePreview, timeline].map(controller => controller.lifecycle.filter(event => event === 'initialize').length);
+	// 色域外警告は保存データに含めず、既存Workerへの表示更新だけで切り替える。
+	for (const referenceGamut of ['srgb', 'displayP3', 'rec2020', 'adobeRgb']) {
+		for (const enabled of [true, false]) {
+			appContext.previewGamutWarning.value = { enabled, referenceGamut };
+			await nextTick();
+			await setImmediate();
+			for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+				assert.deepEqual(controller.options.previewGamutWarning, { enabled, referenceGamut });
+				assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
+			}
+			assert.equal(timeline.renders.at(-1), 500);
+			assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
+		}
+	}
 	appContext.previewExposure.value = -2;
 	await nextTick();
 	await setImmediate();

@@ -52,6 +52,8 @@ export interface MenuA extends TextMenuBase {
 
 export interface MenuSwitch extends TextMenuBase {
 	type: 'switch';
+	/** 翻訳や並び順に依存せず、スイッチを識別するためのID。 */
+	id?: string;
 	ref: Ref<boolean>;
 	disabled?: boolean | Ref<boolean>;
 }

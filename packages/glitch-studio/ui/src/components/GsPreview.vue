@@ -63,6 +63,8 @@
 import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } from 'vue';
 import { scaleResolution } from '@gs/shared/resolution.js';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.js';
+import { PREVIEW_GAMUT_WARNING_REFERENCE_GAMUTS } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
+import type { PreviewGamutWarningReferenceGamut } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
 import GsPreviewParameterPositions from './GsPreviewParameterPositions.vue';
@@ -81,7 +83,14 @@ import { appContext } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const previewGamutWarningEnabled = computed({
+	get: () => previewGamutWarning.value.enabled,
+	set: enabled => { previewGamutWarning.value = { ...previewGamutWarning.value, enabled }; },
+});
+const previewGamutWarningReferenceLabels: Record<PreviewGamutWarningReferenceGamut, string> = {
+	srgb: 'sRGB', displayP3: 'Display P3', rec2020: 'Rec.2020', adobeRgb: 'Adobe RGB',
+};
 const { stateManager } = appContext.projectContext;
 const renderValidationErrorMessage = renderValidation.errorMessage;
 const renderFailureLocation = computed(() => {
@@ -427,6 +436,21 @@ function showMenu(ev: PointerEvent) {
 		icon: 'ti ti-alert-triangle',
 		type: 'switch',
 		ref: highlightClipping,
+	}, {
+		id: 'preview-gamut-warning',
+		text: i18n.ts._Preview.HighlightOutOfGamut,
+		icon: 'ti ti-alert-triangle',
+		type: 'switch',
+		ref: previewGamutWarningEnabled,
+	}, {
+		text: computed(() => `${i18n.ts._Preview.GamutWarningReference}: ${previewGamutWarningReferenceLabels[previewGamutWarning.value.referenceGamut]}`),
+		type: 'parent',
+		children: PREVIEW_GAMUT_WARNING_REFERENCE_GAMUTS.map(referenceGamut => ({
+			id: `preview-gamut-warning-${referenceGamut}`,
+			text: previewGamutWarningReferenceLabels[referenceGamut],
+			active: computed(() => previewGamutWarning.value.referenceGamut === referenceGamut),
+			action: () => { previewGamutWarning.value = { ...previewGamutWarning.value, referenceGamut }; },
+		})),
 	}, {
 		text: i18n.ts._Preview.AnimatedBackground,
 		icon: 'ti ti-background',

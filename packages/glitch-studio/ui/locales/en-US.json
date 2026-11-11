@@ -465,6 +465,8 @@
 		"GamutCompressionAmountHint": "Chroma reduction: 0% is unchanged, 50% halves chroma, and 100% is grayscale.",
 		"Exposure": "Preview Exposure",
 		"HighlightClipping": "Highlight Clipping",
+		"HighlightOutOfGamut": "Highlight Out-of-Gamut Colors",
+		"GamutWarningReference": "Gamut Warning Reference",
 		"AnimatedBackground": "Animated Background",
 		"ShowTimecode": "Show Timecode",
 		"ShowGrid": "Show Grid",

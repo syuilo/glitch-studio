@@ -109,6 +109,10 @@ test('imports opaque and translucent Display P3 assets without darkening', { ski
 // ACEScgを最初に選んでLUTを生成し、AP1原色・基準白もGPU/CPUの両表示で比較する。
 test('adjusts preview exposure and gamut compression without changing alpha, analysis or clipping warnings', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/preview-exposure-gpu.ts', 38));
 
+// 【GPU・CPU表示で判定色域を切り替え、半透明・透明発光・表示補正から独立した斜線を描く】
+// HALFで丸めた広色域原色と境界値を実画素で確認し、既存の黒・白の警告も優先して残す。
+test('highlights reference gamut violations independently of preview display transforms', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/preview-gamut-warning-gpu.ts', 84));
+
 // 【全画面三角形への変更で座標・微分・透明度・画面端の被覆を変えない】
 // 移行前の2枚の三角形と全画素を比較する。通常のサイズに加え、奇数寸法と1画素幅も確認し、
 // 頂点数だけを変更した際の描画欠落や、UVの範囲・上下方向・対角線での重複を検出する。

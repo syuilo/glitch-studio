@@ -41,6 +41,11 @@ const LINEAR_SRGB_TO_GAMUT: Record<RgbGamut, GamutMatrix> = {
 	],
 };
 
+/** CPUとGPUで原色・白色点の定義が分かれないよう、同じ変換行列を読み取り専用で公開する。 */
+export function getLinearSrgbToGamutMatrix(gamut: RgbGamut): GamutMatrix {
+	return LINEAR_SRGB_TO_GAMUT[gamut];
+}
+
 /** 未乗算linear RGBへ変換する。色域外の成分をclampしない。alphaは判定に含めない。 */
 export function linearSrgbToGamutRgb(color: readonly number[], gamut: RgbGamut): [number, number, number] {
 	const [red, green, blue] = LINEAR_SRGB_TO_GAMUT[gamut];

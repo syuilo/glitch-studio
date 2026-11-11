@@ -66,6 +66,7 @@
 
 			<button
 				v-else-if="item.type === 'switch'"
+				:data-test-menu-item="item.id"
 				role="menuitemcheckbox"
 				tabindex="0"
 				:class="['_button', $style.item]"

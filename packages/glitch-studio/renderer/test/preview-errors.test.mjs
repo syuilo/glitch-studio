@@ -253,6 +253,15 @@ test('reuses cached frames while applying updated preview exposure and gamut com
 		assert.equal(renderer.frameCache.get(0), cached);
 		assert.equal(renderer.canvasRenderer.previewSrgbProof, enabled);
 	}
+	// 判定色域の切替でも、作品の評価結果とfloatキャッシュは共有できる。
+	for (const referenceGamut of ['srgb', 'displayP3', 'rec2020', 'adobeRgb']) {
+		const warning = { enabled: true, referenceGamut };
+		await renderer.updateDynamicOptions({ previewGamutWarning: warning });
+		await renderer.renderTimelineAt(0);
+		assert.equal(evaluations.mock.callCount(), 1);
+		assert.equal(renderer.frameCache.get(0), cached);
+		assert.deepEqual(renderer.canvasRenderer.previewGamutWarning, warning);
+	}
 	assert.deepEqual(errors, []);
 });
 
@@ -1473,6 +1482,15 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		await render();
 		assert.deepEqual(writes.at(-1).slice(6, 8), [5, 0x3e800000]);
 		assert.equal(writes.at(-1)[10], 5);
+		// 両Managerから同じ設定を渡し、表示の再構成なしで判定を有効・無効にできる。
+		for (const enabled of [true, false]) {
+			const warning = { enabled, referenceGamut: 'displayP3' };
+			await renderer.updateDynamicOptions({ previewGamutWarning: warning });
+			await render();
+			assert.deepEqual(renderer.canvasRenderer.previewGamutWarning, warning);
+			assert.equal(writes.at(-1)[11], enabled ? 1 : 0);
+			assert.equal(configurations.mock.callCount(), 2);
+		}
 		// 確認中のuniformだけを切り替え、圧縮の設定値とCanvasの構成を保持する。
 		for (const enabled of [true, false]) {
 			await renderer.updateDynamicOptions({ previewSrgbProof: enabled });

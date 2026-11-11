@@ -158,6 +158,18 @@ export async function run() {
 					}
 					checks.push(`${mode} ${gamut} primaries and white`);
 				}
+				// 【色域外の斜線を表示してもヒストグラム・縦横の波形は元画像を解析する】
+				// 主プレビューを解析入力へ戻す誤実装では、警告色の黄色が解析結果へ混入する。
+				device.queue.writeTexture({ texture: source }, new Float16Array([2, 0.25, 0.125, 1, ...new Array(12).fill(0)]), { bytesPerRow: 16 }, [2, 2]);
+				const withoutGamutWarning = await render(-4);
+				renderer.previewGamutWarning = { enabled: true, referenceGamut: 'srgb' };
+				const withGamutWarning = await render(-4);
+				if ([255, 255, 0, 255].some((value, index) => withGamutWarning[0][index] !== value)) throw new Error(`${mode}: gamut warning changed`);
+				for (let index = 1; index < withGamutWarning.length; index++) {
+					if (withGamutWarning[index].some((value, offset) => value !== withoutGamutWarning[index][offset])) throw new Error(`${mode}: gamut warning changed analysis ${index}`);
+				}
+				renderer.previewGamutWarning = { enabled: false, referenceGamut: 'srgb' };
+				checks.push(`${mode} gamut warning preserves analysis`);
 				// 【クリッピング警告は補正前の判定と警告色を保つ】
 				// 露出で白飛びを暗く表示しても、元の出力の警告が消えたり暗くなったりしてはならない。
 				device.queue.writeTexture({ texture: source }, new Uint16Array([0x4000, 0x4000, 0x4000, 0x3c00, ...new Array(12).fill(0)]), { bytesPerRow: 16 }, [2, 2]);

@@ -3,6 +3,7 @@ import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
+import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
 import { isVisualModuleValueChange } from './project-change-policy.ts';
 import type { VisualModuleValueChange } from './project-change-policy.ts';
@@ -117,6 +118,8 @@ export type TimelineRendererManagerDynamicOptions = {
 	outputResolution: Resolution | null;
 	/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 	highlightClipping: boolean;
+	/** 表示補正前の画像を、選択したSDR色域の範囲と比較する。 */
+	previewGamutWarning: PreviewGamutWarningSettings;
 	/** 表示用の露出（EV）。作品内の画像・解析には適用せず、書き出しでは0を使う。 */
 	previewExposure: number;
 	/** sRGB環境の見え方を確認する表示専用の範囲制限。色域圧縮は一時的に迂回する。 */
@@ -249,6 +252,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		resolutionScale: 1,
 		outputResolution: null,
 		highlightClipping: false,
+		previewGamutWarning: { enabled: false, referenceGamut: 'srgb' },
 		previewExposure: 0,
 		previewSrgbProof: false,
 		previewGamutCompression: { mode: 'none', customAmount: 0.5 },
@@ -485,6 +489,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
 		if (Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'automationGraphs')) this.refreshEvaluationScenes();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
+		this.canvasRenderer.previewGamutWarning = this.dynamicOptions.previewGamutWarning;
 		this.canvasRenderer.previewExposure = this.dynamicOptions.previewExposure;
 		this.canvasRenderer.previewSrgbProof = this.dynamicOptions.previewSrgbProof;
 		this.canvasRenderer.previewGamutCompression = this.dynamicOptions.previewGamutCompression;

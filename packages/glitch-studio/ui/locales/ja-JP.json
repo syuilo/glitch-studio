@@ -465,6 +465,8 @@
 		"GamutCompressionAmountHint": "クロマの削減率。0%は無圧縮、50%はクロマを半分、100%は無彩色です。",
 		"Exposure": "プレビューの露出",
 		"HighlightClipping": "クリッピングを強調表示",
+		"HighlightOutOfGamut": "色域外を強調表示",
+		"GamutWarningReference": "色域外の判定色域",
 		"AnimatedBackground": "背景をアニメーション",
 		"ShowTimecode": "タイムコードを表示",
 		"ShowGrid": "グリッドを表示",
