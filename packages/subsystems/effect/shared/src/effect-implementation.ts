@@ -11,6 +11,7 @@ import type { VideoFrameTexture } from '@gs/shared/media/video-texture.ts';
 import type { FitMode, WrapMode } from '@gs/shared/types.ts';
 import type { EffectOutputDefinitions, EffectDefinition } from './effect-definition.ts';
 import type { EffectStatus } from './effect-status.ts';
+import type { EffectRenderWorkloadHint } from './effect-render-tiling.ts';
 
 // データの構造とパラメータ固有の設定を並行してたどる。
 // 子の設定はdataTypeやUIを持たないが、canNodeの規約は最上位と同じ。
@@ -94,6 +95,11 @@ export type EffectInstance<Options extends Record<string, ParameterDefinition> =
 export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs'> = EffectDefinition, Options extends Record<string, ParameterDefinition> = Definition['paramDefs']> = {
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
+	/** 自動タイル制御の対象だけで呼ぶ。評価済みの値を参照し、描画や履歴の更新は行わない。 */
+	getRenderWorkloadHint?: (context: {
+		params: RuntimeEffectParameters<Options>;
+		usedOutputPorts?: ReadonlySet<Extract<keyof Definition['outputDefs'], string>>;
+	}) => EffectRenderWorkloadHint | null;
 
 	outputTextureFactories: {
 		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はレンダラー作成時に確保する。

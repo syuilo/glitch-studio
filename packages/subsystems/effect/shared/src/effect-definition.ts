@@ -63,6 +63,8 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	 * needsPreviousFrameによる共通管理と、エフェクト内部での独自管理のどちらも対象とする。
 	 */
 	dependsOnRenderHistory: boolean;
+	/** 設定・入力・解像度によって単一のRender Passが長時間実行になる可能性がある。trueだけを自動タイル制御の対象にする。 */
+	canHaveLongRunningRenderPass?: boolean;
 	tags: EffectTags[];
 	paramDefs: In;
 	staticSettingDefs?: Settings;

@@ -1,3 +1,4 @@
+import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
@@ -52,7 +53,7 @@ import type { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shar
 export type VisualModuleRendererManagerStaticOptions = {
 	previewDisplayMode?: PreviewDisplayMode;
 	enable32bitDataTextures: boolean;
-	effectRenderTileDivisionLevel?: number;
+	effectRenderTiling?: EffectRenderTiling;
 	enableStats: boolean;
 	/** プレビュー用の波形・ヒストグラムのGPU処理を有効にする。 */
 	enableWaveformAndHistogram: boolean;
@@ -464,7 +465,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			resolutionScale: this.dynamicOptions.resolutionScale,
 			getPlayerResolution: playerId => getPlayerIntrinsicResolution(playerId, this.resources.players, this.resources.assets),
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
-			effectRenderTileDivisionLevel: this.staticOptions.effectRenderTileDivisionLevel,
+			effectRenderTiling: this.staticOptions.effectRenderTiling,
 			enableStats: this.staticOptions.enableStats,
 			timingHelper: this.timingHelper,
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
@@ -591,7 +592,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					});
 				}
 			};
-			if ((this.staticOptions.effectRenderTileDivisionLevel ?? 0) === 0) {
+			if (!renderer.requiresTiledRendering) {
 				// 分割なしでは従来どおり全ノードと表示を同じencoderへ記録して一度だけ送信する。
 				let output: ReturnType<VisualModuleRenderer['render']>;
 				try { output = renderer.render(context, encoder); } catch (error) {

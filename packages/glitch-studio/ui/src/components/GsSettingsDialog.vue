@@ -48,10 +48,7 @@
 									<template #label>{{ i18n.ts._Settings.TimelineFrameCachePrecision }}</template>
 									<template #caption>{{ i18n.ts._Settings.TimelineFrameCachePrecisionHint }}</template>
 								</GsSelect>
-								<GsSelect v-model="effectRenderTileDivisionLevel" large :items="effectRenderTileDivisionItems" data-test-effect-render-tile-division-level>
-									<template #label>{{ i18n.ts._Settings.EffectRenderTileDivisionLevel }}</template>
-									<template #caption>{{ i18n.ts._Settings.EffectRenderTileDivisionLevelHint }}</template>
-								</GsSelect>
+								<GsEffectRenderTilingSettings v-model="effectRenderTiling" data-test-effect-render-tiling/>
 								<GsSwitch v-model="enable32bitDataTextures">
 									{{ i18n.ts._Settings.Use32bitDataTextures }}
 									<template #caption>{{ i18n.ts._Settings.DataTexturesHint }}</template>
@@ -114,6 +111,7 @@ import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
+import GsEffectRenderTilingSettings from './GsEffectRenderTilingSettings.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsFolder from './common/GsFolder.vue';
 import { i18n, lang, SUPPORTED_LOCALES } from '@/i18n.ts';
@@ -139,8 +137,7 @@ const projectBackupSaveEnabled = preferences.model('projectBackupSaveEnabled');
 const projectBackupSaveRetentionDays = preferences.model('projectBackupSaveRetentionDays');
 const importAssetsAsExternalReferences = preferences.model('importAssetsAsExternalReferences');
 const importLargeAssetsAsExternalReferences = preferences.model('importLargeAssetsAsExternalReferences');
-const effectRenderTileDivisionItems = [0, 1, 2, 3, 4].map(value => ({ value, label: value === 0 ? i18n.ts._Settings.EffectRenderTilesDisabled : `${value} (${4 ** value})` }));
-const effectRenderTileDivisionLevel = preferences.model('effectRenderTileDivisionLevel');
+const effectRenderTiling = preferences.model('effectRenderTiling');
 const enable32bitDataTextures = preferences.model('enable32bitDataTextures');
 const timelineFrameCacheMaxGiB = preferences.model('timelineFrameCacheMaxGiB');
 const timelineFrameCachePrecision = preferences.model('timelineFrameCachePrecision');

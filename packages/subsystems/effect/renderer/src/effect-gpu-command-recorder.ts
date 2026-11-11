@@ -1,4 +1,6 @@
 import { getEffectRenderViewSize } from './effect-render-texture-views.ts';
+import type { EffectRenderTileController } from './effect-render-tile-controller.ts';
+import type { EffectRenderTiling, EffectRenderWorkloadHint } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 
 type Rectangle = { x: number; y: number; width: number; height: number };
@@ -10,7 +12,7 @@ type RecordedOperation =
 
 const deviceCompletions = new WeakMap<GPUDevice, { error: Error | null; listeners: Set<(error: Error) => void> }>();
 
-function waitForEffectGpuWork(device: GPUDevice): Promise<void> {
+export function waitForEffectGpuWork(device: GPUDevice): Promise<void> {
 	let state = deviceCompletions.get(device);
 	if (state == null) {
 		state = { error: null, listeners: new Set() };
@@ -43,15 +45,12 @@ function intersect(left: Rectangle, right: Rectangle): Rectangle {
 	return { x, y, width: Math.max(0, Math.min(left.x + left.width, right.x + right.width) - x), height: Math.max(0, Math.min(left.y + left.height, right.y + right.height) - y) };
 }
 
-export function* effectRenderTiles(width: number, height: number, level: number): Generator<Rectangle> {
-	if (!Number.isInteger(level) || level < 0 || level > 4) throw new Error('Effect render tile division level must be an integer from 0 to 4.');
-	const columns = Math.min(width, 2 ** level);
-	const rows = Math.min(height, 2 ** level);
-	for (let row = 0; row < rows; row++) {
-		for (let column = 0; column < columns; column++) {
-			const x = Math.floor(width * column / columns);
-			const y = Math.floor(height * row / rows);
-			yield { x, y, width: Math.floor(width * (column + 1) / columns) - x, height: Math.floor(height * (row + 1) / rows) - y };
+export function* effectRenderTiles(width: number, height: number, tileSize: number): Generator<{ tile: Rectangle; last: boolean }> {
+	if (!Number.isInteger(tileSize) || tileSize < 1) throw new Error('Effect render tile size must be a positive integer.');
+	for (let y = 0; y < height; y += tileSize) {
+		for (let x = 0; x < width; x += tileSize) {
+			yield { tile: { x, y, width: Math.min(tileSize, width - x), height: Math.min(tileSize, height - y) },
+				last: x + tileSize >= width && y + tileSize >= height };
 		}
 	}
 }
@@ -140,22 +139,34 @@ export class EffectGpuCommandRecorder {
 		this.openPass = true;
 	}
 
-	async execute(device: GPUDevice, level: number, signal: AbortSignal, timingHelper: TimingHelper | null): Promise<number> {
+	async execute(device: GPUDevice, tiling: EffectRenderTiling, signal: AbortSignal, timingHelper: TimingHelper | null,
+		tileController: EffectRenderTileController | null = null, workloadHint: EffectRenderWorkloadHint | null = null): Promise<number> {
 		if (this.openPass) throw new Error('Effect render returned with an open pass.');
+		if (tiling.mode === 'auto' && this.operations.length > 0) {
+			// 先行ノードの描画やuniformアップロードの待ち時間を最初のタイルへ帰属させない。
+			signal.throwIfAborted();
+			await waitForEffectGpuWork(device);
+			signal.throwIfAborted();
+		}
 		let gpuTime = 0;
 		const submit = async (encode: (encoder: GPUCommandEncoder) => void) => {
 			signal.throwIfAborted();
 			const encoder = device.createCommandEncoder();
 			encode(encoder);
-			device.queue.submit([encoder.finish()]);
+			const commandBuffer = encoder.finish();
+			const startTime = performance.now();
+			device.queue.submit([commandBuffer]);
 			// 投入境界だけではバックエンドが複数タイルをまとめる可能性があるため、
 			// 完了を確認してから次を送信する。待機中に中断しても送信済みの仕事は取り消せない。
 			const result = timingHelper?.getResult() ?? Promise.resolve(0);
-			const [, duration] = await Promise.all([waitForEffectGpuWork(device), result]);
+			// 統計表示のtimestamp readbackを待つ時間は、自動制御の経過時間に加えない。
+			const completed = waitForEffectGpuWork(device).then(() => performance.now() - startTime);
+			const [elapsedMs, duration] = await Promise.all([completed, result]);
 			gpuTime += duration;
 			signal.throwIfAborted();
+			return elapsedMs;
 		};
-		for (const operation of this.operations) {
+		for (const [operationIndex, operation] of this.operations.entries()) {
 			if (operation.kind === 'command') {
 				await submit(encoder => callCommand(encoder, operation.command));
 			} else if (operation.kind === 'compute') {
@@ -171,10 +182,14 @@ export class EffectGpuCommandRecorder {
 				const size = getEffectRenderViewSize(view);
 				// クエリの値をタイルごとに上書きしない。通常の画像パス以外は分割せず実行する。
 				const tiled = operation.descriptor.occlusionQuerySet == null;
-				const tiles = Array.from(effectRenderTiles(size.width, size.height, tiled ? level : 0));
-				for (const [index, tile] of tiles.entries()) {
-					await submit(encoder => {
-						const last = index === tiles.length - 1;
+				const plan = tiled && tiling.mode === 'auto' ? tileController?.beginPass(operationIndex,
+					operation.commands.filter(command => command.method === 'setPipeline').map(command => command.args[0]),
+					size.width, size.height, workloadHint) ?? null : null;
+				const tiles = plan?.tiles() ?? effectRenderTiles(size.width, size.height,
+					tiled && tiling.mode === 'manual' ? tiling.tileSize : Math.max(size.width, size.height));
+				let index = 0;
+				for (const { tile, last } of tiles) {
+					const elapsedMs = await submit(encoder => {
 						const depth = operation.descriptor.depthStencilAttachment;
 						const descriptor: GPURenderPassDescriptor = { ...operation.descriptor,
 							colorAttachments: attachments.map(attachment => attachment == null ? null : { ...attachment,
@@ -195,7 +210,10 @@ export class EffectGpuCommandRecorder {
 						}
 						pass.end();
 					});
+					plan?.observe(tile.width * tile.height, elapsedMs);
+					index++;
 				}
+				plan?.finish();
 			}
 		}
 		return gpuTime;

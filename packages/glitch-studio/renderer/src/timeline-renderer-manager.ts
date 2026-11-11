@@ -1,3 +1,4 @@
+import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
@@ -101,7 +102,7 @@ export type TimelineRendererManagerStaticOptions = {
 	timelineFps: number;
 	timelineMotionBlur: TimelineMotionBlurSettings;
 	enable32bitDataTextures: boolean;
-	effectRenderTileDivisionLevel?: number;
+	effectRenderTiling?: EffectRenderTiling;
 	/** 処理中の1件に追加できる先行数。省略時は1、0ではGPU完了まで直列に処理する。 */
 	previewFramesAhead?: number;
 	/** プレビュー用の容量上限。省略時・0では複製・保持・定期通知を行わない。 */
@@ -547,7 +548,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = (this.pendingVisualModuleValueRevision ?? this.dynamicOptions.previewRevision) + 1) {
-		if ((this.staticOptions.effectRenderTileDivisionLevel ?? 0) > 0 && this.activePreviewFrame != null
+		if ((this.staticOptions.effectRenderTiling?.mode ?? 'auto') !== 'disabled' && this.activePreviewFrame != null
 			&& changes.length > 0 && changes.every(isVisualModuleValueChange)) {
 			// 呼び出し時の検証は維持し、描画中の状態はまだ変更しない。
 			applyRendererProjectChanges(this.dynamicOptions, [...this.pendingVisualModuleValueChanges.values(), ...changes]);
@@ -1040,7 +1041,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (!definition || !implementation) throw new Error(`Effect not found: ${layer.effectId}`);
 				const source = this.createLayerStatusSource(layer.id, clipId, layerPath);
 				return createEffectTimelineLayer(layer, definition, implementation, {
-					effectRenderTileDivisionLevel: this.staticOptions.effectRenderTileDivisionLevel,
+					effectRenderTiling: this.staticOptions.effectRenderTiling,
 					onCompositing,
 					wgpu: {
 						device: this.gpuDevice,
@@ -1146,7 +1147,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolution: sceneBaseResolution,
 			resolutionScale: this.dynamicOptions.resolutionScale,
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
-			effectRenderTileDivisionLevel: this.staticOptions.effectRenderTileDivisionLevel,
+			effectRenderTiling: this.staticOptions.effectRenderTiling,
 			enableStats: false,
 			timingHelper: null,
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
@@ -1186,7 +1187,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				let result: Awaited<ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>> = { gpuTime: 0 };
 				const gpuTime = 0;
 				try {
-					const output = (this.staticOptions.effectRenderTileDivisionLevel ?? 0) > 0
+					const output = renderer.requiresTiledRendering
 						? await renderer.renderTiled(context, signal) : renderer.render(context, commandEncoder);
 					signal.throwIfAborted();
 					if (output != null) {

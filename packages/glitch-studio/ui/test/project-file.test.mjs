@@ -70,7 +70,7 @@ const appBundle = await build({
 						export const effectDefinitions = { fill, image, video };`
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
-						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, effectRenderTileDivisionLevel: 0,
+						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, effectRenderTiling: { mode: 'auto' },
 							renderingStatsEnabled: false, analysisMonitorsEnabled: true, timelineFrameCacheMaxGiB: 2, timelineFrameCachePrecision: 'original', previewDisplayMode: 'gpu', timelinePreviewFramesAhead: 1,
 							projectBackupAutoEnabled: false, projectBackupAutoIntervalMinutes: 1, projectBackupAutoRetentionDays: 1,
 							projectBackupSaveEnabled: false, projectBackupSaveRetentionDays: 7,
@@ -942,9 +942,9 @@ for (const [setting, change, inspect] of [
 	['motion blur samples', appContext => { appContext.timelinePreviewMotionBlurSamples.value = 4; }, appContext => {
 		assert.equal(appContext.timelineRendererManagerController.initialStaticOptions.timelineMotionBlur.samples, 4);
 	}],
-	['effect render tile division', () => { window.testPreferences.effectRenderTileDivisionLevel = 2; }, appContext => {
-		assert.equal(appContext.timelineRendererManagerController.initialStaticOptions.effectRenderTileDivisionLevel, 2);
-		assert.equal(appContext.visualModuleRendererManagerController.initialStaticOptions.effectRenderTileDivisionLevel, 2);
+	['effect render tiling', () => { window.testPreferences.effectRenderTiling = { mode: 'manual', tileSize: 256 }; }, appContext => {
+		assert.deepEqual(appContext.timelineRendererManagerController.initialStaticOptions.effectRenderTiling, { mode: 'manual', tileSize: 256 });
+		assert.deepEqual(appContext.visualModuleRendererManagerController.initialStaticOptions.effectRenderTiling, { mode: 'manual', tileSize: 256 });
 	}],
 	['GPU precision', () => { window.testPreferences.enable32bitDataTextures = true; }, appContext => {
 		assert.equal(appContext.timelineRendererManagerController.initialStaticOptions.enable32bitDataTextures, true);

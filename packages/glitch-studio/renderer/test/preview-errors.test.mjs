@@ -1917,7 +1917,7 @@ function installTiledEffect(f) {
 // 実Managerの時計・動画の所有権・世代管理まで含め、単体の描画Promiseだけでは防げない競合を検証する。
 // 波形の表示寸法の変更は作品の編集ではないため、実行中のタイル描画を中断しない。
 test('serializes tiled Live Preview frames and retains borrowed video frames until completion', async t => {
-	const f = await fixture(t, { effectRenderTileDivisionLevel: 1, enableWaveformAndHistogram: false });
+	const f = await fixture(t, { effectRenderTiling: { mode: 'manual', tileSize: 2 }, enableWaveformAndHistogram: false });
 	const advance = renderDelayClock(t);
 	const delays = [];
 	f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
@@ -1965,7 +1965,7 @@ for (const kind of ['effect', 'visualModule']) {
 	// 【書き出しの両レイヤー経路へ分割設定を伝え、完成した画像だけを表示する】
 	// Effect単体の対応だけではTimelineやVisual Moduleレイヤーの呼び出しで設定が失われ得る。
 	test(`renders tiled ${kind} layers through the timeline export path`, async t => {
-		const f = await fixture(t, { effectRenderTileDivisionLevel: 1, enableWaveformAndHistogram: false }, TimelineRendererManager);
+		const f = await fixture(t, { effectRenderTiling: { mode: 'manual', tileSize: 2 }, enableWaveformAndHistogram: false }, TimelineRendererManager);
 		const { definition, renders } = installTiledEffect(f);
 		const scenes = structuredClone(f.renderer.dynamicOptions.timelineScenes);
 		if (kind === 'effect') scenes[0].layers[0] = { ...scenes[0].layers[0], layerType: 'effect', effectId: 'pass', effectStaticSettings: {},
@@ -2005,7 +2005,7 @@ async function finishTiledWork(waits, count) {
 }
 
 async function tiledValueFixture(t, kind = 'node', Manager = VisualModuleRendererManager) {
-	const f = await fixture(t, { effectRenderTileDivisionLevel: 1, enableWaveformAndHistogram: false }, Manager);
+	const f = await fixture(t, { effectRenderTiling: { mode: 'manual', tileSize: 2 }, enableWaveformAndHistogram: false }, Manager);
 	const { definition, renders } = installTiledEffect(f);
 	f.renderer.effectDefinitions.pass.dependsOnRenderHistory = true;
 	f.renderer.effectImplementations.pass.needsPreviousFrame = true;
@@ -2066,7 +2066,8 @@ test('retains queued values when resizing a tiled Live Preview', async t => {
 	f.renderer.updateDynamicOptions({ resolution: { width: 8, height: 4 } });
 	await finishTiledWork(f.waits, 1);
 	f.frame(32);
-	await finishTiledWork(f.waits, 5);
+	// 最大寸法2pxを維持するため、8×4への変更後は8タイルとCanvas完了を待つ。
+	await finishTiledWork(f.waits, 9);
 	assert.equal(f.renders.at(-1).input.value[0], 0.7);
 	assert.deepEqual(f.states.at(-1).outputs.output, { width: 8, height: 4 });
 	assert.deepEqual(f.errors, []);

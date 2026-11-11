@@ -33,10 +33,7 @@
 				:min="1" :max="maxDimension" :step="1" :disabled="exporting"
 			><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
-		<GsSelect v-model="effectRenderTileDivisionLevel" large :items="effectRenderTileDivisionItems" :disabled="exporting" data-test-export-effect-render-tile-division-level>
-			<template #label>{{ i18n.ts._Settings.EffectRenderTileDivisionLevel }}</template>
-			<template #caption>{{ i18n.ts._Settings.EffectRenderTileDivisionLevelHint }}</template>
-		</GsSelect>
+		<GsEffectRenderTilingSettings v-model="effectRenderTiling" :disabled="exporting" data-test-export-effect-render-tiling/>
 		<GsSelect v-if="mode === 'video'" v-model="fpsScale" large :items="scaleOptions" :disabled="exporting">
 			<template #label>{{ i18n.ts._Export.FrameRate }}</template>
 			<template #caption>{{ fps }} fps</template>
@@ -76,6 +73,7 @@ import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
+import GsEffectRenderTilingSettings from './GsEffectRenderTilingSettings.vue';
 import GsTabs from './common/GsTabs.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
@@ -112,7 +110,7 @@ const initialScene = (previewPlayback.state.value.mode === 'timeline'
 const initialSceneId = initialScene?.id ?? '';
 const dialogSettings = reactive(deepClone(savedSettings ?? createDefaultExportDialogSettings(initialSceneId,
 	getSceneBaseResolution(initialScene?.resolution ?? { mode: 'project' }, stateManager.state.resolution.value),
-	stateManager.state.timelineFps.value, initialScene == null ? 0 : getSceneDuration(initialScene), preferences.s.effectRenderTileDivisionLevel)));
+	stateManager.state.timelineFps.value, initialScene == null ? 0 : getSceneDuration(initialScene), preferences.s.effectRenderTiling)));
 // 未選択なら先頭のSceneを使い、削除済みの参照は現在のSceneへ戻す。
 // どちらも以前の時間範囲を流用せず、選択したSceneの全範囲から始める。
 if (!stateManager.state.timelineScenes.value.some(scene => scene.id === dialogSettings.sceneId)) {
@@ -122,8 +120,7 @@ if (!stateManager.state.timelineScenes.value.some(scene => scene.id === dialogSe
 	dialogSettings.endTime = formatExportTime(fallbackScene == null ? 0 : getSceneDuration(fallbackScene));
 }
 const { sceneId, mode, videoFormat, stillFormat, videoQuality, stillQuality, openExrCompression, resolutionScale, customResolution,
-								effectRenderTileDivisionLevel, fpsScale, customFps, startTime, endTime } = toRefs(dialogSettings);
-const effectRenderTileDivisionItems = [0, 1, 2, 3, 4].map(value => ({ value, label: value === 0 ? i18n.ts._Settings.EffectRenderTilesDisabled : `${value} (${4 ** value})` }));
+								effectRenderTiling, fpsScale, customFps, startTime, endTime } = toRefs(dialogSettings);
 const sceneItems = computed(() => [{ label: i18n.ts._Export.ChooseScene, value: '' }, ...stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
 const scene = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
 const quality = computed({
@@ -250,11 +247,11 @@ async function doExport() {
 	const saveProgressSubscription: { stop: (() => void) | null } = { stop: null };
 	try {
 		const exportSettings = { ...settings.value };
-		// 環境設定は初期値にだけ使い、書き出しにはダイアログで選んだ分割数を渡す。
+		// 環境設定は初期値にだけ使い、書き出しにはダイアログで選んだタイル設定を渡す。
 		// 保存先選択や音声準備の待機中にも変わらないよう、開始時点の設定を保持する。
 		const exportRendererSettings = {
 			enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-			effectRenderTileDivisionLevel: effectRenderTileDivisionLevel.value,
+			effectRenderTiling: deepClone(effectRenderTiling.value),
 		};
 		const exportResolutionScale = resolutionScale.value === 'custom' ? null : resolutionScale.value;
 		const exportSceneId = sceneId.value;

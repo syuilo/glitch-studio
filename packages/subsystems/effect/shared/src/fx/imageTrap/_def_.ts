@@ -12,6 +12,7 @@ export default defineEffect({
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
+	canHaveLongRunningRenderPass: true,
 	tags: ['pattern', 'fractal', 'distortion', 'math', 'gimmicky', 'experimental'],
 	paramDefs: {
 		input: {

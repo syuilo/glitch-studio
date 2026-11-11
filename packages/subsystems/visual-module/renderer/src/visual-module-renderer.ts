@@ -1,3 +1,4 @@
+import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
@@ -103,15 +104,16 @@ export class VisualModuleRenderer {
 	private renderNodeId: VisualModuleNode['id'] | null = null;
 	private effectDefinitions: Record<string, EffectDefinition>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
-	private readonly effectRenderTileDivisionLevel: number;
+	private readonly effectRenderTiling: EffectRenderTiling;
 	private tiledRenderController: AbortController | null = null;
 	public lastTiledGpuTime = 0;
+	public requiresTiledRendering = false;
 	private parameterEvaluator = new VisualModuleParameterBindingEvaluator();
 
 	constructor(options: {
 		onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
 		enableStats: boolean;
-		effectRenderTileDivisionLevel?: number;
+		effectRenderTiling?: EffectRenderTiling;
 		timingHelper: TimingHelper | null;
 		gpuDevice: GPUDevice;
 		fallbackTexture: GPUTexture;
@@ -131,7 +133,7 @@ export class VisualModuleRenderer {
 		effectDefinitions: Record<string, EffectDefinition>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
-		this.effectRenderTileDivisionLevel = options.effectRenderTileDivisionLevel ?? 0;
+		this.effectRenderTiling = options.effectRenderTiling ?? { mode: 'auto' };
 		this.inputResolutions = options.inputResolutions ?? new Map();
 		this.getPlayerResolution = options.getPlayerResolution ?? null;
 		this.gpuDevice = options.gpuDevice;
@@ -429,13 +431,14 @@ export class VisualModuleRenderer {
 					},
 					fallbackTexture: this.fallbackTexture,
 					enableStats: this.enableStats,
-					effectRenderTileDivisionLevel: this.effectRenderTileDivisionLevel,
+					effectRenderTiling: this.effectRenderTiling,
 					timingHelper: this.timingHelper,
 					onState: state => this.onEffectState?.(node.id, state),
 				});
 				this.effectRenderers.set(node.id, renderer);
 				if (renderer.hasLazyOutputs) this.lazyEffectRenderers.set(node.id, renderer);
 			}
+			this.requiresTiledRendering = [...this.effectRenderers.values()].some(renderer => renderer.requiresTiledRendering);
 		} catch (error) {
 			// 生成途中のグラフを公開せず、確保済みの出力と待機も解放する。
 			// 復旧は所有者がVisualModuleRendererを再生成して行う。
@@ -674,18 +677,42 @@ export class VisualModuleRenderer {
 		const renderSignal = signal == null ? controller.signal : AbortSignal.any([controller.signal, signal]);
 		const evaluation = this.renderOutputNodes(context);
 		this.lastTiledGpuTime = 0;
+		let pendingEncoder: GPUCommandEncoder | null = null;
+		const flushUntiled = async () => {
+			if (pendingEncoder == null) return;
+			const encoder = pendingEncoder;
+			pendingEncoder = null;
+			this.gpuDevice.queue.submit([encoder.finish()]);
+			// 同じ計測器を次のencoderへ渡す前に結果を取り出す。統計が無効なら
+			// QueryやGPU完了待ちは追加せず、後続の自動分割だけが必要な境界で待つ。
+			this.lastTiledGpuTime += await (this.timingHelper?.getResult() ?? Promise.resolve(0));
+		};
 		try {
 			renderSignal.throwIfAborted();
 			let step = evaluation.next();
 			while (!step.done) {
-				this.lastTiledGpuTime += await step.value.renderer.renderTiled(step.value.context, renderSignal);
+				if (step.value.renderer.shouldRenderTiled(step.value.context)) {
+					if (pendingEncoder != null) await flushUntiled();
+					this.lastTiledGpuTime += await step.value.renderer.renderTiled(step.value.context, renderSignal);
+				} else {
+					// 自動制御の対象外は記録・再生やノードごとのsubmitを行わず、一括送信する。
+					pendingEncoder ??= this.gpuDevice.createCommandEncoder();
+					step.value.renderer.render({ ...step.value.context, commandEncoder: pendingEncoder });
+				}
 				renderSignal.throwIfAborted();
 				step = evaluation.next();
 			}
+			if (pendingEncoder != null) await flushUntiled();
+			renderSignal.throwIfAborted();
 			return this.primaryOutputId == null ? null : step.value.get(this.primaryOutputId) ?? null;
 		} catch (error) {
 			// 上流が部分更新された可能性もあるので、以前の静的キャッシュを流用しない。
 			this.effectCacheKeys.clear();
+			if (pendingEncoder != null) {
+				try { await flushUntiled(); } catch (_flushError) {
+					// 一次の描画エラーを、後始末の送信・計測エラーで隠さない。
+				}
+			}
 			throw error;
 		} finally {
 			evaluation.return(new Map());

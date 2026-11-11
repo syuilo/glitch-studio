@@ -9,6 +9,7 @@ import type { TimelineTickMode } from './utility/timeline-ticks.ts';
 import type { PreviewDisplayMode } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { TimelinePreviewFrameCachePrecision } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { RgbGamut } from '@gs/shared/rgb-gamut.ts';
+import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 
 export const PREF_DEF = definePreferences({
 	importAssetsAsExternalReferences: { default: () => false },
@@ -46,7 +47,7 @@ export const PREF_DEF = definePreferences({
 	timelineSnapLocalTicks: { default: () => false },
 	timelineSnapSeekBar: { default: () => false },
 	enable32bitDataTextures: { default: () => false },
-	effectRenderTileDivisionLevel: { default: () => 0 },
+	effectRenderTiling: { default: (): EffectRenderTiling => ({ mode: 'auto' }) },
 	renderingStatsEnabled: { default: () => true },
 	previewDisplayMode: { default: (): PreviewDisplayMode => 'gpu' },
 	analysisMonitorsEnabled: { default: () => true },

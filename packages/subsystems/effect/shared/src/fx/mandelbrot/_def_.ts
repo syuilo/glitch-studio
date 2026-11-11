@@ -13,6 +13,7 @@ export default defineEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
+	canHaveLongRunningRenderPass: true,
 	tags: ['pattern', 'fractal', 'math', 'gimmicky', 'experimental'],
 	paramDefs: {
 		view: {

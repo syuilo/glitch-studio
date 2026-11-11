@@ -1,3 +1,4 @@
+import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import { scaleResolution } from '@gs/shared/resolution.ts';
 import type { ExportQuality, TimelineExportSettings } from './timeline-export.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
@@ -16,14 +17,14 @@ export type ExportDialogSettings = {
 	openExrCompression: OpenExrCompression;
 	resolutionScale: ExportScale;
 	customResolution: Resolution;
-	effectRenderTileDivisionLevel: number;
+	effectRenderTiling: EffectRenderTiling;
 	fpsScale: ExportScale;
 	customFps: number;
 	startTime: string;
 	endTime: string;
 };
 
-export function createDefaultExportDialogSettings(sceneId: string, resolution: Resolution, fps: number, endTimeMs: number, effectRenderTileDivisionLevel: number): ExportDialogSettings {
+export function createDefaultExportDialogSettings(sceneId: string, resolution: Resolution, fps: number, endTimeMs: number, effectRenderTiling: EffectRenderTiling): ExportDialogSettings {
 	return {
 		sceneId,
 		mode: 'video',
@@ -34,7 +35,7 @@ export function createDefaultExportDialogSettings(sceneId: string, resolution: R
 		openExrCompression: 'zip',
 		resolutionScale: 1,
 		customResolution: { ...resolution },
-		effectRenderTileDivisionLevel,
+		effectRenderTiling,
 		fpsScale: 1,
 		customFps: fps,
 		startTime: formatExportTime(0),

@@ -9,6 +9,7 @@ const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_render
 const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
 const { createVideoFrameLoader } = await load('@gs/subsystems_effect_shared/fx/videoFrame/frame-loader.ts');
 const { createTextFontLoader } = await load('@gs/subsystems_effect_shared/text-font-loader.ts');
+const { default: mandelbrotImplementation } = await load('@gs/subsystems_effect_shared/fx/mandelbrot/_impl_.ts');
 
 const literal = value => ({ inputSource: 'literal', value });
 const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', nodeId, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
@@ -998,7 +999,7 @@ test('renders tiled graph dependencies once and publishes caches only after comp
 	const render = ctx => { const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView); pass.draw(3); pass.end(); };
 	const a = probe(g, { render });
 	const b = probe(g, { render, paramDefs: { left: color, right: color } });
-	const f = graph(t, g, { a, b }, [node('a'), node('b', 'b', { left: connection('a'), right: connection('a') })], undefined, { effectRenderTileDivisionLevel: 1 });
+	const f = graph(t, g, { a, b }, [node('a'), node('b', 'b', { left: connection('a'), right: connection('a') })], undefined, { effectRenderTiling: { mode: 'manual', tileSize: 8 } });
 	const running = f.renderer.renderTiled(f.context());
 	assert.equal(a.renders.length, 1);
 	assert.equal(b.renders.length, 0);
@@ -1015,7 +1016,7 @@ test('renders tiled graph dependencies once and publishes caches only after comp
 // 【中断・破棄は送信済みタイルを待ち、履歴を公開せず資源を回収する】
 // 途中の画像を前回値として交換したり、待機中のGPUリソースを破棄したりしない。
 test('defers tiled effect disposal until submitted work finishes without publishing history', async t => {
-	const f = single(t, { history: true, rendererOptions: { effectRenderTileDivisionLevel: 1 }, render(ctx) {
+	const f = single(t, { history: true, rendererOptions: { effectRenderTiling: { mode: 'manual', tileSize: 8 } }, render(ctx) {
 		const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView); pass.draw(3); pass.end();
 	} });
 	const controlled = enableControlledTiledGpu(f);
@@ -1030,4 +1031,93 @@ test('defers tiled effect disposal until submitted work finishes without publish
 	assert.equal(output.destroyed, 1);
 	assert.equal(controlled.submissions.length, 1);
 	assert.equal(f.instances[0].disposed, 1);
+});
+
+// 【自動制御の対象外は同期の一括描画を維持し、計算量ヒントも呼ばない】
+// 自動を既定にしても、通常のエフェクトへ記録・計測・GPU待機の固定費を持ち込まない。
+test('keeps ordinary effects on the synchronous path without consulting workload hints', t => {
+	const g = gpu();
+	const effect = probe(g);
+	effect.implementation.getRenderWorkloadHint = () => assert.fail('ordinary effect must not be measured');
+	const f = graph(t, g, { effect }, [node('effect')], undefined, { effectRenderTiling: { mode: 'auto' } });
+	assert.equal(f.renderer.requiresTiledRendering, false);
+	f.render();
+	assert.equal(effect.renders.length, 1);
+});
+
+// 【自動制御の前後にある通常ノードをまとめて送信し、対象だけを完了待ちする】
+// 重いノードを含むだけで全ノードがタイル経路へ入り、submit数が増えることを防ぐ。
+// 同じフレームのヒント・時刻・履歴は一度だけ評価し、Query非対応GPUでも動作させる。
+test('batches ordinary nodes around an automatic effect without timestamp queries', async t => {
+	const g = gpu();
+	const controlled = enableControlledTiledGpu(g);
+	g.device.features = new Set();
+	g.device.createQuerySet = () => assert.fail('automatic control must not require timestamp queries');
+	const render = ctx => { const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView); pass.draw(3); pass.end(); };
+	const effects = Object.fromEntries(['first', 'second', 'heavy', 'last'].map(id => [id, probe(g, { render, paramDefs: id === 'first' ? {} : { input: color } })]));
+	effects.heavy.definition.canHaveLongRunningRenderPass = true;
+	let workloadCalls = 0;
+	effects.heavy.implementation.getRenderWorkloadHint = () => { workloadCalls++; return { key: 'constant', workPerPixel: 16 }; };
+	const f = graph(t, g, effects, [node('first'), node('second', 'second', { input: connection('first') }),
+		node('heavy', 'heavy', { input: connection('second') }), node('last', 'last', { input: connection('heavy') })], undefined,
+	{ effectRenderTiling: { mode: 'auto' } });
+	assert.equal(f.renderer.requiresTiledRendering, true);
+	const running = f.renderer.renderTiled(f.context());
+	await tick();
+	assert.equal(controlled.submissions.length, 1, 'both upstream ordinary nodes share one submission');
+	assert.equal(effects.heavy.renders.length, 1);
+	assert.equal(effects.last.renders.length, 0);
+	await controlled.finish(); // 先行GPU処理を計測対象から除外する境界。
+	assert.equal(controlled.submissions.length, 2);
+	await controlled.finish(); // 小さい出力なので、自動制御の対象も一枚で完了する。
+	await running;
+	assert.equal(controlled.submissions.length, 3);
+	assert.equal(controlled.waits.length, 0, 'the ordinary tail does not add a completion wait');
+	assert.equal(workloadCalls, 1);
+	for (const effect of Object.values(effects)) assert.equal(effect.renders.length, 1);
+});
+
+// 【マンデルブロ集合の反復数とAAを計算量に反映し、領域変更は別条件として扱う】
+// 大きな反復数へ変更した直後も面積を縮小でき、入力から座標を読む場合は古い領域を信用しない。
+test('provides comparable Mandelbrot workload hints and invalidates changed regions', () => {
+	const params = { maximumIterations: 16, antialiasing: false, view: { center: [-0.5, 0], zoom: 1, rotation: 0 },
+		coordinateOffset: uniform, unescapedColor: uniform, ramp: { stops: [], interpolation: 'linear', colorSpace: 'srgb' },
+		bailoutRadius: 2, coloringMethod: 'smoothEscapeIterations' };
+	const getHint = value => mandelbrotImplementation.getRenderWorkloadHint({ params: value, usedOutputPorts: new Set(['output']) });
+	const initial = getHint(params);
+	assert.equal(initial.workPerPixel, 16);
+	const heavier = getHint({ ...params, maximumIterations: 64, antialiasing: true });
+	assert.equal(heavier.workPerPixel, 256);
+	assert.equal(heavier.key, initial.key);
+	assert.notEqual(getHint({ ...params, view: { ...params.view, zoom: 10 } }).key, initial.key);
+	assert.notEqual(getHint({ ...params, unescapedColor: { kind: 'texture', texture: {} } }).key, initial.key);
+	assert.equal(getHint({ ...params, coordinateOffset: { kind: 'texture', texture: {} } }), null);
+});
+
+// 【十分軽い条件では通常描画へ戻し、計測の間引き中もヒント変更を見逃さない】
+// 自動分割を解除しても毎フレームGPU完了を待つと、描画速度が回復しない。
+// 定期的な再測定と、反復数・入力条件を変更した直後の再判定を両立させる。
+test('returns a measured light effect to ordinary rendering and periodically measures again', async t => {
+	const g = gpu();
+	const effect = probe(g, { render(ctx) {
+		const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView); pass.draw(3); pass.end();
+	} });
+	effect.definition.canHaveLongRunningRenderPass = true;
+	let workPerPixel = 1;
+	effect.implementation.getRenderWorkloadHint = () => ({ key: 'constant', workPerPixel });
+	const renderer = new EffectRenderer({ ...effect, resolution: { width: 16, height: 9 },
+		wgpu: g.wgpu, fallbackTexture: {}, staticResources: {}, effectRenderTiling: { mode: 'auto' } });
+	t.after(() => renderer.dispose());
+	const controlled = enableControlledTiledGpu(g);
+	t.mock.method(performance, 'now', () => 0);
+	const context = { params: {}, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 } };
+	assert.equal(renderer.shouldRenderTiled(context), true);
+	const running = renderer.renderTiled(context);
+	await controlled.finish();
+	await controlled.finish();
+	await running;
+	for (let index = 0; index < 30; index++) assert.equal(renderer.shouldRenderTiled({ ...context }), false);
+	assert.equal(renderer.shouldRenderTiled({ ...context }), true);
+	workPerPixel = 16;
+	assert.equal(renderer.shouldRenderTiled({ ...context }), true);
 });

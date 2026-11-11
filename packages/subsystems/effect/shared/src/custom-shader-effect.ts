@@ -20,6 +20,8 @@ export function createCustomShaderEffectDefinition(definition: CustomShaderEffec
 		description: { 'ja-JP': identity.description, 'en-US': identity.description },
 		kind: definition.kind,
 		dependsOnRenderHistory: false,
+		// 任意のWGSLの実行時間は定義から判断できないので、自動分割では保守的に扱う。
+		canHaveLongRunningRenderPass: true,
 		tags: [],
 		paramDefs: Object.fromEntries(definition.paramDefs.map(parameter => [parameter.id, parameter])),
 		outputDefs: Object.fromEntries(definition.outputDefs.map(output => [output.id, { dataType: output.dataType, label: output.label }])),

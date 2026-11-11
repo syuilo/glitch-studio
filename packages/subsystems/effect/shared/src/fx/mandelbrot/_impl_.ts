@@ -10,6 +10,20 @@ import type definition from './_def_.ts';
 import { MANDELBROT_SPAN_AT_ZOOM_ONE, MANDELBROT_MINIMUM_ZOOM } from './_def_.ts';
 
 export default implementEffect<typeof definition>({
+	getRenderWorkloadHint: ({ params, usedOutputPorts }) => {
+		// 入力テクスチャの内容更新をこの層では識別できない。座標を入力から読む場合は、
+		// 前回の軽い領域の計測を流用せず、各描画で小さなタイルから確認する。
+		if (params.coordinateOffset.kind !== 'uniform') return null;
+		const rendersColor = usedOutputPorts == null || usedOutputPorts.has('output');
+		return {
+			workPerPixel: Math.min(2048, Math.max(1, Math.floor(params.maximumIterations))) * (params.antialiasing ? 4 : 1),
+			// 最大反復数・AA以外の負荷変動は同じ単位で推定できないため、再計測する。
+			key: JSON.stringify([params.view, params.coordinateOffset.value, params.bailoutRadius,
+				rendersColor ? params.coloringMethod : null, params.unescapedColor.kind,
+				params.ramp.stops.length, params.ramp.interpolation, params.ramp.colorSpace,
+				usedOutputPorts == null ? null : [...usedOutputPorts].sort()]),
+		};
+	},
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,

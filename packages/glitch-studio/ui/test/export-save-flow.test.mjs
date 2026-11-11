@@ -64,8 +64,8 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 		validationError: ref(null), error: ref(''), status: ref(''), progress: ref(null),
 		downloadUrl: ref('previous'), downloadName: ref('previous.mp4'),
 		settings: ref({ format: 'mp4', quality: 'high', width: 1920, height: 1080, positionMs: 0, endTimeMs: 100, fps: 30 }),
-		resolutionScale: ref(1), effectRenderTileDivisionLevel: ref(0), sceneId: ref('scene'), scene: ref({ name: 'Scene' }), projectName: ref('Project'),
-		stateManager: { state }, preferences: { s: { enable32bitDataTextures: true, effectRenderTileDivisionLevel: 3 } }, deepClone: structuredClone, getRendererAssets,
+		resolutionScale: ref(1), effectRenderTiling: ref({ mode: 'auto' }), sceneId: ref('scene'), scene: ref({ name: 'Scene' }), projectName: ref('Project'),
+		stateManager: { state }, preferences: { s: { enable32bitDataTextures: true, effectRenderTiling: { mode: 'manual', tileSize: 128 } } }, deepClone: structuredClone, getRendererAssets,
 		getRequiredVoicevoxRequestsForRendering: () => [],
 		appContext: {
 			voicevoxGeneration: { async prepare() { events.push(['prepare']); return []; } },
@@ -98,8 +98,8 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 // 【全出力形式でダイアログのタイル分割を使い、書き出し開始時の設定を保持する】
 // 環境設定の値をそのまま渡すと、書き出しだけ分割を無効にしたり増やしたりできない。
 // 保存先を選ぶ間に設定が変わっても、受け付けた書き出しの設定へ混入しないことを確認する。
-test('passes the selected tile division to every export format using a snapshot', async () => {
-	for (const [format, divisionLevel] of [['mp4', 0], ['webp', 2], ['exr', 4]]) {
+test('passes the selected tiling settings to every export format using a snapshot', async () => {
+	for (const [format, tiling] of [['mp4', { mode: 'disabled' }], ['webp', { mode: 'auto' }], ['exr', { mode: 'manual', tileSize: 256 }]]) {
 		const choice = Promise.withResolvers();
 		const f = fixture({ choose: () => choice.promise });
 		if (format === 'webp') {
@@ -107,16 +107,16 @@ test('passes the selected tile division to every export format using a snapshot'
 		} else if (format === 'exr') {
 			f.context.settings.value = { format, compression: 'zip', width: 1920, height: 1080, positionMs: 0 };
 		}
-		f.context.effectRenderTileDivisionLevel.value = divisionLevel;
+		f.context.effectRenderTiling.value = tiling;
 		const job = f.doExport();
-		f.context.effectRenderTileDivisionLevel.value = 1;
+		f.context.effectRenderTiling.value = { mode: 'manual', tileSize: 64 };
 		f.context.preferences.s.enable32bitDataTextures = false;
 		choice.resolve({ id: 'target', name: `chosen.${format}` });
 		await job;
 		assert.equal(f.context.error.value, '');
 		assert.equal(f.exportRequests.length, 1);
-		assert.deepEqual(f.exportRequests[0].renderer, { enable32bitDataTextures: true, effectRenderTileDivisionLevel: divisionLevel });
-		assert.equal(f.context.preferences.s.effectRenderTileDivisionLevel, 3);
+		assert.deepEqual(f.exportRequests[0].renderer, { enable32bitDataTextures: true, effectRenderTiling: tiling });
+		assert.deepEqual(f.context.preferences.s.effectRenderTiling, { mode: 'manual', tileSize: 128 });
 	}
 });
 

@@ -1,3 +1,4 @@
+import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import { getEffectIntrinsicResolution, resolveEffectStaticResources } from '@gs/subsystems_effect_renderer/effect-static-settings.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
@@ -35,7 +36,7 @@ import type { TimelineAudioInputProvider } from '../../timeline-audio-input-reso
 /** レイヤーの評価スコープ・入力・合成を所有し、エフェクト自身の実行はEffectRendererへ委ねる。 */
 export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition: EffectDefinition, implementation: EffectImplementation, options: {
 	wgpu: EffectGpuContext;
-	effectRenderTileDivisionLevel?: number;
+	effectRenderTiling?: EffectRenderTiling;
 	fallbackTexture: GPUTexture;
 	/** 倍率適用済みの所属Sceneの寸法。 */
 	resolution: Resolution;
@@ -68,7 +69,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 		wgpu: options.wgpu,
 		fallbackTexture: options.fallbackTexture,
 		onState: options.onState,
-		effectRenderTileDivisionLevel: options.effectRenderTileDivisionLevel,
+		effectRenderTiling: options.effectRenderTiling,
 	});
 	const compositor = createTimelineCompositor({
 		device,
@@ -157,7 +158,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 					usedOutputPorts,
 					commandEncoder: encoder,
 				};
-				if ((options.effectRenderTileDivisionLevel ?? 0) > 0) await renderer.renderTiled(renderContext, signal);
+				if (renderer.shouldRenderTiled(renderContext)) await renderer.renderTiled(renderContext, signal);
 				else renderer.render(renderContext);
 				signal.throwIfAborted();
 				const texture = renderer.getOutputTexture(port);

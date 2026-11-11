@@ -17,7 +17,7 @@ const bundle = await build({
 	plugins: [i18nPlugin, { name: 'export-dialog-platform', setup(build) {
 		build.onResolve({ filter: /\.vue$|(?:^|\/)(?:app|preferences|application-activity)\.ts$|\/export\/client\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({ loader: 'ts', resolveDir: directory, contents: args.path.endsWith('/preferences.ts')
-			? 'export const preferences = globalThis.exportDialogPreferences = { s: { effectRenderTileDivisionLevel: 0 } };'
+			? 'export const preferences = globalThis.exportDialogPreferences = { s: { effectRenderTiling: { mode: "auto" } } };'
 			: !args.path.endsWith('/app.ts')
 			? 'export default {}; export const applicationActivity = {}; export function exportTimeline() {}'
 			: `
@@ -70,9 +70,9 @@ test('restores OpenEXR settings and displays block and byte progress', t => {
 	assert.equal(reopened.input.settings.quality, 'high');
 });
 
-function fixture(t, savedSettings = null, preferredEffectRenderTileDivisionLevel = 0) {
+function fixture(t, savedSettings = null, preferredEffectRenderTiling = { mode: 'auto' }) {
 	const stateManager = context.projectContext.stateManager;
-	preferences.s.effectRenderTileDivisionLevel = preferredEffectRenderTileDivisionLevel;
+	preferences.s.effectRenderTiling = preferredEffectRenderTiling;
 	context.projectContext.generation = 1;
 	context.previewPlayback.state.value = { mode: 'timeline' };
 	context.activeScene.value = { id: 'scene' };
@@ -135,18 +135,19 @@ test('uses GPU and format limits for large custom and scaled still dimensions', 
 // 【タイル分割の初期値を環境設定から取り込み、変更後は書き出し設定として復元する】
 // 書き出しだけ分割数を変えてもプレビュー用の環境設定を書き換えず、無効の選択も保持する。
 // 保存済みの値は、後から変更した環境設定より優先する。
-test('initializes tile division from preferences and restores the independent export choice', t => {
-	const f = fixture(t, null, 2);
-	assert.equal(f.input.effectRenderTileDivisionLevel, 2);
-	f.input.effectRenderTileDivisionLevel = 0;
-	assert.equal(preferences.s.effectRenderTileDivisionLevel, 2);
+test('initializes tiling from preferences and restores the independent export choice', t => {
+	const preferred = { mode: 'manual', tileSize: 256 };
+	const f = fixture(t, null, preferred);
+	assert.deepEqual(f.input.effectRenderTiling, preferred);
+	f.input.effectRenderTiling = { mode: 'disabled' };
+	assert.deepEqual(preferences.s.effectRenderTiling, preferred);
 	f.input.closeDialog();
-	assert.equal(f.stateManager.state.exportSettings.value.effectRenderTileDivisionLevel, 0);
+	assert.deepEqual(f.stateManager.state.exportSettings.value.effectRenderTiling, { mode: 'disabled' });
 	f.close();
-	preferences.s.effectRenderTileDivisionLevel = 4;
+	preferences.s.effectRenderTiling = { mode: 'auto' };
 	const reopened = f.open();
-	assert.equal(reopened.input.effectRenderTileDivisionLevel, 0);
-	assert.equal(preferences.s.effectRenderTileDivisionLevel, 4);
+	assert.deepEqual(reopened.input.effectRenderTiling, { mode: 'disabled' });
+	assert.deepEqual(preferences.s.effectRenderTiling, { mode: 'auto' });
 });
 
 // 【FPSの倍率はプロジェクトを基準にし、カスタム入力と出力の検証を切り替える】

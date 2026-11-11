@@ -12,6 +12,7 @@ export default defineEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
+	canHaveLongRunningRenderPass: true,
 	tags: ['pattern', 'fractal', 'simulation', 'math', 'gimmicky', 'experimental'],
 	paramDefs: {
 		simulationTime: {

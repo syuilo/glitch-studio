@@ -1,4 +1,6 @@
 import { EffectGpuCommandRecorder } from './effect-gpu-command-recorder.ts';
+import { EffectRenderTileController } from './effect-render-tile-controller.ts';
+import type { EffectRenderTiling, EffectRenderWorkloadHint } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import { createEffectRenderDevice, trackEffectRenderTexture } from './effect-render-texture-views.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters, EffectStaticResources } from '@gs/subsystems_effect_shared/effect-implementation.ts';
@@ -24,7 +26,7 @@ type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outp
  * resourceVersion/cacheVersionを読む。入力の内容更新は呼び出し側のキーで扱う。
  * 返した出力を読むコマンドは、次の描画・再確保・破棄より前に呼び出し側でsubmitする。
  */
-export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs'> = EffectDefinition<any, any>> {
+export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs' | 'staticSettingDefs' | 'canHaveLongRunningRenderPass'> = EffectDefinition<any, any>> {
 	private instance: EffectInstance<Definition['paramDefs'], Definition['outputDefs']> | null = null;
 	private instanceGeneration = 0;
 	private resourceVersionValue = ++nextResourceVersion;
@@ -41,6 +43,10 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	private tiledRenderController: AbortController | null = null;
 	private tiledTimingHelper: TimingHelper | null = null;
 	private pendingHistoryReset = false;
+	private readonly tileController: EffectRenderTileController | null;
+	public readonly requiresTiledRendering: boolean;
+	private pendingWorkloadHint: { context: Omit<RenderContext<Definition>, 'commandEncoder'>; hint: EffectRenderWorkloadHint | null } | null = null;
+	private untiledFramesUntilMeasurement = 0;
 
 	constructor(private readonly options: {
 		definition: Definition;
@@ -54,9 +60,12 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		onState?: (state: EffectInstanceState | null) => void;
 		timingHelper?: TimingHelper | null;
 		enableStats?: boolean;
-		effectRenderTileDivisionLevel?: number;
+		effectRenderTiling?: EffectRenderTiling;
 	}) {
-		this.effectGpuContext = (options.effectRenderTileDivisionLevel ?? 0) > 0
+		const tiling = options.effectRenderTiling ?? { mode: 'auto' };
+		this.requiresTiledRendering = tiling.mode === 'manual' || (tiling.mode === 'auto' && options.definition.canHaveLongRunningRenderPass === true);
+		this.tileController = tiling.mode === 'auto' && options.definition.canHaveLongRunningRenderPass === true ? new EffectRenderTileController() : null;
+		this.effectGpuContext = this.requiresTiledRendering
 			? { ...options.wgpu, device: createEffectRenderDevice(options.wgpu.device) } : options.wgpu;
 		this.resolution = { ...options.resolution };
 		this.lazyPorts = Object.keys(options.definition.outputDefs).filter(port => options.definition.outputDefs[port].canLazyAllocation);
@@ -119,9 +128,9 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 			previousFrameTexture = this.options.implementation.needsPreviousFrame ? createTexture(args) : null;
 			return {
 				texture,
-				textureView: ((this.options.effectRenderTileDivisionLevel ?? 0) > 0 ? trackEffectRenderTexture(texture) : texture).createView(),
+				textureView: (this.requiresTiledRendering ? trackEffectRenderTexture(texture) : texture).createView(),
 				previousFrameTexture,
-				previousFrameTextureView: previousFrameTexture == null ? null : ((this.options.effectRenderTileDivisionLevel ?? 0) > 0 ? trackEffectRenderTexture(previousFrameTexture) : previousFrameTexture).createView(),
+				previousFrameTextureView: previousFrameTexture == null ? null : (this.requiresTiledRendering ? trackEffectRenderTexture(previousFrameTexture) : previousFrameTexture).createView(),
 			};
 		} catch (error) {
 			texture?.destroy();
@@ -217,6 +226,19 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		this.recordRender(context)();
 	}
 
+	/** 十分軽いことを実測した条件では、通常描画へ戻して計測も間引く。 */
+	shouldRenderTiled(context: Omit<RenderContext<Definition>, 'commandEncoder'>): boolean {
+		if (!this.requiresTiledRendering) return false;
+		if (this.options.effectRenderTiling?.mode === 'manual') return true;
+		const hint = this.options.implementation.getRenderWorkloadHint?.(context) ?? null;
+		this.pendingWorkloadHint = { context, hint };
+		if (this.tileController?.canRenderUntiled(hint) === true && this.untiledFramesUntilMeasurement > 0) {
+			this.untiledFramesUntilMeasurement--;
+			return false;
+		}
+		return true;
+	}
+
 	/** エフェクト実装は同期のまま一度だけ呼び、GPU実行の成功後に出力と履歴を公開する。 */
 	async renderTiled(context: Omit<RenderContext<Definition>, 'commandEncoder'>, signal?: AbortSignal): Promise<number> {
 		this.assertAlive();
@@ -227,15 +249,25 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		const renderSignal = signal == null ? controller.signal : AbortSignal.any([signal, controller.signal]);
 		try {
 			renderSignal.throwIfAborted();
+			const tiling = this.options.effectRenderTiling ?? { mode: 'auto' };
+			let workloadHint: EffectRenderWorkloadHint | null = null;
+			if (tiling.mode === 'auto' && this.options.definition.canHaveLongRunningRenderPass === true) {
+				workloadHint = this.pendingWorkloadHint?.context === context ? this.pendingWorkloadHint.hint
+					: this.options.implementation.getRenderWorkloadHint?.(context) ?? null;
+			}
+			this.pendingWorkloadHint = null;
 			const recorder = new EffectGpuCommandRecorder();
 			const commit = this.recordRender({ ...context, commandEncoder: recorder.encoder }, recorder);
 			if (this.options.enableStats === true) this.tiledTimingHelper ??= new TimingHelper(this.options.wgpu.device);
-			const gpuTime = await recorder.execute(this.options.wgpu.device, this.options.effectRenderTileDivisionLevel ?? 0, renderSignal, this.tiledTimingHelper);
+			const gpuTime = await recorder.execute(this.options.wgpu.device, tiling, renderSignal, this.tiledTimingHelper,
+				this.tileController, workloadHint);
 			renderSignal.throwIfAborted();
 			commit();
+			this.untiledFramesUntilMeasurement = this.tileController?.canRenderUntiled(workloadHint) === true ? 30 : 0;
 			return gpuTime;
 		} catch (error) {
 			// CPUカウンターや中間画像も変更され得るため、中断された実装を次回に再利用しない。
+			this.tileController?.reset();
 			this.pendingHistoryReset = true;
 			this.tiledTimingHelper?.dispose();
 			this.tiledTimingHelper = null;
@@ -335,6 +367,9 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	}
 
 	private releaseInstance() {
+		this.tileController?.reset();
+		this.pendingWorkloadHint = null;
+		this.untiledFramesUntilMeasurement = 0;
 		// dispose中に同期通知する実装もあり得るため、先に世代と待機を無効化する。
 		++this.instanceGeneration;
 		this.resourceVersionValue = ++nextResourceVersion;

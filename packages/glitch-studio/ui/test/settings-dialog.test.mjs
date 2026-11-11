@@ -18,14 +18,14 @@ const dialogBundle = await build({ ...options, entryPoints: ['./src/components/G
 		builder.onResolve({ filter: /(?:^|\/)(preferences|locale-settings-ui)\.ts$/ }, ({ path }) => ({ path: basename(path), namespace: 'settings-platform' }));
 		builder.onLoad({ filter: /.*/, namespace: 'settings-platform' }, ({ path }) => ({ contents: path === 'preferences.ts' ? 'export const preferences = window.settingsTestPreferences;'
 			: 'export async function changeLocale(locale) { window.settingsTestLocaleChanges.push(locale); }' }));
-		builder.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsSettingsDialog.vue') ? null : { path: basename(path, '.vue'), namespace: 'settings-control' });
+		builder.onResolve({ filter: /\.vue$/ }, ({ path }) => /Gs(?:SettingsDialog|EffectRenderTilingSettings)\.vue$/.test(path) ? null : { path: basename(path, '.vue'), namespace: 'settings-control' });
 		builder.onLoad({ filter: /.*/, namespace: 'settings-control' }, () => ({ contents: `
 			import { h } from 'vue';
 			export default { setup(_, { attrs, slots, expose }) {
 				expose({ close() {} }); return () => h('div', attrs, slots.default?.());
 			} };
 		` }));
-		builder.onLoad({ filter: /GsSettingsDialog\.vue$/ }, async ({ path }) => {
+		builder.onLoad({ filter: /Gs(?:SettingsDialog|EffectRenderTilingSettings)\.vue$/ }, async ({ path }) => {
 			const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
 			const script = compileScript(descriptor, { id: 'settings-test', inlineTemplate: true, genDefaultAs: 'component' }).content;
 			return { loader: 'ts', resolveDir: dirname(path), contents: `${script}; component.__cssModules = { $style: {} }; export default component;` };
@@ -119,18 +119,28 @@ test('saves settings individually', async t => {
 	}
 	// 【表示方式を設定から保存し、GPUとCPUを相互に切り替える】
 	// 設定画面を開いただけでは既定値を書き込まず、選択した方式を次回起動にも保持する。
-	// 【タイル分割レベルは環境設定だけに保存し、0へ戻す操作も扱う】
-	// 設定を増やしても画面を開いただけで値を書き戻さず、選択した分割数だけを永続化する。
-	const tileDivision = find('data-test-effect-render-tile-division-level');
-	assert.equal(tileDivision.props.modelValue, 0);
-	assert.deepEqual(tileDivision.props.items.map(item => item.value), [0, 1, 2, 3, 4]);
-	tileDivision.props['onUpdate:modelValue'](2);
+	// 【自動を初期値とし、手動のタイル寸法と無効の選択を保存する】
+	// 画面を開いただけでは書き戻さず、最大寸法を変更した結果をWorkerへ渡せる設定として保持する。
+	const tilingMode = find('data-test-effect-render-tiling-mode');
+	assert.equal(tilingMode.props.modelValue, 'auto');
+	assert.deepEqual(tilingMode.props.items.map(item => item.value), ['auto', 'disabled', 'manual']);
+	assert.equal(storage.has('preferences:effectRenderTiling'), false);
+	tilingMode.props['onUpdate:modelValue']('manual');
 	await nextTick();
-	assert.equal(storage.get('preferences:effectRenderTileDivisionLevel'), '2');
-	tileDivision.props['onUpdate:modelValue'](0);
+	const tileSize = find('data-test-effect-render-tile-size');
+	assert.equal(tileSize.props.modelValue, 512);
+	tileSize.props['onUpdate:modelValue'](128);
 	await nextTick();
-	assert.equal(preferences.s.effectRenderTileDivisionLevel, 0);
-	assert.equal(storage.get('preferences:effectRenderTileDivisionLevel'), '0');
+	assert.deepEqual(preferences.s.effectRenderTiling, { mode: 'manual', tileSize: 128 });
+	assert.equal(storage.get('preferences:effectRenderTiling'), JSON.stringify({ mode: 'manual', tileSize: 128 }));
+	for (const mode of ['disabled', 'auto']) {
+		tilingMode.props['onUpdate:modelValue'](mode);
+		await nextTick();
+		assert.deepEqual(preferences.s.effectRenderTiling, { mode });
+	}
+	tilingMode.props['onUpdate:modelValue']('manual');
+	await nextTick();
+	assert.equal(find('data-test-effect-render-tile-size').props.modelValue, 128);
 	const displayMode = find('data-test-preview-display-mode');
 	assert.equal(displayMode.props.modelValue, 'gpu');
 	assert.equal(storage.has('preferences:previewDisplayMode'), false);

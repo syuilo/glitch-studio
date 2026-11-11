@@ -17,7 +17,8 @@ import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
 import { checkCustomShaderEffects } from './custom-shader-effect-gpu.ts';
 
 export async function runTiledEffects() {
-	return runGpuChecks(checkEffectRenderTiles, true);
+	// 自動分割の実画素比較はtimestamp-queryを要求しないデバイスでも行う。
+	return runGpuChecks(checkEffectRenderTiles);
 }
 
 export async function runCustomShaderEffects() {
