@@ -1,0 +1,17 @@
+/* Google Fontsと同じウェイト範囲・通常体・斜体を、OSへのインストールに依存せず提供する。 */
+@font-face {
+	font-family: 'Chivo Mono';
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url('./chivo-mono-normal.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Chivo Mono';
+	font-style: italic;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url('./chivo-mono-italic.ttf') format('truetype');
+}
+
