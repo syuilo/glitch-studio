@@ -14,6 +14,8 @@ desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-buil
 
 `GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/startup-splash-electron.test.mjs`を実行すると、実ウィンドウを短時間表示してレンダラープロセスを増やさない表示と切り替え・起動途中の終了・読み込み失敗を検証します。
 
+`app://`は`standard: true`と`codeCache: true`で登録し、V8のJavaScriptコードキャッシュを利用できるようにします。キャッシュの生成・再利用はChromium既定の判断に任せ、再起動や追加の編集ウィンドウで同じスクリプトを読み込む際のコンパイル負荷を減らします。効果の対象はJavaScriptの読み込み・コンパイルです。
+
 ## パネルとプレビューの別ウィンドウ
 
 Windowメニューから開くパネルと、既存パネル・プレビューを切り離したウィンドウは、メインウィンドウを`parent`に指定して開きます。メイン画面を操作しても、その子ウィンドウはメイン画面より前面に表示されます。モーダルにはしないため、両方の画面を操作できます。Web版の通常の別ウィンドウには、この前面固定は適用できません。

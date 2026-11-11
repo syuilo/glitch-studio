@@ -90,7 +90,16 @@ if (process.platform === 'darwin') {
 // WorkerやWebGPUを通常のWebページと同じオリジン・secure contextで動かす。
 protocol.registerSchemesAsPrivileged([{
 	scheme: 'app',
-	privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+	privileges: {
+		standard: true,
+		secure: true,
+		supportFetchAPI: true,
+		corsEnabled: true,
+		stream: true,
+		// 独自schemeでは既定で無効なV8コードキャッシュを有効にし、再起動や追加の
+		// 編集ウィンドウで同じJavaScriptを読み込む際のコンパイル負荷を減らす。
+		codeCache: true,
+	},
 }]);
 
 function isAppUrl(value) {
