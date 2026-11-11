@@ -54,7 +54,7 @@
 			<div :class="$style.footerSection">
 				<div :class="$style.footerSectionTitle">{{ i18n.ts._App.Project }}:</div>
 				<div :class="$style.footerSectionContents">
-					<button :class="$style.footerItem" class="_button" @click="openProjectSettings">sRGB / {{ stateManager.state.resolution.value.width }} x {{ stateManager.state.resolution.value.height }} px / {{ stateManager.state.timelineFps.value }}fps</button>
+					<button :class="$style.footerItem" class="_button" @click="openProjectSettings">{{ stateManager.state.resolution.value.width }} x {{ stateManager.state.resolution.value.height }} px / {{ stateManager.state.timelineFps.value }}fps</button>
 				</div>
 			</div>
 			<div :class="$style.footerSection">
