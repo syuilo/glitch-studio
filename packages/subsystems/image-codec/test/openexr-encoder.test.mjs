@@ -7,6 +7,25 @@ import { OpenExrEncoder } from '../src/openexr-encoder.ts';
 const wasmBytes = await readFile(new URL('../src/codec/tinyexr.wasm', import.meta.url));
 const wasmBinary = wasmBytes.buffer.slice(wasmBytes.byteOffset, wasmBytes.byteOffset + wasmBytes.byteLength);
 
+// 【8192pxを超える幅と高さのHALF画像を、圧縮方式によらず正確に保存する】
+// JS側だけでなく配布する実WASMにも旧上限が残っていないことを確認する。
+// 横長・縦長を使ってメモリ消費を抑えながら、行境界・末尾ブロック・全画素を照合する。
+for (const compression of ['none', 'zip']) {
+	for (const [width, height] of [[16384, 17], [3, 8193]]) {
+		test(`encodes ${width}x${height} HALF images with ${compression} compression`, async () => {
+			const input = new Uint16Array(width * height * 4);
+			for (let index = 0; index < input.length; index++) input[index] = (index * 17) & 0xffff;
+			const encoder = await OpenExrEncoder.create({ width, height, compression }, wasmBinary);
+			for (let row = 0; row < height; row += encoder.rowsPerBlock) {
+				encoder.writeBlock(input.subarray(row * width * 4, Math.min(row + encoder.rowsPerBlock, height) * width * 4));
+			}
+			const result = readExr(encoder.finish());
+			assert.deepEqual([result.width, result.height], [width, height]);
+			assert.deepEqual(result.pixels, input);
+		});
+	}
+}
+
 // TinyEXRのデコーダーを共用せず、ファイル構造とZIPの逆変換を独立して検証する。
 function readExr(buffer) {
 	const view = new DataView(buffer);
@@ -111,6 +130,31 @@ test('keeps pixel views current when the WASM heap grows', async () => {
 		assert.equal(pixels[y * width * 4], 0x3800 + y % 512);
 		assert.equal(pixels[(y + 1) * width * 4 - 1], 0x3800 + y % 512);
 	}
+});
+
+// 【2GiBを超える無圧縮16K画像も、出力長を符号付き整数へ切り詰めず保存する】
+// ファイル上限・WASM最大メモリ・native容量拡張・JSへ返す長さのいずれかに旧制限が残ると
+// この寸法だけ失敗する。数GiBのRAMを使うため明示実行にし、全画素の再展開を避けて
+// 最終scanlineの位置とチャンネルを照合する。
+test('encodes uncompressed 16K files larger than two GiB', { skip: process.env.LARGE_OPENEXR_CODEC_TEST !== '1', timeout: 60000 }, async () => {
+	const width = 16384, height = 16384;
+	const encoder = await OpenExrEncoder.create({ width, height, compression: 'none' }, wasmBinary);
+	try {
+		const row = new Uint16Array(width * 4);
+		for (let x = 0; x < width; x++) row.set([0x4000, 0xb800, 0x3c00, 0x3800], x * 4);
+		for (let y = 0; y < height; y++) encoder.writeBlock(row);
+		const buffer = encoder.finish();
+		assert.ok(buffer.byteLength > 2 ** 31);
+		const view = new DataView(buffer);
+		assert.equal(view.getUint32(0, true), 20000630);
+		const lastBlock = buffer.byteLength - 8 - width * 8;
+		assert.equal(view.getInt32(lastBlock, true), height - 1);
+		assert.equal(view.getUint32(lastBlock + 4, true), width * 8);
+		for (const [channel, value] of [0x3800, 0x3c00, 0xb800, 0x4000].entries()) {
+			assert.equal(view.getUint16(lastBlock + 8 + channel * width * 2, true), value);
+			assert.equal(view.getUint16(lastBlock + 8 + (channel + 1) * width * 2 - 2, true), value);
+		}
+	} finally { encoder.dispose(); }
 });
 
 // 【途中終了と不正なブロックを検出し、同じWASM内の資源を確実に解放する】

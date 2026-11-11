@@ -21,11 +21,12 @@ const actualRevision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: source, en
 if (actualRevision.stdout.trim() !== revision) throw new Error(`TinyEXR must be pinned to ${revision}`);
 const excluded = new Set(['exr_stdio.c', 'exr_freestanding.c', 'exr_spectral.c', 'exr_gpu_cuda.c', 'exr_vk_vulkan.c', 'exr_zstd.c']);
 const sources = (await readdir(path.join(source, 'src'))).filter(name => name.endsWith('.c') && !excluded.has(name)).sort().map(name => path.join(source, 'src', name));
-const functions = ['openexr_encoder_create', 'openexr_encoder_pixels', 'openexr_encoder_write', 'openexr_encoder_finish', 'openexr_encoder_data', 'openexr_encoder_size', 'openexr_encoder_destroy', 'exr_result_string'];
+const functions = ['openexr_encoder_create', 'openexr_encoder_pixels', 'openexr_encoder_write', 'openexr_encoder_finish', 'openexr_encoder_data', 'openexr_encoder_chunk_size', 'openexr_encoder_size', 'openexr_encoder_destroy', 'exr_result_string'];
 await mkdir(path.join(packageDirectory, 'src/codec'), { recursive: true });
 const args = ['-O3', '-std=c11', '-DEXR_NO_ZSTD', `-I${source}/include`, `-I${source}/src`, ...sources,
 	path.join(packageDirectory, 'native/openexr.c'),
-	'-sFILESYSTEM=0', '-sALLOW_MEMORY_GROWTH=1', '-sMAXIMUM_MEMORY=2147483648', '-sABORTING_MALLOC=0',
+	// 16K HALF RGBAは無圧縮で2GiBを超えるため、WASM32の4GiBまで成長を許可する。
+	'-sFILESYSTEM=0', '-sALLOW_MEMORY_GROWTH=1', '-sMAXIMUM_MEMORY=4294967296', '-sABORTING_MALLOC=0',
 	'-sMODULARIZE=1', '-sEXPORT_ES6=1', '-sENVIRONMENT=web,worker',
 	'-sINCOMING_MODULE_JS_API=["wasmBinary","locateFile"]',
 	`-sEXPORTED_FUNCTIONS=${JSON.stringify(functions.map(name => `_${name}`))}`,

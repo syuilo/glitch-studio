@@ -42,16 +42,23 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		const validationError = validateExportSettings(settings);
 		if (validationError) throw new Error(validationError);
 		send({ type: 'progress', progress: { phase: 'preparing', completedFrames: 0, totalFrames: 0 } });
+		const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
+		if (!adapter) throw new Error('WebGPU is unavailable.');
+		// 画像やエンコーダーを確保する前に実GPUの上限を確認する。黙って縮小すると
+		// 書き出し設定とファイルの寸法が食い違うため、上限超過は明示的に失敗させる。
+		const gpuValidationError = validateExportSettings(settings, adapter.limits.maxTextureDimension2D);
+		if (gpuValidationError != null) throw new Error(gpuValidationError);
 		const canvas = new OffscreenCanvas(settings.width, settings.height);
 		if (settings.format === 'mp4') {
 			const audioClips = getExportAudioClips(getTimelineScenesWithProjectAutomationGraphs(project.timelineScenes, project.automationGraphs), project.sceneId, settings, project.generatedSpeech);
 			writer = await createMp4Writer(canvas, settings, audioClips.length > 0);
 			if (audioClips.length > 0) audio = new TimelineAudioExport(project.assets, audioClips, settings, project.generatedSpeech);
 		}
-		const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
-		if (!adapter) throw new Error('WebGPU is unavailable.');
 		device = await adapter.requestDevice({
 			requiredFeatures: rendererSettings.enable32bitDataTextures ? ['float32-filterable'] : [],
+			// requiredLimitsを省略すると、対応GPUでも既定の8192pxに制限される。
+			// 子Sceneや個別解像度のノードもあるため、最終出力寸法だけでなく対応上限を要求する。
+			requiredLimits: { maxTextureDimension2D: adapter.limits.maxTextureDimension2D },
 		});
 		const fail = (message: string) => {
 			if (finished) return;

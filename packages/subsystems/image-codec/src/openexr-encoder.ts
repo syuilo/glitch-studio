@@ -22,7 +22,8 @@ export class OpenExrEncoder {
 	}
 
 	public static async create(options: { width: number; height: number; compression: OpenExrCompression }, wasmBinary?: ArrayBuffer): Promise<OpenExrEncoder> {
-		if (![options.width, options.height].every(value => Number.isInteger(value) && value >= 1 && value <= 8192)) throw new Error('Invalid OpenEXR dimensions.');
+		// OpenEXRのwindow座標とnative APIは符号付き32bit整数。GPUの上限は呼び出し側が扱う。
+		if (![options.width, options.height].every(value => Number.isInteger(value) && value >= 1 && value <= 0x7fffffff)) throw new Error('Invalid OpenEXR dimensions.');
 		if (options.compression !== 'none' && options.compression !== 'zip') throw new Error('Unsupported OpenEXR compression.');
 		// ジョブごとにWASMメモリを所有し、Workerの終了とともに大きくなったheapも解放する。
 		const codec = await createTinyExrModule(wasmBinary == null ? {} : { wasmBinary });
@@ -44,8 +45,15 @@ export class OpenExrEncoder {
 		try {
 			if (this.completedRows !== this.height) throw new Error('OpenEXR image is incomplete.');
 			this.check(this.codec._openexr_encoder_finish(this.encoder));
-			const pointer = this.codec._openexr_encoder_data(this.encoder);
-			return this.codec.HEAPU8.slice(pointer, pointer + this.codec._openexr_encoder_size(this.encoder)).buffer;
+			// WASM32の戻り値は符号付きi32。2GiB以上の出力長・アドレスも正の値へ戻す。
+			const size = this.codec._openexr_encoder_size(this.encoder) >>> 0;
+			const chunkSize = this.codec._openexr_encoder_chunk_size();
+			const output = new Uint8Array(size);
+			for (let offset = 0; offset < size; offset += chunkSize) {
+				const pointer = this.codec._openexr_encoder_data(this.encoder, offset) >>> 0;
+				output.set(this.codec.HEAPU8.subarray(pointer, pointer + Math.min(chunkSize, size - offset)), offset);
+			}
+			return output.buffer;
 		} finally { this.dispose(); }
 	}
 

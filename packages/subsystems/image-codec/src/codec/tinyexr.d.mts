@@ -7,7 +7,8 @@ export type TinyExrModule = {
 	_openexr_encoder_pixels(encoder: number): number;
 	_openexr_encoder_write(encoder: number): number;
 	_openexr_encoder_finish(encoder: number): number;
-	_openexr_encoder_data(encoder: number): number;
+	_openexr_encoder_data(encoder: number, offset: number): number;
+	_openexr_encoder_chunk_size(): number;
 	_openexr_encoder_size(encoder: number): number;
 	_openexr_encoder_destroy(encoder: number): void;
 };

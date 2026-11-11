@@ -1,7 +1,30 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { adjustExportResolution, estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '../src/export/export-settings.ts';
-import { validateExportSettings } from '../src/export/timeline-export.ts';
+import { getExportMaxDimension, validateExportSettings } from '../src/export/timeline-export.ts';
+
+// 【静止画はGPUと形式それぞれの上限まで扱い、動画の既存上限を維持する】
+// 固定8192pxの検証が残る回帰と、WebPの16383px制限や実GPUの上限を超えて
+// エンコーダー・描画処理へ進んでしまう回帰を、縦横それぞれの境界で防ぐ。
+test('validates large still dimensions against GPU and format limits', () => {
+	for (const format of ['webp', 'exr']) {
+		const settings = { format, quality: 'lossless', compression: 'zip', width: 8193, height: 9001, positionMs: 0 };
+		assert.equal(validateExportSettings(settings, 16384), null);
+		for (const resolution of [{ width: 8193, height: 1 }, { width: 1, height: 8193 }]) {
+			assert.match(validateExportSettings({ ...settings, ...resolution }, 8192), /GPU.*8192/);
+		}
+	}
+	const webp = { format: 'webp', quality: 'lossless', width: 16383, height: 16383, positionMs: 0 };
+	assert.equal(validateExportSettings(webp, 32768), null);
+	assert.match(validateExportSettings({ ...webp, width: 16384 }, 32768), /16383/);
+	assert.match(validateExportSettings({ ...webp, height: 16384 }, 32768), /16383/);
+	assert.equal(validateExportSettings({ format: 'exr', compression: 'zip', width: 32768, height: 32768, positionMs: 0 }, 32768), null);
+	assert.equal(getExportMaxDimension('webp', 16384), 16383);
+	assert.equal(getExportMaxDimension('exr', 16384), 16384);
+	assert.equal(getExportMaxDimension('exr', 32768), 32768);
+	assert.equal(getExportMaxDimension('mp4', 16384), 8192);
+	assert.match(validateExportSettings({ format: 'mp4', quality: 'high', width: 8194, height: 2, fps: 30, positionMs: 0, endTimeMs: 1000 }, 16384), /8192/);
+});
 
 // 【EXRは品質・FPS・偶数寸法を要求せず、圧縮方式と静止画の寸法・時刻を検証する】
 // 動画用の検証や容量計算へ流れると、奇数寸法のEXRを保存できず概算もNaNになる。

@@ -93,6 +93,45 @@ function fixture(t, savedSettings = null, preferredEffectRenderTileDivisionLevel
 	return { stateManager, open, ...open() };
 }
 
+// 【カスタム寸法と倍率指定の静止画はGPU上限まで選べ、形式切替で入力上限も変わる】
+// 入力欄やダイアログ検証に8192pxが残るとWorkerが対応しても書き出しを開始できない。
+// WebPの形式上限とGPUの能力差を区別し、MP4へ戻した際は従来の寸法制限を適用する。
+test('uses GPU and format limits for large custom and scaled still dimensions', async t => {
+	const previousGpu = Object.getOwnPropertyDescriptor(navigator, 'gpu');
+	Object.defineProperty(navigator, 'gpu', { configurable: true, value: { async requestAdapter(options) {
+		assert.deepEqual(options, { powerPreference: 'high-performance' });
+		return { limits: { maxTextureDimension2D: 16384 } };
+	} } });
+	t.after(() => {
+		if (previousGpu == null) delete navigator.gpu;
+		else Object.defineProperty(navigator, 'gpu', previousGpu);
+	});
+	const { input, stateManager } = fixture(t);
+	await nextTick();
+	assert.equal(input.maxTextureDimension2D, 16384);
+	input.mode = 'still';
+	input.resolutionScale = 'custom';
+	input.customResolution = { width: 9001, height: 9003 };
+	assert.equal(input.maxDimension, 16383);
+	assert.equal(input.validationError, null);
+	input.customResolution = { width: 16384, height: 16384 };
+	assert.match(input.validationError, /16383/);
+	input.stillFormat = 'exr';
+	assert.equal(input.maxDimension, 16384);
+	assert.equal(input.validationError, null);
+	stateManager.state.resolution.value = { width: 4097, height: 4098 };
+	input.resolutionScale = 2;
+	assert.deepEqual(input.resolution, { width: 8194, height: 8196 });
+	assert.equal(input.validationError, null);
+	input.maxTextureDimension2D = 8192;
+	assert.equal(input.maxDimension, 8192);
+	assert.match(input.validationError, /GPU.*8192/);
+	input.maxTextureDimension2D = 16384;
+	input.mode = 'video';
+	assert.equal(input.maxDimension, 8192);
+	assert.match(input.validationError, /8192/);
+});
+
 // 【タイル分割の初期値を環境設定から取り込み、変更後は書き出し設定として復元する】
 // 書き出しだけ分割数を変えてもプレビュー用の環境設定を書き換えず、無効の選択も保持する。
 // 保存済みの値は、後から変更した環境設定より優先する。

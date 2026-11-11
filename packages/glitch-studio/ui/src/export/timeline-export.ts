@@ -51,14 +51,23 @@ export function getTimelineEnd(timeline: readonly TimelineLayer[]): number {
 	return getTimelineClipLayers(timeline).reduce((end, entry) => entry.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), end), 0);
 }
 
-export function validateExportSettings(settings: TimelineExportSettings): string | null {
+/** 保存形式の上限とGPU上限を、入力欄と設定検証で共通に扱う。 */
+export function getExportMaxDimension(format: TimelineExportSettings['format'], maxTextureDimension2D = Number.MAX_SAFE_INTEGER): number {
+	// WebPはlibwebpの上限。EXRの描画寸法はGPU側の上限で制限する。
+	return Math.min(maxTextureDimension2D, format === 'mp4' ? 8192 : format === 'webp' ? 16383 : Number.MAX_SAFE_INTEGER);
+}
+
+export function validateExportSettings(settings: TimelineExportSettings, maxTextureDimension2D = Number.MAX_SAFE_INTEGER): string | null {
 	if (settings.format !== 'mp4' && settings.format !== 'webp' && settings.format !== 'exr') return 'Unsupported export format.';
 	if (settings.format === 'exr') {
 		if (settings.compression !== 'none' && settings.compression !== 'zip') return 'Invalid OpenEXR compression setting.';
 	} else if (!['low', 'medium', 'high', 'very-high', ...(settings.format === 'webp' ? ['lossless'] : [])].includes(settings.quality)) return 'Invalid quality setting.';
-	if (![settings.width, settings.height].every(value => Number.isInteger(value) && value >= 1 && value <= 8192)) {
-		return 'Output width and height must be integers between 1 and 8192.';
+	if (![settings.width, settings.height].every(value => Number.isSafeInteger(value) && value >= 1)) return 'Output width and height must be positive integers.';
+	const maxDimension = getExportMaxDimension(settings.format);
+	if (settings.width > maxDimension || settings.height > maxDimension) {
+		return `Output width and height must be integers between 1 and ${maxDimension}.`;
 	}
+	if (settings.width > maxTextureDimension2D || settings.height > maxTextureDimension2D) return `Output resolution exceeds this GPU's texture size limit (${maxTextureDimension2D} px per side).`;
 	if (!Number.isSafeInteger(settings.positionMs) || settings.positionMs < 0) return 'Enter a valid start time (HH:MM:SS.mmm).';
 	if (settings.format !== 'mp4') return null;
 	if (settings.width % 2 !== 0 || settings.height % 2 !== 0) return 'MP4 requires even dimensions. Choose another resolution scale or change the scene resolution.';

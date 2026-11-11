@@ -24,8 +24,14 @@
 			<template #caption>{{ resolution.width }} × {{ resolution.height }} px</template>
 		</GsSelect>
 		<div v-if="resolutionScale === 'custom'" :class="$style.row">
-			<GsInput v-model="customResolution.width" large type="number" manualSave :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
-			<GsInput v-model="customResolution.height" large type="number" manualSave :min="1" :max="8192" :step="1" :disabled="exporting"><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
+			<GsInput
+				v-model="customResolution.width" data-test-export-width large type="number" manualSave
+				:min="1" :max="maxDimension" :step="1" :disabled="exporting"
+			><template #label>{{ i18n.ts.Width }}</template><template #suffix>px</template></GsInput>
+			<GsInput
+				v-model="customResolution.height" data-test-export-height large type="number" manualSave
+				:min="1" :max="maxDimension" :step="1" :disabled="exporting"
+			><template #label>{{ i18n.ts.Height }}</template><template #suffix>px</template></GsInput>
 		</div>
 		<GsSelect v-model="effectRenderTileDivisionLevel" large :items="effectRenderTileDivisionItems" :disabled="exporting" data-test-export-effect-render-tile-division-level>
 			<template #label>{{ i18n.ts._Settings.EffectRenderTileDivisionLevel }}</template>
@@ -59,7 +65,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, reactive, ref, toRefs, watch, useTemplateRef } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRefs, watch, useTemplateRef } from 'vue';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -77,7 +83,7 @@ import { preferences } from '@/preferences.ts';
 import { appContext } from '@/app.ts';
 import { applicationActivity } from '@/application-activity.ts';
 import { exportTimeline } from '@/export/client.ts';
-import { getExportProgressFraction, validateExportSettings } from '@/export/timeline-export.ts';
+import { getExportMaxDimension, getExportProgressFraction, validateExportSettings } from '@/export/timeline-export.ts';
 import { adjustExportResolution, createDefaultExportDialogSettings, estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
 import { hasExportAudio, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
 import { i18n } from '@/i18n.ts';
@@ -161,12 +167,22 @@ const settings = computed<TimelineExportSettings>(() => {
 			endTimeMs: parseExportTime(endTime.value),
 		};
 });
+const maxTextureDimension2D = ref(8192);
+const maxDimension = computed(() => getExportMaxDimension(settings.value.format, maxTextureDimension2D.value));
+onMounted(async () => {
+	try {
+		// 書き出しWorkerと同じ選択条件で入力上限を求める。Workerでも再検証し、
+		// ダイアログ表示後にGPUの利用状態が変わっても不正なサイズを描画しない。
+		const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
+		if (adapter != null) maxTextureDimension2D.value = adapter.limits.maxTextureDimension2D;
+	} catch { /* GPUの取得失敗は書き出しWorkerから通知する。 */ }
+});
 const validationError = computed(() => {
 	if (appContext.renderValidation.errorMessage.value) return appContext.renderValidation.errorMessage.value;
 	if (scene.value == null) return i18n.ts._Export.NoScene;
 	if (getSceneDuration(scene.value) <= 0) return i18n.ts._Export.EmptyScene;
 	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return i18n.ts._Export.InvalidEndTime;
-	return validateExportSettings(settings.value);
+	return validateExportSettings(settings.value, maxTextureDimension2D.value);
 });
 const includesAudio = computed(() => !appContext.renderValidation.errorMessage.value && scene.value != null && hasExportAudio(stateManager.state.timelineScenes.value, sceneId.value, settings.value, stateManager.state.generatedSpeech.value));
 const estimatedSize = computed(() => {

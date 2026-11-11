@@ -6,6 +6,8 @@
 
 `finish()`は独立した`ArrayBuffer`を返してnative資源を解放します。中断・失敗時は`dispose()`を呼びます。ブロックごとにJSへ戻るため、呼び出し側がGPU読み戻し・進捗・中断を管理できます。WASMのheapは成長し得るので、そのviewを呼び出し間で保持しません。実行は呼び出し側のWorkerで行い、Worker終了時にWASMメモリ全体も回収します。
 
+寸法はOpenEXRのwindow座標に合わせて正の符号付き32bit整数を受け付け、描画側の寸法制限は呼び出し側が扱います。8192pxの固定上限とTinyEXR既定の1GiBファイル制限は設けず、16K HALF RGBAの無圧縮出力も扱えるようWASM heapは最大4GiBまで成長を許可します。ブロック単位の画素制限は維持します。出力は1MiB単位のchunkに保持し、巨大な連続領域の再確保による一時的なメモリ倍増を避けます。offset tableは同じchunkへ書き戻し、`finish()`でJSの連続した`ArrayBuffer`へコピーします。ファイル全体はWASMとJSに一時的に存在するため、実際の出力サイズは利用可能なメモリにも依存します。
+
 ## WASMの再ビルド
 
 通常のアプリビルドには、登録済みの`src/codec/tinyexr.mjs`と`tinyexr.wasm`を使用します。コーデック変更時だけEmscriptenを使って`pnpm --dir packages/subsystems/image-codec build:codec`を実行します。今回の生成物はEmscripten 7.0.0でビルドしました。
@@ -19,3 +21,7 @@ TinyEXRのBSD 3-Clauseライセンスを`src/codec/LICENSE.tinyexr.txt`に含め
 ## 検証
 
 `pnpm --dir packages/subsystems/image-codec test`は実WASMを使い、独立したEXR/ZIP読み取り処理でhalfビット列・チャンネル順・末尾ブロック・メタデータを照合します。UIの`openexr-export.browser.test.mjs`は`CHROME_PATH`指定時に配布形式のWorkerとWASMをChromeで実行します。`EXR_OUTPUT_DIRECTORY`も指定すると生成ファイルを保存でき、公式OpenEXRなどの外部デコーダーで検証できます。
+
+ブラウザテストは対応GPUで8192pxを超える各軸の寸法上限までEXRとWebPを保存し、出力の寸法を読み返します。`LARGE_STILL_EXPORT_TEST=1`も指定すると9000×9000のEXR・WebP書き出しを追加します。この追加検証は数GiBのVRAMを使用します。
+
+コーデックのテストに`LARGE_OPENEXR_CODEC_TEST=1`を指定すると、16384×16384の無圧縮EXRを実際に生成し、2GiBを超えるファイル長と最終scanlineを検証します。この追加検証は数GiBのRAMを使用します。

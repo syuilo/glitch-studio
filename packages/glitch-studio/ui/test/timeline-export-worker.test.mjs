@@ -22,12 +22,13 @@ const bundled = await build({
 	} }],
 });
 
-function fixture() {
+function fixture(maxTextureDimension2D = 16384) {
 	const preparing = Promise.withResolvers();
 	const prepared = Promise.withResolvers();
 	const frames = [];
 	const messages = [];
 	const encodings = [];
+	const canvases = [];
 	let instance;
 	let deviceSettings;
 	let destroyed = false;
@@ -92,20 +93,66 @@ function fixture() {
 	runInNewContext(bundled.outputFiles[0].text, {
 		dependencies, self, AbortController, GPUCanvasContext, performance, Error,
 		OffscreenCanvas: class {
-			constructor(width, height) { this.width = width; this.height = height; }
+			constructor(width, height) { this.width = width; this.height = height; canvases.push(this); }
 			getContext() { return new GPUCanvasContext(this); }
 		},
 		navigator: { gpu: { getPreferredCanvasFormat: () => 'bgra8unorm', async requestAdapter() {
-			return { async requestDevice(settings) { deviceSettings = settings; return device; } };
+			return { limits: { maxTextureDimension2D }, async requestDevice(settings) { deviceSettings = settings; return device; } };
 		} } },
 	});
-	return { preparing, prepared, frames, messages, encodings,
+	return { preparing, prepared, frames, messages, encodings, canvases,
 		run: request => self.onmessage({ data: request }),
 		get instance() { return instance; },
 		get deviceSettings() { return deviceSettings; },
 		get destroyed() { return destroyed; },
 	};
 }
+
+// 【8192pxを超える静止画は、GPUの対応上限を要求して指定寸法のまま書き出す】
+// UIだけの上限変更ではrequestDeviceの既定8192pxで失敗する。カスタム寸法と倍率指定の
+// 両経路で、描画・Canvas・エンコーダーのサイズを揃え、縮小による偽の成功を防ぐ。
+for (const format of ['webp', 'exr']) {
+	for (const resolutionScale of [null, 2]) {
+		test(`exports large ${format} stills with resolutionScale=${resolutionScale}`, async () => {
+			const f = fixture();
+			f.prepared.resolve();
+			const resolution = resolutionScale == null ? { width: 9001, height: 9003 } : { width: 8194, height: 8196 };
+			await f.run({ resolutionScale,
+				settings: { format, quality: 'lossless', compression: 'zip', ...resolution, positionMs: 0 },
+				renderer: { enable32bitDataTextures: false },
+				project: { resolution: { width: 4097, height: 4098 }, timelineFps: 60, assets: [], sceneId: 'scene',
+					timelineScenes: [{ id: 'scene', resolution: { mode: 'project' }, layers: [{ layerType: 'effect',
+						clips: [{ startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] }] }],
+				},
+			});
+			assert.deepEqual(structuredClone(f.deviceSettings.requiredLimits), { maxTextureDimension2D: 16384 });
+			assert.deepEqual(structuredClone(f.instance.dynamicOptions.outputResolution), resolution);
+			assert.deepEqual([f.canvases[0].width, f.canvases[0].height], [resolution.width, resolution.height]);
+			assert.equal(f.encodings[0].settings.width, resolution.width);
+			assert.equal(f.encodings[0].settings.height, resolution.height);
+			assert.equal(f.messages.at(-1).type, 'complete');
+		});
+	}
+}
+
+// 【実GPUの寸法上限を超える書き出しは、CanvasやGPU資源の確保前に拒否する】
+// 設定自体は正しくてもGPUの能力は環境ごとに異なる。検証より先に巨大な資源を確保せず、
+// エンコードや成功通知も行わないことを確認する。
+test('rejects unsupported GPU dimensions before allocating export resources', async () => {
+	const f = fixture(8192);
+	await f.run({ settings: { format: 'exr', compression: 'zip', width: 8193, height: 19, positionMs: 0 },
+		renderer: { enable32bitDataTextures: false },
+		project: { resolution: { width: 8193, height: 19 }, sceneId: 'scene', timelineScenes: [{ id: 'scene',
+			resolution: { mode: 'project' }, layers: [{ layerType: 'effect', clips: [{ startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] }],
+		}] },
+	});
+	assert.match(f.messages.at(-1).message, /GPU.*8192/);
+	assert.deepEqual(f.canvases, []);
+	assert.equal(f.deviceSettings, undefined);
+	assert.equal(f.instance, undefined);
+	assert.deepEqual(f.encodings, []);
+	assert.equal(f.messages.some(message => message.type === 'complete'), false);
+});
 
 // 【EXRはlinear画像を取得して進捗を中継し、成功・圧縮失敗の両方で画像を解放する】
 // Canvas経由へ誤って接続した場合や、エンコード例外でGPU画像を保持し続ける回帰を防ぐ。
