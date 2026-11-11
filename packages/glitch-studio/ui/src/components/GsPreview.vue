@@ -49,7 +49,7 @@
 		<div :class="$style.footer">
 			<div :class="$style.left">
 				<div :class="$style.resolution" class="_monospace">
-					<div>{{ previewResolution?.width ?? '-' }} x {{ previewResolution?.height ?? '-' }} px</div>
+					<div>{{ previewResolution?.width ?? '-' }} x {{ previewResolution?.height ?? '-' }} px<span v-if="previewAspectRatio != null"> ({{ previewAspectRatio }})</span></div>
 				</div>
 			</div>
 			<div :class="$style.right">
@@ -183,6 +183,19 @@ const previewResolution = computed(() => {
 	const scene = activeScene.value;
 	if (scene == null) return null;
 	return scaleResolution(getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value), resolutionFactor.value);
+});
+const previewAspectRatio = computed(() => {
+	const resolution = previewResolution.value;
+	if (resolution == null) return null;
+	// 任意の解像度を正確な整数比で表示できるよう、幅と高さの最大公約数で約分する。
+	let greatestCommonDivisor = resolution.width;
+	let remainder = resolution.height;
+	while (remainder !== 0) {
+		const nextRemainder = greatestCommonDivisor % remainder;
+		greatestCommonDivisor = remainder;
+		remainder = nextRemainder;
+	}
+	return `${resolution.width / greatestCommonDivisor}:${resolution.height / greatestCommonDivisor}`;
 });
 
 let latestTime: number | null = null;
