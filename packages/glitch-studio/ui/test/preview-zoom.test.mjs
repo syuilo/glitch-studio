@@ -91,7 +91,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
 	const canvas = Object.assign(element('canvas'), { width, height });
-	const controller = markRaw({ canvas, canvasRevision: ref(0) });
+	const controller = markRaw({ canvas, canvasRevision: ref(0), isRenderDelayed: ref(false) });
 	const appContext = {
 		previewParameterEditing: { handles: shallowRef([]), viewport: shallowRef(null), time: ref(0), clear() {} },
 		activePreviewRenderer: shallowRef(controller),
@@ -143,6 +143,36 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		get style() { return find('canvas-container').props.style; },
 	};
 }
+
+// 【両プレビューの描画遅延だけを表示し、即時のシーク状態や停止中の古い通知では表示しない】
+// Timelineの再生中とVisual Module Live Previewも同じ表示条件に揃える。
+// 対象の切替で非表示側の遅延を引き継がず、描画を中断した画面ではスピナーも消す。
+test('shows rendering delays for the active preview during playback and Live Preview', async t => {
+	const f = await fixture(t);
+	const isLoading = () => f.find('render-loading') != null;
+	f.appContext.timelineRendererManagerController.isSeeking.value = true;
+	await nextTick();
+	assert.equal(isLoading(), false);
+	f.appContext.previewPlayback.isTimelinePlaying.value = true;
+	f.controller.isRenderDelayed.value = true;
+	await nextTick();
+	assert.equal(isLoading(), true);
+	const livePreview = markRaw({ ...f.controller, isRenderDelayed: ref(false) });
+	f.appContext.activePreviewRenderer.value = livePreview;
+	f.appContext.previewPlayback.state.value = { mode: 'visualModuleLivePreview' };
+	await nextTick();
+	assert.equal(isLoading(), false);
+	livePreview.isRenderDelayed.value = true;
+	await nextTick();
+	assert.equal(isLoading(), true);
+	f.appContext.renderEngine.isSuspended.value = true;
+	await nextTick();
+	assert.equal(isLoading(), false);
+	f.appContext.renderEngine.isSuspended.value = false;
+	livePreview.isRenderDelayed.value = false;
+	await nextTick();
+	assert.equal(isLoading(), false);
+});
 
 // 【初期表示は実寸と表示先DPRを使い、縦横どちらもはみ出さない最大倍率にする】
 // 固定の初期倍率では高解像度画像が切れたり、小さい画像で表示領域を使い切れなかったりする。

@@ -29,12 +29,14 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public onAssetReadFailure: (() => void) | null = null;
 	public readonly canvasRevision = ref(0);
 	public readonly outputResolution = ref<Resolution | null>(null);
+	public readonly isRenderDelayed = ref(false);
 	public canvas: HTMLCanvasElement;
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
 	public waveformVerticalCanvas: HTMLCanvasElement;
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
 	private visualModuleLivePreviewVisualModuleId = ref<ProjectVisualModule['id'] | null>(null);
+	private visualModuleLivePreviewStatusInstanceId: string | null = null;
 	private pointerPosition = { x: 0, y: 0 };
 	private players: Player[] = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
@@ -63,8 +65,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			},
 			onError: error => {
 				this.errorMessage.value = error?.message ?? null;
+				if (error != null) this.isRenderDelayed.value = false;
 			},
 			eventHandlers: {
+				renderDelay: ctx => {
+					if (ctx.instanceId === this.visualModuleLivePreviewStatusInstanceId) this.isRenderDelayed.value = ctx.isDelayed;
+				},
 				cpuPreviewFrame: frame => {
 					try { displayCpuPreviewFrame(this[frame.target], frame); } catch (error) { this.reportRenderFailure(error instanceof Error ? error : new Error(String(error))); } finally {
 						if (this.isReady.value) this.call('recycleCpuPreviewPixels', [frame.target, frame.frameId, frame.pixels], [frame.pixels]);
@@ -108,6 +114,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			},
 			onDisposed: () => {
 				this.outputResolution.value = null;
+				this.isRenderDelayed.value = false;
+				this.visualModuleLivePreviewStatusInstanceId = null;
 				this.releasePlayerMedia();
 				this.visualModuleLivePreviewVisualModuleId.value = null;
 				this.visualModuleLivePreviewEffectStateStore.stop();
@@ -213,6 +221,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public startVisualModuleLivePreviewRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings = {}) {
 		this.outputResolution.value = null;
 		const statusInstanceId = genId();
+		this.visualModuleLivePreviewStatusInstanceId = statusInstanceId;
+		this.isRenderDelayed.value = false;
 		// 再生成中の表示モードはPreviewPlaybackControllerが保持し、両プレビューの準備後に再開する。
 		if (this.isReady.value) this.call('startVisualModuleLivePreviewRenderLoopFor', [visualModuleId, deepClone(paramValues), statusInstanceId]);
 		this.visualModuleLivePreviewEffectStateStore.start(visualModuleId, statusInstanceId);
@@ -233,6 +243,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	}
 
 	public stopRenderLoop() {
+		this.visualModuleLivePreviewStatusInstanceId = null;
+		this.isRenderDelayed.value = false;
 		if (this.isReady.value) this.call('stopRenderLoop', []);
 		this.outputResolution.value = null;
 		this.visualModuleLivePreviewEffectStateStore.stop();

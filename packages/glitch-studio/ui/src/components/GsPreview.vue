@@ -40,7 +40,7 @@
 				<GsPreviewTransform v-if="appContext.previewParameterEditing.handles.value.length === 0 && appContext.previewParameterEditing.viewport.value == null" :canvasRect="previewCanvasRect"/>
 				<GsPreviewParameterPositions :canvasRect="previewCanvasRect" :showGrid="showGridInPreview"/>
 				<GsPreviewViewport :canvasRect="previewCanvasRect"/>
-				<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" data-test-timeline-seek-loading>
+				<div v-if="!renderEngine.isSuspended.value && activePreviewRenderer.isRenderDelayed.value" :class="$style.renderLoading" data-test-preview-render-loading>
 					<GsLoading :colored="false" :mini="true"/>
 				</div>
 			</div>
@@ -96,7 +96,7 @@ import { appContext } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
 const previewWarningImageSourceLabels = computed<Record<PreviewImageSource, string>>(() => ({
 	original: i18n.ts._Preview.WarningImageSourceOriginal,
 	previewAdjusted: i18n.ts._Preview.WarningImageSourceAdjusted,
@@ -572,7 +572,7 @@ function showMenu(ev: PointerEvent) {
 	place-content: center;
 }
 
-.seekLoading {
+.renderLoading {
 	position: absolute;
 	top: 50%;
 	left: 50%;

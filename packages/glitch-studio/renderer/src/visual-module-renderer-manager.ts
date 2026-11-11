@@ -28,6 +28,7 @@ import { PlayerVideoTextures } from './player-video-textures.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
+import { PreviewRenderDelayMonitor } from './preview-render-delay-monitor.ts';
 import { createPreviewCanvasContext } from './preview-canvas-context.ts';
 import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings, createSrgbCanvasOutputSettings } from './canvas-output.ts';
 import type { CanvasOutputSettings } from './canvas-output.ts';
@@ -117,6 +118,7 @@ export type VisualModuleLivePreviewEffectStatusSource = { type: 'visualModuleLiv
 
 export type VisualModuleRendererManagerEvents = {
 	'cpuPreviewFrame': (ctx: CpuPreviewFrame) => void;
+	'renderDelay': (ctx: { instanceId: string | null; isDelayed: boolean }) => void;
 	'outputResolution': (ctx: Resolution) => void;
 	'effectState': (ctx: { source: VisualModuleLivePreviewEffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
 	'renderError': (ctx: { message: string }) => void;
@@ -145,6 +147,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator();
 	private visualModuleLivePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private pendingVisualModuleLivePreviewFrame: VisualModuleRenderContext | null = null;
+	private readonly previewRenderDelayMonitor = new PreviewRenderDelayMonitor(isDelayed => {
+		this.emit('ev', { type: 'renderDelay', ctx: { instanceId: this.visualModuleLivePreviewStatusInstanceId, isDelayed } });
+	});
 	private pendingVisualModuleLivePreviewValueUpdate = false;
 	private visualModuleLivePreviewStatusInstanceId: string | null = null;
 	private assetTextures: AssetTextures;
@@ -292,6 +297,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	private reportRenderError(message: string) {
+		this.previewRenderDelayMonitor.clear();
 		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
@@ -349,7 +355,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.cancelTiledPreviewFrame();
 		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
 		if (['resolution', 'resolutionScale', 'visualModules', 'automationGraphs'].some(key => Object.hasOwn(newOptions, key))) {
-			this.pendingVisualModuleLivePreviewFrame = null;
+			this.clearPendingVisualModuleLivePreviewFrame();
 		}
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.previewWarningImageSource = this.dynamicOptions.previewWarningImageSource;
@@ -401,7 +407,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.dynamicOptions.automationGraphs = next.automationGraphs;
 		if (relevant.some(change => change.type === 'automationGraphs')) {
 			this.cancelTiledPreviewFrame();
-			this.pendingVisualModuleLivePreviewFrame = null;
+			this.clearPendingVisualModuleLivePreviewFrame();
 		}
 		if (effects != null) {
 			this.effectDefinitions = effects.definitions;
@@ -416,7 +422,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		const visualModuleLivePreviewChanges = relevant.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.visualModuleLivePreviewVisualModuleId
 			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.visualModuleLivePreviewVisualModuleId);
 		if (visualModuleLivePreviewChanges.length > 0 && this.visualModuleLivePreviewVisualModuleRenderer != null) {
-			this.pendingVisualModuleLivePreviewFrame = null;
+			this.clearPendingVisualModuleLivePreviewFrame();
 			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.visualModuleLivePreviewVisualModuleId);
 			const preserveStaticState = visualModuleLivePreviewChanges.every(isVisualModuleValueChange);
 			if (preserveStaticState && this.previewTiledFrameController != null) {
@@ -434,7 +440,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	public updateVisualModuleLivePreviewParamValues(paramValues: VisualModuleArgumentBindings) {
 		// 実行中フレームは評価済みのContextを使う。公開入力も最新値だけを次回の評価へ渡す。
-		this.pendingVisualModuleLivePreviewFrame = null;
+		this.clearPendingVisualModuleLivePreviewFrame();
 		this.visualModuleLivePreviewParamValues = paramValues;
 	}
 
@@ -514,7 +520,13 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private cancelTiledPreviewFrame() {
 		if (this.previewTiledFrameController == null) return;
 		this.previewRenderGeneration++;
+		this.previewRenderDelayMonitor.clear();
 		this.previewTiledFrameController.abort();
+	}
+
+	private clearPendingVisualModuleLivePreviewFrame() {
+		if (this.pendingVisualModuleLivePreviewFrame != null) this.previewRenderDelayMonitor.completeFrame(this.pendingVisualModuleLivePreviewFrame);
+		this.pendingVisualModuleLivePreviewFrame = null;
 	}
 
 	private applyPendingVisualModuleLivePreviewValues() {
@@ -533,9 +545,12 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		if (this.canvasRenderer.usesCpuDisplay && cpuFrame == null) return;
 		timing = { ...timing, timeDelta: this.skippedFrameTimeDelta, realTimeDelta: this.skippedFrameRealTimeDelta };
 		const generation = ++this.previewRenderGeneration;
+		let monitoredFrame: VisualModuleRenderContext | null = null;
 		try {
 			// 非同期準備を最新時刻で置き換え続けないよう、開始したフレームを描画まで維持する。
 			const context = this.pendingVisualModuleLivePreviewFrame ??= this.createVisualModuleLivePreviewRenderContext(timing);
+			monitoredFrame = context;
+			this.previewRenderDelayMonitor.beginFrame(context);
 			if (!renderer.tryPrepare(context)) {
 				cpuFrame?.cancel();
 				return;
@@ -558,8 +573,12 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				} finally {
 					cpuFrame?.prepareReadback(encoder);
 					this.gpuDevice.queue.submit([encoder.finish()]);
-					if (cpuFrame != null) void cpuFrame.complete().catch(error => {
-						cpuFrame.cancel();
+					// 完了監視は描画ループへ返さず、従来どおり次フレームの送信を許可する。
+					// CPU表示では、読み戻しとUIへの画像送信まで遅延表示を維持する。
+					const completed = cpuFrame?.complete() ?? this.gpuDevice.queue.onSubmittedWorkDone();
+					void completed.then(() => this.previewRenderDelayMonitor.completeFrame(context)).catch(error => {
+						cpuFrame?.cancel();
+						this.previewRenderDelayMonitor.completeFrame(context);
 						if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
 					});
 					if (this.timingHelper != null) void this.timingHelper.getResult().then(gpuTime => {
@@ -586,10 +605,15 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			const controller = new AbortController();
 			this.previewTiledFrameController = controller;
 			return renderer.renderTiled(context, controller.signal).then(output => {
-				if (generation !== this.previewRenderGeneration || controller.signal.aborted) { cpuFrame?.cancel(); return; }
+				if (generation !== this.previewRenderGeneration || controller.signal.aborted) {
+					cpuFrame?.cancel();
+					this.previewRenderDelayMonitor.completeFrame(context);
+					return;
+				}
 				present(output, renderer.lastTiledGpuTime);
 			}).catch(error => {
 				cpuFrame?.cancel();
+				this.previewRenderDelayMonitor.completeFrame(context);
 				if (!controller.signal.aborted && generation === this.previewRenderGeneration) throw error;
 			}).finally(() => {
 				if (this.previewTiledFrameController === controller) this.previewTiledFrameController = null;
@@ -598,7 +622,11 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				this.pendingVideoFrames = new Map();
 				for (const [playerId, videoFrame] of pending) this.updateVideoFrame(playerId, videoFrame);
 			});
-		} catch (error) { cpuFrame?.cancel(); throw error; }
+		} catch (error) {
+			cpuFrame?.cancel();
+			if (monitoredFrame != null) this.previewRenderDelayMonitor.completeFrame(monitoredFrame);
+			throw error;
+		}
 	}
 
 	private updateCanvasResolution(resolution: Resolution) {
@@ -613,6 +641,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	public resetRenderHistory() {
 		this.cancelTiledPreviewFrame();
 		this.pendingVisualModuleLivePreviewFrame = null;
+		this.previewRenderDelayMonitor.clear();
 		this.previewRenderGeneration++;
 		this.visualModuleLivePreviewVisualModuleRenderer?.resetRenderHistory();
 		this.pointerPositionPrev = { ...this.pointerPosition };
@@ -622,6 +651,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	public stopRenderLoop() {
 		this.cancelTiledPreviewFrame();
+		this.previewRenderDelayMonitor.stop();
 		this.pendingVisualModuleLivePreviewValueUpdate = false;
 		this.pendingVisualModuleLivePreviewFrame = null;
 		this.skippedFrameTimeDelta = 0;

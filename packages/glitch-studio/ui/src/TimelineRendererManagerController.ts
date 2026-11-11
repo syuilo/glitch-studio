@@ -22,6 +22,7 @@ type TimelineRendererManagerRuntimeOptions = Omit<TimelineRendererManagerDynamic
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);
+	public readonly isRenderDelayed = ref(false);
 	public readonly layerTransform = shallowRef<TimelineTransformPreview | null>(null);
 	public get transformPreviewRevision() { return this.dynamicOptions.previewRevision ?? 0; }
 	public readonly previewStatistics = shallowRef<TimelinePreviewStatistics | null>(null);
@@ -65,9 +66,15 @@ export class TimelineRendererManagerController extends RendererManagerController
 			},
 			onError: error => {
 				this.errorMessage.value = error?.message ?? null;
-				if (error != null) this.cancelSeek();
+				if (error != null) {
+					this.cancelSeek();
+					this.isRenderDelayed.value = false;
+				}
 			},
 			eventHandlers: {
+				renderDelay: ctx => {
+					this.isRenderDelayed.value = ctx.isDelayed;
+				},
 				cpuPreviewFrame: frame => {
 					try { displayCpuPreviewFrame(this[frame.target], frame); } catch (error) { this.reportRenderFailure(error instanceof Error ? error : new Error(String(error))); } finally {
 						if (this.isReady.value) this.call('recycleCpuPreviewPixels', [frame.target, frame.frameId, frame.pixels], [frame.pixels]);
@@ -108,6 +115,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 			},
 			onCreated: () => {},
 			onDisposed: () => {
+				this.isRenderDelayed.value = false;
 				this.frameCacheState.value = null;
 				this.previewStatistics.value = null;
 				this.cancelSeek();

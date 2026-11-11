@@ -122,6 +122,33 @@ function start(controller) { return controller.initialize(initialOptions.get(con
 function restart(controller) { controller.disposeManager(); return start(controller); }
 
 for (const kind of ['VisualModule', 'Timeline']) {
+	// 【現在のWorkerの遅延状態だけを保持し、破棄後の通知ではスピナーを復活させない】
+	// フレームの開始・完了通知をUIで数え直さず、Workerで集約した状態をそのまま表示する。
+	// エラーによる破棄でも解除し、遅れて届いた旧Workerの通知を新しい状態へ採用しない。
+	test(`tracks ${kind} render delay notifications and clears them on disposal`, async t => {
+		const { controller, workers } = fixture(t, kind);
+		const worker = await initialize(controller, workers);
+		let instanceId = null;
+		if (kind === 'VisualModule') {
+			controller.startVisualModuleLivePreviewRenderLoopFor('visual-module');
+			instanceId = worker.calls('startVisualModuleLivePreviewRenderLoopFor').at(-1).args[2];
+		}
+		const notify = isDelayed => worker.reply({ type: 'ev', ev: { type: 'renderDelay', ctx: { instanceId, isDelayed } } });
+		assert.equal(controller.isRenderDelayed.value, false);
+		notify(true);
+		assert.equal(controller.isRenderDelayed.value, true);
+		notify(false);
+		assert.equal(controller.isRenderDelayed.value, false);
+		notify(true);
+		controller.disposeManager();
+		assert.equal(controller.isRenderDelayed.value, false);
+		notify(true);
+		assert.equal(controller.isRenderDelayed.value, false);
+		await initialize(controller, workers);
+		notify(true);
+		assert.equal(controller.isRenderDelayed.value, false);
+	});
+
 	// 【定義と配置の一括更新を既存Workerへ送り、CanvasやControllerを再生成しない】
 	// Visual Module側の差分フィルターで更新を落としたり、再初期化へ戻したりしないことを確認する。
 	test(`sends Custom Shader Effect snapshots through the existing ${kind} worker`, async t => {
@@ -166,6 +193,28 @@ for (const kind of ['VisualModule', 'Timeline']) {
 		assert.equal(controller.isReady.value, false);
 	});
 }
+
+// 【同じVisual Moduleへの切替でも、以前のLive Previewインスタンスの遅延を採用しない】
+// UIが対象を変更してからWorkerが切り替わるまでに、古い遅延通知が到着し得る。
+// Visual Module IDだけでは同じ対象の再開を区別できないため、インスタンスIDで照合する。
+test('rejects render delay notifications from previous Live Preview instances', async t => {
+	const { controller, workers } = fixture(t);
+	const worker = await initialize(controller, workers);
+	controller.startVisualModuleLivePreviewRenderLoopFor('visual-module');
+	const previousId = worker.calls('startVisualModuleLivePreviewRenderLoopFor').at(-1).args[2];
+	const notify = (instanceId, isDelayed) => worker.reply({ type: 'ev', ev: { type: 'renderDelay', ctx: { instanceId, isDelayed } } });
+	notify(previousId, true);
+	controller.startVisualModuleLivePreviewRenderLoopFor('visual-module');
+	const currentId = worker.calls('startVisualModuleLivePreviewRenderLoopFor').at(-1).args[2];
+	notify(previousId, true);
+	assert.equal(controller.isRenderDelayed.value, false);
+	notify(currentId, true);
+	notify(previousId, false);
+	assert.equal(controller.isRenderDelayed.value, true);
+	controller.stopRenderLoop();
+	notify(currentId, true);
+	assert.equal(controller.isRenderDelayed.value, false);
+});
 
 async function initialize(controller, workers) {
 	const ready = start(controller);

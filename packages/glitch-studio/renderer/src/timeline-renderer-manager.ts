@@ -54,6 +54,7 @@ import { invertTimelineAffine, TIMELINE_IDENTITY, TIMELINE_FRAME } from '@gs/sub
 import { TimelinePreviewScheduler } from '@gs/subsystems_timeline_renderer/timeline-preview-scheduler.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { CanvasRenderer } from './canvas-renderer.ts';
+import { PreviewRenderDelayMonitor } from './preview-render-delay-monitor.ts';
 import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
 import { createPreviewCanvasContext } from './preview-canvas-context.ts';
 import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings, createSrgbCanvasOutputSettings } from './canvas-output.ts';
@@ -192,6 +193,7 @@ export type TimelineLayerStatusSource = {
 
 export type TimelineRendererManagerEvents = {
 	'cpuPreviewFrame': (ctx: CpuPreviewFrame) => void;
+	'renderDelay': (ctx: { isDelayed: boolean }) => void;
 	'telemetry': (ctx: TimelinePreviewStatistics) => void;
 	'frameCache': (ctx: TimelinePreviewFrameCacheState) => void;
 	/** 完了通知を要求した手動シークだけを、最終出力のGPU処理完了後に通知する。 */
@@ -207,6 +209,9 @@ export class TimelineRendererManager extends EventEmitter<{
 }> {
 	private timelineRenderer: TimelineRenderer<TimelineImage, TimelineLayer>;
 	private previewRenderGeneration = 0;
+	private readonly previewRenderDelayMonitor = new PreviewRenderDelayMonitor(isDelayed => {
+		this.emit('ev', { type: 'renderDelay', ctx: { isDelayed } });
+	});
 	private previewFrameSequence = 0;
 	private publishedPreviewFrameSequence = 0;
 	private previewFrameTiming: TimelinePreviewFrameTiming | null = null;
@@ -464,10 +469,12 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private reportRenderError(message: string) {
+		this.previewRenderDelayMonitor.clear();
 		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
 	private clearTimelineRenderers() {
+		this.previewRenderDelayMonitor.clear();
 		this.invalidateFrameCache();
 		this.previewStatistics.clear();
 		this.frameRenderer.clear();
@@ -505,6 +512,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 		this.canvasRenderer.previewBackground = this.dynamicOptions.previewBackground;
 		this.canvasRenderer.previewActive = this.dynamicOptions.previewActive;
+		if (Object.hasOwn(newOptions, 'previewActive') && !this.dynamicOptions.previewActive) this.previewRenderDelayMonitor.stop();
 		// 背景合成後は不透明。背景を持たない透明書き出しだけ、Canvasのalphaも維持する。
 		this.configureCanvas(this.dynamicOptions.opaqueOutput || this.dynamicOptions.previewBackground != null ? 'opaque' : 'premultiplied');
 		this.canvasRenderer.analysisValueScale = this.dynamicOptions.analysisValueScale;
@@ -577,7 +585,10 @@ export class TimelineRendererManager extends EventEmitter<{
 		const resolution = changesRootScene ? this.resolveProjectOutputResolution(next) : null;
 		// 差分の検証が成功するまで公開状態を変更しない。即時反映の変更は描画を中断し、
 		// 値だけの変更を完了境界から反映する場合は、待機中の描画要求を維持する。
-		if (!keepPendingRender) this.previewScheduler.clear();
+		if (!keepPendingRender) {
+			this.previewScheduler.clear();
+			this.previewRenderDelayMonitor.clear();
+		}
 		this.invalidateFrameCache();
 		this.previewRenderGeneration++;
 		if (!keepPendingRender) {
@@ -643,6 +654,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	public resetRenderHistory() {
 		this.applyPendingVisualModuleValues();
+		this.previewRenderDelayMonitor.clear();
 		// リセット前に送信したフレームの後処理で、画像キャッシュや完了通知を復活させない。
 		// Schedulerの世代も進め、次の評価は旧フレームのGPU完了後に行う。
 		this.previewRenderGeneration++;
@@ -703,6 +715,9 @@ export class TimelineRendererManager extends EventEmitter<{
 			outputResolution: null,
 		} : null;
 		this.pendingTransformPreview = preview;
+		// 非表示へ切り替えた後も、Schedulerに残っていた要求は実行され得る。
+		// その要求で停止済みの監視タイマーを再開しない。
+		if (this.dynamicOptions.previewActive) this.previewRenderDelayMonitor.beginFrame(capture);
 		try {
 			if (this.canvasRenderer.usesCpuDisplay) {
 				// 評価・GPU描画の前にUI返却までの表示枠を予約する。満杯なら最後のシーク画像も待って表示する。
@@ -741,6 +756,8 @@ export class TimelineRendererManager extends EventEmitter<{
 				});
 				if (prepared) onSubmitted();
 				await Promise.all([completed, cpuPresented]);
+				// 表示用画像の完了で解除し、キャッシュ登録等の後処理は待機表示に含めない。
+				this.previewRenderDelayMonitor.completeFrame(capture);
 			}
 			if (capture.cpuFrame?.isCancelled === true) return false;
 			const captureError = await capture.captureError;
@@ -805,6 +822,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			// 旧内容の失敗でその要求まで取り消さず、最新の値で再試行させる。
 			return generation !== this.previewRenderGeneration;
 		} finally {
+			this.previewRenderDelayMonitor.completeFrame(capture);
 			if (capture.cpuPresentation == null) capture.cpuFrame?.cancel();
 			capture.snapshot?.texture.destroy();
 			if (this.activePreviewFrame === capture) this.activePreviewFrame = null;
@@ -1231,6 +1249,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	public releaseRenderingResources(): void {
 		if (this.renderingResourcesReleased) return;
 		this.renderingResourcesReleased = true;
+		this.previewRenderDelayMonitor.stop();
 		this.pendingVisualModuleValueChanges.clear();
 		this.pendingVisualModuleValueRevision = null;
 		if (this.frameCacheReportIntervalId != null) clearInterval(this.frameCacheReportIntervalId);

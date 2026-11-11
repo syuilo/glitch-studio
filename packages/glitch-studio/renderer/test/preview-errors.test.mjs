@@ -689,6 +689,153 @@ async function deferredVisualModuleLivePreview(t) {
 	return { ...f, instances, definition };
 }
 
+function renderDelayClock(t) {
+	let now = 0;
+	t.mock.timers.enable({ apis: ['setInterval'] });
+	t.mock.method(performance, 'now', () => now);
+	return milliseconds => { now += milliseconds; t.mock.timers.tick(milliseconds); };
+}
+
+// 【Live Previewの準備待ちを再試行しても300msを計測し、GPU完了まで表示を維持する】
+// 関数のreturnや描画命令のsubmitはフレームの完了ではない。
+// エフェクトの準備から最終出力までを一つのフレームとして追跡する必要がある。
+test('monitors Live Preview preparation retries through final GPU completion', async t => {
+	const f = await deferredVisualModuleLivePreview(t);
+	const advance = renderDelayClock(t);
+	const completed = Promise.withResolvers();
+	const delays = [];
+	f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
+	t.mock.method(f.renderer.gpuDevice.queue, 'onSubmittedWorkDone', () => completed.promise);
+	f.frame(16);
+	advance(200);
+	f.frame(216);
+	advance(99);
+	assert.deepEqual(delays, []);
+	advance(1);
+	assert.deepEqual(delays, [true]);
+	f.instances[0].args.reportStatus({ type: 'ready' });
+	f.frame(316);
+	advance(100);
+	assert.equal(f.instances[0].prepares, 1);
+	assert.equal(f.instances[0].renders.length, 1);
+	assert.deepEqual(delays, [true]);
+	completed.resolve();
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(delays, [true, false]);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【GPU完了監視でLive Previewを直列化せず、古いフレームの遅延も見失わない】
+// 新しいフレームを送るたびに開始時刻を上書きすると、GPUが詰まっても検知できない。
+// 完了順に依存した単一フラグでも、先に終わったフレームが待機表示を消してしまう。
+test('keeps submitting Live Preview frames while monitoring outstanding GPU work', async t => {
+	const f = await fixture(t, { enableWaveformAndHistogram: false });
+	f.renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
+	f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+	const advance = renderDelayClock(t);
+	const first = Promise.withResolvers(), second = Promise.withResolvers();
+	const delays = [];
+	f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
+	let submitted = 0;
+	t.mock.method(f.renderer.gpuDevice.queue, 'onSubmittedWorkDone', () => ++submitted === 1 ? first.promise : second.promise);
+	f.frame(16);
+	advance(100);
+	f.frame(116);
+	assert.equal(submitted, 2);
+	advance(200);
+	assert.deepEqual(delays, [true]);
+	second.resolve();
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(delays, [true]);
+	first.resolve();
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(delays, [true, false]);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【Timelineの通常描画も準備開始からGPU完了まで監視し、手動シーク通知に依存しない】
+// 再生中はframeRenderedを送らないため、その通知を流用すると遅延を表示できない。
+// 準備とGPUの待ち時間を合算し、両方が終わるまで遅延表示を維持する。
+test('monitors timeline preparation and GPU work without a manual seek request', async t => {
+	const f = await fixture(t, {}, TimelineRendererManager);
+	f.renderer.updateDynamicOptions({ previewActive: true });
+	const advance = renderDelayClock(t);
+	const prepared = Promise.withResolvers(), completed = Promise.withResolvers(), submitted = Promise.withResolvers();
+	const delays = [];
+	f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
+	t.mock.method(f.renderer, 'renderFrame', () => prepared.promise);
+	t.mock.method(f.renderer.gpuDevice.queue, 'onSubmittedWorkDone', () => { submitted.resolve(); return completed.promise; });
+	const pending = f.renderer.renderTimelineAt(0);
+	advance(300);
+	assert.deepEqual(delays, [true]);
+	prepared.resolve();
+	await submitted.promise;
+	advance(100);
+	assert.deepEqual(delays, [true]);
+	completed.resolve();
+	await pending;
+	assert.deepEqual(delays, [true, false]);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【非表示への切替後に残っていた描画要求で遅延監視を再開しない】
+// Timelineは送信済みGPU処理の後にも待機中の最新要求を実行することがある。
+// 非表示のWorkerで監視タイマーや遅延通知を復活させないようにする。
+test('does not restart timeline delay monitoring for requests after deactivation', async t => {
+	const f = await fixture(t, {}, TimelineRendererManager);
+	f.renderer.updateDynamicOptions({ previewActive: true });
+	const advance = renderDelayClock(t);
+	const completed = Promise.withResolvers(), submitted = Promise.withResolvers();
+	const delays = [];
+	f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
+	t.mock.method(f.renderer, 'renderFrame', async () => {});
+	const completions = t.mock.method(f.renderer.gpuDevice.queue, 'onSubmittedWorkDone', () => { submitted.resolve(); return completed.promise; });
+	const pending = f.renderer.renderTimelineAt(0);
+	await submitted.promise;
+	advance(300);
+	assert.deepEqual(delays, [true]);
+	f.renderer.updateDynamicOptions({ previewActive: false });
+	await f.renderer.renderTimelineAt(16);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(completions.mock.callCount(), 2);
+	advance(600);
+	assert.deepEqual(delays, [true, false]);
+	completed.resolve();
+	await pending;
+	assert.deepEqual(f.errors, []);
+});
+
+for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
+	// 【CPU表示ではGPUの完了だけで解除せず、読み戻した画像の送信まで監視する】
+	// GPU表示とCPU表示ではフレームの完了境界が異なる。
+	// 画像がまだUIへ送られていないのにスピナーだけを先に消してはいけない。
+	test(`${Manager.name} keeps the delay visible until CPU presentation completes`, async t => {
+		const f = await fixture(t, { enableWaveformAndHistogram: false }, Manager);
+		f.renderer.updateDynamicOptions({ visualModules: [constantVisualModule()], previewActive: true });
+		const advance = renderDelayClock(t);
+		const completed = Promise.withResolvers(), readbackStarted = Promise.withResolvers();
+		const delays = [];
+		f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
+		const frame = { isCancelled: false, prepareReadback() {}, complete() { readbackStarted.resolve(); return completed.promise; }, cancel() { this.isCancelled = true; } };
+		Object.defineProperty(f.renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
+		t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => frame);
+		t.mock.method(f.renderer.canvasRenderer, 'reserveCpuPreviewFrame', async () => frame);
+		let pending = null;
+		if (Manager === VisualModuleRendererManager) {
+			f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+			f.frame(16);
+		} else pending = f.renderer.renderTimelineAt(0);
+		await readbackStarted.promise;
+		advance(300);
+		assert.deepEqual(delays, [true]);
+		completed.resolve();
+		await pending;
+		await new Promise(resolve => setImmediate(resolve));
+		assert.deepEqual(delays, [true, false]);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
 for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 	// 【Custom Shader Effectの一括更新で描画配置だけを作り直し、GPU・素材・ライブ入力を維持する】
 	// 同じManagerへ定義の追加・変更・削除を反映し、旧配置やTimelineキャッシュを再利用しないことを確認する。
@@ -1771,6 +1918,9 @@ function installTiledEffect(f) {
 // 波形の表示寸法の変更は作品の編集ではないため、実行中のタイル描画を中断しない。
 test('serializes tiled Live Preview frames and retains borrowed video frames until completion', async t => {
 	const f = await fixture(t, { effectRenderTileDivisionLevel: 1, enableWaveformAndHistogram: false });
+	const advance = renderDelayClock(t);
+	const delays = [];
+	f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
 	const { definition, renders } = installTiledEffect(f);
 	f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, visualModules: [definition] });
 	f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
@@ -1787,9 +1937,15 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	assert.equal(replaced.closed, 1);
 	assert.equal(renders.length, 1);
 	assert.equal(present.mock.callCount(), 0);
+	advance(300);
+	assert.deepEqual(delays, [true]);
 	await f.renderer.setWaveformDisplay({ waveformCanvasSizes: { horizontal: { width: 900, height: 450 }, vertical: { width: 450, height: 900 } }, waveformViewports: null }, true);
 	for (let index = 0; index < 4; index++) { waits.shift()(); await new Promise(resolve => setImmediate(resolve)); }
 	assert.equal(present.mock.callCount(), 1);
+	// タイルの完了後も、最終Canvas出力のGPU処理が終わるまでは解除しない。
+	assert.deepEqual(delays, [true]);
+	await finishTiledWork(waits, 1);
+	assert.deepEqual(delays, [true, false]);
 	assert.equal(old.closed, 1);
 	assert.equal(latest.closed, 0);
 	assert.equal(f.renderer.playerVideoTextures.frameVersions.get('player'), 2);
@@ -1878,7 +2034,7 @@ for (const kind of ['node', 'custom', 'public']) {
 	test(`coalesces ${kind} values after a tiled Live Preview frame without clearing resolution or history`, async t => {
 		const f = await tiledValueFixture(t, kind);
 		f.frame(16);
-		await finishTiledWork(f.waits, 4);
+		await finishTiledWork(f.waits, 5);
 		const effect = f.renderer.visualModuleLivePreviewVisualModuleRenderer.effectRenderers.get('a');
 		const destroyOutput = t.mock.method(effect.getOutputTexture('output'), 'destroy');
 		f.states.length = 0;
@@ -1886,11 +2042,11 @@ for (const kind of ['node', 'custom', 'public']) {
 		editTiledVisualModuleValue(f.renderer, 0.3, kind);
 		editTiledVisualModuleValue(f.renderer, 0.7, kind);
 		f.frame(48);
-		await finishTiledWork(f.waits, 4);
+		await finishTiledWork(f.waits, 5);
 		assert.equal(f.renders.length, 2);
 		assert.equal(f.renders[1].input.value[0], 0.1);
 		f.frame(64);
-		await finishTiledWork(f.waits, 4);
+		await finishTiledWork(f.waits, 5);
 		assert.equal(f.renders.length, 3);
 		assert.equal(f.renders[2].input.value[0], 0.7);
 		assert.equal(f.renders[2].timeDelta, 32);
@@ -1910,7 +2066,7 @@ test('retains queued values when resizing a tiled Live Preview', async t => {
 	f.renderer.updateDynamicOptions({ resolution: { width: 8, height: 4 } });
 	await finishTiledWork(f.waits, 1);
 	f.frame(32);
-	await finishTiledWork(f.waits, 4);
+	await finishTiledWork(f.waits, 5);
 	assert.equal(f.renders.at(-1).input.value[0], 0.7);
 	assert.deepEqual(f.states.at(-1).outputs.output, { width: 8, height: 4 });
 	assert.deepEqual(f.errors, []);
@@ -1961,7 +2117,7 @@ test('does not replay queued values into another Live Preview after stopping', a
 	f.renderer.startVisualModuleLivePreviewRenderLoopFor('other');
 	await finishTiledWork(f.waits, 1);
 	f.frame(32);
-	await finishTiledWork(f.waits, 4);
+	await finishTiledWork(f.waits, 5);
 	assert.equal(f.renders.at(-1).input.value[0], 0.9);
 	assert.equal(f.renderer.visualModuleLivePreviewVisualModuleId, 'other');
 	assert.deepEqual(f.errors, []);
