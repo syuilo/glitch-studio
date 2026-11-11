@@ -11,6 +11,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 ## データ型・パラメータ・式の共通基盤
 
 - `src/data-type`: 値の型と、その型に対応する編集UIのメタデータ。UIメタデータは`data-type-ui.ts`に分け、Vueコンポーネントやパラメータの初期値を含めない。
+	- `struct`の`ui.control.controlType: 'viewport2d'`は、`center: vector`・`zoom: scalar`・`rotation: scalar`（turn単位）を持つ表示範囲の編集方法。各フィールドのBindingは独立したまま扱う。`spanAtZoomOne`はZoom=1で参照する平面の長辺の長さで、描画側と同じ定数を使う。描画側が倍率へ下限を適用する場合は`minimumZoom`も揃える。参照座標は、画面の共通座標を`rotation`で回転し、`spanAtZoomOne / zoom`倍して`center`へ加えたものとなる。`center`は参照する平面上の値であり、画面上の位置ハンドルとして直接解釈しない。
 - `src/spatial-coordinate.ts`: 長辺全体=1の等方的な位置・変位と、内部の各軸[-1,+1]の画像参照座標との換算。Size Referenceによらず空間データの単位を固定する。
 - `src/size-reference.ts`: Height・Width・Short Side・Long Sideを表す`SizeReference`と基準寸法の換算。専用の`sizeReference`型として使用し、パラメータの既定値はLong Side。各パラメータをどのように換算するかは利用側が決める。
 - `src/color-space.ts`: 未乗算linear sRGBの保存色型と、HDR・負値を保持するsRGB伝達関数・Oklab／OKLCH変換。OKLCHの色相は度数法。GPU側の伝達関数・alpha境界は`src/gpu/color-space.wgsl`で提供する。入出力境界は[色空間のドキュメント](../../docs/color-management.md)を参照。

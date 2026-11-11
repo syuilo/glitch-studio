@@ -14,6 +14,8 @@ import { validateColorRampParameterInputSource, validateParameterDefaultValues }
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
+import { updateStructParameterFields } from './utility/struct-parameter-edit.ts';
+import type { StructParameterFieldBindings } from './utility/struct-parameter-edit.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
@@ -256,7 +258,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 	layerId: string;
 	paramPath: ParamPath;
 } & (
-	| { target?: TimelineParameterTarget; edit: ValueParameterEdit | { kind: 'timelineLayerPublicParameterReference'; value: TimelineLayerPublicParameterReferenceBinding } | { kind: 'inputSource'; inputSource: 'timelineLayerPublicParameterReference' } }
+	| { target?: TimelineParameterTarget; edit: ValueParameterEdit | { kind: 'structFields'; fields: StructParameterFieldBindings } | { kind: 'timelineLayerPublicParameterReference'; value: TimelineLayerPublicParameterReferenceBinding } | { kind: 'inputSource'; inputSource: 'timelineLayerPublicParameterReference' } }
 	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'anotherLayerAudio' } | { kind: 'anotherLayerAudio'; value: string | null } }
 	| { target: 'effect' | 'module'; edit: { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding } | { kind: 'inputSource'; inputSource: 'lowerLayerOutput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
 )>({
@@ -315,8 +317,9 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 					const edit = payload.edit;
 					let next: EditableTimelineParameterBinding;
 					const container = def.dataType.kind === 'array' || def.dataType.kind === 'struct';
-					if (container && !['reset', 'addElement', 'removeElement'].includes(edit.kind)) throw new Error('Container parameters must be edited through their children');
+					if (container && !['reset', 'addElement', 'removeElement', 'structFields'].includes(edit.kind)) throw new Error('Container parameters must be edited through their children');
 					switch (edit.kind) {
+						case 'structFields': next = updateStructParameterFields(def, current, edit.fields); break;
 						case 'literal': next = { inputSource: 'literal', value: deepClone(edit.value) }; break;
 						case 'automationGraphInline':
 						case 'keyframesTimelineInline':
@@ -409,7 +412,11 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 					if (edit.kind !== 'reset' && edit.kind !== 'expressionModifier') next = preserveParameterExpressionModifier(current, next);
 					resolved.setValue(next);
 					for (const { value } of walkParameters<EditableTimelineParameterBinding>({ [rootKey]: rootDef }, draft)) {
-						if (value.inputSource === 'keyframesTimelineInline') for (const point of value.keyframesTimeline.keyframes) point.x = Math.round(point.x);
+						// 整数msへ揃えるのは実時刻のキーだけ。正規化キーの0.5などを
+						// 丸めると、一括編集したView内の未変更フィールドまで時刻が壊れる。
+						if (value.inputSource === 'keyframesTimelineInline' && !value.keyframesTimeline.isNormalized) {
+							for (const point of value.keyframesTimeline.keyframes) point.x = Math.round(point.x);
+						}
 					}
 					// 静的な構造検証は変更通知を受けるProjectRenderValidationが担当する。
 					// 生成済みの要素IDをRedoでも使う。
@@ -1017,6 +1024,11 @@ const updateParamAsLiteralCommandDef = defineNodeParamCommand<NodeParamTarget & 
 	},
 	'value',
 	{ autoMerge: true },
+);
+
+const updateParamFieldsCommandDef = defineNodeParamCommand<NodeParamTarget & { fields: StructParameterFieldBindings }>(
+	'Update struct parameter fields',
+	(target, payload) => updateStructParameterFields(target.def, target.value, payload.fields),
 );
 
 const updateParamAsEnvVariableCommandDef = defineNodeParamCommand<NodeParamTarget & { value: ExpressionVariableName }>(
@@ -3267,6 +3279,7 @@ export const COMMAND_DEFS = {
 	updatePlayerSourceType: updatePlayerSourceTypeCommandDef,
 	changeParamValueInputSource: changeParamValueInputSourceCommandDef,
 	updateParamAsLiteral: updateParamAsLiteralCommandDef,
+	updateParamFields: updateParamFieldsCommandDef,
 	updateParamAsEnvVariable: updateParamAsEnvVariableCommandDef,
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
 	updateParamExpressionModifier: updateParamExpressionModifierCommandDef,

@@ -161,6 +161,26 @@ const externalValues: VisualModuleArgumentBindings = {};
 externalValues[external.id] = { inputSource: 'node', nodeId: null, outputPort: null };
 // @ts-expect-error モジュールの外から内部公開パラメータを参照できない
 externalValues[external.id] = { inputSource: 'visualModulePublicParameterReference', parameterId: external.id };
+
+// 表示範囲のUIを指定できるのは、中心vector・倍率scalar・回転scalarを持つstructだけ。
+// 見た目の指定だけで、別の型や不足したフィールドをプレビュー編集へ渡さない。
+import mandelbrot from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
+defineEffect({ ...outputDefinition, tags: [], paramDefs: { view: mandelbrot.paramDefs.view } });
+const unrelatedStruct = {
+	dataType: { kind: 'struct', fields: { amount: { kind: 'scalar' } } },
+	ui: { label: 'Unrelated', control: { controlType: 'viewport2d', spanAtZoomOne: 4, fields: { amount: number.ui } } },
+	fields: { amount: { defaultValue: number.defaultValue } },
+	defaultValue: { inputSource: 'literal', value: { amount: number.defaultValue } },
+} as const;
+// @ts-expect-error 必須の表示範囲フィールドがないstructにはviewport2dを指定できない
+defineEffect({ ...outputDefinition, tags: [], paramDefs: { view: unrelatedStruct } });
+const wrongCenter = { ...mandelbrot.paramDefs.view, dataType: { kind: 'struct', fields: { center: { kind: 'scalar' }, zoom: { kind: 'scalar' }, rotation: { kind: 'scalar' } } },
+	ui: { ...mandelbrot.paramDefs.view.ui, control: { ...mandelbrot.paramDefs.view.ui.control, fields: { ...mandelbrot.paramDefs.view.ui.control.fields, center: number.ui } } },
+	fields: { ...mandelbrot.paramDefs.view.fields, center: { defaultValue: number.defaultValue } },
+	defaultValue: { inputSource: 'literal', value: { ...mandelbrot.paramDefs.view.defaultValue.value, center: number.defaultValue } },
+} as const;
+// @ts-expect-error centerはscalarではなくvectorである必要がある
+defineEffect({ ...outputDefinition, tags: [], paramDefs: { view: wrongCenter } });
 `;
 	const options = {
 		// 実際のUIと同じraw importの型宣言を読み込み、参照先のWGSLを未解決にしない。

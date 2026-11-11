@@ -18,7 +18,14 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { default as Parameter } from './src/components/GsVisualParam.vue';
 		export { default as Positions } from './src/components/GsPreviewParameterPositions.vue';
+		export { default as Viewport } from './src/components/GsPreviewViewport.vue';
+		export { default as Xy } from './src/components/common/GsXy.vue';
+		export { default as XyGrid } from './src/components/common/GsXy.Grid.vue';
 		export * from './src/utility/preview-parameter-editing.ts';
+		export * from './src/utility/preview-viewport.ts';
+		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
+		import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+		export const testedEffect = effectDefinitions.test;
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { commitVisualModuleEdit } from './src/utility/visual-module-edit.ts';
@@ -28,13 +35,15 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
 		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('app.ts') ? 'app' : 'ui', namespace: 'platform' }));
-		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', contents: {
+		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false) } };",
-			effects: `export const effectDefinitions = { test: ${JSON.stringify(effect)} };`,
+			effects: `import mandelbrot from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
+				export const effectDefinitions = { test: { ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)},
+					view: mandelbrot.paramDefs.view, otherView: mandelbrot.paramDefs.view } } };`,
 			app: 'export const appContext = {};',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {}',
 		}[path] }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsPreviewParameterPositions\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsPreviewParameterPositions\.vue$|GsPreviewViewport\.vue$|GsXy(?:\.Grid)?\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
 				return () => h('control', attrs, Object.entries(slots).flatMap(([name, slot]) => name === 'caption' ? [] : slot()));
@@ -48,14 +57,18 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Parameter, Positions, PreviewParameterEditingController, previewParameterContextKey, UndoRedo, COMMAND_DEFS, commitVisualModuleEdit, appContext } = module.exports;
+const { Parameter, Positions, Viewport, Xy, XyGrid, testedEffect, PreviewParameterEditingController, previewParameterContextKey,
+	viewportPlaneOffset, createInlineKeyframesTimeline, UndoRedo, COMMAND_DEFS, commitVisualModuleEdit, appContext } = module.exports;
+const close = (actual, expected) => actual.forEach((value, axis) => assert.ok(Math.abs(value - expected[axis]) < 1e-12, `${actual} != ${expected}`));
 
 function findAll(root, predicate) {
 	return [root, ...root.children.flatMap(child => findAll(child, predicate))].filter(predicate);
 }
 
-async function fixture(t, { showGrid = false } = {}) {
+async function fixture(t, { showGrid = false, viewport = false } = {}) {
 	const view = new EventTarget();
+	view.setTimeout = (...args) => setTimeout(...args);
+	view.clearTimeout = id => clearTimeout(id);
 	const frames = new Map();
 	let frameId = 0;
 	view.requestAnimationFrame = callback => { frames.set(++frameId, callback); return frameId; };
@@ -74,7 +87,9 @@ async function fixture(t, { showGrid = false } = {}) {
 		const capture = options === true || options?.capture === true;
 		const index = documentListeners.findIndex(entry => entry.type === type && entry.listener === listener && entry.capture === capture);
 		if (index >= 0) documentListeners.splice(index, 1);
-		removeDocumentListener(type, listener, options);
+		// NodeのEventTargetはbooleanのcapture指定でリスナーを除去できないため、
+		// ブラウザーと同じ解除結果になるoptions形式へ揃える。
+		removeDocumentListener(type, listener, { capture });
 	};
 	let capturedTarget = null;
 	function element(tag) {
@@ -97,7 +112,8 @@ async function fixture(t, { showGrid = false } = {}) {
 		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
 	const visualModule = { id: 'visualModule', name: 'Visual Module', nodes: [{ id: 'node', type: 'effect', effectId: 'test', isBypass: false,
-		params: { first: literal([0, 0]), second: literal([0, 0]), scale: literal([1, 1]) } }] };
+		params: { first: literal([0, 0]), second: literal([0, 0]), scale: literal([1, 1]),
+			view: structuredClone(testedEffect.paramDefs.view.defaultValue), otherView: structuredClone(testedEffect.paramDefs.otherView.defaultValue) } }] };
 	const state = { visualModules: ref([visualModule]), timelineScenes: ref([]), automationGraphs: ref([]), resolution: ref({ width: 800, height: 400 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const editing = new PreviewParameterEditingController();
@@ -111,11 +127,12 @@ async function fixture(t, { showGrid = false } = {}) {
 	const root = element('root');
 	const canvasRect = { left: 0, top: 0, width: 800, height: 400 };
 	const app = renderer.createApp({ render: () => h('main', [
-		...(showParameters.value ? Object.entries(effect.paramDefs).map(([key, definition]) => h(Parameter, {
+		...(showParameters.value ? Object.entries(testedEffect.paramDefs).filter(([key]) => viewport || !['view', 'otherView'].includes(key)).map(([key, definition]) => h(Parameter, {
 			key, node, automationGraphs: [], availableVariables: [], paramDef: definition, paramValue: node.params[key], paramPath: [key],
 			onEdit: edit => commitVisualModuleEdit(manager, { visualModuleId: visualModule.id }, { kind: 'editNodeParam', nodeId: node.id, edit }),
 		})) : []),
 		h(Positions, { canvasRect, showGrid }),
+		h(Viewport, { canvasRect }),
 	]) });
 	app.provide(previewParameterContextKey, { scope: computed(() => scope.value), label: computed(() => 'Visual Module') });
 	app.directive('tooltip', {});
@@ -145,7 +162,29 @@ async function fixture(t, { showGrid = false } = {}) {
 		return !event.defaultPrevented;
 	};
 	const frame = async () => { const pending = [...frames.values()]; frames.clear(); for (const callback of pending) callback(); await nextTick(); };
-	return { root, doc, manager, node, editing, scope, showParameters, toggles, handles, begin, pointer, frame };
+	const viewportEditor = () => findAll(root, node => Object.hasOwn(node.props, 'data-test-preview-viewport-editor'))[0];
+	const viewportToggles = () => toggles().filter(node => node.props['data-test-preview-viewport-toggle'] != null);
+	const beginViewport = (x = 400, y = 200) => {
+		const current = viewportEditor();
+		current.props.onPointerdown({ button: 0, pointerId: 7, clientX: x, clientY: y, currentTarget: current, preventDefault() {}, stopPropagation() {} });
+	};
+	const wheel = (deltaY, x = 600, y = 100, deltaMode = 0) => {
+		const current = viewportEditor();
+		const event = Object.assign(new Event('wheel', { cancelable: true, bubbles: true }), { deltaY, deltaMode, clientX: x, clientY: y });
+		current.props.onWheel(event);
+		assert.equal(event.defaultPrevented, true);
+		assert.equal(event.cancelBubble, true);
+	};
+	const mountControl = (component, props) => {
+		const root = element('root');
+		const app = renderer.createApp({ render: () => h(component, props) });
+		app.directive('tooltip', {});
+		app.mount(root);
+		t.after(() => app.unmount());
+		return root;
+	};
+	return { root, doc, manager, node, editing, scope, showParameters, toggles, handles, begin, pointer, frame,
+		viewportEditor, viewportToggles, beginViewport, wheel, mountControl };
 }
 
 // 【通常入力は操作開始通知に依存せず、ドラッグ中の休止でも時間で履歴を分ける】
@@ -234,4 +273,128 @@ test('disables driven values and removes handles when their editor disappears', 
 	assert.equal(f.handles().length, 1);
 	f.showParameters.value = false; await nextTick();
 	assert.equal(f.handles().length, 0);
+});
+
+// 【表示範囲のボタンは一つだけ有効にし、既存の位置ハンドルとの操作競合を避ける】
+// パラメータ行の選択とプレビューが受け取る全面操作を一致させ、別の表示範囲へ誤適用しない。
+test('switches viewport editing exclusively through parameter row buttons', async t => {
+	const f = await fixture(t, { viewport: true });
+	assert.equal(f.viewportToggles().length, 2);
+	f.toggles()[0].props.onClick(); await nextTick();
+	assert.equal(f.handles().length, 1);
+	f.viewportToggles()[0].props.onClick(); await nextTick();
+	assert.equal(f.handles().length, 0);
+	assert.ok(f.viewportEditor());
+	assert.equal(f.viewportToggles()[0].props.primary, true);
+	f.viewportToggles()[1].props.onClick(); await nextTick();
+	assert.equal(f.viewportToggles()[0].props.primary, false);
+	assert.equal(f.viewportToggles()[1].props.primary, true);
+	f.toggles()[0].props.onClick(); await nextTick();
+	assert.equal(f.viewportEditor(), undefined);
+	assert.equal(f.handles().length, 1);
+});
+
+// 【深いズームと回転を反映した微小な中心移動を、ドラッグ中と一回のUndoで扱う】
+// 画面のY反転・回転・倍率の換算漏れや、小数第3位への丸めで移動が失われる回帰を防ぐ。
+test('pans a deeply zoomed rotated viewport continuously and undoes the whole drag', async t => {
+	const f = await fixture(t, { viewport: true });
+	f.node.params.view.value.zoom.value = 1000;
+	f.node.params.view.value.rotation.value = 0.25;
+	f.viewportToggles()[0].props.onClick(); await nextTick();
+	f.beginViewport(); f.pointer('pointermove', 480, 160); await f.frame();
+	close(f.node.params.view.value.center.value, [-0.4998, -0.0004]);
+	assert.equal(f.manager.undoStack.value.length, 0);
+	f.pointer('pointerup', 560, 120); await nextTick();
+	close(f.node.params.view.value.center.value, [-0.4996, -0.0008]);
+	assert.equal(f.manager.undoStack.value.length, 1);
+	assert.equal(f.node.params.view.value.zoom.value, 1000);
+	assert.equal(f.node.params.view.value.rotation.value, 0.25);
+	f.manager.undo(); close(f.node.params.view.value.center.value, [-0.5, 0]);
+	f.manager.redo(); close(f.node.params.view.value.center.value, [-0.4996, -0.0008]);
+});
+
+// 【連続するホイール入力はカーソル直下の点を固定し、中心と倍率を同時に履歴へ保存する】
+// プレビューの表示倍率変更へ伝播したり、Undoで中心と倍率が別々に戻ったりするのを防ぐ。
+test('zooms around the pointer and groups a wheel burst into one undoable edit', async t => {
+	t.mock.timers.enable({ apis: ['setTimeout'] });
+	const f = await fixture(t, { viewport: true });
+	f.node.params.view.value.zoom.value = 1000;
+	f.node.params.view.value.rotation.value = 0.125;
+	f.viewportToggles()[0].props.onClick(); await nextTick();
+	const point = [0.25, 0.125];
+	const read = () => ({ center: [...f.node.params.view.value.center.value], zoom: f.node.params.view.value.zoom.value, rotation: 0.125 });
+	const before = read();
+	const offset = viewportPlaneOffset(point, before, 4);
+	const anchor = before.center.map((component, axis) => component + offset[axis]);
+	f.wheel(-40); f.wheel(-60); await f.frame();
+	const after = read();
+	const afterOffset = viewportPlaneOffset(point, after, 4);
+	close(after.center.map((component, axis) => component + afterOffset[axis]), anchor);
+	assert.ok(Math.abs(after.zoom - 1000 * Math.exp(0.2)) < 1e-9);
+	assert.equal(f.manager.undoStack.value.length, 0);
+	t.mock.timers.tick(180); await nextTick();
+	assert.equal(f.manager.undoStack.value.length, 1);
+	f.manager.undo(); assert.deepEqual(read(), before);
+	f.manager.redo(); assert.deepEqual(read(), after);
+});
+
+// 【ホイールとドラッグの取消しは開始値とRedoを復元し、操作モードは維持する】
+// ドラッグだけでなくホイール中のEscも編集取消しとして扱い、誤った確定や履歴消失を防ぐ。
+test('cancels viewport gestures without losing redo or leaving the editing mode', async t => {
+	const f = await fixture(t, { viewport: true });
+	f.viewportToggles()[0].props.onClick(); await nextTick();
+	f.beginViewport(); f.pointer('pointerup', 480, 200); await nextTick(); f.manager.undo(); await nextTick();
+	for (const mode of ['drag', 'wheel']) {
+		if (mode === 'drag') { f.beginViewport(); f.pointer('pointermove', 560, 100); }
+		else f.wheel(-100);
+		await f.frame();
+		f.doc.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { key: 'Escape' })); await nextTick();
+		close(f.node.params.view.value.center.value, [-0.5, 0]);
+		assert.equal(f.node.params.view.value.zoom.value, 1);
+		assert.equal(f.manager.undoStack.value.length, 0);
+		assert.equal(f.manager.redoStack.value.length, 1);
+		assert.ok(f.viewportEditor());
+	}
+});
+
+// 【中心のキーだけを追加して倍率のキーや加工式を維持し、駆動入力は上書きしない】
+// struct化しても子ごとの入力方式を保ち、パンが未変更の倍率へ余分なキーを挿入しない。
+test('keeps independent keyframes and modifiers and disables expression driven viewports', async t => {
+	const f = await fixture(t, { viewport: true });
+	const fields = testedEffect.paramDefs.view;
+	f.node.params.view.value.center = createInlineKeyframesTimeline({ ...fields.fields.center, dataType: fields.dataType.fields.center, ui: fields.ui.control.fields.center }, literal([-0.5, 0]));
+	f.node.params.view.value.zoom = createInlineKeyframesTimeline({ ...fields.fields.zoom, dataType: fields.dataType.fields.zoom, ui: fields.ui.control.fields.zoom }, literal(1000));
+	f.node.params.view.value.center.expressionModifier = { enabled: true, code: 'VALUE' };
+	f.editing.time.value = 500;
+	f.viewportToggles()[0].props.onClick(); await nextTick();
+	f.beginViewport(); f.pointer('pointerup', 480, 200); await nextTick();
+	assert.equal(f.node.params.view.value.center.keyframesTimeline.keyframes.length, 2);
+	assert.equal(f.node.params.view.value.zoom.keyframesTimeline.keyframes.length, 1);
+	assert.equal(f.node.params.view.value.center.expressionModifier.code, 'VALUE');
+	f.node.params.view.value.rotation = { inputSource: 'expression', expression: 'TIME' }; await nextTick();
+	assert.equal(f.viewportToggles()[0].props.disabled, true);
+	assert.equal(f.viewportEditor(), undefined);
+	assert.equal(f.node.params.view.value.rotation.inputSource, 'expression');
+});
+
+// 【数値欄と相対操作パッドの感度を倍率へ追従させ、入力した絶対座標の桁を保持する】
+// プレビュー操作だけ直しても数値欄やパッドが固定の粗い感度だと微調整できないため、実UIを通す。
+test('scales numeric navigation and preserves precise center input and relative pad movement', async t => {
+	const f = await fixture(t, { viewport: true });
+	f.node.params.view.value.zoom.value = 1000; await nextTick();
+	const row = findAll(f.root, node => node.props['data-test-parameter-path'] === '["view","center"]')[0];
+	const control = findAll(row, node => Object.hasOwn(node.props, 'data-test-parameter-value-control'))[0];
+	assert.ok(Math.abs(control.props.control.step - 0.000001) < 1e-15);
+	assert.equal(control.props.vectorNavigationSpan, 0.004);
+	let actual;
+	const inputRoot = f.mountControl(Xy, { modelValue: [-0.5, 0.1234567890123], enableRatioLock: false, max: 2, step: 0.000001,
+		navigationSpan: 0.004, 'onUpdate:modelValue': value => { actual = value; } });
+	findAll(inputRoot, node => Object.hasOwn(node.props, 'data-test-xy-x'))[0].props['onUpdate:modelValue'](-0.5000001234567);
+	assert.deepEqual(actual, [-0.5000001234567, 0.1234567890123]);
+	const gridRoot = f.mountControl(XyGrid, { modelValue: [-0.5, 0], navigationSpan: 0.004, lockedRatio: null, min: -2, max: 2,
+		step: 0.000001, anchorElement: inputRoot, 'onUpdate:modelValue': value => { actual = value; } });
+	const pad = findAll(gridRoot, node => Object.hasOwn(node.props, 'data-test-xy-grid-surface'))[0];
+	pad.props.onPointerdown({ button: 0, pointerId: 7, clientX: 350, clientY: 200, preventDefault() {} });
+	pad.props.onPointermove({ pointerId: 7, clientX: 390, clientY: 180 });
+	close(actual, [-0.4998, 0.0001]);
 });

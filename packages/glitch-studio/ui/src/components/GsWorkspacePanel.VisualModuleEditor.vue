@@ -73,6 +73,8 @@ import { exportVisualModuleFile, importVisualModuleFile } from '@/utility/visual
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
 import { createProjectVisualModule } from '@/utility/project-visual-module.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
+import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 
 const { previewPlayback, visualModuleRendererManagerController } = appContext;
@@ -184,21 +186,24 @@ function onPreviewParamEdit(event: ParamEdit) {
 			}).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
-	// TODO: struct / arrayの子の編集・要素操作。型定義では許可しているが、現在の編集UIは未対応。
-	if (event.paramPath.length !== 1) return;
-	const def = visualModule.value?.paramDefs.find(def => def.id === event.paramPath[0]);
-	if (def == null) return;
-	const id = def.id;
-	const current = previewParamValues.value[id];
+	const rootDefinition = visualModule.value?.paramDefs.find(def => def.id === event.paramPath[0]);
+	if (rootDefinition == null) return;
+	const id = rootDefinition.id;
+	// Viewの数値欄も、プレビュー上の一括操作も、同じ引数ツリーへ反映する。
+	// 子の編集で親を作り直す際は、別フィールドの式やキーを維持する。
+	const draft = { [id]: deepClone(previewParamValues.value[id] ?? rootDefinition.defaultValue) };
+	const parameter = resolveParameter<ValueParameterBinding>({ [id]: rootDefinition }, draft, event.paramPath);
+	const { def, value: current } = parameter;
+	let next = current;
 	const reset = (): VisualModuleArgumentBindings[VisualModulePublicParameterId] => createResetParameterBinding(def);
 	switch (event.kind) {
-		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
-		case 'automationGraphInline': previewParamValues.value[id] = deepClone(event.value); break;
-		case 'keyframesTimelineInline': previewParamValues.value[id] = deepClone(event.value); break;
-		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
-		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
-		case 'expressionModifier': previewParamValues.value[id] = { ...(current ?? reset()), expressionModifier: deepClone(event.value) }; break;
-		case 'automationGraphReference': previewParamValues.value[id] = {
+		case 'literal': next = { inputSource: 'literal', value: deepClone(event.value) }; break;
+		case 'automationGraphInline': next = deepClone(event.value); break;
+		case 'keyframesTimelineInline': next = deepClone(event.value); break;
+		case 'envVariable': next = { inputSource: 'envVariable', variable: event.value }; break;
+		case 'expression': next = { inputSource: 'expression', expression: event.value }; break;
+		case 'expressionModifier': next = { ...current, expressionModifier: deepClone(event.value) }; break;
+		case 'automationGraphReference': next = {
 			inputSource: 'automationGraphReference',
 			trimmedDurationMs: 1000,
 			wrapMode: 'repeat',
@@ -216,29 +221,29 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'anotherLayerAudio':
 		case 'visualModulePublicParameterReference': return;
 		case 'visualModuleCustomParameterValueReference': return;
-		case 'reset': previewParamValues.value[id] = reset(); break;
+		case 'reset': next = reset(); break;
 		case 'inputSource':
 			switch (event.inputSource) {
-				case 'literal': previewParamValues.value[id] = reset(); break;
-				case 'expression': previewParamValues.value[id] = {
+				case 'literal': next = reset(); break;
+				case 'expression': next = {
 					inputSource: 'expression',
 					expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue.value),
 				}; break;
-				case 'automationGraphReference': previewParamValues.value[id] = {
+				case 'automationGraphReference': next = {
 					inputSource: 'automationGraphReference',
 					automationGraphId: null,
 					trimmedDurationMs: 1000,
 					wrapMode: 'repeat',
 					offsetMode: 'start',
 				}; break;
-				case 'automationGraphInline': previewParamValues.value[id] = createInlineAutomationGraph(); break;
+				case 'automationGraphInline': next = createInlineAutomationGraph(); break;
 				case 'keyframesTimelineInline':
-					previewParamValues.value[id] = createInlineKeyframesTimeline(def, current);
+					next = createInlineKeyframesTimeline(def, current);
 					break;
 				case 'visualModulePublicParameterReference':
 				case 'visualModuleCustomParameterValueReference':
 				case 'anotherLayerOutput':
-		case 'lowerLayerOutput':
+				case 'lowerLayerOutput':
 				case 'lowerLayerAudio':
 				case 'anotherLayerAudio':
 				case 'node':
@@ -249,11 +254,13 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'removeElement':
 			return;
 	}
-	if (current != null && event.kind !== 'reset' && event.kind !== 'expressionModifier') {
-		previewParamValues.value[id] = preserveParameterExpressionModifier(current, previewParamValues.value[id]);
+	if (event.kind !== 'reset' && event.kind !== 'expressionModifier') {
+		next = preserveParameterExpressionModifier(current, next);
 	}
-	validateParameterExpressionModifier(def, previewParamValues.value[id]);
-	if (event.kind === 'reset') editedPreviewParamIds.delete(id);
+	validateParameterExpressionModifier(def, next);
+	parameter.setValue(next);
+	previewParamValues.value[id] = draft[id];
+	if (event.kind === 'reset' && event.paramPath.length === 1) editedPreviewParamIds.delete(id);
 	else editedPreviewParamIds.add(id);
 	if (visualModule.value != null) previewPlayback.updateVisualModuleLivePreviewParamValues(visualModule.value.id, previewParamValues.value);
 }

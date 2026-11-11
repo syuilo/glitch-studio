@@ -2,13 +2,34 @@
 <div ref="rootEl" :class="$style.root">
 	<GsButton :class="$style.open" :primary="gridPadOpened" iconOnly icon="ti ti-arrows-move" @click="openGridPad"/>
 
-	<GsInput :class="$style.input" type="number" manualSave :modelValue="value[0]" :min="min" :max="max" :step="step" @update:modelValue="setValue(Number($event), value[1], 'x')">
+	<!-- 相対操作の中心は固定範囲に制限しない。HTML属性を省略するため、ここではundefinedを使う。 -->
+	<GsInput
+		:class="$style.input"
+		data-test-xy-x
+		type="number"
+		manualSave
+		:modelValue="value[0]"
+		:min="navigationSpan == null ? min : undefined"
+		:max="navigationSpan == null ? max : undefined"
+		:step="step"
+		@update:modelValue="setValue(Number($event), value[1], 'x')"
+	>
 		<template #prefix>X:</template>
 	</GsInput>
 
 	<GsButton v-tooltip="i18n.ts._Xy.LockRatio" :class="$style.lock" iconOnly :primary="lockedRatio != null" icon="ti ti-link" @click="lockedRatio != null ? disableRatioLock() : enableRatioLock()"/>
 
-	<GsInput :class="$style.input" type="number" manualSave :modelValue="value[1]" :min="min" :max="max" :step="step" @update:modelValue="setValue(value[0], Number($event), 'y')">
+	<GsInput
+		:class="$style.input"
+		data-test-xy-y
+		type="number"
+		manualSave
+		:modelValue="value[1]"
+		:min="navigationSpan == null ? min : undefined"
+		:max="navigationSpan == null ? max : undefined"
+		:step="step"
+		@update:modelValue="setValue(value[0], Number($event), 'y')"
+	>
 		<template #prefix>Y:</template>
 	</GsInput>
 
@@ -22,6 +43,7 @@
 			:max="max"
 			:step="step"
 			:logarithmic="logarithmic"
+			:navigationSpan="navigationSpan"
 			@update:modelValue="setValue($event[0], $event[1])"
 			@closed="closeGridPad"
 			@enableRatioLock="enableRatioLock"
@@ -42,6 +64,7 @@ const props = withDefaults(defineProps<{
 	modelValue: [number, number];
 	step?: number;
 	logarithmic?: boolean;
+	navigationSpan?: number | null;
 	min?: number;
 	max: number;
 	enableRatioLock: boolean;
@@ -72,7 +95,8 @@ watch(() => props.modelValue, (newValue) => {
 function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
 	const ratio = lockedRatio.value;
 	if (ratio == null) {
-		value.value = [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000];
+		// 表示桁数や操作のstepで絶対値を丸めると、深いズームの微調整を失ってしまう。
+		value.value = [x, y];
 	} else {
 		const [ratioX, ratioY] = ratio;
 		// ポインター位置を比率の直線に射影する。キー操作では指定された軸の値を優先する。
@@ -103,7 +127,6 @@ function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
 		}
 		scale = Math.min(maxScale, Math.max(minScale, scale));
 		value.value = [ratioX * scale, ratioY * scale];
-		value.value = [Math.round(value.value[0] * 1000) / 1000, Math.round(value.value[1] * 1000) / 1000];
 	}
 	emit('update:modelValue', value.value);
 }

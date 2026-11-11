@@ -3,13 +3,16 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
-import { previewParameterContextKey, getPreviewParameterPosition, beginPreviewParameterBindingEdit, preparePreviewParameterDrag } from '../utility/preview-parameter-editing.ts';
+import { previewParameterContextKey, getPreviewParameterPosition, beginPreviewParameterBindingEdit, beginPreviewViewportBindingEdit, preparePreviewParameterDrag } from '../utility/preview-parameter-editing.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EditableParameterBinding } from '../types/parameter-edit.ts';
 import type { AppContext } from '../AppContext.ts';
+import { getPreviewViewportValue, getPreviewViewportZoom, isViewport2DParameter, preparePreviewViewportDrag } from '../utility/preview-viewport.ts';
+import { updateStructParameterFields } from '../utility/struct-parameter-edit.ts';
+import type { PreviewViewportEdit } from '../utility/preview-viewport.ts';
 
 export function usePreviewParameterHandle(app: AppContext, props: {
 	paramDef: ParameterDefinition; paramValue: EditableParameterBinding; paramPath: ParamPath;
@@ -36,8 +39,19 @@ export function usePreviewParameterHandle(app: AppContext, props: {
 			? getPreviewParameterPosition(props.paramDef, props.paramValue, time(), endTime())
 			: getPreviewParameterPosition(props.paramDef, props.paramValue, 0, 0);
 	};
+	const viewportValue = computed(() => {
+		if (!isViewport2DParameter(props.paramDef) || props.paramValue.inputSource !== 'literal') return null;
+		const animated = ['center', 'zoom', 'rotation'].some(key => props.paramValue.inputSource === 'literal' && props.paramValue.value[key]?.inputSource === 'keyframesTimelineInline');
+		return getPreviewViewportValue(props.paramDef, props.paramValue, animated ? time() : 0, animated ? endTime() : 0);
+	});
+	const viewportNavigationSpan = computed(() => {
+		if (!isViewport2DParameter(props.paramDef) || props.paramValue.inputSource !== 'literal') return null;
+		const animated = props.paramValue.value.zoom?.inputSource === 'keyframesTimelineInline';
+		const zoom = getPreviewViewportZoom(props.paramDef, props.paramValue, animated ? time() : 0, animated ? endTime() : 0);
+		return zoom == null ? null : props.paramDef.ui.control.spanAtZoomOne / zoom;
+	});
 	const editable = computed(() => context != null && key.value != null
-		&& position() != null);
+		&& (position() != null || viewportValue.value != null));
 	const available = computed(() => {
 		const scope = context?.scope.value;
 		if (scope == null || !editable.value || props.node?.isBypass === true || app.renderEngine.isSuspended.value) return false;
@@ -52,15 +66,46 @@ export function usePreviewParameterHandle(app: AppContext, props: {
 	const enabled = computed(() => key.value != null && app.previewParameterEditing?.isEnabled(key.value) === true);
 	let unregister: (() => void) | null = null;
 	// Bindingの値そのものは購読し直さずgetterで読む。自分のドラッグ更新で登録が外れるのを防ぐ。
-	watch([key, editable], ([currentKey, canEdit]) => {
+	watch([key, editable, () => isViewport2DParameter(props.paramDef)], ([currentKey, canEdit, viewport]) => {
 		unregister?.();
 		unregister = null;
 		if (currentKey == null || !canEdit || context == null) return;
-		unregister = app.previewParameterEditing.register({
+		const common = {
 			key: currentKey,
 			label: () => [context.label.value, props.node == null ? null : `${props.node.displayName ?? props.node.effectId} ${prettyId(props.node.id)}`,
 				props.label ?? props.paramDef.ui.label].filter(part => part != null && part !== '').join(' / '),
 			available: () => available.value,
+		};
+		if (viewport) {
+			unregister = app.previewParameterEditing.register({
+				...common,
+				kind: 'viewport2d',
+				spanAtZoomOne: () => isViewport2DParameter(props.paramDef) ? props.paramDef.ui.control.spanAtZoomOne : 1,
+				minimumZoom: () => isViewport2DParameter(props.paramDef) ? props.paramDef.ui.control.minimumZoom ?? Number.MIN_VALUE : Number.MIN_VALUE,
+				begin() {
+					const scope = context.scope.value;
+					const binding = deepClone(props.paramValue);
+					if (!available.value || scope == null || binding.inputSource !== 'literal') return null;
+					if (['center', 'zoom', 'rotation'].some(key => binding.value[key]?.inputSource === 'keyframesTimelineInline') && app.previewPlayback.state.value.mode === 'timeline') {
+						app.previewPlayback.seekTimeline(Math.round(time()), true, 'precise');
+					}
+					let session: PreviewViewportEdit | null;
+					if (scope.kind === 'livePreview') {
+						const live = context.beginLivePreviewEdit?.(props.paramPath);
+						if (live == null) return null;
+						session = { get active() { return live.active; }, finish: live.finish, cancel: live.cancel,
+							update: fields => live.update({ kind: 'literal', value: updateStructParameterFields(props.paramDef, binding, fields).value }) };
+					} else {
+						session = beginPreviewViewportBindingEdit(app.projectContext.stateManager, scope, props.node?.id ?? null,
+							props.previewParameterGroup ?? null, [...props.paramPath]);
+					}
+					return session == null ? null : preparePreviewViewportDrag(props.paramDef, binding, time(), endTime(), session);
+				},
+			});
+			return;
+		}
+		unregister = app.previewParameterEditing.register({
+			...common,
 			position,
 			begin() {
 				const scope = context.scope.value;
@@ -79,5 +124,5 @@ export function usePreviewParameterHandle(app: AppContext, props: {
 		});
 	}, { immediate: true, flush: 'sync' });
 	onScopeDispose(() => unregister?.());
-	return { available, enabled, toggle: () => { if (available.value && key.value != null) app.previewParameterEditing.toggle(key.value); } };
+	return { available, enabled, viewportNavigationSpan, toggle: () => { if (available.value && key.value != null) app.previewParameterEditing.toggle(key.value); } };
 }

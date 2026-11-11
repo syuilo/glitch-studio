@@ -13,6 +13,8 @@ const bundled = await build({ absWorkingDir: directory, bundle: true, platform: 
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export * from './src/utility/preview-parameter-editing.ts';
 		export * from './src/utility/preview-parameter-position.ts';
+		export * from './src/utility/preview-viewport.ts';
+		export { default as mandelbrot } from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
@@ -20,14 +22,16 @@ const bundled = await build({ absWorkingDir: directory, bundle: true, platform: 
 	plugins: [{ name: 'preview-parameter-test', setup(build) {
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'stub' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'stub' }));
-		build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: path === 'effects'
-			? `export const effectDefinitions = { test: ${JSON.stringify(effect)} };` : 'export const preferences = { s: { forceTypeSafety: false } };' }));
+		build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ resolveDir: directory, contents: path === 'effects'
+			? `import mandelbrot from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts'; export const effectDefinitions = { test: { ...mandelbrot, ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)}, view: mandelbrot.paramDefs.view } } };`
+			: 'export const preferences = { s: { forceTypeSafety: false } };' }));
 	} }],
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewParameterEditingController, getPreviewParameterPosition, beginPreviewParameterBindingEdit, preparePreviewParameterDrag,
-	previewParameterToScreen, previewScreenToParameter, snapPreviewParameterPosition, UndoRedo, COMMAND_DEFS, createInlineKeyframesTimeline } = module.exports;
+	previewParameterToScreen, previewScreenToParameter, snapPreviewParameterPosition, preparePreviewViewportDrag, beginPreviewViewportBindingEdit,
+	panPreviewViewport, zoomPreviewViewport, mandelbrot, UndoRedo, COMMAND_DEFS, createInlineKeyframesTimeline } = module.exports;
 const close = (actual, expected) => actual.forEach((value, axis) => assert.ok(Math.abs(value - expected[axis]) < 1e-12, `${actual} != ${expected}`));
 
 function fixture() {
@@ -104,6 +108,22 @@ test('keeps multiple parameters enabled and shares duplicate registrations', () 
 	assert.equal(controller.isEnabled('second'), true);
 	unregisterSecond();
 	assert.equal(controller.handles.value.length, 0);
+});
+
+// 【一時的に操作不可の表示範囲も、別の位置ハンドルを選んだ時点で解除する】
+// バイパス解除や再生停止によって、以前の全面操作が現在の位置編集へ重なるのを防ぐ。
+test('clears an unavailable viewport when switching to a position handle', () => {
+	const controller = new PreviewParameterEditingController();
+	const available = ref(true);
+	controller.register({ kind: 'viewport2d', key: 'view', label: () => 'View', available: () => available.value,
+		spanAtZoomOne: () => 4, minimumZoom: () => 0.001, begin: () => null });
+	controller.register({ key: 'position', label: () => 'Position', available: () => true, position: () => [0, 0], begin: () => null });
+	controller.toggle('view'); available.value = false;
+	assert.equal(controller.viewport.value, null);
+	controller.toggle('position'); available.value = true;
+	assert.equal(controller.isEnabled('view'), false);
+	assert.equal(controller.viewport.value, null);
+	assert.equal(controller.handles.value.length, 1);
 });
 
 // 【連続した位置変更を一つのUndoにし、別パラメータと加工式を維持する】
@@ -185,4 +205,85 @@ test('rejects driven inputs and vector controls without evaluating expressions',
 	for (const binding of [{ inputSource: 'expression', expression: 'invalid' }, { inputSource: 'node', nodeId: 'other', outputPort: 'output' },
 		{ inputSource: 'visualModulePublicParameterReference', parameterId: 'parameter' }]) assert.equal(getPreviewParameterPosition(definition, binding, 0, 1000), null);
 	assert.equal(getPreviewParameterPosition({ ...definition, ui: { ...definition.ui, control: { controlType: 'vector' } } }, literal([0, 0]), 0, 1000), null);
+});
+
+// 【横長・縦長・表示倍率の異なるプレビューでも同じ相対移動とカーソル基準のズームを行う】
+// レンダリングの解像度やCanvasのCSS倍率へ依存せず、回転を含めた参照平面の位置を保つ。
+test('maps viewport navigation independently of preview aspect ratio and display scale', () => {
+	for (const rect of [{ left: 40, top: 80, width: 800, height: 400 }, { left: -20, top: 10, width: 200, height: 400 }]) {
+		const longSide = Math.max(rect.width, rect.height);
+		const start = [rect.left + rect.width / 2, rect.top + rect.height / 2];
+		const point = previewScreenToParameter([start[0] + longSide / 10, start[1] - longSide / 20], rect);
+		const value = { center: [-0.743643887, 0.131825904], zoom: 1000, rotation: 0.25 };
+		const panned = panPreviewViewport(value, point, 4);
+		close(panned.center, [value.center[0] + 0.0002, value.center[1] - 0.0004]);
+		const zoomed = zoomPreviewViewport(value, point, 2000, 4);
+		close(zoomed.center, [value.center[0] - 0.0001, value.center[1] + 0.0002]);
+	}
+});
+
+// 【Timelineの未設定structを一括更新し、Undoでは元の未設定状態へ戻す】
+// 中心と倍率の中間状態を通知せず、プレビューで既定値を見ただけの保存値を増やさない。
+test('updates viewport fields atomically on an effect layer and restores omitted values', () => {
+	const f = fixture();
+	f.state.timelineScenes.value = [{ id: 'scene', layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', effectParamValues: {} }] }];
+	const layer = f.state.timelineScenes.value[0].layers[0];
+	const notifications = [];
+	f.manager.onChange(() => notifications.push(structuredClone(JSON.parse(JSON.stringify(layer.effectParamValues)))));
+	const command = beginPreviewViewportBindingEdit(f.manager, { kind: 'timelineLayer', sceneId: 'scene', layerId: 'layer' }, null, 'effect', ['view']);
+	const drag = preparePreviewViewportDrag(mandelbrot.paramDefs.view, structuredClone(mandelbrot.paramDefs.view.defaultValue), 500, 1000, command);
+	drag.update({ ...drag.initialValue, center: [-0.743643887, 0.131825904], zoom: 1000 });
+	drag.finish();
+	assert.equal(notifications.length, 1);
+	assert.deepEqual(notifications[0].view.value.center.value, [-0.743643887, 0.131825904]);
+	assert.equal(notifications[0].view.value.zoom.value, 1000);
+	assert.equal(f.manager.undoStack.value.length, 1);
+	f.manager.undo(); assert.deepEqual(layer.effectParamValues, {});
+	f.manager.redo(); assert.equal(layer.effectParamValues.view.value.zoom.value, 1000);
+});
+
+// 【戻した項目の追加キーだけを除き、変更中の別項目とキーIDを維持する】
+// 中心と倍率を同じstructで編集しても、子ごとのキー・補間・加工式を独立して保存する。
+test('restores unchanged viewport field bindings while retaining stable keys on changed fields', () => {
+	const f = fixture();
+	const def = mandelbrot.paramDefs.view;
+	f.node.params.view = structuredClone(def.defaultValue);
+	for (const key of ['center', 'zoom']) {
+		const field = { ...def.fields[key], dataType: def.dataType.fields[key], ui: def.ui.control.fields[key] };
+		f.node.params.view.value[key] = createInlineKeyframesTimeline(field, f.node.params.view.value[key]);
+	}
+	const before = JSON.parse(JSON.stringify(f.node.params.view));
+	const command = beginPreviewViewportBindingEdit(f.manager, f.scope, 'node', null, ['view']);
+	const drag = preparePreviewViewportDrag(def, JSON.parse(JSON.stringify(f.node.params.view)), 500, 1000, command);
+	drag.update({ ...drag.initialValue, center: [-0.5000001, 0], zoom: 1000 });
+	const zoomKeyId = f.node.params.view.value.zoom.keyframesTimeline.keyframes[1].id;
+	drag.update({ ...drag.initialValue, zoom: 2000 }); drag.finish();
+	assert.deepEqual(f.node.params.view.value.center, before.value.center);
+	assert.equal(f.node.params.view.value.zoom.keyframesTimeline.keyframes[1].id, zoomKeyId);
+	assert.equal(f.node.params.view.value.zoom.keyframesTimeline.keyframes[1].value, 2000);
+	f.manager.undo(); assert.deepEqual(f.node.params.view, before);
+	f.manager.redo(); assert.equal(f.node.params.view.value.zoom.keyframesTimeline.keyframes[1].id, zoomKeyId);
+});
+
+// 【Timeline上の表示範囲編集でも正規化キーの小数時刻を維持する】
+// 通常のmsキーと同じ丸めをすると、追加した0.5や未変更の回転キーまで0・1へ移動してしまう。
+test('preserves fractional normalized key times during timeline viewport edits', () => {
+	const f = fixture();
+	const def = mandelbrot.paramDefs.view;
+	const view = structuredClone(def.defaultValue);
+	for (const key of ['center', 'zoom', 'rotation']) {
+		const field = { ...def.fields[key], dataType: def.dataType.fields[key], ui: def.ui.control.fields[key] };
+		view.value[key] = createInlineKeyframesTimeline(field, view.value[key]);
+		view.value[key].keyframesTimeline.isNormalized = true;
+		view.value[key].keyframesTimeline.keyframes[0].x = 0.25;
+		view.value[key].trimmedDurationMs = 1000;
+	}
+	f.state.timelineScenes.value = [{ id: 'scene', layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', effectParamValues: { view } }] }];
+	const layer = f.state.timelineScenes.value[0].layers[0];
+	const command = beginPreviewViewportBindingEdit(f.manager, { kind: 'timelineLayer', sceneId: 'scene', layerId: 'layer' }, null, 'effect', ['view']);
+	const drag = preparePreviewViewportDrag(def, view, 500, 1000, command);
+	drag.update({ ...drag.initialValue, center: [-0.6, 0.1], zoom: 2 }); drag.finish();
+	assert.deepEqual(layer.effectParamValues.view.value.center.keyframesTimeline.keyframes.map(point => point.x), [0.25, 0.5]);
+	assert.deepEqual(layer.effectParamValues.view.value.zoom.keyframesTimeline.keyframes.map(point => point.x), [0.25, 0.5]);
+	assert.deepEqual(layer.effectParamValues.view.value.rotation.keyframesTimeline.keyframes.map(point => point.x), [0.25]);
 });

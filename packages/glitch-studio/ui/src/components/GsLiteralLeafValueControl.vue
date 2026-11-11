@@ -149,7 +149,18 @@
 		<GsXy :enableRatioLock="true" :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="vectorControl?.controlType === 'vector'">
-		<GsXy :enableRatioLock="false" :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+		<GsXy
+			:enableRatioLock="false"
+			:modelValue="value"
+			:logarithmic="vectorControl.logarithmic"
+			:step="vectorControl.step ?? 0.1"
+			:min="vectorControl.min"
+			:max="vectorControl.max ?? 1"
+			:navigationSpan="vectorNavigationSpan"
+			@beginChanging="onBeginChanging"
+			@update:modelValue="v => changeContinuous(v)"
+			@changeFinished="onFinishChanging"
+		/>
 	</div>
 	<GsColorRampInput v-else-if="dataType.kind === 'colorRamp'" :modelValue="value" :title="title" @beginChanging="onBeginChanging" @update:modelValue="changeContinuous" @changeFinished="onFinishChanging"/>
 	<div v-else-if="dataType.kind === 'color'" :class="$style.colorControl">
@@ -202,6 +213,7 @@ const props = defineProps<{
 	dataType: T;
 	control: DataTypeUiDefinition<NoInfer<T>>;
 	value: any;
+	vectorNavigationSpan?: number | null;
 	title?: string;
 }>();
 

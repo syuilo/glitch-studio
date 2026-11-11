@@ -10,6 +10,7 @@
 	<div :class="$style.root" class="_shadow _popup" tabindex="-1" @keydown.stop="onKeydown">
 		<div
 			ref="surface"
+			data-test-xy-grid-surface
 			:class="[$style.surface, {
 				[$style.lockedX]: axisLock === 'x',
 				[$style.lockedY]: axisLock === 'y',
@@ -45,6 +46,7 @@ const props = withDefaults(defineProps<{
 	min?: number;
 	max: number;
 	step?: number;
+	navigationSpan?: number | null;
 	anchorElement: HTMLElement;
 	lockedRatio: [number, number] | null;
 }>(), {
@@ -68,11 +70,15 @@ const surface = useTemplateRef<HTMLElement>('surface');
 const value = ref<[number, number]>([...props.modelValue]);
 const axisLock = ref<AxisLock>(null);
 const activePointerId = ref<number | null>(null);
+// 高倍率では開始位置からの差分を可視範囲へ換算する。座標と幅を開始時に
+// 固定することで、押した位置へのジャンプやドラッグ中の感度変化を避ける。
+const navigationOrigin: [number, number] = [...props.modelValue];
+let navigationDrag: { point: [number, number]; value: [number, number]; span: number } | null = null;
 
 const useLogarithmic = computed(() => props.logarithmic && props.min > 0 && props.max > props.min);
 
-const xPosition = computed(() => `${toRatio(value.value[0]) * 100}%`);
-const yPosition = computed(() => `${(1 - toRatio(value.value[1])) * 100}%`);
+const xPosition = computed(() => `${(props.navigationSpan == null ? toRatio(value.value[0]) : 0.5 + (value.value[0] - navigationOrigin[0]) / props.navigationSpan) * 100}%`);
+const yPosition = computed(() => `${(props.navigationSpan == null ? 1 - toRatio(value.value[1]) : 0.5 - (value.value[1] - navigationOrigin[1]) / props.navigationSpan) * 100}%`);
 
 watch(() => props.modelValue, (newValue) => {
 	value.value = [...newValue];
@@ -107,13 +113,19 @@ function snap(number: number): number {
 }
 
 function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
-	value.value = [snap(x), snap(y)];
+	value.value = props.navigationSpan == null ? [snap(x), snap(y)] : [x, y];
 	emit('update:modelValue', value.value);
 }
 
 function updateFromPointer(event: PointerEvent) {
 	if (surface.value == null) return;
 	const bounds = surface.value.getBoundingClientRect();
+	if (navigationDrag != null) {
+		const scale = navigationDrag.span / Math.max(bounds.width, bounds.height);
+		setValue(axisLock.value === 'y' ? value.value[0] : navigationDrag.value[0] + (event.clientX - navigationDrag.point[0]) * scale,
+			axisLock.value === 'x' ? value.value[1] : navigationDrag.value[1] - (event.clientY - navigationDrag.point[1]) * scale);
+		return;
+	}
 	const x = fromRatio((event.clientX - bounds.left) / bounds.width);
 	const y = fromRatio(1 - (event.clientY - bounds.top) / bounds.height);
 	setValue(axisLock.value === 'y' ? value.value[0] : x, axisLock.value === 'x' ? value.value[1] : y);
@@ -122,6 +134,7 @@ function updateFromPointer(event: PointerEvent) {
 function onPointerDown(event: PointerEvent) {
 	if (event.button !== 0) return;
 	emit('beginChanging');
+	navigationDrag = props.navigationSpan == null ? null : { point: [event.clientX, event.clientY], value: [...value.value], span: props.navigationSpan };
 	activePointerId.value = event.pointerId;
 	surface.value?.setPointerCapture(event.pointerId);
 	updateFromPointer(event);
@@ -136,6 +149,7 @@ function onPointerUp(event: PointerEvent) {
 	if (activePointerId.value !== event.pointerId) return;
 	updateFromPointer(event);
 	activePointerId.value = null;
+	navigationDrag = null;
 	if (surface.value?.hasPointerCapture(event.pointerId)) surface.value.releasePointerCapture(event.pointerId);
 	emit('changeFinished', value.value);
 }

@@ -106,6 +106,7 @@
 						:control="paramDef.ui.control"
 						:title="label ?? paramDef.ui.label"
 						:value="paramValue.value"
+						:vectorNavigationSpan="vectorNavigationSpan"
 						@input="updateParamAsLiteral"
 						@changeContinuous="updateParamAsLiteral"
 						@reset="onReset"
@@ -113,8 +114,9 @@
 				</div>
 			</template>
 			<GsButton
-				v-if="isParameterType(paramDef, 'vector') && paramDef.ui.control.controlType === 'xy'"
+				v-if="(isParameterType(paramDef, 'vector') && paramDef.ui.control.controlType === 'xy') || isViewport2DParameter(paramDef)"
 				data-test-preview-parameter-toggle
+				:data-test-preview-viewport-toggle="isViewport2DParameter(paramDef) ? '' : null"
 				iconOnly
 				icon="ti ti-pointer"
 				:primary="previewParameterHandle.enabled.value"
@@ -200,6 +202,7 @@
 			:node="node"
 			:paramPath="[...paramPath, key]"
 			:paramDef="def"
+			:vectorNavigationSpan="key === 'center' ? previewParameterHandle.viewportNavigationSpan.value : null"
 			:paramValue="structValues[key]"
 			:defaultBinding="structDefaultValues?.[key]"
 			@edit="emit('edit', $event)"
@@ -278,6 +281,7 @@ import { preferences } from '@/preferences.ts';
 import { getAvailableAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHandle.ts';
+import { isViewport2DParameter } from '@/utility/preview-viewport.ts';
 import { canCreateNamedParameterFromBinding } from '@/utility/named-parameter-creation.ts';
 
 const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
@@ -307,6 +311,8 @@ const props = defineProps<{
 	anotherLayerAudioOptions?: readonly AnotherLayerAudioOption[];
 	automationGraphEndEnabled?: boolean;
 	previewParameterGroup?: TimelineParameterTarget;
+	/** 親の表示範囲から換算した、中心座標の相対操作に使う長辺の長さ。 */
+	vectorNavigationSpan?: number | null;
 }>();
 
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
@@ -347,6 +353,14 @@ const structValues = computed<Record<string, EditableParameterBinding> | null>((
 const visibleFields = computed(() => {
 	if (props.paramDef.dataType.kind !== 'struct') return [];
 	const fields: Record<string, ParameterDefinition> = getStructFieldDefinitions(props.paramDef);
+	const span = previewParameterHandle.viewportNavigationSpan.value;
+	if (isViewport2DParameter(props.paramDef) && span != null && isParameterType(fields.center, 'vector')) {
+		const center = fields.center;
+		// 刻みは保存値の量子化ではなく増減操作の感度。絶対座標の精度は維持する。
+		fields.center = { ...center, ui: { ...center.ui, control: { ...center.ui.control,
+			step: (center.ui.control.step ?? props.paramDef.ui.control.spanAtZoomOne / 1000) * span / props.paramDef.ui.control.spanAtZoomOne,
+		} } };
+	}
 	return Object.entries(fields);
 });
 const canNode = computed(() => props.paramDef.canNode);

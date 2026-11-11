@@ -37,8 +37,9 @@
 				<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
 					<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 				</div>
-				<GsPreviewTransform v-if="appContext.previewParameterEditing.handles.value.length === 0" :canvasRect="previewCanvasRect"/>
+				<GsPreviewTransform v-if="appContext.previewParameterEditing.handles.value.length === 0 && appContext.previewParameterEditing.viewport.value == null" :canvasRect="previewCanvasRect"/>
 				<GsPreviewParameterPositions :canvasRect="previewCanvasRect" :showGrid="showGridInPreview"/>
+				<GsPreviewViewport :canvasRect="previewCanvasRect"/>
 				<div v-if="previewPlayback.state.value.mode === 'timeline' && !previewPlayback.isTimelinePlaying.value && timelineRendererManagerController.isSeeking.value" :class="$style.seekLoading" data-test-timeline-seek-loading>
 					<GsLoading :colored="false" :mini="true"/>
 				</div>
@@ -76,6 +77,7 @@ import { PREVIEW_IMAGE_SOURCES } from '@gs/glitch-studio_shared/preview-image-so
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
 import GsPreviewParameterPositions from './GsPreviewParameterPositions.vue';
+import GsPreviewViewport from './GsPreviewViewport.vue';
 import GsPreviewRulers from './GsPreviewRulers.vue';
 import GsPreviewColorView from './GsPreviewColorView.vue';
 import GsLoading from './common/GsLoading.vue';
@@ -149,7 +151,7 @@ let mainEditingDocument: Document | null = null;
 let editingDocuments = new Set<Document>();
 
 function onEditingKeydown(event: KeyboardEvent) {
-	if (event.key !== 'Escape' || event.defaultPrevented || appContext.previewParameterEditing.handles.value.length === 0) return;
+	if (event.key !== 'Escape' || event.defaultPrevented || (appContext.previewParameterEditing.handles.value.length === 0 && appContext.previewParameterEditing.viewport.value == null)) return;
 	appContext.previewParameterEditing.clear();
 	event.preventDefault();
 }

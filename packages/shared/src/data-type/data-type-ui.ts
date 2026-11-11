@@ -2,6 +2,29 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { DataType } from './data-type.ts';
 
+// 表示範囲の編集方法を示す固定構造。値の型は通常のstructのままとし、
+// 各フィールドの式・キーフレーム・参照は既存のパラメータツリーで扱う。
+export type Viewport2DFields = {
+	center: { kind: 'vector' };
+	zoom: { kind: 'scalar' };
+	rotation: { kind: 'scalar' };
+};
+
+export type Viewport2DControl = {
+	controlType: 'viewport2d';
+	// Zoom=1で参照する平面の長辺の長さ。centerと同じ単位を使い、
+	// 画面の長辺全体=1の共通座標からの換算を描画側と一致させる。
+	spanAtZoomOne: number;
+	// 描画側が倍率に下限を適用する場合は同じ値を指定する。
+	minimumZoom?: number;
+};
+
+// 広いParameterDefinitionでは両方のUIを受け取り、具体的なフィールドが
+// 確定した定義では必須フィールドとその型を検査する。
+type StructControl<F extends Record<string, DataType>> =
+	| { controlType?: 'struct' }
+	| (string extends keyof F ? Viewport2DControl : F extends Viewport2DFields ? Viewport2DControl : never);
+
 // UIの範囲・刻みは入力操作用であり、式やノードから取得した値を制限しない。
 type DataTypeUiControlDefinition_Scalar =
 	// あくまで操作に便利な範囲であり、設定値が必ずこの範囲内に収まることは要求しない。
@@ -38,7 +61,7 @@ export type DataTypeUiDefinition<T extends DataType = DataType> =
 	T extends { kind: 'array'; elementType: infer E extends DataType }
 		? { element: DataTypeUiDefinition<E> }
 		: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
-			? { fields: { [K in keyof F]: { label: string; isAdvanced?: boolean; control: DataTypeUiDefinition<F[K]> } } }
+			? { fields: { [K in keyof F]: { label: string; isAdvanced?: boolean; control: DataTypeUiDefinition<F[K]> } } } & StructControl<F>
 			: T extends { kind: 'enum'; options: readonly string[] }
 				? { labels: Record<T['options'][number], string> }
 				: T extends { kind: keyof DataTypeUiControlDefinitionMap }

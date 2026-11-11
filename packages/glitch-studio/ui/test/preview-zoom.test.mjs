@@ -93,7 +93,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 	const canvas = Object.assign(element('canvas'), { width, height });
 	const controller = markRaw({ canvas, canvasRevision: ref(0) });
 	const appContext = {
-		previewParameterEditing: { handles: shallowRef([]), time: ref(0), clear() {} },
+		previewParameterEditing: { handles: shallowRef([]), viewport: shallowRef(null), time: ref(0), clear() {} },
 		activePreviewRenderer: shallowRef(controller),
 		visualModuleRendererManagerController: { outputResolution: ref(null) },
 		timelineRendererManagerController: { isSeeking: ref(false) },

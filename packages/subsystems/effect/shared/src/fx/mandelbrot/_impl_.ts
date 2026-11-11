@@ -7,6 +7,7 @@ import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
 import type { EffectOutputData } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
+import { MANDELBROT_SPAN_AT_ZOOM_ONE, MANDELBROT_MINIMUM_ZOOM } from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -83,14 +84,14 @@ export default implementEffect<typeof definition>({
 				// 反復前の|z|をこの半径以下に抑える。二乗後の最大1e24もf32に収まり、
 				// さらに二乗ノルムを求めないことで、発散判定自体のオーバーフローを避ける。
 				const bailoutRadius = Math.min(1e12, Math.max(2, ctx.params.bailoutRadius));
-				const rotation = ctx.params.rotation * Math.PI * 2;
+				const rotation = ctx.params.view.rotation * Math.PI * 2;
 				uniformValues.set({
 					spatialHalfExtent,
 					pixelStep: [2 / resolution.width, 2 / resolution.height],
-					complexCenter: ctx.params.complexCenter,
+					complexCenter: ctx.params.view.center,
 					rotation: [Math.cos(rotation), Math.sin(rotation)],
 					// 長辺全体=1の画面座標を、Zoom=1で複素平面の長さ4へ対応させる。
-					complexScale: 4 / Math.max(0.001, ctx.params.zoom),
+					complexScale: MANDELBROT_SPAN_AT_ZOOM_ONE / Math.max(MANDELBROT_MINIMUM_ZOOM, ctx.params.view.zoom),
 					maximumIterations: Math.min(2048, Math.max(1, Math.floor(ctx.params.maximumIterations))),
 					bailoutRadius,
 					log2LogBailoutRadius: Math.log2(Math.log(bailoutRadius)),
