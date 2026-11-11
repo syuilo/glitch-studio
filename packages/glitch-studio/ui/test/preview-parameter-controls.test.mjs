@@ -38,8 +38,12 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false) } };",
 			effects: `import mandelbrot from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
+				import imageTrap from '@gs/subsystems_effect_shared/fx/imageTrap/_def_.ts';
+				import magneticPendulum from '@gs/subsystems_effect_shared/fx/magneticPendulum/_def_.ts';
+				import doublePendulumFractal from '@gs/subsystems_effect_shared/fx/doublePendulumFractal/_def_.ts';
 				export const effectDefinitions = { test: { ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)},
-					view: mandelbrot.paramDefs.view, otherView: mandelbrot.paramDefs.view } } };`,
+					view: mandelbrot.paramDefs.view, otherView: mandelbrot.paramDefs.view, imageTrapView: imageTrap.paramDefs.view,
+					magneticPendulumView: magneticPendulum.paramDefs.view, doublePendulumView: doublePendulumFractal.paramDefs.view } } };`,
 			app: 'export const appContext = {};',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {}',
 		}[path] }));
@@ -65,7 +69,7 @@ function findAll(root, predicate) {
 	return [root, ...root.children.flatMap(child => findAll(child, predicate))].filter(predicate);
 }
 
-async function fixture(t, { showGrid = false, viewport = false } = {}) {
+async function fixture(t, { showGrid = false, viewport = false, viewportParameter = null } = {}) {
 	const view = new EventTarget();
 	view.setTimeout = (...args) => setTimeout(...args);
 	view.clearTimeout = id => clearTimeout(id);
@@ -112,8 +116,7 @@ async function fixture(t, { showGrid = false, viewport = false } = {}) {
 		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
 	const visualModule = { id: 'visualModule', name: 'Visual Module', nodes: [{ id: 'node', type: 'effect', effectId: 'test', isBypass: false,
-		params: { first: literal([0, 0]), second: literal([0, 0]), scale: literal([1, 1]),
-			view: structuredClone(testedEffect.paramDefs.view.defaultValue), otherView: structuredClone(testedEffect.paramDefs.otherView.defaultValue) } }] };
+		params: { ...Object.fromEntries(Object.entries(testedEffect.paramDefs).map(([key, definition]) => [key, structuredClone(definition.defaultValue)])), scale: literal([1, 1]) } }] };
 	const state = { visualModules: ref([visualModule]), timelineScenes: ref([]), automationGraphs: ref([]), resolution: ref({ width: 800, height: 400 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const editing = new PreviewParameterEditingController();
@@ -127,7 +130,8 @@ async function fixture(t, { showGrid = false, viewport = false } = {}) {
 	const root = element('root');
 	const canvasRect = { left: 0, top: 0, width: 800, height: 400 };
 	const app = renderer.createApp({ render: () => h('main', [
-		...(showParameters.value ? Object.entries(testedEffect.paramDefs).filter(([key]) => viewport || !['view', 'otherView'].includes(key)).map(([key, definition]) => h(Parameter, {
+		...(showParameters.value ? Object.entries(testedEffect.paramDefs).filter(([key]) => viewportParameter != null ? key === viewportParameter
+			: !['imageTrapView', 'magneticPendulumView', 'doublePendulumView'].includes(key) && (viewport || !['view', 'otherView'].includes(key))).map(([key, definition]) => h(Parameter, {
 			key, node, automationGraphs: [], availableVariables: [], paramDef: definition, paramValue: node.params[key], paramPath: [key],
 			onEdit: edit => commitVisualModuleEdit(manager, { visualModuleId: visualModule.id }, { kind: 'editNodeParam', nodeId: node.id, edit }),
 		})) : []),
@@ -398,3 +402,37 @@ test('scales numeric navigation and preserves precise center input and relative 
 	pad.props.onPointermove({ pointerId: 7, clientX: 390, clientY: 180 });
 	close(actual, [-0.4998, 0.0001]);
 });
+
+for (const [parameter, span, hasRotation] of [['imageTrapView', 4, true], ['magneticPendulumView', 1, false], ['doublePendulumView', 2 * Math.PI, false]]) {
+	// 【各エフェクトの実際のView定義でパン・ズーム・Undoを接続し、省略された回転を保存しない】
+	// 基準幅の異なる複素平面・公開空間・角度平面でも同じ画面移動に対応させ、
+	// 回転なしの定義が操作不可になったり、操作中にrotationのBindingを追加したりする回帰を防ぐ。
+	test(`navigates ${parameter} with its declared span and optional rotation`, async t => {
+		t.mock.timers.enable({ apis: ['setTimeout'] });
+		const f = await fixture(t, { viewportParameter: parameter });
+		const definition = testedEffect.paramDefs[parameter];
+		f.node.params[parameter].value.zoom.value = 1000;
+		f.viewportToggles()[0].props.onClick(); await nextTick();
+		assert.equal(f.viewportToggles()[0].props.disabled, false);
+		const rotationRows = findAll(f.root, node => node.props['data-test-parameter-path'] === JSON.stringify([parameter, 'rotation']));
+		assert.equal(rotationRows.length, hasRotation ? 1 : 0);
+		f.beginViewport(); f.pointer('pointerup', 480, 160); await nextTick();
+		close(f.node.params[parameter].value.center.value, [-span / 10000, -span / 20000]);
+		assert.equal(f.manager.undoStack.value.length, 1);
+		f.manager.undo(); await nextTick();
+		close(f.node.params[parameter].value.center.value, [0, 0]);
+		f.wheel(-100); await f.frame();
+		const value = f.node.params[parameter].value;
+		const point = [0.25, 0.125];
+		close(value.center.value.map((component, axis) => component + point[axis] * span / value.zoom.value), point.map(component => component * span / 1000));
+		t.mock.timers.tick(180); await nextTick();
+		assert.equal(f.manager.undoStack.value.length, 1);
+		assert.equal(Object.hasOwn(value, 'rotation'), hasRotation);
+		assert.deepEqual(Object.keys(value).sort(), Object.keys(definition.dataType.fields).sort());
+		f.manager.undo(); await nextTick();
+		close(f.node.params[parameter].value.center.value, [0, 0]);
+		assert.equal(f.node.params[parameter].value.zoom.value, 1000);
+		f.manager.redo(); await nextTick();
+		assert.equal(Object.hasOwn(f.node.params[parameter].value, 'rotation'), hasRotation);
+	});
+}

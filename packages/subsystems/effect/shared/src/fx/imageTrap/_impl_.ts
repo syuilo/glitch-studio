@@ -3,6 +3,7 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { implementEffect } from '../../effect-implementation.ts';
+import { IMAGE_TRAP_SPAN_AT_ZOOM_ONE, IMAGE_TRAP_MINIMUM_ZOOM } from './_def_.ts';
 import type definition from './_def_.ts';
 import code from './shader.wgsl?raw';
 
@@ -31,19 +32,19 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
-				const rotation = params.rotation * 2 * Math.PI;
+				const rotation = params.view.rotation * 2 * Math.PI;
 				const trapRotation = params.trapRotation * 2 * Math.PI;
 				const trapSize = params.trapSize.map(value => Math.max(0.000001, value));
 				uniformValues.set({
 					spatialHalfExtent,
 					pixelStep: [2 / resolution.width, 2 / resolution.height],
-					complexCenter: params.complexCenter,
+					complexCenter: params.view.center,
 					juliaConstant: params.juliaConstant,
 					rotation: [Math.cos(rotation), Math.sin(rotation)],
 					trapRotation: [Math.cos(trapRotation), Math.sin(trapRotation)],
 					trapPosition: params.trapPosition,
 					trapSize,
-					complexScale: 4 / Math.max(0.001, params.zoom),
+					complexScale: IMAGE_TRAP_SPAN_AT_ZOOM_ONE / Math.max(IMAGE_TRAP_MINIMUM_ZOOM, params.view.zoom),
 					bailoutRadius: Math.min(1e12, Math.max(2, params.bailoutRadius)),
 					opacity: Math.min(1, Math.max(0, params.opacity)),
 					iterationDecay: Math.min(1, Math.max(0, params.iterationDecay)),

@@ -1,5 +1,8 @@
 import { defineEffect } from '../../effect-definition.ts';
 
+export const IMAGE_TRAP_SPAN_AT_ZOOM_ONE = 4;
+export const IMAGE_TRAP_MINIMUM_ZOOM = 0.001;
+
 export default defineEffect({
 	id: 'imageTrap',
 	displayName: 'Image Trap',
@@ -27,20 +30,28 @@ export default defineEffect({
 			ui: { label: 'Julia Constant', control: { controlType: 'vector', min: -2, max: 2, step: 0.001 } },
 			defaultValue: { inputSource: 'literal', value: [-0.745, 0.186] },
 		},
-		complexCenter: {
-			dataType: { kind: 'vector' },
-			ui: { label: 'Complex Center', control: { controlType: 'vector', min: -2, max: 2, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
-		},
-		zoom: {
-			dataType: { kind: 'scalar' },
-			ui: { label: 'Zoom', control: { controlType: 'range', min: 0.1, max: 1000, logarithmic: true } },
-			defaultValue: { inputSource: 'literal', value: 1 },
-		},
-		rotation: {
-			dataType: { kind: 'scalar' },
-			ui: { label: 'Rotation', control: { controlType: 'angle' } },
-			defaultValue: { inputSource: 'literal', value: 0 },
+		view: {
+			dataType: { kind: 'struct', fields: {
+				center: { kind: 'vector' }, zoom: { kind: 'scalar' }, rotation: { kind: 'scalar' },
+			} },
+			ui: { label: 'View', control: {
+				controlType: 'viewport2d', spanAtZoomOne: IMAGE_TRAP_SPAN_AT_ZOOM_ONE, minimumZoom: IMAGE_TRAP_MINIMUM_ZOOM,
+				fields: {
+					center: { label: 'Complex Center', control: { controlType: 'vector', min: -2, max: 2, step: 0.001 } },
+					zoom: { label: 'Zoom', control: { controlType: 'range', min: 0.1, max: 1000, logarithmic: true } },
+					rotation: { label: 'Rotation', control: { controlType: 'angle' } },
+				},
+			} },
+			fields: {
+				center: { defaultValue: { inputSource: 'literal', value: [0, 0] } },
+				zoom: { defaultValue: { inputSource: 'literal', value: 1 } },
+				rotation: { defaultValue: { inputSource: 'literal', value: 0 } },
+			},
+			defaultValue: { inputSource: 'literal', value: {
+				center: { inputSource: 'literal', value: [0, 0] },
+				zoom: { inputSource: 'literal', value: 1 },
+				rotation: { inputSource: 'literal', value: 0 },
+			} },
 		},
 		coordinateOffset: {
 			dataType: { kind: 'vector' },

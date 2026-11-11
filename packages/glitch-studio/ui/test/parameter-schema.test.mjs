@@ -162,10 +162,14 @@ externalValues[external.id] = { inputSource: 'node', nodeId: null, outputPort: n
 // @ts-expect-error モジュールの外から内部公開パラメータを参照できない
 externalValues[external.id] = { inputSource: 'visualModulePublicParameterReference', parameterId: external.id };
 
-// 表示範囲のUIを指定できるのは、中心vector・倍率scalar・回転scalarを持つstructだけ。
+// 表示範囲のUIは中心vector・倍率scalarを必須とし、回転scalarは省略できる。
 // 見た目の指定だけで、別の型や不足したフィールドをプレビュー編集へ渡さない。
 import mandelbrot from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
+import imageTrap from '@gs/subsystems_effect_shared/fx/imageTrap/_def_.ts';
+import magneticPendulum from '@gs/subsystems_effect_shared/fx/magneticPendulum/_def_.ts';
+import doublePendulumFractal from '@gs/subsystems_effect_shared/fx/doublePendulumFractal/_def_.ts';
 defineEffect({ ...outputDefinition, tags: [], paramDefs: { view: mandelbrot.paramDefs.view } });
+defineEffect({ ...outputDefinition, tags: [], paramDefs: { imageTrapView: imageTrap.paramDefs.view, magneticView: magneticPendulum.paramDefs.view, doublePendulumView: doublePendulumFractal.paramDefs.view } });
 const unrelatedStruct = {
 	dataType: { kind: 'struct', fields: { amount: { kind: 'scalar' } } },
 	ui: { label: 'Unrelated', control: { controlType: 'viewport2d', spanAtZoomOne: 4, fields: { amount: number.ui } } },
@@ -181,6 +185,14 @@ const wrongCenter = { ...mandelbrot.paramDefs.view, dataType: { kind: 'struct', 
 } as const;
 // @ts-expect-error centerはscalarではなくvectorである必要がある
 defineEffect({ ...outputDefinition, tags: [], paramDefs: { view: wrongCenter } });
+const wrongRotation = { ...imageTrap.paramDefs.view,
+	dataType: { kind: 'struct', fields: { ...imageTrap.paramDefs.view.dataType.fields, rotation: { kind: 'vector' } } },
+	ui: { ...imageTrap.paramDefs.view.ui, control: { ...imageTrap.paramDefs.view.ui.control, fields: { ...imageTrap.paramDefs.view.ui.control.fields, rotation: imageTrap.paramDefs.view.ui.control.fields.center } } },
+	fields: { ...imageTrap.paramDefs.view.fields, rotation: imageTrap.paramDefs.view.fields.center },
+	defaultValue: { inputSource: 'literal', value: { ...imageTrap.paramDefs.view.defaultValue.value, rotation: imageTrap.paramDefs.view.defaultValue.value.center } },
+} as const;
+// @ts-expect-error rotationを指定する場合はscalarである必要がある
+defineEffect({ ...outputDefinition, tags: [], paramDefs: { view: wrongRotation } });
 `;
 	const options = {
 		// 実際のUIと同じraw importの型宣言を読み込み、参照先のWGSLを未解決にしない。

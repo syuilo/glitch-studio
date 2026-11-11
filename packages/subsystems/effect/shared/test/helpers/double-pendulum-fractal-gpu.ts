@@ -3,6 +3,8 @@ import implementation from '../../src/fx/doublePendulumFractal/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import type { EffectOutputDataMap, RuntimeEffectParameters } from '../../src/effect-implementation.ts';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
+import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 type OutputPort = keyof typeof definition.outputDefs;
@@ -12,7 +14,7 @@ const wrapAngle = (angle: number) => ((angle + Math.PI) % (2 * Math.PI) + 2 * Ma
 // GPU側の縮約式を転記せず、独立したラグランジュ方程式の質量行列を解く。
 // 参照計算はf64・十分小さな刻みを使い、GPUの刻みや式変形に依存しない解へ近づける。
 function referenceState(params: Parameters) {
-	let state = [params.angleCenter1, params.angleCenter2, params.initialAngularVelocity1, params.initialAngularVelocity2];
+	let state = [params.view.center[0], -params.view.center[1], params.initialAngularVelocity1, params.initialAngularVelocity2];
 	const derivative = ([angle1, angle2, velocity1, velocity2]: number[]) => {
 		const lowerMass = params.massRatio;
 		const lowerLength = params.lengthRatio;
@@ -45,7 +47,12 @@ export async function run(benchmark = false) {
 	const checks: string[] = [];
 	const timings: { resolution: string; simulationTime: number; milliseconds: number }[] = [];
 	const resources: (() => void)[] = [];
-	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, structuredClone(parameter.defaultValue.value)])) as Parameters;
+	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
+		mapParameterTree<ValueParameterBinding>(parameter, parameter.defaultValue, [], (_field, binding) => {
+			if (binding.inputSource !== 'literal') throw new Error('Expected literal test defaults');
+			return structuredClone(binding.value);
+		}),
+	])) as Parameters;
 	const assert = (condition: boolean, label: string) => {
 		if (!condition) throw new Error(label);
 		checks.push(label);
@@ -116,14 +123,14 @@ export async function run(benchmark = false) {
 		// 【無重力で両方が同じ速度で回る解析解を、端数時刻と周回をまたいで再現する】
 		// 角度差0では加速度0となるため、参照側に同じ数値積分を書かず時間刻みと角度折返しを検証できる。
 		for (const simulationTime of [0, 0.003, 0.375]) {
-			const pixels = await single.render({ simulationTime, gravity: 0, angleCenter1: 2.7, angleCenter2: 2.7, initialAngularVelocity1: 1.3, initialAngularVelocity2: 1.3 });
+			const pixels = await single.render({ simulationTime, gravity: 0, view: { center: [2.7, -2.7], zoom: 1 }, initialAngularVelocity1: 1.3, initialAngularVelocity2: 1.3 });
 			for (const port of ['angle1', 'angle2'] as const) near(pixels.pixel(port)[0], wrapAngle(2.7 + 1.3 * simulationTime), `${port} exact free rotation at ${simulationTime}`);
 			for (const port of ['angularVelocity1', 'angularVelocity2'] as const) near(pixels.pixel(port)[0], 1.3, `${port} constant free rotation`);
 		}
 		// 【長さ比・質量比・重力・初期角速度が連成運動へ反映される】
 		// 対称な初期条件だけでは見つからない、添字や長さ係数の取り違えを独立した質量行列の解で検出する。
 		for (const [lengthRatio, massRatio] of [[1, 1], [0.7, 2.1], [2, 0.4]]) {
-			const parameters = { ...defaults, simulationTime: 0.375, angleCenter1: 0.7, angleCenter2: -0.4, initialAngularVelocity1: 0.2, initialAngularVelocity2: -0.3, lengthRatio, massRatio };
+			const parameters: Parameters = { ...defaults, simulationTime: 0.375, view: { center: [0.7, 0.4], zoom: 1 }, initialAngularVelocity1: 0.2, initialAngularVelocity2: -0.3, lengthRatio, massRatio };
 			const expected = referenceState(parameters);
 			const actual = await single.render(parameters);
 			statePorts.forEach((port, index) => near(actual.pixel(port)[0], expected[index], `${port} independent dynamics ${lengthRatio}/${massRatio}`));
@@ -132,7 +139,7 @@ export async function run(benchmark = false) {
 		// 画面中央の下向き振り子は動かず、色の計算が初期角度や片方の角度だけを使っていないことも確認する。
 		const equilibrium = await single.render({ simulationTime: 2 });
 		for (const port of statePorts) near(equilibrium.pixel(port)[0], 0, `${port} stationary equilibrium`);
-		const colored = await single.render({ simulationTime: 0.375, angleCenter1: 0.7, angleCenter2: -0.4 });
+		const colored = await single.render({ simulationTime: 0.375, view: { center: [0.7, 0.4], zoom: 1 } });
 		const angle1 = colored.pixel('angle1')[0];
 		const angle2 = colored.pixel('angle2')[0];
 		const expectedColor = [0.5 + 0.5 * Math.sin(angle1) * Math.cos(angle2), 0.5 + 0.5 * Math.sin(angle1) * Math.sin(angle2), 0.5 + 0.5 * Math.cos(angle1), 1];
@@ -140,12 +147,14 @@ export async function run(benchmark = false) {
 		// 【シーク・FPS・時計から独立し、配色変更が数値出力を変えない】
 		// 同じインスタンスを異なる順序・描画間隔で呼び、積算した状態や前回の端数が混ざらないことを実画素で確認する。
 		await single.render({ simulationTime: 1.25 }, 100, 1000 / 30);
-		const repeat = await single.render({ simulationTime: 0.375, angleCenter1: 0.7, angleCenter2: -0.4 }, 5, 1000 / 120);
+		const repeat = await single.render({ simulationTime: 0.375, view: { center: [0.7, 0.4], zoom: 1 } }, 5, 1000 / 120);
 		for (const port of allPorts) assert(repeat.values.get(port)!.every((value, index) => value === colored.values.get(port)![index]), `${port} independent of render history and clock`);
-		const ramp: ColorRamp = { interpolation: 'linear', colorSpace: 'srgb', stops: [
+		// 後続の解析的なRGBAの期待値はlinear sRGBでの補間を前提とする。
+		// sRGB補間ではAA標本ごとの非線形変換によって、同じ中間色にはならない。
+		const ramp: ColorRamp = { interpolation: 'linear', colorSpace: 'linearSrgb', stops: [
 			{ id: 'start', position: 0, color: [1, 0, 0, 0.5] }, { id: 'end', position: 1, color: [0, 0, 1, 0.5] },
 		] };
-		const ramped = await single.render({ simulationTime: 0.375, angleCenter1: 0.7, angleCenter2: -0.4, coloringMethod: 'angle2', ramp });
+		const ramped = await single.render({ simulationTime: 0.375, view: { center: [0.7, 0.4], zoom: 1 }, coloringMethod: 'angle2', ramp });
 		for (const port of statePorts) near(ramped.pixel(port)[0], colored.pixel(port)[0], `${port} unaffected by coloring`);
 		// 【角度の正規化と符号付き角速度のRampを、乗算済み透明度で出力する】
 		// 角速度は絶対値にせず、負・0・正をRampの0・0.5・1へ対応させる。AAでも透明度を二重乗算しない。
@@ -174,17 +183,24 @@ export async function run(benchmark = false) {
 			const offset = width === 27 ? 3 : 1;
 			near(pixels.pixel('angle1', (width - 1) / 2 + offset, (height - 1) / 2)[0], 2 * Math.PI / 9, `${width}x${height} isotropic X`);
 			near(pixels.pixel('angle2', (width - 1) / 2, (height - 1) / 2 + offset)[0], 2 * Math.PI / 9, `${width}x${height} isotropic Y points downward`);
+			// 【Viewの非ゼロ中心と倍率を、従来の物理角度の向きへ変換する】
+			// 中心だけ符号を変え忘れる回帰と、高倍率での長辺基準の換算漏れを検出する。
+			const zoomed = await renderer.render({ simulationTime: 0, view: { center: [0.4, -0.3], zoom: 1000 } });
+			near(zoomed.pixel('angle1')[0], 0.4, `${width}x${height} view center angle 1`, 0.000002);
+			near(zoomed.pixel('angle2')[0], 0.3, `${width}x${height} view center angle 2`, 0.000002);
+			near(zoomed.pixel('angle1', (width - 1) / 2 + offset, (height - 1) / 2)[0], 0.4 + 2 * Math.PI / 9000, `${width}x${height} zoomed X`, 0.000002);
+			near(zoomed.pixel('angle2', (width - 1) / 2, (height - 1) / 2 + offset)[0], 0.3 + 2 * Math.PI / 9000, `${width}x${height} zoomed Y`, 0.000002);
 		}
 		// 【周期境界のAAはpi付近を0付近へ反転させない】
 		// 角度のデータには円周平均を使い、色の4点平均や角速度の算術平均とは区別する。
-		const antialiased = await createRenderer(9, 9).render({ simulationTime: 0, angleCenter1: Math.PI, angleCenter2: Math.PI, antialiasing: true });
+		const antialiased = await createRenderer(9, 9).render({ simulationTime: 0, view: { center: [Math.PI, -Math.PI], zoom: 1 }, antialiasing: true });
 		for (const port of ['angle1', 'angle2'] as const) near(Math.abs(antialiased.pixel(port)[0]), Math.PI, `${port} circular AA across pi`);
 		// 【画像が不要な疎なattachmentと、16bitのデータ出力でも同じ物理量を返す】
 		// 未確保のポートを参照したり、単独出力時にlocationを詰めたりする不具合を検出する。
 		const sparse = createRenderer(1, 1, false, ['angle2']);
 		assert(sparse.outputDataMap.output == null && sparse.outputDataMap.angle1 == null, 'unused outputs are not allocated');
 		assert(sparse.outputDataMap.angle2!.texture.format === 'r16float', 'data precision selects r16float');
-		const sparsePixels = await sparse.render({ simulationTime: 0.375, angleCenter1: 0.7, angleCenter2: -0.4 });
+		const sparsePixels = await sparse.render({ simulationTime: 0.375, view: { center: [0.7, 0.4], zoom: 1 } });
 		near(sparsePixels.pixel('angle2')[0], colored.pixel('angle2')[0], 'sparse half precision matches shared integration', 0.001);
 		assert(single.outputDataMap.angle1!.texture.format === 'r32float', 'data precision selects r32float');
 		if (benchmark) {

@@ -1,6 +1,8 @@
 import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { defineEffect } from '../../effect-definition.ts';
 
+export const DOUBLE_PENDULUM_FRACTAL_SPAN_AT_ZOOM_ONE = 2 * Math.PI;
+
 export default defineEffect({
 	id: 'doublePendulumFractal',
 	displayName: 'Double Pendulum Fractal',
@@ -17,21 +19,25 @@ export default defineEffect({
 			ui: { label: 'Simulation Time', control: { controlType: 'number', min: 0, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 3 },
 		},
-		// Angleコントロールはturn単位なので、物理量として公開するradには数値入力を使う。
-		angleCenter1: {
-			dataType: { kind: 'scalar' },
-			ui: { label: 'Angle Center 1 (rad)', control: { controlType: 'range', min: -Math.PI, max: Math.PI, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: 0 },
-		},
-		angleCenter2: {
-			dataType: { kind: 'scalar' },
-			ui: { label: 'Angle Center 2 (rad)', control: { controlType: 'range', min: -Math.PI, max: Math.PI, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: 0 },
-		},
-		zoom: {
-			dataType: { kind: 'scalar' },
-			ui: { label: 'Zoom', control: { controlType: 'range', min: 0.1, max: 1000, logarithmic: true } },
-			defaultValue: { inputSource: 'literal', value: 1 },
+		view: {
+			dataType: { kind: 'struct', fields: { center: { kind: 'vector' }, zoom: { kind: 'scalar' } } },
+			ui: { label: 'View', control: {
+				controlType: 'viewport2d', spanAtZoomOne: DOUBLE_PENDULUM_FRACTAL_SPAN_AT_ZOOM_ONE,
+				fields: {
+					// 中心は[theta1, -theta2]。表示の+Yを上に揃え、描画側で物理角度へ戻す。
+					// 単位はradなので、turn単位のAngleコントロールは使用しない。
+					center: { label: 'Angle Center (rad)', control: { controlType: 'vector', min: -Math.PI, max: Math.PI, step: 0.001 } },
+					zoom: { label: 'Zoom', control: { controlType: 'range', min: 0.1, max: 1000, logarithmic: true } },
+				},
+			} },
+			fields: {
+				center: { defaultValue: { inputSource: 'literal', value: [0, 0] } },
+				zoom: { defaultValue: { inputSource: 'literal', value: 1 } },
+			},
+			defaultValue: { inputSource: 'literal', value: {
+				center: { inputSource: 'literal', value: [0, 0] },
+				zoom: { inputSource: 'literal', value: 1 },
+			} },
 		},
 		initialAngularVelocity1: {
 			dataType: { kind: 'scalar' },

@@ -12,6 +12,7 @@ Mandelbrot・Juliaの反復軌道`z → z² + c`から入力画像を参照し�
 2. 初期値のJuliaで、Julia Constantを変更して模様を探します。通常のパラメータなので式・キーフレームでも動かせます。
 3. Trap Position・Trap Size・Trap Rotationで、軌道から画像を取り込む領域を調整します。
 4. 画像片の重なりはComposite Mode・Sample Opacity・Iteration Decayで調整します。
+5. Viewのポインタボタンを有効にすると、プレビューのドラッグで位置、ホイールでカーソルを中心としたズームを調整できます。中心の数値欄と操作パッドも倍率に応じた感度になります。
 
 入力画像はTrap Sizeの矩形へ接続のFit設定で配置します。画像全体を保つにはContain、矩形を埋めるにはCover、矩形へ引き伸ばすにはStretchを使います。
 Containの余白を透明にする場合は接続のWrapをTransparentにします。Filterも接続設定に従います。
@@ -24,9 +25,9 @@ Containの余白を透明にする場合は接続のWrapをTransparentにしま�
 | Input | 透明 | 取り込む画像・動画などのcolor入力。定数色も有限なトラップ矩形として扱います。 |
 | Formula | Julia | Juliaは`z0=画面位置, c=Julia Constant`、Mandelbrotは`z0=0, c=画面位置`です。 |
 | Julia Constant | [-0.745, 0.186] | Juliaの複素定数。Mandelbrotでは使用しません。 |
-| Complex Center | [0, 0] | 画面中央に対応する複素平面上の位置。 |
-| Zoom | 1 | 複素平面の拡大率。最小0.001。 |
-| Rotation | 0 | フラクタル全体の表示の回転。turn単位で、正値は時計回り。 |
+| View / Complex Center | [0, 0] | 画面中央に対応する複素平面上の位置。 |
+| View / Zoom | 1 | 複素平面の拡大率。最小0.001。 |
+| View / Rotation | 0 | フラクタル全体の表示の回転。turn単位で、正値は時計回り。 |
 | Coordinate Offset | [0, 0] | 初期座標への変位。共通等方単位のベクトル場も接続でき、Zoom・Rotationより前に加えます。 |
 | Trap Position | [0, 0] | 軌道から画像を取り込む矩形の中心。共通等方単位で、+Xが右、+Yが上。 |
 | Trap Size | [0.25, 0.25] | トラップの幅・高さ。共通等方単位で、各軸の最小値は0.000001。 |

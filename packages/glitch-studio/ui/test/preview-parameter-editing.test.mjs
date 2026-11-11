@@ -15,6 +15,7 @@ const bundled = await build({ absWorkingDir: directory, bundle: true, platform: 
 		export * from './src/utility/preview-parameter-position.ts';
 		export * from './src/utility/preview-viewport.ts';
 		export { default as mandelbrot } from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
+		export { default as magneticPendulum } from '@gs/subsystems_effect_shared/fx/magneticPendulum/_def_.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
@@ -31,7 +32,7 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewParameterEditingController, getPreviewParameterPosition, beginPreviewParameterBindingEdit, preparePreviewParameterDrag,
 	previewParameterToScreen, previewScreenToParameter, snapPreviewParameterPosition, preparePreviewViewportDrag, beginPreviewViewportBindingEdit,
-	panPreviewViewport, zoomPreviewViewport, mandelbrot, UndoRedo, COMMAND_DEFS, createInlineKeyframesTimeline } = module.exports;
+	panPreviewViewport, zoomPreviewViewport, getPreviewViewportValue, mandelbrot, magneticPendulum, UndoRedo, COMMAND_DEFS, createInlineKeyframesTimeline } = module.exports;
 const close = (actual, expected) => actual.forEach((value, axis) => assert.ok(Math.abs(value - expected[axis]) < 1e-12, `${actual} != ${expected}`));
 
 function fixture() {
@@ -286,4 +287,18 @@ test('preserves fractional normalized key times during timeline viewport edits',
 	assert.deepEqual(layer.effectParamValues.view.value.center.keyframesTimeline.keyframes.map(point => point.x), [0.25, 0.5]);
 	assert.deepEqual(layer.effectParamValues.view.value.zoom.keyframesTimeline.keyframes.map(point => point.x), [0.25, 0.5]);
 	assert.deepEqual(layer.effectParamValues.view.value.rotation.keyframesTimeline.keyframes.map(point => point.x), [0.25]);
+});
+
+// 【回転の省略と、宣言された回転の欠損・駆動入力を区別する】
+// 回転なしの表示範囲は操作できる一方、既存の回転式を0と決めつけて編集してはいけない。
+test('defaults only undeclared viewport rotation to zero', () => {
+	const def = magneticPendulum.paramDefs.view;
+	const binding = structuredClone(def.defaultValue);
+	assert.deepEqual(getPreviewViewportValue(def, binding, 0, 0), { center: [0, 0], zoom: 1, rotation: 0 });
+	assert.equal(Object.hasOwn(binding.value, 'rotation'), false);
+	const required = structuredClone(mandelbrot.paramDefs.view.defaultValue);
+	delete required.value.rotation;
+	assert.equal(getPreviewViewportValue(mandelbrot.paramDefs.view, required, 0, 0), null);
+	required.value.rotation = { inputSource: 'expression', expression: 'TIME' };
+	assert.equal(getPreviewViewportValue(mandelbrot.paramDefs.view, required, 0, 0), null);
 });

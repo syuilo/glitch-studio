@@ -3,7 +3,7 @@ import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import { MAXIMUM_MAGNET_COUNT } from './_def_.ts';
+import { MAXIMUM_MAGNET_COUNT, MAGNETIC_PENDULUM_MINIMUM_ZOOM } from './_def_.ts';
 import code from './shader.wgsl?raw';
 import type { EffectOutputData } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
@@ -112,9 +112,9 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					spatialHalfExtent: spatialHalfExtent.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
 					pixelStep: [2 / resolution.width, 2 / resolution.height],
-					viewCenter: ctx.params.viewCenter.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
+					viewCenter: ctx.params.view.center.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
 					initialVelocity: ctx.params.initialVelocity.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
-					zoom: Math.max(0.001, ctx.params.zoom),
+					zoom: Math.max(MAGNETIC_PENDULUM_MINIMUM_ZOOM, ctx.params.view.zoom),
 					timeStep: Math.min(0.1, Math.max(0.001, ctx.params.timeStep)),
 					captureRadiusSquared: captureRadius * captureRadius,
 					captureSpeedSquared: captureSpeed * captureSpeed,

@@ -7,7 +7,8 @@ import type { DataType } from './data-type.ts';
 export type Viewport2DFields = {
 	center: { kind: 'vector' };
 	zoom: { kind: 'scalar' };
-	rotation: { kind: 'scalar' };
+	// 回転を持たない表示範囲では省略し、編集時には回転0として扱う。
+	rotation?: { kind: 'scalar' };
 };
 
 export type Viewport2DControl = {

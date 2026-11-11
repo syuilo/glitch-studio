@@ -3,6 +3,8 @@ import implementation from '../../src/fx/imageTrap/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
+import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
 
@@ -16,7 +18,10 @@ export async function run() {
 	const checks: string[] = [];
 	const resources: (() => void)[] = [];
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-		'canNode' in parameter && parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : structuredClone(parameter.defaultValue.value),
+		mapParameterTree<ValueParameterBinding>(parameter, parameter.defaultValue, [], (field, binding) => {
+			if (binding.inputSource !== 'literal') throw new Error('Expected literal test defaults');
+			return 'canNode' in field && field.canNode === true ? constantShaderInput(field.dataType.kind, binding.value) : structuredClone(binding.value);
+		}),
 	])) as Parameters;
 	const assert = (condition: boolean, label: string) => {
 		if (!condition) throw new Error(label);
@@ -79,7 +84,7 @@ export async function run() {
 	}
 	try {
 		const single = createRenderer(1, 1);
-		const orbit: Partial<Parameters> = { input: gradient(), formula: 'julia', juliaConstant: [0, 0], complexCenter: [0.5, 0], trapSize: [0.5, 0.5], maximumIterations: 2, iterationDecay: 1 };
+		const orbit: Partial<Parameters> = { input: gradient(), formula: 'julia', juliaConstant: [0, 0], view: { ...defaults.view, center: [0.5, 0] }, trapSize: [0.5, 0.5], maximumIterations: 2, iterationDecay: 1 };
 		// 【z0=1/2, c=0の軌道は1/4, 1/16となり、合成順ごとのRGBAを解析的に求められる】
 		// 半透明を不透明と誤認した早期終了や、RGBへのalpha二重乗算を検出する。
 		for (const [compositeMode, expected] of [
@@ -106,22 +111,23 @@ export async function run() {
 		// Mandelbrotの共通初期値z0=0を描くと画像全体が同じ色になるので、最初の更新後から照合する。
 		nearColor((await single.render({ ...orbit, firstIteration: 2, iterationDecay: 0.5 })).pixel(), [0.265625, 0.25, 0.125, 0.5], 'first iteration skips sampling without consuming decay');
 		nearColor((await single.render({ ...orbit, firstIteration: 3 })).pixel(), [0, 0, 0, 0], 'empty iteration range is transparent');
-		nearColor((await single.render({ input: gradient(), formula: 'mandelbrot', complexCenter: [1, 0], maximumIterations: 1, trapSize: [0.1, 0.1] })).pixel(), [0, 0, 0, 0], 'Mandelbrot does not sample its shared zero initial state');
+		nearColor((await single.render({ input: gradient(), formula: 'mandelbrot', view: { ...defaults.view, center: [1, 0] }, maximumIterations: 1, trapSize: [0.1, 0.1] })).pixel(), [0, 0, 0, 0], 'Mandelbrot does not sample its shared zero initial state');
 		// 【大きいJulia定数で戻れる軌道を早すぎる発散と誤認しない】
 		// c=-6, z0=3は3の固定点。半径2だけで打ち切ると2回目の半透明合成が失われる。
 		const red = constantShaderInput('color', [1, 0, 0, 0.5]);
-		nearColor((await single.render({ input: red, formula: 'julia', juliaConstant: [-6, 0], complexCenter: [3, 0], trapPosition: [0.75, 0], maximumIterations: 2, iterationDecay: 1, bailoutRadius: 2 })).pixel(), [0.75, 0, 0, 0.75], 'Julia escape bound accounts for the constant');
-		nearColor((await single.render({ input: red, formula: 'julia', juliaConstant: [0, 0], complexCenter: [Math.sqrt(3), 0], trapPosition: [0.75, 0], maximumIterations: 10, iterationDecay: 1, bailoutRadius: 2 })).pixel(), [0.5, 0, 0, 0.5], 'escaping final point is sampled once');
+		nearColor((await single.render({ input: red, formula: 'julia', juliaConstant: [-6, 0], view: { ...defaults.view, center: [3, 0] }, trapPosition: [0.75, 0], maximumIterations: 2, iterationDecay: 1, bailoutRadius: 2 })).pixel(), [0.75, 0, 0, 0.75], 'Julia escape bound accounts for the constant');
+		nearColor((await single.render({ input: red, formula: 'julia', juliaConstant: [0, 0], view: { ...defaults.view, center: [Math.sqrt(3), 0] }, trapPosition: [0.75, 0], maximumIterations: 10, iterationDecay: 1, bailoutRadius: 2 })).pixel(), [0.5, 0, 0, 0.5], 'escaping final point is sampled once');
 		// 【Mandelbrotの1回目はz=cなので、座標変換の正解を画像の既知勾配から直接求められる】
 		// Trap Size・Positionは共通単位、両方のRotationはturn単位で時計回りに表示する。
 		const direct: Partial<Parameters> = { input: gradient(), formula: 'mandelbrot', maximumIterations: 1, trapSize: [1, 1], iterationDecay: 1 };
 		nearColor((await single.render(direct)).pixel(), [0.25, 0.25, 0.125, 0.5], 'Mandelbrot first image maps to the complex point');
 		nearColor((await single.render({ ...direct, trapPosition: [0.125, 0] })).pixel(), [0.1875, 0.25, 0.125, 0.5], 'trap translation uses common spatial units');
-		nearColor((await single.render({ ...direct, complexCenter: [0.5, 0], trapSize: [0.5, 1] })).pixel(), [0.375, 0.25, 0.125, 0.5], 'trap size scales the source rectangle');
+		nearColor((await single.render({ ...direct, view: { ...defaults.view, center: [0.5, 0] }, trapSize: [0.5, 1] })).pixel(), [0.375, 0.25, 0.125, 0.5], 'trap size scales the source rectangle');
 		for (const rotation of ['rotation', 'trapRotation'] as const) {
-			nearColor((await single.render({ ...direct, coordinateOffset: constantShaderInput('vector', [0.125, 0]), [rotation]: 0.25 })).pixel(), [0.25, 0.3125, 0.125, 0.5], `${rotation} rotates reference coordinates counterclockwise`);
+			const parameters = rotation === 'rotation' ? { view: { ...defaults.view, rotation: 0.25 } } : { trapRotation: 0.25 };
+			nearColor((await single.render({ ...direct, coordinateOffset: constantShaderInput('vector', [0.125, 0]), ...parameters })).pixel(), [0.25, 0.3125, 0.125, 0.5], `${rotation} rotates reference coordinates counterclockwise`);
 		}
-		nearColor((await single.render({ ...direct, zoom: 2, coordinateOffset: constantShaderInput('vector', [0.125, 0]) })).pixel(), [0.28125, 0.25, 0.125, 0.5], 'coordinate offsets are applied before zoom');
+		nearColor((await single.render({ ...direct, view: { ...defaults.view, zoom: 2 }, coordinateOffset: constantShaderInput('vector', [0.125, 0]) })).pixel(), [0.28125, 0.25, 0.125, 0.5], 'coordinate offsets are applied before zoom');
 		// 【出力の縦横比と解像度を変えても、共通座標の同じ点で画像の形とfitを維持する】
 		// 素材のfitを出力画面へかけると、同じTrap Sizeでも画像の切り取りや寸法が変わってしまう。
 		for (const [width, height] of [[9, 9], [9, 5], [5, 9], [27, 27]]) {
@@ -133,10 +139,10 @@ export async function run() {
 		// 【トラップの矩形外は常に透明とし、矩形内では接続のFit/Wrap/Filterを維持する】
 		// clamp/repeatが有限矩形の外まで広がるのを防ぎつつ、containの余白には指定したwrapを適用する。
 		for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored', 'transparent'] as const) {
-			nearColor((await single.render({ ...direct, input: gradient({ wrapMode }), complexCenter: [3, 0] })).pixel(), [0, 0, 0, 0], `${wrapMode} does not extend the trap rectangle`);
+			nearColor((await single.render({ ...direct, input: gradient({ wrapMode }), view: { ...defaults.view, center: [3, 0] } })).pixel(), [0, 0, 0, 0], `${wrapMode} does not extend the trap rectangle`);
 		}
-		nearColor((await single.render({ ...direct, input: red, complexCenter: [3, 0] })).pixel(), [0, 0, 0, 0], 'constant colors use the same finite trap rectangle');
-		const fitted = { ...direct, complexCenter: [0, 1.5] as const };
+		nearColor((await single.render({ ...direct, input: red, view: { ...defaults.view, center: [3, 0] } })).pixel(), [0, 0, 0, 0], 'constant colors use the same finite trap rectangle');
+		const fitted: Partial<Parameters> = { ...direct, view: { ...defaults.view, center: [0, 1.5] } };
 		nearColor((await single.render({ ...fitted, input: gradient({ fitMode: 'contain', wrapMode: 'transparent' }) })).pixel(), [0, 0, 0, 0], 'contain fits against trap dimensions and keeps transparent margins');
 		const repeated = await single.render({ ...fitted, input: gradient({ fitMode: 'contain', wrapMode: 'repeat' }) });
 		assert(Math.abs(repeated.pixel()[3] - 0.5) < 0.001, 'repeat fills contain margins within the trap');
@@ -145,7 +151,7 @@ export async function run() {
 		nearColor((await single.render({ ...direct, input: twoColors({ filterMode: 'nearest' }) })).pixel(), [0, 0, 1, 1], 'nearest input filtering is preserved');
 		// 【AAでは各標本を合成してから平均し、境界の半透明被覆を維持する】
 		// 1x1の4標本のうち2点だけが矩形内になる配置で、alphaとRGBが同じ割合で減ることを確認する。
-		nearColor((await single.render({ ...direct, input: red, complexCenter: [1, 0], trapSize: [0.5, 0.5], antialiasing: true })).pixel(), [0.25, 0, 0, 0.25], 'AA averages premultiplied coverage at trap bounds');
+		nearColor((await single.render({ ...direct, input: red, view: { ...defaults.view, center: [1, 0] }, trapSize: [0.5, 0.5], antialiasing: true })).pixel(), [0.25, 0, 0, 0.25], 'AA averages premultiplied coverage at trap bounds');
 		nearColor((await single.render({ ...direct, antialiasing: true })).pixel(), [0.25, 0.25, 0.125, 0.5], 'AA preserves transparent image colors');
 		// 【同じインスタンスの入力・式・時刻切替で残像や履歴依存を生じさせない】
 		// テクスチャから定数・透明な未接続値へ切り替えた後も、元の入力に戻せることを確認する。

@@ -1,6 +1,7 @@
 import { defineEffect } from '../../effect-definition.ts';
 
 export const MAXIMUM_MAGNET_COUNT = 8;
+export const MAGNETIC_PENDULUM_MINIMUM_ZOOM = 0.001;
 
 export default defineEffect({
 	id: 'magneticPendulum',
@@ -114,15 +115,24 @@ export default defineEffect({
 			ui: { label: 'Initial Velocity', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
-		viewCenter: {
-			dataType: { kind: 'vector' },
-			ui: { label: 'View Center', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
-		},
-		zoom: {
-			dataType: { kind: 'scalar' },
-			ui: { label: 'Zoom', control: { controlType: 'range', min: 0.1, max: 100, logarithmic: true } },
-			defaultValue: { inputSource: 'literal', value: 1 },
+		view: {
+			dataType: { kind: 'struct', fields: { center: { kind: 'vector' }, zoom: { kind: 'scalar' } } },
+			ui: { label: 'View', control: {
+				// centerは内部シミュレーション単位ではなく、長辺全体=1の公開座標。
+				controlType: 'viewport2d', spanAtZoomOne: 1, minimumZoom: MAGNETIC_PENDULUM_MINIMUM_ZOOM,
+				fields: {
+					center: { label: 'Center', control: { controlType: 'vector', min: -0.5, max: 0.5, step: 0.01 } },
+					zoom: { label: 'Zoom', control: { controlType: 'range', min: 0.1, max: 100, logarithmic: true } },
+				},
+			} },
+			fields: {
+				center: { defaultValue: { inputSource: 'literal', value: [0, 0] } },
+				zoom: { defaultValue: { inputSource: 'literal', value: 1 } },
+			},
+			defaultValue: { inputSource: 'literal', value: {
+				center: { inputSource: 'literal', value: [0, 0] },
+				zoom: { inputSource: 'literal', value: 1 },
+			} },
 		},
 		settlingShading: {
 			dataType: { kind: 'scalar' },

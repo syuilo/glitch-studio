@@ -6,6 +6,7 @@ import { implementEffect } from '../../effect-implementation.ts';
 import type { EffectOutputData } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
 import { createIntegrationSchedule } from './integration-schedule.ts';
+import { DOUBLE_PENDULUM_FRACTAL_SPAN_AT_ZOOM_ONE } from './_def_.ts';
 import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
@@ -65,19 +66,23 @@ export default implementEffect<typeof definition>({
 				if (outputMask === 0) { return; }
 				const params = ctx.params;
 				const schedule = createIntegrationSchedule(params.simulationTime, params.timeStep);
-				for (const name of ['angleCenter1', 'angleCenter2', 'initialAngularVelocity1', 'initialAngularVelocity2', 'lengthRatio', 'massRatio', 'gravity', 'zoom', 'angularVelocityRange'] as const) {
+				for (const name of ['initialAngularVelocity1', 'initialAngularVelocity2', 'lengthRatio', 'massRatio', 'gravity', 'angularVelocityRange'] as const) {
 					if (!Number.isFinite(Math.fround(params[name]))) throw new Error(`Double Pendulum Fractal requires a finite ${name} representable as f32.`);
 				}
-				for (const name of ['lengthRatio', 'massRatio', 'zoom', 'angularVelocityRange'] as const) {
+				if (!params.view.center.every(value => Number.isFinite(Math.fround(value)))) throw new Error('Double Pendulum Fractal requires a finite View Center representable as f32.');
+				if (!Number.isFinite(Math.fround(params.view.zoom)) || Math.fround(params.view.zoom) <= 0) throw new Error('Double Pendulum Fractal requires a positive View Zoom representable as f32.');
+				for (const name of ['lengthRatio', 'massRatio', 'angularVelocityRange'] as const) {
 					if (Math.fround(params[name]) <= 0) throw new Error(`Double Pendulum Fractal requires a positive ${name}.`);
 				}
 				const coloringMethod = outputs[0] == null ? 0 : ['sphericalRgb', 'angle1', 'angle2', 'angularVelocity1', 'angularVelocity2'].indexOf(params.coloringMethod);
 				uniformValues.set({
 					spatialHalfExtent,
 					pixelStep: [2 / resolution.width, 2 / resolution.height],
-					angleCenter: [wrapAngle(params.angleCenter1), wrapAngle(params.angleCenter2)],
+					// 元の画像は下向きにtheta2が増える。Viewは上向きが+Yなので中心も
+					// 逆符号へ換算し、既存の模様の向きとカーソル基準の操作を両立する。
+					angleCenter: [wrapAngle(params.view.center[0]), wrapAngle(-params.view.center[1])],
 					initialAngularVelocity: [params.initialAngularVelocity1, params.initialAngularVelocity2],
-					angleScale: 2 * Math.PI / params.zoom,
+					angleScale: DOUBLE_PENDULUM_FRACTAL_SPAN_AT_ZOOM_ONE / params.view.zoom,
 					lengthRatio: params.lengthRatio,
 					massFraction: params.massRatio / (1 + params.massRatio),
 					inverseTotalMass: 1 / (1 + params.massRatio),

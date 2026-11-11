@@ -6,7 +6,7 @@ import type { Viewport2DFields, Viewport2DControl } from '@gs/shared/data-type/d
 import type { EditableParameterBinding } from '../types/parameter-edit.ts';
 import type { StructParameterFieldBindings } from './struct-parameter-edit.ts';
 
-export type Viewport2DParameterDefinition = ParameterDefinition_Struct<Viewport2DFields> & { ui: { control: Viewport2DControl } };
+export type Viewport2DParameterDefinition = ParameterDefinition_Struct<Pick<Viewport2DFields, 'center' | 'zoom'>> & { ui: { control: Viewport2DControl } };
 export type PreviewViewportValue = { center: [number, number]; zoom: number; rotation: number };
 export type PreviewViewportEdit = {
 	readonly active: boolean;
@@ -48,7 +48,9 @@ export function getPreviewViewportValue(definition: ParameterDefinition, binding
 	if (!isViewport2DParameter(definition) || binding.inputSource !== 'literal') return null;
 	const fields = getStructFieldDefinitions(definition);
 	const center = binding.value.center == null ? null : getPreviewParameterBaseValue(fields.center, binding.value.center, time, endTime);
-	const rotation = binding.value.rotation == null ? null : getPreviewParameterBaseValue(fields.rotation, binding.value.rotation, time, endTime);
+	// 宣言されていない回転だけを0とする。宣言済みの式・参照や不正なBindingを
+	// 省略と見なすと、見えている回転と異なる向きで中心を編集してしまう。
+	const rotation = fields.rotation == null ? 0 : binding.value.rotation == null ? null : getPreviewParameterBaseValue(fields.rotation, binding.value.rotation, time, endTime);
 	const zoom = getPreviewViewportZoom(definition, binding, time, endTime);
 	if (!Array.isArray(center) || center.length !== 2 || !center.every(value => typeof value === 'number' && Number.isFinite(value))
 		|| zoom == null || typeof rotation !== 'number' || !Number.isFinite(rotation)) return null;
