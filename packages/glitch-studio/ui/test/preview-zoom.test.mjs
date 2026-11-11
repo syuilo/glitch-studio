@@ -99,8 +99,9 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		timelineRendererManagerController: { isSeeking: ref(false) },
 		previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
 		highlightClipping: ref(false), previewExposure: ref(0), previewSrgbProof: ref(false), resolutionFactor: ref(resolutionFactor), visualModuleLivePreviewTimeFactor: ref(1),
+		previewWarningImageSource: ref('original'),
 		previewGamutCompression: shallowRef({ mode: 'none', customAmount: 0.5 }),
-		previewGamutWarning: shallowRef({ enabled: false, referenceGamut: 'srgb' }),
+		previewGamutWarning: shallowRef({ enabled: false, referenceGamut: 'srgb', bounds: 'unit' }),
 		activeScene: ref({ id: 'scene', name: 'Scene', resolution: { mode: 'project' } }), activeSceneId: ref('scene'), timelinePreviewFpsFactor: ref(1),
 		renderEngine: { isSuspended: ref(false), runtimeDiagnostic: ref(null), errorMessage: ref(null) },
 		renderValidation: { errorMessage: ref(null) },
@@ -322,34 +323,74 @@ function startExposureDrag(fixture, properties = {}) {
 		pointerId: 7, button: 0, clientX: 100, clientY: 200, preventDefault() {}, ...properties });
 }
 
-// 【色域外警告は黒・白の警告や表示変換から独立し、選んだ判定色域を保持する】
-// 実際のプレビューメニューを通し、無効中の色域選択や別ウィンドウからの更新も確認する。
+// 【色域外警告は判定色域と判定範囲を独立して選び、黒・白の警告や表示変換から分離する】
+// 実際のプレビューメニューを通し、ACEScgへの切替で上限判定を勝手に変更しないことを確認する。
+// 無効中の選択や別ウィンドウからの更新でも、有効状態・色域・範囲のいずれも取り落とさない。
 // メニューを開いたまま操作しても選択表示が追従し、翻訳や項目の並び順には依存しない。
 test('selects gamut warning references independently of clipping and color views', async t => {
 	const f = await fixture(t);
-	await f.click('menu');
+	await f.click('highlight-menu');
 	const warningSwitch = f.menuItems.find(item => item.id === 'preview-gamut-warning');
 	const referenceMenu = f.menuItems.find(item => item.type === 'parent'
 		&& item.children.some(child => child.id === 'preview-gamut-warning-srgb'));
+	const boundsMenu = f.menuItems.find(item => item.type === 'parent'
+		&& item.children.some(child => child.id === 'preview-gamut-warning-bounds-unit'));
 	assert.equal(warningSwitch.ref.value, false);
+	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: false, referenceGamut: 'srgb', bounds: 'unit' });
 	assert.deepEqual(referenceMenu.children.map(item => item.id),
-		['srgb', 'displayP3', 'rec2020', 'adobeRgb'].map(gamut => `preview-gamut-warning-${gamut}`));
-	for (const referenceGamut of ['displayP3', 'rec2020', 'adobeRgb', 'srgb']) {
+		['srgb', 'displayP3', 'rec2020', 'adobeRgb', 'acescg'].map(gamut => `preview-gamut-warning-${gamut}`));
+	assert.deepEqual(boundsMenu.children.map(item => item.id),
+		['nonNegative', 'unit'].map(bounds => `preview-gamut-warning-bounds-${bounds}`));
+	for (const referenceGamut of ['displayP3', 'rec2020', 'adobeRgb', 'acescg', 'srgb']) {
 		referenceMenu.children.find(item => item.id === `preview-gamut-warning-${referenceGamut}`).action();
-		assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: false, referenceGamut });
+		assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: false, referenceGamut, bounds: 'unit' });
 		assert.equal(referenceMenu.children.find(item => item.active.value).id, `preview-gamut-warning-${referenceGamut}`);
 	}
 	warningSwitch.ref.value = true;
-	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'srgb' });
-	f.appContext.previewGamutWarning.value = { enabled: false, referenceGamut: 'displayP3' };
+	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'srgb', bounds: 'unit' });
+	boundsMenu.children.find(item => item.id === 'preview-gamut-warning-bounds-nonNegative').action();
+	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'srgb', bounds: 'nonNegative' });
+	referenceMenu.children.find(item => item.id === 'preview-gamut-warning-acescg').action();
+	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' });
+	boundsMenu.children.find(item => item.id === 'preview-gamut-warning-bounds-unit').action();
+	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'acescg', bounds: 'unit' });
+	f.appContext.previewGamutWarning.value = { enabled: false, referenceGamut: 'displayP3', bounds: 'nonNegative' };
 	assert.equal(warningSwitch.ref.value, false);
 	assert.equal(referenceMenu.children.find(item => item.active.value).id, 'preview-gamut-warning-displayP3');
+	assert.equal(boundsMenu.children.find(item => item.active.value).id, 'preview-gamut-warning-bounds-nonNegative');
 	warningSwitch.ref.value = true;
-	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'displayP3' });
+	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'displayP3', bounds: 'nonNegative' });
 	assert.equal(f.appContext.highlightClipping.value, false);
 	assert.equal(f.appContext.previewExposure.value, 0);
 	assert.equal(f.appContext.previewSrgbProof.value, false);
 	assert.deepEqual(f.appContext.previewGamutCompression.value, { mode: 'none', customAmount: 0.5 });
+});
+
+// 【警告の判定対象は黒・白と色域外に共通で、表示設定や色域・範囲を変更しない】
+// 同じメニューを開いたまま切り替えたり、別ウィンドウから変更したりしても選択表示を同期する。
+// 色域外警告だけの設定に混ぜると、黒・白だけを有効にしたときに判定対象を切り替えられなくなる。
+test('selects a shared warning image source independently of warning toggles and color views', async t => {
+	const f = await fixture(t);
+	f.appContext.highlightClipping.value = true;
+	f.appContext.previewExposure.value = -2;
+	f.appContext.previewSrgbProof.value = true;
+	f.appContext.previewGamutCompression.value = { mode: 'acescg', customAmount: 0.37 };
+	await f.click('highlight-menu');
+	const sourceMenu = f.menuItems.find(item => item.type === 'parent'
+		&& item.children.some(child => child.id === 'preview-warning-image-source-original'));
+	assert.deepEqual(sourceMenu.children.map(item => item.id),
+		['original', 'previewAdjusted'].map(source => `preview-warning-image-source-${source}`));
+	assert.equal(f.appContext.previewWarningImageSource.value, 'original');
+	sourceMenu.children.find(item => item.id === 'preview-warning-image-source-previewAdjusted').action();
+	assert.equal(f.appContext.previewWarningImageSource.value, 'previewAdjusted');
+	assert.equal(sourceMenu.children.find(item => item.active.value).id, 'preview-warning-image-source-previewAdjusted');
+	f.appContext.previewWarningImageSource.value = 'original';
+	assert.equal(sourceMenu.children.find(item => item.active.value).id, 'preview-warning-image-source-original');
+	assert.equal(f.appContext.highlightClipping.value, true);
+	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: false, referenceGamut: 'srgb', bounds: 'unit' });
+	assert.equal(f.appContext.previewExposure.value, -2);
+	assert.equal(f.appContext.previewSrgbProof.value, true);
+	assert.deepEqual(f.appContext.previewGamutCompression.value, { mode: 'acescg', customAmount: 0.37 });
 });
 
 // 【色域圧縮の6モードを切り替え、カスタム量はプリセットを経由しても保持する】

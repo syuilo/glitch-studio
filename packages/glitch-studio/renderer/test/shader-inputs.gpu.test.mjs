@@ -110,8 +110,13 @@ test('imports opaque and translucent Display P3 assets without darkening', { ski
 test('adjusts preview exposure and gamut compression without changing alpha, analysis or clipping warnings', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/preview-exposure-gpu.ts', 38));
 
 // 【GPU・CPU表示で判定色域を切り替え、半透明・透明発光・表示補正から独立した斜線を描く】
-// HALFで丸めた広色域原色と境界値を実画素で確認し、既存の黒・白の警告も優先して残す。
-test('highlights reference gamut violations independently of preview display transforms', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/preview-gamut-warning-gpu.ts', 84));
+// HALFで丸めたAP1を含む5色域の原色、2つの判定範囲、透明発光を実画素で確認する。
+// ACEScgでも0〜1の判定を選べ、他の色域でも原色範囲だけの判定ならHDRを許容する。
+// 判定対象の切替では露出・背景合成・圧縮を反映し、sRGB確認のclampと警告色は判定後に重ねる。
+test('highlights reference gamut violations independently of preview display transforms', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
+	const checks = await runGpuTest('./helpers/preview-gamut-warning-gpu.ts', 380);
+	t.diagnostic(`${checks.length} gamut warning comparisons completed`);
+});
 
 // 【全画面三角形への変更で座標・微分・透明度・画面端の被覆を変えない】
 // 移行前の2枚の三角形と全画素を比較する。通常のサイズに加え、奇数寸法と1画素幅も確認し、

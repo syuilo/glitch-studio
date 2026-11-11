@@ -49,7 +49,8 @@ export async function run() {
 		try {
 			manager.updateDynamicOptions({ resolution: { width, height }, outputResolution: { width, height }, sceneId: 'scene',
 				previewExposure: 10, previewBackground: 'checker', opaqueOutput: true, highlightClipping: true,
-				previewGamutWarning: { enabled: true, referenceGamut: 'srgb' },
+				previewWarningImageSource: 'previewAdjusted',
+				previewGamutWarning: { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' },
 				previewGamutCompression: { mode: 'custom', customAmount: 1 },
 				timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{
 					id: 'fill', name: 'Fill', layerType: 'effect', effectId: 'fill', resolution: { mode: 'auto', scale: 1 },

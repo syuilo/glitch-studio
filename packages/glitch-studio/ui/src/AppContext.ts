@@ -8,6 +8,7 @@ import { FULL_PREVIEW_WAVEFORM_VIEWPORT } from '@gs/glitch-studio_shared/preview
 import type { PreviewWaveformViewport, PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
+import type { PreviewWarningImageSource } from '@gs/glitch-studio_shared/preview-warning-image-source.ts';
 import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -74,8 +75,10 @@ export class AppContext {
 	public visualModuleLivePreviewTimeFactor = ref(1);
 	public resolutionFactor = ref(1);
 	public highlightClipping = ref(false);
+	/** 警告の判定対象だけを切り替え、作品・解析・保存データは変更しない。 */
+	public previewWarningImageSource = ref<PreviewWarningImageSource>('original');
 	/** 判定色域も両プレビューで共有し、プロジェクトや環境設定には保存しない。 */
-	public previewGamutWarning = shallowRef<PreviewGamutWarningSettings>({ enabled: false, referenceGamut: 'srgb' });
+	public previewGamutWarning = shallowRef<PreviewGamutWarningSettings>({ enabled: false, referenceGamut: 'srgb', bounds: 'unit' });
 	/** 作品・保存データとは独立した、両プレビュー共通の表示用露出（EV）。 */
 	public previewExposure = ref(0);
 	/** 両プレビュー共通のsRGB確認。作品・保存データを変更せず、色域圧縮の設定値も保持する。 */
@@ -182,7 +185,7 @@ export class AppContext {
 					assets: getRendererAssets(state.assets.value), players: state.players.value, customShaderEffects: state.customShaderEffects.value,
 					project: { automationGraphs: state.automationGraphs.value, visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value },
 					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value,
-						previewGamutWarning: { ...this.previewGamutWarning.value }, previewExposure: this.previewExposure.value, previewSrgbProof: this.previewSrgbProof.value, previewGamutCompression: { ...this.previewGamutCompression.value },
+						previewWarningImageSource: this.previewWarningImageSource.value, previewGamutWarning: { ...this.previewGamutWarning.value }, previewExposure: this.previewExposure.value, previewSrgbProof: this.previewSrgbProof.value, previewGamutCompression: { ...this.previewGamutCompression.value },
 						previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value },
 					visualModuleOptions: { previewActive: previewDisplayMode === 'visualModuleLivePreview', fpsLimit: this.visualModuleLivePreviewFpsLimit.value, visualModuleLivePreviewTimeFactor: this.visualModuleLivePreviewTimeFactor.value },
 					timelineOptions: { previewActive: previewDisplayMode === 'timeline', sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
@@ -322,6 +325,10 @@ export class AppContext {
 			await this.updatePreviewOptions({ highlightClipping: value });
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' });
+		watch(this.previewWarningImageSource, async value => {
+			await this.updatePreviewOptions({ previewWarningImageSource: value });
+			this.previewPlayback.refresh();
+		}, { flush: 'sync' });
 		watch(this.previewGamutWarning, async value => {
 			await this.updatePreviewOptions({ previewGamutWarning: { ...value } });
 			this.previewPlayback.refresh();
@@ -444,7 +451,7 @@ export class AppContext {
 		else this.waveformDisplayUpdate.flush();
 	}
 
-	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewGamutWarning' | 'previewExposure' | 'previewSrgbProof' | 'previewGamutCompression' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget' | 'analysisValueRange' | 'analysisPaused' | 'analysisWaveformCanvasSizes' | 'analysisWaveformViewports'>>) {
+	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewWarningImageSource' | 'previewGamutWarning' | 'previewExposure' | 'previewSrgbProof' | 'previewGamutCompression' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget' | 'analysisValueRange' | 'analysisPaused' | 'analysisWaveformCanvasSizes' | 'analysisWaveformViewports'>>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),

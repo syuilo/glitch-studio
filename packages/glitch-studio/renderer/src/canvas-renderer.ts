@@ -13,6 +13,7 @@ import previewGamutCompressionShaderCode from './preview-gamut-compression.wgsl?
 import { getPreviewGamutBoundaryLookup, getPreviewGamutCompressionModeIndex, PREVIEW_GAMUT_COUNT, PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS } from './preview-gamut-compression.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
+import type { PreviewWarningImageSource } from '@gs/glitch-studio_shared/preview-warning-image-source.ts';
 import { getLinearSrgbToGamutMatrix } from '@gs/shared/rgb-gamut.ts';
 import { CpuPreviewCanvasContext } from './preview-canvas-context.ts';
 import { CpuPreviewFrameQueue } from './cpu-preview-frame-queue.ts';
@@ -45,7 +46,8 @@ export class CanvasRenderer {
 	private readonly imageAnalysis: PreviewImageAnalysis | null;
 	private highResolutionAnalysisGeneration = 0;
 	public highlightClipping = false;
-	public previewGamutWarning: PreviewGamutWarningSettings = { enabled: false, referenceGamut: 'srgb' };
+	public previewWarningImageSource: PreviewWarningImageSource = 'original';
+	public previewGamutWarning: PreviewGamutWarningSettings = { enabled: false, referenceGamut: 'srgb', bounds: 'unit' };
 	public previewExposure = 0;
 	public previewSrgbProof = false;
 	public previewGamutCompression: PreviewGamutCompressionSettings = { mode: 'none', customAmount: 0.5 };
@@ -171,7 +173,9 @@ export class CanvasRenderer {
 		const [redRow, greenRow, blueRow] = getLinearSrgbToGamutMatrix(this.previewGamutWarning.referenceGamut);
 		this.finalRenderUniformValues.set({
 			highlightClipping: this.highlightClipping ? 1 : 0,
+			previewWarningImageSource: this.previewWarningImageSource === 'previewAdjusted' ? 1 : 0,
 			previewGamutWarningEnabled: this.previewGamutWarning.enabled ? 1 : 0,
+			previewGamutWarningUnitBounds: this.previewGamutWarning.bounds === 'unit' ? 1 : 0,
 			previewGamutWarningRedRow: redRow,
 			previewGamutWarningGreenRow: greenRow,
 			previewGamutWarningBlueRow: blueRow,

@@ -599,7 +599,8 @@ test('restarts both previews after content and settings change during initializa
 	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'during-initialization', effectId: 'fill' });
 	appContext.highlightClipping.value = true;
 	appContext.previewExposure.value = 2;
-	appContext.previewGamutWarning.value = { enabled: true, referenceGamut: 'displayP3' };
+	appContext.previewWarningImageSource.value = 'previewAdjusted';
+	appContext.previewGamutWarning.value = { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' };
 	appContext.previewSrgbProof.value = true;
 	appContext.previewGamutCompression.value = { mode: 'rec2020', customAmount: 0.37 };
 	window.testPreferences.timelinePreviewFramesAhead = 0;
@@ -616,7 +617,8 @@ test('restarts both previews after content and settings change during initializa
 	for (const controller of controllers) {
 		assert.equal(controller.options.visualModules[0].nodes[0].id, 'during-initialization');
 		assert.equal(controller.options.highlightClipping, true);
-		assert.deepEqual(controller.options.previewGamutWarning, { enabled: true, referenceGamut: 'displayP3' });
+		assert.equal(controller.options.previewWarningImageSource, 'previewAdjusted');
+		assert.deepEqual(controller.options.previewGamutWarning, { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' });
 		assert.equal(controller.options.previewExposure, 2);
 		assert.equal(controller.options.previewSrgbProof, true);
 		assert.deepEqual(controller.options.previewGamutCompression, { mode: 'rec2020', customAmount: 0.37 });
@@ -892,7 +894,9 @@ for (const [setting, change, inspect] of [
 	['visualModuleLivePreview fps limit', appContext => { appContext.visualModuleLivePreviewFpsLimit.value = 24; }],
 	['visualModuleLivePreview time factor', appContext => { appContext.visualModuleLivePreviewTimeFactor.value = 0.5; }],
 	['clipping display', appContext => { appContext.highlightClipping.value = true; }],
-	['gamut warning', appContext => { appContext.previewGamutWarning.value = { enabled: true, referenceGamut: 'srgb' }; }],
+	['warning image source', appContext => { appContext.previewWarningImageSource.value = 'previewAdjusted'; }],
+	['gamut warning', appContext => { appContext.previewGamutWarning.value = { enabled: true, referenceGamut: 'srgb', bounds: 'unit' }; }],
+	['gamut warning bounds', appContext => { appContext.previewGamutWarning.value = { ...appContext.previewGamutWarning.value, bounds: 'nonNegative' }; }],
 	['preview exposure', appContext => { appContext.previewExposure.value = 2; }],
 	['sRGB proof', appContext => { appContext.previewSrgbProof.value = true; }],
 	['preview gamut compression', appContext => { appContext.previewGamutCompression.value = { mode: 'displayP3', customAmount: 0.5 }; }],
@@ -2344,18 +2348,32 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	assert.equal(timeline.renders.at(-1), 500);
 	const snapshotBeforeExposure = appContext.projectContext.snapshot();
 	const initializationsBeforeExposure = [visualModuleLivePreview, timeline].map(controller => controller.lifecycle.filter(event => event === 'initialize').length);
-	// 色域外警告は保存データに含めず、既存Workerへの表示更新だけで切り替える。
-	for (const referenceGamut of ['srgb', 'displayP3', 'rec2020', 'adobeRgb']) {
+	// 判定対象だけの変更も両Workerへ同期し、停止中の表示・作品・既存の描画資源を保つ。
+	for (const imageSource of ['previewAdjusted', 'original']) {
+		appContext.previewWarningImageSource.value = imageSource;
+		await nextTick();
+		await setImmediate();
+		for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+			assert.equal(controller.options.previewWarningImageSource, imageSource);
+			assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
+		}
+		assert.equal(timeline.renders.at(-1), 500);
+		assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
+	}
+	// 色域と範囲を独立して同期し、範囲だけの変更でも作品やWorkerを作り直さない。
+	for (const referenceGamut of ['srgb', 'displayP3', 'rec2020', 'adobeRgb', 'acescg']) {
 		for (const enabled of [true, false]) {
-			appContext.previewGamutWarning.value = { enabled, referenceGamut };
-			await nextTick();
-			await setImmediate();
-			for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
-				assert.deepEqual(controller.options.previewGamutWarning, { enabled, referenceGamut });
-				assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
+			for (const bounds of ['unit', 'nonNegative']) {
+				appContext.previewGamutWarning.value = { enabled, referenceGamut, bounds };
+				await nextTick();
+				await setImmediate();
+				for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+					assert.deepEqual(controller.options.previewGamutWarning, { enabled, referenceGamut, bounds });
+					assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
+				}
+				assert.equal(timeline.renders.at(-1), 500);
+				assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
 			}
-			assert.equal(timeline.renders.at(-1), 500);
-			assert.deepEqual(appContext.projectContext.snapshot(), snapshotBeforeExposure);
 		}
 	}
 	appContext.previewExposure.value = -2;

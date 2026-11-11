@@ -19,6 +19,8 @@ struct Uniforms {
 	previewGamutWarningRedRow: vec3f,
 	previewGamutWarningGreenRow: vec3f,
 	previewGamutWarningBlueRow: vec3f,
+	previewGamutWarningUnitBounds: u32,
+	previewWarningImageSource: u32,
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
@@ -35,7 +37,7 @@ fn applyPreviewExposure(color: vec4f) -> vec4f {
 	return vec4f(color.rgb * exp2(uniforms.previewExposure), color.a);
 }
 
-fn isPreviewOutsideReferenceGamut(color: vec4f) -> bool {
+fn isPreviewOutsideReferenceGamut(color: vec4f, minimumRgbTolerance: f32) -> bool {
 	if (uniforms.previewGamutWarningEnabled == 0u) { return false; }
 	// 完全透明の黒には警告しない。alpha=0でもRGBがあれば、背景へ加算される発光として調べる。
 	if (color.a <= 0.0 && all(color.rgb == vec3f(0.0))) { return false; }
@@ -43,7 +45,8 @@ fn isPreviewOutsideReferenceGamut(color: vec4f) -> bool {
 	// 作業画像はHALF。色域境界上の原色もsRGBへ変換・量子化されているため、
 	// 保存時の半ULPを行列の絶対値で伝播し、量子化だけで生じた微小な範囲超過を除く。
 	// 暗部へ一律の許容差を加えると小さな負値を見逃すので、光量とHALFの最小刻みに従わせる。
-	var rgbTolerance = abs(rgb) * (1.0 / 2048.0) + vec3f(1.0 / 33554432.0);
+	// 表示調整後は最小刻みの誤差も露出に追従させ、暗くするだけで負値の警告が消えるのを防ぐ。
+	var rgbTolerance = abs(rgb) * (1.0 / 2048.0) + vec3f(minimumRgbTolerance);
 	if (color.a > 0.0) {
 		rgb /= color.a;
 		rgbTolerance /= color.a;
@@ -54,9 +57,10 @@ fn isPreviewOutsideReferenceGamut(color: vec4f) -> bool {
 	let referenceRgb = vec3f(dot(redRow, rgb), dot(greenRow, rgb), dot(blueRow, rgb));
 	let tolerance = vec3f(dot(abs(redRow), rgbTolerance), dot(abs(greenRow), rgbTolerance), dot(abs(blueRow), rgbTolerance))
 		+ abs(referenceRgb) * 2e-7;
-	// 原色範囲外と基準値1超は別の状態。HDRの正常な作業値も、SDRの範囲を調べる警告には含める。
+	// 判定範囲は全色域で共通に選ぶ。原色範囲のみならHDRの光量に上限を課さず、
+	// 0〜1の範囲を調べる場合だけ基準値1超も警告する。ACEScgだけの特別扱いにはしない。
 	let outsidePrimaries = any(referenceRgb < -tolerance);
-	let aboveReferenceRange = any(referenceRgb > vec3f(1.0) + tolerance);
+	let aboveReferenceRange = uniforms.previewGamutWarningUnitBounds != 0u && any(referenceRgb > vec3f(1.0) + tolerance);
 	return outsidePrimaries || aboveReferenceRange;
 }
 
@@ -69,13 +73,16 @@ fn encodePreviewOutput(linear: vec4f, position: vec2f, gamutWarning: bool) -> ve
 	return encodeCanvasOutput(linear);
 }
 
-// sRGB確認は、元の表示色がsRGB環境で制限される様子を確認するための表示変換。
-// 色域圧縮との重ねがけでは元画像と異なる見え方になるため、確認中は圧縮を迂回する。
-// Canvasの色管理は維持し、制限済みのsRGB色をモニターの色空間へ正しく変換させる。
-fn applyPreviewGamutView(linear: vec3f, clippingWarning: bool) -> vec3f {
-	if (uniforms.previewSrgbProof != 0u) { return clamp(linear, vec3f(0.0), vec3f(1.0)); }
-	if (!clippingWarning) { return compressPreviewGamut(linear); }
-	return linear;
+// sRGB確認中は圧縮設定を保持したまま適用を止める。alpha=0の発光は背景合成後に変換する。
+fn applyPreviewGamutCompression(color: vec4f) -> vec4f {
+	if (uniforms.previewSrgbProof != 0u || color.a <= 0.0) { return color; }
+	return vec4f(compressPreviewGamut(color.rgb / color.a) * color.a, color.a);
+}
+
+// 色域外の情報を失うclampは警告判定の後に置く。Canvasの色管理自体は維持する。
+fn applyPreviewSrgbProof(color: vec4f) -> vec4f {
+	if (uniforms.previewSrgbProof == 0u || color.a <= 0.0) { return color; }
+	return vec4f(clamp(color.rgb / color.a, vec3f(0.0), vec3f(1.0)) * color.a, color.a);
 }
 
 // 表示背景の再描画用に、表示変換前の画像だけを所有者のテクスチャへ複製する。
@@ -87,37 +94,42 @@ fn copyLinearImage(@builtin(position) position: vec4f) -> @location(0) vec4f {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let color = textureSample(sourceTexture, sourceSampler, convertTexCoords(fragData.uv));
-	var exposed = applyPreviewExposure(color);
-	var clippingWarning = false;
-	if (uniforms.highlightClipping != 0u && color.a > 0.0) {
-		// 乗算済みRGBでの白の境界はalpha。除算せずに未乗算色の0/1と比較する。
-		// 全成分が範囲外の黒・白だけを対象とし、元の透明度を保つ。
-		if (all(color.rgb <= vec3f(0.0))) {
-			exposed = vec4f(0.0, color.a, 0.0, color.a);
-			clippingWarning = true;
-		}
-		if (all(color.rgb >= vec3f(color.a))) {
-			exposed = vec4f(color.a, 0.0, color.a, color.a);
-			clippingWarning = true;
-		}
+	let compositeBackground = uniforms.opaqueOutput != 0u || uniforms.previewBackground != 0u;
+	var background = vec3f(0.0);
+	if (uniforms.opaqueOutput == 0u && uniforms.previewBackground == 2u) {
+		let cell = vec2u(floor((fragData.position.xy + uniforms.backgroundPhase * 64.0) / 32.0));
+		let srgb = select(16.0 / 255.0, 26.0 / 255.0, (cell.x + cell.y) % 2u == 0u);
+		background = colorSrgbToLinear(vec3f(srgb));
 	}
-	// 判定は表示変換前の画像を使い、既存の黒・白の警告が有効な画素ではそちらを優先する。
-	let gamutWarning = !clippingWarning && isPreviewOutsideReferenceGamut(color);
-	if (uniforms.opaqueOutput != 0u || uniforms.previewBackground != 0u) {
-		var background = vec3f(0.0);
-		if (uniforms.opaqueOutput == 0u && uniforms.previewBackground == 2u) {
-			let cell = vec2u(floor((fragData.position.xy + uniforms.backgroundPhase * 64.0) / 32.0));
-			let srgb = select(16.0 / 255.0, 26.0 / 255.0, (cell.x + cell.y) % 2u == 0u);
-			background = colorSrgbToLinear(vec3f(srgb));
-		}
-		// 背景へのsource-overもlinearで行う。alpha=0の発光はここでもRGBを失わない。
-		let composed = exposed.rgb + background * (1.0 - exposed.a);
-		// 色域の表示変換は合成後に適用し、半透明やalpha=0の発光も同じ見え方で扱う。
-		return encodePreviewOutput(vec4f(applyPreviewGamutView(composed, clippingWarning), 1.0), fragData.position.xy, gamutWarning);
+	var adjusted = applyPreviewExposure(color);
+	if (compositeBackground) {
+		// 背景合成と圧縮は実表示と同じ順序で一度だけ行い、透明発光も光量として残す。
+		adjusted = vec4f(adjusted.rgb + background * (1.0 - adjusted.a), 1.0);
 	}
-	if (exposed.a > 0.0) {
-		exposed = vec4f(applyPreviewGamutView(exposed.rgb / exposed.a, clippingWarning) * exposed.a, exposed.a);
+	adjusted = applyPreviewGamutCompression(adjusted);
+
+	var warningColor = color;
+	var minimumRgbTolerance = 1.0 / 33554432.0;
+	if (uniforms.previewWarningImageSource != 0u) {
+		warningColor = adjusted;
+		minimumRgbTolerance *= exp2(uniforms.previewExposure);
 	}
-	// 警告色は露出・色域圧縮で変えず、判定も補正前の画像に揃える。
-	return encodePreviewOutput(exposed, fragData.position.xy, gamutWarning);
+	// 表示調整後のalphaは背景合成で1になる。元画像が空なら背景だけを黒つぶれとして警告しない。
+	let hasSourceColor = color.a > 0.0 || any(color.rgb != vec3f(0.0));
+	var clippingWarning = 0u;
+	if (hasSourceColor && uniforms.highlightClipping != 0u && warningColor.a > 0.0) {
+		// 乗算済みRGBでの白の境界はalpha。黒・白と色域外は同じ判定画像を使う。
+		if (all(warningColor.rgb <= vec3f(0.0))) { clippingWarning = 1u; }
+		if (all(warningColor.rgb >= vec3f(warningColor.a))) { clippingWarning = 2u; }
+	}
+	let gamutWarning = hasSourceColor && clippingWarning == 0u && isPreviewOutsideReferenceGamut(warningColor, minimumRgbTolerance);
+	var output = applyPreviewSrgbProof(adjusted);
+	if (clippingWarning != 0u) {
+		// 判定が済んでから警告色へ置き換える。元画像を選んだ場合は、従来と同じalpha・背景合成を保つ。
+		let alpha = warningColor.a;
+		let warningRgb = select(vec3f(0.0, alpha, 0.0), vec3f(alpha, 0.0, alpha), clippingWarning == 2u);
+		output = vec4f(warningRgb, alpha);
+		if (compositeBackground) { output = vec4f(warningRgb + background * (1.0 - alpha), 1.0); }
+	}
+	return encodePreviewOutput(output, fragData.position.xy, gamutWarning);
 }

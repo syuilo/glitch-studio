@@ -18,6 +18,14 @@
 				<button :class="$style.iconButton" class="_button" data-test-preview-fit-zoom @click="fitZoom"><i class="ti ti-maximize"></i></button>
 				<div :class="$style.divider"></div>
 				<button v-tooltip="i18n.ts._Preview.ShowGrid" :class="[$style.iconButton, showGridInPreview ? '_buttonPrimaryFg' : '_button']" @click="toggleGrid"><i class="ti ti-grid-3x3"></i></button>
+				<button
+					v-tooltip="i18n.ts._Preview.HighlightSettings"
+					:class="[$style.iconButton, highlightClipping || previewGamutWarning.enabled ? '_buttonPrimaryFg' : '_button']"
+					data-test-preview-highlight-menu
+					@click="showHighlightMenu"
+				>
+					<i class="ti ti-eye-exclamation"></i>
+				</button>
 				<div :class="$style.divider"></div>
 				<button :class="$style.iconButton" class="_button" data-test-preview-menu @click="showMenu"><i class="ti ti-dots"></i></button>
 			</div>
@@ -63,8 +71,11 @@
 import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } from 'vue';
 import { scaleResolution } from '@gs/shared/resolution.js';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.js';
-import { PREVIEW_GAMUT_WARNING_REFERENCE_GAMUTS } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
+import { PREVIEW_GAMUT_WARNING_BOUNDS, PREVIEW_GAMUT_WARNING_REFERENCE_GAMUTS } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import type { PreviewGamutWarningReferenceGamut } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
+import { PREVIEW_WARNING_IMAGE_SOURCES } from '@gs/glitch-studio_shared/preview-warning-image-source.ts';
+import type { PreviewWarningImageSource } from '@gs/glitch-studio_shared/preview-warning-image-source.ts';
+import type { RgbGamutBounds } from '@gs/shared/rgb-gamut.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
 import GsPreviewParameterPositions from './GsPreviewParameterPositions.vue';
@@ -83,14 +94,23 @@ import { appContext } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const previewWarningImageSourceLabels = computed<Record<PreviewWarningImageSource, string>>(() => ({
+	original: i18n.ts._Preview.WarningImageSourceOriginal,
+	previewAdjusted: i18n.ts._Preview.WarningImageSourceAdjusted,
+}));
 const previewGamutWarningEnabled = computed({
 	get: () => previewGamutWarning.value.enabled,
 	set: enabled => { previewGamutWarning.value = { ...previewGamutWarning.value, enabled }; },
 });
-const previewGamutWarningReferenceLabels: Record<PreviewGamutWarningReferenceGamut, string> = {
+const previewGamutWarningReferenceLabels = computed<Record<PreviewGamutWarningReferenceGamut, string>>(() => ({
 	srgb: 'sRGB', displayP3: 'Display P3', rec2020: 'Rec.2020', adobeRgb: 'Adobe RGB',
-};
+	acescg: i18n.ts._Preview.GamutWarningAcescg,
+}));
+const previewGamutWarningBoundsLabels = computed<Record<RgbGamutBounds, string>>(() => ({
+	nonNegative: i18n.ts._Preview.GamutWarningBoundsPrimaries,
+	unit: i18n.ts._Preview.GamutWarningBoundsUnit,
+}));
 const { stateManager } = appContext.projectContext;
 const renderValidationErrorMessage = renderValidation.errorMessage;
 const renderFailureLocation = computed(() => {
@@ -430,7 +450,7 @@ function toggleGrid() {
 	showGridInPreview.value = !showGridInPreview.value;
 }
 
-function showMenu(ev: PointerEvent) {
+function showHighlightMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		text: i18n.ts._Preview.HighlightClipping,
 		icon: 'ti ti-alert-triangle',
@@ -443,15 +463,40 @@ function showMenu(ev: PointerEvent) {
 		type: 'switch',
 		ref: previewGamutWarningEnabled,
 	}, {
-		text: computed(() => `${i18n.ts._Preview.GamutWarningReference}: ${previewGamutWarningReferenceLabels[previewGamutWarning.value.referenceGamut]}`),
+		text: computed(() => `${i18n.ts._Preview.WarningImageSource}: ${previewWarningImageSourceLabels.value[previewWarningImageSource.value]}`),
+		type: 'parent',
+		children: PREVIEW_WARNING_IMAGE_SOURCES.map(imageSource => ({
+			id: `preview-warning-image-source-${imageSource}`,
+			text: computed(() => previewWarningImageSourceLabels.value[imageSource]),
+			caption: imageSource === 'original' ? i18n.ts._Preview.WarningImageSourceOriginalHint : i18n.ts._Preview.WarningImageSourceAdjustedHint,
+			active: computed(() => previewWarningImageSource.value === imageSource),
+			action: () => { previewWarningImageSource.value = imageSource; },
+		})),
+	}, {
+		text: computed(() => `${i18n.ts._Preview.GamutWarningReference}: ${previewGamutWarningReferenceLabels.value[previewGamutWarning.value.referenceGamut]}`),
 		type: 'parent',
 		children: PREVIEW_GAMUT_WARNING_REFERENCE_GAMUTS.map(referenceGamut => ({
 			id: `preview-gamut-warning-${referenceGamut}`,
-			text: previewGamutWarningReferenceLabels[referenceGamut],
+			text: computed(() => previewGamutWarningReferenceLabels.value[referenceGamut]),
+			caption: referenceGamut === 'acescg' ? i18n.ts._Preview.GamutWarningAcescgHint : null,
 			active: computed(() => previewGamutWarning.value.referenceGamut === referenceGamut),
 			action: () => { previewGamutWarning.value = { ...previewGamutWarning.value, referenceGamut }; },
 		})),
 	}, {
+		text: computed(() => `${i18n.ts._Preview.GamutWarningBounds}: ${previewGamutWarningBoundsLabels.value[previewGamutWarning.value.bounds]}`),
+		type: 'parent',
+		children: PREVIEW_GAMUT_WARNING_BOUNDS.map(bounds => ({
+			id: `preview-gamut-warning-bounds-${bounds}`,
+			text: computed(() => previewGamutWarningBoundsLabels.value[bounds]),
+			caption: bounds === 'nonNegative' ? i18n.ts._Preview.GamutWarningBoundsPrimariesHint : i18n.ts._Preview.GamutWarningBoundsUnitHint,
+			active: computed(() => previewGamutWarning.value.bounds === bounds),
+			action: () => { previewGamutWarning.value = { ...previewGamutWarning.value, bounds }; },
+		})),
+	}], ev.currentTarget ?? ev.target);
+}
+
+function showMenu(ev: PointerEvent) {
+	ui.popupMenu([{
 		text: i18n.ts._Preview.AnimatedBackground,
 		icon: 'ti ti-background',
 		type: 'switch',

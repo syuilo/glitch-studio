@@ -79,19 +79,31 @@ export async function run() {
 			}
 
 			try {
-				// 【選択色域の境界とHALFへ丸めた広色域原色を正しく区別する】
-				// sRGBだけでの判定や行列の転置忘れ、境界の量子化を範囲外とする誤警告を検出する。
-				for (const referenceGamut of ['srgb', 'displayP3', 'rec2020', 'adobeRgb'] as const) {
-					renderer.previewGamutWarning = { enabled: true, referenceGamut };
-					await check(`${referenceGamut} black`, [0, 0, 0, 1], false);
-					await check(`${referenceGamut} white`, [1, 1, 1, 1], false);
-					await check(`${referenceGamut} sRGB red`, [1, 0, 0, 1], false);
-					// 色域の大きさだけで包含を仮定しない。P3の赤はRec.2020でもBが約-0.0012になる。
-					await check(`${referenceGamut} P3 red`, [1.2249401763, -0.0420569547, -0.0196375546, 1], referenceGamut !== 'displayP3');
-					await check(`${referenceGamut} Rec.2020 red`, [1.6604910021, -0.1245504745, -0.0181507634, 1], referenceGamut !== 'rec2020');
-					await check(`${referenceGamut} Adobe RGB green`, [-0.398355744, 1, -0.0429289893, 1], referenceGamut === 'srgb' || referenceGamut === 'displayP3');
+				// 【5色域と2つの範囲を独立して選び、HALFへ丸めたAP1原色とHDRを正しく区別する】
+				// ACEScgの白色点順応忘れ、境界の誤警告、色域ごとに上限を勝手に変える実装を検出する。
+				// 「原色範囲」では全色域でHDRを許容し、負の成分はどちらの範囲でも検出する。
+				for (const referenceGamut of ['srgb', 'displayP3', 'rec2020', 'adobeRgb', 'acescg'] as const) {
+					for (const bounds of ['unit', 'nonNegative'] as const) {
+						renderer.previewGamutWarning = { enabled: true, referenceGamut, bounds };
+						const label = `${referenceGamut}, ${bounds}`;
+						await check(`${label} black`, [0, 0, 0, 1], false);
+						await check(`${label} white`, [1, 1, 1, 1], false);
+						await check(`${label} sRGB red`, [1, 0, 0, 1], false);
+						// 色域の大きさだけで包含を仮定しない。P3の赤はRec.2020でもBが約-0.0012になる。
+						await check(`${label} P3 red`, [1.2249401763, -0.0420569547, -0.0196375546, 1], referenceGamut !== 'displayP3' && referenceGamut !== 'acescg');
+						await check(`${label} Rec.2020 red`, [1.6604910021, -0.1245504745, -0.0181507634, 1], referenceGamut !== 'rec2020' && referenceGamut !== 'acescg');
+						await check(`${label} Adobe RGB green`, [-0.398355744, 1, -0.0429289893, 1], referenceGamut === 'srgb' || referenceGamut === 'displayP3');
+						await check(`${label} AP1 red`, [1.7050509927, -0.1302564175, -0.0240033568, 1], referenceGamut !== 'acescg');
+						await check(`${label} AP1 green`, [-0.6217921207, 1.1408047366, -0.1289689761, 1], referenceGamut !== 'acescg');
+						await check(`${label} AP1 blue`, [-0.0832588720, -0.0105483191, 1.1529723329, 1], referenceGamut !== 'acescg');
+						await check(`${label} HDR gray`, [4, 4, 4, 1], bounds === 'unit');
+						await check(`${label} HDR red`, [2, 0.25, 0.125, 1], bounds === 'unit');
+						await check(`${label} translucent HDR`, [1, 0.125, 0.0625, 0.5], bounds === 'unit');
+						await check(`${label} HDR emission`, [2, 0.25, 0.125, 0], bounds === 'unit');
+						await check(`${label} negative emission`, [-0.125, -0.25, -0.125, 0], true);
+					}
 				}
-				renderer.previewGamutWarning = { enabled: true, referenceGamut: 'srgb' };
+				renderer.previewGamutWarning = { enabled: true, referenceGamut: 'srgb', bounds: 'unit' };
 
 				// 【一成分だけの超過も検出し、半透明は未乗算色、alpha=0は独立した発光として扱う】
 				// 元の乗算済みRGBでの0〜1判定や、alpha=0の一律除外では正しく検出できない。
@@ -107,7 +119,9 @@ export async function run() {
 
 				// 【表示補正と背景を変えても、元画像の判定と不透明な警告色を維持する】
 				// sRGB確認のclamp後を調べたり警告色へ露出を適用すると、この画素の斜線が消える。
-				writeSource([2, 0.25, 0.125, 0]);
+				// 原色範囲だけのACEScg判定も、表示で負値がclampされる前の発光を調べる。
+				renderer.previewGamutWarning = { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' };
+				writeSource([-2, 0.25, 0.125, 0]);
 				renderer.previewExposure = -4;
 				renderer.previewGamutCompression = { mode: 'custom', customAmount: 1 };
 				for (const background of [null, 'black', 'checker'] as const) {
@@ -122,6 +136,73 @@ export async function run() {
 				renderer.previewSrgbProof = false;
 				renderer.previewGamutCompression = { mode: 'none', customAmount: 0.5 };
 				renderer.previewBackground = 'black';
+				renderer.previewGamutWarning = { enabled: true, referenceGamut: 'srgb', bounds: 'unit' };
+
+				// 【判定対象を切り替え、露出・背景合成・色域圧縮の効果を警告へ反映する】
+				// 調整後を選んでも元画像を調べ続けたり、sRGB確認のclamp後を調べたりする誤接続を検出する。
+				// 黒・白の警告も同じ画像を使い、警告色自体は圧縮や次の判定へ流さない。
+				for (const imageSource of ['original', 'previewAdjusted'] as const) {
+					renderer.previewWarningImageSource = imageSource;
+					renderer.highlightClipping = false;
+					renderer.previewGamutWarning = { enabled: true, referenceGamut: 'srgb', bounds: 'unit' };
+					renderer.previewExposure = -2;
+					await check(`${imageSource} reduces HDR exposure`, [2, 2, 2, 1], imageSource === 'original');
+					renderer.previewExposure = 2;
+					await check(`${imageSource} raises exposure`, [0.5, 0.25, 0.125, 1], imageSource === 'previewAdjusted');
+					renderer.previewExposure = -20;
+					renderer.previewGamutWarning = { ...renderer.previewGamutWarning, bounds: 'nonNegative' };
+					await check(`${imageSource} retains dark negative components`, [-0.000000059604644775390625, 0, 0, 1], true);
+					renderer.previewExposure = 0;
+					renderer.previewGamutWarning = { ...renderer.previewGamutWarning, bounds: 'unit' };
+					renderer.previewGamutCompression = { mode: 'custom', customAmount: 1 };
+					await check(`${imageSource} compresses gamut`, [1, -0.125, 0, 1], imageSource === 'original');
+					renderer.previewSrgbProof = true;
+					await check(`${imageSource} proof suspends compression`, [1, -0.125, 0, 1], true);
+					await check(`${imageSource} checks before proof clipping`, [2, 0.25, 0.125, 1], true);
+					renderer.previewSrgbProof = false;
+					renderer.previewGamutCompression = { mode: 'none', customAmount: 0.5 };
+					await check(`${imageSource} composes translucent HDR`, [0.75, 0.125, 0.0625, 0.5], imageSource === 'original');
+					renderer.previewGamutWarning = { ...renderer.previewGamutWarning, bounds: 'nonNegative' };
+					await check(`${imageSource} negative translucent color over black`, [-0.001, 0.125, 0.125, 0.5], true);
+					renderer.previewBackground = 'checker';
+					const overChecker = await render(true);
+					// チェック背景の位相は時刻で変わるため、背景画素の一致ではなく警告線の有無を比較する。
+					const hasWarningStripe = YELLOW.every((value, channel) => Math.abs(overChecker[channel] - value) < 0.006);
+					if (hasWarningStripe !== (imageSource === 'original')) throw new Error(`${mode}: ${imageSource} ignored the composed background`);
+					checks.push(`${mode}: ${imageSource} checker background`);
+					renderer.previewBackground = 'black';
+					renderer.previewGamutWarning = { ...renderer.previewGamutWarning, bounds: 'unit' };
+					await check(`${imageSource} includes zero-alpha emission`, [2, 0.25, 0.125, 0], true);
+					await check(`${imageSource} ignores empty background`, [0, 0, 0, 0], false);
+
+					renderer.highlightClipping = true;
+					renderer.previewExposure = -2;
+					writeSource([2, 2, 2, 1]);
+					const reducedWhite = await render(true);
+					const reducedExpected = imageSource === 'original' ? [1, 0, 1, 1] : [0.735356983, 0.735356983, 0.735356983, 1];
+					assertPixel(`${mode}: ${imageSource} reduces white clipping`, reducedWhite, 0, reducedExpected);
+					assertPixel(`${mode}: ${imageSource} reduces white clipping gap`, reducedWhite, 6, reducedExpected);
+					checks.push(`${mode}: ${imageSource} reduces white clipping`);
+					renderer.previewExposure = 2;
+					writeSource([0.5, 0.5, 0.5, 1]);
+					const encodedHdr = mode === 'gpu' ? 1.353256046 : 1;
+					assertPixel(`${mode}: ${imageSource} raises white clipping`, await render(true), 0,
+						imageSource === 'original' ? [encodedHdr, encodedHdr, encodedHdr, 1] : [1, 0, 1, 1]);
+					checks.push(`${mode}: ${imageSource} raises white clipping`);
+					renderer.previewExposure = 0;
+					writeSource([0.75, 0.75, 0.75, 0.5]);
+					assertPixel(`${mode}: ${imageSource} preserves warning alpha`, await render(true), 0,
+						imageSource === 'original' ? [0.735356983, 0, 0.735356983, 1] : [0.880825021, 0.880825021, 0.880825021, 1]);
+					checks.push(`${mode}: ${imageSource} translucent white clipping`);
+					writeSource([2, 2, 2, 0]);
+					assertPixel(`${mode}: ${imageSource} classifies emission before warnings`, await render(true), 0,
+						imageSource === 'original' ? YELLOW : [1, 0, 1, 1]);
+					checks.push(`${mode}: ${imageSource} emission warning priority`);
+					writeSource([0, 0, 0, 0]);
+					assertPixel(`${mode}: ${imageSource} keeps empty background unmarked`, await render(true), 0, [0, 0, 0, 1]);
+					checks.push(`${mode}: ${imageSource} empty background with both warnings`);
+				}
+				renderer.previewWarningImageSource = 'original';
 
 				// 【黒・白の既存警告は斜線より優先し、それ以外の範囲外は両方オンでも検出する】
 				// 警告の適用順を入れ替えて既存の診断色を上書きしないことを確認する。
