@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: Glitch Studio
-  tagline: フリーでオープンな画像・動画編集ソフト
+  tagline: フリーでオープンな統合動画像編集環境(おもちゃ)
   image:
     src: /gs.svg
     alt: Glitch Studio
