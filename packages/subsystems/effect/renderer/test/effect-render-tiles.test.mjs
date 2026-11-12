@@ -155,6 +155,7 @@ test('snapshots copy coordinates without cloning native buffer resources', async
 
 // 【先行するGPU処理を待ってから計測し、遅いタイルの次の未送信領域を小さくする】
 // Queryなしでも実行中のパスを調整でき、完了済みの画素をclearしてしまわないことを検証する。
+// 初期サイズと固定下限はともに64pxなので、大きなタイルを学習済みの状態から縮小を確認する。
 test('adapts remaining tiles using completion time while preserving clears', async t => {
 	const g = gpu();
 	let now = 0;
@@ -163,7 +164,14 @@ test('adapts remaining tiles using completion time while preserving clears', asy
 	const recorder = new EffectGpuCommandRecorder();
 	const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
 	pass.draw(3); pass.end();
-	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, null, new EffectRenderTileController());
+	const tileController = new EffectRenderTileController();
+	const workloadHint = { key: 'same input', workPerPixel: 1 };
+	for (let passIndex = 0; passIndex < 2; passIndex++) {
+		const plan = tileController.beginPass(0, [], 257, 129, workloadHint);
+		for (let index = 0; index < 4; index++) plan.observe(plan.maximumTilePixels, 1);
+		plan.finish();
+	}
+	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, null, tileController, workloadHint);
 	assert.equal(g.submitted.length, 0);
 	await tick();
 	assert.equal(g.submitted.length, 0, 'do not submit until previous work has completed');
@@ -172,7 +180,7 @@ test('adapts remaining tiles using completion time while preserving clears', asy
 	await tick();
 	const rectangle = commands => commands.find(command => command.method === 'setScissorRect').args;
 	const first = rectangle(g.submitted[0]);
-	assert.ok(first[2] * first[3] <= 4096);
+	assert.ok(first[2] * first[3] > 4096 && first[2] * first[3] <= 16384);
 	now += 128;
 	g.waits.shift()();
 	await tick();
