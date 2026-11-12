@@ -8,17 +8,24 @@ export class CpuPreviewFrameReservation {
 	private cancelled = false;
 	private released = false;
 	public get isCancelled() { return this.cancelled; }
+	public get hasReadbacks() { return this.readbacks.length > 0; }
 
 	constructor(private readonly contexts: readonly CpuPreviewCanvasContext[], private readonly onReleased: () => void) {
 		this.remainingContexts = new Set(contexts);
 	}
 
-	public prepareReadback(encoder: GPUCommandEncoder) {
+	public prepareReadback(encoder: GPUCommandEncoder, contexts: readonly CpuPreviewCanvasContext[] | null = null) {
 		if (this.cancelled) return;
 		if (this.prepared) throw new Error('CPU preview readback is already prepared');
 		this.prepared = true;
 		try {
 			for (const context of this.contexts) {
+				// 表示枠の待機中に通常フレームが先に描画されることがあるため、更新対象は
+				// 枠の確保後に確定できるようにする。対象外は読み戻さず、返却も待たない。
+				if (contexts != null && !contexts.includes(context)) {
+					this.remainingContexts.delete(context);
+					continue;
+				}
 				const readback = context.prepareReadback(encoder, () => {
 					this.remainingContexts.delete(context);
 					if (this.remainingContexts.size === 0) this.release();

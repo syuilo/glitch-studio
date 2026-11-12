@@ -31,3 +31,19 @@ export type PreviewImageAnalysisSettings = PreviewImageAnalysisDisplaySettings &
 	valueScale: ImageValueScale;
 	valueRange: ImageValueRange;
 };
+
+/** 送信・描画済み設定の記録を、呼び出し側による後の変更から切り離す。 */
+export function copyPreviewImageAnalysisSettings(settings: PreviewImageAnalysisSettings): PreviewImageAnalysisSettings {
+	return {
+		...settings,
+		imageAdjustments: { ...settings.imageAdjustments, gamutCompression: { ...settings.imageAdjustments.gamutCompression } },
+		valueRange: { ...settings.valueRange },
+		histogramViewport: settings.histogramViewport == null ? null : { ...settings.histogramViewport },
+		waveformCanvasSizes: settings.waveformCanvasSizes == null ? null : {
+			horizontal: { ...settings.waveformCanvasSizes.horizontal }, vertical: { ...settings.waveformCanvasSizes.vertical },
+		},
+		waveformViewports: settings.waveformViewports == null ? null : {
+			horizontal: { ...settings.waveformViewports.horizontal }, vertical: { ...settings.waveformViewports.vertical },
+		},
+	};
+}

@@ -1,5 +1,6 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { PreviewImageAnalysis } from './preview-image-analysis.ts';
+import type { PreviewImageAnalysisMonitors } from './preview-image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
@@ -288,18 +289,33 @@ export class CanvasRenderer {
 
 	public async reserveCpuPreviewFrame() { return this.cpuFrameQueue?.reserveFrame(this.imageAnalysis?.livePaused === true ? this.cpuMainCanvasContexts : this.cpuCanvasContexts) ?? null; }
 
-	/** リサイズでは作品を再評価せず、最後に完成した画像の解析だけを描き直す。 */
+	private getUpdatedCpuAnalysisContexts(monitors: PreviewImageAnalysisMonitors) {
+		return this.cpuAnalysisCanvasContexts.filter(context =>
+			(monitors.histogram && context === this.canvasContexts.histogramCanvas)
+			|| (monitors.horizontal && context === this.canvasContexts.waveformHorizontalCanvas)
+			|| (monitors.vertical && context === this.canvasContexts.waveformVerticalCanvas));
+	}
+
+	/** 表示操作では作品を再評価せず、最後の完成画像から変更したモニターだけを描き直す。 */
 	public async refreshImageAnalysis() {
 		const analysis = this.imageAnalysis;
 		if (analysis == null || analysis.livePaused) return;
 		const frame = this.cpuAnalysisCanvasContexts.length > 0 ? await this.cpuFrameQueue!.reserveFrame(this.cpuAnalysisCanvasContexts) : null;
+		let monitors: PreviewImageAnalysisMonitors | null = null;
 		try {
 			const encoder = this.gpuDevice.createCommandEncoder();
-			if (!analysis.renderCurrent(encoder, this.imageAnalysisSettings)) { frame?.cancel(); return; }
-			frame?.prepareReadback(encoder);
+			monitors = analysis.renderCurrent(encoder, this.imageAnalysisSettings);
+			if (monitors == null) { frame?.cancel(); return; }
+			frame?.prepareReadback(encoder, this.getUpdatedCpuAnalysisContexts(monitors));
 			this.gpuDevice.queue.submit([encoder.finish()]);
-			await (frame?.complete() ?? this.gpuDevice.queue.onSubmittedWorkDone());
-		} catch (error) { frame?.cancel(); throw error; }
+			// CPU/GPUの出力が混在し、変更したものが全てGPU側の場合も描画完了を待つ。
+			await (frame?.hasReadbacks === true ? frame.complete() : this.gpuDevice.queue.onSubmittedWorkDone());
+			if (frame?.isCancelled === true) analysis.invalidateMonitors(monitors);
+		} catch (error) {
+			frame?.cancel();
+			if (monitors != null) analysis.invalidateMonitors(monitors);
+			throw error;
+		}
 	}
 
 	public async setHighResolutionImageAnalysis(enabled: boolean, settings: PreviewImageAnalysisSettings): Promise<boolean> {
@@ -322,15 +338,21 @@ export class CanvasRenderer {
 		while (generation === this.highResolutionAnalysisGeneration && analysis.hasSnapshot) {
 			const frame = this.cpuAnalysisCanvasContexts.length > 0 ? await this.cpuFrameQueue!.reserveFrame(this.cpuAnalysisCanvasContexts) : null;
 			if (generation !== this.highResolutionAnalysisGeneration || !analysis.hasSnapshot) { frame?.cancel(); return false; }
+			let monitors: PreviewImageAnalysisMonitors | null = null;
 			try {
 				const encoder = this.gpuDevice.createCommandEncoder();
-				analysis.renderSnapshot(encoder, settings);
-				frame?.prepareReadback(encoder);
+				monitors = analysis.renderSnapshot(encoder, settings);
+				if (monitors == null) { frame?.cancel(); return true; }
+				frame?.prepareReadback(encoder, this.getUpdatedCpuAnalysisContexts(monitors));
 				this.gpuDevice.queue.submit([encoder.finish()]);
-				await (frame?.complete() ?? this.gpuDevice.queue.onSubmittedWorkDone());
-				if (frame?.isCancelled === true) continue;
+				await (frame?.hasReadbacks === true ? frame.complete() : this.gpuDevice.queue.onSubmittedWorkDone());
+				if (frame?.isCancelled === true) { analysis.invalidateMonitors(monitors); continue; }
 				return generation === this.highResolutionAnalysisGeneration && analysis.hasSnapshot;
-			} catch (error) { frame?.cancel(); throw error; }
+			} catch (error) {
+				frame?.cancel();
+				if (monitors != null) analysis.invalidateMonitors(monitors);
+				throw error;
+			}
 		}
 		return false;
 	}

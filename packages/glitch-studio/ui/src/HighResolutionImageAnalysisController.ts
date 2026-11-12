@@ -1,17 +1,10 @@
 import { ref, shallowRef } from 'vue';
+import { copyPreviewImageAnalysisSettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import { i18n } from './i18n.ts';
 import type { PreviewImageAnalysisSettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 
 export interface HighResolutionImageAnalysisSource {
 	setHighResolutionImageAnalysis(enabled: boolean, settings: PreviewImageAnalysisSettings): Promise<boolean>;
-}
-
-function copySettings(settings: PreviewImageAnalysisSettings): PreviewImageAnalysisSettings {
-	return { ...settings, histogramViewport: settings.histogramViewport == null ? null : { ...settings.histogramViewport }, imageAdjustments: { ...settings.imageAdjustments, gamutCompression: { ...settings.imageAdjustments.gamutCompression } }, valueRange: { ...settings.valueRange }, waveformCanvasSizes: settings.waveformCanvasSizes == null ? null : {
-		horizontal: { ...settings.waveformCanvasSizes.horizontal }, vertical: { ...settings.waveformCanvasSizes.vertical },
-	}, waveformViewports: settings.waveformViewports == null ? null : {
-		horizontal: { ...settings.waveformViewports.horizontal }, vertical: { ...settings.waveformViewports.vertical },
-	} };
 }
 
 /** 保持元・設定の間引き・反映済みの目盛りを所有し、再生や作品の状態は変更しない。 */
@@ -41,7 +34,7 @@ export class HighResolutionImageAnalysisController<Source extends HighResolution
 		this.active.value = true;
 		this.busy.value = true;
 		this.running = true;
-		const capturedSettings = copySettings(settings);
+		const capturedSettings = copyPreviewImageAnalysisSettings(settings);
 		this.displayedSettings.value = capturedSettings;
 		try {
 			// 保持要求を先に送る。通常解析の休止RPCを待つ間に元フレームを入れ替えない。
@@ -61,7 +54,7 @@ export class HighResolutionImageAnalysisController<Source extends HighResolution
 
 	public update(settings: PreviewImageAnalysisSettings) {
 		if (!this.active.value) return;
-		this.pending = copySettings(settings);
+		this.pending = copyPreviewImageAnalysisSettings(settings);
 		this.busy.value = true;
 		this.schedule();
 	}
