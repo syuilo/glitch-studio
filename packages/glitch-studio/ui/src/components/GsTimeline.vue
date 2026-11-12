@@ -709,7 +709,7 @@ const { onGroupMoveStart, onClipMoveStart, onClipTrimStart, onSubtitleTrimStart,
 
 const audioError = ref<string | null>(null);
 
-// SceneのIDだけではプロジェクト読み込みによる同IDの差し替えを検出できないため、定義の同一性も確認する。
+// Sceneの削除とUndoによる復元でも同じIDを使うため、操作開始時の定義が残っていることを確認する。
 function isTimelineActive() {
 	return !disposed && props.sceneId === editedScene.id && stateManager.state.timelineScenes.value.find(scene => scene.id === editedScene.id) === editedScene;
 }
@@ -896,7 +896,7 @@ function startCue(): () => void {
 		if (!cueActive.value) return;
 		cueActive.value = false;
 		stopCueHold = null;
-		// Scene切替やプロジェクト読み込み後に、旧Sceneの位置を新しいSceneへ反映しない。
+		// Sceneの選択変更や削除・Undoによる復元後には、試聴開始時の位置へ巻き戻さない。
 		if (activeSceneId.value !== props.sceneId || stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId) !== editedScene) return;
 		previewPlayback.pauseTimeline();
 		previewPlayback.seekTimeline(startTime);

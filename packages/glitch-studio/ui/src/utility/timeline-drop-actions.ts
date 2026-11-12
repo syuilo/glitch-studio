@@ -55,7 +55,7 @@ export function createTimelineDropActions(options: TimelineDropActionsOptions) {
 		const startMs = currentTime();
 		const messages: string[] = [];
 		let hasUnplacedAssets = false;
-		const ids = await importAssets(context, files, undefined, async (assets, _players, dialog) => {
+		const ids = await importAssets(context, files, async (assets, _players, dialog) => {
 			const placement = await prepare(assets, startMs, dialog, messages);
 			hasUnplacedAssets = placement == null || placement.layers.length < assets.length;
 			return { timeline: placement };

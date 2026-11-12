@@ -29,13 +29,12 @@ const externalAsset = (id, sourceFilePath = `C:/assets/${id}.mp4`) => ({
 const project = assets => ({
 	id: 'project', gsVersion: '2.0.0-alpha', name: 'Project', description: '', author: '', exportSettings: null,
 	timelineFps: 30, timelineMotionBlur: { enabled: false, shutterAngle: 360, samples: 32 }, resolution: { width: 1920, height: 1080 },
-	assets, players: [], generatedSpeech: [], visualModules: [], timelineScenes: [],
+	customShaderEffects: [], automationGraphs: [], assets, players: [], generatedSpeech: [], visualModules: [], timelineScenes: [],
 });
 const thumbnails = width => ({ width, height: 90, frames: [{ timestampSeconds: 0, fileData: new Blob([String(width)]) }] });
 
 function fixture(assets) {
-	const context = new ProjectContext();
-	context.load(project(assets.map(asset => ({ ...asset }))));
+	const context = new ProjectContext(project(assets.map(asset => ({ ...asset }))));
 	const manager = context.stateManager;
 	const findAsset = id => manager.state.assets.value.find(asset => asset.id === id);
 	function reload(id, update) {
@@ -128,10 +127,10 @@ test('preserves embedded snapshots while restoring the latest external metadata'
 	assert.equal(findAsset(embedded.id).isExternalReference, true);
 });
 
-// 【同じ原本を参照する別アセットや、次に読み込んだプロジェクトにリロード結果を流用しない】
+// 【同じ原本を参照する別アセットや、別セッションにリロード結果を流用しない】
 // リロードは選んだアセットだけへの操作であり、履歴用の情報はプロジェクトの寿命に限る。
 // IDとパスが再利用されても、別プロジェクトの保存済みメタデータを上書きしない。
-test('isolates metadata between assets and clears it when loading a project', () => {
+test('isolates metadata between assets and independent project contexts', () => {
 	const first = externalAsset('first');
 	const second = externalAsset('second', first.sourceFilePath);
 	const { context, manager, findAsset, reload } = fixture([first, second]);
@@ -140,9 +139,10 @@ test('isolates metadata between assets and clears it when loading a project', ()
 	manager.undo();
 	assert.equal(findAsset(first.id).width, 1920);
 	assert.equal(findAsset(second.id).width, 640);
-	context.load(project([{ ...first, width: 400 }]));
-	manager.commit('renameAsset', { assetId: first.id, name: 'Renamed' });
-	assert.equal(findAsset(first.id).width, 400);
-	assert.equal(findAsset(first.id).name, 'Renamed');
-	assert.equal(context.snapshot().assets[0].width, 400);
+	const other = fixture([{ ...first, width: 400 }]);
+	other.manager.commit('renameAsset', { assetId: first.id, name: 'Renamed' });
+	assert.equal(other.findAsset(first.id).width, 400);
+	assert.equal(other.findAsset(first.id).name, 'Renamed');
+	assert.equal(other.context.snapshot().assets[0].width, 400);
+	assert.equal(context.snapshot().assets[0].width, 1920);
 });

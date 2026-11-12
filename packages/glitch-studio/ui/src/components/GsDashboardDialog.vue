@@ -1,5 +1,13 @@
 <template>
-<GsModal ref="modal" data-test-dashboard-file-drop animatedBg preferType="dialog" @closed="emit('closed')">
+<GsModal
+	ref="modal"
+	data-test-dashboard-file-drop
+	animatedBg
+	preferType="dialog"
+	@click="modal?.close()"
+	@esc="modal?.close()"
+	@closed="emit('closed')"
+>
 	<div :class="$style.root">
 		<div :class="$style.main" class="_gaps_l">
 			<div style="display: flex; align-items: center; gap: 16px; font-size: 110%;">
@@ -13,7 +21,14 @@
 				<div v-if="!isElectron">{{ i18n.ts._Dashboard.WebLimitations }}<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/guide/download" target="_blank">{{ i18n.ts._Dashboard.DesktopVersion }}</a></div>
 			</div>
 			<div class="_gaps_m">
-				<GsButton large full style="text-align: left;" icon="ti ti-plus" @click="_newProject">{{ i18n.ts._Dashboard.NewProject }}</GsButton>
+				<GsButton
+					large
+					full
+					style="text-align: left;"
+					icon="ti ti-plus"
+					data-test-dashboard-new-project
+					@click="_newProject"
+				>{{ i18n.ts._Dashboard.NewProject }}</GsButton>
 				<GsButton large full style="text-align: left;" icon="ti ti-photo-video" @click="_newProjectFromImageOrVideo">{{ `${i18n.ts._Dashboard.OpenMedia}...` }}</GsButton>
 				<GsButton large full style="text-align: left;" icon="ti ti-folder-open" @click="_openProject">{{ `${i18n.ts._Dashboard.OpenProject}...` }}</GsButton>
 			</div>
@@ -72,7 +87,6 @@ import { importAssets } from '@/utility/import-assets.ts';
 import { installFileDropHandlers } from '@/utility/file-drop.ts';
 import * as ui from '@/ui.ts';
 
-
 const version = _VERSION_;
 const isElectron = __ELECTRON__;
 
@@ -128,14 +142,13 @@ const emit = defineEmits<{
 }>();
 
 async function _newProject() {
-	await newProject();
-	modal.value!.close();
+	if (await newProject() != null) modal.value?.close();
 }
 
 async function _newProjectFromImageOrVideo() {
 	const opened = await newProjectFromImageOrVideo();
 	if (opened) {
-		modal.value!.close();
+		modal.value?.close();
 	}
 }
 
@@ -152,18 +165,18 @@ async function onFileDrop(files: File[], event: DragEvent) {
 		opened = await newProjectFromImageOrVideo(files[0]);
 	} else {
 		let session = projectSessions.activeSession.value;
-		const ids = await importAssets(session.projectContext, files, async () => {
-			if (!session.projectContext.hasProject) session = await newProject() ?? session;
-			return session.projectContext;
-		});
+		const ids = await importAssets(async () => {
+			if (session == null) session = await newProject();
+			return session?.projectContext ?? null;
+		}, files);
 		opened = ids.length > 0;
-		if (opened) session.workspacePanelRevealRequest.value = { contentType: 'assets', sourcePanelId: null };
+		if (opened && session != null) session.workspacePanelRevealRequest.value = { contentType: 'assets', sourcePanelId: null };
 	}
-	if (opened) modal.value!.close();
+	if (opened) modal.value?.close();
 }
 
 async function _openProject() {
-	if (await openProject()) modal.value!.close();
+	if (await openProject()) modal.value?.close();
 }
 
 function showAbout() {

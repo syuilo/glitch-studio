@@ -12,7 +12,6 @@ export type ProjectSaveTarget = {
 export class ProjectSaveSession {
 	private currentTarget: ProjectSaveTarget | null = null;
 	private queue: Promise<unknown> = Promise.resolve();
-	suggestedName = 'untitled.gsproj';
 
 	constructor(private onTargetChange: (target: ProjectSaveTarget | null, previous: ProjectSaveTarget | null) => void) {}
 
@@ -22,7 +21,6 @@ export class ProjectSaveSession {
 	setTarget(target: ProjectSaveTarget | null): void {
 		const previous = this.currentTarget;
 		this.currentTarget = target;
-		if (target) this.suggestedName = target.handle.name;
 		this.onTargetChange(target, previous);
 	}
 

@@ -262,6 +262,7 @@
 	"Preview": "プレビュー",
 	"Players": "Player",
 	"_App": {
+		"Dashboard": "ダッシュボード",
 		"CloseProject": "プロジェクトを閉じる",
 		"ProjectFileAlreadyOpen": "このファイルは別のプロジェクトで開かれています。別の保存先を選択してください。",
 		"File": "ファイル",

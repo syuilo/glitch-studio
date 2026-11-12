@@ -138,8 +138,8 @@ test('retains the last successful automatic backup until a newer one succeeds', 
 	assert.equal(new TextDecoder().decode([...h.files.values()][0]), 'edited again');
 });
 
-// 【休止後は最新状態を1回だけ残し、設定変更・無効化・プロジェクト切替で予約を更新する】
-// 古い周期の多重タイマーや、休止時間分の大量ファイル生成、別プロジェクトへの誤保存を防ぐ。
+// 【休止後は最新状態を1回だけ残し、設定変更・無効化・保存先変更で予約を更新する】
+// 古い周期の多重タイマーや、休止時間分の大量ファイル生成、古い保存先への誤保存を防ぐ。
 test('reschedules settings and makes only one backup after a long suspension', async () => {
 	const h = harness();
 	h.controller.setTarget(h.target);
@@ -215,7 +215,7 @@ test('retains previous backups after failure and retries unchanged data', async 
 	assert.equal(h.encodeCount, 2);
 });
 
-// 【手動保存は自動バックアップを待ち、別プロジェクトへ切替後の古い処理は書き込まない】
+// 【手動保存は自動バックアップを待ち、保存先変更後の古い処理は書き込まない】
 // 保存ボタンが無視されたり、エンコード中の古い状態が新しい作品のバックアップになることを防ぐ。
 test('queues manual saves and cancels stale automatic work after a target change', async () => {
 	const h = harness();

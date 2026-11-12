@@ -222,9 +222,9 @@ test('replaces clip clipboard contents when copying a layer and preserves layer 
 });
 
 // 【素材情報の読み込み中に再生が進んでも操作時のシーク位置を使い、衝突が生じたら中止する】
-// 非同期準備の完了時にも空きを再確認し、別プロジェクトへの読み込み・パネル破棄後は変更しない。
+// 非同期準備の完了時にも空きを再確認し、Sceneの削除・復元やパネル破棄後は変更しない。
 test('keeps the requested seek time and rechecks state after asynchronous media loading', async t => {
-	for (const change of ['seek', 'overlap', 'reload', 'dispose', 'asset']) {
+	for (const change of ['seek', 'overlap', 'restoredScene', 'dispose', 'asset']) {
 		const f = fixture(t);
 		f.layer.layerType = 'audio';
 		f.layer.clips = [{ id: 'audio', startMs: 100, durationMs: 100, sourceInMs: 10.25, sourceOutMs: 110.25, playbackRate: 1, loop: false, assetId: 'sound' }];
@@ -237,7 +237,7 @@ test('keeps the requested seek time and rechecks state after asynchronous media 
 		const pending = handlers.pasteClips(f.clipboard);
 		f.time.value = 2000;
 		if (change === 'overlap') f.layer.clips.push({ ...f.layer.clips[0], id: 'blocking', startMs: 1000 });
-		if (change === 'reload') f.state.timelineScenes.value = [structuredClone(f.scene)];
+		if (change === 'restoredScene') f.state.timelineScenes.value = [structuredClone(f.scene)];
 		if (change === 'dispose') handlers.dispose();
 		if (change === 'asset') asset.fileData = new Blob();
 		finish({ durationMs: 10000 });

@@ -1,3 +1,4 @@
+import { createTestProject } from './helpers/project.mjs';
 import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -232,7 +233,7 @@ test('rejects other formats future versions and invalid media bytes', async () =
 // 既存の定義を残しつつ、追加・削除をWorkerへ通知し、Redo時に内部ポートのIDも維持する。
 test('creates a Visual Module with synchronized undo and redo in empty and populated projects', async t => {
 	for (const populated of [false, true]) {
-		const manager = new ProjectContext().stateManager;
+		const manager = new ProjectContext(createTestProject()).stateManager;
 		const existing = populated ? [createProjectVisualModule(0)] : [];
 		manager.state.visualModules.value = structuredClone(existing);
 		let replica = { visualModules: structuredClone(existing), timelineScenes: [] };
@@ -266,7 +267,7 @@ test('creates a Visual Module with synchronized undo and redo in empty and popul
 // 同じ名前のVisual Moduleを作成しても、片方の編集が別の定義へ混入してはいけない。
 // IDが衝突した場合も、既存の定義や履歴を壊さず追加を拒否する。
 test('keeps newly created Visual Modules independent and rejects duplicate registration', () => {
-	const manager = new ProjectContext().stateManager;
+	const manager = new ProjectContext(createTestProject()).stateManager;
 	const first = createProjectVisualModule(0);
 	const second = createProjectVisualModule(0);
 	assert.deepEqual(first.customParameterDefs, []);
@@ -290,7 +291,7 @@ test('keeps newly created Visual Modules independent and rejects duplicate regis
 test('imports assets players and a Visual Module with one synchronized undo and redo', async t => {
 	const f = fixture();
 	const prepared = prepareVisualModuleImport(f.file(), f.definitions, ids('import'));
-	const manager = new ProjectContext().stateManager;
+	const manager = new ProjectContext(createTestProject()).stateManager;
 	const existingAsset = asset('existing');
 	manager.state.assets.value = [existingAsset];
 	let replica = { visualModules: [], timelineScenes: [] };
@@ -325,7 +326,7 @@ test('imports assets players and a Visual Module with one synchronized undo and 
 test('coalesces registration edits and removal before synchronization', async t => {
 	const f = fixture();
 	const prepared = prepareVisualModuleImport(f.file(), f.definitions);
-	const manager = new ProjectContext().stateManager;
+	const manager = new ProjectContext(createTestProject()).stateManager;
 	const batches = [];
 	const sync = new RendererProjectSynchronizer(manager, {
 		apply: async changes => { batches.push(changes); }, replace: async () => assert.fail(), onUpdated() {}, onError: error => assert.fail(error),
@@ -347,7 +348,7 @@ test('coalesces registration edits and removal before synchronization', async t 
 test('keeps project state and history unchanged when import IDs collide', () => {
 	const f = fixture();
 	const prepared = prepareVisualModuleImport(f.file(), f.definitions);
-	const manager = new ProjectContext().stateManager;
+	const manager = new ProjectContext(createTestProject()).stateManager;
 	manager.state.players.value = [{ id: prepared.players[1].id, name: 'Existing', sourceType: null }];
 	assert.throws(() => manager.commit('importVisualModule', prepared), /already exists/);
 	assert.equal(manager.state.assets.value.length, 0);
@@ -370,11 +371,11 @@ function platform(t, selectedFile) {
 	return { links, alerts: globalThis.visualModuleAlerts, selectFile(file) { selectedFile = file; } };
 }
 
-// 【ファイル選択の取消しやプロジェクト再読込では取り込まない】
-// ダイアログ・ファイル読み出しの待ち時間を跨いで、以前の操作を別のプロジェクトへ適用しない。
-test('cancels file selection and rejects an import after the project generation changes', async t => {
+// 【ファイル選択の取消しやプロジェクト終了では取り込まない】
+// ファイル読み出しの完了が遅れても、終了したProjectContextへ履歴を追加しない。
+test('cancels file selection and rejects an import after the project closes', async t => {
 	const browser = platform(t, null);
-	const context = new ProjectContext();
+	const context = new ProjectContext(createTestProject());
 	assert.equal(await importVisualModuleFile(context), null);
 	assert.equal(context.stateManager.undoStack.value.length, 0);
 	const file = { kind: 'glitch-studio-visual-module', formatVersion: 1, gsVersion: '2.0.0-alpha.1', name: 'Empty',
@@ -384,8 +385,7 @@ test('cancels file selection and rejects an import after the project generation 
 	browser.selectFile({ arrayBuffer: () => reading.promise });
 	const importing = importVisualModuleFile(context);
 	await Promise.resolve();
-	context.load({ id: 'replacement', name: 'Replacement', description: '', author: '', resolution: { width: 16, height: 16 },
-		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 1 }, assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: [] });
+	context.dispose();
 	reading.resolve(new Uint8Array(data).buffer);
 	assert.equal(await importing, null);
 	assert.equal(context.stateManager.state.visualModules.value.length, 0);
@@ -396,7 +396,7 @@ test('cancels file selection and rejects an import after the project generation 
 // codecとCommandを個別に検証するだけでは、ファイル読み出しを繋ぐUI側の失敗を見落とす。
 // 実際のFileからの取り込みを通して新しい登録IDと表示名を確認し、失敗時には履歴を増やさない。
 test('imports a selected file and preserves existing state when the next file cannot be decoded', async t => {
-	const context = new ProjectContext();
+	const context = new ProjectContext(createTestProject());
 	const file = { kind: 'glitch-studio-visual-module', formatVersion: 1, gsVersion: '2.0.0-alpha.1', name: 'Imported Visual Module',
 		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }, assets: [], players: [] };
 	const data = await encodeVisualModuleFile(file);
@@ -418,7 +418,7 @@ test('imports a selected file and preserves existing state when the next file ca
 // エンコードが完了してからダウンロードを作り、素材の欠落したファイルを成功扱いにしない。
 test('reports asset read errors before creating a download', async t => {
 	const { links, alerts } = platform(t, null);
-	const context = new ProjectContext();
+	const context = new ProjectContext(createTestProject());
 	const broken = asset('broken');
 	broken.fileData = new class extends Blob { async arrayBuffer() { throw new Error('Unreadable'); } }();
 	context.stateManager.state.assets.value = [broken];

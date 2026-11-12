@@ -137,8 +137,6 @@ export class ProjectBackupController {
 
 	refreshSchedule(): void {
 		if (this.disposed) return;
-		this.options.cancel(this.timer);
-		this.timer = null;
 		this.nextAutoBackup = this.options.now() + this.options.settings().autoIntervalMinutes * 60000;
 		this.schedule();
 	}

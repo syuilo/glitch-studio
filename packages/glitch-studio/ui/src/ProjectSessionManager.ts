@@ -1,17 +1,17 @@
 import { computed, markRaw, shallowRef } from 'vue';
-import type { ShallowRef } from 'vue';
 import { ProjectContext } from './Project.ts';
 import { ProjectSessionContext } from './ProjectSessionContext.ts';
 import { isSameProjectFile } from './gsproj.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import { applicationActivity } from './application-activity.ts';
+import { resolveExternalAssets } from './external-assets.ts';
 import { i18n } from './i18n.ts';
 import * as ui from './ui.ts';
 
 /** ウィンドウ内のセッションの寿命と選択を所有する。保存・編集の状態は各セッションが持つ。 */
 export class ProjectSessionManager {
 	public readonly sessions = shallowRef<ProjectSessionContext[]>([]);
-	public readonly activeSession: ShallowRef<ProjectSessionContext>;
+	public readonly activeSession = shallowRef<ProjectSessionContext | null>(null);
 	public readonly isProjectSaving = computed(() => this.sessions.value.some(session => session.isProjectSaving.value));
 	public readonly hasUnsavedChanges = computed(() => this.sessions.value.some(session => session.hasUnsavedChanges.value));
 	private disposed = false;
@@ -23,14 +23,13 @@ export class ProjectSessionManager {
 
 	constructor() {
 		markRaw(this);
-		const session = this.createSession();
-		this.sessions.value = [session];
-		this.activeSession = shallowRef(session);
 	}
 
-	private createSession(id?: string) {
-		const session: ProjectSessionContext = new ProjectSessionContext(new ProjectContext(), {
+	private createSession(project: Project, fileName: string | null, fileHandle: ProjectFileHandle | null, id?: string) {
+		const session: ProjectSessionContext = new ProjectSessionContext(new ProjectContext(project), {
 			id,
+			fileName,
+			fileHandle,
 			reserveProjectFile: handle => this.reserveProjectFile(session, handle),
 		});
 		return session;
@@ -70,22 +69,28 @@ export class ProjectSessionManager {
 			// ブラウザーのハンドル照合中にウィンドウが閉じた場合、新しい購読やWorkerを生成しない。
 			if (this.disposed) return null;
 			if (existing != null) { await this.select(existing); return existing; }
-			const session = this.createSession(id);
-			this.pendingSessions.add(session);
+			const waiting = ui.waiting({ text: i18n.ts._App.InitializingProject });
+			let session: ProjectSessionContext | null = null;
 			try {
+				// 参照解決による値の変更を初回の編集通知にせず、準備済みの状態から購読を開始する。
+				// この待機中にはまだセッションがないため、終了後に生成しないよう確認する。
+				await resolveExternalAssets(project.assets);
+				if (this.disposed) return null;
+				session = this.createSession(project, fileName, handle, id);
+				this.pendingSessions.add(session);
 				await session.setActive(false);
-				await session.ready(project, fileName, handle);
+				waiting.setText(i18n.ts._App.InitializingRenderer);
+				await session.start();
 				if (this.disposed || session.isDisposed) return null;
-				const emptySessions = this.sessions.value.filter(current => !current.projectContext.hasProject);
-				this.sessions.value = [...this.sessions.value.filter(current => current.projectContext.hasProject), session];
+				this.sessions.value = [...this.sessions.value, session];
 				await this.select(session);
-				await Promise.all(emptySessions.map(current => current.dispose()));
 				return this.disposed || session.isDisposed ? null : session;
 			} catch (error) {
-				await session.dispose();
+				await session?.dispose();
 				throw error;
 			} finally {
-				this.pendingSessions.delete(session);
+				if (session != null) this.pendingSessions.delete(session);
+				waiting.done();
 			}
 		}));
 	}
@@ -96,7 +101,7 @@ export class ProjectSessionManager {
 		if (previous === session) return;
 		this.activeSession.value = session;
 		// 非選択化はawaitより先に通知する。素早い連続切替でも古い初期化結果を復活させない。
-		await Promise.all([previous.setActive(false), session.setActive(true)]);
+		await Promise.all([previous?.setActive(false), session.setActive(true)]);
 	}
 
 	public async selectFile(id: string): Promise<void> {
@@ -124,9 +129,12 @@ export class ProjectSessionManager {
 			if (this.disposed || session.isDisposed || session.isProjectSaving.value || applicationActivity.isExporting.value) return false;
 			const index = this.sessions.value.indexOf(session);
 			this.sessions.value = this.sessions.value.filter(current => current !== session);
-			if (this.sessions.value.length === 0) this.sessions.value = [this.createSession()];
 			const disposal = session.dispose();
-			if (this.activeSession.value === session) await this.select(this.sessions.value[Math.min(index, this.sessions.value.length - 1)]);
+			if (this.activeSession.value === session) {
+				const next = this.sessions.value[Math.min(index, this.sessions.value.length - 1)];
+				if (next != null) await this.select(next);
+				else this.activeSession.value = null;
+			}
 			await disposal;
 			return true;
 		} finally { this.closing.delete(session); }

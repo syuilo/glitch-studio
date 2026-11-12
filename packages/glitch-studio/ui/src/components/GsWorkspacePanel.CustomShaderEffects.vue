@@ -6,7 +6,7 @@
 		<GsButton v-if="selected != null" data-test-duplicate-custom-shader-effect icon="ti ti-copy" @click="add(selected)">{{ i18n.ts.Duplicate }}</GsButton>
 		<GsButton v-if="selected != null" :disabled="isCustomShaderEffectUsed(stateManager.state, selected.id)" :title="i18n.ts._CustomShaderEffect.InUse" data-test-delete-custom-shader-effect danger icon="ti ti-trash" @click="remove">{{ i18n.ts.Delete }}</GsButton>
 	</div>
-	<GsCustomShaderEffectEditor v-if="selected != null" :key="`${projectContext.generation}:${selected.id}`" :customShaderEffect="selected" @apply="apply"/>
+	<GsCustomShaderEffectEditor v-if="selected != null" :key="selected.id" :customShaderEffect="selected" @apply="apply"/>
 </div>
 </template>
 

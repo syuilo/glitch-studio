@@ -10,7 +10,7 @@ import type { ClipboardTextAccess } from './clipboard-text.ts';
 import type { ProjectParameterClipboardTarget } from './parameter-clipboard.ts';
 import type { ProjectContext } from '../Project.ts';
 
-/** 読み取り前の対象を捕捉し、別プロジェクトや削除・再作成された対象へ遅延適用しない。 */
+/** 読み取り前の対象を捕捉し、終了済みのプロジェクトや削除・再作成された対象へ遅延適用しない。 */
 export async function handleProjectParameterClipboard(
 	context: ProjectContext,
 	requestedTarget: ProjectParameterClipboardTarget,
@@ -19,8 +19,7 @@ export async function handleProjectParameterClipboard(
 	clipboard: ClipboardTextAccess = clipboardText,
 ): Promise<void> {
 	const projectId = context.id;
-	if (projectId == null || !isActive()) return;
-	const generation = context.generation;
+	if (context.isDisposed || !isActive()) return;
 	const target = deepClone(requestedTarget);
 	const state = context.stateManager.state;
 	let initial;
@@ -35,7 +34,8 @@ export async function handleProjectParameterClipboard(
 		: initialContext.kind === 'customParameter' ? initialContext.visualModule.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : initialContext.layer;
 	const originalType = deepClone(initial.def.dataType);
 	const data = parseParameterClipboard(await clipboard.readText());
-	if (data == null || !isActive() || context.generation !== generation || context.id !== projectId) return;
+	// 別名保存でIDが変わると参照の貼り付け可否も変わるため、読み取り開始時のIDとは照合する。
+	if (data == null || !isActive() || context.isDisposed || context.id !== projectId) return;
 	try {
 		const current = resolveProjectClipboardTarget(state, projectId, target);
 		const currentContext = current.context;
@@ -59,8 +59,7 @@ export async function handlePreviewParameterClipboard(
 	clipboard: ClipboardTextAccess = clipboardText,
 ): Promise<void> {
 	const projectId = context.id;
-	if (projectId == null || !isActive()) return;
-	const generation = context.generation;
+	if (context.isDisposed || !isActive()) return;
 	const state = context.stateManager.state;
 	const visualModule = state.visualModules.value.find(candidate => candidate.id === visualModuleId);
 	if (visualModule == null) return;
@@ -85,7 +84,7 @@ export async function handlePreviewParameterClipboard(
 	}
 	const originalType = deepClone(initial.parameter.def.dataType);
 	const data = parseParameterClipboard(await clipboard.readText());
-	if (data == null || !isActive() || context.id !== projectId || context.generation !== generation
+	if (data == null || !isActive() || context.isDisposed || context.id !== projectId
 		|| !state.visualModules.value.includes(visualModule)) return;
 	let nextRoot: ValueParameterBinding;
 	try {

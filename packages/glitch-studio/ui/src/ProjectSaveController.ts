@@ -51,13 +51,14 @@ function backupSettings() {
 
 /** 保存先の選択・権限・保存処理とバックアップをまとめ、プレビューの実装に依存させない。 */
 export class ProjectSaveController {
-	private disposed = false;
+	// 終了時は編集状態が変わらなくても、未保存変更の表示を解除する。
+	private readonly disposed = ref(false);
 	private disposal: Promise<void> | null = null;
 	private readonly stopBackupSettings: () => void;
+	private readonly sessionId?: string;
+	private readonly reserveProjectFile?: (handle: ProjectFileHandle) => Promise<() => void>;
 	private pausedForUpdate = false;
 	private updatePreparationError: unknown = null;
-	private projectGeneration = 0;
-	private projectReady = ref(false);
 	private projectSaveSession: ProjectSaveSession;
 	private backupFingerprint = createProjectBackupFingerprint();
 	private savedFingerprint = ref<string | null>(null);
@@ -67,7 +68,7 @@ export class ProjectSaveController {
 	// 履歴の件数では、Undo・直接編集されるプロジェクト情報・生成音声の変更を判定できない。
 	// 保存対象そのものを比較し、不変なBlobはバックアップと同じ同一性で扱う。
 	public hasUnsavedChanges = computed(() => {
-		const project = this.projectReady.value ? this.getSnapshot() : null;
+		const project = this.disposed.value ? null : this.getSnapshot();
 		return project != null && this.backupFingerprint(project) !== this.savedFingerprint.value;
 	});
 	public projectFileName = ref<string | null>(null);
@@ -76,8 +77,15 @@ export class ProjectSaveController {
 	public projectBackupStatus = ref<ProjectBackupStatus>({ lastAutoBackup: null, lastSaveBackup: null, error: null });
 	public projectBackupController: ProjectBackupController;
 
-	constructor(private getSnapshot: () => Project | null, private adoptSavedProjectId: (id: Project['id']) => void, private popup: typeof ui.popup = ui.popup,
-		private options: { sessionId?: string; reserveProjectFile?: (handle: ProjectFileHandle) => Promise<() => void> } = {}) {
+	constructor(private getSnapshot: () => Project | null, private adoptSavedProjectId: (id: Project['id']) => void,
+		options: {
+			fileName: string | null;
+			fileHandle: ProjectFileHandle | null;
+			sessionId?: string;
+			reserveProjectFile?: (handle: ProjectFileHandle) => Promise<() => void>;
+		}, private popup: typeof ui.popup = ui.popup) {
+		this.sessionId = options.sessionId;
+		this.reserveProjectFile = options.reserveProjectFile;
 		this.projectSaveSession = new ProjectSaveSession((target, previous) => {
 			this.projectFileHandle.value = target?.handle ?? null;
 			this.projectFileName.value = target?.handle.name ?? null;
@@ -89,8 +97,8 @@ export class ProjectSaveController {
 			runExclusive: operation => this.projectSaveSession.runExclusive(operation),
 			settings: backupSettings,
 			snapshot: () => {
-				const project = this.projectReady.value ? this.getSnapshot() : null;
-				return project ? { fingerprint: this.backupFingerprint(project), encode: () => encodeProjectFile(project, this.projectSaveSession.target?.handle ?? null) } : null;
+				const project = this.getSnapshot();
+				return project != null ? { fingerprint: this.backupFingerprint(project), encode: () => encodeProjectFile(project, this.projectSaveSession.target?.handle ?? null) } : null;
 			},
 			onStatus: status => { this.projectBackupStatus.value = status; },
 			now: () => Date.now(),
@@ -100,36 +108,19 @@ export class ProjectSaveController {
 		this.stopBackupSettings = watch(() => [preferences.r.projectBackupAutoEnabled.value, preferences.r.projectBackupAutoIntervalMinutes.value,
 			preferences.r.projectBackupAutoRetentionDays.value, preferences.r.projectBackupSaveEnabled.value,
 			preferences.r.projectBackupSaveRetentionDays.value], () => this.projectBackupController.refreshSchedule());
-	}
 
-	// IDは同じプロジェクトの再読込でも変わらないため、保存要求の失効には使わない。
-	// 読み込み開始で世代を進め、完了までは手動保存・自動バックアップの両方を止める。
-	public beginProjectLoad(): void {
-		this.projectGeneration++;
-		this.projectReady.value = false;
-		this.savedFingerprint.value = null;
-		this.projectSaveSession.setTarget(null);
-	}
-
-	public finishProjectLoad(fileName: string | null, fileHandle: ProjectFileHandle | null): void {
-		if (this.disposed) return;
-		this.projectSaveSession.suggestedName = fileName ?? 'untitled.gsproj';
+		const { fileName, fileHandle } = options;
 		// Fileから開いた場合も読み込み直後は保存済みとする。新規プロジェクトは初回保存が必要。
-		const project = this.getSnapshot();
-		this.savedFingerprint.value = project && (fileName != null || fileHandle != null) ? this.backupFingerprint(project) : null;
-		this.projectReady.value = true;
-		try {
-			this.projectSaveSession.setTarget(fileHandle ? { handle: fileHandle, directory: null, backup: resolveBackupTarget(fileHandle, null) } : null);
-		} catch (error) {
-			this.projectSaveSession.setTarget(fileHandle ? { handle: fileHandle, directory: null, backup: null } : null);
-			this.projectBackupController.reportError(error);
-		}
+		// 比較基準を生成時に確定し、非同期の起動中に行われた編集を保存済みとして取り込まない。
+		const savedProject = fileName != null || fileHandle != null ? this.getSnapshot() : null;
+		this.savedFingerprint.value = savedProject != null ? this.backupFingerprint(savedProject) : null;
+		this.projectSaveSession.setTarget(fileHandle != null ? { handle: fileHandle, directory: null, backup: resolveBackupTarget(fileHandle, null) } : null);
 		// Fileだけで開いた場合も、保存先ハンドルの有無によらず読み込んだ名前を表示する。
 		this.projectFileName.value = fileHandle?.name ?? fileName;
 	}
 
 	public async grantProjectBackupAccess(): Promise<void> {
-		if (this.disposed) return;
+		if (this.disposed.value) return;
 		const savedTarget = this.projectSaveSession.target;
 		const handle = savedTarget?.handle;
 		if (!handle) return;
@@ -141,7 +132,7 @@ export class ProjectSaveController {
 			}
 			// フォルダ選択はこのクリックから開始する。タイマーから権限ダイアログを要求しない。
 			const directory = await selectProjectBackupFolder(handle);
-			if (this.disposed || this.projectSaveSession.target !== savedTarget) return;
+			if (this.disposed.value || this.projectSaveSession.target !== savedTarget) return;
 			this.projectSaveSession.setTarget({ handle, directory, backup: resolveBackupTarget(handle, directory) });
 		} catch (error) {
 			if (!(error instanceof DOMException && error.name === 'AbortError')) this.projectBackupController.reportError(error);
@@ -149,10 +140,9 @@ export class ProjectSaveController {
 	}
 
 	public async saveProject(saveAs = false): Promise<void> {
-		if (this.disposed || this.pausedForUpdate) return;
-		const project = this.projectReady.value ? this.getSnapshot() : null;
-		if (!project) return;
-		const generation = this.projectGeneration;
+		if (this.disposed.value || this.pausedForUpdate) return;
+		const project = this.getSnapshot();
+		if (project == null) return;
 		const requestedHandle = saveAs ? null : this.projectSaveSession.target?.handle;
 		this.pendingManualSaveCount.value++;
 		let saveFailure: { error: unknown } | null = null;
@@ -163,7 +153,8 @@ export class ProjectSaveController {
 			saveFailure = await this.projectSaveSession.runExclusive(async savedTarget => {
 				let releaseFile: (() => void) | null = null;
 				try {
-					if (generation !== this.projectGeneration) return null;
+					// セッションの入れ替えは行わない。終了後に届いた権限・選択・エンコード結果だけを無効化する。
+					if (this.disposed.value) return null;
 					// 内容は要求時のスナップショットを使い、IDだけ実行時に決める。
 					// 先行するSave asが成功していたら、待機中のSaveもその新しいIDを引き継ぐ。
 					project.id = saveAs ? genId() : this.getSnapshot()!.id;
@@ -179,15 +170,15 @@ export class ProjectSaveController {
 					// 外部参照の相対化には保存先が必要だが、埋め込み原本の読込失敗で
 					// ブラウザの保存先を空にしない従来の順序は維持する。
 					let data = handle == null && window.desktop?.assetProjectPaths != null ? null : await encodeProjectFile(project, handle);
-					if (generation !== this.projectGeneration) return null;
+					if (this.disposed.value) return null;
 					if (!handle) {
-						const selected = await selectProjectSaveFile(this.projectSaveSession.suggestedName, this.popup, this.options.sessionId);
-						if (!selected) return null;
+						const selected = await selectProjectSaveFile(this.projectFileName.value ?? 'untitled.gsproj', this.popup, this.sessionId);
+						if (selected == null || this.disposed.value) return null;
 						({ handle, directory } = selected);
 					}
 					// 別タブの保存先・保存中の予約と照合し、バックアップを作る前に排他する。
-					releaseFile = await this.options.reserveProjectFile?.(handle) ?? null;
-					if (generation !== this.projectGeneration) return null;
+					releaseFile = await this.reserveProjectFile?.(handle) ?? null;
+					if (this.disposed.value) return null;
 					target ??= resolveBackupTarget(handle, directory);
 					data ??= await encodeProjectFile(project, handle);
 					if (backupSettings().saveEnabled && (!target || !await target.directory.hasPermission())) {
@@ -196,15 +187,15 @@ export class ProjectSaveController {
 						if (!directory) return null;
 						target = { name: handle.name, directory: browserProjectBackupDirectory(directory) };
 					}
-					if (generation !== this.projectGeneration) return null;
+					if (this.disposed.value) return null;
 					let saveBackupTime: number | null = null;
 					if (target && backupSettings().saveEnabled) {
 						// 上書き前の実ファイルのバックアップが確定してから、本体を変更する。
 						saveBackupTime = await this.projectBackupController.beforeSave(target, projectSaveBackupWriter(handle, target.directory));
 					}
-					if (generation !== this.projectGeneration) return null;
-					await saveProjectFile(data, handle, this.options.sessionId);
-					if (generation === this.projectGeneration) {
+					if (this.disposed.value) return null;
+					await saveProjectFile(data, handle, this.sessionId);
+					if (!this.disposed.value) {
 						this.adoptSavedProjectId(project.id);
 						// 保存中の編集を保存済みにしないよう、書き込んだスナップショットを基準にする。
 						// バックアップ整理の成否ではなく、本体の書き込み成功時点で更新する。
@@ -218,7 +209,7 @@ export class ProjectSaveController {
 					return { error };
 				} finally {
 					// 予約の解放まで保存キューに含め、更新の準備が後処理を追い越さないようにする。
-					await window.desktop?.releaseProjectReservations?.(this.options.sessionId).catch(console.error);
+					await window.desktop?.releaseProjectReservations?.(this.sessionId).catch(console.error);
 					releaseFile?.();
 				}
 				return null;
@@ -232,17 +223,17 @@ export class ProjectSaveController {
 			// 更新の要求元へ失敗を返し、更新の待機表示を解除してから報告する。
 			// 後処理中に停止を要求された場合も、失敗を見落とさない。
 			if (this.pausedForUpdate) this.updatePreparationError = error;
-			else if (!this.disposed) await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+			else if (!this.disposed.value) await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		}
 	}
 
 	public async pauseForUpdate(): Promise<() => void> {
-		if (this.disposed) return () => {};
+		if (this.disposed.value) return () => {};
 		this.pausedForUpdate = true;
 		this.updatePreparationError = null;
 		this.projectBackupController.setPaused(true);
 		const resume = () => {
-			if (this.disposed) return;
+			if (this.disposed.value) return;
 			this.pausedForUpdate = false;
 			this.projectBackupController.setPaused(false);
 		};
@@ -257,9 +248,7 @@ export class ProjectSaveController {
 
 	public dispose(): Promise<void> {
 		if (this.disposal != null) return this.disposal;
-		this.disposed = true;
-		this.projectGeneration++;
-		this.projectReady.value = false;
+		this.disposed.value = true;
 		this.stopBackupSettings();
 		this.projectBackupController.dispose();
 		// 書き込み開始後は途中で打ち切らず、予約の解放まで待って保存先を手放す。

@@ -789,16 +789,54 @@ test('updates Visual Module Live Preview parameters without restarting the curre
 	assert.deepEqual(calls, [['updateVisualModuleLivePreviewParamValues', 'module', {}]]);
 });
 
-// 破棄時は動作中の処理を停止し、UIに再生中の状態を残さない。
-test('disposes both playback modes', t => {
-	const { playback, callbacks, calls } = setup(t);
-	playback.playTimeline();
-	playback.dispose();
-	assert.equal(callbacks.size, 0);
-	assert.equal(playback.isTimelinePlaying.value, false);
-	playback.startVisualModuleLivePreview('module');
-	calls.length = 0;
-	playback.dispose();
-	assert.deepEqual(calls, [['stopRenderLoop']]);
-	assert.deepEqual(playback.state.value, { mode: 'timeline', playing: false });
-});
+for (const mode of ['timeline', 'visualModuleLivePreview']) {
+	for (const suspended of [false, true]) {
+		// 【プレビューの終了は再描画せず再開不能にし、休止中でも同じように終了する】
+		// タブを閉じた後の遅延操作や再開要求がWorker・音声・時計を動かさないことを保証する。
+		// 終了時の再描画と二重終了による後処理の再実行も防ぐ。
+		test(`permanently disposes ${suspended ? 'suspended' : 'active'} ${mode} without rendering`, async t => {
+			const audioCalls = [];
+			const audio = { start: () => audioCalls.push('start'), stop: () => audioCalls.push('stop'), currentTime: () => 1250, error: { value: null } };
+			const { playback, callbacks, calls, timelineRenderer } = setup(t, 30, audio, 5000);
+			playback.seekTimeline(1000);
+			if (mode === 'timeline') playback.playTimeline();
+			else playback.startVisualModuleLivePreview('visual-module');
+			const pendingFrame = callbacks.values().next().value;
+			if (suspended) playback.suspend();
+			calls.length = 0;
+			audioCalls.length = 0;
+			playback.dispose();
+			assert.equal(callbacks.size, 0);
+			assert.equal(playback.isTimelinePlaying.value, false);
+			assert.deepEqual(playback.state.value, { mode: 'timeline', playing: false });
+			assert.deepEqual(calls, mode === 'visualModuleLivePreview' && !suspended ? [['stopRenderLoop']] : []);
+			assert.deepEqual(audioCalls, ['stop']);
+			const disposedTime = playback.currentTimelineTime.value;
+			calls.length = 0;
+			audioCalls.length = 0;
+			t.mock.method(timelineRenderer, 'cancelSeek', () => assert.fail('Disposed controls must not reach the renderer'));
+			playback.resume();
+			playback.playTimeline();
+			playback.startVisualModuleLivePreview('visual-module');
+			playback.updateVisualModuleLivePreviewParamValues('visual-module', {});
+			playback.showTimeline();
+			playback.seekTimeline(3000);
+			playback.stepTimelineFrame(1);
+			playback.updateTimelinePreviewFps();
+			playback.refresh();
+			playback.refreshAudio();
+			playback.resetRenderHistory();
+			await playback.toggleTimelineBake();
+			playback.pauseTimeline();
+			playback.suspend();
+			playback.dispose();
+			pendingFrame?.(100);
+			assert.equal(callbacks.size, 0);
+			assert.equal(playback.isTimelineBaking.value, false);
+			assert.equal(playback.currentTimelineTime.value, disposedTime);
+			assert.deepEqual(playback.state.value, { mode: 'timeline', playing: false });
+			assert.deepEqual(calls, []);
+			assert.deepEqual(audioCalls, []);
+		});
+	}
+}

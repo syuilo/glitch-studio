@@ -51,14 +51,14 @@ export function getAssetMenu(projectContext: ProjectContext, asset: ProjectAsset
 	}
 
 	async function run(operation: (isCurrent: () => boolean) => Promise<void>) {
-		const generation = projectContext.generation;
+		if (projectContext.isDisposed) return;
 		const sourcePath = asset.sourceFilePath;
 		const isExternalReference = asset.isExternalReference;
 		const operationGeneration = (assetOperationGenerations.get(asset) ?? 0) + 1;
 		assetOperationGenerations.set(asset, operationGeneration);
 		const release = applicationActivity.acquire();
 		const waiting = progress({ text: asset.name });
-		const isCurrent = () => generation === projectContext.generation && stateManager.state.assets.value.includes(asset)
+		const isCurrent = () => !projectContext.isDisposed && stateManager.state.assets.value.includes(asset)
 			&& asset.sourceFilePath === sourcePath && asset.isExternalReference === isExternalReference && assetOperationGenerations.get(asset) === operationGeneration;
 		try { await operation(isCurrent); } catch (error) { await resolveExternalAssets(stateManager.state.assets.value); await alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); } finally { waiting.done(); release(); }
 	}
@@ -75,7 +75,7 @@ export function getAssetMenu(projectContext: ProjectContext, asset: ProjectAsset
 	async function replace() {
 		if (asset.isExternalReference) return chooseReference();
 		const result = await openMediaFile({ isExternalReference: false, includeFonts: true, allowAnyFile: asset.fileDataType === LUT_ASSET_MIME_TYPE });
-		if (result != null && stateManager.state.assets.value.includes(asset)) applyImported(result);
+		if (result != null && !projectContext.isDisposed && stateManager.state.assets.value.includes(asset)) applyImported(result);
 	}
 
 	async function reload() {

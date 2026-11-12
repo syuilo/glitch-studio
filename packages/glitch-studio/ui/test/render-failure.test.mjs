@@ -175,9 +175,9 @@ test('blocks retries during resource updates and only completes the latest updat
 	assert.equal(engine.canRender.value, true);
 });
 
-// 【素材準備の完了・取消しで書き出しの休止や新プロジェクトの初期化を解除しない】
+// 【素材準備の完了・取消しで書き出しの休止や取消し後の停止状態を解除しない】
 // 素材更新とエクスポートは寿命が異なる。停止中に素材が準備できてもGPUを再取得せず、
-// 購読解除後の古い完了通知が別プロジェクトのプレビューを作り直すことも防ぐ。
+// 購読解除後の古い完了通知が停止済みのプレビューを作り直すことも防ぐ。
 test('keeps explicit suspension independent of resource completion and cancellation', async () => {
 	let created = 0;
 	const engine = new PreviewRenderEngine({ create: async () => { created++; }, dispose() {} });

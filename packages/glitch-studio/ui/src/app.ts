@@ -13,16 +13,17 @@ if (isLocaleUnconfigured) {
 
 export const projectSessions = new ProjectSessionManager();
 
-const stopProjectTitle = watch(() => projectSessions.activeSession.value.projectContext.stateManager.state.name.value, name => {
-	window.document.title = name ? `Glitch Studio (${name})` : 'Glitch Studio';
+const stopProjectTitle = watch(() => projectSessions.activeSession.value?.projectContext.stateManager.state.name.value, name => {
+	window.document.title = name != null && name !== '' ? `Glitch Studio (${name})` : 'Glitch Studio';
 }, { immediate: true });
 
 (window as any).projectSessions = projectSessions; // debug
 
-function benchmark(count = 100, visualModuleId = projectSessions.activeSession.value.projectContext.stateManager.state.visualModules.value[0]?.id) {
-	if (visualModuleId == null) return;
+function benchmark(count = 100, visualModuleId = projectSessions.activeSession.value?.projectContext.stateManager.state.visualModules.value[0]?.id) {
+	const projectSession = projectSessions.activeSession.value;
+	if (projectSession == null || visualModuleId == null) return;
 	for (let i = 0; i < count; i++) {
-		projectSessions.activeSession.value.projectContext.stateManager.commit('addEffectNode', {
+		projectSession.projectContext.stateManager.commit('addEffectNode', {
 			visualModuleId,
 			effectId: 'blockShuffle',
 			id: genId(),
@@ -47,6 +48,7 @@ const stopProjectActivation = window.desktop?.onActivateProjectFile?.(id => { vo
 const keymap = {
 	'space': () => {
 		const projectSession = projectSessions.activeSession.value;
+		if (projectSession == null) return;
 		if (projectSession.previewPlayback.isTimelinePlaying.value) {
 			projectSession.previewPlayback.pauseTimeline();
 		} else {

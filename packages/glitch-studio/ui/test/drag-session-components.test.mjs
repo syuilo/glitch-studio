@@ -42,7 +42,7 @@ const bundle = await build({ absWorkingDir: directory,
 				get s() { return { workspaceDefinition: this.r.workspaceDefinition.value }; },
 				commit(key, value) { this.commits.push(value); this.r[key].value = value; } };`,
 			'workspace.ts': `export const workspacePanelDefinitions = { assets: { icon: '', label: 'Assets', component: 'div' } }; export function getElementMenu() { return []; }`,
-			'app.ts': `export const projectSessions = { activeSession: { get value() { return projectSession; } } }; import { recentProjects } from '@/recent-projects.ts'; export const openRecentProject = async id => openProject(null, await recentProjects.resolve(id)); export function useProjectSession() { return projectSession; } export const projectSession = { workspacePanelRevealRequest: { value: null }, projectContext: { hasProject: true, stateManager: { commit() {} } } };
+			'app.ts': `export const projectSessions = { activeSession: { get value() { return projectSession; } } }; import { recentProjects } from '@/recent-projects.ts'; export const openRecentProject = async id => openProject(null, await recentProjects.resolve(id)); export function useProjectSession() { return projectSession; } export const projectSession = { workspacePanelRevealRequest: { value: null }, projectContext: { stateManager: { commit() {} } } };
 				export function createProjectActions() { return { newProject, newProjectFromImageOrVideo, openProject }; } export const dashboardTest = { opened: [], success: true, get panelRequest() { return projectSession.workspacePanelRevealRequest.value; } };
 				export async function newProject() {} export async function newProjectFromImageOrVideo() { return true; }
 				export async function openProject(file, handle) { dashboardTest.opened.push({ file, handle }); return dashboardTest.success; }`,
@@ -50,14 +50,14 @@ const bundle = await build({ absWorkingDir: directory,
 			'desktop-update-ui.ts': 'export const desktopUpdateUi = null;',
 			media: 'export async function openMediaFile() {}',
 			'asset-import': `export const assetImportTest = { calls: [], read: null };
-				export async function importAssets(context, files) { assetImportTest.calls.push({ context, files });
+				export async function importAssets(destination, files) { const context = typeof destination === 'function' ? await destination() : destination; assetImportTest.calls.push({ context, files });
 					return assetImportTest.read == null ? ['asset'] : assetImportTest.read(); }`,
 			wires: 'export function provideVisualModuleWires() {}',
 		}[path] }));
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: path === 'GsModal' ? `
 			import { h, useTemplateRef } from 'vue'; export default { setup(_, { attrs, slots, expose }) {
 				const root = useTemplateRef('root'); expose({ getRootElement: () => root.value, close() { root.value.props['data-test-modal-closed'] = true; } });
-				return () => h('div', { ...attrs, ref: 'root' }, [h('div', { 'data-test-modal-background': '' }),
+				return () => h('div', { ...attrs, ref: 'root' }, [h('div', { 'data-test-modal-background': '', onClick: () => attrs.onClick?.() }),
 					...Object.values(slots).flatMap(slot => slot())]);
 			} };` : `
 			import { h } from 'vue'; export default { setup(_, { attrs, slots }) { return () => h(${JSON.stringify(path)}, attrs,
@@ -460,4 +460,15 @@ test('applies shared locking and disabled state to the Vue asset drop target', a
 	editor.props.onDragoverCapture(disabled);
 	assert.equal(disabled.defaultPrevented, false);
 	assert.equal(disabled.cancelBubble, false);
+});
+
+// 【Dashboardは背景クリックだけで閉じられる】
+// 新規作成やファイル選択を強制せず、セッションを追加せずに共通メニューへ戻れるようにする。
+test('dismisses the dashboard from its modal background without opening a project', async t => {
+	const f = fixture(t, () => h(DashboardDialog));
+	await nextTick();
+	const openedCount = dashboardTest.opened.length;
+	f.find('data-test-modal-background').props.onClick();
+	assert.ok(f.find('data-test-modal-closed'));
+	assert.equal(dashboardTest.opened.length, openedCount);
 });

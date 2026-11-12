@@ -7,12 +7,13 @@
 - 正となるプロジェクト状態はUIの `ProjectContext` が `ProjectState` として所有します。Commandは状態の変更とUndo/Redoを担当し、変更後に対象IDと編集内容を `AppStateChange` として通知します。レンダラーでCommandを再実行したり、ID発行・配線修復・時刻の丸めを再度行ったりしません。
 - Commandと汎用の `UndoRedo` は同期先を知りません。`ProjectContext.stateManager.onChange()` の購読側が必要な通知を選びます。通常実行・Undo・Redo・履歴へのマージを伴う連続編集は、同じ通知経路を通します。
 - 通知は「値・入力種別・接続・配列要素・リセット」「バイパス・解像度」「レイヤー定義・クリップ」など、ドメイン上の変更を表します。Commandや通信型に `preserveCache` / `preserveModuleInstance` のようなレンダラーの保持方針を含めません。
-- `RendererProjectSynchronizer` は通知の集約と、確定済み状態から送信データを取り出す役割を持ちます。キャッシュ・インスタンスの保持判断は、レンダラー内の [project-change-policy.ts](./packages/renderer/src/project-change-policy.ts) に集約します。各Managerが対象の特定や変更世代の管理を行い、`VisualModuleRenderer` はModule内部の評価とキャッシュを扱います。汎用の `TimelineRenderer` には実行インスタンスの更新判定に必要な世代を渡し、Commandの種類を解釈させません。
+- `RendererProjectSynchronizer` は通知の集約と、確定済み状態から送信データを取り出す役割を持ちます。キャッシュ・インスタンスの保持判断は、レンダラー内の [project-change-policy.ts](../packages/glitch-studio/renderer/src/project-change-policy.ts) に集約します。各Managerが対象の特定や変更世代の管理を行い、`VisualModuleRenderer` はVisual Module内部の評価とキャッシュを扱います。汎用の `TimelineRenderer` には実行インスタンスの更新判定に必要な世代を渡し、Commandの種類を解釈させません。
 - 型も同じ責務に分けます。`ParameterChangeKind` はparameter、`VisualModuleNodeChange` はvisual-module、`TimelineLayerChange` はtimelineが所有します。登録Moduleとinline Moduleの所在を表す `VisualModuleTarget` はproject、UIの通知契約 `AppStateChange` はuiが所有します。子ドメインから同期クラスやプロジェクト内の配置へ依存させません。
 
 ## 転送単位とバッチ
 
-- 初期化・プロジェクト読み込み・同期復旧では、旧Workerを破棄し、Visual Module一覧・Scene一覧を含む最新の起動スナップショットをControllerの`initialize()`へ渡します。同じIDでも旧プロジェクトの履歴を引き継ぎません。動作中の全量置換RPCは持ちません。通常の編集には `applyProjectChanges()` を使い、Module・Scene全体のdeep watchで `updateDynamicOptions()` に全一覧を送り直しません。
+- プロジェクトを開くと専用のセッションを生成し、Visual Module一覧・Scene一覧を含む起動スナップショットをControllerの`initialize()`へ渡します。別プロジェクトで既存セッションの状態を置き換える経路は持ちません。
+- 非アクティブなタブではWorkerを破棄し、再選択時にそのセッションの最新状態から再生成します。静的設定の変更や同期復旧でもWorkerを再生成します。GPUの描画履歴・キャッシュは初期化しますが、編集状態・Undo履歴・Timelineの再生位置はセッションが保持します。動作中の全量置換RPCは持ちません。通常の編集には `applyProjectChanges()` を使い、Visual Module・Scene全体のdeep watchで `updateDynamicOptions()` に全一覧を送り直しません。
 - ノード編集はノード全体、レイヤー編集はレイヤー全体、ノードの追加・削除・順序変更やModuleの公開入出力変更は対象Module全体を送ります。Scene自体の追加・削除・解像度変更などは対象Scene、レイヤー順序変更はそのSceneのレイヤーID列を送ります。パラメータの末端ごとの汎用patchプロトコルにはしません。
 - 次のmicrotaskで送信するまでに集まった変更は対象ごとにまとめ、送信時の最終状態を取得します。ただし、変更種別は途中のものも保持します。例えば、接続変更の後に値を変更しても、値だけの編集として扱ってはいけません。
 - Module全体の更新は内部ノードの更新を、Scene全体の更新は内部の更新を吸収します。レイヤーの追加・削除・置換も内部inline Moduleの更新を吸収しますが、レイヤーの引数編集とinline Module内部の編集では両方の変更種別を残します。レイヤーの追加・削除を反映してから最終的な順序を適用します。

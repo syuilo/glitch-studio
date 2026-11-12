@@ -1,3 +1,4 @@
+import { createTestProject } from './helpers/project.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -503,7 +504,7 @@ test('respects group bounds and displays every matching scoped snap position', (
 });
 
 function fixture() {
-	const manager = new ProjectContext().stateManager;
+	const manager = new ProjectContext(createTestProject()).stateManager;
 	const binding = () => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 		keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [100, 200, 800].map((x, index) => ({ id: String(index), x, value: index, interpolation: { type: 'linear' } })) } });
 	manager.state.timelineScenes.value = [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [

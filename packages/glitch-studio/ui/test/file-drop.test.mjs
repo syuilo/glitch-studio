@@ -306,18 +306,16 @@ const ast = createSourceFile('App.ts', parse(source).descriptor.scriptSetup.cont
 const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onFileDrop');
 const { code } = await transform(handler.getText(ast), { loader: 'ts' });
 
-function appFixture({ hasProject = false, ids = ['asset'] } = {}) {
+function appFixture({ ids = ['asset'] } = {}) {
 	const events = [];
 	const context = {
-		projectSession: { projectContext: { hasProject }, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
-		newProject: async () => { events.push('newProject'); return context.projectSession; },
-		importAssets: async (_context, files, prepare) => {
-			if (ids.length > 0) await prepare?.();
+		projectSession: { projectContext: {}, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
+		importAssets: async (destination, files) => {
+			if (ids.length > 0 && typeof destination === 'function') await destination();
 			events.push(['assets', files.map(file => file.name)]);
 			return ids;
 		},
 		openProject: async file => { events.push(['project', file.name]); return true; },
-		workspaceController: { revealPanel: request => { events.push(['reveal', request]); } },
 	};
 	const run = new Function('context', 'events', `const { ${Object.keys(context).join(', ')} } = context;
 		${code}; return onFileDrop;`)(context, events);
@@ -327,13 +325,10 @@ function appFixture({ hasProject = false, ids = ['asset'] } = {}) {
 // 【アプリ全体のドロップでは素材を取り込み、完了後にAssetsを開く】
 // 編集中のプロジェクトは新規作成せず、Dashboardやプロジェクトファイルの開閉に関与しない。
 // アプリ全体からの表示要求はsourcePanelIdをnullにし、操作元タブに拘束されない。
-test('initializes a project only when needed and reveals assets after successful batch import', async () => {
-	for (const hasProject of [false, true]) {
-		const f = appFixture({ hasProject });
-		await f.run([new File(['a'], 'a.png'), new File(['b'], 'b.mp4')]);
-		assert.equal(f.events.includes('newProject'), !hasProject);
-		assert.deepEqual(f.events.slice(-2), [['assets', ['a.png', 'b.mp4']], ['reveal', { contentType: 'assets', sourcePanelId: null }]]);
-	}
+test('imports into the owning project and reveals assets after successful batch import', async () => {
+	const f = appFixture();
+	await f.run([new File(['a'], 'a.png'), new File(['b'], 'b.mp4')]);
+	assert.deepEqual(f.events.slice(-2), [['assets', ['a.png', 'b.mp4']], ['reveal', { contentType: 'assets', sourcePanelId: null }]]);
 	const failed = appFixture({ ids: [] });
 	await failed.run([new File(['bad'], 'bad.bin')]);
 	assert.deepEqual(failed.events, [['assets', ['bad.bin']]]);
@@ -342,7 +337,7 @@ test('initializes a project only when needed and reveals assets after successful
 // 【エディタへのgsprojドロップは新しいタブで開く】
 // プロジェクトの追加をメニューと同じ入口へ集約し、素材として混入させない。
 test('opens project files in additional tabs through the editor drop handler', async () => {
-	const f = appFixture({ hasProject: true });
+	const f = appFixture();
 	await f.run([new File(['project'], 'project.gsproj')], { dataTransfer: { items: [] } });
 	assert.deepEqual(f.events, [['project', 'project.gsproj']]);
 });
@@ -353,15 +348,15 @@ const dashboardHandlers = dashboardAst.statements.filter(statement => isFunction
 	&& ['onFileDrop', '_newProjectFromImageOrVideo'].includes(statement.name?.text));
 const { code: dashboardCode } = await transform(dashboardHandlers.map(handler => handler.getText(dashboardAst)).join('\n'), { loader: 'ts' });
 
-function dashboardFixture({ ids = ['asset'], opened = true, hasProject = false } = {}) {
+function dashboardFixture({ ids = ['asset'], opened = true, hasSession = false } = {}) {
 	const events = [];
 	const context = {
-		projectSession: { projectContext: { hasProject }, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
-		projectSessions: { activeSession: { get value() { return context.projectSession; } } },
+		projectSession: { projectContext: {}, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
+		projectSessions: { activeSession: { get value() { return hasSession ? context.projectSession : null; } } },
 		newProject: async () => { events.push('newProject'); return context.projectSession; },
 		newProjectFromImageOrVideo: async file => { events.push(['media', file ?? null]); return opened; },
-		importAssets: async (_context, files, prepare) => {
-			if (ids.length > 0) await prepare?.();
+		importAssets: async (destination, files) => {
+			if (ids.length > 0 && typeof destination === 'function') await destination();
 			events.push(['assets', files.map(file => file.name)]);
 			return ids;
 		},
@@ -370,7 +365,6 @@ function dashboardFixture({ ids = ['asset'], opened = true, hasProject = false }
 			if (context.projectAction != null) return context.projectAction(file, handle);
 			events.push(['project', file.name, handle]); return opened;
 		},
-		workspaceController: { revealPanel: request => events.push(['reveal', request]) },
 		modal: { value: { close: () => events.push('close') } },
 		window: { document: { body: { hasAttribute: () => false } } },
 		ui: { alert: async options => events.push(['error', options.text]) },
@@ -439,7 +433,7 @@ test('opens single dropped media through the same project factory as the file pi
 	for (const type of ['image/png', 'video/mp4', 'audio/wav']) {
 		for (const opened of [false, true]) {
 			const file = new File(['media'], 'source', { type });
-			const dropped = dashboardFixture({ opened, hasProject: true });
+			const dropped = dashboardFixture({ opened, hasSession: true });
 			await dropped.onDrop(dashboardEvent([file]));
 			assert.deepEqual(dropped.events, opened ? [['media', file], 'close'] : [['media', file]]);
 			const selected = dashboardFixture({ opened });

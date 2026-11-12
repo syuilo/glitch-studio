@@ -22,6 +22,7 @@ type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineA
 
 /** プレビューの切り替えと時刻更新を所有し、Visual Module Live Previewとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
+	private disposed = false;
 	private readonly playbackState = shallowRef<PreviewPlaybackState>({ mode: 'timeline', playing: false });
 	private readonly timelineTime = ref(0);
 	private timelineRafId: number | null = null;
@@ -48,6 +49,7 @@ export class PreviewPlaybackController {
 	) {}
 
 	public startVisualModuleLivePreview(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings = {}) {
+		if (this.disposed) return;
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
 		this.pauseTimeline();
@@ -58,6 +60,7 @@ export class PreviewPlaybackController {
 	}
 
 	public updateVisualModuleLivePreviewParamValues(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings) {
+		if (this.disposed) return;
 		if (this.visualModuleLivePreviewVisualModuleId.value !== visualModuleId) {
 			this.startVisualModuleLivePreview(visualModuleId, params);
 			return;
@@ -68,6 +71,7 @@ export class PreviewPlaybackController {
 	}
 
 	public playTimeline() {
+		if (this.disposed) return;
 		this.cancelTimelineBake();
 		if (this.isTimelinePlaying.value) return;
 		this.pendingTimelineSeek = false;
@@ -113,6 +117,7 @@ export class PreviewPlaybackController {
 	}
 
 	public pauseTimeline() {
+		if (this.disposed) return;
 		this.stopTimelinePlayback();
 		this.refresh();
 	}
@@ -132,11 +137,13 @@ export class PreviewPlaybackController {
 	}
 
 	public showTimeline() {
+		if (this.disposed) return;
 		this.leaveVisualModuleLivePreview();
 		this.refresh();
 	}
 
 	public seekTimeline(time: number, isManualSeek = true, seekMode: TimelinePreviewSeekMode = 'frame') {
+		if (this.disposed) return;
 		this.cancelTimelineBake();
 		this.leaveVisualModuleLivePreview();
 		this.timelineSeekMode = seekMode;
@@ -158,6 +165,7 @@ export class PreviewPlaybackController {
 	}
 
 	public stepTimelineFrame(direction: -1 | 1) {
+		if (this.disposed) return;
 		this.stopTimelinePlayback();
 		const fps = this.getTimelinePreviewFps();
 		if (fps == null || fps <= 0) return;
@@ -169,6 +177,7 @@ export class PreviewPlaybackController {
 
 	/** 実時間の時計を使わず、GPU完了ごとにプレビューの次のフレームを要求する。 */
 	public async toggleTimelineBake(): Promise<void> {
+		if (this.disposed) return;
 		const currentBake = this.timelineBake.value;
 		if (currentBake != null) {
 			// 送信済みの描画は取り消せない。再押下では一枚の完了を待って止める。
@@ -218,6 +227,7 @@ export class PreviewPlaybackController {
 	}
 
 	public updateTimelinePreviewFps() {
+		if (this.disposed) return;
 		this.timelineSeekMode = 'frame';
 		if (!this.isTimelinePlaying.value) this.timelineTime.value = this.snapTimelineTime(this.timelineTime.value);
 		this.refresh();
@@ -225,6 +235,7 @@ export class PreviewPlaybackController {
 
 	/** 編集・Undo/Redoでは旧PCMを破棄し、実際に聞こえていた位置から生成し直す。 */
 	public refreshAudio() {
+		if (this.disposed) return;
 		this.cancelTimelineBake();
 		if (!this.isTimelinePlaying.value) return;
 		if (this.getDuration() <= 0) { this.pauseTimeline(); return; }
@@ -234,6 +245,7 @@ export class PreviewPlaybackController {
 
 	/** 表示モードによらず両プレビューの履歴を初期化し、現在位置から描画を再開する。 */
 	public resetRenderHistory() {
+		if (this.disposed) return;
 		this.cancelTimelineBake();
 		this.timelineRenderer.resetRenderHistory();
 		this.visualModuleLivePreviewRenderer.resetRenderHistory();
@@ -242,6 +254,7 @@ export class PreviewPlaybackController {
 
 	/** 編集による再描画では表示モードを切り替えない。Visual Module Live PreviewはWorkerのループが描画する。 */
 	public refresh() {
+		if (this.disposed) return;
 		this.cancelTimelineBake();
 		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
 			// 音声時計自体は丸めない。表示する画像だけを現在位置以前の境界に揃え、
@@ -273,6 +286,7 @@ export class PreviewPlaybackController {
 
 	/** Workerを解放する間も、表示モードと再開位置を保持する。 */
 	public suspend() {
+		if (this.disposed) return;
 		this.cancelTimelineBake();
 		if (this.suspended.value) return;
 		this.timelineRenderer.cancelSeek();
@@ -285,6 +299,7 @@ export class PreviewPlaybackController {
 	}
 
 	public resume() {
+		if (this.disposed) return;
 		if (!this.suspended.value) return;
 		this.suspended.value = false;
 		const state = this.playbackState.value;
@@ -299,11 +314,14 @@ export class PreviewPlaybackController {
 	}
 
 	public dispose() {
+		if (this.disposed) return;
+		this.disposed = true;
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
-		this.pauseTimeline();
+		// 終了時には再描画せず、遅れて届く操作でも再開できない状態にする。
+		this.stopTimelinePlayback();
 		this.leaveVisualModuleLivePreview();
-		this.suspended.value = false;
+		this.suspended.value = true;
 	}
 
 	private leaveVisualModuleLivePreview() {

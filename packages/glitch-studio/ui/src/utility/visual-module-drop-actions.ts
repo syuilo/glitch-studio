@@ -31,7 +31,7 @@ export function createVisualModuleDropActions(options: {
 		if (!active()) return false;
 		let added = 0;
 		let unplaced = false;
-		const ids = await importAssets(context, files, undefined, (assets, players, dialog) => {
+		const ids = await importAssets(context, files, (assets, players, dialog) => {
 			if (!active()) { unplaced = true; return null; }
 			dialog.setText('Adding Visual Module nodes');
 			dialog.setProgress(null);

@@ -104,7 +104,6 @@ const emit = defineEmits<{
 	(ev: 'closed'): void;
 }>();
 
-const projectGeneration = projectSession.projectContext.generation;
 const savedSettings = stateManager.state.exportSettings.value;
 const firstScene = stateManager.state.timelineScenes.value[0] ?? null;
 const initialScene = (previewPlayback.state.value.mode === 'timeline'
@@ -207,8 +206,8 @@ const progressText = computed(() => {
 });
 
 function saveExportSettings() {
-	// 読込で別プロジェクトへ切り替わった後に、旧ダイアログの設定を保存しない。
-	if (projectSession.projectContext.generation !== projectGeneration) return;
+	// セッション終了に伴うアンマウントでは、閉じたプロジェクトへ変更を追加しない。
+	if (projectSession.isDisposed) return;
 	if (!deepEqual(dialogSettings, stateManager.state.exportSettings.value)) {
 		stateManager.commit('changeExportSettings', dialogSettings);
 	}

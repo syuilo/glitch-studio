@@ -46,7 +46,7 @@ function fixture(projectId = 'project') {
 	const scene = { id: 'scene', layers: [layer, shape] };
 	const state = { visualModules: { value: [visualModule] }, timelineScenes: { value: [scene] }, automationGraphs: { value: [] }, players: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
-	const context = { id: projectId, generation: 0, stateManager: history };
+	const context = { id: projectId, isDisposed: false, stateManager: history };
 	const target = { kind: 'node', visualModuleTarget: { visualModuleId: visualModule.id }, nodeId: node.id, paramPath: ['foo', 'node'] };
 	const timelineTarget = { kind: 'timeline', sceneId: scene.id, layerId: layer.id, parameterTarget: 'effect', paramPath: ['foo', 'node'] };
 	const resolve = (requestedTarget = target) => resolveProjectClipboardTarget(state, context.id, requestedTarget);
@@ -297,11 +297,12 @@ test('replaces modifiers and restores absent roots and stable IDs through undo a
 	assert.deepEqual(f.layer.effectParamValues.buzzs, after);
 });
 
-// 【読み取り中のプロジェクト切替・対象の削除・型変更と非互換データで履歴を増やさない】
+// 【読み取り中の終了・別名保存・対象の削除と非互換データで履歴を増やさない】
 // OSの非同期読み取りが完了した時点では、クリック時の対象が失効している場合がある。
+// 別名保存は同じセッションでも参照元のプロジェクトIDを変えるため、旧IDでの貼り付けを避ける。
 test('ignores stale asynchronous reads and incompatible content without changing undo or redo', async t => {
 	t.mock.method(console, 'log', () => {});
-	for (const invalidate of [f => { f.context.generation++; }, f => { f.context.id = 'other'; }, f => { f.visualModule.nodes = [f.upstream]; },
+	for (const invalidate of [f => { f.context.isDisposed = true; }, f => { f.context.id = 'saved-as'; }, f => { f.visualModule.nodes = [f.upstream]; },
 		f => { f.visualModule.nodes[0] = clone(f.node); }]) {
 		const f = fixture();
 		const text = JSON.stringify(f.copy({ inputSource: 'literal', value: [1, 0, 0, 1] }));
@@ -317,6 +318,28 @@ test('ignores stale asynchronous reads and incompatible content without changing
 	await handleProjectParameterClipboard(f.context, f.target, 'paste', () => true, { async readText() { return '{}'; } });
 	assert.equal(f.history.undoStack.value.length, 0);
 	assert.equal(f.history.redoStack.value.length, 1);
+});
+
+// 【Live Previewへの貼り付けも、読み取り中の終了・別名保存・対象削除後には適用しない】
+// プロジェクト履歴を使わないプレビュー引数でも、遅れて返ったOSのクリップボード結果を失効させる。
+test('ignores delayed preview parameter pastes after disposal or target changes', async () => {
+	for (const invalidate of [f => { f.context.isDisposed = true; }, f => { f.context.id = 'saved-as'; },
+		f => { f.state.visualModules.value = []; }]) {
+		const f = fixture();
+		f.visualModule.paramDefs = [{ ...scalarDefinition, id: 'arg', nameForReference: 'arg' }];
+		const values = { arg: { inputSource: 'literal', value: 5 } };
+		const source = createVisualModuleClipboardSource(f.context.id, { visualModuleId: f.visualModule.id }, f.visualModule);
+		const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 12 }, source);
+		const reading = Promise.withResolvers();
+		let applied = false;
+		const pending = handlePreviewParameterClipboard(f.context, f.visualModule.id, ['arg'], 'paste', () => values, () => true,
+			() => { applied = true; }, { readText: () => reading.promise });
+		invalidate(f);
+		reading.resolve(JSON.stringify(clipboard));
+		await pending;
+		assert.equal(applied, false);
+		assert.equal(values.arg.value, 5);
+	}
 });
 
 // 【別ウィンドウのコピーをテキストだけで受け渡し、Live Previewでも同じ検証を使う】

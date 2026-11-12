@@ -149,6 +149,7 @@
 
 			<button
 				v-else
+				:data-test-menu-item="item.id"
 				role="menuitem"
 				tabindex="0"
 				:class="['_button', $style.item, { [$style.danger]: item.danger, [$style.active]: unref(item.active) }]"
