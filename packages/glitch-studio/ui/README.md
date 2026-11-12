@@ -66,7 +66,7 @@ TimelineのBAKEは`PreviewPlaybackController`が現在位置からScene終端ま
 
 ## Timelineのエクスポート
 
-動画はMP4、静止画はWebP・OpenEXRを選べる。OpenEXRはHALF RGBA・linear sRGB・乗算済みalphaで、ZIP（可逆）または無圧縮を選ぶ。WebPの品質とEXRの圧縮方式は別々に保存する。EXRは表示用Canvasを通さず、GPU読み戻しと圧縮が完了したブロック数を約100ms間隔で通知する。段階内の進捗率をダイアログとElectronのタスクバーへ表示し、Worker終了によるキャンセルでGPU・WASMも回収する。
+動画はMP4、静止画はWebP・OpenEXRを選べる。OpenEXRはHALF RGBA・linear sRGB・乗算済みalphaで、ZIP（可逆）または無圧縮を選ぶ。WebPの品質とEXRの圧縮方式は別々に保存する。EXRは表示用Canvasを通さず、GPU読み戻しと圧縮が完了したブロック数を約100ms間隔で通知する。逐次保存中もブロック進捗を維持し、保存通知で表示段階を切り替えず、ファイルの最終確定時だけ保存中と表示する。段階内の進捗率をダイアログとElectronのタスクバーへ表示し、Worker終了によるキャンセルでGPU・WASMも回収する。
 
 WebPは`renderTimelineSrgbFrame()`で未乗算の8bit sRGBを行ブロックで読み戻し、`subsystems/image-codec`のWebPエンコーダーへ渡す。Canvas 2D・全画像のImageData・C++の全入力コピーは作らない。取り込み完了後に読み戻し画像・Renderer・GPUDevice・Canvasの資源を解放してから圧縮する。圧縮結果は最大1MiBずつWorkerから転送し、呼び出し元の保存完了応答を待って次へ進む。ブラウザーは小さなBlobを組み合わせてダウンロードし、連続した全結果のJavaScript配列を再構築しない。MP4の既存の一括結果も、保存先へは同じチャンクwriterで渡す。
 

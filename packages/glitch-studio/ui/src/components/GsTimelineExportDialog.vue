@@ -196,8 +196,8 @@ const progressPercent = computed(() => Math.min(99, (progressFraction.value ?? 0
 const progressText = computed(() => {
 	const value = progress.value;
 	if (value.phase === 'saving') return value.totalBytes == null ? i18n.ts._Export.Saving : i18n.tsx._Export.SavingBytes({ completed: (value.completedBytes / 1024 ** 2).toFixed(1), total: (value.totalBytes / 1024 ** 2).toFixed(1), percent: Math.floor(progressPercent.value) });
-	if (value.phase === 'encoding-exr') return i18n.tsx._Export.EncodingOpenExr({ completed: value.completedBlocks, total: value.totalBlocks, percent: Math.floor(progressPercent.value) });
 	if (savingFile.value) return i18n.ts._Export.Saving;
+	if (value.phase === 'encoding-exr') return i18n.tsx._Export.EncodingOpenExr({ completed: value.completedBlocks, total: value.totalBlocks, percent: Math.floor(progressPercent.value) });
 	if (progress.value.phase === 'preparing') return i18n.ts._Export.Preparing;
 	if (progress.value.phase === 'finalizing') return mode.value === 'still' ? i18n.ts._Export.EncodingWebp : i18n.ts._Export.FinalizingMp4;
 	return i18n.tsx._Export.RenderingFrames({ completed: value.completedFrames, total: value.totalFrames, percent: Math.floor(progressPercent.value) });
@@ -321,13 +321,18 @@ async function doExport() {
 			if (desktop != null && exportSaveFile != null) {
 				const targetId = exportSaveFile.id;
 				if (!saveStarted) {
-					progress.value = { phase: 'saving', completedBytes: 0, totalBytes };
-					setTaskbarProgress(0);
-					saveProgressSubscription.stop = desktop.onExportFileProgress(value => {
-						if (value.id !== targetId) return;
-						progress.value = { phase: 'saving', completedBytes: value.completedBytes, totalBytes: value.totalBytes };
-						setTaskbarProgress(Math.min(0.99, getExportProgressFraction(progress.value) ?? 0));
-					});
+					// EXRは圧縮と保存がブロックごとに交互に進むため、保存通知も採用すると
+					// 文言が点滅し、総バイト数未確定の進捗でタスクバーも0へ戻ってしまう。
+					// 逐次保存中はWorkerのブロック進捗を使い、ファイル確定時だけ保存中と表示する。
+					if (exportSettings.format !== 'exr') {
+						progress.value = { phase: 'saving', completedBytes: 0, totalBytes };
+						setTaskbarProgress(0);
+						saveProgressSubscription.stop = desktop.onExportFileProgress(value => {
+							if (value.id !== targetId) return;
+							progress.value = { phase: 'saving', completedBytes: value.completedBytes, totalBytes: value.totalBytes };
+							setTaskbarProgress(Math.min(0.99, getExportProgressFraction(progress.value) ?? 0));
+						});
+					}
 					await desktop.beginExportFile(targetId, totalBytes);
 					saveStarted = true;
 				}

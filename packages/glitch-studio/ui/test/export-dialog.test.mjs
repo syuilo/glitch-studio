@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, nextTick } from 'vue';
-import { i18nPlugin } from './helpers/i18n.mjs';
+import { i18n, i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const descriptor = parse(await readFile(new URL('../src/components/GsTimelineExportDialog.vue', import.meta.url), 'utf8')).descriptor;
@@ -68,6 +68,18 @@ test('restores OpenEXR settings and displays block and byte progress', t => {
 	assert.equal(reopened.input.openExrCompression, 'none');
 	reopened.input.stillFormat = 'webp';
 	assert.equal(reopened.input.settings.quality, 'high');
+});
+
+// 【EXRの最終保存中は圧縮完了の表示から保存中の表示へ切り替える】
+// ブロックの逐次保存中は圧縮進捗を維持する一方、最後のファイル確定は別の段階として示す。
+// ブラウザーとElectronのどちらでも、圧縮通知が最後に残っていても保存中と分かるようにする。
+test('shows saving while committing an encoded OpenEXR file', t => {
+	const { input } = fixture(t);
+	input.mode = 'still';
+	input.stillFormat = 'exr';
+	input.progress = { phase: 'encoding-exr', completedBlocks: 2, totalBlocks: 2 };
+	input.savingFile = true;
+	assert.equal(input.progressText, i18n.ts._Export.Saving);
 });
 
 function fixture(t, savedSettings = null, preferredEffectRenderTiling = { mode: 'auto' }) {

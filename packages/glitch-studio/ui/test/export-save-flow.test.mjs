@@ -139,6 +139,45 @@ test('tracks only the current save target and unsubscribes after saving', async 
 	assert.equal(f.hasProgressListener, false);
 });
 
+// 【EXRのブロック保存通知で描画・圧縮の進捗を上書きしない】
+// EXRはヘッダー出力・ブロック圧縮・保存・末尾の後書きを交互に進める。
+// 保存通知のたびに段階を切り替えると、文言が点滅しタスクバーの進捗も0へ戻ってしまう。
+test('keeps OpenEXR progress stable across interleaved encoding and save notifications', async () => {
+	for (const compression of ['zip', 'none']) {
+		let completedBytes = 0;
+		const f = fixture({
+			choose: () => ({ id: 'target', name: 'chosen.exr' }),
+			save: () => {
+				completedBytes = Math.min(completedBytes + 1, 3);
+				f.sendSaveProgress({ id: 'target', completedBytes, totalBytes: null });
+			},
+			encode: async (_request, _signal, onProgress, write) => {
+				const stages = [
+					{ phase: 'rendering', completedFrames: 0, totalFrames: 1 },
+					{ phase: 'encoding-exr', completedBlocks: 0, totalBlocks: 2 },
+					{ phase: 'encoding-exr', completedBlocks: 1, totalBlocks: 2 },
+					{ phase: 'encoding-exr', completedBlocks: 2, totalBlocks: 2 },
+				];
+				for (const [index, progress] of stages.entries()) {
+					onProgress(progress);
+					const taskbarProgress = f.events.filter(([name]) => name === 'progress').at(-1);
+					// 最後は既存位置への後書き。全ブロック圧縮後にも保存通知が届く。
+					await write(new Uint8Array([index]), null, index === stages.length - 1 ? 0 : index);
+					assert.deepEqual(f.context.progress.value, progress);
+					assert.deepEqual(f.events.filter(([name]) => name === 'progress').at(-1), taskbarProgress);
+					assert.equal(f.context.savingFile.value, false);
+				}
+				return 3;
+			},
+		});
+		f.context.settings.value = { format: 'exr', compression, width: 1, height: compression === 'zip' ? 32 : 2, positionMs: 0 };
+		await f.doExport();
+		assert.equal(f.context.error.value, '');
+		assert.equal(f.context.status.value, i18n.ts._Export.Complete);
+		assert.ok(f.events.some(([name]) => name === 'finish-save'));
+	}
+});
+
 // 【保存ダイアログが閉じるまで音声生成・描画を開始せず、保存成功後にだけ通知する】
 // ダイアログを先に出しても裏で描画を始めたり、ディスク書き込み前に完了通知を出したりしない。
 test('waits for the save choice before rendering and for saving before notifying', async () => {
