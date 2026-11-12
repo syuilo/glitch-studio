@@ -12,7 +12,7 @@ import doublePendulumFractalImplementation from '@gs/subsystems_effect_shared/fx
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 
-type FrameTiming = { label: string; elapsedMs: number; renderMs: number; submissions: number; queries: number; progress: EffectRenderTilingProgress | null };
+type FrameTiming = { label: string; elapsedMs: number; renderMs: number; submissions: number; queries: number; bundles: number; progress: EffectRenderTilingProgress | null };
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -23,6 +23,7 @@ export async function run() {
 	const checks: string[] = [];
 	const timings: FrameTiming[] = [];
 	const panBenchmarks: object[] = [];
+	const tileBenchmarks: object[] = [];
 	const assert = (condition: boolean, label: string) => { if (!condition) throw new Error(label); checks.push(label); };
 	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: device.createShaderModule({ code: vertexCode }) }, fragment: {
@@ -32,6 +33,9 @@ export async function run() {
 	} });
 	let submissions = 0;
 	let queries = 0;
+	let bundles = 0;
+	const originalBundleEncoder = device.createRenderBundleEncoder.bind(device);
+	device.createRenderBundleEncoder = descriptor => { bundles++; return originalBundleEncoder(descriptor); };
 	const originalSubmit = device.queue.submit.bind(device.queue);
 	device.queue.submit = buffers => { submissions++; originalSubmit(buffers); };
 	const originalEncoder = device.createCommandEncoder.bind(device);
@@ -56,9 +60,10 @@ export async function run() {
 			],
 		};
 	}
-	function createVisualModuleRenderer(definition: EffectDefinition, implementation: EffectImplementation<any>, visualModule: VisualModule, size: number, mode: 'auto' | 'disabled', statisticsHelper: TimingHelper | null = null) {
+	function createVisualModuleRenderer(definition: EffectDefinition, implementation: EffectImplementation<any>, visualModule: VisualModule, size: number, mode: 'auto' | 'disabled' | 'manual', statisticsHelper: TimingHelper | null = null) {
 		return new VisualModuleRenderer({ gpuDevice: device, fallbackTexture, resolution: { width: size, height: size },
-			enableStats: statisticsHelper != null, timingHelper: statisticsHelper, enable32bitDataTextures: false, effectRenderTiling: { mode },
+			enableStats: statisticsHelper != null, timingHelper: statisticsHelper, enable32bitDataTextures: false,
+			effectRenderTiling: mode === 'manual' ? { mode, tileSize: 128 } : { mode },
 			visualModule, assets: [], assetTextures: new Map(), videoFrameVersions: new Map(),
 			effectDefinitions: { [definition.id]: definition }, effectImplementations: { [definition.id]: implementation } });
 	}
@@ -70,13 +75,14 @@ export async function run() {
 		await target.prepare(context, signal);
 		const startSubmissions = submissions;
 		const startQueries = queries;
+		const startBundles = bundles;
 		let progress: EffectRenderTilingProgress | null = null;
 		const output = await target.renderTiled(context, signal, value => { if (value != null) progress = value; });
 		const renderMs = Math.round((performance.now() - start) * 100) / 100;
 		await device.queue.onSubmittedWorkDone();
 		if (output?.kind !== 'texture') throw new Error('Expected texture output');
 		const timing: FrameTiming = { label, elapsedMs: Math.round(performance.now() - start), renderMs, submissions: submissions - startSubmissions,
-			queries: queries - startQueries, progress };
+			queries: queries - startQueries, bundles: bundles - startBundles, progress };
 		if (report) {
 			timings.push(timing);
 			await fetch('/progress', { method: 'POST', body: JSON.stringify(timing) });
@@ -214,7 +220,35 @@ export async function run() {
 				automatic.destroy(); disabled.destroy(); automaticStatistics?.dispose(); disabledStatistics?.dispose();
 			}
 		}
+		// 同じ64タイルを毎回描き、分割数の学習や静止画キャッシュの影響を除いて実行器を比較する。
+		// 統計の有無を分けることで、コマンド再生とreadback待ちのそれぞれの費用を確認できる。
+		for (const statistics of [false, true]) {
+			const visualModule = createVisualModule(doublePendulumFractalDefinition);
+			const effectNode = visualModule.nodes[0] as VisualModuleEffectNode;
+			const helper = statistics ? new TimingHelper(device) : null;
+			const manual = createVisualModuleRenderer(doublePendulumFractalDefinition, doublePendulumFractalImplementation, visualModule, 1024, 'manual', helper);
+			const disabled = createVisualModuleRenderer(doublePendulumFractalDefinition, doublePendulumFractalImplementation, visualModule, 1024, 'disabled');
+			try {
+				const frames: FrameTiming[] = [];
+				for (let index = 0; index < 20; index++) {
+					effectNode.params.view = literal({ center: literal([index * 0.01, 0]), zoom: literal(1) });
+					manual.updateVisualModule(visualModule, { preserveStaticState: true });
+					const frame = await draw(manual, `64 tiles statistics=${statistics} frame=${index}`, false);
+					if (frame.timing.progress?.completedTiles !== 64 || frame.timing.progress.totalTiles !== 64) throw new Error(`incomplete manual frame ${index}`);
+					if (frame.timing.bundles !== 1) throw new Error(`manual frame ${index} did not share exactly one bundle`);
+					if (index >= 4) frames.push(frame.timing);
+				}
+				disabled.updateVisualModule(visualModule, { preserveStaticState: true });
+				const actual = await pixels((await draw(manual, 'manual final cached', false)).texture);
+				const expected = await pixels((await draw(disabled, 'manual reference', false)).texture);
+				assert(frames.every(frame => frame.bundles === 1 && frame.queries === (statistics ? 64 : 0)), `64 manual tiles share a bundle without adding queries statistics=${statistics}`);
+				assert(actual.every((value, index) => value === expected[index]), `64 manual tiles remain pixel-identical statistics=${statistics}`);
+				const median = (values: number[]) => [...values].sort((first, second) => first - second)[Math.floor(values.length / 2)];
+				tileBenchmarks.push({ statistics, tiles: 64, frames: frames.length, medianMs: median(frames.map(frame => frame.renderMs)),
+					queries: frames.map(frame => frame.queries), submissions: frames.map(frame => frame.submissions) });
+			} finally { manual.destroy(); disabled.destroy(); helper?.dispose(); }
+		}
 		assert(errors.length === 0, `no GPU validation errors: ${errors.join('; ')}`);
-		return { adapter: { vendor: adapter.info.vendor, architecture: adapter.info.architecture, description: adapter.info.description }, checks, timings, panBenchmarks };
+		return { adapter: { vendor: adapter.info.vendor, architecture: adapter.info.architecture, description: adapter.info.description }, checks, timings, panBenchmarks, tileBenchmarks };
 	} finally { fallbackTexture.destroy(); device.destroy(); }
 }

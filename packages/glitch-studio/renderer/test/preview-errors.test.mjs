@@ -169,9 +169,10 @@ function gpuFixture() {
 		createShaderModule: () => ({}), createSampler: () => ({}), createBindGroup: () => ({}),
 		createBindGroupLayout: () => ({}), createPipelineLayout: () => ({}),
 		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
+		createRenderBundleEncoder: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, finish: () => ({}) }),
 		createComputePipeline: () => ({ getBindGroupLayout: () => ({}) }),
 		pushErrorScope() {}, async popErrorScope() { return null; },
-		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) }),
+		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, executeBundles() {}, end() {} }) }),
 		queue: { submit() {}, async onSubmittedWorkDone() {}, writeBuffer() {}, writeTexture() {}, copyExternalImageToTexture() {} },
 	};
 	return { device, texture };

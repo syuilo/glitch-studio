@@ -50,6 +50,123 @@ function probeSafePipeline(g, entries = []) {
 	return g.tracked.createRenderPipeline({ layout: g.tracked.createPipelineLayout({ bindGroupLayouts: [group] }) });
 }
 
+// 【統計の読み出し待ちを次のタイルと重ね、先行投入とreadbackを有界にする】
+// mapAsyncの遅延でGPUを毎回遊ばせない一方、未完了の結果バッファを無制限に確保しない。
+// 進捗は送信数ではなくGPU完了数で進め、最後には全タイルの統計を合計する。
+test('overlaps statistics readbacks and two measured tiles while bounding pending results', async () => {
+	const g = gpu();
+	g.device.features.add('timestamp-query');
+	const view = g.tracked.createTexture({ size: { width: 1536, height: 128 } }).createView();
+	const recorder = new EffectGpuCommandRecorder();
+	const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+	pass.draw(3); pass.end();
+	let measurements = 0;
+	const readbacks = [];
+	const helper = {
+		beginRenderPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+		getResult() {
+			if (++measurements <= 5) return Promise.resolve(1_000_000);
+			assert.ok(readbacks.length < 3, 'concurrent submissions cannot overrun the shared readback limit');
+			const deferred = Promise.withResolvers(); readbacks.push(deferred); return deferred.promise;
+		},
+	};
+	const progress = [];
+	let finished = false;
+	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 128 }, new AbortController().signal,
+		{ timingHelper: helper, collectStatistics: true, onProgress: value => progress.push(value) });
+	void running.then(() => { finished = true; });
+	for (let index = 0; index < 5; index++) { g.waits.shift()(); await tick(); }
+	assert.equal(g.submitted.length, 7, 'only two tiles are sent ahead after five actual GPU samples');
+	assert.deepEqual(progress.at(-1), { completedTiles: 5, totalTiles: 12 });
+	g.waits.shift()(); await tick();
+	assert.deepEqual(progress.at(-1), { completedTiles: 6, totalTiles: 12 });
+	g.waits.shift()(); await tick();
+	assert.equal(g.submitted.length, 8);
+	assert.equal(readbacks.length, 3, 'the ninth tile waits for a readback slot');
+	g.waits.shift()(); await tick();
+	assert.equal(g.submitted.length, 8);
+	readbacks.shift().resolve(1_000_000); await tick();
+	assert.equal(g.submitted.length, 9, 'statistics need not all finish before GPU work resumes');
+	for (let index = 0; !finished && index < 100; index++) {
+		if (g.waits.length > 0) g.waits.shift()();
+		if (readbacks.length > 0) readbacks.shift().resolve(1_000_000);
+		await tick();
+	}
+	assert.equal(await running, 12_000_000);
+	assert.equal(g.submitted.length, 12);
+	assert.deepEqual(progress.at(-1), { completedTiles: 12, totalTiles: 12 });
+	assert.ok(progress.every((value, index) => value.completedTiles === index && value.totalTiles === 12));
+});
+
+// 【二枚を送信済みの中断では、両方のGPU完了とreadbackまで資源を保持する】
+// 最初の完了だけで呼び出し側へ戻すと、まだ使用中の出力やuniformを破棄してしまう。
+test('drains both submitted tiles and their readbacks before reporting cancellation', async () => {
+	const g = gpu();
+	g.device.features.add('timestamp-query');
+	const view = g.tracked.createTexture({ size: { width: 1536, height: 128 } }).createView();
+	const recorder = new EffectGpuCommandRecorder();
+	const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+	pass.draw(3); pass.end();
+	let measurements = 0;
+	const readbacks = [];
+	const helper = {
+		beginRenderPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+		getResult() {
+			if (++measurements <= 5) return Promise.resolve(1_000_000);
+			const deferred = Promise.withResolvers(); readbacks.push(deferred); return deferred.promise;
+		},
+	};
+	const abort = new AbortController();
+	let finished = false;
+	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 128 }, abort.signal, { timingHelper: helper, collectStatistics: true });
+	const rejected = assert.rejects(running, { name: 'AbortError' }).then(() => { finished = true; });
+	for (let index = 0; index < 5; index++) { g.waits.shift()(); await tick(); }
+	assert.equal(g.submitted.length, 7);
+	abort.abort();
+	g.waits.shift()(); await tick();
+	assert.equal(finished, false);
+	g.waits.shift()(); await tick();
+	assert.equal(finished, false, 'readback resources are still retained');
+	for (const readback of readbacks) readback.resolve(1_000_000);
+	await rejected;
+	assert.equal(g.submitted.length, 7);
+});
+
+// 【自動分割の面積変更後も、送信済みタイルを進捗の残数へ含める】
+// 二枚目を列挙した時点で未送信キューから消えるため、残数をそこだけから数えると
+// 総数が減ったり、GPU完了前に100%になったりする。
+test('keeps automatic progress accurate when stable measured tiles are submitted ahead', async () => {
+	const g = gpu();
+	g.device.features.add('timestamp-query');
+	const view = g.tracked.createTexture({ size: { width: 2048, height: 1024 } }).createView();
+	const recorder = new EffectGpuCommandRecorder();
+	const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+	pass.setPipeline(probeSafePipeline(g)); pass.draw(3); pass.end();
+	const helper = {
+		beginRenderPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+		async getResult() {
+			const rectangle = g.submitted.at(-1).find(command => command.method === 'setScissorRect').args;
+			return rectangle[2] * rectangle[3] / 65536 * 150_000_000;
+		},
+	};
+	const progress = [];
+	let finished = false;
+	let overlapped = false;
+	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal,
+		{ timingHelper: helper, tileController: new EffectRenderTileController(), workloadHint: { key: 'same', workPerPixel: 1 }, onProgress: value => progress.push(value) });
+	void running.then(() => { finished = true; });
+	for (let index = 0; !finished && index < 200; index++) {
+		if (g.waits.length > 1) overlapped = true;
+		assert.ok(g.waits.length <= 2);
+		g.waits.shift()(); await tick();
+	}
+	await running;
+	assert.equal(overlapped, true);
+	assert.ok(progress.every((value, index) => value.completedTiles <= value.totalTiles && (index === 0 || value.completedTiles >= progress[index - 1].completedTiles)));
+	assert.equal(progress.at(-1).completedTiles, progress.at(-1).totalTiles);
+	assert.equal(progress.at(-1).completedTiles, 32);
+});
+
 // 【通常描画の定期計測はコマンドを一度だけ再生し、送信とGPU待機を所有しない】
 // Computeやコピーを挟むパスでも元のoperation番号・寸法・pipelineを結果へ対応させ、
 // 別パスの時間を学習したり、ナノ秒をミリ秒として扱ったりすることを防ぐ。

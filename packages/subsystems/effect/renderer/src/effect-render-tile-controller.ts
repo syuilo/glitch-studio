@@ -134,6 +134,8 @@ export class EffectRenderTilePlan {
 	private readonly pendingTiles: EffectRenderTile[];
 	private countedMaximumTilePixels: number | null = null;
 	private remainingTileCountValue = 0;
+	private boundedMaximumTilePixels: number | null = null;
+	private maximumPendingTilePixelsValue = 0;
 	private gpuProbeIndex = 0;
 	private renderedPixels = 0;
 	private gpuSampleCount = 0;
@@ -159,6 +161,26 @@ export class EffectRenderTilePlan {
 	}
 
 	get maximumTilePixels(): number { return this.state.maximumTilePixels; }
+
+	/** 実際の二分結果の最大面積を使う。上限値だけでは先行投入を過剰に抑えてしまう。 */
+	get maximumPendingTilePixels(): number {
+		if (this.boundedMaximumTilePixels !== this.maximumTilePixels) {
+			const bounds = new Map<string, number>();
+			const maximum = (tile: EffectRenderTile): number => {
+				const key = `${tile.width},${tile.height}`;
+				const cached = bounds.get(key);
+				if (cached != null) return cached;
+				const split = splitEffectRenderTile(tile, this.maximumTilePixels);
+				const result = split == null ? tile.width * tile.height : Math.max(maximum(split[0]), maximum(split[1]));
+				bounds.set(key, result);
+				return result;
+			};
+			this.maximumPendingTilePixelsValue = this.pendingTiles.reduce((largest, tile) => Math.max(largest, maximum(tile)), 0);
+			this.boundedMaximumTilePixels = this.maximumTilePixels;
+		}
+		// 面積上限が同じ間は、取り出し済みの最大タイルも含む保守的な上界を再利用する。
+		return this.maximumPendingTilePixelsValue;
+	}
 
 	/**
 	 * 本描画の領域を切り取らず、再実行しても結果が変わらないパスだけで使う事前計測。

@@ -1,6 +1,7 @@
 // エフェクトへ渡すdeviceだけを包み、元のGPUオブジェクトの同一性を保ったまま、
 // Viewのmip寸法と、試し描きでstorageを書き換えないpipelineの情報を記録する。
 const viewSizes = new WeakMap<GPUTextureView, { width: number; height: number }>();
+const viewLayouts = new WeakMap<GPUTextureView, { format: GPUTextureFormat; sampleCount: number }>();
 const trackedTextures = new WeakSet<GPUTexture>();
 const readOnlyBindGroupLayouts = new WeakSet<GPUBindGroupLayout>();
 const readOnlyPipelineLayouts = new WeakSet<GPUPipelineLayout>();
@@ -19,6 +20,7 @@ export function trackEffectRenderTexture(texture: GPUTexture): GPUTexture {
 		const view = createView(descriptor);
 		const scale = 2 ** (descriptor?.baseMipLevel ?? 0);
 		viewSizes.set(view, { width: Math.max(1, Math.floor(texture.width / scale)), height: Math.max(1, Math.floor(texture.height / scale)) });
+		viewLayouts.set(view, { format: descriptor?.format ?? texture.format, sampleCount: texture.sampleCount });
 		return view;
 	};
 	return texture;
@@ -28,6 +30,11 @@ export function getEffectRenderViewSize(view: GPUTextureView) {
 	const size = viewSizes.get(view);
 	if (size == null) throw new Error('Effect render target view was created outside the tracked effect device.');
 	return size;
+}
+
+/** Viewによるformatの上書きも含め、Render Bundleと実際のattachmentを対応させる。 */
+export function getEffectRenderViewLayout(view: GPUTextureView) {
+	return viewLayouts.get(view) ?? null;
 }
 
 export function createEffectRenderDevice(device: GPUDevice): GPUDevice {

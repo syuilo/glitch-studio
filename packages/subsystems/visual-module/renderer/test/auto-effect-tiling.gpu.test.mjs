@@ -57,7 +57,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		assert.equal(output.error, undefined, output.error);
 		assert.ok(output.checks.length >= 15);
 		assert.equal(output.panBenchmarks.length, 2);
-		t.diagnostic(JSON.stringify({ adapter: output.adapter, checks: output.checks, panBenchmarks: output.panBenchmarks }));
+		t.diagnostic(JSON.stringify({ adapter: output.adapter, checks: output.checks, panBenchmarks: output.panBenchmarks, tileBenchmarks: output.tileBenchmarks }));
 	} finally {
 		clearTimeout(timer);
 		if (browser != null && browser.exitCode == null) {

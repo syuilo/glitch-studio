@@ -1,10 +1,12 @@
 import { getEffectRenderViewSize, isEffectRenderPipelineProbeSafe } from './effect-render-device.ts';
+import { EffectRenderPassReplay, callEffectGpuCommand as callCommand } from './effect-render-pass-replay.ts';
+import type { EffectGpuPassCommand as PassCommand } from './effect-render-pass-replay.ts';
+import { EffectRenderTileSubmissionBudget } from './effect-render-tile-submission-budget.ts';
 import type { EffectRenderTileController, EffectRenderTilePlan, EffectRenderPassGpuTimeObserver } from './effect-render-tile-controller.ts';
 import type { EffectRenderTiling, EffectRenderWorkloadHint, EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 
 type Rectangle = { x: number; y: number; width: number; height: number };
-type PassCommand = { method: string; args: unknown[] };
 type RecordedOperation =
 	| { kind: 'render'; descriptor: GPURenderPassDescriptor; commands: PassCommand[] }
 	| { kind: 'compute'; descriptor: GPUComputePassDescriptor; commands: PassCommand[] }
@@ -47,12 +49,6 @@ export function waitForEffectGpuWork(device: GPUDevice): Promise<void> {
 	});
 }
 
-function intersect(left: Rectangle, right: Rectangle): Rectangle {
-	const x = Math.max(left.x, right.x);
-	const y = Math.max(left.y, right.y);
-	return { x, y, width: Math.max(0, Math.min(left.x + left.width, right.x + right.width) - x), height: Math.max(0, Math.min(left.y + left.height, right.y + right.height) - y) };
-}
-
 export function* effectRenderTiles(width: number, height: number, tileSize: number): Generator<{ tile: Rectangle; last: boolean }> {
 	if (!Number.isInteger(tileSize) || tileSize < 1) throw new Error('Effect render tile size must be a positive integer.');
 	for (let y = 0; y < height; y += tileSize) {
@@ -78,10 +74,6 @@ function snapshotArguments(method: string, args: unknown[]): unknown[] {
 	});
 }
 
-function callCommand(target: object, command: PassCommand) {
-	Reflect.apply(Reflect.get(target, command.method), target, command.args);
-}
-
 function canProbeRenderPass(operation: Extract<RecordedOperation, { kind: 'render' }>): boolean {
 	// clearから始める色パスなら、計測結果は本描画の最初のclearで消せる。
 	// load・depth・query・storage書き込み・bundleは再実行の副作用を排除できない。
@@ -90,18 +82,6 @@ function canProbeRenderPass(operation: Extract<RecordedOperation, { kind: 'rende
 		&& operation.commands.some(command => command.method === 'setPipeline')
 		&& operation.commands.every(command => command.method !== 'executeBundles'
 			&& (command.method !== 'setPipeline' || isEffectRenderPipelineProbeSafe(command.args[0] as GPURenderPipeline)));
-}
-
-function replayRenderCommands(pass: GPURenderPassEncoder, commands: PassCommand[], tile: Rectangle) {
-	pass.setScissorRect(tile.x, tile.y, tile.width, tile.height);
-	for (const command of commands) {
-		if (command.method === 'setScissorRect') {
-			const [x, y, width, height] = command.args as number[];
-			const clipped = intersect(tile, { x, y, width, height });
-			pass.setScissorRect(clipped.x, clipped.y, clipped.width, clipped.height);
-		} else callCommand(pass, command);
-	}
-	pass.end();
 }
 
 function recordPass<T extends GPURenderPassEncoder | GPUComputePassEncoder>(commands: PassCommand[], finish: () => void): T {
@@ -199,7 +179,7 @@ export class EffectGpuCommandRecorder {
 		const { timingHelper = null, collectStatistics = false, tileController = null, workloadHint = null, onProgress = null } = options;
 		const usesGpuTiming = timingHelper != null && device.features.has('timestamp-query');
 		const renderPlans = new Map<number, {
-			attachments: (GPURenderPassColorAttachment | null)[];
+			replay: EffectRenderPassReplay;
 			size: { width: number; height: number };
 			plan: EffectRenderTilePlan | null;
 			tileSize: number;
@@ -221,7 +201,7 @@ export class EffectGpuCommandRecorder {
 			const tileSize = tiled && tiling.mode === 'manual' ? tiling.tileSize : Math.max(size.width, size.height);
 			const remainingTiles = onProgress == null ? 0 : plan?.remainingTileCount
 				?? Math.ceil(size.width / tileSize) * Math.ceil(size.height / tileSize);
-			renderPlans.set(operationIndex, { attachments, size, plan, tileSize, remainingTiles });
+			renderPlans.set(operationIndex, { replay: new EffectRenderPassReplay(device, operation.descriptor, operation.commands), size, plan, tileSize, remainingTiles });
 			totalTiles += remainingTiles;
 		}
 		if (totalTiles > 0) onProgress?.({ completedTiles, totalTiles });
@@ -232,7 +212,14 @@ export class EffectGpuCommandRecorder {
 			signal.throwIfAborted();
 		}
 		let gpuTime = 0;
+		const readbacks = new Set<Promise<number | null>>();
+		const submissions = new Set<Promise<unknown>>();
+		let readbackError: unknown = null;
 		const submit = async (encode: (encoder: GPUCommandEncoder, measuredTimingHelper: TimingHelper | null) => void, measureGpuTime = false) => {
+			// readbackだけが遅い場合にもバッファを無制限に増やさない。GPU完了を待った後の
+			// 統計は次の描画と重ね、同時に保持する結果は最大三つに制限する。
+			while (readbacks.size >= 3) await readbacks.values().next().value;
+			if (readbackError != null) throw readbackError;
 			signal.throwIfAborted();
 			const encoder = device.createCommandEncoder();
 			const measuredTimingHelper = collectStatistics || measureGpuTime ? timingHelper : null;
@@ -240,79 +227,108 @@ export class EffectGpuCommandRecorder {
 			const commandBuffer = encoder.finish();
 			const startTime = performance.now();
 			device.queue.submit([commandBuffer]);
-			// 投入境界だけではバックエンドが複数タイルをまとめる可能性があるため、
-			// 完了を確認してから次を送信する。待機中に中断しても送信済みの仕事は取り消せない。
-			const result = measuredTimingHelper?.getResult() ?? Promise.resolve(null);
-			// 統計表示のtimestamp readbackを待つ時間は、自動制御の経過時間に加えない。
+			let result: Promise<number | null> | null = null;
+			if (measuredTimingHelper != null) {
+				result = measuredTimingHelper.getResult().then(duration => {
+					if (Number.isFinite(duration) && duration > 0) gpuTime += duration;
+					return duration;
+				}, error => { readbackError ??= error; return null; });
+				readbacks.add(result);
+				const pending = result;
+				void result.then(() => readbacks.delete(pending));
+			}
+			// 自動制御が必要とする実測だけ待つ。統計のreadbackはGPU完了と独立させ、
+			// 次のタイルを送信するまでの空白へ加えない。
 			const completed = waitForEffectGpuWork(device).then(() => performance.now() - startTime);
-			const [elapsedMs, duration] = await Promise.all([completed, result]);
-			if (duration != null && Number.isFinite(duration) && duration > 0) gpuTime += duration;
+			const [elapsedMs, duration] = await Promise.all([completed, measureGpuTime ? result : null]);
+			if (readbackError != null) throw readbackError;
 			signal.throwIfAborted();
 			return { elapsedMs, gpuTimeMs: usesGpuTiming && duration != null ? duration / 1_000_000 : null };
 		};
-		for (const [operationIndex, operation] of this.operations.entries()) {
-			if (operation.kind === 'command') {
-				await submit(encoder => callCommand(encoder, operation.command));
-			} else if (operation.kind === 'compute') {
-				await submit((encoder, measuredTimingHelper) => {
-					const pass = measuredTimingHelper?.beginComputePass(encoder, operation.descriptor) ?? encoder.beginComputePass(operation.descriptor);
-					for (const command of operation.commands) callCommand(pass, command);
-					pass.end();
-				});
-			} else {
-				const renderPlan = renderPlans.get(operationIndex)!;
-				const { attachments, size, plan, tileSize } = renderPlan;
-				if (plan != null && timingHelper != null && canProbeRenderPass(operation)) {
-					for (const tile of plan.gpuProbes()) {
-						const timing = await submit((encoder, measuredTimingHelper) => {
-							const descriptor = { ...operation.descriptor,
-								colorAttachments: attachments.map(attachment => attachment == null ? null : { ...attachment,
-									storeOp: 'store' as const, resolveTarget: undefined }),
-							};
-							const pass = timingHelper.beginRenderPass(encoder, descriptor);
-							replayRenderCommands(pass, operation.commands, tile);
-						}, true);
-						plan.observeGpuProbe(timing.gpuTimeMs);
+		try {
+			for (const [operationIndex, operation] of this.operations.entries()) {
+				if (operation.kind === 'command') {
+					await submit(encoder => callCommand(encoder, operation.command));
+				} else if (operation.kind === 'compute') {
+					await submit((encoder, measuredTimingHelper) => {
+						const pass = measuredTimingHelper?.beginComputePass(encoder, operation.descriptor) ?? encoder.beginComputePass(operation.descriptor);
+						for (const command of operation.commands) callCommand(pass, command);
+						pass.end();
+					});
+				} else {
+					const renderPlan = renderPlans.get(operationIndex)!;
+					const { replay, size, plan, tileSize } = renderPlan;
+					if (plan != null && timingHelper != null && canProbeRenderPass(operation)) {
+						for (const tile of plan.gpuProbes()) {
+							const timing = await submit(encoder => {
+								const pass = timingHelper.beginRenderPass(encoder, replay.descriptor(true, false, true));
+								replay.replay(pass, tile);
+							}, true);
+							plan.observeGpuProbe(timing.gpuTimeMs);
+						}
+						if (onProgress != null) {
+							// 計測は完成画像のタイルではない。完了数へ加算せず、本描画の予定数だけ更新する。
+							const remainingTiles = plan.remainingTileCount;
+							totalTiles += remainingTiles - renderPlan.remainingTiles;
+							renderPlan.remainingTiles = remainingTiles;
+							onProgress({ completedTiles, totalTiles });
+						}
 					}
-					if (onProgress != null) {
-						// 計測は完成画像のタイルではない。完了数へ加算せず、本描画の予定数だけ更新する。
-						const remainingTiles = plan.remainingTileCount;
-						totalTiles += remainingTiles - renderPlan.remainingTiles;
-						renderPlan.remainingTiles = remainingTiles;
-						onProgress({ completedTiles, totalTiles });
+					const tiles = plan?.tiles() ?? effectRenderTiles(size.width, size.height, tileSize);
+					const submissionBudget = new EffectRenderTileSubmissionBudget();
+					let index = 0;
+					while (true) {
+						const batch = [];
+						const maximumPendingTilePixels = plan?.maximumPendingTilePixels ?? Math.min(size.width, tileSize) * Math.min(size.height, tileSize);
+						const maximumInFlightTiles = submissionBudget.maximumInFlightTiles(maximumPendingTilePixels);
+						for (let pendingIndex = 0; pendingIndex < maximumInFlightTiles; pendingIndex++) {
+							const next = tiles.next();
+							if (next.done) break;
+							const { tile, last } = next.value;
+							const pixels = tile.width * tile.height;
+							const descriptor = replay.descriptor(index === 0, last);
+							// 手動分割では統計が既に取得するQueryを初期確認にも使う。
+							// 統計も自動計測もない描画ではQueryを追加せず、従来どおり一枚ずつ送る。
+							const measureGpuTime = plan?.shouldMeasureGpuTime(pixels)
+								?? (usesGpuTiming && collectStatistics && submissionBudget.shouldMeasureGpuTime(pixels));
+							const result = submit((encoder, measuredTimingHelper) => {
+								const pass = measuredTimingHelper?.beginRenderPass(encoder, descriptor) ?? encoder.beginRenderPass(descriptor);
+								replay.replay(pass, tile);
+							}, measureGpuTime);
+							submissions.add(result);
+							void result.then(() => submissions.delete(result), () => {});
+							batch.push({ pixels, result, measureGpuTime });
+							index++;
+							// 面積変更や定期計測の結果は、次を選ぶ前に反映する。
+							if (measureGpuTime) break;
+						}
+						if (batch.length === 0) break;
+						for (const [batchIndex, pending] of batch.entries()) {
+							const timing = await pending.result;
+							plan?.observe(pending.pixels, timing.elapsedMs, timing.gpuTimeMs);
+							submissionBudget.observe(pending.pixels, timing.gpuTimeMs, pending.measureGpuTime);
+							if (onProgress != null) {
+								completedTiles++;
+								// 列挙済みでもGPU完了前のタイルは残数に含め、100%を先に通知しない。
+								const remainingTiles = plan == null ? renderPlan.remainingTiles - 1 : plan.remainingTileCount + batch.length - batchIndex - 1;
+								totalTiles += remainingTiles - renderPlan.remainingTiles + 1;
+								renderPlan.remainingTiles = remainingTiles;
+								onProgress({ completedTiles, totalTiles });
+							}
+						}
 					}
+					plan?.finish();
 				}
-				const tiles = plan?.tiles() ?? effectRenderTiles(size.width, size.height, tileSize);
-				let index = 0;
-				for (const { tile, last } of tiles) {
-					const pixels = tile.width * tile.height;
-					const timing = await submit((encoder, measuredTimingHelper) => {
-						const depth = operation.descriptor.depthStencilAttachment;
-						const descriptor: GPURenderPassDescriptor = { ...operation.descriptor,
-							colorAttachments: attachments.map(attachment => attachment == null ? null : { ...attachment,
-								loadOp: index === 0 ? attachment.loadOp : 'load', storeOp: last ? attachment.storeOp : 'store',
-								resolveTarget: last ? attachment.resolveTarget : undefined } ),
-							depthStencilAttachment: depth == null ? undefined : { ...depth,
-								...(depth.depthLoadOp == null ? {} : { depthLoadOp: index === 0 ? depth.depthLoadOp : 'load', depthStoreOp: last ? depth.depthStoreOp : 'store' }),
-								...(depth.stencilLoadOp == null ? {} : { stencilLoadOp: index === 0 ? depth.stencilLoadOp : 'load', stencilStoreOp: last ? depth.stencilStoreOp : 'store' }) },
-						};
-						const pass = measuredTimingHelper?.beginRenderPass(encoder, descriptor) ?? encoder.beginRenderPass(descriptor);
-						replayRenderCommands(pass, operation.commands, tile);
-					}, plan?.shouldMeasureGpuTime(pixels) ?? false);
-					plan?.observe(pixels, timing.elapsedMs, timing.gpuTimeMs);
-					if (onProgress != null) {
-						completedTiles++;
-						const remainingTiles = plan?.remainingTileCount ?? renderPlan.remainingTiles - 1;
-						// 分割が変わった場合は未送信部分だけを再計数する。完了数は戻さない。
-						totalTiles += remainingTiles - renderPlan.remainingTiles + 1;
-						renderPlan.remainingTiles = remainingTiles;
-						onProgress({ completedTiles, totalTiles });
-					}
-					index++;
-				}
-				plan?.finish();
 			}
+		} finally {
+			// 中断・失敗でも先行投入済みのタイルとreadbackを回収してから所有者へ戻す。
+			// ここより前にuniform・出力・TimingHelperが破棄されないようにする。
+			await Promise.allSettled(submissions);
+			// readback枠の空きを待っていたsubmitも、結果を登録し終えてから回収する。
+			await Promise.allSettled(readbacks);
 		}
+		if (readbackError != null) throw readbackError;
+		signal.throwIfAborted();
 		return gpuTime;
 	}
 }

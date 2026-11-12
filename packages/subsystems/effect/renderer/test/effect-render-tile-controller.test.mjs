@@ -4,6 +4,21 @@ import { EffectRenderTileController } from '../src/effect-render-tile-controller
 
 const hint = (workPerPixel = 1, key = 'same input') => ({ workPerPixel, key });
 
+// 【先行投入の予算では、名目上の面積上限より実際の最大タイル面積を使う】
+// 上限109226pxでも二分後は65536pxとなる場合があり、上限だけでは二枚送信を過剰に抑える。
+// 逆に奇数寸法の128px下限で上限を超える場合は、その実寸も見積もりへ含める。
+test('bounds actual pending tile areas for submission budgeting including minimum-size odd tiles', () => {
+	for (const [width, height] of [[2048, 1024], [1025, 513], [128, 129], [1, 511]]) {
+		const controller = new EffectRenderTileController();
+		const plan = controller.beginPass(0, [], width, height, hint(), true);
+		for (const tile of plan.gpuProbes()) plan.observeGpuProbe(tile.width * tile.height / 65536 * 150);
+		const maximum = plan.maximumPendingTilePixels;
+		const tiles = [...plan.tiles()].map(({ tile }) => tile.width * tile.height);
+		assert.equal(maximum, Math.max(...tiles));
+		assert.equal(plan.maximumPendingTilePixels, maximum, 'removing tiles retains a conservative cached bound');
+	}
+});
+
 // 【GPUの負荷が下がれば、少数タイルのままになっていても定期的に再評価して解除する】
 // 初回だけを測定済みとして再評価を止めると、5サンプルに満たない4タイルで拡大が止まる。
 // タイル固定費が支配的な場合も、異なる面積で測り直して全画面の軽さを確認する。
