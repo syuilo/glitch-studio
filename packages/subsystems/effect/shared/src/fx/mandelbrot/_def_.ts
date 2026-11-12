@@ -1,8 +1,8 @@
 import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { defineEffect } from '../../effect-definition.ts';
+import { MANDELBROT_SPAN_AT_ZOOM_ONE, MANDELBROT_MINIMUM_ZOOM, MANDELBROT_MAXIMUM_ZOOM, MANDELBROT_MAXIMUM_ITERATIONS } from './mandelbrot-settings.ts';
 
-export const MANDELBROT_SPAN_AT_ZOOM_ONE = 4;
-export const MANDELBROT_MINIMUM_ZOOM = 0.001;
+export { MANDELBROT_SPAN_AT_ZOOM_ONE, MANDELBROT_MINIMUM_ZOOM } from './mandelbrot-settings.ts';
 
 export default defineEffect({
 	id: 'mandelbrot',
@@ -16,6 +16,19 @@ export default defineEffect({
 	canHaveLongRunningRenderPass: true,
 	tags: ['pattern', 'fractal', 'math', 'gimmicky', 'experimental'],
 	paramDefs: {
+		referenceCenter: {
+			dataType: { kind: 'struct', fields: { real: { kind: 'string' }, imaginary: { kind: 'string' } } },
+			ui: { label: 'Reference Center', control: { fields: {
+				real: { label: 'Real', control: {} }, imaginary: { label: 'Imaginary', control: {} },
+			} } },
+			fields: {
+				real: { defaultValue: { inputSource: 'literal', value: '-0.5' } },
+				imaginary: { defaultValue: { inputSource: 'literal', value: '0' } },
+			},
+			defaultValue: { inputSource: 'literal', value: {
+				real: { inputSource: 'literal', value: '-0.5' }, imaginary: { inputSource: 'literal', value: '0' },
+			} },
+		},
 		view: {
 			dataType: { kind: 'struct', fields: {
 				center: { kind: 'vector' }, zoom: { kind: 'scalar' }, rotation: { kind: 'scalar' },
@@ -24,19 +37,20 @@ export default defineEffect({
 				controlType: 'viewport2d',
 				spanAtZoomOne: MANDELBROT_SPAN_AT_ZOOM_ONE,
 				minimumZoom: MANDELBROT_MINIMUM_ZOOM,
+				maximumZoom: MANDELBROT_MAXIMUM_ZOOM,
 				fields: {
-					center: { label: 'Complex Center', control: { controlType: 'vector', min: -2, max: 2, step: 0.001 } },
-					zoom: { label: 'Zoom', control: { controlType: 'range', min: 0.1, max: 1000, logarithmic: true } },
+					center: { label: 'Center Offset', control: { controlType: 'vector', min: -2, max: 2, step: 0.001 } },
+					zoom: { label: 'Zoom', control: { controlType: 'range', min: 0.1, max: 1e30, logarithmic: true } },
 					rotation: { label: 'Rotation', control: { controlType: 'angle' } },
 				},
 			} },
 			fields: {
-				center: { defaultValue: { inputSource: 'literal', value: [-0.5, 0] } },
+				center: { defaultValue: { inputSource: 'literal', value: [0, 0] } },
 				zoom: { defaultValue: { inputSource: 'literal', value: 1 } },
 				rotation: { defaultValue: { inputSource: 'literal', value: 0 } },
 			},
 			defaultValue: { inputSource: 'literal', value: {
-				center: { inputSource: 'literal', value: [-0.5, 0] },
+				center: { inputSource: 'literal', value: [0, 0] },
 				zoom: { inputSource: 'literal', value: 1 },
 				rotation: { inputSource: 'literal', value: 0 },
 			} },
@@ -49,7 +63,7 @@ export default defineEffect({
 		},
 		maximumIterations: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Maximum Iterations', control: { controlType: 'range', min: 1, max: 2048, step: 1 } },
+			ui: { label: 'Maximum Iterations', control: { controlType: 'range', min: 1, max: MANDELBROT_MAXIMUM_ITERATIONS, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 512 },
 		},
 		coloringMethod: {

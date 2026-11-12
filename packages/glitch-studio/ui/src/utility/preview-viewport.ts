@@ -28,6 +28,7 @@ export type PreviewViewportHandle = {
 	available(): boolean;
 	spanAtZoomOne(): number;
 	minimumZoom(): number;
+	maximumZoom(): number;
 	begin(): PreviewViewportDrag | null;
 };
 
@@ -39,7 +40,7 @@ export function getPreviewViewportZoom(definition: ParameterDefinition, binding:
 	if (!isViewport2DParameter(definition) || binding.inputSource !== 'literal' || binding.value.zoom == null) return null;
 	const value = getPreviewParameterBaseValue(getStructFieldDefinitions(definition).zoom, binding.value.zoom, time, endTime);
 	if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-	const zoom = Math.max(definition.ui.control.minimumZoom ?? 0, value);
+	const zoom = Math.min(definition.ui.control.maximumZoom ?? Number.MAX_VALUE, Math.max(definition.ui.control.minimumZoom ?? 0, value));
 	return zoom > 0 && Number.isFinite(definition.ui.control.spanAtZoomOne / zoom) ? zoom : null;
 }
 

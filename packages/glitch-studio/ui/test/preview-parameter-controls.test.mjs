@@ -302,19 +302,20 @@ test('switches viewport editing exclusively through parameter row buttons', asyn
 // 画面のY反転・回転・倍率の換算漏れや、小数第3位への丸めで移動が失われる回帰を防ぐ。
 test('pans a deeply zoomed rotated viewport continuously and undoes the whole drag', async t => {
 	const f = await fixture(t, { viewport: true });
+	const initialCenter = [...f.node.params.view.value.center.value];
 	f.node.params.view.value.zoom.value = 1000;
 	f.node.params.view.value.rotation.value = 0.25;
 	f.viewportToggles()[0].props.onClick(); await nextTick();
 	f.beginViewport(); f.pointer('pointermove', 480, 160); await f.frame();
-	close(f.node.params.view.value.center.value, [-0.4998, -0.0004]);
+	close(f.node.params.view.value.center.value, [initialCenter[0] + 0.0002, initialCenter[1] - 0.0004]);
 	assert.equal(f.manager.undoStack.value.length, 0);
 	f.pointer('pointerup', 560, 120); await nextTick();
-	close(f.node.params.view.value.center.value, [-0.4996, -0.0008]);
+	close(f.node.params.view.value.center.value, [initialCenter[0] + 0.0004, initialCenter[1] - 0.0008]);
 	assert.equal(f.manager.undoStack.value.length, 1);
 	assert.equal(f.node.params.view.value.zoom.value, 1000);
 	assert.equal(f.node.params.view.value.rotation.value, 0.25);
-	f.manager.undo(); close(f.node.params.view.value.center.value, [-0.5, 0]);
-	f.manager.redo(); close(f.node.params.view.value.center.value, [-0.4996, -0.0008]);
+	f.manager.undo(); close(f.node.params.view.value.center.value, initialCenter);
+	f.manager.redo(); close(f.node.params.view.value.center.value, [initialCenter[0] + 0.0004, initialCenter[1] - 0.0008]);
 });
 
 // 【連続するホイール入力はカーソル直下の点を固定し、中心と倍率を同時に履歴へ保存する】
@@ -342,10 +343,25 @@ test('zooms around the pointer and groups a wheel burst into one undoable edit',
 	f.manager.redo(); assert.deepEqual(read(), after);
 });
 
+// 【描画側の最大倍率に達したホイール操作は中心と履歴を動かさない】
+// UIだけが上限を越えると、カーソル位置の固定とレンダラーの実際の倍率が一致しなくなる。
+test('respects the renderer zoom limit without creating an unchanged viewport edit', async t => {
+	t.mock.timers.enable({ apis: ['setTimeout'] });
+	const f = await fixture(t, { viewport: true });
+	f.node.params.view.value.zoom.value = 1e300;
+	const before = structuredClone(JSON.parse(JSON.stringify(f.node.params.view)));
+	f.viewportToggles()[0].props.onClick(); await nextTick();
+	f.wheel(-100); await f.frame();
+	t.mock.timers.tick(180); await nextTick();
+	assert.deepEqual(JSON.parse(JSON.stringify(f.node.params.view)), before);
+	assert.equal(f.manager.undoStack.value.length, 0);
+});
+
 // 【ホイールとドラッグの取消しは開始値とRedoを復元し、操作モードは維持する】
 // ドラッグだけでなくホイール中のEscも編集取消しとして扱い、誤った確定や履歴消失を防ぐ。
 test('cancels viewport gestures without losing redo or leaving the editing mode', async t => {
 	const f = await fixture(t, { viewport: true });
+	const initialCenter = [...f.node.params.view.value.center.value];
 	f.viewportToggles()[0].props.onClick(); await nextTick();
 	f.beginViewport(); f.pointer('pointerup', 480, 200); await nextTick(); f.manager.undo(); await nextTick();
 	for (const mode of ['drag', 'wheel']) {
@@ -353,7 +369,7 @@ test('cancels viewport gestures without losing redo or leaving the editing mode'
 		else f.wheel(-100);
 		await f.frame();
 		f.doc.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { key: 'Escape' })); await nextTick();
-		close(f.node.params.view.value.center.value, [-0.5, 0]);
+		close(f.node.params.view.value.center.value, initialCenter);
 		assert.equal(f.node.params.view.value.zoom.value, 1);
 		assert.equal(f.manager.undoStack.value.length, 0);
 		assert.equal(f.manager.redoStack.value.length, 1);

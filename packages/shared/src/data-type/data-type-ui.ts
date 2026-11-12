@@ -18,6 +18,7 @@ export type Viewport2DControl = {
 	spanAtZoomOne: number;
 	// 描画側が倍率に下限を適用する場合は同じ値を指定する。
 	minimumZoom?: number;
+	maximumZoom?: number;
 };
 
 // 広いParameterDefinitionでは両方のUIを受け取り、具体的なフィールドが

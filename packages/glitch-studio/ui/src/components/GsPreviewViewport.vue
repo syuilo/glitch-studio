@@ -117,7 +117,7 @@ function onWheel(event: WheelEvent) {
 	// イベントの回数ではなくスクロール量に応じて倍率を連続的に変える。
 	const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? props.canvasRect.height : 1);
 	const factor = Math.exp(Math.max(-2, Math.min(2, -delta * 0.002)));
-	const zoom = Math.min(Number.MAX_VALUE, Math.max(handle.value.minimumZoom(), wheelValue!.zoom * factor));
+	const zoom = Math.min(handle.value.maximumZoom(), Math.max(handle.value.minimumZoom(), wheelValue!.zoom * factor));
 	const bounds = surface.value.getBoundingClientRect();
 	const point = previewScreenToParameter([event.clientX, event.clientY], { ...props.canvasRect, left: bounds.left, top: bounds.top });
 	wheelValue = zoomPreviewViewport(wheelValue!, point, zoom, handle.value.spanAtZoomOne());

@@ -117,7 +117,7 @@ test('clears an unavailable viewport when switching to a position handle', () =>
 	const controller = new PreviewParameterEditingController();
 	const available = ref(true);
 	controller.register({ kind: 'viewport2d', key: 'view', label: () => 'View', available: () => available.value,
-		spanAtZoomOne: () => 4, minimumZoom: () => 0.001, begin: () => null });
+		spanAtZoomOne: () => 4, minimumZoom: () => 0.001, maximumZoom: () => 1e300, begin: () => null });
 	controller.register({ key: 'position', label: () => 'Position', available: () => true, position: () => [0, 0], begin: () => null });
 	controller.toggle('view'); available.value = false;
 	assert.equal(controller.viewport.value, null);

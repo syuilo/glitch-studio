@@ -82,6 +82,7 @@ export function usePreviewParameterHandle(app: AppContext, props: {
 				kind: 'viewport2d',
 				spanAtZoomOne: () => isViewport2DParameter(props.paramDef) ? props.paramDef.ui.control.spanAtZoomOne : 1,
 				minimumZoom: () => isViewport2DParameter(props.paramDef) ? props.paramDef.ui.control.minimumZoom ?? Number.MIN_VALUE : Number.MIN_VALUE,
+				maximumZoom: () => isViewport2DParameter(props.paramDef) ? props.paramDef.ui.control.maximumZoom ?? Number.MAX_VALUE : Number.MAX_VALUE,
 				begin() {
 					const scope = context.scope.value;
 					const binding = deepClone(props.paramValue);

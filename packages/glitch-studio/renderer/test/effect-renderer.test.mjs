@@ -1080,7 +1080,8 @@ test('batches ordinary nodes around an automatic effect without timestamp querie
 // 【マンデルブロ集合の反復数とAAを計算量に反映し、領域変更は別条件として扱う】
 // 大きな反復数へ変更した直後も面積を縮小でき、入力から座標を読む場合は古い領域を信用しない。
 test('provides comparable Mandelbrot workload hints and invalidates changed regions', () => {
-	const params = { maximumIterations: 16, antialiasing: false, view: { center: [-0.5, 0], zoom: 1, rotation: 0 },
+	const params = { maximumIterations: 16, antialiasing: false, referenceCenter: { real: '-0.5', imaginary: '0' },
+		view: { center: [0, 0], zoom: 1, rotation: 0 },
 		coordinateOffset: uniform, unescapedColor: uniform, ramp: { stops: [], interpolation: 'linear', colorSpace: 'srgb' },
 		bailoutRadius: 2, coloringMethod: 'smoothEscapeIterations' };
 	const getHint = value => mandelbrotImplementation.getRenderWorkloadHint({ params: value, usedOutputPorts: new Set(['output']) });
@@ -1092,6 +1093,44 @@ test('provides comparable Mandelbrot workload hints and invalidates changed regi
 	assert.notEqual(getHint({ ...params, view: { ...params.view, zoom: 10 } }).key, initial.key);
 	assert.notEqual(getHint({ ...params, unescapedColor: { kind: 'texture', texture: {} } }).key, initial.key);
 	assert.equal(getHint({ ...params, coordinateOffset: { kind: 'texture', texture: {} } }), null);
+});
+
+// 【高反復数のヒントを描画と同じ上限・丸めで計算する】
+// 2048回で頭打ちになると、高精度描画の反復数を増やしても最初のタイルを縮小できない。
+// AAも含めて実際の反復上限まで増やし、範囲外・端数の扱いを描画設定と一致させる。
+test('matches Mandelbrot workload estimates to the actual high iteration limit', () => {
+	const params = { maximumIterations: 2048, antialiasing: false, referenceCenter: { real: '-0.5', imaginary: '0' },
+		view: { center: [0, 0], zoom: 128, rotation: 0 }, coordinateOffset: uniform, unescapedColor: uniform,
+		ramp: { stops: [], interpolation: 'linear', colorSpace: 'srgb' }, bailoutRadius: 2, coloringMethod: 'smoothEscapeIterations' };
+	const getHint = (maximumIterations, antialiasing = false) => mandelbrotImplementation.getRenderWorkloadHint({
+		params: { ...params, maximumIterations, antialiasing }, usedOutputPorts: new Set(['output']),
+	});
+	const initial = getHint(2048);
+	for (const [requestedIterations, renderedIterations] of [[2048, 2048], [4096, 4096], [65536, 65536], [1e6, 65536], [4096.9, 4096], [-1, 1]]) {
+		for (const antialiasing of [false, true]) {
+			const workload = getHint(requestedIterations, antialiasing);
+			assert.equal(workload.workPerPixel, renderedIterations * (antialiasing ? 4 : 1));
+			assert.equal(workload.key, initial.key, 'retain comparable measurements when iteration count or AA changes');
+		}
+	}
+});
+
+// 【十進文字列の基準中心と通常／摂動の切替を、学習の比較条件に含める】
+// numberでは同じ値になる深ズームの座標でも、異なる軌道へ軽い計測を流用しない。
+// 演算方式の切替にも固定の倍率を仮定せず、新しい方式で測り直す。
+test('invalidates Mandelbrot workload learning for precise reference centers and precision modes', () => {
+	const params = { maximumIterations: 4096, antialiasing: false, referenceCenter: { real: '-0.50000000000000000001', imaginary: '0' },
+		view: { center: [0, 0], zoom: 64, rotation: 0 }, coordinateOffset: uniform, unescapedColor: uniform,
+		ramp: { stops: [], interpolation: 'linear', colorSpace: 'srgb' }, bailoutRadius: 2, coloringMethod: 'smoothEscapeIterations' };
+	const getHint = overrides => mandelbrotImplementation.getRenderWorkloadHint({ params: { ...params, ...overrides }, usedOutputPorts: new Set(['output']) });
+	const initial = getHint({});
+	const changedReal = { ...params.referenceCenter, real: '-0.50000000000000000002' };
+	assert.equal(Number(changedReal.real), Number(params.referenceCenter.real));
+	assert.notEqual(getHint({ referenceCenter: changedReal }).key, initial.key);
+	assert.notEqual(getHint({ referenceCenter: { ...params.referenceCenter, imaginary: '1e-100' } }).key, initial.key);
+	const direct = getHint({ view: { ...params.view, zoom: 63 } });
+	assert.notEqual(direct.key, initial.key);
+	assert.equal(direct.workPerPixel, initial.workPerPixel, 'work units are compared only within each rendering mode');
 });
 
 // 【十分軽い条件では通常描画へ戻し、計測の間引き中もヒント変更を見逃さない】

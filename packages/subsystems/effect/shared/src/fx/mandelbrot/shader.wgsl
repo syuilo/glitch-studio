@@ -2,13 +2,18 @@ override RENDER_COLOR: bool = true;
 override COLORING_METHOD: u32 = 1u;
 override CALCULATE_SMOOTH_ITERATIONS: bool = true;
 override CALCULATE_TRIANGLE_AVERAGE: bool = false;
+override USE_PERTURBATION: bool = false;
 
 struct Uniforms {
 	spatialHalfExtent: vec2f,
+	resolution: vec2f,
 	pixelStep: vec2f,
 	complexCenter: vec2f,
-	rotation: vec2f,
-	complexScale: f32,
+	rotation: MandelbrotComplex,
+	rotationFloat: vec2f,
+	complexScale: MandelbrotReal,
+	pixelScale: MandelbrotReal,
+	complexScaleFloat: f32,
 	maximumIterations: u32,
 	bailoutRadius: f32,
 	log2LogBailoutRadius: f32,
@@ -18,6 +23,21 @@ struct Uniforms {
 	antialiasing: u32,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
+struct ReferenceSample {
+	value: MandelbrotComplex,
+	bailoutMargin: MandelbrotReal,
+};
+@group(0) @binding(1) var<storage, read> referenceOrbit: array<ReferenceSample>;
+
+fn perturbedHasEscaped(reference: ReferenceSample, delta: MandelbrotComplex) -> bool {
+	// |Z + dz|^2 - R^2 = (|Z|^2 - R^2) + 2 Re(conj(Z) dz) + |dz|^2。
+	// Z+dzを先にf32へ加算すると、R=2の境界などで小さな正の差を失う。
+	let linear = twiceReal(addReal(multiplyReal(reference.value.real, delta.real), multiplyReal(reference.value.imaginary, delta.imaginary)));
+	let quadratic = addReal(multiplyReal(delta.real, delta.real), multiplyReal(delta.imaginary, delta.imaginary));
+	let margin = addReal(reference.bailoutMargin, addReal(linear, quadratic));
+	return !isZeroReal(margin) && margin.negative == 0u;
+}
 
 struct MandelbrotOrbit {
 	escapeIterations: f32,
@@ -63,8 +83,10 @@ fn triangleInequalityFraction(squaredZ: vec2f, squaredZMagnitude: f32, constantD
 	return clamp(onePlusCosine / denominator, 0.0, 1.0);
 }
 
-fn iterateMandelbrot(complexParameter: vec2f) -> MandelbrotOrbit {
+fn iterateMandelbrot(complexParameter: vec2f, complexDelta: MandelbrotComplex) -> MandelbrotOrbit {
 	var z = vec2f(0.0);
+	var delta = zeroComplex();
+	var referenceIteration = 0u;
 	var triangleAverage = 0.0;
 	var previousTriangleAverage = 0.0;
 	var triangleSampleCount = 0u;
@@ -76,7 +98,18 @@ fn iterateMandelbrot(complexParameter: vec2f) -> MandelbrotOrbit {
 	}
 	for (var iteration = 0u; iteration < uniforms.maximumIterations; iteration++) {
 		let squaredZ = vec2f(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y);
-		z = squaredZ + complexParameter;
+		var scaledZ = zeroComplex();
+		if (USE_PERTURBATION) {
+			let reference = referenceOrbit[referenceIteration];
+			let linear = multiplyComplex(MandelbrotComplex(twiceReal(reference.value.real), twiceReal(reference.value.imaginary)), delta);
+			delta = addComplex(addComplex(linear, squareComplex(delta)), complexDelta);
+			referenceIteration++;
+			let nextReference = referenceOrbit[referenceIteration];
+			scaledZ = addComplex(nextReference.value, delta);
+			z = complexToFloat(scaledZ);
+		} else {
+			z = squaredZ + complexParameter;
+		}
 		if (CALCULATE_TRIANGLE_AVERAGE && constantMagnitude > 0.0) {
 			let squaredZMagnitude = complexMagnitude(squaredZ);
 			// z0=0からの初回や、途中でz=0へ戻る点には三角形がない。
@@ -90,7 +123,11 @@ fn iterateMandelbrot(complexParameter: vec2f) -> MandelbrotOrbit {
 			}
 		}
 		let magnitude = complexMagnitude(z);
-		if (magnitude > uniforms.bailoutRadius) {
+		var escaped = magnitude > uniforms.bailoutRadius;
+		if (USE_PERTURBATION && abs(magnitude - uniforms.bailoutRadius) <= uniforms.bailoutRadius * 0.000004) {
+			escaped = perturbedHasEscaped(referenceOrbit[referenceIteration], delta);
+		}
+		if (escaped) {
 			let escapeIterations = f32(iteration + 1u);
 			var smoothIterations = 0.0;
 			if (CALCULATE_SMOOTH_ITERATIONS || CALCULATE_TRIANGLE_AVERAGE) {
@@ -109,23 +146,43 @@ fn iterateMandelbrot(complexParameter: vec2f) -> MandelbrotOrbit {
 			}
 			return MandelbrotOrbit(escapeIterations, smoothIterations, 1.0, triangleAverage);
 		}
+		if (USE_PERTURBATION) {
+			// Zとdzが打ち消し合う領域では、原点Z0=0へ基準を戻して桁落ちの増幅を抑える。
+			// 基準点だけが先に発散した場合も、保存済み軌道の末尾を越える前に戻す。
+			// 総反復数iterationは戻さず、発散回数・TIAの全標本を維持する。
+			if (referenceIteration + 1u >= arrayLength(&referenceOrbit) || hasSmallerMagnitude(scaledZ, delta)) {
+				delta = scaledZ;
+				referenceIteration = 0u;
+			}
+		}
 	}
 	// 有限回で未発散だった点を集合の内部と断定しない。未確定の数値は0にし、
 	// Escaped Maskで、有効な0やAAで混在した境界画素と区別できるようにする。
 	return MandelbrotOrbit(0.0, 0.0, 0.0, 0.0);
 }
 
-fn evaluateSample(position: vec2f) -> MandelbrotSample {
+fn evaluateSample(position: vec2f, centeredPixel: vec2f) -> MandelbrotSample {
 	// Offsetは出力位置で一度読み、長辺全体=1の共通単位のまま加える。
 	// その後でZoom・Rotationを適用するので、ベクトル場も図形と同じ倍率・角度で作用する。
-	let point = position * uniforms.spatialHalfExtent + read_coordinateOffset(position);
-	// UIの角度は1回転=1。参照座標を反時計回りに回すと、表示は時計回りになる。
-	let rotated = vec2f(
-		uniforms.rotation.x * point.x - uniforms.rotation.y * point.y,
-		uniforms.rotation.y * point.x + uniforms.rotation.x * point.y,
-	);
-	let complexParameter = uniforms.complexCenter + rotated * uniforms.complexScale;
-	let orbit = iterateMandelbrot(complexParameter);
+	let coordinateOffset = read_coordinateOffset(position);
+	// 画素位置を先にf32で正規化すると、摂動を高精度にしても最初のdcに誤差が入る。
+	// 整数・半整数の画素中心と1画素分の複素平面の長さを48bitで掛け合わせる。
+	var complexDelta = zeroComplex();
+	var complexParameter = vec2f(0.0);
+	if (USE_PERTURBATION) {
+		let point = MandelbrotComplex(
+			addReal(multiplyReal(realFromFloat(centeredPixel.x), uniforms.pixelScale), multiplyReal(realFromFloat(coordinateOffset.x), uniforms.complexScale)),
+			addReal(multiplyReal(realFromFloat(centeredPixel.y), uniforms.pixelScale), multiplyReal(realFromFloat(coordinateOffset.y), uniforms.complexScale)),
+		);
+		// UIの角度は1回転=1。参照座標を反時計回りに回すと、表示は時計回りになる。
+		complexDelta = multiplyComplex(uniforms.rotation, point);
+		complexParameter = uniforms.complexCenter + complexToFloat(complexDelta);
+	} else {
+		let point = position * uniforms.spatialHalfExtent + coordinateOffset;
+		let rotated = vec2f(uniforms.rotationFloat.x * point.x - uniforms.rotationFloat.y * point.y, uniforms.rotationFloat.y * point.x + uniforms.rotationFloat.x * point.y);
+		complexParameter = uniforms.complexCenter + rotated * uniforms.complexScaleFloat;
+	}
+	let orbit = iterateMandelbrot(complexParameter, complexDelta);
 	var color = vec4f(0.0);
 	if (RENDER_COLOR) {
 		if (orbit.escapedMask == 0.0) {
@@ -146,9 +203,13 @@ fn evaluateSample(position: vec2f) -> MandelbrotSample {
 }
 
 @fragment
-fn fs(@location(0) position: vec2f) -> MandelbrotOutputs {
+fn fs(@builtin(position) fragmentPosition: vec4f) -> MandelbrotOutputs {
+	// 補間された頂点座標には、中央の行でも微小なYが残る場合がある。
+	// 実軸上の軌道はその誤差で発散し得るため、画素中心から差分を先に求める。
+	let centeredPixel = vec2f(fragmentPosition.x - uniforms.resolution.x * 0.5, uniforms.resolution.y * 0.5 - fragmentPosition.y);
+	let position = centeredPixel * uniforms.pixelStep;
 	if (uniforms.antialiasing == 0u) {
-		let sample = evaluateSample(position);
+		let sample = evaluateSample(position, centeredPixel);
 		return MandelbrotOutputs(
 			sample.color,
 			sample.orbit.escapeIterations,
@@ -159,10 +220,10 @@ fn fs(@location(0) position: vec2f) -> MandelbrotOutputs {
 	}
 	// 固定した画素内4点を使い、乱数・時間・描画履歴に依存させない。
 	let offset = uniforms.pixelStep * 0.25;
-	let first = evaluateSample(position + vec2f(-offset.x, -offset.y));
-	let second = evaluateSample(position + vec2f(offset.x, -offset.y));
-	let third = evaluateSample(position + vec2f(-offset.x, offset.y));
-	let fourth = evaluateSample(position + vec2f(offset.x, offset.y));
+	let first = evaluateSample(position + vec2f(-offset.x, -offset.y), centeredPixel + vec2f(-0.25, -0.25));
+	let second = evaluateSample(position + vec2f(offset.x, -offset.y), centeredPixel + vec2f(0.25, -0.25));
+	let third = evaluateSample(position + vec2f(-offset.x, offset.y), centeredPixel + vec2f(-0.25, 0.25));
+	let fourth = evaluateSample(position + vec2f(offset.x, offset.y), centeredPixel + vec2f(0.25, 0.25));
 	let escapedSamples = first.orbit.escapedMask + second.orbit.escapedMask + third.orbit.escapedMask + fourth.orbit.escapedMask;
 	// 色は乗算済みRGBAの平均、Maskは発散した標本の割合。
 	// 反復値とTIAには未発散の0を混ぜず、有効な標本だけを平均する。
