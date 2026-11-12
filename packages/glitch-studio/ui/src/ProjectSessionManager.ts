@@ -1,8 +1,9 @@
 import { computed, markRaw, shallowRef } from 'vue';
+import { genId } from '@gs/shared/utility/id.ts';
 import { ProjectContext } from './Project.ts';
 import { ProjectSessionContext } from './ProjectSessionContext.ts';
 import { isSameProjectFile } from './gsproj.ts';
-import type { Project, ProjectFileHandle } from './gsproj.ts';
+import type { Project, ProjectFileHandle, SelectedProjectFile } from './gsproj.ts';
 import { applicationActivity } from './application-activity.ts';
 import { resolveExternalAssets } from './external-assets.ts';
 import { i18n } from './i18n.ts';
@@ -25,7 +26,7 @@ export class ProjectSessionManager {
 		markRaw(this);
 	}
 
-	private createSession(project: Project, fileName: string | null, fileHandle: ProjectFileHandle | null, id?: string) {
+	private createSession(project: Project, fileName: string | null, fileHandle: ProjectFileHandle | null, id: string) {
 		const session: ProjectSessionContext = new ProjectSessionContext(new ProjectContext(project), {
 			id,
 			fileName,
@@ -61,17 +62,30 @@ export class ProjectSessionManager {
 		});
 	}
 
-	/** 読み込み完了までは一覧に追加せず、失敗しても現在の編集画面を維持する。 */
-	public open(project: Project, fileName: string | null = null, handle: ProjectFileHandle | null = null, id?: string): Promise<ProjectSessionContext | null> {
+	public open(project: Project): Promise<ProjectSessionContext | null> {
+		return this.openSession(async () => project, null, null, genId());
+	}
+
+	public openFile(file: SelectedProjectFile, sessionId: string): Promise<ProjectSessionContext | null> {
+		return this.openSession(file.loadProject, file.name, file.handle, sessionId);
+	}
+
+	/** 重複判定と読み込みを同じ排他区間で行い、同じ保存先の二重生成・保存との競合を防ぐ。 */
+	private openSession(loadProject: () => Promise<Project>, fileName: string | null, handle: ProjectFileHandle | null, id: string): Promise<ProjectSessionContext | null> {
 		return applicationActivity.run(() => this.exclusiveFileOperation(async () => {
 			if (this.disposed) return null;
 			const existing = handle == null ? null : await this.findFileOwner(handle);
 			// ブラウザーのハンドル照合中にウィンドウが閉じた場合、新しい購読やWorkerを生成しない。
 			if (this.disposed) return null;
 			if (existing != null) { await this.select(existing); return existing; }
-			const waiting = ui.waiting({ text: i18n.ts._App.InitializingProject });
+			const waiting = ui.waiting({ text: fileName == null ? i18n.ts._App.InitializingProject : i18n.ts._App.LoadingProjectFile });
 			let session: ProjectSessionContext | null = null;
 			try {
+				// 既存タブを選ぶ場合はgetFile・デコード・素材のパス解決を一切行わない。
+				// 新しいファイルも読み込み完了までは一覧に追加せず、失敗時は現在の画面を維持する。
+				const project = await loadProject();
+				if (this.disposed) return null;
+				waiting.setText(i18n.ts._App.InitializingProject);
 				// 参照解決による値の変更を初回の編集通知にせず、準備済みの状態から購読を開始する。
 				// この待機中にはまだセッションがないため、終了後に生成しないよう確認する。
 				await resolveExternalAssets(project.assets);

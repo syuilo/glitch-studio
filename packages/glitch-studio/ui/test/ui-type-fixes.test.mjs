@@ -18,7 +18,7 @@ async function loadSource(path) {
 
 const { dragListen } = await loadSource('../src/utility/drag.ts');
 const { openMediaFile } = await loadSource('../src/api.ts');
-const { loadProjectFile, encodeProjectFile, decodeProjectFile } = await loadSource('../src/gsproj.ts');
+const { selectProjectFile, encodeProjectFile, decodeProjectFile } = await loadSource('../src/gsproj.ts');
 
 // 【画像は原本のコピーと寸法だけを保持する】
 // 画素列をAssetへ残すと、状態の複製や保存のたびに原本とは別の大きなRGBA配列を持つことになる。
@@ -81,8 +81,9 @@ test('cleans up drag listeners after mouseup and mouseleave', t => {
 	assert.equal(ends, 2);
 });
 
-// 選択キャンセルは正常終了し、ファイルのバイナリをデコーダーへ渡す。
-test('loads a MessagePack project and handles cancellation and invalid data', async t => {
+// 【選択キャンセルは正常終了し、選択後に要求されたときだけファイルを読み込む】
+// input経由の選択でも読み込みを遅延し、不正なバイナリのエラーを読み込み時に通知する。
+test('selects a MessagePack project and delays decoding until loading', async t => {
 	let input;
 	t.after(() => { delete globalThis.window; });
 	globalThis.window = { document: { createElement() {
@@ -90,16 +91,19 @@ test('loads a MessagePack project and handles cancellation and invalid data', as
 		input.click = () => {};
 		return input;
 	} } };
-	const cancelled = loadProjectFile();
+	const cancelled = selectProjectFile({ reservationId: 'test-session' });
 	input.dispatchEvent(new Event('cancel'));
 	assert.equal(await cancelled, null);
-	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, id: 'project', gsVersion: '2.0.0-alpha.2', name: 'Test', visualModules: [], assets: [], generatedSpeech: [], players: [], timelineScenes: [] };
-	const loaded = loadProjectFile();
+	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0-alpha.2', name: 'Test', visualModules: [], assets: [], generatedSpeech: [], players: [], timelineScenes: [] };
+	const selection = selectProjectFile({ reservationId: 'test-session' });
 	input.files = [new File([encode(project)], 'test.gsproj')];
 	input.dispatchEvent(new Event('change'));
-	assert.deepEqual(await loaded, { project, name: 'test.gsproj' });
-	const invalid = loadProjectFile();
+	const selected = await selection;
+	assert.equal(selected.name, 'test.gsproj');
+	assert.equal(selected.handle, null);
+	assert.deepEqual(await selected.loadProject(), project);
+	const invalid = selectProjectFile({ reservationId: 'test-session' });
 	input.files = [new File([new Uint8Array([0xc1])], 'invalid.gsproj')];
 	input.dispatchEvent(new Event('change'));
-	await assert.rejects(invalid);
+	await assert.rejects((await invalid).loadProject());
 });

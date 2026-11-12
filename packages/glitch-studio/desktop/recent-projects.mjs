@@ -58,9 +58,9 @@ export class RecentProjects {
 	}
 }
 
-export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles, getTrustedMainWindow, recentDocuments = null, {
-	registerProject = filePath => projectFiles.describe(projectFiles.register(filePath)),
-} = {}) {
+export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles, getTrustedMainWindow, recentDocuments, {
+	registerProject,
+}) {
 	ipcMain.handle('desktop:list-recent-projects', async event => {
 		getTrustedMainWindow(event);
 		return (await recentProjects.list()).slice(0, 20).map(({ filePath: _filePath, ...entry }) => entry);

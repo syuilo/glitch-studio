@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 
 // メインウィンドウの検証を全操作に適用し、UIへ汎用的なファイル操作を公開しない。
-export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath = null, {
-	registerProject = filePath => projectFiles.describe(projectFiles.register(filePath)),
-	projectWillWrite = () => {},
-	projectWritten = () => {},
-} = {}) {
+export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath, {
+	registerProject,
+	projectWillWrite,
+	projectWritten,
+}) {
 	let projectOpenDirectory = null;
 	ipcMain.handle('desktop:register-project-file', (event, filePath, reservationId) => {
 		getTrustedMainWindow(event);
@@ -49,6 +49,7 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 	});
 	ipcMain.handle('desktop:choose-project-save-file', async (event, name, sessionId) => {
 		const parent = getTrustedMainWindow(event);
+		if (typeof sessionId !== 'string' || sessionId.length === 0) throw new Error('Invalid project session');
 		if (typeof name !== 'string' || path.basename(name) !== name) throw new Error('Invalid project name');
 		// Electronのダイアログはパスだけを返す。確定前の既存ファイルを変更しない。
 		const result = await dialog.showSaveDialog(parent, {
@@ -72,6 +73,7 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 	});
 	ipcMain.handle('desktop:write-project-file', async (event, id, data, sessionId) => {
 		getTrustedMainWindow(event);
+		if (typeof sessionId !== 'string' || sessionId.length === 0) throw new Error('Invalid project session');
 		projectWillWrite(id, sessionId);
 		await projectFiles.write(id, data);
 		projectWritten(id, sessionId);

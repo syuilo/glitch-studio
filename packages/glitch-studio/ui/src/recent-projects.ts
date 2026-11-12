@@ -13,7 +13,7 @@ export type RecentProjectEntry = {
 export interface RecentProjectsStore {
 	list(): Promise<RecentProjectEntry[]>;
 	remember(handle: ProjectFileHandle, name: string): Promise<void>;
-	resolve(id: string, reservationId?: string): Promise<ProjectFileHandle | null>;
+	resolve(id: string, reservationId: string): Promise<ProjectFileHandle | null>;
 	remove(id: string): Promise<void>;
 	clear(): Promise<void>;
 }
@@ -151,7 +151,7 @@ export class RecentProjectsController {
 	remember(handle: ProjectFileHandle, name: string): Promise<void> { return this.update(async () => { await this.store?.remember(handle, name); }); }
 	remove(id: string): Promise<void> { return this.update(async () => { await this.store?.remove(id); }); }
 	clear(): Promise<void> { return this.update(async () => { await this.store?.clear(); }); }
-	resolve(id: string, reservationId?: string): Promise<ProjectFileHandle | null> {
+	resolve(id: string, reservationId: string): Promise<ProjectFileHandle | null> {
 		if (this.store == null) return Promise.reject(new Error('Recent projects are unavailable.'));
 		return this.store.resolve(id, reservationId);
 	}

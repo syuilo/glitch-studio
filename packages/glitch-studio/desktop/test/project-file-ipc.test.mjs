@@ -30,7 +30,12 @@ async function fixture(t, { startup = false } = {}) {
 			if (event !== trusted) throw new Error('Untrusted');
 			return parent;
 		};
-		registerProjectFileIpc(ipcMain, dialogs, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath);
+		registerProjectFileIpc(ipcMain, dialogs, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath, {
+			// 所有権の排他はEditorWindowsの結合テストで検証し、ここではファイル選択とI/Oを扱う。
+			registerProject: filePath => projectFiles.describe(projectFiles.register(filePath)),
+			projectWillWrite: () => {},
+			projectWritten: () => {},
+		});
 		registerStartupFileIpc(ipcMain, projectFiles, getTrustedMainWindow, () => {
 			const filePath = startupProjectPath;
 			startupProjectPath = null;
@@ -53,7 +58,7 @@ test('delivers the startup project once to the trusted UI and preserves its save
 	const opened = startup.file;
 	assert.equal(opened.name, 'project.gsproj');
 	assert.deepEqual(new Uint8Array(await h.invoke('read-project-file', opened.id)), new Uint8Array([1, 2, 3]));
-	await h.invoke('write-project-file', opened.id, new Uint8Array([4]));
+	await h.invoke('write-project-file', opened.id, new Uint8Array([4]), 'test-session');
 	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([4]));
 	assert.equal(await h.invoke('take-startup-file'), null);
 	assert.deepEqual(h.calls, []);
@@ -70,8 +75,8 @@ test('returns no startup project for a regular launch', async t => {
 // Electron版がブラウザの破壊的な保存ピッカーへ戻ったり、追加のフォルダ選択を要求することを防ぐ。
 test('selects native project targets without truncating them or requesting a folder', async t => {
 	const h = await fixture(t);
-	const opened = await h.invoke('choose-project-file');
-	const selected = await h.invoke('choose-project-save-file', opened.name);
+	const opened = await h.invoke('choose-project-file', 'test-session');
+	const selected = await h.invoke('choose-project-save-file', opened.name, 'test-session');
 	assert.deepEqual(opened, selected);
 	assert.deepEqual(h.calls[0].properties, ['openFile']);
 	assert.equal(h.calls.length, 2);
@@ -79,7 +84,7 @@ test('selects native project targets without truncating them or requesting a fol
 	const backup = 'project.save-backup-2026-01-01-12-34-56.gsproj';
 	assert.equal(await h.invoke('copy-project-backup', opened.id, backup), 'created');
 	assert.equal(await h.invoke('copy-project-backup', opened.id, backup), 'exists');
-	await h.invoke('write-project-file', selected.id, new Uint8Array([4]));
+	await h.invoke('write-project-file', selected.id, new Uint8Array([4]), 'test-session');
 	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([4]));
 	assert.deepEqual(new Uint8Array(await fs.readFile(path.join(path.dirname(h.file), backup))), new Uint8Array([1, 2, 3]));
 });
@@ -90,7 +95,7 @@ test('selects native project targets without truncating them or requesting a fol
 test('remembers the project open directory across restarts and reads other processes changes', async t => {
 	const h = await fixture(t);
 	const originalDirectory = path.dirname(h.file);
-	await h.invoke('choose-project-file');
+	await h.invoke('choose-project-file', 'test-session');
 	assert.equal(h.calls[0].defaultPath, undefined);
 	assert.equal(await fs.readFile(h.projectOpenDirectoryFilePath, 'utf8'), originalDirectory);
 
@@ -100,15 +105,15 @@ test('remembers the project open directory across restarts and reads other proce
 		h.calls.push(options);
 		return { canceled: false, filePaths: [path.join(nextDirectory, 'next.gsproj')] };
 	};
-	const opened = await h.invoke('choose-project-file');
+	const opened = await h.invoke('choose-project-file', 'test-session');
 	assert.equal(h.calls[1].defaultPath, originalDirectory);
 	assert.equal(opened.name, 'next.gsproj');
-	await h.invoke('choose-project-file');
+	await h.invoke('choose-project-file', 'test-session');
 	assert.equal(h.calls[2].defaultPath, nextDirectory);
 
 	const otherProcessDirectory = path.join(originalDirectory, 'other-process');
 	await fs.writeFile(h.projectOpenDirectoryFilePath, otherProcessDirectory);
-	await h.invoke('choose-project-file');
+	await h.invoke('choose-project-file', 'test-session');
 	assert.equal(h.calls[3].defaultPath, otherProcessDirectory);
 });
 
@@ -117,13 +122,13 @@ test('remembers the project open directory across restarts and reads other proce
 // キャンセルしたダイアログでは確定したファイルがないため、それ以前の選択を維持する。
 test('keeps the project open directory when cancelling or choosing a save target', async t => {
 	const h = await fixture(t);
-	await h.invoke('choose-project-file');
+	await h.invoke('choose-project-file', 'test-session');
 	const originalDirectory = path.dirname(h.file);
 	const otherFile = path.join(originalDirectory, 'other', 'saved.gsproj');
 	h.dialogs.showSaveDialog = async () => ({ canceled: false, filePath: otherFile });
-	await h.invoke('choose-project-save-file', 'saved.gsproj');
+	await h.invoke('choose-project-save-file', 'saved.gsproj', 'test-session');
 	h.dialogs.showOpenDialog = async () => ({ canceled: true, filePaths: [otherFile] });
-	assert.equal(await h.invoke('choose-project-file'), null);
+	assert.equal(await h.invoke('choose-project-file', 'test-session'), null);
 	assert.equal(await fs.readFile(h.projectOpenDirectoryFilePath, 'utf8'), originalDirectory);
 
 	h.restart();
@@ -131,7 +136,7 @@ test('keeps the project open directory when cancelling or choosing a save target
 		assert.equal(options.defaultPath, originalDirectory);
 		return { canceled: true, filePaths: [] };
 	};
-	assert.equal(await h.invoke('choose-project-file'), null);
+	assert.equal(await h.invoke('choose-project-file', 'test-session'), null);
 });
 
 // 【ディレクトリ記録の読み書きに失敗してもプロジェクトを開ける】
@@ -141,10 +146,10 @@ test('continues opening projects when directory preference storage is unavailabl
 	const h = await fixture(t);
 	t.mock.method(console, 'error', () => {});
 	await fs.writeFile(path.dirname(h.projectOpenDirectoryFilePath), 'storage is unavailable');
-	const opened = await h.invoke('choose-project-file');
+	const opened = await h.invoke('choose-project-file', 'test-session');
 	assert.equal(opened.name, 'project.gsproj');
 	assert.deepEqual(new Uint8Array(await h.invoke('read-project-file', opened.id)), new Uint8Array([1, 2, 3]));
-	await h.invoke('choose-project-file');
+	await h.invoke('choose-project-file', 'test-session');
 	assert.equal(h.calls[1].defaultPath, path.dirname(h.file));
 });
 
@@ -154,13 +159,26 @@ test('honors cancellation and asks before replacing an extension-completed targe
 	const h = await fixture(t);
 	h.dialogs.showOpenDialog = async () => ({ canceled: true, filePaths: [] });
 	h.dialogs.showSaveDialog = async () => ({ canceled: true });
-	assert.equal(await h.invoke('choose-project-file'), null);
-	assert.equal(await h.invoke('choose-project-save-file', 'project.gsproj'), null);
+	assert.equal(await h.invoke('choose-project-file', 'test-session'), null);
+	assert.equal(await h.invoke('choose-project-save-file', 'project.gsproj', 'test-session'), null);
 	h.dialogs.showSaveDialog = async () => ({ canceled: false, filePath: h.file.slice(0, -7) });
 	let confirmations = 0;
 	h.dialogs.showMessageBox = async () => { confirmations++; return { response: 0 }; };
-	assert.equal(await h.invoke('choose-project-save-file', 'project.gsproj'), null);
+	assert.equal(await h.invoke('choose-project-save-file', 'project.gsproj', 'test-session'), null);
 	assert.equal(confirmations, 1);
+	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([1, 2, 3]));
+});
+
+// 【セッションIDのない保存はダイアログや書き込みを開始しない】
+// 所有権の確認を省略した保存が入口に残ると、同じウィンドウの別タブの作品を上書きできてしまう。
+test('rejects saves without a session before selecting or writing a target', async t => {
+	const h = await fixture(t, { startup: true });
+	const { file } = await h.invoke('take-startup-file');
+	for (const sessionId of [undefined, null, '']) {
+		await assert.rejects(h.invoke('choose-project-save-file', file.name, sessionId), /Invalid project session/);
+		await assert.rejects(h.invoke('write-project-file', file.id, new Uint8Array([4]), sessionId), /Invalid project session/);
+	}
+	assert.deepEqual(h.calls, []);
 	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([1, 2, 3]));
 });
 

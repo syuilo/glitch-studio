@@ -1,4 +1,4 @@
-import { saveProjectFile } from './gsproj.ts';
+import { writeFileSystemFile } from './utility/write-file-system-file.ts';
 import type { ProjectBackupDirectory } from './project-backups.ts';
 
 export async function selectProjectBackupFolder(handle: FileSystemFileHandle): Promise<FileSystemDirectoryHandle> {
@@ -17,6 +17,7 @@ export function browserProjectBackupDirectory(directory: FileSystemDirectoryHand
 			return names;
 		},
 		async create(name, data) {
+			if (data.byteLength === 0) throw new Error('The backup contains no save data.');
 			// 同じオリジンの別タブも含め、存在確認と作成の間に同名バックアップを作らせない。
 			return navigator.locks.request(`glitch-studio-backup:${name}`, async () => {
 				try {
@@ -27,7 +28,7 @@ export function browserProjectBackupDirectory(directory: FileSystemDirectoryHand
 				}
 				const handle = await directory.getFileHandle(name, { create: true });
 				try {
-					await saveProjectFile(data, handle);
+					await writeFileSystemFile(handle, data);
 				} catch (error) {
 					await directory.removeEntry(name).catch(() => {});
 					throw error;

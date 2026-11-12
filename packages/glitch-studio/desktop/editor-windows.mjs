@@ -16,7 +16,7 @@ export class EditorWindows {
 
 	add(window, startupFilePath = null) {
 		const context = { window, startupFilePath, projectFiles: new ProjectFiles(), exportFiles: new ExportFiles(), externalAssetFiles: new ExternalAssetFiles(),
-			handlers: new Map(), projectPath: null, projectSessions: new Map(), reservations: new Map(), closeController: null, notification: null };
+			handlers: new Map(), projectSessions: new Map(), reservations: new Map(), closeController: null, notification: null };
 		this.contexts.set(window.webContents.id, context);
 		context.ipc = { handle: (channel, handler) => {
 			context.handlers.set(channel, handler);
@@ -74,15 +74,15 @@ export class EditorWindows {
 
 	findProject(filePath) { return this.projectOwners.get(this.projectKey(filePath)) ?? null; }
 
-	registerProject(context, filePath, saving = false, reservationId = 'startup') {
+	registerProject(context, filePath, saving, reservationId) {
 		if (context.window.isDestroyed()) throw new Error('The editor window has been closed.');
+		if (typeof reservationId !== 'string' || reservationId.length === 0) throw new Error('Invalid project session');
 		const owner = this.findProject(filePath);
 		if (owner != null && owner !== context) {
 			this.focusProject(owner, filePath);
 			if (saving) throw new Error('This project is open in another window. Choose a different save file.');
 			return null;
 		}
-		if (typeof reservationId !== 'string' || reservationId.length === 0) throw new Error('Invalid project session');
 		const key = this.projectKey(filePath);
 		if (saving) {
 			const owned = [...context.projectSessions].some(([sessionId, current]) => sessionId !== reservationId && this.projectKey(current) === key);
@@ -110,26 +110,22 @@ export class EditorWindows {
 	setSessionProject(context, sessionId, id) {
 		if (context.window.isDestroyed()) return;
 		if (typeof sessionId !== 'string' || sessionId.length === 0) throw new Error('Invalid project session');
-		const filePath = id == null ? null : context.projectFiles.getPath(id);
-		if (filePath != null) {
-			const key = this.projectKey(filePath);
-			if ([...context.projectSessions].some(([other, current]) => other !== sessionId && this.projectKey(current) === key)) throw new Error('This project is already open in another tab.');
-			const owner = this.findProject(filePath);
-			if (owner != null && owner !== context) throw new Error('This project is open in another window.');
-			context.projectSessions.set(sessionId, filePath);
-			this.projectOwners.set(key, context);
-		} else context.projectSessions.delete(sessionId);
-		context.projectPath = filePath;
+		const filePath = context.projectFiles.getPath(id);
+		const key = this.projectKey(filePath);
+		if ([...context.projectSessions].some(([other, current]) => other !== sessionId && this.projectKey(current) === key)) throw new Error('This project is already open in another tab.');
+		const owner = this.findProject(filePath);
+		if (owner != null && owner !== context) throw new Error('This project is open in another window.');
+		context.projectSessions.set(sessionId, filePath);
+		this.projectOwners.set(key, context);
 		this.releaseReservations(context, sessionId);
 	}
 
 	closeProjectSession(context, sessionId) {
 		context.projectSessions.delete(sessionId);
 		this.releaseReservations(context, sessionId);
-		if (![...context.projectSessions.values()].includes(context.projectPath)) context.projectPath = [...context.projectSessions.values()].at(-1) ?? null;
 	}
 
-	releaseReservations(context, reservationId = 'startup') {
+	releaseReservations(context, reservationId) {
 		context.reservations.delete(reservationId);
 		this.refreshProjectOwners(context);
 	}

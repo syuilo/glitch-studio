@@ -71,15 +71,12 @@ export type AppStateChange = ProjectContentChange
 export class ProjectContext {
 	private disposed = false;
 	private readonly stopMetadataUpdates: () => void;
-	private readonly projectId: Ref<Project['id']>;
-	public get id() { return this.projectId.value; }
 	public get isDisposed() { return this.disposed; }
 	public readonly stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;
 	public readonly externalAssetMetadata = new ExternalAssetMetadataStore();
 
 	/** データの準備を終えてから生成し、購読側には最初から完成した編集状態を渡す。 */
 	constructor(project: Project) {
-		this.projectId = ref(project.id);
 		for (const asset of project.assets) this.externalAssetMetadata.record(asset);
 		this.stateManager = new UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>({
 			customShaderEffects: ref(project.customShaderEffects),
@@ -104,13 +101,6 @@ export class ProjectContext {
 		});
 	}
 
-	// 別名保存の成功後にファイルの同一性だけを切り替える。編集状態と履歴は維持し、
-	// Commandには含めずUndoで旧ファイルのIDへ戻らないようにする。
-	public adoptSavedProjectId(id: Project['id']): void {
-		if (this.disposed) return;
-		this.projectId.value = id;
-	}
-
 	public snapshot(): Project | null {
 		if (this.disposed) return null;
 		const state = this.stateManager.state;
@@ -120,7 +110,6 @@ export class ProjectContext {
 			customShaderEffects: state.customShaderEffects.value,
 			automationGraphs: state.automationGraphs.value,
 			exportSettings: state.exportSettings.value,
-			id: this.projectId.value,
 			gsVersion: _VERSION_,
 			name: state.name.value,
 			description: state.description.value,

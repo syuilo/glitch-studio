@@ -145,12 +145,12 @@ export class ProjectSessionContext {
 	public get projectBackupController() { return this.projectSaveController.projectBackupController; }
 
 	constructor(projectContext: ProjectContext, options: {
-		id?: string;
-		fileName?: string | null;
-		fileHandle?: ProjectFileHandle | null;
-		reserveProjectFile?: (handle: ProjectFileHandle) => Promise<() => void>;
-	} = {}) {
-		this.id = options.id ?? genId();
+		id: string;
+		fileName: string | null;
+		fileHandle: ProjectFileHandle | null;
+		reserveProjectFile: (handle: ProjectFileHandle) => Promise<() => void>;
+	}) {
+		this.id = options.id;
 		markRaw(this);
 		this.projectContext = projectContext;
 		const state = projectContext.stateManager.state;
@@ -541,8 +541,7 @@ export class ProjectSessionContext {
 
 		this.projectSaveController = new ProjectSaveController(
 			() => this.projectContext.snapshot(),
-			id => { this.projectContext.adoptSavedProjectId(id); },
-			{ fileName: options.fileName ?? null, fileHandle: options.fileHandle ?? null,
+			{ fileName: options.fileName, fileHandle: options.fileHandle,
 				sessionId: this.id, reserveProjectFile: options.reserveProjectFile },
 			(component, props, events) => ui.popup(component, props, events, this),
 		);
@@ -683,8 +682,11 @@ export class ProjectSessionContext {
 		if (this.disposed) return;
 
 		const fileHandle = this.projectFileHandle.value;
-		await window.desktop?.setSessionProjectFile?.(this.id, fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
-		if (this.disposed) return;
+		// セッションは新規生成するため、保存先のない作品には解除すべき旧登録がない。
+		if (fileHandle?.kind === 'desktop-project-file') {
+			await window.desktop?.setSessionProjectFile?.(this.id, fileHandle.id);
+			if (this.disposed) return;
+		}
 
 		// 外部への音声生成は、購読の準備とは分けて保存先の登録後に開始する。
 		this.sessionDisposers.push(watch(() => JSON.stringify(getVoicevoxRequests(this.projectContext.stateManager.state.timelineScenes.value)), () => {

@@ -8,8 +8,8 @@ interface Window {
 	desktop?: {
 		onProjectCloseRequested(listener: (requestId: number) => void): () => void;
 		completeProjectClose(requestId: number, confirmed: boolean): Promise<boolean>;
-		setSessionProjectFile(sessionId: string, id: string | null): Promise<void>;
-		releaseProjectReservations(reservationId?: string): Promise<void>;
+		setSessionProjectFile(sessionId: string, id: string): Promise<void>;
+		releaseProjectReservations(reservationId: string): Promise<void>;
 		closeProjectSession(sessionId: string): Promise<void>;
 		onActivateProjectFile(listener: (id: string) => void): () => void;
 		getUpdateState(): Promise<import('@gs/glitch-studio_shared/desktop-update.ts').DesktopUpdateState>;
@@ -32,16 +32,16 @@ interface Window {
 		beginAssetExport(name: string): Promise<string | null>;
 		writeAssetExport(id: string, chunk: Uint8Array | null): Promise<void>;
 		abortAssetExport(id: string): Promise<void>;
-		registerProjectFile(file: File, reservationId?: string): Promise<{ id: string; name: string } | null>;
-		chooseProjectFile(reservationId?: string): Promise<{ id: string; name: string } | null>;
+		registerProjectFile(file: File, reservationId: string): Promise<{ id: string; name: string } | null>;
+		chooseProjectFile(reservationId: string): Promise<{ id: string; name: string } | null>;
 		listRecentProjects(): Promise<import('../recent-projects.ts').RecentProjectEntry[]>;
 		rememberRecentProject(id: string, name: string): Promise<void>;
-		resolveRecentProject(id: string, reservationId?: string): Promise<{ id: string; name: string } | null>;
+		resolveRecentProject(id: string, reservationId: string): Promise<{ id: string; name: string } | null>;
 		removeRecentProject(id: string): Promise<void>;
 		clearRecentProjects(): Promise<void>;
-		chooseProjectSaveFile(name: string, sessionId?: string): Promise<{ id: string; name: string } | null>;
+		chooseProjectSaveFile(name: string, sessionId: string): Promise<{ id: string; name: string } | null>;
 		readProjectFile(id: string): Promise<Uint8Array | null>;
-		writeProjectFile(id: string, data: Uint8Array, sessionId?: string): Promise<void>;
+		writeProjectFile(id: string, data: Uint8Array, sessionId: string): Promise<void>;
 		listProjectBackups(id: string): Promise<string[]>;
 		writeProjectBackup(id: string, name: string, data: Uint8Array): Promise<boolean>;
 		copyProjectBackup(id: string, name: string): Promise<'created' | 'exists' | 'empty'>;

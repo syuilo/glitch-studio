@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { EditorWindows } from '../editor-windows.mjs';
 import { registerProjectFileIpc } from '../project-file-ipc.mjs';
 import { registerExportFileIpc } from '../export-file-ipc.mjs';
+import { registerRecentProjectsIpc } from '../recent-projects.mjs';
 
 function fixture() {
 	const handlers = new Map();
@@ -22,8 +23,9 @@ function fixture() {
 		const context = registry.add(window);
 		const trust = event => registry.trusted(event).window;
 		registerProjectFileIpc(context.ipc, {}, context.projectFiles, trust, null, {
-			registerProject: (filePath, saving) => registry.registerProject(context, filePath, saving),
-			projectWillWrite: id => registry.registerProject(context, context.projectFiles.getPath(id), true),
+			registerProject: (filePath, saving, reservationId) => registry.registerProject(context, filePath, saving, reservationId),
+			projectWillWrite: (id, sessionId) => registry.registerProject(context, context.projectFiles.getPath(id), true, sessionId),
+			projectWritten: (id, sessionId) => registry.setSessionProject(context, sessionId, id),
 		});
 		registerExportFileIpc(context.ipc, {}, context.exportFiles, trust);
 		return { context, window, get focused() { return focused; },
@@ -39,9 +41,9 @@ test('routes project and export capabilities to their owner and preserves other 
 	const { createWindow } = fixture();
 	const first = createWindow(1);
 	const second = createWindow(2);
-	const descriptor = first.invoke('register-project-file', path.resolve('first.gsproj'));
+	const descriptor = first.invoke('register-project-file', path.resolve('first.gsproj'), 'first-session');
 	await assert.rejects(second.invoke('read-project-file', descriptor.id), /Unknown/);
-	const retained = second.invoke('register-project-file', path.resolve('retained.gsproj'));
+	const retained = second.invoke('register-project-file', path.resolve('retained.gsproj'), 'second-session');
 	const target = second.context.exportFiles.register(path.resolve('second.mp4'));
 	await assert.rejects(first.invoke('write-export-file', target.id, new Uint8Array([1])), /Unknown/);
 	first.window.destroy();
@@ -57,19 +59,19 @@ test('reserves loading projects, focuses duplicate opens and rejects conflicting
 	const first = createWindow(1);
 	const second = createWindow(2);
 	const filePath = path.resolve('loading.gsproj');
-	const descriptor = registry.registerProject(first.context, filePath);
-	assert.equal(registry.registerProject(second.context, filePath), null);
+	const descriptor = registry.registerProject(first.context, filePath, false, 'startup');
+	assert.equal(registry.registerProject(second.context, filePath, false, 'startup'), null);
 	assert.equal(first.focused, 1);
-	assert.throws(() => registry.registerProject(second.context, filePath, true), /another window/);
+	assert.throws(() => registry.registerProject(second.context, filePath, true, 'startup'), /another window/);
 	registry.setSessionProject(first.context, 'startup', descriptor.id);
 	const canceled = path.resolve('canceled.gsproj');
-	registry.registerProject(first.context, canceled);
-	registry.releaseReservations(first.context);
+	registry.registerProject(first.context, canceled, false, 'startup');
+	registry.releaseReservations(first.context, 'startup');
 	assert.equal(registry.findProject(canceled), null);
 	assert.equal(registry.findProject(filePath), first.context);
-	registry.setSessionProject(first.context, 'startup', null);
+	registry.closeProjectSession(first.context, 'startup');
 	assert.equal(registry.findProject(filePath), null);
-	assert.notEqual(registry.registerProject(second.context, filePath), null);
+	assert.notEqual(registry.registerProject(second.context, filePath, false, 'startup'), null);
 });
 
 // 【過去に登録したファイルIDでも、別作品が現在使用している保存先へは書き込まない】
@@ -78,13 +80,40 @@ test('rechecks ownership before writing through a previously registered project 
 	const { registry, createWindow } = fixture();
 	const first = createWindow(1);
 	const second = createWindow(2);
-	const descriptor = registry.registerProject(first.context, path.resolve('shared.gsproj'));
-	registry.setSessionProject(first.context, 'startup', null);
-	registry.registerProject(second.context, path.resolve('shared.gsproj'));
+	const descriptor = registry.registerProject(first.context, path.resolve('shared.gsproj'), false, 'startup');
+	registry.closeProjectSession(first.context, 'startup');
+	registry.registerProject(second.context, path.resolve('shared.gsproj'), false, 'startup');
 	let written = false;
 	first.context.projectFiles.write = async () => { written = true; };
-	await assert.rejects(first.invoke('write-project-file', descriptor.id, new Uint8Array([1])), /another window/);
+	await assert.rejects(first.invoke('write-project-file', descriptor.id, new Uint8Array([1]), 'startup'), /another window/);
 	assert.equal(written, false);
+});
+
+// 【履歴から開く場合も読込中の予約を保持し、既存の所有ウィンドウへ移動する】
+// 通常のOpenと異なる登録経路を使うと、履歴から同じ作品を二重に開けてしまう。
+// セッションへ所有権を移した後も排他を維持し、閉じたときだけ別ウィンドウで開けることを確認する。
+test('reserves recent projects through the same window ownership registry', async () => {
+	const { registry, createWindow } = fixture();
+	const first = createWindow(1);
+	const second = createWindow(2);
+	const filePath = path.resolve('recent.gsproj');
+	const recentProjects = { async read(id) { assert.equal(id, 'recent-id'); return { filePath }; } };
+	for (const { context } of [first, second]) {
+		registerRecentProjectsIpc(context.ipc, recentProjects, context.projectFiles, event => registry.trusted(event).window, null, {
+			registerProject: (selectedPath, saving, reservationId) => registry.registerProject(context, selectedPath, saving, reservationId),
+		});
+	}
+	const opened = await first.invoke('resolve-recent-project', 'recent-id', 'first-session');
+	assert.equal(registry.findProject(filePath), first.context);
+	assert.equal(await second.invoke('resolve-recent-project', 'recent-id', 'second-session'), null);
+	assert.equal(first.focused, 1);
+	registry.setSessionProject(first.context, 'first-session', opened.id);
+	assert.equal(await second.invoke('resolve-recent-project', 'recent-id', 'second-session'), null);
+	registry.closeProjectSession(first.context, 'first-session');
+	assert.notEqual(await second.invoke('resolve-recent-project', 'recent-id', 'second-session'), null);
+	assert.equal(registry.findProject(filePath), second.context);
+	registry.releaseReservations(second.context, 'second-session');
+	assert.equal(registry.findProject(filePath), null);
 });
 
 // 【外部ページ・子フレーム・未登録のウィンドウからのIPCを拒否する】
@@ -124,7 +153,7 @@ test('retains independent tab ownership and reservations through save as and clo
 	registry.closeProjectSession(first.context, 'first');
 	assert.equal(registry.findProject(replacement), null);
 	assert.equal(registry.findProject(other), first.context);
-	assert.equal(registry.registerProject(second.context, other), null);
+	assert.equal(registry.registerProject(second.context, other, false, 'startup'), null);
 	first.window.destroy();
 	assert.equal(registry.findProject(other), null);
 });
@@ -140,6 +169,6 @@ test('activates the owning project tab when focusing a duplicate open', () => {
 	registry.setSessionProject(first.context, 'tab', descriptor.id);
 	const sent = [];
 	first.window.webContents.send = (...args) => sent.push(args);
-	assert.equal(registry.registerProject(second.context, filePath), null);
+	assert.equal(registry.registerProject(second.context, filePath, false, 'startup'), null);
 	assert.deepEqual(sent, [['desktop:activate-project-file', descriptor.id]]);
 });

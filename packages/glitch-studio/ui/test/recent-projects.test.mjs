@@ -71,10 +71,10 @@ test('restores handles and requests permission synchronously without deleting de
 	await store.remember(denied, 'Denied');
 	const restored = createStore();
 	const entries = await restored.list();
-	const pending = restored.resolve(entries.find(entry => entry.name === 'Allowed').id);
+	const pending = restored.resolve(entries.find(entry => entry.name === 'Allowed').id, 'allowed-session');
 	assert.deepEqual(allowed.requests, [{ mode: 'read' }]);
 	assert.equal(await pending, allowed);
-	await assert.rejects(restored.resolve(entries.find(entry => entry.name === 'Denied').id), /Read permission/);
+	await assert.rejects(restored.resolve(entries.find(entry => entry.name === 'Denied').id, 'denied-session'), /Read permission/);
 	assert.equal((await restored.list()).length, 2);
 	await restored.remove(entries[0].id);
 	assert.equal((await restored.list()).length, 1);

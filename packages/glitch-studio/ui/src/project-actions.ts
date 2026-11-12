@@ -10,7 +10,7 @@ import imageEffectDef from '@gs/subsystems_effect_shared/fx/image/_def_.ts';
 import videoEffectDef from '@gs/subsystems_effect_shared/fx/video/_def_.ts';
 import audioWaveformEffectDef from '@gs/subsystems_effect_shared/fx/audioWaveform/_def_.ts';
 import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
-import { DEFAULT_PROJECT_NAME, loadProjectFile } from './gsproj.ts';
+import { DEFAULT_PROJECT_NAME, selectProjectFile } from './gsproj.ts';
 import { recentProjects } from './recent-projects.ts';
 import type { ProjectSessionManager } from './ProjectSessionManager.ts';
 import { applicationActivity } from './application-activity.ts';
@@ -31,20 +31,17 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 	async function openProject(file?: File | null, fileHandle?: ProjectFileHandle | null, recentProjectId?: string): Promise<boolean> {
 		const sessionId = genId();
 		const releaseActivity = applicationActivity.acquire();
-		const waiting = ui.waiting({ text: i18n.ts._App.LoadingProjectFile });
 		try {
-			try {
-				if (recentProjectId != null) {
-					fileHandle = await recentProjects.resolve(recentProjectId, sessionId);
-					if (fileHandle == null) return false;
-				}
-				const result = await loadProjectFile(file, fileHandle, sessionId);
-				if (result == null) return false;
-				const session = await projectSessions.open(result.project, result.name, result.handle ?? null, sessionId);
-				if (session == null) return false;
-				if (result.handle != null) await recentProjects.remember(result.handle, result.project.name);
-				return true;
-			} finally { waiting.done(); }
+			if (recentProjectId != null) {
+				fileHandle = await recentProjects.resolve(recentProjectId, sessionId);
+				if (fileHandle == null) return false;
+			}
+			const selectedFile = await selectProjectFile({ file, handle: fileHandle, reservationId: sessionId });
+			if (selectedFile == null) return false;
+			const session = await projectSessions.openFile(selectedFile, sessionId);
+			if (session == null) return false;
+			if (selectedFile.handle != null) await recentProjects.remember(selectedFile.handle, session.projectContext.stateManager.state.name.value);
+			return true;
 		} catch (error) {
 			console.error(error);
 			await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
@@ -107,7 +104,6 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			}],
 		} satisfies ProjectVisualModule;
 		return projectSessions.open({
-			id: genId(),
 			gsVersion: _VERSION_,
 			name: DEFAULT_PROJECT_NAME,
 			description: '',
@@ -295,7 +291,6 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 		} satisfies ProjectVisualModule;
 	
 		const session = await projectSessions.open({
-			id: genId(),
 			gsVersion: _VERSION_,
 			name: DEFAULT_PROJECT_NAME,
 			description: '',

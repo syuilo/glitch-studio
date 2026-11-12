@@ -141,8 +141,8 @@ function createWindow(startupFilePath = null) {
 		},
 	});
 	const context = editorWindows.add(mainWindow, startupFilePath);
-	if (getLaunchFileType(startupFilePath)?.kind === 'project') editorWindows.registerProject(context, startupFilePath);
-	const registerProject = (filePath, saving = false, reservationId) => editorWindows.registerProject(context, filePath, saving, reservationId);
+	if (getLaunchFileType(startupFilePath)?.kind === 'project') editorWindows.registerProject(context, startupFilePath, false, 'startup');
+	const registerProject = (filePath, saving, reservationId) => editorWindows.registerProject(context, filePath, saving, reservationId);
 	const { ipc, projectFiles, exportFiles } = context;
 	const disposeAssetExports = registerExternalAssetIpc(ipc, dialog, context.externalAssetFiles, projectFiles, getTrustedMainWindow);
 	registerVoicevoxIpc(ipc, getTrustedMainWindow);
@@ -200,7 +200,7 @@ function createWindow(startupFilePath = null) {
 		context.projectSessions.clear();
 		context.reservations.clear();
 		editorWindows.refreshProjectOwners(context);
-		if (getLaunchFileType(context.startupFilePath)?.kind === 'project') editorWindows.registerProject(context, context.startupFilePath);
+		if (getLaunchFileType(context.startupFilePath)?.kind === 'project') editorWindows.registerProject(context, context.startupFilePath, false, 'startup');
 		void desktopUpdateController?.abortPreparation().catch(console.error);
 	});
 	mainWindow.webContents.on('render-process-gone', () => {
@@ -230,7 +230,8 @@ async function showEditorFailure(context) {
 			message: 'The editor could not continue. Reload this window or close it.', buttons: ['Reload', 'Close'], cancelId: 1 });
 		if (context.window.isDestroyed()) return;
 		if (result.response === 0) {
-			context.startupFilePath = context.projectPath;
+			// 起動ファイルの受け取り前に失敗した場合も、再読み込みではDashboardへ戻す。
+			context.startupFilePath = null;
 			context.window.webContents.reload();
 		} else context.window.destroy();
 	} finally { context.showingFailure = false; }
