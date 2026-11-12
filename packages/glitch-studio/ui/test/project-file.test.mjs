@@ -2372,6 +2372,7 @@ test('saves editable project information, updates the title and preserves undo h
 // 【プロジェクト名が空なら確定済みのファイル名、ファイル名もなければ未保存表示を使う】
 // 名前の編集・保存・別名保存・タブ切替の後も、タイトルと終了確認が同じ名前を示す必要がある。
 // 表示上の補完で保存データの空文字列を上書きせず、ハンドルなしで開いたFileの名前も使用する。
+// ファイル名の末尾の拡張子だけを除き、名前の途中のドットや明示したプロジェクト名は保持する。
 test('keeps display names in sync with project names and committed file names without storing fallbacks', async t => {
 	let app = null;
 	t.after(() => app?.disposeApplication());
@@ -2383,39 +2384,39 @@ test('keeps display names in sync with project names and committed file names wi
 	assert.equal(name.value, '');
 	assert.equal(first.projectDisplayName.value, '(Unsaved)');
 	assert.equal(window.document.title, 'Glitch Studio ((Unsaved))');
-	const original = fileHandle('original.gsproj');
+	const original = fileHandle('original.v1.GSPROJ');
 	window.selectProjectSaveFile = async () => original;
 	await first.saveProject();
 	assert.equal(decodeProjectFile(original.bytes).name, '');
-	assert.equal(first.projectDisplayName.value, original.name);
-	assert.equal(window.document.title, `Glitch Studio (${original.name})`);
-	name.value = 'Named Project';
+	assert.equal(first.projectDisplayName.value, 'original.v1');
+	assert.equal(window.document.title, 'Glitch Studio (original.v1)');
+	name.value = 'Named Project.gsproj';
 	await nextTick();
-	assert.equal(first.projectDisplayName.value, 'Named Project');
-	assert.equal(window.document.title, 'Glitch Studio (Named Project)');
+	assert.equal(first.projectDisplayName.value, 'Named Project.gsproj');
+	assert.equal(window.document.title, 'Glitch Studio (Named Project.gsproj)');
 	const copy = fileHandle('copy.gsproj');
 	window.selectProjectSaveFile = async () => copy;
 	await first.saveProject(true);
-	assert.equal(first.projectDisplayName.value, 'Named Project');
+	assert.equal(first.projectDisplayName.value, 'Named Project.gsproj');
 	name.value = '';
 	await nextTick();
-	assert.equal(first.projectDisplayName.value, copy.name);
-	assert.equal(window.document.title, `Glitch Studio (${copy.name})`);
+	assert.equal(first.projectDisplayName.value, 'copy');
+	assert.equal(window.document.title, 'Glitch Studio (copy)');
 	const second = await app.newProject();
 	assert.equal(second.projectDisplayName.value, '(Unsaved)');
 	assert.equal(window.document.title, 'Glitch Studio ((Unsaved))');
 	await app.projectSessions.select(first);
-	assert.equal(window.document.title, `Glitch Studio (${copy.name})`);
+	assert.equal(window.document.title, 'Glitch Studio (copy)');
 	assert.equal(await app.projectSessions.close(second), true);
 	assert.ok(window.projectConfirmations.at(-1).text.startsWith('(Unsaved)\n'));
 	assert.equal(await app.projectSessions.close(first), true);
-	assert.ok(window.projectConfirmations.at(-1).text.startsWith(`${copy.name}\n`));
+	assert.ok(window.projectConfirmations.at(-1).text.startsWith('copy\n'));
 	const file = new File([original.bytes], 'read-only.gsproj');
 	assert.equal(await app.openProject(file), true);
 	assert.equal(app.projectSession.projectFileHandle.value, null);
-	assert.equal(app.projectSession.projectDisplayName.value, file.name);
+	assert.equal(app.projectSession.projectDisplayName.value, 'read-only');
 	assert.equal(app.projectSession.projectContext.snapshot().name, '');
-	assert.equal(window.document.title, `Glitch Studio (${file.name})`);
+	assert.equal(window.document.title, 'Glitch Studio (read-only)');
 });
 
 // 【Save asが成功したときだけ保存先を切り替える】

@@ -41,7 +41,7 @@ test('displays current project names and save status while routing selection and
 	});
 	const session = id => ({ id, projectDisplayName: ref(id), hasUnsavedChanges: ref(false), isProjectSaving: ref(false) });
 	const first = session('(Unsaved)');
-	const second = session('second.gsproj');
+	const second = session('second');
 	const manager = { sessions: shallowRef([first]), activeSession: shallowRef(first),
 		fileOperations: { isBusy: ref(false) },
 		select(target) { this.activeSession.value = target; }, close(target) { this.sessions.value = this.sessions.value.filter(session => session !== target); } };
@@ -63,11 +63,11 @@ test('displays current project names and save status while routing selection and
 	await nextTick();
 	assert.equal(find('data-test-project-tabs').length, 1);
 	assert.equal(find('data-test-project-tab').length, 2);
-	first.projectDisplayName.value = 'first.gsproj';
+	first.projectDisplayName.value = 'first';
 	first.hasUnsavedChanges.value = true;
 	second.isProjectSaving.value = true;
 	await nextTick();
-	assert.deepEqual(find('data-test-project-tab-name').map(node => node.text), ['first.gsproj', 'second.gsproj']);
+	assert.deepEqual(find('data-test-project-tab-name').map(node => node.text), ['first', 'second']);
 	assert.equal(find('data-test-project-tab-unsaved').length, 1);
 	assert.equal(find('data-test-project-tab-saving').length, 1);
 	manager.fileOperations.isBusy.value = true;
