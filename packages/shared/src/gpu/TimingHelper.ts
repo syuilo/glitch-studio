@@ -10,6 +10,9 @@ function assert(cond: unknown, msg = ''): asserts cond {
 // we try to read the result before the command buffer has been executed.
 const s_unsubmittedCommandBuffer = new Set<GPUCommandBuffer>();
 const trackedQueues = new WeakSet<GPUQueue>();
+const submittedReadbacks = new WeakMap<GPUCommandBuffer, () => void>();
+
+type TimingResultObserver = (nanoseconds: number | null) => void;
 
 const PASSES_PER_QUERY_SET = 16;
 
@@ -23,6 +26,11 @@ export default class TimingHelper {
 	#commandEncoder: GPUCommandEncoder | null = null;
 	#passCount = 0;
 	#resultBuffers: GPUBuffer[] = [];
+	#pendingResultBuffers = new Set<GPUBuffer>();
+	#passObservers: (TimingResultObserver | null)[] = [];
+	#resultObservers: TimingResultObserver[] = [];
+	#readAfterSubmission = false;
+	#disposed = false;
 	#state: 'free' | 'recording' | 'need finish' | 'wait for result' = 'free';
 
 	constructor(device: GPUDevice) {
@@ -37,12 +45,18 @@ export default class TimingHelper {
 			queue.submit = function(commandBuffers) {
 				const buffers = Array.from(commandBuffers);
 				submit.call(this, buffers);
-				for (const buffer of buffers) s_unsubmittedCommandBuffer.delete(buffer);
+				for (const buffer of buffers) {
+					s_unsubmittedCommandBuffer.delete(buffer);
+					const read = submittedReadbacks.get(buffer);
+					submittedReadbacks.delete(buffer);
+					read?.();
+				}
 			};
 		}
 	}
 
-	#withTimestampWrites<T extends GPURenderPassDescriptor | GPUComputePassDescriptor>(encoder: GPUCommandEncoder, descriptor: T): T {
+	#withTimestampWrites<T extends GPURenderPassDescriptor | GPUComputePassDescriptor>(encoder: GPUCommandEncoder, descriptor: T, onResult: TimingResultObserver | null = null): T {
+		assert(!this.#disposed, 'TimingHelper has been disposed');
 		if (this.#canTimestamp) {
 			if (this.#state === 'free') {
 				this.#state = 'recording';
@@ -74,6 +88,7 @@ export default class TimingHelper {
 			}
 			const beginningOfPassWriteIndex = (this.#passCount % PASSES_PER_QUERY_SET) * 2;
 			this.#passCount++;
+			this.#passObservers.push(onResult);
 
 			return {
 				...descriptor,
@@ -88,8 +103,8 @@ export default class TimingHelper {
 		}
 	}
 
-	beginRenderPass(encoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor): GPURenderPassEncoder {
-		return encoder.beginRenderPass(this.#withTimestampWrites(encoder, descriptor));
+	beginRenderPass(encoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor, onResult: TimingResultObserver | null = null): GPURenderPassEncoder {
+		return encoder.beginRenderPass(this.#withTimestampWrites(encoder, descriptor, onResult));
 	}
 
 	beginComputePass(encoder: GPUCommandEncoder, descriptor: GPUComputePassDescriptor = {}): GPUComputePassEncoder {
@@ -104,6 +119,31 @@ export default class TimingHelper {
 		this.#commandBuffer = cb;
 		s_unsubmittedCommandBuffer.add(cb);
 		this.#state = 'wait for result';
+		if (this.#readAfterSubmission) this.#scheduleReadback(cb);
+	}
+
+	/** 現在記録中のencoderの結果を購読する。統計と自動制御で同じQueryを共有できる。 */
+	observeResult(observer: TimingResultObserver) {
+		if (this.#disposed) observer(null);
+		else if (!this.#canTimestamp || this.#state === 'free') observer(0);
+		else this.#resultObservers.push(observer);
+	}
+
+	/**
+	 * getResult()の呼び出しを所有しない計測専用の利用者向け。encoderのfinishと
+	 * queue.submitは描画側が行い、その送信後にだけ非同期のreadbackを始める。
+	 * 計測失敗はobserverへnullで返し、描画ループへ未処理のPromiseを残さない。
+	 */
+	readResultAfterSubmission() {
+		if (this.#disposed || !this.#canTimestamp || this.#state === 'free') return;
+		this.#readAfterSubmission = true;
+		if (this.#commandBuffer != null) this.#scheduleReadback(this.#commandBuffer);
+	}
+
+	#scheduleReadback(commandBuffer: GPUCommandBuffer) {
+		const read = () => { void this.getResult().catch(() => {}); };
+		if (s_unsubmittedCommandBuffer.has(commandBuffer)) submittedReadbacks.set(commandBuffer, read);
+		else read();
 	}
 
 	#resolveTiming(encoder: GPUCommandEncoder) {
@@ -150,6 +190,12 @@ export default class TimingHelper {
 			'you must submit the command buffer before you can read the result',
 		);
 		const queryCount = this.#passCount * 2;
+		const passObservers = this.#passObservers;
+		const resultObservers = this.#resultObservers;
+		this.#passObservers = [];
+		this.#resultObservers = [];
+		submittedReadbacks.delete(this.#commandBuffer);
+		this.#readAfterSubmission = false;
 		this.#commandBuffer = null;
 		this.#commandEncoder = null;
 		this.#passCount = 0;
@@ -157,24 +203,49 @@ export default class TimingHelper {
 
 		const resultBuffer = this.#resultBuffer;
 		assert(resultBuffer); // internal check
-		await resultBuffer.mapAsync(GPUMapMode.READ);
-		const times = new BigUint64Array(resultBuffer.getMappedRange());
+		this.#pendingResultBuffers.add(resultBuffer);
 		let duration = 0n;
-		for (let i = 0; i < queryCount; i += 2) {
-			const passDuration = times[i + 1] - times[i];
-			if (passDuration < 0n) {
-				duration = passDuration;
-				break;
+		const passDurations: number[] = [];
+		try {
+			await resultBuffer.mapAsync(GPUMapMode.READ);
+			const times = new BigUint64Array(resultBuffer.getMappedRange());
+			for (let i = 0; i < queryCount; i += 2) {
+				const passDuration = times[i + 1] - times[i];
+				if (passDuration < 0n) {
+					duration = passDuration;
+					break;
+				}
+				passDurations.push(Number(passDuration));
+				duration += passDuration;
 			}
-			duration += passDuration;
+			resultBuffer.unmap();
+		} catch (error) {
+			this.#pendingResultBuffers.delete(resultBuffer);
+			resultBuffer.destroy();
+			for (const observer of passObservers) observer?.(null);
+			for (const observer of resultObservers) observer(null);
+			throw error;
 		}
-		resultBuffer.unmap();
-		this.#resultBuffers.push(resultBuffer);
+		this.#pendingResultBuffers.delete(resultBuffer);
+		if (this.#disposed) resultBuffer.destroy();
+		else this.#resultBuffers.push(resultBuffer);
+		const valid = !this.#disposed && duration >= 0n;
+		for (const [index, observer] of passObservers.entries()) observer?.(valid ? passDurations[index] : null);
+		for (const observer of resultObservers) observer(valid ? Number(duration) : null);
 		return Number(duration);
 	}
-	/** 計測完了後に所有者が呼ぶ。分割描画の計測器も再生成時にGPU資源を残さない。 */
+	/** 記録・readback中の破棄もnullで通知し、同時に滞留している全結果バッファを回収する。 */
 	dispose() {
-		if (this.#commandBuffer != null) s_unsubmittedCommandBuffer.delete(this.#commandBuffer);
+		if (this.#disposed) return;
+		this.#disposed = true;
+		const passObservers = this.#passObservers;
+		const resultObservers = this.#resultObservers;
+		this.#passObservers = [];
+		this.#resultObservers = [];
+		if (this.#commandBuffer != null) {
+			s_unsubmittedCommandBuffer.delete(this.#commandBuffer);
+			submittedReadbacks.delete(this.#commandBuffer);
+		}
 		this.#commandBuffer = null;
 		this.#commandEncoder = null;
 		this.#state = 'free';
@@ -182,9 +253,12 @@ export default class TimingHelper {
 			batch.querySet.destroy();
 			batch.resolveBuffer.destroy();
 		}
-		for (const buffer of new Set([...this.#resultBuffers, this.#resultBuffer])) buffer?.destroy();
+		for (const buffer of new Set([...this.#resultBuffers, ...this.#pendingResultBuffers, this.#resultBuffer])) buffer?.destroy();
 		this.#queryBatches = [];
 		this.#resultBuffers = [];
 		this.#resultBuffer = null;
+		this.#pendingResultBuffers.clear();
+		for (const observer of passObservers) observer?.(null);
+		for (const observer of resultObservers) observer(null);
 	}
 }

@@ -10,8 +10,9 @@ import magneticPendulumImplementation from '@gs/subsystems_effect_shared/fx/magn
 import doublePendulumFractalDefinition from '@gs/subsystems_effect_shared/fx/doublePendulumFractal/_def_.ts';
 import doublePendulumFractalImplementation from '@gs/subsystems_effect_shared/fx/doublePendulumFractal/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
+import TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 
-type FrameTiming = { label: string; elapsedMs: number; submissions: number; queries: number; progress: EffectRenderTilingProgress | null };
+type FrameTiming = { label: string; elapsedMs: number; renderMs: number; submissions: number; queries: number; progress: EffectRenderTilingProgress | null };
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -21,6 +22,7 @@ export async function run() {
 	device.addEventListener('uncapturederror', event => errors.push(event.error.message));
 	const checks: string[] = [];
 	const timings: FrameTiming[] = [];
+	const panBenchmarks: object[] = [];
 	const assert = (condition: boolean, label: string) => { if (!condition) throw new Error(label); checks.push(label); };
 	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: device.createShaderModule({ code: vertexCode }) }, fragment: {
@@ -54,13 +56,13 @@ export async function run() {
 			],
 		};
 	}
-	function createVisualModuleRenderer(definition: EffectDefinition, implementation: EffectImplementation<any>, visualModule: VisualModule, size: number, mode: 'auto' | 'disabled') {
+	function createVisualModuleRenderer(definition: EffectDefinition, implementation: EffectImplementation<any>, visualModule: VisualModule, size: number, mode: 'auto' | 'disabled', statisticsHelper: TimingHelper | null = null) {
 		return new VisualModuleRenderer({ gpuDevice: device, fallbackTexture, resolution: { width: size, height: size },
-			enableStats: false, timingHelper: null, enable32bitDataTextures: false, effectRenderTiling: { mode },
+			enableStats: statisticsHelper != null, timingHelper: statisticsHelper, enable32bitDataTextures: false, effectRenderTiling: { mode },
 			visualModule, assets: [], assetTextures: new Map(), videoFrameVersions: new Map(),
 			effectDefinitions: { [definition.id]: definition }, effectImplementations: { [definition.id]: implementation } });
 	}
-	async function draw(target: VisualModuleRenderer, label: string) {
+	async function draw(target: VisualModuleRenderer, label: string, report = true) {
 		const start = performance.now();
 		const context = { isExport: false, time: 0, timeDelta: 0, endTime: Infinity,
 			pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map() };
@@ -70,12 +72,15 @@ export async function run() {
 		const startQueries = queries;
 		let progress: EffectRenderTilingProgress | null = null;
 		const output = await target.renderTiled(context, signal, value => { if (value != null) progress = value; });
+		const renderMs = Math.round((performance.now() - start) * 100) / 100;
 		await device.queue.onSubmittedWorkDone();
 		if (output?.kind !== 'texture') throw new Error('Expected texture output');
-		const timing: FrameTiming = { label, elapsedMs: Math.round(performance.now() - start), submissions: submissions - startSubmissions,
+		const timing: FrameTiming = { label, elapsedMs: Math.round(performance.now() - start), renderMs, submissions: submissions - startSubmissions,
 			queries: queries - startQueries, progress };
-		timings.push(timing);
-		await fetch('/progress', { method: 'POST', body: JSON.stringify(timing) });
+		if (report) {
+			timings.push(timing);
+			await fetch('/progress', { method: 'POST', body: JSON.stringify(timing) });
+		}
 		return { texture: output.texture, timing };
 	}
 	async function pixels(texture: GPUTexture) {
@@ -166,7 +171,50 @@ export async function run() {
 			disabledDoublePendulum.updateVisualModule(doublePendulumVisualModule, { preserveStaticState: true });
 			await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum moved');
 		} finally { automaticDoublePendulum.destroy(); disabledDoublePendulum.destroy(); }
+		// 添付プロジェクトの1024角・約2314積分を64回連続でパンする。256角の単発描画だけでは、
+		// 視点キーの再学習や30回ごとの定期計測による引っ掛かりを検出できない。
+		for (const statistics of [false, true]) {
+			const visualModule = createVisualModule(doublePendulumFractalDefinition);
+			const effectNode = visualModule.nodes[0] as VisualModuleEffectNode;
+			effectNode.params.initialAngularVelocity1 = literal(4.530000000000001);
+			effectNode.params.gravity = literal(26.82);
+			effectNode.params.timeStep = literal(0.001296523784419149);
+			effectNode.params.angularVelocityRange = literal(8.087466597938915);
+			const view = (index: number) => literal({ center: literal([-2.3783367035287313 + index * 0.015, 3.0766039599245305 + index * 0.01]), zoom: literal(1.704604830642477) });
+			effectNode.params.view = view(0);
+			const automaticStatistics = statistics ? new TimingHelper(device) : null;
+			const disabledStatistics = statistics ? new TimingHelper(device) : null;
+			const automatic = createVisualModuleRenderer(doublePendulumFractalDefinition, doublePendulumFractalImplementation, visualModule, 1024, 'auto', automaticStatistics);
+			const disabled = createVisualModuleRenderer(doublePendulumFractalDefinition, doublePendulumFractalImplementation, visualModule, 1024, 'disabled', disabledStatistics);
+			try {
+				await compare(automatic, disabled, `Double Pendulum attached statistics=${statistics}`);
+				const automaticFrames: FrameTiming[] = [];
+				const disabledFrames: FrameTiming[] = [];
+				for (let index = 1; index <= 64; index++) {
+					effectNode.params.view = view(index);
+					automatic.updateVisualModule(visualModule, { preserveStaticState: true });
+					disabled.updateVisualModule(visualModule, { preserveStaticState: true });
+					disabledFrames.push((await draw(disabled, `pan ${index}: disabled`, false)).timing);
+					automaticFrames.push((await draw(automatic, `pan ${index}: auto`, false)).timing);
+				}
+				const automaticQueries = automaticFrames.reduce((sum, frame) => sum + frame.queries, 0);
+				assert(automaticFrames.every(frame => frame.submissions === 1), `panning keeps ordinary submissions with statistics=${statistics}`);
+				assert(statistics ? automaticQueries === 64 : automaticQueries > 0 && automaticQueries <= 3,
+					`periodic GPU measurements share statistics and avoid per-pan probing with statistics=${statistics}: ${automaticQueries}`);
+				const automaticImage = await pixels((await draw(automatic, 'last cached auto', false)).texture);
+				const disabledImage = await pixels((await draw(disabled, 'last cached disabled', false)).texture);
+				assert(automaticImage.every((value, index) => value === disabledImage[index]), `panning remains pixel-identical with statistics=${statistics}`);
+				const median = (values: number[]) => [...values].sort((first, second) => first - second)[Math.floor(values.length / 2)];
+				panBenchmarks.push({ statistics, frames: 64, automaticQueries,
+					disabledMedianMs: median(disabledFrames.map(frame => frame.elapsedMs)), automaticMedianMs: median(automaticFrames.map(frame => frame.elapsedMs)),
+					disabledRenderMedianMs: median(disabledFrames.map(frame => frame.renderMs)), automaticRenderMedianMs: median(automaticFrames.map(frame => frame.renderMs)),
+				});
+				await Promise.all([automatic.lastUntiledGpuTimeResult, disabled.lastUntiledGpuTimeResult]);
+			} finally {
+				automatic.destroy(); disabled.destroy(); automaticStatistics?.dispose(); disabledStatistics?.dispose();
+			}
+		}
 		assert(errors.length === 0, `no GPU validation errors: ${errors.join('; ')}`);
-		return { adapter: { vendor: adapter.info.vendor, architecture: adapter.info.architecture, description: adapter.info.description }, checks, timings };
+		return { adapter: { vendor: adapter.info.vendor, architecture: adapter.info.architecture, description: adapter.info.description }, checks, timings, panBenchmarks };
 	} finally { fallbackTexture.destroy(); device.destroy(); }
 }

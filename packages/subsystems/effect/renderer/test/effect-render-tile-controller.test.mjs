@@ -4,6 +4,69 @@ import { EffectRenderTileController } from '../src/effect-render-tile-controller
 
 const hint = (workPerPixel = 1, key = 'same input') => ({ workPerPixel, key });
 
+// 【GPUの負荷が下がれば、少数タイルのままになっていても定期的に再評価して解除する】
+// 初回だけを測定済みとして再評価を止めると、5サンプルに満たない4タイルで拡大が止まる。
+// タイル固定費が支配的な場合も、異なる面積で測り直して全画面の軽さを確認する。
+test('rechecks subdivided passes and returns to full rendering after GPU load drops', () => {
+	const controller = new EffectRenderTileController();
+	const results = [];
+	for (let frame = 0; frame < 12; frame++) {
+		const plan = controller.beginPass(0, [], 1024, 1024, hint(), true);
+		const duration = frame === 0 ? 200 : 100;
+		let probes = 0;
+		for (const _tile of plan.gpuProbes()) { plan.observeGpuProbe(duration); probes++; }
+		let tiles = 0;
+		for (const { tile } of plan.tiles()) {
+			const pixels = tile.width * tile.height;
+			plan.observe(pixels, duration, plan.shouldMeasureGpuTime(pixels) ? duration : null);
+			tiles++;
+		}
+		plan.finish();
+		results.push({ probes, tiles });
+		if (controller.canRenderUntiled(hint())) break;
+	}
+	assert.equal(controller.canRenderUntiled(hint()), true, JSON.stringify(results));
+	assert.equal(results.at(-1).tiles, 1);
+	assert.ok(results.length > 4, 'exercise periodic reevaluation without a GPU budget overrun');
+	assert.ok(results.slice(1).some(result => result.probes > 0));
+});
+
+// 【通常描画の非同期GPU結果で、重くなったパスだけを安全側へ戻す】
+// 計測結果待ちで描画を止めず、500ms予算の余裕を失った結果を次の実描画へ反映する。
+// 無効なtimestampは軽い処理として受け付けず、小さい面積で再確認する。
+test('applies asynchronous full-pass measurements without reusing stale conditions', () => {
+	for (const duration of [100, 400, 600, 0, NaN, null]) {
+		const controller = new EffectRenderTileController();
+		const pipeline = {};
+		const plan = controller.beginPass(0, [pipeline], 128, 128, hint(), true);
+		for (const { tile } of plan.tiles()) plan.observe(tile.width * tile.height, 1, 1);
+		plan.finish();
+		const observe = controller.createUntiledGpuTimeObserver(hint());
+		observe(0, [pipeline], 128, 128, duration);
+		assert.equal(controller.canRenderUntiled(hint()), duration === 100);
+	}
+	const controller = new EffectRenderTileController();
+	const pipeline = {};
+	const first = controller.beginPass(0, [pipeline], 128, 128, hint(), true);
+	for (const { tile } of first.tiles()) first.observe(tile.width * tile.height, 1, 1);
+	first.finish();
+	const stale = controller.createUntiledGpuTimeObserver(hint());
+	controller.reset();
+	const replacement = controller.beginPass(0, [pipeline], 128, 128, hint(), true);
+	for (const { tile } of replacement.tiles()) replacement.observe(tile.width * tile.height, 1, 1);
+	replacement.finish();
+	stale(0, [pipeline], 128, 128, 1000);
+	assert.equal(controller.canRenderUntiled(hint()), true, 'a replaced instance must ignore the old asynchronous result');
+	const current = controller.createUntiledGpuTimeObserver(hint());
+	current(0, [{}], 128, 128, 1000);
+	assert.equal(controller.canRenderUntiled(hint()), false, 'a current shader change invalidates ordinary rendering even when the hint stays the same');
+	const restored = controller.beginPass(0, [pipeline], 128, 128, hint(), true);
+	for (const { tile } of restored.tiles()) restored.observe(tile.width * tile.height, 1, 1);
+	restored.finish();
+	controller.createUntiledGpuTimeObserver(hint())(0, [pipeline], 256, 128, 1000);
+	assert.equal(controller.canRenderUntiled(hint()), false, 'a changed render target requires a new plan');
+});
+
 // 【計測領域で本描画を断片化せず、固定費があっても初回から全画面で描ける】
 // 以前は四隅・中央の小タイルが未送信領域に穴を開け、軽い描画でも38タイル程度残った。
 // 小タイルの固定費も画素単価へ混ぜ続けず、異なる面積の計測から分離する。

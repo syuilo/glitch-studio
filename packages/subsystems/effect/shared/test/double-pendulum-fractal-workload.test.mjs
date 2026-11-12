@@ -36,19 +36,29 @@ test('matches exact, partial and zero-duration GPU integration schedules', () =>
 	]) assert.equal(hint({ ...parameters(), simulationTime, timeStep }).workPerPixel, expected);
 });
 
-// 【物理条件・表示領域・配色の処理方式が変われば、以前の計測を流用しない】
+// 【物理条件・配色の処理方式が変われば、以前の計測を流用しない】
 // Rampの色だけの変更では処理方式が変わらないため、通常描画へ戻った状態を維持できる。
 test('identifies physical and rendering conditions without invalidating ramp color edits', () => {
 	const params = parameters();
 	const original = hint(params);
 	for (const change of [
-		{ view: { center: [0.1, 0], zoom: 1 } }, { view: { center: [0, 0], zoom: 2 } },
 		{ initialAngularVelocity1: 1 }, { initialAngularVelocity2: 1 }, { lengthRatio: 2 }, { massRatio: 2 }, { gravity: 0 },
 		{ coloringMethod: 'angle2' }, { angularVelocityRange: 20 },
 		{ ramp: { ...params.ramp, interpolation: 'constant' } }, { ramp: { ...params.ramp, colorSpace: 'oklab' } },
 		{ ramp: { ...params.ramp, stops: [...params.ramp.stops, { id: 'middle', position: 0.5, color: [1, 0, 0, 1] }] } },
 	]) assert.notEqual(hint({ ...params, ...change }).key, original.key);
 	assert.equal(hint({ ...params, ramp: { ...params.ramp, stops: params.ramp.stops.map(stop => ({ ...stop, color: [1, 0, 0, 1] })) } }).key, original.key);
+});
+
+// 【視点を連続して動かしても、毎フレーム小領域を計測し直さない】
+// 二重振り子には早期終了がなく、中心やズームを変えても積分回数は同じになる。
+// 視点をキーへ含めると、本描画が数msでも計測・完了待ちで操作が重くなる。
+test('retains learned work through view movement and zoom changes', () => {
+	const params = parameters();
+	const original = hint(params);
+	for (const view of [{ center: [0.1, 0], zoom: 1 }, { center: [-2.4, 3.1], zoom: 1.7 }, { center: [0, 0], zoom: 100 }]) {
+		assert.deepEqual(hint({ ...params, view }), original);
+	}
 });
 
 // 【未使用の配色設定を、データ出力だけの描画の計算量へ混ぜない】

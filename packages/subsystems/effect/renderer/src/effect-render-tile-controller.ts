@@ -1,6 +1,7 @@
 import type { EffectRenderWorkloadHint } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 
 export type EffectRenderTile = { x: number; y: number; width: number; height: number };
+export type EffectRenderPassGpuTimeObserver = (index: number, pipelines: readonly unknown[], width: number, height: number, gpuTimeMs: number | null) => void;
 
 const MINIMUM_TILE_SIZE = 128;
 const INITIAL_TILE_PIXELS = MINIMUM_TILE_SIZE * MINIMUM_TILE_SIZE;
@@ -9,6 +10,7 @@ const GPU_GROWTH_HEADROOM = 0.5;
 const GPU_FULL_PASS_HEADROOM = 0.75;
 const GPU_SAMPLES_TO_GROW = 2;
 const GPU_SAMPLE_INTERVAL = 8;
+const GPU_PASSES_BETWEEN_REEVALUATIONS = 4;
 const GPU_PROBE_MAXIMUM_GROWTH = 16;
 const GPU_PROBE_POSITIONS = [[0, 0], [1, 1], [1, 0], [0, 1], [0.5, 0.5]] as const;
 // Timestamp Queryを利用できない場合だけ使う、通知遅延も含めた保守的な制御。
@@ -49,7 +51,7 @@ type PassState = {
 	previousReduction: { pixels: number; timeMs: number } | null;
 	minimumTilePixels: number;
 	canRenderUntiled: boolean;
-	hasValidatedGpuPlan: boolean;
+	gpuPassesUntilReevaluation: number;
 };
 
 /**
@@ -74,7 +76,7 @@ export class EffectRenderTileController {
 			|| state.pipelines.length !== pipelines.length || state.pipelines.some((pipeline, pipelineIndex) => pipeline !== pipelines[pipelineIndex])) {
 			state = { pipelines: [...pipelines], width, height, workloadKey: hint?.key ?? null, workPerPixel, usesGpuTiming,
 				maximumTilePixels: Math.min(width * height, INITIAL_TILE_PIXELS), fastSamples: 0, slowSamples: 0,
-				previousReduction: null, minimumTilePixels, canRenderUntiled: false, hasValidatedGpuPlan: false };
+				previousReduction: null, minimumTilePixels, canRenderUntiled: false, gpuPassesUntilReevaluation: 0 };
 			this.passes.set(index, state);
 		} else {
 			// 反復数などが急増したフレームも、前回と同じ面積を送る前に縮小する。
@@ -86,7 +88,7 @@ export class EffectRenderTileController {
 				state.previousReduction = null;
 				state.minimumTilePixels = minimumTilePixels;
 				state.canRenderUntiled = false;
-				state.hasValidatedGpuPlan = false;
+				state.gpuPassesUntilReevaluation = 0;
 			}
 			state.workPerPixel = workPerPixel;
 		}
@@ -96,6 +98,29 @@ export class EffectRenderTileController {
 	canRenderUntiled(hint: EffectRenderWorkloadHint | null): boolean {
 		return hint != null && this.passes.size > 0 && [...this.passes.values()].every(state =>
 			state.canRenderUntiled && state.workloadKey === hint.key && state.workPerPixel === hint.workPerPixel);
+	}
+
+	/** 通常描画の計測中に条件が変わったら、古いGPU結果で新しい計画を変更しない。 */
+	createUntiledGpuTimeObserver(hint: EffectRenderWorkloadHint): EffectRenderPassGpuTimeObserver {
+		const measuredStates = new Map(this.passes);
+		return (index: number, pipelines: readonly unknown[], width: number, height: number, gpuTimeMs: number | null) => {
+			const state = measuredStates.get(index);
+			if (state == null || this.passes.get(index) !== state || !state.usesGpuTiming || state.workloadKey !== hint.key
+				|| state.workPerPixel !== hint.workPerPixel) return;
+			// 同じヒントでも、実際の描画先やpipelineが変わっていれば通常描画の根拠を失う。
+			// 古い結果は上の世代・条件で除外し、現在の計測で見つけた構成変更は再計画へ戻す。
+			const valid = state.width === width && state.height === height && state.pipelines.length === pipelines.length
+				&& state.pipelines.every((pipeline, pipelineIndex) => pipeline === pipelines[pipelineIndex])
+				&& gpuTimeMs != null && Number.isFinite(gpuTimeMs) && gpuTimeMs > 0;
+			state.canRenderUntiled = valid && gpuTimeMs <= GPU_PASS_BUDGET_MS * GPU_FULL_PASS_HEADROOM;
+			state.gpuPassesUntilReevaluation = 0;
+			if (!valid) {
+				state.maximumTilePixels = Math.min(state.width * state.height, INITIAL_TILE_PIXELS);
+			} else if (!state.canRenderUntiled) {
+				state.maximumTilePixels = Math.max(getMinimumTilePixels(width, height),
+					Math.floor(width * height * GPU_PASS_BUDGET_MS * GPU_GROWTH_HEADROOM / gpuTimeMs));
+			}
+		};
 	}
 
 	reset() { this.passes.clear(); }
@@ -142,7 +167,7 @@ export class EffectRenderTilePlan {
 	 */
 	*gpuProbes(): Generator<EffectRenderTile> {
 		const state = this.state;
-		if (!state.usesGpuTiming || state.hasValidatedGpuPlan) return;
+		if (!state.usesGpuTiming || state.gpuPassesUntilReevaluation > 0) return;
 		this.usesSeparateGpuProbes = true;
 		const fullPixels = state.width * state.height;
 		let previous: { pixels: number; minimumTimeMs: number; maximumTimeMs: number } | null = null;
@@ -314,7 +339,12 @@ export class EffectRenderTilePlan {
 		const state = this.state;
 		if (state.usesGpuTiming) {
 			const fullPixels = state.width * state.height;
-			state.hasValidatedGpuPlan = this.gpuSampleCount > 0;
+			// 一度測っただけで再評価を永久に止めない。少数タイルでは拡大に必要な
+			// サンプル数に届かず、固定費込みの合計時間だけでも解除できない場合がある。
+			// 実描画を数回行ったら、異なる面積の事前計測で固定費を分けて判断し直す。
+			state.gpuPassesUntilReevaluation = this.usesSeparateGpuProbes ? GPU_PASSES_BETWEEN_REEVALUATIONS
+				: Math.max(0, state.gpuPassesUntilReevaluation - 1);
+			if (this.maximumGpuTimeMs > GPU_PASS_BUDGET_MS) state.gpuPassesUntilReevaluation = 0;
 			state.canRenderUntiled = this.largestGpuMeasuredTilePixels === fullPixels
 				&& this.maximumGpuTimeMs <= GPU_PASS_BUDGET_MS * GPU_FULL_PASS_HEADROOM;
 			// 全画素を実測済みでGPU時間の合計にも余裕があれば、小タイル特有の固定費を

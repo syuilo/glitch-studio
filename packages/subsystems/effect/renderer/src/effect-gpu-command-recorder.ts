@@ -1,5 +1,5 @@
 import { getEffectRenderViewSize, isEffectRenderPipelineProbeSafe } from './effect-render-device.ts';
-import type { EffectRenderTileController, EffectRenderTilePlan } from './effect-render-tile-controller.ts';
+import type { EffectRenderTileController, EffectRenderTilePlan, EffectRenderPassGpuTimeObserver } from './effect-render-tile-controller.ts';
 import type { EffectRenderTiling, EffectRenderWorkloadHint, EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 
@@ -167,6 +167,31 @@ export class EffectGpuCommandRecorder {
 	private startPass() {
 		if (this.openPass) throw new Error('Effect command encoder already has an open pass.');
 		this.openPass = true;
+	}
+
+	/** 通常描画の定期計測。submit・readback・GPU完了を待たず、呼び出し側のencoderへ一度だけ再生する。 */
+	replayUntiled(encoder: GPUCommandEncoder, timingHelper: TimingHelper, onRenderPassTime: EffectRenderPassGpuTimeObserver) {
+		if (this.openPass) throw new Error('Effect render returned with an open pass.');
+		for (const [index, operation] of this.operations.entries()) {
+			if (operation.kind === 'command') {
+				callCommand(encoder, operation.command);
+				continue;
+			}
+			let pass: GPURenderPassEncoder | GPUComputePassEncoder;
+			if (operation.kind === 'compute') {
+				pass = timingHelper.beginComputePass(encoder, operation.descriptor);
+			} else {
+				const attachments = Array.from(operation.descriptor.colorAttachments);
+				const view = attachments.find(attachment => attachment != null)?.view ?? operation.descriptor.depthStencilAttachment?.view;
+				if (view == null) throw new Error('Measured effect render pass needs a render target.');
+				const { width, height } = getEffectRenderViewSize(view);
+				const pipelines = operation.commands.filter(command => command.method === 'setPipeline').map(command => command.args[0]);
+				pass = timingHelper.beginRenderPass(encoder, operation.descriptor,
+					duration => onRenderPassTime(index, pipelines, width, height, duration == null ? null : duration / 1_000_000));
+			}
+			for (const command of operation.commands) callCommand(pass, command);
+			pass.end();
+		}
 	}
 
 	async execute(device: GPUDevice, tiling: EffectRenderTiling, signal: AbortSignal, options: ExecutionOptions = {}): Promise<number> {

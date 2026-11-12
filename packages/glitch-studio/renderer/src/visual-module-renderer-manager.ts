@@ -562,7 +562,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			this.skippedFrameTimeDelta -= context.timeDelta;
 			this.skippedFrameRealTimeDelta = 0;
 			const encoder = this.gpuDevice.createCommandEncoder();
-			const present = (output: ReturnType<VisualModuleRenderer['render']>, tiledGpuTime = 0) => {
+			const present = (output: ReturnType<VisualModuleRenderer['render']>, tiledGpuTime = 0, untiledGpuTimeResult: Promise<number> | null = null) => {
 				try {
 					const nodeOutput = output ?? { kind: 'uniform' as const, value: [0, 0, 0, 0] as [number, number, number, number] };
 					this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
@@ -583,11 +583,11 @@ export class VisualModuleRendererManager extends EventEmitter<{
 						this.previewRenderDelayMonitor.completeFrame(context);
 						if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
 					});
-					if (this.timingHelper != null) void this.timingHelper.getResult().then(gpuTime => {
+					if (this.timingHelper != null) void Promise.all([this.timingHelper.getResult(), untiledGpuTimeResult ?? 0]).then(([gpuTime, untiledGpuTime]) => {
 						if (generation !== this.previewRenderGeneration) return;
-						this.gpuAverageFast.addSample((gpuTime + tiledGpuTime) / 1000);
-						this.gpuAverageMedium.addSample((gpuTime + tiledGpuTime) / 1000);
-						this.gpuAverageSlow.addSample((gpuTime + tiledGpuTime) / 1000);
+						this.gpuAverageFast.addSample((gpuTime + tiledGpuTime + untiledGpuTime) / 1000);
+						this.gpuAverageMedium.addSample((gpuTime + tiledGpuTime + untiledGpuTime) / 1000);
+						this.gpuAverageSlow.addSample((gpuTime + tiledGpuTime + untiledGpuTime) / 1000);
 					}).catch(error => {
 						if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
 					});
@@ -614,7 +614,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					this.previewRenderDelayMonitor.completeFrame(context);
 					return;
 				}
-				present(output, renderer.lastTiledGpuTime);
+				present(output, renderer.lastTiledGpuTime, renderer.lastUntiledGpuTimeResult);
 			}).catch(error => {
 				cpuFrame?.cancel();
 				this.previewRenderDelayMonitor.completeFrame(context);

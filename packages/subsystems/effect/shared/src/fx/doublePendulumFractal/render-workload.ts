@@ -13,9 +13,10 @@ export const getDoublePendulumFractalRenderWorkloadHint: NonNullable<EffectImple
 		// 時刻0でも座標の変換・配色・出力は必要なので、固定処理の1を加える。
 		// 複数ポートは同じ積分結果を共有するため、出力数で反復数を増やさない。
 		workPerPixel: (1 + integrationSteps) * (params.antialiasing ? 4 : 1),
-		// 積分回数とAAは比率で比較し、物理条件・表示領域・配色方式の変更は再計測する。
+		// 早期終了がなく全画素が同じ回数だけ積分するため、視点移動・ズームでは学習を保つ。
+		// 積分回数とAAは比率で比較し、物理条件・配色方式の変更は再計測する。
 		// 色の値だけを変えた場合や、データ出力だけを使う場合の配色変更では学習を維持する。
-		key: JSON.stringify([params.view, params.initialAngularVelocity1, params.initialAngularVelocity2,
+		key: JSON.stringify([params.initialAngularVelocity1, params.initialAngularVelocity2,
 			params.lengthRatio, params.massRatio, params.gravity, rendersColor ? params.coloringMethod : null,
 			usesRamp ? [params.angularVelocityRange, params.ramp.stops.length, params.ramp.interpolation, params.ramp.colorSpace] : null,
 			usedOutputPorts == null ? null : [...usedOutputPorts].sort()]),

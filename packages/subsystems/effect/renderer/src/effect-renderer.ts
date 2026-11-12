@@ -47,6 +47,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	public readonly requiresTiledRendering: boolean;
 	private pendingWorkloadHint: { context: Omit<RenderContext<Definition>, 'commandEncoder'>; hint: EffectRenderWorkloadHint | null } | null = null;
 	private untiledFramesUntilMeasurement = 0;
+	private automaticGpuMeasurement: { helper: TimingHelper; ownsHelper: boolean; cancelled: boolean } | null = null;
 
 	constructor(private readonly options: {
 		definition: Definition;
@@ -223,7 +224,58 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	}
 
 	render(context: RenderContext<Definition>) {
-		this.recordRender(context)();
+		const tileController = this.tileController;
+		if (tileController == null) {
+			this.recordRender(context)();
+			return;
+		}
+		const hint = this.takeWorkloadHint(context);
+		if (this.untiledFramesUntilMeasurement > 0) {
+			this.untiledFramesUntilMeasurement--;
+			this.recordRender(context)();
+			return;
+		}
+		if (hint == null || !tileController.canRenderUntiled(hint) || this.automaticGpuMeasurement != null
+			|| !this.options.wgpu.device.features.has('timestamp-query')) {
+			this.recordRender(context)();
+			return;
+		}
+		// 統計が有効なら同じQueryを共有する。無効なら、この定期計測だけのヘルパーを使う。
+		// 一つの結果が返るまで次の定期計測を重ねず、readbackの滞留も描画待ちも作らない。
+		const sharedHelper = this.options.enableStats === true ? this.options.timingHelper ?? null : null;
+		const helper = sharedHelper ?? new TimingHelper(this.options.wgpu.device);
+		const measurement = { helper, ownsHelper: sharedHelper == null, cancelled: false };
+		this.automaticGpuMeasurement = measurement;
+		const observe = tileController.createUntiledGpuTimeObserver(hint);
+		try {
+			const recorder = new EffectGpuCommandRecorder();
+			const commit = this.recordRender({ ...context, commandEncoder: recorder.encoder }, recorder);
+			recorder.replayUntiled(context.commandEncoder, helper, (...args) => {
+				if (this.automaticGpuMeasurement === measurement && !measurement.cancelled) observe(...args);
+			});
+			commit();
+		} catch (error) {
+			measurement.cancelled = true;
+			tileController.reset();
+			throw error;
+		} finally {
+			// 途中でCPU描画に失敗しても、呼び出し側が部分encoderを送信してからQueryを解放する。
+			helper.observeResult(() => {
+				if (this.automaticGpuMeasurement === measurement) {
+					this.automaticGpuMeasurement = null;
+					this.untiledFramesUntilMeasurement = 30;
+				}
+				if (measurement.ownsHelper) helper.dispose();
+			});
+			if (measurement.ownsHelper) helper.readResultAfterSubmission();
+		}
+	}
+
+	private takeWorkloadHint(context: Omit<RenderContext<Definition>, 'commandEncoder'>): EffectRenderWorkloadHint | null {
+		const pending = this.pendingWorkloadHint;
+		this.pendingWorkloadHint = null;
+		return pending?.context.params === context.params && pending.context.usedOutputPorts === context.usedOutputPorts
+			? pending.hint : this.options.implementation.getRenderWorkloadHint?.(context) ?? null;
 	}
 
 	/** 十分軽いことを実測した条件では、通常描画へ戻して計測も間引く。 */
@@ -232,8 +284,8 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		if (this.options.effectRenderTiling?.mode === 'manual') return true;
 		const hint = this.options.implementation.getRenderWorkloadHint?.(context) ?? null;
 		this.pendingWorkloadHint = { context, hint };
-		if (this.tileController?.canRenderUntiled(hint) === true && this.untiledFramesUntilMeasurement > 0) {
-			this.untiledFramesUntilMeasurement--;
+		if (this.tileController?.canRenderUntiled(hint) === true
+			&& (this.untiledFramesUntilMeasurement > 0 || this.options.wgpu.device.features.has('timestamp-query'))) {
 			return false;
 		}
 		return true;
@@ -253,8 +305,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 			const tiling = this.options.effectRenderTiling ?? { mode: 'auto' };
 			let workloadHint: EffectRenderWorkloadHint | null = null;
 			if (tiling.mode === 'auto' && this.options.definition.canHaveLongRunningRenderPass === true) {
-				workloadHint = this.pendingWorkloadHint?.context === context ? this.pendingWorkloadHint.hint
-					: this.options.implementation.getRenderWorkloadHint?.(context) ?? null;
+				workloadHint = this.takeWorkloadHint(context);
 			}
 			this.pendingWorkloadHint = null;
 			const recorder = new EffectGpuCommandRecorder();
@@ -376,6 +427,9 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	}
 
 	private releaseInstance() {
+		const measurement = this.automaticGpuMeasurement;
+		this.automaticGpuMeasurement = null;
+		if (measurement?.ownsHelper === true) measurement.helper.dispose();
 		this.tileController?.reset();
 		this.pendingWorkloadHint = null;
 		this.untiledFramesUntilMeasurement = 0;

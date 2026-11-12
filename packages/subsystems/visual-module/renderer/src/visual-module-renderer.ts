@@ -107,6 +107,7 @@ export class VisualModuleRenderer {
 	private readonly effectRenderTiling: EffectRenderTiling;
 	private tiledRenderController: AbortController | null = null;
 	public lastTiledGpuTime = 0;
+	public lastUntiledGpuTimeResult: Promise<number> = Promise.resolve(0);
 	public requiresTiledRendering = false;
 	private parameterEvaluator = new VisualModuleParameterBindingEvaluator();
 
@@ -678,22 +679,27 @@ export class VisualModuleRenderer {
 		const renderSignal = signal == null ? controller.signal : AbortSignal.any([controller.signal, signal]);
 		const evaluation = this.renderOutputNodes(context);
 		this.lastTiledGpuTime = 0;
+		const untiledGpuTimeResults: Promise<number>[] = [];
 		let pendingEncoder: GPUCommandEncoder | null = null;
-		const flushUntiled = async () => {
+		const flushUntiled = () => {
 			if (pendingEncoder == null) return;
 			const encoder = pendingEncoder;
 			pendingEncoder = null;
 			this.gpuDevice.queue.submit([encoder.finish()]);
-			// 同じ計測器を次のencoderへ渡す前に結果を取り出す。統計が無効なら
-			// QueryやGPU完了待ちは追加せず、後続の自動分割だけが必要な境界で待つ。
-			this.lastTiledGpuTime += await (this.timingHelper?.getResult() ?? Promise.resolve(0));
+			// getResultは読み戻しの開始時にencoderを解放する。結果そのものは待たず、
+			// 表示後に統計へ合算することで、計測のある通常描画も次フレームを止めない。
+			if (this.timingHelper != null) {
+				const result = this.timingHelper.getResult();
+				void result.catch(() => {});
+				untiledGpuTimeResults.push(result);
+			}
 		};
 		try {
 			renderSignal.throwIfAborted();
 			let step = evaluation.next();
 			while (!step.done) {
 				if (step.value.renderer.shouldRenderTiled(step.value.context)) {
-					if (pendingEncoder != null) await flushUntiled();
+					if (pendingEncoder != null) flushUntiled();
 					this.lastTiledGpuTime += await step.value.renderer.renderTiled(step.value.context, renderSignal, onProgress);
 				} else {
 					// 自動制御の対象外は記録・再生やノードごとのsubmitを行わず、一括送信する。
@@ -703,19 +709,21 @@ export class VisualModuleRenderer {
 				renderSignal.throwIfAborted();
 				step = evaluation.next();
 			}
-			if (pendingEncoder != null) await flushUntiled();
+			if (pendingEncoder != null) flushUntiled();
 			renderSignal.throwIfAborted();
 			return this.primaryOutputId == null ? null : step.value.get(this.primaryOutputId) ?? null;
 		} catch (error) {
 			// 上流が部分更新された可能性もあるので、以前の静的キャッシュを流用しない。
 			this.effectCacheKeys.clear();
 			if (pendingEncoder != null) {
-				try { await flushUntiled(); } catch (_flushError) {
+				try { flushUntiled(); } catch (_flushError) {
 					// 一次の描画エラーを、後始末の送信・計測エラーで隠さない。
 				}
 			}
 			throw error;
 		} finally {
+			this.lastUntiledGpuTimeResult = Promise.all(untiledGpuTimeResults).then(times => times.reduce((sum, time) => sum + time, 0));
+			void this.lastUntiledGpuTimeResult.catch(() => {});
 			evaluation.return(new Map());
 			this.tiledRenderController = null;
 		}

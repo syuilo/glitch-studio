@@ -50,6 +50,39 @@ function probeSafePipeline(g, entries = []) {
 	return g.tracked.createRenderPipeline({ layout: g.tracked.createPipelineLayout({ bindGroupLayouts: [group] }) });
 }
 
+// 【通常描画の定期計測はコマンドを一度だけ再生し、送信とGPU待機を所有しない】
+// Computeやコピーを挟むパスでも元のoperation番号・寸法・pipelineを結果へ対応させ、
+// 別パスの時間を学習したり、ナノ秒をミリ秒として扱ったりすることを防ぐ。
+test('replays ordinary commands once and reports asynchronous timing for the original render passes', () => {
+	const g = gpu();
+	const recorder = new EffectGpuCommandRecorder();
+	const pipeline = {};
+	const view = g.tracked.createTexture({ size: { width: 128, height: 128 } }).createView();
+	recorder.encoder.clearBuffer({});
+	const first = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+	first.setPipeline(pipeline); first.setScissorRect(1, 2, 3, 4); first.draw(3); first.end();
+	const compute = recorder.beginComputePass(); compute.dispatchWorkgroups(1); compute.end();
+	const last = recorder.beginRenderPass({ colorAttachments: [{ view: g.view, loadOp: 'load', storeOp: 'store' }] });
+	last.setPipeline(pipeline); last.draw(3); last.end();
+	const callbacks = [];
+	const timingHelper = {
+		beginRenderPass(encoder, descriptor, onResult) { callbacks.push(onResult); return encoder.beginRenderPass(descriptor); },
+		beginComputePass: (encoder, descriptor) => encoder.beginComputePass(descriptor),
+	};
+	const results = [];
+	const encoder = g.device.createCommandEncoder();
+	recorder.replayUntiled(encoder, timingHelper, (...args) => results.push(args));
+	const commands = encoder.finish();
+	assert.deepEqual(commands.filter(command => command.kind != null).map(command => command.kind), ['clear', 'render', 'compute', 'render']);
+	assert.deepEqual(commands.filter(command => command.method === 'setScissorRect').map(command => command.args), [[1, 2, 3, 4]]);
+	assert.equal(commands.filter(command => command.method === 'draw').length, 2);
+	assert.equal(g.submitted.length, 0);
+	assert.equal(g.waits.length, 0);
+	assert.deepEqual(results, []);
+	callbacks[0](2_500_000); callbacks[1](null);
+	assert.deepEqual(results, [[1, [pipeline], 128, 128, 2.5], [3, [pipeline], 7, 5, null]]);
+});
+
 // 【事前計測を完成タイルへ数えず、最初の本描画のclearで試し描きの結果を消す】
 // コントローラーだけ改善しても、実行器が以前の断片化した計画を使うと38タイルが残る。
 // 初回に全画面1枚を描き、静止画キャッシュへ入る前に通常描画へ移れることを検証する。
