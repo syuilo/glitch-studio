@@ -12,14 +12,14 @@ const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({ absWorkingDir: directory,
 	stdin: { resolveDir: directory, contents: `
 		export { default as Header } from './src/components/GsAppHeader.vue';
-		export { operations } from '@/app.ts';
+		export { operations, projectSessions } from '@/app.ts';
 		export { menus } from '@/ui.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	define: { __ELECTRON__: 'false' }, plugins: [i18nPlugin, {
 		name: 'application-header', setup(build) {
 			const stubs = {
-				'@/app.ts': `export const operations = [];
-					export const projectSessions = { close: session => operations.push(['close', session.id]) };
+				'@/app.ts': `import { ref } from 'vue'; export const operations = [];
+					export const projectSessions = { fileOperations: { isBusy: ref(false) }, close: session => operations.push(['close', session.id]) };
 					export const newProject = () => operations.push(['new']);
 					export const newProjectFromImageOrVideo = () => operations.push(['media']);
 					export const openProject = () => operations.push(['open']);`,
@@ -44,11 +44,12 @@ const bundle = await build({ absWorkingDir: directory,
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Header, operations, menus } = module.exports;
+const { Header, operations, projectSessions, menus } = module.exports;
 
 // 【セッション0件でも共通メニューを使え、プロジェクトの追加・切替・終了に追従する】
 // ヘッダーをエディタの外へ移した後も、保存・Undoの対象を取り違えず、
 // Dashboardの再表示や新規作成のためにダミーセッションを必要としないことを確認する。
+// 他タブのファイル操作中も編集は使え、追加のファイル操作だけが無効になる必要がある。
 test('keeps application actions available without a project and binds project actions to their session', async t => {
 	const element = () => ({ children: [], parent: null, props: {} });
 	const renderer = createRenderer({
@@ -107,6 +108,17 @@ test('keeps application actions available without a project and binds project ac
 	assert.deepEqual(operations.at(-1), ['save', 'second']);
 	find('data-test-header-undo').props.onClick();
 	assert.deepEqual(operations.at(-1), ['undo', 'second']);
+	projectSessions.fileOperations.isBusy.value = true;
+	await nextTick();
+	assert.equal(find('data-test-header-save').props.disabled, true);
+	assert.equal(find('data-test-header-undo').props.disabled, false);
+	const busyMenu = fileMenu();
+	for (const id of ['new-project', 'new-media-project', 'open-project', 'save-project', 'save-project-as', 'close-project']) {
+		assert.equal(busyMenu.find(item => item.id === id).disabled, true);
+	}
+	projectSessions.fileOperations.isBusy.value = false;
+	await nextTick();
+	assert.equal(find('data-test-header-save').props.disabled, false);
 	activeSession.value = null;
 	await nextTick();
 	assert.equal(find('data-test-header-save').props.disabled, true);

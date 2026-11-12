@@ -23,8 +23,9 @@ function evaluate(bundle) {
 function createStandaloneSession(app, initialProject = project(), options = {}) {
 	return new app.ProjectSessionContext(new app.ProjectContext(initialProject), {
 		id: randomUUID(), fileName: null, fileHandle: null,
-		// 保存先の競合はマネージャーを使うテストで検証し、単体テストでは予約の寿命だけを与える。
-		reserveProjectFile: async () => () => {},
+		// ウィンドウ共通の受付を使い、保存先の競合はマネージャーを使うテストで検証する。
+		fileOperations: app.projectSessions.fileOperations,
+		checkSaveDestination: async () => {},
 		...options,
 	});
 }
@@ -168,7 +169,7 @@ const appBundle = await build({
 					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); await window.acknowledgeProjectAlert?.(); }
-					export async function confirm(options) { window.projectConfirmations?.push(options); return { canceled: window.cancelProjectReplacement === true }; }
+					export async function confirm(options) { window.projectConfirmations?.push(options); return await window.confirmProjectClose?.(options) ?? { canceled: window.cancelProjectReplacement === true }; }
 					export function progress() { return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
 					export function waiting() { window.waitingCount = (window.waitingCount ?? 0) + 1; return { setText() {}, done() { window.waitingCount--; } }; }
 						export function disposeProjectSessionPopups() {}
@@ -1425,7 +1426,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 	await projectSession.renderEngine.retry();
 	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 4);
 	await app.projectSessions.close(projectSession);
-	const restoredSession = await app.projectSessions.openFile(await selectProjectFile({ handle, reservationId: 'restored-session' }), 'restored-session');
+	const restoredSession = await app.projectSessions.openFile(sessionId => selectProjectFile({ handle, reservationId: sessionId }));
 	assert.equal(restoredSession.timelinePreviewMotionBlurSamples.value, 0);
 	assert.equal(restoredSession.timelineRendererManagerController.staticOptions.timelineMotionBlur.samples, 0);
 	assert.equal(restoredSession.projectContext.stateManager.state.timelineMotionBlur.value.samples, 32);
@@ -1611,10 +1612,10 @@ test('backs up before preview startup and clears timers and unsaved state on dis
 	assert.equal(backups.length, 1);
 });
 
-// 【Save as中に追加したSaveは、確定後の新しい保存先へ書き込む】
-// 保存の呼出時に旧ハンドルを固定すると、待機中のSaveが元ファイルを上書きし、現在の保存先まで戻してしまう。
-// 追加編集を含むSaveを失わず、新しい保存先とその後の保存先がともにBになることを確認する。
-test('resolves queued Save against the destination committed by Save as', async t => {
+// 【Save as中の追加保存は受け付けず、完了後の明示的なSaveで新しい保存先へ書き込む】
+// 保存中の編集は引き続き可能だが、追加要求を後で勝手に実行しない。
+// 書き込み中に変更した内容を未保存として残し、次のSaveでだけ反映する。
+test('rejects saves during Save as and saves later edits only after another explicit request', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
 	const original = await encodeProjectFile(project({ name: 'Original A' }));
@@ -1629,15 +1630,21 @@ test('resolves queued Save against the destination committed by Save as', async 
 		return { ...stream, async close() { started.resolve(); await finish.promise; await stream.close(); } };
 	};
 	await projectSession.start();
-	window.selectProjectSaveFile = async () => second;
+	let selections = 0;
+	window.selectProjectSaveFile = async () => { selections++; return second; };
 	const saveAs = projectSession.saveProject(true);
 	await started.promise;
-	projectSession.projectContext.stateManager.state.name.value = 'Queued Save snapshot';
-	const save = projectSession.saveProject();
+	projectSession.projectContext.stateManager.state.name.value = 'Edited while saving';
+	await projectSession.saveProject();
+	await projectSession.saveProject(true);
+	assert.equal(selections, 1);
+	assert.equal(projectSession.isProjectSaving.value, true);
 	finish.resolve();
-	await Promise.all([saveAs, save]);
+	await saveAs;
 	assert.deepEqual(first.bytes, original);
-	assert.equal(decodeProjectFile(second.bytes).name, 'Queued Save snapshot');
+	assert.equal(decodeProjectFile(second.bytes).name, 'Save as snapshot');
+	assert.equal(projectSession.hasUnsavedChanges.value, true);
+	assert.equal(second.calls.filter(([action]) => action === 'write').length, 1);
 	assert.equal(projectSession.projectFileHandle.value, second);
 	assert.equal('id' in decodeProjectFile(second.bytes), false);
 	projectSession.projectContext.stateManager.state.name.value = 'Next Save';
@@ -1645,13 +1652,14 @@ test('resolves queued Save against the destination committed by Save as', async 
 	assert.deepEqual(first.bytes, original);
 	assert.equal(decodeProjectFile(second.bytes).name, 'Next Save');
 	assert.equal(projectSession.projectFileHandle.value, second);
+	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	assert.deepEqual(globalThis.projectAlerts, []);
 });
 
-// 【Save asがキャンセル・失敗した場合、待機中のSaveは以前の保存先を使う】
-// キューに登録した時点で新しい保存先へ切り替えると、未確定のファイルへ後続の保存が流れる。
-// セッションを閉じた場合は、選択待ち・キュー待ちの保存を実行せず後処理だけ完了させる。
-test('keeps the committed destination after cancelled or failed Save as and discards saves after disposal', async t => {
+// 【Save asの取消・失敗でも受付を解放し、明示的な再保存は以前の保存先を使う】
+// 追加要求はキャンセル後にも実行しない。元の保存先を維持して再操作できるようにする。
+// ウィンドウ終了で破棄したセッションには、選択待ちの結果や再保存を反映しない。
+test('releases save acceptance after cancellation or failure without replaying rejected requests', async t => {
 	for (const outcome of ['cancel', 'failure', 'close']) {
 		await t.test(outcome, async t => {
 			const window = setup(t);
@@ -1666,27 +1674,31 @@ test('keeps the committed destination after cancelled or failed Save as and disc
 			const original = first.bytes;
 			const saveAs = projectSession.saveProject(true);
 			await started.promise;
-			projectSession.projectContext.stateManager.state.name.value = 'Queued edit';
-			const save = projectSession.saveProject();
+			projectSession.projectContext.stateManager.state.name.value = 'Edited while saving';
+			await projectSession.saveProject();
 			const closing = outcome === 'close' ? projectSession.dispose() : Promise.resolve();
 			finish.resolve();
-			await Promise.all([saveAs, save, closing]);
+			await Promise.all([saveAs, closing]);
 			assert.deepEqual(second.bytes, new Uint8Array([42]));
+			assert.equal(first.bytes, original);
+			assert.equal(app.projectSessions.fileOperations.isBusy.value, false);
+			await projectSession.saveProject();
 			if (outcome === 'close') assert.equal(first.bytes, original);
-			else assert.equal(decodeProjectFile(first.bytes).name, 'Queued edit');
+			else assert.equal(decodeProjectFile(first.bytes).name, 'Edited while saving');
 			assert.deepEqual(globalThis.projectAlerts, outcome === 'failure' ? ['write failed'] : []);
 		});
 	}
 });
 
-// 【待機中に保存先が変わった場合、実際の保存先の権限を確認する】
-// 旧ファイルの許可を新しい宛先へ流用したり、旧ファイルの拒否で許可済みの新しい宛先への保存を止めない。
-test('checks the new destination permission instead of reusing the queued permission result', async t => {
+// 【拒否する追加Saveは権限を要求せず、次に受け付けたSaveで確定した保存先の権限を確認する】
+// 保存中の再操作で不要な権限ダイアログを出したり、旧保存先の許可を新しい保存先へ流用しない。
+test('requests permission only for an accepted save at its committed destination', async t => {
 	for (const allowed of [true, false]) {
 		await t.test(allowed ? 'new destination granted' : 'new destination denied', async t => {
 			const window = setup(t);
 			const app = evaluate(appBundle);
 			const first = fileHandle('A.gsproj', { permission: allowed ? 'denied' : 'granted' });
+			first.requestPermission = () => assert.fail('A rejected save must not request permission');
 			const projectSession = createStandaloneSession(app, project({ name: 'Save as' }), { fileName: first.name, fileHandle: first });
 			const second = fileHandle('B.gsproj', { permission: allowed ? 'granted' : 'denied' });
 			const started = Promise.withResolvers();
@@ -1695,12 +1707,14 @@ test('checks the new destination permission instead of reusing the queued permis
 			await projectSession.start();
 			const saveAs = projectSession.saveProject(true);
 			await started.promise;
-			projectSession.projectContext.stateManager.state.name.value = 'Queued Save';
-			const save = projectSession.saveProject();
+			projectSession.projectContext.stateManager.state.name.value = 'Next Save';
+			await projectSession.saveProject();
 			finish.resolve();
-			await Promise.all([saveAs, save]);
+			await saveAs;
+			assert.equal(decodeProjectFile(second.bytes).name, 'Save as');
+			await projectSession.saveProject();
 			assert.deepEqual(first.bytes, new Uint8Array([42]));
-			assert.equal(decodeProjectFile(second.bytes).name, allowed ? 'Queued Save' : 'Save as');
+			assert.equal(decodeProjectFile(second.bytes).name, allowed ? 'Next Save' : 'Save as');
 			assert.equal(globalThis.projectAlerts.length, allowed ? 0 : 1);
 		});
 	}
@@ -2076,10 +2090,10 @@ test('rejects empty save data without opening a writable', async () => {
 	assert.deepEqual(handle.bytes, new Uint8Array([42]));
 });
 
-// 【権限確認の開始から後続の手動保存の完了まで保存中を維持する】
-// 書き込み中だけのフラグや単純なbooleanでは、権限待ち・キュー待ちの保存を見落とし、
-// 先行保存が終わった瞬間にウィンドウを閉じられてしまう。closeの完了まで保護する。
-test('tracks manual saves from permission requests until every queued write has committed', async t => {
+// 【権限確認の開始から書き込みの確定まで保存中を維持し、追加要求では解除しない】
+// 権限待ちも終了防止の対象にする。拒否した追加要求の完了が進行中の保存表示を消さず、
+// 書き込みのclose完了後に解除して次の保存を受け付けることを確認する。
+test('tracks an accepted save through permission and commit without queuing additional requests', async t => {
 	setup(t);
 	const handle = fileHandle('saving.gsproj');
 	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
@@ -2097,12 +2111,17 @@ test('tracks manual saves from permission requests until every queued write has 
 	assert.equal(projectSession.isProjectSaving.value, false);
 	const firstSave = projectSession.saveProject();
 	assert.equal(projectSession.isProjectSaving.value, true);
+	await projectSession.saveProject();
+	assert.equal(projectSession.isProjectSaving.value, true);
 	permission.resolve('granted');
 	await writes[0].started.promise;
-	const secondSave = projectSession.saveProject();
+	await projectSession.saveProject();
+	assert.equal(writeIndex, 1);
+	assert.equal(projectSession.isProjectSaving.value, true);
 	writes[0].finish.resolve();
 	await firstSave;
-	assert.equal(projectSession.isProjectSaving.value, true);
+	assert.equal(projectSession.isProjectSaving.value, false);
+	const secondSave = projectSession.saveProject();
 	await writes[1].started.promise;
 	assert.equal(projectSession.isProjectSaving.value, true);
 	writes[1].finish.resolve();
@@ -2136,7 +2155,7 @@ test('tracks encoding and releases a save invalidated by session disposal', asyn
 });
 
 // 【保存先のキャンセルと保存失敗で保存中状態を解除する】
-// 早期returnや例外でカウンターが残ると、その後ずっと終了できなくなる。
+// 早期returnや例外で保存中の状態が残ると、その後ずっと終了できなくなる。
 // 失敗ダイアログの確認待ち中にも「保存中」と表示し続けないことを確認する。
 test('releases manual saving after cancellation and before acknowledging a write failure', async t => {
 	const window = setup(t);
@@ -2257,7 +2276,7 @@ test('tracks unsaved content across undo, redo, continuous edits and direct chan
 
 // 【保存完了前の編集と、別セッションの変更を保存済みにしない】
 // 本体のcloseを待つ間にも操作できるため、成功時の現在値ではなく実際に書いた内容を基準にする。
-// 同じProject IDを持つ別セッションを作成しても、終了した側の保存結果を採用しない。
+// 同じ内容から別セッションを作成しても、終了した側の保存結果を採用しない。
 test('keeps edits during writes unsaved and isolates saves completed after session disposal', async t => {
 	for (const closeSession of [false, true]) {
 		await t.test(closeSession ? 'closed session' : 'open session', async t => {
@@ -3035,8 +3054,8 @@ test('retains the Chrome save folder and starts backups only after the first sav
 
 // 【更新準備は受付済みの保存を完了させ、新規保存・バックアップは復帰するまで受け付けない】
 // 未保存の変更の破棄に同意していても、書込み途中のファイルを残して終了してはならない。
-// 既に待機中のSaveも完了させ、更新失敗後には現在の内容を再び保存できることを確認する。
-test('drains queued saves before preparing an update and resumes saving afterwards', async t => {
+// 受け付けたSaveだけを完了させ、更新失敗後には現在の内容を再び保存できることを確認する。
+test('drains the accepted save before preparing an update and resumes saving afterwards', async t => {
 	const window = setup(t);
 	const handle = fileHandle('update.gsproj');
 	const { projectSession } = evaluateSession(project({ name: 'first' }), { fileName: handle.name, fileHandle: handle });
@@ -3051,7 +3070,7 @@ test('drains queued saves before preparing an update and resumes saving afterwar
 	const firstSave = projectSession.saveProject();
 	await started.promise;
 	projectSession.projectContext.stateManager.state.name.value = 'second';
-	const queuedSave = projectSession.saveProject();
+	await projectSession.saveProject();
 	let readyToUpdate = false;
 	const preparing = projectSession.pauseForDesktopUpdate().then(resume => { readyToUpdate = true; return resume; });
 	projectSession.projectContext.stateManager.state.name.value = 'third';
@@ -3059,10 +3078,10 @@ test('drains queued saves before preparing an update and resumes saving afterwar
 	await projectSession.projectBackupController.tick();
 	assert.equal(readyToUpdate, false);
 	finish.resolve();
-	await Promise.all([firstSave, queuedSave]);
+	await firstSave;
 	const resume = await preparing;
-	assert.equal(decodeProjectFile(handle.bytes).name, 'second');
-	assert.equal(handle.calls.filter(([action]) => action === 'write').length, 2);
+	assert.equal(decodeProjectFile(handle.bytes).name, 'first');
+	assert.equal(handle.calls.filter(([action]) => action === 'write').length, 1);
 	await resume();
 	await projectSession.saveProject();
 	assert.equal(decodeProjectFile(handle.bytes).name, 'third');
@@ -3459,7 +3478,7 @@ for (const closeDuringPreparation of [false, true]) {
 				fileData: { url: null, size: 0, error: 'Unresolved' } }],
 		});
 		const handle = desktopProjectFile({ id: 'prepared-file', name: 'prepared.gsproj' });
-		const opening = app.projectSessions.openFile({ name: handle.name, handle, loadProject: async () => initialProject }, 'prepared-session');
+		const opening = app.projectSessions.openFile(async () => ({ name: handle.name, handle, loadProject: async () => initialProject }));
 		await entered.promise;
 		assert.equal(app.projectSessions.sessions.value.length, 0);
 		assert.equal(app.projectSession, null);
@@ -3513,7 +3532,7 @@ test('disposes a failed initialization and allows opening a fresh session', asyn
 	};
 	app = evaluate(appBundle);
 	const handle = desktopProjectFile({ id: 'failed-startup', name: 'failed-startup.gsproj' });
-	await assert.rejects(app.projectSessions.openFile({ name: handle.name, handle, loadProject: async () => project() }, 'failed-session'), /Registration failed/);
+	await assert.rejects(app.projectSessions.openFile(async () => ({ name: handle.name, handle, loadProject: async () => project() })), /Registration failed/);
 	assert.deepEqual(app.projectSessions.sessions.value, []);
 	assert.equal(app.projectSessions.activeSession.value, null);
 	assert.equal(window.waitingCount, 0);
@@ -3655,9 +3674,10 @@ test('selects an existing desktop project without reading its file again', async
 	assert.deepEqual(globalThis.projectAlerts, []);
 });
 
-// 【別タブの保存先は上書きせず、保存中のタブも閉じない】
+// 【別タブの保存先は上書きせず、保存の後処理中も追加のファイル操作を受け付けない】
 // 同じウィンドウの権限を共有していても、作品単位の保存先と未完了の書込みを保護する。
-test('rejects another tabs save destination and blocks closing until save cleanup completes', async t => {
+// 別タブへの切替・編集は許可し、バックグラウンドの保存が終わるまで追加・保存・終了だけを止める。
+test('protects owned destinations and rejects file operations across tabs until save cleanup completes', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
 	const target = fileHandle('owned.gsproj', { bytes: await encodeProjectFile(project()) });
@@ -3677,12 +3697,120 @@ test('rejects another tabs save destination and blocks closing until save cleanu
 	const save = first.saveProject();
 	await started.promise;
 	assert.equal(app.projectSessions.isProjectSaving.value, true);
+	assert.equal(app.projectSessions.fileOperations.isBusy.value, true);
+	window.showOpenFilePicker = () => assert.fail('A rejected Open must not show a picker');
+	window.selectProjectSaveFile = () => assert.fail('A rejected Save as must not show a picker');
+	assert.equal(await app.newProject(), null);
+	assert.equal(await app.openProject(), false);
+	assert.equal(await app.newProjectFromImageOrVideo(new File(['image'], 'image.png', { type: 'image/png' })), false);
+	await second.saveProject();
+	await second.saveProject(true);
 	assert.equal(await app.projectSessions.close(first), false);
+	assert.equal(await app.projectSessions.close(second), false);
+	await app.projectSessions.select(first);
+	await app.projectSessions.select(second);
+	second.projectContext.stateManager.state.name.value = 'Edited during another save';
+	assert.equal(app.projectSession, second);
+	assert.equal(second.hasUnsavedChanges.value, true);
+	assert.equal(second.isProjectSaving.value, false);
+	assert.deepEqual(app.projectSessions.sessions.value, [first, second]);
 	cleanup.resolve();
 	await save;
+	assert.equal(app.projectSessions.fileOperations.isBusy.value, false);
+	assert.equal(second.projectContext.snapshot().name, 'Edited during another save');
+	assert.equal(second.projectFileHandle.value, null);
+	assert.equal(target.calls.filter(([action]) => action === 'write').length, 1);
 	assert.equal(await app.projectSessions.close(first), true);
 	assert.equal(app.projectSession, second);
 	await app.disposeApplication();
+});
+
+// 【ファイル選択の開始からOpenを占有し、取消・読込失敗後は再操作できる】
+// 選択後に受付を確保するだけでは、ピッカー表示中のSaveやOpenが並行して進んでしまう。
+// 拒否した要求は副作用も待ち行列も残さず、完了後に改めて開く操作だけを受け付ける。
+test('rejects file operations from picker startup and accepts a new request after cancellation or read failure', async t => {
+	for (const outcome of ['cancel', 'read failure']) {
+		await t.test(outcome, async t => {
+			let app = null;
+			t.after(() => app?.disposeApplication());
+			const window = setup(t);
+			t.mock.method(console, 'error', () => {});
+			app = evaluate(appBundle);
+			const first = await app.newProject();
+			const selection = Promise.withResolvers();
+			let selections = 0;
+			window.showOpenFilePicker = () => { selections++; return selection.promise; };
+			window.selectProjectSaveFile = () => assert.fail('A rejected save must not show a picker');
+			const opening = app.openProject();
+			assert.equal(selections, 1);
+			assert.equal(app.projectSessions.fileOperations.isBusy.value, true);
+			assert.equal(await app.openProject(), false);
+			assert.equal(await app.openRecentProject('unused-history'), false);
+			assert.equal(await app.newProject(), null);
+			await first.saveProject();
+			await first.saveProject(true);
+			assert.equal(await app.projectSessions.close(first), false);
+			assert.equal(first.isProjectSaving.value, false);
+			assert.equal(selections, 1);
+			if (outcome === 'cancel') selection.reject(new DOMException('Canceled', 'AbortError'));
+			else {
+				const unreadable = fileHandle('unreadable.gsproj');
+				unreadable.getFile = async () => { throw new Error('read failed'); };
+				selection.resolve([unreadable]);
+			}
+			assert.equal(await opening, false);
+			assert.equal(app.projectSessions.fileOperations.isBusy.value, false);
+			assert.deepEqual(app.projectSessions.sessions.value, [first]);
+			assert.deepEqual(globalThis.projectAlerts, outcome === 'cancel' ? [] : ['read failed']);
+			const handle = fileHandle('retry.gsproj', { bytes: await encodeProjectFile(project()) });
+			window.showOpenFilePicker = async () => { selections++; return [handle]; };
+			assert.equal(await app.openProject(), true);
+			assert.equal(selections, 2);
+			assert.equal(app.projectSessions.sessions.value.length, 2);
+			assert.equal(app.projectSession.projectFileHandle.value, handle);
+		});
+	}
+});
+
+// 【Closeの確認中と所有権の解放中も、他タブのファイル操作を受け付けない】
+// 確認を待つ間に別の保存や終了が進むと、確認対象や保存先一覧が変化してしまう。
+// キャンセル時は受付を戻し、終了時はmain側の後処理まで待つ。タブ選択は制限しない。
+test('holds file operation acceptance through close confirmation and session cleanup', async t => {
+	let app = null;
+	t.after(() => app?.disposeApplication());
+	const window = setup(t);
+	app = evaluate(appBundle);
+	const first = await app.newProject();
+	const second = await app.newProject();
+	const confirmation = Promise.withResolvers();
+	window.confirmProjectClose = () => confirmation.promise;
+	window.selectProjectSaveFile = () => assert.fail('A rejected save must not show a picker');
+	const canceledClose = app.projectSessions.close(first);
+	assert.equal(app.projectSessions.fileOperations.isBusy.value, true);
+	assert.equal(await app.newProject(), null);
+	assert.equal(await app.projectSessions.close(second), false);
+	await second.saveProject();
+	await app.projectSessions.select(first);
+	assert.equal(app.projectSession, first);
+	confirmation.resolve({ canceled: true });
+	assert.equal(await canceledClose, false);
+	assert.equal(app.projectSessions.fileOperations.isBusy.value, false);
+	assert.deepEqual(app.projectSessions.sessions.value, [first, second]);
+	const cleanupStarted = Promise.withResolvers();
+	const finishCleanup = Promise.withResolvers();
+	window.confirmProjectClose = async () => ({ canceled: false });
+	window.desktop = { async closeProjectSession() { cleanupStarted.resolve(); await finishCleanup.promise; } };
+	const closing = app.projectSessions.close(first);
+	await cleanupStarted.promise;
+	assert.equal(app.projectSessions.fileOperations.isBusy.value, true);
+	assert.equal(await app.newProject(), null);
+	assert.equal(await app.projectSessions.close(second), false);
+	await second.saveProject(true);
+	finishCleanup.resolve();
+	assert.equal(await closing, true);
+	assert.equal(app.projectSessions.fileOperations.isBusy.value, false);
+	assert.equal(app.projectSession, second);
+	assert.deepEqual(app.projectSessions.sessions.value, [second]);
 });
 
 // 【最後のタブを閉じたらセッション0件へ戻し、アプリ終了ですべてのセッションを破棄する】
@@ -3719,7 +3847,7 @@ test('does not create a session after disposal during asynchronous file identity
 	const started = Promise.withResolvers();
 	const checked = Promise.withResolvers();
 	firstFile.isSameEntry = async () => { started.resolve(); return checked.promise; };
-	const opening = app.projectSessions.openFile({ name: 'second.gsproj', handle: fileHandle('second.gsproj'), loadProject: async () => project() }, 'second-session');
+	const opening = app.projectSessions.openFile(async () => ({ name: 'second.gsproj', handle: fileHandle('second.gsproj'), loadProject: async () => project() }));
 	await started.promise;
 	await app.disposeApplication();
 	checked.resolve(false);

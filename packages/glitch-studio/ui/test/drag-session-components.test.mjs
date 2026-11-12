@@ -23,7 +23,7 @@ const bundle = await build({ absWorkingDir: directory,
 		export { assetImportTest } from '@/utility/import-assets.ts';
 		export { preferences } from '@/preferences.ts';
 		export { recentProjects } from './src/recent-projects.ts';
-		export { dashboardTest } from '@/app.ts';
+		export { dashboardTest, projectSessions } from '@/app.ts';
 		export { getActiveDragData, getDragSessionData } from './src/utility/drag-and-drop.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	define: { _VERSION_: '"test"', __ELECTRON__: 'false' },
@@ -42,7 +42,7 @@ const bundle = await build({ absWorkingDir: directory,
 				get s() { return { workspaceDefinition: this.r.workspaceDefinition.value }; },
 				commit(key, value) { this.commits.push(value); this.r[key].value = value; } };`,
 			'workspace.ts': `export const workspacePanelDefinitions = { assets: { icon: '', label: 'Assets', component: 'div' } }; export function getElementMenu() { return []; }`,
-			'app.ts': `export const projectSessions = { activeSession: { get value() { return projectSession; } } }; import { recentProjects } from '@/recent-projects.ts'; export const openRecentProject = async id => openProject(null, await recentProjects.resolve(id)); export function useProjectSession() { return projectSession; } export const projectSession = { id: 'test-session', workspacePanelRevealRequest: { value: null }, projectContext: { stateManager: { commit() {} } } };
+			'app.ts': `import { ref } from 'vue'; export const projectSessions = { fileOperations: { isBusy: ref(false) }, activeSession: { get value() { return projectSession; } } }; import { recentProjects } from '@/recent-projects.ts'; export const openRecentProject = async id => openProject(null, await recentProjects.resolve(id)); export function useProjectSession() { return projectSession; } export const projectSession = { id: 'test-session', workspacePanelRevealRequest: { value: null }, projectContext: { stateManager: { commit() {} } } };
 				export function createProjectActions() { return { newProject, newProjectFromImageOrVideo, openProject }; } export const dashboardTest = { opened: [], success: true, get panelRequest() { return projectSession.workspacePanelRevealRequest.value; } };
 				export async function newProject() {} export async function newProjectFromImageOrVideo() { return true; }
 				export async function openProject(file, handle) { dashboardTest.opened.push({ file, handle }); return dashboardTest.success; }`,
@@ -76,7 +76,7 @@ const bundle = await build({ absWorkingDir: directory,
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Draggable, Panel, Divider, Asset, VisualModuleEditor, AssetSelectDialog, DashboardDialog, workspaceControllerKey, assetImportTest,
-	preferences, getActiveDragData, getDragSessionData, recentProjects, dashboardTest } = module.exports;
+	preferences, getActiveDragData, getDragSessionData, recentProjects, dashboardTest, projectSessions } = module.exports;
 
 function fixture(t, render, provide = () => {}) {
 	const windowTarget = new EventTarget();
@@ -134,6 +134,7 @@ const list = (model, group, key) => h(Draggable, { modelValue: model.value, grou
 // 【履歴を表示し、GsTimeへ日時を渡し、開けたときだけダッシュボードを閉じる】
 // 一覧だけ表示できても実際の再オープンに接続されていなければ利用できない。
 // 履歴の削除・全消去後の空表示も、実SFCのイベントとリアクティブな更新で検証する。
+// ウィンドウのファイル操作中は、履歴から開く操作と新規作成ボタンも無効にする。
 test('renders recent projects with GsTime and connects reopening, removal and clearing', async t => {
 	const previousStore = recentProjects.store;
 	const previousEntries = recentProjects.entries.value;
@@ -152,6 +153,7 @@ test('renders recent projects with GsTime and connects reopening, removal and cl
 		recentProjects.store = previousStore;
 		recentProjects.entries.value = previousEntries;
 		dashboardTest.success = true;
+		projectSessions.fileOperations.isBusy.value = false;
 	});
 	const f = fixture(t, () => h(DashboardDialog), app => app.provide(workspaceControllerKey, { revealPanel() {} }));
 	assert.ok(f.find('data-test-recent-projects-loading'));
@@ -159,6 +161,14 @@ test('renders recent projects with GsTime and connects reopening, removal and cl
 	assert.equal(f.find('data-test-recent-projects-loading'), undefined);
 	assert.equal(f.find('data-test-recent-project-time').tag, 'GsTime');
 	assert.equal(f.find('data-test-recent-project-time').props.time, 1000);
+	projectSessions.fileOperations.isBusy.value = true;
+	await nextTick();
+	for (const attribute of ['data-test-dashboard-new-project', 'data-test-dashboard-new-media-project', 'data-test-dashboard-open-project', 'data-test-open-recent-project']) {
+		assert.equal(f.find(attribute).props.disabled, true);
+	}
+	projectSessions.fileOperations.isBusy.value = false;
+	await nextTick();
+	assert.equal(f.find('data-test-open-recent-project').props.disabled, false);
 	await f.find('data-test-open-recent-project').props.onClick();
 	assert.deepEqual(dashboardTest.opened, [{ file: null, handle: resolved }]);
 	assert.equal(f.find('data-test-modal-closed'), undefined);

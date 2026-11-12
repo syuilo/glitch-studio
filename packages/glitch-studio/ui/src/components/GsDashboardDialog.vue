@@ -26,11 +26,28 @@
 					full
 					style="text-align: left;"
 					icon="ti ti-plus"
+					:disabled="fileOperationBusy"
 					data-test-dashboard-new-project
 					@click="_newProject"
 				>{{ i18n.ts._Dashboard.NewProject }}</GsButton>
-				<GsButton large full style="text-align: left;" icon="ti ti-photo-video" @click="_newProjectFromImageOrVideo">{{ `${i18n.ts._Dashboard.OpenMedia}...` }}</GsButton>
-				<GsButton large full style="text-align: left;" icon="ti ti-folder-open" @click="_openProject">{{ `${i18n.ts._Dashboard.OpenProject}...` }}</GsButton>
+				<GsButton
+					large
+					full
+					style="text-align: left;"
+					icon="ti ti-photo-video"
+					:disabled="fileOperationBusy"
+					data-test-dashboard-new-media-project
+					@click="_newProjectFromImageOrVideo"
+				>{{ `${i18n.ts._Dashboard.OpenMedia}...` }}</GsButton>
+				<GsButton
+					large
+					full
+					style="text-align: left;"
+					icon="ti ti-folder-open"
+					:disabled="fileOperationBusy"
+					data-test-dashboard-open-project
+					@click="_openProject"
+				>{{ `${i18n.ts._Dashboard.OpenProject}...` }}</GsButton>
 			</div>
 			<template v-if="desktopUpdateUi?.state.value.version != null">
 				<hr>
@@ -55,7 +72,13 @@
 					<template v-else>
 						<div v-if="recentProjects.entries.value.length === 0 && recentProjects.error.value == null" :class="$style.recentEmpty" data-test-recent-projects-empty>{{ i18n.ts._Dashboard.NoRecentProjects }}</div>
 						<div v-for="entry in recentProjects.entries.value" :key="entry.id" :class="$style.recentProject" data-test-recent-project>
-							<button class="_button" :class="$style.recentOpen" :disabled="recentProjectsBusy" data-test-open-recent-project @click="openRecentProject(entry.id)">
+							<button
+								class="_button"
+								:class="$style.recentOpen"
+								:disabled="recentProjectsBusy || fileOperationBusy"
+								data-test-open-recent-project
+								@click="openRecentProject(entry.id)"
+							>
 								<span :class="$style.recentName">{{ entry.name }}</span>
 								<span :class="$style.recentFileName">{{ entry.fileName }}</span>
 								<GsTime :key="entry.lastUsedAt" :time="entry.lastUsedAt" :class="$style.recentTime" data-test-recent-project-time/>
@@ -94,6 +117,7 @@ const modal = useTemplateRef('modal');
 let disposeFileDrops: (() => void) | null = null;
 const recentProjectsLoading = ref(true);
 const recentProjectsBusy = ref(false);
+const fileOperationBusy = projectSessions.fileOperations.isBusy;
 
 async function refreshRecentProjects() {
 	recentProjectsLoading.value = true;
@@ -155,6 +179,7 @@ async function _newProjectFromImageOrVideo() {
 async function onFileDrop(files: File[], event: DragEvent) {
 	let opened = false;
 	if (files.length === 1 && files[0].name.toLowerCase().endsWith('.gsproj')) {
+		if (fileOperationBusy.value) return;
 		// ユーティリティからdrop中に呼び出される。await前にハンドル取得を開始し、
 		// 取得失敗時もスナップショット済みのFileからプロジェクトを開ける。
 		const item = Array.from(event.dataTransfer?.items ?? []).find(item => item.kind === 'file');

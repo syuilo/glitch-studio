@@ -13,14 +13,13 @@ import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-de
 import { DEFAULT_PROJECT_NAME, selectProjectFile } from './gsproj.ts';
 import { recentProjects } from './recent-projects.ts';
 import type { ProjectSessionManager } from './ProjectSessionManager.ts';
-import { applicationActivity } from './application-activity.ts';
 import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
 import { readVideoFrameRate } from './utility/video-frame-rate.ts';
 import type { ProjectAsset } from './Project.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { EffectNodeOf } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { Player } from '@gs/shared/types.ts';
-import type { ProjectFileHandle } from './gsproj.ts';
+import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { OpenedMediaFile } from './api.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
@@ -29,26 +28,19 @@ import { openMediaFile, openMediaFileFromPath } from '@/utility/open-media-file.
 /** ファイル選択・初期データ作成を行い、新しい編集セッションとして追加する。 */
 export function createProjectActions(projectSessions: ProjectSessionManager) {
 	async function openProject(file?: File | null, fileHandle?: ProjectFileHandle | null, recentProjectId?: string): Promise<boolean> {
-		const sessionId = genId();
-		const releaseActivity = applicationActivity.acquire();
 		try {
-			if (recentProjectId != null) {
-				fileHandle = await recentProjects.resolve(recentProjectId, sessionId);
-				if (fileHandle == null) return false;
-			}
-			const selectedFile = await selectProjectFile({ file, handle: fileHandle, reservationId: sessionId });
-			if (selectedFile == null) return false;
-			const session = await projectSessions.openFile(selectedFile, sessionId);
-			if (session == null) return false;
-			if (selectedFile.handle != null) await recentProjects.remember(selectedFile.handle, session.projectContext.stateManager.state.name.value);
-			return true;
+			const session = await projectSessions.openFile(async sessionId => {
+				if (recentProjectId != null) {
+					fileHandle = await recentProjects.resolve(recentProjectId, sessionId);
+					if (fileHandle == null) return null;
+				}
+				return selectProjectFile({ file, handle: fileHandle, reservationId: sessionId });
+			});
+			return session != null;
 		} catch (error) {
 			console.error(error);
 			await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 			return false;
-		} finally {
-			await window.desktop?.releaseProjectReservations?.(sessionId).catch(console.error);
-			releaseActivity();
 		}
 	}
 
@@ -159,15 +151,15 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 	}
 	
 	async function newProjectFromImageOrVideo(file?: File) {
-		return applicationActivity.run(async () => loadMediaProject(await openMediaFile({ file })));
+		return await projectSessions.open(async () => createMediaProject(await openMediaFile({ file }))) != null;
 	}
 	
 	async function newProjectFromMediaPath(filePath: string, type: string) {
-		return applicationActivity.run(async () => loadMediaProject(await openMediaFileFromPath(filePath, type)));
+		return await projectSessions.open(async () => createMediaProject(await openMediaFileFromPath(filePath, type))) != null;
 	}
 	
-	async function loadMediaProject(result: OpenedMediaFile | null) {
-		if (result == null) return false;
+	async function createMediaProject(result: OpenedMediaFile | null): Promise<Project | null> {
+		if (result == null) return null;
 	
 		const asset = {
 			id: genId(),
@@ -187,7 +179,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 		if (videoMedia != null) {
 			if (videoMedia.durationMs < 1) {
 				await ui.alert({ type: 'error', text: i18n.ts._Assets.MediaTooShort });
-				return false;
+				return null;
 			}
 			if (videoMedia.audioError != null) {
 				await ui.alert({ type: 'warning', title: asset.name, text: videoMedia.audioError });
@@ -290,7 +282,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			}],
 		} satisfies ProjectVisualModule;
 	
-		const session = await projectSessions.open({
+		return {
 			gsVersion: _VERSION_,
 			name: DEFAULT_PROJECT_NAME,
 			description: '',
@@ -355,9 +347,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			exportSettings: null,
 			timelineMotionBlur: { ...DEFAULT_TIMELINE_MOTION_BLUR },
 			resolution: { width: result.width || 1024, height: result.height || 1024 },
-		});
-	
-		return session != null;
+		};
 	}
 	
 	return { openProject, openRecentProject: (id: string) => openProject(null, null, id), newProject, newProjectFromImageOrVideo, newProjectFromMediaPath };

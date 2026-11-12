@@ -56,7 +56,7 @@
 
 <script lang="ts" setup>
 import { onBeforeUnmount, provide, computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { openProject } from '@/app.ts';
+import { openProject, projectSessions } from '@/app.ts';
 import type { ProjectSessionContext } from '@/ProjectSessionContext.ts';
 import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from '@/ProjectSessionContext.ts';
 import GsPopup from '@/components/GsPopup.vue';
@@ -96,6 +96,7 @@ defineExpose({ sessionId: projectSession.id, editorEditTarget });
 
 async function onFileDrop(files: File[], event: DragEvent) {
 	if (files.length === 1 && files[0].name.toLowerCase().endsWith('.gsproj')) {
+		if (projectSessions.fileOperations.isBusy.value) return;
 		const item = Array.from(event.dataTransfer?.items ?? []).find(item => item.kind === 'file');
 		const handle = await item?.getAsFileSystemHandle?.().catch(() => null);
 		await openProject(files[0], handle?.kind === 'file' ? handle as FileSystemFileHandle : null);

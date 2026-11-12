@@ -38,7 +38,8 @@
 		- RendererManagerControllerBase.ts ... rendererのラッパーのような役割をする基底クラスで、レンダラーがワーカー越しに動いていることを隠蔽しつつレンダラーの管理を行います。
 		- app.ts ... ProjectSessionManagerの生成・公開と、ウィンドウの終了処理を担当します。
 		- project-actions.ts ... 新規作成やファイルを開く操作を、追加の編集セッションとしてマネージャーへ渡します。
-		- ProjectSessionManager.ts ... 外部素材の参照を解決してからセッションを生成・起動し、ウィンドウ内のプロジェクト一覧・タブの選択・終了と、保存先の排他を管理します。
+		- ProjectSessionManager.ts ... 外部素材の参照を解決してからセッションを生成・起動し、ウィンドウ内のプロジェクト一覧・タブの選択・終了と、保存先の重複確認を管理します。
+		- ProjectFileOperationController.ts ... ウィンドウ内の新規作成・Open・Save・Save as・Closeを一つだけ受け付け、処理中の追加要求はキューへ積まず拒否します。タブ切替・編集は制限しません。
 		- ProjectSessionContext.ts ... 1プロジェクトの編集セッションとして、生成時に初期Scene・プレビュー設定・保存管理を揃え、start()で一度だけデスクトップ側への登録とプレビューの起動を行います。レンダラー同期・終了の手順も調整します。
 		- Project.ts ... ProjectContextが生成時に渡されたプロジェクト状態を所有し、snapshot()で取り出します。未初期化の状態やデータの再取り込みは持ちません。UndoRedoがCommandの実行・履歴・変更通知を担当します。
 		- ProjectSaveController.ts ... 生成時にファイル名・保存先を受け取って保存済み状態を確定し、権限確認・手動保存・バックアップを管理します。終了後に届いた保存要求の非同期結果を無効化します。

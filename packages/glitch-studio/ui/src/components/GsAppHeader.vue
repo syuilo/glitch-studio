@@ -68,7 +68,7 @@
 			v-tooltip="i18n.ts.Save"
 			class="_button"
 			:class="$style.headerQuickButton"
-			:disabled="projectSession == null || isProjectSaving || !hasUnsavedChanges"
+			:disabled="projectSession == null || fileOperationBusy || !hasUnsavedChanges"
 			data-test-header-save
 			@click="projectSession?.saveProject()"
 		>
@@ -132,6 +132,7 @@ const projectName = computed(() => stateManager.value?.state.name.value ?? 'Glit
 const projectFileName = computed(() => props.projectSession?.projectFileName.value ?? null);
 const hasUnsavedChanges = computed(() => props.projectSession?.hasUnsavedChanges.value ?? false);
 const isProjectSaving = computed(() => props.projectSession?.isProjectSaving.value ?? false);
+const fileOperationBusy = projectSessions.fileOperations.isBusy;
 const showAdvancedParameters = preferences.model('showAdvancedParameters');
 const headerEditActions = useHeaderEditActions({
 	editorTarget: computed(() => props.editorEditTarget),
@@ -171,14 +172,19 @@ function openHeaderFileMenu(ev: PointerEvent) {
 	const projectSession = props.projectSession;
 	ui.popupMenu([{
 		id: 'new-project',
+		disabled: fileOperationBusy.value,
 		text: i18n.ts._Dashboard.NewProject,
 		icon: 'ti ti-plus',
 		action: () => { void newProject(); },
 	}, {
+		id: 'new-media-project',
+		disabled: fileOperationBusy.value,
 		text: `${i18n.ts._Dashboard.OpenMedia}...`,
 		icon: 'ti ti-photo-video',
 		action: () => { void newProjectFromImageOrVideo(); },
 	}, {
+		id: 'open-project',
+		disabled: fileOperationBusy.value,
 		text: `${i18n.ts._App.Open}...`,
 		icon: 'ti ti-folder-open',
 		action: () => { void openProject(); },
@@ -186,12 +192,13 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		type: 'divider',
 	}, {
 		id: 'save-project',
-		disabled: projectSession == null,
+		disabled: projectSession == null || fileOperationBusy.value,
 		text: i18n.ts.Save,
 		icon: 'ti ti-device-floppy',
 		action: () => { void projectSession?.saveProject(); },
 	}, {
-		disabled: projectSession == null,
+		id: 'save-project-as',
+		disabled: projectSession == null || fileOperationBusy.value,
 		text: `${i18n.ts._App.SaveAs}...`,
 		icon: 'ti ti-device-floppy',
 		action: () => { void projectSession?.saveProject(true); },
@@ -226,7 +233,7 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		type: 'divider',
 	}, {
 		id: 'close-project',
-		disabled: projectSession == null,
+		disabled: projectSession == null || fileOperationBusy.value,
 		text: i18n.ts._App.CloseProject,
 		icon: 'ti ti-x',
 		action: () => { if (projectSession != null) void projectSessions.close(projectSession); },

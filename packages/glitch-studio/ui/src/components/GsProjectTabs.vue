@@ -12,9 +12,23 @@
 			<span v-if="session.hasUnsavedChanges.value" v-tooltip="i18n.ts._App.UnsavedChanges" data-test-project-tab-unsaved>*</span>
 			<i v-if="session.isProjectSaving.value" class="ti ti-loader" data-test-project-tab-saving></i>
 		</button>
-		<button v-tooltip="i18n.ts._App.CloseProject" class="_button" :class="$style.close" data-test-close-project @click="manager.close(session)"><i class="ti ti-x"></i></button>
+		<button
+			v-tooltip="i18n.ts._App.CloseProject"
+			class="_button"
+			:class="$style.close"
+			:disabled="manager.fileOperations.isBusy.value"
+			data-test-close-project
+			@click="manager.close(session)"
+		><i class="ti ti-x"></i></button>
 	</div>
-	<button v-tooltip="i18n.ts._Dashboard.NewProject" class="_button" :class="$style.add" data-test-new-project @click="emit('newProject')"><i class="ti ti-plus"></i></button>
+	<button
+		v-tooltip="i18n.ts._Dashboard.NewProject"
+		class="_button"
+		:class="$style.add"
+		:disabled="manager.fileOperations.isBusy.value"
+		data-test-new-project
+		@click="emit('newProject')"
+	><i class="ti ti-plus"></i></button>
 </div>
 </template>
 

@@ -306,10 +306,11 @@ const ast = createSourceFile('App.ts', parse(source).descriptor.scriptSetup.cont
 const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onFileDrop');
 const { code } = await transform(handler.getText(ast), { loader: 'ts' });
 
-function appFixture({ ids = ['asset'] } = {}) {
+function appFixture({ ids = ['asset'], fileOperationBusy = false } = {}) {
 	const events = [];
 	const context = {
 		projectSession: { projectContext: {}, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
+		projectSessions: { fileOperations: { isBusy: { value: fileOperationBusy } } },
 		importAssets: async (destination, files) => {
 			if (ids.length > 0 && typeof destination === 'function') await destination();
 			events.push(['assets', files.map(file => file.name)]);
@@ -348,11 +349,12 @@ const dashboardHandlers = dashboardAst.statements.filter(statement => isFunction
 	&& ['onFileDrop', '_newProjectFromImageOrVideo'].includes(statement.name?.text));
 const { code: dashboardCode } = await transform(dashboardHandlers.map(handler => handler.getText(dashboardAst)).join('\n'), { loader: 'ts' });
 
-function dashboardFixture({ ids = ['asset'], opened = true, hasSession = false } = {}) {
+function dashboardFixture({ ids = ['asset'], opened = true, hasSession = false, fileOperationBusy = false } = {}) {
 	const events = [];
 	const context = {
 		projectSession: { projectContext: {}, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
 		projectSessions: { activeSession: { get value() { return hasSession ? context.projectSession : null; } } },
+		fileOperationBusy: { value: fileOperationBusy },
 		newProject: async () => { events.push('newProject'); return context.projectSession; },
 		newProjectFromImageOrVideo: async file => { events.push(['media', file ?? null]); return opened; },
 		importAssets: async (destination, files) => {
@@ -388,6 +390,22 @@ function dashboardEvent(files, items = []) {
 	event.dataTransfer = { types: ['Files'], files, items };
 	return event;
 }
+
+// 【ファイル操作中のgsprojドロップは無視し、素材の取り込みは継続できる】
+// ハンドル取得を待ってから受け付けると、処理中に行った操作を後から実行してしまう。
+// 入口で拒否する一方、保存中の編集として許可する素材追加まで止めないようにする。
+test('ignores project drops while busy without blocking asset editing', async () => {
+	const f = appFixture({ fileOperationBusy: true });
+	const event = { dataTransfer: { items: [{ kind: 'file', getAsFileSystemHandle: () => assert.fail('A rejected drop must not request a handle') }] } };
+	await f.run([new File(['project'], 'project.gsproj')], event);
+	assert.deepEqual(f.events, []);
+	await f.run([new File(['image'], 'image.png')]);
+	assert.deepEqual(f.events[0], ['assets', ['image.png']]);
+	const dashboard = dashboardFixture({ fileOperationBusy: true });
+	await dashboard.onDrop(dashboardEvent([new File(['project'], 'project.gsproj')], event.dataTransfer.items));
+	assert.deepEqual(dashboard.events, []);
+	dashboard.dispose();
+});
 
 // 【Dashboardがプロジェクトの保存先ハンドルをdrop中に取得し、成功時だけ閉じる】
 // 全体ドロップとは独立した受付で、プロジェクトを開く機能を維持する。

@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, readonly, ref, shallowRef, watch } from 'vue';
 import { recentProjects } from './recent-projects.ts';
 import { preferences } from './preferences.ts';
 import { projectSaveBackupWriter, ProjectSaveSession } from './project-save-session.ts';
@@ -9,6 +9,7 @@ import GsProjectSaveDialog from './components/GsProjectSaveDialog.vue';
 import GsProjectBackupFolderDialog from './components/GsProjectBackupFolderDialog.vue';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { ProjectBackupStatus, ProjectBackupTarget } from './project-backups.ts';
+import type { ProjectFileOperationController } from './ProjectFileOperationController.ts';
 import * as ui from '@/ui.ts';
 
 function resolveBackupTarget(handle: ProjectFileHandle, directory: FileSystemDirectoryHandle | null): ProjectBackupTarget | null {
@@ -55,15 +56,15 @@ export class ProjectSaveController {
 	private disposal: Promise<void> | null = null;
 	private readonly stopBackupSettings: () => void;
 	private readonly sessionId: string;
-	private readonly reserveProjectFile: (handle: ProjectFileHandle) => Promise<() => void>;
+	private readonly fileOperations: ProjectFileOperationController;
+	private readonly checkSaveDestination: (handle: ProjectFileHandle) => Promise<void>;
 	private pausedForUpdate = false;
 	private updatePreparationError: unknown = null;
 	private projectSaveSession: ProjectSaveSession;
 	private backupFingerprint = createProjectBackupFingerprint();
 	private savedFingerprint = ref<string | null>(null);
-	private pendingManualSaveCount = ref(0);
-	// 実行中の保存が終わっても、後続の保存が待機中なら終了を許可しない。
-	public isProjectSaving = computed(() => this.pendingManualSaveCount.value > 0);
+	private readonly saving = ref(false);
+	public readonly isProjectSaving = readonly(this.saving);
 	// 履歴の件数では、Undo・直接編集されるプロジェクト情報・生成音声の変更を判定できない。
 	// 保存対象そのものを比較し、不変なBlobはバックアップと同じ同一性で扱う。
 	public hasUnsavedChanges = computed(() => {
@@ -81,10 +82,12 @@ export class ProjectSaveController {
 			fileName: string | null;
 			fileHandle: ProjectFileHandle | null;
 			sessionId: string;
-			reserveProjectFile: (handle: ProjectFileHandle) => Promise<() => void>;
+			fileOperations: ProjectFileOperationController;
+			checkSaveDestination: (handle: ProjectFileHandle) => Promise<void>;
 		}, private popup: typeof ui.popup = ui.popup) {
 		this.sessionId = options.sessionId;
-		this.reserveProjectFile = options.reserveProjectFile;
+		this.fileOperations = options.fileOperations;
+		this.checkSaveDestination = options.checkSaveDestination;
 		this.projectSaveSession = new ProjectSaveSession((target, previous) => {
 			this.projectFileHandle.value = target?.handle ?? null;
 			this.projectFileName.value = target?.handle.name ?? null;
@@ -140,31 +143,29 @@ export class ProjectSaveController {
 
 	public async saveProject(saveAs = false): Promise<void> {
 		if (this.disposed.value || this.pausedForUpdate) return;
-		const project = this.getSnapshot();
-		if (project == null) return;
-		const requestedHandle = saveAs ? null : this.projectSaveSession.target?.handle ?? null;
-		this.pendingManualSaveCount.value++;
+		const releaseOperation = this.fileOperations.tryBegin();
+		if (releaseOperation == null) return;
+		this.saving.value = true;
 		let saveFailure: { error: unknown } | null = null;
 		try {
+			const project = this.getSnapshot();
+			if (project == null) return;
+			const requestedHandle = saveAs ? null : this.projectSaveSession.target?.handle ?? null;
 			// ブラウザーでは待ち行列やエンコードより前に権限要求を始め、クリックの有効期間を失わない。
 			// 待機中の拒否は値として受け、未処理のPromise rejectionにしない。
 			const permission = requestedHandle?.kind === 'file'
 				? requestedHandle.requestPermission({ mode: 'readwrite' }).catch((error: unknown) => error) : null;
 			saveFailure = await this.projectSaveSession.runExclusive(async savedTarget => {
-				let releaseFile: (() => void) | null = null;
 				try {
 					// セッションの入れ替えは行わない。終了後に届いた権限・選択・エンコード結果だけを無効化する。
 					if (this.disposed.value) return null;
 					const fingerprint = this.backupFingerprint(project);
-					let handle = saveAs ? null : savedTarget?.handle ?? null;
+					let handle = requestedHandle;
 					let directory = saveAs ? null : savedTarget?.directory ?? null;
 					let target = saveAs ? null : savedTarget?.backup ?? null;
-					// 待機中にSave asが成功した場合、その保存先は選択時に許可済み。
-					// 旧ハンドルの権限結果を流用せず確認し、ユーザー操作のないキュー内で新たな権限要求はしない。
-					if (handle?.kind === 'file') {
-						const granted = handle === requestedHandle ? await permission : await handle.queryPermission({ mode: 'readwrite' });
-						if (granted !== 'granted') throw new Error('Write permission was not granted. Use Save as... to choose another file.');
-					}
+					// 待機するのは自動バックアップだけ。後続のSave／Save asは受け付けないため、
+					// 要求時の保存先と権限をそのまま使える。保存中の編集はスナップショットへ混ぜない。
+					if (handle?.kind === 'file' && await permission !== 'granted') throw new Error('Write permission was not granted. Use Save as... to choose another file.');
 					// 外部参照の相対化には保存先が必要だが、埋め込み原本の読込失敗で
 					// ブラウザの保存先を空にしない従来の順序は維持する。
 					let data = handle == null && window.desktop?.assetProjectPaths != null ? null : await encodeProjectFile(project, handle);
@@ -174,8 +175,8 @@ export class ProjectSaveController {
 						if (selected == null || this.disposed.value) return null;
 						({ handle, directory } = selected);
 					}
-					// 別タブの保存先・保存中の予約と照合し、バックアップを作る前に排他する。
-					releaseFile = await this.reserveProjectFile(handle);
+					// 別タブの確定した保存先と照合し、バックアップを作る前に拒否する。
+					await this.checkSaveDestination(handle);
 					if (this.disposed.value) return null;
 					target ??= resolveBackupTarget(handle, directory);
 					data ??= await encodeProjectFile(project, handle);
@@ -207,12 +208,12 @@ export class ProjectSaveController {
 				} finally {
 					// 予約の解放まで保存キューに含め、更新の準備が後処理を追い越さないようにする。
 					await window.desktop?.releaseProjectReservations?.(this.sessionId).catch(console.error);
-					releaseFile?.();
 				}
 				return null;
 			});
 		} finally {
-			this.pendingManualSaveCount.value--;
+			this.saving.value = false;
+			releaseOperation();
 		}
 		// エラーの確認待ちは保存処理ではないため、保存中の表示と終了防止を先に解除する。
 		if (saveFailure != null) {

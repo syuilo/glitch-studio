@@ -7,8 +7,8 @@ export type ProjectSaveTarget = {
 	backup: ProjectBackupTarget | null;
 };
 
-// 保存先と処理順序を同じセッションが所有する。Save asの成功後に待機中のSaveが
-// 古い保存先を使わないよう、保存先はキューへの登録時ではなく実行開始時に渡す。
+// 保存先と、手動保存・自動バックアップの書き込み順序を所有する。
+// 手動保存の重複受付はウィンドウ側で拒否し、このキューはバックアップとの直列化に使う。
 export class ProjectSaveSession {
 	private currentTarget: ProjectSaveTarget | null = null;
 	private queue: Promise<unknown> = Promise.resolve();

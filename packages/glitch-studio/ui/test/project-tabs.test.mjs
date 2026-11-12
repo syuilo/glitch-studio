@@ -25,7 +25,7 @@ const Tabs = module.exports.default;
 
 // 【単一プロジェクトではタブを隠し、追加・切替・終了と未保存状態を実コンポーネントへ反映する】
 // セッション数だけをテストしても、UIの表示条件・イベント接続の間違いは見つからない。
-// 二つから一つへ戻る場合も同じ条件で非表示になることを確認する。
+// ファイル操作中も切替できるが、追加と終了は操作できない。二つから一つへ戻ると再び非表示にする。
 test('shows tabs only for multiple projects and routes selection and close to their owners', async t => {
 	const element = () => ({ children: [], parent: null, props: {} });
 	const renderer = createRenderer({
@@ -43,6 +43,7 @@ test('shows tabs only for multiple projects and routes selection and close to th
 	const first = session('first');
 	const second = session('second');
 	const manager = { sessions: shallowRef([first]), activeSession: shallowRef(first),
+		fileOperations: { isBusy: ref(false) },
 		select(target) { this.activeSession.value = target; }, close(target) { this.sessions.value = this.sessions.value.filter(session => session !== target); } };
 	const root = element();
 	let additions = 0;
@@ -67,8 +68,17 @@ test('shows tabs only for multiple projects and routes selection and close to th
 	await nextTick();
 	assert.equal(find('data-test-project-tab-unsaved').length, 1);
 	assert.equal(find('data-test-project-tab-saving').length, 1);
+	manager.fileOperations.isBusy.value = true;
+	await nextTick();
+	assert.equal(find('data-test-new-project')[0].props.disabled, true);
+	assert.equal(find('data-test-close-project').every(node => node.props.disabled === true), true);
+	assert.notEqual(find('data-test-select-project')[1].props.disabled, true);
 	find('data-test-select-project')[1].props.onClick();
 	assert.equal(manager.activeSession.value, second);
+	manager.fileOperations.isBusy.value = false;
+	await nextTick();
+	assert.equal(find('data-test-new-project')[0].props.disabled, false);
+	assert.equal(find('data-test-close-project').every(node => node.props.disabled === false), true);
 	find('data-test-new-project')[0].props.onClick();
 	assert.equal(additions, 1);
 	find('data-test-close-project')[0].props.onClick();

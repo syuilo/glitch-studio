@@ -39,6 +39,7 @@ import { PreviewParameterEditingController } from './utility/preview-parameter-e
 import { getImageAnalysisValueRange } from './utility/image-analysis-range.ts';
 import type { ImageAnalysisRangePreset } from './utility/image-analysis-range.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
+import type { ProjectFileOperationController } from './ProjectFileOperationController.ts';
 import { getRendererAssets } from './utility/renderer-assets.ts';
 import { resolveExternalAssets } from './external-assets.ts';
 import { getTimelineEditorState, getSelectedTimelineLayerId } from './utility/timeline-editor-state.ts';
@@ -148,7 +149,8 @@ export class ProjectSessionContext {
 		id: string;
 		fileName: string | null;
 		fileHandle: ProjectFileHandle | null;
-		reserveProjectFile: (handle: ProjectFileHandle) => Promise<() => void>;
+		fileOperations: ProjectFileOperationController;
+		checkSaveDestination: (handle: ProjectFileHandle) => Promise<void>;
 	}) {
 		this.id = options.id;
 		markRaw(this);
@@ -542,7 +544,7 @@ export class ProjectSessionContext {
 		this.projectSaveController = new ProjectSaveController(
 			() => this.projectContext.snapshot(),
 			{ fileName: options.fileName, fileHandle: options.fileHandle,
-				sessionId: this.id, reserveProjectFile: options.reserveProjectFile },
+				sessionId: this.id, fileOperations: options.fileOperations, checkSaveDestination: options.checkSaveDestination },
 			(component, props, events) => ui.popup(component, props, events, this),
 		);
 	}
