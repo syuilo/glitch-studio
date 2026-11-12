@@ -5,6 +5,7 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { MAXIMUM_MAGNET_COUNT, MAGNETIC_PENDULUM_MINIMUM_ZOOM } from './_def_.ts';
 import code from './shader.wgsl?raw';
+import { getMagneticPendulumMaximumSteps, getMagneticPendulumRenderWorkloadHint } from './render-workload.ts';
 import type { EffectOutputData } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
 
@@ -13,6 +14,7 @@ import type definition from './_def_.ts';
 const SIMULATION_UNITS_PER_SPATIAL_UNIT = 4;
 
 export default implementEffect<typeof definition>({
+	getRenderWorkloadHint: getMagneticPendulumRenderWorkloadHint,
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -119,7 +121,7 @@ export default implementEffect<typeof definition>({
 					captureRadiusSquared: captureRadius * captureRadius,
 					captureSpeedSquared: captureSpeed * captureSpeed,
 					settlingShading: Math.min(1, Math.max(0, ctx.params.settlingShading)),
-					maximumSteps: Math.min(2048, Math.max(1, Math.floor(ctx.params.maximumSteps))),
+					maximumSteps: getMagneticPendulumMaximumSteps(ctx.params.maximumSteps),
 					antialiasing: ctx.params.antialiasing ? 1 : 0,
 					unconvergedValue: ctx.params.unconvergedValue,
 					travelDistanceScale: 1 / SIMULATION_UNITS_PER_SPATIAL_UNIT,

@@ -1758,7 +1758,7 @@ for (const [name, createManager] of [['visualModuleLivePreview', createVisualMod
 			globalThis.GPUCanvasContext = Context;
 			Object.defineProperty(navigator, 'gpu', { configurable: true, value: {
 				getPreferredCanvasFormat: () => 'rgba8unorm',
-				requestAdapter: async () => ({ requestDevice: async () => device }),
+				requestAdapter: async () => ({ features: new Set(), requestDevice: async () => device }),
 			} });
 			t.after(() => {
 				if (previousContext != null) Object.defineProperty(globalThis, 'GPUCanvasContext', previousContext);
@@ -1810,7 +1810,7 @@ for (const [name, createManager] of [['visualModuleLivePreview', createVisualMod
 			globalThis.createImageBitmap = async () => { throw new Error('asset decode failed'); };
 			Object.defineProperty(navigator, 'gpu', { configurable: true, value: {
 				getPreferredCanvasFormat: () => 'rgba8unorm',
-				requestAdapter: async () => ({ requestDevice: async () => device }),
+				requestAdapter: async () => ({ features: new Set(), requestDevice: async () => device }),
 			} });
 			t.after(() => {
 				for (const [key, descriptor] of [['GPUCanvasContext', previousContext], ['createImageBitmap', previousBitmap]]) {

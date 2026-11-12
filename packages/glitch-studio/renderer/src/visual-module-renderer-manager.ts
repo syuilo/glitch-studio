@@ -30,6 +30,7 @@ import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.t
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import { PreviewRenderDelayMonitor } from './preview-render-delay-monitor.ts';
+import { getRendererRequiredGpuFeatures } from './renderer-gpu-features.ts';
 import { createPreviewCanvasContext } from './preview-canvas-context.ts';
 import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings, createSrgbCanvasOutputSettings } from './canvas-output.ts';
 import type { CanvasOutputSettings } from './canvas-output.ts';
@@ -716,10 +717,7 @@ export async function createManager(options: {
 	});
 
 	const device = await adapter?.requestDevice({
-		requiredFeatures: [
-			...(options.staticOptions.enable32bitDataTextures ? ['float32-filterable'] as const : []),
-			...(options.staticOptions.enableStats ? ['timestamp-query'] as const : []),
-		],
+		requiredFeatures: getRendererRequiredGpuFeatures(adapter, { ...options.staticOptions, enableGpuStatistics: options.staticOptions.enableStats }),
 	});
 	if (device == null) {
 		throw new Error('need a browser that supports WebGPU');

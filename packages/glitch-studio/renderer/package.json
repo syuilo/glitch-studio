@@ -10,6 +10,7 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
+		"./renderer-gpu-features.ts": "./src/renderer-gpu-features.ts",
 		"./canvas-output.ts": "./src/canvas-output.ts",
 		"./srgb-image-readback.ts": "./src/srgb-image-readback.ts",
 		"./client.ts": "./src/client.ts",

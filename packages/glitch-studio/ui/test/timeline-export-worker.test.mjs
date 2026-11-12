@@ -10,7 +10,8 @@ const bundled = await build({
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'export-worker-platform', setup(build) {
 		build.onResolve({ filter: /^@gs\/glitch-studio_renderer\/|^@gs\/subsystems_effect_shared\/effect-(?:definitions|implementations)\.ts$|\/mp4-writer\.ts$|\/still-(?:webp|openexr)\.ts$|\/timeline-audio-export\.ts$/ }, args =>
-			args.path === '@gs/glitch-studio_renderer/canvas-output.ts' ? null : { path: args.path, namespace: 'platform' });
+			['@gs/glitch-studio_renderer/canvas-output.ts', '@gs/glitch-studio_renderer/renderer-gpu-features.ts'].includes(args.path)
+				? null : { path: args.path, namespace: 'platform' });
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `
 			export const TimelineRendererManager = dependencies.TimelineRendererManager;
 			export const TimelineAudioExport = dependencies.TimelineAudioExport;
@@ -22,7 +23,7 @@ const bundled = await build({
 	} }],
 });
 
-function fixture(maxTextureDimension2D = 16384) {
+function fixture(maxTextureDimension2D = 16384, features = []) {
 	const preparing = Promise.withResolvers();
 	const prepared = Promise.withResolvers();
 	const frames = [];
@@ -116,7 +117,7 @@ function fixture(maxTextureDimension2D = 16384) {
 			getContext() { return new GPUCanvasContext(this); }
 		},
 		navigator: { gpu: { getPreferredCanvasFormat: () => 'bgra8unorm', async requestAdapter() {
-			return { limits: { maxTextureDimension2D }, async requestDevice(settings) { deviceSettings = settings; return device; } };
+			return { limits: { maxTextureDimension2D }, features: new Set(features), async requestDevice(settings) { deviceSettings = settings; return device; } };
 		} } },
 	});
 	return { preparing, prepared, frames, messages, encodings, canvases,
@@ -211,11 +212,11 @@ for (const failing of [false, true]) {
 // 【基準解像度を維持し、最終出力だけをエンコード用寸法へ補正する】
 // 書き出し用の静的・動的設定を分け、素材の準備完了まで描画を待つ。
 // プレビュー設定の転記漏れや旧コンストラクター呼び出しを防ぎ、MP4の黒背景と
-// WebPの透過を維持する。計測を無効にするためtimestamp-queryは要求しない。
+// WebPの透過を維持する。統計が無効でも自動分割のGPU計測用にはtimestamp-queryを確保する。
 // Canvasの出力設定には実際の生成処理を使い、プレビューと独立したsRGB出力を指定することも確認する。
 for (const format of ['mp4', 'webp']) {
 	test(`initializes ${format} export with shared settings and waits for assets`, { timeout: 2000 }, async () => {
-		const f = fixture();
+		const f = fixture(16384, ['timestamp-query']);
 		const request = {
 			resolutionScale: 1,
 			settings: { format, quality: 'high', width: 3, height: 5, positionMs: 1000,
@@ -226,7 +227,7 @@ for (const format of ['mp4', 'webp']) {
 		const job = f.run(request);
 		await f.preparing.promise;
 		assert.deepEqual(f.frames, []);
-		assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), ['float32-filterable']);
+		assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), ['float32-filterable', 'timestamp-query']);
 		const { timelineFps, timelineMotionBlur, assets, customShaderEffects, ...dynamicProjectOptions } = request.project;
 		assert.deepEqual(structuredClone(f.instance.core.canvasOutput), { format: 'bgra8unorm', colorSpace: 'srgb' });
 		assert.deepEqual(structuredClone(f.instance.resources), { assets, customShaderEffects });

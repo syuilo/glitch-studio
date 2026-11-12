@@ -2,6 +2,7 @@ import { getTimelineScene, getSceneDuration } from '@gs/subsystems_timeline_shar
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import { createSrgbCanvasOutputSettings } from '@gs/glitch-studio_renderer/canvas-output.ts';
+import { getRendererRequiredGpuFeatures } from '@gs/glitch-studio_renderer/renderer-gpu-features.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { effectImplementations } from '@gs/subsystems_effect_shared/effect-implementations.ts';
 import { createMp4Writer } from './mp4-writer.ts';
@@ -79,7 +80,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest | ExportChunkAcknowled
 			if (audioClips.length > 0) audio = new TimelineAudioExport(project.assets, audioClips, settings, project.generatedSpeech);
 		}
 		device = await adapter.requestDevice({
-			requiredFeatures: rendererSettings.enable32bitDataTextures ? ['float32-filterable'] : [],
+			requiredFeatures: getRendererRequiredGpuFeatures(adapter, rendererSettings),
 			// requiredLimitsを省略すると、対応GPUでも既定の8192pxに制限される。
 			// 子Sceneや個別解像度のノードもあるため、最終出力寸法だけでなく対応上限を要求する。
 			requiredLimits: { maxTextureDimension2D: adapter.limits.maxTextureDimension2D },

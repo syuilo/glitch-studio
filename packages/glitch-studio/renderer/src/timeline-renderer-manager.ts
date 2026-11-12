@@ -56,6 +56,7 @@ import { TimelinePreviewScheduler } from '@gs/subsystems_timeline_renderer/timel
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import { PreviewRenderDelayMonitor } from './preview-render-delay-monitor.ts';
+import { getRendererRequiredGpuFeatures } from './renderer-gpu-features.ts';
 import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
 import { createPreviewCanvasContext } from './preview-canvas-context.ts';
 import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings, createSrgbCanvasOutputSettings } from './canvas-output.ts';
@@ -1308,9 +1309,7 @@ export async function createManager(options: {
 	});
 
 	const device = await adapter?.requestDevice({
-		requiredFeatures: [
-			...(options.staticOptions.enable32bitDataTextures ? ['float32-filterable'] as const : []),
-		],
+		requiredFeatures: getRendererRequiredGpuFeatures(adapter, options.staticOptions),
 	});
 	if (device == null) {
 		throw new Error('need a browser that supports WebGPU');

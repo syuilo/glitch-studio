@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { EffectGpuCommandRecorder, effectRenderTiles } from '../src/effect-gpu-command-recorder.ts';
-import { createEffectRenderDevice, getEffectRenderViewSize } from '../src/effect-render-texture-views.ts';
+import { createEffectRenderDevice, getEffectRenderViewSize, isEffectRenderPipelineProbeSafe } from '../src/effect-render-device.ts';
 import { EffectRenderTileController } from '../src/effect-render-tile-controller.ts';
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -11,6 +11,7 @@ function gpu() {
 	const waits = [];
 	let lose;
 	const device = {
+		features: new Set(),
 		lost: new Promise(resolve => { lose = resolve; }),
 		queue: {
 			submit(buffers) { submitted.push(...buffers); },
@@ -19,6 +20,10 @@ function gpu() {
 		createTexture({ size }) {
 			return { width: size.width, height: size.height, createView() { return {}; } };
 		},
+		createBindGroupLayout: descriptor => ({ descriptor }),
+		createPipelineLayout: descriptor => ({ descriptor }),
+		createRenderPipeline: descriptor => ({ descriptor }),
+		async createRenderPipelineAsync(descriptor) { return { descriptor }; },
 		createCommandEncoder() {
 			const commands = [];
 			const pass = (kind, descriptor) => {
@@ -40,6 +45,160 @@ function gpu() {
 	return { device, tracked, view, submitted, waits, lose };
 }
 
+function probeSafePipeline(g, entries = []) {
+	const group = g.tracked.createBindGroupLayout({ entries });
+	return g.tracked.createRenderPipeline({ layout: g.tracked.createPipelineLayout({ bindGroupLayouts: [group] }) });
+}
+
+// 【事前計測を完成タイルへ数えず、最初の本描画のclearで試し描きの結果を消す】
+// コントローラーだけ改善しても、実行器が以前の断片化した計画を使うと38タイルが残る。
+// 初回に全画面1枚を描き、静止画キャッシュへ入る前に通常描画へ移れることを検証する。
+test('probes read-only clear passes before planning the first actual frame', async () => {
+	const g = gpu();
+	g.device.features.add('timestamp-query');
+	const view = g.tracked.createTexture({ size: { width: 1024, height: 1024 } }).createView();
+	const recorder = new EffectGpuCommandRecorder();
+	const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+	pass.setPipeline(probeSafePipeline(g)); pass.draw(3); pass.end();
+	const timingHelper = {
+		beginRenderPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+		async getResult() {
+			const rectangle = g.submitted.at(-1).find(command => command.method === 'setScissorRect').args;
+			return (10 + rectangle[2] * rectangle[3] * 0.0001) * 1_000_000;
+		},
+	};
+	const controller = new EffectRenderTileController();
+	const workload = { key: 'same view', workPerPixel: 1 };
+	const progress = [];
+	let completed = false;
+	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, {
+		timingHelper, tileController: controller, workloadHint: workload, onProgress: value => progress.push(value),
+	});
+	void running.then(() => { completed = true; });
+	for (let index = 0; !completed && index < 100; index++) { g.waits.shift()(); await tick(); }
+	await running;
+	assert.equal(g.submitted.length, 11, 'ten probes and one actual full pass');
+	assert.ok(g.submitted.every(commands => commands[0].descriptor.colorAttachments[0].loadOp === 'clear'));
+	assert.deepEqual(g.submitted.at(-1).find(command => command.method === 'setScissorRect').args, [0, 0, 1024, 1024]);
+	assert.deepEqual(progress.at(-1), { completedTiles: 1, totalTiles: 1 });
+	assert.ok(progress.slice(0, -1).every(value => value.completedTiles === 0));
+	assert.equal(controller.canRenderUntiled(workload), true);
+});
+
+// 【storageを書き換えるシェーダー・既存画像へのload・bundleは再実行しない】
+// 試し描きで状態を二度更新したり、元の画像へ二重に合成したりすることを防ぐ。
+// 外部やauto layoutのpipelineも読み取り専用だと推測せず、従来の一度ずつの分割へ戻す。
+test('excludes writable, unknown, loaded, depth and bundled passes from GPU probing', async () => {
+	for (const variant of ['storage', 'storage-texture', 'auto-layout', 'external', 'load', 'depth', 'bundle', 'timestamp']) {
+		const g = gpu();
+		g.device.features.add('timestamp-query');
+		const view = g.tracked.createTexture({ size: { width: 1024, height: 1024 } }).createView();
+		const pipeline = variant === 'external' ? {} : variant === 'auto-layout' ? g.tracked.createRenderPipeline({ layout: 'auto' })
+			: probeSafePipeline(g, variant === 'storage' ? [{ buffer: { type: 'storage' } }]
+				: variant === 'storage-texture' ? [{ storageTexture: { format: 'rgba8unorm' } }] : []);
+		const recorder = new EffectGpuCommandRecorder();
+		const pass = recorder.beginRenderPass({
+			colorAttachments: [{ view, loadOp: variant === 'load' ? 'load' : 'clear', storeOp: 'store' }],
+			...(variant === 'depth' ? { depthStencilAttachment: { view: g.view } } : {}),
+			...(variant === 'timestamp' ? { timestampWrites: { querySet: {}, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 } } : {}),
+		});
+		pass.setPipeline(pipeline);
+		if (variant === 'bundle') pass.executeBundles([]);
+		else pass.draw(3);
+		pass.end();
+		const timingHelper = { beginRenderPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor), getResult: async () => 200_000_000 };
+		let completed = false;
+		const progress = [];
+		const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, {
+			timingHelper, tileController: new EffectRenderTileController(), onProgress: value => progress.push(value),
+		});
+		void running.then(() => { completed = true; });
+		for (let index = 0; !completed && index < 300; index++) { g.waits.shift()(); await tick(); }
+		await running;
+		assert.equal(g.submitted.length, 64, variant);
+		assert.deepEqual(progress.at(-1), { completedTiles: 64, totalTiles: 64 });
+	}
+});
+
+// 【非同期pipelineでも読み取り専用のlayoutだけを事前計測の対象にする】
+// asyncで生成されたpipelineを未追跡にすると、エフェクトの初期化方式だけで過分割が戻る。
+test('tracks read-only asynchronous pipelines without changing native object identity', async () => {
+	const g = gpu();
+	const group = g.tracked.createBindGroupLayout({ entries: [{ buffer: { type: 'read-only-storage' } }] });
+	const layout = g.tracked.createPipelineLayout({ bindGroupLayouts: [group] });
+	const pipeline = await g.tracked.createRenderPipelineAsync({ layout });
+	assert.equal(isEffectRenderPipelineProbeSafe(pipeline), true);
+	assert.equal(pipeline.descriptor.layout, layout);
+	assert.equal(isEffectRenderPipelineProbeSafe({}), false);
+});
+
+// 【実行器はナノ秒のGPU実測を制御へ渡し、通知が遅くても初回の分割を粗くする】
+// Controller単体だけの対応では、実行器が経過時間を渡し続けたり単位を誤ったりして
+// 実際のプレビューが256タイルのままになる。進捗の総数減少と最終完了も併せて検証する。
+test('uses GPU timestamps rather than delayed notifications while updating progress', async t => {
+	const g = gpu();
+	g.device.features.add('timestamp-query');
+	let now = 0;
+	t.mock.method(performance, 'now', () => now);
+	const view = g.tracked.createTexture({ size: { width: 1024, height: 1024 } }).createView();
+	const recorder = new EffectGpuCommandRecorder();
+	const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+	pass.draw(3); pass.end();
+	const timingHelper = {
+		beginRenderPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+		async getResult() {
+			const rectangle = g.submitted.at(-1).find(command => command.method === 'setScissorRect').args;
+			return rectangle[2] * rectangle[3] * 0.0001 * 1_000_000;
+		},
+	};
+	const progress = [];
+	let completed = false;
+	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, {
+		timingHelper, tileController: new EffectRenderTileController(), workloadHint: { key: 'same view', workPerPixel: 1 },
+		onProgress: value => progress.push(value),
+	});
+	void running.then(() => { completed = true; });
+	for (let index = 0; !completed && index < 100; index++) {
+		now += 1000;
+		g.waits.shift()();
+		await tick();
+	}
+	await running;
+	assert.equal(completed, true);
+	assert.ok(g.submitted.length < 64, `unexpectedly many tile submissions: ${g.submitted.length}`);
+	assert.ok(progress.some(value => value.totalTiles < 64));
+	assert.deepEqual(progress.at(-1), { completedTiles: g.submitted.length, totalTiles: g.submitted.length });
+});
+
+for (const collectStatistics of [false, true]) {
+	// 【自動制御の安定後はQueryを間引き、統計が有効なら全タイルを測る】
+	// 制御用の間引きを統計の合計へ混ぜるとGPU時間が過小に表示されるため、
+	// 既存の統計計測と、自動制御だけが必要な場合の計測範囲を分ける。
+	test(`samples stable automatic tiles while collecting full statistics=${collectStatistics}`, async () => {
+		const g = gpu();
+		g.device.features.add('timestamp-query');
+		const view = g.tracked.createTexture({ size: { width: 1024, height: 1024 } }).createView();
+		const recorder = new EffectGpuCommandRecorder();
+		const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+		pass.draw(3); pass.end();
+		let measurements = 0;
+		const timingHelper = {
+			beginRenderPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+			async getResult() { measurements++; return 200 * 1_000_000; },
+		};
+		let completed = false;
+		const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, {
+			timingHelper, collectStatistics, tileController: new EffectRenderTileController(),
+		});
+		void running.then(() => { completed = true; });
+		for (let index = 0; !completed && index < 300; index++) { g.waits.shift()(); await tick(); }
+		await running;
+		assert.equal(g.submitted.length, 64);
+		if (collectStatistics) assert.equal(measurements, 64);
+		else assert.ok(measurements >= 5 && measurements < 64);
+	});
+}
+
 // 【エフェクト内の全Render Passを合計し、GPU完了後だけ進捗を進める】
 // 最初のパスだけの総数やsubmit時点の完了通知では、まだ未描画なのに100%となってしまう。
 // 解像度の異なる後続パスも含め、最後に実際のタイル数と一致することを確認する。
@@ -52,8 +211,9 @@ test('reports completed tiles across render passes after GPU completion', async 
 		pass.draw(3); pass.end();
 	}
 	const progress = [];
-	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 4 }, new AbortController().signal, null, null, null,
-		value => progress.push(value));
+	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 4 }, new AbortController().signal, {
+		onProgress: value => progress.push(value),
+	});
 	assert.deepEqual(progress, [{ completedTiles: 0, totalTiles: 5 }]);
 	assert.equal(g.submitted.length, 1);
 	for (let completedTiles = 1; completedTiles <= 5; completedTiles++) {
@@ -111,7 +271,7 @@ test('serializes tiles and preserves clears, scissors, mutable offsets and compu
 	const output = recorder.beginRenderPass({ colorAttachments: [{ view: g.view, loadOp: 'load', storeOp: 'store' }] });
 	output.draw(3);
 	output.end();
-	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 4 }, new AbortController().signal, null);
+	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 4 }, new AbortController().signal);
 	assert.equal(g.submitted.length, 1);
 	await tick();
 	assert.equal(g.submitted.length, 1);
@@ -138,7 +298,7 @@ test('stops at a completed tile boundary when aborted', async () => {
 	const pass = recorder.beginRenderPass({ colorAttachments: [{ view: g.view, loadOp: 'clear', storeOp: 'store' }] });
 	pass.draw(3); pass.end();
 	const controller = new AbortController();
-	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 2 }, controller.signal, null);
+	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 2 }, controller.signal);
 	const rejected = assert.rejects(running, { name: 'AbortError' });
 	controller.abort();
 	assert.equal(g.submitted.length, 1);
@@ -153,7 +313,7 @@ test('rejects device loss without waiting for a stuck completion notification', 
 	const g = gpu();
 	const recorder = new EffectGpuCommandRecorder();
 	const compute = recorder.beginComputePass(); compute.dispatchWorkgroups(1); compute.end();
-	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 4 }, new AbortController().signal, null);
+	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 4 }, new AbortController().signal);
 	const rejected = assert.rejects(running, /test device lost/);
 	g.lose({ message: 'test device lost' });
 	await rejected;
@@ -169,7 +329,7 @@ test('snapshots copy coordinates without cloning native buffer resources', async
 	recorder.encoder.copyBufferToBuffer(source, 0, destination, 0, 4);
 	recorder.encoder.copyTextureToTexture({ texture: source, origin }, { texture: destination }, [1, 1, 1]);
 	origin[0] = 99;
-	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 4 }, new AbortController().signal, null);
+	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 4 }, new AbortController().signal);
 	for (let index = 0; index < 2; index++) { g.waits.shift()(); await tick(); }
 	await running;
 	assert.equal(g.submitted[0][0].args[0], source);
@@ -180,12 +340,12 @@ test('snapshots copy coordinates without cloning native buffer resources', async
 
 // 【先行するGPU処理を待ってから計測し、遅いタイルの次の未送信領域を小さくする】
 // Queryなしでも実行中のパスを調整でき、完了済みの画素をclearしてしまわないことを検証する。
-// 初期サイズと固定下限はともに64pxなので、大きなタイルを学習済みの状態から縮小を確認する。
+// 初期サイズと固定下限はともに128pxなので、大きなタイルを学習済みの状態から縮小を確認する。
 test('adapts remaining tiles using completion time while preserving clears', async t => {
 	const g = gpu();
 	let now = 0;
 	t.mock.method(performance, 'now', () => now);
-	const view = g.tracked.createTexture({ size: { width: 257, height: 129 } }).createView();
+	const view = g.tracked.createTexture({ size: { width: 1025, height: 513 } }).createView();
 	const recorder = new EffectGpuCommandRecorder();
 	const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
 	pass.draw(3); pass.end();
@@ -193,12 +353,13 @@ test('adapts remaining tiles using completion time while preserving clears', asy
 	const workloadHint = { key: 'same input', workPerPixel: 1 };
 	const progress = [];
 	for (let passIndex = 0; passIndex < 2; passIndex++) {
-		const plan = tileController.beginPass(0, [], 257, 129, workloadHint);
+		const plan = tileController.beginPass(0, [], 1025, 513, workloadHint);
 		for (let index = 0; index < 4; index++) plan.observe(plan.maximumTilePixels, 1);
 		plan.finish();
 	}
-	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, null, tileController, workloadHint,
-		value => progress.push(value));
+	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, {
+		tileController, workloadHint, onProgress: value => progress.push(value),
+	});
 	assert.equal(g.submitted.length, 0);
 	await tick();
 	assert.equal(g.submitted.length, 0, 'do not submit until previous work has completed');
@@ -207,7 +368,7 @@ test('adapts remaining tiles using completion time while preserving clears', asy
 	await tick();
 	const rectangle = commands => commands.find(command => command.method === 'setScissorRect').args;
 	const first = rectangle(g.submitted[0]);
-	assert.ok(first[2] * first[3] > 4096 && first[2] * first[3] <= 16384);
+	assert.ok(first[2] * first[3] > 16384 && first[2] * first[3] <= 65536);
 	now += 128;
 	g.waits.shift()();
 	await tick();

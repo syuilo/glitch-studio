@@ -1,7 +1,7 @@
 import { EffectGpuCommandRecorder } from './effect-gpu-command-recorder.ts';
 import { EffectRenderTileController } from './effect-render-tile-controller.ts';
 import type { EffectRenderTiling, EffectRenderWorkloadHint, EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
-import { createEffectRenderDevice, trackEffectRenderTexture } from './effect-render-texture-views.ts';
+import { createEffectRenderDevice, trackEffectRenderTexture } from './effect-render-device.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters, EffectStaticResources } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { EffectInstanceState, EffectStatus } from '@gs/subsystems_effect_shared/effect-status.ts';
@@ -259,9 +259,16 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 			this.pendingWorkloadHint = null;
 			const recorder = new EffectGpuCommandRecorder();
 			const commit = this.recordRender({ ...context, commandEncoder: recorder.encoder }, recorder);
-			if (this.options.enableStats === true) this.tiledTimingHelper ??= new TimingHelper(this.options.wgpu.device);
-			const gpuTime = await recorder.execute(this.options.wgpu.device, tiling, renderSignal, this.tiledTimingHelper,
-				this.tileController, workloadHint, onProgress);
+			// 機能の確保と実際のQuery記録を分ける。自動分割の対象だけGPUパス時間を使い、
+			// 統計が無効なら安定後のタイルはQueryとreadbackを間引く。
+			if (this.options.enableStats === true || (this.tileController != null && this.options.wgpu.device.features.has('timestamp-query'))) {
+				this.tiledTimingHelper ??= new TimingHelper(this.options.wgpu.device);
+			}
+			const gpuTime = await recorder.execute(this.options.wgpu.device, tiling, renderSignal, {
+				timingHelper: this.tiledTimingHelper,
+				collectStatistics: this.options.enableStats === true,
+				tileController: this.tileController, workloadHint, onProgress,
+			});
 			renderSignal.throwIfAborted();
 			commit();
 			this.untiledFramesUntilMeasurement = this.tileController?.canRenderUntiled(workloadHint) === true ? 30 : 0;
