@@ -14,7 +14,7 @@ import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ExportDialogSettings } from './export/export-settings.ts';
 
-export const DEFAULT_PROJECT_NAME = 'Untitled Project';
+export const DEFAULT_PROJECT_NAME = '';
 
 // OSのファイル参照とブラウザのハンドルを区別し、ブラウザ側に実パスを要求しない。
 export type DesktopProjectFile = {

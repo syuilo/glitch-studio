@@ -2340,7 +2340,7 @@ test('saves editable project information, updates the title and preserves undo h
 	await app.newProject();
 	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
-	assert.deepEqual([manager.state.name.value, manager.state.description.value, manager.state.author.value], ['Untitled Project', '', '']);
+	assert.deepEqual([manager.state.name.value, manager.state.description.value, manager.state.author.value], ['', '', '']);
 	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'added-node' });
 	manager.undo();
 	const undoCount = manager.undoStack.value.length;
@@ -2362,11 +2362,60 @@ test('saves editable project information, updates the title and preserves undo h
 	assert.equal(saved.description, 'Description\n説明');
 	assert.equal(saved.author, 'Alice');
 	await app.newProject();
-	assert.equal(app.projectSession.projectContext.stateManager.state.name.value, 'Untitled Project');
+	assert.equal(app.projectSession.projectContext.stateManager.state.name.value, '');
 	window.showOpenFilePicker = async () => [handle];
 	assert.equal(await app.openProject(), true);
 	assert.deepEqual([manager.state.name.value, manager.state.description.value, manager.state.author.value], [saved.name, saved.description, saved.author]);
 	assert.deepEqual(globalThis.projectAlerts, []);
+});
+
+// 【プロジェクト名が空なら確定済みのファイル名、ファイル名もなければ未保存表示を使う】
+// 名前の編集・保存・別名保存・タブ切替の後も、タイトルと終了確認が同じ名前を示す必要がある。
+// 表示上の補完で保存データの空文字列を上書きせず、ハンドルなしで開いたFileの名前も使用する。
+test('keeps display names in sync with project names and committed file names without storing fallbacks', async t => {
+	let app = null;
+	t.after(() => app?.disposeApplication());
+	const window = setup(t);
+	window.projectConfirmations = [];
+	app = evaluate(appBundle);
+	const first = await app.newProject();
+	const name = first.projectContext.stateManager.state.name;
+	assert.equal(name.value, '');
+	assert.equal(first.projectDisplayName.value, '(Unsaved)');
+	assert.equal(window.document.title, 'Glitch Studio ((Unsaved))');
+	const original = fileHandle('original.gsproj');
+	window.selectProjectSaveFile = async () => original;
+	await first.saveProject();
+	assert.equal(decodeProjectFile(original.bytes).name, '');
+	assert.equal(first.projectDisplayName.value, original.name);
+	assert.equal(window.document.title, `Glitch Studio (${original.name})`);
+	name.value = 'Named Project';
+	await nextTick();
+	assert.equal(first.projectDisplayName.value, 'Named Project');
+	assert.equal(window.document.title, 'Glitch Studio (Named Project)');
+	const copy = fileHandle('copy.gsproj');
+	window.selectProjectSaveFile = async () => copy;
+	await first.saveProject(true);
+	assert.equal(first.projectDisplayName.value, 'Named Project');
+	name.value = '';
+	await nextTick();
+	assert.equal(first.projectDisplayName.value, copy.name);
+	assert.equal(window.document.title, `Glitch Studio (${copy.name})`);
+	const second = await app.newProject();
+	assert.equal(second.projectDisplayName.value, '(Unsaved)');
+	assert.equal(window.document.title, 'Glitch Studio ((Unsaved))');
+	await app.projectSessions.select(first);
+	assert.equal(window.document.title, `Glitch Studio (${copy.name})`);
+	assert.equal(await app.projectSessions.close(second), true);
+	assert.ok(window.projectConfirmations.at(-1).text.startsWith('(Unsaved)\n'));
+	assert.equal(await app.projectSessions.close(first), true);
+	assert.ok(window.projectConfirmations.at(-1).text.startsWith(`${copy.name}\n`));
+	const file = new File([original.bytes], 'read-only.gsproj');
+	assert.equal(await app.openProject(file), true);
+	assert.equal(app.projectSession.projectFileHandle.value, null);
+	assert.equal(app.projectSession.projectDisplayName.value, file.name);
+	assert.equal(app.projectSession.projectContext.snapshot().name, '');
+	assert.equal(window.document.title, `Glitch Studio (${file.name})`);
 });
 
 // 【Save asが成功したときだけ保存先を切り替える】

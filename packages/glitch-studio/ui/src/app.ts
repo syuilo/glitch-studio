@@ -13,8 +13,8 @@ if (isLocaleUnconfigured) {
 
 export const projectSessions = new ProjectSessionManager();
 
-const stopProjectTitle = watch(() => projectSessions.activeSession.value?.projectContext.stateManager.state.name.value, name => {
-	window.document.title = name != null && name !== '' ? `Glitch Studio (${name})` : 'Glitch Studio';
+const stopProjectTitle = watch(() => projectSessions.activeSession.value?.projectDisplayName.value, name => {
+	window.document.title = name != null ? `Glitch Studio (${name})` : 'Glitch Studio';
 }, { immediate: true });
 
 (window as any).projectSessions = projectSessions; // debug

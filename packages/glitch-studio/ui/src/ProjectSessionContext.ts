@@ -37,6 +37,7 @@ import { ProjectRenderValidation } from './ProjectRenderValidation.ts';
 import { PreviewRenderEngine } from './PreviewRenderEngine.ts';
 import { PreviewParameterEditingController } from './utility/preview-parameter-editing.ts';
 import { getImageAnalysisValueRange } from './utility/image-analysis-range.ts';
+import { getProjectDisplayName } from './utility/project-display-name.ts';
 import type { ImageAnalysisRangePreset } from './utility/image-analysis-range.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
 import type { ProjectFileOperationController } from './ProjectFileOperationController.ts';
@@ -138,6 +139,7 @@ export class ProjectSessionContext {
 	private readonly projectSaveController: ProjectSaveController;
 	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'visualModuleLivePreview' ? this.visualModuleRendererManagerController : this.timelineRendererManagerController);
 	public get projectFileName() { return this.projectSaveController.projectFileName; }
+	public readonly projectDisplayName = computed(() => getProjectDisplayName(this.projectContext.stateManager.state.name.value, this.projectFileName.value));
 	public get projectFileHandle() { return this.projectSaveController.projectFileHandle; }
 	public get hasUnsavedChanges() { return this.projectSaveController.hasUnsavedChanges; }
 	public get isProjectSaving() { return this.projectSaveController.isProjectSaving; }

@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root" class="_gaps">
-	<GsInput v-model="projectName" large>
+	<GsInput v-model="projectName" :placeholder="projectSession.projectDisplayName.value" large>
 		<template #label>{{ i18n.ts._Project.Name }}</template>
 	</GsInput>
 	<GsTextarea v-model="projectDescription">

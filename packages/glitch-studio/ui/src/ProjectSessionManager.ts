@@ -140,7 +140,7 @@ export class ProjectSessionManager {
 			}
 			if (session.hasUnsavedChanges.value) {
 				const result = await ui.confirm({ type: 'warning', title: i18n.ts._App.ConfirmCloseUnsavedProject,
-					text: `${session.projectContext.stateManager.state.name.value}\n${i18n.ts._App.UnsavedChangesWillBeLost}`,
+					text: `${session.projectDisplayName.value}\n${i18n.ts._App.UnsavedChangesWillBeLost}`,
 					okText: i18n.ts._App.CloseWithoutSaving, cancelText: i18n.ts.Cancel, autofocusAction: 'cancel' });
 				if (result.canceled) return false;
 			}

@@ -93,7 +93,7 @@ const projectSession = useProjectSession();
 
 const { activeSceneId, previewPlayback } = projectSession;
 const { stateManager } = projectSession.projectContext;
-const { name: projectName } = projectSession.projectContext.stateManager.state;
+const projectName = projectSession.projectDisplayName;
 
 const currentTimelineTime = previewPlayback.currentTimelineTime;
 
@@ -257,7 +257,7 @@ async function doExport() {
 		};
 		const exportResolutionScale = resolutionScale.value === 'custom' ? null : resolutionScale.value;
 		const exportSceneId = sceneId.value;
-		const suggestedName = `${projectName.value || 'project'}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
+		const suggestedName = `${projectName.value}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
 		if (desktop != null) {
 			// 保存先の確定前に、音声生成・プレビュー停止・Workerでの描画を開始しない。
 			choosingSaveFile.value = true;

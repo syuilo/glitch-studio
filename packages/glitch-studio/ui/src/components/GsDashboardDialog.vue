@@ -79,7 +79,7 @@
 								data-test-open-recent-project
 								@click="openRecentProject(entry.id)"
 							>
-								<span :class="$style.recentName">{{ entry.name }}</span>
+								<span :class="$style.recentName">{{ getProjectDisplayName(entry.name, entry.fileName) }}</span>
 								<span :class="$style.recentFileName">{{ entry.fileName }}</span>
 								<GsTime :key="entry.lastUsedAt" :time="entry.lastUsedAt" :class="$style.recentTime" data-test-recent-project-time/>
 							</button>
@@ -104,6 +104,7 @@ import GsTime from './common/GsTime.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
 import { i18n } from '@/i18n.ts';
 import { recentProjects } from '@/recent-projects.ts';
+import { getProjectDisplayName } from '@/utility/project-display-name.ts';
 import { projectSessions, newProject, newProjectFromImageOrVideo, openProject, openRecentProject as openRecentProjectFile } from '@/app.ts';
 import { desktopUpdateUi } from '@/desktop-update-ui.ts';
 import { importAssets } from '@/utility/import-assets.ts';
