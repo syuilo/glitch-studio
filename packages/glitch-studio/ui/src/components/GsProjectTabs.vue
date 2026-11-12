@@ -23,16 +23,6 @@
 			<i class="ti ti-x"></i>
 		</button>
 	</div>
-	<button
-		v-tooltip="i18n.ts._Dashboard.NewProject"
-		class="_button"
-		:class="$style.add"
-		:disabled="manager.fileOperations.isBusy.value"
-		data-test-new-project
-		@click="emit('newProject')"
-	>
-		<i class="ti ti-plus"></i>
-	</button>
 </div>
 </template>
 
@@ -106,7 +96,7 @@ const emit = defineEmits<{ newProject: [] }>();
 	gap: 6px;
 	min-width: 0;
 	padding-top: var(--verticalShift);
-	padding-left: 12px;
+	padding-left: 14px;
 }
 
 .name {

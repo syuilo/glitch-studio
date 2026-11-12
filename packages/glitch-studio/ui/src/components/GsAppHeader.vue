@@ -363,7 +363,7 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 	position: relative;
 	flex: 1;
 	min-width: 0;
-	padding: 0 0 0 12px;
+	padding: 0 0 0 14px;
 	box-sizing: border-box;
 	height: calc(100% - 5px);
 	align-self: end;
