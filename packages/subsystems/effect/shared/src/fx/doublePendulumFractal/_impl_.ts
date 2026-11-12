@@ -6,10 +6,12 @@ import { implementEffect } from '../../effect-implementation.ts';
 import type { EffectOutputData } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
 import { createIntegrationSchedule } from './integration-schedule.ts';
+import { getDoublePendulumFractalRenderWorkloadHint } from './render-workload.ts';
 import { DOUBLE_PENDULUM_FRACTAL_SPAN_AT_ZOOM_ONE } from './_def_.ts';
 import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
+	getRenderWorkloadHint: getDoublePendulumFractalRenderWorkloadHint,
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT,

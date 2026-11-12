@@ -7,6 +7,8 @@ import mandelbrotDefinition from '@gs/subsystems_effect_shared/fx/mandelbrot/_de
 import mandelbrotImplementation from '@gs/subsystems_effect_shared/fx/mandelbrot/_impl_.ts';
 import magneticPendulumDefinition from '@gs/subsystems_effect_shared/fx/magneticPendulum/_def_.ts';
 import magneticPendulumImplementation from '@gs/subsystems_effect_shared/fx/magneticPendulum/_impl_.ts';
+import doublePendulumFractalDefinition from '@gs/subsystems_effect_shared/fx/doublePendulumFractal/_def_.ts';
+import doublePendulumFractalImplementation from '@gs/subsystems_effect_shared/fx/doublePendulumFractal/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 
 type FrameTiming = { label: string; elapsedMs: number; submissions: number; queries: number; progress: EffectRenderTilingProgress | null };
@@ -137,6 +139,33 @@ export async function run() {
 			const moved = await compare(automaticPendulum, disabledPendulum, 'Magnetic Pendulum moved');
 			assert(moved.timing.progress?.totalTiles === 1, 'Magnetic Pendulum removes unnecessary tiling after a view change');
 		} finally { automaticPendulum.destroy(); disabledPendulum.destroy(); }
+		// ヒントの接続・端数付き積分とAAの変更・配色だけの通常描画復帰を、実際の配置で確かめる。
+		const doublePendulumVisualModule = createVisualModule(doublePendulumFractalDefinition);
+		const doublePendulumNode = doublePendulumVisualModule.nodes[0] as VisualModuleEffectNode;
+		doublePendulumNode.params.coloringMethod = literal('angle1');
+		const automaticDoublePendulum = createVisualModuleRenderer(doublePendulumFractalDefinition, doublePendulumFractalImplementation, doublePendulumVisualModule, 256, 'auto');
+		const disabledDoublePendulum = createVisualModuleRenderer(doublePendulumFractalDefinition, doublePendulumFractalImplementation, doublePendulumVisualModule, 256, 'disabled');
+		try {
+			const initial = await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum initial');
+			assert(initial.timing.progress?.totalTiles === 1, 'Double Pendulum renders a light first draw in one tile');
+			doublePendulumNode.params.simulationTime = literal(3.005);
+			doublePendulumNode.params.antialiasing = literal(true);
+			automaticDoublePendulum.updateVisualModule(doublePendulumVisualModule, { preserveStaticState: true });
+			disabledDoublePendulum.updateVisualModule(doublePendulumVisualModule, { preserveStaticState: true });
+			await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum partial step and AA');
+			const ramp = doublePendulumFractalDefinition.paramDefs.ramp.defaultValue.value;
+			doublePendulumNode.params.ramp = literal({ ...ramp,
+				stops: ramp.stops.map((stop, index) => index === 0 ? { ...stop, color: [1, 0, 0, 1] } : stop),
+			});
+			automaticDoublePendulum.updateVisualModule(doublePendulumVisualModule, { preserveStaticState: true });
+			disabledDoublePendulum.updateVisualModule(doublePendulumVisualModule, { preserveStaticState: true });
+			const recolored = await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum recolored');
+			assert(recolored.timing.queries === 0, 'Double Pendulum reuses learned untiled rendering for ramp color edits');
+			doublePendulumNode.params.view = literal({ center: literal([0.1, 0.2]), zoom: literal(2) });
+			automaticDoublePendulum.updateVisualModule(doublePendulumVisualModule, { preserveStaticState: true });
+			disabledDoublePendulum.updateVisualModule(doublePendulumVisualModule, { preserveStaticState: true });
+			await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum moved');
+		} finally { automaticDoublePendulum.destroy(); disabledDoublePendulum.destroy(); }
 		assert(errors.length === 0, `no GPU validation errors: ${errors.join('; ')}`);
 		return { adapter: { vendor: adapter.info.vendor, architecture: adapter.info.architecture, description: adapter.info.description }, checks, timings };
 	} finally { fallbackTexture.destroy(); device.destroy(); }
