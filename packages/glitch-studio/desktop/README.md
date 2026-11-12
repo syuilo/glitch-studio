@@ -22,7 +22,7 @@ Windowメニューから開くパネルと、既存パネル・プレビュー�
 
 メイン画面と別ウィンドウは、`titleBarStyle: 'hidden'`と高さ32pxの`titleBarOverlay`を共通で使います。UIの`GsWindowTitlebar.vue`が背景とドラッグ領域を描き、別ウィンドウでは`GsDetachedWindowFrame.vue`がアイコン・パネル名と残りのコンテンツ領域を配置します。最小化・最大化・閉じる操作はOSのボタンを使い、CSSの`titlebar-area-*`でその領域を避けます。Web版とDocument PiPには独自タイトルバーを追加しません。
 
-編集ウィンドウごとにrenderer・ProjectSessionContext・ProjectContext・描画と音声のWorkerを所有します。バックグラウンドへ移しただけでは再生・書き出しを停止せず、`backgroundThrottling: false`でウィンドウの描画タイマーを抑制させません。GPU負荷のプロジェクト間調整や音声の排他的な再生は行いません。
+編集ウィンドウごとにUIのrendererを持ち、その中の各プロジェクトタブがProjectSessionContext・ProjectContext・描画と音声のWorkerを所有します。同じウィンドウでは選択中のプロジェクトだけプレビューを動かし、非選択タブの映像WorkerとGPU資源を解放します。別のOSウィンドウを前面に出した場合は再生・書き出しを停止せず、`backgroundThrottling: false`でウィンドウの描画タイマーを抑制させません。異なる編集ウィンドウ間でGPU負荷や音声再生の排他は行いません。
 
 ## 計測精度
 
@@ -31,6 +31,12 @@ Windowメニューから開くパネルと、既存パネル・プレビュー�
 mainプロセスは`ready`より前に`enable-webgpu-developer-features`を指定し、GPU timestamp queryの量子化も解除します。このChromiumの開発者向け設定は、WebGPUの追加の開発者向け機能も公開します。計測の実際の分解能はGPU・ドライバーに依存します。
 
 Web版の公開先に必要な設定や素材の読み込み条件は[Web版の配信と計測精度](../../../docs/web-deployment.md)を参照してください。
+
+## プロジェクトタブとファイル所有権
+
+アプリ内のOpen・新規作成は同じウィンドウへタブを追加します。OSの関連付けによる新しいファイルの起動は従来どおり別の編集ウィンドウを作ります。既に開かれているファイルの場合は所有ウィンドウを前面へ出し、`desktop:activate-project-file`で該当タブを選択します。
+
+`EditorWindows`はウィンドウ内のセッションIDごとに保存先と選択中の予約を保持します。`setSessionProjectFile`で読み込んだ保存先を確定し、書き込み成功時にSave asの保存先を更新します。`releaseProjectReservations`は指定した操作の予約だけを解放し、他タブの保存先や並行した読込・保存予約を維持します。`closeProjectSession`はそのタブの保存処理が完了してから所有権を解放します。同じウィンドウ内でも別タブの保存先への書込みを拒否し、ウィンドウを閉じた場合はすべての所有権を解放します。
 
 ## 未保存の変更の終了確認
 

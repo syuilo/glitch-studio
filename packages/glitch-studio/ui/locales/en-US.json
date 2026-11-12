@@ -262,6 +262,8 @@
 	"Preview": "Preview",
 	"Players": "Players",
 	"_App": {
+		"CloseProject": "Close project",
+		"ProjectFileAlreadyOpen": "This file is open in another project. Choose a different save file.",
 		"File": "File",
 		"Edit": "Edit",
 		"ResetRenderHistory": "Reset Render History",

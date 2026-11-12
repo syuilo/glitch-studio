@@ -12,7 +12,7 @@ import { i18n } from '@/i18n.ts';
 export type AssetImportPlacement = { timeline?: TimelineAssetPlacement | null; visualModule?: VisualModuleAssetPlacement | null };
 
 /** ファイル選択と全体ドロップで同じ取り込み・Player作成・Undo単位を使う。 */
-export async function importAssets(context: ProjectContext, files?: readonly File[], prepareProject?: () => Promise<void>,
+export async function importAssets(context: ProjectContext, files?: readonly File[], prepareProject?: () => Promise<ProjectContext | void>,
 	preparePlacement?: (assets: ProjectAsset[], players: Player[], dialog: ReturnType<typeof progress>) => AssetImportPlacement | null | Promise<AssetImportPlacement | null>): Promise<string[]> {
 	const selected = await selectMediaFiles({ files, multiple: true, allowAnyFile: true });
 	if (selected == null || selected.length === 0) return [];
@@ -24,7 +24,9 @@ export async function importAssets(context: ProjectContext, files?: readonly Fil
 			onFileError(file, error) { errors.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`); },
 			onImported: async (imported, dialog) => {
 				if (imported.length === 0) return;
-				await prepareProject?.();
+				// 素材を一つも取り込めなかった場合は空のタブを作らない。
+				// 新規作成は別セッションになるので、その戻り値を今回の取り込み先に固定する。
+				const target = await prepareProject?.() ?? context;
 				const players: Player[] = [];
 				for (const result of imported) {
 					const id = genId();
@@ -50,7 +52,7 @@ export async function importAssets(context: ProjectContext, files?: readonly Fil
 					}
 				}
 				const placement = await preparePlacement?.(assets, players, dialog) ?? {};
-				context.stateManager.commit('importAssets', { assets, players, ...placement });
+				target.stateManager.commit('importAssets', { assets, players, ...placement });
 			},
 		});
 	} catch (error) {

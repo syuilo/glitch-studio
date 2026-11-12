@@ -36,8 +36,9 @@
 	- [**`glitch-studio/renderer`**](./packages/glitch-studio/renderer) ... Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 	- [**`glitch-studio/ui`**](./packages/glitch-studio/ui) ... UI実装が含まれます。状態の管理・レンダラーの呼び出し、表示、ファイルの入出力などを行います。状態の操作は原則Command patternで行うようになっていてUndo/Redoを可能にしています。
 		- RendererManagerControllerBase.ts ... rendererのラッパーのような役割をする基底クラスで、レンダラーがワーカー越しに動いていることを隠蔽しつつレンダラーの管理を行います。
-		- app.ts ... 単一のProjectSessionContextの生成・公開と、ウィンドウの終了処理を担当します。
-		- project-actions.ts ... 注入された編集セッションに対する新規作成やファイルを開く操作の入口です。
+		- app.ts ... ProjectSessionManagerの生成・公開と、ウィンドウの終了処理を担当します。
+		- project-actions.ts ... 新規作成やファイルを開く操作を、追加の編集セッションとしてマネージャーへ渡します。
+		- ProjectSessionManager.ts ... ウィンドウ内のプロジェクト一覧・タブの選択・終了と、保存先の排他を管理します。
 		- ProjectSessionContext.ts ... 1プロジェクトの編集セッションとして、プレビュー・保存の管理と、プロジェクト読み込み・レンダラー同期・終了の手順を調整します。
 		- Project.ts ... ProjectContextがプロジェクト状態・IDを所有し、load()とsnapshot()で取り込み・取り出しを行います。UndoRedoがCommandの実行・履歴・変更通知を担当します。
 		- ProjectSaveController.ts ... 保存先・権限確認・手動保存・バックアップを管理します。読み込み中の保存を止め、読み込みごとの世代で古い保存要求を無効化します。

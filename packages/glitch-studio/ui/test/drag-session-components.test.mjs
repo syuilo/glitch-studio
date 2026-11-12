@@ -37,13 +37,13 @@ const bundle = await build({ absWorkingDir: directory,
 			if (/Gs(?:Draggable|WorkspacePanel|WorkspaceDivider|Asset|VisualModuleEditor|AssetSelectDialog|DashboardDialog)\.vue$/.test(path)) return;
 			return { path: basename(path, '.vue'), namespace: 'control' };
 		});
-		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
+		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			'preferences.ts': `import { ref } from 'vue'; export const preferences = { r: { workspaceDefinition: ref(null) }, commits: [],
 				get s() { return { workspaceDefinition: this.r.workspaceDefinition.value }; },
 				commit(key, value) { this.commits.push(value); this.r[key].value = value; } };`,
 			'workspace.ts': `export const workspacePanelDefinitions = { assets: { icon: '', label: 'Assets', component: 'div' } }; export function getElementMenu() { return []; }`,
-			'app.ts': `export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { hasProject: true, stateManager: { commit() {} } } };
-				export function createProjectActions() { return { newProject, newProjectFromImageOrVideo, openProject }; } export const dashboardTest = { opened: [], success: true };
+			'app.ts': `export const projectSessions = { activeSession: { get value() { return projectSession; } } }; import { recentProjects } from '@/recent-projects.ts'; export const openRecentProject = async id => openProject(null, await recentProjects.resolve(id)); export function useProjectSession() { return projectSession; } export const projectSession = { workspacePanelRevealRequest: { value: null }, projectContext: { hasProject: true, stateManager: { commit() {} } } };
+				export function createProjectActions() { return { newProject, newProjectFromImageOrVideo, openProject }; } export const dashboardTest = { opened: [], success: true, get panelRequest() { return projectSession.workspacePanelRevealRequest.value; } };
 				export async function newProject() {} export async function newProjectFromImageOrVideo() { return true; }
 				export async function openProject(file, handle) { dashboardTest.opened.push({ file, handle }); return dashboardTest.success; }`,
 			'ui.ts': 'export function progress() { return { done() {} }; } export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {} export async function confirm() { return { canceled: false }; }',
@@ -250,7 +250,7 @@ test('connects dashboard background drops to the utility and removes handlers on
 	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(dropped.defaultPrevented, true);
 	assert.deepEqual(assetImportTest.calls[0].files, files);
-	assert.deepEqual(reveals, [{ contentType: 'assets', sourcePanelId: null }]);
+	assert.deepEqual(dashboardTest.panelRequest, { contentType: 'assets', sourcePanelId: null });
 	f.app.unmount();
 	background.dispatchEvent(event('drop', { types: ['Files'], files }, background));
 	assert.equal(assetImportTest.calls.length, 1);

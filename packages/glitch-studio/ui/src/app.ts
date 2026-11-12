@@ -2,8 +2,7 @@ import { watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { makeHotkey } from './utility/hotkey.ts';
 import type { Keymap } from './utility/hotkey.ts';
-import { ProjectSessionContext } from './ProjectSessionContext.ts';
-import { ProjectContext } from './Project.ts';
+import { ProjectSessionManager } from './ProjectSessionManager.ts';
 import { createProjectActions } from './project-actions.ts';
 import { isLocaleUnconfigured } from './i18n.ts';
 import { configureLocale } from './locale-settings-ui.ts';
@@ -12,18 +11,18 @@ if (isLocaleUnconfigured) {
 	void configureLocale().catch(console.error);
 }
 
-export const projectSession = new ProjectSessionContext(new ProjectContext());
+export const projectSessions = new ProjectSessionManager();
 
-const stopProjectTitle = watch(() => projectSession.projectContext.stateManager.state.name.value, name => {
+const stopProjectTitle = watch(() => projectSessions.activeSession.value.projectContext.stateManager.state.name.value, name => {
 	window.document.title = name ? `Glitch Studio (${name})` : 'Glitch Studio';
 }, { immediate: true });
 
-(window as any).projectSession = projectSession; // debug
+(window as any).projectSessions = projectSessions; // debug
 
-function benchmark(count = 100, visualModuleId = projectSession.projectContext.stateManager.state.visualModules.value[0]?.id) {
+function benchmark(count = 100, visualModuleId = projectSessions.activeSession.value.projectContext.stateManager.state.visualModules.value[0]?.id) {
 	if (visualModuleId == null) return;
 	for (let i = 0; i < count; i++) {
-		projectSession.projectContext.stateManager.commit('addEffectNode', {
+		projectSessions.activeSession.value.projectContext.stateManager.commit('addEffectNode', {
 			visualModuleId,
 			effectId: 'blockShuffle',
 			id: genId(),
@@ -41,10 +40,13 @@ export const rendererEnv = {
 	mouseY: 0,
 };
 
-export const { openProject, newProject, newProjectFromImageOrVideo, newProjectFromMediaPath } = createProjectActions(projectSession);
+export const { openProject, openRecentProject, newProject, newProjectFromImageOrVideo, newProjectFromMediaPath } = createProjectActions(projectSessions);
+
+const stopProjectActivation = window.desktop?.onActivateProjectFile?.(id => { void projectSessions.selectFile(id).catch(console.error); });
 
 const keymap = {
 	'space': () => {
+		const projectSession = projectSessions.activeSession.value;
 		if (projectSession.previewPlayback.isTimelinePlaying.value) {
 			projectSession.previewPlayback.pauseTimeline();
 		} else {
@@ -64,7 +66,8 @@ window.addEventListener?.('pagehide', onPageHide);
 
 export function disposeApplication(): Promise<void> {
 	stopProjectTitle();
+	stopProjectActivation?.();
 	window.document.removeEventListener('keydown', listener);
 	window.removeEventListener?.('pagehide', onPageHide);
-	return projectSession.dispose();
+	return projectSessions.dispose();
 }

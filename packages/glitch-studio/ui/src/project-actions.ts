@@ -12,7 +12,7 @@ import audioWaveformEffectDef from '@gs/subsystems_effect_shared/fx/audioWavefor
 import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile } from './gsproj.ts';
 import { recentProjects } from './recent-projects.ts';
-import type { ProjectSessionContext } from './ProjectSessionContext.ts';
+import type { ProjectSessionManager } from './ProjectSessionManager.ts';
 import { applicationActivity } from './application-activity.ts';
 import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
 import { readVideoFrameRate } from './utility/video-frame-rate.ts';
@@ -26,51 +26,36 @@ import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 import { openMediaFile, openMediaFileFromPath } from '@/utility/open-media-file.ts';
 
-/** 開く・新規作成の非同期処理は、呼び出し元のセッションに固定する。 */
-export function createProjectActions(projectSession: ProjectSessionContext) {
-	async function openProject(file?: File | null, fileHandle?: ProjectFileHandle | null): Promise<boolean> {
-		if (projectSession.isDisposed) return false;
-		if (projectSession.isProjectSaving.value || applicationActivity.isExporting.value) {
-			await confirmProjectReplacement();
-			return false;
-		}
+/** ファイル選択・初期データ作成を行い、新しい編集セッションとして追加する。 */
+export function createProjectActions(projectSessions: ProjectSessionManager) {
+	async function openProject(file?: File | null, fileHandle?: ProjectFileHandle | null, recentProjectId?: string): Promise<boolean> {
+		const sessionId = genId();
 		const releaseActivity = applicationActivity.acquire();
 		const waiting = ui.waiting({ text: i18n.ts._App.LoadingProjectFile });
 		try {
-			const result = await loadProjectFile(file, fileHandle);
-			waiting.done();
-			if (result == null) return false;
-			if (!await confirmProjectReplacement()) return false;
-			await projectSession.ready(result.project, result.name, result.handle);
-			if (projectSession.isDisposed) return false;
-			if (result.handle != null) await recentProjects.remember(result.handle, result.project.name);
-			return true;
+			try {
+				if (recentProjectId != null) {
+					fileHandle = await recentProjects.resolve(recentProjectId, sessionId);
+					if (fileHandle == null) return false;
+				}
+				const result = await loadProjectFile(file, fileHandle, sessionId);
+				if (result == null) return false;
+				const session = await projectSessions.open(result.project, result.name, result.handle ?? null, sessionId);
+				if (session == null) return false;
+				if (result.handle != null) await recentProjects.remember(result.handle, result.project.name);
+				return true;
+			} finally { waiting.done(); }
 		} catch (error) {
 			console.error(error);
-			waiting.done();
 			await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 			return false;
 		} finally {
-			await window.desktop?.releaseProjectReservations?.().catch(console.error);
+			await window.desktop?.releaseProjectReservations?.(sessionId).catch(console.error);
 			releaseActivity();
 		}
 	}
-	
-	async function confirmProjectReplacement(): Promise<boolean> {
-		if (projectSession.isDisposed) return false;
-		if (projectSession.isProjectSaving.value || applicationActivity.isExporting.value) {
-			await ui.alert({ type: 'info', text: projectSession.isProjectSaving.value ? i18n.ts._App.CannotCloseWhileSaving : i18n.ts._App.CannotCloseWhileExporting });
-			return false;
-		}
-		if (!projectSession.hasUnsavedChanges.value) return true;
-		const result = await ui.confirm({ type: 'warning', title: i18n.ts._App.ConfirmReplaceUnsavedProject,
-			text: i18n.ts._App.ReplaceUnsavedChangesWillBeLost, okText: i18n.ts._App.DiscardAndContinue,
-			cancelText: i18n.ts.Cancel, autofocusAction: 'cancel' });
-		return !projectSession.isDisposed && !result.canceled && !projectSession.isProjectSaving.value && !applicationActivity.isExporting.value;
-	}
-	
+
 	async function newProject() {
-		if (!await confirmProjectReplacement()) return;
 		const initialEffectNodeId = genId();
 		const initialInputParamId = visualModulePublicParameterId(genId());
 		const initialOutputId = genId();
@@ -121,7 +106,7 @@ export function createProjectActions(projectSession: ProjectSessionContext) {
 				},
 			}],
 		} satisfies ProjectVisualModule;
-		await projectSession.ready({
+		return projectSessions.open({
 			id: genId(),
 			gsVersion: _VERSION_,
 			name: DEFAULT_PROJECT_NAME,
@@ -187,7 +172,6 @@ export function createProjectActions(projectSession: ProjectSessionContext) {
 	
 	async function loadMediaProject(result: OpenedMediaFile | null) {
 		if (result == null) return false;
-		if (!await confirmProjectReplacement()) return false;
 	
 		const asset = {
 			id: genId(),
@@ -310,7 +294,7 @@ export function createProjectActions(projectSession: ProjectSessionContext) {
 			}],
 		} satisfies ProjectVisualModule;
 	
-		await projectSession.ready({
+		const session = await projectSessions.open({
 			id: genId(),
 			gsVersion: _VERSION_,
 			name: DEFAULT_PROJECT_NAME,
@@ -378,8 +362,8 @@ export function createProjectActions(projectSession: ProjectSessionContext) {
 			resolution: { width: result.width || 1024, height: result.height || 1024 },
 		});
 	
-		return true;
+		return session != null;
 	}
 	
-	return { openProject, newProject, newProjectFromImageOrVideo, newProjectFromMediaPath };
+	return { openProject, openRecentProject: (id: string) => openProject(null, null, id), newProject, newProjectFromImageOrVideo, newProjectFromMediaPath };
 }

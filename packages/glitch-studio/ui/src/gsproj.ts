@@ -25,6 +25,16 @@ export type DesktopProjectFile = {
 };
 export type ProjectFileHandle = FileSystemFileHandle | DesktopProjectFile;
 
+/** プロジェクトIDではなく保存先を比較する。Save as前のコピーも別ファイルとして開ける。 */
+export async function isSameProjectFile(first: ProjectFileHandle | null, second: ProjectFileHandle): Promise<boolean> {
+	if (first == null) return false;
+	if (first === second) return true;
+	if (first.kind === 'desktop-project-file' || second.kind === 'desktop-project-file') {
+		return first.kind === 'desktop-project-file' && second.kind === 'desktop-project-file' && first.id === second.id;
+	}
+	return first.isSameEntry(second);
+}
+
 export function desktopProjectFile(descriptor: { id: string; name: string }): DesktopProjectFile {
 	return {
 		...descriptor,
@@ -165,11 +175,11 @@ export async function getProjectSaveFileHandle(
 }
 
 // エンコードと保存先選択は呼び出し元で済ませ、ここでは確定したバイト列だけを書き込む。
-export async function saveProjectFile(data: Uint8Array, handle: ProjectFileHandle): Promise<void> {
+export async function saveProjectFile(data: Uint8Array, handle: ProjectFileHandle, sessionId?: string): Promise<void> {
 	// 有効なMessagePackプロジェクトは空にならない。空のデータで既存ファイルを確定させない。
 	if (data.byteLength === 0) throw new Error('The project contains no save data.');
 	if (handle.kind === 'desktop-project-file') {
-		await window.desktop!.writeProjectFile(handle.id, data);
+		await window.desktop!.writeProjectFile(handle.id, data, sessionId);
 		return;
 	}
 	const writable = await handle.createWritable();
@@ -183,11 +193,11 @@ export async function saveProjectFile(data: Uint8Array, handle: ProjectFileHandl
 	}
 }
 
-export async function loadProjectFile(file?: File | null, handle?: ProjectFileHandle | null): Promise<{ project: Project; name: string; handle?: ProjectFileHandle | null } | null> {
-	if (file == null && handle != null) return loadProjectFile(await handle.getFile(), handle);
+export async function loadProjectFile(file?: File | null, handle?: ProjectFileHandle | null, reservationId?: string): Promise<{ project: Project; name: string; handle?: ProjectFileHandle | null } | null> {
+	if (file == null && handle != null) return loadProjectFile(await handle.getFile(), handle, reservationId);
 	if (file != null) {
 		if (window.desktop?.registerProjectFile && handle?.kind !== 'desktop-project-file') {
-			const descriptor = await window.desktop.registerProjectFile(file);
+			const descriptor = await window.desktop.registerProjectFile(file, reservationId);
 			if (descriptor == null) return null;
 			if (descriptor) handle = desktopProjectFile(descriptor);
 		}
@@ -195,10 +205,10 @@ export async function loadProjectFile(file?: File | null, handle?: ProjectFileHa
 		return { project, name: file.name, handle };
 	}
 	if (window.desktop?.chooseProjectFile) {
-		const descriptor = await window.desktop.chooseProjectFile();
+		const descriptor = await window.desktop.chooseProjectFile(reservationId);
 		if (!descriptor) return null;
 		const selected = desktopProjectFile(descriptor);
-		return loadProjectFile(await selected.getFile(), selected);
+		return loadProjectFile(await selected.getFile(), selected, reservationId);
 	}
 	if (typeof window.showOpenFilePicker === 'function') {
 		let selectedHandle: FileSystemFileHandle | null = null;
@@ -209,7 +219,7 @@ export async function loadProjectFile(file?: File | null, handle?: ProjectFileHa
 			throw error;
 		}
 		if (selectedHandle == null) return null;
-		return loadProjectFile(await selectedHandle.getFile(), selectedHandle);
+		return loadProjectFile(await selectedHandle.getFile(), selectedHandle, reservationId);
 	}
 	return new Promise((resolve, reject) => {
 		const input = window.document.createElement('input');

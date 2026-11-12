@@ -41,7 +41,9 @@ import { ProjectSaveController } from './ProjectSaveController.ts';
 import { applicationActivity } from './application-activity.ts';
 import { getRendererAssets } from './utility/renderer-assets.ts';
 import { resolveExternalAssets } from './external-assets.ts';
-import { timelineClipboard, getTimelineEditorState, getSelectedTimelineLayerId } from './utility/timeline-editor-state.ts';
+import { getTimelineEditorState, getSelectedTimelineLayerId } from './utility/timeline-editor-state.ts';
+import type { TimelineClipboard } from './utility/timeline-editor-state.ts';
+import type { WorkspacePanelRevealRequest } from './utility/workspace-panel-reveal.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
@@ -57,7 +59,10 @@ const DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES = 0;
 export const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
 
 export class ProjectSessionContext {
-	public readonly id = genId();
+	public readonly id: string;
+	// プロジェクト外への参照を貼り付けないよう、内部クリップボードもセッションに閉じる。
+	public readonly timelineClipboard = shallowRef<TimelineClipboard | null>(null);
+	public readonly workspacePanelRevealRequest = shallowRef<WorkspacePanelRevealRequest | null>(null);
 	private disposed = false;
 	private disposal: Promise<void> | null = null;
 	private sessionDisposers: (() => void)[] = [];
@@ -133,13 +138,15 @@ export class ProjectSessionContext {
 	private projectSaveController: ProjectSaveController;
 	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'visualModuleLivePreview' ? this.visualModuleRendererManagerController : this.timelineRendererManagerController);
 	public get projectFileName() { return this.projectSaveController.projectFileName; }
+	public get projectFileHandle() { return this.projectSaveController.projectFileHandle; }
 	public get hasUnsavedChanges() { return this.projectSaveController.hasUnsavedChanges; }
 	public get isProjectSaving() { return this.projectSaveController.isProjectSaving; }
 	public get projectBackupAccess() { return this.projectSaveController.projectBackupAccess; }
 	public get projectBackupStatus() { return this.projectSaveController.projectBackupStatus; }
 	public get projectBackupController() { return this.projectSaveController.projectBackupController; }
 
-	constructor(projectContext: ProjectContext) {
+	constructor(projectContext: ProjectContext, options: { id?: string; reserveProjectFile?: (handle: ProjectFileHandle) => Promise<() => void> } = {}) {
+		this.id = options.id ?? genId();
 		markRaw(this);
 		this.projectContext = projectContext;
 		this.renderValidation = markRaw(new ProjectRenderValidation(projectContext.stateManager.state, effectDefinitions));
@@ -428,6 +435,7 @@ export class ProjectSessionContext {
 			() => this.projectContext.snapshot(),
 			id => { this.projectContext.adoptSavedProjectId(id); },
 			(component, props, events) => ui.popup(component, props, events, this),
+			{ sessionId: this.id, reserveProjectFile: options.reserveProjectFile },
 		);
 	}
 
@@ -524,29 +532,35 @@ export class ProjectSessionContext {
 	}
 
 	/** 再生要求を止めてからGPUリソースを解放し、復帰完了後にだけ再生を戻す。 */
-	public async suspendPreview() {
+	public async suspendPreview(reason = 'operation') {
 		if (this.disposed) return;
-		this.renderEngine.suspend();
+		this.renderEngine.suspend(reason);
 		// 映像Workerを破棄しても、音声モニターとUIのCanvasは別の寿命で残る。
 		// 両方の休止を反映してから、同じGPUを使う書き出しへ進む。
 		await Promise.all([this.audioOutput.preview.setRenderingSuspended(true), nextTick()]);
 	}
 
-	public async resumePreview() {
+	public async resumePreview(reason = 'operation') {
 		if (this.disposed) return;
 		try {
-			await this.renderEngine.resume();
+			await this.renderEngine.resume(reason);
 		} finally {
 			// 再初期化の完了待ち中に別の休止が入った場合、その新しい要求を解除しない。
 			if (!this.disposed) await this.audioOutput.preview.setRenderingSuspended(this.renderEngine.isSuspended.value);
 		}
 	}
 
+	public async setActive(active: boolean): Promise<void> {
+		if (this.disposed) return;
+		if (active) await this.resumePreview('inactive');
+		else await this.suspendPreview('inactive');
+	}
+
 	public async pauseForDesktopUpdate(): Promise<() => Promise<void>> {
 		const resumeSaving = await this.projectSaveController.pauseForUpdate();
-		try { await this.suspendPreview(); } catch (error) { resumeSaving(); throw error; }
+		try { await this.suspendPreview('desktopUpdate'); } catch (error) { resumeSaving(); throw error; }
 		return async () => {
-			try { if (this.projectContext.hasProject) await this.resumePreview(); } finally { resumeSaving(); }
+			try { await this.resumePreview('desktopUpdate'); } finally { resumeSaving(); }
 		};
 	}
 
@@ -562,7 +576,7 @@ export class ProjectSessionContext {
 		try {
 			await this.suspendPreview();
 			if (this.disposed) return;
-			timelineClipboard.value = null;
+			this.timelineClipboard.value = null;
 			this.scenePlaybackTimes.clear();
 			// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
 			const maxDimension = Math.max(project.resolution.width, project.resolution.height);
@@ -591,7 +605,7 @@ export class ProjectSessionContext {
 			this.pendingSceneSeek = null;
 
 			this.projectSaveController.finishProjectLoad(fileName, fileHandle);
-			await window.desktop?.setCurrentProjectFile?.(fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
+			await window.desktop?.setSessionProjectFile?.(this.id, fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
 			if (this.disposed) return;
 
 			// 発話編集・削除・Undo/Redoでは、旧音声と新字幕を混在させず再生を停止する。
@@ -740,7 +754,9 @@ export class ProjectSessionContext {
 		this.previewPlayback.dispose();
 		this.previewPlayback.suspend();
 		this.voicevoxGeneration.dispose();
-		this.disposal = Promise.all([this.audioOutput.dispose(), this.projectSaveController.dispose()]).then(() => {});
+		this.disposal = Promise.all([this.audioOutput.dispose(), this.projectSaveController.dispose()]).then(async () => {
+			await window.desktop?.closeProjectSession?.(this.id);
+		});
 		ui.disposeProjectSessionPopups(this);
 		this.projectContext.dispose();
 		this.scenePlaybackTimes.clear();

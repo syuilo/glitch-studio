@@ -114,7 +114,7 @@ function createWindow(startupFilePath = null) {
 	if (desktopUpdateController?.busy === true || applicationQuitState.requested) return;
 	if (getLaunchFileType(startupFilePath)?.kind === 'project') {
 		const owner = editorWindows.findProject(startupFilePath);
-		if (owner != null) { editorWindows.focus(owner); return; }
+		if (owner != null) { editorWindows.focusProject(owner, startupFilePath); return; }
 	}
 
 	// メイン画面と切り離し先で、タイトルバーとOSの操作ボタンの表示方法を揃える。
@@ -142,7 +142,7 @@ function createWindow(startupFilePath = null) {
 	});
 	const context = editorWindows.add(mainWindow, startupFilePath);
 	if (getLaunchFileType(startupFilePath)?.kind === 'project') editorWindows.registerProject(context, startupFilePath);
-	const registerProject = (filePath, saving = false) => editorWindows.registerProject(context, filePath, saving);
+	const registerProject = (filePath, saving = false, reservationId) => editorWindows.registerProject(context, filePath, saving, reservationId);
 	const { ipc, projectFiles, exportFiles } = context;
 	const disposeAssetExports = registerExternalAssetIpc(ipc, dialog, context.externalAssetFiles, projectFiles, getTrustedMainWindow);
 	registerVoicevoxIpc(ipc, getTrustedMainWindow);
@@ -154,15 +154,16 @@ function createWindow(startupFilePath = null) {
 	registerProjectFileIpc(ipc, dialog, projectFiles, getTrustedMainWindow,
 		path.join(app.getPath('userData'), 'project-open-directory'), {
 			registerProject,
-			projectWillWrite: id => editorWindows.registerProject(context, projectFiles.getPath(id), true),
-			projectWritten: id => editorWindows.setCurrentProject(context, id),
+			projectWillWrite: (id, sessionId) => editorWindows.registerProject(context, projectFiles.getPath(id), true, sessionId),
+			projectWritten: (id, sessionId) => editorWindows.setSessionProject(context, sessionId, id),
 		});
 	registerRecentProjectsIpc(ipc, recentProjects, projectFiles, getTrustedMainWindow,
 		process.platform === 'win32' || process.platform === 'darwin' ? app : null,
 		{ registerProject });
 	registerExportFileIpc(ipc, dialog, exportFiles, getTrustedMainWindow);
-	ipc.handle('desktop:set-current-project-file', (_event, id) => editorWindows.setCurrentProject(context, id));
-	ipc.handle('desktop:release-project-reservations', () => editorWindows.releaseReservations(context));
+	ipc.handle('desktop:set-session-project-file', (_event, sessionId, id) => editorWindows.setSessionProject(context, sessionId, id));
+	ipc.handle('desktop:close-project-session', (_event, sessionId) => editorWindows.closeProjectSession(context, sessionId));
+	ipc.handle('desktop:release-project-reservations', (_event, reservationId) => editorWindows.releaseReservations(context, reservationId));
 	context.closeController = new ProjectCloseController({ window: mainWindow,
 		getUpdateController: () => desktopUpdateController, applicationQuitState });
 	mainWindow.once('closed', () => {
@@ -194,7 +195,14 @@ function createWindow(startupFilePath = null) {
 	mainWindow.webContents.on('before-input-event', (event, input) => {
 		if (desktopUpdateController?.busy === true && (input.key === 'F5' || ((input.control || input.meta) && input.key.toLowerCase() === 'r'))) event.preventDefault();
 	});
-	mainWindow.webContents.on('did-start-loading', () => { void desktopUpdateController?.abortPreparation().catch(console.error); });
+	mainWindow.webContents.on('did-start-loading', () => {
+		// 再読み込み後はセッションIDが変わる。旧画面からfinallyが返らなくても予約を残さない。
+		context.projectSessions.clear();
+		context.reservations.clear();
+		editorWindows.refreshProjectOwners(context);
+		if (getLaunchFileType(context.startupFilePath)?.kind === 'project') editorWindows.registerProject(context, context.startupFilePath);
+		void desktopUpdateController?.abortPreparation().catch(console.error);
+	});
 	mainWindow.webContents.on('render-process-gone', () => {
 		void desktopUpdateController?.abortPreparation().catch(console.error);
 		void showEditorFailure(context).catch(console.error);

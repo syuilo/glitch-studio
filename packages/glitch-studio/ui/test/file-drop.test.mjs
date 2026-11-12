@@ -301,7 +301,7 @@ test('does not receive drops outside the application root', t => {
 	assert.equal(result.event.defaultPrevented, false);
 });
 
-const source = await readFile(new URL('../src/App.vue', import.meta.url), 'utf8');
+const source = await readFile(new URL('../src/components/GsProjectEditor.vue', import.meta.url), 'utf8');
 const ast = createSourceFile('App.ts', parse(source).descriptor.scriptSetup.content, ScriptTarget.Latest);
 const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onFileDrop');
 const { code } = await transform(handler.getText(ast), { loader: 'ts' });
@@ -309,14 +309,14 @@ const { code } = await transform(handler.getText(ast), { loader: 'ts' });
 function appFixture({ hasProject = false, ids = ['asset'] } = {}) {
 	const events = [];
 	const context = {
-		projectSession: { projectContext: { hasProject } },
-		newProject: async () => { events.push('newProject'); },
+		projectSession: { projectContext: { hasProject }, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
+		newProject: async () => { events.push('newProject'); return context.projectSession; },
 		importAssets: async (_context, files, prepare) => {
-			if (ids.length > 0) await prepare();
+			if (ids.length > 0) await prepare?.();
 			events.push(['assets', files.map(file => file.name)]);
 			return ids;
 		},
-		openProject: async () => { assert.fail('Global drops must not open projects'); },
+		openProject: async file => { events.push(['project', file.name]); return true; },
 		workspaceController: { revealPanel: request => { events.push(['reveal', request]); } },
 	};
 	const run = new Function('context', 'events', `const { ${Object.keys(context).join(', ')} } = context;
@@ -339,12 +339,12 @@ test('initializes a project only when needed and reveals assets after successful
 	assert.deepEqual(failed.events, [['assets', ['bad.bin']]]);
 });
 
-// 【アプリ全体へのgsprojドロップはプロジェクトを開かない】
-// 任意ファイルの取り込み経路でAssetsに保存し、既存プロジェクトを置き換えない。
-test('does not open project files through the global asset drop handler', async () => {
+// 【エディタへのgsprojドロップは新しいタブで開く】
+// プロジェクトの追加をメニューと同じ入口へ集約し、素材として混入させない。
+test('opens project files in additional tabs through the editor drop handler', async () => {
 	const f = appFixture({ hasProject: true });
-	await f.run([new File(['project'], 'project.gsproj')]);
-	assert.deepEqual(f.events, [['assets', ['project.gsproj']], ['reveal', { contentType: 'assets', sourcePanelId: null }]]);
+	await f.run([new File(['project'], 'project.gsproj')], { dataTransfer: { items: [] } });
+	assert.deepEqual(f.events, [['project', 'project.gsproj']]);
 });
 
 const dashboardSource = await readFile(new URL('../src/components/GsDashboardDialog.vue', import.meta.url), 'utf8');
@@ -356,11 +356,12 @@ const { code: dashboardCode } = await transform(dashboardHandlers.map(handler =>
 function dashboardFixture({ ids = ['asset'], opened = true, hasProject = false } = {}) {
 	const events = [];
 	const context = {
-		projectSession: { projectContext: { hasProject } },
-		newProject: async () => { events.push('newProject'); },
+		projectSession: { projectContext: { hasProject }, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
+		projectSessions: { activeSession: { get value() { return context.projectSession; } } },
+		newProject: async () => { events.push('newProject'); return context.projectSession; },
 		newProjectFromImageOrVideo: async file => { events.push(['media', file ?? null]); return opened; },
 		importAssets: async (_context, files, prepare) => {
-			if (ids.length > 0) await prepare();
+			if (ids.length > 0) await prepare?.();
 			events.push(['assets', files.map(file => file.name)]);
 			return ids;
 		},

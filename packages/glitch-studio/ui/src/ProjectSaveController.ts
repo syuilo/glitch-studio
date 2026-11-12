@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { recentProjects } from './recent-projects.ts';
 import { preferences } from './preferences.ts';
@@ -17,9 +17,9 @@ function resolveBackupTarget(handle: ProjectFileHandle, directory: FileSystemDir
 	return native ? { name: handle.name, directory: native } : directory ? { name: handle.name, directory: browserProjectBackupDirectory(directory) } : null;
 }
 
-async function selectProjectSaveFile(name: string, popup: typeof ui.popup): Promise<{ handle: ProjectFileHandle; directory: FileSystemDirectoryHandle | null } | null> {
+async function selectProjectSaveFile(name: string, popup: typeof ui.popup, sessionId?: string): Promise<{ handle: ProjectFileHandle; directory: FileSystemDirectoryHandle | null } | null> {
 	if (window.desktop?.chooseProjectSaveFile) {
-		const descriptor = await window.desktop.chooseProjectSaveFile(name);
+		const descriptor = await window.desktop.chooseProjectSaveFile(name, sessionId);
 		return descriptor ? { handle: desktopProjectFile(descriptor), directory: null } : null;
 	}
 	return new Promise(resolve => {
@@ -71,12 +71,15 @@ export class ProjectSaveController {
 		return project != null && this.backupFingerprint(project) !== this.savedFingerprint.value;
 	});
 	public projectFileName = ref<string | null>(null);
+	public projectFileHandle = shallowRef<ProjectFileHandle | null>(null);
 	public projectBackupAccess = ref<'unsaved' | 'folder-required' | 'ready'>('unsaved');
 	public projectBackupStatus = ref<ProjectBackupStatus>({ lastAutoBackup: null, lastSaveBackup: null, error: null });
 	public projectBackupController: ProjectBackupController;
 
-	constructor(private getSnapshot: () => Project | null, private adoptSavedProjectId: (id: Project['id']) => void, private popup: typeof ui.popup = ui.popup) {
+	constructor(private getSnapshot: () => Project | null, private adoptSavedProjectId: (id: Project['id']) => void, private popup: typeof ui.popup = ui.popup,
+		private options: { sessionId?: string; reserveProjectFile?: (handle: ProjectFileHandle) => Promise<() => void> } = {}) {
 		this.projectSaveSession = new ProjectSaveSession((target, previous) => {
+			this.projectFileHandle.value = target?.handle ?? null;
 			this.projectFileName.value = target?.handle.name ?? null;
 			this.projectBackupAccess.value = target?.backup ? 'ready' : target ? 'folder-required' : 'unsaved';
 			if (target?.backup !== previous?.backup) this.projectBackupController.setTarget(target?.backup ?? null);
@@ -158,6 +161,7 @@ export class ProjectSaveController {
 			// 待機中の拒否は値として受け、未処理のPromise rejectionにしない。
 			const permission = requestedHandle?.requestPermission({ mode: 'readwrite' }).catch((error: unknown) => error);
 			saveFailure = await this.projectSaveSession.runExclusive(async savedTarget => {
+				let releaseFile: (() => void) | null = null;
 				try {
 					if (generation !== this.projectGeneration) return null;
 					// 内容は要求時のスナップショットを使い、IDだけ実行時に決める。
@@ -177,10 +181,12 @@ export class ProjectSaveController {
 					let data = handle == null && window.desktop?.assetProjectPaths != null ? null : await encodeProjectFile(project, handle);
 					if (generation !== this.projectGeneration) return null;
 					if (!handle) {
-						const selected = await selectProjectSaveFile(this.projectSaveSession.suggestedName, this.popup);
+						const selected = await selectProjectSaveFile(this.projectSaveSession.suggestedName, this.popup, this.options.sessionId);
 						if (!selected) return null;
 						({ handle, directory } = selected);
 					}
+					// 別タブの保存先・保存中の予約と照合し、バックアップを作る前に排他する。
+					releaseFile = await this.options.reserveProjectFile?.(handle) ?? null;
 					if (generation !== this.projectGeneration) return null;
 					target ??= resolveBackupTarget(handle, directory);
 					data ??= await encodeProjectFile(project, handle);
@@ -197,7 +203,7 @@ export class ProjectSaveController {
 						saveBackupTime = await this.projectBackupController.beforeSave(target, projectSaveBackupWriter(handle, target.directory));
 					}
 					if (generation !== this.projectGeneration) return null;
-					await saveProjectFile(data, handle);
+					await saveProjectFile(data, handle, this.options.sessionId);
 					if (generation === this.projectGeneration) {
 						this.adoptSavedProjectId(project.id);
 						// 保存中の編集を保存済みにしないよう、書き込んだスナップショットを基準にする。
@@ -212,7 +218,8 @@ export class ProjectSaveController {
 					return { error };
 				} finally {
 					// 予約の解放まで保存キューに含め、更新の準備が後処理を追い越さないようにする。
-					await window.desktop?.releaseProjectReservations?.().catch(console.error);
+					await window.desktop?.releaseProjectReservations?.(this.options.sessionId).catch(console.error);
+					releaseFile?.();
 				}
 				return null;
 			});

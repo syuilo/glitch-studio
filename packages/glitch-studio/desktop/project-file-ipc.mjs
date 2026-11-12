@@ -9,11 +9,11 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 	projectWritten = () => {},
 } = {}) {
 	let projectOpenDirectory = null;
-	ipcMain.handle('desktop:register-project-file', (event, filePath) => {
+	ipcMain.handle('desktop:register-project-file', (event, filePath, reservationId) => {
 		getTrustedMainWindow(event);
-		return registerProject(filePath);
+		return registerProject(filePath, false, reservationId);
 	});
-	ipcMain.handle('desktop:choose-project-file', async event => {
+	ipcMain.handle('desktop:choose-project-file', async (event, reservationId) => {
 		const parent = getTrustedMainWindow(event);
 		if (projectOpenDirectoryFilePath != null) {
 			try {
@@ -45,9 +45,9 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 				await fs.unlink(temporaryFilePath).catch(() => {});
 			}
 		}
-		return registerProject(filePath);
+		return registerProject(filePath, false, reservationId);
 	});
-	ipcMain.handle('desktop:choose-project-save-file', async (event, name) => {
+	ipcMain.handle('desktop:choose-project-save-file', async (event, name, sessionId) => {
 		const parent = getTrustedMainWindow(event);
 		if (typeof name !== 'string' || path.basename(name) !== name) throw new Error('Invalid project name');
 		// Electronのダイアログはパスだけを返す。確定前の既存ファイルを変更しない。
@@ -58,7 +58,7 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 		if (result.canceled || !result.filePath) return null;
 		const filePath = result.filePath.toLowerCase().endsWith('.gsproj') ? result.filePath : `${result.filePath}.gsproj`;
 		// 拡張子を補った場合、OSが確認したパスとは異なるのでここで上書き確認する。
-		const descriptor = registerProject(filePath, true);
+		const descriptor = registerProject(filePath, true, sessionId);
 		const id = descriptor.id;
 		if (filePath !== result.filePath && await projectFiles.exists(id)) {
 			const confirmation = await dialog.showMessageBox(parent, { type: 'question', message: `Replace ${path.basename(filePath)}?`, buttons: ['Cancel', 'Replace'], defaultId: 0, cancelId: 0 });
@@ -70,11 +70,11 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 		getTrustedMainWindow(event);
 		return projectFiles.read(id);
 	});
-	ipcMain.handle('desktop:write-project-file', async (event, id, data) => {
+	ipcMain.handle('desktop:write-project-file', async (event, id, data, sessionId) => {
 		getTrustedMainWindow(event);
-		projectWillWrite(id);
+		projectWillWrite(id, sessionId);
 		await projectFiles.write(id, data);
-		projectWritten(id);
+		projectWritten(id, sessionId);
 	});
 	ipcMain.handle('desktop:list-project-backups', (event, id) => {
 		getTrustedMainWindow(event);

@@ -7,6 +7,7 @@ export class PreviewRenderEngine {
 	private staticError = ref<string | null>(null);
 	private runtimeError = shallowRef<RenderFailureDiagnostic | null>(null);
 	private suspended = ref(false);
+	private readonly suspensionReasons = new Set<string>();
 	public readonly isSuspended = readonly(this.suspended);
 	private enabled = ref(false);
 	private updatingResources = ref(false);
@@ -45,8 +46,18 @@ export class PreviewRenderEngine {
 		this.operations.dispose(reason);
 	}
 
-	public suspend() { if (!this.disposed) { this.suspended.value = true; this.stop(); } }
-	public resume() { if (!this.disposed) this.suspended.value = false; return this.retry(); }
+	// タブ切替と書き出し・読込の休止を独立させ、一方の完了で他方まで再開しない。
+	public suspend(reason = 'operation') {
+		if (this.disposed || this.suspensionReasons.has(reason)) return;
+		this.suspensionReasons.add(reason);
+		this.suspended.value = true;
+		this.stop();
+	}
+	public resume(reason = 'operation') {
+		this.suspensionReasons.delete(reason);
+		if (!this.disposed) this.suspended.value = this.suspensionReasons.size > 0;
+		return this.retry();
+	}
 	public enable() { if (!this.disposed) this.enabled.value = true; return this.retry(); }
 
 	public dispose(): void {

@@ -195,7 +195,7 @@ import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import { selectTimelineLayer, clipSelectionKey, keyframeSelectionKey } from '@/utility/timeline-selection.ts';
 import { useProjectSession } from '@/project-session.ts';
-import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
+import { getTimelineEditorState, getSelectedTimelineLayerId } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
 import { createTimelineSourceActions } from '@/utility/timeline-source-actions.ts';
 import { createTimelineSelectionEditActions } from '@/utility/timeline-selection-edit-actions.ts';
@@ -750,7 +750,7 @@ const selectionEditActions = createTimelineSelectionEditActions({
 	sceneLayers,
 	selection,
 	selectedLayer,
-	clipboard: timelineClipboard,
+	clipboard: projectSession.timelineClipboard,
 	currentTime: time,
 	isActive: isTimelineActive,
 	inspectMedia: inspectTimelineClipMedia,

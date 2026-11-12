@@ -49,7 +49,7 @@ const popupListTemplate = applicationDescriptor.template.ast.children.find(child
 const PopupList = {
 	components: { GsPopup: bundled.exports.Popup },
 	props: ['popups'],
-	setup: props => ({ ui: { popups: props.popups } }),
+	setup: props => ({ applicationPopups: props.popups }),
 	render: compile(popupListTemplate),
 };
 

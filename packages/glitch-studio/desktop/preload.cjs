@@ -8,8 +8,14 @@ contextBridge.exposeInMainWorld('desktop', {
 		return () => ipcRenderer.removeListener('desktop:project-close-requested', handler);
 	},
 	completeProjectClose: (requestId, confirmed) => ipcRenderer.invoke('desktop:complete-project-close', requestId, confirmed),
-	setCurrentProjectFile: id => ipcRenderer.invoke('desktop:set-current-project-file', id),
-	releaseProjectReservations: () => ipcRenderer.invoke('desktop:release-project-reservations'),
+	setSessionProjectFile: (sessionId, id) => ipcRenderer.invoke('desktop:set-session-project-file', sessionId, id),
+	closeProjectSession: sessionId => ipcRenderer.invoke('desktop:close-project-session', sessionId),
+	onActivateProjectFile: listener => {
+		const handler = (_event, id) => listener(id);
+		ipcRenderer.on('desktop:activate-project-file', handler);
+		return () => ipcRenderer.removeListener('desktop:activate-project-file', handler);
+	},
+	releaseProjectReservations: reservationId => ipcRenderer.invoke('desktop:release-project-reservations', reservationId),
 	getUpdateState: () => ipcRenderer.invoke('desktop:get-update-state'),
 	checkForUpdates: () => ipcRenderer.invoke('desktop:check-for-updates'),
 	prepareUpdate: version => ipcRenderer.invoke('desktop:prepare-update', version),
@@ -31,19 +37,19 @@ contextBridge.exposeInMainWorld('desktop', {
 	beginAssetExport: name => ipcRenderer.invoke('desktop:begin-asset-export', name),
 	writeAssetExport: (id, chunk) => ipcRenderer.invoke('desktop:write-asset-export', id, chunk),
 	abortAssetExport: id => ipcRenderer.invoke('desktop:abort-asset-export', id),
-	registerProjectFile: (file) => {
+	registerProjectFile: (file, reservationId) => {
 		const filePath = webUtils.getPathForFile(file);
-		return filePath ? ipcRenderer.invoke('desktop:register-project-file', filePath) : Promise.resolve(null);
+		return filePath ? ipcRenderer.invoke('desktop:register-project-file', filePath, reservationId) : Promise.resolve(null);
 	},
-	chooseProjectFile: () => ipcRenderer.invoke('desktop:choose-project-file'),
+	chooseProjectFile: reservationId => ipcRenderer.invoke('desktop:choose-project-file', reservationId),
 	listRecentProjects: () => ipcRenderer.invoke('desktop:list-recent-projects'),
 	rememberRecentProject: (id, name) => ipcRenderer.invoke('desktop:remember-recent-project', id, name),
-	resolveRecentProject: (id) => ipcRenderer.invoke('desktop:resolve-recent-project', id),
+	resolveRecentProject: (id, reservationId) => ipcRenderer.invoke('desktop:resolve-recent-project', id, reservationId),
 	removeRecentProject: (id) => ipcRenderer.invoke('desktop:remove-recent-project', id),
 	clearRecentProjects: () => ipcRenderer.invoke('desktop:clear-recent-projects'),
-	chooseProjectSaveFile: (name) => ipcRenderer.invoke('desktop:choose-project-save-file', name),
+	chooseProjectSaveFile: (name, sessionId) => ipcRenderer.invoke('desktop:choose-project-save-file', name, sessionId),
 	readProjectFile: (id) => ipcRenderer.invoke('desktop:read-project-file', id),
-	writeProjectFile: (id, data) => ipcRenderer.invoke('desktop:write-project-file', id, data),
+	writeProjectFile: (id, data, sessionId) => ipcRenderer.invoke('desktop:write-project-file', id, data, sessionId),
 	listProjectBackups: (id) => ipcRenderer.invoke('desktop:list-project-backups', id),
 	writeProjectBackup: (id, name, data) => ipcRenderer.invoke('desktop:write-project-backup', id, name, data),
 	copyProjectBackup: (id, name) => ipcRenderer.invoke('desktop:copy-project-backup', id, name),

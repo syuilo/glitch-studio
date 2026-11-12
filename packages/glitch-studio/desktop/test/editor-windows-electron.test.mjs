@@ -32,7 +32,7 @@ test('shares one main process while isolating editors and confirming window clos
 		window.confirmations = []; window.notices = [];
 		installProjectCloseGuard(window.saving, window.exporting, window.unsaved);
 		const startup = await window.desktop.takeStartupFile();
-		if (startup?.kind === 'project') await window.desktop.setCurrentProjectFile(startup.file.id);
+		if (startup?.kind === 'project') await window.desktop.setSessionProjectFile('startup', startup.file.id);
 		window.ready = true;
 	` }, bundle: true, format: 'esm', platform: 'browser', write: false,
 		define: { __ELECTRON__: 'true', 'import.meta.env.DEV': 'false' }, plugins: [{ name: 'editor-test-dialogs', setup(builder) {
@@ -85,7 +85,7 @@ test('shares one main process while isolating editors and confirming window clos
 			const first = windows()[0]; await ready(first);
 			await first.webContents.executeJavaScript("localStorage.setItem('locale', 'ja-JP'); window.preferences.commit('importAssetsAsExternalReferences', true); window.preferences.commit('previewVolume', 0.1);");
 			const descriptor = await first.webContents.executeJavaScript('window.desktop.chooseProjectFile()');
-			await first.webContents.executeJavaScript('window.desktop.setCurrentProjectFile(' + JSON.stringify(descriptor.id) + ')');
+			await first.webContents.executeJavaScript('window.desktop.setSessionProjectFile("startup", ' + JSON.stringify(descriptor.id) + ')');
 			await launch(); await waitFor(() => windows().length === 2);
 			const second = windows().find(window => window !== first); await ready(second);
 			assert.notEqual(first.webContents.getOSProcessId(), second.webContents.getOSProcessId());

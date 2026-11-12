@@ -61,13 +61,13 @@ test('reserves loading projects, focuses duplicate opens and rejects conflicting
 	assert.equal(registry.registerProject(second.context, filePath), null);
 	assert.equal(first.focused, 1);
 	assert.throws(() => registry.registerProject(second.context, filePath, true), /another window/);
-	registry.setCurrentProject(first.context, descriptor.id);
+	registry.setSessionProject(first.context, 'startup', descriptor.id);
 	const canceled = path.resolve('canceled.gsproj');
 	registry.registerProject(first.context, canceled);
 	registry.releaseReservations(first.context);
 	assert.equal(registry.findProject(canceled), null);
 	assert.equal(registry.findProject(filePath), first.context);
-	registry.setCurrentProject(first.context, null);
+	registry.setSessionProject(first.context, 'startup', null);
 	assert.equal(registry.findProject(filePath), null);
 	assert.notEqual(registry.registerProject(second.context, filePath), null);
 });
@@ -79,7 +79,7 @@ test('rechecks ownership before writing through a previously registered project 
 	const first = createWindow(1);
 	const second = createWindow(2);
 	const descriptor = registry.registerProject(first.context, path.resolve('shared.gsproj'));
-	registry.setCurrentProject(first.context, null);
+	registry.setSessionProject(first.context, 'startup', null);
 	registry.registerProject(second.context, path.resolve('shared.gsproj'));
 	let written = false;
 	first.context.projectFiles.write = async () => { written = true; };
@@ -96,4 +96,50 @@ test('rejects child frames, unrelated windows and external navigations', () => {
 	assert.throws(() => handlers.get('desktop:register-project-file')({ sender: window.webContents, senderFrame: { url: 'app://glitch-studio/' } }, path.resolve('test.gsproj')), /Untrusted/);
 	window.webContents.mainFrame.url = 'https://example.com/';
 	assert.throws(() => registry.trusted({ sender: window.webContents, senderFrame: window.webContents.mainFrame }), /Untrusted/);
+});
+
+// 【同じウィンドウの保存先・読込予約をタブ単位で保持し、閉じたタブだけ解放する】
+// 一つの保存・読込の後処理が他のタブの所有権を消すと、別ウィンドウから二重編集できてしまう。
+test('retains independent tab ownership and reservations through save as and closing', () => {
+	const { registry, createWindow } = fixture();
+	const first = createWindow(1);
+	const second = createWindow(2);
+	const original = path.resolve('first.gsproj');
+	const other = path.resolve('other.gsproj');
+	const pending = path.resolve('pending.gsproj');
+	const replacement = path.resolve('replacement.gsproj');
+	const file = registry.registerProject(first.context, original, false, 'first');
+	registry.setSessionProject(first.context, 'first', file.id);
+	const otherFile = registry.registerProject(first.context, other, false, 'other');
+	registry.setSessionProject(first.context, 'other', otherFile.id);
+	registry.registerProject(first.context, pending, false, 'loading');
+	const saved = registry.registerProject(first.context, replacement, true, 'first');
+	registry.setSessionProject(first.context, 'first', saved.id);
+	assert.equal(registry.findProject(original), null);
+	for (const filePath of [other, pending, replacement]) assert.equal(registry.findProject(filePath), first.context);
+	assert.throws(() => registry.registerProject(first.context, other, true, 'first'), /another tab/);
+	assert.throws(() => registry.setSessionProject(first.context, 'first', otherFile.id), /another tab/);
+	registry.releaseReservations(first.context, 'loading');
+	assert.equal(registry.findProject(pending), null);
+	registry.closeProjectSession(first.context, 'first');
+	assert.equal(registry.findProject(replacement), null);
+	assert.equal(registry.findProject(other), first.context);
+	assert.equal(registry.registerProject(second.context, other), null);
+	first.window.destroy();
+	assert.equal(registry.findProject(other), null);
+});
+
+// 【別ウィンドウやOSから既存の作品を開くと、その作品のタブを選択する】
+// ウィンドウを前面に出すだけでは、別のタブが選択中のときに対象の作品へ到達しない。
+test('activates the owning project tab when focusing a duplicate open', () => {
+	const { registry, createWindow } = fixture();
+	const first = createWindow(1);
+	const second = createWindow(2);
+	const filePath = path.resolve('tab.gsproj');
+	const descriptor = registry.registerProject(first.context, filePath, false, 'tab');
+	registry.setSessionProject(first.context, 'tab', descriptor.id);
+	const sent = [];
+	first.window.webContents.send = (...args) => sent.push(args);
+	assert.equal(registry.registerProject(second.context, filePath), null);
+	assert.deepEqual(sent, [['desktop:activate-project-file', descriptor.id]]);
 });

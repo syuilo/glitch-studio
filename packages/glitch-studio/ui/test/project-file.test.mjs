@@ -12,7 +12,9 @@ const require = createRequire(import.meta.url);
 function evaluate(bundle) {
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(require, module, module.exports);
-	return module.exports;
+	const api = module.exports;
+	// 回帰テストの取得先だけをまとめ、本番には単一セッションのexportを残さない。
+	return api.projectSessions == null ? api : { ...api, get projectSession() { return api.projectSessions.activeSession.value; } };
 }
 
 const buildOptions = {
@@ -179,6 +181,7 @@ test('applies rendering statistics preferences without changing project data or 
 	assert.equal('renderingStatsEnabled' in restored, false);
 	assert.equal('enableStats' in restored, false);
 	await app.newProject();
+	await app.projectSessions.select(context);
 	assert.equal(settings.renderingStatsEnabled, true);
 	settings.renderingStatsEnabled = false;
 	await setImmediate();
@@ -208,6 +211,7 @@ test('applies analysis monitor preferences without changing project data or undo
 	assert.equal('analysisMonitorsEnabled' in restored, false);
 	assert.equal('enableWaveformAndHistogram' in restored, false);
 	await app.newProject();
+	await app.projectSessions.select(context);
 	assert.equal(settings.analysisMonitorsEnabled, false);
 	assert.equal(context.audioOutput.preview.analysisEnabled, false);
 	settings.analysisMonitorsEnabled = true;
@@ -523,7 +527,8 @@ test('persists Custom Shader Effect definitions through project snapshots and fi
 	assert.deepEqual(context.snapshot().customShaderEffects, [customShaderEffect]);
 	assert.deepEqual(snapshot.customShaderEffects, [customShaderEffect]);
 	await app.newProject();
-	assert.deepEqual(manager.state.customShaderEffects.value, []);
+	assert.deepEqual(app.projectSession.projectContext.stateManager.state.customShaderEffects.value, []);
+	assert.deepEqual(context.snapshot().customShaderEffects, [customShaderEffect]);
 });
 
 // 【表示を切り替えると現在のプレビューだけがアイドル描画を行い、Workerは再生成しない】
@@ -749,8 +754,8 @@ test('ignores obsolete asset preparation after undo and rebuilds the latest stat
 test('cancels baking synchronously on metadata edits without adding bake history', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	t.after(() => projectSession.previewPlayback.dispose());
 	projectSession.previewPlayback.seekTimeline(0);
 	await setImmediate();
@@ -1069,8 +1074,8 @@ test('leaves Visual Module Live Preview when an imported Visual Module is undone
 test('persists timeline render settings and recreates both previews through undo and redo', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	const notifications = [];
 	manager.onChange(changes => notifications.push(changes));
@@ -1129,8 +1134,8 @@ test('persists timeline render settings and recreates both previews through undo
 test('persists disabled layers and refreshes the paused preview on visibility edits undo and redo', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	const scene = manager.state.timelineScenes.value[0];
 	const layer = scene.layers[0];
@@ -1173,8 +1178,8 @@ test('persists disabled layers and refreshes the paused preview on visibility ed
 test('persists timeline masks and refreshes paused previews through undo and redo', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	const scene = manager.state.timelineScenes.value[0];
 	const layer = scene.layers[0];
@@ -1214,8 +1219,8 @@ test('persists timeline masks and refreshes paused previews through undo and red
 test('persists layer motion blur overrides and refreshes paused previews through undo and redo', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	const scene = manager.state.timelineScenes.value[0];
 	const layer = scene.layers[0];
@@ -1277,7 +1282,7 @@ test('round trips export dialog settings through project state and files', async
 	assert.equal(restored.exportSettings.customResolution.width, 513);
 	assert.equal(snapshot.exportSettings.customResolution.width, 513);
 	await app.newProject();
-	assert.equal(manager.state.exportSettings.value, null);
+	assert.equal(app.projectSession.projectContext.stateManager.state.exportSettings.value, null);
 });
 
 // 【初回生成からプロジェクトのfps・ブラー設定とプレビュー既定の0サンプルを使う】
@@ -1301,8 +1306,8 @@ test('uses project render settings with motion blur sampling disabled for the in
 test('keeps preview motion blur samples separate from project settings and saved files', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	const settings = { timelineFps: 30, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
 	manager.commit('changeTimelineRenderSettings', settings);
@@ -1344,8 +1349,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 	await nextTick();
 	await projectSession.renderEngine.retry();
 	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 4);
-	window.showOpenFilePicker = async () => [handle];
-	assert.equal(await app.openProject(), true);
+	await projectSession.ready(decodeProjectFile(handle.bytes), handle.name, handle);
 	assert.equal(projectSession.timelinePreviewMotionBlurSamples.value, 0);
 	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 0);
 	assert.equal(manager.state.timelineMotionBlur.value.samples, 32);
@@ -1360,8 +1364,8 @@ test('applies timeline preview factors independently of the Visual Module Live P
 	window.requestAnimationFrame = callback => { const id = ++nextId; callbacks.set(id, callback); return id; };
 	window.cancelAnimationFrame = id => callbacks.delete(id);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	t.after(() => projectSession.previewPlayback.dispose());
 	projectSession.timelineRendererManagerController.staticUpdates.length = 0;
 	const measure = (factor, visualModuleLivePreviewFpsLimit) => {
@@ -1411,6 +1415,7 @@ function fileHandle(name, options = {}) {
 	const calls = [];
 	return {
 		name, kind: 'file', calls,
+		async isSameEntry(other) { return other === this; },
 		get bytes() { return bytes; },
 		async getFile() { return new File([bytes], name); },
 		async requestPermission(mode) { calls.push(['permission', mode]); return options.permission ?? 'granted'; },
@@ -1550,24 +1555,28 @@ function setup(t) {
 	return globalThis.window;
 }
 
-// 【別作品を開く・新規作成するときに、現在の未保存変更を破棄するか確認する】
-// キャンセルした作品の内容やUndo履歴を変更せず、保存済みファイルの読込にも同じ保護を適用する。
-test('preserves the current project when replacement of unsaved changes is canceled', async t => {
+// 【開く・新規作成では未保存の作品を維持し、閉じるときだけ破棄を確認する】
+// タブ追加に単一プロジェクト時代の置換確認を残すと、他の作品を開くだけで編集内容が失われる。
+test('opens additional projects without discarding unsaved edits and confirms tab closing', async t => {
 	const window = setup(t);
 	window.projectConfirmations = [];
 	const app = evaluate(appBundle);
-	await app.newProject();
-	app.projectSession.projectContext.stateManager.state.name.value = 'Keep this project';
+	const first = await app.newProject();
+	first.projectContext.stateManager.state.name.value = 'Keep this project';
 	window.cancelProjectReplacement = true;
 	await app.newProject();
-	assert.equal(app.projectSession.projectContext.snapshot().name, 'Keep this project');
+	assert.equal(first.projectContext.snapshot().name, 'Keep this project');
 	const file = new File([new Uint8Array(await encodeProjectFile(project()))], 'other.gsproj');
-	assert.equal(await app.openProject(file), false);
-	assert.equal(app.projectSession.projectContext.snapshot().name, 'Keep this project');
-	assert.equal(window.projectConfirmations.length, 2);
-	window.cancelProjectReplacement = false;
 	assert.equal(await app.openProject(file), true);
-	assert.equal(app.projectSession.projectContext.snapshot().name, 'Example');
+	assert.equal(app.projectSessions.sessions.value.length, 3);
+	assert.equal(window.projectConfirmations.length, 0);
+	assert.equal(await app.projectSessions.close(first), false);
+	assert.equal(first.isDisposed, false);
+	window.cancelProjectReplacement = false;
+	assert.equal(await app.projectSessions.close(first), true);
+	assert.equal(first.isDisposed, true);
+	assert.equal(app.projectSessions.sessions.value.length, 2);
+	await app.disposeApplication();
 });
 
 // 【名前・説明・作者と素材の原本を一緒に保存・復元する】
@@ -1588,8 +1597,8 @@ test('round trips project information and original assets', async () => {
 test('preserves asset source paths through commands and project save and reload', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	const path = 'C:\\素材 フォルダ\\original.png';
 	manager.commit('addAsset', { id: 'asset', name: 'original.png', width: 4, height: 2,
@@ -1624,8 +1633,8 @@ test('preserves asset source paths through commands and project save and reload'
 test('updates or clears source paths when replacing assets', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	const asset = { id: 'asset', name: 'Display name', width: 4, height: 2, fileDataType: 'image/png',
 																	fileData: new Blob(['original']), sourceFilePath: 'C:\\original.png' };
@@ -1650,7 +1659,6 @@ test('updates or clears source paths when replacing assets', async t => {
 test('retains the source path when creating a project from an image', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	const file = new File(['encoded image'], 'source.png', { type: 'image/png' });
 	const path = 'C:\\素材\\source.png';
 	window.document.createElement = () => new EventTarget();
@@ -1662,10 +1670,10 @@ test('retains the source path when creating a project from an image', async t =>
 		else delete globalThis.createImageBitmap;
 	});
 	assert.equal(await app.newProjectFromImageOrVideo(file), true);
-	assert.equal(projectSession.projectContext.stateManager.state.assets.value[0].sourceFilePath, path);
+	assert.equal(app.projectSession.projectContext.stateManager.state.assets.value[0].sourceFilePath, path);
 	const handle = fileHandle('from-image.gsproj');
 	window.selectProjectSaveFile = async () => handle;
-	await projectSession.saveProject();
+	await app.projectSession.saveProject();
 	const saved = decodeProjectFile(handle.bytes).assets[0];
 	assert.equal(saved.sourceFilePath, path);
 	assert.equal(await saved.fileData.text(), 'encoded image');
@@ -1831,8 +1839,8 @@ test('stops before selecting or writing a target when asset encoding fails', asy
 test('prepares a complete snapshot before selecting a Save as target', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	let read = false;
 	class TrackedBlob extends Blob {
 		async arrayBuffer() { read = true; return super.arrayBuffer(); }
@@ -1963,8 +1971,8 @@ test('releases manual saving after cancellation and before acknowledging a write
 	const window = setup(t);
 	t.mock.method(console, 'error', () => {});
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const selectionStarted = Promise.withResolvers();
 	const selection = Promise.withResolvers();
 	window.selectProjectSaveFile = () => { selectionStarted.resolve(); return selection.promise; };
@@ -2024,9 +2032,9 @@ test('distinguishes automatic backups from manual saves queued behind them', asy
 test('tracks unsaved content across undo, redo, continuous edits and direct changes', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
-	assert.equal(projectSession.hasUnsavedChanges.value, false);
+	assert.equal(app.projectSession.hasUnsavedChanges.value, false);
 	await app.newProject();
+	const { projectSession } = app;
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
 	const handle = fileHandle('saved.gsproj');
 	window.selectProjectSaveFile = async () => handle;
@@ -2073,7 +2081,7 @@ test('tracks unsaved content across undo, redo, continuous edits and direct chan
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	assert.equal(projectSession.projectFileName.value, handle.name);
 	await app.newProject();
-	assert.equal(projectSession.hasUnsavedChanges.value, true);
+	assert.equal(app.projectSession.hasUnsavedChanges.value, true);
 });
 
 // 【保存完了前の編集と、別プロジェクトの変更を保存済みにしない】
@@ -2082,8 +2090,8 @@ test('tracks unsaved content across undo, redo, continuous edits and direct chan
 test('keeps edits during writes unsaved and ignores saves completed after a reload', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const handle = fileHandle('slow.gsproj');
 	window.selectProjectSaveFile = async () => handle;
 	for (const reload of [false, true]) {
@@ -2114,8 +2122,8 @@ test('keeps edits during writes unsaved and ignores saves completed after a relo
 test('saves editable project information, updates the title and preserves undo history', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	assert.deepEqual([manager.state.name.value, manager.state.description.value, manager.state.author.value], ['Untitled Project', '', '']);
 	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'added-node' });
@@ -2139,7 +2147,7 @@ test('saves editable project information, updates the title and preserves undo h
 	assert.equal(saved.description, 'Description\n説明');
 	assert.equal(saved.author, 'Alice');
 	await app.newProject();
-	assert.equal(projectSession.projectContext.stateManager.state.name.value, 'Untitled Project');
+	assert.equal(app.projectSession.projectContext.stateManager.state.name.value, 'Untitled Project');
 	window.showOpenFilePicker = async () => [handle];
 	assert.equal(await app.openProject(), true);
 	assert.deepEqual([manager.state.name.value, manager.state.description.value, manager.state.author.value], [saved.name, saved.description, saved.author]);
@@ -2151,8 +2159,8 @@ test('saves editable project information, updates the title and preserves undo h
 test('changes the Save target only after a successful Save as', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const original = fileHandle('original.gsproj');
 	const copy = fileHandle('copy.gsproj');
 	window.selectProjectSaveFile = async () => original;
@@ -2289,8 +2297,8 @@ test('records only successful file operations and isolates recent project storag
 test('asks for a fresh Save target after creating another project', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	const first = fileHandle('first.gsproj');
 	window.selectProjectSaveFile = async () => first;
 	await projectSession.saveProject();
@@ -2299,7 +2307,7 @@ test('asks for a fresh Save target after creating another project', async t => {
 	const second = fileHandle('second.gsproj');
 	let pickerCalls = 0;
 	window.selectProjectSaveFile = async () => { pickerCalls++; return second; };
-	await projectSession.saveProject();
+	await app.projectSession.saveProject();
 	assert.equal(pickerCalls, 1);
 	assert.equal(first.bytes, savedBytes);
 	assert.notEqual(decodeProjectFile(first.bytes).id, decodeProjectFile(second.bytes).id);
@@ -2324,8 +2332,8 @@ test('accepts same and older versions and rejects newer semantic versions', asyn
 test('shows a future-version error without changing the current project or Save target', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	await app.newProject();
+	const { projectSession } = app;
 	projectSession.projectContext.stateManager.state.name.value = 'Current project';
 	const currentHandle = fileHandle('current.gsproj');
 	window.selectProjectSaveFile = async () => currentHandle;
@@ -2355,8 +2363,7 @@ test('shows a future-version error without changing the current project or Save 
 test('passes unscaled project dimensions and resets the preview scale for smaller projects', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
-	for (const [width, height, factor] of [
+		for (const [width, height, factor] of [
 		[12000, 8000, 0.25],
 		[1500, 3001, 0.25],
 		[3000, 1500, 0.5],
@@ -2366,14 +2373,14 @@ test('passes unscaled project dimensions and resets the preview scale for smalle
 		const resolution = { width, height };
 		const file = new File([await encodeProjectFile(project({ resolution }))], 'resolution.gsproj');
 		assert.equal(await app.openProject(file), true);
-		assert.equal(projectSession.resolutionFactor.value, factor);
-		for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+		assert.equal(app.projectSession.resolutionFactor.value, factor);
+		for (const controller of [app.projectSession.visualModuleRendererManagerController, app.projectSession.timelineRendererManagerController]) {
 			assert.deepEqual(controller.options.resolution, resolution);
 			assert.equal(controller.options.resolutionScale, factor);
 		}
-		assert.deepEqual(projectSession.projectContext.stateManager.state.resolution.value, resolution);
+		assert.deepEqual(app.projectSession.projectContext.stateManager.state.resolution.value, resolution);
 	}
-	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+	for (const controller of [app.projectSession.visualModuleRendererManagerController, app.projectSession.timelineRendererManagerController]) {
 		// プロジェクト切り替えでもエンジンを作り直し、最新の基準寸法から初期化する。
 		assert.deepEqual(controller.initialResolution, { width: 1500, height: 1500 });
 		assert.equal(controller.initialResolutionScale, 1);
@@ -2650,15 +2657,14 @@ test('opens a startup project handle without a picker and saves back to that fil
 		async writeProjectFile(id, data) { assert.equal(id, 'startup'); bytes = data; },
 	};
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	assert.equal(await app.openProject(undefined, desktopProjectFile({ id: 'startup', name: '作品.gsproj' })), true);
-	assert.equal(projectSession.projectContext.stateManager.state.name.value, 'From Explorer');
-	assert.equal(projectSession.projectBackupAccess.value, 'ready');
-	projectSession.projectContext.stateManager.state.name.value = 'Edited';
-	await projectSession.saveProject();
+	assert.equal(app.projectSession.projectContext.stateManager.state.name.value, 'From Explorer');
+	assert.equal(app.projectSession.projectBackupAccess.value, 'ready');
+	app.projectSession.projectContext.stateManager.state.name.value = 'Edited';
+	await app.projectSession.saveProject();
 	assert.equal(decodeProjectFile(bytes).name, 'Edited');
 	assert.deepEqual(globalThis.projectAlerts, []);
-	projectSession.projectBackupController.setTarget(null);
+	app.projectSession.projectBackupController.setTarget(null);
 });
 
 // 【起動時のファイルが存在しない・壊れている場合は失敗をUIへ返す】
@@ -2705,25 +2711,24 @@ test('uses Electron backup access without a folder picker and stops overwrite on
 	const handle = fileHandle('native.gsproj', { bytes: original });
 	window.showOpenFilePicker = async () => [handle];
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	window.testPreferences.projectBackupSaveEnabled = true;
 	assert.equal(await app.openProject(), true);
-	assert.equal(projectSession.projectBackupAccess.value, 'ready');
+	assert.equal(app.projectSession.projectBackupAccess.value, 'ready');
 	window.desktop.readProjectFile = () => assert.fail('Save backup must not read the old file into the renderer');
-	projectSession.projectContext.stateManager.state.name.value = 'Edited';
-	await projectSession.saveProject();
+	app.projectSession.projectContext.stateManager.state.name.value = 'Edited';
+	await app.projectSession.saveProject();
 	assert.equal(decodeProjectFile(handle.bytes).name, 'Edited');
 	assert.equal(decodeProjectFile([...files.values()][0]).name, 'On disk');
-	assert.equal(projectSession.projectBackupStatus.value.lastSaveBackup != null, true);
+	assert.equal(app.projectSession.projectBackupStatus.value.lastSaveBackup != null, true);
 	const persisted = handle.bytes;
 	const previousWrites = handle.calls.filter(call => call[0] === 'create').length;
 	fail = true;
-	projectSession.projectContext.stateManager.state.name.value = 'More edits';
-	await projectSession.saveProject();
+	app.projectSession.projectContext.stateManager.state.name.value = 'More edits';
+	await app.projectSession.saveProject();
 	assert.equal(handle.bytes, persisted);
 	assert.equal(handle.calls.filter(call => call[0] === 'create').length, previousWrites);
 	assert.deepEqual(globalThis.projectAlerts, ['Backup disk full']);
-	projectSession.projectBackupController.setTarget(null);
+	app.projectSession.projectBackupController.setTarget(null);
 });
 
 // 【Save asの既存宛先をバックアップし、成功後だけ自動バックアップの対象を切り替える】
@@ -2804,10 +2809,10 @@ test('retains the Chrome save folder and starts backups only after the first sav
 	window.selectProjectSaveFile = async () => handle;
 	window.showDirectoryPicker = () => assert.fail('The chosen save folder should be retained');
 	const app = evaluate(appBundle);
-	const { projectSession } = app;
 	Object.assign(window.testPreferences, { projectBackupAutoEnabled: true, projectBackupAutoIntervalMinutes: 2,
 																																									projectBackupAutoRetentionDays: 1, projectBackupSaveEnabled: true, projectBackupSaveRetentionDays: 7 });
 	await app.newProject();
+	const { projectSession } = app;
 	await projectSession.projectBackupController.tick();
 	assert.equal(projectSession.projectBackupAccess.value, 'unsaved');
 	assert.equal(handles.size, 1);
@@ -2830,7 +2835,8 @@ test('retains the Chrome save folder and starts backups only after the first sav
 	assert.deepEqual(beforeSave[0][1].bytes, saved);
 	assert.equal(decodeProjectFile(handle.bytes).name, 'Unsaved editing');
 	await app.newProject();
-	assert.equal(projectSession.projectBackupAccess.value, 'unsaved');
+	assert.equal(app.projectSession.projectBackupAccess.value, 'unsaved');
+	assert.equal(projectSession.projectBackupAccess.value, 'ready');
 });
 
 // 【更新準備は受付済みの保存を完了させ、新規保存・バックアップは復帰するまで受け付けない】
@@ -3083,7 +3089,7 @@ test('does not initialize renderers after a session closes during project loadin
 	const window = setup(t);
 	const registered = Promise.withResolvers();
 	const completeRegistration = Promise.withResolvers();
-	window.desktop = { async setCurrentProjectFile() { registered.resolve(); await completeRegistration.promise; } };
+	window.desktop = { async setSessionProjectFile(_sessionId, ) { registered.resolve(); await completeRegistration.promise; } };
 	const { projectSession } = evaluate(appBundle);
 	const loading = projectSession.ready(project());
 	await registered.promise;
@@ -3120,4 +3126,136 @@ test('waits for save cleanup while stopping session activity immediately', async
 	await Promise.all([saving, closing]);
 	assert.equal(handle.calls.filter(([action]) => action === 'write').length, 1);
 	assert.equal(projectSession.isProjectSaving.value, false);
+});
+
+// 【タブ切替は作品・Undo・再生位置を維持し、非選択の描画を停止する】
+// 切替を読み込み扱いにすると選択・履歴・プレビュー設定が初期化される。
+// 非選択化と書き出し休止を独立させ、遅い再開処理が裏のタブを動かさないことも確認する。
+test('preserves per-session history and playback while independently suspending inactive previews', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const first = await app.newProject();
+	const initialFps = first.projectContext.stateManager.state.timelineFps.value;
+	first.projectContext.stateManager.commit('changeTimelineRenderSettings', { timelineFps: 24, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 } });
+	first.previewPlayback.showTimeline();
+	first.previewPlayback.seekTimeline(250);
+	first.resolutionFactor.value = 0.5;
+	first.timelineClipboard.value = { kind: 'layer', layer: { id: 'copied-layer' } };
+	const second = await app.newProject();
+	assert.equal(first.renderEngine.isSuspended.value, true);
+	assert.equal(first.visualModuleRendererManagerController.isReady.value, false);
+	assert.equal(first.audioOutput.preview.suspended, true);
+	assert.equal(second.timelineClipboard.value, null);
+	await first.suspendPreview();
+	await app.projectSessions.select(first);
+	assert.equal(first.renderEngine.isSuspended.value, true);
+	assert.equal(second.renderEngine.isSuspended.value, true);
+	await first.resumePreview();
+	assert.equal(first.renderEngine.canRender.value, true);
+	assert.equal(first.previewPlayback.currentTimelineTime.value, 250);
+	assert.equal(first.resolutionFactor.value, 0.5);
+	first.projectContext.stateManager.undo();
+	assert.equal(first.projectContext.stateManager.state.timelineFps.value, initialFps);
+	assert.equal(second.projectContext.stateManager.canUndo.value, false);
+	await app.projectSessions.select(second);
+	await first.resumePreview();
+	assert.equal(first.renderEngine.isSuspended.value, true);
+	await Promise.all([app.projectSessions.select(first), app.projectSessions.select(second), app.projectSessions.select(first)]);
+	assert.equal(app.projectSessions.activeSession.value, first);
+	assert.equal(first.renderEngine.canRender.value, true);
+	assert.equal(second.renderEngine.isSuspended.value, true);
+	await app.disposeApplication();
+});
+
+// 【同じ保存先は既存タブへ移動し、同じProject IDを持つ別ファイルは別タブにする】
+// ファイルをコピーした作品やSave asを誤って同一タブへまとめず、再オープンでは未保存変更を失わない。
+test('selects an already open file without reloading edits and distinguishes copied project files', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const bytes = await encodeProjectFile(project());
+	const firstFile = fileHandle('first.gsproj', { bytes });
+	const secondFile = fileHandle('copy.gsproj', { bytes });
+	const reopenedHandle = { ...firstFile };
+	firstFile.isSameEntry = async other => other === reopenedHandle;
+	assert.equal(await app.openProject(null, firstFile), true);
+	const first = app.projectSession;
+	first.projectContext.stateManager.state.name.value = 'Unsaved first';
+	await app.openProject(null, secondFile);
+	const second = app.projectSession;
+	await app.openProject(null, reopenedHandle);
+	assert.equal(app.projectSession, first);
+	assert.equal(first.projectContext.snapshot().name, 'Unsaved first');
+	assert.equal(second.projectContext.snapshot().name, 'Example');
+	assert.equal(app.projectSessions.sessions.value.length, 2);
+	await app.disposeApplication();
+});
+
+// 【別タブの保存先は上書きせず、保存中のタブも閉じない】
+// 同じウィンドウの権限を共有していても、作品単位の保存先と未完了の書込みを保護する。
+test('rejects another tabs save destination and blocks closing until save cleanup completes', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	const target = fileHandle('owned.gsproj', { bytes: await encodeProjectFile(project()) });
+	await app.openProject(null, target);
+	const first = app.projectSession;
+	const second = await app.newProject();
+	window.selectProjectSaveFile = async () => target;
+	const original = target.bytes;
+	await second.saveProject();
+	assert.equal(target.bytes, original);
+	assert.equal(second.hasUnsavedChanges.value, true);
+	assert.equal(second.projectFileHandle.value, null);
+	assert.equal(globalThis.projectAlerts.length, 1);
+	const cleanup = Promise.withResolvers();
+	const started = Promise.withResolvers();
+	window.desktop = { async releaseProjectReservations() { started.resolve(); await cleanup.promise; } };
+	const save = first.saveProject();
+	await started.promise;
+	assert.equal(app.projectSessions.isProjectSaving.value, true);
+	assert.equal(await app.projectSessions.close(first), false);
+	cleanup.resolve();
+	await save;
+	assert.equal(await app.projectSessions.close(first), true);
+	assert.equal(app.projectSession, second);
+	await app.disposeApplication();
+});
+
+// 【最後のタブを閉じたら空の編集画面へ戻し、アプリ終了ですべてのセッションを破棄する】
+// 閉じた作品の保存先・Workerを残さず、次の新規作成で空タブが余分に増えないことを保証する。
+test('returns to an empty editor after the final close and disposes every remaining session', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const first = await app.newProject();
+	assert.equal(await app.projectSessions.close(first), true);
+	assert.equal(first.isDisposed, true);
+	assert.equal(app.projectSession.projectContext.hasProject, false);
+	assert.equal(app.projectSessions.sessions.value.length, 1);
+	const second = await app.newProject();
+	const third = await app.newProject();
+	assert.equal(app.projectSessions.sessions.value.length, 2);
+	assert.equal(app.projectSessions.hasUnsavedChanges.value, true);
+	await app.disposeApplication();
+	assert.equal(second.isDisposed, true);
+	assert.equal(third.isDisposed, true);
+	assert.equal(await app.newProject(), null);
+});
+
+// 【保存先の非同期照合中にアプリを閉じても、後からセッションを生成しない】
+// FileSystemHandle.isSameEntryは非同期なので、受付時の寿命チェックだけでは終了後に購読が残る。
+test('does not create a session after disposal during asynchronous file identity checking', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const firstFile = fileHandle('first.gsproj', { bytes: await encodeProjectFile(project()) });
+	await app.openProject(null, firstFile);
+	const first = app.projectSession;
+	const started = Promise.withResolvers();
+	const checked = Promise.withResolvers();
+	firstFile.isSameEntry = async () => { started.resolve(); return checked.promise; };
+	const opening = app.projectSessions.open(project(), 'second.gsproj', fileHandle('second.gsproj'));
+	await started.promise;
+	await app.disposeApplication();
+	checked.resolve(false);
+	assert.equal(await opening, null);
+	assert.equal(first.isDisposed, true);
+	assert.deepEqual(app.projectSessions.sessions.value, [first]);
 });

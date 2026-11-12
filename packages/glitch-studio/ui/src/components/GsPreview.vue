@@ -189,6 +189,7 @@ let mainEditingDocument: Document | null = null;
 let editingDocuments = new Set<Document>();
 
 function onEditingKeydown(event: KeyboardEvent) {
+	if (renderEngine.isSuspended.value) return;
 	if (event.key !== 'Escape' || event.defaultPrevented || (projectSession.previewParameterEditing.handles.value.length === 0 && projectSession.previewParameterEditing.viewport.value == null)) return;
 	projectSession.previewParameterEditing.clear();
 	event.preventDefault();

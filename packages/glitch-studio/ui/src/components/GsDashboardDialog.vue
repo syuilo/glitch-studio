@@ -57,7 +57,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
+import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsModal from './common/GsModal.vue';
 import GsAboutDialog from './GsAboutDialog.vue';
@@ -66,22 +66,17 @@ import GsTime from './common/GsTime.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
 import { i18n } from '@/i18n.ts';
 import { recentProjects } from '@/recent-projects.ts';
-import { createProjectActions } from '@/project-actions.ts';
-import { useProjectSession } from '@/project-session.ts';
+import { projectSessions, newProject, newProjectFromImageOrVideo, openProject, openRecentProject as openRecentProjectFile } from '@/app.ts';
 import { desktopUpdateUi } from '@/desktop-update-ui.ts';
-import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { importAssets } from '@/utility/import-assets.ts';
 import { installFileDropHandlers } from '@/utility/file-drop.ts';
 import * as ui from '@/ui.ts';
 
-const projectSession = useProjectSession();
-const { newProject, newProjectFromImageOrVideo, openProject } = createProjectActions(projectSession);
 
 const version = _VERSION_;
 const isElectron = __ELECTRON__;
 
 const modal = useTemplateRef('modal');
-const workspaceController = inject(workspaceControllerKey)!;
 let disposeFileDrops: (() => void) | null = null;
 const recentProjectsLoading = ref(true);
 const recentProjectsBusy = ref(false);
@@ -96,9 +91,7 @@ async function openRecentProject(id: string) {
 	if (recentProjectsBusy.value) return;
 	recentProjectsBusy.value = true;
 	try {
-		const handle = await recentProjects.resolve(id);
-		if (handle == null) return;
-		if (await openProject(null, handle)) modal.value?.close();
+		if (await openRecentProjectFile(id)) modal.value?.close();
 	} catch (error) {
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 	} finally {
@@ -158,11 +151,13 @@ async function onFileDrop(files: File[], event: DragEvent) {
 		// ファイル選択ボタンと同じ入口を使い、素材に対応したノード・レイヤー・解像度を設定する。
 		opened = await newProjectFromImageOrVideo(files[0]);
 	} else {
-		const ids = await importAssets(projectSession.projectContext, files, async () => {
-			if (!projectSession.projectContext.hasProject) await newProject();
+		let session = projectSessions.activeSession.value;
+		const ids = await importAssets(session.projectContext, files, async () => {
+			if (!session.projectContext.hasProject) session = await newProject() ?? session;
+			return session.projectContext;
 		});
 		opened = ids.length > 0;
-		if (opened) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });
+		if (opened) session.workspacePanelRevealRequest.value = { contentType: 'assets', sourcePanelId: null };
 	}
 	if (opened) modal.value!.close();
 }

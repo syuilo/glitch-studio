@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, shallowRef } from 'vue';
+import { computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
 import type { Ref } from 'vue';
 import type { DesktopEditCommand } from '@gs/glitch-studio_shared/desktop-edit.ts';
 import type { EditorEditTarget } from './useEditorEditActions.ts';
@@ -7,6 +7,7 @@ import { isNativeTextEditingTarget } from '../utility/editor-edit-events.ts';
 export function useHeaderEditActions(options: {
 	editorTarget: Readonly<Ref<EditorEditTarget | null>>;
 	executeNativeCommand: (command: DesktopEditCommand) => Promise<void>;
+	isActive?: Readonly<Ref<boolean>>;
 	reportError: (error: unknown) => void;
 }) {
 	const focusedElement = shallowRef<HTMLElement | null>(null);
@@ -16,6 +17,7 @@ export function useHeaderEditActions(options: {
 	const nativeCanDelete = shallowRef(false);
 
 	function updateSelection(event?: Event) {
+		if (options.isActive?.value === false) return;
 		const nextTarget = event != null && 'relatedTarget' in event ? event.relatedTarget : null;
 		if (event?.type === 'focusout' && nextTarget instanceof HTMLElement && nextTarget.closest('[data-editor-command-button]') != null) return;
 		const activeElement = window.document.activeElement;
@@ -33,6 +35,14 @@ export function useHeaderEditActions(options: {
 			nativeCanDelete.value = writableTextInput.value && (target?.textContent?.length ?? 0) > 0;
 		}
 	}
+	watch(() => options.isActive?.value, active => {
+		if (active !== false) return;
+		focusedElement.value = null;
+		selectedText.value = false;
+		nativeTextEditing.value = false;
+		writableTextInput.value = false;
+		nativeCanDelete.value = false;
+	}, { flush: 'sync' });
 
 	const activeEditor = computed(() => {
 		const editor = options.editorTarget.value;
