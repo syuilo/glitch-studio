@@ -8,6 +8,12 @@ import sharedConfig from '../../../eslint.config.mjs';
 export default [
 	...sharedConfig,
 	{
+		files: ['build/**/*.mjs'],
+		languageOptions: {
+			globals: globals.node,
+		},
+	},
+	{
 		files: ['src/**/*.vue'],
 		...pluginMisskey.configs.typescript,
 	},

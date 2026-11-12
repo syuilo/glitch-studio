@@ -3,7 +3,7 @@
 @layer external, base;
 
 @import url('./fonts/bundled.css');
-@import url("@tabler/icons-webfont/dist/tabler-icons.css") layer(external);
+@import url('@glitch-studio-icons') layer(external);
 
 // ビルド時のCSS分割で読み込み順が変わっても、コンポーネント固有のスタイルを優先する。
 // 基礎スタイルには!importantを使わず、明示的な効果を付けるユーティリティはレイヤー外に置く。

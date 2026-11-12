@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import * as Path from 'node:path';
 import packageJson from '../../../package.json' with { type: 'json' };
+import { iconFontPlugin } from './build/vite-plugin-icon-font.mjs';
 
 const isElectron = process.env.BUILD_TARGET === 'electron';
 
@@ -27,7 +28,7 @@ export default defineConfig({
 			},
 		},
 	},
-	plugins: [vue()],
+	plugins: [iconFontPlugin(), vue()],
 	resolve: {
 		alias: {
 			'@': Path.resolve(import.meta.dirname, 'src'),

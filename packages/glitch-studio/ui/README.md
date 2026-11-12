@@ -4,6 +4,10 @@
 
 UIのChivo Monoは、Web版・Electron版ともにフォント本体とライセンス本文を同梱し、Google Fontsへの通信なしで使用する。同梱方法と取得元は[UIフォント](src/fonts/README.md)を参照する。
 
+Tablerのアイコンフォントは、開発時にはパッケージの通常版を使用し、本番では`build/vite-plugin-icon-font.mjs`が`src/**/*.{ts,vue}`を走査して必要な文字とCSSだけを生成する。Web版・Electron版・別ウィンドウで同じサブセットを使用し、完全版フォントへのフォールバックは持たない。生成物は`node_modules/.cache/icon-font/`に置き、Viteがハッシュ付きのアセットとして出力する。生成ツール・WASMはブラウザーへ配信しない。Tablerのライセンス本文はビルド時に`licenses/tabler-icons.txt`へ出力する。
+
+アイコンは`ti ti-plus`のように完全なクラス名を文字列で記述する。条件式の両側やメニュー定義も収集するため、通常の追加では収録リストの手動更新は不要。文字列を組み立てる場合は、`vite.config.ts`の`iconFontPlugin({ additionalIconNames: [...] })`へ取り得る完全な名前を列挙する。未知のアイコン名は指定元を示してビルドエラーにし、`ti-fw`だけはUI側の補助クラスとして除外する。CSS・フォントの生成に失敗した場合もビルドを停止する。
+
 プロジェクトの操作はCommandを通し、Undo/Redoとレンダラー同期を同じ変更通知から行う。
 
 通常のパラメータの固定値・式入力は、同じCommandの種類・編集対象・パラメータパス・編集種別への更新が前回から2000ms以内なら、一つのUndo履歴へ自動でまとめる。対象はノード、Timelineレイヤー、Visual Moduleのカスタム値。公開・カスタムパラメータの定義編集、キー・Automation Graphの編集、接続・入力方式変更・リセットなどは自動マージしない。`CommandDef.getAutoMergeKey`が対象と項目の同一性を定義し、`UndoRedo`が直前の履歴と経過時間を判定する。値の反映と変更通知は更新ごとに行い、Undoでは最初の状態、Redoでは最後の状態を復元する。
