@@ -4,7 +4,7 @@
 		<GsImageAnalysisSettings/>
 		<div
 			ref="scope"
-			:class="[$style.scope, { [$style.zoomed]: zoom > 1, [$style.panning]: panning }]"
+			:class="[$style.scope, { [$style.panning]: panning }]"
 			data-test-waveform-plot
 			tabindex="0"
 			@wheel="onWheel"
@@ -39,6 +39,12 @@
 					:style="{ left: `${pointerAxisTicks.x.position * 100}%` }"
 				></div>
 			</div>
+			<div
+				v-if="selection != null"
+				:class="$style.selection"
+				data-test-image-analysis-selection
+				:style="{ left: `${selection.x * 100}%`, top: `${selection.y * 100}%`, width: `${selection.width * 100}%`, height: `${selection.height * 100}%` }"
+			></div>
 			<div :class="$style.yAxisTicks" data-test-waveform-y-axis>
 				<span
 					v-for="tick in axisTicks.y" :key="tick.value"
@@ -96,16 +102,16 @@ const sizeObserver = useWaveformCanvasSize(scope, size => appContext.setWaveform
 const scopeSize = sizeObserver.size;
 const { pointerPosition, clearPointerPosition, updatePointerPosition } = useImageAnalysisPointer(scope);
 const viewport = computed(() => appContext.analysisWaveformViewports.value?.[props.direction] ?? FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT);
-const { panning, zoom, cancelPan, onWheel, onPointerdown, onKeydown } = useImageAnalysisViewport(scope, viewport,
-	value => appContext.setWaveformViewport(props.direction, value), () => appContext.flushImageAnalysisDisplay(), appContext.renderEngine.isSuspended);
+const displayedViewport = computed(() => displayedImageAnalysisSettings.value.waveformViewports?.[props.direction] ?? FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT);
+const { panning, selection, cancelInteraction, onWheel, onPointerdown, onKeydown } = useImageAnalysisViewport(scope, viewport,
+	value => appContext.setWaveformViewport(props.direction, value), () => appContext.flushImageAnalysisDisplay(), appContext.renderEngine.isSuspended, { displayedViewport });
 
-function observeScope() { clearPointerPosition(); cancelPan(); sizeObserver.changeWindow(); }
+function observeScope() { clearPointerPosition(); cancelInteraction(); sizeObserver.changeWindow(); }
 
 const axisTicks = computed(() => {
 	const horizontal = props.direction === 'horizontal';
 	const settings = displayedImageAnalysisSettings.value;
-	const displayedViewport = settings.waveformViewports?.[props.direction] ?? FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT;
-	const { positionRange, valueWindow } = getPreviewWaveformViewportRanges(props.direction, displayedViewport);
+	const { positionRange, valueWindow } = getPreviewWaveformViewportRanges(props.direction, displayedViewport.value);
 	const positionTicks = createImagePositionAxisTicks(positionRange);
 	const span = settings.valueRange.maximum - settings.valueRange.minimum;
 	const valueTicks = isDrawableImageValueRange(settings.valueRange) ? createImageValueAxisTicks(settings.valueScale, {
@@ -166,6 +172,7 @@ useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => props.direction 
 	overflow: clip;
 	touch-action: none;
 	user-select: none;
+	cursor: crosshair;
 }
 
 .viewportControls {
@@ -181,12 +188,16 @@ useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => props.direction 
 	padding: 2px 4px;
 }
 
-.zoomed {
-	cursor: grab;
-}
-
 .panning {
 	cursor: grabbing;
+}
+
+.selection {
+	position: absolute;
+	box-sizing: border-box;
+	border: 1px solid var(--THEME-accent);
+	background: color(from var(--THEME-accent) srgb r g b / 0.15);
+	pointer-events: none;
 }
 
 .yAxisTicks {

@@ -4,7 +4,7 @@
 		<GsImageAnalysisSettings/>
 		<div
 			ref="scope"
-			:class="[$style.scope, { [$style.zoomed]: zoom > 1, [$style.panning]: panning }]"
+			:class="[$style.scope, { [$style.panning]: panning }]"
 			data-test-histogram-plot
 			tabindex="0"
 			@wheel="onWheel"
@@ -29,6 +29,12 @@
 					:style="{ left: `${pointerAxisTick.position * 100}%` }"
 				></div>
 			</div>
+			<div
+				v-if="selection != null"
+				:class="$style.selection"
+				data-test-image-analysis-selection
+				:style="{ left: `${selection.x * 100}%`, top: '0%', width: `${selection.width * 100}%`, height: '100%' }"
+			></div>
 			<div :class="$style.xAxisTicks" data-test-histogram-x-axis>
 				<span
 					v-for="tick in xAxisTicks" :key="tick.value"
@@ -52,6 +58,7 @@ import { FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT } from '@gs/glitch-studio_shared/p
 import { isDrawableImageValueRange } from '@gs/shared/utility/image-value-scale.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import GsImageAnalysisSettings from './GsImageAnalysisSettings.vue';
+import type { ImageValueRange } from '@gs/shared/utility/image-value-scale.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
@@ -65,13 +72,16 @@ const canvasContainer = useTemplateRef('canvasContainer');
 const scope = useTemplateRef('scope');
 const scopeWidth = ref(0);
 const { pointerPosition, clearPointerPosition, updatePointerPosition } = useImageAnalysisPointer(scope);
-const viewport = computed(() => {
-	const range = appContext.analysisHistogramViewport.value;
+
+function getHistogramViewport(range: ImageValueRange | null) {
 	return { ...FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT, x: range?.minimum ?? 0, width: (range?.maximum ?? 1) - (range?.minimum ?? 0) };
-});
-const { panning, zoom, cancelPan, onWheel, onPointerdown, onKeydown } = useImageAnalysisViewport(scope, viewport,
+}
+
+const viewport = computed(() => getHistogramViewport(appContext.analysisHistogramViewport.value));
+const displayedViewport = computed(() => getHistogramViewport(displayedImageAnalysisSettings.value.histogramViewport));
+const { panning, selection, cancelInteraction, onWheel, onPointerdown, onKeydown } = useImageAnalysisViewport(scope, viewport,
 	value => appContext.setHistogramViewport({ minimum: value.x, maximum: Math.min(1, value.x + value.width) }),
-	() => appContext.flushImageAnalysisDisplay(), appContext.renderEngine.isSuspended, 'x');
+	() => appContext.flushImageAnalysisDisplay(), appContext.renderEngine.isSuspended, { axes: 'x', displayedViewport });
 const xAxisTicks = computed(() => {
 	const settings = displayedImageAnalysisSettings.value;
 	if (!isDrawableImageValueRange(settings.valueRange)) return [];
@@ -97,7 +107,7 @@ let scopeResizeObserver: ResizeObserver | null = null;
 
 function observeScope() {
 	clearPointerPosition();
-	cancelPan();
+	cancelInteraction();
 	scopeResizeObserver?.disconnect();
 	const element = scope.value;
 	if (element == null) return;
@@ -128,12 +138,12 @@ useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => 'histogramCanvas
 	overflow: clip;
 }
 
-.zoomed {
-	cursor: grab;
-}
-
-.panning {
-	cursor: grabbing;
+.selection {
+	position: absolute;
+	box-sizing: border-box;
+	border: 1px solid var(--THEME-accent);
+	background: color(from var(--THEME-accent) srgb r g b / 0.15);
+	pointer-events: none;
 }
 
 .scope {
@@ -147,6 +157,11 @@ useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => 'histogramCanvas
 	overflow: clip;
 	touch-action: none;
 	user-select: none;
+	cursor: crosshair;
+}
+
+.panning {
+	cursor: grabbing;
 }
 
 .xAxisTicks {

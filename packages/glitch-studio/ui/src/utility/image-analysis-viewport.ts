@@ -24,3 +24,16 @@ export function panImageAnalysisViewport(viewport: PreviewImageAnalysisViewport,
 		y: clamp(viewport.y - movement.y / size.height * viewport.height, 0, 1 - viewport.height),
 	};
 }
+
+/** 現在の表示領域内で選択した矩形を、全体を基準にした次の表示領域へ換算する。 */
+export function selectImageAnalysisViewport(viewport: PreviewImageAnalysisViewport, selection: PreviewImageAnalysisViewport): PreviewImageAnalysisViewport {
+	const width = clamp(viewport.width * selection.width, MINIMUM_SPAN, 1);
+	const height = clamp(viewport.height * selection.height, MINIMUM_SPAN, 1);
+	// 選択が100倍の上限より小さければ、その中心を見失わないよう必要な幅へ広げる。
+	return {
+		x: clamp(viewport.x + (selection.x + selection.width / 2) * viewport.width - width / 2, 0, 1 - width),
+		y: clamp(viewport.y + (selection.y + selection.height / 2) * viewport.height - height / 2, 0, 1 - height),
+		width,
+		height,
+	};
+}
