@@ -60,8 +60,6 @@ export class ProjectSaveController {
 	private readonly sessionId: string;
 	private readonly fileOperations: ProjectFileOperationController;
 	private readonly checkSaveDestination: (handle: ProjectFileHandle) => Promise<void>;
-	private pausedForUpdate = false;
-	private updatePreparationError: unknown = null;
 	private readonly saveQueue = new ProjectSaveQueue();
 	private readonly saveTarget = shallowRef<ProjectSaveTarget | null>(null);
 	private readonly initialFileName: string | null;
@@ -107,9 +105,8 @@ export class ProjectSaveController {
 			schedule: (callback, delay) => window.setTimeout(callback, delay),
 			cancel: timer => { if (timer != null) window.clearTimeout(timer as number); },
 		});
-		this.stopBackupSettings = watch(() => [preferences.r.projectBackupAutoEnabled.value, preferences.r.projectBackupAutoIntervalMinutes.value,
-			preferences.r.projectBackupAutoRetentionDays.value, preferences.r.projectBackupSaveEnabled.value,
-			preferences.r.projectBackupSaveRetentionDays.value], () => this.projectBackupController.refreshSchedule());
+		this.stopBackupSettings = watch(() => [preferences.r.projectBackupAutoEnabled.value, preferences.r.projectBackupAutoIntervalMinutes.value],
+			() => this.projectBackupController.refreshSchedule());
 
 		const { fileName, fileHandle } = options;
 		// Fileから開いた場合も読み込み直後は保存済みとする。新規プロジェクトは初回保存が必要。
@@ -127,7 +124,7 @@ export class ProjectSaveController {
 	}
 
 	public async saveProject(saveAs = false): Promise<void> {
-		if (this.disposed.value || this.pausedForUpdate) return;
+		if (this.disposed.value) return;
 		const releaseOperation = this.fileOperations.tryBegin();
 		if (releaseOperation == null) return;
 		this.saving.value = true;
@@ -192,7 +189,7 @@ export class ProjectSaveController {
 					console.error(error);
 					return { error };
 				} finally {
-					// 予約の解放まで保存キューに含め、更新の準備が後処理を追い越さないようにする。
+					// 予約の解放まで保存キューに含め、セッションの終了が後処理を追い越さないようにする。
 					await window.desktop?.releaseProjectReservations?.(this.sessionId).catch(console.error);
 				}
 				return null;
@@ -202,32 +199,10 @@ export class ProjectSaveController {
 			releaseOperation();
 		}
 		// エラーの確認待ちは保存処理ではないため、保存中の表示と終了防止を先に解除する。
-		if (saveFailure != null) {
+		if (saveFailure != null && !this.disposed.value) {
 			const { error } = saveFailure;
-			// 更新の要求元へ失敗を返し、更新の待機表示を解除してから報告する。
-			// 後処理中に停止を要求された場合も、失敗を見落とさない。
-			if (this.pausedForUpdate) this.updatePreparationError = error;
-			else if (!this.disposed.value) await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+			await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		}
-	}
-
-	public async pauseForUpdate(): Promise<() => void> {
-		if (this.disposed.value) return () => {};
-		this.pausedForUpdate = true;
-		this.updatePreparationError = null;
-		this.projectBackupController.setPaused(true);
-		const resume = () => {
-			if (this.disposed.value) return;
-			this.pausedForUpdate = false;
-			this.projectBackupController.setPaused(false);
-		};
-		// 既に受け付けた手動保存とバックアップは、削除・整理も含めて完了を待つ。
-		await this.saveQueue.whenIdle();
-		if (this.updatePreparationError != null) {
-			resume();
-			throw this.updatePreparationError;
-		}
-		return resume;
 	}
 
 	public dispose(): Promise<void> {

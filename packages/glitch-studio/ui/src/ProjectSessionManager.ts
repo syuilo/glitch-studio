@@ -158,12 +158,15 @@ export class ProjectSessionManager {
 		}) ?? false;
 	}
 
-	public async pauseForDesktopUpdate(): Promise<() => Promise<void>> {
-		const resumes: (() => Promise<void>)[] = [];
-		try {
-			for (const session of this.sessions.value) resumes.push(await session.pauseForDesktopUpdate());
-		} catch (error) { await Promise.all(resumes.map(resume => resume())); throw error; }
-		return async () => { await Promise.all(resumes.map(resume => resume())); };
+	public reserveForDesktopUpdate(): () => void {
+		// Closeは一覧から取り除いてから保存・音声・main側の後処理を待つため、
+		// セッション0件だけでは終了完了とは限らない。Openの準備中も受付で判定する。
+		if (this.disposed || this.fileOperations.isBusy.value) throw new Error(i18n.ts._DesktopUpdate.ApplicationBusy);
+		if (this.sessions.value.length > 0) throw new Error(i18n.ts._DesktopUpdate.CloseProjectsBeforeUpdating);
+		// 確認と予約を同期的に行い、更新が終わるまで新しい読込・書き出しを受け付けない。
+		const release = applicationActivity.beginUpdate();
+		if (release == null) throw new Error(i18n.ts._DesktopUpdate.ApplicationBusy);
+		return release;
 	}
 
 	public dispose(): Promise<void> {

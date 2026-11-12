@@ -665,14 +665,6 @@ export class ProjectSessionContext {
 		else await this.suspendPreview('inactive');
 	}
 
-	public async pauseForDesktopUpdate(): Promise<() => Promise<void>> {
-		const resumeSaving = await this.projectSaveController.pauseForUpdate();
-		try { await this.suspendPreview('desktopUpdate'); } catch (error) { resumeSaving(); throw error; }
-		return async () => {
-			try { await this.resumePreview('desktopUpdate'); } finally { resumeSaving(); }
-		};
-	}
-
 	/** デスクトップ側への登録とプレビューの起動を一度だけ行う。再試行には新しいセッションを作る。 */
 	public async start(): Promise<void> {
 		if (this.disposed) return;
@@ -726,8 +718,12 @@ export class ProjectSessionContext {
 		this.previewParameterEditing.clear();
 		this.previewPlayback.dispose();
 		this.voicevoxGeneration.dispose();
-		this.disposal = Promise.all([this.audioOutput.dispose(), this.projectSaveController.dispose()]).then(async () => {
+		// 音声の終了に失敗しても保存の後処理を待つ。先に終了扱いにすると、
+		// 最後のタブを閉じた直後のアプリ更新が書き込みを追い越してしまう。
+		this.disposal = Promise.allSettled([this.audioOutput.dispose(), this.projectSaveController.dispose()]).then(async results => {
 			await window.desktop?.closeProjectSession?.(this.id);
+			const failure = results.find(result => result.status === 'rejected');
+			if (failure != null) throw failure.reason;
 		});
 		ui.disposeProjectSessionPopups(this);
 		this.projectContext.dispose();

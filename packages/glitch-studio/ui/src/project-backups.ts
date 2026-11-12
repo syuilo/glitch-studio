@@ -69,13 +69,13 @@ export async function writeProjectBackup(target: ProjectBackupTarget, kind: Proj
 	}
 }
 
-export async function pruneProjectBackups(target: ProjectBackupTarget, kind: ProjectBackupKind, retentionDays: number, time: number, protectedName?: string | null): Promise<void> {
+export async function pruneProjectBackups(target: ProjectBackupTarget, kind: ProjectBackupKind, retentionDays: number, time: number): Promise<void> {
 	if (!Number.isSafeInteger(retentionDays) || retentionDays < 1) throw new Error('Invalid backup retention period.');
 	if (!await target.directory.hasPermission()) throw new Error('Backup folder access is required. Open Preferences to grant access.');
 	const cutoff = time - retentionDays * 86400000;
 	for (const name of await target.directory.list()) {
 		const created = projectBackupTime(target.name, kind, name);
-		if (name !== protectedName && created != null && created < cutoff) await target.directory.remove(name);
+		if (created != null && created < cutoff) await target.directory.remove(name);
 	}
 }
 
@@ -105,31 +105,20 @@ type BackupControllerOptions = {
 
 export class ProjectBackupController {
 	private disposed = false;
-	private paused = false;
 	private target: ProjectBackupTarget | null = null;
 	private generation = 0;
 	private lastFingerprint: string | null = null;
-	private lastAutoBackupName: string | null = null;
-	private autoBackupFailed = false;
 	private nextAutoBackup = 0;
 	private timer: unknown;
 	private status: ProjectBackupStatus = { lastAutoBackup: null, lastSaveBackup: null, error: null };
 
 	constructor(private options: BackupControllerOptions) {}
 
-	setPaused(paused: boolean): void {
-		if (this.disposed) return;
-		this.paused = paused;
-		this.refreshSchedule();
-	}
-
 	setTarget(target: ProjectBackupTarget | null): void {
 		if (this.disposed) return;
 		this.target = target;
 		this.generation++;
 		this.lastFingerprint = null;
-		this.lastAutoBackupName = null;
-		this.autoBackupFailed = false;
 		this.status = { lastAutoBackup: null, lastSaveBackup: null, error: null };
 		this.publish();
 		this.refreshSchedule();
@@ -153,66 +142,43 @@ export class ProjectBackupController {
 		this.options.cancel(this.timer);
 		this.timer = null;
 		const settings = this.options.settings();
-		if (this.disposed || this.paused || !this.target || (!settings.autoEnabled && !settings.saveEnabled)) return;
+		if (this.disposed || this.target == null || !settings.autoEnabled) return;
 		try { validateProjectBackupSettings(settings); } catch (error) { this.reportError(error); return; }
-		// 長い間隔でも期限の整理は行う。復帰時は現在の状態を1回だけ保存し、休止中の回数を積まない。
+		// 期限整理だけの定期実行は行わない。ブラウザーのタイマー上限を超える間隔だけは
+		// 分割して待ち、復帰時にも最新状態を1回だけ保存する。
 		this.timer = this.options.schedule(() => { void this.tick().finally(() => this.schedule()); },
-			settings.autoEnabled ? Math.max(1, Math.min(60000, this.nextAutoBackup - this.options.now())) : 60000);
+			Math.max(1, Math.min(2 ** 31 - 1, this.nextAutoBackup - this.options.now())));
 	}
 
 	async tick(): Promise<void> {
-		if (this.disposed || this.paused) return;
+		if (this.disposed) return;
 		const target = this.target;
 		const generation = this.generation;
 		await this.options.runExclusive(async () => {
-			if (!target || generation !== this.generation) return;
+			if (target == null || generation !== this.generation) return;
 			try {
 				const settings = this.options.settings();
 				validateProjectBackupSettings(settings);
 				const now = this.options.now();
-				let automaticError = settings.autoEnabled && this.autoBackupFailed ? this.status.error : null;
-				try {
-					if (settings.autoEnabled && now >= this.nextAutoBackup) {
-						this.nextAutoBackup = now + settings.autoIntervalMinutes * 60000;
-						const snapshot = this.options.snapshot();
-						if (snapshot && snapshot.fingerprint !== this.lastFingerprint) {
-							this.autoBackupFailed = true;
-							const data = await snapshot.encode();
-							if (generation !== this.generation) return;
-							const name = await writeProjectBackup(target, 'auto', data, now);
-							if (generation !== this.generation) return;
-							this.lastAutoBackupName = name;
-							this.lastFingerprint = snapshot.fingerprint;
-							this.status.lastAutoBackup = now;
-							this.autoBackupFailed = false;
-						} else if (snapshot) this.autoBackupFailed = false;
-					}
-					if (generation !== this.generation) return;
-					// 新しい復元地点を作れない間は以前の自動バックアップを消さず、失敗表示も維持する。
-					// 未変更なら新規作成を省略するため、最後に成功した1件は期限を超えても残す。
-					// 次の作成に成功すると保護対象が移り、以前の復元地点は通常の期限で整理される。
-					if (settings.autoEnabled && this.lastFingerprint != null && !this.autoBackupFailed) {
-						await pruneProjectBackups(target, 'auto', settings.autoRetentionDays, now, this.lastAutoBackupName);
-					}
-					if (!this.autoBackupFailed) automaticError = null;
-				} catch (error) {
-					automaticError = error instanceof Error ? error.message : String(error);
-				}
+				if (!settings.autoEnabled || now < this.nextAutoBackup) return;
+				this.nextAutoBackup = now + settings.autoIntervalMinutes * 60000;
+				const snapshot = this.options.snapshot();
+				if (snapshot == null || snapshot.fingerprint === this.lastFingerprint) return;
+				const data = await snapshot.encode();
 				if (generation !== this.generation) return;
-				let saveError: string | null = null;
-				try {
-					// 自動バックアップの失敗によって、独立した保存時バックアップの期限整理を止めない。
-					if (settings.saveEnabled) await pruneProjectBackups(target, 'save', settings.saveRetentionDays, now);
-				} catch (error) {
-					saveError = error instanceof Error ? error.message : String(error);
-				}
+				await writeProjectBackup(target, 'auto', data, now);
 				if (generation !== this.generation) return;
-				this.status.error = [automaticError, saveError].filter(Boolean).join('\n') || null;
+				this.lastFingerprint = snapshot.fingerprint;
+				this.status.lastAutoBackup = now;
+				this.status.error = null;
+				this.publish();
+				// 新しい復元地点を作れた場合だけ同じ種類の古いものを整理する。
+				// 未変更時・作成失敗時には削除せず、作成時刻を基準にして今回の1件も残す。
+				await pruneProjectBackups(target, 'auto', settings.autoRetentionDays, now);
 			} catch (error) {
 				if (generation !== this.generation) return;
 				this.reportError(error);
 			}
-			this.publish();
 		});
 	}
 
@@ -235,14 +201,18 @@ export class ProjectBackupController {
 	}
 
 	async afterSave(target: ProjectBackupTarget, saveBackupTime: number | null): Promise<void> {
-		if (this.disposed) return;
+		if (this.disposed || saveBackupTime == null) return;
 		const generation = this.generation;
-		if (saveBackupTime != null) this.status.lastSaveBackup = saveBackupTime;
+		this.status.lastSaveBackup = saveBackupTime;
 		this.publish();
 		const settings = this.options.settings();
 		if (!settings.saveEnabled) return;
 		try {
-			await pruneProjectBackups(target, 'save', settings.saveRetentionDays, this.options.now());
+			await pruneProjectBackups(target, 'save', settings.saveRetentionDays, saveBackupTime);
+			if (generation === this.generation) {
+				this.status.error = null;
+				this.publish();
+			}
 		} catch (error) {
 			// 削除失敗は、既に確定した本体保存の失敗として報告しない。
 			if (generation === this.generation) this.reportError(error);

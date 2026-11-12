@@ -3066,120 +3066,102 @@ test('retains the Chrome save folder and starts backups only after the first sav
 	assert.equal(projectSession.projectBackupAccess.value, 'ready');
 });
 
-// 【更新準備は受付済みの保存を完了させ、新規保存・バックアップは復帰するまで受け付けない】
-// 未保存の変更の破棄に同意していても、書込み途中のファイルを残して終了してはならない。
-// 受け付けたSaveだけを完了させ、更新失敗後には現在の内容を再び保存できることを確認する。
-test('drains the accepted save before preparing an update and resumes saving afterwards', async t => {
-	const window = setup(t);
-	const handle = fileHandle('update.gsproj');
-	const { projectSession } = evaluateSession(project({ name: 'first' }), { fileName: handle.name, fileHandle: handle });
-	await startActiveProjectSession(projectSession);
-	const started = Promise.withResolvers();
-	const finish = Promise.withResolvers();
-	const createWritable = handle.createWritable;
-	handle.createWritable = async () => {
-		const stream = await createWritable();
-		return { ...stream, async close() { started.resolve(); await finish.promise; await stream.close(); } };
-	};
-	const firstSave = projectSession.saveProject();
-	await started.promise;
-	projectSession.projectContext.stateManager.state.name.value = 'second';
-	await projectSession.saveProject();
-	let readyToUpdate = false;
-	const preparing = projectSession.pauseForDesktopUpdate().then(resume => { readyToUpdate = true; return resume; });
-	projectSession.projectContext.stateManager.state.name.value = 'third';
-	await projectSession.saveProject();
-	await window.runTimers();
-	assert.equal(readyToUpdate, false);
-	finish.resolve();
-	await firstSave;
-	const resume = await preparing;
-	assert.equal(decodeProjectFile(handle.bytes).name, 'first');
-	assert.equal(handle.calls.filter(([action]) => action === 'write').length, 1);
-	await resume();
-	await projectSession.saveProject();
-	assert.equal(decodeProjectFile(handle.bytes).name, 'third');
-	assert.deepEqual(globalThis.projectAlerts, []);
-});
-
-// 【更新待ちの保存が失敗した場合は、背後のダイアログ待ちにならず更新を中止する】
-// 保存失敗を握りつぶして再起動したり、閉じられない更新画面の背後で確認を待つ状態を防ぐ。
-test('rejects update preparation after an in-flight save fails and restores save acceptance', async t => {
+// 【保存状態によらず全プロジェクトを閉じてから更新し、更新中は新しいプロジェクトを開かない】
+// 非選択タブが残っている場合も更新できない。更新失敗で受付を解放した後は、
+// 以前のセッションを復帰させず、新しいセッションとして開き直せることを確認する。
+test('requires every project to be closed and blocks new projects until the update is released', async t => {
+	let app = null;
+	t.after(() => app?.disposeApplication());
 	setup(t);
-	t.mock.method(console, 'error', () => {});
-	const handle = fileHandle('failed-update.gsproj');
-	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
-	await startActiveProjectSession(projectSession);
-	const started = Promise.withResolvers();
-	const finish = Promise.withResolvers();
-	const createWritable = handle.createWritable;
-	handle.createWritable = async () => {
-		const stream = await createWritable();
-		return { ...stream, async close() { started.resolve(); await finish.promise; throw new Error('write failed'); } };
-	};
-	const saving = projectSession.saveProject();
-	await started.promise;
-	const preparing = projectSession.pauseForDesktopUpdate();
-	const rejected = assert.rejects(preparing, /write failed/);
-	finish.resolve();
-	await Promise.all([saving, rejected]);
-	assert.deepEqual(globalThis.projectAlerts, []);
-	handle.createWritable = createWritable;
-	await projectSession.saveProject();
-	assert.equal(decodeProjectFile(handle.bytes).name, 'Example');
+	app = evaluate(appBundle);
+	assert.equal(await app.openProject(null, fileHandle('saved.gsproj', { bytes: await encodeProjectFile(project()) })), true);
+	const first = app.projectSession;
+	const second = await app.newProject();
+	assert.equal(first.hasUnsavedChanges.value, false);
+	assert.throws(() => app.projectSessions.reserveForDesktopUpdate(), /Close all projects/);
+	await app.projectSessions.close(second);
+	assert.throws(() => app.projectSessions.reserveForDesktopUpdate(), /Close all projects/);
+	await app.projectSessions.close(first);
+	const releaseUpdate = app.projectSessions.reserveForDesktopUpdate();
+	await assert.rejects(app.newProject(), /being updated/);
+	assert.deepEqual(app.projectSessions.sessions.value, []);
+	releaseUpdate();
+	assert.notEqual(await app.newProject(), null);
 });
 
-// 【更新準備では、書込み後の保存先予約の解放まで完了を待つ】
-// 保存キューだけが先に完了すると、画面を閉じた後に保存の後処理が残る。
-// 保存管理側の待機だけで、インストーラーへの引き継ぎより先に後処理を終える必要がある。
-test('waits for save reservation cleanup before preparing an update', async t => {
+// 【セッションがまだないファイル選択中にも更新を開始せず、キャンセル後は開始できる】
+// タブ数だけの判定では、選択や読み込みの途中で更新を開始してしまう。
+// セッション生成より前からファイル操作の受付が確保されていることを利用する。
+test('rejects updates during file selection and permits them after cancellation', async t => {
+	let app = null;
+	const selection = Promise.withResolvers();
+	t.after(() => { selection.resolve(null); return app?.disposeApplication(); });
+	setup(t);
+	app = evaluate(appBundle);
+	const opening = app.projectSessions.openFile(() => selection.promise);
+	assert.equal(app.projectSessions.sessions.value.length, 0);
+	assert.throws(() => app.projectSessions.reserveForDesktopUpdate(), /file operations/);
+	selection.resolve(null);
+	assert.equal(await opening, null);
+	const releaseUpdate = app.projectSessions.reserveForDesktopUpdate();
+	releaseUpdate();
+});
+
+// 【最後のタブを一覧から除いても、音声とmain側の終了処理が完了するまで更新しない】
+// 一覧からの削除は終了処理の開始時に行う。AudioContextやファイル所有権の解放中に
+// インストーラーへ進まず、Closeの完了によって初めて更新を許可する。
+test('rejects updates until the final session has finished audio and desktop cleanup', async t => {
+	let app = null;
+	const audioStarted = Promise.withResolvers();
+	const finishAudio = Promise.withResolvers();
+	const desktopStarted = Promise.withResolvers();
+	const finishDesktop = Promise.withResolvers();
+	t.after(() => { finishAudio.resolve(); finishDesktop.resolve(); return app?.disposeApplication(); });
 	const window = setup(t);
+	app = evaluate(appBundle);
+	const session = await app.newProject();
+	t.mock.method(session.audioOutput, 'dispose', () => { audioStarted.resolve(); return finishAudio.promise; });
+	window.desktop = { async closeProjectSession() { desktopStarted.resolve(); await finishDesktop.promise; } };
+	const closing = app.projectSessions.close(session);
+	await audioStarted.promise;
+	assert.equal(app.projectSessions.sessions.value.length, 0);
+	assert.throws(() => app.projectSessions.reserveForDesktopUpdate(), /file operations/);
+	finishAudio.resolve();
+	await desktopStarted.promise;
+	assert.throws(() => app.projectSessions.reserveForDesktopUpdate(), /file operations/);
+	finishDesktop.resolve();
+	assert.equal(await closing, true);
+	const releaseUpdate = app.projectSessions.reserveForDesktopUpdate();
+	releaseUpdate();
+});
+
+// 【保存後の予約解放中にも更新を受け付けず、保存完了後もプロジェクトを閉じるまで待つ】
+// 書き込みが済んでいても、保存先予約の後処理が終わる前には再起動しない。
+// 更新要求を拒否しただけではプレビューや保存を休止せず、そのまま編集を継続できる。
+test('rejects updates during save cleanup without suspending the open project', async t => {
+	let app = null;
 	const cleanupStarted = Promise.withResolvers();
 	const finishCleanup = Promise.withResolvers();
+	t.after(() => { finishCleanup.resolve(); return app?.disposeApplication(); });
+	const window = setup(t);
+	app = evaluate(appBundle);
+	const handle = fileHandle('update-cleanup.gsproj', { bytes: await encodeProjectFile(project()) });
+	assert.equal(await app.openProject(null, handle), true);
+	const session = app.projectSession;
 	window.desktop = { async releaseProjectReservations() { cleanupStarted.resolve(); await finishCleanup.promise; } };
-	const handle = fileHandle('update-cleanup.gsproj');
-	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
-	await startActiveProjectSession(projectSession);
-	const saving = projectSession.saveProject();
+	const saving = session.saveProject();
 	await cleanupStarted.promise;
-	let prepared = false;
-	const preparing = projectSession.pauseForDesktopUpdate().then(resume => { prepared = true; return resume; });
-	await setImmediate();
-	assert.equal(prepared, false);
-	assert.equal(projectSession.isProjectSaving.value, true);
+	assert.throws(() => app.projectSessions.reserveForDesktopUpdate(), /file operations/);
+	assert.equal(session.renderEngine.isSuspended.value, false);
 	finishCleanup.resolve();
-	const resume = await preparing;
 	await saving;
-	assert.equal(projectSession.isProjectSaving.value, false);
-	assert.equal(projectSession.hasUnsavedChanges.value, false);
-	await resume();
-	await projectSession.saveProject();
-	assert.equal(handle.calls.filter(([action]) => action === 'write').length, 2);
-});
-
-// 【保存の後処理中に更新準備が始まっても、それ以前の書込み失敗を見落とさない】
-// 保存開始・終了時の失敗フラグをUIへ公開しなくても、停止要求元へエラーを返す。
-// 背後のエラーダイアログを待たず更新を中止し、その後の保存を受け付ける必要がある。
-test('rejects update preparation after a save fails during reservation cleanup and resumes saving', async t => {
-	const window = setup(t);
-	t.mock.method(console, 'error', () => {});
-	const cleanupStarted = Promise.withResolvers();
-	const finishCleanup = Promise.withResolvers();
-	window.desktop = { async releaseProjectReservations() { cleanupStarted.resolve(); await finishCleanup.promise; } };
-	const handle = fileHandle('failed-update-cleanup.gsproj');
-	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
-	await startActiveProjectSession(projectSession);
-	const createWritable = handle.createWritable;
-	handle.createWritable = async () => { throw new Error('write failed'); };
-	const saving = projectSession.saveProject();
-	await cleanupStarted.promise;
-	const rejected = assert.rejects(projectSession.pauseForDesktopUpdate(), /write failed/);
-	finishCleanup.resolve();
-	await Promise.all([saving, rejected]);
-	assert.deepEqual(globalThis.projectAlerts, []);
-	handle.createWritable = createWritable;
-	await projectSession.saveProject();
-	assert.equal(decodeProjectFile(handle.bytes).name, 'Example');
+	assert.throws(() => app.projectSessions.reserveForDesktopUpdate(), /Close all projects/);
+	session.projectContext.stateManager.state.name.value = 'Still editable';
+	await session.saveProject();
+	assert.equal(decodeProjectFile(handle.bytes).name, 'Still editable');
+	await app.projectSessions.close(session);
+	const releaseUpdate = app.projectSessions.reserveForDesktopUpdate();
+	releaseUpdate();
 });
 
 // 【カメラとグループの奥行きモードをプロジェクトへ保存する】
@@ -3601,6 +3583,45 @@ test('waits for save cleanup while stopping session activity immediately', async
 	await Promise.all([saving, closing]);
 	assert.equal(handle.calls.filter(([action]) => action === 'write').length, 1);
 	assert.equal(projectSession.isProjectSaving.value, false);
+});
+
+// 【音声の終了が失敗しても、開始済みバックアップと所有権の解放を終えるまで更新しない】
+// 一つの終了処理の失敗でCloseが先に終わると、更新による再起動がバックアップの書き込みを
+// 中断できてしまう。実際のバックアップ経路を待たせ、エラーは後処理後に返すことを確認する。
+test('waits for an in-flight backup before allowing updates even when audio disposal fails', async t => {
+	let app = null;
+	const backupStarted = Promise.withResolvers();
+	const finishBackup = Promise.withResolvers();
+	t.after(() => { finishBackup.resolve(); return app?.disposeApplication(); });
+	const window = setup(t);
+	let now = Date.now();
+	t.mock.method(Date, 'now', () => now);
+	let desktopClosed = false;
+	window.initialTestPreferences = { projectBackupAutoEnabled: true };
+	window.desktop = {
+		async setProjectSessionFile() {},
+		async writeProjectBackup() { backupStarted.resolve(); await finishBackup.promise; return true; },
+		async listProjectBackups() { return []; },
+		async closeProjectSession() { desktopClosed = true; },
+	};
+	app = evaluate(appBundle);
+	const handle = desktopProjectFile({ id: 'closing-backup', name: 'closing-backup.gsproj' });
+	const session = await app.projectSessions.openFile(async () => ({ name: handle.name, handle, loadProject: async () => project() }));
+	now += 60000;
+	await window.runTimers();
+	await backupStarted.promise;
+	const audioError = new Error('Audio close failed');
+	t.mock.method(session.audioOutput, 'dispose', async () => { throw audioError; });
+	const closing = assert.rejects(app.projectSessions.close(session), error => error === audioError);
+	await setImmediate();
+	assert.equal(app.projectSessions.sessions.value.length, 0);
+	assert.equal(desktopClosed, false);
+	assert.throws(() => app.projectSessions.reserveForDesktopUpdate(), /file operations/);
+	finishBackup.resolve();
+	await closing;
+	assert.equal(desktopClosed, true);
+	const releaseUpdate = app.projectSessions.reserveForDesktopUpdate();
+	releaseUpdate();
 });
 
 // 【タブ切替は作品・Undo・再生位置を維持し、非選択の描画を停止する】
