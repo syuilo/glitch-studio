@@ -262,10 +262,16 @@ export class I18n<T extends ILocale> {
 	}
 }
 
+export const DEFAULT_LOCALE = 'en-US';
+
 export const SUPPORTED_LOCALES = {
 	'en-US': 'English',
 	'ja-JP': '日本語',
 };
+
+export function resetLocale() {
+	localStorage.removeItem('locale');
+}
 
 export const isLocaleUnconfigured = localStorage.getItem('locale') == null;
 
@@ -279,7 +285,7 @@ export async function saveLocale(locale: string): Promise<Locale | null> {
 	return newLocale;
 }
 
-export const lang = localStorage.getItem('locale') ?? 'en-US';
+export const lang = localStorage.getItem('locale') ?? DEFAULT_LOCALE;
 
 async function loadLocale(lang: string): Promise<Locale> {
 	switch (lang) {

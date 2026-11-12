@@ -3,10 +3,54 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
-import { effectScope } from 'vue';
+import { effectScope, nextTick } from 'vue';
 
 const bundle = await build({ entryPoints: [fileURLToPath(new URL('../src/preferences.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'] });
+
+// 【リセットは全項目の保存値を削除し、状態とモデルを既定値へ戻す】
+// この画面では既定値でも、別画面が保存した変更は残さない。レイアウトなどのオブジェクトも
+// 新しい既定値へ戻し、変更通知を通して利用側へ反映する一方、無関係な保存データは保持する。
+test('resets all preferences and models while preserving unrelated storage', async t => {
+	const storage = new Map([['recent-projects', 'keep'], ['locale', 'ja-JP']]);
+	const window = { localStorage: {
+		getItem: key => storage.get(key) ?? null,
+		setItem: (key, value) => storage.set(key, value),
+		removeItem: key => storage.delete(key),
+	} };
+	const module = { exports: {} };
+	new Function('require', 'module', 'exports', 'window', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, window);
+	const { preferences, PreferencesManager, PREF_DEF } = module.exports;
+	const scope = effectScope();
+	t.after(() => scope.stop());
+	const volume = scope.run(() => preferences.model('previewVolume'));
+	volume.value = 0.1;
+	preferences.commit('effectRenderTiling', { mode: 'manual', tileSize: 128 });
+	const layout = structuredClone(preferences.s.workspaceDefinition);
+	layout.children[0].name = 'Edited workspace';
+	preferences.commit('workspaceDefinition', layout);
+	// 現在の画面へは同期されない別画面の変更も、明示的な全体リセットでは取り除く。
+	storage.set('preferences:animation', 'false');
+	const changes = [];
+	preferences.on('committed', change => changes.push(change));
+
+	preferences.reset();
+	await nextTick();
+
+	const restored = new PreferencesManager();
+	for (const [key, definition] of Object.entries(PREF_DEF)) {
+		assert.equal(storage.has('preferences:' + key), false, key);
+		assert.deepEqual(preferences.s[key], definition.default(), key);
+		assert.deepEqual(preferences.r[key].value, definition.default(), key);
+		assert.deepEqual(restored.s[key], definition.default(), key);
+	}
+	assert.equal(volume.value, 0.5);
+	assert.deepEqual(changes.map(change => change.key).sort(), ['effectRenderTiling', 'previewVolume', 'workspaceDefinition']);
+	assert.deepEqual(changes.find(change => change.key === 'previewVolume'), { key: 'previewVolume', value: 0.5, oldValue: 0.1 });
+	assert.equal(storage.get('recent-projects'), 'keep');
+	// 言語の保存とリセットは翻訳側が所有し、PreferencesManagerからは操作しない。
+	assert.equal(storage.get('locale'), 'ja-JP');
+});
 
 // 【ピッカー設定は初回のみ既定値を使い、再起動後には保存した3項目を独立して復元する】
 // マップ・判定色域・制限の状態をプロジェクトへ保存せず、同じ端末の次回起動へ引き継ぐ。
@@ -17,8 +61,8 @@ test('persists independent color picker settings and restores them on restart', 
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', 'window', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, window);
 	const { preferences, PreferencesManager } = module.exports;
-	assert.equal(preferences.s.colorPickerMapMode, 'hsv');
-	assert.equal(preferences.s.colorPickerReferenceGamut, 'srgb');
+	assert.equal(preferences.s.colorPickerMapMode, 'oklch');
+	assert.equal(preferences.s.colorPickerReferenceGamut, 'displayP3');
 	assert.equal(preferences.s.colorPickerLimitSelectionToGamut, false);
 	const scope = effectScope();
 	t.after(() => scope.stop());
@@ -27,17 +71,17 @@ test('persists independent color picker settings and restores them on restart', 
 		referenceGamut: preferences.model('colorPickerReferenceGamut'),
 		limitSelectionToGamut: preferences.model('colorPickerLimitSelectionToGamut'),
 	}));
-	models.mapMode.value = 'oklch';
+	models.mapMode.value = 'hsv';
 	models.referenceGamut.value = 'adobeRgb';
 	models.limitSelectionToGamut.value = true;
 	const restored = new PreferencesManager();
-	assert.equal(restored.s.colorPickerMapMode, 'oklch');
+	assert.equal(restored.s.colorPickerMapMode, 'hsv');
 	assert.equal(restored.s.colorPickerReferenceGamut, 'adobeRgb');
 	assert.equal(restored.s.colorPickerLimitSelectionToGamut, true);
-	models.mapMode.value = 'hsv';
+	models.mapMode.value = 'oklch';
 	models.limitSelectionToGamut.value = false;
 	const reset = new PreferencesManager();
-	assert.equal(reset.s.colorPickerMapMode, 'hsv');
+	assert.equal(reset.s.colorPickerMapMode, 'oklch');
 	assert.equal(reset.s.colorPickerReferenceGamut, 'adobeRgb');
 	assert.equal(reset.s.colorPickerLimitSelectionToGamut, false);
 	assert.equal(reset.s.previewVolume, 0.25);

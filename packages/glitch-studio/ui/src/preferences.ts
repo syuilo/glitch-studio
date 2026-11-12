@@ -425,6 +425,20 @@ export class PreferencesManager extends EventEmitter<PreferencesManagerEvents> {
 		this.emit('committed', { key, value: clonedValue, oldValue });
 	}
 
+	public reset() {
+		for (const key of Object.keys(PREF_DEF) as (keyof PREF)[]) {
+			const defaultValue = PREF_DEF[key].default();
+			// この画面では既定値のままでも、別ウィンドウが保存した変更を残さないよう必ず削除する。
+			window.localStorage.removeItem(preferenceStoragePrefix + key);
+			if (!deepEqual(this.s[key], defaultValue)) {
+				const oldValue = this.s[key];
+				(this.s[key] as ValueOf<typeof key>) = defaultValue;
+				this.r[key].value = defaultValue;
+				this.emit('committed', { key, value: defaultValue, oldValue });
+			}
+		}
+	}
+
 	/**
 	 * 特定のキーの、簡易的なcomputed refを作ります
 	 * 主にvue上で設定コントロールのmodelとして使う用

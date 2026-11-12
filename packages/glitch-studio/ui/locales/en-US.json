@@ -509,6 +509,9 @@
 	},
 	"_Settings": {
 		"Title": "Preferences",
+		"Reset": "Reset to defaults",
+		"ConfirmReset": "Reset all preferences to their defaults? This also resets the language and workspace layout.",
+		"ResetComplete": "Preferences have been reset to their defaults. Restart the application to fully apply the changes.",
 		"Language": "Language",
 		"VisualModuleAutoConnectOnNodeAdd": "Automatically connect added nodes",
 		"VisualModuleAutoConnectOnNodeAddHint": "Connects the current primary output source to the added node's primary input and switches the primary output to the added node, when connectable.",

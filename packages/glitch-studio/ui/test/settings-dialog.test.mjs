@@ -7,7 +7,7 @@ import { basename, dirname } from 'node:path';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, nextTick } from 'vue';
-import { i18nPlugin } from './helpers/i18n.mjs';
+import { i18n, i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 // Viteを通さないテストでも、ブラウザー版のビルド時定数を設定する。
@@ -18,6 +18,11 @@ const dialogBundle = await build({ ...options, entryPoints: ['./src/components/G
 		builder.onResolve({ filter: /(?:^|\/)(preferences|locale-settings-ui)\.ts$/ }, ({ path }) => ({ path: basename(path), namespace: 'settings-platform' }));
 		builder.onLoad({ filter: /.*/, namespace: 'settings-platform' }, ({ path }) => ({ contents: path === 'preferences.ts' ? 'export const preferences = window.settingsTestPreferences;'
 			: 'export async function changeLocale(locale) { window.settingsTestLocaleChanges.push(locale); }' }));
+		builder.onResolve({ filter: /(?:^|\/)ui\.ts$/ }, () => ({ path: 'ui', namespace: 'settings-dialog-ui' }));
+		builder.onLoad({ filter: /.*/, namespace: 'settings-dialog-ui' }, () => ({ contents: `
+			export const confirm = options => window.settingsTestUi.confirm(options);
+			export const alert = options => window.settingsTestUi.alert(options);
+		` }));
 		builder.onResolve({ filter: /\.vue$/ }, ({ path }) => /Gs(?:SettingsDialog|EffectRenderTilingSettings)\.vue$/.test(path) ? null : { path: basename(path, '.vue'), namespace: 'settings-control' });
 		builder.onLoad({ filter: /.*/, namespace: 'settings-control' }, () => ({ contents: `
 			import { h } from 'vue';
@@ -39,16 +44,21 @@ function evaluate(bundle) {
 	return module.exports;
 }
 
-// 【環境設定では、個別に確定した項目だけを保存する】
-// 古い画面で間隔だけを変えても、別の画面で無効化した設定まで元に戻してはならない。
-// ブラウザー版のキャッシュ容量も表示・保存でき、未編集時には書き戻さないことを確認する。
-// 先行フレーム数も環境設定だけへ保存し、0も保存できることを確認する。
-test('saves settings individually', async t => {
+function mountSettingsDialog(t) {
 	const previousWindow = globalThis.window;
+	const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
 	const storage = new Map([['preferences:projectBackupAutoEnabled', 'true'], ['locale', 'ja-JP']]);
 	const writes = [];
-	globalThis.window = { localStorage: { getItem: key => storage.get(key) ?? null,
-																																							setItem(key, value) { storage.set(key, value); writes.push(key); } }, settingsTestLocaleChanges: [] };
+	globalThis.window = {
+		localStorage: {
+			getItem: key => storage.get(key) ?? null,
+			setItem(key, value) { storage.set(key, value); writes.push(key); },
+			removeItem: key => storage.delete(key),
+		},
+		settingsTestLocaleChanges: [],
+		settingsTestUi: {},
+	};
+	Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: window.localStorage });
 	const { preferences } = evaluate(preferenceBundle);
 	window.settingsTestPreferences = preferences;
 	const component = evaluate(dialogBundle).default;
@@ -61,7 +71,12 @@ test('saves settings individually', async t => {
 	});
 	const root = element('root');
 	const app = renderer.createApp({ render: () => h(component) });
-	t.after(() => { app.unmount(); globalThis.window = previousWindow; });
+	t.after(() => {
+		app.unmount();
+		globalThis.window = previousWindow;
+		if (previousStorage == null) delete globalThis.localStorage;
+		else Object.defineProperty(globalThis, 'localStorage', previousStorage);
+	});
 	app.mount(root);
 
 	function find(attribute, node = root) {
@@ -69,6 +84,62 @@ test('saves settings individually', async t => {
 		for (const child of node.children) { const found = find(attribute, child); if (found != null) return found; }
 		return null;
 	}
+
+	return { find, preferences, storage, writes };
+}
+
+// 【リセットは確認でOKを選んだ場合だけ行い、完了後に再起動を案内する】
+// 確認待ちやキャンセルで設定を失わず、言語と各設定の表示もリセット結果へ揃える。
+// 言語の表示値を戻すだけで言語変更用のダイアログが重複して開かないことも確認する。
+test('resets preferences only after confirmation and shows the restart notice', async t => {
+	const { find, preferences, storage } = mountSettingsDialog(t);
+	preferences.commit('previewVolume', 0.1);
+	preferences.commit('timelineFrameCacheMaxGiB', 0);
+	storage.set('recent-projects', 'keep');
+	const initialStorage = new Map(storage);
+	const dialogs = [];
+	let resolveConfirmation = null;
+	window.settingsTestUi = {
+		confirm(options) {
+			dialogs.push({ kind: 'confirm', options });
+			return new Promise(resolve => { resolveConfirmation = resolve; });
+		},
+		async alert(options) { dialogs.push({ kind: 'alert', options }); },
+	};
+	const resetButton = find('data-test-reset-preferences');
+	assert.equal(Object.hasOwn(resetButton.props, 'danger'), true);
+
+	const canceledReset = resetButton.props.onClick();
+	await nextTick();
+	assert.deepEqual(storage, initialStorage);
+	assert.equal(dialogs.length, 1);
+	assert.equal(dialogs[0].options.text, i18n.ts._Settings.ConfirmReset);
+	resolveConfirmation({ canceled: true });
+	await canceledReset;
+	assert.deepEqual(storage, initialStorage);
+	assert.equal(preferences.s.previewVolume, 0.1);
+	assert.equal(dialogs.length, 1);
+
+	const confirmedReset = resetButton.props.onClick();
+	resolveConfirmation({ canceled: false });
+	await confirmedReset;
+	await nextTick();
+	assert.deepEqual([...storage], [['recent-projects', 'keep']]);
+	assert.equal(preferences.s.previewVolume, 0.5);
+	assert.equal(preferences.s.projectBackupAutoEnabled, false);
+	assert.equal(find('data-test-timeline-frame-cache-capacity').props.modelValue, 2);
+	assert.equal(find('data-test-language').props.modelValue, 'en-US');
+	assert.deepEqual(window.settingsTestLocaleChanges, []);
+	assert.deepEqual(dialogs.map(dialog => dialog.kind), ['confirm', 'confirm', 'alert']);
+	assert.deepEqual(dialogs[2].options, { type: 'success', text: i18n.ts._Settings.ResetComplete });
+});
+
+// 【環境設定では、個別に確定した項目だけを保存する】
+// 古い画面で間隔だけを変えても、別の画面で無効化した設定まで元に戻してはならない。
+// ブラウザー版のキャッシュ容量も表示・保存でき、未編集時には書き戻さないことを確認する。
+// 先行フレーム数も環境設定だけへ保存し、0も保存できることを確認する。
+test('saves settings individually', async t => {
+	const { find, preferences, storage, writes } = mountSettingsDialog(t);
 
 	// 言語だけはダイアログを開くときの保存値を使い、表示中の辞書とは独立した選択値を示す。
 	assert.equal(find('data-test-language').props.modelValue, 'ja-JP');

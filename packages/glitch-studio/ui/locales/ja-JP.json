@@ -509,6 +509,9 @@
 	},
 	"_Settings": {
 		"Title": "環境設定",
+		"Reset": "初期設定にリセット",
+		"ConfirmReset": "すべての環境設定を初期設定にリセットしますか？言語設定とワークスペースのレイアウトもリセットされます。",
+		"ResetComplete": "環境設定を初期設定にリセットしました。変更を完全に反映するには、アプリケーションを再起動してください。",
 		"Language": "言語",
 		"VisualModuleAutoConnectOnNodeAdd": "追加したノードを自動接続する",
 		"VisualModuleAutoConnectOnNodeAddHint": "接続可能な場合、現在の主出力の接続元を追加したノードの主入力に繋ぎ、主出力を追加したノードに切り替えます。",

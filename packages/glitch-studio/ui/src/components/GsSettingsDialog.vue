@@ -16,7 +16,10 @@
 			<div :class="$style.contents">
 				<div class="_spacer _gaps_l">
 					<template v-if="tab === 'general'">
-						<GsSelect v-model="selectedLocale" large :items="localeOptions" data-test-language>
+						<GsSelect
+							:modelValue="selectedLocale" large :items="localeOptions" data-test-language
+							@update:modelValue="selectLocale"
+						>
 							<template #label>{{ i18n.ts._Settings.Language }}</template>
 							<template #caption>{{ i18n.ts.LocaleChangedDescription }}</template>
 						</GsSelect>
@@ -97,6 +100,13 @@
 								<GsInput v-model="projectBackupSaveRetentionDays" manualSave large type="number" :min="1" :step="1" :disabled="!projectBackupSaveEnabled" data-test-backup-save-retention><template #label>{{ i18n.ts._ProjectBackups.Retention }}</template><template #suffix>{{ i18n.ts._ProjectBackups.Days }}</template><template #caption>{{ i18n.ts._ProjectBackups.SaveHint }}</template></GsInput>
 							</div>
 						</GsFolder>
+
+						<GsButton
+							danger icon="ti ti-refresh" data-test-reset-preferences
+							@click="resetPreferences"
+						>
+							{{ i18n.ts._Settings.Reset }}
+						</GsButton>
 					</template>
 				</div>
 			</div>
@@ -106,7 +116,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, useTemplateRef, watch } from 'vue';
+import { ref, useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
@@ -114,9 +124,10 @@ import GsSelect from './common/GsSelect.vue';
 import GsEffectRenderTilingSettings from './GsEffectRenderTilingSettings.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsFolder from './common/GsFolder.vue';
-import { i18n, lang, SUPPORTED_LOCALES } from '@/i18n.ts';
+import { DEFAULT_LOCALE, i18n, resetLocale, SUPPORTED_LOCALES } from '@/i18n.ts';
 import { changeLocale } from '@/locale-settings-ui.ts';
 import { preferences } from '@/preferences.ts';
+import * as ui from '@/ui.ts';
 
 const isElectron = __ELECTRON__;
 
@@ -126,9 +137,8 @@ const emit = defineEmits<{
 
 const modal = useTemplateRef('modal');
 const tab = ref('general');
-const selectedLocale = ref(window.localStorage.getItem('locale') ?? lang);
+const selectedLocale = ref(window.localStorage.getItem('locale') ?? DEFAULT_LOCALE);
 const localeOptions = Object.entries(SUPPORTED_LOCALES).map(([value, label]) => ({ value, label }));
-watch(selectedLocale, locale => changeLocale(locale));
 
 const projectBackupAutoEnabled = preferences.model('projectBackupAutoEnabled');
 const projectBackupAutoIntervalMinutes = preferences.model('projectBackupAutoIntervalMinutes');
@@ -144,6 +154,27 @@ const timelineFrameCachePrecision = preferences.model('timelineFrameCachePrecisi
 const timelinePreviewFramesAhead = preferences.model('timelinePreviewFramesAhead');
 const previewDisplayMode = preferences.model('previewDisplayMode');
 const visualModuleAutoConnectOnNodeAdd = preferences.model('visualModuleAutoConnectOnNodeAdd');
+
+function selectLocale(locale: string) {
+	// リセット後の表示値更新で言語変更の案内が重複しないよう、保存は選択イベントからだけ行う。
+	selectedLocale.value = locale;
+	void changeLocale(locale);
+}
+
+async function resetPreferences() {
+	const { canceled } = await ui.confirm({
+		type: 'warning',
+		title: i18n.ts._Settings.Reset,
+		text: i18n.ts._Settings.ConfirmReset,
+		autofocusAction: 'cancel',
+	});
+	if (canceled) return;
+
+	preferences.reset();
+	resetLocale();
+	selectedLocale.value = DEFAULT_LOCALE;
+	await ui.alert({ type: 'success', text: i18n.ts._Settings.ResetComplete });
+}
 </script>
 
 <style module lang="scss">

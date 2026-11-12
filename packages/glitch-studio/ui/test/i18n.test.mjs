@@ -41,6 +41,7 @@ function configureStorage(t, language) {
 	Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
 		getItem: key => storage.get(key) ?? null,
 		setItem: (key, value) => storage.set(key, value),
+		removeItem: key => storage.delete(key),
 	} });
 	t.after(() => {
 		if (previousStorage == null) delete globalThis.localStorage;
@@ -48,6 +49,19 @@ function configureStorage(t, language) {
 	});
 	return storage;
 }
+
+// 【言語のリセットは保存値を削除し、次回起動で初回の言語設定へ戻す】
+// リセット完了と再起動の案内は現在の表示言語で読めるよう、実行中の辞書は切り替えない。
+test('resets the saved locale and restores initial language setup on restart', async t => {
+	const storage = configureStorage(t, 'ja-JP');
+	const initial = await loadI18n();
+	initial.resetLocale();
+	assert.equal(storage.has('locale'), false);
+	assert.equal(initial.i18n.ts._Settings.Title, locales['ja-JP']._Settings.Title);
+	const restarted = await loadI18n();
+	assert.equal(restarted.lang, restarted.DEFAULT_LOCALE);
+	assert.equal(restarted.isLocaleUnconfigured, true);
+});
 
 // 【すべての言語で翻訳キーと補間パラメータを揃える】
 // 一方の辞書だけへのキー追加や、翻訳中のパラメータ名の変更は、実行時の表示欠落に繋がる。
