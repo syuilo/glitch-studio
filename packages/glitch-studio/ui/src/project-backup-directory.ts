@@ -1,5 +1,6 @@
 import { writeFileSystemFile } from './utility/write-file-system-file.ts';
-import type { ProjectBackupDirectory } from './project-backups.ts';
+import type { ProjectBackupDirectory, SaveBackupWriter } from './project-backups.ts';
+import type { ProjectFileHandle } from './gsproj.ts';
 
 export async function selectProjectBackupFolder(handle: FileSystemFileHandle): Promise<FileSystemDirectoryHandle> {
 	const directory = await window.showDirectoryPicker({ id: 'glitch-studio-project', mode: 'readwrite', startIn: handle });
@@ -47,5 +48,17 @@ export function desktopProjectBackupDirectory(id: string): ProjectBackupDirector
 		list: () => desktop.listProjectBackups(id),
 		create: (name, data) => desktop.writeProjectBackup(id, name, data),
 		remove: name => desktop.removeProjectBackup(id, name),
+	};
+}
+
+export function projectSaveBackupWriter(handle: ProjectFileHandle, directory: ProjectBackupDirectory): SaveBackupWriter {
+	let previous: Uint8Array | null = null;
+	return async name => {
+		// 動画入りの旧プロジェクトをIPCで往復させず、登録された実ファイルをmain側でコピーする。
+		if (handle.kind === 'desktop-project-file') return window.desktop!.copyProjectBackup(handle.id, name);
+		// 名前の衝突による再試行でも同じ旧内容を使い、大きな素材を読み直さない。
+		previous ??= new Uint8Array(await (await handle.getFile()).arrayBuffer());
+		if (previous.byteLength === 0) return 'empty';
+		return await directory.create(name, previous) ? 'created' : 'exists';
 	};
 }

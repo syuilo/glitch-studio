@@ -143,7 +143,6 @@ export class ProjectSessionContext {
 	public get isProjectSaving() { return this.projectSaveController.isProjectSaving; }
 	public get projectBackupAccess() { return this.projectSaveController.projectBackupAccess; }
 	public get projectBackupStatus() { return this.projectSaveController.projectBackupStatus; }
-	public get projectBackupController() { return this.projectSaveController.projectBackupController; }
 
 	constructor(projectContext: ProjectContext, options: {
 		id: string;
@@ -680,8 +679,8 @@ export class ProjectSessionContext {
 		// 最初のawaitより前に記録し、起動途中の重複呼び出しも拒否する。
 		if (this.startupStarted) throw new Error('The project session has already started.');
 		this.startupStarted = true;
-		await this.suspendPreview('initialization');
-		if (this.disposed) return;
+		// マネージャーが非選択化してから起動する。新しいエンジンもenableまで無効なので、
+		// 初期化用の休止を重ねず、選択時のsetActive(true)で初めて描画を開始する。
 
 		const fileHandle = this.projectFileHandle.value;
 		// セッションは新規生成するため、保存先のない作品には解除すべき旧登録がない。
@@ -700,7 +699,6 @@ export class ProjectSessionContext {
 		if (state.visualModules.value[0] != null) this.previewPlayback.startVisualModuleLivePreview(state.visualModules.value[0].id);
 
 		await this.renderEngine.enable();
-		await this.resumePreview('initialization');
 	}
 
 	public async flushRendererProjectChanges(): Promise<void> {
@@ -709,10 +707,6 @@ export class ProjectSessionContext {
 		} catch (error) {
 			if (this.renderEngine.canRender.value) this.renderEngine.fail(error);
 		}
-	}
-
-	public grantProjectBackupAccess(): Promise<void> {
-		return this.projectSaveController.grantProjectBackupAccess();
 	}
 
 	public saveProject(saveAs = false): Promise<void> {

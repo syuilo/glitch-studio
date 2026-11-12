@@ -6,13 +6,13 @@ import { setImmediate } from 'node:timers/promises';
 import { build } from 'esbuild';
 
 const bundle = await build({ absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
-	stdin: { contents: "export * from './src/project-backups.ts'; export * from './src/project-save-session.ts';", resolveDir: fileURLToPath(new URL('../', import.meta.url)) },
+	stdin: { contents: "export * from './src/project-backups.ts'; export * from './src/ProjectSaveQueue.ts'; export * from './src/project-backup-directory.ts';", resolveDir: fileURLToPath(new URL('../', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { ProjectBackupController, DEFAULT_PROJECT_BACKUP_SETTINGS, projectBackupName, projectBackupTime,
 	writeProjectBackup, pruneProjectBackups, validateProjectBackupSettings, createProjectBackupFingerprint,
-	ProjectSaveSession, projectSaveBackupWriter } = module.exports;
+	ProjectSaveQueue, projectSaveBackupWriter } = module.exports;
 
 const start = new Date(2026, 0, 1, 12, 34, 56).getTime();
 const day = 86400000;
@@ -32,9 +32,9 @@ function harness() {
 		async remove(name) { files.delete(name); },
 	};
 	const target = { name: 'myProject.gsproj', directory };
-	const session = new ProjectSaveSession(() => {});
+	const saveQueue = new ProjectSaveQueue();
 	const options = {
-		runExclusive: operation => session.runExclusive(operation),
+		runExclusive: operation => saveQueue.runExclusive(operation),
 		settings: () => settings,
 		snapshot: () => ({ fingerprint, async encode() { encodeCount++; return new TextEncoder().encode(fingerprint); } }),
 		onStatus: value => { status = value; },
@@ -43,7 +43,7 @@ function harness() {
 		cancel(id) { timers.delete(id); },
 	};
 	const controller = new ProjectBackupController(options);
-	return { controller, session, directory, target, settings, files, timers, options,
+	return { controller, saveQueue, directory, target, settings, files, timers, options,
 		advance: duration => { now += duration; }, change: value => { fingerprint = value; },
 		get encodeCount() { return encodeCount; }, get status() { return status; } };
 }
@@ -231,7 +231,7 @@ test('queues manual saves and cancels stale automatic work after a target change
 	const automatic = h.controller.tick();
 	await encodingStarted;
 	let saved = false;
-	const manual = h.session.runExclusive(async () => { saved = true; });
+	const manual = h.saveQueue.runExclusive(async () => { saved = true; });
 	assert.equal(saved, false);
 	h.controller.setTarget(null);
 	finishEncoding(new Uint8Array([1]));
@@ -239,8 +239,8 @@ test('queues manual saves and cancels stale automatic work after a target change
 	assert.equal(saved, true);
 	assert.equal(h.files.size, 0);
 	assert.equal(h.status.lastAutoBackup, null);
-	await assert.rejects(h.session.runExclusive(async () => { throw new Error('failed job'); }));
-	assert.equal(await h.session.runExclusive(async () => 'next job'), 'next job');
+	await assert.rejects(h.saveQueue.runExclusive(async () => { throw new Error('failed job'); }));
+	assert.equal(await h.saveQueue.runExclusive(async () => 'next job'), 'next job');
 });
 
 // 【権限拒否・空データ・不正な設定では書込みや削除を開始しない】

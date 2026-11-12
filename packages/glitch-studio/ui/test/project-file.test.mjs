@@ -35,6 +35,13 @@ function evaluateSession(initialProject = project(), options = {}) {
 	return { ...app, projectSession: createStandaloneSession(app, initialProject, options) };
 }
 
+// 単体生成でも、マネージャーと同じ非選択化・起動・選択の順序でプレビューを準備する。
+async function startActiveProjectSession(projectSession) {
+	await projectSession.setActive(false);
+	await projectSession.start();
+	await projectSession.setActive(true);
+}
+
 const buildOptions = {
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
@@ -252,7 +259,7 @@ test('applies analysis monitor preferences without changing project data or undo
 test('integrates held analysis with preview switching settings and worker recreation', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession(project({ visualModules: [{ id: 'visual-module', name: 'Visual Module', nodes: [], paramDefs: [], customParameterDefs: [], customParameterValues: {} }] }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	projectSession.previewPlayback.showTimeline();
 	const timeline = projectSession.timelineRendererManagerController;
 	const visualModule = projectSession.visualModuleRendererManagerController;
@@ -299,7 +306,7 @@ test('integrates held analysis with preview switching settings and worker recrea
 test('shares the analysis image source and reanalyzes held RGB only for display adjustments', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession();
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	projectSession.previewPlayback.showTimeline();
 	const controllers = [projectSession.timelineRendererManagerController, projectSession.visualModuleRendererManagerController];
 	const timeline = controllers[0];
@@ -358,7 +365,7 @@ test('shares the analysis image source and reanalyzes held RGB only for display 
 test('resizes waveform analysis independently of scene rendering and retains sizes through HOLD and restart', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession();
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const timeline = projectSession.timelineRendererManagerController;
 	const visualModule = projectSession.visualModuleRendererManagerController;
 	const renders = timeline.renders.length;
@@ -390,7 +397,7 @@ test('resizes waveform analysis independently of scene rendering and retains siz
 test('serializes waveform viewport updates and applies matching completed axes through HOLD and restart', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession();
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const timeline = projectSession.timelineRendererManagerController;
 	const visualModule = projectSession.visualModuleRendererManagerController;
 	const renders = timeline.renders.length;
@@ -435,7 +442,7 @@ test('initializes both previews from saved rendering preferences', async t => {
 	window.initialTestPreferences = { renderingStatsEnabled: true, analysisMonitorsEnabled: false };
 	const { projectSession } = evaluateSession();
 	assert.equal(projectSession.audioOutput.preview.analysisEnabled, false);
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	assert.equal(projectSession.audioOutput.preview.analysisEnabled, false);
 	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.equal(controller.staticOptions.enableStats, true);
@@ -449,7 +456,7 @@ test('initializes both previews from saved rendering preferences', async t => {
 test('preserves precise seek positions when changing motion blur without changing FPS', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession(project({ timelineFps: 30 }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const playback = projectSession.previewPlayback;
 	const timeline = projectSession.timelineRendererManagerController;
 	const manager = projectSession.projectContext.stateManager;
@@ -483,7 +490,7 @@ for (const desktop of [false, true]) {
 		const window = setup(t);
 		if (desktop) window.desktop = {};
 		const { projectSession } = evaluateSession();
-		await projectSession.start();
+		await startActiveProjectSession(projectSession);
 		const timeline = projectSession.timelineRendererManagerController;
 		const visualModule = projectSession.visualModuleRendererManagerController;
 		assert.equal(timeline.initialStaticOptions.frameCacheMaxBytes, 2 * 1024 ** 3);
@@ -565,7 +572,7 @@ test('persists Custom Shader Effect definitions through project snapshots and fi
 test('activates background presentation only for the selected preview without rebuilding workers', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	t.after(() => projectSession.previewPlayback.dispose());
 	const visualModule = projectSession.visualModuleRendererManagerController;
 	const timeline = projectSession.timelineRendererManagerController;
@@ -600,7 +607,7 @@ for (const interruption of ['scene selection', 'session disposal']) {
 		({ projectSession } = evaluateSession(project({ timelineScenes: ['first', 'second', 'third'].map(id => ({
 			id, name: id, resolution: { mode: 'project' }, layers: [],
 		})) })));
-		await projectSession.start();
+		await startActiveProjectSession(projectSession);
 		await setImmediate();
 		const timeline = projectSession.timelineRendererManagerController;
 		const entered = Promise.withResolvers();
@@ -659,7 +666,7 @@ for (const [label, fileDataType, isExternalReference] of [
 	test(`rebuilds previews with matching assets and nodes after importing an ${label}`, async t => {
 		const window = setup(t);
 		const { projectSession, createVisualModuleAssetNode } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
-		await projectSession.start();
+		await startActiveProjectSession(projectSession);
 		t.after(() => projectSession.previewPlayback.dispose());
 		const gate = Promise.withResolvers();
 		const source = { url: 'app://external-assets/imported', size: 100, error: null };
@@ -715,7 +722,7 @@ for (const [label, fileDataType, isExternalReference] of [
 test('restarts both previews after content and settings change during initialization and keeps live edits incremental', async t => {
 	const window = setup(t);
 	const { projectSession } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	t.after(() => projectSession.previewPlayback.dispose());
 	await projectSession.suspendPreview();
 	const gate = Promise.withResolvers();
@@ -779,7 +786,7 @@ test('restarts both previews after content and settings change during initializa
 test('ignores obsolete asset preparation after undo and rebuilds the latest state on redo', async t => {
 	const window = setup(t);
 	const { projectSession, createVisualModuleAssetNode } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	t.after(() => projectSession.previewPlayback.dispose());
 	const gate = Promise.withResolvers();
 	const source = { url: 'app://external-assets/imported', size: 100, error: null };
@@ -859,7 +866,7 @@ test('keeps invalid projects editable and recreates both previews after correcti
 	const { projectSession } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'invalid', paramDefs: [], nodes: [
 		{ id: 'effect', type: 'effect', effectId: 'fill', resolution: { mode: 'invalid' }, params: { color: { inputSource: 'literal', value: [1, 0, 0, 1] } } },
 	] }] }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	assert.ok(projectSession.renderValidation.diagnostics.value.length > 0);
 	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) assert.equal(controller.isReady.value, false);
 	projectSession.projectContext.stateManager.commit('removeNode', { visualModuleId: 'invalid', nodeId: 'effect' });
@@ -880,7 +887,7 @@ test('recreates previews after switching away from invalid visualModuleLivePrevi
 		id: 'audio', nameForReference: 'audio', dataType: { kind: 'audioSource' }, canNode: false,
 		ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: { inputSource: 'literal', value: null },
 	}] }] }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	projectSession.previewPlayback.updateVisualModuleLivePreviewParamValues('visualModule', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
 	assert.ok(projectSession.renderValidation.diagnostics.value.length > 0);
 	assert.equal(projectSession.timelineRendererManagerController.isReady.value, false);
@@ -901,7 +908,7 @@ test('updates shader definitions in both existing previews and restarts only aft
 	setup(t);
 	const app = evaluate(appBundle);
 	const projectSession = createStandaloneSession(app);
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	t.after(() => projectSession.previewPlayback.dispose());
 	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
 	const initialLifecycles = controllers.map(controller => [...controller.lifecycle]);
@@ -945,7 +952,7 @@ test('updates shader definitions in both existing previews and restarts only aft
 test('synchronizes analysis targets and valid value scales across both previews and recovery', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession();
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
 	for (const target of ['alpha', 'vectorX', 'vectorY', 'vectorLength']) {
 		projectSession.analysisTarget.value = target;
@@ -989,7 +996,7 @@ test('synchronizes analysis targets and valid value scales across both previews 
 test('synchronizes independent preset and custom analysis ranges across scales and recovery', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession();
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
 	for (const scale of ['srgb', 'linear', 'ev']) {
 		projectSession.analysisValueScale.value = scale;
@@ -1046,7 +1053,7 @@ for (const [setting, change, inspect] of [
 ]) test(`retries runtime failures after changing ${setting}`, async t => {
 	setup(t);
 	const { projectSession } = evaluateSession();
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	projectSession.renderEngine.fail(new Error('draw failed'));
 	change(projectSession);
 	await setImmediate();
@@ -1073,7 +1080,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 																	clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0 }],
 																	subtitleParamValues: {}, compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const { projectSession } = evaluateSession(project({ generatedSpeech: [speech], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }] }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	await nextTick();
 	const manager = projectSession.projectContext.stateManager;
 	const playback = projectSession.previewPlayback;
@@ -1120,7 +1127,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 test('leaves Visual Module Live Preview when an imported Visual Module is undone and restores its registration on redo', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession();
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const manager = projectSession.projectContext.stateManager;
 	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'imported', name: 'Imported Visual Module', nodes: [], paramDefs: [], outputDefs: [],
 																								primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
@@ -1369,7 +1376,7 @@ test('uses project render settings with motion blur sampling disabled for the in
 	const app = evaluate(appBundle);
 	const loaded = project({ timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 90, samples: 32 } });
 	const projectSession = createStandaloneSession(app, loaded);
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const timeline = projectSession.timelineRendererManagerController;
 	assert.equal(timeline.initialStaticOptions.timelineFps, 24);
 	assert.deepEqual(timeline.initialStaticOptions.timelineMotionBlur, { ...loaded.timelineMotionBlur, samples: 0 });
@@ -1537,7 +1544,7 @@ test('initializes save state at construction and preserves unsaved edits across 
 			const state = projectSession.projectContext.stateManager.state;
 			state.name.value = 'Edited before startup';
 			assert.equal(projectSession.hasUnsavedChanges.value, true);
-			await projectSession.start();
+			await startActiveProjectSession(projectSession);
 			assert.equal(projectSession.hasUnsavedChanges.value, true);
 			state.name.value = 'Initial content';
 			assert.equal(projectSession.hasUnsavedChanges.value, source === 'new project');
@@ -1560,7 +1567,7 @@ test('saves before preview startup using the loaded file name and retains the co
 	await projectSession.saveProject();
 	assert.equal(decodeProjectFile(handle.bytes).name, 'Saved before startup');
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	assert.equal(projectSession.projectFileHandle.value, handle);
 	assert.equal(projectSession.projectFileName.value, handle.name);
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
@@ -1574,10 +1581,7 @@ test('backs up before preview startup and clears timers and unsaved state on dis
 	t.after(() => projectSession?.dispose());
 	const window = setup(t);
 	window.initialTestPreferences = { projectBackupAutoEnabled: true };
-	const timers = new Set();
-	let nextTimer = 0;
-	window.setTimeout = () => { const timer = ++nextTimer; timers.add(timer); return timer; };
-	window.clearTimeout = timer => { timers.delete(timer); };
+	const timers = window.timers;
 	const backups = [];
 	window.desktop = {
 		async listProjectBackups() { return []; },
@@ -1594,7 +1598,7 @@ test('backs up before preview startup and clears timers and unsaved state on dis
 	projectSession.projectContext.stateManager.state.name.value = 'Before startup';
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
 	now += 60001;
-	await projectSession.projectBackupController.tick();
+	await window.runTimers();
 	assert.equal(backups.length, 1);
 	assert.equal(backups[0].id, handle.id);
 	assert.equal(backups[0].project.name, 'Before startup');
@@ -1607,7 +1611,7 @@ test('backs up before preview startup and clears timers and unsaved state on dis
 	window.testPreferences.projectBackupAutoIntervalMinutes = 2;
 	await nextTick();
 	now += 120001;
-	await projectSession.projectBackupController.tick();
+	await window.runTimers();
 	assert.equal(timers.size, 0);
 	assert.equal(backups.length, 1);
 });
@@ -1629,7 +1633,7 @@ test('rejects saves during Save as and saves later edits only after another expl
 		const stream = await createWritable();
 		return { ...stream, async close() { started.resolve(); await finish.promise; await stream.close(); } };
 	};
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	let selections = 0;
 	window.selectProjectSaveFile = async () => { selections++; return second; };
 	const saveAs = projectSession.saveProject(true);
@@ -1670,7 +1674,7 @@ test('releases save acceptance after cancellation or failure without replaying r
 			const started = Promise.withResolvers();
 			const finish = Promise.withResolvers();
 			window.selectProjectSaveFile = async () => { started.resolve(); await finish.promise; return outcome === 'cancel' ? null : second; };
-			await projectSession.start();
+			await startActiveProjectSession(projectSession);
 			const original = first.bytes;
 			const saveAs = projectSession.saveProject(true);
 			await started.promise;
@@ -1704,7 +1708,7 @@ test('requests permission only for an accepted save at its committed destination
 			const started = Promise.withResolvers();
 			const finish = Promise.withResolvers();
 			window.selectProjectSaveFile = async () => { started.resolve(); await finish.promise; return second; };
-			await projectSession.start();
+			await startActiveProjectSession(projectSession);
 			const saveAs = projectSession.saveProject(true);
 			await started.promise;
 			projectSession.projectContext.stateManager.state.name.value = 'Next Save';
@@ -1723,6 +1727,7 @@ test('requests permission only for an accepted save at its committed destination
 function setup(t) {
 	const previousWindow = globalThis.window;
 	const previousAlerts = globalThis.projectAlerts;
+	let nextTimer = 0;
 	// appのキーボード登録だけ受け取り、実際のDOMやイベントループは使わない。
 	globalThis.window = {
 		waitingCount: 0,
@@ -1730,7 +1735,18 @@ function setup(t) {
 		listeners: new Map(),
 		addEventListener(type, handler) { const handlers = this.listeners.get(type) ?? new Set(); handlers.add(handler); this.listeners.set(type, handlers); },
 		removeEventListener(type, handler) { this.listeners.get(type)?.delete(handler); },
-		setTimeout() { return 1; }, clearTimeout() {},
+		timers: new Map(),
+		setTimeout(callback) { const id = ++nextTimer; this.timers.set(id, callback); return id; },
+		clearTimeout(id) { this.timers.delete(id); },
+		// 予約された処理だけを発火し、再予約は次の呼び出しへ残す。
+		// 保存管理の内部APIを公開せず、実際のタイマー経路でバックアップを確認する。
+		async runTimers() {
+			for (const [id, callback] of [...this.timers]) {
+				this.timers.delete(id);
+				callback();
+			}
+			await setImmediate();
+		},
 		// 旧APIに戻すと、保存先選択だけで既存データが失われる。新経路では一切呼び出さない。
 		showSaveFilePicker() { assert.fail('The destructive save picker must not be used'); },
 	};
@@ -2005,7 +2021,7 @@ test('stops before selecting or writing a target when asset encoding fails', asy
 	const original = handle.bytes;
 	const app = evaluate(appBundle);
 	const projectSession = createStandaloneSession(app, project(), { fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	projectSession.projectContext.stateManager.state.assets.value = [{ id: 'asset', name: 'missing.png', fileData: new UnreadableBlob() }];
 	window.selectProjectSaveFile = () => assert.fail('No target should be selected after an encoding failure');
 	await projectSession.saveProject(true);
@@ -2062,7 +2078,7 @@ test('does not write when permission is denied', async t => {
 	const original = handle.bytes;
 	const app = evaluate(appBundle);
 	const projectSession = createStandaloneSession(app, project(), { fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	await projectSession.saveProject();
 	assert.deepEqual(handle.calls, [['permission', { mode: 'readwrite' }]]);
 	assert.equal(handle.bytes, original);
@@ -2097,7 +2113,7 @@ test('tracks an accepted save through permission and commit without queuing addi
 	setup(t);
 	const handle = fileHandle('saving.gsproj');
 	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const permission = Promise.withResolvers();
 	handle.requestPermission = () => permission.promise;
 	const writes = [0, 1].map(() => ({ started: Promise.withResolvers(), finish: Promise.withResolvers() }));
@@ -2142,7 +2158,7 @@ test('tracks encoding and releases a save invalidated by session disposal', asyn
 	const handle = fileHandle('encoding.gsproj');
 	const { projectSession } = evaluateSession(project({ assets: [{ id: 'asset', name: 'image.png', fileData: new DelayedBlob(['image']) }] }),
 		{ fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const saving = projectSession.saveProject();
 	await encodingStarted.promise;
 	assert.equal(projectSession.isProjectSaving.value, true);
@@ -2191,22 +2207,20 @@ test('releases manual saving after cancellation and before acknowledging a write
 // 一方、バックアップの後ろで待つ手動保存は、受付時点から保護する必要がある。
 test('distinguishes automatic backups from manual saves queued behind them', async t => {
 	const window = setup(t);
-	const handle = fileHandle('automatic.gsproj');
-	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
-	window.testPreferences.projectBackupAutoEnabled = true;
-	await nextTick();
 	const backupStarted = Promise.withResolvers();
 	const finishBackup = Promise.withResolvers();
-	projectSession.projectBackupController.setTarget({ name: handle.name, directory: {
-		async hasPermission() { return true; },
-		async list() { return []; },
-		async create() { backupStarted.resolve(); await finishBackup.promise; return true; },
-		async remove() {},
-	} });
+	window.initialTestPreferences = { projectBackupAutoEnabled: true };
+	window.desktop = {
+		async listProjectBackups() { return []; },
+		async writeProjectBackup() { backupStarted.resolve(); await finishBackup.promise; return true; },
+		async writeProjectFile() {},
+	};
+	const handle = desktopProjectFile({ id: 'automatic', name: 'automatic.gsproj' });
+	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
+	await startActiveProjectSession(projectSession);
 	const now = Date.now();
 	t.mock.method(Date, 'now', () => now + 60001);
-	const backingUp = projectSession.projectBackupController.tick();
+	const backingUp = window.runTimers();
 	await backupStarted.promise;
 	assert.equal(projectSession.isProjectSaving.value, false);
 	const saving = projectSession.saveProject();
@@ -2413,7 +2427,7 @@ test('preserves concurrent edits and undo history when changing the save target'
 	const original = fileHandle('original.gsproj');
 	const copy = fileHandle('copy.gsproj');
 	const { projectSession } = evaluateSession(project(), { fileName: original.name, fileHandle: original });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const sessionId = projectSession.id;
 	const manager = projectSession.projectContext.stateManager;
 	manager.commit('changeProjectResolution', { width: 800, height: 600 });
@@ -2604,7 +2618,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	const app = evaluate(appBundle);
 	const first = project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'first', nodes: [], paramDefs: [] }] });
 	const projectSession = createStandaloneSession(app, first);
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const visualModuleLivePreview = projectSession.visualModuleRendererManagerController;
 	const timeline = projectSession.timelineRendererManagerController;
 	assert.equal(projectSession.activePreviewRenderer.value, visualModuleLivePreview);
@@ -2719,7 +2733,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 			{ id: 'audio', isDisabled: false, layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 0, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false, durationMs: 5000, assetId: 'audio' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		] }],
 	}));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const manager = projectSession.projectContext.stateManager;
 	const starts = projectSession.timelineAudioPreview.starts;
 	projectSession.previewPlayback.playTimeline();
@@ -2788,7 +2802,7 @@ test('waits for both preview workers before restoring the paused timeline', asyn
 	setup(t);
 	const app = evaluate(appBundle);
 	const projectSession = createStandaloneSession(app);
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	// 精密シークの位置もWorker再生成をまたいで丸めず復元する。
 	projectSession.previewPlayback.seekTimeline(123, true, 'precise');
 	const visualModuleLivePreview = projectSession.visualModuleRendererManagerController;
@@ -2818,7 +2832,7 @@ test('waits for both preview workers before restoring the paused timeline', asyn
 test('does not resume audio monitor rendering after a newer preview suspension', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession();
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	await projectSession.suspendPreview();
 	const gate = Promise.withResolvers();
 	projectSession.visualModuleRendererManagerController.initialize = async () => { await gate.promise; };
@@ -2837,7 +2851,7 @@ test('keeps playback suspended and waits for the other worker after a restart fa
 	setup(t);
 	const app = evaluate(appBundle);
 	const projectSession = createStandaloneSession(app);
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	await projectSession.suspendPreview();
 	const timeline = projectSession.timelineRendererManagerController;
 	timeline.renders.length = 0;
@@ -2876,7 +2890,7 @@ test('opens a startup project handle without a picker and saves back to that fil
 	await app.projectSession.saveProject();
 	assert.equal(decodeProjectFile(bytes).name, 'Edited');
 	assert.deepEqual(globalThis.projectAlerts, []);
-	app.projectSession.projectBackupController.setTarget(null);
+	await app.disposeApplication();
 });
 
 // 【起動時のファイルが存在しない・壊れている場合は失敗をUIへ返す】
@@ -2940,7 +2954,7 @@ test('uses Electron backup access without a folder picker and stops overwrite on
 	assert.equal(handle.bytes, persisted);
 	assert.equal(handle.calls.filter(call => call[0] === 'create').length, previousWrites);
 	assert.deepEqual(globalThis.projectAlerts, ['Backup disk full']);
-	app.projectSession.projectBackupController.setTarget(null);
+	await app.disposeApplication();
 });
 
 // 【Save asの既存宛先をバックアップし、成功後だけ自動バックアップの対象を切り替える】
@@ -2972,7 +2986,7 @@ test('backs up the Save as destination and keeps automatic backups separate from
 																																									projectBackupAutoRetentionDays: 1, projectBackupSaveEnabled: true, projectBackupSaveRetentionDays: 7 });
 	const projectSession = createStandaloneSession(app, project(),
 		{ fileName: original.name, fileHandle: desktopProjectFile({ id: original.name, name: original.name }) });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	projectSession.projectContext.stateManager.state.name.value = 'Saving as second';
 	window.selectProjectSaveFile = async () => destination;
 	await projectSession.saveProject(true);
@@ -2984,7 +2998,7 @@ test('backs up the Save as destination and keeps automatic backups separate from
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
 	const historyLength = projectSession.projectContext.stateManager.undoStack.value.length;
 	now += 180001;
-	await projectSession.projectBackupController.tick();
+	await window.runTimers();
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
 	const automatic = [...backups.get(destination.name)].filter(([name]) => name.includes('.auto-backup-'));
 	assert.equal(automatic.length, 1);
@@ -2995,7 +3009,7 @@ test('backs up the Save as destination and keeps automatic backups separate from
 	assert.equal(decodeProjectFile(destination.bytes).description, 'Unsaved description');
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	assert.equal(decodeProjectFile(original.bytes).name, 'First file');
-	projectSession.projectBackupController.setTarget(null);
+	await projectSession.dispose();
 });
 
 // 【Chromeの初回保存で選んだフォルダを保持し、その後の自動・保存時バックアップに使う】
@@ -3026,7 +3040,7 @@ test('retains the Chrome save folder and starts backups only after the first sav
 																																									projectBackupAutoRetentionDays: 1, projectBackupSaveEnabled: true, projectBackupSaveRetentionDays: 7 });
 	await app.newProject();
 	const { projectSession } = app;
-	await projectSession.projectBackupController.tick();
+	await window.runTimers();
 	assert.equal(projectSession.projectBackupAccess.value, 'unsaved');
 	assert.equal(handles.size, 1);
 	await projectSession.saveProject();
@@ -3037,7 +3051,7 @@ test('retains the Chrome save folder and starts backups only after the first sav
 	t.mock.method(Date, 'now', () => now);
 	projectSession.projectContext.stateManager.state.name.value = 'Unsaved editing';
 	now += 120001;
-	await projectSession.projectBackupController.tick();
+	await window.runTimers();
 	const automatic = [...handles].filter(([name]) => name.includes('.auto-backup-'));
 	assert.equal(automatic.length, 1);
 	assert.equal(decodeProjectFile(automatic[0][1].bytes).name, 'Unsaved editing');
@@ -3059,7 +3073,7 @@ test('drains the accepted save before preparing an update and resumes saving aft
 	const window = setup(t);
 	const handle = fileHandle('update.gsproj');
 	const { projectSession } = evaluateSession(project({ name: 'first' }), { fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const started = Promise.withResolvers();
 	const finish = Promise.withResolvers();
 	const createWritable = handle.createWritable;
@@ -3075,7 +3089,7 @@ test('drains the accepted save before preparing an update and resumes saving aft
 	const preparing = projectSession.pauseForDesktopUpdate().then(resume => { readyToUpdate = true; return resume; });
 	projectSession.projectContext.stateManager.state.name.value = 'third';
 	await projectSession.saveProject();
-	await projectSession.projectBackupController.tick();
+	await window.runTimers();
 	assert.equal(readyToUpdate, false);
 	finish.resolve();
 	await firstSave;
@@ -3095,7 +3109,7 @@ test('rejects update preparation after an in-flight save fails and restores save
 	t.mock.method(console, 'error', () => {});
 	const handle = fileHandle('failed-update.gsproj');
 	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const started = Promise.withResolvers();
 	const finish = Promise.withResolvers();
 	const createWritable = handle.createWritable;
@@ -3125,7 +3139,7 @@ test('waits for save reservation cleanup before preparing an update', async t =>
 	window.desktop = { async releaseProjectReservations() { cleanupStarted.resolve(); await finishCleanup.promise; } };
 	const handle = fileHandle('update-cleanup.gsproj');
 	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const saving = projectSession.saveProject();
 	await cleanupStarted.promise;
 	let prepared = false;
@@ -3154,7 +3168,7 @@ test('rejects update preparation after a save fails during reservation cleanup a
 	window.desktop = { async releaseProjectReservations() { cleanupStarted.resolve(); await finishCleanup.promise; } };
 	const handle = fileHandle('failed-update-cleanup.gsproj');
 	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const createWritable = handle.createWritable;
 	handle.createWritable = async () => { throw new Error('write failed'); };
 	const saving = projectSession.saveProject();
@@ -3196,7 +3210,7 @@ test('reloads without undo and preserves modes paths and embedded bytes through 
 	const { getAssetMenu } = app;
 	const projectSession = createStandaloneSession(app, project({ assets: [{ id: 'asset', name: 'Original display name', width: 0, height: 0,
 																																													fileDataType: 'application/octet-stream', isExternalReference: false, sourceFilePath: 'C:/original/source.bin', fileData: new Blob(['old']), thumbnailSequence: null }] }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const manager = projectSession.projectContext.stateManager;
 	const current = () => manager.state.assets.value[0];
 	// 翻訳や省略記号の変更で操作の検証が壊れないよう、表示文言ではなくIDで選ぶ。
@@ -3270,7 +3284,7 @@ test('loads snapshots and synchronizes project Automation Graph definitions to b
 		{ id: 'point', x: 0, y: 0.5, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] };
 	const { projectSession } = evaluateSession(project({ automationGraphs: [automationGraph] }));
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const context = projectSession.projectContext;
 	assert.deepEqual(context.snapshot().automationGraphs, [automationGraph]);
 	for (const renderer of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
@@ -3290,10 +3304,11 @@ test('loads snapshots and synchronizes project Automation Graph definitions to b
 // 同じ環境設定を使う別セッションと比較し、購読を全体で解除していないことも確認する。
 test('disposes one session without restarting its renderers or stopping another session', async t => {
 	const window = setup(t);
-	const { projectSession, ProjectSessionContext, ProjectContext } = evaluateSession();
-	const other = createStandaloneSession({ ProjectSessionContext, ProjectContext });
-	await projectSession.start();
-	await other.start();
+	const app = evaluateSession();
+	const { projectSession } = app;
+	const other = createStandaloneSession(app);
+	await startActiveProjectSession(projectSession);
+	await startActiveProjectSession(other);
 	const renderer = projectSession.visualModuleRendererManagerController;
 	const initializations = renderer.snapshots.length;
 	const otherInitializations = other.visualModuleRendererManagerController.snapshots.length;
@@ -3310,7 +3325,7 @@ test('disposes one session without restarting its renderers or stopping another 
 	await projectSession.resumePreview();
 	await projectSession.renderEngine.enable();
 	await projectSession.renderEngine.resume();
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	await setImmediate();
 	assert.equal(renderer.snapshots.length, initializations);
 	assert.equal(renderer.isReady.value, false);
@@ -3349,7 +3364,7 @@ test('observes edits and scene selection before startup and synchronizes once af
 		assert.equal(controller.snapshots.length, 0);
 		assert.equal(controller.patches.length, 0);
 	}
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	assert.equal(playback.currentTimelineTime.value, 1000);
 	assert.equal(projectSession.timelineRendererManagerController.renders[0], 1000);
 	assert.equal(projectSession.timelineRendererManagerController.options.sceneId, 'first');
@@ -3378,6 +3393,7 @@ test('does not initialize renderers after a session closes during project loadin
 	const handle = desktopProjectFile({ id: 'loading-file', name: 'loading.gsproj' });
 	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
 	const schedule = t.mock.method(projectSession.voicevoxGeneration, 'schedule', () => {});
+	await projectSession.setActive(false);
 	const loading = projectSession.start();
 	await registered.promise;
 	assert.equal(schedule.mock.callCount(), 0);
@@ -3440,11 +3456,23 @@ test('rejects repeated startup while pending and after completion without changi
 	window.desktop = { async setSessionProjectFile() { registered.resolve(); await completeRegistration.promise; } };
 	const handle = desktopProjectFile({ id: 'original-file', name: 'original.gsproj' });
 	({ projectSession } = evaluateSession(project({ name: 'Original' }), { fileName: handle.name, fileHandle: handle }));
+	await projectSession.setActive(false);
 	const startup = projectSession.start();
 	await registered.promise;
 	await assert.rejects(projectSession.start(), /already started/);
 	completeRegistration.resolve();
 	await startup;
+	// 準備の完了だけでは非選択状態を解除せず、選択後に一度だけ両プレビューを初期化する。
+	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
+	assert.equal(projectSession.renderEngine.isSuspended.value, true);
+	assert.equal(projectSession.audioOutput.preview.suspended, true);
+	for (const controller of controllers) {
+		assert.equal(controller.snapshots.length, 0);
+		assert.deepEqual(controller.lifecycle, ['dispose']);
+	}
+	await projectSession.setActive(true);
+	for (const controller of controllers) assert.equal(controller.snapshots.length, 1);
+	assert.equal(projectSession.audioOutput.preview.suspended, false);
 	const renderer = projectSession.visualModuleRendererManagerController;
 	const initializationCount = renderer.snapshots.length;
 	projectSession.projectContext.stateManager.state.name.value = 'Edited';
@@ -3556,7 +3584,7 @@ test('waits for save cleanup while stopping session activity immediately', async
 	window.desktop = { async releaseProjectReservations() { cleanupStarted.resolve(); await finishCleanup.promise; } };
 	const handle = fileHandle('closing.gsproj');
 	const { projectSession } = evaluateSession(project(), { fileName: handle.name, fileHandle: handle });
-	await projectSession.start();
+	await startActiveProjectSession(projectSession);
 	const saving = projectSession.saveProject();
 	await cleanupStarted.promise;
 	projectSession.projectContext.stateManager.state.name.value = 'Edited during cleanup';
