@@ -57,16 +57,18 @@ import type { TimelineClipSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import { formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { readTimelineVideoHoldFrame } from '@/utility/timeline-video-hold.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 
-const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+const projectSession = useProjectSession();
+
+const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
 const props = defineProps<{ sceneId: string; layer: TimelineClipLayer; clipId: string; mediaInfo: ReadonlyMap<string, TimelineClipMediaInfo> }>();
 const emit = defineEmits<{ remove: []; changeSource: [target: TimelineClipSelection] }>();
-const { activeSceneId } = appContext;
-const { currentTimelineTime } = appContext.previewPlayback;
-const { stateManager } = appContext.projectContext;
+const { activeSceneId } = projectSession;
+const { currentTimelineTime } = projectSession.previewPlayback;
+const { stateManager } = projectSession.projectContext;
 const selectedClipEntry = computed(() => {
 	const layer = props.layer;
 	const clip = layer.clips.find(clip => clip.id === props.clipId);

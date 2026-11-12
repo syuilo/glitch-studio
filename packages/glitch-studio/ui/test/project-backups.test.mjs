@@ -299,3 +299,25 @@ test('fingerprints metadata and Blob identity without reading embedded media', (
 	assert.notEqual(fingerprint(source), fingerprint({ ...source, name: 'renamed' }));
 	assert.notEqual(fingerprint(source), fingerprint({ ...source, assets: [{ fileData: new Blob(['b']) }] }));
 });
+
+// 【終了中に完成したバックアップのエンコード結果を保存せず、タイマーを再登録しない】
+// 自動処理のfinallyや環境設定の変更が、閉じたプロジェクトを再びスケジュールするのを防ぐ。
+test('invalidates an in-flight backup and cannot schedule again after disposal', async () => {
+	const h = harness();
+	const started = Promise.withResolvers();
+	const encoded = Promise.withResolvers();
+	h.options.snapshot = () => ({ fingerprint: 'pending', encode() { started.resolve(); return encoded.promise; } });
+	h.controller.setTarget(h.target);
+	h.advance(day);
+	const backup = h.controller.tick();
+	await started.promise;
+	h.controller.dispose();
+	h.controller.dispose();
+	h.controller.setPaused(false);
+	h.controller.setTarget(h.target);
+	h.controller.refreshSchedule();
+	encoded.resolve(new Uint8Array([1]));
+	await backup;
+	assert.equal(h.files.size, 0);
+	assert.equal(h.timers.size, 0);
+});

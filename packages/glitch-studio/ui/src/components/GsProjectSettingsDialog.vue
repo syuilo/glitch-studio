@@ -47,11 +47,13 @@ import GsButton from './common/GsButton.vue';
 import GsModal from './common/GsModal.vue';
 import GsFolder from './common/GsFolder.vue';
 import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 
-const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+const projectSession = useProjectSession();
 
-const { stateManager } = appContext.projectContext;
+const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
+
+const { stateManager } = projectSession.projectContext;
 
 const modal = useTemplateRef('modal');
 const dialogContent = useTemplateRef('dialogContent');

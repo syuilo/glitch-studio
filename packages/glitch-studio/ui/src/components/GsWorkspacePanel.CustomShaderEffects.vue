@@ -17,14 +17,16 @@ import GsSelect from './common/GsSelect.vue';
 import GsCustomShaderEffectEditor from './GsCustomShaderEffectEditor.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { isCustomShaderEffectUsed } from '@/utility/custom-shader-effect-usages.ts';
 import { createProjectCustomShaderEffect } from '@/utility/custom-shader-effect.ts';
 
 defineProps<{ panel: WorkspacePanel }>();
 
-const { projectContext } = appContext;
+const projectSession = useProjectSession();
+
+const { projectContext } = projectSession;
 const { stateManager } = projectContext;
 const definitions = stateManager.state.customShaderEffects;
 const selectedId = ref<string | null>(null);

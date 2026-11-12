@@ -20,12 +20,14 @@ import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 import { duplicateTimelineLayers } from '@/utility/timeline-container.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import GsTimeline from '@/components/GsTimeline.vue';
 import * as ui from '@/ui.ts';
 
-const { activeSceneId, activeScene } = appContext;
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { activeSceneId, activeScene } = projectSession;
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{
 	panel: WorkspacePanel;
@@ -110,7 +112,7 @@ function showSceneMenu(ev: PointerEvent) {
 		icon: 'ti ti-dimensions',
 		action: () => {
 			if (activeSceneId.value == null) return;
-			const { dispose } = ui.popup(GsSceneResolutionDialog, { sceneId: activeSceneId.value }, { closed: () => dispose() });
+			const { dispose } = ui.popup(GsSceneResolutionDialog, { sceneId: activeSceneId.value }, { closed: () => dispose() }, projectSession);
 		},
 	}, {
 		text: i18n.ts._Timeline.RenameScene,

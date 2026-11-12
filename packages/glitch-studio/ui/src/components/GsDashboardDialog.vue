@@ -66,12 +66,16 @@ import GsTime from './common/GsTime.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
 import { i18n } from '@/i18n.ts';
 import { recentProjects } from '@/recent-projects.ts';
-import { appContext, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
+import { createProjectActions } from '@/project-actions.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { desktopUpdateUi } from '@/desktop-update-ui.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { importAssets } from '@/utility/import-assets.ts';
 import { installFileDropHandlers } from '@/utility/file-drop.ts';
 import * as ui from '@/ui.ts';
+
+const projectSession = useProjectSession();
+const { newProject, newProjectFromImageOrVideo, openProject } = createProjectActions(projectSession);
 
 const version = _VERSION_;
 const isElectron = __ELECTRON__;
@@ -154,8 +158,8 @@ async function onFileDrop(files: File[], event: DragEvent) {
 		// ファイル選択ボタンと同じ入口を使い、素材に対応したノード・レイヤー・解像度を設定する。
 		opened = await newProjectFromImageOrVideo(files[0]);
 	} else {
-		const ids = await importAssets(appContext.projectContext, files, async () => {
-			if (!appContext.projectContext.hasProject) await newProject();
+		const ids = await importAssets(projectSession.projectContext, files, async () => {
+			if (!projectSession.projectContext.hasProject) await newProject();
 		});
 		opened = ids.length > 0;
 		if (opened) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });

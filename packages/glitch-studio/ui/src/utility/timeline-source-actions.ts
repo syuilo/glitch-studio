@@ -36,7 +36,9 @@ type TimelineSourceActionsOptions = {
 	currentTime: Readonly<Ref<number>>;
 	isActive: () => boolean;
 	inspectMedia: (asset: Asset) => Promise<TimelineClipMediaInfo>;
-	ui: Pick<typeof import('@/ui.ts'), 'select' | 'selectAsset' | 'confirm' | 'popupMenu' | 'alert'>;
+	ui: Pick<typeof import('@/ui.ts'), 'select' | 'confirm' | 'popupMenu' | 'alert'> & {
+		selectAsset: (options: Parameters<typeof import('@/ui.ts').selectAsset>[1]) => ReturnType<typeof import('@/ui.ts').selectAsset>;
+	};
 	pickEffect: (chosen: (definition: EffectDefinition) => void) => void;
 	desktopAvailable: () => boolean;
 	selectLayer: (layer: TimelineLayer) => void;

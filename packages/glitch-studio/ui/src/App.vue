@@ -1,14 +1,10 @@
-<!-- NOTE: このコンポーネントがunmountされることはない -->
-
 <template>
 <!-- 個別にTeleportするモーダルと階層を揃え、focus trapの解除後に背景内部のinertが残るのを防ぐ。 -->
 <Teleport to="body">
-	<component
-		:is="popup.component"
+	<GsPopup
 		v-for="popup in ui.popups.value"
 		:key="popup.id"
-		v-bind="popup.props"
-		v-on="popup.events"
+		:popup="popup"
 	/>
 </Teleport>
 
@@ -26,7 +22,7 @@
 				<button v-tooltip="i18n.ts.Delete" class="_button" :class="$style.headerQuickButton" :disabled="!headerEditActions.canDelete.value" data-editor-command-button data-test-header-delete @pointerdown.prevent @click="headerEditActions.execute('delete')"><i class="ti ti-trash"></i></button>
 			</template>
 			<span :class="$style.headerDivider"></span>
-			<button v-tooltip="i18n.ts.Save" class="_button" :class="$style.headerQuickButton" :disabled="isProjectSaving || !hasUnsavedChanges" @click="appContext.saveProject()"><i class="ti ti-device-floppy"></i></button>
+			<button v-tooltip="i18n.ts.Save" class="_button" :class="$style.headerQuickButton" :disabled="isProjectSaving || !hasUnsavedChanges" @click="projectSession.saveProject()"><i class="ti ti-device-floppy"></i></button>
 			<span :class="$style.headerDivider"></span>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
@@ -47,7 +43,7 @@
 	</GsWindowTitlebar>
 	<div :class="$style.body">
 		<!-- Canvas停止後もワークスペースの合成が映像出力を待たせる環境がある。DOMとレイアウト設定は保持し、bodyへTeleportした進捗・キャンセルUIは表示し続ける。 -->
-		<GsWorkspaceElement v-show="!appContext.renderEngine.isSuspended.value" style="flex: 1" :element="preferences.r.workspaceDefinition.value" data-test-workspace-rendering-surface/>
+		<GsWorkspaceElement v-show="!projectSession.renderEngine.isSuspended.value" style="flex: 1" :element="preferences.r.workspaceDefinition.value" data-test-workspace-rendering-surface/>
 	</div>
 	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">
@@ -91,10 +87,12 @@
 </template>
 
 <script lang="ts" setup>
-import { provide, computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { onBeforeUnmount, provide, computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.js';
-import { appContext, newProject, newProjectFromMediaPath, openProject } from './app.ts';
-import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
+import { disposeApplication, projectSession, newProject, newProjectFromMediaPath, openProject } from './app.ts';
+import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './ProjectSessionContext.ts';
+import GsPopup from './components/GsPopup.vue';
+import { projectSessionKey } from './project-session.ts';
 import { preferences } from './preferences.ts';
 import { WorkspaceController, workspaceControllerKey } from './WorkspaceController.ts';
 import { desktopProjectFile } from './gsproj.ts';
@@ -124,6 +122,8 @@ import { i18n } from '@/i18n.ts';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';
 
+provide(projectSessionKey, projectSession);
+
 const workspaceController = new WorkspaceController(preferences.r.workspaceDefinition, root => preferences.commit('workspaceDefinition', root));
 provide(workspaceControllerKey, workspaceController);
 provide(fileDropTargetInstallerKey, installFileDrops);
@@ -140,8 +140,8 @@ const headerEditActions = useHeaderEditActions({
 });
 
 async function onFileDrop(files: File[]) {
-	const ids = await importAssets(appContext.projectContext, files, async () => {
-		if (!appContext.projectContext.hasProject) await newProject();
+	const ids = await importAssets(projectSession.projectContext, files, async () => {
+		if (!projectSession.projectContext.hasProject) await newProject();
 	});
 	if (ids.length > 0) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });
 }
@@ -160,7 +160,7 @@ onMounted(() => {
 	if (root.value != null) disposeFileDrops = installFileDrops(root.value);
 });
 
-const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, timelineRendererManagerController, resolutionFactor, visualModuleLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, visualModuleLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
+const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, timelineRendererManagerController, resolutionFactor, visualModuleLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, visualModuleLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = projectSession;
 const timelineFrameCacheUsageLabel = computed(() => {
 	if (!timelineRendererManagerController.isFrameCacheEnabled.value) return i18n.ts.Disabled;
 	const ratio = timelineRendererManagerController.frameCacheUsageRatio.value;
@@ -172,12 +172,19 @@ const showAdvancedParameters = preferences.model('showAdvancedParameters');
 const visualModuleLivePreviewFpsLabel = computed(() => renderingStatsEnabled.value
 	? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps`
 	: `${visualModuleLivePreviewFpsLimit.value ?? '∞'}fps`);
-const { stateManager } = appContext.projectContext;
-const { name: projectName } = appContext.projectContext.stateManager.state;
-const { projectFileName, hasUnsavedChanges, isProjectSaving } = appContext;
-installProjectCloseGuard(isProjectSaving, applicationActivity.isExporting, hasUnsavedChanges);
+const { stateManager } = projectSession.projectContext;
+const { name: projectName } = projectSession.projectContext.stateManager.state;
+const { projectFileName, hasUnsavedChanges, isProjectSaving } = projectSession;
+const disposeCloseGuard = installProjectCloseGuard(isProjectSaving, applicationActivity.isExporting, hasUnsavedChanges);
 
 const releaseOutputCapture = audioOutput.retainOutputCapture();
+
+onBeforeUnmount(() => {
+	disposeFileDrops?.();
+	disposeCloseGuard();
+	releaseOutputCapture();
+	void disposeApplication().catch(console.error);
+});
 
 const previewVolume = preferences.model('previewVolume');
 watch(previewVolume, (newValue) => {
@@ -242,7 +249,7 @@ function openTimeFactorMenu(ev: PointerEvent) {
 }
 
 function openProjectSettings() {
-	const { dispose } = ui.popup(GsProjectSettingsDialog, {}, { closed: () => dispose() });
+	const { dispose } = ui.popup(GsProjectSettingsDialog, {}, { closed: () => dispose() }, projectSession);
 }
 
 function openPreferences() {
@@ -333,11 +340,11 @@ function openHeaderFileMenu(ev: PointerEvent) {
 	}, {
 		text: i18n.ts.Save,
 		icon: 'ti ti-device-floppy',
-		action: () => { void appContext.saveProject(); },
+		action: () => { void projectSession.saveProject(); },
 	}, {
 		text: `${i18n.ts._App.SaveAs}...`,
 		icon: 'ti ti-device-floppy',
-		action: () => { void appContext.saveProject(true); },
+		action: () => { void projectSession.saveProject(true); },
 	}, {
 		type: 'divider',
 	}, {
@@ -347,7 +354,7 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		children: [{
 			text: i18n.ts._App.ImportVisualModule,
 			icon: 'ti ti-box-multiple',
-			action: () => { void importVisualModuleFile(appContext.projectContext); },
+			action: () => { void importVisualModuleFile(projectSession.projectContext); },
 		}],
 	}, {
 		text: `${i18n.ts._App.SavePreviewSnapshot}...`,
@@ -359,7 +366,7 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		text: `${i18n.ts._App.ExportScene}...`,
 		icon: 'ti ti-movie',
 		action: () => {
-			const { dispose } = ui.popup(GsTimelineExportDialog, {}, { closed: () => dispose() });
+			const { dispose } = ui.popup(GsTimelineExportDialog, {}, { closed: () => dispose() }, projectSession);
 		},
 	}], ev.currentTarget ?? ev.target);
 }
@@ -419,7 +426,7 @@ function openWorkspacePanelWindow(contentType: WorkspacePanel['contentType']) {
 		return;
 	}
 	const panel: WorkspacePanel = { id: genId(), type: 'panel', direction: 'horizontal', contentType };
-	const { dispose } = ui.popup(GsWorkspacePanelWindow, { panel, panelWindow }, { closed: () => dispose() });
+	const { dispose } = ui.popup(GsWorkspacePanelWindow, { panel, panelWindow }, { closed: () => dispose() }, projectSession);
 }
 
 function openHeaderWindowMenu(ev: PointerEvent) {
@@ -476,7 +483,7 @@ onMounted(async () => {
 	// 通常起動時と読込失敗時には、別のプロジェクトを選べるようにする。
 	const { dispose } = ui.popup(GsDashboardDialog, {}, {
 		closed: () => dispose(),
-	});
+	}, projectSession);
 });
 </script>
 

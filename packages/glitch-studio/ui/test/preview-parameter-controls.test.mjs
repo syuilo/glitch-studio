@@ -29,12 +29,12 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { commitVisualModuleEdit } from './src/utility/visual-module-edit.ts';
-		export { appContext } from './src/app.ts';
+		export { projectSession } from './src/app.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'preview-parameter-controls', setup(build) {
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
-		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('app.ts') ? 'app' : 'ui', namespace: 'platform' }));
+		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: (path.endsWith('app.ts') || path.endsWith('project-session.ts')) ? 'app' : 'ui', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false) } };",
 			effects: `import mandelbrot from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
@@ -44,7 +44,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 				export const effectDefinitions = { test: { ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)},
 					view: mandelbrot.paramDefs.view, otherView: mandelbrot.paramDefs.view, imageTrapView: imageTrap.paramDefs.view,
 					magneticPendulumView: magneticPendulum.paramDefs.view, doublePendulumView: doublePendulumFractal.paramDefs.view } } };`,
-			app: 'export const appContext = {};',
+			app: 'export function useProjectSession() { return projectSession; } export const projectSession = {};',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {}',
 		}[path] }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsPreviewParameterPositions\.vue$|GsPreviewViewport\.vue$|GsXy(?:\.Grid)?\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
@@ -62,7 +62,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Parameter, Positions, Viewport, Xy, XyGrid, testedEffect, PreviewParameterEditingController, previewParameterContextKey,
-	viewportPlaneOffset, createInlineKeyframesTimeline, UndoRedo, COMMAND_DEFS, commitVisualModuleEdit, appContext } = module.exports;
+	viewportPlaneOffset, createInlineKeyframesTimeline, UndoRedo, COMMAND_DEFS, commitVisualModuleEdit, projectSession } = module.exports;
 const close = (actual, expected) => actual.forEach((value, axis) => assert.ok(Math.abs(value - expected[axis]) < 1e-12, `${actual} != ${expected}`));
 
 function findAll(root, predicate) {
@@ -120,7 +120,7 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 	const state = { visualModules: ref([visualModule]), timelineScenes: ref([]), automationGraphs: ref([]), resolution: ref({ width: 800, height: 400 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const editing = new PreviewParameterEditingController();
-	Object.assign(appContext, { projectContext: { stateManager: manager }, previewParameterEditing: editing,
+	Object.assign(projectSession, { projectContext: { stateManager: manager }, previewParameterEditing: editing,
 		previewPlayback: { state: ref({ mode: 'visualModuleLivePreview', visualModuleId: 'visualModule' }),
 			visualModuleLivePreviewVisualModuleId: ref('visualModule'), currentTimelineTime: ref(0), isTimelinePlaying: ref(false), isTimelineBaking: ref(false) },
 		renderEngine: { isSuspended: ref(false) }, activeSceneId: ref(null) });

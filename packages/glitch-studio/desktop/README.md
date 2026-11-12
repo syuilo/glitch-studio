@@ -22,7 +22,7 @@ Windowメニューから開くパネルと、既存パネル・プレビュー�
 
 メイン画面と別ウィンドウは、`titleBarStyle: 'hidden'`と高さ32pxの`titleBarOverlay`を共通で使います。UIの`GsWindowTitlebar.vue`が背景とドラッグ領域を描き、別ウィンドウでは`GsDetachedWindowFrame.vue`がアイコン・パネル名と残りのコンテンツ領域を配置します。最小化・最大化・閉じる操作はOSのボタンを使い、CSSの`titlebar-area-*`でその領域を避けます。Web版とDocument PiPには独自タイトルバーを追加しません。
 
-編集ウィンドウごとにrenderer・AppContext・ProjectContext・描画と音声のWorkerを所有します。バックグラウンドへ移しただけでは再生・書き出しを停止せず、`backgroundThrottling: false`でウィンドウの描画タイマーを抑制させません。GPU負荷のプロジェクト間調整や音声の排他的な再生は行いません。
+編集ウィンドウごとにrenderer・ProjectSessionContext・ProjectContext・描画と音声のWorkerを所有します。バックグラウンドへ移しただけでは再生・書き出しを停止せず、`backgroundThrottling: false`でウィンドウの描画タイマーを抑制させません。GPU負荷のプロジェクト間調整や音声の排他的な再生は行いません。
 
 ## 計測精度
 

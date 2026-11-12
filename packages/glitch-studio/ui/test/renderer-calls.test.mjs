@@ -17,6 +17,7 @@ async function bundle(path) {
 				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@gs/subsystems_timeline_shared/layer-tree.ts' || args.path === '@gs/subsystems_timeline_shared/types.ts' || args.path === './types.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/shared/file-source.ts' || args.path === '@gs/shared/utility/deep-clone.ts' || args.path === '@gs/shared/utility/deep-equal.ts' || args.path === '@gs/glitch-studio_shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: `
 					export const ref = value => ({ value });
+					export const shallowRef = ref;
 					export const shallowReactive = value => value;
 					export const createVisualModuleRendererManagerWorker = () => dependencies.createWorker();
 					export const VisualModuleRendererManager = dependencies.VisualModuleRendererManager;

@@ -111,7 +111,7 @@
 						:automationGraphEndEnabled="false"
 						:availableVariables="LAYER_VAR_DEFS"
 						:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
-						:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
+						:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 						:data-test-visual-module-argument="paramDef.id"
 						previewParameterGroup="module"
 						:paramPath="[paramDef.id]"
@@ -140,7 +140,7 @@
 							:automationGraphEndEnabled="false"
 							:availableVariables="LAYER_VAR_DEFS"
 							:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
-							:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
+							:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 							:paramPath="[paramId]"
 							:paramDef="paramDef"
 							:paramValue="layer.compositingParamValues[paramId] ?? paramDef.defaultValue"
@@ -202,7 +202,7 @@
 					:automationGraphEndEnabled="false"
 					:availableVariables="LAYER_VAR_DEFS"
 					:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
-					:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
+					:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 					:paramPath="['volume']"
 					:paramDef="timelineAudioParamDefs.volume"
 					data-test-layer-volume
@@ -265,7 +265,7 @@ import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { handleProjectParameterClipboard } from '@/utility/parameter-clipboard-actions.ts';
@@ -274,6 +274,8 @@ import { getLayerParameterValues, resolveLayerParameter } from '@/utility/timeli
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
 
+const projectSession = useProjectSession();
+
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
 provide(timelineParameterEditorContextKey, { context: computed(() => getTimelineLayerPublicParameterContext(props.scene.layers, props.layer.id)), isPublicParameterValue: false });
 provide(previewParameterContextKey, {
@@ -281,12 +283,12 @@ provide(previewParameterContextKey, {
 	label: computed(() => props.layer.name),
 });
 const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection]; expandRequested: [layerId: string]; requestAddInlineEffectNode: [layerId: string]; revealAssets: [] }>();
-const { previewPlayback, timelineRendererManagerController } = appContext;
+const { previewPlayback, timelineRendererManagerController } = projectSession;
 const groupModes = [{ value: 'flat' as const, label: i18n.ts._TimelineLayer.SinglePlane }, { value: 'preserveDepth' as const, label: i18n.ts._TimelineLayer.PreserveDepth }];
 const coordinateSpaces = [{ value: 'screen' as const, label: i18n.ts._TimelineLayer.ScreenSpace }, { value: 'world' as const, label: i18n.ts._TimelineLayer.WorldSpace }];
 const maskChannels = [{ value: 'alpha' as const, label: i18n.ts._TimelineLayer.Alpha }, { value: 'luminance' as const, label: i18n.ts._TimelineLayer.Luminance }];
 const transformTargets = [{ value: 'image' as const, label: i18n.ts._TimelineLayer.TransformImage }, { value: 'region' as const, label: i18n.ts._TimelineLayer.TransformRegion }];
-const { stateManager } = appContext.projectContext;
+const { stateManager } = projectSession.projectContext;
 let colorEdit: ReturnType<typeof stateManager.beginEdit<'setTimelineLayerColor'>> | null = null;
 
 function beginColorEdit() {
@@ -310,7 +312,7 @@ onBeforeUnmount(() => { disposed = true; });
 const inlineAssetDropActions = computed(() => {
 	const layer = props.layer;
 	return layer.layerType !== 'inlineVisualModule' ? null : createVisualModuleDropActions({
-		context: appContext.projectContext,
+		context: projectSession.projectContext,
 		target: { sceneId: props.scene.id, inlineVisualModuleLayerId: layer.id },
 		isActive: () => !disposed && props.layer === layer,
 		revealAssets: () => emit('revealAssets'),
@@ -345,7 +347,7 @@ const layerMaskSourceOptions = computed(() => {
 const visualModule = computed(() => {
 	const layer = props.layer;
 	return layer.layerType === 'inlineVisualModule' ? layer.visualModule
-		: layer.layerType === 'visualModule' ? appContext.projectContext.getVisualModuleById(layer.visualModuleId) : null;
+		: layer.layerType === 'visualModule' ? projectSession.projectContext.getVisualModuleById(layer.visualModuleId) : null;
 });
 const inlineEffectStates = computed(() => previewPlayback.state.value.mode === 'timeline'
 	? timelineRendererManagerController.getLayerEffectStates(props.scene.id, props.layer.id) : null);
@@ -392,7 +394,7 @@ async function exportInlineVisualModule() {
 	if (layer.layerType !== 'inlineVisualModule' || exportingVisualModule.value) return;
 	exportingVisualModule.value = true;
 	try {
-		await exportVisualModuleFile(appContext.projectContext, layer.visualModule, layer.name);
+		await exportVisualModuleFile(projectSession.projectContext, layer.visualModule, layer.name);
 	} finally {
 		exportingVisualModule.value = false;
 	}
@@ -410,14 +412,14 @@ function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 	if (layer.layerType !== 'inlineVisualModule') return;
 	if (event.kind === 'customParameterClipboard') {
 		const scene = props.scene;
-		void handleProjectParameterClipboard(appContext.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext,
 			{ kind: 'customParameter', visualModuleTarget: { sceneId: scene.id, inlineVisualModuleLayerId: layer.id }, paramPath: [event.parameterId] },
 			event.operation, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
 	if (event.kind === 'editNodeParam' && (event.edit.kind === 'copy' || event.edit.kind === 'paste')) {
 		const scene = props.scene;
-		void handleProjectParameterClipboard(appContext.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext,
 			{ kind: 'node', visualModuleTarget: { sceneId: scene.id, inlineVisualModuleLayerId: layer.id }, nodeId: event.nodeId, paramPath: event.edit.paramPath },
 			event.edit.kind, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
@@ -436,7 +438,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	}
 	if (event.kind === 'copy' || event.kind === 'paste') {
 		const scene = props.scene;
-		void handleProjectParameterClipboard(appContext.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext,
 			{ kind: 'timeline', sceneId: scene.id, layerId: layer.id, parameterTarget: target, paramPath: event.paramPath },
 			event.kind, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;

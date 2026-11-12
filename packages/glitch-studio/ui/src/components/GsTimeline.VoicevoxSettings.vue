@@ -35,13 +35,15 @@ import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timelin
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
+
+const projectSession = useProjectSession();
 
 const props = defineProps<{ layer: TimelineVoicevoxLayer; sceneId: string }>();
 const emit = defineEmits<{ selected: [id: string]; expandRequested: [] }>();
-const { stateManager } = appContext.projectContext;
+const { stateManager } = projectSession.projectContext;
 const desktop = window.desktop;
-const { endpoint, version, speakers } = appContext.voicevoxConnection;
+const { endpoint, version, speakers } = projectSession.voicevoxConnection;
 const connecting = ref(false);
 const error = ref('');
 
@@ -52,7 +54,7 @@ async function connect() {
 		const result = await desktop!.voicevoxConnect(endpoint.value);
 		version.value = result.version;
 		speakers.value = result.speakers;
-		appContext.voicevoxGeneration.schedule();
+		projectSession.voicevoxGeneration.schedule();
 	} catch (cause) { error.value = String(cause); } finally { connecting.value = false; }
 }
 
@@ -75,7 +77,7 @@ function commit(utterances: VoicevoxUtterance[], voicevox = props.layer.voicevox
 function changeSettings(settings: Partial<VoicevoxSettings>) { commit(props.layer.utterances, { ...props.layer.voicevox, ...settings }); }
 
 function add() {
-	const inserted = insertVoicevoxUtterance(props.layer.utterances, appContext.previewPlayback.currentTimelineTime.value);
+	const inserted = insertVoicevoxUtterance(props.layer.utterances, projectSession.previewPlayback.currentTimelineTime.value);
 	if (!inserted) return;
 	if (inserted.utterances !== props.layer.utterances) {
 		if (!commit([...inserted.utterances])) return;

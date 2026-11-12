@@ -19,13 +19,15 @@ import GsVideoControls from './common/GsVideoControls.vue';
 import GsAudioLevelMeter from './common/GsAudioLevelMeter.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import type { Player } from '@gs/shared/types.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import * as api from '@/api.ts';
 import * as ui from '@/ui.ts';
 
-const { visualModuleRendererManagerController } = appContext;
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { visualModuleRendererManagerController } = projectSession;
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{
 	player: Player;

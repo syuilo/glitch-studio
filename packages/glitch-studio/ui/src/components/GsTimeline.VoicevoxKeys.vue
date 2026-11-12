@@ -33,13 +33,15 @@ import { getVoicevoxSubtitlePlacements } from '@gs/subsystems_timeline_shared/la
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { timelineKeyframePosition } from '@/utility/timeline-coordinates.ts';
 import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import GsCondensedLine from '@/components/common/GsCondensedLine.vue';
+
+const projectSession = useProjectSession();
 
 const props = defineProps<{ sceneId: string; layer: TimelineVoicevoxLayer; pixelsPerMs: number; offsetMs: number; selectedKeyframeIds: string[] }>();
 const emit = defineEmits<{ dragStart: [event: PointerEvent, id: string]; selected: [id: string]; subtitleTrimStart: [event: PointerEvent, id: string, clipId: string] }>();
 const selectedIds = computed(() => new Set(props.selectedKeyframeIds));
-const { stateManager } = appContext.projectContext;
+const { stateManager } = projectSession.projectContext;
 const x = (time: number) => (time - props.offsetMs) * props.pixelsPerMs;
 const keyX = (time: number) => timelineKeyframePosition(time, props.pixelsPerMs) - props.offsetMs * props.pixelsPerMs;
 const subtitleRanges = computed(() => getVoicevoxSubtitlePlacements(props.layer.voicevox, props.layer.utterances, props.layer.clips, createSpeechResolver(stateManager.state.generatedSpeech.value))

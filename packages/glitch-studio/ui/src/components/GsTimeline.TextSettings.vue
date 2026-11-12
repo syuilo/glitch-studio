@@ -12,7 +12,7 @@
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
-			:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
+			:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
 			:paramValue="values[key] ?? def.defaultValue"
@@ -23,7 +23,7 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { computed } from 'vue';
 import { textParamDefs, textStaticSettingDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
@@ -34,6 +34,8 @@ import GsStaticSettings from './GsStaticSettings.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineTextLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+
+const projectSession = useProjectSession();
 
 const props = defineProps<{ layer: TimelineTextLayer }>();
 const emit = defineEmits<{ staticSetting: [edit: { key: string; value: string | number | boolean | null }]; edit: [event: ParamEdit] }>();

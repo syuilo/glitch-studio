@@ -50,7 +50,7 @@
 				<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
 					<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 				</div>
-				<GsPreviewTransform v-if="appContext.previewParameterEditing.handles.value.length === 0 && appContext.previewParameterEditing.viewport.value == null" :canvasRect="previewCanvasRect"/>
+				<GsPreviewTransform v-if="projectSession.previewParameterEditing.handles.value.length === 0 && projectSession.previewParameterEditing.viewport.value == null" :canvasRect="previewCanvasRect"/>
 				<GsPreviewParameterPositions :canvasRect="previewCanvasRect" :showGrid="showGridInPreview"/>
 				<GsPreviewViewport :canvasRect="previewCanvasRect"/>
 				<div
@@ -120,11 +120,13 @@ import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { previewGridLinePositions } from '@/utility/preview-parameter-position.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { formatRenderFailureOrigin } from '@/utility/render-failure.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const projectSession = useProjectSession();
+
+const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = projectSession;
 const renderTilingProgressText = computed(() => {
 	const progress = activePreviewRenderer.value.renderTilingProgress.value;
 	if (progress == null || progress.totalTiles === 0) return null;
@@ -150,7 +152,7 @@ const previewGamutWarningBoundsLabels = computed<Record<RgbGamutBounds, string>>
 	nonNegative: i18n.ts._Preview.GamutWarningBoundsPrimaries,
 	unit: i18n.ts._Preview.GamutWarningBoundsUnit,
 }));
-const { stateManager } = appContext.projectContext;
+const { stateManager } = projectSession.projectContext;
 const renderValidationErrorMessage = renderValidation.errorMessage;
 const renderFailureLocation = computed(() => {
 	const origin = renderEngine.runtimeDiagnostic.value?.origin;
@@ -187,8 +189,8 @@ let mainEditingDocument: Document | null = null;
 let editingDocuments = new Set<Document>();
 
 function onEditingKeydown(event: KeyboardEvent) {
-	if (event.key !== 'Escape' || event.defaultPrevented || (appContext.previewParameterEditing.handles.value.length === 0 && appContext.previewParameterEditing.viewport.value == null)) return;
-	appContext.previewParameterEditing.clear();
+	if (event.key !== 'Escape' || event.defaultPrevented || (projectSession.previewParameterEditing.handles.value.length === 0 && projectSession.previewParameterEditing.viewport.value == null)) return;
+	projectSession.previewParameterEditing.clear();
 	event.preventDefault();
 }
 
@@ -208,7 +210,7 @@ const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? pr
 const currentFrameNumber = computed(() => {
 	if (previewPlayback.state.value.mode !== 'timeline') return null;
 	// シーク・コマ送り・キャッシュと同じプレビューの時計で番号を表示する。
-	return Math.floor(time.value * stateManager.state.timelineFps.value * appContext.timelinePreviewFpsFactor.value / 1000 + 1e-7);
+	return Math.floor(time.value * stateManager.state.timelineFps.value * projectSession.timelinePreviewFpsFactor.value / 1000 + 1e-7);
 });
 const previewTargetName = computed(() => {
 	const state = previewPlayback.state.value;
@@ -248,7 +250,7 @@ function update(t: number) {
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
 	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') visualModuleLivePreviewTime.value += delta * visualModuleLivePreviewTimeFactor.value;
-	appContext.previewParameterEditing.time.value = visualModuleLivePreviewTime.value;
+	projectSession.previewParameterEditing.time.value = visualModuleLivePreviewTime.value;
 	updatePreviewDevicePixelRatio();
 	fitInitialZoom();
 	updateGridLines();

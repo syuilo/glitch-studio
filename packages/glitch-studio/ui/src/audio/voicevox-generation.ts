@@ -17,6 +17,7 @@ type GenerationJob = {
 
 /** 生成は再生から独立し、内容キーとプロジェクト世代で古い結果の混入を防ぐ。 */
 export class VoicevoxGeneration {
+	private disposed = false;
 	readonly statuses = ref<Record<string, GenerationState>>({});
 	private epoch = 0;
 	private pending = new Map<string, GenerationJob>();
@@ -39,6 +40,7 @@ export class VoicevoxGeneration {
 	reset() {
 		this.epoch++;
 		if (this.timer != null) globalThis.clearTimeout(this.timer);
+		this.timer = null;
 		for (const job of this.queue) job.completion.reject(new Error('Project changed'));
 		this.queue = [];
 		this.pending.clear();
@@ -48,6 +50,7 @@ export class VoicevoxGeneration {
 	}
 
 	schedule() {
+		if (this.disposed) return;
 		if (this.timer != null) globalThis.clearTimeout(this.timer);
 		this.synchronizeSpeech();
 		// デバウンス期間中も古い文章を待たせない。実行中の合成はqueueから外れているので維持する。
@@ -63,6 +66,7 @@ export class VoicevoxGeneration {
 
 	/** Web版でもUndo時に呼び、再合成できなくても保存済み音声を復元できるようにする。 */
 	synchronizeSpeech() {
+		if (this.disposed) return;
 		const current = new Set(getVoicevoxRequests(this.options.getScenes()).map(getVoicevoxRequestKey));
 		const previous = this.options.getSpeech();
 		const active = previous.filter(speech => current.has(speech.key));
@@ -81,6 +85,12 @@ export class VoicevoxGeneration {
 		this.pruneStatuses(current);
 	}
 
+	public dispose(): void {
+		if (this.disposed) return;
+		this.disposed = true;
+		this.reset();
+	}
+
 	private findSpeech(key: string): GeneratedSpeech | null {
 		return this.options.getSpeech().find(speech => speech.key === key) ?? this.cache.get(key);
 	}
@@ -92,6 +102,7 @@ export class VoicevoxGeneration {
 	}
 
 	private enqueue(request: VoicevoxRequest, force: boolean, manual: boolean): Promise<GeneratedSpeech> {
+		if (this.disposed) return Promise.reject(new Error('Project session is closed'));
 		this.synchronizeSpeech();
 		const key = getVoicevoxRequestKey(request);
 		const existing = this.findSpeech(key);

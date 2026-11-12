@@ -309,7 +309,7 @@ const { code } = await transform(handler.getText(ast), { loader: 'ts' });
 function appFixture({ hasProject = false, ids = ['asset'] } = {}) {
 	const events = [];
 	const context = {
-		appContext: { projectContext: { hasProject } },
+		projectSession: { projectContext: { hasProject } },
 		newProject: async () => { events.push('newProject'); },
 		importAssets: async (_context, files, prepare) => {
 			if (ids.length > 0) await prepare();
@@ -356,7 +356,7 @@ const { code: dashboardCode } = await transform(dashboardHandlers.map(handler =>
 function dashboardFixture({ ids = ['asset'], opened = true, hasProject = false } = {}) {
 	const events = [];
 	const context = {
-		appContext: { projectContext: { hasProject } },
+		projectSession: { projectContext: { hasProject } },
 		newProject: async () => { events.push('newProject'); },
 		newProjectFromImageOrVideo: async file => { events.push(['media', file ?? null]); return opened; },
 		importAssets: async (_context, files, prepare) => {

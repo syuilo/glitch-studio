@@ -7,13 +7,15 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { watch, useTemplateRef, ref, onMounted } from 'vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { i18n } from '@/i18n.ts';
 import { COMMAND_DEFS } from '@/commands.ts';
 
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{
 	panel: WorkspacePanel;

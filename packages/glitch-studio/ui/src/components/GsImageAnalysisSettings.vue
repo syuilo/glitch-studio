@@ -32,8 +32,8 @@
 			class="_button"
 			:class="[$style.subButton, { _buttonPrimaryFg: highResolutionImageAnalysis.active.value }]"
 			data-test-image-analysis-high-res
-			:disabled="!highResolutionImageAnalysis.active.value && !appContext.imageAnalysisAvailable.value"
-			@click="appContext.toggleHighResolutionImageAnalysis()"
+			:disabled="!highResolutionImageAnalysis.active.value && !projectSession.imageAnalysisAvailable.value"
+			@click="projectSession.toggleHighResolutionImageAnalysis()"
 		>
 			<span v-if="highResolutionImageAnalysis.busy.value">…</span>
 			<span v-else class="ti ti-badge-hd"></span>
@@ -53,11 +53,13 @@ import type { ImageValueRange } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisRangePreset } from '@/utility/image-analysis-range.ts';
 import { IMAGE_ANALYSIS_RANGE_PRESETS } from '@/utility/image-analysis-range.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
-const { analysisTarget, analysisImageSource, analysisValueScale, analysisRangePreset, analysisCustomRange, highResolutionImageAnalysis } = appContext;
+const projectSession = useProjectSession();
+
+const { analysisTarget, analysisImageSource, analysisValueScale, analysisRangePreset, analysisCustomRange, highResolutionImageAnalysis } = projectSession;
 const effectiveImageSource = computed(() => resolvePreviewAnalysisImageSource(analysisTarget.value, analysisImageSource.value));
 const analysisImageSourceLabels = computed<Record<PreviewImageSource, string>>(() => ({
 	original: i18n.ts._Preview.WarningImageSourceOriginal,

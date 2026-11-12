@@ -21,6 +21,7 @@
 </template>
 
 <script lang="ts" setup>
+import { useProjectSession } from '@/project-session.ts';
 import { computed } from 'vue';
 import { getFileSourceError } from '@gs/shared/file-source.ts';
 import GsAssetThumbnail from './GsAssetThumbnail.vue';
@@ -28,6 +29,8 @@ import type { ProjectAsset } from '@/Project.ts';
 import { getAssetMenu } from '@/utility/asset-menu.ts';
 import { contextMenu } from '@/ui.ts';
 import { useDragSession } from '@/composables/useDragSession.ts';
+
+const projectSession = useProjectSession();
 
 const props = defineProps<{
 	asset: ProjectAsset;
@@ -55,7 +58,7 @@ const externalError = computed(() => getFileSourceError(props.asset.fileData));
 const title = computed(() => `${props.asset.name}\n${props.asset.fileDataType} ${bytes(props.asset.fileData.size)}${props.asset.sourceFilePath == null ? '' : '\n' + props.asset.sourceFilePath}${externalError.value == null ? '' : '\n' + externalError.value}`);
 
 function onContextmenu(ev: PointerEvent) {
-	contextMenu(getAssetMenu(props.asset), ev);
+	contextMenu(getAssetMenu(projectSession.projectContext, props.asset), ev);
 }
 
 function onDragstart(ev: DragEvent) {

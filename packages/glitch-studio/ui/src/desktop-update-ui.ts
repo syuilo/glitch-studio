@@ -1,4 +1,4 @@
-import { appContext } from './app.ts';
+import { projectSession } from './app.ts';
 import { applicationActivity } from './application-activity.ts';
 import { DesktopUpdateUiController } from './DesktopUpdateUiController.ts';
 import { DesktopUpdates } from './desktop-updates.ts';
@@ -12,6 +12,6 @@ export const desktopUpdateUi = __ELECTRON__ && window.desktop != null ? new Desk
 		return release;
 	},
 	async pause() {
-		return appContext.pauseForDesktopUpdate();
+		return projectSession.pauseForDesktopUpdate();
 	},
 })) : null;

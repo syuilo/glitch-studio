@@ -56,7 +56,15 @@ const DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES = 0;
 
 export const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
 
-export class AppContext {
+export class ProjectSessionContext {
+	public readonly id = genId();
+	private disposed = false;
+	private disposal: Promise<void> | null = null;
+	private sessionDisposers: (() => void)[] = [];
+	public get isDisposed() { return this.disposed; }
+	private readonly onWindowFocus = () => {
+		if (!this.disposed) void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
+	};
 	private synchronizedPreviewDisplayMode: 'visualModuleLivePreview' | 'timeline' | null = null;
 	public readonly previewParameterEditing = markRaw(new PreviewParameterEditingController());
 	public readonly projectContext: ProjectContext;
@@ -132,19 +140,20 @@ export class AppContext {
 	public get projectBackupController() { return this.projectSaveController.projectBackupController; }
 
 	constructor(projectContext: ProjectContext) {
+		markRaw(this);
 		this.projectContext = projectContext;
 		this.renderValidation = markRaw(new ProjectRenderValidation(projectContext.stateManager.state, effectDefinitions));
 
 		// 保存済みのAnalyze設定をWorker生成より先に渡す。切り替え時も、映像レンダラーの
 		// 再生成を待たず音声モニターを止める。音声再生・作品内の音声解析には適用しない。
-		watch(preferences.r.analysisMonitorsEnabled, enabled => {
+		this.sessionDisposers.push(watch(preferences.r.analysisMonitorsEnabled, enabled => {
 			void this.audioOutput.preview.setAnalysisEnabled(enabled);
-		}, { immediate: true, flush: 'sync' });
+		}, { immediate: true, flush: 'sync' }));
 
 		// Sceneを削除・Undoした場合にも、UIが存在しないSceneを編集し続けないようにする。
-		watch(() => this.projectContext.stateManager.state.timelineScenes.value.map(scene => scene.id), ids => {
+		this.sessionDisposers.push(watch(() => this.projectContext.stateManager.state.timelineScenes.value.map(scene => scene.id), ids => {
 			if (this.activeSceneId.value == null || !ids.includes(this.activeSceneId.value)) this.activeSceneId.value = ids[0] ?? null;
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
 		this.visualModuleRendererManagerController = markRaw(new VisualModuleRendererManagerController(this.audioOutput));
 		this.timelineRendererManagerController = markRaw(new TimelineRendererManagerController());
@@ -171,8 +180,8 @@ export class AppContext {
 				this.renderEngine.notifyContentChange();
 			},
 		));
-		watch(() => JSON.stringify([this.previewPlayback.state.value.mode, this.previewPlayback.visualModuleLivePreviewVisualModuleId.value, this.activeSceneId.value]),
-			() => this.previewParameterEditing.clear(), { flush: 'sync' });
+		this.sessionDisposers.push(watch(() => JSON.stringify([this.previewPlayback.state.value.mode, this.previewPlayback.visualModuleLivePreviewVisualModuleId.value, this.activeSceneId.value]),
+			() => this.previewParameterEditing.clear(), { flush: 'sync' }));
 		this.renderEngine = markRaw(new PreviewRenderEngine({
 			dispose: reason => {
 				this.highResolutionImageAnalysis?.reset();
@@ -253,33 +262,31 @@ export class AppContext {
 				}
 			}, { waitForInitialization: true });
 		}, error => this.renderEngine.fail(error));
-		watch(() => this.previewPlayback.state.value.mode, () => {
+		this.sessionDisposers.push(watch(() => this.previewPlayback.state.value.mode, () => {
 			void this.updatePreviewDisplayActivity();
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 		for (const controller of [this.visualModuleRendererManagerController, this.timelineRendererManagerController]) {
 			controller.onRenderFailure = (error, origin) => {
 				this.renderEngine.fail(error, origin);
 				void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 			};
 		}
-		window.addEventListener?.('focus', () => {
-			void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
-		});
+		window.addEventListener?.('focus', this.onWindowFocus);
 		this.visualModuleRendererManagerController.onAssetReadFailure = () => {
 			void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 		};
-		watch(this.previewPlayback.visualModuleLivePreviewVisualModuleId, id => {
+		this.sessionDisposers.push(watch(this.previewPlayback.visualModuleLivePreviewVisualModuleId, id => {
 			if (id != null) return;
 			this.renderValidation.setVisualModuleLivePreviewInputs(null);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
-		}, { flush: 'sync' });
-		watch(() => this.timelineAudioPreview.error.value, message => {
+		}, { flush: 'sync' }));
+		this.sessionDisposers.push(watch(() => this.timelineAudioPreview.error.value, message => {
 			if (message != null) {
 				this.renderEngine.fail(new Error(message));
 				void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 			}
-		});
-		projectContext.stateManager.onChange(changes => {
+		}));
+		this.sessionDisposers.push(projectContext.stateManager.onChange(changes => {
 			this.renderValidation.update(changes);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 			if (changes.some(change => change.type === 'customShaderEffect')) {
@@ -288,7 +295,7 @@ export class AppContext {
 			} else if (changes.some(change => ['automationGraphs', 'node', 'visualModule', 'visualModuleRegistration', 'layer', 'layerTree', 'layerOrder', 'scene'].includes(change.type))) {
 				this.renderEngine.notifyContentChange();
 			}
-		});
+		}));
 
 		this.voicevoxGeneration = markRaw(new VoicevoxGeneration({
 			getScenes: () => this.projectContext.stateManager.state.timelineScenes.value,
@@ -313,47 +320,47 @@ export class AppContext {
 		}));
 
 		// 再生中は生成結果を採用しない。シークで音声Workerを再作成してもこの一覧を使う。
-		watch([this.previewPlayback.isTimelinePlaying, this.projectContext.stateManager.state.generatedSpeech], ([playing], previous) => {
+		this.sessionDisposers.push(watch([this.previewPlayback.isTimelinePlaying, this.projectContext.stateManager.state.generatedSpeech], ([playing], previous) => {
 			if (!playing || !previous?.[0]) {
 				const speech = this.projectContext.stateManager.state.generatedSpeech.value;
 				// 配列だけのコピーでは各音声・AudioQueryにVueのProxyが残り、音声Workerの
 				// postMessageが失敗する。ここで入れ子まで通常の値にし、再生中の一覧を固定する。
 				if (speech.length !== this.previewSpeech.value.length || speech.some((item, index) => item.sourceId !== this.previewSpeech.value[index]?.sourceId)) this.previewSpeech.value = deepClone(speech);
 			}
-		}, { flush: 'sync' });
-		watch(this.previewSpeech, speech => {
+		}, { flush: 'sync' }));
+		this.sessionDisposers.push(watch(this.previewSpeech, speech => {
 			void this.updateTimelinePreviewOptions({ generatedSpeech: deepClone(speech) }).then(() => this.previewPlayback.refresh()).catch(error => {
 				ui.alert({ type: 'error', text: String(error) });
 				console.error(error);
 			});
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
-		watch(this.activeSceneId, (sceneId, previousId) => {
+		this.sessionDisposers.push(watch(this.activeSceneId, (sceneId, previousId) => {
 			this.renderEngine.notifyContentChange();
 			// 音声更新のwatchより前に旧Sceneの時計を止め、切替先の長さで位置を丸めない。
 			this.previewPlayback.pauseTimeline();
 			if (previousId != null) this.scenePlaybackTimes.set(previousId, this.previewPlayback.currentTimelineTime.value);
 			this.pendingSceneSeek = sceneId == null ? 0 : this.scenePlaybackTimes.get(sceneId) ?? 0;
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
-		watch(this.highlightClipping, async value => {
+		this.sessionDisposers.push(watch(this.highlightClipping, async value => {
 			await this.updatePreviewOptions({ highlightClipping: value });
 			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
-		watch(this.previewWarningImageSource, async value => {
+		}, { flush: 'sync' }));
+		this.sessionDisposers.push(watch(this.previewWarningImageSource, async value => {
 			await this.updatePreviewOptions({ previewWarningImageSource: value });
 			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
-		watch(this.previewGamutWarning, async value => {
+		}, { flush: 'sync' }));
+		this.sessionDisposers.push(watch(this.previewGamutWarning, async value => {
 			await this.updatePreviewOptions({ previewGamutWarning: { ...value } });
 			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
-		watch(preferences.r.animatedBgInPreview, async value => {
+		}, { flush: 'sync' }));
+		this.sessionDisposers.push(watch(preferences.r.animatedBgInPreview, async value => {
 			await this.updatePreviewOptions({ previewBackground: value ? 'checker' : 'black' });
 			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
-		watch([this.analysisTarget, this.analysisValueScale, this.analysisValueRange, this.analysisImageSource], async ([target, valueScale, valueRange, imageSource]) => {
+		this.sessionDisposers.push(watch([this.analysisTarget, this.analysisValueScale, this.analysisValueRange, this.analysisImageSource], async ([target, valueScale, valueRange, imageSource]) => {
 			const resolvedValueScale = resolveImageAnalysisValueScale(target, valueScale);
 			if (resolvedValueScale !== valueScale) {
 				// 同期watchへ再入して、有効な対象・範囲の組だけをRendererへ渡す。
@@ -366,60 +373,61 @@ export class AppContext {
 			}
 			await this.updatePreviewOptions({ analysisTarget: target, analysisImageSource: imageSource, analysisValueScale: valueScale, analysisValueRange: { ...valueRange } });
 			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
-		watch([this.analysisWaveformCanvasSizes, this.analysisWaveformViewports, this.analysisHistogramViewport, this.activePreviewRenderer], () => {
+		this.sessionDisposers.push(watch([this.analysisWaveformCanvasSizes, this.analysisWaveformViewports, this.analysisHistogramViewport, this.activePreviewRenderer], () => {
 			if (this.highResolutionImageAnalysis.active.value) {
 				this.highResolutionImageAnalysis.update(this.imageAnalysisSettings.value);
 				return;
 			}
 			this.imageAnalysisDisplayUpdate.request();
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
-		watch(this.previewExposure, async value => {
+		this.sessionDisposers.push(watch(this.previewExposure, async value => {
 			await this.updatePreviewOptions({ previewExposure: value });
 			this.refreshHeldDisplayAnalysis();
 			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
-		watch(this.previewSrgbProof, async value => {
+		}, { flush: 'sync' }));
+		this.sessionDisposers.push(watch(this.previewSrgbProof, async value => {
 			await this.updatePreviewOptions({ previewSrgbProof: value });
 			this.refreshHeldDisplayAnalysis();
 			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
-		watch(this.previewGamutCompression, async value => {
+		}, { flush: 'sync' }));
+		this.sessionDisposers.push(watch(this.previewGamutCompression, async value => {
 			await this.updatePreviewOptions({ previewGamutCompression: { ...value } });
 			this.refreshHeldDisplayAnalysis();
 			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
-		watch(this.visualModuleLivePreviewFpsLimit, async value => {
+		this.sessionDisposers.push(watch(this.visualModuleLivePreviewFpsLimit, async value => {
 			await this.updateVisualModulePreviewOptions({ fpsLimit: value });
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
-		watch(this.visualModuleLivePreviewTimeFactor, async value => {
+		this.sessionDisposers.push(watch(this.visualModuleLivePreviewTimeFactor, async value => {
 			await this.updateVisualModulePreviewOptions({ visualModuleLivePreviewTimeFactor: value });
-		}, { flush: 'sync' });
-		watch([this.projectContext.stateManager.state.timelineFps, this.timelinePreviewFpsFactor], async () => {
+		}, { flush: 'sync' }));
+		this.sessionDisposers.push(watch([this.projectContext.stateManager.state.timelineFps, this.timelinePreviewFpsFactor], async () => {
 			await this.updateTimelinePreviewOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
 			this.previewPlayback.updateTimelinePreviewFps();
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
-		watch([this.projectContext.stateManager.state.resolution, this.resolutionFactor], async () => {
+		this.sessionDisposers.push(watch([this.projectContext.stateManager.state.resolution, this.resolutionFactor], async () => {
 			await this.updatePreviewOptions({
 				resolution: { ...this.projectContext.stateManager.state.resolution.value },
 				resolutionScale: this.resolutionFactor.value,
 			});
 			this.previewPlayback.refresh();
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
-		watch(() => this.getPreviewStaticOptions(), (options, previous) => {
+		this.sessionDisposers.push(watch(() => this.getPreviewStaticOptions(), (options, previous) => {
 			// 同値の再代入を除き、Timeline固有の設定も両プレビューを同じ世代として再生成する。
 			if (!deepEqual(options, previous)) this.renderEngine.requestRestart();
-		}, { flush: 'sync' });
+		}, { flush: 'sync' }));
 
 		this.projectSaveController = new ProjectSaveController(
 			() => this.projectContext.snapshot(),
 			id => { this.projectContext.adoptSavedProjectId(id); },
+			(component, props, events) => ui.popup(component, props, events, this),
 		);
 	}
 
@@ -517,6 +525,7 @@ export class AppContext {
 
 	/** 再生要求を止めてからGPUリソースを解放し、復帰完了後にだけ再生を戻す。 */
 	public async suspendPreview() {
+		if (this.disposed) return;
 		this.renderEngine.suspend();
 		// 映像Workerを破棄しても、音声モニターとUIのCanvasは別の寿命で残る。
 		// 両方の休止を反映してから、同じGPUを使う書き出しへ進む。
@@ -524,11 +533,12 @@ export class AppContext {
 	}
 
 	public async resumePreview() {
+		if (this.disposed) return;
 		try {
 			await this.renderEngine.resume();
 		} finally {
 			// 再初期化の完了待ち中に別の休止が入った場合、その新しい要求を解除しない。
-			await this.audioOutput.preview.setRenderingSuspended(this.renderEngine.isSuspended.value);
+			if (!this.disposed) await this.audioOutput.preview.setRenderingSuspended(this.renderEngine.isSuspended.value);
 		}
 	}
 
@@ -541,6 +551,7 @@ export class AppContext {
 	}
 
 	public async ready(project: Project, fileName: string | null = null, fileHandle: ProjectFileHandle | null = null) {
+		if (this.disposed) return;
 		return applicationActivity.run(() => this.loadProject(project, fileName, fileHandle));
 	}
 
@@ -548,150 +559,154 @@ export class AppContext {
 		this.previewParameterEditing.clear();
 		const waiting = ui.waiting({ text: i18n.ts._App.InitializingProject });
 
-		await this.suspendPreview();
-		timelineClipboard.value = null;
-		this.scenePlaybackTimes.clear();
-		// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
-		const maxDimension = Math.max(project.resolution.width, project.resolution.height);
-		const initialResolutionFactor = maxDimension > 3000 ? 0.25 : maxDimension > 1500 ? 0.5 : 1;
+		try {
+			await this.suspendPreview();
+			if (this.disposed) return;
+			timelineClipboard.value = null;
+			this.scenePlaybackTimes.clear();
+			// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
+			const maxDimension = Math.max(project.resolution.width, project.resolution.height);
+			const initialResolutionFactor = maxDimension > 3000 ? 0.25 : maxDimension > 1500 ? 0.5 : 1;
 
-		// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
-		this.projectSaveController.beginProjectLoad();
-		for (const stop of this.projectWatchers) stop();
-		this.projectWatchers = [];
-		this.previewPlayback.dispose();
-		this.previewPlayback.suspend();
+			// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
+			this.projectSaveController.beginProjectLoad();
+			for (const stop of this.projectWatchers) stop();
+			this.projectWatchers = [];
+			this.previewPlayback.dispose();
+			this.previewPlayback.suspend();
 
-		this.timelinePreviewFpsFactor.value = 0.5;
-		this.timelinePreviewMotionBlurSamples.value = DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES;
-		this.resolutionFactor.value = initialResolutionFactor;
+			this.timelinePreviewFpsFactor.value = 0.5;
+			this.timelinePreviewMotionBlurSamples.value = DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES;
+			this.resolutionFactor.value = initialResolutionFactor;
 
-		this.voicevoxGeneration.reset();
-		await resolveExternalAssets(project.assets);
-		this.projectContext.load(project);
-		this.renderValidation.reset();
-		this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
+			this.voicevoxGeneration.reset();
+			await resolveExternalAssets(project.assets);
+			if (this.disposed) return;
+			this.projectContext.load(project);
+			this.renderValidation.reset();
+			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 
-		this.activeSceneId.value = project.timelineScenes[0]?.id ?? null;
-		this.scenePlaybackTimes.clear();
-		this.pendingSceneSeek = null;
+			this.activeSceneId.value = project.timelineScenes[0]?.id ?? null;
+			this.scenePlaybackTimes.clear();
+			this.pendingSceneSeek = null;
 
-		this.projectSaveController.finishProjectLoad(fileName, fileHandle);
-		await window.desktop?.setCurrentProjectFile?.(fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
+			this.projectSaveController.finishProjectLoad(fileName, fileHandle);
+			await window.desktop?.setCurrentProjectFile?.(fileHandle?.kind === 'desktop-project-file' ? fileHandle.id : null);
+			if (this.disposed) return;
 
-		// 発話編集・削除・Undo/Redoでは、旧音声と新字幕を混在させず再生を停止する。
-		this.projectWatchers.push(watch(() => JSON.stringify(this.projectContext.stateManager.state.timelineScenes.value.map(scene => ({
-			id: scene.id,
-			layers: flattenTimelineLayers(scene.layers).filter(layer => layer.layerType === 'voicevox').map(layer => ({
-				id: layer.id,
-				voicevox: layer.voicevox,
-				utterances: layer.utterances,
-				clips: layer.clips,
-				isDisabled: layer.isDisabled,
-			})),
-		}))), () => { if (this.previewPlayback.isTimelinePlaying.value) this.previewPlayback.pauseTimeline(); }, { flush: 'sync' }));
-		this.projectWatchers.push(watch(() => JSON.stringify(getVoicevoxRequests(this.projectContext.stateManager.state.timelineScenes.value)), () => {
-			if (window.desktop) this.voicevoxGeneration.schedule();
-			else this.voicevoxGeneration.synchronizeSpeech();
-		}, { immediate: true, flush: 'sync' }));
+			// 発話編集・削除・Undo/Redoでは、旧音声と新字幕を混在させず再生を停止する。
+			this.projectWatchers.push(watch(() => JSON.stringify(this.projectContext.stateManager.state.timelineScenes.value.map(scene => ({
+				id: scene.id,
+				layers: flattenTimelineLayers(scene.layers).filter(layer => layer.layerType === 'voicevox').map(layer => ({
+					id: layer.id,
+					voicevox: layer.voicevox,
+					utterances: layer.utterances,
+					clips: layer.clips,
+					isDisabled: layer.isDisabled,
+				})),
+			}))), () => { if (this.previewPlayback.isTimelinePlaying.value) this.previewPlayback.pauseTimeline(); }, { flush: 'sync' }));
+			this.projectWatchers.push(watch(() => JSON.stringify(getVoicevoxRequests(this.projectContext.stateManager.state.timelineScenes.value)), () => {
+				if (window.desktop) this.voicevoxGeneration.schedule();
+				else this.voicevoxGeneration.synchronizeSpeech();
+			}, { immediate: true, flush: 'sync' }));
 
-		// 音声の内容・参照先・ループ長を比較し、映像パラメータの編集では先読みPCMを維持する。
-		// 素材原本の変更は下の同期watchがプレビュー全体を再生成し、再開時に最新素材で音声も作り直す。
-		this.projectWatchers.push(watch(() => {
-			const layers = this.renderValidation.errorMessage.value || this.activeSceneId.value == null ? [] : getSceneAudioClips(this.timelineEvaluationScenes.value, this.activeSceneId.value, { type: 'all' }, createSpeechResolver(this.previewSpeech.value));
-			return {
-				layers: deepClone(layers),
-				duration: this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),
-			};
-		}, (next, previous) => {
-			if (next.duration !== previous.duration || !deepEqual(next.layers, previous.layers)) {
-				this.previewPlayback.refreshAudio();
-			}
-		}));
+			// 音声の内容・参照先・ループ長を比較し、映像パラメータの編集では先読みPCMを維持する。
+			// 素材原本の変更は下の同期watchがプレビュー全体を再生成し、再開時に最新素材で音声も作り直す。
+			this.projectWatchers.push(watch(() => {
+				const layers = this.renderValidation.errorMessage.value || this.activeSceneId.value == null ? [] : getSceneAudioClips(this.timelineEvaluationScenes.value, this.activeSceneId.value, { type: 'all' }, createSpeechResolver(this.previewSpeech.value));
+				return {
+					layers: deepClone(layers),
+					duration: this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),
+				};
+			}, (next, previous) => {
+				if (next.duration !== previous.duration || !deepEqual(next.layers, previous.layers)) {
+					this.previewPlayback.refreshAudio();
+				}
+			}));
 
-		const state = this.projectContext.stateManager.state;
-		const previewResources = computed<(string | number | boolean | Blob | null | undefined)[][]>(previous => {
-			// Blobは不変なので同一性で、URL入力は値で比較する。履歴のメタデータ復元は同値の
-			// オブジェクトも再代入するため、その通知や名前・サムネイルだけの変更では再生成しない。
-			const next = [
-				...state.assets.value.map(asset => [
-					'asset', asset.id, asset.fileDataType, asset.width, asset.height, asset.hash,
-					asset.isExternalReference, asset.sourceFilePath,
-					...(asset.fileData instanceof Blob ? [asset.fileData] : [asset.fileData.url, asset.fileData.size, asset.fileData.error]),
-				]),
-				...state.players.value.map(player => ['player', player.id, player.sourceType, player.assetId]),
-			];
-			return previous != null && next.length === previous.length && next.every((resource, index) =>
-				resource.length === previous[index].length && resource.every((value, field) => value === previous[index][field])) ? previous : next;
-		});
-		this.projectWatchers.push(watch(previewResources, async (_value, _previous, onCleanup) => {
-			// 同じCommandが追加するノードの差分より先に止める。await後では旧素材で解像度を計算してしまう。
-			const update = this.renderEngine.beginResourceUpdate();
-			onCleanup(update.cancel);
-			try {
-				// 同期watchはCommandの途中にも呼ばれるため、最終状態になってから参照解決する。
-				await Promise.resolve();
-				if (!update.isCurrent()) return;
-				await resolveExternalAssets(state.assets.value);
-				if (!update.isCurrent()) return;
-				// 準備中の編集差分は再送せず、再生成経路が素材・Player・ノードの最新状態を取り込む。
-				await update.complete();
-			} catch (error) {
-				if (!update.isCurrent()) return;
-				update.cancel();
-				this.renderEngine.fail(error);
-			}
-		}, { flush: 'sync' }));
+			const state = this.projectContext.stateManager.state;
+			const previewResources = computed<(string | number | boolean | Blob | null | undefined)[][]>(previous => {
+				// Blobは不変なので同一性で、URL入力は値で比較する。履歴のメタデータ復元は同値の
+				// オブジェクトも再代入するため、その通知や名前・サムネイルだけの変更では再生成しない。
+				const next = [
+					...state.assets.value.map(asset => [
+						'asset', asset.id, asset.fileDataType, asset.width, asset.height, asset.hash,
+						asset.isExternalReference, asset.sourceFilePath,
+						...(asset.fileData instanceof Blob ? [asset.fileData] : [asset.fileData.url, asset.fileData.size, asset.fileData.error]),
+					]),
+					...state.players.value.map(player => ['player', player.id, player.sourceType, player.assetId]),
+				];
+				return previous != null && next.length === previous.length && next.every((resource, index) =>
+					resource.length === previous[index].length && resource.every((value, field) => value === previous[index][field])) ? previous : next;
+			});
+			this.projectWatchers.push(watch(previewResources, async (_value, _previous, onCleanup) => {
+				// 同じCommandが追加するノードの差分より先に止める。await後では旧素材で解像度を計算してしまう。
+				const update = this.renderEngine.beginResourceUpdate();
+				onCleanup(update.cancel);
+				try {
+					// 同期watchはCommandの途中にも呼ばれるため、最終状態になってから参照解決する。
+					await Promise.resolve();
+					if (!update.isCurrent()) return;
+					await resolveExternalAssets(state.assets.value);
+					if (!update.isCurrent()) return;
+					// 準備中の編集差分は再送せず、再生成経路が素材・Player・ノードの最新状態を取り込む。
+					await update.complete();
+				} catch (error) {
+					if (!update.isCurrent()) return;
+					update.cancel();
+					this.renderEngine.fail(error);
+				}
+			}, { flush: 'sync' }));
 
-		// UndoでVisual Module Live Preview対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
-		this.projectWatchers.push(this.projectContext.stateManager.onChange(changes => {
-			this.previewPlayback.cancelTimelineBake();
-			const visualModuleLivePreviewVisualModuleId = this.previewPlayback.visualModuleLivePreviewVisualModuleId.value;
-			if (visualModuleLivePreviewVisualModuleId != null && changes.some(change => change.type === 'visualModuleRegistration' && change.visualModuleId === visualModuleLivePreviewVisualModuleId)
-				&& this.projectContext.getVisualModuleById(visualModuleLivePreviewVisualModuleId) == null) this.previewPlayback.showTimeline();
-		}));
+			// UndoでVisual Module Live Preview対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
+			this.projectWatchers.push(this.projectContext.stateManager.onChange(changes => {
+				this.previewPlayback.cancelTimelineBake();
+				const visualModuleLivePreviewVisualModuleId = this.previewPlayback.visualModuleLivePreviewVisualModuleId.value;
+				if (visualModuleLivePreviewVisualModuleId != null && changes.some(change => change.type === 'visualModuleRegistration' && change.visualModuleId === visualModuleLivePreviewVisualModuleId)
+					&& this.projectContext.getVisualModuleById(visualModuleLivePreviewVisualModuleId) == null) this.previewPlayback.showTimeline();
+			}));
 
-		const rendererSync = new RendererProjectSynchronizer(this.projectContext.stateManager, {
-			apply: changes => this.renderEngine.runRendererUpdate(() => Promise.all([
-				this.visualModuleRendererManagerController.applyProjectChanges(changes),
-				this.timelineRendererManagerController.applyProjectChanges(changes),
-			]), { waitForInitialization: changes.some(change => change.type === 'customShaderEffects') }),
-			onUpdated: () => this.previewPlayback.refresh(),
-			onError: error => {
-				if (this.renderEngine.canRender.value) this.renderEngine.fail(error);
-			},
-		});
-		this.rendererProjectSynchronizer = rendererSync;
-		this.projectWatchers.push(() => {
-			rendererSync.dispose();
-			this.rendererProjectSynchronizer = null;
-		});
+			const rendererSync = new RendererProjectSynchronizer(this.projectContext.stateManager, {
+				apply: changes => this.renderEngine.runRendererUpdate(() => Promise.all([
+					this.visualModuleRendererManagerController.applyProjectChanges(changes),
+					this.timelineRendererManagerController.applyProjectChanges(changes),
+				]), { waitForInitialization: changes.some(change => change.type === 'customShaderEffects') }),
+				onUpdated: () => this.previewPlayback.refresh(),
+				onError: error => {
+					if (this.renderEngine.canRender.value) this.renderEngine.fail(error);
+				},
+			});
+			this.rendererProjectSynchronizer = rendererSync;
+			this.projectWatchers.push(() => {
+				rendererSync.dispose();
+				this.rendererProjectSynchronizer = null;
+			});
 
-		let sceneUpdateGeneration = 0;
-		this.projectWatchers.push(watch(this.activeSceneId, async (sceneId, _previous, onCleanup) => {
-			const generation = ++sceneUpdateGeneration;
-			let cancelled = false;
-			onCleanup(() => { cancelled = true; });
-			// Scene追加コマンドの通知は同期watchの後に届く。差分を確定してから参照を切り替える。
-			await rendererSync.flush();
-			if (cancelled || generation !== sceneUpdateGeneration) return;
-			await this.updateTimelinePreviewOptions({ sceneId });
-			if (cancelled || generation !== sceneUpdateGeneration) return;
-			if (this.pendingSceneSeek != null) {
-				const time = this.pendingSceneSeek;
-				this.pendingSceneSeek = null;
-				this.previewPlayback.seekTimeline(time, false);
-			} else this.previewPlayback.refresh();
-		}));
+			let sceneUpdateGeneration = 0;
+			this.projectWatchers.push(watch(this.activeSceneId, async (sceneId, _previous, onCleanup) => {
+				const generation = ++sceneUpdateGeneration;
+				let cancelled = false;
+				onCleanup(() => { cancelled = true; });
+				// Scene追加コマンドの通知は同期watchの後に届く。差分を確定してから参照を切り替える。
+				await rendererSync.flush();
+				if (cancelled || generation !== sceneUpdateGeneration) return;
+				await this.updateTimelinePreviewOptions({ sceneId });
+				if (cancelled || generation !== sceneUpdateGeneration) return;
+				if (this.pendingSceneSeek != null) {
+					const time = this.pendingSceneSeek;
+					this.pendingSceneSeek = null;
+					this.previewPlayback.seekTimeline(time, false);
+				} else this.previewPlayback.refresh();
+			}));
 
-		this.previewPlayback.seekTimeline(0, false);
-		if (project.visualModules[0] != null) this.previewPlayback.startVisualModuleLivePreview(project.visualModules[0].id);
+			this.previewPlayback.seekTimeline(0, false);
+			if (project.visualModules[0] != null) this.previewPlayback.startVisualModuleLivePreview(project.visualModules[0].id);
 
-		waiting.setText(i18n.ts._App.InitializingRenderer);
-		await this.renderEngine.enable();
-		await this.resumePreview();
+			waiting.setText(i18n.ts._App.InitializingRenderer);
+			await this.renderEngine.enable();
+			await this.resumePreview();
 
-		waiting.done();
+		} finally { waiting.done(); }
 	}
 
 	public async flushRendererProjectChanges(): Promise<void> {
@@ -708,5 +723,27 @@ export class AppContext {
 
 	public saveProject(saveAs = false): Promise<void> {
 		return this.projectSaveController.saveProject(saveAs);
+	}
+
+	/**
+	 * 受付と購読は同期的に止め、既に始まったファイル書き込みの後処理だけを待つ。
+	 * 非表示・書き出し中の休止とは異なり、このセッションは再開しない。
+	 */
+	public dispose(): Promise<void> {
+		if (this.disposal != null) return this.disposal;
+		this.disposed = true;
+		for (const stop of this.sessionDisposers.splice(0)) stop();
+		for (const stop of this.projectWatchers.splice(0)) stop();
+		window.removeEventListener?.('focus', this.onWindowFocus);
+		this.renderEngine.dispose();
+		this.previewParameterEditing.clear();
+		this.previewPlayback.dispose();
+		this.previewPlayback.suspend();
+		this.voicevoxGeneration.dispose();
+		this.disposal = Promise.all([this.audioOutput.dispose(), this.projectSaveController.dispose()]).then(() => {});
+		ui.disposeProjectSessionPopups(this);
+		this.projectContext.dispose();
+		this.scenePlaybackTimes.clear();
+		return this.disposal;
 	}
 }

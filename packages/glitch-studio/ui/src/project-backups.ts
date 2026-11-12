@@ -104,6 +104,7 @@ type BackupControllerOptions = {
 };
 
 export class ProjectBackupController {
+	private disposed = false;
 	private paused = false;
 	private target: ProjectBackupTarget | null = null;
 	private generation = 0;
@@ -117,11 +118,13 @@ export class ProjectBackupController {
 	constructor(private options: BackupControllerOptions) {}
 
 	setPaused(paused: boolean): void {
+		if (this.disposed) return;
 		this.paused = paused;
 		this.refreshSchedule();
 	}
 
 	setTarget(target: ProjectBackupTarget | null): void {
+		if (this.disposed) return;
 		this.target = target;
 		this.generation++;
 		this.lastFingerprint = null;
@@ -133,6 +136,7 @@ export class ProjectBackupController {
 	}
 
 	refreshSchedule(): void {
+		if (this.disposed) return;
 		this.options.cancel(this.timer);
 		this.timer = null;
 		this.nextAutoBackup = this.options.now() + this.options.settings().autoIntervalMinutes * 60000;
@@ -140,6 +144,7 @@ export class ProjectBackupController {
 	}
 
 	reportError(error: unknown): void {
+		if (this.disposed) return;
 		this.status.error = error instanceof Error ? error.message : String(error);
 		this.publish();
 	}
@@ -150,7 +155,7 @@ export class ProjectBackupController {
 		this.options.cancel(this.timer);
 		this.timer = null;
 		const settings = this.options.settings();
-		if (this.paused || !this.target || (!settings.autoEnabled && !settings.saveEnabled)) return;
+		if (this.disposed || this.paused || !this.target || (!settings.autoEnabled && !settings.saveEnabled)) return;
 		try { validateProjectBackupSettings(settings); } catch (error) { this.reportError(error); return; }
 		// 長い間隔でも期限の整理は行う。復帰時は現在の状態を1回だけ保存し、休止中の回数を積まない。
 		this.timer = this.options.schedule(() => { void this.tick().finally(() => this.schedule()); },
@@ -158,7 +163,7 @@ export class ProjectBackupController {
 	}
 
 	async tick(): Promise<void> {
-		if (this.paused) return;
+		if (this.disposed || this.paused) return;
 		const target = this.target;
 		const generation = this.generation;
 		await this.options.runExclusive(async () => {
@@ -232,6 +237,7 @@ export class ProjectBackupController {
 	}
 
 	async afterSave(target: ProjectBackupTarget, saveBackupTime: number | null): Promise<void> {
+		if (this.disposed) return;
 		const generation = this.generation;
 		if (saveBackupTime != null) this.status.lastSaveBackup = saveBackupTime;
 		this.publish();
@@ -243,5 +249,14 @@ export class ProjectBackupController {
 			// 削除失敗は、既に確定した本体保存の失敗として報告しない。
 			if (generation === this.generation) this.reportError(error);
 		}
+	}
+
+	dispose(): void {
+		if (this.disposed) return;
+		this.disposed = true;
+		this.generation++;
+		this.target = null;
+		this.options.cancel(this.timer);
+		this.timer = null;
 	}
 }

@@ -15,9 +15,9 @@ const bundled = await build({
 	stdin: { contents: `${script}\ncomponent.__cssModules = { $style: {} }; export default component;`, loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'image-analysis-context', setup(build) {
-		build.onResolve({ filter: /^@\/(app|ui)\.ts$/ }, args => ({ path: args.path, namespace: 'context' }));
-		build.onLoad({ filter: /.*/, namespace: 'context' }, args => ({ contents: args.path.endsWith('app.ts')
-			? 'export const appContext = dependencies.state;'
+		build.onResolve({ filter: /^@\/(app|project-session|ui)\.ts$/ }, args => ({ path: args.path, namespace: 'context' }));
+		build.onLoad({ filter: /.*/, namespace: 'context' }, args => ({ contents: (args.path.endsWith('app.ts') || args.path.endsWith('project-session.ts'))
+			? 'export function useProjectSession() { return projectSession; } export const projectSession = dependencies.state;'
 			: 'export const popupMenu = items => { dependencies.menu = items; };' }));
 	} }],
 });

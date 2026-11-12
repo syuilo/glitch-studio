@@ -216,7 +216,7 @@ test('inherits voice for new keys and preserves voice and subtitle duration when
 	const context = {
 		props: { layer: f.layer, sceneId: 'root', get utterance() { return f.layer.utterances[0]; } },
 		error: { value: '' }, stateManager: f.history, insertVoicevoxUtterance,
-		appContext: { previewPlayback: { currentTimelineTime: { value: 450 } } },
+		projectSession: { previewPlayback: { currentTimelineTime: { value: 450 } } },
 		emit(...args) { events.push(args); },
 	};
 	const commitLayer = await loadHandler('commit', context, 'GsTimeline.VoicevoxSettings.vue');
@@ -921,7 +921,7 @@ test('resets queued work without releasing new-project export reservations for t
 test('evaluates export dialog audio presence without requiring prepared speech', async () => {
 	const f = fixture();
 	const context = { ...module.exports, computed: getter => getter, scene: { value: f.scenes[0] }, sceneId: { value: 'root' },
-		appContext: { renderValidation: { errorMessage: { value: null } } },
+		projectSession: { renderValidation: { errorMessage: { value: null } } },
 		settings: { value: { format: 'mp4', positionMs: 250, endTimeMs: 300 } },
 		stateManager: { state: { timelineScenes: { value: f.scenes }, generatedSpeech: { value: [] } } } };
 	const includesAudio = await loadComputed('includesAudio', context, 'GsTimelineExportDialog.vue');

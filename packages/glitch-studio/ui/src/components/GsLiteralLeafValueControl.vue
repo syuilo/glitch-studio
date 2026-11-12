@@ -202,11 +202,13 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { DataTypeUiControlDefinitionMap, DataTypeUiDefinition } from '@gs/shared/data-type/data-type-ui.ts';
 import type { LeafDataType } from '@gs/shared/data-type/data-type.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{
 	// コンテナの子や配列操作は呼び出し元が扱い、このコントロールには末端の定義だけを渡す。

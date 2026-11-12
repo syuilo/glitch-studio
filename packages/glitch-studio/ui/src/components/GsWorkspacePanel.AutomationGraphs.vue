@@ -42,12 +42,14 @@ import GsAutomationGraphPointsEditor from './GsAutomationGraphPointsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 import { createProjectAutomationGraph, setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 
 defineProps<{ panel: WorkspacePanel }>();
+
+const projectSession = useProjectSession();
 
 const tab = ref('graph');
 const tabs = [
@@ -55,7 +57,7 @@ const tabs = [
 	{ id: 'settings', label: i18n.ts.Settings },
 ];
 
-const { stateManager } = appContext.projectContext;
+const { stateManager } = projectSession.projectContext;
 const graphs = stateManager.state.automationGraphs;
 const selectedGraphId = ref<string | null>(null);
 const selectedGraph = computed(() => graphs.value.find(graph => graph.id === selectedGraphId.value) ?? graphs.value[0] ?? null);

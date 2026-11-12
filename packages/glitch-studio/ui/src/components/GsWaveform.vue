@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView :title="direction === 'horizontal' ? i18n.ts._Workspace.WaveformX : i18n.ts._Workspace.WaveformY" :suspended="appContext.renderEngine.isSuspended.value" @changeWindow="observeScope">
+<GsDetachableView :title="direction === 'horizontal' ? i18n.ts._Workspace.WaveformX : i18n.ts._Workspace.WaveformY" :suspended="projectSession.renderEngine.isSuspended.value" @changeWindow="observeScope">
 	<div :class="$style.root">
 		<GsImageAnalysisSettings/>
 		<div
@@ -83,14 +83,16 @@ import GsDetachableView from './GsDetachableView.vue';
 import GsImageAnalysisSettings from './GsImageAnalysisSettings.vue';
 import type { ImageAnalysisAxisTick } from '@/utility/image-analysis-axis.ts';
 import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { useWaveformCanvasSize } from '@/use-waveform-canvas-size.ts';
 import { useImageAnalysisViewport } from '@/use-image-analysis-viewport.ts';
 import { useImageAnalysisPointer } from '@/use-image-analysis-pointer.ts';
 import { createImagePositionAxisTicks, createImageValueAxisTicks, formatImageAnalysisAxisValue, selectImageAnalysisAxisTicks } from '@/utility/image-analysis-axis.ts';
 
-const { imageAnalysisRenderer, displayedImageAnalysisSettings } = appContext;
+const projectSession = useProjectSession();
+
+const { imageAnalysisRenderer, displayedImageAnalysisSettings } = projectSession;
 
 const props = defineProps<{
 	direction: 'horizontal' | 'vertical';
@@ -98,13 +100,13 @@ const props = defineProps<{
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const scope = useTemplateRef('scope');
-const sizeObserver = useWaveformCanvasSize(scope, size => appContext.setWaveformCanvasSize(props.direction, size));
+const sizeObserver = useWaveformCanvasSize(scope, size => projectSession.setWaveformCanvasSize(props.direction, size));
 const scopeSize = sizeObserver.size;
 const { pointerPosition, clearPointerPosition, updatePointerPosition } = useImageAnalysisPointer(scope);
-const viewport = computed(() => appContext.analysisWaveformViewports.value?.[props.direction] ?? FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT);
+const viewport = computed(() => projectSession.analysisWaveformViewports.value?.[props.direction] ?? FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT);
 const displayedViewport = computed(() => displayedImageAnalysisSettings.value.waveformViewports?.[props.direction] ?? FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT);
 const { panning, selection, cancelInteraction, onWheel, onPointerdown, onKeydown } = useImageAnalysisViewport(scope, viewport,
-	value => appContext.setWaveformViewport(props.direction, value), () => appContext.flushImageAnalysisDisplay(), appContext.renderEngine.isSuspended, { displayedViewport });
+	value => projectSession.setWaveformViewport(props.direction, value), () => projectSession.flushImageAnalysisDisplay(), projectSession.renderEngine.isSuspended, { displayedViewport });
 
 function observeScope() { clearPointerPosition(); cancelInteraction(); sizeObserver.changeWindow(); }
 
@@ -141,14 +143,14 @@ function createPointerAxisTick(ticks: readonly ImageAnalysisAxisTick[], position
 
 const pointerAxisTicks = computed(() => {
 	const position = pointerPosition.value;
-	if (position == null || appContext.renderEngine.isSuspended.value) return null;
+	if (position == null || projectSession.renderEngine.isSuspended.value) return null;
 	return {
 		x: createPointerAxisTick(axisTicks.value.x, position.x, props.direction === 'horizontal'),
 		y: createPointerAxisTick(axisTicks.value.y, position.y, props.direction === 'vertical'),
 	};
 });
 
-useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => props.direction === 'horizontal' ? 'waveformHorizontalCanvas' : 'waveformVerticalCanvas', appContext.renderEngine.isSuspended);
+useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => props.direction === 'horizontal' ? 'waveformHorizontalCanvas' : 'waveformVerticalCanvas', projectSession.renderEngine.isSuspended);
 </script>
 
 <style module lang="scss">

@@ -1,6 +1,6 @@
 import { markRaw, ref, nextTick } from 'vue';
 import GsAssetSelectDialog from './components/GsAssetSelectDialog.vue';
-import type { Component, MaybeRef, InjectionKey, Ref } from 'vue';
+import type { Component, MaybeRef, InjectionKey, Ref, Raw } from 'vue';
 import type { ComponentEmit, ComponentProps as CP } from 'vue-component-type-helpers';
 import type { MenuItem } from '@/types/menu.ts';
 import type { OverloadToUnion } from '@/types/overload-to-union.ts';
@@ -8,6 +8,7 @@ import type { GsSelectItem } from './components/common/GsSelect.vue';
 import type { OptionValue } from './types/option-value.ts';
 import type { GsDialogReturnType } from '@/components/common/GsDialog.vue';
 import type { ProjectAsset } from './Project.ts';
+import type { ProjectSessionContext } from './ProjectSessionContext.ts';
 import { getHTMLElementOrNull } from '@/utility/get-dom-node-or-null.ts';
 import { focusParent } from '@/utility/focus.ts';
 import GsPopupMenu from '@/components/common/GsPopupMenu.vue';
@@ -23,12 +24,14 @@ export const DI = {
 };
 
 let popupIdCount = 0;
-export const popups = ref<{
+export type Popup = {
 	id: number;
 	component: Component;
 	props: Record<string, any>;
 	events: Record<string, any>;
-}[]>([]);
+	projectSession: Raw<ProjectSessionContext> | null;
+};
+export const popups = ref<Popup[]>([]);
 
 const zIndexes = {
 	veryLow: 500000,
@@ -70,7 +73,15 @@ export function popup<T extends Component>(
 	component: T,
 	props: ComponentProps<T>,
 	events: Partial<ComponentEmitsObject<T>> = {},
+	projectSession: ProjectSessionContext | null = null,
 ): { dispose: () => void } {
+	if (projectSession?.isDisposed === true) {
+		// 呼び出し側がdispose変数を受け取ってから閉じる。選択待ちのPromiseも解決する。
+		queueMicrotask(() => {
+			if ('closed' in events && typeof events.closed === 'function') events.closed();
+		});
+		return { dispose: () => {} };
+	}
 	markRaw(component);
 
 	const id = ++popupIdCount;
@@ -84,6 +95,7 @@ export function popup<T extends Component>(
 		props,
 		events,
 		id,
+		projectSession: projectSession == null ? null : markRaw(projectSession),
 	};
 
 	popups.value.push(state);
@@ -91,6 +103,13 @@ export function popup<T extends Component>(
 	return {
 		dispose,
 	};
+}
+
+/** セッションを閉じる際は選択待ちのPromiseも完了させ、閉じた画面を保持させない。 */
+export function disposeProjectSessionPopups(projectSession: ProjectSessionContext): void {
+	const owned = popups.value.filter(popup => popup.projectSession === projectSession);
+	popups.value = popups.value.filter(popup => popup.projectSession !== projectSession);
+	for (const popup of owned) popup.events.closed?.();
 }
 
 /*
@@ -400,7 +419,7 @@ export function progress(options: { text?: string } = { }) {
 	};
 }
 
-export function selectAsset(options: {
+export function selectAsset(projectSession: ProjectSessionContext, options: {
 	multiple: boolean;
 	mimeType: string | null;
 }): Promise<ProjectAsset[]> {
@@ -414,6 +433,6 @@ export function selectAsset(options: {
 				resolve([]);
 				dispose();
 			},
-		});
+		}, projectSession);
 	});
 }

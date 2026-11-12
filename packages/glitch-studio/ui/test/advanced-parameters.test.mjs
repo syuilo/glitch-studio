@@ -31,11 +31,11 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 	plugins: [i18nPlugin, { name: 'advanced-parameter-editor', setup(build) {
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
-		build.onResolve({ filter: /^@\/(app|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('app.ts') ? 'app' : 'ui', namespace: 'platform' }));
+		build.onResolve({ filter: /^@\/(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: (path.endsWith('app.ts') || path.endsWith('project-session.ts')) ? 'app' : 'ui', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false) } };",
 			effects: `export const effectDefinitions = { test: ${JSON.stringify(effect)} };`,
-			app: 'export const appContext = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } }, automationGraphs: { value: [] } } } } };',
+			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } }, automationGraphs: { value: [] } } } } };',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {}',
 		}[path] }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });

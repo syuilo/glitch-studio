@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView :title="i18n.ts._Workspace.Histogram" :suspended="appContext.renderEngine.isSuspended.value" @changeWindow="observeScope">
+<GsDetachableView :title="i18n.ts._Workspace.Histogram" :suspended="projectSession.renderEngine.isSuspended.value" @changeWindow="observeScope">
 	<div :class="$style.root">
 		<GsImageAnalysisSettings/>
 		<div
@@ -60,13 +60,15 @@ import GsDetachableView from './GsDetachableView.vue';
 import GsImageAnalysisSettings from './GsImageAnalysisSettings.vue';
 import type { ImageValueRange } from '@gs/shared/utility/image-value-scale.ts';
 import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { useImageAnalysisViewport } from '@/use-image-analysis-viewport.ts';
 import { useImageAnalysisPointer } from '@/use-image-analysis-pointer.ts';
 import { createImageValueAxisTicks, formatImageAnalysisAxisValue, selectImageAnalysisAxisTicks } from '@/utility/image-analysis-axis.ts';
 
-const { imageAnalysisRenderer, displayedImageAnalysisSettings } = appContext;
+const projectSession = useProjectSession();
+
+const { imageAnalysisRenderer, displayedImageAnalysisSettings } = projectSession;
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const scope = useTemplateRef('scope');
@@ -77,11 +79,11 @@ function getHistogramViewport(range: ImageValueRange | null) {
 	return { ...FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT, x: range?.minimum ?? 0, width: (range?.maximum ?? 1) - (range?.minimum ?? 0) };
 }
 
-const viewport = computed(() => getHistogramViewport(appContext.analysisHistogramViewport.value));
+const viewport = computed(() => getHistogramViewport(projectSession.analysisHistogramViewport.value));
 const displayedViewport = computed(() => getHistogramViewport(displayedImageAnalysisSettings.value.histogramViewport));
 const { panning, selection, cancelInteraction, onWheel, onPointerdown, onKeydown } = useImageAnalysisViewport(scope, viewport,
-	value => appContext.setHistogramViewport({ minimum: value.x, maximum: Math.min(1, value.x + value.width) }),
-	() => appContext.flushImageAnalysisDisplay(), appContext.renderEngine.isSuspended, { axes: 'x', displayedViewport });
+	value => projectSession.setHistogramViewport({ minimum: value.x, maximum: Math.min(1, value.x + value.width) }),
+	() => projectSession.flushImageAnalysisDisplay(), projectSession.renderEngine.isSuspended, { axes: 'x', displayedViewport });
 const xAxisTicks = computed(() => {
 	const settings = displayedImageAnalysisSettings.value;
 	if (!isDrawableImageValueRange(settings.valueRange)) return [];
@@ -98,7 +100,7 @@ const pointerAxisTick = computed(() => {
 	const position = pointerPosition.value;
 	const first = xAxisTicks.value.at(0);
 	const last = xAxisTicks.value.at(-1);
-	if (position == null || first == null || last == null || appContext.renderEngine.isSuspended.value) return null;
+	if (position == null || first == null || last == null || projectSession.renderEngine.isSuspended.value) return null;
 	const value = first.value + (last.value - first.value) * position.x;
 	return { position: position.x, label: formatImageAnalysisAxisValue(value, displayedImageAnalysisSettings.value.valueScale) };
 });
@@ -123,7 +125,7 @@ onMounted(observeScope);
 // GsDetachableViewの破棄時にもchangeWindowが発生するため、子の片付け後に監視を解除する。
 onUnmounted(() => scopeResizeObserver?.disconnect());
 
-useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => 'histogramCanvas', appContext.renderEngine.isSuspended);
+useRendererCanvas(canvasContainer, imageAnalysisRenderer, () => 'histogramCanvas', projectSession.renderEngine.isSuspended);
 </script>
 
 <style lang="scss" module>

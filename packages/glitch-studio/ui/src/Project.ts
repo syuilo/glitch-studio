@@ -71,11 +71,13 @@ export type AppStateChange = ProjectContentChange
 	| { type: 'sceneName'; sceneId: string };
 
 export class ProjectContext {
+	private disposed = false;
+	private readonly stopMetadataUpdates: () => void;
 	private projectId = ref<Project['id'] | null>(null);
 	private loadGeneration = 0;
 	public get id() { return this.projectId.value; }
 	public get generation() { return this.loadGeneration; }
-	public get hasProject() { return this.projectId.value != null; }
+	public get hasProject() { return !this.disposed && this.projectId.value != null; }
 	public readonly stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;
 	public readonly externalAssetMetadata = new ExternalAssetMetadataStore();
 
@@ -96,14 +98,15 @@ export class ProjectContext {
 			visualModules: ref<ProjectVisualModule[]>([]),
 			timelineScenes: ref<TimelineScene[]>([]),
 		}, COMMAND_DEFS);
-		// AppContextの検証・レンダラー同期より先に登録し、履歴が復元した古い
+		// ProjectSessionContextの検証・レンダラー同期より先に登録し、履歴が復元した古い
 		// 外部参照のメタデータをほかの購読側や保存スナップショットへ渡さない。
-		this.stateManager.onChange(changes => {
+		this.stopMetadataUpdates = this.stateManager.onChange(changes => {
 			if (changes.some(change => change.type === 'asset')) this.externalAssetMetadata.apply(this.stateManager.state.assets.value);
 		});
 	}
 
 	public load(project: Project) {
+		if (this.disposed) return;
 		this.loadGeneration++;
 		this.stateManager.cancelEdit();
 		this.externalAssetMetadata.reset(project.assets);
@@ -129,11 +132,12 @@ export class ProjectContext {
 	// 別名保存の成功後にファイルの同一性だけを切り替える。再読込やCommandによる変更にすると、
 	// 編集履歴が失われたり、Undoで旧ファイルのIDへ戻ってしまう。
 	public adoptSavedProjectId(id: Project['id']): void {
+		if (this.disposed) return;
 		this.projectId.value = id;
 	}
 
 	public snapshot(): Project | null {
-		if (this.projectId.value == null) return null;
+		if (this.disposed || this.projectId.value == null) return null;
 		const state = this.stateManager.state;
 		// 保存・バックアップで同じ完全な状態を使う。非同期のエンコードや保存先選択の間に
 		// 編集されても、取得済みのスナップショットへ変更が混入しないよう切り離す。
@@ -155,6 +159,15 @@ export class ProjectContext {
 			players: state.players.value,
 			timelineScenes: state.timelineScenes.value,
 		} satisfies Project);
+	}
+
+	public dispose(): void {
+		if (this.disposed) return;
+		this.disposed = true;
+		// 読込時と同じ世代検証で、素材取り込みやクリップボードの遅延結果も失効させる。
+		this.loadGeneration++;
+		this.stopMetadataUpdates();
+		this.stateManager.cancelEdit();
 	}
 
 	public getVisualModuleById(id: ProjectVisualModule['id']) {

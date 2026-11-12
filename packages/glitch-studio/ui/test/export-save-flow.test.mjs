@@ -67,7 +67,7 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 		resolutionScale: ref(1), effectRenderTiling: ref({ mode: 'auto' }), sceneId: ref('scene'), scene: ref({ name: 'Scene' }), projectName: ref('Project'),
 		stateManager: { state }, preferences: { s: { enable32bitDataTextures: true, effectRenderTiling: { mode: 'manual', tileSize: 128 } } }, deepClone: structuredClone, getRendererAssets,
 		getRequiredVoicevoxRequestsForRendering: () => [],
-		appContext: {
+		projectSession: {
 			voicevoxGeneration: { async prepare() { events.push(['prepare']); return []; } },
 			async suspendPreview() { events.push(['suspend']); await suspend?.(); },
 			async resumePreview() { events.push(['resume']); await resume?.(); },

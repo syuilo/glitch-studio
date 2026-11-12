@@ -79,7 +79,7 @@ import GsEllipsis from './common/GsEllipsis.vue';
 import GsProgressBar from './common/GsProgressBar.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
 import { preferences } from '@/preferences.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { applicationActivity } from '@/application-activity.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { BrowserExportFile } from '@/export/browser-export-file.ts';
@@ -89,9 +89,11 @@ import { adjustExportResolution, createDefaultExportDialogSettings, estimateExpo
 import { hasExportAudio, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
 import { i18n } from '@/i18n.ts';
 
-const { activeSceneId, previewPlayback } = appContext;
-const { stateManager } = appContext.projectContext;
-const { name: projectName } = appContext.projectContext.stateManager.state;
+const projectSession = useProjectSession();
+
+const { activeSceneId, previewPlayback } = projectSession;
+const { stateManager } = projectSession.projectContext;
+const { name: projectName } = projectSession.projectContext.stateManager.state;
 
 const currentTimelineTime = previewPlayback.currentTimelineTime;
 
@@ -102,11 +104,11 @@ const emit = defineEmits<{
 	(ev: 'closed'): void;
 }>();
 
-const projectGeneration = appContext.projectContext.generation;
+const projectGeneration = projectSession.projectContext.generation;
 const savedSettings = stateManager.state.exportSettings.value;
 const firstScene = stateManager.state.timelineScenes.value[0] ?? null;
 const initialScene = (previewPlayback.state.value.mode === 'timeline'
-	? stateManager.state.timelineScenes.value.find(scene => scene.id === appContext.activeScene.value?.id)
+	? stateManager.state.timelineScenes.value.find(scene => scene.id === projectSession.activeScene.value?.id)
 	: null) ?? firstScene;
 const initialSceneId = initialScene?.id ?? '';
 const dialogSettings = reactive(deepClone(savedSettings ?? createDefaultExportDialogSettings(initialSceneId,
@@ -178,13 +180,13 @@ onMounted(async () => {
 	} catch { /* GPUの取得失敗は書き出しWorkerから通知する。 */ }
 });
 const validationError = computed(() => {
-	if (appContext.renderValidation.errorMessage.value) return appContext.renderValidation.errorMessage.value;
+	if (projectSession.renderValidation.errorMessage.value) return projectSession.renderValidation.errorMessage.value;
 	if (scene.value == null) return i18n.ts._Export.NoScene;
 	if (getSceneDuration(scene.value) <= 0) return i18n.ts._Export.EmptyScene;
 	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return i18n.ts._Export.InvalidEndTime;
 	return validateExportSettings(settings.value, maxTextureDimension2D.value);
 });
-const includesAudio = computed(() => !appContext.renderValidation.errorMessage.value && scene.value != null && hasExportAudio(stateManager.state.timelineScenes.value, sceneId.value, settings.value, stateManager.state.generatedSpeech.value));
+const includesAudio = computed(() => !projectSession.renderValidation.errorMessage.value && scene.value != null && hasExportAudio(stateManager.state.timelineScenes.value, sceneId.value, settings.value, stateManager.state.generatedSpeech.value));
 const estimatedSize = computed(() => {
 	if (validationError.value) return '—';
 	const bytes = estimateExportBytes(settings.value, includesAudio.value ? MP4_AUDIO_BITRATE : 0);
@@ -206,7 +208,7 @@ const progressText = computed(() => {
 
 function saveExportSettings() {
 	// 読込で別プロジェクトへ切り替わった後に、旧ダイアログの設定を保存しない。
-	if (appContext.projectContext.generation !== projectGeneration) return;
+	if (projectSession.projectContext.generation !== projectGeneration) return;
 	if (!deepEqual(dialogSettings, stateManager.state.exportSettings.value)) {
 		stateManager.commit('changeExportSettings', dialogSettings);
 	}
@@ -294,7 +296,7 @@ async function doExport() {
 		if (exportSettings.format === 'mp4') {
 			status.value = `${i18n.ts._Export.PreparingVoicevox}...`;
 			const requests = getRequiredVoicevoxRequestsForRendering(exportProject.timelineScenes, exportProject.sceneId, exportSettings.positionMs, exportSettings.endTimeMs);
-			const preparedSpeech = await appContext.voicevoxGeneration.prepare(requests, signal);
+			const preparedSpeech = await projectSession.voicevoxGeneration.prepare(requests, signal);
 			// 描画用の音声参照でも使えるよう、開始時点の生成済み音声を残して準備結果を加える。
 			// 待機中の編集や再生成を混ぜず、この書き出しが保持した結果だけをWorkerへ渡す。
 			exportProject.generatedSpeech = [...new Map([...exportProject.generatedSpeech, ...preparedSpeech].map(speech => [speech.key, speech])).values()];
@@ -303,7 +305,7 @@ async function doExport() {
 		signal.throwIfAborted();
 		// 映像・音声モニターとUI表示の休止完了を待つ。途中で失敗しても復帰を試みる。
 		previewDisposed = true;
-		await appContext.suspendPreview();
+		await projectSession.suspendPreview();
 		signal.throwIfAborted();
 		// VueのProxyを外し、編集中の状態とWorkerの状態を独立させる。
 		const downloadParts: Blob[] = [];
@@ -376,7 +378,7 @@ async function doExport() {
 		setTaskbarProgress(null);
 		// 再初期化が終わるまで操作を戻さず、次の書き出しによる初期化の中断を防ぐ。
 		try {
-			if (previewDisposed) await appContext.resumePreview();
+			if (previewDisposed) await projectSession.resumePreview();
 		} catch (cause) {
 			const message = cause instanceof Error ? cause.message : String(cause);
 			error.value = [error.value, i18n.tsx._Export.PreviewRestartFailed({ message })].filter(Boolean).join('\n');

@@ -276,7 +276,7 @@ import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey, canConnect
 import { registerWireInput } from '@/utility/wire-drag.ts';
 import { getNodeInputSamplingMenuItems } from '@/utility/input-sampling-menu.ts';
 import * as ui from '@/ui.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { preferences } from '@/preferences.ts';
 import { getAvailableAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
@@ -284,7 +284,9 @@ import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHand
 import { isViewport2DParameter } from '@/utility/preview-viewport.ts';
 import { canCreateNamedParameterFromBinding } from '@/utility/named-parameter-creation.ts';
 
-const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+const projectSession = useProjectSession();
+
+const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
 const wireMap = useVisualModuleWires();
 const timelineEditor = inject(timelineParameterEditorContextKey, null);
@@ -316,7 +318,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
-const previewParameterHandle = usePreviewParameterHandle(appContext, props);
+const previewParameterHandle = usePreviewParameterHandle(projectSession, props);
 
 const timelinePublicParameterItems = computed(() => {
 	const context = timelineEditor?.context.value;
@@ -518,7 +520,7 @@ function updateAutomationGraphDuration(trimmedDurationMs: number) {
 }
 
 function updateProjectGraphPoints(points: BezierAnchorPoint[], mergeKey: string | null) {
-	if (selectedProjectAutomationGraph.value != null) appContext.projectContext.stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...selectedProjectAutomationGraph.value, points } }, mergeKey);
+	if (selectedProjectAutomationGraph.value != null) projectSession.projectContext.stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...selectedProjectAutomationGraph.value, points } }, mergeKey);
 }
 
 function selectAutomationGraph(ev: PointerEvent) {

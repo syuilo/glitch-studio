@@ -39,14 +39,16 @@ import GsTextarea from './common/GsTextarea.vue';
 import GsButton from './common/GsButton.vue';
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { getDefaultVoicevoxSubtitleDuration, getVoicevoxUtteranceTimeBounds } from '@/utility/voicevox-utterance-edit.ts';
+
+const projectSession = useProjectSession();
 
 const props = defineProps<{ sceneId: string; layer: TimelineVoicevoxLayer; utterance: VoicevoxUtterance }>();
 const emit = defineEmits<{ selected: [id: string] }>();
-const { stateManager } = appContext.projectContext;
+const { stateManager } = projectSession.projectContext;
 const desktop = window.desktop;
-const { speakers } = appContext.voicevoxConnection;
+const { speakers } = projectSession.voicevoxConnection;
 const voiceStyleItems = computed(() => {
 	const items = speakers.value.flatMap(speaker => speaker.styles.filter(style => !style.type || style.type === 'talk')
 		.map(style => ({ value: style.id, label: `${speaker.name} / ${style.name}` })));
@@ -66,7 +68,7 @@ const subtitleDurationModes = [
 const bounds = computed(() => getVoicevoxUtteranceTimeBounds(props.layer.utterances, props.utterance.id));
 const request = computed(() => getVoicevoxRequest(props.layer.voicevox, props.utterance));
 const key = computed(() => getVoicevoxRequestKey(request.value));
-const generation = computed(() => appContext.voicevoxGeneration.statuses.value[key.value]);
+const generation = computed(() => projectSession.voicevoxGeneration.statuses.value[key.value]);
 const generating = computed(() => generation.value?.state === 'generating');
 const status = computed(() => {
 	if (!props.utterance.text) return i18n.ts._Voicevox.ClearSubtitle;
@@ -128,7 +130,7 @@ function remove() { commit(props.layer.utterances.filter(utterance => utterance.
 
 async function regenerate() {
 	error.value = '';
-	try { await appContext.voicevoxGeneration.generate(request.value, true); } catch (cause) { error.value = String(cause); }
+	try { await projectSession.voicevoxGeneration.generate(request.value, true); } catch (cause) { error.value = String(cause); }
 }
 </script>
 

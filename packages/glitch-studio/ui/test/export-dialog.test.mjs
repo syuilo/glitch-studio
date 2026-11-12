@@ -15,15 +15,15 @@ const bundle = await build({
 	absWorkingDir: directory, stdin: { loader: 'ts', resolveDir: `${directory}/src/components`, contents: script },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'export-dialog-platform', setup(build) {
-		build.onResolve({ filter: /\.vue$|(?:^|\/)(?:app|preferences|application-activity)\.ts$|\/export\/client\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
+		build.onResolve({ filter: /\.vue$|(?:^|\/)(?:app|project-session|preferences|application-activity)\.ts$|\/export\/client\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({ loader: 'ts', resolveDir: directory, contents: args.path.endsWith('/preferences.ts')
 			? 'export const preferences = globalThis.exportDialogPreferences = { s: { effectRenderTiling: { mode: "auto" } } };'
-			: !args.path.endsWith('/app.ts')
+			: !(args.path.endsWith('/app.ts') || args.path.endsWith('/project-session.ts'))
 			? 'export default {}; export const applicationActivity = {}; export function exportTimeline() {}'
 			: `
 			import { ref } from 'vue';
 			import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-			export const appContext = globalThis.exportDialogContext = {
+			export function useProjectSession() { return projectSession; } export const projectSession = globalThis.exportDialogContext = {
 				activeSceneId: ref('scene'), activeScene: ref({ id: 'scene' }),
 				previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0) },
 				renderValidation: { errorMessage: ref(null) },

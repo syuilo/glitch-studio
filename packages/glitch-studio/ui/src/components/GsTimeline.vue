@@ -194,7 +194,7 @@ import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/timeline-keyframe-lanes.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import { selectTimelineLayer, clipSelectionKey, keyframeSelectionKey } from '@/utility/timeline-selection.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
 import { createTimelineSourceActions } from '@/utility/timeline-source-actions.ts';
@@ -205,8 +205,10 @@ import { createTimelineDropActions } from '@/utility/timeline-drop-actions.ts';
 import { useAssetDrop } from '@/composables/useAssetDrop.ts';
 import { useDragSession } from '@/composables/useDragSession.ts';
 
-const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = projectSession;
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{ sceneId: string; inspectorPanelTarget?: HTMLElement | null }>();
 const frameCacheState = computed(() => {
@@ -716,7 +718,7 @@ const root = useTemplateRef<HTMLElement>('root');
 const assetDrop = useAssetDrop({
 	target: root,
 	...createTimelineDropActions({
-		context: appContext.projectContext,
+		context: projectSession.projectContext,
 		sceneId: editedScene.id,
 		currentTime: () => time.value,
 		isActive: isTimelineActive,
@@ -733,7 +735,7 @@ const { addClip, changeClipSource, showAddLayerMenu, readLayerMediaDurations } =
 	currentTime: time,
 	isActive: isTimelineActive,
 	inspectMedia: inspectTimelineClipMedia,
-	ui,
+	ui: { ...ui, selectAsset: options => ui.selectAsset(projectSession, options) },
 	pickEffect: showEffectPicker,
 	desktopAvailable: () => !!window.desktop,
 	selectLayer,
@@ -817,7 +819,7 @@ function showEffectPicker(chosen: (definition: EffectDefinition) => void) {
 			dispose();
 			if (disposeEffectPicker === dispose) disposeEffectPicker = null;
 		},
-	});
+	}, projectSession);
 	disposeEffectPicker = dispose;
 }
 

@@ -10,7 +10,7 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { computed, onUnmounted } from 'vue';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
@@ -21,7 +21,9 @@ import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
-const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+const projectSession = useProjectSession();
+
+const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
 const wireMap = useVisualModuleWires();
 

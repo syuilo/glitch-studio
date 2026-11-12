@@ -15,8 +15,8 @@ const bundle = await build({ absWorkingDir: directory, external: ['vue'], bundle
 																													plugins: [i18nPlugin, { name: 'modifier-editor', setup(build) {
 																														build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'preferences' }));
 																														build.onLoad({ filter: /.*/, namespace: 'preferences' }, () => ({ contents: 'export const preferences = { s: { forceTypeSafety: false } };', loader: 'ts' }));
-																														build.onResolve({ filter: /^@\/(app|ui|utility\/visual-module-wires)\.ts$/ }, ({ path }) => ({ path, namespace: 'stub' }));
-																														build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: path.endsWith('app.ts') ? 'export const appContext = { projectContext: { stateManager: { state: {} } } };'
+																														build.onResolve({ filter: /^@\/(app|project-session|ui|utility\/visual-module-wires)\.ts$/ }, ({ path }) => ({ path, namespace: 'stub' }));
+																														build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: (path.endsWith('app.ts') || path.endsWith('project-session.ts')) ? 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: {} } } };'
 																															: path.endsWith('ui.ts') ? 'export const modifierUiTest = { menu: [] }; export function popupMenu(menu) { modifierUiTest.menu = menu; } export function popup() {} export function contextMenu() {}'
 																															: 'export function useVisualModuleWires() { return { in: {} }; }', loader: 'ts' }));
 																														build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'effects' }));
