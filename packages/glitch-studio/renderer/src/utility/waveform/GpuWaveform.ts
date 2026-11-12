@@ -3,8 +3,9 @@ import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import vertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { DEFAULT_IMAGE_VALUE_RANGE } from '@gs/shared/utility/image-value-scale.ts';
 import { getImageAnalysisChunkCount } from '@gs/shared/utility/image-analysis-accumulation.ts';
-import { FULL_PREVIEW_WAVEFORM_VIEWPORT, getPreviewWaveformViewportRanges } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
-import type { PreviewWaveformViewport } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import { getPreviewWaveformViewportRanges } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import { FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT } from '@gs/glitch-studio_shared/preview-image-analysis-viewport.ts';
+import type { PreviewImageAnalysisViewport } from '@gs/glitch-studio_shared/preview-image-analysis-viewport.ts';
 import type { PreviewCanvasContext } from '../../preview-canvas-context.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
@@ -49,7 +50,7 @@ export class GpuWaveform {
 		if (canvas.height !== height) canvas.height = height;
 	}
 
-	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture, valueScale: ImageValueScale = 'srgb', target: ImageAnalysisTarget = 'rgb', valueRange: ImageValueRange = DEFAULT_IMAGE_VALUE_RANGE, fullResolution = false, viewport: PreviewWaveformViewport = FULL_PREVIEW_WAVEFORM_VIEWPORT) {
+	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture, valueScale: ImageValueScale = 'srgb', target: ImageAnalysisTarget = 'rgb', valueRange: ImageValueRange = DEFAULT_IMAGE_VALUE_RANGE, fullResolution = false, viewport: PreviewImageAnalysisViewport = FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT) {
 		const vertical = this.positionAxis === 'y';
 		const { positionRange, valueWindow } = getPreviewWaveformViewportRanges(vertical ? 'vertical' : 'horizontal', viewport);
 		const positionSpan = positionRange.maximum - positionRange.minimum;

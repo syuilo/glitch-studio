@@ -1,7 +1,7 @@
 import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
-import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
@@ -92,6 +92,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	analysisPaused: boolean;
 	analysisWaveformCanvasSizes: PreviewWaveformCanvasSizes | null;
 	analysisWaveformViewports: PreviewWaveformViewports | null;
+	analysisHistogramViewport: ImageValueRange | null;
 	visualModuleLivePreviewTimeFactor: number;
 	/** Visual Module Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
@@ -197,6 +198,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		analysisPaused: false,
 		analysisWaveformCanvasSizes: null,
 		analysisWaveformViewports: null,
+		analysisHistogramViewport: null,
 		visualModules: [],
 		automationGraphs: [],
 	};
@@ -377,6 +379,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.canvasRenderer.analysisPaused = this.dynamicOptions.analysisPaused;
 		this.canvasRenderer.analysisWaveformCanvasSizes = this.dynamicOptions.analysisWaveformCanvasSizes;
 		this.canvasRenderer.analysisWaveformViewports = this.dynamicOptions.analysisWaveformViewports;
+		this.canvasRenderer.analysisHistogramViewport = this.dynamicOptions.analysisHistogramViewport;
 
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
 		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale')) {
@@ -687,12 +690,14 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		return this.canvasRenderer.setHighResolutionImageAnalysis(enabled, settings);
 	}
 
-	public async setWaveformDisplay(settings: PreviewWaveformDisplaySettings, refresh: boolean) {
+	public async setImageAnalysisDisplay(settings: PreviewImageAnalysisDisplaySettings, refresh: boolean) {
 		// 通常のdynamic options更新を通すと、解析だけのリサイズでもタイル描画を中断してしまう。
 		this.dynamicOptions.analysisWaveformCanvasSizes = settings.waveformCanvasSizes;
 		this.canvasRenderer.analysisWaveformCanvasSizes = settings.waveformCanvasSizes;
 		this.dynamicOptions.analysisWaveformViewports = settings.waveformViewports;
 		this.canvasRenderer.analysisWaveformViewports = settings.waveformViewports;
+		this.dynamicOptions.analysisHistogramViewport = settings.histogramViewport;
+		this.canvasRenderer.analysisHistogramViewport = settings.histogramViewport;
 		if (refresh) await this.canvasRenderer.refreshImageAnalysis();
 	}
 

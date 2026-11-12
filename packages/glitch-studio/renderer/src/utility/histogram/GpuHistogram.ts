@@ -26,6 +26,7 @@ export class GpuHistogram {
 	private readonly computeModule: GPUShaderModule;
 	private readonly renderModule: GPUShaderModule;
 	private readonly accumulatePipeline: GPUComputePipeline;
+	private readonly croppedAccumulatePipelines = new Map<boolean, GPUComputePipeline>();
 	private readonly maxPipeline: GPUComputePipeline;
 	private readonly barsPipeline: GPURenderPipeline;
 	private readonly maxBindGroup: GPUBindGroup;
@@ -36,7 +37,7 @@ export class GpuHistogram {
 	private partialPipelines: ReturnType<GpuHistogram['createPartialPipelines']> | null = null;
 
 	constructor(private readonly device: GPUDevice, private readonly context: PreviewCanvasContext, private readonly format: GPUTextureFormat, private readonly sampleTransform: GpuImageSampleTransform | null = null) {
-		this.settingsBuffer = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		this.settingsBuffer = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		context.configure({ device, format, alphaMode: 'opaque', usage: GPUTextureUsage.RENDER_ATTACHMENT });
 		this.histogramBuffer = device.createBuffer({ label: 'histogram values', size: (VALUE_COUNT + 1) * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 		const transformCode = sampleTransform?.getShaderCode(1) ?? 'fn transformImageSample(input: vec4f) -> vec4f { return input; }';
@@ -94,7 +95,20 @@ export class GpuHistogram {
 		return { accumulate, reduce, maximum, bars, maximumGroup, renderGroup: this.createRenderBindGroup(bars) };
 	}
 
-	public render(encoder: GPUCommandEncoder, source: GPUTexture, fullResolution = false) {
+	private getCroppedAccumulatePipeline(usePartialSums: boolean) {
+		let pipeline = this.croppedAccumulatePipelines.get(usePartialSums);
+		if (pipeline == null) {
+			// 全体表示のpipelineへ切り出しの計算・分岐を残さず、拡大時だけ特殊化する。
+			pipeline = this.device.createComputePipeline({ layout: this.createAccumulateLayout(), compute: {
+				module: this.computeModule, entryPoint: usePartialSums ? 'accumulate' : 'accumulateDirect', constants: { useValueWindow: 1 },
+			} });
+			this.croppedAccumulatePipelines.set(usePartialSums, pipeline);
+		}
+		return pipeline;
+	}
+
+	public render(encoder: GPUCommandEncoder, source: GPUTexture, fullResolution = false, valueWindow: ImageValueRange = DEFAULT_IMAGE_VALUE_RANGE) {
+		const useValueWindow = valueWindow.minimum !== 0 || valueWindow.maximum !== 1;
 		const sampleWidth = fullResolution ? source.width : 100;
 		const sampleHeight = fullResolution ? source.height : 100;
 		const chunkCount = getImageAnalysisChunkCount(sampleWidth * sampleHeight);
@@ -118,15 +132,17 @@ export class GpuHistogram {
 				{ binding: 0, resource: source.createView() }, { binding: 1, resource: { buffer: this.partialHistograms ?? this.histogramBuffer } }, { binding: 2, resource: { buffer: this.settingsBuffer } },
 			] });
 		}
-		const settings = new ArrayBuffer(32);
+		const settings = new ArrayBuffer(48);
 		new Uint32Array(settings).set([IMAGE_VALUE_SCALES.indexOf(resolveImageAnalysisValueScale(this.target, this.valueScale)), IMAGE_ANALYSIS_MODES.indexOf(this.target)]);
 		new Float32Array(settings).set([this.valueRange.minimum, this.valueRange.maximum], 2);
 		new Uint32Array(settings).set([sampleWidth, sampleHeight, chunkCount], 4);
+		new Float32Array(settings).set([valueWindow.minimum, valueWindow.maximum], 8);
 		this.device.queue.writeBuffer(this.settingsBuffer, 0, settings);
 		encoder.clearBuffer(this.histogramBuffer);
-		if (isDrawableImageValueRange(this.valueRange)) {
+		if (isDrawableImageValueRange(this.valueRange) && Number.isFinite(valueWindow.minimum) && Number.isFinite(valueWindow.maximum)
+			&& valueWindow.minimum >= 0 && valueWindow.maximum <= 1 && valueWindow.minimum < valueWindow.maximum) {
 			const pass = encoder.beginComputePass({ label: 'accumulate and reduce histogram' });
-			pass.setPipeline(partial?.accumulate ?? this.accumulatePipeline);
+			pass.setPipeline(useValueWindow ? this.getCroppedAccumulatePipeline(partial != null) : partial?.accumulate ?? this.accumulatePipeline);
 			pass.setBindGroup(0, this.accumulateBindGroup!);
 			if (this.sampleTransform != null) pass.setBindGroup(1, this.sampleTransform.getBindGroup());
 			if (partial == null) {

@@ -9,7 +9,7 @@ import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
-import type { PreviewImageAnalysisSettings, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import type { PreviewImageAnalysisSettings, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
@@ -370,9 +370,9 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		return this.callAndWaitReturn('setHighResolutionImageAnalysis', [enabled, deepClone(settings)]);
 	}
 
-	public async setWaveformDisplay(settings: PreviewWaveformDisplaySettings, refresh: boolean): Promise<void> {
+	public async setImageAnalysisDisplay(settings: PreviewImageAnalysisDisplaySettings, refresh: boolean): Promise<void> {
 		if (!this.isReady.value) return;
-		await this.callAndWaitReturn('setWaveformDisplay', [deepClone(settings), refresh]);
+		await this.callAndWaitReturn('setImageAnalysisDisplay', [deepClone(settings), refresh]);
 	}
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {

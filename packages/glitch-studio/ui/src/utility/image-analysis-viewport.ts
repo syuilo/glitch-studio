@@ -1,10 +1,10 @@
-import type { PreviewWaveformViewport } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import type { PreviewImageAnalysisViewport } from '@gs/glitch-studio_shared/preview-image-analysis-viewport.ts';
 
 const MINIMUM_SPAN = 1 / 100;
 const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value));
 
 /** ポインター直下の解析位置を固定する。表示端の制約に当たった場合だけ支点をずらす。 */
-export function zoomWaveformViewport(viewport: PreviewWaveformViewport, anchor: { x: number; y: number }, factor: number): PreviewWaveformViewport {
+export function zoomImageAnalysisViewport(viewport: PreviewImageAnalysisViewport, anchor: { x: number; y: number }, factor: number): PreviewImageAnalysisViewport {
 	const width = clamp(viewport.width / factor, MINIMUM_SPAN, 1);
 	const height = clamp(viewport.height / factor, MINIMUM_SPAN, 1);
 	return {
@@ -16,7 +16,7 @@ export function zoomWaveformViewport(viewport: PreviewWaveformViewport, anchor: 
 }
 
 /** ドラッグした方向へ内容を動かす。CSS寸法から換算するためDPRには依存しない。 */
-export function panWaveformViewport(viewport: PreviewWaveformViewport, movement: { x: number; y: number }, size: { width: number; height: number }): PreviewWaveformViewport {
+export function panImageAnalysisViewport(viewport: PreviewImageAnalysisViewport, movement: { x: number; y: number }, size: { width: number; height: number }): PreviewImageAnalysisViewport {
 	if (size.width <= 0 || size.height <= 0) return { ...viewport };
 	return {
 		...viewport,

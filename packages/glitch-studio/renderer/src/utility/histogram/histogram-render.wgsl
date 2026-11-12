@@ -26,6 +26,7 @@ struct AnalysisSettings {
 	valueRange: vec2f,
 	sampleSize: vec2u,
 	chunkCount: u32,
+	valueWindow: vec2f,
 };
 @group(0) @binding(1) var<uniform> settings: AnalysisSettings;
 
@@ -60,7 +61,8 @@ fn barsVs(
 		f32(bin) + local.x,
 		CANVAS_SIZE.y + (top - CANVAS_SIZE.y) * local.y,
 	);
-	let intensity = f32(bin) / 255.0;
+	// 色の明るさは元の解析範囲の位置を参照し、拡大するだけで色を暗くしない。
+	let intensity = mix(settings.valueWindow.x, settings.valueWindow.y, f32(bin) / 255.0);
 
 	// 単一の数値は白で表示する。binに比例して暗くすると、alpha=0などの下端が見えなくなる。
 	var color = vec3f(1.0);

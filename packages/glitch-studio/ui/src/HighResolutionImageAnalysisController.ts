@@ -7,7 +7,7 @@ export interface HighResolutionImageAnalysisSource {
 }
 
 function copySettings(settings: PreviewImageAnalysisSettings): PreviewImageAnalysisSettings {
-	return { ...settings, imageAdjustments: { ...settings.imageAdjustments, gamutCompression: { ...settings.imageAdjustments.gamutCompression } }, valueRange: { ...settings.valueRange }, waveformCanvasSizes: settings.waveformCanvasSizes == null ? null : {
+	return { ...settings, histogramViewport: settings.histogramViewport == null ? null : { ...settings.histogramViewport }, imageAdjustments: { ...settings.imageAdjustments, gamutCompression: { ...settings.imageAdjustments.gamutCompression } }, valueRange: { ...settings.valueRange }, waveformCanvasSizes: settings.waveformCanvasSizes == null ? null : {
 		horizontal: { ...settings.waveformCanvasSizes.horizontal }, vertical: { ...settings.waveformCanvasSizes.vertical },
 	}, waveformViewports: settings.waveformViewports == null ? null : {
 		horizontal: { ...settings.waveformViewports.horizontal }, vertical: { ...settings.waveformViewports.vertical },

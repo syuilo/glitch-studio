@@ -69,8 +69,9 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, shallowRef, useTemplateRef } from 'vue';
-import { FULL_PREVIEW_WAVEFORM_VIEWPORT, getPreviewWaveformViewportRanges } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import { computed, useTemplateRef } from 'vue';
+import { getPreviewWaveformViewportRanges } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import { FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT } from '@gs/glitch-studio_shared/preview-image-analysis-viewport.ts';
 import { isDrawableImageValueRange } from '@gs/shared/utility/image-value-scale.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import GsImageAnalysisSettings from './GsImageAnalysisSettings.vue';
@@ -79,7 +80,8 @@ import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { useWaveformCanvasSize } from '@/use-waveform-canvas-size.ts';
-import { useWaveformViewport } from '@/use-waveform-viewport.ts';
+import { useImageAnalysisViewport } from '@/use-image-analysis-viewport.ts';
+import { useImageAnalysisPointer } from '@/use-image-analysis-pointer.ts';
 import { createImagePositionAxisTicks, createImageValueAxisTicks, formatImageAnalysisAxisValue, selectImageAnalysisAxisTicks } from '@/utility/image-analysis-axis.ts';
 
 const { imageAnalysisRenderer, displayedImageAnalysisSettings } = appContext;
@@ -92,32 +94,17 @@ const canvasContainer = useTemplateRef('canvasContainer');
 const scope = useTemplateRef('scope');
 const sizeObserver = useWaveformCanvasSize(scope, size => appContext.setWaveformCanvasSize(props.direction, size));
 const scopeSize = sizeObserver.size;
-const pointerPosition = shallowRef<{ x: number; y: number } | null>(null);
-const viewport = computed(() => appContext.analysisWaveformViewports.value?.[props.direction] ?? FULL_PREVIEW_WAVEFORM_VIEWPORT);
-const { panning, zoom, cancelPan, onWheel, onPointerdown, onKeydown } = useWaveformViewport(scope, viewport,
-	value => appContext.setWaveformViewport(props.direction, value), () => appContext.flushWaveformDisplay(), appContext.renderEngine.isSuspended);
+const { pointerPosition, clearPointerPosition, updatePointerPosition } = useImageAnalysisPointer(scope);
+const viewport = computed(() => appContext.analysisWaveformViewports.value?.[props.direction] ?? FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT);
+const { panning, zoom, cancelPan, onWheel, onPointerdown, onKeydown } = useImageAnalysisViewport(scope, viewport,
+	value => appContext.setWaveformViewport(props.direction, value), () => appContext.flushImageAnalysisDisplay(), appContext.renderEngine.isSuspended);
 
 function observeScope() { clearPointerPosition(); cancelPan(); sizeObserver.changeWindow(); }
-
-function clearPointerPosition() { pointerPosition.value = null; }
-
-function updatePointerPosition(event: PointerEvent) {
-	const element = scope.value;
-	if (element == null || event.pointerType === 'touch' || element.clientWidth <= 0 || element.clientHeight <= 0) {
-		clearPointerPosition();
-		return;
-	}
-	const bounds = element.getBoundingClientRect();
-	const x = (event.clientX - bounds.left - element.clientLeft) / element.clientWidth;
-	const y = (event.clientY - bounds.top - element.clientTop) / element.clientHeight;
-	// ドラッグ中はポインターがcaptureされ、領域外でもmoveが届くため明示的に除外する。
-	pointerPosition.value = x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null;
-}
 
 const axisTicks = computed(() => {
 	const horizontal = props.direction === 'horizontal';
 	const settings = displayedImageAnalysisSettings.value;
-	const displayedViewport = settings.waveformViewports?.[props.direction] ?? FULL_PREVIEW_WAVEFORM_VIEWPORT;
+	const displayedViewport = settings.waveformViewports?.[props.direction] ?? FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT;
 	const { positionRange, valueWindow } = getPreviewWaveformViewportRanges(props.direction, displayedViewport);
 	const positionTicks = createImagePositionAxisTicks(positionRange);
 	const span = settings.valueRange.maximum - settings.valueRange.minimum;

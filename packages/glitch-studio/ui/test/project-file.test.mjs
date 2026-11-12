@@ -125,9 +125,10 @@ const appBundle = await build({
 							this.highResolutionAnalysisRequests.push(deepClone({ enabled, settings }));
 							return this.isReady.value;
 						}
-						async setWaveformDisplay(settings, refresh) {
+						async setImageAnalysisDisplay(settings, refresh) {
 							this.options.analysisWaveformCanvasSizes = deepClone(settings.waveformCanvasSizes);
 							this.options.analysisWaveformViewports = deepClone(settings.waveformViewports);
+							this.options.analysisHistogramViewport = deepClone(settings.histogramViewport);
 							if (refresh) { this.analysisRefreshes++; await this.waveformDisplayDelay?.(); }
 						}
 						cancelSeek() {}
@@ -237,7 +238,7 @@ test('integrates held analysis with preview switching settings and worker recrea
 	assert.equal(timeline.renders.length, renders);
 	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
 	assert.equal(visualModule.highResolutionAnalysisRequests.length, 0);
-	assert.deepEqual(appContext.displayedImageAnalysisSettings.value, { target: 'vectorLength', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: -0.5, maximum: 0.5 }, waveformCanvasSizes: null, waveformViewports: null });
+	assert.deepEqual(appContext.displayedImageAnalysisSettings.value, { target: 'vectorLength', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: -0.5, maximum: 0.5 }, waveformCanvasSizes: null, waveformViewports: null, histogramViewport: null });
 	appContext.previewPlayback.startVisualModuleLivePreview('visual-module');
 	await setImmediate();
 	assert.equal(appContext.activePreviewRenderer.value, visualModule);
@@ -365,12 +366,12 @@ test('serializes waveform viewport updates and applies matching completed axes t
 	const delayed = Promise.withResolvers();
 	timeline.waveformDisplayDelay = () => delayed.promise;
 	appContext.setWaveformViewport('horizontal', first);
-	appContext.flushWaveformDisplay();
+	appContext.flushImageAnalysisDisplay();
 	await setImmediate();
 	assert.equal(timeline.analysisRefreshes, 1);
 	assert.equal(appContext.displayedImageAnalysisSettings.value.waveformViewports, null);
 	appContext.setWaveformViewport('horizontal', second);
-	appContext.flushWaveformDisplay();
+	appContext.flushImageAnalysisDisplay();
 	await setImmediate();
 	assert.equal(timeline.analysisRefreshes, 1);
 	delayed.resolve();
@@ -381,7 +382,7 @@ test('serializes waveform viewport updates and applies matching completed axes t
 	assert.deepEqual(visualModule.options.analysisWaveformViewports.horizontal, second);
 	await appContext.toggleHighResolutionImageAnalysis();
 	appContext.setWaveformViewport('horizontal', first);
-	appContext.flushWaveformDisplay();
+	appContext.flushImageAnalysisDisplay();
 	assert.deepEqual(appContext.displayedImageAnalysisSettings.value.waveformViewports.horizontal, second);
 	await setImmediate();
 	assert.deepEqual(appContext.displayedImageAnalysisSettings.value.waveformViewports.horizontal, first);

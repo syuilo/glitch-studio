@@ -15,14 +15,16 @@ export type PreviewWaveformCanvasSizes = {
 	vertical: Resolution;
 };
 
-export type PreviewWaveformDisplaySettings = {
+export type PreviewImageAnalysisDisplaySettings = {
 	// 表示領域がまだない呼び出し元では、描画先Canvasの現在の寸法を使う。
 	waveformCanvasSizes: PreviewWaveformCanvasSizes | null;
 	waveformViewports: PreviewWaveformViewports | null;
+	// 元の値域を0〜1へ正規化した後のX軸の表示範囲。nullは全体表示。
+	histogramViewport: ImageValueRange | null;
 };
 
 /** プレビューの解析表示。作品・エフェクトの設定には保存しない。 */
-export type PreviewImageAnalysisSettings = PreviewWaveformDisplaySettings & {
+export type PreviewImageAnalysisSettings = PreviewImageAnalysisDisplaySettings & {
 	imageSource: PreviewImageSource;
 	imageAdjustments: PreviewImageAdjustmentSettings;
 	target: ImageAnalysisTarget;

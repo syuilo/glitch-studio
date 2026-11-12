@@ -87,7 +87,7 @@ export async function run() {
 				checks.push(`${cpu ? 'CPU' : 'GPU'} normal zoom resolves native alternating pixels`);
 				renderer.analysisWaveformViewports = null;
 				await renderer.refreshImageAnalysis();
-				const settings: PreviewImageAnalysisSettings = { target: 'vectorX', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: null, waveformViewports: null };
+				const settings: PreviewImageAnalysisSettings = { target: 'vectorX', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: null, waveformViewports: null, histogramViewport: null };
 				await renderer.setHighResolutionImageAnalysis(true, settings);
 				source.destroy();
 				renderer.clear();

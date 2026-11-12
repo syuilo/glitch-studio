@@ -75,11 +75,12 @@ export class CanvasRenderer {
 	public analysisValueRange: ImageValueRange = { minimum: 0, maximum: 1 };
 	public analysisWaveformCanvasSizes: PreviewWaveformCanvasSizes | null = null;
 	public analysisWaveformViewports: PreviewWaveformViewports | null = null;
+	public analysisHistogramViewport: ImageValueRange | null = null;
 	private get imageAnalysisSettings(): PreviewImageAnalysisSettings {
 		return { target: this.analysisTarget, valueScale: this.analysisValueScale, valueRange: this.analysisValueRange,
 			imageSource: resolvePreviewAnalysisImageSource(this.analysisTarget, this.analysisImageSource),
 			imageAdjustments: { exposure: this.previewExposure, srgbProof: this.previewSrgbProof, gamutCompression: { ...this.previewGamutCompression } },
-			waveformCanvasSizes: this.analysisWaveformCanvasSizes, waveformViewports: this.analysisWaveformViewports };
+			waveformCanvasSizes: this.analysisWaveformCanvasSizes, waveformViewports: this.analysisWaveformViewports, histogramViewport: this.analysisHistogramViewport };
 	}
 	public set analysisPaused(value: boolean) { if (this.imageAnalysis != null) this.imageAnalysis.paused = value; }
 	public get previewBackground() { return this.currentPreviewBackground; }

@@ -1,7 +1,7 @@
 import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
-import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
@@ -146,6 +146,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	analysisPaused: boolean;
 	analysisWaveformCanvasSizes: PreviewWaveformCanvasSizes | null;
 	analysisWaveformViewports: PreviewWaveformViewports | null;
+	analysisHistogramViewport: ImageValueRange | null;
 	generatedSpeech: GeneratedSpeech[];
 	visualModules: ProjectVisualModule[];
 	timelineScenes: TimelineScene[];
@@ -280,6 +281,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		analysisPaused: false,
 		analysisWaveformCanvasSizes: null,
 		analysisWaveformViewports: null,
+		analysisHistogramViewport: null,
 		generatedSpeech: [],
 		visualModules: [],
 		timelineScenes: [],
@@ -524,6 +526,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer.analysisPaused = this.dynamicOptions.analysisPaused;
 		this.canvasRenderer.analysisWaveformCanvasSizes = this.dynamicOptions.analysisWaveformCanvasSizes;
 		this.canvasRenderer.analysisWaveformViewports = this.dynamicOptions.analysisWaveformViewports;
+		this.canvasRenderer.analysisHistogramViewport = this.dynamicOptions.analysisHistogramViewport;
 
 		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
@@ -1279,12 +1282,14 @@ export class TimelineRendererManager extends EventEmitter<{
 		return this.canvasRenderer.setHighResolutionImageAnalysis(enabled, settings);
 	}
 
-	public async setWaveformDisplay(settings: PreviewWaveformDisplaySettings, refresh: boolean) {
+	public async setImageAnalysisDisplay(settings: PreviewImageAnalysisDisplaySettings, refresh: boolean) {
 		// 表示領域の変更では描画内容・キャッシュ・実行中のフレームを無効化しない。
 		this.dynamicOptions.analysisWaveformCanvasSizes = settings.waveformCanvasSizes;
 		this.canvasRenderer.analysisWaveformCanvasSizes = settings.waveformCanvasSizes;
 		this.dynamicOptions.analysisWaveformViewports = settings.waveformViewports;
 		this.canvasRenderer.analysisWaveformViewports = settings.waveformViewports;
+		this.dynamicOptions.analysisHistogramViewport = settings.histogramViewport;
+		this.canvasRenderer.analysisHistogramViewport = settings.histogramViewport;
 		if (refresh) await this.canvasRenderer.refreshImageAnalysis();
 	}
 

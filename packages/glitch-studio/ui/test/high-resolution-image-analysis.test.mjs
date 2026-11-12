@@ -11,7 +11,7 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { HighResolutionImageAnalysisController } = module.exports;
 
-const settings = maximum => ({ target: 'vectorX', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: 0, maximum }, waveformCanvasSizes: null, waveformViewports: null });
+const settings = maximum => ({ target: 'vectorX', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: 0, maximum }, waveformCanvasSizes: null, waveformViewports: null, histogramViewport: null });
 function fixture(t, { delayed = false, captured = true } = {}) {
 	t.mock.timers.enable({ apis: ['setTimeout'] });
 	const calls = [];

@@ -1,20 +1,23 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { FULL_PREVIEW_WAVEFORM_VIEWPORT } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import { FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT } from '@gs/glitch-studio_shared/preview-image-analysis-viewport.ts';
 import { startPreviewPointerDrag } from './utility/preview-pointer-drag.ts';
-import { panWaveformViewport, zoomWaveformViewport } from './utility/waveform-viewport.ts';
+import { panImageAnalysisViewport, zoomImageAnalysisViewport } from './utility/image-analysis-viewport.ts';
 import type { Ref } from 'vue';
-import type { PreviewWaveformViewport } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import type { PreviewImageAnalysisViewport } from '@gs/glitch-studio_shared/preview-image-analysis-viewport.ts';
 
-export function useWaveformViewport(element: Readonly<Ref<HTMLElement | null>>, viewport: Readonly<Ref<PreviewWaveformViewport>>,
-	update: (viewport: PreviewWaveformViewport) => void, flush: () => void, suspended: Readonly<Ref<boolean>>) {
+export function useImageAnalysisViewport(element: Readonly<Ref<HTMLElement | null>>, viewport: Readonly<Ref<PreviewImageAnalysisViewport>>,
+	update: (viewport: PreviewImageAnalysisViewport) => void, flush: () => void, suspended: Readonly<Ref<boolean>>, axes: 'both' | 'x' = 'both') {
+	const horizontalOnly = axes === 'x';
 	const panning = ref(false);
 	const zoom = computed(() => 1 / Math.min(viewport.value.width, viewport.value.height));
 	let stopPan: (() => void) | null = null;
 	const cancelPan = () => stopPan?.();
+	// ヒストグラムの縦軸は自動スケールを維持し、波形と同じ操作のうちX軸だけを適用する。
+	const updateViewport = (next: PreviewImageAnalysisViewport) => update(horizontalOnly ? { ...next, y: 0, height: 1 } : next);
 
 	function reset() {
 		cancelPan();
-		update({ ...FULL_PREVIEW_WAVEFORM_VIEWPORT });
+		updateViewport({ ...FULL_PREVIEW_IMAGE_ANALYSIS_VIEWPORT });
 		flush();
 	}
 
@@ -25,7 +28,7 @@ export function useWaveformViewport(element: Readonly<Ref<HTMLElement | null>>, 
 		const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? target.clientHeight : 1);
 		if (!Number.isFinite(pixels) || pixels === 0) return;
 		const rect = target.getBoundingClientRect();
-		update(zoomWaveformViewport(viewport.value, {
+		updateViewport(zoomImageAnalysisViewport(viewport.value, {
 			x: (event.clientX - rect.left - target.clientLeft) / target.clientWidth,
 			y: (event.clientY - rect.top - target.clientTop) / target.clientHeight,
 		}, 2 ** (-Math.max(-600, Math.min(600, pixels)) / 600)));
@@ -39,9 +42,9 @@ export function useWaveformViewport(element: Readonly<Ref<HTMLElement | null>>, 
 		const size = { width: target.clientWidth, height: target.clientHeight };
 		panning.value = true;
 		stopPan = startPreviewPointerDrag(event, {
-			move: next => update(panWaveformViewport(initial, { x: next.clientX - event.clientX, y: next.clientY - event.clientY }, size)),
+			move: next => updateViewport(panImageAnalysisViewport(initial, { x: next.clientX - event.clientX, y: next.clientY - event.clientY }, size)),
 			end: cancelled => {
-				if (cancelled) update(initial);
+				if (cancelled) updateViewport(initial);
 				panning.value = false;
 				stopPan = null;
 				flush();
@@ -56,11 +59,11 @@ export function useWaveformViewport(element: Readonly<Ref<HTMLElement | null>>, 
 			event.preventDefault(); reset();
 		} else if (['+', '=', '-'].includes(event.key)) {
 			event.preventDefault();
-			update(zoomWaveformViewport(viewport.value, { x: 0.5, y: 0.5 }, event.key === '-' ? 1 / 1.2 : 1.2));
+			updateViewport(zoomImageAnalysisViewport(viewport.value, { x: 0.5, y: 0.5 }, event.key === '-' ? 1 / 1.2 : 1.2));
 			flush();
-		} else if (target != null && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+		} else if (target != null && (horizontalOnly ? ['ArrowLeft', 'ArrowRight'] : ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']).includes(event.key)) {
 			event.preventDefault();
-			update(panWaveformViewport(viewport.value, {
+			updateViewport(panImageAnalysisViewport(viewport.value, {
 				x: event.key === 'ArrowLeft' ? target.clientWidth / 10 : event.key === 'ArrowRight' ? -target.clientWidth / 10 : 0,
 				y: event.key === 'ArrowUp' ? target.clientHeight / 10 : event.key === 'ArrowDown' ? -target.clientHeight / 10 : 0,
 			}, { width: target.clientWidth, height: target.clientHeight }));

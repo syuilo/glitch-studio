@@ -1939,7 +1939,7 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	assert.equal(present.mock.callCount(), 0);
 	advance(300);
 	assert.deepEqual(delays, [true]);
-	await f.renderer.setWaveformDisplay({ waveformCanvasSizes: { horizontal: { width: 900, height: 450 }, vertical: { width: 450, height: 900 } }, waveformViewports: null }, true);
+	await f.renderer.setImageAnalysisDisplay({ waveformCanvasSizes: { horizontal: { width: 900, height: 450 }, vertical: { width: 450, height: 900 } }, waveformViewports: null, histogramViewport: null }, true);
 	for (let index = 0; index < 4; index++) { waits.shift()(); await new Promise(resolve => setImmediate(resolve)); }
 	assert.equal(present.mock.callCount(), 1);
 	// タイルの完了後も、最終Canvas出力のGPU処理が終わるまでは解除しない。

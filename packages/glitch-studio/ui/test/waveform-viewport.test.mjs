@@ -13,7 +13,7 @@ const descriptor = parse(await readFile(componentPath, 'utf8'), { filename: file
 const script = compileScript(descriptor, { id: 'waveform-viewport', inlineTemplate: true, genDefaultAs: 'component' }).content;
 const bundle = await build({
 	stdin: { contents: `${script}\ncomponent.__cssModules = { $style: {} }; export default component;
-		export { zoomWaveformViewport, panWaveformViewport } from '../utility/waveform-viewport.ts';`, loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
+		export { zoomImageAnalysisViewport, panImageAnalysisViewport } from '../utility/image-analysis-viewport.ts';`, loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'waveform-context', setup(build) {
 		build.onResolve({ filter: /^@\/app\.ts$|GsDetachableView\.vue$|GsImageAnalysisSettings\.vue$|use-renderer-canvas\.ts$|use-waveform-canvas-size\.ts$/ }, args => ({ path: args.path, namespace: 'waveform-context' }));
@@ -54,10 +54,10 @@ function fixture(t, direction = 'horizontal') {
 	let flushes = 0;
 	const state = {
 		analysisWaveformViewports: shallowRef(null), imageAnalysisRenderer: shallowRef(null), renderEngine: { isSuspended: ref(false) },
-		displayedImageAnalysisSettings: shallowRef({ target: 'vectorX', valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: null, waveformViewports: null }),
+		displayedImageAnalysisSettings: shallowRef({ target: 'vectorX', valueScale: 'linear', valueRange: { minimum: 0, maximum: 1 }, waveformCanvasSizes: null, waveformViewports: null, histogramViewport: null }),
 		setWaveformCanvasSize() {},
 		setWaveformViewport(direction, viewport) { state.analysisWaveformViewports.value = { horizontal: { ...full }, vertical: { ...full }, ...state.analysisWaveformViewports.value, [direction]: { ...viewport } }; },
-		flushWaveformDisplay() { flushes++; },
+		flushImageAnalysisDisplay() { flushes++; },
 	};
 	const dependencies = { state, size: shallowRef({ width: 400, height: 240 }) };
 	const module = { exports: {} };
@@ -88,13 +88,13 @@ function fixture(t, direction = 'horizontal') {
 test('keeps the zoom anchor and clamps zoom and pan to the waveform extent', t => {
 	const f = fixture(t);
 	const anchor = { x: 0.25, y: 0.75 };
-	const zoomed = f.zoomWaveformViewport(f.viewport, anchor, 2);
+	const zoomed = f.zoomImageAnalysisViewport(f.viewport, anchor, 2);
 	assert.deepEqual(zoomed, { x: 0.125, y: 0.375, width: 0.5, height: 0.5 });
 	assert.equal(zoomed.x + anchor.x * zoomed.width, anchor.x);
 	assert.equal(zoomed.y + anchor.y * zoomed.height, anchor.y);
-	assert.deepEqual(f.zoomWaveformViewport(zoomed, anchor, 0.5), f.viewport);
-	assert.equal(f.zoomWaveformViewport(zoomed, anchor, 1e10).width, 0.01);
-	assert.deepEqual(f.panWaveformViewport(zoomed, { x: 1e6, y: -1e6 }, { width: 400, height: 240 }), { ...zoomed, x: 0, y: 0.5 });
+	assert.deepEqual(f.zoomImageAnalysisViewport(zoomed, anchor, 0.5), f.viewport);
+	assert.equal(f.zoomImageAnalysisViewport(zoomed, anchor, 1e10).width, 0.01);
+	assert.deepEqual(f.panImageAnalysisViewport(zoomed, { x: 1e6, y: -1e6 }, { width: 400, height: 240 }), { ...zoomed, x: 0, y: 0.5 });
 });
 
 for (const direction of ['horizontal', 'vertical']) {

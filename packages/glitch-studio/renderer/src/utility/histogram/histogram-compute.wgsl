@@ -7,7 +7,9 @@ struct AnalysisSettings {
 	valueRange: vec2f,
 	sampleSize: vec2u,
 	chunkCount: u32,
+	valueWindow: vec2f,
 };
+override useValueWindow: bool = false;
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
 // 直接集計では最終ヒストグラム、分割集計では部分和のバッファを束縛する。
 @group(0) @binding(1) var<storage, read_write> counts: array<atomic<u32>>;
@@ -26,7 +28,16 @@ fn readHistogramSample(samplePosition: vec2u) -> HistogramSample {
 	let sample = imageAnalysisSample(transformImageSample(textureLoad(sourceTexture, vec2i(coord), 0)), settings.mode);
 	if (sample.weight == 0.0) { return HistogramSample(vec3u(0u), 0u); }
 	let values = clamp(imageValueForScope(sample.values, settings.valueScale, settings.valueRange), vec3f(0.0), vec3f(1.0));
-	return HistogramSample(vec3u(values * 255.0 + vec3f(0.5)), u32(round(sample.weight * 65535.0)));
+	var bins = vec3u(values * 255.0 + vec3f(0.5));
+	if (useValueWindow) {
+		// 元の解析範囲へclampした後で表示窓を切り出す。窓の外を端へ寄せ直すと、
+		// 存在しないピークが拡大領域の端に現れるため、チャンネル別に集計から除く。
+		let normalized = (values - vec3f(settings.valueWindow.x)) / (settings.valueWindow.y - settings.valueWindow.x);
+		bins = vec3u(clamp(normalized, vec3f(0.0), vec3f(1.0)) * 255.0 + vec3f(0.5));
+		bins = select(vec3u(BIN_COUNT), bins, values >= vec3f(settings.valueWindow.x));
+		bins = select(vec3u(BIN_COUNT), bins, values <= vec3f(settings.valueWindow.y));
+	}
+	return HistogramSample(bins, u32(round(sample.weight * 65535.0)));
 }
 
 // 安全なサンプル数なら従来どおり最終バッファへ直接加算し、部分和・結果統合を省く。
@@ -35,10 +46,10 @@ fn accumulateDirect(@builtin(global_invocation_id) id: vec3u) {
 	if (any(id.xy >= settings.sampleSize)) { return; }
 	let sample = readHistogramSample(id.xy);
 	if (sample.count == 0u) { return; }
-	atomicAdd(&counts[sample.bins.r], sample.count);
+	if (!useValueWindow || sample.bins.r < BIN_COUNT) { atomicAdd(&counts[sample.bins.r], sample.count); }
 	if (settings.mode == 0u) {
-		atomicAdd(&counts[BIN_COUNT + sample.bins.g], sample.count);
-		atomicAdd(&counts[BIN_COUNT * 2u + sample.bins.b], sample.count);
+		if (!useValueWindow || sample.bins.g < BIN_COUNT) { atomicAdd(&counts[BIN_COUNT + sample.bins.g], sample.count); }
+		if (!useValueWindow || sample.bins.b < BIN_COUNT) { atomicAdd(&counts[BIN_COUNT * 2u + sample.bins.b], sample.count); }
 	}
 }
 
@@ -67,10 +78,10 @@ fn accumulate(@builtin(local_invocation_index) localIndex: u32, @builtin(workgro
 		// 全画素解析では各画素を一度ずつ厳密に読む。補間で分布を変えない。
 		let sample = readHistogramSample(samplePosition);
 		if (sample.count == 0u) { continue; }
-		atomicAdd(&localHistogram[sample.bins.r], sample.count);
+		if (!useValueWindow || sample.bins.r < BIN_COUNT) { atomicAdd(&localHistogram[sample.bins.r], sample.count); }
 		if (settings.mode == 0u) {
-			atomicAdd(&localHistogram[BIN_COUNT + sample.bins.g], sample.count);
-			atomicAdd(&localHistogram[BIN_COUNT * 2u + sample.bins.b], sample.count);
+			if (!useValueWindow || sample.bins.g < BIN_COUNT) { atomicAdd(&localHistogram[BIN_COUNT + sample.bins.g], sample.count); }
+			if (!useValueWindow || sample.bins.b < BIN_COUNT) { atomicAdd(&localHistogram[BIN_COUNT * 2u + sample.bins.b], sample.count); }
 		}
 	}
 	workgroupBarrier();
