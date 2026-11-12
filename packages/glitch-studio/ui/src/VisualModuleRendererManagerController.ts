@@ -1,4 +1,4 @@
-import { ref, shallowReactive } from 'vue';
+import { ref, shallowReactive, shallowRef } from 'vue';
 import { getFileSourceUrl, getFileSourceError } from '@gs/shared/file-source.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -17,6 +17,7 @@ import type { Asset, Player } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { VisualModuleRendererManager, VisualModuleRendererManagerResources, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 
 export type VisualModuleRendererManagerInitialOptions = {
@@ -30,6 +31,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public readonly canvasRevision = ref(0);
 	public readonly outputResolution = ref<Resolution | null>(null);
 	public readonly isRenderDelayed = ref(false);
+	public readonly renderTilingProgress = shallowRef<EffectRenderTilingProgress | null>(null);
 	public canvas: HTMLCanvasElement;
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
@@ -65,11 +67,16 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			},
 			onError: error => {
 				this.errorMessage.value = error?.message ?? null;
-				if (error != null) this.isRenderDelayed.value = false;
+				if (error != null) {
+					this.isRenderDelayed.value = false;
+					this.renderTilingProgress.value = null;
+				}
 			},
 			eventHandlers: {
 				renderDelay: ctx => {
-					if (ctx.instanceId === this.visualModuleLivePreviewStatusInstanceId) this.isRenderDelayed.value = ctx.isDelayed;
+					if (ctx.instanceId !== this.visualModuleLivePreviewStatusInstanceId) return;
+					this.isRenderDelayed.value = ctx.isDelayed;
+					this.renderTilingProgress.value = ctx.tilingProgress;
 				},
 				cpuPreviewFrame: frame => {
 					try { displayCpuPreviewFrame(this[frame.target], frame); } catch (error) { this.reportRenderFailure(error instanceof Error ? error : new Error(String(error))); } finally {
@@ -115,6 +122,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			onDisposed: () => {
 				this.outputResolution.value = null;
 				this.isRenderDelayed.value = false;
+				this.renderTilingProgress.value = null;
 				this.visualModuleLivePreviewStatusInstanceId = null;
 				this.releasePlayerMedia();
 				this.visualModuleLivePreviewVisualModuleId.value = null;
@@ -223,6 +231,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		const statusInstanceId = genId();
 		this.visualModuleLivePreviewStatusInstanceId = statusInstanceId;
 		this.isRenderDelayed.value = false;
+		this.renderTilingProgress.value = null;
 		// 再生成中の表示モードはPreviewPlaybackControllerが保持し、両プレビューの準備後に再開する。
 		if (this.isReady.value) this.call('startVisualModuleLivePreviewRenderLoopFor', [visualModuleId, deepClone(paramValues), statusInstanceId]);
 		this.visualModuleLivePreviewEffectStateStore.start(visualModuleId, statusInstanceId);
@@ -245,6 +254,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public stopRenderLoop() {
 		this.visualModuleLivePreviewStatusInstanceId = null;
 		this.isRenderDelayed.value = false;
+		this.renderTilingProgress.value = null;
 		if (this.isReady.value) this.call('stopRenderLoop', []);
 		this.outputResolution.value = null;
 		this.visualModuleLivePreviewEffectStateStore.stop();

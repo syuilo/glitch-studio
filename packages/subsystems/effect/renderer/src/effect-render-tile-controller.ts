@@ -16,6 +16,18 @@ function getMinimumTilePixels(width: number, height: number): number {
 	return Math.min(width, MINIMUM_TILE_SIZE) * Math.min(height, MINIMUM_TILE_SIZE);
 }
 
+function splitEffectRenderTile(tile: EffectRenderTile, maximumTilePixels: number): [EffectRenderTile, EffectRenderTile] | null {
+	// 計数と実際の分割で同じ条件を使い、端数寸法でも進捗の総数を一致させる。
+	// 下限を面積目標より優先し、64×65pxなどを32px幅へ二分しない。
+	if (tile.width * tile.height <= maximumTilePixels || Math.max(tile.width, tile.height) < MINIMUM_TILE_SIZE * 2) return null;
+	if (tile.width >= tile.height) {
+		const firstWidth = Math.floor(tile.width / 2);
+		return [{ ...tile, width: firstWidth }, { ...tile, x: tile.x + firstWidth, width: tile.width - firstWidth }];
+	}
+	const firstHeight = Math.floor(tile.height / 2);
+	return [{ ...tile, height: firstHeight }, { ...tile, y: tile.y + firstHeight, height: tile.height - firstHeight }];
+}
+
 type PassState = {
 	pipelines: readonly unknown[];
 	width: number;
@@ -81,10 +93,36 @@ export class EffectRenderTilePlan {
 	private maximumTimeMs = 0;
 	private largestTilePixels = 0;
 	private recoveryFastSamples = 0;
+	private readonly pendingTiles: EffectRenderTile[];
+	private countedMaximumTilePixels: number | null = null;
+	private remainingTileCountValue = 0;
 
-	constructor(state: PassState) { this.state = state; }
+	constructor(state: PassState) {
+		this.state = state;
+		this.pendingTiles = [{ x: 0, y: 0, width: state.width, height: state.height }];
+	}
 
 	get maximumTilePixels(): number { return this.state.maximumTilePixels; }
+
+	get remainingTileCount(): number {
+		if (this.countedMaximumTilePixels !== this.maximumTilePixels) {
+			// 全タイルを毎回列挙すると進捗表示自体が重くなる。同じ寸法の二分結果を
+			// 再利用し、上限が変わったときだけ未送信の長方形から総数を数え直す。
+			const counts = new Map<string, number>();
+			const count = (tile: EffectRenderTile): number => {
+				const key = `${tile.width},${tile.height}`;
+				const cached = counts.get(key);
+				if (cached != null) return cached;
+				const split = splitEffectRenderTile(tile, this.maximumTilePixels);
+				const result = split == null ? 1 : count(split[0]) + count(split[1]);
+				counts.set(key, result);
+				return result;
+			};
+			this.remainingTileCountValue = this.pendingTiles.reduce((total, tile) => total + count(tile), 0);
+			this.countedMaximumTilePixels = this.maximumTilePixels;
+		}
+		return this.remainingTileCountValue;
+	}
 
 	observe(pixels: number, timeMs: number) {
 		if (!Number.isFinite(timeMs) || timeMs < 0) return;
@@ -139,22 +177,16 @@ export class EffectRenderTilePlan {
 
 	/** 未送信の長方形だけを分割する。途中で面積上限が変わっても重複・欠落を生じさせない。 */
 	*tiles(): Generator<{ tile: EffectRenderTile; last: boolean }> {
-		const pending: EffectRenderTile[] = [{ x: 0, y: 0, width: this.state.width, height: this.state.height }];
-		while (pending.length > 0) {
-			const tile = pending.pop()!;
-			// 面積上限だけでは、奇数寸法の64×65pxなども32px幅へ二分されてしまう。
-			// 子の各辺を64px以上に保てる場合だけ分割し、下限を面積の目標より優先する。
-			if (tile.width * tile.height > this.maximumTilePixels && Math.max(tile.width, tile.height) >= MINIMUM_TILE_SIZE * 2) {
-				if (tile.width >= tile.height) {
-					const firstWidth = Math.floor(tile.width / 2);
-					pending.push({ ...tile, x: tile.x + firstWidth, width: tile.width - firstWidth }, { ...tile, width: firstWidth });
-				} else {
-					const firstHeight = Math.floor(tile.height / 2);
-					pending.push({ ...tile, y: tile.y + firstHeight, height: tile.height - firstHeight }, { ...tile, height: firstHeight });
-				}
+		while (this.pendingTiles.length > 0) {
+			const tile = this.pendingTiles.pop()!;
+			const split = splitEffectRenderTile(tile, this.maximumTilePixels);
+			if (split != null) {
+				this.pendingTiles.push(split[1], split[0]);
 				continue;
 			}
-			yield { tile, last: pending.length === 0 };
+			if (this.countedMaximumTilePixels === this.maximumTilePixels) this.remainingTileCountValue--;
+			else this.countedMaximumTilePixels = null;
+			yield { tile, last: this.pendingTiles.length === 0 };
 		}
 	}
 }

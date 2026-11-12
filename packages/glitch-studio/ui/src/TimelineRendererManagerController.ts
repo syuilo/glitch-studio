@@ -10,6 +10,7 @@ import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { TimelineRendererManager, TimelineRendererManagerResources, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 
 export type TimelineRendererManagerInitialOptions = {
@@ -23,6 +24,7 @@ type TimelineRendererManagerRuntimeOptions = Omit<TimelineRendererManagerDynamic
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);
 	public readonly isRenderDelayed = ref(false);
+	public readonly renderTilingProgress = shallowRef<EffectRenderTilingProgress | null>(null);
 	public readonly layerTransform = shallowRef<TimelineTransformPreview | null>(null);
 	public get transformPreviewRevision() { return this.dynamicOptions.previewRevision ?? 0; }
 	public readonly previewStatistics = shallowRef<TimelinePreviewStatistics | null>(null);
@@ -69,11 +71,13 @@ export class TimelineRendererManagerController extends RendererManagerController
 				if (error != null) {
 					this.cancelSeek();
 					this.isRenderDelayed.value = false;
+					this.renderTilingProgress.value = null;
 				}
 			},
 			eventHandlers: {
 				renderDelay: ctx => {
 					this.isRenderDelayed.value = ctx.isDelayed;
+					this.renderTilingProgress.value = ctx.tilingProgress;
 				},
 				cpuPreviewFrame: frame => {
 					try { displayCpuPreviewFrame(this[frame.target], frame); } catch (error) { this.reportRenderFailure(error instanceof Error ? error : new Error(String(error))); } finally {
@@ -116,6 +120,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 			onCreated: () => {},
 			onDisposed: () => {
 				this.isRenderDelayed.value = false;
+				this.renderTilingProgress.value = null;
 				this.frameCacheState.value = null;
 				this.previewStatistics.value = null;
 				this.cancelSeek();

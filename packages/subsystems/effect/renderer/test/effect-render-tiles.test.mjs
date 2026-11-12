@@ -40,6 +40,31 @@ function gpu() {
 	return { device, tracked, view, submitted, waits, lose };
 }
 
+// 【エフェクト内の全Render Passを合計し、GPU完了後だけ進捗を進める】
+// 最初のパスだけの総数やsubmit時点の完了通知では、まだ未描画なのに100%となってしまう。
+// 解像度の異なる後続パスも含め、最後に実際のタイル数と一致することを確認する。
+test('reports completed tiles across render passes after GPU completion', async () => {
+	const g = gpu();
+	const recorder = new EffectGpuCommandRecorder();
+	const secondView = g.tracked.createTexture({ size: { width: 3, height: 3 } }).createView();
+	for (const view of [g.view, secondView]) {
+		const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+		pass.draw(3); pass.end();
+	}
+	const progress = [];
+	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 4 }, new AbortController().signal, null, null, null,
+		value => progress.push(value));
+	assert.deepEqual(progress, [{ completedTiles: 0, totalTiles: 5 }]);
+	assert.equal(g.submitted.length, 1);
+	for (let completedTiles = 1; completedTiles <= 5; completedTiles++) {
+		g.waits.shift()();
+		await tick();
+		assert.deepEqual(progress.at(-1), { completedTiles, totalTiles: 5 });
+	}
+	await running;
+	assert.equal(progress.length, 6);
+});
+
 // 【奇数寸法と細長い画像を重複も欠落もなく分割する】
 // 端数や空タイルで画素が失われると、タイル寸法によってエフェクトの結果が変わる。
 test('covers every pixel exactly once at each manual tile size', () => {
@@ -166,12 +191,14 @@ test('adapts remaining tiles using completion time while preserving clears', asy
 	pass.draw(3); pass.end();
 	const tileController = new EffectRenderTileController();
 	const workloadHint = { key: 'same input', workPerPixel: 1 };
+	const progress = [];
 	for (let passIndex = 0; passIndex < 2; passIndex++) {
 		const plan = tileController.beginPass(0, [], 257, 129, workloadHint);
 		for (let index = 0; index < 4; index++) plan.observe(plan.maximumTilePixels, 1);
 		plan.finish();
 	}
-	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, null, tileController, workloadHint);
+	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, null, tileController, workloadHint,
+		value => progress.push(value));
 	assert.equal(g.submitted.length, 0);
 	await tick();
 	assert.equal(g.submitted.length, 0, 'do not submit until previous work has completed');
@@ -186,6 +213,8 @@ test('adapts remaining tiles using completion time while preserving clears', asy
 	await tick();
 	const second = rectangle(g.submitted[1]);
 	assert.ok(second[2] * second[3] < first[2] * first[3]);
+	assert.equal(progress[1].completedTiles, 1);
+	assert.ok(progress[1].totalTiles > progress[0].totalTiles, 'include newly subdivided tiles in the total');
 	let completed = false;
 	void running.then(() => { completed = true; });
 	for (let index = 0; !completed && index < 500; index++) {
@@ -195,6 +224,8 @@ test('adapts remaining tiles using completion time while preserving clears', asy
 	}
 	assert.equal(completed, true);
 	assert.equal(await running, 0, 'elapsed time is not reported as GPU timestamp statistics');
+	assert.deepEqual(progress.at(-1), { completedTiles: g.submitted.length, totalTiles: g.submitted.length });
+	assert.ok(progress.every((value, index) => value.completedTiles === index && value.completedTiles <= value.totalTiles));
 	assert.equal(g.submitted[0][0].descriptor.colorAttachments[0].loadOp, 'clear');
 	for (const commands of g.submitted.slice(1)) assert.equal(commands[0].descriptor.colorAttachments[0].loadOp, 'load');
 });

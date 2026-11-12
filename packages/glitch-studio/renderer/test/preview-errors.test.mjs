@@ -2027,6 +2027,43 @@ async function tiledValueFixture(t, kind = 'node', Manager = VisualModuleRendere
 	return { ...f, definition, renders, init, waits, states };
 }
 
+for (const path of ['Live Preview', 'Timeline Visual Module', 'Timeline Effect']) {
+	// 【各プレビュー経路でGPU完了数を通知し、エフェクト完了後は進捗だけを解除する】
+	// Effect単体の進捗だけでは呼び出し階層やWorker通知で失われ得る。
+	// 最終Canvasの待機中はスピナーを残し、完了したエフェクトの数値は表示し続けない。
+	test(`reports tile progress through the ${path} preview and clears it at completion`, async t => {
+		const isTimeline = path !== 'Live Preview';
+		const f = await tiledValueFixture(t, 'node', isTimeline ? TimelineRendererManager : VisualModuleRendererManager);
+		if (path === 'Timeline Effect') {
+			const scenes = structuredClone(f.renderer.dynamicOptions.timelineScenes);
+			scenes[0].layers[0] = { ...scenes[0].layers[0], layerType: 'effect', effectId: 'pass', effectStaticSettings: {},
+				resolution: { mode: 'context', scale: 1 }, effectParamValues: { input: { inputSource: 'literal', value: [1, 0, 0, 1] } } };
+			f.renderer.updateDynamicOptions({ timelineScenes: scenes });
+		}
+		f.renderer.updateDynamicOptions({ previewActive: true });
+		const advance = renderDelayClock(t);
+		const notifications = [];
+		f.renderer.on('ev', event => { if (event.type === 'renderDelay') notifications.push(event.ctx); });
+		const drawing = isTimeline ? f.renderer.renderTimelineAt(0) : null;
+		if (!isTimeline) f.frame(16);
+		await new Promise(resolve => setImmediate(resolve));
+		advance(300);
+		assert.deepEqual(notifications.at(-1).tilingProgress, { completedTiles: 0, totalTiles: 4 });
+		await finishTiledWork(f.waits, 1);
+		advance(100);
+		assert.deepEqual(notifications.at(-1).tilingProgress, { completedTiles: 1, totalTiles: 4 });
+		await finishTiledWork(f.waits, 3);
+		advance(100);
+		assert.equal(notifications.at(-1).isDelayed, true);
+		assert.equal(notifications.at(-1).tilingProgress, null);
+		await finishTiledWork(f.waits, 1);
+		await drawing;
+		assert.equal(notifications.at(-1).isDelayed, false);
+		assert.equal(notifications.at(-1).tilingProgress, null);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
 for (const kind of ['node', 'custom', 'public']) {
 	// 【値だけの連続変更ではタイル描画を完成させ、最新値だけを次フレームへ渡す】
 	// 中断による再初期化は、解像度表示の点滅だけでなくGPU資源の再確保と履歴消失も起こす。

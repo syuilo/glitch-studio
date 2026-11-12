@@ -40,8 +40,18 @@
 				<GsPreviewTransform v-if="appContext.previewParameterEditing.handles.value.length === 0 && appContext.previewParameterEditing.viewport.value == null" :canvasRect="previewCanvasRect"/>
 				<GsPreviewParameterPositions :canvasRect="previewCanvasRect" :showGrid="showGridInPreview"/>
 				<GsPreviewViewport :canvasRect="previewCanvasRect"/>
-				<div v-if="!renderEngine.isSuspended.value && activePreviewRenderer.isRenderDelayed.value" :class="$style.renderLoading" data-test-preview-render-loading>
+				<div
+					v-if="!renderEngine.isSuspended.value && activePreviewRenderer.isRenderDelayed.value"
+					:class="[$style.renderLoading, { [$style.withRenderProgress]: renderTilingProgressText != null }]"
+					data-test-preview-render-loading
+				>
 					<GsLoading :colored="false" :mini="true"/>
+					<span
+						v-if="renderTilingProgressText != null"
+						:class="$style.renderProgress"
+						class="_monospace"
+						data-test-preview-render-progress
+					>{{ renderTilingProgressText }}</span>
 				</div>
 			</div>
 			<GsPreviewRulers v-if="showRulersInPreview && !renderEngine.isSuspended.value" :canvasRect="previewCanvasRect" :viewportSize="previewViewportSize"/>
@@ -97,6 +107,12 @@ import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
 const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
+const renderTilingProgressText = computed(() => {
+	const progress = activePreviewRenderer.value.renderTilingProgress.value;
+	if (progress == null || progress.totalTiles === 0) return null;
+	// 四捨五入で未完了を100%にしない。自動分割による総数の変化もそのまま反映する。
+	return `${progress.completedTiles} / ${progress.totalTiles} (${Math.floor(progress.completedTiles / progress.totalTiles * 100)}%)`;
+});
 const previewWarningImageSourceLabels = computed<Record<PreviewImageSource, string>>(() => ({
 	original: i18n.ts._Preview.WarningImageSourceOriginal,
 	previewAdjusted: i18n.ts._Preview.WarningImageSourceAdjusted,
@@ -573,6 +589,8 @@ function showMenu(ev: PointerEvent) {
 }
 
 .renderLoading {
+	display: flex;
+	align-items: center;
 	position: absolute;
 	top: 50%;
 	left: 50%;
@@ -581,6 +599,17 @@ function showMenu(ev: PointerEvent) {
 	background: #0008;
 	color: #fff;
 	pointer-events: none;
+}
+
+.withRenderProgress {
+	gap: 8px;
+	padding: 8px 12px;
+	border-radius: 8px;
+}
+
+.renderProgress {
+	font-size: 12px;
+	white-space: nowrap;
 }
 
 //.panning, .panning * {

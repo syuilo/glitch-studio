@@ -8,13 +8,66 @@ const { PreviewRenderDelayMonitor } = await loadShaderSource(fileURLToPath(new U
 function fixture(t) {
 	let now = 0;
 	const changes = [];
+	const progressChanges = [];
 	t.mock.timers.enable({ apis: ['setInterval'] });
 	t.mock.method(performance, 'now', () => now);
 	const intervals = t.mock.method(globalThis, 'setInterval');
-	const monitor = new PreviewRenderDelayMonitor(isDelayed => changes.push(isDelayed));
+	const monitor = new PreviewRenderDelayMonitor((isDelayed, progress) => { changes.push(isDelayed); progressChanges.push(progress); });
 	t.after(() => monitor.stop());
-	return { monitor, changes, intervals, advance(milliseconds) { now += milliseconds; t.mock.timers.tick(milliseconds); } };
+	return { monitor, changes, progressChanges, intervals, advance(milliseconds) { now += milliseconds; t.mock.timers.tick(milliseconds); } };
 }
+
+// 【進捗は既存の100ms監視で最新値だけ通知し、総数の変化と解除も反映する】
+// タイルごとの通信や高速フレームでの表示を追加せず、スピナーが出る時点から
+// GPU完了数を表示する。エフェクト終了後の待機には古い100%表示を残さない。
+test('coalesces tile progress into delay notifications and clears it after the effect', t => {
+	const f = fixture(t);
+	const frame = {};
+	f.monitor.beginFrame(frame);
+	f.monitor.updateTilingProgress(frame, { completedTiles: 0, totalTiles: 256 });
+	f.advance(299);
+	assert.deepEqual(f.progressChanges, []);
+	f.advance(1);
+	assert.deepEqual(f.progressChanges, [{ completedTiles: 0, totalTiles: 256 }]);
+	f.monitor.updateTilingProgress(frame, { completedTiles: 1, totalTiles: 256 });
+	f.monitor.updateTilingProgress(frame, { completedTiles: 64, totalTiles: 256 });
+	assert.equal(f.progressChanges.length, 1);
+	f.advance(100);
+	assert.deepEqual(f.progressChanges.at(-1), { completedTiles: 64, totalTiles: 256 });
+	f.advance(100);
+	assert.equal(f.progressChanges.length, 2);
+	f.monitor.updateTilingProgress(frame, { completedTiles: 64, totalTiles: 512 });
+	f.advance(100);
+	assert.deepEqual(f.progressChanges.at(-1), { completedTiles: 64, totalTiles: 512 });
+	f.monitor.updateTilingProgress(frame, null);
+	f.advance(100);
+	assert.equal(f.progressChanges.at(-1), null);
+	assert.equal(f.changes.at(-1), true);
+	f.monitor.completeFrame(frame);
+	assert.equal(f.changes.at(-1), false);
+	assert.equal(f.progressChanges.at(-1), null);
+	assert.equal(f.intervals.mock.callCount(), 1);
+});
+
+// 【中断したフレームの遅い進捗で、新しいフレームの表示を上書きしない】
+// GPUへ送信済みの仕事は止められないため、監視を消した後にも通知が届き得る。
+// 旧フレームの進捗・完了が新しいタイル数やスピナーの解除へ影響しないことを保証する。
+test('ignores tile progress from frames cleared before a new preview', t => {
+	const f = fixture(t);
+	const previous = {}, current = {};
+	f.monitor.beginFrame(previous);
+	f.monitor.updateTilingProgress(previous, { completedTiles: 1, totalTiles: 256 });
+	f.advance(300);
+	f.monitor.clear();
+	f.monitor.beginFrame(current);
+	f.monitor.updateTilingProgress(current, { completedTiles: 2, totalTiles: 16 });
+	f.monitor.updateTilingProgress(previous, { completedTiles: 200, totalTiles: 256 });
+	f.monitor.completeFrame(previous);
+	f.advance(300);
+	assert.deepEqual(f.progressChanges.at(-1), { completedTiles: 2, totalTiles: 16 });
+	f.monitor.completeFrame(current);
+	assert.equal(f.progressChanges.at(-1), null);
+});
 
 // 【準備を再確認しても開始時刻を保ち、300msから完了までだけ遅延を通知する】
 // Live Previewは同じフレームの準備を複数回確認するため、毎回計時をやり直すと

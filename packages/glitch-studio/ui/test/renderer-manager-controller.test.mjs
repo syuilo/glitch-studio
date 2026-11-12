@@ -133,17 +133,23 @@ for (const kind of ['VisualModule', 'Timeline']) {
 			controller.startVisualModuleLivePreviewRenderLoopFor('visual-module');
 			instanceId = worker.calls('startVisualModuleLivePreviewRenderLoopFor').at(-1).args[2];
 		}
-		const notify = isDelayed => worker.reply({ type: 'ev', ev: { type: 'renderDelay', ctx: { instanceId, isDelayed } } });
+		const tilingProgress = { completedTiles: 64, totalTiles: 256 };
+		const notify = isDelayed => worker.reply({ type: 'ev', ev: { type: 'renderDelay', ctx: { instanceId, isDelayed, tilingProgress: isDelayed ? tilingProgress : null } } });
 		assert.equal(controller.isRenderDelayed.value, false);
+		assert.equal(controller.renderTilingProgress.value, null);
 		notify(true);
 		assert.equal(controller.isRenderDelayed.value, true);
+		assert.deepEqual(controller.renderTilingProgress.value, tilingProgress);
 		notify(false);
 		assert.equal(controller.isRenderDelayed.value, false);
+		assert.equal(controller.renderTilingProgress.value, null);
 		notify(true);
 		controller.disposeManager();
 		assert.equal(controller.isRenderDelayed.value, false);
+		assert.equal(controller.renderTilingProgress.value, null);
 		notify(true);
 		assert.equal(controller.isRenderDelayed.value, false);
+		assert.equal(controller.renderTilingProgress.value, null);
 		await initialize(controller, workers);
 		notify(true);
 		assert.equal(controller.isRenderDelayed.value, false);
@@ -202,18 +208,22 @@ test('rejects render delay notifications from previous Live Preview instances', 
 	const worker = await initialize(controller, workers);
 	controller.startVisualModuleLivePreviewRenderLoopFor('visual-module');
 	const previousId = worker.calls('startVisualModuleLivePreviewRenderLoopFor').at(-1).args[2];
-	const notify = (instanceId, isDelayed) => worker.reply({ type: 'ev', ev: { type: 'renderDelay', ctx: { instanceId, isDelayed } } });
+	const tilingProgress = { completedTiles: 64, totalTiles: 256 };
+	const notify = (instanceId, isDelayed) => worker.reply({ type: 'ev', ev: { type: 'renderDelay', ctx: { instanceId, isDelayed, tilingProgress: isDelayed ? tilingProgress : null } } });
 	notify(previousId, true);
 	controller.startVisualModuleLivePreviewRenderLoopFor('visual-module');
 	const currentId = worker.calls('startVisualModuleLivePreviewRenderLoopFor').at(-1).args[2];
 	notify(previousId, true);
 	assert.equal(controller.isRenderDelayed.value, false);
+	assert.equal(controller.renderTilingProgress.value, null);
 	notify(currentId, true);
 	notify(previousId, false);
 	assert.equal(controller.isRenderDelayed.value, true);
+	assert.deepEqual(controller.renderTilingProgress.value, tilingProgress);
 	controller.stopRenderLoop();
 	notify(currentId, true);
 	assert.equal(controller.isRenderDelayed.value, false);
+	assert.equal(controller.renderTilingProgress.value, null);
 });
 
 async function initialize(controller, workers) {

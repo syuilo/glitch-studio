@@ -1,4 +1,4 @@
-import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling, EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import { getEffectIntrinsicResolution, resolveEffectStaticResources } from '@gs/subsystems_effect_renderer/effect-static-settings.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
@@ -45,6 +45,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	assetTextures: ReadonlyMap<string, GPUTexture>;
 	getAudioInput?: TimelineAudioInputProvider;
 	onState?: (state: EffectInstanceState | null) => void;
+	onTilingProgress?: EffectRenderTilingProgressObserver;
 	onCompositing?: TimelineCompositingObserver | null;
 }): TimelineLayerRenderer<TimelineImage> {
 	// 設定更新時はManagerがインスタンスを作り直す。Bindingの検証と既定値の補完は
@@ -158,7 +159,10 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 					usedOutputPorts,
 					commandEncoder: encoder,
 				};
-				if (renderer.shouldRenderTiled(renderContext)) await renderer.renderTiled(renderContext, signal);
+				if (renderer.shouldRenderTiled(renderContext)) await renderer.renderTiled(renderContext, signal,
+					!context.isExport && options.onTilingProgress != null ? progress => {
+						if (!signal.aborted && !disposed) options.onTilingProgress?.(progress);
+					} : null);
 				else renderer.render(renderContext);
 				signal.throwIfAborted();
 				const texture = renderer.getOutputTexture(port);

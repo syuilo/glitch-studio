@@ -1,6 +1,6 @@
 import { getEffectRenderViewSize } from './effect-render-texture-views.ts';
-import type { EffectRenderTileController } from './effect-render-tile-controller.ts';
-import type { EffectRenderTiling, EffectRenderWorkloadHint } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTileController, EffectRenderTilePlan } from './effect-render-tile-controller.ts';
+import type { EffectRenderTiling, EffectRenderWorkloadHint, EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 
 type Rectangle = { x: number; y: number; width: number; height: number };
@@ -140,8 +140,36 @@ export class EffectGpuCommandRecorder {
 	}
 
 	async execute(device: GPUDevice, tiling: EffectRenderTiling, signal: AbortSignal, timingHelper: TimingHelper | null,
-		tileController: EffectRenderTileController | null = null, workloadHint: EffectRenderWorkloadHint | null = null): Promise<number> {
+		tileController: EffectRenderTileController | null = null, workloadHint: EffectRenderWorkloadHint | null = null,
+		onProgress: EffectRenderTilingProgressObserver | null = null): Promise<number> {
 		if (this.openPass) throw new Error('Effect render returned with an open pass.');
+		const renderPlans = new Map<number, {
+			attachments: (GPURenderPassColorAttachment | null)[];
+			size: { width: number; height: number };
+			plan: EffectRenderTilePlan | null;
+			tileSize: number;
+			remainingTiles: number;
+		}>();
+		let completedTiles = 0;
+		let totalTiles = 0;
+		for (const [operationIndex, operation] of this.operations.entries()) {
+			if (operation.kind !== 'render') continue;
+			const attachments = Array.from(operation.descriptor.colorAttachments);
+			const view = attachments.find(attachment => attachment != null)?.view ?? operation.descriptor.depthStencilAttachment?.view;
+			if (view == null) throw new Error('Tiled effect render pass needs a render target.');
+			const size = getEffectRenderViewSize(view);
+			// クエリを持つパスは分割しない。全Render Passを先に計画し、後続パスも総数へ含める。
+			const tiled = operation.descriptor.occlusionQuerySet == null;
+			const plan = tiled && tiling.mode === 'auto' ? tileController?.beginPass(operationIndex,
+				operation.commands.filter(command => command.method === 'setPipeline').map(command => command.args[0]),
+				size.width, size.height, workloadHint) ?? null : null;
+			const tileSize = tiled && tiling.mode === 'manual' ? tiling.tileSize : Math.max(size.width, size.height);
+			const remainingTiles = onProgress == null ? 0 : plan?.remainingTileCount
+				?? Math.ceil(size.width / tileSize) * Math.ceil(size.height / tileSize);
+			renderPlans.set(operationIndex, { attachments, size, plan, tileSize, remainingTiles });
+			totalTiles += remainingTiles;
+		}
+		if (totalTiles > 0) onProgress?.({ completedTiles, totalTiles });
 		if (tiling.mode === 'auto' && this.operations.length > 0) {
 			// 先行ノードの描画やuniformアップロードの待ち時間を最初のタイルへ帰属させない。
 			signal.throwIfAborted();
@@ -176,17 +204,9 @@ export class EffectGpuCommandRecorder {
 					pass.end();
 				});
 			} else {
-				const attachments = Array.from(operation.descriptor.colorAttachments);
-				const view = attachments.find(attachment => attachment != null)?.view ?? operation.descriptor.depthStencilAttachment?.view;
-				if (view == null) throw new Error('Tiled effect render pass needs a render target.');
-				const size = getEffectRenderViewSize(view);
-				// クエリの値をタイルごとに上書きしない。通常の画像パス以外は分割せず実行する。
-				const tiled = operation.descriptor.occlusionQuerySet == null;
-				const plan = tiled && tiling.mode === 'auto' ? tileController?.beginPass(operationIndex,
-					operation.commands.filter(command => command.method === 'setPipeline').map(command => command.args[0]),
-					size.width, size.height, workloadHint) ?? null : null;
-				const tiles = plan?.tiles() ?? effectRenderTiles(size.width, size.height,
-					tiled && tiling.mode === 'manual' ? tiling.tileSize : Math.max(size.width, size.height));
+				const renderPlan = renderPlans.get(operationIndex)!;
+				const { attachments, size, plan, tileSize } = renderPlan;
+				const tiles = plan?.tiles() ?? effectRenderTiles(size.width, size.height, tileSize);
 				let index = 0;
 				for (const { tile, last } of tiles) {
 					const elapsedMs = await submit(encoder => {
@@ -211,6 +231,14 @@ export class EffectGpuCommandRecorder {
 						pass.end();
 					});
 					plan?.observe(tile.width * tile.height, elapsedMs);
+					if (onProgress != null) {
+						completedTiles++;
+						const remainingTiles = plan?.remainingTileCount ?? renderPlan.remainingTiles - 1;
+						// 分割が変わった場合は未送信部分だけを再計数する。完了数は戻さない。
+						totalTiles += remainingTiles - renderPlan.remainingTiles + 1;
+						renderPlan.remainingTiles = remainingTiles;
+						onProgress({ completedTiles, totalTiles });
+					}
 					index++;
 				}
 				plan?.finish();

@@ -91,7 +91,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
 	const canvas = Object.assign(element('canvas'), { width, height });
-	const controller = markRaw({ canvas, canvasRevision: ref(0), isRenderDelayed: ref(false) });
+	const controller = markRaw({ canvas, canvasRevision: ref(0), isRenderDelayed: ref(false), renderTilingProgress: shallowRef(null) });
 	const appContext = {
 		previewParameterEditing: { handles: shallowRef([]), viewport: shallowRef(null), time: ref(0), clear() {} },
 		activePreviewRenderer: shallowRef(controller),
@@ -172,6 +172,36 @@ test('shows rendering delays for the active preview during playback and Live Pre
 	livePreview.isRenderDelayed.value = false;
 	await nextTick();
 	assert.equal(isLoading(), false);
+});
+
+// 【タイル描画中だけ完了数・総数・整数パーセンテージをスピナーと表示する】
+// 自動分割で総数が変わっても最新値を使い、四捨五入で未完了を100%にしない。
+// 非表示側のプレビューや休止中の古い進捗を表示しないことも確認する。
+test('shows tile counts and percentages beside the loading spinner for the active preview', async t => {
+	const f = await fixture(t);
+	f.controller.renderTilingProgress.value = { completedTiles: 64, totalTiles: 256 };
+	await nextTick();
+	assert.ok(f.find('render-progress') == null);
+	f.controller.isRenderDelayed.value = true;
+	await nextTick();
+	assert.equal(f.find('render-progress').text, '64 / 256 (25%)');
+	f.controller.renderTilingProgress.value = { completedTiles: 64, totalTiles: 512 };
+	await nextTick();
+	assert.equal(f.find('render-progress').text, '64 / 512 (12%)');
+	f.controller.renderTilingProgress.value = { completedTiles: 511, totalTiles: 512 };
+	await nextTick();
+	assert.equal(f.find('render-progress').text, '511 / 512 (99%)');
+	const livePreview = markRaw({ ...f.controller, renderTilingProgress: shallowRef(null) });
+	f.appContext.activePreviewRenderer.value = livePreview;
+	await nextTick();
+	assert.ok(f.find('render-progress') == null);
+	assert.ok(f.find('render-loading') != null);
+	livePreview.renderTilingProgress.value = { completedTiles: 256, totalTiles: 256 };
+	await nextTick();
+	assert.equal(f.find('render-progress').text, '256 / 256 (100%)');
+	f.appContext.renderEngine.isSuspended.value = true;
+	await nextTick();
+	assert.ok(f.find('render-progress') == null);
 });
 
 // 【初期表示は実寸と表示先DPRを使い、縦横どちらもはみ出さない最大倍率にする】

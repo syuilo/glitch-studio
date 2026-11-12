@@ -4,6 +4,16 @@ export type EffectRenderTiling =
 	| { mode: 'disabled' }
 	| { mode: 'manual'; tileSize: number };
 
+/** 一つのエフェクト内の全Render Passを対象とする。自動分割では総数も途中で更新する。 */
+export type EffectRenderTilingProgress = {
+	/** GPU完了を確認済みのタイル数。送信しただけのタイルは含めない。 */
+	completedTiles: number;
+	totalTiles: number;
+};
+
+/** nullは、そのエフェクトのタイル描画が完了・中断・失敗したことを表す。 */
+export type EffectRenderTilingProgressObserver = (progress: EffectRenderTilingProgress | null) => void;
+
 /**
  * 同じRender Passの計算量を相対比較するためのヒント。実行時間や分割数は指定しない。
  * 画素あたりの仕事が増えたとき、前回のタイル面積をその比率だけ減らしてから実行する。

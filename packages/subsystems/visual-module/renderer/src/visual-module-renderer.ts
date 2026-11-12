@@ -1,4 +1,4 @@
-import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling, EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
@@ -670,7 +670,8 @@ export class VisualModuleRenderer {
 	}
 
 	/** 同期経路と同じ走査を、エフェクト単位のGPU完了境界で進める。 */
-	public async renderTiled(context: VisualModuleRenderContext, signal?: AbortSignal): Promise<UniformOrTexture | null> {
+	public async renderTiled(context: VisualModuleRenderContext, signal?: AbortSignal,
+		onProgress?: EffectRenderTilingProgressObserver | null): Promise<UniformOrTexture | null> {
 		if (this.tiledRenderController != null) throw new Error('Visual Module tiled render is already running.');
 		const controller = new AbortController();
 		this.tiledRenderController = controller;
@@ -693,7 +694,7 @@ export class VisualModuleRenderer {
 			while (!step.done) {
 				if (step.value.renderer.shouldRenderTiled(step.value.context)) {
 					if (pendingEncoder != null) await flushUntiled();
-					this.lastTiledGpuTime += await step.value.renderer.renderTiled(step.value.context, renderSignal);
+					this.lastTiledGpuTime += await step.value.renderer.renderTiled(step.value.context, renderSignal, onProgress);
 				} else {
 					// 自動制御の対象外は記録・再生やノードごとのsubmitを行わず、一括送信する。
 					pendingEncoder ??= this.gpuDevice.createCommandEncoder();

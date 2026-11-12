@@ -1,6 +1,6 @@
 import { EffectGpuCommandRecorder } from './effect-gpu-command-recorder.ts';
 import { EffectRenderTileController } from './effect-render-tile-controller.ts';
-import type { EffectRenderTiling, EffectRenderWorkloadHint } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling, EffectRenderWorkloadHint, EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import { createEffectRenderDevice, trackEffectRenderTexture } from './effect-render-texture-views.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters, EffectStaticResources } from '@gs/subsystems_effect_shared/effect-implementation.ts';
@@ -240,7 +240,8 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	}
 
 	/** エフェクト実装は同期のまま一度だけ呼び、GPU実行の成功後に出力と履歴を公開する。 */
-	async renderTiled(context: Omit<RenderContext<Definition>, 'commandEncoder'>, signal?: AbortSignal): Promise<number> {
+	async renderTiled(context: Omit<RenderContext<Definition>, 'commandEncoder'>, signal?: AbortSignal,
+		onProgress?: EffectRenderTilingProgressObserver | null): Promise<number> {
 		this.assertAlive();
 		signal?.throwIfAborted();
 		if (this.tiledRenderController != null) throw new Error('Effect tiled render is already running.');
@@ -260,7 +261,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 			const commit = this.recordRender({ ...context, commandEncoder: recorder.encoder }, recorder);
 			if (this.options.enableStats === true) this.tiledTimingHelper ??= new TimingHelper(this.options.wgpu.device);
 			const gpuTime = await recorder.execute(this.options.wgpu.device, tiling, renderSignal, this.tiledTimingHelper,
-				this.tileController, workloadHint);
+				this.tileController, workloadHint, onProgress);
 			renderSignal.throwIfAborted();
 			commit();
 			this.untiledFramesUntilMeasurement = this.tileController?.canRenderUntiled(workloadHint) === true ? 30 : 0;
@@ -279,6 +280,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 				this.pendingHistoryReset = false;
 				this.resetRenderHistory();
 			}
+			onProgress?.(null);
 		}
 	}
 

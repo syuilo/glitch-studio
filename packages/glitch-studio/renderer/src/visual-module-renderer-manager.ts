@@ -1,4 +1,4 @@
-import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
@@ -119,7 +119,7 @@ export type VisualModuleLivePreviewEffectStatusSource = { type: 'visualModuleLiv
 
 export type VisualModuleRendererManagerEvents = {
 	'cpuPreviewFrame': (ctx: CpuPreviewFrame) => void;
-	'renderDelay': (ctx: { instanceId: string | null; isDelayed: boolean }) => void;
+	'renderDelay': (ctx: { instanceId: string | null; isDelayed: boolean; tilingProgress: EffectRenderTilingProgress | null }) => void;
 	'outputResolution': (ctx: Resolution) => void;
 	'effectState': (ctx: { source: VisualModuleLivePreviewEffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
 	'renderError': (ctx: { message: string }) => void;
@@ -148,8 +148,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator();
 	private visualModuleLivePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private pendingVisualModuleLivePreviewFrame: VisualModuleRenderContext | null = null;
-	private readonly previewRenderDelayMonitor = new PreviewRenderDelayMonitor(isDelayed => {
-		this.emit('ev', { type: 'renderDelay', ctx: { instanceId: this.visualModuleLivePreviewStatusInstanceId, isDelayed } });
+	private readonly previewRenderDelayMonitor = new PreviewRenderDelayMonitor((isDelayed, tilingProgress) => {
+		this.emit('ev', { type: 'renderDelay', ctx: { instanceId: this.visualModuleLivePreviewStatusInstanceId, isDelayed, tilingProgress } });
 	});
 	private pendingVisualModuleLivePreviewValueUpdate = false;
 	private visualModuleLivePreviewStatusInstanceId: string | null = null;
@@ -605,7 +605,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			}
 			const controller = new AbortController();
 			this.previewTiledFrameController = controller;
-			return renderer.renderTiled(context, controller.signal).then(output => {
+			return renderer.renderTiled(context, controller.signal, progress => {
+				if (generation === this.previewRenderGeneration && !controller.signal.aborted) this.previewRenderDelayMonitor.updateTilingProgress(context, progress);
+			}).then(output => {
 				if (generation !== this.previewRenderGeneration || controller.signal.aborted) {
 					cpuFrame?.cancel();
 					this.previewRenderDelayMonitor.completeFrame(context);

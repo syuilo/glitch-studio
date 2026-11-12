@@ -4,6 +4,45 @@ import { EffectRenderTileController } from '../src/effect-render-tile-controller
 
 const hint = (workPerPixel = 1, key = 'same input') => ({ workPerPixel, key });
 
+// 【進捗用の未送信タイル数を、実際の分割と端数・細長い描画先でも一致させる】
+// 面積を単純に割るだけでは64pxの寸法下限や二分の端数を反映できず、
+// 最終タイルで100%にならない、または完了前に100%になる表示を招く。
+test('counts remaining tiles exactly for square, odd and narrow targets', () => {
+	for (const [width, height] of [[1024, 1024], [257, 129], [65, 65], [16, 16384], [1, 129], [129, 1], [16, 9]]) {
+		const plan = new EffectRenderTileController().beginPass(0, [], width, height, hint());
+		const totalTiles = plan.remainingTileCount;
+		let completedTiles = 0;
+		for (const _tile of plan.tiles()) {
+			completedTiles++;
+			assert.equal(plan.remainingTileCount, totalTiles - completedTiles);
+		}
+		assert.equal(totalTiles, completedTiles);
+	}
+});
+
+// 【タイルを拡大した後に縮小しても、未送信数のキャッシュを古い値へ戻さない】
+// 自動分割の総数は増減する。途中の進捗を読まない呼び出しでも、
+// 現在の面積上限と未送信領域から数え直して正しい総数を返す必要がある。
+test('recounts remaining tiles after growth and reduction between progress reads', () => {
+	const controller = new EffectRenderTileController();
+	controller.beginPass(0, [], 16, 1024, hint());
+	const plan = controller.beginPass(0, [], 16, 1024, hint(65536));
+	assert.equal(plan.remainingTileCount, 16);
+	const tiles = plan.tiles();
+	for (let index = 0; index < 4; index++) {
+		const { tile } = tiles.next().value;
+		plan.observe(tile.width * tile.height, 1);
+	}
+	const { tile } = tiles.next().value;
+	assert.equal(tile.width * tile.height, 2048);
+	plan.observe(tile.width * tile.height, 512);
+	assert.equal(plan.remainingTileCount, 10);
+	let remaining = 0;
+	for (const _tile of tiles) remaining++;
+	assert.equal(remaining, 10);
+	assert.equal(plan.remainingTileCount, 0);
+});
+
 // 【初回は小さく実行し、速い結果が続いたときだけ段階的に拡大する】
 // 最初の無分割描画によるHUNGを避け、単発の速いタイルから過大な面積を推定しない。
 test('starts conservatively and grows only after consecutive fast samples', () => {

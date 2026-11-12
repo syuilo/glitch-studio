@@ -1,4 +1,4 @@
-import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewWaveformDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
@@ -194,7 +194,7 @@ export type TimelineLayerStatusSource = {
 
 export type TimelineRendererManagerEvents = {
 	'cpuPreviewFrame': (ctx: CpuPreviewFrame) => void;
-	'renderDelay': (ctx: { isDelayed: boolean }) => void;
+	'renderDelay': (ctx: { isDelayed: boolean; tilingProgress: EffectRenderTilingProgress | null }) => void;
 	'telemetry': (ctx: TimelinePreviewStatistics) => void;
 	'frameCache': (ctx: TimelinePreviewFrameCacheState) => void;
 	/** 完了通知を要求した手動シークだけを、最終出力のGPU処理完了後に通知する。 */
@@ -210,8 +210,8 @@ export class TimelineRendererManager extends EventEmitter<{
 }> {
 	private timelineRenderer: TimelineRenderer<TimelineImage, TimelineLayer>;
 	private previewRenderGeneration = 0;
-	private readonly previewRenderDelayMonitor = new PreviewRenderDelayMonitor(isDelayed => {
-		this.emit('ev', { type: 'renderDelay', ctx: { isDelayed } });
+	private readonly previewRenderDelayMonitor = new PreviewRenderDelayMonitor((isDelayed, tilingProgress) => {
+		this.emit('ev', { type: 'renderDelay', ctx: { isDelayed, tilingProgress } });
 	});
 	private previewFrameSequence = 0;
 	private publishedPreviewFrameSequence = 0;
@@ -1055,6 +1055,9 @@ export class TimelineRendererManager extends EventEmitter<{
 					assetTextures: this.assetTextures.textures,
 					getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
 					onState: status => this.emit('ev', { type: 'effectLayerState', ctx: { source, status } }),
+					onTilingProgress: progress => {
+						if (this.activePreviewFrame != null) this.previewRenderDelayMonitor.updateTilingProgress(this.activePreviewFrame, progress);
+					},
 				});
 			}
 			case 'image': {
@@ -1183,12 +1186,15 @@ export class TimelineRendererManager extends EventEmitter<{
 			getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async (context, layerContext, signal) => {
+				const previewFrame = !context.isExport ? this.activePreviewFrame : null;
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
 				let result: Awaited<ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>> = { gpuTime: 0 };
 				const gpuTime = 0;
 				try {
 					const output = renderer.requiresTiledRendering
-						? await renderer.renderTiled(context, signal) : renderer.render(context, commandEncoder);
+						? await renderer.renderTiled(context, signal, previewFrame == null ? null : progress => {
+							if (!signal.aborted) this.previewRenderDelayMonitor.updateTilingProgress(previewFrame, progress);
+						}) : renderer.render(context, commandEncoder);
 					signal.throwIfAborted();
 					if (output != null) {
 						const settings = compositingParameters.evaluate({
