@@ -20,11 +20,11 @@ const bundle = await build({
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'effect-resolution-settings', setup(build) {
-		build.onResolve({ filter: /^@\/app\.ts$/ }, () => ({ path: 'app', namespace: 'platform' }));
+		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'platform' }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
 		build.onResolve({ filter: /^@\/ui\.ts$/ }, () => ({ path: 'ui', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ contents: {
-			app: 'export const appContext = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } } } } } };',
+			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } } } } } };',
 			effects: "export const effectDefinitions = { test: { displayName: 'Test', paramDefs: {}, primaryOutput: 'output' } };",
 			ui: 'export function alert() {}',
 		}[path] }));

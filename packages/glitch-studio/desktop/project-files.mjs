@@ -12,7 +12,7 @@ export class ProjectFiles {
 			throw new Error('Invalid project file path');
 		}
 		const normalized = path.normalize(filePath);
-		for (const [id, stored] of this.#projects) if (stored === normalized) return id;
+		for (const [id, stored] of this.#projects) if (process.platform === 'win32' ? stored.toLowerCase() === normalized.toLowerCase() : stored === normalized) return id;
 		const id = randomUUID();
 		this.#projects.set(id, normalized);
 		return id;

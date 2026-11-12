@@ -1,5 +1,13 @@
 <template>
-<GsModal ref="modal" data-test-dashboard-file-drop animatedBg preferType="dialog" @closed="emit('closed')">
+<GsModal
+	ref="modal"
+	data-test-dashboard-file-drop
+	animatedBg
+	preferType="dialog"
+	@click="modal?.close()"
+	@esc="modal?.close()"
+	@closed="emit('closed')"
+>
 	<div :class="$style.root">
 		<div :class="$style.main" class="_gaps_l">
 			<div style="display: flex; align-items: center; gap: 16px; font-size: 110%;">
@@ -13,9 +21,33 @@
 				<div v-if="!isElectron">{{ i18n.ts._Dashboard.WebLimitations }}<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/guide/download" target="_blank">{{ i18n.ts._Dashboard.DesktopVersion }}</a></div>
 			</div>
 			<div class="_gaps_m">
-				<GsButton large full style="text-align: left;" icon="ti ti-plus" @click="_newProject">{{ i18n.ts._Dashboard.NewProject }}</GsButton>
-				<GsButton large full style="text-align: left;" icon="ti ti-photo-video" @click="_newProjectFromImageOrVideo">{{ `${i18n.ts._Dashboard.OpenMedia}...` }}</GsButton>
-				<GsButton large full style="text-align: left;" icon="ti ti-folder-open" @click="_openProject">{{ `${i18n.ts._Dashboard.OpenProject}...` }}</GsButton>
+				<GsButton
+					large
+					full
+					style="text-align: left;"
+					icon="ti ti-plus"
+					:disabled="fileOperationBusy"
+					data-test-dashboard-new-project
+					@click="_newProject"
+				>{{ i18n.ts._Dashboard.NewProject }}</GsButton>
+				<GsButton
+					large
+					full
+					style="text-align: left;"
+					icon="ti ti-photo-video"
+					:disabled="fileOperationBusy"
+					data-test-dashboard-new-media-project
+					@click="_newProjectFromImageOrVideo"
+				>{{ `${i18n.ts._Dashboard.OpenMedia}...` }}</GsButton>
+				<GsButton
+					large
+					full
+					style="text-align: left;"
+					icon="ti ti-folder-open"
+					:disabled="fileOperationBusy"
+					data-test-dashboard-open-project
+					@click="_openProject"
+				>{{ `${i18n.ts._Dashboard.OpenProject}...` }}</GsButton>
 			</div>
 			<template v-if="desktopUpdateUi?.state.value.version != null">
 				<hr>
@@ -40,7 +72,13 @@
 					<template v-else>
 						<div v-if="recentProjects.entries.value.length === 0 && recentProjects.error.value == null" :class="$style.recentEmpty" data-test-recent-projects-empty>{{ i18n.ts._Dashboard.NoRecentProjects }}</div>
 						<div v-for="entry in recentProjects.entries.value" :key="entry.id" :class="$style.recentProject" data-test-recent-project>
-							<button class="_button" :class="$style.recentOpen" :disabled="recentProjectsBusy" data-test-open-recent-project @click="openRecentProject(entry.id)">
+							<button
+								class="_button"
+								:class="$style.recentOpen"
+								:disabled="recentProjectsBusy || fileOperationBusy"
+								data-test-open-recent-project
+								@click="openRecentProject(entry.id)"
+							>
 								<span :class="$style.recentName">{{ entry.name }}</span>
 								<span :class="$style.recentFileName">{{ entry.fileName }}</span>
 								<GsTime :key="entry.lastUsedAt" :time="entry.lastUsedAt" :class="$style.recentTime" data-test-recent-project-time/>
@@ -57,7 +95,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
+import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsModal from './common/GsModal.vue';
 import GsAboutDialog from './GsAboutDialog.vue';
@@ -66,9 +104,8 @@ import GsTime from './common/GsTime.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
 import { i18n } from '@/i18n.ts';
 import { recentProjects } from '@/recent-projects.ts';
-import { appContext, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
+import { projectSessions, newProject, newProjectFromImageOrVideo, openProject, openRecentProject as openRecentProjectFile } from '@/app.ts';
 import { desktopUpdateUi } from '@/desktop-update-ui.ts';
-import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { importAssets } from '@/utility/import-assets.ts';
 import { installFileDropHandlers } from '@/utility/file-drop.ts';
 import * as ui from '@/ui.ts';
@@ -77,10 +114,10 @@ const version = _VERSION_;
 const isElectron = __ELECTRON__;
 
 const modal = useTemplateRef('modal');
-const workspaceController = inject(workspaceControllerKey)!;
 let disposeFileDrops: (() => void) | null = null;
 const recentProjectsLoading = ref(true);
 const recentProjectsBusy = ref(false);
+const fileOperationBusy = projectSessions.fileOperations.isBusy;
 
 async function refreshRecentProjects() {
 	recentProjectsLoading.value = true;
@@ -92,9 +129,7 @@ async function openRecentProject(id: string) {
 	if (recentProjectsBusy.value) return;
 	recentProjectsBusy.value = true;
 	try {
-		const handle = await recentProjects.resolve(id);
-		if (handle == null) return;
-		if (await openProject(null, handle)) modal.value?.close();
+		if (await openRecentProjectFile(id)) modal.value?.close();
 	} catch (error) {
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 	} finally {
@@ -131,20 +166,20 @@ const emit = defineEmits<{
 }>();
 
 async function _newProject() {
-	await newProject();
-	modal.value!.close();
+	if (await newProject() != null) modal.value?.close();
 }
 
 async function _newProjectFromImageOrVideo() {
 	const opened = await newProjectFromImageOrVideo();
 	if (opened) {
-		modal.value!.close();
+		modal.value?.close();
 	}
 }
 
 async function onFileDrop(files: File[], event: DragEvent) {
 	let opened = false;
 	if (files.length === 1 && files[0].name.toLowerCase().endsWith('.gsproj')) {
+		if (fileOperationBusy.value) return;
 		// ユーティリティからdrop中に呼び出される。await前にハンドル取得を開始し、
 		// 取得失敗時もスナップショット済みのFileからプロジェクトを開ける。
 		const item = Array.from(event.dataTransfer?.items ?? []).find(item => item.kind === 'file');
@@ -154,17 +189,19 @@ async function onFileDrop(files: File[], event: DragEvent) {
 		// ファイル選択ボタンと同じ入口を使い、素材に対応したノード・レイヤー・解像度を設定する。
 		opened = await newProjectFromImageOrVideo(files[0]);
 	} else {
-		const ids = await importAssets(appContext.projectContext, files, async () => {
-			if (!appContext.projectContext.hasProject) await newProject();
-		});
+		let session = projectSessions.activeSession.value;
+		const ids = await importAssets(async () => {
+			if (session == null) session = await newProject();
+			return session?.projectContext ?? null;
+		}, files);
 		opened = ids.length > 0;
-		if (opened) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });
+		if (opened && session != null) session.workspacePanelRevealRequest.value = { contentType: 'assets', sourcePanelId: null };
 	}
-	if (opened) modal.value!.close();
+	if (opened) modal.value?.close();
 }
 
 async function _openProject() {
-	if (await openProject()) modal.value!.close();
+	if (await openProject()) modal.value?.close();
 }
 
 function showAbout() {

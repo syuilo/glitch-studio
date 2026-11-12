@@ -6,7 +6,7 @@
 		<GsButton v-if="selected != null" data-test-duplicate-custom-shader-effect icon="ti ti-copy" @click="add(selected)">{{ i18n.ts.Duplicate }}</GsButton>
 		<GsButton v-if="selected != null" :disabled="isCustomShaderEffectUsed(stateManager.state, selected.id)" :title="i18n.ts._CustomShaderEffect.InUse" data-test-delete-custom-shader-effect danger icon="ti ti-trash" @click="remove">{{ i18n.ts.Delete }}</GsButton>
 	</div>
-	<GsCustomShaderEffectEditor v-if="selected != null" :key="`${projectContext.generation}:${selected.id}`" :customShaderEffect="selected" @apply="apply"/>
+	<GsCustomShaderEffectEditor v-if="selected != null" :key="selected.id" :customShaderEffect="selected" @apply="apply"/>
 </div>
 </template>
 
@@ -17,14 +17,16 @@ import GsSelect from './common/GsSelect.vue';
 import GsCustomShaderEffectEditor from './GsCustomShaderEffectEditor.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { isCustomShaderEffectUsed } from '@/utility/custom-shader-effect-usages.ts';
 import { createProjectCustomShaderEffect } from '@/utility/custom-shader-effect.ts';
 
 defineProps<{ panel: WorkspacePanel }>();
 
-const { projectContext } = appContext;
+const projectSession = useProjectSession();
+
+const { projectContext } = projectSession;
 const { stateManager } = projectContext;
 const definitions = stateManager.state.customShaderEffects;
 const selectedId = ref<string | null>(null);

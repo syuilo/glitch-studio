@@ -80,16 +80,18 @@ import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.t
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
 import { getEffectNodeName } from '@/utility/node-name.ts';
 import * as ui from '@/ui.ts';
 
-const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+const projectSession = useProjectSession();
 
-const { stateManager } = appContext.projectContext;
+const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
+
+const { stateManager } = projectSession.projectContext;
 
 const wireMap = useVisualModuleWires();
 

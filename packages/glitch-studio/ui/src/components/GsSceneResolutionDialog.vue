@@ -27,9 +27,11 @@ import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{ sceneId: string }>();
 const emit = defineEmits<{ (ev: 'closed'): void }>();

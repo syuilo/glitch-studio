@@ -27,7 +27,7 @@ export function copyTimelineClips(scene: TimelineScene, selection: readonly Time
 		if (!clip) return null;
 		clips.push({ layerId: target.layerId, clip: deepClone(clip) });
 	}
-	// Sceneの同一性も保持し、別Sceneや読み込み後の同名IDのレイヤーへ貼り付けない。
+	// Sceneの同一性も保持し、別Sceneや削除後にUndoで復元されたSceneへ貼り付けない。
 	return { kind: 'clips', scene, clips };
 }
 

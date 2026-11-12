@@ -40,7 +40,9 @@ type ParameterClipboardOwner =
 	| { kind: 'timelineLayer'; sceneId: string; layerId: string };
 
 export type ParameterClipboardSource = {
-	projectId: string;
+	// 保存ファイルのIDは複製・再オープンで重複し、別名保存で変わる。
+	// 参照はコピー時の編集セッションに限定し、同じIDを持つ別の内容へ接続しない。
+	projectSessionId: string;
 	owner: ParameterClipboardOwner;
 	// 同じIDのローカル定義を、別の所有者の定義やプロジェクト定義と取り違えない。
 	localAutomationGraphIds: string[];
@@ -217,7 +219,7 @@ export function parseParameterClipboard(text: string): ParameterClipboardData | 
 		validateDataType(data.dataType);
 		validateBinding(data.dataType, data.binding);
 		const source = object(data.source);
-		requireValid(nonemptyString(source.projectId) && Array.isArray(source.localAutomationGraphIds) && source.localAutomationGraphIds.every(nonemptyString));
+		requireValid(nonemptyString(source.projectSessionId) && Array.isArray(source.localAutomationGraphIds) && source.localAutomationGraphIds.every(nonemptyString));
 		const owner = object(source.owner);
 		if (owner.kind === 'visualModule') {
 			const target = object(owner.target);
@@ -232,23 +234,23 @@ export function createParameterClipboard(definition: ParameterDefinition, bindin
 	return deepClone({ format: 'glitch-studio/parameter', dataType: definition.dataType, binding, source });
 }
 
-export function createVisualModuleClipboardSource(projectId: string, target: VisualModuleTarget, visualModule: VisualModule): ParameterClipboardSource {
-	return { projectId, owner: { kind: 'visualModule', target }, localAutomationGraphIds: visualModule.automationGraphs.map(graph => graph.id) };
+export function createVisualModuleClipboardSource(projectSessionId: string, target: VisualModuleTarget, visualModule: VisualModule): ParameterClipboardSource {
+	return { projectSessionId, owner: { kind: 'visualModule', target }, localAutomationGraphIds: visualModule.automationGraphs.map(graph => graph.id) };
 }
 
 function sameOwner(a: ParameterClipboardSource, b: ParameterClipboardSource): boolean {
-	if (a.projectId !== b.projectId) return false;
+	if (a.projectSessionId !== b.projectSessionId) return false;
 	return a.owner.kind === 'visualModule' && b.owner.kind === 'visualModule'
 		? visualModuleTargetKey(a.owner.target) === visualModuleTargetKey(b.owner.target)
 		: a.owner.kind === 'timelineLayer' && b.owner.kind === 'timelineLayer' && a.owner.sceneId === b.owner.sceneId && a.owner.layerId === b.owner.layerId;
 }
 
 function sameScene(a: ParameterClipboardSource, b: ParameterClipboardSource): boolean {
-	return a.projectId === b.projectId && a.owner.kind === 'timelineLayer' && b.owner.kind === 'timelineLayer' && a.owner.sceneId === b.owner.sceneId;
+	return a.projectSessionId === b.projectSessionId && a.owner.kind === 'timelineLayer' && b.owner.kind === 'timelineLayer' && a.owner.sceneId === b.owner.sceneId;
 }
 
 function validateLeafDestination(definition: ParameterDefinition, binding: EditableParameterBinding, source: ParameterClipboardSource, context: ParameterPasteContext): void {
-	const sameProject = source.projectId === context.source.projectId;
+	const sameProjectSession = source.projectSessionId === context.source.projectSessionId;
 	if (context.kind === 'timeline') {
 		const allowInputs = context.parameterTarget === 'effect' || context.parameterTarget === 'module';
 		validateTimelineParameterTree(definition, binding, allowInputs, allowInputs);
@@ -262,12 +264,12 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 		case 'literal':
 			if (definition.dataType.kind === 'audioSource' && binding.value != null) {
 				validatePlayerAudioSourceSelection(binding.value);
-				requireValid(sameProject && context.state.players.value.some(player => player.id === binding.value.playerId));
+				requireValid(sameProjectSession && context.state.players.value.some(player => player.id === binding.value.playerId));
 			}
 			break;
 		case 'automationGraphReference': {
 			if (binding.automationGraphId == null) break;
-			requireValid(sameProject);
+			requireValid(sameProjectSession);
 			const localGraphs = context.kind === 'timeline' ? context.layer.automationGraphs : context.kind === 'node' || context.kind === 'customParameter' ? context.visualModule.automationGraphs : [];
 			if (source.localAutomationGraphIds.includes(binding.automationGraphId)) {
 				requireValid(sameOwner(source, context.source) && localGraphs.some(graph => graph.id === binding.automationGraphId));
@@ -353,7 +355,7 @@ export function prepareParameterBindingPaste(definition: ParameterDefinition, cl
 	} catch { return null; }
 }
 
-export function resolveProjectClipboardTarget(state: ProjectState, projectId: string, target: ProjectParameterClipboardTarget) {
+export function resolveProjectClipboardTarget(state: ProjectState, projectSessionId: string, target: ProjectParameterClipboardTarget) {
 	const rootKey = target.paramPath[0];
 	let root: { def: ParameterDefinition; value: EditableParameterBinding };
 	let before: EditableParameterBinding | null;
@@ -364,14 +366,14 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectId: st
 		requireValid(node?.type === 'effect');
 		root = resolveNodeParam(node, [rootKey], getEffectDefinitions(state));
 		before = root.value;
-		context = { kind: 'node', state, nodeId: node.id, visualModule, source: createVisualModuleClipboardSource(projectId, target.visualModuleTarget, visualModule) };
+		context = { kind: 'node', state, nodeId: node.id, visualModule, source: createVisualModuleClipboardSource(projectSessionId, target.visualModuleTarget, visualModule) };
 	} else if (target.kind === 'customParameter') {
 		const visualModule = getVisualModule(state, target.visualModuleTarget);
 		const definition = visualModule.customParameterDefs.find(candidate => candidate.id === rootKey);
 		requireValid(definition != null);
 		before = visualModule.customParameterValues[definition.id] ?? null;
 		root = { def: definition, value: before ?? definition.defaultValue };
-		context = { kind: 'customParameter', state, visualModule, source: createVisualModuleClipboardSource(projectId, target.visualModuleTarget, visualModule) };
+		context = { kind: 'customParameter', state, visualModule, source: createVisualModuleClipboardSource(projectSessionId, target.visualModuleTarget, visualModule) };
 	} else {
 		const scene = getScene(state, target.sceneId);
 		const layer = findTimelineLayer(scene.layers, target.layerId);
@@ -384,7 +386,7 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectId: st
 			root = { def: definition, value: before ?? definition.defaultValue };
 		} else root = resolveLayerParameter(state, layer, target.parameterTarget, [rootKey]);
 		context = { kind: 'timeline', state, scene, layer, parameterTarget: target.parameterTarget, source: {
-			projectId, owner: { kind: 'timelineLayer', sceneId: scene.id, layerId: layer.id }, localAutomationGraphIds: layer.automationGraphs.map(graph => graph.id),
+			projectSessionId, owner: { kind: 'timelineLayer', sceneId: scene.id, layerId: layer.id }, localAutomationGraphIds: layer.automationGraphs.map(graph => graph.id),
 		} };
 	}
 	const draft = { [rootKey]: deepClone(root.value) };
@@ -393,9 +395,9 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectId: st
 }
 
 /** CommandとUIの事前確認で同じ検査を使う。未設定のルートはUndo用にnullのまま保持する。 */
-export function prepareProjectParameterPaste(state: ProjectState, projectId: string, target: ProjectParameterClipboardTarget, clipboard: ParameterClipboardData) {
+export function prepareProjectParameterPaste(state: ProjectState, projectSessionId: string, target: ProjectParameterClipboardTarget, clipboard: ParameterClipboardData) {
 	try {
-		const resolved = resolveProjectClipboardTarget(state, projectId, target);
+		const resolved = resolveProjectClipboardTarget(state, projectSessionId, target);
 		const binding = prepareParameterBindingPaste(resolved.def, clipboard, resolved.context);
 		if (binding == null) return null;
 		resolved.setValue(binding);

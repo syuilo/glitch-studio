@@ -95,12 +95,14 @@ import GsFolder from './common/GsFolder.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { EffectDefinition, EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
 import { createEffectSearchQuery, matchEffectName, compareEffectNameSearchMatches } from '@/utility/effect-search.ts';
 
-const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+const projectSession = useProjectSession();
+
+const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
 const props = defineProps<{
 	selectedOutputType?: TextureDataType['kind'] | null;

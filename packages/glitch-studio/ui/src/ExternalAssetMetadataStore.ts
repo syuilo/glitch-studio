@@ -7,11 +7,6 @@ type ExternalAssetMetadata = Pick<ProjectAsset, 'width' | 'height' | 'fileDataTy
 export class ExternalAssetMetadataStore {
 	private readonly metadataByAssetId = new Map<ProjectAsset['id'], Map<string, ExternalAssetMetadata>>();
 
-	public reset(assets: readonly ProjectAsset[]): void {
-		this.metadataByAssetId.clear();
-		for (const asset of assets) this.record(asset);
-	}
-
 	/** 取り込み・再リンク・リロードが完了した時点の情報だけを採用する。 */
 	public record(asset: ProjectAsset): void {
 		if (!asset.isExternalReference || asset.sourceFilePath == null) return;

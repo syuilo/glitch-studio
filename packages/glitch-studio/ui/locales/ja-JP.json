@@ -43,7 +43,7 @@
 		"UpToDate": "Glitch Studioは最新です。",
 		"CheckFailed": "アップデートを確認できませんでした。時間をおいて再度お試しください。",
 		"ConfirmTitle": "v{version}に更新しますか？",
-		"ConfirmText": "アップデートを開始するとキャンセルできません。更新後にGlitch Studioが再起動し、現在のプロジェクトの未保存の変更は失われます。必要な内容を保存してから実行してください。",
+		"ConfirmText": "すべてのプロジェクトを閉じてからアップデートしてください。開始するとキャンセルできません。更新後にGlitch Studioが再起動します。",
 		"UpdateAndRestart": "更新して再起動",
 		"Preparing": "保存とバックアップの完了を待っています",
 		"Downloading": "アップデートをダウンロード・検証しています",
@@ -52,7 +52,8 @@
 		"RestartRequired": "アップデートの再試行には再起動が必要です",
 		"RestartRequiredDetails": "インストーラーを起動できませんでした。このダイアログを閉じて編集を続けられます。アップデートを再試行するには、必要な内容を保存し、Glitch Studioを終了して起動し直してください。",
 		"OtherInstances": "ほかのGlitch Studioを閉じてから、再度アップデートしてください。",
-		"ApplicationBusy": "プロジェクトの読み込みや書き出しが完了してからアップデートしてください。",
+		"ApplicationBusy": "すべてのファイル操作と書き出しが完了してからアップデートしてください。",
+		"CloseProjectsBeforeUpdating": "すべてのプロジェクトを閉じてからGlitch Studioをアップデートしてください。",
 		"Retry": "再試行"
 	},
 	"_EffectPicker": {
@@ -262,6 +263,9 @@
 	"Preview": "プレビュー",
 	"Players": "Player",
 	"_App": {
+		"Dashboard": "ダッシュボード",
+		"CloseProject": "プロジェクトを閉じる",
+		"ProjectFileAlreadyOpen": "このファイルは別のプロジェクトで開かれています。別の保存先を選択してください。",
 		"File": "ファイル",
 		"Edit": "編集",
 		"ResetRenderHistory": "描画履歴をリセット",
@@ -542,7 +546,7 @@
 	},
 	"_ProjectBackups": {
 		"Title": "プロジェクトのバックアップ",
-		"Description": "初回保存後、プロジェクトと同じ場所にバックアップを保存します。各バックアップにはすべてのメディアが含まれます。",
+		"Description": "初回保存後、プロジェクトと同じ場所にバックアップを保存します。各バックアップにはすべてのメディアが含まれます。保持期間を過ぎたものは、同じ種類の新しいバックアップを作成した後に削除します。",
 		"Automatic": "自動バックアップ",
 		"Interval": "間隔",
 		"Minutes": "分",

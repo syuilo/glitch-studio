@@ -18,14 +18,14 @@ const bundle = await build({
 		loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'preview-context', setup(build) {
-		build.onResolve({ filter: /^@\/(app|preferences|ui)\.ts$|\.vue$/ }, args => /GsPreview(Rulers|ColorView)\.vue$/.test(args.path) ? null : { path: args.path, namespace: 'preview-context' });
+		build.onResolve({ filter: /^@\/(app|project-session|preferences|ui)\.ts$|\.vue$/ }, args => /GsPreview(Rulers|ColorView)\.vue$/.test(args.path) ? null : { path: args.path, namespace: 'preview-context' });
 		build.onLoad({ filter: /GsPreview(Rulers|ColorView)\.vue$/ }, async ({ path }) => {
 			const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
 			const script = compileScript(descriptor, { id: 'preview-rulers', inlineTemplate: true, genDefaultAs: 'component' }).content;
 			return { contents: `${script}\ncomponent.__cssModules = { $style: {} }; export default component;`, loader: 'ts' };
 		});
 		build.onLoad({ filter: /.*/, namespace: 'preview-context' }, ({ path }) => ({ contents: {
-			'@/app.ts': 'export const appContext = dependencies.appContext;',
+			'@/project-session.ts': 'export function useProjectSession() { return projectSession; } export const projectSession = dependencies.projectSession;',
 			'@/preferences.ts': 'export const preferences = dependencies.preferences;',
 			'@/ui.ts': 'export const popupMenu = dependencies.popupMenu;',
 			'./GsDetachableView.vue': `import { h } from 'vue'; export default {
@@ -92,7 +92,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 	});
 	const canvas = Object.assign(element('canvas'), { width, height });
 	const controller = markRaw({ canvas, canvasRevision: ref(0), isRenderDelayed: ref(false), renderTilingProgress: shallowRef(null) });
-	const appContext = {
+	const projectSession = {
 		previewParameterEditing: { handles: shallowRef([]), viewport: shallowRef(null), time: ref(0), clear() {} },
 		activePreviewRenderer: shallowRef(controller),
 		visualModuleRendererManagerController: { outputResolution: ref(null) },
@@ -113,7 +113,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 	const menuItems = [];
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', 'window', 'dependencies', bundle.outputFiles[0].text)(
-		createRequire(import.meta.url), module, module.exports, view, { appContext, preferences,
+		createRequire(import.meta.url), module, module.exports, view, { projectSession, preferences,
 			popupMenu: items => { menuItems.splice(0, menuItems.length, ...items); } });
 	const root = element('root');
 	const app = renderer.createApp({ render: () => h(module.exports.default) });
@@ -123,7 +123,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 	await nextTick();
 	const descendants = node => [node, ...node.children.flatMap(descendants)];
 	const find = name => descendants(root).find(node => `data-test-preview-${name}` in node.props);
-	return { view, document, viewport, canvas, controller, appContext, preferences, menuItems, find,
+	return { view, document, viewport, canvas, controller, projectSession, preferences, menuItems, find,
 		async click(name) { find(name).props.onClick({ currentTarget: find(name), detail: 1 }); await nextTick(); },
 		async replaceCanvas(width, height) {
 			controller.canvas = Object.assign(element('canvas'), { width, height });
@@ -150,25 +150,25 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 test('shows rendering delays for the active preview during playback and Live Preview', async t => {
 	const f = await fixture(t);
 	const isLoading = () => f.find('render-loading') != null;
-	f.appContext.timelineRendererManagerController.isSeeking.value = true;
+	f.projectSession.timelineRendererManagerController.isSeeking.value = true;
 	await nextTick();
 	assert.equal(isLoading(), false);
-	f.appContext.previewPlayback.isTimelinePlaying.value = true;
+	f.projectSession.previewPlayback.isTimelinePlaying.value = true;
 	f.controller.isRenderDelayed.value = true;
 	await nextTick();
 	assert.equal(isLoading(), true);
 	const livePreview = markRaw({ ...f.controller, isRenderDelayed: ref(false) });
-	f.appContext.activePreviewRenderer.value = livePreview;
-	f.appContext.previewPlayback.state.value = { mode: 'visualModuleLivePreview' };
+	f.projectSession.activePreviewRenderer.value = livePreview;
+	f.projectSession.previewPlayback.state.value = { mode: 'visualModuleLivePreview' };
 	await nextTick();
 	assert.equal(isLoading(), false);
 	livePreview.isRenderDelayed.value = true;
 	await nextTick();
 	assert.equal(isLoading(), true);
-	f.appContext.renderEngine.isSuspended.value = true;
+	f.projectSession.renderEngine.isSuspended.value = true;
 	await nextTick();
 	assert.equal(isLoading(), false);
-	f.appContext.renderEngine.isSuspended.value = false;
+	f.projectSession.renderEngine.isSuspended.value = false;
 	livePreview.isRenderDelayed.value = false;
 	await nextTick();
 	assert.equal(isLoading(), false);
@@ -192,14 +192,14 @@ test('shows tile counts and percentages beside the loading spinner for the activ
 	await nextTick();
 	assert.equal(f.find('render-progress').text, '511 / 512 (99%)');
 	const livePreview = markRaw({ ...f.controller, renderTilingProgress: shallowRef(null) });
-	f.appContext.activePreviewRenderer.value = livePreview;
+	f.projectSession.activePreviewRenderer.value = livePreview;
 	await nextTick();
 	assert.ok(f.find('render-progress') == null);
 	assert.ok(f.find('render-loading') != null);
 	livePreview.renderTilingProgress.value = { completedTiles: 256, totalTiles: 256 };
 	await nextTick();
 	assert.equal(f.find('render-progress').text, '256 / 256 (100%)');
-	f.appContext.renderEngine.isSuspended.value = true;
+	f.projectSession.renderEngine.isSuspended.value = true;
 	await nextTick();
 	assert.ok(f.find('render-progress') == null);
 });
@@ -244,10 +244,10 @@ test('waits for the real canvas size and a visible viewport before applying the 
 // Visual Moduleの出力はScene解像度とは異なるため、通知前にSceneの寸法で確定しない。
 test('waits for live preview output resolution before fitting its initial view', async t => {
 	const f = await fixture(t, { devicePixelRatio: 2 });
-	f.appContext.previewPlayback.state.value = { mode: 'visualModuleLivePreview', visualModuleId: 'visual-module' };
+	f.projectSession.previewPlayback.state.value = { mode: 'visualModuleLivePreview', visualModuleId: 'visual-module' };
 	await f.frame();
 	assert.equal(f.find('zoom').text, 'ZOOM: 100%');
-	f.appContext.visualModuleRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
+	f.projectSession.visualModuleRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
 	await f.replaceCanvas(600, 1200);
 	await f.frame();
 	assert.equal(f.style.scale, 450 / 1200);
@@ -262,9 +262,9 @@ test('preserves subsequent zoom and pan after the initial fit', async t => {
 	const style = { ...f.style };
 	f.viewport.width = 400;
 	await f.replaceCanvas(960, 540);
-	f.appContext.renderEngine.isSuspended.value = true;
+	f.projectSession.renderEngine.isSuspended.value = true;
 	await nextTick();
-	f.appContext.renderEngine.isSuspended.value = false;
+	f.projectSession.renderEngine.isSuspended.value = false;
 	await nextTick();
 	await f.frame();
 	assert.deepEqual(f.style, style);
@@ -305,15 +305,15 @@ test('fits the actual canvas to the viewport and allows enlargement above 100 pe
 test('fits changed output dimensions and a replacement live preview canvas', async t => {
 	const f = await fixture(t, { devicePixelRatio: 1.25 });
 	await f.click('zoom-to-100');
-	f.appContext.resolutionFactor.value = 0.5;
+	f.projectSession.resolutionFactor.value = 0.5;
 	f.canvas.width /= 2;
 	f.canvas.height /= 2;
 	await nextTick();
 	assert.equal(f.style.scale * 1.25, 2);
 	await f.click('fit-zoom');
 	assert.equal(f.style.scale, 800 / 960);
-	f.appContext.previewPlayback.state.value = { mode: 'visualModuleLivePreview', visualModuleId: 'visual-module' };
-	f.appContext.visualModuleRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
+	f.projectSession.previewPlayback.state.value = { mode: 'visualModuleLivePreview', visualModuleId: 'visual-module' };
+	f.projectSession.visualModuleRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
 	await f.replaceCanvas(600, 1200);
 	await f.click('fit-zoom');
 	assert.equal(f.style.scale, 450 / 1200);
@@ -396,34 +396,34 @@ test('selects gamut warning references independently of clipping and color views
 	const boundsMenu = f.menuItems.find(item => item.type === 'parent'
 		&& item.children.some(child => child.id === 'preview-gamut-warning-bounds-unit'));
 	assert.equal(warningSwitch.ref.value, false);
-	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: false, referenceGamut: 'srgb', bounds: 'unit' });
+	assert.deepEqual(f.projectSession.previewGamutWarning.value, { enabled: false, referenceGamut: 'srgb', bounds: 'unit' });
 	assert.deepEqual(referenceMenu.children.map(item => item.id),
 		['srgb', 'displayP3', 'rec2020', 'adobeRgb', 'acescg'].map(gamut => `preview-gamut-warning-${gamut}`));
 	assert.deepEqual(boundsMenu.children.map(item => item.id),
 		['nonNegative', 'unit'].map(bounds => `preview-gamut-warning-bounds-${bounds}`));
 	for (const referenceGamut of ['displayP3', 'rec2020', 'adobeRgb', 'acescg', 'srgb']) {
 		referenceMenu.children.find(item => item.id === `preview-gamut-warning-${referenceGamut}`).action();
-		assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: false, referenceGamut, bounds: 'unit' });
+		assert.deepEqual(f.projectSession.previewGamutWarning.value, { enabled: false, referenceGamut, bounds: 'unit' });
 		assert.equal(referenceMenu.children.find(item => item.active.value).id, `preview-gamut-warning-${referenceGamut}`);
 	}
 	warningSwitch.ref.value = true;
-	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'srgb', bounds: 'unit' });
+	assert.deepEqual(f.projectSession.previewGamutWarning.value, { enabled: true, referenceGamut: 'srgb', bounds: 'unit' });
 	boundsMenu.children.find(item => item.id === 'preview-gamut-warning-bounds-nonNegative').action();
-	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'srgb', bounds: 'nonNegative' });
+	assert.deepEqual(f.projectSession.previewGamutWarning.value, { enabled: true, referenceGamut: 'srgb', bounds: 'nonNegative' });
 	referenceMenu.children.find(item => item.id === 'preview-gamut-warning-acescg').action();
-	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' });
+	assert.deepEqual(f.projectSession.previewGamutWarning.value, { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' });
 	boundsMenu.children.find(item => item.id === 'preview-gamut-warning-bounds-unit').action();
-	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'acescg', bounds: 'unit' });
-	f.appContext.previewGamutWarning.value = { enabled: false, referenceGamut: 'displayP3', bounds: 'nonNegative' };
+	assert.deepEqual(f.projectSession.previewGamutWarning.value, { enabled: true, referenceGamut: 'acescg', bounds: 'unit' });
+	f.projectSession.previewGamutWarning.value = { enabled: false, referenceGamut: 'displayP3', bounds: 'nonNegative' };
 	assert.equal(warningSwitch.ref.value, false);
 	assert.equal(referenceMenu.children.find(item => item.active.value).id, 'preview-gamut-warning-displayP3');
 	assert.equal(boundsMenu.children.find(item => item.active.value).id, 'preview-gamut-warning-bounds-nonNegative');
 	warningSwitch.ref.value = true;
-	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: true, referenceGamut: 'displayP3', bounds: 'nonNegative' });
-	assert.equal(f.appContext.highlightClipping.value, false);
-	assert.equal(f.appContext.previewExposure.value, 0);
-	assert.equal(f.appContext.previewSrgbProof.value, false);
-	assert.deepEqual(f.appContext.previewGamutCompression.value, { mode: 'none', customAmount: 0.5 });
+	assert.deepEqual(f.projectSession.previewGamutWarning.value, { enabled: true, referenceGamut: 'displayP3', bounds: 'nonNegative' });
+	assert.equal(f.projectSession.highlightClipping.value, false);
+	assert.equal(f.projectSession.previewExposure.value, 0);
+	assert.equal(f.projectSession.previewSrgbProof.value, false);
+	assert.deepEqual(f.projectSession.previewGamutCompression.value, { mode: 'none', customAmount: 0.5 });
 });
 
 // 【警告の判定対象は黒・白と色域外に共通で、表示設定や色域・範囲を変更しない】
@@ -431,26 +431,26 @@ test('selects gamut warning references independently of clipping and color views
 // 色域外警告だけの設定に混ぜると、黒・白だけを有効にしたときに判定対象を切り替えられなくなる。
 test('selects a shared warning image source independently of warning toggles and color views', async t => {
 	const f = await fixture(t);
-	f.appContext.highlightClipping.value = true;
-	f.appContext.previewExposure.value = -2;
-	f.appContext.previewSrgbProof.value = true;
-	f.appContext.previewGamutCompression.value = { mode: 'acescg', customAmount: 0.37 };
+	f.projectSession.highlightClipping.value = true;
+	f.projectSession.previewExposure.value = -2;
+	f.projectSession.previewSrgbProof.value = true;
+	f.projectSession.previewGamutCompression.value = { mode: 'acescg', customAmount: 0.37 };
 	await f.click('highlight-menu');
 	const sourceMenu = f.menuItems.find(item => item.type === 'parent'
 		&& item.children.some(child => child.id === 'preview-warning-image-source-original'));
 	assert.deepEqual(sourceMenu.children.map(item => item.id),
 		['original', 'previewAdjusted'].map(source => `preview-warning-image-source-${source}`));
-	assert.equal(f.appContext.previewWarningImageSource.value, 'original');
+	assert.equal(f.projectSession.previewWarningImageSource.value, 'original');
 	sourceMenu.children.find(item => item.id === 'preview-warning-image-source-previewAdjusted').action();
-	assert.equal(f.appContext.previewWarningImageSource.value, 'previewAdjusted');
+	assert.equal(f.projectSession.previewWarningImageSource.value, 'previewAdjusted');
 	assert.equal(sourceMenu.children.find(item => item.active.value).id, 'preview-warning-image-source-previewAdjusted');
-	f.appContext.previewWarningImageSource.value = 'original';
+	f.projectSession.previewWarningImageSource.value = 'original';
 	assert.equal(sourceMenu.children.find(item => item.active.value).id, 'preview-warning-image-source-original');
-	assert.equal(f.appContext.highlightClipping.value, true);
-	assert.deepEqual(f.appContext.previewGamutWarning.value, { enabled: false, referenceGamut: 'srgb', bounds: 'unit' });
-	assert.equal(f.appContext.previewExposure.value, -2);
-	assert.equal(f.appContext.previewSrgbProof.value, true);
-	assert.deepEqual(f.appContext.previewGamutCompression.value, { mode: 'acescg', customAmount: 0.37 });
+	assert.equal(f.projectSession.highlightClipping.value, true);
+	assert.deepEqual(f.projectSession.previewGamutWarning.value, { enabled: false, referenceGamut: 'srgb', bounds: 'unit' });
+	assert.equal(f.projectSession.previewExposure.value, -2);
+	assert.equal(f.projectSession.previewSrgbProof.value, true);
+	assert.deepEqual(f.projectSession.previewGamutCompression.value, { mode: 'acescg', customAmount: 0.37 });
 });
 
 // 【色域圧縮の6モードを切り替え、カスタム量はプリセットを経由しても保持する】
@@ -465,19 +465,19 @@ test('selects all gamut views and preserves the independent custom amount', asyn
 		assert.equal(f.menuItems.filter(item => item.id != null).length, 6);
 		f.menuItems.find(item => item.id === `preview-gamut-${mode}`).action();
 		await nextTick();
-		assert.equal(f.appContext.previewGamutCompression.value.mode, mode);
+		assert.equal(f.projectSession.previewGamutCompression.value.mode, mode);
 		assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], true);
 		assert.equal(f.find('gamut-amount') != null, mode === 'custom');
 	}
 	const input = f.find('gamut-amount');
 	input.props.onInput({ target: { valueAsNumber: 37, value: '37' } });
 	await nextTick();
-	assert.equal(f.appContext.previewGamutCompression.value.customAmount, 0.37);
+	assert.equal(f.projectSession.previewGamutCompression.value.customAmount, 0.37);
 	for (const mode of ['none', 'rec2020', 'acescg', 'custom']) {
 		await f.click('gamut-mode');
 		f.menuItems.find(item => item.id === `preview-gamut-${mode}`).action();
 		await nextTick();
-		assert.equal(f.appContext.previewGamutCompression.value.customAmount, 0.37);
+		assert.equal(f.projectSession.previewGamutCompression.value.customAmount, 0.37);
 	}
 	assert.equal(f.find('gamut-amount').props.value, 37);
 	f.find('gamut-amount').props.onInput({ target: { valueAsNumber: 0, value: '0' } });
@@ -491,14 +491,14 @@ test('selects all gamut views and preserves the independent custom amount', asyn
 // 別ウィンドウと共有する状態の変更や、既に開いていたメニューからの操作にも対応する。
 test('integrates sRGB proof in the color view menu and restores suspended compression', async t => {
 	const f = await fixture(t);
-	f.appContext.previewGamutCompression.value = { mode: 'custom', customAmount: 0.37 };
+	f.projectSession.previewGamutCompression.value = { mode: 'custom', customAmount: 0.37 };
 	await nextTick();
 	assert.equal(f.find('srgb-proof'), undefined);
 	assert.equal(f.find('gamut-mode').props['data-test-preview-srgb-proof-active'], false);
 	await f.click('gamut-mode');
 	const proofSwitch = f.menuItems.find(item => item.type === 'switch');
 	const compressionItems = f.menuItems.filter(item => item.id != null);
-	assert.equal(proofSwitch.ref, f.appContext.previewSrgbProof);
+	assert.equal(proofSwitch.ref, f.projectSession.previewSrgbProof);
 	assert.ok(f.menuItems.indexOf(proofSwitch) < f.menuItems.findIndex(item => item.type === 'divider'));
 	assert.equal(compressionItems.length, 6);
 	assert.ok(compressionItems.every(item => item.disabled.value === false));
@@ -506,7 +506,7 @@ test('integrates sRGB proof in the color view menu and restores suspended compre
 	const staleAction = f.menuItems.find(item => item.id === 'preview-gamut-rec2020').action;
 	proofSwitch.ref.value = true;
 	await nextTick();
-	assert.equal(f.appContext.previewSrgbProof.value, true);
+	assert.equal(f.projectSession.previewSrgbProof.value, true);
 	assert.equal(f.find('gamut-mode').props['data-test-preview-srgb-proof-active'], true);
 	assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], true);
 	assert.ok(elementText(f.find('gamut-mode')).includes(i18n.ts._Preview.SrgbProof));
@@ -515,12 +515,12 @@ test('integrates sRGB proof in the color view menu and restores suspended compre
 	assert.ok(compressionItems.every(item => item.disabled.value === true && item.active.value === false));
 	staleAction();
 	staleInput.props.onInput({ target: { valueAsNumber: 90, value: '90' } });
-	assert.deepEqual(f.appContext.previewGamutCompression.value, { mode: 'custom', customAmount: 0.37 });
+	assert.deepEqual(f.projectSession.previewGamutCompression.value, { mode: 'custom', customAmount: 0.37 });
 	// 確認中も同じメニューを開けるため、解除する入口を失わない。
 	await f.click('gamut-mode');
 	assert.equal(f.menuItems.find(item => item.type === 'switch').ref.value, true);
-	// 他のプレビューウィンドウからの切替も、同じAppContextの値でUIへ反映される。
-	f.appContext.previewSrgbProof.value = false;
+	// 他のプレビューウィンドウからの切替も、同じProjectSessionContextの値でUIへ反映される。
+	f.projectSession.previewSrgbProof.value = false;
 	await nextTick();
 	assert.equal(f.find('gamut-mode').props['data-test-preview-srgb-proof-active'], false);
 	assert.equal(f.find('gamut-mode').props['data-test-preview-gamut-active'], true);
@@ -535,19 +535,19 @@ test('integrates sRGB proof in the color view menu and restores suspended compre
 // 専用のメニューIDと状態で検証し、翻訳や表示名へ依存しない。
 test('restores the ACEScg preset after suspending it for sRGB proof', async t => {
 	const f = await fixture(t);
-	f.appContext.previewGamutCompression.value = { mode: 'acescg', customAmount: 0.37 };
+	f.projectSession.previewGamutCompression.value = { mode: 'acescg', customAmount: 0.37 };
 	await f.click('gamut-mode');
 	const acescg = f.menuItems.find(item => item.id === 'preview-gamut-acescg');
 	assert.equal(acescg.active.value, true);
 	assert.equal(f.find('gamut-amount'), undefined);
-	f.appContext.previewSrgbProof.value = true;
+	f.projectSession.previewSrgbProof.value = true;
 	await nextTick();
 	assert.equal(acescg.disabled.value, true);
 	assert.equal(acescg.active.value, false);
-	f.appContext.previewSrgbProof.value = false;
+	f.projectSession.previewSrgbProof.value = false;
 	await nextTick();
 	assert.equal(acescg.active.value, true);
-	assert.deepEqual(f.appContext.previewGamutCompression.value, { mode: 'acescg', customAmount: 0.37 });
+	assert.deepEqual(f.projectSession.previewGamutCompression.value, { mode: 'acescg', customAmount: 0.37 });
 	assert.equal(f.find('gamut-amount'), undefined);
 });
 
@@ -555,14 +555,14 @@ test('restores the ACEScg preset after suspending it for sRGB proof', async t =>
 // NaNや空欄をWorkerへ送ると画面全体が壊れ、見かけの数値と圧縮量も一致しなくなる。
 test('bounds custom gamut compression and restores incomplete numeric input on blur', async t => {
 	const f = await fixture(t);
-	f.appContext.previewGamutCompression.value = { mode: 'custom', customAmount: 0.5 };
+	f.projectSession.previewGamutCompression.value = { mode: 'custom', customAmount: 0.5 };
 	await nextTick();
 	const input = f.find('gamut-amount');
 	for (const [value, expected] of [[-10, 0], [150, 100], [42.3, 42]]) {
 		const target = { valueAsNumber: value, value: String(value) };
 		input.props.onInput({ target });
 		assert.equal(target.value, String(expected));
-		assert.equal(f.appContext.previewGamutCompression.value.customAmount, expected / 100);
+		assert.equal(f.projectSession.previewGamutCompression.value.customAmount, expected / 100);
 	}
 	const target = { valueAsNumber: NaN, value: '' };
 	input.props.onInput({ target });
@@ -583,17 +583,17 @@ test('shows signed preview exposure and resets it on a click with minor pointer 
 	const exposure = f.find('exposure');
 	assert.equal(elementText(exposure), ' 0.0 EV');
 	assert.equal(exposure.props['data-test-preview-exposure-active'], false);
-	f.appContext.previewExposure.value = 2;
+	f.projectSession.previewExposure.value = 2;
 	await nextTick();
 	assert.equal(elementText(exposure), '+2.0 EV');
 	assert.equal(exposure.props['data-test-preview-exposure-active'], true);
 	startExposureDrag(f);
 	f.document.dispatchEvent(exposurePointer('pointerup', 201));
-	assert.equal(f.appContext.previewExposure.value, 2);
+	assert.equal(f.projectSession.previewExposure.value, 2);
 	await f.click('exposure');
 	assert.equal(elementText(exposure), ' 0.0 EV');
 	assert.equal(exposure.props['data-test-preview-exposure-active'], false);
-	f.appContext.previewExposure.value = -1.5;
+	f.projectSession.previewExposure.value = -1.5;
 	await nextTick();
 	assert.equal(elementText(exposure), '-1.5 EV');
 });
@@ -605,11 +605,11 @@ test('adjusts exposure vertically without resetting on the click following a dra
 	const f = await fixture(t);
 	startExposureDrag(f);
 	f.document.dispatchEvent(exposurePointer('pointermove', 160, { pointerId: 8 }));
-	assert.equal(f.appContext.previewExposure.value, 0);
+	assert.equal(f.projectSession.previewExposure.value, 0);
 	f.document.dispatchEvent(exposurePointer('pointermove', 160));
-	assert.equal(f.appContext.previewExposure.value, 1);
+	assert.equal(f.projectSession.previewExposure.value, 1);
 	f.document.dispatchEvent(exposurePointer('pointermove', 140));
-	assert.equal(f.appContext.previewExposure.value, 1.5);
+	assert.equal(f.projectSession.previewExposure.value, 1.5);
 	f.document.dispatchEvent(exposurePointer('pointerup', 120));
 	await f.click('exposure');
 	assert.equal(elementText(f.find('exposure')), '+2.0 EV');
@@ -632,16 +632,16 @@ test('tracks exposure in the detached document and restores it when interrupted'
 		const detached = new EventTarget();
 		detached.defaultView = previewWindow(1);
 		f.find('exposure').ownerDocument = detached;
-		f.appContext.previewExposure.value = 1;
+		f.projectSession.previewExposure.value = 1;
 		startExposureDrag(f);
 		detached.dispatchEvent(exposurePointer('pointermove', 120));
-		assert.equal(f.appContext.previewExposure.value, 3);
+		assert.equal(f.projectSession.previewExposure.value, 3);
 		if (reason === 'escape') detached.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true }), { key: 'Escape' }));
 		else if (reason === 'pointercancel') detached.dispatchEvent(exposurePointer('pointercancel', 120));
 		else if (reason === 'blur') detached.defaultView.dispatchEvent(new Event('blur'));
 		else f.find('window').props.onChangeWindow();
 		detached.dispatchEvent(exposurePointer('pointerup', 80));
-		assert.equal(f.appContext.previewExposure.value, 1, reason);
+		assert.equal(f.projectSession.previewExposure.value, 1, reason);
 		assert.equal(f.find('exposure').hasPointerCapture(7), false);
 	}
 });
@@ -656,10 +656,10 @@ test('bounds exposure and supports arrow keys and keyboard reset', async t => {
 		startExposureDrag(f);
 		f.document.dispatchEvent(exposurePointer('pointerup', clientY));
 		await f.click('exposure');
-		assert.equal(f.appContext.previewExposure.value, expected);
+		assert.equal(f.projectSession.previewExposure.value, expected);
 	}
 	f.find('exposure').props.onClick({ detail: 0 });
-	assert.equal(f.appContext.previewExposure.value, 0);
+	assert.equal(f.projectSession.previewExposure.value, 0);
 	for (const key of ['ArrowDown', 'ArrowUp', 'ArrowUp']) f.find('exposure').props.onKeydown({ key, preventDefault() {} });
 	await nextTick();
 	assert.equal(elementText(f.find('exposure')), '+0.1 EV');
@@ -721,10 +721,10 @@ test('updates ruler coordinates after zooming, resizing and detaching the previe
 			assert.equal(group.children[0].props[`${axis}1`], origin + direction * value * longSide);
 		}
 	}
-	f.appContext.renderEngine.isSuspended.value = true;
+	f.projectSession.renderEngine.isSuspended.value = true;
 	await nextTick();
 	assert.equal(f.find('rulers'), undefined);
-	f.appContext.renderEngine.isSuspended.value = false;
+	f.projectSession.renderEngine.isSuspended.value = false;
 	await nextTick();
 	await f.frame(detached);
 	assert.ok(f.find('rulers'));

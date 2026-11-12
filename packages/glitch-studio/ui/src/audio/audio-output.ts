@@ -13,6 +13,7 @@ export type AudioCapture = {
 
 /** アプリが所有する音声出力。映像レンダラーや個々の再生元の寿命から独立させる。 */
 export class AudioOutput {
+	private disposal: Promise<void> | null = null;
 	private context: AudioContext | null = null;
 	private output: GainNode | null = null;
 	private outputCapture: AudioCapture | null = null;
@@ -152,6 +153,7 @@ export class AudioOutput {
 	}
 
 	public async getOutput(): Promise<GainNode> {
+		if (this.disposal != null) throw new Error('Audio output was disposed.');
 		this.context ??= new AudioContext();
 		const context = this.context;
 		await Promise.all([context.resume(), this.prepare(context)]);
@@ -176,8 +178,9 @@ export class AudioOutput {
 		return this.levels.get(id) ?? silentLevels;
 	}
 
-	/** 再生元を停止・切断した後、アプリの終了時にだけ呼ぶ。 */
-	public dispose() {
+	/** 再生元を停止・切断した後、編集セッションの終了時に呼ぶ。 */
+	public dispose(): Promise<void> {
+		if (this.disposal != null) return this.disposal;
 		this.outputCapture?.dispose();
 		this.outputCapture = null;
 		this.preview.dispose();
@@ -185,7 +188,8 @@ export class AudioOutput {
 		this.output = null;
 		this.previewGain?.disconnect();
 		this.previewGain = null;
-		void this.context?.close();
+		this.disposal = this.context?.close() ?? Promise.resolve();
 		this.context = null;
+		return this.disposal;
 	}
 }

@@ -6,13 +6,13 @@ import { setImmediate } from 'node:timers/promises';
 import { build } from 'esbuild';
 
 const bundle = await build({ absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
-	stdin: { contents: "export * from './src/project-backups.ts'; export * from './src/project-save-session.ts';", resolveDir: fileURLToPath(new URL('../', import.meta.url)) },
+	stdin: { contents: "export * from './src/project-backups.ts'; export * from './src/ProjectSaveQueue.ts'; export * from './src/project-backup-directory.ts';", resolveDir: fileURLToPath(new URL('../', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { ProjectBackupController, DEFAULT_PROJECT_BACKUP_SETTINGS, projectBackupName, projectBackupTime,
 	writeProjectBackup, pruneProjectBackups, validateProjectBackupSettings, createProjectBackupFingerprint,
-	ProjectSaveSession, projectSaveBackupWriter } = module.exports;
+	ProjectSaveQueue, projectSaveBackupWriter } = module.exports;
 
 const start = new Date(2026, 0, 1, 12, 34, 56).getTime();
 const day = 86400000;
@@ -32,9 +32,9 @@ function harness() {
 		async remove(name) { files.delete(name); },
 	};
 	const target = { name: 'myProject.gsproj', directory };
-	const session = new ProjectSaveSession(() => {});
+	const saveQueue = new ProjectSaveQueue();
 	const options = {
-		runExclusive: operation => session.runExclusive(operation),
+		runExclusive: operation => saveQueue.runExclusive(operation),
 		settings: () => settings,
 		snapshot: () => ({ fingerprint, async encode() { encodeCount++; return new TextEncoder().encode(fingerprint); } }),
 		onStatus: value => { status = value; },
@@ -43,7 +43,7 @@ function harness() {
 		cancel(id) { timers.delete(id); },
 	};
 	const controller = new ProjectBackupController(options);
-	return { controller, session, directory, target, settings, files, timers, options,
+	return { controller, saveQueue, directory, target, settings, files, timers, options,
 		advance: duration => { now += duration; }, change: value => { fingerprint = value; },
 		get encodeCount() { return encodeCount; }, get status() { return status; } };
 }
@@ -91,6 +91,7 @@ test('starts only with a saved target and honors the configured interval and cha
 	await h.controller.tick();
 	assert.equal(h.encodeCount, 0);
 	h.controller.setTarget(h.target);
+	assert.equal([...h.timers.values()][0].delay, 300000);
 	h.advance(299999);
 	await h.controller.tick();
 	assert.equal(h.encodeCount, 0);
@@ -108,20 +109,22 @@ test('starts only with a saved target and honors the configured interval and cha
 	assert.equal(h.status.error, null);
 });
 
-// 【変更がなく期限を超えても最後の復元地点を残し、次の成功後に古いものを整理する】
+// 【変更がなく期限を超えても既存の復元地点を残し、次の成功後に古いものを整理する】
 // 未保存の編集をバックアップしてから放置・スリープすると、変更検出が新規作成を省略する。
-// この状態で最後の1件を削除するとクラッシュ時に復元できなくなるため、期限を超えても保護する。
-test('retains the last successful automatic backup until a newer one succeeds', async () => {
+// 作成しない回には期限整理も行わず、作成失敗時も以前の復元地点をすべて維持する。
+test('retains expired automatic backups until a newer one succeeds', async () => {
 	const h = harness();
+	const older = projectBackupName(h.target.name, 'auto', start - 3600000);
+	h.files.set(older, new Uint8Array([9]));
 	h.controller.setTarget(h.target);
 	h.advance(60000);
 	await h.controller.tick();
-	const first = [...h.files.keys()][0];
+	const first = [...h.files.keys()][1];
 	h.advance(2 * day);
 	await h.controller.tick();
 	h.advance(60000);
 	await h.controller.tick();
-	assert.deepEqual([...h.files.keys()], [first]);
+	assert.deepEqual([...h.files.keys()], [older, first]);
 	assert.equal(h.encodeCount, 1);
 	assert.equal(new TextDecoder().decode(h.files.get(first)), 'initial');
 	h.change('edited again');
@@ -129,7 +132,7 @@ test('retains the last successful automatic backup until a newer one succeeds', 
 	h.directory.create = async () => { throw new Error('Disk full'); };
 	h.advance(60000);
 	await h.controller.tick();
-	assert.deepEqual([...h.files.keys()], [first]);
+	assert.deepEqual([...h.files.keys()], [older, first]);
 	h.directory.create = create;
 	h.advance(60000);
 	await h.controller.tick();
@@ -138,8 +141,52 @@ test('retains the last successful automatic backup until a newer one succeeds', 
 	assert.equal(new TextDecoder().decode([...h.files.values()][0]), 'edited again');
 });
 
-// 【休止後は最新状態を1回だけ残し、設定変更・無効化・プロジェクト切替で予約を更新する】
-// 古い周期の多重タイマーや、休止時間分の大量ファイル生成、別プロジェクトへの誤保存を防ぐ。
+// 【保存時バックアップだけを有効にしても定期実行せず、新しく作成した場合だけ期限整理する】
+// 新規ファイルや作成失敗では以前の復元地点を削除しない。自動バックアップの履歴も、
+// 保存時バックアップの作成とは独立して保持する。
+test('prunes save backups only after creating one and never schedules save-only cleanup', async () => {
+	const h = harness();
+	h.settings.autoEnabled = false;
+	h.controller.setTarget(h.target);
+	assert.equal(h.timers.size, 0);
+	const oldSave = projectBackupName(h.target.name, 'save', start - 8 * day);
+	const oldAuto = projectBackupName(h.target.name, 'auto', start - 8 * day);
+	for (const name of [oldSave, oldAuto]) h.files.set(name, new Uint8Array([9]));
+	h.advance(day);
+	await h.controller.tick();
+	await h.controller.afterSave(h.target, null);
+	assert.deepEqual([...h.files.keys()], [oldSave, oldAuto]);
+	const writer = projectSaveBackupWriter({ kind: 'file', getFile: async () => new File(['previous'], h.target.name) }, h.directory);
+	const time = await h.controller.beforeSave(h.target, writer);
+	await h.controller.afterSave(h.target, time);
+	assert.equal(h.files.has(oldSave), false);
+	assert.equal(h.files.has(oldAuto), true);
+	assert.equal(h.files.size, 2);
+	assert.equal(h.timers.size, 0);
+});
+
+// 【長い自動バックアップ間隔でもタイマー上限の超過で直ちに作成しない】
+// 毎分の期限整理を廃止しても、設定可能な最大間隔がブラウザーのタイマー範囲を超える。
+// 分割待機の途中は書き込まず、指定時刻に到達してから一度だけ作成する。
+test('splits intervals beyond the timer limit without backing up early', async () => {
+	const h = harness();
+	h.settings.autoIntervalMinutes = 525600;
+	h.controller.setTarget(h.target);
+	const [id, timer] = [...h.timers][0];
+	assert.equal(timer.delay, 2 ** 31 - 1);
+	h.timers.delete(id);
+	h.advance(timer.delay);
+	timer.callback();
+	await setImmediate();
+	assert.equal(h.encodeCount, 0);
+	assert.equal(h.timers.size, 1);
+	h.advance(525600 * 60000 - timer.delay);
+	await h.controller.tick();
+	assert.equal(h.encodeCount, 1);
+});
+
+// 【休止後は最新状態を1回だけ残し、設定変更・無効化・保存先変更で予約を更新する】
+// 古い周期の多重タイマーや、休止時間分の大量ファイル生成、古い保存先への誤保存を防ぐ。
 test('reschedules settings and makes only one backup after a long suspension', async () => {
 	const h = harness();
 	h.controller.setTarget(h.target);
@@ -202,7 +249,7 @@ test('retains previous backups after failure and retries unchanged data', async 
 	await h.controller.tick();
 	assert.match(h.status.error, /Disk full/);
 	assert.equal(h.files.has(oldName), true);
-	assert.equal(h.files.has(expiredSaveBackup), false);
+	assert.equal(h.files.has(expiredSaveBackup), true);
 	h.advance(60000);
 	await h.controller.tick();
 	assert.match(h.status.error, /Disk full/);
@@ -212,10 +259,11 @@ test('retains previous backups after failure and retries unchanged data', async 
 	await h.controller.tick();
 	assert.equal(h.status.error, null);
 	assert.equal(h.files.has(oldName), false);
+	assert.equal(h.files.has(expiredSaveBackup), true);
 	assert.equal(h.encodeCount, 2);
 });
 
-// 【手動保存は自動バックアップを待ち、別プロジェクトへ切替後の古い処理は書き込まない】
+// 【手動保存は自動バックアップを待ち、保存先変更後の古い処理は書き込まない】
 // 保存ボタンが無視されたり、エンコード中の古い状態が新しい作品のバックアップになることを防ぐ。
 test('queues manual saves and cancels stale automatic work after a target change', async () => {
 	const h = harness();
@@ -231,7 +279,7 @@ test('queues manual saves and cancels stale automatic work after a target change
 	const automatic = h.controller.tick();
 	await encodingStarted;
 	let saved = false;
-	const manual = h.session.runExclusive(async () => { saved = true; });
+	const manual = h.saveQueue.runExclusive(async () => { saved = true; });
 	assert.equal(saved, false);
 	h.controller.setTarget(null);
 	finishEncoding(new Uint8Array([1]));
@@ -239,8 +287,8 @@ test('queues manual saves and cancels stale automatic work after a target change
 	assert.equal(saved, true);
 	assert.equal(h.files.size, 0);
 	assert.equal(h.status.lastAutoBackup, null);
-	await assert.rejects(h.session.runExclusive(async () => { throw new Error('failed job'); }));
-	assert.equal(await h.session.runExclusive(async () => 'next job'), 'next job');
+	await assert.rejects(h.saveQueue.runExclusive(async () => { throw new Error('failed job'); }));
+	assert.equal(await h.saveQueue.runExclusive(async () => 'next job'), 'next job');
 });
 
 // 【権限拒否・空データ・不正な設定では書込みや削除を開始しない】
@@ -280,12 +328,19 @@ test('backs up exact previous bytes and keeps save backup settings independent',
 	h.settings.saveEnabled = false;
 	assert.equal(await h.controller.beforeSave(h.target, copyPrevious), null);
 	h.settings.saveEnabled = true;
+	const create = h.directory.create;
 	h.directory.create = async () => { throw new Error('write failed'); };
 	await assert.rejects(h.controller.beforeSave(h.target, copyPrevious), /write failed/);
+	h.directory.create = create;
+	const remove = h.directory.remove;
 	h.directory.remove = async () => { throw new Error('delete failed'); };
 	h.advance(8 * day);
-	await h.controller.afterSave(h.target, null);
+	await h.controller.afterSave(h.target, await h.controller.beforeSave(h.target, copyPrevious));
 	assert.match(h.status.error, /delete failed/);
+	h.directory.remove = remove;
+	h.advance(1000);
+	await h.controller.afterSave(h.target, await h.controller.beforeSave(h.target, copyPrevious));
+	assert.equal(h.status.error, null);
 });
 
 // 【素材の同一性と保存対象のメタデータを比較し、素材内容の読取りは行わない】
@@ -298,4 +353,25 @@ test('fingerprints metadata and Blob identity without reading embedded media', (
 	assert.equal(fingerprint(source), fingerprint({ ...source, assets: [...source.assets] }));
 	assert.notEqual(fingerprint(source), fingerprint({ ...source, name: 'renamed' }));
 	assert.notEqual(fingerprint(source), fingerprint({ ...source, assets: [{ fileData: new Blob(['b']) }] }));
+});
+
+// 【終了中に完成したバックアップのエンコード結果を保存せず、タイマーを再登録しない】
+// 自動処理のfinallyや環境設定の変更が、閉じたプロジェクトを再びスケジュールするのを防ぐ。
+test('invalidates an in-flight backup and cannot schedule again after disposal', async () => {
+	const h = harness();
+	const started = Promise.withResolvers();
+	const encoded = Promise.withResolvers();
+	h.options.snapshot = () => ({ fingerprint: 'pending', encode() { started.resolve(); return encoded.promise; } });
+	h.controller.setTarget(h.target);
+	h.advance(day);
+	const backup = h.controller.tick();
+	await started.promise;
+	h.controller.dispose();
+	h.controller.dispose();
+	h.controller.setTarget(h.target);
+	h.controller.refreshSchedule();
+	encoded.resolve(new Uint8Array([1]));
+	await backup;
+	assert.equal(h.files.size, 0);
+	assert.equal(h.timers.size, 0);
 });

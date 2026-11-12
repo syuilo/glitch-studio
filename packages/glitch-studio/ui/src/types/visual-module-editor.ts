@@ -5,6 +5,7 @@ import type { VisualModuleCustomParameterDefinition, VisualModuleCustomParameter
 import type { VisualModuleValueParameterEdit } from './parameter-edit.ts';
 
 export type VisualModuleAssetDropActions = {
+	projectSessionId: string;
 	dropFiles: (files: readonly File[]) => Promise<boolean>;
 	dropAsset: (assetId: string) => Promise<boolean>;
 };

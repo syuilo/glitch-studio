@@ -30,13 +30,15 @@ import GsInput from './common/GsInput.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import type { StaticSettingDefinition, StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { selectAsset } from '@/ui.ts';
 import { i18n } from '@/i18n.ts';
 
+const projectSession = useProjectSession();
+
 const props = defineProps<{ definitions: StaticSettingDefinitions; values: StaticSettingValues }>();
 const emit = defineEmits<{ change: [edit: { key: string; value: string | number | boolean | null }] }>();
-const state = appContext.projectContext.stateManager.state;
+const state = projectSession.projectContext.stateManager.state;
 const playerItems = computed(() => [{ value: null, label: i18n.ts.None }, ...state.players.value.map(player => ({ value: player.id, label: player.name }))]);
 const resolvedValues = computed(() => createStaticSettingValues(props.definitions, props.values));
 const settingReferenceValue = (key: string) => {
@@ -54,7 +56,7 @@ onBeforeUnmount(() => { disposed = true; });
 async function chooseAsset(key: string, definition: StaticSettingDefinition) {
 	if (definition.dataType.kind !== 'assetReference') return;
 	const selectedSettings = props.values;
-	const [asset] = await selectAsset({ multiple: false, mimeType: getAssetReferenceMimeType(definition.dataType) });
+	const [asset] = await selectAsset(projectSession, { multiple: false, mimeType: getAssetReferenceMimeType(definition.dataType) });
 	if (disposed || asset == null || props.definitions[key] !== definition || props.values !== selectedSettings) return;
 	emit('change', { key, value: asset.id });
 }

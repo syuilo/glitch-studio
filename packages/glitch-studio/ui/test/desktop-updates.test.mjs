@@ -22,13 +22,12 @@ function fixture() {
 		checkForUpdates: async () => push('available'),
 		prepareUpdate: async () => { events.push('prepare'); return push('preparing'); },
 		startUpdate: async () => { events.push('start'); return push('downloading'); },
-		abortUpdatePreparation: async () => push('error'),
+		abortUpdatePreparation: async () => { events.push('abort'); return push('error'); },
 	};
 	const hooks = {
 		reserve: () => { events.push('reserve'); return () => events.push('release'); },
-		pause: async () => { events.push('pause'); return async () => { events.push('resume'); }; },
 	};
-	const updates = new DesktopUpdates(api, hooks);
+	const updates = new DesktopUpdates(api, () => hooks.reserve());
 	return { api, hooks, updates, push, events };
 }
 
@@ -48,36 +47,33 @@ test('keeps newer pushed state when the initial snapshot arrives late', async ()
 	assert.equal(f.updates.state.value.phase, 'checking');
 });
 
-// 【保存・バックアップ完了前にはダウンロードせず、失敗後の復帰完了まで再操作を許可しない】
-// モーダルを先に表示しても、保存中の終了や再試行とプレビュー再生成の競合を防ぐ必要がある。
-test('waits for application preparation and restores it before releasing the update lock', async () => {
+// 【mainの更新準備が完了してから開始し、失敗時にアプリ操作の受付を戻す】
+// プロジェクトを閉じた後でも、更新中の新規オープンと二重更新は防ぎ、
+// ダウンロードに失敗した場合にはプロジェクトを開き直せるようにする。
+test('waits for desktop preparation and releases application acceptance after failure', async () => {
 	const f = fixture();
-	const saved = Promise.withResolvers();
+	const prepared = Promise.withResolvers();
 	const downloading = Promise.withResolvers();
-	const resumed = Promise.withResolvers();
-	f.hooks.pause = async () => { f.events.push('pause'); await saved.promise; return async () => { f.events.push('resume'); await resumed.promise; }; };
+	f.api.prepareUpdate = async () => { f.events.push('prepare'); await prepared.promise; return f.push('preparing'); };
 	f.api.startUpdate = async () => { f.events.push('start'); downloading.resolve(); return f.push('downloading'); };
 	await f.updates.connect();
 	const job = f.updates.start('2.0.0-beta.1');
 	await new Promise(resolve => setImmediate(resolve));
-	assert.deepEqual(f.events, ['reserve', 'prepare', 'pause']);
+	assert.deepEqual(f.events, ['reserve', 'prepare']);
 	assert.equal(f.updates.running.value, true);
 	await f.updates.start('2.0.0-beta.1');
-	saved.resolve();
+	prepared.resolve();
 	await downloading.promise;
-	f.push('error');
-	await new Promise(resolve => setImmediate(resolve));
-	assert.equal(f.updates.running.value, true);
 	assert.equal(f.events.includes('release'), false);
-	resumed.resolve();
+	f.push('error');
 	await job;
 	assert.equal(f.updates.running.value, false);
-	assert.deepEqual(f.events, ['reserve', 'prepare', 'pause', 'start', 'resume', 'release']);
+	assert.deepEqual(f.events, ['reserve', 'prepare', 'start', 'release']);
 });
 
-// 【再起動が必要な失敗でも保存とプレビューを復帰し、同じプロセスでの再試行は送信しない】
-// mainの終了待ちを続けると失敗画面を閉じられず、復帰後に再送するとインストールが停止する。
-test('restores application work but does not retry an installer launch failure', async () => {
+// 【再起動が必要な失敗でもアプリ操作を許可し、同じプロセスでの再試行は送信しない】
+// mainの終了待ちを続けると失敗画面を閉じられず、再送するとインストールが停止する。
+test('releases application work but does not retry an installer launch failure', async () => {
 	const f = fixture();
 	const downloading = Promise.withResolvers();
 	f.api.startUpdate = async () => { f.events.push('start'); downloading.resolve(); return f.push('downloading'); };
@@ -87,26 +83,37 @@ test('restores application work but does not retry an installer launch failure',
 	f.push('restart-required');
 	await job;
 	assert.equal(f.updates.running.value, false);
-	assert.deepEqual(f.events.slice(-2), ['resume', 'release']);
+	assert.equal(f.events.at(-1), 'release');
 	const completedEvents = [...f.events];
 	await f.updates.start('2.0.0-beta.1');
 	assert.deepEqual(f.events, completedEvents);
 });
 
-// 【保存準備の失敗や別プロセスの検出では更新開始を中止して受付を戻す】
-// UIの準備に失敗した状態から、そのままインストールへ進まない。
-test('aborts failed preparation and never downloads after rejected reservation', async () => {
+// 【プロジェクトを閉じていない場合はmainへ更新要求を送らない】
+// 受付条件を満たさない操作で更新準備やその取消しまで始めず、理由だけを画面へ返す。
+test('does not contact the updater after application reservation is rejected', async () => {
 	const f = fixture();
 	await f.updates.connect();
-	f.hooks.pause = async () => { throw new Error('save failed'); };
+	f.hooks.reserve = () => { throw new Error('Close all projects'); };
 	await f.updates.start('2.0.0-beta.1');
-	assert.equal(f.events.includes('start'), false);
-	assert.equal(f.events.at(-1), 'release');
-	assert.equal(f.updates.localError.value, 'save failed');
+	assert.deepEqual(f.events, []);
+	assert.equal(f.updates.localError.value, 'Close all projects');
+	assert.equal(f.updates.running.value, false);
+});
+
+// 【mainの準備失敗や別プロセスの検出ではダウンロードせず受付を戻す】
+// 更新の排他取得に失敗しても、その後のファイル操作を永久に拒否してはならない。
+test('aborts failed desktop preparation and releases a rejected update reservation', async () => {
+	const f = fixture();
+	await f.updates.connect();
+	f.api.prepareUpdate = async () => { throw new Error('preparation failed'); };
+	await f.updates.start('2.0.0-beta.1');
+	assert.deepEqual(f.events, ['reserve', 'abort', 'release']);
+	assert.equal(f.updates.localError.value, 'preparation failed');
+	f.events.length = 0;
 	f.api.prepareUpdate = async () => f.push('error');
-	f.hooks.pause = async () => assert.fail('must not pause');
 	await f.updates.start('2.0.0-beta.1');
-	assert.equal(f.events.includes('start'), false);
+	assert.deepEqual(f.events, ['reserve', 'release']);
 });
 
 // 【読込・書き出しと更新を相互排他にし、通常処理が失敗しても受付を戻す】

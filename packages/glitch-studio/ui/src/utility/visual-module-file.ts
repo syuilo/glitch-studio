@@ -22,7 +22,7 @@ export async function exportVisualModuleFile(context: ProjectContext, visualModu
 	const releaseActivity = applicationActivity.acquireExport();
 	try {
 		const state = context.stateManager.state;
-		// 素材の読み出し中に編集・プロジェクト切替が起きても、開始時点の構成だけを書き出す。
+		// 素材の読み出し中に編集されても、開始時点の構成だけを書き出す。
 		const file = collectVisualModuleFile({
 			visualModule,
 			name,
@@ -47,15 +47,15 @@ export async function exportVisualModuleFile(context: ProjectContext, visualModu
 }
 
 export async function importVisualModuleFile(context: ProjectContext): Promise<string | null> {
+	if (context.isDisposed) return null;
 	const releaseActivity = applicationActivity.acquire();
-	const generation = context.generation;
 	try {
 		const file = await pickVisualModuleFile();
-		if (file == null) return null;
-		const decoded = decodeVisualModuleFile(new Uint8Array(await file.arrayBuffer()), _VERSION_);
+		if (file == null || context.isDisposed) return null;
+		const data = await file.arrayBuffer();
+		if (context.isDisposed) return null;
+		const decoded = decodeVisualModuleFile(new Uint8Array(data), _VERSION_);
 		const prepared = prepareVisualModuleImport(decoded, getEffectDefinitions(context.stateManager.state));
-		// 同じプロジェクトの再読込でも世代が変わる。古いファイル選択を別の読み込み状態へ適用しない。
-		if (context.generation !== generation) return null;
 		context.stateManager.commit('importVisualModule', prepared);
 		if (prepared.unassignedPlayerNames.length > 0) {
 			ui.alert({
@@ -66,6 +66,7 @@ export async function importVisualModuleFile(context: ProjectContext): Promise<s
 		}
 		return prepared.visualModule.id;
 	} catch (error) {
+		if (context.isDisposed) return null;
 		console.error(error);
 		await ui.alert({ type: 'error', title: i18n.ts._VisualModule.ImportTitle, text: error instanceof Error ? error.message : String(error) });
 		return null;

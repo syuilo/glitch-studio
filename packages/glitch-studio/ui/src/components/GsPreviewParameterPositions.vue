@@ -14,14 +14,16 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, shallowRef, useTemplateRef, watch } from 'vue';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { previewParameterToScreen, previewScreenToParameter, snapPreviewParameterPosition } from '@/utility/preview-parameter-position.ts';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import type { PreviewParameterHandle, PreviewParameterPoint } from '@/utility/preview-parameter-editing.ts';
 
+const projectSession = useProjectSession();
+
 const props = defineProps<{ canvasRect: PreviewCanvasRect; showGrid: boolean }>();
-const editing = appContext.previewParameterEditing;
+const editing = projectSession.previewParameterEditing;
 const overlay = useTemplateRef('overlay');
 const draft = shallowRef<{ key: string; position: PreviewParameterPoint } | null>(null);
 let stopDrag: (() => void) | null = null;
@@ -83,7 +85,7 @@ function startDrag(event: PointerEvent, handle: PreviewParameterHandle) {
 }
 
 watch([() => editing.handles.value.map(handle => handle.key).join(','), () => props.canvasRect,
-	appContext.previewPlayback.currentTimelineTime], () => stopDrag?.(), { flush: 'sync' });
+	projectSession.previewPlayback.currentTimelineTime], () => stopDrag?.(), { flush: 'sync' });
 
 onBeforeUnmount(() => stopDrag?.());
 </script>

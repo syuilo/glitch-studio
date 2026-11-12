@@ -301,23 +301,22 @@ test('does not receive drops outside the application root', t => {
 	assert.equal(result.event.defaultPrevented, false);
 });
 
-const source = await readFile(new URL('../src/App.vue', import.meta.url), 'utf8');
+const source = await readFile(new URL('../src/components/GsProjectEditor.vue', import.meta.url), 'utf8');
 const ast = createSourceFile('App.ts', parse(source).descriptor.scriptSetup.content, ScriptTarget.Latest);
 const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onFileDrop');
 const { code } = await transform(handler.getText(ast), { loader: 'ts' });
 
-function appFixture({ hasProject = false, ids = ['asset'] } = {}) {
+function appFixture({ ids = ['asset'], fileOperationBusy = false } = {}) {
 	const events = [];
 	const context = {
-		appContext: { projectContext: { hasProject } },
-		newProject: async () => { events.push('newProject'); },
-		importAssets: async (_context, files, prepare) => {
-			if (ids.length > 0) await prepare();
+		projectSession: { projectContext: {}, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
+		projectSessions: { fileOperations: { isBusy: { value: fileOperationBusy } } },
+		importAssets: async (destination, files) => {
+			if (ids.length > 0 && typeof destination === 'function') await destination();
 			events.push(['assets', files.map(file => file.name)]);
 			return ids;
 		},
-		openProject: async () => { assert.fail('Global drops must not open projects'); },
-		workspaceController: { revealPanel: request => { events.push(['reveal', request]); } },
+		openProject: async file => { events.push(['project', file.name]); return true; },
 	};
 	const run = new Function('context', 'events', `const { ${Object.keys(context).join(', ')} } = context;
 		${code}; return onFileDrop;`)(context, events);
@@ -327,24 +326,21 @@ function appFixture({ hasProject = false, ids = ['asset'] } = {}) {
 // 【アプリ全体のドロップでは素材を取り込み、完了後にAssetsを開く】
 // 編集中のプロジェクトは新規作成せず、Dashboardやプロジェクトファイルの開閉に関与しない。
 // アプリ全体からの表示要求はsourcePanelIdをnullにし、操作元タブに拘束されない。
-test('initializes a project only when needed and reveals assets after successful batch import', async () => {
-	for (const hasProject of [false, true]) {
-		const f = appFixture({ hasProject });
-		await f.run([new File(['a'], 'a.png'), new File(['b'], 'b.mp4')]);
-		assert.equal(f.events.includes('newProject'), !hasProject);
-		assert.deepEqual(f.events.slice(-2), [['assets', ['a.png', 'b.mp4']], ['reveal', { contentType: 'assets', sourcePanelId: null }]]);
-	}
+test('imports into the owning project and reveals assets after successful batch import', async () => {
+	const f = appFixture();
+	await f.run([new File(['a'], 'a.png'), new File(['b'], 'b.mp4')]);
+	assert.deepEqual(f.events.slice(-2), [['assets', ['a.png', 'b.mp4']], ['reveal', { contentType: 'assets', sourcePanelId: null }]]);
 	const failed = appFixture({ ids: [] });
 	await failed.run([new File(['bad'], 'bad.bin')]);
 	assert.deepEqual(failed.events, [['assets', ['bad.bin']]]);
 });
 
-// 【アプリ全体へのgsprojドロップはプロジェクトを開かない】
-// 任意ファイルの取り込み経路でAssetsに保存し、既存プロジェクトを置き換えない。
-test('does not open project files through the global asset drop handler', async () => {
-	const f = appFixture({ hasProject: true });
-	await f.run([new File(['project'], 'project.gsproj')]);
-	assert.deepEqual(f.events, [['assets', ['project.gsproj']], ['reveal', { contentType: 'assets', sourcePanelId: null }]]);
+// 【エディタへのgsprojドロップは新しいタブで開く】
+// プロジェクトの追加をメニューと同じ入口へ集約し、素材として混入させない。
+test('opens project files in additional tabs through the editor drop handler', async () => {
+	const f = appFixture();
+	await f.run([new File(['project'], 'project.gsproj')], { dataTransfer: { items: [] } });
+	assert.deepEqual(f.events, [['project', 'project.gsproj']]);
 });
 
 const dashboardSource = await readFile(new URL('../src/components/GsDashboardDialog.vue', import.meta.url), 'utf8');
@@ -353,14 +349,16 @@ const dashboardHandlers = dashboardAst.statements.filter(statement => isFunction
 	&& ['onFileDrop', '_newProjectFromImageOrVideo'].includes(statement.name?.text));
 const { code: dashboardCode } = await transform(dashboardHandlers.map(handler => handler.getText(dashboardAst)).join('\n'), { loader: 'ts' });
 
-function dashboardFixture({ ids = ['asset'], opened = true, hasProject = false } = {}) {
+function dashboardFixture({ ids = ['asset'], opened = true, hasSession = false, fileOperationBusy = false } = {}) {
 	const events = [];
 	const context = {
-		appContext: { projectContext: { hasProject } },
-		newProject: async () => { events.push('newProject'); },
+		projectSession: { projectContext: {}, workspacePanelRevealRequest: { set value(request) { events.push(['reveal', request]); } } },
+		projectSessions: { activeSession: { get value() { return hasSession ? context.projectSession : null; } } },
+		fileOperationBusy: { value: fileOperationBusy },
+		newProject: async () => { events.push('newProject'); return context.projectSession; },
 		newProjectFromImageOrVideo: async file => { events.push(['media', file ?? null]); return opened; },
-		importAssets: async (_context, files, prepare) => {
-			if (ids.length > 0) await prepare();
+		importAssets: async (destination, files) => {
+			if (ids.length > 0 && typeof destination === 'function') await destination();
 			events.push(['assets', files.map(file => file.name)]);
 			return ids;
 		},
@@ -369,7 +367,6 @@ function dashboardFixture({ ids = ['asset'], opened = true, hasProject = false }
 			if (context.projectAction != null) return context.projectAction(file, handle);
 			events.push(['project', file.name, handle]); return opened;
 		},
-		workspaceController: { revealPanel: request => events.push(['reveal', request]) },
 		modal: { value: { close: () => events.push('close') } },
 		window: { document: { body: { hasAttribute: () => false } } },
 		ui: { alert: async options => events.push(['error', options.text]) },
@@ -393,6 +390,22 @@ function dashboardEvent(files, items = []) {
 	event.dataTransfer = { types: ['Files'], files, items };
 	return event;
 }
+
+// 【ファイル操作中のgsprojドロップは無視し、素材の取り込みは継続できる】
+// ハンドル取得を待ってから受け付けると、処理中に行った操作を後から実行してしまう。
+// 入口で拒否する一方、保存中の編集として許可する素材追加まで止めないようにする。
+test('ignores project drops while busy without blocking asset editing', async () => {
+	const f = appFixture({ fileOperationBusy: true });
+	const event = { dataTransfer: { items: [{ kind: 'file', getAsFileSystemHandle: () => assert.fail('A rejected drop must not request a handle') }] } };
+	await f.run([new File(['project'], 'project.gsproj')], event);
+	assert.deepEqual(f.events, []);
+	await f.run([new File(['image'], 'image.png')]);
+	assert.deepEqual(f.events[0], ['assets', ['image.png']]);
+	const dashboard = dashboardFixture({ fileOperationBusy: true });
+	await dashboard.onDrop(dashboardEvent([new File(['project'], 'project.gsproj')], event.dataTransfer.items));
+	assert.deepEqual(dashboard.events, []);
+	dashboard.dispose();
+});
 
 // 【Dashboardがプロジェクトの保存先ハンドルをdrop中に取得し、成功時だけ閉じる】
 // 全体ドロップとは独立した受付で、プロジェクトを開く機能を維持する。
@@ -438,7 +451,7 @@ test('opens single dropped media through the same project factory as the file pi
 	for (const type of ['image/png', 'video/mp4', 'audio/wav']) {
 		for (const opened of [false, true]) {
 			const file = new File(['media'], 'source', { type });
-			const dropped = dashboardFixture({ opened, hasProject: true });
+			const dropped = dashboardFixture({ opened, hasSession: true });
 			await dropped.onDrop(dashboardEvent([file]));
 			assert.deepEqual(dropped.events, opened ? [['media', file], 'close'] : [['media', file]]);
 			const selected = dashboardFixture({ opened });

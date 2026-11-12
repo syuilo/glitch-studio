@@ -11,7 +11,7 @@
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
-			:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
+			:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
 			:paramValue="layer.transformParamValues[key] ?? def.defaultValue"
@@ -28,7 +28,7 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { timelineTransformParamDefs } from '@gs/subsystems_timeline_shared/layers/transform/transform.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import GsFolder from './common/GsFolder.vue';
@@ -39,5 +39,7 @@ import type { TimelineTransformLayer } from '@gs/subsystems_timeline_shared/type
 import { i18n } from '@/i18n.ts';
 
 defineProps<{ layer: TimelineTransformLayer }>();
+const projectSession = useProjectSession();
+
 const emit = defineEmits<{ edit: [event: ParamEdit]; motionBlur: [disabled: boolean] }>();
 </script>

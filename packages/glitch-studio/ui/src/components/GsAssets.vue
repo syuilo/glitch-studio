@@ -32,12 +32,14 @@ import GsInput from './common/GsInput.vue';
 import GsLocalFontDialog from './GsLocalFontDialog.vue';
 import type { ProjectAsset } from '@/Project.ts';
 import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { importAssets } from '@/utility/import-assets.ts';
 import { getAssetMenu } from '@/utility/asset-menu.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { popup, popupMenu } from '@/ui.ts';
 import { localFontErrorMessage, queryLocalFonts, supportsLocalFonts } from '@/utility/local-fonts.ts';
+
+const projectSession = useProjectSession();
 
 const props = withDefaults(defineProps<{
 	/** 完全なMIMEタイプ、image/*などのワイルドカード、またはnull（絞り込みなし）。 */
@@ -55,7 +57,7 @@ const emit = defineEmits<{
 	(ev: 'assetDoubleClicked', asset: ProjectAsset): void;
 }>();
 
-const { stateManager } = appContext.projectContext;
+const { stateManager } = projectSession.projectContext;
 const workspaceController = inject(workspaceControllerKey)!;
 
 const selectedAssets = ref<ProjectAsset[]>([]);
@@ -96,7 +98,7 @@ function onAssetClick(ev: PointerEvent, asset: ProjectAsset) {
 		isEditMode.value = true;
 	}
 	if (props.select == null && !isEditMode.value) {
-		popupMenu(getAssetMenu(asset), ev.currentTarget ?? ev.target);
+		popupMenu(getAssetMenu(projectSession.projectContext, asset), ev.currentTarget ?? ev.target);
 		return;
 	}
 	toggleAssetSelection(asset);
@@ -127,7 +129,7 @@ async function addLocalFont() {
 	try {
 		const fonts = await queryLocalFonts();
 		if (disposed) return;
-		const { dispose } = popup(GsLocalFontDialog, { fonts }, { closed: () => dispose() });
+		const { dispose } = popup(GsLocalFontDialog, { fonts }, { closed: () => dispose() }, projectSession);
 	} catch (error) {
 		if (!disposed) localFontError.value = localFontErrorMessage(error);
 	} finally {
@@ -136,7 +138,7 @@ async function addLocalFont() {
 }
 
 async function addAsset() {
-	const ids = await importAssets(appContext.projectContext);
+	const ids = await importAssets(projectSession.projectContext);
 	if (ids.length > 0) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });
 }
 

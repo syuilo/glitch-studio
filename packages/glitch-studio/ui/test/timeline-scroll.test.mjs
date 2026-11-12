@@ -19,12 +19,12 @@ const result = await build({
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'timeline-sfc', setup(build) {
 		build.onResolve({ filter: /^test:metrics$/ }, () => ({ path: 'metrics', namespace: 'test' }));
-		build.onResolve({ filter: /^@\/app\.ts$/ }, () => ({ path: 'app', namespace: 'test' }));
+		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'test' }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /Gs(CondensedLine|Button)\.vue$/ }, () => ({ path: 'label', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
 			metrics: 'export const updates = new Map(); export const mounts = new Map();',
-			app: `import { ref } from 'vue'; export const commits = []; export const appContext = { projectContext: { stateManager: {
+			app: `import { ref } from 'vue'; export const commits = []; export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: {
 				state: { assets: ref([{ id: 'sound', name: 'Sound' }]), timelineScenes: ref([]), visualModules: ref([]), generatedSpeech: ref([]) },
 				commit: (...args) => commits.push(args),
 			} } };`,

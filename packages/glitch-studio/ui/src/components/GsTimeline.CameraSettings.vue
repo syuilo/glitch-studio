@@ -11,7 +11,7 @@
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
-			:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
+			:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
 			:paramValue="layer.cameraParamValues[key] ?? def.defaultValue"
@@ -28,7 +28,7 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { getTimelineCameraParameterDefinitions } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { computed } from 'vue';
 import type { Resolution } from '@gs/shared/resolution.ts';
@@ -39,6 +39,8 @@ import GsVisualParam from './GsVisualParam.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineCameraLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { i18n } from '@/i18n.ts';
+
+const projectSession = useProjectSession();
 
 const props = defineProps<{ layer: TimelineCameraLayer; contextResolution: Resolution }>();
 const timelineCameraParamDefs = computed(() => getTimelineCameraParameterDefinitions(props.contextResolution));

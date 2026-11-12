@@ -10,7 +10,7 @@ import { compile, createRenderer, h, markRaw, nextTick, ref, Teleport } from 'vu
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({
-	entryPoints: [resolve(directory, 'src/components/common/GsModal.vue')], bundle: true,
+	stdin: { contents: "export { default } from './src/components/common/GsModal.vue'; export { default as Popup } from './src/components/GsPopup.vue';", resolveDir: directory }, bundle: true,
 	platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [{ name: 'modal-focus-platform', setup(build) {
 		// ライフサイクルとfocusTrapは本物を使い、端末設定・アニメーション・レイアウトだけを置き換える。
@@ -27,8 +27,9 @@ const bundle = await build({
 			? { path, namespace: 'platform' } : { path: resolve(directory, 'src', path.slice(2)) });
 		build.onResolve({ filter: /GsAnimBg\.vue$/ }, () => ({ path: 'background', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ contents: dependencies[path] ?? 'export default {};', loader: 'ts' }));
-		build.onLoad({ filter: /GsModal\.vue$/ }, async ({ path }) => {
+		build.onLoad({ filter: /Gs(?:Modal|Popup)\.vue$/ }, async ({ path }) => {
 			const { descriptor } = parse(await readFile(path, 'utf8'), { filename: path });
+			if (path.endsWith('GsPopup.vue')) return { loader: 'ts', resolveDir: dirname(path), contents: compileScript(descriptor, { id: 'popup-focus-test', inlineTemplate: true }).content };
 			const script = compileScript(descriptor, { id: 'modal-focus-test', genDefaultAs: 'modal' });
 			return { loader: 'ts', resolveDir: dirname(path), contents: `${script.content}
 				import { h } from 'vue';
@@ -46,8 +47,9 @@ const Modal = bundled.exports.default;
 const { descriptor: applicationDescriptor } = parse(await readFile(resolve(directory, 'src/App.vue'), 'utf8'));
 const popupListTemplate = applicationDescriptor.template.ast.children.find(child => child.type === 1).loc.source;
 const PopupList = {
+	components: { GsPopup: bundled.exports.Popup },
 	props: ['popups'],
-	setup: props => ({ ui: { popups: props.popups } }),
+	setup: props => ({ applicationPopups: props.popups }),
 	render: compile(popupListTemplate),
 };
 
@@ -270,6 +272,7 @@ for (const closeMethod of ['close', 'dispose']) {
 
 		popups.value.push({
 			id: 1, component: markRaw(Modal),
+			projectSession: null,
 			props: { preferType: 'dialog', ref: modal => { colorPickerModal = modal; } },
 			events: { close: () => { closingEvents++; } },
 		});

@@ -14,12 +14,14 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import GsInput from './common/GsInput.vue';
 import GsTextarea from './common/GsTextarea.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 
-const { name: projectName, description: projectDescription, author: projectAuthor } = appContext.projectContext.stateManager.state;
+const projectSession = useProjectSession();
+
+const { name: projectName, description: projectDescription, author: projectAuthor } = projectSession.projectContext.stateManager.state;
 
 defineProps<{ panel: WorkspacePanel }>();
 

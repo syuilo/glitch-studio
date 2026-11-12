@@ -216,7 +216,7 @@ test('inherits voice for new keys and preserves voice and subtitle duration when
 	const context = {
 		props: { layer: f.layer, sceneId: 'root', get utterance() { return f.layer.utterances[0]; } },
 		error: { value: '' }, stateManager: f.history, insertVoicevoxUtterance,
-		appContext: { previewPlayback: { currentTimelineTime: { value: 450 } } },
+		projectSession: { previewPlayback: { currentTimelineTime: { value: 450 } } },
 		emit(...args) { events.push(args); },
 	};
 	const commitLayer = await loadHandler('commit', context, 'GsTimeline.VoicevoxSettings.vue');
@@ -635,9 +635,9 @@ test('resolves generation, playback and export per utterance voice', () => {
 	assert.deepEqual(pendingPlan.map(clip => clip.sourceId), ['generated']);
 });
 
-// 【重複生成をまとめ、プロジェクト変更前の応答を捨てる】
-// HTTPの中断可否に依存せず、旧ファイルの音声が新しいプロジェクトへ保存されないことを保証する。
-test('deduplicates synthesis and rejects responses from an old project', async () => {
+// 【重複生成をまとめ、終了後に届いた音声を採用しない】
+// HTTPの中断可否に依存せず、終了したセッションの音声と表示状態を復活させない。
+test('deduplicates synthesis and rejects responses after disposal', async () => {
 	const f = fixture();
 	let stored = [];
 	let complete;
@@ -647,17 +647,14 @@ test('deduplicates synthesis and rejects responses from an old project', async (
 	const first = generation.generate(f.request);
 	assert.equal(generation.generate(f.request), first);
 	await Promise.resolve(); assert.equal(calls, 1);
-	generation.reset();
+	generation.dispose();
+	generation.dispose();
 	complete(f.speech);
-	await assert.rejects(first, /Project changed/);
+	await assert.rejects(first, /Project session is closed/);
 	assert.deepEqual(stored, []);
-	const next = generation.generate(f.request);
-	await new Promise(resolve => setImmediate(resolve));
-	complete(f.speech);
-	await next;
-	assert.equal(stored.length, 1);
-	await generation.generate(f.request);
-	assert.equal(calls, 2);
+	assert.deepEqual(generation.statuses.value, {});
+	await assert.rejects(generation.generate(f.request), /Project session is closed/);
+	assert.equal(calls, 1);
 });
 
 function queuedGenerationFixture(t, cacheLimits) {
@@ -671,7 +668,7 @@ function queuedGenerationFixture(t, cacheLimits) {
 		getScenes: () => f.scenes, getSpeech: () => stored, setSpeech: value => { stored = value; },
 		synthesize: request => new Promise(resolve => { calls.push({ request, resolve }); }),
 	});
-	t.after(() => generation.reset());
+	t.after(() => generation.dispose());
 	const flush = () => new Promise(resolve => setImmediate(resolve));
 	return { ...f, generation, calls, get stored() { return stored; },
 		async schedule() { generation.schedule(); t.mock.timers.tick(400); await flush(); },
@@ -735,20 +732,25 @@ test('restores cached speech before eviction and regenerates only evicted undo r
 	assert.deepEqual(f.stored.map(speech => speech.sourceId), ['Second']);
 });
 
-// 【一時音声はプロジェクトを切り替えたら破棄する】
-// 再読み込み後にはUndo履歴がないため、前プロジェクトの旧本文を保持・再利用しない。
-test('clears temporary speech when resetting the project', async t => {
+// 【終了後は一時音声を復元せず、生成と書き出し準備を受け付けない】
+// キャッシュ済みの要求や空の要求でも、終了したセッションの処理を再開してはいけない。
+test('does not restore cached speech or prepare exports after disposal', async t => {
 	const f = queuedGenerationFixture(t);
 	await f.schedule();
 	await f.complete(0);
 	f.layer.utterances[0].text = 'Edited';
 	f.generation.synchronizeSpeech();
 	assert.deepEqual(f.stored, []);
-	f.generation.reset();
+	f.generation.dispose();
 	f.layer.utterances[0].text = 'First';
 	await f.schedule();
-	assert.equal(f.calls.length, 2);
-	await f.complete(1);
+	assert.equal(f.calls.length, 1);
+	assert.deepEqual(f.stored, []);
+	assert.deepEqual(f.generation.statuses.value, {});
+	await assert.rejects(f.generation.generate(f.request('First')), /Project session is closed/);
+	for (const requests of [[], [f.request('First')]]) {
+		await assert.rejects(f.generation.prepare(requests, new AbortController().signal), /Project session is closed/);
+	}
 });
 
 // 【書き出しが後で使う生成済み音声も準備開始時から保護する】
@@ -894,23 +896,31 @@ test('releases cancelled export requests without cancelling other exports or man
 	await manual;
 });
 
-// 【プロジェクト切替で旧待機要求を捨てても、新プロジェクトの同じ要求を保護する】
-// 旧書き出しのfinallyが遅れて実行されても新しい予約を減らさず、実行中の旧結果も混入させない。
-test('resets queued work without releasing new-project export reservations for the same key', async t => {
+// 【一つのセッションを終了しても、別セッションの同じ音声要求を取り消さない】
+// 終了時に待機キューを解放し、実行中の結果や書き出しのfinallyが遅れても別インスタンスへ影響させない。
+test('disposes queued work without affecting export reservations in another session', async t => {
 	const f = queuedGenerationFixture(t);
 	await f.schedule();
 	const request = f.request('Snapshot');
 	const oldPreparation = f.generation.prepare([request], new AbortController().signal);
-	const oldResult = assert.rejects(oldPreparation, /Project changed/);
-	f.generation.reset();
+	const oldResult = assert.rejects(oldPreparation, /Project session is closed/);
+	f.generation.dispose();
 	f.scenes[0].layers = [];
-	const newPreparation = f.generation.prepare([request], new AbortController().signal);
+	const synthesis = Promise.withResolvers();
+	const other = new VoicevoxGeneration({
+		getScenes: () => [], getSpeech: () => [], setSpeech() { assert.fail('An export-only request must not change project speech'); },
+		synthesize: () => synthesis.promise,
+	});
+	t.after(() => other.dispose());
+	const newPreparation = other.prepare([request], new AbortController().signal);
 	await oldResult;
 	await f.schedule();
 	await f.complete(0);
-	assert.deepEqual(f.calls.map(call => call.request.text), ['First', 'Snapshot']);
+	assert.deepEqual(f.calls.map(call => call.request.text), ['First']);
 	assert.deepEqual(f.stored, []);
-	await f.complete(1);
+	assert.deepEqual(f.generation.statuses.value, {});
+	assert.equal(other.statuses.value[getVoicevoxRequestKey(request)].state, 'generating');
+	synthesis.resolve({ ...f.speech, key: getVoicevoxRequestKey(request), sourceId: 'Snapshot' });
 	assert.deepEqual((await newPreparation).map(speech => speech.sourceId), ['Snapshot']);
 	assert.deepEqual(f.stored, []);
 });
@@ -921,7 +931,7 @@ test('resets queued work without releasing new-project export reservations for t
 test('evaluates export dialog audio presence without requiring prepared speech', async () => {
 	const f = fixture();
 	const context = { ...module.exports, computed: getter => getter, scene: { value: f.scenes[0] }, sceneId: { value: 'root' },
-		appContext: { renderValidation: { errorMessage: { value: null } } },
+		projectSession: { renderValidation: { errorMessage: { value: null } } },
 		settings: { value: { format: 'mp4', positionMs: 250, endTimeMs: 300 } },
 		stateManager: { state: { timelineScenes: { value: f.scenes }, generatedSpeech: { value: [] } } } };
 	const includesAudio = await loadComputed('includesAudio', context, 'GsTimelineExportDialog.vue');

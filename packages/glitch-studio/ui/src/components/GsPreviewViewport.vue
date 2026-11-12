@@ -16,15 +16,17 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { previewScreenToParameter } from '@/utility/preview-parameter-position.ts';
 import { panPreviewViewport, zoomPreviewViewport } from '@/utility/preview-viewport.ts';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import type { PreviewViewportDrag, PreviewViewportValue } from '@/utility/preview-viewport.ts';
 
+const projectSession = useProjectSession();
+
 const props = defineProps<{ canvasRect: PreviewCanvasRect }>();
-const handle = computed(() => appContext.previewParameterEditing.viewport.value);
+const handle = computed(() => projectSession.previewParameterEditing.viewport.value);
 const surface = useTemplateRef('surface');
 const dragging = ref(false);
 let stopDrag: (() => void) | null = null;
@@ -127,7 +129,7 @@ function onWheel(event: WheelEvent) {
 	wheelTimer = wheelDocument!.defaultView!.setTimeout(() => finishWheel(false), 180);
 }
 
-watch([() => handle.value?.key ?? null, () => props.canvasRect, appContext.previewPlayback.currentTimelineTime], () => {
+watch([() => handle.value?.key ?? null, () => props.canvasRect, projectSession.previewPlayback.currentTimelineTime], () => {
 	stopDrag?.();
 	finishWheel(true);
 }, { flush: 'sync' });

@@ -31,11 +31,13 @@ import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import type { LocalFont } from '@/utility/local-fonts.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { localFontErrorMessage } from '@/utility/local-fonts.ts';
 
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{ fonts: LocalFont[] }>();
 const emit = defineEmits<{ (ev: 'closed'): void }>();

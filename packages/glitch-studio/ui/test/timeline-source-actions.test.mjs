@@ -209,10 +209,10 @@ test('rechecks available space after selection and adds a clip with one undo ent
 });
 
 // 【選択・素材読み込み・警告確認中の破棄や素材差し替えを採用しない】
-// ダイアログが返るまでに別プロジェクトや別Blobへ切り替わった場合、古い素材情報で履歴を作らない。
+// ダイアログが返るまでにSceneの削除・復元やBlobの変更があった場合、古い素材情報で履歴を作らない。
 test('rejects stale selections and metadata after scene, asset or lifetime changes', async t => {
 	for (const phase of ['select', 'inspect', 'confirm']) {
-		for (const change of ['reload', 'dispose', 'layers', 'assets', 'blob']) {
+		for (const change of ['restoredScene', 'dispose', 'layers', 'assets', 'blob']) {
 			const f = fixture(t, [mediaLayer('video')]);
 			f.asset.fileDataType = 'video/mp4';
 			const wait = deferred();
@@ -227,7 +227,7 @@ test('rejects stale selections and metadata after scene, asset or lifetime chang
 			}
 			const pending = f.create().addClip(f.scene.layers[0], 1000);
 			await started.promise;
-			if (change === 'reload') f.state.timelineScenes.value = [structuredClone(f.scene)];
+			if (change === 'restoredScene') f.state.timelineScenes.value = [structuredClone(f.scene)];
 			if (change === 'dispose') f.dispose();
 			if (change === 'layers') { f.scene.layers = []; f.refreshLayers(); }
 			if (change === 'assets') f.state.assets.value = [];
@@ -294,21 +294,21 @@ test('changes only the original clip source and restores its timing on undo', as
 	}
 });
 
-// 【Visual Moduleの参照レイヤーを追加し、選択待ち中のScene切替では中止する】
+// 【Visual Moduleの参照レイヤーを追加し、選択待ち中にSceneを削除・復元した場合は中止する】
 // 切り出し後も対象SceneのIDとVisual ModuleのIDを取り違えず、選択結果から参照レイヤーを作る。
 test('adds referenced visual module layers and rejects results after scene replacement', async t => {
-	for (const reload of [false, true]) {
+	for (const restoredScene of [false, true]) {
 		const f = fixture(t, []);
 		f.state.visualModules.value = [{ id: 'visual-module', name: 'Visual Module', paramDefs: [] }];
 		const choice = deferred();
 		f.options.ui.select = () => choice.promise;
 		addLayerMenu(f.create());
 		const pending = f.menu.find(item => item.id === 'referenceVisualModule').action();
-		if (reload) f.state.timelineScenes.value = [structuredClone(f.scene)];
+		if (restoredScene) f.state.timelineScenes.value = [structuredClone(f.scene)];
 		choice.resolve({ canceled: false, result: 'visual-module' });
 		await pending;
-		assert.equal(f.history.undoStack.value.length, reload ? 0 : 1);
-		if (!reload) {
+		assert.equal(f.history.undoStack.value.length, restoredScene ? 0 : 1);
+		if (!restoredScene) {
 			assert.equal(f.scene.layers[0].visualModuleId, 'visual-module');
 			assert.equal(f.scene.layers[0].coordinateSpace, 'screen');
 			assert.deepEqual(f.selection.value.ids, [f.scene.layers[0].id]);

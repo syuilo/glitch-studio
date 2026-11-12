@@ -20,10 +20,10 @@ const bundle = await build({
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'effect-picker-controls', setup(build) {
-		build.onResolve({ filter: /^@\/app\.ts$/ }, () => ({ path: 'app', namespace: 'fixture' }));
+		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'fixture' }));
 		build.onResolve({ filter: /project-effects\.ts$/ }, () => ({ path: 'effects', namespace: 'fixture' }));
 		build.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({ contents: path === 'app'
-			? 'export const appContext = { projectContext: { stateManager: { state: {} } } };'
+			? 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: {} } } };'
 			: `import { reactive } from 'vue';
 				export const fixtureDefinitions = reactive({});
 				export function getEffectDefinitions() { return fixtureDefinitions; }` }));

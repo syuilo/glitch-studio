@@ -11,6 +11,7 @@ import { build } from 'esbuild';
 // 【実際のmainとpreloadで追加起動・保存先の分離・全体終了の取消を確認する】
 // IPCやアプリのイベント順序をモックだけで再現すると、二つ目のプロセスの終了や
 // beforeunloadと非同期の返答の順序を見逃す。UIの確認表示だけを置き換え、非表示で検証する。
+// 異常終了後の再読み込みでは、以前の一つの作品だけを自動で開かずDashboard用の起動に戻す。
 test('shares one main process while isolating editors and confirming window closures independently', {
 	skip: process.env.GLITCH_ELECTRON_TEST !== '1', timeout: 60000,
 }, async t => {
@@ -32,7 +33,8 @@ test('shares one main process while isolating editors and confirming window clos
 		window.confirmations = []; window.notices = [];
 		installProjectCloseGuard(window.saving, window.exporting, window.unsaved);
 		const startup = await window.desktop.takeStartupFile();
-		if (startup?.kind === 'project') await window.desktop.setCurrentProjectFile(startup.file.id);
+		window.startup = startup;
+		if (startup?.kind === 'project') await window.desktop.setSessionProjectFile('startup', startup.file.id);
 		window.ready = true;
 	` }, bundle: true, format: 'esm', platform: 'browser', write: false,
 		define: { __ELECTRON__: 'true', 'import.meta.env.DEV': 'false' }, plugins: [{ name: 'editor-test-dialogs', setup(builder) {
@@ -60,7 +62,8 @@ test('shares one main process while isolating editors and confirming window clos
 		let selectedFile = path.join(__dirname, 'first.gsproj'); fs.writeFileSync(selectedFile, 'project');
 		dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selectedFile] });
 		dialog.showSaveDialog = async () => ({ canceled: false, filePath: selectedFile });
-		dialog.showMessageBox = async () => ({ response: 1 });
+		let failureResponse = 1;
+		dialog.showMessageBox = async () => ({ response: failureResponse });
 		const server = createServer((request, response) => {
 			response.setHeader('Content-Type', request.url === '/guard.js' ? 'text/javascript' : 'text/html');
 			response.end(request.url === '/guard.js' ? fs.readFileSync(path.join(__dirname, 'guard.js')) : '<!doctype html><body><script type="module" src="/guard.js"></script>');
@@ -84,8 +87,8 @@ test('shares one main process while isolating editors and confirming window clos
 			await waitFor(() => windows().length === 1);
 			const first = windows()[0]; await ready(first);
 			await first.webContents.executeJavaScript("localStorage.setItem('locale', 'ja-JP'); window.preferences.commit('importAssetsAsExternalReferences', true); window.preferences.commit('previewVolume', 0.1);");
-			const descriptor = await first.webContents.executeJavaScript('window.desktop.chooseProjectFile()');
-			await first.webContents.executeJavaScript('window.desktop.setCurrentProjectFile(' + JSON.stringify(descriptor.id) + ')');
+			const descriptor = await first.webContents.executeJavaScript('window.desktop.chooseProjectFile("startup")');
+			await first.webContents.executeJavaScript('window.desktop.setSessionProjectFile("startup", ' + JSON.stringify(descriptor.id) + ')');
 			await launch(); await waitFor(() => windows().length === 2);
 			const second = windows().find(window => window !== first); await ready(second);
 			assert.notEqual(first.webContents.getOSProcessId(), second.webContents.getOSProcessId());
@@ -99,8 +102,8 @@ test('shares one main process while isolating editors and confirming window clos
 			await first.webContents.executeJavaScript("window.preferences.commit('projectBackupAutoEnabled', true);");
 			await second.webContents.executeJavaScript("window.preferences.commit('projectBackupAutoIntervalMinutes', 5);");
 			await assert.rejects(second.webContents.executeJavaScript('window.desktop.readProjectFile(' + JSON.stringify(descriptor.id) + ')'), /Unknown/);
-			assert.equal(await second.webContents.executeJavaScript('window.desktop.chooseProjectFile()'), null);
-			await assert.rejects(second.webContents.executeJavaScript("window.desktop.chooseProjectSaveFile('first.gsproj')"), /another window/);
+			assert.equal(await second.webContents.executeJavaScript('window.desktop.chooseProjectFile("startup")'), null);
+			await assert.rejects(second.webContents.executeJavaScript("window.desktop.chooseProjectSaveFile('first.gsproj', 'startup')"), /another window/);
 			await launch([selectedFile]); assert.equal(windows().length, 2);
 			selectedFile = path.join(__dirname, 'second.gsproj'); fs.writeFileSync(selectedFile, 'project');
 			await launch([selectedFile]); await waitFor(() => windows().length === 3);
@@ -109,6 +112,17 @@ test('shares one main process while isolating editors and confirming window clos
 			assert.equal(await third.webContents.executeJavaScript('window.preferences.s.previewVolume'), 0.2);
 			assert.equal(await third.webContents.executeJavaScript('window.preferences.s.projectBackupAutoEnabled'), true);
 			assert.equal(await third.webContents.executeJavaScript('window.preferences.s.projectBackupAutoIntervalMinutes'), 5);
+			assert.equal(await third.webContents.executeJavaScript('window.startup.kind'), 'project');
+			failureResponse = 0;
+			const reloaded = once(third.webContents, 'did-finish-load');
+			third.webContents.forcefullyCrashRenderer(); await reloaded; await ready(third);
+			assert.equal(windows().length, 3);
+			assert.equal(await third.webContents.executeJavaScript('window.startup'), null);
+			// 再読み込みで以前の保存先の所有権も解放され、別画面から開ける。
+			const reopened = await second.webContents.executeJavaScript('window.desktop.chooseProjectFile("after-reload")');
+			assert.equal(reopened.name, 'second.gsproj');
+			await second.webContents.executeJavaScript('window.desktop.releaseProjectReservations("after-reload")');
+			failureResponse = 1;
 			await third.webContents.executeJavaScript("window.detached = window.open('about:blank'); void 0;");
 			const detached = BrowserWindow.getAllWindows().find(window => window.getParentWindow() === third);
 			assert.notEqual(detached, undefined);

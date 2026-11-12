@@ -46,16 +46,18 @@ import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts'
 import type { GsSelectItem } from './common/GsSelect.vue';
 import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
 import { updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 
+const projectSession = useProjectSession();
+
 const props = defineProps<{ sceneId: string; layer: TimelineLayer; selection: TimelineKeyframeSelection }>();
 const emit = defineEmits<{ remove: [] }>();
-const { stateManager } = appContext.projectContext;
+const { stateManager } = projectSession.projectContext;
 const selectedKeyframe = computed(() => getTimelineKeyframeEditTarget(stateManager.state, props.layer, props.selection));
 const keyframeValueMergeKey = ref<string | null>(null);
 watch(() => props.selection, () => { keyframeValueMergeKey.value = null; });

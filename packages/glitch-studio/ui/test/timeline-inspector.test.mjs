@@ -19,7 +19,7 @@ const result = await build({
 		export { default as Timeline } from './src/components/GsTimeline.vue';
 		export { default as Inspector } from './src/components/GsTimeline.Inspector.vue';
 		export { default as PreviewTransform } from './src/components/GsPreviewTransform.vue';
-		export { appContext } from '@/app.ts';
+		export { projectSession } from '@/app.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { getTimelineEditorState } from './src/utility/timeline-editor-state.ts';
@@ -30,7 +30,7 @@ const result = await build({
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'timeline-inspector', setup(build) {
-		build.onResolve({ filter: /^@\/app\.ts$/ }, () => ({ path: 'app', namespace: 'test' }));
+		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'test' }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onResolve({ filter: /ui\.ts$/ }, () => ({ path: 'ui', namespace: 'test' }));
@@ -41,8 +41,8 @@ const result = await build({
 			return { path: basename(path, '.vue'), namespace: 'control' };
 		});
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
-			app: `import { ref } from 'vue'; export const appContext = {
-				projectContext: { stateManager: null, getVisualModuleById: () => null }, activeSceneId: ref('scene'), selectedTimelineLayer: ref(null),
+			app: `import { ref } from 'vue'; export function useProjectSession() { return projectSession; } export const projectSession = {
+				id: 'test-session', projectContext: { stateManager: null, getVisualModuleById: () => null }, activeSceneId: ref('scene'), selectedTimelineLayer: ref(null),
 				previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false), isTimelineBaking: ref(false), toggleTimelineBake() {}, refresh() {} },
 				timelineAudioPreview: { buffering: ref(false), error: ref(null) },
 				timelineRendererManagerController: { errorMessage: ref(null), frameCacheState: ref(null), isReady: ref(true), isFrameCacheEnabled: ref(false), layerTransform: ref(null), async observeLayerTransform() {}, getLayerEffectStates() {}, getEffectLayerState() {} },
@@ -80,7 +80,7 @@ const bundled = { exports: {} };
 const testWindow = { document: { getSelection: () => null } };
 new Function('require', 'module', 'exports', 'window', result.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports,
 	testWindow);
-const { Timeline, Inspector, PreviewTransform, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest, dropUiTest } = bundled.exports;
+const { Timeline, Inspector, PreviewTransform, projectSession, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest, dropUiTest } = bundled.exports;
 const { startDragSession, finishDragSession } = bundled.exports;
 let dragWindow = null;
 
@@ -111,20 +111,20 @@ test('defers transform observation and redraws during baking until the bake ends
 	const f = await fixture(t, PreviewTransform);
 	const observations = [];
 	let redraws = 0;
-	t.mock.method(appContext.timelineRendererManagerController, 'observeLayerTransform', async (_owner, sceneId, layerId) => { observations.push([sceneId, layerId]); });
-	t.mock.method(appContext.previewPlayback, 'refresh', () => { redraws++; });
+	t.mock.method(projectSession.timelineRendererManagerController, 'observeLayerTransform', async (_owner, sceneId, layerId) => { observations.push([sceneId, layerId]); });
+	t.mock.method(projectSession.previewPlayback, 'refresh', () => { redraws++; });
 	const layer = createInlineVisualModuleLayer(0);
-	appContext.selectedTimelineLayer.value = layer;
+	projectSession.selectedTimelineLayer.value = layer;
 	await nextTick();
 	assert.deepEqual(observations, [['scene', layer.id]]);
 	assert.equal(redraws, 1);
-	appContext.previewPlayback.isTimelineBaking.value = true;
+	projectSession.previewPlayback.isTimelineBaking.value = true;
 	await nextTick();
-	appContext.previewPlayback.currentTimelineTime.value = 6000;
+	projectSession.previewPlayback.currentTimelineTime.value = 6000;
 	await nextTick();
 	assert.equal(observations.length, 1);
 	assert.equal(redraws, 1);
-	appContext.previewPlayback.isTimelineBaking.value = false;
+	projectSession.previewPlayback.isTimelineBaking.value = false;
 	await nextTick();
 	assert.deepEqual(observations.at(-1), [null, null]);
 	assert.equal(redraws, 2);
@@ -140,20 +140,20 @@ for (const desktop of [false, true]) {
 		const f = await fixture(t, Timeline);
 		const button = () => f.control('GsButton', 'timeline-bake');
 		assert.equal(button().props.disabled, true);
-		appContext.timelineRendererManagerController.isFrameCacheEnabled.value = true;
+		projectSession.timelineRendererManagerController.isFrameCacheEnabled.value = true;
 		await nextTick();
 		assert.equal(button().props.disabled, false);
 		let presses = 0;
-		t.mock.method(appContext.previewPlayback, 'toggleTimelineBake', () => { presses++; appContext.previewPlayback.isTimelineBaking.value = true; });
+		t.mock.method(projectSession.previewPlayback, 'toggleTimelineBake', () => { presses++; projectSession.previewPlayback.isTimelineBaking.value = true; });
 		button().props.onClick();
 		await nextTick();
 		assert.equal(button().props.primary, true);
-		appContext.previewPlayback.currentTimelineTime.value = 5000;
+		projectSession.previewPlayback.currentTimelineTime.value = 5000;
 		await nextTick();
 		assert.equal(button().props.disabled, false);
 		button().props.onClick();
 		assert.equal(presses, 2);
-		appContext.previewPlayback.isTimelineBaking.value = false;
+		projectSession.previewPlayback.isTimelineBaking.value = false;
 		await nextTick();
 		assert.equal(button().props.disabled, true);
 	});
@@ -166,19 +166,19 @@ test('shows cached timeline ranges and updates their widths and removal without 
 	const ranges = () => descendants(f.root).filter(node => Object.hasOwn(node.props, 'data-test-timeline-cached-range'));
 	const state = { sceneId: 'scene', contentRevision: 1, previewRevision: 1, fps: 15,
 		frameRanges: [{ startFrame: 0, endFrame: 2 }, { startFrame: 4, endFrame: 5 }], estimatedBytes: 1024 ** 2, maxBytes: 2 * 1024 ** 3 };
-	appContext.timelineRendererManagerController.frameCacheState.value = state;
+	projectSession.timelineRendererManagerController.frameCacheState.value = state;
 	await nextTick();
 	assert.equal(ranges().length, 2);
 	const width = Number.parseFloat(ranges()[0].props.style.width);
 	assert.ok(width > 0);
-	appContext.timelineRendererManagerController.frameCacheState.value = { ...state, fps: 30, frameRanges: [state.frameRanges[0]] };
+	projectSession.timelineRendererManagerController.frameCacheState.value = { ...state, fps: 30, frameRanges: [state.frameRanges[0]] };
 	await nextTick();
 	assert.equal(ranges().length, 1);
 	assert.ok(Math.abs(Number.parseFloat(ranges()[0].props.style.width) - width / 2) < 1e-6);
-	appContext.timelineRendererManagerController.frameCacheState.value = { ...state, sceneId: 'other-scene' };
+	projectSession.timelineRendererManagerController.frameCacheState.value = { ...state, sceneId: 'other-scene' };
 	await nextTick();
 	assert.equal(ranges().length, 0);
-	appContext.timelineRendererManagerController.frameCacheState.value = null;
+	projectSession.timelineRendererManagerController.frameCacheState.value = null;
 	await nextTick();
 	assert.equal(descendants(f.root).some(node => Object.hasOwn(node.props, 'data-test-timeline-frame-cache')), false);
 });
@@ -191,11 +191,11 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	const target = descendants(f.root).find(node => node.props.onDropCapture != null);
 	const overlay = () => descendants(f.root).find(node => 'data-test-timeline-drop-overlay' in node.props);
 
-	function event(types, assetId = 'sound') {
+	function event(types, assetId = 'sound', projectSessionId = projectSession.id) {
 		const transfer = layerDragTransfer();
 		for (const type of types) transfer.setData(type, '');
 		const value = layerDragEvent(transfer, 90, 'dragover');
-		if (types.includes('glitch-studio/gsasset')) startDragSession(value, 'test-asset', 'GsAsset', { assetId });
+		if (types.includes('glitch-studio/gsasset')) startDragSession(value, 'test-asset', 'GsAsset', { projectSessionId, assetId });
 		const drop = () => { transfer.allowReading(); return layerDragEvent(transfer); };
 		let stopped = false;
 		value.stopPropagation = () => { stopped = true; };
@@ -207,6 +207,15 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	assert.equal(internal.value.defaultPrevented, false);
 	assert.equal(internal.isStopped(), false);
 	assert.equal(overlay(), undefined);
+	// 別セッションにも同じ素材IDが存在するが、こちらの素材に読み替えて配置しない。
+	const foreign = event(['glitch-studio/gsasset'], 'sound', 'other-session');
+	target.props.onDragenterCapture(foreign.value);
+	await nextTick();
+	assert.equal(foreign.value.defaultPrevented, false);
+	assert.equal(overlay(), undefined);
+	await target.props.onDropCapture(foreign.drop());
+	assert.equal(f.history.undoStack.value.length, 0);
+	assert.equal(f.scene.layers.length, 2);
 	// カスタム型が先頭にない場合もGsAssetとして受け付ける。
 	const asset = event(['text/plain', 'glitch-studio/gsasset']);
 	target.props.onDragenterCapture(asset.value);
@@ -537,12 +546,12 @@ async function fixture(t, component = Inspector) {
 	dropUiTest.dialogs = 0;
 	videoHoldTest.calls = [];
 	videoHoldTest.read = null;
-	appContext.previewPlayback.currentTimelineTime.value = 0;
-	appContext.previewPlayback.isTimelineBaking.value = false;
-	appContext.selectedTimelineLayer.value = null;
-	appContext.timelineRendererManagerController.frameCacheState.value = null;
-	appContext.timelineRendererManagerController.isReady.value = true;
-	appContext.timelineRendererManagerController.isFrameCacheEnabled.value = false;
+	projectSession.previewPlayback.currentTimelineTime.value = 0;
+	projectSession.previewPlayback.isTimelineBaking.value = false;
+	projectSession.selectedTimelineLayer.value = null;
+	projectSession.timelineRendererManagerController.frameCacheState.value = null;
+	projectSession.timelineRendererManagerController.isReady.value = true;
+	projectSession.timelineRendererManagerController.isFrameCacheEnabled.value = false;
 	t.mock.method(console, 'log', () => {});
 	const previousResizeObserver = globalThis.ResizeObserver;
 	const previousHTMLElement = globalThis.HTMLElement;
@@ -553,7 +562,7 @@ async function fixture(t, component = Inspector) {
 																	assets: ref([{ id: 'sound', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }]), visualModules: ref([]),
 																	players: ref([]), generatedSpeech: ref([]), resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30) };
 	const history = new UndoRedo(state, COMMAND_DEFS);
-	appContext.projectContext.stateManager = history;
+	projectSession.projectContext.stateManager = history;
 	const scene = state.timelineScenes.value[0];
 	const props = reactive({ scene, sceneId: scene.id, selection: { kind: 'keyframes', keyframes: [keySelection('a', 'key-1')] },
 																										mediaInfo: new Map(), inspectorPanelTarget: null });
@@ -659,7 +668,7 @@ test('holds the current source frame and edits hold time and duration in the ins
 	const original = { ...clip };
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
-	appContext.previewPlayback.currentTimelineTime.value = 2500;
+	projectSession.previewPlayback.currentTimelineTime.value = 2500;
 	await nextTick();
 	f.control('GsButton', 'clip-hold-frame').props.onClick();
 	await nextTick();
@@ -685,7 +694,7 @@ test('holds the current source frame and edits hold time and duration in the ins
 	await nextTick();
 	assert.deepEqual({ ...clip }, original);
 	assert.equal(f.control('GsButton', 'clip-hold-frame').props.disabled, false);
-	appContext.previewPlayback.currentTimelineTime.value = 5000;
+	projectSession.previewPlayback.currentTimelineTime.value = 5000;
 	await nextTick();
 	assert.equal(f.control('GsButton', 'clip-hold-frame').props.disabled, true);
 });
@@ -702,7 +711,7 @@ test('toggles audio-only video without changing audio or decoding a held frame',
 	Object.assign(clip, { audioEnabled: false, videoEnabled: true });
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true }]]);
-	appContext.previewPlayback.currentTimelineTime.value = 1000;
+	projectSession.previewPlayback.currentTimelineTime.value = 1000;
 	await nextTick();
 	const switchControl = () => f.control('GsSwitch', 'clip-audio-only');
 	assert.equal(switchControl().props.modelValue, false);

@@ -58,10 +58,7 @@ function fixture(t, phase = 'available') {
 		prepareUpdate: async version => { calls.preparedVersions.push(version); return push({ phase: 'preparing' }); },
 		startUpdate: async () => { calls.starts++; return push({ phase: 'downloading' }); },
 		abortUpdatePreparation: async () => push({ phase: 'error' }),
-	}, {
-		reserve: () => () => {},
-		pause: async () => async () => {},
-	});
+	}, () => () => {});
 	t.after(() => updates.dispose());
 	return { controller: new DesktopUpdateUiController(updates), calls, push };
 }

@@ -5,6 +5,7 @@ import type { MeterReading, PreviewOptions, PreviewRequest, PreviewResponse, Pre
 export class AudioPreview {
 	public readonly sampleRate = ref(48000);
 	private worker: Worker | null = null;
+	private disposed = false;
 	private workerFailed = false;
 	private nextId = 0;
 	private meters = new Map<number, (reading: MeterReading) => void>();
@@ -18,9 +19,13 @@ export class AudioPreview {
 	private renderingStateRequests = new Map<number, () => void>();
 
 	private send(message: PreviewRequest, transfer: Transferable[] = []) {
+		// セッション終了後にもVueのunmountや遅延した通知が届く。
+		// worker === nullだけでは未起動と終了済みを区別できず、後始末で再起動してしまう。
+		if (this.disposed) return;
 		if (this.worker == null) {
 			this.worker = new Worker(new URL('./audio-preview.worker.ts', import.meta.url), { type: 'module' });
 			this.worker.onmessage = ({ data }: MessageEvent<PreviewResponse>) => {
+				if (this.disposed) return;
 				if (data.type === 'meters') {
 					try {
 						for (const reading of data.readings) {
@@ -37,6 +42,7 @@ export class AudioPreview {
 				else for (const error of [...this.errors.values()]) error(data.message);
 			};
 			this.worker.onerror = event => {
+				if (this.disposed) return;
 				// Workerが失敗した場合も描画は継続できない。休止の確認待ちを残すと、
 				// 音声モニターの障害によって映像の書き出しまで開始不能になる。
 				this.workerFailed = true;
@@ -49,7 +55,10 @@ export class AudioPreview {
 		this.worker.postMessage(message, transfer);
 	}
 
-	public attachAudio(port: MessagePort) { this.send({ type: 'audio', port }, [port]); }
+	public attachAudio(port: MessagePort) {
+		if (this.disposed) { port.close(); return; }
+		this.send({ type: 'audio', port }, [port]);
+	}
 	public resetAudio() { this.send({ type: 'resetAudio' }); }
 	public setRunning(running: boolean) { this.send({ type: 'running', running }); }
 
@@ -82,6 +91,7 @@ export class AudioPreview {
 	}
 
 	public attachMeter(port: MessagePort, receive: (reading: MeterReading) => void) {
+		if (this.disposed) { port.close(); return () => {}; }
 		const id = this.nextId++;
 		this.meters.set(id, receive);
 		this.send({ type: 'meter', id, port }, [port]);
@@ -89,6 +99,7 @@ export class AudioPreview {
 	}
 
 	public add(canvas: HTMLCanvasElement, options: PreviewOptions, error: (message: string) => void) {
+		if (this.disposed) throw new Error('Audio preview has been disposed');
 		const id = this.nextId++;
 		const offscreen = canvas.transferControlToOffscreen();
 		this.errors.set(id, error);
@@ -106,9 +117,10 @@ export class AudioPreview {
 	}
 
 	public dispose() {
+		if (this.disposed) return;
+		this.disposed = true;
 		this.worker?.terminate();
 		this.worker = null;
-		this.workerFailed = false;
 		this.finishRenderingStateRequests();
 		this.meters.clear();
 		this.errors.clear();

@@ -150,14 +150,16 @@ import type { TimelineLayer, TimelineContainerLayer } from '@gs/subsystems_timel
 import { colorCss } from '@/utility/color-input.ts';
 import { i18n } from '@/i18n.ts';
 import { timelineTimeToX, timelinePointerTime } from '@/utility/timeline-coordinates.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { formatTimelineTimecode, getTimelineVisibleClipTicks, getTimelineTickCount } from '@/utility/timeline-ticks.ts';
 import { resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 
-const effectDefinitions = computed(() => getEffectDefinitions(appContext.projectContext.stateManager.state));
+const projectSession = useProjectSession();
 
-const { stateManager } = appContext.projectContext;
+const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
+
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{
 	sceneId: string;

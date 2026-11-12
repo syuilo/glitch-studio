@@ -45,7 +45,7 @@ function fixture(t, inline = false) {
 	history.onChange(changes => events.push(['commit', dialogs, changes]));
 	const target = inline ? { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } : { visualModuleId: 'visual-module' };
 	const currentVisualModule = inline ? state.timelineScenes.value[0].layers[0].visualModule : state.visualModules.value[0];
-	const actions = createVisualModuleDropActions({ context: { stateManager: history }, target, isActive: () => true, revealAssets: () => events.push('revealAssets') });
+	const actions = createVisualModuleDropActions({ projectSessionId: 'test-session', context: { stateManager: history }, target, isActive: () => true, revealAssets: () => events.push('revealAssets') });
 	return { state, history, actions, visualModule: currentVisualModule, target, events, api, createVisualModuleAssetNode };
 }
 

@@ -15,19 +15,20 @@ const bundle = await build({
 	absWorkingDir: directory, stdin: { loader: 'ts', resolveDir: `${directory}/src/components`, contents: script },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'export-dialog-platform', setup(build) {
-		build.onResolve({ filter: /\.vue$|(?:^|\/)(?:app|preferences|application-activity)\.ts$|\/export\/client\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
+		build.onResolve({ filter: /\.vue$|(?:^|\/)(?:app|project-session|preferences|application-activity)\.ts$|\/export\/client\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({ loader: 'ts', resolveDir: directory, contents: args.path.endsWith('/preferences.ts')
 			? 'export const preferences = globalThis.exportDialogPreferences = { s: { effectRenderTiling: { mode: "auto" } } };'
-			: !args.path.endsWith('/app.ts')
+			: !(args.path.endsWith('/app.ts') || args.path.endsWith('/project-session.ts'))
 			? 'export default {}; export const applicationActivity = {}; export function exportTimeline() {}'
 			: `
 			import { ref } from 'vue';
 			import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-			export const appContext = globalThis.exportDialogContext = {
+			export function useProjectSession() { return projectSession; } export const projectSession = globalThis.exportDialogContext = {
+				isDisposed: false,
 				activeSceneId: ref('scene'), activeScene: ref({ id: 'scene' }),
 				previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0) },
 				renderValidation: { errorMessage: ref(null) },
-				projectContext: { generation: 1, stateManager: { state: {}, commits: [],
+				projectContext: { stateManager: { state: {}, commits: [],
 					commit(type, settings) { this.commits.push(type); this.state.exportSettings.value = deepClone(settings); }
 				} },
 			};
@@ -85,7 +86,7 @@ test('shows saving while committing an encoded OpenEXR file', t => {
 function fixture(t, savedSettings = null, preferredEffectRenderTiling = { mode: 'auto' }) {
 	const stateManager = context.projectContext.stateManager;
 	preferences.s.effectRenderTiling = preferredEffectRenderTiling;
-	context.projectContext.generation = 1;
+	context.isDisposed = false;
 	context.previewPlayback.state.value = { mode: 'timeline' };
 	context.activeScene.value = { id: 'scene' };
 	stateManager.commits.length = 0;
@@ -264,12 +265,12 @@ test('selects the first scene when no export scene is selected', t => {
 	assert.equal(empty.input.endTime, '00:00:00.000');
 });
 
-// 【プロジェクト切替後のアンマウントでは旧ダイアログの設定を保存しない】
-// ダイアログの片付けが新しいプロジェクトの初期化より後でも、設定が混入しないようにする。
-test('does not save an old dialog into a replacement project', t => {
+// 【セッション終了後のアンマウントではダイアログの設定を保存しない】
+// 片付けのためにダイアログを閉じても、終了したセッションへ新しい編集を追加しない。
+test('does not save dialog settings after its session closes', t => {
 	const f = fixture(t);
 	f.input.customFps = 29.97;
-	context.projectContext.generation++;
+	context.isDisposed = true;
 	f.close();
 	assert.equal(f.stateManager.state.exportSettings.value, null);
 	assert.deepEqual(f.stateManager.commits, []);

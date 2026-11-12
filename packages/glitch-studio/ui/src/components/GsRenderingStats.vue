@@ -41,11 +41,13 @@
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { preferences } from '@/preferences.ts';
 import { i18n } from '@/i18n.ts';
 
-const { visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback } = appContext;
+const projectSession = useProjectSession();
+
+const { visualModuleRendererManagerController, timelineRendererManagerController, previewPlayback } = projectSession;
 const renderingStatsEnabled = preferences.r.renderingStatsEnabled;
 
 type SeriesKey = 'fast' | 'medium' | 'slow' | keyof TimelinePreviewFrameTiming;

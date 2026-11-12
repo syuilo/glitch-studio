@@ -9,12 +9,12 @@ import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EditableParameterBinding } from '../types/parameter-edit.ts';
-import type { AppContext } from '../AppContext.ts';
+import type { ProjectSessionContext } from '../ProjectSessionContext.ts';
 import { getPreviewViewportValue, getPreviewViewportZoom, isViewport2DParameter, preparePreviewViewportDrag } from '../utility/preview-viewport.ts';
 import { updateStructParameterFields } from '../utility/struct-parameter-edit.ts';
 import type { PreviewViewportEdit } from '../utility/preview-viewport.ts';
 
-export function usePreviewParameterHandle(app: AppContext, props: {
+export function usePreviewParameterHandle(app: ProjectSessionContext, props: {
 	paramDef: ParameterDefinition; paramValue: EditableParameterBinding; paramPath: ParamPath;
 	node?: VisualModuleEffectNode; label?: string; previewParameterGroup?: TimelineParameterTarget;
 }) {

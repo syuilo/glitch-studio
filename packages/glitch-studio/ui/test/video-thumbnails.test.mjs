@@ -1,3 +1,4 @@
+import { createTestProject } from './helpers/project.mjs';
 import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -233,7 +234,7 @@ test('round trips thumbnail bytes timestamps and actual MIME without leaking the
 test('keeps thumbnail sequences with their source through add replace undo and redo', async t => {
 	const f = setup(t);
 	t.mock.method(console, 'log', () => {});
-	const manager = new f.ProjectContext().stateManager;
+	const manager = new f.ProjectContext(createTestProject()).stateManager;
 	const original = { id: 'video', name: 'movie', width: 320, height: 180, fileDataType: 'video/mp4',
 		fileData: new Blob(['video']), sourceFilePath: 'C:/movie.mp4', thumbnailSequence: await f.generateVideoThumbnails(new Blob()) };
 	manager.commit('addAsset', original);
@@ -382,17 +383,18 @@ test('imports valid files in order with one undo and reports failures after clos
 	setupImport(t);
 	t.mock.method(console, 'log', () => {});
 	globalThis.createImageBitmap = async () => ({ width: 2, height: 1, close() {} });
-	const context = new f.ProjectContext();
+	const context = new f.ProjectContext(createTestProject());
 	const unreadable = new File(['bad'], 'bad.bin');
 	t.mock.method(unreadable, 'arrayBuffer', async () => { throw new Error('Unreadable source'); });
 	const files = [new File(['video'], 'movie.mp4', { type: 'video/mp4' }), unreadable, new File(['notes'], 'notes.txt', { type: 'text/plain' }),
 		new File(['image'], 'image.png', { type: 'image/png' }), new File(['font'], 'font.ttf')];
 	let prepared = false;
 	const stop = context.stateManager.onChange(() => { assert.equal(f.calls.done, 0); });
-	const ids = await f.importAssets(context, files, async () => {
+	const ids = await f.importAssets(async () => {
 		assert.equal(f.calls.done, 0);
 		prepared = true;
-	});
+		return context;
+	}, files);
 	assert.equal(prepared, true);
 	assert.equal(ids.length, 4);
 	assert.deepEqual(context.stateManager.state.assets.value.map(asset => asset.name), ['movie.mp4', 'notes.txt', 'image.png', 'font.ttf']);
@@ -416,16 +418,98 @@ test('imports valid files in order with one undo and reports failures after clos
 test('does not prepare a project or commit history when every file fails', async t => {
 	const f = setup(t);
 	setupImport(t);
-	const context = new f.ProjectContext();
+	const context = new f.ProjectContext(createTestProject());
 	const unreadable = new File(['bad'], 'bad.bin');
 	t.mock.method(unreadable, 'arrayBuffer', async () => { throw new Error('Unreadable source'); });
-	const ids = await f.importAssets(context, [unreadable], async () => assert.fail('No project should be created'));
+	const ids = await f.importAssets(async () => assert.fail('No project should be created'), [unreadable]);
 	assert.deepEqual(ids, []);
-	assert.equal(context.hasProject, false);
+	assert.equal(context.stateManager.state.assets.value.length, 0);
 	assert.equal(context.stateManager.undoStack.value.length, 0);
 	assert.equal(f.calls.done, 1);
 	assert.equal(f.calls.alerts.length, 1);
 });
+
+// 【プロジェクト0件からの素材取り込みは成功後に作成したプロジェクトへ反映する】
+// Dashboardを閉じたり新規作成できなかったりしても、仮のプロジェクトへ素材を置いて失わない。
+test('imports into a lazily created project and stops when no destination is created', async t => {
+	const f = setup(t);
+	setupImport(t);
+	t.mock.method(console, 'log', () => {});
+	const file = new File(['notes'], 'notes.txt', { type: 'text/plain' });
+	let context = null;
+	const ids = await f.importAssets(async () => {
+		context = new f.ProjectContext(createTestProject());
+		return context;
+	}, [file]);
+	assert.equal(ids.length, 1);
+	assert.equal(context.stateManager.state.assets.value[0].id, ids[0]);
+	assert.equal(context.stateManager.undoStack.value.length, 1);
+	assert.deepEqual(await f.importAssets(async () => null, [file]), []);
+	assert.deepEqual(f.calls.alerts, []);
+});
+
+// 【ファイル選択中に終了したプロジェクトでは原本の読み込みを始めない】
+// ファイル選択の結果が遅れて届いても、終了済みの取り込み先に対して進捗や履歴を作らない。
+test('stops importing when the project closes during file selection', async t => {
+	const f = setup(t);
+	const input = setupImport(t);
+	const context = new f.ProjectContext(createTestProject());
+	const file = new File(['notes'], 'notes.txt', { type: 'text/plain' });
+	t.mock.method(file, 'arrayBuffer', () => assert.fail('A closed project must not read the selected file'));
+	const pending = f.importAssets(context);
+	context.dispose();
+	input.files = [file];
+	input.onchange();
+	assert.deepEqual(await pending, []);
+	assert.equal(context.stateManager.state.assets.value.length, 0);
+	assert.equal(context.stateManager.undoStack.value.length, 0);
+	assert.equal(f.calls.dialogs, 0);
+	assert.deepEqual(f.calls.alerts, []);
+});
+
+for (const phase of ['reading', 'destination', 'placement']) {
+	// 【取り込み中に終了したプロジェクトへ素材・Player・Undo履歴を追加しない】
+	// 原本の読み込み、取り込み先の準備、配置準備の各待機中に終了する場合を確認する。
+	// 中止時はIDを返さず、呼び出し元のパネル表示を続行させない。進捗ダイアログも必ず閉じる。
+	test(`discards imported assets when the project closes during ${phase}`, async t => {
+		const f = setup(t);
+		setupImport(t);
+		t.mock.method(console, 'log', () => {});
+		const context = new f.ProjectContext(createTestProject());
+		const entered = Promise.withResolvers();
+		const release = Promise.withResolvers();
+		const file = new File(['video'], 'movie.mp4', { type: 'video/mp4' });
+		const waitForClose = async () => {
+			entered.resolve();
+			await release.promise;
+		};
+		if (phase === 'reading') t.mock.method(file, 'arrayBuffer', async () => {
+			await waitForClose();
+			return new TextEncoder().encode('video').buffer;
+		});
+		const destination = phase === 'destination' ? async () => {
+			await waitForClose();
+			return context;
+		} : context;
+		const pending = f.importAssets(destination, [file], async (assets, players) => {
+			assert.equal(phase, 'placement', 'Placement must not start after the destination closes');
+			assert.equal(assets.length, 1);
+			assert.equal(players.length, 1);
+			await waitForClose();
+			return {};
+		});
+		await entered.promise;
+		context.dispose();
+		release.resolve();
+		assert.deepEqual(await pending, []);
+		assert.equal(context.stateManager.state.assets.value.length, 0);
+		assert.equal(context.stateManager.state.players.value.length, 0);
+		assert.equal(context.stateManager.undoStack.value.length, 0);
+		assert.equal(f.calls.dialogs, 1);
+		assert.equal(f.calls.done, 1);
+		assert.deepEqual(f.calls.alerts, []);
+	});
+}
 
 // 【サムネイル失敗では素材を取り込み、後続素材の失敗でも進捗ダイアログを閉じる】
 // WebCodecsで扱えない動画を拒否せず、非同期エラーの後に操作不能な画面を残さない。

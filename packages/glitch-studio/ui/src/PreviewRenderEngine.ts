@@ -3,9 +3,11 @@ import type { RenderFailureDiagnostic, RenderFailureOrigin } from './utility/ren
 
 /** エラー中はエンジンを持たない。再試行は設定変更か明示操作だけで行う。 */
 export class PreviewRenderEngine {
+	private disposed = false;
 	private staticError = ref<string | null>(null);
 	private runtimeError = shallowRef<RenderFailureDiagnostic | null>(null);
 	private suspended = ref(false);
+	private readonly suspensionReasons = new Set<string>();
 	public readonly isSuspended = readonly(this.suspended);
 	private enabled = ref(false);
 	private updatingResources = ref(false);
@@ -22,6 +24,7 @@ export class PreviewRenderEngine {
 	constructor(private operations: { dispose: (reason?: Error) => void; create: (isCurrent: () => boolean) => Promise<void>; onReady?: () => void }) {}
 
 	public setValidationError(message: string | null) {
+		if (this.disposed) return;
 		const previous = this.staticError.value;
 		this.staticError.value = message;
 		if (message != null && previous == null) this.stop();
@@ -29,6 +32,7 @@ export class PreviewRenderEngine {
 	}
 
 	public fail(error: unknown, origin?: RenderFailureOrigin) {
+		if (this.disposed) return;
 		const reason = error instanceof Error ? error : new Error(String(error));
 		// 実行中の状態ストアとは別に保持し、disposeで通知元の情報まで消さない。
 		this.runtimeError.value = { message: reason.message, origin };
@@ -42,9 +46,29 @@ export class PreviewRenderEngine {
 		this.operations.dispose(reason);
 	}
 
-	public suspend() { this.suspended.value = true; this.stop(); }
-	public resume() { this.suspended.value = false; return this.retry(); }
-	public enable() { this.enabled.value = true; return this.retry(); }
+	// タブ切替と書き出し・読込の休止を独立させ、一方の完了で他方まで再開しない。
+	public suspend(reason = 'operation') {
+		if (this.disposed || this.suspensionReasons.has(reason)) return;
+		this.suspensionReasons.add(reason);
+		this.suspended.value = true;
+		this.stop();
+	}
+	public resume(reason = 'operation') {
+		this.suspensionReasons.delete(reason);
+		if (!this.disposed) this.suspended.value = this.suspensionReasons.size > 0;
+		return this.retry();
+	}
+	public enable() { if (!this.disposed) this.enabled.value = true; return this.retry(); }
+
+	public dispose(): void {
+		if (this.disposed) return;
+		this.disposed = true;
+		this.enabled.value = false;
+		this.suspended.value = true;
+		this.resourceUpdateGeneration++;
+		this.updatingResources.value = false;
+		this.stop();
+	}
 
 	/** 初期化後は差分更新を使い、初期化中の編集だけは最新スナップショットでやり直す。 */
 	public notifyContentChange(): void {
@@ -54,6 +78,7 @@ export class PreviewRenderEngine {
 
 	/** 静的設定の変更は、差分や古い初期化結果を採用する前に両プレビューを破棄する。 */
 	public requestRestart(): void {
+		if (this.disposed) return;
 		this.stop();
 		this.requestRetry();
 	}
@@ -94,6 +119,7 @@ export class PreviewRenderEngine {
 
 	/** 同じ編集の複数通知をまとめ、状態の変更が確定してから最新設定で再試行する。 */
 	public requestRetry(): void {
+		if (this.disposed) return;
 		if (this.retryScheduled) return;
 		this.retryScheduled = true;
 		const generation = this.generation;

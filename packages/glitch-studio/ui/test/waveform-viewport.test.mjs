@@ -17,9 +17,9 @@ async function bundleComponent(name) {
 			export { zoomImageAnalysisViewport, panImageAnalysisViewport, selectImageAnalysisViewport } from '../utility/image-analysis-viewport.ts';`, loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 		bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 		plugins: [i18nPlugin, { name: 'waveform-context', setup(build) {
-			build.onResolve({ filter: /^@\/app\.ts$|GsDetachableView\.vue$|GsImageAnalysisSettings\.vue$|use-renderer-canvas\.ts$|use-waveform-canvas-size\.ts$/ }, args => ({ path: args.path, namespace: 'waveform-context' }));
+			build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$|GsDetachableView\.vue$|GsImageAnalysisSettings\.vue$|use-renderer-canvas\.ts$|use-waveform-canvas-size\.ts$/ }, args => ({ path: args.path, namespace: 'waveform-context' }));
 			build.onLoad({ filter: /.*/, namespace: 'waveform-context' }, args => ({ loader: 'ts', contents:
-				args.path.endsWith('app.ts') ? 'export const appContext = dependencies.state;'
+				(args.path.endsWith('app.ts') || args.path.endsWith('project-session.ts')) ? 'export function useProjectSession() { return projectSession; } export const projectSession = dependencies.state;'
 				: args.path.endsWith('GsDetachableView.vue') ? `export default { emits: ['changeWindow'], setup(_props, { slots, emit }) {
 					dependencies.changeWindow = () => emit('changeWindow'); return () => slots.default?.(); } };`
 				: args.path.endsWith('GsImageAnalysisSettings.vue') ? 'export default { render: () => null };'

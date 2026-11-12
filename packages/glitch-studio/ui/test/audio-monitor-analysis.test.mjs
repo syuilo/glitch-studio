@@ -19,9 +19,9 @@ for (const filename of ['GsAudioMonitor.vue', 'GsAudioSpectrogram.vue']) {
 		bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 		define: { 'import.meta.url': JSON.stringify(new URL('../src/audio/audio-preview.ts', import.meta.url).href) },
 		plugins: [i18nPlugin, { name: 'audio-monitor-context', setup(build) {
-			build.onResolve({ filter: /(?:^|\/)app\.ts$|GsDetachableView\.vue$/ }, args => ({ path: args.path, namespace: 'audio-monitor-context' }));
-			build.onLoad({ filter: /.*/, namespace: 'audio-monitor-context' }, args => ({ contents: args.path.endsWith('app.ts')
-				? 'export const appContext = dependencies.appContext;'
+			build.onResolve({ filter: /(?:^|\/)(?:app|project-session)\.ts$|GsDetachableView\.vue$/ }, args => ({ path: args.path, namespace: 'audio-monitor-context' }));
+			build.onLoad({ filter: /.*/, namespace: 'audio-monitor-context' }, args => ({ contents: (args.path.endsWith('app.ts') || args.path.endsWith('project-session.ts'))
+				? 'export function useProjectSession() { return projectSession; } export const projectSession = dependencies.projectSession;'
 				: `import { h } from 'vue'; export default { props: ['suspended', 'title'],
 					setup(props, { slots }) { return () => h('section', { 'data-test-audio-window': '', 'data-test-content-hidden': props.suspended }, slots.default?.()); } };` }));
 		} }],
@@ -68,14 +68,14 @@ async function fixture(t, { filename, props, enabled }) {
 		remove(node) { node.parent.children.splice(node.parent.children.indexOf(node), 1); node.parent = null; },
 		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
-	const dependencies = { appContext: {} };
+	const dependencies = { projectSession: {} };
 	const module = { exports: {} };
 	const Observer = class { observe() {} disconnect() {} };
 	new Function('require', 'module', 'exports', 'dependencies', 'Worker', 'ResizeObserver', 'IntersectionObserver', bundles.get(filename))(
 		createRequire(import.meta.url), module, module.exports, dependencies, Worker, Observer, Observer);
 	const preview = new module.exports.AudioPreview();
 	await preview.setAnalysisEnabled(enabled);
-	dependencies.appContext.audioOutput = { preview, retainOutputCapture() { captureUsers++; return () => { captureUsers--; }; } };
+	dependencies.projectSession.audioOutput = { preview, retainOutputCapture() { captureUsers++; return () => { captureUsers--; }; } };
 	const root = element('root');
 	const app = renderer.createApp({ render: () => h(module.exports.default, props) });
 	app.mount(root);

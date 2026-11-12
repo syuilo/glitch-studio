@@ -11,7 +11,7 @@
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
-			:projectAutomationGraphs="appContext.projectContext.stateManager.state.automationGraphs.value"
+			:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
 			:paramValue="values[key] ?? def.defaultValue"
@@ -22,7 +22,7 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { computed } from 'vue';
 import { getShapeParameterDefinitions, shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
@@ -32,6 +32,8 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineShapeLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { i18n } from '@/i18n.ts';
+
+const projectSession = useProjectSession();
 
 const props = defineProps<{ layer: TimelineShapeLayer }>();
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();

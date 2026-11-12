@@ -62,7 +62,7 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import * as ui from '@/ui.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { handleProjectParameterClipboard, handlePreviewParameterClipboard } from '@/utility/parameter-clipboard-actions.ts';
@@ -77,8 +77,10 @@ import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 
-const { previewPlayback, visualModuleRendererManagerController } = appContext;
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { previewPlayback, visualModuleRendererManagerController } = projectSession;
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{ panel: WorkspacePanel }>();
 const workspaceController = inject(workspaceControllerKey)!;
@@ -94,7 +96,8 @@ const visualModule = computed(() => stateManager.state.visualModules.value.find(
 const assetDropActions = computed(() => {
 	const currentVisualModule = visualModule.value;
 	return currentVisualModule == null ? null : createVisualModuleDropActions({
-		context: appContext.projectContext,
+		context: projectSession.projectContext,
+		projectSessionId: projectSession.id,
 		target: { visualModuleId: currentVisualModule.id },
 		isActive: () => !disposed && visualModule.value === currentVisualModule,
 		revealAssets: () => workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: props.panel.id }),
@@ -177,7 +180,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	if (event.kind === 'copy' || event.kind === 'paste') {
 		const currentVisualModule = visualModule.value;
 		if (currentVisualModule == null) return;
-		void handlePreviewParameterClipboard(appContext.projectContext, currentVisualModule.id, event.paramPath, event.kind,
+		void handlePreviewParameterClipboard(projectSession.projectContext, projectSession.id, currentVisualModule.id, event.paramPath, event.kind,
 			() => previewParamValues.value, () => !disposed && visualModule.value === currentVisualModule,
 			(id, binding) => {
 				previewParamValues.value[id] = binding;
@@ -300,7 +303,7 @@ async function importVisualModule() {
 	if (importing.value) return;
 	importing.value = true;
 	try {
-		const id = await importVisualModuleFile(appContext.projectContext);
+		const id = await importVisualModuleFile(projectSession.projectContext);
 		if (id != null) selectedModuleId.value = id;
 	} finally {
 		importing.value = false;
@@ -318,7 +321,7 @@ async function exportCurrentVisualModule() {
 	if (currentVisualModule == null || exporting.value) return;
 	exporting.value = true;
 	try {
-		await exportVisualModuleFile(appContext.projectContext, currentVisualModule, currentVisualModule.name);
+		await exportVisualModuleFile(projectSession.projectContext, currentVisualModule, currentVisualModule.name);
 	} finally {
 		exporting.value = false;
 	}
@@ -331,14 +334,14 @@ function showAddEffectNodeMenu() {
 	disposeEffectPicker?.();
 	const { dispose } = ui.popup(GsEffectPicker, {}, {
 		chosen: effect => {
-			if (appContext.projectContext.getVisualModuleById(visualModule.value.id) == null) return;
+			if (projectSession.projectContext.getVisualModuleById(visualModule.value.id) == null) return;
 			stateManager.commit('addEffectNode', { visualModuleId: visualModule.value.id, effectId: effect.id, id: genId() });
 		},
 		closed: () => {
 			dispose();
 			if (disposeEffectPicker === dispose) disposeEffectPicker = null;
 		},
-	});
+	}, projectSession);
 	disposeEffectPicker = dispose;
 }
 
@@ -346,13 +349,13 @@ function onEdit(event: VisualModuleEdit) {
 	const module = visualModule.value;
 	if (module == null) return;
 	if (event.kind === 'customParameterClipboard') {
-		void handleProjectParameterClipboard(appContext.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
 			{ kind: 'customParameter', visualModuleTarget: { visualModuleId: module.id }, paramPath: [event.parameterId] },
 			event.operation, () => !disposed && visualModule.value === module).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
 	if (event.kind === 'editNodeParam' && (event.edit.kind === 'copy' || event.edit.kind === 'paste')) {
-		void handleProjectParameterClipboard(appContext.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
 			{ kind: 'node', visualModuleTarget: { visualModuleId: module.id }, nodeId: event.nodeId, paramPath: event.edit.paramPath },
 			event.edit.kind, () => !disposed && visualModule.value === module).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;

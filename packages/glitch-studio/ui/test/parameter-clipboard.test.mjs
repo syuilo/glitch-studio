@@ -35,7 +35,7 @@ const { createParameterClipboard, parseParameterClipboard, prepareParameterBindi
 	COMMAND_DEFS, UndoRedo, definition, createShapeTimelineLayer, createInlineKeyframesTimeline } = compiled.exports;
 const clone = value => structuredClone(value);
 
-function fixture(projectId = 'project') {
+function fixture(projectSessionId = 'session') {
 	const makeNode = id => ({ id, type: 'effect', effectId: definition.id, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, clone(def.defaultValue)])) });
 	const node = makeNode('destination');
 	const upstream = makeNode('upstream');
@@ -46,21 +46,88 @@ function fixture(projectId = 'project') {
 	const scene = { id: 'scene', layers: [layer, shape] };
 	const state = { visualModules: { value: [visualModule] }, timelineScenes: { value: [scene] }, automationGraphs: { value: [] }, players: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
-	const context = { id: projectId, generation: 0, stateManager: history };
+	const context = { id: 'same-saved-project', isDisposed: false, stateManager: history };
 	const target = { kind: 'node', visualModuleTarget: { visualModuleId: visualModule.id }, nodeId: node.id, paramPath: ['foo', 'node'] };
 	const timelineTarget = { kind: 'timeline', sceneId: scene.id, layerId: layer.id, parameterTarget: 'effect', paramPath: ['foo', 'node'] };
-	const resolve = (requestedTarget = target) => resolveProjectClipboardTarget(state, context.id, requestedTarget);
+	const resolve = (requestedTarget = target) => resolveProjectClipboardTarget(state, projectSessionId, requestedTarget);
 	const copy = (binding, requestedTarget = target) => {
 		const resolved = resolve(requestedTarget);
 		return parseParameterClipboard(JSON.stringify(createParameterClipboard(resolved.def, binding, resolved.context.source)));
 	};
-	return { node, upstream, visualModule, layer, shape, scene, state, history, context, target, timelineTarget, resolve, copy };
+	return { projectSessionId, node, upstream, visualModule, layer, shape, scene, state, history, context, target, timelineTarget, resolve, copy };
 }
 
 const sampling = { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
 const connected = { inputSource: 'node', nodeId: 'upstream', outputPort: 'output', ...sampling };
 const playback = { trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'clamp' };
 const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Scalar', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
+
+// 【保存ファイル内のIDが一致する別セッションへノード参照を貼り付けない】
+// 同じプロジェクトのコピーを同時に開くと、プロジェクト・Visual Module・ノードのIDが
+// すべて一致する。別の内容への誤接続を防ぎつつ、参照を含まない値は引き続き移せる。
+test('separates copied project sessions while allowing reference-free values', async t => {
+	t.mock.method(console, 'log', () => {});
+	const from = fixture('source-session');
+	const to = fixture('destination-session');
+	assert.equal(from.context.id, to.context.id);
+	let text = '';
+	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
+	from.node.params.foo.value.node = clone(connected);
+	await handleProjectParameterClipboard(from.context, from.projectSessionId, from.target, 'copy', () => true, clipboard);
+	assert.equal(JSON.parse(text).source.projectSessionId, from.projectSessionId);
+	const before = clone(to.node.params);
+	await handleProjectParameterClipboard(to.context, to.projectSessionId, to.target, 'paste', () => true, clipboard);
+	assert.deepEqual(to.node.params, before);
+	assert.equal(to.history.undoStack.value.length, 0);
+	from.node.params.foo.value.node = { inputSource: 'literal', value: [1, 0, 0, 1] };
+	await handleProjectParameterClipboard(from.context, from.projectSessionId, from.target, 'copy', () => true, clipboard);
+	await handleProjectParameterClipboard(to.context, to.projectSessionId, to.target, 'paste', () => true, clipboard);
+	assert.deepEqual(to.node.params.foo.value.node, from.node.params.foo.value.node);
+	to.history.undo();
+	assert.deepEqual(to.node.params, before);
+	to.history.redo();
+	assert.deepEqual(to.node.params.foo.value.node, from.node.params.foo.value.node);
+});
+
+// 【別名保存でファイルIDが変わっても、同じセッションの参照は有効なままにする】
+// OSクリップボードの読み取り待ちに別名保存しても、参照先のオブジェクトは変わらない。
+// セッションの寿命と保存ファイルの識別を分離し、不必要に貼り付けを失効させない。
+test('preserves references in the same session across Save As during a pending paste', async t => {
+	t.mock.method(console, 'log', () => {});
+	const f = fixture();
+	const text = JSON.stringify(f.copy(connected));
+	const reading = Promise.withResolvers();
+	const pending = handleProjectParameterClipboard(f.context, f.projectSessionId, f.target, 'paste', () => true, { readText: () => reading.promise });
+	f.context.id = 'saved-as';
+	reading.resolve(text);
+	await pending;
+	assert.deepEqual(f.node.params.foo.value.node, connected);
+	assert.equal(f.history.undoStack.value.length, 1);
+});
+
+// 【Live PreviewのPlayer参照も、同じ保存IDを持つ別セッションへ持ち込まない】
+// プレビュー引数はCommandを通らないため、通常パラメータとは別の入口でも
+// 実行中のセッションIDを使う必要がある。同一セッションでは別名保存後も適用する。
+test('scopes live preview player references to their source session', async () => {
+	const from = fixture('source-session');
+	const to = fixture('destination-session');
+	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } };
+	const binding = { inputSource: 'literal', value: { type: 'player', playerId: 'player' } };
+	for (const f of [from, to]) {
+		f.visualModule.paramDefs = [{ ...definition, id: 'arg', nameForReference: 'arg' }];
+		f.state.players.value.push({ id: 'player' });
+	}
+	let text = '';
+	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
+	await handlePreviewParameterClipboard(from.context, from.projectSessionId, from.visualModule.id, ['arg'], 'copy', () => ({ arg: binding }), () => true, () => {}, clipboard);
+	let applied = null;
+	const paste = f => handlePreviewParameterClipboard(f.context, f.projectSessionId, f.visualModule.id, ['arg'], 'paste', () => ({}), () => true, (_id, value) => { applied = value; }, clipboard);
+	await paste(to);
+	assert.equal(applied, null);
+	from.context.id = 'saved-as';
+	await paste(from);
+	assert.deepEqual(applied, binding);
+});
 
 // 【カスタム値のコピー・貼り付けと内部参照を、所有Visual Moduleの範囲に限定する】
 // 同じIDの別Visual Moduleや外部公開引数へ内部参照を持ち込まず、値の貼り付けはUndoできるようにする。
@@ -72,8 +139,8 @@ test('copies custom values with undo and confines custom references to their own
 	const destination = { ...source, paramPath: ['destination'] };
 	let text = '';
 	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
-	await handleProjectParameterClipboard(f.context, source, 'copy', () => true, clipboard);
-	await handleProjectParameterClipboard(f.context, destination, 'paste', () => true, clipboard);
+	await handleProjectParameterClipboard(f.context, f.projectSessionId, source, 'copy', () => true, clipboard);
+	await handleProjectParameterClipboard(f.context, f.projectSessionId, destination, 'paste', () => true, clipboard);
 	assert.deepEqual(f.visualModule.customParameterValues.destination, f.visualModule.customParameterValues.source);
 	f.history.undo();
 	assert.equal(f.visualModule.customParameterValues.destination, undefined);
@@ -102,7 +169,7 @@ test('round trips complete nested bindings between projects and renews owned IDs
 	] } };
 	const clipboard = from.copy(binding, target);
 	fields.x.expression = '999';
-	const update = prepareProjectParameterPaste(to.state, to.context.id, target, clipboard);
+	const update = prepareProjectParameterPaste(to.state, to.projectSessionId, target, clipboard);
 	assert.ok(update);
 	const copiedFields = update.after.value[0].binding.value;
 	assert.equal(copiedFields.x.expression, 'TIME / 1000');
@@ -149,17 +216,17 @@ test('rejects malformed payloads and compares enum, struct, array and any types 
 test('preserves connections only in their original available visual module scope', () => {
 	const f = fixture();
 	const clipboard = f.copy(connected);
-	assert.deepEqual(prepareProjectParameterPaste(f.state, f.context.id, f.target, clipboard).after.value.node, connected);
+	assert.deepEqual(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, clipboard).after.value.node, connected);
 	assert.equal(prepareProjectParameterPaste(f.state, 'other-project', f.target, clipboard), null);
 	const otherVisualModule = { ...f.visualModule, id: 'otherVisualModule' };
 	f.state.visualModules.value.push(otherVisualModule);
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, { ...f.target, visualModuleTarget: { visualModuleId: otherVisualModule.id } }, clipboard), null);
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, { ...f.target, nodeId: 'upstream' }, clipboard), null);
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, { ...f.target, visualModuleTarget: { visualModuleId: otherVisualModule.id } }, clipboard), null);
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, { ...f.target, nodeId: 'upstream' }, clipboard), null);
 	for (const outputPort of ['missing', 'output2']) {
-		assert.equal(prepareProjectParameterPaste(f.state, f.context.id, f.target, f.copy({ ...connected, outputPort })), null);
+		assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, f.copy({ ...connected, outputPort })), null);
 	}
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, f.target, f.copy({ ...connected, nodeId: 'missing' })), null);
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, { ...f.target, paramPath: ['bars'] }, clipboard), null);
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, f.copy({ ...connected, nodeId: 'missing' })), null);
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, { ...f.target, paramPath: ['bars'] }, clipboard), null);
 });
 
 // 【ローカルAutomation GraphとプロジェクトAutomation Graphの参照範囲を区別する】
@@ -170,16 +237,16 @@ test('resolves local and project automation graph references in their respective
 	f.state.automationGraphs.value.push({ id: 'projectGraph' });
 	const local = f.copy({ inputSource: 'automationGraphReference', automationGraphId: 'local', ...playback });
 	const project = f.copy({ inputSource: 'automationGraphReference', automationGraphId: 'projectGraph', ...playback });
-	assert.ok(prepareProjectParameterPaste(f.state, f.context.id, f.target, local));
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, f.timelineTarget, local), null);
-	assert.ok(prepareProjectParameterPaste(f.state, f.context.id, f.timelineTarget, project));
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, f.target, project), null);
+	assert.ok(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, local));
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.timelineTarget, local), null);
+	assert.ok(prepareProjectParameterPaste(f.state, f.projectSessionId, f.timelineTarget, project));
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, project), null);
 	const previewContext = { ...f.resolve().context, kind: 'preview' };
 	assert.equal(prepareParameterBindingPaste(f.resolve().def, local, previewContext), null);
 	assert.ok(prepareParameterBindingPaste(f.resolve().def, project, previewContext));
 	assert.equal(prepareProjectParameterPaste(f.state, 'other', f.timelineTarget, project), null);
 	f.visualModule.automationGraphs = [];
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, f.target, local), null);
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, local), null);
 });
 
 // 【Timelineのレイヤー参照と相対入力、時刻の制約を保存先で検証する】
@@ -188,20 +255,20 @@ test('validates timeline references, relative sampling and absolute keyframe tim
 	const f = fixture();
 	const reference = { inputSource: 'anotherLayerOutput', layerId: 'shape', outputStage: 'rendered', ...sampling };
 	const clipboard = f.copy(reference, f.timelineTarget);
-	assert.ok(prepareProjectParameterPaste(f.state, f.context.id, f.timelineTarget, clipboard));
+	assert.ok(prepareProjectParameterPaste(f.state, f.projectSessionId, f.timelineTarget, clipboard));
 	assert.equal(prepareProjectParameterPaste(f.state, 'other', f.timelineTarget, clipboard), null);
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, f.target, clipboard), null);
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, clipboard), null);
 	for (const layerId of ['missing', 'effect']) {
-		assert.equal(prepareProjectParameterPaste(f.state, f.context.id, f.timelineTarget, f.copy({ ...reference, layerId }, f.timelineTarget)), null);
+		assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.timelineTarget, f.copy({ ...reference, layerId }, f.timelineTarget)), null);
 	}
 	const relative = f.copy({ inputSource: 'lowerLayerOutput', ...sampling }, f.timelineTarget);
 	assert.ok(prepareProjectParameterPaste(f.state, 'other', f.timelineTarget, relative));
 	const scalarTarget = { ...f.timelineTarget, paramPath: ['buzzs', 'first', 'x'] };
 	const keys = createInlineKeyframesTimeline(scalarDefinition);
 	keys.keyframesTimeline.keyframes[0].x = 100;
-	assert.ok(prepareProjectParameterPaste(f.state, f.context.id, scalarTarget, f.copy(keys, scalarTarget)));
+	assert.ok(prepareProjectParameterPaste(f.state, f.projectSessionId, scalarTarget, f.copy(keys, scalarTarget)));
 	keys.keyframesTimeline.isNormalized = true;
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, scalarTarget, f.copy(keys, scalarTarget)), null);
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, scalarTarget, f.copy(keys, scalarTarget)), null);
 });
 
 // 【配列内の一箇所でも参照が無効なら、コンテナ全体を変更しない】
@@ -213,7 +280,7 @@ test('rejects a whole container when one nested binding is incompatible', () => 
 	binding.value[0].binding.value.x = { inputSource: 'expression', expression: '123' };
 	binding.value[0].binding.value.image = { ...connected, nodeId: 'missing' };
 	const before = clone(f.node.params);
-	assert.equal(prepareProjectParameterPaste(f.state, f.context.id, target, f.copy(binding, target)), null);
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, target, f.copy(binding, target)), null);
 	assert.deepEqual(f.node.params, before);
 });
 
@@ -246,7 +313,7 @@ test('validates player and timeline audio inputs without transferring project re
 	f.state.players.value.push({ id: 'player' });
 	const player = createParameterClipboard(definition, { inputSource: 'literal', value: { type: 'player', playerId: 'player' } }, nodeContext.source);
 	assert.ok(prepareParameterBindingPaste(definition, player, nodeContext));
-	assert.equal(prepareParameterBindingPaste(definition, player, { ...nodeContext, source: { ...nodeContext.source, projectId: 'other' } }), null);
+	assert.equal(prepareParameterBindingPaste(definition, player, { ...nodeContext, source: { ...nodeContext.source, projectSessionId: 'other' } }), null);
 	f.state.players.value = [];
 	assert.equal(prepareParameterBindingPaste(definition, player, nodeContext), null);
 	const timelineContext = f.resolve(f.timelineTarget).context;
@@ -254,9 +321,9 @@ test('validates player and timeline audio inputs without transferring project re
 	f.scene.layers.push({ id: 'audio', layerType: 'audio' });
 	const audio = createParameterClipboard(definition, { inputSource: 'anotherLayerAudio', layerId: 'audio' }, timelineContext.source);
 	assert.ok(prepareParameterBindingPaste(definition, audio, timelineContext));
-	assert.equal(prepareParameterBindingPaste(definition, audio, { ...timelineContext, source: { ...timelineContext.source, projectId: 'other' } }), null);
+	assert.equal(prepareParameterBindingPaste(definition, audio, { ...timelineContext, source: { ...timelineContext.source, projectSessionId: 'other' } }), null);
 	const lower = createParameterClipboard(definition, { inputSource: 'lowerLayerAudio' }, timelineContext.source);
-	assert.ok(prepareParameterBindingPaste(definition, lower, { ...timelineContext, source: { ...timelineContext.source, projectId: 'other' } }));
+	assert.ok(prepareParameterBindingPaste(definition, lower, { ...timelineContext, source: { ...timelineContext.source, projectSessionId: 'other' } }));
 });
 
 // 【未設定のカメラ値も、表示中のSceneの縦横比に対応する既定値をコピーする】
@@ -279,7 +346,7 @@ test('replaces modifiers and restores absent roots and stable IDs through undo a
 	f.node.params.foo.value.node.expressionModifier = { enabled: true, code: 'VALUE * 9' };
 	const clipboard = f.copy({ inputSource: 'literal', value: [1, 0, 0, 1] });
 	const access = { async readText() { return JSON.stringify(clipboard); } };
-	await handleProjectParameterClipboard(f.context, f.target, 'paste', () => true, access);
+	await handleProjectParameterClipboard(f.context, f.projectSessionId, f.target, 'paste', () => true, access);
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.equal(f.node.params.foo.value.node.expressionModifier, undefined);
 	f.history.undo();
@@ -289,7 +356,7 @@ test('replaces modifiers and restores absent roots and stable IDs through undo a
 	const target = { ...f.timelineTarget, paramPath: ['buzzs', 'first', 'y'] };
 	const keys = createInlineKeyframesTimeline(scalarDefinition);
 	const keyClipboard = f.copy(keys, target);
-	await handleProjectParameterClipboard(f.context, target, 'paste', () => true, { async readText() { return JSON.stringify(keyClipboard); } });
+	await handleProjectParameterClipboard(f.context, f.projectSessionId, target, 'paste', () => true, { async readText() { return JSON.stringify(keyClipboard); } });
 	const after = clone(f.layer.effectParamValues.buzzs);
 	f.history.undo();
 	assert.equal(Object.hasOwn(f.layer.effectParamValues, 'buzzs'), false);
@@ -297,16 +364,16 @@ test('replaces modifiers and restores absent roots and stable IDs through undo a
 	assert.deepEqual(f.layer.effectParamValues.buzzs, after);
 });
 
-// 【読み取り中のプロジェクト切替・対象の削除・型変更と非互換データで履歴を増やさない】
+// 【読み取り中の終了・対象の削除と非互換データで履歴を増やさない】
 // OSの非同期読み取りが完了した時点では、クリック時の対象が失効している場合がある。
 test('ignores stale asynchronous reads and incompatible content without changing undo or redo', async t => {
 	t.mock.method(console, 'log', () => {});
-	for (const invalidate of [f => { f.context.generation++; }, f => { f.context.id = 'other'; }, f => { f.visualModule.nodes = [f.upstream]; },
+	for (const invalidate of [f => { f.context.isDisposed = true; }, f => { f.visualModule.nodes = [f.upstream]; },
 		f => { f.visualModule.nodes[0] = clone(f.node); }]) {
 		const f = fixture();
 		const text = JSON.stringify(f.copy({ inputSource: 'literal', value: [1, 0, 0, 1] }));
 		let finish;
-		const promise = handleProjectParameterClipboard(f.context, f.target, 'paste', () => true, { readText: () => new Promise(resolve => { finish = resolve; }) });
+		const promise = handleProjectParameterClipboard(f.context, f.projectSessionId, f.target, 'paste', () => true, { readText: () => new Promise(resolve => { finish = resolve; }) });
 		invalidate(f);
 		finish(text);
 		await promise;
@@ -314,9 +381,31 @@ test('ignores stale asynchronous reads and incompatible content without changing
 	}
 	const f = fixture();
 	f.history.redoStack.value.push({ sentinel: true });
-	await handleProjectParameterClipboard(f.context, f.target, 'paste', () => true, { async readText() { return '{}'; } });
+	await handleProjectParameterClipboard(f.context, f.projectSessionId, f.target, 'paste', () => true, { async readText() { return '{}'; } });
 	assert.equal(f.history.undoStack.value.length, 0);
 	assert.equal(f.history.redoStack.value.length, 1);
+});
+
+// 【Live Previewへの貼り付けも、読み取り中の終了・対象削除後には適用しない】
+// プロジェクト履歴を使わないプレビュー引数でも、遅れて返ったOSのクリップボード結果を失効させる。
+test('ignores delayed preview parameter pastes after disposal or target changes', async () => {
+	for (const invalidate of [f => { f.context.isDisposed = true; },
+		f => { f.state.visualModules.value = []; }]) {
+		const f = fixture();
+		f.visualModule.paramDefs = [{ ...scalarDefinition, id: 'arg', nameForReference: 'arg' }];
+		const values = { arg: { inputSource: 'literal', value: 5 } };
+		const source = createVisualModuleClipboardSource(f.projectSessionId, { visualModuleId: f.visualModule.id }, f.visualModule);
+		const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 12 }, source);
+		const reading = Promise.withResolvers();
+		let applied = false;
+		const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.visualModule.id, ['arg'], 'paste', () => values, () => true,
+			() => { applied = true; }, { readText: () => reading.promise });
+		invalidate(f);
+		reading.resolve(JSON.stringify(clipboard));
+		await pending;
+		assert.equal(applied, false);
+		assert.equal(values.arg.value, 5);
+	}
 });
 
 // 【別ウィンドウのコピーをテキストだけで受け渡し、Live Previewでも同じ検証を使う】
@@ -328,15 +417,15 @@ test('copies across independent window contexts and supports live preview withou
 	let text = '';
 	const access = { async readText() { return text; }, async writeText(value) { text = value; } };
 	from.node.params.foo.value.node = { inputSource: 'expression', expression: '[1, 0, 0, 1]', expressionModifier: { enabled: false, code: 'VALUE' } };
-	await handleProjectParameterClipboard(from.context, from.target, 'copy', () => true, access);
+	await handleProjectParameterClipboard(from.context, from.projectSessionId, from.target, 'copy', () => true, access);
 	from.node.params.foo.value.node.expression = 'null';
-	await handleProjectParameterClipboard(to.context, to.target, 'paste', () => true, access);
+	await handleProjectParameterClipboard(to.context, to.projectSessionId, to.target, 'paste', () => true, access);
 	assert.equal(to.node.params.foo.value.node.expression, '[1, 0, 0, 1]');
 	to.visualModule.paramDefs = [{ ...scalarDefinition, id: 'arg', nameForReference: 'arg' }];
 	const values = { arg: { inputSource: 'literal', value: 5 } };
-	const source = createVisualModuleClipboardSource(from.context.id, { visualModuleId: from.visualModule.id }, from.visualModule);
+	const source = createVisualModuleClipboardSource(from.projectSessionId, { visualModuleId: from.visualModule.id }, from.visualModule);
 	text = JSON.stringify(createParameterClipboard(scalarDefinition, { inputSource: 'expression', expression: 'TIME' }, source));
-	await handlePreviewParameterClipboard(to.context, to.visualModule.id, ['arg'], 'paste', () => values, () => true, (id, binding) => { values[id] = binding; }, access);
+	await handlePreviewParameterClipboard(to.context, to.projectSessionId, to.visualModule.id, ['arg'], 'paste', () => values, () => true, (id, binding) => { values[id] = binding; }, access);
 	assert.deepEqual(values.arg, { inputSource: 'expression', expression: 'TIME' });
 	assert.equal(to.history.undoStack.value.length, 1);
 });

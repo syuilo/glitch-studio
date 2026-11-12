@@ -43,7 +43,7 @@
 		"UpToDate": "Glitch Studio is up to date.",
 		"CheckFailed": "Could not check for updates. Please try again later.",
 		"ConfirmTitle": "Update to version {version}?",
-		"ConfirmText": "Once the update starts, it cannot be canceled. Glitch Studio will restart and unsaved changes to the current project will be lost. Save anything you need before continuing.",
+		"ConfirmText": "Close all projects before updating. Once the update starts, it cannot be canceled. Glitch Studio will restart after the update.",
 		"UpdateAndRestart": "Update and restart",
 		"Preparing": "Waiting for saves and backups to finish",
 		"Downloading": "Downloading and verifying the update",
@@ -52,7 +52,8 @@
 		"RestartRequired": "Restart required to try updating again",
 		"RestartRequiredDetails": "The installer could not be started. You can close this dialog and continue editing. To try updating again, save anything you need, quit Glitch Studio, and open it again.",
 		"OtherInstances": "Close other Glitch Studio instances before updating, then try again.",
-		"ApplicationBusy": "Wait for project loading or exporting to finish before updating.",
+		"ApplicationBusy": "Wait for all file operations and exports to finish before updating.",
+		"CloseProjectsBeforeUpdating": "Close all projects before updating Glitch Studio.",
 		"Retry": "Try again"
 	},
 	"_EffectPicker": {
@@ -262,6 +263,9 @@
 	"Preview": "Preview",
 	"Players": "Players",
 	"_App": {
+		"Dashboard": "Dashboard",
+		"CloseProject": "Close project",
+		"ProjectFileAlreadyOpen": "This file is open in another project. Choose a different save file.",
 		"File": "File",
 		"Edit": "Edit",
 		"ResetRenderHistory": "Reset Render History",
@@ -542,7 +546,7 @@
 	},
 	"_ProjectBackups": {
 		"Title": "Project backups",
-		"Description": "Backups are stored beside the project after its first save. Each backup includes all media.",
+		"Description": "Backups are stored beside the project after its first save. Each backup includes all media. Expired backups are removed only after a new backup of the same kind is created.",
 		"Automatic": "Automatic backups",
 		"Interval": "Interval",
 		"Minutes": "minutes",

@@ -1,3 +1,4 @@
+import { createTestProject } from './helpers/project.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -42,7 +43,7 @@ const { ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges
 	createProjectCustomShaderEffect, getEffectDefinitions, customShaderEffectReference } = module.exports;
 
 function fixture(t, count = 1, overrides = {}) {
-	const manager = new ProjectContext().stateManager;
+	const manager = new ProjectContext(createTestProject()).stateManager;
 	const nodes = Array.from({ length: count }, (_, i) => ({
 		id: 'node-' + i, type: 'effect', effectId: definition.id, pos: { x: 0, y: 0 }, isBypass: false, resolution: { mode: 'auto', scale: 1 },
 		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
@@ -503,7 +504,7 @@ test('renames registered and inline Visual Modules through history without rende
 
 // 【差分失敗は所有者へ通知し、全量再送や成功通知を行わない】
 // 失敗後のエンジン破棄・再生成はPreviewRenderEngineが担当する。
-// Synchronizerが独自に再同期すると、停止状態や旧プロジェクトの処理を復活させてしまう。
+// Synchronizerが独自に再同期すると、停止済みのレンダラーや解除済みの購読を復活させてしまう。
 test('reports failed patches without resynchronizing and ignores failures after disposal', async t => {
 	const gate = Promise.withResolvers();
 	let updated = 0;

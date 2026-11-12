@@ -194,8 +194,8 @@ import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/timeline-keyframe-lanes.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import { selectTimelineLayer, clipSelectionKey, keyframeSelectionKey } from '@/utility/timeline-selection.ts';
-import { appContext } from '@/app.ts';
-import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
+import { useProjectSession } from '@/project-session.ts';
+import { getTimelineEditorState, getSelectedTimelineLayerId } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
 import { createTimelineSourceActions } from '@/utility/timeline-source-actions.ts';
 import { createTimelineSelectionEditActions } from '@/utility/timeline-selection-edit-actions.ts';
@@ -205,8 +205,10 @@ import { createTimelineDropActions } from '@/utility/timeline-drop-actions.ts';
 import { useAssetDrop } from '@/composables/useAssetDrop.ts';
 import { useDragSession } from '@/composables/useDragSession.ts';
 
-const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = projectSession;
+const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{ sceneId: string; inspectorPanelTarget?: HTMLElement | null }>();
 const frameCacheState = computed(() => {
@@ -707,7 +709,7 @@ const { onGroupMoveStart, onClipMoveStart, onClipTrimStart, onSubtitleTrimStart,
 
 const audioError = ref<string | null>(null);
 
-// SceneのIDだけではプロジェクト読み込みによる同IDの差し替えを検出できないため、定義の同一性も確認する。
+// Sceneの削除とUndoによる復元でも同じIDを使うため、操作開始時の定義が残っていることを確認する。
 function isTimelineActive() {
 	return !disposed && props.sceneId === editedScene.id && stateManager.state.timelineScenes.value.find(scene => scene.id === editedScene.id) === editedScene;
 }
@@ -715,8 +717,9 @@ function isTimelineActive() {
 const root = useTemplateRef<HTMLElement>('root');
 const assetDrop = useAssetDrop({
 	target: root,
+	projectSessionId: () => projectSession.id,
 	...createTimelineDropActions({
-		context: appContext.projectContext,
+		context: projectSession.projectContext,
 		sceneId: editedScene.id,
 		currentTime: () => time.value,
 		isActive: isTimelineActive,
@@ -733,7 +736,7 @@ const { addClip, changeClipSource, showAddLayerMenu, readLayerMediaDurations } =
 	currentTime: time,
 	isActive: isTimelineActive,
 	inspectMedia: inspectTimelineClipMedia,
-	ui,
+	ui: { ...ui, selectAsset: options => ui.selectAsset(projectSession, options) },
 	pickEffect: showEffectPicker,
 	desktopAvailable: () => !!window.desktop,
 	selectLayer,
@@ -748,7 +751,7 @@ const selectionEditActions = createTimelineSelectionEditActions({
 	sceneLayers,
 	selection,
 	selectedLayer,
-	clipboard: timelineClipboard,
+	clipboard: projectSession.timelineClipboard,
 	currentTime: time,
 	isActive: isTimelineActive,
 	inspectMedia: inspectTimelineClipMedia,
@@ -817,7 +820,7 @@ function showEffectPicker(chosen: (definition: EffectDefinition) => void) {
 			dispose();
 			if (disposeEffectPicker === dispose) disposeEffectPicker = null;
 		},
-	});
+	}, projectSession);
 	disposeEffectPicker = dispose;
 }
 
@@ -894,7 +897,7 @@ function startCue(): () => void {
 		if (!cueActive.value) return;
 		cueActive.value = false;
 		stopCueHold = null;
-		// Scene切替やプロジェクト読み込み後に、旧Sceneの位置を新しいSceneへ反映しない。
+		// Sceneの選択変更や削除・Undoによる復元後には、試聴開始時の位置へ巻き戻さない。
 		if (activeSceneId.value !== props.sceneId || stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId) !== editedScene) return;
 		previewPlayback.pauseTimeline();
 		previewPlayback.seekTimeline(startTime);

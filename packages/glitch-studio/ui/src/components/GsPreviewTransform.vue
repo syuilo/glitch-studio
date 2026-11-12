@@ -45,15 +45,17 @@ import type { TimelineLayerGeometry, TimelineLayerTransform, TimelinePoint } fro
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import type { TimelineTransformBindings, TimelineTransformKey } from '@/utility/timeline-transform-edit.ts';
 import GsButton from '@/components/common/GsButton.vue';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { preferences } from '@/preferences.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { previewResizeHandles, previewHandlePosition, sceneToPreview, resizePreviewLayer, snapPreviewLayerMove, snapPreviewLayerResize, unwrapPreviewRotation } from '@/utility/preview-transform.ts';
 import { canEditTimelineTransform, prepareTimelineTransformBindings, updateTimelineTransformBindings } from '@/utility/timeline-transform-edit.ts';
 
+const projectSession = useProjectSession();
+
 const props = defineProps<{ canvasRect: PreviewCanvasRect }>();
-const { activeSceneId, selectedTimelineLayer, previewPlayback, timelineRendererManagerController } = appContext;
-const { stateManager } = appContext.projectContext;
+const { activeSceneId, selectedTimelineLayer, previewPlayback, timelineRendererManagerController } = projectSession;
+const { stateManager } = projectSession.projectContext;
 const overlay = useTemplateRef('overlay');
 const snap = preferences.model('previewTransformSnap');
 const keepRatio = preferences.model('previewTransformKeepRatio');
@@ -261,7 +263,7 @@ async function trackFinalPreviewRevision() {
 	const pendingDraft = draft.value;
 	// 差分はマイクロタスクで集約されるため、Command直後の世代はまだ古い場合がある。
 	// 最終編集を送ってから待機する世代を記録し、加工式で位置が変わっても実際の枠へ確定する。
-	await appContext.flushRendererProjectChanges();
+	await projectSession.flushRendererProjectChanges();
 	// 同期待ちの間に別の操作・取消し・対象変更が起きた場合は、そのドラフトに干渉しない。
 	if (pendingDraft == null || draft.value !== pendingDraft || dragging.value) return;
 	pendingDraftPreviewRevision.value = timelineRendererManagerController.transformPreviewRevision;

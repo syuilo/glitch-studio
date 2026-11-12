@@ -9,13 +9,15 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
 import GsPlayer from './GsPlayer.vue';
 import { i18n } from '@/i18n.ts';
 
-const { stateManager } = appContext.projectContext;
+const projectSession = useProjectSession();
+
+const { stateManager } = projectSession.projectContext;
 
 </script>
 

@@ -23,11 +23,12 @@ const bundle = await build({ absWorkingDir: directory,
 		export { assetImportTest } from '@/utility/import-assets.ts';
 		export { preferences } from '@/preferences.ts';
 		export { recentProjects } from './src/recent-projects.ts';
-		export { dashboardTest } from '@/app.ts';
+		export { dashboardTest, projectSessions } from '@/app.ts';
 		export { getActiveDragData, getDragSessionData } from './src/utility/drag-and-drop.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	define: { _VERSION_: '"test"', __ELECTRON__: 'false' },
 	plugins: [i18nPlugin, { name: 'drag-session-components', setup(build) {
+		build.onResolve({ filter: /(?:project-session|project-actions)\.ts$/ }, () => ({ path: 'app.ts', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/(preferences|workspace|app|ui|desktop-update-ui)\.ts$/ }, ({ path }) => ({ path: path.slice(2), namespace: 'test' }));
 		build.onResolve({ filter: /open-media-file\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
 		build.onResolve({ filter: /import-assets\.ts$/ }, () => ({ path: 'asset-import', namespace: 'test' }));
@@ -36,27 +37,27 @@ const bundle = await build({ absWorkingDir: directory,
 			if (/Gs(?:Draggable|WorkspacePanel|WorkspaceDivider|Asset|VisualModuleEditor|AssetSelectDialog|DashboardDialog)\.vue$/.test(path)) return;
 			return { path: basename(path, '.vue'), namespace: 'control' };
 		});
-		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
+		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			'preferences.ts': `import { ref } from 'vue'; export const preferences = { r: { workspaceDefinition: ref(null) }, commits: [],
 				get s() { return { workspaceDefinition: this.r.workspaceDefinition.value }; },
 				commit(key, value) { this.commits.push(value); this.r[key].value = value; } };`,
 			'workspace.ts': `export const workspacePanelDefinitions = { assets: { icon: '', label: 'Assets', component: 'div' } }; export function getElementMenu() { return []; }`,
-			'app.ts': `export const appContext = { projectContext: { hasProject: true, stateManager: { commit() {} } } };
-				export const dashboardTest = { opened: [], success: true };
+			'app.ts': `import { ref } from 'vue'; export const projectSessions = { fileOperations: { isBusy: ref(false) }, activeSession: { get value() { return projectSession; } } }; import { recentProjects } from '@/recent-projects.ts'; export const openRecentProject = async id => openProject(null, await recentProjects.resolve(id)); export function useProjectSession() { return projectSession; } export const projectSession = { id: 'test-session', workspacePanelRevealRequest: { value: null }, projectContext: { stateManager: { commit() {} } } };
+				export function createProjectActions() { return { newProject, newProjectFromImageOrVideo, openProject }; } export const dashboardTest = { opened: [], success: true, get panelRequest() { return projectSession.workspacePanelRevealRequest.value; } };
 				export async function newProject() {} export async function newProjectFromImageOrVideo() { return true; }
 				export async function openProject(file, handle) { dashboardTest.opened.push({ file, handle }); return dashboardTest.success; }`,
 			'ui.ts': 'export function progress() { return { done() {} }; } export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {} export async function confirm() { return { canceled: false }; }',
 			'desktop-update-ui.ts': 'export const desktopUpdateUi = null;',
 			media: 'export async function openMediaFile() {}',
 			'asset-import': `export const assetImportTest = { calls: [], read: null };
-				export async function importAssets(context, files) { assetImportTest.calls.push({ context, files });
+				export async function importAssets(destination, files) { const context = typeof destination === 'function' ? await destination() : destination; assetImportTest.calls.push({ context, files });
 					return assetImportTest.read == null ? ['asset'] : assetImportTest.read(); }`,
 			wires: 'export function provideVisualModuleWires() {}',
 		}[path] }));
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: path === 'GsModal' ? `
 			import { h, useTemplateRef } from 'vue'; export default { setup(_, { attrs, slots, expose }) {
 				const root = useTemplateRef('root'); expose({ getRootElement: () => root.value, close() { root.value.props['data-test-modal-closed'] = true; } });
-				return () => h('div', { ...attrs, ref: 'root' }, [h('div', { 'data-test-modal-background': '' }),
+				return () => h('div', { ...attrs, ref: 'root' }, [h('div', { 'data-test-modal-background': '', onClick: () => attrs.onClick?.() }),
 					...Object.values(slots).flatMap(slot => slot())]);
 			} };` : `
 			import { h } from 'vue'; export default { setup(_, { attrs, slots }) { return () => h(${JSON.stringify(path)}, attrs,
@@ -75,7 +76,7 @@ const bundle = await build({ absWorkingDir: directory,
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Draggable, Panel, Divider, Asset, VisualModuleEditor, AssetSelectDialog, DashboardDialog, workspaceControllerKey, assetImportTest,
-	preferences, getActiveDragData, getDragSessionData, recentProjects, dashboardTest } = module.exports;
+	preferences, getActiveDragData, getDragSessionData, recentProjects, dashboardTest, projectSessions } = module.exports;
 
 function fixture(t, render, provide = () => {}) {
 	const windowTarget = new EventTarget();
@@ -133,6 +134,7 @@ const list = (model, group, key) => h(Draggable, { modelValue: model.value, grou
 // 【履歴を表示し、GsTimeへ日時を渡し、開けたときだけダッシュボードを閉じる】
 // 一覧だけ表示できても実際の再オープンに接続されていなければ利用できない。
 // 履歴の削除・全消去後の空表示も、実SFCのイベントとリアクティブな更新で検証する。
+// ウィンドウのファイル操作中は、履歴から開く操作と新規作成ボタンも無効にする。
 test('renders recent projects with GsTime and connects reopening, removal and clearing', async t => {
 	const previousStore = recentProjects.store;
 	const previousEntries = recentProjects.entries.value;
@@ -151,6 +153,7 @@ test('renders recent projects with GsTime and connects reopening, removal and cl
 		recentProjects.store = previousStore;
 		recentProjects.entries.value = previousEntries;
 		dashboardTest.success = true;
+		projectSessions.fileOperations.isBusy.value = false;
 	});
 	const f = fixture(t, () => h(DashboardDialog), app => app.provide(workspaceControllerKey, { revealPanel() {} }));
 	assert.ok(f.find('data-test-recent-projects-loading'));
@@ -158,6 +161,14 @@ test('renders recent projects with GsTime and connects reopening, removal and cl
 	assert.equal(f.find('data-test-recent-projects-loading'), undefined);
 	assert.equal(f.find('data-test-recent-project-time').tag, 'GsTime');
 	assert.equal(f.find('data-test-recent-project-time').props.time, 1000);
+	projectSessions.fileOperations.isBusy.value = true;
+	await nextTick();
+	for (const attribute of ['data-test-dashboard-new-project', 'data-test-dashboard-new-media-project', 'data-test-dashboard-open-project', 'data-test-open-recent-project']) {
+		assert.equal(f.find(attribute).props.disabled, true);
+	}
+	projectSessions.fileOperations.isBusy.value = false;
+	await nextTick();
+	assert.equal(f.find('data-test-open-recent-project').props.disabled, false);
 	await f.find('data-test-open-recent-project').props.onClick();
 	assert.deepEqual(dashboardTest.opened, [{ file: null, handle: resolved }]);
 	assert.equal(f.find('data-test-modal-closed'), undefined);
@@ -249,7 +260,7 @@ test('connects dashboard background drops to the utility and removes handlers on
 	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(dropped.defaultPrevented, true);
 	assert.deepEqual(assetImportTest.calls[0].files, files);
-	assert.deepEqual(reveals, [{ contentType: 'assets', sourcePanelId: null }]);
+	assert.deepEqual(dashboardTest.panelRequest, { contentType: 'assets', sourcePanelId: null });
 	f.app.unmount();
 	background.dispatchEvent(event('drop', { types: ['Files'], files }, background));
 	assert.equal(assetImportTest.calls.length, 1);
@@ -362,7 +373,7 @@ test('shares asset drag data and clears it when the asset view is removed', asyn
 	const source = f.find('data-test-asset', 'asset');
 	const data = transfer();
 	source.props.onDragstart(event('dragstart', data, source));
-	assert.deepEqual(getActiveDragData(event('dragover', data, source), 'GsAsset'), { assetId: 'asset' });
+	assert.deepEqual(getActiveDragData(event('dragover', data, source), 'GsAsset'), { projectSessionId: 'test-session', assetId: 'asset' });
 	shown.value = false;
 	await settle();
 	assert.equal(getActiveDragData(event('dragover', data, source), 'GsAsset'), null);
@@ -374,7 +385,7 @@ test('shares asset drag data and clears it when the asset view is removed', asyn
 test('accepts files and assets across the Visual Module editor and selects nodes after an addition', async t => {
 	const calls = [];
 	const asset = { id: 'font', name: 'Font', fileDataType: 'font/ttf', fileData: new Blob() };
-	const actions = { dropFiles: async files => { calls.push(files.map(file => file.name)); return true; },
+	const actions = { projectSessionId: 'test-session', dropFiles: async files => { calls.push(files.map(file => file.name)); return true; },
 		dropAsset: async assetId => { calls.push(assetId); return false; } };
 	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
 		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions,
@@ -419,13 +430,59 @@ test('accepts files and assets across the Visual Module editor and selects nodes
 	assert.equal(over.cancelBubble, false);
 });
 
+// 【別セッションのAssetを同じIDのローカル素材として受け付けない】
+// 切り離した素材パネルから別プロジェクトへドラッグしても誤接続させない。
+// ドラッグ開始後に受付側の対象が変わる場合も、その時点のセッションで判定する。
+test('rejects foreign session assets and rechecks the destination session on drop', async t => {
+	const calls = [];
+	const actions = ref({ projectSessionId: 'other-session', dropFiles: async () => false,
+		dropAsset: async assetId => { calls.push(assetId); return true; } });
+	const asset = { id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob() };
+	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
+		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions.value,
+	})]));
+	const source = f.find('data-test-asset', 'asset');
+	const editor = f.find('data-test-visual-module-editor');
+	const tabs = f.find('data-test-visual-module-tabs');
+	tabs.props['onUpdate:modelValue']('other');
+	const data = transfer();
+	source.props.onDragstart(event('dragstart', data, source));
+	const foreign = event('dragover', data, editor);
+	editor.props.onDragoverCapture(foreign);
+	await editor.props.onDropCapture(event('drop', data, editor));
+	await nextTick();
+	assert.equal(foreign.defaultPrevented, false);
+	assert.equal(f.find('data-test-visual-module-drop-overlay'), undefined);
+	assert.equal(tabs.props.modelValue, 'other');
+	assert.deepEqual(calls, []);
+
+	actions.value.projectSessionId = 'test-session';
+	await nextTick();
+	editor.props.onDragoverCapture(event('dragover', data, editor));
+	await nextTick();
+	assert.ok(f.find('data-test-visual-module-drop-overlay'));
+	actions.value.projectSessionId = 'other-session';
+	await nextTick();
+	await editor.props.onDropCapture(event('drop', data, editor));
+	await nextTick();
+	assert.equal(f.find('data-test-visual-module-drop-overlay'), undefined);
+	assert.deepEqual(calls, []);
+
+	actions.value.projectSessionId = 'test-session';
+	await nextTick();
+	await editor.props.onDropCapture(event('drop', data, editor));
+	await nextTick();
+	assert.deepEqual(calls, ['asset']);
+	assert.equal(tabs.props.modelValue, 'nodes');
+});
+
 // 【VueのAsset受付も共通の操作ロック・二重処理防止・有効状態に従う】
 // ユーティリティ単体だけを確認すると、Composableがロック判定やライフサイクルを接続し忘れた
 // 不具合を見逃す。ファイルと既存Assetの両方を拒否し、対象外のドラッグは伝播させる。
 test('applies shared locking and disabled state to the Vue asset drop target', async t => {
 	const calls = [];
 	const gate = Promise.withResolvers();
-	const actions = ref({ dropFiles: async files => { calls.push(files); await gate.promise; return true; },
+	const actions = ref({ projectSessionId: 'test-session', dropFiles: async files => { calls.push(files); await gate.promise; return true; },
 		dropAsset: async assetId => { calls.push(assetId); return true; } });
 	const asset = { id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob() };
 	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
@@ -459,4 +516,15 @@ test('applies shared locking and disabled state to the Vue asset drop target', a
 	editor.props.onDragoverCapture(disabled);
 	assert.equal(disabled.defaultPrevented, false);
 	assert.equal(disabled.cancelBubble, false);
+});
+
+// 【Dashboardは背景クリックだけで閉じられる】
+// 新規作成やファイル選択を強制せず、セッションを追加せずに共通メニューへ戻れるようにする。
+test('dismisses the dashboard from its modal background without opening a project', async t => {
+	const f = fixture(t, () => h(DashboardDialog));
+	await nextTick();
+	const openedCount = dashboardTest.opened.length;
+	f.find('data-test-modal-background').props.onClick();
+	assert.ok(f.find('data-test-modal-closed'));
+	assert.equal(dashboardTest.opened.length, openedCount);
 });

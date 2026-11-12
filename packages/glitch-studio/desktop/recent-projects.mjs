@@ -58,9 +58,9 @@ export class RecentProjects {
 	}
 }
 
-export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles, getTrustedMainWindow, recentDocuments = null, {
-	registerProject = filePath => projectFiles.describe(projectFiles.register(filePath)),
-} = {}) {
+export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles, getTrustedMainWindow, recentDocuments, {
+	registerProject,
+}) {
 	ipcMain.handle('desktop:list-recent-projects', async event => {
 		getTrustedMainWindow(event);
 		return (await recentProjects.list()).slice(0, 20).map(({ filePath: _filePath, ...entry }) => entry);
@@ -78,10 +78,10 @@ export function registerRecentProjectsIpc(ipcMain, recentProjects, projectFiles,
 			console.error('Failed to add a recent project to the OS recent documents:', error);
 		}
 	});
-	ipcMain.handle('desktop:resolve-recent-project', async (event, id) => {
+	ipcMain.handle('desktop:resolve-recent-project', async (event, id, reservationId) => {
 		getTrustedMainWindow(event);
 		const entry = await recentProjects.read(id);
-		return registerProject(entry.filePath);
+		return registerProject(entry.filePath, false, reservationId);
 	});
 	ipcMain.handle('desktop:remove-recent-project', async (event, id) => {
 		getTrustedMainWindow(event);

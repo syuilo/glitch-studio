@@ -10,21 +10,20 @@ import type { ClipboardTextAccess } from './clipboard-text.ts';
 import type { ProjectParameterClipboardTarget } from './parameter-clipboard.ts';
 import type { ProjectContext } from '../Project.ts';
 
-/** 読み取り前の対象を捕捉し、別プロジェクトや削除・再作成された対象へ遅延適用しない。 */
+/** 読み取り前の対象を捕捉し、終了済みのプロジェクトや削除・再作成された対象へ遅延適用しない。 */
 export async function handleProjectParameterClipboard(
 	context: ProjectContext,
+	projectSessionId: string,
 	requestedTarget: ProjectParameterClipboardTarget,
 	operation: 'copy' | 'paste',
 	isActive: () => boolean,
 	clipboard: ClipboardTextAccess = clipboardText,
 ): Promise<void> {
-	const projectId = context.id;
-	if (projectId == null || !isActive()) return;
-	const generation = context.generation;
+	if (context.isDisposed || !isActive()) return;
 	const target = deepClone(requestedTarget);
 	const state = context.stateManager.state;
 	let initial;
-	try { initial = resolveProjectClipboardTarget(state, projectId, target); } catch { return; }
+	try { initial = resolveProjectClipboardTarget(state, projectSessionId, target); } catch { return; }
 	if (operation === 'copy') {
 		const data = createParameterClipboard(initial.def, initial.value, initial.context.source);
 		await clipboard.writeText(JSON.stringify(data));
@@ -35,21 +34,22 @@ export async function handleProjectParameterClipboard(
 		: initialContext.kind === 'customParameter' ? initialContext.visualModule.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : initialContext.layer;
 	const originalType = deepClone(initial.def.dataType);
 	const data = parseParameterClipboard(await clipboard.readText());
-	if (data == null || !isActive() || context.generation !== generation || context.id !== projectId) return;
+	if (data == null || !isActive() || context.isDisposed) return;
 	try {
-		const current = resolveProjectClipboardTarget(state, projectId, target);
+		const current = resolveProjectClipboardTarget(state, projectSessionId, target);
 		const currentContext = current.context;
 		const currentOwner = currentContext.kind === 'node' ? currentContext.visualModule.nodes.find(node => node.id === currentContext.nodeId)
 			: currentContext.kind === 'customParameter' ? currentContext.visualModule.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : currentContext.layer;
 		if (currentOwner !== originalOwner || !areDataTypesEqual(originalType, current.def.dataType)) return;
 	} catch { return; }
-	if (prepareProjectParameterPaste(state, projectId, target, data) == null) return;
-	context.stateManager.commit('pasteParameter', { target, projectId, clipboard: data });
+	if (prepareProjectParameterPaste(state, projectSessionId, target, data) == null) return;
+	context.stateManager.commit('pasteParameter', { target, projectSessionId, clipboard: data });
 }
 
 /** Live Previewの引数は保存状態・履歴を持たないため、共通の検証後に呼び出し側へ返す。 */
 export async function handlePreviewParameterClipboard(
 	context: ProjectContext,
+	projectSessionId: string,
 	visualModuleId: string,
 	requestedPath: ParamPath,
 	operation: 'copy' | 'paste',
@@ -58,9 +58,7 @@ export async function handlePreviewParameterClipboard(
 	apply: (id: VisualModulePublicParameterId, binding: ValueParameterBinding) => void,
 	clipboard: ClipboardTextAccess = clipboardText,
 ): Promise<void> {
-	const projectId = context.id;
-	if (projectId == null || !isActive()) return;
-	const generation = context.generation;
+	if (context.isDisposed || !isActive()) return;
 	const state = context.stateManager.state;
 	const visualModule = state.visualModules.value.find(candidate => candidate.id === visualModuleId);
 	if (visualModule == null) return;
@@ -78,14 +76,14 @@ export async function handlePreviewParameterClipboard(
 
 	let initial;
 	try { initial = resolve(); } catch { return; }
-	const source = { ...createVisualModuleClipboardSource(projectId, { visualModuleId }, visualModule), localAutomationGraphIds: [] };
+	const source = { ...createVisualModuleClipboardSource(projectSessionId, { visualModuleId }, visualModule), localAutomationGraphIds: [] };
 	if (operation === 'copy') {
 		await clipboard.writeText(JSON.stringify(createParameterClipboard(initial.parameter.def, initial.parameter.value, source)));
 		return;
 	}
 	const originalType = deepClone(initial.parameter.def.dataType);
 	const data = parseParameterClipboard(await clipboard.readText());
-	if (data == null || !isActive() || context.id !== projectId || context.generation !== generation
+	if (data == null || !isActive() || context.isDisposed
 		|| !state.visualModules.value.includes(visualModule)) return;
 	let nextRoot: ValueParameterBinding;
 	try {

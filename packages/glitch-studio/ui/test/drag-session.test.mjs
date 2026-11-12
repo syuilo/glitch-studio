@@ -70,7 +70,7 @@ test('cleans up cancellation listeners and pending publication without notifying
 	for (const type of ['dragend', 'blur', 'dragstart']) {
 		const f = fixture(t);
 		let moved = 0;
-		startDragSession(f.event('dragstart'), 'source', 'GsAsset', { assetId: 'asset' }, () => { moved++; });
+		startDragSession(f.event('dragstart'), 'source', 'GsAsset', { projectSessionId: 'test-session', assetId: 'asset' }, () => { moved++; });
 		f.windowTarget.dispatchEvent(new Event(type));
 		await settle();
 		assert.equal(getActiveDragData(f.event('dragover'), 'GsAsset'), null);
@@ -106,15 +106,15 @@ test('keeps data through drop dispatch and expires it after handlers in any docu
 test('isolates replacement sessions from old markers and queued cleanup', async t => {
 	const f = fixture(t);
 	const replacement = fixture(t);
-	startDragSession(f.event('dragstart'), 'source', 'GsAsset', { assetId: 'old' });
+	startDragSession(f.event('dragstart'), 'source', 'GsAsset', { projectSessionId: 'test-session', assetId: 'old' });
 	f.windowTarget.dispatchEvent(f.event('drop'));
-	startDragSession(replacement.event('dragstart', f.source), 'replacement', 'GsAsset', { assetId: 'new' });
+	startDragSession(replacement.event('dragstart', f.source), 'replacement', 'GsAsset', { projectSessionId: 'test-session', assetId: 'new' });
 	f.windowTarget.dispatchEvent(f.event('dragend'));
 	f.windowTarget.dispatchEvent(f.event('drop'));
 	finishDragSession('source');
 	await Promise.resolve();
 	assert.equal(getActiveDragData(f.event('dragover'), 'GsAsset'), null);
-	assert.deepEqual(getActiveDragData(replacement.event('dragover'), 'GsAsset'), { assetId: 'new' });
+	assert.deepEqual(getActiveDragData(replacement.event('dragover'), 'GsAsset'), { projectSessionId: 'test-session', assetId: 'new' });
 	assert.equal(replacement.windowTarget.listeners.size, 0);
 });
 

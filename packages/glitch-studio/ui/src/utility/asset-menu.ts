@@ -1,9 +1,8 @@
 import { i18n } from '@/i18n.ts';
 import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
 import GsDialog from '@/components/common/GsDialog.vue';
-import type { ProjectAsset } from '@/Project.ts';
+import type { ProjectAsset, ProjectContext } from '@/Project.ts';
 import type { MenuItem } from '@/types/menu.ts';
-import { appContext } from '@/app.ts';
 import { popup, alert, progress } from '@/ui.ts';
 import { openExternalAsset, resolveExternalAssets } from '../external-assets.ts';
 import { readFileSource } from '@gs/shared/file-source.ts';
@@ -13,8 +12,8 @@ import { applicationActivity } from '../application-activity.ts';
 
 const assetOperationGenerations = new WeakMap<ProjectAsset, number>();
 
-export function getAssetMenu(asset: ProjectAsset): MenuItem[] {
-	const { stateManager } = appContext.projectContext;
+export function getAssetMenu(projectContext: ProjectContext, asset: ProjectAsset): MenuItem[] {
+	const { stateManager } = projectContext;
 
 	function rename() {
 		const { dispose } = popup(GsDialog, { input: { default: asset.name } }, {
@@ -43,7 +42,7 @@ export function getAssetMenu(asset: ProjectAsset): MenuItem[] {
 		};
 		// 同じパスの再選択でも取り込み結果を最新とする。Commandの変更通知で
 		// 古いメタデータが再適用されないよう、履歴へ反映する前に記録する。
-		appContext.projectContext.externalAssetMetadata.record(replacement);
+		projectContext.externalAssetMetadata.record(replacement);
 		if (undoable) stateManager.commit('replaceAsset', replacement);
 		else {
 			const { assetId: _assetId, ...updated } = replacement;
@@ -52,14 +51,14 @@ export function getAssetMenu(asset: ProjectAsset): MenuItem[] {
 	}
 
 	async function run(operation: (isCurrent: () => boolean) => Promise<void>) {
-		const generation = appContext.projectContext.generation;
+		if (projectContext.isDisposed) return;
 		const sourcePath = asset.sourceFilePath;
 		const isExternalReference = asset.isExternalReference;
 		const operationGeneration = (assetOperationGenerations.get(asset) ?? 0) + 1;
 		assetOperationGenerations.set(asset, operationGeneration);
 		const release = applicationActivity.acquire();
 		const waiting = progress({ text: asset.name });
-		const isCurrent = () => generation === appContext.projectContext.generation && stateManager.state.assets.value.includes(asset)
+		const isCurrent = () => !projectContext.isDisposed && stateManager.state.assets.value.includes(asset)
 			&& asset.sourceFilePath === sourcePath && asset.isExternalReference === isExternalReference && assetOperationGenerations.get(asset) === operationGeneration;
 		try { await operation(isCurrent); } catch (error) { await resolveExternalAssets(stateManager.state.assets.value); await alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); } finally { waiting.done(); release(); }
 	}
@@ -76,7 +75,7 @@ export function getAssetMenu(asset: ProjectAsset): MenuItem[] {
 	async function replace() {
 		if (asset.isExternalReference) return chooseReference();
 		const result = await openMediaFile({ isExternalReference: false, includeFonts: true, allowAnyFile: asset.fileDataType === LUT_ASSET_MIME_TYPE });
-		if (result != null && stateManager.state.assets.value.includes(asset)) applyImported(result);
+		if (result != null && !projectContext.isDisposed && stateManager.state.assets.value.includes(asset)) applyImported(result);
 	}
 
 	async function reload() {

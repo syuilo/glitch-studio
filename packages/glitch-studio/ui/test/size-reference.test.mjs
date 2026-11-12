@@ -63,8 +63,8 @@ const componentBundle = await build({
 	stdin: { contents: compileScript(descriptor, { id: 'size-reference-control', inlineTemplate: true }).content, loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'size-reference-controls', setup(build) {
-		build.onResolve({ filter: /^@\/app\.ts$/ }, () => ({ path: 'app', namespace: 'platform' }));
-		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: 'export const appContext = { projectContext: { stateManager: {} } };' }));
+		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'platform' }));
+		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: {} } };' }));
 		build.onResolve({ filter: /\.vue$/ }, args => ({ path: args.path, namespace: 'control' }));
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ contents: `import { h } from 'vue'; export default {
 			props: ['modelValue', 'items'], emits: ['update:modelValue'], setup(props, { attrs, emit }) {

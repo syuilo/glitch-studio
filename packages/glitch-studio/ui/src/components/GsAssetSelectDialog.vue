@@ -34,10 +34,12 @@ import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsDropOverlay from './common/GsDropOverlay.vue';
 import type { ProjectAsset } from '@/Project.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { importAssets } from '@/utility/import-assets.ts';
 import { installFileDropHandlers } from '@/utility/file-drop.ts';
 import { alert } from '@/ui.ts';
+
+const projectSession = useProjectSession();
 
 const props = withDefaults(defineProps<{
 	multiple: boolean;
@@ -59,7 +61,7 @@ onMounted(() => {
 	if (target == null) return;
 	disposeFileDrops = installFileDropHandlers(target, async files => {
 		// Add Assetと同じ取り込みを使い、MIMEでの絞り込み・選択の確定は一覧の操作に任せる。
-		const ids = await importAssets(appContext.projectContext, files);
+		const ids = await importAssets(projectSession.projectContext, files);
 	}, error => { void alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); },
 	() => window.document.body.hasAttribute('inert'), hovering => { fileDropHovering.value = hovering; });
 });

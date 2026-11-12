@@ -33,11 +33,13 @@
 import { computed } from 'vue';
 import { PREVIEW_GAMUT_COMPRESSION_PRESETS } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutCompressionMode } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
-const { previewGamutCompression, previewSrgbProof } = appContext;
+const projectSession = useProjectSession();
+
+const { previewGamutCompression, previewSrgbProof } = projectSession;
 const modes: PreviewGamutCompressionMode[] = ['none', ...PREVIEW_GAMUT_COMPRESSION_PRESETS, 'custom'];
 const labels = computed<Record<PreviewGamutCompressionMode, string>>(() => ({
 	none: 'RAW',

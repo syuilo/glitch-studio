@@ -10,15 +10,14 @@ type GenerationState = { state: 'generating' | 'ready' | 'error'; message?: stri
 type GenerationJob = {
 	key: string;
 	request: VoicevoxRequest;
-	epoch: number;
 	manual: boolean;
 	completion: PromiseWithResolvers<GeneratedSpeech>;
 };
 
-/** 生成は再生から独立し、内容キーとプロジェクト世代で古い結果の混入を防ぐ。 */
+/** 生成は再生から独立し、内容キーで編集結果を区別する。終了後の合成結果は採用しない。 */
 export class VoicevoxGeneration {
+	private disposed = false;
 	readonly statuses = ref<Record<string, GenerationState>>({});
-	private epoch = 0;
 	private pending = new Map<string, GenerationJob>();
 	private queue: GenerationJob[] = [];
 	private running = false;
@@ -36,18 +35,8 @@ export class VoicevoxGeneration {
 		this.cache = new GeneratedSpeechCache(options.cacheLimits);
 	}
 
-	reset() {
-		this.epoch++;
-		if (this.timer != null) globalThis.clearTimeout(this.timer);
-		for (const job of this.queue) job.completion.reject(new Error('Project changed'));
-		this.queue = [];
-		this.pending.clear();
-		this.exportRequests.clear();
-		this.cache.clear();
-		this.statuses.value = {};
-	}
-
 	schedule() {
+		if (this.disposed) return;
 		if (this.timer != null) globalThis.clearTimeout(this.timer);
 		this.synchronizeSpeech();
 		// デバウンス期間中も古い文章を待たせない。実行中の合成はqueueから外れているので維持する。
@@ -63,6 +52,7 @@ export class VoicevoxGeneration {
 
 	/** Web版でもUndo時に呼び、再合成できなくても保存済み音声を復元できるようにする。 */
 	synchronizeSpeech() {
+		if (this.disposed) return;
 		const current = new Set(getVoicevoxRequests(this.options.getScenes()).map(getVoicevoxRequestKey));
 		const previous = this.options.getSpeech();
 		const active = previous.filter(speech => current.has(speech.key));
@@ -81,6 +71,19 @@ export class VoicevoxGeneration {
 		this.pruneStatuses(current);
 	}
 
+	public dispose(): void {
+		if (this.disposed) return;
+		this.disposed = true;
+		if (this.timer != null) globalThis.clearTimeout(this.timer);
+		this.timer = null;
+		for (const job of this.queue) job.completion.reject(new Error('Project session is closed'));
+		this.queue = [];
+		this.pending.clear();
+		this.exportRequests.clear();
+		this.cache.clear();
+		this.statuses.value = {};
+	}
+
 	private findSpeech(key: string): GeneratedSpeech | null {
 		return this.options.getSpeech().find(speech => speech.key === key) ?? this.cache.get(key);
 	}
@@ -92,6 +95,7 @@ export class VoicevoxGeneration {
 	}
 
 	private enqueue(request: VoicevoxRequest, force: boolean, manual: boolean): Promise<GeneratedSpeech> {
+		if (this.disposed) return Promise.reject(new Error('Project session is closed'));
 		this.synchronizeSpeech();
 		const key = getVoicevoxRequestKey(request);
 		const existing = this.findSpeech(key);
@@ -104,7 +108,6 @@ export class VoicevoxGeneration {
 		const job: GenerationJob = {
 			key,
 			request,
-			epoch: this.epoch,
 			manual,
 			completion: Promise.withResolvers<GeneratedSpeech>(),
 		};
@@ -138,7 +141,8 @@ export class VoicevoxGeneration {
 				if (!job) break;
 				try {
 					const speech = await this.options.synthesize(job.request);
-					if (job.epoch !== this.epoch) throw new Error('Project changed');
+					// HTTPの中断可否に依存せず、終了後に届いた結果を状態やキャッシュへ戻さない。
+					if (this.disposed) throw new Error('Project session is closed');
 					this.synchronizeSpeech();
 					if (getVoicevoxRequests(this.options.getScenes()).some(request => getVoicevoxRequestKey(request) === job.key)) {
 						this.cache.take(job.key);
@@ -150,18 +154,18 @@ export class VoicevoxGeneration {
 					this.statuses.value[job.key] = { state: 'ready' };
 					job.completion.resolve(speech);
 				} catch (error: unknown) {
-					if (job.epoch === this.epoch) this.statuses.value[job.key] = { state: 'error', message: error instanceof Error ? error.message : String(error) };
+					if (!this.disposed) this.statuses.value[job.key] = { state: 'error', message: error instanceof Error ? error.message : String(error) };
 					job.completion.reject(error);
 				} finally {
-					if (this.pending.get(job.key) === job) this.pending.delete(job.key);
-					this.pruneStatuses();
+					this.pending.delete(job.key);
+					if (!this.disposed) this.pruneStatuses();
 				}
 			}
 		} finally { this.running = false; }
 	}
 
 	async prepare(requests: readonly VoicevoxRequest[], signal: AbortSignal): Promise<GeneratedSpeech[]> {
-		const epoch = this.epoch;
+		if (this.disposed) throw new Error('Project session is closed');
 		signal.throwIfAborted();
 		// 先頭を待っている間も、後続の発話を編集中の自動生成の整理から保護する。
 		// 同じ要求を複数の書き出しが待てるため、最後の利用者が終了するまで保持する。
@@ -184,13 +188,13 @@ export class VoicevoxGeneration {
 			// この書き出しが各結果を保持する。結果保持用の共有Mapを追加せず、書き出しごとに独立させる。
 			const speech = await Promise.race([Promise.all([...uniqueRequests].map(([key, request]) => prepared.get(key) ?? this.enqueue(request, false, false))), aborted]);
 			signal.throwIfAborted();
-			if (epoch !== this.epoch) throw new Error('Project changed');
+			if (this.disposed) throw new Error('Project session is closed');
 			// 呼び出し側が書き出し終了まで所有する。以後の編集やLRU削除で参照を失わない。
 			return speech;
 		} finally {
 			signal.removeEventListener('abort', abort);
-			// 別プロジェクトの同一キーの予約を、旧プロジェクトの完了処理で減らさない。
-			if (epoch === this.epoch) {
+			// 終了時には予約も解放済みなので、遅れて完了した書き出しから操作しない。
+			if (!this.disposed) {
 				for (const key of uniqueRequests.keys()) {
 					const remaining = this.exportRequests.get(key)! - 1;
 					if (remaining > 0) this.exportRequests.set(key, remaining);

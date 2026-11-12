@@ -14,10 +14,11 @@ async function fixture(t, recentDocuments = null) {
 	const projectFiles = new ProjectFiles();
 	const handlers = new Map();
 	const trusted = {};
+	const registerProject = t.mock.fn(filePath => projectFiles.describe(projectFiles.register(filePath)));
 	registerRecentProjectsIpc({ handle: (name, action) => handlers.set(name, action) }, recentProjects, projectFiles, event => {
 		if (event !== trusted) throw new Error('Untrusted');
-	}, recentDocuments);
-	return { directory, historyDirectory, recentProjects, projectFiles, handlers,
+	}, recentDocuments, { registerProject });
+	return { directory, historyDirectory, recentProjects, projectFiles, handlers, registerProject,
 		invoke: (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args) };
 }
 
@@ -41,11 +42,12 @@ test('persists distinct project paths and resolves them after the file registry 
 	const recentId = entries.find(entry => entry.name === 'Renamed').id;
 	h.projectFiles.clear();
 	assert.equal((await new RecentProjects(h.historyDirectory).list()).length, 2);
-	const reopened = await h.invoke('resolve-recent-project', recentId);
+	const reopened = await h.invoke('resolve-recent-project', recentId, 'reopened-session');
+	assert.deepEqual(h.registerProject.mock.calls[0].arguments, [first, false, 'reopened-session']);
 	assert.notEqual(reopened.id, originalId);
 	assert.equal((await h.projectFiles.read(reopened.id)).toString(), 'first');
 	await fs.unlink(first);
-	const missing = await h.invoke('resolve-recent-project', recentId);
+	const missing = await h.invoke('resolve-recent-project', recentId, 'missing-session');
 	assert.equal(await h.projectFiles.read(missing.id), null);
 	assert.equal((await h.invoke('list-recent-projects')).length, 2);
 	await h.invoke('remove-recent-project', recentId);
@@ -78,7 +80,7 @@ test('rejects untrusted requests, unknown file references and invalid recent pro
 	const h = await fixture(t);
 	for (const handler of h.handlers.values()) await assert.rejects(async () => handler({}, 'unknown'), /Untrusted/);
 	await assert.rejects(h.invoke('remember-recent-project', 'unknown', 'Name'), /Unknown project/);
-	await assert.rejects(h.invoke('resolve-recent-project', '../outside'), /Invalid recent project ID/);
+	await assert.rejects(h.invoke('resolve-recent-project', '../outside', 'invalid-session'), /Invalid recent project ID/);
 	await assert.rejects(h.invoke('remove-recent-project', '../outside'), /Invalid recent project ID/);
 });
 
@@ -103,7 +105,7 @@ test('adds project paths to OS recent documents and clears them only when all hi
 	assert.equal(entries.length, 2);
 	assert.equal(entries.every(entry => !('filePath' in entry)), true);
 	const firstEntry = entries.find(entry => entry.name === 'First again');
-	await h.invoke('resolve-recent-project', firstEntry.id);
+	await h.invoke('resolve-recent-project', firstEntry.id, 'recent-session');
 	await h.invoke('remove-recent-project', firstEntry.id);
 	assert.deepEqual(addedPaths, [firstProjectPath, secondProjectPath, firstProjectPath]);
 	assert.equal(clearCount, 0);

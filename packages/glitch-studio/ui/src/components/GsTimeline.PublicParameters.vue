@@ -41,12 +41,14 @@ import type { PublicParameterDefinitionEdit } from '@/types/parameter-edit.ts';
 import type { TimelineLayerWithParameters, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
-import { appContext } from '@/app.ts';
+import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
+
+const projectSession = useProjectSession();
 
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayerWithParameters }>();
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
-const { stateManager } = appContext.projectContext;
+const { stateManager } = projectSession.projectContext;
 const supportedTypes = ['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp', 'sizeReference'];
 provide(timelineParameterEditorContextKey, { context: computed(() => getTimelineLayerPublicParameterContext(props.scene.layers, props.layer.id)), isPublicParameterValue: true });
 
