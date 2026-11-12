@@ -32,7 +32,20 @@
 		</div>
 
 		<div :class="$style.previewArea">
-			<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" data-test-preview-viewport @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
+			<div
+				ref="containerContainer"
+				:class="[$style.containerContainer, { [$style.panning]: panning }]"
+				data-test-preview-viewport
+				@wheel="onViewWheel"
+				@click="onViewClick"
+				@pointerenter="onRulerPointermove"
+				@pointermove.capture="onRulerPointermove"
+				@pointerleave="clearRulerPointer"
+				@pointercancel.capture="clearRulerPointer"
+				@pointermove="onPointermove"
+				@pointerdown="onViewPointerdown"
+				@auxclick.prevent
+			>
 				<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :style="{ scale: zoom / previewDevicePixelRatio, translate: `${pan[0]}px ${pan[1]}px` }" data-test-preview-canvas-container></div>
 				<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
 					<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
@@ -54,7 +67,12 @@
 					>{{ renderTilingProgressText }}</span>
 				</div>
 			</div>
-			<GsPreviewRulers v-if="showRulersInPreview && !renderEngine.isSuspended.value" :canvasRect="previewCanvasRect" :viewportSize="previewViewportSize"/>
+			<GsPreviewRulers
+				v-if="showRulersInPreview && !renderEngine.isSuspended.value"
+				:canvasRect="previewCanvasRect"
+				:viewportSize="previewViewportSize"
+				:pointerPosition="previewPointerPosition"
+			/>
 		</div>
 
 		<div :class="$style.footer">
@@ -160,6 +178,8 @@ const previewCanvasRect = shallowRef<PreviewCanvasRect>({
 	height: 0,
 });
 const previewViewportSize = shallowRef<PreviewViewportSize>({ width: 0, height: 0 });
+const previewPointerPosition = shallowRef<[number, number] | null>(null);
+let previewPointerClientPosition: [number, number] | null = null;
 let stopPan: (() => void) | null = null;
 let stopExposureDrag: (() => void) | null = null;
 let suppressExposureClick = false;
@@ -271,6 +291,7 @@ function fitInitialZoom() {
 function onPreviewWindowChanged() {
 	cancelPan();
 	stopExposureDrag?.();
+	clearRulerPointer();
 	updateEditingDocument();
 	// 元のウィンドウが非表示でも、切り離したプレビューの寸法・DPRを更新し続ける。
 	if (timecodeRaf != null) animationWindow.cancelAnimationFrame(timecodeRaf);
@@ -282,6 +303,18 @@ function updatePreviewCanvasRect() {
 	if (canvasContainer.value == null || containerContainer.value == null) return;
 	const canvas = canvasContainer.value.getBoundingClientRect();
 	const container = containerContainer.value.getBoundingClientRect();
+	// 画面上のポインター位置を保持し、Canvasと同じフレームで表示領域内の位置へ換算する。
+	// ポインターが静止したままパネルを移動・リサイズした場合も、目盛りを実際の位置へ追従させる。
+	if (previewPointerClientPosition != null) {
+		const x = previewPointerClientPosition[0] - container.left;
+		const y = previewPointerClientPosition[1] - container.top;
+		const previous = previewPointerPosition.value;
+		if (x < 0 || y < 0 || x > container.width || y > container.height) {
+			previewPointerPosition.value = null;
+		} else if (previous == null || previous[0] !== x || previous[1] !== y) {
+			previewPointerPosition.value = [x, y];
+		}
+	}
 	if (container.width !== previewViewportSize.value.width || container.height !== previewViewportSize.value.height) {
 		previewViewportSize.value = { width: container.width, height: container.height };
 	}
@@ -385,6 +418,16 @@ function updateGridLines() {
 
 async function onViewClick() {
 
+}
+
+function onRulerPointermove(event: PointerEvent) {
+	// 編集ハンドルがバブリングを止めても、ルーラーはcaptureでポインターを追跡する。
+	previewPointerClientPosition = [event.clientX, event.clientY];
+}
+
+function clearRulerPointer() {
+	previewPointerClientPosition = null;
+	previewPointerPosition.value = null;
 }
 
 function onPointermove(ev: PointerEvent) {
