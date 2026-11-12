@@ -1,7 +1,7 @@
 <template>
 <div
 	:key="key"
-	:class="[$style.root, { [$style.indeterminate]: progress == null }]" :style="{
+	:class="[$style.root, { [$style.indeterminate]: progress == null, [$style.static]: props.static }]" :style="{
 		'--p': progress != null ? `${progress * 100}%` : '0%',
 	}"
 >
@@ -13,7 +13,10 @@ import { ref, watch } from 'vue';
 
 const props = withDefaults(defineProps<{
 	progress: number | null; // nullでindeterminate状態を表す
+	// 動画の書き出しなど、画面合成がGPU処理と競合する場面では連続的な描画を避ける。
+	static?: boolean;
 }>(), {
+	static: false,
 });
 
 // 進捗が0にリセットされたとき(減少したとき)やindeterminate状態への移行ではtransitionさせないためのkey
@@ -60,6 +63,14 @@ watch(() => props.progress, (after, before) => {
 
 		background: linear-gradient(-45deg, var(--c2) 25%, var(--c1) 25%,var(--c1) 50%, var(--c2) 50%, var(--c2) 75%, var(--c1) 75%, var(--c1));
 		background-size: 30px 30px;
+	}
+
+	&.static {
+		animation: none;
+
+		&::before {
+			transition: none;
+		}
 	}
 }
 

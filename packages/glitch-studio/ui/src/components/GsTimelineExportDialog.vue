@@ -47,7 +47,7 @@
 		<div>{{ i18n.ts._Export.EstimatedSize }}: {{ estimatedSize }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting && !choosingSaveFile" class="_gaps_m">
-			<div data-test-export-progress :class="$style.progress" role="progressbar" :aria-label="progressText" v-bind="progressFraction == null ? {} : { 'aria-valuenow': Math.floor(progressPercent) }" aria-valuemin="0" aria-valuemax="100"><div :class="[$style.progressFill, { [$style.indeterminate]: progressFraction == null }]" :style="{ width: `${progressFraction == null ? 100 : progressPercent}%` }"></div></div>
+			<GsProgressBar data-test-export-progress :progress="savingFile || progressFraction == null ? null : progressPercent / 100" static/>
 			<div>{{ progressText }}<GsEllipsis static/></div>
 		</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
@@ -76,6 +76,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsEffectRenderTilingSettings from './GsEffectRenderTilingSettings.vue';
 import GsTabs from './common/GsTabs.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
+import GsProgressBar from './common/GsProgressBar.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
 import { preferences } from '@/preferences.ts';
 import { appContext } from '@/app.ts';
@@ -424,20 +425,5 @@ onBeforeUnmount(() => {
 	display: flex;
 	justify-content: flex-end;
 	gap: 12px;
-}
-.progress {
-	height: 6px;
-	background: var(--THEME-panel);
-	border-radius: 3px;
-	overflow: clip;
-}
-.progressFill {
-	height: 100%;
-	background: var(--THEME-accent);
-	// 補間で毎画面更新すると、軽い進捗UIだけでも映像取り込みのGPU待ちが増える。
-	// Workerの進捗通知に合わせて直接反映し、書き出し中の連続的な画面合成を避ける。
-}
-.indeterminate {
-	opacity: 0.35;
 }
 </style>
