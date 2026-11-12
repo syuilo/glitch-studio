@@ -68,8 +68,36 @@ const emit = defineEmits<{ newProject: [] }>();
 }
 
 .active {
+	--tabCornerRadius: 8px;
+
+	position: relative;
 	background: var(--THEME-globalBg);
 	color: var(--THEME-fg);
+	border-radius: var(--tabCornerRadius) var(--tabCornerRadius) 0 0;
+
+	// 下端の外側に逆向きの丸みを描き、タブの背景を作業領域へ滑らかにつなげる。
+	// 装飾が隣のタブや追加ボタンの操作を妨げないよう、ポインター判定から除外する。
+	&::before,
+	&::after {
+		content: '';
+		position: absolute;
+		bottom: 0;
+		width: var(--tabCornerRadius);
+		height: var(--tabCornerRadius);
+		box-shadow: 0 0 0 var(--tabCornerRadius) var(--THEME-globalBg);
+		clip-path: inset(0);
+		pointer-events: none;
+	}
+
+	&::before {
+		right: 100%;
+		border-bottom-right-radius: var(--tabCornerRadius);
+	}
+
+	&::after {
+		left: 100%;
+		border-bottom-left-radius: var(--tabCornerRadius);
+	}
 }
 
 .select {
