@@ -29,7 +29,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
 import { disposeApplication, projectSessions, newProject, newProjectFromMediaPath, openProject } from './app.ts';
 import { desktopProjectFile } from './gsproj.ts';
 import { installProjectCloseGuard } from './project-close-guard.ts';
@@ -57,10 +57,6 @@ function showDashboard() {
 	dashboardOpen = true;
 	const { dispose } = ui.popup(GsDashboardDialog, {}, { closed: () => { dashboardOpen = false; dispose(); } });
 }
-
-watch(projectSessions.activeSession, session => {
-	if (session == null) showDashboard();
-});
 
 onMounted(async () => {
 	try {

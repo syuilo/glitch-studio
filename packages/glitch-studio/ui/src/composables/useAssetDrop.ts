@@ -7,19 +7,29 @@ type AssetDropData = { kind: 'asset'; assetId: string } | { kind: 'files'; files
 
 export function useAssetDrop(options: {
 	enabled?: () => boolean;
+	projectSessionId: () => string | null;
 	target: Readonly<Ref<HTMLElement | null>>;
 	dropFiles: (files: readonly File[]) => Promise<void>;
 	dropAsset: (assetId: string) => Promise<void>;
 	reportError: (error: unknown) => void;
 }) {
 	const hovering = ref(false);
+	// 素材IDは別セッションにも存在し得る。コピーされたプロジェクトを開いた場合も、
+	// 参照元が一致しない内部ドラッグをローカル素材として解釈してはいけない。
+	const acceptsAsset = (asset: { projectSessionId: string }) => {
+		const projectSessionId = options.projectSessionId();
+		return projectSessionId != null && asset.projectSessionId === projectSessionId;
+	};
 	const handlers = createDropTargetHandlers<AssetDropData>({
 		target: () => options.target.value,
 		enabled: options.enabled,
-		accepts: event => event.dataTransfer?.types.includes('Files') === true || getActiveDragData(event, 'GsAsset') != null,
+		accepts: event => {
+			const asset = getActiveDragData(event, 'GsAsset');
+			return asset != null ? acceptsAsset(asset) : event.dataTransfer?.types.includes('Files') === true;
+		},
 		readDropData: event => {
 			const asset = getActiveDragData(event, 'GsAsset');
-			if (asset != null) return { kind: 'asset', assetId: asset.assetId };
+			if (asset != null) return acceptsAsset(asset) ? { kind: 'asset', assetId: asset.assetId } : null;
 			const files = Array.from(event.dataTransfer?.files ?? []);
 			return files.length > 0 ? { kind: 'files', files } : null;
 		},

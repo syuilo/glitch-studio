@@ -717,6 +717,7 @@ function isTimelineActive() {
 const root = useTemplateRef<HTMLElement>('root');
 const assetDrop = useAssetDrop({
 	target: root,
+	projectSessionId: () => projectSession.id,
 	...createTimelineDropActions({
 		context: projectSession.projectContext,
 		sceneId: editedScene.id,

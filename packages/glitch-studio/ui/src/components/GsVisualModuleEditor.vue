@@ -139,6 +139,7 @@ const emit = defineEmits<{
 
 const assetDrop = useAssetDrop({
 	target: useTemplateRef<HTMLElement>('root'),
+	projectSessionId: () => props.assetDropActions?.projectSessionId ?? null,
 	enabled: () => props.assetDropActions != null,
 	dropFiles: async files => { if (await props.assetDropActions?.dropFiles(files) === true) tab.value = 'nodes'; },
 	dropAsset: async assetId => { if (await props.assetDropActions?.dropAsset(assetId) === true) tab.value = 'nodes'; },

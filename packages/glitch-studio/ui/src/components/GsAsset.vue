@@ -64,7 +64,7 @@ function onContextmenu(ev: PointerEvent) {
 function onDragstart(ev: DragEvent) {
 	if (ev.dataTransfer != null) {
 		ev.dataTransfer.effectAllowed = 'copy';
-		dragSession.start(ev, 'GsAsset', { assetId: props.asset.id });
+		dragSession.start(ev, 'GsAsset', { projectSessionId: projectSession.id, assetId: props.asset.id });
 	}
 
 	emit('dragstart', ev);

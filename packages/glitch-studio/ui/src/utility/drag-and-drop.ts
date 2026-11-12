@@ -4,7 +4,7 @@ import { genId } from '@gs/shared/utility/id.ts';
 export type DragDataMap = {
 	GsDraggable: { item: { id: string }; group: string; };
 	WorkspacePanel: { id: string; };
-	GsAsset: { assetId: string; };
+	GsAsset: { projectSessionId: string; assetId: string; };
 	TimelineLayer: { sceneId: string; layerId: string; };
 };
 

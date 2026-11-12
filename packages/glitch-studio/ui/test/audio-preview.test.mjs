@@ -29,6 +29,53 @@ function fixture() {
 	return { preview, workers, canvas, offscreen, get transfers() { return transfers; } };
 }
 
+// 【セッションを先に終了しても、パネルやメーターの後始末でWorkerを再起動しない】
+// タブを閉じる際はセッション破棄の後にVueがアンマウントする。遅れて届くresizeや
+// Worker通知も含め、終了済みの音声モニターがバックグラウンドに残らないことを確認する。
+test('does not recreate a worker during late panel and meter cleanup', async () => {
+	const f = fixture();
+	const options = { mode: 'waveform', settings: { overlay: false, waveformSeconds: 0.04 } };
+	const panel = f.preview.add(f.canvas, options, () => assert.fail('Disposed panel received an error'));
+	const releaseMeter = f.preview.attachMeter({}, () => assert.fail('Disposed meter received a reading'));
+	const worker = f.workers[0];
+	const meterId = worker.messages.at(-1).message.id;
+	const pending = f.preview.setRenderingSuspended(true);
+	f.preview.dispose();
+	const messageCount = worker.messages.length;
+	panel.resize({ width: 100, height: 100, ratio: 1, visible: true });
+	panel.configure(options);
+	panel.dispose();
+	releaseMeter();
+	f.preview.resetAudio();
+	f.preview.setRunning(false);
+	worker.reply({ type: 'meters', readings: [{ id: meterId, generation: 1, left: 1, right: 1 }] });
+	worker.reply({ type: 'sampleRate', sampleRate: 44100 });
+	worker.onerror({ message: 'Late worker error' });
+	f.preview.dispose();
+	await pending;
+	await f.preview.setRenderingSuspended(false);
+	assert.equal(worker.terminated, true);
+	assert.equal(worker.messages.length, messageCount);
+	assert.equal(f.workers.length, 1);
+	assert.equal(f.preview.sampleRate.value, 48000);
+});
+
+// 【終了後に届いた音声接続を閉じ、Canvasの所有権を奪わない】
+// 音声初期化の非同期結果や新しいパネルのマウントが終了処理より遅れても、
+// Workerを生成せず、転送できないMessagePortを未解放のまま保持しない。
+test('closes late audio ports and rejects new panels after disposal', () => {
+	const f = fixture();
+	f.preview.dispose();
+	let closed = 0;
+	f.preview.attachAudio({ close() { closed++; } });
+	const release = f.preview.attachMeter({ close() { closed++; } }, () => {});
+	release();
+	assert.throws(() => f.preview.add(f.canvas, { mode: 'waveform', settings: { overlay: false, waveformSeconds: 0.04 } }, () => {}), /disposed/);
+	assert.equal(closed, 2);
+	assert.equal(f.transfers, 0);
+	assert.equal(f.workers.length, 0);
+});
+
 // 【休止中に追加したモニターも描画を始めず、復帰までCanvasの転送・設定を保持する】
 // 書き出し中のパネル追加や別画面への配置で休止状態が失われないようにする。
 // Workerの終了・Canvasの再転送で休止を実装すると、元のパネルへ安全に復帰できなくなる。

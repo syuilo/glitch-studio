@@ -1,4 +1,4 @@
-import { computed, watch } from 'vue';
+import { computed } from 'vue';
 import type { Ref } from 'vue';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
@@ -48,7 +48,7 @@ export function installProjectCloseGuard(isProjectSaving: Readonly<Ref<boolean>>
 		const confirmed = allowNextUnload;
 		allowNextUnload = false;
 		unloadBlockedByOperation = isCloseBlocked.value;
-		if (!isCloseBlocked.value && (confirmed || !__ELECTRON__ || !hasUnsavedChanges.value)) return;
+		if (!isCloseBlocked.value && (confirmed || !hasUnsavedChanges.value)) return;
 		event.preventDefault();
 		// Electronでは終了を取り消し、Web版ではブラウザー標準の終了確認を表示する。
 		// Web版の確認文言は変更できず、ユーザーが終了を選ぶことも禁止できない。
@@ -62,19 +62,14 @@ export function installProjectCloseGuard(isProjectSaving: Readonly<Ref<boolean>>
 				.finally(() => { showingCloseNotice = false; });
 		}
 	};
-	// Electron版は終了要求の時点で未保存状態を評価する。
-	// 編集のたびにスナップショットを比較するためのwatchは追加しない。
-	if (__ELECTRON__) window.addEventListener('beforeunload', onBeforeUnload);
-	// クリック直後から保護し、保存・書き出し完了直後の終了も妨げないよう同期的に切り替える。
-	const stopWatching = __ELECTRON__ ? null : watch(isCloseBlocked, blocked => {
-		if (blocked) window.addEventListener('beforeunload', onBeforeUnload);
-		else window.removeEventListener('beforeunload', onBeforeUnload);
-	}, { immediate: true, flush: 'sync' });
+	// Web版も終了要求の時点で全セッションの最新状態を評価する。
+	// 同期watchで編集中のスナップショット比較を増やさず、編集・保存・Undo直後の
+	// 終了にも間に合わせる。保存済みならリスナーがあっても確認は要求しない。
+	window.addEventListener('beforeunload', onBeforeUnload);
 	return () => {
 		disposed = true;
 		stopListening?.();
 		if (activeRequestId != null) void desktop?.completeProjectClose(activeRequestId, false).catch(console.error);
-		stopWatching?.();
 		window.removeEventListener('beforeunload', onBeforeUnload);
 	};
 }

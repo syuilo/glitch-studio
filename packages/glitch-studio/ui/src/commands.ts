@@ -161,7 +161,7 @@ const stateUtility = {
 	},
 };
 
-const pasteParameterCommandDef = defineCommand<{ target: ProjectParameterClipboardTarget; projectId: string; clipboard: ParameterClipboardData }>({
+const pasteParameterCommandDef = defineCommand<{ target: ProjectParameterClipboardTarget; projectSessionId: string; clipboard: ParameterClipboardData }>({
 	label: 'Paste parameter',
 	changes: (_state, { target }) => target.kind === 'node'
 		? [{ type: 'node', target: target.visualModuleTarget, nodeId: target.nodeId, changes: [{ type: 'parameter', kind: 'value' }] }]
@@ -194,7 +194,7 @@ const pasteParameterCommandDef = defineCommand<{ target: ProjectParameterClipboa
 		return {
 			execute(state) {
 				if (update == null) {
-					update = prepareProjectParameterPaste(state, payload.projectId, payload.target, payload.clipboard);
+					update = prepareProjectParameterPaste(state, payload.projectSessionId, payload.target, payload.clipboard);
 					if (update == null) throw new Error('Incompatible parameter paste');
 				}
 				apply(state, update.after);

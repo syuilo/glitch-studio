@@ -42,7 +42,7 @@ const result = await build({
 		});
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
 			app: `import { ref } from 'vue'; export function useProjectSession() { return projectSession; } export const projectSession = {
-				projectContext: { stateManager: null, getVisualModuleById: () => null }, activeSceneId: ref('scene'), selectedTimelineLayer: ref(null),
+				id: 'test-session', projectContext: { stateManager: null, getVisualModuleById: () => null }, activeSceneId: ref('scene'), selectedTimelineLayer: ref(null),
 				previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false), isTimelineBaking: ref(false), toggleTimelineBake() {}, refresh() {} },
 				timelineAudioPreview: { buffering: ref(false), error: ref(null) },
 				timelineRendererManagerController: { errorMessage: ref(null), frameCacheState: ref(null), isReady: ref(true), isFrameCacheEnabled: ref(false), layerTransform: ref(null), async observeLayerTransform() {}, getLayerEffectStates() {}, getEffectLayerState() {} },
@@ -191,11 +191,11 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	const target = descendants(f.root).find(node => node.props.onDropCapture != null);
 	const overlay = () => descendants(f.root).find(node => 'data-test-timeline-drop-overlay' in node.props);
 
-	function event(types, assetId = 'sound') {
+	function event(types, assetId = 'sound', projectSessionId = projectSession.id) {
 		const transfer = layerDragTransfer();
 		for (const type of types) transfer.setData(type, '');
 		const value = layerDragEvent(transfer, 90, 'dragover');
-		if (types.includes('glitch-studio/gsasset')) startDragSession(value, 'test-asset', 'GsAsset', { assetId });
+		if (types.includes('glitch-studio/gsasset')) startDragSession(value, 'test-asset', 'GsAsset', { projectSessionId, assetId });
 		const drop = () => { transfer.allowReading(); return layerDragEvent(transfer); };
 		let stopped = false;
 		value.stopPropagation = () => { stopped = true; };
@@ -207,6 +207,15 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	assert.equal(internal.value.defaultPrevented, false);
 	assert.equal(internal.isStopped(), false);
 	assert.equal(overlay(), undefined);
+	// 別セッションにも同じ素材IDが存在するが、こちらの素材に読み替えて配置しない。
+	const foreign = event(['glitch-studio/gsasset'], 'sound', 'other-session');
+	target.props.onDragenterCapture(foreign.value);
+	await nextTick();
+	assert.equal(foreign.value.defaultPrevented, false);
+	assert.equal(overlay(), undefined);
+	await target.props.onDropCapture(foreign.drop());
+	assert.equal(f.history.undoStack.value.length, 0);
+	assert.equal(f.scene.layers.length, 2);
 	// カスタム型が先頭にない場合もGsAssetとして受け付ける。
 	const asset = event(['text/plain', 'glitch-studio/gsasset']);
 	target.props.onDragenterCapture(asset.value);

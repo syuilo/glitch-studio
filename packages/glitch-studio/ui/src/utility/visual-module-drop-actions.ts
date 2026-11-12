@@ -9,7 +9,7 @@ import type { VisualModuleAssetDropActions } from '../types/visual-module-editor
 
 /** 登録済み・インラインの保存先は親が指定し、共通Editorはドロップの表示と受付だけを担当する。 */
 export function createVisualModuleDropActions(options: {
-	context: ProjectContext; target: VisualModuleTarget; isActive: () => boolean; revealAssets: () => void;
+	context: ProjectContext; projectSessionId: string; target: VisualModuleTarget; isActive: () => boolean; revealAssets: () => void;
 }): VisualModuleAssetDropActions {
 	const { context, target, isActive, revealAssets } = options;
 	const visualModule = findVisualModule(context.stateManager.state, target);
@@ -55,5 +55,5 @@ export function createVisualModuleDropActions(options: {
 		return true;
 	}
 
-	return { dropFiles, dropAsset };
+	return { projectSessionId: options.projectSessionId, dropFiles, dropAsset };
 }

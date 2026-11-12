@@ -313,6 +313,7 @@ const inlineAssetDropActions = computed(() => {
 	const layer = props.layer;
 	return layer.layerType !== 'inlineVisualModule' ? null : createVisualModuleDropActions({
 		context: projectSession.projectContext,
+		projectSessionId: projectSession.id,
 		target: { sceneId: props.scene.id, inlineVisualModuleLayerId: layer.id },
 		isActive: () => !disposed && props.layer === layer,
 		revealAssets: () => emit('revealAssets'),
@@ -412,14 +413,14 @@ function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 	if (layer.layerType !== 'inlineVisualModule') return;
 	if (event.kind === 'customParameterClipboard') {
 		const scene = props.scene;
-		void handleProjectParameterClipboard(projectSession.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
 			{ kind: 'customParameter', visualModuleTarget: { sceneId: scene.id, inlineVisualModuleLayerId: layer.id }, paramPath: [event.parameterId] },
 			event.operation, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
 	if (event.kind === 'editNodeParam' && (event.edit.kind === 'copy' || event.edit.kind === 'paste')) {
 		const scene = props.scene;
-		void handleProjectParameterClipboard(projectSession.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
 			{ kind: 'node', visualModuleTarget: { sceneId: scene.id, inlineVisualModuleLayerId: layer.id }, nodeId: event.nodeId, paramPath: event.edit.paramPath },
 			event.edit.kind, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
@@ -438,7 +439,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	}
 	if (event.kind === 'copy' || event.kind === 'paste') {
 		const scene = props.scene;
-		void handleProjectParameterClipboard(projectSession.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
 			{ kind: 'timeline', sceneId: scene.id, layerId: layer.id, parameterTarget: target, paramPath: event.paramPath },
 			event.kind, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;

@@ -97,6 +97,7 @@ const assetDropActions = computed(() => {
 	const currentVisualModule = visualModule.value;
 	return currentVisualModule == null ? null : createVisualModuleDropActions({
 		context: projectSession.projectContext,
+		projectSessionId: projectSession.id,
 		target: { visualModuleId: currentVisualModule.id },
 		isActive: () => !disposed && visualModule.value === currentVisualModule,
 		revealAssets: () => workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: props.panel.id }),
@@ -179,7 +180,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	if (event.kind === 'copy' || event.kind === 'paste') {
 		const currentVisualModule = visualModule.value;
 		if (currentVisualModule == null) return;
-		void handlePreviewParameterClipboard(projectSession.projectContext, currentVisualModule.id, event.paramPath, event.kind,
+		void handlePreviewParameterClipboard(projectSession.projectContext, projectSession.id, currentVisualModule.id, event.paramPath, event.kind,
 			() => previewParamValues.value, () => !disposed && visualModule.value === currentVisualModule,
 			(id, binding) => {
 				previewParamValues.value[id] = binding;
@@ -348,13 +349,13 @@ function onEdit(event: VisualModuleEdit) {
 	const module = visualModule.value;
 	if (module == null) return;
 	if (event.kind === 'customParameterClipboard') {
-		void handleProjectParameterClipboard(projectSession.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
 			{ kind: 'customParameter', visualModuleTarget: { visualModuleId: module.id }, paramPath: [event.parameterId] },
 			event.operation, () => !disposed && visualModule.value === module).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
 	if (event.kind === 'editNodeParam' && (event.edit.kind === 'copy' || event.edit.kind === 'paste')) {
-		void handleProjectParameterClipboard(projectSession.projectContext,
+		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
 			{ kind: 'node', visualModuleTarget: { visualModuleId: module.id }, nodeId: event.nodeId, paramPath: event.edit.paramPath },
 			event.edit.kind, () => !disposed && visualModule.value === module).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;

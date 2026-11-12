@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { i18n, i18nPlugin } from './helpers/i18n.mjs';
 
 async function buildCloseGuard(electron) {
@@ -76,26 +76,47 @@ async function flushConfirmation() {
 	await Promise.resolve();
 }
 
-// 【Web版は保存中だけ標準の終了確認を要求し、保存完了・破棄では解除する】
-// 手動保存の直後のcloseに間に合うよう、次のVue更新を待たずに保護する必要がある。
-// 未保存の変更だけではWeb版の終了を止めたり、Vueのダイアログを併用したりしない。
-test('requests browser confirmation synchronously only while saving and cleans up on disposal', t => {
-	const fixtureState = fixture(t, installBrowserGuard, { unsaved: true });
+// 【Web版は未保存変更・保存中に標準の終了確認を要求し、保存済みなら確認しない】
+// 編集や保存の直後のcloseに間に合うよう、次のVue更新を待たずに保護する必要がある。
+// ブラウザー標準の確認に加えてVueのダイアログを開かず、破棄後には保護を残さない。
+test('requests browser confirmation for unsaved changes and saving and cleans up on disposal', t => {
+	const fixtureState = fixture(t, installBrowserGuard);
 	assert.equal(fixtureState.close().defaultPrevented, false);
-	fixtureState.isProjectSaving.value = true;
+	fixtureState.hasUnsavedChanges.value = true;
 	const blocked = fixtureState.close();
 	assert.equal(blocked.defaultPrevented, true);
 	assert.equal(blocked.returnValue, true);
 	assert.deepEqual(fixtureState.target.closeNotices, []);
 	assert.deepEqual(fixtureState.target.closeConfirmations, []);
+	fixtureState.isProjectSaving.value = true;
+	fixtureState.hasUnsavedChanges.value = false;
+	assert.equal(fixtureState.close().defaultPrevented, true);
 	fixtureState.isProjectSaving.value = false;
 	assert.equal(fixtureState.close().defaultPrevented, false);
-	fixtureState.isProjectSaving.value = true;
+	fixtureState.hasUnsavedChanges.value = true;
 	fixtureState.dispose();
 	assert.equal(fixtureState.close().defaultPrevented, false);
-	fixtureState.isProjectSaving.value = false;
 	fixtureState.isProjectSaving.value = true;
 	assert.equal(fixtureState.close().defaultPrevented, false);
+});
+
+// 【Web版の終了ガードはスナップショット比較を終了時まで遅延し、直前のUndoも反映する】
+// 同期watchで未保存状態を追跡すると、編集中の各変更でプロジェクト全体を比較してしまう。
+// 比較を遅延しても、未保存のまま閉じたり、Undoで保存状態に戻った後に確認を残したりしない。
+test('evaluates unsaved browser state lazily at unload and respects immediate undo', t => {
+	const content = ref('saved');
+	let comparisons = 0;
+	const unsaved = computed(() => { comparisons++; return content.value !== 'saved'; });
+	const fixtureState = fixture(t, installBrowserGuard, { unsaved });
+	content.value = 'first edit';
+	content.value = 'second edit';
+	assert.equal(comparisons, 0);
+	assert.equal(fixtureState.close().defaultPrevented, true);
+	assert.equal(comparisons, 1);
+	content.value = 'saved';
+	assert.equal(comparisons, 1);
+	assert.equal(fixtureState.close().defaultPrevented, false);
+	assert.equal(comparisons, 2);
 });
 
 // 【保存中は既存の案内を一つだけ表示し、保存完了後も自動では閉じない】
@@ -202,6 +223,12 @@ test('protects browser exports synchronously until both exporting and saving fin
 	fixtureState.isProjectSaving.value = false;
 	assert.equal(fixtureState.close().defaultPrevented, true);
 	fixtureState.isExporting.value = false;
+	assert.equal(fixtureState.close().defaultPrevented, false);
+	fixtureState.hasUnsavedChanges.value = true;
+	fixtureState.isExporting.value = true;
+	fixtureState.isExporting.value = false;
+	assert.equal(fixtureState.close().defaultPrevented, true);
+	fixtureState.hasUnsavedChanges.value = false;
 	assert.equal(fixtureState.close().defaultPrevented, false);
 	assert.deepEqual(fixtureState.target.closeNotices, []);
 });

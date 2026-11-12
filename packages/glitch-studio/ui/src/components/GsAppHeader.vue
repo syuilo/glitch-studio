@@ -8,7 +8,9 @@
 			:disabled="!stateManager?.canUndo.value"
 			data-test-header-undo
 			@click="stateManager?.undo()"
-		><i class="ti ti-arrow-back-up"></i></button>
+		>
+			<i class="ti ti-arrow-back-up"></i>
+		</button>
 		<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager?.canRedo.value" @click="stateManager?.redo()"><i class="ti ti-arrow-forward-up"></i></button>
 		<template v-if="isElectron">
 			<span :class="$style.headerDivider"></span>
@@ -21,7 +23,9 @@
 				data-test-header-copy
 				@pointerdown.prevent
 				@click="headerEditActions.execute('copy')"
-			><i class="ti ti-copy"></i></button>
+			>
+				<i class="ti ti-copy"></i>
+			</button>
 			<button
 				v-tooltip="i18n.ts.Paste"
 				class="_button"
@@ -31,7 +35,9 @@
 				data-test-header-paste
 				@pointerdown.prevent
 				@click="headerEditActions.execute('paste')"
-			><i class="ti ti-clipboard"></i></button>
+			>
+				<i class="ti ti-clipboard"></i>
+			</button>
 			<button
 				v-tooltip="i18n.ts.Cut"
 				class="_button"
@@ -41,7 +47,9 @@
 				data-test-header-cut
 				@pointerdown.prevent
 				@click="headerEditActions.execute('cut')"
-			><i class="ti ti-cut"></i></button>
+			>
+				<i class="ti ti-cut"></i>
+			</button>
 			<button
 				v-tooltip="i18n.ts.Delete"
 				class="_button"
@@ -51,7 +59,9 @@
 				data-test-header-delete
 				@pointerdown.prevent
 				@click="headerEditActions.execute('delete')"
-			><i class="ti ti-trash"></i></button>
+			>
+				<i class="ti ti-trash"></i>
+			</button>
 		</template>
 		<span :class="$style.headerDivider"></span>
 		<button
@@ -61,7 +71,9 @@
 			:disabled="projectSession == null || isProjectSaving || !hasUnsavedChanges"
 			data-test-header-save
 			@click="projectSession?.saveProject()"
-		><i class="ti ti-device-floppy"></i></button>
+		>
+			<i class="ti ti-device-floppy"></i>
+		</button>
 		<span :class="$style.headerDivider"></span>
 		<button class="_button" :class="$style.headerMenuItem" data-test-header-file-menu @click="openHeaderFileMenu">{{ i18n.ts._App.File }}</button>
 		<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">{{ i18n.ts._App.Edit }}</button>
@@ -75,7 +87,9 @@
 			:class="[$style.headerMenuItem, $style.updateNotification]"
 			data-test-desktop-update-notification
 			@click="desktopUpdateUi?.requestUpdate()"
-		>{{ i18n.ts._DesktopUpdate.Available }}</button>
+		>
+			{{ i18n.ts._DesktopUpdate.Available }}
+		</button>
 	</div>
 	<div :class="$style.headerCenter">
 		{{ projectName }}
@@ -91,15 +105,15 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { genId } from '@gs/shared/utility/id.js';
-import { projectSessions, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
 import type { ProjectSessionContext } from '@/ProjectSessionContext.ts';
 import type { EditorEditTarget } from '@/composables/useEditorEditActions.ts';
+import type { WorkspacePanel } from '@/workspace.ts';
+import { projectSessions, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
 import { useHeaderEditActions } from '@/composables/useHeaderEditActions.ts';
 import { preferences } from '@/preferences.ts';
 import { desktopUpdateUi } from '@/desktop-update-ui.ts';
 import { importVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { workspacePanelChoices } from '@/workspace.ts';
-import type { WorkspacePanel } from '@/workspace.ts';
 import GsWindowTitlebar from '@/components/common/GsWindowTitlebar.vue';
 import GsEllipsis from '@/components/common/GsEllipsis.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -156,13 +170,6 @@ function openHeaderFileMenu(ev: PointerEvent) {
 	// メニューを開いた時点のプロジェクトへ操作を固定し、後から別タブへ切り替わっても誤操作しない。
 	const projectSession = props.projectSession;
 	ui.popupMenu([{
-		id: 'dashboard',
-		text: i18n.ts._App.Dashboard,
-		icon: 'ti ti-layout-dashboard',
-		action: () => emit('showDashboard'),
-	}, {
-		type: 'divider',
-	}, {
 		id: 'new-project',
 		text: i18n.ts._Dashboard.NewProject,
 		icon: 'ti ti-plus',
@@ -176,6 +183,8 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		icon: 'ti ti-folder-open',
 		action: () => { void openProject(); },
 	}, {
+		type: 'divider',
+	}, {
 		id: 'save-project',
 		disabled: projectSession == null,
 		text: i18n.ts.Save,
@@ -186,12 +195,6 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		text: `${i18n.ts._App.SaveAs}...`,
 		icon: 'ti ti-device-floppy',
 		action: () => { void projectSession?.saveProject(true); },
-	}, {
-		id: 'close-project',
-		disabled: projectSession == null,
-		text: i18n.ts._App.CloseProject,
-		icon: 'ti ti-x',
-		action: () => { if (projectSession != null) void projectSessions.close(projectSession); },
 	}, {
 		type: 'divider',
 	}, {
@@ -219,6 +222,21 @@ function openHeaderFileMenu(ev: PointerEvent) {
 			if (projectSession == null) return;
 			const { dispose } = ui.popup(GsTimelineExportDialog, {}, { closed: () => dispose() }, projectSession);
 		},
+	}, {
+		type: 'divider',
+	}, {
+		id: 'close-project',
+		disabled: projectSession == null,
+		text: i18n.ts._App.CloseProject,
+		icon: 'ti ti-x',
+		action: () => { if (projectSession != null) void projectSessions.close(projectSession); },
+	}, {
+		type: 'divider',
+	}, {
+		id: 'dashboard',
+		text: i18n.ts._App.Dashboard,
+		icon: 'ti ti-layout-dashboard',
+		action: () => emit('showDashboard'),
 	}], ev.currentTarget ?? ev.target);
 }
 
