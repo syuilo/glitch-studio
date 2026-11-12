@@ -15,7 +15,6 @@
 		:editorEditTarget="activeEditorEditTarget"
 		@showDashboard="showDashboard"
 	/>
-	<GsProjectTabs :manager="projectSessions" @newProject="newProject()"/>
 	<div :class="$style.editors">
 		<GsProjectEditor
 			v-for="session in projectSessions.sessions.value"
@@ -30,14 +29,13 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
-import { disposeApplication, projectSessions, newProject, newProjectFromMediaPath, openProject } from './app.ts';
+import { disposeApplication, projectSessions, newProjectFromMediaPath, openProject } from './app.ts';
 import { desktopProjectFile } from './gsproj.ts';
 import { installProjectCloseGuard } from './project-close-guard.ts';
 import { applicationActivity } from './application-activity.ts';
 import GsPopup from './components/GsPopup.vue';
 import GsProjectEditor from './components/GsProjectEditor.vue';
 import GsAppHeader from './components/GsAppHeader.vue';
-import GsProjectTabs from './components/GsProjectTabs.vue';
 import GsDashboardDialog from './components/GsDashboardDialog.vue';
 import * as ui from './ui.ts';
 

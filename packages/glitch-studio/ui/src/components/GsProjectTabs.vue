@@ -1,5 +1,5 @@
 <template>
-<div v-if="manager.sessions.value.length > 1" :class="$style.root" data-test-project-tabs>
+<div :class="$style.root" data-test-project-tabs>
 	<div
 		v-for="session in manager.sessions.value"
 		:key="session.id"
@@ -19,7 +19,9 @@
 			:disabled="manager.fileOperations.isBusy.value"
 			data-test-close-project
 			@click="manager.close(session)"
-		><i class="ti ti-x"></i></button>
+		>
+			<i class="ti ti-x"></i>
+		</button>
 	</div>
 	<button
 		v-tooltip="i18n.ts._Dashboard.NewProject"
@@ -28,7 +30,9 @@
 		:disabled="manager.fileOperations.isBusy.value"
 		data-test-new-project
 		@click="emit('newProject')"
-	><i class="ti ti-plus"></i></button>
+	>
+		<i class="ti ti-plus"></i>
+	</button>
 </div>
 </template>
 
@@ -42,25 +46,30 @@ const emit = defineEmits<{ newProject: [] }>();
 
 <style module lang="scss">
 .root {
+	--verticalShift: 0px;
+
+	position: relative;
 	display: flex;
 	flex-shrink: 0;
 	gap: 4px;
-	padding: 4px 12px 8px;
-	overflow-x: auto;
+	height: 100%;
+	box-sizing: border-box;
 }
 
 .tab {
 	display: flex;
 	flex: 0 0 auto;
 	max-width: 280px;
-	border-radius: 6px;
-	background: var(--THEME-globalBg);
-	opacity: 0.65;
+	color: color(from var(--THEME-fg) srgb r g b / 0.6);
+
+	&:not(.active) {
+		app-region: no-drag;
+	}
 }
 
 .active {
-	opacity: 1;
-	box-shadow: inset 0 -2px var(--THEME-accent);
+	background: var(--THEME-globalBg);
+	color: var(--THEME-fg);
 }
 
 .select {
@@ -68,7 +77,8 @@ const emit = defineEmits<{ newProject: [] }>();
 	align-items: center;
 	gap: 6px;
 	min-width: 0;
-	padding: 8px 12px;
+	padding-top: var(--verticalShift);
+	padding-left: 12px;
 }
 
 .name {
@@ -77,13 +87,19 @@ const emit = defineEmits<{ newProject: [] }>();
 	text-overflow: ellipsis;
 }
 
-.close, .add {
-	flex-shrink: 0;
-	padding: 0 10px;
-	border-radius: 6px;
+.close {
+	padding-top: var(--verticalShift);
+	height: 100%;
+	box-sizing: border-box;
+	aspect-ratio: 1;
+	display: grid;
+	place-items: center;
+	font-size: 90%;
+	app-region: no-drag;
+}
 
-	&:hover {
-		background: #fff1;
-	}
+.add {
+	flex-shrink: 0;
+	app-region: no-drag;
 }
 </style>

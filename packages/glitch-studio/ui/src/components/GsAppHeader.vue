@@ -81,23 +81,21 @@
 		<button class="_button" :class="$style.headerMenuItem" data-test-header-window-menu @click="openHeaderWindowMenu">{{ i18n.ts._App.Window }}</button>
 		<button class="_button" :class="$style.headerMenuItem" @click="openHeaderToolsMenu">{{ i18n.ts._App.Tools }}</button>
 		<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">{{ i18n.ts._App.Help }}</button>
+	</div>
+	<div :class="$style.headerTabs">
+		<GsProjectTabs :manager="projectSessions" @newProject="newProject()"/>
+	</div>
+	<div :class="$style.headerRight">
 		<button
 			v-if="desktopUpdateUi?.state.value.version != null"
+			v-tooltip="i18n.ts._DesktopUpdate.Available"
 			class="_button"
 			:class="[$style.headerMenuItem, $style.updateNotification]"
 			data-test-desktop-update-notification
 			@click="desktopUpdateUi?.requestUpdate()"
 		>
-			{{ i18n.ts._DesktopUpdate.Available }}
+			<i class="ti ti-circle-open-arrow-up"></i>
 		</button>
-	</div>
-	<div :class="$style.headerCenter">
-		{{ projectName }}
-		<span v-if="hasUnsavedChanges" v-tooltip="i18n.ts._App.UnsavedChanges">*</span>
-		<span v-if="projectFileName != null" :class="$style.projectFileName">({{ projectFileName }})</span>
-	</div>
-	<div :class="$style.headerRight">
-		<span v-if="isProjectSaving" :class="$style.projectSaving" data-test-project-saving>{{ i18n.ts._App.ProjectSaving }}<GsEllipsis/></span>
 	</div>
 </GsWindowTitlebar>
 </template>
@@ -108,6 +106,7 @@ import { genId } from '@gs/shared/utility/id.js';
 import type { ProjectSessionContext } from '@/ProjectSessionContext.ts';
 import type { EditorEditTarget } from '@/composables/useEditorEditActions.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
+import GsProjectTabs from '@/components/GsProjectTabs.vue';
 import { projectSessions, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
 import { useHeaderEditActions } from '@/composables/useHeaderEditActions.ts';
 import { preferences } from '@/preferences.ts';
@@ -115,7 +114,6 @@ import { desktopUpdateUi } from '@/desktop-update-ui.ts';
 import { importVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { workspacePanelChoices } from '@/workspace.ts';
 import GsWindowTitlebar from '@/components/common/GsWindowTitlebar.vue';
-import GsEllipsis from '@/components/common/GsEllipsis.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
 import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
@@ -128,10 +126,7 @@ const props = defineProps<{ projectSession: ProjectSessionContext | null; editor
 const emit = defineEmits<{ showDashboard: [] }>();
 const isElectron = __ELECTRON__;
 const stateManager = computed(() => props.projectSession?.projectContext.stateManager);
-const projectName = computed(() => stateManager.value?.state.name.value ?? 'Glitch Studio');
-const projectFileName = computed(() => props.projectSession?.projectFileName.value ?? null);
 const hasUnsavedChanges = computed(() => props.projectSession?.hasUnsavedChanges.value ?? false);
-const isProjectSaving = computed(() => props.projectSession?.isProjectSaving.value ?? false);
 const fileOperationBusy = projectSessions.fileOperations.isBusy;
 const showAdvancedParameters = preferences.model('showAdvancedParameters');
 const headerEditActions = useHeaderEditActions({
@@ -364,18 +359,21 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 	align-items: center;
 }
 
-.headerCenter {
+.headerTabs {
+	position: relative;
 	flex: 1;
 	min-width: 0;
-	text-align: center;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	padding: 0 0 0 12px;
+	box-sizing: border-box;
+	height: calc(100% - 5px);
+	align-self: end;
 }
 
 .headerRight {
 	margin-left: auto;
 	min-width: 0;
 	padding: 0 12px;
+	box-sizing: border-box;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -385,16 +383,6 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 	height: 50%;
 	margin: 0 4px;
 	background-color: #fff2;
-}
-
-.projectFileName {
-	margin-left: 0.5em;
-	color: color-mix(in srgb, var(--THEME-fg), transparent 30%);
-}
-
-.projectSaving {
-	margin-right: 1em;
-	color: var(--THEME-accent);
 }
 
 .updateNotification {
