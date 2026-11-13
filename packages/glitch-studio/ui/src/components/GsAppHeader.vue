@@ -166,17 +166,16 @@ function openHeaderFileMenu(ev: PointerEvent) {
 	// メニューを開いた時点のプロジェクトへ操作を固定し、後から別タブへ切り替わっても誤操作しない。
 	const projectSession = props.projectSession;
 	ui.popupMenu([{
+		id: 'dashboard',
+		text: i18n.ts._App.Dashboard,
+		icon: 'ti ti-home',
+		action: () => emit('showDashboard'),
+	}, {
 		id: 'new-project',
 		disabled: fileOperationBusy.value,
 		text: i18n.ts._Dashboard.NewProject,
 		icon: 'ti ti-plus',
 		action: () => { void newProject(); },
-	}, {
-		id: 'new-media-project',
-		disabled: fileOperationBusy.value,
-		text: `${i18n.ts._Dashboard.OpenMedia}...`,
-		icon: 'ti ti-photo-video',
-		action: () => { void newProjectFromImageOrVideo(); },
 	}, {
 		id: 'open-project',
 		disabled: fileOperationBusy.value,
@@ -232,13 +231,6 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		text: i18n.ts._App.CloseProject,
 		icon: 'ti ti-x',
 		action: () => { if (projectSession != null) void projectSessions.close(projectSession); },
-	}, {
-		type: 'divider',
-	}, {
-		id: 'dashboard',
-		text: i18n.ts._App.Dashboard,
-		icon: 'ti ti-layout-dashboard',
-		action: () => emit('showDashboard'),
 	}], ev.currentTarget ?? ev.target);
 }
 
