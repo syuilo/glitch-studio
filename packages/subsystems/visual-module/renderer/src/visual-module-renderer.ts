@@ -466,6 +466,18 @@ export class VisualModuleRenderer {
 		return texture == null ? null : { kind: 'texture', texture };
 	}
 
+	/** 初回描画の入力座標も出力の表示領域に合わせられるよう、静的に計画済みの寸法を公開する。 */
+	public getOutputResolution(outputId: string): Resolution | null {
+		const node = this.renderNodeId == null ? null : this.allNodeIdMap.get(this.renderNodeId);
+		if (node == null) return null;
+		const output = this.getOutputNode(node, outputId);
+		if (output == null) return null;
+		const resolution = output.node.type === 'globalIn'
+			? this.inputResolutions.get(output.outputPort)
+			: this.nodeResolutions.get(output.node.id);
+		return resolution == null ? null : { ...resolution };
+	}
+
 	private *renderNode(node: VisualModuleNode, context: VisualModuleRenderContext & {
 		rendered: Set<VisualModuleNode['id']>;
 	}): Generator<VisualModuleNodeRenderRequest, void> {

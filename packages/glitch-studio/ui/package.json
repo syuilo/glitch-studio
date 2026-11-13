@@ -32,7 +32,8 @@
 		"tinycolor2": "1.6.0",
 		"vue": "3.5.44",
 		"vue-component-type-helpers": "3.3.14",
-		"webgpu-utils": "2.1.1"
+		"webgpu-utils": "2.1.1",
+		"@gs/glitch-studio_embed": "workspace:*"
 	},
 	"devDependencies": {
 		"@misskey-dev/eslint-plugin": "2.2.1",

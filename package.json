@@ -18,6 +18,7 @@
 		"packages/subsystems/timeline/audio-renderer",
 		"packages/glitch-studio/shared",
 		"packages/glitch-studio/renderer",
+		"packages/glitch-studio/embed",
 		"packages/glitch-studio/ui",
 		"packages/glitch-studio/desktop"
 	],

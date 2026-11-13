@@ -15,7 +15,10 @@
 		"./srgb-image-readback.ts": "./src/srgb-image-readback.ts",
 		"./client.ts": "./src/client.ts",
 		"./visual-module-renderer-manager.ts": "./src/visual-module-renderer-manager.ts",
-		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts"
+		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts",
+		"./asset-textures.ts": "./src/asset-textures.ts",
+		"./custom-shader-effects.ts": "./src/custom-shader-effects.ts",
+		"./portable-canvas-renderer.ts": "./src/portable-canvas-renderer.ts"
 	},
 	"devDependencies": {
 		"@types/web": "0.0.359",

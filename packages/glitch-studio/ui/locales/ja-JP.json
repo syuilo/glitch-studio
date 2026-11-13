@@ -811,6 +811,18 @@
 		"DownloadFile": "{name}をダウンロード"
 	},
 	"_VisualModule": {
+		"WebExport": "Web用に書き出す",
+		"WebExportFormat": "ファイル形式",
+		"WebExportZip": "HTML＋JavaScript（ZIP）",
+		"WebExportHtml": "単一HTMLファイル",
+		"WebExportHint": "作品とアセットを同梱します。描画解像度は表示先に追従します。WebGPUが有効なHTTPS環境で配信してください。サイズ変更時には軌跡・フィードバックの履歴がリセットされます。",
+		"WebExportPlayers": "以下のPlayerはファイル由来も含めて未接続になります: {names}",
+		"WebExportResolutionHint": "自動または固定の解像度を使うノードがあります。設定は維持されます。表示先のサイズに追従させたいノードはContextに設定してください。",
+		"WebExportScale": "描画倍率",
+		"WebExportMaxPixels": "描画画素数の上限",
+		"WebExportFps": "フレームレート上限",
+		"WebExportParameters": "公開パラメータの初期値（JSON）",
+		"WebExportParametersHint": "公開パラメータの参照名をキーに指定します。{}では公開パラメータの既定値を使います。Live Previewの設定値は含めません。",
 		"Drop": "Visual Moduleへのドロップ",
 		"Nodes": "ノード",
 		"InputDefs": "入力定義",

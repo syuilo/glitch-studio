@@ -14,6 +14,7 @@ packages:
   - packages/subsystems/timeline/audio-renderer
   - packages/glitch-studio/shared
   - packages/glitch-studio/renderer
+  - packages/glitch-studio/embed
   - packages/glitch-studio/ui
   - packages/glitch-studio/desktop
 minimumReleaseAge: 10080 # delay 7days to mitigate supply-chain attack

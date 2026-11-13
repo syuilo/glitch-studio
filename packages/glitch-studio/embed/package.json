@@ -1,0 +1,26 @@
+{
+	"name": "@gs/glitch-studio_embed",
+	"private": true,
+	"type": "module",
+	"exports": { "./*": "./src/*", "./build/runtime.mjs": "./build/runtime.mjs" },
+	"scripts": {
+		"typecheck": "tsc6 --noEmit",
+		"test": "node --test test/*.test.mjs",
+		"eslint": "eslint --quiet 'src/**/*.ts'",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"dependencies": {
+		"@gs/glitch-studio_renderer": "workspace:*",
+		"@gs/glitch-studio_shared": "workspace:*",
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*",
+		"@gs/subsystems_visual-module_shared": "workspace:*",
+		"@gs/subsystems_visual-module_renderer": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/web": "0.0.359",
+		"@typescript-eslint/parser": "8.72.1",
+		"@webgpu/types": "0.1.74",
+		"vite": "8.3.5"
+	}
+}

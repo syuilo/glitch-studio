@@ -811,6 +811,18 @@
 		"DownloadFile": "Download {name}"
 	},
 	"_VisualModule": {
+		"WebExport": "Export for the web",
+		"WebExportFormat": "File format",
+		"WebExportZip": "HTML + JavaScript (ZIP)",
+		"WebExportHtml": "Single HTML file",
+		"WebExportHint": "The artwork and its assets are bundled. Rendering follows the element size. Serve over HTTPS with WebGPU enabled. Resizing resets trails and feedback.",
+		"WebExportPlayers": "Players remain unconnected, including file Players: {names}",
+		"WebExportResolutionHint": "Some nodes use automatic or fixed resolutions. Their settings are preserved. Use Context for nodes that should follow the display size.",
+		"WebExportScale": "Rendering scale",
+		"WebExportMaxPixels": "Maximum rendering pixels",
+		"WebExportFps": "Maximum frames per second",
+		"WebExportParameters": "Initial public parameter values (JSON)",
+		"WebExportParametersHint": "Use public parameter reference names as keys. {} uses the Public Parameter defaults. Live Preview values are not included.",
 		"Drop": "Visual Module drop",
 		"Nodes": "Nodes",
 		"InputDefs": "Input Defs",
