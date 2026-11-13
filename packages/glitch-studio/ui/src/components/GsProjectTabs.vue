@@ -14,11 +14,10 @@
 		</div>
 		<button class="_button" :class="$style.select" data-test-select-project @click="manager.select(session)">
 			<span :class="$style.name" data-test-project-tab-name>{{ session.projectDisplayName.value }}</span>
-			<span v-if="session.hasUnsavedChanges.value" v-tooltip="i18n.ts._App.UnsavedChanges" data-test-project-tab-unsaved>*</span>
+			<span v-if="session.hasUnsavedChanges.value" data-test-project-tab-unsaved>*</span>
 			<i v-if="session.isProjectSaving.value" class="ti ti-loader" data-test-project-tab-saving></i>
 		</button>
 		<button
-			v-tooltip="i18n.ts._App.CloseProject"
 			class="_button"
 			:class="$style.close"
 			:disabled="manager.fileOperations.isBusy.value"
