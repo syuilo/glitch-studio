@@ -1,3 +1,4 @@
+import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { Cloneable } from '@gs/shared/utility/deep-clone.ts';
@@ -11,7 +12,7 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 
 /** Timelineの参照を解決してから、ドメイン非依存の値評価へ渡す。評価結果はフレーム間で保持しない。 */
 export class TimelineParameterBindingEvaluator {
-	private valueEvaluator = new ParameterBindingEvaluator();
+	private valueEvaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 
 	evaluate(binding: TimelineParameterBinding, scope: TimelineLayerEvaluationScope, fallback: any, definition: ParameterDefinition): any {
 		const cache = new Map<string, Cloneable>();

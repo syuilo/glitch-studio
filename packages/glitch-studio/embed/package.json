@@ -2,7 +2,10 @@
 	"name": "@gs/glitch-studio_embed",
 	"private": true,
 	"type": "module",
-	"exports": { "./*": "./src/*", "./build/runtime.mjs": "./build/runtime.mjs" },
+	"exports": {
+		"./*": "./src/*",
+		"./build/*": "./build/*"
+	},
 	"scripts": {
 		"typecheck": "tsc6 --noEmit",
 		"test": "node --test test/*.test.mjs",
@@ -21,6 +24,7 @@
 		"@types/web": "0.0.359",
 		"@typescript-eslint/parser": "8.72.1",
 		"@webgpu/types": "0.1.74",
+		"esbuild": "0.28.2",
 		"vite": "8.3.5"
 	}
 }

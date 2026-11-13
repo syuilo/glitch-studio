@@ -18,13 +18,13 @@ const bundle = await build({
 		export { applicationActivity };
 		export { DEFAULT_PORTABLE_VISUAL_MODULE_SETTINGS } from '@gs/glitch-studio_shared/portable-visual-module.ts';
 	` },
+	define: { __ELECTRON__: 'true' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'web-export-platform', setup(builder) {
 		// ダイアログの状態遷移と実際の成果物生成を通す。DOM・ビルド済みGPUランタイムだけを境界で差し替える。
-		builder.onResolve({ filter: /\.vue$|^virtual:visual-module-embed-runtime$|effect-definitions\.ts$/ }, ({ path }) => ({ path, namespace: 'web-export-platform' }));
+		builder.onResolve({ filter: /\.vue$|effect-definitions\.ts$/ }, ({ path }) => ({ path, namespace: 'web-export-platform' }));
 		builder.onLoad({ filter: /.*/, namespace: 'web-export-platform' }, ({ path }) => ({ loader: 'ts', contents:
 			path.endsWith('.vue') ? 'export default {};'
-				: path.startsWith('virtual:') ? `export default { elementSource: 'var GlitchStudioVisualModuleEmbed = { registerVisualModuleElement: capture };', workerSource: '// test worker' };`
 					: 'export const effectDefinitions = {};',
 		}));
 	} }],
@@ -36,22 +36,27 @@ const { applicationActivity, DEFAULT_PORTABLE_VISUAL_MODULE_SETTINGS } = loaded.
 const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {}, parentNode: () => null, nextSibling: () => null });
 
 function fixture(t, fileData = new Blob(['asset'])) {
-	const blobs = new Map();
 	const downloads = [];
-	const revoked = [];
-	const timers = [];
-	t.mock.method(URL, 'createObjectURL', blob => { const url = `blob:export-${blobs.size}`; blobs.set(url, blob); return url; });
-	t.mock.method(URL, 'revokeObjectURL', url => revoked.push(url));
+	const calls = [];
+	let name;
+	let chunks = [];
+	const desktop = {
+		async chooseExportSaveFile(value) { name = value; calls.push('choose'); return { id: 'target', name }; },
+		async buildPortableVisualModule(id, requirements) { calls.push(['build', id, requirements]); return { elementSource: 'var GlitchStudioVisualModuleEmbed = { registerVisualModuleElement: capture };', workerSource: '// test worker' }; },
+		async cancelPortableVisualModule(id) { calls.push(['cancel', id]); },
+		async beginExportFile() { chunks = []; calls.push('begin'); },
+		async appendExportFile(_id, chunk) { chunks.push(chunk); },
+		async finishExportFile() { downloads.push({ name, blob: new Blob(chunks) }); calls.push('finish'); },
+		async releaseExportFile() { calls.push('release'); },
+	};
 	const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-	Object.defineProperty(globalThis, 'window', { configurable: true, value: {
-		document: { createElement: tag => { assert.equal(tag, 'a'); return { click() { downloads.push({ name: this.download, url: this.href, blob: blobs.get(this.href) }); } }; } },
-		setTimeout: callback => timers.push(callback),
-	} });
+	Object.defineProperty(globalThis, 'window', { configurable: true, value: { desktop } });
 	t.after(() => { if (originalWindow == null) delete globalThis.window; else Object.defineProperty(globalThis, 'window', originalWindow); });
 	const prepared = {
 		name: 'Visual Module', gsVersion: 'test', customShaderEffects: [], aspectRatio: 2,
 		settings: { ...DEFAULT_PORTABLE_VISUAL_MODULE_SETTINGS }, initialParameters: {},
 		diagnostics: { players: [], resolutionNodes: [] },
+		runtimeRequirements: { effectIds: [], requiresExpressions: false, requiresParameterDefaultExpressions: false, requiresCustomShaderEffects: false },
 		assets: [{ id: 'asset', name: 'Asset', width: 1, height: 1, fileDataType: 'image/png', fileData }],
 		visualModule: { nodes: [], paramDefs: [{ id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, canNode: false,
 			ui: { label: 'Speed', control: {} }, defaultValue: { inputSource: 'literal', value: 1 } }],
@@ -63,7 +68,7 @@ function fixture(t, fileData = new Blob(['asset'])) {
 	let unmounted = false;
 	const unmount = () => { if (!unmounted) { unmounted = true; app.unmount(); } };
 	t.after(unmount);
-	return { input, downloads, timers, revoked, unmount };
+	return { input, downloads, calls, desktop, unmount };
 }
 
 function readArtwork(javascript) {
@@ -93,7 +98,7 @@ test('defaults to automatic pacing and retains the custom limit across mode chan
 
 // 【非同期の素材読み出し中の操作は、開始済みの書き出し内容や形式を変えない】
 // 保存ボタンの再実行で二重に保存せず、公開値・倍率・形式を一貫したスナップショットとして配布する。
-test('downloads one HTML snapshot despite edits and duplicate requests during asset reading', async t => {
+test('saves one HTML snapshot despite edits and duplicate requests during asset reading', async t => {
 	const started = Promise.withResolvers();
 	const released = Promise.withResolvers();
 	const f = fixture(t, new class extends Blob {
@@ -122,13 +127,13 @@ test('downloads one HTML snapshot despite edits and duplicate requests during as
 	assert.equal(artwork.settings.fpsLimit, null);
 	assert.equal(artwork.initialParameters.speed, 2);
 	assert.equal(Buffer.from(artwork.assets[0].fileDataBase64, 'base64').toString(), 'original asset');
-	f.timers.forEach(callback => callback());
-	assert.deepEqual(f.revoked, [f.downloads[0].url]);
+	assert.equal(f.calls.filter(call => Array.isArray(call) && call[0] === 'build').length, 1);
+	assert.deepEqual(f.calls.slice(-2), ['finish', 'release']);
 });
 
 // 【書き出し受付の失敗や入力エラーから、ダイアログを開き直さずに再試行できる】
 // 更新中の受付拒否で永久に処理中になったり、過去のエラーで保存ボタンが無効のままになることを防ぐ。
-test('recovers from activity rejection and invalid public values and downloads a complete ZIP', async t => {
+test('recovers from activity rejection and invalid public values and saves a complete ZIP', async t => {
 	const f = fixture(t);
 	const finishUpdate = applicationActivity.beginUpdate();
 	assert.notEqual(finishUpdate, null);
@@ -166,7 +171,7 @@ test('recovers from activity rejection and invalid public values and downloads a
 
 // 【所属セッションを閉じた後に非同期素材の読み出しが終わっても保存しない】
 // 破棄済み画面から遅れてダウンロードを開始せず、アプリの書き出し状態も必ず解放する。
-test('suppresses downloads after unmounting during asset reading', async t => {
+test('suppresses saves after unmounting during asset reading', async t => {
 	const started = Promise.withResolvers();
 	const released = Promise.withResolvers();
 	const f = fixture(t, new class extends Blob {
@@ -178,5 +183,43 @@ test('suppresses downloads after unmounting during asset reading', async t => {
 	released.resolve();
 	await downloading;
 	assert.equal(f.downloads.length, 0);
+	assert.equal(applicationActivity.isExporting.value, false);
+});
+
+// 【実行中のビルドを中断し、保存せず受付状態を解放する】
+// 素材の準備後でもキャンセルでき、前回の要求IDが次の書き出しへ残らないことを確認する。
+test('cancels a running desktop build and allows a clean retry', async t => {
+	const f = fixture(t);
+	const started = Promise.withResolvers();
+	const pending = Promise.withResolvers();
+	const originalBuild = f.desktop.buildPortableVisualModule;
+	let requestId;
+	f.desktop.buildPortableVisualModule = async id => { requestId = id; started.resolve(); return pending.promise; };
+	f.desktop.cancelPortableVisualModule = async id => { assert.equal(id, requestId); pending.reject(new Error('Export canceled')); };
+	const exporting = f.input.download();
+	await started.promise;
+	f.input.closeDialog();
+	await exporting;
+	assert.equal(f.downloads.length, 0);
+	assert.equal(f.input.exportError, null);
+	assert.equal(applicationActivity.isExporting.value, false);
+	assert.equal(f.calls.at(-1), 'release');
+	f.desktop.buildPortableVisualModule = originalBuild;
+	await f.input.download();
+	assert.equal(f.downloads.length, 1);
+});
+
+// 【Web版からの直接呼び出しと保存先選択のキャンセルでビルドを開始しない】
+// UIの表示条件だけに依存せず、不要な素材読み出しやバックグラウンド処理を防ぐ。
+test('does not start an export without desktop capabilities or a save destination', async t => {
+	const f = fixture(t);
+	window.desktop = null;
+	await f.input.download();
+	assert.notEqual(f.input.exportError, null);
+	assert.deepEqual(f.calls, []);
+	window.desktop = f.desktop;
+	f.desktop.chooseExportSaveFile = async () => null;
+	await f.input.download();
+	assert.deepEqual(f.calls, []);
 	assert.equal(applicationActivity.isExporting.value, false);
 });

@@ -10,20 +10,32 @@ Visual Moduleをエディタから独立したWeb Componentとして配布する
 - `src/frame-rate-limiter.ts`: 表示周期の端数を持ち越すFPS制限。rAF時刻の丸めによる余分な間引きを防ぎ、失った描画枠は再実行しません。
 - `src/worker.ts`: WebGPU・素材・VisualModuleRendererの生成と破棄。既存のエフェクト実装・非同期準備・色変換を使います。
 - `src/parameters.ts`: 公開値の検証と既定値の解決。編集用Bindingではなく通常の値をAPI境界で扱います。
-- `build/runtime.mjs`: ViteでElementとWorkerをそれぞれ独立したIIFEに束ねます。UIのViteプラグインから呼び出し、成果物内ではビルドや外部importを行いません。
+- `src/runtime-requirements.ts`: 検証済みの作品から、配置済みエフェクトと式評価・Custom Shader Effectの必要性を判定します。
+- `build/catalog.mjs`: アプリのビルド時に、TS・WGSL・npm依存を解決したES Modulesのカタログを生成します。
+- `build/runtime.mjs`: カタログから使用するエフェクトだけをimportし、esbuildでElementとWorkerをそれぞれ独立したIIFEに束ねます。配布先ではビルドや外部importを行いません。
 
-`glitch-studio/ui`は書き出しダイアログと保存を担当します。Visual Module subsystemはこの配布形式・Custom Element・プロジェクトを知りません。描画の表示境界は`glitch-studio/renderer/portable-canvas-renderer.ts`です。
+エフェクト内蔵画像はエフェクトのディレクトリ内で所有して静的importし、カタログではData URLへ変換します。Symbolsの記号・数字・絵文字も使用時だけ同梱され、公開パラメータによるアイコンセットの変更に備えて全セットを含めます。アプリの`public`配信やViteの`import.meta.env.BASE_URL`には依存しません。IIFEで使えない`import.meta`が残った場合は、成果物を保存する前にビルドを失敗させます。
+
+`glitch-studio/ui`は書き出しダイアログ・スナップショット・素材読み出しを担当し、`glitch-studio/desktop`が別プロセスでのビルドと一時ファイル経由の保存を担当します。Visual Module subsystemはこの配布形式・Custom Element・プロジェクトを知りません。描画の表示境界は`glitch-studio/renderer/portable-canvas-renderer.ts`です。
 
 ## 成果物
 
-UIのVisual Moduleエディタの「その他」からWeb用の書き出しを選択します。
+Electron版のVisual Moduleエディタの「その他」からWeb用の書き出しを選択します。Web版にはデスクトップ版が必要な旨を表示します。生成した成果物の実行にはElectron・Node.js・npmは不要です。
 
 - HTML + JavaScript: `index.html`、`artwork.js`、`README.md`のZIP。埋め込み先ではJavaScriptとCustom Elementを使用します。
 - 単一HTML: JavaScriptと素材を含むHTML。同じページにスクリプトと要素を移して利用するか、HTTPSで配信してiframeでも表示できます。
 
-どちらも画像・動画・フォント・LUTなどの参照Asset原本をBase64で含めます。CDNやエディタへの接続は不要です。元ファイルのパスとデバイス識別子は含めません。初期版は全組み込みエフェクトのランタイムを同梱し、Custom Shader Effectは使用する定義だけを含めます。タグ名は書き出しごとのUUIDを持ち、別作品との登録衝突を避けます。
+どちらも画像・動画・フォント・LUTなどの参照Asset原本をBase64で含めます。CDNやエディタへの接続は不要です。元ファイルのパスとデバイス識別子は含めません。組み込みエフェクトは配置されている種類だけを同梱し、Custom Shader Effectも使用する定義と実装だけを含めます。出力からの到達性やバイパスによるノード削除は行いません。タグ名は書き出しごとのUUIDを持ち、別作品との登録衝突を避けます。
 
 HTTPSまたはlocalhost上のWebGPU対応Chromeを対象にします。COOP/COEPによるcross-origin isolationは必要ありません。配信先のCSPは成果物のscript、`worker-src blob:`、コンポーネントのインラインstyleを許可する必要があります。単一HTMLはインラインscriptの許可も必要です。式の評価に`unsafe-eval`は使いません。HTML + JavaScriptを`file://`で直接開く使い方は対象外です。
+
+## ランタイムの最適化
+
+AiScriptは通常の値評価器から分離し、必要な場合だけ注入します。Workerはノード・カスタムパラメータの基準式と有効な式Modifierを、Elementは公開パラメータの既定値を個別に解析します。配列・構造体の子も走査します。環境変数の直接参照・Automation Graph・キーフレームだけの作品はAiScriptを同梱しません。公開既定値の式は従来どおり起動時に時刻0で評価します。
+
+カスタムパラメータは動的な名前による参照があるため、現在参照されていない式も保守的に含めます。公開APIが受け取るのは値だけなので、外部からの更新でエフェクトや式エンジンの追加が必要になることはありません。
+
+エクスポートは、保存先選択、素材の読み出し、ランタイム生成、保存の順に進みます。ビルド・保存途中はキャンセルでき、確定前の一時ファイルを破棄します。完成ファイルを置き換える区間だけキャンセルを無効にします。
 
 ## 公開API
 
@@ -90,4 +102,4 @@ visualModuleElement.restart();
 
 ## 検証
 
-`pnpm --filter @gs/glitch-studio_embed test`で素材収集・公開値・解像度・HTML/ZIP生成を検証します。ブラウザ統合テストは`CHROME_PATH`にChromeの実行ファイルを設定して同じコマンドで実行します。実際に生成したファイルをローカルHTTPで配信し、WebGPUの画素・透過・ポインター・再接続・複数要素・単一HTMLを検証します。設定がない場合はブラウザテストだけをskipします。
+`pnpm --filter @gs/glitch-studio_embed test`で素材収集・公開値・解像度・HTML/ZIP生成・依存判定・カタログからの最適化ビルドを検証します。ブラウザ統合テストは`CHROME_PATH`にChromeの実行ファイルを設定して同じコマンドで実行します。実際に生成したファイルをローカルHTTPで配信し、WebGPUの画素・透過・ポインター・再接続・複数要素・単一HTMLを検証します。設定がない場合はブラウザテストだけをskipします。

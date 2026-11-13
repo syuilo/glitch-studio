@@ -5,6 +5,8 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 globalThis.GPUQueue = class { submit() {} };
 
+const { ExpressionEvaluator } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/shared/expression/expression-evaluator.ts')));
+
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
 const { getNodeOutputs } = await load('@gs/subsystems_visual-module_shared/node-outputs.ts');
@@ -48,7 +50,7 @@ function fixture(t, nodes, { kind = 'color', paramDefs = {}, lazy = false, disab
 		outputDefs: [{ id: 'out', dataType: { kind } }], primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, ...nodes, { id: 'out', type: 'globalOut', inputs: { out: reference(nodes.at(-1).id) } }],
 	};
-	const renderer = new VisualModuleRenderer({
+	const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(),
 		gpuDevice: { limits: { maxTextureDimension2D: 8192 }, createShaderModule: () => ({}) }, fallbackTexture: {}, timingHelper: null,
 		resolution: { width: 16, height: 16 }, enableStats: false, enable32bitDataTextures: false,
 		videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
@@ -64,7 +66,7 @@ const colorInput = { dataType: { kind: 'color' }, canNode: true };
 // 上流を交換する途中でも後段の接続契約を維持し、ポートが消えることを防ぐ。
 test('declares a fixed output type even when disconnected', () => {
 	const node = relay('relay', { nodeId: null, outputPort: null }, 'vector');
-	assert.deepEqual(getNodeOutputs(node), { output: { dataType: { kind: 'vector' } } });
+	assert.deepEqual(getNodeOutputs(node, [], {}), { output: { dataType: { kind: 'vector' } } });
 });
 
 for (const [kind, value] of [['scalar', [0.123456789]], ['vector', [-2, 3]], ['color', [0.25, 0, 0, 0.5]]]) {

@@ -812,6 +812,10 @@
 	},
 	"_VisualModule": {
 		"WebExport": "Web用に書き出す",
+		"WebExportDesktopOnly": "Web用の書き出しはデスクトップ版で利用できます。",
+		"WebExportPreparing": "アセットを準備しています…",
+		"WebExportBuilding": "書き出しデータを作成しています…",
+		"WebExportSaving": "ファイルを保存しています…",
 		"WebExportFormat": "ファイル形式",
 		"WebExportZip": "HTML＋JavaScript（ZIP）",
 		"WebExportHtml": "単一HTMLファイル",

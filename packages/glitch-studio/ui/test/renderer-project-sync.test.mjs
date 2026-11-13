@@ -9,6 +9,7 @@ const directory = fileURLToPath(new URL('../', import.meta.url));
 // コマンド・履歴・差分生成は実コード。ブラウザ依存の設定とエフェクト登録だけを置き換える。
 const bundle = await build({
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
+		export { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 		export { ProjectContext } from './src/Project.ts';
 		export { getAvailableAutomationGraphs, getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 		export { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
@@ -38,7 +39,7 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', 'console', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, { ...console, log() {} });
-const { ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, definition,
+const { ExpressionEvaluator, ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, definition,
 	createEffectTimelineLayer, createInlineVisualModuleLayer, createImageLayer, createCameraTimelineLayer,
 	createProjectCustomShaderEffect, getEffectDefinitions, customShaderEffectReference } = module.exports;
 
@@ -620,7 +621,7 @@ test('validates shared graph names and duplicates independent curves and identit
 // 曲線の保存場所に時計を持たせず、参照元の時刻が評価値を決めることも確認する。
 test('prefers local names while resolving shared IDs using the caller clock', () => {
 	const definition = { dataType: { kind: 'scalar' }, ui: { label: 'Value' } };
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const global = sharedGraph();
 	const local = sharedGraph('local', global.nameForReference, 0.75);
 	const scope = { automationGraphs: getAvailableAutomationGraphs([local], [global]), time: 200, endTime: Infinity, variables: {} };

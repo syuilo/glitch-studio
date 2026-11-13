@@ -1,7 +1,6 @@
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { preparePortableVisualModule } from '@gs/glitch-studio_embed/export.ts';
 import { DEFAULT_PORTABLE_VISUAL_MODULE_SETTINGS } from '@gs/glitch-studio_shared/portable-visual-module.ts';
-import GsVisualModuleWebExportDialog from '@/components/GsVisualModuleWebExportDialog.vue';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 import type { ProjectSessionContext } from '@/ProjectSessionContext.ts';
@@ -9,7 +8,13 @@ import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts'
 
 export async function exportPortableVisualModuleFile(session: ProjectSessionContext, visualModule: VisualModule, name: string): Promise<void> {
 	if (session.isDisposed) return;
+	if (!__ELECTRON__ || window.desktop == null) {
+		await ui.alert({ type: 'info', text: i18n.ts._VisualModule.WebExportDesktopOnly });
+		return;
+	}
 	try {
+		const { default: GsVisualModuleWebExportDialog } = await import('@/components/GsVisualModuleWebExportDialog.vue');
+		if (session.isDisposed) return;
 		const state = session.projectContext.stateManager.state;
 		const prepared = preparePortableVisualModule({
 			name, gsVersion: _VERSION_, visualModule, assets: state.assets.value, players: state.players.value,

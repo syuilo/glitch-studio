@@ -85,6 +85,7 @@
 			<GsInput large :modelValue="visualModuleName" manualSave @update:modelValue="name => emit('rename', name)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
 			<GsButton large :disabled="exporting" :wait="exporting" icon="ti ti-download" @click="emit('requestExport', 'gsvm')">{{ `${i18n.ts._VisualModule.Export}...` }}</GsButton>
 			<GsButton
+				v-if="isDesktop"
 				large
 				:disabled="exporting"
 				icon="ti ti-world"
@@ -93,6 +94,7 @@
 			>
 				{{ i18n.ts._VisualModule.WebExport }}...
 			</GsButton>
+			<div v-else>{{ i18n.ts._VisualModule.WebExportDesktopOnly }}</div>
 		</div>
 	</div>
 	<GsDropOverlay v-if="assetDrop.hovering.value" data-test-visual-module-drop-overlay/>
@@ -124,6 +126,8 @@ import * as ui from '@/ui.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
 
 provideVisualModuleWires();
+
+const isDesktop = __ELECTRON__ && window.desktop != null;
 
 const props = defineProps<{
 	visualModule: VisualModule;

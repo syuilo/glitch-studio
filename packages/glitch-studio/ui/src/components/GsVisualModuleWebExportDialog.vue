@@ -61,8 +61,9 @@
 			<template #caption>{{ i18n.ts._VisualModule.WebExportParametersHint }}</template>
 		</GsTextarea>
 		<div v-if="validationError != null || exportError != null" data-test-web-export-error>{{ validationError ?? exportError }}</div>
+		<div v-if="status !== null" data-test-web-export-status>{{ status }}</div>
 		<div :class="$style.actions">
-			<GsButton inline large :disabled="exporting" @click="closeDialog">{{ i18n.ts.Cancel }}</GsButton>
+			<GsButton inline large :disabled="committing" @click="closeDialog">{{ i18n.ts.Cancel }}</GsButton>
 			<GsButton
 				inline
 				large
@@ -113,8 +114,17 @@ const fpsModes = [
 ];
 const initialParameters = ref(JSON.stringify(props.prepared.initialParameters, null, 2));
 const exporting = ref(false);
-const lifetime = new AbortController();
-onBeforeUnmount(() => { lifetime.abort(); });
+const status = ref<string | null>(null);
+const committing = ref(false);
+let activeExport: AbortController | null = null;
+let buildRequestId: string | null = null;
+
+function cancelExport() {
+	activeExport?.abort();
+	if (buildRequestId != null) void window.desktop?.cancelPortableVisualModule(buildRequestId).catch(() => {});
+}
+
+onBeforeUnmount(cancelExport);
 const exportError = ref<string | null>(null);
 const settings = computed(() => ({
 	resolutionScale: resolutionScale.value,
@@ -129,14 +139,24 @@ const validationError = computed(() => {
 	} catch (error) { return error instanceof Error ? error.message : String(error); }
 });
 
-function closeDialog() { if (!exporting.value) modal.value?.close(); }
+function closeDialog() {
+	if (committing.value) return;
+	if (exporting.value) { cancelExport(); return; }
+	modal.value?.close();
+}
 
 async function download() {
 	if (exporting.value) return;
 	exportError.value = null;
 	if (validationError.value != null) return;
+	const desktop = window.desktop;
+	if (!__ELECTRON__ || desktop == null) { exportError.value = i18n.ts._VisualModule.WebExportDesktopOnly; return; }
 	exporting.value = true;
+	const controller = new AbortController();
+	activeExport = controller;
+	const { signal } = controller;
 	let releaseActivity: (() => void) | null = null;
+	let saveFile: { id: string; name: string } | null = null;
 	try {
 		releaseActivity = applicationActivity.acquireExport();
 		const snapshot = {
@@ -145,21 +165,51 @@ async function download() {
 			initialParameters: validatePortableParameters(props.prepared.visualModule.paramDefs, JSON.parse(initialParameters.value)),
 		};
 		const selectedFormat = format.value;
-		// 大きなランタイムは操作された時点で読み込み、通常のエディタ起動に含めない。
-		const { default: runtime } = await import('virtual:visual-module-embed-runtime');
-		if (lifetime.signal.aborted) return;
-		const artwork = await encodePortableVisualModule(snapshot);
-		if (lifetime.signal.aborted) return;
+		saveFile = await desktop.chooseExportSaveFile(`${snapshot.name}.${selectedFormat}`, selectedFormat);
+		signal.throwIfAborted();
+		if (saveFile == null) return;
+		status.value = i18n.ts._VisualModule.WebExportPreparing;
+		const artwork = await encodePortableVisualModule(snapshot, signal);
+		signal.throwIfAborted();
+		status.value = i18n.ts._VisualModule.WebExportBuilding;
+		buildRequestId = crypto.randomUUID();
+		// VueのProxyをIPCへ渡さず、検証した作品と同じ機能集合を値として送る。
+		const runtime = await desktop.buildPortableVisualModule(buildRequestId, {
+			...snapshot.runtimeRequirements, effectIds: [...snapshot.runtimeRequirements.effectIds],
+		});
+		buildRequestId = null;
+		signal.throwIfAborted();
 		const files = createPortableVisualModuleFiles(artwork, runtime);
 		const blob = selectedFormat === 'html' ? new Blob([files.standaloneHtml], { type: 'text/html;charset=utf-8' }) : createPortableVisualModuleArchive(files);
-		const url = URL.createObjectURL(blob);
-		const link = window.document.createElement('a');
-		link.href = url;
-		link.download = `${artwork.name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim() || 'visual-module'}.${selectedFormat}`;
-		try { link.click(); } finally { window.setTimeout(() => URL.revokeObjectURL(url), 60_000); }
+		status.value = i18n.ts._VisualModule.WebExportSaving;
+		await desktop.beginExportFile(saveFile.id, blob.size);
+		// 既存の保存セッションを使い、キャンセル時には以前のファイルを保持する。
+		const chunkSize = 4 * 1024 * 1024;
+		for (let offset = 0; offset < blob.size; offset += chunkSize) {
+			signal.throwIfAborted();
+			const chunk = new Uint8Array(await blob.slice(offset, offset + chunkSize).arrayBuffer());
+			signal.throwIfAborted();
+			await desktop.appendExportFile(saveFile.id, chunk);
+		}
+		signal.throwIfAborted();
+		// 完成ファイルを置き換える短い区間では、キャンセルを受け付けない。
+		committing.value = true;
+		await desktop.finishExportFile(saveFile.id);
 		modal.value?.close();
-	} catch (error) { exportError.value = error instanceof Error ? error.message : String(error); } finally { exporting.value = false; releaseActivity?.(); }
+	} catch (error) {
+		if (!signal.aborted) exportError.value = error instanceof Error ? error.message : String(error);
+	} finally {
+		try { if (saveFile != null) await desktop.releaseExportFile(saveFile.id); } finally {
+			buildRequestId = null;
+			activeExport = null;
+			status.value = null;
+			committing.value = false;
+			exporting.value = false;
+			releaseActivity?.();
+		}
+	}
 }
+
 </script>
 
 <style module lang="scss">

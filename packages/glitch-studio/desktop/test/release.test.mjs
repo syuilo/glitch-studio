@@ -289,6 +289,10 @@ test('packages every local module and resource required by the actual applicatio
 		await fs.rm(directory, { recursive: true, force: true });
 	});
 	const desktopDirectory = fileURLToPath(new URL('../', import.meta.url));
+	// クリーンなcheckoutでも、配布用の生成ファイルを実際のビルド処理で用意する。
+	const { buildDesktopPortableVisualModule } = await import('../build-portable-visual-module.mjs');
+	const generatedDirectory = path.join(directory, 'generated');
+	await buildDesktopPortableVisualModule(generatedDirectory);
 	const configuration = createRequire(import.meta.url)('../electron-builder.config.cjs');
 	const manifest = JSON.parse(await fs.readFile(path.join(desktopDirectory, 'package.json'), 'utf8'));
 	const source = path.join(directory, 'app');
@@ -298,7 +302,7 @@ test('packages every local module and resource required by the actual applicatio
 	for (const file of configuration.files) {
 		const destination = path.join(source, file);
 		await fs.mkdir(path.dirname(destination), { recursive: true });
-		await fs.copyFile(path.join(desktopDirectory, file), destination);
+		await fs.copyFile(file.startsWith('dist/') ? path.join(generatedDirectory, file.slice('dist/'.length)) : path.join(desktopDirectory, file), destination);
 	}
 	const archive = path.join(directory, 'app.asar');
 	await asar.createPackage(source, archive);

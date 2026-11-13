@@ -1,3 +1,4 @@
+import type { ExpressionEngine } from '@gs/shared/expression/expression-engine.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
 import { validateColorRamp } from '@gs/shared/color-ramp.ts';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
@@ -59,8 +60,8 @@ export function validatePortableParameters(definitions: readonly VisualModulePar
 	return structuredClone(values);
 }
 
-export function getPortableParameterDefaults(definitions: readonly VisualModuleParamDef[]): Record<string, unknown> {
-	const evaluator = new ParameterBindingEvaluator();
+export function getPortableParameterDefaults(definitions: readonly VisualModuleParamDef[], expressionEvaluator: ExpressionEngine | null): Record<string, unknown> {
+	const evaluator = new ParameterBindingEvaluator(expressionEvaluator);
 	return Object.fromEntries(definitions.map(definition => [definition.nameForReference,
 		mapParameterTree<ValueParameterBinding>(definition, definition.defaultValue, [], (leaf, binding) => {
 			if (leaf.dataType.kind === 'audioSource') return null;

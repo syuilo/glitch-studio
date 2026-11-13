@@ -9,7 +9,7 @@ export class ExportFiles {
 
 	register(filePath) {
 		if (typeof filePath !== 'string' || !path.isAbsolute(filePath)
-			|| !['.mp4', '.webp', '.exr'].includes(path.extname(filePath).toLowerCase())) {
+			|| !['.mp4', '.webp', '.exr', '.html', '.zip'].includes(path.extname(filePath).toLowerCase())) {
 			throw new Error('Invalid export file path');
 		}
 		const id = randomUUID();

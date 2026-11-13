@@ -3,7 +3,6 @@ import vue from '@vitejs/plugin-vue'
 import * as Path from 'node:path';
 import packageJson from '../../../package.json' with { type: 'json' };
 import { iconFontPlugin } from './build/vite-plugin-icon-font.mjs';
-import { visualModuleEmbedPlugin } from './build/vite-plugin-visual-module-embed.mjs';
 
 const isElectron = process.env.BUILD_TARGET === 'electron';
 
@@ -29,7 +28,7 @@ export default defineConfig({
 			},
 		},
 	},
-	plugins: [iconFontPlugin(), visualModuleEmbedPlugin(), vue()],
+	plugins: [iconFontPlugin(), vue()],
 	resolve: {
 		alias: {
 			'@': Path.resolve(import.meta.dirname, 'src'),

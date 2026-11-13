@@ -109,9 +109,10 @@ export class VisualModuleRenderer {
 	public lastTiledGpuTime = 0;
 	public lastUntiledGpuTimeResult: Promise<number> = Promise.resolve(0);
 	public requiresTiledRendering = false;
-	private parameterEvaluator = new VisualModuleParameterBindingEvaluator();
+	private readonly parameterEvaluator: VisualModuleParameterBindingEvaluator;
 
 	constructor(options: {
+		expressionEvaluator: import('@gs/shared/expression/expression-engine.ts').ExpressionEngine | null;
 		onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
 		enableStats: boolean;
 		effectRenderTiling?: EffectRenderTiling;
@@ -134,6 +135,7 @@ export class VisualModuleRenderer {
 		effectDefinitions: Record<string, EffectDefinition>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
+		this.parameterEvaluator = new VisualModuleParameterBindingEvaluator(options.expressionEvaluator);
 		this.effectRenderTiling = options.effectRenderTiling ?? { mode: 'auto' };
 		this.inputResolutions = options.inputResolutions ?? new Map();
 		this.getPlayerResolution = options.getPlayerResolution ?? null;

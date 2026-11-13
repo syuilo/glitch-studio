@@ -36,7 +36,7 @@ export function inspectVisualModuleNode(node: VisualModuleNode, visualModule: Vi
 		onConnection(reference.nodeId);
 		const source = visualModule.nodes.find(source => source.id === reference.nodeId);
 		if (!source) throw new Error('Referenced node not found: ' + reference.nodeId);
-		const outputs = source.type === 'effect' ? definitions[source.effectId]?.outputDefs : getNodeOutputs(source, visualModule.paramDefs);
+		const outputs = source.type === 'effect' ? definitions[source.effectId]?.outputDefs : getNodeOutputs(source, visualModule.paramDefs, definitions);
 		if (reference.outputPort == null || !outputs?.[reference.outputPort]) throw new Error('Referenced output not found: ' + reference.outputPort);
 	};
 	if (node.type === 'relay') { connection(node.input); return; }

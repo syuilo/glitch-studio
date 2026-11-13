@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // 汎用的なIPC送信口ではなく、UIに必要な操作だけを公開する。
 contextBridge.exposeInMainWorld('desktop', {
+	buildPortableVisualModule: (requestId, requirements) => ipcRenderer.invoke('desktop:build-portable-visual-module', requestId, requirements),
+	cancelPortableVisualModule: requestId => ipcRenderer.invoke('desktop:cancel-portable-visual-module', requestId),
 	onProjectCloseRequested: listener => {
 		const handler = (_event, requestId) => listener(requestId);
 		ipcRenderer.on('desktop:project-close-requested', handler);

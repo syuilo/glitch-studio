@@ -33,6 +33,22 @@ async function pixel(element, x = 0.5, y = 0.5) {
 	return [...context.getImageData(Math.min(canvas.width - 1, Math.floor(canvas.width * x)), Math.min(canvas.height - 1, Math.floor(canvas.height * y)), 1, 1).data];
 }
 
+async function checkSymbolTextureRendering(element, name) {
+	const canvas = element.shadowRoot.querySelector('canvas');
+	const context = new OffscreenCanvas(canvas.width, canvas.height).getContext('2d');
+	let visiblePixels = 0;
+	// エフェクト固有の画像準備は最初のrenderより後に完了することもある。
+	for (let attempt = 0; attempt < 100 && visiblePixels === 0; attempt++) {
+		await delay(20);
+		context.drawImage(canvas, 0, 0);
+		const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+		for (let index = 0; index < pixels.length; index += 4) {
+			if (pixels[index] > 20 || pixels[index + 1] > 20 || pixels[index + 2] > 20) visiblePixels++;
+		}
+	}
+	check(visiblePixels > 100 && visiblePixels < canvas.width * canvas.height * 0.9, 'bundled Symbols textures render without external assets: ' + name);
+}
+
 async function measureFrameRate(element, fpsLimit) {
 	if (fpsLimit == null) element.removeAttribute('fps-limit');
 	else element.setAttribute('fps-limit', String(fpsLimit));
@@ -93,6 +109,13 @@ try {
 	await rendered(element, () => { element.style.display = 'block'; });
 	check(element.currentTime - hiddenTime < 0.08, 'visibility restoration avoids a large elapsed-time jump');
 	element.remove();
+	for (const name of ['literal', 'modified', 'defaults']) {
+		const { element: optimized } = await mount(name);
+		const optimizedColor = await pixel(optimized);
+		check(Math.abs(optimizedColor[0] - 137) <= 2 && optimizedColor[3] === 255, name + ' optimized runtime preserves pixels: ' + optimizedColor);
+		if (name === 'defaults') check(optimized.getParameter('values')[0] === 3, 'nested public defaults retain startup expression evaluation');
+		optimized.remove();
+	}
 	const { element: pointer } = await mount('pointer');
 	const canvas = pointer.shadowRoot.querySelector('canvas');
 	const rect = canvas.getBoundingClientRect();
@@ -114,6 +137,15 @@ try {
 	const imageOutside = await pixel(image, 0.05, 0.5);
 	check(imageTop[0] > 250 && Math.abs(imageTop[3] - 128) <= 2 && imageBottom[1] > 250 && imageOutside[3] === 0, 'bundled images retain alpha orientation and contain fitting: ' + [imageTop, imageBottom, imageOutside]);
 	image.remove();
+	// 【組み込み画像を埋め込み先へ接続せずに読み込み、全アイコンセットを描画する】
+	// SymbolsはAsset一覧にない内蔵PNGを使う。ViteのBASE_URLやアプリのpublic配信に
+	// 依存すると、書き出し自体が成功しても埋め込み先で初めて失敗してしまう。
+	// connect-srcにdata:を許可しないCSPでも描画でき、同梱画像だけで完結することを確認する。
+	for (const iconset of ['symbols', 'symbols_numbers', 'numbers', 'sweets']) {
+		const { element: symbols } = await mount('symbols', { iconset });
+		await checkSymbolTextureRendering(symbols, iconset);
+		symbols.remove();
+	}
 	const { element: uniform } = await mount('uniform');
 	color = await pixel(uniform, 0.05, 0.05);
 	check(Math.abs(color[0] - 188) <= 2 && Math.abs(color[3] - 128) <= 2, 'public color wired directly to Out fills the canvas without texture letterboxing: ' + color);
@@ -137,12 +169,15 @@ try {
 	check(limitedRate.fps >= Math.min(60, refreshRate.fps) * 0.92 && limitedRate.fps <= 62,
 		'frame limiter sustains the available refresh rate: ' + JSON.stringify({ limitedRate, refreshRate }));
 	frameRateProbe.remove();
-	const iframe = document.createElement('iframe'); iframe.style.cssText = 'width:300px;height:150px';
-	await new Promise(resolve => { iframe.onload = resolve; iframe.src = '/standalone.html'; document.body.append(iframe); });
-	const standalone = iframe.contentDocument.querySelector('gs-visual-module-standalone');
-	await standalone.ready; await rendered(standalone);
-	check(standalone.getParameter('level') === 0.25, 'single HTML survives script-like artwork strings and starts independently');
-	iframe.remove();
+	for (const name of ['standalone', 'symbols']) {
+		const iframe = document.createElement('iframe'); iframe.style.cssText = 'width:300px;height:150px';
+		await new Promise(resolve => { iframe.onload = resolve; iframe.src = '/' + name + '.html'; document.body.append(iframe); });
+		const standalone = iframe.contentDocument.querySelector('gs-visual-module-' + name);
+		await standalone.ready; await rendered(standalone);
+		if (name === 'symbols') await checkSymbolTextureRendering(standalone, 'single HTML');
+		else check(standalone.getParameter('level') === 0.25, 'single HTML survives script-like artwork strings and starts independently');
+		iframe.remove();
+	}
 	check(fatalErrors.length === 0, 'no asynchronous renderer failures');
 	await fetch('/result', { method: 'POST', body: JSON.stringify({ passed }) });
 } catch (error) {

@@ -1,3 +1,4 @@
+import type { ExpressionEngine } from '@gs/shared/expression/expression-engine.ts';
 import { validatePortableVisualModuleSettings } from '@gs/glitch-studio_shared/portable-visual-module.ts';
 import { getPortableParameterDefaults, validatePortableParameters } from './parameters.ts';
 import { getPortableRenderResolution } from './protocol.ts';
@@ -5,10 +6,10 @@ import { PortableVisualModuleFrameRateLimiter } from './frame-rate-limiter.ts';
 import type { PortableVisualModule, PortableVisualModuleSettings } from '@gs/glitch-studio_shared/portable-visual-module.ts';
 import type { PortableVisualModuleRequest, PortableVisualModuleResponse } from './protocol.ts';
 
-export function registerVisualModuleElement(tagName: string, artwork: PortableVisualModule, workerSource: string) {
+export function registerVisualModuleElement(tagName: string, artwork: PortableVisualModule, workerSource: string, expressionEvaluator: ExpressionEngine | null) {
 	// 同じ成果物を複数回読み込んでも登録済みのクラスを使う。タグは書き出しごとに一意にする。
 	if (customElements.get(tagName) != null) return;
-	const defaults = getPortableParameterDefaults(artwork.visualModule.paramDefs);
+	const defaults = getPortableParameterDefaults(artwork.visualModule.paramDefs, expressionEvaluator);
 	const initial = validatePortableParameters(artwork.visualModule.paramDefs, artwork.initialParameters);
 	validatePortableVisualModuleSettings(artwork.settings);
 

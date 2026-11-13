@@ -46,7 +46,7 @@ test('validates public values atomically while preserving HDR colors and nested 
 		ui: { label: 'Points', control: { element: {} } } };
 	array.defaultValue = literal([{ id: 'internal-id', binding: literal([0.1, 0.2]) }]);
 	const defs = [scalar, color, array];
-	assert.deepEqual(getPortableParameterDefaults(defs).Points, [[0.1, 0.2]]);
+	assert.deepEqual(getPortableParameterDefaults(defs, new implementation.ExpressionEvaluator()).Points, [[0.1, 0.2]]);
 	const values = { Speed: 2, Color: [-1, 3, 0.25, 0.5], Points: [[0.2, -0.1]] };
 	const validated = validatePortableParameters(defs, values);
 	values.Color[0] = 123;

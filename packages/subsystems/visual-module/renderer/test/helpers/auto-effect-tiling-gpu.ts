@@ -1,3 +1,4 @@
+import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import { VisualModuleRenderer } from '../../src/visual-module-renderer.ts';
 import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
@@ -61,7 +62,7 @@ export async function run() {
 		};
 	}
 	function createVisualModuleRenderer(definition: EffectDefinition, implementation: EffectImplementation<any>, visualModule: VisualModule, size: number, mode: 'auto' | 'disabled' | 'manual', statisticsHelper: TimingHelper | null = null) {
-		return new VisualModuleRenderer({ gpuDevice: device, fallbackTexture, resolution: { width: size, height: size },
+		return new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(), gpuDevice: device, fallbackTexture, resolution: { width: size, height: size },
 			enableStats: statisticsHelper != null, timingHelper: statisticsHelper, enable32bitDataTextures: false,
 			effectRenderTiling: mode === 'manual' ? { mode, tileSize: 128 } : { mode },
 			visualModule, assets: [], assetTextures: new Map(), videoFrameVersions: new Map(),

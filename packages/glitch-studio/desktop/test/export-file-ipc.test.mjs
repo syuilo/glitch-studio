@@ -206,3 +206,22 @@ test('rejects untrusted requests and unregistered or invalid export targets', as
 	assert.throws(() => h.exportFiles.register(path.join(h.directory, 'scene.exe')), /Invalid/);
 	assert.deepEqual(await fs.readdir(h.directory), []);
 });
+
+// 【HTMLとZIPにも既存の一時保存・確定・中断の契約を適用する】
+// Web書き出しをElectronへ移しても、中断によって以前の成果物が失われないようにする。
+test('saves HTML and ZIP atomically and preserves previous artifacts on cancellation', async t => {
+	const h = await fixture(t);
+	for (const format of ['html', 'zip']) {
+		const file = path.join(h.directory, `artwork.${format}`);
+		await fs.writeFile(file, 'previous');
+		h.dialogs.showSaveDialog = async () => ({ canceled: false, filePath: file });
+		const canceled = await h.invoke('choose-export-save-file', 'artwork', format);
+		await h.invoke('begin-export-file', canceled.id, 3);
+		await h.invoke('append-export-file', canceled.id, new Uint8Array([1]));
+		await h.invoke('release-export-file', canceled.id);
+		assert.equal(await fs.readFile(file, 'utf8'), 'previous');
+		const completed = await h.invoke('choose-export-save-file', 'artwork', format);
+		await h.invoke('write-export-file', completed.id, new Uint8Array([1, 2, 3]));
+		assert.deepEqual([...await fs.readFile(file)], [1, 2, 3]);
+	}
+});

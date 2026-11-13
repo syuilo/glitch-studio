@@ -6,14 +6,15 @@ import { build } from 'esbuild';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({ absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
-	stdin: { resolveDir: directory, loader: 'ts', contents: `
+	stdin: { resolveDir: directory, loader: 'ts', contents: `export { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
+
 		export { VisualModuleCustomParameterEvaluator } from './src/visual-module-custom-parameter-evaluator.ts';
 		export { VisualModuleParameterBindingEvaluator } from './src/visual-module-parameter-binding-evaluator.ts';
 		export { validateVisualModuleCustomParameters } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
 	` } });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
-const { VisualModuleCustomParameterEvaluator, VisualModuleParameterBindingEvaluator, validateVisualModuleCustomParameters } = loaded.exports;
+const { ExpressionEvaluator, VisualModuleCustomParameterEvaluator, VisualModuleParameterBindingEvaluator, validateVisualModuleCustomParameters } = loaded.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const customReference = parameterId => ({ inputSource: 'visualModuleCustomParameterValueReference', parameterId });
@@ -23,7 +24,7 @@ const scope = (time = 500, publicValue = 3) => ({ variables: { TIME: time / 1000
 	time, endTime: 2000, automationGraphs: [], evaluatedParamValues: new Map([['public-speed', publicValue]]), paramIdsByName: new Map([['speed', 'public-speed']]) });
 function fixture(definitions, values = {}, environment = scope()) {
 	const visualModule = { paramDefs: [scalar('public-speed', 'speed')], customParameterDefs: definitions, customParameterValues: values };
-	const evaluator = new VisualModuleParameterBindingEvaluator();
+	const evaluator = new VisualModuleParameterBindingEvaluator(new ExpressionEvaluator());
 	const customParameters = new VisualModuleCustomParameterEvaluator(visualModule, environment, evaluator);
 	const context = { ...environment, customParameters };
 	return { visualModule, customParameters, read: (binding, definition = scalar('result')) => evaluator.evaluate(binding, context, 7, definition) };

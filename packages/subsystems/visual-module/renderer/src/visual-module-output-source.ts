@@ -16,13 +16,13 @@ export function resolveVisualModuleOutputSource(context: VisualModuleOutputConte
 		const source = input.nodeId == null ? null : context.nodes.get(input.nodeId);
 		if (source == null || input.outputPort == null) return null;
 		// 宣言型の異なる接続も通すが、存在しないポートを主出力へ読み替えない。
-		const outputs = source.type === 'effect' ? context.effectDefinitions[source.effectId].outputDefs : getNodeOutputs(source, context.paramDefs);
+		const outputs = source.type === 'effect' ? context.effectDefinitions[source.effectId].outputDefs : getNodeOutputs(source, context.paramDefs, context.effectDefinitions);
 		if (outputs[input.outputPort] == null) return null;
 		return resolveVisualModuleOutputSource(context, source, input.outputPort);
 	}
 	if (node.type === 'globalIn') {
 		const port = outputPort ?? context.primaryInputId;
-		return port != null && getNodeOutputs(node, context.paramDefs)[port] != null ? { node, outputPort: port } : null;
+		return port != null && getNodeOutputs(node, context.paramDefs, context.effectDefinitions)[port] != null ? { node, outputPort: port } : null;
 	}
 	if (node.type === 'globalOut') {
 		const port = outputPort ?? context.primaryOutputId;

@@ -812,6 +812,10 @@
 	},
 	"_VisualModule": {
 		"WebExport": "Export for the web",
+		"WebExportDesktopOnly": "Export for the web is available in the desktop app.",
+		"WebExportPreparing": "Preparing assets…",
+		"WebExportBuilding": "Preparing the export…",
+		"WebExportSaving": "Saving the file…",
 		"WebExportFormat": "File format",
 		"WebExportZip": "HTML + JavaScript (ZIP)",
 		"WebExportHtml": "Single HTML file",

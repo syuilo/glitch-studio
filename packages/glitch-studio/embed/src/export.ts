@@ -1,3 +1,5 @@
+import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
+import { analyzePortableVisualModuleRuntime } from './runtime-requirements.ts';
 import { readFileSource } from '@gs/shared/file-source.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { findDependencyCycle } from '@gs/shared/utility/dependency-cycle.ts';
@@ -42,7 +44,7 @@ export function preparePortableVisualModule(input: PortableVisualModuleExportInp
 	if (output == null || output.dataType.kind !== 'color') throw new Error('Web export requires a primary color output. Convert scalar or vector fields to color before exporting.');
 	validatePortableVisualModuleSettings(input.settings);
 	if (!Number.isFinite(input.aspectRatio) || input.aspectRatio <= 0) throw new Error('Aspect ratio must be positive and finite');
-	getPortableParameterDefaults(visualModule.paramDefs);
+	getPortableParameterDefaults(visualModule.paramDefs, new ExpressionEvaluator());
 	const usedEffects = new Set(visualModule.nodes.flatMap(node => node.type === 'effect' ? [node.effectId] : []));
 	return {
 		name: input.name, gsVersion: input.gsVersion, visualModule,
@@ -50,6 +52,7 @@ export function preparePortableVisualModule(input: PortableVisualModuleExportInp
 		customShaderEffects: deepClone(input.customShaderEffects.filter(effect => usedEffects.has(customShaderEffectReference(effect.id)))),
 		aspectRatio: input.aspectRatio, settings: { ...input.settings },
 		initialParameters: validatePortableParameters(visualModule.paramDefs, input.initialParameters),
+		runtimeRequirements: analyzePortableVisualModuleRuntime(visualModule, definitions),
 		diagnostics: {
 			players: resources.players.map(player => player.name),
 			resolutionNodes: visualModule.nodes.filter(node => node.type === 'effect' && node.resolution.mode !== 'context').map(node => node.type === 'effect' ? node.displayName || definitions[node.effectId].displayName : ''),
@@ -57,16 +60,18 @@ export function preparePortableVisualModule(input: PortableVisualModuleExportInp
 	};
 }
 
-export async function encodePortableVisualModule(prepared: ReturnType<typeof preparePortableVisualModule>): Promise<PortableVisualModule> {
-	const { diagnostics: _diagnostics, assets, ...data } = prepared;
+export async function encodePortableVisualModule(prepared: ReturnType<typeof preparePortableVisualModule>, signal?: AbortSignal): Promise<PortableVisualModule> {
+	const { diagnostics: _diagnostics, runtimeRequirements: _runtimeRequirements, assets, ...data } = prepared;
 	const embedded: PortableVisualModule['assets'] = [];
 	// 原本を順に読む。大きな動画・フォントを同時に二重保持しない。
 	for (const { fileData, ...asset } of assets) {
+		signal?.throwIfAborted();
 		try {
 			const bytes = new Uint8Array(await (await readFileSource(fileData)).arrayBuffer());
 			embedded.push({ ...asset, fileDataBase64: bytes.toBase64() });
 		} catch (cause) { throw new Error(`Could not read Asset ${JSON.stringify(asset.name)}`, { cause }); }
 	}
+	signal?.throwIfAborted();
 	return { ...data, assets: embedded };
 }
 
