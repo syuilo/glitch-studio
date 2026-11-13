@@ -11,16 +11,18 @@
 - 複数の出力をもつエフェクトも存在します。
 - 画像や動画を読み込んだり、Webカメラからの映像をノードに入力することもできます。
 - 音声のビジュアライゼーションを行うエフェクトもあります。
-- ノードをグループ化(カプセル化)する機能もあります。
-- UIにもこだわっていて、複数のパネルを自由なレイアウトで配置したり、プレビューを別ウィンドウで開けたり、ヒストグラム・波形を表示する機能があったりします。
+- リアルタイムで描画可能なエフェクトが多いですが、中には時間のかかる複雑なレンダリングを行うエフェクトもあります。
+- タイルレンダリングを行い、GPUデバイスがHUNGするのを防ぐ機能もあります。
 - レンダリングのパフォーマンス(フレームのレンダリングにかかった時間等)を計測する機能もあります。
 - 作業色空間はlinear sRGB・rgba16floatで統一されています。負値や1を超える値も保持され、HDRに対応しています。
+- UIにもこだわっていて、複数のパネルを自由なレイアウトで配置したり、プレビューを別ウィンドウで開けたり、ヒストグラム・波形を表示する機能があったりします。
+- ひとつのウィンドウ内で複数のプロジェクトを開けます。
 - 最新のChromeを動作対象としています。サポートが限られる最新の構文やAPIを使うことを厭いません。
 - デスクトップPCで動かすことを想定しています。ただしスマホやタブレット対応を諦めているわけではなく、ポインターをマウスと決めつけずタッチであることも考慮するなど、それらの環境への配慮も可能であれば行います。ただし優先順位は低いです。
 - Electronで動作させることもできます。Electronの場合、OSのAPIを使用したより高度な機能が使用できます。
 - 今後も様々な機能を実装予定です。
 - Tech Stack: TypeScript, Vite, Vue 3, WebGPU, WGSL, WebAudio, WebWorker, CSS Modules
-- Keywords: moduler, routing, signals, wiring, nodes, graph, chain, pipeline, compositor, playground, visualization, interactive performance
+- Keywords: moduler, routing, signals, wiring, nodes, graph, chain, pipeline, compositor, playground, visualization, visual art, interactive performance
 
 各機能についての詳細については、各パッケージ内のREADME.mdや、docsディレクトリ内の各ドキュメントを必要に応じて参照してください。
 
