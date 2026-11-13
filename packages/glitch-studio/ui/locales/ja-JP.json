@@ -300,7 +300,7 @@
 		"Preview": "プレビュー",
 		"MotionBlurSamplesHint": "プレビューのモーションブラーのサンプル数です。プロジェクト設定でモーションブラーを有効にする必要があります。",
 		"MotionBlur": "モーションブラー",
-		"Analyze": "アナライズ",
+		"Analysis": "解析",
 		"TimelineFrameCacheUsage": "キャッシュ: {usage}",
 		"Time": "時刻",
 		"UnlimitedVisualModuleLivePreview": "Visual Module Live Preview: 無制限",

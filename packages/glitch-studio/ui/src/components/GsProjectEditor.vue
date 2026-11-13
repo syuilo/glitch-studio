@@ -37,11 +37,10 @@
 			</div>
 		</div>
 		<div :class="$style.footerRight">
-			<button v-if="preferences.r.projectBackupAutoEnabled.value || preferences.r.projectBackupSaveEnabled.value" v-tooltip="projectBackupStatus.error ?? i18n.ts._App.BackupHint" class="_button" :class="$style.footerItem" @click="openPreferences">{{ projectBackupStatus.error ? i18n.ts._App.BackupError : projectBackupAccess === 'ready' ? i18n.ts._App.Backups : projectBackupAccess === 'unsaved' ? i18n.ts._App.BackupsUnsaved : i18n.ts._App.BackupsFolderRequired }}</button>
 			<div v-if="activePreviewRenderer.errorMessage.value != null" v-tooltip="activePreviewRenderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ activePreviewRenderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
 				<div data-test-timeline-frame-cache-usage :class="$style.footerMemory">{{ i18n.tsx._App.TimelineFrameCacheUsage({ usage: timelineFrameCacheUsageLabel }) }}</div>
-				<button data-test-analysis-monitors-toggle :class="$style.footerItem" class="_button" @click="analysisMonitorsEnabled = !analysisMonitorsEnabled">{{ i18n.ts._App.Analyze }}: {{ analysisMonitorsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
+				<button data-test-analysis-monitors-toggle :class="$style.footerItem" class="_button" @click="analysisMonitorsEnabled = !analysisMonitorsEnabled">{{ i18n.ts._App.Analysis }}: {{ analysisMonitorsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
 				<button data-test-rendering-stats-toggle :class="$style.footerItem" class="_button" @click="renderingStatsEnabled = !renderingStatsEnabled">{{ i18n.ts._Workspace.Stats }}: {{ renderingStatsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
 				<div v-if="renderingStatsEnabled && previewPlayback.state.value.mode === 'visualModuleLivePreview' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
@@ -56,8 +55,9 @@
 
 <script lang="ts" setup>
 import { onBeforeUnmount, provide, computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { openProject, projectSessions } from '@/app.ts';
 import type { ProjectSessionContext } from '@/ProjectSessionContext.ts';
+import type { EditorEditTarget } from '@/composables/useEditorEditActions.ts';
+import { openProject, projectSessions } from '@/app.ts';
 import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from '@/ProjectSessionContext.ts';
 import GsPopup from '@/components/GsPopup.vue';
 import { projectSessionKey } from '@/project-session.ts';
@@ -68,7 +68,6 @@ import { fileDropTargetInstallerKey, installFileDropHandlers } from '@/utility/f
 import { editorEditTargetKey } from '@/composables/useEditorEditActions.ts';
 import GsRange from '@/components/common/GsRange.vue';
 import GsDropOverlay from '@/components/common/GsDropOverlay.vue';
-import type { EditorEditTarget } from '@/composables/useEditorEditActions.ts';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
 import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
 import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';

@@ -300,7 +300,7 @@
 		"Preview": "Preview",
 		"MotionBlurSamplesHint": "Preview motion blur samples. Requires motion blur to be enabled in Project Settings.",
 		"MotionBlur": "Motion blur",
-		"Analyze": "Analyze",
+		"Analysis": "Analysis",
 		"TimelineFrameCacheUsage": "Cache: {usage}",
 		"Time": "TIME",
 		"UnlimitedVisualModuleLivePreview": "Visual Module Live Preview: Unlimited",
