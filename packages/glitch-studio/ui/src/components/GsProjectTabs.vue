@@ -7,6 +7,11 @@
 		:data-project-session-id="session.id"
 		data-test-project-tab
 	>
+		<div :class="$style.grabber" draggable="true">
+			<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
+				<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
+			</svg>
+		</div>
 		<button class="_button" :class="$style.select" data-test-select-project @click="manager.select(session)">
 			<span :class="$style.name" data-test-project-tab-name>{{ session.projectDisplayName.value }}</span>
 			<span v-if="session.hasUnsavedChanges.value" v-tooltip="i18n.ts._App.UnsavedChanges" data-test-project-tab-unsaved>*</span>
@@ -95,8 +100,24 @@ const emit = defineEmits<{ newProject: [] }>();
 	align-items: center;
 	gap: 6px;
 	min-width: 0;
+	box-sizing: border-box;
+	padding: 0 4px;
 	padding-top: var(--verticalShift);
-	padding-left: 14px;
+}
+
+.grabber {
+	display: grid;
+	padding: 6px 6px;
+	box-sizing: border-box;
+	height: 100%;
+	cursor: move;
+	user-select: none;
+	color: color(from currentColor srgb r g b / 0.5);
+}
+
+.grabberSvg {
+	height: 100%;
+	pointer-events: none;
 }
 
 .name {
