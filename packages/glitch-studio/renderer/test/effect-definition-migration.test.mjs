@@ -22,8 +22,10 @@ function checkParameter(dataType, settings, control) {
 		}
 		checkParameter(dataType.elementType, settings.element, control.element);
 	} else if (dataType.kind === 'struct') {
-		assert.deepEqual(Object.keys(settings.fields), Object.keys(dataType.fields));
-		assert.deepEqual(Object.keys(control.fields), Object.keys(dataType.fields));
+		// 子設定とUIはフィールド名で対応付けるため、宣言順ではなくキーの過不足を検証する。
+		const fieldKeys = Object.keys(dataType.fields).sort();
+		assert.deepEqual(Object.keys(settings.fields).sort(), fieldKeys);
+		assert.deepEqual(Object.keys(control.fields).sort(), fieldKeys);
 		for (const [key, field] of Object.entries(dataType.fields)) {
 			assert.equal(typeof control.fields[key].label, 'string');
 			checkParameter(field, settings.fields[key], control.fields[key].control);

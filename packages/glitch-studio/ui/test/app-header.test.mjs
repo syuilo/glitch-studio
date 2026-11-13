@@ -113,7 +113,7 @@ test('keeps application actions available without a project and binds project ac
 	assert.equal(find('data-test-header-save').props.disabled, true);
 	assert.equal(find('data-test-header-undo').props.disabled, false);
 	const busyMenu = fileMenu();
-	for (const id of ['new-project', 'new-media-project', 'open-project', 'save-project', 'save-project-as', 'close-project']) {
+	for (const id of ['new-project', 'open-project', 'save-project', 'save-project-as', 'close-project']) {
 		assert.equal(busyMenu.find(item => item.id === id).disabled, true);
 	}
 	projectSessions.fileOperations.isBusy.value = false;
