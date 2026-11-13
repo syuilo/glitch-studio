@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -13,7 +14,7 @@ import { build } from 'esbuild';
 // 【共通座標で位置・移動・勾配・軌跡を接続する】
 // 横長・縦長の実GPU描画で、公開単位と画像参照座標の境界にある倍率漏れを検出する。
 test('shares isotropic units across spatial effects on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/spatial-coordinate-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/spatial-coordinate-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

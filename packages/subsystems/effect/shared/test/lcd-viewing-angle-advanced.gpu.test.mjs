@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -12,7 +13,7 @@ import { build } from 'esbuild';
 // 単一波長の見た目だけでは複屈折・屈折・透過光量の誤りを見落とすため、
 // Malusの法則と一様な複屈折板の解析解に照合し、校正・透明度・GPUキャッシュも検証する。
 test('renders LCD Viewing Angle (Advanced) spectral transmission and off-axis grayscale on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 120000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/lcd-viewing-angle-advanced-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/lcd-viewing-angle-advanced-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

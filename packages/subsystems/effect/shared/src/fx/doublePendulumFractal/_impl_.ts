@@ -1,14 +1,14 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import type { EffectOutputData } from '../../effect-implementation.ts';
-import type definition from './_def_.ts';
 import { createIntegrationSchedule } from './integration-schedule.ts';
 import { getDoublePendulumFractalRenderWorkloadHint } from './render-workload.ts';
 import { DOUBLE_PENDULUM_FRACTAL_SPAN_AT_ZOOM_ONE } from './_def_.ts';
-import code from './shader.wgsl?raw';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
+import type definition from './_def_.ts';
+import type { EffectOutputData } from '../../effect-implementation.ts';
 
 export default implementEffect<typeof definition>({
 	getRenderWorkloadHint: getDoublePendulumFractalRenderWorkloadHint,
@@ -36,7 +36,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const device = wgpu.device;
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const uniformGroup = device.createBindGroup({ layout: uniformLayout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });

@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -12,7 +13,7 @@ const managerBundle = await build({
 	entryPoints: [fileURLToPath(new URL('../src/timeline-renderer-manager.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	loader: { '.wgsl': 'text' }, external: [videoSourceModule],
-	plugins: [{ name: 'video-resolution-test', setup(build) {
+	plugins: [wgslShaderEsbuildPlugin(), { name: 'video-resolution-test', setup(build) {
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'video-resolution-test' }));
 		build.onLoad({ filter: /.*/, namespace: 'video-resolution-test' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
 	} }],

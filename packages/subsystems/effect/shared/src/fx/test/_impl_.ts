@@ -1,8 +1,8 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import definition from './_def_.ts';
-import code from './shader.wgsl?raw';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -16,8 +16,6 @@ export default implementEffect<typeof definition>({
 		const shaderModule = wgpu.device.createShaderModule({
 			code: code,
 		});
-
-		const shaderDataDefinitions = makeShaderDataDefinitions(code);
 
 		const pipeline = wgpu.device.createRenderPipeline({
 			vertex: {
@@ -35,7 +33,7 @@ export default implementEffect<typeof definition>({
 			layout: 'auto',
 		});
 
-		const uniformValues = makeStructuredView(shaderDataDefinitions.uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 
 		const uniformBuffer = wgpu.device.createBuffer({
 			size: uniformValues.arrayBuffer.byteLength,

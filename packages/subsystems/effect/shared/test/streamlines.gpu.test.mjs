@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -12,7 +13,7 @@ import { build } from 'esbuild';
 // 一様場と解析的な回転場を使い、前後の向き・RK2の曲線・画面端・最大長とステップ数を確認する。
 // 被覆マスクによる半透明の継ぎ目と、入力切替・リソース拡張後の残像も実画素で検出する。
 test('renders deterministic streamlines with arrows magnitude colors and bounded integration on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/streamlines-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/streamlines-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -14,7 +15,7 @@ import { build } from 'esbuild';
 // シェーダーの距離と微分、複数Render Targetの有無によるpipeline切り替えは
 // CPUだけでは確認できない。RGBとMaskを浮動小数点で読み戻し、数値仕様と照合する。
 test('renders elliptical vignettes with preserved alpha and optional masks on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/vignette-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/vignette-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

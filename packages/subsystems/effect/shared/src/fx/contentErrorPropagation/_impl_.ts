@@ -1,9 +1,9 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import captureCode from './capture.wgsl?raw';
 import propagationCode from './propagation.wgsl?raw';
 import outputCode from './output.wgsl?raw';
@@ -23,7 +23,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const dataFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
 		const captureLayout = device.createBindGroupLayout({

@@ -1,9 +1,9 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import definition from '../../src/fx/imageMorph/_def_.ts';
 import implementation from '../../src/fx/imageMorph/_impl_.ts';
 import displacementImplementation from '../../src/fx/vectorDisplacement/_impl_.ts';
-import commonCode from '../../src/fx/imageMorph/common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from '../../src/fx/imageMorph/common.wgsl?shader';
 import inverseCode from '../../src/fx/imageMorph/inverse.wgsl?raw';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { ShaderInput, ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
@@ -139,7 +139,7 @@ export async function run({ benchmark = false }: { benchmark?: boolean } = {}) {
 		const flow = texture(width, height, flowPixels, { filterMode: 'linear', wrapMode: 'clamp' });
 		const confidenceInput = texture(width, height, Array.from({ length: width * height }, () => [confidenceValue, confidenceValue, 0, 1] as Color), { filterMode: 'linear', wrapMode: 'clamp' });
 		if (flow.kind !== 'texture' || confidenceInput.kind !== 'texture') throw new Error('Invalid inverse fixture textures');
-		const values = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const values = createShaderBuffer(commonCodeUniforms.uniforms);
 		values.set({ canvasExtent: [1, 0.5], analysisSize: [width, height], sourceSize: [width, height], flowSize: [width, height], progress: 0.5, warpStrength: 1, blend: 0.5, searchRange: 0.2, smoothness: 0, stepScale: 1, confidenceGuard: Number(guard) });
 		const uniforms = device.createBuffer({ size: values.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		device.queue.writeBuffer(uniforms, 0, values.arrayBuffer);

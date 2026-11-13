@@ -1,11 +1,11 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
+import { createVideoTexture } from '@gs/shared/media/video-texture.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createVideoFrameLoader } from './frame-loader.ts';
-import { createVideoTexture } from '@gs/shared/media/video-texture.ts';
 import { openVideoFrameSource } from './video-source.ts';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 import type definition from './_def_.ts';
-import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -23,7 +23,7 @@ export default implementEffect<typeof definition>({
 			primitive: { topology: 'triangle-list' },
 			layout: 'auto',
 		});
-		const uniforms = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniforms = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = wgpu.device.createBuffer({
 			size: uniforms.arrayBuffer.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,

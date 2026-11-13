@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import * as Path from 'node:path';
 import packageJson from '../../../package.json' with { type: 'json' };
 import { iconFontPlugin } from './build/vite-plugin-icon-font.mjs';
+import { wgslShaderVitePlugin } from '@gs/shared/build/wgsl-shader.mjs';
 
 const isElectron = process.env.BUILD_TARGET === 'electron';
 
@@ -28,7 +29,7 @@ export default defineConfig({
 			},
 		},
 	},
-	plugins: [iconFontPlugin(), vue()],
+	plugins: [iconFontPlugin(), vue(), wgslShaderVitePlugin()],
 	resolve: {
 		alias: {
 			'@': Path.resolve(import.meta.dirname, 'src'),
@@ -52,6 +53,7 @@ export default defineConfig({
 	},
 	worker: {
 		format: 'es',
+		plugins: () => [wgslShaderVitePlugin()],
 		rolldownOptions: {
 			output: {
 				charset: 'ascii',

@@ -1,4 +1,5 @@
 import { build } from 'esbuild';
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -28,7 +29,7 @@ export async function buildPortableVisualModuleCatalog(outdir) {
 		// エフェクト内蔵画像もカタログへ埋め込み、選択された実装と一緒に成果物へ渡す。
 		// UIのpublic配信や、最終出力とは別の画像ファイルを必要としない。
 		loader: { '.png': 'dataurl' },
-		plugins: [{ name: 'portable-runtime-sources', setup(builder) {
+		plugins: [wgslShaderEsbuildPlugin(), { name: 'portable-runtime-sources', setup(builder) {
 			builder.onResolve({ filter: /effect-(definitions|implementations)\.[jt]s$/ }, () => {
 				throw new Error('Portable runtime must receive selected effects explicitly');
 			});

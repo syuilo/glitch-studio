@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -12,7 +13,7 @@ import { build } from 'esbuild';
 // 1e300のズーム、R=2の微小な発散差、基準点だけの先行発散、TIA・AA・疎な出力を実画素で検証する。
 // CPUテストだけでは分からないWGSLの指数演算・storageの配置・通常描画との接続の誤りを検出する。
 test('renders deep Mandelbrot zooms and existing coloring on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 120000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/mandelbrot-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/mandelbrot-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

@@ -1,8 +1,8 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import uniformCode from './history-uniforms.wgsl?raw';
+import uniformCode, { uniforms as uniformCodeUniforms } from './history-uniforms.wgsl?shader';
 import captureCode from './capture-input.wgsl?raw';
 import sortCode from './sort-history.wgsl?raw';
 import type definition from './_def_.ts';
@@ -23,7 +23,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(uniformCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(uniformCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const historyLayout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },

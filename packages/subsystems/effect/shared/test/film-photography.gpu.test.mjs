@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
@@ -14,7 +15,7 @@ import { build } from 'esbuild';
 // 【実際のWebGPUで分光フィルム・印画紙とノード入力を検証する】
 // 倍精度の分光参照計算と比較し、係数のGPU転送・WGSL・透明度・再描画の整合を確認する。
 test('renders spectral film photography with reference agreement on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/film-photography-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/film-photography-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

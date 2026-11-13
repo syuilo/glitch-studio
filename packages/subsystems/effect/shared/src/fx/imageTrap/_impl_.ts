@@ -1,11 +1,11 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { IMAGE_TRAP_SPAN_AT_ZOOM_ONE, IMAGE_TRAP_MINIMUM_ZOOM } from './_def_.ts';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 import type definition from './_def_.ts';
-import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -16,7 +16,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const device = wgpu.device;
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });

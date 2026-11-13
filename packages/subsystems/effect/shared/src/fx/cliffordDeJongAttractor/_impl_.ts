@@ -1,10 +1,10 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { MAXIMUM_ORBIT_COUNT, MAXIMUM_ITERATIONS, MAXIMUM_BURN_IN } from './_def_.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import accumulateCode from './accumulate.wgsl?raw';
 import renderCode from './render.wgsl?raw';
 import type definition from './_def_.ts';
@@ -24,7 +24,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution, params }) => {
 		const device = wgpu.device;
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformResource = { binding: 0, resource: { buffer: uniformBuffer } };
 		const accumulateLayout = device.createBindGroupLayout({ entries: [

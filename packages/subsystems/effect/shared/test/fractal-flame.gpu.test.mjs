@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -12,7 +13,7 @@ import { build } from 'esbuild';
 // 固定点の解析解と単一ステップの写像を使い、見た目だけでは分からない数式・単位の誤りを検出する。
 // 色位置の平均で済ませる実装を非線形Paletteで区別し、整数加算・キャッシュ・疎な出力も確認する。
 test('renders reproducible fractal flames with structural colors and normalized density on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/fractal-flame-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/fractal-flame-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

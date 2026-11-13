@@ -16,6 +16,8 @@ Visual Moduleをエディタから独立したWeb Componentとして配布する
 
 エフェクト内蔵画像はエフェクトのディレクトリ内で所有して静的importし、カタログではData URLへ変換します。Symbolsの記号・数字・絵文字も使用時だけ同梱され、公開パラメータによるアイコンセットの変更に備えて全セットを含めます。アプリの`public`配信やViteの`import.meta.env.BASE_URL`には依存しません。IIFEで使えない`import.meta`が残った場合は、成果物を保存する前にビルドを失敗させます。
 
+組み込みWGSLのバッファ配置は[共通ローダー](../../shared/build/README.md)でアプリのビルド時に解析し、WGSL文字列と配置情報をカタログへ含めます。書き出し時や埋め込み先ではWGSLの構文解析を行わず、`webgpu-utils`・`wgsl_reflect`も同梱しません。GPU上のシェーダーコンパイルや動的な入力bindingの生成は描画先で行います。
+
 `glitch-studio/ui`は書き出しダイアログ・スナップショット・素材読み出しを担当し、`glitch-studio/desktop`が別プロセスでのビルドと一時ファイル経由の保存を担当します。Visual Module subsystemはこの配布形式・Custom Element・プロジェクトを知りません。描画の表示境界は`glitch-studio/renderer/portable-canvas-renderer.ts`です。
 
 ## 成果物

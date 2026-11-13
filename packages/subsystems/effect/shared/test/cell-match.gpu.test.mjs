@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -14,7 +15,7 @@ import { build } from 'esbuild';
 // 複数dispatchのuniformやstorage bufferの対応は型チェックでは検出できない。
 // 実装をWorkerで実行し、画像片の既知の並びとRGBAを全画素で読み戻す。
 test('matches cell colors and structures with one-to-one or reusable assignments on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/cell-match-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/cell-match-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

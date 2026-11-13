@@ -12,7 +12,7 @@
 		"verbatimModuleSyntax": true,
 		"rootDir": "..",
 		"lib": ["esnext"],
-		"types": ["@types/web", "vite/client"]
+		"types": ["@types/web", "vite/client", "@gs/shared/wgsl-imports"]
 	},
 	"include": [
 		"@types/**/*.ts",

@@ -1,12 +1,9 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import shapeDistanceCode from '@gs/shared/gpu/shape-distance.wgsl?raw';
-import shaderCode from './shader.wgsl?raw';
+import code, { uniforms as codeUniforms } from './shader.shader.ts?shader';
 import type definition from './_def_.ts';
-
-const code = shapeDistanceCode + '\n' + shaderCode;
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -18,7 +15,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const device = wgpu.device;
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const pipeline = device.createRenderPipeline({
 			layout: 'auto',

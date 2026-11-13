@@ -1,11 +1,11 @@
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import blendCode from '@gs/shared/color-blend.wgsl?raw';
 import { TIMELINE_FRAME, TIMELINE_IDENTITY, intersectTimelineBounds, invertTimelineAffine, multiplyTimelineAffine, projectTimelineMatrix, timelineGeometryMatrix, transformTimelineBounds, unionTimelineBounds } from '@gs/subsystems_timeline_shared/spatial.ts';
-import code from './timeline-compositor.wgsl?raw';
-import { timelineImageBounds, timelineImageFrame, timelineTextureSize } from './timeline-image.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
+import code, { uniforms as codeUniforms } from './timeline-compositor.wgsl?shader';
+import { timelineImageBounds, timelineImageFrame, timelineTextureSize } from './timeline-image.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
 import type { TimelineAffine, TimelineBounds, TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
 import type { TimelineImage } from './timeline-image.ts';
@@ -32,7 +32,7 @@ export function createTimelineCompositor(options: {
 	onCompositing?: TimelineCompositingObserver | null;
 }) {
 	const { device, resolution } = options;
-	const uniforms = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+	const uniforms = createShaderBuffer(codeUniforms.uniforms);
 	const buffer = device.createBuffer({ size: uniforms.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 	const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer } }] });

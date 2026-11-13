@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -12,7 +13,7 @@ import { build } from 'esbuild';
 // 無重力での等速回転と、独立した質量行列から求める参照解を使い、運動方程式や時刻の誤りを検出する。
 // 半透明Ramp・周期境界のAA・縦横比・遅延出力も実画素で確認し、GPU固有の失敗を見逃さない。
 test('renders double pendulum states and deterministic fractal colors on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/double-pendulum-fractal-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/double-pendulum-fractal-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

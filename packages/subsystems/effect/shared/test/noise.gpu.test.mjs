@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -12,7 +13,7 @@ import { build } from 'esbuild';
 // WGSLのコンパイルだけでは座標の倍率・回転方向・入力bindingの誤りは分からない。
 // 単発ノイズとの加重平均や座標場の恒等変換を使い、hashの実装をテスト側へ複製せずに検証する。
 test('renders deterministic noise with absolute coordinate fields on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/noise-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/noise-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

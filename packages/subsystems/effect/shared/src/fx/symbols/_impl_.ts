@@ -1,12 +1,12 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import code from './shader.wgsl?raw';
-import type definition from './_def_.ts';
+import { implementEffect } from '../../effect-implementation.ts';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 import { createSymbolTexture, getSymbolTextureUrls } from './textures.ts';
+import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -18,7 +18,6 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, params, fallbackTexture, reportStatus }) => {
 		const device = wgpu.device;
-		const shaderDataDefinitions = makeShaderDataDefinitions(code);
 		// 内部のシンボル配列と、接続から生成する入力のbindingを分離する。
 		const symbolLayout = device.createBindGroupLayout({
 			entries: [
@@ -38,7 +37,7 @@ export default implementEffect<typeof definition>({
 			sampling: 'level0',
 		});
 
-		const uniformValues = makeStructuredView(shaderDataDefinitions.uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 
 		const uniformBuffer = wgpu.device.createBuffer({
 			size: uniformValues.arrayBuffer.byteLength,

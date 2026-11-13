@@ -1,32 +1,32 @@
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { PreviewImageAnalysis } from './preview-image-analysis.ts';
-import type { PreviewImageAnalysisMonitors } from './preview-image-analysis.ts';
-import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
-import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
-import finalRenderShaderCode from './render.wgsl?raw';
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
+import oklabShaderCode from '@gs/shared/gpu/oklab.wgsl?raw';
+import { resolvePreviewAnalysisImageSource } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import { getLinearSrgbToGamutMatrix } from '@gs/shared/rgb-gamut.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
+import { PreviewImageAnalysis } from './preview-image-analysis.ts';
+import finalRenderShaderCode, { uniforms as finalRenderShaderCodeUniforms } from './render.wgsl?shader';
 import canvasOutputShaderCode from './canvas-output.wgsl?raw';
 import { createSrgbCanvasOutputSettings } from './canvas-output.ts';
-import type { CanvasOutputSettings } from './canvas-output.ts';
-import oklabShaderCode from '@gs/shared/gpu/oklab.wgsl?raw';
 import previewGamutCompressionShaderCode from './preview-gamut-compression.wgsl?raw';
 import previewImageAdjustmentShaderCode from './preview-image-adjustment.wgsl?raw';
 import { getPreviewGamutCompressionModeIndex, PREVIEW_GAMUT_COUNT, PREVIEW_GAMUT_HUE_STEPS, PREVIEW_GAMUT_LIGHTNESS_STEPS } from './preview-gamut-compression.ts';
 import { PreviewGamutCompressionResources } from './preview-gamut-compression-resources.ts';
-import { resolvePreviewAnalysisImageSource } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
-import { getLinearSrgbToGamutMatrix } from '@gs/shared/rgb-gamut.ts';
 import { CpuPreviewCanvasContext } from './preview-canvas-context.ts';
 import { CpuPreviewFrameQueue } from './cpu-preview-frame-queue.ts';
 import type { CpuPreviewFrameReservation } from './cpu-preview-frame-queue.ts';
 import { PreviewBackgroundScheduler } from './preview-background-scheduler.ts';
+import type { CanvasOutputSettings } from './canvas-output.ts';
+import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import type { PreviewImageAnalysisMonitors } from './preview-image-analysis.ts';
 import type { PreviewCanvasContext, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
-import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 
 const finalRenderShader = [colorSpaceShaderCode, oklabShaderCode, previewGamutCompressionShaderCode, previewImageAdjustmentShaderCode, canvasOutputShaderCode, finalRenderShaderCode].join('\n');
 
@@ -39,7 +39,7 @@ export class CanvasRenderer {
 	private readonly canvasContexts: Partial<Record<CpuPreviewCanvasTarget, PreviewCanvasContext>>;
 	public get usesCpuDisplay() { return this.cpuCanvasContexts.length > 0; }
 	private gpuDevice: GPUDevice;
-	private finalRenderUniformValues: ReturnType<typeof makeStructuredView>;
+	private finalRenderUniformValues: ReturnType<typeof createShaderBuffer>;
 	private finalRenderSampler: GPUSampler;
 	private finalRenderPipeline: GPURenderPipeline;
 	private finalRenderUniformBuffer: GPUBuffer;
@@ -123,8 +123,6 @@ export class CanvasRenderer {
 			code: finalRenderShader,
 		});
 
-		const finalRenderShaderDataDefinitions = makeShaderDataDefinitions(finalRenderShaderCode);
-
 		this.finalRenderSampler = this.gpuDevice.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		this.finalRenderPipeline = this.gpuDevice.createRenderPipeline({
 			vertex: {
@@ -146,7 +144,7 @@ export class CanvasRenderer {
 			layout: 'auto',
 		});
 
-		this.finalRenderUniformValues = makeStructuredView(finalRenderShaderDataDefinitions.uniforms.uniforms);
+		this.finalRenderUniformValues = createShaderBuffer(finalRenderShaderCodeUniforms.uniforms);
 
 		this.finalRenderUniformBuffer = this.gpuDevice.createBuffer({
 			size: this.finalRenderUniformValues.arrayBuffer.byteLength,

@@ -1,11 +1,11 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { inputUvScale } from '@gs/shared/gpu/shader-input.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
 import blendCode from '@gs/shared/color-blend.wgsl?raw';
-import commonCode from './common.wgsl?raw';
+import { implementEffect } from '../../effect-implementation.ts';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import internalCode from './shader.wgsl?raw';
 import inputCode from './input.wgsl?raw';
 import type definition from './_def_.ts';
@@ -25,7 +25,7 @@ export default implementEffect<typeof definition>({
 	init: ({ wgpu, params, resolution }) => {
 		const { device } = wgpu;
 		const module = device.createShaderModule({ code: commonCode + '\n' + internalCode });
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({
 			size: uniformValues.arrayBuffer.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,

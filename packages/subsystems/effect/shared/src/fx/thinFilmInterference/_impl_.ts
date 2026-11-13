@@ -1,12 +1,10 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createSpectralSamples, SPECTRAL_SAMPLE_COUNT } from '../../optics/spectral-samples.ts';
-import shaderCode from './shader.wgsl?raw';
+import { createSpectralSamples } from '../../optics/spectral-samples.ts';
+import code, { uniforms as codeUniforms } from './shader.shader.ts?shader';
 import type definition from './_def_.ts';
-
-const code = `const SPECTRAL_SAMPLE_COUNT = ${SPECTRAL_SAMPLE_COUNT}u;\n` + shaderCode;
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -18,7 +16,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const spectralSamples = createSpectralSamples();
 		const spectralBuffer = device.createBuffer({ size: spectralSamples.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });

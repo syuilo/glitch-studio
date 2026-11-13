@@ -51,7 +51,10 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 		assert.ok(path.basename(directory).startsWith('glitch-runtime-catalog-'));
 		await rm(directory, { recursive: true, force: true });
 	});
-	await buildPortableVisualModuleCatalog(directory);
+	const catalog = await buildPortableVisualModuleCatalog(directory);
+	// 【どのエフェクトにも実行時のWGSL解析器を混入させない】
+	// 一部の関数だけのimportでも解析器の初期化が残るため、全カタログの依存から確認する。
+	assert.ok(Object.keys(catalog.inputs).every(file => !/webgpu-utils|wgsl_reflect/.test(file)));
 	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresParameterDefaultExpressions: false, requiresCustomShaderEffects: false };
 	const metadata = [];
 	const plain = await buildPortableVisualModuleRuntime(directory, requirements, (_name, result) => metadata.push(result));

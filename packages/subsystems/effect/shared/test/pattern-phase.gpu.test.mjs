@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -13,7 +14,7 @@ import { build } from 'esbuild';
 // 定数の画素移動とノード入力を比較し、1未満の周波数・Fit Mode・六角形の形状まで確認する。
 // 背景や制御用入力の参照位置が動かないことも保証する。
 test('renders cycle-based pattern frequencies and phases with uniform and texture inputs on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/pattern-phase-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/pattern-phase-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

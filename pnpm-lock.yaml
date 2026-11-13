@@ -326,9 +326,6 @@ importers:
       eventemitter3:
         specifier: 5.0.4
         version: 5.0.4
-      webgpu-utils:
-        specifier: 2.1.1
-        version: 2.1.1
     devDependencies:
       '@types/web':
         specifier: 0.0.359
@@ -342,6 +339,9 @@ importers:
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
 
   packages/glitch-studio/shared:
     dependencies:
@@ -519,9 +519,15 @@ importers:
       '@webgpu/types':
         specifier: 0.1.74
         version: 0.1.74
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
 
   packages/subsystems/audio/renderer:
     dependencies:
@@ -596,9 +602,6 @@ importers:
       seedrandom:
         specifier: 3.0.5
         version: 3.0.5
-      webgpu-utils:
-        specifier: 2.1.1
-        version: 2.1.1
     devDependencies:
       '@types/seedrandom':
         specifier: 3.0.8
@@ -615,6 +618,9 @@ importers:
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
 
   packages/subsystems/image-codec:
     devDependencies:
@@ -673,9 +679,6 @@ importers:
       '@gs/subsystems_visual-module_shared':
         specifier: workspace:*
         version: link:../../visual-module/shared
-      webgpu-utils:
-        specifier: 2.1.1
-        version: 2.1.1
     devDependencies:
       '@types/web':
         specifier: 0.0.359

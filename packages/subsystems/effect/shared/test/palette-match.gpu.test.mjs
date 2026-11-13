@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -14,7 +15,7 @@ import { build } from 'esbuild';
 // GPUの統計集約・対称行列の平方根・色変換は型チェックだけでは検証できない。
 // 既知の対称な色変換と平均・共分散を持つ入力をWorkerで処理し、出力RGBAを読み戻す。
 test('matches Oklab means and covariances with masks independent controls and preserved alpha on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/palette-match-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/palette-match-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

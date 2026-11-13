@@ -1,11 +1,10 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import code from './shader.wgsl?raw';
-import precisionCode from './extended-precision.wgsl?raw';
+import shaderCode, { uniforms as shaderCodeUniforms } from './shader.shader.ts?shader';
 import { getMandelbrotIterationCount, getMandelbrotSettings } from './mandelbrot-settings.ts';
 import { createMandelbrotReferenceLoader } from './reference-orbit-loader.ts';
 import { packMandelbrotNumber } from './extended-precision.ts';
@@ -60,8 +59,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution, reportStatus }) => {
 		const device = wgpu.device;
-		const shaderCode = precisionCode + '\n' + code;
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(shaderCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(shaderCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const layout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },

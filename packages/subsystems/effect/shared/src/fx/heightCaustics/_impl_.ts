@@ -1,9 +1,9 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import traceCode from './trace.wgsl?raw';
 import accumulateCode from './accumulate.wgsl?raw';
 import blurCode from './blur.wgsl?raw';
@@ -21,7 +21,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const { device } = wgpu;
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
 		const uniformLayoutEntry: GPUBindGroupLayoutEntry = { binding: 0, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } };

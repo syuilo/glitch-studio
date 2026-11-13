@@ -1,9 +1,9 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import colorCode from '@gs/shared/gpu/oklab.wgsl?raw';
 import { implementEffect } from '../../effect-implementation.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms, structs as commonCodeStructs } from './common.wgsl?shader';
 import analyzeCode from './analyze.wgsl?raw';
 import matrixCode from './matrix.wgsl?raw';
 import transformCode from './transform.wgsl?raw';
@@ -25,10 +25,9 @@ export default implementEffect<typeof definition>({
 		}),
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule } }) => {
-		const definitions = makeShaderDataDefinitions(commonCode);
-		const uniformValues = makeStructuredView(definitions.uniforms.uniforms);
-		const partialStride = makeStructuredView(definitions.structs.StatisticsPair).arrayBuffer.byteLength;
-		const transformSize = makeStructuredView(definitions.structs.PaletteTransform).arrayBuffer.byteLength;
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
+		const partialStride = createShaderBuffer(commonCodeStructs.StatisticsPair).arrayBuffer.byteLength;
+		const transformSize = createShaderBuffer(commonCodeStructs.PaletteTransform).arrayBuffer.byteLength;
 		const analyzeLayout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },

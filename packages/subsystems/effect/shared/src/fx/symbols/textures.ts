@@ -1,4 +1,4 @@
-import { createTextureFromSources, loadImageBitmap } from 'webgpu-utils';
+import { createSymbolTextureArray } from './texture-array.ts';
 import symbolsDotUrl from './assets/symbols/dot.png';
 import symbolsDotsUrl from './assets/symbols/dots.png';
 import symbolsDots3Url from './assets/symbols/dots3.png';
@@ -121,21 +121,23 @@ export function getSymbolTextureUrls(type: string) {
 
 export async function createSymbolTexture(device: GPUDevice, urls: string[]): Promise<GPUTexture> {
 	const inlinePngPrefix = 'data:image/png;base64,';
-	const results = await Promise.allSettled(urls.map(url => {
+	const results = await Promise.allSettled(urls.map(async url => {
 		// 同梱PNGはfetchせず直接デコードする。埋め込み先のconnect-srcにdata:を要求せず、
 		// アプリの配信元も参照しないため、Blob Workerでも単独で読み込める。
 		if (url.startsWith(inlinePngPrefix)) {
 			const bytes = Uint8Array.fromBase64(url.slice(inlinePngPrefix.length));
 			return createImageBitmap(new Blob([bytes], { type: 'image/png' }));
 		}
-		return loadImageBitmap(url);
+		const response = await fetch(url);
+		if (!response.ok) throw new Error(`Could not load symbol texture: ${response.status}`);
+		return createImageBitmap(await response.blob());
 	}));
 	try {
 		const images = results.map(result => {
 			if (result.status === 'rejected') throw result.reason;
 			return result.value;
 		});
-		return createTextureFromSources(device, images, { mips: true });
+		return createSymbolTextureArray(device, images);
 	} finally {
 		// 一部のデコードに失敗した場合も、残りの完了を待って全Bitmapを解放する。
 		// 転送後はGPUTextureだけを所有し、アイコンセット切替時にCPU側の画像を残さない。

@@ -1,17 +1,14 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, inputUvScale, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
+import commonCode, { uniforms as commonCodeUniforms } from './common.shader.ts?shader';
 import { createVhsFilterCoefficients, createVhsTransport, VHS_SIGNAL } from './signal.ts';
-import commonShaderCode from './common.wgsl?raw';
-import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import recordCode from './record.wgsl?raw';
 import playbackCode from './playback.wgsl?raw';
 import outputCode from './output.wgsl?raw';
 import type { ShaderInputValues } from '@gs/shared/gpu/shader-input.ts';
 import type definition from './_def_.ts';
-
-const commonCode = colorSpaceShaderCode + '\n' + commonShaderCode;
 
 const inputSchema = { input: 'color' } as const;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -41,7 +38,7 @@ export default implementEffect<typeof definition>({
 		}),
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule }, resolution }) => {
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const buffers = new Map<number, GPUBuffer>();
 		const variants = new Map<string, ReturnType<typeof createVariant>>();

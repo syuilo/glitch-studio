@@ -1,9 +1,9 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import code from './shader.wgsl?raw';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 import captureCode from './capture.wgsl?raw';
 import type definition from './_def_.ts';
 
@@ -49,7 +49,7 @@ export default implementEffect<typeof definition>({
 			entryPoint: 'capture',
 			targets: [{ format: historyFormat }],
 		});
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const sampler = device.createSampler({
 			minFilter: 'linear',
