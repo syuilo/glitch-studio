@@ -27,10 +27,20 @@
 						<GsFolder defaultOpen>
 							<template #label>{{ i18n.ts._Workspace.VisualModuleEditor }}</template>
 
-							<GsSwitch v-model="visualModuleAutoConnectOnNodeAdd" data-test-visual-module-auto-connect-on-node-add>
-								{{ i18n.ts._Settings.VisualModuleAutoConnectOnNodeAdd }}
-								<template #caption>{{ i18n.ts._Settings.VisualModuleAutoConnectOnNodeAddHint }}</template>
-							</GsSwitch>
+							<div class="_gaps_l">
+								<GsSwitch v-model="visualModuleAutoConnectOnNodeAdd" data-test-visual-module-auto-connect-on-node-add>
+									{{ i18n.ts._Settings.VisualModuleAutoConnectOnNodeAdd }}
+									<template #caption>{{ i18n.ts._Settings.VisualModuleAutoConnectOnNodeAddHint }}</template>
+								</GsSwitch>
+								<GsSelect
+									v-model="visualModuleWireStyle" large :items="[
+										{ value: 'straight', label: i18n.ts._Settings.VisualModuleWireStyleStraight },
+										{ value: 'curved', label: i18n.ts._Settings.VisualModuleWireStyleCurved },
+									]" data-test-visual-module-wire-style
+								>
+								<template #label>{{ i18n.ts._Settings.VisualModuleWireStyle }}</template>
+								</GsSelect>
+							</div>
 						</GsFolder>
 
 						<GsFolder defaultOpen>
@@ -154,6 +164,7 @@ const timelineFrameCachePrecision = preferences.model('timelineFrameCachePrecisi
 const timelinePreviewFramesAhead = preferences.model('timelinePreviewFramesAhead');
 const previewDisplayMode = preferences.model('previewDisplayMode');
 const visualModuleAutoConnectOnNodeAdd = preferences.model('visualModuleAutoConnectOnNodeAdd');
+const visualModuleWireStyle = preferences.model('visualModuleWireStyle');
 
 function selectLocale(locale: string) {
 	// リセット後の表示値更新で言語変更の案内が重複しないよう、保存は選択イベントからだけ行う。

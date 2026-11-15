@@ -59,7 +59,7 @@ function mountSettingsDialog(t) {
 		settingsTestUi: {},
 	};
 	Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: window.localStorage });
-	const { preferences } = evaluate(preferenceBundle);
+	const { preferences, PreferencesManager } = evaluate(preferenceBundle);
 	window.settingsTestPreferences = preferences;
 	const component = evaluate(dialogBundle).default;
 	const element = tag => ({ tag, children: [], parent: null, props: {} });
@@ -85,8 +85,32 @@ function mountSettingsDialog(t) {
 		return null;
 	}
 
-	return { find, preferences, storage, writes };
+	return { find, preferences, storage, writes, PreferencesManager };
 }
+
+// 【ケーブルの形状は即時保存・復元でき、設定リセットで直線へ戻る】
+// 設定画面だけの表示変更にならず、描画が参照するrefと次回起動の値へ反映する。
+// 未設定では従来の直線を保ち、ダイアログを開いただけでは保存しない。
+test('persists wire style changes and resets the reactive selection to straight', async t => {
+	const { find, preferences, storage, writes, PreferencesManager } = mountSettingsDialog(t);
+	const control = find('data-test-visual-module-wire-style');
+	assert.equal(control.props.modelValue, 'straight');
+	assert.deepEqual(control.props.items.map(item => item.value), ['straight', 'curved']);
+	assert.deepEqual(writes, []);
+	for (const value of ['curved', 'straight', 'curved']) {
+		control.props['onUpdate:modelValue'](value);
+		await nextTick();
+		assert.equal(preferences.r.visualModuleWireStyle.value, value);
+		assert.equal(control.props.modelValue, value);
+		assert.equal(storage.get('preferences:visualModuleWireStyle'), JSON.stringify(value));
+		assert.equal(new PreferencesManager().s.visualModuleWireStyle, value);
+	}
+	preferences.reset();
+	await nextTick();
+	assert.equal(control.props.modelValue, 'straight');
+	assert.equal(preferences.r.visualModuleWireStyle.value, 'straight');
+	assert.equal(storage.has('preferences:visualModuleWireStyle'), false);
+});
 
 // 【リセットは確認でOKを選んだ場合だけ行い、完了後に再起動を案内する】
 // 確認待ちやキャンセルで設定を失わず、言語と各設定の表示もリセット結果へ揃える。

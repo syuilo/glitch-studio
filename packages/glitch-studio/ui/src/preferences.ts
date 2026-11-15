@@ -6,6 +6,7 @@ import type { Ref } from 'vue';
 import type { WorkspaceElement } from './workspace.ts';
 import type { MenuItem } from './types/menu.ts';
 import type { TimelineTickMode } from './utility/timeline-ticks.ts';
+import type { VisualModuleWireStyle } from './utility/visual-module-wire-path.ts';
 import type { PreviewDisplayMode } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { TimelinePreviewFrameCachePrecision } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { RgbGamut } from '@gs/shared/rgb-gamut.ts';
@@ -25,6 +26,7 @@ export const PREF_DEF = definePreferences({
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },
 	visualModuleAutoConnectOnNodeAdd: { default: () => false },
+	visualModuleWireStyle: { default: (): VisualModuleWireStyle => 'straight' },
 	showTimecodeInPreview: { default: () => true },
 	showGridInPreview: { default: () => false },
 	showRulersInPreview: { default: () => true },

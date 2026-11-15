@@ -11,7 +11,11 @@
 	}"
 ></div>
 <div ref="rootEl" :class="$style.root">
-	<svg v-for="(wire, index) in wires" :key="wire.key" version="1.1" :viewBox="`0 0 ${width} ${height}`" :class="$style.wire">
+	<svg
+		v-for="(wire, index) in renderedWires" :key="wire.key"
+		version="1.1" :viewBox="`0 0 ${width} ${height}`" :class="$style.wire"
+		:data-test-visual-module-wire="wire.key"
+	>
 		<defs>
 			<linearGradient :id="`${gradientId}-${index}-color`" gradientUnits="userSpaceOnUse" :gradientTransform="getGradientTransform(wire)" x1="0" y1="0" x2="1" y2="0">
 				<stop offset="0" :stop-color="wire.fromColor"/>
@@ -27,11 +31,17 @@
 				<animate attributeName="x2" :from="gradientPeriod" :to="gradientPeriod * 2" :dur="gradientAnimationDuration" repeatCount="indefinite"/>
 			</linearGradient>
 			<mask :id="`${gradientId}-${index}-pulse`" maskUnits="userSpaceOnUse" x="0" y="0" :width="width" :height="height">
-				<line :x1="wire.from[0]" :y1="wire.from[1]" :x2="wire.to[0]" :y2="wire.to[1]" :stroke="`url(#${gradientId}-${index})`" stroke-width="3"/>
+				<path :d="wire.path" fill="none" :stroke="`url(#${gradientId}-${index})`" stroke-width="3" data-test-wire-mask/>
 			</mask>
 		</defs>
-		<line :x1="wire.from[0]" :y1="wire.from[1]" :x2="wire.to[0]" :y2="wire.to[1]" :stroke="`url(#${gradientId}-${index}-color)`" stroke-width="3" opacity="0.3"/>
-		<line :x1="wire.from[0]" :y1="wire.from[1]" :x2="wire.to[0]" :y2="wire.to[1]" :stroke="`url(#${gradientId}-${index}-color)`" :mask="`url(#${gradientId}-${index}-pulse)`" stroke-width="3"/>
+		<path
+			:d="wire.path" fill="none" :stroke="`url(#${gradientId}-${index}-color)`"
+			stroke-width="3" opacity="0.3" data-test-wire-path
+		/>
+		<path
+			:d="wire.path" fill="none" :stroke="`url(#${gradientId}-${index}-color)`"
+			:mask="`url(#${gradientId}-${index}-pulse)`" stroke-width="3" data-test-wire-pulse
+		/>
 	</svg>
 </div>
 </template>
@@ -49,6 +59,8 @@ import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
+import { preferences } from '@/preferences.ts';
+import { getVisualModuleWirePath } from '@/utility/visual-module-wire-path.ts';
 
 const projectSession = useProjectSession();
 
@@ -58,9 +70,9 @@ const wireMap = useVisualModuleWires();
 
 const props = defineProps<{ visualModule: VisualModule }>();
 
-// 配線全長に含まれる模様の周期数（正の数）。
+// 両端を結ぶ直線距離に含まれる模様の周期数（正の数）。
 const gradientRepeatCount = 4;
-// 光が配線全長を移動する秒数（正の数）。小さいほど速くなる。
+// 光が両端を結ぶ直線距離を移動する秒数（正の数）。小さいほど速くなる。
 const gradientTravelSeconds = 4;
 
 const gradientPeriod = 1 / gradientRepeatCount;
@@ -219,6 +231,12 @@ const wires = computed(() => {
 	return result;
 });
 
+// 設定変更はパスだけへ反映し、接続情報やポートのDOMを再計測しない。
+const renderedWires = computed(() => wires.value.map(wire => ({
+	...wire,
+	path: getVisualModuleWirePath(wire.from, wire.to, preferences.r.visualModuleWireStyle.value),
+})));
+
 function getWireColors(outputType: TextureDataType, inputType: TextureDataType) {
 	// anyは相手側の型の色に揃え、両側がanyのときだけ中立色を使う。
 	return {
@@ -230,7 +248,7 @@ function getWireColors(outputType: TextureDataType, inputType: TextureDataType) 
 function getGradientTransform(wire: typeof wires.value[number]): string {
 	const dx = wire.to[0] - wire.from[0];
 	const dy = wire.to[1] - wire.from[1];
-	// 座標の1単位を配線全長に合わせ、模様の周期とは独立に移動速度を保つ。
+	// 曲線でも従来と同じ線形グラデーションを使い、座標の1単位を両端の直線距離に合わせる。
 	// 両端が重なる場合も変換行列が特異にならないようにする。
 	const x = dx === 0 && dy === 0 ? 1 : dx;
 	return `matrix(${x} ${dy} ${-dy} ${x} ${wire.from[0]} ${wire.from[1]})`;
