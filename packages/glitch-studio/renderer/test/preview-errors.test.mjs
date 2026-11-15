@@ -1122,6 +1122,105 @@ for (const enableStats of [false, true]) {
 	});
 }
 
+for (const readbackSource of ['canvas', 'graph']) {
+	// 【次フレームの開始後に届くGPU計測結果も、描画を待たせず移動平均へ集計する】
+	// 読み戻しが毎回次フレームより遅いと、最新フレームだけを採用する実装では統計が止まる。
+	// 通常描画と、タイル経路で非同期に返るグラフ内の計測を確認し、完了順が逆でも
+	// 各フレームのCanvas・タイル・通常パスの合計を一度ずつ集計することを保証する。
+	test(`collects delayed Live Preview GPU statistics from ${readbackSource} after newer frames start`, async t => {
+		const f = await fixture(t, { enableStats: true });
+		f.renderer.updateDynamicOptions({ visualModules: [constantVisualModule()] });
+		f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+		const pendingReadbacks = [];
+		const deferReadback = () => {
+			const readback = Promise.withResolvers();
+			pendingReadbacks.push(readback);
+			return readback.promise;
+		};
+		if (readbackSource === 'graph') {
+			const visualModuleRenderer = f.renderer.visualModuleLivePreviewVisualModuleRenderer;
+			visualModuleRenderer.requiresTiledRendering = true;
+			t.mock.method(visualModuleRenderer, 'renderTiled', async () => {
+				visualModuleRenderer.lastTiledGpuTime = 2_000_000;
+				visualModuleRenderer.lastUntiledGpuTimeResult = deferReadback();
+				return null;
+			});
+			t.mock.method(f.renderer.timingHelper, 'getResult', async () => 1_000_000);
+		} else {
+			t.mock.method(f.renderer.timingHelper, 'getResult', deferReadback);
+		}
+		const averages = [f.renderer.gpuAverageFast, f.renderer.gpuAverageMedium, f.renderer.gpuAverageSlow];
+		const samples = averages.map(average => t.mock.method(average, 'addSample'));
+		const presents = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
+		const fpsSamples = t.mock.method(f.renderer.fpsAverage, 'addSample');
+		const tick = () => new Promise(resolve => setImmediate(resolve));
+		f.frame(16);
+		await tick();
+		pendingReadbacks[0].resolve(1_000_000);
+		await tick();
+		for (const time of [32, 48, 64]) {
+			f.frame(time);
+			await tick();
+		}
+		assert.equal(presents.mock.callCount(), 4);
+		assert.equal(fpsSamples.mock.callCount(), 4);
+		assert.equal(pendingReadbacks.length, 4);
+		pendingReadbacks[2].resolve(3_000_000);
+		await tick();
+		pendingReadbacks[1].resolve(2_000_000);
+		await tick();
+		const fixedGpuTime = readbackSource === 'graph' ? 3000 : 0;
+		for (const sample of samples) {
+			assert.deepEqual(sample.mock.calls.map(call => call.arguments[0]), [1000, 3000, 2000].map(value => value + fixedGpuTime));
+		}
+		pendingReadbacks[3].resolve(4_000_000);
+		await tick();
+		for (const average of averages) assert.equal(average.get(), 2500 + fixedGpuTime);
+		assert.deepEqual(f.errors, []);
+	});
+}
+
+for (const operation of ['stop', 'switch', 'history reset', 'cancel tiles', 'destroy']) {
+	// 【停止・対象切り替え・履歴リセット・タイル中断・破棄後に届く旧GPU計測結果は集計しない】
+	// 通常のフレーム進行で計測を捨てない修正でも、無効になったプレビューの結果を
+	// 新しい対象へ混ぜてはならない。再開可能な操作では、新しい描画の統計も確認する。
+	test(`ignores delayed Live Preview GPU statistics after ${operation}`, async t => {
+		const f = await fixture(t, { enableStats: true });
+		f.renderer.updateDynamicOptions({ visualModules: [constantVisualModule(), { ...constantVisualModule(), id: 'other' }] });
+		f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+		const previousReadback = Promise.withResolvers();
+		t.mock.method(f.renderer.timingHelper, 'getResult', () => previousReadback.promise);
+		const averages = [f.renderer.gpuAverageFast, f.renderer.gpuAverageMedium, f.renderer.gpuAverageSlow];
+		const samples = averages.map(average => t.mock.method(average, 'addSample'));
+		f.frame(16);
+		if (operation === 'stop') f.renderer.stopRenderLoop();
+		else if (operation === 'switch') f.renderer.startVisualModuleLivePreviewRenderLoopFor('other');
+		else if (operation === 'history reset') f.renderer.resetRenderHistory();
+		else if (operation === 'cancel tiles') {
+			const tiledRendering = Promise.withResolvers();
+			const visualModuleRenderer = f.renderer.visualModuleLivePreviewVisualModuleRenderer;
+			visualModuleRenderer.requiresTiledRendering = true;
+			t.mock.method(visualModuleRenderer, 'renderTiled', () => tiledRendering.promise);
+			f.frame(32);
+			const controller = f.renderer.previewTiledFrameController;
+			f.renderer.updateDynamicOptions({ fpsLimit: null });
+			assert.equal(controller.signal.aborted, true);
+			tiledRendering.resolve(null);
+		} else f.renderer.destroy();
+		previousReadback.resolve(9_000_000);
+		await new Promise(resolve => setImmediate(resolve));
+		for (const sample of samples) assert.equal(sample.mock.callCount(), 0);
+		if (operation !== 'destroy') {
+			if (operation === 'stop') f.renderer.startVisualModuleLivePreviewRenderLoopFor('module');
+			t.mock.method(f.renderer.timingHelper, 'getResult', async () => 2_000_000);
+			f.frame(48);
+			await new Promise(resolve => setImmediate(resolve));
+			for (const average of averages) assert.equal(average.get(), 2000);
+		}
+		assert.deepEqual(f.errors, []);
+	});
+}
+
 // 【CPU表示が完了するまで手動シークの完了を通知しない】
 // GPU処理だけで待機表示を消すと、読み戻し中は古い画像が最新結果として扱われる。
 test('waits for CPU presentation before publishing timeline completion', async t => {

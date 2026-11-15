@@ -68,6 +68,8 @@ GPUを所有するManagerが、最終表示とモーションブラーの全サ�
 
 両Managerはstatic optionsの`enableStats`で計測の有無を決める。無効時は統計通知タイマーを作らず、Timelineの時計読み出し・動画計測コールバック、Live PreviewのFPS集計・TimingHelper・GPUメモリ追跡を停止する。TimingHelperは計測するデバイスのqueueだけをラップし、import時にGPUQueueのプロトタイプを変更しない。書き出しの`renderTimelineFrame()`は計測経路を使わず、書き出しWorkerも明示的に無効を指定する。
 
+Visual Module Live PreviewのGPU統計は、読み戻しを待たずに次フレームの描画へ進む。次フレームの開始後に届いた計測も移動平均へ集計し、通常のフレーム進行では無効化しない。統計用の世代は描画要求の番号と分け、タイル描画の中断・履歴リセット・停止（対象切り替え・破棄を含む）後に届く旧結果だけを除外する。
+
 プレビューのヒストグラム・縦横の波形は、両Managerのstatic optionsの`enableWaveformAndHistogram`でまとめて制御する。`CanvasRenderer`は無効時に解析用インスタンスを生成せず、バッファ・pipelineの確保もcompute/render passも省く。通常のCanvas出力や計測の有効・無効とは独立し、エフェクトとして配置した波形・ヒストグラムには適用しない。書き出しWorkerでは常に無効を指定する。
 
 表示用の露出は両Managerのdynamic optionsの`previewExposure`（EV、既定0）を`CanvasRenderer`へ渡す。乗算済みlinear RGBへ`2^EV`を乗算し、色域圧縮・解析・警告判定の後に黒・チェック背景をlinearで合成してsRGBへencodeする。GPU方式・CPU方式は同じ出力パスを使う。`previewBackground`は表示専用で、透明なSDR書き出しではnull、不透明出力では黒背景を使う。チェック背景は表示用に所有するlinear画像で再描画し、ノード・履歴・解析を進めない。背景の種類や位相は全ての解析・警告判定から除外する。`analysisValueScale`はsRGB・Linear・EV（0 EV=0.18）、`analysisValueRange`は各方式の単位での`{ minimum, maximum }`を独立して指定する。変換後の値を範囲で正規化し、minimum > maximumなら軸を反転する。同値（float32への丸め後も含む）なら集計を省いて空表示にする。露出・背景・解析設定はキャッシュへ焼き込まず、書き出しへ暗黙に反映しない。[色空間の規約](../../../docs/color-management.md)を参照。

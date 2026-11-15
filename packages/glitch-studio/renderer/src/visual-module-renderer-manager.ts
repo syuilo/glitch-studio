@@ -136,6 +136,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private previewTiledFrameController: AbortController | null = null;
 	private pendingVideoFrames = new Map<Player['id'], VideoFrame | null>();
 	private previewRenderGeneration = 0;
+	// GPUの読み戻しは次フレームより遅れても有効。描画要求の番号とは分け、
+	// 中断・停止・履歴リセット時だけ更新して、無効になったプレビューの結果を除外する。
+	private previewGpuStatisticsGeneration = 0;
 	private gpuContext: PreviewCanvasContext;
 	private configureCanvas: ReturnType<typeof createCanvasOutputConfigurator>;
 	private skippedFrameTimeDelta = 0;
@@ -527,6 +530,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private cancelTiledPreviewFrame() {
 		if (this.previewTiledFrameController == null) return;
 		this.previewRenderGeneration++;
+		this.previewGpuStatisticsGeneration++;
 		this.previewRenderDelayMonitor.clear();
 		this.previewTiledFrameController.abort();
 	}
@@ -552,6 +556,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		if (this.canvasRenderer.usesCpuDisplay && cpuFrame == null) return;
 		timing = { ...timing, timeDelta: this.skippedFrameTimeDelta, realTimeDelta: this.skippedFrameRealTimeDelta };
 		const generation = ++this.previewRenderGeneration;
+		const gpuStatisticsGeneration = this.previewGpuStatisticsGeneration;
 		let monitoredFrame: VisualModuleRenderContext | null = null;
 		try {
 			// 非同期準備を最新時刻で置き換え続けないよう、開始したフレームを描画まで維持する。
@@ -589,7 +594,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 						if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
 					});
 					if (this.timingHelper != null) void Promise.all([this.timingHelper.getResult(), untiledGpuTimeResult ?? 0]).then(([gpuTime, untiledGpuTime]) => {
-						if (generation !== this.previewRenderGeneration) return;
+						if (gpuStatisticsGeneration !== this.previewGpuStatisticsGeneration) return;
 						this.gpuAverageFast.addSample((gpuTime + tiledGpuTime + untiledGpuTime) / 1000);
 						this.gpuAverageMedium.addSample((gpuTime + tiledGpuTime + untiledGpuTime) / 1000);
 						this.gpuAverageSlow.addSample((gpuTime + tiledGpuTime + untiledGpuTime) / 1000);
@@ -652,6 +657,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.pendingVisualModuleLivePreviewFrame = null;
 		this.previewRenderDelayMonitor.clear();
 		this.previewRenderGeneration++;
+		this.previewGpuStatisticsGeneration++;
 		this.visualModuleLivePreviewVisualModuleRenderer?.resetRenderHistory();
 		this.pointerPositionPrev = { ...this.pointerPosition };
 		this.skippedFrameTimeDelta = 0;
@@ -666,6 +672,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.skippedFrameTimeDelta = 0;
 		this.skippedFrameRealTimeDelta = 0;
 		this.previewRenderGeneration++;
+		this.previewGpuStatisticsGeneration++;
 		this.canvasRenderer.clear();
 		this.visualModuleLivePreviewRenderLoop.stop();
 		this.visualModuleLivePreviewVisualModuleId = null;
