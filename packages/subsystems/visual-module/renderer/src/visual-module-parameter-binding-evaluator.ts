@@ -1,4 +1,5 @@
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
+import type { ExpressionEngine } from '@gs/shared/expression/expression-engine.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { visualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
@@ -21,7 +22,11 @@ export type VisualModuleParameterEvaluationContext = ParameterEvaluationScope & 
 };
 
 export class VisualModuleParameterBindingEvaluator {
-	private valueEvaluator = new ParameterBindingEvaluator();
+	private readonly valueEvaluator: ParameterBindingEvaluator;
+
+	constructor(expressionEvaluator: ExpressionEngine | null) {
+		this.valueEvaluator = new ParameterBindingEvaluator(expressionEvaluator);
+	}
 
 	evaluate(binding: VisualModuleParameterBinding, context: VisualModuleParameterEvaluationContext, fallback: any, definition: ExpressionParameterDefinition): any {
 		if (binding.inputSource === 'node') return binding.nodeId == null ? null : { nodeId: binding.nodeId, outputPort: binding.outputPort };

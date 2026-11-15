@@ -1,3 +1,4 @@
+import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
@@ -147,7 +148,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private visualModuleLivePreviewRenderLoop: VisualModuleLivePreviewRenderLoop;
 	private visualModuleLivePreviewVisualModuleId: ProjectVisualModule['id'] | null = null;
 	private visualModuleLivePreviewParamValues: VisualModuleArgumentBindings = {};
-	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator();
+	private visualModuleLivePreviewParamEvaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	private visualModuleLivePreviewVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private pendingVisualModuleLivePreviewFrame: VisualModuleRenderContext | null = null;
 	private readonly previewRenderDelayMonitor = new PreviewRenderDelayMonitor((isDelayed, tilingProgress) => {
@@ -463,6 +464,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.visualModuleLivePreviewStatusInstanceId = statusInstanceId;
 		const statusSource: VisualModuleLivePreviewEffectStatusSource = { type: 'visualModuleLivePreview', instanceId: statusInstanceId, visualModuleId };
 		this.visualModuleLivePreviewVisualModuleRenderer = new VisualModuleRenderer({
+			expressionEvaluator: new ExpressionEvaluator(),
 			gpuDevice: this.gpuDevice,
 			fallbackTexture: this.fallbackTexture,
 			resolution: this.dynamicOptions.resolution,

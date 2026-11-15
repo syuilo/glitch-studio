@@ -1,8 +1,8 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import prepareCode from './prepare.wgsl?raw';
 import jumpCode from './jump.wgsl?raw';
 import traceCode from './trace.wgsl?raw';
@@ -21,7 +21,7 @@ export default implementEffect<typeof definition>({
 		const { device } = wgpu;
 		const dataFormat = wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const distanceFormat = wgpu.enable32bitDataTextures ? 'r32float' : 'r16float';
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const texture = (size: { width: number; height: number }, format: GPUTextureFormat) => {
 			const image = device.createTexture({ size, format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });

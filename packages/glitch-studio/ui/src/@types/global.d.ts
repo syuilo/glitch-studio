@@ -6,6 +6,8 @@ declare const __ELECTRON__: boolean;
 
 interface Window {
 	desktop?: {
+		buildPortableVisualModule(requestId: string, requirements: import('@gs/glitch-studio_embed/runtime-requirements.ts').PortableVisualModuleRuntimeRequirements): Promise<import('@gs/glitch-studio_embed/export.ts').PortableVisualModuleRuntime>;
+		cancelPortableVisualModule(requestId: string): Promise<void>;
 		onProjectCloseRequested(listener: (requestId: number) => void): () => void;
 		completeProjectClose(requestId: number, confirmed: boolean): Promise<boolean>;
 		setSessionProjectFile(sessionId: string, id: string): Promise<void>;
@@ -57,7 +59,7 @@ interface Window {
 		/** nullで非表示、0〜1で進捗率、1より大きい値で処理中表示。 */
 		setProgressBar(progress: number | null): Promise<void>;
 		notifyExportComplete(fileName: string): Promise<void>;
-		chooseExportSaveFile(name: string, format: 'mp4' | 'webp' | 'exr'): Promise<{ id: string; name: string } | null>;
+		chooseExportSaveFile(name: string, format: 'mp4' | 'webp' | 'exr' | 'html' | 'zip'): Promise<{ id: string; name: string } | null>;
 		writeExportFile(id: string, data: Uint8Array): Promise<void>;
 		beginExportFile(id: string, totalBytes: number | null): Promise<void>;
 		appendExportFile(id: string, data: Uint8Array, position?: number): Promise<void>;

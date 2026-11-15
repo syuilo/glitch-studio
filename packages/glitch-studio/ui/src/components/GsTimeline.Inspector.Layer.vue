@@ -266,6 +266,7 @@ import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_share
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import { i18n } from '@/i18n.ts';
 import { useProjectSession } from '@/project-session.ts';
+import { exportPortableVisualModuleFile } from '@/utility/portable-visual-module-file.ts';
 import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { handleProjectParameterClipboard } from '@/utility/parameter-clipboard-actions.ts';
@@ -390,12 +391,13 @@ function updateMask(change: Partial<TimelineMask>) {
 	if (isTimelineVisualLayer(layer) && layer.mask != null) setMask({ ...layer.mask, ...change });
 }
 
-async function exportInlineVisualModule() {
+async function exportInlineVisualModule(format: 'gsvm' | 'web' = 'gsvm') {
 	const layer = props.layer;
 	if (layer.layerType !== 'inlineVisualModule' || exportingVisualModule.value) return;
 	exportingVisualModule.value = true;
 	try {
-		await exportVisualModuleFile(projectSession.projectContext, layer.visualModule, layer.name);
+		if (format === 'web') await exportPortableVisualModuleFile(projectSession, layer.visualModule, layer.name);
+		else await exportVisualModuleFile(projectSession.projectContext, layer.visualModule, layer.name);
 	} finally {
 		exportingVisualModule.value = false;
 	}

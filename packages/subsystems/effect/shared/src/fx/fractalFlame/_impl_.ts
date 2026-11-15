@@ -1,14 +1,14 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import type { EffectOutputData } from '../../effect-implementation.ts';
-import type definition from './_def_.ts';
 import { packFlameTransforms, planFlameSampling, MAXIMUM_TRANSFORM_COUNT, FIXED_POINT_SCALE, MODEL_UNITS_PER_SPATIAL_UNIT } from './flame-settings.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import accumulateCode from './accumulate.wgsl?raw';
 import renderCode from './render.wgsl?raw';
+import type definition from './_def_.ts';
+import type { EffectOutputData } from '../../effect-implementation.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -17,7 +17,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const device = wgpu.device;
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const transformBuffer = device.createBuffer({ size: MAXIMUM_TRANSFORM_COUNT * 16 * Float32Array.BYTES_PER_ELEMENT, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 		const uniformResource = { binding: 0, resource: { buffer: uniformBuffer } };

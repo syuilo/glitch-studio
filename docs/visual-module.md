@@ -33,11 +33,19 @@ Visual Module内の式では、`POINTER_POSITION`でポインタ位置を2要素
 ## Visual Moduleファイル
 
 - `.gsvm`はMessagePackで、種別・形式バージョン・Glitch Studioバージョン・表示名・`VisualModule`本体・依存するAsset原本・Player定義を保存する。プロジェクト内のVisual Module IDやAssetの元ファイルパス、Visual Module Live Previewの引数、配置先レイヤーの設定・実行時の再生状態は含めない。
-- `glitch-studio/ui/src/gsvm.ts`が依存収集・エンコード／デコード・取り込み準備を担当する。Asset／Playerの収集はGlitch Studioの責務とし、Visual Module subsystemは所属プロジェクトを知らない。
+- `glitch-studio/shared/src/visual-module-resources.ts`が依存収集を、`glitch-studio/ui/src/gsvm.ts`がエンコード／デコード・取り込み準備を担当する。Asset／Playerの収集はGlitch Studioの責務とし、Visual Module subsystemは所属プロジェクトを知らない。
 - 依存収集はエフェクトの`staticSettingDefs`に従って`staticSettings`のAsset・Player IDを調べる。通常パラメータと公開パラメータは音声ルーティングのPlayer参照だけを収集し、配列・構造体・追加用の既定値も調べる。素材参照をBindingや加工式に含めることはできない。素材の原本は`Blob`から`Uint8Array`へ変換して保存する。
 - 取り込み時はVisual Module・Asset・Playerに新しいプロジェクト内IDを生成し、素材・Playerの参照を書き換える。内部のノード・公開パラメータ・出力・Automation GraphのIDは、そのVisual Module内のスコープなので維持する。
 - ファイル由来のPlayerは素材IDを付け替える。カメラ・マイク・ライブストリーム由来のPlayerは参照を保ったまま入力未指定に戻し、再指定が必要な名前をUIへ返す。現在のPlayer UIが再指定できる外部入力はWebcamだけ。
 - `importVisualModule` Commandが準備済みのVisual Module・Asset・Playerを一括追加する。Undo/Redoの通知で`visualModuleRegistration`の追加・削除をVisual Module Live PreviewとTimelineの両レンダラーへ同期する。Visual Module Live Preview中のVisual ModuleをUndoで除去した場合はTimeline表示へ戻す。
+
+## Webへの書き出し
+
+Visual Moduleエディタの「その他」から、HTML + JavaScriptのZIPまたは単一HTMLとして書き出せます。Web Component・Worker・使用するCustom Shader Effect・参照Assetを同梱し、HTTPSまたはlocalhost上のWebGPU対応Chromeでエディタなしに再生します。
+
+表示寸法は埋め込み先のCSS、描画寸法は表示先の物理ピクセル・描画倍率・最大画素数で決まります。公開値は`parameters`属性のJSONまたは`setParameter` / `setParameters` APIで設定できます。primary pointerの位置を既存の`POINTER_POSITION`へ渡します。Playerは未接続とし、タイルレンダリングは行いません。
+
+生成物の構成、公開API、停止・リサイズ・再接続の規約、配信条件は[embedパッケージのREADME](../packages/glitch-studio/embed/README.md)を参照してください。`.gsvm`の保存・取り込みとは独立した配布形式です。
 
 ## ノードの解像度
 

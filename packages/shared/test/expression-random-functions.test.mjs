@@ -16,6 +16,7 @@ async function loadSource(name) {
 const [{ randomExpressionFunctions: { RANDOM, NOISE } }, { ParameterBindingEvaluator }] = await Promise.all([
 	loadSource('expression/random-functions'), loadSource('parameter/parameter-binding-evaluator'),
 ]);
+const { ExpressionEvaluator } = await loadSource('expression/expression-evaluator');
 const expression = expression => ({ inputSource: 'expression', expression });
 const samplesDefinition = { dataType: { kind: 'any' }, ui: { label: 'Samples' } };
 const scope = { variables: {}, automationGraphs: [], time: 0, endTime: Infinity };
@@ -108,14 +109,14 @@ test('accepts all finite coordinates including fractional and integer precision 
 // ASTや評価器を再利用しても、往復シーク・別パラメータ・プレビューと書き出しで同じ値を得る。
 // 同じ式内の同じ引数も同値とし、別の乱数呼び出しによって系列を進めない。
 test('registers stateless functions without using scope time or call order', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const binding = expression('let first = RANDOM(-7, -13)\nRANDOM(100, 200)\n[first, RANDOM(-7, -13), NOISE(-0.75, -13)]');
 	const expected = [0.07589363725855947, 0.07589363725855947, -0.30678110046756046];
 	for (const time of [1000, -1000, 0, 5000, 1000]) {
 		for (const isExport of [false, true]) {
 			const context = { ...scope, time, variables: { TIME: time / 1000, IS_EXPORT: isExport } };
 			assert.deepEqual(evaluator.evaluate(binding, context, null, samplesDefinition), expected);
-			assert.deepEqual(new ParameterBindingEvaluator().evaluate(binding, context, null, samplesDefinition), expected);
+			assert.deepEqual(new ParameterBindingEvaluator(new ExpressionEvaluator()).evaluate(binding, context, null, samplesDefinition), expected);
 		}
 	}
 	assert.deepEqual(evaluator.evaluate(expression('[RANDOM(7), RANDOM(7, 0), NOISE(0.25), NOISE(0.25, 0)]'), scope, null, samplesDefinition),
@@ -126,7 +127,7 @@ test('registers stateless functions without using scope time or call order', () 
 // nullを省略seedとみなしたり、小数indexを丸めたりすると、式の誤りを見つけられない。
 // AiScriptとの境界も通し、非有限値・安全でない整数・配列・余分な引数を一貫して拒否する。
 test('throws expression errors for invalid arguments', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const invalidExpressions = [
 		'RANDOM()', 'RANDOM(null)', 'RANDOM("1")', 'RANDOM(true)', 'RANDOM([1])', 'RANDOM(0.5)',
 		'RANDOM(1, null)', 'RANDOM(1, "2")', 'RANDOM(1, 0.5)', 'RANDOM(1, 2, 3)',

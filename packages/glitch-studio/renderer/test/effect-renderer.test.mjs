@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
+const { ExpressionEvaluator } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/shared/expression/expression-evaluator.ts')));
+
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { EffectRenderer } = await load('@gs/subsystems_effect_renderer/effect-renderer.ts');
 const { default: TimingHelper } = await load('@gs/shared/gpu/TimingHelper.ts');
@@ -88,7 +90,7 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 	const module = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null, automationGraphs: [], outputDefs: Object.keys(outputs).map(id => ({ id })), primaryOutputId: 'out',
 		nodes: [...nodes, { id: 'out', type: 'globalOut', inputs: outputs }] };
 	const states = [];
-	const renderer = new VisualModuleRenderer({
+	const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(),
 		gpuDevice: g.device, fallbackTexture: {}, enableStats: false, timingHelper: null,
 		resolution: { width: 16, height: 9 }, enable32bitDataTextures: false,
 		videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),

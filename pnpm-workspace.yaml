@@ -1,4 +1,8 @@
 packageImportMethod: copy # Codexのサンドボックス内で場合によっては特定パッケージのアクセス権が不足する現象を回避するため
+# macOSのarm64/x64を同じホストで配布ビルドする。書き出し用esbuildにも対象CPUの実行ファイルが必要。
+supportedArchitectures:
+  os: [current]
+  cpu: [current, x64, arm64]
 packages:
   - docs-site
   - packages/shared
@@ -14,6 +18,7 @@ packages:
   - packages/subsystems/timeline/audio-renderer
   - packages/glitch-studio/shared
   - packages/glitch-studio/renderer
+  - packages/glitch-studio/embed
   - packages/glitch-studio/ui
   - packages/glitch-studio/desktop
 minimumReleaseAge: 10080 # delay 7days to mitigate supply-chain attack

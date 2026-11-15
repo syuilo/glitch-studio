@@ -1,10 +1,10 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { MAXIMUM_MAGNET_COUNT, MAGNETIC_PENDULUM_MINIMUM_ZOOM } from './_def_.ts';
-import code from './shader.wgsl?raw';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 import { getMagneticPendulumMaximumSteps, getMagneticPendulumRenderWorkloadHint } from './render-workload.ts';
 import type { EffectOutputData } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
@@ -44,7 +44,7 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const device = wgpu.device;
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		// 1磁石をvec4f(position.xy, strength, heightSquared)で格納し、CPUとGPUのalignmentを揃える。
 		// 高さの二乗はCPUで計算し、従来の未使用成分へ格納して転送量とGPUの演算数を増やさない。

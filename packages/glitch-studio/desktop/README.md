@@ -6,6 +6,16 @@ Windows x64向けのNSISインストーラーと、macOSのApple Silicon（arm64
 
 desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`では、ASAR内のnpmの実行時依存に加え、エントリ・preload・配布対象ファイルから静的にたどれる相対import・require先の存在も再帰的に検査します。新しい実装ファイルを追加した場合は、`electron-builder.config.cjs`の`applicationFiles`へ追加してください。実際の設定とソースをASARに詰める回帰テストでも、配布対象への追加漏れを検出します。
 
+## Visual ModuleのWeb書き出し
+
+HTML/JavaScriptの書き出しはElectron版限定です。UIで作品と素材を確定し、`portable-visual-module-ipc.mjs`が要求元ごとに一つのUtilityProcessを起動します。必要な機能の一覧だけをビルド処理へ渡し、生成結果をUIへ返します。キャンセル・画面破棄・プロセス異常で受付を解放します。HTML・ZIPの保存は既存のExportFilesによる一時保存と確定を使います。
+
+`pnpm build:desktop`と`pnpm dev:desktop`は、`build-portable-visual-module.mjs`でESMカタログと専用Workerを生成します。開発中にランタイム・エフェクトを変更した場合は、デスクトップ開発プロセスを再起動するか、`pnpm --dir packages/glitch-studio/desktop build:portable`を実行します。カタログはネイティブバンドラーが読めるようASAR外に配置し、esbuildの実行ファイルもunpackします。Workerには実体パスを`ESBUILD_BINARY_PATH`で渡します。
+
+pnpmの`supportedArchitectures`でホストOSのx64・arm64依存を用意し、macOSの両CPU向け配布に対応します。`afterPack`は対象CPUの実行ファイル・JS側とのバージョン一致・カタログの各入口を検査します。バンドラー・Node API・ビルド資材は生成したHTML/JavaScriptには含めません。
+
+`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/portable-visual-module-electron.test.mjs`を実行すると、別プロセスでのビルドとキャンセルを検証します。事前に`pnpm build:desktop`を実行してください。`GLITCH_PORTABLE_PACKAGED_RESOURCES`に配布アプリの`resources`ディレクトリを指定すると、ASAR内のWorkerと同梱資材だけでビルドできることも確認できます。
+
 ## 起動時の表示
 
 `startup-splash.mjs`が`BaseWindow`と`ImageView`を使い、`resources/startup-splash.png`を直接表示します。ロゴと文字は事前に画像化しており、スプラッシュ専用のレンダラープロセスやHTMLの読み込み・初回描画を待ちません。Electronの`app.ready`以降に表示でき、`ImageView`は実験的APIです。画像は`app.asar`内に同梱するため、開発版・配布版で同じものを使用します。

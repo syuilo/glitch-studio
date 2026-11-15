@@ -1,8 +1,8 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import code from './shader.wgsl?raw';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -22,7 +22,6 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const shaderModule = wgpu.device.createShaderModule({ code });
-		const shaderDataDefinitions = makeShaderDataDefinitions(code);
 		const pipeline = wgpu.device.createRenderPipeline({
 			vertex: { module: wgpu.defaultVertexShaderModule },
 			fragment: {
@@ -35,7 +34,7 @@ export default implementEffect<typeof definition>({
 			primitive: { topology: 'triangle-list' },
 			layout: 'auto',
 		});
-		const uniformValues = makeStructuredView(shaderDataDefinitions.uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = wgpu.device.createBuffer({
 			size: uniformValues.arrayBuffer.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,

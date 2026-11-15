@@ -1,92 +1,12 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { createTextureFromImages, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import code from './shader.wgsl?raw';
+import { implementEffect } from '../../effect-implementation.ts';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
+import { createSymbolTexture, getSymbolTextureUrls } from './textures.ts';
 import type definition from './_def_.ts';
-
-function getSymbolTextureUrls(type: string) {
-	return type === 'symbols_numbers' ? [
-		`${import.meta.env.BASE_URL}assets/symbols/dot.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/dot.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/dot.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/dots.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/dots3.png`,
-
-		`${import.meta.env.BASE_URL}assets/symbols/o1.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/o2.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/o3.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/o4.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/x1.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/x2.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/cross1.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/cross2.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/slash1.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/slash2.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/corner.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/circle-slash.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/square-slash.png`,
-
-		`${import.meta.env.BASE_URL}assets/chars/0.png`,
-		`${import.meta.env.BASE_URL}assets/chars/1.png`,
-		`${import.meta.env.BASE_URL}assets/chars/2.png`,
-		`${import.meta.env.BASE_URL}assets/chars/3.png`,
-		`${import.meta.env.BASE_URL}assets/chars/4.png`,
-		`${import.meta.env.BASE_URL}assets/chars/5.png`,
-		`${import.meta.env.BASE_URL}assets/chars/6.png`,
-		`${import.meta.env.BASE_URL}assets/chars/7.png`,
-		`${import.meta.env.BASE_URL}assets/chars/8.png`,
-		`${import.meta.env.BASE_URL}assets/chars/9.png`,
-
-		`${import.meta.env.BASE_URL}assets/symbols/block.png`,
-	] : type === 'symbols' ? [
-		`${import.meta.env.BASE_URL}assets/symbols/dot.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/dot.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/dot.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/dots.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/dots3.png`,
-
-		`${import.meta.env.BASE_URL}assets/symbols/o1.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/o2.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/o3.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/o4.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/x1.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/x2.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/cross1.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/cross2.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/slash1.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/slash2.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/corner.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/circle-slash.png`,
-		`${import.meta.env.BASE_URL}assets/symbols/square-slash.png`,
-
-		`${import.meta.env.BASE_URL}assets/symbols/block.png`,
-	] : type === 'numbers' ? [
-		`${import.meta.env.BASE_URL}assets/chars/0.png`,
-		`${import.meta.env.BASE_URL}assets/chars/1.png`,
-		`${import.meta.env.BASE_URL}assets/chars/2.png`,
-		`${import.meta.env.BASE_URL}assets/chars/3.png`,
-		`${import.meta.env.BASE_URL}assets/chars/4.png`,
-		`${import.meta.env.BASE_URL}assets/chars/5.png`,
-		`${import.meta.env.BASE_URL}assets/chars/6.png`,
-		`${import.meta.env.BASE_URL}assets/chars/7.png`,
-		`${import.meta.env.BASE_URL}assets/chars/8.png`,
-		`${import.meta.env.BASE_URL}assets/chars/9.png`,
-	] : type === 'sweets' ? [
-		`${import.meta.env.BASE_URL}assets/emojis/candy_3d.png`,
-		`${import.meta.env.BASE_URL}assets/emojis/chocolate_bar_3d.png`,
-		`${import.meta.env.BASE_URL}assets/emojis/cookie_3d.png`,
-		`${import.meta.env.BASE_URL}assets/emojis/dango_3d.png`,
-		`${import.meta.env.BASE_URL}assets/emojis/doughnut_3d.png`,
-		`${import.meta.env.BASE_URL}assets/emojis/ice_cream_3d.png`,
-		`${import.meta.env.BASE_URL}assets/emojis/lollipop_3d.png`,
-		`${import.meta.env.BASE_URL}assets/emojis/pancakes_3d.png`,
-		`${import.meta.env.BASE_URL}assets/emojis/shortcake_3d.png`,
-		`${import.meta.env.BASE_URL}assets/emojis/soft_ice_cream_3d.png`,
-	] : [];
-}
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -98,7 +18,6 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, params, fallbackTexture, reportStatus }) => {
 		const device = wgpu.device;
-		const shaderDataDefinitions = makeShaderDataDefinitions(code);
 		// 内部のシンボル配列と、接続から生成する入力のbindingを分離する。
 		const symbolLayout = device.createBindGroupLayout({
 			entries: [
@@ -118,7 +37,7 @@ export default implementEffect<typeof definition>({
 			sampling: 'level0',
 		});
 
-		const uniformValues = makeStructuredView(shaderDataDefinitions.uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 
 		const uniformBuffer = wgpu.device.createBuffer({
 			size: uniformValues.arrayBuffer.byteLength,
@@ -158,7 +77,7 @@ export default implementEffect<typeof definition>({
 			reportStatus({ type: 'loading' });
 			const version = ++loadVersion;
 			const urls = getSymbolTextureUrls(type);
-			void createTextureFromImages(wgpu.device, urls, { mips: true }).then(texture => {
+			void createSymbolTexture(wgpu.device, urls).then(texture => {
 				// 遅れて完了した古い要求や、破棄済みインスタンスには結果を適用しない。
 				if (disposed || version !== loadVersion) {
 					texture.destroy();

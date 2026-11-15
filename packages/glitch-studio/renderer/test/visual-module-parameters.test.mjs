@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 import { createVisualModuleRenderer } from './helpers/create-visual-module-renderer.mjs';
 
+const { ExpressionEvaluator } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/shared/expression/expression-evaluator.ts')));
+
 const loadSource = name => loadShaderSource(fileURLToPath(import.meta.resolve(name)));
 
 const { getNodeInputDataType, areNodeDataTypesCompatible } = await loadSource('@gs/shared/data-type/node-compatibility.ts');
@@ -347,7 +349,7 @@ test('uses shared scalar types for node inputs and module outputs', async () => 
 		{ ...paramDef('vector', [0, 0], 'vector'), canNode: true }, { ...paramDef('color', [0, 0, 0, 1], 'color'), canNode: true },
 		{ ...paramDef('disabled'), canNode: false },
 	];
-	const outputs = getNodeOutputs({ id: 'in', type: 'globalIn' }, defs);
+	const outputs = getNodeOutputs({ id: 'in', type: 'globalIn' }, defs, {});
 	assert.equal(outputs.amount.dataType.kind, 'scalar');
 	assert.equal(outputs.flag, undefined);
 	assert.equal(outputs.label, undefined);
@@ -401,7 +403,7 @@ for (const enable32bitDataTextures of [false, true]) {
 			primaryOutput: 'image',
 		} };
 		const output = createTexture();
-		const renderer = new VisualModuleRenderer({
+		const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(),
 			gpuDevice: device, timingHelper: null,
 			enableStats: false, enable32bitDataTextures,
 			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(),

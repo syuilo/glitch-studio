@@ -225,6 +225,9 @@ importers:
       electron-updater:
         specifier: 6.8.11
         version: 6.8.11(supports-color@7.2.0)
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       semver:
         specifier: 7.8.6
         version: 7.8.6
@@ -232,6 +235,9 @@ importers:
       '@electron/asar':
         specifier: 4.3.1
         version: 4.3.1
+      '@gs/glitch-studio_embed':
+        specifier: workspace:*
+        version: link:../embed
       electron:
         specifier: 45.2.1
         version: 45.2.1(supports-color@7.2.0)
@@ -241,6 +247,43 @@ importers:
       js-yaml:
         specifier: 4.3.2
         version: 4.3.2
+      vite:
+        specifier: 8.3.5
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
+
+  packages/glitch-studio/embed:
+    dependencies:
+      '@gs/glitch-studio_renderer':
+        specifier: workspace:*
+        version: link:../renderer
+      '@gs/glitch-studio_shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/effect/shared
+      '@gs/subsystems_visual-module_renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/visual-module/renderer
+      '@gs/subsystems_visual-module_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/visual-module/shared
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.359
+        version: 0.0.359
+      '@typescript-eslint/parser':
+        specifier: 8.72.1
+        version: 8.72.1(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.74
+        version: 0.1.74
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
@@ -283,9 +326,6 @@ importers:
       eventemitter3:
         specifier: 5.0.4
         version: 5.0.4
-      webgpu-utils:
-        specifier: 2.1.1
-        version: 2.1.1
     devDependencies:
       '@types/web':
         specifier: 0.0.359
@@ -299,6 +339,9 @@ importers:
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
 
   packages/glitch-studio/shared:
     dependencies:
@@ -330,6 +373,9 @@ importers:
 
   packages/glitch-studio/ui:
     dependencies:
+      '@gs/glitch-studio_embed':
+        specifier: workspace:*
+        version: link:../embed
       '@gs/glitch-studio_renderer':
         specifier: workspace:*
         version: link:../renderer
@@ -473,9 +519,15 @@ importers:
       '@webgpu/types':
         specifier: 0.1.74
         version: 0.1.74
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
 
   packages/subsystems/audio/renderer:
     dependencies:
@@ -550,9 +602,6 @@ importers:
       seedrandom:
         specifier: 3.0.5
         version: 3.0.5
-      webgpu-utils:
-        specifier: 2.1.1
-        version: 2.1.1
     devDependencies:
       '@types/seedrandom':
         specifier: 3.0.8
@@ -569,6 +618,9 @@ importers:
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
 
   packages/subsystems/image-codec:
     devDependencies:
@@ -627,9 +679,6 @@ importers:
       '@gs/subsystems_visual-module_shared':
         specifier: workspace:*
         version: link:../../visual-module/shared
-      webgpu-utils:
-        specifier: 2.1.1
-        version: 2.1.1
     devDependencies:
       '@types/web':
         specifier: 0.0.359

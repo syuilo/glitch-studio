@@ -9,9 +9,13 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
-		"./*": "./src/*"
+		"./*": "./src/*",
+		"./build/*": "./build/*",
+		"./wgsl-imports": "./src/gpu/wgsl-imports.d.ts"
 	},
 	"devDependencies": {
+		"esbuild": "0.28.2",
+		"webgpu-utils": "2.1.1",
 		"@types/web": "0.0.359",
 		"@typescript-eslint/parser": "8.72.1",
 		"@webgpu/types": "0.1.74",

@@ -49,6 +49,8 @@ features:
     details: "超高解像度でのエクスポートに対応し、通常の解像度では表現力が不足する精密なパターンも出力できます。可逆WebP出力では、規格上の最大サイズである一辺16383pxに対応。"
   - title: OpenEXR対応
     details: "OpenEXRでのエクスポートに対応していて、広い色域の画像データを劣化することなく保存・他ソフトへ受け渡し可能。"
+  - title: Web Component出力対応
+    details: "作成したVisual Moduleを、任意のWebサイトに埋め込めるWeb Componentとしてエクスポートできます。ポインタ入力も可能で、インタラクティブなビジュアルアートを手軽に設置できます。"
   - title: VOICEVOX連携
     details: "VOICEVOXエンジンと連携し、タイムライン上で直接読み上げと字幕のレンダリングを行えます。\n外部で音声ファイルを生成し、それを取り込んで…といった手間がありません。"
     link: /guide/timeline/layers/voicevox

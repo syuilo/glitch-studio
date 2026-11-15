@@ -7,6 +7,8 @@ globalThis.GPUShaderStage = { FRAGMENT: 2, COMPUTE: 4 };
 globalThis.GPUBufferUsage = { UNIFORM: 64, COPY_DST: 8 };
 globalThis.GPUTextureUsage = { TEXTURE_BINDING: 4, COPY_DST: 2, RENDER_ATTACHMENT: 16 };
 globalThis.GPUQueue = class { submit() {} };
+const { ExpressionEvaluator } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/shared/expression/expression-evaluator.ts')));
+
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { constantShaderInput, textureShaderInput, inputUvScale } = await load('@gs/shared/gpu/shader-input.ts');
 const { default: effect } = await load('@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts');
@@ -110,7 +112,7 @@ test('keeps rendering transparent video while player frames are missing and resu
 	} };
 	const videoTextures = new Map();
 	const videoFrameVersions = new Map();
-	const renderer = new VisualModuleRenderer({
+	const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(),
 		gpuDevice: device, fallbackTexture: {}, resolution: { width: 16, height: 9 },
 		enableStats: false, timingHelper: null, enable32bitDataTextures: false,
 		assets: [], assetTextures: new Map(), getPlayerVideoTexture: id => videoTextures.get(id) ?? null, videoFrameVersions,
@@ -700,7 +702,7 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 });
 
 function createRenderer(device, visualModule, overrides = {}) {
-	return new VisualModuleRenderer({ gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
+	return new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(), gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
 }
 
 function renderContext(overrides = {}) {

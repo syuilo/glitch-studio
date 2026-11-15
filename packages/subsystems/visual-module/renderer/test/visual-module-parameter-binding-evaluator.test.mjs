@@ -5,12 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const bundled = await build({
-	entryPoints: [fileURLToPath(new URL('../src/visual-module-parameter-binding-evaluator.ts', import.meta.url))],
+	stdin: { resolveDir: fileURLToPath(new URL('../', import.meta.url)), contents: `export * from './src/visual-module-parameter-binding-evaluator.ts'; export { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { VisualModuleParameterBindingEvaluator } = module.exports;
+const { VisualModuleParameterBindingEvaluator, ExpressionEvaluator } = module.exports;
 const expression = expression => ({ inputSource: 'expression', expression });
 const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Value' } };
 const vectorDefinition = { dataType: { kind: 'vector' }, ui: { label: 'Value' } };
@@ -24,7 +24,7 @@ const context = (overrides = {}) => ({
 // Timeline専用の登録や別の乱数実装にせず、公開パラメータをseedとして使えるようにする。
 // 評価器やASTを再利用してseedを変更しても、前回の系列を保持しないことを確認する。
 test('combines shared random and noise functions with evaluated public parameters', () => {
-	const evaluator = new VisualModuleParameterBindingEvaluator();
+	const evaluator = new VisualModuleParameterBindingEvaluator(new ExpressionEvaluator());
 	const binding = expression('[RANDOM(0, PUBLIC("seed")), NOISE(0.25, PUBLIC("seed"))]');
 	const at = seed => evaluator.evaluate(binding, context({
 		evaluatedParamValues: new Map([['seed-id', seed]]), paramIdsByName: new Map([['seed', 'seed-id']]),
@@ -37,7 +37,7 @@ test('combines shared random and noise functions with evaluated public parameter
 // 【接続参照はVisual Moduleの評価器が解決する】
 // 共通の値評価器にはノードの識別子を持ち込まず、未接続の場合も従来のnullを返す。
 test('evaluates node references directly', () => {
-	const evaluator = new VisualModuleParameterBindingEvaluator();
+	const evaluator = new VisualModuleParameterBindingEvaluator(new ExpressionEvaluator());
 	assert.deepEqual(evaluator.evaluate({ inputSource: 'node', nodeId: 'source', outputPort: 'value' }, context(), -1, scalarDefinition), { nodeId: 'source', outputPort: 'value' });
 	assert.equal(evaluator.evaluate({ inputSource: 'node', nodeId: null }, context(), -1, scalarDefinition), null);
 });
@@ -45,7 +45,7 @@ test('evaluates node references directly', () => {
 // 【PUBLICの名前と直接参照のID】
 // 評価済みの値と名前の対応を直接渡し、Visual Moduleの生成やレンダラーに依存しない。
 test('resolves parameter names separately from IDs and rejects invalid expressions', () => {
-	const evaluator = new VisualModuleParameterBindingEvaluator();
+	const evaluator = new VisualModuleParameterBindingEvaluator(new ExpressionEvaluator());
 	const scope = context({ evaluatedParamValues: new Map([['gain-id', 0]]), paramIdsByName: new Map([['gain', 'gain-id']]) });
 	assert.equal(evaluator.evaluate(expression('PUBLIC("gain")'), scope, -1, scalarDefinition), 0);
 	assert.equal(evaluator.evaluate({ inputSource: 'visualModulePublicParameterReference', parameterId: 'gain-id' }, scope, -1, scalarDefinition), 0);
@@ -61,7 +61,7 @@ test('resolves parameter names separately from IDs and rejects invalid expressio
 // 【参照値の複製】
 // 評価結果の変更が、次回の評価で使うスコープや評価済みパラメータを破壊しない。
 test('clones values read from variables and evaluated parameters', () => {
-	const evaluator = new VisualModuleParameterBindingEvaluator();
+	const evaluator = new VisualModuleParameterBindingEvaluator(new ExpressionEvaluator());
 	const value = [1, 0.5, 0, 0.25];
 	const scope = context({ variables: { COLOR: value }, evaluatedParamValues: new Map([['color-id', value]]), paramIdsByName: new Map([['color', 'color-id']]) });
 	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }, expression('PUBLIC("color")'), { inputSource: 'visualModulePublicParameterReference', parameterId: 'color-id' }]) {

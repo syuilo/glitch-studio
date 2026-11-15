@@ -1,17 +1,17 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/shader-input.ts';
-import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import captureCode from './capture.wgsl?raw';
 import downsampleCode from './downsample-motion.wgsl?raw';
 import updateBlocksCode from './update-blocks.wgsl?raw';
 import captureSnapshotsCode from './capture-snapshots.wgsl?raw';
 import backgroundCode from './background.wgsl?raw';
 import renderBlocksCode from './render-blocks.wgsl?raw';
+import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type definition from './_def_.ts';
 
 const backgroundModes = { input: 0, cutout: 1, transparent: 2 };
@@ -30,7 +30,7 @@ export default implementEffect<typeof definition>({
 	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const analysisFormat = enable32bitDataTextures ? 'rg32float' : 'rg16float';
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
 		const captureLayout = device.createBindGroupLayout({ entries: [

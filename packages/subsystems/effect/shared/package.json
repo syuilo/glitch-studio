@@ -16,14 +16,14 @@
 		"@types/web": "0.0.359",
 		"@typescript-eslint/parser": "8.72.1",
 		"@webgpu/types": "0.1.74",
-		"vite": "8.3.5"
+		"vite": "8.3.5",
+		"webgpu-utils": "2.1.1"
 	},
 	"dependencies": {
 		"@gs/subsystems_audio_renderer": "workspace:*",
 		"@gs/shared": "workspace:*",
 		"mediabunny": "1.65.0",
 		"seedrandom": "3.0.5",
-		"webgpu-utils": "2.1.1",
 		"@gs/subsystems_audio_shared": "workspace:*"
 	}
 }

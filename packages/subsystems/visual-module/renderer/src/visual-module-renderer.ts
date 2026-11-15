@@ -109,9 +109,10 @@ export class VisualModuleRenderer {
 	public lastTiledGpuTime = 0;
 	public lastUntiledGpuTimeResult: Promise<number> = Promise.resolve(0);
 	public requiresTiledRendering = false;
-	private parameterEvaluator = new VisualModuleParameterBindingEvaluator();
+	private readonly parameterEvaluator: VisualModuleParameterBindingEvaluator;
 
 	constructor(options: {
+		expressionEvaluator: import('@gs/shared/expression/expression-engine.ts').ExpressionEngine | null;
 		onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
 		enableStats: boolean;
 		effectRenderTiling?: EffectRenderTiling;
@@ -134,6 +135,7 @@ export class VisualModuleRenderer {
 		effectDefinitions: Record<string, EffectDefinition>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
+		this.parameterEvaluator = new VisualModuleParameterBindingEvaluator(options.expressionEvaluator);
 		this.effectRenderTiling = options.effectRenderTiling ?? { mode: 'auto' };
 		this.inputResolutions = options.inputResolutions ?? new Map();
 		this.getPlayerResolution = options.getPlayerResolution ?? null;
@@ -464,6 +466,18 @@ export class VisualModuleRenderer {
 		if (output.node.type === 'globalIn') return this.getParamOutput(visualModulePublicParameterId(output.outputPort));
 		const texture = this.effectRenderers.get(output.node.id)?.getOutputTexture(output.outputPort);
 		return texture == null ? null : { kind: 'texture', texture };
+	}
+
+	/** 初回描画の入力座標も出力の表示領域に合わせられるよう、静的に計画済みの寸法を公開する。 */
+	public getOutputResolution(outputId: string): Resolution | null {
+		const node = this.renderNodeId == null ? null : this.allNodeIdMap.get(this.renderNodeId);
+		if (node == null) return null;
+		const output = this.getOutputNode(node, outputId);
+		if (output == null) return null;
+		const resolution = output.node.type === 'globalIn'
+			? this.inputResolutions.get(output.outputPort)
+			: this.nodeResolutions.get(output.node.id);
+		return resolution == null ? null : { ...resolution };
 	}
 
 	private *renderNode(node: VisualModuleNode, context: VisualModuleRenderContext & {

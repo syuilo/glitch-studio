@@ -811,6 +811,18 @@
 		"DownloadFile": "Download {name}"
 	},
 	"_VisualModule": {
+		"WebExport": "Export for the web",
+		"WebExportDesktopOnly": "Export for the web is available in the desktop app.",
+		"WebExportPreparing": "Preparing assets…",
+		"WebExportBuilding": "Preparing the export…",
+		"WebExportSaving": "Saving the file…",
+		"WebExportFormat": "File format",
+		"WebExportZip": "HTML + JavaScript (ZIP)",
+		"WebExportHtml": "Single HTML file",
+		"WebExportScale": "Rendering scale",
+		"WebExportMaxPixels": "Maximum rendering pixels",
+		"WebExportFps": "Maximum frames per second",
+		"WebExportParameters": "Initial public parameter values (JSON)",
 		"Drop": "Visual Module drop",
 		"Nodes": "Nodes",
 		"InputDefs": "Input Defs",

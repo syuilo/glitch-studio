@@ -1,19 +1,18 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createPhaseScrambleLayout, createPhaseScramblePasses } from './layout.ts';
-import commonCode from './common.wgsl?raw';
-import captureCode from './capture.wgsl?raw';
 import fourierDefinitionsCode from '../../fourier/definitions.wgsl?raw';
 import fftCode from '../../fourier/transform.wgsl?raw';
+import { createPhaseScrambleLayout, createPhaseScramblePasses } from './layout.ts';
+import captureCode from './capture.wgsl?raw';
+import effectCommonCode, { uniforms as effectCommonCodeUniforms } from './common.shader.ts?shader';
 import scrambleCode from './scramble.wgsl?raw';
 import outputCode from './output.wgsl?raw';
 import type definition from './_def_.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { PhaseScrambleLayout } from './layout.ts';
 
-const effectCommonCode = fourierDefinitionsCode + '\n' + commonCode;
 const inputSchema = { input: 'color' } as const;
 const finiteNumber = (value: number, fallback: number) => Number.isFinite(value) ? value : fallback;
 
@@ -22,7 +21,7 @@ export default implementEffect<typeof definition>({
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }),
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule }, resolution }) => {
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(effectCommonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(effectCommonCodeUniforms.uniforms);
 		const uniformSize = uniformValues.arrayBuffer.byteLength;
 		const uniformStride = Math.ceil(uniformSize / device.limits.minUniformBufferOffsetAlignment) * device.limits.minUniformBufferOffsetAlignment;
 		const computeLayout = device.createBindGroupLayout({ entries: [

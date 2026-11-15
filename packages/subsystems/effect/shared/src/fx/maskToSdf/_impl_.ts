@@ -1,7 +1,7 @@
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import prepareCode from './prepare.wgsl?raw';
 import seedCode from './seed.wgsl?raw';
 import distanceCode from './distance.wgsl?raw';
@@ -27,7 +27,7 @@ export default implementEffect<typeof definition>({
 		const offsets = createTexture(offsetFormat);
 		// IDは浮動小数点データではなく画素の識別子。精度設定に関係なく整数で保持する。
 		const identifiers = [createTexture('r32uint'), createTexture('r32uint')];
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry: GPUBindGroupLayoutEntry = { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } };
 		const uniformResource = { binding: 0, resource: { buffer: uniformBuffer } };

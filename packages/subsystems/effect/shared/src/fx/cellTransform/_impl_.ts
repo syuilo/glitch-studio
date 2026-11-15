@@ -1,15 +1,13 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { getCellSubdivisionLevels } from '../../cell-subdivision.ts';
-import cellSubdivisionCode from '../../cell-subdivision.wgsl?raw';
+import code, { uniforms as codeUniforms } from './shader.shader.ts?shader';
 import type definition from './_def_.ts';
-import shaderCode from './shader.wgsl?raw';
 
-const code = cellSubdivisionCode + '\n' + shaderCode;
 const cellWrapModes = { transparent: 0, clamp: 1, repeat: 2, repeatMirrored: 3 };
 
 export default implementEffect<typeof definition>({
@@ -23,7 +21,7 @@ export default implementEffect<typeof definition>({
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
 		const inactiveDensityMap = constantShaderInput('scalar', 0);
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });

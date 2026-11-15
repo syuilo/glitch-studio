@@ -1,3 +1,4 @@
+import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import { checkEffectRenderTiles } from './effect-render-tiles-gpu.ts';
 import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
@@ -168,7 +169,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			params: { inputA: { inputSource: 'literal', value: [1, 0, 0, 1] }, inputB: { inputSource: 'literal', value: [0, 0, 0, 0] }, amount: { inputSource: 'literal', value: 0 } },
 		}, history, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'history', outputPort: 'output' } } }],
 	};
-	const renderer = new VisualModuleRenderer({
+	const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(),
 		gpuDevice: device,
 		fallbackTexture,
 		resolution: { width: 4, height: 4 },

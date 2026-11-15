@@ -40,6 +40,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 
 `src/gpu`には、Effect・Visual Module・Timelineやプロジェクトを知らずに使えるGPUデータ表現と処理を置く。
 
+- `shader-buffer.ts`: ビルド時に確定した配置情報からuniform/storage用バッファと値の書き込み処理を生成する。WGSLの解析器は実行時に含めない。ソースの読み込み方は[WGSLローダー](build/README.md)を参照。
 - `uniform-or-texture.ts`: 空間的に一定の値、またはテクスチャを表す`UniformOrTexture`。生成元や接続先の情報、サンプリング設定は持たない。
 - `shader-input.ts`: `UniformOrTexture`と受け取り側のサンプリング設定から`ShaderInput`を作る`toShaderInput()`、およびWGSLの読み取り関数とbindingの生成。
 - `shader-input-pipeline.ts`: シェーダー入力の構成に応じたpipelineとbindingの管理。

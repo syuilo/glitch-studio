@@ -69,6 +69,7 @@ import { handleProjectParameterClipboard, handlePreviewParameterClipboard } from
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createResetParameterBinding } from '@/utility/parameter-default.ts';
+import { exportPortableVisualModuleFile } from '@/utility/portable-visual-module-file.ts';
 import { exportVisualModuleFile, importVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
 import { createProjectVisualModule } from '@/utility/project-visual-module.ts';
@@ -316,12 +317,13 @@ function renameCurrentVisualModule(name: string) {
 	stateManager.commit('renameVisualModule', { visualModuleId: currentVisualModule.id, name });
 }
 
-async function exportCurrentVisualModule() {
+async function exportCurrentVisualModule(format: 'gsvm' | 'web' = 'gsvm') {
 	const currentVisualModule = visualModule.value;
 	if (currentVisualModule == null || exporting.value) return;
 	exporting.value = true;
 	try {
-		await exportVisualModuleFile(projectSession.projectContext, currentVisualModule, currentVisualModule.name);
+		if (format === 'web') await exportPortableVisualModuleFile(projectSession, currentVisualModule, currentVisualModule.name);
+		else await exportVisualModuleFile(projectSession.projectContext, currentVisualModule, currentVisualModule.name);
 	} finally {
 		exporting.value = false;
 	}

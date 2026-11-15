@@ -18,7 +18,7 @@
 		"paths": {
 			"@/*": ["./src/*"]
 		},
-		"types": ["@types/web", "vite/client"],
+		"types": ["@types/web", "vite/client", "@gs/shared/wgsl-imports"],
 		"lib": ["esnext"],
 		"jsx": "preserve"
 	},

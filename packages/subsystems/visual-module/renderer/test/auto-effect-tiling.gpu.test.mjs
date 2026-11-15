@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -17,7 +18,7 @@ test('adapts automatic tiling through cached previews and resolution changes on 
 	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/auto-effect-tiling-gpu.ts', import.meta.url))],
 		bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' },
 		// 定義はコンストラクターへ個別に渡す。間接参照されるVite専用一覧は展開しない。
-		plugins: [{ name: 'test-effect-definitions', setup(build) {
+		plugins: [wgslShaderEsbuildPlugin(), { name: 'test-effect-definitions', setup(build) {
 			build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test-effect-definitions' }));
 			build.onLoad({ filter: /.*/, namespace: 'test-effect-definitions' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
 		} }],

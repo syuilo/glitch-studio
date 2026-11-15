@@ -19,7 +19,7 @@ const arrayDefault: ParameterDefaultValue<{ kind: 'array'; elementType: { kind: 
 // 【評価には必ずパラメータの型を渡す】
 // 定義を渡し忘れた呼び出しで、基準値や式の結果の型検証が省略されないようにする。
 // @ts-expect-error 第4引数のパラメータ定義は必須
-new ParameterBindingEvaluator().evaluate(modifiedLiteral, { variables: {}, automationGraphs: [], time: 0, endTime: 0 }, null);
+new ParameterBindingEvaluator(null).evaluate(modifiedLiteral, { variables: {}, automationGraphs: [], time: 0, endTime: 0 }, null);
 
 // sharedのテストは実際の利用ドメインに依存せず、独自方式を加えた利用側を模擬する。
 type ReferenceBinding = { inputSource: 'testReference'; referenceId: string };

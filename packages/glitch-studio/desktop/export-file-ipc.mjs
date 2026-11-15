@@ -4,14 +4,14 @@ import * as fs from 'node:fs/promises';
 export function registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMainWindow) {
 	ipcMain.handle('desktop:choose-export-save-file', async (event, name, format) => {
 		const parent = getTrustedMainWindow(event);
-		if (typeof name !== 'string' || name.length === 0 || !['mp4', 'webp', 'exr'].includes(format)) {
+		if (typeof name !== 'string' || name.length === 0 || !['mp4', 'webp', 'exr', 'html', 'zip'].includes(format)) {
 			throw new Error('Invalid export save settings');
 		}
 		// Sceneやプロジェクトの名前はファイル名として使えない文字を含むことがある。
 		const suggestedName = name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_');
 		const result = await dialog.showSaveDialog(parent, {
 			defaultPath: suggestedName,
-			filters: [{ name: { mp4: 'MP4 video', webp: 'WebP image', exr: 'OpenEXR image' }[format], extensions: [format] }],
+			filters: [{ name: { mp4: 'MP4 video', webp: 'WebP image', exr: 'OpenEXR image', html: 'HTML document', zip: 'HTML + JavaScript archive' }[format], extensions: [format] }],
 			properties: ['showOverwriteConfirmation'],
 		});
 		if (result.canceled || result.filePath == null) return null;

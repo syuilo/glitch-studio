@@ -15,13 +15,17 @@
 		"./srgb-image-readback.ts": "./src/srgb-image-readback.ts",
 		"./client.ts": "./src/client.ts",
 		"./visual-module-renderer-manager.ts": "./src/visual-module-renderer-manager.ts",
-		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts"
+		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts",
+		"./asset-textures.ts": "./src/asset-textures.ts",
+		"./custom-shader-effects.ts": "./src/custom-shader-effects.ts",
+		"./portable-canvas-renderer.ts": "./src/portable-canvas-renderer.ts"
 	},
 	"devDependencies": {
 		"@types/web": "0.0.359",
 		"@typescript-eslint/parser": "8.72.1",
 		"@webgpu/types": "0.1.74",
-		"vite": "8.3.5"
+		"vite": "8.3.5",
+		"webgpu-utils": "2.1.1"
 	},
 	"dependencies": {
 		"@gs/subsystems_effect_renderer": "workspace:*",
@@ -33,7 +37,6 @@
 		"@gs/subsystems_visual-module_renderer": "workspace:*",
 		"@gs/subsystems_visual-module_shared": "workspace:*",
 		"eventemitter3": "5.0.4",
-		"webgpu-utils": "2.1.1",
 		"@gs/subsystems_audio_shared": "workspace:*",
 		"@gs/subsystems_audio_renderer": "workspace:*",
 		"@gs/subsystems_timeline_audio-renderer": "workspace:*"

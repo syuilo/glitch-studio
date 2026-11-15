@@ -1,3 +1,4 @@
+import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
@@ -1148,6 +1149,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			return [definition.id, isTexture ? scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale) : null] as const;
 		}));
 		const renderer = new VisualModuleRenderer({
+			expressionEvaluator: new ExpressionEvaluator(),
 			gpuDevice: this.gpuDevice,
 			fallbackTexture: this.fallbackTexture,
 			inputResolutions: getInputResolutions(),

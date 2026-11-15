@@ -1,9 +1,9 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
@@ -15,16 +15,13 @@ import { build } from 'esbuild';
 // シェーダーのuniform配置・データ型・複数パス・履歴リセットの不整合は型チェックだけでは分からない。
 // 横長と縦長の出力で4基準を切り替え、再初期化せずに全出力が有限値を保つことを確認する。
 test('renders spatial effects with all size references on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/size-reference-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' }, define: { 'import.meta.env.BASE_URL': '"/"' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/size-reference-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text', '.png': 'dataurl' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {
 			let body = '';
 			request.on('data', data => { body += data; });
 			request.on('end', () => { response.end('OK'); result.resolve(JSON.parse(body)); });
-		} else if (/^\/assets\/(symbols|chars)\/[a-zA-Z0-9_-]+\.png$/.test(request.url)) {
-			response.setHeader('Content-Type', 'image/png');
-			response.end(readFileSync(new URL(`../../../../glitch-studio/ui/public${request.url}`, import.meta.url)));
 		} else if (request.url === '/test.js') {
 			response.setHeader('Content-Type', 'text/javascript');
 			response.end(bundle.outputFiles[0].text);

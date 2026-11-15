@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -12,7 +13,7 @@ import { build } from 'esbuild';
 // 型チェックでは境界の向き、媒質の入出、WGSLの配列や光路bufferの寿命を検証できない。
 // 既知の反射位置・Snellの法則・Fresnel反射率を実描画と比較し、レンズ・プリズムも確認する。
 test('traces deterministic geometric optics on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 120000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/geometric-optics-2d-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/geometric-optics-2d-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
 		if (request.url === '/result') {

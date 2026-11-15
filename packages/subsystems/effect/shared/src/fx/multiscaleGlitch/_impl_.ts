@@ -1,10 +1,10 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { inputUvScale } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import captureCode from './capture.wgsl?raw';
 import filterCode from './filter.wgsl?raw';
 import compositeCode from './composite.wgsl?raw';
@@ -28,7 +28,7 @@ export default implementEffect<typeof definition>({
 		const aspect = [resolution.width / shortSide, resolution.height / shortSide];
 		// 帯域間の差分に8bitの丸めが重ならないよう、分解中は浮動小数点で保持する。
 		const internalFormat = wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformEntry = { binding: 0, resource: { buffer: uniformBuffer } };
 		const captureLayout = device.createBindGroupLayout({

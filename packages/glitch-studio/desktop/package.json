@@ -9,17 +9,20 @@
 		"start": "electron .",
 		"test": "node --test test/*.test.mjs",
 		"dist:win": "electron-builder --config electron-builder.config.cjs --win nsis --x64 --publish never",
-		"dist:mac": "electron-builder --config electron-builder.config.cjs --mac dmg --arm64 --x64 --publish never"
+		"dist:mac": "electron-builder --config electron-builder.config.cjs --mac dmg --arm64 --x64 --publish never",
+		"build:portable": "node build-portable-visual-module.mjs"
 	},
 	"devDependencies": {
 		"@electron/asar": "4.3.1",
 		"electron": "45.2.1",
 		"electron-builder": "26.18.0",
 		"js-yaml": "4.3.2",
-		"vite": "8.3.5"
+		"vite": "8.3.5",
+		"@gs/glitch-studio_embed": "workspace:*"
 	},
 	"dependencies": {
 		"electron-updater": "6.8.11",
-		"semver": "7.8.6"
+		"semver": "7.8.6",
+		"esbuild": "0.28.2"
 	}
 }

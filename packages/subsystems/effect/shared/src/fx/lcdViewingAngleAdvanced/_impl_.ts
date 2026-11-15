@@ -1,18 +1,13 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import { SPECTRAL_SAMPLE_COUNT } from '../../optics/spectral-samples.ts';
-import { createColorFilterSamples, LIQUID_CRYSTAL_LAYER_COUNT, RESPONSE_SAMPLE_COUNT } from './optical-data.ts';
-import opticalShaderCode from './optics.wgsl?raw';
-import responseShaderCode from './response.wgsl?raw';
+import responseCode, { uniforms as responseCodeUniforms } from './response.shader.ts?shader';
+import opticalCode, { uniforms as opticalCodeUniforms } from './optical.shader.ts?shader';
+import { createColorFilterSamples, RESPONSE_SAMPLE_COUNT } from './optical-data.ts';
+import { shaderConstants } from './shader-constants.ts';
 import shaderCode from './shader.wgsl?raw';
 import type definition from './_def_.ts';
-
-const constants = `const RESPONSE_SAMPLE_COUNT = ${RESPONSE_SAMPLE_COUNT}u;
-const SPECTRAL_SAMPLE_COUNT = ${SPECTRAL_SAMPLE_COUNT}u;
-const LIQUID_CRYSTAL_LAYER_COUNT = ${LIQUID_CRYSTAL_LAYER_COUNT}u;
-`;
 
 function viewingAngleRadians(turns: number): number {
 	// 1周を同じ角度に戻してから前面の±85°へ制限する。背面からの光の伝搬は扱わない。
@@ -30,11 +25,9 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
-		const opticalCode = constants + opticalShaderCode;
-		const responseCode = constants + responseShaderCode;
-		const frontUniformValues = makeStructuredView(makeShaderDataDefinitions(opticalCode).uniforms.uniforms);
-		const viewUniformValues = makeStructuredView(makeShaderDataDefinitions(opticalCode).uniforms.uniforms);
-		const responseUniformValues = makeStructuredView(makeShaderDataDefinitions(responseCode).uniforms.uniforms);
+		const frontUniformValues = createShaderBuffer(opticalCodeUniforms.uniforms);
+		const viewUniformValues = createShaderBuffer(opticalCodeUniforms.uniforms);
+		const responseUniformValues = createShaderBuffer(responseCodeUniforms.uniforms);
 		const frontUniformBuffer = device.createBuffer({ size: frontUniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const viewUniformBuffer = device.createBuffer({ size: viewUniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const responseUniformBuffer = device.createBuffer({ size: responseUniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -90,7 +83,7 @@ export default implementEffect<typeof definition>({
 		const imagePipelines = createShaderInputPipeline({
 			device,
 			vertex: wgpu.defaultVertexShaderModule,
-			code: constants + shaderCode,
+			code: shaderConstants + shaderCode,
 			schema: { input: 'color', amount: 'scalar' },
 			targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
 			internalLayouts: [imageLayout],

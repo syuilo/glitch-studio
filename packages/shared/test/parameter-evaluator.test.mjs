@@ -20,6 +20,7 @@ async function loadSource(name) {
 const { ParameterBindingEvaluator } = await loadSource('parameter/parameter-binding-evaluator');
 const { inspectStaticParameter, staticParameterShape, validateParameterDefaultValues } = await loadSource('parameter/static-parameter');
 
+const { ExpressionEvaluator } = await loadSource('expression/expression-evaluator');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const modified = (binding, code = 'VALUE', enabled = true) => ({ ...binding, expressionModifier: { enabled, code } });
@@ -32,7 +33,7 @@ const context = (overrides = {}) => ({
 // 【ランプ全体の基準式・加工式を評価し、保存値と式の結果を分離する】
 // 個別stopのBindingは追加せず、既存のオブジェクト値の式評価を使う。戻り値の検証と再評価の再現性も確認する。
 test('evaluates complete Color Ramp expressions and modifiers without mutating stored values', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const ramp = { colorSpace: 'srgb', interpolation: 'linear', stops: [{ id: 'start', position: 0, color: [1, 0, 0, 1] }, { id: 'end', position: 1, color: [0, 0, 1, 1] }] };
 	const definition = { dataType: { kind: 'colorRamp' }, ui: { label: 'Ramp' } };
 	const source = modified(literal(ramp), 'VALUE.colorSpace = "oklch"\nVALUE.hueInterpolation = "increasing"\nVALUE.stops[0].position = TIME\nVALUE');
@@ -59,7 +60,7 @@ const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpo
 // 基準式を入力方式として残し、加工式だけがVALUEを参照する。数値文字列も基準値の段階で型を揃え、
 // 同じ評価器で往復シークしても以前のVALUEや時刻が残らないことを確認する。
 test('evaluates base expressions before modifiers and isolates VALUE between evaluations', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	assert.equal(evaluator.evaluate(modified(literal('0.5'), 'VALUE + 1'), context(), -1, scalarDefinition), 1.5);
 	const input = modified(expression('TIME * 2'), 'VALUE + TIME');
 	for (const time of [2, 0, -1, 2]) {
@@ -73,7 +74,7 @@ test('evaluates base expressions before modifiers and isolates VALUE between eva
 // 基準式や有効な加工式の空文字を既定値へ置換すると、入力ミスが正常な描画に見えてしまう。
 // 無効な加工式は本文を残しても評価せず、基準式の失敗では加工式の副作用も起こさない。
 test('throws contextual expression errors and skips disabled or unreachable modifiers', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	let calls = 0;
 	const scope = context({ functions: { PROBE: () => { calls++; return 1; } } });
 	for (const code of ['', ' \n\t', '// empty', '1 +', 'UNKNOWN']) {
@@ -89,7 +90,7 @@ test('throws contextual expression errors and skips disabled or unreachable modi
 // 不正な値を0や基準値へ戻すと書き出しでも設定ミスに気付けない。一方、式の前後でUI範囲へ
 // clampすると、基準アニメーションを使った倍率計算や揺れが変わるので型検証とは分ける。
 test('validates base and modifier types without clamping finite values', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	for (const code of ['true', '[1, 2]', 'null', '"text"', '1 / 0']) {
 		assert.throws(() => evaluator.evaluate(modified(expression(code), '1'), context(), 0, scalarDefinition), /Base expression/);
 		assert.throws(() => evaluator.evaluate(modified(literal(1), code), context(), 0, scalarDefinition), /Modifier expression/);
@@ -108,7 +109,7 @@ test('validates base and modifier types without clamping finite values', () => {
 // 【加工式から配列を変更しても保存値や後続の評価へ漏らさない】
 // VALUEは評価済みの値のコピーとし、式内の配列操作を固定値・キーの書き換えにしない。
 test('copies VALUE and preserves stored literal and keyframe data', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const definition = { dataType: { kind: 'vector' }, ui: { label: 'Position' } };
 	for (const source of [literal([1, 2]), keyframesInput([keyframe(0, [1, 2])], 'vector')]) {
 		for (const code of ['VALUE', 'VALUE[0] = 9\nVALUE']) {
@@ -127,7 +128,7 @@ const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 	trimmedDurationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
-	return new ParameterBindingEvaluator().evaluate(input, {
+	return new ParameterBindingEvaluator(new ExpressionEvaluator()).evaluate(input, {
 		variables: {}, automationGraphs: [], time, endTime,
 	}, fallback, { dataType: input.keyframesTimeline.dataType, ui: { label: 'Keyframes' } });
 }
@@ -318,7 +319,7 @@ const graphInput = (inputSource, graph, options = {}) => ({
 });
 
 function evaluateGraphInput(inputSource, graph, { time = 500, endTime = 5000, ...options } = {}) {
-	return new ParameterBindingEvaluator().evaluate(graphInput(inputSource, graph, options), context({
+	return new ParameterBindingEvaluator(new ExpressionEvaluator()).evaluate(graphInput(inputSource, graph, options), context({
 		automationGraphs: inputSource === 'automationGraphReference' ? [graph] : [], time, endTime,
 	}), -1, scalarDefinition);
 }
@@ -389,7 +390,7 @@ for (const source of ['automationGraphReference', 'automationGraphInline']) {
 // 【リテラルの評価】
 // ノードの列挙やコンテナの走査を持ち込まず、単一Bindingの返り値を検証する。
 test('evaluates literal values directly', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	for (const value of [0, false, null, 'text', [1, 2], { value: 3 }]) {
 		assert.deepEqual(evaluator.evaluate(literal(value), context(), -1, scalarDefinition), value);
 	}
@@ -398,7 +399,7 @@ test('evaluates literal values directly', () => {
 // 【明示的なスコープと変数の高速経路】
 // 再利用時も前回の変数を保持せず、再生時刻から式の変数を暗黙に補わない。
 test('reads only explicit scope variables and skips parsing for single variables', t => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const parse = t.mock.method(evaluator.expressionEvaluator.parser, 'parse');
 	for (const value of [0.5, 0]) {
 		const scope = context({ variables: { TIME: value } });
@@ -416,7 +417,7 @@ test('reads only explicit scope variables and skips parsing for single variables
 // 【参照値の複製】
 // 評価結果の変更が、次回の評価で使うスコープを破壊しない。
 test('clones values read from variables', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const value = [1, 0.5, 0, 0.25];
 	const scope = context({ variables: { COLOR: value } });
 	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }]) {
@@ -430,7 +431,7 @@ test('clones values read from variables', () => {
 // 【GRAPHのnameForReferenceによる参照とスコープの更新】
 // ASTを再利用しても、グラフは毎回渡されたスコープからのみ参照する。
 test('evaluates GRAPH by nameForReference and refreshes definitions between scopes', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const binding = expression('GRAPH("ramp", 0.5, "clamp")');
 	assertClose(evaluator.evaluate(binding, context({ automationGraphs: [rampGraph()] }), -1, scalarDefinition), 5);
 	assert.equal(evaluator.evaluate(binding, context({ automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }), -1, scalarDefinition), 20);
@@ -446,7 +447,7 @@ test('evaluates GRAPH by nameForReference and refreshes definitions between scop
 // 【キー・グラフ・環境変数による基準値にも同じ加工段階を使う】
 // 基準式専用の機能にせず、再生設定やキーの時刻を変更しない。
 test('modifies keyframe graph and environment sources without changing their stored data', () => {
-	const evaluator = new ParameterBindingEvaluator();
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const sources = [
 		[keyframesInput([keyframe(0, 0), keyframe(1, 10)]), 5],
 		[graphInput('automationGraphInline', rampGraph()), 2.5],

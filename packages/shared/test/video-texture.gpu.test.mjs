@@ -1,3 +1,4 @@
+import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -12,7 +13,7 @@ import { build } from 'esbuild';
 // モックではexternalTextureの失効や実際のYUV変換を再現できないため、Chromeで画素を読み戻す。
 // 逆再生で使う画素コピー、切り抜きと表示比率、16bit floatの中間形式も同じ転送処理で検証する。
 test('uploads video frames directly on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, async t => {
-	const bundle = await build({ entryPoints: [fileURLToPath(new URL('./helpers/video-texture-gpu.ts', import.meta.url))],
+	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/video-texture-gpu.ts', import.meta.url))],
 		bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {

@@ -83,7 +83,18 @@
 
 		<div v-else-if="tab === 'other'" class="_spacer _gaps_m" style="height: 100%; overflow: auto;">
 			<GsInput large :modelValue="visualModuleName" manualSave @update:modelValue="name => emit('rename', name)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
-			<GsButton large :disabled="exporting" :wait="exporting" icon="ti ti-download" @click="emit('requestExport')">{{ `${i18n.ts._VisualModule.Export}...` }}</GsButton>
+			<GsButton large :disabled="exporting" :wait="exporting" icon="ti ti-download" @click="emit('requestExport', 'gsvm')">{{ `${i18n.ts._VisualModule.Export}...` }}</GsButton>
+			<GsButton
+				v-if="isDesktop"
+				large
+				:disabled="exporting"
+				icon="ti ti-world"
+				data-test-visual-module-web-export-open
+				@click="emit('requestExport', 'web')"
+			>
+				{{ i18n.ts._VisualModule.WebExport }}...
+			</GsButton>
+			<div v-else>{{ i18n.ts._VisualModule.WebExportDesktopOnly }}</div>
 		</div>
 	</div>
 	<GsDropOverlay v-if="assetDrop.hovering.value" data-test-visual-module-drop-overlay/>
@@ -116,6 +127,8 @@ import { previewParameterContextKey } from '@/utility/preview-parameter-editing.
 
 provideVisualModuleWires();
 
+const isDesktop = __ELECTRON__ && window.desktop != null;
+
 const props = defineProps<{
 	visualModule: VisualModule;
 	visualModuleName: string;
@@ -134,7 +147,7 @@ const emit = defineEmits<{
 	edit: [event: VisualModuleEdit];
 	rename: [name: string];
 	requestAddEffectNode: [];
-	requestExport: [];
+	requestExport: [format: 'gsvm' | 'web'];
 }>();
 
 const assetDrop = useAssetDrop({

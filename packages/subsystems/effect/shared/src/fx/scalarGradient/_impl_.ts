@@ -1,8 +1,8 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import code from './shader.wgsl?raw';
+import { implementEffect } from '../../effect-implementation.ts';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -30,7 +30,7 @@ export default implementEffect<typeof definition>({
 			sampling: 'level0',
 			scalarGradients: true,
 		});
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const bindGroup = device.createBindGroup({
 			layout,

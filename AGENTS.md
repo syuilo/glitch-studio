@@ -4,7 +4,7 @@
 
 - Glitch Studioは、ノードベースのエディタやタイムラインを通じてリアルタイムな画像・動画・音声の加工・編集・作成を行えるWebベースのソフトウェアです。
 - WebWorkers上で動くWebGPUを用いたレンダラーを、Command patternを使用して状態管理を行うVue製WebUIから操作する構成です。
-- レンダラーにはノード情報やタイムライン情報が与えられます。各ノードは、それがどのような処理(エフェクト)を行うかという情報や、エフェクトに対するパラメータ情報(他のノードへの接続情報も含む)などを持ちます。
+- レンダラーにはノードグラフ(Visual Module)情報やタイムライン情報が与えられます。各ノードは、それがどのような処理(エフェクト)を行うかという情報や、エフェクトに対するパラメータ情報(他のノードへの接続情報も含む)などを持ちます。
 - ユーザーは、各パラメータをUI上のスライダーなどを通じて設定できるほか、パラメータに式を記述することもできます。そのような式を評価したりする作業もレンダラーの役目です。
 - パラメータの型は、数値、真理値、色、ベクトル、ノード入力など様々です。
 - パーリンノイズなど、画像以外のデータ(スカラー場やベクトル場)を生成するエフェクトもあります。そのようなデータは直接最終結果に表示するというよりは、別のエフェクトの入力として使用することが想定されています。
@@ -15,6 +15,7 @@
 - タイルレンダリングを行い、GPUデバイスがHUNGするのを防ぐ機能もあります。
 - レンダリングのパフォーマンス(フレームのレンダリングにかかった時間等)を計測する機能もあります。
 - 作業色空間はlinear sRGB・rgba16floatで統一されています。負値や1を超える値も保持され、HDRに対応しています。
+- 作成したVisual Moduleを、任意のWebサイトに埋め込めるWeb Componentとしてエクスポートできる機能もあります。
 - UIにもこだわっていて、複数のパネルを自由なレイアウトで配置したり、プレビューを別ウィンドウで開けたり、ヒストグラム・波形を表示する機能があったりします。
 - ひとつのウィンドウ内で複数のプロジェクトを開けます。
 - 最新のChromeを動作対象としています。サポートが限られる最新の構文やAPIを使うことを厭いません。
@@ -34,8 +35,13 @@
 
 - [**`glitch-studio`**](./packages/glitch-studio) ... Glitch Studioドメイン固有の層
 	- [**`glitch-studio/shared`**](./packages/glitch-studio/shared) ... Glitch Studioドメイン内で共通の型や処理などを置きます。
-	- [**`glitch-studio/desktop`**](./packages/glitch-studio/desktop) ... Electron上で動かす場合のAPI実装などが含まれます。
+		- portable-visual-module.ts ... Web書き出しで受け渡すVisual Module・同梱Asset・公開値・設定の型と、設定の既定値・検証を定義します。
+	- [**`glitch-studio/desktop`**](./packages/glitch-studio/desktop) ... Electron上で動かす場合のAPI実装などが含まれます。Visual ModuleのWeb書き出しでは、別プロセスでのランタイムのビルドと、成果物の保存・キャンセルを担当します。
 	- [**`glitch-studio/renderer`**](./packages/glitch-studio/renderer) ... Glitch Studioとして、各subsystemのレンダラーを利用する統括層
+		- portable-canvas-renderer.ts ... Web書き出し用の表示境界として、Visual Moduleの出力をCanvasへ描画します。
+	- [**`glitch-studio/embed`**](./packages/glitch-studio/embed) ... Visual Moduleを、素材を同梱したHTML・JavaScriptとWeb Componentとして配布する層。依存収集・成果物の生成と、Custom Element・Workerの実行コードを所有します。プロジェクトやPlayerの起動は行わず、書き出しダイアログ・スナップショット・素材読み出しはui、ビルドの実行と保存はdesktopが担当します。
+		- build/catalog.mjs ... アプリのビルド時に、エフェクト・実行コードの依存を解決したES Modulesのカタログを生成します。
+		- build/runtime.mjs ... 書き出し時に、カタログから作品で使用するエフェクトと必要な式評価機能などを選び、独立したElement・WorkerのJavaScriptへバンドルします。
 	- [**`glitch-studio/ui`**](./packages/glitch-studio/ui) ... UI実装が含まれます。状態の管理・レンダラーの呼び出し、表示、ファイルの入出力などを行います。状態の操作は原則Command patternで行うようになっていてUndo/Redoを可能にしています。
 		- RendererManagerControllerBase.ts ... rendererのラッパーのような役割をする基底クラスで、レンダラーがワーカー越しに動いていることを隠蔽しつつレンダラーの管理を行います。
 		- app.ts ... ProjectSessionManagerの生成・公開と、ウィンドウの終了処理を担当します。
@@ -47,10 +53,13 @@
 		- ProjectSaveController.ts ... 生成時にファイル名・保存先を受け取って保存済み状態を確定し、権限確認・手動保存・バックアップを管理します。終了後に届いた保存要求の非同期結果を無効化します。
 		- commands.ts ... ステートに対する操作(コマンド)の実装をまとめています。
 - [**`shared`**](./packages/shared) ... 全てのパッケージで使用される共通の処理や定義などが含まれます。横着してなんでもかんでもこの層に置くのではなく、本当にどのドメインにも属さず共有する必要があるものだけ置くこと。他パッケージを参照することはありません。Glitch Studioドメイン内だけで共有する必要のあるものは、ここではなく`glitch-studio_shared`に置くべし。
+	- [**`shared/build`**](./packages/shared/build) ... Nodeで動く共通ビルド処理。`wgsl-shader.mjs`はVite・esbuild向けのローダーを提供し、`?shader`で読み込むWGSLのバッファ配置をビルド時に解析します。実行コードにはWGSL文字列と配置情報を渡し、解析器を同梱しません。
+	- [**`shared/src/gpu`**](./packages/shared/src/gpu) ... 各ドメインから独立したGPUデータ表現・処理・共通WGSLを置きます。`shader-buffer.ts`は事前解析した配置情報からバッファを作り、値を書き込む実行時の処理を担当します。
 - [**`subsystems`**](./packages/subsystems) ... 個々の独立した機能が入る層。これらのパッケージは一機能にすぎず、「プロジェクト」の状態などの上位概念を知っていてはならない。Glitch Studioとは関係ないライブラリとして提供できるレベルで、Glitch Studioのコンテキストから分離されているのが理想。もちろんglitch-studio層へは依存しないが、他のsubsystemへの一方向への依存や、トップレベルのsharedへの依存はあってもいい。
 	- [**`subsystems/audio`**](./packages/subsystems/audio) ... 取得元に依存しないPCM・キャプチャメッセージ・読み取り専用ビューの型をsharedに、音声履歴・FFT解析・音声ファイルのデコード・リサンプリング・PCMキャッシュをrendererに置きます。Asset・Player・Scene・レイヤーの定義や再生状態を知りません。Asset IDからファイルを解決する処理はGlitch Studio層が注入します。
 	- [**`subsystems/effect`**](./packages/subsystems/effect) ... 各種エフェクトのパラメータ定義・実装、エフェクトレンダラー実装などが含まれます。
 		- [**`subsystems/effect/shared`**](./packages/subsystems/effect/shared) ... 各種エフェクトのパラメータ定義・実装。定義はレンダラーからもUIからも参照される情報なのでここに置かれています。1つのエフェクトに1つのディレクトリを割り当てます。定義と実装(シェーダーコードの登録、uniformsやバッファなどの準備処理)は、それぞれ `_def_.ts` / `_impl_.ts` として分離します。シェーダーコード自体も通常wgslファイルとして分離します。(最低限`_def_.ts`と`_impl_.ts`があればよく、その他のファイルを置くことは自由です)
+			- 複数のWGSLや定数を組み合わせて事前解析する場合は、各エフェクト内の`*.shader.ts`で文字列を合成し、`?shader`で読み込みます。配置情報の生成は共通ローダーに任せ、エフェクトごとに手書きしません。内蔵画像などのアセットも各エフェクトのディレクトリで所有し、静的importで同梱します。
 	- [**`subsystems/visual-module`**](./packages/subsystems/visual-module) ... エフェクトをノードグラフで組み合わせられるVisual Moduleのレンダラー実装などが含まれます。
 	- [**`subsystems/timeline`**](./packages/subsystems/timeline) ... 複数のレイヤー・クリップを作成して動画を作成できるタイムライン機能のレンダラー実装などが含まれる。エフェクトやVisual Moduleなどもレイヤーとして使用可能。
 		- [**`subsystems/timeline/audio-renderer`**](./packages/subsystems/timeline/audio-renderer) ... timeline/sharedで作成した音声計画を受け取り、所属Sceneの時刻での音量・式・キー評価を行い、音声をミックスします。素材PCMの読み出しは呼び出し側から受け取り、素材長の検証・DOM・GPU・デコーダー・再生状態を所有しません。

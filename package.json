@@ -18,6 +18,7 @@
 		"packages/subsystems/timeline/audio-renderer",
 		"packages/glitch-studio/shared",
 		"packages/glitch-studio/renderer",
+		"packages/glitch-studio/embed",
 		"packages/glitch-studio/ui",
 		"packages/glitch-studio/desktop"
 	],
@@ -32,7 +33,7 @@
 		"typecheck": "pnpm --no-bail -r typecheck",
 		"lint": "pnpm --no-bail -r lint",
 		"dev:desktop": "pnpm --dir packages/glitch-studio/desktop dev",
-		"build:desktop": "cross-env BUILD_TARGET=electron pnpm --dir packages/glitch-studio/ui build",
+		"build:desktop": "pnpm --dir packages/glitch-studio/desktop build:portable && cross-env BUILD_TARGET=electron pnpm --dir packages/glitch-studio/ui build",
 		"start:desktop": "pnpm --dir packages/glitch-studio/desktop start",
 		"dist:desktop:win": "pnpm build:desktop && pnpm --dir packages/glitch-studio/desktop dist:win",
 		"dist:desktop:mac": "pnpm build:desktop && pnpm --dir packages/glitch-studio/desktop dist:mac"

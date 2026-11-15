@@ -1,5 +1,6 @@
 const { version } = require('../../../package.json');
 const mediaFileTypes = require('./media-file-types.cjs');
+const { Arch } = require('electron-builder');
 
 const projectFileAssociation = { ext: 'gsproj', name: 'GlitchStudio.Project', description: 'Glitch Studio project', role: 'Editor' };
 
@@ -26,6 +27,8 @@ const applicationFiles = [
 	'media-file-types.cjs',
 	'export-files.mjs',
 	'export-file-ipc.mjs',
+	'portable-visual-module-ipc.mjs',
+	'dist/portable-visual-module-worker.mjs',
 	'desktop-update.mjs',
 	'desktop-instances.mjs',
 	'github-updates.mjs',
@@ -38,8 +41,10 @@ module.exports = {
 	publish: [{ provider: 'github', owner: 'syuilo', repo: 'glitch-studio', channel: 'latest' }],
 	afterPack: async context => {
 		// pnpmのworkspace探索で別パッケージが選ばれても、起動不能な配布物を公開しない。
-		const { verifyPackagedApplication } = await import('./release.mjs');
-		verifyPackagedApplication(require('node:path').join(context.packager.getResourcesDir(context.appOutDir), 'app.asar'), applicationFiles);
+		const { verifyPackagedApplication, verifyPackagedPortableVisualModule } = await import('./release.mjs');
+		const resourcesDirectory = context.packager.getResourcesDir(context.appOutDir);
+		verifyPackagedApplication(require('node:path').join(resourcesDirectory, 'app.asar'), applicationFiles);
+		await verifyPackagedPortableVisualModule(resourcesDirectory, context.electronPlatformName, Arch[context.arch]);
 	},
 	directories: { output: '../../../release' },
 	extraMetadata: {
@@ -51,10 +56,13 @@ module.exports = {
 	files: [...applicationFiles],
 	extraResources: [
 		{ from: '../ui/dist-electron', to: 'ui' },
+		// esbuildのネイティブプロセスが読むため、ビルド資材はASAR外へ配置する。
+		{ from: 'dist/portable-visual-module-catalog', to: 'portable-visual-module-catalog' },
 		// OSがタスクバー用のアイコンを直接読み取れるよう、asarの外に配置する。
 		{ from: 'resources/icon.ico', to: 'icon.ico' },
 	],
 	asar: true,
+	asarUnpack: ['node_modules/@esbuild/**/*', 'node_modules/esbuild/bin/*'],
 	// UIの対応言語に合わせ、Electronの言語リソースも日英だけを同梱して配布サイズを抑える。
 	electronLanguages: ['en-US', 'ja'],
 	npmRebuild: false,

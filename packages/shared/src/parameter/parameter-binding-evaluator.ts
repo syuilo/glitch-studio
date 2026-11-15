@@ -1,5 +1,5 @@
 import { evaluateAutomationGraph, evalAutomationGraphValue } from '../automation-graph/automation-graph-evaluator.ts';
-import { ExpressionEvaluator } from '../expression/expression-evaluator.ts';
+import type { ExpressionEngine } from '../expression/expression-engine.ts';
 import { randomExpressionFunctions } from '../expression/random-functions.ts';
 import { evaluateKeyframesTimeline } from '../keyframes/keyframes-timeline-evaluator.ts';
 import { deepClone } from '../utility/deep-clone.ts';
@@ -14,7 +14,7 @@ import type { ParameterEvaluationScope } from './parameter-evaluation-scope.ts';
 
 // 評価結果やスコープは保持せず、同じBindingとスコープから同じ値を返す。
 export class ParameterBindingEvaluator {
-	private expressionEvaluator = new ExpressionEvaluator();
+	constructor(private readonly expressionEvaluator: ExpressionEngine | null) {}
 
 	private graphReader(scope: ParameterEvaluationScope): ExpressionFunction {
 		return (...args) => {
@@ -45,6 +45,7 @@ export class ParameterBindingEvaluator {
 
 	private evaluateExpression(code: string, scope: ParameterEvaluationScope, stage: 'base' | 'modifier', definition: ExpressionParameterDefinition, value?: unknown): any {
 		try {
+			if (this.expressionEvaluator == null) throw new Error('Expression evaluation is unavailable');
 			const variables = { ...scope.variables };
 			const functions = {
 				...scope.functions,

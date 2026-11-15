@@ -1,8 +1,8 @@
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { implementEffect } from '../../effect-implementation.ts';
-import commonCode from './common.wgsl?raw';
+import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader';
 import captureCode from './capture.wgsl?raw';
 import pyramidCode from './pyramid.wgsl?raw';
 import analysisCode from './analysis.wgsl?raw';
@@ -30,7 +30,7 @@ export default implementEffect<typeof definition>({
 		const dataFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const vectorFormat = enable32bitDataTextures ? 'rg32float' : 'rg16float';
 		const scalarFormat = enable32bitDataTextures ? 'r32float' : 'r16float';
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
+		const uniformValues = createShaderBuffer(commonCodeUniforms.uniforms);
 		const uniformSize = uniformValues.arrayBuffer.byteLength;
 		const uniformStride = Math.ceil(uniformSize / device.limits.minUniformBufferOffsetAlignment) * device.limits.minUniformBufferOffsetAlignment;
 		const uniformLayoutEntry: GPUBindGroupLayoutEntry = { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform', hasDynamicOffset: true } };
