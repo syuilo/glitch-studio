@@ -23,7 +23,7 @@
 - Electronで動作させることもできます。Electronの場合、OSのAPIを使用したより高度な機能が使用できます。
 - 今後も様々な機能を実装予定です。
 - Tech Stack: TypeScript, Vite, Vue 3, WebGPU, WGSL, WebAudio, WebWorker, CSS Modules
-- Keywords: moduler, routing, signals, wiring, nodes, graph, chain, pipeline, compositor, playground, visualization, visual art, interactive performance
+- Keywords: moduler, routing, signals, wiring, nodes, graph, chain, pipeline, compositor, playground, visualization, visual art, simulation, generative, procedural, interactive performance
 
 各機能についての詳細については、各パッケージ内のREADME.mdや、docsディレクトリ内の各ドキュメントを必要に応じて参照してください。
 
