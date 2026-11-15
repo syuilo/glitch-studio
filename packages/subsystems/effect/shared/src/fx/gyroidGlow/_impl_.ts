@@ -2,6 +2,7 @@ import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { createColorRampBindings } from '@gs/shared/gpu/color-ramp.ts';
+import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 import type definition from './_def_.ts';
@@ -46,16 +47,23 @@ export default implementEffect<typeof definition>({
 				// 画面全体で同じ軌道と回転はCPUで計算する。Timeは絶対時刻として扱い、
 				// 描画履歴やctx.timeDeltaを使わず、逆再生・任意時刻へのシークを再現可能にする。
 				uniformValues.set({
-					aspectRatio: output.width / output.height,
+					viewHalfExtent: getSpatialHalfExtent(output),
+					cameraPosition: [
+						boundedValue(params.cameraPosition[0], -1000, 1000, 0),
+						boundedValue(params.cameraPosition[1], -1000, 1000, 0),
+						boundedValue(params.cameraZ, -1000, 1000, 0.8),
+					],
 					zoom: boundedValue(params.zoom, 0.01, 100, 1),
 					rotation: (finiteValue(params.rotation, 0) % 1) * fullTurn,
+					nearEmissionFadeDistance: boundedValue(params.nearEmissionFadeDistance, 0, 1000, 1),
+					nearFoldFadeDistance: boundedValue(params.nearFoldFadeDistance, 0, 1000, 0),
 					foldFrequency: boundedValue(params.foldFrequency, 0.01, 16, 1),
 					foldAmount: boundedValue(params.foldAmount, 0, 16, 1),
 					sheetTilt: [boundedValue(params.sheetTilt[0], -16, 16, 0.3), boundedValue(params.sheetTilt[1], -16, 16, 0.9)],
 					glowWidth: boundedValue(params.glowWidth, 0, 100, 1),
 					flowOffset: [0, time * 0.2, time * 0.6],
 					spin: (time * 0.03 + 0.3) % fullTurn,
-					orbPosition: [1.1 * Math.sin(time * 0.21), 0.5 * Math.cos(time * 0.17) + 0.45, 2.4 + 0.4 * Math.sin(time * 0.13)],
+					orbPosition: [0.55 * Math.sin(time * 0.21), 0.25 * Math.cos(time * 0.17) + 0.225, -0.4 - 0.2 * Math.sin(time * 0.13)],
 					sheetStrength: boundedValue(params.sheetStrength, 0, 1000, 1),
 					orbStrength: boundedValue(params.orbStrength, 0, 1000, 1),
 					colorPhase: finiteValue(params.colorPhase, 0) % 1,
@@ -64,7 +72,8 @@ export default implementEffect<typeof definition>({
 					exposureMultiplier: 2 ** boundedValue(params.exposure, -20, 20, 0),
 					softShoulder: params.toneMapping === 'softShoulder' ? 1 : 0,
 					outputAlpha: params.compositing === 'opaque' ? 1 : 0,
-					maximumSteps: Math.round(boundedValue(params.maximumSteps, 1, 120, 120)),
+					maximumSteps: Math.round(boundedValue(params.maximumSteps, 1, 2048, 120)),
+					maximumTraceDistance: boundedValue(params.maximumTraceDistance, 0, 1000, 7),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const rampBindGroup = colorRamp.update(params.ramp);

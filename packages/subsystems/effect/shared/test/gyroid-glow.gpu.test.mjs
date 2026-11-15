@@ -9,10 +9,10 @@ import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
-// 【Gyroid Glowの時間・構図・配色・形状・HDR・発光合成を実際のWorkerとWebGPUで検証する】
+// 【Gyroid Glowのカメラ・描画距離・時間・配色・形状・HDRを実際のWorkerとWebGPUで検証する】
 // コンパイルだけでは二重ガンマやalpha=0の発光消失、座標の歪みを検出できない。
-// 描画の履歴非依存、EVの倍率、異なる解像度の同一位置など、外から観測できる仕様を照合する。
-test('renders deterministic Gyroid Glow with editable palettes and folds on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
+// 描画の履歴非依存、近傍フェードの独立性、EVの倍率、異なる解像度の同一位置などを照合する。
+test('renders deterministic Gyroid Glow with independent near fades and bounded tracing on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async t => {
 	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/gyroid-glow-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
 	const server = createServer((request, response) => {
@@ -43,7 +43,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'Gyroid Glow GPU test timed out' }), 45000);
 		const output = await result.promise;
 		assert.ok(output.error == null, output.error);
-		assert.ok(output.checks.length >= 18);
+		assert.ok(output.checks.length >= 27);
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 		if (process.env.GYROID_GLOW_PREVIEW != null) await writeFile(process.env.GYROID_GLOW_PREVIEW, Buffer.from(output.preview, 'base64'));
 		if (process.env.GYROID_GLOW_VARIATIONS_PREVIEW != null) await writeFile(process.env.GYROID_GLOW_VARIATIONS_PREVIEW, Buffer.from(output.variationsPreview, 'base64'));

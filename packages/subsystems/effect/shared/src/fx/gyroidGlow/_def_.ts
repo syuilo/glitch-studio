@@ -17,6 +17,16 @@ export default defineEffect({
 			ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
+		cameraPosition: {
+			dataType: { kind: 'vector' },
+			ui: { label: 'Camera XY', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: [0, 0] },
+		},
+		cameraZ: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Camera Z', control: { controlType: 'range', min: -10, max: 10, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0.8 },
+		},
 		zoom: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Zoom', control: { controlType: 'range', min: 0.1, max: 10, logarithmic: true } },
@@ -26,6 +36,16 @@ export default defineEffect({
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Rotation', control: { controlType: 'angle' } },
 			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		nearEmissionFadeDistance: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Near Emission Fade Distance', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		nearFoldFadeDistance: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Near Fold Fade Distance', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 		foldFrequency: {
 			dataType: { kind: 'scalar' },
@@ -108,8 +128,13 @@ export default defineEffect({
 		},
 		maximumSteps: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Maximum Steps', control: { controlType: 'range', min: 1, max: 120, step: 1 } },
+			ui: { label: 'Maximum Steps', control: { controlType: 'range', min: 1, max: 2048, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 120 },
+		},
+		maximumTraceDistance: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Maximum Trace Distance', control: { controlType: 'range', min: 0, max: 30, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 7 },
 		},
 	},
 	primaryInputParameter: null,
