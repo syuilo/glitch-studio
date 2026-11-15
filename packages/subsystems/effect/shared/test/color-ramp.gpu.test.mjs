@@ -14,6 +14,8 @@ import { build } from 'esbuild';
 // 定数とテクスチャの両方を使い、同位置の境界とbufferの拡張・縮小でも同じ結果を保つ。
 // Clamp・Wrap・Ping-pongは0〜1固定で処理し、負値・上限ちょうど・複数周期の結果も確認する。
 // Color Ramp自体の繰り返しを全補間・色空間で確認し、小数回と右端を含めて入力の範囲外処理と区別する。
+// エフェクト側の繰り返しを組み合わせても、データの設定を上書きせず適用順序と端点規則を維持する。
+// 繰り返し数のノード入力は画素ごとの回数・接続ごとのFit/Wrap/Filterを使い、0以下では配色の先頭を返す。
 test('matches Color Ramp CPU evaluation on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
 	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/color-ramp-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
@@ -45,7 +47,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'Color Ramp GPU test timed out' }), 75000);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
-		assert.ok(output.checks.length >= 374);
+		assert.ok(output.checks.length >= 666);
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {
 		clearTimeout(timer);

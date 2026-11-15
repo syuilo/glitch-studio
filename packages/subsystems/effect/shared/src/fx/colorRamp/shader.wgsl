@@ -1,6 +1,9 @@
 // _impl_.tsのModeに対応する。0: Clamp、1: Wrap、2: Ping-pong。
 override MODE: u32 = 0u;
 
+struct ColorRampEffectRepetition { repeatMode: u32 };
+@group(1) @binding(0) var<uniform> effectRepetition: ColorRampEffectRepetition;
+
 fn colorRampInputPosition(value: f32) -> f32 {
 	if (MODE == 1u) {
 		// fractは負値も[0, 1)へ揃える。1ちょうどは0へ戻す。
@@ -17,5 +20,15 @@ fn colorRampInputPosition(value: f32) -> f32 {
 
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
-	return evaluateColorRamp(colorRampInputPosition(read_input(position)));
+	let inputPosition = colorRampInputPosition(read_input(position));
+	let repeatCount = read_repeatCount(position);
+	// スカラー場の0・負値は0回として扱い、定数入力にも同じ規則を適用する。
+	// NaN・Infinityも先頭へ寄せる。Wrapの右端保持を適用すると0回で終端色になるため、先に分岐する。
+	if (repeatCount <= 0.0 || (bitcast<u32>(repeatCount) & 0x7f800000u) == 0x7f800000u) {
+		return evaluateColorRamp(0.0);
+	}
+	// 入力範囲の処理 → エフェクト側の繰り返し → データ側の繰り返し・補間。
+	// 回数を掛け合わせると、小数回やPing-pongで「完成した配色全体を繰り返す」意味が失われる。
+	let repeatedPosition = colorRampRepeatPosition(inputPosition, repeatCount, effectRepetition.repeatMode);
+	return evaluateColorRamp(repeatedPosition);
 }
