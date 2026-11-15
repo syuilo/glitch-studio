@@ -19,6 +19,7 @@ export type EffectOutputDefinitions = Record<string, {
 export const EFFECT_TAGS = [
 	'color', // 色・チャンネル
 	'composite', // 合成・ミックス
+	'transition', // 画像間の切り替え・場面転換
 	'transform', // 移動・回転・拡縮
 	'distortion', // 歪み・変形
 	'blur', // ぼかし

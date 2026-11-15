@@ -79,6 +79,7 @@
 	"_EffectTags": {
 		"color": "Color & channels",
 		"composite": "Compositing & mixing",
+		"transition": "Transitions",
 		"transform": "Transform",
 		"distortion": "Distortion",
 		"blur": "Blur",

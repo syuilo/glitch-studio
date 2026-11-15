@@ -79,6 +79,7 @@
 	"_EffectTags": {
 		"color": "色・チャンネル",
 		"composite": "合成",
+		"transition": "トランジション",
 		"transform": "移動・回転・拡縮",
 		"distortion": "歪み・変形",
 		"blur": "ぼかし",
