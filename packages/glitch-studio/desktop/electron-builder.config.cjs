@@ -16,6 +16,8 @@ const applicationFiles = [
 	'protocol-path.mjs',
 	'project-files.mjs',
 	'project-file-ipc.mjs',
+	'file-dialog-directory-history.mjs',
+	'file-dialogs.mjs',
 	'project-close-guard.mjs',
 	'edit-command-ipc.mjs',
 	'clipboard-ipc.mjs',

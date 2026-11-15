@@ -9,14 +9,14 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 
 const bundled = await build({
-	stdin: { contents: 'export { openMediaFile } from \'./src/api.ts\'; export { encodeProjectFile, decodeProjectFile } from \'./src/gsproj.ts\';',
+	stdin: { contents: 'export { openMediaFile, selectMediaFiles } from \'./src/api.ts\'; export { encodeProjectFile, decodeProjectFile } from \'./src/gsproj.ts\';',
 										resolveDir: fileURLToPath(new URL('../', import.meta.url)), loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	define: { _VERSION_: '"2.0.0-alpha"' },
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { openMediaFile, encodeProjectFile, decodeProjectFile } = module.exports;
+const { openMediaFile, selectMediaFiles, encodeProjectFile, decodeProjectFile } = module.exports;
 
 function setupMedia(t) {
 	// このファイルは原本コピーの検証用で、動画のバイト列は実際のコンテナではない。
@@ -91,11 +91,11 @@ test('imports cube assets with stable types and round trips their original conte
 	assert.equal(decodedSources.length, 0);
 });
 
-// 【複数選択で取り込むすべての素材に、それぞれの原本パスを記録する】
+// 【複数のFileから取り込むすべての素材に、それぞれの原本パスを記録する】
 // フォントや音声だけメタデータが欠落したり、選択した先頭のパスを使い回したりしない。
 // Blobへのコピー前のFileをデスクトップAPIへ渡し、プロジェクトの保存・再読込でもパスを保つ。
-test('retains each source path when selecting multiple desktop media files', async t => {
-	const { input } = setupMedia(t);
+test('retains each source path when importing multiple desktop Files', async t => {
+	setupMedia(t);
 	const files = mediaTypes.map(media => new File([`encoded ${media.name}`], media.name, { type: media.type }));
 	const paths = files.map(file => `C:\\素材 フォルダ\\${file.name}`);
 	const requestedFiles = [];
@@ -104,10 +104,7 @@ test('retains each source path when selecting multiple desktop media files', asy
 		assert.ok(files.includes(file), 'The bridge must receive the original File');
 		return paths[files.indexOf(file)];
 	} };
-	const pending = openMediaFile({ multiple: true, includeFonts: true });
-	input.files = files;
-	input.onchange();
-	const imported = await pending;
+	const imported = await openMediaFile({ files, multiple: true, includeFonts: true });
 	assert.deepEqual(requestedFiles, files);
 	assert.deepEqual(imported.map(source => source.sourceFilePath), paths);
 	const encoded = await encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60,
@@ -252,4 +249,90 @@ test('imports external references without reading the entire file and embeds pat
 	const generated = await openMediaFile({ file: new File(['generated'], 'generated.bin'), allowAnyFile: true, isExternalReference: true });
 	assert.equal(generated.isExternalReference, false);
 	assert.equal(await generated.fileData.text(), 'generated');
+});
+
+// 【Electronの素材選択は用途別のネイティブAPIを使い、取り込み前には原本を読まない】
+// inputに戻るとディレクトリ記憶の分離が効かない。キャンセルと、ドラッグ＆ドロップ等で
+// すでに渡されたFileはダイアログを追加せずそのまま扱うことも確認する。
+test('uses native selection options without reading sources and bypasses dialogs for supplied files', async t => {
+	const { input } = setupMedia(t);
+	t.mock.method(input, 'click', () => assert.fail('Desktop selection must not use an HTML file input'));
+	const selected = [{ kind: 'desktop-asset-file', path: 'C:\\assets\\image.png', name: 'image.png', type: 'image/png' }];
+	const calls = [];
+	window.desktop = {
+		async chooseAssetFiles(options) { calls.push(options); return calls.length === 1 ? selected : null; },
+		resolveExternalAsset() { assert.fail('Selection must not start importing'); },
+	};
+	assert.deepEqual(await selectMediaFiles({ multiple: true, includeFonts: true }), selected);
+	assert.deepEqual(calls[0], { multiple: true, includeFonts: true, allowAnyFile: false });
+	assert.equal(await openMediaFile({ allowAnyFile: true }), null);
+	assert.deepEqual(calls[1], { multiple: false, includeFonts: false, allowAnyFile: true });
+	const dropped = new File(['source'], 'dropped.png', { type: 'image/png' });
+	assert.deepEqual(await selectMediaFiles({ files: [dropped] }), [dropped]);
+	assert.deepEqual(await selectMediaFiles({ file: dropped }), [dropped]);
+	assert.equal(calls.length, 2);
+});
+
+// 【ネイティブの複数選択でも各素材のパス・種類・原本コピーを保持する】
+// Fileを経由しなくなったことでフォントや音声を失ったり、先頭のパスを全件に適用したり
+// しない。埋め込みはURL参照を残さず、プロジェクト保存後も原本の内容を持つ。
+test('imports and serializes each native selection with its own source path and contents', async t => {
+	setupMedia(t);
+	const selected = mediaTypes.map(media => ({ kind: 'desktop-asset-file', path: `C:\\素材\\${media.name}`, name: media.name, type: media.type }));
+	window.desktop = {
+		chooseAssetFiles: async () => selected,
+		getPathForFile() { assert.fail('Native selections are not DOM Files'); },
+		async resolveExternalAsset(filePath, reload) {
+			assert.equal(reload, true);
+			return { url: `app://external-assets/${selected.findIndex(file => file.path === filePath)}`, size: 20, error: null };
+		},
+	};
+	t.mock.method(globalThis, 'fetch', async url => new Response(`original ${selected[Number(url.split('/').at(-1))].name}`));
+	const imported = await openMediaFile({ multiple: true, includeFonts: true });
+	assert.deepEqual(imported.map(file => file.sourceFilePath), selected.map(file => file.path));
+	assert.deepEqual(imported.map(file => file.type), mediaTypes.map(media => media.expectedType ?? media.type));
+	assert.ok(imported.every(file => file.isExternalReference === false && file.fileData instanceof Blob));
+	const encoded = await encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60,
+		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
+		assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
+	const restored = decodeProjectFile(encoded).assets;
+	for (const [index, file] of selected.entries()) {
+		assert.equal(restored[index].sourceFilePath, file.path);
+		assert.equal(await restored[index].fileData.text(), `original ${file.name}`);
+	}
+});
+
+// 【ネイティブ素材もサイズで外部参照へ切り替え、一件の読取失敗で残りを失わない】
+// 選択時に全量取得すると巨大ファイルでメモリを消費し、バッチ全体でstatすると
+// 選択後に消えた一件のために他の素材まで取り込めなくなる。
+test('checks native sizes before reading bytes and continues after an unreadable source', async t => {
+	setupMedia(t);
+	const selected = ['missing', 'large', 'small'].map(name => ({ kind: 'desktop-asset-file', path: `C:\\assets\\${name}.bin`, name: `${name}.bin`, type: '' }));
+	const requests = [];
+	window.desktop = {
+		chooseAssetFiles: async () => selected,
+		async resolveExternalAsset(filePath) {
+			requests.push(filePath);
+			const index = selected.findIndex(file => file.path === filePath);
+			return index === 0 ? { url: null, size: 0, error: 'File removed' }
+				: { url: `app://external-assets/${index}`, size: index === 1 ? 1024 ** 4 : 5, error: null };
+		},
+	};
+	t.mock.method(globalThis, 'fetch', async url => {
+		assert.equal(url, 'app://external-assets/2', 'Large sources must not be fetched in full');
+		return new Response('small');
+	});
+	const errors = [];
+	const progress = [];
+	const imported = await openMediaFile({ multiple: true, allowAnyFile: true, externalReferenceThresholdBytes: 30_000_000,
+		onFileError: (file, error) => errors.push({ name: file.name, error }), onReadProgress: value => progress.push(value) });
+	assert.deepEqual(requests, selected.map(file => file.path));
+	assert.equal(errors.length, 1);
+	assert.equal(errors[0].name, 'missing.bin');
+	assert.match(errors[0].error.message, /missing.bin/);
+	assert.equal(imported[0].isExternalReference, true);
+	assert.equal(imported[0].fileData.size, 1024 ** 4);
+	assert.equal(imported[1].isExternalReference, false);
+	assert.equal(await imported[1].fileData.text(), 'small');
+	assert.equal(progress.at(-1).completedFiles, 3);
 });

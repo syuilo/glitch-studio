@@ -31,6 +31,7 @@ interface Window {
 		resolveExternalAsset(filePath: string, reload?: boolean): Promise<import('@gs/shared/file-source.ts').UrlFileSource>;
 		assetProjectPaths(paths: (string | null)[], projectId: string | null, storing: boolean): Promise<(string | null)[]>;
 		chooseAssetFile(previousPath: string | null): Promise<string | null>;
+		chooseAssetFiles(options: import('@gs/glitch-studio_shared/desktop-asset-file.ts').AssetFileSelectionOptions): Promise<import('@gs/glitch-studio_shared/desktop-asset-file.ts').DesktopAssetFile[] | null>;
 		beginAssetExport(name: string): Promise<string | null>;
 		writeAssetExport(id: string, chunk: Uint8Array | null): Promise<void>;
 		abortAssetExport(id: string): Promise<void>;

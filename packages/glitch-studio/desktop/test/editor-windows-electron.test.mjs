@@ -12,6 +12,7 @@ import { build } from 'esbuild';
 // IPCやアプリのイベント順序をモックだけで再現すると、二つ目のプロセスの終了や
 // beforeunloadと非同期の返答の順序を見逃す。UIの確認表示だけを置き換え、非表示で検証する。
 // 異常終了後の再読み込みでは、以前の一つの作品だけを自動で開かずDashboard用の起動に戻す。
+// 素材選択も実際のpreloadと読込経路を通し、用途別の記憶を全編集ウィンドウで共有する。
 test('shares one main process while isolating editors and confirming window closures independently', {
 	skip: process.env.GLITCH_ELECTRON_TEST !== '1', timeout: 60000,
 }, async t => {
@@ -28,6 +29,8 @@ test('shares one main process while isolating editors and confirming window clos
 		import { lang } from './src/i18n.ts';
 		import { preferences } from './src/preferences.ts';
 		import { installProjectCloseGuard } from './src/project-close-guard.ts';
+		import { selectMediaFiles, openMediaFile } from './src/api.ts';
+		window.selectMediaFiles = selectMediaFiles; window.openMediaFile = openMediaFile;
 		window.loadedLocale = lang; window.preferences = preferences;
 		window.saving = ref(false); window.exporting = ref(false); window.unsaved = ref(false);
 		window.confirmations = []; window.notices = [];
@@ -60,7 +63,9 @@ test('shares one main process while isolating editors and confirming window clos
 		BaseWindow.prototype.maximize = function () {};
 		BaseWindow.prototype.focus = function () {};
 		let selectedFile = path.join(__dirname, 'first.gsproj'); fs.writeFileSync(selectedFile, 'project');
-		dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selectedFile] });
+		let selectedAssetFiles = null;
+		const dialogCalls = [];
+		dialog.showOpenDialog = async (_parent, options) => { dialogCalls.push(options); return { canceled: false, filePaths: selectedAssetFiles ?? [selectedFile] }; };
 		dialog.showSaveDialog = async () => ({ canceled: false, filePath: selectedFile });
 		let failureResponse = 1;
 		dialog.showMessageBox = async () => ({ response: failureResponse });
@@ -92,6 +97,19 @@ test('shares one main process while isolating editors and confirming window clos
 			await launch(); await waitFor(() => windows().length === 2);
 			const second = windows().find(window => window !== first); await ready(second);
 			assert.notEqual(first.webContents.getOSProcessId(), second.webContents.getOSProcessId());
+			const assetDirectory = path.join(__dirname, 'assets'); fs.mkdirSync(assetDirectory);
+			selectedAssetFiles = [path.join(assetDirectory, 'first.bin'), path.join(assetDirectory, 'second.txt')];
+			for (const file of selectedAssetFiles) fs.writeFileSync(file, path.basename(file));
+			const imported = await first.webContents.executeJavaScript(
+				"window.openMediaFile({ multiple: true, allowAnyFile: true }).then(files => Promise.all(files.map(async file => ({ path: file.sourceFilePath, contents: await file.fileData.text(), external: file.isExternalReference }))))");
+			assert.deepEqual(imported, selectedAssetFiles.map(file => ({ path: file, contents: path.basename(file), external: false })));
+			const selected = await second.webContents.executeJavaScript('window.selectMediaFiles({ multiple: true, allowAnyFile: true })');
+			assert.deepEqual(selected.map(file => file.path), selectedAssetFiles);
+			assert.equal(dialogCalls.at(-1).defaultPath, assetDirectory);
+			const externalImports = await second.webContents.executeJavaScript(
+				"window.openMediaFile({ multiple: true, allowAnyFile: true, isExternalReference: true }).then(files => files.map(file => ({ path: file.sourceFilePath, external: file.isExternalReference, size: file.fileData.size })))");
+			assert.deepEqual(externalImports, selectedAssetFiles.map(file => ({ path: file, external: true, size: path.basename(file).length })));
+			selectedAssetFiles = null;
 			assert.equal(await first.webContents.executeJavaScript('window.loadedLocale'), 'en-US');
 			assert.equal(await second.webContents.executeJavaScript('window.loadedLocale'), 'ja-JP');
 			assert.equal(await second.webContents.executeJavaScript('window.preferences.s.importAssetsAsExternalReferences'), true);
@@ -103,6 +121,7 @@ test('shares one main process while isolating editors and confirming window clos
 			await second.webContents.executeJavaScript("window.preferences.commit('projectBackupAutoIntervalMinutes', 5);");
 			await assert.rejects(second.webContents.executeJavaScript('window.desktop.readProjectFile(' + JSON.stringify(descriptor.id) + ')'), /Unknown/);
 			assert.equal(await second.webContents.executeJavaScript('window.desktop.chooseProjectFile("startup")'), null);
+			assert.equal(dialogCalls.at(-1).defaultPath, __dirname);
 			await assert.rejects(second.webContents.executeJavaScript("window.desktop.chooseProjectSaveFile('first.gsproj', 'startup')"), /another window/);
 			await launch([selectedFile]); assert.equal(windows().length, 2);
 			selectedFile = path.join(__dirname, 'second.gsproj'); fs.writeFileSync(selectedFile, 'project');

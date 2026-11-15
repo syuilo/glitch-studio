@@ -4,6 +4,8 @@ import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { ExternalAssetFiles, projectAssetPath, registerExternalAssetIpc } from '../external-assets.mjs';
+import { FileDialogs } from '../file-dialogs.mjs';
+import { FileDialogDirectoryHistory } from '../file-dialog-directory-history.mjs';
 
 async function fixture(t) {
 	const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'glitch-external-assets-'));
@@ -86,4 +88,56 @@ test('exports original bytes through bounded chunks and aborts without replacing
 	await invoke('write-asset-export', id, null);
 	assert.deepEqual(new Uint8Array(await fs.readFile(destination)), new Uint8Array([1, 2, 3]));
 	for (const handler of handlers.values()) await assert.rejects(async () => handler({}), /Untrusted/);
+});
+
+// 【通常取り込みと再リンクで素材の記憶を共有し、書き出し先は分離する】
+// 新しいIPCを用意しても通常取り込みだけキーが違うと移動を繰り返すことになる。
+// 再リンクでは元の場所を優先し、複数選択・種類制限・キャンセルも既存の操作を維持する。
+test('shares asset import history with relinking while separating exports and preserving selection options', async t => {
+	const { directory, files } = await fixture(t);
+	const assetDirectory = path.join(directory, 'assets');
+	const exportDirectory = path.join(directory, 'exports');
+	await fs.mkdir(assetDirectory);
+	await fs.mkdir(exportDirectory);
+	const calls = [];
+	let selected = ['image.JFIF', 'sound.wav', 'font.woff2', 'unknown'].map(name => path.join(assetDirectory, name));
+	let canceled = false;
+	const nativeDialogs = {
+		async showOpenDialog(_parent, options) { calls.push(options); return { canceled, filePaths: selected }; },
+		async showSaveDialog(_parent, options) { calls.push(options); return { canceled, filePath: path.join(exportDirectory, 'copy.bin') }; },
+	};
+	const directoryHistory = new FileDialogDirectoryHistory(path.join(directory, 'directories'));
+	const fileDialogs = new FileDialogs(nativeDialogs, directoryHistory, directory);
+	const handlers = new Map();
+	const trusted = {};
+	registerExternalAssetIpc({ handle: (name, handler) => handlers.set(name, handler) }, fileDialogs, files, {}, event => {
+		if (event !== trusted) throw new Error('Untrusted');
+		return {};
+	});
+	const invoke = (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args);
+	const selection = await invoke('choose-asset-files', { multiple: true, includeFonts: true, allowAnyFile: false });
+	assert.deepEqual(selection.map(file => file.path), selected);
+	assert.deepEqual(selection.map(file => file.type), ['image/jpeg', 'audio/wave', 'font/woff2', '']);
+	assert.deepEqual(calls.at(-1).properties, ['openFile', 'multiSelections']);
+	for (const extension of ['png', 'jfif', 'pjpeg', 'pjp', 'wav', 'mp4', 'woff2']) assert.ok(calls.at(-1).filters[0].extensions.includes(extension));
+	selected = [path.join(assetDirectory, 'new.cube')];
+	await invoke('choose-asset-files', { multiple: false, includeFonts: false, allowAnyFile: true });
+	assert.equal(calls.at(-1).defaultPath, assetDirectory);
+	assert.deepEqual(calls.at(-1).properties, ['openFile']);
+	assert.deepEqual(calls.at(-1).filters, [{ name: 'All files', extensions: ['*'] }]);
+	canceled = true;
+	assert.equal(await invoke('choose-asset-file', path.join(directory, 'missing.png')), null);
+	assert.equal(calls.at(-1).defaultPath, directory);
+	assert.equal(await directoryHistory.get('asset-import'), assetDirectory);
+	assert.equal(await invoke('choose-asset-files', { multiple: true, includeFonts: false, allowAnyFile: false }), null);
+	assert.equal(calls.at(-1).defaultPath, assetDirectory);
+	await invoke('begin-asset-export', 'copy.bin');
+	assert.equal(calls.at(-1).defaultPath, path.join(directory, 'copy.bin'));
+	canceled = false;
+	const exportId = await invoke('begin-asset-export', 'copy.bin');
+	await invoke('abort-asset-export', exportId);
+	assert.equal(await directoryHistory.get('asset-export'), exportDirectory);
+	assert.equal(await directoryHistory.get('asset-import'), assetDirectory);
+	await assert.rejects(invoke('choose-asset-files', { multiple: 'yes' }), /Invalid/);
+	await assert.rejects(handlers.get('desktop:choose-asset-files')({}), /Untrusted/);
 });

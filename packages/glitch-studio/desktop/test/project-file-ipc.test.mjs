@@ -6,12 +6,17 @@ import os from 'node:os';
 import { ProjectFiles } from '../project-files.mjs';
 import { registerProjectFileIpc } from '../project-file-ipc.mjs';
 import { registerStartupFileIpc } from '../startup-file-ipc.mjs';
+import { FileDialogs } from '../file-dialogs.mjs';
+import { FileDialogDirectoryHistory } from '../file-dialog-directory-history.mjs';
 
 async function fixture(t, { startup = false } = {}) {
 	const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'glitch-studio-project-ipc-'));
 	t.after(() => fs.rm(directory, { recursive: true, force: true }));
 	const file = path.join(directory, 'project.gsproj');
-	const projectOpenDirectoryFilePath = path.join(directory, 'user-data', 'project-open-directory');
+	const historyDirectory = path.join(directory, 'user-data');
+	const projectOpenDirectoryFilePath = path.join(historyDirectory, 'directory-project-open');
+	const defaultDirectory = path.join(directory, 'default');
+	await fs.mkdir(defaultDirectory);
 	await fs.writeFile(file, new Uint8Array([1, 2, 3]));
 	const handlers = new Map();
 	const calls = [];
@@ -30,7 +35,8 @@ async function fixture(t, { startup = false } = {}) {
 			if (event !== trusted) throw new Error('Untrusted');
 			return parent;
 		};
-		registerProjectFileIpc(ipcMain, dialogs, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath, {
+		const fileDialogs = new FileDialogs(dialogs, new FileDialogDirectoryHistory(historyDirectory), defaultDirectory);
+		registerProjectFileIpc(ipcMain, dialogs, projectFiles, getTrustedMainWindow, fileDialogs, {
 			// 所有権の排他はEditorWindowsの結合テストで検証し、ここではファイル選択とI/Oを扱う。
 			registerProject: filePath => projectFiles.describe(projectFiles.register(filePath)),
 			projectWillWrite: () => {},
@@ -43,7 +49,7 @@ async function fixture(t, { startup = false } = {}) {
 		});
 	}
 	registerHandlers();
-	return { file, projectOpenDirectoryFilePath, handlers, calls, dialogs, trusted, restart: registerHandlers,
+	return { file, defaultDirectory, projectOpenDirectoryFilePath, handlers, calls, dialogs, trusted, restart: registerHandlers,
 		invoke: (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args) };
 }
 
@@ -96,11 +102,12 @@ test('remembers the project open directory across restarts and reads other proce
 	const h = await fixture(t);
 	const originalDirectory = path.dirname(h.file);
 	await h.invoke('choose-project-file', 'test-session');
-	assert.equal(h.calls[0].defaultPath, undefined);
+	assert.equal(h.calls[0].defaultPath, h.defaultDirectory);
 	assert.equal(await fs.readFile(h.projectOpenDirectoryFilePath, 'utf8'), originalDirectory);
 
 	h.restart();
 	const nextDirectory = path.join(originalDirectory, '別の作品 フォルダ');
+	await fs.mkdir(nextDirectory);
 	h.dialogs.showOpenDialog = async (_window, options) => {
 		h.calls.push(options);
 		return { canceled: false, filePaths: [path.join(nextDirectory, 'next.gsproj')] };
@@ -112,6 +119,7 @@ test('remembers the project open directory across restarts and reads other proce
 	assert.equal(h.calls[2].defaultPath, nextDirectory);
 
 	const otherProcessDirectory = path.join(originalDirectory, 'other-process');
+	await fs.mkdir(otherProcessDirectory);
 	await fs.writeFile(h.projectOpenDirectoryFilePath, otherProcessDirectory);
 	await h.invoke('choose-project-file', 'test-session');
 	assert.equal(h.calls[3].defaultPath, otherProcessDirectory);
@@ -125,8 +133,15 @@ test('keeps the project open directory when cancelling or choosing a save target
 	await h.invoke('choose-project-file', 'test-session');
 	const originalDirectory = path.dirname(h.file);
 	const otherFile = path.join(originalDirectory, 'other', 'saved.gsproj');
-	h.dialogs.showSaveDialog = async () => ({ canceled: false, filePath: otherFile });
+	await fs.mkdir(path.dirname(otherFile));
+	h.dialogs.showSaveDialog = async (_window, options) => {
+		h.calls.push(options);
+		return { canceled: false, filePath: otherFile };
+	};
 	await h.invoke('choose-project-save-file', 'saved.gsproj', 'test-session');
+	assert.equal(h.calls.at(-1).defaultPath, path.join(h.defaultDirectory, 'saved.gsproj'));
+	await h.invoke('choose-project-save-file', 'next.gsproj', 'test-session');
+	assert.equal(h.calls.at(-1).defaultPath, path.join(path.dirname(otherFile), 'next.gsproj'));
 	h.dialogs.showOpenDialog = async () => ({ canceled: true, filePaths: [otherFile] });
 	assert.equal(await h.invoke('choose-project-file', 'test-session'), null);
 	assert.equal(await fs.readFile(h.projectOpenDirectoryFilePath, 'utf8'), originalDirectory);

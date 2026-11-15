@@ -20,6 +20,8 @@ import { findGitHubUpdate } from './github-updates.mjs';
 import { registerEditCommandIpc } from './edit-command-ipc.mjs';
 import { registerClipboardIpc } from './clipboard-ipc.mjs';
 import { createStartupSplash } from './startup-splash.mjs';
+import { FileDialogDirectoryHistory } from './file-dialog-directory-history.mjs';
+import { FileDialogs } from './file-dialogs.mjs';
 
 // 小さなパスのGPU時間が量子化で0になることを避ける。
 // GPUプロセスの起動前に設定し、timestamp-queryの生の分解能で計測する。
@@ -57,6 +59,8 @@ const windowsAppUserModelId = app.isPackaged
 let desktopInstances = null;
 let desktopUpdateController = null;
 const editorWindows = new EditorWindows({ ipcMain, isAppUrl });
+const fileDialogs = new FileDialogs(dialog,
+	new FileDialogDirectoryHistory(path.join(app.getPath('userData'), 'file-dialog-directories')), app.getPath('documents'));
 const externalAssetFiles = { respond(request, origin) {
 	for (const context of editorWindows.contexts.values()) {
 		if (context.externalAssetFiles.hasUrl(request.url)) return context.externalAssetFiles.respond(request, origin);
@@ -145,23 +149,22 @@ function createWindow(startupFilePath = null) {
 	if (getLaunchFileType(startupFilePath)?.kind === 'project') editorWindows.registerProject(context, startupFilePath, false, 'startup');
 	const registerProject = (filePath, saving, reservationId) => editorWindows.registerProject(context, filePath, saving, reservationId);
 	const { ipc, projectFiles, exportFiles } = context;
-	const disposeAssetExports = registerExternalAssetIpc(ipc, dialog, context.externalAssetFiles, projectFiles, getTrustedMainWindow);
+	const disposeAssetExports = registerExternalAssetIpc(ipc, fileDialogs, context.externalAssetFiles, projectFiles, getTrustedMainWindow);
 	registerVoicevoxIpc(ipc, getTrustedMainWindow);
 	registerStartupFileIpc(ipc, projectFiles, getTrustedMainWindow, () => {
 		const filePath = context.startupFilePath;
 		context.startupFilePath = null;
 		return filePath;
 	});
-	registerProjectFileIpc(ipc, dialog, projectFiles, getTrustedMainWindow,
-		path.join(app.getPath('userData'), 'project-open-directory'), {
-			registerProject,
-			projectWillWrite: (id, sessionId) => editorWindows.registerProject(context, projectFiles.getPath(id), true, sessionId),
-			projectWritten: (id, sessionId) => editorWindows.setSessionProject(context, sessionId, id),
-		});
+	registerProjectFileIpc(ipc, dialog, projectFiles, getTrustedMainWindow, fileDialogs, {
+		registerProject,
+		projectWillWrite: (id, sessionId) => editorWindows.registerProject(context, projectFiles.getPath(id), true, sessionId),
+		projectWritten: (id, sessionId) => editorWindows.setSessionProject(context, sessionId, id),
+	});
 	registerRecentProjectsIpc(ipc, recentProjects, projectFiles, getTrustedMainWindow,
 		process.platform === 'win32' || process.platform === 'darwin' ? app : null,
 		{ registerProject });
-	registerExportFileIpc(ipc, dialog, exportFiles, getTrustedMainWindow);
+	registerExportFileIpc(ipc, dialog, exportFiles, getTrustedMainWindow, fileDialogs);
 	registerPortableVisualModuleIpc(ipc, utilityProcess, path.join(import.meta.dirname, 'dist/portable-visual-module-worker.mjs'),
 		app.isPackaged ? path.join(process.resourcesPath, 'portable-visual-module-catalog') : path.join(import.meta.dirname, 'dist/portable-visual-module-catalog'), getTrustedMainWindow,
 		app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked/node_modules/@esbuild', `${process.platform}-${process.arch}`, process.platform === 'win32' ? 'esbuild.exe' : 'bin/esbuild') : null);

@@ -5,10 +5,14 @@ import path from 'node:path';
 import os from 'node:os';
 import { ExportFiles } from '../export-files.mjs';
 import { registerExportFileIpc } from '../export-file-ipc.mjs';
+import { FileDialogs } from '../file-dialogs.mjs';
+import { FileDialogDirectoryHistory } from '../file-dialog-directory-history.mjs';
 
 async function fixture(t) {
-	const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'glitch-studio-export-'));
-	t.after(() => fs.rm(directory, { recursive: true, force: true }));
+	const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'glitch-studio-export-'));
+	t.after(() => fs.rm(temporaryDirectory, { recursive: true, force: true }));
+	const directory = path.join(temporaryDirectory, 'output');
+	await fs.mkdir(directory);
 	const file = path.join(directory, 'export.mp4');
 	const handlers = new Map();
 	const trusted = {};
@@ -23,10 +27,11 @@ async function fixture(t) {
 		},
 		async showMessageBox() { return { response: 0 }; },
 	};
+	const fileDialogs = new FileDialogs(dialogs, new FileDialogDirectoryHistory(path.join(temporaryDirectory, 'directories')), directory);
 	registerExportFileIpc({ handle: (name, action) => handlers.set(name, action) }, dialogs, exportFiles, event => {
 		if (event !== trusted) throw new Error('Untrusted');
 		return parent;
-	});
+	}, fileDialogs);
 	return { directory, file, handlers, calls, dialogs, exportFiles,
 		invoke: (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args) };
 }
@@ -135,7 +140,7 @@ test('selects an export target without truncating it and saves the result once',
 	await fs.writeFile(h.file, new Uint8Array([9]));
 	const target = await h.invoke('choose-export-save-file', 'project/scene.mp4', 'mp4');
 	assert.equal(target.name, 'export.mp4');
-	assert.equal(h.calls[0].defaultPath, 'project_scene.mp4');
+	assert.equal(h.calls[0].defaultPath, path.join(h.directory, 'project_scene.mp4'));
 	assert.deepEqual(h.calls[0].filters, [{ name: 'MP4 video', extensions: ['mp4'] }]);
 	assert.deepEqual(h.calls[0].properties, ['showOverwriteConfirmation']);
 	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([9]));

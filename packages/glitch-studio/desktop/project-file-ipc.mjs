@@ -1,50 +1,23 @@
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
-import * as fs from 'node:fs/promises';
 
 // メインウィンドウの検証を全操作に適用し、UIへ汎用的なファイル操作を公開しない。
-export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, projectOpenDirectoryFilePath, {
+export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, fileDialogs, {
 	registerProject,
 	projectWillWrite,
 	projectWritten,
 }) {
-	let projectOpenDirectory = null;
 	ipcMain.handle('desktop:register-project-file', (event, filePath, reservationId) => {
 		getTrustedMainWindow(event);
 		return registerProject(filePath, false, reservationId);
 	});
 	ipcMain.handle('desktop:choose-project-file', async (event, reservationId) => {
 		const parent = getTrustedMainWindow(event);
-		if (projectOpenDirectoryFilePath != null) {
-			try {
-				// 別プロセスで最後に選んだディレクトリも、次の選択時に反映する。
-				projectOpenDirectory = await fs.readFile(projectOpenDirectoryFilePath, 'utf8');
-			} catch (error) {
-				if (error.code !== 'ENOENT') console.error('Could not read the project open directory:', error);
-			}
-		}
-		const result = await dialog.showOpenDialog(parent, {
-			...(projectOpenDirectory == null ? {} : { defaultPath: projectOpenDirectory }),
+		const result = await fileDialogs.showOpenDialog(parent, {
+			directoryKey: 'project-open',
 			filters: [{ name: 'Glitch Studio project', extensions: ['gsproj'] }], properties: ['openFile'],
 		});
 		if (result.canceled || result.filePaths[0] == null) return null;
 		const filePath = result.filePaths[0];
-		const selectedDirectory = path.dirname(filePath);
-		projectOpenDirectory = selectedDirectory;
-		if (projectOpenDirectoryFilePath != null) {
-			const temporaryFilePath = `${projectOpenDirectoryFilePath}.${randomUUID()}.tmp`;
-			try {
-				await fs.mkdir(path.dirname(projectOpenDirectoryFilePath), { recursive: true });
-				// 他のプロセスが書きかけのパスを読まないよう、一時ファイルから置き換える。
-				await fs.writeFile(temporaryFilePath, selectedDirectory, { flag: 'wx' });
-				await fs.rename(temporaryFilePath, projectOpenDirectoryFilePath);
-			} catch (error) {
-				// 設定の保存に失敗しても、選択したプロジェクトは開けるようにする。
-				console.error('Could not save the project open directory:', error);
-			} finally {
-				await fs.unlink(temporaryFilePath).catch(() => {});
-			}
-		}
 		return registerProject(filePath, false, reservationId);
 	});
 	ipcMain.handle('desktop:choose-project-save-file', async (event, name, sessionId) => {
@@ -52,11 +25,12 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 		if (typeof sessionId !== 'string' || sessionId.length === 0) throw new Error('Invalid project session');
 		if (typeof name !== 'string' || path.basename(name) !== name) throw new Error('Invalid project name');
 		// Electronのダイアログはパスだけを返す。確定前の既存ファイルを変更しない。
-		const result = await dialog.showSaveDialog(parent, {
-			defaultPath: name, filters: [{ name: 'Glitch Studio project', extensions: ['gsproj'] }],
+		const result = await fileDialogs.showSaveDialog(parent, {
+			directoryKey: 'project-save', suggestedName: name,
+			filters: [{ name: 'Glitch Studio project', extensions: ['gsproj'] }],
 			properties: ['showOverwriteConfirmation'],
 		});
-		if (result.canceled || !result.filePath) return null;
+		if (result.canceled || result.filePath == null) return null;
 		const filePath = result.filePath.toLowerCase().endsWith('.gsproj') ? result.filePath : `${result.filePath}.gsproj`;
 		// 拡張子を補った場合、OSが確認したパスとは異なるのでここで上書き確認する。
 		const descriptor = registerProject(filePath, true, sessionId);

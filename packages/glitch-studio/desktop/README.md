@@ -1,5 +1,9 @@
 # Electron版
 
+ファイル選択・保存ダイアログの開始ディレクトリは、`FileDialogs`と`FileDialogDirectoryHistory`で用途別に記憶します。キーの割り当ては各IPCの責務で、`project-open`・`project-save`・`asset-import`・`asset-export`・`render-export`・`visual-module-web-export`を使います。同じキーの記憶は全編集ウィンドウで共有し、`userData/file-dialog-directories`へキー単位で原子的に保存します。開始位置は有効な明示ディレクトリ、記憶したディレクトリ、Documentsの順で、Documentsが利用できなければホームディレクトリへ戻します。ネイティブダイアログの確定時に更新し、キャンセルやダイアログを使わない操作では更新しません。記憶の読み書きに失敗しても作品の操作は続行します。
+
+通常の素材取り込みもElectron版では`chooseAssetFiles`を通ります。`mime-types`の表からメディアの拡張子フィルターと選択結果のMIMEを決め、複数選択・フォント・任意ファイルに対応します。IPCでは原本の内容を転送せず、UIの取り込み中に各原本のサイズを確認してから埋め込み・外部参照を選びます。ブラウザ版とドラッグ＆ドロップでは従来の`File`を扱います。
+
 SceneのエクスポートはMP4・WebP・OpenEXRを保存できる。保存ダイアログで選択した宛先だけを一度限りのIDで公開し、begin・append・finishで一時ファイルへ順次書き込む。UIは最大1MiBずつ渡し、IPCで全ファイルの配列を複製しない。OpenEXRは長さ未確定で開始し、offset tableの後書きも位置指定で保存する。保存済みバイト数は要求元だけへID付きで通知し、完成時のファイル長の照合・fsync・宛先への置換が成功してから完了を通知する。選択・描画・圧縮の中断や保存失敗・入力不足で既存ファイルを切り詰めない。ウィンドウ破棄時は進行中の書き込みを待って一時ファイルを回収する。
 
 Windows x64向けのNSISインストーラーと、macOSのApple Silicon（arm64）・Intel（x64）向けのDMGを配布します。開発起動はルートで`pnpm dev:desktop`を実行します。公開しない配布ビルドは、Windows上では`pnpm dist:desktop:win`、macOS上では`pnpm dist:desktop:mac`を実行します。macOSのコマンドは両アーキテクチャを生成します。出力先はルートの`release/`です。

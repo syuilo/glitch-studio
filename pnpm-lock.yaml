@@ -228,6 +228,9 @@ importers:
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+      mime-types:
+        specifier: 2.1.35
+        version: 2.1.35
       semver:
         specifier: 7.8.6
         version: 7.8.6

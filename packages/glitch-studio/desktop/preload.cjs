@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('desktop', {
 	resolveExternalAsset: (filePath, reload = false) => ipcRenderer.invoke('desktop:resolve-external-asset', filePath, reload),
 	assetProjectPaths: (paths, projectId, storing) => ipcRenderer.invoke('desktop:asset-project-paths', paths, projectId, storing),
 	chooseAssetFile: previousPath => ipcRenderer.invoke('desktop:choose-asset-file', previousPath),
+	chooseAssetFiles: options => ipcRenderer.invoke('desktop:choose-asset-files', options),
 	beginAssetExport: name => ipcRenderer.invoke('desktop:begin-asset-export', name),
 	writeAssetExport: (id, chunk) => ipcRenderer.invoke('desktop:write-asset-export', id, chunk),
 	abortAssetExport: id => ipcRenderer.invoke('desktop:abort-asset-export', id),

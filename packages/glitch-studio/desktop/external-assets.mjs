@@ -3,8 +3,15 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { URL } from 'node:url';
+import mimeTypes from 'mime-types';
 
 /* global Response */
+
+// ChromiumのinputでJPEGとして選べる別拡張子も補い、ネイティブ化で取り込み対象を減らさない。
+const assetMimeTypes = new Map([...Object.entries(mimeTypes.types),
+	['jfif', 'image/jpeg'], ['pjpeg', 'image/jpeg'], ['pjp', 'image/jpeg']]);
+const mediaFileExtensions = [...assetMimeTypes]
+	.filter(([, type]) => /^(image|video|audio)\//.test(type)).map(([extension]) => extension);
 
 /** 選択・プロジェクト読込で登録した原本だけを配信し、URLから任意の実パスを指定させない。 */
 export class ExternalAssetFiles {
@@ -84,7 +91,7 @@ export function projectAssetPath(filePath, projectPath, storing) {
 		? relative.split(path.sep).join('/') : filePath;
 }
 
-export function registerExternalAssetIpc(ipcMain, dialog, files, projectFiles, getTrustedMainWindow) {
+export function registerExternalAssetIpc(ipcMain, fileDialogs, files, projectFiles, getTrustedMainWindow) {
 	const exports = new Map();
 	let disposed = false;
 	ipcMain.handle('desktop:resolve-external-asset', (event, filePath, reload) => {
@@ -98,15 +105,37 @@ export function registerExternalAssetIpc(ipcMain, dialog, files, projectFiles, g
 	});
 	ipcMain.handle('desktop:choose-asset-file', async (event, previousPath) => {
 		const parent = getTrustedMainWindow(event);
-		const result = await dialog.showOpenDialog(parent, { properties: ['openFile'],
-			...(previousPath == null ? {} : { defaultPath: path.dirname(previousPath) }) });
+		const result = await fileDialogs.showOpenDialog(parent, {
+			directoryKey: 'asset-import', properties: ['openFile'],
+			initialDirectory: previousPath == null ? null : path.dirname(previousPath),
+		});
 		if (result.canceled || result.filePaths.length === 0) return null;
 		return result.filePaths[0];
+	});
+	ipcMain.handle('desktop:choose-asset-files', async (event, options) => {
+		const parent = getTrustedMainWindow(event);
+		if (options == null || ['multiple', 'includeFonts', 'allowAnyFile'].some(key => typeof options[key] !== 'boolean')) {
+			throw new Error('Invalid asset file selection options');
+		}
+		// inputのMIMEワイルドカードをネイティブの拡張子フィルターへ変換する。
+		// 判定にも同じ表を使い、音声・フォントや一般ファイルを少数の手書き拡張子へ狭めない。
+		const extensions = options.includeFonts ? [...mediaFileExtensions, 'ttf', 'otf', 'woff', 'woff2'] : mediaFileExtensions;
+		const result = await fileDialogs.showOpenDialog(parent, {
+			directoryKey: 'asset-import',
+			properties: options.multiple ? ['openFile', 'multiSelections'] : ['openFile'],
+			filters: options.allowAnyFile ? [{ name: 'All files', extensions: ['*'] }]
+				: [{ name: options.includeFonts ? 'Media and fonts' : 'Media', extensions }, { name: 'All files', extensions: ['*'] }],
+		});
+		if (result.canceled || result.filePaths.length === 0) return null;
+		return result.filePaths.map(filePath => ({
+			kind: 'desktop-asset-file', path: filePath, name: path.basename(filePath),
+			type: assetMimeTypes.get(path.extname(filePath).slice(1).toLowerCase()) ?? '',
+		}));
 	});
 	ipcMain.handle('desktop:begin-asset-export', async (event, name) => {
 		const parent = getTrustedMainWindow(event);
 		if (typeof name !== 'string' || path.basename(name) !== name) throw new Error('Invalid asset name.');
-		const selected = await dialog.showSaveDialog(parent, { defaultPath: name });
+		const selected = await fileDialogs.showSaveDialog(parent, { directoryKey: 'asset-export', suggestedName: name });
 		if (selected.canceled || selected.filePath == null) return null;
 		if (disposed) throw new Error('The editor window has been closed.');
 		const id = randomUUID();
