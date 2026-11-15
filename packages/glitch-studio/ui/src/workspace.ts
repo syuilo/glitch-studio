@@ -21,8 +21,10 @@ import XAutomationGraphs from '@/components/GsWorkspacePanel.AutomationGraphs.vu
 import XCustomShaderEffects from '@/components/GsWorkspacePanel.CustomShaderEffects.vue';
 import XProjectInfo from '@/components/GsWorkspacePanel.ProjectInfo.vue';
 import XTimelineInspectorPanel from '@/components/GsWorkspacePanel.TimelineInspectorPanel.vue';
+import XScripting from '@/components/GsWorkspacePanel.Scripting.vue';
 
 const panelDefinitions = {
+	scripting: { label: i18n.ts._Scripting.Title, icon: 'ti ti-code', component: XScripting },
 	blank: { label: i18n.ts._Workspace.Blank, icon: '', component: XBlank },
 	audioSpectrum: { label: i18n.ts._Workspace.AudioSpectrum, icon: 'ti ti-chart-column', component: XAudioSpectrum },
 	audioSpectrogram: { label: i18n.ts._Workspace.AudioSpectrogram, icon: 'ti ti-chart-area', component: XAudioSpectrogram },

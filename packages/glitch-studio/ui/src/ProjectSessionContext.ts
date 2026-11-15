@@ -40,6 +40,8 @@ import { getImageAnalysisValueRange } from './utility/image-analysis-range.ts';
 import { getProjectDisplayName } from './utility/project-display-name.ts';
 import type { ImageAnalysisRangePreset } from './utility/image-analysis-range.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
+import { ProjectScriptingController } from './scripting/ProjectScriptingController.ts';
+import { createProjectScriptDialogHandler } from './scripting/script-dialog.ts';
 import type { ProjectFileOperationController } from './ProjectFileOperationController.ts';
 import { getRendererAssets } from './utility/renderer-assets.ts';
 import { resolveExternalAssets } from './external-assets.ts';
@@ -61,6 +63,7 @@ export const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const
 
 export class ProjectSessionContext {
 	public readonly id: string;
+	public readonly scripting: ProjectScriptingController;
 	// プロジェクト外への参照を貼り付けないよう、内部クリップボードもセッションに閉じる。
 	public readonly timelineClipboard = shallowRef<TimelineClipboard | null>(null);
 	public readonly workspacePanelRevealRequest = shallowRef<WorkspacePanelRevealRequest | null>(null);
@@ -156,6 +159,7 @@ export class ProjectSessionContext {
 		this.id = options.id;
 		markRaw(this);
 		this.projectContext = projectContext;
+		this.scripting = markRaw(new ProjectScriptingController(projectContext, createProjectScriptDialogHandler(this)));
 		const state = projectContext.stateManager.state;
 		// 初期値は購読前に決める。初回のScene選択を切替操作として扱わず、生成音声も最初の起動から渡す。
 		this.activeSceneId = ref(state.timelineScenes.value[0]?.id ?? null);
@@ -714,6 +718,7 @@ export class ProjectSessionContext {
 	public dispose(): Promise<void> {
 		if (this.disposal != null) return this.disposal;
 		this.disposed = true;
+		this.scripting.dispose();
 		for (const stop of this.sessionDisposers.splice(0)) stop();
 		window.removeEventListener?.('focus', this.onWindowFocus);
 		this.renderEngine.dispose();

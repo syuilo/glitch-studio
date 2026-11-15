@@ -513,7 +513,30 @@ const renameVisualModuleCommandDef = defineCommand<{ visualModuleId: string; nam
 	},
 });
 
-const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; staticSettings?: StaticSettingValues; params?: Record<string, VisualModuleParameterBinding> }>({
+const removeVisualModuleCommandDef = defineCommand<{ visualModuleId: string }>({
+	label: 'Remove Visual Module',
+	changes: (_state, payload) => [{ type: 'visualModuleRegistration', visualModuleId: payload.visualModuleId }],
+	create: payload => {
+		let removed: ProjectVisualModule;
+		let index: number;
+		return {
+			execute(state) {
+				index = state.visualModules.value.findIndex(visualModule => visualModule.id === payload.visualModuleId);
+				if (index < 0) throw new Error('Visual Module not found');
+				// 利用中の定義を消してレイヤーを壊さない。参照先のレイヤーを暗黙に削除しない。
+				if (state.timelineScenes.value.some(scene => flattenTimelineLayers(scene.layers).some(layer =>
+					layer.layerType === 'visualModule' && layer.visualModuleId === payload.visualModuleId))) {
+					throw new Error('Visual Module is referenced by a Timeline layer');
+				}
+				removed = deepClone(state.visualModules.value[index]);
+				state.visualModules.value.splice(index, 1);
+			},
+			undo(state) { state.visualModules.value.splice(index, 0, deepClone(removed)); },
+		};
+	},
+});
+
+const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; staticSettings?: StaticSettingValues; params?: Record<string, VisualModuleParameterBinding>; autoConnect?: boolean }>({
 	label: 'Add fx node',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
@@ -530,7 +553,8 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 				if (addedNode == null) {
 					const paramDefs = getEffectDefinitions(state)[payload.effectId].paramDefs as Record<string, ParameterDefinition>;
 					// 初回実行時だけ設定を参照し、設定変更後のRedoでも追加時の配線を再現する。
-					const autoConnect = preferences.s.visualModuleAutoConnectOnNodeAdd;
+					// スクリプト等の明示的な組み立ては環境設定に依存させない。
+					const autoConnect = payload.autoConnect ?? preferences.s.visualModuleAutoConnectOnNodeAdd;
 					const globalOut = autoConnect ? visualModule.nodes.find(node => node.type === 'globalOut') : null;
 					const primaryOutput = visualModule.outputDefs.find(def => def.id === visualModule.primaryOutputId);
 					const previousInput = primaryOutput == null ? null : globalOut?.inputs[primaryOutput.id];
@@ -3202,6 +3226,7 @@ export const COMMAND_DEFS = {
 	moveTimelineContainer: moveTimelineContainerCommandDef,
 	importVisualModule: importVisualModuleCommandDef,
 	addVisualModule: addVisualModuleCommandDef,
+	removeVisualModule: removeVisualModuleCommandDef,
 	renameVisualModule: renameVisualModuleCommandDef,
 	removeTimelineKeyframes: removeTimelineKeyframesCommandDef,
 	editVoicevoxLayer: editVoicevoxLayerCommandDef,

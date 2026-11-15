@@ -18,7 +18,8 @@ export type CommandDef<S, Payload, Change> = {
 };
 
 type CommandLog<S, Change, T extends Record<string, CommandDef<S, any, Change>>> = {
-	type: keyof T;
+	type: keyof T | null;
+	label: string;
 	date: number;
 	execute: (state: S) => void;
 	undo: (state: S) => void;
@@ -81,7 +82,7 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 				if (!active) return;
 				const command = this.createCommand(type, payload);
 				command.execute(this.state);
-				if (pending == null) pending = { type, date: Date.now(), ...command };
+				if (pending == null) pending = { type, label: this.commandDefs[type].label, date: Date.now(), ...command };
 				else pending.execute = command.execute;
 			},
 			finish: () => {
@@ -105,6 +106,41 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 
 	public cancelEdit() { this.activeEdit?.cancel(); }
 
+	/**
+	 * 複数種類の操作を即時反映し、成功済みの操作だけを一つの履歴へ確定する。
+	 * 非同期処理の途中でも使えるが、他の編集の割り込みは扱わない。
+	 * 通常のcommitを横取りせず、呼び出し側がこの記録先へ明示的に操作を渡す。
+	 * 失敗時もfinallyでfinishする。Redoはスクリプト等の生成処理を再実行しない。
+	 */
+	public beginGroup(label: string) {
+		this.activeEdit?.finish();
+		this.autoMergeCandidate = null;
+		const commands: ReturnType<UndoRedo<S, Change, Commands>['createCommand']>[] = [];
+		let finished = false;
+		return {
+			commit: <T extends keyof Commands>(type: T, payload: Parameters<Commands[T]['create']>[0]) => {
+				if (finished) throw new Error('Command group has already finished');
+				const command = this.createCommand(type, payload);
+				command.execute(this.state);
+				commands.push(command);
+			},
+			finish: () => {
+				if (finished) return;
+				finished = true;
+				this.autoMergeCandidate = null;
+				if (commands.length === 0) return;
+				this.undoStack.value.push({
+					type: null, label, date: Date.now(),
+					execute: state => { for (const command of commands) command.execute(state); },
+					undo: state => { for (let index = commands.length - 1; index >= 0; index--) commands[index].undo(state); },
+				});
+				if (this.undoStack.value.length > this.maxUndoStackSize) this.undoStack.value.shift();
+				triggerRef(this.undoStack);
+				this.redoStack.value = [];
+			},
+		};
+	}
+
 	public commit<T extends keyof Commands>(type: T, payload: Parameters<Commands[T]['create']>[0], mergeKey?: string | null) {
 		this.activeEdit?.finish();
 		const commandDef = this.commandDefs[type] as CommandDef<S, Parameters<Commands[T]['create']>[0], Change>;
@@ -120,7 +156,7 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 			&& now - candidate.lastUpdatedAt <= 2000;
 		const canMerge = latest != null && latest.type === type
 			&& (mergeKey != null ? latest.mergeKey === mergeKey : canAutoMerge);
-		const commandLog: CommandLog<S, Change, Commands> = canMerge ? latest : { type, date: Date.now(), ...command, mergeKey };
+		const commandLog: CommandLog<S, Change, Commands> = canMerge ? latest : { type, label: commandDef.label, date: Date.now(), ...command, mergeKey };
 		if (canMerge) {
 			commandLog.execute = command.execute;
 		} else {

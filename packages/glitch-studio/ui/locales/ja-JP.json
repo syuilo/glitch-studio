@@ -962,6 +962,19 @@
 	"Metadata": "メタデータ",
 	"StatsDisabled": "統計が無効になっています",
 	"AnalysisDisabled": "解析が無効になっています",
+	"_Scripting": {
+		"Title": "スクリプティング",
+		"Run": "実行",
+		"ClearOutput": "出力を消去",
+		"Output": "出力",
+		"Error": "スクリプトエラー",
+		"Idle": "待機中",
+		"Running": "実行中",
+		"Succeeded": "完了",
+		"Exited": "終了",
+		"Failed": "エラー",
+		"OutputTruncated": "以降の出力を省略しました。"
+	},
 	"_ImageAnalysis": {
 		"ImageSource": "解析画像（RGBのみ切り替え可能・プレビュー背景を除外）",
 		"NoPreviewFrame": "解析できるプレビュー画像がありません"

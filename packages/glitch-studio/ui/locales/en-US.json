@@ -962,6 +962,19 @@
 	"Metadata": "Metadata",
 	"StatsDisabled": "Stats are disabled",
 	"AnalysisDisabled": "Analysis is disabled",
+	"_Scripting": {
+		"Title": "Scripting",
+		"Run": "Run",
+		"ClearOutput": "Clear output",
+		"Output": "Output",
+		"Error": "Script error",
+		"Idle": "Ready",
+		"Running": "Running",
+		"Succeeded": "Completed",
+		"Exited": "Finished",
+		"Failed": "Failed",
+		"OutputTruncated": "Further output has been omitted."
+	},
 	"_ImageAnalysis": {
 		"ImageSource": "Analysis image (RGB only; excludes preview backgrounds)",
 		"NoPreviewFrame": "No preview frame available"
