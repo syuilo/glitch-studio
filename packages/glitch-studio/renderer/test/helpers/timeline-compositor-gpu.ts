@@ -196,12 +196,15 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 				top: 1,
 			},
 		});
-		await check('timeline region inherits camera placement without transforming pixels', blue, striped, { ...regionSettings, position: [0, 0] }, rightGreen, {
+		// 【長辺画角90°・距離0.5のカメラは、適用範囲を拡大せず平行移動する】
+		// 枠の左右端を画面内に収め、旧仕様の距離0.25による2倍拡大を検出する。
+		// 画面端まで届く枠では、拡大後のはみ出しがクリップされて同じ結果になる場合がある。
+		await check('timeline region inherits camera placement without transforming pixels', blue, striped, { ...regionSettings, position: [0, 0], scale: [0.25, 1] }, pixels(x => x >= 5 && x < 7 ? [0, 255, 0, 255] : [0, 0, 255, 255]), {
 			parent: [1, 0, 0, 1, 0, 0],
 			depth: 0,
 			camera: {
 				position: [-0.25, 0],
-				z: 0.25,
+				z: 0.5,
 				roll: 0,
 				fieldOfView: 90,
 			},

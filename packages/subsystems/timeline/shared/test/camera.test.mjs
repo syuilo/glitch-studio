@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
-const { DEFAULT_CAMERA_DISTANCE, CAMERA_NEAR_DISTANCE, createTimelineCameraParameterValues, getDefaultCameraDistance } = await loadSource(fileURLToPath(new URL('../src/layers/camera/camera.ts', import.meta.url)));
+const { DEFAULT_CAMERA_DISTANCE, CAMERA_NEAR_DISTANCE, createTimelineCameraParameterValues } = await loadSource(fileURLToPath(new URL('../src/layers/camera/camera.ts', import.meta.url)));
 const { projectTimelineMatrix, TIMELINE_IDENTITY, timelineGeometryMatrix, multiplyTimelineAffine, transformTimelinePoint, invertTimelineAffine } = await loadSource(fileURLToPath(new URL('../src/spatial.ts', import.meta.url)));
 const { getTimelinePreviewParent } = await loadSource(fileURLToPath(new URL('../src/group-space.ts', import.meta.url)));
 const { TimelineCameraParameters } = await loadSource(fileURLToPath(new URL('../src/layers/camera/camera-parameters.ts', import.meta.url)));
@@ -11,7 +11,7 @@ const evaluator = new TimelineCameraParameters();
 const { TimelineSceneCamera, TimelineCameraCuts, getActiveTimelineCamera } = await loadSource(fileURLToPath(new URL('../src/scene-camera.ts', import.meta.url)));
 const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineSampleTimes } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
 const frame = { width: 1920, height: 1080 };
-const camera = evaluator.evaluate(undefined, 0, false, undefined, frame);
+const camera = evaluator.evaluate(undefined, 0, false);
 const settings = { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'contain', coordinateSpace: 'world', depth: 0 };
 const near = (actual, expected) => actual.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-9, `${actual} != ${expected}`));
 const parent = (ancestors, own = settings) => getTimelinePreviewParent(ancestors, own, frame, { parent: TIMELINE_IDENTITY, depth: 0, camera });
@@ -235,7 +235,7 @@ test('resets preserved transforms for screen placement inside the current flat b
 test('projects camera roll as an inverse rotation around its position at every aspect ratio', () => {
 	const position = [0.3, -0.2];
 	for (const size of [{ width: 200, height: 100 }, { width: 100, height: 200 }, { width: 100, height: 100 }]) {
-		const view = { ...camera, z: DEFAULT_CAMERA_DISTANCE * size.height / Math.max(size.width, size.height), position, roll: 0.25 };
+		const view = { ...camera, position, roll: 0.25 };
 		const normalizedPosition = position.map((value, axis) => value * 2 * Math.max(size.width, size.height) / (axis === 0 ? size.width : size.height));
 		const projection = projectTimelineMatrix(TIMELINE_IDENTITY, 0, size, view);
 		near(transformTimelinePoint(projection, normalizedPosition), [0, 0]);
@@ -262,13 +262,38 @@ test('evaluates roll keyframes and expressions without clamping complete turns',
 	assert.equal(evaluate({ inputSource: 'literal', value: NaN }), 0);
 });
 
-// 【カメラの初期距離は所属Sceneの比率で求め、Z=0の画面全体を保つ】
-// 正方形の定数を横長へ流用すると初期状態で縮小される。極端な横長でも近接限界に入れない。
-test('fits the reference plane with scene-specific camera defaults at every aspect ratio', () => {
-	for (const size of [{ width: 1920, height: 1080 }, { width: 1080, height: 1920 }, { width: 100, height: 100 }, { width: 16384, height: 1 }]) {
-		const params = createTimelineCameraParameterValues(size);
-		const view = evaluator.evaluate({ paramValues: params, automationGraphs: [] }, 0, false, undefined, size);
-		near([view.z], [getDefaultCameraDistance(size)]);
-		near(projectTimelineMatrix(TIMELINE_IDENTITY, 0, size, view), TIMELINE_IDENTITY);
+// 【カメラの初期距離は全Sceneで共通とし、Z=0の画面全体を保つ】
+// 作成済み・未設定・不正値のフォールバックを同じ距離に揃え、Sceneの比率変更で
+// 暗黙のズームを起こさない。極端な横長・縦長でも初期平面を近接限界に入れない。
+test('fits the reference plane with fixed camera defaults at every aspect ratio', () => {
+	const sceneCamera = new TimelineSceneCamera();
+	for (const params of [createTimelineCameraParameterValues(), {}, { z: { inputSource: 'literal', value: NaN } }]) {
+		const layer = cameraLayer('camera', 0, 1000, params);
+		for (const size of [{ width: 1920, height: 1080 }, { width: 1080, height: 1920 }, { width: 100, height: 100 }, { width: 16384, height: 1 }, { width: 1, height: 16384 }]) {
+			const view = sceneCamera.evaluate([layer], 0, false, size);
+			near([view.z], [DEFAULT_CAMERA_DISTANCE]);
+			near(projectTimelineMatrix(TIMELINE_IDENTITY, 0, size, view), TIMELINE_IDENTITY);
+		}
+	}
+});
+
+// 【長辺方向の画角と奥行きによる拡大率は、解像度・縦横比に依存しない】
+// 90°の画角では距離1の平面上の長辺方向±1が画面端となる。
+// 初期画角・初期距離を同時に補正するだけの実装では見逃すため、明示的な画角とZを使う。
+// 短辺だけが狭まり、同じ奥行き移動が縦長と横長で同じ倍率になることも確認する。
+test('preserves long side field of view and depth magnification across resolutions and aspect ratios', () => {
+	const view = { position: [0, 0], z: 1, roll: 0, fieldOfView: 90 };
+	for (const size of [{ width: 200, height: 100 }, { width: 100, height: 200 }, { width: 100, height: 100 }, { width: 400, height: 200 }, { width: 400, height: 100 }]) {
+		for (const [depth, expectedScale] of [[0, 0.5], [0.5, 1], [-1, 0.25]]) {
+			near(projectTimelineMatrix(TIMELINE_IDENTITY, depth, size, view), [expectedScale, 0, 0, expectedScale, 0, 0]);
+		}
+		const projection = projectTimelineMatrix(TIMELINE_IDENTITY, 0, size, view);
+		const longSide = Math.max(size.width, size.height);
+		// Z=0で見える範囲はXが±W/L、Yが±H/L。公開座標を内部座標へ換算して画面端を確認する。
+		for (const sign of [-1, 1]) {
+			const visibleCorner = [sign * size.width / longSide, sign * size.height / longSide];
+			const normalizedCorner = [visibleCorner[0] * 2 * longSide / size.width, visibleCorner[1] * 2 * longSide / size.height];
+			near(transformTimelinePoint(projection, normalizedCorner), [sign, sign]);
+		}
 	}
 });

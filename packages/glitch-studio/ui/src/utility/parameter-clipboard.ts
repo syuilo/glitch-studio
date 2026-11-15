@@ -18,13 +18,12 @@ import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/pa
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { resolveTimelineAnotherLayerAudioReference } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import { getVisualModule } from './visual-module-target.ts';
 import { resolveNodeParam } from './node-params.ts';
-import { getScene, resolveLayerParameter, getLayerParameterValues, getLayerParameterDefinitions } from './timeline-scene.ts';
+import { getScene, resolveLayerParameter, getLayerParameterValues } from './timeline-scene.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
@@ -379,12 +378,7 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectSessio
 		const layer = findTimelineLayer(scene.layers, target.layerId);
 		requireValid(layer != null && layer.layerType !== 'folder');
 		before = getLayerParameterValues(layer, target.parameterTarget)[rootKey] ?? null;
-		if (target.parameterTarget === 'camera') {
-			// 未設定のCamera Zも、画面に表示したSceneの縦横比に対応する既定値をコピーする。
-			const definition = getLayerParameterDefinitions(state, layer, target.parameterTarget, getSceneBaseResolution(scene.resolution, state.resolution.value))[rootKey];
-			requireValid(definition != null);
-			root = { def: definition, value: before ?? definition.defaultValue };
-		} else root = resolveLayerParameter(state, layer, target.parameterTarget, [rootKey]);
+		root = resolveLayerParameter(state, layer, target.parameterTarget, [rootKey]);
 		context = { kind: 'timeline', state, scene, layer, parameterTarget: target.parameterTarget, source: {
 			projectSessionId, owner: { kind: 'timelineLayer', sceneId: scene.id, layerId: layer.id }, localAutomationGraphIds: layer.automationGraphs.map(graph => graph.id),
 		} };

@@ -86,7 +86,7 @@ export class TimelineSceneCamera {
 		// 有効なカメラがない区間は2D合成とし、Zによる拡縮・近接面での非表示を行わない。
 		if (!active) return null;
 		const settings = { paramValues: active.layer.cameraParamValues, automationGraphs: active.layer.automationGraphs };
-		const camera = this.parameters.evaluate(settings, active.time, isExport, getTimelineLayerPublicParameterContext([...layers], active.layer.id), frame);
+		const camera = this.parameters.evaluate(settings, active.time, isExport, getTimelineLayerPublicParameterContext([...layers], active.layer.id));
 		let ancestorTime = time;
 		let space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0 };
 		for (const parent of active.ancestors) {

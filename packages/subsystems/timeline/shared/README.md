@@ -86,7 +86,7 @@ Scene一覧の重複ID・参照先の欠落・循環参照などの診断は、�
 
 ## カメラと空間
 
-Scene直下またはGroup以外のコンテナ配下の`camera`レイヤーは`cameraParamValues`にXY・Z・roll・縦画角のBindingを持ち、通常のレイヤーとしてAutomation Graphと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならカメラを返さず、Zによる拡縮・近接面での非表示を行わない2D合成となる。カメラレイヤーの初期値はXY=0、Z=cot(22.5°)、roll=0、縦画角45°で、Z=0の2D配置を維持する。Zの単位はSceneの半高で、正がカメラ方向。視点と平面の距離が0.001未満なら非表示。rollの1は時計回り360度（1周）で、投影では視点の位置を引いてから逆回転する。回転の縦横比補正には描画先のScene寸法を渡す。
+Scene直下またはGroup以外のコンテナ配下の`camera`レイヤーは`cameraParamValues`にXY・Z・roll・長辺方向の画角のBindingを持ち、通常のレイヤーとしてAutomation Graphと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならカメラを返さず、Zによる拡縮・近接面での非表示を行わない2D合成となる。カメラレイヤーの初期値はXY=0、Z=`0.5/tan(22.5°)`（約1.207）、roll=0、長辺方向の画角45°で、縦横比によらずZ=0の2D配置を維持する。Zの単位はSceneの長辺全体で、正がカメラ方向。視点と平面の距離が0.000001未満なら非表示。画角は横長Sceneでは水平、縦長Sceneでは垂直を基準にし、同じ画角・距離なら長辺に対する投影倍率は共通となる。rollの1は時計回り360度（1周）で、投影では視点の位置を引いてから逆回転する。rollでは画角の基準を変えず、回転の縦横比補正には描画先のScene寸法を渡す。
 
 `affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。映像レイヤーの`coordinateSpace`は`world`または`screen`の静的な属性で、新規作成時は`screen`とする。`compositingParamValues`には含めず、式・キーフレームで評価しない。`screen`は現在の合成先のGroupの変形・カメラを適用しない。TransformのXY移動・拡縮・回転は`screenParent`として別に蓄積し、画面配置にも反映する。
 
@@ -119,4 +119,4 @@ Groupを祖先に持つカメラはUIの静的検証で診断する。無効な�
 
 `layer-static-settings.ts`はEffect・Text・VOICEVOXの独立した静的設定の定義と保存値を組み合わせる。エフェクトレイヤーは`effectStaticSettings`を持ち、共通の`StaticSettingValues`へIDや値を直接保存する。素材参照型は通常・公開パラメータから除外する。
 
-公開する位置・移動・距離・CameraのXY/Zは[共通空間単位](../../../../docs/spatial-coordinate.md)です。Originは透明余白を含む素材の長辺単位、Positionは配置先のScene単位です。画像合成・クリップ・行列は内部の各軸[-1,+1]で扱い、`layer-transform.ts`が境界の換算を担当します。カメラ作成時の既定ZはScene比率から求め、縦画角45°でZ=0が初期画面に収まる値にします。
+公開する位置・移動・距離・CameraのXY/Zは[共通空間単位](../../../../docs/spatial-coordinate.md)です。Originは透明余白を含む素材の長辺単位、Positionは配置先のScene単位です。画像合成・クリップ・行列は内部の各軸[-1,+1]で扱い、`layer-transform.ts`が境界の換算を担当します。カメラの画角と既定Zも長辺基準とし、パラメータ定義・作成・評価にはSceneの解像度を渡しません。投影と祖先Transformの座標換算には引き続き描画先のScene寸法を使います。

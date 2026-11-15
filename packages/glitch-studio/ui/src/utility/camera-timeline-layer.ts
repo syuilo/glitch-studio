@@ -2,9 +2,8 @@ import { createTimelineCameraParameterValues } from '@gs/subsystems_timeline_sha
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import type { TimelineCameraLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { Resolution } from '@gs/shared/resolution.ts';
 
-export function createCameraTimelineLayer(startMs: number, resolution: Resolution = { width: 1, height: 1 }): TimelineCameraLayer {
+export function createCameraTimelineLayer(startMs: number): TimelineCameraLayer {
 	return {
 		id: genId(),
 		name: 'Camera',
@@ -14,7 +13,7 @@ export function createCameraTimelineLayer(startMs: number, resolution: Resolutio
 		color: null,
 		automationGraphs: [],
 		forceDisableMotionBlur: false,
-		cameraParamValues: createTimelineCameraParameterValues(resolution),
+		cameraParamValues: createTimelineCameraParameterValues(),
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 	};
 }

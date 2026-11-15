@@ -12,7 +12,7 @@ import { createSceneOutput } from '@gs/subsystems_timeline_renderer/scene-output
 import { createShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { createTextParameterValues } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import { timelineCompositingParamDefs, type TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import { createTimelineCameraParameterValues, getDefaultCameraDistance } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
+import { createTimelineCameraParameterValues, DEFAULT_CAMERA_DISTANCE } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { TimelineSceneCamera } from '@gs/subsystems_timeline_shared/scene-camera.ts';
 import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { TIMELINE_IDENTITY, TIMELINE_FRAME } from '@gs/subsystems_timeline_shared/spatial.ts';
@@ -28,7 +28,6 @@ export async function run() {
 	const device = await adapter.requestDevice();
 	device.pushErrorScope('validation');
 	const frame = { width: 128, height: 64 };
-	const DEFAULT_CAMERA_DISTANCE = getDefaultCameraDistance(frame);
 	const vertex = device.createShaderModule({ code: vertexCode });
 	const options = {
 		device,
@@ -216,11 +215,15 @@ export async function run() {
 		id: 'camera' + nextId++,
 		name: 'Camera',
 		layerType: 'camera',
-		cameraParamValues: { ...createTimelineCameraParameterValues(frame), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) },
+		cameraParamValues: { ...createTimelineCameraParameterValues(), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) },
 	});
 	try {
 		const baseline = await render([shape()]);
 		if (baseline[(32 * 128 + 64) * 4] < 0.99) throw new Error('Baseline shape was not drawn');
+		// 【横長Sceneでも長辺画角90°・距離0.5ならZ=0の配置を維持する】
+		// 既定画角と既定距離の組だけでは、両方を縦基準へ戻す退行を検出できない。
+		// 明示的な画角・距離でカメラなしの描画と実画素を比較する。
+		same('long side field of view preserves the reference plane at an explicit distance', await render([shape()], view({ fieldOfView: 90, z: 0.5 })), baseline);
 		same('flat group recovers shape pixels translated beyond the frame', await render([group([shape(undefined, { position: [2, 0] })], 'flat', { position: [-2, 0] })]), baseline);
 		same('preserved group recovers shape pixels before projection', await render([group([shape(undefined, { position: [2, 0] })], 'preserveDepth', { position: [-2, 0] })]), baseline);
 		const textBaseline = await render([text(0)]);

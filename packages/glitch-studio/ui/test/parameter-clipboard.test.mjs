@@ -326,15 +326,15 @@ test('validates player and timeline audio inputs without transferring project re
 	assert.ok(prepareParameterBindingPaste(definition, lower, { ...timelineContext, source: { ...timelineContext.source, projectSessionId: 'other' } }));
 });
 
-// 【未設定のカメラ値も、表示中のSceneの縦横比に対応する既定値をコピーする】
-// 正方形用の定義の既定値をコピーすると、横長Sceneで貼り付けた際にカメラの位置が変わる。
-test('copies an unset camera distance using the owning scene resolution', () => {
+// 【未設定のカメラ値も、Sceneの縦横比によらず共通の既定値をコピーする】
+// 横長Sceneでも距離を縦の長さで補正せず、貼り付けた際にカメラの位置が変わらないようにする。
+test('copies an unset camera distance using the fixed default', () => {
 	const f = fixture();
 	f.state.resolution = { value: { width: 200, height: 100 } };
 	f.scene.resolution = { mode: 'project' };
 	f.scene.layers.push({ id: 'camera', layerType: 'camera', automationGraphs: [], cameraParamValues: {} });
 	const resolved = f.resolve({ ...f.timelineTarget, layerId: 'camera', parameterTarget: 'camera', paramPath: ['z'] });
-	assert.equal(resolved.value.value, 0.5 / Math.tan(Math.PI / 8) / 2);
+	assert.equal(resolved.value.value, 0.5 / Math.tan(Math.PI / 8));
 	assert.equal(resolved.before, null);
 });
 

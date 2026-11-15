@@ -1,6 +1,6 @@
 import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import { timelineTransformParamDefs } from '@gs/subsystems_timeline_shared/layers/transform/transform.ts';
-import { getTimelineCameraParameterDefinitions, timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
+import { timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { isTimelineVisualLayer, hasTimelineLayerParameters } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
@@ -16,7 +16,6 @@ import { getParameterPathLabel } from './parameter-label.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineEffectParameterBinding, TimelineParameterBinding, TimelineVisualModuleParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { Resolution } from '@gs/shared/resolution.ts';
 import type { ProjectState } from '../Project.ts';
 import type { TimelineLayer, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 
@@ -69,15 +68,13 @@ export function getLayerParameterValues(layer: TimelineLayer, target: TimelinePa
 
 /**
  * キーの値編集・挿入は、保存した型の古い選択肢ではなく現在の定義を使う。
- * 型・ラベルだけの参照では解像度は不要。既定値を書き込む編集では、
- * Camera Zを正方形用の値へ戻さないよう、所属Sceneの基準解像度を渡す。
  */
-export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualModules'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget, contextResolution: Resolution | null = null): Record<string, ParameterDefinition> {
+export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualModules'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterDefinition> {
 	if (!getLayerParameterTargets(layer).includes(target)) throw new Error('Invalid layer parameter target');
 	if (target === 'publicParameter' && hasTimelineLayerParameters(layer)) return Object.fromEntries((layer.publicParameterDefs ?? []).map(def => [def.id, def]));
 	if (target === 'audio') return timelineAudioParamDefs;
 	if (target === 'transform') return timelineTransformParamDefs;
-	if (target === 'camera') return contextResolution == null ? timelineCameraParamDefs : getTimelineCameraParameterDefinitions(contextResolution);
+	if (target === 'camera') return timelineCameraParamDefs;
 	if (target === 'compositing' && isTimelineVisualLayer(layer)) return getTimelineCompositingParameterDefinitions(layer.mask);
 	if (target === 'effect' && layer.layerType === 'effect') return getEffectDefinitions(state)[layer.effectId].paramDefs;
 	if (target === 'text' && layer.layerType === 'text') return textParamDefs;

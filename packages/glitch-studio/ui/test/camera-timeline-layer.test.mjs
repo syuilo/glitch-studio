@@ -50,16 +50,15 @@ function fixture(t) {
 	};
 }
 
-// 【カメラZのリセット・Literalへの切り替えは所属Sceneの現在の比率を使う】
-// Inspectorと新規作成だけで既定距離を換算しても、Commandが固定定義を使うと、
-// 横長Sceneでリセットするだけで表示が縮小する。プロジェクト継承・Scene独自解像度・
-// Transform配下のカメラを通し、保存値とUndo/Redoにも同じ既定距離が反映されることを確認する。
-test('uses the owning scene camera distance for reset and literal input with undo and redo', t => {
-	const squareDistance = 0.5 / Math.tan(Math.PI / 8);
-	for (const { projectResolution, sceneResolution, expectedDistance } of [
-		{ projectResolution: { width: 2000, height: 1000 }, sceneResolution: { mode: 'project' }, expectedDistance: squareDistance / 2 },
-		{ projectResolution: { width: 1000, height: 2000 }, sceneResolution: { mode: 'customAbsolute', width: 4000, height: 1000 }, expectedDistance: squareDistance / 4 },
-		{ projectResolution: { width: 2000, height: 1000 }, sceneResolution: { mode: 'customAbsolute', width: 1000, height: 2000 }, expectedDistance: squareDistance },
+// 【カメラZのリセット・Literalへの切り替えはSceneの比率によらず共通の距離を使う】
+// 長辺基準の画角では、プロジェクト継承・Scene独自解像度のどちらでも新規作成と
+// 同じ既定距離へ戻す。Transform配下のカメラでも保存値とUndo/Redoの一致を確認する。
+test('uses a fixed camera distance for creation reset and literal input with undo and redo', t => {
+	const expectedDistance = 0.5 / Math.tan(Math.PI / 8);
+	for (const { projectResolution, sceneResolution } of [
+		{ projectResolution: { width: 2000, height: 1000 }, sceneResolution: { mode: 'project' } },
+		{ projectResolution: { width: 1000, height: 2000 }, sceneResolution: { mode: 'customAbsolute', width: 4000, height: 1000 } },
+		{ projectResolution: { width: 2000, height: 1000 }, sceneResolution: { mode: 'customAbsolute', width: 1000, height: 2000 } },
 	]) {
 		const f = fixture(t);
 		f.state.resolution.value = projectResolution;
@@ -71,6 +70,7 @@ test('uses the owning scene camera distance for reset and literal input with und
 			assert.equal(camera().cameraParamValues.z.inputSource, 'literal');
 			assert.ok(Math.abs(camera().cameraParamValues.z.value - expectedDistance) < 1e-12);
 		};
+		assertDefaultDistance();
 		for (const edit of [{ kind: 'reset' }, { kind: 'inputSource', inputSource: 'literal' }]) {
 			f.edit('z', { kind: 'expression', value: 'TIME + 3' });
 			f.edit('z', edit);

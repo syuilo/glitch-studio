@@ -238,15 +238,15 @@ test('promotes an unset inline Visual Module argument into its owning timeline l
 	assert.deepEqual(f.layer, after);
 });
 
-// 【Camera Zの既定値は所属Sceneの基準解像度で引き継ぐ】
-// 値が未保存のときも正方形用の距離を使わず、公開操作で画角を変えないための確認。
-test('uses the owning scene resolution when promoting an unset camera distance', () => {
+// 【Camera Zの既定値はSceneの比率によらず共通の距離で引き継ぐ】
+// プロジェクトとSceneが異なる比率でも、未設定値の公開操作でカメラ距離を変えない。
+test('uses the fixed default when promoting an unset camera distance', () => {
 	const f = fixture();
 	f.state.resolution.value = { width: 800, height: 1600 };
 	const layer = { id: 'camera', layerType: 'camera', cameraParamValues: {}, automationGraphs: [] };
 	f.scene.layers.push(layer);
 	f.history.commit('createTimelineLayerPublicParameterFromParam', { sceneId: 'scene', layerId: layer.id, target: 'camera', paramPath: ['z'] });
-	assert.ok(Math.abs(layer.publicParameterDefs[0].defaultValue.value - 0.25 / Math.tan(Math.PI / 8)) < 1e-10);
+	assert.ok(Math.abs(layer.publicParameterDefs[0].defaultValue.value - 0.5 / Math.tan(Math.PI / 8)) < 1e-10);
 	f.history.undo();
 	assert.deepEqual(layer.cameraParamValues, {});
 	assert.equal(layer.publicParameterDefs, undefined);

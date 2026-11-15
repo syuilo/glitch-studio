@@ -29,9 +29,7 @@
 
 <script lang="ts" setup>
 import { useProjectSession } from '@/project-session.ts';
-import { getTimelineCameraParameterDefinitions } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
-import { computed } from 'vue';
-import type { Resolution } from '@gs/shared/resolution.ts';
+import { timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsSwitch from './common/GsSwitch.vue';
@@ -42,7 +40,6 @@ import { i18n } from '@/i18n.ts';
 
 const projectSession = useProjectSession();
 
-const props = defineProps<{ layer: TimelineCameraLayer; contextResolution: Resolution }>();
-const timelineCameraParamDefs = computed(() => getTimelineCameraParameterDefinitions(props.contextResolution));
+defineProps<{ layer: TimelineCameraLayer }>();
 const emit = defineEmits<{ edit: [event: ParamEdit]; motionBlur: [disabled: boolean] }>();
 </script>
