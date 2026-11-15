@@ -5,8 +5,8 @@ export default defineEffect({
 	id: 'cellTransform',
 	displayName: 'Cell Transform',
 	description: {
-		'ja-JP': '入力画像を格子状に分割し、各部分を移動・拡縮・回転させます。',
-		'en-US': 'Splits the input image into grid cells and translates, scales, and rotates each part.',
+		'ja-JP': '入力画像を格子状に分割し、各部分の参照元の位置を指定したり、移動・拡縮・回転させたりします。',
+		'en-US': 'Splits the input image into grid cells with per-cell source positions, translation, scale, and rotation.',
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
@@ -42,6 +42,19 @@ export default defineEffect({
 		// セル寸法の基準領域。入力画像のfitは接続設定で画面全体へ適用する。
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 		...cellSubdivisionParameterDefinitions,
+		sourcePositionMode: {
+			dataType: { kind: 'enum', options: ['cell', 'input'] },
+			ui: { label: 'Source Position Mode', control: { labels: { cell: 'Cell Center', input: 'Input' } } },
+			defaultValue: { inputSource: 'literal', value: 'cell' },
+		},
+		// Inputでは切り出す領域の中心を共通座標で指定する。セル番号へのスナップはせず、
+		// 拡縮・回転・移動はこの領域の内容へ適用するため、参照元の中心自体は動かさない。
+		perCellSourcePosition: {
+			dataType: { kind: 'vector' },
+			ui: { label: 'Per Cell Source Position', control: { controlType: 'vector', min: -0.5, max: 0.5, step: 0.01 } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0] },
+		},
 		perCellOpacity: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Per Cell Opacity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },

@@ -1,6 +1,7 @@
 import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
+import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { implementEffect } from '../../effect-implementation.ts';
@@ -21,6 +22,7 @@ export default implementEffect<typeof definition>({
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
 		const inactiveDensityMap = constantShaderInput('scalar', 0);
+		const inactiveSourcePosition = constantShaderInput('vector', [0, 0]);
 		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
@@ -33,6 +35,7 @@ export default implementEffect<typeof definition>({
 				input: 'color',
 				densityMap: 'scalar',
 				perCellOpacity: 'scalar',
+				perCellSourcePosition: 'vector',
 				perCellTranslation: 'vector',
 				perCellScale: 'vector',
 				perCellRotation: 'scalar',
@@ -48,6 +51,9 @@ export default implementEffect<typeof definition>({
 				const maxSubdivisionLevels = getCellSubdivisionLevels(ctx.params.subdivisionMode, ctx.params.maxSubdivisionLevels);
 				// Uniform・深度0では密度のテクスチャ参照も四分木の探索も不要にする。
 				const densityMap = maxSubdivisionLevels > 0 ? ctx.params.densityMap : inactiveDensityMap;
+				const usesSourcePositionInput = ctx.params.sourcePositionMode === 'input';
+				// Cell Centerでは未使用の座標場をGPUへ束縛せず、既存の描画に参照負荷を加えない。
+				const perCellSourcePosition = usesSourcePositionInput ? ctx.params.perCellSourcePosition : inactiveSourcePosition;
 				const usesImageWrap = ctx.params.wrapReference === 'image';
 				// Imageではセルの切り出し範囲を越えて画像全体を読むため、入力テクスチャの
 				// samplerに選択したWrap Modeを渡す。Fit・Filterと透明境界の補間は共通処理を使う。
@@ -64,6 +70,8 @@ export default implementEffect<typeof definition>({
 				const cellSize = [cellWidth / shortDimension, cellHeight / shortDimension] as const;
 				uniformValues.set({
 					aspect,
+					halfExtent: getSpatialHalfExtent(output.texture),
+					sourcePositionMode: Number(usesSourcePositionInput),
 					cellSize,
 					translationUnitScale: translationUnit === 'canvas' ? [Math.max(width, height) / shortDimension, Math.max(width, height) / shortDimension] : cellSize,
 					phase: phase.map(value => Number.isFinite(value) ? value : 0),
@@ -78,7 +86,7 @@ export default implementEffect<typeof definition>({
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				// 素材も制御用の場も出力画面を基準にfitする。素材をセルごとにfitし直すと
 				// 元画像の切り出しではなく複製になってしまうため、全体の座標対応を維持する。
-				const variant = pipelines.update({ input: sourceInput, densityMap, perCellOpacity, perCellTranslation, perCellScale, perCellRotation }, output.texture);
+				const variant = pipelines.update({ input: sourceInput, densityMap, perCellOpacity, perCellSourcePosition, perCellTranslation, perCellScale, perCellRotation }, output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, bindGroup);

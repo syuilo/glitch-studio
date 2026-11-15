@@ -1,5 +1,6 @@
 struct Uniforms {
 	aspect: vec2f,
+	halfExtent: vec2f,
 	cellSize: vec2f,
 	translationUnitScale: vec2f,
 	phase: vec2f,
@@ -10,12 +11,14 @@ struct Uniforms {
 	imageInputIsConstant: u32,
 	maxSubdivisionLevels: u32,
 	translationUsesCellUnits: u32,
+	sourcePositionMode: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct CellControls {
 	opacity: f32,
+	sourcePosition: vec2f,
 	translation: vec2f,
 	scale: vec2f,
 	rotation: f32,
@@ -44,6 +47,7 @@ fn sampleCellControls(cellCenter: vec2f, cellSize: vec2f, cosine: f32, sine: f32
 	let extraRows = uniforms.controlSamples % rowCount;
 	var completedSamples = 0u;
 	var opacity = 0.0;
+	var sourcePosition = vec2f(0.0);
 	var translation = vec2f(0.0);
 	var scale = vec2f(0.0);
 	var rotation = 0.0;
@@ -60,6 +64,9 @@ fn sampleCellControls(cellCenter: vec2f, cellSize: vec2f, cosine: f32, sine: f32
 				-sine * gridSample.x + cosine * gridSample.y,
 			) * 2.0 / uniforms.aspect;
 			opacity += read_perCellOpacity(samplePosition);
+			if (uniforms.sourcePositionMode != 0u) {
+				sourcePosition += read_perCellSourcePosition(samplePosition);
+			}
 			translation += read_perCellTranslation(samplePosition);
 			scale += read_perCellScale(samplePosition);
 			// 角度も折り返す前の値を算術平均し、複数周の情報を保つ。
@@ -68,7 +75,7 @@ fn sampleCellControls(cellCenter: vec2f, cellSize: vec2f, cosine: f32, sine: f32
 		completedSamples += columns;
 	}
 	let sampleCount = f32(uniforms.controlSamples);
-	return CellControls(opacity / sampleCount, translation / sampleCount, scale / sampleCount, rotation / sampleCount);
+	return CellControls(opacity / sampleCount, sourcePosition / sampleCount, translation / sampleCount, scale / sampleCount, rotation / sampleCount);
 }
 
 @fragment
@@ -95,7 +102,8 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 
 	// 変形がなければ分割方法によらず元画像をそのまま保つ。格子座標を往復する
 	// 丸め誤差によってサンプル位置がずれたり、セル境界に隙間が出たりするのを避ける。
-	if (all(controls.translation == vec2f(0.0)) && all(controls.scale == vec2f(1.0)) && controls.rotation == 0.0) {
+	// 座標入力時は変形がなくても参照元が変わるため、この短絡経路を使わない。
+	if (uniforms.sourcePositionMode == 0u && all(controls.translation == vec2f(0.0)) && all(controls.scale == vec2f(1.0)) && controls.rotation == 0.0) {
 		return read_input(position) * opacity;
 	}
 
@@ -133,12 +141,17 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		}
 	}
 
-	// 各セルへ画像全体を複製せず、元のセル中心を足して画面全体の参照座標に戻す。
-	let sourceGridPosition = cellCenter + wrappedSourceLocalPosition;
-	let sourcePosition = vec2f(
+	// Inputではセル内の相対位置だけを画面座標へ戻し、最後に絶対座標を足す。
+	// 参照元の中心を格子のAngleや個別の拡縮・回転に巻き込まないことで、
+	// 同じ副入力値は分割方法にかかわらず同じ画像上の位置を指す。
+	let sourceGridPosition = select(cellCenter, vec2f(0.0), uniforms.sourcePositionMode != 0u) + wrappedSourceLocalPosition;
+	var sourcePosition = vec2f(
 		cosine * sourceGridPosition.x + sine * sourceGridPosition.y,
 		-sine * sourceGridPosition.x + cosine * sourceGridPosition.y,
 	) * 2.0 / uniforms.aspect;
+	if (uniforms.sourcePositionMode != 0u) {
+		sourcePosition += controls.sourcePosition / uniforms.halfExtent;
+	}
 	if (uniforms.wrapReference == 0u) {
 		// Cellでは画面端で途切れたセルの表示領域外を画像片に含めない。
 		if (any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
