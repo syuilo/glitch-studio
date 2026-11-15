@@ -6,7 +6,7 @@ const parameters = () => ({
 	simulationTime: 3, timeStep: 0.01, antialiasing: false, view: { center: [0, 0], zoom: 1 },
 	initialAngularVelocity1: 0, initialAngularVelocity2: 0, lengthRatio: 1, massRatio: 1, gravity: 9.81,
 	coloringMethod: 'angle1', angularVelocityRange: 10,
-	ramp: { interpolation: 'linear', colorSpace: 'srgb', stops: [
+	ramp: { interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 		{ id: 'start', position: 0, color: [0, 0, 0, 1] }, { id: 'end', position: 1, color: [1, 1, 1, 1] },
 	] },
 });

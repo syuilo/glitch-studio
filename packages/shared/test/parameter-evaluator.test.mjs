@@ -34,19 +34,23 @@ const context = (overrides = {}) => ({
 // 個別stopのBindingは追加せず、既存のオブジェクト値の式評価を使う。戻り値の検証と再評価の再現性も確認する。
 test('evaluates complete Color Ramp expressions and modifiers without mutating stored values', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	const ramp = { colorSpace: 'srgb', interpolation: 'linear', stops: [{ id: 'start', position: 0, color: [1, 0, 0, 1] }, { id: 'end', position: 1, color: [0, 0, 1, 1] }] };
+	const ramp = { colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', interpolation: 'linear', stops: [{ id: 'start', position: 0, color: [1, 0, 0, 1] }, { id: 'end', position: 1, color: [0, 0, 1, 1] }] };
 	const definition = { dataType: { kind: 'colorRamp' }, ui: { label: 'Ramp' } };
-	const source = modified(literal(ramp), 'VALUE.colorSpace = "oklch"\nVALUE.hueInterpolation = "increasing"\nVALUE.stops[0].position = TIME\nVALUE');
+	const source = modified(literal(ramp), 'VALUE.colorSpace = "oklch"\nVALUE.hueInterpolation = "increasing"\nVALUE.repeatCount = 2.5\nVALUE.repeatMode = "pingPong"\nVALUE.stops[0].position = TIME\nVALUE');
 	for (const time of [0.5, 0, 0.5]) {
 		const value = evaluator.evaluate(source, context({ variables: { TIME: time } }), null, definition);
 		assert.equal(value.colorSpace, 'oklch');
 		assert.equal(value.hueInterpolation, 'increasing');
+		assert.equal(value.repeatCount, 2.5);
+		assert.equal(value.repeatMode, 'pingPong');
+		assert.equal(ramp.repeatCount, 1);
+		assert.equal(ramp.repeatMode, 'wrap');
 		assert.equal(value.stops[0].position, time);
 		assert.equal(ramp.colorSpace, 'srgb');
 		assert.equal(ramp.hueInterpolation, undefined);
 		assert.equal(ramp.stops[0].position, 0);
 	}
-	const code = '{ colorSpace: "linearSrgb", interpolation: "constant", stops: [{ id: "only", position: 0, color: [TIME, 0, 0, 1] }] }';
+	const code = '{ colorSpace: "linearSrgb", interpolation: "constant", repeatCount: 1, repeatMode: "wrap", stops: [{ id: "only", position: 0, color: [TIME, 0, 0, 1] }] }';
 	assert.equal(evaluator.evaluate(expression(code), context({ variables: { TIME: 0.25 } }), null, definition).stops[0].color[0], 0.25);
 	assert.throws(() => evaluator.evaluate(expression('{}'), context(), ramp, definition), /Base expression for parameter "Ramp"/);
 	assert.throws(() => evaluator.evaluate(modified(literal(ramp), 'VALUE.colorSpace = "unknown"\nVALUE'), context(), ramp, definition), /Modifier expression for parameter "Ramp"/);

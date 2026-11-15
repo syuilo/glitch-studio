@@ -167,7 +167,7 @@ export async function run(includePreview = false, includeVariationsPreview = fal
 
 		// 【配色は各地点で混ざり、周期とモードの切替を保つ】
 		// Constant補間でも一つのレイ上に赤と青が混在することで、描画後の色付けになっていないと確認する。
-		const twoColorRamp: ColorRamp = { interpolation: 'constant', colorSpace: 'linearSrgb', stops: [
+		const twoColorRamp: ColorRamp = { interpolation: 'constant', colorSpace: 'linearSrgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 			{ id: 'red', position: 0, color: [1, 0, 0, 1] },
 			{ id: 'blue', position: 0.5, color: [0, 0, 1, 1] },
 		] };
@@ -182,7 +182,7 @@ export async function run(includePreview = false, includeVariationsPreview = fal
 
 		// 【Rampのalphaを一度だけ掛け、HDRをクランプせずに発光へ渡す】
 		// 単色の光量比から、二重alpha・0〜1への制限・出力alphaとの混同を検出する。
-		const whiteRamp: ColorRamp = { interpolation: 'linear', colorSpace: 'linearSrgb', stops: [{ id: 'white', position: 0, color: [1, 1, 1, 1] }] };
+		const whiteRamp: ColorRamp = { interpolation: 'linear', colorSpace: 'linearSrgb', repeatCount: 1, repeatMode: 'wrap', stops: [{ id: 'white', position: 0, color: [1, 1, 1, 1] }] };
 		const whiteSheets = await render({ ...rampSettings, ramp: whiteRamp });
 		const transparentRamp: ColorRamp = { ...whiteRamp, stops: [{ id: 'transparent', position: 0, color: [1, 0.5, 2, 0] }] };
 		for (const [component, alpha] of [[1, 0.5], [2, 1]]) {
@@ -196,7 +196,7 @@ export async function run(includePreview = false, includeVariationsPreview = fal
 		// 【色周波数0では選んだ位相の色を各地点で使い、補間方式・色空間を尊重する】
 		// 既知の単色出力との比で照合し、レイマーチ自体の式はテストへ複製しない。
 		for (const colorSpace of ['linearSrgb', 'srgb', 'oklab', 'oklch'] as const) {
-			const ramp: ColorRamp = { colorSpace, interpolation: 'smoothstep', stops: [
+			const ramp: ColorRamp = { colorSpace, interpolation: 'smoothstep', repeatCount: 1, repeatMode: 'wrap', stops: [
 				{ id: 'start', position: 0, color: [0.8, 0.1, 0.2, 0.8] },
 				{ id: 'end', position: 1, color: [0.1, 0.5, 0.9, 0.4] },
 			] };

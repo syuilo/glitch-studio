@@ -1,4 +1,4 @@
-struct ColorRampSettings { count: u32, interpolation: u32, colorSpace: u32, padding: u32 };
+struct ColorRampSettings { count: u32, interpolation: u32, colorSpace: u32, repeatMode: u32, repeatCount: f32 };
 struct ColorRampStop { position: vec4f, color: vec4f, linearColor: vec4f };
 @group(__COLOR_RAMP_GROUP__) @binding(0) var<uniform> colorRampSettings: ColorRampSettings;
 @group(__COLOR_RAMP_GROUP__) @binding(1) var<storage, read> colorRampStops: array<ColorRampStop>;
@@ -27,8 +27,25 @@ fn colorRampOutputColor(color: vec4f) -> vec4f {
 	return vec4f(rgb * color.a, color.a);
 }
 
+// stopの配置によらず0〜1を繰り返す。CPUのcolorRampRepeatPositionと同じ端点規則を使う。
+fn colorRampRepeatPosition(value: f32) -> f32 {
+	if (!(value > 0.0)) { return 0.0; }
+	let clampedPosition = min(value, 1.0);
+	let repeatedPosition = clampedPosition * colorRampSettings.repeatCount;
+	if (colorRampSettings.repeatMode == 0u) {
+		let wrappedPosition = fract(repeatedPosition);
+		// 内部は先頭へ戻し、整数回で終わる右端だけ終端色を保持する。
+		if (clampedPosition == 1.0 && wrappedPosition == 0.0) { return 1.0; }
+		return wrappedPosition;
+	}
+	let cyclePosition = repeatedPosition % 2.0;
+	if (cyclePosition <= 1.0) { return cyclePosition; }
+	return 2.0 - cyclePosition;
+}
+
 // 戻り値は乗算済みlinear sRGB。呼び出し側でalphaを再乗算しない。
-fn evaluateColorRamp(value: f32) -> vec4f {
+fn evaluateColorRamp(inputPosition: f32) -> vec4f {
+	let value = colorRampRepeatPosition(inputPosition);
 	// NaNも先頭へ寄せる。入力テクスチャの不正な値を添字に使わない。
 	if (!(value >= colorRampStops[0].position.x)) { return colorRampStops[0].linearColor; }
 	var lower = 0u;

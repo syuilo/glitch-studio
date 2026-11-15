@@ -74,6 +74,8 @@ export default defineEffect({
 				value: {
 					interpolation: 'linear',
 					colorSpace: 'srgb',
+					repeatCount: 1,
+					repeatMode: 'wrap',
 					stops: [
 						{ id: 'empty', position: 0, color: [0, 0, 0, 0] },
 						{ id: 'low', position: 0.2, color: srgbToLinearSrgb([0.1, 0.25, 0.6, 0.6]) },

@@ -19,7 +19,7 @@ export async function run() {
 		if (!condition) throw new Error(label);
 		checks.push(label);
 	};
-	const ramp: ColorRamp = { interpolation: 'linear', colorSpace: 'srgb', stops: [
+	const ramp: ColorRamp = { interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 		{ id: 'start', position: 0, color: [1, 0, 0, 0.5] },
 		{ id: 'end', position: 1, color: [0, 0, 1, 0.5] },
 	] };

@@ -104,7 +104,7 @@ export default defineEffect({
 		},
 		ramp: {
 			dataType: { kind: 'colorRamp' }, ui: { label: 'Palette', control: {} },
-			defaultValue: { inputSource: 'literal', value: { interpolation: 'linear', colorSpace: 'srgb', stops: [
+			defaultValue: { inputSource: 'literal', value: { interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 				{ id: 'blue', position: 0, color: srgbToLinearSrgb([0.08, 0.15, 0.8, 1]) },
 				{ id: 'cyan', position: 0.35, color: srgbToLinearSrgb([0.05, 0.9, 1, 1]) },
 				{ id: 'pink', position: 0.7, color: srgbToLinearSrgb([1, 0.1, 0.5, 1]) },

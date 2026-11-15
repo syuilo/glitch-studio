@@ -12,7 +12,7 @@ const hue350 = srgbToLinearSrgb([0.7090230868, 0.4824507734, 0.5882349397, 1]);
 const hue10 = srgbToLinearSrgb([0.7300260394, 0.4811885705, 0.5173839076, 1]);
 const hue0 = srgbToLinearSrgb([0.7216633302, 0.4807007626, 0.5531313216, 1]);
 const hue180 = srgbToLinearSrgb([0.3225405424, 0.624848172, 0.5683289785, 1]);
-const circularRamp = { interpolation: 'linear', colorSpace: 'oklch', stops: [
+const circularRamp = { interpolation: 'linear', colorSpace: 'oklch', repeatCount: 1, repeatMode: 'wrap', stops: [
 	{ id: 'start', position: 0, color: hue350 }, { id: 'end', position: 1, color: hue10 },
 ] };
 const easedInterpolationSamples = [
@@ -20,6 +20,78 @@ const easedInterpolationSamples = [
 	{ interpolation: 'easeIn', amounts: [0.0625, 0.25, 0.5625] },
 	{ interpolation: 'easeOut', amounts: [0.4375, 0.75, 0.9375] },
 ];
+
+// 【繰り返しの継ぎ目と右端を区別し、小数回や1回未満も同じ単位で評価する】
+// Wrapの内部境界は先頭へ戻すが、整数回で終わる右端は終端色を残す。
+// Ping-pongの1回は片道なので、1回では両方式の結果が同じでなければならない。
+// 期待値は既知の位置を列挙し、実装と同じ計算式をテスト内に複製しない。
+test('repeats ramps with fractional counts and preserves the final wrap endpoint', () => {
+	const cases = [
+		{ repeatCount: 0.5, wrap: [0, 0.125, 0.25, 0.375, 0.5], pingPong: [0, 0.125, 0.25, 0.375, 0.5] },
+		{ repeatCount: 1, wrap: [0, 0.25, 0.5, 0.75, 1], pingPong: [0, 0.25, 0.5, 0.75, 1] },
+		{ repeatCount: 1.5, wrap: [0, 0.375, 0.75, 0.125, 0.5], pingPong: [0, 0.375, 0.75, 0.875, 0.5] },
+		{ repeatCount: 2, wrap: [0, 0.5, 0, 0.5, 1], pingPong: [0, 0.5, 1, 0.5, 0] },
+		{ repeatCount: 2.5, wrap: [0, 0.625, 0.25, 0.875, 0.5], pingPong: [0, 0.625, 0.75, 0.125, 0.5] },
+		{ repeatCount: 3, wrap: [0, 0.75, 0.5, 0.25, 1], pingPong: [0, 0.75, 0.5, 0.25, 1] },
+	];
+	for (const { repeatCount, ...expected } of cases) {
+		for (const repeatMode of ['wrap', 'pingPong']) {
+			const ramp = { ...createDefaultColorRamp(), repeatCount, repeatMode };
+			const before = structuredClone(ramp);
+			for (const [index, position] of [0, 0.25, 0.5, 0.75, 1].entries()) {
+				const amount = expected[repeatMode][index];
+				near(sample(ramp, position), [amount, amount, amount, 1]);
+			}
+			for (const position of [-Infinity, -1, NaN]) near(sample(ramp, position), [0, 0, 0, 1]);
+			for (const position of [2, Infinity]) near(sample(ramp, position), sample(ramp, 1));
+			assert.deepEqual(ramp, before);
+		}
+	}
+	const repeated = { ...createDefaultColorRamp(), repeatCount: 3 };
+	near(sample(repeated, 1 / 3), [0, 0, 0, 1]);
+	near(sample(repeated, 2 / 3), [0, 0, 0, 1]);
+	assert.ok(sample({ ...repeated, repeatCount: 2 }, 0.5 - 2 ** -24)[0] > 0.999);
+	assert.ok(sample({ ...repeated, repeatCount: 2 }, 0.5 + 2 ** -24)[0] < 0.001);
+});
+
+// 【繰り返しは補間より前に作用し、stopの配置・色空間・透明度の規約を変えない】
+// 端にないstopと重複stopを使い、stop間の幅を周期にしてしまう実装を検出する。
+// HDR・負値・半透明・各補間も含め、参照位置以外の配色処理へ影響しないことを確認する。
+test('repeats the full unit domain before evaluating stops and color interpolation', () => {
+	for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch']) {
+		for (const interpolation of ['constant', 'linear', 'smoothstep', 'smootherstep', 'easeIn', 'easeOut']) {
+			const base = { ...createDefaultColorRamp(), colorSpace, interpolation, stops: [
+				{ id: 'start', position: 0.25, color: [2, -0.1, 0.2, 0.75] },
+				{ id: 'first-middle', position: 0.5, color: [0, 1, 0, 0.4] },
+				{ id: 'last-middle', position: 0.5, color: [1, 0, 1, 0.2] },
+				{ id: 'end', position: 0.75, color: [0, 0, 1, 0] },
+			] };
+			for (const repeatMode of ['wrap', 'pingPong']) {
+				const repeated = { ...base, repeatCount: 2, repeatMode };
+				for (const [position, wrapPosition, pingPongPosition] of [[0.0625, 0.125, 0.125], [0.1875, 0.375, 0.375], [0.25, 0.5, 0.5], [0.5, 0, 1], [0.6875, 0.375, 0.625], [1, 1, 0]]) {
+					near(sample(repeated, position), sample(base, repeatMode === 'wrap' ? wrapPosition : pingPongPosition));
+				}
+				near(sample({ ...repeated, stops: [base.stops[0]] }, 0.75), [1.5, -0.075, 0.15, 0.75]);
+			}
+		}
+	}
+});
+
+// 【繰り返し設定は正のGPU表現可能な数値と既知の方式だけを受け付ける】
+// 式や貼り付けからも値が届くため、0・非有限値・f32で0になる値を描画へ渡さない。
+// 準備時の丸めで保存値を書き換えず、CPUとGPUには同じ繰り返し数を渡す。
+test('validates repeat settings and prepares float32 counts without mutating stored values', () => {
+	const ramp = createDefaultColorRamp();
+	for (const repeatCount of [null, undefined, '2', 0, -1, NaN, Infinity, Number.MAX_VALUE, Number.MIN_VALUE]) {
+		assert.throws(() => validateColorRamp({ ...ramp, repeatCount }), /repeat count/);
+	}
+	for (const repeatMode of [null, undefined, 'clamp', 'unknown', 0]) {
+		assert.throws(() => validateColorRamp({ ...ramp, repeatMode }), /repeat mode/);
+	}
+	ramp.repeatCount = 2.1;
+	assert.equal(prepareColorRamp(ramp).repeatCount, Math.fround(2.1));
+	assert.equal(ramp.repeatCount, 2.1);
+});
 
 // 【端点・範囲外・単一stopと補間方法の意味を維持する】
 // CPUプレビューとGPUが共有する仕様の基準。停止点の色を厳密に保持し、初期値を別のパラメータと共有しない。
@@ -58,7 +130,7 @@ test('applies local easing consistently to colors alpha and all OKLCH hue arcs',
 	for (const { interpolation, amounts } of easedInterpolationSamples) {
 		for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch']) {
 			for (const hueInterpolation of ['shorter', 'longer', 'increasing', 'decreasing']) {
-				const ramp = { interpolation, colorSpace, hueInterpolation, stops: [
+				const ramp = { interpolation, colorSpace, hueInterpolation, repeatCount: 1, repeatMode: 'wrap', stops: [
 					{ id: 'start', position: 0.25, color: [...hue350.slice(0, 3), 0.8] }, { id: 'end', position: 0.75, color: [...hue10.slice(0, 3), 0.2] },
 				] };
 				for (const [index, position] of [0.375, 0.5, 0.625].entries()) near(sample(ramp, position), sample({ ...ramp, interpolation: 'linear' }, 0.25 + 0.5 * amounts[index]));

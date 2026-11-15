@@ -16,7 +16,7 @@ export default defineEffect({
 		ramp: { dataType: { kind: 'colorRamp' }, ui: { label: 'Ramp', control: {} }, defaultValue: { inputSource: 'literal', value: createDefaultColorRamp() } },
 		mode: {
 			dataType: { kind: 'enum', options: ['clamp', 'wrap', 'pingPong'] },
-			ui: { label: 'Mode', control: { labels: { clamp: 'Clamp', wrap: 'Wrap', pingPong: 'Ping-pong' } } },
+			ui: { label: 'Input Range Mode', control: { labels: { clamp: 'Clamp', wrap: 'Wrap', pingPong: 'Ping-pong' } } },
 			defaultValue: { inputSource: 'literal', value: 'clamp' },
 		},
 	},

@@ -40,12 +40,14 @@
 ## Color Ramp
 
 `{ kind: 'colorRamp' }`は、scalarからcolorへの対応表を一つの末端値として扱います。
-`packages/shared/src/color-ramp.ts`の`ColorRamp`は`stops`・`interpolation`・`colorSpace`を持ち、
+`packages/shared/src/color-ramp.ts`の`ColorRamp`は`stops`・`interpolation`・`colorSpace`・`repeatCount`・`repeatMode`を持ち、
 各stopは`{ id, position, color }`です。stop内部にはBindingを持たせません。
 
 - stopは1個以上。IDはランプ内で一意な空でない文字列、位置は0〜1の有限値とします。RGBAは未乗算linear sRGBの有限値で、alphaは0〜1です。
-- 初期値は位置0の黒と位置1の白（不透明）、Linear・Linear sRGBです。RGBの有限な範囲外値は保存・描画結果の両方に保持します。
-- 評価では位置をGPUと同じf32へ丸め、保存順を保って位置順に並べます。同位置では保存順で最後のstopを採用し、左から近づく区間には最初のstopを使います。範囲外は端の色、単一stopは全域でその色です。保存値の順序・位置は変更しません。
+- 初期値は位置0の黒と位置1の白（不透明）、Linear・Linear sRGB・繰り返し1回・Wrapです。RGBの有限な範囲外値は保存・描画結果の両方に保持します。
+- `repeatCount`は正の有限値で、GPUのf32で有限かつ正の値として表現できる必要があります。小数も許し、0.5回なら元の配色の前半だけを表示します。`repeatMode`は`wrap`または`pingPong`です。どちらも片道を1回とし、Ping-pongの2回は`0→1→0`、3回は`0→1→0→1`です。
+- 繰り返しの領域はstopの配置によらず0〜1固定です。入力を0〜1へ制限して繰り返し位置へ変換し、その後にstopを評価します。Wrapの内部の継ぎ目は先頭へ戻しますが、整数回で終わる位置1では終端色を維持します。小数回では途中の色で終わります。0〜1の範囲外は、繰り返し後の端の色を延長します。入力・繰り返し数・その積はGPUと同じf32へ丸め、周期境界の選択を揃えます。
+- 評価ではstop位置をGPUと同じf32へ丸め、保存順を保って位置順に並べます。同位置では保存順で最後のstopを採用し、左から近づく区間には最初のstopを使います。繰り返し後の参照位置がstopの範囲外ならその端の色、単一stopは全域でその色です。保存値の順序・位置は変更しません。
 - 補間は`constant`・`linear`・`smoothstep`・`smootherstep`・`easeIn`・`easeOut`、補間色空間は`srgb`・`linearSrgb`・`oklab`・`oklch`です。色空間の設定変更で保存済みのRGBAを書き換えません。
 - `linear`以外の連続補間は、隣接stop間の進行率`t`（0〜1）を変換してから色・alpha・OKLCHの色相へ同じ進行率を適用します。`smoothstep`は`t²(3−2t)`、`smootherstep`は`t³(6t²−15t＋10)`で、後者は両端の1階・2階微分が0です。`easeIn`は`t²`で始点の色を長く保ち、`easeOut`は`t(2−t)`で早めに終点の色へ移る二次補間です。
 - 選択した色空間へ変換してからalphaを乗算して補間します。OKLCHではCSS Color 4と同様にL・Cだけへalphaを乗算し、色相はalphaと独立に補間します。完全透明な有彩色stopも色相を保持するため、alphaの0と微小な正値で色相の経路が切り替わりません。補間後は乗算した成分を未乗算へ戻し、linear sRGBへ変換して再びalphaを乗算します。RGBはclampしません。alphaが0の場合は透明色を返します。端点とConstantでは色空間変換の往復を省略します。
@@ -53,7 +55,9 @@
 - 固定値・環境変数・ランプ全体を返す基準式と加工式・Visual Moduleの公開入力で利用できます。キーフレーム・Automation Graph・テクスチャとしてのノード接続は扱いません。
 - 式は各stopのIDを安定した文字列で返してください。加工式の`VALUE`もランプ全体で、式の内部変更は保存値へ書き戻されません。不正な構造や非有限値はエラーとして報告します。
 
-専用UIはプレビューをクリックすると編集用ポップアップを開き、stopの追加・削除・選択・色・位置を編集します。OKLCHを選択したときだけ色相の補間経路を表示します。バーのダブルクリックでその位置へ追加し、追加色は現在の補間色から取得します。重複stopは選択欄から個別に選べます。左右キーで0.01、Shift併用で0.1移動し、Delete/Backspaceで削除します。最後のstopは削除できません。外側のクリック・Escape・閉じるボタンでポップアップを閉じ、開いている間の変更を一つのUndoにまとめます。
+専用UIはプレビューをクリックすると編集用ポップアップを開き、stopの追加・削除・選択・色・位置と繰り返し設定を編集します。バーは繰り返し後の結果を表示しますが、stopのハンドルは繰り返し前の位置を保ちます。「繰り返し前を表示」はエディタのバーだけを切り替え、保存値やUndoには影響しません。プリセットのプレビューにも現在の繰り返し設定を反映し、適用時は設定を維持してstopだけを置き換えます。
+
+OKLCHを選択したときだけ色相の補間経路を表示します。バーのダブルクリックでその位置へ追加し、追加色は表示切替によらず繰り返し前の補間色から取得します。重複stopは選択欄から個別に選べます。左右キーで0.01、Shift併用で0.1移動し、Delete/Backspaceで削除します。最後のstopは削除できません。外側のクリック・Escape・閉じるボタンでポップアップを閉じ、開いている間の変更を一つのUndoにまとめます。
 
 ```aiscript
 // ランプ全体を返す式
@@ -61,6 +65,8 @@
   interpolation: "linear"
   colorSpace: "oklch"
   hueInterpolation: "shorter"
+  repeatCount: 2.5
+  repeatMode: "pingPong"
   stops: [
     { id: "start", position: 0, color: [1, 0, 0, 1] }
     { id: "end", position: 1, color: [0, 0, 1, 1] }

@@ -151,7 +151,7 @@ export async function run(benchmark = false) {
 		for (const port of allPorts) assert(repeat.values.get(port)!.every((value, index) => value === colored.values.get(port)![index]), `${port} independent of render history and clock`);
 		// 後続の解析的なRGBAの期待値はlinear sRGBでの補間を前提とする。
 		// sRGB補間ではAA標本ごとの非線形変換によって、同じ中間色にはならない。
-		const ramp: ColorRamp = { interpolation: 'linear', colorSpace: 'linearSrgb', stops: [
+		const ramp: ColorRamp = { interpolation: 'linear', colorSpace: 'linearSrgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 			{ id: 'start', position: 0, color: [1, 0, 0, 0.5] }, { id: 'end', position: 1, color: [0, 0, 1, 0.5] },
 		] };
 		const ramped = await single.render({ simulationTime: 0.375, view: { center: [0.7, 0.4], zoom: 1 }, coloringMethod: 'angle2', ramp });

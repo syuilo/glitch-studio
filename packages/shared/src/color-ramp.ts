@@ -9,12 +9,15 @@ export type ColorRamp = {
 	stops: ColorRampStop[];
 	interpolation: typeof COLOR_RAMP_INTERPOLATIONS[number];
 	colorSpace: 'srgb' | 'linearSrgb' | 'oklab' | 'oklch';
+	/** 0〜1に含める片道の回数。正の小数も許し、stopの保存位置は変更しない。 */
+	repeatCount: number;
+	repeatMode: 'wrap' | 'pingPong';
 	/** OKLCHの色相経路。省略時はCSSと同じshorterで、他の色空間には影響しない。 */
 	hueInterpolation?: 'shorter' | 'longer' | 'increasing' | 'decreasing';
 };
 
 export function createDefaultColorRamp(): ColorRamp {
-	return { interpolation: 'linear', colorSpace: 'linearSrgb', stops: [
+	return { interpolation: 'linear', colorSpace: 'linearSrgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 		{ id: 'start', position: 0, color: [0, 0, 0, 1] },
 		{ id: 'end', position: 1, color: [1, 1, 1, 1] },
 	] };
@@ -26,6 +29,8 @@ export function validateColorRamp(value: unknown): asserts value is ColorRamp {
 	const ramp = value as Record<string, unknown>;
 	if (typeof ramp.interpolation !== 'string' || !COLOR_RAMP_INTERPOLATIONS.some(interpolation => interpolation === ramp.interpolation)) throw new Error('Invalid Color Ramp interpolation');
 	if (typeof ramp.colorSpace !== 'string' || !['srgb', 'linearSrgb', 'oklab', 'oklch'].includes(ramp.colorSpace)) throw new Error('Invalid Color Ramp color space');
+	if (typeof ramp.repeatCount !== 'number' || !Number.isFinite(Math.fround(ramp.repeatCount)) || Math.fround(ramp.repeatCount) <= 0) throw new Error('Color Ramp repeat count must be positive and representable as a finite GPU float32');
+	if (ramp.repeatMode !== 'wrap' && ramp.repeatMode !== 'pingPong') throw new Error('Invalid Color Ramp repeat mode');
 	if (ramp.hueInterpolation != null && (typeof ramp.hueInterpolation !== 'string' || !['shorter', 'longer', 'increasing', 'decreasing'].includes(ramp.hueInterpolation))) throw new Error('Invalid Color Ramp hue interpolation');
 	if (!Array.isArray(ramp.stops) || ramp.stops.length === 0) throw new Error('Color Ramp requires at least one stop');
 	const ids = new Set<string>();
@@ -51,7 +56,7 @@ function toWorkingColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace
 	return [lightness, chroma, hue / 360, alpha];
 }
 
-export type PreparedColorRamp = Pick<ColorRamp, 'interpolation' | 'colorSpace'> & {
+export type PreparedColorRamp = Pick<ColorRamp, 'interpolation' | 'colorSpace' | 'repeatCount' | 'repeatMode'> & {
 	stops: { position: number; color: ColorRampColor; linearColor: ColorRampColor; segmentHues: [number, number] | null }[];
 };
 
@@ -85,7 +90,7 @@ function prepareSegmentHues(left: ColorRampColor, right: ColorRampColor, method:
 export function prepareColorRamp(ramp: ColorRamp): PreparedColorRamp {
 	validateColorRamp(ramp);
 	const stops = ramp.stops.map(stop => ({ position: Math.fround(stop.position), color: toWorkingColor(stop.color, ramp.colorSpace), linearColor: stop.color })).sort((a, b) => a.position - b.position);
-	return { interpolation: ramp.interpolation, colorSpace: ramp.colorSpace, stops: stops.map((stop, index) => {
+	return { interpolation: ramp.interpolation, colorSpace: ramp.colorSpace, repeatCount: Math.fround(ramp.repeatCount), repeatMode: ramp.repeatMode, stops: stops.map((stop, index) => {
 		const color = stop.color;
 		const alpha = color[3];
 		// alpha=0を分岐して、極端なRGBの変換結果によるInfinity * 0を避ける。
@@ -115,8 +120,25 @@ function toOutputColor(color: ColorRampColor, colorSpace: ColorRamp['colorSpace'
 	return [r * alpha, g * alpha, b * alpha, alpha];
 }
 
+/** 繰り返しはstopの最小・最大位置によらず0〜1を単位とする。範囲外は繰り返し後の端の色を延長する。 */
+function colorRampRepeatPosition(ramp: PreparedColorRamp, position: number): number {
+	if (Number.isNaN(position)) return 0;
+	// 不連続なWrap境界でCPUとGPUが別の周期を選ばないよう、入力と積をf32へ揃える。
+	const clampedPosition = Math.fround(Math.min(1, Math.max(0, position)));
+	const repeatedPosition = Math.fround(clampedPosition * ramp.repeatCount);
+	if (ramp.repeatMode === 'wrap') {
+		const wrappedPosition = repeatedPosition - Math.floor(repeatedPosition);
+		// 内部の継ぎ目は先頭へ戻すが、整数回で終わる右端は終端色を残す。
+		// これにより既定の1回でも位置1が先頭色へ変わらず、小数回では途中の色で終わる。
+		return clampedPosition === 1 && wrappedPosition === 0 ? 1 : wrappedPosition;
+	}
+	const cyclePosition = repeatedPosition % 2;
+	return cyclePosition <= 1 ? cyclePosition : 2 - cyclePosition;
+}
+
 /** 戻り値は乗算済みlinear sRGB。同位置の最後のstopを選び、幅0の区間を補間しない。 */
 export function evaluatePreparedColorRamp(ramp: PreparedColorRamp, position: number): ColorRampColor {
+	position = colorRampRepeatPosition(ramp, position);
 	const stops = ramp.stops;
 	if (Number.isNaN(position) || position < stops[0].position) return [...stops[0].linearColor];
 	let lower = 0;

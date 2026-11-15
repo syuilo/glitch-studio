@@ -153,7 +153,7 @@ export async function run(benchmark = false) {
 		near(antialiased.pixel('escapedMask')[0], escaped / 4, 'AA mask');
 		for (const port of ['escapeIterations', 'smoothIterations', 'triangleInequalityAverage'] as const) near(antialiased.pixel(port)[0], samples.reduce((sum, sample) => sum + sample[port], 0) / Math.max(1, escaped), `AA ${port}`);
 		assert(true, 'antialiasing matches four independent orbits');
-		const transparent = await single.render({ ...aaParameters, ramp: { interpolation: 'linear', colorSpace: 'srgb', stops: [
+		const transparent = await single.render({ ...aaParameters, ramp: { interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 			{ id: 'a', position: 0, color: [1, 0, 0, 0.5] }, { id: 'b', position: 1, color: [1, 0, 0, 0.5] },
 		] }, unescapedColor: constantShaderInput('color', [1, 0, 0, 0.5]) });
 		near(transparent.pixel('output')[0], 0.5, 'premultiplied red'); near(transparent.pixel('output')[3], 0.5, 'premultiplied alpha');

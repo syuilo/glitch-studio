@@ -47,6 +47,8 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	ramp.colorSpace = 'oklch';
 	ramp.hueInterpolation = 'decreasing';
 	ramp.interpolation = 'smootherstep';
+	ramp.repeatCount = 2.5;
+	ramp.repeatMode = 'pingPong';
 	ramp.stops.push({ id: 'middle', position: 0.5, color: [1, 0, 0, 0.5] });
 	history.commit('updateParamAsLiteral', { ...target, value: ramp }, 'drag');
 	ramp.stops[2].position = 0.75;
@@ -60,6 +62,8 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	assert.equal(node.params.ramp.value.colorSpace, 'oklch');
 	assert.equal(node.params.ramp.value.hueInterpolation, 'decreasing');
 	assert.equal(node.params.ramp.value.interpolation, 'easeOut');
+	assert.equal(node.params.ramp.value.repeatCount, 2.5);
+	assert.equal(node.params.ramp.value.repeatMode, 'pingPong');
 	const modifier = { enabled: true, code: 'VALUE.colorSpace = "oklab"\nVALUE' };
 	history.commit('updateParamExpressionModifier', { ...target, value: modifier });
 	history.commit('changeParamValueInputSource', { ...target, inputSource: 'expression' });
@@ -165,6 +169,56 @@ function createStopDrag({ find, findAll }, id) {
 	};
 }
 
+// 【繰り返し設定はstopを動かさずプレビューへ伝わり、元の配色表示は履歴を作らない】
+// 位置や色を書き換えて繰り返しを表現すると、元の配色を再編集できなくなる。
+// 表示切替はエディタ内だけの状態とし、保存値やUndoへ混入させない。
+test('edits repetition without changing stops and toggles the unmodified preview locally', async t => {
+	const { state, events, find } = await fixture(t);
+	const originalStops = JSON.parse(JSON.stringify(state.modelValue.stops));
+	find('data-test-color-ramp-repeat-count').props.onInput(2.5);
+	await nextTick();
+	find('data-test-color-ramp-repeat-mode').props.onInput('pingPong');
+	await nextTick();
+	assert.equal(state.modelValue.repeatCount, 2.5);
+	assert.equal(state.modelValue.repeatMode, 'pingPong');
+	assert.deepEqual(JSON.parse(JSON.stringify(state.modelValue.stops)), originalStops);
+	assert.equal(find('data-test-color-ramp-editor-preview').props.ramp, state.modelValue);
+	const previewSwitch = find('data-test-color-ramp-unrepeated-preview');
+	previewSwitch.props.onInput(true);
+	await nextTick();
+	assert.equal(find('data-test-color-ramp-editor-preview').props.ramp.repeatCount, 1);
+	assert.equal(state.modelValue.repeatCount, 2.5);
+	previewSwitch.props.onInput(false);
+	await nextTick();
+	assert.equal(find('data-test-color-ramp-editor-preview').props.ramp, state.modelValue);
+	for (const value of [0, -1, NaN, Infinity, Number.MAX_VALUE, Number.MIN_VALUE]) find('data-test-color-ramp-repeat-count').props.onInput(value);
+	await nextTick();
+	assert.equal(state.modelValue.repeatCount, 2.5);
+	assert.deepEqual(events, ['value', 'value']);
+});
+
+// 【繰り返し中のstop追加には、表示色ではなく繰り返し前の補間色を使う】
+// 2回繰り返す黒白のバーでは位置0.75の表示色は0.5だが、元の配色の同位置は0.75。
+// 表示切替の状態によらず元の色を挿入し、追加位置も元の0〜1で保つ。
+test('inserts stops in the original ramp coordinates and colors while repeating', async t => {
+	const { state, find } = await fixture(t);
+	for (const repeatMode of ['wrap', 'pingPong']) {
+		for (const showUnrepeatedPreview of [false, true]) {
+			state.modelValue = { ...createDefaultColorRamp(), repeatCount: 2, repeatMode };
+			find('data-test-color-ramp-unrepeated-preview').props.onInput(showUnrepeatedPreview);
+			await nextTick();
+			const track = find('data-test-color-ramp-track');
+			track.getBoundingClientRect = () => ({ left: 100, width: 200 });
+			track.props.onDblclick({ clientX: 250 });
+			await nextTick();
+			assert.equal(state.modelValue.stops[2].position, 0.75);
+			assert.deepEqual(Array.from(state.modelValue.stops[2].color), [0.75, 0.75, 0.75, 1]);
+			assert.equal(state.modelValue.repeatCount, 2);
+			assert.equal(state.modelValue.repeatMode, repeatMode);
+		}
+	}
+});
+
 // 【追加した補間方法を選び、stop追加時も表示中の補間色を使う】
 // 選択肢への追加だけでなく、モデル更新から追加色の評価まで同じ設定が届くことを確認する。
 test('inserts stops using the selected smootherstep or quadratic interpolation', async t => {
@@ -215,7 +269,7 @@ test('edits OKLCH hue interpolation without rewriting stop colors', async t => {
 // 同じプリセットの再適用で元の色と透明度を復元でき、IDと選択も新しいstopへ移ることを確認する。
 test('applies independent preset stops while preserving interpolation settings', async t => {
 	const { state, events, find, findAll } = await fixture(t);
-	state.modelValue = { ...state.modelValue, interpolation: 'smootherstep', colorSpace: 'oklch', hueInterpolation: 'decreasing' };
+	state.modelValue = { ...state.modelValue, interpolation: 'smootherstep', colorSpace: 'oklch', hueInterpolation: 'decreasing', repeatCount: 2.5, repeatMode: 'pingPong' };
 	await nextTick();
 	const originalStopIds = state.modelValue.stops.map(stop => stop.id);
 	const preset = COLOR_RAMP_PRESETS.find(preset => preset.id === 'white-alpha-pulse');
@@ -227,6 +281,8 @@ test('applies independent preset stops while preserving interpolation settings',
 	assert.equal(state.modelValue.interpolation, 'smootherstep');
 	assert.equal(state.modelValue.colorSpace, 'oklch');
 	assert.equal(state.modelValue.hueInterpolation, 'decreasing');
+	assert.equal(state.modelValue.repeatCount, 2.5);
+	assert.equal(state.modelValue.repeatMode, 'pingPong');
 	assert.equal(new Set(state.modelValue.stops.map(stop => stop.id)).size, preset.stops.length);
 	assert.ok(state.modelValue.stops.every(stop => !originalStopIds.includes(stop.id)));
 	assert.equal(find('data-test-color-ramp-position').props.value, state.modelValue.stops[0].position);
@@ -252,12 +308,18 @@ test('updates all preset previews only when interpolation settings change', asyn
 	await nextTick();
 	find('data-test-color-ramp-hue-interpolation').props.onInput('longer');
 	await nextTick();
+	find('data-test-color-ramp-repeat-count').props.onInput(3);
+	await nextTick();
+	find('data-test-color-ramp-repeat-mode').props.onInput('pingPong');
+	await nextTick();
 	const previews = findAll('data-test-color-ramp-preset-preview').map(element => element.props.ramp);
 	assert.equal(previews.length, COLOR_RAMP_PRESETS.length);
 	for (const [index, ramp] of previews.entries()) {
 		assert.equal(ramp.interpolation, 'constant');
 		assert.equal(ramp.colorSpace, 'oklch');
 		assert.equal(ramp.hueInterpolation, 'longer');
+		assert.equal(ramp.repeatCount, 3);
+		assert.equal(ramp.repeatMode, 'pingPong');
 		assert.deepEqual(ramp.stops.map(stop => ({ position: stop.position, color: Array.from(stop.color) })), COLOR_RAMP_PRESETS[index].stops);
 	}
 	find('data-test-color-ramp-position').props.onInput(0.2);
@@ -435,7 +497,7 @@ test('edits stable stop IDs and initializes inserted colors from the current ram
 // 同じコントロールへ別の保存値が届いても、削除済みstopの色入力を残さず新しい値を表示する。
 test('synchronizes replacement ramps and selects an existing stop without emitting edits', async t => {
 	const { state, events, find } = await fixture(t);
-	state.modelValue = { colorSpace: 'oklab', interpolation: 'constant', stops: [{ id: 'replacement', position: 0.4, color: [1, 0, 0, 1] }] };
+	state.modelValue = { colorSpace: 'oklab', repeatCount: 1, repeatMode: 'wrap', interpolation: 'constant', stops: [{ id: 'replacement', position: 0.4, color: [1, 0, 0, 1] }] };
 	await nextTick();
 	assert.equal(find('data-test-color-ramp-position').props.value, 0.4);
 	assert.deepEqual(events, []);

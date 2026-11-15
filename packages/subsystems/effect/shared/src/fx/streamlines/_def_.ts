@@ -25,7 +25,7 @@ export default defineEffect({
 		maximumMagnitude: { dataType: { kind: 'scalar' }, ui: { label: 'Maximum Magnitude', control: { controlType: 'number', min: 0.000001, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
 		ramp: {
 			dataType: { kind: 'colorRamp' }, ui: { label: 'Ramp', control: {} },
-			defaultValue: { inputSource: 'literal', value: { interpolation: 'linear', colorSpace: 'srgb', stops: [
+			defaultValue: { inputSource: 'literal', value: { interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 				{ id: 'start', position: 0, color: srgbToLinearSrgb([0.1, 0.6, 1, 1]) },
 				{ id: 'end', position: 1, color: srgbToLinearSrgb([1, 0.85, 0.1, 1]) },
 			] } },

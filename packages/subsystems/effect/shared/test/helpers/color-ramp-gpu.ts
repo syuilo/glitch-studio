@@ -59,11 +59,14 @@ export async function run() {
 	try {
 		if (definition.paramDefs.mode.defaultValue.value !== 'clamp' || definition.paramDefs.mode.dataType.options.join(',') !== 'clamp,wrap,pingPong') throw new Error('Color Ramp input mode contract');
 		for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch'] as const) for (const interpolation of COLOR_RAMP_INTERPOLATIONS) {
-			const ramp: ColorRamp = { colorSpace, interpolation, stops: [
+			const ramp: ColorRamp = { colorSpace, interpolation, repeatCount: 1, repeatMode: 'wrap', stops: [
 				{ id: 'start', position: 0, color: [1, 0, 0, 0.8] }, { id: 'middle', position: 0.5, color: [0, 1, 0, 0.3] }, { id: 'end', position: 1, color: [0, 0, 1, 0] },
 			] };
 			await compare(ramp, input, positions, `${colorSpace}/${interpolation}/texture`);
 			await compare(ramp, constantShaderInput('scalar', 0.25), positions.map(() => 0.25), `${colorSpace}/${interpolation}/uniform`);
+			for (const repeatMode of ['wrap', 'pingPong'] as const) {
+				await compare({ ...ramp, repeatCount: 2.5, repeatMode }, input, positions, `${colorSpace}/${interpolation}/${repeatMode}/repeated texture`);
+			}
 		}
 		// 全経路で、alphaの0と微小値・無彩色の区間ごとの色相補完・同色相の一周を
 		// 実際のWGSLで評価する。alpha乗算後のCから無彩色を判定すると透明な有彩色で失敗する。
@@ -78,7 +81,7 @@ export async function run() {
 			{ label: 'fully transparent', colors: [[1, 0, 0, 0], [0, 0, 1, 0]] },
 		];
 		for (const hueInterpolation of ['shorter', 'longer', 'increasing', 'decreasing'] as const) for (const { label, colors } of hueCases) {
-			const ramp: ColorRamp = { interpolation: 'linear', colorSpace: 'oklch', hueInterpolation, stops: colors.map((color, index) => ({ id: `stop-${index}`, position: index / (colors.length - 1), color })) };
+			const ramp: ColorRamp = { interpolation: 'linear', colorSpace: 'oklch', hueInterpolation, repeatCount: 1, repeatMode: 'wrap', stops: colors.map((color, index) => ({ id: `stop-${index}`, position: index / (colors.length - 1), color })) };
 			await compare(ramp, input, positions, `oklch/${hueInterpolation}/${label}`);
 		}
 		const ramp = createDefaultColorRamp();
@@ -104,7 +107,7 @@ export async function run() {
 		// alpha=0の入力場でもR成分のスカラーを参照し、色として扱わないことも確認する。
 		device.queue.writeTexture({ texture: rangeTexture }, new Float16Array(modeCases.flatMap(([value]) => [value, 0, 0, 0])), { bytesPerRow: resolution.width * 8 }, resolution);
 		const rangeInput = textureShaderInput(rangeTexture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' });
-		const insetRamp: ColorRamp = { colorSpace: 'srgb', interpolation: 'linear', stops: [
+		const insetRamp: ColorRamp = { colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', interpolation: 'linear', stops: [
 			{ id: 'start', position: 0.125, color: [1, 0, 0, 0.75] },
 			{ id: 'middle', position: 0.5, color: [0, 1, 0, 0.25] },
 			{ id: 'end', position: 0.875, color: [0, 0, 1, 0.5] },
@@ -123,6 +126,20 @@ export async function run() {
 			}
 		}
 		await compare(insetRamp, rangeInput, modeCases.map(values => values[1]), 'restored clamp with updated ramp');
+		// 【繰り返し数の変更はbufferだけを更新し、入力の範囲外処理と順に適用する】
+		// 小数回・片道の数え方・右端・1/3のようなf32へ丸められる継ぎ目を実際の画素で照合する。
+		// 端にないstopを使うことで、繰り返す領域をstopの最小・最大位置と取り違えないようにする。
+		for (const repeatMode of ['wrap', 'pingPong'] as const) {
+			for (const repeatCount of [0.5, 1, 1.5, 2, 2.1, 2.5, 3]) {
+				const repeatedRamp = { ...insetRamp, repeatCount, repeatMode };
+				for (const value of [0, 0.25, 1 / 3, 0.5 - 2 ** -24, 0.5, 0.5 + 2 ** -24, 2 / 3, 0.75, 1]) {
+					await compare(repeatedRamp, constantShaderInput('scalar', value), positions.map(() => value), `${repeatMode}/${repeatCount}/repeated uniform ${value}`);
+				}
+				for (const [index, mode] of definition.paramDefs.mode.dataType.options.entries()) {
+					await compare(repeatedRamp, rangeInput, modeCases.map(values => values[index + 1]), `${repeatMode}/${repeatCount}/${mode}/repeated range texture`, mode);
+				}
+			}
+		}
 		return { checks };
 	} finally {
 		effect.dispose(); buffer.destroy(); output.destroy(); copyTarget.destroy(); scalarTexture.destroy(); rangeTexture.destroy(); device.destroy();

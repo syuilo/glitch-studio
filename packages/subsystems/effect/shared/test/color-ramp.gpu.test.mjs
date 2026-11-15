@@ -13,6 +13,7 @@ import { build } from 'esbuild';
 // 型チェックでは検出できないWGSLのbinding・補間・alpha変換を実際の画素で確認する。
 // 定数とテクスチャの両方を使い、同位置の境界とbufferの拡張・縮小でも同じ結果を保つ。
 // Clamp・Wrap・Ping-pongは0〜1固定で処理し、負値・上限ちょうど・複数周期の結果も確認する。
+// Color Ramp自体の繰り返しを全補間・色空間で確認し、小数回と右端を含めて入力の範囲外処理と区別する。
 test('matches Color Ramp CPU evaluation on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 90000 }, async t => {
 	const bundle = await build({ plugins: [wgslShaderEsbuildPlugin()], entryPoints: [fileURLToPath(new URL('./helpers/color-ramp-gpu.ts', import.meta.url))], bundle: true, platform: 'browser', format: 'esm', write: false, loader: { '.wgsl': 'text' } });
 	const result = Promise.withResolvers();
@@ -44,7 +45,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'Color Ramp GPU test timed out' }), 75000);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
-		assert.ok(output.checks.length >= 158);
+		assert.ok(output.checks.length >= 374);
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {
 		clearTimeout(timer);

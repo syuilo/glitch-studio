@@ -1,6 +1,7 @@
 import { COLOR_RAMP_INTERPOLATIONS, prepareColorRamp } from '../color-ramp.ts';
-import shaderCode from './color-ramp.wgsl?raw';
+import shaderCode, { uniforms } from './color-ramp.wgsl?shader';
 import oklabShaderCode from './oklab.wgsl?raw';
+import { createShaderBuffer } from './shader-buffer.ts';
 import type { ColorRamp } from '../color-ramp.ts';
 
 /** 指定したshader stageで使う1つのColor Rampのbindingとbufferを所有する。 */
@@ -9,7 +10,8 @@ export function createColorRampBindings(device: GPUDevice, group: number, visibi
 		{ binding: 0, visibility, buffer: { type: 'uniform' } },
 		{ binding: 1, visibility, buffer: { type: 'read-only-storage' } },
 	] });
-	const settings = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+	const settingsData = createShaderBuffer(uniforms.colorRampSettings);
+	const settings = device.createBuffer({ size: settingsData.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	let capacity = 48;
 	let stops = device.createBuffer({ size: capacity, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 	const createBindGroup = () => device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: settings } }, { binding: 1, resource: { buffer: stops } }] });
@@ -44,7 +46,14 @@ export function createColorRampBindings(device: GPUDevice, group: number, visibi
 				values.set(stop.linearColor, index * 12 + 8);
 			}
 			device.queue.writeBuffer(stops, 0, values);
-			device.queue.writeBuffer(settings, 0, new Uint32Array([prepared.stops.length, COLOR_RAMP_INTERPOLATIONS.indexOf(prepared.interpolation), ['srgb', 'linearSrgb', 'oklab', 'oklch'].indexOf(prepared.colorSpace), 0]));
+			settingsData.set({
+				count: prepared.stops.length,
+				interpolation: COLOR_RAMP_INTERPOLATIONS.indexOf(prepared.interpolation),
+				colorSpace: ['srgb', 'linearSrgb', 'oklab', 'oklch'].indexOf(prepared.colorSpace),
+				repeatMode: prepared.repeatMode === 'wrap' ? 0 : 1,
+				repeatCount: prepared.repeatCount,
+			});
+			device.queue.writeBuffer(settings, 0, settingsData.arrayBuffer);
 			previousRamp = rampKey;
 			return bindGroup;
 		},

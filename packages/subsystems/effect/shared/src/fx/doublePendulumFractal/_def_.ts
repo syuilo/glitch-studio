@@ -77,7 +77,7 @@ export default defineEffect({
 			dataType: { kind: 'colorRamp' },
 			ui: { label: 'Color Ramp', control: {} },
 			defaultValue: { inputSource: 'literal', value: {
-				interpolation: 'linear', colorSpace: 'srgb', stops: [
+				interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 					{ id: 'start', position: 0, color: srgbToLinearSrgb([0.05, 0.15, 0.6, 1]) },
 					{ id: 'middle', position: 0.5, color: srgbToLinearSrgb([0.1, 0.9, 0.8, 1]) },
 					{ id: 'end', position: 1, color: srgbToLinearSrgb([0.9, 0.1, 0.6, 1]) },

@@ -15,7 +15,7 @@
 			<div :class="$style.leftArea" class="_gaps_m">
 				<div ref="track" :class="$style.track" data-test-color-ramp-track @dblclick="addAtPointer">
 					<div style="height: 24px;">
-						<GsColorRampPreview :ramp="modelValue"/>
+						<GsColorRampPreview :ramp="showUnrepeatedPreview ? unrepeatedRamp : modelValue" data-test-color-ramp-editor-preview/>
 					</div>
 					<div :class="$style.stops">
 						<div
@@ -40,6 +40,23 @@
 					</GsInput>
 					<GsColorInput :key="selectedStop.id" :modelValue="normalizeColor(selectedStop.color)" :title="title" @update:modelValue="updateStop({ color: $event })"/>
 				</template>
+				<hr>
+				<div :class="$style.repeatSettings">
+					<GsInput
+						data-test-color-ramp-repeat-count type="number" :modelValue="modelValue.repeatCount" :min="0" :step="0.1"
+						@update:modelValue="updateRepeatCount($event)"
+					>
+						<template #label>{{ i18n.ts._ColorRamp.RepeatCount }}</template>
+					</GsInput>
+					<GsSelect
+						data-test-color-ramp-repeat-mode :modelValue="modelValue.repeatMode" :items="[
+							{ value: 'wrap', label: 'Wrap' }, { value: 'pingPong', label: 'Ping-pong' },
+						]" @update:modelValue="updateRamp({ repeatMode: $event })"
+					>
+						<template #label>{{ i18n.ts._ColorRamp.RepeatMode }}</template>
+					</GsSelect>
+				</div>
+				<GsSwitch v-model="showUnrepeatedPreview" data-test-color-ramp-unrepeated-preview>{{ i18n.ts._ColorRamp.ShowUnrepeatedPreview }}</GsSwitch>
 				<hr>
 				<GsSelect
 					data-test-color-ramp-interpolation :modelValue="modelValue.interpolation" :items="[
@@ -98,6 +115,7 @@ import GsColorRampPreview from './GsColorRampPreview.vue';
 import GsColorInput from './GsColorInput.vue';
 import GsInput from './GsInput.vue';
 import GsSelect from './GsSelect.vue';
+import GsSwitch from './GsSwitch.vue';
 import GsButton from './GsButton.vue';
 import GsFolder from './GsFolder.vue';
 import type { ColorRamp, ColorRampColor, ColorRampStop } from '@gs/shared/color-ramp.ts';
@@ -125,17 +143,24 @@ const stopChoices = computed(() => props.modelValue.stops.map((stop, index) => (
 const presetPreviewInterpolation = computed(() => props.modelValue.interpolation);
 const presetPreviewColorSpace = computed(() => props.modelValue.colorSpace);
 const presetPreviewHueInterpolation = computed(() => props.modelValue.hueInterpolation);
+const presetPreviewRepeatCount = computed(() => props.modelValue.repeatCount);
+const presetPreviewRepeatMode = computed(() => props.modelValue.repeatMode);
 const presetPreviews = computed(() => COLOR_RAMP_PRESETS.map(preset => ({
 	preset,
 	ramp: {
 		interpolation: presetPreviewInterpolation.value,
 		colorSpace: presetPreviewColorSpace.value,
 		hueInterpolation: presetPreviewHueInterpolation.value,
+		repeatCount: presetPreviewRepeatCount.value,
+		repeatMode: presetPreviewRepeatMode.value,
 		// プレビューにも有効なstop IDが必要だが、編集用のIDは適用時に発行する。
 		stops: preset.stops.map((stop, index) => ({ id: String(index), position: stop.position, color: [...stop.color] as ColorRampColor })),
 	},
 })));
 const track = useTemplateRef('track');
+const showUnrepeatedPreview = ref(false);
+// stopの座標は繰り返し前の0〜1。表示切替と追加色の取得に同じ元の配色を使う。
+const unrepeatedRamp = computed<ColorRamp>(() => ({ ...props.modelValue, repeatCount: 1 }));
 const STOP_DRAG_REMOVAL_DISTANCE = 40;
 const removedStopDuringDrag = shallowRef<{ stop: ColorRampStop; index: number; remainingStopIds: string[] } | null>(null);
 const displayedStops = computed(() => {
@@ -167,6 +192,11 @@ function onKeydown(event: KeyboardEvent) {
 
 function updateRamp(changes: Partial<ColorRamp>) { emit('update:modelValue', { ...props.modelValue, ...changes }); }
 
+function updateRepeatCount(repeatCount: number) {
+	if (!Number.isFinite(Math.fround(repeatCount)) || Math.fround(repeatCount) <= 0) return;
+	if (repeatCount !== props.modelValue.repeatCount) updateRamp({ repeatCount });
+}
+
 function applyPreset(preset: ColorRampPreset) {
 	stopDrag?.();
 	const stops: ColorRampStop[] = preset.stops.map(stop => ({ id: genId(), position: stop.position, color: [...stop.color] }));
@@ -185,7 +215,8 @@ function updatePosition(position: number) {
 }
 
 function addStop(position: number) {
-	const color = evaluatePreparedColorRamp(prepareColorRamp(props.modelValue), position);
+	// 表示中の繰り返し後の色を採ると、元の配色へ別の位置の色が混入してしまう。
+	const color = evaluatePreparedColorRamp(prepareColorRamp(unrepeatedRamp.value), position);
 	const alpha = color[3];
 	const unpremultiplied: ColorRampColor = alpha > 0 ? [color[0] / alpha, color[1] / alpha, color[2] / alpha, alpha] : [0, 0, 0, 0];
 	const id = genId();
@@ -286,7 +317,7 @@ onBeforeUnmount(() => stopDrag?.());
 	box-sizing: border-box;
 	width: 800px;
 	max-width: 100vw;
-	height: 350px;
+	max-height: calc(100dvh - 32px);
 	overflow: auto;
 	padding: 14px;
 	border-radius: 10px;
@@ -335,6 +366,12 @@ onBeforeUnmount(() => stopDrag?.());
 }
 .rightArea {
 	flex: 0.5;
+}
+
+.repeatSettings {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
 }
 
 .track {

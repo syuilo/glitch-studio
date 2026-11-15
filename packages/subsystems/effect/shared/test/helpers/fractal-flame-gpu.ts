@@ -32,7 +32,7 @@ export async function run() {
 	const assert = (condition: boolean, label: string) => { if (!condition) throw new Error(label); checks.push(label); };
 	const near = (actual: number, expected: number, label: string, tolerance = 0.001) => assert(Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance, `${label}: ${actual} ~= ${expected}`);
 	const effectDefaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, defaultValue(parameter.dataType, parameter.defaultValue)])) as Parameters;
-	const redRamp: ColorRamp = { interpolation: 'linear', colorSpace: 'srgb', stops: [{ id: 'red', position: 0, color: [1, 0, 0, 1] }] };
+	const redRamp: ColorRamp = { interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [{ id: 'red', position: 0, color: [1, 0, 0, 1] }] };
 	const defaults: Parameters = { ...effectDefaults, transforms: [fixedTransform()], ramp: redRamp, orbitCount: 128, iterations: 64, burnIn: 32, densityResolution: '256', symmetry: 1, gamma: 1, exposure: 1 };
 	const readLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }] });
 	const reader = device.createRenderPipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [readLayout] }), vertex: { module: vertex }, fragment: {
@@ -120,7 +120,7 @@ export async function run() {
 		// 【Computeからも既存のRampの全補間方式・色空間を同じ規則で使う】
 		// 端点だけのPaletteでは見つからないGPU stageの変更や、色空間・alphaの不一致を検出する。
 		for (const interpolation of COLOR_RAMP_INTERPOLATIONS) for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch'] as const) {
-			const ramp: ColorRamp = { interpolation, colorSpace, stops: [{ id: 'a', position: 0, color: [0.9, 0.1, 0.3, 0.5] }, { id: 'b', position: 1, color: [0.1, 0.7, 0.9, 0.5] }] };
+			const ramp: ColorRamp = { interpolation, colorSpace, repeatCount: 1, repeatMode: 'wrap', stops: [{ id: 'a', position: 0, color: [0.9, 0.1, 0.3, 0.5] }, { id: 'b', position: 1, color: [0.1, 0.7, 0.9, 0.5] }] };
 			const pixels = await single.render({ ramp });
 			const expected = evaluatePreparedColorRamp(prepareColorRamp(ramp), 0.5);
 			assert(expected.every((value, channel) => Math.abs(pixels.pixel('output')[channel] - value * intensity) < 0.016), `${interpolation}/${colorSpace} compute palette matches CPU within fixed-point precision`);
@@ -128,7 +128,7 @@ export async function run() {
 		// 【構造的な配色では各サンプルの色を平均し、平均した色位置から色を引かない】
 		// 同じ固定点で0と1の色位置を等確率に選ぶと、色位置はほぼ一様になる。
 		// 中央だけ緑のPaletteで、平均位置0.5を引いて全面が緑になる誤りを区別する。
-		const splitRamp: ColorRamp = { interpolation: 'constant', colorSpace: 'srgb', stops: [
+		const splitRamp: ColorRamp = { interpolation: 'constant', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 			{ id: 'red', position: 0, color: [1, 0, 0, 1] }, { id: 'green', position: 0.49, color: [0, 1, 0, 1] }, { id: 'blue', position: 0.51, color: [0, 0, 1, 1] },
 		] };
 		const mixed = await single.render({ transforms: [fixedTransform({ colorPosition: 0 }), fixedTransform({ colorPosition: 1 })], ramp: splitRamp, iterations: 128 });
