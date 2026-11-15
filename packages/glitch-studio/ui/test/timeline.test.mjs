@@ -19,10 +19,10 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewPlaybackController } = module.exports;
 
-for (const jitter of [0, 0.15]) {
+for (const jitter of [-0.15, 0, 0.15]) {
 	// 【60Hz・60fpsでは小さな時刻誤差で描画機会を捨てない】
 	// intervalとの厳密比較と剰余によるFPS制限は、理想的な時刻列でも丸め誤差で一枚を飛ばす。
-	// 実際のRAFに相当する微小な揺れも含め、全てのフレームを一度ずつ要求する。
+	// 境界の前後へ揺れる場合も含め、全てのフレームを一度ずつ要求する。
 	test(`requests every 60 fps frame across 60 Hz callbacks with ${jitter} ms jitter`, t => {
 		const { playback, timelineRenderer, frame } = setup(t, 60);
 		const requests = [];
@@ -31,6 +31,80 @@ for (const jitter of [0, 0.15]) {
 		frame(1000);
 		for (let index = 1; index <= 300; index++) frame(1000 + index * 1000 / 60 + (index % 2 === 0 ? 0 : jitter));
 		assert.deepEqual(requests, Array.from({ length: 301 }, (_, index) => index));
+	});
+}
+
+for (const clock of ['RAF', 'audio']) {
+	for (const fps of [15, 29.97, 60, 120]) {
+		// 【ブラウザーの時刻が丸められても、再生中の各フレームを一度ずつ要求する】
+		// 60Hzの時刻を0.1ms単位に丸めると、33.3msなどが境界直前になり、厳密な切り捨てでは
+		// 601フレームのうち200フレームが欠落する。音声時計の有無・小数fps・高fpsでも確認する。
+		test(`requests every frame at ${fps} fps from ${clock} despite rounded clocks`, t => {
+			let position = 0;
+			const audio = clock === 'audio' ? { error: { value: null }, start() {}, stop() {}, currentTime: () => position } : null;
+			const { playback, timelineRenderer, frame } = setup(t, fps, audio);
+			const requests = [];
+			timelineRenderer.renderTimelineAt = time => requests.push(Math.round(time * fps / 1000));
+			playback.playTimeline();
+			frame(1000);
+			for (let index = 1; index <= 600; index++) {
+				position = Math.round(index * 1000 / fps * 10) / 10;
+				frame(1000 + position);
+			}
+			assert.equal(requests.length, 601);
+			assert.deepEqual(requests, Array.from({ length: 601 }, (_, index) => index));
+			assert.ok(Math.abs(playback.currentTimelineTime.value - position) < 1e-6);
+		});
+	}
+}
+
+// 【再生中の許容誤差は境界直前だけに適用し、時計と精密シークの時刻は動かさない】
+// 単純な四捨五入では低fps時に大きく先の映像を表示してしまう。境界から十分離れた時刻では
+// 前のフレームを保ち、境界付近でも表示のための補正を音声時計へ戻して蓄積しない。
+test('only tolerates small early boundaries without changing the clock or precise seeks', t => {
+	let position = 0;
+	const audio = { error: { value: null }, start() {}, stop() {}, currentTime: () => position };
+	const { playback, timelineRenderer, frame } = setup(t, 2, audio);
+	const requests = [];
+	timelineRenderer.renderTimelineAt = (...args) => requests.push(args);
+	playback.playTimeline();
+	frame(0);
+	position = 300;
+	frame(16);
+	position = 499.4;
+	frame(32);
+	assert.deepEqual(requests, [[0]]);
+	position = 499.6;
+	frame(48);
+	assert.deepEqual(requests, [[0], [500]]);
+	assert.equal(playback.currentTimelineTime.value, 499.6);
+	frame(64);
+	assert.deepEqual(requests, [[0], [500]]);
+	playback.seekTimeline(499.8, true, 'precise');
+	assert.deepEqual(requests.at(-1), [499.8, false, 'precise']);
+	assert.equal(playback.currentTimelineTime.value, 499.8);
+});
+
+for (const [duration, positionBeforeEnd, lastFrame] of [[1000, 999.9, 59], [999.8, 999.7, 59], [1000.2, 1000.1, 60]]) {
+	// 【終端直前の許容誤差でSceneの外を描画せず、周回後は先頭フレームへ戻る】
+	// 次の境界がScene終端と一致する場合も、終端を少し超える場合も、先行表示で透明フレームを
+	// 挟まない。端数を持つ最終フレームは残し、音声の実際の周回を待って先頭へ戻す。
+	test(`keeps playback inside a ${duration} ms scene until the audio clock wraps`, t => {
+		let position = 0;
+		const audio = { error: { value: null }, start() {}, stop() {}, currentTime: () => position };
+		const { playback, timelineRenderer, frame } = setup(t, 60, audio, duration);
+		const requests = [];
+		timelineRenderer.renderTimelineAt = time => requests.push(time);
+		playback.playTimeline();
+		frame(0);
+		position = positionBeforeEnd;
+		frame(16);
+		assert.deepEqual(requests, [0, lastFrame * 1000 / 60]);
+		assert.equal(playback.currentTimelineTime.value, positionBeforeEnd);
+		position = 0;
+		frame(32);
+		assert.deepEqual(requests, [0, lastFrame * 1000 / 60, 0]);
+		assert.equal(playback.currentTimelineTime.value, 0);
 	});
 }
 

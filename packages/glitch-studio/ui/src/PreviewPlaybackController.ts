@@ -257,7 +257,7 @@ export class PreviewPlaybackController {
 		if (this.disposed) return;
 		this.cancelTimelineBake();
 		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
-			// 音声時計自体は丸めない。表示する画像だけを現在位置以前の境界に揃え、
+			// 音声時計自体は丸めない。表示する画像だけを丸め誤差を許容したフレーム境界に揃え、
 			// 停止中はカーソルの時刻も描画時刻に一致させる。
 			const precise = this.timelineSeekMode === 'precise';
 			const renderTime = this.getTimelineRenderTime(this.timelineTime.value);
@@ -280,8 +280,18 @@ export class PreviewPlaybackController {
 	private getTimelineRenderTime(time: number): number {
 		const fps = this.getTimelinePreviewFps();
 		if (this.timelineSeekMode === 'precise' || fps == null || fps <= 0) return time;
-		return this.isTimelinePlaying.value
-			? Math.max(0, Math.floor(time * fps / 1000 + 1e-7)) * 1000 / fps : this.snapTimelineTime(time);
+		if (!this.isTimelinePlaying.value) return this.snapTimelineTime(time);
+		// 60Hzの33.333...msが33.3msへ丸められると、厳密な切り捨てでは一つ前のフレームを
+		// 重複表示し、次の更新で一枚飛ばしてしまう。境界直前の小さな揺れだけを許容する。
+		// 補正は表示フレームの選択に限定し、再生時計や精密シークの時刻には戻さない。
+		const frameBoundaryToleranceMs = Math.min(0.5, 1000 / fps / 2);
+		const frameIndex = Math.max(0, Math.floor((time + frameBoundaryToleranceMs) * fps / 1000));
+		const duration = this.getDuration();
+		// 終端直前の許容誤差で区間外の透明フレームを先行表示しない。端数を持つ最終フレームを
+		// 含めてScene内に制限し、先頭への周回は丸め前の再生時計が戻ったときに行う。
+		const lastFrameIndex = time <= duration && Number.isFinite(duration) && duration > 0
+			? Math.max(0, Math.ceil(duration * fps / 1000) - 1) : Infinity;
+		return Math.min(frameIndex, lastFrameIndex) * 1000 / fps;
 	}
 
 	/** Workerを解放する間も、表示モードと再開位置を保持する。 */
