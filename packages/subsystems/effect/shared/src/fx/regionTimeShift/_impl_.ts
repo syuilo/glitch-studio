@@ -91,6 +91,8 @@ export default implementEffect<typeof definition>({
 		let frameCount = 0;
 		let newestLayer = 0;
 		let lastCaptureTime: number | null = null;
+		let nextCaptureTime: number | null = null;
+		let previousCaptureInterval: number | null = null;
 		let lastRenderTime: number | null = null;
 		let previousInputSettings: string | null = null;
 		const ages = new Float32Array(64);
@@ -101,6 +103,8 @@ export default implementEffect<typeof definition>({
 			frameCount = 0;
 			newestLayer = 0;
 			lastCaptureTime = null;
+			nextCaptureTime = null;
+			previousCaptureInterval = null;
 		};
 
 		return {
@@ -137,8 +141,15 @@ export default implementEffect<typeof definition>({
 				));
 				if (params.reset || discontinuity || inputSettings !== previousInputSettings) clearHistory();
 				previousInputSettings = inputSettings;
+				if (captureInterval !== previousCaptureInterval) {
+					nextCaptureTime = lastCaptureTime == null ? time : lastCaptureTime + captureInterval;
+					previousCaptureInterval = captureInterval;
+				}
+				// 時計の丸めを最大0.5ms許容する。短い保存間隔でも先取りは半周期までとする。
+				const captureTolerance = Math.min(0.5, captureInterval / 2);
+				const captureDue = captureInterval === 0 || nextCaptureTime == null || time + captureTolerance >= nextCaptureTime;
 				const sameTime = lastRenderTime != null && Math.abs(elapsed) <= 0.001;
-				if (lastCaptureTime == null || sameTime || time - lastCaptureTime >= captureInterval - 0.001) {
+				if (sameTime || captureDue) {
 					// 停止中の再描画では同じ時刻のスロットを上書きする。再描画回数だけで
 					// リングを進めると、パラメータ編集で過去のフレームを失ってしまう。
 					if (frameCount > 0 && lastCaptureTime != null && time - lastCaptureTime > 0.001) {
@@ -161,6 +172,14 @@ export default implementEffect<typeof definition>({
 					if (frameCount === 0 || lastCaptureTime == null || time - lastCaptureTime > 0.001) frameCount = Math.min(layers, frameCount + 1);
 					history.times[newestLayer] = time;
 					lastCaptureTime = time;
+					if (captureDue) {
+						// 描画待ちの端数を累積させず、元の保存周期を維持する。判定と同じ猶予を
+						// 予定の更新にも使い、停止中の上書きだけでは次の予定を先送りしない。
+						const deadline = nextCaptureTime ?? time;
+						nextCaptureTime = captureInterval > 0
+							? deadline + (Math.floor((time + captureTolerance - deadline) / captureInterval) + 1) * captureInterval
+							: time;
+					}
 				}
 				// フレーム番号ではなく各保存画像の実時刻を渡す。保存できない中間フレームを
 				// 現在の画像で埋めず、存在する画像の中から要求した遅延に近いものを選ぶ。

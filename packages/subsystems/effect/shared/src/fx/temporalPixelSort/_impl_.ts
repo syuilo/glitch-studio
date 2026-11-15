@@ -119,8 +119,10 @@ export default implementEffect<typeof definition>({
 					nextCaptureTime = lastCaptureTime == null ? elapsedSeconds : lastCaptureTime + captureInterval;
 					previousCaptureInterval = captureInterval;
 				}
+				// 時計の丸めで境界直前になっても保存する。猶予は最大0.5ms、半周期までとする。
+				const captureTolerance = Math.min(0.0005, captureInterval / 2);
 				const shouldCapture = capturedFrameCount === 0 || (seconds > 0
-					&& (captureInterval === 0 || nextCaptureTime == null || elapsedSeconds + 0.000001 >= nextCaptureTime));
+					&& (captureInterval === 0 || nextCaptureTime == null || elapsedSeconds + captureTolerance >= nextCaptureTime));
 				if (shouldCapture) {
 					const advance = capturedFrameCount > 0 && lastCaptureTime != null && elapsedSeconds - lastCaptureTime > 0.000001;
 					if (advance) newestLayer = (newestLayer + 1) % layers;
@@ -138,8 +140,9 @@ export default implementEffect<typeof definition>({
 					if (captureInterval > 0) {
 						// 保存時刻を次の締切の基準にすると、描画間隔への切り上げが毎回累積する。
 						// 元の採取間隔を維持して次の締切へ進め、描画されなかった時刻は埋めない。
+						// 判定と同じ猶予を含め、境界直前に採取した周期を次の描画で二重に採取しない。
 						const deadline = nextCaptureTime ?? elapsedSeconds;
-						const intervalsPassed = Math.max(1, Math.floor((elapsedSeconds - deadline) / captureInterval) + 1);
+						const intervalsPassed = Math.max(1, Math.floor((elapsedSeconds + captureTolerance - deadline) / captureInterval) + 1);
 						nextCaptureTime = deadline + intervalsPassed * captureInterval;
 					} else {
 						nextCaptureTime = elapsedSeconds;

@@ -242,8 +242,18 @@ export default implementEffect<typeof definition>({
 				const seconds = Number.isFinite(ctx.timeDelta) ? Math.max(0, ctx.timeDelta / 1000) : 0;
 				elapsedSinceReset += seconds;
 				const resetInterval = Math.max(0, params.resetInterval);
-				const reset = !hasHistory || params.reset || (resetInterval > 0 && elapsedSinceReset >= resetInterval);
-				if (reset) elapsedSinceReset = 0;
+				// 時計の丸めと秒単位での加算誤差により、境界で1フレーム遅れることを防ぐ。
+				const resetTolerance = Math.min(0.0005, resetInterval / 2);
+				const automaticReset = resetInterval > 0 && elapsedSinceReset + resetTolerance >= resetInterval;
+				const reset = !hasHistory || params.reset || automaticReset;
+				if (!hasHistory || params.reset) {
+					elapsedSinceReset = 0;
+				} else if (automaticReset) {
+					// 遅れて描画した端数を残し、リセットのたびに周期が伸びることを防ぐ。
+					// 長い中断は一度のリセットにまとめる。猶予で先取りした分は負値のまま残し、
+					// 次の周期を早めないようにする。手動リセットは上で新たな周期を開始する。
+					elapsedSinceReset -= Math.floor((elapsedSinceReset + resetTolerance) / resetInterval) * resetInterval;
+				}
 				const canEstimateMotion = hasMotion && !reset && seconds > 0;
 				const searchRadius = clamp(params.searchRange, 0, 100) / 100 * getSizeReferenceLength(params.sizeReference, analysisSize);
 				const maxLevel = Math.min(mipLevelCount - 1, Math.max(0, Math.floor(Math.log2(Math.max(1, searchRadius)))));

@@ -159,6 +159,8 @@ export default implementEffect<typeof definition>({
 		let historyFrameCount = 0;
 		let newestLayer = 0;
 		let lastCaptureTime: number | null = null;
+		let nextCaptureTime: number | null = null;
+		let previousCaptureInterval: number | null = null;
 		let elapsedSeconds = 0;
 		let frameIndex = 0;
 		let currentIndex = 0;
@@ -174,6 +176,8 @@ export default implementEffect<typeof definition>({
 			historyFrameCount = 0;
 			newestLayer = 0;
 			lastCaptureTime = null;
+			nextCaptureTime = null;
+			previousCaptureInterval = null;
 			elapsedSeconds = 0;
 			frameIndex = 0;
 			currentIndex = 0;
@@ -222,7 +226,15 @@ export default implementEffect<typeof definition>({
 				elapsedSeconds += seconds;
 				const maxDelay = Math.max(0, params.maxDelay) / 1000;
 				const captureInterval = maxDelay / (layers - 1);
-				const shouldCapture = lastCaptureTime == null || seconds === 0 || elapsedSeconds - lastCaptureTime >= captureInterval;
+				if (captureInterval !== previousCaptureInterval) {
+					nextCaptureTime = lastCaptureTime == null ? elapsedSeconds : lastCaptureTime + captureInterval;
+					previousCaptureInterval = captureInterval;
+				}
+				// 時計の丸めで境界直前になったフレームを落とさない。猶予は最大0.5ms、
+				// 短い保存間隔でも複数周期を先取りしないよう半周期までに制限する。
+				const captureTolerance = Math.min(0.0005, captureInterval / 2);
+				const captureDue = captureInterval === 0 || nextCaptureTime == null || elapsedSeconds + captureTolerance >= nextCaptureTime;
+				const shouldCapture = seconds === 0 || captureDue;
 				if (shouldCapture) {
 					const advance = historyFrameCount > 0 && lastCaptureTime != null && elapsedSeconds > lastCaptureTime;
 					if (advance) newestLayer = (newestLayer + 1) % layers;
@@ -230,6 +242,14 @@ export default implementEffect<typeof definition>({
 					history.times[newestLayer] = elapsedSeconds;
 					// 停止中は最新の保存先を上書きし、パラメータ編集の回数だけで履歴を押し流さない。
 					lastCaptureTime = elapsedSeconds;
+					if (captureDue) {
+						// 実際の保存時刻から測り直すと描画待ちの端数が累積するため、予定時刻を進める。
+						// 同じ猶予で通過済みの周期を数え、停止中の上書きだけでは予定を消費しない。
+						const deadline = nextCaptureTime ?? elapsedSeconds;
+						nextCaptureTime = captureInterval > 0
+							? deadline + (Math.floor((elapsedSeconds + captureTolerance - deadline) / captureInterval) + 1) * captureInterval
+							: elapsedSeconds;
+					}
 				}
 				historyAges.fill(0);
 				for (let index = 0; index < historyFrameCount; index++) {
