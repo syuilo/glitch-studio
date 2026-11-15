@@ -11,9 +11,6 @@
 		>
 			<template #label>{{ i18n.ts._VisualModule.WebExportFormat }}</template>
 		</GsSelect>
-		<div>{{ i18n.ts._VisualModule.WebExportHint }}</div>
-		<div v-if="prepared.diagnostics.players.length > 0" data-test-web-export-players>{{ i18n.tsx._VisualModule.WebExportPlayers({ names: prepared.diagnostics.players.join(', ') }) }}</div>
-		<div v-if="prepared.diagnostics.resolutionNodes.length > 0">{{ i18n.ts._VisualModule.WebExportResolutionHint }}</div>
 		<GsInput
 			v-model="resolutionScale"
 			type="number"
@@ -58,7 +55,6 @@
 		</GsInput>
 		<GsTextarea v-model="initialParameters" code large :disabled="exporting" data-test-web-export-parameters>
 			<template #label>{{ i18n.ts._VisualModule.WebExportParameters }}</template>
-			<template #caption>{{ i18n.ts._VisualModule.WebExportParametersHint }}</template>
 		</GsTextarea>
 		<div v-if="validationError != null || exportError != null" data-test-web-export-error>{{ validationError ?? exportError }}</div>
 		<div v-if="status !== null" data-test-web-export-status>{{ status }}</div>
