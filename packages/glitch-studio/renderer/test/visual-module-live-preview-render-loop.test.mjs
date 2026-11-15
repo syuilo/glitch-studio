@@ -57,20 +57,102 @@ test('renders one frame without scheduling another callback', () => {
 	f.loop.stop();
 });
 
-// FPS制限で飛ばしたフレームの時間を次回の描画に含める
-test('includes skipped frame time and preserves the FPS boundary', () => {
+// 【FPS制限の境界でも描画し、省略したフレームの時間を次の描画へ引き継ぐ】
+// 初回はすぐ描画し、その後は予定時刻に達したコールバックを通す。
+// 境界と等しい時刻を省略すると表示が一周期遅れ、時間差分を捨てると再生速度も変わってしまう。
+test('renders at FPS boundaries and includes skipped frame time', () => {
 	const f = createFixture({ fpsLimit: 10 });
 	f.loop.start();
 	f.fire(50);
 	f.fire(100);
-	assert.equal(f.frames.length, 0);
-	f.fire(101);
-	f.fire(200);
 	assert.equal(f.frames.length, 1);
-	f.fire(201);
+	f.fire(150);
+	f.fire(200);
+	assert.equal(f.frames.length, 2);
+	f.fire(250);
 	assert.deepEqual(f.frames, [
-		{ time: 101, timeDelta: 101, realTimeDelta: 101 },
-		{ time: 201, timeDelta: 100, realTimeDelta: 100 },
+		{ time: 50, timeDelta: 50, realTimeDelta: 50 },
+		{ time: 150, timeDelta: 100, realTimeDelta: 100 },
+		{ time: 250, timeDelta: 100, realTimeDelta: 100 },
+	]);
+	f.loop.stop();
+});
+
+// 【表示周期とFPS制限が一致するとき、時刻の丸めや位相によって描画を欠落させない】
+// 60Hzの時刻列を0.1ms単位に丸めると、厳密な境界比較では600回のうち400回しか描画しない位相がある。
+// 高リフレッシュレートも含めてすべての描画機会を通し、作品の時計には実際の経過時間を渡す。
+test('renders every matching refresh frame despite timestamp rounding and phase', () => {
+	for (const refreshRate of [30, 59.94, 60, 120, 144, 240]) {
+		for (const phase of [0, 0.01, 0.1, 8.3, 16.6]) {
+			const f = createFixture({ fpsLimit: refreshRate });
+			const startTime = 1000 + phase;
+			f.setTime(startTime);
+			f.loop.start();
+			let previousTimestamp = startTime;
+			for (let index = 1; index <= 600; index++) {
+				const timestamp = Math.round((startTime + index * 1000 / refreshRate) * 10) / 10;
+				f.fire(timestamp);
+				assert.equal(f.frames.length, index, `${refreshRate}Hz, phase ${phase}, frame ${index}`);
+				assert.equal(f.frames.at(-1).realTimeDelta, timestamp - previousTimestamp);
+				assert.equal(f.frames.at(-1).timeDelta, timestamp - previousTimestamp);
+				assert.ok(Math.abs(f.frames.at(-1).time - (timestamp - startTime)) < 1e-6);
+				previousTimestamp = timestamp;
+			}
+			f.loop.stop();
+		}
+	}
+});
+
+// 【表示周期で割り切れないFPSでも、周期の端数を持ち越して指定の平均描画頻度を保つ】
+// 毎回の描画時刻から次回を数え直すと、144Hzで60fpsを指定しても48fpsまで落ちる。
+// 固定の位相と時刻の丸めを含む10秒間の描画数で、過剰な間引きと制限の超過を検出する。
+test('preserves the requested average FPS across different refresh rates', () => {
+	for (const refreshRate of [60, 120, 144, 165, 240]) {
+		for (const fpsLimit of [15, 24, 29.97, 30, 50, 60]) {
+			const f = createFixture({ fpsLimit });
+			f.setTime(1000);
+			f.loop.start();
+			for (let index = 1; index <= refreshRate * 10; index++) {
+				f.fire(Math.round((1000 + index * 1000 / refreshRate) * 10) / 10);
+			}
+			assert.ok(Math.abs(f.frames.length - fpsLimit * 10) <= 1, `${refreshRate}Hz / ${fpsLimit}fps: ${f.frames.length} frames`);
+			f.loop.stop();
+		}
+	}
+});
+
+// 【60Hzで30fpsを指定したとき、丸め誤差によって表示間隔が一周期分ずれない】
+// 平均FPSが正しくても16.7msと50msの間隔が混ざれば動きが不均等になるため、個々の表示間隔も確認する。
+test('keeps evenly spaced frames when the refresh rate is divisible by the FPS limit', () => {
+	const f = createFixture({ fpsLimit: 30 });
+	f.setTime(1000);
+	f.loop.start();
+	for (let index = 1; index <= 600; index++) {
+		f.fire(Math.round((1000 + index * 1000 / 60) * 10) / 10);
+	}
+	assert.equal(f.frames.length, 300);
+	for (const frame of f.frames.slice(1)) {
+		assert.ok(Math.abs(frame.realTimeDelta - 1000 / 30) < 0.1, `frame interval: ${frame.realTimeDelta}ms`);
+	}
+	f.loop.stop();
+});
+
+// 【長時間の中断で過ぎた描画枠を再実行せず、次の予定時刻から通常の間隔へ戻る】
+// コールバックの遅れを取り戻すための連続描画は負荷と入力遅延を増やす。
+// 遅れて届いた時刻へ位相をずらさず、経過時間だけを一度で引き継ぐ。
+test('discards missed frame slots without replaying them or shifting the schedule', () => {
+	const f = createFixture({ fpsLimit: 10 });
+	f.loop.start();
+	f.fire(10);
+	f.fire(1025);
+	for (let index = 0; index < 10; index++) f.fire(1025);
+	f.fire(1040);
+	assert.equal(f.frames.length, 2);
+	f.fire(1110);
+	assert.deepEqual(f.frames, [
+		{ time: 10, timeDelta: 10, realTimeDelta: 10 },
+		{ time: 1025, timeDelta: 1015, realTimeDelta: 1015 },
+		{ time: 1110, timeDelta: 85, realTimeDelta: 85 },
 	]);
 	f.loop.stop();
 });
@@ -92,19 +174,54 @@ test('applies speed changes without scaling the real timestamp', () => {
 	f.loop.stop();
 });
 
-// 実行中のFPS制限変更を次のフレームから反映する
-test('uses updated FPS settings on subsequent frames', () => {
+// 【FPS制限の変更と解除は、古い予定時刻を残さず次のコールバックから反映する】
+// 低いFPSから高いFPSへの変更や制限の再有効化で、前の周期による待ち時間を持ち越さない。
+// 制限なしでは連続するコールバックをすべて描画し、時計は設定変更の前後で連続させる。
+test('resets frame pacing when changing or disabling the FPS limit', () => {
 	const f = createFixture({ fpsLimit: 10 });
 	f.loop.start();
+	f.fire(10);
+	f.fire(30);
+	f.loop.fpsLimit = 20;
+	f.fire(40);
 	f.fire(50);
+	f.fire(90);
 	f.loop.fpsLimit = null;
-	f.fire(60);
+	f.fire(100);
+	f.fire(110);
 	f.loop.fpsLimit = 10;
-	f.fire(80);
-	f.fire(101);
+	f.fire(120);
+	f.fire(150);
+	f.fire(220);
 	assert.deepEqual(f.frames, [
-		{ time: 60, timeDelta: 60, realTimeDelta: 60 },
-		{ time: 101, timeDelta: 41, realTimeDelta: 41 },
+		{ time: 10, timeDelta: 10, realTimeDelta: 10 },
+		{ time: 40, timeDelta: 30, realTimeDelta: 30 },
+		{ time: 90, timeDelta: 50, realTimeDelta: 50 },
+		{ time: 100, timeDelta: 10, realTimeDelta: 10 },
+		{ time: 110, timeDelta: 10, realTimeDelta: 10 },
+		{ time: 120, timeDelta: 10, realTimeDelta: 10 },
+		{ time: 220, timeDelta: 100, realTimeDelta: 100 },
+	]);
+	f.loop.stop();
+});
+
+// 【FPS制限中の再開は停止前の描画予定を引き継がず、最初のコールバックで描画する】
+// 短い停止でも再開直後の表示を古い周期で待たせない。作品の時計には停止中の時間を加算しない。
+test('resets frame pacing on restart without including downtime', () => {
+	const f = createFixture({ fpsLimit: 10 });
+	f.loop.start();
+	f.fire(10);
+	f.loop.stop();
+	f.setTime(20);
+	f.loop.start();
+	f.fire(30);
+	f.fire(40);
+	assert.equal(f.frames.length, 2);
+	f.fire(130);
+	assert.deepEqual(f.frames, [
+		{ time: 10, timeDelta: 10, realTimeDelta: 10 },
+		{ time: 20, timeDelta: 10, realTimeDelta: 10 },
+		{ time: 120, timeDelta: 100, realTimeDelta: 100 },
 	]);
 	f.loop.stop();
 });
@@ -207,6 +324,37 @@ test('skips overlapping async frames while preserving elapsed time and speed cha
 	assert.equal(frames.length, 2);
 	assert.deepEqual(frames[1], { time: 60, timeDelta: 20, realTimeDelta: 10 });
 	complete();
+	f.loop.stop();
+});
+
+// 【FPS制限中の非同期描画でも、待機中の時間を引き継ぎ、完了後に描画を連発しない】
+// FPS制限で省略した時間は次の描画機会へ集約し、処理中の描画と重なる場合は所有者へ渡す。
+// 非同期処理の完了時刻によって描画周期をずらさず、次の予定時刻から最新の時間で再開する。
+test('preserves limited frame pacing and elapsed time across an async frame', async () => {
+	let complete;
+	const frames = [];
+	const skipped = [];
+	const f = createFixture({ fpsLimit: 10, onSkippedFrame: timing => skipped.push(timing), onFrame(timing) {
+		frames.push(timing);
+		if (frames.length === 1) return new Promise(resolve => { complete = resolve; });
+	} });
+	f.loop.start();
+	f.fire(10);
+	f.fire(50);
+	f.fire(110);
+	f.loop.timeFactor = 2;
+	f.fire(210);
+	assert.equal(frames.length, 1);
+	assert.deepEqual(skipped, [
+		{ time: 110, timeDelta: 100, realTimeDelta: 100 },
+		{ time: 310, timeDelta: 200, realTimeDelta: 100 },
+	]);
+	complete();
+	await new Promise(resolve => setImmediate(resolve));
+	f.fire(220);
+	assert.equal(frames.length, 1);
+	f.fire(310);
+	assert.deepEqual(frames[1], { time: 510, timeDelta: 200, realTimeDelta: 100 });
 	f.loop.stop();
 });
 

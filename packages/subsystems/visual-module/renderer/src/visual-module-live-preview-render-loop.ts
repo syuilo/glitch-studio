@@ -28,7 +28,8 @@ export class VisualModuleLivePreviewRenderLoop {
 	private running = false;
 	private generation = 0;
 	private latestTimestamp = 0;
-	private fpsTimestamp = 0;
+	private nextFrameTimestamp: number | null = null;
+	private previousFpsLimit: number | null = null;
 	private time = 0;
 
 	constructor(options: {
@@ -49,8 +50,8 @@ export class VisualModuleLivePreviewRenderLoop {
 		this.stop();
 		this.running = true;
 		this.latestTimestamp = this.scheduler.now();
-		// FPS制限の位相と境界の判定は従来のループに合わせる。
-		this.fpsTimestamp = 0;
+		this.nextFrameTimestamp = null;
+		this.previousFpsLimit = null;
 		this.scheduleFrame(this.generation);
 	}
 
@@ -72,15 +73,36 @@ export class VisualModuleLivePreviewRenderLoop {
 		});
 	}
 
+	private takeScheduledFrame(timestamp: number): boolean {
+		// 制限なしではすべてのコールバックを通し、再有効化時に古い描画予定を持ち越さない。
+		if (this.fpsLimit == null) {
+			this.nextFrameTimestamp = null;
+			this.previousFpsLimit = null;
+			return true;
+		}
+		const interval = 1000 / this.fpsLimit;
+		if (this.nextFrameTimestamp == null || this.previousFpsLimit !== this.fpsLimit) {
+			// 初回と設定変更後は直ちに描画し、そのコールバックを新しい周期の起点にする。
+			this.previousFpsLimit = this.fpsLimit;
+			this.nextFrameTimestamp = timestamp + interval;
+			return true;
+		}
+
+		// 60HzでもrAFの時刻は丸めによって16.6ms / 16.7ms間隔になる。
+		// 境界よりわずかに早いだけで一周期分の描画機会を失わないよう、小さな揺れを許容する。
+		const tolerance = Math.min(0.5, interval / 2);
+		if (timestamp + tolerance < this.nextFrameTimestamp) return false;
+
+		// 実際の描画時刻に置き直さず、予定時刻から進めて表示周期との端数を持ち越す。
+		// 長い待機で過ぎた枠は追い掛けず、次の予定だけを残して入力遅延と負荷の増加を防ぐ。
+		const elapsedIntervals = Math.floor((timestamp + tolerance - this.nextFrameTimestamp) / interval) + 1;
+		this.nextFrameTimestamp += elapsedIntervals * interval;
+		return true;
+	}
+
 	// 1フレームだけ進める。次回の予約は行わないため、テストでも任意の時刻を渡せる。
 	public renderFrame(timestamp: number) {
-		if (!this.running) return;
-		const delta = timestamp - this.fpsTimestamp;
-		if (this.fpsLimit != null) {
-			const interval = 1000 / this.fpsLimit;
-			if (delta <= interval) return;
-			this.fpsTimestamp = timestamp - (delta % interval);
-		}
+		if (!this.running || !this.takeScheduledFrame(timestamp)) return;
 
 		const realTimeDelta = timestamp - this.latestTimestamp;
 		const timeDelta = realTimeDelta * this.timeFactor;
