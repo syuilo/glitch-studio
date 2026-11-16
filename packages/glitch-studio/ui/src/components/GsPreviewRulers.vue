@@ -3,7 +3,7 @@
 	<svg :class="$style.xRuler" data-test-preview-x-ruler>
 		<line
 			v-if="coordinateRange != null && hasVisibleRangeEndpoint(coordinateRange.left, coordinateRange.right, viewportSize.width)"
-			:class="$style.rulerLine"
+			:class="$style.rulerRangeLine"
 			:x1="coordinateRange.left"
 			y1="18.5"
 			:x2="coordinateRange.right"
@@ -44,7 +44,7 @@
 	<svg :class="$style.yRuler" data-test-preview-y-ruler>
 		<line
 			v-if="coordinateRange != null && hasVisibleRangeEndpoint(coordinateRange.top, coordinateRange.bottom, viewportSize.height)"
-			:class="$style.rulerLine"
+			:class="$style.rulerRangeLine"
 			x1="18.5"
 			:y1="coordinateRange.top"
 			x2="18.5"
@@ -174,6 +174,11 @@ function labelWidth(tick: PreviewRulerTick): number {
 
 .rulerLine {
 	stroke: #fff4;
+	stroke-width: 1;
+}
+
+.rulerRangeLine {
+	stroke: #fff2;
 	stroke-width: 1;
 }
 
