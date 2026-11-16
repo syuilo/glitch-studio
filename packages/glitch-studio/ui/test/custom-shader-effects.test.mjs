@@ -59,6 +59,28 @@ function usageFixture() {
 	return { definition, state, manager, visualModule: state.visualModules.value[0], layer: state.timelineScenes.value[0].layers[0] };
 }
 
+// 【スクリプト由来のCustom Shader Effectの基本値を適用前に検証する】
+// 入出力定義が正しくても、名前やコードが文字列でないとUIやビルド処理が壊れる。
+// 作成・複製・定義置換の全経路で不正値を拒否し、元の定義と履歴を維持する。
+test('rejects invalid shader metadata and execution modes without mutating project definitions', () => {
+	const state = { customShaderEffects: ref([]), visualModules: ref([]), timelineScenes: ref([]) };
+	const manager = new UndoRedo(state, CUSTOM_SHADER_EFFECT_COMMAND_DEFS);
+	const original = manager.commit('createCustomShaderEffect', { name: 'Original' });
+	manager.commit('createCustomShaderEffect', { name: 'Redo target' });
+	manager.undo();
+	const before = JSON.stringify(state.customShaderEffects.value);
+	assert.throws(() => manager.commit('createCustomShaderEffect', { name: 42 }), /name must be a string/);
+	assert.throws(() => manager.commit('duplicateCustomShaderEffect', { ...original, name: {} }), /name must be a string/);
+	for (const changes of [{ name: 42 }, { description: false }, { code: [] }, { codeLanguage: 'javascript' }, { kind: 'other' }]) {
+		const definition = { ...JSON.parse(before)[0], ...changes };
+		assert.throws(() => manager.commit('replaceCustomShaderEffectDefinition', { ...original, definition }), /must be a string|Unsupported Custom Shader Effect|Invalid Custom Shader Effect/);
+		assert.equal(JSON.stringify(state.customShaderEffects.value), before);
+		assert.equal(manager.redoStack.value.length, 1);
+	}
+	manager.redo();
+	assert.equal(state.customShaderEffects.value.length, 2);
+});
+
 // 【Custom Shader Effectを既存のNode・Layer操作から作成し、使用箇所ごとの値を所有する】
 // 名前空間付き参照をUI・Command・Timelineの既定値生成で同じ定義へ解決できる必要がある。
 test('creates project shader nodes and layers with stable parameter IDs and independent bindings', () => {

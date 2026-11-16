@@ -71,6 +71,25 @@ function fixture() {
 	return { state, definitions, manager, get generatedCount() { return nextId; } };
 }
 
+// 【非同期準備中に呼び出し元が終了したCommandは適用しない】
+// スクリプトや編集セッションの破棄後に遅れて準備が完了しても、状態と履歴を変更しない。
+test('does not apply prepared changes after the caller lifetime ends', async () => {
+	let finishPreparation;
+	const ready = new Promise(resolve => { finishPreparation = resolve; });
+	const f = fixture();
+	f.definitions.pendingCreation = { label: 'Pending creation', async prepare(state, input) {
+		await ready;
+		return f.definitions.createItem.prepare(state, input);
+	} };
+	const lifetime = new AbortController();
+	const pending = f.manager.execute('pendingCreation', { name: 'Closed' }, null, lifetime.signal);
+	lifetime.abort();
+	finishPreparation();
+	await assert.rejects(pending, { name: 'AbortError' });
+	assert.deepEqual(f.state.items, []);
+	assert.equal(f.manager.undoStack.value.length, 0);
+});
+
 // 【入力と結果を切り離し、Redoで同じIDと内容を復元する】
 // 呼び出し側による後からの書き換えが状態や履歴へ混入せず、Undo/Redoで再生成も起きないことを確認する。
 test('copies command input and results and prepares creation only once', async () => {

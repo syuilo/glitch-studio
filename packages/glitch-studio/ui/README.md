@@ -44,6 +44,14 @@ Tablerのアイコンフォントは、開発時にはパッケージの通常�
 
 通常入力ではドラッグ中・ポップアップ表示中・フォーカス中も時間で履歴を区切るため、2000msを超えて更新が止まれば次の更新は別履歴になる。Undo/Redo、別のCommand、明示的な`mergeKey`による操作、`beginEdit()`を挟んだ場合も自動マージの連続性を切る。Timelineのドラッグやキー・グラフ編集の明示キー、プレビュー編集などの`beginEdit()`による確定・取消しは維持し、自動マージとは結合しない。
 
+## スクリプティング
+
+`GsWorkspacePanel.Scripting`でAiScriptの編集・実行と出力確認を行う。`ProjectSessionContext.scripting`が本文・出力を編集セッション内だけで保持し、プロジェクト保存には含めない。パネルの再表示やタブ切替では保持し、実行ごとにインタプリタを作り直す。
+
+`Command:<Command名>({ ... })`は公開リストの既存Commandをそのまま呼び出し、`Query:*`は切り離した保存内容を返す。`Dialog:*`の応答待ちを含む一実行を`UndoRedo.runGroup()`でまとめ、エラー時も成功済み変更を一履歴として残す。割り込みは発生しない前提とし、手動編集などに対する専用の排他制御は設けない。編集セッションの破棄時は実行と所属ダイアログを終了する。
+
+API・参照形式・実行例・制限は[スクリプティング](../../../docs/scripting.md)を参照。
+
 ## 数値入力の式による確定
 
 `GsInput`の`allowExpression`は既定で`true`。`type="number"`かつ`allowExpression`かつ`manualSave`の場合、AiScriptの式を入力できる。式はドラフトとして保持し、保存ボタン・Enter・保存ショートカットで確定するときに評価する。成功時は入力内容を評価結果の数値へ置き換え、`update:modelValue`にも数値だけを通知する。解析・評価は`GsInput.vue`内でAiScriptのParser・Interpreterを直接使用し、確定ごとに新しいInterpreterを作る。通常の四則演算やAiScriptの標準関数を利用できるが、プロジェクトや再生時刻の変数は渡さない。

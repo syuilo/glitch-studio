@@ -14,6 +14,7 @@ import XAudioSpectrogram from '@/components/GsWorkspacePanel.AudioSpectrogram.vu
 import XAudioWaveform from '@/components/GsWorkspacePanel.AudioWaveform.vue';
 import XStats from '@/components/GsWorkspacePanel.Stats.vue';
 import XCommandLog from '@/components/GsWorkspacePanel.CommandLog.vue';
+import XScripting from '@/components/GsWorkspacePanel.Scripting.vue';
 import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import XAssets from '@/components/GsWorkspacePanel.Assets.vue';
@@ -35,6 +36,7 @@ const panelDefinitions = {
 	visualModuleEditor: { label: i18n.ts._Workspace.VisualModuleEditor, icon: 'ti ti-chart-dots-3', component: XVisualModuleEditor },
 	stats: { label: i18n.ts._Workspace.Stats, icon: 'ti ti-activity', component: XStats },
 	commandLog: { label: i18n.ts._Workspace.CommandLog, icon: 'ti ti-logs', component: XCommandLog },
+	scripting: { label: i18n.ts._Scripting.Title, icon: 'ti ti-code', component: XScripting },
 	timeline: { label: i18n.ts._Workspace.Timeline, icon: 'ti ti-timeline', component: XTimeline },
 	assets: { label: i18n.ts.Assets, icon: 'ti ti-folder-open', component: XAssets },
 	projectInfo: { label: i18n.ts._Workspace.ProjectInfo, icon: 'ti ti-file-description', component: XProjectInfo },

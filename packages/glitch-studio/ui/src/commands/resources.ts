@@ -195,6 +195,7 @@ export type PlayerSource = null | { type: 'asset'; assetId: string } | { type: '
 
 function playerSourceFields(state: ProjectState, source: PlayerSource): Pick<Player, 'sourceType' | 'assetId'> {
 	if (source == null) return { sourceType: null, assetId: null };
+	if (!['asset', 'webcam', 'microphone', 'liveStream'].includes(source.type)) throw new Error('Invalid Player source type');
 	if (source.type === 'asset') getAsset(state, source.assetId);
 	return { sourceType: source.type, assetId: source.type === 'asset' ? source.assetId : null };
 }
@@ -202,6 +203,7 @@ function playerSourceFields(state: ProjectState, source: PlayerSource): Pick<Pla
 export const createPlayerCommandDef = defineCommand<{ name?: string; source?: PlayerSource }, { playerId: string }>({
 	label: 'Create player',
 	prepare(state, input) {
+		if (input.name != null && typeof input.name !== 'string') throw new Error('Player name must be a string');
 		const player: Player = { id: genId(), name: input.name ?? 'Player', ...playerSourceFields(state, input.source ?? null) };
 		return { result: { playerId: player.id }, change: { changes: [{ type: 'player', playerId: player.id }],
 			apply(current) { current.players.value.push(deepClone(player)); },

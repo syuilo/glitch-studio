@@ -28,6 +28,85 @@ function fixture(services) {
 	return { state, definitions, manager: new UndoRedo(state, definitions) };
 }
 
+// 【Scene作成・複製の名前を実行時に検証して保存データの型を守る】
+// スクリプトの入力はTypeScriptを通らないため、既定値で隠れない非文字列の入力を拒否する。
+// 複製だけ検証を抜けたり、準備失敗で既存SceneとRedoを変更したりしないことを確認する。
+test('rejects invalid Scene names before creation and duplication', () => {
+	const { state, manager } = fixture();
+	const scene = manager.commit('createTimelineScene', { name: 'Existing' });
+	manager.commit('createTimelineScene', { name: 'Redo target' });
+	manager.undo();
+	const before = structuredClone(state.timelineScenes.value);
+	for (const name of [123, false, {}, []]) {
+		assert.throws(() => manager.commit('createTimelineScene', { name }), /name must be a string/);
+		assert.throws(() => manager.commit('duplicateTimelineScene', { ...scene, name }), /name must be a string/);
+		assert.deepEqual(state.timelineScenes.value, before);
+		assert.equal(manager.redoStack.value.length, 1);
+	}
+	manager.redo();
+	assert.equal(state.timelineScenes.value.length, 2);
+});
+
+// 【Timelineの文字列・真偽値・座標系を未検証のスクリプト入力で破損させない】
+// 文字列のfalseなどをそのまま保存すると、描画とUIで真偽の解釈が食い違う。
+// 各操作は誤った型を適用前に拒否し、名前変更も同じ境界で保護する。
+test('rejects invalid basic Timeline settings without changing state or redo', () => {
+	const { state, manager } = fixture();
+	const scene = manager.commit('createTimelineScene', {});
+	const layer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'text' } });
+	manager.commit('setTimelineLayerName', { ...layer, name: 'Renamed' });
+	manager.undo();
+	const before = structuredClone(state.timelineScenes.value);
+	for (const [command, input] of [
+		['setTimelineSceneName', { ...scene, name: 123 }],
+		['setTimelineLayerName', { ...layer, name: {} }],
+		['setTimelineLayerDisabled', { ...layer, isDisabled: 'false' }],
+		['setTimelineLayerSolo', { ...layer, isSolo: 1 }],
+		['setTimelineLayerCoordinateSpace', { ...layer, coordinateSpace: 'unknown' }],
+		['setTimelineLayerMotionBlurDisabled', { ...layer, forceDisableMotionBlur: 'false' }],
+	]) {
+		assert.throws(() => manager.commit(command, input), /must be a|Invalid timeline layer coordinate space/);
+		assert.deepEqual(state.timelineScenes.value, before);
+		assert.equal(manager.redoStack.value.length, 1);
+	}
+	manager.redo();
+	assert.equal(state.timelineScenes.value[0].layers[0].name, 'Renamed');
+});
+
+// 【レイヤー識別色はUI用RGBAとして検証し、nullによる既定色への復帰を維持する】
+// 作品の色にはHDRを許すが、レイヤーラベルは0〜1の4成分だけを受け取る。
+// 配列長・型・非有限値・範囲外の値は適用せず、正しい色はUndoで復元できる。
+test('validates Timeline label colors while accepting null and finite RGBA', () => {
+	const { state, manager } = fixture();
+	const scene = manager.commit('createTimelineScene', {});
+	const layer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'text' } });
+	for (const color of ['red', [], [1, 0, 0], [1, 0, 0, 1, 1], [NaN, 0, 0, 1], [Infinity, 0, 0, 1], [-0.1, 0, 0, 1], [2, 0, 0, 1], ['1', 0, 0, 1]]) {
+		assert.throws(() => manager.commit('setTimelineLayerColor', { ...layer, color }), /Layer color must/);
+		assert.equal(state.timelineScenes.value[0].layers[0].color, null);
+	}
+	manager.commit('setTimelineLayerColor', { ...layer, color: [1, 0.2, 0.3, 1] });
+	manager.commit('setTimelineLayerColor', { ...layer, color: null });
+	assert.equal(state.timelineScenes.value[0].layers[0].color, null);
+	manager.undo();
+	assert.deepEqual(state.timelineScenes.value[0].layers[0].color, [1, 0.2, 0.3, 1]);
+});
+
+// 【動画クリップの出力フラグは真偽値だけを保存する】
+// ダイアログやスクリプトの文字列を暗黙に真と解釈すると、音声・映像の出力が意図せず変わる。
+// 素材差し替えに付随する音声設定も同じ規則を適用する。
+test('rejects invalid video and audio enabled flags before changing a clip', () => {
+	const { state, manager } = fixture({ inspectMedia: () => ({ durationMs: 1000, audioAvailable: true, audioError: null }) });
+	const scene = manager.commit('createTimelineScene', {});
+	state.assets.value.push({ id: 'video', fileDataType: 'video/mp4', fileData: new Blob() });
+	const layer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'video' }, clips: [{ assetId: 'video', startMs: 0, durationMs: 500, sourceInMs: 0, sourceOutMs: 500, playbackRate: 1, loop: false, audioEnabled: true, videoEnabled: true }] });
+	const target = { ...layer, clipId: state.timelineScenes.value[0].layers[0].clips[0].id };
+	const before = structuredClone(state.timelineScenes.value);
+	assert.throws(() => manager.commit('setTimelineVideoClipVideoEnabled', { ...target, videoEnabled: 'false' }), /must be a boolean/);
+	assert.throws(() => manager.commit('setTimelineVideoClipAudioEnabled', { ...target, audioEnabled: 0 }), /must be a boolean/);
+	assert.throws(() => manager.commit('setTimelineClipSource', { ...target, assetId: 'video', audioEnabled: 'true' }), /must be a boolean/);
+	assert.deepEqual(state.timelineScenes.value, before);
+});
+
 // 【生成用レシピから採番し、準備段階と呼び出し元の値を編集しない】
 // スクリプト側に保存形式の全フィールドやIDを要求せず、Redoは一度確定した生成物だけを復元する。
 // 入力の編集や作成後の別操作が、履歴の保存値を変更しないことも確認する。

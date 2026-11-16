@@ -1,6 +1,19 @@
 {
 	"Add": "追加",
 	"SearchResults": "検索結果",
+	"_Scripting": {
+		"Title": "スクリプティング",
+		"Run": "実行",
+		"Running": "実行中…",
+		"Output": "出力",
+		"ClearOutput": "出力を消去",
+		"EmptyOutput": "<: または print(...) の出力がここに表示されます。",
+		"RunShortcut": "実行（Ctrl/Cmd+Enter）",
+		"TemporarySource": "スクリプトはこのプロジェクトを閉じるまで保持されます。",
+		"ErrorTitle": "スクリプトエラー",
+		"HistoryLabel": "スクリプトを実行",
+		"OutputTruncated": "出力上限に達したため、以降の出力を省略しました。"
+	},
 	"_CustomShaderEffect": {
 		"InUse": "この定義を削除する前に、参照するCustom Shader Effect NodeとLayerを削除してください。",
 		"Title": "カスタムシェーダーエフェクト",

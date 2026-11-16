@@ -218,6 +218,7 @@ export const setTimelineLayerNameCommandDef = defineTimelineCommand<{ sceneId: s
 	changes: (_state, payload) => [{ type: 'layerName', sceneId: payload.sceneId, layerId: payload.layerId }],
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
+		if (typeof payload.name !== 'string') throw new Error('Layer name must be a string');
 		const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
 		layer.name = payload.name;
 	},
@@ -228,9 +229,14 @@ export const setTimelineLayerColorCommandDef = defineTimelineCommand<{ sceneId: 
 	changes: (_state, payload) => [{ type: 'layerColor', sceneId: payload.sceneId, layerId: payload.layerId }],
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
+		// レイヤーの識別色はUI用のRGBAで、作品のHDR色とは異なり各成分0〜1に限る。
+		if (payload.color != null && (!Array.isArray(payload.color) || payload.color.length !== 4
+			|| !payload.color.every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1))) {
+			throw new Error('Layer color must be null or four components between 0 and 1');
+		}
 		const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
 
-		layer.color = deepClone(payload.color);
+		layer.color = payload.color == null ? null : deepClone(payload.color);
 	},
 });
 
@@ -244,6 +250,7 @@ export const setTimelineLayerDisabledCommandDef = defineTimelineCommand<{ sceneI
 	}],
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
+		if (typeof payload.isDisabled !== 'boolean') throw new Error('Layer disabled state must be a boolean');
 		const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
 
 		layer.isDisabled = payload.isDisabled;
@@ -255,6 +262,7 @@ export const setTimelineLayerSoloCommandDef = defineTimelineCommand<{ sceneId: s
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'solo' }] }],
 	scope: payload => ({ sceneId: payload.sceneId }),
 	edit: (state, payload) => {
+		if (typeof payload.isSolo !== 'boolean') throw new Error('Layer solo state must be a boolean');
 		const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
 		if (layer.layerType === 'camera') throw new Error('Camera layers cannot be soloed');
 
@@ -282,6 +290,7 @@ export const setTimelineLayerCoordinateSpaceCommandDef = defineTimelineCommand<{
 	}],
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
+		if (!['world', 'screen'].includes(payload.coordinateSpace)) throw new Error('Invalid timeline layer coordinate space');
 		const getLayer = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
 			if (!isTimelineVisualLayer(layer)) throw new Error('Coordinate space requires a visual layer');
@@ -395,6 +404,7 @@ export const setTimelineLayerMotionBlurDisabledCommandDef = defineTimelineComman
 	}],
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
+		if (typeof payload.forceDisableMotionBlur !== 'boolean') throw new Error('Layer motion blur disabled state must be a boolean');
 		const getLayer = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
 			if (!('forceDisableMotionBlur' in layer)) throw new Error('Motion blur requires a visual layer');
@@ -644,6 +654,7 @@ export const setTimelineClipSourceCommandDef = defineTimelineCommand<TimelineCli
 	}],
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
+		if (payload.audioEnabled != null && typeof payload.audioEnabled !== 'boolean') throw new Error('Clip audio enabled state must be a boolean');
 		const { layer, clip } = getTimelineClip(state, payload.sceneId, payload);
 		const media = layer.layerType === 'video' || layer.layerType === 'audio';
 		if (media) requireMediaDurationMs(payload.sourceDurationMs);
@@ -717,6 +728,7 @@ export const setTimelineVideoClipVideoEnabledCommandDef = defineTimelineCommand<
 	}],
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
+		if (typeof payload.videoEnabled !== 'boolean') throw new Error('Clip video enabled state must be a boolean');
 		const find = (state: ProjectState) => {
 			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
 			if (layer.layerType !== 'video') throw new Error('Video layer not found');
@@ -741,6 +753,7 @@ export const setTimelineVideoClipAudioEnabledCommandDef = defineTimelineCommand<
 	}],
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
+		if (typeof payload.audioEnabled !== 'boolean') throw new Error('Clip audio enabled state must be a boolean');
 		const find = (state: ProjectState) => {
 			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
 			if (layer.layerType !== 'video') throw new Error('Video layer not found');
@@ -815,6 +828,7 @@ export const setTimelineSceneNameCommandDef = defineTimelineCommand<{ sceneId: s
 	changes: (_state, payload) => [{ type: 'sceneName', sceneId: payload.sceneId }],
 	scope: payload => ({ sceneId: payload.sceneId }),
 	edit: (state, payload) => {
+		if (typeof payload.name !== 'string') throw new Error('Scene name must be a string');
 		const scene = getScene(state, payload.sceneId);
 		scene.name = payload.name;
 	},

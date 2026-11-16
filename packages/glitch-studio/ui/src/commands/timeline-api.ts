@@ -80,6 +80,7 @@ export function createTimelineCommandDefinitions(services: TimelineCommandServic
 	};
 	const createTimelineScene: CommandDef<{ name?: string; resolution?: TimelineSceneResolution }, { sceneId: string }> = {
 		label: 'Create timeline scene', prepare: (state, input) => {
+			if (input.name != null && typeof input.name !== 'string') throw new Error('Scene name must be a string');
 			const scene: TimelineScene = { id: genId(), name: input.name ?? 'Scene', resolution: deepClone(input.resolution ?? { mode: 'project' }), layers: [] };
 			validateSceneResolution(scene.resolution);
 			return prepareTimelineEdit(state, { scenes: true }, draft => { draft.timelineScenes.value.push(scene); return { sceneId: scene.id }; }, () => [{ type: 'scene', sceneId: scene.id }]);
@@ -87,6 +88,7 @@ export function createTimelineCommandDefinitions(services: TimelineCommandServic
 	};
 	const duplicateTimelineScene: CommandDef<{ sceneId: string; name?: string }, { sceneId: string }> = {
 		label: 'Duplicate timeline scene', prepare: (state, input) => {
+			if (input.name != null && typeof input.name !== 'string') throw new Error('Scene name must be a string');
 			const source = getScene(state, input.sceneId);
 			const scene = { ...deepClone(source), id: genId(), name: input.name ?? source.name, layers: duplicateTimelineLayers(source.layers) };
 			return prepareTimelineEdit(state, { scenes: true }, draft => { draft.timelineScenes.value.push(scene); return { sceneId: scene.id }; }, () => [{ type: 'scene', sceneId: scene.id }]);

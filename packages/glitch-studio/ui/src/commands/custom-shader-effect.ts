@@ -8,8 +8,19 @@ import type { ProjectState } from '../Project.ts';
 import { defineCommand } from './definition.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
 
-function prepareCustomShaderEffectCreation(state: ProjectState, definition: ProjectCustomShaderEffect) {
+function validateProjectCustomShaderEffect(definition: ProjectCustomShaderEffect): void {
+	// UIの型付き入力以外からも呼び出す。作品側の文字列と実行方式を検証してから、
+	// エフェクトドメインが所有する入出力・参照の検証へ渡す。
+	for (const field of ['name', 'description', 'code'] as const) {
+		if (typeof definition[field] !== 'string') throw new Error(`Custom Shader Effect ${field} must be a string`);
+	}
+	if (!['wgsl'].includes(definition.codeLanguage)) throw new Error('Unsupported Custom Shader Effect code language');
+	if (!['generate', 'modify'].includes(definition.kind)) throw new Error('Invalid Custom Shader Effect kind');
 	validateCustomShaderEffectDefinition(definition);
+}
+
+function prepareCustomShaderEffectCreation(state: ProjectState, definition: ProjectCustomShaderEffect) {
+	validateProjectCustomShaderEffect(definition);
 	if (state.customShaderEffects.value.some(candidate => candidate.id === definition.id)) throw new Error('Duplicate Custom Shader Effect ID');
 	const saved = deepClone(definition);
 	return { result: { customShaderEffectId: saved.id }, change: {
@@ -51,7 +62,7 @@ const replaceCustomShaderEffectDefinition = defineCommand<{ customShaderEffectId
 		const beforeDefinition = state.customShaderEffects.value.find(candidate => candidate.id === customShaderEffectId);
 		if (beforeDefinition == null) throw new Error('Custom Shader Effect not found');
 		const afterDefinition = { ...definition, id: customShaderEffectId };
-		validateCustomShaderEffectDefinition(afterDefinition);
+		validateProjectCustomShaderEffect(afterDefinition);
 		const beforeUsages = snapshotCustomShaderEffectUsages(state);
 		const afterUsages = reconcileCustomShaderEffectUsages(state, beforeDefinition, afterDefinition);
 		// 定義変更が実際に影響した作品だけを履歴に保持する。他の作品をUndoで置換しない。

@@ -155,10 +155,14 @@ export class UndoRedo<State, Change, Commands extends Record<string, CommandDef<
 	}
 
 	/** 必要な外部情報を準備してから、一つの確定済み操作として実行する。 */
-	public async execute<Name extends keyof Commands>(type: Name, input: CommandInput<Commands[Name]>, mergeKey: string | null = null): Promise<CommandResult<Commands[Name]>> {
+	public async execute<Name extends keyof Commands>(type: Name, input: CommandInput<Commands[Name]>, mergeKey: string | null = null, signal?: AbortSignal): Promise<CommandResult<Commands[Name]>> {
+		signal?.throwIfAborted();
 		this.activeEdit?.finish();
 		const { definition, input: savedInput, prepared } = this.prepareCommand(type, input);
 		const resolved = prepared instanceof Promise ? await prepared : prepared;
+		// スクリプトの終了・編集セッション破棄後に素材情報の準備が終わっても、
+		// 失効した呼び出しから状態や履歴を変更しない。prepareは状態を変更しない。
+		signal?.throwIfAborted();
 		// 非同期の準備中にも連続編集は開始できる。適用前に確定し、状態の変更順と
 		// 履歴順を揃えるとともに、古い編集セッションによる後からの巻き戻しを防ぐ。
 		this.activeEdit?.finish();

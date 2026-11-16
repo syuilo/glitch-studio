@@ -40,6 +40,8 @@ import { getImageAnalysisValueRange } from './utility/image-analysis-range.ts';
 import { getProjectDisplayName } from './utility/project-display-name.ts';
 import type { ImageAnalysisRangePreset } from './utility/image-analysis-range.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
+import { ProjectScriptingController } from './scripting/ProjectScriptingController.ts';
+import { showProjectScriptDialog } from './scripting/project-script-dialog.ts';
 import type { ProjectFileOperationController } from './ProjectFileOperationController.ts';
 import { getRendererAssets } from './utility/renderer-assets.ts';
 import { resolveExternalAssets } from './external-assets.ts';
@@ -75,6 +77,7 @@ export class ProjectSessionContext {
 	private synchronizedPreviewDisplayMode: 'visualModuleLivePreview' | 'timeline' | null = null;
 	public readonly previewParameterEditing = markRaw(new PreviewParameterEditingController());
 	public readonly projectContext: ProjectContext;
+	public readonly scripting: ProjectScriptingController;
 	public activeSceneId: Ref<string | null>;
 	public timelineEvaluationScenes = computed(() => getTimelineScenesWithProjectAutomationGraphs(
 		this.projectContext.stateManager.state.timelineScenes.value, this.projectContext.stateManager.state.automationGraphs.value,
@@ -156,6 +159,14 @@ export class ProjectSessionContext {
 		this.id = options.id;
 		markRaw(this);
 		this.projectContext = projectContext;
+		this.scripting = new ProjectScriptingController(projectContext.stateManager, {
+			dialog: (request, signal) => showProjectScriptDialog(this, request, signal),
+			showError: async message => {
+				await showProjectScriptDialog(this, { kind: 'alert', title: i18n.ts._Scripting.ErrorTitle, text: message, defaultValue: null, items: [] }, null, 'error');
+			},
+			historyLabel: i18n.ts._Scripting.HistoryLabel,
+			outputTruncated: i18n.ts._Scripting.OutputTruncated,
+		});
 		const state = projectContext.stateManager.state;
 		// 初期値は購読前に決める。初回のScene選択を切替操作として扱わず、生成音声も最初の起動から渡す。
 		this.activeSceneId = ref(state.timelineScenes.value[0]?.id ?? null);
@@ -714,6 +725,7 @@ export class ProjectSessionContext {
 	public dispose(): Promise<void> {
 		if (this.disposal != null) return this.disposal;
 		this.disposed = true;
+		this.scripting.dispose();
 		for (const stop of this.sessionDisposers.splice(0)) stop();
 		window.removeEventListener?.('focus', this.onWindowFocus);
 		this.renderEngine.dispose();

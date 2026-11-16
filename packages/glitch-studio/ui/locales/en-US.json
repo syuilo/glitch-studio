@@ -1,6 +1,19 @@
 {
 	"Add": "Add",
 	"SearchResults": "Search Results",
+	"_Scripting": {
+		"Title": "Scripting",
+		"Run": "Run",
+		"Running": "Running…",
+		"Output": "Output",
+		"ClearOutput": "Clear output",
+		"EmptyOutput": "Use <: or print(...) to display output here.",
+		"RunShortcut": "Run (Ctrl/Cmd+Enter)",
+		"TemporarySource": "The script is kept until this project is closed.",
+		"ErrorTitle": "Script error",
+		"HistoryLabel": "Run script",
+		"OutputTruncated": "Further output omitted (output limit reached)."
+	},
 	"_CustomShaderEffect": {
 		"InUse": "Remove the Custom Shader Effect Nodes and Layers before deleting this definition.",
 		"Title": "Custom Shader Effects",
