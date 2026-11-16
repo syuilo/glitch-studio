@@ -190,7 +190,7 @@ export const PREF_DEF = definePreferences({
 												id: '8d5628e4e3ca4404b4f3cbb905dc35d7',
 												type: 'panel',
 												direction: 'horizontal',
-												contentType: 'blank',
+												contentType: 'scripting',
 											},
 										}, {
 											name: 'Logs',
