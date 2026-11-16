@@ -116,7 +116,7 @@ test('keeps snapped positions exact and independent of pointer movement', t => {
 	const { layer, history, update } = fixture(t);
 	const rect = { left: 100, top: 80, width: 800, height: 450 };
 	const prepared = prepareTimelineTransformBindings(layer.compositingParamValues, ['position'], 0);
-	const session = history.beginEdit('editTimelineLayerTransform');
+	const session = history.beginEdit('setTimelineLayerTransformBindings');
 	for (const x of [0.0005, 0.001, -0.0015, 0.0035, -0.005]) {
 		const snapped = snapPreviewLayerMove(geometry({ fitMode: 'stretch', position: [x, x] }), rect);
 		session.update(update(updateTimelineTransformBindings(prepared, snapped, 0)));
@@ -183,7 +183,7 @@ test('commits all transform fields as a single reversible edit', t => {
 	const { layer, history, update } = fixture(t);
 	const before = structuredClone(layer.compositingParamValues);
 	const prepared = prepareTimelineTransformBindings(before, ['position', 'scale'], 0);
-	const session = history.beginEdit('editTimelineLayerTransform');
+	const session = history.beginEdit('setTimelineLayerTransformBindings');
 	for (const x of [0.2, 0.4, 0.8]) session.update(update(updateTimelineTransformBindings(prepared, geometry({ position: [x, 0], scale: [2, 3] }).transform, 0)));
 	assert.equal(history.undoStack.value.length, 0);
 	session.finish();
@@ -199,10 +199,10 @@ test('commits all transform fields as a single reversible edit', t => {
 // 一時変更のcommitでRedoを破棄すると、キャンセルしただけで既存の編集を失ってしまう。
 test('cancels staged edits without losing redo or creating a history entry', t => {
 	const { layer, history, update } = fixture(t);
-	history.commit('editTimelineLayerTransform', update({ rotation: { inputSource: 'literal', value: 0.5 } }));
+	history.commit('setTimelineLayerTransformBindings', update({ rotation: { inputSource: 'literal', value: 0.5 } }));
 	history.undo();
 	const before = structuredClone(layer.compositingParamValues);
-	const session = history.beginEdit('editTimelineLayerTransform');
+	const session = history.beginEdit('setTimelineLayerTransformBindings');
 	session.update(update({ position: { inputSource: 'literal', value: [1, 1] } }));
 	session.cancel();
 	assert.deepEqual(layer.compositingParamValues, before);
@@ -222,7 +222,7 @@ test('inserts one key at rounded scene time and preserves existing keys and inte
 	const before = structuredClone(binding);
 	const prepared = prepareTimelineTransformBindings(layer.compositingParamValues, ['position'], 500.4);
 	const newId = prepared.position.keyframesTimeline.keyframes[1].id;
-	const session = history.beginEdit('editTimelineLayerTransform');
+	const session = history.beginEdit('setTimelineLayerTransformBindings');
 	for (const x of [0.2, 0.4]) session.update(update(updateTimelineTransformBindings(prepared, geometry({ position: [x, 0] }).transform, 500)));
 	session.finish();
 	const keys = layer.compositingParamValues.position.keyframesTimeline.keyframes;
@@ -243,9 +243,9 @@ test('keeps driven bindings read only and ends a drag before another command', t
 	assert.equal(canEditTimelineTransform({ inputSource: 'expression', expression: 'TIME' }, 'rotation'), false);
 	assert.throws(() => prepareTimelineTransformBindings({ rotation: { inputSource: 'expression', expression: 'TIME' } }, ['rotation'], 0));
 	const { layer, history, update } = fixture(t);
-	const session = history.beginEdit('editTimelineLayerTransform');
+	const session = history.beginEdit('setTimelineLayerTransformBindings');
 	session.update(update({ rotation: { inputSource: 'literal', value: 0.5 } }));
-	history.commit('editTimelineLayerTransform', update({ rotation: { inputSource: 'literal', value: 1 } }));
+	history.commit('setTimelineLayerTransformBindings', update({ rotation: { inputSource: 'literal', value: 1 } }));
 	session.cancel();
 	assert.equal(layer.compositingParamValues.rotation.value, 1);
 	assert.equal(session.active, false);
@@ -270,7 +270,7 @@ test('shares scene selection and resolves one distinct selected layer', t => {
 test('restores untouched bindings within a drag and validates the complete update before applying', t => {
 	const { layer, history, update } = fixture(t);
 	delete layer.compositingParamValues.position;
-	const session = history.beginEdit('editTimelineLayerTransform');
+	const session = history.beginEdit('setTimelineLayerTransformBindings');
 	session.update(update({ position: { inputSource: 'literal', value: [1, 0] }, scale: { inputSource: 'literal', value: [2, 2] } }));
 	session.update(update({ position: undefined, scale: { inputSource: 'literal', value: [3, 3] } }));
 	session.finish();
@@ -282,6 +282,6 @@ test('restores untouched bindings within a drag and validates the complete updat
 	assert.equal(layer.compositingParamValues.position, undefined);
 	assert.deepEqual(layer.compositingParamValues.scale.value, [3, 3]);
 	const before = structuredClone(layer.compositingParamValues);
-	assert.throws(() => history.commit('editTimelineLayerTransform', update({ position: { inputSource: 'literal', value: [1, 0] }, scale: { inputSource: 'literal', value: [NaN, 1] } })));
+	assert.throws(() => history.commit('setTimelineLayerTransformBindings', update({ position: { inputSource: 'literal', value: [1, 0] }, scale: { inputSource: 'literal', value: [NaN, 1] } })));
 	assert.deepEqual(layer.compositingParamValues, before);
 });

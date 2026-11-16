@@ -1,3 +1,5 @@
+import { nodeParameterTarget } from './helpers/command-inputs.mjs';
+import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -11,6 +13,8 @@ const bundled = await build({
 	stdin: {
 		contents: `
 			export { COMMAND_DEFS } from './src/commands.ts';
+			export { UndoRedo } from './src/utility/undo-redo.ts';
+			export { commitVisualModuleEdit } from './src/utility/visual-module-edit.ts';
 			export { resolveNodeParam, walkNodeParams } from './src/utility/node-params.ts';
 			export { createResetParameterBinding } from './src/utility/parameter-default.ts';
 			export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
@@ -31,7 +35,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, definition, resolveNodeParam, walkNodeParams, createResetParameterBinding } = module.exports;
+const { COMMAND_DEFS, UndoRedo, commitVisualModuleEdit, definition, resolveNodeParam, walkNodeParams, createResetParameterBinding } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 
 function fixture() {
@@ -43,6 +47,128 @@ function fixture() {
 	return { state, node, target: { visualModuleId: 'module', nodeId: node.id, paramPath: ['buzzs'] } };
 }
 
+function fixtureWithRemovedPublicInput() {
+	const { state, node, target } = fixture();
+	const visualModule = state.visualModules.value[0];
+	visualModule.paramDefs = [];
+	visualModule.primaryInputId = null;
+	visualModule.primaryAudioInputId = null;
+	visualModule.nodes.push({ id: 'input', type: 'globalIn' });
+	node.params.buzzs.value.push({ id: 'second', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) });
+	const manager = new UndoRedo(state, COMMAND_DEFS);
+	const publicParameter = manager.commit('createVisualModulePublicParameter', {
+		visualModule: { visualModuleId: visualModule.id },
+		definition: { dataType: { kind: 'color' }, canNode: true, nameForReference: 'image', ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) },
+	});
+	const imageParameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'image'] });
+	manager.commit('setVisualModuleNodeParameterSource', {
+		...imageParameter, source: { inputSource: 'node', nodeId: 'input', outputPort: publicParameter.parameterId, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
+	});
+	manager.commit('removeVisualModulePublicParameter', { target: publicParameter });
+	return { state, node, target, visualModule, manager, publicParameter, imageParameter };
+}
+
+// 【型不一致を許可した接続を残して、別の配列要素を削除・Undo・Redoする】
+// 設定に従って作成済みの接続を、配列全体の再検証で後から拒否してはいけない。
+// UIの接続・削除経路を通し、ネストした要素IDごとに既存接続を認識できることを確認する。
+test('removes sibling array elements while preserving existing mismatched connections', () => {
+	const { state, node } = fixture();
+	node.params.buzzs.value.push({ id: 'second', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) });
+	state.visualModules.value[0].nodes.push({ ...structuredClone(node), id: 'scalar-source' });
+	const manager = new UndoRedo(state, COMMAND_DEFS);
+	const visualModule = { visualModuleId: 'module' };
+	commitVisualModuleEdit(manager, visualModule, { kind: 'editNodeParam', nodeId: node.id, edit: {
+		kind: 'node', paramPath: ['buzzs', 'first', 'image'], value: { nodeId: 'scalar-source', outputPort: 'output2' }, preserveSampling: false,
+	} });
+	const connected = structuredClone(node.params.buzzs);
+	commitVisualModuleEdit(manager, visualModule, { kind: 'editNodeParam', nodeId: node.id, edit: {
+		kind: 'removeElement', paramPath: ['buzzs'], elementId: 'second',
+	} });
+	assert.deepEqual(node.params.buzzs.value, [connected.value[0]]);
+	manager.undo();
+	assert.deepEqual(node.params.buzzs, connected);
+	manager.redo();
+	assert.deepEqual(node.params.buzzs.value, [connected.value[0]]);
+});
+
+// 【既存の型不一致は維持するが、新しいIDパスや接続先には型検証を適用する】
+// 配列のindexだけで一致判定したり、既存接続があるだけで全体の型検証を無効にすると、
+// strictのCommandから新規の型不一致まで導入できてしまう。
+test('still rejects new mismatched connections when another connection is retained', () => {
+	const { state, node, target } = fixture();
+	state.visualModules.value[0].nodes.push(...['scalar-source', 'another-source'].map(id => ({ ...structuredClone(node), id })));
+	const manager = new UndoRedo(state, COMMAND_DEFS);
+	const parameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'image'] });
+	manager.commit('setVisualModuleNodeParameterSource', { ...parameter, connectionTypePolicy: 'allowMismatch', source: { inputSource: 'node', nodeId: 'scalar-source', outputPort: 'output2' } });
+	const before = structuredClone(node.params.buzzs);
+	assert.throws(() => manager.commit('setVisualModuleNodeParameterSource', {
+		...parameter, source: { inputSource: 'node', nodeId: 'another-source', outputPort: 'output2' },
+	}), /Node output type does not match/);
+	const movedToNewId = structuredClone(before);
+	movedToNewId.value[0].id = 'new-element';
+	assert.throws(() => manager.commit('replaceVisualModuleNodeParameterBinding', {
+		...nodeParameterTarget(target), binding: movedToNewId,
+	}), /Node output type does not match/);
+	assert.deepEqual(node.params.buzzs, before);
+	assert.equal(manager.undoStack.value.length, 1);
+});
+
+// 【公開入力の削除で未解決になった接続を保持して、兄弟要素とサンプリングを編集する】
+// 公開入力の削除はUndoで再接続できるよう参照IDを残すため、その接続が含まれるだけで
+// 配列全体の編集を拒否してはいけない。編集と定義削除を順にUndo/Redoしても参照を維持する。
+test('edits arrays and sampling while preserving connections to removed public inputs', () => {
+	const { node, target, visualModule, manager, publicParameter, imageParameter } = fixtureWithRemovedPublicInput();
+	const before = structuredClone(visualModule);
+	assert.equal(visualModule.paramDefs.length, 0);
+	commitVisualModuleEdit(manager, { visualModuleId: visualModule.id }, { kind: 'editNodeParam', nodeId: node.id, edit: {
+		kind: 'removeElement', paramPath: target.paramPath, elementId: 'second',
+	} });
+	assert.deepEqual(node.params.buzzs.value, [before.nodes[0].params.buzzs.value[0]]);
+	const removed = structuredClone(visualModule);
+	const connection = structuredClone(resolveNodeParam(node, imageParameter.parameterPath).value);
+	const sampled = { ...connection, fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
+	manager.commit('setVisualModuleNodeParameterSource', { ...imageParameter, source: sampled });
+	assert.deepEqual(resolveNodeParam(node, imageParameter.parameterPath).value, sampled);
+	const after = structuredClone(visualModule);
+	manager.undo();
+	assert.deepEqual(visualModule, removed);
+	manager.undo();
+	assert.deepEqual(visualModule, before);
+	manager.undo();
+	assert.equal(visualModule.paramDefs[0].id, publicParameter.parameterId);
+	assert.deepEqual(resolveNodeParam(node, imageParameter.parameterPath).value, connection);
+	manager.redo();
+	assert.deepEqual(visualModule, before);
+	manager.redo();
+	assert.deepEqual(visualModule, removed);
+	manager.redo();
+	assert.deepEqual(visualModule, after);
+});
+
+// 【既存の未解決接続があっても、新しいIDパスや接続先の欠落は拒否する】
+// 既存接続の保持を許可する例外を、新規の壊れた接続の作成に使えてはいけない。
+// 型不一致を許す方針でも参照先の存在確認は必要で、失敗時に状態と履歴を変更しない。
+test('rejects new missing connections even when an unresolved connection is retained', () => {
+	const { node, target, visualModule, manager, imageParameter } = fixtureWithRemovedPublicInput();
+	const before = structuredClone(visualModule);
+	const historySize = manager.undoStack.value.length;
+	const connection = structuredClone(resolveNodeParam(node, imageParameter.parameterPath).value);
+	for (const connectionTypePolicy of ['strict', 'allowMismatch']) {
+		for (const source of [{ ...connection, nodeId: 'missing-node' }, { ...connection, outputPort: 'missing-port' }]) {
+			assert.throws(() => manager.commit('setVisualModuleNodeParameterSource', {
+				...imageParameter, source, connectionTypePolicy,
+			}), /Node output not found/);
+		}
+		const movedToNewId = structuredClone(node.params.buzzs);
+		movedToNewId.value[0].id = 'new-element';
+		assert.throws(() => manager.commit('replaceVisualModuleNodeParameterBinding', {
+			...nodeParameterTarget(target), binding: movedToNewId, connectionTypePolicy,
+		}), /Node output not found/);
+	}
+	assert.deepEqual(visualModule, before);
+	assert.equal(manager.undoStack.value.length, historySize);
+});
+
 // 【ネストしたパラメータの基準値編集でも加工式を保持し、加工式自体は独立してUndoする】
 // 通常の値編集や入力方式の切替がBindingを作り直しても、加工式を消してはいけない。
 // リセットだけは全体を既定値へ戻し、Undoで元の基準値と加工式を一緒に復元する。
@@ -50,29 +176,29 @@ test('preserves modifiers through node source edits and independent undo and red
 	const { state, node, target } = fixture();
 	target.paramPath = ['buzzs', 'first', 'x'];
 	const modifier = { enabled: true, code: 'VALUE + 1' };
-	const add = COMMAND_DEFS.updateParamExpressionModifier.create({ ...target, value: modifier });
+	const add = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: modifier });
 	add.execute(state);
 	const read = () => resolveNodeParam(node, target.paramPath).value;
 	assert.deepEqual(read().expressionModifier, modifier);
-	const edit = COMMAND_DEFS.updateParamAsLiteral.create({ ...target, value: 0.75 });
+	const edit = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: 0.75 } });
 	edit.execute(state);
 	assert.equal(read().value, 0.75);
 	assert.deepEqual(read().expressionModifier, modifier);
-	const source = COMMAND_DEFS.changeParamValueInputSource.create({ ...target, inputSource: 'expression' });
+	const source = prepareTestCommand(COMMAND_DEFS.switchVisualModuleNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'expression' });
 	source.execute(state);
 	assert.equal(read().expression, '0.75');
 	assert.deepEqual(read().expressionModifier, modifier);
-	const disable = COMMAND_DEFS.updateParamExpressionModifier.create({ ...target, value: { ...modifier, enabled: false } });
+	const disable = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: { ...modifier, enabled: false } });
 	disable.execute(state);
 	assert.equal(read().expressionModifier.enabled, false);
 	disable.undo(state);
 	assert.equal(read().expressionModifier.enabled, true);
-	const reset = COMMAND_DEFS.resetNodeParam.create(target);
+	const reset = prepareTestCommand(COMMAND_DEFS.resetVisualModuleNodeParameter, { ...nodeParameterTarget(target) });
 	reset.execute(state);
 	assert.deepEqual(read(), literal(0));
 	reset.undo(state);
 	assert.deepEqual(read().expressionModifier, modifier);
-	const remove = COMMAND_DEFS.updateParamExpressionModifier.create({ ...target, value: null });
+	const remove = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: null });
 	remove.execute(state);
 	assert.equal(read().expressionModifier, null);
 	remove.undo(state);
@@ -86,8 +212,8 @@ test('targets element IDs across insertions and reordering', () => {
 	const { state, node, target } = fixture();
 	const otherNode = { ...structuredClone(node), id: 'other' };
 	state.visualModules.value[0].nodes.push(otherNode);
-	const edit = COMMAND_DEFS.updateParamAsLiteral.create({ ...target, paramPath: ['buzzs', 'first', 'x'], value: 0.75 });
-	const remove = COMMAND_DEFS.removeArrayParamElement.create({ ...target, elementId: 'first' });
+	const edit = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'x'] }), source: { inputSource: 'literal', value: 0.75 } });
+	const remove = prepareTestCommand(COMMAND_DEFS.removeVisualModuleNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: ['first'] });
 	const inserted = { id: 'inserted', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) };
 	node.params.buzzs.value.unshift(inserted);
 	edit.execute(state);
@@ -109,11 +235,11 @@ test('targets element IDs across insertions and reordering', () => {
 // 遅れて届いた編集や削除を、以前のindexへフォールバックして適用しない。
 test('rejects stale element targets without changing another element', () => {
 	const { state, node, target } = fixture();
-	const edit = COMMAND_DEFS.updateParamAsLiteral.create({ ...target, paramPath: ['buzzs', 'first', 'x'], value: 1 });
+	const edit = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'x'] }), source: { inputSource: 'literal', value: 1 } });
 	node.params.buzzs.value = [{ id: 'replacement', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) }];
 	const before = structuredClone(node.params);
 	assert.throws(() => edit.execute(state), /Unknown array element/);
-	assert.throws(() => COMMAND_DEFS.removeArrayParamElement.create({ ...target, elementId: 'first' }).execute(state), /Unknown array element/);
+	assert.throws(() => prepareTestCommand(COMMAND_DEFS.removeVisualModuleNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: ['first'] }).execute(state), /Array element not found/);
 	assert.deepEqual(node.params, before);
 });
 
@@ -123,7 +249,7 @@ test('rejects stale element targets without changing another element', () => {
 test('preserves generated IDs through undo and redo of additions and resets', () => {
 	const { state, node, target } = fixture();
 	const original = structuredClone(node.params.buzzs);
-	const add = COMMAND_DEFS.addArrayParamElement.create(target);
+	const add = prepareTestCommand(COMMAND_DEFS.insertVisualModuleNodeParameterArrayElement, { ...nodeParameterTarget(target) });
 	add.execute(state);
 	const added = structuredClone(node.params.buzzs);
 	assert.notEqual(added.value[1].id, added.value[0].id);
@@ -133,7 +259,7 @@ test('preserves generated IDs through undo and redo of additions and resets', ()
 	add.execute(state);
 	assert.deepEqual(node.params.buzzs, added);
 
-	const reset = COMMAND_DEFS.resetNodeParam.create(target);
+	const reset = prepareTestCommand(COMMAND_DEFS.resetVisualModuleNodeParameter, { ...nodeParameterTarget(target) });
 	reset.execute(state);
 	const resetValue = structuredClone(node.params.buzzs);
 	assert.equal(resetValue.value.length, 1);
@@ -146,8 +272,8 @@ test('preserves generated IDs through undo and redo of additions and resets', ()
 	assert.equal(definition.paramDefs.buzzs.defaultValue.value[0].id, 'first');
 
 	const path = ['buzzs', resetValue.value[0].id];
-	COMMAND_DEFS.updateParamAsLiteral.create({ ...target, paramPath: [...path, 'x'], value: 1 }).execute(state);
-	COMMAND_DEFS.resetNodeParam.create({ ...target, paramPath: path }).execute(state);
+	prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: [...path, 'x'] }), source: { inputSource: 'literal', value: 1 } }).execute(state);
+	prepareTestCommand(COMMAND_DEFS.resetVisualModuleNodeParameter, { ...nodeParameterTarget({ ...target, paramPath: path }) }).execute(state);
 	assert.equal(node.params.buzzs.value[0].id, resetValue.value[0].id);
 	assert.deepEqual(node.params.buzzs.value[0].binding, original.value[0].binding);
 });

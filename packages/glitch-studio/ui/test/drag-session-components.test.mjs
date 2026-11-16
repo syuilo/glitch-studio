@@ -30,6 +30,7 @@ const bundle = await build({ absWorkingDir: directory,
 	plugins: [i18nPlugin, { name: 'drag-session-components', setup(build) {
 		build.onResolve({ filter: /(?:project-session|project-actions)\.ts$/ }, () => ({ path: 'app.ts', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/(preferences|workspace|app|ui|desktop-update-ui)\.ts$/ }, ({ path }) => ({ path: path.slice(2), namespace: 'test' }));
+		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /open-media-file\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
 		build.onResolve({ filter: /import-assets\.ts$/ }, () => ({ path: 'asset-import', namespace: 'test' }));
 		build.onResolve({ filter: /visual-module-wires\.ts$/ }, () => ({ path: 'wires', namespace: 'test' }));
@@ -48,6 +49,7 @@ const bundle = await build({ absWorkingDir: directory,
 				export async function openProject(file, handle) { dashboardTest.opened.push({ file, handle }); return dashboardTest.success; }`,
 			'ui.ts': 'export function progress() { return { done() {} }; } export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {} export async function confirm() { return { canceled: false }; }',
 			'desktop-update-ui.ts': 'export const desktopUpdateUi = null;',
+			effects: 'export const effectDefinitions = {};',
 			media: 'export async function openMediaFile() {}',
 			'asset-import': `export const assetImportTest = { calls: [], read: null };
 				export async function importAssets(destination, files) { const context = typeof destination === 'function' ? await destination() : destination; assetImportTest.calls.push({ context, files });

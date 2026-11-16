@@ -95,7 +95,7 @@ test('pastes across original lanes with one undo entry and parameter value notif
 	f.selection.push(...f.addLane('audio', 'audio', ['volume'], [{ id: 'a', x: 100, value: 0.5, interpolation: { type: 'linear' } }]));
 	const before = structuredClone(f.scene);
 	const keyframes = prepareTimelineKeyframePaste(f.state, f.scene, f.clipboard, 1000);
-	f.history.commit('pasteTimelineKeyframes', { sceneId: 'scene', keyframes });
+	f.history.commit('insertTimelineKeyframes', { sceneId: 'scene', keyframes });
 	const after = structuredClone(f.scene);
 	assert.deepEqual(keyframes.map(entry => entry.keyframe.x), [1000, 1200, 1100, 1000]);
 	assert.equal(f.history.undoStack.value.length, 1);
@@ -121,7 +121,7 @@ test('rejects collisions and invalid times atomically while allowing existing ke
 		assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, time), null);
 	}
 	const keyframes = prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000);
-	f.history.commit('pasteTimelineKeyframes', { sceneId: 'scene', keyframes });
+	f.history.commit('insertTimelineKeyframes', { sceneId: 'scene', keyframes });
 	f.history.undo();
 	f.changes.length = 0;
 	f.read(f.selection[0]).keyframesTimeline.keyframes.push({ id: 'between', x: 1100, value: [1, 1], interpolation: { type: 'linear' } });
@@ -129,7 +129,7 @@ test('rejects collisions and invalid times atomically while allowing existing ke
 	f.read(f.selection[0]).keyframesTimeline.keyframes.push({ id: 'blocking', x: 1200, value: [1, 1], interpolation: { type: 'linear' } });
 	const before = structuredClone(f.scene);
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
-	assert.throws(() => f.history.commit('pasteTimelineKeyframes', { sceneId: 'scene', keyframes }), /Invalid or overlapping/);
+	assert.throws(() => f.history.commit('insertTimelineKeyframes', { sceneId: 'scene', keyframes }), /Invalid or overlapping/);
 	assert.deepEqual(f.scene, before);
 	assert.equal(f.history.undoStack.value.length, 0);
 	assert.equal(f.history.redoStack.value.length, 1);
@@ -151,7 +151,7 @@ test('merges nested array lanes into one root draft and preserves element IDs th
 	values.buzzs.value.reverse();
 	const before = structuredClone(f.scene);
 	const keyframes = prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000);
-	f.history.commit('pasteTimelineKeyframes', { sceneId: 'scene', keyframes });
+	f.history.commit('insertTimelineKeyframes', { sceneId: 'scene', keyframes });
 	for (const point of f.selection) assert.deepEqual(f.read(point).keyframesTimeline.keyframes.map(key => key.x), [100, 1000]);
 	f.history.undo();
 	assert.deepEqual(f.scene, before);
@@ -192,7 +192,7 @@ test('materializes default module arguments independently and validates enum opt
 	const clipboard = f.clipboard;
 	const originalDefault = structuredClone(def.defaultValue);
 	const keyframes = prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000);
-	f.history.commit('pasteTimelineKeyframes', { sceneId: 'scene', keyframes });
+	f.history.commit('insertTimelineKeyframes', { sceneId: 'scene', keyframes });
 	assert.deepEqual(def.defaultValue, originalDefault);
 	assert.deepEqual(f.read(f.selection[0]).keyframesTimeline.keyframes.map(point => point.x), [0, 1000]);
 	f.history.undo();

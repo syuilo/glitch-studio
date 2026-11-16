@@ -24,7 +24,7 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 	const speeches = new Map<string, UtteranceUpdate>();
 	for (const position of positions) {
 		const layer = findTimelineLayer(scene.layers, position.layerId);
-		if (!layer || !Number.isSafeInteger(Math.round(position.x)) || position.x < 0) throw new Error('Invalid keyframe move');
+		if (!layer || !Number.isSafeInteger(position.x) || position.x < 0) throw new Error('Invalid keyframe move');
 		if (position.target === 'utterance') {
 			if (layer.layerType !== 'voicevox' || position.paramPath.length !== 1 || position.paramPath[0] !== 'utterances') throw new Error('Invalid utterance target');
 			const update = speeches.get(layer.id) ?? {
@@ -35,7 +35,7 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 			};
 			const utterance = update.after.find(utterance => utterance.id === position.keyframeId);
 			if (!utterance) throw new Error('Utterance not found');
-			utterance.timeMs = Math.round(position.x);
+			utterance.timeMs = position.x;
 			speeches.set(layer.id, update);
 			continue;
 		}
@@ -54,7 +54,7 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 		const binding = resolveParameter<EditableTimelineParameterBinding>(definitions, { [paramId]: update.after }, position.paramPath).value;
 		const point = binding.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : null;
 		if (!point) throw new Error('Timeline keyframe not found');
-		point.x = Math.round(position.x);
+		point.x = position.x;
 		validateTimelineParameterTree(definitions[paramId], update.after, position.target === 'effect' || position.target === 'module', position.target === 'effect' || position.target === 'module');
 		parameters.set(rootKey, update);
 	}

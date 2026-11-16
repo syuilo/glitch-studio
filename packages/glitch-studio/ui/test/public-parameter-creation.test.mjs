@@ -39,7 +39,7 @@ function fixture() {
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
-	return { node, visualModule, layer, scene, state, history, changes };
+	return { get node() { return visualModule.nodes.find(candidate => candidate.id === node.id); }, visualModule, layer, scene, state, history, changes };
 }
 
 for (const inline of [false, true]) {
@@ -81,7 +81,7 @@ test('promotes an array leaf without replacing existing custom definitions or va
 	f.visualModule.customParameterValues = { existing: { inputSource: 'expression', expression: 'TIME' } };
 	f.visualModule.paramDefs = [{ ...existing, id: 'public-weights', nameForReference: 'weights_2' }];
 	const before = structuredClone(f.visualModule);
-	f.history.commit('createVisualModuleCustomParameterFromParam', { visualModuleId: f.visualModule.id, nodeId: f.node.id, paramPath: ['weights', 'second'] });
+	f.history.commit('createVisualModuleCustomParameterFromParameter', { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id }, parameterPath: ['weights', 'second'] });
 	const definition = f.visualModule.customParameterDefs[1];
 	assert.equal(definition.nameForReference, 'weights_2');
 	assert.deepEqual(definition.defaultValue, literal(0.8));
@@ -110,8 +110,8 @@ test('rejects unsupported custom parameter promotion without changing state or h
 		const path = binding === array.defaultValue ? ['weights'] : ['amount'];
 		f.node.params[path[0]] = structuredClone(binding);
 		const before = structuredClone(f.state);
-		assert.throws(() => f.history.commit('createVisualModuleCustomParameterFromParam', {
-			visualModuleId: f.visualModule.id, nodeId: f.node.id, paramPath: path,
+		assert.throws(() => f.history.commit('createVisualModuleCustomParameterFromParameter', {
+			target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id }, parameterPath: path,
 		}), /Only literal/);
 		assert.deepEqual(f.state, before);
 		assert.equal(f.history.undoStack.value.length, 0);
@@ -130,6 +130,7 @@ for (const inline of [false, true]) {
 		f.visualModule.paramDefs.push({ ...definition, id: 'public-id' });
 		const before = structuredClone(f.visualModule);
 		commitVisualModuleEdit(f.history, target, { kind: 'updateCustomParameter', definition });
+		definition.id = f.visualModule.customParameterDefs[0].id;
 		const afterCreation = structuredClone(f.visualModule);
 		f.history.undo();
 		assert.deepEqual(f.visualModule, before);
@@ -196,8 +197,8 @@ for (const scope of ['visualModule', 'timeline']) {
 		else f.layer.publicParameterDefs = [existing];
 		const owner = scope === 'visualModule' ? f.visualModule : f.layer;
 		const before = structuredClone(owner);
-		f.history.commit(scope === 'visualModule' ? 'createVisualModulePublicParameterFromParam' : 'createTimelineLayerPublicParameterFromParam', {
-			...(scope === 'visualModule' ? { visualModuleId: f.visualModule.id, nodeId: f.node.id } : { sceneId: 'scene', layerId: f.layer.id, target: 'effect' }), paramPath: ['weights', 'second'],
+		f.history.commit(scope === 'visualModule' ? 'createVisualModulePublicParameterFromParameter' : 'createTimelineLayerPublicParameterFromParameter', {
+			...(scope === 'visualModule' ? { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id } } : { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect' }), parameterPath: ['weights', 'second'],
 		});
 		const definitions = scope === 'visualModule' ? f.visualModule.paramDefs : f.layer.publicParameterDefs;
 		const values = scope === 'visualModule' ? f.node.params : f.layer.effectParamValues;
@@ -224,7 +225,7 @@ test('promotes an unset inline Visual Module argument into its owning timeline l
 	f.layer = { id: 'inline', layerType: 'inlineVisualModule', visualModule: f.visualModule, visualModuleParamValues: {}, automationGraphs: [] };
 	f.scene.layers = [f.layer];
 	const before = structuredClone(f.layer);
-	f.history.commit('createTimelineLayerPublicParameterFromParam', { sceneId: 'scene', layerId: f.layer.id, target: 'module', paramPath: ['amount'] });
+	f.history.commit('createTimelineLayerPublicParameterFromParameter', { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'visualModule', parameterPath: ['amount'] });
 	const definition = f.layer.publicParameterDefs[0];
 	assert.deepEqual(definition.defaultValue, literal(0.75));
 	assert.deepEqual(f.layer.visualModuleParamValues.amount, { inputSource: 'timelineLayerPublicParameterReference', layerId: f.layer.id, parameterId: definition.id });
@@ -245,7 +246,7 @@ test('uses the fixed default when promoting an unset camera distance', () => {
 	f.state.resolution.value = { width: 800, height: 1600 };
 	const layer = { id: 'camera', layerType: 'camera', cameraParamValues: {}, automationGraphs: [] };
 	f.scene.layers.push(layer);
-	f.history.commit('createTimelineLayerPublicParameterFromParam', { sceneId: 'scene', layerId: layer.id, target: 'camera', paramPath: ['z'] });
+	f.history.commit('createTimelineLayerPublicParameterFromParameter', { sceneId: 'scene', layerId: layer.id, parameterGroup: 'camera', parameterPath: ['z'] });
 	assert.ok(Math.abs(layer.publicParameterDefs[0].defaultValue.value - 0.5 / Math.tan(Math.PI / 8)) < 1e-10);
 	f.history.undo();
 	assert.deepEqual(layer.cameraParamValues, {});
@@ -269,8 +270,8 @@ test('rejects nonliteral bindings modifiers and containers without changing stat
 			if (scope === 'visualModule') f.node.params[path[0]] = structuredClone(binding);
 			else f.layer.effectParamValues[path[0]] = structuredClone(binding);
 			const before = structuredClone(f.state);
-			assert.throws(() => f.history.commit(scope === 'visualModule' ? 'createVisualModulePublicParameterFromParam' : 'createTimelineLayerPublicParameterFromParam', {
-				...(scope === 'visualModule' ? { visualModuleId: f.visualModule.id, nodeId: f.node.id } : { sceneId: 'scene', layerId: f.layer.id, target: 'effect' }), paramPath: path,
+			assert.throws(() => f.history.commit(scope === 'visualModule' ? 'createVisualModulePublicParameterFromParameter' : 'createTimelineLayerPublicParameterFromParameter', {
+				...(scope === 'visualModule' ? { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id } } : { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect' }), parameterPath: path,
 			}), /Only literal/);
 			assert.deepEqual(f.state, before);
 			assert.equal(f.history.undoStack.value.length, 0);
@@ -278,7 +279,7 @@ test('rejects nonliteral bindings modifiers and containers without changing stat
 		}
 	}
 	const f = fixture();
-	assert.throws(() => f.history.commit('createTimelineLayerPublicParameterFromParam', { sceneId: 'scene', layerId: f.layer.id, target: 'publicParameter', paramPath: ['amount'] }), /cannot be promoted/);
+	assert.throws(() => f.history.commit('createTimelineLayerPublicParameterFromParameter', { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'publicParameter', parameterPath: ['amount'] }), /cannot be promoted/);
 });
 
 // 【表示名が日本語や数字でも、空でなく重複しないsnake caseの参照名を発行する】
@@ -295,4 +296,48 @@ test('generates valid unique reference names without altering labels or sharing 
 	definition.defaultValue.value[0] = 0;
 	assert.deepEqual(value.value, [1, 0.5, 0, 0.25]);
 	assert.equal(definition.canNode, false);
+});
+
+// 【一回の非同期グループで作成した参照を次のCommandへ渡し、失敗前の操作だけをUndoする】
+// AiScriptのように生成IDを呼び出し側で用意できない利用でも、後続編集の対象を確定できる必要がある。
+// 検証に失敗したCommandは状態と通知を残さず、先行した成功分は一履歴として手動で戻せる。
+test('returns stable references and retains only successful changes in an asynchronous group', async () => {
+	const f = fixture();
+	const before = structuredClone(f.visualModule);
+	let created;
+	await assert.rejects(f.history.runGroup('Script', async () => {
+		created = await f.history.execute('createVisualModuleCustomParameter', { visualModule: { visualModuleId: f.visualModule.id }, definition: { ...scalar, canNode: false, nameForReference: 'created' } });
+		await f.history.execute('setVisualModuleCustomParameterSource', { target: created, source: { inputSource: 'expression', expression: 'TIME' } });
+		await f.history.execute('replaceVisualModuleNodeParameterBinding', { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id }, parameterPath: ['weights'], binding: { inputSource: 'literal', value: [{ id: 'same', binding: literal(1) }, { id: 'same', binding: literal(2) }] } });
+	}), /Duplicate array element ID/);
+	assert.equal(f.history.undoStack.value.length, 1);
+	assert.equal(f.changes.length, 2);
+	assert.deepEqual(f.visualModule.customParameterValues[created.parameterId], { inputSource: 'expression', expression: 'TIME' });
+	const after = structuredClone(f.visualModule);
+	created.parameterId = 'caller-mutated';
+	f.history.undo();
+	assert.deepEqual(f.visualModule, before);
+	f.history.redo();
+	assert.deepEqual(f.visualModule, after);
+});
+
+// 【配列要素の生成結果を編集へ渡し、No-opと失敗でRedoを壊さない】
+// 要素IDはCommandが発行し、Redoでも同一にする。既存値の再設定や不正な位置への挿入は
+// 履歴と通知を増やさず、取り消した操作をやり直せる状態を維持する。
+test('returns array element paths and keeps redo on no-op or invalid edits', async () => {
+	const f = fixture();
+	const input = { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id }, parameterPath: ['weights'] };
+	const inserted = await f.history.execute('insertVisualModuleNodeParameterArrayElement', { ...input, beforeElementId: 'second' });
+	assert.deepEqual(inserted.parameterPath.slice(0, -1), ['weights']);
+	assert.equal(f.node.params.weights.value[1].id, inserted.parameterPath.at(-1));
+	await f.history.execute('setVisualModuleNodeParameterSource', { ...inserted, source: literal(0.4) });
+	assert.deepEqual(f.node.params.weights.value[1].binding, literal(0.4));
+	f.history.undo();
+	const notifications = f.changes.length;
+	await f.history.execute('setVisualModuleNodeParameterSource', { ...inserted, source: literal(0) });
+	await assert.rejects(f.history.execute('insertVisualModuleNodeParameterArrayElement', { ...input, beforeElementId: 'missing' }), /not found/);
+	assert.equal(f.history.redoStack.value.length, 1);
+	assert.equal(f.changes.length, notifications);
+	f.history.redo();
+	assert.deepEqual(f.node.params.weights.value[1].binding, literal(0.4));
 });

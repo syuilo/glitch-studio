@@ -5,7 +5,8 @@ import { createParameterClipboard, createVisualModuleClipboardSource, parseParam
 import { clipboardText } from './clipboard-text.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
-import type { VisualModuleArgumentBindings, VisualModulePublicParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleArgumentBindings, VisualModuleParameterBinding, VisualModuleValueParameterBinding, VisualModulePublicParameterId, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import type { ClipboardTextAccess } from './clipboard-text.ts';
 import type { ProjectParameterClipboardTarget } from './parameter-clipboard.ts';
 import type { ProjectContext } from '../Project.ts';
@@ -42,8 +43,28 @@ export async function handleProjectParameterClipboard(
 			: currentContext.kind === 'customParameter' ? currentContext.visualModule.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : currentContext.layer;
 		if (currentOwner !== originalOwner || !areDataTypesEqual(originalType, current.def.dataType)) return;
 	} catch { return; }
-	if (prepareProjectParameterPaste(state, projectSessionId, target, data) == null) return;
-	context.stateManager.commit('pasteParameter', { target, projectSessionId, clipboard: data });
+	const update = prepareProjectParameterPaste(state, projectSessionId, target, data);
+	if (update == null) return;
+	// クリップボードの形式・セッション由来の参照はUI境界で解決する。
+	// Commandへは編集対象と完成したBindingだけを渡し、他の呼び出し元と同じ検証を通す。
+	const parameterPath: ParamPath = [target.paramPath[0]];
+	if (target.kind === 'node') {
+		context.stateManager.commit('replaceVisualModuleNodeParameterBinding', {
+			target: { visualModule: target.visualModuleTarget, nodeId: target.nodeId }, parameterPath,
+			binding: update.after as VisualModuleParameterBinding,
+		});
+	} else if (target.kind === 'customParameter') {
+		context.stateManager.commit('replaceVisualModuleCustomParameterBinding', {
+			target: { visualModule: target.visualModuleTarget, parameterId: parameterPath[0] as VisualModuleCustomParameterId },
+			binding: update.after as VisualModuleValueParameterBinding,
+		});
+	} else {
+		context.stateManager.commit('replaceTimelineLayerParameterBinding', {
+			sceneId: target.sceneId, layerId: target.layerId,
+			parameterGroup: target.parameterTarget === 'module' ? 'visualModule' : target.parameterTarget,
+			parameterPath, binding: update.after as EditableTimelineParameterBinding,
+		});
+	}
 }
 
 /** Live Previewの引数は保存状態・履歴を持たないため、共通の検証後に呼び出し側へ返す。 */

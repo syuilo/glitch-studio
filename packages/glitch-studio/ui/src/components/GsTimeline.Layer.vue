@@ -135,7 +135,6 @@ import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_
 import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { computed } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
-import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
@@ -147,6 +146,8 @@ import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility
 import type { TimelineTickMode, TimelineTickSubdivisions } from '@/utility/timeline-ticks.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { TimelineLayer, TimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
+import { commitTimelineParameterEdit } from '@/utility/timeline-parameter-command-actions.ts';
 import { colorCss } from '@/utility/color-input.ts';
 import { i18n } from '@/i18n.ts';
 import { timelineTimeToX, timelinePointerTime } from '@/utility/timeline-coordinates.ts';
@@ -331,7 +332,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const inserted = insertInlineKeyframe(current, definition, Math.round(x), Infinity);
 	if (!inserted) return;
 	if (inserted.value !== current) {
-		stateManager.commit('editTimelineLayerParam', {
+		commitTimelineParameterEdit(stateManager, {
 			sceneId: props.sceneId,
 			layerId: layer.id,
 			target: param.target,

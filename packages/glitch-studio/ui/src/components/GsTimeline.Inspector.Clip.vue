@@ -4,6 +4,7 @@
 	<template #label>{{ i18n.ts._TimelineClip.Title }}: {{ selectedClipLabel }}</template>
 	<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 		<div class="_spacer _gaps_m">
+			<div v-if="timingError">{{ timingError }}</div>
 			<GsInput type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>{{ i18n.ts.Start }}</template><template #suffix>ms</template></GsInput>
 			<GsInput type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>{{ i18n.ts._TimelineClip.TrimStart }}</template><template #suffix>ms</template></GsInput>
 			<GsInput data-test-clip-duration type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedMediaClip ? getTimelineMediaSingleDuration(selectedMediaClip) : selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>{{ selectedMediaClip ? i18n.ts._TimelineClip.TrimmedDuration : i18n.ts.Duration }}</template><template #suffix>ms</template></GsInput>
@@ -45,7 +46,6 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { changeTimelineMediaPlaybackRate, getTimelineMediaSourceTime, getTimelineMediaSingleDuration, timelineMediaMinPlaybackSpeed, timelineMediaMaxPlaybackSpeed } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { isTimelineClipActive, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
-import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
@@ -55,6 +55,7 @@ import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/med
 import type { TimelineClipLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineClipSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { readTimelineVideoHoldFrame } from '@/utility/timeline-video-hold.ts';
 import { useProjectSession } from '@/project-session.ts';
@@ -101,6 +102,7 @@ onUnmounted(() => { holdGeneration++; });
 const speedPercent = ref(100);
 const reversePlayback = ref(false);
 const speedError = ref('');
+const timingError = ref('');
 watch(() => [props.sceneId, props.layer.id, props.clipId, selectedMediaClip.value?.playbackRate], () => {
 	speedPercent.value = Math.abs(selectedMediaClip.value?.playbackRate ?? 1) * 100;
 	reversePlayback.value = (selectedMediaClip.value?.playbackRate ?? 1) < 0;
@@ -135,49 +137,52 @@ const selectedClipLabel = computed(() => {
 	return '?';
 });
 
-function editSelectedClipTime(kind: 'move' | 'start' | 'duration', value: string | number) {
-	const entry = selectedClipEntry.value;
-	const next = Number(value);
-	if (!entry || !Number.isFinite(next)) return;
-	if (kind === 'move') stateManager.commit('moveTimelineClips', { sceneId: props.sceneId, clips: [entry.target], deltaMs: next - entry.clip.startMs });
-	else {
-		if (selectedClipNeedsMedia.value && !selectedClipMedia.value) return;
-		stateManager.commit('editTimelineClipTiming', {
+async function editSelectedClipTime(kind: 'move' | 'start' | 'duration', value: string | number) {
+	timingError.value = '';
+	try {
+		const entry = selectedClipEntry.value;
+		const next = Number(value);
+		if (!entry || !Number.isFinite(next)) return;
+		if (kind === 'move') stateManager.commit('moveTimelineClips', { sceneId: props.sceneId, clips: [entry.target], deltaMs: next - entry.clip.startMs });
+		else {
+			if (selectedClipNeedsMedia.value && !selectedClipMedia.value) return;
+			await stateManager.execute('trimTimelineClip', {
+				sceneId: props.sceneId,
+				...entry.target,
+				edge: kind === 'start' ? 'start' : 'end',
+				deltaMs: kind === 'start' ? next - entry.clip.startMs : next - (selectedMediaClip.value ? getTimelineMediaSingleDuration(selectedMediaClip.value) : entry.clip.durationMs),
+			});
+		}
+	} catch (error) { timingError.value = error instanceof Error ? error.message : String(error); }
+}
+
+async function editSelectedClipLoop(value: string | number) {
+	timingError.value = '';
+	try {
+		const clip = selectedMediaClip.value;
+		const media = selectedClipMedia.value;
+		const next = Number(value);
+		if (!clip || !media || !Number.isFinite(next)) return;
+		await stateManager.execute('resizeTimelineMediaClipLoop', {
 			sceneId: props.sceneId,
-			...entry.target,
-			edge: kind === 'start' ? 'start' : 'end',
-			deltaMs: kind === 'start' ? next - entry.clip.startMs : next - (selectedMediaClip.value ? getTimelineMediaSingleDuration(selectedMediaClip.value) : entry.clip.durationMs),
-			sourceDurationMs: selectedClipMedia.value?.durationMs,
+			layerId: props.layer.id,
+			clipId: clip.id,
+			deltaMs: next - clip.durationMs,
 		});
-	}
+	} catch (error) { timingError.value = error instanceof Error ? error.message : String(error); }
 }
 
-function editSelectedClipLoop(value: string | number) {
-	const clip = selectedMediaClip.value;
-	const media = selectedClipMedia.value;
-	const next = Number(value);
-	if (!clip || !media || !Number.isFinite(next)) return;
-	stateManager.commit('editMediaClipLoop', {
-		sceneId: props.sceneId,
-		layerId: props.layer.id,
-		clipId: clip.id,
-		deltaMs: next - clip.durationMs,
-		sourceDurationMs: media.durationMs,
-	});
-}
-
-function editSelectedClipSpeed() {
+async function editSelectedClipSpeed() {
 	const clip = selectedMediaClip.value;
 	const media = selectedClipMedia.value;
 	const timing = speedChange.value.timing;
 	if (!clip || !media || !timing || speedChange.value.error) return;
 	try {
-		stateManager.commit('editMediaClipPlaybackRate', {
+		await stateManager.execute('setTimelineMediaClipPlaybackRate', {
 			sceneId: props.sceneId,
 			layerId: props.layer.id,
 			clipId: clip.id,
 			playbackRate: timing.playbackRate,
-			sourceDurationMs: media.durationMs,
 		});
 		speedError.value = '';
 	} catch (error) { speedError.value = error instanceof Error ? error.message : String(error); }
@@ -186,14 +191,14 @@ function editSelectedClipSpeed() {
 function editSelectedClipAudio(audioEnabled: boolean) {
 	const entry = selectedClipEntry.value;
 	if (!entry || !selectedVideoClip.value) return;
-	stateManager.commit('editVideoClipAudio', { sceneId: props.sceneId, ...entry.target, audioEnabled });
+	stateManager.commit('setTimelineVideoClipAudioEnabled', { sceneId: props.sceneId, ...entry.target, audioEnabled });
 }
 
 function editSelectedClipAudioOnly(audioOnly: boolean) {
 	const entry = selectedClipEntry.value;
 	const clip = selectedVideoClip.value;
 	if (entry == null || clip == null || 'sourceTimeMs' in clip) return;
-	stateManager.commit('editVideoClipVideoEnabled', { sceneId: props.sceneId, ...entry.target, videoEnabled: !audioOnly });
+	stateManager.commit('setTimelineVideoClipVideoEnabled', { sceneId: props.sceneId, ...entry.target, videoEnabled: !audioOnly });
 }
 
 function holdCurrentFrame() {
@@ -229,7 +234,7 @@ async function holdVideoFrame(sourceTimeMs: number, reversePlayback = false) {
 		if (generation !== holdGeneration || selectedVideoClip.value !== clip || JSON.stringify(clip) !== snapshot
 			|| stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId) !== scene
 			|| !stateManager.state.assets.value.includes(asset) || asset.fileData !== fileSource) return;
-		stateManager.commit('holdVideoClipFrame', { sceneId, ...entry.target, ...frame });
+		await stateManager.execute('holdTimelineVideoClipFrame', { sceneId, ...entry.target, sourceTimeMs: frame.sourceTimeMs });
 	} catch (error) {
 		if (generation === holdGeneration) holdError.value = error instanceof Error ? error.message : String(error);
 	} finally {

@@ -13,6 +13,7 @@ const bundled = await build({
 		export { createTimelineSelectionEditActions } from './src/utility/timeline-selection-edit-actions.ts';
 		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
+		export { createTimelineCommandDefinitions } from './src/commands/timeline-api.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -27,7 +28,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { createTimelineSourceActions, createTimelineSelectionEditActions, flattenTimelineLayers, COMMAND_DEFS, UndoRedo } = module.exports;
+const { createTimelineSourceActions, createTimelineSelectionEditActions, flattenTimelineLayers, COMMAND_DEFS, createTimelineCommandDefinitions, UndoRedo } = module.exports;
 
 function deferred() {
 	let resolve;
@@ -44,7 +45,7 @@ function fixture(t, layers = [mediaLayer()]) {
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers };
 	const asset = { id: 'asset', name: 'Media', fileDataType: 'audio/wav', fileData: new Blob() };
 	const state = { resolution: { value: { width: 1920, height: 1080 } }, timelineScenes: { value: [scene] }, assets: { value: [asset] }, visualModules: { value: [] } };
-	const history = new UndoRedo(state, COMMAND_DEFS);
+	const history = new UndoRedo(state, { ...COMMAND_DEFS, ...createTimelineCommandDefinitions({ inspectMedia: asset => options.inspectMedia(asset) }) });
 	const time = { value: 1000 };
 	const selection = { value: { kind: 'layers', ids: [] } };
 	const errors = [];

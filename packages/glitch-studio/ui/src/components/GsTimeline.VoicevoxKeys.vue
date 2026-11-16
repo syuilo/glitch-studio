@@ -66,7 +66,7 @@ function add(event: MouseEvent) {
 	const timeMs = props.offsetMs + (event.clientX - rect.left) / props.pixelsPerMs;
 	const inserted = insertVoicevoxUtterance(props.layer.utterances, timeMs);
 	if (!inserted) return;
-	if (inserted.utterances !== props.layer.utterances) stateManager.commit('editVoicevoxLayer', {
+	if (inserted.utterances !== props.layer.utterances) stateManager.commit('replaceTimelineVoicevoxContent', {
 		sceneId: props.sceneId,
 		layerId: props.layer.id,
 		voicevox: props.layer.voicevox,

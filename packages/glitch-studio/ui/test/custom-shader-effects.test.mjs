@@ -53,7 +53,7 @@ function usageFixture() {
 	const visualModule = { id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [], outputDefs: [{ id: 'out', name: 'out', label: 'Out', dataType: { kind: 'scalar' } }], primaryInputId: null, primaryOutputId: null, customParameterDefs: [], customParameterValues: {}, automationGraphs: [] };
 	const state = { customShaderEffects: ref([definition]), visualModules: ref([visualModule]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }]), resolution: ref({ width: 16, height: 8 }), assets: ref([]), players: ref([]), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
-	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'custom-node', effectId: customShaderEffectReference(definition.id) });
+	manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: 'visualModule' }, effectId: customShaderEffectReference(definition.id) });
 	const layer = createEffectTimelineLayer(getEffectDefinitions(state)[customShaderEffectReference(definition.id)], 0);
 	state.timelineScenes.value[0].layers.push(layer);
 	return { definition, state, manager, visualModule: state.visualModules.value[0], layer: state.timelineScenes.value[0].layers[0] };
@@ -81,8 +81,8 @@ test('creates project shader nodes and layers with stable parameter IDs and inde
 test('preserves compatible values and disconnects removed outputs atomically across all shader usages', () => {
 	const { definition, state, manager, visualModule, layer } = usageFixture();
 	visualModule.nodes[0].params.amount = { inputSource: 'expression', value: 'TIME' };
-	visualModule.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: 'custom-node', outputPort: 'mask' } });
-	visualModule.nodes.push({ id: 'out-node', type: 'globalOut', inputs: { out: { nodeId: 'custom-node', outputPort: 'mask' } } });
+	visualModule.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: visualModule.nodes[0].id, outputPort: 'mask' } });
+	visualModule.nodes.push({ id: 'out-node', type: 'globalOut', inputs: { out: { nodeId: visualModule.nodes[0].id, outputPort: 'mask' } } });
 	const inline = JSON.parse(JSON.stringify(visualModule));
 	state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: inline });
 	layer.effectParamValues.amount = { inputSource: 'literal', value: 0.8 };
@@ -91,7 +91,7 @@ test('preserves compatible values and disconnects removed outputs atomically acr
 	updated.paramDefs[1].nameForReference = 'strength';
 	updated.paramDefs[1].defaultValue.value = 0.1;
 	updated.outputDefs = updated.outputDefs.filter(output => output.id !== 'mask');
-	manager.commit('updateCustomShaderEffect', { customShaderEffect: updated });
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
 	for (const current of [state.visualModules.value[0], state.timelineScenes.value[0].layers[1].visualModule]) {
 		assert.equal(current.nodes[0].params.amount.value, 'TIME');
 		assert.deepEqual(JSON.parse(JSON.stringify(current.nodes[1].input)), { nodeId: null, outputPort: null });
@@ -106,7 +106,7 @@ test('preserves compatible values and disconnects removed outputs atomically acr
 	changedType.paramDefs[1].dataType = { kind: 'vector' };
 	changedType.paramDefs[1].ui.control = {};
 	changedType.paramDefs[1].defaultValue.value = [0.2, 0.4];
-	manager.commit('updateCustomShaderEffect', { customShaderEffect: changedType });
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (changedType).id, definition: changedType });
 	assert.deepEqual(JSON.parse(JSON.stringify(state.visualModules.value[0].nodes[0].params.amount.value)), [0.2, 0.4]);
 	assert.deepEqual(JSON.parse(JSON.stringify(state.timelineScenes.value[0].layers[0].effectParamValues.amount.value)), [0.2, 0.4]);
 	manager.undo();
@@ -128,7 +128,7 @@ test('revalidates shader layers after primary output changes and undo', () => {
 	const validation = new ProjectRenderValidation(state, {});
 	validation.reset();
 	assert.equal(validation.errorMessage.value, null);
-	manager.commit('updateCustomShaderEffect', { customShaderEffect: { ...definition, primaryOutputId: null } });
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: ({ ...definition, primaryOutputId: null }).id, definition: { ...definition, primaryOutputId: null } });
 	validation.update([{ type: 'customShaderEffect', customShaderEffectId: definition.id }]);
 	assert.match(validation.errorMessage.value, /primary color output/);
 	manager.undo();
@@ -171,12 +171,12 @@ test('applies definitions atomically through commands and restores registration 
 	manager.onChange(value => changes.push(value));
 	const first = createProjectCustomShaderEffect([]);
 	const second = createProjectCustomShaderEffect([first]);
-	manager.commit('addCustomShaderEffect', { customShaderEffect: first });
-	manager.commit('addCustomShaderEffect', { customShaderEffect: second });
+	manager.commit('insertCustomShaderEffect', { definition: first });
+	manager.commit('insertCustomShaderEffect', { definition: second });
 	const updated = structuredClone(first);
 	updated.code = 'unfinished WGSL';
 	updated.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
-	manager.commit('updateCustomShaderEffect', { customShaderEffect: updated });
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
 	updated.outputDefs[1].label = 'Later mutation';
 	assert.equal(manager.state.customShaderEffects.value[0].outputDefs[1].label, 'Mask');
 	manager.undo();
@@ -227,7 +227,7 @@ test('accepts unfinished WGSL while rejecting invalid interface definitions with
 	]) {
 		const invalid = structuredClone(original);
 		edit(invalid);
-		assert.throws(() => manager.commit('addCustomShaderEffect', { customShaderEffect: invalid }), error => error.reason === reason);
+		assert.throws(() => manager.commit('insertCustomShaderEffect', { definition: invalid }), error => error.reason === reason);
 		assert.equal(manager.undoStack.value.length, 0);
 		assert.equal(manager.state.customShaderEffects.value.length, 0);
 	}

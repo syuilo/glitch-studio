@@ -5,7 +5,7 @@
 
 	<div>
 		<div class="_spacer">
-			<GsInput data-test-layer-name :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
+			<GsInput data-test-layer-name :modelValue="layer.name" @update:modelValue="name => stateManager.commit('setTimelineLayerName', { sceneId, layerId: layer.id, name: String(name) })"><template #label>{{ i18n.ts._TimelineLayer.Name }}</template></GsInput>
 		</div>
 		<div class="_spacer _gaps_m">
 			<GsSwitch data-test-layer-custom-color :modelValue="layer.color != null" @update:modelValue="enabled => setColor(enabled ? srgbToLinearSrgb([0.5, 0.5, 0.5, 1]) : null)">
@@ -20,7 +20,7 @@
 			</GsSelect>
 		</div>
 		<div v-if="layer.layerType === 'group'" class="_spacer">
-			<GsSelect large :modelValue="layer.compositingMode ?? 'flat'" :items="groupModes" @update:modelValue="mode => stateManager.commit('changeTimelineGroupMode', { sceneId, layerId: layer.id, mode })">
+			<GsSelect large :modelValue="layer.compositingMode ?? 'flat'" :items="groupModes" @update:modelValue="mode => stateManager.commit('setTimelineGroupCompositingMode', { sceneId, layerId: layer.id, mode })">
 				<template #label>{{ i18n.ts._TimelineLayer.GroupCompositing }}</template>
 			</GsSelect>
 		</div>
@@ -33,23 +33,23 @@
 			:contextResolution="getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value)"
 			:anotherLayerAudioOptions="anotherLayerAudioOptions"
 			:imageLayerOptions="imageLayerOptions"
-			@staticSetting="edit => stateManager.commit('changeTimelineStaticSetting', { sceneId, layerId: layer.id, ...edit })"
+			@staticSetting="edit => stateManager.commit('setTimelineLayerStaticSetting', { sceneId, layerId: layer.id, ...edit })"
 			@edit="event => onTimelineLayerParamEdit(event, 'effect')"
-			@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: layer.id, resolution })"
+			@resolution="resolution => stateManager.commit('setTimelineEffectLayerResolution', { sceneId, layerId: layer.id, resolution })"
 		/>
 		<GsTimelineVoicevoxSettings v-if="layer.layerType === 'voicevox'" :key="layer.id" :sceneId="sceneId" :layer="layer" @expandRequested="emit('expandRequested', layer.id)" @selected="keyframeId => emit('selectKeyframe', { layerId: layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"/>
 		<GsTimelineVoicevoxSubtitleSettings
 			v-if="layer.layerType === 'voicevox'"
 			:key="layer.id"
 			:layer="layer"
-			@staticSetting="edit => stateManager.commit('changeTimelineStaticSetting', { sceneId, layerId: layer.id, ...edit })"
+			@staticSetting="edit => stateManager.commit('setTimelineLayerStaticSetting', { sceneId, layerId: layer.id, ...edit })"
 			@edit="event => onTimelineLayerParamEdit(event, 'voicevoxSubtitle')"
 		/>
 		<GsTimelineTextSettings
 			v-if="layer.layerType === 'text'"
 			:key="layer.id"
 			:layer="layer"
-			@staticSetting="edit => stateManager.commit('changeTimelineStaticSetting', { sceneId, layerId: layer.id, ...edit })"
+			@staticSetting="edit => stateManager.commit('setTimelineLayerStaticSetting', { sceneId, layerId: layer.id, ...edit })"
 			@edit="event => onTimelineLayerParamEdit(event, 'text')"
 		/>
 		<GsTimelineTransformSettings
@@ -218,7 +218,7 @@
 					<template #label>{{ i18n.ts._TimelineLayer.DisableMotionBlur }}</template>
 				</GsSwitch>
 
-				<GsButton danger icon="ti ti-trash" @click="stateManager.commit('removeTimelineLayer', { sceneId: scene.id, layerId: layer.id })">{{ i18n.ts._TimelineLayer.Remove }}</GsButton>
+				<GsButton danger icon="ti ti-trash" @click="stateManager.commit('removeTimelineLayers', { sceneId: scene.id, layerIds: [layer.id] })">{{ i18n.ts._TimelineLayer.Remove }}</GsButton>
 			</div>
 		</GsFolder>
 	</div>
@@ -237,18 +237,15 @@ import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timel
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { getTimelineContainerConversionTargets } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import { getTimelineContainerTypeLabel } from '@/utility/container-timeline-layer.ts';
-import GsSelect from './common/GsSelect.vue';
-import GsButton from './common/GsButton.vue';
+import { getTimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsTimelinePublicParameters from './GsTimeline.PublicParameters.vue';
-import { getTimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
-import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
+import GsButton from './common/GsButton.vue';
+import GsSelect from './common/GsSelect.vue';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
 import GsTimelineVoicevoxSettings from './GsTimeline.VoicevoxSettings.vue';
@@ -257,12 +254,16 @@ import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
 import GsTimelineTransformSettings from './GsTimeline.TransformSettings.vue';
 import GsTimelineCameraSettings from './GsTimeline.CameraSettings.vue';
+import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
 import type { TimelineMask, TimelineLayerMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
+import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
+import { getTimelineContainerTypeLabel } from '@/utility/container-timeline-layer.ts';
+import { commitTimelineParameterEdit } from '@/utility/timeline-parameter-command-actions.ts';
 import { i18n } from '@/i18n.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { exportPortableVisualModuleFile } from '@/utility/portable-visual-module-file.ts';
@@ -406,7 +407,7 @@ function renameInlineVisualModule(name: string) {
 	const layer = props.layer;
 	if (layer.layerType !== 'inlineVisualModule' || layer.name === name) return;
 	// インラインVisual Moduleの表示名は所属レイヤーが所有し、書き出し時にもその名前を使う。
-	stateManager.commit('renameTimelineLayer', { sceneId: props.scene.id, layerId: layer.id, name });
+	stateManager.commit('setTimelineLayerName', { sceneId: props.scene.id, layerId: layer.id, name });
 }
 
 function onInlineVisualModuleEdit(event: VisualModuleEdit) {
@@ -433,8 +434,8 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	const layer = props.layer;
 	if (event.kind === 'createCustomParameter') return;
 	if (event.kind === 'createPublicParameter') {
-		if (target !== 'publicParameter') stateManager.commit('createTimelineLayerPublicParameterFromParam', {
-			sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath,
+		if (target !== 'publicParameter') stateManager.commit('createTimelineLayerPublicParameterFromParameter', {
+			sceneId: props.scene.id, layerId: layer.id, parameterGroup: target === 'module' ? 'visualModule' : target, parameterPath: event.paramPath,
 		});
 		return;
 	}
@@ -449,7 +450,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'visualModulePublicParameterReference' || event.inputSource === 'visualModuleCustomParameterValueReference')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;
 	if (event.kind === 'anotherLayerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio'))) {
-		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', {
+		if (target === 'effect' || target === 'module') commitTimelineParameterEdit(stateManager, {
 			sceneId: props.scene.id,
 			layerId: layer.id,
 			target,
@@ -460,7 +461,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	}
 	if (event.kind === 'lowerLayerOutput' || event.kind === 'anotherLayerOutput' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerOutput' || event.inputSource === 'anotherLayerOutput'))) {
 		if (target !== 'effect' && target !== 'module') return;
-		stateManager.commit('editTimelineLayerParam', {
+		commitTimelineParameterEdit(stateManager, {
 			sceneId: props.scene.id,
 			layerId: layer.id,
 			target,
@@ -469,7 +470,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 		}, mergeKey);
 		return;
 	}
-	stateManager.commit('editTimelineLayerParam', {
+	commitTimelineParameterEdit(stateManager, {
 		sceneId: props.scene.id,
 		layerId: layer.id,
 		target,

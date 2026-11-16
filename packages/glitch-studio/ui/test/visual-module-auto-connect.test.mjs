@@ -1,3 +1,4 @@
+import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -19,7 +20,7 @@ function fixture(enabled = false, inline = false) {
 	const preferences = { s: { visualModuleAutoConnectOnNodeAdd: enabled, forceTypeSafety: true } };
 	const disconnected = { inputSource: 'node', nodeId: null, outputPort: null };
 	const effectDefinitions = {
-		previous: { outputDefs: { main: { dataType: { kind: 'color' } }, secondary: { dataType: { kind: 'color' } } } },
+		previous: { paramDefs: {}, outputDefs: { main: { dataType: { kind: 'color' } }, secondary: { dataType: { kind: 'color' } } } },
 		filter: { primaryInputParameter: 'image', primaryOutput: 'result',
 			paramDefs: { image: { canNode: true, dataType: { kind: 'color' }, defaultValue: disconnected } },
 			outputDefs: { result: { dataType: { kind: 'color' } } } },
@@ -42,8 +43,8 @@ function fixture(enabled = false, inline = false) {
 	const state = { visualModules: { value: inline ? [] : [visualModule] },
 		timelineScenes: { value: [{ id: 'scene', layers: [{ id: 'inline', layerType: 'inlineVisualModule', visualModule }] }] } };
 	const target = inline ? { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } : { visualModuleId: 'visual-module' };
-	const command = (payload = {}) => module.exports.COMMAND_DEFS.addEffectNode.create({ ...target, id: 'added', effectId: 'filter', ...payload });
-	return { preferences, visualModule, state, command, disconnected };
+	const command = (payload = {}) => prepareTestCommand(module.exports.COMMAND_DEFS.createVisualModuleEffectNode, { visualModule: target, effectId: 'filter', connectionMode: enabled ? 'appendToPrimaryOutput' : 'none', ...payload });
+	return { preferences, visualModule, state, command, disconnected, target, definitions: module.exports.COMMAND_DEFS };
 }
 
 // 【自動接続を無効にした追加では既存の配線と入力の既定値を維持する】
@@ -52,14 +53,14 @@ test('preserves wiring when disabled even after enabling before redo', () => {
 	const f = fixture();
 	const before = structuredClone(f.visualModule);
 	const command = f.command();
-	command.execute(f.state);
+	const added = command.execute(f.state);
 	assert.deepEqual(f.visualModule.nodes[1].params.image, f.disconnected);
 	assert.deepEqual(f.visualModule.nodes.at(-1).inputs, before.nodes.at(-1).inputs);
 	const after = structuredClone(f.visualModule);
 	command.undo(f.state);
 	assert.deepEqual(f.visualModule, before);
 	f.preferences.s.visualModuleAutoConnectOnNodeAdd = true;
-	command.execute(f.state);
+	assert.equal(command.execute(f.state).nodeId, added.nodeId);
 	assert.deepEqual(f.visualModule, after);
 });
 
@@ -70,17 +71,17 @@ test('connects primary ports and preserves secondary source ports through undo a
 		const f = fixture(true, inline);
 		const before = structuredClone(f.visualModule);
 		const command = f.command();
-		command.execute(f.state);
-		assert.deepEqual(f.visualModule.nodes.map(node => node.id), ['previous', 'added', 'out']);
+		const added = command.execute(f.state);
+		assert.deepEqual(f.visualModule.nodes.map(node => node.id), ['previous', added.nodeId, 'out']);
 		assert.deepEqual(f.visualModule.nodes[1].params.image, { inputSource: 'node', nodeId: 'previous', outputPort: 'secondary',
 			fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
-		assert.deepEqual(f.visualModule.nodes.at(-1).inputs.primary, { nodeId: 'added', outputPort: 'result' });
+		assert.deepEqual(f.visualModule.nodes.at(-1).inputs.primary, { nodeId: added.nodeId, outputPort: 'result' });
 		assert.deepEqual(f.visualModule.nodes.at(-1).inputs.other, before.nodes.at(-1).inputs.other);
 		const after = structuredClone(f.visualModule);
 		command.undo(f.state);
 		assert.deepEqual(f.visualModule, before);
 		f.preferences.s.visualModuleAutoConnectOnNodeAdd = false;
-		command.execute(f.state);
+		assert.equal(command.execute(f.state).nodeId, added.nodeId);
 		assert.deepEqual(f.visualModule, after);
 	}
 });
@@ -96,10 +97,10 @@ test('handles missing and disconnected primary outputs without losing their orig
 		if (mode === 'noGlobalOut') f.visualModule.nodes.pop();
 		const before = structuredClone(f.visualModule);
 		const command = f.command();
-		command.execute(f.state);
-		assert.deepEqual(f.visualModule.nodes.find(node => node.id === 'added').params.image, f.disconnected);
+		const added = command.execute(f.state);
+		assert.deepEqual(f.visualModule.nodes.find(node => node.id === added.nodeId).params.image, f.disconnected);
 		if (mode === 'missing' || mode === 'disconnected') {
-			assert.deepEqual(f.visualModule.nodes.at(-1).inputs.primary, { nodeId: 'added', outputPort: 'result' });
+			assert.deepEqual(f.visualModule.nodes.at(-1).inputs.primary, { nodeId: added.nodeId, outputPort: 'result' });
 		}
 		command.undo(f.state);
 		assert.deepEqual(f.visualModule, before);
@@ -115,6 +116,43 @@ test('respects incompatible data types and explicitly supplied parameters', () =
 	assert.deepEqual(f.visualModule.nodes[1].params.value, f.disconnected);
 	assert.deepEqual(f.visualModule.nodes.at(-1).inputs, inputs);
 	const explicit = fixture(true);
-	explicit.command({ params: { image: explicit.disconnected } }).execute(explicit.state);
+	explicit.command({ parameters: { image: explicit.disconnected } }).execute(explicit.state);
 	assert.deepEqual(explicit.visualModule.nodes[1].params.image, explicit.disconnected);
+});
+
+// 【Commandは環境設定を参照せず、明示した接続方針だけを適用する】
+// スクリプトが同じ入力から同じプロジェクト編集を行えるよう、UI設定を有効にしても
+// 未指定の生成では配線しない。検証が失敗してもノードや出力を途中まで変更しない。
+test('uses explicit connection policy and validates creation before mutating the graph', () => {
+	const f = fixture(true);
+	const before = structuredClone(f.visualModule);
+	const prepared = f.definitions.createVisualModuleEffectNode.prepare(f.state, { visualModule: f.target, effectId: 'filter' });
+	assert.deepEqual(f.visualModule, before);
+	prepared.change.apply(f.state);
+	assert.deepEqual(f.visualModule.nodes[1].params.image, f.disconnected);
+	assert.deepEqual(f.visualModule.nodes.at(-1).inputs, before.nodes.at(-1).inputs);
+	prepared.change.revert(f.state);
+	assert.deepEqual(f.visualModule, before);
+	assert.throws(() => f.definitions.createVisualModuleEffectNode.prepare(f.state, { visualModule: f.target, effectId: 'filter', parameters: {
+		image: { inputSource: 'node', nodeId: 'missing', outputPort: 'output', fitMode: 'cover', wrapMode: 'repeat', filterMode: 'linear' },
+	} }), /Node output not found/);
+	assert.deepEqual(f.visualModule, before);
+});
+
+// 【ノード削除でRelayへの接続も切断または主入力へ再接続する】
+// エフェクト入力だけを修復するとRelayが削除済みのIDを指したまま残るため、
+// インポートしたグラフでも接続を一緒に更新し、Undoで元の配線を復元する。
+test('reconnects relay inputs on removal and restores the graph on undo', () => {
+	for (const reconnection of ['disconnect', 'primaryInput']) {
+		const f = fixture(true);
+		const added = f.command().execute(f.state);
+		f.visualModule.nodes.splice(2, 0, { id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: added.nodeId, outputPort: 'result' } });
+		const before = structuredClone(f.visualModule);
+		const remove = prepareTestCommand(f.definitions.removeVisualModuleNode, { target: added, reconnection });
+		remove.execute(f.state);
+		assert.deepEqual(f.visualModule.nodes.find(node => node.id === 'relay').input, reconnection === 'disconnect'
+			? { nodeId: null, outputPort: null } : { nodeId: 'previous', outputPort: 'secondary' });
+		remove.undo(f.state);
+		assert.deepEqual(f.visualModule, before);
+	}
 });

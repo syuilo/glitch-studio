@@ -3,7 +3,6 @@ import { getTimelineContainerConversionTargets } from '@gs/subsystems_timeline_s
 import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
 import { getTimelineContainerTypeLabel } from './container-timeline-layer.ts';
 import { findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { duplicateTimelineLayers } from './timeline-container.ts';
 import type { Ref } from 'vue';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ProjectState, AppStateChange } from '@/Project.ts';
@@ -11,15 +10,13 @@ import type { COMMAND_DEFS } from '@/commands.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { UndoRedo } from './undo-redo.ts';
 import type { TimelineSelection } from './timeline-selection.ts';
-import type { TimelineClipSourceDurations } from './timeline-clip-media.ts';
 import { i18n } from '@/i18n.ts';
 
 type TimelineLayerActionsOptions = {
-	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
+	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit' | 'execute'>;
 	scene: TimelineScene;
 	selection: Ref<TimelineSelection>;
 	isActive: () => boolean;
-	readLayerMediaDurations: (layer: TimelineLayer) => Promise<TimelineClipSourceDurations | null>;
 	selectLayer: (layer: TimelineLayer) => void;
 	canWrap: () => boolean;
 	folderSelection: () => void;
@@ -31,7 +28,7 @@ type TimelineLayerActionsOptions = {
 };
 
 export function createTimelineLayerActions(options: TimelineLayerActionsOptions) {
-	const { stateManager, scene, selection, isActive, readLayerMediaDurations, selectLayer, canWrap, folderSelection, parameterContainerSelection, groupSelection, transformSelection, focusTimeline, ui } = options;
+	const { stateManager, scene, selection, isActive, selectLayer, canWrap, folderSelection, parameterContainerSelection, groupSelection, transformSelection, focusTimeline, ui } = options;
 
 	function showMenu(event: PointerEvent, layer: TimelineLayer) {
 		if (!isActive()) return;
@@ -99,28 +96,14 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 		if (!isActive() || !layer) return;
 		const { canceled, result: name } = await ui.inputText({ title: i18n.ts._TimelineLayer.Rename, default: layer.name, placeholder: layer.name });
 		if (canceled || name == null || !isActive() || !findTimelineLayerLocation(scene.layers, layerId)) return;
-		stateManager.commit('renameTimelineLayer', { sceneId: scene.id, layerId, name });
+		stateManager.commit('setTimelineLayerName', { sceneId: scene.id, layerId, name });
 	}
 
 	async function duplicate(ids: string[]) {
 		if (!isActive()) return;
-		// 親グループと子が両方選択されていても、子を二重に複製しない。
-		// 全対象を一緒に複製し、選択レイヤー間の音声参照も複製先へ付け替える。
-		const locations = ids.map(id => findTimelineLayerLocation(scene.layers, id));
-		if (locations.some(location => !location)) return;
-		const sources = locations.filter(location => !location!.ancestors.some(ancestor => ids.includes(ancestor.id))).map(location => location!.layer);
-		const layers = duplicateTimelineLayers(sources);
-		const initialLayers = scene.layers;
 		try {
-			const durations = await Promise.all(layers.map(readLayerMediaDurations));
-			// 素材読み込み中に階層が編集された場合は、古い所属・順序で複製を挿入しない。
-			if (!isActive() || scene.layers !== initialLayers) return;
-			stateManager.commit('duplicateTimelineLayers', {
-				sceneId: scene.id,
-				layers: layers.map((layer, index) => ({ layer, sourceLayerId: sources[index].id })),
-				sourceDurationsMs: Object.assign(Object.create(null), ...durations),
-			});
-			selection.value = { kind: 'layers', ids: layers.map(layer => layer.id) };
+			const created = await stateManager.execute('duplicateTimelineLayers', { sceneId: scene.id, layerIds: ids });
+			selection.value = { kind: 'layers', ids: created.map(layer => layer.layerId) };
 			focusTimeline();
 		} catch (error) {
 			ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });

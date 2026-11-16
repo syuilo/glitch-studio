@@ -58,7 +58,7 @@ export async function importAssets(destination: ProjectContext | (() => Promise<
 				const placement = await preparePlacement?.(assets, players, dialog) ?? {};
 				// ファイル読み込みや配置準備の間に終了したプロジェクトへ、素材と履歴を追加しない。
 				if (target.isDisposed) return;
-				target.stateManager.commit('importAssets', { assets, players, ...placement });
+				target.stateManager.commit('insertImportedAssets', { assets, players, ...placement });
 				// 反映できたIDだけを返し、中止時に呼び出し元がパネル表示などを続行しないようにする。
 				importedAssetIds = assets.map(asset => asset.id);
 			},

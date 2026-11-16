@@ -48,7 +48,7 @@ import { computed, ref, watch, onBeforeUnmount, inject, provide } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { preserveParameterExpressionModifier, validateParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
-import { genId, prettyId } from '@gs/shared/utility/id.ts';
+import { prettyId } from '@gs/shared/utility/id.ts';
 import { VISUAL_MODULE_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/visual-module-live-preview-expression.js';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsVisualParam from './GsVisualParam.vue';
@@ -72,7 +72,7 @@ import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { exportPortableVisualModuleFile } from '@/utility/portable-visual-module-file.ts';
 import { exportVisualModuleFile, importVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
-import { createProjectVisualModule } from '@/utility/project-visual-module.ts';
+import { preferences } from '@/preferences.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
@@ -295,9 +295,8 @@ function showSwitchMenu(ev: PointerEvent) {
 }
 
 function addVisualModule() {
-	const newVisualModule = createProjectVisualModule(stateManager.state.visualModules.value.length);
-	stateManager.commit('addVisualModule', { visualModule: newVisualModule });
-	selectedModuleId.value = newVisualModule.id;
+	const target = stateManager.commit('createVisualModule', {});
+	selectedModuleId.value = target.visualModuleId;
 }
 
 async function importVisualModule() {
@@ -314,7 +313,7 @@ async function importVisualModule() {
 function renameCurrentVisualModule(name: string) {
 	const currentVisualModule = visualModule.value;
 	if (currentVisualModule == null || currentVisualModule.name === name) return;
-	stateManager.commit('renameVisualModule', { visualModuleId: currentVisualModule.id, name });
+	stateManager.commit('setVisualModuleName', { target: { visualModuleId: currentVisualModule.id }, name });
 }
 
 async function exportCurrentVisualModule(format: 'gsvm' | 'web' = 'gsvm') {
@@ -337,7 +336,8 @@ function showAddEffectNodeMenu() {
 	const { dispose } = ui.popup(GsEffectPicker, {}, {
 		chosen: effect => {
 			if (projectSession.projectContext.getVisualModuleById(visualModule.value.id) == null) return;
-			stateManager.commit('addEffectNode', { visualModuleId: visualModule.value.id, effectId: effect.id, id: genId() });
+			stateManager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: visualModule.value.id }, effectId: effect.id,
+				connectionMode: preferences.s.visualModuleAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none', connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch' });
 		},
 		closed: () => {
 			dispose();

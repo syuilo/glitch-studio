@@ -24,6 +24,8 @@ const bundled = await build({
 		export * from './src/utility/timeline-scene.ts';
 		export { createVoicevoxTimelineLayer } from './src/utility/voicevox-timeline-layer.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
+		export { createTimelineCommandDefinitions } from './src/commands/timeline-api.ts';
+		export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts';
 		export { ProjectRenderValidation } from './src/ProjectRenderValidation.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { getTimelineClipMoveBounds, getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
@@ -43,7 +45,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, UndoRedo, ProjectRenderValidation, prepareTimelineContainerMove, duplicateTimelineLayers, findTimelineLayer,
+const { COMMAND_DEFS, createTimelineCommandDefinitions, getTimelineParameterEditBinding, UndoRedo, ProjectRenderValidation, prepareTimelineContainerMove, duplicateTimelineLayers, findTimelineLayer,
 	createVoicevoxTimelineLayer, applyRendererProjectChanges, findRendererVisualModule, createTimelineLayerActions } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
@@ -53,11 +55,11 @@ const sound = (id, start = 1000) => ({ id, name: id, layerType: 'audio', isDisab
 	clips: [{ id: 'clip', startMs: start, durationMs: 500, sourceInMs: 12.25, sourceOutMs: 512.25, playbackRate: 1, loop: false, assetId: 'asset' }], audioParamValues: { volume: keys([100, 2000]) } });
 const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, coordinateSpace: 'screen', automationGraphs: [],
 	compositingParamValues: { opacity: keys([200, 3000]) }, audioParamValues: { volume: literal(0.5) } });
-function fixture(t, layers) {
+function fixture(t, layers, inspectMedia = () => ({ durationMs: 5000, hasAudio: true, hasVideo: false })) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers };
 	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
-	return { scene, state, history: new UndoRedo(state, COMMAND_DEFS) };
+	return { scene, state, history: new UndoRedo(state, { ...COMMAND_DEFS, ...createTimelineCommandDefinitions({ inspectMedia }) }) };
 }
 
 function observeValidation(f) {
@@ -115,7 +117,7 @@ test('resets public parameter values on type changes and restores definitions an
 		const before = structuredClone(owner);
 		const f = fixture(t, [owner]);
 		const definition = { ...original, dataType: { kind: 'vector' }, ui: { label: 'Speed', control: { controlType: 'vector' } }, defaultValue: literal([0, 0]) };
-		f.history.commit('updateTimelineLayerPublicParameter', { sceneId: 'scene', layerId: owner.id, definition });
+		f.history.commit('replaceTimelineLayerPublicParameterDefinition', { sceneId: 'scene', layerId: owner.id, definition });
 		assert.deepEqual(module.exports.resolveLayerParameter(f.state, owner, 'publicParameter', ['speed']).value, literal([0, 0]));
 		assert.deepEqual(owner.publicParameterValues?.other, before.publicParameterValues?.other);
 		const changed = structuredClone(owner);
@@ -136,12 +138,12 @@ test('preserves public parameter bindings when editing labels controls and enum 
 	const f = fixture(t, [owner]);
 	const target = { sceneId: 'scene', layerId: owner.id };
 	const before = structuredClone(owner.publicParameterValues);
-	f.history.commit('updateTimelineLayerPublicParameter', { ...target, definition: { ...original, ui: { label: 'Renamed', control: { controlType: 'range', min: 0, max: 2 } } } });
+	f.history.commit('replaceTimelineLayerPublicParameterDefinition', { ...target, definition: { ...original, ui: { label: 'Renamed', control: { controlType: 'range', min: 0, max: 2 } } } });
 	assert.deepEqual(owner.publicParameterValues, before);
 	const enumDefinition = { ...original, dataType: { kind: 'enum', options: ['left', 'right'] }, ui: { label: 'Direction', control: { labels: {} } }, defaultValue: literal('left') };
-	f.history.commit('updateTimelineLayerPublicParameter', { ...target, definition: enumDefinition });
-	f.history.commit('editTimelineLayerParam', { ...target, target: 'publicParameter', paramPath: ['speed'], edit: { kind: 'literal', value: 'right' } });
-	f.history.commit('updateTimelineLayerPublicParameter', { ...target, definition: { ...enumDefinition, dataType: { kind: 'enum', options: ['left'] } } });
+	f.history.commit('replaceTimelineLayerPublicParameterDefinition', { ...target, definition: enumDefinition });
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...target, target: 'publicParameter', paramPath: ['speed'], edit: { kind: 'literal', value: 'right' } }));
+	f.history.commit('replaceTimelineLayerPublicParameterDefinition', { ...target, definition: { ...enumDefinition, dataType: { kind: 'enum', options: ['left'] } } });
 	assert.deepEqual(owner.publicParameterValues.speed, literal('right'));
 });
 
@@ -152,23 +154,23 @@ test('edits public parameter definitions and bindings with history and includes 
 	const parent = group('parent', [child]);
 	const f = fixture(t, [parent]);
 	const target = { sceneId: 'scene', layerId: child.id };
-	f.history.commit('updateTimelineLayerPublicParameter', { ...target, definition: publicScalarParameter('speed') });
+	const { parameterId } = f.history.commit('createTimelineLayerPublicParameter', { ...target, definition: publicScalarParameter('speed') });
 	assert.equal(child.publicParameterDefs[0].nameForReference, 'speed');
 	f.history.undo();
 	assert.equal(child.publicParameterDefs, undefined);
 	f.history.redo();
-	f.history.commit('editTimelineLayerParam', { ...target, target: 'publicParameter', paramPath: ['speed'], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } });
-	assert.equal(module.exports.getLayerKeyframeParameters(f.state, child).find(parameter => parameter.target === 'publicParameter').paramPath[0], 'speed');
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...target, target: 'publicParameter', paramPath: [parameterId], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } }));
+	assert.equal(module.exports.getLayerKeyframeParameters(f.state, child).find(parameter => parameter.target === 'publicParameter').paramPath[0], parameterId);
 	assert.deepEqual(prepareTimelineContainerMove(f.state, parent).keyframes.filter(key => key.target === 'publicParameter').map(key => key.x), [100, 800]);
-	f.history.commit('removeTimelineLayerPublicParameter', { ...target, parameterId: 'speed' });
+	f.history.commit('removeTimelineLayerPublicParameterDefinition', { ...target, parameterId });
 	assert.deepEqual(child.publicParameterDefs, []);
-	assert.equal(child.publicParameterValues.speed, undefined);
+	assert.equal(child.publicParameterValues[parameterId], undefined);
 	f.history.undo();
-	assert.equal(child.publicParameterValues.speed.inputSource, 'keyframesTimelineInline');
+	assert.equal(child.publicParameterValues[parameterId].inputSource, 'keyframesTimelineInline');
 	f.history.undo();
 	assert.equal(child.publicParameterValues, undefined);
 	f.history.redo();
-	assert.deepEqual(child.publicParameterValues.speed.keyframesTimeline.keyframes.map(key => key.x), [100, 800]);
+	assert.deepEqual(child.publicParameterValues[parameterId].keyframesTimeline.keyframes.map(key => key.x), [100, 800]);
 });
 
 // 【直接参照は祖先へ接続できるが公開パラメータから自身への接続は保存しない】
@@ -182,10 +184,10 @@ test('validates public parameter reference scope and remaps internal references 
 	const f = fixture(t, [root]);
 	const target = { sceneId: 'scene', layerId: child.id, target: 'publicParameter', paramPath: ['forward'] };
 	const reference = { inputSource: 'timelineLayerPublicParameterReference', layerId: root.id, parameterId: 'speed' };
-	f.history.commit('editTimelineLayerParam', { ...target, edit: { kind: 'timelineLayerPublicParameterReference', value: reference } });
-	f.history.commit('editTimelineLayerParam', { ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'timelineLayerPublicParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } });
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...target, edit: { kind: 'timelineLayerPublicParameterReference', value: reference } }));
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'timelineLayerPublicParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } }));
 	assert.equal(child.compositingParamValues.opacity.layerId, child.id);
-	assert.throws(() => COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'timelineLayerPublicParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } }).execute(f.state), /available layer/);
+	assert.throws(() => getTimelineParameterEditBinding(f.state, { ...target, edit: { kind: 'timelineLayerPublicParameterReference', value: { ...reference, layerId: child.id, parameterId: 'forward' } } }), /available layer/);
 	const [copy] = duplicateTimelineLayers([root]);
 	const copiedChild = copy.layers[0].layers[0];
 	assert.equal(copiedChild.publicParameterValues.forward.layerId, copy.id);
@@ -211,7 +213,7 @@ test('remaps internal layer masks and preserves references through deletion and 
 	const [externalCopy] = duplicateTimelineLayers([target]);
 	assert.equal(externalCopy.layerMask.sourceLayerId, source.id);
 	const f = fixture(t, [target, source]);
-	f.history.commit('removeTimelineLayer', { sceneId: f.scene.id, layerId: source.id });
+	f.history.commit('removeTimelineLayers', { sceneId: f.scene.id, layerIds: [source.id] });
 	assert.equal(target.layerMask.sourceLayerId, source.id);
 	f.history.undo();
 	assert.equal(f.scene.layers[1].id, source.id);
@@ -252,35 +254,32 @@ test('edits a tree and adds a scene without revalidating unrelated scene paramet
 	let reads = 0;
 	const brokenParameters = brokenLayer.compositingParamValues;
 	Object.defineProperty(brokenLayer, 'compositingParamValues', { get() { reads++; return brokenParameters; } });
-	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: ['first', 'second'], group: group('parent') });
+	f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: ['first', 'second'], containerType: 'group' });
 	assert.equal(validation.errorMessage.value, diagnostic);
 	f.history.undo();
 	f.history.redo();
-	f.history.commit('addScene', { id: 'added', name: 'Added', resolution: { mode: 'project' }, layers: [] });
+	const { sceneId: addedSceneId } = f.history.commit('createTimelineScene', { name: 'Added' });
 	assert.equal(validation.errorMessage.value, diagnostic);
 	f.history.undo();
 	f.history.redo();
 	assert.equal(reads, 0);
 	assert.deepEqual(f.scene.layers[0].layers.map(layer => layer.id), ['first', 'second']);
-	assert.equal(f.state.timelineScenes.value.at(-1).id, 'added');
+	assert.equal(f.state.timelineScenes.value.at(-1).id, addedSceneId);
 });
 
-// 【Scene追加の静的エラーはCommandを拒否せず診断し、Undoで解除する】
-// 不正な編集状態もプロジェクトに保持する方針に揃え、検証の入口を二重にしない。
-// ID衝突だけはUndoで別Sceneを削除し得るため、追加前に拒否する必要がある。
-test('diagnoses added scene settings through validation while rejecting duplicate scene IDs', t => {
+// 【Scene作成は不正な解像度を適用前に拒否し、有効な作成ではIDを内部で発行する】
+// 準備に失敗した状態や履歴を残さず、同名で作成しても別SceneをUndoで消さない。
+test('rejects invalid scene settings before changing state or history', t => {
 	const f = fixture(t, []);
-	const validation = observeValidation(f);
-	const added = { id: 'added', name: 'Added', resolution: { mode: 'customAbsolute', width: 0, height: 0 }, layers: [] };
-	f.history.commit('addScene', added);
-	assert.notEqual(validation.errorMessage.value, null);
-	assert.equal(f.state.timelineScenes.value.at(-1).id, 'added');
-	f.history.undo();
-	assert.equal(validation.errorMessage.value, null);
-	f.history.redo();
-	assert.notEqual(validation.errorMessage.value, null);
-	assert.throws(() => f.history.commit('addScene', added), /Duplicate scene ID/);
-	assert.equal(f.state.timelineScenes.value.length, 2);
+	const before = structuredClone(f.state.timelineScenes.value);
+	assert.throws(() => f.history.commit('createTimelineScene', { name: 'Added', resolution: { mode: 'customAbsolute', width: 0, height: 0 } }), /resolution|width|height/i);
+	assert.deepEqual(f.state.timelineScenes.value, before);
+	assert.equal(f.history.undoStack.value.length, 0);
+	const first = f.history.commit('createTimelineScene', { name: 'Added' });
+	const second = f.history.commit('createTimelineScene', { name: 'Added' });
+	assert.notEqual(first.sceneId, second.sceneId);
+	f.history.undo(); f.history.undo();
+	assert.deepEqual(f.state.timelineScenes.value, before);
 });
 
 function layerMenuFixture(f, ids, overrides = {}) {
@@ -290,8 +289,6 @@ function layerMenuFixture(f, ids, overrides = {}) {
 	const alerts = [];
 	const actions = createTimelineLayerActions({
 		stateManager: f.history, scene: f.scene, selection, isActive: () => active,
-		readLayerMediaDurations: async layer => Object.fromEntries(module.exports.flattenTimelineLayers([layer])
-			.filter(child => child.layerType === 'audio').map(child => [child.id, Object.fromEntries(child.clips.map(clip => [clip.id, 5000]))])),
 		selectLayer: layer => { selection.value = { kind: 'layers', ids: [layer.id] }; },
 		canWrap: () => true, folderSelection: () => {}, parameterContainerSelection: () => {}, groupSelection: () => {}, transformSelection: () => {}, focusTimeline: () => {},
 		ui: { contextMenu: items => { menu = items; }, inputText: async () => ({ canceled: false, result: 'Renamed' }), alert: error => alerts.push(error) },
@@ -308,12 +305,13 @@ test('wraps and converts containers with stable identities references and atomic
 	const f = fixture(t, [sound('a'), sound('b')]);
 	const original = structuredClone(f.scene.layers);
 	const folder = { id: 'organizer', name: 'Organizer', layerType: 'folder', color: [0.2, 0.4, 0.8, 1], isDisabled: false, layers: [] };
-	f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: ['a', 'b'], container: folder });
+	folder.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: ['a', 'b'], containerType: 'folder', name: folder.name }).layerId;
+	f.history.commit('setTimelineLayerColor', { sceneId: 'scene', layerId: folder.id, color: folder.color });
 	const wrapped = structuredClone(f.scene.layers);
 	f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'parameterContainer' });
-	f.history.commit('updateTimelineLayerPublicParameter', { sceneId: 'scene', layerId: folder.id, definition: publicScalarParameter('speed') });
-	f.history.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: folder.id, target: 'publicParameter', paramPath: ['speed'], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } });
-	f.history.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'a', target: 'audio', paramPath: ['volume'], edit: { kind: 'timelineLayerPublicParameterReference', value: { inputSource: 'timelineLayerPublicParameterReference', layerId: folder.id, parameterId: 'speed' } } });
+	const { parameterId } = f.history.commit('createTimelineLayerPublicParameter', { sceneId: 'scene', layerId: folder.id, definition: publicScalarParameter('speed') });
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { sceneId: 'scene', layerId: folder.id, target: 'publicParameter', paramPath: [parameterId], edit: { kind: 'keyframesTimelineInline', value: keys([100, 800]) } }));
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { sceneId: 'scene', layerId: 'a', target: 'audio', paramPath: ['volume'], edit: { kind: 'timelineLayerPublicParameterReference', value: { inputSource: 'timelineLayerPublicParameterReference', layerId: folder.id, parameterId } } }));
 	const parameters = structuredClone(f.scene.layers);
 	f.history.commit('convertTimelineContainer', { sceneId: 'scene', layerId: folder.id, target: 'transform' });
 	const transform = structuredClone(f.scene.layers);
@@ -336,6 +334,7 @@ test('wraps and converts containers with stable identities references and atomic
 	for (let index = 0; index < 6; index++) f.history.undo();
 	assert.deepEqual(f.scene.layers, wrapped);
 	f.history.undo();
+	f.history.undo();
 	assert.deepEqual(f.scene.layers, original);
 });
 
@@ -344,7 +343,7 @@ test('wraps and converts containers with stable identities references and atomic
 test('restricts folder capabilities and exposes only forward conversion actions', t => {
 	const folder = { id: 'folder', name: 'Folder', layerType: 'folder', color: null, isDisabled: false, layers: [] };
 	const f = fixture(t, [folder]);
-	assert.throws(() => f.history.commit('updateTimelineLayerPublicParameter', { sceneId: 'scene', layerId: folder.id, definition: publicScalarParameter('speed') }), /cannot own/);
+	assert.throws(() => f.history.commit('replaceTimelineLayerPublicParameterDefinition', { sceneId: 'scene', layerId: folder.id, definition: publicScalarParameter('speed') }), /cannot own/);
 	assert.throws(() => f.history.commit('setTimelineLayerMotionBlurDisabled', { sceneId: 'scene', layerId: folder.id, forceDisableMotionBlur: true }), /visual layer/);
 	const controls = layerMenuFixture(f, [folder.id]);
 	const conversion = controls.open(folder.id).find(item => item.type === 'parent');
@@ -444,33 +443,26 @@ test('renames through history and ignores results after the timeline closes', as
 
 // 【複製の素材取得に失敗しても、一部だけを挿入せず選択と履歴を維持する】
 // 複数選択の途中で失敗した場合に、見えない部分変更を残さない。
-test('leaves the tree and history unchanged when duplication fails or becomes stale', async t => {
-	const f = fixture(t, [group('a'), group('b')]);
+test('leaves the tree selection and history unchanged when duplication preparation fails', async t => {
+	const f = fixture(t, [sound('a'), sound('b')], async () => { throw new Error('Missing media'); });
+	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
 	const before = structuredClone(f.scene);
-	const failure = layerMenuFixture(f, ['a', 'b'], { readLayerMediaDurations: async () => { throw new Error('Missing media'); } });
-	await failure.open('a').find(item => item.id === 'duplicate').action();
+	const controls = layerMenuFixture(f, ['a', 'b']);
+	await controls.open('a').find(item => item.id === 'duplicate').action();
 	assert.deepEqual(f.scene, before);
+	assert.deepEqual(controls.selection.value.ids, ['a', 'b']);
 	assert.equal(f.history.undoStack.value.length, 0);
-	assert.equal(failure.alerts[0].text, 'Missing media');
-	const stale = layerMenuFixture(f, ['a', 'b']);
-	const pending = stale.open('a').find(item => item.id === 'duplicate').action();
-	f.scene.layers = [...f.scene.layers];
-	await pending;
-	assert.deepEqual(f.scene, before);
-	assert.equal(f.history.undoStack.value.length, 0);
+	assert.equal(controls.alerts[0].text, 'Missing media');
 });
 
 // 【複数複製の全素材を検証してから木を適用する】
 // 最初の複製が有効でも、後続の素材長が不正なら全体を失敗させる。
 test('validates every duplicate before applying the tree', t => {
-	const f = fixture(t, [sound('a'), sound('b')]);
-	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
-	const copies = duplicateTimelineLayers(f.scene.layers);
+	const f = fixture(t, [sound('a'), sound('b')], asset => ({ durationMs: asset.id === 'short' ? 100 : 5000, hasAudio: true, hasVideo: false }));
+	f.state.assets.value = ['asset', 'short'].map(id => ({ id, fileDataType: 'audio/wav' }));
+	f.scene.layers[1].clips[0].assetId = 'short';
 	const before = structuredClone(f.scene);
-	const sourceDurationsMs = Object.fromEntries(copies.map((layer, index) => [layer.id, { [layer.clips[0].id]: index ? 100 : 5000 }]));
-	assert.throws(() => f.history.commit('duplicateTimelineLayers', { sceneId: 'scene',
-		layers: copies.map((layer, index) => ({ layer, sourceLayerId: f.scene.layers[index].id })), sourceDurationsMs,
-	}), /media duration/);
+	assert.throws(() => f.history.commit('duplicateTimelineLayers', { sceneId: 'scene', layerIds: ['a', 'b'] }), /media duration/);
 	assert.deepEqual(f.scene, before);
 	assert.equal(f.history.undoStack.value.length, 0);
 });
@@ -490,9 +482,11 @@ test('moves the entire group including keys outside clips and restores merged dr
 	const before = structuredClone(f.state.timelineScenes.value);
 	const initial = prepareTimelineContainerMove(f.state, rootGroup);
 	assert.equal(initial.minDelta, -100);
-	for (const deltaMs of [1000, 0, -500, 300]) {
-		f.history.commit('moveTimelineContainer', { sceneId: 'scene', layerId: 'group', initial, deltaMs }, 'drag');
-		if (deltaMs === 0) assert.deepEqual(f.state.timelineScenes.value, before);
+	let previousDelta = 0;
+	for (const delta of [1000, 0, -100, 300]) {
+		f.history.commit('moveTimelineContainerInTime', { sceneId: 'scene', layerId: 'group', deltaMs: delta - previousDelta }, 'drag');
+		previousDelta = delta;
+		if (delta === 0) assert.deepEqual(f.state.timelineScenes.value, before);
 	}
 	assert.equal(findTimelineLayer(f.scene.layers, 'sound').clips[0].startMs, 1300);
 	assert.deepEqual(findTimelineLayer(f.scene.layers, 'sound').audioParamValues.volume.keyframesTimeline.keyframes.map(key => key.x), [400, 2300]);
@@ -514,19 +508,19 @@ test('moves the entire group including keys outside clips and restores merged dr
 test('groups, reparents and ungroups atomically with stable child IDs', t => {
 	const f = fixture(t, [sound('a'), sound('b'), sound('c')]);
 	const before = structuredClone(f.scene);
-	assert.throws(() => f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: ['a', 'c'], group: group('invalid') }), /consecutive/);
+	assert.throws(() => f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: ['a', 'c'], containerType: 'group' }), /consecutive/);
 	assert.deepEqual(f.scene, before);
-	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: ['a', 'b'], group: group('group') });
+	const { layerId: groupId } = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: ['a', 'b'], containerType: 'group' });
 	assert.deepEqual(f.scene.layers[0].layers.map(layer => layer.id), ['a', 'b']);
-	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: ['b'], group: group('nested') });
+	const { layerId: nestedId } = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: ['b'], containerType: 'group' });
 	const grouped = structuredClone(f.scene);
-	assert.throws(() => f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: 'group', parentId: 'nested', beforeId: null }), /itself/);
+	assert.throws(() => f.history.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: groupId, parentId: nestedId, beforeId: null }), /itself/);
 	assert.deepEqual(f.scene, grouped);
-	f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: 'c', parentId: 'nested', beforeId: 'b' });
-	assert.deepEqual(findTimelineLayer(f.scene.layers, 'nested').layers.map(layer => layer.id), ['c', 'b']);
+	f.history.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: 'c', parentId: nestedId, beforeId: 'b' });
+	assert.deepEqual(findTimelineLayer(f.scene.layers, nestedId).layers.map(layer => layer.id), ['c', 'b']);
 	f.history.undo(); assert.deepEqual(f.scene, grouped);
-	f.history.commit('unwrapTimelineLayer', { sceneId: 'scene', layerId: 'group' });
-	assert.deepEqual(f.scene.layers.map(layer => layer.id), ['a', 'nested', 'c']);
+	f.history.commit('unwrapTimelineLayer', { sceneId: 'scene', layerId: groupId });
+	assert.deepEqual(f.scene.layers.map(layer => layer.id), ['a', nestedId, 'c']);
 	f.history.undo(); assert.deepEqual(f.scene, grouped);
 });
 
@@ -587,51 +581,49 @@ test('moves virtual group clips through the timeline handler with stable snappin
 	assert.deepEqual(f.scene, before);
 });
 
-// 【追加・貼り付けは子孫IDと素材長まで検証してから一括で適用する】
-// グループの直下だけを検証すると、入れ子でIDが衝突したり不正な素材区間を保存してしまう。
-test('validates every descendant before adding or pasting a group', t => {
-	const f = fixture(t, [sound('existing')]);
+// 【取り込みは子孫の素材長まで検証し、発行したIDをUndo/Redoで維持する】
+// グループの直下だけを検証すると不正な素材区間を保存してしまう。
+// 準備に失敗した場合は木を変えず、成功時は子孫のIDも内部で生成する。
+test('validates every descendant before inserting a group', t => {
+	let durationMs = 100;
+	const f = fixture(t, [sound('existing')], () => ({ durationMs, hasAudio: true, hasVideo: false }));
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
 	const before = structuredClone(f.scene);
-	for (const command of ['addTimelineLayer', 'pasteTimelineLayer']) {
-		const payload = { sceneId: 'scene', sourceLayerId: 'existing', layer: group('new', [group('nested', [sound('existing')])]), sourceDurationsMs: { fresh: { clip: 1000 } } };
-		assert.throws(() => f.history.commit(command, payload), /Duplicate layer ID/);
-		payload.layer.layers[0].layers[0].id = 'fresh';
-		assert.throws(() => f.history.commit(command, { ...payload, sourceDurationsMs: undefined }), /Media duration is required/);
-		assert.throws(() => f.history.commit(command, { ...payload, sourceDurationsMs: { fresh: { clip: 100 } } }), /media duration/);
-		assert.deepEqual(f.scene, before);
-		f.history.commit(command, payload);
-		assert.ok(findTimelineLayer(f.scene.layers, 'fresh'));
-		f.history.undo();
-		assert.deepEqual(f.scene, before);
-	}
+	const input = { sceneId: 'scene', beforeLayerId: 'existing', layer: group('new', [group('nested', [sound('fresh')])]) };
+	assert.throws(() => f.history.commit('insertTimelineLayer', input), /media duration/);
+	assert.deepEqual(f.scene, before);
+	assert.equal(f.history.undoStack.value.length, 0);
+	durationMs = 1000;
+	const created = f.history.commit('insertTimelineLayer', input);
+	const inserted = findTimelineLayer(f.scene.layers, created.layerId);
+	assert.notEqual(inserted.layers[0].layers[0].id, 'fresh');
+	const after = structuredClone(f.scene);
+	f.history.undo(); assert.deepEqual(f.scene, before);
+	f.history.redo(); assert.deepEqual(f.scene, after);
 });
 
 // 【レイヤーをまたいでクリップIDが同じでも、それぞれの素材長で検証する】
 // グループ内の別素材に長い方の長さを流用すると、不正な区間を保存できてしまう。
 // 短い方で上書きされたために有効な貼り付けが失敗する逆方向の問題も防ぐ。
 test('scopes media durations by layer when clip IDs repeat inside groups', t => {
-	const f = fixture(t, []);
+	const f = fixture(t, [], asset => ({ durationMs: asset.id === 'short-asset' ? 100 : 1000, hasAudio: true, hasVideo: false }));
 	f.state.assets.value = ['short-asset', 'long-asset'].map(id => ({ id, fileDataType: 'audio/wav' }));
 	const short = sound('short');
 	short.clips[0] = { ...short.clips[0], assetId: 'short-asset', sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false, durationMs: 100 };
 	const long = sound('long');
 	long.clips[0] = { ...long.clips[0], assetId: 'long-asset', sourceInMs: 0, sourceOutMs: 900, playbackRate: 1, loop: false, durationMs: 900 };
 	const root = group('root', [short, group('nested', [long])]);
-	const sourceDurationsMs = { short: { clip: 100 }, long: { clip: 1000 } };
-	for (const command of ['addTimelineLayer', 'pasteTimelineLayer']) {
-		const payload = { sceneId: 'scene', sourceLayerId: 'missing', layer: root, sourceDurationsMs };
-		f.history.commit(command, payload);
-		assert.deepEqual(f.scene.layers[0], root);
-		f.history.undo();
-		assert.deepEqual(f.scene.layers, []);
-		short.clips[0].durationMs = 101;
-		short.clips[0].sourceOutMs = 101;
-		assert.throws(() => f.history.commit(command, payload), /Clip exceeds/);
-		assert.deepEqual(f.scene.layers, []);
-		short.clips[0].durationMs = 100;
-		short.clips[0].sourceOutMs = 100;
-	}
+	const input = { sceneId: 'scene', layer: root };
+	const { layerId } = f.history.commit('insertTimelineLayer', input);
+	const inserted = findTimelineLayer(f.scene.layers, layerId);
+	assert.equal(inserted.layers[0].clips[0].sourceOutMs, 100);
+	assert.equal(inserted.layers[1].layers[0].clips[0].sourceOutMs, 900);
+	f.history.undo();
+	assert.deepEqual(f.scene.layers, []);
+	short.clips[0].durationMs = 101;
+	short.clips[0].sourceOutMs = 101;
+	assert.throws(() => f.history.commit('insertTimelineLayer', input), /Clip exceeds/);
+	assert.deepEqual(f.scene.layers, []);
 });
 
 // 【グループの平面化方式だけを変更してUndoで戻す】
@@ -640,7 +632,7 @@ test('scopes media durations by layer when clip IDs repeat inside groups', t => 
 test('changes group depth mode without rewriting descendants', t => {
 	const f = fixture(t, [group('group', [sound('audio')])]);
 	const descendants = structuredClone(f.scene.layers[0].layers);
-	f.history.commit('changeTimelineGroupMode', { sceneId: 'scene', layerId: 'group', mode: 'preserveDepth' });
+	f.history.commit('setTimelineGroupCompositingMode', { sceneId: 'scene', layerId: 'group', mode: 'preserveDepth' });
 	assert.equal(f.scene.layers[0].compositingMode, 'preserveDepth');
 	assert.deepEqual(f.scene.layers[0].layers, descendants);
 	f.history.undo(); assert.equal(f.scene.layers[0].compositingMode, undefined);

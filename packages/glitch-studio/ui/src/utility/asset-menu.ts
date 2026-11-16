@@ -19,7 +19,7 @@ export function getAssetMenu(projectContext: ProjectContext, asset: ProjectAsset
 		const { dispose } = popup(GsDialog, { input: { default: asset.name } }, {
 			done: result => {
 				if (!result.canceled && typeof result.result === 'string') {
-					stateManager.commit('renameAsset', { assetId: asset.id, name: result.result });
+					stateManager.commit('setAssetName', { assetId: asset.id, name: result.result });
 				}
 			},
 			closed: () => dispose(),
@@ -43,8 +43,10 @@ export function getAssetMenu(projectContext: ProjectContext, asset: ProjectAsset
 		// 同じパスの再選択でも取り込み結果を最新とする。Commandの変更通知で
 		// 古いメタデータが再適用されないよう、履歴へ反映する前に記録する。
 		projectContext.externalAssetMetadata.record(replacement);
-		if (undoable) stateManager.commit('replaceAsset', replacement);
-		else {
+		if (undoable) {
+			const { id: _id, name: _name, assetId, ...source } = replacement;
+			stateManager.commit('replaceAssetSource', { assetId, source });
+		} else {
 			const { assetId: _assetId, ...updated } = replacement;
 			Object.assign(asset, updated);
 		}

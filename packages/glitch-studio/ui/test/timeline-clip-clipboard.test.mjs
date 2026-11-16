@@ -15,6 +15,7 @@ const bundled = await build({
 		export { duplicateTimelineLayers } from './src/utility/timeline-container.ts';
 		export { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
+		export { createTimelineCommandDefinitions } from './src/commands/timeline-api.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { createShapeTimelineLayer } from './src/utility/shape-timeline-layer.ts';
 		export { genId } from '@gs/shared/utility/id.ts';
@@ -45,7 +46,9 @@ function fixture(t) {
 	];
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] };
 	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
-	const history = new UndoRedo(state, COMMAND_DEFS);
+	let mediaDurationMs = 10000;
+	const definitions = { ...COMMAND_DEFS, ...module.exports.createTimelineCommandDefinitions({ inspectMedia: () => ({ durationMs: mediaDurationMs, audioAvailable: true, audioError: null }) }) };
+	const history = new UndoRedo(state, definitions);
 	const changes = [];
 	history.onChange(value => changes.push(value));
 	const selection = { value: { kind: 'clips', clips: layer.clips.map(clip => ({ layerId: layer.id, clipId: clip.id })) } };
@@ -61,7 +64,7 @@ function fixture(t) {
 		inspectTimelineClipMedia: async () => ({ durationMs: 10000 }), onCueKeyboardDown() {}, removeSelectedClips() {},
 		copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips, duplicateTimelineLayers, findTimelineLayer, genId,
 	};
-	return { scene, layer, state, history, changes, selection, time, timelineClipboard, alerts, context,
+	return { scene, layer, state, history, changes, selection, time, timelineClipboard, alerts, context, setMediaDuration(value) { mediaDurationMs = value; },
 		get clipboard() { return copyTimelineClips(scene, selection.value.clips); },
 	};
 }
@@ -124,7 +127,7 @@ test('pastes into source layers atomically with one undo entry and clip change n
 	f.selection.value.clips.push({ layerId: 'other', clipId: 'a' });
 	const before = structuredClone(f.scene);
 	const clips = prepareTimelineClipPaste(f.scene, f.clipboard, 1000);
-	f.history.commit('pasteTimelineClips', { sceneId: f.scene.id, clips });
+	f.history.commit('insertTimelineClips', { sceneId: f.scene.id, clips });
 	const after = structuredClone(f.scene);
 	assert.deepEqual(clips.map(entry => entry.clip.startMs), [1000, 1300, 1100]);
 	assert.equal(f.history.undoStack.value.length, 1);
@@ -141,17 +144,17 @@ test('pastes into source layers atomically with one undo entry and clip change n
 test('rejects conflicting or invalid batches before mutating any layer or history', t => {
 	const f = fixture(t);
 	const clips = prepareTimelineClipPaste(f.scene, f.clipboard, 1000);
-	f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips });
+	f.history.commit('insertTimelineClips', { sceneId: 'scene', clips });
 	f.history.undo();
 	f.changes.length = 0;
 	f.scene.layers.push({ ...structuredClone(f.layer), id: 'other', clips: [] });
 	const invalid = { layerId: 'other', clip: { ...clips[0].clip, id: 'invalid', durationMs: 0 } };
 	const before = structuredClone(f.scene);
-	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips: [...clips, invalid] }), /Invalid clip timing/);
+	assert.throws(() => f.history.commit('insertTimelineClips', { sceneId: 'scene', clips: [...clips, invalid] }), /Invalid clip timing/);
 	assert.deepEqual(f.scene, before);
 	f.layer.clips.push({ id: 'blocking', startMs: 1300, durationMs: 1, contentOffsetMs: 0 });
 	assert.equal(canPasteTimelineClips(f.scene, clips), false);
-	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips }), /Overlapping clips/);
+	assert.throws(() => f.history.commit('insertTimelineClips', { sceneId: 'scene', clips }), /Overlapping clips/);
 	assert.equal(f.history.undoStack.value.length, 0);
 	assert.equal(f.history.redoStack.value.length, 1);
 	assert.equal(f.changes.length, 0);
@@ -168,10 +171,13 @@ test('preserves video settings and validates only pasted media against its curre
 	const clips = prepareTimelineClipPaste(f.scene, f.clipboard, 1000);
 	assert.equal(clips[0].clip.audioEnabled, false);
 	const sourceDurationsMs = { [clips[0].layerId]: { [clips[0].clip.id]: 120.25 } };
-	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips }), /Invalid media duration/);
-	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips, sourceDurationsMs: { [clips[0].layerId]: { [clips[0].clip.id]: 119 } } }), /Clip exceeds/);
+	f.setMediaDuration(NaN);
+	assert.throws(() => f.history.commit('insertTimelineClips', { sceneId: 'scene', clips }), /Invalid media duration/);
+	f.setMediaDuration(119);
+	assert.throws(() => f.history.commit('insertTimelineClips', { sceneId: 'scene', clips }), /Clip exceeds/);
+	f.setMediaDuration(120.25);
 	f.layer.clips.push({ id: 'missing', startMs: 300, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false, assetId: 'missing', audioEnabled: true, videoEnabled: true });
-	f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips, sourceDurationsMs });
+	f.history.commit('insertTimelineClips', { sceneId: 'scene', clips });
 	assert.deepEqual(f.layer.clips.at(-1), clips[0].clip);
 });
 

@@ -93,7 +93,7 @@ export class ProjectRenderValidation {
 				}
 			} else if (change.type === 'scene' || change.type === 'layerTree' || change.type === 'layerOrder') {
 				const scene = this.state.timelineScenes.value.find(scene => scene.id === change.sceneId);
-				if (scene) this.replaceScene(scene); else this.removeScene(change.sceneId);
+				if (scene) this.replaceScene(scene); else this.removeTimelineScene(change.sceneId);
 				this.recheckDependents('scene:' + change.sceneId);
 				this.checkSceneGraph();
 			} else if (change.type === 'layer') {
@@ -257,7 +257,7 @@ export class ProjectRenderValidation {
 		return layer;
 	}
 
-	private removeScene(id: string) {
+	private removeTimelineScene(id: string) {
 		for (const layerId of this.locations.get(id)?.keys() ?? []) {
 			this.removeUnit('scene:' + id + '/layer:' + layerId);
 			this.replaceVisualModule({ sceneId: id, inlineVisualModuleLayerId: layerId });
@@ -267,7 +267,7 @@ export class ProjectRenderValidation {
 	}
 
 	private replaceScene(scene: TimelineScene) {
-		this.removeScene(scene.id);
+		this.removeTimelineScene(scene.id);
 		const locations = new Map<string, LayerLocation>();
 		let duplicate = false;
 		const visit = (layers: TimelineLayer[], path: number[], insideGroup: boolean) => layers.forEach((layer, index) => {

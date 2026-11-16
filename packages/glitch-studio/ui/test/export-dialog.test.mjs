@@ -29,7 +29,7 @@ const bundle = await build({
 				previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0) },
 				renderValidation: { errorMessage: ref(null) },
 				projectContext: { stateManager: { state: {}, commits: [],
-					commit(type, settings) { this.commits.push(type); this.state.exportSettings.value = deepClone(settings); }
+					commit(type, input) { this.commits.push(type); this.state.exportSettings.value = deepClone(input.settings); }
 				} },
 			};
 		` }));
@@ -211,7 +211,7 @@ test('restores dialog choices and ranges after closing without exporting', t => 
 	assert.equal(reopened.input.startTime, '00:00:01.250');
 	assert.equal(reopened.input.endTime, '00:00:07.750');
 	reopened.close();
-	assert.deepEqual(f.stateManager.commits, ['changeExportSettings']);
+	assert.deepEqual(f.stateManager.commits, ['setExportSettings']);
 });
 
 // 【Sceneを変更すると新しい全範囲へ戻し、削除済みSceneの設定は現在のSceneで開く】

@@ -81,7 +81,7 @@ const status = computed(() => {
 function commit(utterances: VoicevoxUtterance[]) {
 	error.value = '';
 	try {
-		stateManager.commit('editVoicevoxLayer', {
+		stateManager.commit('replaceTimelineVoicevoxContent', {
 			sceneId: props.sceneId,
 			layerId: props.layer.id,
 			voicevox: props.layer.voicevox,

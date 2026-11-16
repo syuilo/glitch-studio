@@ -57,9 +57,9 @@ function showMenu(ev: PointerEvent) {
 		active: props.player.sourceType === 'webcam',
 		action: () => {
 			if (props.player.sourceType === 'webcam') return;
-			stateManager.commit('updatePlayerSourceType', {
+			stateManager.commit('setPlayerSource', {
 				playerId: props.player.id,
-				sourceType: 'webcam',
+				source: { type: 'webcam' },
 			});
 		},
 	}], ev.currentTarget ?? ev.target);

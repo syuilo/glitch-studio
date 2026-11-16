@@ -9,6 +9,7 @@ const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
 		export { COMMAND_DEFS } from './src/commands.ts';
+		export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { createTextTimelineLayer } from './src/utility/text-timeline-layer.ts';
 		export { resolveLayerParameter, getLayerKeyframeParameters } from './src/utility/timeline-scene.ts';
@@ -26,22 +27,22 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, UndoRedo, createTextTimelineLayer, resolveLayerParameter, getLayerKeyframeParameters, encodeProjectFile, decodeProjectFile } = module.exports;
+const { COMMAND_DEFS, getTimelineParameterEditBinding, UndoRedo, createTextTimelineLayer, resolveLayerParameter, getLayerKeyframeParameters, encodeProjectFile, decodeProjectFile } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
-	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] }, players: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
 	const initial = createTextTimelineLayer(100.4);
-	history.commit('addTimelineLayer', { sceneId: scene.id, layer: initial });
+	history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: scene.id, layers: [initial] } });
 	const target = { sceneId: scene.id, layerId: initial.id, target: 'text' };
 	return { scene, state, history, changes, target, initial,
 		get layer() { return scene.layers.find(layer => layer.id === initial.id); },
-		edit(key, edit, mergeKey) { history.commit('editTimelineLayerParam', { ...target, paramPath: [key], edit }, mergeKey); },
+		edit(key, edit, mergeKey) { history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(state, { ...target, paramPath: [key], edit }), mergeKey); },
 	};
 }
 
@@ -100,15 +101,13 @@ test('keeps scene-time text keyframes when the last clip is removed', t => {
 test('round-trips and duplicates text layers without sharing parameter values', async t => {
 	const f = fixture(t);
 	f.edit('text', { kind: 'literal', value: '日本語\nText' });
-	f.history.commit('changeTimelineStaticSetting', { sceneId: 'scene', layerId: f.layer.id, key: 'font', value: 'font-asset' });
+	f.history.commit('setTimelineLayerStaticSetting', { sceneId: 'scene', layerId: f.layer.id, key: 'font', value: 'font-asset' });
 	f.edit('shadowEnabled', { kind: 'literal', value: true });
 	f.edit('shadowColor', { kind: 'literal', value: [0.2, 0.4, 0.8, 0.5] });
 	f.edit('size', { kind: 'expression', value: 'TIME * 0.02' });
 	const duplicate = structuredClone(f.layer);
-	duplicate.id = 'duplicate';
-	duplicate.clips[0].id = 'duplicate-clip';
-	f.history.commit('pasteTimelineLayer', { sceneId: 'scene', layer: duplicate, sourceLayerId: f.layer.id });
-	const pasted = f.scene.layers.find(layer => layer.id === 'duplicate');
+	const inserted = f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: duplicate, beforeLayerId: f.layer.id });
+	const pasted = f.scene.layers.find(layer => layer.id === inserted.layerId);
 	pasted.textParamValues.shadowColor.value[0] = 1;
 	assert.equal(f.layer.textParamValues.shadowColor.value[0], 0.2);
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Text', description: '', author: '',
@@ -123,7 +122,7 @@ test('round-trips and duplicates text layers without sharing parameter values', 
 	f.history.undo();
 	assert.equal(f.scene.layers.length, 1);
 	f.history.redo();
-	assert.equal(f.scene.layers[0].id, 'duplicate');
+	assert.equal(f.scene.layers[0].id, inserted.layerId);
 });
 
 // 【Textの値入力に画像・音声・ノード接続を混入させない】
@@ -137,6 +136,6 @@ test('rejects unsupported bindings without committing changes', t => {
 	}
 	const invalid = createTextTimelineLayer(0);
 	invalid.textParamValues.color = { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
-	assert.throws(() => f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: invalid }), /Timeline image input/);
+	assert.throws(() => f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: invalid }), /Timeline image input/);
 });
 

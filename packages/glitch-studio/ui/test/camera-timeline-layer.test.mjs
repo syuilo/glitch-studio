@@ -9,6 +9,7 @@ const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
 		export { COMMAND_DEFS } from './src/commands.ts';
+		export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { createTransformTimelineLayer } from './src/utility/transform-timeline-layer.ts';
 		export { duplicateTimelineLayers } from './src/utility/timeline-container.ts';
@@ -31,22 +32,22 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, UndoRedo, createCameraTimelineLayer, createTransformTimelineLayer, duplicateTimelineLayers, findTimelineLayer, getRendererLayerState, applyRendererProjectChanges, getLayerKeyframeParameters, copyTimelineKeyframes, prepareTimelineKeyframePaste, encodeProjectFile, decodeProjectFile } = module.exports;
+const { COMMAND_DEFS, getTimelineParameterEditBinding, UndoRedo, createCameraTimelineLayer, createTransformTimelineLayer, duplicateTimelineLayers, findTimelineLayer, getRendererLayerState, applyRendererProjectChanges, getLayerKeyframeParameters, copyTimelineKeyframes, prepareTimelineKeyframePaste, encodeProjectFile, decodeProjectFile } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
-	const state = { timelineScenes: { value: [scene] }, resolution: { value: { width: 1000, height: 1000 } }, visualModules: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, resolution: { value: { width: 1000, height: 1000 } }, visualModules: { value: [] }, players: { value: [] }, assets: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
 	const initial = createCameraTimelineLayer(100.4);
-	history.commit('addTimelineLayer', { sceneId: scene.id, layer: initial });
+	history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: scene.id, layers: [initial] } });
 	const target = { sceneId: scene.id, layerId: initial.id, target: 'camera' };
 	return { scene, state, history, changes, target, initial,
 		get layer() { return scene.layers.find(layer => layer.id === initial.id); },
-		edit(key, edit, mergeKey) { history.commit('editTimelineLayerParam', { ...target, paramPath: [key], edit }, mergeKey); },
+		edit(key, edit, mergeKey) { history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(history.state, { ...target, paramPath: [key], edit })); },
 	};
 }
 
@@ -64,7 +65,7 @@ test('uses a fixed camera distance for creation reset and literal input with und
 		f.state.resolution.value = projectResolution;
 		f.scene.resolution = sceneResolution;
 		const cameraId = f.layer.id;
-		f.history.commit('transformTimelineLayers', { sceneId: f.scene.id, layerIds: [cameraId], transform: createTransformTimelineLayer() });
+		f.history.commit('wrapTimelineLayers', { sceneId: f.scene.id, layerIds: [cameraId], containerType: 'transform' });
 		const camera = () => findTimelineLayer(f.scene.layers, cameraId);
 		const assertDefaultDistance = () => {
 			assert.equal(camera().cameraParamValues.z.inputSource, 'literal');
@@ -108,7 +109,7 @@ test('edits camera keyframes through timeline lanes and clipboard with undo and 
 	const copied = copyTimelineKeyframes(f.state, f.scene, [point]);
 	const pasted = prepareTimelineKeyframePaste(f.state, f.scene, copied, 800);
 	assert.ok(pasted);
-	f.history.commit('pasteTimelineKeyframes', { sceneId: 'scene', keyframes: pasted });
+	f.history.commit('insertTimelineKeyframes', { sceneId: 'scene', keyframes: pasted });
 	assert.deepEqual(keys().map(key => key.x), [400, 800]);
 	f.history.undo();
 	assert.equal(keys().length, 1);
@@ -130,19 +131,19 @@ test('allows camera nesting through group, move, and paste commands with undo an
 	const copy = { ...structuredClone(f.layer), id: 'copy' };
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [], isDisabled: false,
 		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
-	f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: group });
+	f.history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [group] } });
 	const before = structuredClone(f.scene.layers);
-	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], group: { ...group, id: 'new-group' } });
-	assert.equal(findTimelineLayer(f.scene.layers, 'new-group').layers[0].id, cameraId);
+	const { layerId: wrappedLayerId } = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], containerType: 'group' });
+	assert.equal(findTimelineLayer(f.scene.layers, wrappedLayerId).layers[0].id, cameraId);
 	f.history.undo();
 	assert.deepEqual(f.scene.layers, before);
-	f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: cameraId, parentId: 'group', beforeId: null });
+	f.history.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: cameraId, parentId: 'group', beforeId: null });
 	assert.equal(findTimelineLayer(f.scene.layers, 'group').layers[0].id, cameraId);
 	f.history.undo();
 	assert.deepEqual(f.scene.layers, before);
 	f.history.redo();
-	f.history.commit('pasteTimelineLayer', { sceneId: 'scene', sourceLayerId: cameraId, layer: copy });
-	assert.deepEqual(findTimelineLayer(f.scene.layers, 'group').layers.map(layer => layer.id), ['copy', cameraId]);
+	copy.id = f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: copy, beforeLayerId: cameraId }).layerId;
+	assert.deepEqual(findTimelineLayer(f.scene.layers, 'group').layers.map(layer => layer.id), [copy.id, cameraId]);
 	f.history.undo();
 	assert.equal(findTimelineLayer(f.scene.layers, 'group').layers.length, 1);
 });
@@ -161,16 +162,13 @@ test('round-trips camera layers and duplicates independent camera settings', asy
 	const copy = structuredClone(f.layer);
 	copy.id = 'copy';
 	copy.clips[0].id = 'copy-clip';
-	f.history.commit('pasteTimelineLayer', { sceneId: 'scene', sourceLayerId: f.layer.id, layer: copy });
+	copy.id = f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: copy, beforeLayerId: f.layer.id }).layerId;
 	assert.deepEqual(findTimelineLayer(f.scene.layers, copy.id).color, [0.2, 0.4, 0.8, 1]);
 	f.history.commit('setTimelineLayerColor', { sceneId: 'scene', layerId: copy.id, color: null });
 	assert.deepEqual(f.layer.color, [0.2, 0.4, 0.8, 1]);
-	f.history.commit('editTimelineLayerParam', { ...f.target, layerId: copy.id, paramPath: ['z'], edit: { kind: 'literal', value: 5 } });
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...f.target, layerId: copy.id, paramPath: ['z'], edit: { kind: 'literal', value: 5 } }));
 	assert.equal(f.layer.cameraParamValues.z.expression, '3 + TIME');
-	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [copy.id, f.layer.id], group: {
-		id: 'group', name: 'Group', layerType: 'group', layers: [], isDisabled: false, color: null,
-		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {},
-	} });
+	const { layerId: wrappedLayerId } = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [copy.id, f.layer.id], containerType: 'group' });
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Cameras', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
@@ -183,24 +181,24 @@ test('wraps cameras and images in Transform and edits their shared timeline with
 	const f = fixture(t);
 	const cameraId = f.layer.id;
 	const image = { id: 'image', name: 'Image', layerType: 'image', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, clips: [] };
-	f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: image });
+	f.history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [image] } });
 	const transform = createTransformTimelineLayer();
-	f.history.commit('transformTimelineLayers', { sceneId: 'scene', layerIds: [image.id, cameraId], transform });
+	transform.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [image.id, cameraId], containerType: 'transform' }).layerId;
 	const parent = () => findTimelineLayer(f.scene.layers, transform.id);
 	assert.deepEqual(parent().layers.map(layer => layer.id), [image.id, cameraId]);
 	assert.equal('clips' in parent(), false);
 	assert.equal('compositingParamValues' in parent(), false);
 	const target = { sceneId: 'scene', layerId: transform.id, target: 'transform', paramPath: ['z'] };
-	f.history.commit('editTimelineLayerParam', { ...target, edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...target, edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } }));
 	const binding = parent().transformParamValues.z;
-	f.history.commit('editTimelineLayerParam', { ...target, edit: { kind: 'keyframesTimelineInline', value: { ...binding,
-		keyframesTimeline: { ...binding.keyframesTimeline, keyframes: [{ id: 'parent-key', x: 200, value: 0.5, interpolation: { type: 'linear' } }] } } } });
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...target, edit: { kind: 'keyframesTimelineInline', value: { ...binding,
+		keyframesTimeline: { ...binding.keyframesTimeline, keyframes: [{ id: 'parent-key', x: 200, value: 0.5, interpolation: { type: 'linear' } }] } } } }));
 	assert.deepEqual(getLayerKeyframeParameters(f.state, parent()).map(lane => lane.target), ['transform']);
 	const point = { ...target, keyframeId: 'parent-key' };
 	const copied = copyTimelineKeyframes(f.state, f.scene, [point]);
 	const pasted = prepareTimelineKeyframePaste(f.state, f.scene, copied, 600);
-	f.history.commit('pasteTimelineKeyframes', { sceneId: 'scene', keyframes: pasted });
-	f.history.commit('moveTimelineContainer', { sceneId: 'scene', layerId: transform.id, deltaMs: 300 });
+	f.history.commit('insertTimelineKeyframes', { sceneId: 'scene', keyframes: pasted });
+	f.history.commit('moveTimelineContainerInTime', { sceneId: 'scene', layerId: transform.id, deltaMs: 300 });
 	assert.equal(findTimelineLayer(f.scene.layers, cameraId).clips[0].startMs, 400);
 	assert.deepEqual(parent().transformParamValues.z.keyframesTimeline.keyframes.map(key => key.x), [500, 900]);
 	f.history.undo();
@@ -218,27 +216,27 @@ test('allows cameras under Transform when editing group boundaries', t => {
 	const f = fixture(t);
 	const cameraId = f.layer.id;
 	const transform = createTransformTimelineLayer();
-	f.history.commit('transformTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], transform });
+	transform.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], containerType: 'transform' }).layerId;
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [createTransformTimelineLayer()], isDisabled: false,
 		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
-	f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: group });
+	f.history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [group] } });
 	const before = structuredClone(f.scene.layers);
-	f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: transform.id, parentId: group.layers[0].id, beforeId: null });
+	f.history.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: transform.id, parentId: group.layers[0].id, beforeId: null });
 	assert.equal(findTimelineLayer(f.scene.layers, group.layers[0].id).layers[0].layers[0].id, cameraId);
 	f.history.undo();
 	assert.deepEqual(f.scene.layers, before);
-	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [transform.id], group: { ...group, id: 'other', layers: [] } });
-	assert.equal(findTimelineLayer(f.scene.layers, 'other').layers[0].id, transform.id);
+	const { layerId: wrappedLayerId } = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [transform.id], containerType: 'group' });
+	assert.equal(findTimelineLayer(f.scene.layers, wrappedLayerId).layers[0].id, transform.id);
 	f.history.undo();
 	const copy = duplicateTimelineLayers([findTimelineLayer(f.scene.layers, transform.id)])[0];
-	f.history.commit('pasteTimelineLayer', { sceneId: 'scene', sourceLayerId: group.layers[0].id, layer: copy });
+	copy.id = f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: copy, beforeLayerId: group.layers[0].id }).layerId;
 	assert.equal(findTimelineLayer(f.scene.layers, 'group').layers[0].id, copy.id);
 	f.history.undo();
 	assert.deepEqual(f.scene.layers, before);
 	// Transform同士の移動は認め、同じカメラID・クリップ・キーを保つ。
 	const outer = createTransformTimelineLayer();
-	f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: outer });
-	f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: transform.id, parentId: outer.id, beforeId: null });
+	f.history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [outer] } });
+	f.history.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: transform.id, parentId: outer.id, beforeId: null });
 	assert.equal(findTimelineLayer(f.scene.layers, outer.id).layers[0].layers[0].id, cameraId);
 });
 
@@ -247,7 +245,7 @@ test('allows cameras under Transform when editing group boundaries', t => {
 test('preserves Transform descendants through renderer patches, duplication and project files', async t => {
 	const f = fixture(t);
 	const transform = createTransformTimelineLayer();
-	f.history.commit('transformTimelineLayers', { sceneId: 'scene', layerIds: [f.layer.id], transform });
+	transform.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [f.layer.id], containerType: 'transform' }).layerId;
 	const original = f.scene.layers[0];
 	const renderer = { timelineScenes: [structuredClone(f.scene)], visualModules: [] };
 	const settings = getRendererLayerState(original);
@@ -280,11 +278,11 @@ test('edits Transform scale and rotation and camera roll with undo and keyframe 
 	const transform = createTransformTimelineLayer();
 	assert.deepEqual(transform.transformParamValues.scale, literal([1, 1]));
 	assert.deepEqual(transform.transformParamValues.rotation, literal(0));
-	f.history.commit('transformTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], transform });
+	transform.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], containerType: 'transform' }).layerId;
 	const parent = () => findTimelineLayer(f.scene.layers, transform.id);
 	const child = () => findTimelineLayer(f.scene.layers, cameraId);
 	const target = { sceneId: 'scene', layerId: transform.id, target: 'transform' };
-	f.history.commit('editTimelineLayerParam', { ...target, paramPath: ['scale'], edit: { kind: 'literal', value: [-2, 0] } });
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...target, paramPath: ['scale'], edit: { kind: 'literal', value: [-2, 0] } }));
 	assert.deepEqual(parent().transformParamValues.scale, literal([-2, 0]));
 	f.history.undo();
 	assert.deepEqual(parent().transformParamValues.scale, literal([1, 1]));
@@ -294,11 +292,11 @@ test('edits Transform scale and rotation and camera roll with undo and keyframe 
 		[target, 'rotation', parent, 'transformParamValues'],
 		[f.target, 'roll', child, 'cameraParamValues'],
 	]) {
-		f.history.commit('editTimelineLayerParam', { ...layerTarget, paramPath: [key], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+		f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...layerTarget, paramPath: [key], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } }));
 		const binding = getLayer()[property][key];
-		f.history.commit('editTimelineLayerParam', { ...layerTarget, paramPath: [key], edit: { kind: 'keyframesTimelineInline', value: {
+		f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...layerTarget, paramPath: [key], edit: { kind: 'keyframesTimelineInline', value: {
 			...binding, keyframesTimeline: { ...binding.keyframesTimeline, keyframes: [{ id: key, x: 500, value: 0.5, interpolation: { type: 'linear' } }] },
-		} } });
+		} } }));
 		assert.deepEqual(getLayerKeyframeParameters(f.state, getLayer()).map(lane => [lane.target, lane.paramPath]), [[layerTarget.target, [key]]]);
 		f.history.undo();
 		assert.deepEqual(getLayer()[property][key], binding);

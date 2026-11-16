@@ -76,9 +76,9 @@ test('keeps endpoint ownership throughout a drag and recalculates it for the nex
 	const f = fixture(t, [layer]);
 	const targets = [f.targets[0]];
 	const initial = prepareTimelineClipMove(f.state, f.scene, targets);
-	const payload = { sceneId: 'scene', clips: [{ ...targets[0], initialStartMs: 1000 }], initialKeyframes: initial.keyframes };
+	const payload = deltaMs => ({ sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + deltaMs })), keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + deltaMs })) });
 	for (const deltaMs of [400, 0, 400]) {
-		f.history.commit('moveTimelineClips', { ...payload, deltaMs }, 'drag');
+		f.history.commit('setTimelinePositions', payload(deltaMs), 'drag');
 		assert.deepEqual(times(layer), [1500 + deltaMs, 2000 + deltaMs]);
 	}
 	f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: targets, deltaMs: -100 });
@@ -88,7 +88,7 @@ test('keeps endpoint ownership throughout a drag and recalculates it for the nex
 // 【キーの衝突で全クリップを止め、開始時の状態から往復・Undo・Redoする】
 // 数値入力とドラッグは同じ制限を使う。移動途中で区間内に入ったキーは巻き込まず、
 // クリップ・キーの相対位置、素材位置、値・補間、レンダラーへの通知をまとめて維持する。
-test('clamps a multi-layer move at a stationary key and restores the entire edit through history', t => {
+test('sets bounded multi-layer positions at a stationary key and restores the entire edit through history', t => {
 	const audio = audioLayer('audio', [clip('a', 1000, 1000)], [900, 1100, 1900, 2000, 2400]);
 	const other = audioLayer('other', [clip('b', 500, 1000)], [0, 600]);
 	const f = fixture(t, [audio, other]);
@@ -97,8 +97,8 @@ test('clamps a multi-layer move at a stationary key and restores the entire edit
 	const targets = move.clips.map(({ startMs, ...target }) => ({ ...target, initialStartMs: startMs }));
 	assert.equal(move.maxDelta, 300);
 	assert.equal(move.minDelta, -100);
-	for (const deltaMs of [900, 0, -500, 150, 900]) {
-		f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: targets, initialKeyframes: move.keyframes, deltaMs }, 'drag');
+	for (const deltaMs of [300, 0, -100, 150, 300]) {
+		f.history.commit('setTimelinePositions', { sceneId: 'scene', clips: move.clips.map(clip => ({ ...clip, startMs: clip.startMs + deltaMs })), keyframes: move.keyframes.map(point => ({ ...point, x: point.x + deltaMs })) }, 'drag');
 		if (deltaMs === 0) assert.deepEqual(f.scene, before);
 	}
 	assert.deepEqual(times(audio), [900, 1400, 2200, 2300, 2400]);
@@ -114,7 +114,8 @@ test('clamps a multi-layer move at a stationary key and restores the entire edit
 	assert.ok(f.changes.every(changes => changes.length === 2 && changes.every(change =>
 		change.changes.some(entry => entry.type === 'clips') && change.changes.some(entry => entry.type === 'parameter' && entry.target === 'audio'))));
 	f.history.undo();
-	f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: f.targets, deltaMs: 900 });
+	assert.throws(() => f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: f.targets, deltaMs: 900 }), /outside the valid range/);
+	f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: f.targets, deltaMs: 300 });
 	assert.deepEqual(f.scene, after);
 });
 
@@ -127,14 +128,14 @@ test('preserves existing short gaps without jumping and keeps selected keys toge
 	const move = prepareTimelineClipMove(f.state, f.scene, f.targets);
 	assert.equal(move.minDelta, 0);
 	assert.equal(move.maxDelta, 60);
-	const payload = { sceneId: 'scene', clips: [{ ...f.targets[0], initialStartMs: 1000 }], initialKeyframes: move.keyframes };
-	for (const deltaMs of [60, 0, -100, 60]) {
-		f.history.commit('moveTimelineClips', { ...payload, deltaMs }, 'drag');
+	const payload = deltaMs => ({ sceneId: 'scene', clips: move.clips.map(clip => ({ ...clip, startMs: clip.startMs + deltaMs })), keyframes: move.keyframes.map(point => ({ ...point, x: point.x + deltaMs })) });
+	for (const deltaMs of [60, 0, 60]) {
+		f.history.commit('setTimelinePositions', payload(deltaMs), 'drag');
 		assert.deepEqual(times(layer), deltaMs > 0 ? [930, 1060, 1070, 1170] : [930, 1000, 1010, 1170]);
 	}
 	const zero = audioLayer('zero', [clip('zero', 0, 100)], [0, 10]);
 	f.scene.layers.push(zero);
-	f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: [{ layerId: 'zero', clipId: 'zero' }], deltaMs: -100 });
+	assert.throws(() => f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: [{ layerId: 'zero', clipId: 'zero' }], deltaMs: -100 }), /outside the valid range/);
 	assert.deepEqual(times(zero), [0, 10]);
 	assert.equal(zero.clips[0].startMs, 0);
 });
@@ -151,7 +152,8 @@ test('moves speech and empty stop keys with parameters while preserving speech s
 	layer.audioParamValues.volume = keys([1100, 2700]);
 	const f = fixture(t, [layer]);
 	const before = structuredClone(f.scene);
-	f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: f.targets, deltaMs: 1000 });
+	assert.throws(() => f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: f.targets, deltaMs: 1000 }), /outside the valid range/);
+	f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: f.targets, deltaMs: 400 });
 	assert.deepEqual(layer.utterances.map(point => point.timeMs), [100, 1500, 2400, 2500]);
 	assert.deepEqual(times(layer), [1500, 2700]);
 	assert.equal(layer.clips[0].startMs, 1400);
@@ -182,8 +184,8 @@ test('materializes default arguments and nested lanes without modifying shared d
 		const targets = [{ layerId: 'edited', clipId: 'clip' }];
 		const initial = prepareTimelineClipMove(f.state, f.scene, targets);
 		const paths = nested ? [['value', 'first', 'x'], ['value', 'first', 'y']] : [['value']];
-		for (const deltaMs of [20, 60, 0, 100]) f.history.commit('moveTimelineClips', {
-			sceneId: 'scene', clips: [{ ...targets[0], initialStartMs: 100 }], initialKeyframes: initial.keyframes, deltaMs,
+		for (const deltaMs of [20, 60, 0, 100]) f.history.commit('setTimelinePositions', {
+			sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + deltaMs })), keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + deltaMs })),
 		}, 'defaults');
 		for (const path of paths) assert.deepEqual(resolveLayerParameter(f.state, f.scene.layers[0], 'module', path).value.keyframesTimeline.keyframes.map(point => point.x), [200, 300]);
 		assert.deepEqual(def.defaultValue, defaultBefore);
@@ -211,7 +213,7 @@ test('rejects invalid speech endpoints and missing captured keys atomically', t 
 	const initial = prepareTimelineClipMove(f.state, f.scene, [f.targets[0]]);
 	audio.audioParamValues.volume.keyframesTimeline.keyframes = [];
 	const deleted = structuredClone(f.scene);
-	assert.throws(() => f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: [f.targets[0]], initialKeyframes: initial.keyframes, deltaMs: 100 }), /Timeline keyframe not found/);
+	assert.throws(() => f.history.commit('setTimelinePositions', { sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + 100 })), keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + 100 })) }), /Timeline keyframe not found/);
 	assert.deepEqual(f.scene, deleted);
 	assert.equal(f.changes.length, 0);
 	assert.equal(f.history.undoStack.value.length, 0);

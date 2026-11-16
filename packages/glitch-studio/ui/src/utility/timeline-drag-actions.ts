@@ -1,15 +1,21 @@
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { computed } from 'vue';
-import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { getTimelineClipEnd, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
-import { getTimelineMediaTrimBounds, getTimelineMediaPeriod, getTimelineMediaLoopBounds } from '@gs/subsystems_timeline_shared/media-timing.ts';
-import { getTimelineVideoHoldTrimBounds } from '@gs/subsystems_timeline_shared/layers/video/video-hold.ts';
+import { getTimelineMediaTrimBounds, getTimelineMediaPeriod, getTimelineMediaLoopBounds, trimTimelineMediaClip, getTimelineMediaSingleDuration } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import { getTimelineVideoHoldTrimBounds, trimTimelineVideoHold } from '@gs/subsystems_timeline_shared/layers/video/video-hold.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
+import { prepareTimelineClipMove } from './timeline-clip-move.ts';
+import { prepareTimelineContainerMove } from './timeline-container.ts';
+import { getTimelineClipSnapPoints, getTimelineSnapCandidates } from './timeline-snapping.ts';
+import { getTimelineVisibleClipTicks } from './timeline-ticks.ts';
+import { clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, keyframeMoveBounds, getTimelineSnappingTimes } from './timeline-selection.ts';
+import { createKeyframeStretch, stretchKeyframeX } from './timeline-keyframe-stretch.ts';
+import { getVoicevoxSubtitleTrimBounds } from './voicevox-utterance-edit.ts';
 import type { Ref } from 'vue';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ProjectState, AppStateChange } from '@/Project.ts';
@@ -22,13 +28,7 @@ import type { TimelineTickMode, TimelineTickSubdivisions } from './timeline-tick
 import type { TimelineViewport } from '@/composables/useTimelineViewport.ts';
 import type { TimelineSelectionDrag } from '@/composables/useTimelineSelectionDrag.ts';
 import type { getTimelineKeyframeEntries } from './timeline-keyframe-lanes.ts';
-import { prepareTimelineClipMove } from './timeline-clip-move.ts';
-import { prepareTimelineContainerMove } from './timeline-container.ts';
-import { getTimelineClipSnapPoints, getTimelineSnapCandidates } from './timeline-snapping.ts';
-import { getTimelineVisibleClipTicks } from './timeline-ticks.ts';
-import { clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, keyframeMoveBounds, getTimelineSnappingTimes } from './timeline-selection.ts';
-import { createKeyframeStretch, stretchKeyframeX } from './timeline-keyframe-stretch.ts';
-import { getVoicevoxSubtitleTrimBounds } from './voicevox-utterance-edit.ts';
+import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
 type TimelineDragActionsOptions = {
 	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
@@ -56,7 +56,7 @@ type TimelineDragActionsOptions = {
 /** 操作開始時に対象・制約を確定し、共通ドラッグへCommandの適用方法を渡す。DOMの寿命は所有しない。 */
 export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 	const { stateManager, scene, sceneLayers, keyframeEntries, selection, mediaInfo, drag,
-		selectLayer, selectClip, selectKeyframe: onKeyframeSelected, revealDetails, focusTimeline } = options;
+									selectLayer, selectClip, selectKeyframe: onKeyframeSelected, revealDetails, focusTimeline } = options;
 	const { positionX, rangeX, tickCount, ticksWithMinor } = options.viewport;
 	const { settings: snapSettings, clipSettings: clipSnapSettings, tickMode, tickSubdivisions, currentTime: time } = options.snapping;
 	const clipLayers = computed(() => sceneLayers.value.filter(layer => !isTimelineContainerLayer(layer)));
@@ -79,11 +79,11 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 			.flatMap(child => child.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], ticksWithMinor.value, [], time.value);
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (!sceneLayers.value.some(current => current.id === layer.id)) return false;
-			stateManager.commit('moveTimelineContainer', {
+			delta = Math.max(initial.minDelta, Math.min(initial.maxDelta, Math.round(delta)));
+			stateManager.commit('setTimelinePositions', {
 				sceneId: scene.id,
-				layerId: layer.id,
-				deltaMs: delta,
-				initial,
+				clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + delta })),
+				keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + delta })),
 			}, mergeKey);
 			return true;
 		});
@@ -104,14 +104,13 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...clipLayers.value.flatMap(layer => layer.clips
 			.filter(clip => !selected.has(clipSelectionKey({ layerId: layer.id, clipId: clip.id })))
 			.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], ticksWithMinor.value, [], time.value);
-		const initialTargets = entries.map(({ target, clip }) => ({ ...target, initialStartMs: clip.startMs }));
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (targets.some(target => !resolveClip(target))) return false;
-			stateManager.commit('moveTimelineClips', {
+			delta = Math.max(move.minDelta, Math.min(move.maxDelta, Math.round(delta)));
+			stateManager.commit('setTimelinePositions', {
 				sceneId: scene.id,
-				clips: initialTargets,
-				initialKeyframes: move.keyframes,
-				deltaMs: delta,
+				clips: move.clips.map(clip => ({ ...clip, startMs: clip.startMs + delta })),
+				keyframes: move.keyframes.map(point => ({ ...point, x: point.x + delta })),
 			}, mergeKey);
 			return true;
 		});
@@ -138,13 +137,14 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const initialTiming = deepClone(clip);
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (!resolveClip(target)) return false;
-			stateManager.commit('editTimelineClipTiming', {
+			delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, Math.round(delta)));
+			stateManager.commit('replaceTimelineClipTiming', {
 				sceneId: scene.id,
 				...target,
-				edge,
-				deltaMs: delta,
-				initialTiming,
-				sourceDurationMs,
+				timing: 'sourceTimeMs' in initialTiming ? trimTimelineVideoHold(initialTiming, edge, delta)
+				: 'sourceInMs' in initialTiming ? trimTimelineMediaClip(initialTiming, edge, delta)
+				: edge === 'start' ? { ...initialTiming, startMs: initialTiming.startMs + delta, durationMs: initialTiming.durationMs - delta, contentOffsetMs: initialTiming.contentOffsetMs + delta }
+				: { ...initialTiming, durationMs: initialTiming.durationMs + delta },
 			}, mergeKey);
 			return true;
 		});
@@ -169,12 +169,11 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const initialTiming = deepClone(clip);
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (!resolveClip(target)) return false;
-			stateManager.commit('editMediaClipLoop', {
+			delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, Math.round(delta)));
+			stateManager.commit('replaceTimelineClipTiming', {
 				sceneId: scene.id,
 				...target,
-				deltaMs: delta,
-				sourceDurationMs,
-				initialTiming,
+				timing: { ...initialTiming, durationMs: initialTiming.durationMs + delta, loop: initialTiming.durationMs + delta > getTimelineMediaSingleDuration(initialTiming) },
 			}, mergeKey);
 			return true;
 		});
@@ -214,7 +213,7 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 			const current = currentLayer.utterances.find(key => key.id === utteranceId);
 			// 設定画面でFill・発話長モードへ変えた場合や、別操作でキーが移動・削除された場合はドラッグを続けない。
 			if (!current || current.subtitleDuration.mode !== 'specified' || current.timeMs !== initialTime) return false;
-			stateManager.commit('editVoicevoxLayer', {
+			stateManager.commit('replaceTimelineVoicevoxContent', {
 				sceneId: scene.id,
 				layerId,
 				voicevox: currentLayer.voicevox,

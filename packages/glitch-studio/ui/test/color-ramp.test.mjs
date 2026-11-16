@@ -1,3 +1,4 @@
+import { nodeParameterTarget } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -50,10 +51,10 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	ramp.repeatCount = 2.5;
 	ramp.repeatMode = 'pingPong';
 	ramp.stops.push({ id: 'middle', position: 0.5, color: [1, 0, 0, 0.5] });
-	history.commit('updateParamAsLiteral', { ...target, value: ramp }, 'drag');
+	history.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: ramp } }, 'drag');
 	ramp.stops[2].position = 0.75;
 	ramp.interpolation = 'easeOut';
-	history.commit('updateParamAsLiteral', { ...target, value: ramp }, 'drag');
+	history.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: ramp } }, 'drag');
 	assert.equal(history.undoStack.value.length, 1);
 	history.undo();
 	assert.deepEqual(node.params.ramp, initial);
@@ -65,13 +66,13 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	assert.equal(node.params.ramp.value.repeatCount, 2.5);
 	assert.equal(node.params.ramp.value.repeatMode, 'pingPong');
 	const modifier = { enabled: true, code: 'VALUE.colorSpace = "oklab"\nVALUE' };
-	history.commit('updateParamExpressionModifier', { ...target, value: modifier });
-	history.commit('changeParamValueInputSource', { ...target, inputSource: 'expression' });
+	history.commit('setVisualModuleNodeParameterExpressionModifier', { ...nodeParameterTarget({ ...target }), expressionModifier: modifier });
+	history.commit('switchVisualModuleNodeParameterInputSource', { ...nodeParameterTarget({ ...target }), inputSource: 'expression' });
 	assert.match(node.params.ramp.expression, /middle/);
 	assert.deepEqual(node.params.ramp.expressionModifier, modifier);
 	const encoded = await encodeProjectFile({ assets: [], generatedSpeech: [], timelineScenes: [], visualModules: state.visualModules.value, gsVersion: '2.0.0-alpha.19' });
 	assert.deepEqual(decodeProjectFile(encoded).visualModules[0].nodes[0].params, node.params);
-	assert.throws(() => history.commit('changeParamValueInputSource', { ...target, inputSource: 'automationGraphInline' }), /does not support/);
+	assert.throws(() => history.commit('switchVisualModuleNodeParameterInputSource', { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' }), /does not support/);
 });
 
 const componentDirectory = fileURLToPath(new URL('../src/components/common/', import.meta.url));

@@ -1,3 +1,4 @@
+import { nodeParameterTarget, timelineParameterTarget, customParameterTarget } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -54,7 +55,7 @@ function fixture(t) {
 	manager.onChange(changes => notifications.push({ changes: structuredClone(changes), value: structuredClone(value()) }));
 	return { state, manager, target, value, visualModules, timelineScenes, notifications,
 		at(time) { now = time; },
-		set(value, mergeKey = null) { manager.commit('updateParamAsLiteral', { ...target, value }, mergeKey); },
+		set(value, mergeKey = null) { manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } }, mergeKey); },
 	};
 }
 
@@ -98,9 +99,9 @@ test('separates command types and complete node parameter addresses', t => {
 		{ ...f.target, nodeId: 'second-node' }, { ...f.target, visualModuleId: 'second-visual-module' },
 		{ sceneId: 'first-scene', inlineVisualModuleLayerId: 'inline-layer', nodeId: 'first-node', paramPath: f.target.paramPath },
 		{ sceneId: 'second-scene', inlineVisualModuleLayerId: 'inline-layer', nodeId: 'first-node', paramPath: f.target.paramPath }];
-	for (const target of targets) f.manager.commit('updateParamAsLiteral', { ...target, value: 1 });
-	f.manager.commit('updateParamAsExpression', { ...targets.at(-1), value: 'TIME' });
-	f.manager.commit('updateParamAsExpression', { ...targets.at(-1), value: 'TIME * 2' });
+	for (const target of targets) f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: 1 } });
+	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME' } });
+	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME * 2' } });
 	assert.equal(f.manager.undoStack.value.length, targets.length + 1);
 	while (f.manager.canUndo.value) f.manager.undo();
 	assert.deepEqual(f.state, before);
@@ -113,12 +114,12 @@ test('merges timeline values and expressions only at the same parameter address'
 	const f = fixture(t);
 	const before = structuredClone(f.state);
 	const target = { sceneId: 'first-scene', layerId: 'text-layer', target: 'text', paramPath: ['position'] };
-	for (const value of [[0.1, 0.2], [0.3, 0.4]]) f.manager.commit('editTimelineLayerParam', { ...target, edit: { kind: 'literal', value } });
+	for (const value of [[0.1, 0.2], [0.3, 0.4]]) f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } });
 	assert.equal(f.manager.undoStack.value.length, 1);
-	f.manager.commit('editTimelineLayerParam', { ...target, target: 'compositing', edit: { kind: 'literal', value: [0.2, 0.2] } });
-	f.manager.commit('editTimelineLayerParam', { ...target, sceneId: 'second-scene', edit: { kind: 'literal', value: [0.2, 0.2] } });
-	f.manager.commit('editTimelineLayerParam', { ...target, edit: { kind: 'expression', value: '[TIME, 0]' } });
-	f.manager.commit('editTimelineLayerParam', { ...target, edit: { kind: 'expression', value: '[TIME * 2, 0]' } });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target, target: 'compositing' }), source: { inputSource: 'literal', value: [0.2, 0.2] } });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target, sceneId: 'second-scene' }), source: { inputSource: 'literal', value: [0.2, 0.2] } });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target }), source: { inputSource: 'expression', expression: '[TIME, 0]' } });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target }), source: { inputSource: 'expression', expression: '[TIME * 2, 0]' } });
 	assert.equal(f.manager.undoStack.value.length, 4);
 	while (f.manager.canUndo.value) f.manager.undo();
 	assert.deepEqual(f.state, before);
@@ -131,8 +132,8 @@ test('merges timeline values and expressions only at the same parameter address'
 test('normalizes the default timeline parameter target and restores omitted bindings', t => {
 	const f = fixture(t);
 	const target = { sceneId: 'first-scene', layerId: 'inline-layer', paramPath: ['gain'] };
-	f.manager.commit('editTimelineLayerParam', { ...target, edit: { kind: 'literal', value: 1 } });
-	f.manager.commit('editTimelineLayerParam', { ...target, target: 'module', edit: { kind: 'literal', value: 2 } });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target }), source: { inputSource: 'literal', value: 1 } });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target, target: 'module' }), source: { inputSource: 'literal', value: 2 } });
 	assert.equal(f.manager.undoStack.value.length, 1);
 	f.manager.undo(); assert.deepEqual(f.timelineScenes[0].layers[1].visualModuleParamValues, {});
 	f.manager.redo(); assert.deepEqual(f.timelineScenes[0].layers[1].visualModuleParamValues.gain, literal(2));
@@ -144,30 +145,31 @@ test('normalizes the default timeline parameter target and restores omitted bind
 test('merges custom parameter values without changing definitions or losing omitted values', t => {
 	const f = fixture(t);
 	const target = { visualModuleId: 'first-visual-module', parameterId: 'gain' };
-	for (const value of [1, 2]) f.manager.commit('editVisualModuleCustomParameter', { ...target, edit: { kind: 'literal', value } });
+	for (const value of [1, 2]) f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } });
 	assert.equal(f.manager.undoStack.value.length, 1);
 	f.manager.undo(); assert.deepEqual(f.visualModules[0].customParameterValues, {});
 	f.manager.redo(); assert.deepEqual(f.visualModules[0].customParameterValues.gain, literal(2));
-	for (const value of ['TIME', 'TIME * 2']) f.manager.commit('editVisualModuleCustomParameter', { ...target, edit: { kind: 'expression', value } });
-	f.manager.commit('editVisualModuleCustomParameter', { ...target, visualModuleId: 'second-visual-module', edit: { kind: 'literal', value: 3 } });
+	for (const value of ['TIME', 'TIME * 2']) f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'expression', expression: value } });
+	f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ ...target, visualModuleId: 'second-visual-module' }), source: { inputSource: 'literal', value: 3 } });
 	assert.equal(f.manager.undoStack.value.length, 3);
 	assert.deepEqual(f.visualModules[0].customParameterDefs[0].defaultValue, literal(0));
 });
 
 // 【キー・グラフ・リセット・定義変更は短時間に繰り返しても自動でまとめない】
-// 同じ値更新の入口が構造編集にも使われるため、許可する編集種別を限定する必要がある。
+// 同じ値更新の入口が構造編集にも使われるため、自動マージは値・式に限定する。
+// 同一の操作を繰り返して値が変化しない場合は、履歴自体を追加しない。
 test('keeps keyframe graph reset and definition commands out of automatic merging', t => {
 	const f = fixture(t);
 	const keyframes = createInlineKeyframesTimeline(scalar);
 	const graph = createInlineAutomationGraph();
 	const operations = [
-		() => f.manager.commit('updateParamAsKeyframesTimelineInline', { ...f.target, value: keyframes }),
-		() => f.manager.commit('updateParamAsAutomationGraphInline', { ...f.target, value: graph }),
-		() => f.manager.commit('resetNodeParam', f.target),
-		() => f.manager.commit('updateVisualModuleParamDef', { visualModuleId: 'first-visual-module', defId: 'gain', changes: { defaultValue: literal(1) } }),
+		() => f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: keyframes }),
+		() => f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: graph }),
+		() => f.manager.commit('resetVisualModuleNodeParameter', { ...nodeParameterTarget(f.target) }),
+		() => f.manager.commit('replaceVisualModulePublicParameterDefinition', { target: { visualModule: { visualModuleId: 'first-visual-module' }, parameterId: 'gain' }, definition: { ...f.visualModules[0].paramDefs[0], defaultValue: literal(1) } }),
 	];
 	for (const operation of operations) { operation(); operation(); }
-	assert.equal(f.manager.undoStack.value.length, operations.length * 2);
+	assert.equal(f.manager.undoStack.value.length, operations.length);
 });
 
 // 【明示キーによる操作は時間制限を受けず、自動マージとは接続しない】
@@ -190,18 +192,18 @@ test('preserves explicit merging and isolates it from automatic merging', t => {
 test('keeps explicit edit sessions independent and preserves redo on cancellation', t => {
 	const f = fixture(t);
 	f.set(1);
-	const cancelled = f.manager.beginEdit('updateParamAsLiteral');
-	cancelled.update({ ...f.target, value: 2 }); cancelled.cancel();
+	const cancelled = f.manager.beginEdit('setVisualModuleNodeParameterSource');
+	cancelled.update({ ...nodeParameterTarget(f.target), source: { inputSource: 'literal', value: 2 } }); cancelled.cancel();
 	f.set(3);
-	const empty = f.manager.beginEdit('updateParamAsLiteral'); empty.finish();
+	const empty = f.manager.beginEdit('setVisualModuleNodeParameterSource'); empty.finish();
 	f.set(4);
-	const finished = f.manager.beginEdit('updateParamAsLiteral');
-	finished.update({ ...f.target, value: 5 }); finished.finish();
+	const finished = f.manager.beginEdit('setVisualModuleNodeParameterSource');
+	finished.update({ ...nodeParameterTarget(f.target), source: { inputSource: 'literal', value: 5 } }); finished.finish();
 	f.set(6);
 	assert.equal(f.manager.undoStack.value.length, 5);
 	f.manager.undo();
-	const session = f.manager.beginEdit('updateParamAsLiteral');
-	session.update({ ...f.target, value: 7 }); session.cancel();
+	const session = f.manager.beginEdit('setVisualModuleNodeParameterSource');
+	session.update({ ...nodeParameterTarget(f.target), source: { inputSource: 'literal', value: 7 } }); session.cancel();
 	assert.equal(f.manager.redoStack.value.length, 1);
 	f.manager.redo(); assert.deepEqual(f.value(), literal(6));
 });

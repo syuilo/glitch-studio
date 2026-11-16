@@ -47,7 +47,7 @@ const result = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', result.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Layer, updates, mounts, commits, timelineKeyframePosition, timelineTimeToX, getTimelineVisibleClipTicks, getTimelineClipTicks } = module.exports;
+const { Layer, updates, mounts, commits, projectSession, timelineKeyframePosition, timelineTimeToX, getTimelineVisibleClipTicks, getTimelineClipTicks } = module.exports;
 
 // Vueのhost操作のみ実装し、レイアウト・ペイント速度を測ったと誤認しないようにする。
 function element(tag = 'div') { return { tag, parent: null, children: [], props: {}, getBoundingClientRect: () => ({ left: 100 }) }; }
@@ -98,6 +98,7 @@ async function fixture(t) {
 		} } }, automationGraphs: [],
 	});
 	const layers = reactive(['a', 'b', 'c'].map(makeLayer));
+	projectSession.projectContext.stateManager.state.timelineScenes.value = [{ id: 'scene', layers }];
 	const visible = ref([0]);
 	const props = reactive({ sceneId: 'scene', sceneTimeMs: 0, depth: 0, nextLayerDepth: 0, tlElWidth: 1000, tlRangeX: 500, tlPosX: 0,
 		tickMode: 'binary', tickSubdivisions: { halves: true, thirds: false }, mediaInfo: new Map([['sound', { durationMs: 1000 }]]),
@@ -307,8 +308,8 @@ test('converts background gestures at the viewport and preserves clip and key ev
 	assert.deepEqual(state.events.at(-1), ['addClip', 115]);
 	backgrounds[1].props.onDblclick(event(backgrounds[1]));
 	const edit = commits.at(-1);
-	assert.equal(edit[0], 'editTimelineLayerParam');
-	assert.ok(edit[1].edit.value.keyframesTimeline.keyframes.some(point => point.x === 115));
+	assert.equal(edit[0], 'setTimelineLayerParameterSource');
+	assert.ok(edit[1].source.keyframesTimeline.keyframes.some(point => point.x === 115));
 	const clipRoot = nodes.find(node => node.props['data-test-timeline-clip-id'] === 'clip-0');
 	const clip = findByAttribute(clipRoot, 'data-test-timeline-clip');
 	clip.props.onPointerdown(event(clip));

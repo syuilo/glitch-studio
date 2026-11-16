@@ -1,3 +1,4 @@
+import { nodeTarget, timelineParameterTarget, assetSource } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -465,7 +466,7 @@ test('preserves precise seek positions when changing motion blur without changin
 	projectSession.timelinePreviewMotionBlurSamples.value = 4;
 	await setImmediate();
 	assert.equal(playback.currentTimelineTime.value, 120);
-	manager.commit('changeTimelineRenderSettings', { timelineFps: 30,
+	manager.commit('setTimelineRenderSettings', { timelineFps: 30,
 																																																		timelineMotionBlur: { ...manager.state.timelineMotionBlur.value, enabled: true, shutterAngle: 90 } });
 	await setImmediate();
 	assert.equal(playback.currentTimelineTime.value, 120);
@@ -477,7 +478,7 @@ test('preserves precise seek positions when changing motion blur without changin
 	playback.refresh();
 	assert.equal(timeline.renders.at(-1), 120);
 	assert.equal(timeline.updates.some(options => Object.hasOwn(options, 'previewFps')), false);
-	manager.commit('changeTimelineRenderSettings', { timelineFps: 60, timelineMotionBlur: manager.state.timelineMotionBlur.value });
+	manager.commit('setTimelineRenderSettings', { timelineFps: 60, timelineMotionBlur: manager.state.timelineMotionBlur.value });
 	await setImmediate();
 	assert.equal(playback.currentTimelineTime.value, 4 * 1000 / 30);
 });
@@ -549,7 +550,7 @@ test('persists Custom Shader Effect definitions through project snapshots and fi
 	const customShaderEffect = app.createProjectCustomShaderEffect([]);
 	customShaderEffect.code = 'unfinished WGSL';
 	customShaderEffect.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
-	manager.commit('addCustomShaderEffect', { customShaderEffect });
+	manager.commit('insertCustomShaderEffect', { definition: customShaderEffect });
 	const snapshot = context.snapshot();
 	const restored = decodeProjectFile(await encodeProjectFile(snapshot));
 	assert.deepEqual(restored.customShaderEffects, [customShaderEffect]);
@@ -695,10 +696,10 @@ for (const [label, fileDataType, isExternalReference] of [
 				await initialize(snapshot);
 			};
 		}
-		manager.commit('importAssets', { assets: [asset], players, visualModule: { target: { visualModuleId: 'visualModule' }, nodes: [node] } });
+		manager.commit('insertImportedAssets', { assets: [asset], players, visualModule: { target: { visualModuleId: 'visualModule' }, nodes: [node] } });
 		assert.equal(projectSession.renderEngine.canRender.value, false);
 		assert.ok(controllers.every(controller => controller.isReady.value === false));
-		manager.commit('changeNodeResolution', { visualModuleId: 'visualModule', nodeId: node.id, resolution: { mode: 'auto', scale: 0.5 } });
+		manager.commit('setVisualModuleNodeResolution', { target: nodeTarget({ visualModuleId: 'visualModule', nodeId: node.id }), resolution: { mode: 'auto', scale: 0.5 } });
 		await projectSession.flushRendererProjectChanges();
 		await setImmediate();
 		assert.ok(controllers.every(controller => controller.patches.length === 0));
@@ -710,7 +711,7 @@ for (const [label, fileDataType, isExternalReference] of [
 			assert.equal(controller.isReady.value, true);
 			assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
 		}
-		manager.commit('renameAsset', { assetId: asset.id, name: 'Renamed' });
+		manager.commit('setAssetName', { assetId: asset.id, name: 'Renamed' });
 		await setImmediate();
 		assert.ok(controllers.every(controller => controller.lifecycle.filter(event => event === 'initialize').length === 1));
 	});
@@ -744,9 +745,9 @@ test('restarts both previews after content and settings change during initializa
 	assert.ok(attempts.every(snapshots => snapshots.length === 1));
 	const generations = controllers.map(controller => controller.generation);
 	const manager = projectSession.projectContext.stateManager;
-	manager.commit('renameVisualModule', { visualModuleId: 'visualModule', name: 'Renamed' });
+	manager.commit('setVisualModuleName', { target: { visualModuleId: 'visualModule' }, name: 'Renamed' });
 	assert.deepEqual(controllers.map(controller => controller.generation), generations);
-	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'during-initialization', effectId: 'fill' });
+	const { nodeId: initialNodeId } = manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: 'visualModule' }, effectId: 'fill' });
 	projectSession.highlightClipping.value = true;
 	projectSession.previewExposure.value = 2;
 	projectSession.previewWarningImageSource.value = 'previewAdjusted';
@@ -765,7 +766,7 @@ test('restarts both previews after content and settings change during initializa
 	assert.equal(controllers[1].initialStaticOptions.frameCacheMaxBytes, 1024 ** 3);
 	assert.equal(controllers[1].initialStaticOptions.frameCachePrecision, '8bit');
 	for (const controller of controllers) {
-		assert.equal(controller.options.visualModules[0].nodes[0].id, 'during-initialization');
+		assert.equal(controller.options.visualModules[0].nodes[0].id, initialNodeId);
 		assert.equal(controller.options.highlightClipping, true);
 		assert.equal(controller.options.previewWarningImageSource, 'previewAdjusted');
 		assert.deepEqual(controller.options.previewGamutWarning, { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' });
@@ -774,7 +775,7 @@ test('restarts both previews after content and settings change during initializa
 		assert.deepEqual(controller.options.previewGamutCompression, { mode: 'rec2020', customAmount: 0.37 });
 	}
 	assert.equal(projectSession.timelineRendererManagerController.staticOptions.previewFramesAhead, 0);
-	manager.commit('addEffectNode', { visualModuleId: 'visualModule', id: 'after-initialization', effectId: 'fill' });
+	manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: 'visualModule' }, effectId: 'fill' });
 	await projectSession.flushRendererProjectChanges();
 	assert.ok(attempts.every(snapshots => snapshots.length === 2));
 	assert.ok(controllers.every(controller => controller.patches.length > 0));
@@ -796,7 +797,7 @@ test('ignores obsolete asset preparation after undo and rebuilds the latest stat
 	const { node } = createVisualModuleAssetNode(asset, []);
 	const manager = projectSession.projectContext.stateManager;
 	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
-	manager.commit('importAssets', { assets: [asset], players: [], visualModule: { target: { visualModuleId: 'visualModule' }, nodes: [node] } });
+	manager.commit('insertImportedAssets', { assets: [asset], players: [], visualModule: { target: { visualModuleId: 'visualModule' }, nodes: [node] } });
 	await setImmediate();
 	manager.undo();
 	await setImmediate();
@@ -853,7 +854,7 @@ test('cancels baking synchronously on metadata edits without adding bake history
 	const baking = projectSession.previewPlayback.toggleTimelineBake();
 	assert.equal(projectSession.previewPlayback.isTimelineBaking.value, true);
 	assert.equal(manager.undoStack.value.length, historyLength);
-	manager.commit('renameTimelineLayer', { sceneId: scene.id, layerId: scene.layers[0].id, name: 'Renamed while baking' });
+	manager.commit('setTimelineLayerName', { sceneId: scene.id, layerId: scene.layers[0].id, name: 'Renamed while baking' });
 	assert.equal(projectSession.previewPlayback.isTimelineBaking.value, false);
 	await baking;
 	assert.equal(manager.undoStack.value.length, historyLength + 1);
@@ -869,7 +870,7 @@ test('keeps invalid projects editable and recreates both previews after correcti
 	await startActiveProjectSession(projectSession);
 	assert.ok(projectSession.renderValidation.diagnostics.value.length > 0);
 	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) assert.equal(controller.isReady.value, false);
-	projectSession.projectContext.stateManager.commit('removeNode', { visualModuleId: 'invalid', nodeId: 'effect' });
+	projectSession.projectContext.stateManager.commit('removeVisualModuleNode', { target: { visualModule: { visualModuleId: 'invalid' }, nodeId: 'effect' } });
 	assert.equal(projectSession.renderValidation.errorMessage.value, null);
 	await setImmediate();
 	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
@@ -914,7 +915,7 @@ test('updates shader definitions in both existing previews and restarts only aft
 	const initialLifecycles = controllers.map(controller => [...controller.lifecycle]);
 	const manager = projectSession.projectContext.stateManager;
 	const customShaderEffect = app.createProjectCustomShaderEffect([]);
-	manager.commit('addCustomShaderEffect', { customShaderEffect });
+	manager.commit('insertCustomShaderEffect', { definition: customShaderEffect });
 	await setImmediate();
 	for (const [index, controller] of controllers.entries()) {
 		assert.equal(controller.options.customShaderEffects[0].code, customShaderEffect.code);
@@ -922,7 +923,7 @@ test('updates shader definitions in both existing previews and restarts only aft
 		assert.deepEqual(controller.lifecycle, initialLifecycles[index]);
 	}
 	const updated = { ...customShaderEffect, code: 'unfinished WGSL is still saved' };
-	manager.commit('updateCustomShaderEffect', { customShaderEffect: updated });
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
 	await setImmediate();
 	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.equal(controller.options.customShaderEffects[0].code, updated.code);
@@ -936,7 +937,7 @@ test('updates shader definitions in both existing previews and restarts only aft
 	}
 	projectSession.renderEngine.fail(new Error('Shader compilation failed'));
 	assert.ok(controllers.every(controller => controller.isReady.value === false));
-	manager.commit('updateCustomShaderEffect', { customShaderEffect: { ...customShaderEffect, code: 'corrected shader' } });
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: ({ ...customShaderEffect, code: 'corrected shader' }).id, definition: { ...customShaderEffect, code: 'corrected shader' } });
 	await setImmediate();
 	assert.equal(projectSession.renderEngine.errorMessage.value, null);
 	for (const controller of controllers) {
@@ -1097,7 +1098,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 		await nextTick();
 		playback.playTimeline();
 		assert.equal(audio.projects.at(-1).generatedSpeech[0].sourceId, 'second');
-		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
+		manager.commit('replaceTimelineVoicevoxContent', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
 																																								utterances: [{ id: 'key', timeMs: 0, text: 'Edited', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }] });
 		assert.equal(playback.isTimelinePlaying.value, false);
 		// Webでも旧結果を保存対象から外し、同じ操作のUndoで即座に再利用できるようにする。
@@ -1111,7 +1112,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 		assert.equal(projectSession.projectContext.snapshot().generatedSpeech[0].sourceId, 'second');
 		await nextTick();
 		playback.playTimeline();
-		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
+		manager.commit('replaceTimelineVoicevoxContent', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
 																																								utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 7, subtitleDuration: { mode: 'fill' } }] });
 		assert.equal(playback.isTimelinePlaying.value, false);
 		await nextTick();
@@ -1168,7 +1169,7 @@ test('persists timeline render settings and recreates both previews through undo
 	visualModuleLivePreview.staticUpdates.length = 0;
 	timeline.staticUpdates.length = 0;
 	timeline.updates.length = 0;
-	manager.commit('changeTimelineRenderSettings', settings);
+	manager.commit('setTimelineRenderSettings', settings);
 	await nextTick();
 	await projectSession.renderEngine.retry();
 	const previewSettings = { ...settings, timelineMotionBlur: { ...settings.timelineMotionBlur, samples: projectSession.timelinePreviewMotionBlurSamples.value } };
@@ -1206,7 +1207,7 @@ test('persists timeline render settings and recreates both previews through undo
 	assert.equal(timeline.staticOptions.timelineFps, 29.97);
 	assert.equal('timelineFps' in timeline.options, false);
 	assert.equal('timelineMotionBlur' in timeline.options, false);
-	assert.throws(() => manager.commit('changeTimelineRenderSettings', { ...settings, timelineFps: 0 }));
+	assert.throws(() => manager.commit('setTimelineRenderSettings', { ...settings, timelineFps: 0 }));
 	assert.equal(manager.state.timelineFps.value, 29.97);
 });
 
@@ -1349,7 +1350,7 @@ test('round trips export dialog settings through project state and files', async
 		videoQuality: 'very-high', stillQuality: 'lossless', resolutionScale: 'custom', customResolution: { width: 513, height: 777 },
 		fpsScale: 0.5, customFps: 23.976, startTime: '00:00:01.250', endTime: '00:00:08.750',
 	};
-	manager.commit('changeExportSettings', settings);
+	manager.commit('setExportSettings', { settings: settings });
 	settings.customResolution.width = 999;
 	assert.equal(manager.state.exportSettings.value.customResolution.width, 513);
 	manager.undo();
@@ -1393,7 +1394,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	const settings = { timelineFps: 30, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
-	manager.commit('changeTimelineRenderSettings', settings);
+	manager.commit('setTimelineRenderSettings', settings);
 	await nextTick();
 	await projectSession.renderEngine.retry();
 	const historyLength = manager.undoStack.value.length;
@@ -1801,16 +1802,16 @@ test('preserves asset source paths through commands and project save and reload'
 	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	const path = 'C:\\素材 フォルダ\\original.png';
-	manager.commit('addAsset', { id: 'asset', name: 'original.png', width: 4, height: 2,
-																														fileDataType: 'image/png', fileData: new Blob(['original image'], { type: 'image/png' }), sourceFilePath: path });
+	const { assetId } = manager.commit('createAsset', { asset: { name: 'original.png', width: 4, height: 2,
+																														fileDataType: 'image/png', fileData: new Blob(['original image'], { type: 'image/png' }), sourceFilePath: path } });
 	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
 	manager.undo();
 	assert.equal(manager.state.assets.value.length, 0);
 	manager.redo();
 	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
-	manager.commit('renameAsset', { assetId: 'asset', name: 'Renamed image' });
+	manager.commit('setAssetName', { assetId, name: 'Renamed image' });
 	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
-	manager.commit('removeAsset', { assetId: 'asset' });
+	manager.commit('removeAsset', { assetId });
 	assert.equal(manager.state.assets.value.length, 0);
 	manager.undo();
 	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
@@ -1838,13 +1839,12 @@ test('updates or clears source paths when replacing assets', async t => {
 	const manager = projectSession.projectContext.stateManager;
 	const asset = { id: 'asset', name: 'Display name', width: 4, height: 2, fileDataType: 'image/png',
 																	fileData: new Blob(['original']), sourceFilePath: 'C:\\original.png' };
-	manager.commit('addAsset', asset);
+	asset.id = manager.commit('createAsset', { asset }).assetId;
 	const handle = fileHandle('replacement.gsproj');
 	window.selectProjectSaveFile = async () => handle;
 	for (const path of ['D:\\new source.png', null, '/home/artist/another.png']) {
 		const content = `replacement from ${path}`;
-		manager.commit('replaceAsset', { ...asset, assetId: asset.id, name: 'Replacement file',
-																																			fileData: new Blob([content]), sourceFilePath: path });
+		manager.commit('replaceAssetSource', { assetId: asset.id, source: assetSource({ ...asset, name: 'Replacement file', fileData: new Blob([content]), sourceFilePath: path }) });
 		assert.equal(manager.state.assets.value[0].sourceFilePath, path);
 		assert.equal(manager.state.assets.value[0].name, asset.name);
 		await projectSession.saveProject();
@@ -1855,7 +1855,7 @@ test('updates or clears source paths when replacing assets', async t => {
 });
 
 // 【画像から新規プロジェクトを作る経路でも取り込み元のパスを保存する】
-// この経路はaddAsset Commandを経由せずに初期状態を作るため、独立して転記漏れを検出する。
+// この経路はcreateAsset Commandを経由せずに初期状態を作るため、独立して転記漏れを検出する。
 test('retains the source path when creating a project from an image', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
@@ -2245,7 +2245,7 @@ test('tracks unsaved content across undo, redo, continuous edits and direct chan
 	await projectSession.saveProject();
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	const manager = projectSession.projectContext.stateManager;
-	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'unsaved-node' });
+	manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: manager.state.visualModules.value[0].id }, effectId: 'fill' });
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
 	manager.undo();
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
@@ -2257,7 +2257,7 @@ test('tracks unsaved content across undo, redo, continuous edits and direct chan
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
 	manager.redo();
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
-	const edit = manager.beginEdit('changeTimelineRenderSettings');
+	const edit = manager.beginEdit('setTimelineRenderSettings');
 	edit.update({ timelineFps: 30, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 8 } });
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
 	edit.cancel();
@@ -2341,7 +2341,7 @@ test('saves editable project information, updates the title and preserves undo h
 	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	assert.deepEqual([manager.state.name.value, manager.state.description.value, manager.state.author.value], ['', '', '']);
-	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'added-node' });
+	manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: manager.state.visualModules.value[0].id }, effectId: 'fill' });
 	manager.undo();
 	const undoCount = manager.undoStack.value.length;
 	const redoCount = manager.redoStack.value.length;
@@ -2480,7 +2480,7 @@ test('preserves concurrent edits and undo history when changing the save target'
 	await startActiveProjectSession(projectSession);
 	const sessionId = projectSession.id;
 	const manager = projectSession.projectContext.stateManager;
-	manager.commit('changeProjectResolution', { width: 800, height: 600 });
+	manager.commit('setProjectResolution', { resolution: { width: 800, height: 600 } });
 	const started = Promise.withResolvers();
 	const finish = Promise.withResolvers();
 	const createWritable = copy.createWritable;
@@ -2491,7 +2491,7 @@ test('preserves concurrent edits and undo history when changing the save target'
 	window.selectProjectSaveFile = async () => copy;
 	const saveAs = projectSession.saveProject(true);
 	await started.promise;
-	manager.commit('changeProjectResolution', { width: 1024, height: 768 });
+	manager.commit('setProjectResolution', { resolution: { width: 1024, height: 768 } });
 	finish.resolve();
 	await saveAs;
 	assert.equal(projectSession.projectFileHandle.value, copy);
@@ -2612,7 +2612,7 @@ test('shows a future-version error without changing the current project or Save 
 	window.selectProjectSaveFile = async () => currentHandle;
 	await projectSession.saveProject();
 	const manager = projectSession.projectContext.stateManager;
-	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'keep-node' });
+	manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: manager.state.visualModules.value[0].id }, effectId: 'fill' });
 	const modules = manager.state.visualModules.value;
 	const undoCount = manager.undoStack.value.length;
 	const future = project({ gsVersion: '2.0.0', name: 'Future project' });
@@ -2678,7 +2678,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	projectSession.previewPlayback.seekTimeline(500);
 	assert.equal(projectSession.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
-	projectSession.projectContext.stateManager.commit('addTimelineLayer', { sceneId: 'scene', layer: { id: 'layer', layerType: 'visualModule', visualModuleId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] } });
+	projectSession.projectContext.stateManager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] } });
 	await nextTick();
 	await setImmediate();
 	assert.equal('timelineScenes' in visualModuleLivePreview.options, false);
@@ -2789,7 +2789,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	projectSession.previewPlayback.playTimeline();
 	try {
 		assert.equal(starts.length, 1);
-		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'visual', target: 'compositing', paramPath: ['opacity'], edit: { kind: 'literal', value: 0.5 } });
+		manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ sceneId: 'scene', layerId: 'visual', target: 'compositing', paramPath: ['opacity'] }), source: { inputSource: 'literal', value: 0.5 } });
 		await nextTick();
 		manager.undo();
 		await nextTick();
@@ -2798,7 +2798,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.state.assets.value[0].name = 'Renamed.wav';
 		await nextTick();
 		assert.equal(starts.length, 1);
-		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'audio', target: 'audio', paramPath: ['volume'], edit: { kind: 'literal', value: 0.3 } });
+		manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ sceneId: 'scene', layerId: 'audio', target: 'audio', paramPath: ['volume'] }), source: { inputSource: 'literal', value: 0.3 } });
 		await nextTick();
 		assert.equal(starts.length, 2);
 		manager.undo();
@@ -2814,7 +2814,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.state.timelineScenes.value[0].layers[0].clips[0].durationMs = 20000;
 		await nextTick();
 		assert.equal(starts.length, 6);
-		manager.commit('removeTimelineLayer', { sceneId: 'scene', layerId: 'audio' });
+		manager.commit('removeTimelineLayers', { sceneId: 'scene', layerIds: ['audio'] });
 		await nextTick();
 		assert.equal(starts.length, 7);
 		manager.undo();
@@ -3322,7 +3322,7 @@ test('loads snapshots and synchronizes project Automation Graph definitions to b
 	for (const renderer of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.deepEqual(renderer.options.automationGraphs, [automationGraph]);
 	}
-	context.stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...automationGraph, nameForReference: 'Renamed' } });
+	context.stateManager.commit('replaceProjectAutomationGraph', { automationGraphId: ({ ...automationGraph, nameForReference: 'Renamed' }).id, definition: { ...automationGraph, nameForReference: 'Renamed' } });
 	await nextTick();
 	await setImmediate();
 	for (const renderer of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
@@ -3382,7 +3382,8 @@ test('observes edits and scene selection before startup and synchronizes once af
 	const automationGraph = { id: 'curve', nameForReference: 'Curve', isNormalized: false, points: [
 		{ id: 'point', x: 0, y: 0.5, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] };
-	manager.commit('addProjectAutomationGraph', { automationGraph });
+	manager.commit('createProjectAutomationGraph', { nameForReference: automationGraph.nameForReference, data: automationGraph });
+	Object.assign(automationGraph, manager.state.automationGraphs.value[0]);
 	await projectSession.flushRendererProjectChanges();
 	playback.seekTimeline(1000);
 	projectSession.activeSceneId.value = 'second';
@@ -3404,7 +3405,7 @@ test('observes edits and scene selection before startup and synchronizes once af
 		assert.equal(controller.snapshots.length, 1);
 		assert.deepEqual(controller.options.automationGraphs, [automationGraph]);
 	}
-	manager.commit('updateProjectAutomationGraph', { automationGraph: { ...automationGraph, nameForReference: 'Renamed' } });
+	manager.commit('replaceProjectAutomationGraph', { automationGraphId: ({ ...automationGraph, nameForReference: 'Renamed' }).id, definition: { ...automationGraph, nameForReference: 'Renamed' } });
 	await projectSession.flushRendererProjectChanges();
 	for (const controller of controllers) {
 		assert.equal(controller.patches.length, 1);
@@ -3430,9 +3431,7 @@ test('does not initialize renderers after a session closes during project loadin
 	await registered.promise;
 	assert.equal(schedule.mock.callCount(), 0);
 	await projectSession.dispose();
-	projectSession.projectContext.stateManager.commit('addProjectAutomationGraph', { automationGraph: {
-		id: 'after-close', nameForReference: 'AfterClose', isNormalized: false, points: [],
-	} });
+	projectSession.projectContext.stateManager.commit('createProjectAutomationGraph', { nameForReference: 'AfterClose', data: { isNormalized: false, points: [] } });
 	await projectSession.flushRendererProjectChanges();
 	completeRegistration.resolve();
 	await loading;
@@ -3459,10 +3458,10 @@ test('constructs complete project state and snapshots edits without changing his
 	assert.equal(manager.undoStack.value.length, 0);
 	assert.equal(manager.redoStack.value.length, 0);
 	const settings = timelineFps => ({ timelineFps, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 8 } });
-	manager.commit('changeTimelineRenderSettings', settings(24));
-	manager.commit('changeTimelineRenderSettings', settings(30));
+	manager.commit('setTimelineRenderSettings', settings(24));
+	manager.commit('setTimelineRenderSettings', settings(30));
 	manager.undo();
-	const edit = manager.beginEdit('changeTimelineRenderSettings');
+	const edit = manager.beginEdit('setTimelineRenderSettings');
 	edit.update(settings(48));
 	const before = context.snapshot();
 	const undo = [...manager.undoStack.value];
@@ -3682,7 +3681,7 @@ test('preserves per-session history and playback while independently suspending 
 	const app = evaluate(appBundle);
 	const first = await app.newProject();
 	const initialFps = first.projectContext.stateManager.state.timelineFps.value;
-	first.projectContext.stateManager.commit('changeTimelineRenderSettings', { timelineFps: 24, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 } });
+	first.projectContext.stateManager.commit('setTimelineRenderSettings', { timelineFps: 24, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 } });
 	first.previewPlayback.showTimeline();
 	first.previewPlayback.seekTimeline(250);
 	first.resolutionFactor.value = 0.5;

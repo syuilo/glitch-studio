@@ -10,6 +10,34 @@
 - `RendererProjectSynchronizer` は通知の集約と、確定済み状態から送信データを取り出す役割を持ちます。キャッシュ・インスタンスの保持判断は、レンダラー内の [project-change-policy.ts](../packages/glitch-studio/renderer/src/project-change-policy.ts) に集約します。各Managerが対象の特定や変更世代の管理を行い、`VisualModuleRenderer` はVisual Module内部の評価とキャッシュを扱います。汎用の `TimelineRenderer` には実行インスタンスの更新判定に必要な世代を渡し、Commandの種類を解釈させません。
 - 型も同じ責務に分けます。`ParameterChangeKind` はparameter、`VisualModuleNodeChange` はvisual-module、`TimelineLayerChange` はtimelineが所有します。登録Moduleとinline Moduleの所在を表す `VisualModuleTarget` はproject、UIの通知契約 `AppStateChange` はuiが所有します。子ドメインから同期クラスやプロジェクト内の配置へ依存させません。
 
+## Commandの呼び出しと履歴
+
+登録はUIの [commands.ts](../packages/glitch-studio/ui/src/commands.ts) に集約し、定義は `commands/` 内でプロジェクト設定・素材・Visual Module・Timelineなどの責務に分けます。引数は名前付きのオブジェクト一つです。対象はIDや所在を表す参照で指定し、選択中のパネル・再生位置・環境設定をCommand内で暗黙に読みません。保存・ダイアログ・パネル操作もこの登録には含めません。
+
+通常は `await stateManager.execute(name, input)` を使い、作成した対象の参照などを戻り値として受け取ります。`create` と `duplicate` はID・既定値・複製内の参照の付け替えを所有します。`insert` はインポートや内部クリップボードなどの準備済みデータを挿入する操作で、通常の新規作成とは入力契約を分けます。ファイル選択・デコード・クリップボード形式の解釈は呼び出し側で済ませます。
+
+```ts
+await stateManager.runGroup('Create title', async () => {
+	const { sceneId } = await stateManager.execute('createTimelineScene', { name: 'Title' });
+	const { layerId } = await stateManager.execute('createTimelineLayer', {
+		sceneId,
+		layer: { layerType: 'text', name: 'Heading' },
+		clips: [{ startMs: 0, durationMs: 5000, contentOffsetMs: 0 }],
+	});
+	await stateManager.execute('setTimelineLayerName', { sceneId, layerId, name: 'Main heading' });
+});
+```
+
+Command定義の `prepare(state, input)` は状態を変更せず、検証・ID生成・必要な素材メタデータの取得を完了し、結果と同期的な `apply` / `revert` を返します。作業用コピーと履歴は変更に関係する値・Layer・Sceneに限定し、毎回プロジェクト全体を複製しません。Redoは確定済みの値を適用し、ID生成や素材読み込みを再実行しません。入力・戻り値・変更通知は呼び出し側と履歴の間で複製します。変更がない操作は履歴を追加せず、Redoも保持します。
+
+`runGroup(label, callback)` は同期・非同期の処理と入れ子を扱い、成功した操作を一つのUndo履歴にまとめます。途中で例外が発生しても成功済みの操作は取り消さず、その部分を履歴へ確定して例外を呼び出し側へ伝えます。Command単体の検証失敗では状態を変更しません。グループ中の手動操作や並行実行による割り込みは扱いません。
+
+同期的なUI編集には `commit()` を使えます。未取得の素材情報などを必要とするCommandは `execute()` で待ちます。`beginEdit()` はドラッグ開始時の状態と最終状態を一履歴にし、ドラッグの開始値はUIが保持して絶対値の設定へ変換します。Commandへ渡す通常の引数には `initial...` を含めません。履歴の自動マージと連続編集は、対象が固定され、最後の適用だけで最終状態を再現できる設定操作に限ります。時刻の丸め・ドラッグ範囲への制限はUIで行い、Commandは不正な範囲や小数の配置時刻を拒否します。素材内時刻や再生速度など、元から小数を許容する値は維持します。
+
+パラメータ操作の `set...Source` は入力元を設定し、適用可能な加工式を維持します。`set...ExpressionModifier` は加工式だけを設定し、`replace...Binding` は加工式を含むBinding全体を置換します。リセット・配列要素・公開定義の作成はそれぞれ専用の操作です。Visual Moduleのノード自動接続・型の不一致を許可する方針もUIが明示します。Commandは静的な構造や参照を検証し、式の評価や描画時の検証は引き続きレンダラーが担当します。
+
+通常の実行では、履歴に登録してから変更を通知します。購読側の例外は分離し、適用済みの変更の履歴を失わせず、残りの購読側にも通知します。連続編集の途中状態は即時通知し、履歴の確定は編集終了時に行います。
+
 ## 転送単位とバッチ
 
 - プロジェクトを開くと専用のセッションを生成し、Visual Module一覧・Scene一覧を含む起動スナップショットをControllerの`initialize()`へ渡します。別プロジェクトで既存セッションの状態を置き換える経路は持ちません。

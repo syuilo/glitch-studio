@@ -1,11 +1,11 @@
 import { watch } from 'vue';
-import { genId } from '@gs/shared/utility/id.ts';
 import { makeHotkey } from './utility/hotkey.ts';
 import type { Keymap } from './utility/hotkey.ts';
 import { ProjectSessionManager } from './ProjectSessionManager.ts';
 import { createProjectActions } from './project-actions.ts';
 import { isLocaleUnconfigured } from './i18n.ts';
 import { configureLocale } from './locale-settings-ui.ts';
+import { preferences } from './preferences.ts';
 
 if (isLocaleUnconfigured) {
 	void configureLocale().catch(console.error);
@@ -23,11 +23,12 @@ function benchmark(count = 100, visualModuleId = projectSessions.activeSession.v
 	const projectSession = projectSessions.activeSession.value;
 	if (projectSession == null || visualModuleId == null) return;
 	for (let i = 0; i < count; i++) {
-		projectSession.projectContext.stateManager.commit('addEffectNode', {
-			visualModuleId,
+		projectSession.projectContext.stateManager.commit('createVisualModuleEffectNode', {
+			visualModule: { visualModuleId },
 			effectId: 'blockShuffle',
-			id: genId(),
-			params: {
+			connectionMode: preferences.s.visualModuleAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
+			connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch',
+			parameters: {
 				seed: { inputSource: 'literal', value: Math.random() * 1000 },
 			},
 		});

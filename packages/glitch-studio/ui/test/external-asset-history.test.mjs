@@ -1,3 +1,4 @@
+import { assetSource } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -65,16 +66,16 @@ test('undoes asset removal without replacing or reverting other reloaded assets'
 });
 
 // 【再リンクと取り込みのUndo/Redoでは、参照先ごとの最新リロード情報を同期前に復元する】
-// replaceAssetやimportAssetsのpayloadは過去の寸法を保持するが、外部原本の過去は復元しない。
+// replaceAssetやinsertImportedAssetsのpayloadは過去の寸法を保持するが、外部原本の過去は復元しない。
 // 元のパスと再リンク先を混同せず、後続の変更購読側にも最新の情報を渡す必要がある。
 test('keeps the latest metadata per path across relink and import history', () => {
 	const { context, manager, findAsset, reload } = fixture([]);
 	const asset = externalAsset('asset');
-	manager.commit('importAssets', { assets: [asset], players: [] });
+	manager.commit('insertImportedAssets', { assets: [asset], players: [] });
 	reload(asset.id, { width: 800, thumbnailSequence: thumbnails(200) });
 	const replacement = { ...asset, sourceFilePath: 'C:/assets/relinked.mp4', width: 1000 };
 	context.externalAssetMetadata.record(replacement);
-	manager.commit('replaceAsset', { ...replacement, assetId: asset.id });
+	manager.commit('replaceAssetSource', { assetId: asset.id, source: assetSource({ ...replacement }) });
 	reload(asset.id, { width: 1600, thumbnailSequence: thumbnails(300), hash: 'latest' });
 	const observed = [];
 	manager.onChange(() => { observed.push(findAsset(asset.id)?.width ?? null); });
@@ -103,7 +104,7 @@ test('preserves embedded snapshots while restoring the latest external metadata'
 	const { context, manager, findAsset, reload } = fixture([embedded]);
 	const external = externalAsset(embedded.id);
 	context.externalAssetMetadata.record(external);
-	manager.commit('replaceAsset', { ...external, assetId: embedded.id });
+	manager.commit('replaceAssetSource', { assetId: embedded.id, source: assetSource({ ...external }) });
 	reload(embedded.id, { width: 1280 });
 	manager.undo();
 	assert.equal(findAsset(embedded.id).fileData, embedded.fileData);
@@ -112,11 +113,11 @@ test('preserves embedded snapshots while restoring the latest external metadata'
 	assert.equal(findAsset(embedded.id).width, 1280);
 	const reselected = { ...external, width: 1920 };
 	context.externalAssetMetadata.record(reselected);
-	manager.commit('replaceAsset', { ...reselected, assetId: embedded.id });
+	manager.commit('replaceAssetSource', { assetId: embedded.id, source: assetSource({ ...reselected }) });
 	assert.equal(findAsset(embedded.id).width, 1920);
 	manager.undo();
 	assert.equal(findAsset(embedded.id).width, 1920);
-	manager.commit('replaceAsset', { ...embedded, assetId: embedded.id });
+	manager.commit('replaceAssetSource', { assetId: embedded.id, source: assetSource({ ...embedded }) });
 	manager.undo();
 	reload(embedded.id, { width: 2560 });
 	manager.redo();
@@ -140,7 +141,7 @@ test('isolates metadata between assets and independent project contexts', () => 
 	assert.equal(findAsset(first.id).width, 1920);
 	assert.equal(findAsset(second.id).width, 640);
 	const other = fixture([{ ...first, width: 400 }]);
-	other.manager.commit('renameAsset', { assetId: first.id, name: 'Renamed' });
+	other.manager.commit('setAssetName', { assetId: first.id, name: 'Renamed' });
 	assert.equal(other.findAsset(first.id).width, 400);
 	assert.equal(other.findAsset(first.id).name, 'Renamed');
 	assert.equal(other.context.snapshot().assets[0].width, 400);

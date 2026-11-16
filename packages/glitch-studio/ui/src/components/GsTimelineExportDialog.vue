@@ -209,7 +209,7 @@ function saveExportSettings() {
 	// セッション終了に伴うアンマウントでは、閉じたプロジェクトへ変更を追加しない。
 	if (projectSession.isDisposed) return;
 	if (!deepEqual(dialogSettings, stateManager.state.exportSettings.value)) {
-		stateManager.commit('changeExportSettings', dialogSettings);
+		stateManager.commit('setExportSettings', { settings: dialogSettings });
 	}
 }
 

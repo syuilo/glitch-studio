@@ -33,6 +33,7 @@ const bundled = await build({
 		export { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 		export * from './src/gsproj.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
+		export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { TimelineAudioExport } from './src/export/timeline-audio-export.ts';
 		export * from './src/export/audio-export-settings.ts';
@@ -53,7 +54,7 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { createVoicevoxTimelineLayer, getVoicevoxRequest, getVoicevoxRequestKey, createSpeechResolver, getVoicevoxSubtitle,
 	getSceneAudioClips, TimelineAudioRenderer, VoicevoxGeneration, GeneratedSpeechCache, getVoicevoxRequests, getRequiredVoicevoxRequests,
-	COMMAND_DEFS, UndoRedo, encodeProjectFile, decodeProjectFile, TimelineAudioExport, getExportAudioClips,
+	COMMAND_DEFS, UndoRedo, getTimelineParameterEditBinding, encodeProjectFile, decodeProjectFile, TimelineAudioExport, getExportAudioClips,
 	createTextTimelineLayer, resolveLayerParameter, getLayerKeyframeParameters, validateVoicevoxSubtitle } = module.exports;
 const { getTimelineKeyframeLanes, getTimelineKeyframeEntries, insertVoicevoxUtterance, getVoicevoxUtteranceTimeBounds,
 	copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection,
@@ -231,7 +232,7 @@ test('inherits voice for new keys and preserves voice and subtitle duration when
 	f.history.undo();
 	const clipboard = copyTimelineKeyframes(f.state, f.scenes[0], [f.point('a')]);
 	const pasted = prepareTimelineKeyframePaste(f.state, f.scenes[0], clipboard, 450);
-	f.history.commit('pasteTimelineKeyframes', { sceneId: 'root', keyframes: pasted });
+	f.history.commit('insertTimelineKeyframes', { sceneId: 'root', keyframes: pasted });
 	assert.deepEqual(f.layer.utterances.at(-1), { ...f.layer.utterances[0], id: pasted[0].utterance.id, timeMs: 450 });
 	f.history.undo();
 	assert.equal(f.layer.utterances.length, 3);
@@ -285,7 +286,7 @@ test('edits only the selected utterance and clamps its time between neighbours',
 // 発話の同時刻禁止を操作境界で守り、コピー時の本文・読みとID再発行、混在削除のUndoを保証する。
 test('keeps mixed key moves and pastes atomic and restores mixed deletions', t => {
 	const f = editFixture(t);
-	f.history.commit('editTimelineLayerParam', { sceneId: 'root', layerId: 'speech', target: 'voicevoxSubtitle', paramPath: ['size'], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.state, { sceneId: 'root', layerId: 'speech', target: 'voicevoxSubtitle', paramPath: ['size'], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } }));
 	const binding = f.layer.subtitleParamValues.size;
 	binding.keyframesTimeline.keyframes = [{ id: 'style', x: 120, value: 0.2, interpolation: { type: 'linear' } }];
 	const style = { layerId: 'speech', target: 'voicevoxSubtitle', paramPath: ['size'], keyframeId: 'style' };
@@ -299,7 +300,7 @@ test('keeps mixed key moves and pastes atomic and restores mixed deletions', t =
 	f.layer.utterances[0].styleId = 9;
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scenes[0], clipboard, 400), null);
 	const paste = prepareTimelineKeyframePaste(f.state, f.scenes[0], clipboard, 800);
-	f.history.commit('pasteTimelineKeyframes', { sceneId: 'root', keyframes: paste });
+	f.history.commit('insertTimelineKeyframes', { sceneId: 'root', keyframes: paste });
 	assert.equal(f.layer.utterances.at(-1).text, 'Hello');
 	assert.equal(f.layer.utterances.at(-1).reading, '読み');
 	assert.equal(f.layer.utterances.at(-1).styleId, 7);
@@ -332,14 +333,14 @@ test('edits subtitle parameters independently from text layers', t => {
 	assert.throws(() => resolveLayerParameter(state, text, 'voicevoxSubtitle', ['size']), /Invalid layer parameter target/);
 	assert.throws(() => validateVoicevoxSubtitle({ ...f.layer.subtitleParamValues, text: literal('Invalid') }), /Unknown VOICEVOX subtitle parameter/);
 	const target = { sceneId: 'root', layerId: f.layer.id, target: 'voicevoxSubtitle', paramPath: ['size'] };
-	history.commit('editTimelineLayerParam', { ...target, edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+	history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(state, { ...target, edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } }));
 	assert.equal(getLayerKeyframeParameters(state, f.layer)[0].target, 'voicevoxSubtitle');
 	assert.equal(text.textParamValues.size.inputSource, 'literal');
 	history.undo();
 	assert.equal(f.layer.subtitleParamValues.size.inputSource, 'literal');
 	history.redo();
 	assert.equal(f.layer.subtitleParamValues.size.inputSource, 'keyframesTimelineInline');
-	history.commit('editTimelineLayerParam', { ...target, edit: { kind: 'reset' } });
+	history.commit('resetTimelineLayerParameter', { sceneId: target.sceneId, layerId: target.layerId, parameterGroup: target.target, parameterPath: target.paramPath });
 	assert.deepEqual(f.layer.subtitleParamValues.size, literal(0.1));
 });
 
@@ -369,7 +370,7 @@ test('changes subtitle duration mode only through utterance settings and keeps s
 	const f = editFixture(t);
 	const component = 'GsTimeline.VoicevoxUtteranceSettings.vue';
 	const props = { layer: f.layer, get utterance() { return f.layer.utterances[0]; } };
-	const edit = patch => f.history.commit('editVoicevoxLayer', { sceneId: 'root', layerId: 'speech', voicevox: f.layer.voicevox,
+	const edit = patch => f.history.commit('replaceTimelineVoicevoxContent', { sceneId: 'root', layerId: 'speech', voicevox: f.layer.voicevox,
 		utterances: f.layer.utterances.map(key => key.id === 'a' ? { ...key, ...patch } : key) });
 	const state = { generatedSpeech: { value: [] } };
 	const context = { ...module.exports, props, edit, stateManager: { state }, key: { value: getVoicevoxRequestKey(f.request) } };
@@ -414,7 +415,7 @@ test('edits speech duration extension with undo and preserves it when copying', 
 	const f = editFixture(t);
 	const props = { layer: f.layer, sceneId: 'root', get utterance() { return f.layer.utterances[0]; } };
 	const state = { generatedSpeech: { value: [] } };
-	const edit = patch => f.history.commit('editVoicevoxLayer', { sceneId: 'root', layerId: 'speech', voicevox: f.layer.voicevox,
+	const edit = patch => f.history.commit('replaceTimelineVoicevoxContent', { sceneId: 'root', layerId: 'speech', voicevox: f.layer.voicevox,
 		utterances: f.layer.utterances.map(key => key.id === 'a' ? { ...key, ...patch } : key) });
 	const context = { ...module.exports, props, edit, stateManager: { state }, key: { value: getVoicevoxRequestKey(f.request) } };
 	const component = 'GsTimeline.VoicevoxUtteranceSettings.vue';
@@ -444,7 +445,7 @@ test('edits speech duration extension with undo and preserves it when copying', 
 	assert.equal(ranges()[0].endMs, 230.5);
 	const clipboard = copyTimelineKeyframes(f.state, f.scenes[0], [f.point('a')]);
 	const paste = prepareTimelineKeyframePaste(f.state, f.scenes[0], clipboard, 700);
-	f.history.commit('pasteTimelineKeyframes', { sceneId: 'root', keyframes: paste });
+	f.history.commit('insertTimelineKeyframes', { sceneId: 'root', keyframes: paste });
 	assert.deepEqual(f.layer.utterances.at(-1).subtitleDuration, { mode: 'speech', extensionMs: 50 });
 	f.history.undo();
 	assert.equal(f.layer.utterances.length, 3);
@@ -571,11 +572,11 @@ test('edits speech through undoable commands and rejects duplicate times atomica
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const payload = { sceneId: 'root', layerId: 'speech', voicevox: f.layer.voicevox, utterances: [utterance('new', 350, 'Edited')] };
 	const before = structuredClone(f.layer.utterances);
-	history.commit('editVoicevoxLayer', payload);
+	history.commit('replaceTimelineVoicevoxContent', payload);
 	assert.deepEqual(f.layer.utterances, payload.utterances);
 	history.undo(); assert.deepEqual(f.layer.utterances, before);
 	history.redo(); assert.deepEqual(f.layer.utterances, payload.utterances);
-	assert.throws(() => history.commit('editVoicevoxLayer', { ...payload, utterances: [utterance('a', 350), utterance('b', 350)] }), /Invalid/);
+	assert.throws(() => history.commit('replaceTimelineVoicevoxContent', { ...payload, utterances: [utterance('a', 350), utterance('b', 350)] }), /Invalid/);
 	assert.deepEqual(f.layer.utterances, payload.utterances);
 	history.commit('moveTimelineClips', { sceneId: 'root', clips: [{ layerId: 'speech', clipId: 'visible' }], deltaMs: 500 });
 	assert.equal(f.layer.utterances[0].timeMs, 850);

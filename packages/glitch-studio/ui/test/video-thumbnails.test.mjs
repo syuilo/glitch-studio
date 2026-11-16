@@ -1,3 +1,4 @@
+import { assetSource } from './helpers/command-inputs.mjs';
 import { createTestProject } from './helpers/project.mjs';
 import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
@@ -237,13 +238,12 @@ test('keeps thumbnail sequences with their source through add replace undo and r
 	const manager = new f.ProjectContext(createTestProject()).stateManager;
 	const original = { id: 'video', name: 'movie', width: 320, height: 180, fileDataType: 'video/mp4',
 		fileData: new Blob(['video']), sourceFilePath: 'C:/movie.mp4', thumbnailSequence: await f.generateVideoThumbnails(new Blob()) };
-	manager.commit('addAsset', original);
+	original.id = manager.commit('createAsset', { asset: original }).assetId;
 	assert.equal(manager.state.assets.value[0].thumbnailSequence.frames.length, 11);
 	manager.undo();
 	assert.equal(manager.state.assets.value.length, 0);
 	manager.redo();
-	manager.commit('replaceAsset', { ...original, assetId: original.id, width: 0, height: 0,
-		fileDataType: 'audio/wav', fileData: new Blob(['audio']), sourceFilePath: null, thumbnailSequence: null });
+	manager.commit('replaceAssetSource', { assetId: original.id, source: assetSource({ ...original, width: 0, height: 0, fileDataType: 'audio/wav', fileData: new Blob(['audio']), sourceFilePath: null, thumbnailSequence: null }) });
 	assert.equal(manager.state.assets.value[0].thumbnailSequence, null);
 	manager.undo();
 	assert.equal(manager.state.assets.value[0].fileData, original.fileData);
@@ -254,7 +254,7 @@ test('keeps thumbnail sequences with their source through add replace undo and r
 	assert.equal(await manager.state.assets.value[0].fileData.text(), 'audio');
 	// 保存ファイルの素材は任意フィールドhashを持たない場合もある。
 	delete manager.state.assets.value[0].hash;
-	manager.commit('replaceAsset', { ...original, assetId: original.id, hash: 'replacement' });
+	manager.commit('replaceAssetSource', { assetId: original.id, source: assetSource({ ...original, hash: 'replacement' }) });
 	manager.undo();
 	assert.equal(manager.state.assets.value[0].hash, undefined);
 });

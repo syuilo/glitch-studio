@@ -26,7 +26,6 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, ref, useTemplateRef } from 'vue';
-import { genId } from '@gs/shared/utility/id.ts';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
@@ -71,8 +70,7 @@ async function importFont() {
 		const blob = await font.blob();
 		if (disposed) return;
 		if (blob.size === 0) throw new Error(i18n.ts._LocalFonts.EmptyFont);
-		stateManager.commit('addAsset', {
-			id: genId(),
+		stateManager.commit('createAsset', { asset: {
 			name: font.fullName,
 			width: 0,
 			height: 0,
@@ -81,7 +79,7 @@ async function importFont() {
 			fileData: blob.slice(0, blob.size, 'font/sfnt'),
 			sourceFilePath: null,
 			thumbnailSequence: null,
-		});
+		} });
 		modal.value?.close();
 	} catch (cause) {
 		if (!disposed) error.value = localFontErrorMessage(cause);

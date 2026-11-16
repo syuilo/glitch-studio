@@ -18,10 +18,23 @@ import { useProjectSession } from '@/project-session.ts';
 import GsInput from './common/GsInput.vue';
 import GsTextarea from './common/GsTextarea.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
+import { computed } from 'vue';
 
 const projectSession = useProjectSession();
 
-const { name: projectName, description: projectDescription, author: projectAuthor } = projectSession.projectContext.stateManager.state;
+const { stateManager } = projectSession.projectContext;
+const projectName = computed({
+	get: () => stateManager.state.name.value,
+	set: name => { stateManager.commit('setProjectName', { name }); },
+});
+const projectDescription = computed({
+	get: () => stateManager.state.description.value,
+	set: description => { stateManager.commit('setProjectDescription', { description }); },
+});
+const projectAuthor = computed({
+	get: () => stateManager.state.author.value,
+	set: author => { stateManager.commit('setProjectAuthor', { author }); },
+});
 
 defineProps<{ panel: WorkspacePanel }>();
 

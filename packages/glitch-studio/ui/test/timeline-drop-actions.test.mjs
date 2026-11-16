@@ -143,7 +143,7 @@ test('validates every planned layer before mutating imported resources', t => {
 	const asset = { id: 'image', name: 'Image', fileDataType: 'image/png', fileData: new Blob() };
 	const first = f.createTimelineAssetLayer(asset, 0, null);
 	const second = f.createTimelineAssetLayer({ ...asset, id: 'missing' }, 0, null);
-	assert.throws(() => f.history.commit('importAssets', { assets: [asset], players: [],
+	assert.throws(() => f.history.commit('insertImportedAssets', { assets: [asset], players: [],
 		timeline: { sceneId: 'scene', layers: [first, second], sourceDurationsMs: {} } }));
 	assert.equal(f.state.assets.value.length, 0);
 	assert.equal(f.scene.layers.length, 0);

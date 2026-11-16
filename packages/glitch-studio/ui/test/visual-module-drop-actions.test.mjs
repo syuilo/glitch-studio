@@ -145,7 +145,7 @@ test('validates all node references before importing any resources', t => {
 	const video = { id: 'video', name: 'Video', fileDataType: 'video/mp4', fileData: new Blob() };
 	const first = f.createVisualModuleAssetNode(image, []);
 	const second = f.createVisualModuleAssetNode(video, []);
-	assert.throws(() => f.history.commit('importAssets', { assets: [image, video], players: [], visualModule: { target: f.target, nodes: [first.node, second.node] } }), /player asset not found/);
+	assert.throws(() => f.history.commit('insertImportedAssets', { assets: [image, video], players: [], visualModule: { target: f.target, nodes: [first.node, second.node] } }), /player asset not found/);
 	assert.equal(f.state.assets.value.length, 0);
 	assert.equal(f.state.players.value.length, 0);
 	assert.deepEqual(f.visualModule.nodes.map(node => node.id), ['in', 'old', 'out']);

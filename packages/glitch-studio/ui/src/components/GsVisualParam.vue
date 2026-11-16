@@ -520,7 +520,7 @@ function updateAutomationGraphDuration(trimmedDurationMs: number) {
 }
 
 function updateProjectGraphPoints(points: BezierAnchorPoint[], mergeKey: string | null) {
-	if (selectedProjectAutomationGraph.value != null) projectSession.projectContext.stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...selectedProjectAutomationGraph.value, points } }, mergeKey);
+	if (selectedProjectAutomationGraph.value != null) projectSession.projectContext.stateManager.commit('replaceProjectAutomationGraph', { automationGraphId: selectedProjectAutomationGraph.value.id, definition: { ...selectedProjectAutomationGraph.value, points } }, mergeKey);
 }
 
 function selectAutomationGraph(ev: PointerEvent) {

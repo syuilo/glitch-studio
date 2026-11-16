@@ -168,9 +168,6 @@ import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } f
 import { getTimelineSoloState } from '@gs/subsystems_timeline_shared/solo.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
-import { genId } from '@gs/shared/utility/id.js';
-import { createContainerTimelineLayer } from '../utility/container-timeline-layer.ts';
-import { createTransformTimelineLayer } from '../utility/transform-timeline-layer.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineInspector from './GsTimeline.Inspector.vue';
 import GsButton from './common/GsButton.vue';
@@ -399,7 +396,7 @@ function onLayerDrop(event: DragEvent) {
 		const data = layerDragSession.readSource(event, 'TimelineLayer');
 		if (data == null || data.sceneId !== props.sceneId || dropTarget.value == null) return;
 		event.preventDefault();
-		stateManager.commit('moveTimelineLayer', {
+		stateManager.commit('moveTimelineLayerInTree', {
 			sceneId: data.sceneId,
 			layerId: data.layerId,
 			parentId: dropTarget.value.parentId,
@@ -502,41 +499,22 @@ const canWrapSelection = computed(() => {
 	return indexes.every((index, offset) => index === indexes[0] + offset);
 });
 
-function wrapInOrganizingContainer(type: 'folder' | 'parameterContainer') {
+function wrapSelection(containerType: 'folder' | 'parameterContainer' | 'transform' | 'group') {
 	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
-	const container = createContainerTimelineLayer(type);
-	stateManager.commit('wrapTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], container });
-	selection.value = { kind: 'layers', ids: [container.id] };
-	expandedLayers.value = new Set([...expandedLayers.value, container.id]);
+	const created = stateManager.commit('wrapTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], containerType });
+	selection.value = { kind: 'layers', ids: [created.layerId] };
+	expandedLayers.value = new Set([...expandedLayers.value, created.layerId]);
 }
 
-function transformSelection() {
-	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
-	const transform = createTransformTimelineLayer();
-	stateManager.commit('transformTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], transform });
-	selection.value = { kind: 'layers', ids: [transform.id] };
-	expandedLayers.value = new Set([...expandedLayers.value, transform.id]);
-}
+function wrapInOrganizingContainer(type: 'folder' | 'parameterContainer') { wrapSelection(type); }
+
+function transformSelection() { wrapSelection('transform'); }
+
+function groupSelection() { wrapSelection('group'); }
 
 function addEmptyGroup() {
-	const group = createContainerTimelineLayer('group');
-	stateManager.commit('groupTimelineLayers', {
-		sceneId: props.sceneId,
-		layerIds: [],
-		group,
-	});
-	selection.value = { kind: 'layers', ids: [group.id] };
-}
-
-function groupSelection() {
-	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
-	const group = createContainerTimelineLayer('group');
-	stateManager.commit('groupTimelineLayers', {
-		sceneId: props.sceneId,
-		layerIds: [...selection.value.ids],
-		group,
-	});
-	selection.value = { kind: 'layers', ids: [group.id] };
+	const created = stateManager.commit('createTimelineLayer', { sceneId: props.sceneId, layer: { layerType: 'group' } });
+	selection.value = { kind: 'layers', ids: [created.layerId] };
 }
 
 function ungroupSelection() {
@@ -550,7 +528,7 @@ function moveSelectedLayerOut() {
 	if (!selectedLayer.value) return;
 	const location = findTimelineLayerLocation(rootLayers.value, selectedLayer.value.id)!;
 	const parent = location.ancestors.at(-1);
-	if (parent) stateManager.commit('moveTimelineLayer', {
+	if (parent) stateManager.commit('moveTimelineLayerInTree', {
 		sceneId: props.sceneId,
 		layerId: selectedLayer.value.id,
 		parentId: location.ancestors.at(-2)?.id ?? null,
@@ -771,7 +749,6 @@ const layerActions = createTimelineLayerActions({
 	scene: editedScene,
 	selection,
 	isActive: isTimelineActive,
-	readLayerMediaDurations,
 	selectLayer,
 	canWrap: () => canWrapSelection.value,
 	folderSelection: () => wrapInOrganizingContainer('folder'),
@@ -830,11 +807,11 @@ function showAddInlineEffectNodeMenu(layerId: string) {
 	showEffectPicker(effect => {
 		// 選択変更やレイヤー削除を挟んでも、ピッカーを開いた対象にだけ追加する。
 		if (!isTimelineActive() || !sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'inlineVisualModule')) return;
-		stateManager.commit('addEffectNode', {
-			sceneId: props.sceneId,
-			inlineVisualModuleLayerId: layerId,
+		stateManager.commit('createVisualModuleEffectNode', {
+			visualModule: { sceneId: props.sceneId, inlineVisualModuleLayerId: layerId },
 			effectId: effect.id,
-			id: genId(),
+			connectionMode: preferences.s.visualModuleAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
+			connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch',
 		});
 	});
 }

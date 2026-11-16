@@ -45,7 +45,7 @@ import type { WorkspacePanel } from '@/workspace.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
-import { createProjectAutomationGraph, setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
+import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 
 defineProps<{ panel: WorkspacePanel }>();
 
@@ -78,16 +78,16 @@ function setNameForReference(nameForReference: string) {
 	const graph = selectedGraph.value;
 	if (graph == null || graph.nameForReference === nameForReference) return;
 	try {
-		stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...graph, nameForReference } });
+		stateManager.commit('replaceProjectAutomationGraph', { automationGraphId: graph.id, definition: { ...graph, nameForReference } });
 	} catch (error) {
 		ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 	}
 }
 
 function addGraph(source?: AutomationGraph) {
-	const automationGraph = createProjectAutomationGraph(graphs.value, source);
-	stateManager.commit('addProjectAutomationGraph', { automationGraph });
-	selectedGraphId.value = automationGraph.id;
+	const result = source == null ? stateManager.commit('createProjectAutomationGraph', {})
+		: stateManager.commit('duplicateProjectAutomationGraph', { automationGraphId: source.id });
+	selectedGraphId.value = result.automationGraphId;
 }
 
 function removeGraph() {
@@ -95,14 +95,14 @@ function removeGraph() {
 }
 
 function updatePoints(points: BezierAnchorPoint[], mergeKey: string | null) {
-	if (selectedGraph.value != null) stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...selectedGraph.value, points } }, mergeKey);
+	if (selectedGraph.value != null) stateManager.commit('replaceProjectAutomationGraph', { automationGraphId: selectedGraph.value.id, definition: { ...selectedGraph.value, points } }, mergeKey);
 }
 
 function setNormalized(isNormalized: boolean) {
 	const graph = selectedGraph.value;
 	if (graph == null || graph.isNormalized === isNormalized) return;
 	const converted = setInlineAutomationGraphNormalized({ inputSource: 'automationGraphInline', automationGraph: graph, trimmedDurationMs: 1000, wrapMode: 'clamp', offsetMode: 'start' }, isNormalized);
-	stateManager.commit('updateProjectAutomationGraph', { automationGraph: { ...graph, ...converted.automationGraph } });
+	stateManager.commit('replaceProjectAutomationGraph', { automationGraphId: graph.id, definition: { ...graph, ...converted.automationGraph } });
 }
 </script>
 

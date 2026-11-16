@@ -1,3 +1,4 @@
+import { nodeParameterTarget } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -44,7 +45,7 @@ test('preserves the dedicated size-reference type through edits undo redo and sa
 	const state = { visualModules: { value: [visualModule] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const target = { visualModuleId: visualModule.id, nodeId: node.id, paramPath: ['sizeReference'] };
-	history.commit('updateParamAsLiteral', { ...target, value: 'height' });
+	history.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: 'height' } });
 	assert.equal(node.params.sizeReference.value, 'height');
 	history.undo();
 	assert.equal(node.params.sizeReference.value, 'longSide');

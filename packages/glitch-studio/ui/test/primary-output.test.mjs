@@ -1,3 +1,4 @@
+import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -38,7 +39,7 @@ function fixture() {
 		{ id: 'scalar', name: 'scalar', label: 'Scalar', dataType: { kind: 'scalar' } },
 	], primaryOutputId: 'a' };
 	const state = { visualModules: { value: [visualModule] } };
-	const command = (name, payload) => COMMAND_DEFS[name].create({ visualModuleId: 'module', ...payload });
+	const command = (name, payload) => prepareTestCommand(COMMAND_DEFS[name], { target: { visualModuleId: 'module' }, ...payload });
 	return { visualModule, state, command };
 }
 
@@ -67,8 +68,8 @@ test('switches and clears the primary output with undo and redo', () => {
 // 存在しない出力や非カラー出力を主出力として残さないための検証。
 test('clears invalidated primary references and restores them on undo', () => {
 	for (const [name, payload] of [
-		['removeVisualModuleOutputDef', { defId: 'a' }],
-		['updateVisualModuleOutputDef', { defId: 'a', changes: { dataType: { kind: 'scalar' } } }],
+		['removeVisualModuleOutput', { target: { visualModule: { visualModuleId: 'module' }, outputId: 'a' } }],
+		['replaceVisualModuleOutputDefinition', { target: { visualModule: { visualModuleId: 'module' }, outputId: 'a' }, definition: { name: 'a', label: 'A', dataType: { kind: 'scalar' } } }],
 	]) {
 		const { visualModule, state, command } = fixture();
 		const before = structuredClone(visualModule);
@@ -89,12 +90,12 @@ test('assigns newly added color outputs only when no primary exists', () => {
 		const { visualModule, state, command } = fixture();
 		visualModule.primaryOutputId = primaryOutputId;
 		const before = structuredClone(visualModule);
-		const add = command('addVisualModuleOutputDef', { def: { id: 'new', name: 'new', label: 'New', dataType: { kind: 'color' } } });
-		add.execute(state);
-		assert.equal(visualModule.primaryOutputId, primaryOutputId ?? 'new');
+		const add = command('createVisualModuleOutput', { visualModule: { visualModuleId: 'module' }, definition: { name: 'new', label: 'New', dataType: { kind: 'color' } } });
+		const added = add.execute(state);
+		assert.equal(visualModule.primaryOutputId, primaryOutputId ?? added.outputId);
 		add.undo(state);
 		assert.deepEqual(visualModule, before);
 		add.execute(state);
-		assert.equal(visualModule.primaryOutputId, primaryOutputId ?? 'new');
+		assert.equal(visualModule.primaryOutputId, primaryOutputId ?? added.outputId);
 	}
 });

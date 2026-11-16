@@ -74,7 +74,7 @@ export function createTimelineDropActions(options: TimelineDropActionsOptions) {
 		try {
 			const placement = await prepare([asset], startMs, dialog, messages);
 			if (placement != null && placement.layers.length > 0 && context.stateManager.state.assets.value.includes(asset) && asset.fileData === fileSource) {
-				context.stateManager.commit('addTimelineAssetLayers', placement);
+				context.stateManager.commit('insertTimelineAssetLayers', placement);
 			}
 		} finally { dialog.done(); }
 		await report(messages);

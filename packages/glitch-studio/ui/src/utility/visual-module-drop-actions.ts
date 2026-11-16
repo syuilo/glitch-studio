@@ -51,7 +51,7 @@ export function createVisualModuleDropActions(options: {
 		if (asset == null || !active()) return false;
 		const prepared = prepare([asset], context.stateManager.state.players.value);
 		if (prepared.placement.nodes.length === 0) return false;
-		context.stateManager.commit('addVisualModuleAssetNodes', { placement: prepared.placement, players: prepared.players });
+		context.stateManager.commit('insertVisualModuleAssetNodes', { placement: prepared.placement, players: prepared.players });
 		return true;
 	}
 

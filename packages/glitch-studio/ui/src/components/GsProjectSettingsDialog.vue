@@ -116,10 +116,10 @@ function apply() {
 	if (!isResolutionValid.value || renderSettingsError.value != null) return;
 	const currentResolution = stateManager.state.resolution.value;
 	if (width.value !== currentResolution.width || height.value !== currentResolution.height) {
-		stateManager.commit('changeProjectResolution', { width: width.value, height: height.value });
+		stateManager.commit('setProjectResolution', { resolution: { width: width.value, height: height.value } });
 	}
 	if (timelineFps.value !== stateManager.state.timelineFps.value || !deepEqual(timelineMotionBlur.value, stateManager.state.timelineMotionBlur.value)) {
-		stateManager.commit('changeTimelineRenderSettings', { timelineFps: timelineFps.value, timelineMotionBlur: timelineMotionBlur.value });
+		stateManager.commit('setTimelineRenderSettings', { timelineFps: timelineFps.value, timelineMotionBlur: timelineMotionBlur.value });
 	}
 	closeDialog();
 }

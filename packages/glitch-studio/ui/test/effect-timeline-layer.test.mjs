@@ -1,3 +1,5 @@
+import { nodeParameterTarget, nodeTarget, assetSource } from './helpers/command-inputs.mjs';
+import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -12,7 +14,7 @@ const effectNames = (await readdir(new URL(import.meta.resolve('@gs/subsystems_e
 const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
-		export { COMMAND_DEFS } from './src/commands.ts';
+		export { COMMAND_DEFS } from './src/commands.ts'; export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts'; export { createTimelineCommandDefinitions } from './src/commands/timeline-api.ts';
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
 		export { resolveLayerParameter, getLayerKeyframeParameters } from './src/utility/timeline-scene.ts';
 		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
@@ -38,6 +40,15 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { COMMAND_DEFS, createEffectTimelineLayer, resolveLayerParameter, getLayerKeyframeParameters, effectDefinitions, preferences,
 	canConnectNodeDataTypes, areNodeDataTypesCompatible, encodeProjectFile, decodeProjectFile, validateTimelineEffectLayer } = module.exports;
+// UIイベントの変換も実際のBinding Commandを通し、履歴と保存値を検証する。
+const uiParameterEdit = { prepare: (state, input) => COMMAND_DEFS.replaceTimelineLayerParameterBinding.prepare(state, module.exports.getTimelineParameterEditBinding(state, input)) };
+// 既存レイヤーデータを必要とするfixtureは、採番を行う作成APIではなくインポート操作を使う。
+const importLayer = { prepare: (state, input) => COMMAND_DEFS.insertTimelineAssetLayers.prepare(state, { sceneId: input.sceneId, layers: [input.layer], sourceDurationsMs: input.sourceDurationsMs ?? {} }) };
+function mediaCommand(name, { sourceDurationMs, ...input }) {
+ const definition = module.exports.createTimelineCommandDefinitions({ inspectMedia: () => ({ durationMs: sourceDurationMs, audioAvailable: true, audioError: null }) })[name];
+ return prepareTestCommand(definition, input);
+}
+
 const literal = value => ({ inputSource: 'literal', value });
 const audioLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, clips: [], audioParamValues: { volume: literal(1) }, automationGraphs: [] });
 
@@ -71,7 +82,7 @@ test('edits same-scene audio references with undo, reset, and command validation
 	assert.equal(f.read(['audio']).layerId, 'child');
 	f.edit(['audio'], { kind: 'anotherLayerAudio', value: null });
 	assert.equal(f.read(['audio']).layerId, null);
-	assert.equal(COMMAND_DEFS.editTimelineLayerParam.changes(f.state, { ...f.target, paramPath: ['audio'], edit: { kind: 'anotherLayerAudio', value: 'sound' } })[0].changes[0].kind, 'connection');
+	assert.equal(COMMAND_DEFS.setTimelineLayerParameterSource.prepare(f.state, { sceneId: f.target.sceneId, layerId: f.target.layerId, parameterGroup: 'effect', parameterPath: ['audio'], source: { inputSource: 'anotherLayerAudio', layerId: 'sound' } }).change.changes[0].changes[0].kind, 'connection');
 });
 
 // 【音声参照の削除中もIDを保存し、Undoで同じ参照先へ復旧する】
@@ -81,7 +92,7 @@ test('preserves dangling anotherLayerAudio references through deletion, saving, 
 	const f = fixture('audioWaveform');
 	f.state.timelineScenes.value[0].layers.push(audioLayer('sound'));
 	f.edit(['audio'], { kind: 'anotherLayerAudio', value: 'sound' });
-	const remove = COMMAND_DEFS.removeTimelineLayer.create({ sceneId: 'scene', layerId: 'sound' });
+	const remove = prepareTestCommand(COMMAND_DEFS.removeTimelineLayers, { sceneId: 'scene', layerIds: ['sound' ]});
 	remove.execute(f.state);
 	assert.deepEqual(f.read(['audio']), { inputSource: 'anotherLayerAudio', layerId: 'sound' });
 	f.edit(['amplitude'], { kind: 'literal', value: 2 });
@@ -102,7 +113,7 @@ test('validates player audio selections at the application command boundary', ()
 	const node = { id: 'waveform', type: 'effect', effectId: 'audioWaveform', params: { audio: literal(null) } };
 	const state = { visualModules: { value: [{ customParameterDefs: [], customParameterValues: {}, id: 'visual', paramDefs: [audio], nodes: [node] }] } };
 	const target = { visualModuleId: 'visual', nodeId: node.id, paramPath: ['audio'] };
-	const command = value => COMMAND_DEFS.updateParamAsLiteral.create({ ...target, value });
+	const command = value => prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } });
 	const selection = { type: 'player', playerId: 'player' };
 	const edit = command(selection);
 	edit.execute(state);
@@ -113,9 +124,9 @@ test('validates player audio selections at the application command boundary', ()
 	}
 	edit.undo(state);
 	assert.deepEqual(node.params.audio, literal(null));
-	COMMAND_DEFS.updateParamAsVisualModulePublicParameterReference.create({ ...target, value: audio.id }).execute(state);
+	prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'visualModulePublicParameterReference', parameterId: audio.id } }).execute(state);
 	assert.equal(node.params.audio.parameterId, audio.id);
-	assert.throws(() => COMMAND_DEFS.updateParamAsExpression.create({ ...target, value: 'null' }).execute(state), /static input/);
+	assert.throws(() => prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'expression', expression: 'null' } }).execute(state), /static input/);
 });
 
 // 【波形・Spectrumレイヤーは主音声入力を下層へ割り当て、リセットとUndo/Redoでも復元する】
@@ -175,21 +186,21 @@ test('edits primary audio parameters and timeline arguments with independent und
 	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', nodes: [], outputDefs: [], primaryOutputId: null, primaryInputId: null, primaryAudioInputId: null,
 		paramDefs: [audio], automationGraphs: [] };
 	f.state.visualModules.value.push(visualModule);
-	const command = (name, payload) => COMMAND_DEFS[name].create({ visualModuleId: visualModule.id, ...payload });
-	const primary = command('setVisualModulePrimaryAudioInput', { primaryAudioInputId: 'sound' });
+	const command = (name, payload) => prepareTestCommand(COMMAND_DEFS[name], payload);
+	const primary = command('setVisualModulePrimaryAudioInput', { target: { visualModuleId: visualModule.id }, primaryAudioInputId: 'sound' });
 	primary.execute(f.state);
 	assert.equal(visualModule.primaryAudioInputId, 'sound');
 	primary.undo(f.state);
 	assert.equal(visualModule.primaryAudioInputId, null);
 	primary.execute(f.state);
-	assert.throws(() => command('setVisualModulePrimaryAudioInput', { primaryAudioInputId: 'missing' }).execute(f.state));
+	assert.throws(() => command('setVisualModulePrimaryAudioInput', { target: { visualModuleId: visualModule.id }, primaryAudioInputId: 'missing' }).execute(f.state));
 	const layer = { ...f.layer, layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {} };
 	f.state.timelineScenes.value[0].layers = [layer];
 	assert.deepEqual(resolveLayerParameter(f.state, layer, 'module', ['sound']).value, { inputSource: 'lowerLayerAudio' });
-	const none = COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'literal', value: null } });
+	const none = prepareTestCommand(uiParameterEdit, { ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'literal', value: null } });
 	none.execute(f.state);
 	assert.deepEqual(layer.visualModuleParamValues.sound, literal(null));
-	const reset = COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'reset' } });
+	const reset = prepareTestCommand(uiParameterEdit, { ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'reset' } });
 	reset.execute(f.state);
 	assert.deepEqual(layer.visualModuleParamValues.sound, { inputSource: 'lowerLayerAudio' });
 	reset.undo(f.state);
@@ -197,7 +208,7 @@ test('edits primary audio parameters and timeline arguments with independent und
 	none.undo(f.state);
 	assert.equal(Object.hasOwn(layer.visualModuleParamValues, 'sound'), false);
 	f.state.timelineScenes.value[0].layers.push(audioLayer('source'));
-	const selected = COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'anotherLayerAudio', value: 'source' } });
+	const selected = prepareTestCommand(uiParameterEdit, { ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'anotherLayerAudio', value: 'source' } });
 	selected.execute(f.state);
 	assert.deepEqual(layer.visualModuleParamValues.sound, { inputSource: 'anotherLayerAudio', layerId: 'source' });
 	assert.deepEqual(visualModule.paramDefs[0].defaultValue, literal(null));
@@ -205,8 +216,8 @@ test('edits primary audio parameters and timeline arguments with independent und
 	assert.equal(Object.hasOwn(layer.visualModuleParamValues, 'sound'), false);
 	selected.execute(f.state);
 	for (const [name, payload] of [
-		['removeVisualModuleParamDef', { defId: 'sound' }],
-		['updateVisualModuleParamDef', { defId: 'sound', changes: { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) } }],
+		['removeVisualModulePublicParameter', { target: { visualModule: { visualModuleId: visualModule.id }, parameterId: 'sound' } }],
+		['replaceVisualModulePublicParameterDefinition', { target: { visualModule: { visualModuleId: visualModule.id }, parameterId: 'sound' }, definition: { ...audio, dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) } }],
 	]) {
 		const edit = command(name, payload);
 		edit.execute(f.state);
@@ -215,7 +226,7 @@ test('edits primary audio parameters and timeline arguments with independent und
 		assert.equal(visualModule.primaryAudioInputId, 'sound');
 		assert.equal(visualModule.paramDefs[0].dataType.kind, 'audioSource');
 	}
-	assert.throws(() => command('updateVisualModuleParamDef', { defId: 'sound', changes: { canNode: true } }).execute(f.state));
+	assert.throws(() => command('replaceVisualModulePublicParameterDefinition', { target: { visualModule: { visualModuleId: visualModule.id }, parameterId: 'sound' }, definition: { ...audio, canNode: true } }).execute(f.state));
 });
 
 // 【すべてのエフェクトを既定値のままレイヤーとして作成できる】
@@ -232,7 +243,7 @@ function fixture(effectId = 'testStructArray') {
 	const state = { timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }] }, visualModules: { value: [] }, assets: { value: [] } };
 	const target = { sceneId: 'scene', layerId: layer.id, target: 'effect' };
 	const edit = (paramPath, edit) => {
-		const command = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, paramPath, edit });
+		const command = prepareTestCommand(uiParameterEdit, { ...target, paramPath, edit });
 		command.execute(state);
 		return command;
 	};
@@ -247,20 +258,20 @@ test('edits and restores LUT assets and references through commands', async () =
 	const original = { id: 'lut', name: 'Look', width: 0, height: 0, fileDataType: 'application/x-cube-lut',
 		fileData: new Blob(['LUT_1D_SIZE 2\n0 0 0\n1 1 1']), sourceFilePath: null, thumbnailSequence: null };
 	f.state.assets.value.push(original);
-	const selection = COMMAND_DEFS.changeTimelineStaticSetting.create({ sceneId: 'scene', layerId: f.layer.id, key: 'lut', value: 'lut' });
+	const selection = prepareTestCommand(COMMAND_DEFS.setTimelineLayerStaticSetting, { sceneId: 'scene', layerId: f.layer.id, key: 'lut', value: 'lut' });
 	selection.execute(f.state);
 	assert.equal(f.layer.effectStaticSettings.lut, 'lut');
 	selection.undo(f.state);
 	assert.equal(f.layer.effectStaticSettings.lut, null);
 	selection.execute(f.state);
-	const replacement = COMMAND_DEFS.replaceAsset.create({ ...original, assetId: 'lut', fileData: new Blob(['replacement']) });
+	const replacement = prepareTestCommand(COMMAND_DEFS.replaceAssetSource, { assetId: 'lut', source: assetSource({ ...original, fileData: new Blob(['replacement']) }) });
 	replacement.execute(f.state);
 	assert.equal(await f.state.assets.value[0].fileData.text(), 'replacement');
 	replacement.undo(f.state);
 	assert.equal(await f.state.assets.value[0].fileData.text(), 'LUT_1D_SIZE 2\n0 0 0\n1 1 1');
 	f.state.visualModules.value.push({ id: 'visual', nodes: [{ id: 'lut-node', type: 'effect', effectId: 'applyLut',
 		staticSettings: { lut: 'lut' }, params: { input: literal([0, 0, 0, 0]) } }] });
-	const removal = COMMAND_DEFS.removeAsset.create({ assetId: 'lut' });
+	const removal = prepareTestCommand(COMMAND_DEFS.removeAsset, { assetId: 'lut' });
 	removal.execute(f.state);
 	assert.equal(f.state.assets.value.length, 0);
 	assert.equal(f.state.visualModules.value[0].nodes[0].staticSettings.lut, null);
@@ -281,7 +292,7 @@ test('identifies keyframe rows by owner and stable parameter paths after reorder
 	t.after(() => { delete effectDefinitions.labelProbe; });
 	const f = fixture('labelProbe');
 	f.edit(['opacity'], { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
-	COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'compositing', paramPath: ['opacity'],
+	prepareTestCommand(uiParameterEdit, { ...f.target, target: 'compositing', paramPath: ['opacity'],
 		edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } }).execute(f.state);
 	const path = ['buzzs', 'first', 'x'];
 	f.edit(path, { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
@@ -337,7 +348,7 @@ test('changes the effect transform target without rewriting inputs or compositin
 	const f = fixture('colorMix');
 	const bindings = structuredClone(f.layer.compositingParamValues);
 	const inputs = structuredClone(f.layer.effectParamValues);
-	const command = COMMAND_DEFS.setTimelineLayerTransformTarget.create({ sceneId: 'scene', layerId: f.layer.id, transformTarget: 'image' });
+	const command = prepareTestCommand(COMMAND_DEFS.setTimelineLayerTransformTarget, { sceneId: 'scene', layerId: f.layer.id, transformTarget: 'image' });
 	command.execute(f.state);
 	assert.equal(f.layer.transformTarget, 'image');
 	command.undo(f.state);
@@ -346,7 +357,7 @@ test('changes the effect transform target without rewriting inputs or compositin
 	assert.equal(f.layer.transformTarget, 'image');
 	assert.deepEqual(f.layer.effectParamValues, inputs);
 	assert.deepEqual(f.layer.compositingParamValues, bindings);
-	assert.throws(() => COMMAND_DEFS.setTimelineLayerTransformTarget.create({ sceneId: 'scene', layerId: f.layer.id, transformTarget: 'invalid' }).execute(f.state), /Invalid timeline layer transform target/);
+	assert.throws(() => prepareTestCommand(COMMAND_DEFS.setTimelineLayerTransformTarget, { sceneId: 'scene', layerId: f.layer.id, transformTarget: 'invalid' }).execute(f.state), /Invalid timeline layer transform target/);
 });
 
 // 【要素の並べ替え・削除・Undo/Redo後もIDパスでキーを扱う】
@@ -368,7 +379,7 @@ test('edits nested scene-time keyframes and preserves identity through array ope
 	add.execute(f.state);
 	assert.equal(f.read(['buzzs']).value[1].id, addedId);
 	f.read(['buzzs']).value.reverse();
-	const move = COMMAND_DEFS.moveTimelineKeyframes.create({ sceneId: 'scene', positions: [{ ...f.target, paramPath: path, keyframeId: 'key', x: 400 }] });
+	const move = prepareTestCommand(COMMAND_DEFS.moveTimelineKeyframes, { sceneId: 'scene', positions: [{ ...f.target, paramPath: path, keyframeId: 'key', x: 400 }] });
 	move.execute(f.state);
 	assert.equal(f.read(path).keyframesTimeline.keyframes[0].x, 400);
 	move.undo(f.state);
@@ -396,7 +407,7 @@ test('supports secondary lowerLayerOutput bindings and enforces their scope inde
 	f.edit(path, { kind: 'inputSource', inputSource: 'lowerLayerOutput' });
 	f.edit(path, { kind: 'lowerLayerOutput', value: { ...f.read(path), fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } });
 	assert.equal(f.read(path).filterMode, 'nearest');
-	assert.throws(() => COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'inputSource', inputSource: 'lowerLayerOutput' } }).execute(f.state));
+	assert.throws(() => prepareTestCommand(uiParameterEdit, { ...f.target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'inputSource', inputSource: 'lowerLayerOutput' } }).execute(f.state));
 	for (const inputSource of ['node', 'visualModulePublicParameterReference']) assert.throws(() => f.edit(path, { kind: 'inputSource', inputSource }));
 	const input = { kind: 'scalar' };
 	preferences.s.forceTypeSafety = false;
@@ -413,9 +424,9 @@ test('supports secondary lowerLayerOutput bindings and enforces their scope inde
 test('round trips effect layers and changes resolution and clips with undo', async () => {
 	const f = fixture();
 	f.edit(['buzzs', 'first', 'image'], { kind: 'inputSource', inputSource: 'lowerLayerOutput' });
-	const resolution = COMMAND_DEFS.changeEffectLayerResolution.create({ ...f.target, resolution: { mode: 'customAbsolute', width: 640, height: 360 } });
+	const resolution = prepareTestCommand(COMMAND_DEFS.setTimelineEffectLayerResolution, { ...f.target, resolution: { mode: 'customAbsolute', width: 640, height: 360 } });
 	resolution.execute(f.state);
-	const add = COMMAND_DEFS.addTimelineClip.create({ ...f.target, clip: { id: 'second', startMs: 6000, durationMs: 1000, contentOffsetMs: 50.25 } });
+	const add = prepareTestCommand(COMMAND_DEFS.createTimelineClip, { ...f.target, clip: { id: 'second', startMs: 6000, durationMs: 1000, contentOffsetMs: 50.25 } });
 	add.execute(f.state);
 	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, id: 'project', gsVersion: '2.0.0-alpha', name: 'Test', description: '', author: '', resolution: { width: 800, height: 600 },
 		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
@@ -438,14 +449,14 @@ test('saves local resolution scales and validates undoable edits for nodes and e
 	const inlineNode = structuredClone(node);
 	f.state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [inlineNode], paramDefs: [] } });
 	for (const [definition, target, owner] of [
-		[COMMAND_DEFS.changeNodeResolution, { visualModuleId: 'visual', nodeId: node.id }, node],
-		[COMMAND_DEFS.changeNodeResolution, { sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: inlineNode.id }, inlineNode],
-		[COMMAND_DEFS.changeEffectLayerResolution, f.target, f.layer],
+		[COMMAND_DEFS.setVisualModuleNodeResolution, { target: nodeTarget({ visualModuleId: 'visual', nodeId: node.id }) }, node],
+		[COMMAND_DEFS.setVisualModuleNodeResolution, { target: nodeTarget({ sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: inlineNode.id }) }, inlineNode],
+		[COMMAND_DEFS.setTimelineEffectLayerResolution, f.target, f.layer],
 	]) {
 		assert.deepEqual(owner.resolution, { mode: 'auto', scale: 1 });
 		for (const resolution of [{ mode: 'context', scale: 0.5 }, { mode: 'auto', scale: 2.5 }]) {
 			const before = structuredClone(owner.resolution);
-			const command = definition.create({ ...target, resolution });
+			const command = prepareTestCommand(definition, { ...target, resolution });
 			command.execute(f.state);
 			assert.deepEqual(owner.resolution, resolution);
 			command.undo(f.state);
@@ -453,7 +464,7 @@ test('saves local resolution scales and validates undoable edits for nodes and e
 			command.execute(f.state);
 			assert.deepEqual(owner.resolution, resolution);
 			for (const scale of [0, -1, NaN, Infinity]) {
-				assert.throws(() => definition.create({ ...target, resolution: { mode: resolution.mode, scale } }).execute(f.state), /scale/);
+				assert.throws(() => prepareTestCommand(definition, { ...target, resolution: { mode: resolution.mode, scale } }).execute(f.state), /scale/);
 				assert.deepEqual(owner.resolution, resolution);
 			}
 		}
@@ -480,7 +491,7 @@ test('edits nested image references and preserves their stages through undo and 
 	edit.execute(f.state);
 	assert.equal(f.read(path).filterMode, 'nearest');
 	for (const id of [f.layer.id, 'audio', 'another-scene-layer']) assert.throws(() => f.edit(path, { kind: 'anotherLayerOutput', value: { ...f.read(path), layerId: id } }));
-	const remove = COMMAND_DEFS.removeTimelineLayer.create({ sceneId: 'scene', layerId: source.id });
+	const remove = prepareTestCommand(COMMAND_DEFS.removeTimelineLayers, { sceneId: 'scene', layerIds: [source.id ]});
 	remove.execute(f.state);
 	assert.equal(f.read(path).layerId, source.id);
 	f.edit(path, { kind: 'anotherLayerOutput', value: { ...f.read(path), outputStage: 'composited' } });
@@ -500,7 +511,7 @@ test('edits public primary image inputs and resets them to lower layers', () => 
 	const publicLayer = { id: 'public', layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {}, automationGraphs: [] };
 	f.state.timelineScenes.value[0].layers.push(publicLayer);
 	const read = () => resolveLayerParameter(f.state, publicLayer, 'module', ['image']).value;
-	const edit = value => { const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'public', target: 'module', paramPath: ['image'], edit: value }); command.execute(f.state); return command; };
+	const edit = value => { const command = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', layerId: 'public', target: 'module', paramPath: ['image'], edit: value }); command.execute(f.state); return command; };
 	assert.deepEqual(read(), { inputSource: 'lowerLayerOutput' });
 	edit({ kind: 'inputSource', inputSource: 'anotherLayerOutput' });
 	const binding = { inputSource: 'anotherLayerOutput', layerId: f.layer.id, outputStage: 'source' };

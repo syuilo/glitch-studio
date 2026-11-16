@@ -4,7 +4,7 @@
 		<GsButton v-tooltip="i18n.ts._CustomShaderEffect.Add" data-test-add-custom-shader-effect icon="ti ti-plus" @click="add()">{{ i18n.ts.Add }}</GsButton>
 		<GsSelect v-if="definitions.length > 0" :modelValue="selected?.id ?? null" :items="definitionItems" data-test-select-custom-shader-effect @update:modelValue="selectedId = $event"/>
 		<GsButton v-if="selected != null" data-test-duplicate-custom-shader-effect icon="ti ti-copy" @click="add(selected)">{{ i18n.ts.Duplicate }}</GsButton>
-		<GsButton v-if="selected != null" :disabled="isCustomShaderEffectUsed(stateManager.state, selected.id)" :title="i18n.ts._CustomShaderEffect.InUse" data-test-delete-custom-shader-effect danger icon="ti ti-trash" @click="remove">{{ i18n.ts.Delete }}</GsButton>
+		<GsButton v-if="selected != null" v-tooltip="i18n.ts._CustomShaderEffect.InUse" :disabled="isCustomShaderEffectUsed(stateManager.state, selected.id)" data-test-delete-custom-shader-effect danger icon="ti ti-trash" @click="remove">{{ i18n.ts.Delete }}</GsButton>
 	</div>
 	<GsCustomShaderEffectEditor v-if="selected != null" :key="selected.id" :customShaderEffect="selected" @apply="apply"/>
 </div>
@@ -20,7 +20,6 @@ import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { isCustomShaderEffectUsed } from '@/utility/custom-shader-effect-usages.ts';
-import { createProjectCustomShaderEffect } from '@/utility/custom-shader-effect.ts';
 
 defineProps<{ panel: WorkspacePanel }>();
 
@@ -34,13 +33,13 @@ const selected = computed(() => definitions.value.find(definition => definition.
 const definitionItems = computed(() => definitions.value.map(definition => ({ value: definition.id, label: definition.name })));
 
 function add(source: ProjectCustomShaderEffect | null = null) {
-	const customShaderEffect = createProjectCustomShaderEffect(definitions.value, source);
-	stateManager.commit('addCustomShaderEffect', { customShaderEffect });
-	selectedId.value = customShaderEffect.id;
+	const result = source == null ? stateManager.commit('createCustomShaderEffect', {})
+		: stateManager.commit('duplicateCustomShaderEffect', { customShaderEffectId: source.id });
+	selectedId.value = result.customShaderEffectId;
 }
 
 function apply(customShaderEffect: ProjectCustomShaderEffect) {
-	stateManager.commit('updateCustomShaderEffect', { customShaderEffect });
+	stateManager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: customShaderEffect.id, definition: customShaderEffect });
 }
 
 function remove() {

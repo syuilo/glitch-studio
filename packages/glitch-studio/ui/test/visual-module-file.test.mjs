@@ -242,8 +242,8 @@ test('creates a Visual Module with synchronized undo and redo in empty and popul
 			replace: async () => assert.fail('No recovery snapshot should be necessary'), onUpdated() {}, onError: error => assert.fail(error),
 		});
 		t.after(() => sync.dispose());
-		const visualModule = createProjectVisualModule(manager.state.visualModules.value.length);
-		manager.commit('addVisualModule', { visualModule });
+		const target = manager.commit('createVisualModule', {});
+		const visualModule = manager.state.visualModules.value.find(candidate => candidate.id === target.visualModuleId);
 		await sync.flush();
 		assert.equal(manager.undoStack.value.length, 1);
 		assert.equal(visualModule.name, populated ? 'VM2' : 'VM1');
@@ -268,8 +268,10 @@ test('creates a Visual Module with synchronized undo and redo in empty and popul
 // IDが衝突した場合も、既存の定義や履歴を壊さず追加を拒否する。
 test('keeps newly created Visual Modules independent and rejects duplicate registration', () => {
 	const manager = new ProjectContext(createTestProject()).stateManager;
-	const first = createProjectVisualModule(0);
-	const second = createProjectVisualModule(0);
+	const firstTarget = manager.commit('createVisualModule', { name: 'Same' });
+	const secondTarget = manager.commit('createVisualModule', { name: 'Same' });
+	const first = manager.state.visualModules.value.find(candidate => candidate.id === firstTarget.visualModuleId);
+	const second = manager.state.visualModules.value.find(candidate => candidate.id === secondTarget.visualModuleId);
 	assert.deepEqual(first.customParameterDefs, []);
 	assert.deepEqual(first.customParameterValues, {});
 	assert.notEqual(first.customParameterDefs, second.customParameterDefs);
@@ -279,10 +281,9 @@ test('keeps newly created Visual Modules independent and rejects duplicate regis
 	assert.equal(new Set(ids).size, ids.length);
 	first.paramDefs[0].defaultValue.value[0] = 1;
 	assert.deepEqual(second.paramDefs[0].defaultValue.value, [0, 0, 0, 0]);
-	manager.commit('addVisualModule', { visualModule: first });
-	assert.throws(() => manager.commit('addVisualModule', { visualModule: first }), /already exists/);
-	assert.equal(manager.undoStack.value.length, 1);
-	assert.deepEqual(manager.state.visualModules.value, [first]);
+	assert.throws(() => manager.commit('importVisualModule', { visualModule: first, assets: [], players: [] }), /already exists/);
+	assert.equal(manager.undoStack.value.length, 2);
+	assert.deepEqual(manager.state.visualModules.value, [first, second]);
 });
 
 // 【取り込み全体を一回のUndoで戻し、Redoでも同じIDで同期する】
@@ -333,7 +334,7 @@ test('coalesces registration edits and removal before synchronization', async t 
 	});
 	t.after(() => sync.dispose());
 	manager.commit('importVisualModule', prepared);
-	manager.commit('changeNodeBypassState', { visualModuleId: prepared.visualModule.id, nodeId: 'effect', bypass: true });
+	manager.commit('setVisualModuleNodeBypass', { target: { visualModule: { visualModuleId: prepared.visualModule.id }, nodeId: 'effect' }, bypass: true });
 	await sync.flush();
 	assert.equal(batches[0].length, 1);
 	assert.equal(batches[0][0].visualModule.nodes[1].isBypass, true);

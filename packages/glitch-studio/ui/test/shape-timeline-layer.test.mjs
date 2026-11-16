@@ -9,6 +9,7 @@ const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
 		export { COMMAND_DEFS } from './src/commands.ts';
+		export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { createShapeTimelineLayer } from './src/utility/shape-timeline-layer.ts';
 		export { resolveLayerParameter, getLayerKeyframeParameters } from './src/utility/timeline-scene.ts';
@@ -26,22 +27,22 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, UndoRedo, createShapeTimelineLayer, resolveLayerParameter, getLayerKeyframeParameters, encodeProjectFile, decodeProjectFile } = module.exports;
+const { COMMAND_DEFS, getTimelineParameterEditBinding, UndoRedo, createShapeTimelineLayer, resolveLayerParameter, getLayerKeyframeParameters, encodeProjectFile, decodeProjectFile } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 
 function fixture(t, type = 'rectangle') {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
-	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] }, players: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
 	const initial = createShapeTimelineLayer(type, 100.4);
-	history.commit('addTimelineLayer', { sceneId: scene.id, layer: initial });
+	history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: scene.id, layers: [initial] } });
 	const target = { sceneId: scene.id, layerId: initial.id, target: 'shape' };
 	return { scene, state, history, changes, target, initial,
 		get layer() { return scene.layers.find(layer => layer.id === initial.id); },
-		edit(key, edit, mergeKey) { history.commit('editTimelineLayerParam', { ...target, paramPath: [key], edit }, mergeKey); },
+		edit(key, edit, mergeKey) { history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(state, { ...target, paramPath: [key], edit }), mergeKey); },
 	};
 }
 
@@ -107,7 +108,7 @@ test('edits scene-time shape keyframes independently of composition and clip lif
 	] } };
 	f.edit('size', { kind: 'keyframesTimelineInline', value: keyed });
 	assert.equal(f.layer.shape.paramValues.size.keyframesTimeline.keyframes[0].x, 151);
-	f.history.commit('editTimelineLayerParam', { ...f.target, target: 'compositing', paramPath: ['position'], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.state, { ...f.target, target: 'compositing', paramPath: ['position'], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } }));
 	assert.deepEqual(getLayerKeyframeParameters(f.state, f.layer).map(({ target, paramPath }) => ({ target, paramPath })), [
 		{ target: 'compositing', paramPath: ['position'] },
 		{ target: 'shape', paramPath: ['size'] },
@@ -145,10 +146,8 @@ test('round-trips animated shapes and duplicates their independent settings', as
 		] },
 	} });
 	const duplicate = structuredClone(f.layer);
-	duplicate.id = 'duplicate';
-	duplicate.clips[0].id = 'duplicate-clip';
-	f.history.commit('pasteTimelineLayer', { sceneId: 'scene', layer: duplicate, sourceLayerId: f.layer.id });
-	const pasted = f.scene.layers.find(layer => layer.id === 'duplicate');
+	const inserted = f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: duplicate, beforeLayerId: f.layer.id });
+	const pasted = f.scene.layers.find(layer => layer.id === inserted.layerId);
 	pasted.shape.paramValues.fillColor.value[0] = 1;
 	assert.equal(f.layer.shape.paramValues.fillColor.value[0], 0.2);
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Shapes', description: '', author: '',
@@ -163,7 +162,7 @@ test('round-trips animated shapes and duplicates their independent settings', as
 	f.history.undo();
 	assert.equal(f.scene.layers.length, 1);
 	f.history.redo();
-	assert.equal(f.scene.layers[0].id, 'duplicate');
+	assert.equal(f.scene.layers[0].id, inserted.layerId);
 });
 
 // 【シェイプにノード・下層画像・音声のBindingを混入させない】
@@ -178,9 +177,9 @@ test('rejects unsupported shape bindings and unknown geometry without committing
 	}
 	const invalid = createShapeTimelineLayer('ellipse', 0);
 	invalid.shape.paramValues.size = { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
-	assert.throws(() => f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: invalid }), /Timeline image input/);
+	assert.throws(() => f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: invalid }), /Timeline image input/);
 	invalid.shape.type = 'future-shape';
-	assert.throws(() => f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: invalid }), /Unknown shape type/);
+	assert.throws(() => f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: invalid }), /Unknown shape type/);
 	assert.equal(f.scene.layers.length, 1);
 });
 

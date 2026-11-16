@@ -11,14 +11,11 @@
 <script lang="ts" setup>
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { computed, ref, watch, inject } from 'vue';
-import { genId } from '@gs/shared/utility/id.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import GsButton from './common/GsButton.vue';
 import GsSceneResolutionDialog from './GsSceneResolutionDialog.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
-import { duplicateTimelineLayers } from '@/utility/timeline-container.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { useProjectSession } from '@/project-session.ts';
 import GsTimeline from '@/components/GsTimeline.vue';
@@ -51,28 +48,20 @@ function revealAssets() {
 const references = computed(() => stateManager.state.timelineScenes.value.filter(scene => flattenTimelineLayers(scene.layers).some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === activeSceneId.value))));
 
 function createScene() {
-	const id = genId();
-	stateManager.commit('addScene', {
-		id,
+	const created = stateManager.commit('createTimelineScene', {
 		name: `SN${stateManager.state.timelineScenes.value.length + 1}`,
 		resolution: { mode: 'project' },
-		layers: [],
 	});
-	activeSceneId.value = id;
+	activeSceneId.value = created.sceneId;
 }
 
 function duplicateScene() {
 	if (activeScene.value == null) return;
-	const scene = deepClone(activeScene.value);
-	scene.id = genId();
-	scene.name += ' (copy)';
-	// 内部レイヤーは独立させ、別Sceneへの参照は通常のレイヤー複製と同じく共有する。
-	scene.layers = duplicateTimelineLayers(scene.layers);
-	stateManager.commit('addScene', scene);
-	activeSceneId.value = scene.id;
+	const created = stateManager.commit('duplicateTimelineScene', { sceneId: activeScene.value.id, name: activeScene.value.name + ' (copy)' });
+	activeSceneId.value = created.sceneId;
 }
 
-async function renameScene() {
+async function setTimelineSceneName() {
 	const scene = activeScene.value;
 	if (scene == null) return;
 
@@ -83,11 +72,11 @@ async function renameScene() {
 	});
 	if (canceled || name == null) return;
 
-	stateManager.commit('renameScene', { sceneId: scene.id, name });
+	stateManager.commit('setTimelineSceneName', { sceneId: scene.id, name });
 }
 
-function removeScene() {
-	if (activeSceneId.value != null && references.value.length === 0) stateManager.commit('removeScene', { sceneId: activeSceneId.value });
+function removeTimelineScene() {
+	if (activeSceneId.value != null && references.value.length === 0) stateManager.commit('removeTimelineScene', { sceneId: activeSceneId.value });
 }
 
 function showSceneSelectMenu(ev: PointerEvent) {
@@ -117,7 +106,7 @@ function showSceneMenu(ev: PointerEvent) {
 	}, {
 		text: i18n.ts._Timeline.RenameScene,
 		icon: 'ti ti-edit',
-		action: renameScene,
+		action: setTimelineSceneName,
 	}, {
 		text: i18n.ts._Timeline.DuplicateScene,
 		icon: 'ti ti-copy',
@@ -127,7 +116,7 @@ function showSceneMenu(ev: PointerEvent) {
 		icon: 'ti ti-trash',
 		disabled: references.value.length > 0,
 		danger: true,
-		action: removeScene,
+		action: removeTimelineScene,
 	}];
 	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target);
 }

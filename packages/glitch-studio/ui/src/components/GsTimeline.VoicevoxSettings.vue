@@ -61,7 +61,7 @@ async function connect() {
 function commit(utterances: VoicevoxUtterance[], voicevox = props.layer.voicevox) {
 	error.value = '';
 	try {
-		stateManager.commit('editVoicevoxLayer', {
+		stateManager.commit('replaceTimelineVoicevoxContent', {
 			sceneId: props.sceneId,
 			layerId: props.layer.id,
 			voicevox,
@@ -102,7 +102,7 @@ function fitLastClip() {
 			if (ready) endMs = Math.max(endMs, ready.endMs);
 		}
 		// 生成音声の小数msの末尾を切らないよう切り上げる。キーは動かさない。
-		stateManager.commit('editTimelineClipTiming', {
+		stateManager.commit('trimTimelineClip', {
 			sceneId: props.sceneId,
 			layerId: props.layer.id,
 			clipId: clip.id,

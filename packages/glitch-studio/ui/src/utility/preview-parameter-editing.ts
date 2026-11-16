@@ -1,3 +1,4 @@
+import { getTimelineParameterEditBinding } from '../commands/timeline-parameter-api.ts';
 import { computed, ref, shallowRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
@@ -113,20 +114,20 @@ export function beginPreviewParameterBindingEdit(manager: ProjectContext['stateM
 	nodeId: string | null, group: TimelineParameterTarget | null, paramPath: ParamPath, inputSource: 'literal' | 'keyframesTimelineInline'): PreviewParameterBindingEdit | null {
 	if (scope.kind === 'timelineLayer') {
 		if (group == null) return null;
-		const session = manager.beginEdit('editTimelineLayerParam');
+		const session = manager.beginEdit('replaceTimelineLayerParameterBinding');
 		return { get active() { return session.active; }, finish: session.finish, cancel: session.cancel,
-			update: edit => session.update({ sceneId: scope.sceneId, layerId: scope.layerId, target: group, paramPath, edit }) };
+			update: edit => session.update(getTimelineParameterEditBinding(manager.state, { sceneId: scope.sceneId, layerId: scope.layerId, target: group, paramPath, edit })) };
 	}
 	if (nodeId == null) return null;
-	const target = { ...scope.target, nodeId, paramPath };
+	const target = { target: { visualModule: scope.target, nodeId }, parameterPath: paramPath };
 	if (inputSource === 'literal') {
-		const session = manager.beginEdit('updateParamAsLiteral');
+		const session = manager.beginEdit('setVisualModuleNodeParameterSource');
 		return { get active() { return session.active; }, finish: session.finish, cancel: session.cancel,
-			update: edit => { if (edit.kind === 'literal') session.update({ ...target, value: edit.value }); } };
+			update: edit => { if (edit.kind === 'literal') session.update({ ...target, source: { inputSource: 'literal', value: edit.value } }); } };
 	}
-	const session = manager.beginEdit('updateParamAsKeyframesTimelineInline');
+	const session = manager.beginEdit('setVisualModuleNodeParameterSource');
 	return { get active() { return session.active; }, finish: session.finish, cancel: session.cancel,
-		update: edit => { if (edit.kind === 'keyframesTimelineInline') session.update({ ...target, value: edit.value }); } };
+		update: edit => { if (edit.kind === 'keyframesTimelineInline') session.update({ ...target, source: edit.value }); } };
 }
 
 /** 表示範囲の中心・倍率を、保存先ごとに一つのCommandとして更新する。 */
@@ -134,13 +135,13 @@ export function beginPreviewViewportBindingEdit(manager: ProjectContext['stateMa
 	nodeId: string | null, group: TimelineParameterTarget | null, paramPath: ParamPath): PreviewViewportEdit | null {
 	if (scope.kind === 'timelineLayer') {
 		if (group == null) return null;
-		const session = manager.beginEdit('editTimelineLayerParam');
+		const session = manager.beginEdit('replaceTimelineLayerParameterBinding');
 		return { get active() { return session.active; }, finish: session.finish, cancel: session.cancel,
-			update: fields => session.update({ sceneId: scope.sceneId, layerId: scope.layerId, target: group, paramPath, edit: { kind: 'structFields', fields } }) };
+			update: fields => session.update(getTimelineParameterEditBinding(manager.state, { sceneId: scope.sceneId, layerId: scope.layerId, target: group, paramPath, edit: { kind: 'structFields', fields } })) };
 	}
 	if (nodeId == null) return null;
-	const target = { ...scope.target, nodeId, paramPath };
-	const session = manager.beginEdit('updateParamFields');
+	const target = { target: { visualModule: scope.target, nodeId }, parameterPath: paramPath };
+	const session = manager.beginEdit('setVisualModuleNodeParameterFields');
 	return { get active() { return session.active; }, finish: session.finish, cancel: session.cancel,
 		update: fields => session.update({ ...target, fields }) };
 }

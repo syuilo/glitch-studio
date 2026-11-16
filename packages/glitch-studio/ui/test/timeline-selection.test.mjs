@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export * from './src/utility/timeline-selection.ts'; export * from './src/utility/timeline-marquee.ts'; export * from './src/utility/timeline-snapping.ts'; export * from './src/utility/timeline-ticks.ts'; export * from './src/utility/timeline-keyframe-stretch.ts'; export * from './src/utility/timeline-zoom.ts'; export { ProjectContext } from './src/Project.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
+		contents: "export * from './src/utility/timeline-selection.ts'; export * from './src/utility/timeline-marquee.ts'; export * from './src/utility/timeline-snapping.ts'; export * from './src/utility/timeline-ticks.ts'; export * from './src/utility/timeline-keyframe-stretch.ts'; export * from './src/utility/timeline-zoom.ts'; export { prepareTimelineClipMove } from './src/utility/timeline-clip-move.ts'; export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts'; export { ProjectContext } from './src/Project.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -28,7 +28,7 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, ProjectContext, listenPointerDrag } = module.exports;
 const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosition, getTimelineLocalTicks, getTimelineClipTicks, formatTimelineTimecode } = module.exports;
-const { createKeyframeStretch, stretchKeyframeX, zoomTimelineX } = module.exports;
+const { createKeyframeStretch, stretchKeyframeX, zoomTimelineX, prepareTimelineClipMove, getTimelineParameterEditBinding } = module.exports;
 
 const { measureTimelineLayerSelection, collectTimelineMarqueeCandidates, timelineLaneKey, mergeTimelineRangeSelection } = module.exports;
 const { selectTimelineLayer } = module.exports;
@@ -535,7 +535,7 @@ test('stretches selected lanes together in one undoable command', () => {
 	const lane = before[1].compositingParamValues.opacity.keyframesTimeline.keyframes;
 	const stretch = createKeyframeStretch(lane, dragged.keyframeId, positions);
 	for (const delta of [350, 700, 1000]) manager.commit('moveTimelineKeyframes', {
-		sceneId: 'scene', positions: positions.map(point => ({ ...point, x: stretchKeyframeX(point.x, stretch, delta) })),
+		sceneId: 'scene', positions: positions.map(point => ({ ...point, x: Math.round(stretchKeyframeX(point.x, stretch, delta)) })),
 	}, 'stretch');
 	const expected = structuredClone(before);
 	expected[1].compositingParamValues.opacity.keyframesTimeline.keyframes.forEach((point, index) => { point.x = [100, 300, 1500][index]; });
@@ -569,7 +569,7 @@ test('stretches only selected keys across lanes and restores them with one undo'
 	assert.equal(stretch.anchorX, 100);
 	assert.equal(stretch.maxDelta, 500 / 3);
 	for (const delta of [50, 500, 100, 200]) manager.commit('moveTimelineKeyframes', {
-		sceneId: 'scene', positions: positions.map(point => ({ ...point, x: stretchKeyframeX(point.x, stretch, delta) })),
+		sceneId: 'scene', positions: positions.map(point => ({ ...point, x: Math.round(stretchKeyframeX(point.x, stretch, delta)) })),
 	}, 'partial-stretch');
 	const expected = structuredClone(before);
 	expected[1].compositingParamValues.opacity.keyframesTimeline.keyframes[1].x = 367;
@@ -593,7 +593,7 @@ test('undoes and redoes a stretch as one command while preserving other paramete
 		const keyframes = before[0].audioParamValues.volume.keyframesTimeline.keyframes;
 		const stretch = createKeyframeStretch(keyframes, endpoint);
 		for (const delta of [50, 80, 20, 70]) {
-			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: keyframes.map(point => ({ ...key('audio', point.id), x: stretchKeyframeX(point.x, stretch, delta) })) }, 'stretch');
+			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: keyframes.map(point => ({ ...key('audio', point.id), x: Math.round(stretchKeyframeX(point.x, stretch, delta)) })) }, 'stretch');
 		}
 		const expected = structuredClone(before);
 		expected[0].audioParamValues.volume.keyframesTimeline.keyframes = keyframes.map(point => ({ ...point, x: Math.round(stretchKeyframeX(point.x, stretch, 70)) }));
@@ -744,16 +744,19 @@ test('defers ancestor pointer capture until dragging so lane clicks keep their t
 	}
 });
 
-// 【複数レイヤーのクリップを最も近い衝突位置で一括停止する】
-// 一つでも移動不能なら共通差分を制限する。最終位置に空きがあっても隣を飛び越さず、
+// 【範囲外の移動は拒否し、UIで制限した共通差分なら複数クリップを移動できる】
+// Commandが入力を黙って補正せず、UIと共有する範囲内の要求だけを反映する。
 // 最後のクリップを削除した場合もレイヤー設定とキーを復元可能な形で残す。
-test('clamps all selected clips together and retains empty layers with their keys', () => {
+test('rejects invalid clip movement and accepts a bounded move while preserving layer settings', () => {
 	const manager = fixture();
 	const layers = manager.state.timelineScenes.value[0].layers;
 	layers[0].clips.push({ ...layers[0].clips[0], id: 'next', startMs: 1200 });
 	const before = snapshot(manager);
 	const targets = before.map(layer => ({ layerId: layer.id, clipId: 'clip' }));
-	manager.commit('moveTimelineClips', { sceneId: 'scene', clips: targets, deltaMs: 10000 });
+	assert.throws(() => manager.commit('moveTimelineClips', { sceneId: 'scene', clips: targets, deltaMs: 10000 }), /valid range/);
+	assert.deepEqual(snapshot(manager), before);
+	const bounds = prepareTimelineClipMove(manager.state, manager.state.timelineScenes.value[0], targets);
+	manager.commit('moveTimelineClips', { sceneId: 'scene', clips: targets, deltaMs: bounds.maxDelta });
 	assert.deepEqual(layers.map(layer => layer.clips[0].startMs), [200, 1150]);
 	assert.equal(layers[0].clips[1].startMs, 1200);
 	manager.undo();
@@ -774,9 +777,10 @@ test('moves touching clips from drag snapshots with one rounded delta and stable
 	audio.clips.push({ ...audio.clips[0], id: 'next', startMs: 2000, contentOffsetMs: 11.75 });
 	video.clips[0].contentOffsetMs = 50.25;
 	const before = snapshot(manager);
-	const targets = before.flatMap(layer => layer.clips.map(clip => ({ layerId: layer.id, clipId: clip.id, initialStartMs: clip.startMs })));
+	const initialPositions = before.flatMap(layer => layer.clips.map(clip => ({ layerId: layer.id, clipId: clip.id, startMs: clip.startMs })));
 	for (const deltaMs of [0.4, -10.6, -1000.1]) {
-		manager.commit('moveTimelineClips', { sceneId: 'scene', clips: targets, deltaMs }, 'integer-drag');
+		const delta = Math.round(deltaMs);
+		manager.commit('setTimelinePositions', { sceneId: 'scene', clips: initialPositions.map(position => ({ ...position, startMs: position.startMs + delta })), keyframes: [] }, 'integer-drag');
 	}
 	const expected = before.map(layer => ({ ...layer, clips: layer.clips.map(clip => ({ ...clip, startMs: clip.startMs - 1000 })) }));
 	assert.deepEqual(snapshot(manager), expected);
@@ -801,19 +805,24 @@ test('snaps edits to integer milliseconds within fractional bounds', () => {
 	assert.deepEqual(constrainTimelineMove(0, [{ time: 100, minDelta: 0.25, maxDelta: 3.75 }], [], 1), { delta: 1, snappingTime: null });
 });
 
-// 【キーの数値編集も整数msへ丸めて履歴を復元する】
-// ドラッグ以外からコマンドを呼んでも、タイムラインの保存値へ小数位置を混入させない。
-test('rounds keyframe command positions and restores them on undo', () => {
+// 【Commandは小数時刻を拒否し、UIが整数msへ揃えた入力をUndo/Redoする】
+// スクリプトの要求を黙って丸めず、数値入力・ドラッグの補正はUI境界で完了させる。
+test('rejects fractional keyframe command positions and restores explicitly rounded UI edits', () => {
 	for (const editBinding of [false, true]) {
 		const manager = fixture();
 		const before = snapshot(manager);
 		if (editBinding) {
 			const value = structuredClone(before[0].audioParamValues.volume);
 			value.keyframesTimeline.keyframes[0].x = 100.6;
-			manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'audio', target: 'audio', paramPath: ['volume'], edit: { kind: 'keyframesTimelineInline', value } });
+			assert.throws(() => manager.commit('replaceTimelineLayerParameterBinding', { sceneId: 'scene', layerId: 'audio', parameterGroup: 'audio', parameterPath: ['volume'], binding: value }), /integer|time/i);
+			assert.deepEqual(snapshot(manager), before);
+			const input = getTimelineParameterEditBinding(manager.state, { sceneId: 'scene', layerId: 'audio', target: 'audio', paramPath: ['volume'], edit: { kind: 'keyframesTimelineInline', value } });
+			manager.commit('replaceTimelineLayerParameterBinding', input);
 			assert.equal(value.keyframesTimeline.keyframes[0].x, 100.6);
 		} else {
-			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: 100.6 }] });
+			assert.throws(() => manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: 100.6 }] }), /Invalid keyframe move/);
+			assert.deepEqual(snapshot(manager), before);
+			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: Math.round(100.6) }] });
 		}
 		assert.equal(layers(manager)[0].audioParamValues.volume.keyframesTimeline.keyframes[0].x, 101);
 		manager.undo();

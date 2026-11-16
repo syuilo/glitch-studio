@@ -60,7 +60,7 @@ function closeDialog() { modal.value?.close(); }
 
 function apply() {
 	if (error.value != null || scene.value == null) return;
-	stateManager.commit('changeSceneResolution', { sceneId: props.sceneId, resolution: setting.value });
+	stateManager.commit('setTimelineSceneResolution', { sceneId: props.sceneId, resolution: setting.value });
 	closeDialog();
 }
 </script>

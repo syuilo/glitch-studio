@@ -34,7 +34,7 @@ const result = await build({
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onResolve({ filter: /ui\.ts$/ }, () => ({ path: 'ui', namespace: 'test' }));
-		build.onResolve({ filter: /^@\/utility\/(timeline-clip-media|visual-module-file)\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
+		build.onResolve({ filter: /(?:^|\/)(?:timeline-clip-media|visual-module-file)\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/utility\/timeline-video-hold\.ts$/ }, () => ({ path: 'video-hold', namespace: 'test' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => {
 			if (/GsTimeline(?:\.Inspector(?:\.(?:Clip|Keyframe|Layer))?)?\.vue$|GsPreviewTransform\.vue$/.test(path)) return;
@@ -52,8 +52,8 @@ const result = await build({
 				model: key => ref(key === 'timelineTickMode' ? 'binary' : false) };`,
 			ui: `export const dropUiTest = { dialogs: 0 };
 				export function progress() { dropUiTest.dialogs++; return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
-				export function popupMenu() {} export function popup() {} export function alert() {} export function select() {} export function confirm() {}`,
-			media: 'export async function inspectTimelineClipMedia() { return { durationMs: 5000, audioAvailable: true }; } export async function exportVisualModuleFile() {}',
+				export function popupMenu() {} export function contextMenu() {} export function popup() {} export function alert() {} export function select() {} export function selectAsset() {} export function confirm() {}`,
+			media: 'export async function inspectTimelineClipMedia() { return { durationMs: 5000, audioAvailable: true, audioError: null }; } export const getTimelineClipMedia = inspectTimelineClipMedia; export async function exportVisualModuleFile() {}',
 			'video-hold': `export const videoHoldTest = { calls: [], read: null };
 				export async function readTimelineVideoHoldFrame(blob, sourceTimeMs, reverse) {
 					videoHoldTest.calls.push({ blob, sourceTimeMs, reverse });
@@ -492,13 +492,13 @@ test('edits video total duration independently of the trimmed range in the inspe
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
 	await nextTick();
-	f.control('GsInput', 'clip-total-duration').props['onUpdate:modelValue'](13000);
+	await f.control('GsInput', 'clip-total-duration').props['onUpdate:modelValue'](13000);
 	await nextTick();
 	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [13000, 5000]);
-	f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](3000);
+	await f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](3000);
 	await nextTick();
 	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [13000, 3000]);
-	f.control('GsButton', 'clip-remove-loop').props.onClick();
+	await f.control('GsButton', 'clip-remove-loop').props.onClick();
 	await nextTick();
 	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [3000, null]);
 	f.history.undo();
@@ -520,12 +520,12 @@ test('applies speed and reverse controls and previews collision errors', async t
 	f.control('GsInput', 'clip-speed').props['onUpdate:modelValue'](50);
 	await nextTick();
 	assert.equal(f.control('GsButton', 'clip-apply-speed').props.disabled, false);
-	f.control('GsButton', 'clip-apply-speed').props.onClick();
+	await f.control('GsButton', 'clip-apply-speed').props.onClick();
 	await nextTick();
 	assert.equal(clip.durationMs, 10000);
 	f.control('GsSwitch', 'clip-reverse').props['onUpdate:modelValue'](true);
 	await nextTick();
-	f.control('GsButton', 'clip-apply-speed').props.onClick();
+	await f.control('GsButton', 'clip-apply-speed').props.onClick();
 	await nextTick();
 	assert.equal(clip.playbackRate, -0.5);
 	assert.deepEqual(layer.audioParamValues.volume.keyframesTimeline.keyframes.map(key => key.x), keyTimes);
@@ -671,7 +671,7 @@ test('holds the current source frame and edits hold time and duration in the ins
 	projectSession.previewPlayback.currentTimelineTime.value = 2500;
 	await nextTick();
 	f.control('GsButton', 'clip-hold-frame').props.onClick();
-	await nextTick();
+	await new Promise(resolve => setImmediate(resolve));
 	await nextTick();
 	assert.deepEqual([videoHoldTest.calls[0].sourceTimeMs, videoHoldTest.calls[0].reverse], [1750, true]);
 	assert.equal(clip.sourceTimeMs, 1700);
@@ -681,10 +681,10 @@ test('holds the current source frame and edits hold time and duration in the ins
 	assert.equal(f.control('GsInput', 'clip-speed'), undefined);
 	assert.equal(f.control('GsInput', 'clip-total-duration'), undefined);
 	f.control('GsInput', 'clip-hold-source-time').props['onUpdate:modelValue'](2345);
-	await nextTick();
+	await new Promise(resolve => setImmediate(resolve));
 	await nextTick();
 	assert.equal(clip.sourceTimeMs, 2300);
-	f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](15000);
+	await f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](15000);
 	await nextTick();
 	assert.equal(clip.durationMs, 15000);
 	assert.equal(clip.sourceTimeMs, 2300);
@@ -817,12 +817,12 @@ test('waits for media metadata before trimming and forwards the clip identity', 
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'b', clipId: 'clip' }] };
 	await nextTick();
 	assert.equal(f.control('GsInput', 'clip-duration').props.disabled, true);
-	f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](4000);
+	await f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](4000);
 	assert.equal(f.history.undoStack.value.length, 0);
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
 	await nextTick();
 	assert.equal(f.control('GsInput', 'clip-duration').props.disabled, false);
-	f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](4000);
+	await f.control('GsInput', 'clip-duration').props['onUpdate:modelValue'](4000);
 	assert.equal(f.scene.layers[1].clips[0].durationMs, 4000);
 	assert.equal(f.scene.layers[0].clips[0].durationMs, 5000);
 	f.control('GsButton', 'clip-change-source').props.onClick();
@@ -870,6 +870,32 @@ test('edits layer parameters through commands and identifies the inline Visual M
 	await nextTick();
 	f.control('GsVisualModuleEditor').props.onRequestAddEffectNode();
 	assert.deepEqual(f.events, [['addEffect', layer.id]]);
+});
+
+// 【Inspectorの値入力と加工式設定を別々にUndoできる】
+// UIが全イベントを完全Binding置換へ送ると、同じliteralの変更として加工式まで
+// 自動統合される。実際のSFCから専用Commandへ振り分けられることを確認する。
+test('keeps modifier and reset edits separate from consecutive Inspector value input', async t => {
+	const f = await fixture(t);
+	t.mock.method(performance, 'now', () => 0);
+	const layer = f.scene.layers[1];
+	layer.audioParamValues.volume = { inputSource: 'literal', value: 1 };
+	f.props.selection = { kind: 'layers', ids: [layer.id] };
+	await nextTick();
+	const edit = event => f.control('GsVisualParam', 'layer-volume').props.onEdit({ paramPath: ['volume'], ...event });
+	edit({ kind: 'literal', value: 0.7 });
+	edit({ kind: 'literal', value: 0.5 });
+	assert.equal(f.history.undoStack.value.length, 1);
+	const modifier = { enabled: true, code: 'VALUE * 0.5' };
+	edit({ kind: 'expressionModifier', value: modifier });
+	edit({ kind: 'reset' });
+	assert.equal(f.history.undoStack.value.length, 3);
+	f.history.undo();
+	assert.deepEqual(layer.audioParamValues.volume, { inputSource: 'literal', value: 0.5, expressionModifier: modifier });
+	f.history.undo();
+	assert.deepEqual(layer.audioParamValues.volume, { inputSource: 'literal', value: 0.5 });
+	f.history.undo();
+	assert.deepEqual(layer.audioParamValues.volume, { inputSource: 'literal', value: 1 });
 });
 
 // 【Inspectorの公開アクションを選択レイヤーのCommandへ接続する】
@@ -958,6 +984,8 @@ test('exposes public primary image bindings and routes their edits through histo
 	assert.equal(control().props.paramDef.canNode, true);
 	assert.equal(control().props.imageInputSamplingEnabled === true, false);
 	assert.deepEqual(control().props.imageLayerOptions, [{ value: 'source', label: 'Source' }]);
+	const changes = [];
+	f.history.onChange(notifications => changes.push(notifications[0].changes[0].kind));
 	control().props.onEdit({ kind: 'inputSource', paramPath: ['image'], inputSource: 'anotherLayerOutput' });
 	await nextTick();
 	control().props.onEdit({ kind: 'anotherLayerOutput', paramPath: ['image'], value: { inputSource: 'anotherLayerOutput', layerId: 'source', outputStage: 'rendered' } });
@@ -966,4 +994,5 @@ test('exposes public primary image bindings and routes their edits through histo
 	assert.equal(layer.visualModuleParamValues.image.layerId, null);
 	f.history.undo();
 	assert.equal('image' in layer.visualModuleParamValues, false);
+	assert.deepEqual(changes, ['inputSource', 'connection', 'connection', 'inputSource']);
 });

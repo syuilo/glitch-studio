@@ -53,7 +53,7 @@ const supportedTypes = ['scalar', 'bool', 'string', 'color', 'vector', 'enum', '
 provide(timelineParameterEditorContextKey, { context: computed(() => getTimelineLayerPublicParameterContext(props.scene.layers, props.layer.id)), isPublicParameterValue: true });
 
 function update(definition: TimelineLayerPublicParameterDefinition, changes: PublicParameterDefinitionEdit, mergeKey?: string | null) {
-	stateManager.commit('updateTimelineLayerPublicParameter', {
+	stateManager.commit('replaceTimelineLayerPublicParameterDefinition', {
 		sceneId: props.scene.id,
 		layerId: props.layer.id,
 		definition: { ...definition, ...changes } as TimelineLayerPublicParameterDefinition,
@@ -61,17 +61,16 @@ function update(definition: TimelineLayerPublicParameterDefinition, changes: Pub
 }
 
 function remove(definition: TimelineLayerPublicParameterDefinition) {
-	stateManager.commit('removeTimelineLayerPublicParameter', { sceneId: props.scene.id, layerId: props.layer.id, parameterId: definition.id });
+	stateManager.commit('removeTimelineLayerPublicParameterDefinition', { sceneId: props.scene.id, layerId: props.layer.id, parameterId: definition.id });
 }
 
 function add() {
 	let nameForReference = 'my_param';
 	for (let suffix = 2; props.layer.publicParameterDefs?.some(definition => definition.nameForReference === nameForReference) === true; suffix++) nameForReference = `my_param_${suffix}`;
-	stateManager.commit('updateTimelineLayerPublicParameter', {
+	stateManager.commit('createTimelineLayerPublicParameter', {
 		sceneId: props.scene.id,
 		layerId: props.layer.id,
 		definition: {
-			id: timelineLayerPublicParameterId(genId()),
 			nameForReference,
 			dataType: { kind: 'scalar' },
 			ui: { label: nameForReference, control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },

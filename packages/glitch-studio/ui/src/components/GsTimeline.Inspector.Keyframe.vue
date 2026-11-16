@@ -35,10 +35,14 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { computed, ref, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
+import GsButton from './common/GsButton.vue';
+import GsFolder from './common/GsFolder.vue';
+import GsInput from './common/GsInput.vue';
+import GsSelect from './common/GsSelect.vue';
+import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import type { KeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import type { EasingDirection } from '@gs/shared/easing.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -47,11 +51,8 @@ import type { GsSelectItem } from './common/GsSelect.vue';
 import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
 import { updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { useProjectSession } from '@/project-session.ts';
-import GsButton from './common/GsButton.vue';
-import GsFolder from './common/GsFolder.vue';
-import GsInput from './common/GsInput.vue';
-import GsSelect from './common/GsSelect.vue';
-import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
+import { i18n } from '@/i18n.ts';
+import { commitTimelineParameterEdit } from '@/utility/timeline-parameter-command-actions.ts';
 
 const projectSession = useProjectSession();
 
@@ -100,7 +101,7 @@ function updateKeyframe(keyframeId: string, patch: { x?: number; value?: unknown
 	if (selected == null || selected.selection.target === 'utterance') return;
 	const value = updateInlineKeyframe(selected.binding, selected.def, keyframeId, patch);
 	if (value == null) return;
-	stateManager.commit('editTimelineLayerParam', {
+	commitTimelineParameterEdit(stateManager, {
 		sceneId: props.sceneId,
 		layerId: selected.selection.layerId,
 		target: selected.selection.target,

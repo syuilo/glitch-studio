@@ -35,6 +35,7 @@ export function useHeaderEditActions(options: {
 			nativeCanDelete.value = writableTextInput.value && (target?.textContent?.length ?? 0) > 0;
 		}
 	}
+
 	watch(() => options.isActive?.value, active => {
 		if (active !== false) return;
 		focusedElement.value = null;

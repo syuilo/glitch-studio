@@ -153,7 +153,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	pendingDraftPreviewRevision.value = null;
 	draft.value = pendingGeometry;
 	let initial: PreviewGeometry | null = null;
-	let session: ReturnType<typeof stateManager.beginEdit<'editTimelineLayerTransform'>> | null = null;
+	let session: ReturnType<typeof stateManager.beginEdit<'setTimelineLayerTransformBindings'>> | null = null;
 	let prepared: TimelineTransformBindings;
 	let initialBindings: TimelineTransformBindings;
 	let latest = {
@@ -214,7 +214,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 		initial = deepClone(renderedGeometry.value);
 		initialBindings = Object.fromEntries(keys.map(key => [key, deepClone(layer.compositingParamValues[key])]));
 		prepared = prepareTimelineTransformBindings(layer.compositingParamValues, keys, time);
-		session = stateManager.beginEdit('editTimelineLayerTransform');
+		session = stateManager.beginEdit('setTimelineLayerTransformBindings');
 		previousAngle = angleAt(start[0], start[1]);
 		if (handle === 'rotate') {
 			const angle = angleAt(latest.x, latest.y);
@@ -295,7 +295,7 @@ function resetScale() {
 		? Math.round(previewPlayback.currentTimelineTime.value) : previewPlayback.currentTimelineTime.value;
 	previewPlayback.seekTimeline(time);
 	const prepared = prepareTimelineTransformBindings(layer.compositingParamValues, ['scale'], time);
-	stateManager.commit('editTimelineLayerTransform', { ...current, bindings: updateTimelineTransformBindings(prepared, { ...initial.transform, scale: [1, 1] }, time) });
+	stateManager.commit('setTimelineLayerTransformBindings', { ...current, bindings: updateTimelineTransformBindings(prepared, { ...initial.transform, scale: [1, 1] }, time) });
 }
 
 onBeforeUnmount(() => {

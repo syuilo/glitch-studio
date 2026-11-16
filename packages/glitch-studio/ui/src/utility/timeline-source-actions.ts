@@ -3,19 +3,8 @@ import { createTimelineClipTiming, getTimelineClipInsertionDuration } from '@gs/
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { canReferenceScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
-import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { genId } from '@gs/shared/utility/id.ts';
-import { createContainerTimelineLayer } from './container-timeline-layer.ts';
-import { createTransformTimelineLayer } from './transform-timeline-layer.ts';
-import { createEffectTimelineLayer } from './effect-timeline-layer.ts';
-import { createShapeTimelineLayer } from './shape-timeline-layer.ts';
-import { createCameraTimelineLayer } from './camera-timeline-layer.ts';
-import { createVoicevoxTimelineLayer } from './voicevox-timeline-layer.ts';
-import { createTextTimelineLayer } from './text-timeline-layer.ts';
-import { createInlineVisualModuleLayer } from './inline-visual-module-layer.ts';
-import { createTimelineAssetLayer } from './timeline-asset-layer.ts';
+import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import type { TimelineLayerRecipe } from '../commands/timeline-creation.ts';
 import type { Ref } from 'vue';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
@@ -29,7 +18,7 @@ import type { Asset } from '@gs/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 
 type TimelineSourceActionsOptions = {
-	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
+	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit' | 'execute'>;
 	scene: TimelineScene;
 	sceneLayers: Readonly<Ref<TimelineLayer[]>>;
 	currentTime: Readonly<Ref<number>>;
@@ -118,19 +107,17 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		const durationMs = getTimelineClipInsertionDuration(layer.clips, startMs, sourceDurationMs ?? 5000);
 		if (durationMs <= 0) return;
 		const clip = {
-			id: genId(),
 			...(type === 'audio' || type === 'video' ? createTimelineMediaClipTiming(startMs, durationMs) : createTimelineClipTiming(startMs, durationMs)),
 			...(source?.kind === 'scene' ? { sceneId: source.scene.id } : source?.kind === 'asset' ? { assetId: source.asset.id } : {}),
 			...(type === 'video' ? { audioEnabled: source?.kind === 'asset' && !!source.media?.audioAvailable, videoEnabled: true } : {}),
 		};
 		try {
-			stateManager.commit('addTimelineClip', {
+			const created = await stateManager.execute('createTimelineClip', {
 				sceneId: scene.id,
 				layerId: layer.id,
 				clip,
-				sourceDurationMs,
 			});
-			selectClip({ layerId: layer.id, clipId: clip.id });
+			selectClip({ layerId: created.layerId, clipId: created.clipId });
 		} catch (error) { reportError(error); }
 	}
 
@@ -144,14 +131,13 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if (source.kind === 'asset' && 'assetId' in entry.clip && entry.clip.assetId === source.asset.id && !('sourceTimeMs' in entry.clip)) return;
 		if (source.kind === 'scene' && 'sceneId' in entry.clip && entry.clip.sceneId === source.scene.id) return;
 		try {
-			stateManager.commit('changeTimelineClipSource', {
+			await stateManager.execute('setTimelineClipSource', {
 				sceneId: scene.id,
 				...entry.target,
 				...(source.kind === 'scene' ? {
 					referencedSceneId: source.scene.id,
 				} : {
 					assetId: source.asset.id,
-					sourceDurationMs: source.media?.durationMs,
 					audioEnabled: !!source.media?.audioAvailable && (!('audioEnabled' in entry.clip) || entry.clip.audioEnabled === true),
 				}),
 			});
@@ -171,91 +157,50 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		return { [layer.id]: Object.fromEntries(durations) };
 	}
 
-	function initialCompositingParameters() {
-		return deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, def.defaultValue]))) as import('@gs/subsystems_timeline_shared/types.ts').TimelineImageLayer['compositingParamValues'];
-	}
-
 	async function addMediaLayer(layerType: 'image' | 'video' | 'audio' | 'scene') {
 		const source = await chooseClipSource(layerType);
-		if (!source || !isActive()) return;
-		const sourceDurationMs = source.kind === 'asset' ? source.media?.durationMs : null;
-		if (source.kind === 'asset') {
-			try {
-				const layer = createTimelineAssetLayer(source.asset, time.value, source.media ?? null);
-				if (layer == null) return;
-				const clip = layer.clips[0];
-				stateManager.commit('addTimelineLayer', {
-					sceneId: scene.id,
-					layer,
-					sourceDurationsMs: sourceDurationMs == null ? null : { [layer.id]: { [clip.id]: sourceDurationMs } },
-				});
-				selectClip({ layerId: layer.id, clipId: clip.id });
-			} catch (error) { reportError(error); }
-			return;
-		}
-		const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) };
-		const base = {
-			id: genId(),
-			name: source.scene.name,
-			automationGraphs: [],
-			isDisabled: false,
-			isSolo: false,
-			color: null,
+		if (source == null || !isActive()) return;
+		const startMs = Math.max(0, time.value);
+		const durationMs = source.kind === 'asset' ? source.media?.durationMs ?? 5000 : 5000;
+		const clip = {
+			...(layerType === 'audio' || layerType === 'video' ? createTimelineMediaClipTiming(startMs, durationMs) : createTimelineClipTiming(startMs, durationMs)),
+			...(source.kind === 'asset' ? { assetId: source.asset.id } : { sceneId: source.scene.id }),
+			...(layerType === 'video' ? { audioEnabled: source.kind === 'asset' && source.media?.audioAvailable === true, videoEnabled: true } : {}),
 		};
-		const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
-		const compositingParamValues = initialCompositingParameters();
-		const layer: TimelineLayer = {
-			...base,
-			layerType: 'scene',
-			clips: [{ ...clip, sceneId: source.scene.id }],
-			audioParamValues,
-			compositingParamValues,
-			mask: null,
-			layerMask: null,
-			isIncludedInComposite: true,
-			coordinateSpace: 'screen',
-			forceDisableMotionBlur: false,
-		};
-		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-		selectClip({ layerId: layer.id, clipId: clip.id });
+		try {
+			const created = await stateManager.execute('createTimelineLayer', {
+				sceneId: scene.id,
+				layer: { layerType, name: source.kind === 'asset' ? source.asset.name : source.scene.name },
+				clips: [clip],
+			});
+			const layer = findTimelineLayer(scene.layers, created.layerId);
+			if (layer != null && !isTimelineContainerLayer(layer)) selectClip({ layerId: layer.id, clipId: layer.clips[0].id });
+		} catch (error) { reportError(error); }
+	}
+
+	function addLayer(recipe: TimelineLayerRecipe, withClip = true, seekAfter = false) {
+		const startMs = Math.max(0, time.value);
+		const created = stateManager.commit('createTimelineLayer', {
+			sceneId: scene.id, layer: recipe,
+			clips: withClip ? [createTimelineClipTiming(startMs, 5000)] : [],
+		});
+		const layer = findTimelineLayer(scene.layers, created.layerId);
+		if (layer == null) throw new Error('Created timeline layer not found');
+		selectLayer(layer);
+		if (seekAfter) seek(startMs);
 	}
 
 	async function addReferencedVisualModuleLayer() {
 		const initialLayers = sceneLayers.value;
 		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectVisualModule, items: stateManager.state.visualModules.value.map(visualModule => ({ label: visualModule.name, value: visualModule.id })) });
 		const visualModule = stateManager.state.visualModules.value.find(visualModule => visualModule.id === id);
-		if (canceled || !visualModule || !isActive() || sceneLayers.value !== initialLayers) return;
-		const layer: TimelineLayer = {
-			id: genId(),
-			name: visualModule.name,
-			layerType: 'visualModule',
-			transformTarget: 'image',
-			mask: null,
-			layerMask: null,
-			isIncludedInComposite: true,
-			coordinateSpace: 'screen',
-			forceDisableMotionBlur: false,
-			isDisabled: false,
-			isSolo: false,
-			color: null,
-			visualModuleId: visualModule.id,
-			clips: [{ id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) }],
-			visualModuleParamValues: {},
-			compositingParamValues: initialCompositingParameters(),
-			automationGraphs: [],
-		};
-		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-		selectLayer(layer);
+		if (canceled || visualModule == null || !isActive() || sceneLayers.value !== initialLayers) return;
+		addLayer({ layerType: 'visualModule', visualModuleId: visualModule.id });
 	}
 
 	function showAddEffectLayerMenu() {
-		const startMs = Math.max(0, time.value);
 		pickEffect(definition => {
-			if (!isActive()) return;
-			const layer = createEffectTimelineLayer(definition, startMs);
-			stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-			selectLayer(layer);
-			seek(layer.clips[0].startMs);
+			if (isActive()) addLayer({ layerType: 'effect', effectId: definition.id }, true, true);
 		});
 	}
 
@@ -267,12 +212,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		}, {
 			text: i18n.ts.Text,
 			icon: 'ti ti-typography',
-			action: () => {
-				const layer = createTextTimelineLayer(Math.max(0, time.value));
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-				selectLayer(layer);
-				seek(layer.clips[0].startMs);
-			},
+			action: () => addLayer({ layerType: 'text' }, true, true),
 		}, {
 			type: 'parent',
 			text: i18n.ts.Shape,
@@ -280,12 +220,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			children: (Object.keys(shapeDefinitions) as ShapeType[]).map(type => ({
 				text: shapeDefinitions[type].label,
 				icon: type === 'ellipse' ? 'ti ti-circle' : 'ti ti-rectangle',
-				action: () => {
-					const layer = createShapeTimelineLayer(type, Math.max(0, time.value));
-					stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-					selectLayer(layer);
-					seek(layer.clips[0].startMs);
-				},
+				action: () => addLayer({ layerType: 'shape', shapeType: type }, true, true),
 			})),
 		}, {
 			text: i18n.ts.Image,
@@ -304,12 +239,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		}, {
 			text: i18n.ts._Timeline.InlineVisualModule,
 			icon: 'ti ti-chart-dots-3',
-			action: () => {
-				const layer = createInlineVisualModuleLayer(Math.max(0, time.value));
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-				selectLayer(layer);
-				seek(layer.clips[0].startMs);
-			},
+			action: () => addLayer({ layerType: 'inlineVisualModule' }, true, true),
 		}, {
 			id: 'referenceVisualModule',
 			text: i18n.ts._Timeline.ReferenceVisualModule,
@@ -323,9 +253,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 					ui.alert({ type: 'error', text: i18n.ts._Timeline.VoicevoxDesktopOnly });
 					return;
 				}
-				const layer = createVoicevoxTimelineLayer(Math.max(0, time.value));
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-				selectLayer(layer);
+				addLayer({ layerType: 'voicevox' });
 			},
 		}, {
 			type: 'divider',
@@ -338,18 +266,14 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			text: i18n.ts.Folder,
 			icon: 'ti ti-folder',
 			action: () => {
-				const layer = createContainerTimelineLayer('folder');
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-				selectLayer(layer);
+				addLayer({ layerType: 'folder' }, false);
 			},
 		}, {
 			id: 'parameterContainer',
 			text: i18n.ts.ParameterContainer,
 			icon: 'ti ti-adjustments-horizontal',
 			action: () => {
-				const layer = createContainerTimelineLayer('parameterContainer');
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-				selectLayer(layer);
+				addLayer({ layerType: 'parameterContainer' }, false);
 			},
 		}, {
 			text: i18n.ts.Group,
@@ -358,21 +282,12 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		}, {
 			text: i18n.ts.Transform,
 			icon: 'ti ti-gizmo',
-			action: () => {
-				const layer = createTransformTimelineLayer();
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-				selectLayer(layer);
-			},
+			action: () => addLayer({ layerType: 'transform' }, false),
 		}, {
 			id: 'camera',
 			text: i18n.ts.Camera,
 			icon: 'ti ti-camera',
-			action: () => {
-				const layer = createCameraTimelineLayer(Math.max(0, time.value));
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-				selectLayer(layer);
-				seek(layer.clips[0].startMs);
-			},
+			action: () => addLayer({ layerType: 'camera' }, true, true),
 		}], ev.currentTarget ?? ev.target);
 	}
 

@@ -1,3 +1,4 @@
+import { nodeParameterTarget, customParameterTarget, nodeTarget, timelineParameterTarget } from './helpers/command-inputs.mjs';
 import { createTestProject } from './helpers/project.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -73,14 +74,14 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 	const customShaderEffect = createProjectCustomShaderEffect([]);
 	customShaderEffect.paramDefs.push({ id: 'amount', nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0.25 } });
 	customShaderEffect.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
-	f.manager.commit('addCustomShaderEffect', { customShaderEffect });
-	f.manager.commit('addEffectNode', { visualModuleId: 'module', id: 'shader', effectId: customShaderEffectReference(customShaderEffect.id) });
+	f.manager.commit('insertCustomShaderEffect', { definition: customShaderEffect });
+	const { nodeId: shaderNodeId } = f.manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: 'module' }, effectId: customShaderEffectReference(customShaderEffect.id) });
 	await f.sync.flush();
 	assert.equal(f.batches.length, 1);
 	assert.deepEqual(f.batches[0].map(change => change.type), ['customShaderEffects']);
 	const visualModule = f.manager.state.visualModules.value[0];
-	visualModule.nodes.find(node => node.id === 'shader').params.amount.value = 0.75;
-	visualModule.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: 'shader', outputPort: 'mask' } });
+	visualModule.nodes.find(node => node.id === shaderNodeId).params.amount.value = 0.75;
+	visualModule.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: shaderNodeId, outputPort: 'mask' } });
 	const layer = createEffectTimelineLayer(getEffectDefinitions(f.manager.state)[customShaderEffectReference(customShaderEffect.id)], 0);
 	layer.effectParamValues.amount = { inputSource: 'literal', value: 0.8 };
 	const inline = createInlineVisualModuleLayer(0);
@@ -89,21 +90,21 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 	const updated = structuredClone(customShaderEffect);
 	updated.paramDefs[1] = { ...updated.paramDefs[1], dataType: { kind: 'vector' }, ui: { label: 'Amount', control: {} }, defaultValue: { inputSource: 'literal', value: [0.1, 0.2] } };
 	updated.outputDefs = updated.outputDefs.filter(output => output.id !== 'mask');
-	f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.6 });
-	f.manager.commit('updateCustomShaderEffect', { customShaderEffect: updated });
+	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.6 } });
+	f.manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['customShaderEffects']);
 	assert.equal(f.batches.at(-1)[0].customShaderEffects[0].paramDefs[1].dataType.kind, 'vector');
 	assert.equal(f.value(), 0.6);
 	for (const current of [f.replica.visualModules[0], f.replica.timelineScenes[0].layers[1].visualModule]) {
-		assert.deepEqual(current.nodes.find(node => node.id === 'shader').params.amount.value, [0.1, 0.2]);
+		assert.deepEqual(current.nodes.find(node => node.id === shaderNodeId).params.amount.value, [0.1, 0.2]);
 		assert.deepEqual(current.nodes.find(node => node.id === 'relay').input, { nodeId: null, outputPort: null });
 	}
 	assert.deepEqual(f.replica.timelineScenes[0].layers[0].effectParamValues.amount.value, [0.1, 0.2]);
 	f.manager.undo();
 	await f.sync.flush();
 	assert.equal(f.batches.at(-1)[0].customShaderEffects[0].paramDefs[1].dataType.kind, 'scalar');
-	assert.equal(f.replica.visualModules[0].nodes.find(node => node.id === 'shader').params.amount.value, 0.75);
+	assert.equal(f.replica.visualModules[0].nodes.find(node => node.id === shaderNodeId).params.amount.value, 0.75);
 	assert.equal(f.replica.timelineScenes[0].layers[0].effectParamValues.amount.value, 0.8);
 	f.manager.redo();
 	await f.sync.flush();
@@ -117,23 +118,23 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 test('synchronizes custom values without hiding structural edits in the same batch', async t => {
 	const f = fixture(t);
 	const definition = { id: 'speed', nameForReference: 'speed', canNode: false, dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 1 } };
-	f.manager.commit('updateVisualModuleCustomParameter', { visualModuleId: 'module', definition });
+	const { parameterId } = f.manager.commit('createVisualModuleCustomParameter', { visualModule: { visualModuleId: 'module' }, definition });
 	await f.sync.flush();
-	f.manager.commit('editVisualModuleCustomParameter', { visualModuleId: 'module', parameterId: 'speed', edit: { kind: 'literal', value: 2 } });
+	f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ visualModuleId: 'module', parameterId }), source: { inputSource: 'literal', value: 2 } });
 	await f.sync.flush();
 	assert.equal(f.batches.at(-1)[0].customParameterValuesOnly, true);
-	assert.equal(f.replica.visualModules[0].customParameterValues.speed.value, 2);
-	f.manager.commit('changeNodeResolution', { ...f.target, resolution: { mode: 'context', scale: 0.5 } });
-	f.manager.commit('editVisualModuleCustomParameter', { visualModuleId: 'module', parameterId: 'speed', edit: { kind: 'literal', value: 3 } });
+	assert.equal(f.replica.visualModules[0].customParameterValues[parameterId].value, 2);
+	f.manager.commit('setVisualModuleNodeResolution', { target: nodeTarget({ ...f.target }), resolution: { mode: 'context', scale: 0.5 } });
+	f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ visualModuleId: 'module', parameterId }), source: { inputSource: 'literal', value: 3 } });
 	await f.sync.flush();
 	assert.ok(f.batches.at(-1).some(change => change.type === 'node' && change.changes.some(edit => edit.type === 'resolution')));
 	assert.equal(f.replica.visualModules[0].nodes[0].resolution.scale, 0.5);
-	f.manager.commit('updateVisualModuleCustomParameter', { visualModuleId: 'module', definition: { ...definition, nameForReference: 'renamed' } });
-	f.manager.commit('editVisualModuleCustomParameter', { visualModuleId: 'module', parameterId: 'speed', edit: { kind: 'literal', value: 4 } });
+	f.manager.commit('replaceVisualModuleCustomParameterDefinition', { target: { visualModule: { visualModuleId: 'module' }, parameterId }, definition: { ...definition, nameForReference: 'renamed' } });
+	f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ visualModuleId: 'module', parameterId }), source: { inputSource: 'literal', value: 4 } });
 	await f.sync.flush();
 	assert.notEqual(f.batches.at(-1)[0].customParameterValuesOnly, true);
 	assert.equal(f.replica.visualModules[0].customParameterDefs[0].nameForReference, 'renamed');
-	f.manager.commit('updateParamAsVisualModuleCustomParameterReference', { ...f.target, value: 'speed' });
+	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'visualModuleCustomParameterValueReference', parameterId } });
 	await f.sync.flush();
 	const decoded = decodeProjectFile(await encodeProjectFile({ assets: [], generatedSpeech: [], automationGraphs: [],
 		visualModules: f.manager.state.visualModules.value, timelineScenes: f.manager.state.timelineScenes.value }));
@@ -151,7 +152,7 @@ test('synchronizes solo toggles and clearing through undo and redo', async t => 
 	f.manager.state.assets.value = [{ id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob([], { type: 'image/png' }) }];
 	const child = createImageLayer('asset', 0);
 	child.isDisabled = true;
-	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: child });
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [child] } });
 	await f.sync.flush();
 	assert.equal(f.replica.timelineScenes[0].layers[0].isSolo, false);
 	f.manager.commit('setTimelineLayerSolo', { sceneId: 'scene', layerId: child.id, isSolo: true });
@@ -184,8 +185,8 @@ test('synchronizes motion blur overrides through undo and redo without mutating 
 	assert.equal(child.forceDisableMotionBlur, false);
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [child], isDisabled: false,
 		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
-	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: child });
-	f.manager.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [child.id], group: { ...group, layers: [] } });
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [child] } });
+	group.id = f.manager.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [child.id], containerType: 'group', name: group.name }).layerId;
 	await f.sync.flush();
 	for (const layerId of [child.id, group.id]) {
 		f.manager.commit('setTimelineLayerMotionBlurDisabled', { sceneId: 'scene', layerId, forceDisableMotionBlur: true });
@@ -214,8 +215,8 @@ test('sends one node regardless of graph size and synchronizes merged edits undo
 	const sizes = [];
 	for (const count of [1, 1000]) {
 		const f = fixture(t, count);
-		f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.25 }, 'drag');
-		f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.75 }, 'drag');
+		f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.25 } }, 'drag');
+		f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.75 } }, 'drag');
 		await f.sync.flush();
 		assert.equal(f.batches.length, 1);
 		assert.equal(f.batches[0].length, 1);
@@ -265,7 +266,8 @@ test('synchronizes visibility for every layer type through undo and redo with sc
 		{ ...createInlineVisualModuleLayer(100), id: base.id },
 		{ ...createEffectTimelineLayer(definition, 100), id: base.id },
 	];
-	f.manager.commit('addScene', { id: 'other', name: 'Other', resolution: { mode: 'project' }, layers: [layers[0]] });
+	const { sceneId: otherSceneId } = f.manager.commit('createTimelineScene', { name: 'Other' });
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: otherSceneId, layers: [layers[0]] } });
 	await f.sync.flush();
 	for (const original of layers) {
 		f.manager.state.timelineScenes.value[0].layers = [structuredClone(original)];
@@ -293,13 +295,13 @@ test('synchronizes visibility for every layer type through undo and redo with sc
 // 削除済みIDへの更新を送ったりしない。Undoでも最終的なグラフを一度で反映する。
 test('coalesces structural changes without replaying obsolete node updates', async t => {
 	const f = fixture(t);
-	f.manager.commit('addArrayParamElement', { ...f.target, paramPath: ['buzzs'] });
-	f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.5 });
+	f.manager.commit('insertVisualModuleNodeParameterArrayElement', { ...nodeParameterTarget({ ...f.target, paramPath: ['buzzs'] }) });
+	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.5 } });
 	await f.sync.flush();
 	assert.deepEqual(f.batches[0][0].changes, [{ type: 'parameter', kind: 'arrayElements' }, { type: 'parameter', kind: 'value' }]);
 	assert.equal(f.replica.visualModules[0].nodes[0].params.buzzs.value.length, 2);
-	f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.9 });
-	f.manager.commit('removeNode', { visualModuleId: 'module', nodeId: 'node-0' });
+	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.9 } });
+	f.manager.commit('removeVisualModuleNode', { target: { visualModule: { visualModuleId: 'module' }, nodeId: 'node-0' } });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['visualModule']);
 	assert.equal(f.replica.visualModules[0].nodes.length, 0);
@@ -315,18 +317,18 @@ test('absorbs child edits into newly added scenes and layers', async t => {
 	const f = fixture(t);
 	const inline = { id: 'inline', name: 'Inline', layerType: 'inlineVisualModule', visualModule: structuredClone(f.replica.visualModules[0]),
 		clips: [], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] };
-	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: inline });
-	f.manager.commit('updateParamAsLiteral', { sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath, value: 0.3 });
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [inline] } });
+	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: 0.3 } });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layer', 'layerOrder']);
 	assert.equal(f.replica.timelineScenes[0].layers[0].visualModule.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.3);
-	f.manager.commit('addScene', { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [] });
-	f.manager.commit('addTimelineLayer', { sceneId: 'child', layer: inline });
+	const { sceneId: childSceneId } = f.manager.commit('createTimelineScene', { name: 'Child' });
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: childSceneId, layers: [inline] } });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['scene']);
 	assert.equal(f.replica.timelineScenes[1].layers.length, 1);
-	f.manager.commit('removeTimelineLayer', { sceneId: 'child', layerId: 'inline' });
-	f.manager.commit('removeScene', { sceneId: 'child' });
+	f.manager.commit('removeTimelineLayers', { sceneId: childSceneId, layerIds: ['inline'] });
+	f.manager.commit('removeTimelineScene', { sceneId: childSceneId });
 	await f.sync.flush();
 	assert.equal(f.replica.timelineScenes.length, 1);
 	assert.deepEqual(f.errors, []);
@@ -341,11 +343,11 @@ const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, 
 test('retains inline edit metadata across reparenting and restores edited deleted groups on undo', async t => {
 	const f = fixture(t);
 	const inline = { ...createInlineVisualModuleLayer(0), id: 'inline', visualModule: structuredClone(f.replica.visualModules[0]) };
-	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: group('group', [inline]) });
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [group('group', [inline])] } });
 	await f.sync.flush();
-	const edit = value => f.manager.commit('updateParamAsLiteral', { sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath, value });
+	const edit = value => f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: value } });
 	edit(0.4);
-	f.manager.commit('moveTimelineLayer', { sceneId: 'scene', layerId: 'inline', parentId: null, beforeId: null });
+	f.manager.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: 'inline', parentId: null, beforeId: null });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layerTree', 'node']);
 	assert.deepEqual(f.batches.at(-1)[1].changes, [{ type: 'parameter', kind: 'value' }]);
@@ -353,7 +355,7 @@ test('retains inline edit metadata across reparenting and restores edited delete
 	f.manager.undo();
 	await f.sync.flush();
 	edit(0.8);
-	f.manager.commit('removeTimelineLayer', { sceneId: 'scene', layerId: 'group' });
+	f.manager.commit('removeTimelineLayers', { sceneId: 'scene', layerIds: ['group'] });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layerTree']);
 	assert.deepEqual(f.replica.timelineScenes[0].layers, []);
@@ -370,10 +372,10 @@ test('sends each layer once without nested snapshots when moving a deep group', 
 	const f = fixture(t);
 	let root = { ...createEffectTimelineLayer(definition, 1000), id: 'effect' };
 	for (let index = 0; index < 8; index++) root = group('group-' + index, [root]);
-	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: root });
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [root] } });
 	await f.sync.flush();
 	const before = structuredClone(f.replica);
-	f.manager.commit('moveTimelineContainer', { sceneId: 'scene', layerId: root.id, deltaMs: 100 });
+	f.manager.commit('moveTimelineContainerInTime', { sceneId: 'scene', layerId: root.id, deltaMs: 100 });
 	await f.sync.flush();
 	const after = structuredClone(f.replica);
 	const assertBatch = () => {
@@ -407,13 +409,13 @@ test('retains layer edit kinds through merged history and simultaneous inline ed
 	const visualModule = structuredClone(f.replica.visualModules[0]);
 	visualModule.paramDefs = [{ id: 'amount', nameForReference: 'amount', dataType: { kind: 'scalar' },
 		ui: { label: 'Amount', control: { controlType: 'number' } }, canNode: false, defaultValue: { inputSource: 'literal', value: 1 } }];
-	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: {
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [{
 		id: 'inline', name: 'Inline', layerType: 'inlineVisualModule', visualModule,
 		clips: [], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [],
-	} });
+	}] } });
 	await f.sync.flush();
 	const target = { sceneId: 'scene', layerId: 'inline', target: 'module', paramPath: ['amount'] };
-	const edit = value => f.manager.commit('editTimelineLayerParam', { ...target, edit: { kind: 'literal', value } }, 'arguments');
+	const edit = value => f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } }, 'arguments');
 	edit(2);
 	edit(3);
 	await f.sync.flush();
@@ -427,10 +429,10 @@ test('retains layer edit kinds through merged history and simultaneous inline ed
 	assert.equal(f.replica.timelineScenes[0].layers[0].visualModuleParamValues.amount.value, 3);
 	assert.deepEqual(f.batches.at(-1)[0].changes, [{ type: 'parameter', target: 'module', kind: 'value' }]);
 
-	f.manager.commit('editTimelineLayerParam', { ...target, edit: { kind: 'reset' } });
+	f.manager.commit('resetTimelineLayerParameter', { ...timelineParameterTarget({ ...target, edit: { kind: 'reset' } }) });
 	edit(4);
-	f.manager.commit('editTimelineLayerParam', { ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'literal', value: 0.5 } });
-	f.manager.commit('updateParamAsLiteral', { sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath, value: 0.75 });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target, target: 'compositing', paramPath: ['opacity'] }), source: { inputSource: 'literal', value: 0.5 } });
+	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: 0.75 } });
 	await f.sync.flush();
 	const batch = f.batches.at(-1);
 	assert.deepEqual(batch.map(change => change.type), ['node', 'layer']);
@@ -453,8 +455,8 @@ test('publishes state changes independently of renderer subscriptions', async t 
 	const f = fixture(t);
 	const notifications = [];
 	const unsubscribe = f.manager.onChange(changes => notifications.push(changes));
-	f.manager.commit('renameScene', { sceneId: 'scene', name: 'Renamed' });
-	f.manager.commit('changeProjectResolution', { width: 320, height: 180 });
+	f.manager.commit('setTimelineSceneName', { sceneId: 'scene', name: 'Renamed' });
+	f.manager.commit('setProjectResolution', { resolution: { width: 320, height: 180 } });
 	f.manager.undo();
 	await f.sync.flush();
 	assert.deepEqual(notifications, [[{ type: 'sceneName', sceneId: 'scene' }], [{ type: 'projectResolution' }], [{ type: 'projectResolution' }]]);
@@ -477,8 +479,8 @@ test('renames registered and inline Visual Modules through history without rende
 	f.manager.state.timelineScenes.value[0].layers.push(inlineLayer);
 	const notifications = [];
 	f.manager.onChange(changes => notifications.push(changes));
-	f.manager.commit('renameVisualModule', { visualModuleId: registeredVisualModule.id, name: 'Renamed Visual Module' });
-	f.manager.commit('renameTimelineLayer', { sceneId: 'scene', layerId: inlineLayer.id, name: 'Renamed Inline Visual Module' });
+	f.manager.commit('setVisualModuleName', { target: { visualModuleId: registeredVisualModule.id }, name: 'Renamed Visual Module' });
+	f.manager.commit('setTimelineLayerName', { sceneId: 'scene', layerId: inlineLayer.id, name: 'Renamed Inline Visual Module' });
 	await f.sync.flush();
 	assert.equal(registeredVisualModule.name, 'Renamed Visual Module');
 	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].name, 'Renamed Inline Visual Module');
@@ -510,7 +512,7 @@ test('reports failed patches without resynchronizing and ignores failures after 
 	const gate = Promise.withResolvers();
 	let updated = 0;
 	const f = fixture(t, 1, { apply: () => gate.promise, onUpdated: () => { updated++; } });
-	f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.5 });
+	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.5 } });
 	const flushed = f.sync.flush();
 	gate.reject(new Error('patch rejected'));
 	await flushed;
@@ -520,7 +522,7 @@ test('reports failed patches without resynchronizing and ignores failures after 
 	assert.equal(updated, 0);
 	const oldGate = Promise.withResolvers();
 	const old = fixture(t, 1, { apply: () => oldGate.promise });
-	old.manager.commit('updateParamAsLiteral', { ...old.target, value: 0.25 });
+	old.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...old.target }), source: { inputSource: 'literal', value: 0.25 } });
 	const oldFlushed = old.sync.flush();
 	old.sync.dispose();
 	oldGate.reject(new Error('old worker'));
@@ -535,13 +537,13 @@ test('synchronizes camera layer edits and undo without replacing other layers', 
 	const f = fixture(t);
 	const camera = createCameraTimelineLayer(0);
 	const image = createInlineVisualModuleLayer(0);
-	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: image });
-	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: camera });
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [image] } });
+	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [camera] } });
 	await f.sync.flush();
 	const originalImage = f.replica.timelineScenes[0].layers.find(layer => layer.id === image.id);
 	const target = { sceneId: 'scene', layerId: camera.id, target: 'camera' };
-	f.manager.commit('editTimelineLayerParam', { ...target, paramPath: ['position'], edit: { kind: 'literal', value: [0.4, 0.2] } });
-	f.manager.commit('editTimelineLayerParam', { ...target, paramPath: ['z'], edit: { kind: 'expression', value: 'TIME + 3' } });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target, paramPath: ['position'] }), source: { inputSource: 'literal', value: [0.4, 0.2] } });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target, paramPath: ['z'] }), source: { inputSource: 'expression', expression: 'TIME + 3' } });
 	await f.sync.flush();
 	const values = () => f.replica.timelineScenes[0].layers.find(layer => layer.id === camera.id).cameraParamValues;
 	assert.equal(f.batches.at(-1).length, 1);
@@ -569,15 +571,16 @@ const graphReference = id => ({ inputSource: 'automationGraphReference', automat
 // 名前変更後のID参照と保存ファイル内の定義が食い違わないことを確認する。
 test('synchronizes and saves shared graphs through editing deletion undo and redo', async t => {
 	const f = fixture(t);
-	const graph = sharedGraph();
+	const input = sharedGraph();
+	const { automationGraphId } = f.manager.commit('createProjectAutomationGraph', { nameForReference: input.nameForReference, data: input });
+	const graph = JSON.parse(JSON.stringify(f.manager.state.automationGraphs.value.find(graph => graph.id === automationGraphId)));
 	const layer = createImageLayer('asset', 0);
 	layer.compositingParamValues.opacity = graphReference(graph.id);
 	f.manager.state.timelineScenes.value[0].layers.push(layer);
-	f.manager.commit('addProjectAutomationGraph', { automationGraph: graph });
 	await f.sync.flush();
 	assert.deepEqual(f.replica.automationGraphs, [graph]);
 	const renamed = { ...graph, nameForReference: 'Renamed', points: graph.points.map(point => ({ ...point, y: 0.25 })) };
-	f.manager.commit('updateProjectAutomationGraph', { automationGraph: renamed });
+	f.manager.commit('replaceProjectAutomationGraph', { automationGraphId: (renamed).id, definition: renamed });
 	await f.sync.flush();
 	assert.deepEqual(f.replica.automationGraphs, [renamed]);
 	const decoded = decodeProjectFile(await encodeProjectFile({ automationGraphs: f.manager.state.automationGraphs.value,
@@ -600,19 +603,21 @@ test('synchronizes and saves shared graphs through editing deletion undo and red
 // GRAPH()の解決を登録順に依存させず、失敗したコマンドで一覧の一部だけが変更されないようにする。
 test('validates shared graph names and duplicates independent curves and identities', t => {
 	const f = fixture(t);
-	const graph = sharedGraph();
-	f.manager.commit('addProjectAutomationGraph', { automationGraph: graph });
+	const input = sharedGraph();
+	const { automationGraphId } = f.manager.commit('createProjectAutomationGraph', { nameForReference: input.nameForReference, data: input });
+	const graph = JSON.parse(JSON.stringify(f.manager.state.automationGraphs.value.find(graph => graph.id === automationGraphId)));
 	for (const invalid of [{ ...graph, id: 'other' }, { ...graph, id: 'empty', nameForReference: '  ' }]) {
-		assert.throws(() => f.manager.commit('addProjectAutomationGraph', { automationGraph: invalid }));
+		assert.throws(() => f.manager.commit('createProjectAutomationGraph', { nameForReference: invalid.nameForReference, data: invalid }));
 	}
-	const copy = createProjectAutomationGraph(f.manager.state.automationGraphs.value, graph);
+	const { automationGraphId: copyId } = f.manager.commit('duplicateProjectAutomationGraph', { automationGraphId: graph.id });
+	const copy = JSON.parse(JSON.stringify(f.manager.state.automationGraphs.value.find(graph => graph.id === copyId)));
 	assert.notEqual(copy.id, graph.id);
 	assert.notEqual(copy.nameForReference, graph.nameForReference);
 	assert.notEqual(copy.points[0].id, graph.points[0].id);
 	copy.points[0].y = 100;
 	assert.equal(graph.points[0].y, 0);
-	f.manager.commit('addProjectAutomationGraph', { automationGraph: copy });
-	assert.throws(() => f.manager.commit('updateProjectAutomationGraph', { automationGraph: { ...copy, nameForReference: graph.nameForReference } }));
+	f.manager.commit('replaceProjectAutomationGraph', { automationGraphId: copy.id, definition: copy });
+	assert.throws(() => f.manager.commit('replaceProjectAutomationGraph', { automationGraphId: ({ ...copy, nameForReference: graph.nameForReference }).id, definition: { ...copy, nameForReference: graph.nameForReference } }));
 	assert.equal(f.manager.state.automationGraphs.value[1].nameForReference, copy.nameForReference);
 });
 

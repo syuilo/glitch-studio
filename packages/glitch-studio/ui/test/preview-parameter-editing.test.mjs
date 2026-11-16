@@ -195,7 +195,7 @@ test('uses timeline layer commands and restores an omitted binding on undo', () 
 test('does not roll back another command when an old drag is cancelled', () => {
 	const f = fixture();
 	const drag = f.begin(); drag.update([0.1, 0.1]);
-	f.manager.commit('updateParamAsLiteral', { ...f.scope.target, nodeId: 'node', paramPath: ['first'], value: [0.4, 0.3] });
+	f.manager.commit('setVisualModuleNodeParameterSource', { target: { visualModule: f.scope.target, nodeId: 'node' }, parameterPath: ['first'], source: { inputSource: 'literal', value: [0.4, 0.3] } });
 	assert.equal(drag.active, false); drag.cancel();
 	assert.deepEqual(f.node.params.first.value, [0.4, 0.3]);
 });
@@ -266,9 +266,10 @@ test('restores unchanged viewport field bindings while retaining stable keys on 
 	f.manager.redo(); assert.equal(f.node.params.view.value.zoom.keyframesTimeline.keyframes[1].id, zoomKeyId);
 });
 
-// 【Timeline上の表示範囲編集でも正規化キーの小数時刻を維持する】
-// 通常のmsキーと同じ丸めをすると、追加した0.5や未変更の回転キーまで0・1へ移動してしまう。
-test('preserves fractional normalized key times during timeline viewport edits', () => {
+// 【Timelineに不正な正規化キーが存在しても、表示範囲の編集失敗で状態を変えない】
+// Timelineのキーは絶対Scene時刻に限る。既存の不正値を暗黙に丸めたり、
+// 一部のフィールドだけ更新してから失敗したりせず、確定前に拒否する。
+test('rejects normalized timeline viewport bindings without changing state or history', () => {
 	const f = fixture();
 	const def = mandelbrot.paramDefs.view;
 	const view = structuredClone(def.defaultValue);
@@ -283,10 +284,11 @@ test('preserves fractional normalized key times during timeline viewport edits',
 	const layer = f.state.timelineScenes.value[0].layers[0];
 	const command = beginPreviewViewportBindingEdit(f.manager, { kind: 'timelineLayer', sceneId: 'scene', layerId: 'layer' }, null, 'effect', ['view']);
 	const drag = preparePreviewViewportDrag(def, view, 500, 1000, command);
-	drag.update({ ...drag.initialValue, center: [-0.6, 0.1], zoom: 2 }); drag.finish();
-	assert.deepEqual(layer.effectParamValues.view.value.center.keyframesTimeline.keyframes.map(point => point.x), [0.25, 0.5]);
-	assert.deepEqual(layer.effectParamValues.view.value.zoom.keyframesTimeline.keyframes.map(point => point.x), [0.25, 0.5]);
-	assert.deepEqual(layer.effectParamValues.view.value.rotation.keyframesTimeline.keyframes.map(point => point.x), [0.25]);
+	const before = structuredClone(view);
+	assert.throws(() => drag.update({ ...drag.initialValue, center: [-0.6, 0.1], zoom: 2 }), /absolute scene time/);
+	drag.cancel();
+	assert.deepEqual(layer.effectParamValues.view, before);
+	assert.equal(f.manager.undoStack.value.length, 0);
 });
 
 // 【回転の省略と、宣言された回転の欠損・駆動入力を区別する】

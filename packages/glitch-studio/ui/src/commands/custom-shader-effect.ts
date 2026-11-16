@@ -1,68 +1,90 @@
 import { isCustomShaderEffectUsed, snapshotCustomShaderEffectUsages, reconcileCustomShaderEffectUsages } from '../utility/custom-shader-effect-usages.ts';
+import { createProjectCustomShaderEffect } from '../utility/custom-shader-effect.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { validateCustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { CommandDef } from '../commands.ts';
+import type { ProjectState } from '../Project.ts';
+import { defineCommand } from './definition.ts';
+import { prepareProjectValueChange } from './prepared-value.ts';
 
-const addCustomShaderEffect = {
-	label: 'Add Custom Shader Effect',
-	changes: (_state, { customShaderEffect }) => [{ type: 'customShaderEffect', customShaderEffectId: customShaderEffect.id }],
-	create: ({ customShaderEffect }) => ({
-		execute(state) {
-			validateCustomShaderEffectDefinition(customShaderEffect);
-			if (state.customShaderEffects.value.some(definition => definition.id === customShaderEffect.id)) throw new Error('Duplicate Custom Shader Effect ID');
-			state.customShaderEffects.value.push(deepClone(customShaderEffect));
-		},
-		undo(state) { state.customShaderEffects.value = state.customShaderEffects.value.filter(definition => definition.id !== customShaderEffect.id); },
-	}),
-} satisfies CommandDef<{ customShaderEffect: ProjectCustomShaderEffect }>;
+function prepareCustomShaderEffectCreation(state: ProjectState, definition: ProjectCustomShaderEffect) {
+	validateCustomShaderEffectDefinition(definition);
+	if (state.customShaderEffects.value.some(candidate => candidate.id === definition.id)) throw new Error('Duplicate Custom Shader Effect ID');
+	const saved = deepClone(definition);
+	return { result: { customShaderEffectId: saved.id }, change: {
+		changes: [{ type: 'customShaderEffect' as const, customShaderEffectId: saved.id }],
+		apply: (current: ProjectState) => { current.customShaderEffects.value.push(deepClone(saved)); },
+		revert: (current: ProjectState) => { current.customShaderEffects.value = current.customShaderEffects.value.filter(candidate => candidate.id !== saved.id); },
+	} };
+}
 
-const updateCustomShaderEffect = {
-	label: 'Apply Custom Shader Effect definition',
-	changes: (_state, { customShaderEffect }) => [{ type: 'customShaderEffect', customShaderEffectId: customShaderEffect.id }],
-	create: ({ customShaderEffect }) => {
-		let before: ProjectCustomShaderEffect;
-		let beforeUsages: ReturnType<typeof snapshotCustomShaderEffectUsages>;
-		return {
-			execute(state) {
-				validateCustomShaderEffectDefinition(customShaderEffect);
-				const index = state.customShaderEffects.value.findIndex(definition => definition.id === customShaderEffect.id);
-				if (index < 0) throw new Error('Custom Shader Effect not found');
-				// コードと入出力を一つの履歴で交換し、Undoで異なる世代の組み合わせを作らない。
-				before = deepClone(state.customShaderEffects.value[index]);
-				beforeUsages = snapshotCustomShaderEffectUsages(state);
-				const usages = reconcileCustomShaderEffectUsages(state, before, customShaderEffect);
-				state.customShaderEffects.value[index] = deepClone(customShaderEffect);
-				if (state.visualModules != null) state.visualModules.value = usages.visualModules;
-				if (state.timelineScenes != null) state.timelineScenes.value = usages.timelineScenes;
-			},
-			undo(state) {
-				const index = state.customShaderEffects.value.findIndex(definition => definition.id === customShaderEffect.id);
-				state.customShaderEffects.value[index] = deepClone(before);
-				if (state.visualModules != null) state.visualModules.value = deepClone(beforeUsages.visualModules);
-				if (state.timelineScenes != null) state.timelineScenes.value = deepClone(beforeUsages.timelineScenes);
-			},
-		};
+const createCustomShaderEffect = defineCommand<{ name?: string }, { customShaderEffectId: string }>({
+	label: 'Create Custom Shader Effect',
+	prepare(state, input) {
+		const definition = createProjectCustomShaderEffect(state.customShaderEffects.value);
+		if (input.name != null) definition.name = input.name;
+		return prepareCustomShaderEffectCreation(state, definition);
 	},
-} satisfies CommandDef<{ customShaderEffect: ProjectCustomShaderEffect }>;
+});
 
-const removeCustomShaderEffect = {
+const duplicateCustomShaderEffect = defineCommand<{ customShaderEffectId: string; name?: string }, { customShaderEffectId: string }>({
+	label: 'Duplicate Custom Shader Effect',
+	prepare(state, input) {
+		const source = state.customShaderEffects.value.find(candidate => candidate.id === input.customShaderEffectId);
+		if (source == null) throw new Error('Custom Shader Effect not found');
+		const definition = createProjectCustomShaderEffect(state.customShaderEffects.value, source);
+		if (input.name != null) definition.name = input.name;
+		return prepareCustomShaderEffectCreation(state, definition);
+	},
+});
+
+// デコード済み定義の登録専用。通常の作成・複製は呼び出し側でIDを組み立てない。
+const insertCustomShaderEffect = defineCommand<{ definition: ProjectCustomShaderEffect }, { customShaderEffectId: string }>({
+	label: 'Insert Custom Shader Effect',
+	prepare: (state, { definition }) => prepareCustomShaderEffectCreation(state, definition),
+});
+
+const replaceCustomShaderEffectDefinition = defineCommand<{ customShaderEffectId: string; definition: Omit<ProjectCustomShaderEffect, 'id'> }>({
+	label: 'Replace Custom Shader Effect definition',
+	prepare(state, { customShaderEffectId, definition }) {
+		const beforeDefinition = state.customShaderEffects.value.find(candidate => candidate.id === customShaderEffectId);
+		if (beforeDefinition == null) throw new Error('Custom Shader Effect not found');
+		const afterDefinition = { ...definition, id: customShaderEffectId };
+		validateCustomShaderEffectDefinition(afterDefinition);
+		const beforeUsages = snapshotCustomShaderEffectUsages(state);
+		const afterUsages = reconcileCustomShaderEffectUsages(state, beforeDefinition, afterDefinition);
+		// 定義変更が実際に影響した作品だけを履歴に保持する。他の作品をUndoで置換しない。
+		const visualModuleIds = new Set(afterUsages.visualModules.filter((value, index) => !deepEqual(value, beforeUsages.visualModules[index])).map(value => value.id));
+		const sceneIds = new Set(afterUsages.timelineScenes.filter((value, index) => !deepEqual(value, beforeUsages.timelineScenes[index])).map(value => value.id));
+		return prepareProjectValueChange({
+			before: { definition: beforeDefinition, visualModules: beforeUsages.visualModules.filter(value => visualModuleIds.has(value.id)), timelineScenes: beforeUsages.timelineScenes.filter(value => sceneIds.has(value.id)) },
+			after: { definition: afterDefinition, visualModules: afterUsages.visualModules.filter(value => visualModuleIds.has(value.id)), timelineScenes: afterUsages.timelineScenes.filter(value => sceneIds.has(value.id)) },
+			result: undefined, changes: [{ type: 'customShaderEffect', customShaderEffectId }],
+			write(current, next) {
+				current.customShaderEffects.value[current.customShaderEffects.value.findIndex(candidate => candidate.id === customShaderEffectId)] = next.definition;
+				for (const visualModule of next.visualModules) current.visualModules.value[current.visualModules.value.findIndex(candidate => candidate.id === visualModule.id)] = visualModule;
+				for (const scene of next.timelineScenes) current.timelineScenes.value[current.timelineScenes.value.findIndex(candidate => candidate.id === scene.id)] = scene;
+			},
+		});
+	},
+});
+
+const removeCustomShaderEffect = defineCommand<{ customShaderEffectId: string }>({
 	label: 'Remove Custom Shader Effect',
-	changes: (_state, { customShaderEffectId }) => [{ type: 'customShaderEffect', customShaderEffectId }],
-	create: ({ customShaderEffectId }) => {
-		let before: ProjectCustomShaderEffect;
-		let index: number;
-		return {
-			execute(state) {
-				if (isCustomShaderEffectUsed(state, customShaderEffectId)) throw new Error('Custom Shader Effect is in use. Remove its Nodes and Layers first.');
-				index = state.customShaderEffects.value.findIndex(definition => definition.id === customShaderEffectId);
-				if (index < 0) throw new Error('Custom Shader Effect not found');
-				before = deepClone(state.customShaderEffects.value[index]);
-				state.customShaderEffects.value.splice(index, 1);
-			},
-			undo(state) { state.customShaderEffects.value.splice(index, 0, deepClone(before)); },
-		};
+	prepare(state, { customShaderEffectId }) {
+		if (isCustomShaderEffectUsed(state, customShaderEffectId)) throw new Error('Custom Shader Effect is in use. Remove its Nodes and Layers first.');
+		const index = state.customShaderEffects.value.findIndex(candidate => candidate.id === customShaderEffectId);
+		if (index < 0) throw new Error('Custom Shader Effect not found');
+		const saved = deepClone(state.customShaderEffects.value[index]);
+		return { result: undefined, change: { changes: [{ type: 'customShaderEffect', customShaderEffectId }],
+			apply: current => { current.customShaderEffects.value = current.customShaderEffects.value.filter(candidate => candidate.id !== customShaderEffectId); },
+			revert: current => { current.customShaderEffects.value.splice(index, 0, deepClone(saved)); },
+		} };
 	},
-} satisfies CommandDef<{ customShaderEffectId: string }>;
+});
 
-export const CUSTOM_SHADER_EFFECT_COMMAND_DEFS = { addCustomShaderEffect, updateCustomShaderEffect, removeCustomShaderEffect };
+export const CUSTOM_SHADER_EFFECT_COMMAND_DEFS = {
+	createCustomShaderEffect, duplicateCustomShaderEffect, insertCustomShaderEffect,
+	replaceCustomShaderEffectDefinition, removeCustomShaderEffect,
+};
