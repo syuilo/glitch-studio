@@ -370,6 +370,10 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		return this.callAndWaitReturn('setHighResolutionImageAnalysis', [enabled, deepClone(settings)]);
 	}
 
+	public capturePreview(maximumSize: number) {
+		return this.callAndWaitReturn('capturePreview', [maximumSize]);
+	}
+
 	public async setImageAnalysisDisplay(settings: PreviewImageAnalysisDisplaySettings, refresh: boolean): Promise<void> {
 		if (!this.isReady.value) return;
 		await this.callAndWaitReturn('setImageAnalysisDisplay', [deepClone(settings), refresh]);

@@ -6,6 +6,14 @@ declare const __ELECTRON__: boolean;
 
 interface Window {
 	desktop?: {
+		getMcpServerState(): Promise<import('@gs/glitch-studio_shared/mcp.ts').McpServerState>;
+		setMcpServerSettings(settings: import('@gs/glitch-studio_shared/mcp.ts').McpServerSettings): Promise<import('@gs/glitch-studio_shared/mcp.ts').McpServerState>;
+		regenerateMcpServerToken(): Promise<import('@gs/glitch-studio_shared/mcp.ts').McpServerState>;
+		onMcpServerStateChanged(listener: (state: import('@gs/glitch-studio_shared/mcp.ts').McpServerState) => void): () => void;
+		onMcpRequest(listener: (request: import('@gs/glitch-studio_shared/mcp.ts').McpEditorRequest) => void): () => void;
+		onMcpCancel(listener: (requestId: string) => void): () => void;
+		respondMcpRequest(response: import('@gs/glitch-studio_shared/mcp.ts').McpEditorResponse): Promise<void>;
+		updateMcpProjectSessions(sessions: import('@gs/glitch-studio_shared/mcp.ts').McpProjectSessionSummary[]): Promise<void>;
 		buildPortableVisualModule(requestId: string, requirements: import('@gs/glitch-studio_embed/runtime-requirements.ts').PortableVisualModuleRuntimeRequirements): Promise<import('@gs/glitch-studio_embed/export.ts').PortableVisualModuleRuntime>;
 		cancelPortableVisualModule(requestId: string): Promise<void>;
 		onProjectCloseRequested(listener: (requestId: number) => void): () => void;

@@ -54,7 +54,9 @@ Tablerのアイコンフォントは、開発時にはパッケージの通常�
 
 `PROJECT_SCRIPT_QUERY_DEFINITIONS`がQueryの契約と読み取りを一か所で定義する。`project-script-api-reference.ts`は公開Commandの契約漏れを型で検出し、公開APIだけの検索・説明取得を提供する。AiScriptでは`Script:search(text)`と`Script:describe("Command:createVisualModule")`から同じ資料を読める。MCPサーバーの通信処理はこの層に含めない。
 
-API・参照形式・実行例・制限は[スクリプティング](../../../docs/scripting.md)を参照。
+Electron版では`mcp/editor-connection.ts`が開いている編集セッションの一覧をmainへ通知し、指定セッションでのAiScript実行・API資料の取得・プレビュー画像の取得を受け付ける。`ProjectScriptingController.runExternal()`はScriptingパネルと実行中状態を共有し、本文・出力は変更しない。`mcp/capture-preview.ts`は保留中のプロジェクト変更を描画側へ同期し、選択中のプレビューの新しいフレームをPNGとして受け取る。設定画面と`desktop-mcp-settings.ts`はmainの状態を購読し、トークン再発行とクライアント設定のコピーを提供する。
+
+API・参照形式・実行例・制限は[スクリプティング](../../../docs/scripting.md)、MCPの接続・公開ツールは[MCPサーバー](../../../docs/mcp.md)を参照。
 
 ## 数値入力の式による確定
 

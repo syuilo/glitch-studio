@@ -417,7 +417,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			this.gpuDevice.queue.submit([encoder.finish()]);
 			return;
 		}
-		this.canvasRenderer.renderToCanvas(texture, encoder);
+		this.canvasRenderer.renderToCanvas(texture, encoder, this.activePreviewFrame?.time ?? null, this.previewFrameSequence);
 		this.submitPreviewOutput(encoder);
 
 		const capture = this.activePreviewFrame;
@@ -737,7 +737,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (cached != null) {
 					if (preview != null) Object.assign(preview, cached.metadata.get(preview.request.layerId) ?? {});
 					const encoder = this.gpuDevice.createCommandEncoder();
-					this.canvasRenderer.renderToCanvas(cached.texture, encoder);
+					this.canvasRenderer.renderToCanvas(cached.texture, encoder, time, sequence);
 					this.submitPreviewOutput(encoder);
 				} else {
 					await this.renderFrame(time, false, this.staticOptions.timelineFps, timeDelta);
@@ -1282,6 +1282,12 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	public setHighResolutionImageAnalysis(enabled: boolean, settings: PreviewImageAnalysisSettings) {
 		return this.canvasRenderer.setHighResolutionImageAnalysis(enabled, settings);
+	}
+
+	public capturePreview(maximumSize: number, time: number) {
+		const captured = this.canvasRenderer.captureNextPreviewFrame(maximumSize, this.previewFrameSequence);
+		void this.renderTimelineAt(time).catch(() => this.canvasRenderer.clear());
+		return captured;
 	}
 
 	public async setImageAnalysisDisplay(settings: PreviewImageAnalysisDisplaySettings, refresh: boolean) {

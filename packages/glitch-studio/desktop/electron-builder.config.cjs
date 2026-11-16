@@ -8,6 +8,9 @@ const projectFileAssociation = { ext: 'gsproj', name: 'GlitchStudio.Project', de
 const applicationFiles = [
 	'main.mjs',
 	'editor-windows.mjs',
+	'mcp-http-server.mjs',
+	'mcp-editor-bridge.mjs',
+	'mcp-server-controller.mjs',
 	'startup-splash.mjs',
 	'resources/startup-splash.png',
 	'voicevox.mjs',

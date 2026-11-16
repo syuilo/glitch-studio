@@ -30,7 +30,10 @@ import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 
 const finalRenderShader = [colorSpaceShaderCode, oklabShaderCode, previewGamutCompressionShaderCode, previewImageAdjustmentShaderCode, canvasOutputShaderCode, finalRenderShaderCode].join('\n');
 
+export type PreviewImageCapture = { blob: Blob; width: number; height: number; time: number | null };
+
 export class CanvasRenderer {
+	private pendingPreviewCapture: { maximumSize: number; afterSequence: number; resolve: (image: PreviewImageCapture | null) => void; timer: ReturnType<typeof setTimeout> } | null = null;
 	private gpuContext: PreviewCanvasContext;
 	private readonly cpuCanvasContexts: CpuPreviewCanvasContext[];
 	private readonly cpuFrameQueue: CpuPreviewFrameQueue | null;
@@ -210,11 +213,76 @@ export class CanvasRenderer {
 		passEncoder.end();
 	}
 
-	public renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
+	public renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder, time: number | null = null, sequence = 0) {
 		if (this.previewActive && this.previewBackground === 'checker') this.captureBackgroundImage(tex, commandEncoder);
 		this.renderFinalImage(tex, commandEncoder);
 		this.imageAnalysis?.renderLive(tex, commandEncoder, this.imageAnalysisSettings);
 		this.backgroundScheduler.notifyFrameRendered();
+		this.captureRequestedPreview(tex, commandEncoder, time, sequence);
+	}
+
+	/** 次に完成する作品フレームを取得する。背景だけの再描画や古いCanvasは採用しない。 */
+	public captureNextPreviewFrame(maximumSize: number, afterSequence: number): Promise<PreviewImageCapture | null> {
+		if (!Number.isSafeInteger(maximumSize) || maximumSize < 64 || maximumSize > 2048 || this.pendingPreviewCapture != null) return Promise.resolve(null);
+		return new Promise(resolve => {
+			const timer = setTimeout(() => this.cancelPreviewCapture(), 15_000);
+			this.pendingPreviewCapture = { maximumSize, afterSequence, resolve, timer };
+		});
+	}
+
+	private cancelPreviewCapture() {
+		const request = this.pendingPreviewCapture;
+		if (request == null) return;
+		this.pendingPreviewCapture = null;
+		clearTimeout(request.timer);
+		request.resolve(null);
+	}
+
+	private captureRequestedPreview(source: GPUTexture, encoder: GPUCommandEncoder, time: number | null, sequence: number) {
+		const request = this.pendingPreviewCapture;
+		// タイル描画中の編集は次フレームまで適用を待つ。要求より前から評価している
+		// フレームを除き、編集済みの新しいフレームだけを画像取得へ渡す。
+		if (request == null || sequence <= request.afterSequence) return;
+		this.pendingPreviewCapture = null;
+		clearTimeout(request.timer);
+		// uniform出力の作業テクスチャは1×1でも、表示はProjectの解像度へ広がる。
+		// 作品プレビューの比率・寸法を保つため、元テクスチャではなく表示先を基準にする。
+		const scale = Math.min(1, request.maximumSize / Math.max(this.gpuContext.canvas.width, this.gpuContext.canvas.height));
+		const width = Math.max(1, Math.round(this.gpuContext.canvas.width * scale));
+		const height = Math.max(1, Math.round(this.gpuContext.canvas.height * scale));
+		let output: CanvasRenderer | null = null;
+		let context: GPUCanvasContext | null = null;
+		try {
+			// CPU表示ではWorkerのCanvasに画素がなく、GPU表示ではUIへの提示が遅れる。
+			// 同じ完成テクスチャを専用Canvasへ同一encoderで描き、表示経路に依存しない
+			// PNGを生成する。HDRの作業画像は既存の表示補正を通して8bit sRGBへ変換する。
+			const canvas = new OffscreenCanvas(width, height);
+			context = canvas.getContext('webgpu');
+			if (context == null) throw new Error('Preview capture canvas is unavailable');
+			const canvasOutput = createSrgbCanvasOutputSettings();
+			context.configure({ device: this.gpuDevice, format: canvasOutput.format, colorSpace: 'srgb', alphaMode: 'premultiplied' });
+			output = new CanvasRenderer({ gpuDevice: this.gpuDevice, gpuContext: context, canvasOutput, enableWaveformAndHistogram: false });
+			output.highlightClipping = this.highlightClipping;
+			output.previewWarningImageSource = this.previewWarningImageSource;
+			output.previewGamutWarning = { ...this.previewGamutWarning };
+			output.previewExposure = this.previewExposure;
+			output.previewSrgbProof = this.previewSrgbProof;
+			output.previewGamutCompression = { ...this.previewGamutCompression };
+			output.opaqueOutput = this.opaqueOutput;
+			output.previewBackground = this.previewBackground;
+			output.renderToCanvas(source, encoder);
+			// 呼び出し元がencoderをsubmitするのはこのメソッドから戻った後。
+			// 次のmicrotaskで完了を待ち、後続フレームが元画像を上書きしても専用Canvasを保持する。
+			void Promise.resolve().then(async () => {
+				await this.gpuDevice.queue.onSubmittedWorkDone();
+				const blob = await canvas.convertToBlob({ type: 'image/png' });
+				request.resolve({ blob, width, height, time });
+			}).catch(() => request.resolve(null)).finally(() => { output?.destroy(); context?.unconfigure(); });
+		} catch {
+			output?.destroy();
+			context?.unconfigure();
+			request.resolve(null);
+		}
 	}
 
 	private captureBackgroundImage(tex: GPUTexture, encoder: GPUCommandEncoder) {
@@ -275,6 +343,7 @@ export class CanvasRenderer {
 	}
 
 	public clear() {
+		this.cancelPreviewCapture();
 		this.imageAnalysis?.forgetSource();
 		this.clearBackgroundAnimation();
 		this.cpuFrameQueue?.clear();
@@ -361,11 +430,13 @@ export class CanvasRenderer {
 	}
 
 	public destroy() {
+		this.cancelPreviewCapture();
 		this.highResolutionAnalysisGeneration++;
 		this.imageAnalysis?.dispose();
 		this.clearBackgroundAnimation();
 		this.cpuFrameQueue?.destroy();
 		this.gamutResources.dispose();
+		this.finalRenderUniformBuffer.destroy();
 		for (const context of this.cpuCanvasContexts) context.unconfigure();
 	}
 }
