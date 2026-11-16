@@ -7,11 +7,12 @@ import { duplicateTimelineLayers } from '../utility/timeline-container.ts';
 import { getScene } from '../utility/timeline-scene.ts';
 import { prepareTimelineEdit } from './timeline-preparation.ts';
 import { createTimelineLayerFromRecipe } from './timeline-creation.ts';
+import { definePublicCommand, withCommandContract } from './definition.ts';
+import { TIMELINE_COMMAND_CONTRACTS } from './timeline-command-contracts.ts';
 import * as timeline from './timeline.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { TimelineScene, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import type { ProjectState } from '../Project.ts';
 import type { TimelineClipMediaInfo, TimelineClipSourceDurations } from '../utility/timeline-clip-media.ts';
 import type { CommandDef } from './definition.ts';
@@ -78,22 +79,24 @@ export function createTimelineCommandDefinitions(services: TimelineCommandServic
 			return prepared instanceof Promise ? prepared.then(value => ({ ...value, result })) : { ...prepared, result };
 		},
 	};
-	const createTimelineScene: CommandDef<{ name?: string; resolution?: TimelineSceneResolution }, { sceneId: string }> = {
+	const createTimelineScene = definePublicCommand({
+		...TIMELINE_COMMAND_CONTRACTS.createTimelineScene,
 		label: 'Create timeline scene', prepare: (state, input) => {
 			if (input.name != null && typeof input.name !== 'string') throw new Error('Scene name must be a string');
 			const scene: TimelineScene = { id: genId(), name: input.name ?? 'Scene', resolution: deepClone(input.resolution ?? { mode: 'project' }), layers: [] };
 			validateSceneResolution(scene.resolution);
 			return prepareTimelineEdit(state, { scenes: true }, draft => { draft.timelineScenes.value.push(scene); return { sceneId: scene.id }; }, () => [{ type: 'scene', sceneId: scene.id }]);
 		},
-	};
-	const duplicateTimelineScene: CommandDef<{ sceneId: string; name?: string }, { sceneId: string }> = {
+	});
+	const duplicateTimelineScene = definePublicCommand({
+		...TIMELINE_COMMAND_CONTRACTS.duplicateTimelineScene,
 		label: 'Duplicate timeline scene', prepare: (state, input) => {
 			if (input.name != null && typeof input.name !== 'string') throw new Error('Scene name must be a string');
 			const source = getScene(state, input.sceneId);
 			const scene = { ...deepClone(source), id: genId(), name: input.name ?? source.name, layers: duplicateTimelineLayers(source.layers) };
 			return prepareTimelineEdit(state, { scenes: true }, draft => { draft.timelineScenes.value.push(scene); return { sceneId: scene.id }; }, () => [{ type: 'scene', sceneId: scene.id }]);
 		},
-	};
+	});
 	const duplicateLayers: CommandDef<{ sceneId: string; layerIds: string[] }, TimelineLayerReference[]> = {
 		label: 'Duplicate timeline layers', prepare: (state, input) => {
 			const scene = getScene(state, input.sceneId);
@@ -117,15 +120,19 @@ export function createTimelineCommandDefinitions(services: TimelineCommandServic
 	return {
 		...timeline.TIMELINE_BASIC_COMMAND_DEFS,
 		insertTimelineAssetLayers: timeline.addTimelineAssetLayersCommandDef,
-		createTimelineLayer, createTimelineClip, createTimelineScene, duplicateTimelineScene, insertTimelineLayer,
-		duplicateTimelineLayers: duplicateLayers, wrapTimelineLayers: wrapLayers,
-		trimTimelineClip: mediaCommand(timeline.trimTimelineClipCommandDef),
-		replaceTimelineClipTiming: mediaCommand(timeline.replaceTimelineClipTimingPreparation),
-		resizeTimelineMediaClipLoop: mediaCommand(timeline.resizeTimelineMediaClipLoopCommandDef),
-		setTimelineMediaClipPlaybackRate: mediaCommand(timeline.setTimelineMediaClipPlaybackRateCommandDef),
-		setTimelineClipSource: mediaCommand(timeline.setTimelineClipSourceCommandDef),
-		holdTimelineVideoClipFrame: mediaCommand(timeline.holdTimelineVideoClipFrameCommandDef),
-		insertTimelineClips: {
+		createTimelineLayer: withCommandContract(createTimelineLayer, TIMELINE_COMMAND_CONTRACTS.createTimelineLayer),
+		createTimelineClip: withCommandContract(createTimelineClip, TIMELINE_COMMAND_CONTRACTS.createTimelineClip),
+		createTimelineScene, duplicateTimelineScene,
+		insertTimelineLayer: withCommandContract(insertTimelineLayer, TIMELINE_COMMAND_CONTRACTS.insertTimelineLayer),
+		duplicateTimelineLayers: withCommandContract(duplicateLayers, TIMELINE_COMMAND_CONTRACTS.duplicateTimelineLayers),
+		wrapTimelineLayers: withCommandContract(wrapLayers, TIMELINE_COMMAND_CONTRACTS.wrapTimelineLayers),
+		trimTimelineClip: withCommandContract(mediaCommand(timeline.trimTimelineClipCommandDef), TIMELINE_COMMAND_CONTRACTS.trimTimelineClip),
+		replaceTimelineClipTiming: withCommandContract(mediaCommand(timeline.replaceTimelineClipTimingPreparation), TIMELINE_COMMAND_CONTRACTS.replaceTimelineClipTiming),
+		resizeTimelineMediaClipLoop: withCommandContract(mediaCommand(timeline.resizeTimelineMediaClipLoopCommandDef), TIMELINE_COMMAND_CONTRACTS.resizeTimelineMediaClipLoop),
+		setTimelineMediaClipPlaybackRate: withCommandContract(mediaCommand(timeline.setTimelineMediaClipPlaybackRateCommandDef), TIMELINE_COMMAND_CONTRACTS.setTimelineMediaClipPlaybackRate),
+		setTimelineClipSource: withCommandContract(mediaCommand(timeline.setTimelineClipSourceCommandDef), TIMELINE_COMMAND_CONTRACTS.setTimelineClipSource),
+		holdTimelineVideoClipFrame: withCommandContract(mediaCommand(timeline.holdTimelineVideoClipFrameCommandDef), TIMELINE_COMMAND_CONTRACTS.holdTimelineVideoClipFrame),
+		insertTimelineClips: withCommandContract({
 			label: 'Insert timeline clips', prepare: (state: ProjectState, input: Omit<Parameters<typeof timeline.insertTimelineClipsCommandDef.prepare>[1], keyof SourceMetadata>) => {
 				const targets = input.clips.flatMap(entry => {
 					const layer = timeline.getTimelineClipLayer(state, input.sceneId, entry.layerId);
@@ -133,6 +140,6 @@ export function createTimelineCommandDefinitions(services: TimelineCommandServic
 				});
 				return prepareWithMedia(timeline.insertTimelineClipsCommandDef, state, input, targets);
 			},
-		},
+		}, TIMELINE_COMMAND_CONTRACTS.insertTimelineClips),
 	};
 }

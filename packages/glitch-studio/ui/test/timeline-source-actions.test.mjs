@@ -12,6 +12,8 @@ const bundled = await build({
 		export { createTimelineSourceActions } from './src/utility/timeline-source-actions.ts';
 		export { createTimelineSelectionEditActions } from './src/utility/timeline-selection-edit-actions.ts';
 		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+		export { createTimelineContainerLayer } from '@gs/subsystems_timeline_shared/container-layer.ts';
+		export { createTimelineLayerFromRecipe } from './src/commands/timeline-creation.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { createTimelineCommandDefinitions } from './src/commands/timeline-api.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
@@ -28,7 +30,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { createTimelineSourceActions, createTimelineSelectionEditActions, flattenTimelineLayers, COMMAND_DEFS, createTimelineCommandDefinitions, UndoRedo } = module.exports;
+const { createTimelineSourceActions, createTimelineSelectionEditActions, createTimelineContainerLayer, createTimelineLayerFromRecipe, flattenTimelineLayers, COMMAND_DEFS, createTimelineCommandDefinitions, UndoRedo } = module.exports;
 
 function deferred() {
 	let resolve;
@@ -37,7 +39,7 @@ function deferred() {
 }
 
 function mediaLayer(layerType = 'audio', id = 'layer') {
-	return { id, name: id, layerType, isDisabled: false, automationGraphs: [], clips: [], audioParamValues: {}, compositingParamValues: {} };
+	return { ...createTimelineLayerFromRecipe({}, { layerType }), id, name: id };
 }
 
 function fixture(t, layers = [mediaLayer()]) {
@@ -324,7 +326,7 @@ test('loads grouped media durations by layer and pastes the group through clipbo
 	const long = mediaLayer('audio', 'long');
 	short.clips = [{ id: 'clip', assetId: 'short-asset', startMs: 0, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false }];
 	long.clips = [{ id: 'clip', assetId: 'long-asset', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false }];
-	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [short, long], isDisabled: false, automationGraphs: [], audioParamValues: {}, compositingParamValues: {} };
+	const group = { ...createTimelineContainerLayer('group', 'group', 'Group'), layers: [short, long] };
 	const f = fixture(t, [group]);
 	f.state.assets.value = [short, long].map(layer => ({ ...f.asset, id: layer.clips[0].assetId, fileData: new Blob() }));
 	f.options.inspectMedia = async asset => ({ durationMs: asset.id === 'short-asset' ? 100 : 1000 });

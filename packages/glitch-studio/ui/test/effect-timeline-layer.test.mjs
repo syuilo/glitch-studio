@@ -119,7 +119,7 @@ test('validates player audio selections at the application command boundary', ()
 	edit.execute(state);
 	assert.deepEqual(node.params.audio, literal(selection));
 	for (const invalid of [undefined, { type: 'player', playerId: '' }, { type: 'layer', layerId: 'audio' }, 'player']) {
-		assert.throws(() => command(invalid).execute(state), /Invalid player audio source/);
+		assert.throws(() => command(invalid).execute(state), invalid === undefined ? /parameter source input:/ : /Invalid player audio source/);
 		assert.deepEqual(node.params.audio, literal(selection));
 	}
 	edit.undo(state);
@@ -182,7 +182,7 @@ test('validates and edits nested audio bindings using stable parameter paths', t
 // 音声型からの変更・削除で参照を解除し、Undoでは元のIDと設定を復元する。
 test('edits primary audio parameters and timeline arguments with independent undo history', () => {
 	const f = fixture('audioWaveform');
-	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound' };
+	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound', canNode: false };
 	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', nodes: [], outputDefs: [], primaryOutputId: null, primaryInputId: null, primaryAudioInputId: null,
 		paramDefs: [audio], automationGraphs: [] };
 	f.state.visualModules.value.push(visualModule);
@@ -357,7 +357,7 @@ test('changes the effect transform target without rewriting inputs or compositin
 	assert.equal(f.layer.transformTarget, 'image');
 	assert.deepEqual(f.layer.effectParamValues, inputs);
 	assert.deepEqual(f.layer.compositingParamValues, bindings);
-	assert.throws(() => prepareTestCommand(COMMAND_DEFS.setTimelineLayerTransformTarget, { sceneId: 'scene', layerId: f.layer.id, transformTarget: 'invalid' }).execute(f.state), /Invalid timeline layer transform target/);
+	assert.throws(() => prepareTestCommand(COMMAND_DEFS.setTimelineLayerTransformTarget, { sceneId: 'scene', layerId: f.layer.id, transformTarget: 'invalid' }).execute(f.state), /input: transformTarget:/);
 });
 
 // 【要素の並べ替え・削除・Undo/Redo後もIDパスでキーを扱う】

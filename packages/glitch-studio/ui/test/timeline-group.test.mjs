@@ -12,6 +12,7 @@ const bundled = await build({
 	stdin: { resolveDir: uiDirectory, loader: 'ts', contents: `
 		export { createTimelineDragActions } from './src/utility/timeline-drag-actions.ts';
 		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+		export { createTimelineContainerLayer } from '@gs/subsystems_timeline_shared/container-layer.ts';
 		export * from './src/utility/timeline-clip-move.ts';
 		export * from './src/utility/timeline-container.ts';
 		export { createTimelineLayerActions } from './src/utility/timeline-layer-actions.ts';
@@ -45,15 +46,15 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, createTimelineCommandDefinitions, getTimelineParameterEditBinding, UndoRedo, ProjectRenderValidation, prepareTimelineContainerMove, duplicateTimelineLayers, findTimelineLayer,
+const { COMMAND_DEFS, createTimelineCommandDefinitions, createTimelineContainerLayer, getTimelineParameterEditBinding, UndoRedo, ProjectRenderValidation, prepareTimelineContainerMove, duplicateTimelineLayers, findTimelineLayer,
 	createVoicevoxTimelineLayer, applyRendererProjectChanges, findRendererVisualModule, createTimelineLayerActions } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 	keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false,
 		keyframes: times.map(x => ({ id: String(x), x, value: 1, interpolation: { type: 'linear' } })) } });
-const sound = (id, start = 1000) => ({ id, name: id, layerType: 'audio', isDisabled: false, automationGraphs: [],
+const sound = (id, start = 1000) => ({ id, name: id, layerType: 'audio', color: null, isDisabled: false, isSolo: false, automationGraphs: [],
 	clips: [{ id: 'clip', startMs: start, durationMs: 500, sourceInMs: 12.25, sourceOutMs: 512.25, playbackRate: 1, loop: false, assetId: 'asset' }], audioParamValues: { volume: keys([100, 2000]) } });
-const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, coordinateSpace: 'screen', automationGraphs: [],
+const group = (id, layers = []) => ({ ...createTimelineContainerLayer('group', id, id), layers,
 	compositingParamValues: { opacity: keys([200, 3000]) }, audioParamValues: { volume: literal(0.5) } });
 function fixture(t, layers, inspectMedia = () => ({ durationMs: 5000, hasAudio: true, hasVideo: false })) {
 	t.mock.method(console, 'log', () => {});
@@ -630,7 +631,9 @@ test('scopes media durations by layer when clip IDs repeat inside groups', t => 
 // 深度モードの切り替えは子のZや合成設定を書き換えない。解除・再選択したときも、
 // 元の値を再利用でき、Redoで同じ階層を保持できることを確認する。
 test('changes group depth mode without rewriting descendants', t => {
-	const f = fixture(t, [group('group', [sound('audio')])]);
+	const root = group('group', [sound('audio')]);
+	delete root.compositingMode;
+	const f = fixture(t, [root]);
 	const descendants = structuredClone(f.scene.layers[0].layers);
 	f.history.commit('setTimelineGroupCompositingMode', { sceneId: 'scene', layerId: 'group', mode: 'preserveDepth' });
 	assert.equal(f.scene.layers[0].compositingMode, 'preserveDepth');

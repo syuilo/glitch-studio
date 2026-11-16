@@ -11,6 +11,8 @@ import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParam
 import { getScene, getLayerParameterDefinitions, resolveLayerParameter } from '../utility/timeline-scene.ts';
 import { createResetParameterBinding } from '../utility/parameter-default.ts';
 import { prepareTimelineEdit } from './timeline-preparation.ts';
+import { withCommandContract } from './definition.ts';
+import { TIMELINE_COMMAND_CONTRACTS } from './timeline-command-contracts.ts';
 import { getParameterBindingChangeKind } from './parameter-change.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
@@ -169,10 +171,10 @@ export const removeTimelineLayerParameterArrayElementCommandDef: CommandDef<Time
 };
 
 export const TIMELINE_PARAMETER_API = {
-	replaceTimelineLayerParameterBinding: replaceTimelineLayerParameterBindingCommandDef,
-	setTimelineLayerParameterSource: setTimelineLayerParameterSourceCommandDef,
-	setTimelineLayerParameterExpressionModifier: setTimelineLayerParameterExpressionModifierCommandDef,
-	resetTimelineLayerParameter: resetTimelineLayerParameterCommandDef,
-	insertTimelineLayerParameterArrayElement: insertTimelineLayerParameterArrayElementCommandDef,
-	removeTimelineLayerParameterArrayElement: removeTimelineLayerParameterArrayElementCommandDef,
+	replaceTimelineLayerParameterBinding: withCommandContract(replaceTimelineLayerParameterBindingCommandDef, TIMELINE_COMMAND_CONTRACTS.replaceTimelineLayerParameterBinding),
+	setTimelineLayerParameterSource: withCommandContract(setTimelineLayerParameterSourceCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerParameterSource),
+	setTimelineLayerParameterExpressionModifier: withCommandContract(setTimelineLayerParameterExpressionModifierCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerParameterExpressionModifier),
+	resetTimelineLayerParameter: withCommandContract(resetTimelineLayerParameterCommandDef, TIMELINE_COMMAND_CONTRACTS.resetTimelineLayerParameter),
+	insertTimelineLayerParameterArrayElement: withCommandContract(insertTimelineLayerParameterArrayElementCommandDef, TIMELINE_COMMAND_CONTRACTS.insertTimelineLayerParameterArrayElement),
+	removeTimelineLayerParameterArrayElement: withCommandContract(removeTimelineLayerParameterArrayElementCommandDef, TIMELINE_COMMAND_CONTRACTS.removeTimelineLayerParameterArrayElement),
 };

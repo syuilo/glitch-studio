@@ -1,13 +1,14 @@
 import { ref, shallowRef } from 'vue';
-import type { values } from '@syuilo/aiscript';
-import type { ProjectContext } from '../Project.ts';
 import { COMMAND_DEFS } from '../commands.ts';
-import type { CommandInput } from '../utility/undo-redo.ts';
 import { SCRIPT_COMMAND_NAMES } from './script-command-names.ts';
 import { createProjectScriptQueries } from './project-script-queries.ts';
 import { ProjectScriptRuntime } from './project-script-runtime.ts';
-import type { ProjectScriptHost } from './project-script-runtime.ts';
 import { formatScriptOutput } from './script-values.ts';
+import { getProjectScriptApiReference, searchProjectScriptApi } from './project-script-api-reference.ts';
+import type { ProjectScriptHost } from './project-script-runtime.ts';
+import type { CommandInput } from '../utility/undo-redo.ts';
+import type { ProjectContext } from '../Project.ts';
+import type { values } from '@syuilo/aiscript';
 
 const INITIAL_SCRIPT = `// Create a Visual Module with a Fill node.
 let visualModule = Command:createVisualModule({ name: "Generated" })
@@ -83,6 +84,7 @@ export class ProjectScriptingController {
 				return this.manager.execute(commandName, input as CommandInput<typeof COMMAND_DEFS[typeof commandName]>, null, signal);
 			},
 			queries: createProjectScriptQueries(this.manager.state),
+			apiReference: { describe: getProjectScriptApiReference, search: searchProjectScriptApi },
 			dialog: this.presentation.dialog,
 			output: value => this.appendOutput(value),
 		});

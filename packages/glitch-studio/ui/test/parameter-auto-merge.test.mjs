@@ -39,8 +39,8 @@ function fixture(t) {
 		id, nodes: ['first-node', 'second-node'].map(id => ({ id, type: 'effect', effectId: definition.id,
 			params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 		})),
-		paramDefs: [{ id: 'gain', nameForReference: 'gain', ...scalar }],
-		customParameterDefs: [{ id: 'gain', nameForReference: 'gain', ...scalar }], customParameterValues: {},
+		paramDefs: [{ id: 'gain', nameForReference: 'gain', canNode: false, ...scalar }],
+		customParameterDefs: [{ id: 'gain', nameForReference: 'gain', canNode: false, ...scalar }], customParameterValues: {},
 	});
 	const visualModules = [createVisualModule('first-visual-module'), createVisualModule('second-visual-module')];
 	const textLayer = { ...createTextTimelineLayer(0), id: 'text-layer' };

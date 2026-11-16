@@ -654,7 +654,7 @@ test('rejects invalid batch moves atomically', () => {
 	const before = snapshot(manager);
 	assert.throws(() => manager.commit('moveTimelineClips', { sceneId: 'scene', clips: [{ layerId: 'audio', clipId: 'clip' }, { layerId: 'video', clipId: 'missing' }], deltaMs: 100 }), /Timeline clip not found/);
 	assert.throws(() => manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: 150 }, { ...key('video', 'missing'), x: 200 }] }), /Timeline keyframe not found/);
-	assert.throws(() => manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: -1 }] }), /Invalid keyframe move/);
+	assert.throws(() => manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: -1 }] }), /input: positions\.0\.x:/);
 	assert.deepEqual(snapshot(manager), before);
 	assert.equal(manager.undoStack.value.length, 0);
 });
@@ -820,7 +820,7 @@ test('rejects fractional keyframe command positions and restores explicitly roun
 			manager.commit('replaceTimelineLayerParameterBinding', input);
 			assert.equal(value.keyframesTimeline.keyframes[0].x, 100.6);
 		} else {
-			assert.throws(() => manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: 100.6 }] }), /Invalid keyframe move/);
+			assert.throws(() => manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: 100.6 }] }), /input: positions\.0\.x:/);
 			assert.deepEqual(snapshot(manager), before);
 			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: Math.round(100.6) }] });
 		}

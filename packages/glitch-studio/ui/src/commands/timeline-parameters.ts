@@ -17,6 +17,8 @@ import type { TimelineLayerPublicParameterDefinition, TimelineLayerPublicParamet
 import type { TimelineTransformBindings, TimelineTransformKey } from "../utility/timeline-transform-edit.ts";
 import { createNamedParameterFromLiteral } from "@/utility/named-parameter-creation.ts";
 import { defineTimelineCommand } from './timeline-preparation.ts';
+import { withCommandContract } from './definition.ts';
+import { TIMELINE_COMMAND_CONTRACTS } from './timeline-command-contracts.ts';
 
 export const setTimelineLayerTransformBindingsCommandDef = defineTimelineCommand<{ sceneId: string; layerId: string; bindings: TimelineTransformBindings }>({
 	label: 'Transform timeline layer',
@@ -147,9 +149,9 @@ export const removeTimelineLayerPublicParameterDefinitionCommandDef = defineTime
 });
 
 export const TIMELINE_PARAMETERS_COMMAND_DEFS = {
-	createTimelineLayerPublicParameter: createTimelineLayerPublicParameterCommandDef,
-	createTimelineLayerPublicParameterFromParameter: createTimelineLayerPublicParameterFromParameterCommandDef,
-	replaceTimelineLayerPublicParameterDefinition: replaceTimelineLayerPublicParameterDefinitionCommandDef,
-	removeTimelineLayerPublicParameterDefinition: removeTimelineLayerPublicParameterDefinitionCommandDef,
-	setTimelineLayerTransformBindings: setTimelineLayerTransformBindingsCommandDef,
+	createTimelineLayerPublicParameter: withCommandContract(createTimelineLayerPublicParameterCommandDef, TIMELINE_COMMAND_CONTRACTS.createTimelineLayerPublicParameter),
+	createTimelineLayerPublicParameterFromParameter: withCommandContract(createTimelineLayerPublicParameterFromParameterCommandDef, TIMELINE_COMMAND_CONTRACTS.createTimelineLayerPublicParameterFromParameter),
+	replaceTimelineLayerPublicParameterDefinition: withCommandContract(replaceTimelineLayerPublicParameterDefinitionCommandDef, TIMELINE_COMMAND_CONTRACTS.replaceTimelineLayerPublicParameterDefinition),
+	removeTimelineLayerPublicParameterDefinition: withCommandContract(removeTimelineLayerPublicParameterDefinitionCommandDef, TIMELINE_COMMAND_CONTRACTS.removeTimelineLayerPublicParameterDefinition),
+	setTimelineLayerTransformBindings: withCommandContract(setTimelineLayerTransformBindingsCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerTransformBindings),
 };

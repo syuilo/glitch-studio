@@ -313,7 +313,7 @@ test('rejects invalid image sources and timing without mutating layers', () => {
 		assert.throws(() => prepareTestCommand(COMMAND_DEFS.setTimelineClipSource, { ...target, assetId }).execute(state), /Asset type does not match/);
 	}
 	assert.throws(() => prepareTestCommand(importLayer, { sceneId: 'scene', layer: { ...layer, id: 'invalid', clips: [{ ...layer.clips[0], contentOffsetMs: -1 }] } }).execute(state), /Invalid (clip timing|content offset)/);
-	assert.throws(() => prepareTestCommand(COMMAND_DEFS.trimTimelineClip, { ...target, edge: 'end', deltaMs: NaN }).execute(state), /Invalid trim/);
+	assert.throws(() => prepareTestCommand(COMMAND_DEFS.trimTimelineClip, { ...target, edge: 'end', deltaMs: NaN }).execute(state), /input: deltaMs:/);
 	assert.deepEqual(state.timelineScenes.value, before);
 });
 
@@ -335,7 +335,7 @@ test('round-trips video settings and undoes trimmed timing and independent audio
 	const before = structuredClone(state.timelineScenes.value[0].layers);
 	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0', assets: [], visualModules: [], timelineScenes: state.timelineScenes.value });
 	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
-	assert.throws(() => mediaCommand('trimTimelineClip', { ...target, edge: 'start', deltaMs: NaN, sourceDurationMs: 10000 }).execute(state), /Invalid trim/);
+	assert.throws(() => mediaCommand('trimTimelineClip', { ...target, edge: 'start', deltaMs: NaN, sourceDurationMs: 10000 }).execute(state), /input: deltaMs:/);
 	assert.deepEqual(state.timelineScenes.value[0].layers, before);
 	for (const command of [timing, volume, fit, settings]) command.undo(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video'), layer);

@@ -20,6 +20,8 @@ import { getScene, getLayerParameterTargets, getLayerParameterDefinitions, resol
 import { prepareTimelineContainerMove } from '../utility/timeline-container.ts';
 import { setTimelineLayerParameterRoot } from '../utility/timeline-parameter-edit.ts';
 import { defineTimelineCommand } from './timeline-preparation.ts';
+import { withCommandContract } from './definition.ts';
+import { TIMELINE_COMMAND_CONTRACTS } from './timeline-command-contracts.ts';
 import type { TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask, TimelineLayerMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineAssetPlacement } from '../utility/timeline-asset-layer.ts';
 import type { TimelineVideoHoldTiming } from '@gs/subsystems_timeline_shared/layers/video/video-hold.ts';
@@ -1088,37 +1090,37 @@ export const setTimelinePositionsCommandDef = defineTimelineCommand<{ sceneId: s
 });
 
 export const TIMELINE_BASIC_COMMAND_DEFS = {
-	setTimelinePositions: setTimelinePositionsCommandDef,
-	convertTimelineContainer: convertTimelineContainerCommandDef,
-	unwrapTimelineLayer: unwrapTimelineLayerCommandDef,
-	moveTimelineLayerInTree: moveTimelineLayerInTreeCommandDef,
-	moveTimelineContainerInTime: moveTimelineContainerInTimeCommandDef,
-	removeTimelineKeyframes: removeTimelineKeyframesCommandDef,
-	replaceTimelineVoicevoxContent: replaceTimelineVoicevoxContentCommandDef,
-	setTimelineLayerStaticSetting: setTimelineLayerStaticSettingCommandDef,
-	setTimelineEffectLayerResolution: setTimelineEffectLayerResolutionCommandDef,
-	setTimelineLayerName: setTimelineLayerNameCommandDef,
-	setTimelineLayerColor: setTimelineLayerColorCommandDef,
-	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
-	setTimelineLayerSolo: setTimelineLayerSoloCommandDef,
-	clearTimelineSolo: clearTimelineSoloCommandDef,
-	setTimelineLayerCoordinateSpace: setTimelineLayerCoordinateSpaceCommandDef,
-	setTimelineLayerTransformTarget: setTimelineLayerTransformTargetCommandDef,
-	setTimelineLayerMask: setTimelineLayerMaskCommandDef,
-	setTimelineLayerReferenceMask: setTimelineLayerReferenceMaskCommandDef,
-	setTimelineLayerCompositeInclusion: setTimelineLayerCompositeInclusionCommandDef,
-	setTimelineLayerMotionBlurDisabled: setTimelineLayerMotionBlurDisabledCommandDef,
-	moveTimelineClips: moveTimelineClipsCommandDef,
-	removeTimelineClips: removeTimelineClipsCommandDef,
-	setTimelineVideoClipAudioEnabled: setTimelineVideoClipAudioEnabledCommandDef,
-	setTimelineVideoClipVideoEnabled: setTimelineVideoClipVideoEnabledCommandDef,
-	moveTimelineKeyframes: moveTimelineKeyframesCommandDef,
-	insertTimelineKeyframes: insertTimelineKeyframesCommandDef,
-	setTimelineSceneResolution: setTimelineSceneResolutionCommandDef,
-	setTimelineGroupCompositingMode: setTimelineGroupCompositingModeCommandDef,
-	setTimelineSceneName: setTimelineSceneNameCommandDef,
-	removeTimelineScene: removeTimelineSceneCommandDef,
-	reorderTimelineLayers: reorderTimelineLayersCommandDef,
-	removeTimelineLayers: removeTimelineLayersCommandDef,
+	setTimelinePositions: withCommandContract(setTimelinePositionsCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelinePositions),
+	convertTimelineContainer: withCommandContract(convertTimelineContainerCommandDef, TIMELINE_COMMAND_CONTRACTS.convertTimelineContainer),
+	unwrapTimelineLayer: withCommandContract(unwrapTimelineLayerCommandDef, TIMELINE_COMMAND_CONTRACTS.unwrapTimelineLayer),
+	moveTimelineLayerInTree: withCommandContract(moveTimelineLayerInTreeCommandDef, TIMELINE_COMMAND_CONTRACTS.moveTimelineLayerInTree),
+	moveTimelineContainerInTime: withCommandContract(moveTimelineContainerInTimeCommandDef, TIMELINE_COMMAND_CONTRACTS.moveTimelineContainerInTime),
+	removeTimelineKeyframes: withCommandContract(removeTimelineKeyframesCommandDef, TIMELINE_COMMAND_CONTRACTS.removeTimelineKeyframes),
+	replaceTimelineVoicevoxContent: withCommandContract(replaceTimelineVoicevoxContentCommandDef, TIMELINE_COMMAND_CONTRACTS.replaceTimelineVoicevoxContent),
+	setTimelineLayerStaticSetting: withCommandContract(setTimelineLayerStaticSettingCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerStaticSetting),
+	setTimelineEffectLayerResolution: withCommandContract(setTimelineEffectLayerResolutionCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineEffectLayerResolution),
+	setTimelineLayerName: withCommandContract(setTimelineLayerNameCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerName),
+	setTimelineLayerColor: withCommandContract(setTimelineLayerColorCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerColor),
+	setTimelineLayerDisabled: withCommandContract(setTimelineLayerDisabledCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerDisabled),
+	setTimelineLayerSolo: withCommandContract(setTimelineLayerSoloCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerSolo),
+	clearTimelineSolo: withCommandContract(clearTimelineSoloCommandDef, TIMELINE_COMMAND_CONTRACTS.clearTimelineSolo),
+	setTimelineLayerCoordinateSpace: withCommandContract(setTimelineLayerCoordinateSpaceCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerCoordinateSpace),
+	setTimelineLayerTransformTarget: withCommandContract(setTimelineLayerTransformTargetCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerTransformTarget),
+	setTimelineLayerMask: withCommandContract(setTimelineLayerMaskCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerMask),
+	setTimelineLayerReferenceMask: withCommandContract(setTimelineLayerReferenceMaskCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerReferenceMask),
+	setTimelineLayerCompositeInclusion: withCommandContract(setTimelineLayerCompositeInclusionCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerCompositeInclusion),
+	setTimelineLayerMotionBlurDisabled: withCommandContract(setTimelineLayerMotionBlurDisabledCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineLayerMotionBlurDisabled),
+	moveTimelineClips: withCommandContract(moveTimelineClipsCommandDef, TIMELINE_COMMAND_CONTRACTS.moveTimelineClips),
+	removeTimelineClips: withCommandContract(removeTimelineClipsCommandDef, TIMELINE_COMMAND_CONTRACTS.removeTimelineClips),
+	setTimelineVideoClipAudioEnabled: withCommandContract(setTimelineVideoClipAudioEnabledCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineVideoClipAudioEnabled),
+	setTimelineVideoClipVideoEnabled: withCommandContract(setTimelineVideoClipVideoEnabledCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineVideoClipVideoEnabled),
+	moveTimelineKeyframes: withCommandContract(moveTimelineKeyframesCommandDef, TIMELINE_COMMAND_CONTRACTS.moveTimelineKeyframes),
+	insertTimelineKeyframes: withCommandContract(insertTimelineKeyframesCommandDef, TIMELINE_COMMAND_CONTRACTS.insertTimelineKeyframes),
+	setTimelineSceneResolution: withCommandContract(setTimelineSceneResolutionCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineSceneResolution),
+	setTimelineGroupCompositingMode: withCommandContract(setTimelineGroupCompositingModeCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineGroupCompositingMode),
+	setTimelineSceneName: withCommandContract(setTimelineSceneNameCommandDef, TIMELINE_COMMAND_CONTRACTS.setTimelineSceneName),
+	removeTimelineScene: withCommandContract(removeTimelineSceneCommandDef, TIMELINE_COMMAND_CONTRACTS.removeTimelineScene),
+	reorderTimelineLayers: withCommandContract(reorderTimelineLayersCommandDef, TIMELINE_COMMAND_CONTRACTS.reorderTimelineLayers),
+	removeTimelineLayers: withCommandContract(removeTimelineLayersCommandDef, TIMELINE_COMMAND_CONTRACTS.removeTimelineLayers),
 };
 
