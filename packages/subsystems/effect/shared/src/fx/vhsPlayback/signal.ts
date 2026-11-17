@@ -5,7 +5,7 @@ export const VHS_SIGNAL = {
 	linePeriod: 1001 / 15750000,
 	lineCount: 263,
 	fieldLineCount: 262.5,
-	lineStateFloats: 12,
+	lineStateFloats: 16,
 	activeLineStart: 20,
 	activeLineCount: 240,
 	activeStart: 10.5e-6,
@@ -14,6 +14,7 @@ export const VHS_SIGNAL = {
 	rfSamples: 2048,
 	fmBlackFrequency: 3.4e6 + 0.4 / 1.4 * 1e6,
 	fmDeviation: 1e6 / 1.4,
+	fmReferenceFrequency: 3.9e6,
 	chromaFrequency: 40.5 * 15750000 / 1001,
 	emphasis: 1,
 } as const;
@@ -21,18 +22,22 @@ export const VHS_SIGNAL = {
 const tapeTrackAngle = (5 + 58 / 60 + 9.9 / 3600) * Math.PI / 180;
 const tapeSpeedMetersPerSecond = 0.03335;
 const tapeRecordedWidthMeters = 0.01007;
+const tapeScanLongitudinalLengthMeters = tapeRecordedWidthMeters / Math.tan(tapeTrackAngle);
+const tapeScanLengthMeters = Math.hypot(tapeScanLongitudinalLengthMeters, tapeRecordedWidthMeters);
 
 // NTSC SPの有効映像幅と走行速度。1フィールドごとのテープ送りをトラック法線へ
 // 射影してピッチを求め、斜めの走査軌跡とTracking Offsetの単位を整合させる。
 export const VHS_TAPE = {
 	speedMetersPerSecond: tapeSpeedMetersPerSecond,
 	recordedWidthMeters: tapeRecordedWidthMeters,
-	scanLongitudinalLengthMeters: tapeRecordedWidthMeters / Math.tan(tapeTrackAngle),
+	scanLongitudinalLengthMeters: tapeScanLongitudinalLengthMeters,
+	relativeSpeedMetersPerSecond: tapeScanLengthMeters * VHS_SIGNAL.fieldRate,
+	trackTangent: [tapeScanLongitudinalLengthMeters / tapeScanLengthMeters, -tapeRecordedWidthMeters / tapeScanLengthMeters],
 	trackPitchMeters: tapeSpeedMetersPerSecond / VHS_SIGNAL.fieldRate * Math.sin(tapeTrackAngle),
 	trackNormal: [Math.sin(tapeTrackAngle), Math.cos(tapeTrackAngle)],
 } as const;
 
-export function createVhsTapeDamageMapping(settings: {
+export function createVhsTapeSurfaceMapping(settings: {
 	fieldTime: number;
 	lengthSeconds: number;
 	offsetSeconds: number;
@@ -61,7 +66,7 @@ export type VhsTransportSettings = {
 	trackingOffset: number;
 	trackAlignmentError: number;
 	timeBaseError: number;
-	tapeDeformation: number;
+	scanTimingDrift: number;
 	headContact: number;
 	headSwitching: boolean;
 	headTimingDifference: number;
@@ -110,7 +115,7 @@ export function createVhsTransport(settings: VhsTransportSettings) {
 		const jitter = smoothNoise(absoluteLine / 18, seed) + 0.15 * smoothNoise(absoluteLine / 1.7, seed ^ 0x326ab951);
 		const headBlend = Math.min(1, Math.max(0, line - 255.5));
 		const headOffset = settings.headSwitching ? (fieldParity === 0 ? headBlend : 1 - headBlend) * settings.headTimingDifference : 0;
-		const delay = (jitter * settings.timeBaseError + (progress - 0.5) * settings.tapeDeformation + headOffset) * 1e-6;
+		const delay = (jitter * settings.timeBaseError + (progress - 0.5) * settings.scanTimingDrift + headOffset) * 1e-6;
 		// 幅が等しい記録トラックとヘッドの重なり。アライメント誤差は走査中に横断量を変える。
 		const trackingDisplacement = settings.trackingOffset + settings.trackAlignmentError * (progress - 0.5);
 		const overlap = Math.max(0, 1 - Math.abs(trackingDisplacement));
@@ -123,6 +128,8 @@ export function createVhsTransport(settings: VhsTransportSettings) {
 		return {
 			delaySamples: delay * sampleRate,
 			gain: overlap * Math.min(1, Math.max(0, settings.headContact)) * switchingContact,
+			contact: Math.min(1, Math.max(0, settings.headContact)) * switchingContact,
+			trackingDisplacement,
 			tapePosition: [
 				(readProgress - 0.5) * VHS_TAPE.scanLongitudinalLengthMeters + trackingMeters * VHS_TAPE.trackNormal[0],
 				(0.5 - readProgress) * VHS_TAPE.recordedWidthMeters + trackingMeters * VHS_TAPE.trackNormal[1],
@@ -140,6 +147,7 @@ export function createVhsTransport(settings: VhsTransportSettings) {
 			start.delaySamples, end.delaySamples, start.gain, end.gain,
 			carrierCycles - Math.floor(carrierCycles), chromaCycles - Math.floor(chromaCycles), 0, 0,
 			...start.tapePosition, ...end.tapePosition,
+			start.contact, end.contact, start.trackingDisplacement, end.trackingDisplacement,
 		], line * VHS_SIGNAL.lineStateFloats);
 	}
 	return { lineStates, seed, fieldSeed, tapeCell: tapeCell >>> 0, tapeFraction, fieldTime: field / VHS_SIGNAL.fieldRate };
@@ -161,7 +169,7 @@ export function createVhsFilterCoefficients(): Float32Array {
 		chromaSum += lowpass(offset, 0.45e6);
 	}
 	for (let offset = -32; offset <= 32; offset++) {
-		const luminancePhase = -2 * Math.PI * 3.9e6 * offset / sampleRate;
+		const luminancePhase = -2 * Math.PI * VHS_SIGNAL.fmReferenceFrequency * offset / sampleRate;
 		const chromaPhase = -2 * Math.PI * VHS_SIGNAL.chromaFrequency * offset / sampleRate;
 		const luminanceWeight = 2 * lowpass(offset, 2e6) / luminanceSum;
 		const chromaWeight = 2 * lowpass(offset, 0.45e6) / chromaSum;

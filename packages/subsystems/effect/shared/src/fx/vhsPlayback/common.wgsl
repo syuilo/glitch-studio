@@ -2,7 +2,6 @@ struct Uniforms {
 	samplingGrid: vec2u,
 	opaque: u32,
 	compensate: u32,
-	spacingLoss: f32,
 	dropoutProbability: f32,
 	dropoutSamples: f32,
 	dropoutDepth: f32,
@@ -15,11 +14,15 @@ struct Uniforms {
 	tapeFraction: f32,
 	background: vec4f,
 	tapeDamageMapping: vec4f, // longitudinal origin, longitudinal/transverse scale (1/meters)
+	headSeparationMapping: vec4f,
+	tapeDisplacementMapping: vec4f,
+	displacementScaleMeters: f32,
 }
 struct LineState {
 	transport: vec4f, // delay start/end (RF samples), gain start/end
 	phase: vec4f, // carrier/chroma phase (turns)
 	tapeSurface: vec4f, // local tape position start.xy/end.xy (meters, +Y across the tape)
+	contactTracking: vec4f, // contact start/end, transverse tracking start/end (tracks)
 }
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var<storage, read_write> captured: array<vec4f>;
@@ -33,6 +36,8 @@ struct LineState {
 @group(0) @binding(9) var<storage, read_write> recovery: array<vec4f>;
 @group(0) @binding(10) var<storage, read_write> lines: array<LineState>;
 @group(0) @binding(11) var<storage, read_write> filters: array<vec4f>;
+@group(0) @binding(12) var<storage, read_write> surfaceSamples: array<vec4f>; // recorded RF index, RF envelope, separation, inverse-map validity
+@group(0) @binding(13) var<storage, read_write> spacingFilters: array<f32>;
 
 const TAU: f32 = 6.283185307179586;
 
@@ -66,4 +71,9 @@ fn decodedAt(line: u32, coordinate: f32) -> vec4f {
 	let index = clamp(f32(line * BASEBAND_SAMPLES) + coordinate, 0.0, f32(BASEBAND_SAMPLES * LINE_COUNT - 1u));
 	let left = u32(index);
 	return mix(decoded[left], decoded[min(left + 1u, BASEBAND_SAMPLES * LINE_COUNT - 1u)], fract(index));
+}
+fn surfaceAt(coordinate: f32) -> vec4f {
+	let clamped = clamp(coordinate, 0.0, f32(RF_SAMPLES * LINE_COUNT - 1u));
+	let left = u32(clamped);
+	return mix(surfaceSamples[left], surfaceSamples[min(left + 1u, RF_SAMPLES * LINE_COUNT - 1u)], fract(clamped));
 }

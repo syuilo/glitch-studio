@@ -1,6 +1,7 @@
 import colorSpaceShaderCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import commonShaderCode from './common.wgsl?raw';
-import { VHS_SIGNAL } from './signal.ts';
+import { VHS_SIGNAL, VHS_TAPE } from './signal.ts';
+import { VHS_HEAD_SPACING } from './head-spacing.ts';
 
 // 信号の単位・サンプル数はCPU/GPUで共有し、バッファ配置と同じビルド段階で合成する。
 const constants = Object.entries({
@@ -16,6 +17,13 @@ const constants = Object.entries({
 	FM_DEVIATION: VHS_SIGNAL.fmDeviation,
 	CHROMA_FREQUENCY: VHS_SIGNAL.chromaFrequency,
 	EMPHASIS: VHS_SIGNAL.emphasis,
-}).map(([name, value]) => `const ${name}: ${typeof value === 'string' ? 'u32' : 'f32'} = ${value};`).join('\n');
+	SPACING_RADIUS: `${VHS_HEAD_SPACING.radius}i`,
+	SPACING_TAPS: `${VHS_HEAD_SPACING.tapCount}u`,
+	SPACING_LEVELS: `${VHS_HEAD_SPACING.levelCount}u`,
+	RF_SAMPLES_PER_METER: VHS_SIGNAL.rfSamples / VHS_SIGNAL.linePeriod / VHS_TAPE.relativeSpeedMetersPerSecond,
+	TRACK_PITCH: VHS_TAPE.trackPitchMeters,
+}).map(([name, value]) => `const ${name}: ${typeof value === 'string' ? value.endsWith('i') ? 'i32' : 'u32' : 'f32'} = ${value};`).join('\n');
 
-export default constants + '\n' + colorSpaceShaderCode + '\n' + commonShaderCode;
+const directions = `const TRACK_TANGENT = vec2f(${VHS_TAPE.trackTangent.join(',')});\nconst TRACK_NORMAL = vec2f(${VHS_TAPE.trackNormal.join(',')});`;
+
+export default constants + '\n' + directions + '\n' + colorSpaceShaderCode + '\n' + commonShaderCode;

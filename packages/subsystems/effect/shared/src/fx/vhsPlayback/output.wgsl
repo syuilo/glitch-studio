@@ -6,9 +6,10 @@ fn sampleLine(line: u32, horizontal: f32) -> vec4f {
 	let rgb = clamp(fromYiq(vec3f(signal.x, chroma)), vec3f(0.0), vec3f(1.0));
 	var coverage = 1.0;
 	if (uniforms.opaque == 0u) {
-		let fraction = (coordinate + 0.5) / f32(BASEBAND_SAMPLES);
-		let delay = mix(lines[line].transport.x, lines[line].transport.y, clamp(fraction, 0.0, 1.0)) / f32(RF_SAMPLES);
-		let tapePosition = f32(line) + fraction + delay;
+		// RGBのRF読取と同じ逆写像を参照し、変位をalphaへも反映する。
+		let rfCoordinate = f32(line * RF_SAMPLES) + (coordinate + 0.5) * 4.0 - 0.5;
+		let sourceCoordinate = surfaceAt(rfCoordinate).x;
+		let tapePosition = (sourceCoordinate + 0.5) / f32(RF_SAMPLES);
 		let sourceLine = floor(tapePosition);
 		let sourceTime = fract(tapePosition) * LINE_PERIOD;
 		coverage = 0.0;

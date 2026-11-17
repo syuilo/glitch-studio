@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createVhsTransport, createVhsFilterCoefficients, createVhsTapeDamageMapping, VHS_SIGNAL, VHS_TAPE } from '../src/fx/vhsPlayback/signal.ts';
+import { createVhsTransport, createVhsFilterCoefficients, createVhsTapeSurfaceMapping, VHS_SIGNAL, VHS_TAPE } from '../src/fx/vhsPlayback/signal.ts';
 
 const lineStride = VHS_SIGNAL.lineStateFloats;
 
 const clean = {
 	time: 0, seed: 0, trackingOffset: 0, trackAlignmentError: 0, timeBaseError: 0,
-	tapeDeformation: 0, headContact: 1, headSwitching: false, headTimingDifference: 0,
+	scanTimingDrift: 0, headContact: 1, headSwitching: false, headTimingDifference: 0,
 };
 
 // 【NTSCフィールドの時計を出力FPSから切り離し、負の時刻やシークでも同じテープを参照する】
 // 経過フレーム数でテープ位置を進めると、プレビューと書き出しで損傷が変わる。
 test('addresses the same tape position independently of render history', () => {
-	const settings = { ...clean, time: -2.5, seed: 12.75, timeBaseError: 2, tapeDeformation: 3 };
+	const settings = { ...clean, time: -2.5, seed: 12.75, timeBaseError: 2, scanTimingDrift: 3 };
 	const first = createVhsTransport(settings);
 	createVhsTransport({ ...settings, time: 1000 });
 	assert.deepEqual(createVhsTransport(settings), first);
@@ -45,7 +45,7 @@ test('separates transverse tracking displacement from longitudinal scan timing o
 	const position = settings => Array.from(createVhsTransport(settings).lineStates.slice(100 * lineStride + 8, 100 * lineStride + 10));
 	const reference = position(clean);
 	const tracked = position({ ...clean, trackingOffset: 0.5 });
-	const deformed = position({ ...clean, tapeDeformation: 4 });
+	const deformed = position({ ...clean, scanTimingDrift: 4 });
 	const trackDelta = tracked.map((value, axis) => value - reference[axis]);
 	const timingDelta = deformed.map((value, axis) => value - reference[axis]);
 	assert.ok(trackDelta[0] > 0 && trackDelta[1] > 0);
@@ -66,16 +66,16 @@ test('separates transverse tracking displacement from longitudinal scan timing o
 // f32へ巨大な絶対位置を渡すと細い傷が消え、Fit前に折り返すと画像の周期が変わる。
 test('retains fitted texture periods at long and negative tape positions without wrapping finite maps', () => {
 	const settings = { fieldTime: 0.375, lengthSeconds: 2, offsetSeconds: 0.125, horizontalInputScale: 0.5, wrapPeriod: 1 };
-	const expected = createVhsTapeDamageMapping(settings);
+	const expected = createVhsTapeSurfaceMapping(settings);
 	for (const cycles of [-10000000, -1, 1, 10000000]) {
-		const actual = createVhsTapeDamageMapping({ ...settings, fieldTime: settings.fieldTime + cycles * 4 });
+		const actual = createVhsTapeSurfaceMapping({ ...settings, fieldTime: settings.fieldTime + cycles * 4 });
 		assert.deepEqual(actual, expected);
 	}
 	const mirrored = { ...settings, wrapPeriod: 2 };
-	assert.deepEqual(createVhsTapeDamageMapping({ ...mirrored, fieldTime: mirrored.fieldTime + 8 }), createVhsTapeDamageMapping(mirrored));
-	assert.notDeepEqual(createVhsTapeDamageMapping({ ...mirrored, fieldTime: mirrored.fieldTime + 4 }), createVhsTapeDamageMapping(mirrored));
-	assert.ok(createVhsTapeDamageMapping({ ...settings, fieldTime: 10000000, wrapPeriod: null })[0] > 2);
-	assert.ok(createVhsTapeDamageMapping({ ...settings, fieldTime: -10000000, wrapPeriod: null })[0] < -2);
+	assert.deepEqual(createVhsTapeSurfaceMapping({ ...mirrored, fieldTime: mirrored.fieldTime + 8 }), createVhsTapeSurfaceMapping(mirrored));
+	assert.notDeepEqual(createVhsTapeSurfaceMapping({ ...mirrored, fieldTime: mirrored.fieldTime + 4 }), createVhsTapeSurfaceMapping(mirrored));
+	assert.ok(createVhsTapeSurfaceMapping({ ...settings, fieldTime: 10000000, wrapPeriod: null })[0] > 2);
+	assert.ok(createVhsTapeSurfaceMapping({ ...settings, fieldTime: -10000000, wrapPeriod: null })[0] < -2);
 });
 
 // 【RF分離フィルタは有限値の対称な複素係数を持ち、DCを記録信号と取り違えない】

@@ -1,43 +1,27 @@
-fn damageEnvelope(linePosition: f32) -> f32 {
-	let cell = i32(floor(linePosition));
-	var envelope = 1.0;
-	// 欠損は仮想テープの位置へ固定する。行末から次の行へ続く欠損も同じ事象を参照する。
-	for (var previous = 0; previous <= 1; previous++) {
-		let cellId = uniforms.tapeCell + bitcast<u32>(cell - previous);
-		let eventSeed = hash(cellId ^ uniforms.seed);
-		if (random(eventSeed, 11u) < uniforms.dropoutProbability) {
-			let start = f32(cell - previous) + random(eventSeed, 23u);
-			let distance = (linePosition - start) * f32(RF_SAMPLES);
-			let duration = uniforms.dropoutSamples * (0.5 + random(eventSeed, 37u));
-			let edge = min(2.0, duration * 0.2);
-			let covered = smoothstep(0.0, edge, distance) * (1.0 - smoothstep(duration - edge, duration, distance));
-			envelope *= 1.0 - uniforms.dropoutDepth * covered;
-		}
-	}
-	return envelope;
-}
-
 @compute @workgroup_size(64)
 fn readTape(@builtin(global_invocation_id) id: vec3u) {
 	if (id.x >= RF_SAMPLES || id.y >= LINE_COUNT) { return; }
-	let fraction = (f32(id.x) + 0.5) / f32(RF_SAMPLES);
-	let state = lines[id.y].transport;
-	let delay = mix(state.x, state.y, fraction);
-	let coordinate = f32(id.y * RF_SAMPLES + id.x) + delay;
-	let signal = recordedAt(coordinate);
-	// ヘッドの浮きは高域をより強く減衰させる。ここでは短い対称FIRの周波数特性で近似する。
-	let spaced = signal * 0.5 + (recordedAt(coordinate - 1.0) + recordedAt(coordinate + 1.0)) * 0.25;
-	let tapePosition = mix(lines[id.y].tapeSurface.xy, lines[id.y].tapeSurface.zw, fraction);
-	let mapping = uniforms.tapeDamageMapping;
-	let damagePosition = vec2f(mapping.x + tapePosition.x * mapping.y, tapePosition.y * mapping.z);
-	// 傷はRFの読取振幅を減衰させる。ノイズ・欠損補償・色補正は後段でその信号から
-	// 判断するため、傷マップを出力の黒やalphaへ直接置き換えない。
-	let tapeDamage = clamp(read_tapeDamage(damagePosition), 0.0, 1.0);
-	let envelope = mix(state.z, state.w, fraction) * damageEnvelope(uniforms.tapeFraction + f32(id.y) + fraction + delay / f32(RF_SAMPLES)) * (1.0 - tapeDamage);
+	let index = id.y * RF_SAMPLES + id.x;
+	let surface = surfaceSamples[index];
+	var signal = recordedAt(surface.x) * surface.y;
+	if (surface.z > 0.0) {
+		let level = surface.z * f32(SPACING_LEVELS - 1u);
+		let lower = u32(level);
+		let upper = min(lower + 1u, SPACING_LEVELS - 1u);
+		signal = 0.0;
+		for (var offset = -SPACING_RADIUS; offset <= SPACING_RADIUS; offset++) {
+			let tap = u32(offset + SPACING_RADIUS);
+			let weight = mix(spacingFilters[lower * SPACING_TAPS + tap], spacingFilters[upper * SPACING_TAPS + tap], fract(level));
+			let neighbor = surfaceSamples[u32(clamp(i32(index) + offset, 0, i32(RF_SAMPLES * LINE_COUNT) - 1))];
+			// 磁性層の欠損は媒体上の信号へ先に適用し、その結果をヘッドの間隔応答で
+			// 読み取る。欠損マスクをフィルタ後へ掛けると、傷の縁の応答が異なってしまう。
+			signal += weight * recordedAt(neighbor.x) * neighbor.y;
+		}
+	}
 	// 雑音は読取振幅の減衰後へ加えるため、接触不良でS/Nが低下しFM復調が破綻する。
 	let noiseId = hash(id.y * RF_SAMPLES + id.x) ^ uniforms.fieldSeed;
 	let noise = (random(noiseId, 41u) + random(noiseId, 43u) + random(noiseId, 47u) - 1.5) * 2.0;
-	receivedRf[id.y * RF_SAMPLES + id.x] = mix(signal, spaced, uniforms.spacingLoss) * envelope + uniforms.noiseAmplitude * noise;
+	receivedRf[index] = signal + uniforms.noiseAmplitude * noise;
 }
 
 @compute @workgroup_size(64)

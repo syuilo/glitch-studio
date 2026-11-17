@@ -19,17 +19,21 @@ export default defineEffect({
 			dataType: { kind: 'scalar' }, ui: { label: 'Tape Damage', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true,
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
-		tapeDamageLength: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Tape Damage Length (s)', control: { controlType: 'range', min: 0.05, max: 60, step: 0.01, logarithmic: true } },
+		tapeSurfaceLength: {
+			dataType: { kind: 'scalar' }, ui: { label: 'Tape Surface Length (s)', control: { controlType: 'range', min: 0.05, max: 60, step: 0.01, logarithmic: true } },
 			defaultValue: { inputSource: 'literal', value: 4 },
 		},
-		tapeDamageOffset: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Tape Damage Offset (s)', control: { controlType: 'number', step: 0.01 } },
+		tapeSurfaceOffset: {
+			dataType: { kind: 'scalar' }, ui: { label: 'Tape Surface Offset (s)', control: { controlType: 'number', step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		time: {
 			dataType: { kind: 'scalar' }, ui: { label: 'Time (s)', control: { controlType: 'number', step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		tapeDisplacement: {
+			dataType: { kind: 'vector' }, ui: { label: 'Tape Displacement', control: { controlType: 'vector', min: -0.01, max: 0.01, step: 0.00001 } }, canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0] },
 		},
 		trackingOffset: {
 			dataType: { kind: 'scalar' }, ui: { label: 'Tracking Offset (Tracks)', control: { controlType: 'range', min: -1.5, max: 1.5, step: 0.01 } },
@@ -43,17 +47,19 @@ export default defineEffect({
 			dataType: { kind: 'scalar' }, ui: { label: 'Time Base Error (μs)', control: { controlType: 'range', min: 0, max: 4, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0.3 },
 		},
-		tapeDeformation: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Tape Deformation (μs / Field)', control: { controlType: 'range', min: -8, max: 8, step: 0.01 } },
+		scanTimingDrift: {
+			dataType: { kind: 'scalar' }, ui: { label: 'Scan Timing Drift (μs / Field)', control: { controlType: 'range', min: -8, max: 8, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0.4 },
 		},
 		headContact: {
 			dataType: { kind: 'scalar' }, ui: { label: 'Head Contact', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
-		headSpacingLoss: {
-			dataType: { kind: 'scalar' }, ui: { label: 'Head Spacing Loss', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0.1 },
+		// 距離そのものではなく基準FM波長に対する比率。画面解像度に依存せず、
+		// 微小な隙間を16bitのスカラー場でも十分な精度で表現できるようにする。
+		headSeparation: {
+			dataType: { kind: 'scalar' }, ui: { label: 'Head Separation (FM Wavelengths)', control: { controlType: 'range', min: 0, max: 1, step: 0.001 } }, canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		headSwitching: {
 			dataType: { kind: 'bool' }, ui: { label: 'Head Switching', control: {} },

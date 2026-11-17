@@ -5,6 +5,7 @@ import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-i
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { VHS_TAPE } from '../../src/fx/vhsPlayback/signal.ts';
+import { checkHeadSpacingOnGpu } from './vhs-head-spacing-gpu.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -21,6 +22,7 @@ export async function run() {
 	const near = (actual: number, expected: number, label: string, tolerance = 0.001) => assert(Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance, `${label}: ${actual} != ${expected}`);
 	const color = (value: number[]) => constantShaderInput('color', value);
 	const scalar = (value: number) => constantShaderInput('scalar', value);
+	const vector = (value: number[]) => constantShaderInput('vector', value);
 	const checkColor = (pixels: Float32Array, expected: ArrayLike<number>, label: string, offset = 0, tolerance = 0.001) => Array.from(expected).forEach((value, channel) => near(pixels[offset + channel], value, label, tolerance));
 	const equal = (a: Float32Array, b: Float32Array, label: string) => assert(a.length === b.length && a.every((value, index) => value === b[index]), label);
 	const readerLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }] });
@@ -33,8 +35,8 @@ export async function run() {
 			targets: [{ format: 'rgba32float' }],
 		},
 	});
-	function field(width: number, height: number, componentCount: 1 | 4, value: (x: number, y: number) => number[]) {
-		const texture = device.createTexture({ size: [width, height], format: componentCount === 1 ? 'r16float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+	function field(width: number, height: number, componentCount: 1 | 2 | 4, value: (x: number, y: number) => number[]) {
+		const texture = device.createTexture({ size: [width, height], format: componentCount === 1 ? 'r16float' : componentCount === 2 ? 'rg16float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		const pixels = new Float16Array(width * height * componentCount);
 		for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) pixels.set(value(x, y), (y * width + x) * componentCount);
 		device.queue.writeTexture({ texture }, pixels, { bytesPerRow: width * componentCount * 2 }, [width, height]);
@@ -85,8 +87,8 @@ export async function run() {
 	try {
 		const sample = createEffect(1, 1);
 		const clean: Partial<Parameters> = {
-			trackingOffset: 0, trackAlignmentError: 0, timeBaseError: 0, tapeDeformation: 0,
-			headContact: 1, headSpacingLoss: 0, headSwitching: false, dropoutRate: 0,
+			trackingOffset: 0, trackAlignmentError: 0, timeBaseError: 0, scanTimingDrift: 0,
+			headContact: 1, headSeparation: scalar(0), headSwitching: false, dropoutRate: 0,
 			rfNoiseFloor: -100, dropoutCompensation: false, timeBaseCorrection: 1,
 		};
 		// 【正常なFM記録・復調では、振幅や搬送波の位相を画素値と取り違えない】
@@ -155,8 +157,8 @@ export async function run() {
 		// 元の画像へ逆変形をかけるだけの補正や、同期パルスの誤検出を検出する。
 		const edge = field(64, 48, 4, x => x < 32 ? [0.2, 0.2, 0.2, 1] : [0.8, 0.8, 0.8, 1]);
 		const stable = await render({ ...clean, input: edge });
-		const shifted = await render({ ...clean, input: edge, timeBaseError: 3, tapeDeformation: 6, timeBaseCorrection: 0 });
-		const corrected = await render({ ...clean, input: edge, timeBaseError: 3, tapeDeformation: 6, timeBaseCorrection: 1 });
+		const shifted = await render({ ...clean, input: edge, timeBaseError: 3, scanTimingDrift: 6, timeBaseCorrection: 0 });
+		const corrected = await render({ ...clean, input: edge, timeBaseError: 3, scanTimingDrift: 6, timeBaseCorrection: 1 });
 		const edgeError = (values: Float32Array) => Array.from({ length: 48 }, (_, y) => {
 			let total = 0;
 			for (let x = 22; x < 42; x++) total += Math.abs(values[(y * 64 + x) * 4] - stable[(y * 64 + x) * 4]);
@@ -239,7 +241,7 @@ export async function run() {
 		// Timeを無視する画面マスクや、transparentを強制repeatする実装を防ぐ。
 		const passedDamage = await render({ ...surfaceSettings, time: 10 });
 		equal(passedDamage, await render({ ...surfaceSettings, time: 10, tapeDamage: scalar(0) }), 'passed finite damage map');
-		const movedDamage = await render({ ...surfaceSettings, time: 10, tapeDamageOffset: 10 });
+		const movedDamage = await render({ ...surfaceSettings, time: 10, tapeSurfaceOffset: 10 });
 		assert(movedDamage.some((value, index) => Math.abs(value - passedDamage[index]) > 0.1), 'damage offset moves material defect');
 		await render({ ...surfaceSettings, time: -10 }, 8);
 		equal(surfaceDamaged, await render(surfaceSettings, 1000), 'surface damage survives seeking');
@@ -287,6 +289,91 @@ export async function run() {
 		assert(aspectDifference / 48 < 0.035, 'damage Fit independent of image aspect ratio');
 		checks.push('tape damage Fit independent of output aspect');
 
+		// 【隙間による減衰を復調前のRF信号から実測する】
+		// 最終画像だけではFMの振幅耐性に隠れてしまうため、実際のreadTape passへ
+		// 既知の正弦波を入れ、低域色信号と輝度FMで異なる損失を持つことを確かめる。
+		await checkHeadSpacingOnGpu(device);
+		checks.push('Wallace RF frequency response');
+
+		// 【傷・隙間・変位の定数／テクスチャの全8構成が同じ物理量を渡す】
+		// ベクトル場の16bit表現は2のべき乗を使って定数と一致させ、bindingの差だけを比較する。
+		const displacementValue = [2 ** -15, -(2 ** -16)];
+		const displacementTexture = field(4, 4, 2, () => displacementValue);
+		const separationTexture = field(4, 4, 1, () => [0.0625]);
+		const damageTexture = field(4, 4, 1, () => [0.25]);
+		let surfaceCombinationReference: Float32Array | null = null;
+		for (let combination = 0; combination < 8; combination++) {
+			const values = await render({ ...clean, input: image,
+				tapeDamage: (combination & 1) !== 0 ? damageTexture : scalar(0.25),
+				headSeparation: (combination & 2) !== 0 ? separationTexture : scalar(0.0625),
+				tapeDisplacement: (combination & 4) !== 0 ? displacementTexture : vector(displacementValue),
+			});
+			if (surfaceCombinationReference == null) { surfaceCombinationReference = values; }
+			else { equal(values, surfaceCombinationReference, 'surface input combination agreement'); }
+		}
+		checks.push('combined surface input variants');
+
+		// 【変形した材料点へ戻ることで、トラックとの重なりと傷の参照位置が同時に変わる】
+		// 読取振幅だけを掛け替えたり、傷をヘッドの未変形位置で読む実装を防ぐ。
+		const surfaceWidth = 4 * VHS_TAPE.speedMetersPerSecond;
+		const transverseTranslation = VHS_TAPE.trackNormal.map(component => component * 0.75 * VHS_TAPE.trackPitchMeters / surfaceWidth);
+		const recoveredMaterial = await render({ ...trackingSettings, trackingOffset: 0.75, tapeDisplacement: vector(transverseTranslation) });
+		assert(grayscaleError(recoveredMaterial) < grayscaleError(insideDamage) * 0.3, 'inverse displacement restores track overlap and avoids the material defect');
+		const offTrack = await render({ ...clean, input: grayInput, trackingOffset: 1.25, rfNoiseFloor: -42 });
+		const recoveredTrack = await render({ ...clean, input: grayInput, trackingOffset: 1.25, rfNoiseFloor: -42,
+			tapeDisplacement: vector(VHS_TAPE.trackNormal.map(component => component * 1.25 * VHS_TAPE.trackPitchMeters / surfaceWidth)),
+		});
+		assert(grayscaleError(recoveredTrack) < grayscaleError(offTrack) * 0.2, 'displacement can recover an initially unreadable track');
+		checks.push('displacement restores tracking and material damage');
+
+		// 【トラックに沿う材料の移動はRFの読取時刻を変え、同期補正で復元できる】
+		// 変位を最終画像のUVへ加えるだけの実装では、同じ復調済み同期から補正できない。
+		const longitudinalTranslation = vector(VHS_TAPE.trackTangent.map(component => component * 2 ** -12));
+		const displacedEdge = await render({ ...clean, input: edge, tapeDisplacement: longitudinalTranslation, timeBaseCorrection: 0 });
+		const displacedCorrected = await render({ ...clean, input: edge, tapeDisplacement: longitudinalTranslation, timeBaseCorrection: 1 });
+		assert(edgeError(displacedEdge) > 1, 'longitudinal material displacement changes scan timing');
+		assert(edgeError(displacedCorrected) < edgeError(displacedEdge), 'TBC recovers displacement-induced timing error');
+		checks.push('displacement changes RF timing and TBC recovery');
+
+		// 【場所ごとに異なる伸びは実際のFM周波数を変える】
+		// 小さな一様伸長を前方変形として入力し、逆写像と信号の再サンプリングを通す。
+		const stretch = 0.02;
+		const stretchField = { ...field(128, 64, 2, (x, y) => {
+			const position = [((x + 0.5) / 128 - 0.5) * surfaceWidth, (0.5 - (y + 0.5) / 64) * VHS_TAPE.recordedWidthMeters];
+			const along = position[0] * VHS_TAPE.trackTangent[0] + position[1] * VHS_TAPE.trackTangent[1];
+			return VHS_TAPE.trackTangent.map(component => component * along * stretch / surfaceWidth);
+		}), filterMode: 'linear' } as const;
+		const stretchedGray = await render({ ...clean, input: grayInput, tapeDisplacement: stretchField });
+		let stretchedMean = 0;
+		for (let x = 8; x < 56; x++) stretchedMean += stretchedGray[(22 * 64 + x) * 4] / 48;
+		assert(stretchedMean > 0.2 && stretchedMean < 0.4, `stretch changes FM frequency rather than only moving the image: ${stretchedMean}`);
+		checks.push('nonuniform material stretch changes FM frequency');
+
+		// 【変形による読取位置へcoverageも移し、透明な部分に信号雑音を描かない】
+		// RGBだけを移動したり、隙間・欠損をalphaへ直接掛ける実装を検出する。
+		const coverageImage = field(64, 48, 4, x => x < 32 ? [0, 0, 0, 0] : [0.25, 0.25, 0.25, 0.5]);
+		const originalCoverage = await render({ ...clean, input: coverageImage, timeBaseCorrection: 0 });
+		const displacedCoverage = await render({ ...clean, input: coverageImage, timeBaseCorrection: 0, tapeDisplacement: longitudinalTranslation });
+		assert(displacedCoverage.some((value, index) => index % 4 === 3 && value !== originalCoverage[index]), 'coverage follows material displacement');
+		for (let index = 0; index < displacedCoverage.length; index += 4) {
+			assert(displacedCoverage[index + 3] >= 0 && displacedCoverage[index + 3] <= 0.5, 'bounded displaced coverage');
+			if (displacedCoverage[index + 3] === 0) checkColor(displacedCoverage, [0, 0, 0, 0], 'transparent displaced pixel', index, 0);
+		}
+		checks.push('displacement moves premultiplied coverage');
+
+		// 【局所的な隙間は同じテープ面の一部に作用し、複合した変形もシーク後に再現する】
+		// 履歴で接触率や反復解を更新する処理、画面座標で隙間を読む処理を防ぐ。
+		const localSeparation = { ...stepDamage };
+		const separationReference = await render({ ...clean, input: grayInput, rfNoiseFloor: -36 });
+		const separated = await render({ ...clean, input: grayInput, rfNoiseFloor: -36, headSeparation: localSeparation });
+		equal(separated.slice(0, 12 * 64 * 4), separationReference.slice(0, 12 * 64 * 4), 'contact maintained outside the separated region');
+		assert(grayscaleError(separated) > grayscaleError(separationReference) * 4, 'local head separation degrades recovered signal');
+		const combinedSettings = { ...settings, tapeDisplacement: stretchField, headSeparation: separationTexture, tapeDamage: stepDamage };
+		const combined = await render(combinedSettings);
+		await render({ ...combinedSettings, time: 4 }, 40);
+		equal(combined, await render(combinedSettings, 200), 'deterministic deformed and separated tape');
+		checks.push('local separation and deterministic surface replay');
+
 		// 【信号計算と画像出力の保存形式を分離する】
 		// 信号の符号や振幅を保持する検証に加え、画像の固定形式はcreateEffectの生成時に確認する。
 		checks.push('16-bit float image output');
@@ -303,14 +390,20 @@ export async function run() {
 		};
 		const previewInput = field(previewWidth, previewHeight, 4, previewColorAt);
 		const previewEffect = createEffect(previewWidth, previewHeight);
-		const canvas = new OffscreenCanvas(previewWidth * 3, previewHeight);
+		const previewSeparation = { ...field(128, 64, 1, (_x, y) => [0.35 * Math.exp(-(((y / 63 - 0.5) / 0.09) ** 2))]), filterMode: 'linear' } as const;
+		const previewDisplacement = { ...field(128, 64, 2, (_x, y) => VHS_TAPE.trackTangent.map(component => component * 0.00004 * Math.sin(y / 63 * 6 * Math.PI))), filterMode: 'linear' } as const;
+		const canvas = new OffscreenCanvas(previewWidth * 4, previewHeight);
 		const context = canvas.getContext('2d')!;
 		const original = new ImageData(previewWidth, previewHeight);
 		for (let y = 0; y < previewHeight; y++) for (let x = 0; x < previewWidth; x++) {
 			original.data.set(previewColorAt(x, y).map(value => Math.round(value * 255)), (y * previewWidth + x) * 4);
 		}
 		context.putImageData(original, 0, 0);
-		for (const [index, values] of [await previewEffect({ input: previewInput, time: 1.25, seed: 37 }), await previewEffect({ input: previewInput, time: 1.25, seed: 37, trackingOffset: 0.4, trackAlignmentError: 2, dropoutRate: 1200 })].entries()) {
+		for (const [index, values] of [
+			await previewEffect({ input: previewInput, time: 1.25, seed: 37 }),
+			await previewEffect({ input: previewInput, time: 1.25, seed: 37, trackingOffset: 0.4, trackAlignmentError: 2, dropoutRate: 1200 }),
+			await previewEffect({ input: previewInput, time: 0, seed: 37, headSeparation: previewSeparation, tapeDisplacement: previewDisplacement }),
+		].entries()) {
 			context.putImageData(new ImageData(Uint8ClampedArray.from(values, value => Math.round(value * 255)), previewWidth, previewHeight), (index + 1) * previewWidth, 0);
 		}
 		const bytes = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer());
