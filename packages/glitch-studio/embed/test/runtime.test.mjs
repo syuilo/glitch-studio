@@ -76,6 +76,13 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	assert.match(symbols.workerSource, /data:image\/png;base64,/);
 	assert.doesNotMatch(symbols.workerSource, /BASE_URL/);
 	assert.doesNotMatch(plain.elementSource + plain.workerSource, /data:image\/png;base64,/);
+	// 【QRコードの符号化依存と利用許諾を、必要な作品のWorkerだけへ同梱する】
+	// 配布カタログから再ビルドした単独JSでも、npmの実行時参照や通知の欠落を残さない。
+	const qrCode = await buildPortableVisualModuleRuntime(directory, { ...requirements, effectIds: ['qrCode'] });
+	assert.match(qrCode.workerSource, /rg8uint/);
+	assert.match(qrCode.workerSource, /Copyright \(c\) Project Nayuki/);
+	assert.match(qrCode.workerSource, /Permission is hereby granted/);
+	assert.doesNotMatch(plain.elementSource + plain.workerSource, /QR encoding: uqr/);
 	// 【どの組み込みエフェクトにもIIFE非対応の依存を残さない】
 	// 一部の作品だけ成功する回帰を防ぐため、カタログ全体を最終形式までビルドする。
 	const { effectIds } = JSON.parse(await readFile(path.join(directory, 'manifest.json'), 'utf8'));

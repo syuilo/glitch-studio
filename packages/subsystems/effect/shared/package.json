@@ -16,6 +16,7 @@
 		"@types/web": "0.0.359",
 		"@typescript-eslint/parser": "8.72.1",
 		"@webgpu/types": "0.1.74",
+		"jsqr": "1.4.0",
 		"vite": "8.3.5",
 		"webgpu-utils": "2.1.1"
 	},
@@ -24,6 +25,7 @@
 		"@gs/shared": "workspace:*",
 		"mediabunny": "1.65.0",
 		"seedrandom": "3.0.5",
-		"@gs/subsystems_audio_shared": "workspace:*"
+		"@gs/subsystems_audio_shared": "workspace:*",
+		"uqr": "0.1.3"
 	}
 }
