@@ -15,6 +15,18 @@ export default defineEffect({
 			dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true,
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 		},
+		tapeDamage: {
+			dataType: { kind: 'scalar' }, ui: { label: 'Tape Damage', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		tapeDamageLength: {
+			dataType: { kind: 'scalar' }, ui: { label: 'Tape Damage Length (s)', control: { controlType: 'range', min: 0.05, max: 60, step: 0.01, logarithmic: true } },
+			defaultValue: { inputSource: 'literal', value: 4 },
+		},
+		tapeDamageOffset: {
+			dataType: { kind: 'scalar' }, ui: { label: 'Tape Damage Offset (s)', control: { controlType: 'number', step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
 		time: {
 			dataType: { kind: 'scalar' }, ui: { label: 'Time (s)', control: { controlType: 'number', step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0 },

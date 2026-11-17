@@ -4,6 +4,7 @@ import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../src/effect-implementation.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
+import { VHS_TAPE } from '../../src/fx/vhsPlayback/signal.ts';
 
 type Parameters = RuntimeEffectParameters<typeof definition.paramDefs>;
 
@@ -19,6 +20,7 @@ export async function run() {
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
 	const near = (actual: number, expected: number, label: string, tolerance = 0.001) => assert(Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance, `${label}: ${actual} != ${expected}`);
 	const color = (value: number[]) => constantShaderInput('color', value);
+	const scalar = (value: number) => constantShaderInput('scalar', value);
 	const checkColor = (pixels: Float32Array, expected: ArrayLike<number>, label: string, offset = 0, tolerance = 0.001) => Array.from(expected).forEach((value, channel) => near(pixels[offset + channel], value, label, tolerance));
 	const equal = (a: Float32Array, b: Float32Array, label: string) => assert(a.length === b.length && a.every((value, index) => value === b[index]), label);
 	const readerLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }] });
@@ -201,6 +203,89 @@ export async function run() {
 		assert(noSwitch.slice(0, 40 * 64 * 4).every((value, index) => value === switched[index]), 'head switching leaves earlier lines unchanged');
 		assert(noSwitch.slice(46 * 64 * 4).some((value, index) => value !== switched[46 * 64 * 4 + index]), 'head switching affects lower lines');
 		checks.push('head switching location');
+
+		// 【傷入力の定数とテクスチャは同じ信号損失を表し、未接続の0で既存の画像を変えない】
+		// 主画像の定数／テクスチャとの全4構成を通し、readTapeの入力bindingを確認する。
+		const zeroDamage = field(4, 4, 1, () => [0]);
+		const halfDamage = field(4, 4, 1, () => [0.5]);
+		const grayInput = color([0.45, 0.45, 0.45, 1]);
+		const cleanGray = await sample({ ...clean, input: grayInput });
+		equal(cleanGray, await sample({ ...clean, input: grayInput, tapeDamage: zeroDamage }), 'zero damage texture preserves uniform input');
+		equal(await sample({ ...clean, input: grayInput, tapeDamage: scalar(0.5) }), await sample({ ...clean, input: grayInput, tapeDamage: halfDamage }), 'uniform and texture damage agree for uniform image');
+		equal(await render({ ...clean, input: image, tapeDamage: scalar(0.5) }), await render({ ...clean, input: image, tapeDamage: halfDamage }), 'uniform and texture damage agree for textured image');
+		checkColor(await sample({ ...clean, input: grayInput, tapeDamage: scalar(0.5) }), cleanGray, 'damage attenuates RF instead of image brightness', 0, 0.015);
+		checks.push('scalar and texture tape damage');
+
+		// 【完全な傷では映像信号だけが消え、電気的雑音は残る】
+		// RGBへの黒マスクや、画像と雑音を一緒に減衰させる処理を検出する。
+		const erasedSettings = { ...clean, tapeDamage: scalar(1), rfNoiseFloor: -36 };
+		const erased = await render({ ...erasedSettings, input: color([0.2, 0.2, 0.2, 1]) });
+		equal(erased, await render({ ...erasedSettings, input: color([0.8, 0.8, 0.8, 1]) }), 'erased recording is independent of recorded image');
+		const erasedRed = Array.from({ length: 64 * 48 }, (_, index) => erased[index * 4]);
+		assert(Math.max(...erasedRed) - Math.min(...erasedRed) > 0.05, 'electrical noise survives tape damage');
+		checks.push('RF erasure before electrical noise');
+
+		// 【テープ上の長手方向の境界を斜めに横切ると、走査の途中から信号が失われる】
+		// 画面の右半分へ傷画像を重ねる処理では、上部全体を保って下部だけを壊せない。
+		const stepDamage = { ...field(64, 16, 1, x => [x >= 32 ? 1 : 0]), wrapMode: 'transparent' } as const;
+		const surfaceSettings = { ...clean, input: grayInput, rfNoiseFloor: -36, tapeDamage: stepDamage };
+		const surfaceReference = await render({ ...surfaceSettings, tapeDamage: scalar(0) });
+		const surfaceDamaged = await render(surfaceSettings);
+		equal(surfaceReference.slice(0, 12 * 64 * 4), surfaceDamaged.slice(0, 12 * 64 * 4), 'undamaged earlier scan lines');
+		assert(surfaceDamaged.slice(36 * 64 * 4).some((value, index) => Math.abs(value - surfaceReference[36 * 64 * 4 + index]) > 0.1), 'later scan lines cross the material defect');
+		checks.push('helical tape surface intersection');
+
+		// 【有限な傷マップを通り過ぎると正常なテープへ戻り、Offsetでその物理位置を移動できる】
+		// Timeを無視する画面マスクや、transparentを強制repeatする実装を防ぐ。
+		const passedDamage = await render({ ...surfaceSettings, time: 10 });
+		equal(passedDamage, await render({ ...surfaceSettings, time: 10, tapeDamage: scalar(0) }), 'passed finite damage map');
+		const movedDamage = await render({ ...surfaceSettings, time: 10, tapeDamageOffset: 10 });
+		assert(movedDamage.some((value, index) => Math.abs(value - passedDamage[index]) > 0.1), 'damage offset moves material defect');
+		await render({ ...surfaceSettings, time: -10 }, 8);
+		equal(surfaceDamaged, await render(surfaceSettings, 1000), 'surface damage survives seeking');
+		checks.push('finite tape damage time offset and seeking');
+
+		// 【外部テクスチャによる欠損にも同じ1H補償が働く】
+		// 専用の画像合成経路ではなく、既存の復調前の信号処理へ統合されていることを確認する。
+		const surfaceCompensated = await render({ ...surfaceSettings, dropoutCompensation: true });
+		assert(grayscaleError(surfaceCompensated) < grayscaleError(surfaceDamaged) * 0.5, '1H compensation also handles external tape damage');
+		checks.push('external tape damage compensation');
+
+		// 【Tracking OffsetはRF振幅に加え、テープ上の傷との交差位置も変える】
+		// 対称な±0.75は同じ読取振幅になる。記録トラックと平行な傷の境界を挟み、
+		// 正側だけが傷へ入る配置を使って、単なる振幅変化と区別する。
+		const mapWidth = 4 * VHS_TAPE.speedMetersPerSecond;
+		const parallelDamage = field(1024, 1024, 1, (x, y) => {
+			const longitudinal = ((x + 0.5) / 1024 - 0.5) * mapWidth;
+			const transverse = (0.5 - (y + 0.5) / 1024) * VHS_TAPE.recordedWidthMeters;
+			return [transverse + longitudinal * VHS_TAPE.recordedWidthMeters / VHS_TAPE.scanLongitudinalLengthMeters > 0.000025 ? 1 : 0];
+		});
+		const trackingSettings = { ...clean, input: grayInput, tapeDamage: parallelDamage, rfNoiseFloor: -42 };
+		const outsideDamage = await render({ ...trackingSettings, trackingOffset: -0.75 });
+		const insideDamage = await render({ ...trackingSettings, trackingOffset: 0.75 });
+		assert(grayscaleError(insideDamage) > grayscaleError(outsideDamage) * 4, 'tracking moves head across the surface defect');
+		checks.push('tracking changes tape damage intersection');
+
+		// 【傷マップのFitはテープ範囲を基準にし、映像出力の縦横比から独立する】
+		// 出力の幅・高さを傷入力のFitに使うと、同じ媒体なのに傷の範囲が変わってしまう。
+		const fittedDamage = { ...stepDamage, fitMode: 'cover' } as const;
+		const squareEffect = createEffect(48, 48);
+		const fittedSettings = { ...surfaceSettings, tapeDamage: fittedDamage };
+		const wideDamage = await render(fittedSettings);
+		const squareDamage = await squareEffect(fittedSettings);
+		// 同じ高さの両画像は、中央の24画素が同じ走査位置をサンプルするよう幅比を選ぶ。
+		// ノイズの細かなX差を避け、傷との交差位置を行ごとの平均誤差で比較する。
+		let aspectDifference = 0;
+		for (let y = 0; y < 48; y++) {
+			const rowMean = (values: Float32Array, width: number) => {
+				let sum = 0;
+				for (let x = 0; x < width; x++) sum += Math.abs(values[(y * width + x) * 4] - 0.45);
+				return sum / width;
+			};
+			aspectDifference += Math.abs(rowMean(wideDamage, 64) - rowMean(squareDamage, 48));
+		}
+		assert(aspectDifference / 48 < 0.035, 'damage Fit independent of image aspect ratio');
+		checks.push('tape damage Fit independent of output aspect');
 
 		// 【信号計算と画像出力の保存形式を分離する】
 		// 信号の符号や振幅を保持する検証に加え、画像の固定形式はcreateEffectの生成時に確認する。

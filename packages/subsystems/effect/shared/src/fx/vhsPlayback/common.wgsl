@@ -14,10 +14,12 @@ struct Uniforms {
 	tapeCell: u32,
 	tapeFraction: f32,
 	background: vec4f,
+	tapeDamageMapping: vec4f, // longitudinal origin, longitudinal/transverse scale (1/meters)
 }
 struct LineState {
 	transport: vec4f, // delay start/end (RF samples), gain start/end
 	phase: vec4f, // carrier/chroma phase (turns)
+	tapeSurface: vec4f, // local tape position start.xy/end.xy (meters, +Y across the tape)
 }
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var<storage, read_write> captured: array<vec4f>;

@@ -27,7 +27,13 @@ fn readTape(@builtin(global_invocation_id) id: vec3u) {
 	let signal = recordedAt(coordinate);
 	// ヘッドの浮きは高域をより強く減衰させる。ここでは短い対称FIRの周波数特性で近似する。
 	let spaced = signal * 0.5 + (recordedAt(coordinate - 1.0) + recordedAt(coordinate + 1.0)) * 0.25;
-	let envelope = mix(state.z, state.w, fraction) * damageEnvelope(uniforms.tapeFraction + f32(id.y) + fraction + delay / f32(RF_SAMPLES));
+	let tapePosition = mix(lines[id.y].tapeSurface.xy, lines[id.y].tapeSurface.zw, fraction);
+	let mapping = uniforms.tapeDamageMapping;
+	let damagePosition = vec2f(mapping.x + tapePosition.x * mapping.y, tapePosition.y * mapping.z);
+	// 傷はRFの読取振幅を減衰させる。ノイズ・欠損補償・色補正は後段でその信号から
+	// 判断するため、傷マップを出力の黒やalphaへ直接置き換えない。
+	let tapeDamage = clamp(read_tapeDamage(damagePosition), 0.0, 1.0);
+	let envelope = mix(state.z, state.w, fraction) * damageEnvelope(uniforms.tapeFraction + f32(id.y) + fraction + delay / f32(RF_SAMPLES)) * (1.0 - tapeDamage);
 	// 雑音は読取振幅の減衰後へ加えるため、接触不良でS/Nが低下しFM復調が破綻する。
 	let noiseId = hash(id.y * RF_SAMPLES + id.x) ^ uniforms.fieldSeed;
 	let noise = (random(noiseId, 41u) + random(noiseId, 43u) + random(noiseId, 47u) - 1.5) * 2.0;
