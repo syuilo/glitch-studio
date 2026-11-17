@@ -52,7 +52,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 	function createEffect(width = 444, height = 444, overrides: Partial<QrCodeParameters> = {}) {
 		const resolution = { width, height };
 		const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, 'canNode' in parameter && parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as QrCodeParameters;
-		const base = { ...defaults, version: 3, content: 'https://example.com', errorCorrection: 'H', size: 1, sizeReference: 'shortSide', ...overrides } as QrCodeParameters;
+		const base = { ...defaults, version: 3, content: 'https://example.com', errorCorrection: 'H', sizeReference: 'shortSide', ...overrides } as QrCodeParameters;
 		let uploads = 0;
 		// 実GPUへの転送を数え、装飾だけの更新でマスを再転送していないことを確認する。
 		const queue = new Proxy(device.queue, { get(target, key) {
@@ -223,6 +223,34 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 			for (const [localX, localY] of [[0.08, 0.08], [0.92, 0.08], [0.08, 0.92], [0.92, 0.92]]) close(cellPixel(diagonalHole, effect, x, y, localX, localY)[0], 1, 'diagonal links respect whole-cell cutout');
 		}
 		checks.push('diagonal links respect cutouts');
+		// 【両端がくり抜きの外にある斜め接続も、途中がくり抜きの角へ重なるなら終了する】
+		// 端点だけの判定では、丸い線の片側だけが矩形で削られて切れ込みが生じる。
+		// 四隅すべてで、領域外に残ってしまう線分が消え、両端の丸いセルは残ることを確認する。
+		for (const fixture of [
+			{ corner: 'top right', cellShape: 'diagonalDown', imageSize: [0.2, 0.2], startCell: [18, 9], outsideCorner: [1.08, 0.92] },
+			{ corner: 'bottom left', cellShape: 'diagonalDown', imageSize: [0.2, 0.3], startCell: [9, 19], outsideCorner: [0.92, 1.08] },
+			{ corner: 'top left', cellShape: 'diagonalUp', imageSize: [0.2, 0.1], startCell: [9, 12], outsideCorner: [0.92, -0.08] },
+			{ corner: 'bottom right', cellShape: 'diagonalUp', imageSize: [0.1, 0.3], startCell: [16, 20], outsideCorner: [1.08, 0.08] },
+		] as const) {
+			const { cellShape, startCell, outsideCorner } = fixture;
+			const imageSize: [number, number] = [...fixture.imageSize];
+			const directionY = cellShape === 'diagonalDown' ? 1 : -1;
+			const [cutoutLeft, cutoutTop, cutoutRight, cutoutBottom] = getQrCodeCenterImageLayout(size, true, imageSize, 1).cutoutBounds;
+			const inside = (x: number, y: number) => x >= cutoutLeft && y >= cutoutTop && x < cutoutRight && y < cutoutBottom;
+			assert(connectableDark(...startCell) && connectableDark(startCell[0] + 1, startCell[1] + directionY), 'cutout corner fixture must join two dark cells');
+			assert(!inside(...startCell) && !inside(startCell[0] + 1, startCell[1] + directionY), 'both endpoints must be outside the cutout');
+			assert(!inside(Math.floor(startCell[0] + outsideCorner[0]), Math.floor(startCell[1] + outsideCorner[1])), 'notch regression sample must be outside the cutout');
+			const joined = await effect.render({ cellShape, cellScale: 0.5, antiAlias: false });
+			close(cellPixel(joined, effect, ...startCell, ...outsideCorner)[0], 0, 'unobstructed diagonal corner');
+			for (const antiAlias of [false, true]) for (const cellScale of [0.3, 0.5, 1]) {
+				const pixels = await effect.render({ cellShape, cellScale, antiAlias, centerImageEnabled: true, centerImageSize: imageSize });
+				close(cellPixel(pixels, effect, ...startCell, ...outsideCorner)[0], 1, `cutout corner connection ends without a notch: ${fixture.corner}`);
+				close(cellPixel(pixels, effect, ...startCell)[0], 0, 'starting cell remains');
+				close(cellPixel(pixels, effect, startCell[0] + 1, startCell[1] + directionY)[0], 0, 'ending cell remains');
+				close(cellPixel(pixels, effect, ...startCell, 0.92, 0.5 + directionY * 0.42)[0], 1, 'starting cell keeps a round cap');
+			}
+		}
+		checks.push('round diagonal ends at all four cutout corners');
 		const halfTransparentImage = await effect.render({ centerImageEnabled: true, centerImage: color([1, 0, 0, 0.5]) });
 		const centerPixel = pixel(halfTransparentImage, effect.width, effect.width / 2, effect.height / 2);
 		close(centerPixel[0], 1, 'center image red');
@@ -269,16 +297,15 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 		assert(jsQR(rgba8(changed), effect.width, effect.height)?.data === 'QRコード 👩‍💻', 'changed Unicode content');
 		assert(effect.uploads === 2, 'changed content upload');
 		assert((await effect.render({ content: '' })).every(value => value === 0), 'empty output');
-		assert((await effect.render({ size: 0 })).every(value => value === 0), 'zero size output');
 		assert((await effect.render({ content: 'x'.repeat(1000), version: 1 })).every(value => value === 0), 'failed content must not display previous code');
 		assert(effect.status.type === 'error', 'capacity error status');
 		assert((await effect.render({ content: 'x'.repeat(1000), version: 1 })).every(value => value === 0), 'repeated failure');
 		equalPixels(await effect.render(), original);
 		assert(effect.status.type === 'ready', 'recover after capacity error');
-		checks.push('Unicode content changes', 'empty and zero-size output', 'capacity errors and recovery');
+		checks.push('Unicode content changes', 'empty output', 'capacity errors and recovery');
 
-		const diagonalDown = await effect.render({ cellShape: 'diagonalDown', cellScale: 0.5, finderFrameShape: 'circle', finderCenterShape: 'circle' });
-		const diagonalUp = await effect.render({ cellShape: 'diagonalUp', cellScale: 0.5, finderFrameShape: 'circle', finderCenterShape: 'circle' });
+		const diagonalDown = await effect.render({ cellShape: 'diagonalDown', cellScale: 0.5, finderFrameShape: 'circle', finderCenterShape: 'circle', centerImageEnabled: true });
+		const diagonalUp = await effect.render({ cellShape: 'diagonalUp', cellScale: 0.5, finderFrameShape: 'circle', finderCenterShape: 'circle', centerImageEnabled: true, centerImageSize: [0.2, 0.1] });
 		const canvas = new OffscreenCanvas(888, 1332);
 		const context = canvas.getContext('2d')!;
 		for (const [index, pixels] of [original, decorated, connected, logo, diagonalDown, diagonalUp].entries()) context.putImageData(new ImageData(rgba8(pixels), 444, 444), index % 2 * 444, Math.floor(index / 2) * 444);

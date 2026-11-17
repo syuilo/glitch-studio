@@ -49,7 +49,13 @@ fn connectionCellDark(cell: vec2i) -> bool {
 }
 
 fn diagonalConnectionFilled(point: vec2f, cell: vec2i, start: vec2i, end: vec2i, radius: f32) -> bool {
-	if (!connectionCellDark(cell + start) || !connectionCellDark(cell + end)) { return false; }
+	let startCell = cell + start;
+	let endCell = cell + end;
+	if (!connectionCellDark(startCell) || !connectionCellDark(endCell)) { return false; }
+	// 対角セルの中心を結ぶ最大1セル幅の線は、端点の2セルに加え、残りの2セルにもかかる。
+	// 両端が領域外でも、このどちらかがくり抜きなら接続を作らない。描画後に矩形で削ると
+	// 線の片側に切れ込みが生じるため、手前のセルの丸い端で接続を終了させる。
+	if (inCutout(vec2i(startCell.x, endCell.y)) || inCutout(vec2i(endCell.x, startCell.y))) { return false; }
 	let relative = point - vec2f(start);
 	let direction = vec2f(end - start);
 	let along = clamp(dot(relative, direction) / dot(direction, direction), 0.0, 1.0);
@@ -62,7 +68,7 @@ fn diagonalCellFilled(point: vec2f, cell: vec2i, dark: bool, radius: f32) -> boo
 	let direction = vec2i(1, directionY);
 	// 太さは最大1セル。現在のセルへ入り得る線分は、中心から前後へ伸びる2本と、
 	// その両側を横切る2本だけ。明部セルでも評価し、対角セル間の白い隙間へ線を描く。
-	// 端点がくり抜きや検出パターンなら連結せず、孤立した暗部は円のまま残す。
+	// 端点や線分がくり抜きにかかる場合と、検出パターンへの連結は除き、孤立した暗部は円のまま残す。
 	return diagonalConnectionFilled(point, cell, vec2i(0), direction, radius)
 		|| diagonalConnectionFilled(point, cell, -direction, vec2i(0), radius)
 		|| diagonalConnectionFilled(point, cell, vec2i(-1, 0), vec2i(0, directionY), radius)

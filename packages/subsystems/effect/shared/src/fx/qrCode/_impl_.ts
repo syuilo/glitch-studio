@@ -92,7 +92,7 @@ export default implementEffect<typeof definition>({
 				const output = ctx.outputDataMap.output;
 				const { width, height } = output.texture;
 				const quietZone = Math.round(nonnegative(parameters.quietZone));
-				const outerSize = nonnegative(parameters.size) * getSizeReferenceLength(parameters.sizeReference, output.texture);
+				const outerSize = getSizeReferenceLength(parameters.sizeReference, output.texture);
 				const cellPixels = outerSize / Math.max(1, codeSize + quietZone * 2);
 				const centerImage = getQrCodeCenterImageLayout(codeSize, parameters.centerImageEnabled, parameters.centerImageSize, parameters.centerImagePadding);
 				uniformValues.set({

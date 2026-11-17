@@ -43,7 +43,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => result.resolve({ error: 'QR Code GPU test timed out' }), 45000);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
-		assert.ok(output.checks.length >= 22);
+		assert.ok(output.checks.length >= 23);
 		if (process.env.QR_CODE_PREVIEW != null) await writeFile(process.env.QR_CODE_PREVIEW, Buffer.from(output.preview, 'base64'));
 		t.diagnostic(`${output.checks.length} checks: ${output.checks.join(', ')}`);
 	} finally {

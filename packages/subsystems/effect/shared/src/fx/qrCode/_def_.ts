@@ -27,11 +27,6 @@ export default defineEffect({
 			ui: { label: 'Quiet Zone (Cells)', control: { controlType: 'number', min: 0, step: 1 } },
 			defaultValue: { inputSource: 'literal', value: 4 },
 		},
-		size: {
-			dataType: { kind: 'scalar' },
-			ui: { label: 'Size (Reference Ratio, Including Quiet Zone)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 1 },
-		},
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'shortSide' } },
 		darkColor: { dataType: { kind: 'color' }, ui: { label: 'Dark Color', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },
 		lightColor: { dataType: { kind: 'color' }, ui: { label: 'Light Color', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
@@ -93,7 +88,7 @@ export default defineEffect({
 	},
 	ui: {
 		parameterLayout: [
-			'content', 'errorCorrection', 'version', 'quietZone', 'size', 'sizeReference',
+			'content', 'errorCorrection', 'version', 'quietZone', 'sizeReference',
 			{ type: 'section', id: 'cells', label: 'Cells', children: ['darkColor', 'lightColor', 'cellShape', 'cellScale', 'roundness', 'cornerMode'] },
 			{ type: 'section', id: 'finderPatterns', label: 'Finder Patterns', defaultExpanded: false, children: ['finderFrameShape', 'finderFrameRoundness', 'finderFrameColor', 'finderCenterShape', 'finderCenterRoundness', 'finderCenterColor'] },
 			{ type: 'section', id: 'centerImage', label: 'Center Image', defaultExpanded: false, children: ['centerImageEnabled', 'centerImage', 'centerImageSize', 'centerImagePadding'] },
