@@ -25,7 +25,7 @@
 
 ## 座標・時間・色
 
-- 原則として解像度・フレームレート・アスペクト比によらず見た目や変化速度を保ち、同じ時刻・入力・パラメータから同じ結果を生成する。乱数には明示的なseedを使う。
+- 原則として解像度・フレームレートによらず見た目や変化速度を保ち、同じ時刻・入力・パラメータから同じ結果を生成する。乱数には明示的なseedを使う。
 - 公開する位置・移動ベクトル・距離・SDFは「長辺全体=1」、中央`[0, 0]`、右が+X、上が+Y。正方形の端は±0.5。画像参照用の内部座標との境界で`@gs/shared/spatial-coordinate.ts`を使って換算する。SDFは内側が負、外側が正。詳細は[空間座標](../../../../docs/spatial-coordinate.md)を参照する。
 - 見た目の寸法の換算には専用型`sizeReference`と`getSizeReferenceLength()`を使い、既定値は`longSide`とする。位置・ベクトル・SDFの単位は変えない。詳細は[Size Reference](../../../../docs/size-reference.md)を参照する。
 - 角度は1を1周とするturn単位。`ctx.time`は秒、`ctx.timeDelta`はミリ秒なので混同しない。ポインターの位置・移動量も長辺全体=1の共通単位。
@@ -41,7 +41,6 @@
 - パスは`ctx.createPassEncoderFor()` / `ctx.createPassEncoder()` / `ctx.createComputePassEncoder()`を通して作り、統計とタイル描画に対応させる。標準頂点シェーダーは`triangle-list`と`draw(3)`で全画面を覆う。
 - 非同期準備は`init()` / `prepare()`から開始し、`reportStatus()`でloading / ready / errorを通知する。破棄後の結果を反映しない。非同期更新など、パラメータだけでは追跡できない変化には`cacheVersion`や`disableCache`で描画キャッシュを対応させる。
 - 自身の過去の描画・蓄積状態に依存する場合は`dependsOnRenderHistory: true`にする。一部の設定でのみ使う場合も含む。共通の前フレーム出力が必要なら`needsPreviousFrame`を指定する。単なるリソース再利用や外部履歴の読み取りとは区別する。
-- 重いRender Passには`canHaveLongRunningRenderPass: true`を指定し、必要に応じて`getRenderWorkloadHint()`を実装する。タイル分割はレンダラーが担当し、Compute Passは分割されない。詳細は[Effect Renderer](../renderer/README.md)を参照する。
 
 ## 検証
 
