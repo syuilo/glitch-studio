@@ -71,6 +71,22 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 0.4 },
 		},
 	},
+	ui: {
+		parameterLayout: [
+			'input', 'height', 'heightScale',
+			{
+				type: 'section', id: 'directionalLight', label: 'Directional Light',
+				children: [
+					{ type: 'section', id: 'lightDirection', label: 'Direction', children: ['lightAngle', 'lightElevation'] },
+					'lightColor', 'lightIntensity', 'lightWrap',
+				],
+			},
+			{
+				type: 'section', id: 'ambientLight', label: 'Ambient Light',
+				children: ['ambientFrontColor', 'ambientBackColor', 'ambientIntensity'],
+			},
+		],
+	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],
 	outputDefs: { output: { dataType: { kind: 'color' } } },

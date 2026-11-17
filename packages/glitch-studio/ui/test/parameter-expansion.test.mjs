@@ -20,6 +20,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export { parameterExpansionScopeKey } from './src/composables/useParameterExpansion.ts';
 		export { projectSession } from './src/project-session.ts';
 		export { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+		export { preferences } from './src/preferences.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'parameter-expansion', setup(build) {
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
@@ -31,7 +32,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 			app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {}',
 		}[path] }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsTimeline\.EffectSettings\.vue$|GsWires\.vue$|GsNodePort\.vue$/.test(path)
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$|GsWires\.vue$|GsNodePort\.vue$/.test(path)
 			? null : { path: basename(path), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
@@ -48,6 +49,13 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 class TestElement {
 	constructor(tag) { Object.assign(this, { tag, children: [], parent: null, props: {}, style: {}, dataset: {} }); }
 }
+// NodeのEventTargetはremoveEventListenerのboolean指定をブラウザと同じように扱わない。
+// ブラウザのcapture指定を再現し、アンマウント済みのイベントリスナーを正しく解除する。
+class TestWindow extends EventTarget {
+	removeEventListener(type, callback, options) {
+		super.removeEventListener(type, callback, typeof options === 'boolean' ? { capture: options } : options);
+	}
+}
 const resizeObservers = new Set();
 class TestResizeObserver {
 	constructor(callback) { this.callback = callback; this.elements = new Set(); resizeObservers.add(this); }
@@ -57,8 +65,8 @@ class TestResizeObserver {
 }
 const module = { exports: {} };
 new Function('require', 'module', 'exports', 'HTMLElement', 'Element', 'ResizeObserver', 'window', bundle.outputFiles[0].text)(
-	createRequire(import.meta.url), module, module.exports, TestElement, TestElement, TestResizeObserver, new EventTarget());
-const { NodeSettings, LayerSettings, Wires, Port, provideVisualModuleWires, parameterExpansionScopeKey, projectSession, effectDefinitions } = module.exports;
+	createRequire(import.meta.url), module, module.exports, TestElement, TestElement, TestResizeObserver, new TestWindow());
+const { NodeSettings, LayerSettings, Wires, Port, provideVisualModuleWires, parameterExpansionScopeKey, projectSession, effectDefinitions, preferences } = module.exports;
 const originalDefinition = structuredClone(effectDefinitions.testStructArray);
 const element = tag => markRaw(new TestElement(tag));
 const renderer = createRenderer({
@@ -82,8 +90,11 @@ const hasAttribute = name => node => Object.hasOwn(node.props, name);
 function isVisible(node) { return node != null && node.style.display !== 'none' && (node.parent == null || isVisible(node.parent)); }
 function click(node) { node.props.onClick({ currentTarget: node, stopPropagation() {} }); }
 
-async function fixture(t, { target = 'node', defaultCollapsed = false, elementCollapsed = false, connected = false } = {}) {
+async function fixture(t, { target = 'node', defaultCollapsed = false, elementCollapsed = false, connected = false, layout = null, advancedParameterKeys = [] } = {}) {
 	const definition = structuredClone(originalDefinition);
+	preferences.r.showAdvancedParameters.value = false;
+	if (layout != null) definition.ui = { parameterLayout: layout };
+	for (const key of advancedParameterKeys) definition.paramDefs[key].ui.isAdvanced = true;
 	if (defaultCollapsed) {
 		definition.paramDefs.foo.ui.control.defaultExpanded = false;
 		definition.paramDefs.buzzs.ui.control.defaultExpanded = false;
@@ -132,6 +143,11 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 	const collapsedPort = path => findAll(row(path), hasAttribute('data-test-parameter-collapsed-port'))[0];
 	const expanded = path => toggleButton(path).props['data-test-parameter-expanded'];
 	const toggle = async path => { click(toggleButton(path)); await nextTick(); };
+	const section = id => findAll(root, node => node.props['data-test-parameter-section'] === id)[0];
+	const sectionToggleButton = id => findAll(section(id), hasAttribute('data-test-section-toggle'))[0];
+	const sectionExpanded = id => sectionToggleButton(id).props['data-test-section-expanded'];
+	const toggleSection = async id => { click(sectionToggleButton(id)); await nextTick(); };
+	const sectionPort = id => findAll(section(id), hasAttribute('data-test-section-collapsed-port'))[0];
 	const coordinates = new Map();
 	const position = anchor => {
 		if (!coordinates.has(anchor)) coordinates.set(anchor, [50 + coordinates.size * 20, 100 + coordinates.size * 30]);
@@ -155,8 +171,136 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 		assert.equal(paths.length, connected ? 1 : 0);
 		return paths[0]?.props.d.split(' L ').at(-1).split(' ').map(Number);
 	};
-	return { root, row, toggleButton, collapsedPort, expanded, toggle, owners, selection, scope, owner, showEditor, edits, state, wireMap, measure, position, destination };
+	return { root, row, toggleButton, collapsedPort, expanded, toggle, owners, selection, scope, owner, showEditor, edits, state, wireMap, measure, position, destination,
+		section, sectionToggleButton, sectionExpanded, toggleSection, sectionPort };
 }
+
+const nestedLayout = (defaultExpanded = true) => ['bars', {
+	type: 'section', id: 'outer', label: 'Outer', children: ['foo', {
+		type: 'section', id: 'inner', label: 'Inner', defaultExpanded, children: ['buzzs'],
+	}],
+}];
+
+for (const target of ['node', 'layer']) {
+	// 【両編集画面でセクションとパラメータを配置順に表示し、入れ子を独立して開閉する】
+	// セクションの開閉で子のUIや入力途中の内容を破棄せず、値の構造・参照パスを保つ。
+	// 子の編集通知も本来のパラメータパスのまま上位へ届くことを確認する。
+	test(`renders nested ${target} sections without changing bindings or edit paths`, async t => {
+		const f = await fixture(t, { target, layout: nestedLayout(false) });
+		const saved = structuredClone(toRaw(f.owner.value.params));
+		const topLevelPaths = findAll(f.root, hasAttribute('data-test-parameter-path'))
+			.map(node => JSON.parse(node.props['data-test-parameter-path'])).filter(path => path.length === 1);
+		assert.deepEqual(topLevelPaths, [['bars'], ['foo'], ['buzzs']]);
+		assert.equal(f.sectionExpanded('outer'), true);
+		assert.equal(f.sectionExpanded('inner'), false);
+		const child = f.row(['buzzs', 'first', 'x']);
+		child.draftValue = 'unfinished';
+		assert.equal(isVisible(child), false);
+		await f.toggleSection('outer');
+		await f.toggleSection('outer');
+		assert.equal(f.sectionExpanded('inner'), false);
+		await f.toggleSection('inner');
+		assert.equal(f.row(['buzzs', 'first', 'x']), child);
+		assert.equal(child.draftValue, 'unfinished');
+		assert.equal(isVisible(child), true);
+		assert.deepEqual(f.edits, []);
+		findAll(child, hasAttribute('data-test-parameter-value-control'))[0].props.onInput(4.5);
+		assert.deepEqual(f.edits, [{ kind: 'literal', paramPath: ['buzzs', 'first', 'x'], value: 4.5 }]);
+		assert.deepEqual(f.owner.value.params, saved);
+	});
+
+	// 【セクションの開閉状態を所有者・編集スコープ・パラメータの状態から独立して保持する】
+	// Inspectorの選択切替や再マウント後も復元し、別ノードや別レイヤーへ状態を移さない。
+	// セクション内の既存コンテナを開閉しても、セクション自体の状態は変えない。
+	test(`restores ${target} section expansion across selections and remounts`, async t => {
+		const f = await fixture(t, { target, layout: nestedLayout() });
+		await f.toggle(['buzzs']);
+		await f.toggleSection('inner');
+		f.selection.value = 1; await nextTick();
+		assert.equal(f.sectionExpanded('inner'), true);
+		assert.equal(f.expanded(['buzzs']), true);
+		f.selection.value = 0; await nextTick();
+		assert.equal(f.sectionExpanded('inner'), false);
+		assert.equal(f.expanded(['buzzs']), false);
+		f.showEditor.value = false; await nextTick();
+		if (target === 'node') assert.deepEqual(Object.keys(f.wireMap.collapsedSections['first-owner']), []);
+		f.showEditor.value = true; await nextTick();
+		assert.equal(f.sectionExpanded('inner'), false);
+		const originalScope = f.scope.value;
+		f.scope.value = 'another-scope'; await nextTick();
+		assert.equal(f.sectionExpanded('inner'), true);
+		f.scope.value = originalScope; await nextTick();
+		assert.equal(f.sectionExpanded('inner'), false);
+		assert.equal((await fixture(t, { target, layout: nestedLayout() })).sectionExpanded('inner'), true);
+	});
+
+	// 【詳細パラメータの表示対象がないセクションを隠し、子の変更や設定切替で復元する】
+	// 深い子の変更も既存の既定値比較に従って表示対象にし、空の見出しだけを残さない。
+	// 非表示中も保持した開閉状態を復元し、再表示のたびに勝手に展開しない。
+	test(`hides empty ${target} sections and reveals advanced descendants with their expansion state`, async t => {
+		const layout = [...nestedLayout(), { type: 'section', id: 'empty', label: 'Empty', children: [] }];
+		const f = await fixture(t, { target, layout, advancedParameterKeys: ['foo', 'buzzs'] });
+		assert.equal(f.section('outer'), undefined);
+		assert.equal(f.section('empty'), undefined);
+		preferences.r.showAdvancedParameters.value = true; await nextTick();
+		assert.ok(f.section('outer') != null);
+		assert.ok(f.section('inner') != null);
+		assert.equal(f.section('empty'), undefined);
+		await f.toggleSection('inner');
+		preferences.r.showAdvancedParameters.value = false; await nextTick();
+		assert.equal(f.section('outer'), undefined);
+		f.owner.value.params.buzzs.value[0].binding.value.x = { inputSource: 'literal', value: 0.25 };
+		await nextTick();
+		assert.ok(f.section('outer') != null);
+		assert.equal(f.sectionExpanded('inner'), false);
+		await f.toggleSection('inner');
+		assert.equal(isVisible(f.row(['buzzs', 'first', 'x'])), true);
+		f.owner.value.params.buzzs = structuredClone(originalDefinition.paramDefs.buzzs.defaultValue);
+		await nextTick();
+		assert.equal(f.section('outer'), undefined);
+	});
+}
+
+// 【構造体・配列・入れ子セクション・ノードの順で、表示中の接続先へ配線を集約する】
+// 表示用の祖先は値のパスに存在しないため、実際のコンテナと組み合わせて優先順を確認する。
+// 再展開・切断・再接続・出力の消失でも追従し、集約先を編集可能な入力として登録しない。
+test('routes wires through nested sections alongside parameter containers and node collapse', async t => {
+	const f = await fixture(t, { connected: true, layout: nestedLayout() });
+	const leaf = f.wireMap.in['first-owner'][JSON.stringify(['buzzs', 'first', 'image'])];
+	await f.measure();
+	assert.deepEqual(f.destination(), f.position(leaf));
+	await f.toggle(['buzzs', 'first']); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs', 'first'])));
+	await f.toggle(['buzzs']); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs'])));
+	await f.toggleSection('inner'); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.sectionPort('inner')));
+	await f.toggleSection('outer'); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.sectionPort('outer')));
+	const nodeToggle = findAll(f.root, hasAttribute('data-test-node-toggle'))[0];
+	click(nodeToggle); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.wireMap.allIn['first-owner']));
+	click(nodeToggle); await f.toggleSection('outer'); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.sectionPort('inner')));
+	await f.toggleSection('inner'); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs'])));
+	await f.toggle(['buzzs']); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs', 'first'])));
+	await f.toggle(['buzzs', 'first']); await f.measure();
+	assert.deepEqual(f.destination(), f.position(leaf));
+	assert.equal(f.wireMap.in['first-owner'][JSON.stringify(['inner'])], undefined);
+	await f.toggleSection('inner');
+	const fields = f.owner.value.params.buzzs.value[0].binding.value;
+	fields.image = { inputSource: 'literal', value: [0, 0, 0, 0] }; await nextTick();
+	assert.equal(isVisible(f.sectionPort('inner')), false);
+	fields.image = { inputSource: 'node', nodeId: 'source', outputPort: 'output' }; await nextTick();
+	assert.equal(isVisible(f.sectionPort('inner')), true);
+	const sourcePort = f.wireMap.out.source.output;
+	delete f.wireMap.out.source.output; await nextTick();
+	assert.equal(isVisible(f.sectionPort('inner')), false);
+	f.wireMap.out.source.output = sourcePort; await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.sectionPort('inner')));
+});
 
 for (const target of ['node', 'layer']) {
 	// 【両編集画面の構造体・配列を独立して開閉し、閉じても子のUIを破棄しない】

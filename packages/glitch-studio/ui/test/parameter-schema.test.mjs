@@ -68,6 +68,11 @@ const oldNumber: DataType = 'number';
 const referenceOutput: EffectOutputDefinitions[string] = { dataType: { kind: 'imageAssetTextureReference' } };
 
 const number = { dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Value' }, defaultValue: { inputSource: 'literal', value: 0.5 } } as const;
+defineEffect({ ...outputDefinition, tags: [], paramDefs: { amount: number }, ui: { parameterLayout: [{ type: 'section', id: 'outer', label: 'Outer', children: [{ type: 'section', id: 'inner', label: 'Inner', defaultExpanded: false, children: ['amount'] }] }] } });
+// @ts-expect-error レイアウト側の参照からパラメータキーを広げず、入れ子内の誤記も拒否する
+defineEffect({ ...outputDefinition, tags: [], paramDefs: { amount: number }, ui: { parameterLayout: [{ type: 'section', id: 'outer', label: 'Outer', children: ['missing'] }] } });
+// @ts-expect-error ルートに配置するパラメータも定義済みのキーに限定する
+defineEffect({ ...outputDefinition, tags: [], paramDefs: { amount: number }, ui: { parameterLayout: ['missing'] } });
 const color = { dataType: { kind: 'color' }, ui: { control: {}, label: 'Color' }, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } } as const satisfies ParameterDefinition;
 // @ts-expect-error 素材参照は通常パラメータに定義できない
 const videoAsset = { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { control: {}, label: 'Video' }, defaultValue: { inputSource: 'literal', value: null } } as const satisfies ParameterDefinition;

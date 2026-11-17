@@ -23,6 +23,31 @@
 - パラメータのコンテナはliteralのBindingを持ち、その内部にも子ごとのBindingを保存します。例えばstructの初期値は `{ inputSource: 'literal', value: { myColor: { inputSource: 'literal', value: [1, 0, 0, 1] } } }` です。評価済みの素の値や、キーフレームに保存するリテラル値と混同しないでください。
 - コンテナ自体への式・ノード接続は扱いません。配列・構造体の内部では、末端の設定に従って式や接続を扱います。
 
+## エフェクトのパラメータセクション
+
+`EffectDefinition.ui.parameterLayout`は、ノードとTimelineのエフェクト設定で共有する表示用ツリーです。文字列でトップレベルのパラメータキーを参照し、`{ type: 'section', id, label, children }`で入れ子のセクションを配置します。配列順が表示順になり、パラメータと子セクションを混在できます。struct・arrayはそれぞれの編集UIごと配置し、セクションによって値の構造や参照パスを変更しません。
+
+```ts
+ui: {
+	parameterLayout: [
+		'input',
+		{
+			type: 'section', id: 'lighting', label: 'Lighting',
+			children: [
+				{ type: 'section', id: 'direction', label: 'Direction', children: ['lightAngle', 'lightElevation'] },
+				'lightIntensity',
+			],
+		},
+	],
+},
+```
+
+- レイアウトを省略すると`paramDefs`順に表示します。指定時は全パラメータを一度ずつ配置し、未知の参照・配置漏れ・重複と、エフェクト内で重複するセクションIDを`defineEffect()`で検出します。
+- セクションは既定で展開し、`defaultExpanded: false`で初期折り畳みにできます。親を閉じても子のUIと開閉状態を維持します。
+- 開閉状態は編集対象・エフェクト・セクションIDごとに編集セッション中だけ保持します。保存値・変更判定・Undo/Redoには含めません。
+- 詳細パラメータの表示設定と既定Bindingの比較は通常の行と共通です。表示対象がないセクションは見出しも隠します。空のセクションも同様です。
+- 折り畳んだ範囲のノード接続線は、表示中の最も近い見出しへ集約します。struct・array・セクション・ノード全体の折り畳みを組み合わせられ、見出しの仮想ポートは配線の表示だけに使用します。
+
 ## 型の判定・検証とUIへの受け渡し
 
 - 種類の判定は `dataType.kind`、構造を含む型の等価判定は `areDataTypesEqual()` を使います。オブジェクトの `===` で型を比較しないでください。ノード接続の互換性判定は、anyの規約を含む `areNodeDataTypesCompatible()` を使います。

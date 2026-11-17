@@ -51,18 +51,24 @@
 
 		<GsStaticSettings :definitions="effectDefinitions[node.effectId].staticSettingDefs ?? {}" :values="node.staticSettings" @change="emit('staticSetting', $event)"/>
 
-		<GsVisualParam
-			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node, effectDefinitions))"
-			:key="param"
-			:availableVariables="IN_VISUAL_MODULE_VAR_DEFS"
-			:visualModule="visualModule"
-			:automationGraphs="visualModule.automationGraphs"
+		<GsEffectParameterLayout
+			:definition="effectDefinitions[node.effectId]"
+			:values="node.params"
 			:node="node"
-			:paramPath="[param]"
-			:paramDef="def"
-			:paramValue="node.params[param]"
-			@edit="emit('editParam', $event)"
-		/>
+		>
+			<template #default="{ parameterKey }">
+				<GsVisualParam
+					:availableVariables="IN_VISUAL_MODULE_VAR_DEFS"
+					:visualModule="visualModule"
+					:automationGraphs="visualModule.automationGraphs"
+					:node="node"
+					:paramPath="[parameterKey]"
+					:paramDef="effectDefinitions[node.effectId].paramDefs[parameterKey]"
+					:paramValue="node.params[parameterKey]"
+					@edit="emit('editParam', $event)"
+				/>
+			</template>
+		</GsEffectParameterLayout>
 	</div>
 
 	<GsNodeOutputs style="margin-top: 4px;" :node="node" :outputResolutions="node.isBypass ? null : effectState?.outputs"/>
@@ -77,6 +83,7 @@ import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';
+import GsEffectParameterLayout from './GsEffectParameterLayout.vue';
 import GsStaticSettings from './GsStaticSettings.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -89,7 +96,7 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { connectedNodeParameterPathKeysKey, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
-import { getNodeParamDefs, paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
+import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
 import { getEffectNodeName } from '@/utility/node-name.ts';
 import * as ui from '@/ui.ts';
 

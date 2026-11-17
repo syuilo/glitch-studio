@@ -266,7 +266,7 @@ import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType }
 import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
-import { isParameterBindingDefault } from '@gs/shared/parameter/parameter-default.ts';
+import { isParameterVisible } from '@/utility/parameter-visibility.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { visualModulePublicParameterId, visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { VISUAL_MODULE_CUSTOM_PARAMETER_TYPES } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
@@ -367,8 +367,7 @@ const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
 const collapsedPortEl = shallowRef<HTMLElement | null>(null);
 const defaultBinding = computed(() => props.defaultBinding ?? props.paramDef.defaultValue);
-const isVisible = computed(() => props.paramDef.ui.isAdvanced !== true || preferences.r.showAdvancedParameters.value
-	|| !isParameterBindingDefault(props.paramDef, props.paramValue, defaultBinding.value));
+const isVisible = computed(() => isParameterVisible(props.paramDef, props.paramValue, defaultBinding.value, preferences.r.showAdvancedParameters.value));
 const arrayDefaultValues = computed<ParameterArrayElement<EditableParameterBinding>[] | null>(() => props.paramDef.dataType.kind === 'array' && defaultBinding.value.inputSource === 'literal' ? defaultBinding.value.value : null);
 const structDefaultValues = computed<Record<string, EditableParameterBinding> | null>(() => props.paramDef.dataType.kind === 'struct' && defaultBinding.value.inputSource === 'literal' ? defaultBinding.value.value : null);
 const arrayValues = computed<ParameterArrayElement<EditableParameterBinding>[]>(() => props.paramDef.dataType.kind === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);

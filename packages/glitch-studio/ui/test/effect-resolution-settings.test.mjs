@@ -20,15 +20,17 @@ const bundle = await build({
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'effect-resolution-settings', setup(build) {
+		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
 		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'platform' }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
 		build.onResolve({ filter: /^@\/ui\.ts$/ }, () => ({ path: 'ui', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ contents: {
+			preferences: "import { ref } from 'vue'; export const preferences = { r: { showAdvancedParameters: ref(false) } };",
 			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } } } } } };',
 			effects: "export const effectDefinitions = { test: { displayName: 'Test', paramDefs: {}, primaryOutput: 'output' } };",
 			ui: 'export function alert() {}',
 		}[path] }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsEffectNode\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path)
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path)
 			? null : { path: basename(path, '.vue'), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ contents: `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
@@ -61,7 +63,7 @@ const renderer = createRenderer({
 });
 
 async function fixture(t, target) {
-	const owner = reactive({ id: 'effect', type: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, params: {}, isBypass: false });
+	const owner = reactive({ id: 'effect', type: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, params: {}, effectParamValues: {}, isBypass: false });
 	const changes = [];
 	const change = resolution => { owner.resolution = resolution; changes.push(resolution); };
 	const root = element();

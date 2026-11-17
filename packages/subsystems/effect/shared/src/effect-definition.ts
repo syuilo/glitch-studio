@@ -3,6 +3,8 @@ import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { CheckedParameterDefinition, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { EffectParameterLayoutItem } from './effect-parameter-layout.ts';
+import { validateEffectParameterLayout } from './effect-parameter-layout.ts';
 
 export type EffectOutputDefinitions = Record<string, {
 	dataType: TextureDataType;
@@ -69,6 +71,10 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	canHaveLongRunningRenderPass?: boolean;
 	tags: EffectTags[];
 	paramDefs: In;
+	ui?: {
+		// 省略時はparamDefsの定義順。指定時は全パラメータを一度ずつ配置する。
+		parameterLayout: readonly EffectParameterLayoutItem<Extract<keyof NoInfer<In>, string>>[];
+	};
 	staticSettingDefs?: Settings;
 	/** 原寸の取得元。静的設定の参照先メタデータだけから取得する。 */
 	intrinsicResolutionSetting?: Extract<keyof Settings, string>;
@@ -87,6 +93,7 @@ export function defineEffect<const In extends Record<string, ParameterDefinition
 		paramDefs: { [K in keyof In]: CheckedParameterDefinition<NoInfer<In[K]>> };
 	},
 ): EffectDefinition<In, Out, Settings> {
+	if (def.ui != null) validateEffectParameterLayout(def.id, Object.keys(def.paramDefs), def.ui.parameterLayout);
 	if (def.primaryAudioInputParameter != null && def.paramDefs[def.primaryAudioInputParameter]?.dataType.kind !== 'audioSource') {
 		throw new Error(`Primary audio input must reference an audio parameter: ${def.id}.${def.primaryAudioInputParameter}`);
 	}

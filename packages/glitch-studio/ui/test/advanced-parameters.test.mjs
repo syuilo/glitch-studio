@@ -20,6 +20,7 @@ const effect = { id: 'test', displayName: 'Test', kind: 'modify', primaryInputPa
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', isAdvanced: true, control: {} }, canNode: true, defaultValue: literal([0, 0, 0, 0]) },
 		end: scalar,
 	},
+	ui: { parameterLayout: ['amount', { type: 'section', id: 'advanced', label: 'Advanced', children: ['sizeReference', 'input'] }, 'end'] },
 };
 const bundle = await build({ absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
@@ -38,7 +39,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } }, automationGraphs: { value: [] } } } } };',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {}',
 		}[path] }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
 				return () => h('control', attrs, Object.values(slots).flatMap(slot => slot()));
@@ -82,14 +83,22 @@ function fixture(t, component, initialProps) {
 		visit(root);
 		return result;
 	};
-	return { props, paths };
+	const section = () => {
+		function visit(node) {
+			if (node.props['data-test-parameter-section'] === 'advanced') return node;
+			return node.children.map(visit).find(child => child != null);
+		}
+		return visit(root);
+	};
+	return { props, paths, section };
 }
 
 for (const target of ['node', 'layer']) {
-	// 【エフェクトの両編集画面で設定を共有し、定義順の表示と変更済みの強制表示を保つ】
+	// 【エフェクトの両編集画面で設定を共有し、配置順の表示と変更済みの強制表示を保つ】
 	// Timelineの初期接続はエフェクト定義のliteralとは異なるが、未変更として非表示にする。
+	// 初期Bindingだけを含む詳細セクションも隠し、変更時には見出しごと表示する。
 	// 値を戻したときの即時非表示も確認し、表示操作による保存Bindingの変更を防ぐ。
-	test(`toggles advanced ${target} parameters in definition order and keeps changed bindings visible`, async t => {
+	test(`toggles advanced ${target} parameters in layout order and keeps changed bindings visible`, async t => {
 		const params = Object.fromEntries(Object.entries(effect.paramDefs).map(([key, definition]) => [key, structuredClone(definition.defaultValue)]));
 		if (target === 'layer') params.input = { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 		const owner = { id: 'effect', type: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, automationGraphs: [], params, effectParamValues: params, isBypass: false };
@@ -98,15 +107,18 @@ for (const target of ['node', 'layer']) {
 			: { layer: owner, contextResolution: { width: 1920, height: 1080 }, imageLayerOptions: [], anotherLayerAudioOptions: [] });
 		const saved = structuredClone(params);
 		assert.deepEqual(f.paths(), [['amount'], ['end']]);
+		assert.equal(f.section(), undefined);
 		preferences.r.showAdvancedParameters.value = true;
 		await nextTick();
 		assert.deepEqual(f.paths(), [['amount'], ['sizeReference'], ['input'], ['end']]);
+		assert.ok(f.section() != null);
 		assert.deepEqual(params, saved);
 		preferences.r.showAdvancedParameters.value = false;
 		const values = target === 'node' ? f.props.node.params : f.props.layer.effectParamValues;
 		values.sizeReference = literal('height');
 		await nextTick();
 		assert.deepEqual(f.paths(), [['amount'], ['sizeReference'], ['end']]);
+		assert.ok(f.section() != null);
 		values.sizeReference = literal('longSide');
 		values.input = target === 'node' ? { inputSource: 'node', nodeId: 'source', outputPort: 'output' } : { ...values.input, fitMode: 'contain' };
 		await nextTick();

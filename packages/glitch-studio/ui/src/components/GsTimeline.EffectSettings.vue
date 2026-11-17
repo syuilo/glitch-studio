@@ -12,25 +12,32 @@
 	</div>
 	<div style="padding: 8px 0;">
 		<GsStaticSettings :definitions="definition.staticSettingDefs ?? {}" :values="layer.effectStaticSettings" @change="emit('staticSetting', $event)"/>
-		<GsVisualParam
-			v-for="[key, def] in Object.entries(definition.paramDefs)"
-			:key="key"
+		<GsEffectParameterLayout
+			:definition="definition"
+			:values="layer.effectParamValues"
+			:defaultBindings="parameterDefaults"
 			previewParameterGroup="effect"
-			keyframesEnabled
-			imageInputEnabled
-			imageInputSamplingEnabled
-			:imageLayerOptions="imageLayerOptions"
-			:anotherLayerAudioOptions="anotherLayerAudioOptions"
-			:automationGraphEndEnabled="false"
-			:availableVariables="EFFECT_LAYER_VAR_DEFS"
-			:automationGraphs="layer.automationGraphs"
-			:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
-			:paramPath="[key]"
-			:paramDef="def"
-			:paramValue="layer.effectParamValues[key] ?? parameterDefaults[key]"
-			:defaultBinding="parameterDefaults[key]"
-			@edit="emit('edit', $event)"
-		/>
+		>
+			<template #default="{ parameterKey }">
+				<GsVisualParam
+					previewParameterGroup="effect"
+					keyframesEnabled
+					imageInputEnabled
+					imageInputSamplingEnabled
+					:imageLayerOptions="imageLayerOptions"
+					:anotherLayerAudioOptions="anotherLayerAudioOptions"
+					:automationGraphEndEnabled="false"
+					:availableVariables="EFFECT_LAYER_VAR_DEFS"
+					:automationGraphs="layer.automationGraphs"
+					:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
+					:paramPath="[parameterKey]"
+					:paramDef="definition.paramDefs[parameterKey]"
+					:paramValue="layer.effectParamValues[parameterKey] ?? parameterDefaults[parameterKey]"
+					:defaultBinding="parameterDefaults[parameterKey]"
+					@edit="emit('edit', $event)"
+				/>
+			</template>
+		</GsEffectParameterLayout>
 	</div>
 	<div class="_spacer">
 		<GsSelect data-test-effect-layer-resolution-mode large :modelValue="layer.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
@@ -60,6 +67,7 @@ import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsVisualParam from './GsVisualParam.vue';
+import GsEffectParameterLayout from './GsEffectParameterLayout.vue';
 import GsStaticSettings from './GsStaticSettings.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
 import type { AnotherLayerAudioOption, ParamEdit } from './GsVisualParam.vue';

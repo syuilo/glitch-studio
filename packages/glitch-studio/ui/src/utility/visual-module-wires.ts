@@ -8,12 +8,13 @@ type WireMap = {
 	out: Record<string, Record<string, HTMLElement>>;
 	allIn: Record<string, HTMLElement>;
 	collapsedParameters: Record<string, Record<string, HTMLElement>>;
+	collapsedSections: Record<string, Record<string, { element: HTMLElement; parameterKeys: readonly string[]; depth: number }>>;
 };
 
 const wireMapKey: InjectionKey<WireMap> = Symbol('visual-module-wires');
 // 接続済みの末端だけでなく祖先のパスも含め、ノードと各コンテナの仮想ポートで共有する。
 export const connectedNodeParameterPathKeysKey: InjectionKey<ComputedRef<ReadonlySet<string>>> = Symbol('connected-node-parameter-path-keys');
-const createWireMap = (): WireMap => reactive({ in: {}, out: {}, allIn: {}, collapsedParameters: {} });
+const createWireMap = (): WireMap => reactive({ in: {}, out: {}, allIn: {}, collapsedParameters: {}, collapsedSections: {} });
 
 export function getVisualModuleWireInputElements(wireMap: WireMap, nodeId: string, path: ParamPath): HTMLElement[] {
 	const elements: HTMLElement[] = [];
@@ -26,6 +27,12 @@ export function getVisualModuleWireInputElements(wireMap: WireMap, nodeId: strin
 		const element = wireMap.collapsedParameters[nodeId]?.[paramPathKey(ancestorPath)];
 		if (element != null) elements.push(element);
 	}
+	// セクションは値のパスに含まれない。トップレベルの所属で候補を探し、
+	// struct・arrayの祖先に続いて、表示上の内側から外側へ測定する。
+	const sections = Object.values(wireMap.collapsedSections[nodeId] ?? {})
+		.filter(section => section.parameterKeys.includes(path[0]))
+		.sort((left, right) => right.depth - left.depth);
+	for (const section of sections) elements.push(section.element);
 	const allIn = wireMap.allIn[nodeId];
 	if (allIn != null) elements.push(allIn);
 	return elements;

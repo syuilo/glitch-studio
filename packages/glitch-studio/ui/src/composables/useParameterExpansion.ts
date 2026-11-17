@@ -14,15 +14,22 @@ export function useParameterExpansion(session: Pick<ProjectSessionContext, 'para
 	node?: { id: string };
 	previewParameterGroup?: string;
 }) {
+	return useParameterExpansionState(session,
+		() => [props.node?.id ?? null, props.previewParameterGroup ?? null, props.paramPath],
+		() => isParameterType(props.paramDef, 'struct') || isParameterType(props.paramDef, 'array')
+			? props.paramDef.ui.control.defaultExpanded ?? true : true);
+}
+
+// パラメータパスと表示用セクションIDは別の識別子として保持し、
+// 開閉状態の保存先と、スコープがない場合のローカル保持だけを共有する。
+export function useParameterExpansionState(session: Pick<ProjectSessionContext, 'parameterExpansionStates'>, identity: () => readonly unknown[], defaultExpanded: () => boolean) {
 	const scope = inject(parameterExpansionScopeKey, null);
 	const localExpanded = ref<boolean | null>(null);
 	const stateKey = computed(() => scope?.value == null ? null
-		: JSON.stringify([scope.value, props.node?.id ?? null, props.previewParameterGroup ?? null, props.paramPath]));
+		: JSON.stringify([scope.value, ...identity()]));
 	return computed({
 		get() {
-			const defaultExpanded = isParameterType(props.paramDef, 'struct') || isParameterType(props.paramDef, 'array')
-				? props.paramDef.ui.control.defaultExpanded ?? true : true;
-			return (stateKey.value == null ? localExpanded.value : session.parameterExpansionStates.get(stateKey.value)) ?? defaultExpanded;
+			return (stateKey.value == null ? localExpanded.value : session.parameterExpansionStates.get(stateKey.value)) ?? defaultExpanded();
 		},
 		set(expanded: boolean) {
 			if (stateKey.value == null) localExpanded.value = expanded;
