@@ -95,6 +95,7 @@
 		"transition": "Transitions",
 		"transform": "Transform",
 		"distortion": "Distortion",
+		"3d": "3D",
 		"blur": "Blur",
 		"light": "Light & glow",
 		"glitch": "Glitch",

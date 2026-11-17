@@ -10,7 +10,7 @@ export default defineEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['pattern', 'light', 'stylized', 'math'],
+	tags: ['pattern', 'light', 'stylized', 'math', '3d'],
 	paramDefs: {
 		time: {
 			dataType: { kind: 'scalar' },

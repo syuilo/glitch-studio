@@ -9,7 +9,7 @@ export default defineEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['light', 'simulation'],
+	tags: ['light', 'simulation', '3d'],
 	paramDefs: {
 		height: {
 			dataType: { kind: 'scalar' },

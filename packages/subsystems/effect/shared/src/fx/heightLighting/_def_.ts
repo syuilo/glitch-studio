@@ -10,7 +10,7 @@ export default defineEffect({
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
-	tags: ['light'],
+	tags: ['light', '3d'],
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

@@ -95,6 +95,7 @@
 		"transition": "トランジション",
 		"transform": "移動・回転・拡縮",
 		"distortion": "歪み・変形",
+		"3d": "3D",
 		"blur": "ぼかし",
 		"light": "光・発光",
 		"glitch": "グリッチ",

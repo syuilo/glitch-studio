@@ -22,6 +22,7 @@ export const EFFECT_TAGS = [
 	'transition', // 画像間の切り替え・場面転換
 	'transform', // 移動・回転・拡縮
 	'distortion', // 歪み・変形
+	'3d', // 3次元空間・立体形状の描画や加工。高さ場の照明や曲面の陰影・屈折も含む。
 	'blur', // ぼかし
 	'light', // 光・発光
 	'glitch', // 映像の乱れ・破損を模した表現

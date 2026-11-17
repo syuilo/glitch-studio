@@ -11,7 +11,7 @@ export default defineEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	canHaveLongRunningRenderPass: true,
-	tags: ['pattern', 'light', 'stylized'],
+	tags: ['pattern', 'light', 'stylized', '3d'],
 	paramDefs: {
 		time: {
 			dataType: { kind: 'scalar' },
