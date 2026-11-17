@@ -29,6 +29,28 @@ function fixture() {
 	return { device, calls };
 }
 
+// 【配列要素ごとに配置先の寸法を指定しても、同じFit処理とパイプラインを使う】
+// 扇形の配置先は要素ごとに縦横比が異なる。定数要素でインデックスを詰めたり、
+// 配列全体の寸法を流用したりすると別の画像へFitが適用されるため、固定入力との混在でも確認する。
+test('fits array elements to independent reference dimensions without rebuilding pipelines', () => {
+	const { device, calls } = fixture();
+	const cover = textureShaderInput(texture, { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' });
+	const contain = textureShaderInput(texture, { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' });
+	const pipeline = createShaderInputPipeline({ device, vertex: {}, code: '', schema: { images: { array: 'color' }, fixed: 'color' }, targets: [] });
+	const inputs = { images: [cover, red, contain], fixed: cover };
+	const first = pipeline.update(inputs, output, { images: [{ width: 50, height: 100 }, { width: 1, height: 1 }, { width: 200, height: 50 }] });
+	assert.deepEqual(calls.writes.at(-1).slice(4, 6), [0.25, 1]);
+	assert.deepEqual(calls.writes.at(-1).slice(20, 22), [2, 1]);
+	assert.deepEqual(calls.writes.at(-1).slice(28, 30), [0.5, 1]);
+	assert.equal(pipeline.update(inputs, output, { images: output }).pipeline, first.pipeline);
+	assert.deepEqual(calls.writes.at(-1).slice(4, 6), [0.5, 1]);
+	assert.deepEqual(calls.writes.at(-1).slice(20, 22), [1, 2]);
+	pipeline.update(inputs, output, { images: [{ width: 50, height: 100 }] });
+	assert.deepEqual(calls.writes.at(-1).slice(20, 22), [1, 2]);
+	assert.equal(calls.pipelines.length, 1);
+	pipeline.dispose();
+});
+
 // 配列要素ごとの定数・fit・wrap・filterを、固定入力と混在させても正しくアップロードする。
 test('uploads mixed array elements and independent sampling settings', () => {
 	const { device, calls } = fixture();

@@ -36,6 +36,8 @@ let color = read_images(index, position);
 
 `read_<配列名>(index: u32, position: vec2f)` はswitchで該当要素だけを参照する。各要素は独立したuniformまたはtextureで、fit/wrap/filterも要素ごとに適用する。空配列・範囲外indexは型に応じた0（色なら透明）を返す。空配列だけでも有効なシェーダーとbindingを生成する。配列要素は画素ごとに異なる分岐で読めるよう、sampling指定によらずLOD 0を使う。固定入力のsampling指定は従来どおり。スカラー配列にはscalarGradientsを指定すると `readGradient_<配列名>(index, position, calculate)` も生成し、範囲外はvec3f(0)となる。
 
+`update()`の第3引数でFitの基準寸法を入力名ごとに指定できる。配列入力へ単一の寸法を渡すと全要素に共通で適用し、寸法の配列を渡すと同じインデックスの要素へ適用する。未指定の入力・要素は実際の出力寸法を基準にする。Radial Splitのように配置先の縦横比が要素ごとに異なる場合も、入力接続のFitをそのまま利用できる。
+
 配列長と各要素のuniform/textureの組合せをpipelineのキャッシュキーに含める。長さや種別が変われば対応する構成を生成・再利用し、値・接続先・fit/wrap/filterだけの変更では再生成しない。LRUの上限は固定入力と同じ16構成。低レベルのgenerateShaderInputs/createShaderInputBindingsでも配列を利用できるが、長さ・種別の変更時は再生成が必要で、古いbindingsへの更新はエラーにする。
 
 個別binding方式なので、texture要素ごとにテクスチャとサンプラーの枠を1つずつ使う。uniform要素はこれらの枠を使わない。入力groupだけでdeviceのtexture/sampler数・uniformサイズ・binding数の上限を超える場合は、リソース作成前にエラーとする。内部groupも含むpipeline全体の上限はGPU側でも検証されるため、エフェクトは内部で使う枠も考慮して候補数を決める。大量の候補を配列テクスチャへまとめる機能は含まない。

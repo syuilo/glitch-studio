@@ -47,8 +47,8 @@ export function constantShaderInput(dataType: string, value: any): ShaderInput {
 
 export type ShaderInputType = 'scalar' | 'vector' | 'color' | 'any';
 export type ShaderInputSchema = Readonly<Record<string, ShaderInputType | { array: ShaderInputType }>>;
-/** 素材と制御用の場など、入力ごとに異なる座標領域でfitする場合の基準寸法。配列には要素共通で適用する。 */
-export type ShaderInputReferenceResolutions = Readonly<Partial<Record<string, Resolution>>>;
+/** 入力ごとに異なる座標領域でfitする場合の基準寸法。配列入力は共通寸法または要素別の寸法を受け取る。 */
+export type ShaderInputReferenceResolutions = Readonly<Partial<Record<string, Resolution | readonly Resolution[]>>>;
 type ShaderInputValue<T extends ShaderInputSchema[string]> = T extends ShaderInputType ? ShaderInput : readonly ShaderInput[];
 export type ShaderInputValues<Schema extends ShaderInputSchema = ShaderInputSchema> = {
 	readonly [Key in keyof Schema]: ShaderInputValue<Schema[Key]>;
@@ -216,7 +216,9 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 					values.set(input.value, slot.index * 8);
 					continue;
 				}
-				const scale = inputUvScale(input.texture, inputReferenceResolutions[slot.sourceName] ?? output, input.fitMode);
+				const references = inputReferenceResolutions[slot.sourceName];
+				const reference = references == null ? output : 'width' in references ? references : references[slot.elementIndex ?? 0] ?? output;
+				const scale = inputUvScale(input.texture, reference, input.fitMode);
 				values.set([...scale, Number(input.filterMode === 'nearest'), Number(input.wrapMode === 'transparent')], slot.index * 8 + 4);
 				const samplerKey = `${input.wrapMode}:${input.filterMode}`;
 				let sampler = samplers.get(samplerKey);
