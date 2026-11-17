@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 import { parse, compileScript } from 'vue/compiler-sfc';
@@ -19,6 +20,9 @@ async function loadInputComponent(fileName) {
 			name: 'input-test-dependencies',
 			setup(build) {
 				// 式の評価はモックせず、本番と同じパーサー・インタープリターで検証する。
+				build.onResolve({ filter: /^@\/utility\/numeric-input-expression\.ts$/ }, () => ({
+					path: fileURLToPath(new URL('../src/utility/numeric-input-expression.ts', import.meta.url)),
+				}));
 				build.onResolve({ filter: /^@\/|^@gs\/shared\/utility\/id\.ts$/ }, args => ({ path: args.path, namespace: 'stub' }));
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({
 					contents: 'export default {}; export const genId = () => "test"; export const claimZIndex = () => 3000100; export const i18n = {}; export class Autocomplete {}',

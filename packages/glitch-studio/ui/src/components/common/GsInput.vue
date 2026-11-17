@@ -66,13 +66,13 @@ type ModelValueType<T extends SupportedTypes> =
 <script lang="ts" setup generic="T extends SupportedTypes = 'text'">
 import { onMounted, onUnmounted, nextTick, ref, useTemplateRef, watch, computed, toRefs } from 'vue';
 import { throttle, debounce } from 'throttle-debounce';
-import * as AiScript from '@syuilo/aiscript';
 import { genId } from '@gs/shared/utility/id.ts';
 import type { InputHTMLAttributes } from 'vue';
 import type { SuggestionType } from '@/utility/autocomplete.ts';
 import GsButton from '@/components/common/GsButton.vue';
 import { i18n } from '@/i18n.ts';
 import { Autocomplete } from '@/utility/autocomplete.ts';
+import { evaluateNumericInputExpression } from '@/utility/numeric-input-expression.ts';
 import * as ui from '@/ui.ts';
 
 const props = withDefaults(defineProps<{
@@ -120,7 +120,6 @@ const { modelValue } = toRefs(props);
 const v = ref<string | number | null>(modelValue.value);
 const expressionEnabled = computed(() => props.type === 'number' && props.allowExpression && props.manualSave === true);
 const inputType = computed(() => expressionEnabled.value ? 'text' : props.type);
-const expressionParser = new AiScript.Parser();
 const id = genId();
 // Teleport先ではコンポーネント内のスコープを共有できないため、入力欄ごとに名前を分ける。
 const inputAnchorName = `--gs-input-${id}`;
@@ -246,34 +245,14 @@ const onKeydown = (ev: KeyboardEvent) => {
 
 const updated = () => {
 	if (expressionEnabled.value) {
-		try {
-			let numericValue: number;
-			if (typeof v.value === 'number') {
-				// stepperで生成した数値は式へ戻さず扱う。指数表記でもパーサーの構文に依存しない。
-				numericValue = v.value;
-			} else {
-				const ast = expressionParser.parse(String(v.value ?? ''));
-				// 前回確定した式の変数や実行状態を引き継がず、数値欄内だけで評価を完結させる。
-				const interpreter = new AiScript.Interpreter({});
-				const result = interpreter.execSync(ast);
-				// 文字列やnullを暗黙に数値へ変換しない。
-				if (result == null || result.type !== 'num') {
-					invalid.value = true;
-					return;
-				}
-				numericValue = result.value;
-			}
-			if (!Number.isFinite(numericValue)) {
-				invalid.value = true;
-				return;
-			}
-			v.value = numericValue;
-			invalid.value = false;
-		} catch {
+		const numericValue = evaluateNumericInputExpression(v.value);
+		if (numericValue == null) {
 			// 入力を残して修正できるよう、失敗時は未保存状態も維持する。
 			invalid.value = true;
 			return;
 		}
+		v.value = numericValue;
+		invalid.value = false;
 	}
 	changed.value = false;
 	// Undo/Redoなどで親から同期された値を編集として返すと、Redo履歴が消えてしまう。

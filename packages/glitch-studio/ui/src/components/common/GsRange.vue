@@ -1,46 +1,51 @@
 <template>
-<div class="timctyfi" :class="{ disabled, easing }">
-	<div class="label">
-		<slot name="label"></slot>
+<div :class="$style.root">
+	<div :class="$style.label"><slot name="label"></slot></div>
+	<div
+		:class="[$style.input, { [$style.disabled]: disabled, [$style.focused]: editing, [$style.easing]: easing && !dragging }]"
+		:style="{ anchorName: inputAnchorName }"
+		data-test-range-control
+		@pointerdown="onPointerdown"
+		@dblclick.stop="beginEditing"
+	>
+		<div :class="$style.fill" :style="{ width: `${valueRatio * 100}%` }" data-test-range-fill></div>
+		<div :class="$style.prefix"><slot name="prefix"></slot></div>
+		<input
+			v-if="editing"
+			ref="inputEl"
+			v-model="draft"
+			:class="$style.nativeInput"
+			type="text"
+			:spellcheck="false"
+			:disabled="disabled"
+			data-test-range-editor
+			@keydown="onEditorKeydown"
+		>
+		<div v-else :class="$style.value" data-test-range-value>{{ formatValue(value) }}</div>
+		<div :class="$style.suffix"><slot name="suffix"></slot></div>
 	</div>
-	<div class="body" :class="{ 'disabled': disabled }">
-		<slot name="prefix"></slot>
-		<div ref="containerEl" class="container">
-			<div class="track">
-				<div class="highlight right" :style="{ width: rightTrackWidth, left: rightTrackPosition }">
-					<div class="shine right"></div>
-				</div>
-				<div class="highlight left" :style="{ width: leftTrackWidth, left: leftTrackPosition }">
-					<div class="shine left"></div>
-				</div>
-			</div>
-			<div v-if="steps && showTicks" class="ticks">
-				<div v-for="i in (steps + 1)" class="tick" :style="{ left: (((i - 1) / steps) * 100) + '%' }"></div>
-			</div>
-			<div
-				ref="thumbEl"
-				class="thumb"
-				:class="{ dragging: tooltipForDragShowing }"
-				:style="{ left: thumbPosition + 'px' }"
-				@mouseenter.passive="onMouseenter"
-				@pointerdown="onPointerdown"
-			>
-				<div class="thumbInner"></div>
-			</div>
+	<div :class="$style.caption"><slot name="caption"></slot></div>
+	<Teleport to="body">
+		<div
+			v-if="editing"
+			:class="$style.manualSaveActions"
+			class="_popup _shadow"
+			:style="{ positionAnchor: inputAnchorName, zIndex: manualSaveActionsZIndex }"
+		>
+			<GsButton iconOnly data-test-range-save small primary :disabled="disabled || !draftHasContent" icon="ti ti-check" @click="saveEditing"/>
+			<GsButton iconOnly data-test-range-cancel small :disabled="disabled" icon="ti ti-x" @click="cancelEditing"/>
 		</div>
-		<slot name="suffix"></slot>
-	</div>
-	<div class="caption">
-		<slot name="caption"></slot>
-	</div>
+	</Teleport>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, onUnmounted, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
-import { isTouchUsing } from '@/utility/touch.ts';
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
+import { genId } from '@gs/shared/utility/id.ts';
+import GsButton from '@/components/common/GsButton.vue';
+import { listenPointerDrag } from '@/utility/pointer-drag.ts';
+import { evaluateNumericInputExpression } from '@/utility/numeric-input-expression.ts';
 import * as ui from '@/ui.ts';
-import GsTooltip from '@/components/common/GsTooltip.vue';
 
 const props = withDefaults(defineProps<{
 	modelValue: number;
@@ -49,8 +54,7 @@ const props = withDefaults(defineProps<{
 	max: number;
 	step?: number;
 	logarithmic?: boolean;
-	textConverter?: (value: number) => string,
-	showTicks?: boolean;
+	textConverter?: (value: number) => string;
 	easing?: boolean;
 	continuousUpdate?: boolean;
 }>(), {
@@ -63,391 +67,286 @@ const emit = defineEmits<{
 	(ev: 'beginChanging'): void;
 	(ev: 'changeFinished'): void;
 	(ev: 'dragEnded', value: number): void;
-	(ev: 'thumbDoubleClicked'): void;
 }>();
 
-const containerEl = useTemplateRef('containerEl');
-const thumbEl = useTemplateRef('thumbEl');
-
-const useLogarithmic = computed(() => props.logarithmic && props.min > 0 && props.max > props.min);
-
-function formatValue(value: number): string {
-	if (props.textConverter) return props.textConverter(value);
-	// 小さなSizeが0と表示されないよう、対数操作では有効桁数で表示する。
-	return useLogarithmic.value ? Number(value.toPrecision(5)).toString() : (Math.round(value * 1000) / 1000).toString();
-}
-
-const maxRatio = computed(() => Math.abs(props.max) / (props.max + Math.abs(Math.min(0, props.min))));
-const minRatio = computed(() => Math.abs(Math.min(0, props.min)) / (props.max + Math.abs(Math.min(0, props.min))));
-
-const rightTrackWidth = computed(() => {
-	return Math.max(0, (steppedRawValue.value - minRatio.value) * 100) + '%';
-});
-const leftTrackWidth = computed(() => {
-	return Math.max(0, (minRatio.value - steppedRawValue.value) * 100) + '%';
-});
-const rightTrackPosition = computed(() => {
-	return (Math.abs(Math.min(0, props.min)) / (props.max + Math.abs(Math.min(0, props.min)))) * 100 + '%';
-});
-const leftTrackPosition = computed(() => {
-	return (Math.min(minRatio.value, steppedRawValue.value) * 100) + '%';
-});
-
-const calcRawValue = (value: number) => {
-	if (useLogarithmic.value) {
-		const clamped = Math.min(props.max, Math.max(props.min, value));
-		return Math.log(clamped / props.min) / Math.log(props.max / props.min);
-	}
-	return (value - props.min) / (props.max - props.min);
-};
-
-const rawValue = ref(calcRawValue(props.modelValue));
-const steppedRawValue = computed(() => {
-	// 固定の値刻みで丸めると小さい値を調整できなくなるため、対数操作は連続値を使う。
-	if (useLogarithmic.value) return rawValue.value;
-	if (props.step) {
-		const step = props.step / (props.max - props.min);
-		return (step * Math.round(rawValue.value / step));
-	} else {
-		return rawValue.value;
-	}
-});
-const finalValue = computed(() => {
-	if (useLogarithmic.value) return props.min * (props.max / props.min) ** steppedRawValue.value;
-	if (Number.isInteger(props.step)) {
-		return Math.round((steppedRawValue.value * (props.max - props.min)) + props.min);
-	} else {
-		return (steppedRawValue.value * (props.max - props.min)) + props.min;
-	}
-});
-
-const getThumbWidth = () => {
-	if (thumbEl.value == null) return 0;
-	return thumbEl.value!.offsetWidth;
-};
-const thumbPosition = ref(0);
-const calcThumbPosition = () => {
-	if (containerEl.value == null) {
-		thumbPosition.value = 0;
-	} else {
-		thumbPosition.value = (containerEl.value.offsetWidth - getThumbWidth()) * steppedRawValue.value;
-	}
-};
-watch([steppedRawValue, containerEl], calcThumbPosition);
-watch(() => [props.modelValue, props.min, props.max, props.logarithmic] as const, ([newVal]) => {
-	const newRawValue = calcRawValue(newVal);
-	if (rawValue.value === newRawValue) return;
-	rawValue.value = newRawValue;
-});
-
-let ro: ResizeObserver | null = null;
-
-onMounted(() => {
-	ro = new ResizeObserver((entries, observer) => {
-		calcThumbPosition();
-	});
-	if (containerEl.value) ro.observe(containerEl.value);
-});
-
-onUnmounted(() => {
-	if (ro) ro.disconnect();
-});
-
-const steps = computed(() => {
-	if (useLogarithmic.value) return 0;
-	if (props.step) {
-		return (props.max - props.min) / props.step;
-	} else {
-		return 0;
-	}
-});
-
-const tooltipForDragShowing = ref(false);
-const tooltipForHoverShowing = ref(false);
+const inputEl = useTemplateRef('inputEl');
+const inputAnchorName = `--gs-range-${genId()}`;
+const manualSaveActionsZIndex = ui.claimZIndex('high');
+const value = ref(props.modelValue);
+const editing = ref(false);
+const dragging = ref(false);
+// 直接入力はドラフトとして保持し、blurや入力イベントから親へ通知しない。
+// min/maxとstepはドラッグ専用の制約であり、確定した直接入力には適用しない。
+const draft = ref<string | number>('');
+const draftHasContent = computed(() => String(draft.value).trim() !== '');
+const useLogarithmic = computed(() => props.logarithmic === true && props.min > 0 && props.max > props.min);
 let finishDrag: (() => void) | null = null;
 
-onBeforeUnmount(() => {
-	finishDrag?.();
-	// 何らかの問題で表示されっぱなしでもコンポーネントを離れたら消えるように
-	tooltipForDragShowing.value = false;
-	tooltipForHoverShowing.value = false;
-});
-
-function onMouseenter() {
-	if (isTouchUsing) return;
-
-	tooltipForHoverShowing.value = true;
-
-	const { dispose } = ui.popup(GsTooltip, {
-		showing: computed(() => tooltipForHoverShowing.value && !tooltipForDragShowing.value),
-		text: computed(() => {
-			return formatValue(finalValue.value);
-		}),
-		anchorElement: thumbEl.value ?? null,
-	}, {
-		closed: () => dispose(),
-	});
-
-	thumbEl.value!.addEventListener('mouseleave', () => {
-		tooltipForHoverShowing.value = false;
-	}, { once: true, passive: true });
+function clampValue(current: number): number {
+	return Math.min(props.max, Math.max(props.min, current));
 }
 
-let lastClickTime: number | null = null;
+function calcValueRatio(current: number): number {
+	if (props.max <= props.min) return 0;
+	const clamped = clampValue(current);
+	return useLogarithmic.value
+		? Math.log(clamped / props.min) / Math.log(props.max / props.min)
+		: (clamped - props.min) / (props.max - props.min);
+}
 
-function onPointerdown(ev: PointerEvent) {
-	if (props.disabled) return; // Prevent interaction if disabled
-	if (finishDrag != null || ev.button !== 0 || !ev.isPrimary) return;
-	const thumb = thumbEl.value;
-	if (!thumb) return;
-	const pointerId = ev.pointerId;
-	const ownerWindow = thumb.ownerDocument.defaultView;
+const valueRatio = computed(() => calcValueRatio(value.value));
 
-	ev.preventDefault();
-	// DOMを別ウィンドウへ移しても、つまみ自身でドラッグを追跡できるようにする。
-	thumb.setPointerCapture(pointerId);
+function formatValue(current: number): string {
+	if (props.textConverter != null) return props.textConverter(current);
+	// Shift調整や小さい値も表示できるよう、固定の小数桁数で切り捨てない。
+	return Number(current.toPrecision(10)).toString();
+}
+
+function onPointerdown(event: PointerEvent) {
+	if (props.disabled || editing.value || finishDrag != null || event.button !== 0 || !event.isPrimary || props.max <= props.min) return;
+	const controlWidth = (event.currentTarget as HTMLElement).getBoundingClientRect().width;
+	if (controlWidth <= 0) return;
+	event.preventDefault();
+	event.stopPropagation();
+	const beforeValue = value.value;
+	let previousX = event.clientX;
+	let precisionMode = event.shiftKey;
+	let ratio = calcValueRatio(value.value);
+	let segmentStartValue = clampValue(value.value);
+	dragging.value = true;
 	emit('beginChanging');
 
-	tooltipForDragShowing.value = true;
-
-	const { dispose } = ui.popup(GsTooltip, {
-		showing: tooltipForDragShowing,
-		text: computed(() => {
-			return formatValue(finalValue.value);
-		}),
-		anchorElement: thumbEl.value ?? null,
-	}, {
-		closed: () => dispose(),
-	});
-
-	const thumbWidth = getThumbWidth();
-
-	const onDrag = (ev: PointerEvent) => {
-		if (ev.pointerId !== pointerId) return;
-		ev.preventDefault();
-		let beforeValue = finalValue.value;
-		const containerRect = containerEl.value!.getBoundingClientRect();
-		const pointerPositionOnContainer = ev.clientX - (containerRect.left + (thumbWidth / 2));
-		rawValue.value = Math.min(1, Math.max(0, pointerPositionOnContainer / (containerEl.value!.offsetWidth - thumbWidth)));
-
-		if (props.continuousUpdate && beforeValue !== finalValue.value) {
-			emit('update:modelValue', finalValue.value);
+	finishDrag = listenPointerDrag(event, current => {
+		if (props.disabled) return;
+		const deltaX = current.clientX - previousX;
+		previousX = current.clientX;
+		if (deltaX === 0) return;
+		if (precisionMode !== current.shiftKey) {
+			// Shift切り替えで過去の移動量を再計算すると値が跳ぶため、現在値を新しい基準にする。
+			precisionMode = current.shiftKey;
+			ratio = calcValueRatio(value.value);
+			segmentStartValue = clampValue(value.value);
 		}
-	};
-
-	let beforeValue = finalValue.value;
-
-	const onPointerEnd = (ev: PointerEvent) => {
-		if (ev.pointerId !== pointerId) return;
-		endDrag();
-	};
-
-	const endDrag = () => {
-		if (finishDrag == null) return;
+		// clientXと同じ表示上の幅を使い、帯の端とポインターの移動距離を揃える。
+		// 途中で感度が変わらないよう幅は開始時に固定し、Shift中だけ移動量を1/10にする。
+		ratio = Math.min(1, Math.max(0, ratio + deltaX / controlWidth * (precisionMode ? 0.1 : 1)));
+		let nextValue: number;
+		if (useLogarithmic.value) {
+			// 小さな値を固定stepで失わないよう、従来どおり対数操作は連続値を使う。
+			nextValue = props.min * (props.max / props.min) ** ratio;
+		} else {
+			nextValue = props.min + ratio * (props.max - props.min);
+			const step = props.step * (precisionMode ? 0.1 : 1);
+			if (step > 0 && ratio > 0 && ratio < 1) {
+				// 直接入力やShift調整でstepの倍数から外れていても、操作開始時の値を保持する。
+				nextValue = segmentStartValue + Math.round((nextValue - segmentStartValue) / step) * step;
+			}
+		}
+		// 小数stepの浮動小数点誤差を除き、丸め後も必ずドラッグの上下限を守る。
+		nextValue = clampValue(Number(nextValue.toPrecision(15)));
+		if (nextValue === value.value) return;
+		value.value = nextValue;
+		if (props.continuousUpdate) emit('update:modelValue', nextValue);
+	}, () => {
 		finishDrag = null;
-		tooltipForDragShowing.value = false;
-		thumb.removeEventListener('pointermove', onDrag);
-		thumb.removeEventListener('pointerup', onPointerEnd);
-		thumb.removeEventListener('pointercancel', onPointerEnd);
-		thumb.removeEventListener('lostpointercapture', onPointerEnd);
-		ownerWindow?.removeEventListener('blur', endDrag);
-		if (thumb.hasPointerCapture(pointerId)) thumb.releasePointerCapture(pointerId);
-
-		// 値が変わってたら通知
-		if (beforeValue !== finalValue.value) {
-			if (!props.continuousUpdate) emit('update:modelValue', finalValue.value);
-			emit('dragEnded', finalValue.value);
+		dragging.value = false;
+		if (beforeValue !== value.value) {
+			if (!props.continuousUpdate) emit('update:modelValue', value.value);
+			emit('dragEnded', value.value);
 		}
 		emit('changeFinished');
-	};
+	});
+}
 
-	finishDrag = endDrag;
-	thumb.addEventListener('pointermove', onDrag);
-	thumb.addEventListener('pointerup', onPointerEnd);
-	thumb.addEventListener('pointercancel', onPointerEnd);
-	thumb.addEventListener('lostpointercapture', onPointerEnd);
-	ownerWindow?.addEventListener('blur', endDrag, { once: true });
+async function beginEditing() {
+	if (props.disabled || editing.value) return;
+	finishDrag?.();
+	draft.value = value.value;
+	editing.value = true;
+	await nextTick();
+	inputEl.value?.focus();
+	inputEl.value?.select();
+}
 
-	if (lastClickTime == null) {
-		lastClickTime = Date.now();
-		return;
-	} else {
-		const now = Date.now();
-		if (now - lastClickTime < 300) { // 300ms以内のクリックはダブルクリックとみなす
-			lastClickTime = null;
-			emit('thumbDoubleClicked');
-			return;
-		} else {
-			lastClickTime = now;
-		}
+function saveEditing() {
+	if (props.disabled || !editing.value || !draftHasContent.value) return;
+	// 入力中は評価せず、明示的な確定時だけ式を数値へ置き換える。
+	// 失敗時は編集状態と入力内容を維持し、途中の式や不正な値を親へ送らない。
+	const nextValue = evaluateNumericInputExpression(draft.value);
+	if (nextValue == null) return;
+	editing.value = false;
+	if (nextValue === value.value) return;
+	// 直接入力もドラッグと同じ編集境界で通知し、呼び出し元のUndo/Redoにまとめる。
+	emit('beginChanging');
+	value.value = nextValue;
+	emit('update:modelValue', nextValue);
+	emit('changeFinished');
+}
+
+function cancelEditing() {
+	editing.value = false;
+	draft.value = value.value;
+}
+
+function onEditorKeydown(event: KeyboardEvent) {
+	if (event.isComposing || event.key === 'Process' || event.keyCode === 229 || event.altKey || event.shiftKey) return;
+	if (event.key === 'Escape' && !event.ctrlKey && !event.metaKey) {
+		event.preventDefault();
+		event.stopPropagation();
+		cancelEditing();
+	} else if (event.key === 'Enter' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's')) {
+		event.preventDefault();
+		event.stopPropagation();
+		if (!event.repeat) saveEditing();
 	}
 }
+
+watch(() => props.modelValue, newValue => {
+	value.value = newValue;
+	// Undo/Redoや外部操作後に古いドラフトを確定させない。同期自体は編集として通知しない。
+	if (editing.value) draft.value = newValue;
+});
+
+watch(() => props.disabled, disabled => {
+	if (!disabled) return;
+	finishDrag?.();
+	cancelEditing();
+});
+
+onBeforeUnmount(() => finishDrag?.());
 </script>
 
-<style lang="scss" scoped>
-@use "sass:math";
+<style lang="scss" module>
+.root {
+	--height: var(--GS-CONTROL-HEIGHT);
+}
 
-.timctyfi {
+.label {
+	font-size: 90%;
+	padding: 0 0 4px 0;
+	user-select: none;
+
+	&:empty {
+		display: none;
+	}
+}
+
+.caption {
+	font-size: 90%;
+	padding: 4px 0 0 0;
+	color: color(from var(--THEME-fg) srgb r g b / 0.75);
+
+	&:empty {
+		display: none;
+	}
+}
+
+.input {
 	position: relative;
+	box-sizing: border-box;
+	height: var(--height);
+	background: var(--THEME-input);
+	border-radius: 6px;
+	overflow: clip;
+	cursor: ew-resize;
+	touch-action: none;
+	user-select: none;
 
-	> .label {
-		font-size: 90%;
-		padding: 0 0 8px 0;
-		user-select: none;
-
-		&:empty {
-			display: none;
-		}
+	&:hover {
+		background: hsl(from var(--THEME-input) h s calc(l + 5));
 	}
 
-	> .caption {
-		font-size: 90%;
-		padding: 8px 0 0 0;
-		color: color(from var(--THEME-fg) srgb r g b / 0.75);
-
-		&:empty {
-			display: none;
-		}
+	&.focused {
+		box-shadow: 0 0 0 1px var(--THEME-accent);
+		cursor: text;
+		touch-action: auto;
+		user-select: text;
 	}
 
-	$thumbHeight: 20px;
-	$thumbWidth: 20px;
-	$thumbInnerHeight: 13px;
-	$thumbInnerWidth: 13px;
-
-	> .body {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		padding: 0px 4px;
-
-		&.disabled {
-			pointer-events: none;
-			opacity: 0.6;
-		}
-
-		> .container {
-			flex: 1;
-			position: relative;
-			height: $thumbHeight;
-
-			> .track {
-				position: absolute;
-				top: 0;
-				bottom: 0;
-				left: 0;
-				right: 0;
-				margin: auto;
-				width: calc(100% - #{$thumbWidth});
-				height: 3px;
-				background: rgba(0, 0, 0, 0.3);
-				border-radius: 999px;
-				overflow: clip;
-
-				> .highlight {
-					position: absolute;
-					top: 0;
-					height: 100%;
-					background: color(from var(--THEME-accent) srgb r g b / 0.5);
-					overflow: clip;
-
-					> .shine {
-						position: absolute;
-						top: 0;
-						width: 64px;
-						height: 100%;
-					}
-				}
-
-				> .highlight.right {
-					> .shine.right {
-						right: calc(#{$thumbInnerWidth} / 2);
-						//background: linear-gradient(-90deg, var(--THEME-accent2), color(from var(--THEME-accent) srgb r g b / 0));
-						background: color(from var(--THEME-accent) srgb r g b / 0);
-					}
-				}
-
-				> .highlight.left {
-					> .shine.left {
-						left: calc(#{$thumbInnerWidth} / 2);
-						//background: linear-gradient(90deg, var(--THEME-accent2), color(from var(--THEME-accent) srgb r g b / 0));
-						background: color(from var(--THEME-accent) srgb r g b / 0);
-					}
-				}
-			}
-
-			> .ticks {
-				$tickWidth: 3px;
-
-				position: absolute;
-				top: 0;
-				bottom: 0;
-				left: 0;
-				right: 0;
-				margin: auto;
-				width: calc(100% - #{$thumbWidth});
-
-				> .tick {
-					position: absolute;
-					bottom: 0;
-					width: $tickWidth;
-					height: 3px;
-					margin-left: - math.div($tickWidth, 2);
-					background: var(--THEME-divider);
-					border-radius: 999px;
-				}
-			}
-
-			> .thumb {
-				position: absolute;
-				width: $thumbWidth;
-				height: $thumbHeight;
-				cursor: grab;
-				touch-action: none;
-				user-select: none;
-
-				&.dragging {
-					cursor: grabbing;
-				}
-
-				&:hover {
-					> .thumbInner {
-						background: hsl(from var(--THEME-accent) h s calc(l + 10));
-					}
-				}
-
-				> .thumbInner {
-					position: absolute;
-					top: 0;
-					left: 0;
-					right: 0;
-					bottom: 0;
-					margin: auto;
-					width: $thumbInnerWidth;
-					height: $thumbInnerHeight;
-					background: var(--THEME-accent);
-					border-radius: 999px;
-					pointer-events: none;
-				}
-			}
-		}
+	&.disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
 	}
+}
 
-	&.easing {
-		> .body {
-			> .container {
-				> .track {
-					> .highlight {
-						transition: width 0.2s cubic-bezier(0, 0, 0, 1);
-					}
-				}
+.fill {
+	position: absolute;
+	inset: 0 auto 0 0;
+	background: color(from var(--THEME-accent) srgb r g b / 0.25);
+	pointer-events: none;
+}
 
-				> .thumb {
-					transition: left 0.2s cubic-bezier(0, 0, 0, 1);
-				}
-			}
-		}
+.easing .fill {
+	transition: width 0.2s cubic-bezier(0, 0, 0, 1);
+}
+
+.value,
+.nativeInput {
+	position: relative;
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0 10px;
+	font: inherit;
+	font-weight: normal;
+	font-size: 1em;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+	color: var(--THEME-fg);
+}
+
+.value {
+	line-height: var(--height);
+	white-space: nowrap;
+	overflow: clip;
+	text-overflow: ellipsis;
+	pointer-events: none;
+}
+
+.nativeInput {
+	appearance: none;
+	background: transparent;
+	border: none;
+	border-radius: 0;
+	outline: none;
+	box-shadow: none;
+}
+
+.prefix,
+.suffix {
+	display: flex;
+	align-items: center;
+	position: absolute;
+	z-index: 1;
+	top: 0;
+	height: var(--height);
+	padding: 0 8px;
+	color: color(from var(--THEME-fg) srgb r g b / 0.7);
+	pointer-events: none;
+
+	&:empty {
+		display: none;
 	}
+}
+
+.prefix {
+	left: 0;
+}
+
+.suffix {
+	right: 0;
+}
+
+.manualSaveActions {
+	position: fixed;
+	top: anchor(bottom);
+	left: anchor(left);
+	display: flex;
+	gap: 6px;
+	padding: 6px;
+	border-radius: 0 0 5px 5px;
+	box-sizing: border-box;
 }
 </style>

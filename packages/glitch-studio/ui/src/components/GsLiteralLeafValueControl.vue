@@ -7,20 +7,17 @@
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'range'">
 		<GsRange
-			v-if="value >= scalarControl.min && value <= scalarControl.max"
+			v-tooltip="`${scalarControl.min} ~ ${scalarControl.max}`"
 			:modelValue="value"
 			:step="scalarControl.step ?? 1"
 			:logarithmic="scalarControl.logarithmic"
 			:min="scalarControl.min"
 			:max="scalarControl.max ?? 1"
-			:title="`${scalarControl.min} ~ ${scalarControl.max}`"
 			:continuousUpdate="true"
 			@beginChanging="onBeginChanging"
 			@update:modelValue="changeContinuous"
 			@changeFinished="onFinishChanging"
-			@thumbDoubleClicked="reset"
 		/>
-		<GsInput v-else type="number" manualSave :modelValue="value" @update:modelValue="changeValue($event)"/>
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'angle'">
 		<GsAngle
