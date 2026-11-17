@@ -12,7 +12,7 @@ export default defineEffect({
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
-	tags: ['distortion', 'liquid', 'gimmicky', 'stylized'],
+	tags: ['distortion', 'liquid', 'stylized'],
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

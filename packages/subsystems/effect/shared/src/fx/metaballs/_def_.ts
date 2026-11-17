@@ -11,7 +11,7 @@ export default defineEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['pattern', 'liquid', 'gimmicky', 'stylized'],
+	tags: ['pattern', 'liquid', 'stylized'],
 	paramDefs: {
 		background: {
 			dataType: { kind: 'color' },

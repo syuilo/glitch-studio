@@ -25,7 +25,6 @@ export const EFFECT_TAGS = [
 	'blur', // ぼかし
 	'light', // 光・発光
 	'glitch', // 映像の乱れ・破損を模した表現
-	'pixel', // ピクセル・ブロック
 	'pattern', // 繰り返し模様・幾何学的なパターン
 	'fractal', // 自己相似・再帰的な模様やフラクタルノイズ
 	'gradient', // 見た目の階調変化。微分としての勾配計算はmathに分類する。
